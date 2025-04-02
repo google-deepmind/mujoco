@@ -3808,41 +3808,14 @@ Free all pointers with ``mju_free()``.
 
 Attachment
 ^^^^^^^^^^
-.. _mjs_attachBody:
+.. _mjs_attach:
 
-`mjs_attachBody <#mjs_attachBody>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjs_attach <#mjs_attach>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjs_attachBody
+.. mujoco-include:: mjs_attach
 
-Attach child body to a parent frame, return the attached body if success or NULL otherwise.
-
-.. _mjs_attachFrame:
-
-`mjs_attachFrame <#mjs_attachFrame>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_attachFrame
-
-Attach child frame to a parent body, return the attached frame if success or NULL otherwise.
-
-.. _mjs_attachToSite:
-
-`mjs_attachToSite <#mjs_attachToSite>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_attachToSite
-
-Attach child body to a parent site, return the attached body if success or NULL otherwise.
-
-.. _mjs_attachFrameToSite:
-
-`mjs_attachFrameToSite <#mjs_attachFrameToSite>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_attachFrameToSite
-
-Attach child frame to a parent site, return the attached frame if success or NULL otherwise.
+Attach child to a parent, return the attached element if success or NULL otherwise.
 
 .. _mjs_detachBody:
 
@@ -4448,7 +4421,7 @@ Set element's default.
 
 .. mujoco-include:: mjs_setFrame
 
-Set element's enclosing frame.
+Set element's enclosing frame, return 0 on success.
 
 .. _mjs_resolveOrientation:
 

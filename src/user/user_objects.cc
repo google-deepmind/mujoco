@@ -773,6 +773,9 @@ void mjCBase::SetFrame(mjCFrame* _frame) {
   if (!_frame) {
     return;
   }
+  if (_frame->body && GetParent() != _frame->body) {
+    throw mjCError(this, "Frame and body '%s' have mismatched parents", name.c_str());
+  }
   frame = _frame;
 }
 
@@ -891,8 +894,18 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
   for (int i=0; i < other.bodies.size(); i++) {
     bodies.push_back(new mjCBody(*other.bodies[i], model));  // triggers recursive call
     bodies.back()->parent = this;
-    bodies.back()->frame =
-      other.bodies[i]->frame ? frames[fmap[other.bodies[i]->frame]] : nullptr;
+    bodies.back()->frame = nullptr;
+    if (other.bodies[i]->frame) {
+      if (fmap.find(other.bodies[i]->frame) != fmap.end()) {
+        bodies.back()->frame = frames[fmap[other.bodies[i]->frame]];
+      } else {
+        throw mjCError(this, "Frame '%s' not found in other body",
+                       other.bodies[i]->frame->name.c_str());
+      }
+      if (bodies.back()->frame && bodies.back()->frame->body != this) {
+        throw mjCError(this, "Frame and body '%s' have mismatched parents", name.c_str());
+      }
+    }
   }
 
   return *this;
@@ -18123,7 +18136,7 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
 mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   // append a copy of the attached spec
   if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
-    model->AppendSpec(mj_copySpec(&other.model->spec));
+    model->AppendSpec(mj_copySpec(&other.model->spec), &other.model->spec.compiler);
   }
 
   // create a copy of the subtree that contains the frame
@@ -19182,16 +19195,6 @@ void mjCBody::Compile(void) {
     }
   }
 
-  // if discarding visual geoms, use explicit inertias
-  if (compiler->discardvisual) {
-    for (int j=0; j < geoms.size(); j++) {
-      if (geoms[j]->IsVisual()) {
-        explicitinertial = true;
-        break;
-      }
-    }
-  }
-
   // free joint alignment, phase 2 (transform sites, cameras and lights)
   if (align_free) {
     // frames have already been compiled and applied to children
@@ -19257,7 +19260,7 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
 mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   // append a copy of the attached spec if it doesn't already exist
   if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
-    model->AppendSpec(mj_copySpec(&other.model->spec));
+    model->AppendSpec(mj_copySpec(&other.model->spec), &other.model->spec.compiler);
   }
 
   // apply namespace and store keyframes in the source model

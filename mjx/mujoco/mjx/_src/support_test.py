@@ -176,15 +176,15 @@ class SupportTest(parameterized.TestCase):
         </worldbody>
 
         <actuator>
-          <motor name="actuator1" joint="joint1"/>
-          <motor name="actuator2" joint="joint2"/>
-          <motor name="actuator3" joint="joint3"/>
+          <motor joint="joint1"/>
+          <motor joint="joint2"/>
+          <motor joint="joint3"/>
         </actuator>
 
         <sensor>
-          <framepos name="sensor1" objtype="body" objname="body1"/>
-          <framepos name="sensor2" objtype="body" objname="body2"/>
-          <framepos name="sensor3" objtype="body" objname="body3"/>
+          <framepos objtype="body" objname="body1"/>
+          <framepos objtype="body" objname="body2"/>
+          <framepos objtype="body" objname="body3"/>
         </sensor>
     </mujoco>
     """
@@ -309,29 +309,28 @@ class SupportTest(parameterized.TestCase):
           dx7.bind(mx, body).xfrc_applied, [0, 0, 0, 0, 0, 0]
       )
 
-    # test invalid name
-    with self.assertRaises(
-        AttributeError, msg='ctrl is not available for this type'
+    # test attribute and type mismatches
+    with self.assertRaisesRegex(
+        AttributeError, 'ctrl is not available for this type'
     ):
       print(dx.bind(mx, s.geoms).ctrl)
-    with self.assertRaises(
-        KeyError, msg='actuator_actuator_ctrl'
-    ):
+    with self.assertRaises(KeyError):
       print(dx.bind(mx, s.actuators).actuator_ctrl)
-    with self.assertRaises(
-        AttributeError, msg='actuator_actuator_ctrl'
+    with self.assertRaisesRegex(
+        AttributeError,
+        "'Data' object has no attribute 'actuator_actuator_ctrl'",
     ):
       print(dx.bind(mx, s.actuators).set('actuator_ctrl', [1, 2, 3]))
-    with self.assertRaises(
-        AttributeError, msg='qpos, qvel, qacc are not available for this type'
+    with self.assertRaisesRegex(
+        AttributeError, 'qpos, qvel, qacc are not available for this type'
     ):
       print(dx.bind(mx, s.geoms).qpos)
-    with self.assertRaises(KeyError, msg='invalid name: invalid_actuator_name'):
-      s.actuators[0].name = 'invalid_actuator_name'
-      print(dx.bind(mx, s.actuators).set('ctrl', [1, 2, 3]))
-    with self.assertRaises(KeyError, msg='invalid name: invalid_geom_name'):
-      s.geoms[0].name = 'invalid_geom_name'
-      print(mx.bind(s.geoms).pos)
+
+    # test that modified names do not raise an error
+    s.actuators[0].name = 'modified_actuator_name'
+    np.testing.assert_array_equal(dx.bind(mx, s.actuators).ctrl, d.ctrl)
+    s.geoms[0].name = 'modified_geom_name'
+    np.testing.assert_array_equal(mx.bind(s.geoms[0]).pos, m.geom_pos[0, :])
 
     # test batched data
     batch_size = 16
@@ -343,12 +342,15 @@ class SupportTest(parameterized.TestCase):
           vdx.bind(mx, s.bodies[i]).xpos, [d.xpos[i, :]] * batch_size
       )
 
-    # test emtpy name
+    # test that adding a body requires recompilation
     s.worldbody.add_body()
-    m = s.compile()
-    mx = mjx.put_model(m)
-    with self.assertRaises(KeyError, msg='cannot bind spec with empty name'):
+    with self.assertRaises(ValueError) as e:
       mx.bind(s.bodies)
+    self.assertEqual(
+        str(e.exception),
+        'mjSpec signature does not match mjx.Model signature:'
+        ' 5495345807332648606 != 270010677651259353',
+    )
 
   _CONTACTS = """
     <mujoco>

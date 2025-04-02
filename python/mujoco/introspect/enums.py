@@ -288,6 +288,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjNOBJECT', 26),
              ('mjOBJ_FRAME', 100),
              ('mjOBJ_DEFAULT', 101),
+             ('mjOBJ_MODEL', 102),
          ]),
      )),
     ('mjtConstraint',

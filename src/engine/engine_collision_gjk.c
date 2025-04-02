@@ -903,6 +903,26 @@ static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
 
 
 
+// return nonzero if the ray v1v2 intersects the triangle v3v4v5
+static inline int rayTriangle(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3],
+                              const mjtNum v4[3], const mjtNum v5[3]) {
+  mjtNum diff12[3], diff13[3], diff14[3], diff15[3];
+  sub3(diff12, v2, v1);
+  sub3(diff13, v3, v1);
+  sub3(diff14, v4, v1);
+  sub3(diff15, v5, v1);
+
+  mjtNum vol1 = det3(diff13, diff14, diff12);
+  mjtNum vol2 = det3(diff14, diff15, diff12);
+  mjtNum vol3 = det3(diff15, diff13, diff12);
+
+  if (vol1 >= 0 && vol2 >= 0 && vol3 >= 0) return 1;
+  if (vol1 <= 0 && vol2 <= 0 && vol3 <= 0) return -1;
+  return 0;
+}
+
+
+
 // create a polytope from a 1-simplex (returns 0 on success)
 static int polytope2(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum *v1 = status->simplex[0].vert, *v2 = status->simplex[1].vert;
@@ -970,9 +990,9 @@ static int polytope2(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
     return polytope3(pt, status, obj1, obj2);
   }
 
-  // check that origin is in the hexahedron
-  if (status->dist > 10*mjMINVAL && !testTetra(v1, v3, v4, v5) && !testTetra(v2, v3, v4, v5)) {
-    return mjEPA_P2_MISSING_ORIGIN;
+  // check hexahedron is convex
+  if (!rayTriangle(v1, v2, v3, v4, v5)) {
+    return mjEPA_P2_NONCONVEX;
   }
 
   for (int i = 0; i < 6; i++) {
@@ -1251,7 +1271,7 @@ static int horizonRec(Polytope* pt, Face* face, int e) {
     mjtNum dist2 = face->dist * face->dist;
 
     // v is visible from w so it is deleted and adjacent faces are checked
-    if (dot3(face->v, pt->horizon.w) >= dist2) {
+    if (dot3(face->v, pt->horizon.w) > dist2) {
       deleteFace(pt, face);
 
       // recursively search the adjacent faces on the next two edges

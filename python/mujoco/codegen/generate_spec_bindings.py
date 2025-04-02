@@ -627,6 +627,22 @@ def generate_signature() -> None:
     print(code)
 
 
+def generate_id() -> None:
+  """Generate id functions."""
+  for key, _, _, _, _ in SPECS:
+    if key == 'mjsPlugin':
+      continue
+    elem = key.removeprefix('mjs')
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      {key}.def_property_readonly("id",
+      [](raw::{titlecase}& self) -> int {{
+        return mjs_getId(self.element);
+      }});
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
@@ -634,6 +650,7 @@ def main(argv: Sequence[str]) -> None:
   generate_add()
   generate_find()
   generate_signature()
+  generate_id()
 
 
 if __name__ == '__main__':

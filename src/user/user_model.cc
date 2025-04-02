@@ -168,7 +168,7 @@ static void processlist(mjListKeyMap& ids, vector<T*>& list,
 // constructor
 mjCModel::mjCModel() {
   mjs_defaultSpec(&spec);
-  elemtype = mjOBJ_UNKNOWN;
+  elemtype = mjOBJ_MODEL;
   spec_comment_.clear();
   spec_modelfiledir_.clear();
   spec_meshdir_.clear();
@@ -214,9 +214,6 @@ mjCModel::mjCModel() {
   // create mjCBase lists from children lists
   CreateObjectLists();
 
-  // the source spec is the model itself, overwritten in the copy constructor
-  source_spec_ = &spec;
-
   // set the signature
   spec.element->signature = 0;
 }
@@ -225,7 +222,6 @@ mjCModel::mjCModel() {
 
 mjCModel::mjCModel(const mjCModel& other) {
   CreateObjectLists();
-  source_spec_ = (mjSpec*)&other.spec;
   *this = other;
 }
 
@@ -241,6 +237,7 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // copy attached specs first so that we can resolve references to them
     for (const auto* s : other.specs_) {
       specs_.push_back(mj_copySpec(s));
+      compiler2spec_[&s->compiler] = specs_.back();
     }
 
     // the world copy constructor takes care of copying the tree
@@ -563,7 +560,7 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
 template <>
 void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
   for (mjCKey* element : elements) {
-    delete element;
+    element->Release();
   }
   elements.clear();
 }
@@ -1167,6 +1164,7 @@ mjCPlugin* mjCModel::AddPlugin() {
 
 
 // append spec to spec
+
 void mjCModel::AppendSpec(mjSpec* spec) {
   // Check if this spec already exists in our model (asset deduplication)
   mjSpec* existing = FindDuplicateAsset(spec);
@@ -1177,7 +1175,15 @@ void mjCModel::AppendSpec(mjSpec* spec) {
   }
   
   // No duplicate found, add the new spec
+
+void mjCModel::AppendSpec(mjSpec* spec, const mjsCompiler* compiler_) {
+  // TODO: check if the spec is already in the list
+
   specs_.push_back(spec);
+
+  if (compiler_) {
+    compiler2spec_[compiler_] = spec;
+  }
 }
 
 // Find duplicate assets and return the existing one if found
@@ -1626,10 +1632,15 @@ mjSpec* mjCModel::FindSpec(std::string name) const {
 
 
 // find spec by mjsCompiler pointer
-mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
-  if (&GetSourceSpec()->compiler == compiler_) {
-    return (mjSpec*)&spec;
+mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) {
+  if (compiler_ == &spec.compiler) {
+    return &spec;
   }
+
+  if (compiler2spec_.find(compiler_) != compiler2spec_.end()) {
+    return compiler2spec_[compiler_];
+  }
+
   for (auto s : specs_) {
     mjSpec* source = static_cast<mjCModel*>(s->element)->FindSpec(compiler_);
     if (source) {
@@ -1637,13 +1648,6 @@ mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
     }
   }
   return nullptr;
-}
-
-
-
-// get the spec from which this model was created
-mjSpec* mjCModel::GetSourceSpec() const {
-  return source_spec_;
 }
 
 
@@ -1719,7 +1723,7 @@ static void DeleteElements(std::vector<T*>& elements,
   int i = 0;
   for (int j=0; j < elements.size(); j++) {
     if (discard[j]) {
-      delete elements[j];
+      elements[j]->Release();
     } else {
       elements[i] = elements[j];
       i++;
@@ -1777,7 +1781,7 @@ void mjCModel::DeleteAll<mjCMaterial>(std::vector<mjCMaterial*>& elements) {
   DeleteMaterial(sites_);
   DeleteMaterial(tendons_);
   for (mjCMaterial* element : elements) {
-    delete element;
+    element->Release();
   }
   elements.clear();
 }
@@ -1787,7 +1791,7 @@ template <>
 void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
   DeleteAllTextures(materials_);
   for (mjCTexture* element : elements) {
-    delete element;
+    element->Release();
   }
   elements.clear();
 }
@@ -1947,7 +1951,6 @@ void mjCModel::IndexAssets(bool discard) {
     }
   }
 
-  // discard visual meshes and geoms
   if (discard) {
     std::vector<bool> discard_mesh(meshes_.size(), false);
     std::vector<bool> discard_geom(geoms_.size(), false);
@@ -1961,6 +1964,28 @@ void mjCModel::IndexAssets(bool discard) {
       return geom->IsVisual();
     });
 
+    // update inertia in bodies
+    for (auto body : bodies_) {
+      if (body->spec.explicitinertial) {
+        continue;
+      }
+      for (auto geom : body->geoms) {
+        if (geom->IsVisual()) {
+          if (compiler.inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
+            compiler.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
+          }
+          body->explicitinertial = true;  // for XML writer
+          body->spec.explicitinertial = true;
+          body->spec.mass = body->mass;
+          mjuu_copyvec(body->spec.ipos, body->ipos, 3);
+          mjuu_copyvec(body->spec.iquat, body->iquat, 4);
+          mjuu_copyvec(body->spec.inertia, body->inertia, 3);
+          break;
+        }
+      }
+    }
+
+    // discard visual meshes and geoms
     Delete(meshes_, discard_mesh);
     Delete(geoms_, discard_geom);
   }

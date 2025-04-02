@@ -844,6 +844,7 @@ class Model(PyTreeNode):
     name_tupleadr: tuple name pointers                        (ntuple,)
     name_keyadr: keyframe name pointers                       (nkey,)
     names: names of all objects, 0-terminated                 (nnames,)
+    signature: compilation signature
   """
 
   nq: int
@@ -1187,6 +1188,7 @@ class Model(PyTreeNode):
   name_tupleadr: np.ndarray
   name_keyadr: np.ndarray
   names: bytes
+  signature: np.uint64
   _sizes: jax.Array
 
 

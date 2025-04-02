@@ -607,7 +607,8 @@ typedef enum mjtObj_ {            // type of MujoCo object
 
   // meta elements, do not appear in mjModel
   mjOBJ_FRAME         = 100,      // frame
-  mjOBJ_DEFAULT                   // default
+  mjOBJ_DEFAULT,                  // default
+  mjOBJ_MODEL                     // entire model
 
 } mjtObj;
 typedef enum mjtConstraint_ {     // type of constraint
@@ -3612,14 +3613,8 @@ void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
 void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 void mju_defaultTask(mjTask* task);
 void mju_taskJoin(mjTask* task);
-mjsBody* mjs_attachBody(mjsFrame* parent, const mjsBody* child,
-                        const char* prefix, const char* suffix);
-mjsFrame* mjs_attachFrame(mjsBody* parent, const mjsFrame* child,
-                          const char* prefix, const char* suffix);
-mjsBody* mjs_attachToSite(mjsSite* parent, const mjsBody* child,
-                          const char* prefix, const char* suffix);
-mjsFrame* mjs_attachFrameToSite(mjsSite* parent, const mjsFrame* child,
-                                const char* prefix, const char* suffix);
+mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
+                       const char* prefix, const char* suffix);
 int mjs_detachBody(mjSpec* s, mjsBody* b);
 int mjs_detachDefault(mjSpec* s, mjsDefault* d);
 mjsBody* mjs_addBody(mjsBody* body, const mjsDefault* def);
@@ -3683,7 +3678,7 @@ void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 const char* mjs_getString(const mjString* source);
 const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 void mjs_setDefault(mjsElement* element, const mjsDefault* def);
-void mjs_setFrame(mjsElement* dest, mjsFrame* frame);
+int mjs_setFrame(mjsElement* dest, mjsFrame* frame);
 const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* sequence,
                                    const mjsOrientation* orientation);
 mjsFrame* mjs_bodyToFrame(mjsBody** body);

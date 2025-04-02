@@ -215,7 +215,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCTuple* AddTuple();
   mjCKey* AddKey();
   mjCPlugin* AddPlugin();
-  void AppendSpec(mjSpec* spec);
+
+  // append spec to this model, optionally map compiler options to the appended spec
+  void AppendSpec(mjSpec* spec, const mjsCompiler* compiler = nullptr);
 
   // Find duplicate assets and return the existing one if found
   mjSpec* FindDuplicateAsset(const mjSpec* spec);
@@ -251,7 +253,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
-  mjSpec* FindSpec(const mjsCompiler* compiler_) const;             // find spec given mjsCompiler
+  mjSpec* FindSpec(const mjsCompiler* compiler_);                   // find spec given mjsCompiler
   void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
 
   // accessors
@@ -319,9 +321,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // map from default class name to default class pointer
   std::unordered_map<std::string, mjCDef*> def_map;
 
-  // get the spec from which this model was created
-  mjSpec* GetSourceSpec() const;
-
   // set deepcopy flag
   void SetDeepCopy(bool deepcopy) { deepcopy_ = deepcopy; }
 
@@ -334,9 +333,6 @@ class mjCModel : public mjCModel_, private mjSpec {
  private:
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
-
-  // spec from which this model was created in copy constructor
-  mjSpec* source_spec_;
 
   // list of active plugins
   std::vector<std::pair<const mjpPlugin*, int>> active_plugins_;
@@ -456,5 +452,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   bool deepcopy_;     // copy objects when attaching
   bool attached_ = false;  // true if model is attached to a parent model
   int uid_count_ = 0;  // unique id count for all objects
+  std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

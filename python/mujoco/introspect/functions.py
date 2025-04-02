@@ -9000,23 +9000,23 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Wait for a task to complete.',
      )),
-    ('mjs_attachBody',
+    ('mjs_attach',
      FunctionDecl(
-         name='mjs_attachBody',
+         name='mjs_attach',
          return_type=PointerType(
-             inner_type=ValueType(name='mjsBody'),
+             inner_type=ValueType(name='mjsElement'),
          ),
          parameters=(
              FunctionParameterDecl(
                  name='parent',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsFrame'),
+                     inner_type=ValueType(name='mjsElement'),
                  ),
              ),
              FunctionParameterDecl(
                  name='child',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsBody', is_const=True),
+                     inner_type=ValueType(name='mjsElement', is_const=True),
                  ),
              ),
              FunctionParameterDecl(
@@ -9032,109 +9032,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Attach child body to a parent frame, return the attached body if success or NULL otherwise.',  # pylint: disable=line-too-long
-     )),
-    ('mjs_attachFrame',
-     FunctionDecl(
-         name='mjs_attachFrame',
-         return_type=PointerType(
-             inner_type=ValueType(name='mjsFrame'),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='parent',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsBody'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='child',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsFrame', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='prefix',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='suffix',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Attach child frame to a parent body, return the attached frame if success or NULL otherwise.',  # pylint: disable=line-too-long
-     )),
-    ('mjs_attachToSite',
-     FunctionDecl(
-         name='mjs_attachToSite',
-         return_type=PointerType(
-             inner_type=ValueType(name='mjsBody'),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='parent',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsSite'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='child',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsBody', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='prefix',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='suffix',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Attach child body to a parent site, return the attached body if success or NULL otherwise.',  # pylint: disable=line-too-long
-     )),
-    ('mjs_attachFrameToSite',
-     FunctionDecl(
-         name='mjs_attachFrameToSite',
-         return_type=PointerType(
-             inner_type=ValueType(name='mjsFrame'),
-         ),
-         parameters=(
-             FunctionParameterDecl(
-                 name='parent',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsSite'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='child',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsFrame', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='prefix',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='suffix',
-                 type=PointerType(
-                     inner_type=ValueType(name='char', is_const=True),
-                 ),
-             ),
-         ),
-         doc='Attach child frame to a parent site, return the attached frame if success or NULL otherwise.',  # pylint: disable=line-too-long
+         doc='Attach child to a parent, return the attached element if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
     ('mjs_detachBody',
      FunctionDecl(
@@ -10423,7 +10321,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mjs_setFrame',
      FunctionDecl(
          name='mjs_setFrame',
-         return_type=ValueType(name='void'),
+         return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
                  name='dest',
@@ -10438,7 +10336,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc="Set element's enclosing frame.",
+         doc="Set element's enclosing frame, return 0 on success.",
      )),
     ('mjs_resolveOrientation',
      FunctionDecl(

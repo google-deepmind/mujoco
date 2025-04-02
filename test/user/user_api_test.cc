@@ -279,20 +279,23 @@ TEST_F(PluginTest, AttachPlugin) {
   EXPECT_THAT(body_1, NotNull());
   mjsFrame* attachment_frame = mjs_addFrame(body_1, 0);
   EXPECT_THAT(attachment_frame, NotNull());
-  mjs_attachBody(attachment_frame, mjs_findBody(spec_1, "body"), "child-", "");
+  mjs_attach(attachment_frame->element, mjs_findBody(spec_1, "body")->element,
+             "child-", "");
   mjModel* model_1 = mj_compile(parent, nullptr);
   EXPECT_THAT(model_1, NotNull());
   EXPECT_THAT(model_1->nbody, 3);
 
   // attach it a second time to test namespacing and compile
   ASSERT_THAT(spec_2, NotNull()) << err.data();
-  mjs_attachBody(attachment_frame, mjs_findBody(spec_2, "body"), "copy-", "");
+  mjs_attach(attachment_frame->element, mjs_findBody(spec_2, "body")->element,
+             "copy-", "");
   mjModel* model_2 = mj_compile(parent, nullptr);
   EXPECT_THAT(model_2, NotNull());
   EXPECT_THAT(model_2->nbody, 4);
 
   // attach a body not referencing the plugin and compile
-  mjs_attachBody(attachment_frame, mjs_findBody(spec_3, "empty"), "empty-", "");
+  mjs_attach(attachment_frame->element, mjs_findBody(spec_3, "empty")->element,
+             "empty-", "");
   mjModel* model_3 = mj_compile(parent, nullptr);
   EXPECT_THAT(model_3, NotNull());
   EXPECT_THAT(model_3->nbody, 5);
@@ -314,9 +317,9 @@ TEST_F(PluginTest, DetachPlugin) {
   ASSERT_THAT(child, NotNull()) << err.data();
 
   // attach a body referencing the plugin to the frame
-  mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), 0);
-  mjsBody* body = mjs_findBody(child, "body");
-  EXPECT_THAT(mjs_attachBody(frame, body, "child-", ""), NotNull());
+  mjsElement* frame = mjs_addFrame(mjs_findBody(parent, "world"), 0)->element;
+  mjsElement* body = mjs_findBody(child, "body")->element;
+  EXPECT_THAT(mjs_attach(frame, body, "child-", ""), NotNull());
 
   // detach the body and compile
   mjsBody* body_to_detach = mjs_findBody(parent, "child-body");
@@ -372,7 +375,8 @@ TEST_F(PluginTest, AttachExplicitPlugin) {
   mjsFrame* attachment_frame = mjs_addFrame(body_parent, 0);
   EXPECT_THAT(attachment_frame, NotNull());
 
-  mjs_attachBody(attachment_frame, mjs_findBody(child, "body"), "child-", "");
+  mjs_attach(attachment_frame->element, mjs_findBody(child, "body")->element,
+             "child-", "");
   mjModel* model = mj_compile(parent, nullptr);
   EXPECT_THAT(model, NotNull());
   EXPECT_THAT(model->nplugin, 1);
@@ -520,8 +524,7 @@ TEST_F(PluginTest, RecompileCompare) {
         // if file is meant to fail, skip it
         if (absl::StrContains(p.path().string(), "malformed_") ||
             absl::StrContains(p.path().string(), "touch_grid") ||
-            absl::StrContains(p.path().string(), "cow") ||
-            absl::StrContains(p.path().string(), "discardvisual")) {
+            absl::StrContains(p.path().string(), "cow")) {
           continue;
         }
 
@@ -938,7 +941,8 @@ TEST_F(MujocoTest, AttachSame) {
   EXPECT_THAT(body, NotNull());
 
   // attach child to parent frame
-  mjsBody* attached = mjs_attachBody(frame, body, "attached-", "-1");
+  mjsBody* attached =
+      mjs_asBody(mjs_attach(frame->element, body->element, "attached-", "-1"));
   EXPECT_THAT(attached, mjs_findBody(parent, "attached-body-1"));
 
   // check that the spec was not copied
@@ -1074,7 +1078,8 @@ TEST_F(MujocoTest, AttachDifferent) {
   EXPECT_THAT(body, NotNull());
 
   // attach child to parent frame
-  mjsBody* attached = mjs_attachBody(frame, body, "attached-", "-1");
+  mjsBody* attached =
+      mjs_asBody(mjs_attach(frame->element, body->element, "attached-", "-1"));
   EXPECT_THAT(attached, mjs_findBody(parent, "attached-body-1"));
 
   // check that the spec was copied
@@ -1213,7 +1218,8 @@ TEST_F(MujocoTest, AttachFrame) {
   EXPECT_THAT(frame, NotNull());
 
   // attach child frame to parent body
-  mjsFrame* attached = mjs_attachFrame(body, frame, "attached-", "-1");
+  mjsFrame* attached =
+      mjs_asFrame(mjs_attach(body->element, frame->element, "attached-", "-1"));
   EXPECT_THAT(attached, mjs_findFrame(parent, "attached-pframe-1"));
 
   // check that the spec was copied
@@ -1287,7 +1293,7 @@ TEST_F(MujocoTest, AttachCompiled) {
   // attach child body to the frame
   mjsBody* to_attach = mjs_findBody(child, "base");
   EXPECT_THAT(to_attach, NotNull()) << mjs_getError(child);
-  mjs_attachBody(frame, to_attach, "", "");
+  mjs_attach(frame->element, to_attach->element, "", "");
 
   // check that attached model can be compiled
   mjModel* m_attached = mj_compile(parent, 0);
@@ -1434,7 +1440,8 @@ TEST_F(MujocoTest, AttachToSite) {
   EXPECT_THAT(site, NotNull());
   mjsBody* body = mjs_findBody(child, "sphere");
   EXPECT_THAT(body, NotNull());
-  mjsBody* attached = mjs_attachToSite(site, body, "attached-", "-1");
+  mjsBody* attached =
+      mjs_asBody(mjs_attach(site->element, body->element, "attached-", "-1"));
   EXPECT_THAT(attached, NotNull());
 
   mjModel* model = mj_compile(parent, 0);
@@ -1499,7 +1506,8 @@ TEST_F(MujocoTest, AttachFrameToSite) {
   EXPECT_THAT(site, NotNull());
   mjsFrame* frame = mjs_findFrame(child, "frame");
   EXPECT_THAT(frame, NotNull());
-  mjsFrame* attached = mjs_attachFrameToSite(site, frame, "attached-", "-1");
+  mjsFrame* attached =
+      mjs_asFrame(mjs_attach(site->element, frame->element, "attached-", "-1"));
   EXPECT_THAT(attached, NotNull());
 
   mjModel* model = mj_compile(parent, 0);
@@ -1574,7 +1582,8 @@ TEST_F(MujocoTest, BodyToFrame) {
   EXPECT_THAT(frame, NotNull());
   mjsBody* body = mjs_findBody(child1, "sphere");
   EXPECT_THAT(body, NotNull());
-  mjsBody* attached = mjs_attachBody(frame, body, "attached-", "-1");
+  mjsBody* attached =
+      mjs_asBody(mjs_attach(frame->element, body->element, "attached-", "-1"));
   EXPECT_THAT(attached, NotNull());
   mjModel* model1 = mj_compile(parent, 0);
   EXPECT_THAT(model1, NotNull());
@@ -1582,7 +1591,8 @@ TEST_F(MujocoTest, BodyToFrame) {
   // attach the world to the same frame and convert it to a frame
   mjsBody* world = mjs_findBody(child2, "world");
   EXPECT_THAT(world, NotNull());
-  mjsBody* child_world = mjs_attachBody(frame, world, "attached-", "-2");
+  mjsBody* child_world =
+      mjs_asBody(mjs_attach(frame->element, world->element, "attached-", "-2"));
   EXPECT_THAT(child_world, NotNull());
   mjsFrame* frame_world = mjs_bodyToFrame(&child_world);
   EXPECT_THAT(frame_world, NotNull());
@@ -1663,7 +1673,8 @@ TEST_F(MujocoTest, AttachSpecToSite) {
   mjs_setFrame(mjs_firstChild(world, mjOBJ_CAMERA, 0), frame);
 
   // attach the entire spec to the site
-  mjsFrame* worldframe = mjs_attachFrameToSite(site, frame, "attached-", "-1");
+  mjsFrame* worldframe =
+      mjs_asFrame(mjs_attach(site->element, frame->element, "attached-", "-1"));
   EXPECT_THAT(worldframe, NotNull());
 
   // compile and compare
@@ -1740,7 +1751,8 @@ TEST_F(MujocoTest, AttachSpecToBody) {
   mjs_setFrame(mjs_firstChild(world, mjOBJ_CAMERA, 0), frame);
 
   // attach the entire spec to the site
-  mjsFrame* worldframe = mjs_attachFrame(body, frame, "attached-", "-1");
+  mjsFrame* worldframe =
+      mjs_asFrame(mjs_attach(body->element, frame->element, "attached-", "-1"));
   EXPECT_THAT(worldframe, NotNull());
   worldframe->pos[0] = 1;
   worldframe->pos[1] = 2;
@@ -1938,8 +1950,8 @@ TEST_F(MujocoTest, RecompileAttach) {
   mjSpec* child2 = mj_parseXMLString(xml, 0, er.data(), er.size());
   EXPECT_THAT(child2, NotNull());
 
-  mjsFrame* frame1 = mjs_addFrame(mjs_findBody(parent, "world"), 0);
-  mjs_attachBody(frame1, mjs_findBody(child1, "body"), "child-", "-1");
+  mjsElement* frame1 = mjs_addFrame(mjs_findBody(parent, "world"), 0)->element;
+  mjs_attach(frame1, mjs_findBody(child1, "body")->element, "child-", "-1");
 
   mjModel* model = mj_compile(parent, 0);
   EXPECT_THAT(model, NotNull());
@@ -1951,8 +1963,8 @@ TEST_F(MujocoTest, RecompileAttach) {
     mj_step(model, data);
   }
 
-  mjsFrame* frame2 = mjs_addFrame(mjs_findBody(parent, "world"), 0);
-  mjs_attachBody(frame2, mjs_findBody(child2, "body"), "child-", "-2");
+  mjsElement* frame2 = mjs_addFrame(mjs_findBody(parent, "world"), 0)->element;
+  mjs_attach(frame2, mjs_findBody(child2, "body")->element, "child-", "-2");
 
   EXPECT_EQ(mj_recompile(parent, 0, model, data), 0);
   EXPECT_THAT(model, NotNull());
@@ -2004,8 +2016,8 @@ TEST_F(MujocoTest, AttachMocap) {
   mjsBody* world = mjs_findBody(spec, "world");
   EXPECT_THAT(world, NotNull());
 
-  mjsFrame* frame = mjs_addFrame(world, NULL);
-  mjs_attachBody(frame, body, "attached-", "-1");
+  mjsElement* frame = mjs_addFrame(world, NULL)->element;
+  mjs_attach(frame, body->element, "attached-", "-1");
 
   mjsBody* attached_body = mjs_findBody(spec, "attached-mocap-1");
   EXPECT_THAT(attached_body, NotNull());
@@ -2084,7 +2096,7 @@ TEST_F(MujocoTest, AttachUnnamedAssets) {
   geom->type = mjGEOM_MESH;
 
   mjSpec* spec = mj_makeSpec();
-  mjs_attachFrame(mjs_findBody(spec, "world"), frame, "_", "");
+  mjs_attach(mjs_findBody(spec, "world")->element, frame->element, "_", "");
 
   mjModel* model = mj_compile(spec, vfs.get());
   EXPECT_THAT(model, NotNull());
@@ -2230,8 +2242,8 @@ void AttachNestedKeyframe(bool compile) {
   mjs_setDeepCopy(child, true);
 
   // attach gchild to child
-  mjs_attachBody(mjs_findFrame(child, "frame"),
-                 mjs_findBody(gchild, "body"), "gchild-", "");
+  mjs_attach(mjs_findFrame(child, "frame")->element,
+             mjs_findBody(gchild, "body")->element, "gchild-", "");
 
   // compile required before further attachment
   mjModel* m_child = compile ? mj_compile(child, 0) : nullptr;
@@ -2244,8 +2256,8 @@ void AttachNestedKeyframe(bool compile) {
   };
 
   // attach child to parent
-  mjs_attachBody(mjs_findFrame(parent, "frame"),
-                 mjs_findBody(child, "body"), "child-", "");
+  mjs_attach(mjs_findFrame(parent, "frame")->element,
+             mjs_findBody(child, "body")->element, "child-", "");
 
   EXPECT_THAT(warning, HasSubstr(compile ? "" : "model has pending keyframes"));
 
@@ -2306,11 +2318,11 @@ TEST_F(MujocoTest, RepeatedAttachKeyframe) {
     EXPECT_THAT(child, NotNull()) << er.data();
 
     mjsBody* body_1 = mjs_findBody(parent, "body");
-    mjsFrame* attachment_frame = mjs_addFrame(body_1, 0);
-    mjs_attachBody(attachment_frame, mjs_findBody(child, "b1"), "b1-", "");
+    mjsElement* attachment_frame = mjs_addFrame(body_1, 0)->element;
+    mjs_attach(attachment_frame, mjs_findBody(child, "b1")->element, "b1-", "");
     mjModel* model_1 = mj_compile(parent, 0);
     EXPECT_THAT(model_1, NotNull());
-    mjs_attachBody(attachment_frame, mjs_findBody(child, "b2"), "b2-", "");
+    mjs_attach(attachment_frame, mjs_findBody(child, "b2")->element, "b2-", "");
     mjModel* model_2 = mj_compile(parent, 0);
     EXPECT_THAT(model_2, NotNull());
 
@@ -2375,8 +2387,8 @@ TEST_F(MujocoTest, ResizeParentKeyframe) {
   mjSpec* child = mj_parseXMLString(xml_child, 0, er.data(), er.size());
   EXPECT_THAT(child, NotNull()) << er.data();
 
-  mjs_attachBody(mjs_findFrame(parent, "frame"), mjs_findBody(child, "body"),
-                 "child-", "");
+  mjs_attach(mjs_findFrame(parent, "frame")->element,
+             mjs_findBody(child, "body")->element, "child-", "");
 
   mjModel* model = mj_compile(parent, 0);
   EXPECT_THAT(model, NotNull());
@@ -2467,12 +2479,10 @@ TEST_F(MujocoTest, DifferentUnitsAllowed) {
   mjSpec* child = mj_parseXMLString(child_xml, 0, error.data(), error.size());
   mjSpec* spec = mj_parseXMLString(parent_xml, 0, error.data(), error.size());
   ASSERT_THAT(spec, NotNull()) << error.data();
-  mjs_attachBody(mjs_findFrame(child, "frame"),
-                 mjs_findBody(gchild, "gchild"),
-                 "gchild_", "");
-  mjs_attachBody(mjs_findFrame(spec, "frame"),
-                 mjs_findBody(child, "child"),
-                 "child_", "");
+  mjs_attach(mjs_findFrame(child, "frame")->element,
+             mjs_findBody(gchild, "gchild")->element, "gchild_", "");
+  mjs_attach(mjs_findFrame(spec, "frame")->element,
+             mjs_findBody(child, "child")->element, "child_", "");
 
   mjModel* model = mj_compile(spec, 0);
   EXPECT_THAT(model, NotNull());
@@ -2512,6 +2522,55 @@ TEST_F(MujocoTest, DifferentUnitsAllowed) {
 
   mj_deleteSpec(copied_spec);
   mj_deleteModel(copied_model);
+}
+
+TEST_F(MujocoTest, DifferentOptionsInAttachedFrame) {
+  static constexpr char xml_parent[] = R"(
+  <mujoco>
+    <worldbody/>
+  </mujoco>
+  )";
+
+  static constexpr char xml_child[] = R"(
+  <mujoco>
+    <compiler eulerseq="zyx"/>
+    <worldbody>
+      <frame name="child" >
+        <site euler="0 90 180"/>
+      </frame>
+    </worldbody>
+  </mujoco>
+  )";
+
+  // load specs and compile child
+  mjSpec* parent = mj_parseXMLString(xml_parent, 0, nullptr, 0);
+  EXPECT_THAT(parent, NotNull());
+  mjSpec* child = mj_parseXMLString(xml_child, 0, nullptr, 0);
+  EXPECT_THAT(child, NotNull());
+  mjModel* m_child = mj_compile(child, 0);
+  EXPECT_THAT(m_child, NotNull());
+
+  // attach child frame to parent worldbody
+  mjsBody* world = mjs_findBody(parent, "world");
+  EXPECT_THAT(world, NotNull());
+  mjsFrame* child_frame = mjs_findFrame(child, "child");
+  EXPECT_THAT(child_frame, NotNull());
+  mjsElement* attached_frame =
+      mjs_attach(world->element, child_frame->element, "child-", "");
+  EXPECT_THAT(attached_frame, NotNull());
+
+  // wrap the child frame in the parent frame and compile
+  mjModel* m_attached = mj_compile(parent, 0);
+  EXPECT_THAT(m_attached, NotNull());
+  EXPECT_NEAR(m_attached->site_quat[0], m_child->site_quat[0], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[1], m_child->site_quat[1], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[2], m_child->site_quat[2], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[3], m_child->site_quat[3], 1e-6);
+
+  mj_deleteSpec(parent);
+  mj_deleteSpec(child);
+  mj_deleteModel(m_child);
+  mj_deleteModel(m_attached);
 }
 
 TEST_F(MujocoTest, CopyAttachedSpec) {
@@ -2612,8 +2671,9 @@ TEST_F(MujocoTest, ApplyNameSpaceToDefaults) {
   mjSpec* parent = mj_parseXMLString(xml_p, 0, err.data(), err.size());
   EXPECT_THAT(parent, NotNull()) << err.data();
 
-  mjsBody* attached = mjs_attachBody(mjs_findFrame(parent, "parent"),
-                                     mjs_findBody(child, "body"), "child-", "");
+  mjsElement* attached =
+      mjs_attach(mjs_findFrame(parent, "parent")->element,
+                 mjs_findBody(child, "body")->element, "child-", "");
   EXPECT_THAT(attached, NotNull());
 
   mjModel* model = mj_compile(parent, vfs.get());
@@ -2727,7 +2787,7 @@ TEST_F(MujocoTest, ErrorWhenCompilingOrphanedSpec) {
   EXPECT_THAT(body, NotNull());
   mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), nullptr);
   EXPECT_THAT(frame, NotNull());
-  mjs_attachBody(frame, body, "child-", "");
+  mjs_attach(frame->element, body->element, "child-", "");
   mj_deleteSpec(parent);
   mjModel* model = mj_compile(child, 0);
   EXPECT_THAT(model, IsNull());
