@@ -729,6 +729,7 @@ void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* tendon, mjCDef* def
   WriteAttr(elem, "margin", 1, &tendon->margin, &def->Tendon().margin);
   WriteAttr(elem, "stiffness", 1, &tendon->stiffness, &def->Tendon().stiffness);
   WriteAttr(elem, "damping", 1, &tendon->damping, &def->Tendon().damping);
+  WriteAttr(elem, "armature", 1, &tendon->armature, &def->Tendon().armature);
   WriteAttr(elem, "frictionloss", 1, &tendon->frictionloss, &def->Tendon().frictionloss);
   if (tendon->springlength[0] != tendon->springlength[1] ||
       def->Tendon().springlength[0] != def->Tendon().springlength[1]) {

@@ -3688,6 +3688,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ntendon',),
              ),
              StructFieldDecl(
+                 name='tendon_armature',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='inertia associated with tendon velocity',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
                  name='tendon_frictionloss',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -11323,6 +11331,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(5,),
                  ),
                  doc='solver impedance: tendon friction',
+             ),
+             StructFieldDecl(
+                 name='armature',
+                 type=ValueType(name='double'),
+                 doc='inertia associated with tendon velocity',
              ),
              StructFieldDecl(
                  name='limited',

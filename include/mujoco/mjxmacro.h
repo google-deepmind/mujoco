@@ -484,6 +484,7 @@
     X   ( mjtNum,  tendon_margin,         ntendon,       1                    ) \
     XMJV( mjtNum,  tendon_stiffness,      ntendon,       1                    ) \
     XMJV( mjtNum,  tendon_damping,        ntendon,       1                    ) \
+    X   ( mjtNum,  tendon_armature,       ntendon,       1                    ) \
     XMJV( mjtNum,  tendon_frictionloss,   ntendon,       1                    ) \
     XMJV( mjtNum,  tendon_lengthspring,   ntendon,       2                    ) \
     X   ( mjtNum,  tendon_length0,        ntendon,       1                    ) \

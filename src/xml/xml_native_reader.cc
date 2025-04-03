@@ -363,18 +363,18 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"tendon", "*", "0"},
     {"<"},
-        {"spatial", "*", "18", "name", "class", "group", "limited", "range",
+        {"spatial", "*", "19", "name", "class", "group", "limited", "range",
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
             "frictionloss", "springlength", "width", "material",
-            "margin", "stiffness", "damping", "rgba", "user"},
+            "margin", "stiffness", "damping", "armature", "rgba", "user"},
         {"<"},
             {"site", "*", "1", "site"},
             {"geom", "*", "2", "geom", "sidesite"},
             {"pulley", "*", "1", "divisor"},
         {">"},
-        {"fixed", "*", "15", "name", "class", "group", "limited", "range",
+        {"fixed", "*", "16", "name", "class", "group", "limited", "range",
             "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
-            "frictionloss", "springlength", "margin", "stiffness", "damping", "user"},
+            "frictionloss", "springlength", "margin", "stiffness", "damping", "armature", "user"},
         {"<"},
             {"joint", "*", "2", "joint", "coef"},
         {">"},
@@ -2061,6 +2061,7 @@ void mjXReader::OneTendon(XMLElement* elem, mjsTendon* tendon) {
   ReadAttr(elem, "margin", 1, &tendon->margin, text);
   ReadAttr(elem, "stiffness", 1, &tendon->stiffness, text);
   ReadAttr(elem, "damping", 1, &tendon->damping, text);
+  ReadAttr(elem, "armature", 1, &tendon->armature, text);
   ReadAttr(elem, "frictionloss", 1, &tendon->frictionloss, text);
   // read springlength, either one or two values; if one, copy to second value
   if (ReadAttr(elem, "springlength", 2, tendon->springlength, text, false, false) == 1) {
@@ -3800,7 +3801,7 @@ void mjXReader::Tendon(XMLElement* section) {
       def = mjs_getSpecDefault(spec);
     }
 
-    // create equality constraint and parse
+    // create tendon and parse
     mjsTendon* tendon = mjs_addTendon(spec, def);
     OneTendon(elem, tendon);
 

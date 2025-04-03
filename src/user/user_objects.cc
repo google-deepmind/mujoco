@@ -5616,6 +5616,12 @@ void mjCTendon::Compile(void) {
 
     // spatial path
     else {
+      if (armature < 0) {
+        throw mjCError(this,
+                       "tendon '%s' (id = %d): tendon armature cannot be negative",
+                        name.c_str(), id);
+      }
+
       switch (path[i]->type) {
         case mjWRAP_PULLEY:
           // pulley should not follow other pulley
@@ -5655,6 +5661,12 @@ void mjCTendon::Compile(void) {
             throw mjCError(this,
                            "tendon '%s' (id = %d): geom at pos %d not bracketed by sites",
                            name.c_str(), id, i);
+          }
+
+          if (armature > 0) {
+            throw mjCError(this,
+                           "tendon '%s' (id = %d): geom wrapping not supported by tendon armature",
+                           name.c_str(), id);
           }
 
           // mark geoms as non visual

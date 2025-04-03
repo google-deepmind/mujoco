@@ -5578,6 +5578,7 @@ public unsafe struct mjModel_ {
   public double* tendon_margin;
   public double* tendon_stiffness;
   public double* tendon_damping;
+  public double* tendon_armature;
   public double* tendon_frictionloss;
   public double* tendon_lengthspring;
   public double* tendon_length0;

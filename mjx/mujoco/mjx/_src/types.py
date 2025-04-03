@@ -771,6 +771,7 @@ class Model(PyTreeNode):
     tendon_margin: min distance for limit detection           (ntendon,)
     tendon_stiffness: stiffness coefficient                   (ntendon,)
     tendon_damping: damping coefficient                       (ntendon,)
+    tendon_armature: inertia associated with tendon velocity  (ntendon,)
     tendon_frictionloss: loss due to friction                 (ntendon,)
     tendon_lengthspring: spring resting length range          (ntendon, 2)
     tendon_length0: tendon length in qpos0                    (ntendon,)
@@ -1113,6 +1114,7 @@ class Model(PyTreeNode):
   tendon_margin: jax.Array
   tendon_stiffness: jax.Array
   tendon_damping: jax.Array
+  tendon_armature: jax.Array
   tendon_frictionloss: jax.Array
   tendon_lengthspring: jax.Array
   tendon_length0: jax.Array

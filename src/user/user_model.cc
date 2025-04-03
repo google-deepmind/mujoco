@@ -3390,6 +3390,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_margin[i] = (mjtNum)pte->margin;
     m->tendon_stiffness[i] = (mjtNum)pte->stiffness;
     m->tendon_damping[i] = (mjtNum)pte->damping;
+    m->tendon_armature[i] = (mjtNum)pte->armature;
     m->tendon_frictionloss[i] = (mjtNum)pte->frictionloss;
     m->tendon_lengthspring[2*i] = (mjtNum)pte->springlength[0];
     m->tendon_lengthspring[2*i+1] = (mjtNum)pte->springlength[1];
@@ -4931,6 +4932,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     tendons_[i]->margin = (double)m->tendon_margin[i];
     tendons_[i]->stiffness = (double)m->tendon_stiffness[i];
     tendons_[i]->damping = (double)m->tendon_damping[i];
+    tendons_[i]->armature = (double)m->tendon_armature[i];
     tendons_[i]->frictionloss = (double)m->tendon_frictionloss[i];
 
     if (nuser_tendon) {
