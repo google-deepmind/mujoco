@@ -15,7 +15,9 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
-- Add :ref:`orientation<body-composite-quat>` parameter to :ref:`composite<body-composite>`. Moreover, allow the
+- Added the :ref:`compiler/saveinertial<compiler-saveinertial>` flag, writing explicit inertial clauses for all
+  bodies when saving to XML.
+- Added :ref:`orientation<body-composite-quat>` attribute to :ref:`composite<body-composite>`. Moreover, allow the
   composite to be the direct child of a frame.
 
 Bug fixes

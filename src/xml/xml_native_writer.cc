@@ -1632,7 +1632,8 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     WriteVector(elem, "user", body->get_userdata());
 
     // write inertial
-    if (body->explicitinertial && model->compiler.inertiafromgeom != mjINERTIAFROMGEOM_TRUE) {
+    if (model->compiler.saveinertial ||
+        (body->explicitinertial && model->compiler.inertiafromgeom != mjINERTIAFROMGEOM_TRUE)) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
       WriteAttr(inertial, "pos", 3, body->ipos);
       WriteAttr(inertial, "quat", 4, body->iquat, unitq);

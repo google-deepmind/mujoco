@@ -9138,6 +9138,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='range of geom groups used to compute inertia',
              ),
              StructFieldDecl(
+                 name='saveinertial',
+                 type=ValueType(name='mjtByte'),
+                 doc='save explicit inertial clause for all bodies to XML',
+             ),
+             StructFieldDecl(
                  name='alignfree',
                  type=ValueType(name='int'),
                  doc='align free joints with inertial frame',

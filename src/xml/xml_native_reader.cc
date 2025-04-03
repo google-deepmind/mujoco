@@ -97,10 +97,10 @@ static void UpdateString(string& psuffix, int count, int i) {
 const char* MJCF[nMJCF][mjXATTRNUM] = {
 {"mujoco", "!", "1", "model"},
 {"<"},
-    {"compiler", "*", "19", "autolimits", "boundmass", "boundinertia", "settotalmass",
+    {"compiler", "*", "20", "autolimits", "boundmass", "boundinertia", "settotalmass",
         "balanceinertia", "strippath", "coordinate", "angle", "fitaabb", "eulerseq",
-        "meshdir", "texturedir", "discardvisual", "usethread",
-        "fusestatic", "inertiafromgeom", "inertiagrouprange", "assetdir", "alignfree"},
+        "meshdir", "texturedir", "discardvisual", "usethread", "fusestatic", "inertiafromgeom",
+        "inertiagrouprange", "saveinertial", "assetdir", "alignfree"},
     {"<"},
         {"lengthrange", "?", "10", "mode", "useexisting", "uselimit",
             "accel", "maxforce", "timeconst", "timestep",
@@ -1014,6 +1014,9 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* spec) {
   ReadAttr(section, "inertiagrouprange", 2, spec->compiler.inertiagrouprange, text);
   if (MapValue(section, "alignfree", &n, bool_map, 2)) {
     spec->compiler.alignfree = (n == 1);
+  }
+  if (MapValue(section, "saveinertial", &n, bool_map, 2)) {
+    spec->compiler.saveinertial = (n == 1);
   }
 
   // lengthrange subelement

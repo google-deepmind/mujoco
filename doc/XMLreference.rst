@@ -832,6 +832,10 @@ has any effect. The settings here are global and apply to the entire model.
    necessary to adjust this attribute and the geom-specific groups so as to exclude world geoms from the inertial
    computation.
 
+.. _compiler-saveinertial:
+
+:at:`saveinertial`: :at-val:`[false, true], "false"`
+   If set to "true", the compiler will save explicit :ref:`inertial <body-inerital>` clauses for all bodies.
 
 .. _compiler-lengthrange:
 
