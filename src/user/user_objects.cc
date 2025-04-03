@@ -840,7 +840,7 @@ mjCBody::mjCBody(mjCModel* _model) {
 
 mjCBody::mjCBody(const mjCBody& other, mjCModel* _model) {
   model = _model;
-  uid = model->GetUid();
+  uid = other.uid;
   mjSpec* origin = model->FindSpec(other.compiler);
   compiler = origin ? &origin->compiler : &model->spec.compiler;
   *this = other;
@@ -944,7 +944,7 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   frames.back()->frame = other.frame;
   if (model->deepcopy_) {
     frames.back()->NameSpace(other_model);
-    frames.back()->uid = model->GetUid();
+    frames.back()->uid = other.uid;
   } else {
     frames.back()->AddRef();
   }
@@ -1038,7 +1038,7 @@ void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
     if (!model->deepcopy_) {
       dst.back()->AddRef();
     } else {
-      dst.back()->uid = model->GetUid();
+      dst.back()->uid = src[i]->uid;
     }
 
     // set namespace

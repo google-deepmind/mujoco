@@ -297,7 +297,7 @@ void mjCModel::CopyList(std::vector<T*>& dest,
     // copy the element from the other model to this model
     if (deepcopy_) {
       source[i]->ForgetKeyframes();
-      candidate->uid = GetUid();
+      candidate->uid = source[i]->uid;
     } else {
       candidate->AddRef();
     }

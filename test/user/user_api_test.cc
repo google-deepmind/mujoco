@@ -538,6 +538,9 @@ TEST_F(PluginTest, RecompileCompare) {
         // copy spec
         mjSpec* s_copy = mj_copySpec(s);
 
+        // compare signature
+        EXPECT_EQ(s->element->signature, s_copy->element->signature) << xml;
+
         // compile twice and compare
         mjModel* m_old = mj_compile(s, nullptr);
 
