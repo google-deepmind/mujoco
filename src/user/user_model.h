@@ -219,6 +219,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // append spec to this model, optionally map compiler options to the appended spec
   void AppendSpec(mjSpec* spec, const mjsCompiler* compiler = nullptr);
 
+  // Find duplicate assets and return the existing one if found
+  mjSpec* FindDuplicateAsset(const mjSpec* spec);
+
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
                                  const std::vector<bool>& discard);
