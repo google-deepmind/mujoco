@@ -114,8 +114,9 @@ typedef struct mjFwdPositionArgs_ mjFwdPositionArgs;
 // wrapper for mj_crb and mj_factorM
 void* mj_inertialThreaded(void* args) {
   mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
-  mj_crb(forward_args->m, forward_args->d);       // timed internally (POS_INERTIA)
-  mj_factorM(forward_args->m, forward_args->d);   // timed internally (POS_INERTIA)
+  mj_crb(forward_args->m, forward_args->d);             // timed internally (POS_INERTIA)
+  mj_tendonArmature(forward_args->m, forward_args->d);  // timed internally (POS_INERTIA)
+  mj_factorM(forward_args->m, forward_args->d);         // timed internally (POS_INERTIA)
   return NULL;
 }
 
@@ -142,9 +143,10 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   // no threadpool: inertia and collision on main thread
   if (!d->threadpool) {
-    mj_crb(m, d);        // timed internally (POS_INERTIA)
-    mj_factorM(m, d);    // timed internally (POS_INERTIA)
-    mj_collision(m, d);  // timed internally (POS_COLLISION)
+    mj_crb(m, d);             // timed internally (POS_INERTIA)
+    mj_tendonArmature(m, d);  // timed internally (POS_INERTIA)
+    mj_factorM(m, d);         // timed internally (POS_INERTIA)
+    mj_collision(m, d);       // timed internally (POS_COLLISION)
   }
 
   // have threadpool: inertia and collision on separate threads
@@ -221,6 +223,9 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 
   // compute qfrc_bias with abbreviated RNE (without acceleration)
   mj_rne(m, d, 0, d->qfrc_bias);
+
+  // add bias force due to tendon armature
+  mj_tendonBias(m, d, d->qfrc_bias);
 
   TM_END(mjTIMER_VELOCITY);
 }

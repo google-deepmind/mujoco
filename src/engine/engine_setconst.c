@@ -102,10 +102,11 @@ static void set0(mjModel* m, mjData* d) {
   memset(m->flex_rigid, 0, m->nflex);
 
   // run remaining computations
+  mj_tendon(m, d);
   mj_crb(m, d);
+  mj_tendonArmature(m, d);
   mj_factorM(m, d);
   mj_flex(m, d);
-  mj_tendon(m, d);
   mj_transmission(m, d);
 
   // restore flex rigidity

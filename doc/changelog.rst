@@ -15,6 +15,7 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Added :ref:`tendon armature<tendon-spatial-armature>`: inertia associated with changes in tendon length.
 - Added the :ref:`compiler/saveinertial<compiler-saveinertial>` flag, writing explicit inertial clauses for all
   bodies when saving to XML.
 - Added :ref:`orientation<body-composite-quat>` attribute to :ref:`composite<body-composite>`. Moreover, allow the

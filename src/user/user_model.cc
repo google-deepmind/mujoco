@@ -2769,31 +2769,6 @@ void mjCModel::CopyTree(mjModel* m) {
     }
   }
   m->nB = nB;
-
-  // set dof_simplenum
-  int count = 0;
-  for (int i=nv-1; i >= 0; i--) {
-    if (m->body_simple[m->dof_bodyid[i]]) {
-      count++;    // increment counter
-    } else {
-      count = 0;  // reset
-    }
-    m->dof_simplenum[i] = count;
-  }
-
-  // compute nC
-  int nOD = 0;  // number of off-diagonal (non-simple) parent dofs
-  for (int i=0; i < nv; i++) {
-    // count ancestor (off-diagonal) dofs
-    if (!m->dof_simplenum[i]) {
-      int j = i;
-      while (j >= 0) {
-        if (j != i) nOD++;
-        j = m->dof_parentid[j];
-      }
-    }
-  }
-  m->nC = nC = nOD + nv;
 }
 
 // copy plugin data
@@ -3560,6 +3535,54 @@ void mjCModel::CopyObjects(mjModel* m) {
   mjuu_copyvec(qpos0.data(), m->qpos0, nq);
   mjuu_copyvec(body_pos0.data(), m->body_pos, 3*nbody);
   mjuu_copyvec(body_quat0.data(), m->body_quat, 4*nbody);
+}
+
+
+
+// finalize simple bodies/dofs including tendon information
+void mjCModel::FinalizeSimple(mjModel* m) {
+  // demote bodies affected by inertia-bearing tendon to non-simple
+  for (int i=0; i < ntendon; i++) {
+    if (m->tendon_armature[i] == 0) {
+      continue;
+    }
+    int adr = m->tendon_adr[i];
+    int num = m->tendon_num[i];
+    for (int j=adr; j < adr+num; j++) {
+      int objid = m->wrap_objid[j];
+      if (m->wrap_type[j] == mjWRAP_SITE) {
+        m->body_simple[m->site_bodyid[objid]] = 0;
+      }
+      if (m->wrap_type[j] == mjWRAP_CYLINDER || m->wrap_type[j] == mjWRAP_SPHERE) {
+        m->body_simple[m->geom_bodyid[objid]] = 0;
+      }
+    }
+  }
+
+  // set dof_simplenum
+  int count = 0;
+  for (int i=nv-1; i >= 0; i--) {
+    if (m->body_simple[m->dof_bodyid[i]]) {
+      count++;    // increment counter
+    } else {
+      count = 0;  // reset
+    }
+    m->dof_simplenum[i] = count;
+  }
+
+  // compute nC
+  int nOD = 0;  // number of off-diagonal (non-simple) parent dofs
+  for (int i=0; i < nv; i++) {
+    // count ancestor (off-diagonal) dofs
+    if (!m->dof_simplenum[i]) {
+      int j = i;
+      while (j >= 0) {
+        if (j != i) nOD++;
+        j = m->dof_parentid[j];
+      }
+    }
+  }
+  m->nC = nC = nOD + nv;
 }
 
 
@@ -4508,6 +4531,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // copy objects outsite kinematic tree (including keyframes)
   CopyObjects(m);
+
+  // finalize simple bodies/dofs including tendon information
+  FinalizeSimple(m);
 
   // compute non-zeros in actuator_moment
   m->nJmom = nJmom = CountNJmom(m);

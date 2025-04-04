@@ -17,6 +17,7 @@
 #include "src/engine/engine_core_smooth.h"
 #include "src/engine/engine_util_sparse.h"
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -212,6 +213,183 @@ TEST_F(CoreSmoothTest, TendonJdot) {
     mj_deleteModel(m);
   }
 }
+
+static const char* const kTen_offtree =
+    "engine/testdata/core_smooth/ten_armature_offtree.xml";
+
+TEST_F(CoreSmoothTest, TendonArmature) {
+  const std::string xml_path = GetTestDataFilePath(kTen_offtree);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+  int nv = m->nv;
+  mjData* d = mj_makeData(m);
+
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = sparsity;
+
+    mj_forward(m, d);
+
+    // get full M, includes both CRB and tendon inertia
+    vector<mjtNum> M(nv*nv);
+    mj_fullM(m, M.data(), d->qM);
+
+    // put only CRB inertia in M2
+    mj_crb(m, d);
+    vector<mjtNum> M2(nv*nv);
+    mj_fullM(m, M2.data(), d->qM);
+
+    vector<mjtNum> ten_J(nv);     // tendon Jacobian
+    vector<mjtNum> ten_M(nv*nv);  // tendon inertia
+
+    // add tendon inertias to M2 using outer product
+    for (int j=0; j < m->ntendon; j++) {
+      // get tendon Jacobian
+      if (mj_isSparse(m)) {
+        int rowadr = d->ten_J_rowadr[j];
+        int* rownnz = d->ten_J_rownnz + j;
+        int zero = 0;
+        mju_sparse2dense(ten_J.data(), d->ten_J + rowadr, 1, nv,
+                         rownnz, &zero, d->ten_J_colind + rowadr);
+      } else {
+        mju_copy(ten_J.data(), d->ten_J + j*nv, nv);
+      }
+
+      // get tendon inertia only, using outer product
+      mju_mulMatMat(ten_M.data(), ten_J.data(), ten_J.data(), nv, 1, nv);
+      mju_scl(ten_M.data(), ten_M.data(), m->tendon_armature[j], nv * nv);
+
+      // manually add values, at nonzeros only
+      for (int i=0; i < nv*nv; i++) {
+        if (M[i]) M2[i] += ten_M[i];
+      }
+    }
+
+    // expect matrices to match
+    EXPECT_THAT(M2, Pointwise(DoubleNear(1e-9), M));
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+static const char* const kTen_i0 =
+    "engine/testdata/core_smooth/ten_armature_0.xml";
+static const char* const kTen_i1 =
+    "engine/testdata/core_smooth/ten_armature_1.xml";
+static const char* const kTen_i2 =
+    "engine/testdata/core_smooth/ten_armature_2.xml";
+static const char* const kTen_i3 =
+    "engine/testdata/core_smooth/ten_armature_3.xml";
+static const char* const kTen_i4 =
+    "engine/testdata/core_smooth/ten_armature_4.xml";
+
+TEST_F(CoreSmoothTest, TendonArmatureConservesEnergy) {
+  for (const char* local_path : {kTen_i0, kTen_i1, kTen_i2, kTen_i3, kTen_i4}) {
+    const std::string xml_path = GetTestDataFilePath(local_path);
+    char error[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+    mjData* d = mj_makeData(m);
+
+    for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+      m->opt.jacobian = sparsity;
+
+      mj_resetDataKeyframe(m, d, 0);
+      mj_forward(m, d);
+
+      double energy_0 = d->energy[0] + d->energy[1];
+
+      double eps = std::max(energy_0, 1.0) * 1e-5;
+      while (d->time < 1) {
+        mj_step(m, d);
+        double energy_t = d->energy[0] + d->energy[1];
+        EXPECT_THAT(energy_t, DoubleNear(energy_0, eps));
+      }
+    }
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
+TEST_F(CoreSmoothTest, TendonArmatureConservesMomentum) {
+  const std::string xml_path = GetTestDataFilePath(kTen_i4);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+  mjData* d = mj_makeData(m);
+
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = sparsity;
+
+    mj_resetData(m, d);
+    mj_forward(m, d);
+
+    // this model contains subtreelinvel and subtreeangmom sensors
+    vector<mjtNum> sdata_0 = AsVector(d->sensordata, m->nsensordata);
+    EXPECT_THAT(sdata_0, Each(Eq(0)));
+
+    double eps = 1e-5;
+    while (d->time < 1) {
+      mj_step(m, d);
+      vector<mjtNum> sdata_t = AsVector(d->sensordata, m->nsensordata);
+      EXPECT_THAT(sdata_t, Pointwise(DoubleNear(eps), sdata_0));
+    }
+
+    // momentum is conserved nontrivially (velocities are non-zero)
+    EXPECT_GT(d->energy[1], 0);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+static const char* const kTen_i0_equiv =
+    "engine/testdata/core_smooth/ten_armature_0_equiv.xml";
+static const char* const kTen_i1_equiv =
+    "engine/testdata/core_smooth/ten_armature_1_equiv.xml";
+
+TEST_F(CoreSmoothTest, TendonInertiaEquivalent) {
+  for (const char* lpath : {kTen_i0, kTen_i1}) {
+    // load tendon model
+    const std::string path = GetTestDataFilePath(lpath);
+    char error[1024];
+    mjModel* m = mj_loadXML(path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+    int gid = mj_name2id(m, mjOBJ_GEOM, "query");
+    mjData* d = mj_makeData(m);
+
+    if (m->nkey) mj_resetDataKeyframe(m, d, 0);
+
+    // load equivalent model
+    const char* lpath_e = lpath == kTen_i0 ? kTen_i0_equiv : kTen_i1_equiv;
+    const std::string path_e = GetTestDataFilePath(lpath_e);
+    mjModel* m_e = mj_loadXML(path_e.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+    int gid_e = mj_name2id(m_e, mjOBJ_GEOM, "query");
+    mjData* d_e = mj_makeData(m_e);
+
+    if (m_e->nkey) mj_resetDataKeyframe(m_e, d_e, 0);
+
+    // the equality constraint in kTen_i1_equiv reduces precision
+    double eps = lpath == kTen_i0 ? 1e-6 : 1e-3;
+
+    while (d->time < 1) {
+      mj_step(m, d);
+      vector<mjtNum> xpos = AsVector(d->geom_xpos + 3*gid, 3);
+
+      mj_step(m_e, d_e);
+      vector<mjtNum> xpos_e = AsVector(d_e->geom_xpos + 3*gid_e, 3);
+
+      EXPECT_THAT(xpos, Pointwise(DoubleNear(eps), xpos_e));
+    }
+    mj_deleteData(d);
+    mj_deleteModel(m);
+    mj_deleteData(d_e);
+    mj_deleteModel(m_e);
+  }
+}
+
 
 // --------------------------- connect constraint ------------------------------
 

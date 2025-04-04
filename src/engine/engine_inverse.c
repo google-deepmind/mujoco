@@ -45,8 +45,9 @@ void mj_invPosition(const mjModel* m, mjData* d) {
   mj_tendon(m, d);
   TM_END(mjTIMER_POS_KINEMATICS);
 
-  mj_crb(m, d);        // timed internally (POS_INERTIA)
-  mj_factorM(m, d);    // timed internally (POS_INERTIA)
+  mj_crb(m, d);             // timed internally (POS_INERTIA)
+  mj_tendonArmature(m, d);  // timed internally (POS_INERTIA)
+  mj_factorM(m, d);         // timed internally (POS_INERTIA)
 
   mj_collision(m, d);  // timed internally (POS_COLLISION)
 

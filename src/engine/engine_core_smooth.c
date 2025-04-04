@@ -865,15 +865,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
 void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
   int nv = m->nv;
 
-  // allocate stack arrays
-  mjtNum *jac1, *jac2, *jacdif, *tmp;
-  mj_markStack(d);
-  jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
-  jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
-  tmp = mjSTACKALLOC(d, nv, mjtNum);
-
-  // return if tendon id is invalid
+  // tendon id is invalid: return
   if (id < 0 || id >= m->ntendon) {
     return;
   }
@@ -886,6 +878,13 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
   if (m->wrap_type[adr] == mjWRAP_JOINT) {
     return;
   }
+
+  // allocate stack arrays
+  mj_markStack(d);
+  mjtNum* jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, nv, mjtNum);
 
   // process spatial tendon
   mjtNum divisor = 1;
@@ -1469,6 +1468,63 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
 
 //-------------------------- inertia ---------------------------------------------------------------
+
+// add tendon armature to qM
+void mj_tendonArmature(const mjModel* m, mjData* d) {
+  TM_START;
+  int nv = m->nv, ntendon = m->ntendon, issparse = mj_isSparse(m);
+
+  for (int k=0; k < ntendon; k++) {
+    mjtNum armature = m->tendon_armature[k];
+
+    if (!armature) {
+      continue;
+    }
+
+    // dense
+    if (!issparse) {
+      mjtNum* ten_J = d->ten_J + nv*k;
+      for (int i=0; i < m->nv; i++) {
+        int Madr = m->dof_Madr[i];
+        for (int j = i; j >= 0; j = m->dof_parentid[j]) {
+          d->qM[Madr++] += armature * ten_J[j] * ten_J[i];
+        }
+      }
+    }
+
+    // sparse
+    else {
+      // get sparse info for tendon k
+      int rowadr = d->ten_J_rowadr[k];
+      int rownnz = d->ten_J_rownnz[k];
+      const int* colind = d->ten_J_colind + rowadr;
+      mjtNum* ten_J = d->ten_J + rowadr;
+
+      // iterate forward on nonzero rows i
+      for (int adr_i=0; adr_i < rownnz; adr_i++) {
+        int i = colind[adr_i];
+        int Madr = m->dof_Madr[i];
+        int adr_j = rownnz - 1;
+
+        // iterate backward on ancestors of i, find matching column j
+        for (int j = i; j >= 0; j = m->dof_parentid[j]) {
+          // reduce adr_j until column index is no bigger than j
+          while (colind[adr_j] > j && adr_j >= 0) {
+            adr_j--;
+          }
+
+          // found match, update qM
+          if (colind[adr_j] == j) {
+            d->qM[Madr++] += armature * ten_J[adr_j] * ten_J[adr_i];
+          }
+        }
+      }
+    }
+  }
+  TM_END(mjTIMER_POS_INERTIA);
+}
+
+
 
 // composite rigid body inertia algorithm
 void mj_crb(const mjModel* m, mjData* d) {
@@ -2320,4 +2376,54 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   for (int j=nbody-1; j > 0; j--) {
     mju_addTo(d->cfrc_int+6*m->body_parentid[j], d->cfrc_int+6*j, 6);
   }
+}
+
+
+
+// add bias force due to tendon armature
+void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc) {
+  int ntendon = m->ntendon, nv = m->nv, issparse = mj_isSparse(m);
+  mjtNum* ten_Jdot = NULL;
+  mj_markStack(d);
+
+  // add bias term due to tendon armature
+  for (int i=0; i < ntendon; i++) {
+    mjtNum armature = m->tendon_armature[i];
+
+    // no armature: skip
+    if (!armature) {
+      continue;
+    }
+
+    // allocate if required
+    if (!ten_Jdot) {
+      ten_Jdot = mjSTACKALLOC(d, nv, mjtNum);
+    }
+
+    // get dense d/dt(tendon Jacobian) for tendon i
+    mj_tendonDot(m, d, i, ten_Jdot);
+
+    // add bias term:  qfrc += ten_J * armature * dot(ten_Jdot, qvel)
+    mjtNum coef = armature * mju_dot(ten_Jdot, d->qvel, nv);
+
+    if (coef) {
+      // dense
+      if (!issparse) {
+        mju_addToScl(qfrc, d->ten_J + nv*i, coef, nv);
+      }
+
+      // sparse
+      else {
+        int nnz = d->ten_J_rownnz[i];
+        int adr = d->ten_J_rowadr[i];
+        const int* colind = d->ten_J_colind + adr;
+        const mjtNum* ten_J = d->ten_J + adr;
+        for (int j=0; j < nnz; j++) {
+          qfrc[colind[j]] += coef * ten_J[j];
+        }
+      }
+    }
+  }
+
+  mj_freeStack(d);
 }

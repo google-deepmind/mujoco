@@ -51,6 +51,9 @@ MJAPI void mj_transmission(const mjModel* m, mjData* d);
 // composite rigid body inertia algorithm
 MJAPI void mj_crb(const mjModel* m, mjData* d);
 
+// add tendon armature to qM
+MJAPI void mj_tendonArmature(const mjModel* m, mjData* d);
+
 // sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd  (legacy implementation)
 MJAPI void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M,
                              mjtNum* qLD, mjtNum* qLDiagInv);
@@ -98,6 +101,12 @@ MJAPI void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result);
 
 // RNE with complete data: compute cacc, cfrc_ext, cfrc_int
 MJAPI void mj_rnePostConstraint(const mjModel* m, mjData* d);
+
+
+//-------------------------- tendon bias -----------------------------------------------------------
+
+// add bias force due to tendon armature
+MJAPI void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc);
 
 #ifdef __cplusplus
 }

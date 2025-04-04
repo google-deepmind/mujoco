@@ -1,0 +1,34 @@
+<mujoco>
+  <option integrator="RK4" timestep="0.0001">
+    <flag contact="disable" gravity="disable" energy="enable"/>
+  </option>
+
+  <default>
+    <geom rgba="0.8 0.6 .4 1"/>
+    <site rgba="0.4 0.8 .6 .5"/>
+  </default>
+
+  <worldbody>
+    <site name="connect" type="box" size=".03 .03 .03" pos=".5 0 -.5"/>
+    <body name="link2" pos="0 0 0">
+      <joint name="link2" axis="0 -1 0" stiffness="100" springref="90"/>
+      <geom type="capsule" size=".02" fromto="0 0 0 0 0 -1"/>
+      <geom name="query" type="sphere" size=".08" pos="0 0 -1"/>
+      <body name="link3" pos="0 0 -.5" euler="0 90 0">
+        <joint name="link3" axis="0 -1 0"/>
+        <geom name="link3" type="box" size=".02 .02 .02" mass="1e-3"/>
+        <geom type="capsule" size=".015" fromto="0 0 0 0 0 .2" mass="0"/>
+        <body name="link4">
+          <joint name="link4" type="slide" axis="0 0 1" armature="9"/>
+          <geom type="capsule" size=".015" fromto="0 0 .3 0 0 .5" mass="0"/>
+          <geom type="sphere" size=".001" pos="0 0 .5" mass=".1"/>
+          <site name="link4" type="box" size=".03 .03 .03" pos="0 0 .5"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <equality>
+    <connect site1="connect" site2="link4" solimp=".99 .99 .001" solref="0.0001 1"/>
+  </equality>
+</mujoco>

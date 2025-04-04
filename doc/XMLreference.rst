@@ -4706,12 +4706,30 @@ length X, as in the clip on the right of `this example model
    joint damping which is integrated implicitly by the Euler method, tendon damping is not integrated implicitly, thus
    joint damping should be used if possible.
 
-.. TODO(tassa): Update here once the feature is implemented.
+.. image:: images/XMLreference/tendon_armature.gif
+   :width: 30%
+   :align: right
+   :class: only-light
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/core_smooth/ten_armature_1_compare.xml
+.. image:: images/XMLreference/tendon_armature_dark.gif
+   :width: 30%
+   :align: right
+   :class: only-dark
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/core_smooth/ten_armature_1_compare.xml
 
 .. _tendon-spatial-armature:
 
 :at:`armature`: :at-val:`real, "0"`
-   Inertia associated with tendon. This feature is not yet implemented.
+   Inertia associated with changes in tendon length. Setting this attribute to a positive value :math:`m` adds a kinetic
+   energy term :math:`\frac{1}{2}mv^2`, where :math:`v` is the tendon velocity. Tendon inertia is most valuable
+   when modeling the :ref:`armature<body-joint-armature>` inertia in a linear actuator which contains a spinning element
+   or the inertial motion of a fluid in a linear hydraulic actuator. In the illustration, we compare (*left*) a 3-dof
+   system with a "tendon" implemented with a rotational joint and a slider joint with
+   :ref:`armature<body-joint-armature>`, attached to the world with a :ref:`connect<equality-connect>` constraint and
+   (*right*) an equivalent 1-dof model with an armature-bearing tendon. Like joint :ref:`armature<body-joint-armature>`,
+   this added inertia is only associated with changes in tendon length, and would not affect the dynamics of a moving
+   fixed-length tendon. Because the tendon Jacobian :math:`J` is position-dependent, tendon armature leads to an
+   additional bias-force term :math:`c = m J \dot{J}^T \dot{q}`.
 
 .. _tendon-spatial-user:
 
