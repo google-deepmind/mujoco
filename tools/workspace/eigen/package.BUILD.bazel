@@ -1,0 +1,20 @@
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "eigen",
+    hdrs = glob(["Eigen/**", "unsupported/Eigen/**"]),
+    includes = ["."],
+    data = [":license_filegroup"],
+)
+
+filegroup(
+    name = "license_filegroup",
+    srcs = [
+        "COPYING.APACHE",
+        "COPYING.BSD",
+        "COPYING.MINPACK",
+        "COPYING.MPL2",
+        "COPYING.README",
+    ],
+    tags = ["license_filegroup"],
+)

@@ -1,0 +1,6 @@
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+filegroup(
+    name = "model",
+    srcs = glob(["*.xml"]),
+)

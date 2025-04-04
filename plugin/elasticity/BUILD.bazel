@@ -1,0 +1,76 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+mj_cc_library(
+    name = "elasticity_impl",
+    srcs = [
+        "elasticity.cc",
+    ],
+    hdrs = [
+        "elasticity.h",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//:mujoco_hdrs",
+    ],
+    alwayslink = True,
+)
+
+mj_cc_library(
+    name = "cable",
+    srcs = [
+        "cable.cc",
+    ],
+    hdrs = [
+        "cable.h",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":elasticity_impl",
+        "//:mujoco_hdrs",
+    ],
+    alwayslink = True,
+)
+
+mj_cc_library(
+    name = "shell",
+    srcs = [
+        "shell.cc",
+    ],
+    hdrs = [
+        "shell.h",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":elasticity_impl",
+        "//:mujoco_hdrs",
+    ],
+    alwayslink = True,
+)
+
+mj_cc_library(
+    name = "register",
+    srcs = [
+        "register.cc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":cable",
+        ":shell",
+        "//:mujoco_hdrs",
+    ],
+    alwayslink = True,
+)
+
+cc_shared_library(
+    name = "elasticity",
+    dynamic_deps = [
+        "//:mujoco_shared",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "register",
+    ],
+)

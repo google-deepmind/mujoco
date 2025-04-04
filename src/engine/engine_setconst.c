@@ -96,10 +96,13 @@ static void set0(mjModel* m, mjData* d) {
   // compute dof_M0 for CRB algorithm
   mj_setM0(m, d);
 
-  // save flex_rigid, temporarily make all flexes non-rigid
-  mjtByte* rigid = mju_malloc(m->nflex);
-  memcpy(rigid, m->flex_rigid, m->nflex);
-  memset(m->flex_rigid, 0, m->nflex);
+  mjtByte* flex_rigid_cache = NULL;
+  if (m->nflex > 0) {
+    // save flex_rigid, temporarily make all flexes non-rigid
+    flex_rigid_cache = mju_malloc(m->nflex);
+    memcpy(flex_rigid_cache, m->flex_rigid, m->nflex);
+    memset(m->flex_rigid, 0, m->nflex);
+  }
 
   // run remaining computations
   mj_tendon(m, d);
@@ -109,9 +112,11 @@ static void set0(mjModel* m, mjData* d) {
   mj_flex(m, d);
   mj_transmission(m, d);
 
-  // restore flex rigidity
-  memcpy(m->flex_rigid, rigid, m->nflex);
-  mju_free(rigid);
+  if (flex_rigid_cache) {
+    // restore flex rigidity
+    memcpy(m->flex_rigid, flex_rigid_cache, m->nflex);
+    mju_free(flex_rigid_cache);
+  }
 
   // restore camera and light mode
   for (int i=0; i < m->ncam; i++) {

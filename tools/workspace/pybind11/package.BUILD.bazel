@@ -1,0 +1,15 @@
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "pybind11",
+    includes = ["include"],
+    hdrs = glob(["include/**/*.h"]),
+    data = [":license_filegroup"],
+    deps = ["@python_3_11//:python_headers"],
+)
+
+filegroup(
+    name = "license_filegroup",
+    srcs = ["LICENSE"],
+    tags = ["license_filegroup"],
+)

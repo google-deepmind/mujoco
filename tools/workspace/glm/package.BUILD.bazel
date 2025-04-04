@@ -1,0 +1,29 @@
+package(default_visibility = [
+    "@mujoco//:__subpackages__",
+    "@SdfLib//:__subpackages__",
+])
+
+cc_library(
+    name = "glm",
+    hdrs = glob([
+        "glm/*.hpp",
+        "glm/*.inl",
+        "glm/detail/*.hpp",
+        "glm/detail/*.inl",
+        "glm/gtc/*.hpp",
+        "glm/gtc/*.inl",
+        "glm/gtx/*.hpp",
+        "glm/gtx/*.inl",
+        "glm/simd/*.h",
+    ]),
+    data = [":license_filegroup"],
+    includes = ["."],
+)
+
+filegroup(
+    name = "license_filegroup",
+    srcs = [
+        "copying.txt",
+    ],
+    tags = ["license_filegroup"],
+)

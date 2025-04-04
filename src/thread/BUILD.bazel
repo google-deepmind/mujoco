@@ -1,0 +1,38 @@
+load("@mujoco//tools:def.bzl", "mj_cc_library")
+
+package(default_visibility = ["@mujoco//:__subpackages__"])
+
+mj_cc_library(
+    name = "thread_queue",
+    hdrs = ["thread_queue.h"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+mj_cc_library(
+    name = "thread_task",
+    srcs = ["thread_task.cc"],
+    hdrs = ["thread_task.h"],
+    copts = [
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["//:mujoco_hdrs"],
+)
+
+mj_cc_library(
+    name = "thread_pool",
+    srcs = ["thread_pool.cc"],
+    hdrs = ["thread_pool.h"],
+    copts = [
+        "-Wno-error=unknown-pragmas",
+        "-Isrc",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":thread_queue",
+        ":thread_task",
+        "//:mujoco_hdrs",
+        "//src/engine:engine_crossplatform",
+        "//src/engine:engine_util_errmem",
+    ],
+)
