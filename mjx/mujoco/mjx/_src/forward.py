@@ -404,12 +404,13 @@ def forward(m: Model, d: Data) -> Data:
   """Forward dynamics."""
   d = fwd_position(m, d)
   d = sensor.sensor_pos(m, d)
+  d = sensor.energy_pos(m, d)
   d = fwd_velocity(m, d)
   d = sensor.sensor_vel(m, d)
   d = fwd_actuation(m, d)
+  d = sensor.energy_vel(m, d)
   d = fwd_acceleration(m, d)
   d = sensor.sensor_acc(m, d)
-
   if d.efc_J.size == 0:
     d = d.replace(qacc=d.qacc_smooth)
     return d

@@ -55,9 +55,9 @@ def _make_option(
     if o.solver not in set(types.SolverType):
       raise NotImplementedError(f'{mujoco.mjtSolver(o.solver)}')
 
-    for i in range(mujoco.mjtEnableBit.mjNENABLE):
-      if o.enableflags & 2**i:
-        raise NotImplementedError(f'{mujoco.mjtEnableBit(2 ** i)}')
+    # Check enable flags using enum pattern
+    if types.EnableBit(o.enableflags) not in set(types.EnableBit) and o.enableflags != 0:
+      raise NotImplementedError(f'{mujoco.mjtEnableBit(o.enableflags)}')
 
   has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
   implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
@@ -71,6 +71,7 @@ def _make_option(
   fields['jacobian'] = types.JacobianType(o.jacobian)
   fields['solver'] = types.SolverType(o.solver)
   fields['disableflags'] = types.DisableBit(o.disableflags)
+  fields['enableflags'] = types.EnableBit(o.enableflags)
   fields['has_fluid_params'] = has_fluid_params
 
   return types.Option(**fields)
@@ -374,6 +375,7 @@ def make_data(
         '_qM_sparse': (m.nM, float),
         '_qLD_sparse': (m.nM, float),
         '_qLDiagInv_sparse': (m.nv, float),
+        'energy': (2, float),
     }
 
     if not _full_compat:
