@@ -1863,36 +1863,38 @@ static int boxNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
   const mjtNum* mat = obj->data->geom_xmat + 3*g;
 
   if (dim == 3) {
+    int c = 0;
     int x = ((v1 & 1) && (v2 & 1) && (v3 & 1)) - (!(v1 & 1) && !(v2 & 1) && !(v3 & 1));
     int y = ((v1 & 2) && (v2 & 2) && (v3 & 2)) - (!(v1 & 2) && !(v2 & 2) && !(v3 & 2));
     int z = ((v1 & 4) && (v2 & 4) && (v3 & 4)) - (!(v1 & 4) && !(v2 & 4) && !(v3 & 4));
     globalcoord(res, mat, NULL, x, y, z);
     int sgn = x + y + z;
-    if (x) resind[0] = 0;
-    if (y) resind[0] = 2;
-    if (z) resind[0] = 4;
+    if (x) resind[c++] = 0;
+    if (y) resind[c++] = 2;
+    if (z) resind[c++] = 4;
     if (sgn == -1) resind[0]++;
-    return 1;
+    return c == 1 ? 1 : 0;  // return 1 only if vertices make a valid face
   }
 
   if (dim == 2) {
+    int c = 0;
     int x = ((v1 & 1) && (v2 & 1)) - (!(v1 & 1) && !(v2 & 1));
     int y = ((v1 & 2) && (v2 & 2)) - (!(v1 & 2) && !(v2 & 2));
     int z = ((v1 & 4) && (v2 & 4)) - (!(v1 & 4) && !(v2 & 4));
     if (x) {
       globalcoord(res, mat, NULL, x, 0, 0);
-      resind[0] = (x > 0) ? 0 : 1;
+      resind[c++] = (x > 0) ? 0 : 1;
     }
     if (y) {
-      int i = (x ? 1 : 0);
-      globalcoord(res + 3*i, mat, NULL, 0, y, 0);
-      resind[i] = (y > 0) ? 2 : 3;
+      globalcoord(res + 3*c, mat, NULL, 0, y, 0);
+      resind[c++] = (y > 0) ? 2 : 3;
     }
     if (z) {
       globalcoord(res + 3, mat, NULL, 0, 0, z);
-      resind[1] = (z > 0) ? 4 : 5;
+      resind[c++] = (z > 0) ? 4 : 5;
     }
-    return 2;
+    // TODO(kylebayes): Should be able to recover multiple contacts here.
+    return c == 2 ? 2 : 0;
   }
 
   if (dim == 1) {
