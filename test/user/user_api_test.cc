@@ -550,6 +550,10 @@ TEST_F(PluginTest, RecompileCompare) {
         mjModel* m_new = mj_compile(s, nullptr);
         mjModel* m_copy = mj_compile(s_copy, nullptr);
 
+        // compare signature
+        EXPECT_EQ(m_old->signature, m_new->signature) << xml;
+        EXPECT_EQ(m_old->signature, m_copy->signature) << xml;
+
         ASSERT_THAT(m_new, NotNull())
             << "Failed to recompile " << xml << ": " << mjs_getError(s);
         ASSERT_THAT(m_copy, NotNull())
