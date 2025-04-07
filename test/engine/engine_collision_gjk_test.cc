@@ -71,7 +71,7 @@ void CCDFree(void* data, void* buffer) {
 }
 
 mjtNum GeomDist(mjModel* m, mjData* d, int g1, int g2, mjtNum x1[3],
-                mjtNum x2[3], mjtNum cutoff = mjMAXVAL) {
+                mjtNum x2[3], mjtNum cutoff = mjMAX_LIMIT) {
   mjCCDConfig config;
   mjCCDStatus status;
 
@@ -211,7 +211,7 @@ TEST_F(MjGjkTest, SphereSphereDistCutoff) {
   int geom2 = mj_name2id(model, mjOBJ_GEOM, "geom2");
   mjtNum dist = GeomDist(model, data, geom1, geom2, nullptr, nullptr, .999999);
 
-  EXPECT_EQ(dist, mjMAXVAL);
+  EXPECT_EQ(dist, mjMAX_LIMIT);
   mj_deleteData(data);
   mj_deleteModel(model);
 }

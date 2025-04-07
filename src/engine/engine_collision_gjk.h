@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_COLLISION_GJK_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_COLLISION_GJK_H_
 
+#include <float.h>
 #include <stddef.h>
 
 #include <mujoco/mjexport.h>
@@ -25,6 +26,13 @@
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+// numerical max limit
+#ifndef mjUSESINGLE
+  #define mjMAX_LIMIT DBL_MAX
+#else
+  #define mjMAX_LIMIT FLT_MAX
 #endif
 
 // max number of EPA iterations
