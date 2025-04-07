@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>  // NOLINT(build/c++11)
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
@@ -553,6 +554,16 @@ MjDataWrapper* MjDataWrapper::FromRawPointer(raw::MjData* m) noexcept {
   }
 }
 
+namespace {
+// default timer callback (seconds)
+mjtNum GetTime() {
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<mjtNum>;
+  static const Clock::time_point tm_start = Clock::now();
+  return Seconds(Clock::now() - tm_start).count();
+}
+}  // namespace
+
 MjDataWrapper::MjWrapper(MjModelWrapper* model)
     : WrapperBase(InterceptMjErrors(mj_makeData)(model->get()),
                   &MjDataCapsuleDestructor),
@@ -581,6 +592,14 @@ MjDataWrapper::MjWrapper(MjModelWrapper* model)
   if (!is_newly_inserted) {
     throw UnexpectedError(
         "MjDataRawPointerMap already contains this raw mjData*");
+  }
+
+  // install default timer if not already installed
+  {
+    py::gil_scoped_acquire gil;
+    if (!mjcb_time) {
+      mjcb_time = GetTime;
+    }
   }
 }
 
