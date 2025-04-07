@@ -32,6 +32,8 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <filesystem>
+#include <fstream>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -1158,13 +1160,181 @@ mjCPlugin* mjCModel::AddPlugin() {
 
 
 // append spec to spec
+
+void mjCModel::AppendSpec(mjSpec* spec) {
+  // Check if this spec already exists in our model (asset deduplication)
+  mjSpec* existing = FindDuplicateAsset(spec);
+  if (existing) {
+    // If we found a duplicate, free the incoming spec and return
+    mj_deleteSpec(spec);
+    return;
+  }
+  
+  // No duplicate found, add the new spec
+
 void mjCModel::AppendSpec(mjSpec* spec, const mjsCompiler* compiler_) {
   // TODO: check if the spec is already in the list
+
   specs_.push_back(spec);
 
   if (compiler_) {
     compiler2spec_[compiler_] = spec;
   }
+}
+
+// Find duplicate assets and return the existing one if found
+mjSpec* mjCModel::FindDuplicateAsset(const mjSpec* spec) {
+  if (!spec) {
+    return nullptr;
+  }
+  
+  // Get the modelname for comparison
+  std::string spec_name = mjs_getString(spec->modelname);
+  if (spec_name.empty()) {
+    return nullptr; // Cannot compare unnamed assets effectively yet
+  }
+  
+  // Check if we have an asset with the same name already
+  for (auto& existing : specs_) {
+    std::string existing_name = mjs_getString(existing->modelname);
+    if (existing_name == spec_name) {
+      // --- Mesh Comparison ---
+      if (spec->mesh.mesh && existing->mesh.mesh) { // Check both exist
+        // If mesh file is set, compare the file path
+        std::string spec_file = mjs_getString(spec->mesh.file);
+        std::string existing_file = mjs_getString(existing->mesh.file);
+        
+        // If file paths differ, they are not the same asset
+        if (!spec_file.empty() && spec_file != existing_file) {
+          continue;
+        }
+
+        // Compare buffer sizes (metadata check)
+        if (spec->mesh.vertex_buffer_size == existing->mesh.vertex_buffer_size &&
+            spec->mesh.normal_buffer_size == existing->mesh.normal_buffer_size &&
+            spec->mesh.texcoord_buffer_size == existing->mesh.texcoord_buffer_size &&
+            spec->mesh.face_buffer_size == existing->mesh.face_buffer_size) {
+              
+          // Metadata matches, proceed to content comparison
+          bool content_matches = true;
+
+          // Compare vertex buffer content
+          if (spec->mesh.vertex_buffer_size > 0 &&
+              memcmp(spec->mesh.vertex_buffer, existing->mesh.vertex_buffer, spec->mesh.vertex_buffer_size) != 0) {
+            content_matches = false;
+          }
+
+          // Compare normal buffer content
+          if (content_matches && spec->mesh.normal_buffer_size > 0 &&
+              memcmp(spec->mesh.normal_buffer, existing->mesh.normal_buffer, spec->mesh.normal_buffer_size) != 0) {
+            content_matches = false;
+          }
+
+          // Compare texcoord buffer content
+          if (content_matches && spec->mesh.texcoord_buffer_size > 0 &&
+              memcmp(spec->mesh.texcoord_buffer, existing->mesh.texcoord_buffer, spec->mesh.texcoord_buffer_size) != 0) {
+            content_matches = false;
+          }
+
+          // Compare face buffer content
+          if (content_matches && spec->mesh.face_buffer_size > 0 &&
+              memcmp(spec->mesh.face_buffer, existing->mesh.face_buffer, spec->mesh.face_buffer_size) != 0) {
+            content_matches = false;
+          }
+
+          // If both metadata and content match, return the existing spec
+          if (content_matches) {
+            return existing;
+          }
+        }
+      } // End Mesh Comparison
+      
+      // --- Texture Comparison ---
+      else if (spec->texture.texture && existing->texture.texture) { // Check both exist
+        std::string spec_file = mjs_getString(spec->texture.file);
+        std::string existing_file = mjs_getString(existing->texture.file);
+        
+        // If file paths differ, they are not the same asset
+        if (!spec_file.empty() && spec_file != existing_file) {
+          continue; 
+        }
+
+        // Compare dimensions (metadata check)
+        if (spec->texture.width == existing->texture.width &&
+            spec->texture.height == existing->texture.height) {
+              
+          // Metadata matches, proceed to content comparison
+          size_t data_size = (size_t)spec->texture.width * spec->texture.height * 3; // Assuming RGB8
+          if (data_size > 0 && spec->texture.rgb && existing->texture.rgb) { // Check data exists
+             if (memcmp(spec->texture.rgb, existing->texture.rgb, data_size) == 0) {
+               // Metadata and content match
+               return existing;
+             }
+          } else if (data_size == 0) {
+             // Dimensions are zero, considered match if metadata matched
+             return existing; 
+          }
+        }
+      } // End Texture Comparison
+      
+      // --- Height Field Comparison ---
+      else if (spec->hfield.hfield && existing->hfield.hfield) { // Check both exist
+        std::string spec_file = mjs_getString(spec->hfield.file);
+        std::string existing_file = mjs_getString(existing->hfield.file);
+        
+        // If file paths differ, they are not the same asset
+        if (!spec_file.empty() && spec_file != existing_file) {
+          continue; 
+        }
+
+        // Compare dimensions (metadata check)
+        if (spec->hfield.nrow == existing->hfield.nrow &&
+            spec->hfield.ncol == existing->hfield.ncol) {
+              
+          // Metadata matches, proceed to content comparison
+          size_t data_size = (size_t)spec->hfield.nrow * spec->hfield.ncol;
+          if (data_size > 0 && spec->hfield.data && existing->hfield.data) { // Check data exists
+            // Assuming data is float*, size for memcmp is count * sizeof(type)
+            if (memcmp(spec->hfield.data, existing->hfield.data, data_size * sizeof(float)) == 0) { 
+              // Metadata and content match
+              return existing;
+            }
+          } else if (data_size == 0) {
+            // Dimensions are zero, considered match if metadata matched
+            return existing;
+          }
+        }
+      } // End Height Field Comparison
+      
+      // --- Skin Comparison (Metadata only for now) ---
+      else if (spec->skin.skin && existing->skin.skin) { // Check both exist
+        if (spec->skin.vertex_count == existing->skin.vertex_count &&
+            spec->skin.face_count == existing->skin.face_count) {
+          // Skin vertex and face counts match (metadata only)
+          // Consider adding content comparison later if needed
+          return existing;
+        }
+      } // End Skin Comparison
+      
+      // --- Fallback for other/unidentified types with same name ---
+      // If none of the specific asset types matched but names are identical,
+      // consider them the same. This might need refinement based on how other
+      // asset types are uniquely identified.
+      else if (!spec->mesh.mesh && !existing->mesh.mesh &&
+               !spec->texture.texture && !existing->texture.texture && 
+               !spec->hfield.hfield && !existing->hfield.hfield &&
+               !spec->skin.skin && !existing->skin.skin) {
+        // Neither spec nor existing have the common asset types, rely on name.
+        return existing;
+      }
+      
+      // If names matched but asset types or content (where checked) didn't, 
+      // continue checking other assets in specs_
+    }
+  }
+  
+  // No duplicate found after checking all existing specs
+  return nullptr;
 }
 
 
