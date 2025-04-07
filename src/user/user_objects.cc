@@ -916,7 +916,7 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
 // attach frame to body
 mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   // append a copy of the attached spec
-  if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
+  if (other.model != model && !model->FindSpec(&other.model->spec.compiler)) {
     model->AppendSpec(mj_copySpec(&other.model->spec), &other.model->spec.compiler);
   }
 
@@ -2029,7 +2029,7 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
 // attach body to frame
 mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   // append a copy of the attached spec
-  if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
+  if (other.model != model && !model->FindSpec(&other.model->spec.compiler)) {
     model->AppendSpec(mj_copySpec(&other.model->spec), &other.model->spec.compiler);
   }
 

@@ -73,7 +73,7 @@ mjSpec* mj_copySpec(const mjSpec* s) {
   try {
     modelC = new mjCModel(*static_cast<mjCModel*>(s->element));
   } catch (mjCError& e) {
-    modelC->SetError(e);
+    static_cast<mjCModel*>(s->element)->SetError(e);
     return nullptr;
   }
   return &modelC->spec;
