@@ -290,7 +290,7 @@ class Simulate {
   // simulation section of UI
   const mjuiDef def_simulation[14] = {
     {mjITEM_SECTION,   "Simulation",    mjPRESERVE, nullptr,     "AS"},
-    {mjITEM_RADIO,     "",              5, &this->run,           "Pause\nRun"},
+    {mjITEM_RADIO,     "",              2, &this->run,           "Pause\nRun"},
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
     {mjITEM_BUTTON,    "Reload",        5, nullptr,              "CL"},
     {mjITEM_BUTTON,    "Align",         2, nullptr,              "CA"},

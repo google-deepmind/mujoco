@@ -277,8 +277,10 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def_property_readonly("busywait",
                              GetIfNotNull(&mujoco::Simulate::busywait),
                              py::call_guard<py::gil_scoped_release>())
-      .def_property_readonly("run", GetIfNotNull(&mujoco::Simulate::run),
-                             py::call_guard<py::gil_scoped_release>())
+      .def_property("run",
+                    GetIfNotNull(&mujoco::Simulate::run),
+                    SetIfNotNull(&mujoco::Simulate::run),
+                    py::call_guard<py::gil_scoped_release>())
 
       .def_property_readonly("exitrequest",
                              CallIfNotNull(+[](mujoco::Simulate& sim) {

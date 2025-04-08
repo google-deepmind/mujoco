@@ -1611,7 +1611,7 @@ void UiEvent(mjuiState* state) {
   if (state->type==mjEVENT_KEY && state->key!=0) {
     switch (state->key) {
     case ' ':                   // Mode
-      if (!sim->is_passive_ && sim->m_) {
+      if (sim->m_ || sim->is_passive_) {
         sim->run = 1 - sim->run;
         sim->pert.active = 0;
 
@@ -2181,7 +2181,7 @@ void Simulate::Sync() {
   // clear timers once profiler info has been copied
   ClearTimers(d_);
 
-  if (this->run || this->is_passive_) {
+  if (this->run) {
     // clear old perturbations, apply new
     mju_zero(d_->xfrc_applied, 6*m_->nbody);
     mjv_applyPerturbPose(m_, d_, &this->pert, 0);  // mocap bodies only
