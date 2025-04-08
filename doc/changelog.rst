@@ -32,8 +32,18 @@ Bug fixes
 
 Python bindings
 ^^^^^^^^^^^^^^^
+
+.. youtube:: LbANnKMDOHg
+   :aspect: 16:7
+   :align: right
+   :width: 240px
+
+- Added examples of procedural model creation to the Model Editing tutorial: |mjspec_colab|
 - Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding :ref:`section<PyMJCF>`
   in the documentation.
+
+.. |mjspec_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+                  :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb
 
 Version 3.3.0 (Feb 26, 2025)
 ----------------------------
