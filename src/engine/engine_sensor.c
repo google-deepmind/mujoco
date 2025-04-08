@@ -698,8 +698,8 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 // acceleration/force-dependent sensors
 void mj_sensorAcc(const mjModel* m, mjData* d) {
   int rootid, bodyid, objtype, objid, adr, nusersensor = 0;
-  int ne = d->ne, nf = d->nf, nefc = d->nefc;
-  mjtNum tmp[6], conforce[6], conray[3];
+  int ne = d->ne, nf = d->nf, nefc = d->nefc, nu = m->nu;
+  mjtNum tmp[6], conforce[6], conray[3], frc;
   mjContact* con;
 
   // disabled sensors: return
@@ -823,6 +823,16 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 
       case mjSENS_JOINTACTFRC:                            // jointactfrc
         d->sensordata[adr] = d->qfrc_actuator[m->jnt_dofadr[objid]];
+        break;
+
+      case mjSENS_TENDONACTFRC:  // tendonactfrc
+        frc = 0.0;
+        for (int j=0; j < nu; j++) {
+          if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == objid) {
+            frc += d->actuator_force[j];
+          }
+        }
+        d->sensordata[adr] = frc;
         break;
 
       case mjSENS_JOINTLIMITFRC:                          // jointlimitfrc

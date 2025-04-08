@@ -5388,7 +5388,9 @@ mjCTendon& mjCTendon::operator=(const mjCTendon& other) {
 bool mjCTendon::is_limited() const {
   return islimited(limited, range);
 }
-
+bool mjCTendon::is_actfrclimited() const {
+  return islimited(actfrclimited, actfrcrange);
+}
 
 void mjCTendon::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
@@ -5684,6 +5686,21 @@ void mjCTendon::Compile(void) {
   // check limits
   if (range[0] >= range[1] && is_limited()) {
     throw mjCError(this, "invalid limits in tendon");
+  }
+
+  // if limited is auto, set to 1 if range is specified, otherwise unlimited
+  if (actfrclimited == mjLIMITED_AUTO) {
+    bool hasactfrcrange = !(actfrcrange[0] == 0 && actfrcrange[1] == 0);
+    checklimited(this, compiler->autolimits, "tendon", "", actfrclimited,
+                 hasactfrcrange);
+  }
+
+  // check actfrclimits
+  if (actfrcrange[0] >= actfrcrange[1] && is_actfrclimited()) {
+    throw mjCError(this, "invalid actuatorfrcrange in tendon");
+  }
+  if ((actfrcrange[0] > 0 || actfrcrange[1] < 0) && is_actfrclimited()) {
+    throw mjCError(this, "invalid actuatorfrcrange in tendon");
   }
 
   // check springlength
@@ -6478,6 +6495,18 @@ void mjCSensor::Compile(void) {
         needstage = mjSTAGE_ACC;
       }
       break;
+
+  case mjSENS_TENDONACTFRC:
+    // must be attached to tendon
+    if (objtype != mjOBJ_TENDON) {
+      throw mjCError(this, "sensor must be attached to tendon");
+    }
+
+    // set
+    dim = 1;
+    datatype = mjDATATYPE_REAL;
+    needstage = mjSTAGE_ACC;
+    break;
 
     case mjSENS_TENDONPOS:
     case mjSENS_TENDONVEL:

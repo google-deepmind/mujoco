@@ -276,7 +276,7 @@ static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, i
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
-  int nv = m->nv, nu = m->nu;
+  int nv = m->nv, nu = m->nu, ntendon = m->ntendon;
   mjtNum gain, bias, tau;
   mjtNum *prm, *force = d->actuator_force;
 
@@ -288,6 +288,9 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     mju_zero(d->qfrc_actuator, nv);
     return;
   }
+
+  // any tendon transmission targets with force limits
+  int tendon_frclimited = 0;
 
   // local, clamped copy of ctrl
   mj_markStack(d);
@@ -384,6 +387,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       continue;
     }
 
+    // check for tendon transmission with force limits
+    if (ntendon && !tendon_frclimited && m->actuator_trntype[i] == mjTRN_TENDON) {
+      tendon_frclimited = m->tendon_actfrclimited[m->actuator_trnid[2*i]];
+    }
+
     // extract gain info
     prm = m->actuator_gainprm + mjNGAIN*i;
 
@@ -475,6 +483,38 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
           mjERROR("`compute` is a null function pointer for plugin at slot %d", slot);
         }
         plugin->compute(m, d, i, mjPLUGIN_ACTUATOR);
+      }
+    }
+  }
+
+  // clamp tendon total actuator force
+  if (tendon_frclimited) {
+    // compute total force for each tendon
+    mjtNum* tendon_total_force = mjSTACKALLOC(d, ntendon, mjtNum);
+    mju_zero(tendon_total_force, ntendon);
+    for (int i=0; i < nu; i++) {
+      if (m->actuator_trntype[i] == mjTRN_TENDON) {
+        int tendon_id = m->actuator_trnid[2*i];
+        if (m->tendon_actfrclimited[tendon_id]) {
+          tendon_total_force[tendon_id] += force[i];
+        }
+      }
+    }
+
+    // scale tendon actuator forces if limited and outside range
+    for (int i=0; i < nu; i++) {
+      if (m->actuator_trntype[i] != mjTRN_TENDON) {
+        continue;
+      }
+      int tendon_id = m->actuator_trnid[2*i];
+      mjtNum tendon_force = tendon_total_force[tendon_id];
+      if (m->tendon_actfrclimited[tendon_id] && tendon_force) {
+        const mjtNum* range = m->tendon_actfrcrange + 2 * tendon_id;
+        if (tendon_force < range[0]) {
+          force[i] *= range[0] / tendon_force;
+        } else if (tendon_force > range[1]) {
+          force[i] *= range[1] / tendon_force;
+        }
       }
     }
   }

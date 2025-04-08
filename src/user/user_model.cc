@@ -3351,6 +3351,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_matid[i] = pte->matid;
     m->tendon_group[i] = pte->group;
     m->tendon_limited[i] = (mjtByte)pte->is_limited();
+    m->tendon_actfrclimited[i] = (mjtByte)pte->is_actfrclimited();
     m->tendon_width[i] = (mjtNum)pte->width;
     mjuu_copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
     mjuu_copyvec(m->tendon_solimp_lim+mjNIMP*i, pte->solimp_limit, mjNIMP);
@@ -3358,6 +3359,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->tendon_solimp_fri+mjNIMP*i, pte->solimp_friction, mjNIMP);
     m->tendon_range[2*i] = (mjtNum)pte->range[0];
     m->tendon_range[2*i+1] = (mjtNum)pte->range[1];
+    m->tendon_actfrcrange[2*i] = (mjtNum)pte->actfrcrange[0];
+    m->tendon_actfrcrange[2*i+1] = (mjtNum)pte->actfrcrange[1];
     m->tendon_margin[i] = (mjtNum)pte->margin;
     m->tendon_stiffness[i] = (mjtNum)pte->stiffness;
     m->tendon_damping[i] = (mjtNum)pte->damping;
@@ -5005,6 +5008,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
   // tendons
   for (int i=0; i < ntendon; i++) {
     mjuu_copyvec(tendons_[i]->range, m->tendon_range+2*i, 2);
+    mjuu_copyvec(tendons_[i]->actfrcrange, m->tendon_actfrcrange+2*i, 2);
     mjuu_copyvec(tendons_[i]->solref_limit, m->tendon_solref_lim+mjNREF*i, mjNREF);
     mjuu_copyvec(tendons_[i]->solimp_limit, m->tendon_solimp_lim+mjNIMP*i, mjNIMP);
     mjuu_copyvec(tendons_[i]->solref_friction, m->tendon_solref_fri+mjNREF*i, mjNREF);

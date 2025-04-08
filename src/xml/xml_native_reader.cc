@@ -363,8 +363,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"tendon", "*", "0"},
     {"<"},
-        {"spatial", "*", "19", "name", "class", "group", "limited", "range",
-            "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
+        {"spatial", "*", "21", "name", "class", "group", "limited", "actuatorfrclimited", "range",
+            "actuatorfrcrange", "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
             "frictionloss", "springlength", "width", "material",
             "margin", "stiffness", "damping", "armature", "rgba", "user"},
         {"<"},
@@ -372,8 +372,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             {"geom", "*", "2", "geom", "sidesite"},
             {"pulley", "*", "1", "divisor"},
         {">"},
-        {"fixed", "*", "16", "name", "class", "group", "limited", "range",
-            "solreflimit", "solimplimit", "solreffriction", "solimpfriction",
+        {"fixed", "*", "18", "name", "class", "group", "limited", "actuatorfrclimited", "range",
+            "actuatorfrcrange","solreflimit", "solimplimit", "solreffriction", "solimpfriction",
             "frictionloss", "springlength", "margin", "stiffness", "damping", "armature", "user"},
         {"<"},
             {"joint", "*", "2", "joint", "coef"},
@@ -455,6 +455,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"actuatorvel", "*", "5", "name", "actuator", "cutoff", "noise", "user"},
         {"actuatorfrc", "*", "5", "name", "actuator", "cutoff", "noise", "user"},
         {"jointactuatorfrc", "*", "5", "name", "joint", "cutoff", "noise", "user"},
+        {"tendonactuatorfrc", "*", "5", "name", "tendon", "cutoff", "noise", "user"},
         {"ballquat", "*", "5", "name", "joint", "cutoff", "noise", "user"},
         {"ballangvel", "*", "5", "name", "joint", "cutoff", "noise", "user"},
         {"jointlimitpos", "*", "5", "name", "joint", "cutoff", "noise", "user"},
@@ -2052,12 +2053,14 @@ void mjXReader::OneTendon(XMLElement* elem, mjsTendon* tendon) {
     mjs_setString(tendon->material, material.c_str());
   }
   MapValue(elem, "limited", &tendon->limited, TFAuto_map, 3);
+  MapValue(elem, "actuatorfrclimited", &tendon->actfrclimited, TFAuto_map, 3);
   ReadAttr(elem, "width", 1, &tendon->width, text);
   ReadAttr(elem, "solreflimit", mjNREF, tendon->solref_limit, text, false, false);
   ReadAttr(elem, "solimplimit", mjNIMP, tendon->solimp_limit, text, false, false);
   ReadAttr(elem, "solreffriction", mjNREF, tendon->solref_friction, text, false, false);
   ReadAttr(elem, "solimpfriction", mjNIMP, tendon->solimp_friction, text, false, false);
   ReadAttr(elem, "range", 2, tendon->range, text);
+  ReadAttr(elem, "actuatorfrcrange", 2, tendon->actfrcrange, text);
   ReadAttr(elem, "margin", 1, &tendon->margin, text);
   ReadAttr(elem, "stiffness", 1, &tendon->stiffness, text);
   ReadAttr(elem, "damping", 1, &tendon->damping, text);
@@ -3973,6 +3976,10 @@ void mjXReader::Sensor(XMLElement* section) {
       sensor->type = mjSENS_JOINTACTFRC;
       sensor->objtype = mjOBJ_JOINT;
       ReadAttrTxt(elem, "joint", objname, true);
+    } else if (type=="tendonactuatorfrc") {
+      sensor->type = mjSENS_TENDONACTFRC;
+      sensor->objtype = mjOBJ_TENDON;
+      ReadAttrTxt(elem, "tendon", objname, true);
     }
 
     // sensors related to ball joints

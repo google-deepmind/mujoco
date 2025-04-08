@@ -20,6 +20,8 @@ General
   bodies when saving to XML.
 - Added :ref:`orientation<body-composite-quat>` attribute to :ref:`composite<body-composite>`. Moreover, allow the
   composite to be the direct child of a frame.
+- Added :ref:`tendon actuator force limits<tendon-spatial-actuatorfrclimited>` and
+  :ref:`tendon actuator force sensor<sensor-tendonactuatorfrc>`.
 
 Bug fixes
 ^^^^^^^^^

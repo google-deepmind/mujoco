@@ -3616,6 +3616,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ntendon',),
              ),
              StructFieldDecl(
+                 name='tendon_actfrclimited',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte'),
+                 ),
+                 doc='does tendon have actuator force limits',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
                  name='tendon_width',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -3661,6 +3669,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='tendon length limits',
+                 array_extent=('ntendon', 2),
+             ),
+             StructFieldDecl(
+                 name='tendon_actfrcrange',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='range of total actuator force',
                  array_extent=('ntendon', 2),
              ),
              StructFieldDecl(
@@ -8136,6 +8152,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                              doc='',
                          ),
                          StructFieldDecl(
+                             name='tendon_actfrclimited',
+                             type=PointerType(
+                                 inner_type=ValueType(name='mjtByte'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
                              name='tendon_width',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
@@ -8144,6 +8167,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='tendon_range',
+                             type=PointerType(
+                                 inner_type=ValueType(name='mjtNum'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='tendon_actfrcrange',
                              type=PointerType(
                                  inner_type=ValueType(name='mjtNum'),
                              ),
@@ -11343,12 +11373,25 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='does tendon have limits (mjtLimited)',
              ),
              StructFieldDecl(
+                 name='actfrclimited',
+                 type=ValueType(name='int'),
+                 doc='does tendon have actuator force limits',
+             ),
+             StructFieldDecl(
                  name='range',
                  type=ArrayType(
                      inner_type=ValueType(name='double'),
                      extents=(2,),
                  ),
                  doc='length limits',
+             ),
+             StructFieldDecl(
+                 name='actfrcrange',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 doc='actuator force limits',
              ),
              StructFieldDecl(
                  name='margin',

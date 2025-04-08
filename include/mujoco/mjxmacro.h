@@ -475,12 +475,14 @@
     XMJV( int,     tendon_matid,          ntendon,       1                    ) \
     XMJV( int,     tendon_group,          ntendon,       1                    ) \
     XMJV( mjtByte, tendon_limited,        ntendon,       1                    ) \
+    XMJV( mjtByte, tendon_actfrclimited,  ntendon,       1                    ) \
     XMJV( mjtNum,  tendon_width,          ntendon,       1                    ) \
     X   ( mjtNum,  tendon_solref_lim,     ntendon,       mjNREF               ) \
     X   ( mjtNum,  tendon_solimp_lim,     ntendon,       mjNIMP               ) \
     X   ( mjtNum,  tendon_solref_fri,     ntendon,       mjNREF               ) \
     X   ( mjtNum,  tendon_solimp_fri,     ntendon,       mjNIMP               ) \
     XMJV( mjtNum,  tendon_range,          ntendon,       2                    ) \
+    XMJV( mjtNum,  tendon_actfrcrange,    ntendon,       2                    ) \
     X   ( mjtNum,  tendon_margin,         ntendon,       1                    ) \
     XMJV( mjtNum,  tendon_stiffness,      ntendon,       1                    ) \
     XMJV( mjtNum,  tendon_damping,        ntendon,       1                    ) \
