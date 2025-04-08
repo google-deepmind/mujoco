@@ -27,10 +27,9 @@ from typing import Callable, List, Optional, Tuple, Union
 import weakref
 
 import glfw
-import numpy as np
-
 import mujoco
 from mujoco import _simulate
+import numpy as np
 
 if not glfw._glfw:  # pylint: disable=protected-access
   raise RuntimeError('GLFW dynamic library handle is not available')
