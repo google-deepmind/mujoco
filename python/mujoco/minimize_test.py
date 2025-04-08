@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Tests for minimize.py."""
 
 import io
 
@@ -32,7 +31,7 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, output=out)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('norm(gradient) < tol', out.getvalue())
 
   def test_start_at_minimum(self) -> None:
     def residual(x):
@@ -43,7 +42,7 @@ class MinimizeTest(absltest.TestCase):
     x, _ = minimize.least_squares(x0, residual, output=out)
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('norm(gradient) < tol', out.getvalue())
     self.assertIn('exact minimum found', out.getvalue())
 
   def test_jac_callback(self) -> None:
@@ -61,7 +60,7 @@ class MinimizeTest(absltest.TestCase):
     )
     expected_x = np.array((1.0, 1.0))
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('norm(gradient) < tol', out.getvalue())
     self.assertIn('Jacobian matches', out.getvalue())
 
     # Try with bad Jacobian, ask least_squares to check it.
@@ -116,7 +115,7 @@ class MinimizeTest(absltest.TestCase):
         x0, residual, bounds=bounds_types['inbounds'], output=out
     )
     np.testing.assert_array_almost_equal(x, expected_x)
-    self.assertIn('norm(dx) < tol', out.getvalue())
+    self.assertIn('norm(gradient) < tol', out.getvalue())
 
     # Test different bounds conditions.
     for bounds in bounds_types.values():
