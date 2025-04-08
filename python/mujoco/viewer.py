@@ -23,7 +23,7 @@ import queue
 import sys
 import threading
 import time
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 import weakref
 
 import glfw
@@ -115,15 +115,95 @@ class Handle:
       return sim.viewport
     return None
 
-  def set_figures(self, viewports_figures):
+  def set_figures(
+      self, viewports_figures: Union[Tuple[mujoco.MjrRect, mujoco.MjvFigure],
+                                   List[Tuple[mujoco.MjrRect, mujoco.MjvFigure]]]
+  ):
+    """Overlay figures on the viewer.
+
+    Args:
+      viewports_figures: Single tuple or list of tuples of (viewport, figure)
+        viewport: Rectangle defining position and size of the figure
+        figure: MjvFigure object containing the figure data to display
+    """
     sim = self._sim()
     if sim is not None:
+      # Convert single tuple to list if needed
+      if isinstance(viewports_figures, tuple):
+        viewports_figures = [viewports_figures]
       sim.set_figures(viewports_figures)
 
   def clear_figures(self):
     sim = self._sim()
     if sim is not None:
       sim.clear_figures()
+
+  def set_texts(self, texts: Union[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]],
+                                            List[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]]]):
+    """Overlay text on the viewer.
+
+    Args:
+      texts: Single tuple or list of tuples of (font, gridpos, text1, text2)
+        font: Font style from mujoco.mjtFontScale
+        gridpos: Position of text box from mujoco.mjtGridPos
+        text1: Left text column, defaults to empty string if None
+        text2: Right text column, defaults to empty string if None
+    """
+    sim = self._sim()
+    if sim is not None:
+      # Convert single tuple to list if needed
+      if isinstance(texts, tuple):
+        texts = [texts]
+
+      # Convert None values to empty strings
+      default_font = mujoco.mjtFontScale.mjFONTSCALE_150
+      default_gridpos = mujoco.mjtGridPos.mjGRID_TOPLEFT
+      processed_texts = [(
+                        default_font if font is None else font,
+                        default_gridpos if gridpos is None else gridpos,
+                         "" if text1 is None else text1,
+                         "" if text2 is None else text2)
+                        for font, gridpos, text1, text2 in texts]
+
+      sim.set_texts(processed_texts)
+
+  def clear_texts(self):
+    sim = self._sim()
+    if sim is not None:
+      sim.clear_texts()
+
+  def set_images(
+      self, viewports_images: Union[Tuple[mujoco.MjrRect, np.ndarray],
+                                  List[Tuple[mujoco.MjrRect, np.ndarray]]]
+  ):
+    """Overlay images on the viewer.
+
+    Args:
+      viewports_images: Single tuple or list of tuples of (viewport, image)
+        viewport: Rectangle defining position and size of the image
+        image: RGB image with shape (height, width, 3)
+    """
+    sim = self._sim()
+    if sim is not None:
+      # Convert single tuple to list if needed
+      if isinstance(viewports_images, tuple):
+        viewports_images = [viewports_images]
+
+      processed_images = []
+      for viewport, image in viewports_images:
+        targ_shape = (viewport.height, viewport.width)
+        # Check if image is already the correct shape
+        if image.shape[:2] != targ_shape:
+          raise ValueError(f"Image shape {image.shape[:2]} does not match target shape {targ_shape}")
+        flipped = np.flip(image, axis=0)
+        contiguous = np.ascontiguousarray(flipped)
+        processed_images.append((viewport, contiguous))
+      sim.set_images(processed_images)
+
+  def clear_images(self):
+    sim = self._sim()
+    if sim is not None:
+      sim.clear_images()
 
   def close(self):
     sim = self._sim()
