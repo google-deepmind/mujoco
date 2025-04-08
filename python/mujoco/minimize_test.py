@@ -127,8 +127,8 @@ class MinimizeTest(absltest.TestCase):
           output=out,
           verbose=minimize.Verbosity.FULLITER,
       )
-      self.assertIn(' < tol', out.getvalue())
-      grad = trace[-2].jacobian.T @ trace[-2].residual
+      self.assertIn('norm(gradient) < tol', out.getvalue())
+      grad = trace[-1].grad
       # If x_i is on the boundary, gradient points out, otherwise it is 0.
       for i, xi in enumerate(x):
         if xi == bounds[0][i]:

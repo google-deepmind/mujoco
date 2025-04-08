@@ -403,6 +403,23 @@ def least_squares(
   yfinal = norm.value(r)
   red = np.float64(0.0)  # No reduction since we didn't take a step.
   log = IterLog(candidate=x, objective=yfinal, reduction=red, regularizer=mu)
+
+  # If full verbosity requested, compute values at the final point.
+  if verbose >= Verbosity.FULLITER.value:
+    # Get Jacobian jac.
+    t_start = time.time()
+    if jacobian is None:
+      jac, n_res = jacobian_fd(residual, x, r, eps, n_res, bounds)
+      t_res += time.time() - t_start
+    else:
+      jac = jacobian(x, r)
+      t_jac += time.time() - t_start
+      n_jac += 1
+
+    # Get gradient, add to log.
+    grad, _ = norm.grad_hess(r, jac)
+    log = dataclasses.replace(log, residual=r, jacobian=jac, grad=grad)
+
   trace.append(log)
   if iter_callback is not None:
     iter_callback(trace)
