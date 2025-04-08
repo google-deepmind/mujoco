@@ -781,6 +781,15 @@ typedef struct mjsDefault_ {       // default specification
 } mjsDefault;
 
 #ifdef __cplusplus
+  using mjsElementVec = std::vector<mjsElement*>; 
+  using mjsBodyVec    = std::vector<mjsBody*>;
+#else
+  // C: opaque types
+  typedef void mjsElementVec;
+  typedef void mjsBodyVec;
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 

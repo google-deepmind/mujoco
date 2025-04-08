@@ -24,6 +24,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <type_traits>
 
 #include <mujoco/mujoco.h>
 #include "user/user_model.h"
@@ -772,7 +773,80 @@ mjsBody* mjs_findChild(mjsBody* bodyspec, const char* name) {
   return child ? &(static_cast<mjCBody*>(child)->spec) : nullptr;
 }
 
+// find all child specs of either a spec or a body
+template <typename TSpec, typename TChildSpec,
+          typename = std::enable_if<std::is_same_v<TSpec, mjSpec> | std::is_same_v<TSpec, mjsBody>>>
+std::vector<TChildSpec*> _mjPRIVATE__findAll(TSpec* base_spec, mjtObj type, int recurse) {
+  if (type == mjOBJ_UNKNOWN) {
+    // this should never happen
+    throw mjCError(NULL,
+        "[_mjPRIVATE__findAll] supports the types: body, frame, geom, site, "
+        "joint, light, camera.");
+  }
 
+  std::vector<TChildSpec*> list;
+  mjsElement* el = nullptr;
+  if constexpr (std::is_same_v<TSpec, mjSpec>) {
+    el = mjs_firstElement(base_spec, type);
+  } else {
+    el = mjs_firstChild(base_spec, type, recurse);
+  }
+
+  const std::string error = mjs_getError(mjs_getSpec(base_spec->element));
+  if (!el && !error.empty()) {
+    throw mjCError(NULL, error.c_str());
+  }
+  while (el) {
+    if constexpr (std::is_same_v<TChildSpec, mjsElement>) {
+      list.push_back(el);
+    }
+    else {
+      TChildSpec* child_spec = nullptr;
+      if constexpr (std::is_same_v<TChildSpec, mjsBody>) {
+        child_spec = mjs_asBody(el);
+      }
+      else if constexpr (std::is_same_v<TChildSpec, mjsCamera>) {
+        child_spec = mjs_asCamera(el);
+      }
+      else if constexpr (std::is_same_v<TChildSpec, mjsFrame>) {
+        child_spec = mjs_asFrame(el);
+      }
+      else if constexpr (std::is_same_v<TChildSpec, mjsGeom>) {
+        child_spec = mjs_asGeom(el);
+      }
+      else if constexpr (std::is_same_v<TChildSpec, mjsJoint>) {
+        child_spec = mjs_asJoint(el);
+      }
+      else if constexpr (std::is_same_v<TChildSpec, mjsLight>) {
+        child_spec = mjs_asLight(el);
+      }
+      else if constexpr (std::is_same_v<TChildSpec, mjsSite>) {
+        child_spec = mjs_asSite(el);
+      }
+
+      if (child_spec) {
+        list.push_back(child_spec);
+      }
+    }
+
+    if constexpr (std::is_same_v<TSpec, mjSpec>) {
+      el = mjs_nextElement(base_spec, el);
+    } else {
+      el = mjs_nextChild(base_spec, el, recurse);
+    }
+  }
+  return list;
+}
+
+// Find all elements in spec
+mjsElementVec mjs_findAllElements(mjSpec* s, mjtObj type, int recurse) {
+  return _mjPRIVATE__findAll<mjSpec, mjsElement>(s, type, recurse);
+}
+
+// Find all bodies in spec
+mjsBodyVec mjs_findAllBodies(mjSpec* s, int recurse) {
+  return _mjPRIVATE__findAll<mjSpec, mjsBody>(s, mjOBJ_BODY, recurse);
+}
 
 // get parent body
 mjsBody* mjs_getParent(mjsElement* element) {

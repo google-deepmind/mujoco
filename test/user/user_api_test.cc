@@ -96,14 +96,17 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjsBody* body = mjs_findBody(spec, "body");
   mjsBody* body1 = mjs_findBody(spec, "body1");
   mjsBody* body2 = mjs_findBody(spec, "body2");
+  mjsBodyVec bodies = mjs_findAllBodies(spec, /*recurse=*/true);
   mjsElement* site1 = mjs_findElement(spec, mjOBJ_SITE, "site1");
   mjsElement* site2 = mjs_findElement(spec, mjOBJ_SITE, "site2");
   mjsElement* site3 = mjs_findElement(spec, mjOBJ_SITE, "site3");
   mjsElement* site4 = mjs_findElement(spec, mjOBJ_SITE, "site4");
   mjsElement* site5 = mjs_findElement(spec, mjOBJ_SITE, "site5");
+  mjsElementVec sites = mjs_findAllElements(spec, mjOBJ_SITE, /*recurse=*/true);
   mjsElement* geom1 = mjs_findElement(spec, mjOBJ_GEOM, "geom1");
   mjsElement* geom2 = mjs_findElement(spec, mjOBJ_GEOM, "geom2");
   mjsElement* geom3 = mjs_findElement(spec, mjOBJ_GEOM, "geom3");
+  mjsElementVec geoms = mjs_findAllElements(spec, mjOBJ_GEOM, /*recurse=*/true);
 
   // test nonexistent
   EXPECT_EQ(mjs_firstElement(spec, mjOBJ_ACTUATOR), nullptr);
@@ -151,6 +154,21 @@ TEST_F(MujocoTest, TreeTraversal) {
   EXPECT_EQ(geom2, mjs_nextChild(body, geom1, /*recursive=*/true));
   EXPECT_EQ(geom3, mjs_nextChild(body, geom2, /*recursive=*/true));
   EXPECT_EQ(nullptr, mjs_nextChild(body, geom3, /*recursive=*/true));
+
+  // test find-all, recursive
+  EXPECT_TRUE(std::find(bodies.begin(), bodies.end(), body) != bodies.end());
+  EXPECT_TRUE(std::find(bodies.begin(), bodies.end(), body1) != bodies.end());
+  EXPECT_TRUE(std::find(bodies.begin(), bodies.end(), body2) != bodies.end());
+
+  EXPECT_TRUE(std::find(geoms.begin(), geoms.end(), geom1) != geoms.end());
+  EXPECT_TRUE(std::find(geoms.begin(), geoms.end(), geom2) != geoms.end());
+  EXPECT_TRUE(std::find(geoms.begin(), geoms.end(), geom3) != geoms.end());
+
+  EXPECT_TRUE(std::find(sites.begin(), sites.end(), site1) != sites.end());
+  EXPECT_TRUE(std::find(sites.begin(), sites.end(), site2) != sites.end());
+  EXPECT_TRUE(std::find(sites.begin(), sites.end(), site3) != sites.end());
+  EXPECT_TRUE(std::find(sites.begin(), sites.end(), site4) != sites.end());
+  EXPECT_TRUE(std::find(sites.begin(), sites.end(), site5) != sites.end());
 
   // check compilation ordering of sites
   mjModel* model = mj_compile(spec, nullptr);
