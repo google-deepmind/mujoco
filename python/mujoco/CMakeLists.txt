@@ -278,6 +278,25 @@ target_link_libraries(
             raw
 )
 
+add_library(structs_wrappers STATIC
+  structs_wrappers.cc
+  serialization.h
+  indexers.cc
+)
+target_include_directories(structs_wrappers PRIVATE ${Python3_INCLUDE_DIRS})
+target_link_libraries(
+  structs_wrappers
+  PRIVATE absl::flat_hash_map
+          absl::span
+          crossplatform
+          mujoco
+          raw
+          structs_header
+          pybind11::headers
+          Eigen3::Eigen
+)
+
+
 add_library(functions_header INTERFACE)
 target_sources(functions_header INTERFACE functions.h)
 set_target_properties(functions_header PROPERTIES PUBLIC_HEADER functions.h)
@@ -403,6 +422,7 @@ target_link_libraries(
           func_wrap
           function_traits
           structs_header
+          structs_wrappers
 )
 
 if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/specs.cc.inc)
