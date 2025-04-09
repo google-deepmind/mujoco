@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
+from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
@@ -195,6 +196,21 @@ class ActuatorTest(parameterized.TestCase):
     mujoco.mj_Euler(m, d)
     dx = jax.jit(mjx.euler)(mx, dx)
     _assert_attr_eq(d, dx, 'act')
+
+  def test_tendon_force_clamp(self):
+    m = test_util.load_test_file('actuator/tendon_force_clamp.xml')
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    dx = dx.replace(ctrl=jp.array([1.0, 1.0, 1.0, -1.0, 1.0, -20.0, 5.0, -5.0]))
+    dx = mjx.forward(mx, dx)
+
+    _assert_eq(
+        dx.actuator_force,
+        jp.array([1.0, 1.0, 1.0, -1.0, 1.0, -10.0, 5.0, -5.0]),
+        'actuator_force',
+    )
 
 
 if __name__ == '__main__':

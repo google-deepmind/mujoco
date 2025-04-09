@@ -38,6 +38,7 @@ from mujoco.mjx._src.types import GainType
 from mujoco.mjx._src.types import IntegratorType
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import TrnType
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -178,6 +179,34 @@ def fwd_actuation(m: Model, d: Data) -> Data:
       jp.array(m.actuator_acc0),
       group_by='u',
   )
+
+  # tendon total force clamping
+  if np.any(m.tendon_actfrclimited):
+    (tendon_actfrclimited_id,) = np.nonzero(m.tendon_actfrclimited)
+    actuator_tendon = m.actuator_trntype == TrnType.TENDON
+
+    force_mask = [
+        actuator_tendon & (m.actuator_trnid[:, 0] == tendon_id)
+        for tendon_id in tendon_actfrclimited_id
+    ]
+    force_ids = np.concatenate([np.nonzero(mask)[0] for mask in force_mask])
+    force_mat = np.array(force_mask)[:, force_ids]
+    tendon_total_force = force_mat @ force[force_ids]
+
+    force_scaling = jp.where(
+        tendon_total_force < m.tendon_actfrcrange[tendon_actfrclimited_id, 0],
+        m.tendon_actfrcrange[tendon_actfrclimited_id, 0] / tendon_total_force,
+        1,
+    )
+    force_scaling = jp.where(
+        tendon_total_force > m.tendon_actfrcrange[tendon_actfrclimited_id, 1],
+        m.tendon_actfrcrange[tendon_actfrclimited_id, 1] / tendon_total_force,
+        force_scaling,
+    )
+
+    tendon_forces = force[force_ids] * (force_mat.T @ force_scaling)
+    force = force.at[force_ids].set(tendon_forces)
+
   forcerange = jp.where(
       m.actuator_forcelimited[:, None],
       m.actuator_forcerange,

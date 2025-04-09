@@ -23,6 +23,10 @@ General
 - Added :ref:`tendon actuator force limits<tendon-spatial-actuatorfrclimited>` and
   :ref:`tendon actuator force sensor<sensor-tendonactuatorfrc>`.
 
+MJX
+^^^
+- Added tendon actuator force limits.
+
 Bug fixes
 ^^^^^^^^^
 - :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
