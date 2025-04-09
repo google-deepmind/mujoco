@@ -1,27 +1,26 @@
 =========
 Changelog
 =========
-
-Upcoming version (not yet released)
------------------------------------
+Version 3.3.1 (Apr 9, 2025)
+----------------------------
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The default value of the flag for toggling :ref:`internal flex contacts<flex-contact-internal>` was changed from
-     "true" to "false". This feature has proven to be counterintuitive for users.
-   - All of the attach functions (``mjs_attachBody``, ``mjs_attachFrame``, ``mjs_attachToSite``,
-     ``mjs_attachFrameToSite``) have been removed and replaced by a single function :ref:`mjs_attach`.
+   1. The default value of the flag for toggling :ref:`internal flex contacts<flex-contact-internal>` was changed from
+      "true" to "false". This feature has proven to be counterintuitive for users.
+   2. All of the attach functions (``mjs_attachBody``, ``mjs_attachFrame``, ``mjs_attachToSite``,
+      ``mjs_attachFrameToSite``) have been removed and replaced by a single function :ref:`mjs_attach`.
 
 General
 ^^^^^^^
-- Added :ref:`tendon armature<tendon-spatial-armature>`: inertia associated with changes in tendon length.
-- Added the :ref:`compiler/saveinertial<compiler-saveinertial>` flag, writing explicit inertial clauses for all
-  bodies when saving to XML.
-- Added :ref:`orientation<body-composite-quat>` attribute to :ref:`composite<body-composite>`. Moreover, allow the
-  composite to be the direct child of a frame.
-- Added :ref:`tendon actuator force limits<tendon-spatial-actuatorfrclimited>` and
-  :ref:`tendon actuator force sensor<sensor-tendonactuatorfrc>`.
+3. Added :ref:`tendon armature<tendon-spatial-armature>`: inertia associated with changes in tendon length.
+4. Added the :ref:`compiler/saveinertial<compiler-saveinertial>` flag, writing explicit inertial clauses for all
+   bodies when saving to XML.
+5. Added :ref:`orientation<body-composite-quat>` attribute to :ref:`composite<body-composite>`. Moreover, allow the
+   composite to be the direct child of a frame.
+6. Added :ref:`tendon actuator force limits<tendon-spatial-actuatorfrclimited>` and
+   :ref:`tendon actuator force sensor<sensor-tendonactuatorfrc>`.
 
 MJX
 ^^^
@@ -29,12 +28,12 @@ MJX
 
 Bug fixes
 ^^^^^^^^^
-- :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
-  which the Jacobian is computed, now fixed.
-- Fixed a bug that caused the parent frame of elements in the child worldbody to be incorrectly set when attaching an
-  mjSpec to a frame or a site.
-- Fixed a bug that caused shadow rendering to flicker on platforms (e.g., MacOS) that do not support ARB_clip_control.
-  Fixed in collaboration with :github:user:`aftersomemath`.
+7. :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
+   which the Jacobian is computed, now fixed.
+8. Fixed a bug that caused the parent frame of elements in the child worldbody to be incorrectly set when attaching an
+   mjSpec to a frame or a site.
+9. Fixed a bug that caused shadow rendering to flicker on platforms (e.g., MacOS) that do not support ARB_clip_control.
+   Fixed in collaboration with :github:user:`aftersomemath`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
@@ -44,9 +43,9 @@ Python bindings
    :align: right
    :width: 240px
 
-- Added examples of procedural model creation to the Model Editing tutorial: |mjspec_colab|
-- Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding :ref:`section<PyMJCF>`
-  in the documentation.
+10. Added examples of procedural model creation to the Model Editing tutorial: |mjspec_colab|
+11. Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding :ref:`section<PyMJCF>`
+    in the documentation.
 
 .. |mjspec_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
                   :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb
