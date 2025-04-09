@@ -417,6 +417,8 @@ endif()
 mujoco_pybind11_module(
   _specs
   specs.cc
+  specs_wrapper.h
+  specs_wrapper.cc
   specs.cc.inc
 )
 target_link_libraries(
