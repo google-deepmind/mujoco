@@ -15,7 +15,6 @@
 // Tests for engine/engine_util_sparse.c
 
 #include <array>
-#include <vector>
 
 #include "src/engine/engine_util_sparse.h"
 
@@ -29,11 +28,6 @@ namespace {
 
 using ::testing::ElementsAre;
 using EngineUtilSparseTest = MujocoTest;
-
-template <typename T>
-std::vector<T> AsVector(const T* array, int n) {
-  return std::vector<T>(array, array + n);
-}
 
 TEST_F(EngineUtilSparseTest, MjuDot) {
   mjtNum a[] = {2,    3,       4,          5,          6,       7,    8};
@@ -335,14 +329,12 @@ TEST_F(EngineUtilSparseTest, MjuCompressSparse) {
   EXPECT_EQ(AsVector(dense, 6), AsVector(dense_expected_minval1, 6));
 }
 
-static constexpr char modelStr[] = R"(<mujoco/>)";
-
 TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse1) {
   //       0 0 0
   // M  =  0 0 0
   //       0 0 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -388,7 +380,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse2) {
   // M = 1  2 -1
   //     2  2  3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {2, -1, 1, 2, -1, 2, 2, 2, 3};
@@ -435,7 +427,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse3) {
   // M = 0 3 0
   //     4 0 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 3, 4};
@@ -483,7 +475,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse4) {
   // M = 0 0 3
   //     4 0 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 3, 4};
@@ -532,7 +524,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse5) {
   // M = 0 0 0
   //     2 3 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 4, 2, 3};
@@ -579,7 +571,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse6) {
   // M = 0 2 0
   //     0 0 3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 2, 3};
@@ -626,7 +618,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse7) {
   // M = 0 3
   //     4 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 3, 4};
@@ -673,7 +665,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse8) {
   // M = 1 0 4
   //     2 3 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 4, 2, 3};
@@ -721,7 +713,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse9) {
   // M = 1 3 4
   //     4 4 4
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 2, 1, 3, 4, 4, 4, 4};
@@ -769,7 +761,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse10) {
   // M = 2 2 2
   //     3 3 3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 2, 2, 2, 3, 3, 3};
@@ -818,7 +810,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse11) {
   // M = 0 0 0
   //     0 3 3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 3, 3};
@@ -867,7 +859,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse12) {
   // M = 0 0 0 0
   //     0 0 3 3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 1, 3, 3};
@@ -918,7 +910,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse13) {
   // M = 1 1 0 0 0
   //     1 1 0 0 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 1, 1, 1};
@@ -969,7 +961,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse13) {
 TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse14) {
   // M = 1 1 1 1 2 2 2
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 1, 2, 2, 2};
@@ -1019,78 +1011,6 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse14) {
   EXPECT_THAT(rowadrH, ElementsAre(0, 7, 14, 21, 28, 35, 42));
 
   mj_deleteData(data);
-  mj_deleteModel(model);
-}
-
-TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
-  mjModel* model = LoadModelFromString(modelStr);
-  mjData* d = mj_makeData(model);
-
-  int nA = 2;
-  mjtNum matA[4] = {1, 0,
-                    0, 1};
-  mjtNum sparseA[4];
-  int rownnzA[2];
-  int rowadrA[2];
-  int colindA[4];
-  int rownnzA_factor[2];
-  mju_dense2sparse(sparseA, matA, nA, nA, rownnzA, rowadrA, colindA, 4);
-  int nnzA = mju_cholFactorCount(rownnzA_factor,
-                                 rownnzA, rowadrA, colindA, nA, d);
-
-  EXPECT_EQ(nnzA, 2);
-  EXPECT_THAT(AsVector(rownnzA_factor, 2), ElementsAre(1, 1));
-
-  int nB = 3;
-  mjtNum matB[9] = {10, 1, 0,
-                    0, 10, 1,
-                    0, 0, 10};
-  mjtNum sparseB[9];
-  int rownnzB[3];
-  int rowadrB[3];
-  int colindB[9];
-  int rownnzB_factor[3];
-  mju_dense2sparse(sparseB, matB, nB, nB, rownnzB, rowadrB, colindB, 9);
-  int nnzB = mju_cholFactorCount(rownnzB_factor,
-                                 rownnzB, rowadrB, colindB, nB, d);
-
-  EXPECT_EQ(nnzB, 5);
-  EXPECT_THAT(AsVector(rownnzB_factor, 3), ElementsAre(1, 2, 2));
-
-  int nC = 3;
-  mjtNum matC[9] = {10, 1, 0,
-                    0, 10, 0,
-                    0, 0, 10};
-  mjtNum sparseC[9];
-  int rownnzC[3];
-  int rowadrC[3];
-  int colindC[9];
-  int rownnzC_factor[3];
-  mju_dense2sparse(sparseC, matC, nC, nC, rownnzC, rowadrC, colindC, 9);
-  int nnzC = mju_cholFactorCount(rownnzC_factor,
-                                 rownnzC, rowadrC, colindC, nC, d);
-
-  EXPECT_EQ(nnzC, 4);
-  EXPECT_THAT(AsVector(rownnzC_factor, 3), ElementsAre(1, 2, 1));
-
-  int nD = 4;
-  mjtNum matD[16] = {10, 1, 2, 3,
-                     0, 10, 0, 0,
-                     0, 0, 10, 1,
-                     0, 0, 0, 10};
-  mjtNum sparseD[16];
-  int rownnzD[4];
-  int rowadrD[4];
-  int colindD[16];
-  int rownnzD_factor[4];
-  mju_dense2sparse(sparseD, matD, nD, nD, rownnzD, rowadrD, colindD, 16);
-  int nnzD = mju_cholFactorCount(rownnzD_factor,
-                                 rownnzD, rowadrD, colindD, nD, d);
-
-  EXPECT_EQ(nnzD, 8);
-  EXPECT_THAT(AsVector(rownnzD_factor, 4), ElementsAre(1, 2, 2, 3));
-
-  mj_deleteData(d);
   mj_deleteModel(model);
 }
 

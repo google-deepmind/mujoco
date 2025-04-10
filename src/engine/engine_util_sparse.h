@@ -103,9 +103,6 @@ MJAPI void mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
 // precompute res_rowadr for mju_sqrMatTDSparse using uncompressed memory
 MJAPI void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc);
 
-// precount row non-zeros of reverse-Cholesky factor L, return total
-MJAPI int mju_cholFactorCount(int* L_rownnz, const int* rownnz, const int* rowadr,
-                              const int* colind, int n, mjData* d);
 
 // ------------------------------ inlined functions ------------------------------------------------
 
