@@ -30,7 +30,7 @@ from mujoco.mjx._src.types import SolverType
 # pylint: enable=g-importing-member
 
 
-class _Context(PyTreeNode):
+class Context(PyTreeNode):
   """Data updated during each solver iteration.
 
   Attributes:
@@ -72,7 +72,7 @@ class _Context(PyTreeNode):
   h: jax.Array
 
   @classmethod
-  def create(cls, m: Model, d: Data, grad: bool = True) -> '_Context':
+  def create(cls, m: Model, d: Data, grad: bool = True) -> 'Context':
     jaref = d.efc_J @ d.qacc - d.efc_aref
     # TODO(robotics-team): determine nv at which sparse mul is faster
     ma = support.mul_m(m, d, d.qacc)
@@ -86,7 +86,7 @@ class _Context(PyTreeNode):
       for condim in (3, 4, 6):
         fri = fri.at[dim == condim, condim:].set(0)
 
-    ctx = _Context(
+    ctx = Context(
         qacc=d.qacc,
         qfrc_constraint=d.qfrc_constraint,
         Jaref=jaref,
@@ -133,7 +133,7 @@ class _LSPoint(PyTreeNode):
       cls,
       m: Model,
       d: Data,
-      ctx: _Context,
+      ctx: Context,
       alpha: jax.Array,
       jv: jax.Array,
       quad: jax.Array,
@@ -241,7 +241,7 @@ def _while_loop_scan(cond_fun, body_fun, init_val, max_iter):
   return jax.lax.scan(_fun, init, None, length=max_iter)[0][0]
 
 
-def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
+def _update_constraint(m: Model, d: Data, ctx: Context) -> Context:
   """Updates constraint force and resulting cost given last solver iteration.
 
   Corresponds to CGupdateConstraint in mujoco/src/engine/engine_solver.c
@@ -356,7 +356,7 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
   return ctx
 
 
-def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
+def _update_gradient(m: Model, d: Data, ctx: Context) -> Context:
   """Updates grad and M / grad given latest solver iteration.
 
   Corresponds to CGupdateGradient in mujoco/src/engine/engine_solver.c
@@ -403,7 +403,7 @@ def _rescale(m: Model, value: jax.Array) -> jax.Array:
   return value / (m.stat.meaninertia * max(1, m.nv))
 
 
-def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
+def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
   """Performs a zoom linesearch to find optimal search step size.
 
   Args:
@@ -529,7 +529,7 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
 def solve(m: Model, d: Data) -> Data:
   """Finds forces that satisfy constraints using conjugate gradient descent."""
 
-  def cond(ctx: _Context) -> jax.Array:
+  def cond(ctx: Context) -> jax.Array:
     improvement = _rescale(m, ctx.prev_cost - ctx.cost)
     gradient = _rescale(m, math.norm(ctx.grad))
 
@@ -539,7 +539,7 @@ def solve(m: Model, d: Data) -> Data:
 
     return ~done
 
-  def body(ctx: _Context) -> _Context:
+  def body(ctx: Context) -> Context:
     ctx = _linesearch(m, d, ctx)
     prev_grad, prev_Mgrad = ctx.grad, ctx.Mgrad  # pylint: disable=invalid-name
     ctx = _update_constraint(m, d, ctx)
@@ -560,12 +560,12 @@ def solve(m: Model, d: Data) -> Data:
   # warmstart:
   qacc = d.qacc_smooth
   if not m.opt.disableflags & DisableBit.WARMSTART:
-    warm = _Context.create(m, d.replace(qacc=d.qacc_warmstart), grad=False)
-    smth = _Context.create(m, d.replace(qacc=d.qacc_smooth), grad=False)
+    warm = Context.create(m, d.replace(qacc=d.qacc_warmstart), grad=False)
+    smth = Context.create(m, d.replace(qacc=d.qacc_smooth), grad=False)
     qacc = jp.where(warm.cost < smth.cost, d.qacc_warmstart, d.qacc_smooth)
   d = d.replace(qacc=qacc)
 
-  ctx = _Context.create(m, d)
+  ctx = Context.create(m, d)
   if m.opt.iterations == 1:
     ctx = body(ctx)
   else:

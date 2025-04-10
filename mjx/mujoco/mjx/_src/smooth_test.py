@@ -105,6 +105,13 @@ class SmoothTest(absltest.TestCase):
     # rne
     dx = jax.jit(mjx.rne)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_bias')
+    # rne (flg_acc=True)
+    qfrc_bias = np.zeros(m.nv)
+    mujoco.mj_rne(m, d, 1, qfrc_bias)
+    dx = jax.jit(mjx.rne, static_argnums=(2,))(
+        mx, mjx.put_data(m, d), flg_acc=True
+    )
+    _assert_eq(dx.qfrc_bias, qfrc_bias, 'qfrc_bias')
 
     # set dense jacobian for tendon:
     m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE

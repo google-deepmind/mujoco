@@ -74,7 +74,7 @@ class SolverTest(parameterized.TestCase):
 
       # compare costs
       mj_cost = cost(d.qacc)
-      ctx = solver._Context.create(mjx.put_model(m), mjx.put_data(m, d))
+      ctx = solver.Context.create(mjx.put_model(m), mjx.put_data(m, d))
       mjx_cost = ctx.cost - ctx.gauss
       _assert_eq(mj_cost, mjx_cost, 'cost')
 

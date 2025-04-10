@@ -56,8 +56,8 @@ def _make_option(
       raise NotImplementedError(f'{mujoco.mjtSolver(o.solver)}')
 
     for i in range(mujoco.mjtEnableBit.mjNENABLE):
-      if o.enableflags & 2**i:
-        raise NotImplementedError(f'{mujoco.mjtEnableBit(2 ** i)}')
+      if o.enableflags & 2**i and 2**i not in set(types.EnableBit):
+        raise NotImplementedError(f'{mujoco.mjtEnableBit(2**i)}')
 
   has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
   implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
@@ -72,6 +72,7 @@ def _make_option(
   fields['solver'] = types.SolverType(o.solver)
   fields['disableflags'] = types.DisableBit(o.disableflags)
   fields['has_fluid_params'] = has_fluid_params
+  fields['enableflags'] = types.EnableBit(o.enableflags)
 
   return types.Option(**fields)
 

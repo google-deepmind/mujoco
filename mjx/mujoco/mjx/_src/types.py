@@ -65,6 +65,17 @@ class DisableBit(enum.IntFlag):
   # unsupported: MIDPHASE
 
 
+class EnableBit(enum.IntFlag):
+  """Enable optional feature bitflags.
+
+  Members:
+    INVDISCRETE: discrete-time inverse dynamics
+  """
+
+  INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
+  # unsupported: OVERRIDE, ENERGY, FWDINV, MULTICCD, ISLAND
+
+
 class JointType(enum.IntEnum):
   """Type of degree of freedom.
 

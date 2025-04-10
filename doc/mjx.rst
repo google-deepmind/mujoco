@@ -235,6 +235,8 @@ The following features are **fully supported** in MJX:
      - 1, 3, 4, 6 (1 is not supported with ``ELLIPTIC``)
    * - :ref:`Solver <mjtSolver>`
      - ``CG``, ``NEWTON``
+   * - Dynamics
+     - :ref:`Inverse <mj_inverse>`
    * - Fluid Model
      - :ref:`flInertia`
    * - :ref:`Tendons <tendon>`
@@ -262,8 +264,6 @@ The following features are **in development** and coming soon:
        (``BOX``, ``MESH``, ``HFIELD``) and ``ELLIPSOID``.
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``
-   * - Dynamics
-     - :ref:`Inverse <mj_inverse>`
    * - Fluid Model
      - :ref:`flEllipsoid`
    * - :ref:`Sensors <mjtSensor>`

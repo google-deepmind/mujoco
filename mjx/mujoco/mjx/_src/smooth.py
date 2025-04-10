@@ -532,11 +532,14 @@ def subtree_vel(m: Model, d: Data) -> Data:
   return d.replace(subtree_linvel=subtree_linvel, subtree_angmom=subtree_angmom)
 
 
-def rne(m: Model, d: Data) -> Data:
-  """Computes inverse dynamics using the recursive Newton-Euler algorithm."""
+def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
+  """Computes inverse dynamics using the recursive Newton-Euler algorithm.
+
+  flg_acc=False removes inertial term.
+  """
 
   # forward scan over tree: accumulate link center of mass acceleration
-  def cacc_fn(cacc, cdof_dot, qvel):
+  def cacc_fn(cacc, cdof_dot, qvel, cdof, qacc):
     if cacc is None:
       if m.opt.disableflags & DisableBit.GRAVITY:
         cacc = jp.zeros((6,))
@@ -545,9 +548,15 @@ def rne(m: Model, d: Data) -> Data:
 
     cacc += jp.sum(jax.vmap(jp.multiply)(cdof_dot, qvel), axis=0)
 
+    # cacc += cdof * qacc
+    if flg_acc:
+      cacc += jp.sum(jax.vmap(jp.multiply)(cdof, qacc), axis=0)
+
     return cacc
 
-  cacc = scan.body_tree(m, cacc_fn, 'vv', 'b', d.cdof_dot, d.qvel)
+  cacc = scan.body_tree(
+      m, cacc_fn, 'vvvv', 'b', d.cdof_dot, d.qvel, d.cdof, d.qacc
+  )
 
   def frc(cinert, cacc, cvel):
     frc = math.inert_mul(cinert, cacc)

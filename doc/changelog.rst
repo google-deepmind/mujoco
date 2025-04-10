@@ -1,6 +1,14 @@
 =========
 Changelog
 =========
+
+Upcoming version (not yet release)
+----------------------------------
+
+MJX
+^^^
+- Added inverse dynamics.
+
 Version 3.3.1 (Apr 9, 2025)
 ----------------------------
 
