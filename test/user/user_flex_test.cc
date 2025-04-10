@@ -697,6 +697,18 @@ TEST_F(UserFlexTest, LoadMSHASCII_41_MissingElement_Fail) {
   mj_deleteModel(m);
 }
 
+TEST_F(UserFlexTest,
+       LoadMSHASCII_41_MismatchBetweenMaxNodesAndNodesInBlock_Fail) {
+  const std::string xml_path =
+      GetTestDataFilePath(
+          "user/testdata/malformed_cube_41_ascii_mismatch_between_max_nodes_and_nodes_in_block.xml");
+  std::array<char, 1024> error;
+  mjModel* m = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  EXPECT_THAT(error.data(), HasSubstr(
+        "XML Error: Error: Maximum number of nodes must be equal to number of nodes in a block\nElement 'flexcomp', line 22\n"));
+  mj_deleteModel(m);
+}
+
 TEST_F(UserFlexTest, LoadMSHASCII_22_MissingNumNodes_Fail) {
   const std::string xml_path =
       GetTestDataFilePath(

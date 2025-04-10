@@ -1167,6 +1167,11 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
       throw mjCError(NULL, "All nodes must be in single block");
     }
 
+    // require maximum number of nodes be equal to maximum number of nodes in a block
+    if (maxNodeTag != numNodesInBlock){
+      throw mjCError(NULL, "Maximum number of nodes must be equal to number of nodes in a block");
+    }
+
     // check dimensionality and save
     if (entityDim < 1 || entityDim > 3) {
       throw mjCError(NULL, "Entity must be 1D, 2D or 3D");
