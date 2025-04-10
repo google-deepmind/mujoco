@@ -483,6 +483,13 @@ PYBIND11_MODULE(_specs, m) {
       py::arg("suffix") = py::none(), py::arg("site") = py::none(),
       py::arg("frame") = py::none(),
       py::return_value_policy::reference_internal);
+  mjSpec.def(
+    "activate_plugin",
+      [](MjSpec& self, std::string& name) {
+        mjs_activatePlugin(self.ptr, name.c_str());
+      },
+      py::arg("name"),
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSBODY =====================================
   mjsBody.def(
