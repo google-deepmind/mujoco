@@ -129,6 +129,8 @@ def put_model(
       np.any(m.sensor_type == types.SensorType.ACCELEROMETER)
       | np.any(m.sensor_type == types.SensorType.FORCE)
       | np.any(m.sensor_type == types.SensorType.TORQUE)
+      | np.any(m.sensor_type == types.SensorType.FRAMELINACC)
+      | np.any(m.sensor_type == types.SensorType.FRAMEANGACC)
   )
   eq_connect_weld = np.any(m.eq_type == types.EqType.CONNECT) | np.any(
       m.eq_type == types.EqType.WELD

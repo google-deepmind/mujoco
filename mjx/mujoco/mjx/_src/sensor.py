@@ -441,6 +441,8 @@ def sensor_acc(m: Model, d: Data) -> Data:
       SensorType.ACCELEROMETER,
       SensorType.FORCE,
       SensorType.TORQUE,
+      SensorType.FRAMELINACC,
+      SensorType.FRAMEANGACC,
   }:
     d = smooth.rne_postconstraint(m, d)
 
