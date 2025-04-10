@@ -532,7 +532,7 @@ void mju_makeFrame(mjtNum frame[9]) {
   }
 
   // if yaxis undefined, set yaxis to (0,1,0) if possible, otherwise (0,0,1)
-  if (mju_norm3(frame+3) < 0.5) {
+  if (mju_dot3(frame+3, frame+3) < 0.25) {
     mju_zero3(frame+3);
 
     if (frame[1] < 0.5 && frame[1] > -0.5) {
