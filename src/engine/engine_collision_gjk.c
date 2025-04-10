@@ -834,22 +834,16 @@ static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]) {
 
 // replace a 3-simplex with one of its faces
 static inline void replaceSimplex3(Polytope* pt, mjCCDStatus* status, int v1, int v2, int v3) {
+  // reset status simplex
   status->nsimplex = 3;
-  Vertex* v = pt->verts;
-  copy3(status->simplex[0].vert1, v[v1].vert1);
-  copy3(status->simplex[1].vert1, v[v2].vert1);
-  copy3(status->simplex[2].vert1, v[v3].vert1);
+  status->simplex[0] = pt->verts[v1];
+  status->simplex[1] = pt->verts[v2];
+  status->simplex[2] = pt->verts[v3];
 
-  copy3(status->simplex[0].vert2, v[v1].vert2);
-  copy3(status->simplex[1].vert2, v[v2].vert2);
-  copy3(status->simplex[2].vert2, v[v3].vert2);
-
-  copy3(status->simplex[0].vert, v[v1].vert);
-  copy3(status->simplex[1].vert, v[v2].vert);
-  copy3(status->simplex[2].vert, v[v3].vert);
-
+  // reset polytope
   pt->nfaces = 0;
   pt->nverts = 0;
+  pt->nmap = 0;
 }
 
 

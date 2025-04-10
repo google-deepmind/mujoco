@@ -9,7 +9,8 @@
   </visual>
 
   <asset>
-    <mesh name="die" file="die.obj" scale=".02 .02 .02"/>
+    <mesh name="boxmesh" scale=".02 .02 .02"
+          vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"/>
   </asset>
 
   <default>
@@ -37,7 +38,7 @@
         <replicate count="4" offset="0 0 .1">
           <body pos="-.2 -.2 0.15">
             <freejoint/>
-            <geom type="mesh" mesh="die"/>
+            <geom type="mesh" mesh="boxmesh"/>
           </body>
         </replicate>
       </replicate>
