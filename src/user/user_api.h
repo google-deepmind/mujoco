@@ -192,8 +192,14 @@ MJAPI mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
 // Find body in spec by name.
 MJAPI mjsBody* mjs_findBody(mjSpec* s, const char* name);
 
+// Find all bodies in spec.
+MJAPI mjsBodyVec mjs_findAllBodies(mjSpec* s, int recurse);
+
 // Find element in spec by name.
 MJAPI mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name);
+
+// Find all elements in spec.
+MJAPI mjsElementVec mjs_findAllElements(mjSpec* s, mjtObj type, int recurse);
 
 // Find child body by name.
 MJAPI mjsBody* mjs_findChild(mjsBody* body, const char* name);
