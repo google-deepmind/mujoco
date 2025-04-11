@@ -32,16 +32,16 @@ General
 
 MJX
 ^^^
-- Added tendon actuator force limits.
+7. Added tendon actuator force limits.
 
 Bug fixes
 ^^^^^^^^^
-7. :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
+8. :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
    which the Jacobian is computed, now fixed.
-8. Fixed a bug that caused the parent frame of elements in the child worldbody to be incorrectly set when attaching an
+9. Fixed a bug that caused the parent frame of elements in the child worldbody to be incorrectly set when attaching an
    mjSpec to a frame or a site.
-9. Fixed a bug that caused shadow rendering to flicker on platforms (e.g., MacOS) that do not support ARB_clip_control.
-   Fixed in collaboration with :github:user:`aftersomemath`.
+10. Fixed a bug that caused shadow rendering to flicker on platforms (e.g., MacOS) that do not support
+    ARB_clip_control. Fixed in collaboration with :github:user:`aftersomemath`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
@@ -51,9 +51,9 @@ Python bindings
    :align: right
    :width: 240px
 
-10. Added examples of procedural model creation to the Model Editing tutorial: |mjspec_colab|
-11. Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding :ref:`section<PyMJCF>`
-    in the documentation.
+11. Added examples of procedural model creation to the Model Editing tutorial: |mjspec_colab|
+12. Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding
+    :ref:`section<PyMJCF>` in the documentation.
 
 .. |mjspec_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
                   :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb
