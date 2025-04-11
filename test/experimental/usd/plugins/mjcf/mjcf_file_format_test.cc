@@ -36,9 +36,14 @@
 #include <pxr/usd/usd/modelAPI.h>
 #include <pxr/usd/usd/prim.h>
 #include <pxr/usd/usd/stage.h>
+#include <pxr/usd/usdGeom/capsule.h>
+#include <pxr/usd/usdGeom/cube.h>
+#include <pxr/usd/usdGeom/cylinder.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/primvar.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
+#include <pxr/usd/usdGeom/sphere.h>
+#include <pxr/usd/usdGeom/tokens.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 // clang-format off
@@ -381,6 +386,53 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestKindAuthoring) {
   EXPECT_PRIM_KIND(stage, "/test/root/root", pxr::KindTokens->subcomponent);
   EXPECT_PRIM_KIND(stage, "/test/root/middle", pxr::KindTokens->subcomponent);
   EXPECT_PRIM_KIND(stage, "/test/root/tet", pxr::KindTokens->subcomponent);
+}
+
+static constexpr char kSiteXml[] = R"(
+    <mujoco model="test">
+      <worldbody>
+        <site type="box" name="box_site"/>
+        <body name="ball">
+          <site type="sphere" name="sphere_site"/>
+          <site type="capsule" name="capsule_site"/>
+          <site type="cylinder" name="cylinder_site"/>
+          <site type="ellipsoid" name="ellipsoid_site"/>
+          <geom type="sphere" size="1 1 1"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsAuthored) {
+  pxr::SdfLayerRefPtr layer = LoadLayer(kSiteXml);
+
+  auto stage = pxr::UsdStage::Open(layer);
+  EXPECT_PRIM_VALID(stage, "/test/box_site");
+  EXPECT_PRIM_IS_A(stage, "/test/box_site", pxr::UsdGeomCube);
+  EXPECT_PRIM_VALID(stage, "/test/ball/ball/sphere_site");
+  EXPECT_PRIM_IS_A(stage, "/test/ball/ball/sphere_site", pxr::UsdGeomSphere);
+  EXPECT_PRIM_VALID(stage, "/test/ball/ball/capsule_site");
+  EXPECT_PRIM_IS_A(stage, "/test/ball/ball/capsule_site", pxr::UsdGeomCapsule);
+  EXPECT_PRIM_VALID(stage, "/test/ball/ball/cylinder_site");
+  EXPECT_PRIM_IS_A(stage, "/test/ball/ball/cylinder_site",
+                   pxr::UsdGeomCylinder);
+  EXPECT_PRIM_VALID(stage, "/test/ball/ball/ellipsoid_site");
+  EXPECT_PRIM_IS_A(stage, "/test/ball/ball/ellipsoid_site", pxr::UsdGeomSphere);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsPurpose) {
+  pxr::SdfLayerRefPtr layer = LoadLayer(kSiteXml);
+
+  auto stage = pxr::UsdStage::Open(layer);
+  EXPECT_PRIM_PURPOSE(stage, "/test/box_site", pxr::UsdGeomTokens->guide);
+  EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/sphere_site",
+                      pxr::UsdGeomTokens->guide);
+  EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/capsule_site",
+                      pxr::UsdGeomTokens->guide);
+  EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/cylinder_site",
+                      pxr::UsdGeomTokens->guide);
+  EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/ellipsoid_site",
+                      pxr::UsdGeomTokens->guide);
 }
 
 }  // namespace
