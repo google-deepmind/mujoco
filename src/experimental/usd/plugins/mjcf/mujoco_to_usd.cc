@@ -49,6 +49,7 @@
 #include <pxr/usd/usdGeom/metrics.h>
 #include <pxr/usd/usdGeom/tokens.h>
 #include <pxr/usd/usdLux/tokens.h>
+#include <pxr/usd/usdPhysics/tokens.h>
 #include <pxr/usd/usdShade/tokens.h>
 #include <pxr/usdImaging/usdImaging/tokens.h>
 
@@ -149,7 +150,7 @@ class ModelWriter {
   }
   ~ModelWriter() { mj_deleteModel(model_); }
 
-  void Write() {
+  void Write(bool write_physics) {
     // Create top level class holder.
     class_path_ = CreateClassSpec(data_, pxr::SdfPath::AbsoluteRootPath(),
                                   pxr::TfToken("__class__"));
@@ -173,7 +174,7 @@ class ModelWriter {
     // Author mesh scope + mesh prims to be referenced.
     WriteMeshes();
     WriteMaterials();
-    WriteBodies();
+    WriteBodies(write_physics);
   }
 
  private:
@@ -977,7 +978,7 @@ class ModelWriter {
     }
   }
 
-  void WriteBody(mjsBody *body) {
+  void WriteBody(mjsBody *body, bool write_physics) {
     int body_id = mjs_getId(body->element);
     pxr::SdfPath parent_path =
         CreateParentIfNotExists(body, body_paths_[kWorldIndex], data_);
@@ -989,6 +990,12 @@ class ModelWriter {
     // The parent_path will be a component which makes the actual articulated
     // bodies subcomponents.
     SetPrimKind(data_, body_path, pxr::KindTokens->subcomponent);
+
+    // Apply the PhysicsRigidBodyAPI schema if we are writing physics.
+    if (write_physics) {
+      ApplyApiSchema(data_, body_path,
+                     pxr::UsdPhysicsTokens->PhysicsRigidBodyAPI);
+    }
 
     // Create classes if necessary
     mjsDefault *spec_default = mjs_getDefault(body->element);
@@ -1028,14 +1035,14 @@ class ModelWriter {
     body_paths_[body_id] = body_path;
   }
 
-  void WriteBodies() {
+  void WriteBodies(bool write_physics) {
     mjsBody *body = mjs_asBody(mjs_firstElement(spec_, mjOBJ_BODY));
     while (body) {
       // Only write a rigidbody if we are not the world body.
       // We fall through since the world body might have static
       // geom children.
       if (mjs_getId(body->element) != kWorldIndex) {
-        WriteBody(body);
+        WriteBody(body, write_physics);
       }
       WriteSites(body);
       WriteGeoms(body);
@@ -1061,7 +1068,8 @@ class ModelWriter {
 namespace mujoco {
 namespace usd {
 
-bool WriteSpecToData(mjSpec *spec, pxr::SdfAbstractDataRefPtr &data) {
+bool WriteSpecToData(mjSpec *spec, pxr::SdfAbstractDataRefPtr &data,
+                     bool write_physics) {
   // Create pseudo root first.
   data->CreateSpec(pxr::SdfPath::AbsoluteRootPath(),
                    pxr::SdfSpecTypePseudoRoot);
@@ -1072,7 +1080,7 @@ bool WriteSpecToData(mjSpec *spec, pxr::SdfAbstractDataRefPtr &data) {
     return false;
   }
 
-  ModelWriter(spec, model, data).Write();
+  ModelWriter(spec, model, data).Write(write_physics);
 
   return true;
 }

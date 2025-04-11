@@ -32,9 +32,11 @@ namespace mujoco {
 
 using pxr::SdfPath;
 
-pxr::SdfLayerRefPtr LoadLayer(const std::string& xml) {
+pxr::SdfLayerRefPtr LoadLayer(
+    const std::string& xml,
+    const pxr::SdfFileFormat::FileFormatArguments& args) {
   auto layer = pxr::SdfLayer::CreateAnonymous(
-      "test_layer", pxr::SdfFileFormat::FindByExtension("xml"));
+      "test_layer", pxr::SdfFileFormat::FindByExtension("xml"), args);
   layer->ImportFromString(xml);
   EXPECT_THAT(layer, testing::NotNull());
   return layer;

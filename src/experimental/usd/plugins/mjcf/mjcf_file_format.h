@@ -27,10 +27,15 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 
+// clang-format off
 // The Id should realistically be mjcf, but the id and extension need to match.
 // So near term it just assumes the only .xml file we would import is MJCF.
-#define USD_MJCF_FILE_FORMAT_TOKENS \
-  ((Id, "xml"))((Version, "1.0"))((Target, "usd"))
+#define USD_MJCF_FILE_FORMAT_TOKENS  \
+    ((Id, "xml"))                    \
+    ((Version, "1.0"))               \
+    ((Target, "usd"))                \
+    ((ToggleUsdPhysicsArg, "usdMjcfToggleUsdPhysics"))
+// clang-format on
 
 TF_DECLARE_PUBLIC_TOKENS(UsdMjcfFileFormatTokens, USD_MJCF_FILE_FORMAT_TOKENS);
 

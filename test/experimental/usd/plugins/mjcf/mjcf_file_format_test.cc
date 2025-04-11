@@ -44,6 +44,7 @@
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdGeom/sphere.h>
 #include <pxr/usd/usdGeom/tokens.h>
+#include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 // clang-format off
@@ -433,6 +434,72 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsPurpose) {
                       pxr::UsdGeomTokens->guide);
   EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/ellipsoid_site",
                       pxr::UsdGeomTokens->guide);
+}
+TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsToggleSdfFormatArg) {
+  std::string xml_path = GetTestDataFilePath(kMeshObjPath);
+
+  // Test that the default is no physics.
+  auto stage_no_physics = pxr::UsdStage::Open(xml_path);
+  EXPECT_THAT(stage_no_physics, testing::NotNull());
+  EXPECT_PRIM_VALID(stage_no_physics, "/mesh_test/test_body/test_body");
+  EXPECT_PRIM_API_NOT_APPLIED(stage_no_physics,
+                              "/mesh_test/test_body/test_body",
+                              pxr::UsdPhysicsRigidBodyAPI);
+
+  // Then test that the physics flag enables physics.
+  std::string xml_path_physics_flag =
+      xml_path + ":SDF_FORMAT_ARGS:usdMjcfToggleUsdPhysics=true";
+  auto stage_with_physics = pxr::UsdStage::Open(xml_path_physics_flag);
+  EXPECT_THAT(stage_with_physics, testing::NotNull());
+
+  EXPECT_PRIM_VALID(stage_with_physics, "/mesh_test/test_body/test_body");
+  EXPECT_PRIM_API_APPLIED(stage_with_physics, "/mesh_test/test_body/test_body",
+                          pxr::UsdPhysicsRigidBodyAPI);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsRigidBody) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="physics_test">
+      <worldbody>
+        <body name="test_body" pos="0 0 0">
+          <geom name="test_geom" type="sphere" size="1"/>
+          <body name="test_body_2" pos="2 0 0">
+            <geom name="test_geom_2" type="sphere" size="1"/>
+          </body>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+
+  pxr::SdfFileFormat::FileFormatArguments args;
+  args["usdMjcfToggleUsdPhysics"] = "true";
+  pxr::SdfLayerRefPtr layer = LoadLayer(kXml, args);
+  auto stage = pxr::UsdStage::Open(layer);
+
+  EXPECT_THAT(stage, testing::NotNull());
+  EXPECT_PRIM_VALID(stage, "/physics_test");
+  EXPECT_PRIM_VALID(stage, "/physics_test/test_body");
+  EXPECT_PRIM_VALID(stage, "/physics_test/test_body/test_body");
+  // USD does not allow nested rigidbodies so we put them as siblings to the
+  // first body in the hierarchy.
+  EXPECT_PRIM_VALID(stage, "/physics_test/test_body/test_body_2");
+
+  // The parent containing the body should not have the RigidBodyAPI applied.
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body",
+                              pxr::UsdPhysicsRigidBodyAPI);
+
+  EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body/test_body",
+                          pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body/test_body_2",
+                          pxr::UsdPhysicsRigidBodyAPI);
+
+  // Geoms should not have RigidBodyAPI applied either.
+  EXPECT_PRIM_API_NOT_APPLIED(stage,
+                              "/physics_test/test_body/test_body/test_geom",
+                              pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage,
+                              "/physics_test/test_body/test_body_2/test_geom_2",
+                              pxr::UsdPhysicsRigidBodyAPI);
 }
 
 }  // namespace

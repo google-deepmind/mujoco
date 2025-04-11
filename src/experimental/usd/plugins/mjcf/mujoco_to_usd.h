@@ -25,7 +25,9 @@ namespace usd {
 // Args:
 //   spec: mjSpec built programmatically or via parsed XML.
 //   data: SdfAbstractDataRefPtr that will be written to.
-bool WriteSpecToData(mjSpec* spec, pxr::SdfAbstractDataRefPtr& data);
+//   write_physics: Whether to write physics data.
+bool WriteSpecToData(mjSpec* spec, pxr::SdfAbstractDataRefPtr& data,
+                     bool write_physics);
 }  // namespace usd
 }  // namespace mujoco
 
