@@ -841,8 +841,9 @@ class SpecsTest(absltest.TestCase):
         name='instance_name',
         plugin_name='mujoco.elasticity.cable',
         active=True,
-        info='info',
+        info='info'
     )
+    plugin.config = {'twist': '10', 'bend': '1'}
 
     body = spec.worldbody.add_body()
     body.plugin = plugin
@@ -858,6 +859,7 @@ class SpecsTest(absltest.TestCase):
     model = spec.compile()
     self.assertIsNotNone(model)
     self.assertEqual(model.nplugin, 1)
+    self.assertEqual(model.npluginattr, 7)
     self.assertEqual(model.body_plugin[1], 0)
 
   def test_recompile_error(self):

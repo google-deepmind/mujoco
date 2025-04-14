@@ -1032,6 +1032,22 @@ PYBIND11_MODULE(_specs, m) {
       });
   mjsPlugin.def("delete",
                 [](raw::MjsPlugin& self) { mjs_delete(self.element); });
+  mjsPlugin.def_property(
+      "config",
+      [](raw::MjsPlugin& self) -> void {
+        throw pybind11::value_error("Reading plugin config is not supported.");
+      },
+      [](raw::MjsPlugin& self, py::dict& config) {
+        std::map<std::string, std::string, std::less<>> config_attribs;
+        for (const auto& [key, value] : config) {
+          std::string key_str = key.cast<std::string>();
+          if (config_attribs.find(key_str) != config_attribs.end()) {
+            throw pybind11::value_error("Duplicate config key: " + key_str);
+          }
+          config_attribs[key_str] = value.cast<std::string>();
+        }
+        mjs_setPluginAttributes(&self, &config_attribs);
+      });
   // ============================= MJVISUAL ====================================
   mjVisual.def_property(
       "global_",
