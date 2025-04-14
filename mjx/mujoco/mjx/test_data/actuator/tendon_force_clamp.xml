@@ -46,4 +46,10 @@
     <motor tendon="fixed1"/>
     <motor tendon="fixed1"/>
   </actuator>
+  <sensor>
+    <tendonactuatorfrc tendon="spatial0"/>
+    <tendonactuatorfrc tendon="spatial1"/>
+    <tendonactuatorfrc tendon="fixed0"/>
+    <tendonactuatorfrc tendon="fixed1"/>
+  </sensor>
 </mujoco>

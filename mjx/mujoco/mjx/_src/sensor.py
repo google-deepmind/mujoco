@@ -27,6 +27,7 @@ from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import SensorType
+from mujoco.mjx._src.types import TrnType
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -552,6 +553,15 @@ def sensor_acc(m: Model, d: Data) -> Data:
       sensor = d.actuator_force[objid]
     elif sensor_type == SensorType.JOINTACTFRC:
       sensor = d.qfrc_actuator[m.jnt_dofadr[objid]]
+    elif sensor_type == SensorType.TENDONACTFRC:
+      force_mask = [
+          (m.actuator_trntype == TrnType.TENDON)
+          & (m.actuator_trnid[:, 0] == tendon_id)
+          for tendon_id in objid
+      ]
+      force_ids = np.concatenate([np.nonzero(mask)[0] for mask in force_mask])
+      force_mat = np.array(force_mask)[:, force_ids]
+      sensor = force_mat @ d.actuator_force[force_ids]
     elif sensor_type in (SensorType.FRAMELINACC, SensorType.FRAMEANGACC):
       objtype = m.sensor_objtype[idx]
 

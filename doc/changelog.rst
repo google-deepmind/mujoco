@@ -8,6 +8,7 @@ Upcoming version (not yet release)
 MJX
 ^^^
 - Added inverse dynamics.
+- Added tendon actuator force sensor.
 
 Version 3.3.1 (Apr 9, 2025)
 ----------------------------

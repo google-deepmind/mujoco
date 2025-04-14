@@ -203,13 +203,19 @@ class ActuatorTest(parameterized.TestCase):
     mx = mjx.put_model(m)
     dx = mjx.put_data(m, d)
 
-    dx = dx.replace(ctrl=jp.array([1.0, 1.0, 1.0, -1.0, 1.0, -20.0, 5.0, -5.0]))
+    dx = dx.replace(ctrl=jp.array([1.0, 1.0, 1.0, -4.0, 1.0, -20.0, 5.0, -5.0]))
     dx = mjx.forward(mx, dx)
 
     _assert_eq(
         dx.actuator_force,
-        jp.array([1.0, 1.0, 1.0, -1.0, 1.0, -10.0, 5.0, -5.0]),
+        jp.array([1.0, 1.0, 1.0, -4.0 / 3.0, 1.0 / 3.0, -10.0, 5.0, -5.0]),
         'actuator_force',
+    )
+
+    _assert_eq(
+        dx.sensordata,
+        jp.array([3.0, -1.0, -10.0, 0.0]),
+        'sensordata',
     )
 
 
