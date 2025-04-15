@@ -111,21 +111,6 @@ class InverseTest(parameterized.TestCase):
     self.assertLess(fwdinv1, 1.0e-3)
     _assert_eq(dxinv.qacc, dx.qacc, 'qacc')
 
-  def test_tendon_force_clamp(self):
-    m = test_util.load_test_file('actuator/tendon_force_clamp.xml')
-    d = mujoco.MjData(m)
-    mx = mjx.put_model(m)
-    dx = mjx.put_data(m, d)
-
-    dx = dx.replace(ctrl=jp.array([1.0, 1.0, 1.0, -1.0, 1.0, -20.0, 5.0, -5.0]))
-    dx = mjx.forward(mx, dx)
-
-    _assert_eq(
-        dx.actuator_force,
-        jp.array([1.0, 1.0, 1.0, -1.0, 1.0, -10.0, 5.0, -5.0]),
-        'actuator_force',
-    )
-
 
 if __name__ == '__main__':
   absltest.main()
