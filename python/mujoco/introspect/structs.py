@@ -1744,14 +1744,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='constraint solver reference:frictionloss (nv x mjNREF)',
+                 doc='constraint solver reference:frictionloss',
+                 array_extent=('nv', 'mjNREF'),
              ),
              StructFieldDecl(
                  name='dof_solimp',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='constraint solver impedance:frictionloss (nv x mjNIMP)',
+                 doc='constraint solver impedance:frictionloss',
+                 array_extent=('nv', 'mjNIMP'),
              ),
              StructFieldDecl(
                  name='dof_frictionloss',
@@ -1958,7 +1960,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='detect contact if dist<margin(ngeom x 1)',
+                 doc='detect contact if dist<margin',
+                 array_extent=('ngeom',),
              ),
              StructFieldDecl(
                  name='geom_gap',
@@ -2117,7 +2120,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='global position rel. to sub-com in qpos0 (ncam x 3)',
+                 doc='global position rel. to sub-com in qpos0',
+                 array_extent=('ncam', 3),
              ),
              StructFieldDecl(
                  name='cam_pos0',
@@ -2268,7 +2272,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='global position rel. to sub-com in qpos0 (nlight x 3)',
+                 doc='global position rel. to sub-com in qpos0',
+                 array_extent=('nlight', 3),
              ),
              StructFieldDecl(
                  name='light_pos0',
@@ -2403,7 +2408,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='detect contact if dist<margin(nflex x 1)',
+                 doc='detect contact if dist<margin',
+                 array_extent=('nflex',),
              ),
              StructFieldDecl(
                  name='flex_gap',
@@ -2434,7 +2440,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of active element layers, 3D only (nflex x 1)',
+                 doc='number of active element layers, 3D only',
+                 array_extent=('nflex',),
              ),
              StructFieldDecl(
                  name='flex_dim',
@@ -2649,7 +2656,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='shell fragment vertex ids (dim per frag) (nflexshelldata x 1)',  # pylint: disable=line-too-long
+                 doc='shell fragment vertex ids (dim per frag)',
+                 array_extent=('nflexshelldata',),
              ),
              StructFieldDecl(
                  name='flex_evpair',
@@ -2992,7 +3000,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address of asset path for mesh; -1: none (nmesh x 1)',
+                 doc='address of asset path for mesh; -1: none',
+                 array_extent=('nmesh',),
              ),
              StructFieldDecl(
                  name='mesh_polynum',
@@ -3239,7 +3248,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address of asset path for skin; -1: none (nskin x 1)',
+                 doc='address of asset path for skin; -1: none',
+                 array_extent=('nskin',),
              ),
              StructFieldDecl(
                  name='hfield_size',
@@ -3454,7 +3464,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='body1<<16 + body2',
+                 doc='body1 << 16 + body2',
                  array_extent=('npair',),
              ),
              StructFieldDecl(
@@ -3486,7 +3496,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='detect contact if dist<margin(npair x 1)',
+                 doc='detect contact if dist<margin',
+                 array_extent=('npair',),
              ),
              StructFieldDecl(
                  name='pair_gap',
@@ -3509,7 +3520,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='body1<<16 + body2',
+                 doc='body1 << 16 + body2',
                  array_extent=('nexclude',),
              ),
              StructFieldDecl(
@@ -3581,7 +3592,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc="address of first object in tendon's path (ntendon x 1)",
+                 doc="address of first object in tendon's path",
+                 array_extent=('ntendon',),
              ),
              StructFieldDecl(
                  name='tendon_num',
@@ -4124,7 +4136,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc="address to each instance's config attrib (nplugin x 1)",
+                 doc="address to each instance's config attrib",
+                 array_extent=('nplugin',),
              ),
              StructFieldDecl(
                  name='numeric_adr',
@@ -5600,7 +5613,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='reduced dof-dof: address of each row in C_colind (nv x 1)',  # pylint: disable=line-too-long
+                 doc='reduced dof-dof: address of each row in C_colind',
+                 array_extent=('nv',),
              ),
              StructFieldDecl(
                  name='C_colind',
@@ -5727,7 +5741,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc="net external force; should equal:                (nv x 1)qfrc_applied + J'*xfrc_applied + qfrc_actuator",  # pylint: disable=line-too-long
+                 doc="net external force; should equal: qfrc_applied + J'*xfrc_applied + qfrc_actuator",  # pylint: disable=line-too-long
+                 array_extent=('nv',),
              ),
              StructFieldDecl(
                  name='cacc',
@@ -5814,28 +5829,32 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of non-zeros in constraint Jacobian row T (nv x 1)',  # pylint: disable=line-too-long
+                 doc='number of non-zeros in constraint Jacobian row T',
+                 array_extent=('nv',),
              ),
              StructFieldDecl(
                  name='efc_JT_rowadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='row start address in colind array              T (nv x 1)',  # pylint: disable=line-too-long
+                 doc='row start address in colind array              T',
+                 array_extent=('nv',),
              ),
              StructFieldDecl(
                  name='efc_JT_rowsuper',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of subsequent rows in supernode         T (nv x 1)',  # pylint: disable=line-too-long
+                 doc='number of subsequent rows in supernode         T',
+                 array_extent=('nv',),
              ),
              StructFieldDecl(
                  name='efc_JT_colind',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='column indices in constraint Jacobian          T (nJ x 1)',  # pylint: disable=line-too-long
+                 doc='column indices in constraint Jacobian          T',
+                 array_extent=('nJ',),
              ),
              StructFieldDecl(
                  name='efc_J',
@@ -9122,7 +9141,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='settotalmass',
                  type=ValueType(name='double'),
-                 doc='rescale masses and inertias;<=0: ignore',
+                 doc='rescale masses and inertias; <=0: ignore',
              ),
              StructFieldDecl(
                  name='balanceinertia',
@@ -9901,7 +9920,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='gap',
                  type=ValueType(name='double'),
-                 doc='include in solver if dist<margin-gap',
+                 doc='include in solver if dist < margin-gap',
              ),
              StructFieldDecl(
                  name='mass',
