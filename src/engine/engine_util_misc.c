@@ -1390,6 +1390,24 @@ void mju_n2d(double* res, const mjtNum* vec, int n) {
 
 
 
+// gather
+void mju_gather(mjtNum* restrict res, const mjtNum* restrict vec, const int* restrict ind, int n) {
+  for (int i=0; i < n; i++) {
+    res[i] = vec[ind[i]];
+  }
+}
+
+
+
+// scatter
+void mju_scatter(mjtNum* restrict res, const mjtNum* restrict vec, const int* restrict ind, int n) {
+  for (int i=0; i < n; i++) {
+    res[ind[i]] = vec[i];
+  }
+}
+
+
+
 // insertion sort, increasing order
 void mju_insertionSort(mjtNum* list, int n) {
   for (int i=1; i < n; i++) {

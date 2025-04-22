@@ -15,6 +15,7 @@
 // Tests for engine/engine_core_smooth.c.
 
 #include "src/engine/engine_core_smooth.h"
+#include "src/engine/engine_util_misc.h"
 #include "src/engine/engine_util_sparse.h"
 
 #include <algorithm>
@@ -754,11 +755,9 @@ TEST_F(CoreSmoothTest, SolveLDs) {
   int nv = m->nv;
   int nM = m->nM;
 
-  // copy M into LD: Legacy format
+  // scatter M into LD: Legacy format
   vector<mjtNum> LDlegacy(nM);
-  for (int i=0; i < nM; i++) {
-    LDlegacy[d->mapM2M[i]] = d->qLD[i];
-  }
+  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, nM);
 
   // compare LD and LDs densified matrices
   vector<mjtNum> LDdense(nv*nv);
@@ -805,11 +804,9 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
   int nv = m->nv;
   int nM = m->nM;
 
-  // copy LD into LDlegacy: Legacy format
+  // scatter LD into LDlegacy: Legacy format
   vector<mjtNum> LDlegacy(nM);
-  for (int i=0; i < nM; i++) {
-    LDlegacy[d->mapM2M[i]] = d->qLD[i];
-  }
+  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, nM);
 
   // compare n LD and LDs vector solve
   int n = 3;
@@ -891,11 +888,9 @@ TEST_F(CoreSmoothTest, FactorIs) {
     qLDexpected[i] = qLDlegacy[d->mapM2M[i]];
   }
 
-  // copy qM into qLD: CSR format
+  // gather qM into qLD: CSR format
   vector<mjtNum> qLD(nM);
-  for (int i=0; i < nM; i++) {
-    qLD[i] = d->qM[d->mapM2M[i]];  // mj_factorI is in-place
-  }
+  mju_gather(qLD.data(), d->qM, d->mapM2M, nM);
 
   vector<mjtNum> qLDiagInvExpected(d->qLDiagInv, d->qLDiagInv + nv);
   vector<mjtNum> qLDiagInv(nv, 0);

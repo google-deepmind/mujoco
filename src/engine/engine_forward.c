@@ -840,9 +840,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   else {
     if (!skipfactor) {
       // qH = M + h*diag(B)
-      for (int i=0; i < nM; i++) {
-        d->qH[i] = d->qM[d->mapM2M[i]];
-      }
+      mju_gather(d->qH, d->qM, d->mapM2M, nM);
       for (int i=0; i < nv; i++) {
         d->qH[d->M_rowadr[i] + d->M_rownnz[i] - 1] += m->opt.timestep * m->dof_damping[i];
       }
@@ -999,10 +997,8 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       // compute analytical derivative qDeriv
       mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
-      // set qLU = qM
-      for (int i=0; i < nD; i++) {
-        d->qLU[i] = d->qM[d->mapM2D[i]];
-      }
+      // gather qLU <- qM (lower to full)
+      mju_gather(d->qLU, d->qM, d->mapM2D, nD);
 
       // set qLU = qM - dt*qDeriv
       mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
@@ -1022,19 +1018,15 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       // compute analytical derivative qDeriv; skip rne derivative
       mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
-      // modified mass matrix MhB = qDeriv[Lower]
+      // modified mass matrix: gather MhB <- qDeriv (full to lower)
       mjtNum* MhB = mjSTACKALLOC(d, nM, mjtNum);
-      for (int i=0; i < nM; i++) {
-        MhB[i] = d->qDeriv[d->mapD2M[i]];
-      }
+      mju_gather(MhB, d->qDeriv, d->mapD2M, nM);
 
       // set MhB = M - dt*qDeriv
       mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, nM);
 
-      // copy into qH
-      for (int i=0; i < nM; i++) {
-        d->qH[i] = MhB[d->mapM2M[i]];
-      }
+      // gather qH <- MhB (legacy to CSR)
+      mju_gather(d->qH, MhB, d->mapM2M, nM);
 
       // factorize in-place
       mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);

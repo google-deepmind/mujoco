@@ -1394,10 +1394,8 @@ static void MakeHessian(const mjModel* m, mjData* d, mjCGContext* ctx) {
 
   // sparse
   if (mj_isSparse(m)) {
-    // copy values of reduced sparse inertia matrix C
-    for (int i=0; i < m->nC; i++) {
-      ctx->C[i] = d->qM[d->mapM2C[i]];
-    }
+    // gather C <- qM (legacy to CSR)
+    mju_gather(ctx->C, d->qM, d->mapM2C, m->nC);
 
     // initialize Hessian rowadr, rownnz
     mju_sqrMatTDSparseCount(ctx->H_rownnz, ctx->H_rowadr, nv,
