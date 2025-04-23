@@ -4817,11 +4817,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='solver statistics per island, per iteration',
              ),
              StructFieldDecl(
-                 name='solver_nisland',
-                 type=ValueType(name='int'),
-                 doc='number of islands processed by solver',
-             ),
-             StructFieldDecl(
                  name='solver_niter',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),

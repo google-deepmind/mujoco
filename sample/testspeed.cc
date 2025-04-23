@@ -97,7 +97,7 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
     // accumulate statistics
     contacts[id] += d[id]->ncon;
     constraints[id] += d[id]->nefc;
-    int nisland = d[id]->solver_nisland;
+    int nisland = mjMAX(1, mjMIN(d[id]->nisland, mjNISLAND));
     if (nisland == 1 || nisland == 0) {
       iterations[id] += d[id]->solver_niter[0];
     } else {

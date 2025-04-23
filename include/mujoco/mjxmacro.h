@@ -777,7 +777,6 @@
     X( size_t,    maxuse_arena       ) \
     X( int,       maxuse_con         ) \
     X( int,       maxuse_efc         ) \
-    X( int,       solver_nisland     ) \
     X( int,       ncon               ) \
     X( int,       ne                 ) \
     X( int,       nf                 ) \

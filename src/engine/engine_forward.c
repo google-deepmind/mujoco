@@ -730,7 +730,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
       // solve using threads
       mj_solCG_island_multithreaded(m, d);
     }
-    d->solver_nisland = nisland;
   }
 
   // run solver over all constraints
@@ -751,9 +750,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     default:
       mjERROR("unknown solver type %d", m->opt.solver);
     }
-
-    // one (monolithic) island
-    d->solver_nisland = 1;
   }
 
   // save result for next step warmstart

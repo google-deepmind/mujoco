@@ -1008,9 +1008,8 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   // SOLVER STAT
   if (d->nefc) {
     fprintf(fp, "SOLVER STAT\n");
-    fprintf(fp, "  solver_nisland = %d\n", d->solver_nisland);
     printVector("  solver_fwdinv = ", d->solver_fwdinv, 2, fp, float_format);
-    int nisland_stat = mjMIN(d->solver_nisland, mjNISLAND);
+    int nisland_stat = mjMAX(1, mjMIN(d->nisland, mjNISLAND));
     for (int island=0; island < nisland_stat; island++) {
       int niter_stat = mjMIN(mjNSOLVER, d->solver_niter[island]);
       if (niter_stat) {

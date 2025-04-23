@@ -1904,7 +1904,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   memset(d->warning, 0, mjNWARNING*sizeof(mjWarningStat));
   memset(d->timer, 0, mjNTIMER*sizeof(mjTimerStat));
   memset(d->solver, 0, mjNSOLVER*mjNISLAND*sizeof(mjSolverStat));
-  d->solver_nisland = 0;
   mju_zeroInt(d->solver_niter, mjNISLAND);
   mju_zeroInt(d->solver_nnz, mjNISLAND);
   mju_zero(d->solver_fwdinv, 2);
