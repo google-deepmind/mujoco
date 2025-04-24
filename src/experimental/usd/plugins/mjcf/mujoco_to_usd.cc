@@ -897,6 +897,29 @@ class ModelWriter {
       }
     }
 
+    // If geom rgba is not the default (0.5, 0.5, 0.5, 1), then set the
+    // displayColor attribute.
+    // No effort is made to properly handle the interaction between geom rgba
+    // and the material if both are specified.
+    if (geom->rgba[0] != 0.5f || geom->rgba[1] != 0.5f ||
+        geom->rgba[2] != 0.5f || geom->rgba[3] != 1.0f) {
+      // Set the displayColor attribute.
+      pxr::SdfPath display_color_attr = CreateAttributeSpec(
+          data_, geom_path, pxr::UsdGeomTokens->primvarsDisplayColor,
+          pxr::SdfValueTypeNames->Color3fArray);
+      SetAttributeDefault(data_, display_color_attr,
+                          pxr::VtArray<pxr::GfVec3f>{
+                              {geom->rgba[0], geom->rgba[1], geom->rgba[2]}});
+      // Set the displayOpacity attribute, only if the opacity is not 1.
+      if (geom->rgba[3] != 1.0f) {
+        pxr::SdfPath display_opacity_attr = CreateAttributeSpec(
+            data_, geom_path, pxr::UsdGeomTokens->primvarsDisplayOpacity,
+            pxr::SdfValueTypeNames->FloatArray);
+        SetAttributeDefault(data_, display_opacity_attr,
+                            pxr::VtArray<float>{geom->rgba[3]});
+      }
+    }
+
     if (body_id == kWorldIndex) {
       SetPrimKind(data_, geom_path, pxr::KindTokens->component);
     }

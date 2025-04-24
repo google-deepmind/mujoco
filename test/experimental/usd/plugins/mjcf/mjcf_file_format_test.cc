@@ -140,6 +140,53 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
       pxr::SdfAssetPath("textures/cube.png"));
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="test">
+      <worldbody>
+        <geom type="sphere" name="sphere_red" size="1" rgba="1 0 0 1"/>
+        <geom type="sphere" name="sphere_default" size="1"/>
+        <geom type="sphere" name="sphere_also_default" size="1" rgba="0.5 0.5 0.5 1"/>
+        <geom type="sphere" name="sphere_almost_default" size="1" rgba="0.5 0.5 0.5 0.9"/>
+      </worldbody>
+    </mujoco>
+  )";
+
+  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
+  auto stage = pxr::UsdStage::Open(layer);
+
+  EXPECT_PRIM_VALID(stage, "/test/sphere_red");
+  ExpectAttributeEqual(stage, "/test/sphere_red.primvars:displayColor",
+                       pxr::VtArray<pxr::GfVec3f>{{1, 0, 0}});
+  EXPECT_ATTRIBUTE_HAS_NO_VALUE(stage,
+                                "/test/sphere_red.primvars:displayOpacity");
+
+  // There's no mechanism in Mujoco to specify whether an attribute was set
+  // explicitly or not. We do the same as Mujoco does, which is to compare with
+  // the default value.
+  // Which explains why not setting rgba is the same as setting it to the
+  // default value of (0.5, 0.5, 0.5, 1).
+  EXPECT_PRIM_VALID(stage, "/test/sphere_default");
+  EXPECT_ATTRIBUTE_HAS_NO_VALUE(stage,
+                                "/test/sphere_default.primvars:displayColor");
+  EXPECT_ATTRIBUTE_HAS_NO_VALUE(stage,
+                                "/test/sphere_default.primvars:displayOpacity");
+
+  EXPECT_PRIM_VALID(stage, "/test/sphere_also_default");
+  EXPECT_ATTRIBUTE_HAS_NO_VALUE(
+      stage, "/test/sphere_also_default.primvars:displayColor");
+  EXPECT_ATTRIBUTE_HAS_NO_VALUE(
+      stage, "/test/sphere_also_default.primvars:displayOpacity");
+
+  EXPECT_PRIM_VALID(stage, "/test/sphere_almost_default");
+  ExpectAttributeEqual(stage,
+                       "/test/sphere_almost_default.primvars:displayColor",
+                       pxr::VtArray<pxr::GfVec3f>{{0.5, 0.5, 0.5}});
+  ExpectAttributeEqual(stage,
+                       "/test/sphere_almost_default.primvars:displayOpacity",
+                       pxr::VtArray<float>{0.9});
+}
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestFaceVaryingMeshSourcesSimpleMjcfMesh) {
   static constexpr char kXml[] = R"(
     <mujoco model="mesh test">
