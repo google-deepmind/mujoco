@@ -40,6 +40,7 @@
 #include <pxr/usd/usdGeom/cube.h>
 #include <pxr/usd/usdGeom/cylinder.h>
 #include <pxr/usd/usdGeom/mesh.h>
+#include <pxr/usd/usdGeom/plane.h>
 #include <pxr/usd/usdGeom/primvar.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdGeom/sphere.h>
@@ -389,6 +390,62 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestKindAuthoring) {
   EXPECT_PRIM_KIND(stage, "/test/root/tet", pxr::KindTokens->subcomponent);
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, TestGeomsPrims) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="test">
+      <worldbody>
+        <geom type="plane" name="plane_geom" size="10 20 0.1"/>
+        <geom type="box" name="box_geom" size="10 20 30"/>
+        <geom type="sphere" name="sphere_geom" size="10 20 30"/>
+        <geom type="capsule" name="capsule_geom" size="10 20 30"/>
+        <geom type="cylinder" name="cylinder_geom" size="10 20 30"/>
+        <geom type="ellipsoid" name="ellipsoid_geom" size="10 20 30"/>
+      </worldbody>
+    </mujoco>
+  )";
+
+  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
+  auto stage = pxr::UsdStage::Open(layer);
+
+  // Note that all sizes are multiplied by 2 because Mujoco uses half sizes.
+
+  // Plane
+  EXPECT_PRIM_VALID(stage, "/test/plane_geom");
+  EXPECT_PRIM_IS_A(stage, "/test/plane_geom", pxr::UsdGeomPlane);
+  ExpectAttributeEqual(stage, "/test/plane_geom.width", 2 * 10.0);
+  ExpectAttributeEqual(stage, "/test/plane_geom.length", 2 * 20.0);
+  // Box
+  EXPECT_PRIM_VALID(stage, "/test/box_geom");
+  EXPECT_PRIM_IS_A(stage, "/test/box_geom", pxr::UsdGeomCube);
+  // Box is a special case, it uses a UsdGeomCube and scales it with
+  // xformOp:scale. The radius is always set to 2.
+  ExpectAttributeEqual(stage, "/test/box_geom.size", 2.0);
+  ExpectAttributeEqual(stage, "/test/box_geom.xformOp:scale",
+                       pxr::GfVec3f(10.0, 20.0, 30.0));
+  // Sphere
+  EXPECT_PRIM_VALID(stage, "/test/sphere_geom");
+  EXPECT_PRIM_IS_A(stage, "/test/sphere_geom", pxr::UsdGeomSphere);
+  ExpectAttributeEqual(stage, "/test/sphere_geom.radius", 2 * 10.0);
+  // Capsule
+  EXPECT_PRIM_VALID(stage, "/test/capsule_geom");
+  EXPECT_PRIM_IS_A(stage, "/test/capsule_geom", pxr::UsdGeomCapsule);
+  ExpectAttributeEqual(stage, "/test/capsule_geom.radius", 2 * 10.0);
+  ExpectAttributeEqual(stage, "/test/capsule_geom.height", 2 * 20.0);
+  // Cylinder
+  EXPECT_PRIM_VALID(stage, "/test/cylinder_geom");
+  EXPECT_PRIM_IS_A(stage, "/test/cylinder_geom", pxr::UsdGeomCylinder);
+  ExpectAttributeEqual(stage, "/test/cylinder_geom.radius", 2 * 10.0);
+  ExpectAttributeEqual(stage, "/test/cylinder_geom.height", 2 * 20.0);
+  // Ellipsoid
+  EXPECT_PRIM_VALID(stage, "/test/ellipsoid_geom");
+  // Ellipsoid is a special case, it uses a UsdGeomSphere and scales it with
+  // xformOp:scale. The radius is always set to 1.
+  EXPECT_PRIM_IS_A(stage, "/test/ellipsoid_geom", pxr::UsdGeomSphere);
+  ExpectAttributeEqual(stage, "/test/ellipsoid_geom.radius", 1.0);
+  ExpectAttributeEqual(stage, "/test/ellipsoid_geom.xformOp:scale",
+                       pxr::GfVec3f(2.0 * 10.0, 2.0 * 20.0, 2.0 * 30.0));
+}
+
 static constexpr char kSiteXml[] = R"(
     <mujoco model="test">
       <worldbody>
@@ -435,6 +492,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsPurpose) {
   EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/ellipsoid_site",
                       pxr::UsdGeomTokens->guide);
 }
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsToggleSdfFormatArg) {
   std::string xml_path = GetTestDataFilePath(kMeshObjPath);
 

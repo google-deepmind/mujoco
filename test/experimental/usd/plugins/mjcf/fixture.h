@@ -70,10 +70,11 @@ template <typename T>
 void ExpectAttributeEqual(pxr::UsdStageRefPtr stage, const char* path,
                           const T& value) {
   auto attr = stage->GetAttributeAtPath(pxr::SdfPath(path));
-  EXPECT_TRUE(attr.IsValid());
+  EXPECT_TRUE(attr.IsValid()) << "Attribute " << path << " is not valid";
   T attr_value;
   attr.Get(&attr_value);
-  EXPECT_EQ(attr_value, value);
+  EXPECT_EQ(attr_value, value) << "Attribute " << path << " has value "
+                               << attr_value << ". Expected: " << value;
 }
 
 // Specialization for SdfAssetPath, so that we can compare only the asset path

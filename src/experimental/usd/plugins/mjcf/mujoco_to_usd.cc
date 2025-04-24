@@ -777,6 +777,43 @@ class ModelWriter {
     return WriteSphere(name, geom_size, body_path);
   }
 
+  pxr::SdfPath WritePlane(const pxr::TfToken &name, const mjtNum *size,
+                          const pxr::SdfPath &body_path) {
+    pxr::SdfPath plane_path =
+        CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Plane);
+
+    // MuJoCo uses half sizes.
+    // Note that UsdGeomPlane is infinite for simulation purposes but can have
+    // width/length for visualization, same as MuJoCo.
+    double width = size[0] * 2.0;
+    double length = size[1] * 2.0;
+
+    pxr::SdfPath width_attr_path =
+        CreateAttributeSpec(data_, plane_path, pxr::UsdGeomTokens->width,
+                            pxr::SdfValueTypeNames->Double);
+    SetAttributeDefault(data_, width_attr_path, width);
+
+    pxr::SdfPath length_attr_path =
+        CreateAttributeSpec(data_, plane_path, pxr::UsdGeomTokens->length,
+                            pxr::SdfValueTypeNames->Double);
+    SetAttributeDefault(data_, length_attr_path, length);
+
+    // MuJoCo plane is always a XY plane with +Z up.
+    // UsdGeomPlane is also a XY plane if axis is 'Z', which is default.
+    // So no need to set axis attribute explicitly.
+
+    return plane_path;
+  }
+
+  pxr::SdfPath WritePlaneGeom(const mjsGeom *geom,
+                              const pxr::SdfPath &body_path) {
+    auto name =
+        GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Plane, body_path);
+    int geom_idx = mjs_getId(geom->element);
+    mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
+    return WritePlane(name, geom_size, body_path);
+  }
+
   void WriteSite(mjsSite *site, const mjsBody *body) {
     const int body_id = mjs_getId(body->element);
     const auto &body_path = body_paths_[body_id];
@@ -804,6 +841,9 @@ class ModelWriter {
     pxr::SdfPath geom_path;
     int geom_id = mjs_getId(geom->element);
     switch (geom->type) {
+      case mjGEOM_PLANE:
+        geom_path = WritePlaneGeom(geom, body_path);
+        break;
       case mjGEOM_MESH:
         geom_path = WriteMeshGeom(geom, body_path);
         break;
