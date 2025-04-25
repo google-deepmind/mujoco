@@ -79,6 +79,30 @@ else()
 endif()
 
 option(MUJOCO_BUILD_MACOS_FRAMEWORKS "Build libraries as macOS Frameworks" OFF)
+option(MUJOCO_INSTALL_PLUGINS "Install MuJoCo plugins" ON)
+mark_as_advanced(MUJOCO_INSTALL_PLUGINS)
+
+# Define function to simplify installations of plugins
+function(mujoco_install_plugin plugin_target_name)
+  # Do not install plugin on macOS when using macOS Frameworks
+  if(MUJOCO_INSTALL_PLUGINS AND NOT MUJOCO_BUILD_MACOS_FRAMEWORKS)
+    if(WIN32)
+      install(TARGETS ${plugin_target_name}
+              # consistently with the official mujoco binary format, we do
+              # not want to install .lib import libraries on Windows, and
+              # only install .dll . To do so, we install non-.dll files to
+              # a fake install directory that is not actually in the install path
+              ARCHIVE DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/fake_plugin_install"
+              LIBRARY DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/fake_plugin_install"
+              RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin")
+    else()
+      install(TARGETS ${plugin_target_name}
+              ARCHIVE DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin"
+              LIBRARY DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin"
+              RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin")
+    endif()
+  endif()
+endfunction()
 
 # Get some extra link options.
 include(MujocoLinkOptions)

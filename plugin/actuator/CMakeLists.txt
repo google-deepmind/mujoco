@@ -39,3 +39,5 @@ target_link_options(
   ${MUJOCO_MACOS_LINK_OPTIONS}
   ${EXTRA_LINK_OPTIONS}
 )
+
+mujoco_install_plugin(actuator)
