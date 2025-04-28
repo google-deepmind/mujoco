@@ -861,6 +861,17 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nplugin, 1)
     self.assertEqual(model.npluginattr, 7)
     self.assertEqual(model.body_plugin[1], 0)
+    attributes = (''.join([chr(i) for i in model.plugin_attr]).split(chr(0)))
+    self.assertEqual(attributes[:2], ['10', '1'])
+
+    copy = spec.copy()  # before assigning the new config
+    wrong_config = {'wrong': '10', 'bend': '1'}
+    for s in [spec, copy]:
+      s.plugins[0].config = wrong_config
+      with self.assertRaisesRegex(
+          ValueError, "Error: unrecognized attribute 'plugin:wrong'"
+      ):
+        s.compile()
 
   def test_recompile_error(self):
     main_xml = """

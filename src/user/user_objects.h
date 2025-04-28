@@ -1587,6 +1587,9 @@ class mjCPlugin : public mjCPlugin_ {
   mjCPlugin(mjCModel*);
   mjCPlugin(const mjCPlugin& other);
   mjCPlugin& operator=(const mjCPlugin& other);
+
+  void PointToLocal();
+
   mjsPlugin spec;
   mjCBase* parent;  // parent object (only used when generating error message)
   int plugin_slot;  // global registered slot number of the plugin

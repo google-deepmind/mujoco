@@ -7271,6 +7271,8 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
   spec.plugin_name = &plugin_name;
   spec.name = &name;
   spec.info = &info;
+
+  PointToLocal();
 }
 
 
@@ -7289,7 +7291,16 @@ mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
     parent = this;
     plugin_slot = other.plugin_slot;
   }
+  PointToLocal();
   return *this;
+}
+
+
+
+void mjCPlugin::PointToLocal() {
+  spec.element = static_cast<mjsElement*>(this);
+  spec.name = &name;
+  spec.info = &info;
 }
 
 
