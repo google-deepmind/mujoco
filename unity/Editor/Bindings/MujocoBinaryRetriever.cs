@@ -37,7 +37,7 @@ public class MujocoBinaryRetriever {
           if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/mujoco.dylib") == null) {
             File.Copy(
                 "/Applications/MuJoCo.app/Contents/Frameworks" +
-                "/mujoco.framework/Versions/Current/libmujoco.3.3.2.dylib",
+                "/mujoco.framework/Versions/Current/libmujoco.3.3.3.dylib",
                 mujocoPath + "/mujoco.dylib");
             AssetDatabase.Refresh();
           }
@@ -45,7 +45,7 @@ public class MujocoBinaryRetriever {
           if (AssetDatabase.LoadMainAssetAtPath(mujocoPath + "/libmujoco.so") == null) {
             File.Copy(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) +
-                "/.mujoco/mujoco-3.3.2/lib/libmujoco.so.3.3.2",
+                "/.mujoco/mujoco-3.3.3/lib/libmujoco.so.3.3.3",
                 mujocoPath + "/libmujoco.so");
             AssetDatabase.Refresh();
           }
