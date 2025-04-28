@@ -628,6 +628,12 @@ Parent:
   The parent body of a given element -- including bodies and frames -- can be accessed via the ``parent`` property.
   For example, the parent of a site can be accessed via ``site.parent``.
 
+Serialization
+^^^^^^^^^^^^^
+The ``MjSpec`` object can be serialized with all of its assets using the function ``spec.to_zip(file)``, where ``file``
+can be either a path to a file or a file object. In order to load the spec from a zip file, use ``spec =
+MjSpec.from_zip(file)``, where ``file`` is a path to a zip file or a zip file object.
+
 .. _PyMJCF:
 
 Relationship to ``PyMJCF`` and ``bind``
