@@ -629,6 +629,15 @@ static void warmstart(const mjModel* m, mjData* d) {
       }
     }
 
+    // have island structure: unconstrained qacc = qacc_smooth
+    if (d->nisland > 0) {
+      for (int i=0; i < nv; i++) {
+        if (d->dof_island[i] < 0) {
+          d->qacc[i] = d->qacc_smooth[i];
+        }
+      }
+    }
+
     mj_freeStack(d);
   }
 
