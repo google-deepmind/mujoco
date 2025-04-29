@@ -472,16 +472,16 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestGeomsPrims) {
   // Sphere
   EXPECT_PRIM_VALID(stage, "/test/sphere_geom");
   EXPECT_PRIM_IS_A(stage, "/test/sphere_geom", pxr::UsdGeomSphere);
-  ExpectAttributeEqual(stage, "/test/sphere_geom.radius", 2 * 10.0);
+  ExpectAttributeEqual(stage, "/test/sphere_geom.radius", 10.0);
   // Capsule
   EXPECT_PRIM_VALID(stage, "/test/capsule_geom");
   EXPECT_PRIM_IS_A(stage, "/test/capsule_geom", pxr::UsdGeomCapsule);
-  ExpectAttributeEqual(stage, "/test/capsule_geom.radius", 2 * 10.0);
+  ExpectAttributeEqual(stage, "/test/capsule_geom.radius", 10.0);
   ExpectAttributeEqual(stage, "/test/capsule_geom.height", 2 * 20.0);
   // Cylinder
   EXPECT_PRIM_VALID(stage, "/test/cylinder_geom");
   EXPECT_PRIM_IS_A(stage, "/test/cylinder_geom", pxr::UsdGeomCylinder);
-  ExpectAttributeEqual(stage, "/test/cylinder_geom.radius", 2 * 10.0);
+  ExpectAttributeEqual(stage, "/test/cylinder_geom.radius", 10.0);
   ExpectAttributeEqual(stage, "/test/cylinder_geom.height", 2 * 20.0);
   // Ellipsoid
   EXPECT_PRIM_VALID(stage, "/test/ellipsoid_geom");
@@ -490,7 +490,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestGeomsPrims) {
   EXPECT_PRIM_IS_A(stage, "/test/ellipsoid_geom", pxr::UsdGeomSphere);
   ExpectAttributeEqual(stage, "/test/ellipsoid_geom.radius", 1.0);
   ExpectAttributeEqual(stage, "/test/ellipsoid_geom.xformOp:scale",
-                       pxr::GfVec3f(2.0 * 10.0, 2.0 * 20.0, 2.0 * 30.0));
+                       pxr::GfVec3f(10.0, 20.0, 30.0));
 }
 
 static constexpr char kSiteXml[] = R"(

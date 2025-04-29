@@ -673,15 +673,15 @@ class ModelWriter {
     pxr::SdfPath capsule_path =
         CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Capsule);
 
-    // MuJoCo uses half sizes.
     pxr::SdfPath radius_attr_path =
         CreateAttributeSpec(data_, capsule_path, pxr::UsdGeomTokens->radius,
                             pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, radius_attr_path, size[0] * 2);
+    SetAttributeDefault(data_, radius_attr_path, size[0]);
 
     pxr::SdfPath height_attr_path =
         CreateAttributeSpec(data_, capsule_path, pxr::UsdGeomTokens->height,
                             pxr::SdfValueTypeNames->Float);
+    // MuJoCo uses half sizes.
     SetAttributeDefault(data_, height_attr_path, size[1] * 2);
     return capsule_path;
   }
@@ -701,15 +701,15 @@ class ModelWriter {
     pxr::SdfPath cylinder_path =
         CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Cylinder);
 
-    // MuJoCo uses half sizes.
     pxr::SdfPath radius_attr_path =
         CreateAttributeSpec(data_, cylinder_path, pxr::UsdGeomTokens->radius,
                             pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, radius_attr_path, size[0] * 2);
+    SetAttributeDefault(data_, radius_attr_path, size[0]);
 
     pxr::SdfPath height_attr_path =
         CreateAttributeSpec(data_, cylinder_path, pxr::UsdGeomTokens->height,
                             pxr::SdfValueTypeNames->Float);
+    // MuJoCo uses half sizes.
     SetAttributeDefault(data_, height_attr_path, size[1] * 2);
     return cylinder_path;
   }
@@ -729,11 +729,10 @@ class ModelWriter {
     pxr::SdfPath ellipsoid_path =
         CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Sphere);
 
-    pxr::GfVec3f scale = {static_cast<float>(size[0] * 2),
-                          static_cast<float>(size[1] * 2),
-                          static_cast<float>(size[2] * 2)};
+    pxr::GfVec3f scale = {static_cast<float>(size[0]),
+                          static_cast<float>(size[1]),
+                          static_cast<float>(size[2])};
 
-    // MuJoCo uses half sizes.
     pxr::SdfPath radius_attr_path =
         CreateAttributeSpec(data_, ellipsoid_path, pxr::UsdGeomTokens->radius,
                             pxr::SdfValueTypeNames->Float);
@@ -760,11 +759,10 @@ class ModelWriter {
     pxr::SdfPath sphere_path =
         CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Sphere);
 
-    // MuJoCo uses half sizes.
     pxr::SdfPath radius_attr_path =
         CreateAttributeSpec(data_, sphere_path, pxr::UsdGeomTokens->radius,
                             pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, radius_attr_path, size[0] * 2);
+    SetAttributeDefault(data_, radius_attr_path, size[0]);
     return sphere_path;
   }
 
