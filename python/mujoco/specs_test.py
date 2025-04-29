@@ -844,6 +844,7 @@ class SpecsTest(absltest.TestCase):
         info='info'
     )
     plugin.config = {'twist': '10', 'bend': '1'}
+    self.assertEqual(plugin.config, {'twist': '10', 'bend': '1'})
 
     body = spec.worldbody.add_body()
     body.plugin = plugin

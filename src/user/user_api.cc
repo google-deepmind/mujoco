@@ -1302,6 +1302,14 @@ void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes) {
 
 
 
+// get plugin attributes
+const void* mjs_getPluginAttributes(const mjsPlugin* plugin) {
+  mjCPlugin* pluginC = static_cast<mjCPlugin*>(plugin->element);
+  return &pluginC->config_attribs;
+}
+
+
+
 // -------------------------- GLOBAL ASSET CACHE -------------------------------
 
 void mj_setCacheSize(mjCache cache, std::size_t size) {

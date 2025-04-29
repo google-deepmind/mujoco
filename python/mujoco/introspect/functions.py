@@ -10298,6 +10298,22 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Get double array contents and optionally its size.',
      )),
+    ('mjs_getPluginAttributes',
+     FunctionDecl(
+         name='mjs_getPluginAttributes',
+         return_type=PointerType(
+             inner_type=ValueType(name='void', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='plugin',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsPlugin', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Get plugin attributes.',
+     )),
     ('mjs_setDefault',
      FunctionDecl(
          name='mjs_setDefault',

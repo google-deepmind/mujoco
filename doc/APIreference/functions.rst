@@ -4401,6 +4401,15 @@ Get string contents.
 
 Get double array contents and optionally its size.
 
+.. _mjs_getPluginAttributes:
+
+`mjs_getPluginAttributes <#mjs_getPluginAttributes>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getPluginAttributes
+
+Get plugin attributes.
+
 .. _SpecUtilities:
 
 Spec utilities

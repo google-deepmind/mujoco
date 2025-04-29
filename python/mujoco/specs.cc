@@ -1034,8 +1034,15 @@ PYBIND11_MODULE(_specs, m) {
                 [](raw::MjsPlugin& self) { mjs_delete(self.element); });
   mjsPlugin.def_property(
       "config",
-      [](raw::MjsPlugin& self) -> void {
-        throw pybind11::value_error("Reading plugin config is not supported.");
+      [](raw::MjsPlugin& self) -> py::dict {
+        const std::map<std::string, std::string, std::less<>>* config_attribs =
+            static_cast<const std::map<std::string, std::string, std::less<>>*>(
+                mjs_getPluginAttributes(&self));
+        py::dict config;
+        for (const auto& [key, value] : *config_attribs) {
+          config[py::str(key)] = value;
+        }
+        return config;
       },
       [](raw::MjsPlugin& self, py::dict& config) {
         std::map<std::string, std::string, std::less<>> config_attribs;
@@ -1047,7 +1054,8 @@ PYBIND11_MODULE(_specs, m) {
           config_attribs[key_str] = value.cast<std::string>();
         }
         mjs_setPluginAttributes(&self, &config_attribs);
-      });
+      },
+      py::return_value_policy::reference_internal);
   // ============================= MJVISUAL ====================================
   mjVisual.def_property(
       "global_",

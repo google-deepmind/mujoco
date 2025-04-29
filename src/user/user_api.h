@@ -352,6 +352,9 @@ MJAPI const char* mjs_getString(const mjString* source);
 // Get double array contents and optionally its size.
 MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 
+// Get plugin attributes.
+MJAPI const void* mjs_getPluginAttributes(const mjsPlugin* plugin);
+
 
 //---------------------------------- Other utilities -----------------------------------------------
 
