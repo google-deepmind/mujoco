@@ -193,6 +193,44 @@ void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int
 
 
 
+// multiply symmetric matrix (only lower triangle represented) by vector:
+//  res = (mat + strict_upper(mat')) * vec
+void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
+                         const mjtNum* restrict vec, int n,
+                         const int* restrict rownnz, const int* restrict rowadr,
+                         const int* restrict diagnum, const int* restrict colind) {
+  // clear res
+  mju_zero(res, n);
+
+  // multiply
+  for (int i=0; i < n; i++) {
+    int adr = rowadr[i];
+    int diag = rownnz[i] - 1;
+    const mjtNum* row = mat + adr;
+
+    // diagonal
+    res[i] = row[diag] * vec[i];
+
+    // TODO: consider using SIMD if diagnum[i] >= 4
+
+    // shortcut for diagonal row/column
+    if (diagnum[i]) {
+      continue;
+    }
+
+    // off-diagonals
+    const int* ind = colind + adr;
+    for (int k=0; k < diag; k++) {
+      int j = ind[k];
+      mjtNum val = row[k];
+      res[i] += val * vec[j]; // strict lower
+      res[j] += val * vec[i]; // strict upper
+    }
+  }
+}
+
+
+
 // count the number of non-zeros in the sum of two sparse vectors
 int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind) {
   int a = 0, b = 0, c_nnz = 0;

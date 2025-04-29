@@ -1034,6 +1034,42 @@ TEST_F(EngineUtilSparseTest, MjuMulMatTVec) {
   EXPECT_THAT(AsVector(res, 3), ElementsAre(5, 28, 24));
 }
 
+TEST_F(EngineUtilSparseTest, MjuMulSymVecSparse) {
+  constexpr int n = 4;
+  constexpr int nnz = 9;
+
+  mjtNum mat[n*n] = {1,  0,  0,  0,
+                    -1,  2,  0,  0,  // spurious (ignored) -1 at (1, 0)
+                     3,  0,  4,  0,
+                     5,  6,  7,  8};
+
+  // dense, full matrix
+  mjtNum sym[n*n] = {1,  0,  3,  5,
+                     0,  2,  0,  6,
+                     3,  0,  4,  7,
+                     5,  6,  7,  8};
+
+  mjtNum mat_sparse[nnz];
+  int rownnz[n];
+  int rowadr[n];
+  int colind[nnz];
+  mju_dense2sparse(mat_sparse, mat, n, n, rownnz, rowadr, colind, nnz);
+  int diagnum[n] = {0, 1, 0, 0};
+
+  // multiply: res = (mat + strict_upper(mat')) * vec
+  mjtNum vec[n] = {4, 3, 2, 1};
+  mjtNum res[n];
+  mju_mulSymVecSparse(res, mat_sparse, vec, n, rownnz, rowadr, diagnum, colind);
+
+  // dense multiply
+  mjtNum res2[n];
+  mju_mulMatVec(res2, sym, vec, n, n);
+
+  for (int i=0; i < n; i++) {
+    EXPECT_EQ(res[i], res2[i]);
+  }
+}
+
 TEST_F(EngineUtilSparseTest, MjuDenseToSparse) {
   int nr = 2;
   int nc = 2;
