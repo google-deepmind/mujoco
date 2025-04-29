@@ -103,6 +103,21 @@ MJAPI void mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
 // precompute res_rowadr for mju_sqrMatTDSparse using uncompressed memory
 MJAPI void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc);
 
+// block-diagonalize a dense matrix
+MJAPI void mju_blockDiag(mjtNum* res, const mjtNum* mat,
+                         int nc_mat, int nc_res, int nb,
+                         const int* perm_r, const int* perm_c,
+                         const int* block_nr, const int* block_nc,
+                         const int* blockadr_r, const int* blockadr_c);
+
+// block-diagonalize a sparse matrix
+MJAPI void mju_blockDiagSparse(
+  mjtNum* res, int* res_rownnz, int* res_rowadr, int* res_colind,
+  const mjtNum* mat, const int* rownnz, const int* rowadr, const int* colind,
+  int nr, int nb,
+  const int* perm_r, const int* perm_c,
+  const int* block_r, const int* block_c,
+  mjtNum* res2, const mjtNum* mat2);
 
 // ------------------------------ inlined functions ------------------------------------------------
 

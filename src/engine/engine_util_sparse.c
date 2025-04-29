@@ -795,3 +795,103 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
 
   mj_freeStack(d);
 }
+
+
+
+// block-diagonalize a dense matrix
+//   res         output matrix
+//   mat         input matrix
+//   nc_mat      number of columns in mat
+//   nc_res      number of columns in res
+//   nb          number of blocks
+//   perm_r      reverse permutation of rows (res -> mat)
+//   perm_c      reverse permutation of columns (res -> mat)
+//   block_nr    number of rows in each block
+//   block_nc    number of columns in each block
+//   block_r     first row of each block
+//   block_c     first column of each block
+void mju_blockDiag(mjtNum* restrict res, const mjtNum* restrict mat,
+                   int nc_mat, int nc_res, int nb,
+                   const int* restrict perm_r, const int* restrict perm_c,
+                   const int* restrict block_nr, const int* restrict block_nc,
+                   const int* restrict block_r, const int* restrict block_c) {
+  for (int b=0; b < nb; b++) {
+    int bnr = block_nr[b];
+    int bnc = block_nc[b];
+    const int* adr_r = perm_r + block_r[b];
+    const int* adr_c = perm_c + block_c[b];
+    int adr = nc_res * block_r[b];
+    for (int r = 0; r < bnr; r++) {
+      for (int c = 0; c < bnc; c++) {
+        res[adr++] = mat[nc_mat * adr_r[r] + adr_c[c]];
+      }
+    }
+  }
+}
+
+
+// block-diagonalize a sparse matrix
+//   res         values of the target matrix res
+//   res_rownnz  number of non-zeros in each row of res
+//   res_rowadr  row address of each non-zero in res
+//   res_colind  column index of each non-zero in res
+//   mat         values of the source matrix mat
+//   mat_rownnz  number of non-zeros in each row of mat
+//   mat_rowadr  row address of each non-zero in mat
+//   mat_colind  column index of each non-zero in mat
+//   nr          number of rows in mat/res
+//   nb          number of blocks
+//   perm_r      reverse permutation of rows (res -> mat)
+//   perm_c      forward permutation of columns (mat -> res)
+//   block_r     first row of each block in res
+//   block_c     first column of each block in res
+//   mat2        optional additional source matrix (same structure as mat)
+//   res2        optional additional target matrix (same structure as res)
+void mju_blockDiagSparse(mjtNum* restrict res, int* restrict res_rownnz,
+                         int* restrict res_rowadr, int* restrict res_colind,
+                         const mjtNum* restrict mat, const int* restrict rownnz,
+                         const int* restrict rowadr, const int* restrict colind,
+                         int nr, int nb,
+                         const int* restrict perm_r, const int* restrict perm_c,
+                         const int* restrict block_r, const int* restrict block_c,
+                         mjtNum* restrict res2, const mjtNum* restrict mat2) {
+  int block = 0;
+  int col_offset = block_c[block];
+  int row_next = block + 1 < nb ? block_r[block + 1] : nr;
+  for (int r=0; r < nr; r++) {
+    // row k in mat goes to row r in res
+    int k = perm_r[r];
+
+    // rownnz
+    int nnz = rownnz[k];
+    res_rownnz[r] = nnz;
+
+    // rowadr
+    int res_adr = (r == 0) ? 0 : res_rowadr[r-1] + res_rownnz[r-1];
+    res_rowadr[r] = res_adr;
+
+    // colind
+    int* res_colind_r = res_colind + res_adr;
+    mjtNum* res_r = res + res_adr;
+    int mat_adr = rowadr[k];
+    const int* colind_k = colind + mat_adr;
+    const mjtNum* mat_k = mat + mat_adr;
+    for (int j=0; j < nnz; j++) {
+      res_colind_r[j] = perm_c[colind_k[j]] - col_offset;
+    }
+
+    // values (dense copy: partial order within block is guaranteed)
+    mju_copy(res_r, mat_k, nnz);
+    if (mat2 && res2) {
+      mju_copy(res2 + res_adr, mat2 + mat_adr, nnz);
+    }
+
+    // end of block reached: update block counter, column offset, next row
+    if (r + 1 >= row_next && block + 1 < nb ) {
+      block++;
+      col_offset = block_c[block];
+      row_next = block + 1 < nb ? block_r[block + 1] : nr;
+    }
+  }
+}
+
