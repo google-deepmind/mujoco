@@ -98,6 +98,9 @@ using pxr::Tf_RegistryInit;
 using pxr::TfEnum;
 template <typename T>
 using Arch_PerLibInit = pxr::Arch_PerLibInit<T>;
+#if defined(ARCH_OS_DARWIN)
+using Arch_ConstructorEntry = pxr::Arch_ConstructorEntry;
+#endif
 enum ErrorCodes { UnsupportedGeomTypeError, MujocoCompilationError };
 
 TF_REGISTRY_FUNCTION(pxr::TfEnum) {
