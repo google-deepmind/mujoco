@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "test/experimental/usd/plugins/mjcf/fixture.h"
+#include "test/experimental/usd/test_utils.h"
 
 #include <string>
 
@@ -28,6 +28,7 @@
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 namespace mujoco {
+namespace usd {
 
 using pxr::SdfPath;
 
@@ -61,4 +62,5 @@ void ExpectAttributeHasConnection(pxr::UsdStageRefPtr stage, const char* path,
   EXPECT_EQ(sources.size(), 1);
   EXPECT_EQ(sources[0], SdfPath(connection_path));
 }
+}  // namespace usd
 }  // namespace mujoco

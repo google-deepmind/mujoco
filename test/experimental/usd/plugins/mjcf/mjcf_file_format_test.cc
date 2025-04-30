@@ -17,7 +17,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "test/experimental/usd/plugins/mjcf/fixture.h"
+#include "test/experimental/usd/test_utils.h"
 #include "test/fixture.h"
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3f.h>
@@ -56,6 +56,7 @@ TF_DEFINE_PRIVATE_TOKENS(_tokens,
 PXR_NAMESPACE_CLOSE_SCOPE
 
 namespace mujoco {
+namespace usd {
 namespace {
 
 using pxr::SdfPath;
@@ -730,4 +731,5 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
 }
 
 }  // namespace
+}  // namespace usd
 }  // namespace mujoco
