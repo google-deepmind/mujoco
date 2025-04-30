@@ -17,7 +17,6 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/strings/string_view.h>
 #include "test/experimental/usd/plugins/mjcf/fixture.h"
 #include "test/fixture.h"
 #include <pxr/base/gf/vec2f.h>
@@ -60,6 +59,7 @@ namespace mujoco {
 namespace {
 
 using pxr::SdfPath;
+using MjcfSdfFileFormatPluginTest = MujocoTest;
 
 static const char* kMaterialsPath =
     "experimental/usd/plugins/mjcf/testdata/materials.xml";

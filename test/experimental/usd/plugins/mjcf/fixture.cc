@@ -18,7 +18,6 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/log/check.h>
 #include <pxr/usd/sdf/assetPath.h>
 #include <pxr/usd/sdf/declareHandles.h>
 #include <pxr/usd/sdf/fileFormat.h>
@@ -62,5 +61,4 @@ void ExpectAttributeHasConnection(pxr::UsdStageRefPtr stage, const char* path,
   EXPECT_EQ(sources.size(), 1);
   EXPECT_EQ(sources[0], SdfPath(connection_path));
 }
-//
 }  // namespace mujoco
