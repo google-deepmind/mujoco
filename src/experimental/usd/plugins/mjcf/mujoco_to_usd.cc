@@ -832,7 +832,7 @@ class ModelWriter {
         site_path, pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
   }
 
-  void WriteGeom(mjsGeom *geom, const mjsBody *body) {
+  void WriteGeom(mjsGeom *geom, const mjsBody *body, bool write_physics) {
     const int body_id = mjs_getId(body->element);
     const auto &body_path = body_paths_[body_id];
 
@@ -864,6 +864,14 @@ class ModelWriter {
         TF_WARN(UnsupportedGeomTypeError, "Unsupported geom type for geom %d",
                 geom_id);
         return;
+    }
+
+    // Apply the PhysicsCollisionAPI schema if we are writing physics and the
+    // geom participates in collisions.
+    if (write_physics && (model_->geom_contype[geom_id] != 0 ||
+                          model_->geom_conaffinity[geom_id] != 0)) {
+      ApplyApiSchema(data_, geom_path,
+                     pxr::UsdPhysicsTokens->PhysicsCollisionAPI);
     }
 
     mjsDefault *spec_default = mjs_getDefault(geom->element);
@@ -940,10 +948,10 @@ class ModelWriter {
     }
   }
 
-  void WriteGeoms(mjsBody *body) {
+  void WriteGeoms(mjsBody *body, bool write_physics) {
     mjsGeom *geom = mjs_asGeom(mjs_firstChild(body, mjOBJ_GEOM, false));
     while (geom) {
-      WriteGeom(geom, body);
+      WriteGeom(geom, body, write_physics);
       geom = mjs_asGeom(mjs_nextChild(body, geom->element, false));
     }
   }
@@ -1106,7 +1114,7 @@ class ModelWriter {
         WriteBody(body, write_physics);
       }
       WriteSites(body);
-      WriteGeoms(body);
+      WriteGeoms(body, write_physics);
       WriteCameras(body);
       WriteLights(body);
       body = mjs_asBody(mjs_nextElement(spec_, body->element));

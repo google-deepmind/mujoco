@@ -45,6 +45,7 @@
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdGeom/sphere.h>
 #include <pxr/usd/usdGeom/tokens.h>
+#include <pxr/usd/usdPhysics/collisionAPI.h>
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -605,6 +606,127 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsRigidBody) {
   EXPECT_PRIM_API_NOT_APPLIED(stage,
                               "/physics_test/test_body/test_body_2/test_geom_2",
                               pxr::UsdPhysicsRigidBodyAPI);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="test">
+      <worldbody>
+        <geom name="ground" type="plane" size="5 5 0.1"
+              contype="1" conaffinity="1"/>
+        <body name="body_0" pos="-3 0 2">
+          <joint type="free"/>
+          <geom name="body_0_col" type="sphere" size="1"
+                contype="1" conaffinity="1"/>
+          <body name="body_0_0" pos="-1 0 2">
+            <geom name="body_0_0_col" type="sphere" size="1"
+                  contype="1" conaffinity="1"/>
+          </body>
+        </body>
+        <body name="body_1" pos="0 0 3">
+          <joint type="free"/>
+          <geom name="body_1_col_0" type="sphere" size="1"
+                contype="1" conaffinity="1"/>
+          <geom name="body_1_col_1" type="sphere" size="1" pos="-1 0 2"
+                contype="1" conaffinity="1"/>
+        </body>
+        <body name="body_2" pos="3 0 3">
+          <joint type="free"/>
+          <geom name="body_2_nocol" type="sphere" size="1"
+                contype="0" conaffinity="0"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+
+  pxr::SdfFileFormat::FileFormatArguments args;
+  args["usdMjcfToggleUsdPhysics"] = "true";
+  pxr::SdfLayerRefPtr layer = LoadLayer(kXml, args);
+  auto stage = pxr::UsdStage::Open(layer);
+
+  EXPECT_THAT(stage, testing::NotNull());
+  EXPECT_PRIM_VALID(stage, "/test");
+
+  // Expected hierarchy under /test:
+  //
+  // ground [collider]
+  //
+  // body_0/body_0 [rigidbody]
+  //   body_0/body_0/body_0_col [collider]
+  //
+  // body_0/body_0_0 [rigidbody]  <-- Note: USD reparents nested rigid bodies
+  //     body_0/body_0/body_0_0/body_0_0_col [collider]
+  //
+  // body_1/body_1 [rigidbody]
+  //   body_1/body_1/body_1_col_0 [collider]
+  //   body_1/body_1/body_1_col_1 [collider]
+  //
+  // body_2/body_2 [rigidbody]
+  //   body_2/body_2/body_2_nocol []
+
+  // ground [collider] (Static collider)
+  EXPECT_PRIM_VALID(stage, "/test/ground");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/ground",
+                              pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/ground", pxr::UsdPhysicsCollisionAPI);
+
+  // body_0/body_0 [rigidbody]
+  EXPECT_PRIM_VALID(stage, "/test/body_0/body_0");
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_0/body_0",
+                          pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_0/body_0",
+                              pxr::UsdPhysicsCollisionAPI);
+  //   body_0/body_0/body_0_col [collider]
+  EXPECT_PRIM_VALID(stage, "/test/body_0/body_0/body_0_col");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_0/body_0/body_0_col",
+                              pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_0/body_0/body_0_col",
+                          pxr::UsdPhysicsCollisionAPI);
+
+  // body_0/body_0_0 [rigidbody] (Nested body - reparented)
+  EXPECT_PRIM_VALID(stage, "/test/body_0/body_0_0");
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_0/body_0_0",
+                          pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_0/body_0_0",
+                              pxr::UsdPhysicsCollisionAPI);
+  //   body_0/body_0_0/body_0_0_col [collider]
+  EXPECT_PRIM_VALID(stage, "/test/body_0/body_0_0/body_0_0_col");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_0/body_0_0/body_0_0_col",
+                              pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_0/body_0_0/body_0_0_col",
+                          pxr::UsdPhysicsCollisionAPI);
+
+  // body_1/body_1 [rigidbody]
+  EXPECT_PRIM_VALID(stage, "/test/body_1/body_1");
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_1/body_1",
+                          pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_1/body_1",
+                              pxr::UsdPhysicsCollisionAPI);
+  //   body_1/body_1/body_1_col_0 [collider]
+  EXPECT_PRIM_VALID(stage, "/test/body_1/body_1/body_1_col_0");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_1/body_1/body_1_col_0",
+                              pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_1/body_1/body_1_col_0",
+                          pxr::UsdPhysicsCollisionAPI);
+  //   body_1/body_1/body_1_col_1 [collider]
+  EXPECT_PRIM_VALID(stage, "/test/body_1/body_1/body_1_col_1");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_1/body_1/body_1_col_1",
+                              pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_1/body_1/body_1_col_1",
+                          pxr::UsdPhysicsCollisionAPI);
+
+  // body_2/body_2 [rigidbody]
+  EXPECT_PRIM_VALID(stage, "/test/body_2/body_2");
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_2/body_2",
+                          pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2/body_2",
+                              pxr::UsdPhysicsCollisionAPI);
+  //   body_2/body_2/body_2_nocol [] (No physics APIs applied)
+  EXPECT_PRIM_VALID(stage, "/test/body_2/body_2/body_2_nocol");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2/body_2/body_2_nocol",
+                              pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2/body_2/body_2_nocol",
+                              pxr::UsdPhysicsCollisionAPI);
 }
 
 }  // namespace
