@@ -612,6 +612,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsRigidBody) {
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
   static constexpr char kXml[] = R"(
     <mujoco model="test">
+      <asset>
+        <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      </asset>
       <worldbody>
         <geom name="ground" type="plane" size="5 5 0.1"
               contype="1" conaffinity="1"/>
@@ -636,6 +639,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
           <geom name="body_2_nocol" type="sphere" size="1"
                 contype="0" conaffinity="0"/>
         </body>
+        <body name="body_3" pos="0 3 3">
+          <joint type="free"/>
+          <geom name="body_3_col" type="mesh" mesh="tetrahedron"
+                contype="1" conaffinity="1"/>
+        </body>
       </worldbody>
     </mujoco>
   )";
@@ -655,7 +663,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
   // body_0/body_0 [rigidbody]
   //   body_0/body_0/body_0_col [collider]
   //
-  // body_0/body_0_0 [rigidbody]  <-- Note: USD reparents nested rigid bodies
+  // body_0/body_0_0 [rigidbody]  <-- USD reparents nested rigid bodies
   //     body_0/body_0/body_0_0/body_0_0_col [collider]
   //
   // body_1/body_1 [rigidbody]
@@ -664,6 +672,10 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
   //
   // body_2/body_2 [rigidbody]
   //   body_2/body_2/body_2_nocol []
+  //
+  // body_3/body_3 [rigidbody]
+  //   body_3/body_3/body_3_col []  <-- Intermediate prim for mesh instancing
+  //     body_3/body_3/body_3_col/Mesh [collider]
 
   // ground [collider] (Static collider)
   EXPECT_PRIM_VALID(stage, "/test/ground");
@@ -728,6 +740,26 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
                               pxr::UsdPhysicsRigidBodyAPI);
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2/body_2/body_2_nocol",
                               pxr::UsdPhysicsCollisionAPI);
+
+  // body_3/body_3 [rigidbody]
+  EXPECT_PRIM_VALID(stage, "/test/body_3/body_3");
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_3/body_3",
+                          pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3",
+                              pxr::UsdPhysicsCollisionAPI);
+  //   body_3/body_3/body_3_col [] (Intermediate prim for mesh instancing)
+  EXPECT_PRIM_VALID(stage, "/test/body_3/body_3/body_3_col");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3/body_3_col",
+                              pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3/body_3_col",
+                              pxr::UsdPhysicsCollisionAPI);
+  //     body_3/body_3/body_3_col/Mesh [collider]
+  EXPECT_PRIM_VALID(stage, "/test/body_3/body_3/body_3_col/Mesh");
+  EXPECT_PRIM_API_NOT_APPLIED(
+      stage, "/test/body_3/body_3/body_3_col/Mesh",
+      pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_3/body_3/body_3_col/Mesh",
+                          pxr::UsdPhysicsCollisionAPI);
 }
 
 }  // namespace
