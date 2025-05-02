@@ -883,6 +883,21 @@ class ModelWriter {
                           model_->geom_conaffinity[geom_id] != 0)) {
       ApplyApiSchema(data_, geom_path,
                      pxr::UsdPhysicsTokens->PhysicsCollisionAPI);
+      // For meshes, also apply PhysicsMeshCollisionAPI and set the
+      // approximation attribute.
+      if (geom->type == mjGEOM_MESH) {
+        ApplyApiSchema(data_, geom_path,
+                       pxr::UsdPhysicsTokens->PhysicsMeshCollisionAPI);
+
+        // Note: MuJoCo documentation states that for collision purposes, meshes
+        // are always replaced with their convex hulls. Therefore, we set the
+        // approximation attribute to convexHull explicitly.
+        pxr::SdfPath approximation_attr = CreateAttributeSpec(
+            data_, geom_path, pxr::UsdPhysicsTokens->physicsApproximation,
+            pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
+        SetAttributeDefault(data_, approximation_attr,
+                            pxr::UsdPhysicsTokens->convexHull);
+      }
     }
 
     mjsDefault *spec_default = mjs_getDefault(geom->element);

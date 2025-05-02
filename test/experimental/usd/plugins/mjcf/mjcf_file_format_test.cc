@@ -45,7 +45,9 @@
 #include <pxr/usd/usdGeom/sphere.h>
 #include <pxr/usd/usdGeom/tokens.h>
 #include <pxr/usd/usdPhysics/collisionAPI.h>
+#include <pxr/usd/usdPhysics/meshCollisionAPI.h>
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
+#include <pxr/usd/usdPhysics/tokens.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 // clang-format off
@@ -675,7 +677,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
   //
   // body_3/body_3 [rigidbody]
   //   body_3/body_3/body_3_col []  <-- Intermediate prim for mesh instancing
-  //     body_3/body_3/body_3_col/Mesh [collider]
+  //     body_3/body_3/body_3_col/Mesh [collider, mesh collider]
 
   // ground [collider] (Static collider)
   EXPECT_PRIM_VALID(stage, "/test/ground");
@@ -753,13 +755,17 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
                               pxr::UsdPhysicsRigidBodyAPI);
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3/body_3_col",
                               pxr::UsdPhysicsCollisionAPI);
-  //     body_3/body_3/body_3_col/Mesh [collider]
+  //     body_3/body_3/body_3_col/Mesh [collider, mesh collider]
   EXPECT_PRIM_VALID(stage, "/test/body_3/body_3/body_3_col/Mesh");
-  EXPECT_PRIM_API_NOT_APPLIED(
-      stage, "/test/body_3/body_3/body_3_col/Mesh",
-      pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3/body_3_col/Mesh",
+                              pxr::UsdPhysicsRigidBodyAPI);
   EXPECT_PRIM_API_APPLIED(stage, "/test/body_3/body_3/body_3_col/Mesh",
                           pxr::UsdPhysicsCollisionAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_3/body_3/body_3_col/Mesh",
+                          pxr::UsdPhysicsMeshCollisionAPI);
+  ExpectAttributeEqual(
+      stage, "/test/body_3/body_3/body_3_col/Mesh.physics:approximation",
+      pxr::UsdPhysicsTokens->convexHull);
 }
 
 }  // namespace
