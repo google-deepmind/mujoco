@@ -179,7 +179,7 @@ jobs:
            cp lib/libactuator.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libsensor.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libsdf.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+           cp lib/libsdf_plugin.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
     - name: Copy plugins (Windows)
       if: ${{ runner.os == 'Windows' }}
       working-directory: build
