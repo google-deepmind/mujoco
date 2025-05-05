@@ -30,6 +30,8 @@
 #include <mujoco/mjui.h>
 #include <mujoco/mujoco.h>
 #include "platform_ui_adapter.h"
+#include "glfw_adapter.h"
+
 
 namespace mujoco {
 
@@ -50,9 +52,7 @@ class Simulate {
   static constexpr int kMaxGeom = 100000;
 
   // create object and initialize the simulate ui
-  Simulate(
-      std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
-      mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, bool is_passive);
+  Simulate(mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, mjvScene* user_scn, bool is_passive);
 
   // Synchronize state with UI inputs, and update visualization.  If state_only
   // is false mjData and mjModel will be updated, otherwise only the subset of
@@ -83,13 +83,21 @@ class Simulate {
   void Render();
 
   // loop to render the UI (must be called from main thread because of MacOS)
-  void RenderLoop();
+  bool RenderStep(bool update_timer);
+  void RenderInit();
+  void RenderCleanup();
 
   // add state to history buffer
   void AddToHistory();
 
   // inject control noise
   void InjectNoise();
+
+  // proxy method to be called from the Rust bindings. This will call the object's destructor
+  void destructFromRust();
+
+  // returns whether the viewer is running (exitrequest != 2)
+  bool Running();
 
   // constants
   static constexpr int kMaxFilenameLength = 1000;
@@ -195,7 +203,7 @@ class Simulate {
   int sensor = 0;
   int pause_update = 0;
   int fullscreen = 0;
-  int vsync = 1;
+  int vsync = 0;
   int busywait = 0;
 
   // keyframe index
@@ -282,7 +290,7 @@ class Simulate {
   int refresh_rate = 60;
   int window_pos[2] = {0};
   int window_size[2] = {0};
-  std::unique_ptr<PlatformUIAdapter> platform_ui;
+  GlfwAdapter platform_ui;
   mjuiState& uistate;
   mjUI ui0 = {};
   mjUI ui1 = {};
@@ -301,7 +309,7 @@ class Simulate {
   #else
     {mjITEM_CHECKINT, "Fullscreen",    1, &this->fullscreen, " #294"},
   #endif
-    {mjITEM_CHECKINT, "Vertical Sync", 1, &this->vsync,      ""},
+    {mjITEM_CHECKINT, "Vertical Sync", 4, &this->vsync,      ""},
     {mjITEM_CHECKINT, "Busy Wait",     1, &this->busywait,   ""},
     {mjITEM_SELECT,   "Spacing",       1, &this->spacing,    "Tight\nWide"},
     {mjITEM_SELECT,   "Color",         1, &this->color,      "Default\nOrange\nWhite\nBlack"},
@@ -349,5 +357,10 @@ class Simulate {
   int hfield_upload_ = -1;
 };
 }  // namespace mujoco
+
+extern "C" {
+  mujoco::Simulate* new_simulate(mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, mjvScene* user_scn, bool is_passive);
+  void free_simulate(mujoco::Simulate* simulate);
+}
 
 #endif

@@ -1,0 +1,1200 @@
+diff --git a/.github/workflows/static_build.yml b/.github/workflows/static_build.yml
+new file mode 100644
+index 00000000..f4b58362
+--- /dev/null
++++ b/.github/workflows/static_build.yml
+@@ -0,0 +1,49 @@
++name: Build and Upload Release
++
++on:
++  release:
++    types: [published]  # Trigger when a release is published
++
++jobs:
++  build:
++    runs-on: ubuntu-latest
++
++    steps:
++      - name: Checkout code
++        uses: actions/checkout@v4
++
++      - name: Install dependencies
++        run: |
++          sudo apt-get update && \
++          sudo apt-get install -y --no-install-recommends \
++              build-essential \
++              cmake \
++              curl \
++              ca-certificates \
++              git \
++              libx11-dev \
++              libglfw3-dev \
++              libxinerama-dev \
++              libxcursor-dev \
++              libxi-dev \
++              libxrandr-dev
++
++      - name: Configure and build
++        run: |
++          cmake -B build -S . -DBUILD_SHARED_LIBS:BOOL=OFF -DMUJOCO_HARDEN:BOOL=OFF -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=ON -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
++          cmake --build build --parallel --target libsimulate --config=Release
++
++      - name: Package build artifacts
++        run: |
++          mkdir -p artifacts
++          tar -czf artifacts/static-link-mujoco-${{ github.ref_name }}.tar.gz -C build/lib/ .
++
++      - name: Upload release asset
++        uses: actions/upload-release-asset@v1
++        env:
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Required!
++        with:
++          upload_url: ${{ github.event.release.upload_url }}
++          asset_path: artifacts/static-link-mujoco-${{ github.ref_name }}.tar.gz
++          asset_name: static-link-mujoco-${{ github.ref_name }}.tar.gz
++          asset_content_type: application/gzip
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 1780f874..cb93387c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -96,7 +96,12 @@ else()
+   set(MUJOCO_RESOURCE_FILES "")
+ endif()
+ 
++if(BUILD_SHARED_LIBS)
+ add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
++else()
++add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
++endif()
++
+ target_include_directories(
+   mujoco
+   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+@@ -217,7 +222,7 @@ endif()
+ if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
+   # Install the libraries.
+   install(
+-    TARGETS mujoco
++    TARGETS mujoco lodepng
+     EXPORT ${PROJECT_NAME}
+     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT runtime
+     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT runtime
+diff --git a/cmake/MujocoDependencies.cmake b/cmake/MujocoDependencies.cmake
+index 5cdc33cb..80ba2df3 100644
+--- a/cmake/MujocoDependencies.cmake
++++ b/cmake/MujocoDependencies.cmake
+@@ -106,7 +106,7 @@ if(NOT TARGET lodepng)
+     add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
+     target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+-    target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
++    target_include_directories(lodepng PUBLIC $<BUILD_INTERFACE:${lodepng_SOURCE_DIR}>)
+   endif()
+ endif()
+ 
+diff --git a/mingw64-toolchain.cmake b/mingw64-toolchain.cmake
+new file mode 100644
+index 00000000..cfd0f385
+--- /dev/null
++++ b/mingw64-toolchain.cmake
+@@ -0,0 +1,22 @@
++set(CMAKE_SYSTEM_NAME Windows)
++set(TOOLCHAIN_PREFIX x86_64-w64-mingw32)
++
++# cross compilers to use for C, C++ and Fortran
++set(CMAKE_C_COMPILER ${TOOLCHAIN_PREFIX}-gcc-posix)
++set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}-g++-posix)
++set(CMAKE_Fortran_COMPILER ${TOOLCHAIN_PREFIX}-gfortran)
++set(CMAKE_RC_COMPILER ${TOOLCHAIN_PREFIX}-windres)
++
++# target environment on the build host system
++set(CMAKE_FIND_ROOT_PATH /usr/${TOOLCHAIN_PREFIX})
++
++# Use C++11 or later
++set(CMAKE_CXX_STANDARD 17)
++
++# Additional Windows libraries (for system-level API calls)
++set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lstdc++ -lpthread -lgdi32 -lws2_32")
++
++# modify default behavior of FIND_XXX() commands
++set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
++set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
++set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+diff --git a/simulate/glfw_adapter.cc b/simulate/glfw_adapter.cc
+index 6bae8822..45d2f51f 100644
+--- a/simulate/glfw_adapter.cc
++++ b/simulate/glfw_adapter.cc
+@@ -16,6 +16,7 @@
+ 
+ #include <cstdlib>
+ #include <utility>
++#include <chrono>
+ 
+ #include <GLFW/glfw3.h>
+ #include <mujoco/mjui.h>
+@@ -45,6 +46,8 @@ GlfwAdapter& GlfwAdapterFromWindow(GLFWwindow* window) {
+ }  // namespace
+ 
+ GlfwAdapter::GlfwAdapter() {
++  mjr_defaultContext(&con_);
++
+   if (MaybeGlfwInit() != GLFW_TRUE) {
+     mju_error("could not initialize GLFW");
+   }
+@@ -115,6 +118,10 @@ GlfwAdapter::~GlfwAdapter() {
+   Glfw().glfwDestroyWindow(window_);
+ }
+ 
++void GlfwAdapter::MakeCurrent() {
++    Glfw().glfwMakeContextCurrent(window_);
++}
++
+ std::pair<double, double> GlfwAdapter::GetCursorPosition() const {
+   double x, y;
+   Glfw().glfwGetCursorPos(window_, &x, &y);
+@@ -249,4 +256,231 @@ mjtButton GlfwAdapter::TranslateMouseButton(int button) const {
+   }
+   return mjBUTTON_NONE;
+ }
++
++
++void GlfwAdapter::FreeMjrContext() {
++  mjr_freeContext(&con_);
++}
++
++bool GlfwAdapter::RefreshMjrContext(const mjModel* m, int fontscale) {
++  if (m != last_model_ || fontscale != last_fontscale_) {
++    mjr_makeContext(m, &con_, fontscale);
++    last_model_ = m;
++    last_fontscale_ = fontscale;
++    return true;
++  }
++  return false;
++}
++
++bool GlfwAdapter::EnsureContextSize() {
++  return false;
++}
++
++void GlfwAdapter::OnFilesDrop(int count, const char** paths) {
++  state_.type = mjEVENT_FILESDROP;
++  state_.dropcount = count;
++  state_.droppaths = paths;
++
++  // application-specific processing
++  if (event_callback_) {
++    event_callback_(&state_);
++  }
++
++  // remove paths pointer from mjuiState since we don't own it
++  state_.dropcount = 0;
++  state_.droppaths = nullptr;
++}
++
++void GlfwAdapter::OnKey(int key, int scancode, int act) {
++  // translate API-specific key code
++  int mj_key = TranslateKeyCode(key);
++
++  // release: nothing to do
++  if (!IsKeyDownEvent(act)) {
++    return;
++  }
++
++  // update state
++  UpdateMjuiState();
++
++  // set key info
++  state_.type = mjEVENT_KEY;
++  state_.key = mj_key;
++  state_.keytime = std::chrono::duration<double>(
++      std::chrono::steady_clock::now().time_since_epoch()).count();
++
++  // application-specific processing
++  if (event_callback_) {
++    event_callback_(&state_);
++  }
++
++  last_key_ = mj_key;
++}
++
++void GlfwAdapter::OnMouseButton(int button, int act)  {
++  // translate API-specific mouse button code
++  mjtButton mj_button = TranslateMouseButton(button);
++
++  // update state
++  UpdateMjuiState();
++
++  // swap left and right if Alt
++  if (state_.alt) {
++    if (mj_button == mjBUTTON_LEFT) {
++      mj_button = mjBUTTON_RIGHT;
++    } else if (mj_button == mjBUTTON_RIGHT) {
++      mj_button = mjBUTTON_LEFT;
++    }
++  }
++
++  // press
++  if (IsMouseButtonDownEvent(act)) {
++    double now = std::chrono::duration<double>(
++        std::chrono::steady_clock::now().time_since_epoch()).count();
++
++    // detect doubleclick: 250 ms
++    if (mj_button == state_.button && now - state_.buttontime < 0.25) {
++      state_.doubleclick = 1;
++    } else {
++      state_.doubleclick = 0;
++    }
++
++    // set info
++    state_.type = mjEVENT_PRESS;
++    state_.button = mj_button;
++    state_.buttontime = now;
++
++    // start dragging
++    if (state_.mouserect) {
++      state_.dragbutton = state_.button;
++      state_.dragrect = state_.mouserect;
++    }
++  }
++
++  // release
++  else {
++    state_.type = mjEVENT_RELEASE;
++  }
++
++  // application-specific processing
++  if (event_callback_) {
++    event_callback_(&state_);
++  }
++
++  // stop dragging after application processing
++  if (state_.type == mjEVENT_RELEASE) {
++    state_.dragrect = 0;
++    state_.dragbutton = 0;
++  }
++}
++
++void GlfwAdapter::OnMouseMove(double x, double y) {
++  // no buttons down: nothing to do
++  if (!state_.left && !state_.right && !state_.middle) {
++    return;
++  }
++
++  // update state
++  UpdateMjuiState();
++
++  // set move info
++  state_.type = mjEVENT_MOVE;
++
++  // application-specific processing
++  if (event_callback_) {
++    event_callback_(&state_);
++  }
++}
++
++void GlfwAdapter::OnScroll(double xoffset, double yoffset) {
++  // update state
++  UpdateMjuiState();
++
++  // set scroll info, scale by buffer-to-window ratio
++  const double buffer_window_ratio =
++      static_cast<double>(GetFramebufferSize().first) / GetWindowSize().first;
++  state_.type = mjEVENT_SCROLL;
++  state_.sx = xoffset * buffer_window_ratio;
++  state_.sy = yoffset * buffer_window_ratio;
++
++  // application-specific processing
++  if (event_callback_) {
++    event_callback_(&state_);
++  }
++}
++
++void GlfwAdapter::OnWindowRefresh() {
++  state_.type = mjEVENT_REDRAW;
++
++  // application-specific processing
++  if (event_callback_) {
++    event_callback_(&state_);
++  }
++}
++
++void GlfwAdapter::OnWindowResize(int width, int height) {
++  auto [buf_width, buf_height] = GetFramebufferSize();
++  state_.rect[0].width = buf_width;
++  state_.rect[0].height = buf_height;
++  if (state_.nrect < 1) state_.nrect = 1;
++
++  // update window layout
++  if (layout_callback_) {
++    layout_callback_(&state_);
++  }
++
++  // update state
++  UpdateMjuiState();
++
++  // set resize info
++  state_.type = mjEVENT_RESIZE;
++
++  // stop dragging
++  state_.dragbutton = 0;
++  state_.dragrect = 0;
++
++  // application-specific processing
++  if (event_callback_) {
++    event_callback_(&state_);
++  }
++}
++
++void GlfwAdapter::UpdateMjuiState() {
++  // mouse buttons
++  state_.left = IsLeftMouseButtonPressed();
++  state_.right = IsRightMouseButtonPressed();
++  state_.middle = IsMiddleMouseButtonPressed();
++
++  // keyboard modifiers
++  state_.control = IsCtrlKeyPressed();
++  state_.shift = IsShiftKeyPressed();
++  state_.alt = IsAltKeyPressed();
++
++  // swap left and right if Alt
++  if (state_.alt) {
++    int tmp = state_.left;
++    state_.left = state_.right;
++    state_.right = tmp;
++  }
++
++  // get mouse position, scale by buffer-to-window ratio
++  auto [x, y] = GetCursorPosition();
++  const double buffer_window_ratio =
++      static_cast<double>(GetFramebufferSize().first) / GetWindowSize().first;
++  x *= buffer_window_ratio;
++  y *= buffer_window_ratio;
++
++  // invert y to match OpenGL convention
++  y = state_.rect[0].height - y;
++
++  // save
++  state_.dx = x - state_.x;
++  state_.dy = y - state_.y;
++  state_.x = x;
++  state_.y = y;
++
++  // find mouse rectangle
++  state_.mouserect = mjr_findRect(mju_round(x), mju_round(y), state_.nrect-1, state_.rect+1) + 1;
++}
++
+ }  // namespace mujoco
+diff --git a/simulate/glfw_adapter.h b/simulate/glfw_adapter.h
+index 1490c333..94211503 100644
+--- a/simulate/glfw_adapter.h
++++ b/simulate/glfw_adapter.h
+@@ -19,7 +19,6 @@
+ 
+ #include <GLFW/glfw3.h>
+ #include <mujoco/mujoco.h>
+-#include "platform_ui_adapter.h"
+ 
+ #ifdef __APPLE__
+ #include <optional>
+@@ -27,39 +26,85 @@
+ #endif
+ 
+ namespace mujoco {
+-class GlfwAdapter : public PlatformUIAdapter {
++class GlfwAdapter {
+  public:
+   GlfwAdapter();
+-  ~GlfwAdapter() override;
+-
+-  std::pair<double, double> GetCursorPosition() const override;
+-  double GetDisplayPixelsPerInch() const override;
+-  std::pair<int, int> GetFramebufferSize() const override;
+-  std::pair<int, int> GetWindowSize() const override;
+-  bool IsGPUAccelerated() const override;
+-  void PollEvents() override;
+-  void SetClipboardString(const char* text) override;
+-  void SetVSync(bool enabled) override;
+-  void SetWindowTitle(const char* title) override;
+-  bool ShouldCloseWindow() const override;
+-  void SwapBuffers() override;
+-  void ToggleFullscreen() override;
+-
+-  bool IsLeftMouseButtonPressed() const override;
+-  bool IsMiddleMouseButtonPressed() const override;
+-  bool IsRightMouseButtonPressed() const override;
+-
+-  bool IsAltKeyPressed() const override;
+-  bool IsCtrlKeyPressed() const override;
+-  bool IsShiftKeyPressed() const override;
+-
+-  bool IsMouseButtonDownEvent(int act) const override;
+-  bool IsKeyDownEvent(int act) const override;
+-
+-  int TranslateKeyCode(int key) const override;
+-  mjtButton TranslateMouseButton(int button) const override;
++  ~GlfwAdapter();
++
++  void MakeCurrent();
++  std::pair<double, double> GetCursorPosition() const;
++  double GetDisplayPixelsPerInch() const;
++  std::pair<int, int> GetFramebufferSize() const;
++  std::pair<int, int> GetWindowSize() const;
++  bool IsGPUAccelerated() const;
++  void PollEvents();
++  void SetClipboardString(const char* text);
++  void SetVSync(bool enabled);
++  void SetWindowTitle(const char* title);
++  bool ShouldCloseWindow() const;
++  void SwapBuffers();
++  void ToggleFullscreen();
++
++  bool IsLeftMouseButtonPressed() const;
++  bool IsMiddleMouseButtonPressed() const;
++  bool IsRightMouseButtonPressed() const;
++
++  bool IsAltKeyPressed() const;
++  bool IsCtrlKeyPressed() const;
++  bool IsShiftKeyPressed() const;
++
++  bool IsMouseButtonDownEvent(int act) const;
++  bool IsKeyDownEvent(int act) const;
++
++  int TranslateKeyCode(int key) const;
++  mjtButton TranslateMouseButton(int button) const;
++
++  /* Platform Adapter members */
++  inline mjuiState& state() { return state_; }
++  inline const mjuiState& state() const { return state_; }
++
++  inline mjrContext& mjr_context() { return con_; }
++  inline const mjrContext& mjr_context() const { return con_; }
++
++  inline void SetEventCallback(void (*event_callback)(mjuiState*)) {
++    event_callback_ = event_callback;
++  }
++
++  inline void SetLayoutCallback(void (*layout_callback)(mjuiState*)) {
++    layout_callback_ = layout_callback;
++  }
++
++  // Optionally overridable function to (re)create an mjrContext for an mjModel
++  virtual bool RefreshMjrContext(const mjModel* m, int fontscale);
++
++  virtual bool EnsureContextSize();
++
++  // Pure virtual functions to be implemented by individual adapters
++
++ protected:
++  void FreeMjrContext();
++
++  // Event handlers
++  void OnFilesDrop(int count, const char** paths);
++  virtual void OnKey(int key, int scancode, int act);
++  void OnMouseButton(int button, int act);
++  void OnMouseMove(double x, double y);
++  void OnScroll(double xoffset, double yoffset);
++  void OnWindowRefresh();
++  void OnWindowResize(int width, int height);
++
++  mjuiState state_;
++  int last_key_;
++  void (*event_callback_)(mjuiState*);
++  void (*layout_callback_)(mjuiState*);
++
++  mjrContext con_;
++  const mjModel* last_model_ = nullptr;
++  int last_fontscale_ = -1;
+ 
+  private:
++   void UpdateMjuiState();
++
+   GLFWvidmode vidmode_;
+   GLFWwindow* window_;
+ 
+diff --git a/simulate/main.cc b/simulate/main.cc
+index afe8b720..304ae8ef 100644
+--- a/simulate/main.cc
++++ b/simulate/main.cc
+@@ -526,20 +526,22 @@ int main(int argc, char** argv) {
+ 
+   // simulate object encapsulates the UI
+   auto sim = std::make_unique<mj::Simulate>(
+-      std::make_unique<mj::GlfwAdapter>(),
+-      &cam, &opt, &pert, /* is_passive = */ false
+-  );
++    &cam, &opt, &pert, /* user_scn = */ nullptr,
++    /* is_passive = */ false
++);
+ 
+   const char* filename = nullptr;
+   if (argc >  1) {
+     filename = argv[1];
+   }
+ 
+-  // start physics thread
++//   start physics thread
+   std::thread physicsthreadhandle(&PhysicsThread, sim.get(), filename);
+ 
+   // start simulation UI loop (blocking call)
+-  sim->RenderLoop();
++  sim->RenderInit();
++  while (sim->RenderStep(true));
++  sim->RenderCleanup();
+   physicsthreadhandle.join();
+ 
+   return 0;
+diff --git a/simulate/simulate.cc b/simulate/simulate.cc
+index 17ac9e82..5304fae2 100644
+--- a/simulate/simulate.cc
++++ b/simulate/simulate.cc
+@@ -33,7 +33,6 @@
+ #include <mujoco/mjvisualize.h>
+ #include <mujoco/mjxmacro.h>
+ #include <mujoco/mujoco.h>
+-#include "platform_ui_adapter.h"
+ #include "array_safety.h"
+ 
+ // When launched via an App Bundle on macOS, the working directory is the path to the App Bundle's
+@@ -439,13 +438,13 @@ void ShowProfiler(mj::Simulate* sim, mjrRect rect) {
+     rect.width/4,
+     rect.height/4
+   };
+-  mjr_figure(viewport, &sim->figtimer, &sim->platform_ui->mjr_context());
++  mjr_figure(viewport, &sim->figtimer, &sim->platform_ui.mjr_context());
+   viewport.bottom += rect.height/4;
+-  mjr_figure(viewport, &sim->figsize, &sim->platform_ui->mjr_context());
++  mjr_figure(viewport, &sim->figsize, &sim->platform_ui.mjr_context());
+   viewport.bottom += rect.height/4;
+-  mjr_figure(viewport, &sim->figcost, &sim->platform_ui->mjr_context());
++  mjr_figure(viewport, &sim->figcost, &sim->platform_ui.mjr_context());
+   viewport.bottom += rect.height/4;
+-  mjr_figure(viewport, &sim->figconstraint, &sim->platform_ui->mjr_context());
++  mjr_figure(viewport, &sim->figconstraint, &sim->platform_ui.mjr_context());
+ }
+ 
+ 
+@@ -540,21 +539,21 @@ void ShowSensor(mj::Simulate* sim, mjrRect rect) {
+     width,
+     rect.height/3
+   };
+-  mjr_figure(viewport, &sim->figsensor, &sim->platform_ui->mjr_context());
++  mjr_figure(viewport, &sim->figsensor, &sim->platform_ui.mjr_context());
+ }
+ 
+ void ShowFigure(mj::Simulate* sim, mjrRect viewport, mjvFigure* fig){
+-  mjr_figure(viewport, fig, &sim->platform_ui->mjr_context());
++  mjr_figure(viewport, fig, &sim->platform_ui.mjr_context());
+ }
+ 
+ void ShowOverlayText(mj::Simulate* sim, mjrRect viewport, int font, int gridpos,
+                      std::string text1, std::string text2) {
+   mjr_overlay(font, gridpos, viewport, text1.c_str(), text2.c_str(),
+-              &sim->platform_ui->mjr_context());
++              &sim->platform_ui.mjr_context());
+ }
+ 
+ void ShowImage(mj::Simulate* sim, mjrRect viewport, const unsigned char* image) {
+-  mjr_drawPixels(image, nullptr, viewport, &sim->platform_ui->mjr_context());
++  mjr_drawPixels(image, nullptr, viewport, &sim->platform_ui.mjr_context());
+ }
+ 
+ // load state from history buffer
+@@ -573,7 +572,7 @@ static void LoadScrubState(mj::Simulate* sim) {
+ 
+ // update an entire section of ui0
+ static void mjui0_update_section(mj::Simulate* sim, int section) {
+-  mjui_update(section, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
++  mjui_update(section, -1, &sim->ui0, &sim->uistate, &sim->platform_ui.mjr_context());
+ }
+ 
+ // prepare info text
+@@ -1261,7 +1260,7 @@ void CopyKey(mj::Simulate* sim, const mjModel* m, const mjData* d, bool fp) {
+   mju::strcat_arr(clipboard, "\"\n/>");
+ 
+   // copy to clipboard
+-  sim->platform_ui->SetClipboardString(clipboard);
++  sim->platform_ui.SetClipboardString(clipboard);
+ }
+ 
+ // millisecond timer, for MuJoCo built-in profiler
+@@ -1303,7 +1302,7 @@ void CopyCamera(mj::Simulate* sim) {
+                    camera[0].up[0], camera[0].up[1], camera[0].up[2]);
+ 
+   // copy spec into clipboard
+-  sim->platform_ui->SetClipboardString(clipboard);
++  sim->platform_ui.SetClipboardString(clipboard);
+ }
+ 
+ // update UI 0 when MuJoCo structures change (except for joint sliders)
+@@ -1347,7 +1346,7 @@ void UpdateSettings(mj::Simulate* sim, const mjModel* m) {
+ }
+ 
+ // Compute suitable font scale.
+-int ComputeFontScale(const mj::PlatformUIAdapter& platform_ui) {
++int ComputeFontScale(const mj::GlfwAdapter& platform_ui) {
+   // compute framebuffer-to-window ratio
+   auto [buf_width, buf_height] = platform_ui.GetFramebufferSize();
+   auto [win_width, win_height] = platform_ui.GetWindowSize();
+@@ -1452,7 +1451,7 @@ void UiEvent(mjuiState* state) {
+       (state->dragrect==0 && state->mouserect==sim->ui0.rectid) ||
+       state->type==mjEVENT_KEY) {
+     // process UI event
+-    mjuiItem* it = mjui_event(&sim->ui0, state, &sim->platform_ui->mjr_context());
++    mjuiItem* it = mjui_event(&sim->ui0, state, &sim->platform_ui.mjr_context());
+ 
+     // file section
+     if (it && it->sectionid==SECT_FILE) {
+@@ -1492,16 +1491,16 @@ void UiEvent(mjuiState* state) {
+         sim->ui0.color = mjui_themeColor(sim->color);
+         sim->ui1.color = mjui_themeColor(sim->color);
+       } else if (it->pdata == &sim->font) {
+-        mjr_changeFont(50*(sim->font+1), &sim->platform_ui->mjr_context());
++        mjr_changeFont(50*(sim->font+1), &sim->platform_ui.mjr_context());
+       } else if (it->pdata == &sim->fullscreen) {
+-        sim->platform_ui->ToggleFullscreen();
++        sim->platform_ui.ToggleFullscreen();
+       } else if (it->pdata == &sim->vsync) {
+-        sim->platform_ui->SetVSync(sim->vsync);
++        sim->platform_ui.SetVSync(sim->vsync);
+       }
+ 
+       // modify UI
+-      UiModify(&sim->ui0, state, &sim->platform_ui->mjr_context());
+-      UiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
++      UiModify(&sim->ui0, state, &sim->platform_ui.mjr_context());
++      UiModify(&sim->ui1, state, &sim->platform_ui.mjr_context());
+     }
+ 
+     // simulation section
+@@ -1521,7 +1520,7 @@ void UiEvent(mjuiState* state) {
+ 
+       case 4:             // Copy key
+         sim->pending_.copy_key = true;
+-        sim->pending_.copy_key_full_precision = sim->platform_ui->IsShiftKeyPressed();
++        sim->pending_.copy_key_full_precision = sim->platform_ui.IsShiftKeyPressed();
+         break;
+ 
+       case 5:             // Adjust key
+@@ -1621,7 +1620,7 @@ void UiEvent(mjuiState* state) {
+         sim->ui1.nsect = SECT_JOINT;
+         MakeJointSection(sim);
+         sim->ui1.nsect = NSECT1;
+-        UiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
++        UiModify(&sim->ui1, state, &sim->platform_ui.mjr_context());
+       }
+ 
+       // remake control section if actuator group changed
+@@ -1641,7 +1640,7 @@ void UiEvent(mjuiState* state) {
+       (state->dragrect==0 && state->mouserect==sim->ui1.rectid) ||
+       state->type==mjEVENT_KEY) {
+     // process UI event
+-    mjuiItem* it = mjui_event(&sim->ui1, state, &sim->platform_ui->mjr_context());
++    mjuiItem* it = mjui_event(&sim->ui1, state, &sim->platform_ui.mjr_context());
+ 
+     // control section
+     if (it && it->sectionid==SECT_CONTROL) {
+@@ -1793,11 +1792,11 @@ void UiEvent(mjuiState* state) {
+       if (!state->shift) {
+         // toggle left UI
+         sim->ui0_enable = !sim->ui0_enable;
+-        UiModify(&sim->ui0, state, &sim->platform_ui->mjr_context());
++        UiModify(&sim->ui0, state, &sim->platform_ui.mjr_context());
+       } else {
+         // toggle right UI
+         sim->ui1_enable = !sim->ui1_enable;
+-        UiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
++        UiModify(&sim->ui1, state, &sim->platform_ui.mjr_context());
+       }
+       break;
+     }
+@@ -1896,15 +1895,15 @@ void UiEvent(mjuiState* state) {
+ namespace mujoco {
+ namespace mju = ::mujoco::sample_util;
+ 
+-Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
+-                   mjvCamera* cam, mjvOption* opt, mjvPerturb* pert,
+-                   bool is_passive)
++Simulate::Simulate(mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, mjvScene* user_scn, bool is_passive)
+     : is_passive_(is_passive),
+       cam(*cam),
+       opt(*opt),
+       pert(*pert),
+-      platform_ui(std::move(platform_ui)),
+-      uistate(this->platform_ui->state()) {
++      user_scn(user_scn),
++      platform_ui(),
++      uistate(this->platform_ui.state())
++{
+   mjv_defaultScene(&scn);
+ }
+ 
+@@ -1914,6 +1913,7 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
+ // operations which require holding the mutex, prevents racing with physics thread
+ void Simulate::Sync(bool state_only) {
+   MutexLock lock(this->mtx);
++  this->platform_ui.MakeCurrent();
+ 
+   if (!m_) {
+     return;
+@@ -2248,7 +2248,7 @@ void Simulate::Load(mjModel* m, mjData* d, const char* displayed_filename) {
+     // Wait for the render thread to be done loading
+     // so that we know the old model and data's memory can
+     // be free'd by the other thread (sometimes python)
+-    cond_loadrequest.wait(lock, [this]() { return this->loadrequest == 0; });
++    // cond_loadrequest.wait(lock, [this]() { return this->loadrequest == 0; });
+   }
+ }
+ 
+@@ -2367,11 +2367,11 @@ void Simulate::LoadOnRenderThread() {
+   // re-create scene
+   mjv_makeScene(this->m_, &this->scn, kMaxGeom);
+ 
+-  this->platform_ui->RefreshMjrContext(this->m_, 50*(this->font+1));
+-  UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+-  UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++  this->platform_ui.RefreshMjrContext(this->m_, 50*(this->font+1));
++  UiModify(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
++  UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+ 
+-  if (!this->platform_ui->IsGPUAccelerated()) {
++  if (!this->platform_ui.IsGPUAccelerated()) {
+     this->scn.flags[mjRND_SHADOW] = 0;
+     this->scn.flags[mjRND_REFLECTION] = 0;
+   }
+@@ -2412,7 +2412,7 @@ void Simulate::LoadOnRenderThread() {
+   if (this->m_->names) {
+     char title[200] = "MuJoCo : ";
+     mju::strcat_arr(title, this->m_->names);
+-    platform_ui->SetWindowTitle(title);
++    platform_ui.SetWindowTitle(title);
+   }
+ 
+   // set keyframe range and divisions
+@@ -2428,8 +2428,8 @@ void Simulate::LoadOnRenderThread() {
+   MakeUiSections(this, this->m_, this->d_);
+ 
+   // full ui update
+-  UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+-  UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++  UiModify(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
++  UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+   UpdateSettings(this, this->m_);
+ 
+   // clear request
+@@ -2457,10 +2457,11 @@ void Simulate::LoadOnRenderThread() {
+ 
+ // render the ui to the window
+ void Simulate::Render() {
++  this->platform_ui.MakeCurrent();
+   // update rendering context buffer size if required
+-  if (this->platform_ui->EnsureContextSize()) {
+-    UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+-    UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++  if (this->platform_ui.EnsureContextSize()) {
++    UiModify(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
++    UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+   }
+ 
+   // get 3D rectangle and reduced for profiler
+@@ -2478,31 +2479,31 @@ void Simulate::Render() {
+     // label
+     if (this->loadrequest) {
+       mjr_overlay(mjFONT_BIG, mjGRID_TOP, smallrect, "LOADING...", nullptr,
+-                  &this->platform_ui->mjr_context());
++                  &this->platform_ui.mjr_context());
+     } else {
+       char intro_message[Simulate::kMaxFilenameLength];
+       mju::sprintf_arr(intro_message,
+                        "MuJoCo version %s\nDrag-and-drop model file here", mj_versionString());
+       mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, intro_message, 0,
+-                  &this->platform_ui->mjr_context());
++                  &this->platform_ui.mjr_context());
+     }
+ 
+     // show last loading error
+     if (this->load_error[0]) {
+       mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->load_error, 0,
+-                  &this->platform_ui->mjr_context());
++                  &this->platform_ui.mjr_context());
+     }
+ 
+     // render uis
+     if (this->ui0_enable) {
+-      mjui_render(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
++      mjui_render(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
+     }
+     if (this->ui1_enable) {
+-      mjui_render(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++      mjui_render(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+     }
+ 
+     // finalize
+-    this->platform_ui->SwapBuffers();
++    this->platform_ui.SwapBuffers();
+ 
+     return;
+   }
+@@ -2567,7 +2568,7 @@ void Simulate::Render() {
+ 
+   if (pending_.ui_update_joint) {
+     if (this->ui1_enable && this->ui1.sect[SECT_JOINT].state) {
+-      mjui_update(SECT_JOINT, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++      mjui_update(SECT_JOINT, -1, &this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+     }
+     pending_.ui_update_joint = false;
+   }
+@@ -2577,32 +2578,32 @@ void Simulate::Render() {
+       this->ui1.nsect = SECT_CONTROL;
+       MakeControlSection(this);
+       this->ui1.nsect = NSECT1;
+-      UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++      UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+     }
+     pending_.ui_remake_ctrl = false;
+   }
+ 
+   if (pending_.ui_update_ctrl) {
+     if (this->ui1_enable && this->ui1.sect[SECT_CONTROL].state) {
+-      mjui_update(SECT_CONTROL, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++      mjui_update(SECT_CONTROL, -1, &this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+     }
+     pending_.ui_update_ctrl = false;
+   }
+ 
+   if (pending_.ui_update_equality) {
+     if (this->ui1_enable && this->ui1.sect[SECT_EQUALITY].state) {
+-      mjui_update(SECT_EQUALITY, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++      mjui_update(SECT_EQUALITY, -1, &this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+     }
+     pending_.ui_update_equality = false;
+   }
+ 
+   // render scene
+-  mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
++  mjr_render(rect, &this->scn, &this->platform_ui.mjr_context());
+ 
+   // show last loading error
+   if (this->load_error[0]) {
+     mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->load_error, 0,
+-                &this->platform_ui->mjr_context());
++                &this->platform_ui.mjr_context());
+   }
+ 
+   // show pause/loading label
+@@ -2616,7 +2617,7 @@ void Simulate::Render() {
+       std::snprintf(label, sizeof(label), "PAUSE (%d)", this->scrub_index);
+     }
+     mjr_overlay(mjFONT_BIG, mjGRID_TOP, smallrect, label, nullptr,
+-                &this->platform_ui->mjr_context());
++                &this->platform_ui.mjr_context());
+   }
+ 
+   // get desired and actual percent-of-real-time
+@@ -2642,29 +2643,29 @@ void Simulate::Render() {
+   // show real-time overlay
+   if (rtlabel[0]) {
+     mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, rtlabel, nullptr,
+-                &this->platform_ui->mjr_context());
++                &this->platform_ui.mjr_context());
+   }
+ 
+   // show ui 0
+   if (this->ui0_enable) {
+-    mjui_render(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
++    mjui_render(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
+   }
+ 
+   // show ui 1
+   if (this->ui1_enable) {
+-    mjui_render(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++    mjui_render(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+   }
+ 
+   // show help
+   if (this->help) {
+     mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, help_title, help_content,
+-                &this->platform_ui->mjr_context());
++                &this->platform_ui.mjr_context());
+   }
+ 
+   // show info
+   if (this->info) {
+     mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->info_title, this->info_content,
+-                &this->platform_ui->mjr_context());
++                &this->platform_ui.mjr_context());
+   }
+ 
+   // show profiler
+@@ -2685,7 +2686,7 @@ void Simulate::Render() {
+     if (!rgb) {
+       mju_error("could not allocate buffer for screenshot");
+     }
+-    mjr_readPixels(rgb.get(), nullptr, uistate.rect[0], &this->platform_ui->mjr_context());
++    mjr_readPixels(rgb.get(), nullptr, uistate.rect[0], &this->platform_ui.mjr_context());
+ 
+     // flip up-down
+     for (int r = 0; r < h/2; ++r) {
+@@ -2743,13 +2744,12 @@ void Simulate::Render() {
+   }
+ 
+   // finalize
+-  this->platform_ui->SwapBuffers();
++  this->platform_ui.SwapBuffers();
+ }
+ 
+-
+-
+-void Simulate::RenderLoop() {
+-  // Set timer callback (milliseconds)
++void Simulate::RenderInit() {
++  this->platform_ui.MakeCurrent();
++    // Set timer callback (milliseconds)
+   mjcb_time = Timer;
+ 
+   // init abstract visualization
+@@ -2764,24 +2764,24 @@ void Simulate::RenderLoop() {
+     mjv_makeScene(nullptr, &this->scn, kMaxGeom);
+   }
+ 
+-  if (!this->platform_ui->IsGPUAccelerated()) {
++  if (!this->platform_ui.IsGPUAccelerated()) {
+     this->scn.flags[mjRND_SHADOW] = 0;
+     this->scn.flags[mjRND_REFLECTION] = 0;
+   }
+ 
+   // select default font
+-  int fontscale = ComputeFontScale(*this->platform_ui);
++  int fontscale = ComputeFontScale(this->platform_ui);
+   this->font = fontscale/50 - 1;
+ 
+   // make empty context
+-  this->platform_ui->RefreshMjrContext(nullptr, fontscale);
++  this->platform_ui.RefreshMjrContext(nullptr, fontscale);
+ 
+   // init state and uis
+   std::memset(&this->uistate, 0, sizeof(mjuiState));
+   std::memset(&this->ui0, 0, sizeof(mjUI));
+   std::memset(&this->ui1, 0, sizeof(mjUI));
+ 
+-  auto [buf_width, buf_height] = this->platform_ui->GetFramebufferSize();
++  auto [buf_width, buf_height] = this->platform_ui.GetFramebufferSize();
+   this->uistate.nrect = 1;
+   this->uistate.rect[0].width = buf_width;
+   this->uistate.rect[0].height = buf_height;
+@@ -2800,8 +2800,8 @@ void Simulate::RenderLoop() {
+ 
+   // set GUI adapter callbacks
+   this->uistate.userdata = this;
+-  this->platform_ui->SetEventCallback(UiEvent);
+-  this->platform_ui->SetLayoutCallback(UiLayout);
++  this->platform_ui.SetEventCallback(UiEvent);
++  this->platform_ui.SetLayoutCallback(UiLayout);
+ 
+   // populate uis with standard sections, open some sections initially
+   this->ui0.userdata = this;
+@@ -2813,17 +2813,26 @@ void Simulate::RenderLoop() {
+   this->ui0.sect[1].state = 1;
+   this->ui0.sect[2].state = 1;
+   mjui_add(&this->ui0, this->def_watch);
+-  UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+-  UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
++  UiModify(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
++  UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
+ 
+   // set VSync to initial value
+-  this->platform_ui->SetVSync(this->vsync);
++  this->platform_ui.SetVSync(this->vsync);
+ 
+   frames_ = 0;
+   last_fps_update_ = mj::Simulate::Clock::now();
++}
++
++void Simulate::RenderCleanup() {
++  const MutexLock lock(this->mtx);
++  mjv_freeScene(&this->scn);
++  this->exitrequest.store(2);
++}
+ 
+-  // run event loop
+-  while (!this->platform_ui->ShouldCloseWindow() && !this->exitrequest.load()) {
++bool Simulate::RenderStep(bool update_timer) {
++  this->platform_ui.MakeCurrent();
++  bool runEventLoop = !this->platform_ui.ShouldCloseWindow() && !this->exitrequest.load();
++  if (runEventLoop) {
+     {
+       const MutexLock lock(this->mtx);
+ 
+@@ -2835,22 +2844,22 @@ void Simulate::RenderLoop() {
+       }
+ 
+       // poll and handle events
+-      this->platform_ui->PollEvents();
++      this->platform_ui.PollEvents();
+ 
+       // upload assets if requested
+       bool upload_notify = false;
+       if (hfield_upload_ != -1) {
+-        mjr_uploadHField(m_, &platform_ui->mjr_context(), hfield_upload_);
++        mjr_uploadHField(m_, &platform_ui.mjr_context(), hfield_upload_);
+         hfield_upload_ = -1;
+         upload_notify = true;
+       }
+       if (mesh_upload_ != -1) {
+-        mjr_uploadMesh(m_, &platform_ui->mjr_context(), mesh_upload_);
++        mjr_uploadMesh(m_, &platform_ui.mjr_context(), mesh_upload_);
+         mesh_upload_ = -1;
+         upload_notify = true;
+       }
+       if (texture_upload_ != -1) {
+-        mjr_uploadTexture(m_, &platform_ui->mjr_context(), texture_upload_);
++        mjr_uploadTexture(m_, &platform_ui.mjr_context(), texture_upload_);
+         texture_upload_ = -1;
+         upload_notify = true;
+       }
+@@ -2882,24 +2891,19 @@ void Simulate::RenderLoop() {
+     this->Render();
+ 
+     // update FPS stat, at most 5 times per second
+-    auto now = mj::Simulate::Clock::now();
+-    double interval = Seconds(now - last_fps_update_).count();
+-    ++frames_;
+-    if (interval > 0.2) {
+-      last_fps_update_ = now;
+-      fps_ = frames_ / interval;
+-      frames_ = 0;
++    if (update_timer) {
++      auto now = mj::Simulate::Clock::now();
++      double interval = Seconds(now - last_fps_update_).count();
++      ++frames_;
++      if (interval > 0.2) {
++        last_fps_update_ = now;
++        fps_ = frames_ / interval;
++        frames_ = 0;
++      }
+     }
+   }
+-
+-  const MutexLock lock(this->mtx);
+-  mjv_freeScene(&this->scn);
+-  if (is_passive_) {
+-    mj_deleteData(d_passive_);
+-    mj_deleteModel(m_passive_);
+-  }
+-
+-  this->exitrequest.store(2);
++  
++  return runEventLoop;
+ }
+ 
+ // add state to history buffer
+@@ -2975,4 +2979,25 @@ void Simulate::UpdateTexture(int texid) {
+   texture_upload_ = texid;
+   cond_upload_.wait(lock, [this]() { return texture_upload_ == -1; });
+ }
++
++void Simulate::destructFromRust() {
++  this->~Simulate();
++}
++
++bool Simulate::Running() {
++  return this->exitrequest.load() != 2;
++}
+ }  // namespace mujoco
++
++
++
++extern "C" {
++  // Allocates a new Simulate object for use from outside of C++
++  mujoco::Simulate* new_simulate(mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, mjvScene* user_scn, bool is_passive) {
++    return new mujoco::Simulate(cam, opt, pert, user_scn, is_passive);
++  }
++
++  void free_simulate(mujoco::Simulate* simulate) {
++    delete simulate;
++  }
++}
+diff --git a/simulate/simulate.h b/simulate/simulate.h
+index 91ba5fcc..07dad74f 100644
+--- a/simulate/simulate.h
++++ b/simulate/simulate.h
+@@ -30,6 +30,8 @@
+ #include <mujoco/mjui.h>
+ #include <mujoco/mujoco.h>
+ #include "platform_ui_adapter.h"
++#include "glfw_adapter.h"
++
+ 
+ namespace mujoco {
+ 
+@@ -50,9 +52,7 @@ class Simulate {
+   static constexpr int kMaxGeom = 100000;
+ 
+   // create object and initialize the simulate ui
+-  Simulate(
+-      std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
+-      mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, bool is_passive);
++  Simulate(mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, mjvScene* user_scn, bool is_passive);
+ 
+   // Synchronize state with UI inputs, and update visualization.  If state_only
+   // is false mjData and mjModel will be updated, otherwise only the subset of
+@@ -83,7 +83,9 @@ class Simulate {
+   void Render();
+ 
+   // loop to render the UI (must be called from main thread because of MacOS)
+-  void RenderLoop();
++  bool RenderStep(bool update_timer);
++  void RenderInit();
++  void RenderCleanup();
+ 
+   // add state to history buffer
+   void AddToHistory();
+@@ -91,6 +93,12 @@ class Simulate {
+   // inject control noise
+   void InjectNoise();
+ 
++  // proxy method to be called from the Rust bindings. This will call the object's destructor
++  void destructFromRust();
++
++  // returns whether the viewer is running (exitrequest != 2)
++  bool Running();
++
+   // constants
+   static constexpr int kMaxFilenameLength = 1000;
+ 
+@@ -195,7 +203,7 @@ class Simulate {
+   int sensor = 0;
+   int pause_update = 1;
+   int fullscreen = 0;
+-  int vsync = 1;
++  int vsync = 0;
+   int busywait = 0;
+ 
+   // keyframe index
+@@ -282,7 +290,7 @@ class Simulate {
+   int refresh_rate = 60;
+   int window_pos[2] = {0};
+   int window_size[2] = {0};
+-  std::unique_ptr<PlatformUIAdapter> platform_ui;
++  GlfwAdapter platform_ui;
+   mjuiState& uistate;
+   mjUI ui0 = {};
+   mjUI ui1 = {};
+@@ -301,7 +309,7 @@ class Simulate {
+   #else
+     {mjITEM_CHECKINT, "Fullscreen",    1, &this->fullscreen, " #294"},
+   #endif
+-    {mjITEM_CHECKINT, "Vertical Sync", 1, &this->vsync,      ""},
++    {mjITEM_CHECKINT, "Vertical Sync", 4, &this->vsync,      ""},
+     {mjITEM_CHECKINT, "Busy Wait",     1, &this->busywait,   ""},
+     {mjITEM_SELECT,   "Spacing",       1, &this->spacing,    "Tight\nWide"},
+     {mjITEM_SELECT,   "Color",         1, &this->color,      "Default\nOrange\nWhite\nBlack"},
+@@ -350,4 +358,9 @@ class Simulate {
+ };
+ }  // namespace mujoco
+ 
++extern "C" {
++  mujoco::Simulate* new_simulate(mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, mjvScene* user_scn, bool is_passive);
++  void free_simulate(mujoco::Simulate* simulate);
++}
++
+ #endif

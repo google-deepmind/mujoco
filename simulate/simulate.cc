@@ -33,7 +33,6 @@
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
-#include "platform_ui_adapter.h"
 #include "array_safety.h"
 
 // When launched via an App Bundle on macOS, the working directory is the path to the App Bundle's
@@ -439,13 +438,13 @@ void ShowProfiler(mj::Simulate* sim, mjrRect rect) {
     rect.width/4,
     rect.height/4
   };
-  mjr_figure(viewport, &sim->figtimer, &sim->platform_ui->mjr_context());
+  mjr_figure(viewport, &sim->figtimer, &sim->platform_ui.mjr_context());
   viewport.bottom += rect.height/4;
-  mjr_figure(viewport, &sim->figsize, &sim->platform_ui->mjr_context());
+  mjr_figure(viewport, &sim->figsize, &sim->platform_ui.mjr_context());
   viewport.bottom += rect.height/4;
-  mjr_figure(viewport, &sim->figcost, &sim->platform_ui->mjr_context());
+  mjr_figure(viewport, &sim->figcost, &sim->platform_ui.mjr_context());
   viewport.bottom += rect.height/4;
-  mjr_figure(viewport, &sim->figconstraint, &sim->platform_ui->mjr_context());
+  mjr_figure(viewport, &sim->figconstraint, &sim->platform_ui.mjr_context());
 }
 
 
@@ -540,21 +539,21 @@ void ShowSensor(mj::Simulate* sim, mjrRect rect) {
     width,
     rect.height/3
   };
-  mjr_figure(viewport, &sim->figsensor, &sim->platform_ui->mjr_context());
+  mjr_figure(viewport, &sim->figsensor, &sim->platform_ui.mjr_context());
 }
 
 void ShowFigure(mj::Simulate* sim, mjrRect viewport, mjvFigure* fig){
-  mjr_figure(viewport, fig, &sim->platform_ui->mjr_context());
+  mjr_figure(viewport, fig, &sim->platform_ui.mjr_context());
 }
 
 void ShowOverlayText(mj::Simulate* sim, mjrRect viewport, int font, int gridpos,
                      std::string text1, std::string text2) {
   mjr_overlay(font, gridpos, viewport, text1.c_str(), text2.c_str(),
-              &sim->platform_ui->mjr_context());
+              &sim->platform_ui.mjr_context());
 }
 
 void ShowImage(mj::Simulate* sim, mjrRect viewport, const unsigned char* image) {
-  mjr_drawPixels(image, nullptr, viewport, &sim->platform_ui->mjr_context());
+  mjr_drawPixels(image, nullptr, viewport, &sim->platform_ui.mjr_context());
 }
 
 // load state from history buffer
@@ -573,7 +572,7 @@ static void LoadScrubState(mj::Simulate* sim) {
 
 // update an entire section of ui0
 static void mjui0_update_section(mj::Simulate* sim, int section) {
-  mjui_update(section, -1, &sim->ui0, &sim->uistate, &sim->platform_ui->mjr_context());
+  mjui_update(section, -1, &sim->ui0, &sim->uistate, &sim->platform_ui.mjr_context());
 }
 
 // prepare info text
@@ -1261,7 +1260,7 @@ void CopyKey(mj::Simulate* sim, const mjModel* m, const mjData* d, bool fp) {
   mju::strcat_arr(clipboard, "\"\n/>");
 
   // copy to clipboard
-  sim->platform_ui->SetClipboardString(clipboard);
+  sim->platform_ui.SetClipboardString(clipboard);
 }
 
 // millisecond timer, for MuJoCo built-in profiler
@@ -1303,7 +1302,7 @@ void CopyCamera(mj::Simulate* sim) {
                    camera[0].up[0], camera[0].up[1], camera[0].up[2]);
 
   // copy spec into clipboard
-  sim->platform_ui->SetClipboardString(clipboard);
+  sim->platform_ui.SetClipboardString(clipboard);
 }
 
 // update UI 0 when MuJoCo structures change (except for joint sliders)
@@ -1347,7 +1346,7 @@ void UpdateSettings(mj::Simulate* sim, const mjModel* m) {
 }
 
 // Compute suitable font scale.
-int ComputeFontScale(const mj::PlatformUIAdapter& platform_ui) {
+int ComputeFontScale(const mj::GlfwAdapter& platform_ui) {
   // compute framebuffer-to-window ratio
   auto [buf_width, buf_height] = platform_ui.GetFramebufferSize();
   auto [win_width, win_height] = platform_ui.GetWindowSize();
@@ -1452,7 +1451,7 @@ void UiEvent(mjuiState* state) {
       (state->dragrect==0 && state->mouserect==sim->ui0.rectid) ||
       state->type==mjEVENT_KEY) {
     // process UI event
-    mjuiItem* it = mjui_event(&sim->ui0, state, &sim->platform_ui->mjr_context());
+    mjuiItem* it = mjui_event(&sim->ui0, state, &sim->platform_ui.mjr_context());
 
     // file section
     if (it && it->sectionid==SECT_FILE) {
@@ -1492,16 +1491,16 @@ void UiEvent(mjuiState* state) {
         sim->ui0.color = mjui_themeColor(sim->color);
         sim->ui1.color = mjui_themeColor(sim->color);
       } else if (it->pdata == &sim->font) {
-        mjr_changeFont(50*(sim->font+1), &sim->platform_ui->mjr_context());
+        mjr_changeFont(50*(sim->font+1), &sim->platform_ui.mjr_context());
       } else if (it->pdata == &sim->fullscreen) {
-        sim->platform_ui->ToggleFullscreen();
+        sim->platform_ui.ToggleFullscreen();
       } else if (it->pdata == &sim->vsync) {
-        sim->platform_ui->SetVSync(sim->vsync);
+        sim->platform_ui.SetVSync(sim->vsync);
       }
 
       // modify UI
-      UiModify(&sim->ui0, state, &sim->platform_ui->mjr_context());
-      UiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
+      UiModify(&sim->ui0, state, &sim->platform_ui.mjr_context());
+      UiModify(&sim->ui1, state, &sim->platform_ui.mjr_context());
     }
 
     // simulation section
@@ -1521,7 +1520,7 @@ void UiEvent(mjuiState* state) {
 
       case 4:             // Copy key
         sim->pending_.copy_key = true;
-        sim->pending_.copy_key_full_precision = sim->platform_ui->IsShiftKeyPressed();
+        sim->pending_.copy_key_full_precision = sim->platform_ui.IsShiftKeyPressed();
         break;
 
       case 5:             // Adjust key
@@ -1621,7 +1620,7 @@ void UiEvent(mjuiState* state) {
         sim->ui1.nsect = SECT_JOINT;
         MakeJointSection(sim);
         sim->ui1.nsect = NSECT1;
-        UiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
+        UiModify(&sim->ui1, state, &sim->platform_ui.mjr_context());
       }
 
       // remake control section if actuator group changed
@@ -1641,7 +1640,7 @@ void UiEvent(mjuiState* state) {
       (state->dragrect==0 && state->mouserect==sim->ui1.rectid) ||
       state->type==mjEVENT_KEY) {
     // process UI event
-    mjuiItem* it = mjui_event(&sim->ui1, state, &sim->platform_ui->mjr_context());
+    mjuiItem* it = mjui_event(&sim->ui1, state, &sim->platform_ui.mjr_context());
 
     // control section
     if (it && it->sectionid==SECT_CONTROL) {
@@ -1793,11 +1792,11 @@ void UiEvent(mjuiState* state) {
       if (!state->shift) {
         // toggle left UI
         sim->ui0_enable = !sim->ui0_enable;
-        UiModify(&sim->ui0, state, &sim->platform_ui->mjr_context());
+        UiModify(&sim->ui0, state, &sim->platform_ui.mjr_context());
       } else {
         // toggle right UI
         sim->ui1_enable = !sim->ui1_enable;
-        UiModify(&sim->ui1, state, &sim->platform_ui->mjr_context());
+        UiModify(&sim->ui1, state, &sim->platform_ui.mjr_context());
       }
       break;
     }
@@ -1896,15 +1895,15 @@ void UiEvent(mjuiState* state) {
 namespace mujoco {
 namespace mju = ::mujoco::sample_util;
 
-Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
-                   mjvCamera* cam, mjvOption* opt, mjvPerturb* pert,
-                   bool is_passive)
+Simulate::Simulate(mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, mjvScene* user_scn, bool is_passive)
     : is_passive_(is_passive),
       cam(*cam),
       opt(*opt),
       pert(*pert),
-      platform_ui(std::move(platform_ui)),
-      uistate(this->platform_ui->state()) {
+      user_scn(user_scn),
+      platform_ui(),
+      uistate(this->platform_ui.state())
+{
   mjv_defaultScene(&scn);
 }
 
@@ -1914,6 +1913,7 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
 // operations which require holding the mutex, prevents racing with physics thread
 void Simulate::Sync(bool state_only) {
   MutexLock lock(this->mtx);
+  this->platform_ui.MakeCurrent();
 
   if (!m_) {
     return;
@@ -2248,7 +2248,7 @@ void Simulate::Load(mjModel* m, mjData* d, const char* displayed_filename) {
     // Wait for the render thread to be done loading
     // so that we know the old model and data's memory can
     // be free'd by the other thread (sometimes python)
-    cond_loadrequest.wait(lock, [this]() { return this->loadrequest == 0; });
+    // cond_loadrequest.wait(lock, [this]() { return this->loadrequest == 0; });
   }
 }
 
@@ -2367,11 +2367,11 @@ void Simulate::LoadOnRenderThread() {
   // re-create scene
   mjv_makeScene(this->m_, &this->scn, kMaxGeom);
 
-  this->platform_ui->RefreshMjrContext(this->m_, 50*(this->font+1));
-  UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
-  UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+  this->platform_ui.RefreshMjrContext(this->m_, 50*(this->font+1));
+  UiModify(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
+  UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
 
-  if (!this->platform_ui->IsGPUAccelerated()) {
+  if (!this->platform_ui.IsGPUAccelerated()) {
     this->scn.flags[mjRND_SHADOW] = 0;
     this->scn.flags[mjRND_REFLECTION] = 0;
   }
@@ -2412,7 +2412,7 @@ void Simulate::LoadOnRenderThread() {
   if (this->m_->names) {
     char title[200] = "MuJoCo : ";
     mju::strcat_arr(title, this->m_->names);
-    platform_ui->SetWindowTitle(title);
+    platform_ui.SetWindowTitle(title);
   }
 
   // set keyframe range and divisions
@@ -2428,8 +2428,8 @@ void Simulate::LoadOnRenderThread() {
   MakeUiSections(this, this->m_, this->d_);
 
   // full ui update
-  UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
-  UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+  UiModify(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
+  UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
   UpdateSettings(this, this->m_);
 
   // clear request
@@ -2457,10 +2457,11 @@ void Simulate::LoadOnRenderThread() {
 
 // render the ui to the window
 void Simulate::Render() {
+  this->platform_ui.MakeCurrent();
   // update rendering context buffer size if required
-  if (this->platform_ui->EnsureContextSize()) {
-    UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
-    UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+  if (this->platform_ui.EnsureContextSize()) {
+    UiModify(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
+    UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
   }
 
   // get 3D rectangle and reduced for profiler
@@ -2478,31 +2479,31 @@ void Simulate::Render() {
     // label
     if (this->loadrequest) {
       mjr_overlay(mjFONT_BIG, mjGRID_TOP, smallrect, "LOADING...", nullptr,
-                  &this->platform_ui->mjr_context());
+                  &this->platform_ui.mjr_context());
     } else {
       char intro_message[Simulate::kMaxFilenameLength];
       mju::sprintf_arr(intro_message,
                        "MuJoCo version %s\nDrag-and-drop model file here", mj_versionString());
       mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, intro_message, 0,
-                  &this->platform_ui->mjr_context());
+                  &this->platform_ui.mjr_context());
     }
 
     // show last loading error
     if (this->load_error[0]) {
       mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->load_error, 0,
-                  &this->platform_ui->mjr_context());
+                  &this->platform_ui.mjr_context());
     }
 
     // render uis
     if (this->ui0_enable) {
-      mjui_render(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+      mjui_render(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
     }
     if (this->ui1_enable) {
-      mjui_render(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+      mjui_render(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
     }
 
     // finalize
-    this->platform_ui->SwapBuffers();
+    this->platform_ui.SwapBuffers();
 
     return;
   }
@@ -2567,7 +2568,7 @@ void Simulate::Render() {
 
   if (pending_.ui_update_joint) {
     if (this->ui1_enable && this->ui1.sect[SECT_JOINT].state) {
-      mjui_update(SECT_JOINT, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+      mjui_update(SECT_JOINT, -1, &this->ui1, &this->uistate, &this->platform_ui.mjr_context());
     }
     pending_.ui_update_joint = false;
   }
@@ -2577,32 +2578,32 @@ void Simulate::Render() {
       this->ui1.nsect = SECT_CONTROL;
       MakeControlSection(this);
       this->ui1.nsect = NSECT1;
-      UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+      UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
     }
     pending_.ui_remake_ctrl = false;
   }
 
   if (pending_.ui_update_ctrl) {
     if (this->ui1_enable && this->ui1.sect[SECT_CONTROL].state) {
-      mjui_update(SECT_CONTROL, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+      mjui_update(SECT_CONTROL, -1, &this->ui1, &this->uistate, &this->platform_ui.mjr_context());
     }
     pending_.ui_update_ctrl = false;
   }
 
   if (pending_.ui_update_equality) {
     if (this->ui1_enable && this->ui1.sect[SECT_EQUALITY].state) {
-      mjui_update(SECT_EQUALITY, -1, &this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+      mjui_update(SECT_EQUALITY, -1, &this->ui1, &this->uistate, &this->platform_ui.mjr_context());
     }
     pending_.ui_update_equality = false;
   }
 
   // render scene
-  mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
+  mjr_render(rect, &this->scn, &this->platform_ui.mjr_context());
 
   // show last loading error
   if (this->load_error[0]) {
     mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->load_error, 0,
-                &this->platform_ui->mjr_context());
+                &this->platform_ui.mjr_context());
   }
 
   // show pause/loading label
@@ -2616,7 +2617,7 @@ void Simulate::Render() {
       std::snprintf(label, sizeof(label), "PAUSE (%d)", this->scrub_index);
     }
     mjr_overlay(mjFONT_BIG, mjGRID_TOP, smallrect, label, nullptr,
-                &this->platform_ui->mjr_context());
+                &this->platform_ui.mjr_context());
   }
 
   // get desired and actual percent-of-real-time
@@ -2642,29 +2643,29 @@ void Simulate::Render() {
   // show real-time overlay
   if (rtlabel[0]) {
     mjr_overlay(mjFONT_BIG, mjGRID_TOPLEFT, smallrect, rtlabel, nullptr,
-                &this->platform_ui->mjr_context());
+                &this->platform_ui.mjr_context());
   }
 
   // show ui 0
   if (this->ui0_enable) {
-    mjui_render(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
+    mjui_render(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
   }
 
   // show ui 1
   if (this->ui1_enable) {
-    mjui_render(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+    mjui_render(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
   }
 
   // show help
   if (this->help) {
     mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, rect, help_title, help_content,
-                &this->platform_ui->mjr_context());
+                &this->platform_ui.mjr_context());
   }
 
   // show info
   if (this->info) {
     mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, rect, this->info_title, this->info_content,
-                &this->platform_ui->mjr_context());
+                &this->platform_ui.mjr_context());
   }
 
   // show profiler
@@ -2685,7 +2686,7 @@ void Simulate::Render() {
     if (!rgb) {
       mju_error("could not allocate buffer for screenshot");
     }
-    mjr_readPixels(rgb.get(), nullptr, uistate.rect[0], &this->platform_ui->mjr_context());
+    mjr_readPixels(rgb.get(), nullptr, uistate.rect[0], &this->platform_ui.mjr_context());
 
     // flip up-down
     for (int r = 0; r < h/2; ++r) {
@@ -2743,13 +2744,12 @@ void Simulate::Render() {
   }
 
   // finalize
-  this->platform_ui->SwapBuffers();
+  this->platform_ui.SwapBuffers();
 }
 
-
-
-void Simulate::RenderLoop() {
-  // Set timer callback (milliseconds)
+void Simulate::RenderInit() {
+  this->platform_ui.MakeCurrent();
+    // Set timer callback (milliseconds)
   mjcb_time = Timer;
 
   // init abstract visualization
@@ -2764,24 +2764,24 @@ void Simulate::RenderLoop() {
     mjv_makeScene(nullptr, &this->scn, kMaxGeom);
   }
 
-  if (!this->platform_ui->IsGPUAccelerated()) {
+  if (!this->platform_ui.IsGPUAccelerated()) {
     this->scn.flags[mjRND_SHADOW] = 0;
     this->scn.flags[mjRND_REFLECTION] = 0;
   }
 
   // select default font
-  int fontscale = ComputeFontScale(*this->platform_ui);
+  int fontscale = ComputeFontScale(this->platform_ui);
   this->font = fontscale/50 - 1;
 
   // make empty context
-  this->platform_ui->RefreshMjrContext(nullptr, fontscale);
+  this->platform_ui.RefreshMjrContext(nullptr, fontscale);
 
   // init state and uis
   std::memset(&this->uistate, 0, sizeof(mjuiState));
   std::memset(&this->ui0, 0, sizeof(mjUI));
   std::memset(&this->ui1, 0, sizeof(mjUI));
 
-  auto [buf_width, buf_height] = this->platform_ui->GetFramebufferSize();
+  auto [buf_width, buf_height] = this->platform_ui.GetFramebufferSize();
   this->uistate.nrect = 1;
   this->uistate.rect[0].width = buf_width;
   this->uistate.rect[0].height = buf_height;
@@ -2800,8 +2800,8 @@ void Simulate::RenderLoop() {
 
   // set GUI adapter callbacks
   this->uistate.userdata = this;
-  this->platform_ui->SetEventCallback(UiEvent);
-  this->platform_ui->SetLayoutCallback(UiLayout);
+  this->platform_ui.SetEventCallback(UiEvent);
+  this->platform_ui.SetLayoutCallback(UiLayout);
 
   // populate uis with standard sections, open some sections initially
   this->ui0.userdata = this;
@@ -2813,17 +2813,26 @@ void Simulate::RenderLoop() {
   this->ui0.sect[1].state = 1;
   this->ui0.sect[2].state = 1;
   mjui_add(&this->ui0, this->def_watch);
-  UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
-  UiModify(&this->ui1, &this->uistate, &this->platform_ui->mjr_context());
+  UiModify(&this->ui0, &this->uistate, &this->platform_ui.mjr_context());
+  UiModify(&this->ui1, &this->uistate, &this->platform_ui.mjr_context());
 
   // set VSync to initial value
-  this->platform_ui->SetVSync(this->vsync);
+  this->platform_ui.SetVSync(this->vsync);
 
   frames_ = 0;
   last_fps_update_ = mj::Simulate::Clock::now();
+}
 
-  // run event loop
-  while (!this->platform_ui->ShouldCloseWindow() && !this->exitrequest.load()) {
+void Simulate::RenderCleanup() {
+  const MutexLock lock(this->mtx);
+  mjv_freeScene(&this->scn);
+  this->exitrequest.store(2);
+}
+
+bool Simulate::RenderStep(bool update_timer) {
+  this->platform_ui.MakeCurrent();
+  bool runEventLoop = !this->platform_ui.ShouldCloseWindow() && !this->exitrequest.load();
+  if (runEventLoop) {
     {
       const MutexLock lock(this->mtx);
 
@@ -2835,22 +2844,22 @@ void Simulate::RenderLoop() {
       }
 
       // poll and handle events
-      this->platform_ui->PollEvents();
+      this->platform_ui.PollEvents();
 
       // upload assets if requested
       bool upload_notify = false;
       if (hfield_upload_ != -1) {
-        mjr_uploadHField(m_, &platform_ui->mjr_context(), hfield_upload_);
+        mjr_uploadHField(m_, &platform_ui.mjr_context(), hfield_upload_);
         hfield_upload_ = -1;
         upload_notify = true;
       }
       if (mesh_upload_ != -1) {
-        mjr_uploadMesh(m_, &platform_ui->mjr_context(), mesh_upload_);
+        mjr_uploadMesh(m_, &platform_ui.mjr_context(), mesh_upload_);
         mesh_upload_ = -1;
         upload_notify = true;
       }
       if (texture_upload_ != -1) {
-        mjr_uploadTexture(m_, &platform_ui->mjr_context(), texture_upload_);
+        mjr_uploadTexture(m_, &platform_ui.mjr_context(), texture_upload_);
         texture_upload_ = -1;
         upload_notify = true;
       }
@@ -2882,24 +2891,19 @@ void Simulate::RenderLoop() {
     this->Render();
 
     // update FPS stat, at most 5 times per second
-    auto now = mj::Simulate::Clock::now();
-    double interval = Seconds(now - last_fps_update_).count();
-    ++frames_;
-    if (interval > 0.2) {
-      last_fps_update_ = now;
-      fps_ = frames_ / interval;
-      frames_ = 0;
+    if (update_timer) {
+      auto now = mj::Simulate::Clock::now();
+      double interval = Seconds(now - last_fps_update_).count();
+      ++frames_;
+      if (interval > 0.2) {
+        last_fps_update_ = now;
+        fps_ = frames_ / interval;
+        frames_ = 0;
+      }
     }
   }
-
-  const MutexLock lock(this->mtx);
-  mjv_freeScene(&this->scn);
-  if (is_passive_) {
-    mj_deleteData(d_passive_);
-    mj_deleteModel(m_passive_);
-  }
-
-  this->exitrequest.store(2);
+  
+  return runEventLoop;
 }
 
 // add state to history buffer
@@ -2975,4 +2979,25 @@ void Simulate::UpdateTexture(int texid) {
   texture_upload_ = texid;
   cond_upload_.wait(lock, [this]() { return texture_upload_ == -1; });
 }
+
+void Simulate::destructFromRust() {
+  this->~Simulate();
+}
+
+bool Simulate::Running() {
+  return this->exitrequest.load() != 2;
+}
 }  // namespace mujoco
+
+
+
+extern "C" {
+  // Allocates a new Simulate object for use from outside of C++
+  mujoco::Simulate* new_simulate(mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, mjvScene* user_scn, bool is_passive) {
+    return new mujoco::Simulate(cam, opt, pert, user_scn, is_passive);
+  }
+
+  void free_simulate(mujoco::Simulate* simulate) {
+    delete simulate;
+  }
+}

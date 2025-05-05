@@ -1,0 +1,49 @@
+name: Build and Upload Release
+
+on:
+  release:
+    types: [published]  # Trigger when a release is published
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && \
+          sudo apt-get install -y --no-install-recommends \
+              build-essential \
+              cmake \
+              curl \
+              ca-certificates \
+              git \
+              libx11-dev \
+              libglfw3-dev \
+              libxinerama-dev \
+              libxcursor-dev \
+              libxi-dev \
+              libxrandr-dev
+
+      - name: Configure and build
+        run: |
+          cmake -B build -S . -DBUILD_SHARED_LIBS:BOOL=OFF -DMUJOCO_HARDEN:BOOL=OFF -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=ON -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+          cmake --build build --parallel --target libsimulate --config=Release
+
+      - name: Package build artifacts
+        run: |
+          mkdir -p artifacts
+          tar -czf artifacts/static-link-mujoco-${{ github.ref_name }}.tar.gz -C build/lib/ .
+
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Required!
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: artifacts/static-link-mujoco-${{ github.ref_name }}.tar.gz
+          asset_name: static-link-mujoco-${{ github.ref_name }}.tar.gz
+          asset_content_type: application/gzip

@@ -97,7 +97,12 @@ else()
   set(MUJOCO_RESOURCE_FILES "")
 endif()
 
+if(BUILD_SHARED_LIBS)
 add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
+else()
+add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
+endif()
+
 target_include_directories(
   mujoco
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -218,7 +223,7 @@ endif()
 if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
   # Install the libraries.
   install(
-    TARGETS mujoco
+    TARGETS mujoco lodepng
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT runtime
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT runtime

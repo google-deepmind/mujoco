@@ -106,7 +106,7 @@ if(NOT TARGET lodepng)
     add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
     target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
-    target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+    target_include_directories(lodepng PUBLIC $<BUILD_INTERFACE:${lodepng_SOURCE_DIR}>)
   endif()
 endif()
 

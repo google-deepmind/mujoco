@@ -19,7 +19,6 @@
 
 #include <GLFW/glfw3.h>
 #include <mujoco/mujoco.h>
-#include "platform_ui_adapter.h"
 
 #ifdef __APPLE__
 #include <optional>
@@ -27,39 +26,85 @@
 #endif
 
 namespace mujoco {
-class GlfwAdapter : public PlatformUIAdapter {
+class GlfwAdapter {
  public:
   GlfwAdapter();
-  ~GlfwAdapter() override;
+  ~GlfwAdapter();
 
-  std::pair<double, double> GetCursorPosition() const override;
-  double GetDisplayPixelsPerInch() const override;
-  std::pair<int, int> GetFramebufferSize() const override;
-  std::pair<int, int> GetWindowSize() const override;
-  bool IsGPUAccelerated() const override;
-  void PollEvents() override;
-  void SetClipboardString(const char* text) override;
-  void SetVSync(bool enabled) override;
-  void SetWindowTitle(const char* title) override;
-  bool ShouldCloseWindow() const override;
-  void SwapBuffers() override;
-  void ToggleFullscreen() override;
+  void MakeCurrent();
+  std::pair<double, double> GetCursorPosition() const;
+  double GetDisplayPixelsPerInch() const;
+  std::pair<int, int> GetFramebufferSize() const;
+  std::pair<int, int> GetWindowSize() const;
+  bool IsGPUAccelerated() const;
+  void PollEvents();
+  void SetClipboardString(const char* text);
+  void SetVSync(bool enabled);
+  void SetWindowTitle(const char* title);
+  bool ShouldCloseWindow() const;
+  void SwapBuffers();
+  void ToggleFullscreen();
 
-  bool IsLeftMouseButtonPressed() const override;
-  bool IsMiddleMouseButtonPressed() const override;
-  bool IsRightMouseButtonPressed() const override;
+  bool IsLeftMouseButtonPressed() const;
+  bool IsMiddleMouseButtonPressed() const;
+  bool IsRightMouseButtonPressed() const;
 
-  bool IsAltKeyPressed() const override;
-  bool IsCtrlKeyPressed() const override;
-  bool IsShiftKeyPressed() const override;
+  bool IsAltKeyPressed() const;
+  bool IsCtrlKeyPressed() const;
+  bool IsShiftKeyPressed() const;
 
-  bool IsMouseButtonDownEvent(int act) const override;
-  bool IsKeyDownEvent(int act) const override;
+  bool IsMouseButtonDownEvent(int act) const;
+  bool IsKeyDownEvent(int act) const;
 
-  int TranslateKeyCode(int key) const override;
-  mjtButton TranslateMouseButton(int button) const override;
+  int TranslateKeyCode(int key) const;
+  mjtButton TranslateMouseButton(int button) const;
+
+  /* Platform Adapter members */
+  inline mjuiState& state() { return state_; }
+  inline const mjuiState& state() const { return state_; }
+
+  inline mjrContext& mjr_context() { return con_; }
+  inline const mjrContext& mjr_context() const { return con_; }
+
+  inline void SetEventCallback(void (*event_callback)(mjuiState*)) {
+    event_callback_ = event_callback;
+  }
+
+  inline void SetLayoutCallback(void (*layout_callback)(mjuiState*)) {
+    layout_callback_ = layout_callback;
+  }
+
+  // Optionally overridable function to (re)create an mjrContext for an mjModel
+  virtual bool RefreshMjrContext(const mjModel* m, int fontscale);
+
+  virtual bool EnsureContextSize();
+
+  // Pure virtual functions to be implemented by individual adapters
+
+ protected:
+  void FreeMjrContext();
+
+  // Event handlers
+  void OnFilesDrop(int count, const char** paths);
+  virtual void OnKey(int key, int scancode, int act);
+  void OnMouseButton(int button, int act);
+  void OnMouseMove(double x, double y);
+  void OnScroll(double xoffset, double yoffset);
+  void OnWindowRefresh();
+  void OnWindowResize(int width, int height);
+
+  mjuiState state_;
+  int last_key_;
+  void (*event_callback_)(mjuiState*);
+  void (*layout_callback_)(mjuiState*);
+
+  mjrContext con_;
+  const mjModel* last_model_ = nullptr;
+  int last_fontscale_ = -1;
 
  private:
+   void UpdateMjuiState();
+
   GLFWvidmode vidmode_;
   GLFWwindow* window_;
 
