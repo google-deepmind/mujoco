@@ -1721,6 +1721,8 @@ Force/acceleration
 The stages below compute quantities that depend on :ref:`user inputs<geInput>`. Due to the sequential nature
 of the pipeline, the actual dependence is on the entire :ref:`integration state<geIntegrationState>`.
 
+Note that the sensor outputs are all provided per simulation timestep. This means that if you simulate `n` times from the last control input until the next one, the sensor output will only show the last timestep.
+
 19. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
 20. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
     :ref:`mj_fwdAcceleration`

@@ -5941,6 +5941,7 @@ corresponding to body accelerations and interaction forces. Some of these quanti
 certain sensors (force, acceleration etc.) but even if no such sensors are defined in the model, these quantities
 themselves are "features" that could be of interest to the user.
 
+Note that the sensor outputs are all provided per simulation timestep. This means that if you simulate `n` times from the last control input until the next one, the sensor output will only show the last timestep.
 
 .. _sensor-touch:
 
