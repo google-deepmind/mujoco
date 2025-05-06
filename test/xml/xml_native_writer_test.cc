@@ -1383,10 +1383,8 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
         // if file is meant to fail, skip it
         if (absl::StrContains(p.path().string(), "100_humanoids") ||
             absl::StrContains(p.path().string(), "malformed_") ||
-            absl::StrContains(p.path().string(), "touch_grid") ||
             absl::StrContains(p.path().string(), "gmsh_") ||
             absl::StrContains(p.path().string(), "shark_") ||
-            absl::StrContains(p.path().string(), "cow") ||
             absl::StrContains(p.path().string(), "frameless_contact_hfield") ||
             absl::StrContains(p.path().string(), "spheremesh")) {
           continue;

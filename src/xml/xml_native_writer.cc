@@ -1551,6 +1551,7 @@ void mjXWriter::Asset(XMLElement* root) {
     if (mesh->Plugin().active) {
       elem = InsertEnd(section, "mesh");
       WriteAttrTxt(elem, "name", mesh->name);
+      WriteAttrTxt(elem, "file", mesh->File());
       OnePlugin(InsertEnd(elem, "plugin"), &mesh->Plugin());
     } else{
       elem = InsertEnd(section, "mesh");
