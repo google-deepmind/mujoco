@@ -71,14 +71,11 @@ MJAPI void mj_solveLD_legacy(const mjModel* m, mjtNum* x, int n,
 
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
 //  handle n vectors at once
-MJAPI void mj_solveLD(mjtNum* x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv, int n,
+MJAPI void mj_solveLD(mjtNum* x, const mjtNum* qLD, const mjtNum* qLDiagInv, int nv, int n,
                       const int* rownnz, const int* rowadr, const int* diagnum, const int* colind);
 
 // sparse backsubstitution:  x = inv(L'*D*L)*y, use factorization in d
 MJAPI void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
-
-// sparse backsubstitution for one island:  x = inv(L'*D*L)*x, use factorization in d
-MJAPI void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* x, int island);
 
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
 MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,

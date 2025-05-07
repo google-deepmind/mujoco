@@ -739,23 +739,56 @@
     X( int,      efc_state,         MJ_D(nefc),    1 )
 
 // array fields of mjData that are used in the dual problem
-#define MJDATA_ARENA_POINTERS_DUAL                           \
-    X( int,      efc_AR_rownnz,     MJ_D(nefc), 1          ) \
-    X( int,      efc_AR_rowadr,     MJ_D(nefc), 1          ) \
-    X( int,      efc_AR_colind,     MJ_D(nA),   1          ) \
-    X( mjtNum,   efc_AR,            MJ_D(nA),   1          )
+#define MJDATA_ARENA_POINTERS_DUAL                    \
+    X( int,      efc_AR_rownnz,     MJ_D(nefc), 1   ) \
+    X( int,      efc_AR_rowadr,     MJ_D(nefc), 1   ) \
+    X( int,      efc_AR_colind,     MJ_D(nA),   1   ) \
+    X( mjtNum,   efc_AR,            MJ_D(nA),   1   )
 
 // array fields of mjData that are used for constraint islands
-#define MJDATA_ARENA_POINTERS_ISLAND                 \
-    X( int,   dof_island,         MJ_M(nv),      1 ) \
-    X( int,   island_dofnum,      MJ_D(nisland), 1 ) \
-    X( int,   island_dofadr,      MJ_D(nisland), 1 ) \
-    X( int,   island_dofind,      MJ_M(nv),      1 ) \
-    X( int,   dof_islandind,      MJ_M(nv),      1 ) \
-    X( int,   efc_island,         MJ_D(nefc),    1 ) \
-    X( int,   island_efcnum,      MJ_D(nisland), 1 ) \
-    X( int,   island_efcadr,      MJ_D(nisland), 1 ) \
-    X( int,   island_efcind,      MJ_D(nefc),    1 )
+#define MJDATA_ARENA_POINTERS_ISLAND                   \
+    X( int,     dof_island,        MJ_M(nv),       1 ) \
+    X( int,     island_nv,         MJ_D(nisland),  1 ) \
+    X( int,     island_idofadr,    MJ_D(nisland),  1 ) \
+    X( int,     island_dofadr,     MJ_D(nisland),  1 ) \
+    X( int,     map_dof2idof,      MJ_M(nv),       1 ) \
+    X( int,     map_idof2dof,      MJ_M(nv),       1 ) \
+    X( mjtNum,  ifrc_smooth,       MJ_D(nidof),    1 ) \
+    X( mjtNum,  iacc_smooth,       MJ_D(nidof),    1 ) \
+    X( int,     iM_rownnz,         MJ_D(nidof),    1 ) \
+    X( int,     iM_rowadr,         MJ_D(nidof),    1 ) \
+    X( int,     iM_diagnum,        MJ_D(nidof),    1 ) \
+    X( int,     iM_colind,         MJ_M(nM),       1 ) \
+    X( mjtNum,  iM,                MJ_M(nM),       1 ) \
+    X( mjtNum,  iLD,               MJ_M(nM),       1 ) \
+    X( mjtNum,  iLDiagInv,         MJ_D(nidof),    1 ) \
+    X( mjtNum,  iacc,              MJ_D(nidof),    1 ) \
+    X( int,     efc_island,        MJ_D(nefc),     1 ) \
+    X( int,     island_ne,         MJ_D(nisland),  1 ) \
+    X( int,     island_nf,         MJ_D(nisland),  1 ) \
+    X( int,     island_nefc,       MJ_D(nisland),  1 ) \
+    X( int,     island_iefcadr,    MJ_D(nisland),  1 ) \
+    X( int,     map_efc2iefc,      MJ_D(nefc),     1 ) \
+    X( int,     map_iefc2efc,      MJ_D(nefc),     1 ) \
+    X( int,     iefc_type,         MJ_D(nefc),     1 ) \
+    X( int,     iefc_id,           MJ_D(nefc),     1 ) \
+    X( int,     iefc_J_rownnz,     MJ_D(nefc),     1 ) \
+    X( int,     iefc_J_rowadr,     MJ_D(nefc),     1 ) \
+    X( int,     iefc_J_rowsuper,   MJ_D(nefc),     1 ) \
+    X( int,     iefc_J_colind,     MJ_D(nJ),       1 ) \
+    X( int,     iefc_JT_rownnz,    MJ_D(nidof),    1 ) \
+    X( int,     iefc_JT_rowadr,    MJ_D(nidof),    1 ) \
+    X( int,     iefc_JT_rowsuper,  MJ_D(nidof),    1 ) \
+    X( int,     iefc_JT_colind,    MJ_D(nJ),       1 ) \
+    X( mjtNum,  iefc_J,            MJ_D(nJ),       1 ) \
+    X( mjtNum,  iefc_JT,           MJ_D(nJ),       1 ) \
+    X( mjtNum,  iefc_frictionloss, MJ_D(nefc),     1 ) \
+    X( mjtNum,  iefc_D,            MJ_D(nefc),     1 ) \
+    X( mjtNum,  iefc_R,            MJ_D(nefc),     1 ) \
+    X( mjtNum,  iefc_aref,         MJ_D(nefc),     1 ) \
+    X( int,     iefc_state,        MJ_D(nefc),     1 ) \
+    X( mjtNum,  iefc_force,        MJ_D(nefc),     1 ) \
+    X( mjtNum,  ifrc_constraint,   MJ_D(nidof),    1 )
 
 // array fields of mjData that live in d->arena
 #define MJDATA_ARENA_POINTERS          \
@@ -785,6 +818,7 @@
     X( int,       nJ                 ) \
     X( int,       nA                 ) \
     X( int,       nisland            ) \
+    X( int,       nidof              ) \
     X( mjtNum,    time               ) \
     X( uintptr_t, threadpool         )
 

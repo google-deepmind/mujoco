@@ -1917,6 +1917,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->nJ = 0;
   d->nA = 0;
   d->nisland = 0;
+  d->nidof = 0;
 
   // clear global properties
   d->time = 0;

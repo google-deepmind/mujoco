@@ -156,11 +156,17 @@ MJAPI void mju_d2n(mjtNum* res, const double* vec, int n);
 // convert from mjtNum to double
 MJAPI void mju_n2d(double* res, const mjtNum* vec, int n);
 
-// gather
+// gather mjtNums
 MJAPI void mju_gather(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
-// scatter
+// scatter mjtNums
 MJAPI void mju_scatter(mjtNum* res, const mjtNum* vec, const int* ind, int n);
+
+// gather integers
+MJAPI void mju_gatherInt(int* res, const int* vec, const int* ind, int n);
+
+// scatter integers
+MJAPI void mju_scatterInt(int* res, const int* vec, const int* ind, int n);
 
 // insertion sort, increasing order
 MJAPI void mju_insertionSort(mjtNum* list, int n);

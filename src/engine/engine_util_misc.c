@@ -1408,6 +1408,24 @@ void mju_scatter(mjtNum* restrict res, const mjtNum* restrict vec, const int* re
 
 
 
+// gather integers
+void mju_gatherInt(int* restrict res, const int* restrict vec, const int* restrict ind, int n) {
+  for (int i=0; i < n; i++) {
+    res[i] = vec[ind[i]];
+  }
+}
+
+
+
+// scatter integers
+void mju_scatterInt(int* restrict res, const int* restrict vec, const int* restrict ind, int n) {
+  for (int i=0; i < n; i++) {
+    res[ind[i]] = vec[i];
+  }
+}
+
+
+
 // insertion sort, increasing order
 void mju_insertionSort(mjtNum* list, int n) {
   for (int i=1; i < n; i++) {

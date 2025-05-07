@@ -98,7 +98,6 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
 
   // buffer space required for islands
   scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->island_dofadr) * m->ntree);
-  scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->island_dofind) * m->nv);
   scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->dof_island) * m->nv);
   scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->efc_island) * maxgeom * condimmax);
   scnstate->nbuffer += roundUpToCacheLine(sizeof(*d->tendon_efcadr) * m->ntendon);
@@ -135,9 +134,6 @@ void mjv_makeSceneState(const mjModel* m, const mjData* d, mjvSceneState* scnsta
 
   scnstate->data.island_dofadr = (int*)ptr;
   ptr += roundUpToCacheLine(sizeof(*scnstate->data.island_dofadr) * scnstate->model.ntree);
-
-  scnstate->data.island_dofind = (int*)ptr;
-  ptr += roundUpToCacheLine(sizeof(*scnstate->data.island_dofind) * scnstate->model.nv);
 
   scnstate->data.dof_island = (int*)ptr;
   ptr += roundUpToCacheLine(sizeof(*scnstate->data.dof_island) * scnstate->model.nv);
@@ -224,7 +220,6 @@ void mjv_assignFromSceneState(const mjvSceneState* scnstate, mjModel* m, mjData*
     d->contact = scnstate->data.contact;
     d->efc_force = scnstate->data.efc_force;
     d->island_dofadr = scnstate->data.island_dofadr;
-    d->island_dofind = scnstate->data.island_dofind;
     d->dof_island = scnstate->data.dof_island;
     d->efc_island = scnstate->data.efc_island;
     d->tendon_efcadr = scnstate->data.tendon_efcadr;
@@ -385,7 +380,6 @@ void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
   scnstate->data.nisland = d->nisland;
   if (d->nisland) {
     memcpy(scnstate->data.island_dofadr, d->island_dofadr, sizeof(*d->island_dofadr) * d->nisland);
-    memcpy(scnstate->data.island_dofind, d->island_dofind, sizeof(*d->island_dofind) *  m->nv);
     memcpy(scnstate->data.dof_island, d->dof_island, sizeof(*d->dof_island) * m->nv);
     memcpy(scnstate->data.tendon_efcadr, d->tendon_efcadr, sizeof(*d->tendon_efcadr) * m->ntendon);
   }

@@ -2,8 +2,16 @@
 Changelog
 =========
 
-Version 3.3.2 (April 28, 2025)
+Upcoming version (not yet release)
 ----------------------------------
+
+General
+^^^^^^^
+- Refactored island implementation so that island data is memory-contiguous. This speeds up island processing in the
+  solver and clears the way for the addition of the Newton and PGS solvers (currently only CG is supported).
+
+Version 3.3.2 (April 28, 2025)
+------------------------------
 
 MJX
 ^^^

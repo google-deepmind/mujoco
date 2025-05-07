@@ -631,10 +631,10 @@ static void warmstart(const mjModel* m, mjData* d) {
 
     // have island structure: unconstrained qacc = qacc_smooth
     if (d->nisland > 0) {
-      for (int i=0; i < nv; i++) {
-        if (d->dof_island[i] < 0) {
-          d->qacc[i] = d->qacc_smooth[i];
-        }
+      // loop over unconstrained dofs in map_idof2dof[nidof, nv)
+      for (int i=d->nidof; i < nv; i++) {
+        int dof = d->map_idof2dof[i];
+        d->qacc[dof] = d->qacc_smooth[dof];
       }
     }
 
@@ -723,22 +723,37 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
   // check if islands are supported
   int islands_supported = mjENABLED(mjENBL_ISLAND)  &&
-                          d->nisland > 0            &&
+                          nisland > 0               &&
                           m->opt.solver == mjSOL_CG &&
                           m->opt.noslip_iterations == 0;
 
   // run solver over constraint islands
   if (islands_supported) {
-    // no threadpool, loop over islands
+    int nidof = d->nidof;
+
+    // copy CG inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
+    mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
+    mju_gather(d->ifrc_constraint, d->qfrc_constraint, d->map_idof2dof, nidof);
+    mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
+    mju_gather(d->iacc,            d->qacc,            d->map_idof2dof, nidof);
+    mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
+    mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
+
+    // solve per island
     if (!d->threadpool) {
+      // no threadpool, loop over islands
       for (int island=0; island < nisland; island++) {
         mj_solCG_island(m, d, island, m->opt.iterations);
       }
-    }
-    else {
-      // solve using threads
+    } else {
+      // have threadpool, solve using threads
       mj_solCG_island_multithreaded(m, d);
     }
+
+    // copy back solver outputs (scatter dofs since ni <= nv)
+    mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
+    mju_scatter(d->qfrc_constraint, d->ifrc_constraint, d->map_idof2dof, nidof);
+    mju_gather(d->efc_force, d->iefc_force, d->map_efc2iefc, nefc);
   }
 
   // run solver over all constraints

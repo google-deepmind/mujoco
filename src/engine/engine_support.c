@@ -972,14 +972,9 @@ void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
 
 
 
-// multiply vector by inertia matrix
-void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
-  int nv = m->nv;
-  const mjtNum* M = d->qM;
-  const int* Madr = m->dof_Madr;
-  const int* parentid = m->dof_parentid;
-  const int* simplenum = m->dof_simplenum;
-
+// multiply vector by inertia matrix (implementation)
+void mj_mulM_impl(mjtNum* res, const mjtNum* vec, int nv, const mjtNum* M,
+                  const int* Madr, const int* parentid, const int* simplenum) {
   mju_zero(res, nv);
 
   for (int i=0; i < nv; i++) {
@@ -1031,64 +1026,9 @@ void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) 
 
 
 
-// multiply vector by inertia matrix for one dof island
-void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
-                    int island, int flg_vecunc) {
-  // if no island, call regular function
-  if (island < 0) {
-    mj_mulM(m, d, res, vec);
-    return;
-  }
-
-  // local constants: general
-  const mjtNum* M = d->qM;
-  const int* Madr = m->dof_Madr;
-  const int* parentid = m->dof_parentid;
-  const int* simplenum = m->dof_simplenum;
-
-  // local constants: island specific
-  int ndof = d->island_dofnum[island];
-  const int* dofind = d->island_dofind + d->island_dofadr[island];
-  const int* islandind = d->dof_islandind;
-
-  mju_zero(res, ndof);
-
-  for (int k=0; k < ndof; k++) {
-    // address in full dof vector
-    int i = dofind[k];
-
-    // address in M
-    int adr = Madr[i];
-
-    // diagonal
-    if (flg_vecunc) {
-      res[k] = M[adr]*vec[i];
-    } else {
-      res[k] = M[adr]*vec[k];
-    }
-
-    // simple dof: continue
-    if (simplenum[i]) {
-      continue;
-    }
-
-    // off-diagonal
-    int j = parentid[i];
-    while (j >= 0) {
-      adr++;
-      int l = islandind[j];
-      if (flg_vecunc) {
-        res[k] += M[adr]*vec[j];
-        res[l] += M[adr]*vec[i];
-      } else {
-        res[k] += M[adr]*vec[l];
-        res[l] += M[adr]*vec[k];
-      }
-
-      // advance to parent
-      j = parentid[j];
-    }
-  }
+// multiply vector by inertia matrix
+void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
+  mj_mulM_impl(res, vec, m->nv, d->qM, m->dof_Madr, m->dof_parentid, m->dof_simplenum);
 }
 
 

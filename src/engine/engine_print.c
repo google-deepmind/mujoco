@@ -1392,27 +1392,30 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_DOFNUM");
+    fprintf(fp, NAME_FORMAT, "ISLAND_NV");
     for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_dofnum[i]);
+      fprintf(fp, " %d", d->island_nv[i]);
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_DOFADR");
+    fprintf(fp, NAME_FORMAT, "ISLAND_IDOFADR");
     for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_dofadr[i]);
+      fprintf(fp, " %d", d->island_idofadr[i]);
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_DOFIND");
+    fprintf(fp, NAME_FORMAT, "MAP_IDOF2DOF");
     for (int i = 0; i < m->nv; i++) {
-      fprintf(fp, " %d", d->island_dofind[i]);
-    }
-    fprintf(fp, "\n\n");
+      int dof = d->map_idof2dof[i];
+      if (i > 0) {
+        int dofprev = d->map_idof2dof[i-1];
 
-    fprintf(fp, NAME_FORMAT, "DOF_ISLANDIND");
-    for (int i = 0; i < m->nv; i++) {
-      fprintf(fp, " %d", d->dof_islandind[i]);
+        // print '|' at island boundaries
+        if (d->dof_island[dof] != d->dof_island[dofprev]) {
+          fprintf(fp, " |");
+        }
+      }
+      fprintf(fp, " %d", dof);
     }
     fprintf(fp, "\n\n");
 
@@ -1422,21 +1425,30 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_EFCNUM");
+    fprintf(fp, NAME_FORMAT, "ISLAND_NEFC");
     for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_efcnum[i]);
+      fprintf(fp, " %d", d->island_nefc[i]);
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_EFCADR");
+    fprintf(fp, NAME_FORMAT, "ISLAND_IEFCADR");
     for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_efcadr[i]);
+      fprintf(fp, " %d", d->island_iefcadr[i]);
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_EFCIND");
+    fprintf(fp, NAME_FORMAT, "MAP_IEFC2EFC");
     for (int i = 0; i < d->nefc; i++) {
-      fprintf(fp, " %d", d->island_efcind[i]);
+      int efc = d->map_iefc2efc[i];
+      if (i > 0) {
+        int efcprev = d->map_iefc2efc[i-1];
+
+        // print '|' at island boundaries
+        if (d->efc_island[efc] != d->efc_island[efcprev]) {
+          fprintf(fp, " |");
+        }
+      }
+      fprintf(fp, " %d", efc);
     }
     fprintf(fp, "\n\n");
   }

@@ -1803,7 +1803,7 @@ void mj_solveLD_legacy(const mjModel* m, mjtNum* restrict x, int n,
 
 
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
-void mj_solveLD(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv, int nv, int n,
+void mj_solveLD(mjtNum* restrict x, const mjtNum* qLD, const mjtNum* qLDiagInv, int nv, int n,
                 const int* rownnz, const int* rowadr, const int* diagnum, const int* colind) {
   // x <- L^-T x
   for (int i=nv-1; i > 0; i--) {
@@ -1819,7 +1819,7 @@ void mj_solveLD(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv,
         int start = rowadr[i];
         int end = start + rownnz[i] - 1;
         for (int adr=start; adr < end; adr++) {
-          x[colind[adr]] -= qLDs[adr] * x_i;
+          x[colind[adr]] -= qLD[adr] * x_i;
         }
       }
     }
@@ -1832,7 +1832,7 @@ void mj_solveLD(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv,
         mjtNum x_i;
         if ((x_i = x[i+offset])) {
           for (int adr=start; adr < end; adr++) {
-            x[offset + colind[adr]] -= qLDs[adr] * x_i;
+            x[offset + colind[adr]] -= qLD[adr] * x_i;
           }
         }
       }
@@ -1870,13 +1870,13 @@ void mj_solveLD(mjtNum* restrict x, const mjtNum* qLDs, const mjtNum* qLDiagInv,
 
       // one vector
       if (n == 1) {
-        x[i] -= mju_dotSparse(qLDs+adr, x, d, colind+adr, /*flg_unc1=*/0);
+        x[i] -= mju_dotSparse(qLD+adr, x, d, colind+adr, /*flg_unc1=*/0);
       }
 
       // multiple vectors
       else {
         for (int offset=0; offset < n*nv; offset+=nv) {
-          x[i+offset] -= mju_dotSparse(qLDs+adr, x+offset, d, colind+adr, /*flg_unc1=*/0);
+          x[i+offset] -= mju_dotSparse(qLD+adr, x+offset, d, colind+adr, /*flg_unc1=*/0);
         }
       }
     }
@@ -1893,65 +1893,6 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
   }
   mj_solveLD(x, d->qLD, d->qLDiagInv, m->nv, n,
              d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
-}
-
-
-// in-place sparse backsubstitution for one island:  x = inv(L'*D*L)*x
-//  L is in lower triangle of qLD; D is on diagonal of qLD
-void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* restrict x, int island) {
-  // if no islands, call mj_solveLD
-  const mjtNum* qLD = d->qLD;
-  const mjtNum* qLDiagInv = d->qLDiagInv;
-  if (island < 0) {
-    mj_solveLD(x, qLD, qLDiagInv, m->nv, 1,
-               d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
-    return;
-  }
-
-  // local copies of key variables
-  const int* rownnz = d->M_rownnz;
-  const int* rowadr = d->M_rowadr;
-  const int* colind = d->M_colind;
-  const int* diagnum = m->dof_simplenum;
-
-  // local constants: island specific
-  int ndof = d->island_dofnum[island];
-  const int* dofind = d->island_dofind + d->island_dofadr[island];
-  const int* islandind = d->dof_islandind;
-
-  // x <- inv(L') * x; skip simple, exploit sparsity of input vector
-  for (int k=ndof-1; k >= 0; k--) {
-    int i = dofind[k];
-    mjtNum x_k;
-    if (!diagnum[i] && (x_k = x[k])) {
-      int start = rowadr[i];
-      int end = start + rownnz[i] - 1;
-      for (int adr=end-1; adr >= start; adr--) {
-        x[islandind[colind[adr]]] -= qLD[adr] * x_k;
-      }
-    }
-  }
-
-  // x <- inv(D) * x
-  for (int k=ndof-1; k >= 0; k--) {
-    x[k] *= qLDiagInv[dofind[k]];  // x(i) /= L(i,i)
-  }
-
-  // x <- inv(L) * x; skip simple
-  for (int k=0; k < ndof; k++) {
-    int i = dofind[k];
-
-    // skip diagonal rows
-    if (diagnum[i]) {
-      continue;
-    }
-
-    int start = rowadr[i];
-    int end = start + rownnz[i] - 1;
-    for (int adr=end-1; adr >= start; adr--) {
-      x[k] -= x[islandind[colind[adr]]] * qLD[adr];
-    }
-  }
 }
 
 

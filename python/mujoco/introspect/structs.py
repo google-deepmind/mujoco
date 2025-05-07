@@ -4897,6 +4897,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of detected constraint islands',
              ),
              StructFieldDecl(
+                 name='nidof',
+                 type=ValueType(name='int'),
+                 doc='number of dofs in all islands',
+             ),
+             StructFieldDecl(
                  name='time',
                  type=ValueType(name='mjtNum'),
                  doc='simulation time',
@@ -5940,11 +5945,19 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nv',),
              ),
              StructFieldDecl(
-                 name='island_dofnum',
+                 name='island_nv',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of dofs in island',
+                 doc='number of dofs in this island',
+                 array_extent=('nisland',),
+             ),
+             StructFieldDecl(
+                 name='island_idofadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='island start address in idof vector',
                  array_extent=('nisland',),
              ),
              StructFieldDecl(
@@ -5952,24 +5965,104 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='start address in island_dofind',
+                 doc='island start address in dof vector',
                  array_extent=('nisland',),
              ),
              StructFieldDecl(
-                 name='island_dofind',
+                 name='map_dof2idof',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='island dof indices; -1: none',
+                 doc='map from dof to idof',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
-                 name='dof_islandind',
+                 name='map_idof2dof',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof island indices; -1: none',
+                 doc='map from idof to dof; idof >= ni: unconstrained',
                  array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='ifrc_smooth',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='net unconstrained force',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iacc_smooth',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='unconstrained acceleration',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iM_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: non-zeros in each row',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iM_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: address of each row in iM_colind',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iM_diagnum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: num of consecutive diagonal elements',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iM_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: column indices of non-zeros',
+                 array_extent=('nM',),
+             ),
+             StructFieldDecl(
+                 name='iM',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='total inertia (sparse)',
+                 array_extent=('nM',),
+             ),
+             StructFieldDecl(
+                 name='iLD',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc="L'*D*L factorization of M (sparse)",
+                 array_extent=('nM',),
+             ),
+             StructFieldDecl(
+                 name='iLDiagInv',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='1/diag(D)',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iacc',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='acceleration',
+                 array_extent=('nidof',),
              ),
              StructFieldDecl(
                  name='efc_island',
@@ -5980,7 +6073,23 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nefc',),
              ),
              StructFieldDecl(
-                 name='island_efcnum',
+                 name='island_ne',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of equality constraints in island',
+                 array_extent=('nisland',),
+             ),
+             StructFieldDecl(
+                 name='island_nf',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of friction constraints in island',
+                 array_extent=('nisland',),
+             ),
+             StructFieldDecl(
+                 name='island_nefc',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
@@ -5988,19 +6097,147 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nisland',),
              ),
              StructFieldDecl(
-                 name='island_efcadr',
+                 name='island_iefcadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='start address in island_efcind',
+                 doc='start address in iefc vector',
                  array_extent=('nisland',),
              ),
              StructFieldDecl(
-                 name='island_efcind',
+                 name='map_efc2iefc',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='island constraint indices',
+                 doc='map from efc to iefc',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='map_iefc2efc',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='map from iefc to efc',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='constraint type (mjtConstraint)',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_id',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='id of object of specified type',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in constraint Jacobian row',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in colind array',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J_rowsuper',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of subsequent rows in supernode',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in constraint Jacobian',
+                 array_extent=('nJ',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in constraint Jacobian row T',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in colind array              T',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT_rowsuper',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of subsequent rows in supernode         T',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in constraint Jacobian          T',
+                 array_extent=('nJ',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint Jacobian',
+                 array_extent=('nJ',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint Jacobian transposed',
+                 array_extent=('nJ',),
+             ),
+             StructFieldDecl(
+                 name='iefc_frictionloss',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='frictionloss (friction)',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_D',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint mass',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_R',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='inverse constraint mass',
                  array_extent=('nefc',),
              ),
              StructFieldDecl(
@@ -6060,7 +6297,23 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nefc',),
              ),
              StructFieldDecl(
-                 name='efc_force',
+                 name='iefc_aref',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='reference pseudo-acceleration',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_state',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='constraint state (mjtConstraintState)',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_force',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
@@ -6074,6 +6327,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='constraint state (mjtConstraintState)',
                  array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='efc_force',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint force in constraint space',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='ifrc_constraint',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint force',
+                 array_extent=('nidof',),
              ),
              StructFieldDecl(
                  name='threadpool',
@@ -8637,13 +8906,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='island_dofadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='island_dofind',
                              type=PointerType(
                                  inner_type=ValueType(name='int'),
                              ),

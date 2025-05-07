@@ -91,9 +91,9 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
 
 // assign pseudo-random rgba to constraint island using Halton sequence
 static void islandColor(float rgba[4], int islanddofadr) {
-  rgba[0] = 0.1f + 0.8f*mju_Halton(islanddofadr + 1, 2);
-  rgba[1] = 0.1f + 0.8f*mju_Halton(islanddofadr + 1, 3);
-  rgba[2] = 0.1f + 0.8f*mju_Halton(islanddofadr + 1, 5);
+  rgba[0] = 0.1f + 0.9f*mju_Halton(islanddofadr + 1, 2);
+  rgba[1] = 0.1f + 0.9f*mju_Halton(islanddofadr + 1, 3);
+  rgba[2] = 0.1f + 0.9f*mju_Halton(islanddofadr + 1, 5);
   rgba[3] = 1;
 }
 
@@ -152,7 +152,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
       // override standard colors if visualizing islands
       if (vopt->flags[mjVIS_ISLAND] && d->nisland && efc_adr >= 0) {
         // set color using island's first dof
-        islandColor(thisgeom->rgba, d->island_dofind[d->island_dofadr[d->efc_island[efc_adr]]]);
+        islandColor(thisgeom->rgba, d->island_dofadr[d->efc_island[efc_adr]]);
       }
 
       // otherwise regular colors (different for included and excluded contacts)
@@ -1344,7 +1344,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           int island = d->dof_island[m->body_dofadr[weld_id]];
           if (island > -1) {
             // color using island's first dof
-            islandColor(rgba_island, d->island_dofind[d->island_dofadr[island]]);
+            islandColor(rgba_island, d->island_dofadr[island]);
           }
         }
       }
@@ -1835,7 +1835,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                 if (d->tendon_efcadr[i] != -1) {
                   // set color using island's first dof
                   int island = d->efc_island[d->tendon_efcadr[i]];
-                  islandColor(rgba_island, d->island_dofind[d->island_dofadr[island]]);
+                  islandColor(rgba_island, d->island_dofadr[island]);
                 }
               }
               setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
