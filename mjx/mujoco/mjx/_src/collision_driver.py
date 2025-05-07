@@ -71,9 +71,11 @@ from mujoco.mjx._src.collision_sdf import sphere_ellipsoid
 from mujoco.mjx._src.collision_types import FunctionKey
 from mujoco.mjx._src.types import Contact
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import GeomType
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -227,7 +229,7 @@ def _geom_groups(
     if types[0] == mujoco.mjtGeom.mjGEOM_HFIELD:
       # add static grid bounds to the grouping key for hfield collisions
       geom_rbound_hfield = (
-          m.geom_rbound_hfield if isinstance(m, Model) else m.geom_rbound
+          m._impl.geom_rbound_hfield if isinstance(m, Model) else m.geom_rbound  # pytype: disable=attribute-error
       )
       nrow, ncol = m.hfield_nrow[data_ids[0]], m.hfield_ncol[data_ids[0]]
       xsize, ysize = m.hfield_size[data_ids[0]][:2]
@@ -323,11 +325,11 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
         solref=solref,
         solreffriction=solreffriction,
         solimp=solimp,
-        dim=d.contact.dim,
+        dim=d._impl.contact.dim,  # pytype: disable=attribute-error
         geom1=jp.array(geom[:, 0]),
         geom2=jp.array(geom[:, 1]),
         geom=jp.array(geom[:, :2]),
-        efc_address=d.contact.efc_address,
+        efc_address=d._impl.contact.efc_address,  # pytype: disable=attribute-error
     )
 
   return groups
@@ -374,7 +376,10 @@ def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
 
 def collision(m: Model, d: Data) -> Data:
   """Collides geometries."""
-  if d.ncon == 0:
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('collision requires JAX backend implementation.')
+
+  if d._impl.ncon == 0:  # pytype: disable=attribute-error
     return d
 
   max_geom_pairs = _numeric(m, 'max_geom_pairs')
@@ -424,4 +429,4 @@ def collision(m: Model, d: Data) -> Data:
   contacts = sum([condim_groups[k] for k in sorted(condim_groups)], [])
   contact = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *contacts)
 
-  return d.replace(contact=contact)
+  return d.replace(_impl=d._impl.replace(contact=contact))  # pytype: disable=attribute-error

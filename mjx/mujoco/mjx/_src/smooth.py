@@ -23,10 +23,12 @@ from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import CamLightType
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import EqType
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import TrnType
 from mujoco.mjx._src.types import WrapType
 # pylint: enable=g-importing-member
@@ -35,7 +37,6 @@ import numpy as np
 
 def kinematics(m: Model, d: Data) -> Data:
   """Converts position/velocity from generalized coordinates to maximal."""
-
   def fn(carry, jnt_typs, jnt_pos, jnt_axis, qpos, qpos0, pos, quat):
     # calculate joint anchors, axes, body pos and quat in global frame
     # also normalize qpos while we're at it
@@ -131,6 +132,8 @@ def kinematics(m: Model, d: Data) -> Data:
 
 def com_pos(m: Model, d: Data) -> Data:
   """Maps inertias and motion dofs to global frame centered at subtree-CoM."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('com_pos requires JAX backend implementation.')
 
   # calculate center of mass of each subtree
   def subtree_sum(carry, xipos, body_mass):
@@ -162,7 +165,7 @@ def com_pos(m: Model, d: Data) -> Data:
   root_com = subtree_com[m.body_rootid]
   offset = d.xipos - root_com
   cinert = inert_com(m.body_inertia, d.ximat, offset, m.body_mass)
-  d = d.replace(cinert=cinert)
+  d = d.tree_replace({'_impl.cinert': cinert})
 
   # map motion dofs to global frame centered at subtree_com
   def cdof_fn(jnt_typs, root_com, xmat, xanchor, xaxis):
@@ -201,13 +204,16 @@ def com_pos(m: Model, d: Data) -> Data:
       d.xanchor,
       d.xaxis,
   )
-  d = d.replace(cdof=cdof)
+  d = d.tree_replace({'_impl.cdof': cdof})
 
   return d
 
 
 def camlight(m: Model, d: Data) -> Data:
   """Computes camera and light positions and orientations."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('camlight requires JAX backend implementation.')
+
   if m.ncam == 0:
     return d.replace(cam_xpos=jp.zeros((0, 3)), cam_xmat=jp.zeros((0, 3, 3)))
 
@@ -278,32 +284,33 @@ def camlight(m: Model, d: Data) -> Data:
 
 def crb(m: Model, d: Data) -> Data:
   """Runs composite rigid body inertia algorithm."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('crb requires JAX backend implementation.')
 
   def crb_fn(crb_child, crb_body):
     if crb_child is not None:
       crb_body += crb_child
     return crb_body
 
-  crb_body = scan.body_tree(m, crb_fn, 'b', 'b', d.cinert, reverse=True)
+  crb_body = scan.body_tree(m, crb_fn, 'b', 'b', d._impl.cinert, reverse=True)
   crb_body = crb_body.at[0].set(0.0)
-  d = d.replace(crb=crb_body)
+  d = d.tree_replace({'_impl.crb': crb_body})
 
   crb_dof = jp.take(crb_body, jp.array(m.dof_bodyid), axis=0)
-  crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d.cdof)
-  qm = support.make_m(m, crb_cdof, d.cdof, m.dof_armature)
-  d = d.replace(qM=qm)
-  if support.is_sparse(m) and d._qM_sparse.size > 0:  # pylint: disable=protected-access
-    d = d.replace(_qM_sparse=qm)
-
+  crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d._impl.cdof)
+  qm = support.make_m(m, crb_cdof, d._impl.cdof, m.dof_armature)
+  d = d.tree_replace({'_impl.qM': qm})
   return d
 
 
 def factor_m(m: Model, d: Data) -> Data:
   """Gets factorizaton of inertia-like matrix M, assumed spd."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('factor_m requires JAX backend implementation.')
 
   if not support.is_sparse(m):
-    qh, _ = jax.scipy.linalg.cho_factor(d.qM)
-    d = d.replace(qLD=qh)
+    qh, _ = jax.scipy.linalg.cho_factor(d._impl.qM)
+    d = d.tree_replace({'_impl.qLD': qh})
     return d
 
   # build up indices for where we will do backwards updates over qLD
@@ -325,7 +332,7 @@ def factor_m(m: Model, d: Data) -> Data:
           (out_beg, out_end, madr_d, madr_ij)
       )
 
-  qld = d.qM
+  qld = d._impl.qM
 
   for _, updates in sorted(updates.items(), reverse=True):
     # combine the updates into one update batch (per depth level)
@@ -353,20 +360,17 @@ def factor_m(m: Model, d: Data) -> Data:
   qld_diag = qld[m.dof_Madr]
   qld = (qld / qld[jp.array(madr_ds)]).at[m.dof_Madr].set(qld_diag)
 
-  d = d.replace(qLD=qld, qLDiagInv=1 / qld_diag)
-  if d._qLD_sparse.size > 0:  # pylint: disable=protected-access
-    d = d.replace(_qLD_sparse=d.qLD)
-  if d._qLDiagInv_sparse.size > 0:  # pylint: disable=protected-access
-    d = d.replace(_qLDiagInv_sparse=d.qLDiagInv)
-
+  d = d.tree_replace({'_impl.qLD': qld, '_impl.qLDiagInv': 1 / qld_diag})
   return d
 
 
 def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
   """Computes sparse backsubstitution:  x = inv(L'*D*L)*y ."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('solve_m requires JAX backend implementation.')
 
   if not support.is_sparse(m):
-    return jax.scipy.linalg.cho_solve((d.qLD, False), x)
+    return jax.scipy.linalg.cho_solve((d._impl.qLD, False), x)
 
   depth = []
   for i in range(m.nv):
@@ -385,21 +389,23 @@ def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
   # x <- inv(L') * x
   for _, vals in sorted(updates_j.items(), reverse=True):
     j, madr_ij, i = np.array(vals).T
-    x = x.at[j].add(-d.qLD[madr_ij] * x[i])
+    x = x.at[j].add(-d._impl.qLD[madr_ij] * x[i])
 
   # x <- inv(D) * x
-  x = x * d.qLDiagInv
+  x = x * d._impl.qLDiagInv
 
   # x <- inv(L) * x
   for _, vals in sorted(updates_i.items()):
     i, madr_ij, j = np.array(vals).T
-    x = x.at[i].add(-d.qLD[madr_ij] * x[j])
+    x = x.at[i].add(-d._impl.qLD[madr_ij] * x[j])
 
   return x
 
 
 def com_vel(m: Model, d: Data) -> Data:
   """Computes cvel, cdof_dot."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('com_vel requires JAX backend implementation.')
 
   # forward scan down tree: accumulate link center of mass velocity
   def fn(parent, jnt_typs, cdof, qvel):
@@ -431,17 +437,19 @@ def com_vel(m: Model, d: Data) -> Data:
       'jvv',
       'bv',
       m.jnt_type,
-      d.cdof,
+      d._impl.cdof,
       d.qvel,
   )
 
-  d = d.replace(cvel=cvel, cdof_dot=cdof_dot)
+  d = d.tree_replace({'cvel': cvel, '_impl.cdof_dot': cdof_dot})
 
   return d
 
 
 def subtree_vel(m: Model, d: Data) -> Data:
   """Subtree linear velocity and angular momentum."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('subtree_vel requires JAX backend implementation.')
 
   # bodywise quantities
   def _forward(cvel, xipos, ximat, subtree_com_root, mass, inertia):
@@ -529,7 +537,10 @@ def subtree_vel(m: Model, d: Data) -> Data:
       reverse=True,
   )
 
-  return d.replace(subtree_linvel=subtree_linvel, subtree_angmom=subtree_angmom)
+  return d.tree_replace({
+      '_impl.subtree_linvel': subtree_linvel,
+      '_impl.subtree_angmom': subtree_angmom,
+  })
 
 
 def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
@@ -537,6 +548,8 @@ def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
 
   flg_acc=False removes inertial term.
   """
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('rne requires JAX backend implementation.')
 
   # forward scan over tree: accumulate link center of mass acceleration
   def cacc_fn(cacc, cdof_dot, qvel, cdof, qacc):
@@ -555,7 +568,7 @@ def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
     return cacc
 
   cacc = scan.body_tree(
-      m, cacc_fn, 'vvvv', 'b', d.cdof_dot, d.qvel, d.cdof, d.qacc
+      m, cacc_fn, 'vvvv', 'b', d._impl.cdof_dot, d.qvel, d._impl.cdof, d.qacc
   )
 
   def frc(cinert, cacc, cvel):
@@ -564,7 +577,7 @@ def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
 
     return frc
 
-  loc_cfrc = jax.vmap(frc)(d.cinert, cacc, d.cvel)
+  loc_cfrc = jax.vmap(frc)(d._impl.cinert, cacc, d.cvel)
 
   # backward scan up tree: accumulate body forces
   def cfrc_fn(cfrc_child, cfrc):
@@ -573,7 +586,7 @@ def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
     return cfrc
 
   cfrc = scan.body_tree(m, cfrc_fn, 'b', 'b', loc_cfrc, reverse=True)
-  qfrc_bias = jax.vmap(jp.dot)(d.cdof, cfrc[jp.array(m.dof_bodyid)])
+  qfrc_bias = jax.vmap(jp.dot)(d._impl.cdof, cfrc[jp.array(m.dof_bodyid)])
 
   d = d.replace(qfrc_bias=qfrc_bias)
 
@@ -582,6 +595,8 @@ def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
 
 def rne_postconstraint(m: Model, d: Data) -> Data:
   """RNE with complete data: compute cacc, cfrc_ext, cfrc_int."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('rne_postconstraint requires JAX backend implementation.')
 
   def _transform_force(frc, offset):
     force, torque = jp.split(frc, 2)
@@ -602,7 +617,7 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
   # compute contact forces for each condim
   forces = []
   condim_idx = []
-  for dim in set(d.contact.dim):
+  for dim in set(d._impl.contact.dim):
     force, idx = support.contact_force_dim(m, d, dim)
     forces.append(force)
     condim_idx.append(idx)
@@ -629,10 +644,10 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
       )
 
     condim_idx = jp.concatenate(condim_idx)
-    frame = d.contact.frame[condim_idx]
-    pos = d.contact.pos[condim_idx]
-    id1 = jp.array(m.geom_bodyid)[d.contact.geom[condim_idx, 0]]
-    id2 = jp.array(m.geom_bodyid)[d.contact.geom[condim_idx, 1]]
+    frame = d._impl.contact.frame[condim_idx]
+    pos = d._impl.contact.pos[condim_idx]
+    id1 = jp.array(m.geom_bodyid)[d._impl.contact.geom[condim_idx, 0]]
+    id2 = jp.array(m.geom_bodyid)[d._impl.contact.geom[condim_idx, 1]]
     com1 = d.subtree_com[jp.array(m.body_rootid)][id1]
     com2 = d.subtree_com[jp.array(m.body_rootid)][id2]
 
@@ -668,8 +683,8 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
     )
 
     # cacc = cacc_parent + cdofdot * qvel + cdof * qacc
-    cacc_vel = d.cdof_dot.T @ (mask * d.qvel)
-    cacc_acc = d.cdof.T @ (mask * d.qacc)
+    cacc_vel = d._impl.cdof_dot.T @ (mask * d.qvel)
+    cacc_acc = d._impl.cdof.T @ (mask * d.qacc)
     cacc = cacc_parent + cacc_vel + cacc_acc
 
     # cfrc_body = cinert * cacc + cvel x (cinert * cvel)
@@ -687,7 +702,7 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
       'bbbbb',
       'bb',
       cfrc_ext,
-      d.cinert,
+      d._impl.cinert,
       d.cvel,
       jp.array(m.body_dofadr),
       jp.array(m.body_dofnum),
@@ -704,11 +719,18 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
   )
 
   # update data
-  return d.replace(cacc=cacc, cfrc_int=cfrc_int, cfrc_ext=cfrc_ext)
+  return d.tree_replace({
+      '_impl.cacc': cacc,
+      '_impl.cfrc_int': cfrc_int,
+      '_impl.cfrc_ext': cfrc_ext,
+  })
 
 
 def tendon(m: Model, d: Data) -> Data:
   """Computes tendon lengths and moments."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('tendon requires JAX backend implementation.')
+
   if not m.ntendon:
     return d
 
@@ -836,8 +858,8 @@ def tendon(m: Model, d: Data) -> Data:
   # wrap inside
   # TODO(taylorhowell): check that is_wrap_inside is consistent with
   # site and geom relative positions
-  (wrap_inside_id,) = np.nonzero(m.is_wrap_inside)
-  (wrap_outside_id,) = np.nonzero(~m.is_wrap_inside)
+  (wrap_inside_id,) = np.nonzero(m._impl.is_wrap_inside)
+  (wrap_outside_id,) = np.nonzero(~m._impl.is_wrap_inside)
 
   # compute geom wrap length and connect points (if wrap occurs)
   v_wrap = jax.vmap(
@@ -853,9 +875,9 @@ def tendon(m: Model, d: Data) -> Data:
       has_sidesite[wrap_inside_id],
       is_sphere[wrap_inside_id],
       True,
-      m.wrap_inside_maxiter,
-      m.wrap_inside_tolerance,
-      m.wrap_inside_z_init,
+      m._impl.wrap_inside_maxiter,
+      m._impl.wrap_inside_tolerance,
+      m._impl.wrap_inside_z_init,
   )
 
   lengths_outside, pnt0_outside, pnt1_outside = v_wrap(
@@ -868,9 +890,9 @@ def tendon(m: Model, d: Data) -> Data:
       has_sidesite[wrap_outside_id],
       is_sphere[wrap_outside_id],
       False,
-      m.wrap_inside_maxiter,
-      m.wrap_inside_tolerance,
-      m.wrap_inside_z_init,
+      m._impl.wrap_inside_maxiter,
+      m._impl.wrap_inside_tolerance,
+      m._impl.wrap_inside_z_init,
   )
 
   wrap_id = np.argsort(np.concatenate([wrap_inside_id, wrap_outside_id]))
@@ -952,12 +974,14 @@ def tendon(m: Model, d: Data) -> Data:
   )
 
   # assemble length and moment
-  ten_length = jp.zeros_like(d.ten_length).at[tendon_id_jnt].set(length_jnt)
+  ten_length = (
+      jp.zeros_like(d._impl.ten_length).at[tendon_id_jnt].set(length_jnt)
+  )
   ten_length = ten_length.at[tendon_id_site].add(length_site)
   ten_length = ten_length.at[tendon_id_geom].add(length_geom)
 
   ten_moment = (
-      jp.zeros_like(d.ten_J)
+      jp.zeros_like(d._impl.ten_J)
       .at[adr_moment_jnt, dofadr_moment_jnt]
       .set(moment_jnt)
   )
@@ -1020,14 +1044,14 @@ def tendon(m: Model, d: Data) -> Data:
       [wrap_obj[sort], jp.zeros(2 * m.nwrap - count, dtype=int)]
   ).reshape((m.nwrap, 2))
 
-  return d.replace(
-      ten_length=ten_length,
-      ten_J=ten_moment,
-      ten_wrapadr=jp.array(ten_wrapadr, dtype=int),
-      ten_wrapnum=jp.array(ten_wrapnum, dtype=int),
-      wrap_xpos=wrap_xpos,
-      wrap_obj=jp.array(wrap_obj, dtype=int),
-  )
+  return d.tree_replace({
+      '_impl.ten_length': ten_length,
+      '_impl.ten_J': ten_moment,
+      '_impl.ten_wrapadr': jp.array(ten_wrapadr, dtype=int),
+      '_impl.ten_wrapnum': jp.array(ten_wrapnum, dtype=int),
+      '_impl.wrap_xpos': wrap_xpos,
+      '_impl.wrap_obj': jp.array(wrap_obj, dtype=int),
+  })
 
 
 def _site_dof_mask(m: Model) -> np.ndarray:
@@ -1061,6 +1085,9 @@ def _site_dof_mask(m: Model) -> np.ndarray:
 
 def transmission(m: Model, d: Data) -> Data:
   """Computes actuator/transmission lengths and moments."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('transmission requires JAX backend implementation.')
+
   if not m.nu:
     return d
 
@@ -1120,8 +1147,8 @@ def transmission(m: Model, d: Data) -> Data:
       wrench = jp.concatenate((frame_xmat @ gear[:3], frame_xmat @ gear[3:]))
       moment = jac @ wrench
     elif trntype == TrnType.TENDON:
-      length = d.ten_length[trnid[0]] * gear[:1]
-      moment = d.ten_J[trnid[0]] * gear[0]
+      length = d._impl.ten_length[trnid[0]] * gear[:1]
+      moment = d._impl.ten_J[trnid[0]] * gear[0]
     else:
       raise RuntimeError(f'unrecognized trntype: {TrnType(trntype)}')
 
@@ -1153,5 +1180,7 @@ def transmission(m: Model, d: Data) -> Data:
   length = length.reshape((m.nu,))
   moment = moment.reshape((m.nu, m.nv))
 
-  d = d.replace(actuator_length=length, actuator_moment=moment)
+  d = d.tree_replace(
+      {'_impl.actuator_length': length, '_impl.actuator_moment': moment}
+  )
   return d

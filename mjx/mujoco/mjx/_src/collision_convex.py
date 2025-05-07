@@ -28,8 +28,10 @@ from mujoco.mjx._src.collision_types import FunctionKey
 from mujoco.mjx._src.collision_types import GeomInfo
 from mujoco.mjx._src.collision_types import HFieldInfo
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import GeomType
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
 # pylint: enable=g-importing-member
 
 _GeomInfo = Union[GeomInfo, ConvexInfo]
@@ -42,6 +44,9 @@ def collider(ncon: int):
     def collide(
         m: Model, d: Data, key: FunctionKey, geom: jax.Array
     ) -> Collision:
+      if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+        raise ValueError('collider requires JAX backend implementation.')
+
       g1, g2 = geom.T
       infos = [
           GeomInfo(d.geom_xpos[g1], d.geom_xmat[g1], m.geom_size[g1]),
@@ -56,7 +61,7 @@ def collider(ncon: int):
               pos=0, mat=0, size=0, face=0, vert=0
           )
         elif key.types[i] == GeomType.MESH:
-          c, cm = infos[i], m.mesh_convex[key.data_ids[i]]
+          c, cm = infos[i], m._impl.mesh_convex[key.data_ids[i]]
           infos[i] = ConvexInfo(**vars(c), **vars(cm))
           in_axes[i] = jax.tree_util.tree_map(lambda x: None, infos[i]).replace(
               pos=0, mat=0, size=0

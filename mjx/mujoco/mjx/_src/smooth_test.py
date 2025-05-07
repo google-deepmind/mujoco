@@ -20,7 +20,7 @@ import jax
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
-from mujoco.mjx._src.types import ConeType
+from mujoco.mjx._src.types import ConeType  # pylint: disable=g-importing-member
 import numpy as np
 
 # tolerance for difference between MuJoCo and MJX smooth calculations - mostly
@@ -78,30 +78,27 @@ class SmoothTest(absltest.TestCase):
     # com_pos
     dx = jax.jit(mjx.com_pos)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'subtree_com')
-    _assert_attr_eq(d, dx, 'cinert')
-    _assert_attr_eq(d, dx, 'cdof')
+    _assert_attr_eq(d, dx._impl, 'cinert')
+    _assert_attr_eq(d, dx._impl, 'cdof')
     # camlight
     dx = jax.jit(mjx.camlight)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'cam_xpos')
     _assert_eq(d.cam_xmat.reshape((-1, 3, 3)), dx.cam_xmat, 'cam_xmat')
     # crb
     dx = jax.jit(mjx.crb)(mx, mjx.put_data(m, d))
-    _assert_attr_eq(d, dx, 'crb')
-    _assert_attr_eq(d, dx, 'qM')
-    _assert_eq(dx._qM_sparse, np.zeros(0), '_qM_sparse')
+    _assert_attr_eq(d, dx._impl, 'crb')
+    _assert_attr_eq(d, dx._impl, 'qM')
     # factor_m
     dx = jax.jit(mjx.factor_m)(mx, mjx.put_data(m, d))
     qLDLegacy = np.zeros(mx.nM)  # pylint:disable=invalid-name
     for i in range(m.nM):
       qLDLegacy[d.mapM2M[i]] = d.qLD[i]
-    _assert_eq(qLDLegacy, dx.qLD, 'qLD')
-    _assert_attr_eq(d, dx, 'qLDiagInv')
-    _assert_eq(dx._qLD_sparse, np.zeros(0), '_qLD_sparse')
-    _assert_eq(dx._qLDiagInv_sparse, np.zeros(0), '_qLDiagInv_sparse')
+    _assert_eq(qLDLegacy, dx._impl.qLD, 'qLD')
+    _assert_attr_eq(d, dx._impl, 'qLDiagInv')
     # com_vel
     dx = jax.jit(mjx.com_vel)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'cvel')
-    _assert_attr_eq(d, dx, 'cdof_dot')
+    _assert_attr_eq(d, dx._impl, 'cdof_dot')
     # rne
     dx = jax.jit(mjx.rne)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_bias')
@@ -122,11 +119,11 @@ class SmoothTest(absltest.TestCase):
     mujoco.mj_forward(m, d)
     # tendon
     dx = jax.jit(mjx.tendon)(mx, mjx.put_data(m, d))
-    _assert_attr_eq(d, dx, 'ten_J')
-    _assert_attr_eq(d, dx, 'ten_length')
+    _assert_attr_eq(d, dx._impl, 'ten_J')
+    _assert_attr_eq(d, dx._impl, 'ten_length')
     # transmission
     dx = jax.jit(mjx.transmission)(mx, dx)
-    _assert_attr_eq(d, dx, 'actuator_length')
+    _assert_attr_eq(d, dx._impl, 'actuator_length')
 
     # convert sparse actuator_moment to dense representation
     moment = np.zeros((m.nu, m.nv))
@@ -137,7 +134,7 @@ class SmoothTest(absltest.TestCase):
         d.moment_rowadr,
         d.moment_colind,
     )
-    _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
+    _assert_eq(moment, dx._impl.actuator_moment, 'actuator_moment')
 
   def test_disable_gravity(self):
     m = mujoco.MjModel.from_xml_string("""
@@ -197,7 +194,7 @@ class SmoothTest(absltest.TestCase):
 
     mujoco.mj_transmission(m, d)
     dx = jax.jit(mjx.transmission)(mx, dx)
-    _assert_attr_eq(d, dx, 'actuator_length')
+    _assert_attr_eq(d, dx._impl, 'actuator_length')
 
     # convert sparse actuator_moment to dense representation
     moment = np.zeros((m.nu, m.nv))
@@ -208,7 +205,7 @@ class SmoothTest(absltest.TestCase):
         d.moment_rowadr,
         d.moment_colind,
     )
-    _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
+    _assert_eq(moment, dx._impl.actuator_moment, 'actuator_moment')
 
   def test_subtree_vel(self):
     """Tests MJX subtree_vel function matches MuJoCo mj_subtreeVel."""
@@ -226,8 +223,8 @@ class SmoothTest(absltest.TestCase):
     mujoco.mj_subtreeVel(m, d)
     dx = jax.jit(mjx.subtree_vel)(mx, dx)
 
-    _assert_attr_eq(d, dx, 'subtree_linvel')
-    _assert_attr_eq(d, dx, 'subtree_angmom')
+    _assert_attr_eq(d, dx._impl, 'subtree_linvel')
+    _assert_attr_eq(d, dx._impl, 'subtree_angmom')
 
 
 class RnePostConstraintTest(parameterized.TestCase):
@@ -278,9 +275,9 @@ class RnePostConstraintTest(parameterized.TestCase):
     mujoco.mj_rnePostConstraint(m, d)
     dx = jax.jit(mjx.rne_postconstraint)(mx, dx)
 
-    _assert_eq(d.cacc, dx.cacc, 'cacc')
-    _assert_eq(d.cfrc_ext, dx.cfrc_ext, 'cfrc_ext')
-    _assert_eq(d.cfrc_int, dx.cfrc_int, 'cfrc_int')
+    _assert_eq(d.cacc, dx._impl.cacc, 'cacc')
+    _assert_eq(d.cfrc_ext, dx._impl.cfrc_ext, 'cfrc_ext')
+    _assert_eq(d.cfrc_int, dx._impl.cfrc_int, 'cfrc_int')
 
 
 class TendonTest(parameterized.TestCase):
@@ -312,12 +309,12 @@ class TendonTest(parameterized.TestCase):
     mujoco.mj_forward(m, d)
     dx = jax.jit(mjx.forward)(mx, dx)
 
-    _assert_eq(d.ten_length, dx.ten_length, 'ten_length')
-    _assert_eq(d.ten_J, dx.ten_J, 'ten_J')
-    _assert_eq(d.ten_wrapnum, dx.ten_wrapnum, 'ten_wrapnum')
-    _assert_eq(d.ten_wrapadr, dx.ten_wrapadr, 'ten_wrapadr')
-    _assert_eq(d.wrap_obj, dx.wrap_obj, 'wrap_obj')
-    _assert_eq(d.wrap_xpos, dx.wrap_xpos, 'wrap_xpos')
+    _assert_eq(d.ten_length, dx._impl.ten_length, 'ten_length')
+    _assert_eq(d.ten_J, dx._impl.ten_J, 'ten_J')
+    _assert_eq(d.ten_wrapnum, dx._impl.ten_wrapnum, 'ten_wrapnum')
+    _assert_eq(d.ten_wrapadr, dx._impl.ten_wrapadr, 'ten_wrapadr')
+    _assert_eq(d.wrap_obj, dx._impl.wrap_obj, 'wrap_obj')
+    _assert_eq(d.wrap_xpos, dx._impl.wrap_xpos, 'wrap_xpos')
 
 
 if __name__ == '__main__':

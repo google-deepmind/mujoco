@@ -385,7 +385,7 @@ class SupportTest(parameterized.TestCase):
 
     # map MJX contacts to MJ ones
     def _find(g):
-      val = (g == dx.contact.geom).sum(axis=1)
+      val = (g == dx._impl.contact.geom).sum(axis=1)
       return np.where(val == 2)[0][0]
 
     contact_id_map = {i: _find(d.contact.geom[i]) for i in range(d.ncon)}
@@ -399,7 +399,7 @@ class SupportTest(parameterized.TestCase):
       np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
 
       # check for zeros after first condim elements
-      condim = dx.contact.dim[j]
+      condim = dx._impl.contact.dim[j]
       if condim < 6:
         np.testing.assert_allclose(force[condim:], 0, rtol=1e-5, atol=1e-5)
 
@@ -412,8 +412,8 @@ class SupportTest(parameterized.TestCase):
           ),
       )(mx, dx, j, True)
       # back to contact frame
-      force = force.at[:3].set(dx.contact.frame[j] @ force[:3])
-      force = force.at[3:].set(dx.contact.frame[j] @ force[3:])
+      force = force.at[:3].set(dx._impl.contact.frame[j] @ force[:3])
+      force = force.at[3:].set(dx._impl.contact.frame[j] @ force[3:])
       np.testing.assert_allclose(result, force, rtol=1e-5, atol=2)
 
   def test_wrap_inside(self):

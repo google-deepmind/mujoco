@@ -69,16 +69,16 @@ def inv_constraint(m: Model, d: Data) -> Data:
   """Inverse constraint solver."""
 
   # no constraints
-  if d.efc_J.size == 0:
+  if d._impl.efc_J.size == 0:  # pytype: disable=attribute-error
     return d.replace(qfrc_constraint=jp.zeros(m.nv))
 
   # update
   ctx = solver.Context.create(m, d, grad=False)
 
-  return d.replace(
-      qfrc_constraint=ctx.qfrc_constraint,
-      efc_force=ctx.efc_force,
-  )
+  return d.tree_replace({
+      'qfrc_constraint': ctx.qfrc_constraint,
+      '_impl.efc_force': ctx.efc_force,
+  })
 
 
 def inverse(m: Model, d: Data) -> Data:

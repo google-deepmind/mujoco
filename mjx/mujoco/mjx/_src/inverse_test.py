@@ -15,12 +15,10 @@
 """Tests for inverse dynamics functions."""
 from absl.testing import absltest
 from absl.testing import parameterized
-import jax
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import support
-from mujoco.mjx._src import test_util
 import numpy as np
 
 # tolerance for difference between MuJoCo and MJX calculations - mostly

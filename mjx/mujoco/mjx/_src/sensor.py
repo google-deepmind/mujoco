@@ -22,9 +22,12 @@ from mujoco.mjx._src import math
 from mujoco.mjx._src import ray
 from mujoco.mjx._src import smooth
 from mujoco.mjx._src import support
+from mujoco.mjx._src.types import BackendImpl
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import SensorType
 from mujoco.mjx._src.types import TrnType
@@ -32,7 +35,7 @@ from mujoco.mjx._src.types import TrnType
 import numpy as np
 
 
-def apply_cutoff(
+def _apply_cutoff(
     sensor: jax.Array, cutoff: jax.Array, data_type: int
 ) -> jax.Array:
   """Clip sensor to cutoff value."""
@@ -51,6 +54,8 @@ def apply_cutoff(
 
 def sensor_pos(m: Model, d: Data) -> Data:
   """Compute position-dependent sensors values."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('sensor_pos requires JAX backend implementation.')
 
   if m.opt.disableflags & DisableBit.SENSOR:
     return d
@@ -163,15 +168,15 @@ def sensor_pos(m: Model, d: Data) -> Data:
         sensor, _ = jax.vmap(
             ray.ray, in_axes=(None, None, 0, 0, None, None, None)
         )(m, d, site_xpos, site_mat, (), True, sid)
-        sensors.append(apply_cutoff(sensor, cutoffs, data_type[0]))
+        sensors.append(_apply_cutoff(sensor, cutoffs, data_type[0]))
         adrs.append(adr[idxs])
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type == SensorType.JOINTPOS:
       sensor = d.qpos[m.jnt_qposadr[objid]]
     elif sensor_type == SensorType.TENDONPOS:
-      sensor = d.ten_length[objid]
+      sensor = d._impl.ten_length[objid]
     elif sensor_type == SensorType.ACTUATORPOS:
-      sensor = d.actuator_length[objid]
+      sensor = d._impl.actuator_length[objid]
     elif sensor_type == SensorType.BALLQUAT:
       jnt_qposadr = m.jnt_qposadr[objid, None] + np.arange(4)[None]
       quat = d.qpos[jnt_qposadr]
@@ -194,7 +199,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
         cutofft = cutoff[idxt]
         sensor = jax.vmap(_framepos)(xpos, xpos_ref, xmat_ref, refidt)
         adrt = adr[idxt, None] + np.arange(3)[None]
-        sensors.append(apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
+        sensors.append(_apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
         adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type in frame_axis:
@@ -214,7 +219,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
         cutofft = cutoff[idxt]
         sensor = jax.vmap(_frameaxis)(xmat, xmat_ref, refidt)
         adrt = adr[idxt, None] + np.arange(3)[None]
-        sensors.append(apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
+        sensors.append(_apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
         adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type == SensorType.FRAMEQUAT:
@@ -255,7 +260,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
             )
         )(quat, refquat, refidt)
         adrt = adr[idxt, None] + np.arange(4)[None]
-        sensors.append(apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
+        sensors.append(_apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
         adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type == SensorType.SUBTREECOM:
@@ -267,7 +272,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
       continue  # unsupported sensor type
 
-    sensors.append(apply_cutoff(sensor, cutoff, data_type[0]).reshape(-1))
+    sensors.append(_apply_cutoff(sensor, cutoff, data_type[0]).reshape(-1))
     adrs.append(adr)
 
   if not adrs:
@@ -282,6 +287,8 @@ def sensor_pos(m: Model, d: Data) -> Data:
 
 def sensor_vel(m: Model, d: Data) -> Data:
   """Compute velocity-dependent sensors values."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('sensor_vel requires JAX backend implementation.')
 
   if m.opt.disableflags & DisableBit.SENSOR:
     return d
@@ -333,9 +340,9 @@ def sensor_vel(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.JOINTVEL:
       sensor = d.qvel[m.jnt_dofadr[objid]]
     elif sensor_type == SensorType.TENDONVEL:
-      sensor = d.ten_velocity[objid]
+      sensor = d._impl.ten_velocity[objid]
     elif sensor_type == SensorType.ACTUATORVEL:
-      sensor = d.actuator_velocity[objid]
+      sensor = d._impl.actuator_velocity[objid]
     elif sensor_type == SensorType.BALLANGVEL:
       jnt_dotadr = m.jnt_dofadr[objid, None] + np.arange(3)[None]
       sensor = d.qvel[jnt_dotadr]
@@ -393,20 +400,20 @@ def sensor_vel(m: Model, d: Data) -> Data:
 
         adrt = adr[idxt, None] + np.arange(3)[None]
 
-        sensors.append(apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
+        sensors.append(_apply_cutoff(sensor, cutofft, data_type[0]).reshape(-1))
         adrs.append(adrt.reshape(-1))
       continue  # avoid adding to sensors/adrs list a second time
     elif sensor_type == SensorType.SUBTREELINVEL:
-      sensor = d.subtree_linvel[objid]
+      sensor = d._impl.subtree_linvel[objid]
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     elif sensor_type == SensorType.SUBTREEANGMOM:
-      sensor = d.subtree_angmom[objid]
+      sensor = d._impl.subtree_angmom[objid]
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     else:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
       continue  # unsupported sensor type
 
-    sensors.append(apply_cutoff(sensor, cutoff, data_type[0]).reshape(-1))
+    sensors.append(_apply_cutoff(sensor, cutoff, data_type[0]).reshape(-1))
     adrs.append(adr)
 
   if not adrs:
@@ -421,6 +428,8 @@ def sensor_vel(m: Model, d: Data) -> Data:
 
 def sensor_acc(m: Model, d: Data) -> Data:
   """Compute acceleration/force-dependent sensors values."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('sensor_acc requires JAX backend implementation.')
 
   if m.opt.disableflags & DisableBit.SENSOR:
     return d
@@ -460,14 +469,14 @@ def sensor_acc(m: Model, d: Data) -> Data:
       # compute contact forces
       forces = []
       condim_ids = []
-      for dim in set(d.contact.dim):
+      for dim in set(d._impl.contact.dim):
         force, condim_id = support.contact_force_dim(m, d, dim)
         forces.append(force)
         condim_ids.append(condim_id)
       forces = jp.concatenate(forces)[np.argsort(np.concatenate(condim_ids))]
 
       # get bodies of contact geoms
-      conbody = jp.array(m.geom_bodyid)[d.contact.geom]
+      conbody = jp.array(m.geom_bodyid)[d._impl.contact.geom]
 
       # get site information
       site_bodyid = m.site_bodyid[objid]
@@ -477,12 +486,14 @@ def sensor_acc(m: Model, d: Data) -> Data:
       site_type = m.site_type[objid]
       conbody0 = site_bodyid[:, None] == conbody[:, 0]
       conbody1 = site_bodyid[:, None] == conbody[:, 1]
-      contacts = (d.contact.efc_address >= 0)[None] & (conbody0 | conbody1)
+      contacts = (d._impl.contact.efc_address >= 0)[None] & (
+          conbody0 | conbody1
+      )
 
       # compute conray, flip if second body
       conray = jax.vmap(
           lambda frame, force: math.normalize(frame[0] * force[0])
-      )(d.contact.frame, forces)
+      )(d._impl.contact.frame, forces)
       conray = jp.where(conbody1[..., None], -conray, conray)
 
       # compute distance, mapping over sites and contacts
@@ -504,7 +515,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
             site_xpos[dist_id_site],
             site_xmat[dist_id_site],
             st,
-            d.contact.pos,
+            d._impl.contact.pos,
             conray[dist_id_site],
         )
         dist.append(jp.where(jp.isinf(dist_site), 0, dist_site))
@@ -526,14 +537,14 @@ def sensor_acc(m: Model, d: Data) -> Data:
       bodyid = m.site_bodyid[objid]
       rot = d.site_xmat[objid]
       cvel = d.cvel[bodyid]
-      cacc = d.cacc[bodyid]
+      cacc = d._impl.cacc[bodyid]
       dif = d.site_xpos[objid] - d.subtree_com[m.body_rootid[bodyid]]
 
       sensor = _accelerometer(cvel, cacc, dif, rot)
       adr = (adr[:, None] + np.arange(3)[None]).reshape(-1)
     elif sensor_type == SensorType.FORCE:
       bodyid = m.site_bodyid[objid]
-      cfrc_int = d.cfrc_int[bodyid]
+      cfrc_int = d._impl.cfrc_int[bodyid]
       site_xmat = d.site_xmat[objid]
       sensor = jax.vmap(lambda mat, vec: mat.T @ vec)(
           site_xmat, cfrc_int[:, 3:]
@@ -542,7 +553,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.TORQUE:
       bodyid = m.site_bodyid[objid]
       rootid = m.body_rootid[bodyid]
-      cfrc_int = d.cfrc_int[bodyid]
+      cfrc_int = d._impl.cfrc_int[bodyid]
       site_xmat = d.site_xmat[objid]
       dif = d.site_xpos[objid] - d.subtree_com[rootid]
       sensor = jax.vmap(
@@ -571,7 +582,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
         pos, bodyid = objtype_data[ot]
         pos = pos[objidt]
         bodyid = bodyid[objidt]
-        cacc = d.cacc[bodyid]
+        cacc = d._impl.cacc[bodyid]
 
         if sensor_type == SensorType.FRAMELINACC:
 
@@ -601,7 +612,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
       # TODO(taylorhowell): raise error after adding sensor check to io.py
       continue  # unsupported sensor type
 
-    sensors.append(apply_cutoff(sensor, cutoff, data_type[0]).reshape(-1))
+    sensors.append(_apply_cutoff(sensor, cutoff, data_type[0]).reshape(-1))
     adrs.append(adr)
 
   if not adrs:
