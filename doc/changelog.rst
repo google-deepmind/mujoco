@@ -17,6 +17,8 @@ MJX
 ^^^
 1. Added inverse dynamics.
 2. Added tendon actuator force sensor.
+3. Fix :github:issue:`2606` such that ``make_data`` copies over ``mocap_pos`` and ``mocap_quat``
+   from ``body_pos`` and ``body_quat``.
 
 Version 3.3.1 (Apr 9, 2025)
 ----------------------------

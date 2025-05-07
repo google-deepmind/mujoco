@@ -401,6 +401,17 @@ def make_data(
       eq_active=m.eq_active0,
       **zero_fields,
   )
+
+  if m.nmocap:
+    # Set mocap_pos/quat = body_pos/quat for mocap bodies as done in C MuJoCo.
+    body_mask = m.body_mocapid >= 0
+    body_pos = m.body_pos[body_mask]
+    body_quat = m.body_quat[body_mask]
+    d = d.replace(
+        mocap_pos=body_pos[m.body_mocapid[body_mask]],
+        mocap_quat=body_quat[m.body_mocapid[body_mask]],
+    )
+
   d = jax.device_put(d, device=device)
 
   return d
