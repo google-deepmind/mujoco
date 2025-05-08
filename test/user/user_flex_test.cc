@@ -243,6 +243,27 @@ TEST_F(UserFlexTest, RigidFlex) {
   mj_deleteModel(m);
   mj_deleteData(d);
 }
+
+TEST_F(UserFlexTest, FlexNotCollide) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <flexcomp name="test" pos="1 0 -1" type="grid"
+                count="5 5 5" spacing="1 1 1" dim="3">
+        <contact contype="0" conaffinity="0"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  mjData* d = mj_makeData(m);
+  mj_step(m, d);
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
 TEST_F(UserFlexTest, BoundingBoxCoordinates) {
   static constexpr char xml[] = R"(
   <mujoco>

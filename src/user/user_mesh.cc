@@ -3624,8 +3624,9 @@ void mjCFlex::CreateBVH() {
     elemaabb_[6*e+5] = 0.5*(xmax[2]-xmin[2]) + radius;
 
     // add bounding volume for this element
+    // contype and conaffinity are set to nonzero to force bvh generation
     const double* aabb = elemaabb_.data() + 6*e;
-    tree.AddBoundingVolume(e, contype, conaffinity, aabb, nullptr, aabb);
+    tree.AddBoundingVolume(e, 1, 1, aabb, nullptr, aabb);
     nbvh++;
   }
 
