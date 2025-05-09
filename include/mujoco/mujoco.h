@@ -1644,6 +1644,13 @@ MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
 // Set user payload, overriding the existing value for the specified key if present.
 MJAPI void mjs_setUserValue(mjsElement* element, const char* key, const void* data);
 
+// Set user payload, overriding the existing value for the specified key if
+// present. This version differs from mjs_setUserValue in that it takes a
+// cleanup function that will be called when the user payload is deleted.
+MJAPI void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+                                       const void* data,
+                                       void (*cleanup)(const void*));
+
 // Return user payload or NULL if none found.
 MJAPI const void* mjs_getUserValue(mjsElement* element, const char* key);
 

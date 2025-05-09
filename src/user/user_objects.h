@@ -281,7 +281,8 @@ class mjCBase : public mjCBase_ {
   }
 
   // Set and get user payload
-  void SetUserValue(std::string_view key, const void* data);
+  void SetUserValue(std::string_view key, const void* data,
+                    void (*cleanup)(const void*));
   const void* GetUserValue(std::string_view key);
   void DeleteUserValue(std::string_view key);
 
@@ -292,8 +293,44 @@ class mjCBase : public mjCBase_ {
   // reference count for allowing deleting an attached object
   int refcount = 1;
 
+  // Arbitrary user value that cleans up the data when destroyed.
+  struct UserValue {
+    const void* value = nullptr;
+    void (*cleanup)(const void*) = nullptr;
+
+    UserValue() {}
+    UserValue(const void* value, void (*cleanup)(const void*))
+        : value(value), cleanup(cleanup) {}
+    UserValue(const UserValue& other) = delete;
+    UserValue& operator=(const UserValue& other) = delete;
+
+    UserValue(UserValue&& other) : value(other.value), cleanup(other.cleanup) {
+      other.value = nullptr;
+      other.cleanup = nullptr;
+    }
+
+    UserValue& operator=(UserValue&& other) {
+      if (this != &other) {
+        if (cleanup && value) {
+          cleanup(value);
+        }
+        value = other.value;
+        cleanup = other.cleanup;
+        other.value = nullptr;
+        other.cleanup = nullptr;
+      }
+      return *this;
+    }
+
+    ~UserValue() {
+      if (cleanup && value) {
+        cleanup(value);
+      }
+    }
+  };
+
   // user payload
-  std::unordered_map<std::string, const void*> user_payload_;
+  std::unordered_map<std::string, UserValue> user_payload_;
 };
 
 

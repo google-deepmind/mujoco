@@ -860,15 +860,17 @@ mjsFrame* mjs_bodyToFrame(mjsBody** body) {
   return &frameC->spec;
 }
 
-
-
-// set user payload
 void mjs_setUserValue(mjsElement* element, const char* key, const void* data) {
-  mjCBase* baseC = static_cast<mjCBase*>(element);
-  baseC->SetUserValue(key, data);
+  mjs_setUserValueWithCleanup(element, key, data, nullptr);
 }
 
-
+// set user payload
+void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+                                 const void* data,
+                                 void (*cleanup)(const void*)) {
+  mjCBase* baseC = static_cast<mjCBase*>(element);
+  baseC->SetUserValue(key, data, cleanup);
+}
 
 // return user payload or NULL if none found
 const void* mjs_getUserValue(mjsElement* element, const char* key) {

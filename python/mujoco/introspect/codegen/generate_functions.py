@@ -99,8 +99,13 @@ class MjFunctionVisitor:
       return ''.join(strings)
 
   def visit(self, node: ClangJsonNode) -> None:
-    if (node.get('kind') == 'FunctionDecl' and
-        node.get('name', '').startswith('mj')):
+    # Skip mjs_setUserValueWithCleanup as it's only useful for heap allocated
+    # objects and doesn't need a python wrapper.
+    if (
+        node.get('kind') == 'FunctionDecl'
+        and node.get('name', '').startswith('mj')
+        and node.get('name', '') != 'mjs_setUserValueWithCleanup'
+    ):
       func_decl = self._make_function(node)
       self._functions[func_decl.name] = func_decl
 

@@ -374,6 +374,11 @@ MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
 // Set user payload.
 MJAPI void mjs_setUserValue(mjsElement* element, const char* key, const void* data);
 
+// Set user payload.
+MJAPI void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+                                       const void* data,
+                                       void (*cleanup)(const void*));
+
 // Return user payload or NULL if none found.
 MJAPI const void* mjs_getUserValue(mjsElement* element, const char* key);
 

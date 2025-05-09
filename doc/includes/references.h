@@ -3732,6 +3732,9 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
                                    const mjsOrientation* orientation);
 mjsFrame* mjs_bodyToFrame(mjsBody** body);
 void mjs_setUserValue(mjsElement* element, const char* key, const void* data);
+void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+                                 const void* data,
+                                 void (*cleanup)(const void*));
 const void* mjs_getUserValue(mjsElement* element, const char* key);
 void mjs_deleteUserValue(mjsElement* element, const char* key);
 void mjs_defaultSpec(mjSpec* spec);

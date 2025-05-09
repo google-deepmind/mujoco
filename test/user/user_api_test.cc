@@ -2845,6 +2845,14 @@ TEST_F(MujocoTest, UserValue) {
   EXPECT_STREQ(static_cast<const char*>(payload), data.c_str());
   mjs_deleteUserValue(body->element, "key");
   EXPECT_THAT(mjs_getUserValue(body->element, "key"), IsNull());
+
+  std::string* heap_data = new std::string("heap_data");
+  mjs_setUserValueWithCleanup(
+      body->element, "key", heap_data,
+      [](const void* data) { delete static_cast<const std::string*>(data); });
+  payload = mjs_getUserValue(body->element, "key");
+  EXPECT_STREQ(static_cast<const std::string*>(payload)->c_str(),
+               heap_data->c_str());
   mj_deleteSpec(spec);
 }
 
