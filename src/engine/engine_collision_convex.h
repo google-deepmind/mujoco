@@ -49,6 +49,7 @@ struct _mjCCDObj {
   const mjData* data;
   int geom;
   int geom_type;
+  int vertindex;
   int meshindex;
   int flex;
   int elem;
@@ -73,6 +74,12 @@ MJAPI void mjccd_center(const void *obj, ccd_vec3_t *center);
 // libccd support function
 MJAPI void mjccd_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec);
 
+// support function for point
+void mjc_pointSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
+
+// support function for line (capsule)
+void mjc_lineSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]);
+
 // pairwise geom collision functions using ccd
 int mjc_PlaneConvex   (const mjModel* m, const mjData* d,
                        mjContact* con, int g1, int g2, mjtNum margin);
@@ -85,7 +92,7 @@ int mjc_Convex        (const mjModel* m, const mjData* d,
 int mjc_ConvexElem    (const mjModel* m, const mjData* d, mjContact* con,
                        int g1, int f1, int e1, int v1, int f2, int e2, mjtNum margin);
 
-// heighfield-elem collision function using ccd
+// heightfield-elem collision function using ccd
 int mjc_HFieldElem    (const mjModel* m, const mjData* d, mjContact* con,
                        int g, int f, int e, mjtNum margin);
 

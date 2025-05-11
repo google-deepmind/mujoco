@@ -15,7 +15,6 @@
 #include "engine/engine_support.h"
 
 #include <stddef.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -42,8 +41,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 325
-#define mjVERSIONSTRING "3.2.5"
+ #define mjVERSION 331
+#define mjVERSIONSTRING "3.3.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -62,7 +61,8 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Sensor",
   "Midphase",
   "Eulerdamp",
-  "AutoReset"
+  "AutoReset",
+  "NativeCCD"
 };
 
 
@@ -73,8 +73,7 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Fwdinv",
   "InvDiscrete",
   "MultiCCD",
-  "Island",
-  "NativeCCD"
+  "Island"
 };
 
 
@@ -278,7 +277,7 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
     return 0;
   }
 
-  // intialize last dof address for each body
+  // initialize last dof address for each body
   da1 = m->body_dofadr[b1] + m->body_dofnum[b1] - 1;
   da2 = m->body_dofadr[b2] + m->body_dofnum[b2] - 1;
 
@@ -361,7 +360,7 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
       return 0;
     }
 
-    // intialize last dof
+    // initialize last dof
     int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
     int NV = 0;
 
@@ -459,7 +458,7 @@ void mj_jacBodyCom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr
 void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body) {
   int nv = m->nv;
   mj_markStack(d);
-  mjtNum* jacp_b = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacp_b = mjSTACKALLOC(d, 3*nv, mjtNum);
 
   // clear output
   mju_zero(jacp, 3*nv);
@@ -505,8 +504,8 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
 
   // get full Jacobian of point
   mj_markStack(d);
-  mjtNum* jacp = (jacPoint ? jacPoint : mj_stackAllocNum(d, 3*nv));
-  mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacp = (jacPoint ? jacPoint : mjSTACKALLOC(d, 3*nv, mjtNum));
+  mjtNum* jacr = mjSTACKALLOC(d, 3*nv, mjtNum);
   mj_jac(m, d, jacp, jacr, point, body);
 
   // jacAxis_col = cross(jacr_col, axis)
@@ -527,9 +526,6 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
 void mj_jacSparse(const mjModel* m, const mjData* d,
                   mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
                   int NV, const int* chain) {
-  int da, ci;
-  mjtNum offset[3], tmp[3], *cdof = d->cdof;
-
   // clear jacobians
   if (jacp) {
     mju_zero(jacp, 3*NV);
@@ -539,6 +535,7 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
   }
 
   // compute point-com offset
+  mjtNum offset[3];
   mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
 
   // skip fixed bodies
@@ -552,10 +549,10 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
   }
 
   // get last dof that affects this (as well as the original) body
-  da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+  int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
 
   // start and the end of the chain (chain is in increasing order)
-  ci = NV-1;
+  int ci = NV-1;
 
   // backward pass over dof ancestor chain
   while (da >= 0) {
@@ -569,20 +566,23 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
       mjERROR("dof index %d not found in chain", da);
     }
 
+    const mjtNum* cdof = d->cdof + 6*da;
+
     // construct rotation jacobian
     if (jacr) {
-      jacr[ci] = cdof[6*da];
-      jacr[ci+NV] = cdof[6*da+1];
-      jacr[ci+2*NV] = cdof[6*da+2];
+      jacr[ci+0*NV] = cdof[0];
+      jacr[ci+1*NV] = cdof[1];
+      jacr[ci+2*NV] = cdof[2];
     }
 
     // construct translation jacobian (correct for rotation)
     if (jacp) {
-      mju_cross(tmp, cdof+6*da, offset);
+      mjtNum tmp[3];
+      mju_cross(tmp, cdof, offset);
 
-      jacp[ci] = cdof[6*da+3] + tmp[0];
-      jacp[ci+NV] = cdof[6*da+4] + tmp[1];
-      jacp[ci+2*NV] = cdof[6*da+5] + tmp[2];
+      jacp[ci+0*NV] = cdof[3] + tmp[0];
+      jacp[ci+1*NV] = cdof[4] + tmp[1];
+      jacp[ci+2*NV] = cdof[5] + tmp[2];
     }
 
     // advance to parent dof
@@ -596,9 +596,8 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
 void mj_jacSparseSimple(const mjModel* m, const mjData* d,
                         mjtNum* jacdifp, mjtNum* jacdifr, const mjtNum* point,
                         int body, int flg_second, int NV, int start) {
-  mjtNum offset[3], tmp[3];
-
   // compute point-com offset
+  mjtNum offset[3];
   mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
 
   // skip fixed body
@@ -631,6 +630,7 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
 
     // construct translation jacobian (correct for rotation)
     if (jacdifp) {
+      mjtNum tmp[3];
       mju_cross(tmp, cdof, offset);
 
       // plus sign
@@ -741,15 +741,15 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
   mjtNum* jacr = flg_rot ? jac + 3*nv : NULL;
 
   mj_markStack(d);
-  mjtNum* jtmp = mj_stackAllocNum(d, flg_rot ? 6*nv : 3*nv);
+  mjtNum* jtmp = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
   mjtNum* jp = jtmp;
   mjtNum* jr = flg_rot ? jtmp + 3*nv : NULL;
 
   // sparse
   if (mj_isSparse(m)) {
-    mjtNum* buf = mj_stackAllocNum(d, flg_rot ? 6*nv : 3*nv);
-    int* buf_ind = mj_stackAllocInt(d, nv);
-    int* bodychain = mj_stackAllocInt(d, nv);
+    mjtNum* buf = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
+    int* buf_ind = mjSTACKALLOC(d, nv, int);
+    int* bodychain = mjSTACKALLOC(d, nv, int);
 
     // set first
     NV = mj_bodyChain(m, body[0], chain);
@@ -811,11 +811,14 @@ void mj_jacDot(const mjModel* m, const mjData* d,
                mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body) {
   int nv = m->nv;
   mjtNum offset[3];
+  mjtNum pvel[6];  // point velocity (rot:lin order)
 
-  // clear jacobians, compute offset if required
+  // clear jacobians, compute offset and pvel if required
   if (jacp) {
     mju_zero(jacp, 3*nv);
-    mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
+    const mjtNum* com = d->subtree_com+3*m->body_rootid[body];
+    mju_sub3(offset, point, com);
+    mju_transformSpatial(pvel, d->cvel+6*body, 0, point, com, 0);
   }
   if (jacr) {
     mju_zero(jacr, 3*nv);
@@ -838,6 +841,7 @@ void mj_jacDot(const mjModel* m, const mjData* d,
   while (i >= 0) {
     mjtNum cdof_dot[6];
     mju_copy(cdof_dot, d->cdof_dot+6*i, 6);
+    mjtNum* cdof = d->cdof+6*i;
 
     // check for quaternion
     mjtJoint type = m->jnt_type[m->dof_jntid[i]];
@@ -846,7 +850,7 @@ void mj_jacDot(const mjModel* m, const mjData* d,
 
     // compute cdof_dot for quaternion (use current body cvel)
     if (is_quat) {
-      mju_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[i], d->cdof+6*i);
+      mju_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[i], cdof);
     }
 
     // construct rotation jacobian
@@ -858,11 +862,17 @@ void mj_jacDot(const mjModel* m, const mjData* d,
 
     // construct translation jacobian (correct for rotation)
     if (jacp) {
-      mjtNum tmp[3] = {0};
-      mju_cross(tmp, cdof_dot, offset);
-      jacp[i+0*nv] += cdof_dot[3] + tmp[0];
-      jacp[i+1*nv] += cdof_dot[4] + tmp[1];
-      jacp[i+2*nv] += cdof_dot[5] + tmp[2];
+      // first correction term, account for varying cdof
+      mjtNum tmp1[3];
+      mju_cross(tmp1, cdof_dot, offset);
+
+      // second correction term, account for point translational velocity
+      mjtNum tmp2[3];
+      mju_cross(tmp2, cdof, pvel + 3);
+
+      jacp[i+0*nv] += cdof_dot[3] + tmp1[0] + tmp2[0];
+      jacp[i+1*nv] += cdof_dot[4] + tmp1[1] + tmp2[1];
+      jacp[i+2*nv] += cdof_dot[5] + tmp1[2] + tmp2[2];
     }
 
     // advance to parent dof
@@ -878,10 +888,10 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
   mj_markStack(d);
 
   // stack allocations
-  mjtNum* jacp = mj_stackAllocNum(d, 3*nv);
-  mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
-  mjtNum* term1 = mj_stackAllocNum(d, 3*nv);
-  mjtNum* term2 = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacr = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* term1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* term2 = mjSTACKALLOC(d, 3*nv, mjtNum);
 
   // clear output
   mju_zero(mat, 3*nv);
@@ -1085,59 +1095,27 @@ void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 
 // multiply vector by M^(1/2)
 void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
-  int adr, nv = m->nv;
+  int  nv = m->nv;
   const mjtNum* qLD = d->qLD;
-  const mjtNum* qLDiagSqrtInv = d->qLDiagSqrtInv;
-  const int* dofMadr = m->dof_Madr;
 
   mju_zero(res, nv);
 
+  // res = L * vec
   for (int i=0; i < nv; i++) {
-#ifdef mjUSEAVX
-    // simple: diagonal division, AVX
-    if (m->dof_simplenum[i] >= 4) {
-      // init
-      __m256d result, val1, val2;
+    // diagonal
+    res[i] = vec[i];
 
-      // parallel computation
-      val1 = _mm256_loadu_pd(vec+i);
-      val2 = _mm256_set_pd(qLDiagSqrtInv[dofMadr[i+3]],
-                           qLDiagSqrtInv[dofMadr[i+2]],
-                           qLDiagSqrtInv[dofMadr[i+1]],
-                           qLDiagSqrtInv[dofMadr[i+0]]);
-      result = _mm256_div_pd(val1, val2);
-
-      // store result
-      _mm256_storeu_pd(res+i, result);
-
-      // skip rest of block
-      i += 3;
-      continue;
+    // non-simple: add off-diagonals
+    if (!m->dof_simplenum[i]) {
+      int adr = d->M_rowadr[i];
+      res[i] += mju_dotSparse(qLD+adr, vec, d->M_rownnz[i] - 1, d->M_colind+adr, /*flg_unc1=*/0);
     }
-#endif
+  }
 
-    // simple: diagonal division
-    if (m->dof_simplenum[i]) {
-      res[i] = vec[i]/qLDiagSqrtInv[i];
-    }
-
-    // regular: full multiplication
-    else {
-      // diagonal
-      adr = dofMadr[i];
-      res[i] += vec[i]/qLDiagSqrtInv[i];
-
-      // off-diagonal
-      int j = m->dof_parentid[i];
-      adr++;
-      while (j >= 0) {
-        res[i] += qLD[adr]*vec[j];
-
-        // advance to next element
-        j = m->dof_parentid[j];
-        adr++;
-      }
-    }
+  // res *= sqrt(D)
+  for (int i=0; i < nv; i++) {
+    int diag = d->M_rowadr[i] + d->M_rownnz[i] - 1;
+    res[i] *= mju_sqrt(qLD[diag]);
   }
 }
 
@@ -1153,7 +1131,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     mj_markStack(d);
 
     // create reduced sparse inertia matrix C
-    mjtNum* C = mj_stackAllocNum(d, nC);
+    mjtNum* C = mjSTACKALLOC(d, nC, mjtNum);
     for (int i=0; i < nC; i++) {
       C[i] = d->qM[d->mapM2C[i]];
     }
@@ -1178,8 +1156,8 @@ void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
   int nv = m->nv;
 
   mj_markStack(d);
-  int* buf_ind = mj_stackAllocInt(d, nv);
-  mjtNum* sparse_buf = mj_stackAllocNum(d, nv);
+  int* buf_ind = mjSTACKALLOC(d, nv, int);
+  mjtNum* sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
 
   // add to destination
   for (int i=0; i < nv; i++) {
@@ -1230,9 +1208,9 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
   // allocate local variables
   mj_markStack(d);
-  mjtNum* jacp = force ? mj_stackAllocNum(d, 3*nv) : NULL;
-  mjtNum* jacr = torque ? mj_stackAllocNum(d, 3*nv) : NULL;
-  mjtNum* qforce = mj_stackAllocNum(d, nv);
+  mjtNum* jacp = force ? mjSTACKALLOC(d, 3*nv, mjtNum) : NULL;
+  mjtNum* jacr = torque ? mjSTACKALLOC(d, 3*nv, mjtNum) : NULL;
+  mjtNum* qforce = mjSTACKALLOC(d, nv, mjtNum);
 
   // make sure body is in range
   if (body < 0 || body >= m->nbody) {
@@ -1242,7 +1220,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
   // sparse case
   if (mj_isSparse(m)) {
     // construct chain and sparse Jacobians
-    int* chain = mj_stackAllocInt(d, nv);
+    int* chain = mjSTACKALLOC(d, nv, int);
     int NV = mj_bodyChain(m, body, chain);
     mj_jacSparse(m, d, jacp, jacr, point, body, NV, chain);
 
@@ -1409,15 +1387,15 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
 // returns the smallest distance between two geoms (using nativeccd)
 static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int g2,
-                                 mjtNum fromto[6]) {
+                                 mjtNum distmax, mjtNum fromto[6]) {
   mjCCDConfig config;
   mjCCDStatus status;
 
   // set config
   config.max_iterations = m->opt.ccd_iterations;
   config.tolerance = m->opt.ccd_tolerance;
-  config.contacts = 1;   // want contacts
-  config.distances = 1;  // want geom distances
+  config.max_contacts = 1;        // want contacts
+  config.dist_cutoff = distmax;   // want geom distances
 
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);
@@ -1425,7 +1403,7 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int 
 
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
 
-  if (fromto) {
+  if (fromto && status.nx > 0) {
     mju_copy3(fromto, status.x1);
     mju_copy3(fromto+3, status.x2);
   }
@@ -1457,9 +1435,9 @@ mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, 
   }
 
   // use nativecdd if flag is enabled
-  if (mjENABLED(mjENBL_NATIVECCD)) {
+  if (!mjDISABLED(mjDSBL_NATIVECCD)) {
     if (func == mjc_Convex || func == mjc_BoxBox) {
-      return mj_geomDistanceCCD(m, d, g1, g2, fromto);
+      return mj_geomDistanceCCD(m, d, g1, g2, distmax, fromto);
     }
   }
 

@@ -24,6 +24,7 @@ from mujoco.mjx._src import support
 from mujoco.mjx._src.types import CamLightType
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
+from mujoco.mjx._src.types import EqType
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import TrnType
@@ -333,7 +334,7 @@ def factor_m(m: Model, d: Data) -> Data:
     pivots = []
     out = []
 
-    for (b, e, madr_d, madr_ij) in updates:
+    for b, e, madr_d, madr_ij in updates:
       width = e - b
       rows.append(np.arange(madr_ij, madr_ij + width))
       madr_ijs.append(np.full((width,), madr_ij))
@@ -510,7 +511,6 @@ def subtree_vel(m: Model, d: Data) -> Data:
       angmom_child, mom_parent_child = carry
       return angmom + mom + angmom_child + mom_parent_child, mom_parent
 
-
   subtree_angmom, _ = scan.body_tree(
       m,
       _subtree_angmom,
@@ -534,6 +534,7 @@ def subtree_vel(m: Model, d: Data) -> Data:
 
 def rne(m: Model, d: Data) -> Data:
   """Computes inverse dynamics using the recursive Newton-Euler algorithm."""
+
   # forward scan over tree: accumulate link center of mass acceleration
   def cacc_fn(cacc, cdof_dot, qvel):
     if cacc is None:
@@ -635,6 +636,10 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
     )
 
   # TODO(taylorhowell): connect and weld constraints
+  if np.any(m.eq_type == EqType.CONNECT):
+    raise NotImplementedError('Connect constraints are not implemented.')
+  if np.any(m.eq_type == EqType.WELD):
+    raise NotImplementedError('Weld constraints are not implemented.')
 
   # forward pass over bodies: compute cacc, cfrc_int
   def _forward(carry, cfrc_ext, cinert, cvel, body_dofadr, body_dofnum):
@@ -729,7 +734,9 @@ def tendon(m: Model, d: Data) -> Data:
   for adr, num in zip(m.tendon_adr, m.tendon_num):
     for id_pulley in wrap_id_pulley:
       if adr <= id_pulley < adr + num:
-        divisor[id_pulley : adr + num] = m.wrap_prm[id_pulley]
+        divisor[id_pulley : adr + num] = np.maximum(
+            mujoco.mjMINVAL, m.wrap_prm[id_pulley]
+        )
 
   # process spatial tendon sites
   (wrap_id_site,) = np.nonzero(m.wrap_type == WrapType.SITE)
@@ -805,6 +812,7 @@ def tendon(m: Model, d: Data) -> Data:
   geom_xmat = d.geom_xmat[wrap_objid_geom]
   geom_size = m.geom_size[wrap_objid_geom, 0]
   geom_type = m.wrap_type[wrap_id_geom]
+  is_sphere = geom_type == WrapType.SPHERE
 
   # get body ids for site-geom-site instances
   body_id_site0 = m.site_bodyid[wrap_objid_site0]
@@ -816,17 +824,52 @@ def tendon(m: Model, d: Data) -> Data:
   side = d.site_xpos[side_id]
   has_sidesite = np.expand_dims(np.array(side_id >= 0), -1)
 
+  # wrap inside
+  # TODO(taylorhowell): check that is_wrap_inside is consistent with
+  # site and geom relative positions
+  (wrap_inside_id,) = np.nonzero(m.is_wrap_inside)
+  (wrap_outside_id,) = np.nonzero(~m.is_wrap_inside)
+
   # compute geom wrap length and connect points (if wrap occurs)
-  lengths_geomgeom, geom_pnt0, geom_pnt1 = jax.vmap(support.wrap)(
-      site_pnt0,
-      site_pnt1,
-      geom_xpos,
-      geom_xmat,
-      geom_size,
-      side,
-      has_sidesite,
-      geom_type == WrapType.SPHERE,
+  v_wrap = jax.vmap(
+      support.wrap, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, None, None, None, None)
   )
+  lengths_inside, pnt0_inside, pnt1_inside = v_wrap(
+      site_pnt0[wrap_inside_id],
+      site_pnt1[wrap_inside_id],
+      geom_xpos[wrap_inside_id],
+      geom_xmat[wrap_inside_id],
+      geom_size[wrap_inside_id],
+      side[wrap_inside_id],
+      has_sidesite[wrap_inside_id],
+      is_sphere[wrap_inside_id],
+      True,
+      m.wrap_inside_maxiter,
+      m.wrap_inside_tolerance,
+      m.wrap_inside_z_init,
+  )
+
+  lengths_outside, pnt0_outside, pnt1_outside = v_wrap(
+      site_pnt0[wrap_outside_id],
+      site_pnt1[wrap_outside_id],
+      geom_xpos[wrap_outside_id],
+      geom_xmat[wrap_outside_id],
+      geom_size[wrap_outside_id],
+      side[wrap_outside_id],
+      has_sidesite[wrap_outside_id],
+      is_sphere[wrap_outside_id],
+      False,
+      m.wrap_inside_maxiter,
+      m.wrap_inside_tolerance,
+      m.wrap_inside_z_init,
+  )
+
+  wrap_id = np.argsort(np.concatenate([wrap_inside_id, wrap_outside_id]))
+  vstack_ = lambda x, y: jp.vstack([x, y])[wrap_id]
+  lengths_geomgeom = vstack_(lengths_inside, lengths_outside)
+  geom_pnt0 = vstack_(pnt0_inside, pnt0_outside)
+  geom_pnt1 = vstack_(pnt1_inside, pnt1_outside)
+
   lengths_geomgeom = lengths_geomgeom.reshape(-1)
 
   # identify geoms where wrap does not occur
@@ -983,7 +1026,7 @@ def _site_dof_mask(m: Model) -> np.ndarray:
   mask = np.ones((m.nu, m.nv))
   for i in np.nonzero(m.actuator_trnid[:, 1] != -1)[0]:
     id_, refid = m.actuator_trnid[i]
-    # intialize last dof address for each body
+    # initialize last dof address for each body
     b0 = m.body_weldid[m.site_bodyid[id_]]
     b1 = m.body_weldid[m.site_bodyid[refid]]
     dofadr0 = m.body_dofadr[b0] + m.body_dofnum[b0] - 1

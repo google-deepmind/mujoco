@@ -477,6 +477,7 @@ TEST_F(CoreConstraintTest, MulJacTVecIsland) {
   mj_deleteModel(model);
 }
 
+// compare mj_constraintUpdate and mj_constraintUpdate_island
 TEST_F(CoreConstraintTest, ConstraintUpdateIsland) {
   const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
@@ -557,12 +558,15 @@ TEST_F(CoreConstraintTest, ConstraintUpdateIsland) {
         }
 
         // compare cone Hessians
-        for (int c=0; c < data2->ncon; c++) {
-          int efcadr = data2->contact[c].efc_address;
-          if (data2->efc_island[efcadr] == island) {
-            for (int j=0; j < 36; j++) {
-              EXPECT_THAT(data2->contact[c].H[j],
-                          DoubleNear(data2->contact[c].H[j], 1e-12));
+        if (cone == mjCONE_ELLIPTIC) {
+          for (int c=0; c < data2->ncon; c++) {
+            int efcadr = data2->contact[c].efc_address;
+            if (data2->efc_island[efcadr] == island &&
+                data2->efc_state[efcadr] == mjCNSTRSTATE_CONE) {
+              for (int j=0; j < 36; j++) {
+                EXPECT_THAT(data2->contact[c].H[j],
+                            DoubleNear(data1->contact[c].H[j], 1e-12));
+              }
             }
           }
         }

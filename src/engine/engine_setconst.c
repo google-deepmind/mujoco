@@ -65,22 +65,22 @@ static void set0(mjModel* m, mjData* d) {
   int nv = m->nv;
   mjtNum A[36] = {0}, pos[3], quat[4];
   mj_markStack(d);
-  mjtNum* jac = mj_stackAllocNum(d, 6*nv);
-  mjtNum* tmp = mj_stackAllocNum(d, 6*nv);
-  mjtNum* moment = mj_stackAllocNum(d, nv);
+  mjtNum* jac = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
   int* cammode = 0;
   int* lightmode = 0;
 
   // save camera and light mode, set to fixed
   if (m->ncam) {
-    cammode = mj_stackAllocInt(d, m->ncam);
+    cammode = mjSTACKALLOC(d, m->ncam, int);
     for (int i=0; i < m->ncam; i++) {
       cammode[i] = m->cam_mode[i];
       m->cam_mode[i] = mjCAMLIGHT_FIXED;
     }
   }
   if (m->nlight) {
-    lightmode = mj_stackAllocInt(d, m->nlight);
+    lightmode = mjSTACKALLOC(d, m->nlight, int);
     for (int i=0; i < m->nlight; i++) {
       lightmode[i] = m->light_mode[i];
       m->light_mode[i] = mjCAMLIGHT_FIXED;
@@ -102,10 +102,11 @@ static void set0(mjModel* m, mjData* d) {
   memset(m->flex_rigid, 0, m->nflex);
 
   // run remaining computations
+  mj_tendon(m, d);
   mj_crb(m, d);
+  mj_tendonArmature(m, d);
   mj_factorM(m, d);
   mj_flex(m, d);
-  mj_tendon(m, d);
   mj_transmission(m, d);
 
   // restore flex rigidity
@@ -118,18 +119,6 @@ static void set0(mjModel* m, mjData* d) {
   }
   for (int i=0; i < m->nlight; i++) {
     m->light_mode[i] = lightmode[i];
-  }
-
-  // compute bounding box coordinates
-  for (int i=0; i < m->nflex; i++) {
-    int bvhadr = m->flex_bvhadr[i];
-    const mjtNum* bvh = d->bvh_aabb_dyn + 6*(bvhadr - m->nbvhstatic);
-    for (int j=0; j < m->nflexvert; j++) {
-      for (int k=0; k < 3; k++) {
-        mjtNum size = 2*(bvh[3+k] - m->flex_radius[i]);
-        m->flex_vert0[3*j+k] = (d->flexvert_xpos[3*j+k] - bvh[k]) / size + 0.5;
-      }
-    }
   }
 
   // copy fields
@@ -225,6 +214,10 @@ static void set0(mjModel* m, mjData* d) {
   if (nv) {
     // compute flexedge_invweight0
     for (int f=0; f < m->nflex; f++) {
+      if (m->flex_interp[f]) {
+        continue;
+      }
+
       for (int i=m->flex_edgeadr[f]; i < m->flex_edgeadr[f]+m->flex_edgenum[f]; i++) {
         // bodies connected by edge
         int b1 = m->flex_vertbodyid[m->flex_vertadr[f] + m->flex_edge[2*i]];
@@ -439,7 +432,7 @@ static void setStat(mjModel* m, mjData* d) {
   mjtNum xmax[3] = {-1E+10, -1E+10, -1E+10};
   mjtNum rbound;
   mj_markStack(d);
-  mjtNum* body = mj_stackAllocNum(d, m->nbody);
+  mjtNum* body = mjSTACKALLOC(d, m->nbody, mjtNum);
 
   // compute bounding box of bodies, joint centers, geoms and sites
   for (int i=1; i < m->nbody; i++) {
@@ -510,6 +503,16 @@ static void setStat(mjModel* m, mjData* d) {
 
   // adjust body size for flex edges involving body
   for (int f=0; f < m->nflex; f++) {
+    if (m->flex_interp[f]) {
+      for (int v1=m->flex_nodeadr[f]; v1 < m->flex_nodeadr[f]+m->flex_nodenum[f]; v1++) {
+        for (int v2=m->flex_nodeadr[f]; v2 < m->flex_nodeadr[f]+m->flex_nodenum[f]; v2++) {
+          mjtNum edge = mju_dist3(d->xpos+3*m->flex_nodebodyid[v1],
+                                  d->xpos+3*m->flex_nodebodyid[v2]);
+          body[m->flex_nodebodyid[v1]] = mju_max(body[m->flex_nodebodyid[v1]], edge);
+        }
+      }
+      continue;
+    }
     for (int e=m->flex_edgeadr[f]; e < m->flex_edgeadr[f]+m->flex_edgenum[f]; e++) {
       int b1 = m->flex_vertbodyid[m->flex_vertadr[f]+m->flex_edge[2*e]];
       int b2 = m->flex_vertbodyid[m->flex_vertadr[f]+m->flex_edge[2*e+1]];
@@ -607,7 +610,7 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
 
   // dense actuator_moment row
   mj_markStack(d);
-  mjtNum* moment = mj_stackAllocNum(d, nv);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
   mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + index,
                    d->moment_rowadr + index, d->moment_colind);
 

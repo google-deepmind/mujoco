@@ -72,7 +72,7 @@ h4 {
 
 /* Paragraph margins don't apply to table cell contents. */
 .rst-content table.docutils td>p {
-  margin-top: 0px;
+  margin-top: 0;
 }
 
 /* Set padding of in-line highlighted text. */
@@ -200,8 +200,8 @@ table.docutils:not(.mjcf-attributes) > tbody > tr.row-odd {
 /* MJCF attributes table. */
 table.mjcf-attributes {
   border-style: none;
-  margin-left: 0px;
-  margin-right: 0px;
+  margin-left: 0;
+  margin-right: 0;
   width: 100%;
   box-shadow: none;
 }
@@ -209,7 +209,7 @@ table.mjcf-attributes {
 table.mjcf-attributes tbody tr td,
 table.mjcf-attributes tbody tr:nth-child(2n-1) td {
   border-style: none;
-  padding: 0px 0px 0px 0px;
+  padding: 0 0 0 0;
   width: 25%;
 }
 
@@ -217,13 +217,13 @@ table.mjcf-attributes tbody tr td p {
   margin: 0;
 }
 
-div.table-wrapper.mjcf-attributes {
+.table-wrapper.mjcf-attributes {
   margin: 0.5em;
   padding: 0;
 }
 
 table td > div.wy-table-responsive {
-  margin-bottom: 0px;
+  margin-bottom: 0;
 }
 
 /* Remove vertical spacing before/after code blocks. */

@@ -98,9 +98,11 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
                     char* error, int error_sz) {
 
   // parse new model
-  std::unique_ptr<mjSpec, std::function<void(mjSpec*)>> spec(
-      ParseXML(filename, vfs, error, error_sz),
-      [](mjSpec* s) { mj_deleteSpec(s); });
+  std::unique_ptr<mjSpec, std::function<void(mjSpec*)> > spec(
+    ParseXML(filename, vfs, error, error_sz),
+    [](mjSpec* s) {
+      mj_deleteSpec(s);
+    });
   if (!spec) {
     return nullptr;
   }
@@ -166,7 +168,7 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_ht
   // print to stringstream
   mjXReader reader;
   std::stringstream str;
-  reader.PrintSchema(str, flg_html!=0, flg_pad!=0);
+  reader.PrintSchema(str, flg_html != 0, flg_pad != 0);
 
   // filename given: write to file
   if (filename) {
@@ -226,33 +228,33 @@ mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int er
 
 
 
-// save spec to XML file, return 1 on success, 0 otherwise
+// save spec to XML file, return 0 on success, -1 otherwise
 int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz) {
   std::string result = WriteXML(NULL, s, error, error_sz);
   if (result.empty()) {
-    return 0;
+    return -1;
   }
 
   std::ofstream file;
   file.open(filename);
   file << result;
   file.close();
-  return 1;
+  return 0;
 }
 
 
 
-// save spec to string, return 1 on success, 0 otherwise
+// save spec to XML string, return 0 on success, -1 on failure
+// if length of the output buffer is too small, returns the required size
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz) {
   std::string result = WriteXML(NULL, s, error, error_sz);
-  if (result.size() >= xml_sz) {
+  if (result.empty()) {
+    return -1;
+  } else if (result.size() >= xml_sz) {
     std::string error_msg = "Output string too short, should be at least " +
                             std::to_string(result.size()+1);
     mjCopyError(error, error_msg.c_str(), error_sz);
     return result.size();
-  }
-  if (result.empty()) {
-    return 0;
   }
 
   result.copy(xml, xml_sz);

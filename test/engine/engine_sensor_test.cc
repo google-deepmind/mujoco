@@ -21,7 +21,6 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mujoco.h>
-#include "src/engine/engine_support.h"
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_spatial.h"
 #include "test/fixture.h"
@@ -397,6 +396,93 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
 
 // ------------------------- general sensor tests  -----------------------------
 using SensorTest = MujocoTest;
+
+TEST_F(SensorTest, EnableEnergy) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -5">
+     <flag energy="enable"/>
+    </option>
+    <worldbody>
+      <body pos="0 0 2">
+        <geom size="1" mass="3"/>
+        <freejoint/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  mj_forward(model, data);
+  EXPECT_EQ(data->energy[0], 2*3*5);
+
+  model->opt.enableflags &= ~mjENBL_ENERGY;
+  mj_forward(model, data);
+  EXPECT_EQ(data->energy[0], 0);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, PotentialEnergy) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -5"/>
+    <worldbody>
+      <body pos="0 0 2">
+        <geom size="1" mass="3"/>
+        <freejoint/>
+      </body>
+    </worldbody>
+    <sensor>
+      <e_potential/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  mj_forward(model, data);
+  EXPECT_EQ(data->sensordata[0], 2*3*5);
+
+  data->qpos[2] = 7;
+  mj_forward(model, data);
+  EXPECT_EQ(data->sensordata[0], 7*3*5);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, KineticEnergy) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 2">
+        <geom size="1" mass="3"/>
+        <freejoint/>
+      </body>
+    </worldbody>
+    <sensor>
+      <e_kinetic/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  while (data->time < 1.5) {
+    mj_step(model, data);
+  }
+  mj_forward(model, data);
+
+  mjtNum mass = 3;
+  mjtNum speed = data->time * mju_norm3(model->opt.gravity);
+  EXPECT_FLOAT_EQ(data->sensordata[0], 0.5 * mass * speed * speed);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 // test clock sensor
 TEST_F(SensorTest, Clock) {

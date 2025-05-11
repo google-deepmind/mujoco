@@ -72,9 +72,6 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
   }
 
   MJDATA_ARENA_POINTERS_SOLVER
-  if (mj_isDual(m)) {
-    MJDATA_ARENA_POINTERS_DUAL
-  }
 #undef X
 
 #undef MJ_M
@@ -184,7 +181,7 @@ static int mj_elemBodyWeight(const mjModel* m, const mjData* d, int f, int e, in
   for (int i=0; i <= dim; i++) {
     mjtNum dist = mju_dist3(point, vert+3*edata[i]);
     weight[i] = 1.0/(mju_max(mjMINVAL, dist));
-    body[i] = m->flex_vertbodyid[m->flex_vertadr[f] + edata[i]];
+    body[i] = m->flex_vertadr[f] + edata[i];
 
     // check if element vertex matches v
     if (edata[i] == v) {
@@ -205,6 +202,30 @@ static int mj_elemBodyWeight(const mjModel* m, const mjData* d, int f, int e, in
   // normalize weights
   mju_normalize(weight, dim+1);
   return dim+1;
+}
+
+
+
+// compute body weights for a given contact vertex, return #bodies
+static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int v,
+                             const mjtNum point[3], int* body, mjtNum* weight, mjtNum bw) {
+  mjtNum* coord = m->flex_vert0 + 3*v;
+  int nstart = m->flex_nodeadr[f];
+  int nend = m->flex_nodeadr[f] + m->flex_nodenum[f];
+  int nb = 0;
+
+  for (int i = nstart; i < nend; i++) {
+    mjtNum w = ((i-nstart)&1 ? coord[2] : 1-coord[2]) *
+               ((i-nstart)&2 ? coord[1] : 1-coord[1]) *
+               ((i-nstart)&4 ? coord[0] : 1-coord[0]);
+    if (w < 1e-5) {
+      continue;
+    }
+    if (weight) weight[nb] = w * bw;
+    body[nb++] = m->flex_nodebodyid[i];
+  }
+
+  return nb;
 }
 
 
@@ -485,14 +506,14 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // allocate space
-  jac[0] = mj_stackAllocNum(d, 6*nv);
-  jac[1] = mj_stackAllocNum(d, 6*nv);
-  jacdif = mj_stackAllocNum(d, 6*nv);
+  jac[0] = mjSTACKALLOC(d, 6*nv, mjtNum);
+  jac[1] = mjSTACKALLOC(d, 6*nv, mjtNum);
+  jacdif = mjSTACKALLOC(d, 6*nv, mjtNum);
   if (issparse) {
-    chain = mj_stackAllocInt(d, nv);
-    chain2 = mj_stackAllocInt(d, nv);
-    buf_ind = mj_stackAllocInt(d, nv);
-    sparse_buf = mj_stackAllocNum(d, nv);
+    chain = mjSTACKALLOC(d, nv, int);
+    chain2 = mjSTACKALLOC(d, nv, int);
+    buf_ind = mjSTACKALLOC(d, nv, int);
+    sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
   }
 
   // find active equality constraints
@@ -756,7 +777,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // allocate Jacobian
-  jac = mj_stackAllocNum(d, nv);
+  jac = mjSTACKALLOC(d, nv, mjtNum);
 
   // find frictional dofs
   for (int i=0; i < nv; i++) {
@@ -813,7 +834,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // allocate Jacobian
-  jac = mj_stackAllocNum(d, nv);
+  jac = mjSTACKALLOC(d, nv, mjtNum);
 
   // find joint limits
   for (int i=0; i < m->njnt; i++) {
@@ -953,16 +974,16 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // allocate Jacobian
-  jac = mj_stackAllocNum(d, 6*nv);
-  jacdif = mj_stackAllocNum(d, 6*nv);
+  jac = mjSTACKALLOC(d, 6*nv, mjtNum);
+  jacdif = mjSTACKALLOC(d, 6*nv, mjtNum);
   jacdifp = jacdif;
   jacdifr = jacdif + 3*nv;
-  jac1p = mj_stackAllocNum(d, 3*nv);
-  jac2p = mj_stackAllocNum(d, 3*nv);
-  jac1r = mj_stackAllocNum(d, 3*nv);
-  jac2r = mj_stackAllocNum(d, 3*nv);
+  jac1p = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac2p = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac1r = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac2r = mjSTACKALLOC(d, 3*nv, mjtNum);
   if (issparse) {
-    chain = mj_stackAllocInt(d, nv);
+    chain = mjSTACKALLOC(d, nv, int);
   }
 
   // find contacts to be included
@@ -974,8 +995,8 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
       con->efc_address = d->nefc;
 
       // special case: single body on each side
-      if ((con->geom[0] >= 0 || con->vert[0] >= 0) &&
-          (con->geom[1] >= 0 || con->vert[1] >= 0)) {
+      if ((con->geom[0] >= 0 || (con->vert[0] >= 0 && m->flex_interp[con->flex[0]] == 0)) &&
+          (con->geom[1] >= 0 || (con->vert[1] >= 0 && m->flex_interp[con->flex[1]] == 0))) {
         // get bodies
         int bid[2];
         for (int side=0; side < 2; side++) {
@@ -998,9 +1019,13 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
       else {
         // get bodies and weights
         int nb = 0;
-        int bid[8];
-        mjtNum bweight[8];
+        int bid[64];
+        mjtNum bweight[64];
         for (int side=0; side < 2; side++) {
+          int nw = 0;
+          int vid[4];
+          mjtNum bw[4];
+
           // geom
           if (con->geom[side] >= 0) {
             bid[nb] = m->geom_bodyid[con->geom[side]];
@@ -1010,22 +1035,32 @@ void mj_instantiateContact(const mjModel* m, mjData* d) {
 
           // flex vert
           else if (con->vert[side] >= 0) {
-            bid[nb] = m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
-            bweight[nb] = side ? +1 : -1;
-            nb++;
+            vid[0] = m->flex_vertadr[con->flex[side]] + con->vert[side];
+            bw[0] = side ? +1 : -1;
+            nw = 1;
           }
 
           // flex elem
           else {
-            int nw = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
-                                       con->vert[1-side], con->pos, bid+nb, bweight+nb);
+            nw = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
+                                   con->vert[1-side], con->pos, vid, bw);
 
             // negative sign for first side of contact
             if (side == 0) {
-              mju_scl(bweight+nb, bweight+nb, -1, nw);
+              mju_scl(bw, bw, -1, nw);
             }
+          }
 
-            nb += nw;
+          // get body or node ids and weights
+          for (int k=0; k < nw; k++) {
+            if (m->flex_interp[con->flex[side]] == 0) {
+              bid[nb] = m->flex_vertbodyid[vid[k]];
+              bweight[nb] = bw[k];
+              nb++;
+            } else {
+              nb += mj_vertBodyWeight(m, d, con->flex[side], vid[k],
+                                      con->pos, bid+nb, bweight+nb, bw[k]);
+            }
           }
         }
 
@@ -1204,8 +1239,8 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
       tran = rot = 0;
       for (int side=0; side < 2; side++) {
         // get bodies and weights
-        int nb, bid[4];
-        mjtNum bweight[4];
+        int nb = 0, bid[32], vid[4], nw = 0;
+        mjtNum bweight[32], bw[4];
 
         // geom
         if (con->geom[side] >= 0) {
@@ -1216,15 +1251,27 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
 
         // flex vert
         else if (con->vert[side] >= 0) {
-          bid[0] = m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
-          bweight[0] = 1;
-          nb = 1;
+          vid[0] = m->flex_vertadr[con->flex[side]] + con->vert[side];
+          bw[0] = 1;
+          nw = 1;
         }
 
         // flex elem
         else {
-          nb = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
-                                 con->vert[1-side], con->pos, bid, bweight);
+          nw = mj_elemBodyWeight(m, d, con->flex[side], con->elem[side],
+                                 con->vert[1-side], con->pos, vid, bw);
+        }
+
+        // get body or node ids and weights
+        for (int k=0; k < nw; k++) {
+          if (m->flex_interp[con->flex[side]] == 0) {
+            bid[k] = m->flex_vertbodyid[vid[k]];
+            bweight[k] = bw[k];
+            nb++;
+          } else {
+            nb = mj_vertBodyWeight(m, d, con->flex[side], vid[k],
+                                   con->pos, bid, bweight, bw[k]);
+          }
         }
 
         // add weighted average over bodies
@@ -1589,8 +1636,8 @@ static int mj_jacSumCount(const mjModel* m, mjData* d, int* chain,
   int nv = m->nv, NV;
 
   mj_markStack(d);
-  int* bodychain = mj_stackAllocInt(d, nv);
-  int* tempchain = mj_stackAllocInt(d, nv);
+  int* bodychain = mjSTACKALLOC(d, nv, int);
+  int* tempchain = mjSTACKALLOC(d, nv, int);
 
   // set first
   NV = mj_bodyChain(m, body[0], chain);
@@ -1643,8 +1690,8 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
   mj_markStack(d);
 
   if (nnz) {
-    chain = mj_stackAllocInt(d, nv);
-    chain2 = mj_stackAllocInt(d, nv);
+    chain = mjSTACKALLOC(d, nv, int);
+    chain2 = mjSTACKALLOC(d, nv, int);
   }
 
   // find active equality constraints
@@ -1870,7 +1917,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   }
 
   mj_markStack(d);
-  int *chain = mj_stackAllocInt(d, m->nv);
+  int *chain = mjSTACKALLOC(d, m->nv, int);
 
   for (int i=0; i < ncon; i++) {
     mjContact* con = d->contact + i;
@@ -1884,8 +1931,11 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     int NV = 0;
     if (nnz) {
       // get bodies
-      int nb = 0, bid[8];
+      int nb = 0, bid[64];
       for (int side=0; side < 2; side++) {
+        int nw = 0;
+        int vid[4];
+
         // geom
         if (con->geom[side] >= 0) {
           bid[nb++] = m->geom_bodyid[con->geom[side]];
@@ -1893,7 +1943,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 
         // flex vert
         else if (con->vert[side] >= 0) {
-          bid[nb++] = m->flex_vertbodyid[m->flex_vertadr[con->flex[side]] + con->vert[side]];
+          vid[nw++] = m->flex_vertadr[con->flex[side]] + con->vert[side];
         }
 
         // flex elem
@@ -1902,7 +1952,18 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
           int fdim = m->flex_dim[f];
           const int* edata = m->flex_elem + m->flex_elemdataadr[f] + con->elem[side]*(fdim+1);
           for (int k=0; k <= fdim; k++) {
-            bid[nb++] = m->flex_vertbodyid[m->flex_vertadr[f] + edata[k]];
+            vid[nw++] = m->flex_vertadr[f] + edata[k];
+          }
+        }
+
+        // get body or node ids and weights
+        for (int k=0; k < nw; k++) {
+          if (m->flex_interp[con->flex[side]] == 0) {
+            bid[nb] = m->flex_vertbodyid[vid[k]];
+            nb++;
+          } else {
+            nb += mj_vertBodyWeight(m, d, con->flex[side], vid[k],
+                                    con->pos, bid+nb, NULL, 0);
           }
         }
       }
@@ -1943,7 +2004,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
 // driver: call all functions above
 void mj_makeConstraint(const mjModel* m, mjData* d) {
   // clear sizes
-  d->ne = d->nf = d->nl = d->nefc = d->nJ = 0;
+  d->ne = d->nf = d->nl = d->nefc = d->nJ = d->nA = 0;
 
   // disabled or Jacobian not allocated: return
   if (mjDISABLED(mjDSBL_CONSTRAINT)) {
@@ -2067,37 +2128,86 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
   mj_markStack(d);
 
-  // space for backsubM2(J')' and its traspose
-  mjtNum* JM2 = mj_stackAllocNum(d, nefc*nv);
-  mjtNum* JM2T = mj_stackAllocNum(d, nv*nefc);
+  // inverse square root of D from inertia LDL decomposition
+  mjtNum* sqrtInvD = mjSTACKALLOC(d, nv, mjtNum);
+  for (int i=0; i < nv; i++) {
+    int diag = d->M_rowadr[i] + d->M_rownnz[i] - 1;
+    sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
+  }
 
   // sparse
   if (mj_isSparse(m)) {
-    // space for JM2 and JM2T indices
-    int* rownnz = mj_stackAllocInt(d, nefc);
-    int* rowadr = mj_stackAllocInt(d, nefc);
-    int* colind = mj_stackAllocInt(d, nefc*nv);
-    int* rowsuper = mj_stackAllocInt(d, nefc);
-    int* rownnzT = mj_stackAllocInt(d, nv);
-    int* rowadrT = mj_stackAllocInt(d, nv);
-    int* colindT = mj_stackAllocInt(d, nv*nefc);
+    // compute B = backsubM2(J')' and its transpose
 
-    // construct JM2 = backsubM2(J')' by rows
+
+    // === pre-count B_rownnz, B_rowadr, nB (total nonzeros)
+
+    // allocate B rownnz and rowadr
+    int* B_rownnz = mjSTACKALLOC(d, nefc, int);
+    int* B_rowadr = mjSTACKALLOC(d, nefc, int);
+
+    // markers for merged dofs, initialized to -1
+    int* marker = mjSTACKALLOC(d, nv, int);
+    for (int i=0; i < nv; i++) {
+      marker[i] = -1;
+    }
+
+    B_rowadr[0] = 0;
+    for (int r=0; r < nefc; r++) {
+      int nnz = 0;  // nonzeros in row r of B
+
+      // traverse row r of J in reverse, count unique nonzeros
+      int start = d->efc_J_rowadr[r];
+      int end = start + d->efc_J_rownnz[r];
+      for (int i=end-1; i >= start; i--) {
+        int j = d->efc_J_colind[i];
+
+        // if dof j is marked, it was already counted by a child dof: skip it
+        if (marker[j] == r) {
+          continue;
+        }
+
+        // traverse row j of M, marking new unique nonzeros
+        int nnzM = d->M_rownnz[j];
+        int adrM = d->M_rowadr[j];
+        for (int k=0; k < nnzM; k++) {
+          int c = d->M_colind[adrM + k];
+          if (marker[c] != r) {
+            marker[c] = r;
+            nnz++;
+          }
+        }
+      }
+
+      // update rownnz and rowadr
+      B_rownnz[r] = nnz;
+      if (r < nefc - 1) {
+        B_rowadr[r+1] = B_rowadr[r] + nnz;
+      }
+    }
+
+    // total non-zeros in B
+    int nB = B_rowadr[nefc-1] + B_rownnz[nefc-1];
+
+
+    // === fill in B column indices, copy values from J
+
+    // allocate values and column indices
+    mjtNum* B = mjSTACKALLOC(d, nB, mjtNum);
+    int* B_colind = mjSTACKALLOC(d, nB, int);
+
     for (int r=0; r < nefc; r++) {
       // init row
-      int nnz = 0;
-      int adr = (r > 0 ? rowadr[r-1]+rownnz[r-1] : 0);
-      int remain = d->efc_J_rownnz[r];
+      int end = B_rowadr[r] + B_rownnz[r];
+      int adrJ = d->efc_J_rowadr[r];
+      int remainJ = d->efc_J_rownnz[r];
+      int nnzB = 0;
 
       // complete chain in reverse
       while (1) {
-        // assign row descriptor
-        rownnz[r] = nnz;
-        rowadr[r] = adr;
-
         // get previous dof in src and dst
-        int prev_src = (remain > 0 ? d->efc_J_colind[d->efc_J_rowadr[r]+remain-1] : -1);
-        int prev_dst = (nnz > 0 ? m->dof_parentid[colind[adr+nnz-1]] : -1);
+        int prev_src = (remainJ > 0 ? d->efc_J_colind[adrJ + remainJ - 1] : -1);
+        int prev_dst = (nnzB > 0 ? m->dof_parentid[B_colind[end - nnzB]] : -1);
 
         // both finished: break
         if (prev_src < 0 && prev_dst < 0) {
@@ -2106,98 +2216,136 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
         // add src
         else if (prev_src >= prev_dst) {
-          colind[adr+nnz] = prev_src;
-          JM2[adr+nnz] = d->efc_J[d->efc_J_rowadr[r]+remain-1];
-          remain--;
-          nnz++;
+          nnzB++;
+          remainJ--;
+          B_colind[end - nnzB] = prev_src;
+          B[end - nnzB] = d->efc_J[adrJ + remainJ];
         }
 
         // add dst
         else {
-          colind[adr+nnz] = prev_dst;
-          JM2[adr+nnz] = 0;
-          nnz++;
+          nnzB++;
+          B_colind[end - nnzB] = prev_dst;
+          B[end - nnzB] = 0;
         }
       }
 
-      // reverse order of chain: make it increasing
-      for (int i=0; i < nnz/2; i++) {
-        int tmp_col = colind[adr+i];
-        colind[adr+i] = colind[adr+nnz-i-1];
-        colind[adr+nnz-i-1] = tmp_col;
-
-        mjtNum tmp_dat = JM2[adr+i];
-        JM2[adr+i] = JM2[adr+nnz-i-1];
-        JM2[adr+nnz-i-1] = tmp_dat;
-      }
-
-      // sparse backsubM2
-      for (int i=nnz-1; i >= 0; i--) {
-        // save x(i) and i-pointer
-        mjtNum xi = JM2[adr+i];
-        int pi = i;
-
-        // process if not zero
-        if (xi) {
-          // x(i) /= sqrt(L(i,i))
-          JM2[adr+i] *= d->qLDiagSqrtInv[colind[adr+i]];
-
-          // x(j) -= L(i,j) * x(i)
-          int Madr_ij = m->dof_Madr[colind[adr+i]]+1;
-          int j = m->dof_parentid[colind[adr+i]];
-          while (j >= 0) {
-            // match dof id in sparse vector
-            while (colind[adr+pi] > j) {
-              pi--;
-            }
-
-            // scale
-            JM2[adr+pi] -= d->qLD[Madr_ij++] * xi;
-
-            // advance to parent
-            j = m->dof_parentid[j];
-          }
-        }
+      // compare with B_rownnz: SHOULD NOT OCCUR
+      if (nnzB != B_rownnz[r]) {
+        mjERROR("pre and post-count of B_rownnz are not equal on row %d", r);
       }
     }
 
-    // construct JM2T
-    mju_transposeSparse(JM2T, JM2, nefc, nv,
-                        rownnzT, rowadrT, colindT, rownnz, rowadr, colind);
 
-    // construct supernodes
-    mju_superSparse(nefc, rowsuper, rownnz, rowadr, colind);
+    // === in-place sparse back-substitution:  B <- B * M^-1/2
 
-    // AR = JM2 * JM2'
-    mju_sqrMatTDSparseInit(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc, rownnzT,
-                           rowadrT, colindT, rownnz, rowadr, colind, rowsuper, d);
+    // sparse backsubM2 (half of LD back-substitution)
+    for (int r=0; r < nefc; r++) {
+      int nnzB = B_rownnz[r];
+      int adrB = B_rowadr[r];
 
-    mju_sqrMatTDSparse(d->efc_AR, JM2T, JM2, NULL, nv, nefc,
-                       d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
-                       rownnzT, rowadrT, colindT, NULL,
-                       rownnz, rowadr, colind, rowsuper, d);
-
-    // add R to diagonal of AR
-    for (int i=0; i < nefc; i++) {
-      for (int j=0; j < d->efc_AR_rownnz[i]; j++) {
-        if (i == d->efc_AR_colind[d->efc_AR_rowadr[i]+j]) {
-          d->efc_AR[d->efc_AR_rowadr[i]+j] += d->efc_R[i];
-          break;
+      // B(r,:) <- inv(L') * B(r,:), exploit sparsity of input vector
+      for (int i=adrB + nnzB-1; i >= adrB; i--) {
+        mjtNum b = B[i];
+        if (b == 0) {
+          continue;
         }
+        int j = B_colind[i];
+        int adrM = d->M_rowadr[j];
+        mju_addToSclSparseInc(B + adrB, d->qLD + adrM,
+                              nnzB, B_colind + adrB,
+                              d->M_rownnz[j]-1, d->M_colind + adrM, -b);
       }
+
+      // B(r,:) <- sqrt(inv(D)) * B(r,:)
+      for (int i=adrB; i < adrB + nnzB; i++) {
+        int j = B_colind[i];
+        B[i] *= sqrtInvD[j];
+      }
+    }
+
+    // construct B supernodes
+    int* B_rowsuper = mjSTACKALLOC(d, nefc, int);
+    mju_superSparse(nefc, B_rowsuper, B_rownnz, B_rowadr, B_colind);
+
+    // construct B transposed
+    int* BT_rownnz = mjSTACKALLOC(d, nv, int);
+    int* BT_rowadr = mjSTACKALLOC(d, nv, int);
+    int* BT_colind = mjSTACKALLOC(d, nB, int);
+    mjtNum* BT = mjSTACKALLOC(d, nB, mjtNum);
+    mju_transposeSparse(BT, B, nefc, nv,
+                        BT_rownnz, BT_rowadr, BT_colind,
+                        B_rownnz, B_rowadr, B_colind);
+
+    // allocate AR row nonzeros and addresses on arena
+    d->efc_AR_rownnz = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    d->efc_AR_rowadr = mj_arenaAllocByte(d, sizeof(int) * nefc, _Alignof(int));
+    if (!d->efc_AR_rownnz || !d->efc_AR_rowadr) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
+
+    // pre-count A nonzeros (compute AR_rownnz, AR_rowadr)
+    mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc,
+                            BT_rownnz, BT_rowadr, BT_colind,
+                            B_rownnz, B_rowadr, B_colind, B_rowsuper, d, /*flg_upper=*/1);
+
+    // nA = total number of nonzeros in A
+    d->nA = d->efc_AR_rownnz[nefc - 1] + d->efc_AR_rowadr[nefc - 1];
+
+    // allocate A values and column indices on arena
+    d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
+    d->efc_AR_colind = mj_arenaAllocByte(d, sizeof(int) * d->nA, _Alignof(int));
+    if (!d->efc_AR || !d->efc_AR_colind) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
+
+    // A = B * B'
+    int* diagind = mjSTACKALLOC(d, nefc, int);
+    mju_sqrMatTDSparse(d->efc_AR, BT, B, NULL, nv, nefc,
+                       d->efc_AR_rownnz, d->efc_AR_rowadr, d->efc_AR_colind,
+                       BT_rownnz, BT_rowadr, BT_colind, NULL,
+                       B_rownnz, B_rowadr, B_colind, B_rowsuper, d, diagind);
+
+    // AR = A + diag(R)
+    for (int i=0; i < nefc; i++) {
+      d->efc_AR[diagind[i]] += d->efc_R[i];
     }
   }
 
   // dense
   else {
-    // JM2 = backsubM2(J')'
-    mj_solveM2(m, d, JM2, d->efc_J, nefc);
+    d->nA = nefc * nefc;
 
-    // construct JM2T
-    mju_transpose(JM2T, JM2, nefc, nv);
+    // arena-allocate efc_AR
+    d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
+    if (!d->efc_AR) {
+      mj_warning(d, mjWARN_CNSTRFULL, d->narena);
+      mj_clearEfc(d);
+      d->parena = d->ncon * sizeof(mjContact);
+      mj_freeStack(d);
+      return;
+    }
 
-    // AR = JM2 * JM2'
-    mju_sqrMatTD(d->efc_AR, JM2T, NULL, nv, nefc);
+    // space for B = backsubM2(J')' and its transpose
+    mjtNum* B = mjSTACKALLOC(d, nefc*nv, mjtNum);
+    mjtNum* BT = mjSTACKALLOC(d, nv*nefc, mjtNum);
+
+    // B = backsubM2(J')'
+    mj_solveM2(m, d, B, d->efc_J, sqrtInvD, nefc);
+
+    // construct BT
+    mju_transpose(BT, B, nefc, nv);
+
+    // AR = B * B'
+    mju_sqrMatTD(d->efc_AR, BT, NULL, nv, nefc);
 
     // add R to diagonal of AR
     for (int r=0; r < nefc; r++) {

@@ -52,6 +52,7 @@ class _Context(PyTreeNode):
     u: friction cone (normal and tangents)            (num(con.dim > 1), 6)
     h: cone hessian                                   (num(con.dim > 1), 6, 6)
   """
+
   qacc: jax.Array
   qfrc_constraint: jax.Array
   Jaref: jax.Array  # pylint: disable=invalid-name
@@ -225,6 +226,7 @@ class _LSContext(PyTreeNode):
 
 def _while_loop_scan(cond_fun, body_fun, init_val, max_iter):
   """Scan-based implementation (jit ok, reverse-mode autodiff ok)."""
+
   def _iter(val):
     next_val = body_fun(val)
     next_cond = cond_fun(next_val)
@@ -279,7 +281,12 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
     friction = d.contact.friction[d.contact.dim > 1]
     efc_address = d.contact.efc_address[d.contact.dim > 1]
     dim = d.contact.dim[d.contact.dim > 1]
-    slice_fn = jax.vmap(lambda x: jax.lax.dynamic_slice(ctx.Jaref, (x,), (6,)))
+    # to prevent out of range append zeros to ctx.Jaref
+    slice_fn = jax.vmap(
+        lambda x: jax.lax.dynamic_slice(
+            jp.concatenate((ctx.Jaref, jp.zeros((3)))), (x,), (6,)
+        )
+    )
     u = slice_fn(efc_address) * ctx.fri
     mu, n, t = ctx.fri[:, 0], u[:, 0], jax.vmap(math.norm)(u[:, 1:])
 
@@ -377,7 +384,7 @@ def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
       # set efc of cone H along diagonal
       for i, (condim, addr) in enumerate(zip(dim, efc_address)):
         h_cone = ctx.h[i, :condim, :condim]
-        cm = cm.at[addr:addr+condim, addr:addr+condim].add(h_cone)
+        cm = cm.at[addr : addr + condim, addr : addr + condim].add(h_cone)
       h = d.efc_J.T @ cm @ d.efc_J
     else:
       h = (d.efc_J.T * d.efc_D * ctx.active) @ d.efc_J
@@ -433,7 +440,12 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
     quad = quad.at[jp.array(efc_con)].add(quad[jp.array(efc_fri)])
 
     # rescale to make primal cone circular
-    jv_fn = jax.vmap(lambda x: jax.lax.dynamic_slice(jv, (x,), (6,)))
+    # to prevent out of range append zeros to jv
+    jv_fn = jax.vmap(
+        lambda x: jax.lax.dynamic_slice(
+            jp.concatenate((jv, jp.zeros(3))), (x,), (6,)
+        )
+    )
     efc_elliptic = d.contact.efc_address[mask]
     v = jv_fn(efc_elliptic) * ctx.fri
     uu = jp.sum(ctx.u[:, 1:] * ctx.u[:, 1:], axis=1)

@@ -115,6 +115,8 @@ def fwd_actuation(m: Model, d: Data) -> Data:
       act_dot = ctrl
     elif dyn_typ in (DynType.FILTER, DynType.FILTEREXACT):
       act_dot = (ctrl - act) / jp.clip(dyn_prm[0], mujoco.mjMINVAL)
+    elif dyn_typ == DynType.MUSCLE:
+      act_dot = support.muscle_dynamics(ctrl, act, dyn_prm)
     else:
       raise NotImplementedError(f'dyntype {dyn_typ.name} not implemented.')
     return act_dot
@@ -139,13 +141,15 @@ def fwd_actuation(m: Model, d: Data) -> Data:
     ctrl_act = jp.where(m.actuator_actadr == -1, ctrl, act_last_dim)
 
   def get_force(*args):
-    gain_t, gain_p, bias_t, bias_p, len_, vel, ctrl_act = args
+    gain_t, gain_p, bias_t, bias_p, len_, vel, ctrl_act, len_range, acc0 = args
 
     typ, prm = GainType(gain_t), gain_p
     if typ == GainType.FIXED:
       gain = prm[0]
     elif typ == GainType.AFFINE:
       gain = prm[0] + prm[1] * len_ + prm[2] * vel
+    elif typ == GainType.MUSCLE:
+      gain = support.muscle_gain(len_, vel, len_range, acc0, prm)
     else:
       raise RuntimeError(f'unrecognized gaintype {typ.name}.')
 
@@ -153,13 +157,15 @@ def fwd_actuation(m: Model, d: Data) -> Data:
     bias = jp.array(0.0)
     if typ == BiasType.AFFINE:
       bias = prm[0] + prm[1] * len_ + prm[2] * vel
+    elif typ == BiasType.MUSCLE:
+      bias = support.muscle_bias(len_, len_range, acc0, prm)
 
     return gain * ctrl_act + bias
 
   force = scan.flat(
       m,
       get_force,
-      'uuuuuuu',
+      'uuuuuuuuu',
       'u',
       m.actuator_gaintype,
       m.actuator_gainprm,
@@ -168,6 +174,8 @@ def fwd_actuation(m: Model, d: Data) -> Data:
       d.actuator_length,
       d.actuator_velocity,
       ctrl_act,
+      jp.array(m.actuator_lengthrange),
+      jp.array(m.actuator_acc0),
       group_by='u',
   )
   forcerange = jp.where(
@@ -309,7 +317,7 @@ def euler(m: Model, d: Data) -> Data:
 @named_scope
 def rungekutta4(m: Model, d: Data) -> Data:
   """Runge-Kutta explicit order 4 integrator."""
-  d_t0 = d
+  d0 = d
   # pylint: disable=invalid-name
   A, B = _RK4_A, _RK4_B
   C = jp.tril(A).sum(axis=0)  # C(i) = sum_j A(i,j)
@@ -330,9 +338,9 @@ def rungekutta4(m: Model, d: Data) -> Data:
         lambda k: a * k, (kqvel, d.qacc, d.act_dot)
     )
     # get intermediate RK solutions
-    kqpos = scan.flat(m, integrate_fn, 'jqv', 'q', m.jnt_type, d_t0.qpos, dqvel)
-    kact = d_t0.act + dact_dot * m.opt.timestep
-    kqvel = d_t0.qvel + dqacc * m.opt.timestep
+    kqpos = scan.flat(m, integrate_fn, 'jqv', 'q', m.jnt_type, d0.qpos, dqvel)
+    kact = d0.act + dact_dot * m.opt.timestep
+    kqvel = d0.qvel + dqacc * m.opt.timestep
     d = d.replace(qpos=kqpos, qvel=kqvel, act=kact, time=t)
     d = forward(m, d)
 
@@ -344,9 +352,10 @@ def rungekutta4(m: Model, d: Data) -> Data:
 
   abt = jp.vstack([jp.diag(A), B[1:4], T]).T
   out, _ = jax.lax.scan(f, (qvel, qacc, act_dot, kqvel, d), abt, unroll=3)
-  qvel, qacc, act_dot, *_ = out
+  qvel, qacc, act_dot, _, d1 = out
 
-  d = _advance(m, d_t0, act_dot, qacc, qvel)
+  d = d1.replace(qpos=d0.qpos, qvel=d0.qvel, act=d0.act, time=d0.time)
+  d = _advance(m, d, act_dot, qacc, qvel)
   return d
 
 

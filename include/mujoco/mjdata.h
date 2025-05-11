@@ -198,6 +198,7 @@ struct mjData_ {
   int     nl;                // number of limit constraints
   int     nefc;              // number of constraints
   int     nJ;                // number of non-zeros in constraint Jacobian
+  int     nA;                // number of non-zeros in constraint inverse inertia matrix
   int     nisland;           // number of detected constraint islands
 
   // global properties
@@ -291,8 +292,8 @@ struct mjData_ {
   mjtNum* actuator_length;   // actuator lengths                                 (nu x 1)
   int*    moment_rownnz;     // number of non-zeros in actuator_moment row       (nu x 1)
   int*    moment_rowadr;     // row start address in colind array                (nu x 1)
-  int*    moment_colind;     // column indices in sparse Jacobian                (nu x nv)
-  mjtNum* actuator_moment;   // actuator moments                                 (nu x nv)
+  int*    moment_colind;     // column indices in sparse Jacobian                (nJmom x 1)
+  mjtNum* actuator_moment;   // actuator moments                                 (nJmom x 1)
 
   // computed by mj_fwdPosition/mj_crb
   mjtNum* crb;               // com-based composite inertia and mass             (nbody x 10)
@@ -301,7 +302,6 @@ struct mjData_ {
   // computed by mj_fwdPosition/mj_factorM
   mjtNum* qLD;               // L'*D*L factorization of M (sparse)               (nM x 1)
   mjtNum* qLDiagInv;         // 1/diag(D)                                        (nv x 1)
-  mjtNum* qLDiagSqrtInv;     // 1/sqrt(diag(D))                                  (nv x 1)
 
   // computed by mj_collisionTree
   mjtNum*  bvh_aabb_dyn;     // global bounding box (center, size)               (nbvhdynamic x 6)
@@ -340,12 +340,17 @@ struct mjData_ {
   int*    B_rownnz;          // body-dof: non-zeros in each row                  (nbody x 1)
   int*    B_rowadr;          // body-dof: address of each row in B_colind        (nbody x 1)
   int*    B_colind;          // body-dof: column indices of non-zeros            (nB x 1)
+  int*    M_rownnz;          // inertia: non-zeros in each row                   (nv x 1)
+  int*    M_rowadr;          // inertia: address of each row in M_colind         (nv x 1)
+  int*    M_colind;          // inertia: column indices of non-zeros             (nM x 1)
+  int*    mapM2M;            // index mapping from M (legacy) to M (CSR)         (nM x 1)
   int*    C_rownnz;          // reduced dof-dof: non-zeros in each row           (nv x 1)
   int*    C_rowadr;          // reduced dof-dof: address of each row in C_colind (nv x 1)
   int*    C_colind;          // reduced dof-dof: column indices of non-zeros     (nC x 1)
   int*    mapM2C;            // index mapping from M to C                        (nC x 1)
   int*    D_rownnz;          // dof-dof: non-zeros in each row                   (nv x 1)
   int*    D_rowadr;          // dof-dof: address of each row in D_colind         (nv x 1)
+  int*    D_diag;            // dof-dof: index of diagonal element               (nv x 1)
   int*    D_colind;          // dof-dof: column indices of non-zeros             (nD x 1)
   int*    mapM2D;            // index mapping from M to D                        (nD x 1)
   int*    mapD2M;            // index mapping from D to M                        (nM x 1)
@@ -419,8 +424,8 @@ struct mjData_ {
   // computed by mj_projectConstraint (PGS solver)
   int*    efc_AR_rownnz;     // number of non-zeros in AR                        (nefc x 1)
   int*    efc_AR_rowadr;     // row start address in colind array                (nefc x 1)
-  int*    efc_AR_colind;     // column indices in sparse AR                      (nefc x nefc)
-  mjtNum* efc_AR;            // J*inv(M)*J' + R                                  (nefc x nefc)
+  int*    efc_AR_colind;     // column indices in sparse AR                      (nA x 1)
+  mjtNum* efc_AR;            // J*inv(M)*J' + R                                  (nA x 1)
 
   //-------------------- arena-allocated: POSITION, VELOCITY dependent
 
@@ -437,6 +442,9 @@ struct mjData_ {
 
   // thread pool pointer
   uintptr_t threadpool;
+
+  // compilation signature
+  uint64_t  signature;       // also held by the mjSpec that compiled the model
 };
 typedef struct mjData_ mjData;
 

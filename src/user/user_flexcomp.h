@@ -31,12 +31,22 @@ typedef enum _mjtFcompType {
   mjFCOMPTYPE_ELLIPSOID,
   mjFCOMPTYPE_SQUARE,
   mjFCOMPTYPE_DISC,
+  mjFCOMPTYPE_CIRCLE,
   mjFCOMPTYPE_MESH,
   mjFCOMPTYPE_GMSH,
   mjFCOMPTYPE_DIRECT,
 
   mjNFCOMPTYPES
 } mjtFcompType;
+
+
+typedef enum _mjtDof {
+  mjFCOMPDOF_FULL = 0,
+  mjFCOMPDOF_RADIAL,
+  mjFCOMPDOF_TRILINEAR,
+
+  mjNFCOMPDOFS
+} mjtDof;
 
 
 class mjCFlexcomp {
@@ -67,10 +77,12 @@ class mjCFlexcomp {
   int count[3];                   // grid count in each dimension
   double spacing[3];              // spacing between grid elements
   double scale[3];                // scaling for mesh and direct
+  double origin[3];               // origin for generating a 3D mesh from a convex 2D mesh
   double mass;                    // total mass of auto-generated bodies
   double inertiabox;              // size of inertia box for each body
   bool equality;                  // create edge equality constraint
   std::string file;               // mesh/gmsh file name
+  mjtDof doftype;                 // dof type, all vertices or trilinear interpolation
 
   // pin specifications
   std::vector<int> pinid;         // ids of points to pin
@@ -94,6 +106,7 @@ class mjCFlexcomp {
   std::vector<bool> used;         // is point used by any element (false: skip)
   std::vector<int> element;       // flex elements
   std::vector<float> texcoord;    // vertex texture coordinates
+  std::vector<int> elemtexcoord;  // face texture coordinates (OBJ only)
 
   // plugin support
   std::string plugin_name;

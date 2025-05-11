@@ -1,0 +1,32 @@
+<mujoco model="Capsule-Ellipsoid Distance">
+  <visual>
+    <headlight ambient=".7 .7 .7"/>
+    <rgba rangefinder="1 .2 .1 1"/>
+  </visual>
+  <option>
+    <flag gravity="disable"/>
+  </option>
+  <asset>
+    <texture type="skybox" builtin="gradient" width="512" height="512" rgb1="1 1 1" rgb2="1 1 1"/>
+  </asset>
+
+  <default>
+    <geom rgba=".1 .1 .1 1"/>
+  </default>
+
+  <worldbody>
+    <body pos="-.5 0 0">
+      <freejoint/>
+      <geom name="capsule" type="capsule" size=".15 .30"/>
+    </body>
+
+    <body pos=".5 0 0">
+      <freejoint/>
+      <geom name="ellipsoid" type="ellipsoid" size=".10 .10 .15"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <fromto geom1="capsule" geom2="ellipsoid" cutoff="15"/>
+  </sensor>
+</mujoco>

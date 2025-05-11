@@ -35,35 +35,30 @@ using ::testing::NotNull;
 using ::testing::HasSubstr;
 using UserCompositeTest = MujocoTest;
 
-// ------------- test automatic inference of nuser_xxx -------------------------
+// ------------------------ cable tests ---------------------------------------
 
-TEST_F(UserCompositeTest, MultipleJointsNotAllowedUnlessParticle) {
+TEST_F(UserCompositeTest, ShapeCanBeOmitted) {
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
-    <body>
-      <freejoint/>
-      <composite type="grid" count="7 7 1" spacing="0.04">
-        <joint kind="main" solreffix="0.03 1" solimpfix="0 .1 .01"/>
-        <joint kind="main" solreffix="0.03 1" solimpfix="0 .1 .01"/>
-      </composite>
-    </body>
+    <composite type="cable" count="100 1 1" curve="s">
+      <geom type="box" size="1 1 1"/>
+    </composite>
   </worldbody>
   </mujoco>
   )";
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(),
-              HasSubstr("Only particles are allowed to have multiple joints"));
+  EXPECT_THAT(m, NotNull()) << error.data();
+  mj_deleteModel(m);
 }
 
-TEST_F(UserCompositeTest, SpacingGreaterThanGeometry) {
+TEST_F(UserCompositeTest, InvalidShape) {
   static constexpr char xml[] = R"(
   <mujoco>
   <worldbody>
-    <composite type="grid" count="282 2">
-      <geom size="8"/>
+    <composite type="cable" count="100 1 1" curve="s s exp">
+      <geom type="box" size="1 1 1"/>
     </composite>
   </worldbody>
   </mujoco>
@@ -72,26 +67,7 @@ TEST_F(UserCompositeTest, SpacingGreaterThanGeometry) {
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull()) << error.data();
   EXPECT_THAT(error.data(),
-              HasSubstr("Spacing must be larger than geometry size"));
-}
-
-TEST_F(UserCompositeTest, SpacingEqualToGeometry) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-  <worldbody>
-    <composite type="grid" count="282 2" spacing="8">
-      <geom size="8"/>
-    </composite>
-  </worldbody>
-  </mujoco>
-  )";
-  std::array<char, 1024> error;
-  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
-  EXPECT_THAT(m, NotNull()) << error.data();
-  mjData* d = mj_makeData(m);
-  mj_step(m, d);
-  mj_deleteData(d);
-  mj_deleteModel(m);
+              HasSubstr("The curve array contains an invalid shape"));
 }
 
 }  // namespace

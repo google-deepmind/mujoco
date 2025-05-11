@@ -30,7 +30,7 @@ _TOLERANCE = 5e-5
 
 
 def _assert_eq(a, b, name):
-  tol = _TOLERANCE * 10   # avoid test noise
+  tol = _TOLERANCE * 10  # avoid test noise
   err_msg = f'mismatch: {name}'
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
@@ -75,7 +75,7 @@ class ConstraintTest(parameterized.TestCase):
       _assert_eq(0, dx.efc_aref[order][d.nefc :], 'efc_aref')
       _assert_eq(d.efc_D, dx.efc_D[order][: d.nefc], 'efc_D')
       _assert_eq(d.efc_pos, dx.efc_pos[order][: d.nefc], 'efc_pos')
-      _assert_eq(dx.efc_pos[order][d.nefc:], 0, 'efc_pos')
+      _assert_eq(dx.efc_pos[order][d.nefc :], 0, 'efc_pos')
       _assert_eq(
           d.efc_frictionloss,
           dx.efc_frictionloss[order][: d.nefc],

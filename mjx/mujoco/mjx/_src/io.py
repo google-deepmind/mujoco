@@ -34,31 +34,36 @@ def _strip_weak_type(tree):
     if isinstance(leaf, jax.Array):
       return leaf.astype(jax.dtypes.canonicalize_dtype(leaf.dtype))
     return leaf
+
   return jax.tree_util.tree_map(f, tree)
 
 
-def _make_option(o: mujoco.MjOption) -> types.Option:
+def _make_option(
+    o: mujoco.MjOption, _full_compat: bool = False  # pylint: disable=invalid-name
+) -> types.Option:
   """Returns mjx.Option given mujoco.MjOption."""
-  if o.integrator not in set(types.IntegratorType):
-    raise NotImplementedError(f'{mujoco.mjtIntegrator(o.integrator)}')
+  if not _full_compat:
+    if o.integrator not in set(types.IntegratorType):
+      raise NotImplementedError(f'{mujoco.mjtIntegrator(o.integrator)}')
 
-  if o.cone not in set(types.ConeType):
-    raise NotImplementedError(f'{mujoco.mjtCone(o.cone)}')
+    if o.cone not in set(types.ConeType):
+      raise NotImplementedError(f'{mujoco.mjtCone(o.cone)}')
 
-  if o.jacobian not in set(types.JacobianType):
-    raise NotImplementedError(f'{mujoco.mjtJacobian(o.jacobian)}')
+    if o.jacobian not in set(types.JacobianType):
+      raise NotImplementedError(f'{mujoco.mjtJacobian(o.jacobian)}')
 
-  if o.solver not in set(types.SolverType):
-    raise NotImplementedError(f'{mujoco.mjtSolver(o.solver)}')
+    if o.solver not in set(types.SolverType):
+      raise NotImplementedError(f'{mujoco.mjtSolver(o.solver)}')
 
-  for i in range(mujoco.mjtEnableBit.mjNENABLE):
-    if o.enableflags & 2**i:
-      raise NotImplementedError(f'{mujoco.mjtEnableBit(2 ** i)}')
+    for i in range(mujoco.mjtEnableBit.mjNENABLE):
+      if o.enableflags & 2**i:
+        raise NotImplementedError(f'{mujoco.mjtEnableBit(2 ** i)}')
 
   has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
   implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
-  if implicitfast and has_fluid_params:
-    raise NotImplementedError('implicitfast not implemented for fluid drag.')
+  if not _full_compat:
+    if implicitfast and has_fluid_params:
+      raise NotImplementedError('implicitfast not implemented for fluid drag.')
 
   fields = {f.name: getattr(o, f.name, None) for f in types.Option.fields()}
   fields['integrator'] = types.IntegratorType(o.integrator)
@@ -91,7 +96,7 @@ def put_model(
     m: the model to put onto device
     device: which device to use - if unspecified picks the default device
     _full_compat: put all MjModel fields onto device irrespective of MJX support
-        This is an experimental feature.  Avoid using it for now.
+      This is an experimental feature.  Avoid using it for now.
 
   Returns:
     an mjx.Model placed on device
@@ -118,29 +123,20 @@ def put_model(
       if t == mujoco.mjtGeom.mjGEOM_MESH:
         mesh_geomid.add(g)
 
-  # check for spatial tendon internal geom wrapping
-  if m.ntendon:
-    # find sphere or cylinder geoms (if any exist)
-    (wrap_id_geom,) = np.nonzero(
-        (m.wrap_type == mujoco.mjtWrap.mjWRAP_SPHERE)
-        | (m.wrap_type == mujoco.mjtWrap.mjWRAP_CYLINDER)
+  # check for unsupported sensor and equality constraint combinations
+  sensor_rne_postconstraint = (
+      np.any(m.sensor_type == types.SensorType.ACCELEROMETER)
+      | np.any(m.sensor_type == types.SensorType.FORCE)
+      | np.any(m.sensor_type == types.SensorType.TORQUE)
+  )
+  eq_connect_weld = np.any(m.eq_type == types.EqType.CONNECT) | np.any(
+      m.eq_type == types.EqType.WELD
+  )
+  if sensor_rne_postconstraint and eq_connect_weld:
+    raise NotImplementedError(
+        'rne_postconstraint not implemented with equality constraints:'
+        ' connect, weld.'
     )
-    wrap_objid_geom = m.wrap_objid[wrap_id_geom]
-    geom_pos = m.geom_pos[wrap_objid_geom]
-    geom_size = m.geom_size[wrap_objid_geom, 0]
-
-    # find sidesites (if any exist)
-    side_id = np.round(m.wrap_prm[wrap_id_geom]).astype(int)
-    side = m.site_pos[side_id]
-
-    # check for sidesite inside geom
-    if np.any(
-        (np.linalg.norm(side - geom_pos, axis=1) < geom_size) & (side_id >= 0)
-    ):
-      raise NotImplementedError(
-          'Internal wrapping with sphere and cylinder geoms is not'
-          ' implemented for spatial tendons.'
-      )
 
   for enum_field, enum_type, mj_type in (
       (m.actuator_biastype, types.BiasType, mujoco.mjtBias),
@@ -163,20 +159,54 @@ def put_model(
       if f.metadata.get('restricted_to') != 'mjx'
   }
   fields = {f: getattr(m, f) for f in mj_field_names}
+
+  # zero out fields restricted to MuJoCo
+  if not _full_compat:
+    for f in types.Model.fields():
+      if f.metadata.get('restricted_to') == 'mujoco' and isinstance(
+          fields[f.name], np.ndarray
+      ):
+        fields[f.name] = np.zeros((0,), dtype=fields[f.name].dtype)
+
   fields['dof_hasfrictionloss'] = fields['dof_frictionloss'] > 0
   fields['tendon_hasfrictionloss'] = fields['tendon_frictionloss'] > 0
   fields['geom_rbound_hfield'] = fields['geom_rbound']
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
-  fields['opt'] = _make_option(m.opt)
+  fields['opt'] = _make_option(m.opt, _full_compat=_full_compat)
   fields['stat'] = _make_statistic(m.stat)
+
+  # spatial tendon wrap inside
+  fields['wrap_inside_maxiter'] = 5
+  fields['wrap_inside_tolerance'] = 1.0e-4
+  fields['wrap_inside_z_init'] = 1.0 - 1.0e-5
+  fields['is_wrap_inside'] = np.zeros(0, dtype=bool)
+  if m.nsite:
+    # find sphere or cylinder geoms (if any exist)
+    (wrap_id_geom,) = np.nonzero(
+        (m.wrap_type == mujoco.mjtWrap.mjWRAP_SPHERE)
+        | (m.wrap_type == mujoco.mjtWrap.mjWRAP_CYLINDER)
+    )
+    wrap_objid_geom = m.wrap_objid[wrap_id_geom]
+    geom_pos = m.geom_pos[wrap_objid_geom]
+    geom_size = m.geom_size[wrap_objid_geom, 0]
+
+    # find sidesites (if any exist)
+    side_id = np.round(m.wrap_prm[wrap_id_geom]).astype(int)
+    side = m.site_pos[side_id]
+
+    # wrap inside flag
+    fields['is_wrap_inside'] = np.array(
+        (np.linalg.norm(side - geom_pos, axis=1) < geom_size) & (side_id >= 0)
+    )
 
   # Pre-compile meshes for MJX collisions.
   fields['mesh_convex'] = [None] * m.nmesh
-  for i in mesh_geomid:
-    dataid = m.geom_dataid[i]
-    if fields['mesh_convex'][dataid] is None:
-      fields['mesh_convex'][dataid] = mesh.convex(m, dataid)  # pytype: disable=unsupported-operands
-  fields['mesh_convex'] = tuple(fields['mesh_convex'])
+  if not _full_compat:
+    for i in mesh_geomid:
+      dataid = m.geom_dataid[i]
+      if fields['mesh_convex'][dataid] is None:
+        fields['mesh_convex'][dataid] = mesh.convex(m, dataid)  # pytype: disable=unsupported-operands
+    fields['mesh_convex'] = tuple(fields['mesh_convex'])
 
   model = types.Model(**{k: copy.copy(v) for k, v in fields.items()})
 
@@ -195,8 +225,8 @@ def make_data(
     m: the model to use
     device: which device to use - if unspecified picks the default device
     _full_compat: create all MjData fields on device irrespective of MJX support
-        This is an experimental feature.  Avoid using it for now.
-        If using this flag, also use _full_compat for put_model.
+      This is an experimental feature.  Avoid using it for now. If using this
+      flag, also use _full_compat for put_model.
 
   Returns:
     an initialized mjx.Data placed on device
@@ -218,11 +248,18 @@ def make_data(
         solreffriction=jp.zeros((ncon, mujoco.mjNREF), dtype=float),
         solimp=jp.zeros((ncon, mujoco.mjNIMP), dtype=float),
         dim=dim,
-        geom1=jp.full((ncon,), -1, dtype=jp.int32),
-        geom2=jp.full((ncon,), -1, dtype=jp.int32),
-        geom=jp.full((ncon, 2), -1, dtype=jp.int32),
+        # let jax pick contact.geom int precision, for interop with
+        # jax_enable_x64
+        geom1=jp.full((ncon,), -1, dtype=int),
+        geom2=jp.full((ncon,), -1, dtype=int),
+        geom=jp.full((ncon, 2), -1, dtype=int),
         efc_address=efc_address,
     )
+
+    if m.opt.cone == types.ConeType.ELLIPTIC and np.any(contact.dim == 1):
+      raise NotImplementedError(
+          'condim=1 with ConeType.ELLIPTIC not implemented.'
+      )
 
     zero_fields = {
         'solver_niter': (int,),
@@ -276,13 +313,12 @@ def make_data(
         'actuator_length': (m.nu, float),
         'moment_rownnz': (m.nu, jp.int32),
         'moment_rowadr': (m.nu, jp.int32),
-        'moment_colind': (m.nu, m.nv, jp.int32),
+        'moment_colind': (m.nJmom, jp.int32),
         'actuator_moment': (m.nu, m.nv, float),
         'crb': (m.nbody, 10, float),
         'qM': (m.nM, float) if support.is_sparse(m) else (m.nv, m.nv, float),
         'qLD': (m.nM, float) if support.is_sparse(m) else (m.nv, m.nv, float),
         'qLDiagInv': (m.nv, float) if support.is_sparse(m) else (0, float),
-        'qLDiagSqrtInv': (m.nv, float),
         'bvh_aabb_dyn': (m.nbvhdynamic, 6, float),
         'bvh_active': (m.nbvh, jp.uint8),
         'flexedge_velocity': (m.nflexedge, float),
@@ -300,12 +336,23 @@ def make_data(
         'subtree_angmom': (m.nbody, 3, float),
         'qH': (m.nM, float) if support.is_sparse(m) else (m.nv, m.nv, float),
         'qHDiagInv': (m.nv, float),
-        'D_rownnz': (m.nv, jp.int32),
-        'D_rowadr': (m.nv, jp.int32),
-        'D_colind': (m.nD, jp.int32),
         'B_rownnz': (m.nbody, jp.int32),
         'B_rowadr': (m.nbody, jp.int32),
         'B_colind': (m.nB, jp.int32),
+        'M_rownnz': (m.nv, jp.int32),
+        'M_rowadr': (m.nv, jp.int32),
+        'M_colind': (m.nM, jp.int32),
+        'mapM2M': (m.nM, jp.int32),
+        'C_rownnz': (m.nv, jp.int32),
+        'C_rowadr': (m.nv, jp.int32),
+        'C_colind': (m.nC, jp.int32),
+        'mapM2C': (m.nC, jp.int32),
+        'D_rownnz': (m.nv, jp.int32),
+        'D_rowadr': (m.nv, jp.int32),
+        'D_diag': (m.nv, jp.int32),
+        'D_colind': (m.nD, jp.int32),
+        'mapM2D': (m.nD, jp.int32),
+        'mapD2M': (m.nM, jp.int32),
         'qDeriv': (m.nD, float),
         'qLU': (m.nD, float),
         'actuator_force': (m.nu, float),
@@ -348,7 +395,7 @@ def make_data(
       contact=contact,
       efc_type=efc_type,
       eq_active=m.eq_active0,
-      **zero_fields
+      **zero_fields,
   )
 
   return d
@@ -431,22 +478,23 @@ def get_data_into(
         continue
 
       # MuJoCo actuator_moment is sparse, MJX uses a dense representation.
-      if field.name == 'actuator_moment' and m.nu:
+      if field.name == 'actuator_moment':
         moment_rownnz = np.zeros(m.nu, dtype=np.int32)
         moment_rowadr = np.zeros(m.nu, dtype=np.int32)
-        moment_colind = np.zeros(m.nu * m.nv, dtype=np.int32)
-        actuator_moment = np.zeros(m.nu * m.nv)
-        mujoco.mju_dense2sparse(
-            actuator_moment,
-            d.actuator_moment,
-            moment_rownnz,
-            moment_rowadr,
-            moment_colind,
-        )
+        moment_colind = np.zeros(m.nJmom, dtype=np.int32)
+        actuator_moment = np.zeros(m.nJmom)
+        if m.nu:
+          mujoco.mju_dense2sparse(
+              actuator_moment,
+              d_i.actuator_moment,
+              moment_rownnz,
+              moment_rowadr,
+              moment_colind,
+          )
         result_i.moment_rownnz[:] = moment_rownnz
         result_i.moment_rowadr[:] = moment_rowadr
-        result_i.moment_colind[:] = moment_colind.reshape((m.nu, m.nv))
-        result_i.actuator_moment[:] = actuator_moment.reshape((m.nu, m.nv))
+        result_i.moment_colind[:] = moment_colind
+        result_i.actuator_moment[:] = actuator_moment
         continue
 
       value = getattr(d_i, field.name)
@@ -462,14 +510,22 @@ def get_data_into(
       elif field.name == 'qM' and not support.is_sparse(m):
         value = value[dof_i, dof_j]
       elif field.name == 'qLD' and not support.is_sparse(m):
-        value = value[dof_i, dof_j]
+        # TODO(erikfrey): provide correct qLDs
+        value = np.zeros(m.nM)
       elif field.name == 'qLDiagInv' and not support.is_sparse(m):
         value = np.ones(m.nv)
 
       if isinstance(value, np.ndarray) and value.shape:
-        if restricted_to in ('mujoco', 'mjx') and value.shape == (0,):
+        if restricted_to in ('mujoco', 'mjx'):
           continue  # don't copy fields that are mujoco-only or MJX-only
-        getattr(result_i, field.name)[:] = value
+        else:
+          result_field = getattr(result_i, field.name)
+          if result_field.shape != value.shape:
+            raise ValueError(
+                f'Input field {field.name} has shape {value.shape}, but output'
+                f' has shape {result_field.shape}'
+            )
+          result_field[:] = value
       else:
         setattr(result_i, field.name, value)
 
@@ -486,7 +542,7 @@ def _make_contact(
   # if we have fewer Contacts for a condim range, pad the range with zeros
 
   # build a map for where to find a dim-matching contact, or -1 if none
-  contact_map = np.zeros_like(dim) - 1
+  contact_map = -np.ones_like(dim)
   for i, di in enumerate(fields['dim']):
     space = [j for j, dj in enumerate(dim) if di == dj and contact_map[j] == -1]
     if not space:
@@ -519,8 +575,8 @@ def put_data(
     d: the data to put on device
     device: which device to use - if unspecified picks the default device
     _full_compat: put all MjModel fields onto device irrespective of MJX support
-        This is an experimental feature.  Avoid using it for now.
-        If using this flag, also use _full_compat for put_model.
+      This is an experimental feature.  Avoid using it for now. If using this
+      flag, also use _full_compat for put_model.
 
   Returns:
     an mjx.Data placed on device
@@ -558,10 +614,10 @@ def put_data(
   moment = np.zeros((m.nu, m.nv))
   mujoco.mju_sparse2dense(
       moment,
-      d.actuator_moment.reshape(-1),
+      d.actuator_moment,
       d.moment_rownnz,
       d.moment_rowadr,
-      d.moment_colind.reshape(-1),
+      d.moment_colind,
   )
   fields['actuator_moment'] = moment
 
@@ -609,9 +665,27 @@ def put_data(
       if num_rows > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
         num_rows = (num_rows - 1) * 2
       efc_i, efc_o = d.contact.efc_address[id_from], efc_address[id_to]
-      value[efc_o:efc_o + num_rows] = fields[fname][efc_i:efc_i + num_rows]
+      if efc_i == -1:
+        continue
+      value[efc_o : efc_o + num_rows] = fields[fname][efc_i : efc_i + num_rows]
 
     fields[fname] = value
+
+  if _full_compat:
+    # full compatibility mode, we store sparse qM regardless of jacobian setting
+    fields['_qM_sparse'] = fields['qM']
+    fields['_qLD_sparse'] = fields['qLD']
+    fields['_qLDiagInv_sparse'] = fields['qLDiagInv']
+  else:
+    fields['_qM_sparse'] = jp.zeros(0, dtype=float)
+    fields['_qLD_sparse'] = jp.zeros(0, dtype=float)
+    fields['_qLDiagInv_sparse'] = jp.zeros(0, dtype=float)
+    # otherwise clear out unused arrays
+    for f in types.Data.fields():
+      if f.metadata.get('restricted_to') == 'mujoco' and isinstance(
+          fields[f.name], np.ndarray
+      ):
+        fields[f.name] = np.zeros(0, dtype=fields[f.name].dtype)
 
   # convert qM and qLD if jacobian is dense
   if not support.is_sparse(m):
@@ -625,24 +699,11 @@ def put_data(
       fields['qLD'] = np.zeros((m.nv, m.nv))
     fields['qLDiagInv'] = np.zeros(0)
 
-  if _full_compat:
-    # full compatibility mode, we store sparse qM regardless of jacobian setting
-    fields['_qM_sparse'] = fields['qM']
-    fields['_qLD_sparse'] = fields['qLD']
-    fields['_qLDiagInv_sparse'] = fields['qLDiagInv']
-  else:
-    fields['_qM_sparse'] = jp.zeros(0, dtype=float)
-    fields['_qLD_sparse'] = jp.zeros(0, dtype=float)
-    fields['_qLDiagInv_sparse'] = jp.zeros(0, dtype=float)
-    # otherwise clear out unused arrays
-    for f in types.Data.fields():
-      if f.metadata.get('restricted_to') == 'mujoco':
-        fields[f.name] = np.zeros(0, dtype=fields[f.name].dtype)
-
   fields['contact'] = contact
   fields.update(ne=ne, nf=nf, nl=nl, nefc=nefc, ncon=ncon, efc_type=efc_type)
 
   # copy because device_put is async:
   data = types.Data(**{k: copy.copy(v) for k, v in fields.items()})
 
-  return jax.device_put(data, device=device)
+  data = jax.device_put(data, device=device)
+  return _strip_weak_type(data)

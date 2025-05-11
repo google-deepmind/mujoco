@@ -243,7 +243,9 @@ access to the raw memory used by MuJoCo without copying or buffering. This means
 :ref:`mj_step`) change the content of fields *in place*. The user is therefore advised to create copies where required.
 For example, when logging the position of a body, one could write
 ``positions.append(data.body('my_body').xpos.copy())``. Without the ``.copy()``, the list would contain identical
-elements, all pointing to the most recent value.
+elements, all pointing to the most recent value. The same applies to NumPy slices. For example if a local
+variable ``qpos_slice = data.qpos[3:8]`` is created and then :ref:`mj_step` is called, the values in ``qpos_slice``
+will have been changed.
 
 In order to conform to `PEP 8 <https://peps.python.org/pep-0008/>`__
 naming guidelines, struct names begin with a capital letter, for example ``mjData`` becomes ``mujoco.MjData`` in Python.
@@ -479,6 +481,7 @@ Below is a minimal usage example, more examples can be found in the Model Editin
 
    import mujoco
    spec = mujoco.MjSpec()
+   spec.modelname = "my model"
    body = spec.worldbody.add_body(
        pos=[1, 2, 3],
        quat=[0, 1, 0, 0],
@@ -503,20 +506,108 @@ The ``MjSpec`` object wraps the :ref:`mjSpec` struct and can be constructed in t
 
 Note the ``from_string()`` and ``from_file()`` methods can only be called at construction time.
 
+Assets
+^^^^^^
+
+All three methods take in an optional argument called ``assets`` which is used to resolve asset references in the XML.
+This argument is a dictionary that maps asset name (string) to asset data (bytes), as demonstrated below:
+
+.. code-block:: python
+
+  assets = {'image.png': b'image_data'}
+  spec = mujoco.MjSpec.from_string(xml_referencing_image_png, assets=assets)
+  model = spec.compile()
+
+Save to XML
+-----------
+
+Compiled ``MjSpec`` objects can be saved to XML string with the ``to_xml()`` method:
+
+.. code-block:: python
+
+   print(spec.to_xml())
+
+.. code-block:: XML
+
+   <mujoco model="my model">
+     <compiler angle="radian"/>
+
+     <worldbody>
+       <body pos="1 2 3" quat="0 1 0 0">
+         <geom name="my_geom" size="1" rgba="1 0 0 1"/>
+       </body>
+     </worldbody>
+   </mujoco>
+
+Attachment
+----------
+
+It is possible to combine multiple specs by using attachments. The following options are possible:
+
+-   Attach a body from the child spec to a frame in the parent spec: ``body.attach_body(body, prefix, suffix)``, returns
+    the reference to the attached body, which should be identical to the body used as input.
+-   Attach a frame from the child spec to a body in the parent spec: ``body.attach_frame(frame, prefix, suffix)``,
+    returns the reference to the attached frame, which should be identical to the frame used as input.
+-   Attach a child spec to a site in the parent spec: ``parent_spec.attach(child_spec, site=site_name_or_obj)``, returns
+    the reference to a frame, which is the attached worldbody transformed into a frame. The site must belong to the
+    child spec. Prefix and suffix can also be specified as keyword arguments.
+-   Attach a child spec to a frame in the parent spec: ``parent_spec.attach(child_spec, frame=frame_name_or_obj)``,
+    returns the reference to a frame, which is the attached worldbody transformed into a frame. The frame must belong to
+    the child spec. Prefix and suffix can also be specified as keyword arguments.
+
+The default behavior of attaching is to not copy, so all the child references (except for the worldbody) are still valid
+in the parent and therefore modifying the child will modify the parent. This is not true for the attach
+:ref:`attach<body-attach>` and :ref:`replicate<replicate>` meta-elements in MJCF, which create deep copies while
+attaching. However, it is possible to override the default behavior by setting ``spec.copy_during_attach`` to
+``True``. In this case, the child spec is copied and the references to the child will not point to the parent.
+
+.. code-block:: python
+
+   import mujoco
+
+   # Create the parent spec.
+   parent = mujoco.MjSpec()
+   body = parent.worldbody.add_body()
+   frame = parent.worldbody.add_frame()
+   site = parent.worldbody.add_site()
+
+   # Create the child spec.
+   child = mujoco.MjSpec()
+   child_body = child.worldbody.add_body()
+   child_frame = child.worldbody.add_frame()
+
+   # Attach the child to the parent in different ways.
+   body_in_frame = frame.attach_body(child_body, 'child-', '')
+   frame_in_body = body.attach_frame(child_frame, 'child-', '')
+   worldframe_in_site = parent.attach(child, site=site, prefix='child-')
+   worldframe_in_frame = parent.attach(child, frame=frame, prefix='child-')
+
 Convenience methods
 -------------------
 
 The Python bindings provide a number of convenience methods and attributes not directly available in the C API in order
 to make model editing easier:
 
+Named access
+^^^^^^^^^^^^
+The ``MjSpec`` object has methods like ``.body(), .joint(), .site(), ...`` for named access of elements.
+``spec.geom('my_geom')`` will return the :ref:`mjsGeom` called "my_geom", or ``None`` if it does not exist.
+
 Element lists
 ^^^^^^^^^^^^^
 Lists of all elements in a spec can be accessed using named properties, using the plural form. For example,
-``spec.meshes`` returns a list of all meshes in the spec.
+``spec.meshes`` returns a list of all meshes in the spec. The following properties are implemented: ``sites``,
+``geoms``, ``joints``, ``lights``, ``cameras``, ``bodies``, ``frames``, ``materials``, ``meshes``, ``pairs``,
+``equalities``, ``tendons``, ``actuators``, ``skins``, ``textures``, ``texts``, ``tuples``, ``flexes``, ``hfields``,
+``keys``, ``numerics``, ``excludes``, ``sensors``, ``plugins``.
 
-The following properties are implemented: ``sites``, ``geoms``, ``joints``, ``lights``, ``cameras``, ``bodies``,
-``frames``, ``materials``, ``meshes``, ``pairs``, ``equalities``, ``tendons``, ``actuators``, ``skins``, ``textures``,
-``texts``, ``tuples``, ``flexes``, ``hfields``, ``keys``, ``numerics``, ``excludes``, ``sensors``, ``plugins``.
+Element removal
+^^^^^^^^^^^^^^^
+For elements that can have children (bodies and defaults), the methods ``spec.detach_body(body)`` and
+``spec.detach_default(def)`` remove, respectively, ``body`` and ``def`` from the spec, together with all of their
+children. When detaching body subtrees, all elements which reference elements in the subtree, will also be removed. For
+all other elements, the method ``delete()`` removes the corresponding element from the spec, e.g.
+``spec.geom('my_geom').delete()`` will remove the geom named "my_geom" and all of the elements that reference it.
 
 Tree traversal
 ^^^^^^^^^^^^^^
@@ -533,9 +624,14 @@ Recursive search:
   ``body.find_all(mujoco.mjtObj.mjOBJ_SITE)`` or ``body.find_all('site')`` will return a list of all sites under the
   body.
 
+Parent:
+  The parent body of a given element -- including bodies and frames -- can be accessed via the ``parent`` property.
+  For example, the parent of a site can be accessed via ``site.parent``.
 
-Relationship to ``PyMJCF``
---------------------------
+.. _PyMJCF:
+
+Relationship to ``PyMJCF`` and ``bind``
+---------------------------------------
 
 `dm_control <https://github.com/google-deepmind/dm_control/tree/main>`__'s
 `PyMJCF <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md>`__ module provides similar
@@ -549,16 +645,19 @@ Model Editing
 includes a reimplementation of the ``PyMJCF`` example in the ``dm_control``
 `tutorial notebook <https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/tutorial.ipynb>`__.
 
-``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via the constructing
-elements. In the native API, this is done with object ids. For example, say we have multiple geoms containing the string
-"torso" in their name. We want to get their Cartesian positions in the XY plane from ``mjData``. This can be done as
-follows:
+``PyMJCF`` provides a notion of "binding", giving access to :ref:`mjModel` and :ref:`mjData` values via a helper class.
+In the native API, the helper class is not needed, so it is possible to directly bind an ``mjs`` object to
+:ref:`mjModel` and :ref:`mjData`. For example, say we have multiple geoms containing the string "torso" in their name.
+We want to get their Cartesian positions in the XY plane from ``mjData``. This can be done as follows:
 
 .. code-block:: python
 
-   torsos = [geom.id for geom in spec.geoms if 'torso' in geom.name]
-   pos_x = data.geom_xpos[torsos, 0]
-   pos_y = data.geom_xpos[torsos, 1]
+   torsos = [data.bind(geom) for geom in spec.geoms if 'torso' in geom.name]
+   pos_x = [torso.xpos[0] for torso in torsos]
+   pos_y = [torso.xpos[1] for torso in torsos]
+
+Using the ``bind`` method requires the :ref:`mjModel` and :ref:`mjData` to be compiled from the :`ref:`mjSpec`. If
+objects are added or removed from the :ref:`mjSpec` since the last compilation, an error is raised.
 
 Notes
 -----
@@ -651,34 +750,77 @@ The ``mujoco`` package contains two sub-modules: ``mujoco.rollout`` and ``mujoco
 
 rollout
 -------
+``mujoco.rollout`` and ``mujoco.rollout.Rollout`` shows how to add additional C/C++ functionality, exposed as a Python
+module via pybind11. It is implemented in `rollout.cc
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__ and wrapped in `rollout.py
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module addresses a common
+use-case where tight loops implemented outside of Python are beneficial: rolling out a trajectory (i.e., calling
+:ref:`mj_step` in a loop), given an initial state and sequence of controls, and returning subsequent states and sensor
+values. The rollouts are run in parallel with an internally managed thread pool if multiple MjData instances (one per
+thread) are passed as an argument. This notebook shows how to use ``rollout`` |rollout_colab|, along with some
+benchmarks e.g., the figure below.
 
-``mujoco.rollout`` shows how to add additional C/C++ functionality, exposed as a Python module via pybind11. It is
-implemented in `rollout.cc <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.cc>`__
-and wrapped in `rollout.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout.py>`__. The module
-performs a common functionality where tight loops implemented outside of Python are beneficial: rolling out a trajectory
-(i.e., calling :ref:`mj_step` in a loop), given an intial state and sequence of controls, and returning subsequent
-states and sensor values. The basic usage form is
+.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+                   :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb
+
+.. image:: images/python/rollout.png
+   :align: right
+   :width: 97%
+
+The basic usage form is
 
 .. code-block:: python
 
    state, sensordata = rollout.rollout(model, data, initial_state, control)
 
-``initial_state`` is an ``nroll x nstate`` array, with ``nroll`` initial states of size ``nstate``, where
-``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
-:ref:`full physics state<geFullPhysics>`. ``control`` is a ``nroll x nstep x ncontrol`` array of controls. Controls are
-by default the ``mjModel.nu`` standard actuators, but any combination of :ref:`user input<geInput>` arrays can be
-specified by passing an optional ``control_spec`` bitflag.
+- ``model`` is either a single instance of MjModel or a sequence of homogeneous MjModels of length ``nbatch``.
+  Homogeneous models have the same integer sizes, but floating point values can differ.
+- ``data`` is either a single instance of MjData or a sequence of compatible MjDatas of length ``nthread``.
+- ``initial_state`` is an ``nbatch x nstate`` array, with ``nbatch`` initial states of size ``nstate``, where
+  ``nstate = mj_stateSize(model, mjtState.mjSTATE_FULLPHYSICS)`` is the size of the
+  :ref:`full physics state<geFullPhysics>`.
+- ``control`` is a ``nbatch x nstep x ncontrol`` array of controls. Controls are by default the ``mjModel.nu`` standard
+  actuators, but any combination of :ref:`user input<geInput>` arrays can be specified by passing an optional
+  ``control_spec`` bitflag.
 
 If a rollout diverges, the current state and sensor values are used to fill the remainder of the trajectory.
 Therefore, non-increasing time values can be used to detect diverged rollouts.
 
-The ``rollout`` function is designed to be completely stateless, so all inputs of the stepping pipeline are set and any
-values already present in the given ``MjData`` instance will have no effect on the output.
+The ``rollout`` function is designed to be computationally stateless, so all inputs of the stepping pipeline are set and
+any values already present in the given ``MjData`` instance will have no effect on the output.
 
-Since the Global Interpreter Lock can be released, this function can be efficiently threaded using Python threads. See
-the ``test_threading`` function in
+By default ``rollout.rollout`` creates a new thread pool every call if ``len(data) > 1``. To reuse the thread pool
+over multiple calls use the ``persistent_pool`` argument. ``rollout.rollout`` is not thread safe when using
+a persistent pool. The basic usage form is
+
+.. code-block:: python
+
+   state, sensordata = rollout.rollout(model, data, initial_state, persistent_pool=True)
+
+The pool is shutdown on interpreter shutdown or by a call to ``rollout.shutdown_persistent_pool``.
+
+To use multiple thread pools from multiple threads, use ``Rollout`` objects. The basic usage form is
+
+.. code-block:: python
+
+   # Pool shutdown upon exiting block.
+   with rollout.Rollout(nthread=nthread) as rollout_:
+    rollout_.rollout(model, data, initial_state)
+
+or
+
+.. code-block:: python
+
+   # Pool shutdown on object deletion or call to rollout_.close().
+   # To ensure clean shutdown of threads, call close() before interpreter exit.
+   rollout_ = rollout.Rollout(nthread=nthread)
+   rollout_.rollout(model, data, initial_state)
+   rollout_.close()
+
+Since the Global Interpreter Lock is released, this function can also be threaded using Python threads. However, this
+is less efficient than using native threads. See the ``test_threading`` function in
 `rollout_test.py <https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/rollout_test.py>`__ for an example
-of threaded operation (and more generally for usage examples).
+of threaded operation (and for more general usage examples).
 
 .. _PyMinimize:
 
@@ -827,7 +969,7 @@ USD Export API
 
 - ``add_camera(self, pos, rotation_xyz, obj_name)``: adds a camera to the USD scene with the given properties post hoc.
 
-- ``save_scene(self, filetype)``:  exports the USD scene using one of the usd filetype extensions ``.usd``, ``.usda``,
+- ``save_scene(self, filetype)``:  exports the USD scene using one of the USD filetype extensions ``.usd``, ``.usda``,
   or ``.usdc``.
 
 .. _PyUSDTodos:

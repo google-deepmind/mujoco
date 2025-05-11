@@ -497,7 +497,7 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     // get current model rotation
     mju_f2n(rotate, scn->rotate, 4);
 
-    // compose rotation, normalize and and set
+    // compose rotation, normalize and set
     mju_mulQuat(result, quat, rotate);
     mju_normalize4(result);
     mju_n2f(scn->rotate, result, 4);
@@ -539,8 +539,9 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   int sel = pert->select;
   mjtNum headpos[3], forward[3], dif[3];
 
-  mjtNum* jac = mj_stackAllocNum(d, 3*nv);
-  mjtNum* jacM2 = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jac = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacM2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* sqrtInvD = mjSTACKALLOC(d, nv, mjtNum);
 
   // invalid selected body: return
   if (sel <= 0 || sel >= m->nbody) {
@@ -554,8 +555,11 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   mju_addTo3(selpos, d->xpos+3*sel);
 
   // compute average spatial inertia at selection point
+  for (int i=0; i < nv; i++) {
+    sqrtInvD[i] = mju_sqrt(d->qLDiagInv[i]);
+  }
   mj_jac(m, d, jac, NULL, selpos, sel);
-  mj_solveM2(m, d, jacM2, jac, 3);
+  mj_solveM2(m, d, jacM2, jac, sqrtInvD, 3);
   mjtNum invmass = mju_dot(jacM2+0*nv, jacM2+0*nv, nv) +
                    mju_dot(jacM2+1*nv, jacM2+1*nv, nv) +
                    mju_dot(jacM2+2*nv, jacM2+2*nv, nv);
@@ -824,9 +828,24 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
       // update if closer intersection found
       if (newdist >= 0 && (newdist < flexdist || flexdist < 0)) {
         flexdist = newdist;
-        flexbodyid = m->flex_vertbodyid[m->flex_vertadr[i] + vertid];
+        if (m->flex_interp[i]) {
+          mjtNum* vert0 = m->flex_vert0 + 3*(m->flex_vertadr[i] + vertid);
+          int l = vert0[0] > 0.5 ? 1 : 0;
+          int j = vert0[1] > 0.5 ? 1 : 0;
+          int k = vert0[2] > 0.5 ? 1 : 0;
+          int nodeid = 4*l+2*j+k;
+          flexbodyid = m->flex_nodebodyid[m->flex_nodeadr[i] + nodeid];
+          if (m->flex_centered[i]) {
+            mju_copy3(flexpnt, d->xpos + 3*flexbodyid);
+          } else {
+            mju_mulMatVec3(flexpnt, d->xmat + 9*flexbodyid, m->flex_node + 3*nodeid);
+            mju_addTo3(flexpnt, d->xpos + 3*flexbodyid);
+          }
+        } else {
+          flexbodyid = m->flex_vertbodyid[m->flex_vertadr[i] + vertid];
+          mju_copy3(flexpnt, d->flexvert_xpos + 3*(m->flex_vertadr[i] + vertid));
+        }
         *flexid = i;
-        mju_copy3(flexpnt, d->flexvert_xpos + 3*(m->flex_vertadr[i] + vertid));
       }
     }
   }

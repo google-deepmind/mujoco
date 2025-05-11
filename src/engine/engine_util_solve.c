@@ -148,8 +148,8 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
   int rank = n;
 
   mj_markStack(d);
-  mjtNum* buf = mj_stackAllocNum(d, n);
-  int* buf_ind = mj_stackAllocInt(d, n);
+  mjtNum* buf = mjSTACKALLOC(d, n, mjtNum);
+  int* buf_ind = mjSTACKALLOC(d, n, int);
 
   // backpass over rows
   for (int r=n-1; r >= 0; r--) {
@@ -238,11 +238,12 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 // sparse reverse-order Cholesky rank-one update: L'*L +/- x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         const int* rownnz, const int* rowadr, int* colind, int x_nnz, int* x_ind,
+                         const int* rownnz, const int* rowadr, const int* colind,
+                         int x_nnz, int* x_ind,
                          mjData* d) {
   mj_markStack(d);
-  int* buf_ind = mj_stackAllocInt(d, n);
-  mjtNum* sparse_buf = mj_stackAllocNum(d, n);
+  int* buf_ind = mjSTACKALLOC(d, n, int);
+  mjtNum* sparse_buf = mjSTACKALLOC(d, n, mjtNum);
 
   // backpass over rows corresponding to non-zero x(r)
   int rank = n, i = x_nnz - 1;
@@ -264,14 +265,8 @@ int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
     mat[adr+nnz-1] = r;
 
     // update row:  mat(r,1:r-1) = (mat(r,1:r-1) + s*x(1:r-1)) / c
-    int new_nnz = mju_combineSparse(mat + adr, x, 1 / c, (flg_plus ? s / c : -s / c),
-                                    nnz-1, i, colind + adr, x_ind,
-                                    sparse_buf, buf_ind);
-
-    // check for size change
-    if (new_nnz != nnz-1) {
-      mjERROR("varying sparsity pattern");
-    }
+    mju_combineSparseInc(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
+                         nnz-1, i, colind + adr, x_ind);
 
     // update x:  x(1:r-1) = c*x(1:r-1) - s*mat(r,1:r-1)
     int new_x_nnz = mju_combineSparse(x, mat+adr, c, -s, i, nnz-1, x_ind,
@@ -651,41 +646,31 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
 
 // solve mat*res=vec given LU factorization of mat
 void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
-                       const int* rownnz, const int* rowadr, const int* colind) {
-  //------------------ solve (U+I)*res = vec
+                       const int* rownnz, const int* rowadr, const int* diag, const int* colind) {
+  // solve (U+I)*res = vec
   for (int i=n-1; i >= 0; i--) {
     // init: diagonal of (U+I) is 1
     res[i] = vec[i];
 
-    // res[i] -= sum_k>i res[k]*LU(i,k)
-    int j = rownnz[i] - 1;
-    while (colind[rowadr[i]+j] > i) {
-      res[i] -= res[colind[rowadr[i]+j]] * LU[rowadr[i]+j];
-      j--;
-    }
-
-    // make sure j points to diagonal
-    if (colind[rowadr[i]+j] != i) {
-      mjERROR("diagonal of U not reached");
+    int d1 = diag[i]+1;
+    int nnz = rownnz[i] - d1;
+    if (nnz > 0) {
+      int adr = rowadr[i] + d1;
+      res[i] -= mju_dotSparse(LU+adr, res, nnz, colind+adr, /*flg_unc1=*/0);
     }
   }
 
   //------------------ solve L*res(new) = res
   for (int i=0; i < n; i++) {
     // res[i] -= sum_k<i res[k]*LU(i,k)
-    int j = 0;
-    while (colind[rowadr[i]+j] < i) {
-      res[i] -= res[colind[rowadr[i]+j]] * LU[rowadr[i]+j];
-      j++;
+    int d = diag[i];
+    int adr = rowadr[i];
+    if (d > 0) {
+      res[i] -= mju_dotSparse(LU+adr, res, d, colind+adr, /*flg_unc1=*/0);
     }
 
     // divide by diagonal element of L
-    res[i] /= LU[rowadr[i]+j];
-
-    // make sure j points to diagonal
-    if (colind[rowadr[i]+j] != i) {
-      mjERROR("diagonal of L not reached");
-    }
+    res[i] /= LU[adr + d];
   }
 }
 

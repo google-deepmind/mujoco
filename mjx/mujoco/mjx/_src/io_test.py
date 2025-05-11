@@ -20,6 +20,10 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
+from mujoco.mjx._src import test_util
+# pylint: disable=g-importing-member
+from mujoco.mjx._src.types import ConeType
+# pylint: enable=g-importing-member
 import numpy as np
 
 
@@ -91,12 +95,11 @@ _MULTIPLE_CONSTRAINTS = """
 class ModelIOTest(parameterized.TestCase):
   """IO tests for mjx.Model."""
 
-  @parameterized.parameters(
-      _MULTIPLE_CONVEX_OBJECTS, _MULTIPLE_CONSTRAINTS
-  )
+  @parameterized.parameters(_MULTIPLE_CONVEX_OBJECTS, _MULTIPLE_CONSTRAINTS)
   def test_put_model(self, xml):
     m = mujoco.MjModel.from_xml_string(xml)
     mx = mjx.put_model(m)
+
     def assert_not_weak_type(x):
       if isinstance(x, jax.Array):
         assert not x.weak_type
@@ -116,6 +119,9 @@ class ModelIOTest(parameterized.TestCase):
     self.assertEqual(mx.nnumeric, m.nnumeric)
     self.assertEqual(mx.nM, m.nM)
     self.assertAlmostEqual(mx.opt.timestep, m.opt.timestep)
+
+    # fields restricted to MuJoCo should not be populated
+    self.assertEqual(mx.bvh_aabb.shape, (0,))
 
     np.testing.assert_allclose(mx.body_parentid, m.body_parentid)
     np.testing.assert_allclose(mx.geom_type, m.geom_type)
@@ -166,33 +172,6 @@ class ModelIOTest(parameterized.TestCase):
           )
       )
 
-  def test_spatial_tendon_not_implemented(self):
-    with self.assertRaises(NotImplementedError):
-      mjx.put_model(mujoco.MjModel.from_xml_string("""
-        <mujoco>
-          <worldbody>
-            <body name="arm">
-              <joint name="arm" axis="0 1 0"/>
-              <geom name="shoulder" type="sphere" size=".05"/>
-              <site name="arm" pos="-.1 0 .05"/>
-              <site name="sidesite" pos="0 0 0"/>
-            </body>
-            <body name="slider" pos=".05 0 -.2">
-              <joint name="slider" type="slide" damping="1"/>
-              <geom name="slider" type="box" size=".01 .01 .01"/>
-              <site name="slider" pos="0 0 .01"/>
-            </body>
-          </worldbody>
-
-          <tendon>
-            <spatial name="rope" range="0 .35">
-              <site site="slider"/>
-              <geom geom="shoulder" sidesite="sidesite"/>
-              <site site="arm"/>
-            </spatial>
-          </tendon>
-        </mujoco>"""))
-
   def test_margin_gap_mesh_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""
@@ -219,6 +198,20 @@ class ModelIOTest(parameterized.TestCase):
           <option viscosity="3.0" integrator="implicitfast"/>
           <worldbody/>
         </mujoco>"""))
+
+  def test_wrap_inside(self):
+    m = test_util.load_test_file('tendon/wrap_sidesite.xml')
+    mx0 = mjx.put_model(m)
+    np.testing.assert_equal(
+        mx0.is_wrap_inside,
+        np.array([1, 0, 1, 0, 1, 1, 0]),
+    )
+    m.site_pos[2] = m.site_pos[1]
+    mx1 = mjx.put_model(m)
+    np.testing.assert_equal(
+        mx1.is_wrap_inside,
+        np.array([0, 0, 1, 0, 1, 0, 0]),
+    )
 
 
 class DataIOTest(parameterized.TestCase):
@@ -309,6 +302,15 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(dx.xpos, d.xpos)
     np.testing.assert_allclose(dx.cvel, d.cvel)
     np.testing.assert_allclose(dx.cdof_dot, d.cdof_dot)
+
+    # check that there are no weak types
+    self.assertFalse(
+        any(
+            jax.tree_util.tree_flatten(
+                jax.tree_util.tree_map(lambda x: x.weak_type, dx)
+            )[0]
+        )
+    )
 
     # check that qM is transformed properly
     qm = np.zeros((m.nv, m.nv), dtype=np.float64)
@@ -480,6 +482,18 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d_2.contact.frame.shape, (1, 9))
     np.testing.assert_allclose(d_2.contact.frame, d.contact.frame)
 
+  def test_get_data_into_wrong_shape(self):
+    """Tests that get_data_into throwsif input and output shapes don't match."""
+
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+    dx = mjx.put_data(m, d)
+    m_2 = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
+    d_2 = mujoco.MjData(m_2)
+    with self.assertRaisesRegex(ValueError, r'Input field.*has shape.*'):
+      mjx.get_data_into(d_2, m, dx)
+
   def test_make_matches_put(self):
     """Test that make_data produces a pytree that matches put_data."""
 
@@ -494,6 +508,56 @@ class DataIOTest(parameterized.TestCase):
     # placing an MjData onto device should yield the same treedef mjx.Data as
     # calling make_data.  they should be interchangeable for jax functions:
     step_fn_jit(mjx.make_data(m))
+
+  def test_contact_elliptic_condim1(self):
+    """Test that condim=1 with ConeType.ELLIPTIC is not implemented."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <geom size="0 0 1e-5" type="plane" condim="1"/>
+          <body>
+            <freejoint/>
+            <geom size="0.1" condim="1"/>
+          </body>
+        </worldbody>
+      </mujoco>
+    """)
+    m.opt.cone = ConeType.ELLIPTIC
+    with self.assertRaises(NotImplementedError):
+      mjx.make_data(m)
+
+  @parameterized.product(
+      sensor=['accelerometer', 'force', 'torque'], equality=['connect', 'weld']
+  )
+  def test_sensor_constraint_compatibility(self, sensor, equality):
+    """Test unsupported sensor and equality constraint combinations."""
+    equality_constraint = f'{equality} body1="body1" body2="body2"'
+    if equality == 'connect':
+      equality_constraint += ' anchor="0 0 0"'
+    m = mujoco.MjModel.from_xml_string(f"""
+        <mujoco>
+          <worldbody>
+            <body name="body1">
+              <freejoint/>
+              <geom size="0.1"/>
+              <site name="site1"/>
+            </body>
+            <body name="body2">
+              <freejoint/>
+              <geom size="0.1"/>
+            </body>
+          </worldbody>
+          <equality>
+            <{equality_constraint}/>
+          </equality>
+          <sensor>
+            <{sensor} site="site1"/>
+          </sensor>
+        </mujoco>
+      """)
+    with self.assertRaises(NotImplementedError):
+      mjx.put_model(m)
+
 
 if __name__ == '__main__':
   absltest.main()

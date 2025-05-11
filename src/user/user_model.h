@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_USER_USER_MODEL_H_
 
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <string>
@@ -86,6 +87,7 @@ class mjCModel_ : public mjsElement {
   int nbvh;            // number of total boundary volume hierarchies
   int nbvhstatic;      // number of static boundary volume hierarchies
   int nbvhdynamic;     // number of dynamic boundary volume hierarchies
+  int nflexnode;       // number of nodes in all flexes
   int nflexvert;       // number of vertices in all flexes
   int nflexedge;       // number of edges in all flexes
   int nflexelem;       // number of elements in all flexes
@@ -98,7 +100,10 @@ class mjCModel_ : public mjsElement {
   int nmeshnormal;     // number of normals in all meshes
   int nmeshtexcoord;   // number of texture coordinates in all meshes
   int nmeshface;       // number of triangular faces in all meshes
-  int nmeshgraph;      // number of shorts in mesh auxiliary data
+  int nmeshpoly;       // number of polygon faces in all meshes
+  int nmeshgraph;      // number of ints in mesh auxiliary data
+  int nmeshpolyvert;   // number of vertices in all polygon faces
+  int nmeshpolymap;    // number of polygons in vertex map
   int nskinvert;       // number of vertices in all skins
   int nskintexvert;    // number of vertices with texcoord in all skins
   int nskinface;       // number of faces in all skins
@@ -118,6 +123,7 @@ class mjCModel_ : public mjsElement {
   int nB;              // number of non-zeros in sparse body-dof matrix
   int nC;              // number of non-zeros in reduced sparse dof-dof matrix
   int nD;              // number of non-zeros in sparse dof-dof matrix
+  int nJmom;           // number of non-zeros in sparse actuator_moment matrix
 
   // statistics, as computed by mj_setConst
   double meaninertia_auto;  // mean diagonal inertia, as computed by mj_setConst
@@ -178,10 +184,11 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyFromSpec();  // copy spec to private attributes
   void PointToLocal();
 
-  mjCModel& operator=(const mjCModel& other);  // copy other into this, if they are not the same
-  mjCModel& operator+=(const mjCModel& other);  // add other into this, even if they are the same
-  mjCModel& operator-=(const mjCBody& subtree);  // remove subtree and all references from model
-  mjCModel_& operator+=(mjCDef& subtree);  // add default tree to this model
+  mjCModel& operator=(const mjCModel& other);     // copy other into this, if they are not the same
+  mjCModel& operator+=(const mjCModel& other);    // add other into this, even if they are the same
+  mjCModel& operator-=(const mjCBody& subtree);   // remove subtree and all references from model
+  mjCModel_& operator+=(mjCDef& subtree);         // add default tree to this model
+  mjCModel& operator-=(const mjCDef& subtree);    // remove default tree from this model
 
   mjSpec spec;
 
@@ -208,7 +215,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCTuple* AddTuple();
   mjCKey* AddKey();
   mjCPlugin* AddPlugin();
-  void AppendSpec(mjSpec* spec);
+
+  // append spec to this model, optionally map compiler options to the appended spec
+  void AppendSpec(mjSpec* spec, const mjsCompiler* compiler = nullptr);
 
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
@@ -219,6 +228,12 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // delete object from the corresponding list
   void DeleteElement(mjsElement* el);
+
+  // delete default and all descendants
+  void RemoveDefault(mjCDef* def);
+
+  // detach subtree from model
+  void Detach(mjCBody* subtree);
 
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
@@ -235,6 +250,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
+  mjSpec* FindSpec(const mjsCompiler* compiler_);                   // find spec given mjsCompiler
   void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
 
   // accessors
@@ -302,6 +318,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   // map from default class name to default class pointer
   std::unordered_map<std::string, mjCDef*> def_map;
 
+  // set deepcopy flag
+  void SetDeepCopy(bool deepcopy) { deepcopy_ = deepcopy; }
+
+  // set attached flag
+  void SetAttached(bool deepcopy) { attached_ |= !deepcopy; }
+
+  // get new uid
+  int GetUid() { return uid_count_++; }
+
  private:
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
@@ -309,9 +334,11 @@ class mjCModel : public mjCModel_, private mjSpec {
   // list of active plugins
   std::vector<std::pair<const mjpPlugin*, int>> active_plugins_;
 
+  // make lists of bodies and children
+  void MakeTreeLists(mjCBody* body = nullptr);
+
   // compile phases
   void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
-  void MakeLists(mjCBody* body);        // make lists of bodies, geoms, joints, sites
   void SetNuser();                      // set nuser fields
   void IndexAssets(bool discard);       // convert asset names into indices
   void CheckEmptyNames();               // check empty names
@@ -322,6 +349,12 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyPaths(mjModel*);             // copy paths, compute path addresses
   void CopyObjects(mjModel*);           // copy objects outside kinematic tree
   void CopyTree(mjModel*);              // copy objects inside kinematic tree
+  void FinalizeSimple(mjModel* m);      // finalize simple bodies/dofs including tendon information
+  void CopyPlugins(mjModel*);           // copy plugin data
+  int CountNJmom(const mjModel* m);     // compute number of non-zeros in actuator_moment matrix
+
+  // remove plugins that are not referenced by any object
+  void RemovePlugins();
 
   // objects created here
   std::vector<mjCFlex*>     flexes_;      // list of flexes
@@ -341,7 +374,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   std::vector<mjCTuple*>    tuples_;      // list of tuple fields
   std::vector<mjCKey*>      keys_;        // list of keyframe fields
   std::vector<mjCPlugin*>   plugins_;     // list of plugin instances
-  std::vector<mjSpec*>      specs_;       // list of specs
+  std::vector<mjSpec*>      specs_;       // list of attached specs
 
   // pointers to objects created inside kinematic tree
   std::vector<mjCBody*>   bodies_;   // list of bodies
@@ -366,9 +399,11 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T> void CopyList(std::vector<T*>& dest,
                                    const std::vector<T*>& sources);
 
+  // copy plugins that are explicitly instantiated by the argument object to this model
+  template <class T> void CopyExplicitPlugin(T* obj);
+
   // copy vector of plugins to this model
-  template <class T> void CopyPlugin(std::vector<mjCPlugin*>& dest,
-                                     const std::vector<mjCPlugin*>& sources,
+  template <class T> void CopyPlugin(const std::vector<mjCPlugin*>& sources,
                                      const std::vector<T*>& list);
 
   // delete from list the elements that cause an error
@@ -395,8 +430,26 @@ class mjCModel : public mjCModel_, private mjSpec {
   // compute qpos0
   void ComputeReference();
 
+  // return true if all bodies have valid mass and inertia
+  bool CheckBodiesMassInertia(std::vector<mjCBody*> bodies);
+
+  // return true if body has valid mass and inertia
+  bool CheckBodyMassInertia(mjCBody* body);
+
+  // Mark plugin instances mentioned in the list
+  template <class T>
+  void MarkPluginInstance(std::unordered_map<std::string, bool>& instances,
+                          const std::vector<T*>& list);
+
+  // generate a signature for the model
+  uint64_t Signature();
+
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
+  bool deepcopy_;     // copy objects when attaching
+  bool attached_ = false;  // true if model is attached to a parent model
+  int uid_count_ = 0;  // unique id count for all objects
+  std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

@@ -895,7 +895,7 @@ static void setVertexHaze(float* v, float az, float h, float r) {
 
 // truncated cone for haze rendering
 static void haze(int nSlice, float r, const float* rgba) {
-  // compute elevation h for transparancy transition point
+  // compute elevation h for transparency transition point
   float alpha = atan2f(1, r);
   float beta = (float)(0.75*mjPI) - alpha;
   float h = sqrtf(0.5f) * r * sinf(alpha) / sinf(beta);
@@ -1050,13 +1050,17 @@ static void makeShadow(const mjModel* m, mjrContext* con) {
   }
   glBindFramebuffer(GL_FRAMEBUFFER, con->shadowFBO);
 
-  // create shadow depth texture: in TEXTURE1
+  // Create a shadow depth texture in TEXTURE1 and explicitly select an int24
+  // depth buffer. A depth stencil format is used because that appears to be
+  // more widely supported (MacOS does not support GL_DEPTH_COMPONENT24). Using
+  // a fixed format makes it easier to choose glPolygonOffset parameters that
+  // result in reasonably consistent and artifact free shadows across platforms.
   glGenTextures(1, &con->shadowTex);
   glActiveTexture(GL_TEXTURE1);
   glEnable(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, con->shadowTex);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
-               con->shadowSize, con->shadowSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8,
+               con->shadowSize, con->shadowSize, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -1304,7 +1308,7 @@ static void makeMaterial(const mjModel* m, mjrContext* con) {
   }
 
   if (m->nmat >= mjMAXMATERIAL-1) {
-    mju_error("Maximum number of materials is 100, got %d", m->nmat);
+    mju_error("Maximum number of materials is %d, got %d", mjMAXMATERIAL, m->nmat);
   }
   for (int i=0; i < m->nmat; i++) {
     if (m->mat_texid[i*mjNTEXROLE + mjTEXROLE_RGB] >= 0) {
@@ -1320,8 +1324,8 @@ static void makeMaterial(const mjModel* m, mjrContext* con) {
   for (int i=0; i < m->ntex; i++) {
     if (m->tex_type[i] == mjTEXTURE_SKYBOX) {
       if (m->nmat >= mjMAXMATERIAL-2) {
-        mju_error("With skybox, maximum number of materials is 99, got %d",
-                  m->nmat);
+        mju_error("With skybox, maximum number of materials is %d, got %d",
+                  mjMAXMATERIAL-1, m->nmat);
       }
       for (int j=0; j < mjNTEXROLE; j++) {
         con->mat_texid[mjNTEXROLE * (mjMAXMATERIAL-1) + j] = -1;

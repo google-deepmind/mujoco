@@ -17,6 +17,8 @@
 
 #include <csetjmp>
 #include <cstring>
+#include <iomanip>
+#include <iostream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -108,6 +110,25 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2, std::string& field);
 // Returns a vector containing the elements of the array.
 inline std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
   return std::vector<mjtNum>(array, array + n);
+}
+
+// Prints a matrix to stderr, useful for debugging.
+inline void PrintMatrix(const mjtNum* mat, int nrow, int ncol, int p = 5,
+                        std::string_view name = "") {
+  std::cerr.precision(p);
+  std::cerr << name << "\n";
+  for (int r = 0; r < nrow; r++) {
+    for (int c = 0; c < ncol; c++) {
+      mjtNum val = mat[c + r*ncol];
+      if (val) {
+        std::cerr << std::fixed << std::setw(5 + p) << val << " ";
+      } else {
+        // don't print exact zeros
+        std::cerr << std::string(6 + p, ' ');
+      }
+    }
+    std::cerr << "\n";
+  }
 }
 
 // Installs a mock filesystem via a resource provider. To obtain thread safety,

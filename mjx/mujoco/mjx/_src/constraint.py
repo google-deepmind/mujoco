@@ -39,6 +39,7 @@ import numpy as np
 
 class _Efc(PyTreeNode):
   """Support data for creating constraint matrices."""
+
   J: jax.Array
   pos_aref: jax.Array
   pos_imp: jax.Array

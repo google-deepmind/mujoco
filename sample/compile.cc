@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <chrono>
 #include <cctype>
 #include <cstddef>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <ratio>
 
 #include <mujoco/mujoco.h>
 
@@ -23,9 +26,18 @@
 static constexpr char helpstring[] =
   "\n Usage:  compile infile outfile\n"
   "   infile can be in mjcf, urdf, mjb format\n"
-  "   outfile can be in mjcf, mjb, txt format\n\n"
-  " Example: compile model.xml model.mjb\n";
+  "   outfile can be in mjcf, mjb, txt format, or empty\n\n"
+  "   if infile is mjcf, compilation will be timed twice to measure the impact of caching\n\n"
+  " Example: compile model.xml [model.mjb]\n";
 
+// timer
+mjtNum gettm(void) {
+  using std::chrono::steady_clock;
+  using Microseconds = std::chrono::duration<double, std::micro>;
+  static steady_clock::time_point tm_start = steady_clock::now();
+  auto elapsed = Microseconds(steady_clock::now() - tm_start);
+  return elapsed.count();
+}
 
 // deallocate and print message
 int finish(const char* msg = 0, mjModel* m = 0) {
@@ -48,7 +60,8 @@ enum {
   typeUNKNOWN = 0,
   typeXML,
   typeMJB,
-  typeTXT
+  typeTXT,
+  typeNONE
 };
 
 
@@ -96,13 +109,13 @@ int main(int argc, char** argv) {
   char error[1000];
 
   // print help if arguments are missing
-  if (argc!=3) {
+  if (argc!=3 && argc!=2) {
     return finish(helpstring);
   }
 
   // determine file types
   int type1 = filetype(argv[1]);
-  int type2 = filetype(argv[2]);
+  int type2 = argc==2 ? typeNONE : filetype(argv[2]);
 
   // check types
   if (type1==typeUNKNOWN || type1==typeTXT ||
@@ -123,8 +136,17 @@ int main(int argc, char** argv) {
   }
 
   // load model
+  double first=0, second=0;
   if (type1==typeXML) {
+    double starttime = gettm();
     m = mj_loadXML(argv[1], 0, error, 1000);
+    first = 1e-6 * (gettm() - starttime);
+    if (m) {
+      mj_deleteModel(m);
+      starttime = gettm();
+      m = mj_loadXML(argv[1], 0, error, 1000);
+      second = 1e-6 * (gettm() - starttime);
+    }
   } else {
     m = mj_loadModel(argv[1], 0);
   }
@@ -145,10 +167,20 @@ int main(int argc, char** argv) {
     }
   } else if (type2==typeMJB) {
     mj_saveModel(m, argv[2], 0, 0);
-  } else {
+  } else if (type2==typeTXT) {
     mj_printModel(m, argv[2]);
   }
 
   // finalize
-  return finish("Done", m);
+  char msg[1000];
+  if (first) {
+    snprintf(msg, sizeof(msg), "Done.\n"
+             "First compile: %.4gs\n"
+             "Second compile: %.4gs",
+             first, second);
+  } else {
+    snprintf(msg, sizeof(msg), "Done.");
+  }
+
+  return finish(msg, m);
 }

@@ -15,6 +15,7 @@
 #ifndef MUJOCO_SRC_USER_USER_UTIL_H_
 #define MUJOCO_SRC_USER_USER_UTIL_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -46,9 +47,7 @@ void mjuu_setvec(double* dest, double x, double y);
 // copy real-valued vector
 template <class T1, class T2>
 void mjuu_copyvec(T1* dest, const T2* src, int n) {
-  for (int i=0; i<n; i++) {
-    dest[i] = (T1)src[i];
-  }
+  std::copy(src, src + n, dest);
 }
 
 // add to double array
@@ -107,8 +106,9 @@ void mjuu_localquat(double* local, const double* child, const double* parent);
 // compute vector cross-product a = b x c
 void mjuu_crossvec(double* a, const double* b, const double* c);
 
-// compute normal vector to given triangle (uses float for OpenGL)
-double mjuu_makenormal(double* normal, const float* a, const float* b, const float* c);
+// compute normal vector to given triangle
+template<typename T> double mjuu_makenormal(double* normal, const T a[3],
+                                            const T b[3], const T c[3]);
 
 // compute quaternion corresponding to minimal rotation from [0;0;1] to vec
 void mjuu_z2quat(double* quat, const double* vec);
@@ -211,7 +211,7 @@ class FilePath {
  private:
   static std::string AbsPrefix(const std::string& str);
   static std::string PathReduce(const std::string& str);
-  static bool IsSeperator(char c) {
+  static bool IsSeparator(char c) {
     return c == '/' || c == '\\';
   }
   static std::string Combine(const std::string& s1, const std::string& s2);

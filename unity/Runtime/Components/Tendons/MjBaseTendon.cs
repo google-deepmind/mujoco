@@ -42,8 +42,8 @@ public abstract class MjBaseTendon : MjComponent {
   protected override void OnParseMjcf(XmlElement mjcf) {
     Solver.FromMjcf(mjcf);
     SpringLength = mjcf.GetFloatAttribute("springlength", defaultValue: -1.0f);
-    Stiffness = mjcf.GetFloatAttribute("damping");
-    Damping = mjcf.GetFloatAttribute("stiffness");
+    Stiffness = mjcf.GetFloatAttribute("stiffness");
+    Damping = mjcf.GetFloatAttribute("damping");
     FromMjcf(mjcf);
   }
 

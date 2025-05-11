@@ -90,7 +90,7 @@ namespace Mujoco {
       if (RangeLower > RangeUpper) {
         throw new ArgumentException("Lower range value can't be bigger than Higher");
       }
-      mjcf.SetAttribute("range", $"{RangeLower} {RangeUpper}");
+      mjcf.SetAttribute("range", MjEngineTool.MakeLocaleInvariant($"{RangeLower} {RangeUpper}"));
       mjcf.SetAttribute("ref", $"{Configuration}");
 
       return mjcf;

@@ -61,8 +61,9 @@ static const char* const kIlslandEfcPath =
 // compare accelerations produced by CG solver with and without islands
 TEST_F(SolverTest, IslandsEquivalent) {
   const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   model->opt.solver = mjSOL_CG;                 // use CG solver
   model->opt.tolerance = 0;                     // set tolerance to 0
   model->opt.enableflags &= ~mjENBL_ISLAND;     // disable islands

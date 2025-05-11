@@ -1,0 +1,26 @@
+<mujoco>
+  <option integrator="RK4">
+    <flag energy="enable"/>
+  </option>
+
+  <worldbody>
+    <site name="tendon" type="box" size=".03 .03 .03" pos="-.5 0 -.5"/>
+    <body name="link1" pos="-1 0 0">
+      <joint name="link1" axis="0 -1 0" stiffness="100" springref="90"/>
+      <geom type="capsule" size=".02" fromto="0 0 0 0 0 -1"/>
+      <geom type="sphere" size=".08" pos="0 0 -1"/>
+      <site name="link1" type="box" size=".03 .03 .03" pos="0 0 -.5"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial width=".01" rgba=".2 .2 1 1">
+      <site site="link1"/>
+      <site site="tendon"/>
+    </spatial>
+  </tendon>
+
+  <keyframe>
+    <key qpos="1" qvel="1"/>
+  </keyframe>
+</mujoco>

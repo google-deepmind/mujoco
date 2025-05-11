@@ -49,7 +49,7 @@ editing corresponds to setting attributes. For example, in order to change the t
    mjSpec* spec = mj_makeSpec();
    spec->opt.timestep = 0.01;
    ...
-   mjModel* model = mj_compile(spec);
+   mjModel* model = mj_compile(spec, NULL);
 
 Attributes which have variable length are C++ vectors and strings, :ref:`exposed to C as opaque types<ArrayHandles>`.
 In C one uses the provided :ref:`getters<AttributeGetters>` and :ref:`setters<AttributeSetters>`:
@@ -76,7 +76,7 @@ Loading a spec from XML can be done as follows:
 
 Model elements
 ^^^^^^^^^^^^^^
-Model elements coresponding to MJCF are exposed to the user as C structs with the ``mjs`` prefix, the definitions are
+Model elements corresponding to MJCF are exposed to the user as C structs with the ``mjs`` prefix, the definitions are
 listed under the :ref:`Model Editing<tySpecStructure>` section of the struct reference. For example, an MJCF
 :ref:`geom<body-geom>` corresponds to an :ref:`mjsGeom`.
 
@@ -95,7 +95,7 @@ Elements cannot be created directly; they are returned to the user by the corres
    mjsGeom* my_geom = mjs_addGeom(world, NULL);                   // add a geom to the world
    my_geom->type = mjGEOM_BOX;                                    // set geom type
    my_geom->size[0] = my_geom->size[1] = my_geom->size[2] = 0.5;  // set box size
-   mjModel* model = mj_compile(spec);                             // compile to mjModel
+   mjModel* model = mj_compile(spec, NULL);                       // compile to mjModel
 
 The ``NULL`` second argument to :ref:`mjs_addGeom` is the optional default class pointer. When using defaults
 procedurally, default classes are passed in explicitly to element constructors. The global defaults of all elements
@@ -106,32 +106,52 @@ procedurally, default classes are passed in explicitly to element constructors. 
 
 Attachment
 ^^^^^^^^^^
-This framework introduces a powerful new feature: attaching and detaching model subtrees. Attachment allows the user
-copy a subtree from one model into another, while also copying related referenced assets and referencing elements from
-outside the kinematic tree (e.g., actuators and sensors). Similarly, detaching a subtree will remove all associated
-elements from the model. This feature is already used to power the :ref:`attach<body-attach>` and
-:ref:`replicate<replicate>` meta-elements in MJCF. It is possible to :ref:`attach a body to a frame<mjs_attachBody>` and
-to :ref:`attach a body to a site<mjs_attachToSite>`:
+
+This framework introduces a powerful new feature: attaching and detaching model subtrees. This feature is already used
+to power the :ref:`attach<body-attach>` an :ref:`replicate<replicate>` meta-elements in MJCF. Attachment allows the user
+to move or copy a subtree from one model into another, while also copying or moving related referenced assets and
+referencing elements from outside the kinematic tree (e.g., actuators and sensors). Similarly, detaching a subtree will
+remove all associated elements from the model. The default behavior is to move the child into the parent while
+attaching, so subsequent changes to the child will also change the parent. Alternatively, the user can choose to make an
+entirely new copy during attach using :ref:`mjs_setDeepCopy`. This flag is temporarily set to true while parsing XMLs.
+It is possible to :ref:`attach a body to a frame<mjs_attach>`:
 
 .. code-block:: C
 
    mjSpec* parent = mj_makeSpec();
    mjSpec* child = mj_makeSpec();
-   mjsFrame* frame = mjs_addFrame(mjs_findBody(parent, "world"), NULL);
-   mjsSite* site = mjs_addSite(mjs_findBody(parent, "world"), NULL);
-   mjsBody* body = mjs_addBody(mjs_findBody(child, "world"), NULL);
-   mjsBody* attached_body_1 = mjs_attachBody(frame, body, "attached-", "-1");
-   mjsBody* attached_body_2 = mjs_attachToSite(site, body, "attached-", "-2");
+   parent->compiler.degree = 0;
+   child->compiler.degree = 1;
+   mjsElement* frame = mjs_addFrame(mjs_findBody(parent, "world"), NULL)->element;
+   mjsElement* body = mjs_addBody(mjs_findBody(child, "world"), NULL)->element;
+   mjsBody* attached_body_1 = mjs_asBody(mjs_attach(frame, body, "attached-", "-1"));
 
-or :ref:`attach a frame to a body<mjs_attachFrame>`:
+or :ref:`attach a body to a site<mjs_attach>`:
 
 .. code-block:: C
 
    mjSpec* parent = mj_makeSpec();
    mjSpec* child = mj_makeSpec();
-   mjsBody* body = mjs_addBody(mjs_findBody(parent, "world"), NULL);
-   mjsFrame* frame = mjs_addFrame(mjs_findBody(child, "world"), NULL);
-   mjsFrame* attached_frame = mjs_attachFrame(body, frame, "attached-", "-1");
+   mjsElement* site = mjs_addSite(mjs_findBody(parent, "world"), NULL)->element;
+   mjsElement* body = mjs_addBody(mjs_findBody(child, "world"), NULL)->element;
+   mjsBody* attached_body_2 = mjs_asBody(mjs_attach(site, body, "attached-", "-2"));
+
+or :ref:`attach a frame to a body<mjs_attach>`:
+
+.. code-block:: C
+
+   mjSpec* parent = mj_makeSpec();
+   mjSpec* child = mj_makeSpec();
+   mjsElement* body = mjs_addBody(mjs_findBody(parent, "world"), NULL)->element;
+   mjsElement* frame = mjs_addFrame(mjs_findBody(child, "world"), NULL)->element;
+   mjsFrame* attached_frame = mjs_asFrame(mjs_attach(body, frame, "attached-", "-1"));
+
+Note that in the above examples, the parent and child models have different values for ``compiler.degree``,
+corresponding to the :ref:`compiler/angle<compiler-angle>` attribute, specifying the units in which angles are
+interperted. Compiler flags are carried over during attachment, so the child model will be compiled using the child
+flags, while the parent will be compiled using the parent flags.
+
+Note also that once a child is attached by reference to a parent, the child cannot be compiled on its own.
 
 .. _meDefault:
 

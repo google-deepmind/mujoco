@@ -91,7 +91,10 @@ class SmoothTest(absltest.TestCase):
     _assert_eq(dx._qM_sparse, np.zeros(0), '_qM_sparse')
     # factor_m
     dx = jax.jit(mjx.factor_m)(mx, mjx.put_data(m, d))
-    _assert_attr_eq(d, dx, 'qLD')
+    qLDLegacy = np.zeros(mx.nM)  # pylint:disable=invalid-name
+    for i in range(m.nM):
+      qLDLegacy[d.mapM2M[i]] = d.qLD[i]
+    _assert_eq(qLDLegacy, dx.qLD, 'qLD')
     _assert_attr_eq(d, dx, 'qLDiagInv')
     _assert_eq(dx._qLD_sparse, np.zeros(0), '_qLD_sparse')
     _assert_eq(dx._qLDiagInv_sparse, np.zeros(0), '_qLDiagInv_sparse')
@@ -122,10 +125,10 @@ class SmoothTest(absltest.TestCase):
     moment = np.zeros((m.nu, m.nv))
     mujoco.mju_sparse2dense(
         moment,
-        d.actuator_moment.reshape(-1),
+        d.actuator_moment,
         d.moment_rownnz,
         d.moment_rowadr,
-        d.moment_colind.reshape(-1),
+        d.moment_colind,
     )
     _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
 
@@ -193,10 +196,10 @@ class SmoothTest(absltest.TestCase):
     moment = np.zeros((m.nu, m.nv))
     mujoco.mju_sparse2dense(
         moment,
-        d.actuator_moment.reshape(-1),
+        d.actuator_moment,
         d.moment_rownnz,
         d.moment_rowadr,
-        d.moment_colind.reshape(-1),
+        d.moment_colind,
     )
     _assert_eq(moment, dx.actuator_moment, 'actuator_moment')
 

@@ -32,7 +32,7 @@ class Renderer:
       model: _structs.MjModel,
       height: int = 240,
       width: int = 320,
-      max_geom: int = 10000
+      max_geom: int = 10000,
   ) -> None:
     """Initializes a new `Renderer`.
 
@@ -43,6 +43,7 @@ class Renderer:
       max_geom: Optional integer specifying the maximum number of geoms that can
         be rendered in the same scene. If None this will be chosen automatically
         based on the estimated maximum number of renderable geoms in the model.
+
     Raises:
       ValueError: If `camera_id` is outside the valid range, or if `width` or
         `height` exceed the dimensions of MuJoCo's offscreen framebuffer.
@@ -220,9 +221,7 @@ the clause:
       # Convert 3-channel uint8 to 1-channel uint32.
       image3 = out.astype(np.uint32)
       segimage = (
-          image3[:, :, 0]
-          + image3[:, :, 1] * (2**8)
-          + image3[:, :, 2] * (2**16)
+          image3[:, :, 0] + image3[:, :, 1] * (2**8) + image3[:, :, 2] * (2**16)
       )
       # Remap segid to 2-channel (object ID, object type) pair.
       # Seg ID 0 is background -- will be remapped to (-1, -1).
@@ -251,15 +250,15 @@ the clause:
       self,
       data: _structs.MjData,
       camera: Union[int, str, _structs.MjvCamera] = -1,
-      scene_option: Optional[_structs.MjvOption] = None
-    ):
+      scene_option: Optional[_structs.MjvOption] = None,
+  ):
     """Updates geometry used for rendering.
 
     Args:
       data: An instance of `MjData`.
       camera: An instance of `MjvCamera`, a string or an integer
-      scene_option: A custom `MjvOption` instance to use to render
-        the scene instead of the default.
+      scene_option: A custom `MjvOption` instance to use to render the scene
+        instead of the default.
 
     Raises:
       ValueError: If `camera_id` is outside the valid range, or if camera does
@@ -274,8 +273,10 @@ the clause:
         if camera_id == -1:
           raise ValueError(f'The camera "{camera}" does not exist.')
       if camera_id < -1 or camera_id >= self._model.ncam:
-        raise ValueError(f'The camera id {camera_id} is out of'
-                         f' range [-1, {self._model.ncam}).')
+        raise ValueError(
+            f'The camera id {camera_id} is out of'
+            f' range [-1, {self._model.ncam}).'
+        )
 
       # Render camera.
       camera = _structs.MjvCamera()
@@ -295,7 +296,8 @@ the clause:
         data,
         scene_option,
         None,
-        camera, _enums.mjtCatBit.mjCAT_ALL.value,
+        camera,
+        _enums.mjtCatBit.mjCAT_ALL.value,
         self._scene,
     )
 

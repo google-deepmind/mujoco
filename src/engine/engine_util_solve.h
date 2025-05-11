@@ -45,8 +45,8 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 // sparse reverse-order Cholesky rank-one update: L'*L +/i x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
 int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         const int* rownnz, const int* rowadr, int* colind, int x_nnz, int* x_ind,
-                         mjData* d);
+                         const int* rownnz, const int* rowadr, const int* colind,
+                         int x_nnz, int* x_ind, mjData* d);
 
 // band-dense Cholesky decomposition
 //  returns minimum value in the factorized diagonal, or 0 if rank-deficient
@@ -82,7 +82,7 @@ void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
 
 // solve mat*res=vec given LU factorization of mat
 void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
-                       const int *rownnz, const int *rowadr, const int *colind);
+                       const int *rownnz, const int *rowadr, const int* diag, const int *colind);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);
@@ -114,7 +114,7 @@ MJAPI void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index,
                            mjtNum** H, mjtNum** g, int n,
                            mjtNum** lower, mjtNum** upper);
 
-// minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options (see implemetation)
+// minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <=upper, explicit options (see implementation)
 MJAPI int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,
                           const mjtNum* H, const mjtNum* g, int n,
                           const mjtNum* lower, const mjtNum* upper,

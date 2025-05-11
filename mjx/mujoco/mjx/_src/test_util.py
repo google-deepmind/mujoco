@@ -116,7 +116,7 @@ def efc_order(m: mujoco.MjModel, d: mujoco.MjData, dx: Data) -> np.ndarray:
     if dx.contact.dim[i] > 1 and m.opt.cone == mujoco.mjtCone.mjCONE_PYRAMIDAL:
       num_rows = (dx.contact.dim[i] - 1) * 2
     if dx.contact.dist[i] > 0:  # move empty contacts to end
-      order = np.append(order, np.repeat(2 ** 16, num_rows))
+      order = np.append(order, np.repeat(2**16, num_rows))
       continue
     contact_match = (d.contact.geom == dx.contact.geom[i]).all(axis=-1)
     contact_match &= (d.contact.pos == dx.contact.pos[i]).all(axis=-1)

@@ -98,7 +98,7 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
     if section is not None:
       if 'MJAPI FUNCTIONS' in section:
         # Stripped functions do not begin with MJAPI, and must be under the
-        # predefiend section 'MJAPI FUNCTIONS'.  This is because the docs don't
+        # predefined section 'MJAPI FUNCTIONS'.  This is because the docs don't
         # include this prefix, and so we need to read such functions from the
         # reference header.
         stripped_functions = True

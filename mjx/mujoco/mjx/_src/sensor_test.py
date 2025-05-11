@@ -17,13 +17,11 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
-
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
 from mujoco.mjx._src.types import ConeType
-
 import numpy as np
 
 # tolerance for difference between MuJoCo and MJX smooth calculations - mostly
