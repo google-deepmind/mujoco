@@ -24,6 +24,9 @@
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
 
+#include "src/engine/engine_collision_convex.h"
+#include "src/engine/engine_collision_primitive.h"
+
 namespace mujoco {
 namespace {
 
@@ -116,10 +119,18 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL
 BENCHMARK(BM_BoxMesh_LibCCD);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_BoxBox(benchmark::State& state) {
-  static TestHarness harness(kBoxBoxPath, "box.xml (BoxBox)");
+  static TestHarness harness(kBoxBoxPath, "box.xml (BoxBox)", mjDSBL_NATIVECCD);
   harness.RunBenchmark(state);
 }
 BENCHMARK(BM_BoxBox);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_BoxBox_NativeCCD(benchmark::State& state) {
+  mjCOLLISIONFUNC[mjGEOM_BOX][mjGEOM_BOX] = mjc_Convex;
+  static TestHarness harness(kBoxBoxPath, "box.xml (NativeCCD)");
+  harness.RunBenchmark(state);
+  mjCOLLISIONFUNC[mjGEOM_BOX][mjGEOM_BOX] = mjc_BoxBox;
+}
+BENCHMARK(BM_BoxBox_NativeCCD);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
     BM_Ellipsoid_NativeCCD(benchmark::State& state) {

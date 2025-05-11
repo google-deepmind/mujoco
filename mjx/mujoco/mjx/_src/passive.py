@@ -23,9 +23,12 @@ from mujoco.mjx._src import scan
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
+from mujoco.mjx._src.types import OptionJAX
 # pylint: enable=g-importing-member
 
 
@@ -72,11 +75,11 @@ def _spring_damper(m: Model, d: Data) -> jax.Array:
   qfrc -= m.dof_damping * d.qvel
 
   # tendon-level spring-dampers
-  below, above = m.tendon_lengthspring.T - d.ten_length
+  below, above = m.tendon_lengthspring.T - d._impl.ten_length
   frc_spring = jp.where(below > 0, m.tendon_stiffness * below, 0)
   frc_spring = jp.where(above < 0, m.tendon_stiffness * above, frc_spring)
-  frc_damper = -m.tendon_damping * d.ten_velocity
-  qfrc += d.ten_J.T @ (frc_spring + frc_damper)
+  frc_damper = -m.tendon_damping * d._impl.ten_velocity
+  qfrc += d._impl.ten_J.T @ (frc_spring + frc_damper)
 
   return qfrc
 
@@ -113,6 +116,9 @@ def _fluid(m: Model, d: Data) -> jax.Array:
 
 def passive(m: Model, d: Data) -> Data:
   """Adds all passive forces."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('passive requires JAX backend implementation.')
+
   if m.opt.disableflags & DisableBit.PASSIVE:
     return d.replace(qfrc_passive=jp.zeros(m.nv), qfrc_gravcomp=jp.zeros(m.nv))
 
@@ -124,7 +130,7 @@ def passive(m: Model, d: Data) -> Data:
     # add gravcomp unless added via actuators
     qfrc_passive += qfrc_gravcomp * (1 - m.jnt_actgravcomp[m.dof_jntid])
 
-  if m.opt.has_fluid_params:
+  if m.opt.has_fluid_params:  # pytype: disable=attribute-error
     qfrc_passive += _fluid(m, d)
 
   d = d.replace(qfrc_passive=qfrc_passive, qfrc_gravcomp=qfrc_gravcomp)

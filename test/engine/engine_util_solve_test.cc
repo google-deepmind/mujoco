@@ -21,7 +21,6 @@
 #include <random>
 #include <iomanip>
 #include <string>
-#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -36,6 +35,7 @@ namespace {
 using ::testing::DoubleEq;
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
+using ::testing::ElementsAre;
 using ::std::string;
 using ::std::setw;
 using QCQP2Test = MujocoTest;
@@ -647,6 +647,80 @@ TEST_F(BandMatrixTest, Solve) {
       mju_free(B);
     }
   }
+}
+
+using EngineUtilSolveTest = MujocoTest;
+
+TEST_F(EngineUtilSolveTest, MjuCholFactorNNZ) {
+  mjModel* model = LoadModelFromString("<mujoco/>");
+  mjData* d = mj_makeData(model);
+
+  int nA = 2;
+  mjtNum matA[4] = {1, 0,
+                    0, 1};
+  mjtNum sparseA[4];
+  int rownnzA[2];
+  int rowadrA[2];
+  int colindA[4];
+  int rownnzA_factor[2];
+  mju_dense2sparse(sparseA, matA, nA, nA, rownnzA, rowadrA, colindA, 4);
+  int nnzA = mju_cholFactorCount(rownnzA_factor,
+                                 rownnzA, rowadrA, colindA, nA, d);
+
+  EXPECT_EQ(nnzA, 2);
+  EXPECT_THAT(AsVector(rownnzA_factor, 2), ElementsAre(1, 1));
+
+  int nB = 3;
+  mjtNum matB[9] = {10, 1, 0,
+                    0, 10, 1,
+                    0, 0, 10};
+  mjtNum sparseB[9];
+  int rownnzB[3];
+  int rowadrB[3];
+  int colindB[9];
+  int rownnzB_factor[3];
+  mju_dense2sparse(sparseB, matB, nB, nB, rownnzB, rowadrB, colindB, 9);
+  int nnzB = mju_cholFactorCount(rownnzB_factor,
+                                 rownnzB, rowadrB, colindB, nB, d);
+
+  EXPECT_EQ(nnzB, 5);
+  EXPECT_THAT(AsVector(rownnzB_factor, 3), ElementsAre(1, 2, 2));
+
+  int nC = 3;
+  mjtNum matC[9] = {10, 1, 0,
+                    0, 10, 0,
+                    0, 0, 10};
+  mjtNum sparseC[9];
+  int rownnzC[3];
+  int rowadrC[3];
+  int colindC[9];
+  int rownnzC_factor[3];
+  mju_dense2sparse(sparseC, matC, nC, nC, rownnzC, rowadrC, colindC, 9);
+  int nnzC = mju_cholFactorCount(rownnzC_factor,
+                                 rownnzC, rowadrC, colindC, nC, d);
+
+  EXPECT_EQ(nnzC, 4);
+  EXPECT_THAT(AsVector(rownnzC_factor, 3), ElementsAre(1, 2, 1));
+
+  int nD = 4;
+  mjtNum matD[16] = {10, 1, 2, 3,
+                     0, 10, 0, 0,
+                     0, 0, 10, 1,
+                     0, 0, 0, 10};
+  mjtNum sparseD[16];
+  int rownnzD[4];
+  int rowadrD[4];
+  int colindD[16];
+  int rownnzD_factor[4];
+  mju_dense2sparse(sparseD, matD, nD, nD, rownnzD, rowadrD, colindD, 16);
+  int nnzD = mju_cholFactorCount(rownnzD_factor,
+                                 rownnzD, rowadrD, colindD, nD, d);
+
+  EXPECT_EQ(nnzD, 8);
+  EXPECT_THAT(AsVector(rownnzD_factor, 4), ElementsAre(1, 2, 2, 3));
+
+  mj_deleteData(d);
+  mj_deleteModel(model);
 }
 
 }  // namespace

@@ -39,7 +39,7 @@ set(MUJOCO_URL_HASH_openxr
 
 project(
   mujoco_simulate
-  VERSION 3.3.1
+  VERSION 3.3.3
   DESCRIPTION "MuJoCo simulate binaries"
   HOMEPAGE_URL "https://mujoco.org"
 )

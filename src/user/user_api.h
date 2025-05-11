@@ -352,6 +352,9 @@ MJAPI const char* mjs_getString(const mjString* source);
 // Get double array contents and optionally its size.
 MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 
+// Get plugin attributes.
+MJAPI const void* mjs_getPluginAttributes(const mjsPlugin* plugin);
+
 
 //---------------------------------- Other utilities -----------------------------------------------
 
@@ -370,6 +373,11 @@ MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
 
 // Set user payload.
 MJAPI void mjs_setUserValue(mjsElement* element, const char* key, const void* data);
+
+// Set user payload.
+MJAPI void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+                                       const void* data,
+                                       void (*cleanup)(const void*));
 
 // Return user payload or NULL if none found.
 MJAPI const void* mjs_getUserValue(mjsElement* element, const char* key);

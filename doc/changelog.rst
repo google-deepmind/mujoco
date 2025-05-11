@@ -2,38 +2,72 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Upcoming version (not yet release)
+----------------------------------
+
+General
+^^^^^^^
+- Refactored island implementation so that island data is memory-contiguous. This speeds up island processing in the
+  solver and clears the way for the addition of the Newton and PGS solvers (currently only CG is supported).
+
+Version 3.3.2 (April 28, 2025)
+------------------------------
+
+MJX
+^^^
+1. Added inverse dynamics.
+2. Added tendon actuator force sensor.
+3. Fix :github:issue:`2606` such that ``make_data`` copies over ``mocap_pos`` and ``mocap_quat``
+   from ``body_pos`` and ``body_quat``.
+
+Version 3.3.1 (Apr 9, 2025)
+----------------------------
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The default value of the flag for toggling :ref:`internal flex contacts<flex-contact-internal>` was changed from
-     "true" to "false". This feature has proven to be counterintuitive for users.
-   - All of the attach functions (``mjs_attachBody``, ``mjs_attachFrame``, ``mjs_attachToSite``,
-     ``mjs_attachFrameToSite``) have been removed and replaced by a single function :ref:`mjs_attach`.
+   1. The default value of the flag for toggling :ref:`internal flex contacts<flex-contact-internal>` was changed from
+      "true" to "false". This feature has proven to be counterintuitive for users.
+   2. All of the attach functions (``mjs_attachBody``, ``mjs_attachFrame``, ``mjs_attachToSite``,
+      ``mjs_attachFrameToSite``) have been removed and replaced by a single function :ref:`mjs_attach`.
 
 General
 ^^^^^^^
-- Added :ref:`tendon armature<tendon-spatial-armature>`: inertia associated with changes in tendon length.
-- Added the :ref:`compiler/saveinertial<compiler-saveinertial>` flag, writing explicit inertial clauses for all
-  bodies when saving to XML.
-- Added :ref:`orientation<body-composite-quat>` attribute to :ref:`composite<body-composite>`. Moreover, allow the
-  composite to be the direct child of a frame.
+3. Added :ref:`tendon armature<tendon-spatial-armature>`: inertia associated with changes in tendon length.
+4. Added the :ref:`compiler/saveinertial<compiler-saveinertial>` flag, writing explicit inertial clauses for all
+   bodies when saving to XML.
+5. Added :ref:`orientation<body-composite-quat>` attribute to :ref:`composite<body-composite>`. Moreover, allow the
+   composite to be the direct child of a frame.
+6. Added :ref:`tendon actuator force limits<tendon-spatial-actuatorfrclimited>` and
+   :ref:`tendon actuator force sensor<sensor-tendonactuatorfrc>`.
+
+MJX
+^^^
+7. Added tendon actuator force limits.
 
 Bug fixes
 ^^^^^^^^^
-- :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
-  which the Jacobian is computed, now fixed.
-- Fixed a bug that caused the parent frame of elements in the child worldbody to be incorrectly set when attaching an
-  mjSpec to a frame or a site.
-- Fixed a bug that caused shadow rendering to flicker on platforms (e.g., MacOS) that do not support ARB_clip_control.
-  Fixed in collaboration with :github:user:`aftersomemath`.
+8. :ref:`mj_jacDot` was missing a term that accounts for the motion of the point with respect to
+   which the Jacobian is computed, now fixed.
+9. Fixed a bug that caused the parent frame of elements in the child worldbody to be incorrectly set when attaching an
+   mjSpec to a frame or a site.
+10. Fixed a bug that caused shadow rendering to flicker on platforms (e.g., MacOS) that do not support
+    ARB_clip_control. Fixed in collaboration with :github:user:`aftersomemath`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
-- Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding :ref:`section<PyMJCF>`
-  in the documentation.
+
+.. youtube:: LbANnKMDOHg
+   :aspect: 16:7
+   :align: right
+   :width: 240px
+
+11. Added examples of procedural model creation to the Model Editing tutorial: |mjspec_colab|
+12. Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding
+    :ref:`section<PyMJCF>` in the documentation.
+
+.. |mjspec_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+                  :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb
 
 Version 3.3.0 (Feb 26, 2025)
 ----------------------------

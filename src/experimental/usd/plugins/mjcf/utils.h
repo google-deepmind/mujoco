@@ -71,6 +71,9 @@ void ApplyApiSchema(pxr::SdfAbstractDataRefPtr& data,
 void SetPrimKind(pxr::SdfAbstractDataRefPtr& data,
                  const pxr::SdfPath& prim_path, pxr::TfToken kind);
 
+void SetPrimPurpose(pxr::SdfAbstractDataRefPtr& data,
+                    const pxr::SdfPath& prim_path, pxr::TfToken purpose);
+
 // Set the value specified by key on any field at field_path.
 template <typename T>
 void SetField(pxr::SdfAbstractDataRefPtr& data, const pxr::SdfPath& field_path,

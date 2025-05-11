@@ -102,7 +102,8 @@ bool mjCCache::Insert(const std::string& modelname, const mjResource *resource,
 
 
 
-// populate data from the cache into the given function
+// populate data from the cache into the given function, return true if data was
+// copied
 bool mjCCache::PopulateData(const mjResource* resource, mjCDataFunc fn) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = lookup_.find(resource->name);
@@ -121,8 +122,7 @@ bool mjCCache::PopulateData(const mjResource* resource, mjCDataFunc fn) {
   entries_.erase(asset);
   entries_.insert(asset);
 
-  asset->PopulateData(fn);
-  return true;
+  return asset->PopulateData(fn);
 }
 
 

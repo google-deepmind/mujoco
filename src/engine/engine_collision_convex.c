@@ -908,24 +908,31 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
 
 
 
-// return true if multiccd can run in a single pass
-static int singlePass(const mjCCDObj* obj1, const mjCCDObj* obj2) {
+// return number of contacts supported by a single pass of narrowphase
+static int maxContacts(const mjCCDObj* obj1, const mjCCDObj* obj2) {
   const mjModel* m = obj1->model;
 
   // single pass not supported for margins
   if (obj1->margin > 0 || obj2->margin > 0) {
-    return 0;
+    return 1;
   }
 
-  // supported geoms for single pass
+  // can return 8 contacts for box-box collision in one pass
   int type1 = m->geom_type[obj1->geom];
   int type2 = m->geom_type[obj2->geom];
+  if (type1 == mjGEOM_BOX && type2 == mjGEOM_BOX) {
+    return 8;
+  }
+
+  // reduce mesh collisions to 4 contacts max
   if (type1 == mjGEOM_BOX || type1 == mjGEOM_MESH) {
     if (type2 == mjGEOM_BOX || type2 == mjGEOM_MESH) {
-      return 1;
+      return mjENABLED(mjENBL_MULTICCD) ? 4 : 1;
     }
   }
-  return 0;
+
+  // not supported for other geom types
+  return 1;
 }
 
 
@@ -937,17 +944,14 @@ int mjc_Convex(const mjModel* m, const mjData* d,
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, margin);
   mjc_initCCDObj(&obj2, m, d, g2, margin);
-  int max_contacts = 1;
-
-  if (mjENABLED(mjENBL_MULTICCD) && singlePass(&obj1, &obj2)) {
-    max_contacts = 4;
-  }
+  int max_contacts = maxContacts(&obj1, &obj2);
 
   // find initial contact
   int ncon = mjc_CCDIteration(m, d, &obj1, &obj2, con, max_contacts, margin);
 
-  // nativeccd supports multi Box-Box collision directly
-  if (!mjDISABLED(mjDSBL_NATIVECCD) && singlePass(&obj1, &obj2)) {
+
+  // no additional contacts needed
+  if (!mjDISABLED(mjDSBL_NATIVECCD) && max_contacts > 1) {
     return ncon;
   }
 

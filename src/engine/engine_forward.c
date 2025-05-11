@@ -276,7 +276,7 @@ static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, i
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
 void mj_fwdActuation(const mjModel* m, mjData* d) {
   TM_START;
-  int nv = m->nv, nu = m->nu;
+  int nv = m->nv, nu = m->nu, ntendon = m->ntendon;
   mjtNum gain, bias, tau;
   mjtNum *prm, *force = d->actuator_force;
 
@@ -288,6 +288,9 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
     mju_zero(d->qfrc_actuator, nv);
     return;
   }
+
+  // any tendon transmission targets with force limits
+  int tendon_frclimited = 0;
 
   // local, clamped copy of ctrl
   mj_markStack(d);
@@ -384,6 +387,11 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
       continue;
     }
 
+    // check for tendon transmission with force limits
+    if (ntendon && !tendon_frclimited && m->actuator_trntype[i] == mjTRN_TENDON) {
+      tendon_frclimited = m->tendon_actfrclimited[m->actuator_trnid[2*i]];
+    }
+
     // extract gain info
     prm = m->actuator_gainprm + mjNGAIN*i;
 
@@ -475,6 +483,38 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
           mjERROR("`compute` is a null function pointer for plugin at slot %d", slot);
         }
         plugin->compute(m, d, i, mjPLUGIN_ACTUATOR);
+      }
+    }
+  }
+
+  // clamp tendon total actuator force
+  if (tendon_frclimited) {
+    // compute total force for each tendon
+    mjtNum* tendon_total_force = mjSTACKALLOC(d, ntendon, mjtNum);
+    mju_zero(tendon_total_force, ntendon);
+    for (int i=0; i < nu; i++) {
+      if (m->actuator_trntype[i] == mjTRN_TENDON) {
+        int tendon_id = m->actuator_trnid[2*i];
+        if (m->tendon_actfrclimited[tendon_id]) {
+          tendon_total_force[tendon_id] += force[i];
+        }
+      }
+    }
+
+    // scale tendon actuator forces if limited and outside range
+    for (int i=0; i < nu; i++) {
+      if (m->actuator_trntype[i] != mjTRN_TENDON) {
+        continue;
+      }
+      int tendon_id = m->actuator_trnid[2*i];
+      mjtNum tendon_force = tendon_total_force[tendon_id];
+      if (m->tendon_actfrclimited[tendon_id] && tendon_force) {
+        const mjtNum* range = m->tendon_actfrcrange + 2 * tendon_id;
+        if (tendon_force < range[0]) {
+          force[i] *= range[0] / tendon_force;
+        } else if (tendon_force > range[1]) {
+          force[i] *= range[1] / tendon_force;
+        }
       }
     }
   }
@@ -589,6 +629,15 @@ static void warmstart(const mjModel* m, mjData* d) {
       }
     }
 
+    // have island structure: unconstrained qacc = qacc_smooth
+    if (d->nisland > 0) {
+      // loop over unconstrained dofs in map_idof2dof[nidof, nv)
+      for (int i=d->nidof; i < nv; i++) {
+        int dof = d->map_idof2dof[i];
+        d->qacc[dof] = d->qacc_smooth[dof];
+      }
+    }
+
     mj_freeStack(d);
   }
 
@@ -674,23 +723,37 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
   // check if islands are supported
   int islands_supported = mjENABLED(mjENBL_ISLAND)  &&
-                          d->nisland > 0            &&
+                          nisland > 0               &&
                           m->opt.solver == mjSOL_CG &&
                           m->opt.noslip_iterations == 0;
 
   // run solver over constraint islands
   if (islands_supported) {
-    // no threadpool, loop over islands
+    int nidof = d->nidof;
+
+    // copy CG inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
+    mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
+    mju_gather(d->ifrc_constraint, d->qfrc_constraint, d->map_idof2dof, nidof);
+    mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
+    mju_gather(d->iacc,            d->qacc,            d->map_idof2dof, nidof);
+    mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
+    mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
+
+    // solve per island
     if (!d->threadpool) {
+      // no threadpool, loop over islands
       for (int island=0; island < nisland; island++) {
         mj_solCG_island(m, d, island, m->opt.iterations);
       }
-    }
-    else {
-      // solve using threads
+    } else {
+      // have threadpool, solve using threads
       mj_solCG_island_multithreaded(m, d);
     }
-    d->solver_nisland = nisland;
+
+    // copy back solver outputs (scatter dofs since ni <= nv)
+    mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
+    mju_scatter(d->qfrc_constraint, d->ifrc_constraint, d->map_idof2dof, nidof);
+    mju_gather(d->efc_force, d->iefc_force, d->map_efc2iefc, nefc);
   }
 
   // run solver over all constraints
@@ -711,9 +774,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     default:
       mjERROR("unknown solver type %d", m->opt.solver);
     }
-
-    // one (monolithic) island
-    d->solver_nisland = 1;
   }
 
   // save result for next step warmstart
@@ -800,9 +860,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   else {
     if (!skipfactor) {
       // qH = M + h*diag(B)
-      for (int i=0; i < nM; i++) {
-        d->qH[i] = d->qM[d->mapM2M[i]];
-      }
+      mju_gather(d->qH, d->qM, d->mapM2M, nM);
       for (int i=0; i < nv; i++) {
         d->qH[d->M_rowadr[i] + d->M_rownnz[i] - 1] += m->opt.timestep * m->dof_damping[i];
       }
@@ -959,10 +1017,8 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       // compute analytical derivative qDeriv
       mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
-      // set qLU = qM
-      for (int i=0; i < nD; i++) {
-        d->qLU[i] = d->qM[d->mapM2D[i]];
-      }
+      // gather qLU <- qM (lower to full)
+      mju_gather(d->qLU, d->qM, d->mapM2D, nD);
 
       // set qLU = qM - dt*qDeriv
       mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
@@ -982,19 +1038,15 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       // compute analytical derivative qDeriv; skip rne derivative
       mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
-      // modified mass matrix MhB = qDeriv[Lower]
+      // modified mass matrix: gather MhB <- qDeriv (full to lower)
       mjtNum* MhB = mjSTACKALLOC(d, nM, mjtNum);
-      for (int i=0; i < nM; i++) {
-        MhB[i] = d->qDeriv[d->mapD2M[i]];
-      }
+      mju_gather(MhB, d->qDeriv, d->mapD2M, nM);
 
       // set MhB = M - dt*qDeriv
       mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, nM);
 
-      // copy into qH
-      for (int i=0; i < nM; i++) {
-        d->qH[i] = MhB[d->mapM2M[i]];
-      }
+      // gather qH <- MhB (legacy to CSR)
+      mju_gather(d->qH, MhB, d->mapM2M, nM);
 
       // factorize in-place
       mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);

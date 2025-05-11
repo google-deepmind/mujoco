@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 331
+#define mjVERSION_HEADER 333
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -1622,6 +1622,9 @@ MJAPI const char* mjs_getString(const mjString* source);
 // Get double array contents and optionally its size.
 MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
 
+// Get plugin attributes.
+MJAPI const void* mjs_getPluginAttributes(const mjsPlugin* plugin);
+
 
 //---------------------------------- Spec utilities ------------------------------------------------
 
@@ -1640,6 +1643,13 @@ MJAPI mjsFrame* mjs_bodyToFrame(mjsBody** body);
 
 // Set user payload, overriding the existing value for the specified key if present.
 MJAPI void mjs_setUserValue(mjsElement* element, const char* key, const void* data);
+
+// Set user payload, overriding the existing value for the specified key if
+// present. This version differs from mjs_setUserValue in that it takes a
+// cleanup function that will be called when the user payload is deleted.
+MJAPI void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+                                       const void* data,
+                                       void (*cleanup)(const void*));
 
 // Return user payload or NULL if none found.
 MJAPI const void* mjs_getUserValue(mjsElement* element, const char* key);

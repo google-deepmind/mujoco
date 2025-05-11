@@ -835,22 +835,21 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nsensor, 9)
 
   def test_plugin(self):
-    xml = """
-    <mujoco>
-      <extension>
-        <plugin plugin="mujoco.elasticity.cable"/>
-      </extension>
-    </mujoco>
-    """
-
-    spec = mujoco.MjSpec.from_string(xml)
-    self.assertIsNotNone(spec.worldbody)
+    spec = mujoco.MjSpec()
+    spec.activate_plugin('mujoco.elasticity.cable')
+    plugin = spec.add_plugin(
+        name='instance_name',
+        plugin_name='mujoco.elasticity.cable',
+        active=True,
+        info='info'
+    )
+    plugin.config = {'twist': '10', 'bend': '1'}
+    self.assertEqual(plugin.config, {'twist': '10', 'bend': '1'})
 
     body = spec.worldbody.add_body()
+    body.plugin = plugin
     body.plugin.plugin_name = 'mujoco.elasticity.cable'
-    body.plugin.id = spec.add_plugin()
     body.plugin.active = True
-    self.assertEqual(body.plugin.id, 0)
 
     geom = body.add_geom()
     geom.type = mujoco.mjtGeom.mjGEOM_BOX
@@ -861,7 +860,19 @@ class SpecsTest(absltest.TestCase):
     model = spec.compile()
     self.assertIsNotNone(model)
     self.assertEqual(model.nplugin, 1)
+    self.assertEqual(model.npluginattr, 7)
     self.assertEqual(model.body_plugin[1], 0)
+    attributes = (''.join([chr(i) for i in model.plugin_attr]).split(chr(0)))
+    self.assertEqual(attributes[:2], ['10', '1'])
+
+    copy = spec.copy()  # before assigning the new config
+    wrong_config = {'wrong': '10', 'bend': '1'}
+    for s in [spec, copy]:
+      s.plugins[0].config = wrong_config
+      with self.assertRaisesRegex(
+          ValueError, "Error: unrecognized attribute 'plugin:wrong'"
+      ):
+        s.compile()
 
   def test_recompile_error(self):
     main_xml = """

@@ -73,7 +73,7 @@ mjSpec* mj_copySpec(const mjSpec* s) {
   try {
     modelC = new mjCModel(*static_cast<mjCModel*>(s->element));
   } catch (mjCError& e) {
-    modelC->SetError(e);
+    static_cast<mjCModel*>(s->element)->SetError(e);
     return nullptr;
   }
   return &modelC->spec;
@@ -860,15 +860,17 @@ mjsFrame* mjs_bodyToFrame(mjsBody** body) {
   return &frameC->spec;
 }
 
-
-
-// set user payload
 void mjs_setUserValue(mjsElement* element, const char* key, const void* data) {
-  mjCBase* baseC = static_cast<mjCBase*>(element);
-  baseC->SetUserValue(key, data);
+  mjs_setUserValueWithCleanup(element, key, data, nullptr);
 }
 
-
+// set user payload
+void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
+                                 const void* data,
+                                 void (*cleanup)(const void*)) {
+  mjCBase* baseC = static_cast<mjCBase*>(element);
+  baseC->SetUserValue(key, data, cleanup);
+}
 
 // return user payload or NULL if none found
 const void* mjs_getUserValue(mjsElement* element, const char* key) {
@@ -1298,6 +1300,14 @@ void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes) {
   std::map<std::string, std::string, std::less<> >* config_attribs =
     reinterpret_cast<std::map<std::string, std::string, std::less<> >*>(attributes);
   pluginC->config_attribs = std::move(*config_attribs);
+}
+
+
+
+// get plugin attributes
+const void* mjs_getPluginAttributes(const mjsPlugin* plugin) {
+  mjCPlugin* pluginC = static_cast<mjCPlugin*>(plugin->element);
+  return &pluginC->config_attribs;
 }
 
 

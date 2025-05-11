@@ -2070,6 +2070,51 @@ TEST_F(TendonTest, SiteBetweenPulleyNotAllowed) {
   EXPECT_THAT(error.data(), HasSubstr("line 9"));
 }
 
+TEST_F(TendonTest, ActuatorForceRangeNotAllowed) {
+  std::string xml = R"(
+  <mujoco>
+    <worldbody>
+      <site name="site0"/>
+      <site name="site1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial" actuatorfrclimited="true" actuatorfrcrange="{}">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <motor tendon="spatial"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  std::string str_replace = "{}";
+  size_t rng_ind = xml.find(str_replace);
+
+  std::string xml0 = xml;
+  std::string range0 = "-2 -1";
+  xml0.replace(rng_ind, str_replace.length(), range0);
+  mjModel* m0 = LoadModelFromString(xml0.c_str(), error.data(), error.size());
+  EXPECT_THAT(m0, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+
+  std::string xml1 = xml;
+  std::string range1 = "1 2";
+  xml1.replace(rng_ind, str_replace.length(), range1);
+  mjModel* m1 = LoadModelFromString(xml1.c_str(), error.data(), error.size());
+  EXPECT_THAT(m1, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+
+  std::string xml2 = xml;
+  std::string range2 = "1 0";
+  xml2.replace(rng_ind, str_replace.length(), range2);
+  mjModel* m2 = LoadModelFromString(xml2.c_str(), error.data(), error.size());
+  EXPECT_THAT(m2, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+}
+
 // ------------- tests for tendon springrange ----------------------------------
 
 using SpringrangeTest = MujocoTest;

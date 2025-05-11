@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "test/experimental/usd/plugins/mjcf/fixture.h"
+#include "test/experimental/usd/test_utils.h"
 
 #include <string>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <absl/log/check.h>
 #include <pxr/usd/sdf/assetPath.h>
 #include <pxr/usd/sdf/declareHandles.h>
 #include <pxr/usd/sdf/fileFormat.h>
@@ -29,12 +28,15 @@
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 namespace mujoco {
+namespace usd {
 
 using pxr::SdfPath;
 
-pxr::SdfLayerRefPtr LoadLayer(const std::string& xml) {
+pxr::SdfLayerRefPtr LoadLayer(
+    const std::string& xml,
+    const pxr::SdfFileFormat::FileFormatArguments& args) {
   auto layer = pxr::SdfLayer::CreateAnonymous(
-      "test_layer", pxr::SdfFileFormat::FindByExtension("xml"));
+      "test_layer", pxr::SdfFileFormat::FindByExtension("xml"), args);
   layer->ImportFromString(xml);
   EXPECT_THAT(layer, testing::NotNull());
   return layer;
@@ -60,5 +62,5 @@ void ExpectAttributeHasConnection(pxr::UsdStageRefPtr stage, const char* path,
   EXPECT_EQ(sources.size(), 1);
   EXPECT_EQ(sources[0], SdfPath(connection_path));
 }
-//
+}  // namespace usd
 }  // namespace mujoco

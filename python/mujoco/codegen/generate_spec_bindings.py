@@ -84,6 +84,7 @@ def _value_binding_code(
   fulltype = fulltype.replace('mjOption', 'raw::MjOption')
   fulltype = fulltype.replace('mjVisual', 'raw::MjVisual')
   fulltype = fulltype.replace('mjStatistic', 'raw::MjStatistic')
+  element = '.element' if fullvarname == 'plugin' else ''
 
   def_property_args = (
       f'"{varname}"',
@@ -91,7 +92,7 @@ def _value_binding_code(
         return self.{fullvarname};
       }}""",
       f"""[]({rawclassname}& self, {fulltype} {varname}) {{
-        self.{fullvarname} = {varname};
+        self.{fullvarname}{element} = {varname}{element};
       }}""",
   )
 

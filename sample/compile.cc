@@ -18,7 +18,6 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
-#include <ratio>
 
 #include <mujoco/mujoco.h>
 
@@ -30,13 +29,12 @@ static constexpr char helpstring[] =
   "   if infile is mjcf, compilation will be timed twice to measure the impact of caching\n\n"
   " Example: compile model.xml [model.mjb]\n";
 
-// timer
+// timer (seconds)
 mjtNum gettm(void) {
-  using std::chrono::steady_clock;
-  using Microseconds = std::chrono::duration<double, std::micro>;
-  static steady_clock::time_point tm_start = steady_clock::now();
-  auto elapsed = Microseconds(steady_clock::now() - tm_start);
-  return elapsed.count();
+  using Clock = std::chrono::steady_clock;
+  using Seconds = std::chrono::duration<mjtNum>;
+  static const Clock::time_point tm_start = Clock::now();
+  return Seconds(Clock::now() - tm_start).count();
 }
 
 // deallocate and print message
@@ -140,12 +138,12 @@ int main(int argc, char** argv) {
   if (type1==typeXML) {
     double starttime = gettm();
     m = mj_loadXML(argv[1], 0, error, 1000);
-    first = 1e-6 * (gettm() - starttime);
+    first = gettm() - starttime;
     if (m) {
       mj_deleteModel(m);
       starttime = gettm();
       m = mj_loadXML(argv[1], 0, error, 1000);
-      second = 1e-6 * (gettm() - starttime);
+      second = gettm() - starttime;
     }
   } else {
     m = mj_loadModel(argv[1], 0);

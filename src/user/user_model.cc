@@ -201,7 +201,6 @@ mjCModel::mjCModel() {
   world->mass = 0;
   mjuu_zerovec(world->inertia, 3);
   world->id = 0;
-  world->uid = GetUid();
   world->parent = nullptr;
   world->weldid = 0;
   world->name = "world";
@@ -297,7 +296,6 @@ void mjCModel::CopyList(std::vector<T*>& dest,
     // copy the element from the other model to this model
     if (deepcopy_) {
       source[i]->ForgetKeyframes();
-      candidate->uid = source[i]->uid;
     } else {
       candidate->AddRef();
     }
@@ -1038,7 +1036,6 @@ template <class T>
 T* mjCModel::AddObject(vector<T*>& list, string type) {
   T* obj = new T(this);
   obj->id = (int)list.size();
-  obj->uid = GetUid();
   list.push_back(obj);
   spec.element->signature = Signature();
   return obj;
@@ -1051,7 +1048,6 @@ T* mjCModel::AddObjectDefault(vector<T*>& list, string type, mjCDef* def) {
   T* obj = new T(this, def ? def : defaults_[0]);
   obj->id = (int)list.size();
   obj->classname = def ? def->name : "main";
-  obj->uid = GetUid();
   list.push_back(obj);
   spec.element->signature = Signature();
   return obj;
@@ -3355,6 +3351,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_matid[i] = pte->matid;
     m->tendon_group[i] = pte->group;
     m->tendon_limited[i] = (mjtByte)pte->is_limited();
+    m->tendon_actfrclimited[i] = (mjtByte)pte->is_actfrclimited();
     m->tendon_width[i] = (mjtNum)pte->width;
     mjuu_copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
     mjuu_copyvec(m->tendon_solimp_lim+mjNIMP*i, pte->solimp_limit, mjNIMP);
@@ -3362,6 +3359,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->tendon_solimp_fri+mjNIMP*i, pte->solimp_friction, mjNIMP);
     m->tendon_range[2*i] = (mjtNum)pte->range[0];
     m->tendon_range[2*i+1] = (mjtNum)pte->range[1];
+    m->tendon_actfrcrange[2*i] = (mjtNum)pte->actfrcrange[0];
+    m->tendon_actfrcrange[2*i+1] = (mjtNum)pte->actfrcrange[1];
     m->tendon_margin[i] = (mjtNum)pte->margin;
     m->tendon_stiffness[i] = (mjtNum)pte->stiffness;
     m->tendon_damping[i] = (mjtNum)pte->damping;
@@ -3615,7 +3614,7 @@ void mjCModel::SaveState(const std::string& state_name, const T* qpos, const T* 
   }
 
   for (auto body : bodies_) {
-    if (!body->spec.mocap) {
+    if (!body->spec.mocap || body->mocapid == -1) {
       continue;
     }
     if (mpos) {
@@ -4388,6 +4387,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     bodies_[i]->subtreedofs = 0;
   }
 
+  // initialize spec signature (needed if the user changed sensor or joint types)
+  spec.element->signature = Signature();
+
   // fill missing names and check that they are all filled
   for (const auto& asset : meshes_) asset->CopyFromSpec();
   for (const auto& asset : skins_) asset->CopyFromSpec();
@@ -4651,7 +4653,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // special cases that are not caused by user edits
   if (compiler.fusestatic || compiler.discardvisual ||
-      !spec.element->signature || !pairs_.empty() || !excludes_.empty()) {
+      !pairs_.empty() || !excludes_.empty()) {
     spec.element->signature = m->signature;
   }
 
@@ -4663,21 +4665,78 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
 
 
-uint64_t mjCModel::Signature() {
-  std::string uid_str;
-  for (int i = 0; i < mjNOBJECT; ++i) {
-    if (i == mjOBJ_XBODY || i == mjOBJ_UNKNOWN || i == mjOBJ_DOF) {
-      continue;
-    }
-    if (object_lists_[i] == nullptr) {
-      throw mjCError(0, "object list %s is null", std::to_string(i).c_str());
-    }
-    uid_str += '|';
-    for (mjCBase* object : *object_lists_[i]) {
-      uid_str += std::to_string(object->uid) + " ";
-    }
+std::string mjCModel::PrintTree(const mjCBody* body, std::string indent) {
+  std::string tree;
+  tree += indent + "<body>\n";
+  indent += "  ";
+  for (const auto& joint : body->joints) {
+    tree += indent + "<joint>" + std::to_string(joint->nq()) + "</joint>\n";
   }
-  return mj_hashString(uid_str.c_str(), UINT64_MAX);
+  for (uint64_t i = 0; i < body->geoms.size(); ++i) {
+    tree += indent + "<geom/>\n";
+  }
+  for (uint64_t i = 0; i < body->sites.size(); ++i) {
+    tree += indent + "<site/>\n";
+  }
+  for (uint64_t i = 0; i < body->cameras.size(); ++i) {
+    tree += indent + "<camera/>\n";
+  }
+  for (uint64_t i = 0; i < body->lights.size(); ++i) {
+    tree += indent + "<light/>\n";
+  }
+  for (uint64_t i = 0; i < body->bodies.size(); ++i) {
+    tree += PrintTree(body->bodies[i], indent);
+  }
+  indent.pop_back();
+  indent.pop_back();
+  tree += indent + "</body>\n";
+  return tree;
+}
+
+
+
+uint64_t mjCModel::Signature() {
+  std::string tree = "\n" + PrintTree(bodies_[0]);
+  for (unsigned int i = 0; i < flexes_.size(); ++i) {
+    tree += "<flex/>\n";
+  }
+  for (unsigned int i = 0; i < meshes_.size(); ++i) {
+    tree += "<mesh/>\n";
+  }
+  for (unsigned int i = 0; i < skins_.size(); ++i) {
+    tree += "<skin/>\n";
+  }
+  for (unsigned int i = 0; i < hfields_.size(); ++i) {
+    tree += "<heightfield/>\n";
+  }
+  for (unsigned int i = 0; i < textures_.size(); ++i) {
+    tree += "<texture/>\n";
+  }
+  for (unsigned int i = 0; i < materials_.size(); ++i) {
+    tree += "<material/>\n";
+  }
+  for (unsigned int i = 0; i < pairs_.size(); ++i) {
+    tree += "<pair/>\n";
+  }
+  for (unsigned int i = 0; i < excludes_.size(); ++i) {
+    tree += "<exclude/>\n";
+  }
+  for (unsigned int i = 1; i < equalities_.size(); ++i) {
+    tree += "<equality/>\n";
+  }
+  for (unsigned int i = 0; i < tendons_.size(); ++i) {
+    tree += "<tendon/>\n";
+  }
+  for (unsigned int i = 0; i < actuators_.size(); ++i) {
+    tree += "<actuator/>\n";
+  }
+  for (unsigned int i = 0; i < sensors_.size(); ++i) {
+    tree += "<sensor>" + std::to_string(sensors_[i]->spec.type) + "<sensor/>\n";
+  }
+  for (unsigned int i = 0; i < keys_.size(); ++i) {
+    tree += "<key/>\n";
+  }
+  return mj_hashString(tree.c_str(), UINT64_MAX);
 }
 
 
@@ -4949,6 +5008,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
   // tendons
   for (int i=0; i < ntendon; i++) {
     mjuu_copyvec(tendons_[i]->range, m->tendon_range+2*i, 2);
+    mjuu_copyvec(tendons_[i]->actfrcrange, m->tendon_actfrcrange+2*i, 2);
     mjuu_copyvec(tendons_[i]->solref_limit, m->tendon_solref_lim+mjNREF*i, mjNREF);
     mjuu_copyvec(tendons_[i]->solimp_limit, m->tendon_solimp_lim+mjNIMP*i, mjNIMP);
     mjuu_copyvec(tendons_[i]->solref_friction, m->tendon_solref_fri+mjNREF*i, mjNREF);

@@ -4401,6 +4401,15 @@ Get string contents.
 
 Get double array contents and optionally its size.
 
+.. _mjs_getPluginAttributes:
+
+`mjs_getPluginAttributes <#mjs_getPluginAttributes>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getPluginAttributes
+
+Get plugin attributes.
+
 .. _SpecUtilities:
 
 Spec utilities
@@ -4449,6 +4458,17 @@ Transform body into a frame.
 .. mujoco-include:: mjs_setUserValue
 
 Set user payload, overriding the existing value for the specified key if present.
+
+.. _mjs_setUserValueWithCleanup:
+
+`mjs_setUserValueWithCleanup <#mjs_setUserValueWithCleanup>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setUserValueWithCleanup
+
+Set user payload, overriding the existing value for the specified key if
+present. This version differs from mjs_setUserValue in that it takes a
+cleanup function that will be called when the user payload is deleted.
 
 .. _mjs_getUserValue:
 

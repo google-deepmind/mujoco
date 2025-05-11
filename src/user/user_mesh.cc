@@ -1012,30 +1012,28 @@ void mjCMesh::LoadOBJ(mjResource* resource, bool remove_repeated) {
 
 // load mesh from cached asset, return true on success
 bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
-  // save previous mesh properties (in case different from cached mesh)
-  int maxhullvert = maxhullvert_;
-  mjtMeshInertia old_inertia = inertia;
-  double old_scale[3] = {scale[0], scale[1], scale[2]};
-
   auto process_mesh = [&](const void* data) {
     const mjCMesh* mesh = static_cast<const mjCMesh*>(data);
     // check if maxhullvert is different
-    maxhullvert_ = mesh->maxhullvert_;
-    if (maxhullvert != mesh->maxhullvert_) {
-      return;
+    if (maxhullvert_ != mesh->maxhullvert_) {
+      return false;
     }
 
     // check if inertia is different
-    inertia = mesh->inertia;
-    if (old_inertia != mesh->inertia) {
-      return;
+    if (inertia != mesh->inertia) {
+      return false;
     }
 
     // check if scale is different
-    memcpy(scale, mesh->scale, 3*sizeof(double));
-    if (old_scale[0] != mesh->scale[0] || old_scale[1] != mesh->scale[1] ||
-        old_scale[2] != mesh->scale[2]) {
-      return;
+    if (scale[0] != mesh->scale[0] ||
+        scale[1] != mesh->scale[1] ||
+        scale[2] != mesh->scale[2]) {
+      return false;
+    }
+
+    // check if need hull
+    if (needhull_ && !mesh->szgraph_) {
+      return false;
     }
 
     processed_ = mesh->processed_;
@@ -1047,11 +1045,14 @@ bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
     facetexcoord_ = mesh->facetexcoord_;
     halfedge_ = mesh->halfedge_;
 
-    szgraph_ = mesh->szgraph_;
-    graph_ = nullptr;
-    if (szgraph_) {
-      graph_ = (int*)mju_malloc(szgraph_*sizeof(int));
-      std::copy(mesh->graph_, mesh->graph_ + szgraph_, graph_);
+    // only copy graph if needed
+    if (needhull_ || mesh->face_.empty()) {
+      szgraph_ = mesh->szgraph_;
+      graph_ = nullptr;
+      if (szgraph_) {
+        graph_ = (int*)mju_malloc(szgraph_*sizeof(int));
+        std::copy(mesh->graph_, mesh->graph_ + szgraph_, graph_);
+      }
     }
 
     polygons_ = mesh->polygons_;
@@ -1072,29 +1073,11 @@ bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
     }
     tree_ = mesh->tree_;
     face_aabb_ = mesh->face_aabb_;
+    return true;
   };
 
-  // check that cached asset has all data, make sure no metadata has changed
-  if (!cache->PopulateData(resource, process_mesh)) {
-    return false;
-  }
-
-  if (maxhullvert != maxhullvert_) {
-    maxhullvert_ = maxhullvert;
-    return false;
-  }
-  if (inertia != old_inertia) {
-    inertia = old_inertia;
-    return false;
-  }
-  if (scale[0] != old_scale[0] || scale[1] != old_scale[1] ||
-      scale[2] != old_scale[2]) {
-    scale[0] = old_scale[0];
-    scale[1] = old_scale[1];
-    scale[2] = old_scale[2];
-    return false;
-  }
-  return true;
+  // check that cached asset has all data
+  return cache->PopulateData(resource, process_mesh);
 }
 
 // load STL binary mesh
@@ -3641,8 +3624,9 @@ void mjCFlex::CreateBVH() {
     elemaabb_[6*e+5] = 0.5*(xmax[2]-xmin[2]) + radius;
 
     // add bounding volume for this element
+    // contype and conaffinity are set to nonzero to force bvh generation
     const double* aabb = elemaabb_.data() + 6*e;
-    tree.AddBoundingVolume(e, contype, conaffinity, aabb, nullptr, aabb);
+    tree.AddBoundingVolume(e, 1, 1, aabb, nullptr, aabb);
     nbvh++;
   }
 

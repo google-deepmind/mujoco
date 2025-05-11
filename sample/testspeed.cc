@@ -36,13 +36,12 @@ int constraints[maxthread];
 mjtNum iterations[maxthread];
 mjtNum simtime[maxthread];
 
-// timer
+// timer (microseconds)
 mjtNum gettm(void) {
-  using std::chrono::steady_clock;
-  using Microseconds = std::chrono::duration<double, std::micro>;
-  static steady_clock::time_point tm_start = steady_clock::now();
-  auto elapsed = Microseconds(steady_clock::now() - tm_start);
-  return elapsed.count();
+  using Clock = std::chrono::steady_clock;
+  using Microseconds = std::chrono::duration<mjtNum, std::micro>;
+  static const Clock::time_point tm_start = Clock::now();
+  return Microseconds(Clock::now() - tm_start).count();
 }
 
 // deallocate and print message
@@ -98,8 +97,8 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
     // accumulate statistics
     contacts[id] += d[id]->ncon;
     constraints[id] += d[id]->nefc;
-    int nisland = d[id]->solver_nisland;
-    if (nisland == 1) {
+    int nisland = mjMAX(1, mjMIN(d[id]->nisland, mjNISLAND));
+    if (nisland == 1 || nisland == 0) {
       iterations[id] += d[id]->solver_niter[0];
     } else {
       mjtNum niter = 0;

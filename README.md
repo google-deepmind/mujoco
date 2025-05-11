@@ -53,6 +53,8 @@ running on Google Colab:
 
  - The **introductory** tutorial teaches MuJoCo basics:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb)
+ - The **Model Editing** tutorial shows how to create and edit models procedurally:
+   [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb)
  - The **rollout** tutorial shows how to use the multithreaded `rollout` module:
    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb)
  - The **LQR** tutorial synthesizes a linear-quadratic controller, balancing a

@@ -550,6 +550,10 @@ TEST_F(PluginTest, RecompileCompare) {
         mjModel* m_new = mj_compile(s, nullptr);
         mjModel* m_copy = mj_compile(s_copy, nullptr);
 
+        // compare signature
+        EXPECT_EQ(m_old->signature, m_new->signature) << xml;
+        EXPECT_EQ(m_old->signature, m_copy->signature) << xml;
+
         ASSERT_THAT(m_new, NotNull())
             << "Failed to recompile " << xml << ": " << mjs_getError(s);
         ASSERT_THAT(m_copy, NotNull())
@@ -2548,31 +2552,46 @@ TEST_F(MujocoTest, DifferentOptionsInAttachedFrame) {
   // load specs and compile child
   mjSpec* parent = mj_parseXMLString(xml_parent, 0, nullptr, 0);
   EXPECT_THAT(parent, NotNull());
-  mjSpec* child = mj_parseXMLString(xml_child, 0, nullptr, 0);
-  EXPECT_THAT(child, NotNull());
-  mjModel* m_child = mj_compile(child, 0);
-  EXPECT_THAT(m_child, NotNull());
+  mjSpec* child1 = mj_parseXMLString(xml_child, 0, nullptr, 0);
+  EXPECT_THAT(child1, NotNull());
+  mjModel* m_child1 = mj_compile(child1, 0);
+  EXPECT_THAT(m_child1, NotNull());
+  mjSpec* child2 = mj_parseXMLString(xml_child, 0, nullptr, 0);
+  EXPECT_THAT(child2, NotNull());
+  mjModel* m_child2 = mj_compile(child1, 0);
+  EXPECT_THAT(m_child2, NotNull());
 
   // attach child frame to parent worldbody
   mjsBody* world = mjs_findBody(parent, "world");
   EXPECT_THAT(world, NotNull());
-  mjsFrame* child_frame = mjs_findFrame(child, "child");
-  EXPECT_THAT(child_frame, NotNull());
-  mjsElement* attached_frame =
-      mjs_attach(world->element, child_frame->element, "child-", "");
-  EXPECT_THAT(attached_frame, NotNull());
+  mjsFrame* child1_frame = mjs_findFrame(child1, "child");
+  EXPECT_THAT(child1_frame, NotNull());
+  mjsFrame* child2_frame = mjs_findFrame(child2, "child");
+  EXPECT_THAT(child2_frame, NotNull());
+  mjsElement* attached_frame1 =
+      mjs_attach(world->element, child1_frame->element, "child-", "-1");
+  EXPECT_THAT(attached_frame1, NotNull());
+  mjsElement* attached_frame2 =
+      mjs_attach(world->element, child2_frame->element, "child-", "-2");
+  EXPECT_THAT(attached_frame2, NotNull());
 
   // wrap the child frame in the parent frame and compile
   mjModel* m_attached = mj_compile(parent, 0);
   EXPECT_THAT(m_attached, NotNull());
-  EXPECT_NEAR(m_attached->site_quat[0], m_child->site_quat[0], 1e-6);
-  EXPECT_NEAR(m_attached->site_quat[1], m_child->site_quat[1], 1e-6);
-  EXPECT_NEAR(m_attached->site_quat[2], m_child->site_quat[2], 1e-6);
-  EXPECT_NEAR(m_attached->site_quat[3], m_child->site_quat[3], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[0], m_child1->site_quat[0], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[1], m_child1->site_quat[1], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[2], m_child1->site_quat[2], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[3], m_child1->site_quat[3], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[4], m_child2->site_quat[0], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[5], m_child2->site_quat[1], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[6], m_child2->site_quat[2], 1e-6);
+  EXPECT_NEAR(m_attached->site_quat[7], m_child2->site_quat[3], 1e-6);
 
   mj_deleteSpec(parent);
-  mj_deleteSpec(child);
-  mj_deleteModel(m_child);
+  mj_deleteSpec(child1);
+  mj_deleteModel(m_child1);
+  mj_deleteSpec(child2);
+  mj_deleteModel(m_child2);
   mj_deleteModel(m_attached);
 }
 
@@ -2826,6 +2845,14 @@ TEST_F(MujocoTest, UserValue) {
   EXPECT_STREQ(static_cast<const char*>(payload), data.c_str());
   mjs_deleteUserValue(body->element, "key");
   EXPECT_THAT(mjs_getUserValue(body->element, "key"), IsNull());
+
+  std::string* heap_data = new std::string("heap_data");
+  mjs_setUserValueWithCleanup(
+      body->element, "key", heap_data,
+      [](const void* data) { delete static_cast<const std::string*>(data); });
+  payload = mjs_getUserValue(body->element, "key");
+  EXPECT_STREQ(static_cast<const std::string*>(payload)->c_str(),
+               heap_data->c_str());
   mj_deleteSpec(spec);
 }
 

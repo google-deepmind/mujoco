@@ -26,6 +26,7 @@
 #include <pxr/base/tf/pathUtils.h>
 #include <pxr/base/tf/registryManager.h>
 #include <pxr/base/tf/staticTokens.h>
+#include <pxr/base/tf/stringUtils.h>
 #include <pxr/base/tf/type.h>
 #include <pxr/base/work/loops.h>
 #include <pxr/pxr.h>
@@ -145,9 +146,18 @@ bool UsdMjcfFileFormat::CanRead(const std::string &filePath) const {
 }
 
 bool UsdMjcfFileFormat::ReadImpl(pxr::SdfLayer *layer, mjSpec *spec) const {
-  auto data = InitData(layer->GetFileFormatArguments());
+  auto args = layer->GetFileFormatArguments();
 
-  auto success = mujoco::usd::WriteSpecToData(spec, data);
+  bool toggleUsdPhysics = false;
+  const auto it =
+      args.find(UsdMjcfFileFormatTokens->ToggleUsdPhysicsArg.GetString());
+  if (it != args.end()) {
+    toggleUsdPhysics = pxr::TfUnstringify<bool>(it->second);
+  }
+
+  auto data = InitData(args);
+
+  auto success = mujoco::usd::WriteSpecToData(spec, data, toggleUsdPhysics);
   mj_deleteSpec(spec);
   if (!success) {
     return false;

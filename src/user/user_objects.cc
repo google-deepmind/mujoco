@@ -75,14 +75,19 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
   image.color_type_ = color_type;
   mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
 
+  // cache callback
+  auto callback = [&image](const void* data) {
+    const PNGImage *cached_image = static_cast<const PNGImage*>(data);
+    if (cached_image->color_type_ == image.color_type_) {
+      image = *cached_image;
+      return true;
+    }
+    return false;
+  };
+
   // try loading from cache
-  if (cache && cache->PopulateData(resource, [&image](const void* data) {
-      const PNGImage *cached_image = static_cast<const PNGImage*>(data);
-      if (cached_image->color_type_ == image.color_type_) {
-        image = *cached_image;
-      }
-    })) {
-    if (!image.data_.empty()) return image;
+  if (cache && cache->PopulateData(resource, callback)) {
+      return image;
   }
 
   // open PNG resource
@@ -779,15 +784,14 @@ void mjCBase::SetFrame(mjCFrame* _frame) {
   frame = _frame;
 }
 
-
-void mjCBase::SetUserValue(std::string_view key, const void* data) {
-  user_payload_[std::string(key)] = data;
+void mjCBase::SetUserValue(std::string_view key, const void* data,
+                           void (*cleanup)(const void*)) {
+  user_payload_[std::string(key)] = UserValue(data, cleanup);
 }
-
 
 const void* mjCBase::GetUserValue(std::string_view key) {
   auto found = user_payload_.find(std::string(key));
-  return found != user_payload_.end() ? found->second : nullptr;
+  return found != user_payload_.end() ? found->second.value : nullptr;
 }
 
 
@@ -818,6 +822,7 @@ mjCBody::mjCBody(mjCModel* _model) {
   mjuu_zerovec(xpos0, 3);
   mjuu_setvec(xquat0, 1, 0, 0, 0);
   last_attached = nullptr;
+  mocapid = -1;
 
   // clear object lists
   bodies.clear();
@@ -840,7 +845,6 @@ mjCBody::mjCBody(mjCModel* _model) {
 
 mjCBody::mjCBody(const mjCBody& other, mjCModel* _model) {
   model = _model;
-  uid = other.uid;
   mjSpec* origin = model->FindSpec(other.compiler);
   compiler = origin ? &origin->compiler : &model->spec.compiler;
   *this = other;
@@ -916,7 +920,7 @@ mjCBody& mjCBody::operator+=(const mjCBody& other) {
 // attach frame to body
 mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   // append a copy of the attached spec
-  if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
+  if (other.model != model && !model->FindSpec(&other.model->spec.compiler)) {
     model->AppendSpec(mj_copySpec(&other.model->spec), &other.model->spec.compiler);
   }
 
@@ -944,7 +948,6 @@ mjCBody& mjCBody::operator+=(const mjCFrame& other) {
   frames.back()->frame = other.frame;
   if (model->deepcopy_) {
     frames.back()->NameSpace(other_model);
-    frames.back()->uid = other.uid;
   } else {
     frames.back()->AddRef();
   }
@@ -1037,8 +1040,6 @@ void mjCBody::CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
     // increment refcount if shallow copy is made
     if (!model->deepcopy_) {
       dst.back()->AddRef();
-    } else {
-      dst.back()->uid = src[i]->uid;
     }
 
     // set namespace
@@ -1256,7 +1257,6 @@ mjCBody* mjCBody::AddBody(mjCDef* _def) {
   obj->parent = this;
 
   // update signature
-  obj->uid = model->GetUid();
   model->spec.element->signature = model->Signature();
   return obj;
 }
@@ -1271,7 +1271,6 @@ mjCFrame* mjCBody::AddFrame(mjCFrame* _frame) {
   model->MakeTreeLists();
 
   // update signature
-  obj->uid = model->GetUid();
   model->spec.element->signature = model->Signature();
   return obj;
 }
@@ -1295,7 +1294,6 @@ mjCJoint* mjCBody::AddFreeJoint() {
 
 
   // update signature
-  obj->uid = model->GetUid();
   model->spec.element->signature = model->Signature();
   return obj;
 }
@@ -1318,7 +1316,6 @@ mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
 
 
   // update signature
-  obj->uid = model->GetUid();
   model->spec.element->signature = model->Signature();
   return obj;
 }
@@ -1341,7 +1338,6 @@ mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
 
 
   // update signature
-  obj->uid = model->GetUid();
   model->spec.element->signature = model->Signature();
   return obj;
 }
@@ -1364,7 +1360,6 @@ mjCSite* mjCBody::AddSite(mjCDef* _def) {
 
 
   // update signature
-  obj->uid = model->GetUid();
   model->spec.element->signature = model->Signature();
   return obj;
 }
@@ -1387,7 +1382,6 @@ mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
 
 
   // update signature
-  obj->uid = model->GetUid();
   model->spec.element->signature = model->Signature();
   return obj;
 }
@@ -1410,7 +1404,6 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
 
 
   // update signature
-  obj->uid = model->GetUid();
   model->spec.element->signature = model->Signature();
   return obj;
 }
@@ -2040,7 +2033,7 @@ mjCFrame& mjCFrame::operator=(const mjCFrame& other) {
 // attach body to frame
 mjCFrame& mjCFrame::operator+=(const mjCBody& other) {
   // append a copy of the attached spec
-  if (other.model != model && !model->FindSpec(mjs_getString(other.model->spec.modelname))) {
+  if (other.model != model && !model->FindSpec(&other.model->spec.compiler)) {
     model->AppendSpec(mj_copySpec(&other.model->spec), &other.model->spec.compiler);
   }
 
@@ -5399,7 +5392,9 @@ mjCTendon& mjCTendon::operator=(const mjCTendon& other) {
 bool mjCTendon::is_limited() const {
   return islimited(limited, range);
 }
-
+bool mjCTendon::is_actfrclimited() const {
+  return islimited(actfrclimited, actfrcrange);
+}
 
 void mjCTendon::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
@@ -5695,6 +5690,21 @@ void mjCTendon::Compile(void) {
   // check limits
   if (range[0] >= range[1] && is_limited()) {
     throw mjCError(this, "invalid limits in tendon");
+  }
+
+  // if limited is auto, set to 1 if range is specified, otherwise unlimited
+  if (actfrclimited == mjLIMITED_AUTO) {
+    bool hasactfrcrange = !(actfrcrange[0] == 0 && actfrcrange[1] == 0);
+    checklimited(this, compiler->autolimits, "tendon", "", actfrclimited,
+                 hasactfrcrange);
+  }
+
+  // check actfrclimits
+  if (actfrcrange[0] >= actfrcrange[1] && is_actfrclimited()) {
+    throw mjCError(this, "invalid actuatorfrcrange in tendon");
+  }
+  if ((actfrcrange[0] > 0 || actfrcrange[1] < 0) && is_actfrclimited()) {
+    throw mjCError(this, "invalid actuatorfrcrange in tendon");
   }
 
   // check springlength
@@ -6490,6 +6500,18 @@ void mjCSensor::Compile(void) {
       }
       break;
 
+  case mjSENS_TENDONACTFRC:
+    // must be attached to tendon
+    if (objtype != mjOBJ_TENDON) {
+      throw mjCError(this, "sensor must be attached to tendon");
+    }
+
+    // set
+    dim = 1;
+    datatype = mjDATATYPE_REAL;
+    needstage = mjSTAGE_ACC;
+    break;
+
     case mjSENS_TENDONPOS:
     case mjSENS_TENDONVEL:
       // must be attached to tendon
@@ -7253,6 +7275,8 @@ mjCPlugin::mjCPlugin(mjCModel* _model) {
   spec.plugin_name = &plugin_name;
   spec.name = &name;
   spec.info = &info;
+
+  PointToLocal();
 }
 
 
@@ -7271,7 +7295,16 @@ mjCPlugin& mjCPlugin::operator=(const mjCPlugin& other) {
     parent = this;
     plugin_slot = other.plugin_slot;
   }
+  PointToLocal();
   return *this;
+}
+
+
+
+void mjCPlugin::PointToLocal() {
+  spec.element = static_cast<mjsElement*>(this);
+  spec.name = &name;
+  spec.info = &info;
 }
 
 

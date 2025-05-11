@@ -1904,7 +1904,6 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   memset(d->warning, 0, mjNWARNING*sizeof(mjWarningStat));
   memset(d->timer, 0, mjNTIMER*sizeof(mjTimerStat));
   memset(d->solver, 0, mjNSOLVER*mjNISLAND*sizeof(mjSolverStat));
-  d->solver_nisland = 0;
   mju_zeroInt(d->solver_niter, mjNISLAND);
   mju_zeroInt(d->solver_nnz, mjNISLAND);
   mju_zero(d->solver_fwdinv, 2);
@@ -1918,6 +1917,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->nJ = 0;
   d->nA = 0;
   d->nisland = 0;
+  d->nidof = 0;
 
   // clear global properties
   d->time = 0;
@@ -2079,6 +2079,7 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_ACTUATORVEL:
   case mjSENS_ACTUATORFRC:
   case mjSENS_JOINTACTFRC:
+  case mjSENS_TENDONACTFRC:
   case mjSENS_JOINTLIMITPOS:
   case mjSENS_JOINTLIMITVEL:
   case mjSENS_JOINTLIMITFRC:

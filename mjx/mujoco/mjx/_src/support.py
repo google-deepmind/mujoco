@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 """Engine support functions."""
+
 from collections.abc import Iterable, Sequence
 from typing import Optional, Tuple, Union
 
@@ -92,7 +93,7 @@ def full_m(m: Model, d: Data) -> jax.Array:
   """Reconstitute dense mass matrix from qM."""
 
   if not is_sparse(m):
-    return d.qM
+    return d._impl.qM  # pytype: disable=attribute-error
 
   ij = []
   for i in range(m.nv):
@@ -103,7 +104,7 @@ def full_m(m: Model, d: Data) -> jax.Array:
 
   i, j = (jp.array(x) for x in zip(*ij))
 
-  mat = jp.zeros((m.nv, m.nv)).at[(i, j)].set(d.qM)
+  mat = jp.zeros((m.nv, m.nv)).at[(i, j)].set(d._impl.qM)  # pytype: disable=attribute-error
 
   # also set upper triangular
   mat = mat + jp.tril(mat, -1).T
@@ -115,9 +116,9 @@ def mul_m(m: Model, d: Data, vec: jax.Array) -> jax.Array:
   """Multiply vector by inertia matrix."""
 
   if not is_sparse(m):
-    return d.qM @ vec
+    return d._impl.qM @ vec  # pytype: disable=attribute-error
 
-  diag_mul = d.qM[jp.array(m.dof_Madr)] * vec
+  diag_mul = d._impl.qM[jp.array(m.dof_Madr)] * vec  # pytype: disable=attribute-error
 
   is_, js, madr_ijs = [], [], []
   for i in range(m.nv):
@@ -131,8 +132,8 @@ def mul_m(m: Model, d: Data, vec: jax.Array) -> jax.Array:
 
   i, j, madr_ij = (jp.array(x, dtype=jp.int32) for x in (is_, js, madr_ijs))
 
-  out = diag_mul.at[i].add(d.qM[madr_ij] * vec[j])
-  out = out.at[j].add(d.qM[madr_ij] * vec[i])
+  out = diag_mul.at[i].add(d._impl.qM[madr_ij] * vec[j])  # pytype: disable=attribute-error
+  out = out.at[j].add(d._impl.qM[madr_ij] * vec[i])  # pytype: disable=attribute-error
 
   return out
 
@@ -147,9 +148,9 @@ def jac(
   mask = mask[jp.array(m.dof_bodyid)] > 0
 
   offset = point - d.subtree_com[jp.array(m.body_rootid)[body_id]]
-  jacp = jax.vmap(lambda a, b=offset: a[3:] + jp.cross(a[:3], b))(d.cdof)
+  jacp = jax.vmap(lambda a, b=offset: a[3:] + jp.cross(a[:3], b))(d._impl.cdof)  # pytype: disable=attribute-error
   jacp = jax.vmap(jp.multiply)(jacp, mask)
-  jacr = jax.vmap(jp.multiply)(d.cdof[:, :3], mask)
+  jacr = jax.vmap(jp.multiply)(d._impl.cdof[:, :3], mask)  # pytype: disable=attribute-error
 
   return jacp, jacr
 
@@ -548,20 +549,20 @@ def contact_force(
     m: Model, d: Data, contact_id: int, to_world_frame: bool = False
 ) -> jax.Array:
   """Extract 6D force:torque for one contact, in contact frame by default."""
-  efc_address = d.contact.efc_address[contact_id]
-  condim = d.contact.dim[contact_id]
+  efc_address = d._impl.contact.efc_address[contact_id]  # pytype: disable=attribute-error
+  condim = d._impl.contact.dim[contact_id]  # pytype: disable=attribute-error
   if m.opt.cone == ConeType.PYRAMIDAL:
     force = _decode_pyramid(
-        d.efc_force[efc_address:], d.contact.friction[contact_id], condim
+        d._impl.efc_force[efc_address:], d._impl.contact.friction[contact_id], condim  # pytype: disable=attribute-error
     )
   elif m.opt.cone == ConeType.ELLIPTIC:
-    force = d.efc_force[efc_address : efc_address + condim]
+    force = d._impl.efc_force[efc_address : efc_address + condim]  # pytype: disable=attribute-error
     force = jp.concatenate([force, jp.zeros((6 - condim))])
   else:
     raise ValueError(f'Unknown cone type: {m.opt.cone}')
 
   if to_world_frame:
-    force = force.reshape((-1, 3)) @ d.contact.frame[contact_id]
+    force = force.reshape((-1, 3)) @ d._impl.contact.frame[contact_id]  # pytype: disable=attribute-error
     force = force.reshape(-1)
 
   return force * (efc_address >= 0)
@@ -572,21 +573,21 @@ def contact_force_dim(
 ) -> Tuple[jax.Array, np.ndarray]:
   """Extract 6D force:torque for contacts with dimension dim."""
   # valid contact and condim indices
-  idx_dim = (d.contact.efc_address >= 0) & (d.contact.dim == dim)
+  idx_dim = (d._impl.contact.efc_address >= 0) & (d._impl.contact.dim == dim)  # pytype: disable=attribute-error
 
   # contact force from efc
   if m.opt.cone == ConeType.PYRAMIDAL:
     efc_address = (
-        d.contact.efc_address[idx_dim, None]
+        d._impl.contact.efc_address[idx_dim, None]  # pytype: disable=attribute-error
         + np.arange(np.where(dim == 1, 1, 2 * (dim - 1)))[None]
     )
-    efc_force = d.efc_force[efc_address]
+    efc_force = d._impl.efc_force[efc_address]  # pytype: disable=attribute-error
     force = jax.vmap(_decode_pyramid, in_axes=(0, 0, None))(
-        efc_force, d.contact.friction[idx_dim], dim
+        efc_force, d._impl.contact.friction[idx_dim], dim  # pytype: disable=attribute-error
     )
   elif m.opt.cone == ConeType.ELLIPTIC:
-    efc_address = d.contact.efc_address[idx_dim, None] + np.arange(dim)[None]
-    force = d.efc_force[efc_address]
+    efc_address = d._impl.contact.efc_address[idx_dim, None] + np.arange(dim)[None]  # pytype: disable=attribute-error
+    force = d._impl.efc_force[efc_address]  # pytype: disable=attribute-error
     force = jp.hstack([force, jp.zeros((force.shape[0], 6 - dim))])
   else:
     raise ValueError(f'Unknown cone type: {m.opt.cone}.')

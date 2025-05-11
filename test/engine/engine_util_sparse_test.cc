@@ -15,7 +15,6 @@
 // Tests for engine/engine_util_sparse.c
 
 #include <array>
-#include <vector>
 
 #include "src/engine/engine_util_sparse.h"
 
@@ -29,11 +28,6 @@ namespace {
 
 using ::testing::ElementsAre;
 using EngineUtilSparseTest = MujocoTest;
-
-template <typename T>
-std::vector<T> AsVector(const T* array, int n) {
-  return std::vector<T>(array, array + n);
-}
 
 TEST_F(EngineUtilSparseTest, MjuDot) {
   mjtNum a[] = {2,    3,       4,          5,          6,       7,    8};
@@ -335,14 +329,12 @@ TEST_F(EngineUtilSparseTest, MjuCompressSparse) {
   EXPECT_EQ(AsVector(dense, 6), AsVector(dense_expected_minval1, 6));
 }
 
-static constexpr char modelStr[] = R"(<mujoco/>)";
-
 TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse1) {
   //       0 0 0
   // M  =  0 0 0
   //       0 0 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -388,7 +380,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse2) {
   // M = 1  2 -1
   //     2  2  3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {2, -1, 1, 2, -1, 2, 2, 2, 3};
@@ -435,7 +427,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse3) {
   // M = 0 3 0
   //     4 0 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 3, 4};
@@ -483,7 +475,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse4) {
   // M = 0 0 3
   //     4 0 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 3, 4};
@@ -532,7 +524,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse5) {
   // M = 0 0 0
   //     2 3 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 4, 2, 3};
@@ -579,7 +571,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse6) {
   // M = 0 2 0
   //     0 0 3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 2, 3};
@@ -626,7 +618,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse7) {
   // M = 0 3
   //     4 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 3, 4};
@@ -673,7 +665,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse8) {
   // M = 1 0 4
   //     2 3 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 4, 2, 3};
@@ -721,7 +713,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse9) {
   // M = 1 3 4
   //     4 4 4
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 2, 2, 1, 3, 4, 4, 4, 4};
@@ -769,7 +761,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse10) {
   // M = 2 2 2
   //     3 3 3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 2, 2, 2, 3, 3, 3};
@@ -818,7 +810,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse11) {
   // M = 0 0 0
   //     0 3 3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 3, 3};
@@ -867,7 +859,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse12) {
   // M = 0 0 0 0
   //     0 0 3 3
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 1, 3, 3};
@@ -918,7 +910,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse13) {
   // M = 1 1 0 0 0
   //     1 1 0 0 0
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 1, 1, 1};
@@ -969,7 +961,7 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse13) {
 TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse14) {
   // M = 1 1 1 1 2 2 2
 
-  mjModel* model = LoadModelFromString(modelStr);
+  mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* data = mj_makeData(model);
 
   mjtNum mat[] = {1, 1, 1, 1, 2, 2, 2};
@@ -1022,78 +1014,6 @@ TEST_F(EngineUtilSparseTest, MjuSqrMatTDSparse14) {
   mj_deleteModel(model);
 }
 
-TEST_F(EngineUtilSparseTest, MjuCholFactorNNZ) {
-  mjModel* model = LoadModelFromString(modelStr);
-  mjData* d = mj_makeData(model);
-
-  int nA = 2;
-  mjtNum matA[4] = {1, 0,
-                    0, 1};
-  mjtNum sparseA[4];
-  int rownnzA[2];
-  int rowadrA[2];
-  int colindA[4];
-  int rownnzA_factor[2];
-  mju_dense2sparse(sparseA, matA, nA, nA, rownnzA, rowadrA, colindA, 4);
-  int nnzA = mju_cholFactorCount(rownnzA_factor,
-                                 rownnzA, rowadrA, colindA, nA, d);
-
-  EXPECT_EQ(nnzA, 2);
-  EXPECT_THAT(AsVector(rownnzA_factor, 2), ElementsAre(1, 1));
-
-  int nB = 3;
-  mjtNum matB[9] = {10, 1, 0,
-                    0, 10, 1,
-                    0, 0, 10};
-  mjtNum sparseB[9];
-  int rownnzB[3];
-  int rowadrB[3];
-  int colindB[9];
-  int rownnzB_factor[3];
-  mju_dense2sparse(sparseB, matB, nB, nB, rownnzB, rowadrB, colindB, 9);
-  int nnzB = mju_cholFactorCount(rownnzB_factor,
-                                 rownnzB, rowadrB, colindB, nB, d);
-
-  EXPECT_EQ(nnzB, 5);
-  EXPECT_THAT(AsVector(rownnzB_factor, 3), ElementsAre(1, 2, 2));
-
-  int nC = 3;
-  mjtNum matC[9] = {10, 1, 0,
-                    0, 10, 0,
-                    0, 0, 10};
-  mjtNum sparseC[9];
-  int rownnzC[3];
-  int rowadrC[3];
-  int colindC[9];
-  int rownnzC_factor[3];
-  mju_dense2sparse(sparseC, matC, nC, nC, rownnzC, rowadrC, colindC, 9);
-  int nnzC = mju_cholFactorCount(rownnzC_factor,
-                                 rownnzC, rowadrC, colindC, nC, d);
-
-  EXPECT_EQ(nnzC, 4);
-  EXPECT_THAT(AsVector(rownnzC_factor, 3), ElementsAre(1, 2, 1));
-
-  int nD = 4;
-  mjtNum matD[16] = {10, 1, 2, 3,
-                     0, 10, 0, 0,
-                     0, 0, 10, 1,
-                     0, 0, 0, 10};
-  mjtNum sparseD[16];
-  int rownnzD[4];
-  int rowadrD[4];
-  int colindD[16];
-  int rownnzD_factor[4];
-  mju_dense2sparse(sparseD, matD, nD, nD, rownnzD, rowadrD, colindD, 16);
-  int nnzD = mju_cholFactorCount(rownnzD_factor,
-                                 rownnzD, rowadrD, colindD, nD, d);
-
-  EXPECT_EQ(nnzD, 8);
-  EXPECT_THAT(AsVector(rownnzD_factor, 4), ElementsAre(1, 2, 2, 3));
-
-  mj_deleteData(d);
-  mj_deleteModel(model);
-}
-
 TEST_F(EngineUtilSparseTest, MjuMulMatTVec) {
   int nr = 2;
   int nc = 3;
@@ -1112,6 +1032,42 @@ TEST_F(EngineUtilSparseTest, MjuMulMatTVec) {
   mju_mulMatTVecSparse(res, mat_sparse, vec, nr, nc, rownnz, rowadr, colind);
 
   EXPECT_THAT(AsVector(res, 3), ElementsAre(5, 28, 24));
+}
+
+TEST_F(EngineUtilSparseTest, MjuMulSymVecSparse) {
+  constexpr int n = 4;
+  constexpr int nnz = 9;
+
+  mjtNum mat[n*n] = {1,  0,  0,  0,
+                    -1,  2,  0,  0,  // spurious (ignored) -1 at (1, 0)
+                     3,  0,  4,  0,
+                     5,  6,  7,  8};
+
+  // dense, full matrix
+  mjtNum sym[n*n] = {1,  0,  3,  5,
+                     0,  2,  0,  6,
+                     3,  0,  4,  7,
+                     5,  6,  7,  8};
+
+  mjtNum mat_sparse[nnz];
+  int rownnz[n];
+  int rowadr[n];
+  int colind[nnz];
+  mju_dense2sparse(mat_sparse, mat, n, n, rownnz, rowadr, colind, nnz);
+  int diagnum[n] = {0, 1, 0, 0};
+
+  // multiply: res = (mat + strict_upper(mat')) * vec
+  mjtNum vec[n] = {4, 3, 2, 1};
+  mjtNum res[n];
+  mju_mulSymVecSparse(res, mat_sparse, vec, n, rownnz, rowadr, diagnum, colind);
+
+  // dense multiply
+  mjtNum res2[n];
+  mju_mulMatVec(res2, sym, vec, n, n);
+
+  for (int i=0; i < n; i++) {
+    EXPECT_EQ(res[i], res2[i]);
+  }
 }
 
 TEST_F(EngineUtilSparseTest, MjuDenseToSparse) {
@@ -1166,6 +1122,228 @@ TEST_F(EngineUtilSparseTest, MergeSorted) {
   n2 = 5;
   EXPECT_EQ(mj_mergeSorted(merged_b, chain1_b, n1, chain2_b, n2), 8);
   EXPECT_THAT(merged_b, ElementsAre(1, 2, 3, 4, 5, 6, 7, 8));
+}
+
+TEST_F(EngineUtilSparseTest, BlockDiag) {
+  // 4x5 matrix with 3 blocks
+  constexpr int nr = 4;
+  constexpr int nc = 5;
+  const mjtNum mat[nr*nc] = {
+    1, 2, 0, 0, 0,
+    0, 0, 3, 4, 0,
+    0, 0, 5, 6, 0,
+    0, 0, 0, 0, 7
+  };
+
+  // block structure
+  constexpr int nb = 3;
+  const int block_nr[nb] = {1, 2, 1};
+  const int block_nc[nb] = {2, 2, 1};
+  const int block_r[nb] = {0, 1, 3};
+  const int block_c[nb] = {0, 2, 4};
+
+  // test with identity permutations
+  const int perm_r[nr] = {0, 1, 2, 3};
+  const int perm_c[nc] = {0, 1, 2, 3, 4};
+  mjtNum res[nr*nc] = {0};
+  mju_blockDiag(res, mat, nc, nc, nb,
+                perm_r, perm_c,
+                block_nr, block_nc,
+                block_r, block_c);
+  EXPECT_THAT(res, ElementsAre(1, 2, 0, 0, 0,
+                               3, 4, 5, 6, 0,
+                               0, 0, 0, 0, 0,
+                               7, 0, 0, 0, 0));
+}
+
+void PermuteMat(mjtNum* res, const mjtNum* mat, int nr, int nc,
+  const int* perm_r, const int* perm_c,
+  bool scatter_r, bool scatter_c);
+
+
+TEST_F(EngineUtilSparseTest, BlockDiagPerm) {
+  // 4x5 matrix with 3 blocks
+  constexpr int nr = 4;
+  constexpr int nc = 5;
+  const mjtNum mat[nr*nc] = {
+    1, 2, 0, 0, 0,
+    0, 0, 3, 4, 0,
+    0, 0, 5, 6, 0,
+    0, 0, 0, 0, 7
+  };
+
+  // block structure
+  constexpr int nb = 3;
+  const int block_nr[nb] = {1, 2, 1};
+  const int block_nc[nb] = {2, 2, 1};
+  const int block_r[nb] = {0, 1, 3};
+  const int block_c[nb] = {0, 2, 4};
+
+  // scatter mat into mat_p
+  const int perm_r[nr] = {1, 3, 2, 0};
+  const int perm_c[nc] = {2, 0, 4, 3, 1};
+  mjtNum mat_p[nr*nc];
+  PermuteMat(mat_p, mat, nr, nc, perm_r, perm_c, true, true);
+
+  // test with permutation
+  mjtNum res[nr*nc] = {0};
+  mju_blockDiag(res, mat_p, nc, nc, nb,
+                perm_r, perm_c,
+                block_nr, block_nc,
+                block_r, block_c);
+  EXPECT_THAT(res, ElementsAre(1, 2, 0, 0, 0,
+                               3, 4, 5, 6, 0,
+                               0, 0, 0, 0, 0,
+                               7, 0, 0, 0, 0));
+}
+
+TEST_F(EngineUtilSparseTest, BlockDiagLessCols) {
+  // 4x5 matrix with 3 blocks
+  constexpr int nr = 4;
+  constexpr int nc = 5;
+  const mjtNum mat[nr*nc] = {
+    1, 2, 0, 0, 0,
+    0, 0, 3, 4, 0,
+    0, 0, 5, 6, 0,
+    0, 0, 0, 0, 7
+  };
+
+  // block structure (ignore middle block)
+  constexpr int nb = 2;
+  const int block_nr[nb] = {1, 1};
+  const int block_nc[nb] = {2, 1};
+  const int block_r[nb] = {0, 3};
+  const int block_c[nb] = {0, 4};
+
+  // scatter mat into mat_p
+  const int perm_r[nr] = {1, 3, 2, 0};
+  const int perm_c[nc] = {2, 0, 4, 3, 1};
+  mjtNum mat_p[nr*nc];
+  PermuteMat(mat_p, mat, nr, nc, perm_r, perm_c, true, true);
+
+  // test with permutation and less columns (ignore middle block)
+  constexpr int nc_res = 3;
+  mjtNum res2[nr*nc_res] = {0};
+  mju_blockDiag(res2, mat_p, nc, nc_res, nb,
+                perm_r, perm_c,
+                block_nr, block_nc,
+                block_r, block_c);
+  EXPECT_THAT(res2, ElementsAre(1, 2, 0,
+                                0, 0, 0,
+                                0, 0, 0,
+                                7, 0, 0));
+}
+
+TEST_F(EngineUtilSparseTest, BlockDiagSparse) {
+  // 4x5 matrix with 3 blocks
+  constexpr int nr = 4;
+  constexpr int nc = 5;
+  const mjtNum mat[nr*nc] = {
+    1, 2, 0, 0, 0,
+    0, 0, 3, 4, 0,
+    0, 0, 5, 6, 0,
+    0, 0, 0, 0, 7
+  };
+  constexpr int nnz = 7;
+
+  // block structure
+  constexpr int nb = 3;
+  const int block_r[nb] = {0, 1, 3};
+  const int block_c[nb] = {0, 2, 4};
+
+  // convert to sparse
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[nnz];
+  mjtNum mat_sparse[nnz];
+  mju_dense2sparse(mat_sparse, mat, nr, nc, rownnz, rowadr, colind, nnz);
+
+  // test with identity permutations
+  const int perm_r[nr] = {0, 1, 2, 3};
+  const int perm_c[nc] = {0, 1, 2, 3, 4};
+  int res_rownnz[nr];
+  int res_rowadr[nr];
+  int res_colind[nnz];
+  mjtNum res[nnz];
+  mju_blockDiagSparse(res, res_rownnz, res_rowadr, res_colind,
+                      mat_sparse, rownnz, rowadr, colind, nr, nb,
+                      perm_r, perm_c,
+                      block_r, block_c, nullptr, nullptr);
+  mjtNum dense_res[nr*nc];
+  mju_sparse2dense(dense_res, res, nr, nc, res_rownnz, res_rowadr, res_colind);
+  EXPECT_THAT(dense_res, ElementsAre(1, 2, 0, 0, 0,
+                                     3, 4, 0, 0, 0,
+                                     5, 6, 0, 0, 0,
+                                     7, 0, 0, 0, 0));
+
+  // permute mat into mat_p (scatter rows, gather columns)
+  const int perm_r2[nr] = {3, 1, 0, 2};
+  const int perm_c2[nc] = {4, 0, 2, 1, 3};
+  mjtNum mat_p[nr*nc];
+  PermuteMat(mat_p, mat, nr, nc, perm_r2, perm_c2, true, false);
+  mju_dense2sparse(mat_sparse, mat_p, nr, nc, rownnz, rowadr, colind, nnz);
+
+  // test with permutation
+  mju_blockDiagSparse(res, res_rownnz, res_rowadr, res_colind,
+                      mat_sparse, rownnz, rowadr, colind, nr, nb,
+                      perm_r2, perm_c2,
+                      block_r, block_c, nullptr, nullptr);
+  mju_sparse2dense(dense_res, res, nr, nc, res_rownnz, res_rowadr, res_colind);
+  EXPECT_THAT(dense_res, ElementsAre(1, 2, 0, 0, 0,
+                                     3, 4, 0, 0, 0,
+                                     5, 6, 0, 0, 0,
+                                     7, 0, 0, 0, 0));
+}
+
+TEST_F(EngineUtilSparseTest, PermuteMat) {
+  const mjtNum mat[] = {1, 2, 0, 0,
+                        0, 0, 3, 4,
+                        0, 0, 5, 6};
+  const int perm_r[] = {2, 0, 1};
+  const int perm_c[] = {3, 2, 0, 1};
+  mjtNum gather[3*4];
+  PermuteMat(gather, mat, 3, 4, perm_r, perm_c, false, false);
+  EXPECT_THAT(gather, ElementsAre(6, 5, 0, 0,
+                                  0, 0, 1, 2,
+                                  4, 3, 0, 0));
+  mjtNum scatter[3*4];
+  PermuteMat(scatter, gather, 3, 4, perm_r, perm_c, true, true);
+  EXPECT_THAT(scatter, ElementsAre(1, 2, 0, 0,
+                                   0, 0, 3, 4,
+                                   0, 0, 5, 6));
+  mjtNum mixed[3*4];
+  PermuteMat(mixed, mat, 3, 4, perm_r, perm_c, true, false);
+  EXPECT_THAT(mixed, ElementsAre(4, 3, 0, 0,
+                                 6, 5, 0, 0,
+                                 0, 0, 1, 2));
+  mjtNum mixed_back[3*4];
+  PermuteMat(mixed_back, mixed, 3, 4, perm_r, perm_c, false, true);
+  EXPECT_THAT(mixed_back, ElementsAre(1, 2, 0, 0,
+                                      0, 0, 3, 4,
+                                      0, 0, 5, 6));
+}
+
+// local function for permuting the rows and columns of a dense matrix
+void PermuteMat(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                const int* perm_r, const int* perm_c,
+                bool scatter_r, bool scatter_c) {
+  for (int r = 0; r < nr; r++) {
+    for (int c = 0; c < nc; c++) {
+      if (scatter_r && scatter_c) {
+        // scatter both
+        res[perm_r[r] * nc + perm_c[c]] = mat[r * nc + c];
+      } else if (scatter_r && !scatter_c) {
+        // scatter rows, gather columns
+        res[perm_r[r] * nc + c] = mat[r * nc + perm_c[c]];
+      } else if (!scatter_r && scatter_c) {
+        // gather rows, scatter columns
+        res[r * nc + perm_c[c]] = mat[perm_r[r] * nc + c];
+      } else {
+        // gather both
+        res[r * nc + c] = mat[perm_r[r] * nc + perm_c[c]];
+      }
+    }
+  }
 }
 
 }  // namespace

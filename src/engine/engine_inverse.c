@@ -31,6 +31,7 @@
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse.h"
 
 // position-dependent computations
@@ -115,10 +116,8 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     // compute qDeriv
     mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
-    // set qLU = qM
-    for (int i=0; i < nD; i++) {
-      d->qLU[i] = d->qM[d->mapM2D[i]];
-    }
+    // gather qLU <- qM (lower to full)
+    mju_gather(d->qLU, d->qM, d->mapM2D, nD);
 
     // set qLU = qM - dt*qDeriv
     mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);

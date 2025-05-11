@@ -26,6 +26,7 @@
 #include <pxr/usd/sdf/types.h>
 #include <pxr/usd/sdf/valueTypeName.h>
 #include <pxr/usd/usd/tokens.h>
+#include <pxr/usd/usdGeom/tokens.h>
 namespace {
 
 template <typename T>
@@ -193,6 +194,14 @@ void ApplyApiSchema(pxr::SdfAbstractDataRefPtr& data,
 void SetPrimKind(pxr::SdfAbstractDataRefPtr& data,
                  const pxr::SdfPath& prim_path, pxr::TfToken kind) {
   SetPrimMetadata(data, prim_path, pxr::TfToken("kind"), kind);
+}
+
+void SetPrimPurpose(pxr::SdfAbstractDataRefPtr& data,
+                    const pxr::SdfPath& prim_path, pxr::TfToken purpose) {
+  const pxr::SdfPath attr_path = CreateAttributeSpec(
+      data, prim_path, pxr::UsdGeomTokens->purpose,
+      pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
+  SetAttributeDefault(data, attr_path, purpose);
 }
 
 }  // namespace usd

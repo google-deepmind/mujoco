@@ -4630,11 +4630,27 @@ length X, as in the clip on the right of `this example model
    solver. If this attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, length limits
    will be enabled if range is defined.
 
+.. _tendon-spatial-actuatorfrclimited:
+
+:at:`actuatorfrclimited`: :at-val:`[false, true, auto], "auto"`
+   This attribute specifies whether actuator forces acting on the tendon should be clamped. See :ref:`CForceRange` for
+   details. This attribute interacts with the :ref:`actuatorfrcrange<tendon-spatial-actuatorfrcrange>` attribute. If
+   this attribute is "false", actuator force clamping is disabled. If it is "true", actuator force clamping is enabled.
+   If this attribute is "auto", and :at:`autolimits` is set in :ref:`compiler <compiler>`, actuator force clamping will
+   be enabled if :at:`actuatorfrcrange` is defined.
+
 .. _tendon-spatial-range:
 
 :at:`range`: :at-val:`real(2), "0 0"`
    Range of allowed tendon lengths. Setting this attribute without specifying :at:`limited` is an error, unless
    :at:`autolimits` is set in :ref:`compiler <compiler>`.
+
+.. _tendon-spatial-actuatorfrcrange:
+
+:at:`actuatorfrcrange`: :at-val:`real(2), "0 0"`
+   Range for clamping total actuator forces acting on this tendon. See :ref:`CForceRange` for details. The compiler
+   expects the lower bound to be nonpositive and the upper bound to be nonnegative. |br| Setting this attribute without
+   specifying :at:`actuatorfrclimited` is an error if :at:`compiler-autolimits` is "false".
 
 .. _tendon-spatial-solreflimit:
 
@@ -4820,7 +4836,11 @@ as above.
 
 .. _tendon-fixed-limited:
 
+.. _tendon-fixed-actuatorfrclimited:
+
 .. _tendon-fixed-range:
+
+.. _tendon-fixed-actuatorfrcrange:
 
 .. _tendon-fixed-solreflimit:
 
@@ -6383,6 +6403,33 @@ joint or when a single actuator acts on multiple joints. See :ref:`CForceRange` 
 
 :at:`joint`: :at-val:`string, required`
    The joint where actuator forces will be sensed. The sensor output is copied from ``mjData.qfrc_actuator``.
+
+
+.. _sensor-tendonactuatorfrc:
+
+:el-prefix:`sensor/` |-| **tendonactuatorfrc** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element creates an actuator force sensor, measured at a tendon. The quantity being sensed is the total force
+contributed by all actuators to a single tendon. This type of sensor is important when multiple actuators act on a
+single tendon. See :ref:`CForceRange` for details.
+
+
+.. _sensor-tendonactuatorfrc-name:
+
+.. _sensor-tendonactuatorfrc-noise:
+
+.. _sensor-tendonactuatorfrc-cutoff:
+
+.. _sensor-tendonactuatorfrc-user:
+
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+   See :ref:`CSensor`.
+
+.. _sensor-tendonactuatorfrc-tendon:
+
+:at:`tendon`: :at-val:`string, required`
+   The tendon where actuator forces will be sensed.
 
 
 .. _sensor-ballquat:
@@ -8277,7 +8324,11 @@ if omitted.
 
 .. _default-tendon-limited:
 
+.. _default-tendon-actuatorfrclimited:
+
 .. _default-tendon-range:
+
+.. _default-tendon-actuatorfrcrange:
 
 .. _default-tendon-solreflimit:
 

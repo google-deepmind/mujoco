@@ -13,17 +13,22 @@
 // limitations under the License.
 
 #include <atomic>
-#include <chrono>
+#include <chrono>  // NOLINT(build/c++11)
 #include <cstring>
 #include <memory>
+#include <stdexcept>
 #include <string>
-#include <thread>
+#include <thread>  // NOLINT(build/c++11)
+#include <tuple>
 #include <utility>
+#include <vector>
 
 #include <glfw_adapter.h>
 #include <glfw_dispatch.h>
 #include <simulate.h>
+#include <Python.h>
 #include "errors.h"
+#include "indexers.h"
 #include "structs.h"
 #include <pybind11/gil.h>
 #include <pybind11/pybind11.h>
@@ -91,6 +96,7 @@ class SimulateWrapper {
 
   void Destroy() {
     if (simulate_) {
+      ClearImages();
       delete simulate_;
       simulate_ = nullptr;
       destroyed_.store(1);
@@ -147,6 +153,60 @@ class SimulateWrapper {
   }
 
   void ClearFigures() { simulate_->user_figures_.clear(); }
+
+  void SetTexts(
+      const std::vector<std::tuple<int, int, std::string, std::string>>&
+          texts) {
+    // Collection of [font, gridpos, text1, text2] tuples for overlay text
+    std::vector<std::tuple<int, int, std::string, std::string>> user_texts;
+    for (const auto& [font, gridpos, text1, text2] : texts) {
+      user_texts.push_back(std::make_tuple(font, gridpos, text1, text2));
+    }
+
+    // Set them all at once to prevent text flickering.
+    simulate_->user_texts_ = user_texts;
+  }
+
+  void ClearTexts() { simulate_->user_texts_.clear(); }
+
+  void SetImages(
+    const std::vector<std::tuple<mjrRect, pybind11::array&>> viewports_images
+  ) {
+    // Clear previous images to prevent memory leaks
+    ClearImages();
+
+    for (const auto& [viewport, image] : viewports_images) {
+      auto buf = image.request();
+      if (buf.ndim != 3) {
+        throw std::invalid_argument("image must have 3 dimensions (H, W, C)");
+      }
+      if (static_cast<int>(buf.shape[2]) != 3) {
+        throw std::invalid_argument("image must have 3 channels");
+      }
+      if (buf.itemsize != sizeof(unsigned char)) {
+        throw std::invalid_argument("image must be uint8 format");
+      }
+
+      // Calculate size of the image data
+      size_t height = buf.shape[0];
+      size_t width = buf.shape[1];
+      size_t size = height * width * 3;
+
+      // Make a copy of the image data to prevent flickering
+      unsigned char* image_copy = new unsigned char[size];
+      std::memcpy(image_copy, buf.ptr, size);
+
+      simulate_->user_images_.push_back(std::make_tuple(viewport, image_copy));
+    }
+  }
+
+  void ClearImages() {
+    // Free memory for each image before clearing the vector
+    for (const auto& [viewport, image_ptr] : simulate_->user_images_) {
+      delete[] image_ptr;
+    }
+    simulate_->user_images_.clear();
+  }
 
  private:
   mujoco::Simulate* simulate_;
@@ -249,6 +309,11 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def("set_figures", &SimulateWrapper::SetFigures,
            py::arg("viewports_figures"))
       .def("clear_figures", &SimulateWrapper::ClearFigures)
+      .def("set_texts", &SimulateWrapper::SetTexts, py::arg("overlay_texts"))
+      .def("clear_texts", &SimulateWrapper::ClearTexts)
+      .def("set_images", &SimulateWrapper::SetImages,
+           py::arg("viewports_images"))
+      .def("clear_images", &SimulateWrapper::ClearImages)
       .def_property_readonly("m", &SimulateWrapper::GetModel)
       .def_property_readonly("d", &SimulateWrapper::GetData)
       .def_property_readonly("viewport", &SimulateWrapper::GetViewport)

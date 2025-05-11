@@ -298,7 +298,7 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   memset(sim->figcost.linepnt, 0, mjMAXLINE*sizeof(int));
 
   // number of islands that have diagnostics
-  int nisland = mjMIN(d->solver_nisland, mjNISLAND);
+  int nisland = mjMAX(1, mjMIN(d->nisland, mjNISLAND));
 
   // iterate over islands
   for (int k=0; k < nisland; k++) {
@@ -328,7 +328,7 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
       sim->figconstraint.linedata[start + 4][2*i] = i;
 
       // y
-      int nefc = nisland == 1 ? d->nefc : d->island_efcnum[k];
+      int nefc = nisland == 1 ? d->nefc : d->island_nefc[k];
       sim->figconstraint.linedata[start + 0][2*i+1] = nefc;
       const mjSolverStat* stat = d->solver + k*mjNSOLVER + i;
       sim->figconstraint.linedata[start + 1][2*i+1] = stat->nactive;
@@ -413,7 +413,7 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
     static_cast<float>(d->nefc),
     static_cast<float>(sqrt_nnz),
     static_cast<float>(d->ncon),
-    static_cast<float>(solver_niter)
+    static_cast<float>(solver_niter) / nisland
   };
 
   // update figsize
@@ -464,7 +464,7 @@ void InitializeSensor(mj::Simulate* sim) {
   // title
   mju::strcpy_arr(figsensor.title, "Sensor data");
 
-  // y-tick nubmer format
+  // y-tick number format
   mju::strcpy_arr(figsensor.yformat, "%.1f");
 
   // grid size
@@ -546,6 +546,16 @@ void ShowFigure(mj::Simulate* sim, mjrRect viewport, mjvFigure* fig){
   mjr_figure(viewport, fig, &sim->platform_ui->mjr_context());
 }
 
+void ShowOverlayText(mj::Simulate* sim, mjrRect viewport, int font, int gridpos,
+                     std::string text1, std::string text2) {
+  mjr_overlay(font, gridpos, viewport, text1.c_str(), text2.c_str(),
+              &sim->platform_ui->mjr_context());
+}
+
+void ShowImage(mj::Simulate* sim, mjrRect viewport, const unsigned char* image) {
+  mjr_drawPixels(image, nullptr, viewport, &sim->platform_ui->mjr_context());
+}
+
 // load state from history buffer
 static void LoadScrubState(mj::Simulate* sim) {
   // get index into circular buffer
@@ -572,7 +582,7 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
   char tmp[20];
 
   // number of islands with statistics
-  int nisland = mjMIN(d->solver_nisland, mjNISLAND);
+  int nisland = mjMAX(1, mjMIN(d->nisland, mjNISLAND));
 
   // compute solver error (maximum over islands)
   mjtNum solerr = 0;
@@ -2679,6 +2689,16 @@ void Simulate::Render() {
   // user figures
   for (auto& [viewport, figure] : this->user_figures_) {
     ShowFigure(this, viewport, &figure);
+  }
+
+  // overlay text
+  for (auto& [font, gridpos, text1, text2] : this->user_texts_) {
+    ShowOverlayText(this, rect, font, gridpos, text1, text2);
+  }
+
+  // user images
+  for (auto& [viewport, image] : this->user_images_) {
+    ShowImage(this, viewport, image);
   }
 
   // finalize

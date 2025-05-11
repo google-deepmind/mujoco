@@ -108,8 +108,9 @@ std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
 mjtNum CompareModel(const mjModel* m1, const mjModel* m2, std::string& field);
 
 // Returns a vector containing the elements of the array.
-inline std::vector<mjtNum> AsVector(const mjtNum* array, int n) {
-  return std::vector<mjtNum>(array, array + n);
+template <typename T>
+std::vector<T> AsVector(const T* array, int n) {
+  return std::vector<T>(array, array + n);
 }
 
 // Prints a matrix to stderr, useful for debugging.

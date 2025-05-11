@@ -403,14 +403,12 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   mjCFlex* flex = model->AddFlex();
   mjsFlex* pf = &flex->spec;
   int id = flex->id;
-  int uid = flex->uid;
 
   *flex = def.Flex();
   flex->PointToLocal();
 
   flex->model = model;
   flex->id = id;
-  flex->uid = uid;
   mjs_setString(pf->name, name.c_str());
   mjs_setInt(pf->elem, element.data(), element.size());
   mjs_setFloat(pf->texcoord, texcoord.data(), texcoord.size());
@@ -1167,6 +1165,11 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
     // require single block
     if (numEntityBlocks != 1 || numNodes != numNodesInBlock) {
       throw mjCError(NULL, "All nodes must be in single block");
+    }
+
+    // require maximum number of nodes be equal to maximum number of nodes in a block
+    if (maxNodeTag != numNodesInBlock){
+      throw mjCError(NULL, "Maximum number of nodes must be equal to number of nodes in a block");
     }
 
     // check dimensionality and save

@@ -110,7 +110,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 331;
+public const int mjVERSION_HEADER = 333;
 
 
 // ------------------------------------Enums------------------------------------
@@ -357,34 +357,35 @@ public enum mjtSensor : int{
   mjSENS_ACTUATORVEL = 14,
   mjSENS_ACTUATORFRC = 15,
   mjSENS_JOINTACTFRC = 16,
-  mjSENS_BALLQUAT = 17,
-  mjSENS_BALLANGVEL = 18,
-  mjSENS_JOINTLIMITPOS = 19,
-  mjSENS_JOINTLIMITVEL = 20,
-  mjSENS_JOINTLIMITFRC = 21,
-  mjSENS_TENDONLIMITPOS = 22,
-  mjSENS_TENDONLIMITVEL = 23,
-  mjSENS_TENDONLIMITFRC = 24,
-  mjSENS_FRAMEPOS = 25,
-  mjSENS_FRAMEQUAT = 26,
-  mjSENS_FRAMEXAXIS = 27,
-  mjSENS_FRAMEYAXIS = 28,
-  mjSENS_FRAMEZAXIS = 29,
-  mjSENS_FRAMELINVEL = 30,
-  mjSENS_FRAMEANGVEL = 31,
-  mjSENS_FRAMELINACC = 32,
-  mjSENS_FRAMEANGACC = 33,
-  mjSENS_SUBTREECOM = 34,
-  mjSENS_SUBTREELINVEL = 35,
-  mjSENS_SUBTREEANGMOM = 36,
-  mjSENS_GEOMDIST = 37,
-  mjSENS_GEOMNORMAL = 38,
-  mjSENS_GEOMFROMTO = 39,
-  mjSENS_E_POTENTIAL = 40,
-  mjSENS_E_KINETIC = 41,
-  mjSENS_CLOCK = 42,
-  mjSENS_PLUGIN = 43,
-  mjSENS_USER = 44,
+  mjSENS_TENDONACTFRC = 17,
+  mjSENS_BALLQUAT = 18,
+  mjSENS_BALLANGVEL = 19,
+  mjSENS_JOINTLIMITPOS = 20,
+  mjSENS_JOINTLIMITVEL = 21,
+  mjSENS_JOINTLIMITFRC = 22,
+  mjSENS_TENDONLIMITPOS = 23,
+  mjSENS_TENDONLIMITVEL = 24,
+  mjSENS_TENDONLIMITFRC = 25,
+  mjSENS_FRAMEPOS = 26,
+  mjSENS_FRAMEQUAT = 27,
+  mjSENS_FRAMEXAXIS = 28,
+  mjSENS_FRAMEYAXIS = 29,
+  mjSENS_FRAMEZAXIS = 30,
+  mjSENS_FRAMELINVEL = 31,
+  mjSENS_FRAMEANGVEL = 32,
+  mjSENS_FRAMELINACC = 33,
+  mjSENS_FRAMEANGACC = 34,
+  mjSENS_SUBTREECOM = 35,
+  mjSENS_SUBTREELINVEL = 36,
+  mjSENS_SUBTREEANGMOM = 37,
+  mjSENS_GEOMDIST = 38,
+  mjSENS_GEOMNORMAL = 39,
+  mjSENS_GEOMFROMTO = 40,
+  mjSENS_E_POTENTIAL = 41,
+  mjSENS_E_KINETIC = 42,
+  mjSENS_CLOCK = 43,
+  mjSENS_PLUGIN = 44,
+  mjSENS_USER = 45,
 }
 public enum mjtStage : int{
   mjSTAGE_NONE = 0,
@@ -4825,7 +4826,6 @@ public unsafe struct mjData_ {
   public mjSolverStat_ solver3997;
   public mjSolverStat_ solver3998;
   public mjSolverStat_ solver3999;
-  public int solver_nisland;
   public fixed int solver_niter[20];
   public fixed int solver_nnz[20];
   public fixed double solver_fwdinv[2];
@@ -4860,6 +4860,7 @@ public unsafe struct mjData_ {
   public int nJ;
   public int nA;
   public int nisland;
+  public int nidof;
   public double time;
   public fixed double energy[2];
   public void* buffer;
@@ -4991,14 +4992,43 @@ public unsafe struct mjData_ {
   public double* efc_R;
   public int* tendon_efcadr;
   public int* dof_island;
-  public int* island_dofnum;
+  public int* island_nv;
+  public int* island_idofadr;
   public int* island_dofadr;
-  public int* island_dofind;
-  public int* dof_islandind;
+  public int* map_dof2idof;
+  public int* map_idof2dof;
+  public double* ifrc_smooth;
+  public double* iacc_smooth;
+  public int* iM_rownnz;
+  public int* iM_rowadr;
+  public int* iM_diagnum;
+  public int* iM_colind;
+  public double* iM;
+  public double* iLD;
+  public double* iLDiagInv;
+  public double* iacc;
   public int* efc_island;
-  public int* island_efcnum;
-  public int* island_efcadr;
-  public int* island_efcind;
+  public int* island_ne;
+  public int* island_nf;
+  public int* island_nefc;
+  public int* island_iefcadr;
+  public int* map_efc2iefc;
+  public int* map_iefc2efc;
+  public int* iefc_type;
+  public int* iefc_id;
+  public int* iefc_J_rownnz;
+  public int* iefc_J_rowadr;
+  public int* iefc_J_rowsuper;
+  public int* iefc_J_colind;
+  public int* iefc_JT_rownnz;
+  public int* iefc_JT_rowadr;
+  public int* iefc_JT_rowsuper;
+  public int* iefc_JT_colind;
+  public double* iefc_J;
+  public double* iefc_JT;
+  public double* iefc_frictionloss;
+  public double* iefc_D;
+  public double* iefc_R;
   public int* efc_AR_rownnz;
   public int* efc_AR_rowadr;
   public int* efc_AR_colind;
@@ -5006,8 +5036,12 @@ public unsafe struct mjData_ {
   public double* efc_vel;
   public double* efc_aref;
   public double* efc_b;
-  public double* efc_force;
+  public double* iefc_aref;
+  public int* iefc_state;
+  public double* iefc_force;
   public int* efc_state;
+  public double* efc_force;
+  public double* ifrc_constraint;
   public UIntPtr threadpool;
   public UInt64 signature;
 }
@@ -5569,12 +5603,14 @@ public unsafe struct mjModel_ {
   public int* tendon_matid;
   public int* tendon_group;
   public byte* tendon_limited;
+  public byte* tendon_actfrclimited;
   public double* tendon_width;
   public double* tendon_solref_lim;
   public double* tendon_solimp_lim;
   public double* tendon_solref_fri;
   public double* tendon_solimp_fri;
   public double* tendon_range;
+  public double* tendon_actfrcrange;
   public double* tendon_margin;
   public double* tendon_stiffness;
   public double* tendon_damping;
@@ -6398,8 +6434,10 @@ public unsafe struct model {
   public int* tendon_matid;
   public int* tendon_group;
   public byte* tendon_limited;
+  public byte* tendon_actfrclimited;
   public double* tendon_width;
   public double* tendon_range;
+  public double* tendon_actfrcrange;
   public double* tendon_stiffness;
   public double* tendon_damping;
   public double* tendon_frictionloss;
@@ -6475,7 +6513,6 @@ public unsafe struct data {
   public double* bvh_aabb_dyn;
   public byte* bvh_active;
   public int* island_dofadr;
-  public int* island_dofind;
   public int* dof_island;
   public int* efc_island;
   public int* tendon_efcadr;

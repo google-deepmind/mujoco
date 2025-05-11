@@ -30,6 +30,7 @@
 #include <mujoco/mujoco.h>
 #include "errors.h"
 #include "indexers.h"  // IWYU pragma: keep
+#include "specs_wrapper.h"  // IWYU pragma: keep
 #include "raw.h"
 #include "structs.h"  // IWYU pragma: keep
 #include <pybind11/cast.h>
@@ -69,100 +70,6 @@ using MjDoubleRef6 = Eigen::Ref<const Eigen::Matrix<double, 6, 1>>;
 using MjDoubleRef10 = Eigen::Ref<const Eigen::Matrix<double, 10, 1>>;
 using MjDoubleRef11 = Eigen::Ref<const Eigen::Matrix<double, 11, 1>>;
 using MjDoubleRefVec = Eigen::Ref<const Eigen::VectorXd>;
-
-struct MjSpec {
-  MjSpec() : ptr(mj_makeSpec()) {}
-  MjSpec(raw::MjSpec* ptr, const py::dict& assets_ = {}) : ptr(ptr) {
-    for (const auto [key, value] : assets_) {
-      assets[key] = value;
-    }
-  }
-
-  // copy constructor and assignment
-  MjSpec(const MjSpec& other) : ptr(mj_copySpec(other.ptr)) {
-    override_assets = other.override_assets;
-    for (const auto [key, value] : other.assets) {
-      assets[key] = value;
-    }
-    parent = other.parent;
-  }
-  MjSpec& operator=(const MjSpec& other) {
-    override_assets = other.override_assets;
-    ptr = mj_copySpec(other.ptr);
-    for (const auto [key, value] : other.assets) {
-      assets[key] = value;
-    }
-    parent = other.parent;
-    return *this;
-  }
-
-  // move constructor and move assignment
-  MjSpec(MjSpec&& other) : ptr(other.ptr) {
-    override_assets = other.override_assets;
-    other.ptr = nullptr;
-    for (const auto [key, value] : other.assets) {
-      assets[key] = value;
-    }
-    other.assets.clear();
-    parent = other.parent;
-    other.parent = nullptr;
-  }
-  MjSpec& operator=(MjSpec&& other) {
-    override_assets = other.override_assets;
-    ptr = other.ptr;
-    other.ptr = nullptr;
-    for (const auto [key, value] : other.assets) {
-      assets[key] = value;
-    }
-    other.assets.clear();
-    parent = other.parent;
-    other.parent = nullptr;
-    return *this;
-  }
-
-  ~MjSpec() {
-    mj_deleteSpec(ptr);
-  }
-
-  raw::MjModel* Compile() {
-    if (assets.empty()) {
-      auto m = mj_compile(ptr, 0);
-      if (!m || mjs_isWarning(ptr)) {
-        throw py::value_error(mjs_getError(ptr));
-      }
-      return m;
-    }
-    mjVFS vfs;
-    mj_defaultVFS(&vfs);
-    for (const auto& asset : assets) {
-      std::string buffer_name =
-          _impl::StripPath(py::cast<std::string>(asset.first).c_str());
-      std::string buffer = py::cast<std::string>(asset.second);
-      const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
-          &vfs, buffer_name.c_str(), buffer.c_str(), buffer.size());
-      if (vfs_error) {
-        mj_deleteVFS(&vfs);
-        if (vfs_error == 2) {
-          throw py::value_error("Repeated file name in assets dict: " +
-                                buffer_name);
-        } else {
-          throw py::value_error("Asset failed to load: " + buffer_name);
-        }
-      }
-    }
-    auto m = mj_compile(ptr, &vfs);
-    if (!m || mjs_isWarning(ptr)) {
-      throw py::value_error(mjs_getError(ptr));
-    }
-    mj_deleteVFS(&vfs);
-    return m;
-  }
-
-  raw::MjSpec* ptr;
-  py::dict assets;
-  bool override_assets = true;
-  MjSpec* parent = nullptr;
-};
 
 template <typename LoadFunc>
 static raw::MjSpec* LoadSpecFileImpl(
@@ -575,6 +482,13 @@ PYBIND11_MODULE(_specs, m) {
       py::arg("child"), py::arg("prefix") = py::none(),
       py::arg("suffix") = py::none(), py::arg("site") = py::none(),
       py::arg("frame") = py::none(),
+      py::return_value_policy::reference_internal);
+  mjSpec.def(
+    "activate_plugin",
+      [](MjSpec& self, std::string& name) {
+        mjs_activatePlugin(self.ptr, name.c_str());
+      },
+      py::arg("name"),
       py::return_value_policy::reference_internal);
 
   // ============================= MJSBODY =====================================
@@ -1118,6 +1032,30 @@ PYBIND11_MODULE(_specs, m) {
       });
   mjsPlugin.def("delete",
                 [](raw::MjsPlugin& self) { mjs_delete(self.element); });
+  mjsPlugin.def_property(
+      "config",
+      [](raw::MjsPlugin& self) -> py::dict {
+        const std::map<std::string, std::string, std::less<>>* config_attribs =
+            static_cast<const std::map<std::string, std::string, std::less<>>*>(
+                mjs_getPluginAttributes(&self));
+        py::dict config;
+        for (const auto& [key, value] : *config_attribs) {
+          config[py::str(key)] = value;
+        }
+        return config;
+      },
+      [](raw::MjsPlugin& self, py::dict& config) {
+        std::map<std::string, std::string, std::less<>> config_attribs;
+        for (const auto& [key, value] : config) {
+          std::string key_str = key.cast<std::string>();
+          if (config_attribs.find(key_str) != config_attribs.end()) {
+            throw pybind11::value_error("Duplicate config key: " + key_str);
+          }
+          config_attribs[key_str] = value.cast<std::string>();
+        }
+        mjs_setPluginAttributes(&self, &config_attribs);
+      },
+      py::return_value_policy::reference_internal);
   // ============================= MJVISUAL ====================================
   mjVisual.def_property(
       "global_",

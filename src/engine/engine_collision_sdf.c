@@ -158,7 +158,9 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     e = mju_abs(x[2]);
     a[0] = c - size[0];
     a[1] = e - size[1];
-    mjtNum grada[3] = {x[0] / c, x[1] / c, x[2] / e};
+    mjtNum grada[3] = {x[0] / mju_max(c, 1. / mjMAXVAL),
+                       x[1] / mju_max(c, 1. / mjMAXVAL),
+                       x[2] / mju_max(e, 1. / mjMAXVAL)};
     int j = a[0] > a[1] ? 0 : 1;
     if (a[j] < 0) {
       gradient[0] = j == 0 ? grada[0] : 0;
@@ -167,7 +169,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     } else {
       b[0] = mju_max(a[0], 0);
       b[1] = mju_max(a[1], 0);
-      mjtNum bnorm = mju_norm(b, 2);
+      mjtNum bnorm = mju_max(mju_norm(b, 2), 1./mjMAXVAL);
       gradient[0] = grada[0] * b[0] / bnorm;
       gradient[1] = grada[1] * b[0] / bnorm;
       gradient[2] = grada[2] * b[1] / bnorm;

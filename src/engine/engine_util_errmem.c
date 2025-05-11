@@ -123,10 +123,9 @@ void mju_error_raw(const char* msg) {
   } else {
     // write to log and console
     mju_writeLog("ERROR", msg);
-    printf("ERROR: %s\n\nPress Enter to exit ...", msg);
+    printf("ERROR: %s\n\n", msg);
 
-    // pause, exit
-    getchar();
+    // exit
     exit(EXIT_FAILURE);
   }
 }

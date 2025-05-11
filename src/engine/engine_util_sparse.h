@@ -50,6 +50,12 @@ MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec
 MJAPI void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
                                 const int* rownnz, const int* rowadr, const int* colind);
 
+// multiply symmetric matrix (only lower triangle represented) by vector:
+//  res = (mat + strict_upper(mat')) * vec
+MJAPI void mju_mulSymVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
+                               const int* rownnz, const int* rowadr, const int* diagnum,
+                               const int* colind);
+
 // compress sparse matrix, remove elements with abs(value) <= minval, return total non-zeros
 MJAPI int mju_compressSparse(mjtNum* mat, int nr, int nc,
                              int* rownnz, int* rowadr, int* colind, mjtNum minval);
@@ -103,9 +109,21 @@ MJAPI void mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
 // precompute res_rowadr for mju_sqrMatTDSparse using uncompressed memory
 MJAPI void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc);
 
-// precount row non-zeros of reverse-Cholesky factor L, return total
-MJAPI int mju_cholFactorCount(int* L_rownnz, const int* rownnz, const int* rowadr,
-                              const int* colind, int n, mjData* d);
+// block-diagonalize a dense matrix
+MJAPI void mju_blockDiag(mjtNum* res, const mjtNum* mat,
+                         int nc_mat, int nc_res, int nb,
+                         const int* perm_r, const int* perm_c,
+                         const int* block_nr, const int* block_nc,
+                         const int* blockadr_r, const int* blockadr_c);
+
+// block-diagonalize a sparse matrix
+MJAPI void mju_blockDiagSparse(
+  mjtNum* res, int* res_rownnz, int* res_rowadr, int* res_colind,
+  const mjtNum* mat, const int* rownnz, const int* rowadr, const int* colind,
+  int nr, int nb,
+  const int* perm_r, const int* perm_c,
+  const int* block_r, const int* block_c,
+  mjtNum* res2, const mjtNum* mat2);
 
 // ------------------------------ inlined functions ------------------------------------------------
 
