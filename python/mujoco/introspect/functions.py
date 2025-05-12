@@ -8570,6 +8570,99 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Sigmoid function over 0<=x<=1 using quintic polynomial.',
      )),
+    ('mjc_getSDF',
+     FunctionDecl(
+         name='mjc_getSDF',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjpPlugin', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='get sdf from geom id',
+     )),
+    ('mjc_distance',
+     FunctionDecl(
+         name='mjc_distance',
+         return_type=ValueType(name='mjtNum'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSDF', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='x',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+         ),
+         doc='signed distance function',
+     )),
+    ('mjc_gradient',
+     FunctionDecl(
+         name='mjc_gradient',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSDF', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='gradient',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='x',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+         ),
+         doc='gradient of sdf',
+     )),
     ('mjd_transitionFD',
      FunctionDecl(
          name='mjd_transitionFD',

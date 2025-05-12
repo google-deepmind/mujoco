@@ -407,6 +407,14 @@ typedef enum mjtFlexSelf_ {       // mode for flex selfcollide
 } mjtFlexSelf;
 
 
+typedef enum mjtSDFType_ {        // signed distance function (SDF) type
+  mjSDFTYPE_SINGLE     = 0,       // single SDF
+  mjSDFTYPE_INTERSECTION,         // max(A, B)
+  mjSDFTYPE_MIDSURFACE,           // A - B
+  mjSDFTYPE_COLLISION,            // A + B + abs(max(A, B))
+} mjtSDFType;
+
+
 //---------------------------------- mjLROpt -------------------------------------------------------
 
 struct mjLROpt_ {                 // options for mj_setLengthRange()

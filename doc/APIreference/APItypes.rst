@@ -357,6 +357,26 @@ last argument to :ref:`mj_local2global`.
 .. mujoco-include:: mjtSameFrame
 
 
+.. _mjtFlexSelf:
+
+mjtFlexSelf
+~~~~~~~~~~~~
+
+Types of flex self-collisions midphase.
+
+.. mujoco-include:: mjtFlexSelf
+
+
+.. _mjtSDFType:
+
+mjtSDFType
+~~~~~~~~~~~
+
+Formulas used to combine SDFs when calling mjc_distance and mjc_gradient.
+
+.. mujoco-include:: mjtSDFType
+
+
 .. _tyDataEnums:
 
 Data

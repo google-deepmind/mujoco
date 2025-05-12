@@ -419,6 +419,12 @@ public enum mjtFlexSelf : int{
   mjFLEXSELF_SAP = 3,
   mjFLEXSELF_AUTO = 4,
 }
+public enum mjtSDFType : int{
+  mjSDFTYPE_SINGLE = 0,
+  mjSDFTYPE_INTERSECTION = 1,
+  mjSDFTYPE_MIDSURFACE = 2,
+  mjSDFTYPE_COLLISION = 3,
+}
 public enum mjtPluginCapabilityBit : int{
   mjPLUGIN_ACTUATOR = 1,
   mjPLUGIN_SENSOR = 2,

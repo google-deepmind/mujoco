@@ -1308,6 +1308,19 @@ MJAPI char* mju_strncpy(char *dst, const char *src, int n);
 MJAPI mjtNum mju_sigmoid(mjtNum x);
 
 
+//---------------------------------- Signed Distance Function --------------------------------------
+
+// get sdf from geom id
+MJAPI const mjpPlugin* mjc_getSDF(const mjModel* m, int id);
+
+// signed distance function
+MJAPI mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjtNum x[3]);
+
+// gradient of sdf
+MJAPI void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s, mjtNum gradient[3],
+                        const mjtNum x[3]);
+
+
 //---------------------------------- Derivatives ---------------------------------------------------
 
 // Finite differenced transition matrices (control theory notation)

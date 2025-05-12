@@ -428,6 +428,17 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjFLEXSELF_AUTO', 4),
          ]),
      )),
+    ('mjtSDFType',
+     EnumDecl(
+         name='mjtSDFType',
+         declname='enum mjtSDFType_',
+         values=dict([
+             ('mjSDFTYPE_SINGLE', 0),
+             ('mjSDFTYPE_INTERSECTION', 1),
+             ('mjSDFTYPE_MIDSURFACE', 2),
+             ('mjSDFTYPE_COLLISION', 3),
+         ]),
+     )),
     ('mjtTaskStatus',
      EnumDecl(
          name='mjtTaskStatus',

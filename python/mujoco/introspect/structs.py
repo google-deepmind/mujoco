@@ -8966,6 +8966,55 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
+    ('mjSDF',
+     StructDecl(
+         name='mjSDF',
+         declname='struct mjSDF_',
+         fields=(
+             StructFieldDecl(
+                 name='plugin',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjpPlugin', is_const=True),
+                     ),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='id',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='mjtSDFType'),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='relpos',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='relmat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='geomtype',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtGeom'),
+                 ),
+                 doc='',
+             ),
+         ),
+     )),
     ('mjrRect',
      StructDecl(
          name='mjrRect',
