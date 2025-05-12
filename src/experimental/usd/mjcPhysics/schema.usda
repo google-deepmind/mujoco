@@ -1,0 +1,524 @@
+#usda 1.0
+(
+  subLayers = [
+        @usd/schema.usda@,
+  ]
+)
+
+over "GLOBAL" (
+  customData = {
+    string libraryName = "mujocoPhysics"
+    string libraryPath = "."
+    bool useLiteralIdentifier = 0
+    dictionary libraryTokens = {
+        dictionary euler = {
+            string doc = """
+            This token represents the Euler numerical integrator.
+            """
+        }
+
+        dictionary rk4 = {
+            string doc = """
+            This token represents the RK4 numerical integrator.
+            """
+        }
+
+        dictionary implicit = {
+            string doc = """
+            This token represents the implicit numerical integrator.
+            """
+        }
+
+        dictionary implicitfast = {
+            string doc = """
+            This token represents the implicitfast numerical integrator.
+            """
+        }
+
+        dictionary pyramidal = {
+            string doc = """
+            This token represents the pyramidal contact friction cone type.
+            """
+        }
+
+        dictionary elliptic = {
+            string doc = """
+            This token represents the elliptic contact friction cone type.
+            """
+        }
+
+        dictionary dense = {
+            string doc = """
+            This token represents the dense constraint Jacobian and matrices
+            computed from it.
+            """
+        }
+
+        dictionary sparse = {
+            string doc = """
+            This token represents the sparse constraint Jacobian and matrices
+            computed from it.
+            """
+        }
+
+        dictionary auto = {
+            string doc = """
+            This token represents the auto constraint Jacobian and matrices
+            computed from it.
+            """
+        }
+
+        dictionary pgs = {
+            string doc = """
+            This token represents the PGS constraint solver algorithm.
+            """
+        }
+
+        dictionary cg = {
+            string doc = """
+            This token represents the CG constraint solver algorithm.
+            """
+        }
+
+        dictionary newton = {
+            string doc = """
+            This token represents the Newton constraint solver algorithm.
+            """
+        }
+      }
+  }
+)
+{
+
+}
+
+class "MjcPhysicsSceneAPI"
+(
+    customData = {
+        string className = "SceneAPI"
+    }
+    doc = """API providing global simulation options for Mujoco."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform double mjc:physics:timestep = 0.002 (
+        customData = {
+            string apiName = "Timestep"
+        }
+        displayName = "Timestep"
+        doc = """Controls the timestep in seconds used by MuJoCo."""
+    )
+
+    uniform double mjc:physics:apirate = 100 (
+        customData = {
+            string apiName = "ApiRate"
+        }
+        displayName = "ApiRate"
+        doc = """Determines the rate (in Hz) at which an external API allows
+        the update function to be executed."""
+    )
+
+    uniform double mjc:physics:impratio = 1.0 (
+        customData = {
+            string apiName = "ImpRatio"
+        }
+        displayName = "Impedance Ratio"
+        doc = """Ratio of frictional-to-normal constraint impedance for elliptic
+        friction cones."""
+    )
+
+    uniform double3 mjc:physics:wind = (0.0, 0.0, 0.0) (
+        customData = {
+            string apiName = "Wind"
+        }
+        displayName = "Wind Velocity"
+        doc = """Velocity vector of medium (i.e. wind)."""
+    )
+
+    uniform double3 mjc:physics:magnetic = (0.0, -0.5, 0.0) (
+        customData = {
+            string apiName = "Magnetic"
+        }
+        displayName = "Magnetic Flux"
+        doc = """Global magnetic flux."""
+    )
+
+    uniform double mjc:physics:density = 0.0 (
+        customData = {
+            string apiName = "Density"
+        }
+        displayName = "Density"
+        doc = """Density of medium."""
+    )
+
+    uniform double mjc:physics:viscosity = 0.0 (
+        customData = {
+            string apiName = "Viscosity"
+        }
+        displayName = "Viscosity"
+        doc = """Viscosity of medium."""
+    )
+
+    uniform double mjc:physics:o_margin = 0.0 (
+        customData = {
+            string apiName = "OMargin"
+        }
+        displayName = "Contact Override Margin"
+        doc = """Replaces the margin parameter of all active contact pairs when
+        Contact override is enabled."""
+    )
+
+    uniform double[] mjc:physics:o_solref = [0.02, 1.0] (
+        customData = {
+            string apiName = "OSolRef"
+        }
+        displayName = "Contact Override SolRef"
+        doc = """Replaces the solref parameter of all active contact pairs when
+        Contact override is enabled."""
+    )
+
+    uniform double[] mjc:physics:o_solimp = [0.9, 0.95, 0.001, 0.5, 2.0] (
+        customData = {
+            string apiName = "OSolImp"
+        }
+        displayName = "Contact Override SolImp"
+        doc = """Replaces the solimp parameter of all active contact pairs when
+        Contact override is enabled."""
+    )
+
+    uniform double[] mjc:physics:o_friction = [1.0, 1.0, 0.005, 0.0001, 0.0001] (
+        customData = {
+            string apiName = "OFriction"
+        }
+        displayName = "Contact Override Friction"
+        doc = """Replaces the friction parameter of all active contact pairs when
+        Contact override is enabled."""
+    )
+
+    uniform token mjc:physics:integrator = "euler" (
+        allowedTokens = ["euler", "rk4", "implicit", "implicitfast"]
+        customData = {
+            string apiName = "Integrator"
+        }
+        displayName = "Integrator"
+        doc = """Numerical integrator to be used."""
+    )
+
+    uniform token mjc:physics:cone = "pyramidal" (
+        allowedTokens = ["pyramidal", "elliptic"]
+        customData = {
+            string apiName = "Cone"
+        }
+        displayName = "Friction Cone Type"
+        doc = """The type of contact friction cone."""
+    )
+
+    uniform token mjc:physics:jacobian = "auto" (
+        allowedTokens = ["auto", "dense", "sparse"]
+        customData = {
+            string apiName = "Jacobian"
+        }
+        displayName = "Jacobian Type"
+        doc = """The type of constraint Jacobian and matrices computed from it."""
+    )
+
+    uniform token mjc:physics:solver = "newton" (
+        allowedTokens = ["pgs", "cg", "newton"]
+        customData = {
+            string apiName = "Solver"
+        }
+        displayName = "Solver"
+        doc = """Constraint solver algorithm to be used."""
+    )
+
+    uniform int mjc:physics:iterations = 100 (
+        customData = {
+            string apiName = "Iterations"
+        }
+        displayName = "Solver Iterations"
+        doc = """Maximum number of iterations of the constraint solver."""
+    )
+
+    uniform double mjc:physics:tolerance = 1e-08 (
+        customData = {
+            string apiName = "Tolerance"
+        }
+        displayName = "Solver Tolerance"
+        doc = """Tolerance threshold used for early termination of the iterative
+        solver."""
+    )
+
+    uniform int mjc:physics:ls_iterations = 50 (
+        customData = {
+            string apiName = "LSIterations"
+        }
+        displayName = "Linesearch Iterations"
+        doc = """Maximum number of linesearch iterations performed by CG/Newton
+        constraint solvers."""
+    )
+
+    uniform double mjc:physics:ls_tolerance = 0.01 (
+        customData = {
+            string apiName = "LSTolerance"
+        }
+        displayName = "Linesearch Tolerance"
+        doc = """Tolerance threshold used for early termination of the linesearch algorithm."""
+    )
+
+    uniform int mjc:physics:noslip_iterations = 0 (
+        customData = {
+            string apiName = "NoslipIterations"
+        }
+        displayName = "Noslip Iterations"
+        doc = """Maximum number of iterations of the Noslip solver."""
+    )
+
+    uniform double mjc:physics:noslip_tolerance = 1e-06 (
+        customData = {
+            string apiName = "NoslipTolerance"
+        }
+        displayName = "Noslip Tolerance"
+        doc = """Tolerance threshold used for early termination of the Noslip solver."""
+    )
+
+    uniform int mjc:physics:ccd_iterations = 50 (
+        customData = {
+            string apiName = "CCDIterations"
+        }
+        displayName = "CCD Iterations"
+        doc = """Maximum number of iterations of the algorithm used for convex collisions."""
+    )
+
+    uniform double mjc:physics:ccd_tolerance = 1e-06 (
+        customData = {
+            string apiName = "CCDTolerance"
+        }
+        displayName = "CCD Tolerance"
+        doc = """Tolerance threshold used for early termination of the convex
+        collision algorithm."""
+    )
+
+    uniform int mjc:physics:sdf_iterations = 10 (
+        customData = {
+            string apiName = "SDFIterations"
+        }
+        displayName = "SDF Iterations"
+        doc = """Number of iterations used for Signed Distance Field collisions
+        (per initial point)."""
+    )
+
+    uniform int mjc:physics:sdf_initpoints = 40 (
+        customData = {
+            string apiName = "SDFInitPoints"
+        }
+        displayName = "SDF Initial Points"
+        doc = """Number of starting points used for finding contacts with Signed
+        Distance Field collisions."""
+    )
+
+    uniform int[] mjc:physics:actuatorgroupdisable (
+        customData = {
+            string apiName = "ActuatorGroupDisable"
+        }
+        displayName = "Actuator Group Disable"
+        doc = """List of actuator groups to disable."""
+    )
+
+    uniform bool mjc:physics:flag:constraint = True (
+        customData = {
+            string apiName = "ConstraintFlag"
+        }
+        displayName = "Constraint Solver Toggle"
+        doc = """Enables constraint solver."""
+    )
+
+    uniform bool mjc:physics:flag:equality = True (
+        customData = {
+            string apiName = "EqualityFlag"
+        }
+        displayName = "Equality Constraints Toggle"
+        doc = """Enables all standard computations related to equality constraints."""
+    )
+
+    uniform bool mjc:physics:flag:frictionloss = True (
+        customData = {
+            string apiName = "FrictionLossFlag"
+        }
+        displayName = "Friction Loss Constraints Toggle"
+        doc = """Enables all standard computations related to friction loss constraints."""
+    )
+
+    uniform bool mjc:physics:flag:limit = True (
+        customData = {
+            string apiName = "LimitFlag"
+        }
+        displayName = "Joint and Tendon Limit Constraints Toggle"
+        doc = """Enables all standard computations related to joint and tendon limit constraints."""
+    )
+
+    uniform bool mjc:physics:flag:contact = True (
+        customData = {
+            string apiName = "ContactFlag"
+        }
+        displayName = "Contact Constraints and Collision Detection Toggle"
+        doc = """Enables collision detection and all standard computations related to contact constraints."""
+    )
+
+    uniform bool mjc:physics:flag:passive = True (
+        customData = {
+            string apiName = "PassiveFlag"
+        }
+        displayName = "Passive Forces Toggle"
+        doc = """Enables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive forces."""
+    )
+
+    uniform bool mjc:physics:flag:gravity = True (
+        customData = {
+            string apiName = "GravityFlag"
+        }
+        displayName = "Gravity Toggle"
+        doc = """Enables the application of gravitational acceleration as defined in mjOption."""
+    )
+
+    uniform bool mjc:physics:flag:clampctrl = True (
+        customData = {
+            string apiName = "ClampCtrlFlag"
+        }
+        displayName = "Control Input Clamping Toggle"
+        doc = """Enables the clamping of control inputs to all actuators, according to actuator-specific attributes."""
+    )
+
+    uniform bool mjc:physics:flag:warmstart = True (
+        customData = {
+            string apiName = "WarmStartFlag"
+        }
+        displayName = "Solver Warm-Starting Toggle"
+        doc = """Enables warm-starting of the constraint solver, using the solution from the previous time step to initialize the iterative optimization."""
+    )
+
+    uniform bool mjc:physics:flag:filterparent = True (
+        customData = {
+            string apiName = "FilterParentFlag"
+        }
+        displayName = "Parent-Child Contact Filtering Toggle"
+        doc = """Enables the filtering of contact pairs where the two geoms belong to a parent and child body."""
+    )
+
+    uniform bool mjc:physics:flag:actuation = True (
+        customData = {
+            string apiName = "ActuationFlag"
+        }
+        displayName = "Actuation Forces Toggle"
+        doc = """Enables all standard computations related to actuator forces, including actuator dynamics."""
+    )
+
+    uniform bool mjc:physics:flag:refsafe = True (
+        customData = {
+            string apiName = "RefSafeFlag"
+        }
+        displayName = "Solver Reference Safety Mechanism Toggle"
+        doc = """Enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the simulation timestep."""
+    )
+
+    uniform bool mjc:physics:flag:sensor = True (
+        customData = {
+            string apiName = "SensorFlag"
+        }
+        displayName = "Sensor Computations Toggle"
+        doc = """Enables all computations related to sensors."""
+    )
+
+    uniform bool mjc:physics:flag:midphase = True (
+        customData = {
+            string apiName = "MidPhaseFlag"
+        }
+        displayName = "Mid-Phase Collision Filtering Toggle"
+        doc = """Enables mid-phase collision filtering using a static AABB bounding volume hierarchy (BVH)."""
+    )
+
+    uniform bool mjc:physics:flag:nativeccd = True (
+        customData = {
+            string apiName = "NativeCCDFlag"
+        }
+        displayName = "Native Convex Collision Detection Toggle"
+        doc = """Enables the native convex collision detection pipeline instead of using the libccd library."""
+    )
+
+    uniform bool mjc:physics:flag:eulerdamp = True (
+        customData = {
+            string apiName = "EulerDampFlag"
+        }
+        displayName = "Euler Integrator Damping Toggle"
+        doc = """Enables implicit integration with respect to joint damping in the Euler integrator."""
+    )
+
+    uniform bool mjc:physics:flag:autoreset = True (
+        customData = {
+            string apiName = "AutoResetFlag"
+        }
+        displayName = "Automatic Simulation Reset Toggle"
+        doc = """Enables the automatic resetting of the simulation state when numerical issues are detected."""
+    )
+
+    uniform bool mjc:physics:flag:override = False (
+        customData = {
+            string apiName = "OverrideFlag"
+        }
+        displayName = "Contact Override Mechanism Toggle"
+        doc = """Enables the contact override mechanism."""
+    )
+
+    uniform bool mjc:physics:flag:energy = False (
+        customData = {
+            string apiName = "EnergyFlag"
+        }
+        displayName = "Energy Computation Toggle"
+        doc = """Enables the computation of potential and kinetic energy (mjData.energy[0,1])."""
+    )
+
+    uniform bool mjc:physics:flag:fwdinv = False (
+        customData = {
+            string apiName = "FwdinvFlag"
+        }
+        displayName = "Forward/Inverse Dynamics Comparison Toggle"
+        doc = """Enables the automatic comparison of forward and inverse dynamics."""
+    )
+
+    uniform bool mjc:physics:flag:invdiscrete = False (
+        customData = {
+            string apiName = "InvDiscreteFlag"
+        }
+        displayName = "Discrete-Time Inverse Dynamics Toggle"
+        doc = """Enables discrete-time inverse dynamics with mj_inverse for integrators other than RK4."""
+    )
+
+    uniform bool mjc:physics:flag:multiccd = False (
+        customData = {
+            string apiName = "MultiCCDFlag"
+        }
+        displayName = "Multiple Contact Collision Detection (CCD) Toggle"
+        doc = """Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."""
+    )
+
+    uniform bool mjc:physics:flag:island = False (
+        customData = {
+            string apiName = "IslandFlag"
+        }
+        displayName = "Constraint Island Discovery Toggle"
+        doc = """Enables the discovery of constraint islands."""
+    )
+}
+
+class "MjcSiteAPI"
+(
+    customData = {
+        string className = "SiteAPI"
+    }
+    doc = """API describing a Mujoco site."""
+
+    inherits = </APISchemaBase>
+)
+{}
+
+
