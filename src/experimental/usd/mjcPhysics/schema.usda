@@ -7,7 +7,7 @@
 
 over "GLOBAL" (
   customData = {
-    string libraryName = "mujocoPhysics"
+    string libraryName = "mjcPhysics"
     string libraryPath = "."
     bool useLiteralIdentifier = 0
     dictionary libraryTokens = {
@@ -520,5 +520,4 @@ class "MjcSiteAPI"
     inherits = </APISchemaBase>
 )
 {}
-
 
