@@ -948,7 +948,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
         mjFALLTHROUGH;
 
       case mjJNT_BALL:
-        // covert quatertion difference into angular "velocity"
+        // convert quaternion difference into angular "velocity"
         mju_copy4(quat, d->qpos+padr);
         mju_normalize4(quat);
         mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
