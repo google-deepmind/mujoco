@@ -1875,13 +1875,13 @@ void mj_solveLD(mjtNum* restrict x, const mjtNum* qLD, const mjtNum* qLDiagInv, 
 
       // one vector
       if (n == 1) {
-        x[i] -= mju_dotSparse(qLD+adr, x, d, colind+adr, /*flg_unc1=*/0);
+        x[i] -= mju_dotSparse(qLD+adr, x, d, colind+adr);
       }
 
       // multiple vectors
       else {
         for (int offset=0; offset < n*nv; offset+=nv) {
-          x[i+offset] -= mju_dotSparse(qLD+adr, x+offset, d, colind+adr, /*flg_unc1=*/0);
+          x[i+offset] -= mju_dotSparse(qLD+adr, x+offset, d, colind+adr);
         }
       }
     }

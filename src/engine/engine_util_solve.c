@@ -275,7 +275,7 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
     // x(i) -= sum_j L(i,j)*x(j), j=0:i-1
     if (nnz > 1) {
-      res[i] -= mju_dotSparse(mat+adr, res, nnz-1, colind+adr, /*flg_unc1=*/0);
+      res[i] -= mju_dotSparse(mat+adr, res, nnz-1, colind+adr);
       // modulo AVX, the above line does
       // for (int j=0; j<nnz-1; j++)
       //   res[i] -= mat[adr+j]*res[colind[adr+j]];
@@ -710,7 +710,7 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
     int nnz = rownnz[i] - d1;
     if (nnz > 0) {
       int adr = rowadr[i] + d1;
-      res[i] -= mju_dotSparse(LU+adr, res, nnz, colind+adr, /*flg_unc1=*/0);
+      res[i] -= mju_dotSparse(LU+adr, res, nnz, colind+adr);
     }
   }
 
@@ -720,7 +720,7 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
     int d = diag[i];
     int adr = rowadr[i];
     if (d > 0) {
-      res[i] -= mju_dotSparse(LU+adr, res, d, colind+adr, /*flg_unc1=*/0);
+      res[i] -= mju_dotSparse(LU+adr, res, d, colind+adr);
     }
 
     // divide by diagonal element of L

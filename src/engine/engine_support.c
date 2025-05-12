@@ -1048,7 +1048,7 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
     // non-simple: add off-diagonals
     if (!m->dof_simplenum[i]) {
       int adr = d->M_rowadr[i];
-      res[i] += mju_dotSparse(qLD+adr, vec, d->M_rownnz[i] - 1, d->M_colind+adr, /*flg_unc1=*/0);
+      res[i] += mju_dotSparse(qLD+adr, vec, d->M_rownnz[i] - 1, d->M_colind+adr);
     }
   }
 

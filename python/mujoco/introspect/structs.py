@@ -5981,7 +5981,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='map from idof to dof; idof >= ni: unconstrained',
+                 doc='map from idof to dof;  >= nidof: unconstrained',
                  array_extent=('nv',),
              ),
              StructFieldDecl(

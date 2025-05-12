@@ -2286,7 +2286,7 @@ void mj_referenceConstraint(const mjModel* m, mjData* d) {
 //---------------------------- update constraint state ---------------------------------------------
 
 // compute efc_state, efc_force
-//  optional: cost(qacc) = shat(jar); cone Hessians
+//  optional: cost(qacc) = s_hat(jar); cone Hessians
 void mj_constraintUpdate_impl(int ne, int nf, int nefc,
                               const mjtNum* D, const mjtNum* R, const mjtNum* floss,
                               const mjtNum* jar, const int* type, const int* id,
@@ -2485,7 +2485,7 @@ void mj_constraintUpdate_impl(int ne, int nf, int nefc,
 
 
 // compute efc_state, efc_force, qfrc_constraint
-// optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
+// optional: cost(qacc) = s_hat(jar) where jar = Jac*qacc-aref; cone Hessians
 void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                          mjtNum cost[1], int flg_coneHessian) {
   mj_constraintUpdate_impl(d->ne, d->nf, d->nefc, d->efc_D, d->efc_R, d->efc_frictionloss,

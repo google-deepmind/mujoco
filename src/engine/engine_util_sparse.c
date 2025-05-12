@@ -60,9 +60,8 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
 
 
 // dot-product, both vectors are sparse
-//  flg_unc2: is vec2 memory layout uncompressed
-mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1, int nnz2,
-                      const int* ind2, int flg_unc2) {
+mjtNum mju_dotSparse2(const mjtNum* vec1, const int* ind1, int nnz1,
+                      const mjtNum* vec2, const int* ind2, int nnz2) {
   int i1 = 0, i2 = 0;
   mjtNum res = 0;
 
@@ -77,12 +76,7 @@ mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const in
 
     // match: accumulate result, advance both
     if (adr1 == adr2) {
-      if (flg_unc2) {
-        res += vec1[i1++] * vec2[adr2];
-        i2++;
-      } else {
-        res += vec1[i1++] * vec2[i2++];
-      }
+      res += vec1[i1++] * vec2[i2++];
     }
 
     // otherwise advance smaller
@@ -161,7 +155,7 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 #else
   // regular sparse dot-product
   for (int r=0; r < nr; r++) {
-    res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
+    res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
   }
 #endif  // mjUSEAVX
 }

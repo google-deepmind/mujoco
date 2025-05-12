@@ -416,7 +416,7 @@ struct mjData_ {
   int*    island_idofadr;    // island start address in idof vector              (nisland x 1)
   int*    island_dofadr;     // island start address in dof vector               (nisland x 1)
   int*    map_dof2idof;      // map from dof to idof                             (nv x 1)
-  int*    map_idof2dof;      // map from idof to dof; idof >= ni: unconstrained  (nv x 1)
+  int*    map_idof2dof;      // map from idof to dof;  >= nidof: unconstrained   (nv x 1)
 
   // computed by mj_island (dofs sorted by island)
   mjtNum* ifrc_smooth;       // net unconstrained force                          (nidof x 1)
