@@ -114,16 +114,15 @@ typedef struct mjFwdPositionArgs_ mjFwdPositionArgs;
 // wrapper for mj_crb and mj_factorM
 void* mj_inertialThreaded(void* args) {
   mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
-  mj_crb(forward_args->m, forward_args->d);             // timed internally (POS_INERTIA)
-  mj_tendonArmature(forward_args->m, forward_args->d);  // timed internally (POS_INERTIA)
-  mj_factorM(forward_args->m, forward_args->d);         // timed internally (POS_INERTIA)
+  mj_makeM(forward_args->m, forward_args->d);
+  mj_factorM(forward_args->m, forward_args->d);
   return NULL;
 }
 
 // wrapper for mj_collision
 void* mj_collisionThreaded(void* args) {
   mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
-  mj_collision(forward_args->m, forward_args->d);   // timed internally (POS_COLLISION)
+  mj_collision(forward_args->m, forward_args->d);
   return NULL;
 }
 
@@ -143,10 +142,12 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   // no threadpool: inertia and collision on main thread
   if (!d->threadpool) {
-    mj_crb(m, d);             // timed internally (POS_INERTIA)
-    mj_tendonArmature(m, d);  // timed internally (POS_INERTIA)
-    mj_factorM(m, d);         // timed internally (POS_INERTIA)
-    mj_collision(m, d);       // timed internally (POS_COLLISION)
+    // inertia, timed internally (POS_INERTIA)
+    mj_makeM(m, d);
+    mj_factorM(m, d);
+
+    // collision, timed internally (POS_COLLISION)
+    mj_collision(m, d);
   }
 
   // have threadpool: inertia and collision on separate threads

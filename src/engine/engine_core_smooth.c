@@ -1471,7 +1471,6 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
 // add tendon armature to qM
 void mj_tendonArmature(const mjModel* m, mjData* d) {
-  TM_START;
   int nv = m->nv, ntendon = m->ntendon, issparse = mj_isSparse(m);
 
   for (int k=0; k < ntendon; k++) {
@@ -1521,14 +1520,12 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
       }
     }
   }
-  TM_END(mjTIMER_POS_INERTIA);
 }
 
 
 
 // composite rigid body inertia algorithm
 void mj_crb(const mjModel* m, mjData* d) {
-  TM_START;
   mjtNum buf[6];
   mjtNum* crb = d->crb;
   int last_body = m->nbody - 1, nv = m->nv;
@@ -1574,6 +1571,14 @@ void mj_crb(const mjModel* m, mjData* d) {
       d->qM[Madr_ij++] += mju_dot(d->cdof+6*j, buf, 6);
     }
   }
+}
+
+
+
+void mj_makeM(const mjModel* m, mjData* d) {
+  TM_START;
+  mj_crb(m, d);
+  mj_tendonArmature(m, d);
   TM_END(mjTIMER_POS_INERTIA);
 }
 
