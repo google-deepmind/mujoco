@@ -18,13 +18,14 @@ using System.Linq;
 using System.Xml;
 using UnityEngine;
 
-// internal imports
 namespace Mujoco {
 
 [Serializable]
 public class MjHeightFieldShape : IMjShape {
-  [Tooltip("Terrain's heightmap should have a minimum value of zero (fully black). Right click HField to add Unity Terrain."),
-  ContextMenuItem("Add Unity Terrain", "AddTerrain")]
+
+  [Tooltip("Terrain's heightmap should have a minimum value of zero (fully black). Right click " +
+           "HField to add Unity Terrain."),
+   ContextMenuItem("Add Unity Terrain", "AddTerrain")]
   public Terrain Terrain;
 
   [Tooltip("The path, relative to Application.dataPath, where the heightmap " +
@@ -32,13 +33,14 @@ public class MjHeightFieldShape : IMjShape {
            "be set instead programmatically (faster).")]
   public string HeightMapExportPath;
 
-  [Tooltip("This thickness will be added below the 0 height in the hfield, to prevent penetration. ")]
+  [Tooltip("This thickness will be added below the 0 height in the hfield, to prevent " +
+           "penetration.")]
   public float BaseHeight = 0.1f;
 
   public bool ExportImage => !string.IsNullOrEmpty(HeightMapExportPath);
 
   public string FullHeightMapPath => Path.GetFullPath(Path.Combine(Application.dataPath,
-      HeightMapExportPath));
+    HeightMapExportPath));
 
   public int HeightMapWidth => Terrain.terrainData.heightmapTexture.width;
   public int HeightMapLength => Terrain.terrainData.heightmapTexture.height;
@@ -51,30 +53,28 @@ public class MjHeightFieldShape : IMjShape {
 
   private int _updateCountdown;
 
-  [HideInInspector]
-  public float MinimumHeight { get; private set; }
+  [HideInInspector] public float MinimumHeight { get; private set; }
 
-  [HideInInspector]
-  public float MaximumHeight { get; private set; }
+  [HideInInspector] public float MaximumHeight { get; private set; }
 
   public int HeightFieldId { get; private set; }
 
   public unsafe void ToMjcf(XmlElement mjcf, Transform transform) {
     if (Terrain.transform.parent != transform)
       Debug.LogWarning(
-          $"The terrain of heightfield {transform.name} needs to be parented to the Geom " +
-          "for proper rendering.");
+        $"The terrain of heightfield {transform.name} needs to be parented to the Geom " +
+        "for proper rendering.");
     else {
       if ((Terrain.transform.localPosition - new Vector3(
-              -(HeightMapLength - 1) * HeightMapScale.x / 2f,
-              Terrain.transform.localPosition.y,
-              -(HeightMapWidth - 1) * HeightMapScale.z / 2)).magnitude > 0.001) {
+            -(HeightMapLength - 1) * HeightMapScale.x / 2f,
+            Terrain.transform.localPosition.y,
+            -(HeightMapWidth - 1) * HeightMapScale.z / 2)).magnitude > 0.001) {
         Debug.LogWarning($"Terrain of heightfield {transform.name} not aligned with geom. The " +
                          " terrain will be moved to accurately represent the simulated position.");
       }
       Terrain.transform.localPosition = new Vector3(-(HeightMapLength - 1) * HeightMapScale.x / 2,
-          Terrain.transform.localPosition.y,
-          -(HeightMapWidth - 1) * HeightMapScale.z / 2);
+        Terrain.transform.localPosition.y,
+        -(HeightMapWidth - 1) * HeightMapScale.z / 2);
     }
     var scene = MjScene.Instance;
     var assetName = scene.GenerationContext.AddHeightFieldAsset(this);
@@ -105,8 +105,8 @@ public class MjHeightFieldShape : IMjShape {
     RenderTexture.active = Terrain.terrainData.heightmapTexture;
     Texture2D texture = new Texture2D(RenderTexture.active.width, RenderTexture.active.height);
     texture.ReadPixels(new Rect(0, 0, RenderTexture.active.width, RenderTexture.active.height),
-        0,
-        0);
+      0,
+      0);
     MaximumHeight = texture.GetPixels().Select(c => c.r).Max() * HeightMapScale.y * 2;
     var minimumHeight = texture.GetPixels().Select(c => c.r).Min() * HeightMapScale.y * 2;
 
@@ -125,8 +125,8 @@ public class MjHeightFieldShape : IMjShape {
     RenderTexture.active = Terrain.terrainData.heightmapTexture;
     Texture2D texture = new Texture2D(RenderTexture.active.width, RenderTexture.active.height);
     texture.ReadPixels(new Rect(0, 0, RenderTexture.active.width, RenderTexture.active.height),
-        0,
-        0);
+      0,
+      0);
     RenderTexture.active = null;
 
     float[] curData = texture.GetPixels(0, 0, texture.width, texture.height)
@@ -139,6 +139,7 @@ public class MjHeightFieldShape : IMjShape {
 
   public void CountdownUpdateCondition() {
     if (_updateCountdown < 1) return;
+
     _updateCountdown -= 1;
   }
 
@@ -147,8 +148,10 @@ public class MjHeightFieldShape : IMjShape {
     // limit is at 1, we can update on every frame and don't need a countdown.
     if (_updateCountdown > 1) return;
     if (!Application.isPlaying || !MjScene.InstanceExists) return;
+
     if (ExportImage) {
-      // If we export an image, it needs to be read by the compiler so we might as well rebuild the scene.
+      // If we export an image, it needs to be read by the compiler so we might as well rebuild
+      // the scene.
       MjScene.Instance.SceneRecreationAtLateUpdateRequested = true;
     } else {
       UpdateHeightFieldData();
@@ -173,8 +176,8 @@ public class MjHeightFieldShape : IMjShape {
     newTerrain.terrainData.size = new Vector3(100, 1, 100);
 
     var transform = GameObject
-      .FindObjectsByType<MjGeom>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-      .First(g => g.HField == this).transform;
+        .FindObjectsByType<MjGeom>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+        .First(g => g.HField == this).transform;
 
     terrainObject.transform.parent = transform;
     newTerrain.materialTemplate = new Material(Shader.Find("Nature/Terrain/Diffuse"));
