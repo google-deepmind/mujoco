@@ -544,11 +544,15 @@ BM_transposeSparse_old(benchmark::State& state) {
 BENCHMARK(BM_transposeSparse_old);
 
 static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
-  static mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
-  mjData* d = mj_makeData(m);
+  static mjModel* m =
+      LoadModelFromPath("../test/benchmark/testdata/2humanoid100.xml");
 
-  // force use of sparse matrices
+  // force use of sparse matrices, Newton solver, no islands
   m->opt.jacobian = mjJAC_SPARSE;
+  m->opt.solver = mjSOL_NEWTON;
+  m->opt.enableflags &= ~mjENBL_ISLAND;
+
+  mjData* d = mj_makeData(m);
 
   // warm-up rollout to get a typical state
   while (d->time < 2) {
@@ -575,10 +579,13 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
 
   // time benchmark
   if (func) {
-    for (auto s : state) {
-      mju_sqrMatTDUncompressedInit(rowadr, m->nv);
+    mju_sqrMatTDSparseCount(rownnz, rowadr, m->nv,
+      d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+      d->efc_JT_rownnz, d->efc_JT_rowadr,
+      d->efc_JT_colind, nullptr, d, 1);
 
-      // compute H = J'*D*J, uncompressed layout
+    for (auto s : state) {
+      // compute H = J'*D*J, compressed layout
       func(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
          d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
          d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
