@@ -311,9 +311,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
             {"edge", "?", "5", "equality", "solref", "solimp", "stiffness", "damping"},
             {"elasticity", "?", "4", "young", "poisson", "damping", "thickness"},
-            {"contact", "?", "13", "contype", "conaffinity", "condim", "priority",
+            {"contact", "?", "14", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers"},
+                "internal", "selfcollide", "activelayers", "vertcollide"},
             {"pin", "*", "4", "id", "range", "grid", "gridrange"},
             {"plugin", "*", "2", "plugin", "instance"},
             {"<"},
@@ -327,9 +327,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"flex", "*", "13", "name", "group", "dim", "radius", "material",
             "rgba", "flatskin", "body", "vertex", "element", "texcoord", "elemtexcoord", "node"},
         {"<"},
-            {"contact", "?", "13", "contype", "conaffinity", "condim", "priority",
+            {"contact", "?", "14", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers"},
+                "internal", "selfcollide", "activelayers", "vertcollide"},
             {"edge", "?", "2", "stiffness", "damping"},
             {"elasticity", "?", "4", "young", "poisson", "damping", "thickness"},
         {">"},
@@ -1380,6 +1380,9 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
       flex->internal = (n == 1);
     }
     MapValue(cont, "selfcollide", &flex->selfcollide, flexself_map, 5);
+    if (MapValue(cont, "vertcollide", &flex->vertcollide, bool_map, 2)) {
+      flex->vertcollide = (n == 1);
+    }
     ReadAttrInt(cont, "activelayers", &flex->activelayers);
   }
 
@@ -2682,6 +2685,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
       dflex.internal = (n == 1);
     }
     MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
+    if (MapValue(cont, "vertcollide", &n, bool_map, 2)) {
+      dflex.vertcollide = (n == 1);
+    }
     ReadAttrInt(cont, "activelayers", &dflex.activelayers);
   }
 

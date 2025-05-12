@@ -10722,7 +10722,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='selfcollide',
                  type=ValueType(name='int'),
-                 doc='mode for flex self colllision',
+                 doc='mode for flex self collision',
+             ),
+             StructFieldDecl(
+                 name='vertcollide',
+                 type=ValueType(name='int'),
+                 doc='mode for vertex collision',
              ),
              StructFieldDecl(
                  name='activelayers',

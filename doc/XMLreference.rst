@@ -3554,6 +3554,7 @@ saving the XML:
 
 .. _flexcomp-contact-internal:
 .. _flexcomp-contact-selfcollide:
+.. _flexcomp-contact-vertcollide:
 .. _flexcomp-contact-activelayers:
 .. _flexcomp-contact-contype:
 .. _flexcomp-contact-conaffinity:
@@ -3567,8 +3568,8 @@ saving the XML:
 .. _flexcomp-contact-gap:
 
 .. |body/flexcomp/contact attrib list| replace::
-   :at:`internal`, :at:`selfcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`, :at:`condim`,
-   :at:`priority`, :at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
+   :at:`internal`, :at:`selfcollide`, :at:`vertcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`,
+   :at:`condim`, :at:`priority`, :at:`friction`, :at:`solmix`, :at:`solimp`, :at:`margin`, :at:`gap`
 
 |body/flexcomp/contact attrib list|
    Same as in :ref:`flex/contact<flex-contact>`. All attributes are passed through to the automatically-generated flex.
@@ -4085,6 +4086,13 @@ extensions specific to flexes.
    hierarchies and sweep-and-prune (which are two different strategies for midphase collision pruning). **auto** selects
    **sap** in 1D and 2D, and **bvh** in 3D. Which strategy performs better depends on the specifics of the model. The
    automatic setting is just a simple rule which we have found to perform well in general.
+
+.. _flex-contact-vertcollide:
+
+:at:`vertcollide`: :at-val:`[true, false], "false"`
+   Enables or disables vertex collisions. if **true**, spherical geoms are added at the vertices of flex, with radius
+   equal to the radius of the flex. These geoms can collide with other geoms and are not visible by default. If
+   **false**, no additional geoms are added.
 
 .. _flex-contact-activelayers:
 
