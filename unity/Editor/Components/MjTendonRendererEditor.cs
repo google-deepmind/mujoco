@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using System.Collections.Generic;
-using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using static UnityEngine.GraphicsBuffer;
 
 namespace Mujoco {
 
@@ -30,6 +27,10 @@ public class MjTendonRendererEditor : Editor {
 
     if (GUILayout.Button("Add Line Renderers")) {
       ConfigureLineRenderers(mjTendonRenderer);
+    }
+    EditorGUILayout.Space(5);
+    if (GUILayout.Button("Update Rendered Line Positions")) {
+      UpdateRenderedTendons(mjTendonRenderer);
     }
     EditorGUILayout.Space(10);
   }
@@ -52,26 +53,29 @@ public class MjTendonRendererEditor : Editor {
         }
         Undo.RecordObject(lr, "Configure Existing Line Renderer");
         ApplySettings(lr, tendon, mjTendonRenderer.LineRendererDefaults);
-        EditorUtility.SetDirty(lr);
       } else {
         lr = Undo.AddComponent<LineRenderer>(tendon.gameObject);
         ApplySettings(lr, tendon, mjTendonRenderer.LineRendererDefaults);
       }
     }
+    UpdateRenderedTendons(mjTendonRenderer);
+    Undo.CollapseUndoOperations(group);
+  }
+
+  private unsafe void UpdateRenderedTendons(MjTendonRenderer mjTendonRenderer) {
+    Undo.IncrementCurrentGroup();
+    Undo.SetCurrentGroupName("Update Rendered Tendons");
+    var group = Undo.GetCurrentGroup();
     MjScene.Instance.CreateScene();
     var model = MjScene.Instance.Model;
     var data = MjScene.Instance.Data;
     MujocoLib.mj_forward(model, data);
-    var lineRenderers = mjTendonRenderer.SpatialTendons
-        .Where(st => st.GetComponent<LineRenderer>())
-        .Select(st => st.GetComponent<LineRenderer>())
-        .ToArray();
-    var renderedTendons = lineRenderers
-        .Select(lr => (lr.GetComponent<MjSpatialTendon>(), lr))
-        .ToArray();
+    var renderedTendons = mjTendonRenderer.RenderedTendons;
+    foreach ((var _, LineRenderer lr) in renderedTendons) {
+      Undo.RecordObject(lr, "Update Tendon's Line Renderer");
+    }
     mjTendonRenderer.UpdateTendons(this, new MjStepArgs(model, data), renderedTendons);
     DestroyImmediate(MjScene.Instance.gameObject);
-
     Undo.CollapseUndoOperations(group);
   }
 

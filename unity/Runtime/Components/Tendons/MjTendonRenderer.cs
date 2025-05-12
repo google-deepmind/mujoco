@@ -32,19 +32,22 @@ public class MjTendonRenderer : MonoBehaviour {
   [SerializeField]
   public TendonRenderingDefaults LineRendererDefaults;
 
+  public (MjSpatialTendon, LineRenderer)[] RenderedTendons {
+    get {
+      return SpatialTendons
+          .Where(st => st.GetComponent<LineRenderer>())
+          .Select(st => st.GetComponent<LineRenderer>())
+          .Select(lr => (lr.GetComponent<MjSpatialTendon>(), lr))
+          .ToArray();
+    }
+  }
+
   void Reset() {
     SpatialTendons = GetComponentsInChildren<MjSpatialTendon>();
   }
 
   void Start() {
-
-    LineRenderer[] lineRenderers = SpatialTendons
-        .Where(st => st.GetComponent<LineRenderer>())
-        .Select(st => st.GetComponent<LineRenderer>())
-        .ToArray();
-    _renderedTendons = lineRenderers
-        .Select(lr => (lr.GetComponent<MjSpatialTendon>(), lr))
-        .ToArray();
+    _renderedTendons = RenderedTendons;
     MjScene.Instance.postUpdateEvent +=
         (sender, args) => UpdateTendons(sender, args, _renderedTendons);
   }
