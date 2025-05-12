@@ -84,7 +84,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
     case mjJNT_BALL:
       {
-        // convert quatertion difference into angular "velocity"
+        // convert quaternion difference into angular "velocity"
         mjtNum dif[3], quat[4];
         mju_copy4(quat, d->qpos+padr);
         mju_normalize4(quat);

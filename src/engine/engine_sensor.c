@@ -938,9 +938,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
       switch ((mjtJoint) m->jnt_type[i]) {
       case mjJNT_FREE:
-        mju_copy4(quat, d->qpos+padr);
-        mju_normalize4(quat);
-        mju_sub3(dif, quat, m->qpos_spring+padr);
+        mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
         d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
 
         // continue with rotations
