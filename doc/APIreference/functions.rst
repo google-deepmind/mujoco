@@ -459,7 +459,7 @@ Multiply vector by (inertia matrix)^(1/2).
 .. mujoco-include:: mj_addM
 
 Add inertia matrix to destination matrix.
-Destination can be sparse uncompressed, or dense when all int* are NULL
+Destination can be sparse or dense when all int* are NULL.
 
 .. _mj_applyFT:
 

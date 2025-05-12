@@ -2900,7 +2900,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Add inertia matrix to destination matrix. Destination can be sparse uncompressed, or dense when all int* are NULL',  # pylint: disable=line-too-long
+         doc='Add inertia matrix to destination matrix. Destination can be sparse or dense when all int* are NULL.',  # pylint: disable=line-too-long
      )),
     ('mj_applyFT',
      FunctionDecl(

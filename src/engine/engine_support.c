@@ -1062,7 +1062,7 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 
 
 // add inertia matrix to destination matrix
-//  destination can be sparse uncompressed, or dense when all int* are NULL
+//  destination can be sparse or dense when all int* are NULL
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
   // sparse
