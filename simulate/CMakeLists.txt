@@ -110,6 +110,7 @@ target_sources(
 target_compile_options(platform_ui_adapter PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
 if(APPLE)
   target_sources(platform_ui_adapter PUBLIC glfw_corevideo.h PRIVATE glfw_corevideo.mm)
+  set_source_files_properties(glfw_corevideo.mm PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
   target_link_libraries(platform_ui_adapter PUBLIC "-framework CoreVideo")
 endif()
 target_include_directories(
