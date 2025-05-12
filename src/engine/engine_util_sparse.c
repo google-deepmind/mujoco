@@ -186,6 +186,41 @@ void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int
 }
 
 
+// add sparse matrix M to sparse destination matrix, requires pre-allocated buffers
+void mju_addToMatSparse(mjtNum* dst, int* rownnz, int* rowadr, int* colind, int nr,
+                        const mjtNum* M, const int* M_rownnz, const int* M_rowadr,
+                        const int* M_colind,
+                        mjtNum* buf_val, int* buf_ind) {
+  for (int i=0; i < nr; i++) {
+    rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], 1, 1,
+                                  rownnz[i], M_rownnz[i], colind + rowadr[i],
+                                  M_colind + M_rowadr[i], buf_val, buf_ind);
+  }
+}
+
+
+// add symmetric matrix (lower triangle) to dense matrix, upper triangle optional
+void mju_addToSymSparse(mjtNum* res, const mjtNum* mat, int n,
+                        const int* rownnz, const int* rowadr, const int* colind, int flg_upper) {
+  for (int i=0; i < n; i++) {
+    int start = rowadr[i];
+    int end = start + rownnz[i];
+    for (int adr=start; adr < end; adr++) {
+      mjtNum val = mat[adr];
+      int j = colind[adr];
+
+      // lower + diagonal
+      res[i*n + j] += val;
+
+      // strict upper
+      if (flg_upper && j < i) {
+        res[j*n + i] += val;
+      }
+    }
+  }
+}
+
+
 
 // multiply symmetric matrix (only lower triangle represented) by vector:
 //  res = (mat + strict_upper(mat')) * vec
@@ -214,7 +249,7 @@ void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
 
     // off-diagonals
     const int* ind = colind + adr;
-    for (int k=0; k < diag; k++) {
+    for (int k=diag-1; k >= 0; k--) {
       int j = ind[k];
       mjtNum val = row[k];
       res[i] += val * vec[j]; // strict lower

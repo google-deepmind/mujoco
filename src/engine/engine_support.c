@@ -1089,20 +1089,18 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
 
 // add inertia matrix to sparse destination matrix
 void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                   int* rownnz, int* rowadr, int* colind, mjtNum* M,
-                   int* M_rownnz, int* M_rowadr, int* M_colind) {
+                   int* rownnz, int* rowadr, int* colind, const mjtNum* M,
+                   const int* M_rownnz, const int* M_rowadr, const int* M_colind) {
   int nv = m->nv;
 
   mj_markStack(d);
+  mjtNum* buf_val = mjSTACKALLOC(d, nv, mjtNum);
   int* buf_ind = mjSTACKALLOC(d, nv, int);
-  mjtNum* sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
 
-  // add to destination
-  for (int i=0; i < nv; i++) {
-    rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], 1, 1,
-                                  rownnz[i], M_rownnz[i], colind + rowadr[i],
-                                  M_colind + M_rowadr[i], sparse_buf, buf_ind);
-  }
+  mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
+                     M, M_rownnz, M_rowadr, M_colind,
+                     buf_val, buf_ind);
+
   mj_freeStack(d);
 }
 

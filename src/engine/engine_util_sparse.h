@@ -50,6 +50,17 @@ MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec
 MJAPI void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
                                 const int* rownnz, const int* rowadr, const int* colind);
 
+// add sparse matrix M to sparse destination matrix, requires pre-allocated buffers
+MJAPI void mju_addToMatSparse(mjtNum* dst, int* rownnz, int* rowadr, int* colind, int nr,
+                              const mjtNum* M, const int* M_rownnz, const int* M_rowadr,
+                              const int* M_colind,
+                              mjtNum* buf_val, int* buf_ind);
+
+// add symmetric matrix (only lower triangle represented) to dense matrix
+MJAPI void mju_addToSymSparse(mjtNum* res, const mjtNum* mat, int n,
+                              const int* rownnz, const int* rowadr, const int* colind,
+                              int flg_upper);
+
 // multiply symmetric matrix (only lower triangle represented) by vector:
 //  res = (mat + strict_upper(mat')) * vec
 MJAPI void mju_mulSymVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,

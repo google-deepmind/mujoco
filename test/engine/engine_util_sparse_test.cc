@@ -1036,6 +1036,40 @@ TEST_F(EngineUtilSparseTest, MjuMulMatTVec) {
   EXPECT_THAT(AsVector(res, 3), ElementsAre(5, 28, 24));
 }
 
+TEST_F(EngineUtilSparseTest, MjuAddToSymSparse) {
+  //     1 2 4
+  // M = 2 3 0
+  //     4 0 5
+
+  // only lower triangle represented
+  mjtNum mat[] = {1, 2, 3, 4, 5};
+  int colind[] = {0, 0, 1, 0, 2};
+  int rownnz[] = {1, 2, 2};
+  int rowadr[] = {0, 1, 3};
+
+  //     0 0 0
+  // A = 5 4 2
+  //     4 3 2
+  mjtNum A[] = {0, 0, 0,
+                5, 4, 2,
+                4, 3, 2};
+
+  mju_addToSymSparse(A, mat, 3, rownnz, rowadr, colind, /*flg_upper=*/1);
+  EXPECT_THAT(AsVector(A, 9), ElementsAre(1, 2, 4,
+                                          7, 7, 2,
+                                          8, 3, 7));
+
+  // same as A
+  mjtNum B[] = {0, 0, 0,
+                5, 4, 2,
+                4, 3, 2};
+
+  mju_addToSymSparse(B, mat, 3, rownnz, rowadr, colind, /*flg_upper=*/0);
+  EXPECT_THAT(AsVector(B, 9), ElementsAre(1, 0, 0,
+                                          7, 7, 2,
+                                          8, 3, 7));
+}
+
 TEST_F(EngineUtilSparseTest, MjuMulSymVecSparse) {
   constexpr int n = 4;
   constexpr int nnz = 9;
