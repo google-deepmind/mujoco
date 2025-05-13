@@ -270,6 +270,7 @@ struct mjData_ {
   // computed by mj_fwdPosition/mj_crb
   mjtNum* crb;               // com-based composite inertia and mass             (nbody x 10)
   mjtNum* qM;                // total inertia (sparse)                           (nM x 1)
+  mjtNum* M;                 // total inertia (compressed sparse row)            (nC x 1)
 
   // computed by mj_fwdPosition/mj_factorM
   mjtNum* qLD;               // L'*D*L factorization of M (sparse)               (nC x 1)

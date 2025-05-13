@@ -5393,6 +5393,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nM',),
              ),
              StructFieldDecl(
+                 name='M',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='total inertia (compressed sparse row)',
+                 array_extent=('nC',),
+             ),
+             StructFieldDecl(
                  name='qLD',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),

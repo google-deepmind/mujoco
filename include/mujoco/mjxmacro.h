@@ -653,6 +653,7 @@
     X   ( mjtNum,    actuator_moment,   nJmom,       1           ) \
     X   ( mjtNum,    crb,               nbody,       10          ) \
     X   ( mjtNum,    qM,                nM,          1           ) \
+    X   ( mjtNum,    M,                 nC,          1           ) \
     X   ( mjtNum,    qLD,               nC,          1           ) \
     X   ( mjtNum,    qLDiagInv,         nv,          1           ) \
     XMJV( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \

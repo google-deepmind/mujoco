@@ -970,6 +970,7 @@ class DataC(PyTreeNode):
   actuator_moment: jax.Array
   crb: jax.Array
   qM: jax.Array  # pylint:disable=invalid-name
+  M: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
   bvh_aabb_dyn: jax.Array
@@ -1037,6 +1038,7 @@ class DataJAX(PyTreeNode):
   actuator_moment: jax.Array
   crb: jax.Array
   qM: jax.Array  # pylint:disable=invalid-name
+  M: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
   ten_velocity: jax.Array
