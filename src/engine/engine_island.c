@@ -536,12 +536,12 @@ void mj_island(const mjModel* m, mjData* d) {
   }
 
   // local CSR copy of qM
-  mjtNum* qM = mjSTACKALLOC(d, m->nM, mjtNum);
-  mju_gather(qM, d->qM, d->mapM2M, m->nM);
+  mjtNum* qM = mjSTACKALLOC(d, m->nC, mjtNum);
+  mju_gather(qM, d->qM, d->mapM2C, m->nC);
 
   // inertia: block-diagonalize both iLD <- qLD and iM <- qM
   mju_blockDiagSparse(d->iLD, d->iM_rownnz, d->iM_rowadr, d->iM_colind,
-                      d->qLD,  d->M_rownnz, d->M_rowadr, d->M_colind,
+                      d->qLD,  d->C_rownnz, d->C_rowadr, d->C_colind,
                       nidof, nisland,
                       d->map_idof2dof, d->map_dof2idof,
                       d->island_idofadr, d->island_idofadr,

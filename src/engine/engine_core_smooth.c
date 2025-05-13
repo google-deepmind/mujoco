@@ -1653,9 +1653,8 @@ void mj_factorM(const mjModel* m, mjData* d) {
   TM_START;
 
   // gather LD <- M (legacy to CSR) and factorize in-place
-  mju_gather(d->qLD, d->qM, d->mapM2M, m->nM);
-  mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
-
+  mju_gather(d->qLD, d->qM, d->mapM2C, m->nC);
+  mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
   TM_ADD(mjTIMER_POS_INERTIA);
 }
 
@@ -1897,7 +1896,7 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
     mju_copy(x, y, n*m->nv);
   }
   mj_solveLD(x, d->qLD, d->qLDiagInv, m->nv, n,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 }
 
 
@@ -1908,9 +1907,9 @@ void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
   int nv = m->nv;
 
   // local copies of key variables
-  const int* rownnz = d->M_rownnz;
-  const int* rowadr = d->M_rowadr;
-  const int* colind = d->M_colind;
+  const int* rownnz = d->C_rownnz;
+  const int* rowadr = d->C_rowadr;
+  const int* colind = d->C_colind;
   const int* diagnum = m->dof_simplenum;
   const mjtNum* qLD = d->qLD;
 

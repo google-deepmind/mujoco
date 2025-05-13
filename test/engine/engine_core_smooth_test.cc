@@ -649,7 +649,7 @@ TEST_F(CoreSmoothTest, FactorI) {
   int nv = model->nv;
   vector<mjtNum> Ldense(nv*nv, 0);
   mju_sparse2dense(Ldense.data(), data->qLD, nv, nv,
-                   data->M_rownnz, data->M_rowadr, data->M_colind);
+                   data->C_rownnz, data->C_rowadr, data->C_colind);
   for (int i=0; i < nv; i++) {
     // set diagonal to 1
     Ldense[i*nv+i] = 1;
@@ -658,7 +658,7 @@ TEST_F(CoreSmoothTest, FactorI) {
   // dense D matrix
   vector<mjtNum> Ddense(nv*nv);
   mju_sparse2dense(Ddense.data(), data->qLD, nv, nv,
-                   data->M_rownnz, data->M_rowadr, data->M_colind);
+                   data->C_rownnz, data->C_rowadr, data->C_colind);
   for (int i=0; i < nv; i++) {
     for (int j=0; j < nv; j++) {
       // zero everything except the diagonal
@@ -694,15 +694,16 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   int nv = m->nv;
   int nM = m->nM;
+  int nC = m->nC;
 
-  // scatter M into LD: Legacy format
-  vector<mjtNum> LDlegacy(nM);
-  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, nM);
+  // copy M into LD: Legacy format
+  vector<mjtNum> LDlegacy(nM, 0);
+  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2C, nC);
 
   // compare LD and LDs densified matrices
   vector<mjtNum> LDdense(nv*nv);
   mju_sparse2dense(LDdense.data(), d->qLD, nv, nv,
-                   d->M_rownnz, d->M_rowadr, d->M_colind);
+                   d->C_rownnz, d->C_rowadr, d->C_colind);
   vector<mjtNum> LDdense2(nv*nv);
   mj_fullM(m, LDdense2.data(), LDlegacy.data());
 
@@ -721,7 +722,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   mj_solveLD_legacy(m, vec.data(), 1, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, 1,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
@@ -742,11 +743,10 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
   mj_forward(m, d);
 
   int nv = m->nv;
-  int nM = m->nM;
 
-  // scatter LD into LDlegacy: Legacy format
-  vector<mjtNum> LDlegacy(nM);
-  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, nM);
+  // copy LD into LDlegacy: Legacy format
+  vector<mjtNum> LDlegacy(m->nM, 0);
+  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2C, m->nC);
 
   // compare n LD and LDs vector solve
   int n = 3;
@@ -757,7 +757,7 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   mj_solveLD_legacy(m, vec.data(), n, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv*n; i++) {
@@ -781,7 +781,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
   int nv = m->nv;
   vector<mjtNum> sqrtInvD(nv);
   for (int i=0; i < nv; i++) {
-    int diag = d->M_rowadr[i] + d->M_rownnz[i] - 1;
+    int diag = d->C_rowadr[i] + d->C_rownnz[i] - 1;
     sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
   }
 
@@ -795,7 +795,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
 
   mj_solveM2(m, d, res.data(), vec.data(), sqrtInvD.data(), n);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect equality of dot(v, M^-1 * v) and dot(M^-1/2 * v, M^-1/2 * v)
   for (int i=0; i < n; i++) {
@@ -816,27 +816,25 @@ TEST_F(CoreSmoothTest, FactorIs) {
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  int nM = m->nM, nv = m->nv;
+  int nC = m->nC, nM = m->nM, nv = m->nv;
 
   // copy qM into into qLDlegacy and factorize
   vector<mjtNum> qLDlegacy(nM);
   mj_factorI_legacy(m, d, d->qM, qLDlegacy.data(), d->qLDiagInv);
 
   // copy qLDlegacy into qLDexpected: CSR format
-  vector<mjtNum> qLDexpected(nM);
-  for (int i=0; i < nM; i++) {
-    qLDexpected[i] = qLDlegacy[d->mapM2M[i]];
-  }
+  vector<mjtNum> qLDexpected(nC);
+  mju_gather(qLDexpected.data(), qLDlegacy.data(), d->mapM2C, nC);
 
-  // gather qM into qLD: CSR format
-  vector<mjtNum> qLD(nM);
-  mju_gather(qLD.data(), d->qM, d->mapM2M, nM);
+  // copy qM into qLD: CSR format
+  vector<mjtNum> qLD(nC);
+  mju_gather(qLD.data(), d->qM, d->mapM2C, nC);
 
   vector<mjtNum> qLDiagInvExpected(d->qLDiagInv, d->qLDiagInv + nv);
   vector<mjtNum> qLDiagInv(nv, 0);
 
   mj_factorI(qLD.data(), qLDiagInv.data(), nv,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
 
   // expect outputs to match to floating point precision
   EXPECT_THAT(qLD, Pointwise(DoubleNear(1e-12), qLDexpected));
@@ -846,12 +844,12 @@ TEST_F(CoreSmoothTest, FactorIs) {
   vector<mjtNum> LDdense(nv*nv);
 
   mju_sparse2dense(LDdense.data(), qLDexpected.data(), nv, nv,
-                   d->M_rownnz, d->M_rowadr, d->M_colind);
-  PrintMatrix(LDdense.data(), nv, nv, 2, "qLDexpected");
+                   d->C_rownnz, d->C_rowadr, d->C_colind);
+  PrintMatrix(LDdense.data(), nv, nv, 2);
 
-  mju_sparse2dense(LDdense.data(), qLD.data(), nv, nv,
-                   d->M_rownnz, d->M_rowadr, d->M_colind);
-  PrintMatrix(LDdense.data(), nv, nv, 2, "qLD");
+  mju_sparse2dense(LDdense.data(), qLDs.data(), nv, nv,
+                   d->C_rownnz, d->C_rowadr, d->C_colind);
+  PrintMatrix(LDdense.data(), nv, nv, 2);
   */
 
   mj_deleteData(d);

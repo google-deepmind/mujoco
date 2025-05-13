@@ -881,10 +881,10 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
     ctx->qacc             = d->qacc;
 
     // inertia
-    ctx->M_rownnz         = d->M_rownnz;
-    ctx->M_rowadr         = d->M_rowadr;
+    ctx->M_rownnz         = d->C_rownnz;
+    ctx->M_rowadr         = d->C_rowadr;
     ctx->M_diagnum        = m->dof_simplenum;
-    ctx->M_colind         = d->M_colind;
+    ctx->M_colind         = d->C_colind;
     ctx->dof_Madr         = m->dof_Madr;
     ctx->dof_parentid     = m->dof_parentid;
     ctx->qM               = d->qM;
