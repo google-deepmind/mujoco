@@ -471,7 +471,7 @@ class DataIOTest(parameterized.TestCase):
 
     if backend_impl == 'c':
       # check fields specific to the C implementation
-      np.testing.assert_allclose(d_2.M_rownnz, d.M_rownnz)
+      np.testing.assert_allclose(d_2.bvh_active, d.bvh_active)
 
   def test_get_data_runs(self):
     xml = """
