@@ -429,4 +429,4 @@ def collision(m: Model, d: Data) -> Data:
   contacts = sum([condim_groups[k] for k in sorted(condim_groups)], [])
   contact = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *contacts)
 
-  return d.replace(_impl=d._impl.replace(contact=contact))  # pytype: disable=attribute-error
+  return d.tree_replace({'_impl.contact': contact})
