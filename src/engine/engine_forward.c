@@ -861,7 +861,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   else {
     if (!skipfactor) {
       // qH = M + h*diag(B)
-      mju_gather(d->qH, d->qM, d->mapM2C, nC);
+      mju_copy(d->qH, d->M, nC);
       for (int i=0; i < nv; i++) {
         d->qH[d->C_rowadr[i] + d->C_rownnz[i] - 1] += m->opt.timestep * m->dof_damping[i];
       }

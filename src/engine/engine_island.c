@@ -535,17 +535,13 @@ void mj_island(const mjModel* m, mjData* d) {
     d->island_dofadr[i] = d->map_idof2dof[d->island_idofadr[i]];
   }
 
-  // local CSR copy of qM
-  mjtNum* qM = mjSTACKALLOC(d, m->nC, mjtNum);
-  mju_gather(qM, d->qM, d->mapM2C, m->nC);
-
   // inertia: block-diagonalize both iLD <- qLD and iM <- qM
   mju_blockDiagSparse(d->iLD, d->iM_rownnz, d->iM_rowadr, d->iM_colind,
                       d->qLD,  d->C_rownnz, d->C_rowadr, d->C_colind,
                       nidof, nisland,
                       d->map_idof2dof, d->map_dof2idof,
                       d->island_idofadr, d->island_idofadr,
-                      d->iM, qM);
+                      d->iM, d->M);
   mju_gather(d->iLDiagInv, d->qLDiagInv, d->map_idof2dof, nidof);
 
   // compute iM_diagnum (dof_simplenum per island)

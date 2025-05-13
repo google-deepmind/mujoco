@@ -1123,9 +1123,9 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nu, d->moment_rownnz,
               d->moment_rowadr, d->moment_colind, fp, float_format);
   printArray("CRB", m->nbody, 10, d->crb, fp, float_format);
-
   printInertia("QM", d->qM, m, fp, float_format);
-
+  printSparse("M", d->M, m->nv, d->C_rownnz,
+              d->C_rowadr, d->C_colind, fp, float_format);
   printSparse("QLD", d->qLD, m->nv, d->C_rownnz,
               d->C_rowadr, d->C_colind, fp, float_format);
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);

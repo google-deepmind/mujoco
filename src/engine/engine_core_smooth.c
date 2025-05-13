@@ -1579,6 +1579,7 @@ void mj_makeM(const mjModel* m, mjData* d) {
   TM_START;
   mj_crb(m, d);
   mj_tendonArmature(m, d);
+  mju_gather(d->M, d->qM, d->mapM2C, m->nC);
   TM_END(mjTIMER_POS_INERTIA);
 }
 
@@ -1651,9 +1652,7 @@ void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 void mj_factorM(const mjModel* m, mjData* d) {
   TM_START;
-
-  // gather LD <- M (legacy to CSR) and factorize in-place
-  mju_gather(d->qLD, d->qM, d->mapM2C, m->nC);
+  mju_copy(d->qLD, d->M, m->nC);
   mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
   TM_ADD(mjTIMER_POS_INERTIA);
 }
