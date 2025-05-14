@@ -227,7 +227,6 @@ struct mjvGeom_ {                 // abstract geom
   // type info
   int      type;                  // geom type (mjtGeom)
   int      dataid;                // mesh, hfield or plane id; -1: none; mesh: (id * 2 or id 2 + 1 (convex hull))
-
   int      objtype;               // mujoco object type; mjOBJ_UNKNOWN for decor
   int      objid;                 // mujoco object id; -1 for decor
   int      category;              // visual category
