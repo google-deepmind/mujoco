@@ -135,14 +135,6 @@ MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
                    int* rownnz, int* rowadr, int* colind);
 
-// add inertia matrix to sparse destination matrix
-MJAPI void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                         int* rownnz, int* rowadr, int* colind, const mjtNum* M,
-                         const int* M_rownnz, const int* M_rowadr, const int* M_colind);
-
-// add inertia matrix to dense destination matrix
-MJAPI void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst);
-
 
 //-------------------------- perturbations ---------------------------------------------------------
 

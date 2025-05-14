@@ -1065,70 +1065,23 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 //  destination can be sparse or dense when all int* are NULL
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
+  int nv = m->nv;
   // sparse
   if (rownnz && rowadr && colind) {
-    int nC = m->nC;
     mj_markStack(d);
+    mjtNum* buf_val = mjSTACKALLOC(d, nv, mjtNum);
+    int* buf_ind = mjSTACKALLOC(d, nv, int);
 
-    // gather C <- qM (legacy to CSR)
-    mjtNum* C = mjSTACKALLOC(d, nC, mjtNum);
-    mju_gather(C, d->qM, d->mapM2M, nC);
+    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
+      d->M, d->M_rownnz, d->M_rowadr, d->M_colind,
+      buf_val, buf_ind);
 
-    // add to dst
-    mj_addMSparse(m, d, dst, rownnz, rowadr, colind, C, d->M_rownnz, d->M_rowadr, d->M_colind);
     mj_freeStack(d);
   }
 
   // dense
   else {
-    mj_addMDense(m, d, dst);
-  }
-}
-
-
-
-// add inertia matrix to sparse destination matrix
-void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                   int* rownnz, int* rowadr, int* colind, const mjtNum* M,
-                   const int* M_rownnz, const int* M_rowadr, const int* M_colind) {
-  int nv = m->nv;
-
-  mj_markStack(d);
-  mjtNum* buf_val = mjSTACKALLOC(d, nv, mjtNum);
-  int* buf_ind = mjSTACKALLOC(d, nv, int);
-
-  mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
-                     M, M_rownnz, M_rowadr, M_colind,
-                     buf_val, buf_ind);
-
-  mj_freeStack(d);
-}
-
-
-
-// add inertia matrix to dense destination matrix
-void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst) {
-  int nv = m->nv;
-
-  for (int i = 0; i < nv; i++) {
-    int adr = m->dof_Madr[i];
-    int j = i;
-    while (j >= 0) {
-      // add
-      dst[i*nv+j] += d->qM[adr];
-      if (j < i) {
-        dst[j*nv+i] += d->qM[adr];
-      }
-
-      // only diagonal if simplenum
-      if (m->dof_simplenum[i]) {
-        break;
-      }
-
-      // advance
-      j = m->dof_parentid[j];
-      adr++;
-    }
+    mju_addToSymSparse(dst, d->M, nv, d->M_rownnz, d->M_rowadr, d->M_colind, /*flg_upper=*/ 1);
   }
 }
 
