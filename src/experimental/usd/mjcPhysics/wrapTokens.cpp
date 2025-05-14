@@ -146,5 +146,5 @@ void wrapMjcPhysicsTokens() {
   _AddToken(cls, "rk4", MjcPhysicsTokens->rk4);
   _AddToken(cls, "sparse", MjcPhysicsTokens->sparse);
   _AddToken(cls, "MjcPhysicsSceneAPI", MjcPhysicsTokens->MjcPhysicsSceneAPI);
-  _AddToken(cls, "MjcSiteAPI", MjcPhysicsTokens->MjcSiteAPI);
+  _AddToken(cls, "MjcPhysicsSiteAPI", MjcPhysicsTokens->MjcPhysicsSiteAPI);
 }

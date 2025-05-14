@@ -510,7 +510,7 @@ class "MjcPhysicsSceneAPI"
     )
 }
 
-class "MjcSiteAPI"
+class "MjcPhysicsSiteAPI"
 (
     customData = {
         string className = "SiteAPI"

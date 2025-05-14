@@ -86,7 +86,7 @@ MjcPhysicsTokensType::MjcPhysicsTokensType()
       rk4("rk4", TfToken::Immortal),
       sparse("sparse", TfToken::Immortal),
       MjcPhysicsSceneAPI("MjcPhysicsSceneAPI", TfToken::Immortal),
-      MjcSiteAPI("MjcSiteAPI", TfToken::Immortal),
+      MjcPhysicsSiteAPI("MjcPhysicsSiteAPI", TfToken::Immortal),
       allTokens({auto_,
                  cg,
                  dense,
@@ -149,7 +149,7 @@ MjcPhysicsTokensType::MjcPhysicsTokensType()
                  rk4,
                  sparse,
                  MjcPhysicsSceneAPI,
-                 MjcSiteAPI}) {}
+                 MjcPhysicsSiteAPI}) {}
 
 TfStaticData<MjcPhysicsTokensType> MjcPhysicsTokens;
 

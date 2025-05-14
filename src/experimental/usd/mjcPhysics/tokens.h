@@ -313,10 +313,10 @@ struct MjcPhysicsTokensType {
   ///
   /// Schema identifer and family for MjcPhysicsSceneAPI
   const TfToken MjcPhysicsSceneAPI;
-  /// \brief "MjcSiteAPI"
+  /// \brief "MjcPhysicsSiteAPI"
   ///
   /// Schema identifer and family for MjcPhysicsSiteAPI
-  const TfToken MjcSiteAPI;
+  const TfToken MjcPhysicsSiteAPI;
   /// A vector of all of the tokens listed above.
   const std::vector<TfToken> allTokens;
 };

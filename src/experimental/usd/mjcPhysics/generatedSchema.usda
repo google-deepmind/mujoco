@@ -220,7 +220,7 @@ class "MjcPhysicsSceneAPI" (
     )
 }
 
-class "MjcSiteAPI" (
+class "MjcPhysicsSiteAPI" (
     doc = "API describing a Mujoco site."
 )
 {
