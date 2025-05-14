@@ -3158,6 +3158,13 @@ void mjCModel::CopyObjects(mjModel* m) {
     for (int k=0; k < pfl->nedge; k++) {
       m->flex_edge[2*(edge_adr+k)] = pfl->edge[k].first;
       m->flex_edge[2*(edge_adr+k)+1] = pfl->edge[k].second;
+      if (pfl->dim == 2) {
+        m->flex_edgeflap[2*(edge_adr+k)+0] = pfl->flaps[k].vertices[2];
+        m->flex_edgeflap[2*(edge_adr+k)+1] = pfl->flaps[k].vertices[3];
+      } else {
+        m->flex_edgeflap[2*(edge_adr+k)+0] = -1;
+        m->flex_edgeflap[2*(edge_adr+k)+1] = -1;
+      }
 
       if (pfl->rigid) {
         m->flexedge_rigid[edge_adr+k] = 1;

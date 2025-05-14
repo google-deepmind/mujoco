@@ -3018,6 +3018,63 @@ void inline ComputeStiffness(std::vector<double>& stiffness,
   MetricTensor<T>(stiffness.data(), t, mu, la, basis);
 }
 
+// local tetrahedron numbering
+constexpr int kNumEdges = Stencil2D::kNumEdges;
+constexpr int kNumVerts = Stencil2D::kNumVerts;
+constexpr int edge[kNumEdges][2] = {{1, 2}, {2, 0}, {0, 1}};
+
+// create map from triangles to vertices and edges and from edges to vertices
+static void CreateFlapStencil(std::vector<StencilFlap>& flaps,
+                              const std::vector<int>& simplex,
+                              const std::vector<int>& edgeidx) {
+  // populate stencil
+  int ne = 0;
+  int nt = simplex.size() / kNumVerts;
+  std::vector<Stencil2D> elements(nt);
+  for (int t = 0; t < nt; t++) {
+    for (int v = 0; v < kNumVerts; v++) {
+      elements[t].vertices[v] = simplex[kNumVerts * t + v];
+    }
+  }
+
+  // map from edge vertices to their index in `edges` vector
+  std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
+
+  // loop over all triangles
+  for (int t = 0; t < nt; t++) {
+    int* v = elements[t].vertices;
+
+    // compute edges to vertices map for fast computations
+    for (int e = 0; e < kNumEdges; e++) {
+      auto pair = std::pair(std::min(v[edge[e][0]], v[edge[e][1]]),
+                            std::max(v[edge[e][0]], v[edge[e][1]]));
+
+      // if edge is already present in the vector only store its index
+      auto [it, inserted] = edge_indices.insert({pair, ne});
+
+      if (inserted) {
+        StencilFlap flap;
+        flap.vertices[0] = v[edge[e][0]];
+        flap.vertices[1] = v[edge[e][1]];
+        flap.vertices[2] = v[(edge[e][1] + 1) % 3];
+        flap.vertices[3] = -1;
+        flaps.push_back(flap);
+        elements[t].edges[e] = ne++;
+      } else {
+        elements[t].edges[e] = it->second;
+        flaps[it->second].vertices[3] = v[(edge[e][1] + 1) % 3];
+      }
+
+      // double check that the edge indices are consistent
+      if (!edgeidx.empty()) {
+        if (elements[t].edges[e] != edgeidx[kNumEdges * t + e]) {
+          mju_error("edge indices do not match in CreateFlapStencil");
+        }
+      }
+    }
+  }
+}
+
 //----------------------------- linear elasticity --------------------------------------------------
 
 // Gauss Legendre quadrature points in 1 dimension on the interval [a, b]
@@ -3543,10 +3600,6 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // add plugins
-  std::string userface, useredge;
-  userface = VectorToString(elem_);
-  useredge = VectorToString(edgeidx_);
-
   for (const auto& vbodyid : vertbodyid) {
     if (vbodyid < 0) {
       continue;
@@ -3557,9 +3610,12 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       if (damping > 0) {
         plugin_instance->config_attribs["damping"] = std::to_string(damping);
       }
-      plugin_instance->config_attribs["face"] = userface;
-      plugin_instance->config_attribs["edge"] = useredge;
     }
+  }
+
+  // create flap stencil
+  if (dim == 2) {
+    CreateFlapStencil(flaps, elem_, edgeidx_);
   }
 
   // create shell fragments and element-vertex collision pairs

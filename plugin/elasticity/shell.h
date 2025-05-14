@@ -45,14 +45,9 @@ class Shell {
   static void RegisterPlugin();
 
   int i0;  // index of first body
+  int f0;  // index of corresponding flex
   int nc;  // number of quads in the grid
   int nv;  // number of vertices (bodies) in the Shell
-  int nt;  // number of area elements (triangles)
-  int ne;  // number of edges in the Shell
-
-  // connectivity info for mapping tetrahedra to edges and vertices
-  std::vector<Stencil2D> elements;          // triangles              (nt x 6)
-  std::vector<StencilFlap> flaps;           // adjacent triangles     (ne x 4)
 
   // precomputed quantities
   std::vector<mjtNum> position;             // previous-step positions (nv x 3)
@@ -62,11 +57,7 @@ class Shell {
 
  private:
   Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-        mjtNum thick, const std::vector<int>& face,
-        const std::vector<int>& edgeidx);
-
-  void CreateStencils(const std::vector<int>& simplex,
-                      const std::vector<int>& edgeidx);
+        mjtNum thick);
 };
 
 }  // namespace mujoco::plugin::elasticity

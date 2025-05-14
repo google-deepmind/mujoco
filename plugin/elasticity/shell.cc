@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <optional>
-#include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -34,9 +31,7 @@ namespace mujoco::plugin::elasticity {
 namespace {
 
 // local tetrahedron numbering
-constexpr int kNumEdges = Stencil2D::kNumEdges;
 constexpr int kNumVerts = Stencil2D::kNumVerts;
-constexpr int edge[kNumEdges][2] = {{1, 2}, {2, 0}, {0, 1}};
 
 // cotangent between two edges
 mjtNum cot(mjtNum* x, int v0, int v1, int v2) {
@@ -68,81 +63,26 @@ mjtNum ComputeVolume(const mjtNum* x, const int v[kNumVerts]) {
 
 // factory function
 std::optional<Shell> Shell::Create(const mjModel* m, mjData* d, int instance) {
-    if (CheckAttr("face", m, instance) &&
-        CheckAttr("edge", m, instance) &&
-        CheckAttr("poisson", m, instance) &&
+    if (CheckAttr("poisson", m, instance) &&
         CheckAttr("young", m, instance) &&
         CheckAttr("thickness", m, instance)) {
       mjtNum nu = strtod(mj_getPluginConfig(m, instance, "poisson"), nullptr);
       mjtNum E = strtod(mj_getPluginConfig(m, instance, "young"), nullptr);
       mjtNum thick =
           strtod(mj_getPluginConfig(m, instance, "thickness"), nullptr);
-      std::vector<int> face, edge;
-      String2Vector(mj_getPluginConfig(m, instance, "face"), face);
-      String2Vector(mj_getPluginConfig(m, instance, "edge"), edge);
-      return Shell(m, d, instance, nu, E, thick, face, edge);
+      return Shell(m, d, instance, nu, E, thick);
     } else {
       mju_warning("Invalid parameter specification in shell plugin");
       return std::nullopt;
     }
 }
 
-// create map from triangles to vertices and edges and from edges to vertices
-void Shell::CreateStencils(const std::vector<int>& simplex,
-                           const std::vector<int>& edgeidx) {
-  // populate stencil
-  nt = simplex.size() / kNumVerts;
-  elements.resize(nt);
-  for (int t = 0; t < nt; t++) {
-    for (int v = 0; v < kNumVerts; v++) {
-      elements[t].vertices[v] = simplex[kNumVerts*t+v];
-    }
-  }
-
-  // map from edge vertices to their index in `edges` vector
-  std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
-
-  // loop over all triangles
-  for (int t = 0; t < nt; t++) {
-    int* v = elements[t].vertices;
-
-    // compute edges to vertices map for fast computations
-    for (int e = 0; e < kNumEdges; e++) {
-      auto pair = std::pair(
-        std::min(v[edge[e][0]], v[edge[e][1]]),
-        std::max(v[edge[e][0]], v[edge[e][1]])
-      );
-
-      // if edge is already present in the vector only store its index
-      auto [it, inserted] = edge_indices.insert({pair, ne});
-
-      if (inserted) {
-        StencilFlap flap;
-        flap.vertices[0] = v[edge[e][0]];
-        flap.vertices[1] = v[edge[e][1]];
-        flap.vertices[2] = v[(edge[e][1]+1) % 3];
-        flap.vertices[3] = -1;
-        flaps.push_back(flap);
-        elements[t].edges[e] = ne++;
-      } else {
-        elements[t].edges[e] = it->second;
-        flaps[it->second].vertices[3] = v[(edge[e][1]+1) % 3];
-      }
-
-      if (!edgeidx.empty()) {
-        assert(elements[t].edges[e] == edgeidx[kNumEdges*t+e]);
-      }
-    }
-  }
-}
-
 // plugin constructor
 Shell::Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-             mjtNum thick, const std::vector<int>& face,
-             const std::vector<int>& edgeidx)
-    : thickness(thick) {
+             mjtNum thick)
+    : f0(-1), thickness(thick) {
   // count plugin bodies
-  nv = ne = 0;
+  nv = 0;
   for (int i = 1; i < m->nbody; i++) {
     if (m->body_plugin[i] == instance) {
       if (!nv++) {
@@ -151,15 +91,25 @@ Shell::Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
     }
   }
 
-  // generate triangles from the vertices
-  CreateStencils(face, edgeidx);
+  // count flexes
+  for (int i = 0; i < m->nflex; i++) {
+    for (int j = 0; j < m->flex_vertnum[i]; j++) {
+      if (m->flex_vertbodyid[m->flex_vertadr[i]+j] == i0) {
+        f0 = i;
+        nv = m->flex_vertnum[f0];
+        if (m->flex_dim[i] != 2) {  // SHOULD NOT OCCUR
+          mju_error("mujoco.elasticity.shell requires a 2D mesh");
+        }
+      }
+    }
+  }
 
   // material parameters
   mjtNum mu = E / (2*(1+nu));
 
   // loop over all triangles
-  for (int t = 0; t < nt; t++) {
-    int* v = elements[t].vertices;
+  for (int t = 0; t < m->flex_elemnum[f0]; t++) {
+    int* v = m->flex_elem + 3*(t+m->flex_elemadr[f0]);
     for (int i = 0; i < kNumVerts; i++) {
       if (m->body_plugin[i0+v[i]] != instance) {
         mju_error("This body does not have the requested plugin instance");
@@ -169,14 +119,16 @@ Shell::Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
 
   // allocate array
   position.assign(nv*3, 0);
-  bending.assign(ne*16, 0);
+  bending.assign(m->flex_edgenum[f0]*16, 0);
 
   // store previous positions
   mju_copy(position.data(), m->body_pos+3*i0, 3*nv);
 
   // assemble bending Hessian
-  for (int e = 0; e < ne; e++)  {
-    int* v = flaps[e].vertices;
+  for (int e = 0; e < m->flex_edgenum[f0]; e++)  {
+    int* edge = m->flex_edge + 2*(e+m->flex_edgeadr[f0]);
+    int* flap = m->flex_edgeflap + 2*(e+m->flex_edgeadr[f0]);
+    int v[4] = {edge[0], edge[1], flap[0], flap[1]};
     int vadj[3] = {v[1], v[0], v[3]};
 
     if (v[3]== -1) {
@@ -205,8 +157,10 @@ Shell::Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
 }
 
 void Shell::Compute(const mjModel* m, mjData* d, int instance) {
-  for (int e = 0; e < ne; e++) {
-    int* v = flaps[e].vertices;
+  for (int e = 0; e < m->flex_edgenum[f0]; e++) {
+    int* edge = m->flex_edge + 2*(e+m->flex_edgeadr[f0]);
+    int* flap = m->flex_edgeflap + 2*(e+m->flex_edgeadr[f0]);
+    int v[4] = {edge[0], edge[1], flap[0], flap[1]};
     mjtNum force[12] = {0};
     if (v[3] == -1) {
       // skip boundary edges
@@ -241,8 +195,7 @@ void Shell::RegisterPlugin() {
   plugin.name = "mujoco.elasticity.shell";
   plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
-  const char* attributes[] = {"face",    "edge",    "young",
-                              "poisson", "thickness", "damping"};
+  const char* attributes[] = {"young", "poisson", "thickness", "damping"};
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
   plugin.nstate = +[](const mjModel* m, int instance) { return 0; };

@@ -2620,6 +2620,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflexedge', 2),
              ),
              StructFieldDecl(
+                 name='flex_edgeflap',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='adjacent vertex ids (dim=2 only)',
+                 array_extent=('nflexedge', 2),
+             ),
+             StructFieldDecl(
                  name='flex_elem',
                  type=PointerType(
                      inner_type=ValueType(name='int'),

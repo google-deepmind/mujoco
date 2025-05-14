@@ -349,6 +349,7 @@
     XMJV( int,     flex_nodebodyid,       nflexnode,     1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
     X   ( int,     flex_edge,             nflexedge,     2                    ) \
+    X   ( int,     flex_edgeflap,         nflexedge,     2                    ) \
     XMJV( int,     flex_elem,             nflexelemdata, 1                    ) \
     XMJV( int,     flex_elemtexcoord,     nflexelemdata, 1                    ) \
     X   ( int,     flex_elemedge,         nflexelemedge, 1                    ) \

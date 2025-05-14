@@ -5480,6 +5480,7 @@ public unsafe struct mjModel_ {
   public int* flex_nodebodyid;
   public int* flex_vertbodyid;
   public int* flex_edge;
+  public int* flex_edgeflap;
   public int* flex_elem;
   public int* flex_elemtexcoord;
   public int* flex_elemedge;

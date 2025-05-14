@@ -83,8 +83,10 @@ TEST_F(ElasticityTest, ElasticEnergyShell) {
 
   // check that a plane is in the kernel of the energy
   for (mjtNum scale = 1; scale < 4; scale++) {
-    for (int e = 0; e < shell->ne; e++) {
-      int* v = shell->flaps[e].vertices;
+    for (int e = 0; e < m->flex_edgenum[0]; e++) {
+      int* edge = m->flex_edge + 2*(m->flex_edgeadr[0] + e);
+      int* flap = m->flex_edgeflap + 2*(m->flex_edgeadr[0] + e);
+      int v[4] = {edge[0], edge[1], flap[0], flap[1]};
       if (v[3]== -1) {
         continue;
       }
