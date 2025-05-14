@@ -723,16 +723,16 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
   // check if islands are supported
-  int islands_supported = mjENABLED(mjENBL_ISLAND)  &&
-                          nisland > 0               &&
-                          m->opt.solver == mjSOL_CG &&
-                          m->opt.noslip_iterations == 0;
+  int islands_supported = mjENABLED(mjENBL_ISLAND)      &&
+                          nisland > 0                   &&
+                          m->opt.noslip_iterations == 0 &&
+                          (m->opt.solver == mjSOL_CG || m->opt.solver == mjSOL_NEWTON);
 
   // run solver over constraint islands
   if (islands_supported) {
     int nidof = d->nidof;
 
-    // copy CG inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
+    // copy inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
     mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
     mju_gather(d->ifrc_constraint, d->qfrc_constraint, d->map_idof2dof, nidof);
     mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
@@ -741,14 +741,20 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
 
     // solve per island
-    if (!d->threadpool) {
-      // no threadpool, loop over islands
-      for (int island=0; island < nisland; island++) {
-        mj_solCG_island(m, d, island, m->opt.iterations);
+    if (m->opt.solver == mjSOL_CG) {
+      if (!d->threadpool) {
+        // no threadpool, loop over islands
+        for (int island=0; island < nisland; island++) {
+          mj_solCG_island(m, d, island, m->opt.iterations);
+        }
+      } else {
+        // have threadpool, solve using threads
+        mj_solCG_island_multithreaded(m, d);
       }
     } else {
-      // have threadpool, solve using threads
-      mj_solCG_island_multithreaded(m, d);
+      for (int island=0; island < nisland; island++) {
+        mj_solNewton_island(m, d, island, m->opt.iterations);
+      }
     }
 
     // copy back solver outputs (scatter dofs since ni <= nv)

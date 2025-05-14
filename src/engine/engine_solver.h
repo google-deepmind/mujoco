@@ -32,9 +32,13 @@ void mj_solCG(const mjModel* m, mjData* d, int maxiter);
 // Newton solver
 void mj_solNewton(const mjModel* m, mjData* d, int maxiter);
 
+
 //------------------------------ per-island solvers ------------------------------------------------
 
 // CG solver
 void mj_solCG_island(const mjModel* m, mjData* d, int island, int maxiter);
+
+// Newton entry point
+void mj_solNewton_island(const mjModel* m, mjData* d, int island, int maxiter);
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_SOLVER_H_

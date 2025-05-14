@@ -1058,7 +1058,6 @@ static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
   }
 
   // Newton: Mgrad = H \ grad
-  // TODO: b/295296178 - add island support to Newton solver
   if (flg_Newton) {
     if (ctx->is_sparse) {
       mju_cholSolveSparse(ctx->Mgrad, (ctx->ncone ? ctx->Lcone : ctx->L),
@@ -2041,4 +2040,11 @@ void mj_solCG_island(const mjModel* m, mjData* d, int island, int maxiter) {
 // Newton entry point
 void mj_solNewton(const mjModel* m, mjData* d, int maxiter) {
   mj_solCGNewton(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/1);
+}
+
+
+
+// Newton entry point (one island)
+void mj_solNewton_island(const mjModel* m, mjData* d, int island, int maxiter) {
+  mj_solCGNewton(m, d, island, maxiter, /*flg_Newton=*/1);
 }
