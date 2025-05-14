@@ -1579,7 +1579,7 @@ void mj_makeM(const mjModel* m, mjData* d) {
   TM_START;
   mj_crb(m, d);
   mj_tendonArmature(m, d);
-  mju_gather(d->M, d->qM, d->mapM2C, m->nC);
+  mju_gather(d->M, d->qM, d->mapM2M, m->nC);
   TM_END(mjTIMER_POS_INERTIA);
 }
 
@@ -1653,7 +1653,7 @@ void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD
 void mj_factorM(const mjModel* m, mjData* d) {
   TM_START;
   mju_copy(d->qLD, d->M, m->nC);
-  mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+  mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
   TM_ADD(mjTIMER_POS_INERTIA);
 }
 
@@ -1895,7 +1895,7 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
     mju_copy(x, y, n*m->nv);
   }
   mj_solveLD(x, d->qLD, d->qLDiagInv, m->nv, n,
-             d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
 }
 
 
@@ -1906,9 +1906,9 @@ void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
   int nv = m->nv;
 
   // local copies of key variables
-  const int* rownnz = d->C_rownnz;
-  const int* rowadr = d->C_rowadr;
-  const int* colind = d->C_colind;
+  const int* rownnz = d->M_rownnz;
+  const int* rowadr = d->M_rowadr;
+  const int* colind = d->M_colind;
   const int* diagnum = m->dof_simplenum;
   const mjtNum* qLD = d->qLD;
 

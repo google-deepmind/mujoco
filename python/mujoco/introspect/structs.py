@@ -5413,7 +5413,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='total inertia (sparse)',
+                 doc='inertia (sparse)',
                  array_extent=('nM',),
              ),
              StructFieldDecl(
@@ -5421,7 +5421,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='total inertia (compressed sparse row)',
+                 doc='reduced inertia (compressed sparse row)',
                  array_extent=('nC',),
              ),
              StructFieldDecl(
@@ -5601,35 +5601,35 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nB',),
              ),
              StructFieldDecl(
-                 name='C_rownnz',
+                 name='M_rownnz',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='reduced dof-dof: non-zeros in each row',
+                 doc='reduced inertia: non-zeros in each row',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
-                 name='C_rowadr',
+                 name='M_rowadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='reduced dof-dof: address of each row in C_colind',
+                 doc='reduced inertia: address of each row in M_colind',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
-                 name='C_colind',
+                 name='M_colind',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='reduced dof-dof: column indices of non-zeros',
+                 doc='reduced inertia: column indices of non-zeros',
                  array_extent=('nC',),
              ),
              StructFieldDecl(
-                 name='mapM2C',
+                 name='mapM2M',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='index mapping from M to C',
+                 doc='index mapping from qM to M',
                  array_extent=('nC',),
              ),
              StructFieldDecl(
@@ -5637,7 +5637,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof-dof: non-zeros in each row',
+                 doc='full inertia: non-zeros in each row',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -5645,7 +5645,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof-dof: address of each row in D_colind',
+                 doc='full inertia: address of each row in D_colind',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -5653,7 +5653,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof-dof: index of diagonal element',
+                 doc='full inertia: index of diagonal element',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -5661,7 +5661,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof-dof: column indices of non-zeros',
+                 doc='full inertia: column indices of non-zeros',
                  array_extent=('nD',),
              ),
              StructFieldDecl(
@@ -5669,7 +5669,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='index mapping from M to D',
+                 doc='index mapping from qM to D',
                  array_extent=('nD',),
              ),
              StructFieldDecl(
@@ -5677,7 +5677,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='index mapping from D to M',
+                 doc='index mapping from D to qM',
                  array_extent=('nM',),
              ),
              StructFieldDecl(

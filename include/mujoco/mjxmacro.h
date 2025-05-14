@@ -679,10 +679,10 @@
     X   ( int,       B_rownnz,          nbody,       1           ) \
     X   ( int,       B_rowadr,          nbody,       1           ) \
     X   ( int,       B_colind,          nB,          1           ) \
-    X   ( int,       C_rownnz,          nv,          1           ) \
-    X   ( int,       C_rowadr,          nv,          1           ) \
-    X   ( int,       C_colind,          nC,          1           ) \
-    X   ( int,       mapM2C,            nC,          1           ) \
+    X   ( int,       M_rownnz,          nv,          1           ) \
+    X   ( int,       M_rowadr,          nv,          1           ) \
+    X   ( int,       M_colind,          nC,          1           ) \
+    X   ( int,       mapM2M,            nC,          1           ) \
     X   ( int,       D_rownnz,          nv,          1           ) \
     X   ( int,       D_rowadr,          nv,          1           ) \
     X   ( int,       D_diag,            nv,          1           ) \

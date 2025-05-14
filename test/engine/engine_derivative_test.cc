@@ -436,7 +436,7 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
       Ac[nv*nv + i*nv + i] = -m->dof_damping[i];
     }
     mj_solveLD(Ac, d->qH, d->qHDiagInv, nv, 2*nv,
-               d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+               d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
 
     // A = [dt*Ac; Ac]
     mju_transpose(A, Ac, 2*nv, nv);
@@ -464,7 +464,7 @@ static void LinearSystem(const mjModel* m, mjData* d, mjtNum* A, mjtNum* B) {
     mju_sparse2dense(Bc, d->actuator_moment, nu, nv, d->moment_rownnz,
                      d->moment_rowadr, d->moment_colind);
     mj_solveLD(Bc, d->qH, d->qHDiagInv, nv, nu,
-               d->C_rownnz, d->C_rowadr, m->dof_simplenum, d->C_colind);
+               d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
     mju_transpose(BcT, Bc, nu, nv);
     mju_scl(B, BcT, dt*dt, nu*nv);
     mju_scl(B+nu*nv, BcT, dt, nu*nv);

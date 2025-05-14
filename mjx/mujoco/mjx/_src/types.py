@@ -985,10 +985,10 @@ class DataC(PyTreeNode):
   B_rownnz: jax.Array  # pylint:disable=invalid-name
   B_rowadr: jax.Array  # pylint:disable=invalid-name
   B_colind: jax.Array  # pylint:disable=invalid-name
-  C_rownnz: jax.Array  # pylint:disable=invalid-name
-  C_rowadr: jax.Array  # pylint:disable=invalid-name
-  C_colind: jax.Array  # pylint:disable=invalid-name
-  mapM2C: jax.Array  # pylint:disable=invalid-name
+  M_rownnz: jax.Array  # pylint:disable=invalid-name
+  M_rowadr: jax.Array  # pylint:disable=invalid-name
+  M_colind: jax.Array  # pylint:disable=invalid-name
+  mapM2M: jax.Array  # pylint:disable=invalid-name
   D_rownnz: jax.Array  # pylint:disable=invalid-name
   D_rowadr: jax.Array  # pylint:disable=invalid-name
   D_diag: jax.Array  # pylint:disable=invalid-name

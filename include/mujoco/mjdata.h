@@ -297,8 +297,8 @@ struct mjData_ {
 
   // computed by mj_fwdPosition/mj_crb
   mjtNum* crb;               // com-based composite inertia and mass             (nbody x 10)
-  mjtNum* qM;                // total inertia (sparse)                           (nM x 1)
-  mjtNum* M;                 // total inertia (compressed sparse row)            (nC x 1)
+  mjtNum* qM;                // inertia (sparse)                                 (nM x 1)
+  mjtNum* M;                 // reduced inertia (compressed sparse row)          (nC x 1)
 
   // computed by mj_fwdPosition/mj_factorM
   mjtNum* qLD;               // L'*D*L factorization of M (sparse)               (nC x 1)
@@ -341,16 +341,16 @@ struct mjData_ {
   int*    B_rownnz;          // body-dof: non-zeros in each row                  (nbody x 1)
   int*    B_rowadr;          // body-dof: address of each row in B_colind        (nbody x 1)
   int*    B_colind;          // body-dof: column indices of non-zeros            (nB x 1)
-  int*    C_rownnz;          // reduced dof-dof: non-zeros in each row           (nv x 1)
-  int*    C_rowadr;          // reduced dof-dof: address of each row in C_colind (nv x 1)
-  int*    C_colind;          // reduced dof-dof: column indices of non-zeros     (nC x 1)
-  int*    mapM2C;            // index mapping from M to C                        (nC x 1)
-  int*    D_rownnz;          // dof-dof: non-zeros in each row                   (nv x 1)
-  int*    D_rowadr;          // dof-dof: address of each row in D_colind         (nv x 1)
-  int*    D_diag;            // dof-dof: index of diagonal element               (nv x 1)
-  int*    D_colind;          // dof-dof: column indices of non-zeros             (nD x 1)
-  int*    mapM2D;            // index mapping from M to D                        (nD x 1)
-  int*    mapD2M;            // index mapping from D to M                        (nM x 1)
+  int*    M_rownnz;          // reduced inertia: non-zeros in each row           (nv x 1)
+  int*    M_rowadr;          // reduced inertia: address of each row in M_colind (nv x 1)
+  int*    M_colind;          // reduced inertia: column indices of non-zeros     (nC x 1)
+  int*    mapM2M;            // index mapping from qM to M                       (nC x 1)
+  int*    D_rownnz;          // full inertia: non-zeros in each row              (nv x 1)
+  int*    D_rowadr;          // full inertia: address of each row in D_colind    (nv x 1)
+  int*    D_diag;            // full inertia: index of diagonal element          (nv x 1)
+  int*    D_colind;          // full inertia: column indices of non-zeros        (nD x 1)
+  int*    mapM2D;            // index mapping from qM to D                       (nD x 1)
+  int*    mapD2M;            // index mapping from D to qM                       (nM x 1)
 
   // computed by mj_implicit/mj_derivative
   mjtNum* qDeriv;            // d (passive + actuator - bias) / d qvel           (nD x 1)
