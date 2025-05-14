@@ -1357,7 +1357,7 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
 
   // compute Mv = M * v
   mju_mulSymVecSparse(ctx->Mv, ctx->M, ctx->search, nv,
-                      ctx->M_rownnz, ctx->M_rowadr, ctx->M_diagnum, ctx->M_colind);
+                      ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
 
   // compute Jv = J * search  (dense or sparse)
   if (!ctx->is_sparse) {
@@ -1887,7 +1887,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
 
   // compute Ma = M * qacc
   mju_mulSymVecSparse(ctx.Ma, ctx.M, ctx.qacc, nv,
-                      ctx.M_rownnz, ctx.M_rowadr, ctx.M_diagnum, ctx.M_colind);
+                      ctx.M_rownnz, ctx.M_rowadr, ctx.M_colind);
 
 
   // compute Jaref = J * qacc - aref  (dense or sparse)

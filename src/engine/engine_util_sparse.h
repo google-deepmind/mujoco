@@ -64,8 +64,7 @@ MJAPI void mju_addToSymSparse(mjtNum* res, const mjtNum* mat, int n,
 // multiply symmetric matrix (only lower triangle represented) by vector:
 //  res = (mat + strict_upper(mat')) * vec
 MJAPI void mju_mulSymVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
-                               const int* rownnz, const int* rowadr, const int* diagnum,
-                               const int* colind);
+                               const int* rownnz, const int* rowadr, const int* colind);
 
 // compress sparse matrix, remove elements with abs(value) <= minval, return total non-zeros
 MJAPI int mju_compressSparse(mjtNum* mat, int nr, int nc,

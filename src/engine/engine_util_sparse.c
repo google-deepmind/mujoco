@@ -227,7 +227,7 @@ void mju_addToSymSparse(mjtNum* res, const mjtNum* mat, int n,
 void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
                          const mjtNum* restrict vec, int n,
                          const int* restrict rownnz, const int* restrict rowadr,
-                         const int* restrict diagnum, const int* restrict colind) {
+                         const int* restrict colind) {
   // clear res
   mju_zero(res, n);
 
@@ -239,13 +239,6 @@ void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
 
     // diagonal
     res[i] = row[diag] * vec[i];
-
-    // TODO: consider using SIMD if diagnum[i] >= 4
-
-    // shortcut for diagonal row/column
-    if (diagnum[i]) {
-      continue;
-    }
 
     // off-diagonals
     const int* ind = colind + adr;

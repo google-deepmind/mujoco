@@ -1075,7 +1075,7 @@ TEST_F(EngineUtilSparseTest, MjuMulSymVecSparse) {
   constexpr int nnz = 9;
 
   mjtNum mat[n*n] = {1,  0,  0,  0,
-                    -1,  2,  0,  0,  // spurious (ignored) -1 at (1, 0)
+                     0,  2,  0,  0,
                      3,  0,  4,  0,
                      5,  6,  7,  8};
 
@@ -1090,12 +1090,11 @@ TEST_F(EngineUtilSparseTest, MjuMulSymVecSparse) {
   int rowadr[n];
   int colind[nnz];
   mju_dense2sparse(mat_sparse, mat, n, n, rownnz, rowadr, colind, nnz);
-  int diagnum[n] = {0, 1, 0, 0};
 
   // multiply: res = (mat + strict_upper(mat')) * vec
   mjtNum vec[n] = {4, 3, 2, 1};
   mjtNum res[n];
-  mju_mulSymVecSparse(res, mat_sparse, vec, n, rownnz, rowadr, diagnum, colind);
+  mju_mulSymVecSparse(res, mat_sparse, vec, n, rownnz, rowadr, colind);
 
   // dense multiply
   mjtNum res2[n];
