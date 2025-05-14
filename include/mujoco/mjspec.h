@@ -444,6 +444,7 @@ typedef struct mjsFlex_ {          // flex specification
   double poisson;                  // Poisson's ratio
   double damping;                  // Rayleigh's damping
   double thickness;                // thickness (2D only)
+  int elastic2d;                   // 2D passive forces; 0: none, 1: bending, 2: stretching, 3: both
 
   // mesh properties
   mjStringVec* nodebody;           // node body names

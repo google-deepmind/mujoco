@@ -1418,13 +1418,9 @@
                 398 399 418
                 398 376 378">
       <edge equality="true" damping="0.1"/>
+      <elasticity young="3e5" poisson="0" thickness="8e-3"/>
       <contact solref="0.003"/>
-      <plugin plugin="mujoco.elasticity.shell">
-        <config key="poisson" value="0"/>
-        <config key="thickness" value="8e-3"/>
-        <!--Units are in Pa (SI)-->
-        <config key="young" value="3e5"/>
-      </plugin>
+      <plugin plugin="mujoco.elasticity.shell"/>
     </flexcomp>
 
   </worldbody>

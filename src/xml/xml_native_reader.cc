@@ -311,7 +311,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "flatskin", "pos", "quat", "axisangle", "xyaxes", "zaxis", "euler", "origin"},
         {"<"},
             {"edge", "?", "5", "equality", "solref", "solimp", "stiffness", "damping"},
-            {"elasticity", "?", "4", "young", "poisson", "damping", "thickness"},
+            {"elasticity", "?", "5", "young", "poisson", "damping", "thickness", "elastic2d"},
             {"contact", "?", "14", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
                 "internal", "selfcollide", "activelayers", "vertcollide"},
@@ -332,7 +332,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
                 "internal", "selfcollide", "activelayers", "vertcollide"},
             {"edge", "?", "2", "stiffness", "damping"},
-            {"elasticity", "?", "4", "young", "poisson", "damping", "thickness"},
+            {"elasticity", "?", "5", "young", "poisson", "damping", "thickness", "elastic2d"},
         {">"},
         {"skin", "*", "9", "name", "file", "material", "rgba", "inflate",
             "vertex", "texcoord", "face", "group"},
@@ -1401,6 +1401,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
     ReadAttr(elasticity, "poisson", 1, &flex->poisson, text);
     ReadAttr(elasticity, "thickness", 1, &flex->thickness, text);
     ReadAttr(elasticity, "damping", 1, &flex->damping, text);
+    ReadAttr(elasticity, "elastic2d", 1, &flex->elastic2d, text);
   }
 
   // write error info
@@ -2664,10 +2665,11 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(elasticity, "poisson", 1, &dflex.poisson, text);
     ReadAttr(elasticity, "damping", 1, &dflex.damping, text);
     ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
+    ReadAttr(elasticity, "elastic2d", 1, &dflex.elastic2d, text);
   }
 
   // check errors
-  if (elasticity && fcomp.equality) {
+  if (dflex.elastic2d >= 2 && fcomp.equality) {
     throw mjXError(elem, "elasticity and edge constraints cannot both be present");
   }
 

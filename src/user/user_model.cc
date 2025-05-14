@@ -3043,6 +3043,11 @@ void mjCModel::CopyObjects(mjModel* m) {
     } else {
       mjuu_zerovec(m->flex_stiffness + 21 * elem_adr, 21 * pfl->nelem);
     }
+    if (!pfl->bending.empty()) {
+      mjuu_copyvec(m->flex_bending + 16 * edge_adr, pfl->bending.data(), pfl->bending.size());
+    } else {
+      mjuu_zerovec(m->flex_bending + 16 * edge_adr, 16 * pfl->nedge);
+    }
     m->flex_damping[i] = (mjtNum)pfl->damping;
 
     // set fields: mesh-like

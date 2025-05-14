@@ -2756,6 +2756,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflexelem', 21),
              ),
              StructFieldDecl(
+                 name='flex_bending',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='bending stiffness',
+                 array_extent=('nflexedge', 16),
+             ),
+             StructFieldDecl(
                  name='flex_damping',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -10866,6 +10874,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='thickness',
                  type=ValueType(name='double'),
                  doc='thickness (2D only)',
+             ),
+             StructFieldDecl(
+                 name='elastic2d',
+                 type=ValueType(name='int'),
+                 doc='2D passive forces; 0: none, 1: bending, 2: stretching, 3: both',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='nodebody',

@@ -5497,6 +5497,7 @@ public unsafe struct mjModel_ {
   public double* flexedge_invweight0;
   public double* flex_radius;
   public double* flex_stiffness;
+  public double* flex_bending;
   public double* flex_damping;
   public double* flex_edgestiffness;
   public double* flex_edgedamping;

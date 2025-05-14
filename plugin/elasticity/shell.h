@@ -51,13 +51,9 @@ class Shell {
 
   // precomputed quantities
   std::vector<mjtNum> position;             // previous-step positions (nv x 3)
-  std::vector<mjtNum> bending;              // bending Hessian         (ne x 16)
-
-  mjtNum thickness;
 
  private:
-  Shell(const mjModel* m, mjData* d, int instance, mjtNum nu, mjtNum E,
-        mjtNum thick);
+  Shell(const mjModel* m, mjData* d, int instance);
 };
 
 }  // namespace mujoco::plugin::elasticity

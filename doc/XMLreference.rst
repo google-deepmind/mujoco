@@ -3627,9 +3627,10 @@ element is used to adjust the properties of all edges in the flex.
 .. _flexcomp-elasticity-poisson:
 .. _flexcomp-elasticity-damping:
 .. _flexcomp-elasticity-thickness:
+.. _flexcomp-elasticity-elastic2d:
 
 .. |body/flexcomp/elasticity attrib list| replace::
-   :at:`young`, :at:`poisson`, :at:`damping`, :at:`thickness`
+   :at:`young`, :at:`poisson`, :at:`damping`, :at:`thickness`, :at:`elastic2d`
 
 |body/flexcomp/elasticity attrib list|
    Same as in :ref:`flex/elasticity<flex-elasticity>`.
@@ -4070,6 +4071,11 @@ stress-strain relationship.. See also :ref:`deformable <CDeformable>` objects.
    This thickness can be set equal to 2 times the :ref:`radius <deformable-flex-radius>` in order to match the geometry,
    but is exposed separately since the radius might be constrained by considerations related to collision detection.
 
+.. _flex-elasticity-elastic2d:
+
+:at:`elastic2d`: :at-val:`int, "1"`
+   Elastic contribution to passive forces of 2D flexes. 0: none, 1: bending only, 2: stretching only, 3: bending and
+   stretching
 
 .. _flex-contact:
 

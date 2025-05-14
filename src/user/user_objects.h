@@ -857,6 +857,7 @@ class mjCFlex_ : public mjCBase {
   std::vector<double> elemaabb_;          // element bounding volume
   std::vector<int> edgeidx_;              // element edge ids
   std::vector<double> stiffness;          // elasticity stiffness matrix
+  std::vector<double> bending;            // bending stiffness matrix
 
   // variable-size data
   std::vector<std::string> vertbody_;     // vertex body names

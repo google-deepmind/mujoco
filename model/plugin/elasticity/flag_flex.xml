@@ -37,12 +37,8 @@
       <flexcomp type="grid" count="9 19 1" spacing=".05 .05 .05" mass="10"
                 name="flag" radius="0.001">
         <edge equality="true" damping="0.001"/>
-        <plugin plugin="mujoco.elasticity.shell">
-          <config key="poisson" value="0"/>
-          <config key="thickness" value="1e-2"/>
-          <!--Units are in Pa (SI)-->
-          <config key="young" value="3e6"/>
-        </plugin>
+        <elasticity poisson="0" thickness="1e-2" young="3e6"/>
+        <plugin plugin="mujoco.elasticity.shell"/>
       </flexcomp>
     </body>
   </worldbody>

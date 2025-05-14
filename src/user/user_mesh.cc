@@ -3075,6 +3075,56 @@ static void CreateFlapStencil(std::vector<StencilFlap>& flaps,
   }
 }
 
+// cotangent between two edges
+double inline cot(double* x, int v0, int v1, int v2) {
+  double normal[3];
+  double edge1[3] = {x[3*v1]-x[3*v0], x[3*v1+1]-x[3*v0+1], x[3*v1+2]-x[3*v0+2]};
+  double edge2[3] = {x[3*v2]-x[3*v0], x[3*v2+1]-x[3*v0+1], x[3*v2+2]-x[3*v0+2]};
+
+  mjuu_crossvec(normal, edge1, edge2);
+  return mjuu_dot3(edge1, edge2) / sqrt(mjuu_dot3(normal, normal));
+}
+
+// area of a triangle
+double inline ComputeVolume(const double* x, const int v[Stencil2D::kNumVerts]) {
+  double normal[3];
+  double edge1[3] = {x[3*v[1]]-x[3*v[0]], x[3*v[1]+1]-x[3*v[0]+1], x[3*v[1]+2]-x[3*v[0]+2]};
+  double edge2[3] = {x[3*v[2]]-x[3*v[0]], x[3*v[2]+1]-x[3*v[0]+1], x[3*v[2]+2]-x[3*v[0]+2]};
+
+  mjuu_crossvec(normal, edge1, edge2);
+  return sqrt(mjuu_dot3(normal, normal)) / 2;
+}
+
+// compute bending stiffness for a single edge
+template <typename T>
+void inline ComputeBending(double* bending, double* pos, const int v[4], double mu,
+                           double thickness) {
+  int vadj[3] = {v[1], v[0], v[3]};
+
+  if (v[3]== -1) {
+    // skip boundary edges
+    return;
+  }
+
+  // cotangent operator from Wardetzky at al., "Discrete Quadratic Curvature
+  // Energies", https://cims.nyu.edu/gcl/papers/wardetzky2007dqb.pdf
+
+  mjtNum a01 = cot(pos, v[0], v[1], v[2]);
+  mjtNum a02 = cot(pos, v[0], v[3], v[1]);
+  mjtNum a03 = cot(pos, v[1], v[2], v[0]);
+  mjtNum a04 = cot(pos, v[1], v[0], v[3]);
+  mjtNum c[4] = {a03 + a04, a01 + a02, -(a01 + a03), -(a02 + a04)};
+  mjtNum volume = ComputeVolume(pos, v) +
+                  ComputeVolume(pos, vadj);
+
+  for (int v1 = 0; v1 < T::kNumVerts; v1++) {
+    for (int v2 = 0; v2 < T::kNumVerts; v2++) {
+      bending[4 * v1 + v2] +=
+          1.5 * c[v1] * c[v2] / volume * mu * pow(thickness, 3) / 12;
+    }
+  }
+}
+
 //----------------------------- linear elasticity --------------------------------------------------
 
 // Gauss Legendre quadrature points in 1 dimension on the interval [a, b]
@@ -3570,11 +3620,18 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // set size
   nedge = (int)edge.size();
 
+  // create flap stencil
+  if (dim == 2) {
+    CreateFlapStencil(flaps, elem_, edgeidx_);
+  }
+
   // compute elasticity
   if (young > 0) {
     if (poisson < 0 || poisson >= 0.5) {
       throw mjCError(this, "Poisson ratio must be in [0, 0.5)");
     }
+
+    // linear elasticity
     stiffness.assign(21*nelem, 0);
     if (interpolated) {
       int min_size = ceil(nodexpos.size()*nodexpos.size() / 21);
@@ -3583,11 +3640,13 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       }
       ComputeLinearStiffness(stiffness, nodexpos.data(), young, poisson);
     }
+
+    // geometrically nonlinear elasticity
     for (unsigned int t = 0; t < nelem; t++) {
       if (interpolated) {
         continue;
       }
-      if (dim == 2) {
+      if (dim == 2 && elastic2d >= 2 && thickness > 0) {
         ComputeStiffness<Stencil2D>(stiffness, vertxpos,
                                     elem_.data() + (dim + 1) * t, t, young,
                                     poisson, thickness);
@@ -3595,6 +3654,16 @@ void mjCFlex::Compile(const mjVFS* vfs) {
         ComputeStiffness<Stencil3D>(stiffness, vertxpos,
                                     elem_.data() + (dim + 1) * t, t, young,
                                     poisson);
+      }
+    }
+
+    // bending stiffness (2D only)
+    if (dim == 2 && (elastic2d == 1 || elastic2d == 3) && thickness > 0) {
+      bending.assign(nedge*16, 0);
+
+      for (unsigned int e = 0; e < nedge; e++) {
+        ComputeBending<StencilFlap>(bending.data() + 16 * e, vertxpos.data(), flaps[e].vertices,
+                                    young / (2 * (1 + poisson)), thickness);
       }
     }
   }
@@ -3611,11 +3680,6 @@ void mjCFlex::Compile(const mjVFS* vfs) {
         plugin_instance->config_attribs["damping"] = std::to_string(damping);
       }
     }
-  }
-
-  // create flap stencil
-  if (dim == 2) {
-    CreateFlapStencil(flaps, elem_, edgeidx_);
   }
 
   // create shell fragments and element-vertex collision pairs
