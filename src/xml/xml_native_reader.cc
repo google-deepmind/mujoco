@@ -167,8 +167,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "?", "17", "orthographic", "fovy", "ipd", "resolution", "pos", "quat",
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "focal", "focalpixel",
             "principal", "principalpixel", "sensorsize", "user"},
-        {"light", "?", "13", "pos", "dir", "bulbradius", "directional", "castshadow", "active",
-            "attenuation", "cutoff", "exponent", "ambient", "diffuse", "specular", "mode"},
+        {"light", "?", "15", "pos", "dir", "bulbradius", "intensity", "range",
+            "directional", "castshadow", "active", "attenuation", "cutoff", "exponent",
+            "ambient", "diffuse", "specular", "mode"},
         {"pair", "?", "7", "condim", "friction", "solref", "solreffriction", "solimp",
          "gap", "margin"},
         {"equality", "?", "3", "active", "solref", "solimp"},
@@ -280,9 +281,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "*", "20", "name", "class", "orthographic", "fovy", "ipd", "resolution", "pos",
             "quat", "axisangle", "xyaxes", "zaxis", "euler", "mode", "target",
             "focal", "focalpixel", "principal", "principalpixel", "sensorsize", "user"},
-        {"light", "*", "16", "name", "class", "directional", "castshadow", "active",
-            "pos", "dir", "bulbradius", "attenuation", "cutoff", "exponent", "ambient", "diffuse",
-            "specular", "mode", "target"},
+        {"light", "*", "18", "name", "class", "directional", "castshadow", "active",
+            "pos", "dir", "bulbradius", "intensity", "range", "attenuation", "cutoff",
+            "exponent", "ambient", "diffuse", "specular", "mode", "target"},
         {"plugin", "*", "2", "plugin", "instance"},
         {"<"},
           {"config", "*", "2", "key", "value"},
@@ -1856,6 +1857,8 @@ void mjXReader::OneLight(XMLElement* elem, mjsLight* light) {
   ReadAttr(elem, "pos", 3, light->pos, text);
   ReadAttr(elem, "dir", 3, light->dir, text);
   ReadAttr(elem, "bulbradius", 1, &light->bulbradius, text);
+  ReadAttr(elem, "intensity", 1, &light->intensity, text);
+  ReadAttr(elem, "range", 1, &light->range, text);
   ReadAttr(elem, "attenuation", 3, light->attenuation, text);
   ReadAttr(elem, "cutoff", 1, &light->cutoff, text);
   ReadAttr(elem, "exponent", 1, &light->exponent, text);

@@ -2866,11 +2866,15 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a light, which moves with the body where it is defined. To create a fixed light, define it in the
-world body. The lights created here are in addition to the default headlight which is always defined and is adjusted via
-the :ref:`visual <visual>` element. MuJoCo relies on the standard lighting model in OpenGL (fixed functionality)
-augmented with shadow mapping. The effects of lights are additive, thus adding a light always makes the scene brighter.
-The maximum number of lights that can be active simultaneously is 8, counting the headlight. The light is shining along
-the direction specified by the dir attribute. It does not have a full spatial frame with three orthogonal axes.
+world body. The lights created here are in addition to the headlight which is always defined and is configured via the
+:ref:`visual <visual>` element. Lights shine along the direction specified by the dir attribute. They do not have
+a full spatial frame with three orthogonal axes.
+
+By default, MuJoCo uses the standard OpenGL (fixed functional) Phong lighting model for its rendering, with augmented
+with shadow mapping. (See the OpenGL documentation for more information, including details about various attributes.)
+
+MJCF also supports alternative lighting models (e.g. physically-based rendering) by providing additional attributes.
+Attributes may be applied or ignored depending on the lighting model being used.
 
 
 .. _body-light-name:
@@ -2919,12 +2923,6 @@ the direction specified by the dir attribute. It does not have a full spatial fr
    these clipping planes bound the cone or box shadow volume in the light direction. As a result, some shadows
    (especially those very close to the light) may be clipped.
 
-.. _body-light-bulbradius:
-
-:at:`radius`: :at-val:`real, "0.02"`
-   Radius of the light, affects shadow softness. This attribute has no effect in MuJoCo's native renderer, but it can be
-   useful when rendering scenes with an external renderer.
-
 .. _body-light-active:
 
 :at:`active`: :at-val:`[false, true], "true"`
@@ -2941,11 +2939,45 @@ the direction specified by the dir attribute. It does not have a full spatial fr
 :at:`dir`: :at-val:`real(3), "0 0 -1"`
    Direction of the light.
 
+.. _body-light-diffuse:
+
+:at:`diffuse`: :at-val:`real(3), "0.7 0.7 0.7"`
+   The color of the light. For the Phong (default) lighting model, this defines the diffuse color of
+   the light.
+
+.. _body-light-intensity:
+
+:at:`intensity`: :at-val:`real, "1000.0"`
+   The intensity of the light source, measured in candela, used for physically-based lighting models.
+   This is unused by the default Phong lighting model.
+
+.. _body-light-ambient:
+
+:at:`ambient`: :at-val:`real(3), "0 0 0"`
+   The ambient color of the light, used by the default Phong lighting model.
+
+.. _body-light-specular:
+
+:at:`specular`: :at-val:`real(3), "0.3 0.3 0.3"`
+   The specular color of the light, used by the default Phong lighting model.
+
+.. _body-light-range:
+
+:at:`range`: :at-val:`real, "10.0"`
+   The effective range of the light. Objects further than this distance from the light position
+   will not be illuminated by this light. This only applies to spotlights.
+
+.. _body-light-bulbradius:
+
+:at:`bulbradius`: :at-val:`real, "0.02"`
+   The radius of the light source which can affect shadow softness depending on the
+   renderer. This only applies to spotlights.
+
 .. _body-light-attenuation:
 
 :at:`attenuation`: :at-val:`real(3), "1 0 0"`
-   These are the constant, linear and quadratic attenuation coefficients in OpenGL. The default corresponds to no
-   attenuation. See the OpenGL documentation for more information on this and all other OpenGL-related properties.
+   These are the constant, linear and quadratic attenuation coefficients for Phong lighting.
+   The default corresponds to no attenuation.
 
 .. _body-light-cutoff:
 
@@ -2956,22 +2988,6 @@ the direction specified by the dir attribute. It does not have a full spatial fr
 
 :at:`exponent`: :at-val:`real, "10"`
    Exponent for spotlights. This setting controls the softness of the spotlight cutoff.
-
-.. _body-light-ambient:
-
-:at:`ambient`: :at-val:`real(3), "0 0 0"`
-   The ambient color of the light.
-
-.. _body-light-diffuse:
-
-:at:`diffuse`: :at-val:`real(3), "0.7 0.7 0.7"`
-   The diffuse color of the light.
-
-.. _body-light-specular:
-
-:at:`specular`: :at-val:`real(3), "0.3 0.3 0.3"`
-   The specular color of the light.
-
 
 .. _body-composite:
 
@@ -8257,25 +8273,29 @@ if omitted.
 
 .. _default-light-dir:
 
-.. _default-light-bulbradius:
-
 .. _default-light-directional:
 
 .. _default-light-castshadow:
 
 .. _default-light-active:
 
+.. _default-light-diffuse:
+
+.. _default-light-intensity:
+
+.. _default-light-ambient:
+
+.. _default-light-specular:
+
+.. _default-light-bulbradius:
+
+.. _default-light-range:
+
 .. _default-light-attenuation:
 
 .. _default-light-cutoff:
 
 .. _default-light-exponent:
-
-.. _default-light-ambient:
-
-.. _default-light-diffuse:
-
-.. _default-light-specular:
 
 .. _default-light-mode:
 

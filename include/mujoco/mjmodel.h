@@ -845,6 +845,8 @@ struct mjModel_ {
   mjtByte*  light_directional;    // directional light                        (nlight x 1)
   mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
   float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
+  float*    light_intensity;      // intensity, in candela                    (nlight x 1)
+  float*    light_range;          // range of effectiveness                   (nlight x 1)
   mjtByte*  light_active;         // is light on                              (nlight x 1)
   mjtNum*   light_pos;            // position rel. to body frame              (nlight x 3)
   mjtNum*   light_dir;            // direction rel. to body frame             (nlight x 3)

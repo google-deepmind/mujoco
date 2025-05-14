@@ -2172,6 +2172,8 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
       thislight->directional = m->light_directional[i];
       thislight->castshadow = m->light_castshadow[i];
       thislight->bulbradius = m->light_bulbradius[i];
+      thislight->intensity = m->light_intensity[i];
+      thislight->range = m->light_range[i];
       if (!thislight->directional) {
         f2f(thislight->attenuation, m->light_attenuation+3*i, 3);
         thislight->exponent = m->light_exponent[i];

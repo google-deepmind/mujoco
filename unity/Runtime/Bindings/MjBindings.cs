@@ -5433,6 +5433,8 @@ public unsafe struct mjModel_ {
   public byte* light_directional;
   public byte* light_castshadow;
   public float* light_bulbradius;
+  public float* light_intensity;
+  public float* light_range;
   public byte* light_active;
   public double* light_pos;
   public double* light_dir;
@@ -6077,6 +6079,8 @@ public unsafe struct mjvLight_ {
   public byte directional;
   public byte castshadow;
   public float bulbradius;
+  public float intensity;
+  public float range;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -6357,6 +6361,8 @@ public unsafe struct model {
   public byte* light_directional;
   public byte* light_castshadow;
   public float* light_bulbradius;
+  public float* light_intensity;
+  public float* light_range;
   public byte* light_active;
   public float* light_attenuation;
   public float* light_cutoff;

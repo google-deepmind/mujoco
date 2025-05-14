@@ -2244,6 +2244,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nlight',),
              ),
              StructFieldDecl(
+                 name='light_intensity',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='intensity, in candela',
+                 array_extent=('nlight',),
+             ),
+             StructFieldDecl(
+                 name='light_range',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='range of effectiveness',
+                 array_extent=('nlight',),
+             ),
+             StructFieldDecl(
                  name='light_active',
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
@@ -6735,6 +6751,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='float'),
                  doc='bulb radius for soft shadows',
              ),
+             StructFieldDecl(
+                 name='intensity',
+                 type=ValueType(name='float'),
+                 doc='intensity, in candelas',
+             ),
+             StructFieldDecl(
+                 name='range',
+                 type=ValueType(name='float'),
+                 doc='range of effectiveness',
+             ),
          ),
      )),
     ('mjvOption',
@@ -7846,6 +7872,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                          ),
                          StructFieldDecl(
                              name='light_bulbradius',
+                             type=PointerType(
+                                 inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='light_intensity',
+                             type=PointerType(
+                                 inner_type=ValueType(name='float'),
+                             ),
+                             doc='',
+                         ),
+                         StructFieldDecl(
+                             name='light_range',
                              type=PointerType(
                                  inner_type=ValueType(name='float'),
                              ),
@@ -10600,8 +10640,18 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='bulbradius',
-                 type=ValueType(name='double'),
+                 type=ValueType(name='float'),
                  doc='bulb radius, for soft shadows',
+             ),
+             StructFieldDecl(
+                 name='intensity',
+                 type=ValueType(name='float'),
+                 doc='intensity, in candelas',
+             ),
+             StructFieldDecl(
+                 name='range',
+                 type=ValueType(name='float'),
+                 doc='range of effectiveness',
              ),
              StructFieldDecl(
                  name='attenuation',

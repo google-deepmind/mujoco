@@ -1178,6 +1178,8 @@ struct mjModel_ {
   mjtByte*  light_directional;    // directional light                        (nlight x 1)
   mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
   float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
+  float*    light_intensity;      // intensity, in candela                    (nlight x 1)
+  float*    light_range;          // range of effectiveness                   (nlight x 1)
   mjtByte*  light_active;         // is light on                              (nlight x 1)
   mjtNum*   light_pos;            // position rel. to body frame              (nlight x 3)
   mjtNum*   light_dir;            // direction rel. to body frame             (nlight x 3)
@@ -2030,7 +2032,9 @@ typedef struct mjsLight_ {         // light specification
   mjtByte active;                  // is light active
   mjtByte directional;             // is light directional or spot
   mjtByte castshadow;              // does light cast shadows
-  double bulbradius;               // bulb radius, for soft shadows
+  float bulbradius;                // bulb radius, for soft shadows
+  float intensity;                 // intensity, in candelas
+  float range;                     // range of effectiveness
   float attenuation[3];            // OpenGL attenuation (quadratic model)
   float cutoff;                    // OpenGL cutoff
   float exponent;                  // OpenGL exponent
@@ -2838,6 +2842,8 @@ struct mjvLight_ {                // OpenGL light
   mjtByte  directional;           // directional light
   mjtByte  castshadow;            // does light cast shadows
   float    bulbradius;            // bulb radius for soft shadows
+  float    intensity;             // intensity, in candelas
+  float    range;                 // range of effectiveness
 };
 typedef struct mjvLight_ mjvLight;
 struct mjvOption_ {                  // abstract visualization options
@@ -3055,6 +3061,8 @@ struct mjvSceneState_ {
     mjtByte* light_directional;
     mjtByte* light_castshadow;
     float* light_bulbradius;
+    float* light_intensity;
+    float* light_range;
     mjtByte* light_active;
     float* light_attenuation;
     float* light_cutoff;

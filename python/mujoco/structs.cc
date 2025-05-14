@@ -1076,6 +1076,8 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(directional);
   X(castshadow);
   X(bulbradius);
+  X(intensity);
+  X(range);
 #undef X
 
 #define X(var) DefinePyArray(mjvLight, #var, &MjvLightWrapper::var)

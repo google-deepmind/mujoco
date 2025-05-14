@@ -271,6 +271,8 @@ struct mjvLight_ {                // OpenGL light
   mjtByte  directional;           // directional light
   mjtByte  castshadow;            // does light cast shadows
   float    bulbradius;            // bulb radius for soft shadows
+  float    intensity;             // intensity, in candelas
+  float    range;                 // range of effectiveness
 };
 typedef struct mjvLight_ mjvLight;
 
@@ -504,6 +506,8 @@ struct mjvSceneState_ {
     mjtByte* light_directional;
     mjtByte* light_castshadow;
     float* light_bulbradius;
+    float* light_intensity;
+    float* light_range;
     mjtByte* light_active;
     float* light_attenuation;
     float* light_cutoff;

@@ -604,6 +604,8 @@ void mjXWriter::OneLight(XMLElement* elem, const mjCLight* light, mjCDef* def,
 
   // defaults and regular
   WriteAttr(elem, "bulbradius", 1, &light->bulbradius, &def->Light().bulbradius);
+  WriteAttr(elem, "intensity", 1, &light->intensity, &def->Light().intensity);
+  WriteAttr(elem, "range", 1, &light->range, &def->Light().range);
   WriteAttrKey(elem, "directional", bool_map, 2, light->directional, def->Light().directional);
   WriteAttrKey(elem, "castshadow", bool_map, 2, light->castshadow, def->Light().castshadow);
   WriteAttrKey(elem, "active", bool_map, 2, light->active, def->Light().active);

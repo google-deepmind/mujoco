@@ -302,6 +302,8 @@
     XMJV( mjtByte, light_directional,     nlight,        1                    ) \
     XMJV( mjtByte, light_castshadow,      nlight,        1                    ) \
     XMJV( float,   light_bulbradius,      nlight,        1                    ) \
+    XMJV( float,   light_intensity,       nlight,        1                    ) \
+    XMJV( float,   light_range,           nlight,        1                    ) \
     XMJV( mjtByte, light_active,          nlight,        1                    ) \
     X   ( mjtNum,  light_pos,             nlight,        3                    ) \
     X   ( mjtNum,  light_dir,             nlight,        3                    ) \

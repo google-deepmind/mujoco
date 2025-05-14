@@ -203,6 +203,8 @@ void mjs_defaultLight(mjsLight* light) {
   // intrinsics
   light->castshadow = 1;
   light->bulbradius = 0.02;
+  light->intensity = 1000.0;
+  light->range = 10.0;
   light->active = 1;
   light->attenuation[0] = 1;
   light->cutoff = 45;
@@ -404,4 +406,3 @@ void mjs_defaultKey(mjsKey* key) {
 void mjs_defaultPlugin(mjsPlugin* plugin) {
   memset(plugin, 0, sizeof(mjsPlugin));
 }
-
