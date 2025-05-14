@@ -499,12 +499,13 @@ class BindData(object):
         adr = [adr]
         num = [num]
     elif isinstance(self.id, list):
-      adr = self.id * dim
+      adr = (np.array(self.id) * dim).tolist()
       num = [dim for _ in range(len(self.id))]
     else:
       adr = [self.id * dim]
       num = [dim]
     i = 0
+    value = jax.numpy.array(value).flatten()
     for a, n in zip(adr, num):
       shape = array.shape
       array = array.flatten().at[a : a + n].set(value[i : i + n]).reshape(shape)

@@ -308,6 +308,16 @@ class SupportTest(parameterized.TestCase):
       np.testing.assert_array_equal(
           dx7.bind(mx, body).xfrc_applied, [0, 0, 0, 0, 0, 0]
       )
+    dx10 = dx.bind(mx, s.bodies[0:2]).set(
+        'xfrc_applied',
+        np.array([np.array([1, 1, 1, 1, 1, 1]), np.array([2, 2, 2, 2, 2, 2])]),
+    )
+    np.testing.assert_array_equal(
+        dx10.bind(mx, s.bodies[0]).xfrc_applied, [1, 1, 1, 1, 1, 1]
+    )
+    np.testing.assert_array_equal(
+        dx10.bind(mx, s.bodies[1]).xfrc_applied, [2, 2, 2, 2, 2, 2]
+    )
 
     # test attribute and type mismatches
     with self.assertRaisesRegex(
