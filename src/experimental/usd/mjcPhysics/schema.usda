@@ -92,11 +92,8 @@ over "GLOBAL" (
 
 }
 
-class "MjcPhysicsSceneAPI"
+class "SceneAPI"
 (
-    customData = {
-        string className = "SceneAPI"
-    }
     doc = """API providing global simulation options for Mujoco."""
 
     inherits = </APISchemaBase>
@@ -510,11 +507,8 @@ class "MjcPhysicsSceneAPI"
     )
 }
 
-class "MjcPhysicsSiteAPI"
+class "SiteAPI"
 (
-    customData = {
-        string className = "SiteAPI"
-    }
     doc = """API describing a Mujoco site."""
 
     inherits = </APISchemaBase>

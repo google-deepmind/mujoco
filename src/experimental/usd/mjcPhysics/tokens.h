@@ -309,14 +309,14 @@ struct MjcPhysicsTokensType {
   /// Possible value for MjcPhysicsSceneAPI::GetJacobianAttr(),  This token
   /// represents the sparse constraint Jacobian and matrices computed from it.
   const TfToken sparse;
-  /// \brief "MjcPhysicsSceneAPI"
+  /// \brief "SceneAPI"
   ///
   /// Schema identifer and family for MjcPhysicsSceneAPI
-  const TfToken MjcPhysicsSceneAPI;
-  /// \brief "MjcPhysicsSiteAPI"
+  const TfToken SceneAPI;
+  /// \brief "SiteAPI"
   ///
   /// Schema identifer and family for MjcPhysicsSiteAPI
-  const TfToken MjcPhysicsSiteAPI;
+  const TfToken SiteAPI;
   /// A vector of all of the tokens listed above.
   const std::vector<TfToken> allTokens;
 };
