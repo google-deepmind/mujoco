@@ -722,7 +722,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   mj_solveLD_legacy(m, vec.data(), 1, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, 1,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->M_rownnz, d->M_rowadr, d->M_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
@@ -757,7 +757,7 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   mj_solveLD_legacy(m, vec.data(), n, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->M_rownnz, d->M_rowadr, d->M_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv*n; i++) {
@@ -795,7 +795,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
 
   mj_solveM2(m, d, res.data(), vec.data(), sqrtInvD.data(), n);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->M_rownnz, d->M_rowadr, d->M_colind);
 
   // expect equality of dot(v, M^-1 * v) and dot(M^-1/2 * v, M^-1/2 * v)
   for (int i=0; i < n; i++) {
@@ -834,7 +834,7 @@ TEST_F(CoreSmoothTest, FactorIs) {
   vector<mjtNum> qLDiagInv(nv, 0);
 
   mj_factorI(qLD.data(), qLDiagInv.data(), nv,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->M_rownnz, d->M_rowadr, d->M_colind);
 
   // expect outputs to match to floating point precision
   EXPECT_THAT(qLD, Pointwise(DoubleNear(1e-12), qLDexpected));

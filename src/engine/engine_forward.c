@@ -873,14 +873,14 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
       }
 
       // factorize in-place
-      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, d->M_colind);
     }
 
     // solve
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
     mju_copy(qacc, qfrc, m->nv);
     mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1,
-               d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+               d->M_rownnz, d->M_rowadr, d->M_colind);
   }
 
   // advance state and time
@@ -1056,13 +1056,13 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mju_gather(d->qH, MhB, d->mapM2M, nC);
 
       // factorize in-place
-      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, d->M_colind);
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
     mju_copy(qacc, qfrc, nv);
     mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1,
-               d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+               d->M_rownnz, d->M_rowadr, d->M_colind);
 
   } else {
     mjERROR("integrator must be implicit or implicitfast");
