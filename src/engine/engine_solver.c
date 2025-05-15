@@ -786,7 +786,6 @@ struct _mjCGContext {
   // inertia
   const int* M_rownnz;
   const int* M_rowadr;
-  const int* M_diagnum;
   const int* M_colind;
   const mjtNum* M;
   const mjtNum* qLD;
@@ -888,7 +887,6 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
     // inertia
     ctx->M_rownnz         = d->M_rownnz;
     ctx->M_rowadr         = d->M_rowadr;
-    ctx->M_diagnum        = m->dof_simplenum;
     ctx->M_colind         = d->M_colind;
     ctx->M                = d->M;
     ctx->qLD              = d->qLD;
@@ -937,7 +935,6 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
     // inertia
     ctx->M_rownnz         = d->iM_rownnz         + idofadr;
     ctx->M_rowadr         = d->iM_rowadr         + idofadr;
-    ctx->M_diagnum        = d->iM_diagnum        + idofadr;
     ctx->M_colind         = d->iM_colind;
     ctx->M                = d->iM;
     ctx->qLD              = d->iLD;

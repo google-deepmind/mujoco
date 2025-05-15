@@ -6025,14 +6025,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nidof',),
              ),
              StructFieldDecl(
-                 name='iM_diagnum',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='inertia: num of consecutive diagonal elements',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
                  name='iM_colind',
                  type=PointerType(
                      inner_type=ValueType(name='int'),

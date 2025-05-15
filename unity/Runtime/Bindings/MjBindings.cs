@@ -5004,7 +5004,6 @@ public unsafe struct mjData_ {
   public double* iacc_smooth;
   public int* iM_rownnz;
   public int* iM_rowadr;
-  public int* iM_diagnum;
   public int* iM_colind;
   public double* iM;
   public double* iLD;

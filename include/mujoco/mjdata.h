@@ -420,7 +420,6 @@ struct mjData_ {
   mjtNum* iacc_smooth;       // unconstrained acceleration                       (nidof x 1)
   int*    iM_rownnz;         // inertia: non-zeros in each row                   (nidof x 1)
   int*    iM_rowadr;         // inertia: address of each row in iM_colind        (nidof x 1)
-  int*    iM_diagnum;        // inertia: num of consecutive diagonal elements    (nidof x 1)
   int*    iM_colind;         // inertia: column indices of non-zeros             (nC x 1)
   mjtNum* iM;                // total inertia (sparse)                           (nC x 1)
   mjtNum* iLD;               // L'*D*L factorization of M (sparse)               (nC x 1)

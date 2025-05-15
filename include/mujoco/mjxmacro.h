@@ -758,7 +758,6 @@
     X( mjtNum,  iacc_smooth,       MJ_D(nidof),    1 ) \
     X( int,     iM_rownnz,         MJ_D(nidof),    1 ) \
     X( int,     iM_rowadr,         MJ_D(nidof),    1 ) \
-    X( int,     iM_diagnum,        MJ_D(nidof),    1 ) \
     X( int,     iM_colind,         MJ_M(nC),       1 ) \
     X( mjtNum,  iM,                MJ_M(nC),       1 ) \
     X( mjtNum,  iLD,               MJ_M(nC),       1 ) \

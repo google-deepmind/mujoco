@@ -544,25 +544,6 @@ void mj_island(const mjModel* m, mjData* d) {
                       d->iM, d->M);
   mju_gather(d->iLDiagInv, d->qLDiagInv, d->map_idof2dof, nidof);
 
-  // compute iM_diagnum (dof_simplenum per island)
-  int count = 0;
-  int dof_next = d->map_idof2dof[nidof-1];
-  for (int i=nidof-1; i >= 0; i--) {
-    // check if island boundary was crossed
-    int dof = d->map_idof2dof[i];
-    int island_boundary = (d->dof_island[dof] != d->dof_island[dof_next]);
-    dof_next = dof;
-
-    // accumulate and set simple dof (diagonal row) counter
-    if (m->dof_simplenum[dof] && !island_boundary) {
-      count++;    // increment counter
-    } else {
-      count = 0;  // reset
-    }
-    d->iM_diagnum[i] = count;
-  }
-
-
 
   // ------------------------------------- constraints ---------------------------------------------
 
