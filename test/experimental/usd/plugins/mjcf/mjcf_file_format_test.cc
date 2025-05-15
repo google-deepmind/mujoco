@@ -17,6 +17,8 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include "src/experimental/usd/mjcPhysics/sceneAPI.h"
+#include "src/experimental/usd/mjcPhysics/siteAPI.h"
 #include "test/experimental/usd/test_utils.h"
 #include "test/fixture.h"
 #include <pxr/base/gf/vec2f.h>
@@ -518,15 +520,28 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsAuthored) {
   auto stage = pxr::UsdStage::Open(layer);
   EXPECT_PRIM_VALID(stage, "/test/box_site");
   EXPECT_PRIM_IS_A(stage, "/test/box_site", pxr::UsdGeomCube);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/box_site", pxr::MjcPhysicsSiteAPI);
+
   EXPECT_PRIM_VALID(stage, "/test/ball/ball/sphere_site");
   EXPECT_PRIM_IS_A(stage, "/test/ball/ball/sphere_site", pxr::UsdGeomSphere);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ball/sphere_site",
+                          pxr::MjcPhysicsSiteAPI);
+
   EXPECT_PRIM_VALID(stage, "/test/ball/ball/capsule_site");
   EXPECT_PRIM_IS_A(stage, "/test/ball/ball/capsule_site", pxr::UsdGeomCapsule);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ball/capsule_site",
+                          pxr::MjcPhysicsSiteAPI);
+
   EXPECT_PRIM_VALID(stage, "/test/ball/ball/cylinder_site");
   EXPECT_PRIM_IS_A(stage, "/test/ball/ball/cylinder_site",
                    pxr::UsdGeomCylinder);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ball/cylinder_site",
+                          pxr::MjcPhysicsSiteAPI);
+
   EXPECT_PRIM_VALID(stage, "/test/ball/ball/ellipsoid_site");
   EXPECT_PRIM_IS_A(stage, "/test/ball/ball/ellipsoid_site", pxr::UsdGeomSphere);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ball/ellipsoid_site",
+                          pxr::MjcPhysicsSiteAPI);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsPurpose) {

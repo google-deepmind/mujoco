@@ -21,6 +21,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
+#include "third_party/mujoco/src/experimental/usd/mjcPhysics/tokens.h"
 #include "mjcf/utils.h"
 #include <pxr/base/arch/attributes.h>
 #include <pxr/base/gf/matrix4d.h>
@@ -833,6 +834,8 @@ class ModelWriter {
     // rendered.
     pxr::SdfPath site_path = WriteSiteGeom(site, body_path);
     SetPrimPurpose(data_, site_path, pxr::UsdGeomTokens->guide);
+
+    ApplyApiSchema(data_, site_path, pxr::MjcPhysicsTokens->SiteAPI);
 
     int site_id = mjs_getId(site->element);
     auto transform = MujocoPosQuatToTransform(&model_->site_pos[3 * site_id],
