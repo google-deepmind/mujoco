@@ -473,6 +473,8 @@ class BindData(object):
         return self._slice(self.__getname(name), slice(adr, adr + num))
       else:
         return self._slice(self.__getname(name), adr)
+    elif name in ('mocap_pos', 'mocap_quat'):
+      return self._slice(self.__getname(name), self.model.body_mocapid[self.id])
     return self._slice(self.__getname(name), self.id)
 
   def set(self, name: str, value: jax.Array) -> Data:
@@ -485,7 +487,7 @@ class BindData(object):
       iter(value)
     except TypeError:
       value = [value]
-    if name in ('qpos', 'qvel', 'qacc'):
+    if name in ('qpos', 'qvel', 'qacc', 'mocap_pos', 'mocap_quat'):
       adr = num = 0
       if name == 'qpos':
         adr = self.model.jnt_qposadr[self.id]
@@ -495,6 +497,12 @@ class BindData(object):
         adr = self.model.jnt_dofadr[self.id]
         typ = self.model.jnt_type[self.id]
         num = sum((typ == jt) * jt.dof_width() for jt in JointType)
+      elif name == 'mocap_pos':
+        adr = self.model.body_mocapid[self.id] * 3
+        num = np.ones_like(self.id, dtype=int) * 3
+      elif name == 'mocap_quat':
+        adr = self.model.body_mocapid[self.id] * 4
+        num = np.ones_like(self.id, dtype=int) * 4
       if not isinstance(self.id, list):
         adr = [adr]
         num = [num]

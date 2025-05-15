@@ -173,6 +173,8 @@ class SupportTest(parameterized.TestCase):
             <joint axis="0 0 1" type="slide" name="joint3"/>
             <geom size="7 8 9" type="box" name="geom3"/>
           </body>
+          <body pos="100 110 120" name="body4" mocap="true"/>
+          <body pos="130 140 150" name="body5" mocap="true"/>
         </worldbody>
 
         <actuator>
@@ -318,6 +320,16 @@ class SupportTest(parameterized.TestCase):
     np.testing.assert_array_equal(
         dx10.bind(mx, s.bodies[1]).xfrc_applied, [2, 2, 2, 2, 2, 2]
     )
+    dx11 = dx.bind(mx, s.bodies[-1]).set(
+        'mocap_pos',
+        [1, 2, 3],
+    )
+    np.testing.assert_array_equal(
+        dx11.bind(mx, s.bodies[-2]).mocap_pos, [100, 110, 120]
+    )
+    np.testing.assert_array_equal(
+        dx11.bind(mx, s.bodies[-1]).mocap_pos, [1, 2, 3]
+    )
 
     # test attribute and type mismatches
     with self.assertRaisesRegex(
@@ -359,7 +371,7 @@ class SupportTest(parameterized.TestCase):
     self.assertEqual(
         str(e.exception),
         'mjSpec signature does not match mjx.Model signature:'
-        ' 17856615236057737915 != 12517827274439268436',
+        ' 15297169659434471387 != 2785811613804955188',
     )
 
   _CONTACTS = """
