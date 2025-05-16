@@ -110,6 +110,16 @@ MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT
                               const int* colindT, const int* rowsuperT,
                               mjData* d, int* diagind);
 
+// LEGACY: row-based implementation
+MJAPI void mju_sqrMatTDSparse_row(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
+                                  const mjtNum* diag, int nr, int nc,
+                                  int* res_rownnz, const int* res_rowadr, int* res_colind,
+                                  const int* rownnz, const int* rowadr,
+                                  const int* colind, const int* rowsuper,
+                                  const int* rownnzT, const int* rowadrT,
+                                  const int* colindT, const int* rowsuperT,
+                                  mjData* d, int* diagind);
+
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
 MJAPI void mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
                                    const int* rownnz, const int* rowadr, const int* colind,

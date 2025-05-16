@@ -613,18 +613,25 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
 }
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_sqrMatTDSparse_new(benchmark::State& state) {
+BM_sqrMatTDSparse_col(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_sqrMatTDSparse(state, &mju_sqrMatTDSparse);
 }
-BENCHMARK(BM_sqrMatTDSparse_new);
+BENCHMARK(BM_sqrMatTDSparse_col);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_sqrMatTDSparse_old(benchmark::State& state) {
+BM_sqrMatTDSparse_row(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_sqrMatTDSparse(state, &mju_sqrMatTDSparse_row);
+}
+BENCHMARK(BM_sqrMatTDSparse_row);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_sqrMatTDSparse_uncompressed(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_sqrMatTDSparse(state, nullptr);
 }
-BENCHMARK(BM_sqrMatTDSparse_old);
+BENCHMARK(BM_sqrMatTDSparse_uncompressed);
 
 }  // namespace
 }  // namespace mujoco
