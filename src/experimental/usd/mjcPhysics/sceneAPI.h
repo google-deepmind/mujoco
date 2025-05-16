@@ -154,7 +154,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:timestep = 0.002` |
+  /// | Declaration | `uniform double mjc:option:timestep = 0.002` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -179,7 +179,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:apirate = 100` |
+  /// | Declaration | `uniform double mjc:option:apirate = 100` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -204,7 +204,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:impratio = 1` |
+  /// | Declaration | `uniform double mjc:option:impratio = 1` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -228,7 +228,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double3 mjc:physics:wind = (0, 0, 0)` |
+  /// | Declaration | `uniform double3 mjc:option:wind = (0, 0, 0)` |
   /// | C++ Type | GfVec3d |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double3 |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -252,7 +252,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double3 mjc:physics:magnetic = (0, -0.5, 0)` |
+  /// | Declaration | `uniform double3 mjc:option:magnetic = (0, -0.5, 0)` |
   /// | C++ Type | GfVec3d |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double3 |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -276,7 +276,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:density = 0` |
+  /// | Declaration | `uniform double mjc:option:density = 0` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -300,7 +300,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:viscosity = 0` |
+  /// | Declaration | `uniform double mjc:option:viscosity = 0` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -325,7 +325,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:o_margin = 0` |
+  /// | Declaration | `uniform double mjc:option:o_margin = 0` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -350,7 +350,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double[] mjc:physics:o_solref = [0.02, 1]` |
+  /// | Declaration | `uniform double[] mjc:option:o_solref = [0.02, 1]` |
   /// | C++ Type | VtArray<double> |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->DoubleArray |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -375,10 +375,10 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double[] mjc:physics:o_solimp = [0.9, 0.95,
-  /// 0.001, 0.5, 2]` | | C++ Type | VtArray<double> | | \ref Usd_Datatypes "Usd
-  /// Type" | SdfValueTypeNames->DoubleArray | | \ref SdfVariability
-  /// "Variability" | SdfVariabilityUniform |
+  /// | Declaration | `uniform double[] mjc:option:o_solimp = [0.9, 0.95, 0.001,
+  /// 0.5, 2]` | | C++ Type | VtArray<double> | | \ref Usd_Datatypes "Usd Type"
+  /// | SdfValueTypeNames->DoubleArray | | \ref SdfVariability "Variability" |
+  /// SdfVariabilityUniform |
   MJCPHYSICS_API
   UsdAttribute GetOSolImpAttr() const;
 
@@ -400,7 +400,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double[] mjc:physics:o_friction = [1, 1, 0.005,
+  /// | Declaration | `uniform double[] mjc:option:o_friction = [1, 1, 0.005,
   /// 0.0001, 0.0001]` | | C++ Type | VtArray<double> | | \ref Usd_Datatypes
   /// "Usd Type" | SdfValueTypeNames->DoubleArray | | \ref SdfVariability
   /// "Variability" | SdfVariabilityUniform |
@@ -424,7 +424,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform token mjc:physics:integrator = "euler"` |
+  /// | Declaration | `uniform token mjc:option:integrator = "euler"` |
   /// | C++ Type | TfToken |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Token |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -450,7 +450,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform token mjc:physics:cone = "pyramidal"` |
+  /// | Declaration | `uniform token mjc:option:cone = "pyramidal"` |
   /// | C++ Type | TfToken |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Token |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -475,7 +475,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform token mjc:physics:jacobian = "auto"` |
+  /// | Declaration | `uniform token mjc:option:jacobian = "auto"` |
   /// | C++ Type | TfToken |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Token |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -500,7 +500,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform token mjc:physics:solver = "newton"` |
+  /// | Declaration | `uniform token mjc:option:solver = "newton"` |
   /// | C++ Type | TfToken |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Token |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -525,7 +525,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform int mjc:physics:iterations = 100` |
+  /// | Declaration | `uniform int mjc:option:iterations = 100` |
   /// | C++ Type | int |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -550,7 +550,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:tolerance = 1e-8` |
+  /// | Declaration | `uniform double mjc:option:tolerance = 1e-8` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -575,7 +575,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform int mjc:physics:ls_iterations = 50` |
+  /// | Declaration | `uniform int mjc:option:ls_iterations = 50` |
   /// | C++ Type | int |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -600,7 +600,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:ls_tolerance = 0.01` |
+  /// | Declaration | `uniform double mjc:option:ls_tolerance = 0.01` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -624,7 +624,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform int mjc:physics:noslip_iterations = 0` |
+  /// | Declaration | `uniform int mjc:option:noslip_iterations = 0` |
   /// | C++ Type | int |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -649,7 +649,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:noslip_tolerance = 0.000001` |
+  /// | Declaration | `uniform double mjc:option:noslip_tolerance = 0.000001` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -674,7 +674,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform int mjc:physics:ccd_iterations = 50` |
+  /// | Declaration | `uniform int mjc:option:ccd_iterations = 50` |
   /// | C++ Type | int |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -699,7 +699,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform double mjc:physics:ccd_tolerance = 0.000001` |
+  /// | Declaration | `uniform double mjc:option:ccd_tolerance = 0.000001` |
   /// | C++ Type | double |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -724,7 +724,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform int mjc:physics:sdf_iterations = 10` |
+  /// | Declaration | `uniform int mjc:option:sdf_iterations = 10` |
   /// | C++ Type | int |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -749,7 +749,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform int mjc:physics:sdf_initpoints = 40` |
+  /// | Declaration | `uniform int mjc:option:sdf_initpoints = 40` |
   /// | C++ Type | int |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -773,7 +773,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform int[] mjc:physics:actuatorgroupdisable` |
+  /// | Declaration | `uniform int[] mjc:option:actuatorgroupdisable` |
   /// | C++ Type | VtArray<int> |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->IntArray |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -798,7 +798,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:constraint = 1` |
+  /// | Declaration | `uniform bool mjc:flag:constraint = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -822,7 +822,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:equality = 1` |
+  /// | Declaration | `uniform bool mjc:flag:equality = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -846,7 +846,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:frictionloss = 1` |
+  /// | Declaration | `uniform bool mjc:flag:frictionloss = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -872,7 +872,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:limit = 1` |
+  /// | Declaration | `uniform bool mjc:flag:limit = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -897,7 +897,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:contact = 1` |
+  /// | Declaration | `uniform bool mjc:flag:contact = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -922,7 +922,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:passive = 1` |
+  /// | Declaration | `uniform bool mjc:flag:passive = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -947,7 +947,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:gravity = 1` |
+  /// | Declaration | `uniform bool mjc:flag:gravity = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -972,7 +972,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:clampctrl = 1` |
+  /// | Declaration | `uniform bool mjc:flag:clampctrl = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -997,7 +997,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:warmstart = 1` |
+  /// | Declaration | `uniform bool mjc:flag:warmstart = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1022,7 +1022,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:filterparent = 1` |
+  /// | Declaration | `uniform bool mjc:flag:filterparent = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1048,7 +1048,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:actuation = 1` |
+  /// | Declaration | `uniform bool mjc:flag:actuation = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1073,7 +1073,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:refsafe = 1` |
+  /// | Declaration | `uniform bool mjc:flag:refsafe = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1097,7 +1097,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:sensor = 1` |
+  /// | Declaration | `uniform bool mjc:flag:sensor = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1122,7 +1122,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:midphase = 1` |
+  /// | Declaration | `uniform bool mjc:flag:midphase = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1147,7 +1147,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:nativeccd = 1` |
+  /// | Declaration | `uniform bool mjc:flag:nativeccd = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1172,7 +1172,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:eulerdamp = 1` |
+  /// | Declaration | `uniform bool mjc:flag:eulerdamp = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1197,7 +1197,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:autoreset = 1` |
+  /// | Declaration | `uniform bool mjc:flag:autoreset = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1221,7 +1221,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:override = 0` |
+  /// | Declaration | `uniform bool mjc:flag:override = 0` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1246,7 +1246,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:energy = 0` |
+  /// | Declaration | `uniform bool mjc:flag:energy = 0` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1270,7 +1270,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:fwdinv = 0` |
+  /// | Declaration | `uniform bool mjc:flag:fwdinv = 0` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1295,7 +1295,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:invdiscrete = 0` |
+  /// | Declaration | `uniform bool mjc:flag:invdiscrete = 0` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1321,7 +1321,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:multiccd = 0` |
+  /// | Declaration | `uniform bool mjc:flag:multiccd = 0` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
@@ -1345,7 +1345,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:physics:flag:island = 0` |
+  /// | Declaration | `uniform bool mjc:flag:island = 0` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |

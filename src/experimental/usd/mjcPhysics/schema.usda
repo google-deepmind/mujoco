@@ -99,7 +99,7 @@ class "SceneAPI"
     inherits = </APISchemaBase>
 )
 {
-    uniform double mjc:physics:timestep = 0.002 (
+    uniform double mjc:option:timestep = 0.002 (
         customData = {
             string apiName = "Timestep"
         }
@@ -107,7 +107,7 @@ class "SceneAPI"
         doc = """Controls the timestep in seconds used by MuJoCo."""
     )
 
-    uniform double mjc:physics:apirate = 100 (
+    uniform double mjc:option:apirate = 100 (
         customData = {
             string apiName = "ApiRate"
         }
@@ -116,7 +116,7 @@ class "SceneAPI"
         the update function to be executed."""
     )
 
-    uniform double mjc:physics:impratio = 1.0 (
+    uniform double mjc:option:impratio = 1.0 (
         customData = {
             string apiName = "ImpRatio"
         }
@@ -125,7 +125,7 @@ class "SceneAPI"
         friction cones."""
     )
 
-    uniform double3 mjc:physics:wind = (0.0, 0.0, 0.0) (
+    uniform double3 mjc:option:wind = (0.0, 0.0, 0.0) (
         customData = {
             string apiName = "Wind"
         }
@@ -133,7 +133,7 @@ class "SceneAPI"
         doc = """Velocity vector of medium (i.e. wind)."""
     )
 
-    uniform double3 mjc:physics:magnetic = (0.0, -0.5, 0.0) (
+    uniform double3 mjc:option:magnetic = (0.0, -0.5, 0.0) (
         customData = {
             string apiName = "Magnetic"
         }
@@ -141,7 +141,7 @@ class "SceneAPI"
         doc = """Global magnetic flux."""
     )
 
-    uniform double mjc:physics:density = 0.0 (
+    uniform double mjc:option:density = 0.0 (
         customData = {
             string apiName = "Density"
         }
@@ -149,7 +149,7 @@ class "SceneAPI"
         doc = """Density of medium."""
     )
 
-    uniform double mjc:physics:viscosity = 0.0 (
+    uniform double mjc:option:viscosity = 0.0 (
         customData = {
             string apiName = "Viscosity"
         }
@@ -157,7 +157,7 @@ class "SceneAPI"
         doc = """Viscosity of medium."""
     )
 
-    uniform double mjc:physics:o_margin = 0.0 (
+    uniform double mjc:option:o_margin = 0.0 (
         customData = {
             string apiName = "OMargin"
         }
@@ -166,7 +166,7 @@ class "SceneAPI"
         Contact override is enabled."""
     )
 
-    uniform double[] mjc:physics:o_solref = [0.02, 1.0] (
+    uniform double[] mjc:option:o_solref = [0.02, 1.0] (
         customData = {
             string apiName = "OSolRef"
         }
@@ -175,7 +175,7 @@ class "SceneAPI"
         Contact override is enabled."""
     )
 
-    uniform double[] mjc:physics:o_solimp = [0.9, 0.95, 0.001, 0.5, 2.0] (
+    uniform double[] mjc:option:o_solimp = [0.9, 0.95, 0.001, 0.5, 2.0] (
         customData = {
             string apiName = "OSolImp"
         }
@@ -184,7 +184,7 @@ class "SceneAPI"
         Contact override is enabled."""
     )
 
-    uniform double[] mjc:physics:o_friction = [1.0, 1.0, 0.005, 0.0001, 0.0001] (
+    uniform double[] mjc:option:o_friction = [1.0, 1.0, 0.005, 0.0001, 0.0001] (
         customData = {
             string apiName = "OFriction"
         }
@@ -193,7 +193,7 @@ class "SceneAPI"
         Contact override is enabled."""
     )
 
-    uniform token mjc:physics:integrator = "euler" (
+    uniform token mjc:option:integrator = "euler" (
         allowedTokens = ["euler", "rk4", "implicit", "implicitfast"]
         customData = {
             string apiName = "Integrator"
@@ -202,7 +202,7 @@ class "SceneAPI"
         doc = """Numerical integrator to be used."""
     )
 
-    uniform token mjc:physics:cone = "pyramidal" (
+    uniform token mjc:option:cone = "pyramidal" (
         allowedTokens = ["pyramidal", "elliptic"]
         customData = {
             string apiName = "Cone"
@@ -211,7 +211,7 @@ class "SceneAPI"
         doc = """The type of contact friction cone."""
     )
 
-    uniform token mjc:physics:jacobian = "auto" (
+    uniform token mjc:option:jacobian = "auto" (
         allowedTokens = ["auto", "dense", "sparse"]
         customData = {
             string apiName = "Jacobian"
@@ -220,7 +220,7 @@ class "SceneAPI"
         doc = """The type of constraint Jacobian and matrices computed from it."""
     )
 
-    uniform token mjc:physics:solver = "newton" (
+    uniform token mjc:option:solver = "newton" (
         allowedTokens = ["pgs", "cg", "newton"]
         customData = {
             string apiName = "Solver"
@@ -229,7 +229,7 @@ class "SceneAPI"
         doc = """Constraint solver algorithm to be used."""
     )
 
-    uniform int mjc:physics:iterations = 100 (
+    uniform int mjc:option:iterations = 100 (
         customData = {
             string apiName = "Iterations"
         }
@@ -237,7 +237,7 @@ class "SceneAPI"
         doc = """Maximum number of iterations of the constraint solver."""
     )
 
-    uniform double mjc:physics:tolerance = 1e-08 (
+    uniform double mjc:option:tolerance = 1e-08 (
         customData = {
             string apiName = "Tolerance"
         }
@@ -246,7 +246,7 @@ class "SceneAPI"
         solver."""
     )
 
-    uniform int mjc:physics:ls_iterations = 50 (
+    uniform int mjc:option:ls_iterations = 50 (
         customData = {
             string apiName = "LSIterations"
         }
@@ -255,7 +255,7 @@ class "SceneAPI"
         constraint solvers."""
     )
 
-    uniform double mjc:physics:ls_tolerance = 0.01 (
+    uniform double mjc:option:ls_tolerance = 0.01 (
         customData = {
             string apiName = "LSTolerance"
         }
@@ -263,7 +263,7 @@ class "SceneAPI"
         doc = """Tolerance threshold used for early termination of the linesearch algorithm."""
     )
 
-    uniform int mjc:physics:noslip_iterations = 0 (
+    uniform int mjc:option:noslip_iterations = 0 (
         customData = {
             string apiName = "NoslipIterations"
         }
@@ -271,7 +271,7 @@ class "SceneAPI"
         doc = """Maximum number of iterations of the Noslip solver."""
     )
 
-    uniform double mjc:physics:noslip_tolerance = 1e-06 (
+    uniform double mjc:option:noslip_tolerance = 1e-06 (
         customData = {
             string apiName = "NoslipTolerance"
         }
@@ -279,7 +279,7 @@ class "SceneAPI"
         doc = """Tolerance threshold used for early termination of the Noslip solver."""
     )
 
-    uniform int mjc:physics:ccd_iterations = 50 (
+    uniform int mjc:option:ccd_iterations = 50 (
         customData = {
             string apiName = "CCDIterations"
         }
@@ -287,7 +287,7 @@ class "SceneAPI"
         doc = """Maximum number of iterations of the algorithm used for convex collisions."""
     )
 
-    uniform double mjc:physics:ccd_tolerance = 1e-06 (
+    uniform double mjc:option:ccd_tolerance = 1e-06 (
         customData = {
             string apiName = "CCDTolerance"
         }
@@ -296,7 +296,7 @@ class "SceneAPI"
         collision algorithm."""
     )
 
-    uniform int mjc:physics:sdf_iterations = 10 (
+    uniform int mjc:option:sdf_iterations = 10 (
         customData = {
             string apiName = "SDFIterations"
         }
@@ -305,7 +305,7 @@ class "SceneAPI"
         (per initial point)."""
     )
 
-    uniform int mjc:physics:sdf_initpoints = 40 (
+    uniform int mjc:option:sdf_initpoints = 40 (
         customData = {
             string apiName = "SDFInitPoints"
         }
@@ -314,7 +314,7 @@ class "SceneAPI"
         Distance Field collisions."""
     )
 
-    uniform int[] mjc:physics:actuatorgroupdisable (
+    uniform int[] mjc:option:actuatorgroupdisable (
         customData = {
             string apiName = "ActuatorGroupDisable"
         }
@@ -322,7 +322,7 @@ class "SceneAPI"
         doc = """List of actuator groups to disable."""
     )
 
-    uniform bool mjc:physics:flag:constraint = True (
+    uniform bool mjc:flag:constraint = True (
         customData = {
             string apiName = "ConstraintFlag"
         }
@@ -330,7 +330,7 @@ class "SceneAPI"
         doc = """Enables constraint solver."""
     )
 
-    uniform bool mjc:physics:flag:equality = True (
+    uniform bool mjc:flag:equality = True (
         customData = {
             string apiName = "EqualityFlag"
         }
@@ -338,7 +338,7 @@ class "SceneAPI"
         doc = """Enables all standard computations related to equality constraints."""
     )
 
-    uniform bool mjc:physics:flag:frictionloss = True (
+    uniform bool mjc:flag:frictionloss = True (
         customData = {
             string apiName = "FrictionLossFlag"
         }
@@ -346,7 +346,7 @@ class "SceneAPI"
         doc = """Enables all standard computations related to friction loss constraints."""
     )
 
-    uniform bool mjc:physics:flag:limit = True (
+    uniform bool mjc:flag:limit = True (
         customData = {
             string apiName = "LimitFlag"
         }
@@ -354,7 +354,7 @@ class "SceneAPI"
         doc = """Enables all standard computations related to joint and tendon limit constraints."""
     )
 
-    uniform bool mjc:physics:flag:contact = True (
+    uniform bool mjc:flag:contact = True (
         customData = {
             string apiName = "ContactFlag"
         }
@@ -362,7 +362,7 @@ class "SceneAPI"
         doc = """Enables collision detection and all standard computations related to contact constraints."""
     )
 
-    uniform bool mjc:physics:flag:passive = True (
+    uniform bool mjc:flag:passive = True (
         customData = {
             string apiName = "PassiveFlag"
         }
@@ -370,7 +370,7 @@ class "SceneAPI"
         doc = """Enables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive forces."""
     )
 
-    uniform bool mjc:physics:flag:gravity = True (
+    uniform bool mjc:flag:gravity = True (
         customData = {
             string apiName = "GravityFlag"
         }
@@ -378,7 +378,7 @@ class "SceneAPI"
         doc = """Enables the application of gravitational acceleration as defined in mjOption."""
     )
 
-    uniform bool mjc:physics:flag:clampctrl = True (
+    uniform bool mjc:flag:clampctrl = True (
         customData = {
             string apiName = "ClampCtrlFlag"
         }
@@ -386,7 +386,7 @@ class "SceneAPI"
         doc = """Enables the clamping of control inputs to all actuators, according to actuator-specific attributes."""
     )
 
-    uniform bool mjc:physics:flag:warmstart = True (
+    uniform bool mjc:flag:warmstart = True (
         customData = {
             string apiName = "WarmStartFlag"
         }
@@ -394,7 +394,7 @@ class "SceneAPI"
         doc = """Enables warm-starting of the constraint solver, using the solution from the previous time step to initialize the iterative optimization."""
     )
 
-    uniform bool mjc:physics:flag:filterparent = True (
+    uniform bool mjc:flag:filterparent = True (
         customData = {
             string apiName = "FilterParentFlag"
         }
@@ -402,7 +402,7 @@ class "SceneAPI"
         doc = """Enables the filtering of contact pairs where the two geoms belong to a parent and child body."""
     )
 
-    uniform bool mjc:physics:flag:actuation = True (
+    uniform bool mjc:flag:actuation = True (
         customData = {
             string apiName = "ActuationFlag"
         }
@@ -410,7 +410,7 @@ class "SceneAPI"
         doc = """Enables all standard computations related to actuator forces, including actuator dynamics."""
     )
 
-    uniform bool mjc:physics:flag:refsafe = True (
+    uniform bool mjc:flag:refsafe = True (
         customData = {
             string apiName = "RefSafeFlag"
         }
@@ -418,7 +418,7 @@ class "SceneAPI"
         doc = """Enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the simulation timestep."""
     )
 
-    uniform bool mjc:physics:flag:sensor = True (
+    uniform bool mjc:flag:sensor = True (
         customData = {
             string apiName = "SensorFlag"
         }
@@ -426,7 +426,7 @@ class "SceneAPI"
         doc = """Enables all computations related to sensors."""
     )
 
-    uniform bool mjc:physics:flag:midphase = True (
+    uniform bool mjc:flag:midphase = True (
         customData = {
             string apiName = "MidPhaseFlag"
         }
@@ -434,7 +434,7 @@ class "SceneAPI"
         doc = """Enables mid-phase collision filtering using a static AABB bounding volume hierarchy (BVH)."""
     )
 
-    uniform bool mjc:physics:flag:nativeccd = True (
+    uniform bool mjc:flag:nativeccd = True (
         customData = {
             string apiName = "NativeCCDFlag"
         }
@@ -442,7 +442,7 @@ class "SceneAPI"
         doc = """Enables the native convex collision detection pipeline instead of using the libccd library."""
     )
 
-    uniform bool mjc:physics:flag:eulerdamp = True (
+    uniform bool mjc:flag:eulerdamp = True (
         customData = {
             string apiName = "EulerDampFlag"
         }
@@ -450,7 +450,7 @@ class "SceneAPI"
         doc = """Enables implicit integration with respect to joint damping in the Euler integrator."""
     )
 
-    uniform bool mjc:physics:flag:autoreset = True (
+    uniform bool mjc:flag:autoreset = True (
         customData = {
             string apiName = "AutoResetFlag"
         }
@@ -458,7 +458,7 @@ class "SceneAPI"
         doc = """Enables the automatic resetting of the simulation state when numerical issues are detected."""
     )
 
-    uniform bool mjc:physics:flag:override = False (
+    uniform bool mjc:flag:override = False (
         customData = {
             string apiName = "OverrideFlag"
         }
@@ -466,7 +466,7 @@ class "SceneAPI"
         doc = """Enables the contact override mechanism."""
     )
 
-    uniform bool mjc:physics:flag:energy = False (
+    uniform bool mjc:flag:energy = False (
         customData = {
             string apiName = "EnergyFlag"
         }
@@ -474,7 +474,7 @@ class "SceneAPI"
         doc = """Enables the computation of potential and kinetic energy (mjData.energy[0,1])."""
     )
 
-    uniform bool mjc:physics:flag:fwdinv = False (
+    uniform bool mjc:flag:fwdinv = False (
         customData = {
             string apiName = "FwdinvFlag"
         }
@@ -482,7 +482,7 @@ class "SceneAPI"
         doc = """Enables the automatic comparison of forward and inverse dynamics."""
     )
 
-    uniform bool mjc:physics:flag:invdiscrete = False (
+    uniform bool mjc:flag:invdiscrete = False (
         customData = {
             string apiName = "InvDiscreteFlag"
         }
@@ -490,7 +490,7 @@ class "SceneAPI"
         doc = """Enables discrete-time inverse dynamics with mj_inverse for integrators other than RK4."""
     )
 
-    uniform bool mjc:physics:flag:multiccd = False (
+    uniform bool mjc:flag:multiccd = False (
         customData = {
             string apiName = "MultiCCDFlag"
         }
@@ -498,7 +498,7 @@ class "SceneAPI"
         doc = """Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."""
     )
 
-    uniform bool mjc:physics:flag:island = False (
+    uniform bool mjc:flag:island = False (
         customData = {
             string apiName = "IslandFlag"
         }

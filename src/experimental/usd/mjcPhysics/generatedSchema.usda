@@ -7,214 +7,214 @@ class "SceneAPI" (
     doc = "API providing global simulation options for Mujoco."
 )
 {
-    uniform int[] mjc:physics:actuatorgroupdisable (
+    uniform bool mjc:flag:actuation = 1 (
+        displayName = "Actuation Forces Toggle"
+        doc = "Enables all standard computations related to actuator forces, including actuator dynamics."
+    )
+    uniform bool mjc:flag:autoreset = 1 (
+        displayName = "Automatic Simulation Reset Toggle"
+        doc = "Enables the automatic resetting of the simulation state when numerical issues are detected."
+    )
+    uniform bool mjc:flag:clampctrl = 1 (
+        displayName = "Control Input Clamping Toggle"
+        doc = "Enables the clamping of control inputs to all actuators, according to actuator-specific attributes."
+    )
+    uniform bool mjc:flag:constraint = 1 (
+        displayName = "Constraint Solver Toggle"
+        doc = "Enables constraint solver."
+    )
+    uniform bool mjc:flag:contact = 1 (
+        displayName = "Contact Constraints and Collision Detection Toggle"
+        doc = "Enables collision detection and all standard computations related to contact constraints."
+    )
+    uniform bool mjc:flag:energy = 0 (
+        displayName = "Energy Computation Toggle"
+        doc = "Enables the computation of potential and kinetic energy (mjData.energy[0,1])."
+    )
+    uniform bool mjc:flag:equality = 1 (
+        displayName = "Equality Constraints Toggle"
+        doc = "Enables all standard computations related to equality constraints."
+    )
+    uniform bool mjc:flag:eulerdamp = 1 (
+        displayName = "Euler Integrator Damping Toggle"
+        doc = "Enables implicit integration with respect to joint damping in the Euler integrator."
+    )
+    uniform bool mjc:flag:filterparent = 1 (
+        displayName = "Parent-Child Contact Filtering Toggle"
+        doc = "Enables the filtering of contact pairs where the two geoms belong to a parent and child body."
+    )
+    uniform bool mjc:flag:frictionloss = 1 (
+        displayName = "Friction Loss Constraints Toggle"
+        doc = "Enables all standard computations related to friction loss constraints."
+    )
+    uniform bool mjc:flag:fwdinv = 0 (
+        displayName = "Forward/Inverse Dynamics Comparison Toggle"
+        doc = "Enables the automatic comparison of forward and inverse dynamics."
+    )
+    uniform bool mjc:flag:gravity = 1 (
+        displayName = "Gravity Toggle"
+        doc = "Enables the application of gravitational acceleration as defined in mjOption."
+    )
+    uniform bool mjc:flag:invdiscrete = 0 (
+        displayName = "Discrete-Time Inverse Dynamics Toggle"
+        doc = "Enables discrete-time inverse dynamics with mj_inverse for integrators other than RK4."
+    )
+    uniform bool mjc:flag:island = 0 (
+        displayName = "Constraint Island Discovery Toggle"
+        doc = "Enables the discovery of constraint islands."
+    )
+    uniform bool mjc:flag:limit = 1 (
+        displayName = "Joint and Tendon Limit Constraints Toggle"
+        doc = "Enables all standard computations related to joint and tendon limit constraints."
+    )
+    uniform bool mjc:flag:midphase = 1 (
+        displayName = "Mid-Phase Collision Filtering Toggle"
+        doc = "Enables mid-phase collision filtering using a static AABB bounding volume hierarchy (BVH)."
+    )
+    uniform bool mjc:flag:multiccd = 0 (
+        displayName = "Multiple Contact Collision Detection (CCD) Toggle"
+        doc = "Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."
+    )
+    uniform bool mjc:flag:nativeccd = 1 (
+        displayName = "Native Convex Collision Detection Toggle"
+        doc = "Enables the native convex collision detection pipeline instead of using the libccd library."
+    )
+    uniform bool mjc:flag:override = 0 (
+        displayName = "Contact Override Mechanism Toggle"
+        doc = "Enables the contact override mechanism."
+    )
+    uniform bool mjc:flag:passive = 1 (
+        displayName = "Passive Forces Toggle"
+        doc = "Enables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive forces."
+    )
+    uniform bool mjc:flag:refsafe = 1 (
+        displayName = "Solver Reference Safety Mechanism Toggle"
+        doc = "Enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the simulation timestep."
+    )
+    uniform bool mjc:flag:sensor = 1 (
+        displayName = "Sensor Computations Toggle"
+        doc = "Enables all computations related to sensors."
+    )
+    uniform bool mjc:flag:warmstart = 1 (
+        displayName = "Solver Warm-Starting Toggle"
+        doc = "Enables warm-starting of the constraint solver, using the solution from the previous time step to initialize the iterative optimization."
+    )
+    uniform int[] mjc:option:actuatorgroupdisable (
         displayName = "Actuator Group Disable"
         doc = "List of actuator groups to disable."
     )
-    uniform double mjc:physics:apirate = 100 (
+    uniform double mjc:option:apirate = 100 (
         displayName = "ApiRate"
         doc = """Determines the rate (in Hz) at which an external API allows
         the update function to be executed."""
     )
-    uniform int mjc:physics:ccd_iterations = 50 (
+    uniform int mjc:option:ccd_iterations = 50 (
         displayName = "CCD Iterations"
         doc = "Maximum number of iterations of the algorithm used for convex collisions."
     )
-    uniform double mjc:physics:ccd_tolerance = 0.000001 (
+    uniform double mjc:option:ccd_tolerance = 0.000001 (
         displayName = "CCD Tolerance"
         doc = """Tolerance threshold used for early termination of the convex
         collision algorithm."""
     )
-    uniform token mjc:physics:cone = "pyramidal" (
+    uniform token mjc:option:cone = "pyramidal" (
         allowedTokens = ["pyramidal", "elliptic"]
         displayName = "Friction Cone Type"
         doc = "The type of contact friction cone."
     )
-    uniform double mjc:physics:density = 0 (
+    uniform double mjc:option:density = 0 (
         displayName = "Density"
         doc = "Density of medium."
     )
-    uniform bool mjc:physics:flag:actuation = 1 (
-        displayName = "Actuation Forces Toggle"
-        doc = "Enables all standard computations related to actuator forces, including actuator dynamics."
-    )
-    uniform bool mjc:physics:flag:autoreset = 1 (
-        displayName = "Automatic Simulation Reset Toggle"
-        doc = "Enables the automatic resetting of the simulation state when numerical issues are detected."
-    )
-    uniform bool mjc:physics:flag:clampctrl = 1 (
-        displayName = "Control Input Clamping Toggle"
-        doc = "Enables the clamping of control inputs to all actuators, according to actuator-specific attributes."
-    )
-    uniform bool mjc:physics:flag:constraint = 1 (
-        displayName = "Constraint Solver Toggle"
-        doc = "Enables constraint solver."
-    )
-    uniform bool mjc:physics:flag:contact = 1 (
-        displayName = "Contact Constraints and Collision Detection Toggle"
-        doc = "Enables collision detection and all standard computations related to contact constraints."
-    )
-    uniform bool mjc:physics:flag:energy = 0 (
-        displayName = "Energy Computation Toggle"
-        doc = "Enables the computation of potential and kinetic energy (mjData.energy[0,1])."
-    )
-    uniform bool mjc:physics:flag:equality = 1 (
-        displayName = "Equality Constraints Toggle"
-        doc = "Enables all standard computations related to equality constraints."
-    )
-    uniform bool mjc:physics:flag:eulerdamp = 1 (
-        displayName = "Euler Integrator Damping Toggle"
-        doc = "Enables implicit integration with respect to joint damping in the Euler integrator."
-    )
-    uniform bool mjc:physics:flag:filterparent = 1 (
-        displayName = "Parent-Child Contact Filtering Toggle"
-        doc = "Enables the filtering of contact pairs where the two geoms belong to a parent and child body."
-    )
-    uniform bool mjc:physics:flag:frictionloss = 1 (
-        displayName = "Friction Loss Constraints Toggle"
-        doc = "Enables all standard computations related to friction loss constraints."
-    )
-    uniform bool mjc:physics:flag:fwdinv = 0 (
-        displayName = "Forward/Inverse Dynamics Comparison Toggle"
-        doc = "Enables the automatic comparison of forward and inverse dynamics."
-    )
-    uniform bool mjc:physics:flag:gravity = 1 (
-        displayName = "Gravity Toggle"
-        doc = "Enables the application of gravitational acceleration as defined in mjOption."
-    )
-    uniform bool mjc:physics:flag:invdiscrete = 0 (
-        displayName = "Discrete-Time Inverse Dynamics Toggle"
-        doc = "Enables discrete-time inverse dynamics with mj_inverse for integrators other than RK4."
-    )
-    uniform bool mjc:physics:flag:island = 0 (
-        displayName = "Constraint Island Discovery Toggle"
-        doc = "Enables the discovery of constraint islands."
-    )
-    uniform bool mjc:physics:flag:limit = 1 (
-        displayName = "Joint and Tendon Limit Constraints Toggle"
-        doc = "Enables all standard computations related to joint and tendon limit constraints."
-    )
-    uniform bool mjc:physics:flag:midphase = 1 (
-        displayName = "Mid-Phase Collision Filtering Toggle"
-        doc = "Enables mid-phase collision filtering using a static AABB bounding volume hierarchy (BVH)."
-    )
-    uniform bool mjc:physics:flag:multiccd = 0 (
-        displayName = "Multiple Contact Collision Detection (CCD) Toggle"
-        doc = "Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."
-    )
-    uniform bool mjc:physics:flag:nativeccd = 1 (
-        displayName = "Native Convex Collision Detection Toggle"
-        doc = "Enables the native convex collision detection pipeline instead of using the libccd library."
-    )
-    uniform bool mjc:physics:flag:override = 0 (
-        displayName = "Contact Override Mechanism Toggle"
-        doc = "Enables the contact override mechanism."
-    )
-    uniform bool mjc:physics:flag:passive = 1 (
-        displayName = "Passive Forces Toggle"
-        doc = "Enables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive forces."
-    )
-    uniform bool mjc:physics:flag:refsafe = 1 (
-        displayName = "Solver Reference Safety Mechanism Toggle"
-        doc = "Enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the simulation timestep."
-    )
-    uniform bool mjc:physics:flag:sensor = 1 (
-        displayName = "Sensor Computations Toggle"
-        doc = "Enables all computations related to sensors."
-    )
-    uniform bool mjc:physics:flag:warmstart = 1 (
-        displayName = "Solver Warm-Starting Toggle"
-        doc = "Enables warm-starting of the constraint solver, using the solution from the previous time step to initialize the iterative optimization."
-    )
-    uniform double mjc:physics:impratio = 1 (
+    uniform double mjc:option:impratio = 1 (
         displayName = "Impedance Ratio"
         doc = """Ratio of frictional-to-normal constraint impedance for elliptic
         friction cones."""
     )
-    uniform token mjc:physics:integrator = "euler" (
+    uniform token mjc:option:integrator = "euler" (
         allowedTokens = ["euler", "rk4", "implicit", "implicitfast"]
         displayName = "Integrator"
         doc = "Numerical integrator to be used."
     )
-    uniform int mjc:physics:iterations = 100 (
+    uniform int mjc:option:iterations = 100 (
         displayName = "Solver Iterations"
         doc = "Maximum number of iterations of the constraint solver."
     )
-    uniform token mjc:physics:jacobian = "auto" (
+    uniform token mjc:option:jacobian = "auto" (
         allowedTokens = ["auto", "dense", "sparse"]
         displayName = "Jacobian Type"
         doc = "The type of constraint Jacobian and matrices computed from it."
     )
-    uniform int mjc:physics:ls_iterations = 50 (
+    uniform int mjc:option:ls_iterations = 50 (
         displayName = "Linesearch Iterations"
         doc = """Maximum number of linesearch iterations performed by CG/Newton
         constraint solvers."""
     )
-    uniform double mjc:physics:ls_tolerance = 0.01 (
+    uniform double mjc:option:ls_tolerance = 0.01 (
         displayName = "Linesearch Tolerance"
         doc = "Tolerance threshold used for early termination of the linesearch algorithm."
     )
-    uniform double3 mjc:physics:magnetic = (0, -0.5, 0) (
+    uniform double3 mjc:option:magnetic = (0, -0.5, 0) (
         displayName = "Magnetic Flux"
         doc = "Global magnetic flux."
     )
-    uniform int mjc:physics:noslip_iterations = 0 (
+    uniform int mjc:option:noslip_iterations = 0 (
         displayName = "Noslip Iterations"
         doc = "Maximum number of iterations of the Noslip solver."
     )
-    uniform double mjc:physics:noslip_tolerance = 0.000001 (
+    uniform double mjc:option:noslip_tolerance = 0.000001 (
         displayName = "Noslip Tolerance"
         doc = "Tolerance threshold used for early termination of the Noslip solver."
     )
-    uniform double[] mjc:physics:o_friction = [1, 1, 0.005, 0.0001, 0.0001] (
+    uniform double[] mjc:option:o_friction = [1, 1, 0.005, 0.0001, 0.0001] (
         displayName = "Contact Override Friction"
         doc = """Replaces the friction parameter of all active contact pairs when
         Contact override is enabled."""
     )
-    uniform double mjc:physics:o_margin = 0 (
+    uniform double mjc:option:o_margin = 0 (
         displayName = "Contact Override Margin"
         doc = """Replaces the margin parameter of all active contact pairs when
         Contact override is enabled."""
     )
-    uniform double[] mjc:physics:o_solimp = [0.9, 0.95, 0.001, 0.5, 2] (
+    uniform double[] mjc:option:o_solimp = [0.9, 0.95, 0.001, 0.5, 2] (
         displayName = "Contact Override SolImp"
         doc = """Replaces the solimp parameter of all active contact pairs when
         Contact override is enabled."""
     )
-    uniform double[] mjc:physics:o_solref = [0.02, 1] (
+    uniform double[] mjc:option:o_solref = [0.02, 1] (
         displayName = "Contact Override SolRef"
         doc = """Replaces the solref parameter of all active contact pairs when
         Contact override is enabled."""
     )
-    uniform int mjc:physics:sdf_initpoints = 40 (
+    uniform int mjc:option:sdf_initpoints = 40 (
         displayName = "SDF Initial Points"
         doc = """Number of starting points used for finding contacts with Signed
         Distance Field collisions."""
     )
-    uniform int mjc:physics:sdf_iterations = 10 (
+    uniform int mjc:option:sdf_iterations = 10 (
         displayName = "SDF Iterations"
         doc = """Number of iterations used for Signed Distance Field collisions
         (per initial point)."""
     )
-    uniform token mjc:physics:solver = "newton" (
+    uniform token mjc:option:solver = "newton" (
         allowedTokens = ["pgs", "cg", "newton"]
         displayName = "Solver"
         doc = "Constraint solver algorithm to be used."
     )
-    uniform double mjc:physics:timestep = 0.002 (
+    uniform double mjc:option:timestep = 0.002 (
         displayName = "Timestep"
         doc = "Controls the timestep in seconds used by MuJoCo."
     )
-    uniform double mjc:physics:tolerance = 1e-8 (
+    uniform double mjc:option:tolerance = 1e-8 (
         displayName = "Solver Tolerance"
         doc = """Tolerance threshold used for early termination of the iterative
         solver."""
     )
-    uniform double mjc:physics:viscosity = 0 (
+    uniform double mjc:option:viscosity = 0 (
         displayName = "Viscosity"
         doc = "Viscosity of medium."
     )
-    uniform double3 mjc:physics:wind = (0, 0, 0) (
+    uniform double3 mjc:option:wind = (0, 0, 0) (
         displayName = "Wind Velocity"
         doc = "Velocity vector of medium (i.e. wind)."
     )

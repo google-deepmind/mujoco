@@ -88,202 +88,202 @@ struct MjcPhysicsTokensType {
   /// Possible value for MjcPhysicsSceneAPI::GetIntegratorAttr(),  This token
   /// represents the implicitfast numerical integrator.
   const TfToken implicitfast;
-  /// \brief "mjc:physics:actuatorgroupdisable"
+  /// \brief "mjc:flag:actuation"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsActuatorgroupdisable;
-  /// \brief "mjc:physics:apirate"
+  const TfToken mjcFlagActuation;
+  /// \brief "mjc:flag:autoreset"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsApirate;
-  /// \brief "mjc:physics:ccd_iterations"
+  const TfToken mjcFlagAutoreset;
+  /// \brief "mjc:flag:clampctrl"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsCcd_iterations;
-  /// \brief "mjc:physics:ccd_tolerance"
+  const TfToken mjcFlagClampctrl;
+  /// \brief "mjc:flag:constraint"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsCcd_tolerance;
-  /// \brief "mjc:physics:cone"
+  const TfToken mjcFlagConstraint;
+  /// \brief "mjc:flag:contact"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsCone;
-  /// \brief "mjc:physics:density"
+  const TfToken mjcFlagContact;
+  /// \brief "mjc:flag:energy"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsDensity;
-  /// \brief "mjc:physics:flag:actuation"
+  const TfToken mjcFlagEnergy;
+  /// \brief "mjc:flag:equality"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagActuation;
-  /// \brief "mjc:physics:flag:autoreset"
+  const TfToken mjcFlagEquality;
+  /// \brief "mjc:flag:eulerdamp"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagAutoreset;
-  /// \brief "mjc:physics:flag:clampctrl"
+  const TfToken mjcFlagEulerdamp;
+  /// \brief "mjc:flag:filterparent"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagClampctrl;
-  /// \brief "mjc:physics:flag:constraint"
+  const TfToken mjcFlagFilterparent;
+  /// \brief "mjc:flag:frictionloss"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagConstraint;
-  /// \brief "mjc:physics:flag:contact"
+  const TfToken mjcFlagFrictionloss;
+  /// \brief "mjc:flag:fwdinv"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagContact;
-  /// \brief "mjc:physics:flag:energy"
+  const TfToken mjcFlagFwdinv;
+  /// \brief "mjc:flag:gravity"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagEnergy;
-  /// \brief "mjc:physics:flag:equality"
+  const TfToken mjcFlagGravity;
+  /// \brief "mjc:flag:invdiscrete"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagEquality;
-  /// \brief "mjc:physics:flag:eulerdamp"
+  const TfToken mjcFlagInvdiscrete;
+  /// \brief "mjc:flag:island"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagEulerdamp;
-  /// \brief "mjc:physics:flag:filterparent"
+  const TfToken mjcFlagIsland;
+  /// \brief "mjc:flag:limit"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagFilterparent;
-  /// \brief "mjc:physics:flag:frictionloss"
+  const TfToken mjcFlagLimit;
+  /// \brief "mjc:flag:midphase"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagFrictionloss;
-  /// \brief "mjc:physics:flag:fwdinv"
+  const TfToken mjcFlagMidphase;
+  /// \brief "mjc:flag:multiccd"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagFwdinv;
-  /// \brief "mjc:physics:flag:gravity"
+  const TfToken mjcFlagMulticcd;
+  /// \brief "mjc:flag:nativeccd"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagGravity;
-  /// \brief "mjc:physics:flag:invdiscrete"
+  const TfToken mjcFlagNativeccd;
+  /// \brief "mjc:flag:override"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagInvdiscrete;
-  /// \brief "mjc:physics:flag:island"
+  const TfToken mjcFlagOverride;
+  /// \brief "mjc:flag:passive"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagIsland;
-  /// \brief "mjc:physics:flag:limit"
+  const TfToken mjcFlagPassive;
+  /// \brief "mjc:flag:refsafe"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagLimit;
-  /// \brief "mjc:physics:flag:midphase"
+  const TfToken mjcFlagRefsafe;
+  /// \brief "mjc:flag:sensor"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagMidphase;
-  /// \brief "mjc:physics:flag:multiccd"
+  const TfToken mjcFlagSensor;
+  /// \brief "mjc:flag:warmstart"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagMulticcd;
-  /// \brief "mjc:physics:flag:nativeccd"
+  const TfToken mjcFlagWarmstart;
+  /// \brief "mjc:option:actuatorgroupdisable"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagNativeccd;
-  /// \brief "mjc:physics:flag:override"
+  const TfToken mjcOptionActuatorgroupdisable;
+  /// \brief "mjc:option:apirate"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagOverride;
-  /// \brief "mjc:physics:flag:passive"
+  const TfToken mjcOptionApirate;
+  /// \brief "mjc:option:ccd_iterations"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagPassive;
-  /// \brief "mjc:physics:flag:refsafe"
+  const TfToken mjcOptionCcd_iterations;
+  /// \brief "mjc:option:ccd_tolerance"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagRefsafe;
-  /// \brief "mjc:physics:flag:sensor"
+  const TfToken mjcOptionCcd_tolerance;
+  /// \brief "mjc:option:cone"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagSensor;
-  /// \brief "mjc:physics:flag:warmstart"
+  const TfToken mjcOptionCone;
+  /// \brief "mjc:option:density"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsFlagWarmstart;
-  /// \brief "mjc:physics:impratio"
+  const TfToken mjcOptionDensity;
+  /// \brief "mjc:option:impratio"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsImpratio;
-  /// \brief "mjc:physics:integrator"
+  const TfToken mjcOptionImpratio;
+  /// \brief "mjc:option:integrator"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsIntegrator;
-  /// \brief "mjc:physics:iterations"
+  const TfToken mjcOptionIntegrator;
+  /// \brief "mjc:option:iterations"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsIterations;
-  /// \brief "mjc:physics:jacobian"
+  const TfToken mjcOptionIterations;
+  /// \brief "mjc:option:jacobian"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsJacobian;
-  /// \brief "mjc:physics:ls_iterations"
+  const TfToken mjcOptionJacobian;
+  /// \brief "mjc:option:ls_iterations"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsLs_iterations;
-  /// \brief "mjc:physics:ls_tolerance"
+  const TfToken mjcOptionLs_iterations;
+  /// \brief "mjc:option:ls_tolerance"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsLs_tolerance;
-  /// \brief "mjc:physics:magnetic"
+  const TfToken mjcOptionLs_tolerance;
+  /// \brief "mjc:option:magnetic"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsMagnetic;
-  /// \brief "mjc:physics:noslip_iterations"
+  const TfToken mjcOptionMagnetic;
+  /// \brief "mjc:option:noslip_iterations"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsNoslip_iterations;
-  /// \brief "mjc:physics:noslip_tolerance"
+  const TfToken mjcOptionNoslip_iterations;
+  /// \brief "mjc:option:noslip_tolerance"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsNoslip_tolerance;
-  /// \brief "mjc:physics:o_friction"
+  const TfToken mjcOptionNoslip_tolerance;
+  /// \brief "mjc:option:o_friction"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsO_friction;
-  /// \brief "mjc:physics:o_margin"
+  const TfToken mjcOptionO_friction;
+  /// \brief "mjc:option:o_margin"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsO_margin;
-  /// \brief "mjc:physics:o_solimp"
+  const TfToken mjcOptionO_margin;
+  /// \brief "mjc:option:o_solimp"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsO_solimp;
-  /// \brief "mjc:physics:o_solref"
+  const TfToken mjcOptionO_solimp;
+  /// \brief "mjc:option:o_solref"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsO_solref;
-  /// \brief "mjc:physics:sdf_initpoints"
+  const TfToken mjcOptionO_solref;
+  /// \brief "mjc:option:sdf_initpoints"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsSdf_initpoints;
-  /// \brief "mjc:physics:sdf_iterations"
+  const TfToken mjcOptionSdf_initpoints;
+  /// \brief "mjc:option:sdf_iterations"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsSdf_iterations;
-  /// \brief "mjc:physics:solver"
+  const TfToken mjcOptionSdf_iterations;
+  /// \brief "mjc:option:solver"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsSolver;
-  /// \brief "mjc:physics:timestep"
+  const TfToken mjcOptionSolver;
+  /// \brief "mjc:option:timestep"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsTimestep;
-  /// \brief "mjc:physics:tolerance"
+  const TfToken mjcOptionTimestep;
+  /// \brief "mjc:option:tolerance"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsTolerance;
-  /// \brief "mjc:physics:viscosity"
+  const TfToken mjcOptionTolerance;
+  /// \brief "mjc:option:viscosity"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsViscosity;
-  /// \brief "mjc:physics:wind"
+  const TfToken mjcOptionViscosity;
+  /// \brief "mjc:option:wind"
   ///
   /// MjcPhysicsSceneAPI
-  const TfToken mjcPhysicsWind;
+  const TfToken mjcOptionWind;
   /// \brief "newton"
   ///
   /// Fallback value for MjcPhysicsSceneAPI::GetSolverAttr(),  This token

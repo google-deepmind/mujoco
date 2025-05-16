@@ -75,543 +75,543 @@ const TfType &MjcPhysicsSceneAPI::_GetTfType() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetTimestepAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsTimestep);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionTimestep);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateTimestepAttr(VtValue const &defaultValue,
                                                     bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsTimestep, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionTimestep, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetApiRateAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsApirate);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionApirate);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateApiRateAttr(VtValue const &defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsApirate, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionApirate, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetImpRatioAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsImpratio);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionImpratio);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateImpRatioAttr(VtValue const &defaultValue,
                                                     bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsImpratio, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionImpratio, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetWindAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsWind);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionWind);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateWindAttr(VtValue const &defaultValue,
                                                 bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsWind, SdfValueTypeNames->Double3,
+      MjcPhysicsTokens->mjcOptionWind, SdfValueTypeNames->Double3,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetMagneticAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsMagnetic);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionMagnetic);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateMagneticAttr(VtValue const &defaultValue,
                                                     bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsMagnetic, SdfValueTypeNames->Double3,
+      MjcPhysicsTokens->mjcOptionMagnetic, SdfValueTypeNames->Double3,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetDensityAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsDensity);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionDensity);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateDensityAttr(VtValue const &defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsDensity, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionDensity, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetViscosityAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsViscosity);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionViscosity);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateViscosityAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsViscosity, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionViscosity, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetOMarginAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsO_margin);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionO_margin);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateOMarginAttr(VtValue const &defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsO_margin, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionO_margin, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetOSolRefAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsO_solref);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionO_solref);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateOSolRefAttr(VtValue const &defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsO_solref, SdfValueTypeNames->DoubleArray,
+      MjcPhysicsTokens->mjcOptionO_solref, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetOSolImpAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsO_solimp);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionO_solimp);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateOSolImpAttr(VtValue const &defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsO_solimp, SdfValueTypeNames->DoubleArray,
+      MjcPhysicsTokens->mjcOptionO_solimp, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetOFrictionAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsO_friction);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionO_friction);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateOFrictionAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsO_friction, SdfValueTypeNames->DoubleArray,
+      MjcPhysicsTokens->mjcOptionO_friction, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetIntegratorAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsIntegrator);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionIntegrator);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateIntegratorAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsIntegrator, SdfValueTypeNames->Token,
+      MjcPhysicsTokens->mjcOptionIntegrator, SdfValueTypeNames->Token,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetConeAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsCone);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionCone);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateConeAttr(VtValue const &defaultValue,
                                                 bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsCone, SdfValueTypeNames->Token,
+      MjcPhysicsTokens->mjcOptionCone, SdfValueTypeNames->Token,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetJacobianAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsJacobian);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionJacobian);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateJacobianAttr(VtValue const &defaultValue,
                                                     bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsJacobian, SdfValueTypeNames->Token,
+      MjcPhysicsTokens->mjcOptionJacobian, SdfValueTypeNames->Token,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetSolverAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsSolver);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionSolver);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateSolverAttr(VtValue const &defaultValue,
                                                   bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsSolver, SdfValueTypeNames->Token,
+      MjcPhysicsTokens->mjcOptionSolver, SdfValueTypeNames->Token,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetIterationsAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsIterations);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionIterations);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateIterationsAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsIterations, SdfValueTypeNames->Int,
+      MjcPhysicsTokens->mjcOptionIterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetToleranceAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsTolerance);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionTolerance);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateToleranceAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsTolerance, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionTolerance, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetLSIterationsAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsLs_iterations);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionLs_iterations);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateLSIterationsAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsLs_iterations, SdfValueTypeNames->Int,
+      MjcPhysicsTokens->mjcOptionLs_iterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetLSToleranceAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsLs_tolerance);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionLs_tolerance);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateLSToleranceAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsLs_tolerance, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionLs_tolerance, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetNoslipIterationsAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsNoslip_iterations);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionNoslip_iterations);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateNoslipIterationsAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsNoslip_iterations, SdfValueTypeNames->Int,
+      MjcPhysicsTokens->mjcOptionNoslip_iterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetNoslipToleranceAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsNoslip_tolerance);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionNoslip_tolerance);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateNoslipToleranceAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsNoslip_tolerance, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionNoslip_tolerance, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetCCDIterationsAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsCcd_iterations);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionCcd_iterations);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateCCDIterationsAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsCcd_iterations, SdfValueTypeNames->Int,
+      MjcPhysicsTokens->mjcOptionCcd_iterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetCCDToleranceAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsCcd_tolerance);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionCcd_tolerance);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateCCDToleranceAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsCcd_tolerance, SdfValueTypeNames->Double,
+      MjcPhysicsTokens->mjcOptionCcd_tolerance, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetSDFIterationsAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsSdf_iterations);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionSdf_iterations);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateSDFIterationsAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsSdf_iterations, SdfValueTypeNames->Int,
+      MjcPhysicsTokens->mjcOptionSdf_iterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetSDFInitPointsAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsSdf_initpoints);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionSdf_initpoints);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateSDFInitPointsAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsSdf_initpoints, SdfValueTypeNames->Int,
+      MjcPhysicsTokens->mjcOptionSdf_initpoints, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetActuatorGroupDisableAttr() const {
   return GetPrim().GetAttribute(
-      MjcPhysicsTokens->mjcPhysicsActuatorgroupdisable);
+      MjcPhysicsTokens->mjcOptionActuatorgroupdisable);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateActuatorGroupDisableAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsActuatorgroupdisable,
+      MjcPhysicsTokens->mjcOptionActuatorgroupdisable,
       SdfValueTypeNames->IntArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetConstraintFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagConstraint);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagConstraint);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateConstraintFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagConstraint, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagConstraint, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetEqualityFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagEquality);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagEquality);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateEqualityFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagEquality, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagEquality, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetFrictionLossFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagFrictionloss);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagFrictionloss);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateFrictionLossFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagFrictionloss, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagFrictionloss, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetLimitFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagLimit);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagLimit);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateLimitFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagLimit, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagLimit, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetContactFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagContact);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagContact);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateContactFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagContact, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagContact, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetPassiveFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagPassive);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagPassive);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreatePassiveFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagPassive, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagPassive, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetGravityFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagGravity);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagGravity);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateGravityFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagGravity, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagGravity, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetClampCtrlFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagClampctrl);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagClampctrl);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateClampCtrlFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagClampctrl, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagClampctrl, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetWarmStartFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagWarmstart);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagWarmstart);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateWarmStartFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagWarmstart, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagWarmstart, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetFilterParentFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagFilterparent);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagFilterparent);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateFilterParentFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagFilterparent, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagFilterparent, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetActuationFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagActuation);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagActuation);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateActuationFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagActuation, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagActuation, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetRefSafeFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagRefsafe);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagRefsafe);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateRefSafeFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagRefsafe, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagRefsafe, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetSensorFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagSensor);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagSensor);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateSensorFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagSensor, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagSensor, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetMidPhaseFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagMidphase);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagMidphase);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateMidPhaseFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagMidphase, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagMidphase, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetNativeCCDFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagNativeccd);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagNativeccd);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateNativeCCDFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagNativeccd, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagNativeccd, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetEulerDampFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagEulerdamp);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagEulerdamp);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateEulerDampFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagEulerdamp, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagEulerdamp, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetAutoResetFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagAutoreset);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagAutoreset);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateAutoResetFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagAutoreset, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagAutoreset, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetOverrideFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagOverride);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagOverride);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateOverrideFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagOverride, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagOverride, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetEnergyFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagEnergy);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagEnergy);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateEnergyFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagEnergy, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagEnergy, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetFwdinvFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagFwdinv);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagFwdinv);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateFwdinvFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagFwdinv, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagFwdinv, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetInvDiscreteFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagInvdiscrete);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagInvdiscrete);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateInvDiscreteFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagInvdiscrete, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagInvdiscrete, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetMultiCCDFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagMulticcd);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagMulticcd);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateMultiCCDFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagMulticcd, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagMulticcd, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::GetIslandFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPhysicsFlagIsland);
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagIsland);
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateIslandFlagAttr(
     VtValue const &defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcPhysicsFlagIsland, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagIsland, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
@@ -630,55 +630,55 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 const TfTokenVector &MjcPhysicsSceneAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
-      MjcPhysicsTokens->mjcPhysicsTimestep,
-      MjcPhysicsTokens->mjcPhysicsApirate,
-      MjcPhysicsTokens->mjcPhysicsImpratio,
-      MjcPhysicsTokens->mjcPhysicsWind,
-      MjcPhysicsTokens->mjcPhysicsMagnetic,
-      MjcPhysicsTokens->mjcPhysicsDensity,
-      MjcPhysicsTokens->mjcPhysicsViscosity,
-      MjcPhysicsTokens->mjcPhysicsO_margin,
-      MjcPhysicsTokens->mjcPhysicsO_solref,
-      MjcPhysicsTokens->mjcPhysicsO_solimp,
-      MjcPhysicsTokens->mjcPhysicsO_friction,
-      MjcPhysicsTokens->mjcPhysicsIntegrator,
-      MjcPhysicsTokens->mjcPhysicsCone,
-      MjcPhysicsTokens->mjcPhysicsJacobian,
-      MjcPhysicsTokens->mjcPhysicsSolver,
-      MjcPhysicsTokens->mjcPhysicsIterations,
-      MjcPhysicsTokens->mjcPhysicsTolerance,
-      MjcPhysicsTokens->mjcPhysicsLs_iterations,
-      MjcPhysicsTokens->mjcPhysicsLs_tolerance,
-      MjcPhysicsTokens->mjcPhysicsNoslip_iterations,
-      MjcPhysicsTokens->mjcPhysicsNoslip_tolerance,
-      MjcPhysicsTokens->mjcPhysicsCcd_iterations,
-      MjcPhysicsTokens->mjcPhysicsCcd_tolerance,
-      MjcPhysicsTokens->mjcPhysicsSdf_iterations,
-      MjcPhysicsTokens->mjcPhysicsSdf_initpoints,
-      MjcPhysicsTokens->mjcPhysicsActuatorgroupdisable,
-      MjcPhysicsTokens->mjcPhysicsFlagConstraint,
-      MjcPhysicsTokens->mjcPhysicsFlagEquality,
-      MjcPhysicsTokens->mjcPhysicsFlagFrictionloss,
-      MjcPhysicsTokens->mjcPhysicsFlagLimit,
-      MjcPhysicsTokens->mjcPhysicsFlagContact,
-      MjcPhysicsTokens->mjcPhysicsFlagPassive,
-      MjcPhysicsTokens->mjcPhysicsFlagGravity,
-      MjcPhysicsTokens->mjcPhysicsFlagClampctrl,
-      MjcPhysicsTokens->mjcPhysicsFlagWarmstart,
-      MjcPhysicsTokens->mjcPhysicsFlagFilterparent,
-      MjcPhysicsTokens->mjcPhysicsFlagActuation,
-      MjcPhysicsTokens->mjcPhysicsFlagRefsafe,
-      MjcPhysicsTokens->mjcPhysicsFlagSensor,
-      MjcPhysicsTokens->mjcPhysicsFlagMidphase,
-      MjcPhysicsTokens->mjcPhysicsFlagNativeccd,
-      MjcPhysicsTokens->mjcPhysicsFlagEulerdamp,
-      MjcPhysicsTokens->mjcPhysicsFlagAutoreset,
-      MjcPhysicsTokens->mjcPhysicsFlagOverride,
-      MjcPhysicsTokens->mjcPhysicsFlagEnergy,
-      MjcPhysicsTokens->mjcPhysicsFlagFwdinv,
-      MjcPhysicsTokens->mjcPhysicsFlagInvdiscrete,
-      MjcPhysicsTokens->mjcPhysicsFlagMulticcd,
-      MjcPhysicsTokens->mjcPhysicsFlagIsland,
+      MjcPhysicsTokens->mjcOptionTimestep,
+      MjcPhysicsTokens->mjcOptionApirate,
+      MjcPhysicsTokens->mjcOptionImpratio,
+      MjcPhysicsTokens->mjcOptionWind,
+      MjcPhysicsTokens->mjcOptionMagnetic,
+      MjcPhysicsTokens->mjcOptionDensity,
+      MjcPhysicsTokens->mjcOptionViscosity,
+      MjcPhysicsTokens->mjcOptionO_margin,
+      MjcPhysicsTokens->mjcOptionO_solref,
+      MjcPhysicsTokens->mjcOptionO_solimp,
+      MjcPhysicsTokens->mjcOptionO_friction,
+      MjcPhysicsTokens->mjcOptionIntegrator,
+      MjcPhysicsTokens->mjcOptionCone,
+      MjcPhysicsTokens->mjcOptionJacobian,
+      MjcPhysicsTokens->mjcOptionSolver,
+      MjcPhysicsTokens->mjcOptionIterations,
+      MjcPhysicsTokens->mjcOptionTolerance,
+      MjcPhysicsTokens->mjcOptionLs_iterations,
+      MjcPhysicsTokens->mjcOptionLs_tolerance,
+      MjcPhysicsTokens->mjcOptionNoslip_iterations,
+      MjcPhysicsTokens->mjcOptionNoslip_tolerance,
+      MjcPhysicsTokens->mjcOptionCcd_iterations,
+      MjcPhysicsTokens->mjcOptionCcd_tolerance,
+      MjcPhysicsTokens->mjcOptionSdf_iterations,
+      MjcPhysicsTokens->mjcOptionSdf_initpoints,
+      MjcPhysicsTokens->mjcOptionActuatorgroupdisable,
+      MjcPhysicsTokens->mjcFlagConstraint,
+      MjcPhysicsTokens->mjcFlagEquality,
+      MjcPhysicsTokens->mjcFlagFrictionloss,
+      MjcPhysicsTokens->mjcFlagLimit,
+      MjcPhysicsTokens->mjcFlagContact,
+      MjcPhysicsTokens->mjcFlagPassive,
+      MjcPhysicsTokens->mjcFlagGravity,
+      MjcPhysicsTokens->mjcFlagClampctrl,
+      MjcPhysicsTokens->mjcFlagWarmstart,
+      MjcPhysicsTokens->mjcFlagFilterparent,
+      MjcPhysicsTokens->mjcFlagActuation,
+      MjcPhysicsTokens->mjcFlagRefsafe,
+      MjcPhysicsTokens->mjcFlagSensor,
+      MjcPhysicsTokens->mjcFlagMidphase,
+      MjcPhysicsTokens->mjcFlagNativeccd,
+      MjcPhysicsTokens->mjcFlagEulerdamp,
+      MjcPhysicsTokens->mjcFlagAutoreset,
+      MjcPhysicsTokens->mjcFlagOverride,
+      MjcPhysicsTokens->mjcFlagEnergy,
+      MjcPhysicsTokens->mjcFlagFwdinv,
+      MjcPhysicsTokens->mjcFlagInvdiscrete,
+      MjcPhysicsTokens->mjcFlagMulticcd,
+      MjcPhysicsTokens->mjcFlagIsland,
   };
   static TfTokenVector allNames = _ConcatenateAttributeNames(
       UsdAPISchemaBase::GetSchemaAttributeNames(true), localNames);
