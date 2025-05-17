@@ -220,6 +220,144 @@ def _ray_mesh(
   return dist, id_
 
 
+def ray_hfield(m: Model, d: Data, geomid: int, pnt: jax.Array, vec: jax.Array) -> jax.Array:
+  """Ray intersection with height field.
+
+  Args:
+    m: MuJoCo model
+    d: MuJoCo data
+    geomid: ID of the height field geom
+    pnt: Ray origin (3D)
+    vec: Ray direction (3D)
+
+  Returns:
+    Nearest distance or -1 if no intersection
+  """
+  # Get hfield data
+  hfid = m.geom_dataid[geomid]
+  size = m.hfield_size[hfid]
+  nrow = m.hfield_nrow[hfid]
+  ncol = m.hfield_ncol[hfid]
+
+  # Get geom position and orientation
+  pos = d.geom_xpos[geomid]
+  mat = d.geom_xmat[geomid].reshape(3, 3)
+  # Express ray in local coordinates
+  vec_local = mat.T @ vec
+  pnt_local = mat.T @ (pnt - pos)
+
+  # Normalize ray direction
+  vec_norm = jp.linalg.norm(vec_local)
+  if vec_norm < 1e-10:
+    return jp.array(-1.0)
+  vec_local = vec_local / vec_norm
+
+  # X and Y are the horizontal dimensions of the height field
+  # (corresponding to rows and columns of the height data)
+  # Z is height
+
+  # Check if ray is parallel to XY plane
+  if jp.abs(vec_local[2]) < 1e-10:
+    return jp.array(-1.0)
+
+  # Compute intersection with bounding box in XY plane
+  x0, y0 = -size[0], -size[1]  # bottom left in local coords
+  x1, y1 = size[0], size[1]    # top right in local coords
+
+  # Compute intersection with XY bounding box
+  tx0 = (x0 - pnt_local[0]) / (vec_local[0] + 1e-10)
+  tx1 = (x1 - pnt_local[0]) / (vec_local[0] + 1e-10)
+  ty0 = (y0 - pnt_local[1]) / (vec_local[1] + 1e-10)
+  ty1 = (y1 - pnt_local[1]) / (vec_local[1] + 1e-10)
+
+  # Get entry and exit times
+  tmin = jp.maximum(jp.minimum(tx0, tx1), jp.minimum(ty0, ty1))
+  tmax = jp.minimum(jp.maximum(tx0, tx1), jp.maximum(ty0, ty1))
+
+  # No intersection with bounding box
+  if tmin > tmax or tmax < 0:
+    return jp.array(-1.0)
+
+  # Ensure we're not starting inside the height field
+  t = jp.maximum(tmin, 0.0)
+
+  # Get hfield data scaling
+  hf_size = m.hfield_size[hfid]
+  hf_scale = jp.array([2*size[0]/ncol, 2*size[1]/nrow, 1, 1])
+
+  # Compute ray-heightfield intersection using a ray marching algorithm
+  def march_ray(t, found):
+    # Get current intersection point
+    p = pnt_local + t * vec_local
+
+    # Convert to hfield grid coordinates
+    col = jp.clip((p[0] - x0) / (2 * size[0]) * ncol, 0, ncol-2)
+    row = jp.clip((p[1] - y0) / (2 * size[1]) * nrow, 0, nrow-2)
+
+    # Get integer coordinates
+    col_i = jp.floor(col).astype(jp.int32)
+    row_i = jp.floor(row).astype(jp.int32)
+
+    # Get fractional parts for bilinear interpolation
+    col_f = col - col_i
+    row_f = row - row_i
+
+    # Get heights at the four corners
+    h00 = m.hfield_data[hfid, row_i * ncol + col_i] * hf_scale[2]
+    h01 = m.hfield_data[hfid, row_i * ncol + col_i + 1] * hf_scale[2]
+    h10 = m.hfield_data[hfid, (row_i + 1) * ncol + col_i] * hf_scale[2]
+    h11 = m.hfield_data[hfid, (row_i + 1) * ncol + col_i + 1] * hf_scale[2]
+    # Bilinear interpolation
+    h = (h00 * (1 - col_f) * (1 - row_f) +
+         h01 * col_f * (1 - row_f) +
+         h10 * (1 - col_f) * row_f +
+         h11 * col_f * row_f)
+
+    # Check if ray passes below the height at this point
+    intersection = p[2] <= h and vec_local[2] < 0
+
+    # Binary search refinement could be added here for more precision
+
+    return t, intersection
+
+  # Initial ray marching with fixed step size
+  step_size = jp.minimum(size[0] / ncol, size[1] / nrow) * 0.5 / jp.abs(vec_local[2])
+  max_steps = 100  # Prevent infinite loops
+
+  t_final = -1.0
+  for _ in range(max_steps):
+    t, hit = march_ray(t, False)
+    if hit:
+      t_final = t * vec_norm  # Scale back to original ray length
+      break
+    t += step_size
+    # Exit if we've gone beyond the bounding box
+    if t > tmax:
+      break
+  return jp.array(t_final)
+
+
+def _ray_hfield_wrapper(
+    m: Model,
+    d: Data,
+    geom_id: np.ndarray,
+    unused_size: jax.Array,
+    pnt: jax.Array,
+    vec: jax.Array,
+) -> Tuple[jax.Array, jax.Array]:
+  """Wrapper for ray_hfield to match the expected interface for _RAY_FUNC."""
+  dists, ids = [], []
+  for i, id_ in enumerate(geom_id):
+    dist = ray_hfield(m, d, id_, pnt[i], vec[i])
+    dist = jp.reshape(dist, (1,))  # Reshape to match expected format
+    dists.append(dist)
+    ids.append(jp.array([id_]))
+
+  dists = jp.concatenate(dists)
+  ids = jp.concatenate(ids)
+  return dists, ids
+
+
 _RAY_FUNC = {
     GeomType.PLANE: _ray_plane,
     GeomType.SPHERE: _ray_sphere,
@@ -227,6 +365,7 @@ _RAY_FUNC = {
     GeomType.ELLIPSOID: _ray_ellipsoid,
     GeomType.BOX: _ray_box,
     GeomType.MESH: _ray_mesh,
+    GeomType.HFIELD: lambda *args: _ray_hfield_wrapper(m, d, *args),  # Added for height field
 }
 
 
@@ -276,8 +415,8 @@ def ray(
 
     args = m.geom_size[id_], geom_pnts[id_], geom_vecs[id_]
 
-    if geom_type == GeomType.MESH:
-      dist, id_ = fn(m, id_, *args)
+    if geom_type in (GeomType.MESH, GeomType.HFIELD):
+      dist, id_ = fn(id_, *args)
     else:
       dist = jax.vmap(fn)(*args)
 
@@ -285,12 +424,12 @@ def ray(
     dists, ids = dists + [dist], ids + [id_]
 
   if not ids:
-    return jp.array(-1), jp.array(-1.0)
+    return jp.array(-1.0), jp.array(-1)
 
   dists = jp.concatenate(dists)
   ids = jp.concatenate(ids)
   min_id = jp.argmin(dists)
-  dist = jp.where(jp.isinf(dists[min_id]), -1, dists[min_id])
+  dist = jp.where(jp.isinf(dists[min_id]), -1.0, dists[min_id])
   id_ = jp.where(jp.isinf(dists[min_id]), -1, ids[min_id])
 
   return dist, id_
@@ -310,4 +449,7 @@ def ray_geom(
   Returns:
     dist: distance from ray origin to geom surface
   """
+  # Note: ray_geom doesn't handle height fields. For height fields, use ray() instead
+  if geomtype == GeomType.HFIELD:
+    raise ValueError("ray_geom doesn't support height fields. Use ray() instead.")
   return _RAY_FUNC[geomtype](size, pnt, vec)
