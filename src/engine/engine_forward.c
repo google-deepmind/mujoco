@@ -659,32 +659,35 @@ struct mjSolIslandArgs_ {
 };
 typedef struct mjSolIslandArgs_ mjSolIslandArgs;
 
-// extract arguments, pass to solver
-void* mj_solCG_island_wrapper(void* args) {
+// extract arguments, pass to CG solver
+static void* CG_wrapper(void* args) {
   mjSolIslandArgs* solargs = (mjSolIslandArgs*) args;
   mj_solCG_island(solargs->m, solargs->d, solargs->island, solargs->m->opt.iterations);
   return NULL;
 }
 
-
-
+// extract arguments, pass to Newton solver
+static void* Newton_wrapper(void* args) {
+  mjSolIslandArgs* solargs = (mjSolIslandArgs*) args;
+  mj_solNewton_island(solargs->m, solargs->d, solargs->island, solargs->m->opt.iterations);
+  return NULL;
+}
 
 // CG solver, multi-threaded over islands
-void mj_solCG_island_multithreaded(const mjModel* m, mjData* d) {
+static void solve_threaded(const mjModel* m, mjData* d, int flg_Newton) {
   mj_markStack(d);
   // allocate array of arguments to be passed to threads
-  mjSolIslandArgs* sol_cg_island_args = mjSTACKALLOC(d, d->nisland, mjSolIslandArgs);
+  mjSolIslandArgs* sol_island_args = mjSTACKALLOC(d, d->nisland, mjSolIslandArgs);
   mjTask* tasks = mjSTACKALLOC(d, d->nisland, mjTask);
 
-
   for (int island = 0; island < d->nisland; ++island) {
-    sol_cg_island_args[island].m = m;
-    sol_cg_island_args[island].d = d;
-    sol_cg_island_args[island].island = island;
+    sol_island_args[island].m = m;
+    sol_island_args[island].d = d;
+    sol_island_args[island].island = island;
 
     mju_defaultTask(&tasks[island]);
-    tasks[island].func = mj_solCG_island_wrapper;
-    tasks[island].args = &sol_cg_island_args[island];
+    tasks[island].func = flg_Newton ? Newton_wrapper : CG_wrapper;
+    tasks[island].args = &sol_island_args[island];
     mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[island]);
   }
 
@@ -740,22 +743,21 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
     mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
 
-    // solve per island
-    if (m->opt.solver == mjSOL_CG) {
-      if (!d->threadpool) {
-        // no threadpool, loop over islands
-        for (int island=0; island < nisland; island++) {
+    // solve per island, with or without threads
+    if (!d->threadpool) {
+      // no threadpool, loop over islands
+      for (int island=0; island < nisland; island++) {
+        if (m->opt.solver == mjSOL_NEWTON) {
+          mj_solNewton_island(m, d, island, m->opt.iterations);
+        } else {
           mj_solCG_island(m, d, island, m->opt.iterations);
         }
-      } else {
-        // have threadpool, solve using threads
-        mj_solCG_island_multithreaded(m, d);
       }
     } else {
-      for (int island=0; island < nisland; island++) {
-        mj_solNewton_island(m, d, island, m->opt.iterations);
-      }
+      // have threadpool, solve using threads
+      solve_threaded(m, d, m->opt.solver == mjSOL_NEWTON);
     }
+
 
     // copy back solver outputs (scatter dofs since ni <= nv)
     mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
