@@ -10,6 +10,12 @@ General
 - Refactored island implementation so that island data is memory-contiguous. This speeds up island processing in the
   solver and clears the way for the addition of the Newton and PGS solvers (currently only CG is supported).
 
+simulate
+^^^^^^^^
+- The struct ``mjv_sceneState`` has been removed. This struct was used for partial synchronization of ``mjModel`` and
+  ``mjData`` when the Python viewer is used in passive mode. This functionality is now provided by :ref:`mjv_copyModel`
+  and :ref:`mjv_copyData`, which don't copy arrays which are not required for visualization.
+
 Version 3.3.2 (April 28, 2025)
 ------------------------------
 

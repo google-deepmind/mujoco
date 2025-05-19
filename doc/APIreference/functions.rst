@@ -2004,15 +2004,6 @@ Rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_
 
 Move camera with mouse; action is mjtMouse.
 
-.. _mjv_moveCameraFromState:
-
-`mjv_moveCameraFromState <#mjv_moveCameraFromState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_moveCameraFromState
-
-Move camera with mouse given a scene state; action is mjtMouse.
-
 .. _mjv_movePerturb:
 
 `mjv_movePerturb <#mjv_movePerturb>`__
@@ -2021,15 +2012,6 @@ Move camera with mouse given a scene state; action is mjtMouse.
 .. mujoco-include:: mjv_movePerturb
 
 Move perturb object with mouse; action is mjtMouse.
-
-.. _mjv_movePerturbFromState:
-
-`mjv_movePerturbFromState <#mjv_movePerturbFromState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_movePerturbFromState
-
-Move perturb object with mouse given a scene state; action is mjtMouse.
 
 .. _mjv_moveModel:
 
@@ -2173,15 +2155,6 @@ Free abstract scene.
 
 Update entire scene given model state.
 
-.. _mjv_updateSceneFromState:
-
-`mjv_updateSceneFromState <#mjv_updateSceneFromState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_updateSceneFromState
-
-Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.
-
 .. _mjv_copyModel:
 
 `mjv_copyModel <#mjv_copyModel>`__
@@ -2190,42 +2163,6 @@ Update entire scene from a scene state, return the number of new mjWARN_VGEOMFUL
 .. mujoco-include:: mjv_copyModel
 
 Copy mjModel, skip large arrays not required for abstract visualization.
-
-.. _mjv_defaultSceneState:
-
-`mjv_defaultSceneState <#mjv_defaultSceneState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_defaultSceneState
-
-Set default scene state.
-
-.. _mjv_makeSceneState:
-
-`mjv_makeSceneState <#mjv_makeSceneState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_makeSceneState
-
-Allocate resources and initialize a scene state object.
-
-.. _mjv_freeSceneState:
-
-`mjv_freeSceneState <#mjv_freeSceneState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_freeSceneState
-
-Free scene state.
-
-.. _mjv_updateSceneState:
-
-`mjv_updateSceneState <#mjv_updateSceneState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_updateSceneState
-
-Update a scene state from model and data.
 
 .. _mjv_addGeoms:
 

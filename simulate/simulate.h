@@ -130,7 +130,12 @@ class Simulate {
   std::vector<mjtNum> ctrl_;
   std::vector<mjtNum> ctrl_prev_;
 
-  mjvSceneState scnstate_;
+  // in passive mode the user owns m_ and d_, these "passive" instances are
+  // owned by Simulate, updated from the user by the Sync() method
+  mjModel* m_passive_;
+  mjData* d_passive_;
+  std::vector<mjvGeom> user_scn_geoms_;
+
   mjOption mjopt_prev_;
   mjvOption opt_prev_;
   mjvCamera cam_prev_;

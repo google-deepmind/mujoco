@@ -689,7 +689,7 @@ void UpdateWatch(mj::Simulate* sim, const mjModel* m, const mjData* d) {
 
 // make physics section of UI
 void MakePhysicsSection(mj::Simulate* sim) {
-  mjOption* opt = sim->is_passive_ ? &sim->scnstate_.model.opt : &sim->m_->opt;
+  mjOption* opt = sim->is_passive_ ? &sim->m_passive_->opt : &sim->m_->opt;
   mjuiDef defPhysics[] = {
     {mjITEM_SECTION,   "Physics",       mjPRESERVE, nullptr,          "AP"},
     {mjITEM_SELECT,    "Integrator",    2, &(opt->integrator),        "Euler\nRK4\nimplicit\nimplicitfast"},
@@ -873,8 +873,8 @@ void MakeRenderingSection(mj::Simulate* sim, const mjModel* m) {
 
 // make visualization section of UI
 void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m) {
-  mjStatistic* stat = sim->is_passive_ ? &sim->scnstate_.model.stat : &sim->m_->stat;
-  mjVisual* vis = sim->is_passive_ ? &sim->scnstate_.model.vis : &sim->m_->vis;
+  mjStatistic* stat = sim->is_passive_ ? &sim->m_passive_->stat : &sim->m_->stat;
+  mjVisual* vis = sim->is_passive_ ? &sim->m_passive_->vis : &sim->m_->vis;
 
   mjuiDef defVisualization[] = {
     {mjITEM_SECTION,   "Visualization", mjPRESERVE, nullptr, "AV"},
@@ -1503,7 +1503,7 @@ void UiEvent(mjuiState* state) {
 
     // physics section
     else if (it && it->sectionid==SECT_PHYSICS && sim->m_) {
-      mjOption* opt = sim->is_passive_ ? &sim->scnstate_.model.opt : &sim->m_->opt;
+      mjOption* opt = sim->is_passive_ ? &sim->m_passive_->opt : &sim->m_->opt;
 
       // update disable flags in mjOption
       opt->disableflags = 0;
@@ -1765,15 +1765,14 @@ void UiEvent(mjuiState* state) {
     return;
   }
 
+  // local pointers used below
+  mjModel* model = sim->is_passive_ ? sim->m_passive_ : sim->m_;
+  mjData* data = sim->is_passive_ ? sim->d_passive_ : sim->d_;
+
   // 3D scroll
-  if (state->type==mjEVENT_SCROLL && state->mouserect==3) {
+  if (state->type==mjEVENT_SCROLL && state->mouserect==3 && model) {
     // emulate vertical mouse motion = 2% of window height
-    if (sim->m_ && !sim->is_passive_) {
-      mjv_moveCamera(sim->m_, mjMOUSE_ZOOM, 0, -zoom_increment*state->sy, &sim->scn, &sim->cam);
-    } else {
-      mjv_moveCameraFromState(
-          &sim->scnstate_, mjMOUSE_ZOOM, 0, -zoom_increment*state->sy, &sim->scn, &sim->cam);
-    }
+    mjv_moveCamera(model, mjMOUSE_ZOOM, 0, -zoom_increment*state->sy, &sim->scn, &sim->cam);
     return;
   }
 
@@ -1829,25 +1828,11 @@ void UiEvent(mjuiState* state) {
     // move perturb or camera
     mjrRect r = state->rect[3];
     if (sim->pert.active) {
-      if (!sim->is_passive_) {
-        mjv_movePerturb(
-            sim->m_, sim->d_, action, state->dx / r.height, -state->dy / r.height,
-            &sim->scn, &sim->pert);
-      } else {
-        mjv_movePerturbFromState(
-            &sim->scnstate_, action, state->dx / r.height, -state->dy / r.height,
-            &sim->scn, &sim->pert);
-      }
+      mjv_movePerturb(model, data, action, state->dx / r.height, -state->dy / r.height,
+                      &sim->scn, &sim->pert);
     } else {
-      if (!sim->is_passive_) {
-        mjv_moveCamera(
-            sim->m_, action, state->dx / r.height, -state->dy / r.height,
-            &sim->scn, &sim->cam);
-      } else {
-        mjv_moveCameraFromState(
-            &sim->scnstate_, action, state->dx / r.height, -state->dy / r.height,
-            &sim->scn, &sim->cam);
-      }
+      mjv_moveCamera(model, action, state->dx / r.height, -state->dy / r.height,
+                     &sim->scn, &sim->cam);
     }
     return;
   }
@@ -1881,10 +1866,11 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
       platform_ui(std::move(platform_ui)),
       uistate(this->platform_ui->state()) {
   mjv_defaultScene(&scn);
-  mjv_defaultSceneState(&scnstate_);
 }
 
-// synchronize model and data
+
+//------------------------- Synchronize render and physics threads ---------------------------------
+
 // operations which require holding the mutex, prevents racing with physics thread
 void Simulate::Sync() {
   MutexLock lock(this->mtx);
@@ -1947,10 +1933,10 @@ void Simulate::Sync() {
 
   if (is_passive_) {
     // synchronize m_->opt with changes made via the UI
-#define X(name)                                                  \
-  if (IsDifferent(scnstate_.model.opt.name, mjopt_prev_.name)) { \
-    pending_.ui_update_physics = true;                           \
-    Copy(m_->opt.name, scnstate_.model.opt.name);                \
+#define X(name)                                              \
+  if (IsDifferent(m_passive_->opt.name, mjopt_prev_.name)) { \
+    pending_.ui_update_physics = true;                       \
+    Copy(m_->opt.name, m_passive_->opt.name);                \
   }
 
     X(timestep);
@@ -1984,9 +1970,9 @@ void Simulate::Sync() {
   #undef X
 
     // synchronize number of mjWARN_VGEOMFULL warnings
-    if (scnstate_.data.warning[mjWARN_VGEOMFULL].number > warn_vgeomfull_prev_) {
+    if (d_passive_->warning[mjWARN_VGEOMFULL].number > warn_vgeomfull_prev_) {
       d_->warning[mjWARN_VGEOMFULL].number +=
-          scnstate_.data.warning[mjWARN_VGEOMFULL].number - warn_vgeomfull_prev_;
+          d_passive_->warning[mjWARN_VGEOMFULL].number - warn_vgeomfull_prev_;
     }
   }
 
@@ -2135,25 +2121,19 @@ void Simulate::Sync() {
     pending_.select = false;
   }
 
-  // update scene
+  // update scene or sync data from user in passive mode
   if (!is_passive_) {
     mjv_updateScene(m_, d_, &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
   } else {
-    mjv_updateSceneState(m_, d_, &this->opt, &scnstate_);
+    mjv_copyModel(m_passive_, m_);
+    mjv_copyData(d_passive_, m_passive_, d_);
 
-    // append geoms from user_scn to scnstate_ scratch space
+    // append geoms from user_scn to scratch space
     if (user_scn) {
-      int ngeom = user_scn->ngeom;
-      int maxgeom = scnstate_.scratch.maxgeom - scnstate_.scratch.ngeom;
-      if (ngeom > maxgeom) {
-        mj_warning(d_, mjWARN_VGEOMFULL, scnstate_.scratch.maxgeom);
-        ngeom = maxgeom;
-      }
-      if (ngeom > 0) {
-        std::memcpy(scnstate_.scratch.geoms + scnstate_.scratch.ngeom,
-                    user_scn->geoms,
-                    sizeof(mjvGeom) * ngeom);
-        scnstate_.scratch.ngeom += ngeom;
+      user_scn_geoms_.clear();
+      user_scn_geoms_.reserve(user_scn->ngeom);
+      for (int i = 0; i < user_scn->ngeom; ++i) {
+        user_scn_geoms_.push_back(user_scn->geoms[i]);
       }
     }
 
@@ -2169,8 +2149,8 @@ void Simulate::Sync() {
       Copy(user_scn_flags_prev_, user_scn->flags);
     }
 
-    mjopt_prev_ = scnstate_.model.opt;
-    warn_vgeomfull_prev_ = scnstate_.data.warning[mjWARN_VGEOMFULL].number;
+    mjopt_prev_ = m_passive_->opt;
+    warn_vgeomfull_prev_ = d_passive_->warning[mjWARN_VGEOMFULL].number;
   }
 
   // update settings
@@ -2329,15 +2309,8 @@ void Simulate::LoadOnRenderThread() {
     }
   }
 
-  // re-create scene and context
+  // re-create scene
   mjv_makeScene(this->m_, &this->scn, kMaxGeom);
-  if (this->is_passive_) {
-    mjopt_prev_ = m_->opt;
-    opt_prev_ = opt;
-    cam_prev_ = cam;
-    warn_vgeomfull_prev_ = d_->warning[mjWARN_VGEOMFULL].number;
-    mjv_makeSceneState(this->m_, this->d_, &this->scnstate_, kMaxGeom);
-  }
 
   this->platform_ui->RefreshMjrContext(this->m_, 50*(this->font+1));
   UiModify(&this->ui0, &this->uistate, &this->platform_ui->mjr_context());
@@ -2366,12 +2339,18 @@ void Simulate::LoadOnRenderThread() {
     mju::strcpy_arr(this->previous_filename, this->filename);
   }
 
-  // update scene
+  // update scene in managed mode, in passive mode copy data from user (update in RenderLoop)
   if (!is_passive_) {
-    mjv_updateScene(this->m_, this->d_,
-                    &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
+    mjv_updateScene(this->m_, this->d_, &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
   } else {
-    mjv_updateSceneState(this->m_, this->d_, &this->opt, &this->scnstate_);
+    mjopt_prev_ = m_->opt;
+    opt_prev_ = opt;
+    cam_prev_ = cam;
+    warn_vgeomfull_prev_ = d_->warning[mjWARN_VGEOMFULL].number;
+
+    // full copy on init
+    m_passive_ = mj_copyModel(nullptr, m_);
+    d_passive_ = mj_copyData(nullptr, m_passive_, d_);
   }
 
   // set window title to model name
@@ -2793,11 +2772,22 @@ void Simulate::RenderLoop() {
       }
 
       // update scene, doing a full sync if in fully managed mode
-      if (!this->is_passive_) {
+      if (!is_passive_) {
         Sync();
-      } else {
-        scnstate_.data.warning[mjWARN_VGEOMFULL].number += mjv_updateSceneFromState(
-            &scnstate_, &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
+      } else if (m_passive_ && d_passive_) {
+        // the user has called Sync() in their code
+        mjv_updateScene(m_passive_, d_passive_,
+                        &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
+
+        // add user geoms to scene
+        int nusergeom = user_scn_geoms_.size();
+        int ngeom = std::min(nusergeom, this->scn.maxgeom - this->scn.ngeom);
+        if (ngeom < nusergeom) {
+          mj_warning(d_passive_, mjWARN_VGEOMFULL, this->scn.maxgeom);
+        }
+        std::memcpy(this->scn.geoms + this->scn.ngeom, user_scn_geoms_.data(),
+                    ngeom * sizeof(mjvGeom));
+        this->scn.ngeom += ngeom;
       }
     }  // MutexLock (unblocks simulation thread)
 
@@ -2818,7 +2808,8 @@ void Simulate::RenderLoop() {
   const MutexLock lock(this->mtx);
   mjv_freeScene(&this->scn);
   if (is_passive_) {
-    mjv_freeSceneState(&scnstate_);
+    mj_deleteData(d_passive_);
+    mj_deleteModel(m_passive_);
   }
 
   this->exitrequest.store(2);
