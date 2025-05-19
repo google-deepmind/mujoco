@@ -1364,6 +1364,15 @@ If the model buffer is unallocated the initial configuration will not be set.
 Copy mjData.
 m is only required to contain the size fields from MJMODEL_INTS.
 
+.. _mjv_copyData:
+
+`mjv_copyData <#mjv_copyData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_copyData
+
+Copy mjData, skip large arrays not required for visualization.
+
 .. _mj_resetData:
 
 `mj_resetData <#mj_resetData>`__

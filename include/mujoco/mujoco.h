@@ -187,6 +187,9 @@ MJAPI mjData* mj_makeData(const mjModel* m);
 // m is only required to contain the size fields from MJMODEL_INTS.
 MJAPI mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
 
+// Copy mjData, skip large arrays not required for visualization.
+MJAPI mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src);
+
 // Reset data to defaults.
 MJAPI void mj_resetData(const mjModel* m, mjData* d);
 

@@ -226,9 +226,40 @@ TEST_F(EngineIoTest, MjvCopyModel) {
   EXPECT_FLOAT_EQ(model2->mesh_vert[0], 0.1);  // unchanged
   EXPECT_FLOAT_EQ(model2->geom_rgba[0], 0.4);
 
-  // mj_deleteData(data);
   mj_deleteModel(model2);
   mj_deleteModel(model1);
+}
+
+TEST_F(EngineIoTest, MjvCopyData) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 0.8">
+        <freejoint/>
+        <geom type="sphere" size="0.1"/>
+      </body>
+      <geom type="plane" size="1 1 1"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  mjData* data1 = mj_makeData(model);
+  mj_forward(model, data1);
+  EXPECT_THAT(data1->efc_J, NotNull());
+
+  mjData* data2 = mj_copyData(nullptr, model, data1);
+  EXPECT_THAT(data2->efc_J, NotNull());
+
+  mj_deleteData(data2);
+  data2 = mjv_copyData(nullptr, model, data1);
+  EXPECT_THAT(data2->efc_J, IsNull());
+
+  mj_deleteData(data2);
+  mj_deleteData(data1);
+  mj_deleteModel(model);
 }
 
 using ValidateReferencesTest = MujocoTest;

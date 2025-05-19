@@ -745,6 +745,34 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Copy mjData. m is only required to contain the size fields from MJMODEL_INTS.',  # pylint: disable=line-too-long
      )),
+    ('mjv_copyData',
+     FunctionDecl(
+         name='mjv_copyData',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjData'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='dest',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='src',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Copy mjData, skip large arrays not required for visualization.',
+     )),
     ('mj_resetData',
      FunctionDecl(
          name='mj_resetData',

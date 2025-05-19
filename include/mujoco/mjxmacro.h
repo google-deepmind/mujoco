@@ -268,7 +268,7 @@
     X   ( mjtNum,  geom_friction,         ngeom,         3                    ) \
     X   ( mjtNum,  geom_margin,           ngeom,         1                    ) \
     X   ( mjtNum,  geom_gap,              ngeom,         1                    ) \
-    X   ( mjtNum,  geom_fluid,            ngeom,         mjNFLUID             ) \
+    XNV ( mjtNum,  geom_fluid,            ngeom,         mjNFLUID             ) \
     X   ( mjtNum,  geom_user,             ngeom,         MJ_M(nuser_geom)     ) \
     XMJV( float,   geom_rgba,             ngeom,         4                    ) \
     XMJV( int,     site_type,             nsite,         1                    ) \
@@ -401,15 +401,15 @@
     XNV ( int,     mesh_facetexcoord,     nmeshface,     3                    ) \
     XNV ( int,     mesh_graph,            nmeshgraph,    1                    ) \
     XMJV( int,     mesh_pathadr,          nmesh,         1                    ) \
-    X   ( int,     mesh_polynum,          nmesh,         1                    ) \
-    X   ( int,     mesh_polyadr,          nmesh,         1                    ) \
-    X   ( mjtNum,  mesh_polynormal,       nmeshpoly,     3                    ) \
-    X   ( int,     mesh_polyvertadr,      nmeshpoly,     1                    ) \
-    X   ( int,     mesh_polyvertnum,      nmeshpoly,     1                    ) \
-    X   ( int,     mesh_polyvert,         nmeshpolyvert, 1                    ) \
-    X   ( int,     mesh_polymapadr,       nmeshvert,     1                    ) \
-    X   ( int,     mesh_polymapnum,       nmeshvert,     1                    ) \
-    X   ( int,     mesh_polymap,          nmeshpolymap,  1                    ) \
+    XNV ( int,     mesh_polynum,          nmesh,         1                    ) \
+    XNV ( int,     mesh_polyadr,          nmesh,         1                    ) \
+    XNV ( mjtNum,  mesh_polynormal,       nmeshpoly,     3                    ) \
+    XNV ( int,     mesh_polyvertadr,      nmeshpoly,     1                    ) \
+    XNV ( int,     mesh_polyvertnum,      nmeshpoly,     1                    ) \
+    XNV ( int,     mesh_polyvert,         nmeshpolyvert, 1                    ) \
+    XNV ( int,     mesh_polymapadr,       nmeshvert,     1                    ) \
+    XNV ( int,     mesh_polymapnum,       nmeshvert,     1                    ) \
+    XNV ( int,     mesh_polymap,          nmeshpolymap,  1                    ) \
     XMJV( int,     skin_matid,            nskin,         1                    ) \
     XMJV( int,     skin_group,            nskin,         1                    ) \
     XMJV( float,   skin_rgba,             nskin,         4                    ) \
@@ -655,10 +655,10 @@
     X   ( int,       moment_rowadr,     nu,          1           ) \
     X   ( int,       moment_colind,     nJmom,       1           ) \
     X   ( mjtNum,    actuator_moment,   nJmom,       1           ) \
-    X   ( mjtNum,    crb,               nbody,       10          ) \
-    X   ( mjtNum,    qM,                nM,          1           ) \
-    X   ( mjtNum,    M,                 nC,          1           ) \
-    X   ( mjtNum,    qLD,               nC,          1           ) \
+    XNV ( mjtNum,    crb,               nbody,       10          ) \
+    XNV ( mjtNum,    qM,                nM,          1           ) \
+    XNV ( mjtNum,    M,                 nC,          1           ) \
+    XNV ( mjtNum,    qLD,               nC,          1           ) \
     X   ( mjtNum,    qLDiagInv,         nv,          1           ) \
     XMJV( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \
     XMJV( mjtByte,   bvh_active,        nbvh,        1           ) \
@@ -675,23 +675,23 @@
     X   ( mjtNum,    qfrc_passive,      nv,          1           ) \
     X   ( mjtNum,    subtree_linvel,    nbody,       3           ) \
     X   ( mjtNum,    subtree_angmom,    nbody,       3           ) \
-    X   ( mjtNum,    qH,                nC,          1           ) \
+    XNV ( mjtNum,    qH,                nC,          1           ) \
     X   ( mjtNum,    qHDiagInv,         nv,          1           ) \
-    X   ( int,       B_rownnz,          nbody,       1           ) \
-    X   ( int,       B_rowadr,          nbody,       1           ) \
-    X   ( int,       B_colind,          nB,          1           ) \
-    X   ( int,       M_rownnz,          nv,          1           ) \
-    X   ( int,       M_rowadr,          nv,          1           ) \
-    X   ( int,       M_colind,          nC,          1           ) \
-    X   ( int,       mapM2M,            nC,          1           ) \
-    X   ( int,       D_rownnz,          nv,          1           ) \
-    X   ( int,       D_rowadr,          nv,          1           ) \
-    X   ( int,       D_diag,            nv,          1           ) \
-    X   ( int,       D_colind,          nD,          1           ) \
-    X   ( int,       mapM2D,            nD,          1           ) \
-    X   ( int,       mapD2M,            nM,          1           ) \
-    X   ( mjtNum,    qDeriv,            nD,          1           ) \
-    X   ( mjtNum,    qLU,               nD,          1           ) \
+    XNV ( int,       B_rownnz,          nbody,       1           ) \
+    XNV ( int,       B_rowadr,          nbody,       1           ) \
+    XNV ( int,       B_colind,          nB,          1           ) \
+    XNV ( int,       M_rownnz,          nv,          1           ) \
+    XNV ( int,       M_rowadr,          nv,          1           ) \
+    XNV ( int,       M_colind,          nC,          1           ) \
+    XNV ( int,       mapM2M,            nC,          1           ) \
+    XNV ( int,       D_rownnz,          nv,          1           ) \
+    XNV ( int,       D_rowadr,          nv,          1           ) \
+    XNV ( int,       D_diag,            nv,          1           ) \
+    XNV ( int,       D_colind,          nD,          1           ) \
+    XNV ( int,       mapM2D,            nD,          1           ) \
+    XNV ( int,       mapD2M,            nM,          1           ) \
+    XNV ( mjtNum,    qDeriv,            nD,          1           ) \
+    XNV ( mjtNum,    qLU,               nD,          1           ) \
     X   ( mjtNum,    actuator_force,    nu,          1           ) \
     X   ( mjtNum,    qfrc_actuator,     nv,          1           ) \
     X   ( mjtNum,    qfrc_smooth,       nv,          1           ) \
@@ -712,83 +712,83 @@
     X( mjContact, contact, MJ_D(ncon), 1 )
 
 // array fields of mjData that are used in the primal problem
-#define MJDATA_ARENA_POINTERS_SOLVER                   \
-    X( int,      efc_type,          MJ_D(nefc),    1 ) \
-    X( int,      efc_id,            MJ_D(nefc),    1 ) \
-    X( int,      efc_J_rownnz,      MJ_D(nefc),    1 ) \
-    X( int,      efc_J_rowadr,      MJ_D(nefc),    1 ) \
-    X( int,      efc_J_rowsuper,    MJ_D(nefc),    1 ) \
-    X( int,      efc_J_colind,      MJ_D(nJ),      1 ) \
-    X( int,      efc_JT_rownnz,     MJ_M(nv),      1 ) \
-    X( int,      efc_JT_rowadr,     MJ_M(nv),      1 ) \
-    X( int,      efc_JT_rowsuper,   MJ_M(nv),      1 ) \
-    X( int,      efc_JT_colind,     MJ_D(nJ),      1 ) \
-    X( mjtNum,   efc_J,             MJ_D(nJ),      1 ) \
-    X( mjtNum,   efc_JT,            MJ_D(nJ),      1 ) \
-    X( mjtNum,   efc_pos,           MJ_D(nefc),    1 ) \
-    X( mjtNum,   efc_margin,        MJ_D(nefc),    1 ) \
-    X( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1 ) \
-    X( mjtNum,   efc_diagApprox,    MJ_D(nefc),    1 ) \
-    X( mjtNum,   efc_KBIP,          MJ_D(nefc),    4 ) \
-    X( mjtNum,   efc_D,             MJ_D(nefc),    1 ) \
-    X( mjtNum,   efc_R,             MJ_D(nefc),    1 ) \
-    X( int,      tendon_efcadr,     MJ_M(ntendon), 1 ) \
-    X( mjtNum,   efc_vel,           MJ_D(nefc),    1 ) \
-    X( mjtNum,   efc_aref,          MJ_D(nefc),    1 ) \
-    X( mjtNum,   efc_b,             MJ_D(nefc),    1 ) \
-    X( mjtNum,   efc_force,         MJ_D(nefc),    1 ) \
-    X( int,      efc_state,         MJ_D(nefc),    1 )
+#define MJDATA_ARENA_POINTERS_SOLVER                      \
+    X  ( int,      efc_type,          MJ_D(nefc),    1 ) \
+    X  ( int,      efc_id,            MJ_D(nefc),    1 ) \
+    XNV( int,      efc_J_rownnz,      MJ_D(nefc),    1 ) \
+    XNV( int,      efc_J_rowadr,      MJ_D(nefc),    1 ) \
+    XNV( int,      efc_J_rowsuper,    MJ_D(nefc),    1 ) \
+    XNV( int,      efc_J_colind,      MJ_D(nJ),      1 ) \
+    XNV( int,      efc_JT_rownnz,     MJ_M(nv),      1 ) \
+    XNV( int,      efc_JT_rowadr,     MJ_M(nv),      1 ) \
+    XNV( int,      efc_JT_rowsuper,   MJ_M(nv),      1 ) \
+    XNV( int,      efc_JT_colind,     MJ_D(nJ),      1 ) \
+    XNV( mjtNum,   efc_J,             MJ_D(nJ),      1 ) \
+    XNV( mjtNum,   efc_JT,            MJ_D(nJ),      1 ) \
+    X  ( mjtNum,   efc_pos,           MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_margin,        MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_diagApprox,    MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_KBIP,          MJ_D(nefc),    4 ) \
+    X  ( mjtNum,   efc_D,             MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_R,             MJ_D(nefc),    1 ) \
+    X  ( int,      tendon_efcadr,     MJ_M(ntendon), 1 ) \
+    X  ( mjtNum,   efc_vel,           MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_aref,          MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_b,             MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_force,         MJ_D(nefc),    1 ) \
+    X  ( int,      efc_state,         MJ_D(nefc),    1 )
 
 // array fields of mjData that are used in the dual problem
-#define MJDATA_ARENA_POINTERS_DUAL                    \
-    X( int,      efc_AR_rownnz,     MJ_D(nefc), 1   ) \
-    X( int,      efc_AR_rowadr,     MJ_D(nefc), 1   ) \
-    X( int,      efc_AR_colind,     MJ_D(nA),   1   ) \
-    X( mjtNum,   efc_AR,            MJ_D(nA),   1   )
+#define MJDATA_ARENA_POINTERS_DUAL                       \
+    XNV( int,      efc_AR_rownnz,     MJ_D(nefc),    1 ) \
+    XNV( int,      efc_AR_rowadr,     MJ_D(nefc),    1 ) \
+    XNV( int,      efc_AR_colind,     MJ_D(nA),      1 ) \
+    XNV( mjtNum,   efc_AR,            MJ_D(nA),      1 )
 
 // array fields of mjData that are used for constraint islands
-#define MJDATA_ARENA_POINTERS_ISLAND                   \
-    X( int,     dof_island,        MJ_M(nv),       1 ) \
-    X( int,     island_nv,         MJ_D(nisland),  1 ) \
-    X( int,     island_idofadr,    MJ_D(nisland),  1 ) \
-    X( int,     island_dofadr,     MJ_D(nisland),  1 ) \
-    X( int,     map_dof2idof,      MJ_M(nv),       1 ) \
-    X( int,     map_idof2dof,      MJ_M(nv),       1 ) \
-    X( mjtNum,  ifrc_smooth,       MJ_D(nidof),    1 ) \
-    X( mjtNum,  iacc_smooth,       MJ_D(nidof),    1 ) \
-    X( int,     iM_rownnz,         MJ_D(nidof),    1 ) \
-    X( int,     iM_rowadr,         MJ_D(nidof),    1 ) \
-    X( int,     iM_colind,         MJ_M(nC),       1 ) \
-    X( mjtNum,  iM,                MJ_M(nC),       1 ) \
-    X( mjtNum,  iLD,               MJ_M(nC),       1 ) \
-    X( mjtNum,  iLDiagInv,         MJ_D(nidof),    1 ) \
-    X( mjtNum,  iacc,              MJ_D(nidof),    1 ) \
-    X( int,     efc_island,        MJ_D(nefc),     1 ) \
-    X( int,     island_ne,         MJ_D(nisland),  1 ) \
-    X( int,     island_nf,         MJ_D(nisland),  1 ) \
-    X( int,     island_nefc,       MJ_D(nisland),  1 ) \
-    X( int,     island_iefcadr,    MJ_D(nisland),  1 ) \
-    X( int,     map_efc2iefc,      MJ_D(nefc),     1 ) \
-    X( int,     map_iefc2efc,      MJ_D(nefc),     1 ) \
-    X( int,     iefc_type,         MJ_D(nefc),     1 ) \
-    X( int,     iefc_id,           MJ_D(nefc),     1 ) \
-    X( int,     iefc_J_rownnz,     MJ_D(nefc),     1 ) \
-    X( int,     iefc_J_rowadr,     MJ_D(nefc),     1 ) \
-    X( int,     iefc_J_rowsuper,   MJ_D(nefc),     1 ) \
-    X( int,     iefc_J_colind,     MJ_D(nJ),       1 ) \
-    X( int,     iefc_JT_rownnz,    MJ_D(nidof),    1 ) \
-    X( int,     iefc_JT_rowadr,    MJ_D(nidof),    1 ) \
-    X( int,     iefc_JT_rowsuper,  MJ_D(nidof),    1 ) \
-    X( int,     iefc_JT_colind,    MJ_D(nJ),       1 ) \
-    X( mjtNum,  iefc_J,            MJ_D(nJ),       1 ) \
-    X( mjtNum,  iefc_JT,           MJ_D(nJ),       1 ) \
-    X( mjtNum,  iefc_frictionloss, MJ_D(nefc),     1 ) \
-    X( mjtNum,  iefc_D,            MJ_D(nefc),     1 ) \
-    X( mjtNum,  iefc_R,            MJ_D(nefc),     1 ) \
-    X( mjtNum,  iefc_aref,         MJ_D(nefc),     1 ) \
-    X( int,     iefc_state,        MJ_D(nefc),     1 ) \
-    X( mjtNum,  iefc_force,        MJ_D(nefc),     1 ) \
-    X( mjtNum,  ifrc_constraint,   MJ_D(nidof),    1 )
+#define MJDATA_ARENA_POINTERS_ISLAND                     \
+    X  ( int,     dof_island,        MJ_M(nv),       1 ) \
+    X  ( int,     island_nv,         MJ_D(nisland),  1 ) \
+    X  ( int,     island_idofadr,    MJ_D(nisland),  1 ) \
+    X  ( int,     island_dofadr,     MJ_D(nisland),  1 ) \
+    X  ( int,     map_dof2idof,      MJ_M(nv),       1 ) \
+    X  ( int,     map_idof2dof,      MJ_M(nv),       1 ) \
+    X  ( mjtNum,  ifrc_smooth,       MJ_D(nidof),    1 ) \
+    X  ( mjtNum,  iacc_smooth,       MJ_D(nidof),    1 ) \
+    XNV( int,     iM_rownnz,         MJ_D(nidof),    1 ) \
+    XNV( int,     iM_rowadr,         MJ_D(nidof),    1 ) \
+    XNV( int,     iM_colind,         MJ_M(nC),       1 ) \
+    XNV( mjtNum,  iM,                MJ_M(nC),       1 ) \
+    XNV( mjtNum,  iLD,               MJ_M(nC),       1 ) \
+    X  ( mjtNum,  iLDiagInv,         MJ_D(nidof),    1 ) \
+    X  ( mjtNum,  iacc,              MJ_D(nidof),    1 ) \
+    X  ( int,     efc_island,        MJ_D(nefc),     1 ) \
+    X  ( int,     island_ne,         MJ_D(nisland),  1 ) \
+    X  ( int,     island_nf,         MJ_D(nisland),  1 ) \
+    X  ( int,     island_nefc,       MJ_D(nisland),  1 ) \
+    X  ( int,     island_iefcadr,    MJ_D(nisland),  1 ) \
+    X  ( int,     map_efc2iefc,      MJ_D(nefc),     1 ) \
+    X  ( int,     map_iefc2efc,      MJ_D(nefc),     1 ) \
+    X  ( int,     iefc_type,         MJ_D(nefc),     1 ) \
+    X  ( int,     iefc_id,           MJ_D(nefc),     1 ) \
+    XNV( int,     iefc_J_rownnz,     MJ_D(nefc),     1 ) \
+    XNV( int,     iefc_J_rowadr,     MJ_D(nefc),     1 ) \
+    XNV( int,     iefc_J_rowsuper,   MJ_D(nefc),     1 ) \
+    XNV( int,     iefc_J_colind,     MJ_D(nJ),       1 ) \
+    XNV( int,     iefc_JT_rownnz,    MJ_D(nidof),    1 ) \
+    XNV( int,     iefc_JT_rowadr,    MJ_D(nidof),    1 ) \
+    XNV( int,     iefc_JT_rowsuper,  MJ_D(nidof),    1 ) \
+    XNV( int,     iefc_JT_colind,    MJ_D(nJ),       1 ) \
+    XNV( mjtNum,  iefc_J,            MJ_D(nJ),       1 ) \
+    XNV( mjtNum,  iefc_JT,           MJ_D(nJ),       1 ) \
+    X  ( mjtNum,  iefc_frictionloss, MJ_D(nefc),     1 ) \
+    X  ( mjtNum,  iefc_D,            MJ_D(nefc),     1 ) \
+    X  ( mjtNum,  iefc_R,            MJ_D(nefc),     1 ) \
+    X  ( mjtNum,  iefc_aref,         MJ_D(nefc),     1 ) \
+    X  ( int,     iefc_state,        MJ_D(nefc),     1 ) \
+    X  ( mjtNum,  iefc_force,        MJ_D(nefc),     1 ) \
+    X  ( mjtNum,  ifrc_constraint,   MJ_D(nidof),    1 )
 
 // array fields of mjData that live in d->arena
 #define MJDATA_ARENA_POINTERS          \
