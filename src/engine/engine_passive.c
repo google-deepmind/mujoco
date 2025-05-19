@@ -116,9 +116,50 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
   // flex elasticity
   for (int f=0; f < m->nflex; f++) {
     mjtNum* k = m->flex_stiffness + 21*m->flex_elemadr[f];
+    mjtNum* b = m->flex_bending + 16*m->flex_edgeadr[f];
     int dim = m->flex_dim[f];
 
-    if (dim == 1 || m->flex_rigid[f] || k[0] == 0) {
+    if (dim == 1 || m->flex_rigid[f]) {
+      continue;
+    }
+
+    // add bending forces to qfrc_spring
+    if (dim == 2) {
+      mjtNum* xpos = d->flexvert_xpos + 3*m->flex_vertadr[f];
+      int* bodyid = m->flex_vertbodyid + m->flex_vertadr[f];
+
+      for (int e = 0; e < m->flex_edgenum[f]; e++) {
+        const int* edge = m->flex_edge + 2*(e+m->flex_edgeadr[f]);
+        const int* flap = m->flex_edgeflap + 2*(e+m->flex_edgeadr[f]);
+        int v[4] = {edge[0], edge[1], flap[0], flap[1]};
+        if (v[3] == -1) {
+          // skip boundary edges
+          continue;
+        }
+        mjtNum force[12] = {0};
+        for (int i = 0; i < 4; i++) {
+          for (int j = 0; j < 4; j++) {
+            for (int x = 0; x < 3; x++) {
+              force[3*i+x] += b[16*e+4*i+j] * xpos[3*v[j]+x];
+            }
+          }
+        }
+
+        // TODO: add damping
+
+        // insert into global force
+        for (int i = 0; i < 4; i++) {
+          int bid = bodyid[v[i]];
+          int body_dofnum = m->body_dofnum[bid];
+          int body_dofadr = m->body_dofadr[bid];
+          for (int x = 0; x < body_dofnum; x++) {
+            d->qfrc_spring[body_dofadr+x] -= force[3*i+x];
+          }
+        }
+      }
+    }
+
+    if (k[0] == 0) {
       continue;
     }
 

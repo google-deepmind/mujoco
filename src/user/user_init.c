@@ -238,7 +238,6 @@ void mjs_defaultFlex(mjsFlex* flex) {
   flex->rgba[0] = flex->rgba[1] = flex->rgba[2] = 0.5f;
   flex->rgba[3] = 1.0f;
   flex->thickness = -1;
-  flex->elastic2d = 1;
 }
 
 

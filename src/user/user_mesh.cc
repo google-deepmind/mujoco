@@ -3382,9 +3382,13 @@ void mjCFlex::ResolveReferences(const mjCModel* m) {
   vertbodyid.clear();
   nodebodyid.clear();
   for (const auto& vertbody : vertbody_) {
-    mjCBase* pbody = m->FindObject(mjOBJ_BODY, vertbody);
+    mjCBody* pbody = static_cast<mjCBody*>(m->FindObject(mjOBJ_BODY, vertbody));
     if (pbody) {
       vertbodyid.push_back(pbody->id);
+      if (pbody->joints.size() != 3 && dim == 2 && (elastic2d == 1 || elastic2d == 3)) {
+        // TODO(quaglino): add support for pins
+        throw mjCError(this, "pins are not supported for bending");
+      }
     } else {
       throw mjCError(this, "unknown body '%s' in flex", vertbody.c_str());
     }
@@ -3658,7 +3662,10 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
 
     // bending stiffness (2D only)
-    if (dim == 2 && (elastic2d == 1 || elastic2d == 3) && thickness > 0) {
+    if (dim == 2 && (elastic2d == 1 || elastic2d == 3)) {
+      if (thickness < 0) {
+        throw mjCError(this, "thickness must be positive for bending stiffness");
+      }
       bending.assign(nedge*16, 0);
 
       for (unsigned int e = 0; e < nedge; e++) {
@@ -3668,7 +3675,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     }
   }
 
-  // add plugins
+  // placeholder for setting plugins parameters, currently not used
   for (const auto& vbodyid : vertbodyid) {
     if (vbodyid < 0) {
       continue;
@@ -3676,8 +3683,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
     if (model->Bodies()[vbodyid]->plugin.element) {
       mjCPlugin* plugin_instance =
         static_cast<mjCPlugin*>(model->Bodies()[vbodyid]->plugin.element);
-      if (damping > 0) {
-        plugin_instance->config_attribs["damping"] = std::to_string(damping);
+      if (!plugin_instance) {
+        throw mjCError(this, "plugin instance not found");
       }
     }
   }

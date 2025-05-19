@@ -71,6 +71,7 @@ extern const mjMap datatype_map[];
 extern const mjMap meshtype_map[];
 extern const mjMap meshinertia_map[];
 extern const mjMap flexself_map[];
+extern const mjMap elastic2d_map[];
 
 
 //---------------------------------- Base XML class ------------------------------------------------

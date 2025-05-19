@@ -4073,9 +4073,9 @@ stress-strain relationship.. See also :ref:`deformable <CDeformable>` objects.
 
 .. _flex-elasticity-elastic2d:
 
-:at:`elastic2d`: :at-val:`int, "1"`
-   Elastic contribution to passive forces of 2D flexes. 0: none, 1: bending only, 2: stretching only, 3: bending and
-   stretching
+:at:`elastic2d`: :at-val:`[none, bend, stretch, both], "none"`
+   Elastic contribution to passive forces of 2D flexes. "none": none, "bend": bending only, "stretch": stretching only,
+   "both": bending and stretching.
 
 .. _flex-contact:
 

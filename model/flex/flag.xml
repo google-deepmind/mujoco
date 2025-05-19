@@ -26,10 +26,6 @@
   <option wind="5 5 0" density="10" solver="CG" tolerance="1e-6">
   </option>
 
-  <extension>
-    <plugin plugin="mujoco.elasticity.shell"/>
-  </extension>
-
   <worldbody>
     <geom name="floor" type="plane" size="0 0 .1"/>
     <light diffuse=".6 .6 .6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1"/>
@@ -37,8 +33,7 @@
       <flexcomp type="grid" count="9 19 1" spacing=".05 .05 .05" mass="10"
                 name="flag" radius="0.001">
         <edge equality="true" damping="0.001"/>
-        <elasticity poisson="0" thickness="1e-2" young="3e6"/>
-        <plugin plugin="mujoco.elasticity.shell"/>
+        <elasticity poisson="0" thickness="1e-2" young="3e6" elastic2d="none"/>
       </flexcomp>
     </body>
   </worldbody>

@@ -19,10 +19,6 @@
     <flag energy="enable"/>
   </option>
 
-  <extension>
-    <plugin plugin="mujoco.elasticity.shell"/>
-  </extension>
-
   <visual>
     <map force="0.1" zfar="30"/>
     <rgba haze="0.15 0.25 0.35 1"/>
@@ -37,7 +33,7 @@
   <worldbody>
     <light directional="false" diffuse=".2 .2 .2" specular="0 0 0" pos="0 0 5" dir="0 0 -1"/>
 
-    <flexcomp name="f1" type="direct" rgba=".8 .2 .2 1" radius="0.01" dim="2" pos="0 0 2"
+    <flexcomp name="f1" type="direct" rgba=".8 .2 .2 1" radius="0.02" dim="2" pos="0 0 2"
               mass="1"
          point="0 0 0
                 -1 1 0
@@ -1418,9 +1414,8 @@
                 398 399 418
                 398 376 378">
       <edge equality="true" damping="0.1"/>
-      <elasticity young="3e5" poisson="0" thickness="8e-3"/>
-      <contact solref="0.003"/>
-      <plugin plugin="mujoco.elasticity.shell"/>
+      <elasticity poisson="0.3" young="3e5" thickness="8e-3" elastic2d="bend"/>
+      <contact solref="0.003" contype="0" conaffinity="0" vertcollide="true"/>
     </flexcomp>
 
   </worldbody>

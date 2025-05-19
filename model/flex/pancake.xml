@@ -1,4 +1,4 @@
-<!-- Copyright 2021 DeepMind Technologies Limited
+<!-- Copyright 2024 DeepMind Technologies Limited
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -13,14 +13,10 @@
      limitations under the License.
 -->
 
-<mujoco model="Plate">
+<mujoco model="Pancake">
   <include file="scene.xml"/>
 
-  <extension>
-    <plugin plugin="mujoco.elasticity.shell"/>
-  </extension>
-
-  <option solver="CG" tolerance="1e-6" integrator="implicitfast"/>
+  <option timestep="0.001" solver="CG" tolerance="1e-6" integrator="implicitfast"/>
 
   <size memory="10M"/>
 
@@ -35,15 +31,11 @@
   </default>
 
   <worldbody>
-    <body mocap="true" pos="-.1 .05 0" zaxis=".5 0 1">
-      <geom type="capsule" size=".1 .1" group="1"/>
-    </body>
-    <flexcomp type="grid" count="16 16 1" spacing=".05 .05 .05" pos="0 0 1"
-              radius=".001" mass="100" name="plate">
+    <flexcomp type="disc" count="9 9 1" spacing=".1 .1 .1" pos="0 0 .5"
+              radius=".01" mass=".5" name="plate" dim="2">
       <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001"/>
-      <edge equality="true" damping="0.001"/>
-      <elasticity poisson="0" thickness="1e-2" young="3e7"/>
-      <plugin plugin="mujoco.elasticity.shell"/>
+      <edge equality="true" damping="10"/>
+      <elasticity poisson="0" thickness="8e-3" young="3e5" elastic2d="bend"/>
     </flexcomp>
   </worldbody>
 </mujoco>

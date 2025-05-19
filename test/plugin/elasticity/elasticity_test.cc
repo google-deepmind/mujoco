@@ -22,7 +22,6 @@
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
-#include "plugin/elasticity/shell.h"
 
 namespace mujoco {
 namespace {
@@ -58,15 +57,10 @@ TEST_F(ElasticityTest, FlexCompatibility) {
 TEST_F(ElasticityTest, ElasticEnergyShell) {
   static constexpr char cantilever_xml[] = R"(
   <mujoco>
-  <extension>
-    <plugin plugin="mujoco.elasticity.shell"/>
-  </extension>
-
   <worldbody>
     <flexcomp type="grid" count="8 8 1" spacing="1 1 1"
               radius=".025" name="test" dim="2">
       <elasticity young="2" poisson="0" thickness="1"/>
-      <plugin plugin="mujoco.elasticity.shell"/>
     </flexcomp>
   </worldbody>
   </mujoco>
@@ -76,7 +70,8 @@ TEST_F(ElasticityTest, ElasticEnergyShell) {
   mjModel* m = LoadModelFromString(cantilever_xml, error, sizeof(error));
   ASSERT_THAT(m, testing::NotNull()) << error;
   mjData* d = mj_makeData(m);
-  auto* shell = reinterpret_cast<plugin::elasticity::Shell*>(d->plugin_data[0]);
+  mj_kinematics(m, d);
+  mj_flex(m, d);
 
   // check that a plane is in the kernel of the energy
   for (mjtNum scale = 1; scale < 4; scale++) {
@@ -92,8 +87,8 @@ TEST_F(ElasticityTest, ElasticEnergyShell) {
       for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
           for (int x = 0; x < 3; x++) {
-            mjtNum elongation1 = scale * shell->position[3*v[i]+x];
-            mjtNum elongation2 = scale * shell->position[3*v[j]+x];
+            mjtNum elongation1 = scale * d->flexvert_xpos[3*v[i]+x];
+            mjtNum elongation2 = scale * d->flexvert_xpos[3*v[j]+x];
             energy += m->flex_bending[16*e+4*i+j] * elongation1 * elongation2;
           }
         }
@@ -114,7 +109,7 @@ TEST_F(PluginTest, ElasticEnergyMembrane) {
   <worldbody>
     <flexcomp type="grid" count="8 8 1" spacing="1 1 1"
               radius=".025" name="test" dim="2">
-      <elasticity young="2" poisson="0" thickness="1" elastic2d="2"/>
+      <elasticity young="2" poisson="0" thickness="1" elastic2d="stretch"/>
       <edge equality="false"/>
     </flexcomp>
   </worldbody>

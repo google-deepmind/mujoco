@@ -807,6 +807,15 @@ const mjMap flexself_map[5] = {
 };
 
 
+// flex elastic 2d type
+const mjMap elastic2d_map[5] = {
+  {"none",        0},
+  {"bend",        1},
+  {"stretch",     2},
+  {"both",        3},
+};
+
+
 
 //---------------------------------- class mjXReader implementation --------------------------------
 
@@ -1401,7 +1410,7 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
     ReadAttr(elasticity, "poisson", 1, &flex->poisson, text);
     ReadAttr(elasticity, "thickness", 1, &flex->thickness, text);
     ReadAttr(elasticity, "damping", 1, &flex->damping, text);
-    ReadAttr(elasticity, "elastic2d", 1, &flex->elastic2d, text);
+    MapValue(elasticity, "elastic2d", &flex->elastic2d, elastic2d_map, 4);
   }
 
   // write error info
@@ -2665,7 +2674,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(elasticity, "poisson", 1, &dflex.poisson, text);
     ReadAttr(elasticity, "damping", 1, &dflex.damping, text);
     ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
-    ReadAttr(elasticity, "elastic2d", 1, &dflex.elastic2d, text);
+    MapValue(elasticity, "elastic2d", &dflex.elastic2d, elastic2d_map, 4);
   }
 
   // check errors
