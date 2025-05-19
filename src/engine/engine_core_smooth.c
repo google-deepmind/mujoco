@@ -1673,12 +1673,9 @@ void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
 
     // update triangle above row k
     for (int adr=end - 1; adr >= start; adr--) {
-      // tmp = L(k, i) / L(k, k)
-      mjtNum tmp = mat[adr] * invD;
-
       // update row i < k:  L(i, 0..i) -= L(i, 0..i) * L(k, i) / L(k, k)
       int i = colind[adr];
-      mju_addToScl(mat + rowadr[i], mat + start, -tmp, rownnz[i]);
+      mju_addToScl(mat + rowadr[i], mat + start, -mat[adr] * invD, rownnz[i]);
     }
 
     // update row k:  L(k, :) /= L(k, k)
