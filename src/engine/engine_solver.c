@@ -1572,7 +1572,7 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
     int* HT_rowadr = mjSTACKALLOC(d, nv, int);
     int* HT_colind = mjSTACKALLOC(d, ctx->nH, int);
     mju_transposeSparse(NULL, NULL, nv, nv,
-                        HT_rownnz, HT_rowadr, HT_colind,
+                        HT_rownnz, HT_rowadr, HT_colind, NULL,
                         ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind);
 
     // count total and row non-zeros of reverse-Cholesky factor L

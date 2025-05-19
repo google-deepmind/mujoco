@@ -1996,7 +1996,7 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   if (mj_isSparse(m)) {
     // transpose
     mju_transposeSparse(d->efc_JT, d->efc_J, d->nefc, m->nv,
-                        d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
+                        d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
                         d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
 
 
@@ -2010,10 +2010,6 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
     __msan_allocated_memory(d->efc_J_rowsuper, d->nefc);
   #endif  // MEMORY_SANITIZER
 #endif  // mjUSEAVX
-
-    // supernodes of JT
-    mju_superSparse(m->nv, d->efc_JT_rowsuper,
-                    d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind);
   }
 
   // compute diagApprox
@@ -2182,7 +2178,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     int* BT_colind = mjSTACKALLOC(d, nB, int);
     mjtNum* BT = mjSTACKALLOC(d, nB, mjtNum);
     mju_transposeSparse(BT, B, nefc, nv,
-                        BT_rownnz, BT_rowadr, BT_colind,
+                        BT_rownnz, BT_rowadr, BT_colind, NULL,
                         B_rownnz, B_rowadr, B_colind);
 
     // allocate AR row nonzeros and addresses on arena

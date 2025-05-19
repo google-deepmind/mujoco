@@ -173,8 +173,8 @@ TEST_F(EngineUtilSparseTest, MjuTranspose3by3) {
   int rownnzT[] = {0, 0, 0};
   int rowadrT[] = {0, 0, 0};
 
-  mju_transposeSparse(matT, mat, 3, 3, rownnzT, rowadrT, colindT, rownnz,
-                      rowadr, colind);
+  mju_transposeSparse(matT, mat, 3, 3, rownnzT, rowadrT, colindT, nullptr,
+                      rownnz, rowadr, colind);
 
   EXPECT_THAT(matT, ElementsAre(1, 2, 1, 3));
   EXPECT_THAT(colindT, ElementsAre(0, 0, 1, 2));
@@ -197,8 +197,8 @@ TEST_F(EngineUtilSparseTest, MjuTranspose1by3) {
   int rownnzT[] = {0, 0, 0};
   int rowadrT[] = {0, 0, 0};
 
-  mju_transposeSparse(matT, mat, 1, 3, rownnzT, rowadrT, colindT, rownnz,
-                      rowadr, colind);
+  mju_transposeSparse(matT, mat, 1, 3, rownnzT, rowadrT, colindT, nullptr,
+                      rownnz, rowadr, colind);
 
   EXPECT_THAT(matT, ElementsAre(1, 3));
   EXPECT_THAT(colindT, ElementsAre(0, 0));
@@ -221,8 +221,8 @@ TEST_F(EngineUtilSparseTest, MjuTranspose3by1) {
   int rownnzT[] = {0};
   int rowadrT[] = {0};
 
-  mju_transposeSparse(matT, mat, 3, 1, rownnzT, rowadrT, colindT, rownnz,
-                      rowadr, colind);
+  mju_transposeSparse(matT, mat, 3, 1, rownnzT, rowadrT, colindT, nullptr,
+                      rownnz, rowadr, colind);
 
   EXPECT_THAT(matT, ElementsAre(1, 3));
   EXPECT_THAT(colindT, ElementsAre(0, 2));
@@ -244,14 +244,43 @@ TEST_F(EngineUtilSparseTest, MjuTransposeDense) {
   int colindT[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
   int rownnzT[] = {0, 0, 0};
   int rowadrT[] = {0, 0, 0};
+  int rowsuperT[] = {0, 0, 0};
 
-  mju_transposeSparse(matT, mat, 3, 3, rownnzT, rowadrT, colindT, rownnz,
-                      rowadr, colind);
+  mju_transposeSparse(matT, mat, 3, 3, rownnzT, rowadrT, colindT, rowsuperT,
+                      rownnz, rowadr, colind);
 
   EXPECT_THAT(matT, ElementsAre(1, 4, 7, 2, 5, 8, 3, 6, 9));
   EXPECT_THAT(colindT, ElementsAre(0, 1, 2, 0, 1, 2, 0, 1, 2));
   EXPECT_THAT(rownnzT, ElementsAre(3, 3, 3));
   EXPECT_THAT(rowadrT, ElementsAre(0, 3, 6));
+  EXPECT_THAT(rowsuperT, ElementsAre(2, 1, 0));
+}
+
+TEST_F(EngineUtilSparseTest, MjuTransposeSuper) {
+  //  mat:   0,  1,  2,  0,  3,  4,  5,  0,  0,  0,  0,  0,  0
+  //         0,  0,  0,  6,  7,  8,  9, 10, 11, 12,  0,  0,  0
+  //
+  //  super: 0,  1,  0,  0,  2,  1,  0,  2,  1,  0,  2,  1,  0
+
+  mjtNum mat[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+  int colind[] = {1, 2, 4, 5, 6, 3, 4, 5, 6, 7,  8,  9};
+  int rownnz[] = {5, 7};
+  int rowadr[] = {0, 5};
+
+  mjtNum matT[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int colindT[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rownnzT[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rowadrT[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int rowsuperT[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+  mju_transposeSparse(matT, mat, 2, 13, rownnzT, rowadrT, colindT, rowsuperT,
+                      rownnz, rowadr, colind);
+
+  EXPECT_THAT(matT,    ElementsAre(1, 2, 6, 3, 7, 4, 8, 5, 9, 10, 11, 12));
+  EXPECT_THAT(colindT, ElementsAre(0, 0, 1, 0, 1, 0, 1, 0, 1, 1,  1,  1));
+  EXPECT_THAT(rownnzT, ElementsAre(0, 1, 1, 1, 2, 2, 2, 1, 1,  1,  0,  0,  0));
+  EXPECT_THAT(rowadrT, ElementsAre(0, 0, 1, 2, 3, 5, 7, 9, 10, 11, 12, 12, 12));
+  EXPECT_THAT(rowsuperT, ElementsAre(0, 1, 0, 0, 2, 1, 0, 2, 1, 0, 2,  1,  0));
 }
 
 TEST_F(EngineUtilSparseTest, MjuTranspose1by1) {
@@ -267,8 +296,8 @@ TEST_F(EngineUtilSparseTest, MjuTranspose1by1) {
   int rownnzT[] = {0};
   int rowadrT[] = {0};
 
-  mju_transposeSparse(matT, mat, 1, 1, rownnzT, rowadrT, colindT, rownnz,
-                      rowadr, colind);
+  mju_transposeSparse(matT, mat, 1, 1, rownnzT, rowadrT, colindT, nullptr,
+                      rownnz, rowadr, colind);
 
   EXPECT_THAT(matT, ElementsAre(1));
   EXPECT_THAT(colindT, ElementsAre(0));
@@ -289,8 +318,8 @@ TEST_F(EngineUtilSparseTest, MjuTransposeNullMatrix) {
   int rownnzT[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
   int rowadrT[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-  mju_transposeSparse(matT, mat, 10, 10, rownnzT, rowadrT, colindT, rownnz,
-                      rowadr, colind);
+  mju_transposeSparse(matT, mat, 10, 10, rownnzT, rowadrT, colindT, nullptr,
+                      rownnz, rowadr, colind);
 
   EXPECT_THAT(rownnzT, ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
   EXPECT_THAT(rowadrT, ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));

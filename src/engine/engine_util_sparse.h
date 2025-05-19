@@ -91,9 +91,9 @@ int mju_addToSparseMat(mjtNum* dst, const mjtNum* src, int n, int nrow, mjtNum s
 int mju_addChains(int* res, int n, int NV1, int NV2,
                   const int* chain1, const int* chain2);
 
-// transpose sparse matrix
+// transpose sparse matrix, optionally compute row supernodes
 MJAPI void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                               int* res_rownnz, int* res_rowadr, int* res_colind,
+                               int* res_rownnz, int* res_rowadr, int* res_colind, int* res_rowsuper,
                                const int* rownnz, const int* rowadr, const int* colind);
 
 // construct row supernodes

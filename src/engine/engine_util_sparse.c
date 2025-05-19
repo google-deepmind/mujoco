@@ -531,9 +531,9 @@ int mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, in
 
 
 
-// transpose sparse matrix
+// transpose sparse matrix, optionally compute row supernodes
 void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                         int* res_rownnz, int* res_rowadr, int* res_colind,
+                         int* res_rownnz, int* res_rowadr, int* res_colind, int* res_rowsuper,
                          const int* rownnz, const int* rowadr, const int* colind) {
   // clear number of non-zeros for each row of transposed
   mju_zeroInt(res_rownnz, nc);
@@ -547,22 +547,40 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
     }
   }
 
+  // init res_rowsuper
+  if (res_rowsuper) {
+    for (int i = 0; i < nc - 1; i++) {
+      res_rowsuper[i] = (res_rownnz[i] == res_rownnz[i + 1]);
+    }
+    res_rowsuper[nc - 1] = 0;
+  }
+
   // compute the row addresses for the transposed matrix
   res_rowadr[0] = 0;
   for (int i = 1; i < nc; i++) {
     res_rowadr[i] = res_rowadr[i-1] + res_rownnz[i-1];
   }
 
-  // iterate through each non-zero entry of mat
+  // iterate through each row (column) of mat (res)
   for (int r = 0; r < nr; r++) {
+    int c_prev = -1;
     int start = rowadr[r];
     int end = start + rownnz[r];
     for (int i = start; i < end; i++) {
       // swap rows with columns and increment res_rowadr
-      int c = res_rowadr[colind[i]]++;
-      res_colind[c] = r;
+      int c = colind[i];
+      int adr = res_rowadr[c]++;
+      res_colind[adr] = r;
       if (res) {
-        res[c] = mat[i];
+        res[adr] = mat[i];
+      }
+
+      // mark non-supernodes
+      if (res_rowsuper) {
+        if (c > 0 && c != c_prev + 1 && res_rowsuper[c - 1]) {
+          res_rowsuper[c - 1] = 0;
+        }
+        c_prev = c;
       }
     }
   }
@@ -571,8 +589,16 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
   for (int i = nc-1; i > 0; i--) {
     res_rowadr[i] = res_rowadr[i-1];
   }
-
   res_rowadr[0] = 0;
+
+  // accumulate supernodes
+  if (res_rowsuper) {
+    for (int i = nc - 2; i >= 0; i--) {
+      if (res_rowsuper[i]) {
+        res_rowsuper[i] += res_rowsuper[i + 1];
+      }
+    }
+  }
 }
 
 
