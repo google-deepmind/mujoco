@@ -96,6 +96,18 @@ _MULTIPLE_CONSTRAINTS = """
   </mujoco>
 """
 
+_SIMPLE_BODY = """
+  <mujoco>
+    <worldbody>
+      <!-- nC < nM because this body has an inertia-aligned free joint -->
+      <body name="simplebody">
+        <freejoint/>
+        <geom type="sphere" size="0.01"/>
+      </body>
+    </worldbody>
+  </mujoco>
+"""
+
 
 class ModelIOTest(parameterized.TestCase):
   """IO tests for mjx.Model."""
@@ -427,11 +439,14 @@ class DataIOTest(parameterized.TestCase):
     elif backend_impl == 'c':
       np.testing.assert_allclose(dx_from_dense._impl.qM, d.qM, atol=1e-8)
 
-  @parameterized.parameters('jax', 'c')
-  def test_get_data(self, backend_impl: str):
+  @parameterized.parameters(
+      ('jax', False), ('jax', True), ('c', False), ('c', True)
+  )
+  def test_get_data(self, backend_impl: str, sparse: bool):
     """Test that get_data makes correct MjData."""
-
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    if sparse:
+      m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
     d = mujoco.MjData(m)
     mujoco.mj_step(m, d, 2)
     dx = mjx.put_data(m, d, backend_impl=backend_impl)
@@ -443,6 +458,8 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(d_2.cvel, d.cvel)
     np.testing.assert_allclose(d_2.cdof_dot, d.cdof_dot)
     np.testing.assert_allclose(d_2.qM, d.qM)
+    np.testing.assert_allclose(d_2.qLD, d.qLD, atol=1e-6)
+    np.testing.assert_allclose(d_2.qLDiagInv, d.qLDiagInv, atol=1e-6)
 
     # only 1 contact active
     self.assertEqual(d_2.contact.dist.shape, (1,))
@@ -463,8 +480,27 @@ class DataIOTest(parameterized.TestCase):
 
     # efc_* are also shape transformed and filtered
     self.assertEqual(d_2.nefc, 14)
-    self.assertEqual(d_2.efc_J.shape, (112,))  # nefc * nv
-    np.testing.assert_allclose(d_2.efc_J, d.efc_J)
+    if sparse:
+      efc_j = np.zeros((d.nefc, m.nv))
+      mujoco.mju_sparse2dense(
+          efc_j,
+          d.efc_J,
+          d.efc_J_rownnz,
+          d.efc_J_rowadr,
+          d.efc_J_colind,
+      )
+      efc_j2 = np.zeros((d_2.nefc, m.nv))
+      mujoco.mju_sparse2dense(
+          efc_j2,
+          d_2.efc_J,
+          d_2.efc_J_rownnz,
+          d_2.efc_J_rowadr,
+          d_2.efc_J_colind,
+      )
+      np.testing.assert_allclose(efc_j, efc_j2)
+    else:
+      self.assertEqual(d_2.efc_J.shape, (112,))  # nefc * nv
+      np.testing.assert_allclose(d_2.efc_J, d.efc_J)
     self.assertEqual(d_2.efc_aref.shape, (14,))  # nefc
     np.testing.assert_allclose(d_2.efc_aref, d.efc_aref)
     np.testing.assert_allclose(d_2.contact.efc_address, d.contact.efc_address)
@@ -472,6 +508,16 @@ class DataIOTest(parameterized.TestCase):
     if backend_impl == 'c':
       # check fields specific to the C implementation
       np.testing.assert_allclose(d_2.bvh_active, d.bvh_active)
+
+  def test_get_data_simplebody(self):
+    """Test that get_data works with simple bodies where nC < nM."""
+    m = mujoco.MjModel.from_xml_string(_SIMPLE_BODY)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+    dx = mjx.put_data(m, d)
+    d_2: mujoco.MjData = mjx.get_data(m, dx)
+    np.testing.assert_allclose(d_2.qLD, d.qLD, atol=1e-6)
+    np.testing.assert_allclose(d_2.qLDiagInv, d.qLDiagInv, atol=1e-6)
 
   def test_get_data_runs(self):
     xml = """
