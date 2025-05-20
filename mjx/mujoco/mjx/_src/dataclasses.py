@@ -50,36 +50,6 @@ def dataclass(clz: _T, register_as_pytree: bool) -> _T:
   """
   data_clz = dataclasses.dataclass(frozen=True)(clz)
   data_clz.replace = dataclasses.replace
-  # def replace(self, **updates):
-  #   """Returns a new object replacing the specified fields with new values."""
-  #   if not hasattr(self, '_impl'):
-  #     return dataclasses.replace(self, **updates)
-
-  #   # Private fields under `_impl` are allowed to be replaced directly as if
-  #   # they were on the base class. This logic will be removed in a future
-  #   # release.
-  #   impl_updates = {}
-  #   for k in tuple(updates.keys()):
-  #     # Recall that getattr is overridden for '_impl' fields.
-  #     hasattr_ = k in self.__annotations__
-  #     if not hasattr_ and hasattr(self._impl, k):  # pylint: disable=protected-access
-  #       impl_updates[k] = updates[k]
-  #       del updates[k]
-
-  #   if impl_updates:
-  #     updates['_impl'] = self._impl.replace(**impl_updates)
-  #     warnings.warn(
-  #         f'Accessing/replacing fields `{tuple(impl_updates.keys())}` directly'
-  #         f' from `{self.__class__.__name__}` will be deprecated. Refrain from'
-  #         ' using private fields that were moved to'
-  #         f' `{self.__class__.__name__}`._impl.',
-  #         DeprecationWarning,
-  #         stacklevel=2,
-  #     )
-
-  #   return dataclasses.replace(self, **updates)
-
-  # data_clz.replace = replace
 
   if register_as_pytree:
     meta_fields, data_fields = [], []
