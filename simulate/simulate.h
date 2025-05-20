@@ -132,8 +132,8 @@ class Simulate {
 
   // in passive mode the user owns m_ and d_, these "passive" instances are
   // owned by Simulate, updated from the user by the Sync() method
-  mjModel* m_passive_;
-  mjData* d_passive_;
+  mjModel* m_passive_ = nullptr;
+  mjData* d_passive_ = nullptr;
   std::vector<mjvGeom> user_scn_geoms_;
 
   mjOption mjopt_prev_;
