@@ -27,6 +27,7 @@
 //     GL_ARB_framebuffer_object,
 //     GL_ARB_seamless_cube_map,
 //     GL_ARB_vertex_buffer_object,
+//     GL_EXT_texture_sRGB,
 //     GL_KHR_debug
 // Loader: True
 // Local files: False
@@ -34,9 +35,9 @@
 // Reproducible: False
 //
 // Commandline:
-//     --profile="compatibility" --api="gl=1.5" --generator="c" --spec="gl" --extensions="GL_ARB_clip_control,GL_ARB_depth_buffer_float,GL_ARB_framebuffer_object,GL_ARB_seamless_cube_map,GL_ARB_vertex_buffer_object,GL_KHR_debug"
+//     --profile="compatibility" --api="gl=1.5" --generator="c" --spec="gl" --extensions="GL_ARB_clip_control,GL_ARB_depth_buffer_float,GL_ARB_framebuffer_object,GL_ARB_seamless_cube_map,GL_ARB_vertex_buffer_object,GL_EXT_texture_sRGB,GL_KHR_debug"
 // Online:
-//     https://glad.dav1d.de/#profile=compatibility&language=c&specification=gl&loader=on&api=gl%3D1.5&extensions=GL_ARB_clip_control&extensions=GL_ARB_depth_buffer_float&extensions=GL_ARB_framebuffer_object&extensions=GL_ARB_seamless_cube_map&extensions=GL_ARB_vertex_buffer_object&extensions=GL_KHR_debug
+//     https://glad.dav1d.de/#profile=compatibility&language=c&specification=gl&loader=on&api=gl%3D1.5&extensions=GL_ARB_clip_control&extensions=GL_ARB_depth_buffer_float&extensions=GL_ARB_framebuffer_object&extensions=GL_ARB_seamless_cube_map&extensions=GL_ARB_vertex_buffer_object&extensions=GL_EXT_texture_sRGB&extensions=GL_KHR_debug
 
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
@@ -836,6 +837,7 @@ int mjGLAD_GL_ARB_depth_buffer_float = 0;
 int mjGLAD_GL_ARB_framebuffer_object = 0;
 int mjGLAD_GL_ARB_seamless_cube_map = 0;
 int mjGLAD_GL_ARB_vertex_buffer_object = 0;
+int mjGLAD_GL_EXT_texture_sRGB = 0;
 int mjGLAD_GL_KHR_debug = 0;
 PFNGLCLIPCONTROLPROC mjGlad_glClipControl = NULL;
 PFNGLISRENDERBUFFERPROC mjGlad_glIsRenderbuffer = NULL;
@@ -1433,6 +1435,7 @@ static int mjGlad_find_extensionsGL(void) {
   mjGLAD_GL_ARB_framebuffer_object = mjGlad_has_ext("GL_ARB_framebuffer_object");
   mjGLAD_GL_ARB_seamless_cube_map = mjGlad_has_ext("GL_ARB_seamless_cube_map");
   mjGLAD_GL_ARB_vertex_buffer_object = mjGlad_has_ext("GL_ARB_vertex_buffer_object");
+  mjGLAD_GL_EXT_texture_sRGB = mjGlad_has_ext("GL_EXT_texture_sRGB");
   mjGLAD_GL_KHR_debug = mjGlad_has_ext("GL_KHR_debug");
   mjGlad_free_exts();
   return 1;
