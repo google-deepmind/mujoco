@@ -10,9 +10,9 @@ General
 - Refactored island implementation so that island data is memory-contiguous. This speeds up island processing in the
   solver and clears the way for the addition of the Newton and PGS solvers (currently only CG is supported).
 - Removed the :at:`shell` plugin. This is now supported by :ref:`flexcomp<body-flexcomp>` and is active depending on
-  the :ref:`elastic2d<flexcomp-elasticity-elastic2d>` attribute (on by default).
+  the :ref:`elastic2d<flexcomp-elasticity-elastic2d>` attribute (off by default).
 
-simulate
+Simulate
 ^^^^^^^^
 - The struct ``mjv_sceneState`` has been removed. This struct was used for partial synchronization of ``mjModel`` and
   ``mjData`` when the Python viewer is used in passive mode. This functionality is now provided by :ref:`mjv_copyModel`
