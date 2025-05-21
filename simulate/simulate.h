@@ -137,6 +137,8 @@ class Simulate {
   std::vector<mjvGeom> user_scn_geoms_;
 
   mjOption mjopt_prev_;
+  mjVisual mjvis_prev_;
+  mjStatistic mjstat_prev_;
   mjvOption opt_prev_;
   mjvCamera cam_prev_;
 
@@ -162,6 +164,7 @@ class Simulate {
     bool ui_update_simulation;
     bool ui_update_physics;
     bool ui_update_rendering;
+    bool ui_update_visualization;
     bool ui_update_joint;
     bool ui_update_ctrl;
     bool ui_remake_ctrl;

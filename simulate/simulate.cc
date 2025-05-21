@@ -879,7 +879,7 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m) {
   mjuiDef defVisualization[] = {
     {mjITEM_SECTION,   "Visualization", mjPRESERVE, nullptr, "AV"},
     {mjITEM_SEPARATOR, "Headlight",  1},
-    {mjITEM_RADIO,     "Active",          5, &(vis->headlight.active),     "Off\nOn"},
+    {mjITEM_RADIO,     "Active",          2, &(vis->headlight.active),     "Off\nOn"},
     {mjITEM_EDITFLOAT, "Ambient",         2, &(vis->headlight.ambient),    "3"},
     {mjITEM_EDITFLOAT, "Diffuse",         2, &(vis->headlight.diffuse),    "3"},
     {mjITEM_EDITFLOAT, "Specular",        2, &(vis->headlight.specular),   "3"},
@@ -892,7 +892,7 @@ void MakeVisualizationSection(mj::Simulate* sim, const mjModel* m) {
     {mjITEM_BUTTON,    "Align",           2, nullptr,                      "CA"},
     {mjITEM_SEPARATOR, "Global",  1},
     {mjITEM_EDITNUM,   "Extent",          2, &(stat->extent),              "1"},
-    {mjITEM_RADIO,     "Inertia",         5, &(vis->global.ellipsoidinertia), "Box\nEllipsoid"},
+    {mjITEM_RADIO,     "Inertia",         2, &(vis->global.ellipsoidinertia), "Box\nEllipsoid"},
     {mjITEM_RADIO,     "BVH active",      5, &(vis->global.bvactive), "False\nTrue"},
     {mjITEM_SEPARATOR, "Map",  1},
     {mjITEM_EDITFLOAT, "Stiffness",       2, &(vis->map.stiffness),        "1"},
@@ -1931,43 +1931,25 @@ void Simulate::Sync() {
     }
   }
 
+  // in passive mode, synchronize user's mjModel with changes made via the UI
   if (is_passive_) {
-    // synchronize m_->opt with changes made via the UI
-#define X(name)                                              \
-  if (IsDifferent(m_passive_->opt.name, mjopt_prev_.name)) { \
-    pending_.ui_update_physics = true;                       \
-    Copy(m_->opt.name, m_passive_->opt.name);                \
-  }
+    // synchronize mjModel.opt
+    if (std::memcmp(&m_passive_->opt, &mjopt_prev_, sizeof(mjOption))) {
+      pending_.ui_update_physics = true;
+      m_->opt = m_passive_->opt;
+    }
 
-    X(timestep);
-    X(apirate);
-    X(impratio);
-    X(tolerance);
-    X(noslip_tolerance);
-    X(ccd_tolerance);
-    X(gravity);
-    X(wind);
-    X(magnetic);
-    X(density);
-    X(viscosity);
-    X(o_margin);
-    X(o_solref);
-    X(o_solimp);
-    X(o_friction);
-    X(integrator);
-    X(cone);
-    X(jacobian);
-    X(solver);
-    X(iterations);
-    X(noslip_iterations);
-    X(ccd_iterations);
-    X(disableflags);
-    X(enableflags);
-    X(disableactuator);
-    X(sdf_initpoints);
-    X(sdf_iterations);
+    // synchronize mjModel.vis
+    if (std::memcmp(&m_passive_->vis, &mjvis_prev_, sizeof(mjVisual))) {
+      pending_.ui_update_visualization = true;
+      m_->vis = m_passive_->vis;
+    }
 
-  #undef X
+    // synchronize mjModel.stat
+    if (std::memcmp(&m_passive_->stat, &mjstat_prev_, sizeof(mjStatistic))) {
+      pending_.ui_update_visualization = true;
+      m_->stat = m_passive_->stat;
+    }
 
     // synchronize number of mjWARN_VGEOMFULL warnings
     if (d_passive_->warning[mjWARN_VGEOMFULL].number > warn_vgeomfull_prev_) {
@@ -2150,6 +2132,8 @@ void Simulate::Sync() {
     }
 
     mjopt_prev_ = m_passive_->opt;
+    mjvis_prev_ = m_passive_->vis;
+    mjstat_prev_ = m_passive_->stat;
     warn_vgeomfull_prev_ = d_passive_->warning[mjWARN_VGEOMFULL].number;
   }
 
@@ -2469,6 +2453,13 @@ void Simulate::Render() {
       mjui0_update_section(this, SECT_PHYSICS);
     }
     pending_.ui_update_physics = false;
+  }
+
+  if (pending_.ui_update_visualization) {
+    if (this->ui0_enable && this->ui0.sect[SECT_VISUALIZATION].state) {
+      mjui0_update_section(this, SECT_VISUALIZATION);
+    }
+    pending_.ui_update_visualization = false;
   }
 
   if (is_passive_) {
