@@ -44,9 +44,9 @@ pxr::SdfLayerRefPtr LoadLayer(
 
 template <>
 void ExpectAttributeEqual<pxr::SdfAssetPath>(pxr::UsdStageRefPtr stage,
-                                             const char* path,
+                                             pxr::SdfPath path,
                                              const pxr::SdfAssetPath& value) {
-  auto attr = stage->GetAttributeAtPath(pxr::SdfPath(path));
+  auto attr = stage->GetAttributeAtPath(path);
   EXPECT_TRUE(attr.IsValid());
   pxr::SdfAssetPath attr_value;
   attr.Get(&attr_value);

@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <mujoco/mujoco.h>
@@ -47,6 +48,7 @@
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/sdf/schema.h>
 #include <pxr/usd/sdf/types.h>
+#include <pxr/usd/sdf/valueTypeName.h>
 #include <pxr/usd/usdGeom/metrics.h>
 #include <pxr/usd/usdGeom/tokens.h>
 #include <pxr/usd/usdLux/tokens.h>
@@ -114,6 +116,8 @@ using pxr::TfCallContext;
 using pxr::Tf_PostErrorHelper;
 // clang-format on
 
+using pxr::MjcPhysicsTokens;
+
 using mujoco::usd::AddAttributeConnection;
 using mujoco::usd::AddPrimInherit;
 using mujoco::usd::AddPrimReference;
@@ -174,6 +178,8 @@ class ModelWriter {
     // Set the world body to be the default prim for referencing/payloads.
     SetLayerMetadata(data_, pxr::SdfFieldKeys->DefaultPrim,
                      body_paths_[kWorldIndex].GetNameToken());
+
+    WritePhysicsScene();
 
     // Author mesh scope + mesh prims to be referenced.
     WriteMeshes();
@@ -304,6 +310,15 @@ class ModelWriter {
     SetAttributeDefault(data_, xform_op_order_path, order);
   }
 
+  template <typename T>
+  void WriteUniformAttribute(const pxr::SdfPath &prim_path,
+                             const pxr::SdfValueTypeName &value_type_name,
+                             const pxr::TfToken &token, const T &value) {
+    pxr::SdfPath attr_path = CreateAttributeSpec(
+        data_, prim_path, token, value_type_name, pxr::SdfVariabilityUniform);
+    SetAttributeDefault(data_, attr_path, value);
+  }
+
   void PrependToXformOpOrder(const pxr::SdfPath &prim_path,
                              const pxr::VtArray<pxr::TfToken> &order) {
     auto xform_op_order_path =
@@ -430,6 +445,185 @@ class ModelWriter {
         pxr::SdfValueTypeNames->Token);
     SetAttributeDefault(data_, subdivision_scheme_path,
                         pxr::UsdGeomTokens->none);
+  }
+
+  void WritePhysicsScene() {
+    pxr::SdfPath physics_scene_path = CreatePrimSpec(
+        data_, body_paths_[kWorldIndex], pxr::UsdPhysicsTokens->PhysicsScene,
+        pxr::UsdPhysicsTokens->PhysicsScene);
+
+    ApplyApiSchema(data_, physics_scene_path, MjcPhysicsTokens->SceneAPI);
+
+    const std::vector<std::pair<pxr::TfToken, double>>
+        option_double_attributes = {
+            {MjcPhysicsTokens->mjcOptionTimestep, spec_->option.timestep},
+            {MjcPhysicsTokens->mjcOptionTolerance, spec_->option.tolerance},
+            {MjcPhysicsTokens->mjcOptionLs_tolerance,
+             spec_->option.ls_tolerance},
+            {MjcPhysicsTokens->mjcOptionNoslip_tolerance,
+             spec_->option.noslip_tolerance},
+            {MjcPhysicsTokens->mjcOptionCcd_tolerance,
+             spec_->option.ccd_tolerance},
+            {MjcPhysicsTokens->mjcOptionApirate, spec_->option.apirate},
+            {MjcPhysicsTokens->mjcOptionImpratio, spec_->option.impratio},
+            {MjcPhysicsTokens->mjcOptionDensity, spec_->option.density},
+            {MjcPhysicsTokens->mjcOptionViscosity, spec_->option.viscosity},
+            {MjcPhysicsTokens->mjcOptionO_margin, spec_->option.o_margin},
+        };
+    for (const auto &[token, value] : option_double_attributes) {
+      WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Double,
+                            token, value);
+    }
+
+    const std::vector<std::pair<pxr::TfToken, int>> option_int_attributes = {
+        {MjcPhysicsTokens->mjcOptionIterations, spec_->option.iterations},
+        {MjcPhysicsTokens->mjcOptionLs_iterations, spec_->option.ls_iterations},
+        {MjcPhysicsTokens->mjcOptionNoslip_iterations,
+         spec_->option.noslip_iterations},
+        {MjcPhysicsTokens->mjcOptionCcd_iterations,
+         spec_->option.ccd_iterations},
+        {MjcPhysicsTokens->mjcOptionSdf_iterations,
+         spec_->option.sdf_iterations},
+        {MjcPhysicsTokens->mjcOptionSdf_initpoints,
+         spec_->option.sdf_initpoints},
+    };
+    for (const auto &[token, value] : option_int_attributes) {
+      WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Int,
+                            token, value);
+    }
+
+    pxr::SdfPath cone_attr = CreateAttributeSpec(
+        data_, physics_scene_path, MjcPhysicsTokens->mjcOptionCone,
+        pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
+
+    switch (spec_->option.cone) {
+      case mjCONE_PYRAMIDAL:
+        SetAttributeDefault(data_, cone_attr, MjcPhysicsTokens->pyramidal);
+        break;
+      case mjCONE_ELLIPTIC:
+        SetAttributeDefault(data_, cone_attr, MjcPhysicsTokens->elliptic);
+        break;
+      default:
+        break;
+    }
+
+    pxr::SdfPath jacobian_attr = CreateAttributeSpec(
+        data_, physics_scene_path, MjcPhysicsTokens->mjcOptionJacobian,
+        pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
+
+    switch (spec_->option.jacobian) {
+      case mjJAC_AUTO:
+        SetAttributeDefault(data_, jacobian_attr, MjcPhysicsTokens->auto_);
+        break;
+      case mjJAC_DENSE:
+        SetAttributeDefault(data_, jacobian_attr, MjcPhysicsTokens->dense);
+        break;
+      case mjJAC_SPARSE:
+        SetAttributeDefault(data_, jacobian_attr, MjcPhysicsTokens->sparse);
+        break;
+      default:
+        break;
+    }
+
+    pxr::SdfPath solver_attr = CreateAttributeSpec(
+        data_, physics_scene_path, MjcPhysicsTokens->mjcOptionSolver,
+        pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
+    switch (spec_->option.solver) {
+      case mjSOL_NEWTON:
+        SetAttributeDefault(data_, solver_attr, MjcPhysicsTokens->newton);
+        break;
+      case mjSOL_PGS:
+        SetAttributeDefault(data_, solver_attr, MjcPhysicsTokens->pgs);
+        break;
+      case mjSOL_CG:
+        SetAttributeDefault(data_, solver_attr, MjcPhysicsTokens->cg);
+        break;
+      default:
+        break;
+    }
+
+    pxr::GfVec3d wind(spec_->option.wind[0], spec_->option.wind[1],
+                      spec_->option.wind[2]);
+    WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Double3,
+                          MjcPhysicsTokens->mjcOptionWind, wind);
+
+    pxr::GfVec3d magnetic(spec_->option.magnetic[0], spec_->option.magnetic[1],
+                          spec_->option.magnetic[2]);
+    WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Double3,
+                          MjcPhysicsTokens->mjcOptionMagnetic, magnetic);
+
+    pxr::VtArray<double> o_solref(spec_->option.o_solref,
+                                  spec_->option.o_solref + 2);
+    WriteUniformAttribute(physics_scene_path,
+                          pxr::SdfValueTypeNames->DoubleArray,
+                          MjcPhysicsTokens->mjcOptionO_solref, o_solref);
+
+    pxr::VtArray<double> o_solimp(spec_->option.o_solimp,
+                                  spec_->option.o_solimp + 5);
+    WriteUniformAttribute(physics_scene_path,
+                          pxr::SdfValueTypeNames->DoubleArray,
+                          MjcPhysicsTokens->mjcOptionO_solimp, o_solimp);
+
+    pxr::VtArray<double> o_friction(spec_->option.o_friction,
+                                    spec_->option.o_friction + 5);
+    WriteUniformAttribute(physics_scene_path,
+                          pxr::SdfValueTypeNames->DoubleArray,
+                          MjcPhysicsTokens->mjcOptionO_friction, o_friction);
+
+    pxr::SdfPath integrator_attr = CreateAttributeSpec(
+        data_, physics_scene_path, MjcPhysicsTokens->mjcOptionIntegrator,
+        pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
+    switch (spec_->option.integrator) {
+      case mjINT_EULER:
+        SetAttributeDefault(data_, integrator_attr, MjcPhysicsTokens->euler);
+        break;
+      case mjINT_RK4:
+        SetAttributeDefault(data_, integrator_attr, MjcPhysicsTokens->rk4);
+        break;
+      default:
+        break;
+    }
+
+    auto create_flag_attr = [&](pxr::TfToken token, int flag, bool enable) {
+      int flags =
+          enable ? spec_->option.enableflags : spec_->option.disableflags;
+      bool value = enable ? (flags & flag) : !(flags & flag);
+      WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Bool,
+                            token, value);
+    };
+
+    const std::vector<std::pair<pxr::TfToken, int>> enable_flags = {
+        {MjcPhysicsTokens->mjcFlagMulticcd, mjENBL_MULTICCD},
+        {MjcPhysicsTokens->mjcFlagIsland, mjENBL_ISLAND},
+        {MjcPhysicsTokens->mjcFlagFwdinv, mjENBL_FWDINV},
+        {MjcPhysicsTokens->mjcFlagEnergy, mjENBL_ENERGY},
+        {MjcPhysicsTokens->mjcFlagOverride, mjENBL_OVERRIDE},
+        {MjcPhysicsTokens->mjcFlagInvdiscrete, mjENBL_INVDISCRETE}};
+    for (const auto &[token, flag] : enable_flags) {
+      create_flag_attr(token, flag, true);
+    }
+
+    const std::vector<std::pair<pxr::TfToken, int>> disable_flags = {
+        {MjcPhysicsTokens->mjcFlagConstraint, mjDSBL_CONSTRAINT},
+        {MjcPhysicsTokens->mjcFlagEquality, mjDSBL_EQUALITY},
+        {MjcPhysicsTokens->mjcFlagFrictionloss, mjDSBL_FRICTIONLOSS},
+        {MjcPhysicsTokens->mjcFlagLimit, mjDSBL_LIMIT},
+        {MjcPhysicsTokens->mjcFlagContact, mjDSBL_CONTACT},
+        {MjcPhysicsTokens->mjcFlagPassive, mjDSBL_PASSIVE},
+        {MjcPhysicsTokens->mjcFlagGravity, mjDSBL_GRAVITY},
+        {MjcPhysicsTokens->mjcFlagClampctrl, mjDSBL_CLAMPCTRL},
+        {MjcPhysicsTokens->mjcFlagWarmstart, mjDSBL_WARMSTART},
+        {MjcPhysicsTokens->mjcFlagFilterparent, mjDSBL_FILTERPARENT},
+        {MjcPhysicsTokens->mjcFlagActuation, mjDSBL_ACTUATION},
+        {MjcPhysicsTokens->mjcFlagRefsafe, mjDSBL_REFSAFE},
+        {MjcPhysicsTokens->mjcFlagSensor, mjDSBL_SENSOR},
+        {MjcPhysicsTokens->mjcFlagMidphase, mjDSBL_MIDPHASE},
+        {MjcPhysicsTokens->mjcFlagEulerdamp, mjDSBL_EULERDAMP},
+        {MjcPhysicsTokens->mjcFlagAutoreset, mjDSBL_AUTORESET},
+        {MjcPhysicsTokens->mjcFlagNativeccd, mjDSBL_NATIVECCD}};
+    for (const auto &[token, flag] : disable_flags) {
+      create_flag_attr(token, flag, false);
+    }
   }
 
   void WriteMeshes() {
@@ -835,7 +1029,7 @@ class ModelWriter {
     pxr::SdfPath site_path = WriteSiteGeom(site, body_path);
     SetPrimPurpose(data_, site_path, pxr::UsdGeomTokens->guide);
 
-    ApplyApiSchema(data_, site_path, pxr::MjcPhysicsTokens->SiteAPI);
+    ApplyApiSchema(data_, site_path, MjcPhysicsTokens->SiteAPI);
 
     int site_id = mjs_getId(site->element);
     auto transform = MujocoPosQuatToTransform(&model_->site_pos[3 * site_id],
@@ -1022,26 +1216,17 @@ class ModelWriter {
                             (cam_sensorsize[0] / 2.f - cam_intrinsic[2])
                       : vertical_apperture * aspect_ratio;
 
-    pxr::SdfPath clipping_range_attr_path = CreateAttributeSpec(
-        data_, camera_path, pxr::UsdGeomTokens->clippingRange,
-        pxr::SdfValueTypeNames->Float2);
-    SetAttributeDefault(data_, clipping_range_attr_path,
-                        pxr::GfVec2f(znear, zfar));
-    pxr::SdfPath focal_length_attr_path =
-        CreateAttributeSpec(data_, camera_path, pxr::UsdGeomTokens->focalLength,
-                            pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, focal_length_attr_path, znear);
-
-    pxr::SdfPath vertical_aperture_attr_path = CreateAttributeSpec(
-        data_, camera_path, pxr::UsdGeomTokens->verticalAperture,
-        pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, vertical_aperture_attr_path, vertical_apperture);
-
-    pxr::SdfPath horizontal_aperture_attr_path = CreateAttributeSpec(
-        data_, camera_path, pxr::UsdGeomTokens->horizontalAperture,
-        pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, horizontal_aperture_attr_path,
-                        horizontal_aperture);
+    WriteUniformAttribute(camera_path, pxr::SdfValueTypeNames->Float2,
+                          pxr::UsdGeomTokens->clippingRange,
+                          pxr::GfVec2f(znear, zfar));
+    WriteUniformAttribute(camera_path, pxr::SdfValueTypeNames->Float,
+                          pxr::UsdGeomTokens->focalLength, znear);
+    WriteUniformAttribute(camera_path, pxr::SdfValueTypeNames->Float,
+                          pxr::UsdGeomTokens->verticalAperture,
+                          vertical_apperture);
+    WriteUniformAttribute(camera_path, pxr::SdfValueTypeNames->Float,
+                          pxr::UsdGeomTokens->horizontalAperture,
+                          horizontal_aperture);
   }
 
   void WriteCameras(mjsBody *body) {
@@ -1105,10 +1290,6 @@ class ModelWriter {
     }
 
     // Create XformOp attribute for body transform.
-    pxr::SdfPath xform_op_path =
-        CreateAttributeSpec(data_, body_path, kTokens->xformOpTransform,
-                            pxr::SdfValueTypeNames->Matrix4d);
-
     // Make sure to account for the parent since UsdPhysics doesn't support
     // nested bodies!
     auto parent_xform = body_xforms_[model_->body_parentid[body_id]];
@@ -1118,7 +1299,8 @@ class ModelWriter {
         MujocoPosQuatToTransform(&model_->body_pos[body_id * 3],
                                  &model_->body_quat[body_id * 4]) *
         parent_xform;
-    SetAttributeDefault(data_, xform_op_path, body_xforms_[body_id]);
+    WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Matrix4d,
+                          kTokens->xformOpTransform, body_xforms_[body_id]);
 
     // Create XformOpOrder attribute for body transform order.
     // For us this is simply the transform we authored above.
