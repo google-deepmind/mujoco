@@ -66,6 +66,7 @@ static void set0(mjModel* m, mjData* d) {
   mjtNum A[36] = {0}, pos[3], quat[4];
   mj_markStack(d);
   mjtNum* jac = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* jacT = mjSTACKALLOC(d, 6*nv, mjtNum);
   mjtNum* tmp = mjSTACKALLOC(d, 6*nv, mjtNum);
   mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
   int* cammode = 0;
@@ -148,8 +149,9 @@ static void set0(mjModel* m, mjData* d) {
       if (nv) {
         // inverse spatial inertia: A = J*inv(M)*J'
         mj_jacBodyCom(m, d, jac, jac+3*nv, i);
-        mj_solveM(m, d, tmp, jac, 6);
-        mju_mulMatMatT(A, jac, tmp, 6, nv, 6);
+        mju_transpose(jacT, jac, 6, 6);
+        mj_solveM(m, d, tmp, jacT, 6);
+        mju_mulMatMat(A, jac, tmp, 6, nv, 6);
       }
 
       // average diagonal and assign
