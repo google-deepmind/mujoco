@@ -544,6 +544,11 @@ typedef enum mjtTextureRole_ {    // role of texture map in rendering
   mjTEXROLE_ORM,                  // occlusion, roughness, metallic
   mjNTEXROLE
 } mjtTextureRole;
+typedef enum mjtColorSpace_ {     // type of color space encoding
+  mjCOLORSPACE_AUTO   = 0,        // attempts to autodetect color space, defaults to linear
+  mjCOLORSPACE_LINEAR,            // linear color space
+  mjCOLORSPACE_SRGB               // standard RGB color space
+} mjtColorSpace;
 typedef enum mjtIntegrator_ {     // integrator mode
   mjINT_EULER         = 0,        // semi-implicit Euler
   mjINT_RK4,                      // 4th-order Runge Kutta
@@ -1326,6 +1331,7 @@ struct mjModel_ {
 
   // textures
   int*      tex_type;             // texture type (mjtTexture)                (ntex x 1)
+  int*      tex_colorspace;       // texture colorspace (mjtColorSpace)       (ntex x 1)
   int*      tex_height;           // number of rows in texture image          (ntex x 1)
   int*      tex_width;            // number of columns in texture image       (ntex x 1)
   int*      tex_nchannel;         // number of channels in texture image      (ntex x 1)
@@ -2150,6 +2156,7 @@ typedef struct mjsTexture_ {       // texture specification
   mjsElement* element;             // element type
   mjString* name;                  // name
   mjtTexture type;                 // texture type
+  mjtColorSpace colorspace;        // colorspace
 
   // method 1: builtin
   int builtin;                     // builtin type (mjtBuiltin)

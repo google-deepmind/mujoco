@@ -1526,6 +1526,12 @@ still be specified here but this functionality is now deprecated and will be rem
    with the texrepeat attribute of :ref:`material <asset-material>`. The data can be loaded from a single file or
    created procedurally.
 
+.. _asset-texture-colorspace:
+
+:at:`colorspace`: :at-val:`[auto, linear, sRGB], "auto"`
+   This attribute determines the color space of the texture. The default value ``auto`` means that the color space will
+   be determined from the image file itself.  If no color space is defined in the file, then ``linear`` is assumed.
+
 .. _asset-texture-content_type:
 
 :at:`content_type`: :at-val:`string, optional`

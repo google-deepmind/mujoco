@@ -3340,6 +3340,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ntex',),
              ),
              StructFieldDecl(
+                 name='tex_colorspace',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='texture colorspace (mjtColorSpace)',
+                 array_extent=('ntex',),
+             ),
+             StructFieldDecl(
                  name='tex_height',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -9612,6 +9620,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='type',
                  type=ValueType(name='mjtTexture'),
                  doc='texture type',
+             ),
+             StructFieldDecl(
+                 name='colorspace',
+                 type=ValueType(name='mjtColorSpace'),
+                 doc='colorspace',
              ),
              StructFieldDecl(
                  name='builtin',

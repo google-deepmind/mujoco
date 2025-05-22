@@ -3285,6 +3285,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set fields
     m->tex_type[i] = ptex->type;
+    m->tex_colorspace[i] = ptex->colorspace;
     m->tex_height[i] = ptex->height;
     m->tex_width[i] = ptex->width;
     m->tex_nchannel[i] = ptex->nchannel;

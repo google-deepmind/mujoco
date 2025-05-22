@@ -439,6 +439,7 @@
     XNV ( float,   hfield_data,           nhfielddata,   1                    ) \
     X   ( int,     hfield_pathadr,        nhfield,       1                    ) \
     X   ( int,     tex_type,              ntex,          1                    ) \
+    X   ( int,     tex_colorspace,        ntex,          1                    ) \
     X   ( int,     tex_height,            ntex,          1                    ) \
     X   ( int,     tex_width,             ntex,          1                    ) \
     X   ( int,     tex_nchannel,          ntex,          1                    ) \

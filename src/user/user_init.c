@@ -273,6 +273,7 @@ void mjs_defaultSkin(mjsSkin* skin) {
 void mjs_defaultTexture(mjsTexture* texture) {
   memset(texture, 0, sizeof(mjsTexture));
   texture->type = mjTEXTURE_CUBE;
+  texture->colorspace = mjCOLORSPACE_AUTO;
   texture->rgb1[0] = texture->rgb1[1] = texture->rgb1[2] = 0.8;
   texture->rgb2[0] = texture->rgb2[1] = texture->rgb2[2] = 0.5;
   texture->random = 0.01;

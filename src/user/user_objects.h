@@ -1328,14 +1328,14 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
   void LoadFlip(std::string filename, const mjVFS* vfs,         // load and flip
                 std::vector<unsigned char>& image,
-                unsigned int& w, unsigned int& h);
+                unsigned int& w, unsigned int& h, bool& is_srgb);
 
   void LoadPNG(mjResource* resource,
                std::vector<unsigned char>& image,
-               unsigned int& w, unsigned int& h);
+               unsigned int& w, unsigned int& h, bool& is_srgb);
   void LoadCustom(mjResource* resource,
                   std::vector<unsigned char>& image,
-                  unsigned int& w, unsigned int& h);
+                  unsigned int& w, unsigned int& h, bool& is_srgb);
 
   bool clear_data_;  // if true, data_ is empty and should be filled by Compile
 };

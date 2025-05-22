@@ -139,6 +139,16 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjNTEXROLE', 10),
          ]),
      )),
+    ('mjtColorSpace',
+     EnumDecl(
+         name='mjtColorSpace',
+         declname='enum mjtColorSpace_',
+         values=dict([
+             ('mjCOLORSPACE_AUTO', 0),
+             ('mjCOLORSPACE_LINEAR', 1),
+             ('mjCOLORSPACE_SRGB', 2),
+         ]),
+     )),
     ('mjtIntegrator',
      EnumDecl(
          name='mjtIntegrator',

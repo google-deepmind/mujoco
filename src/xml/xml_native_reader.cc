@@ -241,8 +241,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
             {"bone", "*", "5", "body", "bindpos", "bindquat", "vertid", "vertweight"},
         {">"},
-        {"texture", "*", "23", "name", "type", "content_type", "file", "gridsize", "gridlayout",
-            "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
+        {"texture", "*", "24", "name", "type", "colorspace", "content_type", "file", "gridsize",
+            "gridlayout", "fileright", "fileleft", "fileup", "filedown", "filefront", "fileback",
             "builtin", "rgb1", "rgb2", "mark", "markrgb", "random", "width", "height",
             "hflip", "vflip", "nchannel"},
         {"material", "*", "12", "name", "class", "texture",  "texrepeat", "texuniform",
@@ -647,6 +647,15 @@ const mjMap texture_map[texture_sz] = {
   {"2d",          mjTEXTURE_2D},
   {"cube",        mjTEXTURE_CUBE},
   {"skybox",      mjTEXTURE_SKYBOX}
+};
+
+
+// colorspace for texture
+const int colorspace_sz = 3;
+const mjMap colorspace_map[colorspace_sz] = {
+  {"auto",        mjCOLORSPACE_AUTO},
+  {"linear",      mjCOLORSPACE_LINEAR},
+  {"sRGB",        mjCOLORSPACE_SRGB}
 };
 
 
@@ -3193,6 +3202,9 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       // read attributes
       if (MapValue(elem, "type", &n, texture_map, texture_sz)) {
         texture->type = (mjtTexture)n;
+      }
+      if (MapValue(elem, "colorspace", &n, colorspace_map, colorspace_sz)) {
+        texture->colorspace = (mjtColorSpace)n;
       }
       if (ReadAttrTxt(elem, "name", texname)) {
         mjs_setString(texture->name, texname.c_str());

@@ -225,6 +225,11 @@ public enum mjtTextureRole : int{
   mjTEXROLE_ORM = 9,
   mjNTEXROLE = 10,
 }
+public enum mjtColorSpace : int{
+  mjCOLORSPACE_AUTO = 0,
+  mjCOLORSPACE_LINEAR = 1,
+  mjCOLORSPACE_SRGB = 2,
+}
 public enum mjtIntegrator : int{
   mjINT_EULER = 0,
   mjINT_RK4 = 1,
@@ -5569,6 +5574,7 @@ public unsafe struct mjModel_ {
   public float* hfield_data;
   public int* hfield_pathadr;
   public int* tex_type;
+  public int* tex_colorspace;
   public int* tex_height;
   public int* tex_width;
   public int* tex_nchannel;

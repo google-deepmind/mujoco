@@ -1488,6 +1488,7 @@ void mjXWriter::Asset(XMLElement* root) {
 
     // write common attributes
     WriteAttrKey(elem, "type", texture_map, texture_sz, texture->type);
+    WriteAttrKey(elem, "colorspace", colorspace_map, colorspace_sz, texture->colorspace);
     WriteAttrTxt(elem, "name", texture->name);
 
     // write builtin

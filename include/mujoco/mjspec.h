@@ -525,6 +525,7 @@ typedef struct mjsTexture_ {       // texture specification
   mjsElement* element;             // element type
   mjString* name;                  // name
   mjtTexture type;                 // texture type
+  mjtColorSpace colorspace;        // colorspace
 
   // method 1: builtin
   int builtin;                     // builtin type (mjtBuiltin)
