@@ -261,6 +261,7 @@ typedef struct mjvGeom_ mjvGeom;
 struct mjvLight_ {                // OpenGL light
   float    pos[3];                // position rel. to body frame
   float    dir[3];                // direction rel. to body frame
+  int      type;                  // type (mjtLightType)
   float    attenuation[3];        // OpenGL attenuation (quadratic model)
   float    cutoff;                // OpenGL cutoff
   float    exponent;              // OpenGL exponent
@@ -268,7 +269,6 @@ struct mjvLight_ {                // OpenGL light
   float    diffuse[3];            // diffuse rgb (alpha=1)
   float    specular[3];           // specular rgb (alpha=1)
   mjtByte  headlight;             // headlight
-  mjtByte  directional;           // directional light
   mjtByte  castshadow;            // does light cast shadows
   float    bulbradius;            // bulb radius for soft shadows
   float    intensity;             // intensity, in candelas

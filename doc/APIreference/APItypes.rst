@@ -165,6 +165,17 @@ values are used in ``m->cam_mode`` and ``m->light_mode``.
 .. mujoco-include:: mjtCamLight
 
 
+.. _mjtLightType:
+
+mjtLightType
+~~~~~~~~~~~~
+
+The type of a light source describing how its position, orientation and other properties will interact with the
+objects in the scene. These values are used in ``m->light_type``.
+
+.. mujoco-include:: mjtLightType
+
+
 .. _mjtTexture:
 
 mjtTexture

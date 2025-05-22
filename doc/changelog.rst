@@ -11,6 +11,9 @@ General
   solver and clears the way for the addition of the Newton and PGS solvers (currently only CG is supported).
 - Removed the :at:`shell` plugin. This is now supported by :ref:`flexcomp<body-flexcomp>` and is active depending on
   the :ref:`elastic2d<flexcomp-elasticity-elastic2d>` attribute (off by default).
+- Replaced the :ref:`directional<body-light-directional>` (boolean) field for lights with a
+  :ref:`type<body-light-type>` field (of type :ref:`mjtLightType<mjtLightType>`) to allow for additional lighting
+  types.
 
 Simulate
 ^^^^^^^^

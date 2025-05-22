@@ -2220,11 +2220,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nlight',),
              ),
              StructFieldDecl(
-                 name='light_directional',
+                 name='light_type',
                  type=PointerType(
-                     inner_type=ValueType(name='mjtByte'),
+                     inner_type=ValueType(name='int'),
                  ),
-                 doc='directional light',
+                 doc='spot, directional, etc. (mjtLightType)',
                  array_extent=('nlight',),
              ),
              StructFieldDecl(
@@ -6698,6 +6698,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='direction rel. to body frame',
              ),
              StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='int'),
+                 doc='type (mjtLightType)',
+             ),
+             StructFieldDecl(
                  name='attenuation',
                  type=ArrayType(
                      inner_type=ValueType(name='float'),
@@ -6743,11 +6748,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='headlight',
                  type=ValueType(name='mjtByte'),
                  doc='headlight',
-             ),
-             StructFieldDecl(
-                 name='directional',
-                 type=ValueType(name='mjtByte'),
-                 doc='directional light',
              ),
              StructFieldDecl(
                  name='castshadow',
@@ -8992,9 +8992,9 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='is light active',
              ),
              StructFieldDecl(
-                 name='directional',
-                 type=ValueType(name='mjtByte'),
-                 doc='is light directional or spot',
+                 name='type',
+                 type=ValueType(name='mjtLightType'),
+                 doc='type of light',
              ),
              StructFieldDecl(
                  name='castshadow',

@@ -2909,10 +2909,17 @@ Attributes may be applied or ignored depending on the lighting model being used.
    This is identical to the target attribute of :ref:`camera <body-camera>` above. It specifies which body should be
    targeted in "targetbody" and "targetbodycom" modes.
 
+.. _body-light-type:
+
+:at:`type`: :at-val:`[spot, directional, point, image], "spot"`
+   Determines the type of light. Note that some light types may not be supported by some renderers (e.g. only spot and
+   directional lights are supported by the default native renderer).
+
 .. _body-light-directional:
 
 :at:`directional`: :at-val:`[false, true], "false"`
-   The light is directional if this attribute is "true", otherwise it is a spotlight.
+   This is a deprecated legacy attribute. Please use :ref:`light <light-type>` type instead. If set to "true", and no
+   type is specified, this will change the light type to be directional.
 
 .. _body-light-castshadow:
 
@@ -8287,6 +8294,8 @@ if omitted.
 .. _default-light-pos:
 
 .. _default-light-dir:
+
+.. _default-light-type:
 
 .. _default-light-directional:
 

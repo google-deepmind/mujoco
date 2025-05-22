@@ -167,8 +167,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "?", "17", "orthographic", "fovy", "ipd", "resolution", "pos", "quat",
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "focal", "focalpixel",
             "principal", "principalpixel", "sensorsize", "user"},
-        {"light", "?", "15", "pos", "dir", "bulbradius", "intensity", "range",
-            "directional", "castshadow", "active", "attenuation", "cutoff", "exponent",
+        {"light", "?", "16", "pos", "dir", "bulbradius", "intensity", "range",
+            "directional", "type", "castshadow", "active", "attenuation", "cutoff", "exponent",
             "ambient", "diffuse", "specular", "mode"},
         {"pair", "?", "7", "condim", "friction", "solref", "solreffriction", "solimp",
          "gap", "margin"},
@@ -281,7 +281,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "*", "20", "name", "class", "orthographic", "fovy", "ipd", "resolution", "pos",
             "quat", "axisangle", "xyaxes", "zaxis", "euler", "mode", "target",
             "focal", "focalpixel", "principal", "principalpixel", "sensorsize", "user"},
-        {"light", "*", "18", "name", "class", "directional", "castshadow", "active",
+        {"light", "*", "19", "name", "class", "directional", "type", "castshadow", "active",
             "pos", "dir", "bulbradius", "intensity", "range", "attenuation", "cutoff",
             "exponent", "ambient", "diffuse", "specular", "mode", "target"},
         {"plugin", "*", "2", "plugin", "instance"},
@@ -579,6 +579,17 @@ const mjMap camlight_map[camlight_sz] = {
   {"targetbody",    mjCAMLIGHT_TARGETBODY},
   {"targetbodycom", mjCAMLIGHT_TARGETBODYCOM}
 };
+
+
+// light type
+const int lighttype_sz = 4;
+const mjMap lighttype_map[lighttype_sz] = {
+  {"spot",          mjLIGHT_SPOT},
+  {"directional",   mjLIGHT_DIRECTIONAL},
+  {"point",         mjLIGHT_POINT},
+  {"image",         mjLIGHT_IMAGE}
+};
+
 
 // texmat role type
 const int texrole_sz = mjNTEXROLE - 1;
@@ -1852,6 +1863,7 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* camera) {
 // light element parser
 void mjXReader::OneLight(XMLElement* elem, mjsLight* light) {
   int n;
+  bool has_directional = false;
   string text, name, targetbody;
 
   // read attributes
@@ -1865,7 +1877,14 @@ void mjXReader::OneLight(XMLElement* elem, mjsLight* light) {
     light->mode = (mjtCamLight)n;
   }
   if (MapValue(elem, "directional", &n, bool_map, 2)) {
-    light->directional = (n == 1);
+    light->type = (n == 1) ? mjLIGHT_DIRECTIONAL : mjLIGHT_SPOT;
+    has_directional = true;
+  }
+  if (MapValue(elem, "type", &n, lighttype_map, lighttype_sz)) {
+    if (has_directional) {
+      throw mjXError(elem, "type and directional cannot both be defined");
+    }
+    light->type = (mjtLightType)n;
   }
   if (MapValue(elem, "castshadow", &n, bool_map, 2)) {
     light->castshadow = (n == 1);

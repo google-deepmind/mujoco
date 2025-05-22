@@ -207,6 +207,12 @@ public enum mjtCamLight : int{
   mjCAMLIGHT_TARGETBODY = 3,
   mjCAMLIGHT_TARGETBODYCOM = 4,
 }
+public enum mjtLightType : int{
+  mjLIGHT_SPOT = 0,
+  mjLIGHT_DIRECTIONAL = 1,
+  mjLIGHT_POINT = 2,
+  mjLIGHT_IMAGE = 3,
+}
 public enum mjtTexture : int{
   mjTEXTURE_2D = 0,
   mjTEXTURE_CUBE = 1,
@@ -5434,7 +5440,7 @@ public unsafe struct mjModel_ {
   public int* light_mode;
   public int* light_bodyid;
   public int* light_targetbodyid;
-  public byte* light_directional;
+  public int* light_type;
   public byte* light_castshadow;
   public float* light_bulbradius;
   public float* light_intensity;
@@ -6075,6 +6081,7 @@ public unsafe struct mjvGeom_ {
 public unsafe struct mjvLight_ {
   public fixed float pos[3];
   public fixed float dir[3];
+  public int type;
   public fixed float attenuation[3];
   public float cutoff;
   public float exponent;
@@ -6082,7 +6089,6 @@ public unsafe struct mjvLight_ {
   public fixed float diffuse[3];
   public fixed float specular[3];
   public byte headlight;
-  public byte directional;
   public byte castshadow;
   public float bulbradius;
   public float intensity;

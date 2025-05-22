@@ -111,6 +111,17 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjCAMLIGHT_TARGETBODYCOM', 4),
          ]),
      )),
+    ('mjtLightType',
+     EnumDecl(
+         name='mjtLightType',
+         declname='enum mjtLightType_',
+         values=dict([
+             ('mjLIGHT_SPOT', 0),
+             ('mjLIGHT_DIRECTIONAL', 1),
+             ('mjLIGHT_POINT', 2),
+             ('mjLIGHT_IMAGE', 3),
+         ]),
+     )),
     ('mjtTexture',
      EnumDecl(
          name='mjtTexture',

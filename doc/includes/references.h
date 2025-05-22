@@ -526,6 +526,12 @@ typedef enum mjtCamLight_ {       // tracking mode for camera and light
   mjCAMLIGHT_TARGETBODY,          // pos fixed in body, rot tracks target body
   mjCAMLIGHT_TARGETBODYCOM        // pos fixed in body, rot tracks target subtree com
 } mjtCamLight;
+typedef enum mjtLightType_ {      // type of light
+  mjLIGHT_SPOT    = 0,            // spot
+  mjLIGHT_DIRECTIONAL,            // directional
+  mjLIGHT_POINT,                  // point
+  mjLIGHT_IMAGE,                  // image-based
+} mjtLightType;
 typedef enum mjtTexture_ {        // type of texture
   mjTEXTURE_2D        = 0,        // 2d texture, suitable for planes and hfields
   mjTEXTURE_CUBE,                 // cube texture, suitable for all other geom types
@@ -1179,7 +1185,7 @@ struct mjModel_ {
   int*      light_mode;           // light tracking mode (mjtCamLight)        (nlight x 1)
   int*      light_bodyid;         // id of light's body                       (nlight x 1)
   int*      light_targetbodyid;   // id of targeted body; -1: none            (nlight x 1)
-  mjtByte*  light_directional;    // directional light                        (nlight x 1)
+  int*      light_type;           // spot, directional, etc. (mjtLightType)   (nlight x 1)
   mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
   float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
   float*    light_intensity;      // intensity, in candela                    (nlight x 1)
@@ -2036,7 +2042,7 @@ typedef struct mjsLight_ {         // light specification
 
   // intrinsics
   mjtByte active;                  // is light active
-  mjtByte directional;             // is light directional or spot
+  mjtLightType type;               // type of light
   mjtByte castshadow;              // does light cast shadows
   float bulbradius;                // bulb radius, for soft shadows
   float intensity;                 // intensity, in candelas
@@ -2840,6 +2846,7 @@ typedef struct mjvGeom_ mjvGeom;
 struct mjvLight_ {                // OpenGL light
   float    pos[3];                // position rel. to body frame
   float    dir[3];                // direction rel. to body frame
+  int      type;                  // type (mjtLightType)
   float    attenuation[3];        // OpenGL attenuation (quadratic model)
   float    cutoff;                // OpenGL cutoff
   float    exponent;              // OpenGL exponent
@@ -2847,7 +2854,6 @@ struct mjvLight_ {                // OpenGL light
   float    diffuse[3];            // diffuse rgb (alpha=1)
   float    specular[3];           // specular rgb (alpha=1)
   mjtByte  headlight;             // headlight
-  mjtByte  directional;           // directional light
   mjtByte  castshadow;            // does light cast shadows
   float    bulbradius;            // bulb radius for soft shadows
   float    intensity;             // intensity, in candelas

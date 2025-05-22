@@ -129,6 +129,14 @@ typedef enum mjtCamLight_ {       // tracking mode for camera and light
 } mjtCamLight;
 
 
+typedef enum mjtLightType_ {      // type of light
+  mjLIGHT_SPOT    = 0,            // spot
+  mjLIGHT_DIRECTIONAL,            // directional
+  mjLIGHT_POINT,                  // point
+  mjLIGHT_IMAGE,                  // image-based
+} mjtLightType;
+
+
 typedef enum mjtTexture_ {        // type of texture
   mjTEXTURE_2D        = 0,        // 2d texture, suitable for planes and hfields
   mjTEXTURE_CUBE,                 // cube texture, suitable for all other geom types
@@ -849,7 +857,7 @@ struct mjModel_ {
   int*      light_mode;           // light tracking mode (mjtCamLight)        (nlight x 1)
   int*      light_bodyid;         // id of light's body                       (nlight x 1)
   int*      light_targetbodyid;   // id of targeted body; -1: none            (nlight x 1)
-  mjtByte*  light_directional;    // directional light                        (nlight x 1)
+  int*      light_type;           // spot, directional, etc. (mjtLightType)   (nlight x 1)
   mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
   float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
   float*    light_intensity;      // intensity, in candela                    (nlight x 1)
