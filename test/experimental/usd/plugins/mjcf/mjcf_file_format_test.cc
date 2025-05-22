@@ -48,6 +48,7 @@
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdGeom/sphere.h>
 #include <pxr/usd/usdGeom/tokens.h>
+#include <pxr/usd/usdPhysics/articulationRootAPI.h>
 #include <pxr/usd/usdPhysics/collisionAPI.h>
 #include <pxr/usd/usdPhysics/meshCollisionAPI.h>
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
@@ -116,8 +117,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestBasicMeshSources) {
 
   auto stage = pxr::UsdStage::Open(layer);
   EXPECT_PRIM_VALID(stage, "/mesh_test");
-  EXPECT_PRIM_VALID(stage, "/mesh_test/test_body/test_body/tetrahedron");
-  EXPECT_PRIM_VALID(stage, "/mesh_test/test_body/test_body/tetrahedron/Mesh");
+  EXPECT_PRIM_VALID(stage, "/mesh_test/test_body/tetrahedron");
+  EXPECT_PRIM_VALID(stage, "/mesh_test/test_body/tetrahedron/Mesh");
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
@@ -222,7 +223,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestFaceVaryingMeshSourcesSimpleMjcfMesh) {
   auto stage = pxr::UsdStage::Open(layer);
 
   auto mesh = pxr::UsdGeomMesh::Get(
-      stage, SdfPath("/mesh_test/test_body/test_body/tetrahedron/Mesh"));
+      stage, SdfPath("/mesh_test/test_body/tetrahedron/Mesh"));
   ASSERT_TRUE(mesh);
   pxr::VtArray<int> face_vertex_counts;
   mesh.GetFaceVertexCountsAttr().Get(&face_vertex_counts);
@@ -273,8 +274,8 @@ TEST_F(MjcfSdfFileFormatPluginTest,
   auto stage = pxr::UsdStage::Open(xml_path);
   EXPECT_THAT(stage, testing::NotNull());
 
-  auto mesh = pxr::UsdGeomMesh::Get(
-      stage, SdfPath("/mesh_test/test_body/test_body/mesh/Mesh"));
+  auto mesh =
+      pxr::UsdGeomMesh::Get(stage, SdfPath("/mesh_test/test_body/mesh/Mesh"));
   ASSERT_TRUE(mesh);
   pxr::VtArray<int> face_vertex_counts;
   mesh.GetFaceVertexCountsAttr().Get(&face_vertex_counts);
@@ -357,9 +358,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestBody) {
   pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
 
   auto stage = pxr::UsdStage::Open(layer);
+
   EXPECT_PRIM_VALID(stage, "/body_test");
   EXPECT_PRIM_VALID(stage, "/body_test/test_body");
-  EXPECT_PRIM_VALID(stage, "/body_test/test_body/test_body");
   EXPECT_PRIM_VALID(stage, "/body_test/test_body/test_body_2");
 }
 
@@ -381,10 +382,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestBasicParenting) {
 
   auto stage = pxr::UsdStage::Open(layer);
   EXPECT_PRIM_VALID(stage, "/test/root");
-  EXPECT_PRIM_VALID(stage, "/test/root/root");
   EXPECT_PRIM_VALID(stage, "/test/root/root_body_1");
   EXPECT_PRIM_VALID(stage, "/test/root/root_body_2");
-  EXPECT_PRIM_VALID(stage, "/test/root/root_body_3");
+  EXPECT_PRIM_VALID(stage, "/test/root/root_body_2/root_body_3");
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestJointsDoNotAffectParenting) {
@@ -412,9 +412,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestJointsDoNotAffectParenting) {
 
   auto stage = pxr::UsdStage::Open(layer);
   EXPECT_PRIM_VALID(stage, "/test/root");
-  EXPECT_PRIM_VALID(stage, "/test/root/root");
   EXPECT_PRIM_VALID(stage, "/test/root/middle");
-  EXPECT_PRIM_VALID(stage, "/test/root/tet");
+  EXPECT_PRIM_VALID(stage, "/test/root/middle/tet");
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestKindAuthoring) {
@@ -443,9 +442,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestKindAuthoring) {
   auto stage = pxr::UsdStage::Open(layer);
   EXPECT_PRIM_KIND(stage, "/test", pxr::KindTokens->group);
   EXPECT_PRIM_KIND(stage, "/test/root", pxr::KindTokens->component);
-  EXPECT_PRIM_KIND(stage, "/test/root/root", pxr::KindTokens->subcomponent);
   EXPECT_PRIM_KIND(stage, "/test/root/middle", pxr::KindTokens->subcomponent);
-  EXPECT_PRIM_KIND(stage, "/test/root/tet", pxr::KindTokens->subcomponent);
+  EXPECT_PRIM_KIND(stage, "/test/root/middle/tet",
+                   pxr::KindTokens->subcomponent);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestGeomsPrims) {
@@ -936,28 +935,23 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsAuthored) {
   auto stage = pxr::UsdStage::Open(layer);
   EXPECT_PRIM_VALID(stage, "/test/box_site");
   EXPECT_PRIM_IS_A(stage, "/test/box_site", pxr::UsdGeomCube);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/box_site", MjcPhysicsSiteAPI);
-
-  EXPECT_PRIM_VALID(stage, "/test/ball/ball/sphere_site");
-  EXPECT_PRIM_IS_A(stage, "/test/ball/ball/sphere_site", pxr::UsdGeomSphere);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ball/sphere_site",
-                          MjcPhysicsSiteAPI);
-
-  EXPECT_PRIM_VALID(stage, "/test/ball/ball/capsule_site");
-  EXPECT_PRIM_IS_A(stage, "/test/ball/ball/capsule_site", pxr::UsdGeomCapsule);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ball/capsule_site",
-                          MjcPhysicsSiteAPI);
-
-  EXPECT_PRIM_VALID(stage, "/test/ball/ball/cylinder_site");
-  EXPECT_PRIM_IS_A(stage, "/test/ball/ball/cylinder_site",
-                   pxr::UsdGeomCylinder);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ball/cylinder_site",
-                          MjcPhysicsSiteAPI);
-
-  EXPECT_PRIM_VALID(stage, "/test/ball/ball/ellipsoid_site");
-  EXPECT_PRIM_IS_A(stage, "/test/ball/ball/ellipsoid_site", pxr::UsdGeomSphere);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ball/ellipsoid_site",
-                          MjcPhysicsSiteAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/box_site", pxr::MjcPhysicsSiteAPI);
+  EXPECT_PRIM_VALID(stage, "/test/ball/sphere_site");
+  EXPECT_PRIM_IS_A(stage, "/test/ball/sphere_site", pxr::UsdGeomSphere);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/sphere_site",
+                          pxr::MjcPhysicsSiteAPI);
+  EXPECT_PRIM_VALID(stage, "/test/ball/capsule_site");
+  EXPECT_PRIM_IS_A(stage, "/test/ball/capsule_site", pxr::UsdGeomCapsule);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/capsule_site",
+                          pxr::MjcPhysicsSiteAPI);
+  EXPECT_PRIM_VALID(stage, "/test/ball/cylinder_site");
+  EXPECT_PRIM_IS_A(stage, "/test/ball/cylinder_site", pxr::UsdGeomCylinder);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/cylinder_site",
+                          pxr::MjcPhysicsSiteAPI);
+  EXPECT_PRIM_VALID(stage, "/test/ball/ellipsoid_site");
+  EXPECT_PRIM_IS_A(stage, "/test/ball/ellipsoid_site", pxr::UsdGeomSphere);
+  EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ellipsoid_site",
+                          pxr::MjcPhysicsSiteAPI);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsPurpose) {
@@ -965,13 +959,13 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsPurpose) {
 
   auto stage = pxr::UsdStage::Open(layer);
   EXPECT_PRIM_PURPOSE(stage, "/test/box_site", pxr::UsdGeomTokens->guide);
-  EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/sphere_site",
+  EXPECT_PRIM_PURPOSE(stage, "/test/ball/sphere_site",
                       pxr::UsdGeomTokens->guide);
-  EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/capsule_site",
+  EXPECT_PRIM_PURPOSE(stage, "/test/ball/capsule_site",
                       pxr::UsdGeomTokens->guide);
-  EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/cylinder_site",
+  EXPECT_PRIM_PURPOSE(stage, "/test/ball/cylinder_site",
                       pxr::UsdGeomTokens->guide);
-  EXPECT_PRIM_PURPOSE(stage, "/test/ball/ball/ellipsoid_site",
+  EXPECT_PRIM_PURPOSE(stage, "/test/ball/ellipsoid_site",
                       pxr::UsdGeomTokens->guide);
 }
 
@@ -981,9 +975,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsToggleSdfFormatArg) {
   // Test that the default is no physics.
   auto stage_no_physics = pxr::UsdStage::Open(xml_path);
   EXPECT_THAT(stage_no_physics, testing::NotNull());
-  EXPECT_PRIM_VALID(stage_no_physics, "/mesh_test/test_body/test_body");
-  EXPECT_PRIM_API_NOT_APPLIED(stage_no_physics,
-                              "/mesh_test/test_body/test_body",
+  EXPECT_PRIM_VALID(stage_no_physics, "/mesh_test/test_body");
+  EXPECT_PRIM_API_NOT_APPLIED(stage_no_physics, "/mesh_test/test_body",
                               pxr::UsdPhysicsRigidBodyAPI);
 
   // Then test that the physics flag enables physics.
@@ -992,8 +985,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsToggleSdfFormatArg) {
   auto stage_with_physics = pxr::UsdStage::Open(xml_path_physics_flag);
   EXPECT_THAT(stage_with_physics, testing::NotNull());
 
-  EXPECT_PRIM_VALID(stage_with_physics, "/mesh_test/test_body/test_body");
-  EXPECT_PRIM_API_APPLIED(stage_with_physics, "/mesh_test/test_body/test_body",
+  EXPECT_PRIM_VALID(stage_with_physics, "/mesh_test/test_body");
+  EXPECT_PRIM_API_APPLIED(stage_with_physics, "/mesh_test/test_body",
                           pxr::UsdPhysicsRigidBodyAPI);
 }
 
@@ -1019,23 +1012,21 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsRigidBody) {
   EXPECT_THAT(stage, testing::NotNull());
   EXPECT_PRIM_VALID(stage, "/physics_test");
   EXPECT_PRIM_VALID(stage, "/physics_test/test_body");
-  EXPECT_PRIM_VALID(stage, "/physics_test/test_body/test_body");
-  // USD does not allow nested rigidbodies so we put them as siblings to the
-  // first body in the hierarchy.
   EXPECT_PRIM_VALID(stage, "/physics_test/test_body/test_body_2");
 
-  // The parent containing the body should not have the RigidBodyAPI applied.
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body",
-                              pxr::UsdPhysicsRigidBodyAPI);
-
-  EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body/test_body",
+  EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body",
                           pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body",
+                          pxr::UsdPhysicsArticulationRootAPI);
   EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body/test_body_2",
                           pxr::UsdPhysicsRigidBodyAPI);
 
+  // Only the root body should have the articulation API applied.
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body/test_body_2",
+                              pxr::UsdPhysicsArticulationRootAPI);
+
   // Geoms should not have RigidBodyAPI applied either.
-  EXPECT_PRIM_API_NOT_APPLIED(stage,
-                              "/physics_test/test_body/test_body/test_geom",
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body/test_geom",
                               pxr::UsdPhysicsRigidBodyAPI);
   EXPECT_PRIM_API_NOT_APPLIED(stage,
                               "/physics_test/test_body/test_body_2/test_geom_2",
@@ -1093,41 +1084,28 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
   //
   // ground [collider]
   //
-  // body_0/body_0 [rigidbody]
-  //   body_0/body_0/body_0_col [collider]
+  // body_0 [rigidbody]
+  //   body_0/body_0_col [collider]
   //
-  // body_0/body_0_0 [rigidbody]  <-- USD reparents nested rigid bodies
-  //     body_0/body_0/body_0_0/body_0_0_col [collider]
+  // body_0/body_0_0 [rigidbody]
+  //     body_0/body_0_0/body_0_0_col [collider]
   //
-  // body_1/body_1 [rigidbody]
-  //   body_1/body_1/body_1_col_0 [collider]
-  //   body_1/body_1/body_1_col_1 [collider]
+  // body_1 [rigidbody]
+  //   body_1/body_1_col_0 [collider]
+  //   body_1/body_1_col_1 [collider]
   //
-  // body_2/body_2 [rigidbody]
-  //   body_2/body_2/body_2_nocol []
+  // body_2 [rigidbody]
+  //   body_2/body_2_nocol []
   //
-  // body_3/body_3 [rigidbody]
-  //   body_3/body_3/body_3_col []  <-- Intermediate prim for mesh instancing
-  //     body_3/body_3/body_3_col/Mesh [collider, mesh collider]
+  // body_3 [rigidbody]
+  //   body_3/body_3_col []  <-- Intermediate prim for mesh instancing
+  //     body_3/body_3_col/Mesh [collider, mesh collider]
 
   // ground [collider] (Static collider)
   EXPECT_PRIM_VALID(stage, "/test/ground");
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/ground",
                               pxr::UsdPhysicsRigidBodyAPI);
   EXPECT_PRIM_API_APPLIED(stage, "/test/ground", pxr::UsdPhysicsCollisionAPI);
-
-  // body_0/body_0 [rigidbody]
-  EXPECT_PRIM_VALID(stage, "/test/body_0/body_0");
-  EXPECT_PRIM_API_APPLIED(stage, "/test/body_0/body_0",
-                          pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_0/body_0",
-                              pxr::UsdPhysicsCollisionAPI);
-  //   body_0/body_0/body_0_col [collider]
-  EXPECT_PRIM_VALID(stage, "/test/body_0/body_0/body_0_col");
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_0/body_0/body_0_col",
-                              pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/body_0/body_0/body_0_col",
-                          pxr::UsdPhysicsCollisionAPI);
 
   // body_0/body_0_0 [rigidbody] (Nested body - reparented)
   EXPECT_PRIM_VALID(stage, "/test/body_0/body_0_0");
@@ -1142,61 +1120,58 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
   EXPECT_PRIM_API_APPLIED(stage, "/test/body_0/body_0_0/body_0_0_col",
                           pxr::UsdPhysicsCollisionAPI);
 
-  // body_1/body_1 [rigidbody]
-  EXPECT_PRIM_VALID(stage, "/test/body_1/body_1");
-  EXPECT_PRIM_API_APPLIED(stage, "/test/body_1/body_1",
-                          pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_1/body_1",
+  // body_1 [rigidbody]
+  EXPECT_PRIM_VALID(stage, "/test/body_1");
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_1", pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_1",
                               pxr::UsdPhysicsCollisionAPI);
-  //   body_1/body_1/body_1_col_0 [collider]
-  EXPECT_PRIM_VALID(stage, "/test/body_1/body_1/body_1_col_0");
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_1/body_1/body_1_col_0",
+  //   body_1/body_1_col_0 [collider]
+  EXPECT_PRIM_VALID(stage, "/test/body_1/body_1_col_0");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_1/body_1_col_0",
                               pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/body_1/body_1/body_1_col_0",
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_1/body_1_col_0",
                           pxr::UsdPhysicsCollisionAPI);
-  //   body_1/body_1/body_1_col_1 [collider]
-  EXPECT_PRIM_VALID(stage, "/test/body_1/body_1/body_1_col_1");
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_1/body_1/body_1_col_1",
+  //   body_1/body_1_col_1 [collider]
+  EXPECT_PRIM_VALID(stage, "/test/body_1/body_1_col_1");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_1/body_1_col_1",
                               pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/body_1/body_1/body_1_col_1",
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_1/body_1_col_1",
                           pxr::UsdPhysicsCollisionAPI);
 
-  // body_2/body_2 [rigidbody]
-  EXPECT_PRIM_VALID(stage, "/test/body_2/body_2");
-  EXPECT_PRIM_API_APPLIED(stage, "/test/body_2/body_2",
-                          pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2/body_2",
+  // body_2 [rigidbody]
+  EXPECT_PRIM_VALID(stage, "/test/body_2");
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_2", pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2",
                               pxr::UsdPhysicsCollisionAPI);
-  //   body_2/body_2/body_2_nocol [] (No physics APIs applied)
-  EXPECT_PRIM_VALID(stage, "/test/body_2/body_2/body_2_nocol");
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2/body_2/body_2_nocol",
+  //   body_2/body_2_nocol [] (No physics APIs applied)
+  EXPECT_PRIM_VALID(stage, "/test/body_2/body_2_nocol");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2/body_2_nocol",
                               pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2/body_2/body_2_nocol",
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_2/body_2_nocol",
                               pxr::UsdPhysicsCollisionAPI);
 
-  // body_3/body_3 [rigidbody]
-  EXPECT_PRIM_VALID(stage, "/test/body_3/body_3");
-  EXPECT_PRIM_API_APPLIED(stage, "/test/body_3/body_3",
-                          pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3",
+  // body_3 [rigidbody]
+  EXPECT_PRIM_VALID(stage, "/test/body_3");
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_3", pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3",
                               pxr::UsdPhysicsCollisionAPI);
-  //   body_3/body_3/body_3_col [] (Intermediate prim for mesh instancing)
-  EXPECT_PRIM_VALID(stage, "/test/body_3/body_3/body_3_col");
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3/body_3_col",
+  //   body_3/body_3_col [] (Intermediate prim for mesh instancing)
+  EXPECT_PRIM_VALID(stage, "/test/body_3/body_3_col");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3_col",
                               pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3/body_3_col",
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3_col",
                               pxr::UsdPhysicsCollisionAPI);
-  //     body_3/body_3/body_3_col/Mesh [collider, mesh collider]
-  EXPECT_PRIM_VALID(stage, "/test/body_3/body_3/body_3_col/Mesh");
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3/body_3_col/Mesh",
+  //     body_3/body_3_col/Mesh [collider, mesh collider]
+  EXPECT_PRIM_VALID(stage, "/test/body_3/body_3_col/Mesh");
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/test/body_3/body_3_col/Mesh",
                               pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/body_3/body_3/body_3_col/Mesh",
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_3/body_3_col/Mesh",
                           pxr::UsdPhysicsCollisionAPI);
-  EXPECT_PRIM_API_APPLIED(stage, "/test/body_3/body_3/body_3_col/Mesh",
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body_3/body_3_col/Mesh",
                           pxr::UsdPhysicsMeshCollisionAPI);
-  ExpectAttributeEqual(
-      stage, "/test/body_3/body_3/body_3_col/Mesh.physics:approximation",
-      pxr::UsdPhysicsTokens->convexHull);
+  ExpectAttributeEqual(stage,
+                       "/test/body_3/body_3_col/Mesh.physics:approximation",
+                       pxr::UsdPhysicsTokens->convexHull);
 }
 
 }  // namespace
