@@ -4283,6 +4283,28 @@ void mjCTexture::LoadPNG(mjResource* resource,
   image = png_image.MoveData();
 }
 
+// load KTX file
+void mjCTexture::LoadKTX(mjResource* resource,
+                         std::vector<unsigned char>& image, unsigned int& w,
+                        unsigned int& h, bool& is_srgb) {
+  const void* buffer = 0;
+  int buffer_sz = mju_readResource(resource, &buffer);
+
+  // still not found
+  if (buffer_sz < 0) {
+    throw mjCError(this, "could not read texture file '%s'", resource->name);
+  } else if (!buffer_sz) {
+    throw mjCError(this, "texture file is empty: '%s'", resource->name);
+  }
+
+  w = buffer_sz;
+  h = 1;
+  is_srgb = false;
+
+  image.resize(buffer_sz);
+  memcpy(image.data(), buffer, buffer_sz);
+}
+
 // load custom file
 void mjCTexture::LoadCustom(mjResource* resource,
                             std::vector<unsigned char>& image,
@@ -4336,7 +4358,7 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
     asset_type = "image/vnd.mujoco.texture";
   }
 
-  if (asset_type != "image/png" && asset_type != "image/vnd.mujoco.texture") {
+  if (asset_type != "image/png" && asset_type != "image/ktx" && asset_type != "image/vnd.mujoco.texture") {
     throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
   }
 
@@ -4345,6 +4367,11 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
   try {
     if (asset_type == "image/png") {
       LoadPNG(resource, image, w, h, is_srgb);
+    } else if (asset_type == "image/ktx") {
+      if (hflip || vflip) {
+        throw mjCError(this, "cannot flip KTX textures");
+      }
+      LoadKTX(resource, image, w, h, is_srgb);
     } else {
       LoadCustom(resource, image, w, h, is_srgb);
     }
