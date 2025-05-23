@@ -490,6 +490,20 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::arg("name"),
       py::return_value_policy::reference_internal);
+  mjSpec.def_static(
+      "resolve_orientation",
+      [](bool degree, const MjTypeVec<char>& sequence,
+         const raw::MjsOrientation* orientation) -> std::array<double, 4> {
+        std::array<double, 4> quat = {0, 0, 0, 0};
+        const char* err = mjs_resolveOrientation(quat.data(), degree,
+                                                 sequence.ptr, orientation);
+        if (err) {
+          throw pybind11::value_error(err);
+        }
+        return quat;
+      },
+      py::arg("degree"), py::arg("sequence") = py::none(),
+      py::arg("orientation"), py::return_value_policy::copy);
 
   // ============================= MJSBODY =====================================
   mjsBody.def(

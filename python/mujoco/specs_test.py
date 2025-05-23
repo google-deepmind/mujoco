@@ -16,6 +16,7 @@
 
 import gc
 import inspect
+import math
 import os
 import textwrap
 import typing
@@ -128,6 +129,18 @@ class SpecsTest(absltest.TestCase):
         </mujoco>
     """)
     self.assertEqual(spec.to_xml(), xml)
+
+  def test_resolve_orientation(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(euler=[0, 0, 90])
+    quat = mujoco.MjSpec.resolve_orientation(
+        degree=spec.compiler.degree,
+        sequence=spec.compiler.eulerseq,
+        orientation=body.alt,
+    )
+    np.testing.assert_array_almost_equal(
+        quat, [math.sqrt(2) / 2, 0, 0, math.sqrt(2) / 2]
+    )
 
   def test_kwarg(self):
     # Create a spec.
