@@ -1069,6 +1069,15 @@ class SpecsTest(absltest.TestCase):
     frame = body.to_frame()
     np.testing.assert_array_equal(frame.pos, [1, 2, 3])
 
+  def test_get_frame(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    frame = body.add_frame()
+    geom = body.add_geom()
+    geom.set_frame(frame)
+    self.assertIsNotNone(frame)
+    self.assertIs(geom.frame, frame)
+
   def test_attach_to_frame(self):
     parent = mujoco.MjSpec()
     parent.assets = {'cube.obj': 'cube_content'}

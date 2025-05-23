@@ -736,6 +736,13 @@ PYBIND11_MODULE(_specs, m) {
         return frame;
       },
       py::return_value_policy::reference_internal);
+  mjsBody.def(
+    "frame",
+      [](raw::MjsBody* self) -> raw::MjsFrame* {
+        return mjs_getFrame(self->element);
+      },
+      py::return_value_policy::reference_internal);
+
 
   // ============================= MJSFRAME ====================================
   mjsFrame.def("delete", [](raw::MjsFrame& self) { mjs_delete(self.element); });
@@ -767,6 +774,12 @@ PYBIND11_MODULE(_specs, m) {
       py::arg("body"), py::arg("prefix") = py::none(),
       py::arg("suffix") = py::none(),
       py::return_value_policy::reference_internal);
+  mjsFrame.def_property_readonly(
+      "frame",
+      [](raw::MjsFrame& self) -> raw::MjsFrame* {
+        return mjs_getFrame(self.element);
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSGEOM =====================================
   mjsGeom.def("delete", [](raw::MjsGeom& self) { mjs_delete(self.element); });
@@ -789,6 +802,12 @@ PYBIND11_MODULE(_specs, m) {
       [](raw::MjsGeom& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
       });
+  mjsGeom.def_property_readonly(
+      "frame",
+      [](raw::MjsGeom& self) -> raw::MjsFrame* {
+        return mjs_getFrame(self.element);
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSJOINT ====================================
   mjsJoint.def("delete", [](raw::MjsJoint& self) { mjs_delete(self.element); });
@@ -811,6 +830,12 @@ PYBIND11_MODULE(_specs, m) {
       [](raw::MjsJoint& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
       });
+  mjsJoint.def_property_readonly(
+      "frame",
+      [](raw::MjsJoint& self) -> raw::MjsFrame* {
+        return mjs_getFrame(self.element);
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSSITE =====================================
   mjsSite.def("delete", [](raw::MjsSite& self) { mjs_delete(self.element); });
@@ -850,6 +875,12 @@ PYBIND11_MODULE(_specs, m) {
       py::arg("body"), py::arg("prefix") = py::none(),
       py::arg("suffix") = py::none(),
       py::return_value_policy::reference_internal);
+  mjsSite.def_property_readonly(
+      "frame",
+      [](raw::MjsSite& self) -> raw::MjsFrame* {
+        return mjs_getFrame(self.element);
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSCAMERA ===================================
   mjsCamera.def("delete",
@@ -873,6 +904,12 @@ PYBIND11_MODULE(_specs, m) {
       [](raw::MjsCamera& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
       });
+  mjsCamera.def_property_readonly(
+      "frame",
+      [](raw::MjsCamera& self) -> raw::MjsFrame* {
+        return mjs_getFrame(self.element);
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSLIGHT ====================================
   mjsLight.def("delete", [](raw::MjsLight& self) { mjs_delete(self.element); });
@@ -895,6 +932,12 @@ PYBIND11_MODULE(_specs, m) {
       [](raw::MjsLight& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
       });
+  mjsLight.def_property_readonly(
+      "frame",
+      [](raw::MjsLight& self) -> raw::MjsFrame* {
+        return mjs_getFrame(self.element);
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSMATERIAL =================================
   mjsMaterial.def("delete",
