@@ -515,3 +515,36 @@ class "SiteAPI"
 )
 {}
 
+class "CollisionAPI"
+(
+    doc = """API describing a Mujoco collider."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform bool mjc:shellinertia = False (
+        customData = {
+            string apiName = "ShellInertia"
+        }
+        displayName = "Shell Inertia"
+        doc = """Enables handling of the inertia assuming mass is concentrated on the surface."""
+    )
+}
+
+class "MeshCollisionAPI"
+(
+    doc = """API describing a Mujoco collider."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform token mjc:inertia = "legacy" (
+        allowedTokens = ["legacy", "convex", "exact", "shell"]
+        customData = {
+            string apiName = "Inertia"
+        }
+        displayName = "Inertia"
+        doc = """Controls how a mesh is used when mass and inertia are inferred from geometry."""
+    )
+}
+

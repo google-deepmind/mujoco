@@ -63,6 +63,10 @@ struct MjcPhysicsTokensType {
   /// Possible value for MjcPhysicsSceneAPI::GetSolverAttr(),  This token
   /// represents the CG constraint solver algorithm.
   const TfToken cg;
+  /// \brief "convex"
+  ///
+  /// Possible value for MjcPhysicsMeshCollisionAPI::GetInertiaAttr()
+  const TfToken convex;
   /// \brief "dense"
   ///
   /// Possible value for MjcPhysicsSceneAPI::GetJacobianAttr(),  This token
@@ -78,6 +82,10 @@ struct MjcPhysicsTokensType {
   /// Fallback value for MjcPhysicsSceneAPI::GetIntegratorAttr(),  This token
   /// represents the Euler numerical integrator.
   const TfToken euler;
+  /// \brief "exact"
+  ///
+  /// Possible value for MjcPhysicsMeshCollisionAPI::GetInertiaAttr()
+  const TfToken exact;
   /// \brief "implicit"
   ///
   /// Possible value for MjcPhysicsSceneAPI::GetIntegratorAttr(),  This token
@@ -88,6 +96,10 @@ struct MjcPhysicsTokensType {
   /// Possible value for MjcPhysicsSceneAPI::GetIntegratorAttr(),  This token
   /// represents the implicitfast numerical integrator.
   const TfToken implicitfast;
+  /// \brief "legacy"
+  ///
+  /// Fallback value for MjcPhysicsMeshCollisionAPI::GetInertiaAttr()
+  const TfToken legacy;
   /// \brief "mjc:flag:actuation"
   ///
   /// MjcPhysicsSceneAPI
@@ -180,6 +192,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcFlagWarmstart;
+  /// \brief "mjc:inertia"
+  ///
+  /// MjcPhysicsMeshCollisionAPI
+  const TfToken mjcInertia;
   /// \brief "mjc:option:actuatorgroupdisable"
   ///
   /// MjcPhysicsSceneAPI
@@ -284,6 +300,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcOptionWind;
+  /// \brief "mjc:shellinertia"
+  ///
+  /// MjcPhysicsCollisionAPI
+  const TfToken mjcShellinertia;
   /// \brief "newton"
   ///
   /// Fallback value for MjcPhysicsSceneAPI::GetSolverAttr(),  This token
@@ -304,11 +324,23 @@ struct MjcPhysicsTokensType {
   /// Possible value for MjcPhysicsSceneAPI::GetIntegratorAttr(),  This token
   /// represents the RK4 numerical integrator.
   const TfToken rk4;
+  /// \brief "shell"
+  ///
+  /// Possible value for MjcPhysicsMeshCollisionAPI::GetInertiaAttr()
+  const TfToken shell;
   /// \brief "sparse"
   ///
   /// Possible value for MjcPhysicsSceneAPI::GetJacobianAttr(),  This token
   /// represents the sparse constraint Jacobian and matrices computed from it.
   const TfToken sparse;
+  /// \brief "CollisionAPI"
+  ///
+  /// Schema identifer and family for MjcPhysicsCollisionAPI
+  const TfToken CollisionAPI;
+  /// \brief "MeshCollisionAPI"
+  ///
+  /// Schema identifer and family for MjcPhysicsMeshCollisionAPI
+  const TfToken MeshCollisionAPI;
   /// \brief "SceneAPI"
   ///
   /// Schema identifer and family for MjcPhysicsSceneAPI
