@@ -433,11 +433,13 @@ class BindData(object):
         return name
       else:
         raise AttributeError('ctrl is not available for this type')
-    if name == 'qpos' or name == 'qvel' or name == 'qacc':
+    if name == 'qpos' or name == 'qvel' or name == 'qacc' or name.startswith('qfrc_'):
       if self.prefix == 'jnt_':
         return name
       else:
-        raise AttributeError('qpos, qvel, qacc are not available for this type')
+        raise AttributeError(
+            'qpos, qvel, qacc, qfrc are not available for this type'
+        )
     else:
       return self.prefix + name
 
@@ -451,7 +453,9 @@ class BindData(object):
     return var[..., idx, :]
 
   def __getattr__(self, name: str):
-    if name in ('sensordata', 'qpos', 'qvel', 'qacc'):
+    if name in ('sensordata', 'qpos', 'qvel', 'qacc') or (
+        name.startswith('qfrc_')
+    ):
       adr = num = 0
       if name == 'sensordata':
         adr = self.model.sensor_adr[self.id]
@@ -460,7 +464,7 @@ class BindData(object):
         adr = self.model.jnt_qposadr[self.id]
         typ = self.model.jnt_type[self.id]
         num = sum((typ == jt) * jt.qpos_width() for jt in JointType)
-      elif name == 'qvel' or name == 'qacc':
+      elif name == 'qvel' or name == 'qacc' or name.startswith('qfrc_'):
         adr = self.model.jnt_dofadr[self.id]
         typ = self.model.jnt_type[self.id]
         num = sum((typ == jt) * jt.dof_width() for jt in JointType)
