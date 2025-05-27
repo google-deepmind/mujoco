@@ -807,7 +807,7 @@ to implement high-resolution timers in C without bringing in additional dependen
 does not need timing, and in that case there is no reason to call timing functions.
 
 One part of the simulation pipeline that needs to be monitored closely is the iterative constraint solver. The
-simplest diagnostic here is ``mjData.solver_iter`` which shows how many iterations the solver took on the last call to
+simplest diagnostic here is ``mjData.solver_niter`` which shows how many iterations the solver took on the last call to
 mj_step or ``mj_forward``. Note that the solver has tolerance parameters for early termination, so this number is
 usually smaller than the maximum number of iterations allowed. The array ``mjData.solver`` contains one
 :ref:`mjSolverStat` data structure per iteration of the constraint solver, with information about the constraint state
