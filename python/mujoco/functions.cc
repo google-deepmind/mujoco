@@ -211,6 +211,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_tendon>(pymodule);
   Def<traits::mj_transmission>(pymodule);
   Def<traits::mj_crb>(pymodule);
+  Def<traits::mj_makeM>(pymodule);
   Def<traits::mj_factorM>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_solveM, "n")(
       pymodule,

@@ -1829,6 +1829,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Run composite rigid body inertia algorithm (CRB).',
      )),
+    ('mj_makeM',
+     FunctionDecl(
+         name='mj_makeM',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Make inertia matrix.',
+     )),
     ('mj_factorM',
      FunctionDecl(
          name='mj_factorM',

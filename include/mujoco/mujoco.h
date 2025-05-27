@@ -364,6 +364,9 @@ MJAPI void mj_transmission(const mjModel* m, mjData* d);
 // Run composite rigid body inertia algorithm (CRB).
 MJAPI void mj_crb(const mjModel* m, mjData* d);
 
+// Make inertia matrix.
+MJAPI void mj_makeM(const mjModel* m, mjData* d);
+
 // Compute sparse L'*D*L factorizaton of inertia matrix.
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
 

@@ -748,8 +748,7 @@ Compare forward and inverse dynamics, save results in fwdinv.
 Sub components
 ^^^^^^^^^^^^^^
 
-These are sub-components of the simulation pipeline, called internally from the components above. It is very unlikely
-that the user will need to call them.
+These are sub-components of the simulation pipeline, called internally from the components above.
 
 .. _mj_sensorPos:
 
@@ -885,6 +884,18 @@ Compute actuator transmission lengths and moments.
 .. mujoco-include:: mj_crb
 
 Run composite rigid body inertia algorithm (CRB).
+
+.. _mj_makeM:
+
+`mj_makeM <#mj_makeM>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_makeM
+
+Compute the composite rigid body inertia with :ref:`mj_crb`, add terms due
+to :ref:`tendon armature<tendon-spatial-armature>`. The joint-space inertia matrix is stored in both ``mjData.qM`` and
+``mjData.M``. These arrays represent the same quantity using different layouts (parent-based and compressed sparse row,
+respectively).
 
 .. _mj_factorM:
 

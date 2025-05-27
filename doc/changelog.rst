@@ -14,6 +14,9 @@ General
 - Replaced the :ref:`directional<body-light-directional>` (boolean) field for lights with a
   :ref:`type<body-light-type>` field (of type :ref:`mjtLightType<mjtLightType>`) to allow for additional lighting
   types.
+- Added new sub-component :ref:`mj_makeM` which combines the :ref:`mj_crb` call with additional logic to support the
+  introduction in 3.3.1 of :ref:`tendon armature<tendon-spatial-armature>`. In addition to the traditional
+  ``mjData.qM``, :ref:`mj_makeM` also computes ``mjData.M``, a CSR representation of the same matrix.
 
 Simulate
 ^^^^^^^^

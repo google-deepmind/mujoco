@@ -295,7 +295,7 @@ struct mjData_ {
   int*    moment_colind;     // column indices in sparse Jacobian                (nJmom x 1)
   mjtNum* actuator_moment;   // actuator moments                                 (nJmom x 1)
 
-  // computed by mj_fwdPosition/mj_crb
+  // computed by mj_fwdPosition/mj_makeM
   mjtNum* crb;               // com-based composite inertia and mass             (nbody x 10)
   mjtNum* qM;                // inertia (sparse)                                 (nM x 1)
   mjtNum* M;                 // reduced inertia (compressed sparse row)          (nC x 1)

@@ -267,7 +267,7 @@ struct mjData_ {
   int*    moment_colind;     // column indices in sparse Jacobian                (nJmom x 1)
   mjtNum* actuator_moment;   // actuator moments                                 (nJmom x 1)
 
-  // computed by mj_fwdPosition/mj_crb
+  // computed by mj_fwdPosition/mj_makeM
   mjtNum* crb;               // com-based composite inertia and mass             (nbody x 10)
   mjtNum* qM;                // inertia (sparse)                                 (nM x 1)
   mjtNum* M;                 // reduced inertia (compressed sparse row)          (nC x 1)
@@ -3068,6 +3068,7 @@ void mj_flex(const mjModel* m, mjData* d);
 void mj_tendon(const mjModel* m, mjData* d);
 void mj_transmission(const mjModel* m, mjData* d);
 void mj_crb(const mjModel* m, mjData* d);
+void mj_makeM(const mjModel* m, mjData* d);
 void mj_factorM(const mjModel* m, mjData* d);
 void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
 void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,

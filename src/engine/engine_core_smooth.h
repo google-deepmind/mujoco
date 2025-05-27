@@ -55,7 +55,7 @@ MJAPI void mj_crb(const mjModel* m, mjData* d);
 MJAPI void mj_tendonArmature(const mjModel* m, mjData* d);
 
 // make inertia matrix
-void mj_makeM(const mjModel* m, mjData* d);
+MJAPI void mj_makeM(const mjModel* m, mjData* d);
 
 // sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd  (legacy implementation)
 MJAPI void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M,
