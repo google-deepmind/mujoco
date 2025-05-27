@@ -26,6 +26,7 @@
 #include "mjcf/utils.h"
 #include <pxr/base/arch/attributes.h>
 #include <pxr/base/gf/matrix4d.h>
+#include <pxr/base/gf/quatf.h>
 #include <pxr/base/gf/rotation.h>
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3d.h>
@@ -180,7 +181,7 @@ class ModelWriter {
     WritePhysicsScene();
 
     // Author mesh scope + mesh prims to be referenced.
-    WriteMeshes();
+    WriteMeshes(write_physics);
     WriteMaterials();
     WriteBodies(write_physics);
   }
@@ -298,7 +299,8 @@ class ModelWriter {
     SetAttributeDefault(data_, xform_op_order_path, new_order);
   }
 
-  void WriteMesh(const mjsMesh *mesh, const pxr::SdfPath &parent_path) {
+  void WriteMesh(const mjsMesh *mesh, const pxr::SdfPath &parent_path,
+                 bool write_physics) {
     auto name = GetAvailablePrimName(*mesh->name, pxr::UsdGeomTokens->Mesh,
                                      parent_path);
     pxr::SdfPath subcomponent_path =
@@ -307,6 +309,22 @@ class ModelWriter {
         CreatePrimSpec(data_, subcomponent_path, kTokens->sourceMesh,
                        pxr::UsdGeomTokens->Mesh);
     mesh_paths_[*mesh->name] = subcomponent_path;
+
+    if (write_physics) {
+      ApplyApiSchema(data_, mesh_path, MjcPhysicsTokens->MeshCollisionAPI);
+
+      pxr::TfToken inertia = MjcPhysicsTokens->legacy;
+      if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_EXACT) {
+        inertia = MjcPhysicsTokens->exact;
+      } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_CONVEX) {
+        inertia = MjcPhysicsTokens->convex;
+      } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_SHELL) {
+        inertia = MjcPhysicsTokens->shell;
+      }
+
+      WriteUniformAttribute(mesh_path, pxr::SdfValueTypeNames->Token,
+                            MjcPhysicsTokens->mjcInertia, inertia);
+    }
 
     // NOTE: The geometry data taken from the spec is the post-compilation
     // data after it has been mjCMesh::Compile'd. So don't be surprised if
@@ -584,7 +602,7 @@ class ModelWriter {
     }
   }
 
-  void WriteMeshes() {
+  void WriteMeshes(bool write_physics) {
     // Create a scope for the meshes to keep things organized
     pxr::SdfPath scope_path =
         CreatePrimSpec(data_, body_paths_[kWorldIndex], kTokens->meshScope,
@@ -596,7 +614,7 @@ class ModelWriter {
 
     mjsMesh *mesh = mjs_asMesh(mjs_firstElement(spec_, mjOBJ_MESH));
     while (mesh) {
-      WriteMesh(mesh, scope_path);
+      WriteMesh(mesh, scope_path, write_physics);
       mesh = mjs_asMesh(mjs_nextElement(spec_, mesh->element));
     }
   }
@@ -1032,12 +1050,43 @@ class ModelWriter {
         return;
     }
 
-    // Apply the PhysicsCollisionAPI schema if we are writing physics and the
+    // Apply the physics schemas if we are writing physics and the
     // geom participates in collisions.
     if (write_physics && (model_->geom_contype[geom_id] != 0 ||
                           model_->geom_conaffinity[geom_id] != 0)) {
       ApplyApiSchema(data_, geom_path,
                      pxr::UsdPhysicsTokens->PhysicsCollisionAPI);
+      ApplyApiSchema(data_, geom_path, MjcPhysicsTokens->CollisionAPI);
+
+      WriteUniformAttribute(
+          geom_path, pxr::SdfValueTypeNames->Bool,
+          MjcPhysicsTokens->mjcShellinertia,
+          geom->typeinertia == mjtGeomInertia::mjINERTIA_SHELL);
+
+      if (geom->mass >= mjMINVAL || geom->density >= mjMINVAL) {
+        ApplyApiSchema(data_, geom_path, pxr::UsdPhysicsTokens->PhysicsMassAPI);
+      }
+
+      if (geom->mass >= mjMINVAL) {
+        pxr::SdfPath mass_attr = CreateAttributeSpec(
+            data_, geom_path, pxr::UsdPhysicsTokens->physicsMass,
+            pxr::SdfValueTypeNames->Float, pxr::SdfVariabilityUniform);
+
+        // Make sure to cast to float here since mjtNum might be a double.
+        SetAttributeDefault(data_, mass_attr, (float)geom->mass);
+      }
+
+      // Even though density is not used for mass computation when mass exists
+      // we want to retain the information anyways.
+      if (geom->density >= mjMINVAL) {
+        pxr::SdfPath density_attr = CreateAttributeSpec(
+            data_, geom_path, pxr::UsdPhysicsTokens->physicsDensity,
+            pxr::SdfValueTypeNames->Float, pxr::SdfVariabilityUniform);
+
+        // Make sure to cast to float here since mjtNum might be a double.
+        SetAttributeDefault(data_, density_attr, (float)geom->density);
+      }
+
       // For meshes, also apply PhysicsMeshCollisionAPI and set the
       // approximation attribute.
       if (geom->type == mjGEOM_MESH) {
@@ -1238,6 +1287,44 @@ class ModelWriter {
 
     // Apply the PhysicsRigidBodyAPI schema if we are writing physics.
     if (write_physics) {
+      // If the body had a mass specified then it must have either inertia or
+      // fullinertia specified per inertia element XML documentation.
+      // Therefore it is sufficient to check if the mass is non-zero to see if
+      // we should set inertial attributes on the body.
+      //
+      // Note that if the user has NOT specified any inertial properties then
+      // we don't want to pull values from the compiled model since coming back
+      // into Mujoco would take those values instead of computing them
+      // automatically from the subtree.
+      if (body->mass > 0) {
+        // User might have specified the inertia via fullinertia and the
+        // compiler has extracted all values properly. So leverage those
+        // instead of doing the computation ourselves here.
+        ApplyApiSchema(data_, body_path, pxr::UsdPhysicsTokens->PhysicsMassAPI);
+        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Float,
+                              pxr::UsdPhysicsTokens->physicsMass,
+                              (float)model_->body_mass[body_id]);
+
+        mjtNum *body_ipos = &model_->body_ipos[body_id * 3];
+        pxr::GfVec3f inertial_pos(body_ipos[0], body_ipos[1], body_ipos[2]);
+        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Point3f,
+                              pxr::UsdPhysicsTokens->physicsCenterOfMass,
+                              inertial_pos);
+
+        mjtNum *body_iquat = &model_->body_iquat[body_id * 4];
+        pxr::GfQuatf inertial_frame(body_iquat[0], body_iquat[1], body_iquat[2],
+                                    body_iquat[3]);
+        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Quatf,
+                              pxr::UsdPhysicsTokens->physicsPrincipalAxes,
+                              inertial_frame);
+
+        mjtNum *inertia = &model_->body_inertia[body_id * 3];
+        pxr::GfVec3f diag_inertia(inertia[0], inertia[1], inertia[2]);
+        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Float3,
+                              pxr::UsdPhysicsTokens->physicsDiagonalInertia,
+                              diag_inertia);
+      }
+
       ApplyApiSchema(data_, body_path,
                      pxr::UsdPhysicsTokens->PhysicsRigidBodyAPI);
 

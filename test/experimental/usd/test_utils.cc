@@ -42,6 +42,15 @@ pxr::SdfLayerRefPtr LoadLayer(
   return layer;
 }
 
+pxr::UsdStageRefPtr OpenStageWithPhysics(const std::string& xml) {
+  pxr::SdfFileFormat::FileFormatArguments args;
+  args["usdMjcfToggleUsdPhysics"] = "true";
+  pxr::SdfLayerRefPtr layer = LoadLayer(xml, args);
+  auto stage = pxr::UsdStage::Open(layer);
+  EXPECT_THAT(stage, testing::NotNull());
+  return stage;
+}
+
 template <>
 void ExpectAttributeEqual<pxr::SdfAssetPath>(pxr::UsdStageRefPtr stage,
                                              pxr::SdfPath path,
