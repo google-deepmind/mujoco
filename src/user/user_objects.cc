@@ -3553,7 +3553,10 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
   // clear private variables
   body = 0;
   targetbodyid = -1;
+  texid = -1;
   spec_targetbody_.clear();
+  spec_texture_.clear();
+
 
   // reset to default if given
   if (_def) {
@@ -3593,6 +3596,7 @@ void mjCLight::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.targetbody = &spec_targetbody_;
+  spec.texture = &spec_texture_;
   spec.info = &info;
   targetbody = nullptr;
 }
@@ -3604,6 +3608,9 @@ void mjCLight::NameSpace(const mjCModel* m) {
   if (!spec_targetbody_.empty()) {
     spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
   }
+  if (!spec_texture_.empty()) {
+    spec_texture_ = m->prefix + spec_texture_ + m->suffix;
+  }
 }
 
 
@@ -3611,6 +3618,7 @@ void mjCLight::NameSpace(const mjCModel* m) {
 void mjCLight::CopyFromSpec() {
   *static_cast<mjsLight*>(this) = spec;
   targetbody_ = spec_targetbody_;
+  texture_ = spec_texture_;
 }
 
 
@@ -3639,6 +3647,16 @@ void mjCLight::Compile(void) {
     mjCBody* tb = (mjCBody*)model->FindObject(mjOBJ_BODY, targetbody_);
     if (tb) {
       targetbodyid = tb->id;
+    } else {
+      throw mjCError(this, "unknown target body in light");
+    }
+  }
+
+  // get texture
+  if (!texture_.empty()) {
+    mjCTexture* tex = (mjCTexture*)model->FindObject(mjOBJ_TEXTURE, texture_);
+    if (tex) {
+      texid = tex->id;
     } else {
       throw mjCError(this, "unknown target body in light");
     }

@@ -2670,6 +2670,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_mode[lid] = (int)pl->mode;
       m->light_targetbodyid[lid] = pl->targetbodyid;
       m->light_type[lid] = pl->type;
+      m->light_texid[lid] = pl->texid;
       m->light_castshadow[lid] = (mjtByte)pl->castshadow;
       m->light_active[lid] = (mjtByte)pl->active;
       mjuu_copyvec(m->light_pos+3*lid, pl->pos, 3);

@@ -2228,6 +2228,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nlight',),
              ),
              StructFieldDecl(
+                 name='light_texid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='texture id for image lights',
+                 array_extent=('nlight',),
+             ),
+             StructFieldDecl(
                  name='light_castshadow',
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
@@ -6703,6 +6711,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='type (mjtLightType)',
              ),
              StructFieldDecl(
+                 name='texid',
+                 type=ValueType(name='int'),
+                 doc='texture id for image lights',
+             ),
+             StructFieldDecl(
                  name='attenuation',
                  type=ArrayType(
                      inner_type=ValueType(name='float'),
@@ -8995,6 +9008,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='type',
                  type=ValueType(name='mjtLightType'),
                  doc='type of light',
+             ),
+             StructFieldDecl(
+                 name='texture',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='texture name for image lights',
              ),
              StructFieldDecl(
                  name='castshadow',

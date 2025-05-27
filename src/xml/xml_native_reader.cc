@@ -281,9 +281,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"camera", "*", "20", "name", "class", "orthographic", "fovy", "ipd", "resolution", "pos",
             "quat", "axisangle", "xyaxes", "zaxis", "euler", "mode", "target",
             "focal", "focalpixel", "principal", "principalpixel", "sensorsize", "user"},
-        {"light", "*", "19", "name", "class", "directional", "type", "castshadow", "active",
+        {"light", "*", "20", "name", "class", "directional", "type", "castshadow", "active",
             "pos", "dir", "bulbradius", "intensity", "range", "attenuation", "cutoff",
-            "exponent", "ambient", "diffuse", "specular", "mode", "target"},
+            "exponent", "ambient", "diffuse", "specular", "mode", "target", "texture"},
         {"plugin", "*", "2", "plugin", "instance"},
         {"<"},
           {"config", "*", "2", "key", "value"},
@@ -1864,11 +1864,14 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* camera) {
 void mjXReader::OneLight(XMLElement* elem, mjsLight* light) {
   int n;
   bool has_directional = false;
-  string text, name, targetbody;
+  string text, name, texture, targetbody;
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
     mjs_setString(light->name, name.c_str());
+  }
+  if (ReadAttrTxt(elem, "texture", texture)) {
+    mjs_setString(light->texture, texture.c_str());
   }
   if (ReadAttrTxt(elem, "target", targetbody)) {
     mjs_setString(light->targetbody, targetbody.c_str());

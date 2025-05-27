@@ -300,6 +300,7 @@
     X   ( int,     light_bodyid,          nlight,        1                    ) \
     X   ( int,     light_targetbodyid,    nlight,        1                    ) \
     X   ( int,     light_type,            nlight,        1                    ) \
+    X   ( int,     light_texid,           nlight,        1                    ) \
     X   ( mjtByte, light_castshadow,      nlight,        1                    ) \
     X   ( float,   light_bulbradius,      nlight,        1                    ) \
     X   ( float,   light_intensity,       nlight,        1                    ) \

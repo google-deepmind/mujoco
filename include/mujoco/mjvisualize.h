@@ -262,6 +262,7 @@ struct mjvLight_ {                // OpenGL light
   float    pos[3];                // position rel. to body frame
   float    dir[3];                // direction rel. to body frame
   int      type;                  // type (mjtLightType)
+  int      texid;                 // texture id for image lights
   float    attenuation[3];        // OpenGL attenuation (quadratic model)
   float    cutoff;                // OpenGL cutoff
   float    exponent;              // OpenGL exponent

@@ -1186,6 +1186,7 @@ struct mjModel_ {
   int*      light_bodyid;         // id of light's body                       (nlight x 1)
   int*      light_targetbodyid;   // id of targeted body; -1: none            (nlight x 1)
   int*      light_type;           // spot, directional, etc. (mjtLightType)   (nlight x 1)
+  int*      light_texid;          // texture id for image lights              (nlight x 1)
   mjtByte*  light_castshadow;     // does light cast shadows                  (nlight x 1)
   float*    light_bulbradius;     // light radius for soft shadows            (nlight x 1)
   float*    light_intensity;      // intensity, in candela                    (nlight x 1)
@@ -2043,6 +2044,7 @@ typedef struct mjsLight_ {         // light specification
   // intrinsics
   mjtByte active;                  // is light active
   mjtLightType type;               // type of light
+  mjString* texture;               // texture name for image lights
   mjtByte castshadow;              // does light cast shadows
   float bulbradius;                // bulb radius, for soft shadows
   float intensity;                 // intensity, in candelas
@@ -2847,6 +2849,7 @@ struct mjvLight_ {                // OpenGL light
   float    pos[3];                // position rel. to body frame
   float    dir[3];                // direction rel. to body frame
   int      type;                  // type (mjtLightType)
+  int      texid;                 // texture id for image lights
   float    attenuation[3];        // OpenGL attenuation (quadratic model)
   float    cutoff;                // OpenGL cutoff
   float    exponent;              // OpenGL exponent

@@ -1074,6 +1074,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(exponent);
   X(headlight);
   X(type);
+  X(texid);
   X(castshadow);
   X(bulbradius);
   X(intensity);

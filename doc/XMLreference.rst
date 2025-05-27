@@ -2961,6 +2961,11 @@ Attributes may be applied or ignored depending on the lighting model being used.
    The color of the light. For the Phong (default) lighting model, this defines the diffuse color of
    the light.
 
+.. _body-light-texture:
+
+:at:`texture`: :at-val:`string, optional`
+   The texture to use for image-based lighting. This is unused by the default Phong lighting model.
+
 .. _body-light-intensity:
 
 :at:`intensity`: :at-val:`real, "1000.0"`
