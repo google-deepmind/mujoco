@@ -53,6 +53,9 @@ class MujocoErrorTestGuard {
 // By default, any MuJoCo operation which triggers a warning or error will
 // trigger a test failure.
 class MujocoTest : public ::testing::Test {
+ public:
+  ~MujocoTest() { mj_freeLastXML(); }
+
  private:
   MujocoErrorTestGuard error_guard;
 };
