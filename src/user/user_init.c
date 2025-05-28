@@ -203,7 +203,7 @@ void mjs_defaultLight(mjsLight* light) {
   // intrinsics
   light->castshadow = 1;
   light->bulbradius = 0.02;
-  light->intensity = 1000.0;
+  light->intensity = 0.0;
   light->range = 10.0;
   light->active = 1;
   light->attenuation[0] = 1;

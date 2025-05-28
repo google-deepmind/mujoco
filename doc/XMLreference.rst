@@ -2968,7 +2968,7 @@ Attributes may be applied or ignored depending on the lighting model being used.
 
 .. _body-light-intensity:
 
-:at:`intensity`: :at-val:`real, "1000.0"`
+:at:`intensity`: :at-val:`real, "0.0"`
    The intensity of the light source, measured in candela, used for physically-based lighting models.
    This is unused by the default Phong lighting model.
 

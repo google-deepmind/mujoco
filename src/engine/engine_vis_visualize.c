@@ -2147,7 +2147,7 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
     thislight->type = mjLIGHT_DIRECTIONAL;
     thislight->castshadow = 0;
     thislight->bulbradius = 0.02;
-    thislight->intensity = 1000;
+    thislight->intensity = 0;
     thislight->range = 10;
 
     // compute head position and gaze direction in model space
