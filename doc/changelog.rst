@@ -24,6 +24,15 @@ Simulate
   ``mjData`` when the Python viewer is used in passive mode. This functionality is now provided by :ref:`mjv_copyModel`
   and :ref:`mjv_copyData`, which don't copy arrays which are not required for visualization.
 
+.. image:: images/changelog/procedural_terrain_generation.png
+   :width: 25%
+   :align: right
+
+Python bindings
+^^^^^^^^^^^^^^^
+
+- Added examples of procedural terrain generation to the Model Editing tutorial: |mjspec_colab|
+
 Version 3.3.2 (April 28, 2025)
 ------------------------------
 
