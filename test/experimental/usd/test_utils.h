@@ -103,6 +103,10 @@ void ExpectAttributeEqual<pxr::SdfAssetPath>(pxr::UsdStageRefPtr stage,
 
 void ExpectAttributeHasConnection(pxr::UsdStageRefPtr stage, const char* path,
                                   const char* connection_path);
+
+// Checks that all authored attributes on the given prim have types that match
+// the schema types.
+void ExpectAllAuthoredAttributesMatchSchemaTypes(const pxr::UsdPrim& prim);
 }  // namespace usd
 }  // namespace mujoco
 #endif  // MUJOCO_TEST_EXPERIMENTAL_USD_PLUGINS_MJCF_FIXTURE_H_

@@ -820,7 +820,7 @@ class ModelWriter {
     // MuJoCo uses half sizes.
     pxr::SdfPath size_attr_path =
         CreateAttributeSpec(data_, box_path, pxr::UsdGeomTokens->size,
-                            pxr::SdfValueTypeNames->Float);
+                            pxr::SdfValueTypeNames->Double);
     pxr::GfVec3f scale(static_cast<float>(size[0]), static_cast<float>(size[1]),
                        static_cast<float>(size[2]));
     SetAttributeDefault(data_, size_attr_path, 2.0);
@@ -857,14 +857,14 @@ class ModelWriter {
 
     pxr::SdfPath radius_attr_path =
         CreateAttributeSpec(data_, capsule_path, pxr::UsdGeomTokens->radius,
-                            pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, radius_attr_path, size[0]);
+                            pxr::SdfValueTypeNames->Double);
+    SetAttributeDefault(data_, radius_attr_path, (double)size[0]);
 
     pxr::SdfPath height_attr_path =
         CreateAttributeSpec(data_, capsule_path, pxr::UsdGeomTokens->height,
-                            pxr::SdfValueTypeNames->Float);
+                            pxr::SdfValueTypeNames->Double);
     // MuJoCo uses half sizes.
-    SetAttributeDefault(data_, height_attr_path, size[1] * 2);
+    SetAttributeDefault(data_, height_attr_path, (double)(size[1] * 2));
     return capsule_path;
   }
 
@@ -885,14 +885,14 @@ class ModelWriter {
 
     pxr::SdfPath radius_attr_path =
         CreateAttributeSpec(data_, cylinder_path, pxr::UsdGeomTokens->radius,
-                            pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, radius_attr_path, size[0]);
+                            pxr::SdfValueTypeNames->Double);
+    SetAttributeDefault(data_, radius_attr_path, (double)size[0]);
 
     pxr::SdfPath height_attr_path =
         CreateAttributeSpec(data_, cylinder_path, pxr::UsdGeomTokens->height,
-                            pxr::SdfValueTypeNames->Float);
+                            pxr::SdfValueTypeNames->Double);
     // MuJoCo uses half sizes.
-    SetAttributeDefault(data_, height_attr_path, size[1] * 2);
+    SetAttributeDefault(data_, height_attr_path, (double)(size[1] * 2));
     return cylinder_path;
   }
 
@@ -917,8 +917,8 @@ class ModelWriter {
 
     pxr::SdfPath radius_attr_path =
         CreateAttributeSpec(data_, ellipsoid_path, pxr::UsdGeomTokens->radius,
-                            pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, radius_attr_path, 1.0f);
+                            pxr::SdfValueTypeNames->Double);
+    SetAttributeDefault(data_, radius_attr_path, 1.0);
 
     WriteScaleXformOp(ellipsoid_path, scale);
     WriteXformOpOrder(ellipsoid_path,
@@ -943,8 +943,8 @@ class ModelWriter {
 
     pxr::SdfPath radius_attr_path =
         CreateAttributeSpec(data_, sphere_path, pxr::UsdGeomTokens->radius,
-                            pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, radius_attr_path, size[0]);
+                            pxr::SdfValueTypeNames->Double);
+    SetAttributeDefault(data_, radius_attr_path, (double)size[0]);
     return sphere_path;
   }
 

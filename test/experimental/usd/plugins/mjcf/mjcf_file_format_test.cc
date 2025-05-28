@@ -37,9 +37,11 @@
 #include <pxr/usd/sdf/declareHandles.h>
 #include <pxr/usd/sdf/fileFormat.h>
 #include <pxr/usd/sdf/path.h>
+#include <pxr/usd/sdf/schema.h>
 #include <pxr/usd/usd/common.h>
 #include <pxr/usd/usd/modelAPI.h>
 #include <pxr/usd/usd/prim.h>
+#include <pxr/usd/usd/primRange.h>  // IWYU pragma: keep, used for TraverseAll
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdGeom/capsule.h>
 #include <pxr/usd/usdGeom/cube.h>
@@ -448,6 +450,30 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestKindAuthoring) {
   EXPECT_PRIM_KIND(stage, "/test/root/middle", pxr::KindTokens->subcomponent);
   EXPECT_PRIM_KIND(stage, "/test/root/middle/tet",
                    pxr::KindTokens->subcomponent);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestAttributesMatchSchemaTypes) {
+  // TODO(robinalazard): Make the scene much more comprehensive. We ideally want
+  // to test all the prims that the plugin can generate.
+  static constexpr char kXml[] = R"(
+    <mujoco model="test">
+      <worldbody>
+        <geom type="plane" name="plane_geom" size="10 20 0.1"/>
+        <geom type="box" name="box_geom" size="10 20 30"/>
+        <geom type="sphere" name="sphere_geom" size="10 20 30"/>
+        <geom type="capsule" name="capsule_geom" size="10 20 30"/>
+        <geom type="cylinder" name="cylinder_geom" size="10 20 30"/>
+        <geom type="ellipsoid" name="ellipsoid_geom" size="10 20 30"/>
+      </worldbody>
+    </mujoco>
+  )";
+
+  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
+  auto stage = pxr::UsdStage::Open(layer);
+
+  for (const auto& prim : stage->TraverseAll()) {
+    ExpectAllAuthoredAttributesMatchSchemaTypes(prim);
+  }
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestGeomsPrims) {
