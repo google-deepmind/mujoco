@@ -750,7 +750,7 @@ PYBIND11_MODULE(_specs, m) {
         return frame;
       },
       py::return_value_policy::reference_internal);
-  mjsBody.def(
+  mjsBody.def_property_readonly(
     "frame",
       [](raw::MjsBody* self) -> raw::MjsFrame* {
         return mjs_getFrame(self->element);
