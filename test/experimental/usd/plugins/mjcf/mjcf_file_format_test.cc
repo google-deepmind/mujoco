@@ -17,6 +17,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include "src/experimental/usd/mjcPhysics/actuatorAPI.h"
 #include "src/experimental/usd/mjcPhysics/collisionAPI.h"
 #include "src/experimental/usd/mjcPhysics/meshCollisionAPI.h"
 #include "src/experimental/usd/mjcPhysics/sceneAPI.h"
@@ -31,6 +32,7 @@
 #include <pxr/base/tf/staticTokens.h>
 #include <pxr/base/tf/token.h>
 #include <pxr/base/vt/array.h>
+#include <pxr/base/vt/types.h>
 #include <pxr/pxr.h>
 #include <pxr/usd/kind/registry.h>
 #include <pxr/usd/sdf/assetPath.h>
@@ -1318,6 +1320,127 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIDensity) {
   auto stage = OpenStageWithPhysics(xml);
 
   ExpectAttributeEqual(stage, "/test/body/box.physics:density", 1234.0f);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsActuatorGeneral) {
+  static constexpr char xml[] = R"(
+  <mujoco model="test">
+    <worldbody>
+      <body name="body">
+        <geom name="box" type="box" size=".05 .05 .05" density="1234"/>
+        <site name="site"/>
+        <site name="ref"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general
+        name="general"
+        site="site"
+        refsite="ref"
+        ctrllimited="true"
+        ctrlrange="0 1"
+        forcelimited="true"
+        forcerange="2 3"
+        actlimited="false"
+        actrange="4 5"
+        lengthrange="6 7"
+        actdim="1"
+        actearly="true"
+        dyntype="filter"
+        gaintype="user"
+        biastype="user"
+        gear="1 2 3 4 5 6"
+        dynprm="0 1 2 3 4 5 6 7 8 9"
+        gainprm="0 1 2 3 4 5 6 7 8 9"
+        biasprm="0 1 2 3 4 5 6 7 8 9"
+      />
+    </actuator>
+  </mujoco>
+  )";
+  auto stage = OpenStageWithPhysics(xml);
+
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body/site", pxr::MjcPhysicsActuatorAPI);
+  EXPECT_REL_HAS_TARGET(stage, "/test/body/site.mjc:refSite", "/test/body/ref");
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:ctrlLimited",
+                       pxr::MjcPhysicsTokens->true_);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:ctrlRange:min", 0.0);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:ctrlRange:max", 1.0);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:forceLimited",
+                       pxr::MjcPhysicsTokens->true_);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:forceRange:min", 2.0);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:forceRange:max", 3.0);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:actLimited",
+                       pxr::MjcPhysicsTokens->false_);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:actRange:min", 4.0);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:actRange:max", 5.0);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:lengthRange:min", 6.0);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:lengthRange:max", 7.0);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:actDim", 1);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:dynType",
+                       MjcPhysicsTokens->filter);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:gainType",
+                       MjcPhysicsTokens->user);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:biasType",
+                       MjcPhysicsTokens->user);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:actEarly", true);
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:gear",
+                       pxr::VtDoubleArray{{1, 2, 3, 4, 5, 6}});
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:dynPrm",
+                       pxr::VtDoubleArray{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}});
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:gainPrm",
+                       pxr::VtDoubleArray{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}});
+  ExpectAttributeEqual(stage, "/test/body/site.mjc:biasPrm",
+                       pxr::VtDoubleArray{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}});
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsBodyActuator) {
+  static constexpr char xml[] = R"(
+  <mujoco model="test">
+    <worldbody>
+      <body name="body">
+        <geom name="box" type="box" size=".05 .05 .05" density="1234"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general
+        name="general"
+        body="body"
+      />
+    </actuator>
+  </mujoco>
+  )";
+  auto stage = OpenStageWithPhysics(xml);
+
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body", pxr::MjcPhysicsActuatorAPI);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsSliderCrankActuator) {
+  static constexpr char xml[] = R"(
+  <mujoco model="test">
+    <worldbody>
+      <body name="body">
+        <geom name="box" type="box" size=".05 .05 .05" density="1234"/>
+        <site name="crank"/>
+        <site name="slider"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <general
+        name="general"
+        cranksite="crank"
+        slidersite="slider"
+        cranklength="1.23"
+      />
+    </actuator>
+  </mujoco>
+  )";
+  auto stage = OpenStageWithPhysics(xml);
+
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body/crank",
+                          pxr::MjcPhysicsActuatorAPI);
+  EXPECT_REL_HAS_TARGET(stage, "/test/body/crank.mjc:sliderSite",
+                        "/test/body/slider");
+  ExpectAttributeEqual(stage, "/test/body/crank.mjc:crankLength", 1.23);
 }
 
 }  // namespace

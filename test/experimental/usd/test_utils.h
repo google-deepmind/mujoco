@@ -66,6 +66,14 @@
 #define EXPECT_ATTRIBUTE_HAS_NO_VALUE(stage, path) \
   EXPECT_FALSE((stage)->GetAttributeAtPath(SdfPath(path)).HasValue());
 
+#define EXPECT_REL_HAS_TARGET(stage, path, target_path)                 \
+  {                                                                     \
+    pxr::SdfPathVector targets;                                         \
+    (stage)->GetRelationshipAtPath(SdfPath(path)).GetTargets(&targets); \
+    EXPECT_TRUE(std::find(targets.begin(), targets.end(),               \
+                          SdfPath(target_path)) != targets.end());      \
+  }
+
 namespace mujoco {
 namespace usd {
 

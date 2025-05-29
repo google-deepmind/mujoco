@@ -42,6 +42,7 @@
 #include <pxr/base/tf/token.h>
 #include <pxr/base/vt/array.h>
 #include <pxr/base/vt/dictionary.h>
+#include <pxr/base/vt/types.h>
 #include <pxr/base/vt/value.h>
 #include <pxr/usd/kind/registry.h>
 #include <pxr/usd/sdf/abstractData.h>
@@ -105,7 +106,7 @@ using Arch_PerLibInit = pxr::Arch_PerLibInit<T>;
 #if defined(ARCH_OS_DARWIN)
 using Arch_ConstructorEntry = pxr::Arch_ConstructorEntry;
 #endif
-enum ErrorCodes { UnsupportedGeomTypeError, MujocoCompilationError };
+enum ErrorCodes { UnsupportedActuatorTypeError, UnsupportedGeomTypeError, MujocoCompilationError };
 
 TF_REGISTRY_FUNCTION(pxr::TfEnum) {
   TF_ADD_ENUM_NAME(UnsupportedGeomTypeError, "UsdGeom type is unsupported.")
@@ -155,6 +156,7 @@ class ModelWriter {
   ModelWriter(mjSpec *spec, mjModel *model, pxr::SdfAbstractDataRefPtr &data)
       : spec_(spec), model_(model), data_(data), class_path_("/Bad_Path") {
     body_paths_ = std::vector<pxr::SdfPath>(model->nbody);
+    site_paths_ = std::vector<pxr::SdfPath>(model->nsite);
   }
   ~ModelWriter() { mj_deleteModel(model_); }
 
@@ -187,6 +189,9 @@ class ModelWriter {
     WriteMeshes();
     WriteMaterials();
     WriteBodies();
+    if (write_physics_) {
+      WriteActuators();
+    }
   }
 
  private:
@@ -200,6 +205,8 @@ class ModelWriter {
   pxr::SdfPath class_path_;
   // Mapping from Mujoco body id to SdfPath.
   std::vector<pxr::SdfPath> body_paths_;
+  // Mapping from Mujoco site id to SdfPath.
+  std::vector<pxr::SdfPath> site_paths_;
   // Mapping from mesh names to Mesh prim path.
   std::unordered_map<std::string, pxr::SdfPath> mesh_paths_;
   // Whether to write physics data.
@@ -764,6 +771,152 @@ class ModelWriter {
     }
   }
 
+  void WriteActuator(mjsActuator *actuator) {
+    pxr::SdfPath transmission_path;
+    if (actuator->trntype == mjtTrn::mjTRN_BODY) {
+      int body_id = mj_name2id(model_, mjOBJ_BODY, actuator->target->c_str());
+      transmission_path = body_paths_[body_id];
+    } else if (actuator->trntype == mjtTrn::mjTRN_SITE ||
+               actuator->trntype == mjtTrn::mjTRN_SLIDERCRANK) {
+      int site_id = mj_name2id(model_, mjOBJ_SITE, actuator->target->c_str());
+      transmission_path = site_paths_[site_id];
+    } else {
+      TF_WARN(UnsupportedActuatorTypeError,
+              "Unsupported actuator type for actuator %d",
+              mjs_getId(actuator->element));
+      return;
+    }
+
+    ApplyApiSchema(data_, transmission_path,
+                   MjcPhysicsTokens->PhysicsActuatorAPI);
+
+    if (!actuator->refsite->empty()) {
+      int refsite_id = mj_name2id(model_, mjOBJ_SITE, actuator->refsite->c_str());
+      pxr::SdfPath refsite_path = site_paths_[refsite_id];
+      CreateRelationshipSpec(data_, transmission_path,
+                             MjcPhysicsTokens->mjcRefSite,
+                             refsite_path, pxr::SdfVariabilityUniform);
+    }
+
+    if (!actuator->slidersite->empty()) {
+      int slidersite_id = mj_name2id(model_, mjOBJ_SITE, actuator->slidersite->c_str());
+      pxr::SdfPath slidersite_path = site_paths_[slidersite_id];
+      CreateRelationshipSpec(data_, transmission_path,
+                             MjcPhysicsTokens->mjcSliderSite,
+                             slidersite_path, pxr::SdfVariabilityUniform);
+    }
+
+
+    const std::vector<std::pair<pxr::TfToken, int>> limited_attributes = {
+        {MjcPhysicsTokens->mjcCtrlLimited, actuator->ctrllimited},
+        {MjcPhysicsTokens->mjcForceLimited, actuator->forcelimited},
+        {MjcPhysicsTokens->mjcActLimited, actuator->actlimited},
+    };
+    for (const auto &[token, value] : limited_attributes) {
+      pxr::TfToken limited_token = pxr::MjcPhysicsTokens->auto_;
+      if (value == mjLIMITED_TRUE) {
+        limited_token = pxr::MjcPhysicsTokens->true_;
+      } else if (value == mjLIMITED_FALSE) {
+        limited_token = pxr::MjcPhysicsTokens->false_;
+      }
+      WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+                            token, limited_token);
+    }
+
+    const std::vector<std::pair<pxr::TfToken, double>>
+        actuator_double_attributes = {
+            {MjcPhysicsTokens->mjcCtrlRangeMin, actuator->ctrlrange[0]},
+            {MjcPhysicsTokens->mjcCtrlRangeMax, actuator->ctrlrange[1]},
+            {MjcPhysicsTokens->mjcForceRangeMin, actuator->forcerange[0]},
+            {MjcPhysicsTokens->mjcForceRangeMax, actuator->forcerange[1]},
+            {MjcPhysicsTokens->mjcActRangeMin, actuator->actrange[0]},
+            {MjcPhysicsTokens->mjcActRangeMax, actuator->actrange[1]},
+            {MjcPhysicsTokens->mjcLengthRangeMin, actuator->lengthrange[0]},
+            {MjcPhysicsTokens->mjcLengthRangeMax, actuator->lengthrange[1]},
+            {MjcPhysicsTokens->mjcCrankLength, actuator->cranklength},
+        };
+    for (const auto &[token, value] : actuator_double_attributes) {
+      WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Double,
+                            token, value);
+    }
+
+    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcActDim, actuator->actdim);
+    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Bool,
+                          MjcPhysicsTokens->mjcActEarly,
+                          (bool)actuator->actearly);
+
+    WriteUniformAttribute(
+        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        MjcPhysicsTokens->mjcGear,
+        pxr::VtDoubleArray(actuator->gear, actuator->gear + 6));
+
+    pxr::TfToken dyn_type;
+    if (actuator->dyntype == mjtDyn::mjDYN_NONE) {
+      dyn_type = MjcPhysicsTokens->none;
+    } else if (actuator->dyntype == mjtDyn::mjDYN_INTEGRATOR) {
+      dyn_type = MjcPhysicsTokens->integrator;
+    } else if (actuator->dyntype == mjtDyn::mjDYN_FILTER) {
+      dyn_type = MjcPhysicsTokens->filter;
+    } else if (actuator->dyntype == mjtDyn::mjDYN_FILTEREXACT) {
+      dyn_type = MjcPhysicsTokens->filterexact;
+    } else if (actuator->dyntype == mjtDyn::mjDYN_MUSCLE) {
+      dyn_type = MjcPhysicsTokens->muscle;
+    } else if (actuator->dyntype == mjtDyn::mjDYN_USER) {
+      dyn_type = MjcPhysicsTokens->user;
+    }
+    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+                          MjcPhysicsTokens->mjcDynType, dyn_type);
+    WriteUniformAttribute(
+        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        MjcPhysicsTokens->mjcDynPrm,
+        pxr::VtDoubleArray(actuator->dynprm, actuator->dynprm + 10));
+
+
+    pxr::TfToken gain_type;
+    if (actuator->gaintype == mjtGain::mjGAIN_FIXED) {
+      gain_type = MjcPhysicsTokens->fixed;
+    } else if (actuator->gaintype == mjtGain::mjGAIN_AFFINE) {
+      gain_type = MjcPhysicsTokens->affine;
+    } else if (actuator->gaintype == mjtGain::mjGAIN_MUSCLE) {
+      gain_type = MjcPhysicsTokens->muscle;
+    } else if (actuator->gaintype == mjtGain::mjGAIN_USER) {
+      gain_type = MjcPhysicsTokens->user;
+    }
+    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+                          MjcPhysicsTokens->mjcGainType, gain_type);
+    WriteUniformAttribute(
+        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        MjcPhysicsTokens->mjcGainPrm,
+        pxr::VtDoubleArray(actuator->gainprm, actuator->gainprm + 10));
+
+    pxr::TfToken bias_type;
+    if (actuator->biastype == mjtBias::mjBIAS_NONE) {
+      bias_type = MjcPhysicsTokens->fixed;
+    } else if (actuator->biastype == mjtBias::mjBIAS_AFFINE) {
+      bias_type = MjcPhysicsTokens->affine;
+    } else if (actuator->biastype == mjtBias::mjBIAS_MUSCLE) {
+      bias_type = MjcPhysicsTokens->muscle;
+    } else if (actuator->biastype == mjtBias::mjBIAS_USER) {
+      bias_type = MjcPhysicsTokens->user;
+    }
+    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+                          MjcPhysicsTokens->mjcBiasType, bias_type);
+    WriteUniformAttribute(
+        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        MjcPhysicsTokens->mjcBiasPrm,
+        pxr::VtDoubleArray(actuator->biasprm, actuator->biasprm + 10));
+  }
+
+  void WriteActuators() {
+    mjsActuator *actuator =
+        mjs_asActuator(mjs_firstElement(spec_, mjOBJ_ACTUATOR));
+    while (actuator) {
+      WriteActuator(actuator);
+      actuator = mjs_asActuator(mjs_nextElement(spec_, actuator->element));
+    }
+  }
+
   pxr::SdfPath WriteMeshGeom(const mjsGeom *geom,
                              const pxr::SdfPath &body_path) {
     std::string mj_name = geom->name->empty() ? *geom->meshname : *geom->name;
@@ -1018,6 +1171,8 @@ class ModelWriter {
 
     PrependToXformOpOrder(
         site_path, pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
+
+    site_paths_[site_id] = site_path;
   }
 
   void WriteGeom(mjsGeom *geom, const mjsBody *body) {
