@@ -17,6 +17,7 @@
 from typing import Sequence, Tuple
 
 import jax
+from jax import lax
 from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import math
@@ -248,93 +249,120 @@ def ray_hfield(m: Model, d: Data, geomid: int, pnt: jax.Array, vec: jax.Array) -
 
   # Normalize ray direction
   vec_norm = jp.linalg.norm(vec_local)
-  if vec_norm < 1e-10:
-    return jp.array(-1.0)
-  vec_local = vec_local / vec_norm
+  default_return_val = jp.array(-1.0, dtype=pnt.dtype)
 
-  # X and Y are the horizontal dimensions of the height field
-  # (corresponding to rows and columns of the height data)
-  # Z is height
+  # Variables needed by multiple branches or lexically captured if not passed:
+  # m, d, geomid, pnt, vec, hfid, size, nrow, ncol, default_return_val
 
-  # Check if ray is parallel to XY plane
-  if jp.abs(vec_local[2]) < 1e-10:
-    return jp.array(-1.0)
+  def _false_fn_vec_norm_ok(operand):
+    # Unpack operand
+    pnt_local_op, vec_local_orig_op, vec_norm_op = operand
+    # Original logic:
+    vec_local_norm = vec_local_orig_op / vec_norm_op
 
-  # Compute intersection with bounding box in XY plane
-  x0, y0 = -size[0], -size[1]  # bottom left in local coords
-  x1, y1 = size[0], size[1]    # top right in local coords
+    def _false_fn_parallel_ok(operand_parallel):
+      # Unpack operand_parallel
+      pnt_local_p, vec_local_p, vec_norm_p = operand_parallel
+      # Original logic:
+      # Compute intersection with bounding box in XY plane
+      # Note: size, nrow, ncol, hfid are from the outer scope of ray_hfield
+      x0, y0 = -size[0], -size[1]
+      x1, y1 = size[0], size[1]
 
-  # Compute intersection with XY bounding box
-  tx0 = (x0 - pnt_local[0]) / (vec_local[0] + 1e-10)
-  tx1 = (x1 - pnt_local[0]) / (vec_local[0] + 1e-10)
-  ty0 = (y0 - pnt_local[1]) / (vec_local[1] + 1e-10)
-  ty1 = (y1 - pnt_local[1]) / (vec_local[1] + 1e-10)
+      # Avoid division by zero
+      vec_local_x_safe = jp.where(jp.abs(vec_local_p[0]) < 1e-10, jp.sign(vec_local_p[0]) * 1e-10 + 1e-10, vec_local_p[0])
+      vec_local_y_safe = jp.where(jp.abs(vec_local_p[1]) < 1e-10, jp.sign(vec_local_p[1]) * 1e-10 + 1e-10, vec_local_p[1])
 
-  # Get entry and exit times
-  tmin = jp.maximum(jp.minimum(tx0, tx1), jp.minimum(ty0, ty1))
-  tmax = jp.minimum(jp.maximum(tx0, tx1), jp.maximum(ty0, ty1))
+      tx0 = (x0 - pnt_local_p[0]) / vec_local_x_safe
+      tx1 = (x1 - pnt_local_p[0]) / vec_local_x_safe
+      ty0 = (y0 - pnt_local_p[1]) / vec_local_y_safe
+      ty1 = (y1 - pnt_local_p[1]) / vec_local_y_safe
 
-  # No intersection with bounding box
-  if tmin > tmax or tmax < 0:
-    return jp.array(-1.0)
+      tmin = jp.maximum(jp.minimum(tx0, tx1), jp.minimum(ty0, ty1))
+      tmax = jp.minimum(jp.maximum(tx0, tx1), jp.maximum(ty0, ty1))
 
-  # Ensure we're not starting inside the height field
-  t = jp.maximum(tmin, 0.0)
+      def _false_fn_bbox_ok(operand_bbox):
+        # Unpack operand_bbox
+        ( pnt_local_b, vec_local_b, vec_norm_b, tmin_b, tmax_b,
+          x0_b, y0_b # Needed by march_ray
+        ) = operand_bbox
+        # Original logic:
+        t_init_loop = jp.maximum(tmin_b, 0.0)
 
-  # Get hfield data scaling
-  hf_size = m.hfield_size[hfid]
-  hf_scale = jp.array([2*size[0]/ncol, 2*size[1]/nrow, 1, 1])
+        # hf_scale uses size, ncol, nrow from outer scope
+        hf_scale = jp.array([2*size[0]/ncol, 2*size[1]/nrow, size[2], size[3]], dtype=pnt.dtype)
 
-  # Compute ray-heightfield intersection using a ray marching algorithm
-  def march_ray(t, found):
-    # Get current intersection point
-    p = pnt_local + t * vec_local
 
-    # Convert to hfield grid coordinates
-    col = jp.clip((p[0] - x0) / (2 * size[0]) * ncol, 0, ncol-2)
-    row = jp.clip((p[1] - y0) / (2 * size[1]) * nrow, 0, nrow-2)
+        def march_ray_local(t_arg, found_arg): # Renamed to avoid conflict
+          p_march = pnt_local_b + t_arg * vec_local_b
+          col_march = jp.clip((p_march[0] - x0_b) / (2 * size[0]) * ncol, 0, ncol-2)
+          row_march = jp.clip((p_march[1] - y0_b) / (2 * size[1]) * nrow, 0, nrow-2)
+          col_i_march = jp.floor(col_march).astype(jp.int32)
+          row_i_march = jp.floor(row_march).astype(jp.int32)
+          col_f_march = col_march - col_i_march
+          row_f_march = row_march - row_i_march
+          # hfid, m from outer scope
+          idx00 = row_i_march * ncol + col_i_march
+          idx01 = row_i_march * ncol + col_i_march + 1
+          idx10 = (row_i_march + 1) * ncol + col_i_march
+          idx11 = (row_i_march + 1) * ncol + col_i_march + 1
+          h00 = m.hfield_data[hfid, idx00] * hf_scale[2]
+          h01 = m.hfield_data[hfid, idx01] * hf_scale[2]
+          h10 = m.hfield_data[hfid, idx10] * hf_scale[2]
+          h11 = m.hfield_data[hfid, idx11] * hf_scale[2]
+          h_interp = (h00 * (1-col_f_march)*(1-row_f_march) + h01*col_f_march*(1-row_f_march) +
+                      h10*(1-col_f_march)*row_f_march + h11*col_f_march*row_f_march)
+          intersection_march = (p_march[2] <= h_interp) & (vec_local_b[2] < 0) # Use &
+          return t_arg, intersection_march
 
-    # Get integer coordinates
-    col_i = jp.floor(col).astype(jp.int32)
-    row_i = jp.floor(row).astype(jp.int32)
+        abs_vec_local_z = jp.abs(vec_local_b[2])
+        step_size_denominator = jp.where(abs_vec_local_z < 1e-10, 1e-10, abs_vec_local_z)
+        step_size = jp.minimum(size[0] / ncol, size[1] / nrow) * 0.5 / step_size_denominator
+        max_steps = 100
 
-    # Get fractional parts for bilinear interpolation
-    col_f = col - col_i
-    row_f = row - row_i
+        init_val_loop = (t_init_loop, default_return_val, 0)
 
-    # Get heights at the four corners
-    h00 = m.hfield_data[hfid, row_i * ncol + col_i] * hf_scale[2]
-    h01 = m.hfield_data[hfid, row_i * ncol + col_i + 1] * hf_scale[2]
-    h10 = m.hfield_data[hfid, (row_i + 1) * ncol + col_i] * hf_scale[2]
-    h11 = m.hfield_data[hfid, (row_i + 1) * ncol + col_i + 1] * hf_scale[2]
-    # Bilinear interpolation
-    h = (h00 * (1 - col_f) * (1 - row_f) +
-         h01 * col_f * (1 - row_f) +
-         h10 * (1 - col_f) * row_f +
-         h11 * col_f * row_f)
+        def cond_loop_local(state_loop):
+          curr_t, final_t, iter_v = state_loop
+          return (iter_v < max_steps) & jp.equal(final_t, default_return_val) & (curr_t <= tmax_b)
 
-    # Check if ray passes below the height at this point
-    intersection = p[2] <= h and vec_local[2] < 0
+        def body_loop_local(state_loop):
+          curr_t, final_t, iter_v = state_loop
+          _, hit = march_ray_local(curr_t, False)
+          _vec_norm = vec_norm_b.astype(curr_t.dtype)
+          new_final_t = jp.where(hit, curr_t * _vec_norm, final_t)
+          new_curr_t = curr_t + step_size
+          return (new_curr_t, new_final_t, iter_v + 1)
 
-    # Binary search refinement could be added here for more precision
+        final_state_loop = lax.while_loop(cond_loop_local, body_loop_local, init_val_loop)
+        return jp.array(final_state_loop[1], dtype=pnt.dtype)
 
-    return t, intersection
+      # Operand for bbox condition:
+      operand_bbox_cond = (pnt_local_p, vec_local_p, vec_norm_p, tmin, tmax, x0, y0)
+      return lax.cond(
+          (tmin > tmax) | (tmax < 0),
+          lambda _: default_return_val,
+          _false_fn_bbox_ok,
+          operand_bbox_cond
+      )
 
-  # Initial ray marching with fixed step size
-  step_size = jp.minimum(size[0] / ncol, size[1] / nrow) * 0.5 / jp.abs(vec_local[2])
-  max_steps = 100  # Prevent infinite loops
+    # Operand for parallel condition:
+    operand_parallel_cond = (pnt_local_op, vec_local_norm, vec_norm_op)
+    return lax.cond(
+        jp.abs(vec_local_norm[2]) < 1e-10,
+        lambda _: default_return_val,
+        _false_fn_parallel_ok,
+        operand_parallel_cond
+    )
 
-  t_final = -1.0
-  for _ in range(max_steps):
-    t, hit = march_ray(t, False)
-    if hit:
-      t_final = t * vec_norm  # Scale back to original ray length
-      break
-    t += step_size
-    # Exit if we've gone beyond the bounding box
-    if t > tmax:
-      break
-  return jp.array(t_final)
+  # Operand for vec_norm condition:
+  operand_vec_norm_cond = (pnt_local, vec_local, vec_norm) # vec_local is pre-normalization here
+  return lax.cond(
+      vec_norm < 1e-10,
+      lambda _: default_return_val,
+      _false_fn_vec_norm_ok,
+      operand_vec_norm_cond
+  )
 
 
 def _ray_hfield_wrapper(
@@ -365,7 +393,7 @@ _RAY_FUNC = {
     GeomType.ELLIPSOID: _ray_ellipsoid,
     GeomType.BOX: _ray_box,
     GeomType.MESH: _ray_mesh,
-    GeomType.HFIELD: lambda *args: _ray_hfield_wrapper(m, d, *args),  # Added for height field
+    GeomType.HFIELD: lambda m, d, *args: _ray_hfield_wrapper(m, d, *args),  # Added for height field
 }
 
 
@@ -415,8 +443,10 @@ def ray(
 
     args = m.geom_size[id_], geom_pnts[id_], geom_vecs[id_]
 
-    if geom_type in (GeomType.MESH, GeomType.HFIELD):
-      dist, id_ = fn(id_, *args)
+    if geom_type == GeomType.MESH:
+      dist, id_ = fn(m, id_, *args)  # Pass m for MESH
+    elif geom_type == GeomType.HFIELD:
+      dist, id_ = fn(m, d, id_, *args)  # Pass m and d for HFIELD
     else:
       dist = jax.vmap(fn)(*args)
 
