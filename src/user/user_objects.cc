@@ -1422,6 +1422,15 @@ mjCFrame* mjCBody::ToFrame() {
   mjCFrame* newframe = parent->AddFrame(frame);
   mjuu_copyvec(newframe->spec.pos, spec.pos, 3);
   mjuu_copyvec(newframe->spec.quat, spec.quat, 4);
+  if (parent->name != "world" && mass >= mjMINVAL) {
+    if (!parent->explicitinertial) {
+      parent->MakeInertialExplicit();
+      mjuu_zerovec(parent->spec.ipos, 3);
+      mjuu_zerovec(parent->spec.iquat, 4);
+      mjuu_zerovec(parent->spec.inertia, 3);
+    }
+    parent->AccumulateInertia(&this->spec, &parent->spec);
+  }
   MapFrame(parent->bodies, bodies, newframe, parent);
   MapFrame(parent->geoms, geoms, newframe, parent);
   MapFrame(parent->joints, joints, newframe, parent);
@@ -1717,6 +1726,90 @@ void mjCBody::InertiaFromGeom(void) {
 // set explicitinertial to true
 void mjCBody::MakeInertialExplicit() {
   spec.explicitinertial = true;
+}
+
+
+
+// accumulate inertia of another body into this body
+void mjCBody::AccumulateInertia(const mjsBody* other, mjsBody* result) {
+  if (!result) {
+    result = this;  // use the private mjsBody
+  }
+
+  // body_ipose = body_pose * body_ipose
+  double other_ipos[3];
+  double other_iquat[4];
+  mjuu_copyvec(other_ipos, other->ipos, 3);
+  mjuu_copyvec(other_iquat, other->iquat, 4);
+  mjuu_frameaccum(other_ipos, other_iquat, other->pos, other->quat);
+
+  // organize data
+  double mass[2] = {
+    result->mass,
+    other->mass
+  };
+  double inertia[2][3] = {
+    {result->inertia[0], result->inertia[1], result->inertia[2]},
+    {other->inertia[0], other->inertia[1], other->inertia[2]}
+  };
+  double ipos[2][3] = {
+    {result->ipos[0], result->ipos[1], result->ipos[2]},
+    {other_ipos[0], other_ipos[1], other_ipos[2]}
+  };
+  double iquat[2][4] = {
+    {result->iquat[0], result->iquat[1], result->iquat[2], result->iquat[3]},
+    {other->iquat[0], other->iquat[1], other->iquat[2], other->iquat[3]}
+  };
+
+  // compute total mass
+  result->mass = 0;
+  mjuu_setvec(result->ipos, 0, 0, 0);
+  for (int j=0; j < 2; j++) {
+    result->mass += mass[j];
+    result->ipos[0] += mass[j]*ipos[j][0];
+    result->ipos[1] += mass[j]*ipos[j][1];
+    result->ipos[2] += mass[j]*ipos[j][2];
+  }
+
+  // small mass: allow for now, check for errors later
+  if (result->mass < mjMINVAL) {
+    result->mass = 0;
+    mjuu_setvec(result->inertia, 0, 0, 0);
+    mjuu_setvec(result->ipos, 0, 0, 0);
+    mjuu_setvec(result->iquat, 1, 0, 0, 0);
+  }
+
+  // proceed with regular computation
+  else {
+    // locipos = center-of-mass
+    result->ipos[0] /= result->mass;
+    result->ipos[1] /= result->mass;
+    result->ipos[2] /= result->mass;
+
+    // add inertias
+    double toti[6] = {0, 0, 0, 0, 0, 0};
+    for (int j=0; j < 2; j++) {
+      double inertA[6], inertB[6];
+      double dpos[3] = {
+        ipos[j][0] - result->ipos[0],
+        ipos[j][1] - result->ipos[1],
+        ipos[j][2] - result->ipos[2]
+      };
+
+      mjuu_globalinertia(inertA, inertia[j], iquat[j]);
+      mjuu_offcenter(inertB, mass[j], dpos);
+      for (int k=0; k < 6; k++) {
+        toti[k] += inertA[k] + inertB[k];
+      }
+    }
+
+    // compute principal axes of inertia
+    mjuu_copyvec(result->fullinertia, toti, 6);
+    const char* err1 = mjuu_fullInertia(result->iquat, result->inertia, result->fullinertia);
+    if (err1) {
+      throw mjCError(nullptr, "error '%s' in fusing static body inertias", err1);
+    }
+  }
 }
 
 

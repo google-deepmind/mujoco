@@ -462,6 +462,10 @@ class mjCBody : public mjCBody_, private mjsBody {
   // getters
   std::vector<mjCBody*> Bodies() const { return bodies; }
 
+  // accumulate inertia of another body into this body, if `result` is not nullptr, the accumulated
+  // inertia will be stored in `result`, otherwise the body's private spec will be used.
+  void AccumulateInertia(const mjsBody* other, mjsBody* result = nullptr);
+
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
   mjCBody& operator=(const mjCBody& other);         // copy assignment
