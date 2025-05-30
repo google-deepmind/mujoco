@@ -485,6 +485,7 @@ class Option(PyTreeNode):
   disableflags: DisableBit
   enableflags: int
   disableactuator: int
+  sdf_initpoints: int
 
 
 class OptionC(Option):
@@ -495,7 +496,6 @@ class OptionC(Option):
   ccd_tolerance: jax.Array
   noslip_iterations: int
   ccd_iterations: int
-  sdf_initpoints: int
   sdf_iterations: int
 
 
@@ -519,6 +519,7 @@ class ModelC(PyTreeNode):
   nflexshelldata: jax.Array
   nflexevpair: jax.Array
   nflextexcoord: jax.Array
+  nplugin: jax.Array
   ntree: jax.Array
   narena: jax.Array
   body_bvhadr: jax.Array
@@ -526,6 +527,7 @@ class ModelC(PyTreeNode):
   bvh_child: jax.Array
   bvh_nodeid: jax.Array
   bvh_aabb: jax.Array
+  geom_plugin: jax.Array
   light_bodyid: jax.Array
   light_targetbodyid: jax.Array
   flex_contype: jax.Array
@@ -569,6 +571,8 @@ class ModelC(PyTreeNode):
   flex_bvhadr: jax.Array
   flex_bvhnum: jax.Array
   actuator_plugin: jax.Array
+  sensor_plugin: jax.Array
+  plugin: jax.Array
 
 
 class ModelJAX(PyTreeNode):
@@ -980,6 +984,7 @@ class DataC(PyTreeNode):
   ten_velocity: jax.Array
   actuator_velocity: jax.Array
   cdof_dot: jax.Array
+  plugin_data: jax.Array
   qH: jax.Array  # pylint:disable=invalid-name
   qHDiagInv: jax.Array  # pylint:disable=invalid-name
   B_rownnz: jax.Array  # pylint:disable=invalid-name

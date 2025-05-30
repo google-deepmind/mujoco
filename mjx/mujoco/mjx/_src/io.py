@@ -626,6 +626,7 @@ def _make_data_c(
       'qLDiagInv': (m.nv, float_),
       'ten_velocity': (m.ntendon, float_),
       'actuator_velocity': (m.nu, float_),
+      'plugin_data': (m.nplugin, np.uint64),
       'B_rownnz': (m.nbody, np.int32),
       'B_rowadr': (m.nbody, np.int32),
       'B_colind': (m.nB, np.int32),

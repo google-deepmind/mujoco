@@ -363,8 +363,12 @@ def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
 
   condim_counts = {}
   for k, v in group_counts.items():
-    func = _COLLISION_FUNC[k.types]
-    num_contacts = condim_counts.get(k.condim, 0) + func.ncon * v  # pytype: disable=attribute-error
+    if k.types[1] == mujoco.mjtGeom.mjGEOM_SDF:
+      ncon = m.opt.sdf_initpoints
+    else:
+      func = _COLLISION_FUNC[k.types]
+      ncon = func.ncon  # pytype: disable=attribute-error
+    num_contacts = condim_counts.get(k.condim, 0) + ncon * v
     if max_contact_points > -1:
       num_contacts = min(max_contact_points, num_contacts)
     condim_counts[k.condim] = num_contacts
