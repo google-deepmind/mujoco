@@ -92,7 +92,7 @@ class mjXBase : public mjXUtil {
   };
 
   // set the model allocated externally
-  virtual void SetModel(const mjSpec*, const mjModel* = nullptr);
+  virtual void SetModel(mjSpec*, const mjModel* = nullptr);
 
   // read alternative orientation specification
   static int ReadAlternative(tinyxml2::XMLElement* elem, mjsOrientation& alt);

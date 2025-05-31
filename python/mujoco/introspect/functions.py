@@ -248,6 +248,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Compile spec to model.',
      )),
+    ('mj_copyBack',
+     FunctionDecl(
+         name='mj_copyBack',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Copy real-valued arrays from model to spec, returns 1 on success.',  # pylint: disable=line-too-long
+     )),
     ('mj_recompile',
      FunctionDecl(
          name='mj_recompile',

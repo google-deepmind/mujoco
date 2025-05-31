@@ -102,6 +102,9 @@ mjModel* LoadModelFromPath(const char* model_path);
 // Returns a string loaded from first saving the model given an input.
 std::string SaveAndReadXml(const mjModel* model);
 
+// Returns a string loaded from first saving the spec given an input.
+std::string SaveAndReadXml(const mjSpec* spec);
+
 // Adds control noise.
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,
                                  mjtNum ctrlnoise = 0.01);

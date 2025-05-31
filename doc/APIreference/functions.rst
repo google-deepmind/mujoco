@@ -51,6 +51,15 @@ Compile :ref:`mjSpec` to :ref:`mjModel`. A spec can be edited and compiled multi
 :ref:`mjModel` instance that takes the edits into account.
 If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read with :ref:`mjs_getError`.
 
+.. _mj_copyBack:
+
+`mj_copyBack <#mj_copyBack>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_copyBack
+
+Copy real-valued arrays from model to spec, returns 1 on success.
+
 .. _mj_recompile:
 
 `mj_recompile <#mj_recompile>`__

@@ -1498,6 +1498,65 @@ TEST_F(DecompilerTest, SavesStatistics) {
   mj_deleteModel(model);
 }
 
+TEST_F(DecompilerTest, SaveAndReadXml) {
+  static constexpr char xml1[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom size="1"/>
+      <geom size="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+  static constexpr char xml2[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom size="1"/>
+      <geom size="2"/>
+      <geom size="3"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m1 = LoadModelFromString(xml1, error.data(), error.size());
+  ASSERT_THAT(m1, NotNull()) << error.data();
+  m1->geom_size[0] = 10;
+  m1->geom_size[3] = 20;
+  std::string saved_xml = SaveAndReadXml(m1);
+  EXPECT_THAT(saved_xml, HasSubstr("geom size=\"10\""));
+  EXPECT_THAT(saved_xml, HasSubstr("geom size=\"20\""));
+
+  // parse the mjSpec, save it and read it back
+  mjSpec* spec = mj_parseXMLString(xml2, nullptr, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << error.data();
+  mjModel* m2 = mj_compile(spec, nullptr);
+  std::string saved_xml1 = SaveAndReadXml(spec);
+  EXPECT_THAT(saved_xml1, HasSubstr("geom size=\"1\""));
+  EXPECT_THAT(saved_xml1, HasSubstr("geom size=\"2\""));
+  EXPECT_THAT(saved_xml1, HasSubstr("geom size=\"3\""));
+
+  // modify the mjModel, save it and read it back
+  m2->geom_size[0] = .1;
+  m2->geom_size[3] = .2;
+  m2->geom_size[6] = .3;
+  EXPECT_EQ(mj_copyBack(spec, m1), 0);
+  EXPECT_THAT(mjs_getError(spec), HasSubstr("CopyBack"));
+  EXPECT_EQ(mj_copyBack(spec, m2), 1);
+  std::string saved_xml2 = SaveAndReadXml(spec);
+  EXPECT_THAT(saved_xml2, HasSubstr("geom size=\"0.1\""));
+  EXPECT_THAT(saved_xml2, HasSubstr("geom size=\"0.2\""));
+  EXPECT_THAT(saved_xml2, HasSubstr("geom size=\"0.3\""));
+
+  // check that using mjModel as argument writes in the wrong mjSpec
+  std::string saved_xml3 = SaveAndReadXml(m2);
+  EXPECT_THAT(saved_xml3, Not(HasSubstr("geom size=\"0.1\"")));
+  EXPECT_THAT(saved_xml3, Not(HasSubstr("geom size=\"0.2\"")));
+  EXPECT_THAT(saved_xml3, Not(HasSubstr("geom size=\"0.3\"")));
+
+  mj_deleteSpec(spec);
+  mj_deleteModel(m1);
+  mj_deleteModel(m2);
+}
+
 TEST_F(DecompilerTest, DoesntSaveInferredStatistics) {
   static constexpr char xml[] = R"(
   <mujoco>

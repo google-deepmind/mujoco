@@ -230,7 +230,8 @@ mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int er
 
 // save spec to XML file, return 0 on success, -1 otherwise
 int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz) {
-  std::string result = WriteXML(NULL, s, error, error_sz);
+  // cast to mjSpec since WriteXML can in principle perform mj_copyBack (not here)
+  std::string result = WriteXML(NULL, (mjSpec*)s, error, error_sz);
   if (result.empty()) {
     return -1;
   }
@@ -247,7 +248,7 @@ int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz)
 // save spec to XML string, return 0 on success, -1 on failure
 // if length of the output buffer is too small, returns the required size
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz) {
-  std::string result = WriteXML(NULL, s, error, error_sz);
+  std::string result = WriteXML(NULL, (mjSpec*)s, error, error_sz);
   if (result.empty()) {
     return -1;
   } else if (result.size() >= xml_sz) {

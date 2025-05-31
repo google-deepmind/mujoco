@@ -66,6 +66,9 @@ MJAPI int mjs_activatePlugin(mjSpec* s, const char* name);
 // Turn deep copy on or off attach. Returns 0 on success.
 MJAPI int mjs_setDeepCopy(mjSpec* s, int deepcopy);
 
+// Copy real-valued arrays from model to spec, returns 1 on success.
+MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
+
 
 //---------------------------------- Attachment ----------------------------------------------------
 

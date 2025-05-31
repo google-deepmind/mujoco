@@ -4759,6 +4759,11 @@ bool mjCModel::CopyBack(const mjModel* m) {
     return false;
   }
 
+  if (spec.element->signature != m->signature) {
+    errInfo = mjCError(0, "incompatible signatures in CopyBack");
+    return false;
+  }
+
   // option and visual
   option = m->opt;
   visual = m->vis;

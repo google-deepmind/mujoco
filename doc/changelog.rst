@@ -17,6 +17,7 @@ General
 - Added new sub-component :ref:`mj_makeM` which combines the :ref:`mj_crb` call with additional logic to support the
   introduction in 3.3.1 of :ref:`tendon armature<tendon-spatial-armature>`. In addition to the traditional
   ``mjData.qM``, :ref:`mj_makeM` also computes ``mjData.M``, a CSR representation of the same matrix.
+- Added a new function :ref:`mj_copyBack` to copy real-valued arrays in an mjModel to a compatible mjSpec.
 
 Simulate
 ^^^^^^^^

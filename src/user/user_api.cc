@@ -375,6 +375,14 @@ int mjs_setDeepCopy(mjSpec* s, int deepcopy) {
 
 
 
+// copy real-valued arrays from model to spec, returns 1 on success
+int mj_copyBack(mjSpec* s, const mjModel* m) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  return model->CopyBack(m);
+}
+
+
+
 // delete object, return 0 on success
 int mjs_delete(mjsElement* element) {
   mjCModel* model;
