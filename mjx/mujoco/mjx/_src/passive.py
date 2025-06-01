@@ -29,7 +29,7 @@ from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import OptionJAX
-from mjx_fluid._src.types import GeomType
+from mujoco.mjx._src.types import GeomType
 import mujoco
 # pylint: enable=g-importing-member
 
