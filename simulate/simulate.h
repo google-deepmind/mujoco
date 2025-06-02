@@ -269,8 +269,8 @@ class Simulate {
   std::vector<std::pair<mjrRect, mjvFigure>> user_figures_new_;
   std::vector<std::tuple<int, int, std::string, std::string>> user_texts_;
   std::vector<std::tuple<int, int, std::string, std::string>> user_texts_new_;
-  std::vector<std::tuple<mjrRect, std::shared_ptr<unsigned char[]>>> user_images_;
-  std::vector<std::tuple<mjrRect, std::shared_ptr<unsigned char[]>>> user_images_new_;
+  std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_;
+  std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_new_;
 
   // OpenGL rendering and UI
   int refresh_rate = 60;

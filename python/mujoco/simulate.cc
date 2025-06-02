@@ -147,7 +147,6 @@ class SimulateWrapper {
 
     // Pairs of [viewport, figure], where viewport corresponds to the location
     // of the figure on the viewer window.
-    simulate_->user_figures_new_.clear();
     for (const auto& [viewport, figure] : viewports_figures) {
       mjvFigure casted_figure = *figure.cast<MjvFigureWrapper&>().get();
       simulate_->user_figures_new_.push_back(std::make_pair(viewport, casted_figure));
@@ -178,7 +177,6 @@ class SimulateWrapper {
     }
 
     // Collection of [font, gridpos, text1, text2] tuples for overlay text
-    simulate_->user_texts_new_.clear();
     for (const auto& [font, gridpos, text1, text2] : texts) {
       simulate_->user_texts_new_.push_back(std::make_tuple(font, gridpos, text1, text2));
     }
@@ -207,8 +205,6 @@ class SimulateWrapper {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    simulate_->user_images_new_.clear();
-
     for (const auto& [viewport, image] : viewports_images) {
       auto buf = image.request();
       if (buf.ndim != 3) {
@@ -228,10 +224,10 @@ class SimulateWrapper {
 
       // Make a copy of the image data since Python is
       // not required to keep it
-      std::shared_ptr<unsigned char[]> image_copy(new unsigned char[size]());
+      std::unique_ptr<unsigned char[]> image_copy(new unsigned char[size]());
       std::memcpy(image_copy.get(), buf.ptr, size);
 
-      simulate_->user_images_new_.push_back(std::make_tuple(viewport, image_copy));
+      simulate_->user_images_new_.push_back(std::make_tuple(viewport, std::move(image_copy)));
     }
 
     int value = 0;

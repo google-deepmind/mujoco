@@ -2634,9 +2634,7 @@ void Simulate::Render() {
   // user figures
   if (this->newfigurerequest.load() == 1) {
     this->user_figures_.clear();
-    for (const auto& [viewport, figure] : this->user_figures_new_) {
-      this->user_figures_.push_back(std::make_pair(viewport, figure));
-    }
+    std::swap(this->user_figures_, this->user_figures_new_);
     int value = 1;
     this->newfigurerequest.compare_exchange_strong(value, 0);
   }
@@ -2647,9 +2645,7 @@ void Simulate::Render() {
   // overlay text
   if (this->newtextrequest.load() == 1) {
     this->user_texts_.clear();
-    for (const auto& [font, gridpos, text1, text2] : this->user_texts_new_) {
-      this->user_texts_.push_back(std::make_tuple(font, gridpos, text1, text2));
-    }
+    std::swap(this->user_texts_, this->user_texts_new_);
     int value = 1;
     this->newtextrequest.compare_exchange_strong(value, 0);
   }
@@ -2660,9 +2656,7 @@ void Simulate::Render() {
   // user images
   if (this->newimagerequest.load() == 1) {
     this->user_images_.clear();
-    for (const auto& [viewport, image_ptr] : this->user_images_new_) {
-      this->user_images_.push_back(std::make_tuple(viewport, image_ptr));
-    }
+    std::swap(this->user_images_, this->user_images_new_);
     int value = 1;
     this->newimagerequest.compare_exchange_strong(value, 0);
   }
