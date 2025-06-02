@@ -1388,11 +1388,15 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
 
     // print iteration info
     if (log) {
-      logptr += snprintf(log+logptr, logsz-logptr,
-                         "iter %-3d:  |grad|: %-8.2g  reduction: %-8.2g  improvement: %-8.4g  "
-                         "linesearch: %g^%-2d  factorized: %d  nfree: %d\n",
-                         iter+1, mju_sqrt(norm2), oldvalue-value, improvement,
-                         backtrack, nstep-1, factorize, nfree);
+      int n = snprintf(log+logptr, logsz-logptr,
+                       "iter %-3d:  |grad|: %-8.2g  reduction: %-8.2g  improvement: %-8.4g  "
+                       "linesearch: %g^%-2d  factorized: %d  nfree: %d\n",
+                       iter+1, mju_sqrt(norm2), oldvalue-value, improvement,
+                       backtrack, nstep-1, factorize, nfree);
+      if (n < 0 || n >= logsz - logptr) {
+        break;  // Stop logging if buffer is exceeded
+      }
+      logptr += n;
     }
 
     // accept candidate
@@ -1406,9 +1410,13 @@ int mju_boxQPoption(mjtNum* res, mjtNum* R, int* index,               // outputs
 
   // print final info
   if (log) {
-    snprintf(log+logptr, logsz-logptr, "BOXQP: %s.\n"
-             "iterations= %d,  factorizations= %d,  |grad|= %-12.6g, final value= %-12.6g\n",
-             status_string[status+1], iter, nfactor, mju_sqrt(norm2), value);
+    int n = snprintf(log+logptr, logsz-logptr, "BOXQP: %s.\n"
+                     "iterations= %d,  factorizations= %d,  |grad|= %-12.6g, final value= %-12.6g\n",
+                     status_string[status+1], iter, nfactor, mju_sqrt(norm2), value);
+    if (n < 0 || n >= logsz - logptr) {
+      return;  // Stop logging if buffer is exceeded
+    }
+    logptr += n;
   }
 
   // return nf or -1 if failure
