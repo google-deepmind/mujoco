@@ -206,6 +206,9 @@ class Simulate {
   std::atomic_int droploadrequest = 0;
   std::atomic_int screenshotrequest = 0;
   std::atomic_int uiloadrequest = 0;
+  std::atomic_int newfigurerequest = 0;
+  std::atomic_int newtextrequest = 0;
+  std::atomic_int newimagerequest = 0;
 
   // loadrequest
   //   3: display a loading message
@@ -263,8 +266,11 @@ class Simulate {
   mjvScene* user_scn = nullptr;
   mjtByte user_scn_flags_prev_[mjNRNDFLAG];
   std::vector<std::pair<mjrRect, mjvFigure>> user_figures_;
+  std::vector<std::pair<mjrRect, mjvFigure>> user_figures_new_;
   std::vector<std::tuple<int, int, std::string, std::string>> user_texts_;
-  std::vector<std::tuple<mjrRect, unsigned char*>> user_images_;
+  std::vector<std::tuple<int, int, std::string, std::string>> user_texts_new_;
+  std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_;
+  std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_new_;
 
   // OpenGL rendering and UI
   int refresh_rate = 60;
