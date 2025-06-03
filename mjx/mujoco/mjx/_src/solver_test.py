@@ -74,7 +74,7 @@ class SolverTest(parameterized.TestCase):
 
       # compare costs
       mj_cost = cost(d.qacc)
-      ctx = solver._Context.create(mjx.put_model(m), mjx.put_data(m, d))
+      ctx = solver.Context.create(mjx.put_model(m), mjx.put_data(m, d))
       mjx_cost = ctx.cost - ctx.gauss
       _assert_eq(mj_cost, mjx_cost, 'cost')
 
@@ -87,8 +87,8 @@ class SolverTest(parameterized.TestCase):
 
       # MJX finds very similar solutions with the newton solver
       if solver_ == mujoco.mjtSolver.mjSOL_NEWTON:
-        nnz = dx.efc_J.any(axis=1)
-        _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+        nnz = dx._impl.efc_J.any(axis=1)
+        _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force')
         _assert_attr_eq(d, dx, 'qfrc_constraint')
         _assert_attr_eq(d, dx, 'qacc')
 
@@ -108,9 +108,9 @@ class SolverTest(parameterized.TestCase):
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
     dx = jax.jit(mjx.solve)(mx, mjx.put_data(m, d))
-    nnz = dx.efc_J.any(axis=1)
+    nnz = dx._impl.efc_J.any(axis=1)
     # even without warmstart, newton converges quickly
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force', tol=2e-4)
+    _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force', tol=2e-4)
 
   def test_sparse(self):
     """Test solver works with sparse mass matrices."""
@@ -130,8 +130,8 @@ class SolverTest(parameterized.TestCase):
 
     _assert_attr_eq(d, dx, 'qacc')
     _assert_attr_eq(d, dx, 'qfrc_constraint')
-    nnz = dx.efc_J.any(axis=1)
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+    nnz = dx._impl.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force')
 
   def test_quad_frictionloss(self):
     """Test a case with quadratic frictionloss constraints."""
@@ -144,8 +144,8 @@ class SolverTest(parameterized.TestCase):
 
     _assert_attr_eq(d, dx, 'qacc')
     _assert_attr_eq(d, dx, 'qfrc_constraint')
-    nnz = dx.efc_J.any(axis=1)
-    _assert_eq(d.efc_force, dx.efc_force[nnz], 'efc_force')
+    nnz = dx._impl.efc_J.any(axis=1)
+    _assert_eq(d.efc_force, dx._impl.efc_force[nnz], 'efc_force')
 
   # TODO(taylorhowell): condim=1 with ConeType.ELLIPTIC
   @parameterized.product(condim=(3, 4, 6), cone=tuple(ConeType))

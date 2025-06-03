@@ -1744,14 +1744,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='constraint solver reference:frictionloss (nv x mjNREF)',
+                 doc='constraint solver reference:frictionloss',
+                 array_extent=('nv', 'mjNREF'),
              ),
              StructFieldDecl(
                  name='dof_solimp',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='constraint solver impedance:frictionloss (nv x mjNIMP)',
+                 doc='constraint solver impedance:frictionloss',
+                 array_extent=('nv', 'mjNIMP'),
              ),
              StructFieldDecl(
                  name='dof_frictionloss',
@@ -1958,7 +1960,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='detect contact if dist<margin(ngeom x 1)',
+                 doc='detect contact if dist<margin',
+                 array_extent=('ngeom',),
              ),
              StructFieldDecl(
                  name='geom_gap',
@@ -2117,7 +2120,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='global position rel. to sub-com in qpos0 (ncam x 3)',
+                 doc='global position rel. to sub-com in qpos0',
+                 array_extent=('ncam', 3),
              ),
              StructFieldDecl(
                  name='cam_pos0',
@@ -2216,11 +2220,19 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nlight',),
              ),
              StructFieldDecl(
-                 name='light_directional',
+                 name='light_type',
                  type=PointerType(
-                     inner_type=ValueType(name='mjtByte'),
+                     inner_type=ValueType(name='int'),
                  ),
-                 doc='directional light',
+                 doc='spot, directional, etc. (mjtLightType)',
+                 array_extent=('nlight',),
+             ),
+             StructFieldDecl(
+                 name='light_texid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='texture id for image lights',
                  array_extent=('nlight',),
              ),
              StructFieldDecl(
@@ -2237,6 +2249,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='float'),
                  ),
                  doc='light radius for soft shadows',
+                 array_extent=('nlight',),
+             ),
+             StructFieldDecl(
+                 name='light_intensity',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='intensity, in candela',
+                 array_extent=('nlight',),
+             ),
+             StructFieldDecl(
+                 name='light_range',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='range of effectiveness',
                  array_extent=('nlight',),
              ),
              StructFieldDecl(
@@ -2268,7 +2296,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='global position rel. to sub-com in qpos0 (nlight x 3)',
+                 doc='global position rel. to sub-com in qpos0',
+                 array_extent=('nlight', 3),
              ),
              StructFieldDecl(
                  name='light_pos0',
@@ -2403,7 +2432,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='detect contact if dist<margin(nflex x 1)',
+                 doc='detect contact if dist<margin',
+                 array_extent=('nflex',),
              ),
              StructFieldDecl(
                  name='flex_gap',
@@ -2434,7 +2464,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of active element layers, 3D only (nflex x 1)',
+                 doc='number of active element layers, 3D only',
+                 array_extent=('nflex',),
              ),
              StructFieldDecl(
                  name='flex_dim',
@@ -2613,6 +2644,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflexedge', 2),
              ),
              StructFieldDecl(
+                 name='flex_edgeflap',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='adjacent vertex ids (dim=2 only)',
+                 array_extent=('nflexedge', 2),
+             ),
+             StructFieldDecl(
                  name='flex_elem',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -2649,7 +2688,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='shell fragment vertex ids (dim per frag) (nflexshelldata x 1)',  # pylint: disable=line-too-long
+                 doc='shell fragment vertex ids (dim per frag)',
+                 array_extent=('nflexshelldata',),
              ),
              StructFieldDecl(
                  name='flex_evpair',
@@ -2722,6 +2762,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='finite element stiffness matrix',
                  array_extent=('nflexelem', 21),
+             ),
+             StructFieldDecl(
+                 name='flex_bending',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='bending stiffness',
+                 array_extent=('nflexedge', 16),
              ),
              StructFieldDecl(
                  name='flex_damping',
@@ -2992,7 +3040,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address of asset path for mesh; -1: none (nmesh x 1)',
+                 doc='address of asset path for mesh; -1: none',
+                 array_extent=('nmesh',),
              ),
              StructFieldDecl(
                  name='mesh_polynum',
@@ -3239,7 +3288,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='address of asset path for skin; -1: none (nskin x 1)',
+                 doc='address of asset path for skin; -1: none',
+                 array_extent=('nskin',),
              ),
              StructFieldDecl(
                  name='hfield_size',
@@ -3295,6 +3345,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='texture type (mjtTexture)',
+                 array_extent=('ntex',),
+             ),
+             StructFieldDecl(
+                 name='tex_colorspace',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='texture colorspace (mjtColorSpace)',
                  array_extent=('ntex',),
              ),
              StructFieldDecl(
@@ -3454,7 +3512,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='body1<<16 + body2',
+                 doc='body1 << 16 + body2',
                  array_extent=('npair',),
              ),
              StructFieldDecl(
@@ -3486,7 +3544,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='detect contact if dist<margin(npair x 1)',
+                 doc='detect contact if dist<margin',
+                 array_extent=('npair',),
              ),
              StructFieldDecl(
                  name='pair_gap',
@@ -3509,7 +3568,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='body1<<16 + body2',
+                 doc='body1 << 16 + body2',
                  array_extent=('nexclude',),
              ),
              StructFieldDecl(
@@ -3581,7 +3640,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc="address of first object in tendon's path (ntendon x 1)",
+                 doc="address of first object in tendon's path",
+                 array_extent=('ntendon',),
              ),
              StructFieldDecl(
                  name='tendon_num',
@@ -3613,6 +3673,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtByte'),
                  ),
                  doc='does tendon have length limits',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='tendon_actfrclimited',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte'),
+                 ),
+                 doc='does tendon have actuator force limits',
                  array_extent=('ntendon',),
              ),
              StructFieldDecl(
@@ -3664,6 +3732,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ntendon', 2),
              ),
              StructFieldDecl(
+                 name='tendon_actfrcrange',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='range of total actuator force',
+                 array_extent=('ntendon', 2),
+             ),
+             StructFieldDecl(
                  name='tendon_margin',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -3685,6 +3761,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='damping coefficient',
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='tendon_armature',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='inertia associated with tendon velocity',
                  array_extent=('ntendon',),
              ),
              StructFieldDecl(
@@ -4100,7 +4184,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc="address to each instance's config attrib (nplugin x 1)",
+                 doc="address to each instance's config attrib",
+                 array_extent=('nplugin',),
              ),
              StructFieldDecl(
                  name='numeric_adr',
@@ -4454,6 +4539,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='paths to assets, 0-terminated',
                  array_extent=('npaths',),
              ),
+             StructFieldDecl(
+                 name='signature',
+                 type=ValueType(name='uint64_t'),
+                 doc='also held by the mjSpec that compiled this model',
+             ),
          ),
      )),
     ('mjThreadPool',
@@ -4775,11 +4865,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='solver statistics per island, per iteration',
              ),
              StructFieldDecl(
-                 name='solver_nisland',
-                 type=ValueType(name='int'),
-                 doc='number of islands processed by solver',
-             ),
-             StructFieldDecl(
                  name='solver_niter',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),
@@ -4858,6 +4943,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='nisland',
                  type=ValueType(name='int'),
                  doc='number of detected constraint islands',
+             ),
+             StructFieldDecl(
+                 name='nidof',
+                 type=ValueType(name='int'),
+                 doc='number of dofs in all islands',
              ),
              StructFieldDecl(
                  name='time',
@@ -5347,8 +5437,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc='total inertia (sparse)',
+                 doc='inertia (sparse)',
                  array_extent=('nM',),
+             ),
+             StructFieldDecl(
+                 name='M',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='reduced inertia (compressed sparse row)',
+                 array_extent=('nC',),
              ),
              StructFieldDecl(
                  name='qLD',
@@ -5356,7 +5454,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc="L'*D*L factorization of M (sparse)",
-                 array_extent=('nM',),
+                 array_extent=('nC',),
              ),
              StructFieldDecl(
                  name='qLDiagInv',
@@ -5492,7 +5590,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc="L'*D*L factorization of modified M",
-                 array_extent=('nM',),
+                 array_extent=('nC',),
              ),
              StructFieldDecl(
                  name='qHDiagInv',
@@ -5531,7 +5629,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='inertia: non-zeros in each row',
+                 doc='reduced inertia: non-zeros in each row',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -5539,7 +5637,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='inertia: address of each row in M_colind',
+                 doc='reduced inertia: address of each row in M_colind',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -5547,46 +5645,15 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='inertia: column indices of non-zeros',
-                 array_extent=('nM',),
+                 doc='reduced inertia: column indices of non-zeros',
+                 array_extent=('nC',),
              ),
              StructFieldDecl(
                  name='mapM2M',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='index mapping from M (legacy) to M (CSR)',
-                 array_extent=('nM',),
-             ),
-             StructFieldDecl(
-                 name='C_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='reduced dof-dof: non-zeros in each row',
-                 array_extent=('nv',),
-             ),
-             StructFieldDecl(
-                 name='C_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='reduced dof-dof: address of each row in C_colind (nv x 1)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='C_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='reduced dof-dof: column indices of non-zeros',
-                 array_extent=('nC',),
-             ),
-             StructFieldDecl(
-                 name='mapM2C',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='index mapping from M to C',
+                 doc='index mapping from qM to M',
                  array_extent=('nC',),
              ),
              StructFieldDecl(
@@ -5594,7 +5661,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof-dof: non-zeros in each row',
+                 doc='full inertia: non-zeros in each row',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -5602,7 +5669,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof-dof: address of each row in D_colind',
+                 doc='full inertia: address of each row in D_colind',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -5610,7 +5677,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof-dof: index of diagonal element',
+                 doc='full inertia: index of diagonal element',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
@@ -5618,7 +5685,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof-dof: column indices of non-zeros',
+                 doc='full inertia: column indices of non-zeros',
                  array_extent=('nD',),
              ),
              StructFieldDecl(
@@ -5626,7 +5693,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='index mapping from M to D',
+                 doc='index mapping from qM to D',
                  array_extent=('nD',),
              ),
              StructFieldDecl(
@@ -5634,7 +5701,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='index mapping from D to M',
+                 doc='index mapping from D to qM',
                  array_extent=('nM',),
              ),
              StructFieldDecl(
@@ -5698,7 +5765,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 doc="net external force; should equal:                (nv x 1)qfrc_applied + J'*xfrc_applied + qfrc_actuator",  # pylint: disable=line-too-long
+                 doc="net external force; should equal: qfrc_applied + J'*xfrc_applied + qfrc_actuator",  # pylint: disable=line-too-long
+                 array_extent=('nv',),
              ),
              StructFieldDecl(
                  name='cacc',
@@ -5785,28 +5853,32 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of non-zeros in constraint Jacobian row T (nv x 1)',  # pylint: disable=line-too-long
+                 doc='number of non-zeros in constraint Jacobian row T',
+                 array_extent=('nv',),
              ),
              StructFieldDecl(
                  name='efc_JT_rowadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='row start address in colind array              T (nv x 1)',  # pylint: disable=line-too-long
+                 doc='row start address in colind array              T',
+                 array_extent=('nv',),
              ),
              StructFieldDecl(
                  name='efc_JT_rowsuper',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of subsequent rows in supernode         T (nv x 1)',  # pylint: disable=line-too-long
+                 doc='number of subsequent rows in supernode         T',
+                 array_extent=('nv',),
              ),
              StructFieldDecl(
                  name='efc_JT_colind',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='column indices in constraint Jacobian          T (nJ x 1)',  # pylint: disable=line-too-long
+                 doc='column indices in constraint Jacobian          T',
+                 array_extent=('nJ',),
              ),
              StructFieldDecl(
                  name='efc_J',
@@ -5897,11 +5969,19 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nv',),
              ),
              StructFieldDecl(
-                 name='island_dofnum',
+                 name='island_nv',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='number of dofs in island',
+                 doc='number of dofs in this island',
+                 array_extent=('nisland',),
+             ),
+             StructFieldDecl(
+                 name='island_idofadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='island start address in idof vector',
                  array_extent=('nisland',),
              ),
              StructFieldDecl(
@@ -5909,24 +5989,96 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='start address in island_dofind',
+                 doc='island start address in dof vector',
                  array_extent=('nisland',),
              ),
              StructFieldDecl(
-                 name='island_dofind',
+                 name='map_dof2idof',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='island dof indices; -1: none',
+                 doc='map from dof to idof',
                  array_extent=('nv',),
              ),
              StructFieldDecl(
-                 name='dof_islandind',
+                 name='map_idof2dof',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='dof island indices; -1: none',
+                 doc='map from idof to dof;  >= nidof: unconstrained',
                  array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='ifrc_smooth',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='net unconstrained force',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iacc_smooth',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='unconstrained acceleration',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iM_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: non-zeros in each row',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iM_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: address of each row in iM_colind',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iM_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='inertia: column indices of non-zeros',
+                 array_extent=('nC',),
+             ),
+             StructFieldDecl(
+                 name='iM',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='total inertia (sparse)',
+                 array_extent=('nC',),
+             ),
+             StructFieldDecl(
+                 name='iLD',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc="L'*D*L factorization of M (sparse)",
+                 array_extent=('nC',),
+             ),
+             StructFieldDecl(
+                 name='iLDiagInv',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='1/diag(D)',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iacc',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='acceleration',
+                 array_extent=('nidof',),
              ),
              StructFieldDecl(
                  name='efc_island',
@@ -5937,7 +6089,23 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nefc',),
              ),
              StructFieldDecl(
-                 name='island_efcnum',
+                 name='island_ne',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of equality constraints in island',
+                 array_extent=('nisland',),
+             ),
+             StructFieldDecl(
+                 name='island_nf',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of friction constraints in island',
+                 array_extent=('nisland',),
+             ),
+             StructFieldDecl(
+                 name='island_nefc',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
@@ -5945,19 +6113,147 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nisland',),
              ),
              StructFieldDecl(
-                 name='island_efcadr',
+                 name='island_iefcadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='start address in island_efcind',
+                 doc='start address in iefc vector',
                  array_extent=('nisland',),
              ),
              StructFieldDecl(
-                 name='island_efcind',
+                 name='map_efc2iefc',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='island constraint indices',
+                 doc='map from efc to iefc',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='map_iefc2efc',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='map from iefc to efc',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='constraint type (mjtConstraint)',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_id',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='id of object of specified type',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in constraint Jacobian row',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in colind array',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J_rowsuper',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of subsequent rows in supernode',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in constraint Jacobian',
+                 array_extent=('nJ',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in constraint Jacobian row T',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in colind array              T',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT_rowsuper',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of subsequent rows in supernode         T',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in constraint Jacobian          T',
+                 array_extent=('nJ',),
+             ),
+             StructFieldDecl(
+                 name='iefc_J',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint Jacobian',
+                 array_extent=('nJ',),
+             ),
+             StructFieldDecl(
+                 name='iefc_JT',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint Jacobian transposed',
+                 array_extent=('nJ',),
+             ),
+             StructFieldDecl(
+                 name='iefc_frictionloss',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='frictionloss (friction)',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_D',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint mass',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_R',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='inverse constraint mass',
                  array_extent=('nefc',),
              ),
              StructFieldDecl(
@@ -6017,7 +6313,23 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nefc',),
              ),
              StructFieldDecl(
-                 name='efc_force',
+                 name='iefc_aref',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='reference pseudo-acceleration',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_state',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='constraint state (mjtConstraintState)',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='iefc_force',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
@@ -6033,9 +6345,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nefc',),
              ),
              StructFieldDecl(
+                 name='efc_force',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint force in constraint space',
+                 array_extent=('nefc',),
+             ),
+             StructFieldDecl(
+                 name='ifrc_constraint',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='constraint force',
+                 array_extent=('nidof',),
+             ),
+             StructFieldDecl(
                  name='threadpool',
                  type=ValueType(name='uintptr_t'),
                  doc='thread pool pointer',
+             ),
+             StructFieldDecl(
+                 name='signature',
+                 type=ValueType(name='uint64_t'),
+                 doc='also held by the mjSpec that compiled the model',
              ),
          ),
      )),
@@ -6242,7 +6575,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='dataid',
                  type=ValueType(name='int'),
-                 doc='mesh, hfield or plane id; -1: none',
+                 doc='mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='objtype',
@@ -6373,6 +6706,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='direction rel. to body frame',
              ),
              StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='int'),
+                 doc='type (mjtLightType)',
+             ),
+             StructFieldDecl(
+                 name='texid',
+                 type=ValueType(name='int'),
+                 doc='texture id for image lights',
+             ),
+             StructFieldDecl(
                  name='attenuation',
                  type=ArrayType(
                      inner_type=ValueType(name='float'),
@@ -6420,11 +6763,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='headlight',
              ),
              StructFieldDecl(
-                 name='directional',
-                 type=ValueType(name='mjtByte'),
-                 doc='directional light',
-             ),
-             StructFieldDecl(
                  name='castshadow',
                  type=ValueType(name='mjtByte'),
                  doc='does light cast shadows',
@@ -6433,6 +6771,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='bulbradius',
                  type=ValueType(name='float'),
                  doc='bulb radius for soft shadows',
+             ),
+             StructFieldDecl(
+                 name='intensity',
+                 type=ValueType(name='float'),
+                 doc='intensity, in candelas',
+             ),
+             StructFieldDecl(
+                 name='range',
+                 type=ValueType(name='float'),
+                 doc='range of effectiveness',
              ),
          ),
      )),
@@ -7018,1625 +7366,50 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
-    ('mjvSceneState',
+    ('mjSDF',
      StructDecl(
-         name='mjvSceneState',
-         declname='struct mjvSceneState_',
+         name='mjSDF',
+         declname='struct mjSDF_',
          fields=(
              StructFieldDecl(
-                 name='nbuffer',
-                 type=ValueType(name='int'),
-                 doc='size of the buffer in bytes',
-             ),
-             StructFieldDecl(
-                 name='buffer',
+                 name='plugin',
                  type=PointerType(
-                     inner_type=ValueType(name='void'),
-                 ),
-                 doc='heap-allocated memory for all arrays in this struct',
-             ),
-             StructFieldDecl(
-                 name='maxgeom',
-                 type=ValueType(name='int'),
-                 doc='maximum number of mjvGeom supported by this state object',
-             ),
-             StructFieldDecl(
-                 name='scratch',
-                 type=ValueType(name='mjvScene'),
-                 doc='scratch space for vis geoms inserted by the user and plugins',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='model',
-                 type=AnonymousStructDecl(
-                     fields=(
-                         StructFieldDecl(
-                             name='nv',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nu',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='na',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nbody',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nbvh',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nbvhstatic',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='njnt',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ngeom',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nsite',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ncam',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nlight',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nmesh',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nskin',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nflex',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nflexvert',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nflextexcoord',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nskinvert',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nskinface',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nskinbone',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nskinbonevert',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nmat',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='neq',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ntendon',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ntree',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nwrap',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nsensor',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nnames',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='npaths',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nsensordata',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='narena',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='opt',
-                             type=ValueType(name='mjOption'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='vis',
-                             type=ValueType(name='mjVisual'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='stat',
-                             type=ValueType(name='mjStatistic'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_parentid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_rootid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_weldid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_mocapid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_jntnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_jntadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_dofnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_dofadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_geomnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_geomadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_iquat',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_mass',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_inertia',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_bvhadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='body_bvhnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='bvh_depth',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='bvh_child',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='bvh_nodeid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='bvh_aabb',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='jnt_type',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='jnt_bodyid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='jnt_group',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_type',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_bodyid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_contype',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_conaffinity',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_dataid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_matid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_group',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_size',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_aabb',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_rbound',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_rgba',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='site_type',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='site_bodyid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='site_matid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='site_group',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='site_size',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='site_rgba',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='cam_orthographic',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='cam_fovy',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='cam_ipd',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='cam_resolution',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='cam_sensorsize',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='cam_intrinsic',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_directional',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_castshadow',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_bulbradius',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_active',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_attenuation',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_cutoff',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_exponent',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_ambient',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_diffuse',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_specular',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_flatskin',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_dim',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_matid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_group',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_interp',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_nodeadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_nodenum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_nodebodyid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_vertadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_vertnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_elem',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_elemtexcoord',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_elemlayer',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_elemadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_elemnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_elemdataadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_shell',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_shellnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_shelldataadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_texcoordadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_bvhadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_bvhnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_centered',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_node',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_radius',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_rgba',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flex_texcoord',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='hfield_pathadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mesh_bvhadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mesh_bvhnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mesh_texcoordadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mesh_graphadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mesh_pathadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_matid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_group',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_rgba',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_inflate',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_vertadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_vertnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_texcoordadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_faceadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_facenum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_boneadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_bonenum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_vert',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_face',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_bonevertadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_bonevertnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_bonebindpos',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_bonebindquat',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_bonebodyid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_bonevertid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_bonevertweight',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='skin_pathadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tex_pathadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_texid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_texuniform',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_texrepeat',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_emission',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_specular',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_shininess',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_reflectance',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_metallic',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_roughness',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='mat_rgba',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='eq_type',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='eq_obj1id',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='eq_obj2id',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='eq_objtype',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='eq_data',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_num',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_matid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_group',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_limited',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_width',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_range',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_stiffness',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_damping',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_frictionloss',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_lengthspring',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_rgba',
-                             type=PointerType(
-                                 inner_type=ValueType(name='float'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_trntype',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_dyntype',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_trnid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_actadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_actnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_group',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_ctrllimited',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_actlimited',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_ctrlrange',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_actrange',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='actuator_cranklength',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='sensor_type',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='sensor_objid',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='sensor_adr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='name_bodyadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='name_jntadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='name_geomadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='name_siteadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='name_camadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='name_lightadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='name_eqadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='name_tendonadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='name_actuatoradr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='names',
-                             type=PointerType(
-                                 inner_type=ValueType(name='char'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='paths',
-                             type=PointerType(
-                                 inner_type=ValueType(name='char'),
-                             ),
-                             doc='',
-                         ),
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjpPlugin', is_const=True),
                      ),
                  ),
                  doc='',
              ),
              StructFieldDecl(
-                 name='data',
-                 type=AnonymousStructDecl(
-                     fields=(
-                         StructFieldDecl(
-                             name='warning',
-                             type=ArrayType(
-                                 inner_type=ValueType(name='mjWarningStat'),
-                                 extents=(8,),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nefc',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ncon',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='nisland',
-                             type=ValueType(name='int'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='time',
-                             type=ValueType(name='mjtNum'),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='act',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ctrl',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='xfrc_applied',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='eq_active',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='sensordata',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='xpos',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='xquat',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='xmat',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='xipos',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ximat',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='xanchor',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='xaxis',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_xpos',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='geom_xmat',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='site_xpos',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='site_xmat',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='cam_xpos',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='cam_xmat',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_xpos',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='light_xdir',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='subtree_com',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ten_wrapadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ten_wrapnum',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='wrap_obj',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='ten_length',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='wrap_xpos',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='bvh_aabb_dyn',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='bvh_active',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtByte'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='island_dofadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='island_dofind',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='dof_island',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='efc_island',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='tendon_efcadr',
-                             type=PointerType(
-                                 inner_type=ValueType(name='int'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='flexvert_xpos',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='contact',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjContact'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='efc_force',
-                             type=PointerType(
-                                 inner_type=ValueType(name='mjtNum'),
-                             ),
-                             doc='',
-                         ),
-                         StructFieldDecl(
-                             name='arena',
-                             type=PointerType(
-                                 inner_type=ValueType(name='void'),
-                             ),
-                             doc='',
-                         ),
-                     ),
+                 name='id',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='mjtSDFType'),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='relpos',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='relmat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='geomtype',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtGeom'),
                  ),
                  doc='',
              ),
@@ -9044,6 +7817,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='mjtObj'),
                  doc='element type',
              ),
+             StructFieldDecl(
+                 name='signature',
+                 type=ValueType(name='uint64_t'),
+                 doc='compilation signature',
+             ),
          ),
      )),
     ('mjsCompiler',
@@ -9069,7 +7847,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='settotalmass',
                  type=ValueType(name='double'),
-                 doc='rescale masses and inertias;<=0: ignore',
+                 doc='rescale masses and inertias; <=0: ignore',
              ),
              StructFieldDecl(
                  name='balanceinertia',
@@ -9121,6 +7899,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(2,),
                  ),
                  doc='range of geom groups used to compute inertia',
+             ),
+             StructFieldDecl(
+                 name='saveinertial',
+                 type=ValueType(name='mjtByte'),
+                 doc='save explicit inertial clause for all bodies to XML',
              ),
              StructFieldDecl(
                  name='alignfree',
@@ -9843,7 +8626,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='gap',
                  type=ValueType(name='double'),
-                 doc='include in solver if dist<margin-gap',
+                 doc='include in solver if dist < margin-gap',
              ),
              StructFieldDecl(
                  name='mass',
@@ -10222,9 +9005,16 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='is light active',
              ),
              StructFieldDecl(
-                 name='directional',
-                 type=ValueType(name='mjtByte'),
-                 doc='is light directional or spot',
+                 name='type',
+                 type=ValueType(name='mjtLightType'),
+                 doc='type of light',
+             ),
+             StructFieldDecl(
+                 name='texture',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='texture name for image lights',
              ),
              StructFieldDecl(
                  name='castshadow',
@@ -10233,8 +9023,18 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='bulbradius',
-                 type=ValueType(name='double'),
+                 type=ValueType(name='float'),
                  doc='bulb radius, for soft shadows',
+             ),
+             StructFieldDecl(
+                 name='intensity',
+                 type=ValueType(name='float'),
+                 doc='intensity, in candelas',
+             ),
+             StructFieldDecl(
+                 name='range',
+                 type=ValueType(name='float'),
+                 doc='range of effectiveness',
              ),
              StructFieldDecl(
                  name='attenuation',
@@ -10388,7 +9188,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='selfcollide',
                  type=ValueType(name='int'),
-                 doc='mode for flex self colllision',
+                 doc='mode for flex self collision',
+             ),
+             StructFieldDecl(
+                 name='vertcollide',
+                 type=ValueType(name='int'),
+                 doc='mode for vertex collision',
              ),
              StructFieldDecl(
                  name='activelayers',
@@ -10444,6 +9249,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='thickness',
                  type=ValueType(name='double'),
                  doc='thickness (2D only)',
+             ),
+             StructFieldDecl(
+                 name='elastic2d',
+                 type=ValueType(name='int'),
+                 doc='2D passive forces; 0: none, 1: bending, 2: stretching, 3: both',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='nodebody',
@@ -10830,6 +9640,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='type',
                  type=ValueType(name='mjtTexture'),
                  doc='texture type',
+             ),
+             StructFieldDecl(
+                 name='colorspace',
+                 type=ValueType(name='mjtColorSpace'),
+                 doc='colorspace',
              ),
              StructFieldDecl(
                  name='builtin',
@@ -11305,9 +10120,19 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='solver impedance: tendon friction',
              ),
              StructFieldDecl(
+                 name='armature',
+                 type=ValueType(name='double'),
+                 doc='inertia associated with tendon velocity',
+             ),
+             StructFieldDecl(
                  name='limited',
                  type=ValueType(name='int'),
                  doc='does tendon have limits (mjtLimited)',
+             ),
+             StructFieldDecl(
+                 name='actfrclimited',
+                 type=ValueType(name='int'),
+                 doc='does tendon have actuator force limits',
              ),
              StructFieldDecl(
                  name='range',
@@ -11316,6 +10141,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(2,),
                  ),
                  doc='length limits',
+             ),
+             StructFieldDecl(
+                 name='actfrcrange',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(2,),
+                 ),
+                 doc='actuator force limits',
              ),
              StructFieldDecl(
                  name='margin',

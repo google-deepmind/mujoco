@@ -454,6 +454,33 @@ TEST_F(SensorTest, PotentialEnergy) {
   mj_deleteModel(model);
 }
 
+TEST_F(SensorTest, PotentialEnergyFreeJointSpring) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 0"/>
+    <worldbody>
+      <body>
+        <geom size="1" mass="3"/>
+        <joint type="free" stiffness="2"/>
+      </body>
+    </worldbody>
+    <sensor>
+      <e_potential/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+  data->qpos[0] = 1;
+  data->qpos[1] = 2;
+  data->qpos[2] = 3;
+  mj_forward(model, data);
+  EXPECT_EQ(data->sensordata[0], 0.5*2*14);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(SensorTest, KineticEnergy) {
   constexpr char xml[] = R"(
   <mujoco>

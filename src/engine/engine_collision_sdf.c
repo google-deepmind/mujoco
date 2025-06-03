@@ -158,7 +158,9 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     e = mju_abs(x[2]);
     a[0] = c - size[0];
     a[1] = e - size[1];
-    mjtNum grada[3] = {x[0] / c, x[1] / c, x[2] / e};
+    mjtNum grada[3] = {x[0] / mju_max(c, 1. / mjMAXVAL),
+                       x[1] / mju_max(c, 1. / mjMAXVAL),
+                       x[2] / mju_max(e, 1. / mjMAXVAL)};
     int j = a[0] > a[1] ? 0 : 1;
     if (a[j] < 0) {
       gradient[0] = j == 0 ? grada[0] : 0;
@@ -167,7 +169,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     } else {
       b[0] = mju_max(a[0], 0);
       b[1] = mju_max(a[1], 0);
-      mjtNum bnorm = mju_norm(b, 2);
+      mjtNum bnorm = mju_max(mju_norm(b, 2), 1./mjMAXVAL);
       gradient[0] = grada[0] * b[0] / bnorm;
       gradient[1] = grada[1] * b[0] / bnorm;
       gradient[2] = grada[2] * b[1] / bnorm;
@@ -263,7 +265,7 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
 }
 
 // get sdf from geom id
-static const mjpPlugin* getSDF(const mjModel* m, int id) {
+const mjpPlugin* mjc_getSDF(const mjModel* m, int id) {
   int instance = m->geom_plugin[id];
   const int nslot = mjp_pluginCount();
   const int slot = m->plugin[instance];
@@ -583,7 +585,7 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
 
   // get sdf plugin
   int instance = m->geom_plugin[g2];
-  const mjpPlugin* sdf_ptr = getSDF(m, g2);
+  const mjpPlugin* sdf_ptr = mjc_getSDF(m, g2);
   mjtGeom geomtype = mjGEOM_SDF;
 
   // copy into data
@@ -725,12 +727,12 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
   mjtGeom geomtypes[2] = {m->geom_type[g2], m->geom_type[g1]};
 
   instance[0] = m->geom_plugin[g2];
-  sdf_ptr[0] = getSDF(m, g2);
+  sdf_ptr[0] = mjc_getSDF(m, g2);
 
   // get sdf plugins
   if (m->geom_type[g1] == mjGEOM_SDF) {
     instance[1] = m->geom_plugin[g1];
-    sdf_ptr[1] = getSDF(m, g1);
+    sdf_ptr[1] = mjc_getSDF(m, g1);
   } else {
     instance[1] = g1;
     sdf_ptr[1] = NULL;

@@ -64,14 +64,14 @@ class SensorTest(parameterized.TestCase):
     mujoco.mj_forward(m, d)
 
     mx = mjx.put_model(m)
-    dx = mjx.put_data(m, d).replace(
-        sensordata=jp.zeros_like(d.sensordata),
-        subtree_linvel=jp.zeros_like(d.subtree_linvel),
-        subtree_angmom=jp.zeros_like(d.subtree_angmom),
-        cacc=jp.zeros_like(d.cacc),
-        cfrc_int=jp.zeros_like(d.cfrc_int),
-        cfrc_ext=jp.zeros_like(d.cfrc_ext),
-    )
+    dx = mjx.put_data(m, d).tree_replace({
+        'sensordata': jp.zeros_like(d.sensordata),
+        '_impl.subtree_linvel': jp.zeros_like(d.subtree_linvel),
+        '_impl.subtree_angmom': jp.zeros_like(d.subtree_angmom),
+        '_impl.cacc': jp.zeros_like(d.cacc),
+        '_impl.cfrc_int': jp.zeros_like(d.cfrc_int),
+        '_impl.cfrc_ext': jp.zeros_like(d.cfrc_ext),
+    })
     dx = jax.jit(mjx.sensor_pos)(mx, dx)
     dx = jax.jit(mjx.sensor_vel)(mx, dx)
     dx = jax.jit(mjx.sensor_acc)(mx, dx)

@@ -38,6 +38,10 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
                          int* rownnz, const int* rowadr, int* colind,
                          mjData* d);
 
+// precount row non-zeros of reverse-Cholesky factor L, return total
+MJAPI int mju_cholFactorCount(int* L_rownnz, const int* rownnz, const int* rowadr,
+                              const int* colind, int n, mjData* d);
+
 // sparse reverse-order Cholesky solve
 void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
                          const int* rownnz, const int* rowadr, const int* colind);

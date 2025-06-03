@@ -1,0 +1,10 @@
+<mujoco model="mesh test">
+  <asset>
+    <mesh name="mesh" file="meshes/tetrahedron.obj"/>
+  </asset>
+  <worldbody>
+    <body name="test_body">
+      <geom type="mesh" mesh="mesh"/>
+    </body>
+  </worldbody>
+</mujoco>

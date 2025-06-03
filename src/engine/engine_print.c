@@ -1008,9 +1008,8 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   // SOLVER STAT
   if (d->nefc) {
     fprintf(fp, "SOLVER STAT\n");
-    fprintf(fp, "  solver_nisland = %d\n", d->solver_nisland);
     printVector("  solver_fwdinv = ", d->solver_fwdinv, 2, fp, float_format);
-    int nisland_stat = mjMIN(d->solver_nisland, mjNISLAND);
+    int nisland_stat = mjMAX(1, mjMIN(d->nisland, mjNISLAND));
     for (int island=0; island < nisland_stat; island++) {
       int niter_stat = mjMIN(mjNSOLVER, d->solver_niter[island]);
       if (niter_stat) {
@@ -1124,9 +1123,9 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nu, d->moment_rownnz,
               d->moment_rowadr, d->moment_colind, fp, float_format);
   printArray("CRB", m->nbody, 10, d->crb, fp, float_format);
-
   printInertia("QM", d->qM, m, fp, float_format);
-
+  printSparse("M", d->M, m->nv, d->M_rownnz,
+              d->M_rowadr, d->M_colind, fp, float_format);
   printSparse("QLD", d->qLD, m->nv, d->M_rownnz,
               d->M_rowadr, d->M_colind, fp, float_format);
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
@@ -1162,7 +1161,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   fprintf(fp, "\n\n");
 
   // M sparse structure
-  mj_printSparsity("M: inertia matrix", m->nv, m->nv, d->M_rowadr, NULL, d->M_rownnz,
+  mj_printSparsity("M: reduced inertia matrix", m->nv, m->nv, d->M_rowadr, NULL, d->M_rownnz,
                    NULL, d->M_colind, fp);
 
   fprintf(fp, NAME_FORMAT, "M_rownnz");
@@ -1171,55 +1170,24 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   }
   fprintf(fp, "\n\n");
 
-  // M_rowadr
+  // C_rowadr
   fprintf(fp, NAME_FORMAT, "M_rowadr");
   for (int i = 0; i < m->nv; i++) {
     fprintf(fp, " %d", d->M_rowadr[i]);
   }
   fprintf(fp, "\n\n");
 
-  // M_colind
+  // C_colind
   fprintf(fp, NAME_FORMAT, "M_colind");
-  for (int i = 0; i < m->nM; i++) {
+  for (int i = 0; i < m->nC; i++) {
     fprintf(fp, " %d", d->M_colind[i]);
   }
   fprintf(fp, "\n\n");
 
   // mapM2M
   fprintf(fp, NAME_FORMAT, "mapM2M");
-  for (int i = 0; i < m->nM; i++) {
+  for (int i = 0; i < m->nC; i++) {
     fprintf(fp, " %d", d->mapM2M[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // C sparse structure
-  mj_printSparsity("C: reduced dof-dof matrix", m->nv, m->nv, d->C_rowadr, NULL, d->C_rownnz,
-                   NULL, d->C_colind, fp);
-
-  fprintf(fp, NAME_FORMAT, "C_rownnz");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->C_rownnz[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // C_rowadr
-  fprintf(fp, NAME_FORMAT, "C_rowadr");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->C_rowadr[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // C_colind
-  fprintf(fp, NAME_FORMAT, "C_colind");
-  for (int i = 0; i < m->nC; i++) {
-    fprintf(fp, " %d", d->C_colind[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // mapM2C
-  fprintf(fp, NAME_FORMAT, "mapM2C");
-  for (int i = 0; i < m->nC; i++) {
-    fprintf(fp, " %d", d->mapM2C[i]);
   }
   fprintf(fp, "\n\n");
 
@@ -1393,27 +1361,30 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_DOFNUM");
+    fprintf(fp, NAME_FORMAT, "ISLAND_NV");
     for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_dofnum[i]);
+      fprintf(fp, " %d", d->island_nv[i]);
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_DOFADR");
+    fprintf(fp, NAME_FORMAT, "ISLAND_IDOFADR");
     for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_dofadr[i]);
+      fprintf(fp, " %d", d->island_idofadr[i]);
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_DOFIND");
+    fprintf(fp, NAME_FORMAT, "MAP_IDOF2DOF");
     for (int i = 0; i < m->nv; i++) {
-      fprintf(fp, " %d", d->island_dofind[i]);
-    }
-    fprintf(fp, "\n\n");
+      int dof = d->map_idof2dof[i];
+      if (i > 0) {
+        int dofprev = d->map_idof2dof[i-1];
 
-    fprintf(fp, NAME_FORMAT, "DOF_ISLANDIND");
-    for (int i = 0; i < m->nv; i++) {
-      fprintf(fp, " %d", d->dof_islandind[i]);
+        // print '|' at island boundaries
+        if (d->dof_island[dof] != d->dof_island[dofprev]) {
+          fprintf(fp, " |");
+        }
+      }
+      fprintf(fp, " %d", dof);
     }
     fprintf(fp, "\n\n");
 
@@ -1423,21 +1394,30 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_EFCNUM");
+    fprintf(fp, NAME_FORMAT, "ISLAND_NEFC");
     for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_efcnum[i]);
+      fprintf(fp, " %d", d->island_nefc[i]);
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_EFCADR");
+    fprintf(fp, NAME_FORMAT, "ISLAND_IEFCADR");
     for (int i = 0; i < d->nisland; i++) {
-      fprintf(fp, " %d", d->island_efcadr[i]);
+      fprintf(fp, " %d", d->island_iefcadr[i]);
     }
     fprintf(fp, "\n\n");
 
-    fprintf(fp, NAME_FORMAT, "ISLAND_EFCIND");
+    fprintf(fp, NAME_FORMAT, "MAP_IEFC2EFC");
     for (int i = 0; i < d->nefc; i++) {
-      fprintf(fp, " %d", d->island_efcind[i]);
+      int efc = d->map_iefc2efc[i];
+      if (i > 0) {
+        int efcprev = d->map_iefc2efc[i-1];
+
+        // print '|' at island boundaries
+        if (d->efc_island[efc] != d->efc_island[efcprev]) {
+          fprintf(fp, " |");
+        }
+      }
+      fprintf(fp, " %d", efc);
     }
     fprintf(fp, "\n\n");
   }

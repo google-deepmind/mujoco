@@ -448,7 +448,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 200
      - The number of iterations where solver statistics can be stored in ``mjData.solver``. This array is used
        to store diagnostic information about each iteration of the constraint solver.
-       The actual number of iterations is given by ``mjData.solver_iter``.
+       The actual number of iterations is given by ``mjData.solver_niter``.
    * - ``mjNISLAND``
      - 20
      - The number of islands for which solver statistics can be stored in ``mjData.solver``. This array is
@@ -517,7 +517,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - Maximum number of UI rectangles.
        Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjVERSION_HEADER``
-     - 331
+     - 333
      - The version of the MuJoCo headers; changes with every release. This is an integer equal to 100x the software
        version, so 210 corresponds to version 2.1. Defined in  mujoco.h. The API function :ref:`mj_version` returns a
        number with the same meaning but for the compiled library.

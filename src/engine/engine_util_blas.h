@@ -223,6 +223,10 @@ MJAPI void mju_mulMatMatT(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
 MJAPI void mju_mulMatTMat(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
                           int r1, int c1, int c2);
 
+// compute M'*diag*M (diag=NULL: compute M'*M), upper triangle optional
+void mju_sqrMatTD_impl(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, int nc,
+                       int flg_upper);
+
 // compute M'*diag*M (diag=NULL: compute M'*M)
 MJAPI void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, int nc);
 

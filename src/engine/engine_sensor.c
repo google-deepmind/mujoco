@@ -698,8 +698,8 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 // acceleration/force-dependent sensors
 void mj_sensorAcc(const mjModel* m, mjData* d) {
   int rootid, bodyid, objtype, objid, adr, nusersensor = 0;
-  int ne = d->ne, nf = d->nf, nefc = d->nefc;
-  mjtNum tmp[6], conforce[6], conray[3];
+  int ne = d->ne, nf = d->nf, nefc = d->nefc, nu = m->nu;
+  mjtNum tmp[6], conforce[6], conray[3], frc;
   mjContact* con;
 
   // disabled sensors: return
@@ -825,6 +825,16 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
         d->sensordata[adr] = d->qfrc_actuator[m->jnt_dofadr[objid]];
         break;
 
+      case mjSENS_TENDONACTFRC:  // tendonactfrc
+        frc = 0.0;
+        for (int j=0; j < nu; j++) {
+          if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == objid) {
+            frc += d->actuator_force[j];
+          }
+        }
+        d->sensordata[adr] = frc;
+        break;
+
       case mjSENS_JOINTLIMITFRC:                          // jointlimitfrc
         d->sensordata[adr] = 0;
         for (int j=ne+nf; j < nefc; j++) {
@@ -928,9 +938,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
 
       switch ((mjtJoint) m->jnt_type[i]) {
       case mjJNT_FREE:
-        mju_copy4(quat, d->qpos+padr);
-        mju_normalize4(quat);
-        mju_sub3(dif, quat, m->qpos_spring+padr);
+        mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
         d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
 
         // continue with rotations
@@ -938,7 +946,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
         mjFALLTHROUGH;
 
       case mjJNT_BALL:
-        // covert quatertion difference into angular "velocity"
+        // convert quaternion difference into angular "velocity"
         mju_copy4(quat, d->qpos+padr);
         mju_normalize4(quat);
         mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);

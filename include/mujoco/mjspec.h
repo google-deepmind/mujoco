@@ -23,6 +23,7 @@
 // this is a C-API
 #ifdef __cplusplus
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -119,6 +120,7 @@ typedef enum mjtOrientation_ {     // type of orientation specifier
 
 typedef struct mjsElement_ {       // element type, do not modify
   mjtObj elemtype;                 // element type
+  uint64_t signature;              // compilation signature
 } mjsElement;
 
 
@@ -136,6 +138,7 @@ typedef struct mjsCompiler_ {      // compiler options
   mjtByte fusestatic;              // fuse static bodies with parent
   int inertiafromgeom;             // use geom inertias (mjtInertiaFromGeom)
   int inertiagrouprange[2];        // range of geom groups used to compute inertia
+  mjtByte saveinertial;            // save explicit inertial clause for all bodies to XML
   int alignfree;                   // align free joints with inertial frame
   mjLROpt LRopt;                   // options for lengthrange computation
 } mjsCompiler;
@@ -391,9 +394,12 @@ typedef struct mjsLight_ {         // light specification
 
   // intrinsics
   mjtByte active;                  // is light active
-  mjtByte directional;             // is light directional or spot
+  mjtLightType type;               // type of light
+  mjString* texture;               // texture name for image lights
   mjtByte castshadow;              // does light cast shadows
-  double bulbradius;               // bulb radius, for soft shadows
+  float bulbradius;                // bulb radius, for soft shadows
+  float intensity;                 // intensity, in candelas
+  float range;                     // range of effectiveness
   float attenuation[3];            // OpenGL attenuation (quadratic model)
   float cutoff;                    // OpenGL cutoff
   float exponent;                  // OpenGL exponent
@@ -427,7 +433,8 @@ typedef struct mjsFlex_ {          // flex specification
   double radius;                   // radius around primitive element
   mjtByte internal;                // enable internal collisions
   mjtByte flatskin;                // render flex skin with flat shading
-  int selfcollide;                 // mode for flex self colllision
+  int selfcollide;                 // mode for flex self collision
+  int vertcollide;                 // mode for vertex collision
   int activelayers;                // number of active element layers in 3D
   int group;                       // group for visualizatioh
   double edgestiffness;            // edge stiffness
@@ -438,6 +445,7 @@ typedef struct mjsFlex_ {          // flex specification
   double poisson;                  // Poisson's ratio
   double damping;                  // Rayleigh's damping
   double thickness;                // thickness (2D only)
+  int elastic2d;                   // 2D passive forces; 0: none, 1: bending, 2: stretching, 3: both
 
   // mesh properties
   mjStringVec* nodebody;           // node body names
@@ -518,6 +526,7 @@ typedef struct mjsTexture_ {       // texture specification
   mjsElement* element;             // element type
   mjString* name;                  // name
   mjtTexture type;                 // texture type
+  mjtColorSpace colorspace;        // colorspace
 
   // method 1: builtin
   int builtin;                     // builtin type (mjtBuiltin)
@@ -614,17 +623,20 @@ typedef struct mjsTendon_ {        // tendon specification
   mjsElement* element;             // element type
   mjString* name;                  // name
 
-  // stiffness, damping, friction
+  // stiffness, damping, friction, armature
   double stiffness;                // stiffness coefficient
   double springlength[2];          // spring resting length; {-1, -1}: use qpos_spring
   double damping;                  // damping coefficient
   double frictionloss;             // friction loss
   mjtNum solref_friction[mjNREF];  // solver reference: tendon friction
   mjtNum solimp_friction[mjNIMP];  // solver impedance: tendon friction
+  double armature;                 // inertia associated with tendon velocity
 
   // length range
   int limited;                     // does tendon have limits (mjtLimited)
+  int actfrclimited;               // does tendon have actuator force limits
   double range[2];                 // length limits
+  double actfrcrange[2];           // actuator force limits
   double margin;                   // margin value for tendon limit detection
   mjtNum solref_limit[mjNREF];     // solver reference: tendon limits
   mjtNum solimp_limit[mjNIMP];     // solver impedance: tendon limits

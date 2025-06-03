@@ -2070,6 +2070,51 @@ TEST_F(TendonTest, SiteBetweenPulleyNotAllowed) {
   EXPECT_THAT(error.data(), HasSubstr("line 9"));
 }
 
+TEST_F(TendonTest, ActuatorForceRangeNotAllowed) {
+  std::string xml = R"(
+  <mujoco>
+    <worldbody>
+      <site name="site0"/>
+      <site name="site1"/>
+    </worldbody>
+    <tendon>
+      <spatial name="spatial" actuatorfrclimited="true" actuatorfrcrange="{}">
+        <site site="site0"/>
+        <site site="site1"/>
+      </spatial>
+    </tendon>
+    <actuator>
+      <motor tendon="spatial"/>
+    </actuator>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  std::string str_replace = "{}";
+  size_t rng_ind = xml.find(str_replace);
+
+  std::string xml0 = xml;
+  std::string range0 = "-2 -1";
+  xml0.replace(rng_ind, str_replace.length(), range0);
+  mjModel* m0 = LoadModelFromString(xml0.c_str(), error.data(), error.size());
+  EXPECT_THAT(m0, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+
+  std::string xml1 = xml;
+  std::string range1 = "1 2";
+  xml1.replace(rng_ind, str_replace.length(), range1);
+  mjModel* m1 = LoadModelFromString(xml1.c_str(), error.data(), error.size());
+  EXPECT_THAT(m1, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+
+  std::string xml2 = xml;
+  std::string range2 = "1 0";
+  xml2.replace(rng_ind, str_replace.length(), range2);
+  mjModel* m2 = LoadModelFromString(xml2.c_str(), error.data(), error.size());
+  EXPECT_THAT(m2, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("invalid actuatorfrcrange in tendon"));
+}
+
 // ------------- tests for tendon springrange ----------------------------------
 
 using SpringrangeTest = MujocoTest;
@@ -2246,6 +2291,29 @@ TEST_F(UserObjectsTest, FrameTransformsLight) {
   EXPECT_NEAR(m->light_dir[1], 0, eps);
   EXPECT_NEAR(m->light_dir[2], -1, eps);
 
+  mj_deleteModel(m);
+}
+
+TEST_F(ContentTypeTest, ImageLightsReferenceTexture) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" type="cube" builtin="flat" mark="cross" width="8"
+       rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1"/>
+    </asset>
+
+    <worldbody>
+      <light type="image" texture="texture"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull());
+  EXPECT_EQ(m->ntex, 1);
+  EXPECT_EQ(m->nlight, 1);
+  EXPECT_THAT(m->light_texid[0], 0);
   mj_deleteModel(m);
 }
 
@@ -2508,7 +2576,8 @@ TEST_F(UserObjectsTest, Inertial) {
   mjtNum quat[4];
   const mjtNum euler[3] = {3, 4, 5};
   mju_euler2Quat(quat, euler, "xyz");
-  EXPECT_EQ(AsVector(m->body_iquat+4, 4), AsVector(quat, 4));
+  EXPECT_THAT(AsVector(m->body_iquat+4, 4),
+              Pointwise(DoubleNear(1e-8), AsVector(quat, 4)));
 
   EXPECT_EQ(m->body_mass[2], 2);
   EXPECT_THAT(AsVector(m->body_ipos+6, 3), ElementsAre(1, 2, 3));

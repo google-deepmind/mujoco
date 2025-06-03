@@ -15,6 +15,7 @@
 // Tests for xml/xml_native_reader.cc.
 
 #include <array>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <string>
@@ -1148,6 +1149,88 @@ TEST_F(XMLReaderTest, ParsePolycoef) {
   mj_deleteModel(m);
 }
 
+TEST_F(XMLReaderTest, TendonArmature) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="a"/>
+      <body pos="1 0 0">
+        <joint name="slide" type="slide"/>
+        <geom size=".1"/>
+        <site name="b"/>
+      </body>
+    </worldbody>
+
+    <tendon>
+      <spatial armature="1.5">
+        <site site="a"/>
+        <site site="b"/>
+      </spatial>
+      <fixed armature="2.5">
+        <joint joint="slide" coef="1"/>
+      </fixed>
+      <fixed>
+        <joint joint="slide" coef="2"/>
+      </fixed>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  EXPECT_EQ(m->ntendon, 3);
+  EXPECT_FLOAT_EQ(m->tendon_armature[0], 1.5);
+  EXPECT_FLOAT_EQ(m->tendon_armature[1], 2.5);
+  EXPECT_FLOAT_EQ(m->tendon_armature[2], 0);
+  mj_deleteModel(m);
+}
+
+TEST_F(XMLReaderTest, TendonArmatureNegative) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="a"/>
+      <site name="b" pos="1 0 0"/>
+    </worldbody>
+
+    <tendon>
+      <spatial armature="-1.5">
+        <site site="a"/>
+        <site site="b"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("tendon armature cannot be negative"));
+}
+
+TEST_F(XMLReaderTest, TendonArmatureGeomWrap) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <site name="a"/>
+      <geom name="g" type="sphere" size=".1"/>
+      <site name="b" pos="1 0 0"/>
+    </worldbody>
+
+    <tendon>
+      <spatial armature="1.5">
+        <site site="a"/>
+        <geom geom="g"/>
+        <site site="b"/>
+      </spatial>
+    </tendon>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("geom wrapping not supported"));
+}
+
 // ------------------------ test frame parsing ---------------------------------
 TEST_F(XMLReaderTest, ParseFrame) {
   static constexpr char xml[] = R"(
@@ -1447,6 +1530,67 @@ TEST_F(XMLReaderTest, ParseReplicateRepeatedName) {
   EXPECT_THAT(spec, IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'b' in actuator"));
   EXPECT_THAT(error.data(), HasSubstr("Element 'replicate'"));
+}
+
+TEST_F(XMLReaderTest, RepeatedPrefix) {
+  static constexpr char parent[] = R"(
+  <mujoco>
+    <asset>
+      <model name="1" file="child_1.xml" content_type="text/xml" />
+      <model name="2" file="child_2.xml" content_type="text/xml" />
+    </asset>
+
+    <worldbody>
+      <attach model="1" body="1" prefix="prefix-"/>
+      <replicate count="1">
+        <attach model="2" body="2" prefix="prefix-"/>
+      </replicate>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char child_1[] = R"(
+  <mujoco>
+    <asset>
+      <model name="2" file="child_2.xml" content_type="text/xml"/>
+    </asset>
+
+    <worldbody>
+      <body name="1">
+        <body name="2">
+          <attach model="2" body="2" prefix="prefix2"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  static constexpr char child_2[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="2"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "child_1.xml", child_1, sizeof(child_1));
+  mj_addBufferVFS(vfs.get(), "child_2.xml", child_2, sizeof(child_2));
+
+  std::array<char, 1024> err;
+  mjSpec* c2 = mj_parseXMLString(child_2, 0, err.data(), err.size());
+  EXPECT_THAT(c2, NotNull()) << err.data();
+  mjSpec* c1 = mj_parseXMLString(child_1, vfs.get(), err.data(), err.size());
+  EXPECT_THAT(c1, NotNull()) << err.data();
+  mj_deleteSpec(c1);
+  mj_deleteSpec(c2);
+
+  mjSpec* spec = mj_parseXMLString(parent, vfs.get(), err.data(), err.size());
+  EXPECT_THAT(spec, IsNull());
+  EXPECT_THAT(err.data(), HasSubstr("mismatched parents"));
+  mj_deleteSpec(spec);
+  mj_deleteVFS(vfs.get());
 }
 
 TEST_F(XMLReaderTest, ParseReplicateExcludeTendon) {
@@ -1801,7 +1945,7 @@ TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
-TEST_F(XMLReaderTest, CameraPricipalRequiresSensorsize) {
+TEST_F(XMLReaderTest, CameraPrincipalRequiresSensorsize) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>

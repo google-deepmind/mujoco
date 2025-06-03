@@ -23,6 +23,7 @@
 #include <optional>
 #include <ratio>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -129,8 +130,15 @@ class Simulate {
   std::vector<mjtNum> ctrl_;
   std::vector<mjtNum> ctrl_prev_;
 
-  mjvSceneState scnstate_;
+  // in passive mode the user owns m_ and d_, these "passive" instances are
+  // owned by Simulate, updated from the user by the Sync() method
+  mjModel* m_passive_ = nullptr;
+  mjData* d_passive_ = nullptr;
+  std::vector<mjvGeom> user_scn_geoms_;
+
   mjOption mjopt_prev_;
+  mjVisual mjvis_prev_;
+  mjStatistic mjstat_prev_;
   mjvOption opt_prev_;
   mjvCamera cam_prev_;
 
@@ -144,7 +152,8 @@ class Simulate {
     std::optional<std::string> print_data;
     bool reset;
     bool align;
-    bool copy_pose;
+    bool copy_key;
+    bool copy_key_full_precision;
     bool load_from_history;
     bool load_key;
     bool save_key;
@@ -155,6 +164,7 @@ class Simulate {
     bool ui_update_simulation;
     bool ui_update_physics;
     bool ui_update_rendering;
+    bool ui_update_visualization;
     bool ui_update_joint;
     bool ui_update_ctrl;
     bool ui_remake_ctrl;
@@ -196,6 +206,9 @@ class Simulate {
   std::atomic_int droploadrequest = 0;
   std::atomic_int screenshotrequest = 0;
   std::atomic_int uiloadrequest = 0;
+  std::atomic_int newfigurerequest = 0;
+  std::atomic_int newtextrequest = 0;
+  std::atomic_int newimagerequest = 0;
 
   // loadrequest
   //   3: display a loading message
@@ -249,10 +262,15 @@ class Simulate {
   mjvFigure figsize = {};
   mjvFigure figsensor = {};
 
-  // additional user-defined visualization geoms (used in passive mode)
+  // additional user-defined visualization
   mjvScene* user_scn = nullptr;
   mjtByte user_scn_flags_prev_[mjNRNDFLAG];
   std::vector<std::pair<mjrRect, mjvFigure>> user_figures_;
+  std::vector<std::pair<mjrRect, mjvFigure>> user_figures_new_;
+  std::vector<std::tuple<int, int, std::string, std::string>> user_texts_;
+  std::vector<std::tuple<int, int, std::string, std::string>> user_texts_new_;
+  std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_;
+  std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_new_;
 
   // OpenGL rendering and UI
   int refresh_rate = 60;
@@ -293,7 +311,7 @@ class Simulate {
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
     {mjITEM_BUTTON,    "Reload",        5, nullptr,              "CL"},
     {mjITEM_BUTTON,    "Align",         2, nullptr,              "CA"},
-    {mjITEM_BUTTON,    "Copy pose",     2, nullptr,              "CC"},
+    {mjITEM_BUTTON,    "Copy state",    2, nullptr,              "CC"},
     {mjITEM_SLIDERINT, "Key",           3, &this->key,           "0 0"},
     {mjITEM_BUTTON,    "Load key",      3},
     {mjITEM_BUTTON,    "Save key",      3},

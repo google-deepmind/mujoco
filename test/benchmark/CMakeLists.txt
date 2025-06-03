@@ -16,7 +16,7 @@
 mujoco_test(
   ccd_benchmark_test
   MAIN_TARGET benchmark::benchmark_main
-  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers
+  ADDITIONAL_LINK_LIBRARIES benchmark::benchmark absl::core_headers ccd
 )
 
 mujoco_test(

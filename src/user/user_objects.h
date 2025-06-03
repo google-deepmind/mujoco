@@ -253,6 +253,9 @@ class mjCBase : public mjCBase_ {
   // Copy plugins instantiated in this object
   virtual void CopyPlugin() {}
 
+  // Returns parent of this object
+  virtual mjCBase* GetParent() const { return nullptr; }
+
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
 
@@ -278,7 +281,8 @@ class mjCBase : public mjCBase_ {
   }
 
   // Set and get user payload
-  void SetUserValue(std::string_view key, const void* data);
+  void SetUserValue(std::string_view key, const void* data,
+                    void (*cleanup)(const void*));
   const void* GetUserValue(std::string_view key);
   void DeleteUserValue(std::string_view key);
 
@@ -289,8 +293,44 @@ class mjCBase : public mjCBase_ {
   // reference count for allowing deleting an attached object
   int refcount = 1;
 
+  // Arbitrary user value that cleans up the data when destroyed.
+  struct UserValue {
+    const void* value = nullptr;
+    void (*cleanup)(const void*) = nullptr;
+
+    UserValue() {}
+    UserValue(const void* value, void (*cleanup)(const void*))
+        : value(value), cleanup(cleanup) {}
+    UserValue(const UserValue& other) = delete;
+    UserValue& operator=(const UserValue& other) = delete;
+
+    UserValue(UserValue&& other) : value(other.value), cleanup(other.cleanup) {
+      other.value = nullptr;
+      other.cleanup = nullptr;
+    }
+
+    UserValue& operator=(UserValue&& other) {
+      if (this != &other) {
+        if (cleanup && value) {
+          cleanup(value);
+        }
+        value = other.value;
+        cleanup = other.cleanup;
+        other.value = nullptr;
+        other.cleanup = nullptr;
+      }
+      return *this;
+    }
+
+    ~UserValue() {
+      if (cleanup && value) {
+        cleanup(value);
+      }
+    }
+  };
+
   // user payload
-  std::unordered_map<std::string, const void*> user_payload_;
+  std::unordered_map<std::string, UserValue> user_payload_;
 };
 
 
@@ -421,6 +461,10 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // getters
   std::vector<mjCBody*> Bodies() const { return bodies; }
+
+  // accumulate inertia of another body into this body, if `result` is not nullptr, the accumulated
+  // inertia will be stored in `result`, otherwise the body's private spec will be used.
+  void AccumulateInertia(const mjsBody* other, mjsBody* result = nullptr);
 
  private:
   mjCBody(const mjCBody& other, mjCModel* _model);  // copy constructor
@@ -753,6 +797,9 @@ class mjCLight_ : public mjCBase {
  protected:
   mjCBody* body;                  // light's body
   int targetbodyid;               // id of target body; -1: none
+  int texid;                      // id of texture; -1: none
+  std::string texture_;
+  std::string spec_texture_;
   std::string targetbody_;
   std::string spec_targetbody_;
 };
@@ -774,6 +821,7 @@ class mjCLight : public mjCLight_, private mjsLight {
 
   // used by mjXWriter and mjCModel
   const std::string& get_targetbody() const { return targetbody_; }
+  const std::string& get_texture() const { return texture_; }
 
   void SetParent(mjCBody* _body) { body = _body; }
   mjCBody* GetParent() const { return body; }
@@ -789,6 +837,11 @@ class mjCLight : public mjCLight_, private mjsLight {
 
 //------------------------- class mjCFlex ----------------------------------------------------------
 // Describes a flex
+
+struct StencilFlap {
+  static constexpr int kNumVerts = 4;
+  int vertices[kNumVerts];
+};
 
 class mjCFlex_ : public mjCBase {
  protected:
@@ -806,11 +859,13 @@ class mjCFlex_ : public mjCBase {
   std::vector<int> shell;                 // shell fragment vertex ids (dim per fragment)
   std::vector<int> elemlayer;             // element layer (distance from border)
   std::vector<int> evpair;                // element-vertex pairs
+  std::vector<StencilFlap> flaps;         // adjacent triangles
   std::vector<double> vertxpos;           // global vertex positions
   mjCBoundingVolumeHierarchy tree;        // bounding volume hierarchy
   std::vector<double> elemaabb_;          // element bounding volume
   std::vector<int> edgeidx_;              // element edge ids
   std::vector<double> stiffness;          // elasticity stiffness matrix
+  std::vector<double> bending;            // bending stiffness matrix
 
   // variable-size data
   std::vector<std::string> vertbody_;     // vertex body names
@@ -1281,14 +1336,17 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
 
   void LoadFlip(std::string filename, const mjVFS* vfs,         // load and flip
                 std::vector<unsigned char>& image,
-                unsigned int& w, unsigned int& h);
+                unsigned int& w, unsigned int& h, bool& is_srgb);
 
   void LoadPNG(mjResource* resource,
                std::vector<unsigned char>& image,
-               unsigned int& w, unsigned int& h);
+               unsigned int& w, unsigned int& h, bool& is_srgb);
+  void LoadKTX(mjResource* resource,
+               std::vector<unsigned char>& image,
+               unsigned int& w, unsigned int& h, bool& is_srgb);
   void LoadCustom(mjResource* resource,
                   std::vector<unsigned char>& image,
-                  unsigned int& w, unsigned int& h);
+                  unsigned int& w, unsigned int& h, bool& is_srgb);
 
   bool clear_data_;  // if true, data_ is empty and should be filled by Compile
 };
@@ -1520,6 +1578,7 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
   void SetModel(mjCModel* _model);
 
   bool is_limited() const;
+  bool is_actfrclimited() const;
 
  private:
   void Compile(void);                         // compiler
@@ -1583,6 +1642,9 @@ class mjCPlugin : public mjCPlugin_ {
   mjCPlugin(mjCModel*);
   mjCPlugin(const mjCPlugin& other);
   mjCPlugin& operator=(const mjCPlugin& other);
+
+  void PointToLocal();
+
   mjsPlugin spec;
   mjCBase* parent;  // parent object (only used when generating error message)
   int plugin_slot;  // global registered slot number of the plugin

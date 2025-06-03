@@ -132,6 +132,8 @@ def _nvmap(f: Callable[..., Y], *args) -> Y:
 
 def _check_input(m: Model, args: Any, in_types: str) -> None:
   """Checks that scan input has the right shape."""
+  if m.nv == 0:
+    raise ValueError('Scan across Model with zero DoFs unsupported.')
   size = {
       'b': m.nbody,
       'j': m.njnt,

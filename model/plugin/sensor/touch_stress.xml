@@ -1,0 +1,64 @@
+<mujoco model="touchtest">
+  <compiler autolimits="true"/>
+
+  <extension>
+    <plugin plugin="mujoco.sdf.gear">
+      <instance name="gear">
+        <config key="alpha" value="0"/>
+      </instance>
+    </plugin>
+    <plugin plugin="mujoco.sensor.touch_stress">
+      <instance name="touch_stress">
+        <config key="size" value="37 37"/>
+        <config key="fov" value="45 45"/>
+        <config key="gamma" value="0"/>
+        <config key="nchannel" value="3"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4"
+             width="300" height="300" mark="edge" markrgb=".2 .3 .4"/>
+    <material name="grid" texture="grid" texrepeat="3 1" texuniform="true"/>
+    <mesh name="gear">
+      <plugin instance="gear"/>
+    </mesh>
+  </asset>
+
+  <visual>
+      <headlight ambient=".7 .7 .7" diffuse=".2 .2 .2" specular="0.1 0.1 0.1"/>
+      <map znear="0.01"/>
+      <scale contactwidth=".02" contactheight=".5"/>
+  </visual>
+
+  <default>
+    <geom friction="0.4" solimp="0 0.95 0.02"/>
+  </default>
+
+  <statistic center="0 0 1" extent="1" meansize=".1"/>
+
+  <worldbody>
+    <light pos="1 0 .3" dir="-1 0 -.3"/>
+    <light pos="-1 0 .3" dir="1 0 -.3"/>
+    <geom name="floor" pos="0 0 -0.01" type="plane" size="3 3 .01"/>
+
+    <geom type="sdf" name="gear" mesh="gear" rgba="0.4 0.4 0.4 1" pos="-1.3 0 0">
+      <plugin instance="gear"/>
+    </geom>
+
+    <body name="ball" pos="0 0 1">
+      <joint name="x" type="slide" axis="1 0 0" damping="1"/>
+      <joint name="y" type="slide" axis="0 1 0" damping="1"/>
+      <joint name="z" type="slide" axis="0 0 1"/>
+      <joint name="rx" axis="1 0 0" springdamper="0.2 1"/>
+      <joint name="ry" axis="0 1 0" springdamper="0.2 1"/>
+      <geom type="sphere" size=".3" mass="0.1" rgba=".5 .5 .5 .3"/>
+      <site name="touch"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <plugin instance="touch_stress" objtype="site" objname="touch"/>
+  </sensor>
+</mujoco>

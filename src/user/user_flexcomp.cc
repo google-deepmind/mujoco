@@ -33,6 +33,7 @@
 #include "engine/engine_util_errmem.h"
 #include "user/user_flexcomp.h"
 #include <mujoco/mjspec.h>
+#include "user/user_api.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_resource.h"
@@ -459,6 +460,14 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
       // add new body at vertex coordinates
       mjsBody* pb = mjs_addBody(body, 0);
 
+      // add geom if vertcollide
+      if (dflex->vertcollide) {
+        mjsGeom* geom = mjs_addGeom(pb, 0);
+        geom->type = mjGEOM_SPHERE;
+        geom->size[0] = dflex->radius;
+        geom->group = 4;
+      }
+
       // set frame and inertial
       pb->pos[0] = point[3*i];
       pb->pos[1] = point[3*i+1];
@@ -543,6 +552,13 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
           pb->inertia[1] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
           pb->inertia[2] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
           pb->explicitinertial = true;
+
+          // add geom if vertcollide
+          if (dflex->vertcollide) {
+            mjsGeom* geom = mjs_addGeom(pb, 0);
+            geom->type = mjGEOM_SPHERE;
+            geom->size[0] = dflex->radius;
+          }
 
           for (int d=0; d < 3; d++) {
             mjsJoint* jnt = mjs_addJoint(pb, 0);
@@ -1165,6 +1181,11 @@ void mjCFlexcomp::LoadGMSH41(char* buffer, int binary, int nodeend,
     // require single block
     if (numEntityBlocks != 1 || numNodes != numNodesInBlock) {
       throw mjCError(NULL, "All nodes must be in single block");
+    }
+
+    // require maximum number of nodes be equal to maximum number of nodes in a block
+    if (maxNodeTag != numNodesInBlock){
+      throw mjCError(NULL, "Maximum number of nodes must be equal to number of nodes in a block");
     }
 
     // check dimensionality and save

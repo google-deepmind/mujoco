@@ -22,6 +22,7 @@ from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import collision_driver
 from mujoco.mjx._src import constraint
+from mujoco.mjx._src import derivative
 from mujoco.mjx._src import math
 from mujoco.mjx._src import passive
 from mujoco.mjx._src import scan
@@ -32,12 +33,15 @@ from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import BiasType
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import DynType
 from mujoco.mjx._src.types import GainType
 from mujoco.mjx._src.types import IntegratorType
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
+from mujoco.mjx._src.types import TrnType
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -79,10 +83,13 @@ def fwd_position(m: Model, d: Data) -> Data:
 @named_scope
 def fwd_velocity(m: Model, d: Data) -> Data:
   """Velocity-dependent computations."""
-  d = d.replace(
-      actuator_velocity=d.actuator_moment @ d.qvel,
-      ten_velocity=d.ten_J @ d.qvel,
-  )
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('fwd_velocity requires JAX backend implementation.')
+
+  d = d.tree_replace({
+      '_impl.actuator_velocity': d._impl.actuator_moment @ d.qvel,
+      '_impl.ten_velocity': d._impl.ten_J @ d.qvel,
+  })
   d = smooth.com_vel(m, d)
   d = passive.passive(m, d)
   d = smooth.rne(m, d)
@@ -171,13 +178,41 @@ def fwd_actuation(m: Model, d: Data) -> Data:
       m.actuator_gainprm,
       m.actuator_biastype,
       m.actuator_biasprm,
-      d.actuator_length,
-      d.actuator_velocity,
+      d._impl.actuator_length,
+      d._impl.actuator_velocity,
       ctrl_act,
       jp.array(m.actuator_lengthrange),
       jp.array(m.actuator_acc0),
       group_by='u',
   )
+
+  # tendon total force clamping
+  if np.any(m.tendon_actfrclimited):
+    (tendon_actfrclimited_id,) = np.nonzero(m.tendon_actfrclimited)
+    actuator_tendon = m.actuator_trntype == TrnType.TENDON
+
+    force_mask = [
+        actuator_tendon & (m.actuator_trnid[:, 0] == tendon_id)
+        for tendon_id in tendon_actfrclimited_id
+    ]
+    force_ids = np.concatenate([np.nonzero(mask)[0] for mask in force_mask])
+    force_mat = np.array(force_mask)[:, force_ids]
+    tendon_total_force = force_mat @ force[force_ids]
+
+    force_scaling = jp.where(
+        tendon_total_force < m.tendon_actfrcrange[tendon_actfrclimited_id, 0],
+        m.tendon_actfrcrange[tendon_actfrclimited_id, 0] / tendon_total_force,
+        1,
+    )
+    force_scaling = jp.where(
+        tendon_total_force > m.tendon_actfrcrange[tendon_actfrclimited_id, 1],
+        m.tendon_actfrcrange[tendon_actfrclimited_id, 1] / tendon_total_force,
+        force_scaling,
+    )
+
+    tendon_forces = force[force_ids] * (force_mat.T @ force_scaling)
+    force = force.at[force_ids].set(tendon_forces)
+
   forcerange = jp.where(
       m.actuator_forcelimited[:, None],
       m.actuator_forcerange,
@@ -185,7 +220,7 @@ def fwd_actuation(m: Model, d: Data) -> Data:
   )
   force = jp.clip(force, forcerange[:, 0], forcerange[:, 1])
 
-  qfrc_actuator = d.actuator_moment.T @ force
+  qfrc_actuator = d._impl.actuator_moment.T @ force
 
   if m.ngravcomp:
     # actuator-level gravity compensation, skip if added as passive force
@@ -301,13 +336,17 @@ def _advance(
 @named_scope
 def euler(m: Model, d: Data) -> Data:
   """Euler integrator, semi-implicit in velocity."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('euler requires JAX backend implementation.')
+
   # integrate damping implicitly
   qacc = d.qacc
   if not m.opt.disableflags & DisableBit.EULERDAMP:
     if support.is_sparse(m):
-      dh = d.replace(qM=d.qM.at[m.dof_Madr].add(m.opt.timestep * m.dof_damping))
+      qM = d._impl.qM.at[m.dof_Madr].add(m.opt.timestep * m.dof_damping)
     else:
-      dh = d.replace(qM=d.qM + jp.diag(m.opt.timestep * m.dof_damping))
+      qM = d._impl.qM + jp.diag(m.opt.timestep * m.dof_damping)
+    dh = d.tree_replace({'_impl.qM': qM})
     dh = smooth.factor_m(m, dh)
     qfrc = d.qfrc_smooth + d.qfrc_constraint
     qacc = smooth.solve_m(m, dh, qfrc)
@@ -317,7 +356,7 @@ def euler(m: Model, d: Data) -> Data:
 @named_scope
 def rungekutta4(m: Model, d: Data) -> Data:
   """Runge-Kutta explicit order 4 integrator."""
-  d_t0 = d
+  d0 = d
   # pylint: disable=invalid-name
   A, B = _RK4_A, _RK4_B
   C = jp.tril(A).sum(axis=0)  # C(i) = sum_j A(i,j)
@@ -338,9 +377,9 @@ def rungekutta4(m: Model, d: Data) -> Data:
         lambda k: a * k, (kqvel, d.qacc, d.act_dot)
     )
     # get intermediate RK solutions
-    kqpos = scan.flat(m, integrate_fn, 'jqv', 'q', m.jnt_type, d_t0.qpos, dqvel)
-    kact = d_t0.act + dact_dot * m.opt.timestep
-    kqvel = d_t0.qvel + dqacc * m.opt.timestep
+    kqpos = scan.flat(m, integrate_fn, 'jqv', 'q', m.jnt_type, d0.qpos, dqvel)
+    kact = d0.act + dact_dot * m.opt.timestep
+    kqvel = d0.qvel + dqacc * m.opt.timestep
     d = d.replace(qpos=kqpos, qvel=kqvel, act=kact, time=t)
     d = forward(m, d)
 
@@ -352,44 +391,25 @@ def rungekutta4(m: Model, d: Data) -> Data:
 
   abt = jp.vstack([jp.diag(A), B[1:4], T]).T
   out, _ = jax.lax.scan(f, (qvel, qacc, act_dot, kqvel, d), abt, unroll=3)
-  qvel, qacc, act_dot, *_ = out
+  qvel, qacc, act_dot, _, d1 = out
 
-  d = _advance(m, d_t0, act_dot, qacc, qvel)
+  d = d1.replace(qpos=d0.qpos, qvel=d0.qvel, act=d0.act, time=d0.time)
+  d = _advance(m, d, act_dot, qacc, qvel)
   return d
 
 
 @named_scope
 def implicit(m: Model, d: Data) -> Data:
   """Integrates fully implicit in velocity."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('implicit requires JAX backend implementation.')
 
-  qderiv = None
-
-  # qDeriv += d qfrc_actuator / d qvel
-  if not m.opt.disableflags & DisableBit.ACTUATION:
-    affine_bias = m.actuator_biastype == BiasType.AFFINE
-    bias_vel = m.actuator_biasprm[:, 2] * affine_bias
-    affine_gain = m.actuator_gaintype == GainType.AFFINE
-    gain_vel = m.actuator_gainprm[:, 2] * affine_gain
-    ctrl = d.ctrl.at[m.actuator_dyntype != DynType.NONE].set(d.act)
-    vel = bias_vel + gain_vel * ctrl
-    qderiv = d.actuator_moment.T @ jp.diag(vel) @ d.actuator_moment
-
-  # qDeriv += d qfrc_passive / d qvel
-  if not m.opt.disableflags & DisableBit.PASSIVE:
-    if qderiv is None:
-      qderiv = -jp.diag(m.dof_damping)
-    else:
-      qderiv -= jp.diag(m.dof_damping)
-    if m.ntendon:
-      qderiv -= d.ten_J.T @ jp.diag(m.tendon_damping) @ d.ten_J
-    # TODO(robotics-simulation): fluid drag model
-    if m.opt.has_fluid_params:
-      raise NotImplementedError('fluid drag not supported for implicitfast')
+  qderiv = derivative.deriv_smooth_vel(m, d)
 
   qacc = d.qacc
   if qderiv is not None:
     # TODO(robotics-simulation): use smooth.factor_m / solve_m here:
-    qm = support.full_m(m, d) if support.is_sparse(m) else d.qM
+    qm = support.full_m(m, d) if support.is_sparse(m) else d._impl.qM
     qm -= m.opt.timestep * qderiv
     qh, _ = jax.scipy.linalg.cho_factor(qm)
     qfrc = d.qfrc_smooth + d.qfrc_constraint
@@ -401,6 +421,9 @@ def implicit(m: Model, d: Data) -> Data:
 @named_scope
 def forward(m: Model, d: Data) -> Data:
   """Forward dynamics."""
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('forward requires JAX backend implementation.')
+
   d = fwd_position(m, d)
   d = sensor.sensor_pos(m, d)
   d = fwd_velocity(m, d)
@@ -409,7 +432,7 @@ def forward(m: Model, d: Data) -> Data:
   d = fwd_acceleration(m, d)
   d = sensor.sensor_acc(m, d)
 
-  if d.efc_J.size == 0:
+  if d._impl.efc_J.size == 0:
     d = d.replace(qacc=d.qacc_smooth)
     return d
 

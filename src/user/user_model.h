@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_USER_USER_MODEL_H_
 
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <string>
@@ -214,7 +215,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCTuple* AddTuple();
   mjCKey* AddKey();
   mjCPlugin* AddPlugin();
-  void AppendSpec(mjSpec* spec);
+
+  // append spec to this model, optionally map compiler options to the appended spec
+  void AppendSpec(mjSpec* spec, const mjsCompiler* compiler = nullptr);
 
   // delete elements marked as discard=true
   template <class T> void Delete(std::vector<T*>& elements,
@@ -247,7 +250,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
-  mjSpec* FindSpec(const mjsCompiler* compiler_) const;             // find spec given mjsCompiler
+  mjSpec* FindSpec(const mjsCompiler* compiler_);                   // find spec given mjsCompiler
   void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
 
   // accessors
@@ -315,9 +318,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // map from default class name to default class pointer
   std::unordered_map<std::string, mjCDef*> def_map;
 
-  // get the spec from which this model was created
-  mjSpec* GetSourceSpec() const;
-
   // set deepcopy flag
   void SetDeepCopy(bool deepcopy) { deepcopy_ = deepcopy; }
 
@@ -328,15 +328,14 @@ class mjCModel : public mjCModel_, private mjSpec {
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
 
-  // spec from which this model was created in copy constructor
-  mjSpec* source_spec_;
-
   // list of active plugins
   std::vector<std::pair<const mjpPlugin*, int>> active_plugins_;
 
+  // make lists of bodies and children
+  void MakeTreeLists(mjCBody* body = nullptr);
+
   // compile phases
   void TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs);
-  void MakeLists(mjCBody* body);        // make lists of bodies, geoms, joints, sites
   void SetNuser();                      // set nuser fields
   void IndexAssets(bool discard);       // convert asset names into indices
   void CheckEmptyNames();               // check empty names
@@ -347,6 +346,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void CopyPaths(mjModel*);             // copy paths, compute path addresses
   void CopyObjects(mjModel*);           // copy objects outside kinematic tree
   void CopyTree(mjModel*);              // copy objects inside kinematic tree
+  void FinalizeSimple(mjModel* m);      // finalize simple bodies/dofs including tendon information
   void CopyPlugins(mjModel*);           // copy plugin data
   int CountNJmom(const mjModel* m);     // compute number of non-zeros in actuator_moment matrix
 
@@ -438,11 +438,17 @@ class mjCModel : public mjCModel_, private mjSpec {
   void MarkPluginInstance(std::unordered_map<std::string, bool>& instances,
                           const std::vector<T*>& list);
 
+  // print the tree of a body
+  std::string PrintTree(const mjCBody* body, std::string indent = "");
+
+  // generate a signature for the model
+  uint64_t Signature();
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
   bool deepcopy_;     // copy objects when attaching
   bool attached_ = false;  // true if model is attached to a parent model
+  std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

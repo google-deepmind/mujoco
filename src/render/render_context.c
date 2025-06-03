@@ -1050,13 +1050,17 @@ static void makeShadow(const mjModel* m, mjrContext* con) {
   }
   glBindFramebuffer(GL_FRAMEBUFFER, con->shadowFBO);
 
-  // create shadow depth texture: in TEXTURE1
+  // Create a shadow depth texture in TEXTURE1 and explicitly select an int24
+  // depth buffer. A depth stencil format is used because that appears to be
+  // more widely supported (MacOS does not support GL_DEPTH_COMPONENT24). Using
+  // a fixed format makes it easier to choose glPolygonOffset parameters that
+  // result in reasonably consistent and artifact free shadows across platforms.
   glGenTextures(1, &con->shadowTex);
   glActiveTexture(GL_TEXTURE1);
   glEnable(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, con->shadowTex);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
-               con->shadowSize, con->shadowSize, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8,
+               con->shadowSize, con->shadowSize, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -1383,15 +1387,20 @@ void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid) {
 
     // assign data
     int type = 0;
+    int internaltype = 0;
     if (m->tex_nchannel[texid] == 3) {
       type = GL_RGB;
+      internaltype = (m->tex_colorspace[texid] == mjCOLORSPACE_SRGB) ? GL_SRGB8_EXT : GL_RGB;
     } else if (m->tex_nchannel[texid] == 4) {
       type = GL_RGBA;
+      internaltype = (m->tex_colorspace[texid] == mjCOLORSPACE_SRGB) ? GL_SRGB8_ALPHA8_EXT : GL_RGBA;
     } else {
       mju_error("Number of channels not supported: %d", m->tex_nchannel[texid]);
     }
-    glTexImage2D(GL_TEXTURE_2D, 0, type, m->tex_width[texid], m->tex_height[texid], 0,
-                 type, GL_UNSIGNED_BYTE, m->tex_data + m->tex_adr[texid]);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, internaltype, m->tex_width[texid],
+                 m->tex_height[texid], 0, type, GL_UNSIGNED_BYTE,
+                 m->tex_data + m->tex_adr[texid]);
 
     // generate mipmaps
     glGenerateMipmap(GL_TEXTURE_2D);

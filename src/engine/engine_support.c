@@ -41,8 +41,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 331
-#define mjVERSIONSTRING "3.3.1"
+ #define mjVERSION 333
+#define mjVERSIONSTRING "3.3.3"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -972,14 +972,9 @@ void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
 
 
 
-// multiply vector by inertia matrix
-void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
-  int nv = m->nv;
-  const mjtNum* M = d->qM;
-  const int* Madr = m->dof_Madr;
-  const int* parentid = m->dof_parentid;
-  const int* simplenum = m->dof_simplenum;
-
+// multiply vector by inertia matrix (implementation)
+void mj_mulM_impl(mjtNum* res, const mjtNum* vec, int nv, const mjtNum* M,
+                  const int* Madr, const int* parentid, const int* simplenum) {
   mju_zero(res, nv);
 
   for (int i=0; i < nv; i++) {
@@ -1031,64 +1026,9 @@ void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) 
 
 
 
-// multiply vector by inertia matrix for one dof island
-void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
-                    int island, int flg_vecunc) {
-  // if no island, call regular function
-  if (island < 0) {
-    mj_mulM(m, d, res, vec);
-    return;
-  }
-
-  // local constants: general
-  const mjtNum* M = d->qM;
-  const int* Madr = m->dof_Madr;
-  const int* parentid = m->dof_parentid;
-  const int* simplenum = m->dof_simplenum;
-
-  // local constants: island specific
-  int ndof = d->island_dofnum[island];
-  const int* dofind = d->island_dofind + d->island_dofadr[island];
-  const int* islandind = d->dof_islandind;
-
-  mju_zero(res, ndof);
-
-  for (int k=0; k < ndof; k++) {
-    // address in full dof vector
-    int i = dofind[k];
-
-    // address in M
-    int adr = Madr[i];
-
-    // diagonal
-    if (flg_vecunc) {
-      res[k] = M[adr]*vec[i];
-    } else {
-      res[k] = M[adr]*vec[k];
-    }
-
-    // simple dof: continue
-    if (simplenum[i]) {
-      continue;
-    }
-
-    // off-diagonal
-    int j = parentid[i];
-    while (j >= 0) {
-      adr++;
-      int l = islandind[j];
-      if (flg_vecunc) {
-        res[k] += M[adr]*vec[j];
-        res[l] += M[adr]*vec[i];
-      } else {
-        res[k] += M[adr]*vec[l];
-        res[l] += M[adr]*vec[k];
-      }
-
-      // advance to parent
-      j = parentid[j];
-    }
-  }
+// multiply vector by inertia matrix
+void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
+  mj_mulM_impl(res, vec, m->nv, d->qM, m->dof_Madr, m->dof_parentid, m->dof_simplenum);
 }
 
 
@@ -1108,7 +1048,7 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
     // non-simple: add off-diagonals
     if (!m->dof_simplenum[i]) {
       int adr = d->M_rowadr[i];
-      res[i] += mju_dotSparse(qLD+adr, vec, d->M_rownnz[i] - 1, d->M_colind+adr, /*flg_unc1=*/0);
+      res[i] += mju_dotSparse(qLD+adr, vec, d->M_rownnz[i] - 1, d->M_colind+adr);
     }
   }
 
@@ -1122,77 +1062,26 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 
 
 // add inertia matrix to destination matrix
-//  destination can be sparse uncompressed, or dense when all int* are NULL
+//  destination can be sparse or dense when all int* are NULL
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
+  int nv = m->nv;
   // sparse
   if (rownnz && rowadr && colind) {
-    int nC = m->nC;
     mj_markStack(d);
+    mjtNum* buf_val = mjSTACKALLOC(d, nv, mjtNum);
+    int* buf_ind = mjSTACKALLOC(d, nv, int);
 
-    // create reduced sparse inertia matrix C
-    mjtNum* C = mjSTACKALLOC(d, nC, mjtNum);
-    for (int i=0; i < nC; i++) {
-      C[i] = d->qM[d->mapM2C[i]];
-    }
+    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
+      d->M, d->M_rownnz, d->M_rowadr, d->M_colind,
+      buf_val, buf_ind);
 
-    mj_addMSparse(m, d, dst, rownnz, rowadr, colind, C,
-                  d->C_rownnz, d->C_rowadr, d->C_colind);
     mj_freeStack(d);
   }
 
   // dense
   else {
-    mj_addMDense(m, d, dst);
-  }
-}
-
-
-
-// add inertia matrix to sparse destination matrix
-void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                   int* rownnz, int* rowadr, int* colind, mjtNum* M,
-                   int* M_rownnz, int* M_rowadr, int* M_colind) {
-  int nv = m->nv;
-
-  mj_markStack(d);
-  int* buf_ind = mjSTACKALLOC(d, nv, int);
-  mjtNum* sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
-
-  // add to destination
-  for (int i=0; i < nv; i++) {
-    rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], 1, 1,
-                                  rownnz[i], M_rownnz[i], colind + rowadr[i],
-                                  M_colind + M_rowadr[i], sparse_buf, buf_ind);
-  }
-  mj_freeStack(d);
-}
-
-
-
-// add inertia matrix to dense destination matrix
-void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst) {
-  int nv = m->nv;
-
-  for (int i = 0; i < nv; i++) {
-    int adr = m->dof_Madr[i];
-    int j = i;
-    while (j >= 0) {
-      // add
-      dst[i*nv+j] += d->qM[adr];
-      if (j < i) {
-        dst[j*nv+i] += d->qM[adr];
-      }
-
-      // only diagonal if simplenum
-      if (m->dof_simplenum[i]) {
-        break;
-      }
-
-      // advance
-      j = m->dof_parentid[j];
-      adr++;
-    }
+    mju_addToSymSparse(dst, d->M, nv, d->M_rownnz, d->M_rowadr, d->M_colind, /*flg_upper=*/ 1);
   }
 }
 

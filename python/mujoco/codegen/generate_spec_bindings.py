@@ -84,6 +84,7 @@ def _value_binding_code(
   fulltype = fulltype.replace('mjOption', 'raw::MjOption')
   fulltype = fulltype.replace('mjVisual', 'raw::MjVisual')
   fulltype = fulltype.replace('mjStatistic', 'raw::MjStatistic')
+  element = '.element' if fullvarname == 'plugin' else ''
 
   def_property_args = (
       f'"{varname}"',
@@ -91,7 +92,7 @@ def _value_binding_code(
         return self.{fullvarname};
       }}""",
       f"""[]({rawclassname}& self, {fulltype} {varname}) {{
-        self.{fullvarname} = {varname};
+        self.{fullvarname}{element} = {varname}{element};
       }}""",
   )
 
@@ -613,12 +614,44 @@ def generate_find() -> None:
     print(code)
 
 
+def generate_signature() -> None:
+  """Generate signature functions."""
+  for key, _, _, _, _ in SPECS:
+    elem = key.removeprefix('mjs')
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      {key}.def_property_readonly("signature",
+      [](raw::{titlecase}& self) -> uint64_t {{
+        return mjs_getSpec(self.element)->element->signature;
+      }});
+    """
+    print(code)
+
+
+def generate_id() -> None:
+  """Generate id functions."""
+  for key, _, _, _, _ in SPECS:
+    if key == 'mjsPlugin':
+      continue
+    elem = key.removeprefix('mjs')
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      {key}.def_property_readonly("id",
+      [](raw::{titlecase}& self) -> int {{
+        return mjs_getId(self.element);
+      }});
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
   generate()
   generate_add()
   generate_find()
+  generate_signature()
+  generate_id()
 
 
 if __name__ == '__main__':

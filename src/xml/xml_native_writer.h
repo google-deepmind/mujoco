@@ -29,7 +29,7 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void SetModel(const mjSpec* _spec, const mjModel* m = nullptr);
+  void SetModel(mjSpec* _spec, const mjModel* m = nullptr);
 
   // write XML document to string
   std::string Write(char *error, std::size_t error_sz);

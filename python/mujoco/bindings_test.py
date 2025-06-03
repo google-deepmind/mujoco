@@ -623,10 +623,12 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
     ncon = 13
     nefc = 17
-    mujoco._functions._realloc_con_efc(self.data, ncon=ncon, nefc=nefc)
+    nj = 21
+    mujoco._functions._realloc_con_efc(self.data, ncon=ncon, nefc=nefc, nJ=nj)
 
     self.assertLen(self.data.contact, ncon)
     self.assertEqual(self.data.efc_id.shape, (nefc,))
+    self.assertEqual(self.data.efc_J.shape, (nj,))
     self.assertEqual(self.data.efc_KBIP.shape, (nefc, 4))
 
     expected_error = 'insufficient arena memory available'
@@ -1082,6 +1084,20 @@ Euler integrator, semi-implicit in velocity.
         mujoco.FatalError, r'\Amj_stackAlloc: out of memory, stack overflow'
     ):
       mujoco.mj_forward(self.model, self.data)
+
+  def test_timer_installed_by_default(self):
+    timer_step = mujoco.mjtTimer.mjTIMER_STEP
+    self.assertEqual(self.data.timer[timer_step].number, 0)
+    self.assertEqual(self.data.timer[timer_step].duration, 0.0)
+
+    mujoco.mj_step(self.model, self.data)
+    self.assertEqual(self.data.timer[timer_step].number, 1)
+    duration_1 = self.data.timer[timer_step].duration
+    self.assertGreater(duration_1, 0.0)
+
+    mujoco.mj_step(self.model, self.data, 5)
+    self.assertEqual(self.data.timer[timer_step].number, 6)
+    self.assertGreater(self.data.timer[timer_step].duration, duration_1)
 
   def test_mjcb_time(self):
 

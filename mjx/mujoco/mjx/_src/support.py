@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 """Engine support functions."""
+
 from collections.abc import Iterable, Sequence
 from typing import Optional, Tuple, Union
 
@@ -92,7 +93,7 @@ def full_m(m: Model, d: Data) -> jax.Array:
   """Reconstitute dense mass matrix from qM."""
 
   if not is_sparse(m):
-    return d.qM
+    return d._impl.qM  # pytype: disable=attribute-error
 
   ij = []
   for i in range(m.nv):
@@ -103,7 +104,7 @@ def full_m(m: Model, d: Data) -> jax.Array:
 
   i, j = (jp.array(x) for x in zip(*ij))
 
-  mat = jp.zeros((m.nv, m.nv)).at[(i, j)].set(d.qM)
+  mat = jp.zeros((m.nv, m.nv)).at[(i, j)].set(d._impl.qM)  # pytype: disable=attribute-error
 
   # also set upper triangular
   mat = mat + jp.tril(mat, -1).T
@@ -115,9 +116,9 @@ def mul_m(m: Model, d: Data, vec: jax.Array) -> jax.Array:
   """Multiply vector by inertia matrix."""
 
   if not is_sparse(m):
-    return d.qM @ vec
+    return d._impl.qM @ vec  # pytype: disable=attribute-error
 
-  diag_mul = d.qM[jp.array(m.dof_Madr)] * vec
+  diag_mul = d._impl.qM[jp.array(m.dof_Madr)] * vec  # pytype: disable=attribute-error
 
   is_, js, madr_ijs = [], [], []
   for i in range(m.nv):
@@ -131,8 +132,8 @@ def mul_m(m: Model, d: Data, vec: jax.Array) -> jax.Array:
 
   i, j, madr_ij = (jp.array(x, dtype=jp.int32) for x in (is_, js, madr_ijs))
 
-  out = diag_mul.at[i].add(d.qM[madr_ij] * vec[j])
-  out = out.at[j].add(d.qM[madr_ij] * vec[i])
+  out = diag_mul.at[i].add(d._impl.qM[madr_ij] * vec[j])  # pytype: disable=attribute-error
+  out = out.at[j].add(d._impl.qM[madr_ij] * vec[i])  # pytype: disable=attribute-error
 
   return out
 
@@ -147,9 +148,9 @@ def jac(
   mask = mask[jp.array(m.dof_bodyid)] > 0
 
   offset = point - d.subtree_com[jp.array(m.body_rootid)[body_id]]
-  jacp = jax.vmap(lambda a, b=offset: a[3:] + jp.cross(a[:3], b))(d.cdof)
+  jacp = jax.vmap(lambda a, b=offset: a[3:] + jp.cross(a[:3], b))(d._impl.cdof)  # pytype: disable=attribute-error
   jacp = jax.vmap(jp.multiply)(jacp, mask)
-  jacr = jax.vmap(jp.multiply)(d.cdof[:, :3], mask)
+  jacr = jax.vmap(jp.multiply)(d._impl.cdof[:, :3], mask)  # pytype: disable=attribute-error
 
   return jacp, jacr
 
@@ -295,73 +296,56 @@ class BindModel(object):
     self.prefix = ''
     ids = []
     for spec in specs:
-      if not spec.name:
-        raise KeyError(f'cannot bind spec with empty name')
+      if model.signature != spec.signature:
+        raise ValueError(
+            'mjSpec signature does not match mjx.Model signature:'
+            f' {spec.signature} != {model.signature}'
+        )
+      elif spec.id < 0:
+        raise KeyError(f'invalid id: {spec.id}')
       elif isinstance(spec, mujoco.MjsBody):
         self.prefix = 'body_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_BODY, spec.name)
       elif isinstance(spec, mujoco.MjsJoint):
         self.prefix = 'jnt_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_JOINT, spec.name)
       elif isinstance(spec, mujoco.MjsGeom):
         self.prefix = 'geom_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_GEOM, spec.name)
       elif isinstance(spec, mujoco.MjsSite):
         self.prefix = 'site_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_SITE, spec.name)
       elif isinstance(spec, mujoco.MjsLight):
         self.prefix = 'light_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_LIGHT, spec.name)
       elif isinstance(spec, mujoco.MjsCamera):
         self.prefix = 'cam_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, spec.name)
       elif isinstance(spec, mujoco.MjsMesh):
         self.prefix = 'mesh_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_MESH, spec.name)
       elif isinstance(spec, mujoco.MjsHField):
         self.prefix = 'hfield_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_HFIELD, spec.name)
       elif isinstance(spec, mujoco.MjsPair):
         self.prefix = 'pair_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_PAIR, spec.name)
       elif isinstance(spec, mujoco.MjsTendon):
         self.prefix = 'tendon_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_TENDON, spec.name)
       elif isinstance(spec, mujoco.MjsActuator):
         self.prefix = 'actuator_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, spec.name)
       elif isinstance(spec, mujoco.MjsSensor):
         self.prefix = 'sensor_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, spec.name)
       elif isinstance(spec, mujoco.MjsNumeric):
         self.prefix = 'numeric_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_NUMERIC, spec.name)
       elif isinstance(spec, mujoco.MjsText):
         self.prefix = 'text_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_TEXT, spec.name)
       elif isinstance(spec, mujoco.MjsTuple):
         self.prefix = 'tuple_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_TUPLE, spec.name)
       elif isinstance(spec, mujoco.MjsKey):
         self.prefix = 'key_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_KEY, spec.name)
       elif isinstance(spec, mujoco.MjsEquality):
         self.prefix = 'eq_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, spec.name)
       elif isinstance(spec, mujoco.MjsExclude):
         self.prefix = 'exclude_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_EXCLUDE, spec.name)
       elif isinstance(spec, mujoco.MjsSkin):
         self.prefix = 'skin_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_SKIN, spec.name)
       elif isinstance(spec, mujoco.MjsMaterial):
         self.prefix = 'material_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_MATERIAL, spec.name)
       else:
         raise ValueError('invalid spec type')
-      if idx < 0:
-        raise KeyError(f'invalid name: {spec.name}')  # pytype: disable=attribute-error
-      ids.append(idx)
+      ids.append(spec.id)
     if len(ids) == 1:
       self.id = ids[0]
     else:
@@ -402,42 +386,36 @@ class BindData(object):
     self.prefix = ''
     ids = []
     for spec in specs:
-      if not spec.name:
-        raise KeyError(f'cannot bind spec with empty name')
+      if model.signature != spec.signature:
+        raise ValueError(
+            'mjSpec signature does not match mjx.Model signature:'
+            f' {spec.signature} != {model.signature}'
+        )
+      if spec.id < 0:
+        raise KeyError(f'invalid id: {spec.id}')
       elif isinstance(spec, mujoco.MjsBody):
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_BODY, spec.name)
+        pass
       elif isinstance(spec, mujoco.MjsJoint):
         self.prefix = 'jnt_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_JOINT, spec.name)
       elif isinstance(spec, mujoco.MjsGeom):
         self.prefix = 'geom_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_GEOM, spec.name)
       elif isinstance(spec, mujoco.MjsSite):
         self.prefix = 'site_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_SITE, spec.name)
       elif isinstance(spec, mujoco.MjsLight):
         self.prefix = 'light_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_LIGHT, spec.name)
       elif isinstance(spec, mujoco.MjsCamera):
         self.prefix = 'cam_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, spec.name)
       elif isinstance(spec, mujoco.MjsTendon):
         self.prefix = 'ten_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_TENDON, spec.name)
       elif isinstance(spec, mujoco.MjsActuator):
         self.prefix = 'actuator_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, spec.name)
       elif isinstance(spec, mujoco.MjsSensor):
         self.prefix = 'sensor_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, spec.name)
       elif isinstance(spec, mujoco.MjsEquality):
         self.prefix = 'eq_'
-        idx = name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, spec.name)
       else:
         raise ValueError('invalid spec type')
-      if idx < 0:
-        raise KeyError(f'invalid name: {spec.name}')  # pytype: disable=attribute-error
-      ids.append(idx)
+      ids.append(spec.id)
     if len(ids) == 1:
       self.id = ids[0]
     else:
@@ -455,11 +433,13 @@ class BindData(object):
         return name
       else:
         raise AttributeError('ctrl is not available for this type')
-    if name == 'qpos' or name == 'qvel' or name == 'qacc':
+    if name == 'qpos' or name == 'qvel' or name == 'qacc' or name.startswith('qfrc_'):
       if self.prefix == 'jnt_':
         return name
       else:
-        raise AttributeError('qpos, qvel, qacc are not available for this type')
+        raise AttributeError(
+            'qpos, qvel, qacc, qfrc are not available for this type'
+        )
     else:
       return self.prefix + name
 
@@ -473,7 +453,9 @@ class BindData(object):
     return var[..., idx, :]
 
   def __getattr__(self, name: str):
-    if name in ('sensordata', 'qpos', 'qvel', 'qacc'):
+    if name in ('sensordata', 'qpos', 'qvel', 'qacc') or (
+        name.startswith('qfrc_')
+    ):
       adr = num = 0
       if name == 'sensordata':
         adr = self.model.sensor_adr[self.id]
@@ -482,7 +464,7 @@ class BindData(object):
         adr = self.model.jnt_qposadr[self.id]
         typ = self.model.jnt_type[self.id]
         num = sum((typ == jt) * jt.qpos_width() for jt in JointType)
-      elif name == 'qvel' or name == 'qacc':
+      elif name == 'qvel' or name == 'qacc' or name.startswith('qfrc_'):
         adr = self.model.jnt_dofadr[self.id]
         typ = self.model.jnt_type[self.id]
         num = sum((typ == jt) * jt.dof_width() for jt in JointType)
@@ -495,6 +477,8 @@ class BindData(object):
         return self._slice(self.__getname(name), slice(adr, adr + num))
       else:
         return self._slice(self.__getname(name), adr)
+    elif name in ('mocap_pos', 'mocap_quat'):
+      return self._slice(self.__getname(name), self.model.body_mocapid[self.id])
     return self._slice(self.__getname(name), self.id)
 
   def set(self, name: str, value: jax.Array) -> Data:
@@ -507,7 +491,7 @@ class BindData(object):
       iter(value)
     except TypeError:
       value = [value]
-    if name in ('qpos', 'qvel', 'qacc'):
+    if name in ('qpos', 'qvel', 'qacc', 'mocap_pos', 'mocap_quat'):
       adr = num = 0
       if name == 'qpos':
         adr = self.model.jnt_qposadr[self.id]
@@ -517,16 +501,23 @@ class BindData(object):
         adr = self.model.jnt_dofadr[self.id]
         typ = self.model.jnt_type[self.id]
         num = sum((typ == jt) * jt.dof_width() for jt in JointType)
+      elif name == 'mocap_pos':
+        adr = self.model.body_mocapid[self.id] * 3
+        num = np.ones_like(self.id, dtype=int) * 3
+      elif name == 'mocap_quat':
+        adr = self.model.body_mocapid[self.id] * 4
+        num = np.ones_like(self.id, dtype=int) * 4
       if not isinstance(self.id, list):
         adr = [adr]
         num = [num]
     elif isinstance(self.id, list):
-      adr = self.id * dim
+      adr = (np.array(self.id) * dim).tolist()
       num = [dim for _ in range(len(self.id))]
     else:
       adr = [self.id * dim]
       num = [dim]
     i = 0
+    value = jax.numpy.array(value).flatten()
     for a, n in zip(adr, num):
       shape = array.shape
       array = array.flatten().at[a : a + n].set(value[i : i + n]).reshape(shape)
@@ -571,20 +562,20 @@ def contact_force(
     m: Model, d: Data, contact_id: int, to_world_frame: bool = False
 ) -> jax.Array:
   """Extract 6D force:torque for one contact, in contact frame by default."""
-  efc_address = d.contact.efc_address[contact_id]
-  condim = d.contact.dim[contact_id]
+  efc_address = d._impl.contact.efc_address[contact_id]  # pytype: disable=attribute-error
+  condim = d._impl.contact.dim[contact_id]  # pytype: disable=attribute-error
   if m.opt.cone == ConeType.PYRAMIDAL:
     force = _decode_pyramid(
-        d.efc_force[efc_address:], d.contact.friction[contact_id], condim
+        d._impl.efc_force[efc_address:], d._impl.contact.friction[contact_id], condim  # pytype: disable=attribute-error
     )
   elif m.opt.cone == ConeType.ELLIPTIC:
-    force = d.efc_force[efc_address : efc_address + condim]
+    force = d._impl.efc_force[efc_address : efc_address + condim]  # pytype: disable=attribute-error
     force = jp.concatenate([force, jp.zeros((6 - condim))])
   else:
     raise ValueError(f'Unknown cone type: {m.opt.cone}')
 
   if to_world_frame:
-    force = force.reshape((-1, 3)) @ d.contact.frame[contact_id]
+    force = force.reshape((-1, 3)) @ d._impl.contact.frame[contact_id]  # pytype: disable=attribute-error
     force = force.reshape(-1)
 
   return force * (efc_address >= 0)
@@ -595,21 +586,21 @@ def contact_force_dim(
 ) -> Tuple[jax.Array, np.ndarray]:
   """Extract 6D force:torque for contacts with dimension dim."""
   # valid contact and condim indices
-  idx_dim = (d.contact.efc_address >= 0) & (d.contact.dim == dim)
+  idx_dim = (d._impl.contact.efc_address >= 0) & (d._impl.contact.dim == dim)  # pytype: disable=attribute-error
 
   # contact force from efc
   if m.opt.cone == ConeType.PYRAMIDAL:
     efc_address = (
-        d.contact.efc_address[idx_dim, None]
+        d._impl.contact.efc_address[idx_dim, None]  # pytype: disable=attribute-error
         + np.arange(np.where(dim == 1, 1, 2 * (dim - 1)))[None]
     )
-    efc_force = d.efc_force[efc_address]
+    efc_force = d._impl.efc_force[efc_address]  # pytype: disable=attribute-error
     force = jax.vmap(_decode_pyramid, in_axes=(0, 0, None))(
-        efc_force, d.contact.friction[idx_dim], dim
+        efc_force, d._impl.contact.friction[idx_dim], dim  # pytype: disable=attribute-error
     )
   elif m.opt.cone == ConeType.ELLIPTIC:
-    efc_address = d.contact.efc_address[idx_dim, None] + np.arange(dim)[None]
-    force = d.efc_force[efc_address]
+    efc_address = d._impl.contact.efc_address[idx_dim, None] + np.arange(dim)[None]  # pytype: disable=attribute-error
+    force = d._impl.efc_force[efc_address]  # pytype: disable=attribute-error
     force = jp.hstack([force, jp.zeros((force.shape[0], 6 - dim))])
   else:
     raise ValueError(f'Unknown cone type: {m.opt.cone}.')

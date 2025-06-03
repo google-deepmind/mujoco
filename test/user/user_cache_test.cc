@@ -65,6 +65,7 @@ GetCachedText(mjCCache& cache, const std::string& model,
   bool inserted = cache.PopulateData(resource,
                                      [&cached_text](const void* data) {
     cached_text = *(static_cast<const std::string*>(data));
+    return true;
   });
   mju_closeResource(resource);
   mj_deleteVFS(&vfs);

@@ -120,28 +120,20 @@ MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 // convert sparse inertia matrix M into full matrix
 MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
 
+// multiply vector by inertia matrix (implementation)
+MJAPI void mj_mulM_impl(mjtNum* res, const mjtNum* vec, int nv, const mjtNum* M,
+                        const int* Madr, const int* parentid, const int* simplenum);
+
 // multiply vector by inertia matrix
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
-
-// multiply vector by inertia matrix for one dof island
-MJAPI void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
-                          int island, int flg_vecunc);
 
 // multiply vector by (inertia matrix)^(1/2)
 MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
 // add inertia matrix to destination matrix
-//  destination can be sparse uncompressed, or dense when all int* are NULL
+//  destination can be sparse or dense when all int* are NULL
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
                    int* rownnz, int* rowadr, int* colind);
-
-// add inertia matrix to sparse destination matrix
-MJAPI void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                         int* rownnz, int* rowadr, int* colind, mjtNum* M,
-                         int* M_rownnz, int* M_rowadr, int* M_colind);
-
-// add inertia matrix to dense destination matrix
-MJAPI void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst);
 
 
 //-------------------------- perturbations ---------------------------------------------------------

@@ -19,27 +19,14 @@
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum mjtSDFType_ {        // signed distance function (SDF) type
-  mjSDFTYPE_SINGLE     = 0,       // single SDF
-  mjSDFTYPE_INTERSECTION,         // max(A, B)
-  mjSDFTYPE_MIDSURFACE,           // A - B
-  mjSDFTYPE_COLLISION,            // A + B + abs(max(A, B))
-} mjtSDFType;
-
-struct mjSDF_ {
-  const mjpPlugin** plugin;
-  int* id;
-  mjtSDFType type;
-  mjtNum* relpos;
-  mjtNum* relmat;
-  mjtGeom* geomtype;
-};
-typedef struct mjSDF_ mjSDF;
+// get sdf from geom id
+MJAPI const mjpPlugin* mjc_getSDF(const mjModel* m, int id);
 
 // signed distance function
 MJAPI mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjtNum x[3]);

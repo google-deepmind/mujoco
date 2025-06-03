@@ -16,6 +16,7 @@
 
 import gc
 import inspect
+import math
 import os
 import textwrap
 import typing
@@ -128,6 +129,18 @@ class SpecsTest(absltest.TestCase):
         </mujoco>
     """)
     self.assertEqual(spec.to_xml(), xml)
+
+  def test_resolve_orientation(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body(euler=[0, 0, 90])
+    quat = mujoco.MjSpec.resolve_orientation(
+        degree=spec.compiler.degree,
+        sequence=spec.compiler.eulerseq,
+        orientation=body.alt,
+    )
+    np.testing.assert_array_almost_equal(
+        quat, [math.sqrt(2) / 2, 0, 0, math.sqrt(2) / 2]
+    )
 
   def test_kwarg(self):
     # Create a spec.
@@ -636,6 +649,8 @@ class SpecsTest(absltest.TestCase):
             <site name="site4"/>
             <body name="body4">
               <site name="site5"/>
+              <joint name="joint1"/>
+              <geom name="geom1" size="1"/>
             </body>
           </body>
         </body>
@@ -649,6 +664,8 @@ class SpecsTest(absltest.TestCase):
     self.assertLen(spec.sites, 5)
     self.assertLen(spec.worldbody.find_all('body'), 4)
     self.assertLen(spec.worldbody.find_all('site'), 5)
+    self.assertLen(spec.worldbody.find_all('joint'), 1)
+    self.assertLen(spec.worldbody.find_all('geom'), 1)
     self.assertEqual(spec.bodies[1].name, 'body1')
     self.assertEqual(spec.bodies[2].name, 'body2')
     self.assertEqual(spec.bodies[3].name, 'body3')
@@ -831,22 +848,21 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model.nsensor, 9)
 
   def test_plugin(self):
-    xml = """
-    <mujoco>
-      <extension>
-        <plugin plugin="mujoco.elasticity.cable"/>
-      </extension>
-    </mujoco>
-    """
-
-    spec = mujoco.MjSpec.from_string(xml)
-    self.assertIsNotNone(spec.worldbody)
+    spec = mujoco.MjSpec()
+    spec.activate_plugin('mujoco.elasticity.cable')
+    plugin = spec.add_plugin(
+        name='instance_name',
+        plugin_name='mujoco.elasticity.cable',
+        active=True,
+        info='info'
+    )
+    plugin.config = {'twist': '10', 'bend': '1'}
+    self.assertEqual(plugin.config, {'twist': '10', 'bend': '1'})
 
     body = spec.worldbody.add_body()
+    body.plugin = plugin
     body.plugin.plugin_name = 'mujoco.elasticity.cable'
-    body.plugin.id = spec.add_plugin()
     body.plugin.active = True
-    self.assertEqual(body.plugin.id, 0)
 
     geom = body.add_geom()
     geom.type = mujoco.mjtGeom.mjGEOM_BOX
@@ -857,7 +873,19 @@ class SpecsTest(absltest.TestCase):
     model = spec.compile()
     self.assertIsNotNone(model)
     self.assertEqual(model.nplugin, 1)
+    self.assertEqual(model.npluginattr, 7)
     self.assertEqual(model.body_plugin[1], 0)
+    attributes = (''.join([chr(i) for i in model.plugin_attr]).split(chr(0)))
+    self.assertEqual(attributes[:2], ['10', '1'])
+
+    copy = spec.copy()  # before assigning the new config
+    wrong_config = {'wrong': '10', 'bend': '1'}
+    for s in [spec, copy]:
+      s.plugins[0].config = wrong_config
+      with self.assertRaisesRegex(
+          ValueError, "Error: unrecognized attribute 'plugin:wrong'"
+      ):
+        s.compile()
 
   def test_recompile_error(self):
     main_xml = """
@@ -1054,6 +1082,15 @@ class SpecsTest(absltest.TestCase):
     frame = body.to_frame()
     np.testing.assert_array_equal(frame.pos, [1, 2, 3])
 
+  def test_get_frame(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    frame = body.add_frame()
+    geom = body.add_geom()
+    geom.set_frame(frame)
+    self.assertIsNotNone(frame)
+    self.assertIs(geom.frame, frame)
+
   def test_attach_to_frame(self):
     parent = mujoco.MjSpec()
     parent.assets = {'cube.obj': 'cube_content'}
@@ -1153,6 +1190,13 @@ class SpecsTest(absltest.TestCase):
         AttributeError, "object has no attribute 'invalid'"
     ):
       print(mj_model.bind(joints).invalid)
+    invalid_spec = mujoco.MjSpec()
+    invalid_spec.worldbody.add_body(name='main')
+    with self.assertRaisesRegex(
+        ValueError,
+        'The mjSpec does not match mjModel. Please recompile the mjSpec.',
+    ):
+      print(mj_model.bind(invalid_spec.body('main')))
 
   def test_incorrect_hfield_size(self):
     nrow = 300

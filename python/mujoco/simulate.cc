@@ -13,17 +13,22 @@
 // limitations under the License.
 
 #include <atomic>
-#include <chrono>
+#include <chrono>  // NOLINT(build/c++11)
 #include <cstring>
 #include <memory>
+#include <stdexcept>
 #include <string>
-#include <thread>
+#include <thread>  // NOLINT(build/c++11)
+#include <tuple>
 #include <utility>
+#include <vector>
 
 #include <glfw_adapter.h>
 #include <glfw_dispatch.h>
 #include <simulate.h>
+#include <Python.h>
 #include "errors.h"
+#include "indexers.h"
 #include "structs.h"
 #include <pybind11/gil.h>
 #include <pybind11/pybind11.h>
@@ -134,19 +139,112 @@ class SimulateWrapper {
 
   void SetFigures(
       const std::vector<std::pair<mjrRect, py::object>>& viewports_figures) {
-    // Pairs of [viewport, figure], where viewport corresponds to the location
-    // of the figure on the viewer window.
-    std::vector<std::pair<mjrRect, mjvFigure>> user_figures;
-    for (const auto& [viewport, figure] : viewports_figures) {
-      mjvFigure casted_figure = *figure.cast<MjvFigureWrapper&>().get();
-      user_figures.push_back(std::make_pair(viewport, casted_figure));
+
+    // TODO: replace with atomic wait when we migrate to C++20
+    while (simulate_ && simulate_->newfigurerequest.load() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    // Set them all at once to prevent figure flickering.
-    simulate_->user_figures_ = user_figures;
+    // Pairs of [viewport, figure], where viewport corresponds to the location
+    // of the figure on the viewer window.
+    for (const auto& [viewport, figure] : viewports_figures) {
+      mjvFigure casted_figure = *figure.cast<MjvFigureWrapper&>().get();
+      simulate_->user_figures_new_.push_back(std::make_pair(viewport, casted_figure));
+    }
+
+    int value = 0;
+    simulate_->newfigurerequest.compare_exchange_strong(value, 1);
   }
 
-  void ClearFigures() { simulate_->user_figures_.clear(); }
+  void ClearFigures() {
+    // TODO: replace with atomic wait when we migrate to C++20
+    while (simulate_ && simulate_->newfigurerequest.load() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    simulate_->user_figures_new_.clear();
+
+    int value = 0;
+    simulate_->newfigurerequest.compare_exchange_strong(value, 1);
+  }
+
+  void SetTexts(
+      const std::vector<std::tuple<int, int, std::string, std::string>>&
+          texts) {
+    // TODO: replace with atomic wait when we migrate to C++20
+    while (simulate_ && simulate_->newtextrequest.load() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    // Collection of [font, gridpos, text1, text2] tuples for overlay text
+    for (const auto& [font, gridpos, text1, text2] : texts) {
+      simulate_->user_texts_new_.push_back(std::make_tuple(font, gridpos, text1, text2));
+    }
+
+    int value = 0;
+    simulate_->newtextrequest.compare_exchange_strong(value, 1);
+  }
+
+  void ClearTexts() {
+    // TODO: replace with atomic wait when we migrate to C++20
+    while (simulate_ && simulate_->newtextrequest.load() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    simulate_->user_texts_new_.clear();
+
+    int value = 0;
+    simulate_->newtextrequest.compare_exchange_strong(value, 1);
+  }
+
+  void SetImages(
+    const std::vector<std::tuple<mjrRect, pybind11::array&>> viewports_images
+  ) {
+    // TODO: replace with atomic wait when we migrate to C++20
+    while (simulate_ && simulate_->newimagerequest.load() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    for (const auto& [viewport, image] : viewports_images) {
+      auto buf = image.request();
+      if (buf.ndim != 3) {
+        throw std::invalid_argument("image must have 3 dimensions (H, W, C)");
+      }
+      if (static_cast<int>(buf.shape[2]) != 3) {
+        throw std::invalid_argument("image must have 3 channels");
+      }
+      if (buf.itemsize != sizeof(unsigned char)) {
+        throw std::invalid_argument("image must be uint8 format");
+      }
+
+      // Calculate size of the image data
+      size_t height = buf.shape[0];
+      size_t width = buf.shape[1];
+      size_t size = height * width * 3;
+
+      // Make a copy of the image data since Python is
+      // not required to keep it
+      std::unique_ptr<unsigned char[]> image_copy(new unsigned char[size]());
+      std::memcpy(image_copy.get(), buf.ptr, size);
+
+      simulate_->user_images_new_.push_back(std::make_tuple(viewport, std::move(image_copy)));
+    }
+
+    int value = 0;
+    simulate_->newimagerequest.compare_exchange_strong(value, 1);
+  }
+
+  void ClearImages() {
+    // TODO: replace with atomic wait when we migrate to C++20
+    while (simulate_ && simulate_->newimagerequest.load() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    simulate_->user_images_new_.clear();
+
+    int value = 0;
+    simulate_->newimagerequest.compare_exchange_strong(value, 1);
+  }
 
  private:
   mujoco::Simulate* simulate_;
@@ -249,6 +347,11 @@ PYBIND11_MODULE(_simulate, pymodule) {
       .def("set_figures", &SimulateWrapper::SetFigures,
            py::arg("viewports_figures"))
       .def("clear_figures", &SimulateWrapper::ClearFigures)
+      .def("set_texts", &SimulateWrapper::SetTexts, py::arg("overlay_texts"))
+      .def("clear_texts", &SimulateWrapper::ClearTexts)
+      .def("set_images", &SimulateWrapper::SetImages,
+           py::arg("viewports_images"))
+      .def("clear_images", &SimulateWrapper::ClearImages)
       .def_property_readonly("m", &SimulateWrapper::GetModel)
       .def_property_readonly("d", &SimulateWrapper::GetData)
       .def_property_readonly("viewport", &SimulateWrapper::GetViewport)

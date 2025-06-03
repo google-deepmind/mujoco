@@ -73,13 +73,15 @@ class mjCComposite {
   std::string prefix;             // name prefix
   mjtCompType type;               // composite type
   int count[3];                   // geom count in each dimension
-  double offset[3];               // position offset for particle and grid
+  double offset[3];               // position offset
+  double quat[4];                 // quaternion offset
 
   // currently used only for cable
   std::string initial;            // root boundary type
   std::vector<float> uservert;    // user-specified vertex positions
   double size[3];                 // rope size (meaning depends on the shape)
   mjtCompShape curve[3];          // geometric shape
+  mjsFrame* frame;                // frame where the composite is defined
 
   // body names used in the skin
   std::vector<std::string> username;

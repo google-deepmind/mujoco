@@ -28,7 +28,7 @@
 
 #include <mujoco/mjplugin.h>
 
-typedef std::function<void(const void*)> mjCDataFunc;
+typedef std::function<bool(const void*)> mjCDataFunc;
 typedef void (*mjCDeallocFunc)(const void*);
 
 // A class container for a thread-safe asset cache
@@ -57,9 +57,9 @@ class mjCAsset {
   std::size_t InsertNum() const { return insert_num_; }
   std::size_t AccessCount() const { return access_count_; }
 
-  // pass data in the cache to the given function
-  void PopulateData(mjCDataFunc fn) const {
-    fn(data_.get());
+  // pass data in the cache to the given function, return true if data was copied
+  bool PopulateData(mjCDataFunc fn) const {
+    return fn(data_.get());
   }
 
  private:

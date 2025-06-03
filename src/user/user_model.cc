@@ -166,7 +166,7 @@ static void processlist(mjListKeyMap& ids, vector<T*>& list,
 // constructor
 mjCModel::mjCModel() {
   mjs_defaultSpec(&spec);
-  elemtype = mjOBJ_UNKNOWN;
+  elemtype = mjOBJ_MODEL;
   spec_comment_.clear();
   spec_modelfiledir_.clear();
   spec_meshdir_.clear();
@@ -211,15 +211,14 @@ mjCModel::mjCModel() {
   // create mjCBase lists from children lists
   CreateObjectLists();
 
-  // the source spec is the model itself, overwritten in the copy constructor
-  source_spec_ = &spec;
+  // set the signature
+  spec.element->signature = 0;
 }
 
 
 
 mjCModel::mjCModel(const mjCModel& other) {
   CreateObjectLists();
-  source_spec_ = (mjSpec*)&other.spec;
   *this = other;
 }
 
@@ -235,11 +234,16 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     // copy attached specs first so that we can resolve references to them
     for (const auto* s : other.specs_) {
       specs_.push_back(mj_copySpec(s));
+      compiler2spec_[&s->compiler] = specs_.back();
     }
 
     // the world copy constructor takes care of copying the tree
     mjCBody* world = new mjCBody(*other.bodies_[0], this);
     bodies_.push_back(world);
+
+    // update tree lists
+    ResetTreeLists();
+    MakeTreeLists();
 
     // add everything else
     *this += other;
@@ -255,6 +259,9 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     for (int i=0; i < mjNOBJECT; i++) {
       ids[i] = other.ids[i];
     }
+
+    // update signature after we updated everything
+    spec.element->signature = Signature();
   }
   deepcopy_ = other.deepcopy_;
   return *this;
@@ -449,9 +456,8 @@ static bool IsPluginActive(
 
 mjCModel& mjCModel::operator+=(const mjCModel& other) {
   // create global lists
-  mjCBody *world = bodies_[0];
   ResetTreeLists();
-  MakeLists(world);
+  MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
 
   // copy all elements not in the tree
@@ -500,12 +506,11 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     nq = nv = na = nu = nmocap = 0;
   }
 
-  // restore to the original state
-  if (!compiled) {
-    ResetTreeLists();
-  }
-
+  // update pointers to local elements
   PointToLocal();
+
+  // update signature after we updated the tree lists and we updated the pointers
+  spec.element->signature = Signature();
   return *this;
 }
 
@@ -551,7 +556,7 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
 template <>
 void mjCModel::DeleteAll<mjCKey>(std::vector<mjCKey*>& elements) {
   for (mjCKey* element : elements) {
-    delete element;
+    element->Release();
   }
   elements.clear();
 }
@@ -609,13 +614,11 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 
   // create global lists in the old model if not compiled
   if (!oldmodel.IsCompiled()) {
-    oldmodel.MakeLists(oldmodel.bodies_[0]);
     oldmodel.ProcessLists(/*checkrepeat=*/false);
   }
 
   // create global lists in this model if not compiled
   if (!IsCompiled()) {
-    MakeLists(bodies_[0]);
     ProcessLists(/*checkrepeat=*/false);
   }
 
@@ -629,7 +632,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 
   // update global lists
   ResetTreeLists();
-  MakeLists(world);
+  MakeTreeLists();
   ProcessLists(/*checkrepeat=*/false);
 
   // check if we have to remove anything else
@@ -641,10 +644,8 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
   RemoveFromList(sensors_, oldmodel);
   RemovePlugins();
 
-  // restore to the original state
-  if (!compiled) {
-    ResetTreeLists();
-  }
+  // update signature before we reset the tree lists
+  spec.element->signature = Signature();
 
   return *this;
 }
@@ -742,18 +743,16 @@ void deletefromlist(std::vector<T*>* list, mjsElement* element) {
 
 // discard all invalid elements from all lists
 void mjCModel::DeleteElement(mjsElement* el) {
-  mjCBody *world = nullptr;
-  if (compiled) {
-    world = bodies_[0];
-    ResetTreeLists();
-  }
+  ResetTreeLists();
 
   switch (el->elemtype) {
     case mjOBJ_BODY:
+      MakeTreeLists();  // rebuild lists that were reset at the beginning of the function
       throw mjCError(nullptr, "bodies cannot be deleted, use detach instead");
       break;
 
     case mjOBJ_DEFAULT:
+      MakeTreeLists();  // rebuild lists that were reset at the beginning of the function
       throw mjCError(nullptr, "defaults cannot be deleted, use detach instead");
       break;
 
@@ -818,11 +817,12 @@ void mjCModel::DeleteElement(mjsElement* el) {
       break;
   }
 
-  if (compiled) {
-    ResetTreeLists();  // in case of a nested delete
-    MakeLists(world);
-    ProcessLists(/*checkrepeat=*/false);
-  }
+  ResetTreeLists();  // in case of a nested delete
+  MakeTreeLists();
+  ProcessLists(/*checkrepeat=*/false);
+
+  // update signature after we updated everything
+  spec.element->signature = Signature();
 }
 
 
@@ -1020,15 +1020,6 @@ void mjCModel::Clear() {
   nconmax = -1;
   nmocap = 0;
 
-  // pointer lists created by Compile
-  bodies_.clear();
-  joints_.clear();
-  geoms_.clear();
-  sites_.clear();
-  cameras_.clear();
-  lights_.clear();
-  frames_.clear();
-
   // internal variables
   hasImplicitPluginElem = false;
   compiled = false;
@@ -1046,6 +1037,7 @@ T* mjCModel::AddObject(vector<T*>& list, string type) {
   T* obj = new T(this);
   obj->id = (int)list.size();
   list.push_back(obj);
+  spec.element->signature = Signature();
   return obj;
 }
 
@@ -1057,6 +1049,7 @@ T* mjCModel::AddObjectDefault(vector<T*>& list, string type, mjCDef* def) {
   obj->id = (int)list.size();
   obj->classname = def ? def->name : "main";
   list.push_back(obj);
+  spec.element->signature = Signature();
   return obj;
 }
 
@@ -1165,9 +1158,13 @@ mjCPlugin* mjCModel::AddPlugin() {
 
 
 // append spec to spec
-void mjCModel::AppendSpec(mjSpec* spec) {
+void mjCModel::AppendSpec(mjSpec* spec, const mjsCompiler* compiler_) {
   // TODO: check if the spec is already in the list
   specs_.push_back(spec);
+
+  if (compiler_) {
+    compiler2spec_[compiler_] = spec;
+  }
 }
 
 
@@ -1461,10 +1458,15 @@ mjSpec* mjCModel::FindSpec(std::string name) const {
 
 
 // find spec by mjsCompiler pointer
-mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
-  if (&GetSourceSpec()->compiler == compiler_) {
-    return (mjSpec*)&spec;
+mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) {
+  if (compiler_ == &spec.compiler) {
+    return &spec;
   }
+
+  if (compiler2spec_.find(compiler_) != compiler2spec_.end()) {
+    return compiler2spec_[compiler_];
+  }
+
   for (auto s : specs_) {
     mjSpec* source = static_cast<mjCModel*>(s->element)->FindSpec(compiler_);
     if (source) {
@@ -1476,17 +1478,14 @@ mjSpec* mjCModel::FindSpec(const mjsCompiler* compiler_) const {
 
 
 
-// get the spec from which this model was created
-mjSpec* mjCModel::GetSourceSpec() const {
-  return source_spec_;
-}
-
-
-
 //------------------------------- COMPILER PHASES --------------------------------------------------
 
 // make lists of objects in tree: bodies, geoms, joints, sites, cameras, lights
-void mjCModel::MakeLists(mjCBody* body) {
+void mjCModel::MakeTreeLists(mjCBody* body) {
+  if (body == nullptr) {
+    body = bodies_[0];
+  }
+
   // add this body if not world
   if (body != bodies_[0]) {
     bodies_.push_back(body);
@@ -1501,7 +1500,7 @@ void mjCModel::MakeLists(mjCBody* body) {
   for (mjCFrame *frame : body->frames) frames_.push_back(frame);
 
   // recursive call to all child bodies
-  for (mjCBody* body : body->bodies) MakeLists(body);
+  for (mjCBody* body : body->bodies) MakeTreeLists(body);
 }
 
 
@@ -1550,7 +1549,7 @@ static void DeleteElements(std::vector<T*>& elements,
   int i = 0;
   for (int j=0; j < elements.size(); j++) {
     if (discard[j]) {
-      delete elements[j];
+      elements[j]->Release();
     } else {
       elements[i] = elements[j];
       i++;
@@ -1608,7 +1607,7 @@ void mjCModel::DeleteAll<mjCMaterial>(std::vector<mjCMaterial*>& elements) {
   DeleteMaterial(sites_);
   DeleteMaterial(tendons_);
   for (mjCMaterial* element : elements) {
-    delete element;
+    element->Release();
   }
   elements.clear();
 }
@@ -1618,7 +1617,7 @@ template <>
 void mjCModel::DeleteAll<mjCTexture>(std::vector<mjCTexture*>& elements) {
   DeleteAllTextures(materials_);
   for (mjCTexture* element : elements) {
-    delete element;
+    element->Release();
   }
   elements.clear();
 }
@@ -1778,7 +1777,6 @@ void mjCModel::IndexAssets(bool discard) {
     }
   }
 
-  // discard visual meshes and geoms
   if (discard) {
     std::vector<bool> discard_mesh(meshes_.size(), false);
     std::vector<bool> discard_geom(geoms_.size(), false);
@@ -1792,6 +1790,28 @@ void mjCModel::IndexAssets(bool discard) {
       return geom->IsVisual();
     });
 
+    // update inertia in bodies
+    for (auto body : bodies_) {
+      if (body->spec.explicitinertial) {
+        continue;
+      }
+      for (auto geom : body->geoms) {
+        if (geom->IsVisual()) {
+          if (compiler.inertiafromgeom == mjINERTIAFROMGEOM_TRUE) {
+            compiler.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
+          }
+          body->explicitinertial = true;  // for XML writer
+          body->spec.explicitinertial = true;
+          body->spec.mass = body->mass;
+          mjuu_copyvec(body->spec.ipos, body->ipos, 3);
+          mjuu_copyvec(body->spec.iquat, body->iquat, 4);
+          mjuu_copyvec(body->spec.inertia, body->inertia, 3);
+          break;
+        }
+      }
+    }
+
+    // discard visual meshes and geoms
     Delete(meshes_, discard_mesh);
     Delete(geoms_, discard_geom);
   }
@@ -2649,12 +2669,15 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_bodyid[lid] = pl->body->id;
       m->light_mode[lid] = (int)pl->mode;
       m->light_targetbodyid[lid] = pl->targetbodyid;
-      m->light_directional[lid] = (mjtByte)pl->directional;
+      m->light_type[lid] = pl->type;
+      m->light_texid[lid] = pl->texid;
       m->light_castshadow[lid] = (mjtByte)pl->castshadow;
       m->light_active[lid] = (mjtByte)pl->active;
       mjuu_copyvec(m->light_pos+3*lid, pl->pos, 3);
       mjuu_copyvec(m->light_dir+3*lid, pl->dir, 3);
       m->light_bulbradius[lid] = pl->bulbradius;
+      m->light_intensity[lid] = pl->intensity;
+      m->light_range[lid] = pl->range;
       mjuu_copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
       m->light_cutoff[lid] = pl->cutoff;
       m->light_exponent[lid] = pl->exponent;
@@ -2745,31 +2768,6 @@ void mjCModel::CopyTree(mjModel* m) {
     }
   }
   m->nB = nB;
-
-  // set dof_simplenum
-  int count = 0;
-  for (int i=nv-1; i >= 0; i--) {
-    if (m->body_simple[m->dof_bodyid[i]]) {
-      count++;    // increment counter
-    } else {
-      count = 0;  // reset
-    }
-    m->dof_simplenum[i] = count;
-  }
-
-  // compute nC
-  int nOD = 0;  // number of off-diagonal (non-simple) parent dofs
-  for (int i=0; i < nv; i++) {
-    // count ancestor (off-diagonal) dofs
-    if (!m->dof_simplenum[i]) {
-      int j = i;
-      while (j >= 0) {
-        if (j != i) nOD++;
-        j = m->dof_parentid[j];
-      }
-    }
-  }
-  m->nC = nC = nOD + nv;
 }
 
 // copy plugin data
@@ -3046,6 +3044,11 @@ void mjCModel::CopyObjects(mjModel* m) {
     } else {
       mjuu_zerovec(m->flex_stiffness + 21 * elem_adr, 21 * pfl->nelem);
     }
+    if (!pfl->bending.empty()) {
+      mjuu_copyvec(m->flex_bending + 16 * edge_adr, pfl->bending.data(), pfl->bending.size());
+    } else {
+      mjuu_zerovec(m->flex_bending + 16 * edge_adr, 16 * pfl->nedge);
+    }
     m->flex_damping[i] = (mjtNum)pfl->damping;
 
     // set fields: mesh-like
@@ -3163,6 +3166,13 @@ void mjCModel::CopyObjects(mjModel* m) {
     for (int k=0; k < pfl->nedge; k++) {
       m->flex_edge[2*(edge_adr+k)] = pfl->edge[k].first;
       m->flex_edge[2*(edge_adr+k)+1] = pfl->edge[k].second;
+      if (pfl->dim == 2 && (pfl->elastic2d == 1 || pfl->elastic2d == 3)) {
+        m->flex_edgeflap[2*(edge_adr+k)+0] = pfl->flaps[k].vertices[2];
+        m->flex_edgeflap[2*(edge_adr+k)+1] = pfl->flaps[k].vertices[3];
+      } else {
+        m->flex_edgeflap[2*(edge_adr+k)+0] = -1;
+        m->flex_edgeflap[2*(edge_adr+k)+1] = -1;
+      }
 
       if (pfl->rigid) {
         m->flexedge_rigid[edge_adr+k] = 1;
@@ -3276,6 +3286,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set fields
     m->tex_type[i] = ptex->type;
+    m->tex_colorspace[i] = ptex->colorspace;
     m->tex_height[i] = ptex->height;
     m->tex_width[i] = ptex->width;
     m->tex_nchannel[i] = ptex->nchannel;
@@ -3356,6 +3367,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tendon_matid[i] = pte->matid;
     m->tendon_group[i] = pte->group;
     m->tendon_limited[i] = (mjtByte)pte->is_limited();
+    m->tendon_actfrclimited[i] = (mjtByte)pte->is_actfrclimited();
     m->tendon_width[i] = (mjtNum)pte->width;
     mjuu_copyvec(m->tendon_solref_lim+mjNREF*i, pte->solref_limit, mjNREF);
     mjuu_copyvec(m->tendon_solimp_lim+mjNIMP*i, pte->solimp_limit, mjNIMP);
@@ -3363,9 +3375,12 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->tendon_solimp_fri+mjNIMP*i, pte->solimp_friction, mjNIMP);
     m->tendon_range[2*i] = (mjtNum)pte->range[0];
     m->tendon_range[2*i+1] = (mjtNum)pte->range[1];
+    m->tendon_actfrcrange[2*i] = (mjtNum)pte->actfrcrange[0];
+    m->tendon_actfrcrange[2*i+1] = (mjtNum)pte->actfrcrange[1];
     m->tendon_margin[i] = (mjtNum)pte->margin;
     m->tendon_stiffness[i] = (mjtNum)pte->stiffness;
     m->tendon_damping[i] = (mjtNum)pte->damping;
+    m->tendon_armature[i] = (mjtNum)pte->armature;
     m->tendon_frictionloss[i] = (mjtNum)pte->frictionloss;
     m->tendon_lengthspring[2*i] = (mjtNum)pte->springlength[0];
     m->tendon_lengthspring[2*i+1] = (mjtNum)pte->springlength[1];
@@ -3539,6 +3554,54 @@ void mjCModel::CopyObjects(mjModel* m) {
 
 
 
+// finalize simple bodies/dofs including tendon information
+void mjCModel::FinalizeSimple(mjModel* m) {
+  // demote bodies affected by inertia-bearing tendon to non-simple
+  for (int i=0; i < ntendon; i++) {
+    if (m->tendon_armature[i] == 0) {
+      continue;
+    }
+    int adr = m->tendon_adr[i];
+    int num = m->tendon_num[i];
+    for (int j=adr; j < adr+num; j++) {
+      int objid = m->wrap_objid[j];
+      if (m->wrap_type[j] == mjWRAP_SITE) {
+        m->body_simple[m->site_bodyid[objid]] = 0;
+      }
+      if (m->wrap_type[j] == mjWRAP_CYLINDER || m->wrap_type[j] == mjWRAP_SPHERE) {
+        m->body_simple[m->geom_bodyid[objid]] = 0;
+      }
+    }
+  }
+
+  // set dof_simplenum
+  int count = 0;
+  for (int i=nv-1; i >= 0; i--) {
+    if (m->body_simple[m->dof_bodyid[i]]) {
+      count++;    // increment counter
+    } else {
+      count = 0;  // reset
+    }
+    m->dof_simplenum[i] = count;
+  }
+
+  // compute nC
+  int nOD = 0;  // number of off-diagonal (non-simple) parent dofs
+  for (int i=0; i < nv; i++) {
+    // count ancestor (off-diagonal) dofs
+    if (!m->dof_simplenum[i]) {
+      int j = i;
+      while (j >= 0) {
+        if (j != i) nOD++;
+        j = m->dof_parentid[j];
+      }
+    }
+  }
+  m->nC = nC = nOD + nv;
+}
+
+
+
 // save the current state
 template <class T>
 void mjCModel::SaveState(const std::string& state_name, const T* qpos, const T* qvel, const T* act,
@@ -3567,7 +3630,7 @@ void mjCModel::SaveState(const std::string& state_name, const T* qpos, const T* 
   }
 
   for (auto body : bodies_) {
-    if (!body->spec.mocap) {
+    if (!body->spec.mocap || body->mocapid == -1) {
       continue;
     }
     if (mpos) {
@@ -3657,19 +3720,10 @@ template void mjCModel::RestoreState<mjtNum>(
 
 // resolve keyframe references
 void mjCModel::StoreKeyframes(mjCModel* dest) {
-  bool resetlists = false;
-
   if (this != dest && !key_pending_.empty()) {
     mju_warning(
       "Child model has pending keyframes. They will not be namespaced correctly. "
       "To prevent this, compile the child model before attaching it again.");
-  }
-
-  // create tree lists if they are empty, occurs if an uncompiled model is attached
-  if (bodies_.size() == 1 && geoms_.empty() && sites_.empty() && joints_.empty() &&
-      cameras_.empty() && lights_.empty() && frames_.empty()) {
-    MakeLists(bodies_[0]);
-    resetlists = true;
   }
 
   // do not change compilation quantities in case the user wants to recompile preserving the state
@@ -3717,10 +3771,6 @@ void mjCModel::StoreKeyframes(mjCModel* dest) {
     SaveState(info.name, key->spec_qpos_.data(), key->spec_qvel_.data(),
               key->spec_act_.data(), key->spec_ctrl_.data(),
               key->spec_mpos_.data(), key->spec_mquat_.data());
-  }
-
-  if (resetlists) {
-    ResetTreeLists();
   }
 
   if (!compiled) {
@@ -3802,78 +3852,8 @@ void mjCModel::FuseStatic(void) {
     }
 
     //------------- add mass and inertia (if parent not world)
-
     if (body->parent && body->parent->name != "world" && body->mass >= mjMINVAL) {
-      // body_ipose = body_pose * body_ipose
-      changeframe(body->ipos, body->iquat, body->pos, body->quat);
-
-      // organize data
-      double mass[2] = {
-        par->mass,
-        body->mass
-      };
-      double inertia[2][3] = {
-        {par->inertia[0], par->inertia[1], par->inertia[2]},
-        {body->inertia[0], body->inertia[1], body->inertia[2]}
-      };
-      double ipos[2][3] = {
-        {par->ipos[0], par->ipos[1], par->ipos[2]},
-        {body->ipos[0], body->ipos[1], body->ipos[2]}
-      };
-      double iquat[2][4] = {
-        {par->iquat[0], par->iquat[1], par->iquat[2], par->iquat[3]},
-        {body->iquat[0], body->iquat[1], body->iquat[2], body->iquat[3]}
-      };
-
-      // compute total mass
-      par->mass = 0;
-      mjuu_setvec(par->ipos, 0, 0, 0);
-      for (int j=0; j < 2; j++) {
-        par->mass += mass[j];
-        par->ipos[0] += mass[j]*ipos[j][0];
-        par->ipos[1] += mass[j]*ipos[j][1];
-        par->ipos[2] += mass[j]*ipos[j][2];
-      }
-
-      // small mass: allow for now, check for errors later
-      if (par->mass < mjMINVAL) {
-        par->mass = 0;
-        mjuu_setvec(par->inertia, 0, 0, 0);
-        mjuu_setvec(par->ipos, 0, 0, 0);
-        mjuu_setvec(par->iquat, 1, 0, 0, 0);
-      }
-
-      // proceed with regular computation
-      else {
-        // locipos = center-of-mass
-        par->ipos[0] /= par->mass;
-        par->ipos[1] /= par->mass;
-        par->ipos[2] /= par->mass;
-
-        // add inertias
-        double toti[6] = {0, 0, 0, 0, 0, 0};
-        for (int j=0; j < 2; j++) {
-          double inertA[6], inertB[6];
-          double dpos[3] = {
-            ipos[j][0] - par->ipos[0],
-            ipos[j][1] - par->ipos[1],
-            ipos[j][2] - par->ipos[2]
-          };
-
-          mjuu_globalinertia(inertA, inertia[j], iquat[j]);
-          mjuu_offcenter(inertB, mass[j], dpos);
-          for (int k=0; k < 6; k++) {
-            toti[k] += inertA[k] + inertB[k];
-          }
-        }
-
-        // compute principal axes of inertia
-        mjuu_copyvec(par->fullinertia, toti, 6);
-        const char* err1 = mjuu_fullInertia(par->iquat, par->inertia, par->fullinertia);
-        if (err1) {
-          throw mjCError(nullptr, "error '%s' in fusing static body inertias", err1);
-        }
-      }
+      par->AccumulateInertia(body);
     }
 
     //------------- replace body with its children in parent body list
@@ -4054,11 +4034,7 @@ static void warninghandler(const char* msg) {
 // compiler
 mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   if (compiled) {
-    // clear kinematic tree
-    mjCBody* world = bodies_[0];
-    ResetTreeLists();
     Clear();
-    bodies_.push_back(world);
   }
 
   CopyFromSpec();
@@ -4105,9 +4081,7 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
     // deallocate everything allocated in Compile
     mj_deleteModel(model);
     mj_deleteData(data);
-    mjCBody* world = bodies_[0];
     Clear();
-    bodies_.push_back(world);
 
     // save error info
     errInfo = err;
@@ -4354,13 +4328,13 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     AddKey();
   }
 
-  // make lists of objects created in kinematic tree
-  MakeLists(bodies_[0]);
-
   // clear subtreedofs
   for (int i=0; i < bodies_.size(); i++) {
     bodies_[i]->subtreedofs = 0;
   }
+
+  // initialize spec signature (needed if the user changed sensor or joint types)
+  spec.element->signature = Signature();
 
   // fill missing names and check that they are all filled
   for (const auto& asset : meshes_) asset->CopyFromSpec();
@@ -4506,6 +4480,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // copy objects outsite kinematic tree (including keyframes)
   CopyObjects(m);
 
+  // finalize simple bodies/dofs including tendon information
+  FinalizeSimple(m);
+
   // compute non-zeros in actuator_moment
   m->nJmom = nJmom = CountNJmom(m);
 
@@ -4616,6 +4593,96 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     mju::strcpy_arr(errInfo.message, warningtext);
     errInfo.warning = true;
   }
+
+  // save signature
+  m->signature = Signature();
+
+  // special cases that are not caused by user edits
+  if (compiler.fusestatic || compiler.discardvisual ||
+      !pairs_.empty() || !excludes_.empty()) {
+    spec.element->signature = m->signature;
+  }
+
+  // check that the signature matches the spec
+  if (m->signature != spec.element->signature) {
+    throw mjCError(0, "signature mismatch");  // SHOULD NOT OCCUR
+  }
+}
+
+
+
+std::string mjCModel::PrintTree(const mjCBody* body, std::string indent) {
+  std::string tree;
+  tree += indent + "<body>\n";
+  indent += "  ";
+  for (const auto& joint : body->joints) {
+    tree += indent + "<joint>" + std::to_string(joint->nq()) + "</joint>\n";
+  }
+  for (uint64_t i = 0; i < body->geoms.size(); ++i) {
+    tree += indent + "<geom/>\n";
+  }
+  for (uint64_t i = 0; i < body->sites.size(); ++i) {
+    tree += indent + "<site/>\n";
+  }
+  for (uint64_t i = 0; i < body->cameras.size(); ++i) {
+    tree += indent + "<camera/>\n";
+  }
+  for (uint64_t i = 0; i < body->lights.size(); ++i) {
+    tree += indent + "<light/>\n";
+  }
+  for (uint64_t i = 0; i < body->bodies.size(); ++i) {
+    tree += PrintTree(body->bodies[i], indent);
+  }
+  indent.pop_back();
+  indent.pop_back();
+  tree += indent + "</body>\n";
+  return tree;
+}
+
+
+
+uint64_t mjCModel::Signature() {
+  std::string tree = "\n" + PrintTree(bodies_[0]);
+  for (unsigned int i = 0; i < flexes_.size(); ++i) {
+    tree += "<flex/>\n";
+  }
+  for (unsigned int i = 0; i < meshes_.size(); ++i) {
+    tree += "<mesh/>\n";
+  }
+  for (unsigned int i = 0; i < skins_.size(); ++i) {
+    tree += "<skin/>\n";
+  }
+  for (unsigned int i = 0; i < hfields_.size(); ++i) {
+    tree += "<heightfield/>\n";
+  }
+  for (unsigned int i = 0; i < textures_.size(); ++i) {
+    tree += "<texture/>\n";
+  }
+  for (unsigned int i = 0; i < materials_.size(); ++i) {
+    tree += "<material/>\n";
+  }
+  for (unsigned int i = 0; i < pairs_.size(); ++i) {
+    tree += "<pair/>\n";
+  }
+  for (unsigned int i = 0; i < excludes_.size(); ++i) {
+    tree += "<exclude/>\n";
+  }
+  for (unsigned int i = 1; i < equalities_.size(); ++i) {
+    tree += "<equality/>\n";
+  }
+  for (unsigned int i = 0; i < tendons_.size(); ++i) {
+    tree += "<tendon/>\n";
+  }
+  for (unsigned int i = 0; i < actuators_.size(); ++i) {
+    tree += "<actuator/>\n";
+  }
+  for (unsigned int i = 0; i < sensors_.size(); ++i) {
+    tree += "<sensor>" + std::to_string(sensors_[i]->spec.type) + "<sensor/>\n";
+  }
+  for (unsigned int i = 0; i < keys_.size(); ++i) {
+    tree += "<key/>\n";
+  }
+  return mj_hashString(tree.c_str(), UINT64_MAX);
 }
 
 
@@ -4689,6 +4756,11 @@ bool mjCModel::CopyBack(const mjModel* m) {
       nemax != m->nemax || nconmax != m->nconmax || njmax != m->njmax ||
       npaths != m->npaths) {
     errInfo = mjCError(0, "incompatible models in CopyBack");
+    return false;
+  }
+
+  if (spec.element->signature != m->signature) {
+    errInfo = mjCError(0, "incompatible signatures in CopyBack");
     return false;
   }
 
@@ -4887,6 +4959,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
   // tendons
   for (int i=0; i < ntendon; i++) {
     mjuu_copyvec(tendons_[i]->range, m->tendon_range+2*i, 2);
+    mjuu_copyvec(tendons_[i]->actfrcrange, m->tendon_actfrcrange+2*i, 2);
     mjuu_copyvec(tendons_[i]->solref_limit, m->tendon_solref_lim+mjNREF*i, mjNREF);
     mjuu_copyvec(tendons_[i]->solimp_limit, m->tendon_solimp_lim+mjNIMP*i, mjNIMP);
     mjuu_copyvec(tendons_[i]->solref_friction, m->tendon_solref_fri+mjNREF*i, mjNREF);
@@ -4896,6 +4969,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
     tendons_[i]->margin = (double)m->tendon_margin[i];
     tendons_[i]->stiffness = (double)m->tendon_stiffness[i];
     tendons_[i]->damping = (double)m->tendon_damping[i];
+    tendons_[i]->armature = (double)m->tendon_armature[i];
     tendons_[i]->frictionloss = (double)m->tendon_frictionloss[i];
 
     if (nuser_tendon) {

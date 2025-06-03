@@ -31,7 +31,7 @@
     </body>
     <flexcomp type="mesh" file="bunny.obj" pos="0 0 .1" dim="2" euler="90 0 0"
               radius=".001" rgba="0 .7 .7 1" mass=".05" name="softbody" dof="trilinear">
-      <elasticity young="1e3" poisson="0.1" damping="0.001"/>
+      <elasticity young="1e3" poisson="0.1" damping="0.001" elastic2d="stretch"/>
       <contact selfcollide="none" internal="false"/>
     </flexcomp>
   </worldbody>

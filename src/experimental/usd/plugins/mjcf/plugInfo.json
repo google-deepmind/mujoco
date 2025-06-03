@@ -1,0 +1,25 @@
+{
+  "Plugins": [
+    {
+      "Info": {
+        "Types": {
+          "UsdMjcfFileFormat": {
+            "bases": ["SdfFileFormat"],
+            "displayName": "MJCF USD File Format",
+            "extensions": ["xml"],
+            "formatId": "xml",
+            "primary": true,
+            "supportsReading": true,
+            "supportsWriting": false,
+            "target": "usd"
+          }
+        }
+      },
+      "LibraryPath": "@PLUG_INFO_LIBRARY_PATH@",
+      "Name": "usdMjcf",
+      "ResourcePath": "",
+      "Root": ".",
+      "Type": "library"
+    }
+  ]
+}

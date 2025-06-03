@@ -15,8 +15,10 @@
 // Tests for engine/engine_core_smooth.c.
 
 #include "src/engine/engine_core_smooth.h"
+#include "src/engine/engine_util_misc.h"
 #include "src/engine/engine_util_sparse.h"
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -158,6 +160,237 @@ TEST_F(CoreSmoothTest, FixedTendonSortedIndices) {
   mj_deleteData(data);
   mj_deleteModel(model);
 }
+
+static const char* const kTen_J0 = "engine/testdata/core_smooth/ten_J0.xml";
+static const char* const kTen_J1 = "engine/testdata/core_smooth/ten_J1.xml";
+static const char* const kTen_J2 = "engine/testdata/core_smooth/ten_J2.xml";
+static const char* const kTen_J3 = "engine/testdata/core_smooth/ten_J3.xml";
+
+TEST_F(CoreSmoothTest, TendonJdot) {
+  for (const char* local_path : {kTen_J0, kTen_J1, kTen_J2, kTen_J3}) {
+    const std::string xml_path = GetTestDataFilePath(local_path);
+    char error[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    int nv = m->nv;
+    ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+    EXPECT_EQ(m->ntendon, 1);
+    mjData* d = mj_makeData(m);
+
+    for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+      m->opt.jacobian = sparsity;
+
+      if (m->nkey) {
+        mj_resetDataKeyframe(m, d, 0);
+      } else {
+        mj_resetData(m, d);
+        while (d->time < 1) {
+          mj_step(m, d);
+        }
+      }
+
+      mj_forward(m, d);
+
+      // get current J and Jdot for the tendon
+      vector<mjtNum> ten_J(d->ten_J, d->ten_J + nv);
+      vector<mjtNum> ten_Jdot(nv, 0);
+      mj_tendonDot(m, d, 0, ten_Jdot.data());
+
+      // compute finite-differenced Jdot
+      mjtNum h = 1e-7;
+      mj_integratePos(m, d->qpos, d->qvel, h);
+      mj_kinematics(m, d);
+      mj_comPos(m, d);
+      mj_tendon(m, d);
+      vector<mjtNum> ten_Jh(d->ten_J, d->ten_J + nv);
+      mju_subFrom(ten_Jh.data(), ten_J.data(), nv);
+      mju_scl(ten_Jh.data(), ten_Jh.data(), 1.0 / h, nv);
+
+      // expect analytic and FD derivatives to be similar to eps precision
+      mjtNum eps = 1e-6;
+      EXPECT_THAT(ten_Jdot, Pointwise(DoubleNear(eps), ten_Jh));
+    }
+
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
+static const char* const kTen_offtree =
+    "engine/testdata/core_smooth/ten_armature_offtree.xml";
+
+TEST_F(CoreSmoothTest, TendonArmature) {
+  const std::string xml_path = GetTestDataFilePath(kTen_offtree);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+  int nv = m->nv;
+  mjData* d = mj_makeData(m);
+
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = sparsity;
+
+    mj_forward(m, d);
+
+    // get full M, includes both CRB and tendon inertia
+    vector<mjtNum> M(nv*nv);
+    mj_fullM(m, M.data(), d->qM);
+
+    // put only CRB inertia in M2
+    mj_crb(m, d);
+    vector<mjtNum> M2(nv*nv);
+    mj_fullM(m, M2.data(), d->qM);
+
+    vector<mjtNum> ten_J(nv);     // tendon Jacobian
+    vector<mjtNum> ten_M(nv*nv);  // tendon inertia
+
+    // add tendon inertias to M2 using outer product
+    for (int j=0; j < m->ntendon; j++) {
+      // get tendon Jacobian
+      if (mj_isSparse(m)) {
+        int rowadr = d->ten_J_rowadr[j];
+        int* rownnz = d->ten_J_rownnz + j;
+        int zero = 0;
+        mju_sparse2dense(ten_J.data(), d->ten_J + rowadr, 1, nv,
+                         rownnz, &zero, d->ten_J_colind + rowadr);
+      } else {
+        mju_copy(ten_J.data(), d->ten_J + j*nv, nv);
+      }
+
+      // get tendon inertia only, using outer product
+      mju_mulMatMat(ten_M.data(), ten_J.data(), ten_J.data(), nv, 1, nv);
+      mju_scl(ten_M.data(), ten_M.data(), m->tendon_armature[j], nv * nv);
+
+      // manually add values, at nonzeros only
+      for (int i=0; i < nv*nv; i++) {
+        if (M[i]) M2[i] += ten_M[i];
+      }
+    }
+
+    // expect matrices to match
+    EXPECT_THAT(M2, Pointwise(DoubleNear(1e-9), M));
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+static const char* const kTen_i0 =
+    "engine/testdata/core_smooth/ten_armature_0.xml";
+static const char* const kTen_i1 =
+    "engine/testdata/core_smooth/ten_armature_1.xml";
+static const char* const kTen_i2 =
+    "engine/testdata/core_smooth/ten_armature_2.xml";
+static const char* const kTen_i3 =
+    "engine/testdata/core_smooth/ten_armature_3.xml";
+static const char* const kTen_i4 =
+    "engine/testdata/core_smooth/ten_armature_4.xml";
+
+TEST_F(CoreSmoothTest, TendonArmatureConservesEnergy) {
+  for (const char* local_path : {kTen_i0, kTen_i1, kTen_i2, kTen_i3, kTen_i4}) {
+    const std::string xml_path = GetTestDataFilePath(local_path);
+    char error[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+    mjData* d = mj_makeData(m);
+
+    for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+      m->opt.jacobian = sparsity;
+
+      mj_resetDataKeyframe(m, d, 0);
+      mj_forward(m, d);
+
+      double energy_0 = d->energy[0] + d->energy[1];
+
+      double eps = std::max(energy_0, 1.0) * 1e-5;
+      while (d->time < 1) {
+        mj_step(m, d);
+        double energy_t = d->energy[0] + d->energy[1];
+        EXPECT_THAT(energy_t, DoubleNear(energy_0, eps));
+      }
+    }
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
+}
+
+TEST_F(CoreSmoothTest, TendonArmatureConservesMomentum) {
+  const std::string xml_path = GetTestDataFilePath(kTen_i4);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+  mjData* d = mj_makeData(m);
+
+  for (mjtJacobian sparsity : {mjJAC_DENSE, mjJAC_SPARSE}) {
+    m->opt.jacobian = sparsity;
+
+    mj_resetData(m, d);
+    mj_forward(m, d);
+
+    // this model contains subtreelinvel and subtreeangmom sensors
+    vector<mjtNum> sdata_0 = AsVector(d->sensordata, m->nsensordata);
+    EXPECT_THAT(sdata_0, Each(Eq(0)));
+
+    double eps = 1e-5;
+    while (d->time < 1) {
+      mj_step(m, d);
+      vector<mjtNum> sdata_t = AsVector(d->sensordata, m->nsensordata);
+      EXPECT_THAT(sdata_t, Pointwise(DoubleNear(eps), sdata_0));
+    }
+
+    // momentum is conserved nontrivially (velocities are non-zero)
+    EXPECT_GT(d->energy[1], 0);
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+static const char* const kTen_i0_equiv =
+    "engine/testdata/core_smooth/ten_armature_0_equiv.xml";
+static const char* const kTen_i1_equiv =
+    "engine/testdata/core_smooth/ten_armature_1_equiv.xml";
+
+TEST_F(CoreSmoothTest, TendonInertiaEquivalent) {
+  for (const char* lpath : {kTen_i0, kTen_i1}) {
+    // load tendon model
+    const std::string path = GetTestDataFilePath(lpath);
+    char error[1024];
+    mjModel* m = mj_loadXML(path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+    int gid = mj_name2id(m, mjOBJ_GEOM, "query");
+    mjData* d = mj_makeData(m);
+
+    if (m->nkey) mj_resetDataKeyframe(m, d, 0);
+
+    // load equivalent model
+    const char* lpath_e = lpath == kTen_i0 ? kTen_i0_equiv : kTen_i1_equiv;
+    const std::string path_e = GetTestDataFilePath(lpath_e);
+    mjModel* m_e = mj_loadXML(path_e.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+    int gid_e = mj_name2id(m_e, mjOBJ_GEOM, "query");
+    mjData* d_e = mj_makeData(m_e);
+
+    if (m_e->nkey) mj_resetDataKeyframe(m_e, d_e, 0);
+
+    // the equality constraint in kTen_i1_equiv reduces precision
+    double eps = lpath == kTen_i0 ? 1e-6 : 1e-3;
+
+    while (d->time < 1) {
+      mj_step(m, d);
+      vector<mjtNum> xpos = AsVector(d->geom_xpos + 3*gid, 3);
+
+      mj_step(m_e, d_e);
+      vector<mjtNum> xpos_e = AsVector(d_e->geom_xpos + 3*gid_e, 3);
+
+      EXPECT_THAT(xpos, Pointwise(DoubleNear(eps), xpos_e));
+    }
+    mj_deleteData(d);
+    mj_deleteModel(m);
+    mj_deleteData(d_e);
+    mj_deleteModel(m_e);
+  }
+}
+
 
 // --------------------------- connect constraint ------------------------------
 
@@ -401,66 +634,6 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   mj_deleteModel(model);
 }
 
-static const char* const kIlslandEfcPath =
-    "engine/testdata/island/island_efc.xml";
-static const char* const kModelPath =
-    "testdata/model.xml";
-
-TEST_F(CoreSmoothTest, SolveMIsland) {
-  for (auto model_path : {kModelPath, kIlslandEfcPath}) {
-    const std::string xml_path = GetTestDataFilePath(model_path);
-    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-    mjData* data = mj_makeData(model);
-    int nv = model->nv;
-
-    // allocate vec, fill with arbitrary values, copy to sol
-    mjtNum* vec = (mjtNum*) mju_malloc(sizeof(mjtNum) * nv);
-    mjtNum* res = (mjtNum*) mju_malloc(sizeof(mjtNum) * nv);
-    for (int i=0; i < nv; i++) {
-      vec[i] = 0.2 + 0.3*i;
-    }
-    mju_copy(res, vec, nv);
-
-    if (model->nkey > 0) mj_resetDataKeyframe(model, data, 0);
-
-    for (int i=0; i < 6; i++) {
-      mj_step(model, data);
-    }
-
-    mj_forward(model, data);
-
-    // divide by mass matrix: sol = M^-1 * vec
-    mj_solveM(model, data, res, res, 1);
-
-    // iterate over islands
-    for (int i=0; i < data->nisland; i++) {
-      // allocate dof vectors for island
-      int dofnum = data->island_dofnum[i];
-      mjtNum* res_i = (mjtNum*)mju_malloc(sizeof(mjtNum) * dofnum);
-
-      // copy values into sol_i
-      int* dofind = data->island_dofind + data->island_dofadr[i];
-      for (int j=0; j < dofnum; j++) {
-        res_i[j] = vec[dofind[j]];
-      }
-
-      // divide by mass matrix, for this island
-      mj_solveM_island(model, data, res_i, i);
-
-      // expect corresponding values to match
-      for (int j=0; j < dofnum; j++) {
-        EXPECT_THAT(res_i[j], DoubleNear(res[dofind[j]], 1e-12));
-      }
-      mju_free(res_i);
-    }
-
-    mju_free(res);
-    mju_free(vec);
-    mj_deleteData(data);
-    mj_deleteModel(model);
-  }
-}
-
 static const char* const kInertiaPath = "engine/testdata/inertia.xml";
 
 TEST_F(CoreSmoothTest, FactorI) {
@@ -521,12 +694,11 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   int nv = m->nv;
   int nM = m->nM;
+  int nC = m->nC;
 
   // copy M into LD: Legacy format
-  vector<mjtNum> LDlegacy(nM);
-  for (int i=0; i < nM; i++) {
-    LDlegacy[d->mapM2M[i]] = d->qLD[i];
-  }
+  vector<mjtNum> LDlegacy(nM, 0);
+  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, nC);
 
   // compare LD and LDs densified matrices
   vector<mjtNum> LDdense(nv*nv);
@@ -550,7 +722,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   mj_solveLD_legacy(m, vec.data(), 1, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, 1,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->M_rownnz, d->M_rowadr, d->M_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
@@ -571,13 +743,10 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
   mj_forward(m, d);
 
   int nv = m->nv;
-  int nM = m->nM;
 
   // copy LD into LDlegacy: Legacy format
-  vector<mjtNum> LDlegacy(nM);
-  for (int i=0; i < nM; i++) {
-    LDlegacy[d->mapM2M[i]] = d->qLD[i];
-  }
+  vector<mjtNum> LDlegacy(m->nM, 0);
+  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, m->nC);
 
   // compare n LD and LDs vector solve
   int n = 3;
@@ -588,7 +757,7 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   mj_solveLD_legacy(m, vec.data(), n, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->M_rownnz, d->M_rowadr, d->M_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv*n; i++) {
@@ -626,7 +795,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
 
   mj_solveM2(m, d, res.data(), vec.data(), sqrtInvD.data(), n);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->M_rownnz, d->M_rowadr, d->M_colind);
 
   // expect equality of dot(v, M^-1 * v) and dot(M^-1/2 * v, M^-1/2 * v)
   for (int i=0; i < n; i++) {
@@ -647,29 +816,25 @@ TEST_F(CoreSmoothTest, FactorIs) {
   mjData* d = mj_makeData(m);
   mj_forward(m, d);
 
-  int nM = m->nM, nv = m->nv;
+  int nC = m->nC, nM = m->nM, nv = m->nv;
 
   // copy qM into into qLDlegacy and factorize
   vector<mjtNum> qLDlegacy(nM);
   mj_factorI_legacy(m, d, d->qM, qLDlegacy.data(), d->qLDiagInv);
 
   // copy qLDlegacy into qLDexpected: CSR format
-  vector<mjtNum> qLDexpected(nM);
-  for (int i=0; i < nM; i++) {
-    qLDexpected[i] = qLDlegacy[d->mapM2M[i]];
-  }
+  vector<mjtNum> qLDexpected(nC);
+  mju_gather(qLDexpected.data(), qLDlegacy.data(), d->mapM2M, nC);
 
   // copy qM into qLD: CSR format
-  vector<mjtNum> qLD(nM);
-  for (int i=0; i < nM; i++) {
-    qLD[i] = d->qM[d->mapM2M[i]];  // mj_factorI is in-place
-  }
+  vector<mjtNum> qLD(nC);
+  mju_gather(qLD.data(), d->qM, d->mapM2M, nC);
 
   vector<mjtNum> qLDiagInvExpected(d->qLDiagInv, d->qLDiagInv + nv);
   vector<mjtNum> qLDiagInv(nv, 0);
 
   mj_factorI(qLD.data(), qLDiagInv.data(), nv,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->M_rownnz, d->M_rowadr, d->M_colind);
 
   // expect outputs to match to floating point precision
   EXPECT_THAT(qLD, Pointwise(DoubleNear(1e-12), qLDexpected));
@@ -679,12 +844,12 @@ TEST_F(CoreSmoothTest, FactorIs) {
   vector<mjtNum> LDdense(nv*nv);
 
   mju_sparse2dense(LDdense.data(), qLDexpected.data(), nv, nv,
-                   d->M_rownnz, d->M_rowadr, d->M_colind);
-  PrintMatrix(LDdense.data(), nv, nv, 2, "qLDexpected");
+                   d->C_rownnz, d->C_rowadr, d->C_colind);
+  PrintMatrix(LDdense.data(), nv, nv, 2);
 
-  mju_sparse2dense(LDdense.data(), qLD.data(), nv, nv,
-                   d->M_rownnz, d->M_rowadr, d->M_colind);
-  PrintMatrix(LDdense.data(), nv, nv, 2, "qLD");
+  mju_sparse2dense(LDdense.data(), qLDs.data(), nv, nv,
+                   d->C_rownnz, d->C_rowadr, d->C_colind);
+  PrintMatrix(LDdense.data(), nv, nv, 2);
   */
 
   mj_deleteData(d);

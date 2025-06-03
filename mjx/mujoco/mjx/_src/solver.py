@@ -24,13 +24,15 @@ from mujoco.mjx._src import support
 from mujoco.mjx._src.dataclasses import PyTreeNode
 from mujoco.mjx._src.types import ConeType
 from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import SolverType
 # pylint: enable=g-importing-member
 
 
-class _Context(PyTreeNode):
+class Context(PyTreeNode):
   """Data updated during each solver iteration.
 
   Attributes:
@@ -72,25 +74,30 @@ class _Context(PyTreeNode):
   h: jax.Array
 
   @classmethod
-  def create(cls, m: Model, d: Data, grad: bool = True) -> '_Context':
-    jaref = d.efc_J @ d.qacc - d.efc_aref
+  def create(cls, m: Model, d: Data, grad: bool = True) -> 'Context':
+    if not isinstance(d._impl, DataJAX):
+      raise ValueError(
+          'Constraint context requires JAX backend implementation.'
+      )
+
+    jaref = d._impl.efc_J @ d.qacc - d._impl.efc_aref
     # TODO(robotics-team): determine nv at which sparse mul is faster
     ma = support.mul_m(m, d, d.qacc)
     nv_0 = jp.zeros(m.nv)
     fri = 0.0
     if m.opt.cone == ConeType.ELLIPTIC:
-      friction = d.contact.friction[d.contact.dim > 1]
-      dim = d.contact.dim[d.contact.dim > 1]
+      friction = d._impl.contact.friction[d._impl.contact.dim > 1]
+      dim = d._impl.contact.dim[d._impl.contact.dim > 1]
       mu = friction[:, 0] / jp.sqrt(m.opt.impratio)
       fri = jp.concatenate((mu[:, None], friction), axis=1)
       for condim in (3, 4, 6):
         fri = fri.at[dim == condim, condim:].set(0)
 
-    ctx = _Context(
+    ctx = Context(
         qacc=d.qacc,
         qfrc_constraint=d.qfrc_constraint,
         Jaref=jaref,
-        efc_force=d.efc_force,
+        efc_force=d._impl.efc_force,
         Ma=ma,
         grad=nv_0,
         Mgrad=nv_0,
@@ -133,7 +140,7 @@ class _LSPoint(PyTreeNode):
       cls,
       m: Model,
       d: Data,
-      ctx: _Context,
+      ctx: Context,
       alpha: jax.Array,
       jv: jax.Array,
       quad: jax.Array,
@@ -145,18 +152,20 @@ class _LSPoint(PyTreeNode):
   ) -> '_LSPoint':
     """Creates a linesearch point with first and second derivatives."""
     # roughly corresponds to CGEval in mujoco/src/engine/engine_solver.c
+    if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+      raise ValueError('LSPoint requires JAX backend implementation.')
 
     cost, deriv_0, deriv_1 = 0.0, 0.0, 0.0
     quad_total = quad_gauss
     x = ctx.Jaref + alpha * jv
-    active = (x < 0).at[: d.ne + d.nf].set(True)
+    active = (x < 0).at[: d._impl.ne + d._impl.nf].set(True)
 
-    dof_fl, ten_fl = m.dof_hasfrictionloss, m.tendon_hasfrictionloss
+    dof_fl, ten_fl = m._impl.dof_hasfrictionloss, m._impl.tendon_hasfrictionloss
     if (dof_fl.any() or ten_fl.any()) and not (
         m.opt.disableflags & DisableBit.FRICTIONLOSS
     ):
-      f = d.efc_frictionloss
-      r = 1.0 / (d.efc_D + (d.efc_D == 0.0) * mujoco.mjMINVAL)
+      f = d._impl.efc_frictionloss
+      r = 1.0 / (d._impl.efc_D + (d._impl.efc_D == 0.0) * mujoco.mjMINVAL)
       rf, z = r * f, jp.zeros_like(f)
       linear_neg = (x <= -rf)[:, None]
       linear_pos = (x >= rf)[:, None]
@@ -174,13 +183,13 @@ class _LSPoint(PyTreeNode):
       middle_zone = (tsqr > 0) & (n < (mu * t)) & ((mu * n + t) > 0)
 
       # quadratic cost for equality, friction, limits, frictionless contacts
-      dim1 = d.contact.efc_address[d.contact.dim == 1]
-      nefl = d.ne + d.nf + d.nl
+      dim1 = d._impl.contact.efc_address[d._impl.contact.dim == 1]
+      nefl = d._impl.ne + d._impl.nf + d._impl.nl
       active = active.at[nefl:].set(False).at[dim1].set(active[dim1])
       quad_efld = jax.vmap(jp.multiply)(quad, active)
       quad_total += jp.sum(quad_efld, axis=0)
       # elliptic bottom zone: quadratic cost
-      efc_elliptic = d.contact.efc_address[d.contact.dim > 1]
+      efc_elliptic = d._impl.contact.efc_address[d._impl.contact.dim > 1]
       quad_c = jax.vmap(jp.multiply)(quad[efc_elliptic], bottom_zone)
       quad_total += jp.sum(quad_c, axis=0)
       # elliptic middle zone
@@ -241,7 +250,7 @@ def _while_loop_scan(cond_fun, body_fun, init_val, max_iter):
   return jax.lax.scan(_fun, init, None, length=max_iter)[0][0]
 
 
-def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
+def _update_constraint(m: Model, d: Data, ctx: Context) -> Context:
   """Updates constraint force and resulting cost given last solver iteration.
 
   Corresponds to CGupdateConstraint in mujoco/src/engine/engine_solver.c
@@ -254,17 +263,20 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
   Returns:
     context with new constraint force and costs
   """
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('_update_constraint requires JAX backend implementation.')
+
   # ne constraints are always active, nf are conditionally active, others are
   # non-negative constraints.
-  active = (ctx.Jaref < 0).at[: d.ne + d.nf].set(True)
+  active = (ctx.Jaref < 0).at[: d._impl.ne + d._impl.nf].set(True)
 
-  floss_force, floss_cost = jp.zeros(d.nefc), 0.0
-  dof_fl, ten_fl = m.dof_hasfrictionloss, m.tendon_hasfrictionloss
+  floss_force, floss_cost = jp.zeros(d._impl.nefc), 0.0
+  dof_fl, ten_fl = m._impl.dof_hasfrictionloss, m._impl.tendon_hasfrictionloss
   if (dof_fl.any() or ten_fl.any()) and not (
       m.opt.disableflags & DisableBit.FRICTIONLOSS
   ):
-    f = d.efc_frictionloss
-    r = 1.0 / (d.efc_D + (d.efc_D == 0.0) * mujoco.mjMINVAL)
+    f = d._impl.efc_frictionloss
+    r = 1.0 / (d._impl.efc_D + (d._impl.efc_D == 0.0) * mujoco.mjMINVAL)
     linear_neg = (ctx.Jaref <= -r * f) * (f > 0)
     linear_pos = (ctx.Jaref >= r * f) * (f > 0)
     active = active & ~linear_neg & ~linear_pos
@@ -274,13 +286,13 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
     floss_cost = floss_cost.sum()
 
   if m.opt.cone == ConeType.PYRAMIDAL:
-    efc_force = d.efc_D * -ctx.Jaref * active + floss_force
-    cost = 0.5 * jp.sum(d.efc_D * ctx.Jaref * ctx.Jaref * active)
+    efc_force = d._impl.efc_D * -ctx.Jaref * active + floss_force
+    cost = 0.5 * jp.sum(d._impl.efc_D * ctx.Jaref * ctx.Jaref * active)
     dm, u, h = 0.0, 0.0, 0.0
   elif m.opt.cone == ConeType.ELLIPTIC:
-    friction = d.contact.friction[d.contact.dim > 1]
-    efc_address = d.contact.efc_address[d.contact.dim > 1]
-    dim = d.contact.dim[d.contact.dim > 1]
+    friction = d._impl.contact.friction[d._impl.contact.dim > 1]
+    efc_address = d._impl.contact.efc_address[d._impl.contact.dim > 1]
+    dim = d._impl.contact.dim[d._impl.contact.dim > 1]
     # to prevent out of range append zeros to ctx.Jaref
     slice_fn = jax.vmap(
         lambda x: jax.lax.dynamic_slice(
@@ -297,12 +309,12 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
       adr_i.extend(range(addr, addr + condim))
       adr_j.extend([i] * condim)
     active = active.at[jp.array(adr_i)].set(bottom_zone[jp.array(adr_j)])
-    efc_force = d.efc_D * -ctx.Jaref * active + floss_force
-    cost = 0.5 * jp.sum(d.efc_D * ctx.Jaref * ctx.Jaref * active)
+    efc_force = d._impl.efc_D * -ctx.Jaref * active + floss_force
+    cost = 0.5 * jp.sum(d._impl.efc_D * ctx.Jaref * ctx.Jaref * active)
 
     # middle zone: cone
     middle_zone = (t > 0) & (n < (mu * t)) & ((mu * n + t) > 0)
-    dm = d.efc_D[efc_address] / jp.maximum(
+    dm = d._impl.efc_D[efc_address] / jp.maximum(
         mu * mu * (1 + mu * mu), mujoco.mjMINVAL
     )
     nmt = n - mu * t
@@ -339,7 +351,7 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
   else:
     raise NotImplementedError(f'unsupported cone type: {m.opt.cone}')
 
-  qfrc_constraint = d.efc_J.T @ efc_force
+  qfrc_constraint = d._impl.efc_J.T @ efc_force
   gauss = 0.5 * jp.dot(ctx.Ma - d.qfrc_smooth, ctx.qacc - d.qacc_smooth)
   ctx = ctx.replace(
       qfrc_constraint=qfrc_constraint,
@@ -356,7 +368,7 @@ def _update_constraint(m: Model, d: Data, ctx: _Context) -> _Context:
   return ctx
 
 
-def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
+def _update_gradient(m: Model, d: Data, ctx: Context) -> Context:
   """Updates grad and M / grad given latest solver iteration.
 
   Corresponds to CGupdateGradient in mujoco/src/engine/engine_solver.c
@@ -371,6 +383,8 @@ def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
   Raises:
     NotImplementedError: for unsupported solver type
   """
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('_update_gradient requires JAX backend implementation.')
 
   grad = ctx.Ma - d.qfrc_smooth - ctx.qfrc_constraint
 
@@ -378,16 +392,16 @@ def _update_gradient(m: Model, d: Data, ctx: _Context) -> _Context:
     mgrad = smooth.solve_m(m, d, grad)
   elif m.opt.solver == SolverType.NEWTON:
     if m.opt.cone == ConeType.ELLIPTIC:
-      cm = jp.diag(d.efc_D * ctx.active)
-      efc_address = d.contact.efc_address[d.contact.dim > 1]
-      dim = d.contact.dim[d.contact.dim > 1]
+      cm = jp.diag(d._impl.efc_D * ctx.active)
+      efc_address = d._impl.contact.efc_address[d._impl.contact.dim > 1]
+      dim = d._impl.contact.dim[d._impl.contact.dim > 1]
       # set efc of cone H along diagonal
       for i, (condim, addr) in enumerate(zip(dim, efc_address)):
         h_cone = ctx.h[i, :condim, :condim]
         cm = cm.at[addr : addr + condim, addr : addr + condim].add(h_cone)
-      h = d.efc_J.T @ cm @ d.efc_J
+      h = d._impl.efc_J.T @ cm @ d._impl.efc_J
     else:
-      h = (d.efc_J.T * d.efc_D * ctx.active) @ d.efc_J
+      h = (d._impl.efc_J.T * d._impl.efc_D * ctx.active) @ d._impl.efc_J
     h = support.full_m(m, d) + h
     h_ = jax.scipy.linalg.cho_factor(h)
     mgrad = jax.scipy.linalg.cho_solve(h_, grad)
@@ -403,7 +417,7 @@ def _rescale(m: Model, value: jax.Array) -> jax.Array:
   return value / (m.stat.meaninertia * max(1, m.nv))
 
 
-def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
+def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
   """Performs a zoom linesearch to find optimal search step size.
 
   Args:
@@ -414,12 +428,15 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
   Returns:
     updated context with new qacc, Ma, Jaref
   """
+  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+    raise ValueError('_lineasearch requires JAX backend implementation.')
+
   smag = math.norm(ctx.search) * m.stat.meaninertia * max(1, m.nv)
   gtol = m.opt.tolerance * m.opt.ls_tolerance * smag
 
   # compute Mv, Jv
   mv = support.mul_m(m, d, ctx.search)
-  jv = d.efc_J @ ctx.search
+  jv = d._impl.efc_J @ ctx.search
 
   # prepare quadratics
   quad_gauss = jp.stack((
@@ -428,13 +445,15 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
       0.5 * jp.dot(ctx.search, mv),
   ))
   quad = jp.stack((0.5 * ctx.Jaref * ctx.Jaref, jv * ctx.Jaref, 0.5 * jv * jv))
-  quad = (quad * d.efc_D).T
+  quad = (quad * d._impl.efc_D).T
   uu, v0, uv, vv = 0.0, 0.0, 0.0, 0.0
   if m.opt.cone == ConeType.ELLIPTIC:
-    mask = d.contact.dim > 1
+    mask = d._impl.contact.dim > 1
     # complete vector quadratic (for bottom zone)
     efc_con, efc_fri = [], []
-    for condim, addr in zip(d.contact.dim[mask], d.contact.efc_address[mask]):
+    for condim, addr in zip(
+        d._impl.contact.dim[mask], d._impl.contact.efc_address[mask]
+    ):
       efc_con.extend([addr] * (condim - 1))
       efc_fri.extend(range(addr + 1, addr + condim))
     quad = quad.at[jp.array(efc_con)].add(quad[jp.array(efc_fri)])
@@ -446,7 +465,7 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
             jp.concatenate((jv, jp.zeros(3))), (x,), (6,)
         )
     )
-    efc_elliptic = d.contact.efc_address[mask]
+    efc_elliptic = d._impl.contact.efc_address[mask]
     v = jv_fn(efc_elliptic) * ctx.fri
     uu = jp.sum(ctx.u[:, 1:] * ctx.u[:, 1:], axis=1)
     v0 = v[:, 0]
@@ -529,7 +548,7 @@ def _linesearch(m: Model, d: Data, ctx: _Context) -> _Context:
 def solve(m: Model, d: Data) -> Data:
   """Finds forces that satisfy constraints using conjugate gradient descent."""
 
-  def cond(ctx: _Context) -> jax.Array:
+  def cond(ctx: Context) -> jax.Array:
     improvement = _rescale(m, ctx.prev_cost - ctx.cost)
     gradient = _rescale(m, math.norm(ctx.grad))
 
@@ -539,7 +558,7 @@ def solve(m: Model, d: Data) -> Data:
 
     return ~done
 
-  def body(ctx: _Context) -> _Context:
+  def body(ctx: Context) -> Context:
     ctx = _linesearch(m, d, ctx)
     prev_grad, prev_Mgrad = ctx.grad, ctx.Mgrad  # pylint: disable=invalid-name
     ctx = _update_constraint(m, d, ctx)
@@ -560,22 +579,22 @@ def solve(m: Model, d: Data) -> Data:
   # warmstart:
   qacc = d.qacc_smooth
   if not m.opt.disableflags & DisableBit.WARMSTART:
-    warm = _Context.create(m, d.replace(qacc=d.qacc_warmstart), grad=False)
-    smth = _Context.create(m, d.replace(qacc=d.qacc_smooth), grad=False)
+    warm = Context.create(m, d.replace(qacc=d.qacc_warmstart), grad=False)
+    smth = Context.create(m, d.replace(qacc=d.qacc_smooth), grad=False)
     qacc = jp.where(warm.cost < smth.cost, d.qacc_warmstart, d.qacc_smooth)
   d = d.replace(qacc=qacc)
 
-  ctx = _Context.create(m, d)
+  ctx = Context.create(m, d)
   if m.opt.iterations == 1:
     ctx = body(ctx)
   else:
     ctx = jax.lax.while_loop(cond, body, ctx)
 
-  d = d.replace(
-      qacc_warmstart=ctx.qacc,
-      qacc=ctx.qacc,
-      qfrc_constraint=ctx.qfrc_constraint,
-      efc_force=ctx.efc_force,
-  )
+  d = d.tree_replace({
+      'qacc_warmstart': ctx.qacc,
+      'qfrc_constraint': ctx.qfrc_constraint,
+      'qacc': ctx.qacc,
+      '_impl.efc_force': ctx.efc_force,
+  })
 
   return d

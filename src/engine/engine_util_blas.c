@@ -843,9 +843,9 @@ void mju_mulMatMatT(mjtNum* res, const mjtNum* mat1, const mjtNum* mat2,
 }
 
 
-
-// compute M'*diag*M (diag=NULL: compute M'*M)
-void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, int nc) {
+// compute M'*diag*M (diag=NULL: compute M'*M), upper triangle optional
+void mju_sqrMatTD_impl(mjtNum* res, const mjtNum* mat, const mjtNum* diag,
+                       int nr, int nc, int flg_upper) {
   mjtNum tmp;
 
   // half of MatMat routine: only lower triangle
@@ -870,12 +870,20 @@ void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, in
     }
   }
 
-  // make symmetric
-  for (int i=0; i < nc; i++) {
-    for (int j=i+1; j < nc; j++) {
-      res[i*nc+j] = res[j*nc+i];
+  // flg_upper is set: make symmetric
+  if (flg_upper) {
+    for (int i=0; i < nc; i++) {
+      for (int j=i+1; j < nc; j++) {
+        res[i*nc+j] = res[j*nc+i];
+      }
     }
   }
+}
+
+
+// compute M'*diag*M (diag=NULL: compute M'*M)
+void mju_sqrMatTD(mjtNum* res, const mjtNum* mat, const mjtNum* diag, int nr, int nc) {
+  mju_sqrMatTD_impl(res, mat, diag, nr, nc, /*flg_upper=*/ 1);
 }
 
 

@@ -194,6 +194,7 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
   WriteAttr(elastic, "poisson", 1, &flex->poisson, &defflex.poisson);
   WriteAttr(elastic, "thickness", 1, &flex->thickness, &defflex.thickness);
   WriteAttr(elastic, "damping", 1, &flex->damping, &defflex.damping);
+  WriteAttrKey(elastic, "elastic2d", elastic2d_map, 2, flex->elastic2d, defflex.elastic2d);
 
   // edge subelement
   XMLElement* edge = InsertEnd(elem, "edge");
@@ -604,7 +605,10 @@ void mjXWriter::OneLight(XMLElement* elem, const mjCLight* light, mjCDef* def,
 
   // defaults and regular
   WriteAttr(elem, "bulbradius", 1, &light->bulbradius, &def->Light().bulbradius);
-  WriteAttrKey(elem, "directional", bool_map, 2, light->directional, def->Light().directional);
+  WriteAttr(elem, "intensity", 1, &light->intensity, &def->Light().intensity);
+  WriteAttr(elem, "range", 1, &light->range, &def->Light().range);
+  WriteAttrKey(elem, "type", lighttype_map, lighttype_sz, light->type, def->Light().type);
+  WriteAttrTxt(elem, "texture", light->get_texture());
   WriteAttrKey(elem, "castshadow", bool_map, 2, light->castshadow, def->Light().castshadow);
   WriteAttrKey(elem, "active", bool_map, 2, light->active, def->Light().active);
   WriteAttr(elem, "attenuation", 3, light->attenuation, def->Light().attenuation);
@@ -725,10 +729,13 @@ void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* tendon, mjCDef* def
   WriteAttr(elem, "solimpfriction", mjNIMP, tendon->solimp_friction, def->Tendon().solimp_friction,
             true);
   WriteAttrKey(elem, "limited", TFAuto_map, 3, tendon->limited, def->Tendon().limited);
+  WriteAttrKey(elem, "actuatorfrclimited", TFAuto_map, 3, tendon->actfrclimited, def->Tendon().actfrclimited);
   WriteAttr(elem, "range", 2, tendon->range, def->Tendon().range);
+  WriteAttr(elem, "actuatorfrcrange", 2, tendon->actfrcrange, def->Tendon().actfrcrange);
   WriteAttr(elem, "margin", 1, &tendon->margin, &def->Tendon().margin);
   WriteAttr(elem, "stiffness", 1, &tendon->stiffness, &def->Tendon().stiffness);
   WriteAttr(elem, "damping", 1, &tendon->damping, &def->Tendon().damping);
+  WriteAttr(elem, "armature", 1, &tendon->armature, &def->Tendon().armature);
   WriteAttr(elem, "frictionloss", 1, &tendon->frictionloss, &def->Tendon().frictionloss);
   if (tendon->springlength[0] != tendon->springlength[1] ||
       def->Tendon().springlength[0] != def->Tendon().springlength[1]) {
@@ -878,12 +885,12 @@ mjXWriter::mjXWriter(void) {
 
 
 // cast model
-void mjXWriter::SetModel(const mjSpec* _spec, const mjModel* m) {
+void mjXWriter::SetModel(mjSpec* _spec, const mjModel* m) {
   if (_spec) {
     model = static_cast<mjCModel*>(_spec->element);
   }
   if (m) {
-    model->CopyBack(m);
+    mj_copyBack(&model->spec, m);
   }
 }
 
@@ -1482,6 +1489,7 @@ void mjXWriter::Asset(XMLElement* root) {
 
     // write common attributes
     WriteAttrKey(elem, "type", texture_map, texture_sz, texture->type);
+    WriteAttrKey(elem, "colorspace", colorspace_map, colorspace_sz, texture->colorspace);
     WriteAttrTxt(elem, "name", texture->name);
 
     // write builtin
@@ -1548,6 +1556,7 @@ void mjXWriter::Asset(XMLElement* root) {
     if (mesh->Plugin().active) {
       elem = InsertEnd(section, "mesh");
       WriteAttrTxt(elem, "name", mesh->name);
+      WriteAttrTxt(elem, "file", mesh->File());
       OnePlugin(InsertEnd(elem, "plugin"), &mesh->Plugin());
     } else{
       elem = InsertEnd(section, "mesh");
@@ -1632,7 +1641,8 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     WriteVector(elem, "user", body->get_userdata());
 
     // write inertial
-    if (body->explicitinertial && model->compiler.inertiafromgeom != mjINERTIAFROMGEOM_TRUE) {
+    if (model->compiler.saveinertial ||
+        (body->explicitinertial && model->compiler.inertiafromgeom != mjINERTIAFROMGEOM_TRUE)) {
       XMLElement* inertial = InsertEnd(elem, "inertial");
       WriteAttr(inertial, "pos", 3, body->ipos);
       WriteAttr(inertial, "quat", 4, body->iquat, unitq);
@@ -2030,6 +2040,10 @@ void mjXWriter::Sensor(XMLElement* root) {
       case mjSENS_JOINTACTFRC:
         elem = InsertEnd(section, "jointactuatorfrc");
         WriteAttrTxt(elem, "joint", sensor->get_objname());
+        break;
+      case mjSENS_TENDONACTFRC:
+        elem = InsertEnd(section, "tendonactuatorfrc");
+        WriteAttrTxt(elem, "tendon", sensor->get_objname());
         break;
 
       // sensors related to ball joints

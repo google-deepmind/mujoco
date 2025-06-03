@@ -51,6 +51,15 @@ Compile :ref:`mjSpec` to :ref:`mjModel`. A spec can be edited and compiled multi
 :ref:`mjModel` instance that takes the edits into account.
 If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read with :ref:`mjs_getError`.
 
+.. _mj_copyBack:
+
+`mj_copyBack <#mj_copyBack>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_copyBack
+
+Copy real-valued arrays from model to spec, returns 1 on success.
+
 .. _mj_recompile:
 
 `mj_recompile <#mj_recompile>`__
@@ -459,7 +468,7 @@ Multiply vector by (inertia matrix)^(1/2).
 .. mujoco-include:: mj_addM
 
 Add inertia matrix to destination matrix.
-Destination can be sparse uncompressed, or dense when all int* are NULL
+Destination can be sparse or dense when all int* are NULL.
 
 .. _mj_applyFT:
 
@@ -748,8 +757,7 @@ Compare forward and inverse dynamics, save results in fwdinv.
 Sub components
 ^^^^^^^^^^^^^^
 
-These are sub-components of the simulation pipeline, called internally from the components above. It is very unlikely
-that the user will need to call them.
+These are sub-components of the simulation pipeline, called internally from the components above.
 
 .. _mj_sensorPos:
 
@@ -885,6 +893,18 @@ Compute actuator transmission lengths and moments.
 .. mujoco-include:: mj_crb
 
 Run composite rigid body inertia algorithm (CRB).
+
+.. _mj_makeM:
+
+`mj_makeM <#mj_makeM>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_makeM
+
+Compute the composite rigid body inertia with :ref:`mj_crb`, add terms due
+to :ref:`tendon armature<tendon-spatial-armature>`. The joint-space inertia matrix is stored in both ``mjData.qM`` and
+``mjData.M``. These arrays represent the same quantity using different layouts (parent-based and compressed sparse row,
+respectively).
 
 .. _mj_factorM:
 
@@ -1363,6 +1383,15 @@ If the model buffer is unallocated the initial configuration will not be set.
 
 Copy mjData.
 m is only required to contain the size fields from MJMODEL_INTS.
+
+.. _mjv_copyData:
+
+`mjv_copyData <#mjv_copyData>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_copyData
+
+Copy mjData, skip large arrays not required for visualization.
 
 .. _mj_resetData:
 
@@ -1995,15 +2024,6 @@ Rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_
 
 Move camera with mouse; action is mjtMouse.
 
-.. _mjv_moveCameraFromState:
-
-`mjv_moveCameraFromState <#mjv_moveCameraFromState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_moveCameraFromState
-
-Move camera with mouse given a scene state; action is mjtMouse.
-
 .. _mjv_movePerturb:
 
 `mjv_movePerturb <#mjv_movePerturb>`__
@@ -2012,15 +2032,6 @@ Move camera with mouse given a scene state; action is mjtMouse.
 .. mujoco-include:: mjv_movePerturb
 
 Move perturb object with mouse; action is mjtMouse.
-
-.. _mjv_movePerturbFromState:
-
-`mjv_movePerturbFromState <#mjv_movePerturbFromState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_movePerturbFromState
-
-Move perturb object with mouse given a scene state; action is mjtMouse.
 
 .. _mjv_moveModel:
 
@@ -2164,15 +2175,6 @@ Free abstract scene.
 
 Update entire scene given model state.
 
-.. _mjv_updateSceneFromState:
-
-`mjv_updateSceneFromState <#mjv_updateSceneFromState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_updateSceneFromState
-
-Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.
-
 .. _mjv_copyModel:
 
 `mjv_copyModel <#mjv_copyModel>`__
@@ -2181,42 +2183,6 @@ Update entire scene from a scene state, return the number of new mjWARN_VGEOMFUL
 .. mujoco-include:: mjv_copyModel
 
 Copy mjModel, skip large arrays not required for abstract visualization.
-
-.. _mjv_defaultSceneState:
-
-`mjv_defaultSceneState <#mjv_defaultSceneState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_defaultSceneState
-
-Set default scene state.
-
-.. _mjv_makeSceneState:
-
-`mjv_makeSceneState <#mjv_makeSceneState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_makeSceneState
-
-Allocate resources and initialize a scene state object.
-
-.. _mjv_freeSceneState:
-
-`mjv_freeSceneState <#mjv_freeSceneState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_freeSceneState
-
-Free scene state.
-
-.. _mjv_updateSceneState:
-
-`mjv_updateSceneState <#mjv_updateSceneState>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjv_updateSceneState
-
-Update a scene state from model and data.
 
 .. _mjv_addGeoms:
 
@@ -3808,41 +3774,14 @@ Free all pointers with ``mju_free()``.
 
 Attachment
 ^^^^^^^^^^
-.. _mjs_attachBody:
+.. _mjs_attach:
 
-`mjs_attachBody <#mjs_attachBody>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjs_attach <#mjs_attach>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjs_attachBody
+.. mujoco-include:: mjs_attach
 
-Attach child body to a parent frame, return the attached body if success or NULL otherwise.
-
-.. _mjs_attachFrame:
-
-`mjs_attachFrame <#mjs_attachFrame>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_attachFrame
-
-Attach child frame to a parent body, return the attached frame if success or NULL otherwise.
-
-.. _mjs_attachToSite:
-
-`mjs_attachToSite <#mjs_attachToSite>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_attachToSite
-
-Attach child body to a parent site, return the attached body if success or NULL otherwise.
-
-.. _mjs_attachFrameToSite:
-
-`mjs_attachFrameToSite <#mjs_attachFrameToSite>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_attachFrameToSite
-
-Attach child frame to a parent site, return the attached frame if success or NULL otherwise.
+Attach child to a parent, return the attached element if success or NULL otherwise.
 
 .. _mjs_detachBody:
 
@@ -4428,6 +4367,15 @@ Get string contents.
 
 Get double array contents and optionally its size.
 
+.. _mjs_getPluginAttributes:
+
+`mjs_getPluginAttributes <#mjs_getPluginAttributes>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getPluginAttributes
+
+Get plugin attributes.
+
 .. _SpecUtilities:
 
 Spec utilities
@@ -4448,7 +4396,7 @@ Set element's default.
 
 .. mujoco-include:: mjs_setFrame
 
-Set element's enclosing frame.
+Set element's enclosing frame, return 0 on success.
 
 .. _mjs_resolveOrientation:
 
@@ -4476,6 +4424,17 @@ Transform body into a frame.
 .. mujoco-include:: mjs_setUserValue
 
 Set user payload, overriding the existing value for the specified key if present.
+
+.. _mjs_setUserValueWithCleanup:
+
+`mjs_setUserValueWithCleanup <#mjs_setUserValueWithCleanup>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setUserValueWithCleanup
+
+Set user payload, overriding the existing value for the specified key if
+present. This version differs from mjs_setUserValue in that it takes a
+cleanup function that will be called when the user payload is deleted.
 
 .. _mjs_getUserValue:
 

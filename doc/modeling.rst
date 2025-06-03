@@ -724,7 +724,10 @@ Force clamping at joint input with :ref:`joint/actuatorfrcrange<body-joint-actua
   :ref:`jointactuatorfrc<sensor-jointactuatorfrc>` sensor to report the total actuator force acting on a joint.
   The standard :ref:`actuatorfrc<sensor-actuatorfrc>` sensor will continue to report the pre-clamped actuator force.
 
-The three clamping options above are non-exclusive and can be combined as required.
+Force clamping at tendon input with :ref:`tendon/actuatorfrcrange<tendon-spatial-actuatorfrcrange>`:
+  This tendon attribute clamps input forces from all actuators acting on the tendon.
+
+The clamping options above are non-exclusive and can be combined as required.
 
 .. _CLengthRange:
 

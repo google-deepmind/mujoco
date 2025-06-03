@@ -672,7 +672,7 @@ static void initLights(mjvScene* scn) {
     glLightfv(GL_LIGHT0+i, GL_SPECULAR, scn->lights[i].specular);
 
     // parameters for directional light
-    if (scn->lights[i].directional) {
+    if (scn->lights[i].type == mjLIGHT_DIRECTIONAL) {
       glLightf(GL_LIGHT0+i, GL_SPOT_EXPONENT,         0);
       glLightf(GL_LIGHT0+i, GL_SPOT_CUTOFF,           180);
       glLightf(GL_LIGHT0+i, GL_CONSTANT_ATTENUATION,  1);
@@ -681,12 +681,16 @@ static void initLights(mjvScene* scn) {
     }
 
     // parameters for spot light
-    else {
+    else if (scn->lights[i].type == mjLIGHT_SPOT) {
       glLightf(GL_LIGHT0+i, GL_SPOT_EXPONENT,         scn->lights[i].exponent);
       glLightf(GL_LIGHT0+i, GL_SPOT_CUTOFF,           scn->lights[i].cutoff);
       glLightf(GL_LIGHT0+i, GL_CONSTANT_ATTENUATION,  scn->lights[i].attenuation[0]);
       glLightf(GL_LIGHT0+i, GL_LINEAR_ATTENUATION,    scn->lights[i].attenuation[1]);
       glLightf(GL_LIGHT0+i, GL_QUADRATIC_ATTENUATION, scn->lights[i].attenuation[2]);
+    }
+
+    else {
+      mju_error("Unsupported light type: %d", scn->lights[i].type);
     }
   }
 
@@ -790,14 +794,16 @@ static void adjustLight(const mjvLight* thislight, int n) {
   float temp[4];
 
   // set position and direction according to type
-  if (thislight->directional) {
+  if (thislight->type == mjLIGHT_DIRECTIONAL) {
     mjr_setf4(temp, -thislight->dir[0], -thislight->dir[1], -thislight->dir[2], 0);
     glLightfv(GL_LIGHT0+n, GL_POSITION, temp);
-  } else {
+  } else if (thislight->type == mjLIGHT_SPOT) {
     mjr_setf4(temp, thislight->dir[0], thislight->dir[1], thislight->dir[2], 0);
     glLightfv(GL_LIGHT0+n, GL_SPOT_DIRECTION, temp);
     mjr_setf4(temp, thislight->pos[0], thislight->pos[1], thislight->pos[2], 1);
     glLightfv(GL_LIGHT0+n, GL_POSITION, temp);
+  } else {
+    mju_error("Unsupported light type: %d", thislight->type);
   }
 }
 
@@ -1183,13 +1189,15 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
             // reverse Z rendering mapping without shift [znear, zfar] -> [1, -1] (ndc)
             glScalef(1.0f, 1.0f, -1.0f);
           }
-          if (thislight->directional) {
+          if (thislight->type == mjLIGHT_DIRECTIONAL) {
             glOrtho(-con->shadowClip, con->shadowClip,
                     -con->shadowClip, con->shadowClip,
                     cam.frustum_near, cam.frustum_far);
-          } else {
+          } else if (thislight->type == mjLIGHT_SPOT) {
             mjr_perspective(mju_min(2*thislight->cutoff*con->shadowScale, 160), 1,
                             cam.frustum_near, cam.frustum_far);
+          } else {
+            mju_error("Unsupported light type: %d", thislight->type);
           }
           glGetFloatv(GL_PROJECTION_MATRIX, lightProject);
 
@@ -1211,9 +1219,24 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
           int cull_face = glIsEnabled(GL_CULL_FACE);
           glDisable(GL_CULL_FACE);  // all faces cast shadows
           glEnable(GL_POLYGON_OFFSET_FILL);
-          float kOffsetFactor = -1.5f;
-          float kOffsetUnits = -4.0f;
-          glPolygonOffset(kOffsetFactor, kOffsetUnits);  // prevents "shadow acne"
+
+          // The limited resolution of the shadow maps means multiple fragments
+          // sample the same texel. When light and camera directions differ on
+          // surfaces that should be lit this causes "shadow acne"  because some
+          // fragments will be lit while adjacent fragments are not. To mitigate
+          // this artifact, an offset is applied to the depth values in the
+          // shadow map. The offset must be large enough to ensure consistent
+          // depth comparison occurs within the limited precision of the depth
+          // buffer. The offset is computed by glPolygonOffset using parameters
+          // that are chosen empirically. We need different values when clip
+          // control is on/off because this setting changes the depth precision.
+          float kOffsetFactor = -16.0f;
+          float kOffsetUnits = -512.0f;
+          if (mjGLAD_GL_ARB_clip_control) {
+            kOffsetFactor = -1.5f;
+            kOffsetUnits = -4.0f;
+          }
+          glPolygonOffset(kOffsetFactor, kOffsetUnits);
 
           // render all geoms to depth texture
           for (int j=0; j < ngeom; j++) {

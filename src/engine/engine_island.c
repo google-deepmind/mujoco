@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <stddef.h>
+#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
@@ -26,12 +27,65 @@
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
+#include "engine/engine_util_sparse.h"
 
 #ifdef MEMORY_SANITIZER
   #include <sanitizer/msan_interface.h>
 #endif
 
 
+//-------------------------- local utilities -------------------------------------------------------
+
+// clear island-related arena pointers in mjData
+static void clearIsland(mjData* d, size_t parena) {
+#define X(type, name, nr, nc) d->name = NULL;
+  MJDATA_ARENA_POINTERS_ISLAND
+#undef X
+  d->nefc = 0;
+  d->nisland = 0;
+  d->nidof = 0;
+  d->parena = parena;
+
+  // poison remaining memory
+#ifdef ADDRESS_SANITIZER
+  ASAN_POISON_MEMORY_REGION(
+    (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
+#endif
+}
+
+
+
+// allocate island arrays on arena, return 1 on success, 0 on failure
+static int arenaAllocIsland(const mjModel* m, mjData* d) {
+#undef MJ_M
+#define MJ_M(n) m->n
+#undef MJ_D
+#define MJ_D(n) d->n
+
+  size_t parena_old = d->parena;
+
+#define X(type, name, nr, nc)                                                 \
+  d->name = mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
+  if (!d->name) {                                                             \
+    mj_warning(d, mjWARN_CNSTRFULL, d->narena);                               \
+    clearIsland(d, parena_old);                                               \
+    return 0;                                                                 \
+  }
+
+  MJDATA_ARENA_POINTERS_ISLAND
+
+#undef X
+
+#undef MJ_M
+#define MJ_M(n) n
+#undef MJ_D
+#define MJ_D(n) n
+  return 1;
+}
+
+
+
+//-------------------------- flood-fill and graph construction  ------------------------------------
 
 // find disjoint subgraphs ("islands") given sparse symmetric adjacency matrix
 //   arguments:
@@ -83,54 +137,6 @@ int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, cons
   }
 
   return nisland;
-}
-
-
-
-// clear island-related arena pointers in mjData
-static void clearIsland(mjData* d, size_t parena) {
-#define X(type, name, nr, nc) d->name = NULL;
-  MJDATA_ARENA_POINTERS_ISLAND
-#undef X
-  d->nefc = 0;
-  d->nisland = 0;
-  d->parena = parena;
-
-  // poison remaining memory
-#ifdef ADDRESS_SANITIZER
-  ASAN_POISON_MEMORY_REGION(
-    (char*)d->arena + d->parena, d->narena - d->pstack - d->parena);
-#endif
-}
-
-
-
-// allocate island arrays on arena, return 1 on success, 0 on failure
-static int arenaAllocIsland(const mjModel* m, mjData* d) {
-#undef MJ_M
-#define MJ_M(n) m->n
-#undef MJ_D
-#define MJ_D(n) d->n
-
-  size_t parena_old = d->parena;
-
-#define X(type, name, nr, nc)                                                 \
-  d->name = mj_arenaAllocByte(d, sizeof(type) * (nr) * (nc), _Alignof(type)); \
-  if (!d->name) {                                                             \
-    mj_warning(d, mjWARN_CNSTRFULL, d->narena);                               \
-    clearIsland(d, parena_old);                                               \
-    return 0;                                                                 \
-  }
-
-  MJDATA_ARENA_POINTERS_ISLAND
-
-#undef X
-
-#undef MJ_M
-#define MJ_M(n) n
-#undef MJ_D
-#define MJ_D(n) n
-  return 1;
 }
 
 
@@ -411,14 +417,17 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
 
 
 
+//-------------------------- main entry-point  -----------------------------------------------------
+
 // discover islands:
-//   nisland, island_dofadr, dof_island, dof_islandnext, island_efcadr, efc_island, efc_islandnext
+//   nisland, island_idofadr, dof_island, dof_islandnext, island_efcadr, efc_island, efc_islandnext
 void mj_island(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc, ntree=m->ntree;
 
   // no constraints: quick return
   if (!nefc || m->nflex) {  // TODO: add flex support to island discovery
     d->nisland = 0;
+    d->nidof = 0;
     return;
   }
 
@@ -454,86 +463,178 @@ void mj_island(const mjModel* m, mjData* d) {
   int* stack = mjSTACKALLOC(d, nedge, int);
   d->nisland = mj_floodFill(tree_island, ntree, rownnz, rowadr, colind, stack);
 
+  // no islands found: quick return
+  if (!d->nisland) {
+    d->nidof = 0;
+    mj_freeStack(d);
+    return;
+  }
+
+  // count ni: total number of dofs in islands
+  int nidof = 0;
+  for (int i=0; i < nv; i++) {
+    nidof += (tree_island[m->dof_treeid[i]] >= 0);
+  }
+  d->nidof = nidof;
+
   // allocate island arrays on arena
   if (!arenaAllocIsland(m, d)) {
     mj_freeStack(d);
     return;
   }
 
-  int nisland = d->nisland;  // local copy
+  // local copy
+  int nisland = d->nisland;
 
-  // compute dof_island, island_dofnum
-  int num_dof_unc = 0;  // number of unconstrained dofs
-  mju_zeroInt(d->island_dofnum, nisland);
+
+  // ------------------------------------- degrees of freedom --------------------------------------
+
+  // compute dof_island, island_nv
+  mju_zeroInt(d->island_nv, nisland);
   for (int i=0; i < nv; i++) {
-    // dof_island
-    int island = tree_island[m->dof_treeid[i]];
+    // assign dofs to islands
+    int island = tree_island[m->dof_treeid[i]];  // -1 if unconstrained
     d->dof_island[i] = island;
 
-    // island_dofnum
+    // increment island_nv
     if (island >= 0) {
-      d->island_dofnum[island]++;
-    } else {
-      num_dof_unc++;
+      d->island_nv[island]++;
     }
   }
 
-  // compute island_dofadr
-  if (nisland) d->island_dofadr[0] = 0;
+  // compute island_idofadr (cumsum of island_nv)
+  d->island_idofadr[0] = 0;
   for (int i=1; i < nisland; i++) {
-    d->island_dofadr[i] = d->island_dofadr[i-1] + d->island_dofnum[i-1];
+    d->island_idofadr[i] = d->island_idofadr[i-1] + d->island_nv[i-1];
   }
 
-  // reset island_dofnum
-  mju_zeroInt(d->island_dofnum, nisland);
-
-  // compute dof_islandind, island_dofind
-  int num_dof_island = 0;
-  for (int i=0; i < nv; i++) {
-    int island = d->dof_island[i];
+  // compute dof <-> idof maps
+  int* island_nv2 = mjSTACKALLOC(d, nisland + 1, int);  // last element counts unconstrained dofs
+  mju_zeroInt(island_nv2, nisland + 1);
+  for (int dof=0; dof < nv; dof++) {
+    int island = d->dof_island[dof];
+    int idof;
     if (island >= 0) {
-      d->island_dofind[d->island_dofadr[island] + d->island_dofnum[island]] = i;
-      d->dof_islandind[i] = d->island_dofnum[island]++;
-      num_dof_island++;
+      // constrained dof
+      idof = d->island_idofadr[island] + island_nv2[island]++;
     } else {
-      d->dof_islandind[i] = -1;
+      // unconstrained dof
+      idof = nidof + island_nv2[nisland]++;
     }
+
+    d->map_dof2idof[dof] = idof;
+    d->map_idof2dof[idof] = dof;  // only the first ni elements of map_idof2dof are in some island
   }
 
-  // sanity check, SHOULD NOT OCCUR
-  if (num_dof_island + num_dof_unc != nv) {
-    mjERROR("not all islands assigned to dofs");
+  // SHOULD NOT OCCUR
+  if (!mju_compare(island_nv2, d->island_nv, nisland)) mjERROR("island_nv miscount");
+  if (nidof + island_nv2[nisland] != nv) mjERROR("miscount of unconstrained dofs");
+
+  // compute island_dofadr (used for visualization)
+  for (int i=0; i < nisland; i++) {
+    d->island_dofadr[i] = d->map_idof2dof[d->island_idofadr[i]];
   }
 
-  // finalize dof_islandind: set remaining indices to -1
-  for (int i=num_dof_island; i < nv; i++) {
-    d->island_dofind[i] = -1;
-  }
+  // inertia: block-diagonalize both iLD <- qLD and iM <- qM
+  mju_blockDiagSparse(d->iLD, d->iM_rownnz, d->iM_rowadr, d->iM_colind,
+                      d->qLD,  d->M_rownnz, d->M_rowadr, d->M_colind,
+                      nidof, nisland,
+                      d->map_idof2dof, d->map_dof2idof,
+                      d->island_idofadr, d->island_idofadr,
+                      d->iM, d->M);
+  mju_gather(d->iLDiagInv, d->qLDiagInv, d->map_idof2dof, nidof);
 
-  // compute efc_island, island_efcnum
-  mju_zeroInt(d->island_efcnum, nisland);
+
+  // ------------------------------------- constraints ---------------------------------------------
+
+  // compute efc_island, island_{ne,nf,nefc}
+  mju_zeroInt(d->island_ne, nisland);
+  mju_zeroInt(d->island_nf, nisland);
+  mju_zeroInt(d->island_nefc, nisland);
   for (int i=0; i < nefc; i++) {
     int tree[2];
     treeFirst(m, d, tree, i);
     int island = tree_island[tree[0]];
     d->efc_island[i] = island;
-    d->island_efcnum[island]++;
+    d->island_nefc[island]++;
+    switch (d->efc_type[i]) {
+      case mjCNSTR_EQUALITY:
+        d->island_ne[island]++;
+        break;
+      case mjCNSTR_FRICTION_DOF:
+      case mjCNSTR_FRICTION_TENDON:
+        d->island_nf[island]++;
+        break;
+      default:
+        break;
+    }
   }
 
-  // compute island_efcadr
-  if (nisland) d->island_efcadr[0] = 0;
+  // compute island_iefcadr (cumsum of island_nefc)
+  d->island_iefcadr[0] = 0;
   for (int i=1; i < nisland; i++) {
-    d->island_efcadr[i] = d->island_efcadr[i-1] + d->island_efcnum[i-1];
+    d->island_iefcadr[i] = d->island_iefcadr[i-1] + d->island_nefc[i-1];
   }
 
-  // reset island_efcnum
-  mju_zeroInt(d->island_efcnum, nisland);
-
-  // compute efc_islandind
-  for (int i=0; i < nefc; i++) {
-    int island = d->efc_island[i];
-    d->island_efcind[d->island_efcadr[island] + (d->island_efcnum[island]++)] = i;
+  // compute efc <-> iefc maps
+  int* island_nefc2 = island_nv2;  // reuse island_nv2
+  mju_zeroInt(island_nefc2, nisland);
+  for (int c=0; c < nefc; c++) {
+    int island = d->efc_island[c];
+    int ic = d->island_iefcadr[island] + island_nefc2[island]++;
+    d->map_efc2iefc[c] = ic;
+    d->map_iefc2efc[ic] = c;
   }
+
+  // SHOULD NOT OCCUR
+  if (!mju_compare(island_nefc2, d->island_nefc, nisland)) mjERROR("island_nefc miscount");
+
+  // dense: block-diagonalize Jacobian
+  if (!mj_isSparse(m)) {
+    mju_blockDiag(d->iefc_J, d->efc_J,
+                  nv, nidof, nisland,
+                  d->map_iefc2efc, d->map_idof2dof,
+                  d->island_nefc, d->island_nv,
+                  d->island_iefcadr, d->island_idofadr);
+  }
+
+  // sparse
+  else {
+    // block-diagonalize Jacobian
+    mju_blockDiagSparse(d->iefc_J, d->iefc_J_rownnz, d->iefc_J_rowadr, d->iefc_J_colind,
+                        d->efc_J, d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+                        nefc, nisland,
+                        d->map_iefc2efc, d->map_dof2idof,
+                        d->island_iefcadr, d->island_idofadr, NULL, NULL);
+
+    // recompute rowsuper per island
+    for (int island=0; island < nisland; island++) {
+      int adr = d->island_iefcadr[island];
+      mju_superSparse(d->island_nefc[island], d->iefc_J_rowsuper + adr,
+                      d->iefc_J_rownnz + adr, d->iefc_J_rowadr + adr, d->iefc_J_colind);
+    }
+
+    // block-diagonalize Jacobian-transpose
+    mju_blockDiagSparse(d->iefc_JT, d->iefc_JT_rownnz, d->iefc_JT_rowadr, d->iefc_JT_colind,
+                        d->efc_JT, d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
+                        nidof, nisland,
+                        d->map_idof2dof, d->map_efc2iefc,
+                        d->island_idofadr, d->island_iefcadr, NULL, NULL);
+
+    // recompute rowsuper per island
+    for (int island=0; island < nisland; island++) {
+      int adr = d->island_idofadr[island];
+      mju_superSparse(d->island_nv[island], d->iefc_JT_rowsuper + adr,
+                      d->iefc_JT_rownnz + adr, d->iefc_JT_rowadr + adr, d->iefc_JT_colind);
+    }
+  }
+
+  // copy position-dependent efc vectors required by solver
+  mju_gatherInt(d->iefc_type, d->efc_type, d->map_iefc2efc, nefc);
+  mju_gatherInt(d->iefc_id, d->efc_id, d->map_iefc2efc, nefc);
+  mju_gather(d->iefc_frictionloss, d->efc_frictionloss, d->map_iefc2efc, nefc);
+  mju_gather(d->iefc_D, d->efc_D, d->map_iefc2efc, nefc);
+  mju_gather(d->iefc_R, d->efc_R, d->map_iefc2efc, nefc);
 
   mj_freeStack(d);
 }
