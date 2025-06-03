@@ -156,7 +156,7 @@ class SimulateWrapper {
     simulate_->newfigurerequest.compare_exchange_strong(value, 1);
   }
 
-  void ClearFigures() { 
+  void ClearFigures() {
     // TODO: replace with atomic wait when we migrate to C++20
     while (simulate_ && simulate_->newfigurerequest.load() != 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -185,7 +185,7 @@ class SimulateWrapper {
     simulate_->newtextrequest.compare_exchange_strong(value, 1);
   }
 
-  void ClearTexts() { 
+  void ClearTexts() {
     // TODO: replace with atomic wait when we migrate to C++20
     while (simulate_ && simulate_->newtextrequest.load() != 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
