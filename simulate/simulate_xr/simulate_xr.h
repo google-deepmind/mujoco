@@ -17,6 +17,10 @@
 
 #define GLEW_STATIC
 
+// the code only works with Windows, because support for XR on Linux
+// and Mac is limited or nonexistent
+#ifdef _WIN32
+
 // Windows is needed but without minmax
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -26,6 +30,8 @@
 // for proper init of openxr
 #define XR_USE_PLATFORM_WIN32
 #define XR_USE_GRAPHICS_API_OPENGL
+
+#endif // WIN32
 
 // openxr with render by opengl
 #include <openxr/openxr.h>

@@ -2330,10 +2330,10 @@ void Simulate::LoadOnRenderThread() {
   }
 
 #ifdef mjBUILDSIMULATEXR
-  if (simXr.is_initialized()) simXr.set_vis_params(this->m_);
+  if (this->simXr.is_initialized()) this->simXr.set_vis_params(this->m_);
 #endif  // mjBUILDSIMULATEXR
 
-  // re-create scene and context
+  // re-create scene
   mjv_makeScene(this->m_, &this->scn, kMaxGeom);
   if (this->is_passive_) {
     mjopt_prev_ = m_->opt;
@@ -2379,8 +2379,8 @@ void Simulate::LoadOnRenderThread() {
   }
 
 #ifdef mjBUILDSIMULATEXR
-  if (simXr.is_initialized())
-    simXr.set_scn_params(&this->scn);
+  if (this->simXr.is_initialized())
+    this->simXr.set_scn_params(&this->scn);
 #endif // mjBUILDSIMULATEXR
 
   // set window title to model name
@@ -2559,15 +2559,15 @@ void Simulate::Render() {
 
   // render scene
 #ifdef mjBUILDSIMULATEXR
-  if (simXr.is_initialized()) {
-    simXr.before_render(&this->scn, this->m_);
+  if (this->simXr.is_initialized()) {
+    this->simXr.before_render(&this->scn, this->m_);
     mjrRect rectXR = {0, 0, 0, 0};
-    rectXR.width = (int)simXr.width_render;
-    rectXR.height = (int)simXr.height;
+    rectXR.width = (int)this->simXr.width_render;
+    rectXR.height = (int)this->simXr.height;
     // render in offscreen buffer
     mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
     mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
-    simXr.after_render(&this->platform_ui->mjr_context());
+    this->simXr.after_render(&this->platform_ui->mjr_context());
     mjr_setBuffer(mjFB_WINDOW, &this->platform_ui->mjr_context());
   } else {
     mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
@@ -2709,10 +2709,10 @@ void Simulate::Render() {
 
 void Simulate::RenderLoop() {
 #ifdef mjBUILDSIMULATEXR
-  simXr.init();
-  if (simXr.is_initialized()) {
-    simXr.set_scn_params(&this->scn);
-    simXr.set_vis_params(this->m_);
+  this->simXr.init();
+  if (this->simXr.is_initialized()) {
+    this->simXr.set_scn_params(&this->scn);
+    this->simXr.set_vis_params(this->m_);
   }
 #endif  // mjBUILDSIMULATEXR
 
@@ -2855,7 +2855,7 @@ void Simulate::RenderLoop() {
   }
 
 #ifdef mjBUILDSIMULATEXR
-  simXr.deinit();
+  this->simXr.deinit();
 #endif  // mjBUILDSIMULATEXR
 
   this->exitrequest.store(2);
