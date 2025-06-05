@@ -291,8 +291,8 @@ void mjs_defaultMaterial(mjsMaterial* material) {
   material->texrepeat[0] = material->texrepeat[1] = 1;
   material->specular = 0.5;
   material->shininess = 0.5;
-  material->metallic = 0.0;
-  material->roughness = 1.0;
+  material->metallic = -1.0;
+  material->roughness = -1.0;
   material->rgba[0] = material->rgba[1] = material->rgba[2] = material->rgba[3] = 1;
 }
 

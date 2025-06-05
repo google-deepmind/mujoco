@@ -1776,15 +1776,19 @@ properties are grouped together.
 
 .. _asset-material-metallic:
 
-:at:`metallic`: :at-val:`real, "0"`
+:at:`metallic`: :at-val:`real, "-1"`
    This attribute corresponds to uniform metallicity coefficient applied to the entire material. This attribute has no
-   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with an external renderer.
+   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with a physically-based renderer. In
+   this case, if a non-negative value is specified, this metallic value should be multiplied by the metallic texture
+   sampled value to obtain the final metallicity of the material.
 
 .. _asset-material-roughness:
 
-:at:`roughness`: :at-val:`real, "1"`
+:at:`roughness`: :at-val:`real, "-1"`
    This attribute corresponds to uniform roughness coefficient applied to the entire material. This attribute has no
-   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with an external renderer.
+   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with a physically-based renderer. In
+   this case, if a non-negative value is specified, this roughness value should be multiplied by the roughness texture
+   sampled value to obtain the final roughness of the material.
 
 .. _asset-material-rgba:
 
