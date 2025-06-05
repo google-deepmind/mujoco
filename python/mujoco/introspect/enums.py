@@ -111,6 +111,17 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjCAMLIGHT_TARGETBODYCOM', 4),
          ]),
      )),
+    ('mjtLightType',
+     EnumDecl(
+         name='mjtLightType',
+         declname='enum mjtLightType_',
+         values=dict([
+             ('mjLIGHT_SPOT', 0),
+             ('mjLIGHT_DIRECTIONAL', 1),
+             ('mjLIGHT_POINT', 2),
+             ('mjLIGHT_IMAGE', 3),
+         ]),
+     )),
     ('mjtTexture',
      EnumDecl(
          name='mjtTexture',
@@ -137,6 +148,16 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjTEXROLE_RGBA', 8),
              ('mjTEXROLE_ORM', 9),
              ('mjNTEXROLE', 10),
+         ]),
+     )),
+    ('mjtColorSpace',
+     EnumDecl(
+         name='mjtColorSpace',
+         declname='enum mjtColorSpace_',
+         values=dict([
+             ('mjCOLORSPACE_AUTO', 0),
+             ('mjCOLORSPACE_LINEAR', 1),
+             ('mjCOLORSPACE_SRGB', 2),
          ]),
      )),
     ('mjtIntegrator',
@@ -426,6 +447,17 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjFLEXSELF_BVH', 2),
              ('mjFLEXSELF_SAP', 3),
              ('mjFLEXSELF_AUTO', 4),
+         ]),
+     )),
+    ('mjtSDFType',
+     EnumDecl(
+         name='mjtSDFType',
+         declname='enum mjtSDFType_',
+         values=dict([
+             ('mjSDFTYPE_SINGLE', 0),
+             ('mjSDFTYPE_INTERSECTION', 1),
+             ('mjSDFTYPE_MIDSURFACE', 2),
+             ('mjSDFTYPE_COLLISION', 3),
          ]),
      )),
     ('mjtTaskStatus',

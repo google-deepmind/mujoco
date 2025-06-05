@@ -53,6 +53,9 @@ class MujocoErrorTestGuard {
 // By default, any MuJoCo operation which triggers a warning or error will
 // trigger a test failure.
 class MujocoTest : public ::testing::Test {
+ public:
+  ~MujocoTest() { mj_freeLastXML(); }
+
  private:
   MujocoErrorTestGuard error_guard;
 };
@@ -98,6 +101,9 @@ mjModel* LoadModelFromPath(const char* model_path);
 
 // Returns a string loaded from first saving the model given an input.
 std::string SaveAndReadXml(const mjModel* model);
+
+// Returns a string loaded from first saving the spec given an input.
+std::string SaveAndReadXml(const mjSpec* spec);
 
 // Adds control noise.
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,

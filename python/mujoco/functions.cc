@@ -211,6 +211,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_tendon>(pymodule);
   Def<traits::mj_transmission>(pymodule);
   Def<traits::mj_crb>(pymodule);
+  Def<traits::mj_makeM>(pymodule);
   Def<traits::mj_factorM>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_solveM, "n")(
       pymodule,
@@ -1467,10 +1468,10 @@ PYBIND11_MODULE(_functions, pymodule) {
 
   pymodule.def(
       "_realloc_con_efc",
-      [](MjDataWrapper& d, int ncon, int nefc) {
+      [](MjDataWrapper& d, int ncon, int nefc, int nJ) {
         raw::MjData* data = d.get();
 
-        auto cleanup = [](raw::MjData* data) {
+        auto cleanup = [](raw::MjData* data, int nJ) {
 #ifdef ADDRESS_SANITIZER
         ASAN_POISON_MEMORY_REGION(
             static_cast<char*>(data->arena),
@@ -1479,6 +1480,7 @@ PYBIND11_MODULE(_functions, pymodule) {
           data->parena = 0;
           data->ncon = 0;
           data->nefc = 0;
+          if (nJ > -1) data->nJ = 0;
           data->contact = static_cast<raw::MjContact*>(data->arena);
 #define X(type, name, nr, nc) data->name = nullptr;
           MJDATA_ARENA_POINTERS_SOLVER
@@ -1486,14 +1488,15 @@ PYBIND11_MODULE(_functions, pymodule) {
 #undef X
         };
 
-        cleanup(data);
+        cleanup(data, nJ);
         data->ncon = ncon;
         data->nefc = nefc;
+        if (nJ > -1) data->nJ = nJ;
         data->contact =
             static_cast<raw::MjContact*>(InterceptMjErrors(::mj_arenaAllocByte)(
                 data, ncon * sizeof(raw::MjContact), alignof(raw::MjContact)));
         if (!data->contact) {
-          cleanup(data);
+          cleanup(data, nJ);
           throw FatalError("insufficient arena memory available");
         }
 
@@ -1505,7 +1508,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
       data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
   if (!data->name) {                                                      \
-    cleanup(data);                                                        \
+    cleanup(data, nJ);                                                        \
     throw FatalError("insufficient arena memory available");              \
   }
 
@@ -1519,7 +1522,7 @@ PYBIND11_MODULE(_functions, pymodule) {
 #undef MJ_M
 #define MJ_M(x) x
       },
-      py::arg("d"), py::arg("ncon"), py::arg("nefc"),
+      py::arg("d"), py::arg("ncon"), py::arg("nefc"), py::arg("nJ") = -1,
       py::call_guard<py::gil_scoped_release>());
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace

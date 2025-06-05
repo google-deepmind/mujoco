@@ -2143,8 +2143,12 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
     // set default properties
     memset(thislight, 0, sizeof(mjvLight));
     thislight->headlight = 1;
-    thislight->directional = 1;
+    thislight->texid = -1;
+    thislight->type = mjLIGHT_DIRECTIONAL;
     thislight->castshadow = 0;
+    thislight->bulbradius = 0.02;
+    thislight->intensity = 0;
+    thislight->range = 10;
 
     // compute head position and gaze direction in model space
     mjtNum hpos[3], hfwd[3];
@@ -2169,10 +2173,13 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
 
       // copy properties
       memset(thislight, 0, sizeof(mjvLight));
-      thislight->directional = m->light_directional[i];
+      thislight->type = m->light_type[i];
+      thislight->texid = m->light_texid[i];
       thislight->castshadow = m->light_castshadow[i];
       thislight->bulbradius = m->light_bulbradius[i];
-      if (!thislight->directional) {
+      thislight->intensity = m->light_intensity[i];
+      thislight->range = m->light_range[i];
+      if (thislight->type == mjLIGHT_SPOT) {
         f2f(thislight->attenuation, m->light_attenuation+3*i, 3);
         thislight->exponent = m->light_exponent[i];
         thislight->cutoff = m->light_cutoff[i];

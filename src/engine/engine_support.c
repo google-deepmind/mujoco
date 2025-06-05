@@ -1048,7 +1048,7 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
     // non-simple: add off-diagonals
     if (!m->dof_simplenum[i]) {
       int adr = d->M_rowadr[i];
-      res[i] += mju_dotSparse(qLD+adr, vec, d->M_rownnz[i] - 1, d->M_colind+adr, /*flg_unc1=*/0);
+      res[i] += mju_dotSparse(qLD+adr, vec, d->M_rownnz[i] - 1, d->M_colind+adr);
     }
   }
 
@@ -1062,75 +1062,26 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 
 
 // add inertia matrix to destination matrix
-//  destination can be sparse uncompressed, or dense when all int* are NULL
+//  destination can be sparse or dense when all int* are NULL
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
+  int nv = m->nv;
   // sparse
   if (rownnz && rowadr && colind) {
-    int nC = m->nC;
     mj_markStack(d);
+    mjtNum* buf_val = mjSTACKALLOC(d, nv, mjtNum);
+    int* buf_ind = mjSTACKALLOC(d, nv, int);
 
-    // gather C <- qM (legacy to CSR)
-    mjtNum* C = mjSTACKALLOC(d, nC, mjtNum);
-    mju_gather(C, d->qM, d->mapM2C, nC);
+    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
+      d->M, d->M_rownnz, d->M_rowadr, d->M_colind,
+      buf_val, buf_ind);
 
-    // add to dst
-    mj_addMSparse(m, d, dst, rownnz, rowadr, colind, C, d->C_rownnz, d->C_rowadr, d->C_colind);
     mj_freeStack(d);
   }
 
   // dense
   else {
-    mj_addMDense(m, d, dst);
-  }
-}
-
-
-
-// add inertia matrix to sparse destination matrix
-void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                   int* rownnz, int* rowadr, int* colind, mjtNum* M,
-                   int* M_rownnz, int* M_rowadr, int* M_colind) {
-  int nv = m->nv;
-
-  mj_markStack(d);
-  int* buf_ind = mjSTACKALLOC(d, nv, int);
-  mjtNum* sparse_buf = mjSTACKALLOC(d, nv, mjtNum);
-
-  // add to destination
-  for (int i=0; i < nv; i++) {
-    rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], 1, 1,
-                                  rownnz[i], M_rownnz[i], colind + rowadr[i],
-                                  M_colind + M_rowadr[i], sparse_buf, buf_ind);
-  }
-  mj_freeStack(d);
-}
-
-
-
-// add inertia matrix to dense destination matrix
-void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst) {
-  int nv = m->nv;
-
-  for (int i = 0; i < nv; i++) {
-    int adr = m->dof_Madr[i];
-    int j = i;
-    while (j >= 0) {
-      // add
-      dst[i*nv+j] += d->qM[adr];
-      if (j < i) {
-        dst[j*nv+i] += d->qM[adr];
-      }
-
-      // only diagonal if simplenum
-      if (m->dof_simplenum[i]) {
-        break;
-      }
-
-      // advance
-      j = m->dof_parentid[j];
-      adr++;
-    }
+    mju_addToSymSparse(dst, d->M, nv, d->M_rownnz, d->M_rowadr, d->M_colind, /*flg_upper=*/ 1);
   }
 }
 

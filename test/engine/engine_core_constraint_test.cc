@@ -32,6 +32,7 @@ namespace mujoco {
 namespace {
 
 using ::testing::DoubleNear;
+using ::testing::NotNull;
 using ::testing::Pointwise;
 using CoreConstraintTest = MujocoTest;
 
@@ -291,7 +292,9 @@ static const char* const kIlslandEfcPath =
 // validate mj_constraintUpdate_impl
 TEST_F(CoreConstraintTest, ConstraintUpdateImpl) {
   const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char err[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, err, 1024);
+  ASSERT_THAT(model, NotNull()) << err;
   mjData* d1 = mj_makeData(model);
   mjData* d2 = mj_makeData(model);
 

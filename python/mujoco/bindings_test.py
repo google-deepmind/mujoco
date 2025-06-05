@@ -623,10 +623,12 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
     ncon = 13
     nefc = 17
-    mujoco._functions._realloc_con_efc(self.data, ncon=ncon, nefc=nefc)
+    nj = 21
+    mujoco._functions._realloc_con_efc(self.data, ncon=ncon, nefc=nefc, nJ=nj)
 
     self.assertLen(self.data.contact, ncon)
     self.assertEqual(self.data.efc_id.shape, (nefc,))
+    self.assertEqual(self.data.efc_J.shape, (nj,))
     self.assertEqual(self.data.efc_KBIP.shape, (nefc, 4))
 
     expected_error = 'insufficient arena memory available'

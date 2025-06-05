@@ -114,16 +114,15 @@ typedef struct mjFwdPositionArgs_ mjFwdPositionArgs;
 // wrapper for mj_crb and mj_factorM
 void* mj_inertialThreaded(void* args) {
   mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
-  mj_crb(forward_args->m, forward_args->d);             // timed internally (POS_INERTIA)
-  mj_tendonArmature(forward_args->m, forward_args->d);  // timed internally (POS_INERTIA)
-  mj_factorM(forward_args->m, forward_args->d);         // timed internally (POS_INERTIA)
+  mj_makeM(forward_args->m, forward_args->d);
+  mj_factorM(forward_args->m, forward_args->d);
   return NULL;
 }
 
 // wrapper for mj_collision
 void* mj_collisionThreaded(void* args) {
   mjFwdPositionArgs* forward_args = (mjFwdPositionArgs*) args;
-  mj_collision(forward_args->m, forward_args->d);   // timed internally (POS_COLLISION)
+  mj_collision(forward_args->m, forward_args->d);
   return NULL;
 }
 
@@ -143,10 +142,12 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   // no threadpool: inertia and collision on main thread
   if (!d->threadpool) {
-    mj_crb(m, d);             // timed internally (POS_INERTIA)
-    mj_tendonArmature(m, d);  // timed internally (POS_INERTIA)
-    mj_factorM(m, d);         // timed internally (POS_INERTIA)
-    mj_collision(m, d);       // timed internally (POS_COLLISION)
+    // inertia, timed internally (POS_INERTIA)
+    mj_makeM(m, d);
+    mj_factorM(m, d);
+
+    // collision, timed internally (POS_COLLISION)
+    mj_collision(m, d);
   }
 
   // have threadpool: inertia and collision on separate threads
@@ -658,32 +659,35 @@ struct mjSolIslandArgs_ {
 };
 typedef struct mjSolIslandArgs_ mjSolIslandArgs;
 
-// extract arguments, pass to solver
-void* mj_solCG_island_wrapper(void* args) {
+// extract arguments, pass to CG solver
+static void* CG_wrapper(void* args) {
   mjSolIslandArgs* solargs = (mjSolIslandArgs*) args;
   mj_solCG_island(solargs->m, solargs->d, solargs->island, solargs->m->opt.iterations);
   return NULL;
 }
 
-
-
+// extract arguments, pass to Newton solver
+static void* Newton_wrapper(void* args) {
+  mjSolIslandArgs* solargs = (mjSolIslandArgs*) args;
+  mj_solNewton_island(solargs->m, solargs->d, solargs->island, solargs->m->opt.iterations);
+  return NULL;
+}
 
 // CG solver, multi-threaded over islands
-void mj_solCG_island_multithreaded(const mjModel* m, mjData* d) {
+static void solve_threaded(const mjModel* m, mjData* d, int flg_Newton) {
   mj_markStack(d);
   // allocate array of arguments to be passed to threads
-  mjSolIslandArgs* sol_cg_island_args = mjSTACKALLOC(d, d->nisland, mjSolIslandArgs);
+  mjSolIslandArgs* sol_island_args = mjSTACKALLOC(d, d->nisland, mjSolIslandArgs);
   mjTask* tasks = mjSTACKALLOC(d, d->nisland, mjTask);
 
-
   for (int island = 0; island < d->nisland; ++island) {
-    sol_cg_island_args[island].m = m;
-    sol_cg_island_args[island].d = d;
-    sol_cg_island_args[island].island = island;
+    sol_island_args[island].m = m;
+    sol_island_args[island].d = d;
+    sol_island_args[island].island = island;
 
     mju_defaultTask(&tasks[island]);
-    tasks[island].func = mj_solCG_island_wrapper;
-    tasks[island].args = &sol_cg_island_args[island];
+    tasks[island].func = flg_Newton ? Newton_wrapper : CG_wrapper;
+    tasks[island].args = &sol_island_args[island];
     mju_threadPoolEnqueue((mjThreadPool*)d->threadpool, &tasks[island]);
   }
 
@@ -722,16 +726,16 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
   // check if islands are supported
-  int islands_supported = mjENABLED(mjENBL_ISLAND)  &&
-                          nisland > 0               &&
-                          m->opt.solver == mjSOL_CG &&
-                          m->opt.noslip_iterations == 0;
+  int islands_supported = mjENABLED(mjENBL_ISLAND)      &&
+                          nisland > 0                   &&
+                          m->opt.noslip_iterations == 0 &&
+                          (m->opt.solver == mjSOL_CG || m->opt.solver == mjSOL_NEWTON);
 
   // run solver over constraint islands
   if (islands_supported) {
     int nidof = d->nidof;
 
-    // copy CG inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
+    // copy inputs to islands (vel+acc deps, pos-dependent already copied in mj_island)
     mju_gather(d->ifrc_smooth,     d->qfrc_smooth,     d->map_idof2dof, nidof);
     mju_gather(d->ifrc_constraint, d->qfrc_constraint, d->map_idof2dof, nidof);
     mju_gather(d->iacc_smooth,     d->qacc_smooth,     d->map_idof2dof, nidof);
@@ -739,16 +743,21 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     mju_gather(d->iefc_force,      d->efc_force,       d->map_iefc2efc, nefc);
     mju_gather(d->iefc_aref,       d->efc_aref,        d->map_iefc2efc, nefc);
 
-    // solve per island
+    // solve per island, with or without threads
     if (!d->threadpool) {
       // no threadpool, loop over islands
       for (int island=0; island < nisland; island++) {
-        mj_solCG_island(m, d, island, m->opt.iterations);
+        if (m->opt.solver == mjSOL_NEWTON) {
+          mj_solNewton_island(m, d, island, m->opt.iterations);
+        } else {
+          mj_solCG_island(m, d, island, m->opt.iterations);
+        }
       }
     } else {
       // have threadpool, solve using threads
-      mj_solCG_island_multithreaded(m, d);
+      solve_threaded(m, d, m->opt.solver == mjSOL_NEWTON);
     }
+
 
     // copy back solver outputs (scatter dofs since ni <= nv)
     mju_scatter(d->qacc,            d->iacc,            d->map_idof2dof, nidof);
@@ -835,7 +844,7 @@ static void mj_advance(const mjModel* m, mjData* d,
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
 void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
-  int nv = m->nv, nM = m->nM;
+  int nv = m->nv, nC = m->nC;
   mj_markStack(d);
   mjtNum* qfrc = mjSTACKALLOC(d, nv, mjtNum);
   mjtNum* qacc = mjSTACKALLOC(d, nv, mjtNum);
@@ -860,20 +869,20 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
   else {
     if (!skipfactor) {
       // qH = M + h*diag(B)
-      mju_gather(d->qH, d->qM, d->mapM2M, nM);
+      mju_copy(d->qH, d->M, nC);
       for (int i=0; i < nv; i++) {
         d->qH[d->M_rowadr[i] + d->M_rownnz[i] - 1] += m->opt.timestep * m->dof_damping[i];
       }
 
       // factorize in-place
-      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, d->M_colind);
     }
 
     // solve
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
     mju_copy(qacc, qfrc, m->nv);
     mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1,
-               d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+               d->M_rownnz, d->M_rowadr, d->M_colind);
   }
 
   // advance state and time
@@ -1002,7 +1011,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
-  int nv = m->nv, nM = m->nM, nD = m->nD;
+  int nv = m->nv, nM = m->nM, nD = m->nD, nC = m->nC;
 
   mj_markStack(d);
   mjtNum* qfrc = mjSTACKALLOC(d, nv, mjtNum);
@@ -1046,16 +1055,16 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, nM);
 
       // gather qH <- MhB (legacy to CSR)
-      mju_gather(d->qH, MhB, d->mapM2M, nM);
+      mju_gather(d->qH, MhB, d->mapM2M, nC);
 
       // factorize in-place
-      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, d->M_colind);
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
     mju_copy(qacc, qfrc, nv);
     mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1,
-               d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+               d->M_rownnz, d->M_rowadr, d->M_colind);
 
   } else {
     mjERROR("integrator must be implicit or implicitfast");

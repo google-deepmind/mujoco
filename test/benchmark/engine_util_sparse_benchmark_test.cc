@@ -152,8 +152,8 @@ void ABSL_ATTRIBUTE_NOINLINE mju_sqrMatTDSparse_baseline(
 // transpose sparse matrix (uncompressed)
 void ABSL_ATTRIBUTE_NOINLINE transposeSparse_baseline(
     mjtNum* res, const mjtNum* mat, int nr, int nc, int* res_rownnz,
-    int* res_rowadr, int* res_colind, const int* rownnz, const int* rowadr,
-    const int* colind) {
+    int* res_rowadr, int* res_colind, int* res_rowsuper,
+    const int* rownnz, const int* rowadr, const int* colind) {
   memset(res_rownnz, 0, nc * sizeof(int));
   for (int rt = 0; rt < nc; rt++) {
     res_rowadr[rt] = rt * nr;
@@ -343,7 +343,7 @@ void ABSL_ATTRIBUTE_NOINLINE mulMatVecSparse_8(mjtNum* res,
 // ----------------------------- benchmark ------------------------------------
 
 static void BM_MatVecSparse(benchmark::State& state, int unroll) {
-  static mjModel* m = LoadModelFromPath("plugin/elasticity/flag_flex.xml");
+  static mjModel* m = LoadModelFromPath("flex/flag.xml");
   mjData* d = mj_makeData(m);
 
   // warm-up rollout to get a typical state
@@ -497,7 +497,14 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_combineSparse_old(
 }
 BENCHMARK(BM_combineSparse_old);
 
-static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func) {
+enum class Supernode {
+  None,
+  PostProcess,
+  Inline
+};
+
+static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func,
+                               Supernode super) {
   static mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
 
   // force use of sparse matrices
@@ -516,12 +523,19 @@ static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func) {
   mjtNum* res = mj_stackAllocNum(d, m->nv * d->nefc);
   int* res_rownnz = mj_stackAllocInt(d, m->nv);
   int* res_rowadr = mj_stackAllocInt(d, m->nv);
+  int* res_rowsuper = mj_stackAllocInt(d, m->nv);
   int* res_colind = mj_stackAllocInt(d, m->nv * d->nefc);
 
   // time benchmark
   for (auto s : state) {
-    func(res, d->efc_J, d->nefc, m->nv, res_rownnz, res_rowadr, res_colind,
+    int* rowsuper = (super == Supernode::Inline) ? res_rowsuper : nullptr;
+    func(res, d->efc_J, d->nefc, m->nv,
+         res_rownnz, res_rowadr, res_colind, rowsuper,
          d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+    if (super == Supernode::PostProcess) {
+      mju_superSparse(m->nv, res_rowsuper,
+                      res_rownnz, res_rowadr, res_colind);
+    }
   }
 
   mj_freeStack(d);
@@ -530,25 +544,43 @@ static void BM_transposeSparse(benchmark::State& state, TransposeFuncPtr func) {
 }
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_transposeSparse_old(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_transposeSparse(state, &transposeSparse_baseline, Supernode::None);
+}
+BENCHMARK(BM_transposeSparse_old);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
 BM_transposeSparse_new(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_transposeSparse(state, &mju_transposeSparse);
+  BM_transposeSparse(state, &mju_transposeSparse, Supernode::None);
 }
 BENCHMARK(BM_transposeSparse_new);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_transposeSparse_old(benchmark::State& state) {
+BM_transposeSparse_superpost(benchmark::State& state) {
   MujocoErrorTestGuard guard;
-  BM_transposeSparse(state, &transposeSparse_baseline);
+  BM_transposeSparse(state, &mju_transposeSparse, Supernode::PostProcess);
 }
-BENCHMARK(BM_transposeSparse_old);
+BENCHMARK(BM_transposeSparse_superpost);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_transposeSparse_superinline(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_transposeSparse(state, &mju_transposeSparse, Supernode::Inline);
+}
+BENCHMARK(BM_transposeSparse_superinline);
 
 static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
-  static mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
-  mjData* d = mj_makeData(m);
+  static mjModel* m =
+      LoadModelFromPath("../test/benchmark/testdata/2humanoid100.xml");
 
-  // force use of sparse matrices
+  // force use of sparse matrices, Newton solver, no islands
   m->opt.jacobian = mjJAC_SPARSE;
+  m->opt.solver = mjSOL_NEWTON;
+  m->opt.enableflags &= ~mjENBL_ISLAND;
+
+  mjData* d = mj_makeData(m);
 
   // warm-up rollout to get a typical state
   while (d->time < 2) {
@@ -575,10 +607,13 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
 
   // time benchmark
   if (func) {
-    for (auto s : state) {
-      mju_sqrMatTDUncompressedInit(rowadr, m->nv);
+    mju_sqrMatTDSparseCount(rownnz, rowadr, m->nv,
+      d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
+      d->efc_JT_rownnz, d->efc_JT_rowadr,
+      d->efc_JT_colind, nullptr, d, 1);
 
-      // compute H = J'*D*J, uncompressed layout
+    for (auto s : state) {
+      // compute H = J'*D*J, compressed layout
       func(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
          d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
          d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
@@ -606,18 +641,25 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
 }
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_sqrMatTDSparse_new(benchmark::State& state) {
+BM_sqrMatTDSparse_col(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_sqrMatTDSparse(state, &mju_sqrMatTDSparse);
 }
-BENCHMARK(BM_sqrMatTDSparse_new);
+BENCHMARK(BM_sqrMatTDSparse_col);
 
 void ABSL_ATTRIBUTE_NO_TAIL_CALL
-BM_sqrMatTDSparse_old(benchmark::State& state) {
+BM_sqrMatTDSparse_row(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_sqrMatTDSparse(state, &mju_sqrMatTDSparse_row);
+}
+BENCHMARK(BM_sqrMatTDSparse_row);
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL
+BM_sqrMatTDSparse_uncompressed(benchmark::State& state) {
   MujocoErrorTestGuard guard;
   BM_sqrMatTDSparse(state, nullptr);
 }
-BENCHMARK(BM_sqrMatTDSparse_old);
+BENCHMARK(BM_sqrMatTDSparse_uncompressed);
 
 }  // namespace
 }  // namespace mujoco

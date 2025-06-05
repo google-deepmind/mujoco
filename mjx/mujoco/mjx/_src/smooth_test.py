@@ -91,7 +91,7 @@ class SmoothTest(absltest.TestCase):
     # factor_m
     dx = jax.jit(mjx.factor_m)(mx, mjx.put_data(m, d))
     qLDLegacy = np.zeros(mx.nM)  # pylint:disable=invalid-name
-    for i in range(m.nM):
+    for i in range(m.nC):
       qLDLegacy[d.mapM2M[i]] = d.qLD[i]
     _assert_eq(qLDLegacy, dx._impl.qLD, 'qLD')
     _assert_attr_eq(d, dx._impl, 'qLDiagInv')

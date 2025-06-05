@@ -130,9 +130,7 @@ std::string GetFileContents(const char* path) {
   return sstream.str();
 }
 
-std::string SaveAndReadXml(const mjModel* model) {
-  EXPECT_THAT(model, testing::NotNull());
-
+std::string SaveAndReadXmlImpl(const mjModel* model, const mjSpec* spec) {
   constexpr int kMaxPathLen = 1024;
   std::string path_template =
       std::filesystem::temp_directory_path().append("tmp.XXXXXX").string();
@@ -148,7 +146,11 @@ std::string SaveAndReadXml(const mjModel* model) {
   EXPECT_NE(_mktemp_s(filepath), EINVAL);
 #endif
 
-  mj_saveLastXML(filepath, model, nullptr, 0);
+  if (spec) {
+    mj_saveXML(spec, filepath, nullptr, 0);
+  } else if (model) {
+    mj_saveLastXML(filepath, model, nullptr, 0);
+  }
   std::string contents = GetFileContents(filepath);
 
 #if defined(_POSIX_VERSION) && _POSIX_VERSION >= 200112L
@@ -157,6 +159,16 @@ std::string SaveAndReadXml(const mjModel* model) {
   std::remove(filepath);
 
   return contents;
+}
+
+std::string SaveAndReadXml(const mjModel* model) {
+  EXPECT_THAT(model, testing::NotNull());
+  return SaveAndReadXmlImpl(model, nullptr);
+}
+
+std::string SaveAndReadXml(const mjSpec* spec) {
+  EXPECT_THAT(spec, testing::NotNull());
+  return SaveAndReadXmlImpl(nullptr, spec);
 }
 
 std::vector<mjtNum> GetCtrlNoise(const mjModel* m, int nsteps,

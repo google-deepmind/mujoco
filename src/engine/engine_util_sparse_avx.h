@@ -30,10 +30,8 @@
 //------------------------------ sparse operations using avx ---------------------------------------
 
 // dot-product, first vector is sparse
-//  flg_unc1: is vec1 memory layout uncompressed
 static inline
-mjtNum mju_dotSparse_avx(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
-                         int flg_unc1) {
+mjtNum mju_dotSparse_avx(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1) {
   int i = 0;
   mjtNum res = 0;
   int nnz1_4 = nnz1 - 4;
@@ -48,43 +46,22 @@ mjtNum mju_dotSparse_avx(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const
                          vec2[ind1[2]],
                          vec2[ind1[1]],
                          vec2[ind1[0]]);
-    if (flg_unc1) {
-      val1 = _mm256_set_pd(vec1[ind1[3]],
-                           vec1[ind1[2]],
-                           vec1[ind1[1]],
-                           vec1[ind1[0]]);
-    } else {
-      val1 = _mm256_loadu_pd(vec1);
-    }
+
+    val1 = _mm256_loadu_pd(vec1);
+
     sum = _mm256_mul_pd(val1, val2);
     i = 4;
 
     // parallel computation
-    if (flg_unc1) {
-      while (i<=nnz1_4) {
-        val1 = _mm256_set_pd(vec1[ind1[i+3]],
-                             vec1[ind1[i+2]],
-                             vec1[ind1[i+1]],
-                             vec1[ind1[i+0]]);
-        val2 = _mm256_set_pd(vec2[ind1[i+3]],
-                             vec2[ind1[i+2]],
-                             vec2[ind1[i+1]],
-                             vec2[ind1[i+0]]);
-        prod = _mm256_mul_pd(val1, val2);
-        sum = _mm256_add_pd(sum, prod);
-        i += 4;
-      }
-    } else {
-      while (i<=nnz1_4) {
-        val1 = _mm256_loadu_pd(vec1+i);
-        val2 = _mm256_set_pd(vec2[ind1[i+3]],
-                             vec2[ind1[i+2]],
-                             vec2[ind1[i+1]],
-                             vec2[ind1[i+0]]);
-        prod = _mm256_mul_pd(val1, val2);
-        sum = _mm256_add_pd(sum, prod);
-        i += 4;
-      }
+    while (i<=nnz1_4) {
+      val1 = _mm256_loadu_pd(vec1+i);
+      val2 = _mm256_set_pd(vec2[ind1[i+3]],
+                            vec2[ind1[i+2]],
+                            vec2[ind1[i+1]],
+                            vec2[ind1[i+0]]);
+      prod = _mm256_mul_pd(val1, val2);
+      sum = _mm256_add_pd(sum, prod);
+      i += 4;
     }
 
     // reduce
@@ -96,14 +73,8 @@ mjtNum mju_dotSparse_avx(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const
   }
 
   // scalar part
-  if (flg_unc1) {
-    for (; i < nnz1; i++) {
-      res += vec1[ind1[i]] * vec2[ind1[i]];
-    }
-  } else {
-    for (; i < nnz1; i++) {
-      res += vec1[i] * vec2[ind1[i]];
-    }
+  for (; i < nnz1; i++) {
+    res += vec1[i] * vec2[ind1[i]];
   }
 
   return res;
@@ -209,7 +180,7 @@ void mju_mulMatVecSparse_avx(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
   if (!rowsuper) {
     // regular sparse dot-product
     for (int r=0; r<nr; r++) {
-      res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
+      res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
     }
 
     return;
@@ -232,7 +203,7 @@ void mju_mulMatVecSparse_avx(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 
       // handle remaining rows
       while (rs>0) {
-        res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
+        res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
 
         r++;
         rs--;
@@ -243,7 +214,7 @@ void mju_mulMatVecSparse_avx(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
     }
 
     else {
-      res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
+      res[r] = mju_dotSparse_avx(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
     }
   }
 }

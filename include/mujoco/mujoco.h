@@ -107,6 +107,9 @@ MJAPI mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, 
 // Compile spec to model.
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 
+// Copy real-valued arrays from model to spec, returns 1 on success.
+MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
+
 // Recompile spec to model, preserving the state, return 0 on success.
 MJAPI int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
 
@@ -186,6 +189,9 @@ MJAPI mjData* mj_makeData(const mjModel* m);
 // Copy mjData.
 // m is only required to contain the size fields from MJMODEL_INTS.
 MJAPI mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src);
+
+// Copy mjData, skip large arrays not required for visualization.
+MJAPI mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src);
 
 // Reset data to defaults.
 MJAPI void mj_resetData(const mjModel* m, mjData* d);
@@ -361,6 +367,9 @@ MJAPI void mj_transmission(const mjModel* m, mjData* d);
 // Run composite rigid body inertia algorithm (CRB).
 MJAPI void mj_crb(const mjModel* m, mjData* d);
 
+// Make inertia matrix.
+MJAPI void mj_makeM(const mjModel* m, mjData* d);
+
 // Compute sparse L'*D*L factorizaton of inertia matrix.
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
 
@@ -485,7 +494,7 @@ MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum*
 MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
 // Add inertia matrix to destination matrix.
-// Destination can be sparse uncompressed, or dense when all int* are NULL
+// Destination can be sparse or dense when all int* are NULL.
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst, int* rownnz, int* rowadr, int* colind);
 
 // Apply Cartesian force and torque (outside xfrc_applied mechanism).
@@ -622,19 +631,9 @@ MJAPI void mjv_alignToCamera(mjtNum res[3], const mjtNum vec[3], const mjtNum fo
 MJAPI void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
                           const mjvScene* scn, mjvCamera* cam);
 
-// Move camera with mouse given a scene state; action is mjtMouse.
-MJAPI void mjv_moveCameraFromState(const mjvSceneState* scnstate, int action,
-                                   mjtNum reldx, mjtNum reldy,
-                                   const mjvScene* scn, mjvCamera* cam);
-
 // Move perturb object with mouse; action is mjtMouse.
 MJAPI void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
                            mjtNum reldy, const mjvScene* scn, mjvPerturb* pert);
-
-// Move perturb object with mouse given a scene state; action is mjtMouse.
-MJAPI void mjv_movePerturbFromState(const mjvSceneState* scnstate, int action,
-                                    mjtNum reldx, mjtNum reldy,
-                                    const mjvScene* scn, mjvPerturb* pert);
 
 // Move model with mouse; action is mjtMouse.
 MJAPI void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
@@ -692,27 +691,8 @@ MJAPI void mjv_freeScene(mjvScene* scn);
 MJAPI void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
                            const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn);
 
-// Update entire scene from a scene state, return the number of new mjWARN_VGEOMFULL warnings.
-MJAPI int mjv_updateSceneFromState(const mjvSceneState* scnstate, const mjvOption* opt,
-                                   const mjvPerturb* pert, mjvCamera* cam, int catmask,
-                                   mjvScene* scn);
-
 // Copy mjModel, skip large arrays not required for abstract visualization.
 MJAPI void mjv_copyModel(mjModel* dest, const mjModel* src);
-
-// Set default scene state.
-MJAPI void mjv_defaultSceneState(mjvSceneState* scnstate);
-
-// Allocate resources and initialize a scene state object.
-MJAPI void mjv_makeSceneState(const mjModel* m, const mjData* d,
-                              mjvSceneState* scnstate, int maxgeom);
-
-// Free scene state.
-MJAPI void mjv_freeSceneState(mjvSceneState* scnstate);
-
-// Update a scene state from model and data.
-MJAPI void mjv_updateSceneState(const mjModel* m, mjData* d, const mjvOption* opt,
-                                mjvSceneState* scnstate);
 
 // Add geoms from selected categories.
 MJAPI void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
@@ -1306,6 +1286,19 @@ MJAPI char* mju_strncpy(char *dst, const char *src, int n);
 
 // Sigmoid function over 0<=x<=1 using quintic polynomial.
 MJAPI mjtNum mju_sigmoid(mjtNum x);
+
+
+//---------------------------------- Signed Distance Function --------------------------------------
+
+// get sdf from geom id
+MJAPI const mjpPlugin* mjc_getSDF(const mjModel* m, int id);
+
+// signed distance function
+MJAPI mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjtNum x[3]);
+
+// gradient of sdf
+MJAPI void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s, mjtNum gradient[3],
+                        const mjtNum x[3]);
 
 
 //---------------------------------- Derivatives ---------------------------------------------------

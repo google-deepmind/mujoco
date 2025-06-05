@@ -39,7 +39,7 @@ extern "C" {
   #if defined(__APPLE__)
     #include <mach-o/dyld.h>
   #endif
-  #include <sys/errno.h>
+  #include <errno.h>
   #include <unistd.h>
 #endif
 }

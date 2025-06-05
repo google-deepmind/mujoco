@@ -1,0 +1,123 @@
+<mujoco model="2 Humanoids and 100 objects">
+<!--
+     Model designed for a maximally-elaborate island structure.
+     More horizontal gravity leads to larger, fewer islands.
+-->
+  <option timestep="0.005" solver="CG" gravity="-1 -1 -10">
+    <flag island="enable"/>
+  </option>
+
+  <size memory="100M"/>
+
+  <default>
+    <geom solimp=".9 .9 .01"/>
+    <default class="capsule">
+      <geom type="capsule" material="capsule" size="0.1 0.05"/>
+    </default>
+    <default class="ellipsoid">
+      <geom type="ellipsoid" material="ellipsoid" size="0.15 0.1 0.07"/>
+    </default>
+    <default class="box">
+      <geom type="box" material="box" size="0.15 0.1 0.05"/>
+    </default>
+    <default class="cylinder">
+      <geom type="cylinder" material="cylinder" size="0.1 0.05" condim="4" friction="1 .01 .01"/>
+    </default>
+    <default class="sphere">
+      <geom type="sphere" material="sphere" size="0.1"/>
+    </default>
+    <default class="border">
+      <geom type="capsule" size="0.4" rgba=".4 .4 .4 1"/>
+    </default>
+    <default class="borderpost">
+      <geom type="box" size="0.41 0.41 0.41" rgba=".55 .55 .55 1"/>
+    </default>
+  </default>
+
+  <asset>
+    <model file="humanoid.xml"/>
+    <texture type="skybox" builtin="gradient" width="512" height="512" rgb1=".4 .6 .8" rgb2="0 0 0"/>
+    <texture name="texgeom" type="cube" builtin="flat" mark="cross" width="128" height="128" rgb1="0.6 0.6 0.6" rgb2="0.6 0.6 0.6" markrgb="1 1 1"/>
+    <texture name="texplane" type="2d" builtin="checker" rgb1=".4 .4 .4" rgb2=".6 .6 .6" width="512" height="512"/>
+    <material name="MatPlane" reflectance="0.3" texture="texplane" texrepeat="1 1" texuniform="true" rgba=".7 .7 .7 1"/>
+    <material name="capsule" texture="texgeom" texuniform="true" rgba=".4 .9 .6 1"/>
+    <material name="ellipsoid" texture="texgeom" texuniform="true" rgba=".4 .6 .9 1"/>
+    <material name="box" texture="texgeom" texuniform="true" rgba=".4 .9 .9 1"/>
+    <material name="cylinder" texture="texgeom" texuniform="true" rgba=".8 .6 .8 1"/>
+    <material name="sphere" texture="texgeom" texuniform="true" rgba=".9 .1 .1 1"/>
+  </asset>
+
+  <visual>
+    <quality shadowsize="4096" offsamples="8"/>
+    <map znear="0.1" force="0.05"/>
+  </visual>
+
+  <statistic extent="4"/>
+
+  <worldbody>
+    <light directional="true" diffuse=".8 .8 .8" pos="0 0 10" dir="0 0 -10"/>
+    <geom name="floor" type="plane" size="3 3 .5" material="MatPlane"/>
+    <geom class="border" fromto="-3 3 0 3 3 0"/>
+    <geom class="border" fromto="-3 -3 0 3 -3 0"/>
+    <geom class="border" fromto="3 3 0 3 -3 0"/>
+    <geom class="border" fromto="-3 3 0 -3 -3 0"/>
+    <geom class="borderpost" pos="3 3 0"/>
+    <geom class="borderpost" pos="-3 3 0"/>
+    <geom class="borderpost" pos="3 -3 0"/>
+    <geom class="borderpost" pos="-3 -3 0"/>
+
+    <replicate count="4" euler="0 0 90">
+      <geom type="plane" size=".5 3 .05" zaxis="1 0 0"  pos="-3 0 0.4"/>
+    </replicate>
+
+    <replicate count="20" offset="0 0 0.2" euler="0 0 20">
+      <body pos="-2 0 0.5" euler="30 40 0">
+        <freejoint/>
+        <geom class="capsule"/>
+      </body>
+    </replicate>
+
+    <attach model="Humanoid" body="torso" prefix="1_"/>
+
+    <frame euler="0 0 72">
+      <replicate count="20" offset="0 0 0.2" euler="0 0 20">
+        <body pos="-2 0 0.5" euler="20 40 60">
+          <freejoint/>
+          <geom class="ellipsoid"/>
+        </body>
+      </replicate>
+    </frame>
+
+    <frame euler="0 0 144">
+      <replicate count="20" offset="0 0 0.2" euler="0 0 20">
+        <body pos="-2 0 0.5" euler="30 70 110">
+          <freejoint/>
+          <geom class="box"/>
+        </body>
+      </replicate>
+    </frame>
+
+    <frame pos="1 1 0" euler="0 0 144">
+      <attach model="Humanoid" body="torso" prefix="2_"/>
+    </frame>
+
+    <frame euler="0 0 216">
+      <replicate count="20" offset="0 0 0.2" euler="0 0 20">
+        <body pos="-2 0 0.5" euler="60 30 0">
+          <freejoint/>
+          <geom class="cylinder"/>
+        </body>
+      </replicate>
+    </frame>
+
+    <frame euler="0 0 288">
+      <replicate count="20" offset="0 0 0.2" euler="0 0 20">
+        <body pos="-2 0 0.5" euler="60 30 0">
+          <freejoint/>
+          <geom class="sphere"/>
+        </body>
+      </replicate>
+    </frame>
+
+  </worldbody>
+</mujoco>

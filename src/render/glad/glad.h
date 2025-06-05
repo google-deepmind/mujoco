@@ -27,6 +27,7 @@
 //     GL_ARB_framebuffer_object,
 //     GL_ARB_seamless_cube_map,
 //     GL_ARB_vertex_buffer_object,
+//     GL_EXT_texture_sRGB,
 //     GL_KHR_debug
 // Loader: True
 // Local files: False
@@ -34,9 +35,9 @@
 // Reproducible: False
 //
 // Commandline:
-//     --profile="compatibility" --api="gl=1.5" --generator="c" --spec="gl" --extensions="GL_ARB_clip_control,GL_ARB_depth_buffer_float,GL_ARB_framebuffer_object,GL_ARB_seamless_cube_map,GL_ARB_vertex_buffer_object,GL_KHR_debug"
+//     --profile="compatibility" --api="gl=1.5" --generator="c" --spec="gl" --extensions="GL_ARB_clip_control,GL_ARB_depth_buffer_float,GL_ARB_framebuffer_object,GL_ARB_seamless_cube_map,GL_ARB_vertex_buffer_object,GL_EXT_texture_sRGB,GL_KHR_debug"
 // Online:
-//     https://glad.dav1d.de/#profile=compatibility&language=c&specification=gl&loader=on&api=gl%3D1.5&extensions=GL_ARB_clip_control&extensions=GL_ARB_depth_buffer_float&extensions=GL_ARB_framebuffer_object&extensions=GL_ARB_seamless_cube_map&extensions=GL_ARB_vertex_buffer_object&extensions=GL_KHR_debug
+//     https://glad.dav1d.de/#profile=compatibility&language=c&specification=gl&loader=on&api=gl%3D1.5&extensions=GL_ARB_clip_control&extensions=GL_ARB_depth_buffer_float&extensions=GL_ARB_framebuffer_object&extensions=GL_ARB_seamless_cube_map&extensions=GL_ARB_vertex_buffer_object&extensions=GL_EXT_texture_sRGB&extensions=GL_KHR_debug
 
 #ifndef MUJOCO_SRC_RENDER_GLAD_GLAD_H_
 #define MUJOCO_SRC_RENDER_GLAD_GLAD_H_
@@ -2420,6 +2421,22 @@ GLAPI PFNGLGETBUFFERPOINTERVPROC mjGlad_glGetBufferPointerv;
 #define GL_DYNAMIC_DRAW_ARB 0x88E8
 #define GL_DYNAMIC_READ_ARB 0x88E9
 #define GL_DYNAMIC_COPY_ARB 0x88EA
+#define GL_SRGB_EXT 0x8C40
+#define GL_SRGB8_EXT 0x8C41
+#define GL_SRGB_ALPHA_EXT 0x8C42
+#define GL_SRGB8_ALPHA8_EXT 0x8C43
+#define GL_SLUMINANCE_ALPHA_EXT 0x8C44
+#define GL_SLUMINANCE8_ALPHA8_EXT 0x8C45
+#define GL_SLUMINANCE_EXT 0x8C46
+#define GL_SLUMINANCE8_EXT 0x8C47
+#define GL_COMPRESSED_SRGB_EXT 0x8C48
+#define GL_COMPRESSED_SRGB_ALPHA_EXT 0x8C49
+#define GL_COMPRESSED_SLUMINANCE_EXT 0x8C4A
+#define GL_COMPRESSED_SLUMINANCE_ALPHA_EXT 0x8C4B
+#define GL_COMPRESSED_SRGB_S3TC_DXT1_EXT 0x8C4C
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT 0x8C4D
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT 0x8C4E
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT 0x8C4F
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS 0x8242
 #define GL_DEBUG_NEXT_LOGGED_MESSAGE_LENGTH 0x8243
 #define GL_DEBUG_CALLBACK_FUNCTION 0x8244
@@ -2613,6 +2630,10 @@ GLAPI PFNGLGETBUFFERPARAMETERIVARBPROC mjGlad_glGetBufferParameterivARB;
 typedef void (APIENTRYP PFNGLGETBUFFERPOINTERVARBPROC)(GLenum target, GLenum pname, void **params);
 GLAPI PFNGLGETBUFFERPOINTERVARBPROC mjGlad_glGetBufferPointervARB;
 #define glGetBufferPointervARB mjGlad_glGetBufferPointervARB
+#endif
+#ifndef GL_EXT_texture_sRGB
+#define GL_EXT_texture_sRGB 1
+GLAPI int mjGLAD_GL_EXT_texture_sRGB;
 #endif
 #ifndef GL_KHR_debug
 #define GL_KHR_debug 1

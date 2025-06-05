@@ -265,7 +265,7 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
 }
 
 // get sdf from geom id
-static const mjpPlugin* getSDF(const mjModel* m, int id) {
+const mjpPlugin* mjc_getSDF(const mjModel* m, int id) {
   int instance = m->geom_plugin[id];
   const int nslot = mjp_pluginCount();
   const int slot = m->plugin[instance];
@@ -585,7 +585,7 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
 
   // get sdf plugin
   int instance = m->geom_plugin[g2];
-  const mjpPlugin* sdf_ptr = getSDF(m, g2);
+  const mjpPlugin* sdf_ptr = mjc_getSDF(m, g2);
   mjtGeom geomtype = mjGEOM_SDF;
 
   // copy into data
@@ -727,12 +727,12 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
   mjtGeom geomtypes[2] = {m->geom_type[g2], m->geom_type[g1]};
 
   instance[0] = m->geom_plugin[g2];
-  sdf_ptr[0] = getSDF(m, g2);
+  sdf_ptr[0] = mjc_getSDF(m, g2);
 
   // get sdf plugins
   if (m->geom_type[g1] == mjGEOM_SDF) {
     instance[1] = m->geom_plugin[g1];
-    sdf_ptr[1] = getSDF(m, g1);
+    sdf_ptr[1] = mjc_getSDF(m, g1);
   } else {
     instance[1] = g1;
     sdf_ptr[1] = NULL;

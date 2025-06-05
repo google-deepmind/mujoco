@@ -2669,12 +2669,15 @@ void mjCModel::CopyTree(mjModel* m) {
       m->light_bodyid[lid] = pl->body->id;
       m->light_mode[lid] = (int)pl->mode;
       m->light_targetbodyid[lid] = pl->targetbodyid;
-      m->light_directional[lid] = (mjtByte)pl->directional;
+      m->light_type[lid] = pl->type;
+      m->light_texid[lid] = pl->texid;
       m->light_castshadow[lid] = (mjtByte)pl->castshadow;
       m->light_active[lid] = (mjtByte)pl->active;
       mjuu_copyvec(m->light_pos+3*lid, pl->pos, 3);
       mjuu_copyvec(m->light_dir+3*lid, pl->dir, 3);
       m->light_bulbradius[lid] = pl->bulbradius;
+      m->light_intensity[lid] = pl->intensity;
+      m->light_range[lid] = pl->range;
       mjuu_copyvec(m->light_attenuation+3*lid, pl->attenuation, 3);
       m->light_cutoff[lid] = pl->cutoff;
       m->light_exponent[lid] = pl->exponent;
@@ -3041,6 +3044,11 @@ void mjCModel::CopyObjects(mjModel* m) {
     } else {
       mjuu_zerovec(m->flex_stiffness + 21 * elem_adr, 21 * pfl->nelem);
     }
+    if (!pfl->bending.empty()) {
+      mjuu_copyvec(m->flex_bending + 16 * edge_adr, pfl->bending.data(), pfl->bending.size());
+    } else {
+      mjuu_zerovec(m->flex_bending + 16 * edge_adr, 16 * pfl->nedge);
+    }
     m->flex_damping[i] = (mjtNum)pfl->damping;
 
     // set fields: mesh-like
@@ -3158,6 +3166,13 @@ void mjCModel::CopyObjects(mjModel* m) {
     for (int k=0; k < pfl->nedge; k++) {
       m->flex_edge[2*(edge_adr+k)] = pfl->edge[k].first;
       m->flex_edge[2*(edge_adr+k)+1] = pfl->edge[k].second;
+      if (pfl->dim == 2 && (pfl->elastic2d == 1 || pfl->elastic2d == 3)) {
+        m->flex_edgeflap[2*(edge_adr+k)+0] = pfl->flaps[k].vertices[2];
+        m->flex_edgeflap[2*(edge_adr+k)+1] = pfl->flaps[k].vertices[3];
+      } else {
+        m->flex_edgeflap[2*(edge_adr+k)+0] = -1;
+        m->flex_edgeflap[2*(edge_adr+k)+1] = -1;
+      }
 
       if (pfl->rigid) {
         m->flexedge_rigid[edge_adr+k] = 1;
@@ -3271,6 +3286,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set fields
     m->tex_type[i] = ptex->type;
+    m->tex_colorspace[i] = ptex->colorspace;
     m->tex_height[i] = ptex->height;
     m->tex_width[i] = ptex->width;
     m->tex_nchannel[i] = ptex->nchannel;
@@ -3836,78 +3852,8 @@ void mjCModel::FuseStatic(void) {
     }
 
     //------------- add mass and inertia (if parent not world)
-
     if (body->parent && body->parent->name != "world" && body->mass >= mjMINVAL) {
-      // body_ipose = body_pose * body_ipose
-      changeframe(body->ipos, body->iquat, body->pos, body->quat);
-
-      // organize data
-      double mass[2] = {
-        par->mass,
-        body->mass
-      };
-      double inertia[2][3] = {
-        {par->inertia[0], par->inertia[1], par->inertia[2]},
-        {body->inertia[0], body->inertia[1], body->inertia[2]}
-      };
-      double ipos[2][3] = {
-        {par->ipos[0], par->ipos[1], par->ipos[2]},
-        {body->ipos[0], body->ipos[1], body->ipos[2]}
-      };
-      double iquat[2][4] = {
-        {par->iquat[0], par->iquat[1], par->iquat[2], par->iquat[3]},
-        {body->iquat[0], body->iquat[1], body->iquat[2], body->iquat[3]}
-      };
-
-      // compute total mass
-      par->mass = 0;
-      mjuu_setvec(par->ipos, 0, 0, 0);
-      for (int j=0; j < 2; j++) {
-        par->mass += mass[j];
-        par->ipos[0] += mass[j]*ipos[j][0];
-        par->ipos[1] += mass[j]*ipos[j][1];
-        par->ipos[2] += mass[j]*ipos[j][2];
-      }
-
-      // small mass: allow for now, check for errors later
-      if (par->mass < mjMINVAL) {
-        par->mass = 0;
-        mjuu_setvec(par->inertia, 0, 0, 0);
-        mjuu_setvec(par->ipos, 0, 0, 0);
-        mjuu_setvec(par->iquat, 1, 0, 0, 0);
-      }
-
-      // proceed with regular computation
-      else {
-        // locipos = center-of-mass
-        par->ipos[0] /= par->mass;
-        par->ipos[1] /= par->mass;
-        par->ipos[2] /= par->mass;
-
-        // add inertias
-        double toti[6] = {0, 0, 0, 0, 0, 0};
-        for (int j=0; j < 2; j++) {
-          double inertA[6], inertB[6];
-          double dpos[3] = {
-            ipos[j][0] - par->ipos[0],
-            ipos[j][1] - par->ipos[1],
-            ipos[j][2] - par->ipos[2]
-          };
-
-          mjuu_globalinertia(inertA, inertia[j], iquat[j]);
-          mjuu_offcenter(inertB, mass[j], dpos);
-          for (int k=0; k < 6; k++) {
-            toti[k] += inertA[k] + inertB[k];
-          }
-        }
-
-        // compute principal axes of inertia
-        mjuu_copyvec(par->fullinertia, toti, 6);
-        const char* err1 = mjuu_fullInertia(par->iquat, par->inertia, par->fullinertia);
-        if (err1) {
-          throw mjCError(nullptr, "error '%s' in fusing static body inertias", err1);
-        }
-      }
+      par->AccumulateInertia(body);
     }
 
     //------------- replace body with its children in parent body list
@@ -4810,6 +4756,11 @@ bool mjCModel::CopyBack(const mjModel* m) {
       nemax != m->nemax || nconmax != m->nconmax || njmax != m->njmax ||
       npaths != m->npaths) {
     errInfo = mjCError(0, "incompatible models in CopyBack");
+    return false;
+  }
+
+  if (spec.element->signature != m->signature) {
+    errInfo = mjCError(0, "incompatible signatures in CopyBack");
     return false;
   }
 

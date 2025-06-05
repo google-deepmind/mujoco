@@ -394,9 +394,12 @@ typedef struct mjsLight_ {         // light specification
 
   // intrinsics
   mjtByte active;                  // is light active
-  mjtByte directional;             // is light directional or spot
+  mjtLightType type;               // type of light
+  mjString* texture;               // texture name for image lights
   mjtByte castshadow;              // does light cast shadows
-  double bulbradius;               // bulb radius, for soft shadows
+  float bulbradius;                // bulb radius, for soft shadows
+  float intensity;                 // intensity, in candelas
+  float range;                     // range of effectiveness
   float attenuation[3];            // OpenGL attenuation (quadratic model)
   float cutoff;                    // OpenGL cutoff
   float exponent;                  // OpenGL exponent
@@ -430,7 +433,8 @@ typedef struct mjsFlex_ {          // flex specification
   double radius;                   // radius around primitive element
   mjtByte internal;                // enable internal collisions
   mjtByte flatskin;                // render flex skin with flat shading
-  int selfcollide;                 // mode for flex self colllision
+  int selfcollide;                 // mode for flex self collision
+  int vertcollide;                 // mode for vertex collision
   int activelayers;                // number of active element layers in 3D
   int group;                       // group for visualizatioh
   double edgestiffness;            // edge stiffness
@@ -441,6 +445,7 @@ typedef struct mjsFlex_ {          // flex specification
   double poisson;                  // Poisson's ratio
   double damping;                  // Rayleigh's damping
   double thickness;                // thickness (2D only)
+  int elastic2d;                   // 2D passive forces; 0: none, 1: bending, 2: stretching, 3: both
 
   // mesh properties
   mjStringVec* nodebody;           // node body names
@@ -521,6 +526,7 @@ typedef struct mjsTexture_ {       // texture specification
   mjsElement* element;             // element type
   mjString* name;                  // name
   mjtTexture type;                 // texture type
+  mjtColorSpace colorspace;        // colorspace
 
   // method 1: builtin
   int builtin;                     // builtin type (mjtBuiltin)

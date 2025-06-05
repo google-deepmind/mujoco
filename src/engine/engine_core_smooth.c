@@ -1471,7 +1471,6 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
 // add tendon armature to qM
 void mj_tendonArmature(const mjModel* m, mjData* d) {
-  TM_START;
   int nv = m->nv, ntendon = m->ntendon, issparse = mj_isSparse(m);
 
   for (int k=0; k < ntendon; k++) {
@@ -1521,14 +1520,12 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
       }
     }
   }
-  TM_END(mjTIMER_POS_INERTIA);
 }
 
 
 
 // composite rigid body inertia algorithm
 void mj_crb(const mjModel* m, mjData* d) {
-  TM_START;
   mjtNum buf[6];
   mjtNum* crb = d->crb;
   int last_body = m->nbody - 1, nv = m->nv;
@@ -1574,6 +1571,15 @@ void mj_crb(const mjModel* m, mjData* d) {
       d->qM[Madr_ij++] += mju_dot(d->cdof+6*j, buf, 6);
     }
   }
+}
+
+
+
+void mj_makeM(const mjModel* m, mjData* d) {
+  TM_START;
+  mj_crb(m, d);
+  mj_tendonArmature(m, d);
+  mju_gather(d->M, d->qM, d->mapM2M, m->nC);
   TM_END(mjTIMER_POS_INERTIA);
 }
 
@@ -1646,11 +1652,8 @@ void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 void mj_factorM(const mjModel* m, mjData* d) {
   TM_START;
-
-  // gather LD <- M (legacy to CSR) and factorize in-place
-  mju_gather(d->qLD, d->qM, d->mapM2M, m->nM);
-  mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
-
+  mju_copy(d->qLD, d->M, m->nC);
+  mj_factorI(d->qLD, d->qLDiagInv, m->nv, d->M_rownnz, d->M_rowadr, d->M_colind);
   TM_ADD(mjTIMER_POS_INERTIA);
 }
 
@@ -1658,32 +1661,25 @@ void mj_factorM(const mjModel* m, mjData* d) {
 
 // sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
 void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
-                const int* rownnz, const int* rowadr, const int* diagnum, const int* colind) {
+                const int* rownnz, const int* rowadr, const int* colind) {
   // backward loop over rows
   for (int k=nv-1; k >= 0; k--) {
     // get row k's address, diagonal index, inverse diagonal value
-    int rowadr_k = rowadr[k];
-    int diag_k = rowadr_k + rownnz[k] - 1;
-    mjtNum invD = 1 / mat[diag_k];
+    int start = rowadr[k];
+    int diag = rownnz[k] - 1;
+    int end = start + diag;
+    mjtNum invD = 1 / mat[end];
     if (diaginv) diaginv[k] = invD;
 
-    // skip if simple
-    if (diagnum[k]) {
-      continue;
-    }
-
-    // update triangle above row k, inclusive
-    for (int adr=diag_k - 1; adr >= rowadr_k; adr--) {
-      // tmp = L(k, i) / L(k, k)
-      mjtNum tmp = mat[adr] * invD;
-
+    // update triangle above row k
+    for (int adr=end - 1; adr >= start; adr--) {
       // update row i < k:  L(i, 0..i) -= L(i, 0..i) * L(k, i) / L(k, k)
       int i = colind[adr];
-      mju_addToScl(mat + rowadr[i], mat + rowadr_k, -tmp, rownnz[i]);
-
-      // update ith element of row k:  L(k, i) /= L(k, k)
-      mat[adr] = tmp;
+      mju_addToScl(mat + rowadr[i], mat + start, -mat[adr] * invD, rownnz[i]);
     }
+
+    // update row k:  L(k, :) /= L(k, k)
+    mju_scl(mat + start, mat + start, invD, diag);
   }
 }
 
@@ -1804,11 +1800,11 @@ void mj_solveLD_legacy(const mjModel* m, mjtNum* restrict x, int n,
 
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
 void mj_solveLD(mjtNum* restrict x, const mjtNum* qLD, const mjtNum* qLDiagInv, int nv, int n,
-                const int* rownnz, const int* rowadr, const int* diagnum, const int* colind) {
+                const int* rownnz, const int* rowadr, const int* colind) {
   // x <- L^-T x
   for (int i=nv-1; i > 0; i--) {
     // skip diagonal rows
-    if (diagnum[i]) {
+    if (rownnz[i] == 1) {
       continue;
     }
 
@@ -1859,8 +1855,7 @@ void mj_solveLD(mjtNum* restrict x, const mjtNum* qLD, const mjtNum* qLDiagInv, 
   // x <- L^-1 x
   for (int i=1; i < nv; i++) {
     // skip diagonal rows
-    if (diagnum[i]) {
-      i += diagnum[i] - 1;  // iterating forward: skip ahead, adjust i
+    if (rownnz[i] == 1) {
       continue;
     }
 
@@ -1870,13 +1865,13 @@ void mj_solveLD(mjtNum* restrict x, const mjtNum* qLD, const mjtNum* qLDiagInv, 
 
       // one vector
       if (n == 1) {
-        x[i] -= mju_dotSparse(qLD+adr, x, d, colind+adr, /*flg_unc1=*/0);
+        x[i] -= mju_dotSparse(qLD+adr, x, d, colind+adr);
       }
 
       // multiple vectors
       else {
         for (int offset=0; offset < n*nv; offset+=nv) {
-          x[i+offset] -= mju_dotSparse(qLD+adr, x+offset, d, colind+adr, /*flg_unc1=*/0);
+          x[i+offset] -= mju_dotSparse(qLD+adr, x+offset, d, colind+adr);
         }
       }
     }
@@ -1892,7 +1887,7 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
     mju_copy(x, y, n*m->nv);
   }
   mj_solveLD(x, d->qLD, d->qLDiagInv, m->nv, n,
-             d->M_rownnz, d->M_rowadr, m->dof_simplenum, d->M_colind);
+             d->M_rownnz, d->M_rowadr, d->M_colind);
 }
 
 

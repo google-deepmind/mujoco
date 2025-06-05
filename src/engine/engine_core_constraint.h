@@ -97,7 +97,7 @@ MJAPI void mj_projectConstraint(const mjModel* m, mjData* d);
 MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 
 // compute efc_state, efc_force
-//  optional: cost(qacc) = shat(jar); cone Hessians
+//  optional: cost(qacc) = s_hat(jar); cone Hessians
 MJAPI void mj_constraintUpdate_impl(int ne, int nf, int nefc,
                                     const mjtNum* D, const mjtNum* R, const mjtNum* floss,
                                     const mjtNum* jar, const int* type, const int* id,
@@ -105,7 +105,7 @@ MJAPI void mj_constraintUpdate_impl(int ne, int nf, int nefc,
                                     int flg_coneHessian);
 
 // compute efc_state, efc_force, qfrc_constraint
-// optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
+// optional: cost(qacc) = s_hat(jar) where jar = Jac*qacc-aref; cone Hessians
 MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                                mjtNum cost[1], int flg_coneHessian);
 

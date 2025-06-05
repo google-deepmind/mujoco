@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
@@ -30,11 +31,10 @@
 // subdistance algorithm for GJK that computes the barycentric coordinates of the point in a
 // simplex closest to the origin
 // implementation adapted from Montanari et al, ToG 2017
-static void subdistance(mjtNum lambda[4], int n, const mjtNum s1[3], const mjtNum s2[3],
-                        const mjtNum s3[3], const mjtNum s4[3]);
+static void subdistance(mjtNum lambda[4], int n, const Vertex simplex[4]);
 
 // compute the barycentric coordinates of the closest point to the origin in the n-simplex,
-// where n = 3, 2, 1 respectively
+// for n = 3, 2, 1 respectively
 static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const mjtNum s3[3],
                 const mjtNum s4[3]);
 static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const mjtNum s3[3]);
@@ -42,7 +42,7 @@ static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]);
 
 // compute the support point for GJK
 static void gjkSupport(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
-                       const mjtNum x_k[3]);
+                       const mjtNum x_k[3], mjtNum x_norm);
 
 // compute the linear combination of 1 - 4 3D vectors
 static inline void lincomb(mjtNum res[3], const mjtNum* coef, int n, const mjtNum v1[3],
@@ -182,21 +182,27 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   mjtNum cutoff2 = status->dist_cutoff * status->dist_cutoff;
 
   // if both geoms are discrete, finite convergence is guaranteed; set tolerance to 0
-  mjtNum epsilon = discreteGeoms(obj1, obj2) ? 0 : status->tolerance * status->tolerance;
+  mjtNum epsilon = discreteGeoms(obj1, obj2) ? 0 : 0.5 * status->tolerance * status->tolerance;
+  mjtNum x_norm;
 
   // set initial guess
   sub3(x_k, x1_k, x2_k);
 
   for (; k < kmax; k++) {
     // compute the kth support point
-    gjkSupport(simplex + n, obj1, obj2, x_k);
+    x_norm = dot3(x_k, x_k);
+    if (x_norm < mjMINVAL2) {
+      break;
+    }
+    x_norm = mju_sqrt(x_norm);
+    gjkSupport(simplex + n, obj1, obj2, x_k, x_norm);
     mjtNum *s_k = simplex[n].vert;
 
     // stopping criteria using the Frank-Wolfe duality gap given by
     //  |f(x_k) - f(x_min)|^2 <= < grad f(x_k), (x_k - s_k) >
     mjtNum diff[3];
     sub3(diff, x_k, s_k);
-    if (2*dot3(x_k, diff) < epsilon) {
+    if (dot3(x_k, diff) < epsilon) {
       if (!k) n = 1;
       break;
     }
@@ -238,12 +244,12 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
     // run the distance subalgorithm to compute the barycentric coordinates
     // of the closest point to the origin in the simplex
-    subdistance(lambda, n + 1, simplex[0].vert, simplex[1].vert, simplex[2].vert, simplex[3].vert);
+    subdistance(lambda, n + 1, simplex);
 
     // remove vertices from the simplex no longer needed
     n = 0;
     for (int i = 0; i < 4; i++) {
-      if (lambda[i] == 0) continue;
+      if (!lambda[i]) continue;
       simplex[n] = simplex[i];
       lambda[n++] = lambda[i];
     }
@@ -285,7 +291,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   status->nx = 1;
   status->gjk_iterations = k;
   status->nsimplex = n;
-  status->dist = norm3(x_k);
+  status->dist = x_norm;
 }
 
 
@@ -322,17 +328,13 @@ static inline void support(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
 
 
 // compute the support points in obj1 and obj2 for the kth approximation point
-static void gjkSupport(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
-                       const mjtNum x_k[3]) {
-  mjtNum dir[3] = {-1, 0, 0}, dir_neg[3] = {1, 0, 0};
+static inline void gjkSupport(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
+                              const mjtNum x_k[3], mjtNum x_norm) {
+  mjtNum dir[3], dir_neg[3];
 
   // mjc_support requires a normalized direction
-  mjtNum norm = dot3(x_k, x_k);
-  if (norm > mjMINVAL2) {
-    norm = 1/mju_sqrt(norm);
-    scl3(dir_neg, x_k, norm);
-    scl3(dir, dir_neg, -1);
-  }
+  scl3(dir_neg, x_k, 1 / x_norm);
+  scl3(dir, dir_neg, -1);
   support(v, obj1, obj2, dir, dir_neg);
 }
 
@@ -537,24 +539,33 @@ static inline int sameSign2(mjtNum a, mjtNum b) {
 // subdistance algorithm for GJK that computes the barycentric coordinates of the point in a
 // simplex closest to the origin
 // implementation adapted from Montanari et al, ToG 2017
-static inline void subdistance(mjtNum lambda[4], int n, const mjtNum s1[3],
-                               const mjtNum s2[3], const mjtNum s3[3], const mjtNum s4[3]) {
-  lambda[0] = lambda[1] = lambda[2] = lambda[3] = 0;
-  if (n == 4) {
-    S3D(lambda, s1, s2, s3, s4);
-  } else if (n == 3) {
-    S2D(lambda, s1, s2, s3);
-  } else if (n == 2) {
-    S1D(lambda, s1, s2);
-  } else {
+static inline void subdistance(mjtNum lambda[4], int n, const Vertex simplex[4]) {
+  memset(lambda, 0, 4 * sizeof(mjtNum));
+  const mjtNum* s1 = simplex[0].vert;
+  const mjtNum* s2 = simplex[1].vert;
+  const mjtNum* s3 = simplex[2].vert;
+  const mjtNum* s4 = simplex[3].vert;
+
+  switch (n) {
+  case 4:
+     S3D(lambda, s1, s2, s3, s4);
+     break;
+  case 3:
+     S2D(lambda, s1, s2, s3);
+      break;
+  case 2:
+     S1D(lambda, s1, s2);
+     break;
+  default:
     lambda[0] = 1;
+    break;
   }
 }
 
 
 
-static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const mjtNum s3[3],
-                const mjtNum s4[3]) {
+static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3],
+                const mjtNum s3[3], const mjtNum s4[3]) {
   // the matrix M is given by
   //  [[ s1_x, s2_x, s3_x, s4_x ],
   //   [ s1_y, s2_y, s3_y, s4_y ],
@@ -639,7 +650,6 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3], const 
       lambda[0] = lambda_2d[0];
       lambda[1] = lambda_2d[1];
       lambda[2] = lambda_2d[2];
-      lambda[3] = 0;
     }
   }
 }
@@ -786,27 +796,29 @@ static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]) {
   projectOriginLine(p_o, s1, s2);
 
   // find the axis with the largest projection "shadow" of the simplex
-  mjtNum mu_max = 0;
-  int index;
-  for (int i = 0; i < 3; i++) {
-    mjtNum mu = s1[i] - s2[i];
-    if (mju_abs(mu) >= mju_abs(mu_max)) {
-      mu_max = mu;
-      index = i;
-    }
+  mjtNum mu = s1[0] - s2[0];
+  mjtNum mu_max = mu;
+  int index = 0;
+
+  mu = s1[1] - s2[1];
+  if (mju_abs(mu) >= mju_abs(mu_max)) {
+    mu_max = mu;
+    index = 1;
+  }
+
+  mu = s1[2] - s2[2];
+  if (mju_abs(mu) >= mju_abs(mu_max)) {
+    mu_max = mu;
+    index = 2;
   }
 
   mjtNum C1 = p_o[index] - s2[index];
   mjtNum C2 = s1[index] - p_o[index];
 
-  // inside the simplex
-  if (sameSign2(mu_max, C1) && sameSign2(mu_max, C2)) {
-    lambda[0] = C1 / mu_max;
-    lambda[1] = C2 / mu_max;
-  } else {
-    lambda[0] = 0;
-    lambda[1] = 1;
-  }
+  // determine if projection of origin lies inside 1-simplex
+  int same = sameSign2(mu_max, C1) && sameSign2(mu_max, C2);
+  lambda[0] = same ? C1 / mu_max : 0;
+  lambda[1] = same ? C2 / mu_max : 1;
 }
 
 

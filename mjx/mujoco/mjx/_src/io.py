@@ -509,7 +509,8 @@ def _make_data_jax(
       'actuator_moment': (m.nu, m.nv, float_),
       'crb': (m.nbody, 10, float_),
       'qM': (m.nM, float_) if support.is_sparse(m) else (m.nv, m.nv, float_),
-      'qLD': (m.nM, float_) if support.is_sparse(m) else (m.nv, m.nv, float_),
+      'M': (m.nC, float_),
+      'qLD': (m.nC, float_) if support.is_sparse(m) else (m.nv, m.nv, float_),
       'qLDiagInv': (m.nv, float_) if support.is_sparse(m) else (0, float_),
       'ten_velocity': (m.ntendon, float_),
       'actuator_velocity': (m.nu, float_),
@@ -618,23 +619,21 @@ def _make_data_c(
       'flexedge_velocity': (nflexedge, float_),
       'crb': (m.nbody, 10, float_),
       'qM': (m.nM, float_),
-      'qLD': (m.nM, float_),
-      'qH': (m.nM, float_),
+      'M': (m.nC, float_),
+      'qLD': (m.nC, float_),
+      'qH': (m.nC, float_),
       'qHDiagInv': (m.nv, float_),
       'qLDiagInv': (m.nv, float_),
       'ten_velocity': (m.ntendon, float_),
       'actuator_velocity': (m.nu, float_),
+      'plugin_data': (m.nplugin, np.uint64),
       'B_rownnz': (m.nbody, np.int32),
       'B_rowadr': (m.nbody, np.int32),
       'B_colind': (m.nB, np.int32),
       'M_rownnz': (m.nv, np.int32),
       'M_rowadr': (m.nv, np.int32),
-      'M_colind': (m.nM, np.int32),
-      'mapM2M': (m.nM, np.int32),
-      'C_rownnz': (m.nv, np.int32),
-      'C_rowadr': (m.nv, np.int32),
-      'C_colind': (m.nC, np.int32),
-      'mapM2C': (m.nC, np.int32),
+      'M_colind': (m.nC, np.int32),
+      'mapM2M': (m.nC, np.int32),
       'D_rownnz': (m.nv, np.int32),
       'D_rowadr': (m.nv, np.int32),
       'D_diag': (m.nv, np.int32),
@@ -1112,12 +1111,10 @@ def _get_data_into(
     ncon = (d_i._impl.contact.dist <= 0).sum()
     efc_active = (d_i._impl.efc_J != 0).any(axis=1)
     nefc = int(efc_active.sum())
-    result_i.nJ = nefc * m.nv
-    if ncon != result_i.ncon or nefc != result_i.nefc:
-      mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc)  # pylint: disable=protected-access
-    result_i.efc_J_rownnz[:] = np.repeat(m.nv, nefc)
-    result_i.efc_J_rowadr[:] = np.arange(0, nefc * m.nv, m.nv)
-    result_i.efc_J_colind[:] = np.tile(np.arange(m.nv), nefc)
+    nj = (d_i._impl.efc_J != 0).sum() if support.is_sparse(m) else nefc * m.nv
+
+    if ncon != result_i.ncon or nefc != result_i.nefc or nj != result_i.nJ:
+      mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc, nJ=nj)  # pylint: disable=protected-access
 
     if d.backend_impl == types.BackendImpl.JAX:
       all_fields = types.Data.fields() + types.DataJAX.fields()
@@ -1169,16 +1166,33 @@ def _get_data_into(
         value = {'nefc': nefc, 'ncon': ncon}[field.name]
       elif field.name.endswith('xmat') or field.name == 'ximat':
         value = value.reshape((-1, 9))
+      elif field.name == 'efc_J':
+        value = value[efc_active]
+        if support.is_sparse(m):
+          efc_J_rownnz = np.zeros(nefc, dtype=np.int32)
+          efc_J_rowadr = np.zeros(nefc, dtype=np.int32)
+          efc_J_colind = np.zeros(nj, dtype=np.int32)
+          efc_J = np.zeros(nj)
+          mujoco.mju_dense2sparse(
+              efc_J,
+              value,
+              efc_J_rownnz,
+              efc_J_rowadr,
+              efc_J_colind,
+          )
+          result_i.efc_J_rownnz[:] = efc_J_rownnz
+          result_i.efc_J_rowadr[:] = efc_J_rowadr
+          result_i.efc_J_colind[:] = efc_J_colind
+          value = efc_J
+        else:
+          value = value.reshape(-1)
       elif field.name.startswith('efc_'):
         value = value[efc_active]
-        if field.name == 'efc_J':
-          value = value.reshape(-1)
       if d.backend_impl == types.BackendImpl.JAX:
         if field.name == 'qM' and not support.is_sparse(m):
           value = value[dof_i, dof_j]
         elif field.name == 'qLD' and not support.is_sparse(m):
-          # TODO(erikfrey): provide correct qLDs
-          value = np.zeros(m.nM)
+          value = np.zeros(m.nC)
         elif field.name == 'qLDiagInv' and not support.is_sparse(m):
           value = np.ones(m.nv)
 
@@ -1192,6 +1206,10 @@ def _get_data_into(
         result_field[:] = value
       else:
         setattr(result_i, field.name, value)
+
+    # recalculate qLD and qLDiagInv as MJX and MuJoCo have different
+    # representations of the Cholesky decomposition.
+    mujoco.mj_factorM(m, result_i)
 
 
 def get_data_into(

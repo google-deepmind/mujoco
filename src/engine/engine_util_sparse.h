@@ -28,9 +28,9 @@ extern "C" {
 
 //------------------------------ sparse operations -------------------------------------------------
 
-// dot-product, both vectors are sparse, vec2 can be uncompressed
-MJAPI mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
-                            int nnz2, const int* ind2, int flg_unc2);
+// dot-product, both vectors are sparse
+MJAPI mjtNum mju_dotSparse2(const mjtNum* vec1, const int* ind1, int nnz1,
+                            const mjtNum* vec2, const int* ind2, int nnz2);
 
 // convert matrix from dense to sparse
 //  nnz is size of res and colind, return 1 if too small, 0 otherwise
@@ -50,11 +50,21 @@ MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec
 MJAPI void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
                                 const int* rownnz, const int* rowadr, const int* colind);
 
+// add sparse matrix M to sparse destination matrix, requires pre-allocated buffers
+MJAPI void mju_addToMatSparse(mjtNum* dst, int* rownnz, int* rowadr, int* colind, int nr,
+                              const mjtNum* M, const int* M_rownnz, const int* M_rowadr,
+                              const int* M_colind,
+                              mjtNum* buf_val, int* buf_ind);
+
+// add symmetric matrix (only lower triangle represented) to dense matrix
+MJAPI void mju_addToSymSparse(mjtNum* res, const mjtNum* mat, int n,
+                              const int* rownnz, const int* rowadr, const int* colind,
+                              int flg_upper);
+
 // multiply symmetric matrix (only lower triangle represented) by vector:
 //  res = (mat + strict_upper(mat')) * vec
 MJAPI void mju_mulSymVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
-                               const int* rownnz, const int* rowadr, const int* diagnum,
-                               const int* colind);
+                               const int* rownnz, const int* rowadr, const int* colind);
 
 // compress sparse matrix, remove elements with abs(value) <= minval, return total non-zeros
 MJAPI int mju_compressSparse(mjtNum* mat, int nr, int nc,
@@ -81,9 +91,9 @@ int mju_addToSparseMat(mjtNum* dst, const mjtNum* src, int n, int nrow, mjtNum s
 int mju_addChains(int* res, int n, int NV1, int NV2,
                   const int* chain1, const int* chain2);
 
-// transpose sparse matrix
+// transpose sparse matrix, optionally compute row supernodes
 MJAPI void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                               int* res_rownnz, int* res_rowadr, int* res_colind,
+                               int* res_rownnz, int* res_rowadr, int* res_colind, int* res_rowsuper,
                                const int* rownnz, const int* rowadr, const int* colind);
 
 // construct row supernodes
@@ -99,6 +109,16 @@ MJAPI void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT
                               const int* rownnzT, const int* rowadrT,
                               const int* colindT, const int* rowsuperT,
                               mjData* d, int* diagind);
+
+// LEGACY: row-based implementation
+MJAPI void mju_sqrMatTDSparse_row(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
+                                  const mjtNum* diag, int nr, int nc,
+                                  int* res_rownnz, const int* res_rowadr, int* res_colind,
+                                  const int* rownnz, const int* rowadr,
+                                  const int* colind, const int* rowsuper,
+                                  const int* rownnzT, const int* rowadrT,
+                                  const int* colindT, const int* rowsuperT,
+                                  mjData* d, int* diagind);
 
 // precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
 MJAPI void mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
@@ -128,12 +148,10 @@ MJAPI void mju_blockDiagSparse(
 // ------------------------------ inlined functions ------------------------------------------------
 
 // dot-product, first vector is sparse
-//  flg_unc1: is vec1 memory layout uncompressed
 static inline
-mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1,
-                     int flg_unc1) {
+mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int* ind1) {
 #ifdef mjUSEAVX
-  return mju_dotSparse_avx(vec1, vec2, nnz1, ind1, flg_unc1);
+  return mju_dotSparse_avx(vec1, vec2, nnz1, ind1);
 #else
   int i = 0;
   mjtNum res = 0;
@@ -143,33 +161,18 @@ mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2, int nnz1, const int
   mjtNum res2 = 0;
   mjtNum res3 = 0;
 
-
-  if (flg_unc1) {
-    for (; i <= n_4; i+=4) {
-      res0 += vec1[ind1[i+0]] * vec2[ind1[i+0]];
-      res1 += vec1[ind1[i+1]] * vec2[ind1[i+1]];
-      res2 += vec1[ind1[i+2]] * vec2[ind1[i+2]];
-      res3 += vec1[ind1[i+3]] * vec2[ind1[i+3]];
-    }
-  } else {
-    for (; i <= n_4; i+=4) {
-      res0 += vec1[i+0] * vec2[ind1[i+0]];
-      res1 += vec1[i+1] * vec2[ind1[i+1]];
-      res2 += vec1[i+2] * vec2[ind1[i+2]];
-      res3 += vec1[i+3] * vec2[ind1[i+3]];
-    }
+  for (; i <= n_4; i+=4) {
+    res0 += vec1[i+0] * vec2[ind1[i+0]];
+    res1 += vec1[i+1] * vec2[ind1[i+1]];
+    res2 += vec1[i+2] * vec2[ind1[i+2]];
+    res3 += vec1[i+3] * vec2[ind1[i+3]];
   }
+
   res = (res0 + res2) + (res1 + res3);
 
   // scalar part
-  if (flg_unc1) {
-    for (; i < nnz1; i++) {
-      res += vec1[ind1[i]] * vec2[ind1[i]];
-    }
-  } else {
-    for (; i < nnz1; i++) {
-      res += vec1[i] * vec2[ind1[i]];
-    }
+  for (; i < nnz1; i++) {
+    res += vec1[i] * vec2[ind1[i]];
   }
 
   return res;

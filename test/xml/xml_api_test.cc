@@ -199,5 +199,15 @@ TEST_F(MujocoTest, SaveXmlWithDefaultMesh) {
   mj_deleteModel(saved_model);
 }
 
+TEST_F(MujocoTest, FreeLastXml) {
+  static constexpr char xml[] = "<mujoco/>";
+  mjModel* model = LoadModelFromString(xml, 0, 0);
+  ASSERT_THAT(model, NotNull());
+  mj_deleteModel(model);
+  ASSERT_NE(mj_saveLastXML(nullptr, nullptr, nullptr, 0), 0);
+  mj_freeLastXML();
+  ASSERT_EQ(mj_saveLastXML(nullptr, nullptr, nullptr, 0), 0);
+}
+
 }  // namespace
 }  // namespace mujoco

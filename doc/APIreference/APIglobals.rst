@@ -448,7 +448,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 200
      - The number of iterations where solver statistics can be stored in ``mjData.solver``. This array is used
        to store diagnostic information about each iteration of the constraint solver.
-       The actual number of iterations is given by ``mjData.solver_iter``.
+       The actual number of iterations is given by ``mjData.solver_niter``.
    * - ``mjNISLAND``
      - 20
      - The number of islands for which solver statistics can be stored in ``mjData.solver``. This array is

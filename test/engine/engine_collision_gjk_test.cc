@@ -468,7 +468,7 @@ TEST_F(MjGjkTest, BoxBoxTouching) {
   int ncons = Penetration(status, dist, dir, pos, model, data, geom1, geom2);
 
   EXPECT_EQ(ncons, 0);
-  EXPECT_GT(status.epa_status, 0);
+  EXPECT_EQ(status.epa_status, -1);
 
   mj_deleteData(data);
   mj_deleteModel(model);

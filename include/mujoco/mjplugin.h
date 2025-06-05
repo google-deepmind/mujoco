@@ -135,6 +135,16 @@ struct mjpPlugin_ {
 };
 typedef struct mjpPlugin_ mjpPlugin;
 
+struct mjSDF_ {
+  const mjpPlugin** plugin;
+  int* id;
+  mjtSDFType type;
+  mjtNum* relpos;
+  mjtNum* relmat;
+  mjtGeom* geomtype;
+};
+typedef struct mjSDF_ mjSDF;
+
 #if defined(__has_attribute)
 
   #if __has_attribute(constructor)

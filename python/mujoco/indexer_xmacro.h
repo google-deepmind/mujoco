@@ -152,7 +152,7 @@
   X( int,     light_, mode,          nlight,  1 ) \
   X( int,     light_, bodyid,        nlight,  1 ) \
   X( int,     light_, targetbodyid,  nlight,  1 ) \
-  X( mjtByte, light_, directional,   nlight,  1 ) \
+  X( int,     light_, type,          nlight,  1 ) \
   X( mjtByte, light_, castshadow,    nlight,  1 ) \
   X( mjtByte, light_, active,        nlight,  1 ) \
   X( mjtNum,  light_, pos,           nlight,  3 ) \

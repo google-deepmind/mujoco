@@ -1139,9 +1139,6 @@ static void copyM2Sparse(const mjModel* m, mjData* d, int* dst, const int* src,
   const int* rownnz;
   const int* rowadr;
   if (reduced && !upper) {
-    rownnz = d->C_rownnz;
-    rowadr = d->C_rowadr;
-  } else if (!reduced && !upper) {
     rownnz = d->M_rownnz;
     rowadr = d->M_rowadr;
   } else if (!reduced && upper) {
@@ -1251,24 +1248,13 @@ static void makeDofDofmaps(const mjModel* m, mjData* d) {
   }
 
   // make mapM2C
-  for (int i=0; i < nC; i++) d->mapM2C[i] = -1;
-  copyM2Sparse(m, d, d->mapM2C, M, /*reduced=*/1, /*upper=*/0);
+  for (int i=0; i < nC; i++) d->mapM2M[i] = -1;
+  copyM2Sparse(m, d, d->mapM2M, M, /*reduced=*/1, /*upper=*/0);
 
   // check that all indices are filled in
   for (int i=0; i < nC; i++) {
-    if (d->mapM2C[i] < 0) {
-      mjERROR("unassigned index in mapM2C");
-    }
-  }
-
-  // make mapM2M
-  for (int i=0; i < nM; i++) d->mapM2M[i] = -1;
-  copyM2Sparse(m, d, d->mapM2M, M, /*reduced=*/0, /*upper=*/0);
-
-  // check that all indices are filled in
-  for (int i=0; i < nM; i++) {
     if (d->mapM2M[i] < 0) {
-      mjERROR("unassigned index in mapM2M");
+      mjERROR("unassigned index in mapM2C");
     }
   }
 
@@ -1429,8 +1415,9 @@ mjData* mj_makeData(const mjModel* m) {
 
 
 
-// copy mjData, if dest==NULL create new data
-mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
+// copy mjData, if dest==NULL create new data;
+// flg_all  1: copy all fields,  0: skip fields not required for visualization
+mjData* mj_copyDataVisual(mjData* dest, const mjModel* m, const mjData* src, int flg_all) {
   void* save_buffer;
   void* save_arena;
 
@@ -1475,10 +1462,25 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   // copy buffer
   {
     MJDATA_POINTERS_PREAMBLE(m)
-    #define X(type, name, nr, nc)  \
-      memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*(m->nr)*nc);
-    MJDATA_POINTERS
-    #undef X
+    if (flg_all) {
+      #define X(type, name, nr, nc)  \
+        memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*(m->nr)*nc);
+      MJDATA_POINTERS
+      #undef X
+    } else {
+      // redefine XNV to nothing
+      #undef XNV
+      #define XNV(type, name, nr, nc)
+
+      #define X(type, name, nr, nc)  \
+        memcpy((char*)dest->name, (const char*)src->name, sizeof(type)*(m->nr)*nc);
+      MJDATA_POINTERS
+      #undef X
+
+      // redefine XNV to be the same as X
+      #undef XNV
+      #define XNV X
+    }
   }
 
 
@@ -1488,7 +1490,8 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   #undef MJ_M
   #define MJ_M(n) (m->n)
 
-  #define X(type, name, nr, nc)                                                  \
+  if (flg_all) {
+    #define X(type, name, nr, nc)                                                \
     if (src->name) {                                                             \
       dest->name = (type*)((char*)dest->arena + PTRDIFF(src->name, src->arena)); \
       ASAN_UNPOISON_MEMORY_REGION(dest->name, sizeof(type) * nr * nc);           \
@@ -1496,8 +1499,28 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
     } else {                                                                     \
       dest->name = NULL;                                                         \
     }
-  MJDATA_ARENA_POINTERS
-  #undef X
+    MJDATA_ARENA_POINTERS
+    #undef X
+  } else {
+    // redefine XNV to nothing
+    #undef XNV
+    #define XNV(type, name, nr, nc)
+
+    #define X(type, name, nr, nc)                                                \
+    if (src->name) {                                                             \
+      dest->name = (type*)((char*)dest->arena + PTRDIFF(src->name, src->arena)); \
+      ASAN_UNPOISON_MEMORY_REGION(dest->name, sizeof(type) * nr * nc);           \
+      memcpy((char*)dest->name, (const char*)src->name, sizeof(type) * nr * nc); \
+    } else {                                                                     \
+      dest->name = NULL;                                                         \
+    }
+    MJDATA_ARENA_POINTERS
+    #undef X
+
+    // redefine XNV to be the same as X
+    #undef XNV
+    #define XNV X
+  }
 
   #undef MJ_M
   #define MJ_M(n) n
@@ -1529,6 +1552,14 @@ mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
 }
 
 
+mjData* mj_copyData(mjData* dest, const mjModel* m, const mjData* src) {
+  return mj_copyDataVisual(dest, m, src, /*flg_all=*/1);
+}
+
+
+mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src) {
+  return mj_copyDataVisual(dest, m, src, /*flg_all=*/0);
+}
 
 static void maybe_lock_alloc_mutex(mjData* d) {
   if (d->threadpool != 0) {
@@ -1989,9 +2020,8 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     makeBSparse(m, d);
     checkDBSparse(m, d);
 
-    // make M, C
-    makeDofDofSparse(m, d, d->M_rownnz, d->M_rowadr, NULL, d->M_colind, /*reduced=*/0, /*upper=*/0);
-    makeDofDofSparse(m, d, d->C_rownnz, d->C_rowadr, NULL, d->C_colind, /*reduced=*/1, /*upper=*/0);
+    // make C
+    makeDofDofSparse(m, d, d->M_rownnz, d->M_rowadr, NULL, d->M_colind, /*reduced=*/1, /*upper=*/0);
 
     // make index mappings: mapM2D, mapD2M, mapM2C, mapM2M
     makeDofDofmaps(m, d);
@@ -2376,7 +2406,7 @@ const char* mj_validateReferences(const mjModel* m) {
     }
   }
   for (int i=0; i < m->ntex; i++) {
-    int tex_adr = m->tex_adr[i] + 3*m->tex_height[i]*m->tex_width[i];
+    int tex_adr = m->tex_adr[i] + m->tex_nchannel[i]*m->tex_height[i]*m->tex_width[i];
     if (tex_adr > m->ntexdata || m->tex_adr[i] < 0) {
       return "Invalid model: tex_adr out of bounds.";
     }

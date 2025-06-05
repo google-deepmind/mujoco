@@ -55,6 +55,8 @@ class PNGImage {
                        LodePNGColorType color_type);
   int Width() const { return width_; }
   int Height() const { return height_; }
+  bool IsSRGB() const { return is_srgb_; }
+
   uint8_t operator[] (int i) const { return data_[i]; }
   std::vector<unsigned char>& MoveData() { return data_; }
 
@@ -65,6 +67,7 @@ class PNGImage {
 
   int width_;
   int height_;
+  bool is_srgb_;
   LodePNGColorType color_type_;
   std::vector<uint8_t> data_;
 };
@@ -104,8 +107,11 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
 
   // decode PNG from buffer
   unsigned int w, h;
-  unsigned err = lodepng::decode(image.data_, w, h,
-                                 buffer, nbuffer, image.color_type_, 8);
+
+  lodepng::State state;
+  state.info_raw.colortype = image.color_type_;
+  state.info_raw.bitdepth = 8;
+  unsigned err = lodepng::decode(image.data_, w, h, state, buffer, nbuffer);
 
   // check for errors
   if (err) {
@@ -116,6 +122,7 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
 
   image.width_ = w;
   image.height_ = h;
+  image.is_srgb_ = (state.info_png.srgb_defined == 1);
 
   if (image.width_ <= 0 || image.height_ < 0) {
     std::stringstream ss;
@@ -1415,6 +1422,15 @@ mjCFrame* mjCBody::ToFrame() {
   mjCFrame* newframe = parent->AddFrame(frame);
   mjuu_copyvec(newframe->spec.pos, spec.pos, 3);
   mjuu_copyvec(newframe->spec.quat, spec.quat, 4);
+  if (parent->name != "world" && mass >= mjMINVAL) {
+    if (!parent->explicitinertial) {
+      parent->MakeInertialExplicit();
+      mjuu_zerovec(parent->spec.ipos, 3);
+      mjuu_zerovec(parent->spec.iquat, 4);
+      mjuu_zerovec(parent->spec.inertia, 3);
+    }
+    parent->AccumulateInertia(&this->spec, &parent->spec);
+  }
   MapFrame(parent->bodies, bodies, newframe, parent);
   MapFrame(parent->geoms, geoms, newframe, parent);
   MapFrame(parent->joints, joints, newframe, parent);
@@ -1710,6 +1726,90 @@ void mjCBody::InertiaFromGeom(void) {
 // set explicitinertial to true
 void mjCBody::MakeInertialExplicit() {
   spec.explicitinertial = true;
+}
+
+
+
+// accumulate inertia of another body into this body
+void mjCBody::AccumulateInertia(const mjsBody* other, mjsBody* result) {
+  if (!result) {
+    result = this;  // use the private mjsBody
+  }
+
+  // body_ipose = body_pose * body_ipose
+  double other_ipos[3];
+  double other_iquat[4];
+  mjuu_copyvec(other_ipos, other->ipos, 3);
+  mjuu_copyvec(other_iquat, other->iquat, 4);
+  mjuu_frameaccum(other_ipos, other_iquat, other->pos, other->quat);
+
+  // organize data
+  double mass[2] = {
+    result->mass,
+    other->mass
+  };
+  double inertia[2][3] = {
+    {result->inertia[0], result->inertia[1], result->inertia[2]},
+    {other->inertia[0], other->inertia[1], other->inertia[2]}
+  };
+  double ipos[2][3] = {
+    {result->ipos[0], result->ipos[1], result->ipos[2]},
+    {other_ipos[0], other_ipos[1], other_ipos[2]}
+  };
+  double iquat[2][4] = {
+    {result->iquat[0], result->iquat[1], result->iquat[2], result->iquat[3]},
+    {other->iquat[0], other->iquat[1], other->iquat[2], other->iquat[3]}
+  };
+
+  // compute total mass
+  result->mass = 0;
+  mjuu_setvec(result->ipos, 0, 0, 0);
+  for (int j=0; j < 2; j++) {
+    result->mass += mass[j];
+    result->ipos[0] += mass[j]*ipos[j][0];
+    result->ipos[1] += mass[j]*ipos[j][1];
+    result->ipos[2] += mass[j]*ipos[j][2];
+  }
+
+  // small mass: allow for now, check for errors later
+  if (result->mass < mjMINVAL) {
+    result->mass = 0;
+    mjuu_setvec(result->inertia, 0, 0, 0);
+    mjuu_setvec(result->ipos, 0, 0, 0);
+    mjuu_setvec(result->iquat, 1, 0, 0, 0);
+  }
+
+  // proceed with regular computation
+  else {
+    // locipos = center-of-mass
+    result->ipos[0] /= result->mass;
+    result->ipos[1] /= result->mass;
+    result->ipos[2] /= result->mass;
+
+    // add inertias
+    double toti[6] = {0, 0, 0, 0, 0, 0};
+    for (int j=0; j < 2; j++) {
+      double inertA[6], inertB[6];
+      double dpos[3] = {
+        ipos[j][0] - result->ipos[0],
+        ipos[j][1] - result->ipos[1],
+        ipos[j][2] - result->ipos[2]
+      };
+
+      mjuu_globalinertia(inertA, inertia[j], iquat[j]);
+      mjuu_offcenter(inertB, mass[j], dpos);
+      for (int k=0; k < 6; k++) {
+        toti[k] += inertA[k] + inertB[k];
+      }
+    }
+
+    // compute principal axes of inertia
+    mjuu_copyvec(result->fullinertia, toti, 6);
+    const char* err1 = mjuu_fullInertia(result->iquat, result->inertia, result->fullinertia);
+    if (err1) {
+      throw mjCError(nullptr, "error '%s' in fusing static body inertias", err1);
+    }
+  }
 }
 
 
@@ -3546,7 +3646,10 @@ mjCLight::mjCLight(mjCModel* _model, mjCDef* _def) {
   // clear private variables
   body = 0;
   targetbodyid = -1;
+  texid = -1;
   spec_targetbody_.clear();
+  spec_texture_.clear();
+
 
   // reset to default if given
   if (_def) {
@@ -3586,6 +3689,7 @@ void mjCLight::PointToLocal() {
   spec.element = static_cast<mjsElement*>(this);
   spec.name = &name;
   spec.targetbody = &spec_targetbody_;
+  spec.texture = &spec_texture_;
   spec.info = &info;
   targetbody = nullptr;
 }
@@ -3597,6 +3701,9 @@ void mjCLight::NameSpace(const mjCModel* m) {
   if (!spec_targetbody_.empty()) {
     spec_targetbody_ = m->prefix + spec_targetbody_ + m->suffix;
   }
+  if (!spec_texture_.empty()) {
+    spec_texture_ = m->prefix + spec_texture_ + m->suffix;
+  }
 }
 
 
@@ -3604,6 +3711,7 @@ void mjCLight::NameSpace(const mjCModel* m) {
 void mjCLight::CopyFromSpec() {
   *static_cast<mjsLight*>(this) = spec;
   targetbody_ = spec_targetbody_;
+  texture_ = spec_texture_;
 }
 
 
@@ -3632,6 +3740,16 @@ void mjCLight::Compile(void) {
     mjCBody* tb = (mjCBody*)model->FindObject(mjOBJ_BODY, targetbody_);
     if (tb) {
       targetbodyid = tb->id;
+    } else {
+      throw mjCError(this, "unknown target body in light");
+    }
+  }
+
+  // get texture
+  if (!texture_.empty()) {
+    mjCTexture* tex = (mjCTexture*)model->FindObject(mjOBJ_TEXTURE, texture_);
+    if (tex) {
+      texid = tex->id;
     } else {
       throw mjCError(this, "unknown target body in light");
     }
@@ -4257,7 +4375,7 @@ void mjCTexture::BuiltinCube(void) {
 // load PNG file
 void mjCTexture::LoadPNG(mjResource* resource,
                          std::vector<unsigned char>& image,
-                         unsigned int& w, unsigned int& h) {
+                         unsigned int& w, unsigned int& h, bool& is_srgb) {
   LodePNGColorType color_type;
   if (nchannel == 4) {
     color_type = LCT_RGBA;
@@ -4272,13 +4390,36 @@ void mjCTexture::LoadPNG(mjResource* resource,
   PNGImage png_image = PNGImage::Load(this, resource, color_type);
   w = png_image.Width();
   h = png_image.Height();
+  is_srgb = png_image.IsSRGB();
   image = png_image.MoveData();
+}
+
+// load KTX file
+void mjCTexture::LoadKTX(mjResource* resource,
+                         std::vector<unsigned char>& image, unsigned int& w,
+                        unsigned int& h, bool& is_srgb) {
+  const void* buffer = 0;
+  int buffer_sz = mju_readResource(resource, &buffer);
+
+  // still not found
+  if (buffer_sz < 0) {
+    throw mjCError(this, "could not read texture file '%s'", resource->name);
+  } else if (!buffer_sz) {
+    throw mjCError(this, "texture file is empty: '%s'", resource->name);
+  }
+
+  w = buffer_sz;
+  h = 1;
+  is_srgb = false;
+
+  image.resize(buffer_sz);
+  memcpy(image.data(), buffer, buffer_sz);
 }
 
 // load custom file
 void mjCTexture::LoadCustom(mjResource* resource,
                             std::vector<unsigned char>& image,
-                            unsigned int& w, unsigned int& h) {
+                            unsigned int& w, unsigned int& h, bool& is_srgb) {
   const void* buffer = 0;
   int buffer_sz = mju_readResource(resource, &buffer);
 
@@ -4294,6 +4435,9 @@ void mjCTexture::LoadCustom(mjResource* resource,
   int* pint = (int*)buffer;
   w = pint[0];
   h = pint[1];
+
+  // assume linear color space
+  is_srgb = false;
 
   // check dimensions
   if (w < 1 || h < 1) {
@@ -4317,7 +4461,7 @@ void mjCTexture::LoadCustom(mjResource* resource,
 // load from PNG or custom file, flip if specified
 void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
                           std::vector<unsigned char>& image,
-                          unsigned int& w, unsigned int& h) {
+                          unsigned int& w, unsigned int& h, bool& is_srgb) {
   std::string asset_type = GetAssetContentType(filename, content_type_);
 
   // fallback to custom
@@ -4325,7 +4469,7 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
     asset_type = "image/vnd.mujoco.texture";
   }
 
-  if (asset_type != "image/png" && asset_type != "image/vnd.mujoco.texture") {
+  if (asset_type != "image/png" && asset_type != "image/ktx" && asset_type != "image/vnd.mujoco.texture") {
     throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
   }
 
@@ -4333,9 +4477,14 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
 
   try {
     if (asset_type == "image/png") {
-      LoadPNG(resource, image, w, h);
+      LoadPNG(resource, image, w, h, is_srgb);
+    } else if (asset_type == "image/ktx") {
+      if (hflip || vflip) {
+        throw mjCError(this, "cannot flip KTX textures");
+      }
+      LoadKTX(resource, image, w, h, is_srgb);
     } else {
-      LoadCustom(resource, image, w, h);
+      LoadCustom(resource, image, w, h, is_srgb);
     }
     mju_closeResource(resource);
   } catch(mjCError err) {
@@ -4402,12 +4551,16 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
 void mjCTexture::Load2D(std::string filename, const mjVFS* vfs) {
   // load PNG or custom
   unsigned int w, h;
+  bool is_srgb;
   std::vector<unsigned char> image;
-  LoadFlip(filename, vfs, image, w, h);
+  LoadFlip(filename, vfs, image, w, h, is_srgb);
 
   // assign size
   width = w;
   height = h;
+  if (colorspace == mjCOLORSPACE_AUTO) {
+    colorspace = is_srgb ? mjCOLORSPACE_SRGB : mjCOLORSPACE_LINEAR;
+  }
 
   // allocate and copy data
   std::int64_t size = static_cast<std::int64_t>(width)*height;
@@ -4435,8 +4588,13 @@ void mjCTexture::LoadCubeSingle(std::string filename, const mjVFS* vfs) {
 
   // load PNG or custom
   unsigned int w, h;
+  bool is_srgb;
   std::vector<unsigned char> image;
-  LoadFlip(filename, vfs, image, w, h);
+  LoadFlip(filename, vfs, image, w, h, is_srgb);
+
+  if (colorspace == mjCOLORSPACE_AUTO) {
+    colorspace = is_srgb ? mjCOLORSPACE_SRGB : mjCOLORSPACE_LINEAR;
+  }
 
   // check gridsize for compatibility
   if (w/gridsize[1] != h/gridsize[0] || (w%gridsize[1]) || (h%gridsize[0])) {
@@ -4549,8 +4707,14 @@ void mjCTexture::LoadCubeSeparate(const mjVFS* vfs) {
 
       // load PNG or custom
       unsigned int w, h;
+      bool is_srgb;
       std::vector<unsigned char> image;
-      LoadFlip(filename.Str(), vfs, image, w, h);
+      LoadFlip(filename.Str(), vfs, image, w, h, is_srgb);
+
+      // assume all faces have the same colorspace
+      if (colorspace == mjCOLORSPACE_AUTO) {
+        colorspace = is_srgb ? mjCOLORSPACE_SRGB : mjCOLORSPACE_LINEAR;
+      }
 
       // PNG must be square
       if (w != h) {

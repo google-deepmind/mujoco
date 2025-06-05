@@ -1123,9 +1123,9 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printSparse("ACTUATOR_MOMENT", d->actuator_moment, m->nu, d->moment_rownnz,
               d->moment_rowadr, d->moment_colind, fp, float_format);
   printArray("CRB", m->nbody, 10, d->crb, fp, float_format);
-
   printInertia("QM", d->qM, m, fp, float_format);
-
+  printSparse("M", d->M, m->nv, d->M_rownnz,
+              d->M_rowadr, d->M_colind, fp, float_format);
   printSparse("QLD", d->qLD, m->nv, d->M_rownnz,
               d->M_rowadr, d->M_colind, fp, float_format);
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
@@ -1161,7 +1161,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   fprintf(fp, "\n\n");
 
   // M sparse structure
-  mj_printSparsity("M: inertia matrix", m->nv, m->nv, d->M_rowadr, NULL, d->M_rownnz,
+  mj_printSparsity("M: reduced inertia matrix", m->nv, m->nv, d->M_rowadr, NULL, d->M_rownnz,
                    NULL, d->M_colind, fp);
 
   fprintf(fp, NAME_FORMAT, "M_rownnz");
@@ -1170,55 +1170,24 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   }
   fprintf(fp, "\n\n");
 
-  // M_rowadr
+  // C_rowadr
   fprintf(fp, NAME_FORMAT, "M_rowadr");
   for (int i = 0; i < m->nv; i++) {
     fprintf(fp, " %d", d->M_rowadr[i]);
   }
   fprintf(fp, "\n\n");
 
-  // M_colind
+  // C_colind
   fprintf(fp, NAME_FORMAT, "M_colind");
-  for (int i = 0; i < m->nM; i++) {
+  for (int i = 0; i < m->nC; i++) {
     fprintf(fp, " %d", d->M_colind[i]);
   }
   fprintf(fp, "\n\n");
 
   // mapM2M
   fprintf(fp, NAME_FORMAT, "mapM2M");
-  for (int i = 0; i < m->nM; i++) {
+  for (int i = 0; i < m->nC; i++) {
     fprintf(fp, " %d", d->mapM2M[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // C sparse structure
-  mj_printSparsity("C: reduced dof-dof matrix", m->nv, m->nv, d->C_rowadr, NULL, d->C_rownnz,
-                   NULL, d->C_colind, fp);
-
-  fprintf(fp, NAME_FORMAT, "C_rownnz");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->C_rownnz[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // C_rowadr
-  fprintf(fp, NAME_FORMAT, "C_rowadr");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->C_rowadr[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // C_colind
-  fprintf(fp, NAME_FORMAT, "C_colind");
-  for (int i = 0; i < m->nC; i++) {
-    fprintf(fp, " %d", d->C_colind[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // mapM2C
-  fprintf(fp, NAME_FORMAT, "mapM2C");
-  for (int i = 0; i < m->nC; i++) {
-    fprintf(fp, " %d", d->mapM2C[i]);
   }
   fprintf(fp, "\n\n");
 

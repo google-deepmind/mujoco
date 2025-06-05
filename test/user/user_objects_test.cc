@@ -2294,6 +2294,29 @@ TEST_F(UserObjectsTest, FrameTransformsLight) {
   mj_deleteModel(m);
 }
 
+TEST_F(ContentTypeTest, ImageLightsReferenceTexture) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="texture" type="cube" builtin="flat" mark="cross" width="8"
+       rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1"/>
+    </asset>
+
+    <worldbody>
+      <light type="image" texture="texture"/>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, NotNull());
+  EXPECT_EQ(m->ntex, 1);
+  EXPECT_EQ(m->nlight, 1);
+  EXPECT_THAT(m->light_texid[0], 0);
+  mj_deleteModel(m);
+}
+
 
 // ------------- test bvh ------------------------------------------------------
 TEST_F(UserObjectsTest, RobustBVH) {

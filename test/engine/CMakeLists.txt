@@ -67,11 +67,4 @@ mujoco_test(engine_util_solve_test)
 
 mujoco_test(engine_util_spatial_test)
 
-mujoco_test(
-  engine_vis_state_test
-  PROPERTIES
-  ENVIRONMENT
-  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:elasticity>"
-)
-
 mujoco_test(engine_vis_visualize_test)

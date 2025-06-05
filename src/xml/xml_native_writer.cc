@@ -194,6 +194,7 @@ void mjXWriter::OneFlex(XMLElement* elem, const mjCFlex* flex) {
   WriteAttr(elastic, "poisson", 1, &flex->poisson, &defflex.poisson);
   WriteAttr(elastic, "thickness", 1, &flex->thickness, &defflex.thickness);
   WriteAttr(elastic, "damping", 1, &flex->damping, &defflex.damping);
+  WriteAttrKey(elastic, "elastic2d", elastic2d_map, 2, flex->elastic2d, defflex.elastic2d);
 
   // edge subelement
   XMLElement* edge = InsertEnd(elem, "edge");
@@ -604,7 +605,10 @@ void mjXWriter::OneLight(XMLElement* elem, const mjCLight* light, mjCDef* def,
 
   // defaults and regular
   WriteAttr(elem, "bulbradius", 1, &light->bulbradius, &def->Light().bulbradius);
-  WriteAttrKey(elem, "directional", bool_map, 2, light->directional, def->Light().directional);
+  WriteAttr(elem, "intensity", 1, &light->intensity, &def->Light().intensity);
+  WriteAttr(elem, "range", 1, &light->range, &def->Light().range);
+  WriteAttrKey(elem, "type", lighttype_map, lighttype_sz, light->type, def->Light().type);
+  WriteAttrTxt(elem, "texture", light->get_texture());
   WriteAttrKey(elem, "castshadow", bool_map, 2, light->castshadow, def->Light().castshadow);
   WriteAttrKey(elem, "active", bool_map, 2, light->active, def->Light().active);
   WriteAttr(elem, "attenuation", 3, light->attenuation, def->Light().attenuation);
@@ -881,12 +885,12 @@ mjXWriter::mjXWriter(void) {
 
 
 // cast model
-void mjXWriter::SetModel(const mjSpec* _spec, const mjModel* m) {
+void mjXWriter::SetModel(mjSpec* _spec, const mjModel* m) {
   if (_spec) {
     model = static_cast<mjCModel*>(_spec->element);
   }
   if (m) {
-    model->CopyBack(m);
+    mj_copyBack(&model->spec, m);
   }
 }
 
@@ -1485,6 +1489,7 @@ void mjXWriter::Asset(XMLElement* root) {
 
     // write common attributes
     WriteAttrKey(elem, "type", texture_map, texture_sz, texture->type);
+    WriteAttrKey(elem, "colorspace", colorspace_map, colorspace_sz, texture->colorspace);
     WriteAttrTxt(elem, "name", texture->name);
 
     // write builtin
