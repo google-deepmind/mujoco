@@ -1010,6 +1010,95 @@ PYBIND11_MODULE(_specs, m) {
       [](raw::MjsActuator& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
       });
+  mjsActuator.def("set_to_motor", [](raw::MjsActuator* self) {
+    std::string err = mjs_setToMotor(self);
+    if (!err.empty()) {
+      throw pybind11::value_error(err);
+    }
+  });
+  mjsActuator.def(
+      "set_to_position",
+      [](raw::MjsActuator* self, double kp, double kv, double dampratio,
+         double timeconst, bool inheritrange) {
+        std::string err = mjs_setToPosition(
+            self, kp, kv == -1 ? nullptr : &kv,
+            dampratio == -1 ? nullptr : &dampratio,
+            timeconst == -1 ? nullptr : &timeconst, inheritrange);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("kp"), py::arg("kv") = -1, py::arg("dampratio") = -1,
+      py::arg("timeconst") = -1, py::arg("inheritrange") = false);
+  mjsActuator.def(
+      "set_to_intvelocity",
+      [](raw::MjsActuator* self, double kp, double kv, double dampratio,
+         double timeconst, bool inheritrange) {
+        std::string err = mjs_setToIntVelocity(
+            self, kp, kv == -1 ? nullptr : &kv,
+            dampratio == -1 ? nullptr : &dampratio,
+            timeconst == -1 ? nullptr : &timeconst, inheritrange);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("kp"), py::arg("kv") = -1, py::arg("dampratio") = -1,
+      py::arg("timeconst") = -1, py::arg("inheritrange") = false);
+  mjsActuator.def(
+      "set_to_velocity",
+      [](raw::MjsActuator* self, double kv) {
+        std::string err = mjs_setToVelocity(self, kv);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("kv"));
+  mjsActuator.def(
+      "set_to_damper",
+      [](raw::MjsActuator* self, double kv) {
+        std::string err = mjs_setToDamper(self, kv);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("kv"));
+  mjsActuator.def(
+      "set_to_cylinder",
+      [](raw::MjsActuator* self, double timeconst, double bias, double area,
+         double diameter) {
+        std::string err =
+            mjs_setToCylinder(self, timeconst, bias, area, diameter);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("timeconst"), py::arg("bias"), py::arg("area"),
+      py::arg("diameter") = -1);
+  mjsActuator.def(
+      "set_to_muscle",
+      [](raw::MjsActuator* self, double timeconst[2], double tausmooth,
+         double range[2], double force, double scale, double lmin, double lmax,
+         double vmax, double fpmax, double fvmax) {
+        std::string err =
+            mjs_setToMuscle(self, timeconst, tausmooth, range, force, scale,
+                            lmin, lmax, vmax, fpmax, fvmax);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("timeconst") = -1, py::arg("tausmooth"),
+      py::arg("range") = std::array<double, 2>{-1, -1}, py::arg("force") = -1,
+      py::arg("scale") = -1, py::arg("lmin") = -1, py::arg("lmax") = -1,
+      py::arg("vmax") = -1, py::arg("fpmax") = -1, py::arg("fvmax") = -1);
+  mjsActuator.def(
+      "set_to_adhesion",
+      [](raw::MjsActuator* self, double gain) {
+        std::string err = mjs_setToAdhesion(self, gain);
+        if (!err.empty()) {
+          throw pybind11::value_error(err);
+        }
+      },
+      py::arg("gain"));
 
   // ============================= MJSTENDON ===================================
   mjsTendon.def("delete",

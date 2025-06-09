@@ -2210,6 +2210,7 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
   type = elem->Value();
 
   // explicit attributes
+  string err;
   if (type == "general") {
     // explicit attributes
     int n;
@@ -2233,183 +2234,98 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // direct drive motor
   else if (type == "motor") {
-    // unit gain
-    actuator->gainprm[0] = 1;
-
-    // implied parameters
-    actuator->dyntype = mjDYN_NONE;
-    actuator->gaintype = mjGAIN_FIXED;
-    actuator->biastype = mjBIAS_NONE;
+    err = mjs_setToMotor(actuator);
   }
 
   // position or integrated velocity servo
   else if (type == "position" || type == "intvelocity") {
-    // explicit attributes
-    ReadAttr(elem, "kp", 1, actuator->gainprm, text);
-    actuator->biasprm[1] = -actuator->gainprm[0];
+    double kp = actuator->gainprm[0];
+    ReadAttr(elem, "kp", 1, &kp, text);
 
     // read kv
-    double kv = -1;  // -1: undefined
-    if (ReadAttr(elem, "kv", 1, &kv, text)) {
-      if (kv < 0) throw mjXError(elem, "kv cannot be negative");
+    double kv_data;
+    double *kv = &kv_data;
+    if (!ReadAttr(elem, "kv", 1, kv, text)) {
+      kv = nullptr;
     }
 
     // read dampratio
-    double dampratio = -1;  // -1: undefined
-    if (ReadAttr(elem, "dampratio", 1, &dampratio, text)) {
-      if (dampratio < 0) throw mjXError(elem, "dampratio cannot be negative");
+    double dampratio_data;
+    double *dampratio = &dampratio_data;
+    if (!ReadAttr(elem, "dampratio", 1, dampratio, text)) {
+      dampratio = nullptr;
     }
-
-    // set biasprm[2]; negative: regular damping, positive: dampratio
-    if (dampratio > 0 && kv > 0) {
-      throw mjXError(elem, "kv and dampratio cannot both be defined");
-    }
-    if (kv > 0) actuator->biasprm[2] = -kv;
-    if (dampratio > 0) actuator->biasprm[2] = dampratio;
 
     // read timeconst, set dyntype
-    if (ReadAttr(elem, "timeconst", 1, actuator->dynprm, text)) {
-      if (actuator->dynprm[0] < 0)
-        throw mjXError(elem, "timeconst cannot be negative");
-      actuator->dyntype = actuator->dynprm[0] ? mjDYN_FILTEREXACT : mjDYN_NONE;
+    double timeconst_data;
+    double *timeconst = &timeconst_data;
+    if (!ReadAttr(elem, "timeconst", 1, timeconst, text)) {
+      timeconst = nullptr;
     }
 
     // handle inheritrange
-    ReadAttr(elem, "inheritrange", 1, &actuator->inheritrange, text);
-    if (actuator->inheritrange > 0) {
-      if (type == "position") {
-        if (actuator->ctrlrange[0] || actuator->ctrlrange[1]) {
-          throw mjXError(elem, "ctrlrange and inheritrange cannot both be defined");
-        }
-      } else {
-        if (actuator->actrange[0] || actuator->actrange[1]) {
-          throw mjXError(elem, "actrange and inheritrange cannot both be defined");
-        }
-      }
-    }
+    double inheritrange = actuator->inheritrange;
+    ReadAttr(elem, "inheritrange", 1, &inheritrange, text);
 
-    // implied parameters
-    actuator->gaintype = mjGAIN_FIXED;
-    actuator->biastype = mjBIAS_AFFINE;
-
-    if (type == "intvelocity") {
-      actuator->dyntype = mjDYN_INTEGRATOR;
-      actuator->actlimited = 1;
+    if (type == "position") {
+      err = mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, inheritrange);
+    } else {
+      err = mjs_setToIntVelocity(actuator, kp, kv, dampratio, timeconst, inheritrange);
     }
   }
 
   // velocity servo
   else if (type == "velocity") {
-    // clear bias
-    mjuu_zerovec(actuator->biasprm, mjNBIAS);
-
-    // explicit attributes
-    ReadAttr(elem, "kv", 1, actuator->gainprm, text);
-    actuator->biasprm[2] = -actuator->gainprm[0];
-
-    // implied parameters
-    actuator->dyntype = mjDYN_NONE;
-    actuator->gaintype = mjGAIN_FIXED;
-    actuator->biastype = mjBIAS_AFFINE;
+    double kv = actuator->gainprm[0];
+    ReadAttr(elem, "kv", 1, &kv, text);
+    err = mjs_setToVelocity(actuator, kv);
   }
 
   // damper
   else if (type == "damper") {
-    // clear gain
-    mjuu_zerovec(actuator->gainprm, mjNGAIN);
-
-    // explicit attributes
-    ReadAttr(elem, "kv", 1, actuator->gainprm+2, text);
-    if (actuator->gainprm[2] < 0)
-      throw mjXError(elem, "damping coefficient cannot be negative");
-    actuator->gainprm[2] = -actuator->gainprm[2];
-
-    // require nonnegative range
-    if (actuator->ctrlrange[0] < 0 || actuator->ctrlrange[1] < 0) {
-      throw mjXError(elem, "damper control range cannot be negative");
-    }
-
-    // implied parameters
-    actuator->ctrllimited = 1;
-    actuator->dyntype = mjDYN_NONE;
-    actuator->gaintype = mjGAIN_AFFINE;
-    actuator->biastype = mjBIAS_NONE;
+    double kv = 0;
+    ReadAttr(elem, "kv", 1, &kv, text);
+    err = mjs_setToDamper(actuator, kv);
   }
 
   // cylinder
   else if (type == "cylinder") {
-    // explicit attributes
-    ReadAttr(elem, "timeconst", 1, actuator->dynprm, text);
-    ReadAttr(elem, "bias", 3, actuator->biasprm, text);
-    ReadAttr(elem, "area", 1, actuator->gainprm, text);
-    double diameter;
-    if (ReadAttr(elem, "diameter", 1, &diameter, text)) {
-      actuator->gainprm[0] = mjPI / 4 * diameter*diameter;
-    }
-
-    // implied parameters
-    actuator->dyntype = mjDYN_FILTER;
-    actuator->gaintype = mjGAIN_FIXED;
-    actuator->biastype = mjBIAS_AFFINE;
+    double timeconst = actuator->dynprm[0];
+    double bias = actuator->biasprm[0];
+    double area = actuator->gainprm[0];
+    double diameter = -1;
+    ReadAttr(elem, "timeconst", 1, &timeconst, text);
+    ReadAttr(elem, "bias", 3, &bias, text);
+    ReadAttr(elem, "area", 1, &area, text);
+    ReadAttr(elem, "diameter", 1, &diameter, text);
+    err = mjs_setToCylinder(actuator, timeconst, bias, area, diameter);
   }
 
   // muscle
   else if (type == "muscle") {
-    // set muscle defaults if same as global defaults
-    if (actuator->dynprm[0] == 1)actuator->dynprm[0] = 0.01;   // tau act
-    if (actuator->dynprm[1] == 0)actuator->dynprm[1] = 0.04;   // tau deact
-    if (actuator->gainprm[0] == 1)actuator->gainprm[0] = 0.75; // range[0]
-    if (actuator->gainprm[1] == 0)actuator->gainprm[1] = 1.05; // range[1]
-    if (actuator->gainprm[2] == 0)actuator->gainprm[2] = -1;   // force
-    if (actuator->gainprm[3] == 0)actuator->gainprm[3] = 200;  // scale
-    if (actuator->gainprm[4] == 0)actuator->gainprm[4] = 0.5;  // lmin
-    if (actuator->gainprm[5] == 0)actuator->gainprm[5] = 1.6;  // lmax
-    if (actuator->gainprm[6] == 0)actuator->gainprm[6] = 1.5;  // vmax
-    if (actuator->gainprm[7] == 0)actuator->gainprm[7] = 1.3;  // fpmax
-    if (actuator->gainprm[8] == 0)actuator->gainprm[8] = 1.2;  // fvmax
-
-    // explicit attributes
-    ReadAttr(elem, "timeconst", 2, actuator->dynprm, text);
-    ReadAttr(elem, "tausmooth", 1, actuator->dynprm+2, text);
-    if (actuator->dynprm[2] < 0)
-      throw mjXError(elem, "muscle tausmooth cannot be negative");
-    ReadAttr(elem, "range", 2, actuator->gainprm, text);
-    ReadAttr(elem, "force", 1, actuator->gainprm+2, text);
-    ReadAttr(elem, "scale", 1, actuator->gainprm+3, text);
-    ReadAttr(elem, "lmin", 1, actuator->gainprm+4, text);
-    ReadAttr(elem, "lmax", 1, actuator->gainprm+5, text);
-    ReadAttr(elem, "vmax", 1, actuator->gainprm+6, text);
-    ReadAttr(elem, "fpmax", 1, actuator->gainprm+7, text);
-    ReadAttr(elem, "fvmax", 1, actuator->gainprm+8, text);
-
-    // biasprm = gainprm
-    for (int n=0; n < 9; n++) {
-      actuator->biasprm[n] = actuator->gainprm[n];
-    }
-
-    // implied parameters
-    actuator->dyntype = mjDYN_MUSCLE;
-    actuator->gaintype = mjGAIN_MUSCLE;
-    actuator->biastype = mjBIAS_MUSCLE;
+    double tausmooth = actuator->dynprm[2];
+    double force = -1, scale = -1, lmin = -1, lmax = -1, vmax = -1, fpmax = -1, fvmax = -1;
+    double range[2] = {-1, -1}, timeconst[2] = {-1, -1};
+    ReadAttr(elem, "timeconst", 2, timeconst, text);
+    ReadAttr(elem, "tausmooth", 1, &tausmooth, text);
+    ReadAttr(elem, "range", 2, range, text);
+    ReadAttr(elem, "force", 1, &force, text);
+    ReadAttr(elem, "scale", 1, &scale, text);
+    ReadAttr(elem, "lmin", 1, &lmin, text);
+    ReadAttr(elem, "lmax", 1, &lmax, text);
+    ReadAttr(elem, "vmax", 1, &vmax, text);
+    ReadAttr(elem, "fpmax", 1, &fpmax, text);
+    ReadAttr(elem, "fvmax", 1, &fvmax, text);
+    err = mjs_setToMuscle(actuator, timeconst, tausmooth, range, force, scale,
+                          lmin, lmax, vmax, fpmax, fvmax);
   }
 
   // adhesion
   else if (type == "adhesion") {
-    // explicit attributes
-    ReadAttr(elem, "gain", 1, actuator->gainprm, text);
-    if (actuator->gainprm[0] < 0)
-      throw mjXError(elem, "adhesion gain cannot be negative");
-
-    // require nonnegative range
+    double gain = actuator->gainprm[0];
+    ReadAttr(elem, "gain", 1, &gain, text);
     ReadAttr(elem, "ctrlrange", 2, actuator->ctrlrange, text);
-    if (actuator->ctrlrange[0] < 0 || actuator->ctrlrange[1] < 0) {
-      throw mjXError(elem, "adhesion control range cannot be negative");
-    }
-
-    // implied parameters
-    actuator->ctrllimited = 1;
-    actuator->gaintype = mjGAIN_FIXED;
-    actuator->biastype = mjBIAS_NONE;
+    err = mjs_setToAdhesion(actuator, gain);
   }
 
   else if (type == "plugin") {
@@ -2427,6 +2343,11 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   else {          // SHOULD NOT OCCUR
     throw mjXError(elem, "unrecognized actuator type: %s", type.c_str());
+  }
+
+  // throw error if any of the above failed
+  if (!err.empty()) {
+    throw mjXError(elem, err.c_str());
   }
 
   // read userdata

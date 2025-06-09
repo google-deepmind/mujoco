@@ -3438,6 +3438,19 @@ mjsTuple* mjs_addTuple(mjSpec* s);
 mjsKey* mjs_addKey(mjSpec* s);
 mjsPlugin* mjs_addPlugin(mjSpec* s);
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
+const char* mjs_setToMotor(mjsActuator* actuator);
+const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
+                              double dampratio[1], double timeconst[1], double inheritrange);
+const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
+                                 double dampratio[1], double timeconst[1], double inheritrange);
+const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
+const char* mjs_setToDamper(mjsActuator* actuator, double kv);
+const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst,
+                              double bias, double area, double diameter);
+const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double tausmooth,
+                            double range[2], double force, double scale, double lmin,
+                            double lmax, double vmax, double fpmax, double fvmax);
+const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);
