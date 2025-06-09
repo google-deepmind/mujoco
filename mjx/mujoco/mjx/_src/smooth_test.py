@@ -17,6 +17,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
+from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
@@ -315,6 +316,58 @@ class TendonTest(parameterized.TestCase):
     _assert_eq(d.ten_wrapadr, dx._impl.ten_wrapadr, 'ten_wrapadr')
     _assert_eq(d.wrap_obj, dx._impl.wrap_obj, 'wrap_obj')
     _assert_eq(d.wrap_xpos, dx._impl.wrap_xpos, 'wrap_xpos')
+
+  def test_tendon_armature(self):
+    """Tests MJX tendon armature matches MuJoCo."""
+    m = mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <worldbody>
+            <site name="site0" pos="1 0 1"/>
+            <body>
+              <joint type="slide" axis="0 0 1"/>
+              <joint type="hinge" axis="0 1 0"/>
+              <geom type="box" size="0.1 0.1 0.1" mass="1" pos="1 0 0"/>
+              <site name="site1"/>
+            </body>
+          </worldbody>
+          <tendon>
+            <spatial armature="123">
+              <site site="site0"/>
+              <site site="site1"/>
+            </spatial>
+            <spatial armature="456">
+              <site site="site0"/>
+              <site site="site1"/>
+            </spatial>
+          </tendon>
+          <keyframe>
+            <key qpos="1.2345 1.2345" qvel="1.2345 1.2345"/>
+          </keyframe>
+        </mujoco>
+        """)
+
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    mujoco.mj_forward(m, d)
+
+    qM = np.zeros((m.nv, m.nv))  # pylint: disable=invalid-name
+    mujoco.mj_fullM(m, qM, d.qM)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    dx = dx.tree_replace(
+        {'_impl.qM': jp.zeros((m.nv, m.nv)), 'qfrc_bias': jp.zeros(m.nv)}
+    )
+
+    dx = mjx.crb(mx, dx)
+    dx = mjx.tendon_armature(mx, dx)
+
+    _assert_eq(dx._impl.qM, qM, 'qM')
+
+    dx = mjx.rne(mx, dx)
+    dx = mjx.tendon_bias(mx, dx)
+    _assert_eq(dx.qfrc_bias, d.qfrc_bias, 'qfrc_bias')
 
 
 if __name__ == '__main__':

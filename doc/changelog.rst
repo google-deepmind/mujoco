@@ -36,6 +36,10 @@ Python bindings
 
 - Added examples of procedural terrain generation to the Model Editing tutorial: |mjspec_colab|
 
+MJX
+^^^
+- Added tendon armature.
+
 Version 3.3.2 (April 28, 2025)
 ------------------------------
 

@@ -142,6 +142,7 @@ def jac(
     m: Model, d: Data, point: jax.Array, body_id: jax.Array
 ) -> Tuple[jax.Array, jax.Array]:
   """Compute pair of (NV, 3) Jacobians of global point attached to body."""
+  # TODO(taylorhowell): statically construct mask
   fn = lambda carry, b: b if carry is None else b + carry
   mask = (jp.arange(m.nbody) == body_id) * 1
   mask = scan.body_tree(m, fn, 'b', 'b', mask, reverse=True)
@@ -151,6 +152,42 @@ def jac(
   jacp = jax.vmap(lambda a, b=offset: a[3:] + jp.cross(a[:3], b))(d._impl.cdof)  # pytype: disable=attribute-error
   jacp = jax.vmap(jp.multiply)(jacp, mask)
   jacr = jax.vmap(jp.multiply)(d._impl.cdof[:, :3], mask)  # pytype: disable=attribute-error
+
+  return jacp, jacr
+
+
+def jac_dot(
+    m: Model, d: Data, point: jax.Array, body_id: jax.Array
+) -> Tuple[jax.Array, jax.Array]:
+  """Compute pair of (NV, 3) Jacobian time derivatives of global point attached to body."""
+  # TODO(taylorhowell): statically construct mask
+  fn = lambda carry, b: b if carry is None else b + carry
+  mask = (jp.arange(m.nbody) == body_id) * 1
+  mask = scan.body_tree(m, fn, 'b', 'b', mask, reverse=True)
+  mask = mask[jp.array(m.dof_bodyid)] > 0
+
+  offset = point - d.subtree_com[jp.array(m.body_rootid)[body_id]]
+  pvel_lin = d.cvel[body_id][3:] - jp.cross(offset, d.cvel[body_id][:3])
+
+  cdof = d._impl.cdof
+  cdof_dot = d._impl.cdof_dot
+
+  # check for quaternion
+  jnt_type = m.jnt_type[m.dof_jntid]
+  dof_adr = m.jnt_dofadr[m.dof_jntid]
+  is_quat = (jnt_type == JointType.BALL) | (
+      jnt_type == JointType.FREE & (np.arange(m.nv) >= dof_adr + 3)
+  )
+
+  # compute cdof_dot for quaternion (use current body cvel)
+  cdof_dot_quat = jax.vmap(math.motion_cross)(d.cvel[m.dof_bodyid], cdof)
+  cdof_dot = jp.where(is_quat[:, None], cdof_dot_quat, cdof_dot)
+
+  jacp = jax.vmap(
+      lambda a, b: a[3:] + jp.cross(a[:3], offset) + jp.cross(b[:3], pvel_lin)
+  )(cdof_dot, cdof)
+  jacp = jax.vmap(jp.multiply)(jacp, mask)
+  jacr = jax.vmap(jp.multiply)(cdof_dot[:, :3], mask)  # pytype: disable=attribute-error
 
   return jacp, jacr
 
