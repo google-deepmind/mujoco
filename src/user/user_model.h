@@ -444,6 +444,14 @@ class mjCModel : public mjCModel_, private mjSpec {
   // generate a signature for the model
   uint64_t Signature();
 
+  // reassign children of a body to a new parent
+  template <class T>
+  void ReassignChild(std::vector<T*>& dest, std::vector<T*>& list, mjCBody* parent, mjCBody* body);
+
+  // resolve references in a list of objects
+  template <class T>
+  void ResolveReferences(std::vector<T*>& list, mjCBody* body = nullptr);
+
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes

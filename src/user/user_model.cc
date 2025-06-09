@@ -3824,24 +3824,77 @@ void mjCModel::FuseReindex(mjCBody* body) {
 
 
 
+template <class T>
+void mjCModel::ReassignChild(std::vector<T*>& dest, std::vector<T*>& list,
+                             mjCBody* parent, mjCBody* body) {
+  for (int j=0; j < list.size(); j++) {
+    // assign
+    list[j]->body = parent;
+    dest.push_back(list[j]);
+
+    // change frame
+    changeframe(list[j]->pos, list[j]->quat, body->pos, body->quat);
+  }
+  list.clear();
+}
+
+
+
+template <class T>
+void mjCModel::ResolveReferences(std::vector<T*>& list, mjCBody* body) {
+  for (auto& item : list) {
+    item->CopyFromSpec();
+    item->ResolveReferences(this);
+  }
+}
+
+
+
+template <>
+void mjCModel::ResolveReferences(std::vector<mjCSensor*>& list, mjCBody* body) {
+  for (auto& item : list) {
+    item->CopyFromSpec();
+    item->ResolveReferences(this);
+  }
+  for (mjCSensor* sensor : list) {
+    if (sensor->objtype == mjOBJ_SITE &&
+        (sensor->type == mjSENS_FORCE || sensor->type == mjSENS_TORQUE) &&
+        static_cast<mjCSite*>(sensor->obj)->body == body) {
+      throw mjCError(sensor, "cannot fuse a body used by a force/torque sensor");
+    }
+  }
+}
+
+
+
 // fuse static bodies with their parent
 void mjCModel::FuseStatic(void) {
-  // skip if model has potential to reference elements with changed ids
-  if (!skins_.empty()        ||
-      !pairs_.empty()        ||
-      !excludes_.empty()     ||
-      !equalities_.empty()   ||
-      !tendons_.empty()      ||
-      !actuators_.empty()    ||
-      !sensors_.empty()      ||
-      !tuples_.empty()       ||
-      !cameras_.empty()      ||
-      !lights_.empty()) {
-    return;
-  }
-
-  // process fusable bodies
   for (int i=1; i < bodies_.size(); i++) {
+    // check if the body can be fused
+    if (!bodies_[i]->name.empty()) {
+      ids[mjOBJ_BODY].erase(bodies_[i]->name);
+
+      // try to resolve references without the name of this body, if it fails, skip
+      try {
+        ResolveReferences(cameras_);
+        ResolveReferences(lights_);
+        ResolveReferences(skins_);
+        ResolveReferences(pairs_);
+        ResolveReferences(excludes_);
+        ResolveReferences(equalities_);
+        ResolveReferences(tendons_);
+        ResolveReferences(actuators_);
+        ResolveReferences(sensors_, bodies_[i]);
+        ResolveReferences(tuples_);
+      } catch (mjCError err) {
+        ids[mjOBJ_BODY].insert({bodies_[i]->name, i});
+        continue;
+      }
+
+      // put body back the body name in the map
+      ids[mjOBJ_BODY].insert({bodies_[i]->name, i});
+    }
+
     // get body and parent
     mjCBody* body = bodies_[i];
     mjCBody* par = body->parent;
@@ -3891,25 +3944,8 @@ void mjCModel::FuseStatic(void) {
 
     //------------- assign geoms and sites to parent, change frames
 
-    // geoms
-    for (int j=0; j < body->geoms.size(); j++) {
-      // assign
-      body->geoms[j]->body = par;
-      par->geoms.push_back(body->geoms[j]);
-
-      // change frame
-      changeframe(body->geoms[j]->pos, body->geoms[j]->quat, body->pos, body->quat);
-    }
-
-    // sites
-    for (int j=0; j < body->sites.size(); j++) {
-      // assign
-      body->sites[j]->body = par;
-      par->sites.push_back(body->sites[j]);
-
-      // change frame
-      changeframe(body->sites[j]->pos, body->sites[j]->quat, body->pos, body->quat);
-    }
+    ReassignChild(par->geoms, body->geoms, par, body);
+    ReassignChild(par->sites, body->sites, par, body);
 
     //------------- remove from global body list, reduce global counts
 
@@ -3960,15 +3996,21 @@ void mjCModel::FuseStatic(void) {
 
     //------------- delete body (without deleting children)
 
+    // remove body name from map
+    if (!body->name.empty()) {
+      ids[mjOBJ_BODY].erase(body->name);
+    }
+
     // delete allocation
     body->bodies.clear();
-    body->geoms.clear();
-    body->sites.clear();
     delete body;
 
     // check index i again (we have a new body at this index)
     i--;
   }
+
+  // remove empty names
+  processlist(ids, bodies_, mjOBJ_BODY, true);
 }
 
 
@@ -4392,6 +4434,17 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     bodies_[i]->Compile();  // also compiles joints, geoms, sites, cameras, lights, frames
   }
 
+  // fuse static if enabled
+  if (compiler.fusestatic) {
+    FuseStatic();
+    for (int i=0; i < lights_.size(); i++) {
+      lights_[i]->Compile();
+    }
+    for (int i=0; i < cameras_.size(); i++) {
+      cameras_[i]->Compile();
+    }
+  }
+
   // compile all other objects except for keyframes
   for (auto flex : flexes_) flex->Compile(vfs);
   for (auto skin : skins_) skin->Compile(vfs);
@@ -4423,10 +4476,6 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // resolve asset references, compute sizes
   IndexAssets(compiler.discardvisual);
   SetSizes();
-  // fuse static if enabled
-  if (compiler.fusestatic) {
-    FuseStatic();
-  }
 
   // set nmocap and body.mocapid
   for (mjCBody* body : bodies_) {

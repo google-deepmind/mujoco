@@ -3562,6 +3562,19 @@ void mjCCamera::CopyFromSpec() {
 
 
 
+void mjCCamera::ResolveReferences(const mjCModel* m) {
+  if (!targetbody_.empty()) {
+    mjCBody* tb = (mjCBody*)m->FindObject(mjOBJ_BODY, targetbody_);
+    if (tb) {
+      targetbodyid = tb->id;
+    } else {
+      throw mjCError(this, "unknown target body in camera");
+    }
+  }
+}
+
+
+
 // compiler
 void mjCCamera::Compile(void) {
   CopyFromSpec();
@@ -3587,14 +3600,7 @@ void mjCCamera::Compile(void) {
   mjuu_normvec(quat, 4);
 
   // get targetbodyid
-  if (!targetbody_.empty()) {
-    mjCBody* tb = (mjCBody*)model->FindObject(mjOBJ_BODY, targetbody_);
-    if (tb) {
-      targetbodyid = tb->id;
-    } else {
-      throw mjCError(this, "unknown target body in camera");
-    }
-  }
+  ResolveReferences(model);
 
   // make sure the image size is finite
   if (fovy >= 180) {
@@ -3716,6 +3722,27 @@ void mjCLight::CopyFromSpec() {
 
 
 
+void mjCLight::ResolveReferences(const mjCModel* m) {
+  if (!targetbody_.empty()) {
+    mjCBody* tb = (mjCBody*)m->FindObject(mjOBJ_BODY, targetbody_);
+    if (tb) {
+      targetbodyid = tb->id;
+    } else {
+      throw mjCError(this, "unknown target body in light");
+    }
+  }
+  if (!texture_.empty()) {
+    mjCTexture* tex = (mjCTexture*)m->FindObject(mjOBJ_TEXTURE, texture_);
+    if (tex) {
+      texid = tex->id;
+    } else {
+      throw mjCError(this, "unknown texture in light");
+    }
+  }
+}
+
+
+
 // compiler
 void mjCLight::Compile(void) {
   CopyFromSpec();
@@ -3735,25 +3762,8 @@ void mjCLight::Compile(void) {
     throw mjCError(this, "zero direction in light");
   }
 
-  // get targetbodyid
-  if (!targetbody_.empty()) {
-    mjCBody* tb = (mjCBody*)model->FindObject(mjOBJ_BODY, targetbody_);
-    if (tb) {
-      targetbodyid = tb->id;
-    } else {
-      throw mjCError(this, "unknown target body in light");
-    }
-  }
-
-  // get texture
-  if (!texture_.empty()) {
-    mjCTexture* tex = (mjCTexture*)model->FindObject(mjOBJ_TEXTURE, texture_);
-    if (tex) {
-      texid = tex->id;
-    } else {
-      throw mjCError(this, "unknown target body in light");
-    }
-  }
+  // get targetbodyid and texid
+  ResolveReferences(model);
 }
 
 
@@ -6493,6 +6503,8 @@ void mjCSensor::CopyPlugin() {
 
 
 void mjCSensor::ResolveReferences(const mjCModel* m) {
+  obj = nullptr;
+  ref = nullptr;
   objname_ = prefix + objname_ + suffix;
   refname_ = prefix + refname_ + suffix;
 

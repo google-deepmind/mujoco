@@ -792,12 +792,14 @@ has any effect. The settings here are global and apply to the entire model.
 
 :at:`fusestatic`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
    This attribute controls a compiler optimization feature where static bodies are fused with their parent, and any
-   elements defined in those bodies are reassigned to the parent. This feature can only be used in models which do not
-   have elements capable of named references inside the kinematic tree - namely skins, contact pairs, excludes, tendons,
-   actuators, sensors, tuples, cameras, lights. If a model has any these elements, fusestatic does nothing even if
-   enabled. This optimization is particularly useful when importing URDF models which often have many dummy bodies, but
-   can also be used to optimize MJCF models. After optimization, the new model has identical kinematics and dynamics as
-   the original but is faster to simulate.
+   elements defined in those bodies are reassigned to the parent. Static bodies are fused with their parent unless
+
+   - They are referenced by another element in the model.
+   - They contain a site which is referenced by a :ref:`force<sensor-force>` or :ref:`torque<sensor-torque>` sensor.
+
+   This optimization is particularly useful when importing URDF models which often have many dummy bodies, but can also
+   be used to optimize MJCF models. After optimization, the new model has identical kinematics and dynamics as the
+   original but is faster to simulate.
 
 .. _compiler-inertiafromgeom:
 
