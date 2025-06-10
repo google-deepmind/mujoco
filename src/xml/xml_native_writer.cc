@@ -1595,7 +1595,8 @@ XMLElement* mjXWriter::OneFrame(XMLElement* elem, mjCFrame* frame) {
     return elem;
   }
 
-  if (frame->name.empty() && frame->classname.empty()) {
+  // TODO: empty classname should not occur (but does)
+  if (frame->name.empty() && (frame->classname.empty() || frame->classname == "main")) {
     return elem;
   }
 
