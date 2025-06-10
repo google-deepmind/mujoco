@@ -28,7 +28,7 @@ Simulate
   and :ref:`mjv_copyData`, which don't copy arrays which are not required for visualization.
 
 .. image:: images/changelog/procedural_terrain_generation.png
-   :width: 25%
+   :width: 33%
    :align: right
 
 Python bindings
