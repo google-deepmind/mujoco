@@ -1191,6 +1191,9 @@ def tendon_armature(m: Model, d: Data) -> Data:
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('tendon_armature requires JAX backend implementation.')
 
+  if not m.ntendon:
+    return d
+
   if not support.is_sparse(m):
     return d.tree_replace({
         '_impl.qM': (
