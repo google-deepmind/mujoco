@@ -41,51 +41,51 @@ def _is_cuda_gpu_device(device: jax.Device) -> bool:
   return device in cuda_devices
 
 
-def _resolve_backend_impl(
+def _resolve_impl(
     device: jax.Device,
-) -> types.BackendImpl:
-  """Pick a default backend impl based on the device specified."""
+) -> types.Impl:
+  """Pick a default implementation based on the device specified."""
   if _is_cuda_gpu_device(device):
     # TODO(btaba): Remove flag once Warp is ready to launch.
     mjx_warp_enabled = os.environ.get('MJX_WARP_ENABLED', 'f').lower() == 'true'
     if mjx_warp_enabled:
-      logging.debug('Picking default backend implementation: Warp.')
-      return types.BackendImpl.WARP
+      logging.debug('Picking default implementation: Warp.')
+      return types.Impl.WARP
     logging.info('MJX Warp is disabled via MJX_WARP_ENABLED=false.')
 
   if device.platform in ('gpu', 'tpu'):
-    logging.debug('Picking default backend implementation: JAX.')
-    return types.BackendImpl.JAX
+    logging.debug('Picking default implementation: JAX.')
+    return types.Impl.JAX
 
   if device.platform == 'cpu':
     mjx_c_default = (
         os.environ.get('MJX_C_DEFAULT_ENABLED', 'f').lower() == 'true'
     )
     if mjx_c_default:
-      logging.debug('Picking default backend implementation: C.')
-      return types.BackendImpl.C
-    return types.BackendImpl.JAX
+      logging.debug('Picking default implementation: C.')
+      return types.Impl.C
+    return types.Impl.JAX
 
   raise ValueError(f'Unsupported device: {device}')
 
 
 def _resolve_device(
-    backend_impl: types.BackendImpl,
+    impl: types.Impl,
 ) -> jax.Device:
-  """Resolves a device based on the backend implementation."""
-  backend_impl = types.BackendImpl(backend_impl)
-  if backend_impl == types.BackendImpl.JAX:
+  """Resolves a device based on the implementation."""
+  impl = types.Impl(impl)
+  if impl == types.Impl.JAX:
     device_0 = jax.devices()[0]
     logging.debug('Picking default device: %s.', device_0)
     return device_0
 
-  if backend_impl == types.BackendImpl.C:
+  if impl == types.Impl.C:
     cpu_0 = jax.devices('cpu')[0]
     logging.debug('Picking default device: %s', cpu_0)
     return cpu_0
 
-  if backend_impl == types.BackendImpl.WARP:
-    # WARP backend requires a CUDA GPU.
+  if impl == types.Impl.WARP:
+    # WARP implementation requires a CUDA GPU.
     cuda_gpus = [d for d in jax.devices('cuda')]
     if not cuda_gpus:
       raise AssertionError(
@@ -96,64 +96,64 @@ def _resolve_device(
     logging.debug('Picking default device: %s', cuda_gpus[0])
     return cuda_gpus[0]
 
-  raise ValueError(f'Unsupported backend implementation: {backend_impl}')
+  raise ValueError(f'Unsupported implementation: {impl}')
 
 
-def _check_backend_impl_device_compatibility(
-    backend_impl: Union[str, types.BackendImpl],
+def _check_impl_device_compatibility(
+    impl: Union[str, types.Impl],
     device: jax.Device,
 ) -> None:
-  """Checks that the backend implementation is compatible with the device."""
-  if backend_impl is None:
-    raise ValueError('No backend implementation specified.')
+  """Checks that the implementation is compatible with the device."""
+  if impl is None:
+    raise ValueError('No implementation specified.')
 
-  backend_impl = types.BackendImpl(backend_impl)
+  impl = types.Impl(impl)
 
-  if backend_impl == types.BackendImpl.WARP:
+  if impl == types.Impl.WARP:
     if not _is_cuda_gpu_device(device):
       raise AssertionError(
-          'Warp backend implementation requires a CUDA GPU device, got '
+          'Warp implementation requires a CUDA GPU device, got '
           f'{device}.'
       )
 
     mjx_warp_enabled = os.environ.get('MJX_WARP_ENABLED', 'f').lower() == 'true'
     if not mjx_warp_enabled:
       raise AssertionError(
-          'Warp backend implementation is disabled via MJX_WARP_ENABLED=false.'
+          'Warp implementation is disabled via MJX_WARP_ENABLED=false.'
       )
 
   is_cpu_device = device.platform == 'cpu'
-  if backend_impl == types.BackendImpl.C:
+  if impl == types.Impl.C:
     if not is_cpu_device:
       raise AssertionError(
-          f'C backend implementation requires a CPU device, got {device}.'
+          f'C implementation requires a CPU device, got {device}.'
       )
 
-  # NB: JAX backend works with any device.
+  # NB: JAX implementation works with any device.
 
 
-def _resolve_backend_impl_and_device(
-    backend_impl: Optional[Union[str, types.BackendImpl]],
+def _resolve_impl_and_device(
+    impl: Optional[Union[str, types.Impl]],
     device: Optional[jax.Device] = None,
-) -> Tuple[types.BackendImpl, jax.Device]:
-  """Resolves a backend implementation and device."""
-  if backend_impl:
-    backend_impl = types.BackendImpl(backend_impl)
+) -> Tuple[types.Impl, jax.Device]:
+  """Resolves a implementation and device."""
+  if impl:
+    impl = types.Impl(impl)
 
-  has_backend_impl, has_device = backend_impl is not None, device is not None
-  if (has_backend_impl, has_device) == (True, True):
+  has_impl, has_device = impl is not None, device is not None
+  if (has_impl, has_device) == (True, True):
     pass
-  elif (has_backend_impl, has_device) == (True, False):
-    device = _resolve_device(backend_impl)
-  elif (has_backend_impl, has_device) == (False, True):
-    backend_impl = _resolve_backend_impl(device)
+  elif (has_impl, has_device) == (True, False):
+    device = _resolve_device(impl)
+  elif (has_impl, has_device) == (False, True):
+    impl = _resolve_impl(device)
   else:
     device = jax.devices(jax.default_backend())[0]
     logging.info('Using JAX default device: %s.', device)
-    backend_impl = _resolve_backend_impl(device)
+    impl = _resolve_impl(device)
 
-  _check_backend_impl_device_compatibility(backend_impl, device)
-  return backend_impl, device  # pytype: disable=bad-return-type
+  _check_impl_device_compatibility(impl, device)
+  return impl, device  # pytype: disable=bad-return-type
 
 
 def _strip_weak_type(tree):
@@ -167,7 +167,7 @@ def _strip_weak_type(tree):
 
 def _put_option(
     o: mujoco.MjOption,
-    backend_impl: types.BackendImpl,
+    impl: types.Impl,
     impl_fields: Optional[dict[str, Any]] = None,
 ) -> types.Option:
   """Returns mjx.Option given mujoco.MjOption."""
@@ -195,7 +195,7 @@ def _put_option(
   fields['disableflags'] = types.DisableBit(o.disableflags)
   fields['enableflags'] = types.EnableBit(o.enableflags)
 
-  if backend_impl == types.BackendImpl.JAX:
+  if impl == types.Impl.JAX:
     has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
     implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
     if implicitfast and has_fluid_params:
@@ -203,12 +203,12 @@ def _put_option(
     fields['has_fluid_params'] = has_fluid_params
     return types.OptionJAX(**fields, **(impl_fields or {}))
 
-  if backend_impl == types.BackendImpl.C:
+  if impl == types.Impl.C:
     c_field_keys = types.OptionC.__annotations__.keys() - fields.keys()
     c_fields = {k: getattr(o, k, None) for k in c_field_keys}
     return types.OptionC(**fields, **c_fields, **(impl_fields or {}))
 
-  raise NotImplementedError(f'Unsupported backend: {backend_impl}')
+  raise NotImplementedError(f'Unsupported implementation: {impl}')
 
 
 def _put_statistic(s: mujoco.MjStatistic) -> types.Statistic:
@@ -283,7 +283,7 @@ def _put_model_jax(
   mj_field_names = {f.name for f in types.Model.fields() if f.name != '_impl'}
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
-  fields['opt'] = _put_option(m.opt, types.BackendImpl.JAX)
+  fields['opt'] = _put_option(m.opt, types.Impl.JAX)
   fields['stat'] = _put_statistic(m.stat)
 
   fields_jax = {}
@@ -340,7 +340,7 @@ def _put_model_c(
   mj_field_names = {f.name for f in types.Model.fields() if f.name != '_impl'}
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
-  fields['opt'] = _put_option(m.opt, backend_impl=types.BackendImpl.C)
+  fields['opt'] = _put_option(m.opt, impl=types.Impl.C)
   fields['stat'] = _put_statistic(m.stat)
 
   c_impl_keys = (
@@ -359,7 +359,7 @@ def _put_model_c(
 def put_model(
     m: mujoco.MjModel,
     device: Optional[jax.Device] = None,
-    backend_impl: Optional[Union[str, types.BackendImpl]] = None,
+    impl: Optional[Union[str, types.Impl]] = None,
     _full_compat: bool = False,  # pylint: disable=invalid-name
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model.
@@ -367,7 +367,7 @@ def put_model(
   Args:
     m: the model to put onto device
     device: which device to use - if unspecified picks the default device
-    backend_impl: backend implementation to use
+    impl: implementation to use
     _full_compat: put all MjModel fields onto device irrespective of MJX support
       This is an experimental feature.  Avoid using it for now.
 
@@ -375,28 +375,29 @@ def put_model(
     an mjx.Model placed on device
 
   Raises:
-    ValueError: if backend_impl is not supported
+    ValueError: if impl is not supported
     DeprecationWarning: if _full_compat is True
   """
 
   if _full_compat:
     warnings.warn(
-        'mjx.put_model(..., _full_compat=True) is deprecated.  Use'
-        ' mjx.put_model(..., backend_impl=types.BackendImpl.C) instead.',
+        'mjx.put_model(..., _full_compat=True) is deprecated and will be'
+        ' removed in MuJoCo >=3.4.  Use mjx.put_model(..., impl=types.Impl.C)'
+        ' instead.',
         DeprecationWarning,
         stacklevel=2,
     )
-    backend_impl = types.BackendImpl.C
+    impl = types.Impl.C
 
-  backend_impl, device = _resolve_backend_impl_and_device(backend_impl, device)
-  if backend_impl == types.BackendImpl.JAX:
+  impl, device = _resolve_impl_and_device(impl, device)
+  if impl == types.Impl.JAX:
     return _put_model_jax(m, device)
-  elif backend_impl == types.BackendImpl.C:
+  elif impl == types.Impl.C:
     return _put_model_c(m, device)
-  elif backend_impl == types.BackendImpl.WARP:
-    raise NotImplementedError('Warp backend not implemented yet.')
+  elif impl == types.Impl.WARP:
+    raise NotImplementedError('Warp implementation not implemented yet.')
   else:
-    raise ValueError(f'Unsupported backend implementation: {backend_impl}')
+    raise ValueError(f'Unsupported implementation: {impl}')
 
 
 def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
@@ -696,7 +697,7 @@ def _make_data_c(
 def make_data(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
-    backend_impl: Optional[Union[str, types.BackendImpl]] = None,
+    impl: Optional[Union[str, types.Impl]] = None,
     _full_compat: bool = False,  # pylint: disable=invalid-name
 ) -> types.Data:
   """Allocate and initialize Data.
@@ -704,7 +705,7 @@ def make_data(
   Args:
     m: the model to use
     device: which device to use - if unspecified picks the default device
-    backend_impl: backend implementation to use
+    impl: implementation to use ('jax', 'warp')
     _full_compat: put all fields onto device irrespective of MJX support This is
       an experimental feature.  Avoid using it for now. If using this flag, also
       use _full_compat for put_model.
@@ -713,35 +714,34 @@ def make_data(
     an initialized mjx.Data placed on device
 
   Raises:
-    ValueError: if the model's backend_impl does not match the make_data
-      backend_impl
-    NotImplementedError: if the backend_impl is not implemented yet
+    ValueError: if the model's impl does not match the make_data impl
+    NotImplementedError: if the impl is not implemented yet
     DeprecationWarning: if _full_compat is used
   """
   if _full_compat:
     warnings.warn(
         'mjx.make_data(..., _full_compat=True) is deprecated.  Use'
-        ' mjx.make_data(..., backend_impl=types.BackendImpl.C) instead.',
+        ' mjx.make_data(..., impl=types.Impl.C) instead.',
         DeprecationWarning,
         stacklevel=2,
     )
-    backend_impl = types.BackendImpl.C
+    impl = types.Impl.C
 
-  backend_impl, device = _resolve_backend_impl_and_device(backend_impl, device)
+  impl, device = _resolve_impl_and_device(impl, device)
 
-  if isinstance(m, types.Model) and m.backend_impl != backend_impl:
+  if isinstance(m, types.Model) and m.impl != impl:
     raise ValueError(
-        f'Model backend_impl {m.backend_impl} does not match make_data '
-        f'backend_impl {backend_impl}.'
+        f'Model impl {m.impl} does not match make_data '
+        f'implementation {impl}.'
     )
 
-  if backend_impl == types.BackendImpl.JAX:
+  if impl == types.Impl.JAX:
     return _make_data_jax(m, device)
-  elif backend_impl == types.BackendImpl.C:
+  elif impl == types.Impl.C:
     return _make_data_c(m, device)
 
   raise NotImplementedError(
-      f'make_data for backend_impl "{backend_impl}" not implemented yet.'
+      f'make_data for implementation "{impl}" not implemented yet.'
   )
 
 
@@ -951,7 +951,7 @@ def _put_data_c(
       if hasattr(d, f.name)
   }
 
-  # TODO(stunya): support islanding via C backend impl.
+  # TODO(stunya): support islanding via C impl.
   impl_fields['solver_niter'] = impl_fields['solver_niter'][0]
 
   # TODO(btaba): remove dense actuator moment.
@@ -1039,7 +1039,7 @@ def put_data(
     m: mujoco.MjModel,
     d: mujoco.MjData,
     device: Optional[jax.Device] = None,
-    backend_impl: Optional[Union[str, types.BackendImpl]] = None,
+    impl: Optional[Union[str, types.Impl]] = None,
     _full_compat: bool = False,  # pylint: disable=invalid-name
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data.
@@ -1048,7 +1048,7 @@ def put_data(
     m: the model to use
     d: the data to put on device
     device: which device to use - if unspecified picks the default device
-    backend_impl: backend implementation to use
+    impl: implementation to use ('jax', 'warp')
     _full_compat: put all MjModel fields onto device irrespective of MJX support
       This is an experimental feature.  Avoid using it for now. If using this
       flag, also use _full_compat for put_model.
@@ -1059,20 +1059,20 @@ def put_data(
   if _full_compat:
     warnings.warn(
         'mjx.put_data(..., _full_compat=True) is deprecated.  Use'
-        ' mjx.put_data(..., backend_impl=types.BackendImpl.C) instead.',
+        ' mjx.put_data(..., impl=types.Impl.C) instead.',
         DeprecationWarning,
         stacklevel=2,
     )
-    backend_impl = types.BackendImpl.C
+    impl = types.Impl.C
 
-  backend_impl, device = _resolve_backend_impl_and_device(backend_impl, device)
-  if backend_impl == types.BackendImpl.JAX:
+  impl, device = _resolve_impl_and_device(impl, device)
+  if impl == types.Impl.JAX:
     return _put_data_jax(m, d, device)
-  elif backend_impl == types.BackendImpl.C:
+  elif impl == types.Impl.C:
     return _put_data_c(m, d, device)
 
   raise NotImplementedError(
-      f'put_data for backend_impl "{backend_impl}" not implemented yet.'
+      f'put_data for implementation "{impl}" not implemented yet.'
   )
 
 
@@ -1097,7 +1097,7 @@ def _get_data_into(
   batch_size = d.qpos.shape[0] if batched else 1
 
   dof_i, dof_j = [], []
-  if d.backend_impl == types.BackendImpl.JAX:
+  if d.impl == types.Impl.JAX:
     for i in range(m.nv):
       j = i
       while j > -1:
@@ -1116,13 +1116,13 @@ def _get_data_into(
     if ncon != result_i.ncon or nefc != result_i.nefc or nj != result_i.nJ:
       mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc, nJ=nj)  # pylint: disable=protected-access
 
-    if d.backend_impl == types.BackendImpl.JAX:
+    if d.impl == types.Impl.JAX:
       all_fields = types.Data.fields() + types.DataJAX.fields()
-    elif d.backend_impl == types.BackendImpl.C:
+    elif d.impl == types.Impl.C:
       all_fields = types.Data.fields() + types.DataC.fields()
     else:
       raise NotImplementedError(
-          f'get_data_into for backend_impl "{d.backend_impl}" not implemented'
+          f'get_data_into for implementation "{d.impl}" not implemented'
           ' yet.'
       )
 
@@ -1188,7 +1188,7 @@ def _get_data_into(
           value = value.reshape(-1)
       elif field.name.startswith('efc_'):
         value = value[efc_active]
-      if d.backend_impl == types.BackendImpl.JAX:
+      if d.impl == types.Impl.JAX:
         if field.name == 'qM' and not support.is_sparse(m):
           value = value[dof_i, dof_j]
         elif field.name == 'qLD' and not support.is_sparse(m):
@@ -1226,12 +1226,12 @@ def get_data_into(
 
   d = jax.device_get(d)
 
-  if d.backend_impl in (types.BackendImpl.JAX, types.BackendImpl.C):
+  if d.impl in (types.Impl.JAX, types.Impl.C):
     # TODO(stunya): Split out _get_data_into once codepaths diverge enough.
     return _get_data_into(result, m, d)
 
   raise NotImplementedError(
-      f'get_data_into for backend_impl "{d.backend_impl}" not implemented yet.'
+      f'get_data_into for implementation "{d.impl}" not implemented yet.'
   )
 
 

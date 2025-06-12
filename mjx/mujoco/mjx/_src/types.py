@@ -24,8 +24,8 @@ from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importin
 import numpy as np
 
 
-class BackendImpl(enum.Enum):
-  """Backend implementation to use."""
+class Impl(enum.Enum):
+  """Implementation to use."""
 
   C = 'c'
   JAX = 'jax'
@@ -34,7 +34,7 @@ class BackendImpl(enum.Enum):
   @classmethod
   def _missing_(cls, value):
     # This method is called only when lookup by value fails
-    # (e.g., BackendImpl('JAX') fails initially because 'JAX' != 'jax')
+    # (e.g., Impl('JAX') fails initially because 'JAX' != 'jax')
     if not isinstance(value, str):
       return None
     for member in cls:
@@ -871,10 +871,10 @@ class Model(PyTreeNode):
   _impl: Union[ModelC, ModelJAX]
 
   @property
-  def backend_impl(self) -> BackendImpl:
+  def impl(self) -> Impl:
     return {
-        ModelC: BackendImpl.C,
-        ModelJAX: BackendImpl.JAX,
+        ModelC: Impl.C,
+        ModelJAX: Impl.JAX,
     }[type(self._impl)]
 
   def __getattr__(self, name: str):
@@ -1119,10 +1119,10 @@ class Data(PyTreeNode):
   _impl: Union[DataC, DataJAX]
 
   @property
-  def backend_impl(self) -> BackendImpl:
+  def impl(self) -> Impl:
     return {
-        DataC: BackendImpl.C,
-        DataJAX: BackendImpl.JAX,
+        DataC: Impl.C,
+        DataJAX: Impl.JAX,
     }[type(self._impl)]
 
   def __getattr__(self, name: str):

@@ -22,7 +22,7 @@ from mujoco.mjx._src import math
 from mujoco.mjx._src import ray
 from mujoco.mjx._src import smooth
 from mujoco.mjx._src import support
-from mujoco.mjx._src.types import BackendImpl
+from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
