@@ -477,7 +477,7 @@ def _make_data_contact_jax(
 
 
 def _make_data_jax(
-    m: types.Model,
+    m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the JAX implementation."""
@@ -565,7 +565,7 @@ def _make_data_jax(
 
 
 def _make_data_c(
-    m: types.Model,
+    m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the C implementation."""
@@ -583,11 +583,14 @@ def _make_data_c(
   # TODO(stunya): remove the JAX contact from C data.
   contact = _make_data_contact_jax(dim, efc_address)
 
-  nflexvert = m.nflexvert
-  nflexedge = m.nflexedge
-  nflexelem = m.nflexelem
-  nbvh = m.nbvh
-  nbvhdynamic = m.nbvhdynamic
+  def get(m, name: str):
+    return getattr(m._impl, name) if hasattr(m, '_impl') else getattr(m, name)  # pylint: disable=protected-access
+
+  nflexvert = get(m, 'nflexvert')
+  nflexedge = get(m, 'nflexedge')
+  nflexelem = get(m, 'nflexelem')
+  nbvh = get(m, 'nbvh')
+  nbvhdynamic = get(m, 'nbvhdynamic')
   zero_impl_fields = {
       'solver_niter': (int_,),
       'cdof': (m.nv, 6, float_),
@@ -627,7 +630,7 @@ def _make_data_c(
       'qLDiagInv': (m.nv, float_),
       'ten_velocity': (m.ntendon, float_),
       'actuator_velocity': (m.nu, float_),
-      'plugin_data': (m.nplugin, np.uint64),
+      'plugin_data': (get(m, 'nplugin'), np.uint64),
       'B_rownnz': (m.nbody, np.int32),
       'B_rowadr': (m.nbody, np.int32),
       'B_colind': (m.nB, np.int32),
