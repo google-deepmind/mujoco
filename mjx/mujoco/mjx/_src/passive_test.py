@@ -75,6 +75,16 @@ class PassiveTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'qfrc_passive')
     _assert_attr_eq(d, dx, 'qfrc_gravcomp')
 
+    example_aero_coeffs = np.array([1, 0.15, 0.1, 0.23, 2, 1])
+    example_virtual_mass = np.array([0.1, 0.2, 0.3])
+    example_virtual_inertial = np.array([0.1, 0.2, 0.3])
+    m.geom_fluid[1:] = np.concatenate([example_aero_coeffs, example_virtual_mass, example_virtual_inertial])
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'qfrc_passive')
+    _assert_attr_eq(d, dx, 'qfrc_gravcomp')
+
     # test disable passive
     mx = mx.tree_replace({'opt.disableflags': mjx.DisableBit.PASSIVE})
     dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
