@@ -148,15 +148,28 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
   EXPECT_PRIM_VALID(stage,
                     "/mesh_test/Materials/material_texture/PreviewSurface");
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_texture/uvmap");
-  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_texture/texture");
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_texture/diffuse");
   ExpectAttributeHasConnection(
       stage,
       "/mesh_test/Materials/material_texture/"
       "PreviewSurface.inputs:diffuseColor",
-      "/mesh_test/Materials/material_texture/texture.outputs:rgb");
+      "/mesh_test/Materials/material_texture/diffuse.outputs:rgb");
   ExpectAttributeEqual(
-      stage, "/mesh_test/Materials/material_texture/texture.inputs:file",
+      stage, "/mesh_test/Materials/material_texture/diffuse.inputs:file",
       pxr::SdfAssetPath("textures/cube.png"));
+
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered");
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/uvmap");
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/diffuse");
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/normal");
+  ExpectAttributeHasConnection(
+    stage,
+    "/mesh_test/Materials/material_layered/"
+    "PreviewSurface.inputs:normal",
+    "/mesh_test/Materials/material_layered/normal.outputs:rgb");
+  ExpectAttributeEqual(
+    stage, "/mesh_test/Materials/material_layered/normal.inputs:file",
+    pxr::SdfAssetPath("textures/normal.png"));
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {

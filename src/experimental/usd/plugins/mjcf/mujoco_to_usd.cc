@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "third_party/mujoco/src/experimental/usd/mjcPhysics/tokens.h"
 #include "mjcf/utils.h"
@@ -94,6 +95,7 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((inputsMetallic, "inputs:metallic"))
                          (repeat)
                          ((sourceMesh, pxr::UsdGeomTokens->Mesh))
+                         ((inputsNormal, "inputs:normal"))
                         );
 
 // Using to satisfy TF_REGISTRY_FUNCTION macro below and avoid operating in PXR_NS.
@@ -630,12 +632,10 @@ class ModelWriter {
     }
   }
 
-  pxr::SdfPath AddTextureShader(const pxr::SdfPath &material_path,
-                                const char *texture_file) {
-    // Shader "uvmap"
+  pxr::SdfPath AddUVTextureShader(const pxr::SdfPath &material_path,
+                                  const pxr::TfToken &name) {
     pxr::SdfPath uvmap_shader_path =
-        CreatePrimSpec(data_, material_path, pxr::TfToken("uvmap"),
-                       pxr::UsdShadeTokens->Shader);
+        CreatePrimSpec(data_, material_path, name, pxr::UsdShadeTokens->Shader);
 
     pxr::SdfPath uvmap_info_id_attr = CreateAttributeSpec(
         data_, uvmap_shader_path, pxr::UsdShadeTokens->infoId,
@@ -652,10 +652,15 @@ class ModelWriter {
         CreateAttributeSpec(data_, uvmap_shader_path, kTokens->outputsSt,
                             pxr::SdfValueTypeNames->Float2);
 
-    // Shader "texture"
+    return uvmap_st_output_attr;
+  }
+
+  pxr::SdfPath AddTextureShader(const pxr::SdfPath &material_path,
+                                const char *texture_file,
+                                const pxr::TfToken &name,
+                                const pxr::SdfPath &uvmap_st_output_attr) {
     pxr::SdfPath texture_shader_path =
-        CreatePrimSpec(data_, material_path, pxr::TfToken("texture"),
-                       pxr::UsdShadeTokens->Shader);
+        CreatePrimSpec(data_, material_path, name, pxr::UsdShadeTokens->Shader);
     pxr::SdfPath texture_info_id_attr = CreateAttributeSpec(
         data_, texture_shader_path, pxr::UsdShadeTokens->infoId,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
@@ -715,21 +720,44 @@ class ModelWriter {
                             pxr::UsdShadeTokens->outputsDisplacement,
                             pxr::SdfValueTypeNames->Token);
 
+    const pxr::SdfPath &uvmap_st_output_attr =
+        AddUVTextureShader(material_path, pxr::TfToken("uvmap"));
+
+    // Find the normal texture if specified.
+    const mjStringVec &textures = *(material->textures);
+    if (mjTEXROLE_NORMAL < textures.size()) {
+      std::string normal_texture_name = textures[mjTEXROLE_NORMAL];
+      mjsTexture *normal_texture = mjs_asTexture(
+          mjs_findElement(spec_, mjOBJ_TEXTURE, normal_texture_name.c_str()));
+      if (normal_texture) {
+        pxr::SdfPath normal_attr = CreateAttributeSpec(
+            data_, preview_surface_shader_path, kTokens->inputsNormal,
+            pxr::SdfValueTypeNames->Normal3f);
+        // Create the normal map shader and connect its output to the preview
+        // surface normal attr.
+        pxr::SdfPath normal_map_output_attr =
+            AddTextureShader(material_path, normal_texture->file->c_str(),
+                             pxr::TfToken("normal"), uvmap_st_output_attr);
+        AddAttributeConnection(data_, normal_attr, normal_map_output_attr);
+      }
+    }
+
     pxr::SdfPath diffuse_color_attr = CreateAttributeSpec(
         data_, preview_surface_shader_path, kTokens->inputsDiffuseColor,
         pxr::SdfValueTypeNames->Color3f);
 
     // Find the main texture if specified.
-    std::string main_texture_name = (*material->textures)[mjTEXROLE_RGB];
+    std::string main_texture_name = textures[mjTEXROLE_RGB];
     mjsTexture *main_texture = mjs_asTexture(
         mjs_findElement(spec_, mjOBJ_TEXTURE, main_texture_name.c_str()));
     if (main_texture) {
       // Create the texture shader and connect it to the diffuse color
       // attribute.
-      pxr::SdfPath texture_rgb_output_attr =
-          AddTextureShader(material_path, main_texture->file->c_str());
+      pxr::SdfPath texture_diffuse_output_attr =
+          AddTextureShader(material_path, main_texture->file->c_str(),
+                           pxr::TfToken("diffuse"), uvmap_st_output_attr);
       AddAttributeConnection(data_, diffuse_color_attr,
-                             texture_rgb_output_attr);
+                             texture_diffuse_output_attr);
     } else {
       // If no texture is specified, use the rgba diffuse color.
       SetAttributeDefault(data_, diffuse_color_attr,
