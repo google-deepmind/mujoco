@@ -819,21 +819,22 @@ class ModelWriter {
                    MjcPhysicsTokens->PhysicsActuatorAPI);
 
     if (!actuator->refsite->empty()) {
-      int refsite_id = mj_name2id(model_, mjOBJ_SITE, actuator->refsite->c_str());
+      int refsite_id =
+          mj_name2id(model_, mjOBJ_SITE, actuator->refsite->c_str());
       pxr::SdfPath refsite_path = site_paths_[refsite_id];
       CreateRelationshipSpec(data_, transmission_path,
-                             MjcPhysicsTokens->mjcRefSite,
-                             refsite_path, pxr::SdfVariabilityUniform);
+                             MjcPhysicsTokens->mjcRefSite, refsite_path,
+                             pxr::SdfVariabilityUniform);
     }
 
     if (!actuator->slidersite->empty()) {
-      int slidersite_id = mj_name2id(model_, mjOBJ_SITE, actuator->slidersite->c_str());
+      int slidersite_id =
+          mj_name2id(model_, mjOBJ_SITE, actuator->slidersite->c_str());
       pxr::SdfPath slidersite_path = site_paths_[slidersite_id];
       CreateRelationshipSpec(data_, transmission_path,
-                             MjcPhysicsTokens->mjcSliderSite,
-                             slidersite_path, pxr::SdfVariabilityUniform);
+                             MjcPhysicsTokens->mjcSliderSite, slidersite_path,
+                             pxr::SdfVariabilityUniform);
     }
-
 
     const std::vector<std::pair<pxr::TfToken, int>> limited_attributes = {
         {MjcPhysicsTokens->mjcCtrlLimited, actuator->ctrllimited},
@@ -899,7 +900,6 @@ class ModelWriter {
         transmission_path, pxr::SdfValueTypeNames->DoubleArray,
         MjcPhysicsTokens->mjcDynPrm,
         pxr::VtDoubleArray(actuator->dynprm, actuator->dynprm + 10));
-
 
     pxr::TfToken gain_type;
     if (actuator->gaintype == mjtGain::mjGAIN_FIXED) {
