@@ -583,8 +583,7 @@ Fast implicit-in-velocity (``implicitfast``)
     performance.
 
     **Euler**:
-     Use ``Euler`` for compatibillity with older models and :ref:`MJX<Mjx>`. Specifically for MJX,
-     setting the :ref:`eulerdamp<option-flag-eulerdamp>` disable flag can :ref:`improve performance<MjxPerformance>`.
+     Use ``Euler`` for compatibillity with older models.
     **implicitfast**:
      The ``implicitfast`` integrator has similar computational cost to ``Euler``, yet provides
      increased stability, and is therefore a strict improvement. It is the recommended integrator for most models.
