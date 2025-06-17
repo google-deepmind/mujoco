@@ -92,7 +92,12 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((inputsWrapT, "inputs:wrapT"))
                          ((inputsDiffuseColor, "inputs:diffuseColor"))
                          ((outputsRgb, "outputs:rgb"))
+                         ((outputsR, "outputs:r"))
+                         ((outputsG, "outputs:g"))
+                         ((outputsB, "outputs:b"))
                          ((inputsMetallic, "inputs:metallic"))
+                         ((inputsOcclusion, "inputs:occlusion"))
+                         ((inputsRoughness, "inputs:roughness"))
                          (repeat)
                          ((sourceMesh, pxr::UsdGeomTokens->Mesh))
                          ((inputsNormal, "inputs:normal"))
@@ -655,10 +660,10 @@ class ModelWriter {
     return uvmap_st_output_attr;
   }
 
-  pxr::SdfPath AddTextureShader(const pxr::SdfPath &material_path,
-                                const char *texture_file,
-                                const pxr::TfToken &name,
-                                const pxr::SdfPath &uvmap_st_output_attr) {
+  std::vector<pxr::SdfPath> AddTextureShader(
+      const pxr::SdfPath &material_path, const char *texture_file,
+      const pxr::TfToken &name, const pxr::SdfPath &uvmap_st_output_attr,
+      const std::vector<pxr::TfToken> &output_channels) {
     pxr::SdfPath texture_shader_path =
         CreatePrimSpec(data_, material_path, name, pxr::UsdShadeTokens->Shader);
     pxr::SdfPath texture_info_id_attr = CreateAttributeSpec(
@@ -688,11 +693,19 @@ class ModelWriter {
                             pxr::SdfValueTypeNames->Token);
     SetAttributeDefault(data_, texture_wrap_t_attr, kTokens->repeat);
 
-    pxr::SdfPath texture_rgb_output_attr =
-        CreateAttributeSpec(data_, texture_shader_path, kTokens->outputsRgb,
-                            pxr::SdfValueTypeNames->Float3);
-
-    return texture_rgb_output_attr;
+    std::vector<pxr::SdfPath> texture_output_attrs;
+    for (const auto &output_channel : output_channels) {
+      pxr::SdfValueTypeName value_type;
+      if (output_channel == kTokens->outputsRgb) {
+        value_type = pxr::SdfValueTypeNames->Float3;
+      } else {
+        // Assume the other specified channels are outputR, outputG, outputB.
+        value_type = pxr::SdfValueTypeNames->Float;
+      }
+      texture_output_attrs.push_back(CreateAttributeSpec(
+          data_, texture_shader_path, output_channel, value_type));
+    }
+    return texture_output_attrs;
   }
 
   void WriteMaterial(mjsMaterial *material, const pxr::SdfPath &parent_path) {
@@ -722,9 +735,44 @@ class ModelWriter {
 
     const pxr::SdfPath &uvmap_st_output_attr =
         AddUVTextureShader(material_path, pxr::TfToken("uvmap"));
-
-    // Find the normal texture if specified.
     const mjStringVec &textures = *(material->textures);
+
+    // Set the values of metallic and roughness. These can come from an ORM
+    // texture or as a value defined in mjsMaterial_. Occlusion is only present
+    // in the ORM texture.
+    pxr::SdfPath metallic_attr = CreateAttributeSpec(
+        data_, preview_surface_shader_path, kTokens->inputsMetallic,
+        pxr::SdfValueTypeNames->Float);
+    pxr::SdfPath roughness_attr = CreateAttributeSpec(
+        data_, preview_surface_shader_path, kTokens->inputsRoughness,
+        pxr::SdfValueTypeNames->Float);
+    // Find the ORM (occlusion, roughness, metallic) packed-channel texture if
+    // specified.
+    if (mjTEXROLE_ORM < textures.size()) {
+      std::string orm_texture_name = textures[mjTEXROLE_ORM];
+      mjsTexture *orm_texture = mjs_asTexture(
+          mjs_findElement(spec_, mjOBJ_TEXTURE, orm_texture_name.c_str()));
+      if (orm_texture) {
+        // Create the ORM shader and connect its output to the preview
+        // surface ORM attrs.
+        const std::vector<pxr::SdfPath> orm_output_attrs = AddTextureShader(
+            material_path, orm_texture->file->c_str(),
+            pxr::TfToken("orm_packed"), uvmap_st_output_attr,
+            {kTokens->outputsR, kTokens->outputsG, kTokens->outputsB});
+        if (orm_output_attrs.size() == 3) {
+          pxr::SdfPath occlusion_attr = CreateAttributeSpec(
+              data_, preview_surface_shader_path, kTokens->inputsOcclusion,
+              pxr::SdfValueTypeNames->Float);
+          AddAttributeConnection(data_, occlusion_attr, orm_output_attrs[0]);
+          AddAttributeConnection(data_, roughness_attr, orm_output_attrs[1]);
+          AddAttributeConnection(data_, metallic_attr, orm_output_attrs[2]);
+        }
+      } else {
+        SetAttributeDefault(data_, metallic_attr, material->metallic);
+        SetAttributeDefault(data_, roughness_attr, material->roughness);
+      }
+    }
+    // Find the normal texture if specified.
     if (mjTEXROLE_NORMAL < textures.size()) {
       std::string normal_texture_name = textures[mjTEXROLE_NORMAL];
       mjsTexture *normal_texture = mjs_asTexture(
@@ -735,10 +783,14 @@ class ModelWriter {
             pxr::SdfValueTypeNames->Normal3f);
         // Create the normal map shader and connect its output to the preview
         // surface normal attr.
-        pxr::SdfPath normal_map_output_attr =
+        const std::vector<pxr::SdfPath> normal_map_output_attrs =
             AddTextureShader(material_path, normal_texture->file->c_str(),
-                             pxr::TfToken("normal"), uvmap_st_output_attr);
-        AddAttributeConnection(data_, normal_attr, normal_map_output_attr);
+                             pxr::TfToken("normal"), uvmap_st_output_attr,
+                             {kTokens->outputsRgb});
+        if (normal_map_output_attrs.size() == 1) {
+          AddAttributeConnection(data_, normal_attr,
+                                 normal_map_output_attrs[0]);
+        }
       }
     }
 
@@ -753,22 +805,20 @@ class ModelWriter {
     if (main_texture) {
       // Create the texture shader and connect it to the diffuse color
       // attribute.
-      pxr::SdfPath texture_diffuse_output_attr =
+      const std::vector<pxr::SdfPath> texture_diffuse_output_attrs =
           AddTextureShader(material_path, main_texture->file->c_str(),
-                           pxr::TfToken("diffuse"), uvmap_st_output_attr);
-      AddAttributeConnection(data_, diffuse_color_attr,
-                             texture_diffuse_output_attr);
+                           pxr::TfToken("diffuse"), uvmap_st_output_attr,
+                           {kTokens->outputsRgb});
+      if (texture_diffuse_output_attrs.size() == 1) {
+        AddAttributeConnection(data_, diffuse_color_attr,
+                               texture_diffuse_output_attrs[0]);
+      }
     } else {
       // If no texture is specified, use the rgba diffuse color.
       SetAttributeDefault(data_, diffuse_color_attr,
                           pxr::GfVec3f(material->rgba[0], material->rgba[1],
                                        material->rgba[2]));
     }
-
-    pxr::SdfPath metallic_attr = CreateAttributeSpec(
-        data_, preview_surface_shader_path, kTokens->inputsMetallic,
-        pxr::SdfValueTypeNames->Float);
-    SetAttributeDefault(data_, metallic_attr, material->metallic);
 
     pxr::SdfPath material_surface_output_attr = CreateAttributeSpec(
         data_, material_path, pxr::UsdShadeTokens->outputsSurface,

@@ -161,6 +161,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered");
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/uvmap");
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/diffuse");
+
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/normal");
   ExpectAttributeHasConnection(
     stage,
@@ -170,6 +171,33 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
   ExpectAttributeEqual(
     stage, "/mesh_test/Materials/material_layered/normal.inputs:file",
     pxr::SdfAssetPath("textures/normal.png"));
+
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/orm_packed");
+  ExpectAttributeHasConnection(
+    stage,
+    "/mesh_test/Materials/material_layered/"
+    "PreviewSurface.inputs:occlusion",
+    "/mesh_test/Materials/material_layered/orm_packed.outputs:r");
+  ExpectAttributeHasConnection(
+    stage,
+    "/mesh_test/Materials/material_layered/"
+    "PreviewSurface.inputs:roughness",
+    "/mesh_test/Materials/material_layered/orm_packed.outputs:g");
+  ExpectAttributeHasConnection(
+    stage,
+    "/mesh_test/Materials/material_layered/"
+    "PreviewSurface.inputs:metallic",
+    "/mesh_test/Materials/material_layered/orm_packed.outputs:b");
+  ExpectAttributeEqual(
+    stage, "/mesh_test/Materials/material_layered/orm_packed.inputs:file",
+    pxr::SdfAssetPath("textures/orm.png"));
+
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_metallic");
+  EXPECT_PRIM_VALID(stage,
+                    "/mesh_test/Materials/material_metallic/PreviewSurface");
+  ExpectAttributeEqual(stage,
+    "/mesh_test/Materials/material_metallic/PreviewSurface.inputs:metallic",
+    0.6f);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {
