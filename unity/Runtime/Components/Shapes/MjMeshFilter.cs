@@ -41,7 +41,7 @@ public class MjMeshFilter : MonoBehaviour {
       return;
     }
 
-    if(_geom.ShapeType == MjShapeComponent.ShapeTypes.Mesh) { 
+    if(_geom.ShapeType == MjShapeComponent.ShapeTypes.Mesh) {
       MjMeshShape meshShape = _geom.Shape as MjMeshShape;
       _meshFilter.sharedMesh = meshShape.Mesh;
       return;
@@ -67,7 +67,6 @@ public class MjMeshFilter : MonoBehaviour {
       uvs[i] = new Vector2(mesh.vertices[i].x, mesh.vertices[i].z);
     }
     mesh.uv = uvs;
-    
     mesh.RecalculateNormals();
     mesh.RecalculateTangents();
   }
