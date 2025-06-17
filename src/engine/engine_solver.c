@@ -1533,15 +1533,14 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
 
   // sparse
   if (ctx->is_sparse) {
-    // initialize Hessian rowadr, rownnz
-    mju_sqrMatTDSparseCount(ctx->H_rownnz, ctx->H_rowadr, nv,
-                            ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
-                            ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
-                            ctx->JT_rowsuper, d, /*flg_upper=*/0);
+    // initialize Hessian rowadr, rownnz; get total nonzeros
+    ctx->nH = mju_sqrMatTDSparseCount(ctx->H_rownnz, ctx->H_rowadr, nv,
+                                      ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind,
+                                      ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind,
+                                      ctx->JT_rowsuper, d, /*flg_upper=*/0);
 
-    // add nC to Hessian total nonzeros (unavoidable overcounting since H_colind is still unknown)
-    ctx->nH = ctx->M_rowadr[nv - 1] + ctx->M_rownnz[nv - 1] +
-              ctx->H_rowadr[nv - 1] + ctx->H_rownnz[nv - 1];
+    // add M nonzeros to Hessian total (unavoidable overcounting since H_colind is still unknown)
+    ctx->nH += ctx->M_rowadr[nv - 1] + ctx->M_rownnz[nv - 1];
 
     // shift H row addresses to make room for C
     int shift = 0;

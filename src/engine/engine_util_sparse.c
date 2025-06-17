@@ -636,11 +636,11 @@ void mju_superSparse(int nr, int* rowsuper,
 }
 
 
-// precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
-void mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
-                             const int* rownnz, const int* rowadr, const int* colind,
-                             const int* rownnzT, const int* rowadrT, const int* colindT,
-                             const int* rowsuperT, mjData* d, int flg_upper) {
+// precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse, return total non-zeros
+int mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
+                            const int* rownnz, const int* rowadr, const int* colind,
+                            const int* rownnzT, const int* rowadrT, const int* colindT,
+                            const int* rowsuperT, mjData* d, int flg_upper) {
   mj_markStack(d);
   int* chain = mjSTACKALLOC(d, 2*nr, int);
   int nchain = 0;
@@ -726,6 +726,8 @@ void mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
   }
 
   mj_freeStack(d);
+
+  return res_rowadr[nr-1] + res_rownnz[nr-1];
 }
 
 

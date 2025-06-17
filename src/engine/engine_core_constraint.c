@@ -2193,12 +2193,9 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
     }
 
     // pre-count A nonzeros (compute AR_rownnz, AR_rowadr)
-    mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc,
-                            BT_rownnz, BT_rowadr, BT_colind,
-                            B_rownnz, B_rowadr, B_colind, B_rowsuper, d, /*flg_upper=*/1);
-
-    // nA = total number of nonzeros in A
-    d->nA = d->efc_AR_rownnz[nefc - 1] + d->efc_AR_rowadr[nefc - 1];
+    d->nA = mju_sqrMatTDSparseCount(d->efc_AR_rownnz, d->efc_AR_rowadr, nefc,
+                                    BT_rownnz, BT_rowadr, BT_colind,
+                                    B_rownnz, B_rowadr, B_colind, B_rowsuper, d, /*flg_upper=*/1);
 
     // allocate A values and column indices on arena
     d->efc_AR = mj_arenaAllocByte(d, sizeof(mjtNum) * d->nA, _Alignof(mjtNum));
