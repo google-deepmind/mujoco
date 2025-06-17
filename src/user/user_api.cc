@@ -41,24 +41,6 @@ using mujoco::user::StringToVector;
 static constexpr std::size_t kGlobalCacheSize = 500 * (1 << 20);
 
 
-// prepend prefix
-template <typename T>
-static T& operator+(std::string_view prefix, T& base) {
-  base.prefix = std::string(prefix);
-  return base;
-}
-
-
-
-// append suffix
-template <typename T>
-static T& operator+(T& base, std::string_view suffix) {
-  base.suffix = std::string(suffix);
-  return base;
-}
-
-
-
 // create model
 mjSpec* mj_makeSpec() {
   mjCModel* modelC = new mjCModel;
@@ -135,8 +117,11 @@ static void SetFrame(mjsBody* body, mjtObj objtype, mjsFrame* frame) {
 // attach body to a frame of the parent
 static mjsElement* attachBody(mjCFrame* parent, const mjCBody* child,
                               const char* prefix, const char* suffix) {
+  mjCBody* mutable_child = const_cast<mjCBody*>(child);
+  mutable_child->prefix = prefix;
+  mutable_child->suffix = suffix;
   try {
-    *parent += std::string(prefix) + *(mjCBody*)child + std::string(suffix);
+    *parent += *mutable_child;
   } catch (mjCError& e) {
     parent->model->SetError(e);
     return nullptr;
@@ -151,8 +136,11 @@ static mjsElement* attachBody(mjCFrame* parent, const mjCBody* child,
 // attach frame to a parent body
 static mjsElement* attachFrame(mjCBody* parent, const mjCFrame* child,
                                const char* prefix, const char* suffix) {
+  mjCFrame* mutable_child = const_cast<mjCFrame*>(child);
+  mutable_child->prefix = prefix;
+  mutable_child->suffix = suffix;
   try {
-    *parent += std::string(prefix) + *(mjCFrame*)child + std::string(suffix);
+    *parent += *mutable_child;
   } catch (mjCError& e) {
     parent->model->SetError(e);
     return nullptr;
