@@ -1194,19 +1194,23 @@ def tendon_armature(m: Model, d: Data) -> Data:
   if not m.ntendon:
     return d
 
-  if not support.is_sparse(m):
-    return d.tree_replace({
-        '_impl.qM': (
-            d._impl.qM
-            + d._impl.ten_J.T
-            @ jax.vmap(jp.multiply)(d._impl.ten_J, m.tendon_armature)
-        )
-    })
-  else:
-    # TODO(taylorhowell): implement tendon armature with sparse qM
-    raise NotImplementedError(
-        'Tendon armature with sparse qM is not implemented.'
-    )
+  # TODO(taylorhowell): if sparse, compute sparse JTAJ
+  JTAJ = d._impl.ten_J.T @ jax.vmap(jp.multiply)(
+      d._impl.ten_J, m.tendon_armature
+  )
+
+  if support.is_sparse(m):
+    ij = []
+    for i in range(m.nv):
+      j = i
+      while j > -1:
+        ij.append((i, j))
+        j = m.dof_parentid[j]
+
+    i, j = (jp.array(x) for x in zip(*ij))
+    JTAJ = JTAJ[(i, j)]
+
+  return d.tree_replace({'_impl.qM': d._impl.qM + JTAJ})
 
 
 def tendon_dot(m: Model, d: Data) -> jax.Array:
@@ -1329,13 +1333,9 @@ def tendon_bias(m: Model, d: Data) -> Data:
   # add bias term: qfrc += ten_J * armature * ten_Jdot @ qvel
   coef = m.tendon_armature * jp.dot(ten_Jdot, d.qvel)
 
-  if not support.is_sparse(m):
-    return d.tree_replace({
-        'qfrc_bias': (
-            d.qfrc_bias
-            + jp.sum(jax.vmap(jp.multiply)(d._impl.ten_J, coef), axis=0)
-        )
-    })
-  else:
-    # TODO(taylorhowell): implement tendon bias with sparse qM
-    raise NotImplementedError('Tendon bias with sparse qM is not implemented.')
+  return d.tree_replace({
+      'qfrc_bias': (
+          d.qfrc_bias
+          + jp.sum(jax.vmap(jp.multiply)(d._impl.ten_J, coef), axis=0)
+      )
+  })
