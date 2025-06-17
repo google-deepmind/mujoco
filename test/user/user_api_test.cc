@@ -18,6 +18,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -343,32 +345,35 @@ TEST_F(PluginTest, AttachExplicitPlugin) {
       </worldbody>
     </mujoco>)";
 
-  static constexpr char xml_child[] = R"(
-    <mujoco>
-      <extension>
-        <plugin plugin="mujoco.sensor.touch_grid"/>
-      </extension>
-      <worldbody>
-        <body name="body">
-          <geom type="sphere" size=".1" />
-          <site name="touch2" size="0.001"/>
-        </body>
-      </worldbody>
-      <sensor>
-        <plugin name="touch2" plugin="mujoco.sensor.touch_grid" objtype="site" objname="touch2">
-          <config key="size" value="8 12"/>
-          <config key="fov" value="10 13"/>
-          <config key="gamma" value="0"/>
-          <config key="nchannel" value="1"/>
-        </plugin>
-      </sensor>
-    </mujoco>)";
-
   std::array<char, 1000> err;
   mjSpec* parent = mj_parseXMLString(xml_parent, 0, err.data(), err.size());
   ASSERT_THAT(parent, NotNull()) << err.data();
-  mjSpec* child = mj_parseXMLString(xml_child, 0, err.data(), err.size());
-  ASSERT_THAT(child, NotNull()) << err.data();
+
+  mjSpec* child = mj_makeSpec();
+  mjsBody* body = mjs_addBody(mjs_findBody(child, "world"), 0);
+  mjsGeom* geom = mjs_addGeom(body, 0);
+  mjsSite* site = mjs_addSite(body, 0);
+  mjsSensor* sensor = mjs_addSensor(child);
+  mjsPlugin* plugin = mjs_addPlugin(child);
+  mjs_activatePlugin(child, "mujoco.sensor.touch_grid");
+  mjs_setString(plugin->plugin_name, "mujoco.sensor.touch_grid");
+  mjs_setString(sensor->plugin.plugin_name, "mujoco.sensor.touch_grid");
+  mjs_setString(body->name, "body");
+  mjs_setString(sensor->name, "touch2");
+  mjs_setString(sensor->objname, "touch2");
+  mjs_setString(site->name, "touch2");
+  geom->size[0] = 0.1;
+  site->size[0] = 0.001;
+  sensor->type = mjSENS_PLUGIN;
+  sensor->objtype = mjOBJ_SITE;
+  sensor->plugin.element = plugin->element;
+  sensor->plugin.active = true;
+  std::map<std::string, std::string, std::less<> > config_attribs;
+  config_attribs["size"] = "8 12";
+  config_attribs["fov"] = "10 13";
+  config_attribs["gamma"] = "0";
+  config_attribs["nchannel"] = "1";
+  mjs_setPluginAttributes(plugin, &config_attribs);
 
   mjsBody* body_parent = mjs_findBody(parent, "body");
   EXPECT_THAT(body_parent, NotNull());

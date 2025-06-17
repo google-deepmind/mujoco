@@ -861,7 +861,7 @@ class SpecsTest(absltest.TestCase):
 
     body = spec.worldbody.add_body()
     body.plugin = plugin
-    body.plugin.plugin_name = 'mujoco.elasticity.cable'
+    body.plugin.name = 'instance_name'
     body.plugin.active = True
 
     geom = body.add_geom()
