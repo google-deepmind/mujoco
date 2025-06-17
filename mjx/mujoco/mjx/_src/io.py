@@ -1210,6 +1210,10 @@ def _get_data_into(
       else:
         setattr(result_i, field.name, value)
 
+    # TODO(taylorhowell): remove mapping once qM is deprecated
+    # map inertia (sparse) to reduced inertia (compressed sparse) representation
+    result_i.M[:] = result_i.qM[result_i.mapM2M]
+
     # recalculate qLD and qLDiagInv as MJX and MuJoCo have different
     # representations of the Cholesky decomposition.
     mujoco.mj_factorM(m, result_i)

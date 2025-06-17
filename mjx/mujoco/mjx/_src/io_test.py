@@ -28,6 +28,7 @@ from mujoco.mjx._src import test_util
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import ConeType
 from mujoco.mjx._src.types import Impl
+from mujoco.mjx._src.types import JacobianType
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -655,6 +656,25 @@ class DataIOTest(parameterized.TestCase):
       """)
     with self.assertRaises(NotImplementedError):
       mjx.put_model(m, impl='jax')
+
+  @parameterized.parameters(JacobianType.DENSE, JacobianType.SPARSE)
+  def test_qm_mapm2m(self, jacobian):
+    """Test that qM is mapped to M."""
+    m = test_util.load_test_file('humanoid/humanoid.xml')
+    m.opt.jacobian = jacobian
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m, impl='jax')
+    dx = mjx.make_data(m, impl='jax')
+    dx = mjx.forward(mx, dx)
+
+    mjx.get_data_into(d, m, dx)
+
+    res_mj = np.zeros((1, m.nv))
+    mujoco.mj_solveM(m, d, res_mj, np.ones((1, m.nv)))
+
+    res = mjx._src.smooth.solve_m(mx, dx, jp.ones(m.nv))
+
+    np.testing.assert_allclose(res_mj[0], res, rtol=1e-3, atol=1e-3)
 
 
 class FullCompatTest(parameterized.TestCase):
