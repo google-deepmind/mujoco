@@ -122,6 +122,8 @@ class Simulate {
   std::vector<std::optional<std::pair<mjtNum, mjtNum>>> actuator_ctrlrange_;
   std::vector<std::string> actuator_names_;
 
+  std::vector<std::string> equality_names_;
+
   std::vector<mjtNum> history_;  // history buffer (nhistory x state_size)
 
   // mjModel and mjData fields that can be modified by the user through the GUI
@@ -129,6 +131,8 @@ class Simulate {
   std::vector<mjtNum> qpos_prev_;
   std::vector<mjtNum> ctrl_;
   std::vector<mjtNum> ctrl_prev_;
+  std::vector<mjtByte> eq_active_;
+  std::vector<mjtByte> eq_active_prev_;
 
   // in passive mode the user owns m_ and d_, these "passive" instances are
   // owned by Simulate, updated from the user by the Sync() method
@@ -167,6 +171,7 @@ class Simulate {
     bool ui_update_visualization;
     bool ui_update_joint;
     bool ui_update_ctrl;
+    bool ui_update_equality;
     bool ui_remake_ctrl;
   } pending_ = {};
 
