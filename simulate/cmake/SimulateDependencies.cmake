@@ -33,7 +33,20 @@ set(MUJOCO_DEP_VERSION_glfw3
     7482de6071d21db77a7236155da44c172a7f6c9e # 3.3.8
     CACHE STRING "Version of `glfw` to be fetched."
 )
+
+set(MUJOCO_URL_openxr
+    https://github.com/KhronosGroup/OpenXR-SDK-Source/archive/refs/tags/release-1.0.34.zip
+    CACHE STRING "Link to fetch `openxr`."
+)
+
+set(MUJOCO_URL_HASH_openxr
+    924a94a2da0b5ef8e82154c623d88644 # 1.0.34
+    CACHE STRING "URL hash to check fetched `openxr`."
+)
+
 mark_as_advanced(MUJOCO_DEP_VERSION_glfw3)
+mark_as_advanced(MUJOCO_URL_openxr)
+mark_as_advanced(MUJOCO_URL_HASH_openxr)
 
 find_package(Threads REQUIRED)
 
