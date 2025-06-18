@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <filesystem>  // NOLINT(build/c++17)
 #include <functional>
 #include <mutex>
 #include <string>
@@ -1368,6 +1369,23 @@ static T* findobject(std::string_view name, const vector<T*>& list, const mjKeyM
   }
   return list[id->second];
 }
+
+
+
+mjCBase* mjCModel::FindTexture(std::string_view name) const {
+  for (unsigned int i=0; i < textures_.size(); i++) {
+    if (textures_[i]->name == name) {
+      return textures_[i];
+    }
+    if (textures_[i]->name.empty() &&
+        std::filesystem::path(textures_[i]->spec_file_).filename().stem() == name) {
+      return textures_[i];
+    }
+  }
+  return nullptr;
+}
+
+
 
 // find object in global lists given string type and name
 mjCBase* mjCModel::FindObject(mjtObj type, string name) const {
