@@ -653,7 +653,7 @@ mjCModel& mjCModel::operator-=(const mjCBody& subtree) {
 
 
 // add default tree to this model
-mjCModel_& mjCModel::operator+=(mjCDef& subtree) {
+mjCModel& mjCModel::operator+=(mjCDef& subtree) {
   defaults_.push_back(&subtree);
   def_map[subtree.name] = &subtree;
   subtree.model = this;

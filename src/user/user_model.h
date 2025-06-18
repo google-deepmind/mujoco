@@ -187,7 +187,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCModel& operator=(const mjCModel& other);     // copy other into this, if they are not the same
   mjCModel& operator+=(const mjCModel& other);    // add other into this, even if they are the same
   mjCModel& operator-=(const mjCBody& subtree);   // remove subtree and all references from model
-  mjCModel_& operator+=(mjCDef& subtree);         // add default tree to this model
+  mjCModel& operator+=(mjCDef& subtree);          // add default tree to this model
   mjCModel& operator-=(const mjCDef& subtree);    // remove default tree from this model
 
   mjSpec spec;
