@@ -97,7 +97,8 @@ void ExpectAllAuthoredAttributesMatchSchemaTypes(const pxr::UsdPrim& prim) {
 
       for (const pxr::SdfPropertySpecHandle& spec : propStack) {
         // We only care about attribute specs.
-        if (auto attrSpec = TfDynamic_cast<pxr::SdfAttributeSpecHandle>(spec)) {
+        if (auto attrSpec =
+                pxr::TfDynamic_cast<pxr::SdfAttributeSpecHandle>(spec)) {
           // 3. Check if this spec has an authored `typeName`.
           if (attrSpec->HasField(pxr::SdfFieldKeys->TypeName)) {
             const pxr::TfToken authoredTypeName =
