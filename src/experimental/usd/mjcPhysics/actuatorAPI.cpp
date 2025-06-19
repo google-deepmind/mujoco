@@ -325,15 +325,6 @@ UsdRelationship MjcPhysicsActuatorAPI::CreateMjcRefSiteRel() const {
                                       /* custom = */ false);
 }
 
-UsdRelationship MjcPhysicsActuatorAPI::GetMjcCrankSiteRel() const {
-  return GetPrim().GetRelationship(MjcPhysicsTokens->mjcCrankSite);
-}
-
-UsdRelationship MjcPhysicsActuatorAPI::CreateMjcCrankSiteRel() const {
-  return GetPrim().CreateRelationship(MjcPhysicsTokens->mjcCrankSite,
-                                      /* custom = */ false);
-}
-
 UsdRelationship MjcPhysicsActuatorAPI::GetMjcSliderSiteRel() const {
   return GetPrim().GetRelationship(MjcPhysicsTokens->mjcSliderSite);
 }

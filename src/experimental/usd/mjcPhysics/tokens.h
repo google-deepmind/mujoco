@@ -162,10 +162,6 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuatorAPI
   const TfToken mjcCrankLength;
-  /// \brief "mjc:crankSite"
-  ///
-  /// MjcPhysicsActuatorAPI
-  const TfToken mjcCrankSite;
   /// \brief "mjc:ctrlLimited"
   ///
   /// MjcPhysicsActuatorAPI
