@@ -84,12 +84,7 @@ else()
   set(MUJOCO_RESOURCE_FILES "")
 endif()
 
-if(BUILD_SHARED_LIBS)
-add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
-else()
-add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
-endif()
-
+add_library(mujoco ${MUJOCO_RESOURCE_FILES})
 target_include_directories(
   mujoco
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
