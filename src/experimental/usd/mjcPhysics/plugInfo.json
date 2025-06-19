@@ -58,7 +58,7 @@
           }
         }
       },
-      "LibraryPath": "",
+      "LibraryPath": "@PLUG_INFO_LIBRARY_PATH@",
       "Name": "mjcPhysics",
       "ResourcePath": "",
       "Root": ".",
