@@ -232,9 +232,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // delete default and all descendants
   void RemoveDefault(mjCDef* def);
 
-  // detach subtree from model
-  void Detach(mjCBody* subtree);
-
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
   mjCBase* GetObject(mjtObj type, int id);  // pointer to specified object

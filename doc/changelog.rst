@@ -5,6 +5,13 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The functions ``mjs_detachBody`` and ``mjs_detachDefault`` have been replaced by :ref:`mjs_delete`. Additionally,
+     `:ref:mjs_detach` was added in order to remove an element from the spec without deleting it.
+   - The Python functions ``element.delete`` have been replaced by ``spec.delete(element)``.
+
 Bug fixes
 ^^^^^^^^^
 - Inverse dynamics were not being computed correctly when :ref:`tendon armature<tendon-spatial-armature>` was present,

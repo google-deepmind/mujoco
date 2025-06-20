@@ -3783,23 +3783,14 @@ Attachment
 
 Attach child to a parent, return the attached element if success or NULL otherwise.
 
-.. _mjs_detachBody:
+.. _mjs_detach:
 
-`mjs_detachBody <#mjs_detachBody>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`mjs_detach <#mjs_detach>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. mujoco-include:: mjs_detachBody
+.. mujoco-include:: mjs_detach
 
-Delete body and descendants from mjSpec, remove all references, return 0 on success.
-
-.. _mjs_detachDefault:
-
-`mjs_detachDefault <#mjs_detachDefault>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mjs_detachDefault
-
-Delete default class and descendants from mjSpec, remove all references, return 0 on success.
+Detach but not delete object corresponding to the given element, return 0 on success.
 
 .. _AddTreeElements:
 

@@ -742,15 +742,44 @@ void deletefromlist(std::vector<T*>* list, mjsElement* element) {
 
 
 
+// recursively delete all plugins in the subtree
+static void deletesubtreeplugin(mjCBody* subtree, mjCModel* model) {
+  mjsPlugin* plugin = &(subtree->spec.plugin);
+  if (plugin->active && plugin->name->empty()) {
+    model->DeleteElement(plugin->element);
+  }
+  for (auto* body : subtree->Bodies()) {
+    deletesubtreeplugin(body, model);
+  }
+}
+
+
+
 // discard all invalid elements from all lists
 void mjCModel::DeleteElement(mjsElement* el) {
   ResetTreeLists();
 
+  if (el->elemtype != mjOBJ_DEFAULT) {
+    if (static_cast<mjCBase*>(el)->model != this) {
+      throw mjCError(nullptr, "element is not in this model");
+    }
+  } else {
+    if (static_cast<mjCDef*>(el)->model != this) {
+      throw mjCError(nullptr, "default is not in this model");
+    }
+  }
+
   switch (el->elemtype) {
     case mjOBJ_BODY:
+    {
       MakeTreeLists();  // rebuild lists that were reset at the beginning of the function
-      throw mjCError(nullptr, "bodies cannot be deleted, use detach instead");
+      mjCBody* subtree = static_cast<mjCBody*>(el);
+      if (subtree->GetRef() == 1)  {
+        deletesubtreeplugin(subtree, this);
+      }
+      subtree->Release();
       break;
+    }
 
     case mjOBJ_DEFAULT:
       MakeTreeLists();  // rebuild lists that were reset at the beginning of the function
@@ -824,29 +853,6 @@ void mjCModel::DeleteElement(mjsElement* el) {
 
   // update signature after we updated everything
   spec.element->signature = Signature();
-}
-
-
-
-// recursively delete all plugins in the subtree
-void deletesubtreeplugin(mjCBody* subtree, mjCModel* model) {
-  mjsPlugin* plugin = &(subtree->spec.plugin);
-  if (plugin->active && plugin->name->empty()) {
-    model->DeleteElement(plugin->element);
-  }
-  for (auto* body : subtree->Bodies()) {
-    deletesubtreeplugin(body, model);
-  }
-}
-
-
-
-// deletes all plugins in the subtree and then the subtree itself
-void mjCModel::Detach(mjCBody* subtree) {
-  if (subtree->GetRef() == 1)  {
-    deletesubtreeplugin(subtree, this);
-  }
-  subtree->Release();
 }
 
 

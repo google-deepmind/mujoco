@@ -76,11 +76,8 @@ MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 MJAPI mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                              const char* prefix, const char* suffix);
 
-// Detach body from mjSpec, remove all references and delete the body, return 0 on success.
-MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
-
-// Detach default from mjSpec, remove all references and delete the default, return 0 on success.
-MJAPI int mjs_detachDefault(mjSpec* s, mjsDefault* d);
+// Detach but not delete object corresponding to the given element, return 0 on success.
+MJAPI int mjs_detach(mjSpec* s, mjsElement* element);
 
 //---------------------------------- Add tree elements ---------------------------------------------
 
@@ -109,7 +106,7 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
 
 // Delete object corresponding to the given element, return 0 on success.
-MJAPI int mjs_delete(mjsElement* element);
+MJAPI int mjs_delete(mjSpec* s, mjsElement* element);
 
 
 //---------------------------------- Add non-tree elements -----------------------------------------

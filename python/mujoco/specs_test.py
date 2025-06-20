@@ -838,9 +838,9 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(site)
     self.assertEqual(site, spec.site('head'))
 
-    site.delete()
-    spec.sensors[-1].delete()
-    spec.sensors[-1].delete()
+    spec.delete(site)
+    spec.delete(spec.sensors[-1])
+    spec.delete(spec.sensors[-1])
 
     model = spec.compile()
     self.assertIsNotNone(model)
@@ -930,7 +930,7 @@ class SpecsTest(absltest.TestCase):
     """)
     plugin = spec.plugins[0]
     self.assertIsNotNone(plugin)
-    plugin.delete()
+    spec.delete(plugin)
 
     model = spec.compile()
     self.assertIsNotNone(model)

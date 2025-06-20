@@ -8987,45 +8987,25 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Attach child to a parent, return the attached element if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
-    ('mjs_detachBody',
+    ('mjs_detach',
      FunctionDecl(
-         name='mjs_detachBody',
+         name='mjs_detach',
          return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
-                 name='s',
+                 name='spec',
                  type=PointerType(
                      inner_type=ValueType(name='mjSpec'),
                  ),
              ),
              FunctionParameterDecl(
-                 name='b',
+                 name='element',
                  type=PointerType(
-                     inner_type=ValueType(name='mjsBody'),
+                     inner_type=ValueType(name='mjsElement'),
                  ),
              ),
          ),
-         doc='Delete body and descendants from mjSpec, remove all references, return 0 on success.',  # pylint: disable=line-too-long
-     )),
-    ('mjs_detachDefault',
-     FunctionDecl(
-         name='mjs_detachDefault',
-         return_type=ValueType(name='int'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='s',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='d',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsDefault'),
-                 ),
-             ),
-         ),
-         doc='Delete default class and descendants from mjSpec, remove all references, return 0 on success.',  # pylint: disable=line-too-long
+         doc='Detach but not delete object corresponding to the given element, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mjs_addBody',
      FunctionDecl(
@@ -9202,6 +9182,12 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          name='mjs_delete',
          return_type=ValueType(name='int'),
          parameters=(
+             FunctionParameterDecl(
+                 name='spec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjSpec'),
+                 ),
+             ),
              FunctionParameterDecl(
                  name='element',
                  type=PointerType(
