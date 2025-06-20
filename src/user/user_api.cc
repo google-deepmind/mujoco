@@ -283,20 +283,6 @@ const char* mjs_getError(mjSpec* s) {
 
 
 
-// detach body from mjSpec, return 0 on success
-int mjs_detach(mjSpec* s, mjsElement* element) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
-  if (!element) {
-    model->SetError(mjCError(0, "Element is null."));
-    return -1;
-  }
-  mjCError e(0, "Detach is not implemented yet.");
-  model->SetError(e);
-  return -1;
-}
-
-
-
 // check if model has warnings
 int mjs_isWarning(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
@@ -354,6 +340,28 @@ int mj_copyBack(mjSpec* s, const mjModel* m) {
 
 
 
+// detach body from mjSpec, return 0 on success
+int mjs_detach(mjSpec* s, mjsElement* element) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (!element) {
+    model->SetError(mjCError(0, "Element is null."));
+    return -1;
+  }
+  try {
+    if (element->elemtype == mjOBJ_DEFAULT) {
+      throw mjCError(0, "Detach is not implemented for defaults.");
+    } else {
+      *model -= element;
+    }
+    return 0;
+  } catch (mjCError& e) {
+    model->SetError(e);
+    return -1;
+  }
+}
+
+
+
 // delete object, return 0 on success
 int mjs_delete(mjSpec* s, mjsElement* element) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
@@ -362,15 +370,11 @@ int mjs_delete(mjSpec* s, mjsElement* element) {
     return -1;
   }
   try {
-    if (element->elemtype == mjOBJ_BODY) {
-      mjCBody* body = static_cast<mjCBody*>(element);
-      *model -= *body;
-      model->DeleteElement(body);
-    } else if (element->elemtype == mjOBJ_DEFAULT) {
+    if (element->elemtype == mjOBJ_DEFAULT) {
       mjCDef* def = static_cast<mjCDef*>(element);
       *model -= *def;
     } else {
-      // it will call the appropriate destructor since ~mjCBase is virtual
+      mjs_detach(s, element);
       model->DeleteElement(element);
     }
     return 0;

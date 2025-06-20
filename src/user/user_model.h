@@ -227,6 +227,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T> void DeleteAll(std::vector<T*>& elements);
 
   // delete object from the corresponding list
+  void operator-=(mjsElement* el);
+
+  // delete object
   void DeleteElement(mjsElement* el);
 
   // delete default and all descendants
@@ -450,11 +453,15 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T>
   void ResolveReferences(std::vector<T*>& list, mjCBody* body = nullptr);
 
+  // delete all plugins created by the subtree
+  void DeleteSubtreePlugin(mjCBody* subtree);
+
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
   bool deepcopy_;     // copy objects when attaching
   bool attached_ = false;  // true if model is attached to a parent model
   std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
+  std::vector<mjCBase*> detached_;  // list of detached objects
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

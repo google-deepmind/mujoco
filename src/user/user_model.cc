@@ -733,7 +733,6 @@ void deletefromlist(std::vector<T*>* list, mjsElement* element) {
   for (int j = 0; j < list->size(); ++j) {
     list->at(j)->id = -1;
     if (list->at(j) == element) {
-      list->at(j)->Release();
       list->erase(list->begin() + j);
       j--;
     }
@@ -743,20 +742,33 @@ void deletefromlist(std::vector<T*>* list, mjsElement* element) {
 
 
 // recursively delete all plugins in the subtree
-static void deletesubtreeplugin(mjCBody* subtree, mjCModel* model) {
+void mjCModel::DeleteSubtreePlugin(mjCBody* subtree) {
   mjsPlugin* plugin = &(subtree->spec.plugin);
   if (plugin->active && plugin->name->empty()) {
-    model->DeleteElement(plugin->element);
+    *this -= plugin->element;
+    detached_.push_back(static_cast<mjCBase*>(plugin->element));
   }
   for (auto* body : subtree->Bodies()) {
-    deletesubtreeplugin(body, model);
+    DeleteSubtreePlugin(body);
   }
 }
 
 
 
-// discard all invalid elements from all lists
+// delete an object from the model
 void mjCModel::DeleteElement(mjsElement* el) {
+  static_cast<mjCBase*>(el)->Release();
+}
+
+
+
+// remove the element from the model
+void mjCModel::operator-=(mjsElement* el) {
+  if (el->elemtype == mjOBJ_BODY) {
+    mjCBody* body = static_cast<mjCBody*>(el);
+    *this -= *body;
+  }
+
   ResetTreeLists();
 
   if (el->elemtype != mjOBJ_DEFAULT) {
@@ -774,10 +786,7 @@ void mjCModel::DeleteElement(mjsElement* el) {
     {
       MakeTreeLists();  // rebuild lists that were reset at the beginning of the function
       mjCBody* subtree = static_cast<mjCBody*>(el);
-      if (subtree->GetRef() == 1)  {
-        deletesubtreeplugin(subtree, this);
-      }
-      subtree->Release();
+      DeleteSubtreePlugin(subtree);
       break;
     }
 
@@ -789,8 +798,9 @@ void mjCModel::DeleteElement(mjsElement* el) {
     case mjOBJ_GEOM:
     {
       mjCGeom* geom = static_cast<mjCGeom*>(el);
-      if (geom->plugin.active && geom->plugin.name->empty() && geom->GetRef() == 1) {
-        DeleteElement(geom->plugin.element);
+      if (geom->plugin.active && geom->plugin.name->empty()) {
+        *this -= geom->plugin.element;
+        detached_.push_back(static_cast<mjCBase*>(geom->plugin.element));
       }
       deletefromlist(&(geom->body->geoms), el);
       break;
@@ -815,8 +825,9 @@ void mjCModel::DeleteElement(mjsElement* el) {
     case mjOBJ_MESH:
     {
       mjCMesh* mesh = static_cast<mjCMesh*>(el);
-      if (mesh->plugin.active && mesh->plugin.name->empty() && mesh->GetRef() == 1) {
-        DeleteElement(mesh->plugin.element);
+      if (mesh->plugin.active && mesh->plugin.name->empty()) {
+        *this -= mesh->plugin.element;
+        detached_.push_back(static_cast<mjCBase*>(mesh->plugin.element));
       }
       deletefromlist(object_lists_[mjOBJ_MESH], el);
       break;
@@ -825,8 +836,9 @@ void mjCModel::DeleteElement(mjsElement* el) {
     case mjOBJ_ACTUATOR:
     {
       mjCActuator* actuator = static_cast<mjCActuator*>(el);
-      if (actuator->plugin.active && actuator->plugin.name->empty() && actuator->GetRef() == 1) {
-        DeleteElement(actuator->plugin.element);
+      if (actuator->plugin.active && actuator->plugin.name->empty()) {
+        *this -= actuator->plugin.element;
+        detached_.push_back(static_cast<mjCBase*>(actuator->plugin.element));
       }
       deletefromlist(object_lists_[mjOBJ_ACTUATOR], el);
       break;
@@ -835,8 +847,9 @@ void mjCModel::DeleteElement(mjsElement* el) {
     case mjOBJ_SENSOR:
     {
       mjCSensor* sensor = static_cast<mjCSensor*>(el);
-      if (sensor->plugin.active && sensor->plugin.name->empty() && sensor->GetRef() == 1) {
-        DeleteElement(sensor->plugin.element);
+      if (sensor->plugin.active && sensor->plugin.name->empty()) {
+        *this -= sensor->plugin.element;
+        detached_.push_back(static_cast<mjCBase*>(sensor->plugin.element));
       }
       deletefromlist(object_lists_[mjOBJ_SENSOR], el);
       break;
@@ -946,6 +959,7 @@ mjCModel::~mjCModel() {
   for (int i=0; i < defaults_.size(); i++) delete defaults_[i];
   for (int i=0; i < specs_.size(); i++) mj_deleteSpec(specs_[i]);
   for (int i=0; i < plugins_.size(); i++) plugins_[i]->Release();
+  for (int i=0; i < detached_.size(); i++) detached_[i]->Release();
 
   // clear sizes and pointer lists created in Compile
   Clear();
