@@ -396,7 +396,7 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_addDefault(spec->ptr, classname.c_str(), parent);
       },
       py::return_value_policy::reference_internal);
-  mjSpec.def("detach_default", [](MjSpec& self, raw::MjsDefault& def) {
+  mjSpec.def("delete", [](MjSpec& self, raw::MjsDefault& def) {
     if (mjs_delete(self.ptr, def.element) != 0) {
       throw pybind11::value_error(mjs_getError(self.ptr));
     }
@@ -407,7 +407,7 @@ PYBIND11_MODULE(_specs, m) {
         return mjs_getSpecDefault(self.ptr);
       },
       py::return_value_policy::reference_internal);
-  mjSpec.def("detach_body", [](MjSpec& self, raw::MjsBody& body) {
+  mjSpec.def("delete", [](MjSpec& self, raw::MjsBody& body) {
     mjs_delete(self.ptr, body.element);
   });
   mjSpec.def(

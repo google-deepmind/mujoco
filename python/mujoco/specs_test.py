@@ -604,7 +604,7 @@ class SpecsTest(absltest.TestCase):
 
     # test delete default
     def1 = spec.find_default('def1')
-    spec.detach_default(def1)
+    spec.delete(def1)
     def1 = spec.find_default('def1')
     self.assertIsNone(def1)
 
