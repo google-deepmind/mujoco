@@ -7534,6 +7534,12 @@ coordinated visual settings corresponding to a "theme", and then include this fi
 While all settings in mjVisual are global, the settings here could not be fit into any of the other subsections. So this
 is effectively a miscellaneous subsection.
 
+.. _visual-global-cameraid:
+
+:at:`cameraid`: :at-val:`int, "-1"`
+   The id of the camera used when initially loading the model in the visualizer. The default value of -1 means the free
+   camera. In order to specify a :ref:`modeled camera<body-camera>`, use the camera's id as given by :ref:`mj_name2id`.
+
 .. _visual-global-orthographic:
 
 :at:`orthographic`: :at-val:`[false, true], "false"`

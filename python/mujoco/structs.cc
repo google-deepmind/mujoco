@@ -175,6 +175,7 @@ PYBIND11_MODULE(_structs, m) {
                      });
   DefineStructFunctions(mjVisualGlobal);
 #define X(var) mjVisualGlobal.def_readwrite(#var, &raw::MjVisualGlobal::var)
+  X(cameraid);
   X(orthographic);
   X(fovy);
   X(ipd);

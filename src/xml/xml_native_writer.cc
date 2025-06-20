@@ -1130,6 +1130,7 @@ void mjXWriter::Visual(XMLElement* root) {
 
   // global
   elem = InsertEnd(section, "global");
+  WriteAttrInt(elem, "cameraid",       vis->global.cameraid,     visdef.global.cameraid);
   WriteAttrKey(elem, "orthographic",
                bool_map, 2, vis->global.orthographic, visdef.global.orthographic);
   WriteAttr(elem,    "fovy",      1,   &vis->global.fovy,        &visdef.global.fovy);

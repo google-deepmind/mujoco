@@ -1178,8 +1178,16 @@ void MakeUiSections(mj::Simulate* sim, const mjModel* m, const mjData* d) {
 
 // align and scale view
 void AlignAndScaleView(mj::Simulate* sim, const mjModel* m) {
-  // use default free camera parameters
-  mjv_defaultFreeCamera(m, &sim->cam);
+  // if the id is valid, use the initial fixed camera
+  if (m->vis.global.cameraid >= 0 && m->vis.global.cameraid < m->ncam) {
+    sim->cam.fixedcamid = m->vis.global.cameraid;
+    sim->cam.type = mjCAMERA_FIXED;
+  }
+
+  // otherwise use default free camera
+  else {
+    mjv_defaultFreeCamera(m, &sim->cam);
+  }
 }
 
 

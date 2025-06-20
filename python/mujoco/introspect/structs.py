@@ -279,6 +279,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=AnonymousStructDecl(
                      fields=(
                          StructFieldDecl(
+                             name='cameraid',
+                             type=ValueType(name='int'),
+                             doc='initial camera id (-1: free)',
+                         ),
+                         StructFieldDecl(
                              name='orthographic',
                              type=ValueType(name='int'),
                              doc='is the free camera orthographic (0: no, 1: yes)',  # pylint: disable=line-too-long

@@ -183,6 +183,7 @@ static void setf4(float* rgba, float r, float g, float b, float a) {
 // set visual options to default values
 void mj_defaultVisual(mjVisual* vis) {
   // global
+  vis->global.cameraid            = -1;
   vis->global.orthographic        = 0;
   vis->global.fovy                = 45;
   vis->global.ipd                 = 0.068;

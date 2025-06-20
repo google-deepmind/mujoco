@@ -127,8 +127,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"visual", "*", "0"},
     {"<"},
-        {"global", "?", "12", "orthographic", "fovy", "ipd", "azimuth", "elevation", "linewidth",
-            "glow", "offwidth", "offheight", "realtime", "ellipsoidinertia", "bvactive"},
+        {"global", "?", "13", "cameraid", "orthographic", "fovy", "ipd", "azimuth", "elevation",
+            "linewidth", "glow", "offwidth", "offheight", "realtime", "ellipsoidinertia",
+            "bvactive"},
         {"quality", "?", "5", "shadowsize", "offsamples", "numslices", "numstacks",
             "numquads"},
         {"headlight", "?", "4", "ambient", "diffuse", "specular", "active"},
@@ -2998,6 +2999,7 @@ void mjXReader::Visual(XMLElement* section) {
 
     // global sub-element
     if (name == "global") {
+      ReadAttrInt(elem, "cameraid",     &vis->global.cameraid);
       if (MapValue(elem, "orthographic", &n, bool_map, 2)) {
         vis->global.orthographic = (n == 1);
       }

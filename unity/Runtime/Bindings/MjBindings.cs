@@ -5114,6 +5114,7 @@ public unsafe struct mjOption_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct global {
+  public int cameraid;
   public int orthographic;
   public float fovy;
   public float ipd;

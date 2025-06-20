@@ -12,6 +12,11 @@ Upcoming version (not yet released)
      `:ref:mjs_detach` was added in order to remove an element from the spec without deleting it.
    - The Python functions ``element.delete`` have been replaced by ``spec.delete(element)``.
 
+General
+^^^^^^^
+- Added support for setting the initial camera in the viewer using
+  :ref:`visual/global/cameraid<visual-global-cameraid>`.
+
 Bug fixes
 ^^^^^^^^^
 - Inverse dynamics were not being computed correctly when :ref:`tendon armature<tendon-spatial-armature>` was present,

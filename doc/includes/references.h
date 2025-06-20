@@ -795,8 +795,8 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
   mjtNum tolrange;                // convergence tolerance (relative to range)
 };
 typedef struct mjLROpt_ mjLROpt;
-struct mjVFS_ {                               // virtual file system for loading from memory
-  void* impl_;                                // internal pointer to VFS memory
+struct mjVFS_ {                   // virtual file system for loading from memory
+  void* impl_;                    // internal pointer to VFS memory
 };
 typedef struct mjVFS_ mjVFS;
 struct mjOption_ {                // physics options
@@ -844,7 +844,8 @@ struct mjOption_ {                // physics options
 typedef struct mjOption_ mjOption;
 struct mjVisual_ {                // visualization options
   struct {                        // global parameters
-    int orthographic;             // is the free camera orthographic (0: no, 1: yes)
+    int   cameraid;               // initial camera id (-1: free)
+    int   orthographic;           // is the free camera orthographic (0: no, 1: yes)
     float fovy;                   // y field-of-view of free camera (orthographic ? length : degree)
     float ipd;                    // inter-pupilary distance for free camera
     float azimuth;                // initial azimuth of free camera (degrees)

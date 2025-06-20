@@ -353,7 +353,7 @@ void PhysicsLoop(mj::Simulate& sim) {
           // requested slow-down factor
           double slowdown = 100 / sim.percentRealTime[sim.real_time_index];
 
-          // misalignment condition: distance from target sim time is bigger than syncmisalign
+          // misalignment condition: distance from target sim time is bigger than syncMisalign
           bool misaligned =
               std::abs(Seconds(elapsedCPU).count()/slowdown - elapsedSim) > syncMisalign;
 

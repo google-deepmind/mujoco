@@ -418,7 +418,7 @@ and :math:`\dot q` is the generalized velocity ``mjData.qvel``, then :math:`h = 
 
 .. mujoco-include:: mj_name2id
 
-Get id of object with the specified mjtObj type and name, returns -1 if id not found.
+Get id of object with the specified :ref:`mjtObj` type and name, returns -1 if id not found.
 
 .. _mj_id2name:
 
@@ -427,7 +427,7 @@ Get id of object with the specified mjtObj type and name, returns -1 if id not f
 
 .. mujoco-include:: mj_id2name
 
-Get name of object with the specified mjtObj type and id, returns NULL if name not found.
+Get name of object with the specified :ref:`mjtObj` type and id, returns ``NULL`` if name not found.
 
 .. _mj_fullM:
 
