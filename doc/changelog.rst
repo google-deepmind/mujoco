@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+Bug fixes
+^^^^^^^^^
+- Inverse dynamics were not being computed correctly when :ref:`tendon armature<tendon-spatial-armature>` was present,
+  now fixed.
+
 Version 3.3.3 (June 10, 2025)
 -----------------------------
 
