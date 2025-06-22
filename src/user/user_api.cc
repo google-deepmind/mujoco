@@ -341,28 +341,6 @@ int mj_copyBack(mjSpec* s, const mjModel* m) {
 
 
 // detach body from mjSpec, return 0 on success
-int mjs_detach(mjSpec* s, mjsElement* element) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
-  if (!element) {
-    model->SetError(mjCError(0, "Element is null."));
-    return -1;
-  }
-  try {
-    if (element->elemtype == mjOBJ_DEFAULT) {
-      throw mjCError(0, "Detach is not implemented for defaults.");
-    } else {
-      *model -= element;
-    }
-    return 0;
-  } catch (mjCError& e) {
-    model->SetError(e);
-    return -1;
-  }
-}
-
-
-
-// delete object, return 0 on success
 int mjs_delete(mjSpec* s, mjsElement* element) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   if (!element) {
@@ -374,8 +352,7 @@ int mjs_delete(mjSpec* s, mjsElement* element) {
       mjCDef* def = static_cast<mjCDef*>(element);
       *model -= *def;
     } else {
-      mjs_detach(s, element);
-      model->DeleteElement(element);
+      *model -= element;
     }
     return 0;
   } catch (mjCError& e) {
@@ -1031,7 +1008,7 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
 mjsFrame* mjs_bodyToFrame(mjsBody** body) {
   mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
   mjCFrame* frameC = bodyC->ToFrame();
-  bodyC->model->DeleteElement((*body)->element);
+  *bodyC->model -= (*body)->element;
   *body = nullptr;
   return &frameC->spec;
 }

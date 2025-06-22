@@ -3411,7 +3411,6 @@ void mju_defaultTask(mjTask* task);
 void mju_taskJoin(mjTask* task);
 mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                        const char* prefix, const char* suffix);
-int mjs_detach(mjSpec* spec, mjsElement* element);
 mjsBody* mjs_addBody(mjsBody* body, const mjsDefault* def);
 mjsSite* mjs_addSite(mjsBody* body, const mjsDefault* def);
 mjsJoint* mjs_addJoint(mjsBody* body, const mjsDefault* def);

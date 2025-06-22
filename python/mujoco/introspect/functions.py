@@ -8987,26 +8987,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Attach child to a parent, return the attached element if success or NULL otherwise.',  # pylint: disable=line-too-long
      )),
-    ('mjs_detach',
-     FunctionDecl(
-         name='mjs_detach',
-         return_type=ValueType(name='int'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='spec',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjSpec'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='element',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjsElement'),
-                 ),
-             ),
-         ),
-         doc='Detach but not delete object corresponding to the given element, return 0 on success.',  # pylint: disable=line-too-long
-     )),
     ('mjs_addBody',
      FunctionDecl(
          name='mjs_addBody',
@@ -9195,7 +9175,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Delete object corresponding to the given element, return 0 on success.',  # pylint: disable=line-too-long
+         doc='Detach but not delete object corresponding to the given element, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mjs_addActuator',
      FunctionDecl(

@@ -229,9 +229,6 @@ class mjCModel : public mjCModel_, private mjSpec {
   // delete object from the corresponding list
   void operator-=(mjsElement* el);
 
-  // delete object
-  void DeleteElement(mjsElement* el);
-
   // delete default and all descendants
   void RemoveDefault(mjCDef* def);
 

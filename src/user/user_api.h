@@ -76,8 +76,6 @@ MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 MJAPI mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                              const char* prefix, const char* suffix);
 
-// Detach but not delete object corresponding to the given element, return 0 on success.
-MJAPI int mjs_detach(mjSpec* s, mjsElement* element);
 
 //---------------------------------- Add tree elements ---------------------------------------------
 
@@ -105,7 +103,7 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
 
-// Delete object corresponding to the given element, return 0 on success.
+// Detach but not delete object corresponding to the given element, return 0 on success.
 MJAPI int mjs_delete(mjSpec* s, mjsElement* element);
 
 

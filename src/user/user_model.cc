@@ -746,18 +746,10 @@ void mjCModel::DeleteSubtreePlugin(mjCBody* subtree) {
   mjsPlugin* plugin = &(subtree->spec.plugin);
   if (plugin->active && plugin->name->empty()) {
     *this -= plugin->element;
-    detached_.push_back(static_cast<mjCBase*>(plugin->element));
   }
   for (auto* body : subtree->Bodies()) {
     DeleteSubtreePlugin(body);
   }
-}
-
-
-
-// delete an object from the model
-void mjCModel::DeleteElement(mjsElement* el) {
-  static_cast<mjCBase*>(el)->Release();
 }
 
 
@@ -769,6 +761,7 @@ void mjCModel::operator-=(mjsElement* el) {
     *this -= *body;
   }
 
+  detached_.push_back(static_cast<mjCBase*>(el));
   ResetTreeLists();
 
   if (el->elemtype != mjOBJ_DEFAULT) {
@@ -800,7 +793,6 @@ void mjCModel::operator-=(mjsElement* el) {
       mjCGeom* geom = static_cast<mjCGeom*>(el);
       if (geom->plugin.active && geom->plugin.name->empty()) {
         *this -= geom->plugin.element;
-        detached_.push_back(static_cast<mjCBase*>(geom->plugin.element));
       }
       deletefromlist(&(geom->body->geoms), el);
       break;
@@ -827,7 +819,6 @@ void mjCModel::operator-=(mjsElement* el) {
       mjCMesh* mesh = static_cast<mjCMesh*>(el);
       if (mesh->plugin.active && mesh->plugin.name->empty()) {
         *this -= mesh->plugin.element;
-        detached_.push_back(static_cast<mjCBase*>(mesh->plugin.element));
       }
       deletefromlist(object_lists_[mjOBJ_MESH], el);
       break;
@@ -838,7 +829,6 @@ void mjCModel::operator-=(mjsElement* el) {
       mjCActuator* actuator = static_cast<mjCActuator*>(el);
       if (actuator->plugin.active && actuator->plugin.name->empty()) {
         *this -= actuator->plugin.element;
-        detached_.push_back(static_cast<mjCBase*>(actuator->plugin.element));
       }
       deletefromlist(object_lists_[mjOBJ_ACTUATOR], el);
       break;
@@ -849,7 +839,6 @@ void mjCModel::operator-=(mjsElement* el) {
       mjCSensor* sensor = static_cast<mjCSensor*>(el);
       if (sensor->plugin.active && sensor->plugin.name->empty()) {
         *this -= sensor->plugin.element;
-        detached_.push_back(static_cast<mjCBase*>(sensor->plugin.element));
       }
       deletefromlist(object_lists_[mjOBJ_SENSOR], el);
       break;
