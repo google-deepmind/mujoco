@@ -724,13 +724,20 @@ has any effect. The settings here are global and apply to the entire model.
    compiler converts degrees into radians, and mjModel always uses radians. For URDF models the parser sets this
    attribute to "radian" internally, regardless of the XML setting.
 
+.. image:: images/changelog/meshfit.png
+   :align: right
+   :width: 40%
+
 .. _compiler-fitaabb:
 
 :at:`fitaabb`: :at-val:`[false, true], "false"`
    The compiler is able to replace a mesh with a geometric primitive fitted to that mesh; see :ref:`geom <body-geom>`
    below. If this attribute is "true", the fitting procedure uses the axis-aligned bounding box (aabb) of the mesh.
    Otherwise it uses the equivalent-inertia box of the mesh. The type of geometric primitive used for fitting is
-   specified separately for each geom.
+   specified separately for each geom. The models used to generate the image on the right can be found
+   `here <https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/fitmesh_inertiabox.xml>`__ (fit inertia
+   box) and `here <https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/fitmesh_aabb.xml>`__ (fit
+   aabb).
 
 .. _compiler-eulerseq:
 
@@ -1230,7 +1237,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 :at:`content_type`: :at-val:`string, optional`
    If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME type) of the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME type) of the
    file to be loaded. Any filename extensions will be overloaded.  Currently ``model/vnd.mujoco.msh``, ``model/obj``,
    and ``model/stl`` are supported.
 
