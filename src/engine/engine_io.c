@@ -1990,7 +1990,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   mju_zero(d->mocap_pos, 3*m->nmocap);
   mju_zero(d->mocap_quat, 4*m->nmocap);
 
-  // zero out qM, special case because scattring from M skips simple body off-diagonals
+  // zero out qM, special case because scattering from M skips simple body off-diagonals
   mju_zero(d->qM, m->nM);
 
   // copy qpos0 from model
