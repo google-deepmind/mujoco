@@ -192,6 +192,16 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
     stage, "/mesh_test/Materials/material_layered/orm_packed.inputs:file",
     pxr::SdfAssetPath("textures/orm.png"));
 
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/emissive");
+  ExpectAttributeHasConnection(
+    stage,
+    "/mesh_test/Materials/material_layered/"
+    "PreviewSurface.inputs:emissiveColor",
+    "/mesh_test/Materials/material_layered/emissive.outputs:rgb");
+  ExpectAttributeEqual(
+    stage, "/mesh_test/Materials/material_layered/emissive.inputs:file",
+    pxr::SdfAssetPath("textures/emissive.png"));
+
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_metallic");
   EXPECT_PRIM_VALID(stage,
                     "/mesh_test/Materials/material_metallic/PreviewSurface");

@@ -91,6 +91,7 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((inputsWrapS, "inputs:wrapS"))
                          ((inputsWrapT, "inputs:wrapT"))
                          ((inputsDiffuseColor, "inputs:diffuseColor"))
+                         ((inputsEmissiveColor, "inputs:emissiveColor"))
                          ((outputsRgb, "outputs:rgb"))
                          ((outputsR, "outputs:r"))
                          ((outputsG, "outputs:g"))
@@ -790,6 +791,26 @@ class ModelWriter {
         if (normal_map_output_attrs.size() == 1) {
           AddAttributeConnection(data_, normal_attr,
                                  normal_map_output_attrs[0]);
+        }
+      }
+    }
+
+    // Connect an emissive texture if specified.
+    if (mjTEXROLE_EMISSIVE < textures.size()) {
+      std::string emissive_texture_name = textures[mjTEXROLE_EMISSIVE];
+      mjsTexture *emissive_texture = mjs_asTexture(
+          mjs_findElement(spec_, mjOBJ_TEXTURE, emissive_texture_name.c_str()));
+      if (emissive_texture) {
+        pxr::SdfPath emissive_attr = CreateAttributeSpec(
+            data_, preview_surface_shader_path, kTokens->inputsEmissiveColor,
+            pxr::SdfValueTypeNames->Color3f);
+        const std::vector<pxr::SdfPath> emissive_map_output_attrs =
+            AddTextureShader(material_path, emissive_texture->file->c_str(),
+                             pxr::TfToken("emissive"), uvmap_st_output_attr,
+                             {kTokens->outputsRgb});
+        if (emissive_map_output_attrs.size() == 1) {
+          AddAttributeConnection(data_, emissive_attr,
+                                 emissive_map_output_attrs[0]);
         }
       }
     }
