@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./sceneAPI.h"
+#include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 
 #include "pxr/usd/sdf/assetPath.h"
 #include "pxr/usd/sdf/types.h"

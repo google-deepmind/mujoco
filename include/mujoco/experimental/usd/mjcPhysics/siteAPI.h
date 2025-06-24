@@ -17,7 +17,7 @@
 
 /// \file mjcPhysics/siteAPI.h
 
-#include "./api.h"
+#include <mujoco/experimental/usd/mjcPhysics/api.h>
 #include "pxr/base/gf/matrix4d.h"
 #include "pxr/base/gf/vec3d.h"
 #include "pxr/base/gf/vec3f.h"

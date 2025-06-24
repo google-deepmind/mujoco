@@ -23,7 +23,7 @@
 
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
-#include "third_party/mujoco/src/experimental/usd/mjcPhysics/tokens.h"
+#include <mujoco/experimental/usd/mjcPhysics/tokens.h>
 #include "mjcf/utils.h"
 #include <pxr/base/arch/attributes.h>
 #include <pxr/base/gf/matrix4d.h>

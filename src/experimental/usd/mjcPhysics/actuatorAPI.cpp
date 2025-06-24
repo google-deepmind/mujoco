@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./actuatorAPI.h"
+#include <mujoco/experimental/usd/mjcPhysics/actuatorAPI.h>
 
 #include "pxr/usd/sdf/assetPath.h"
 #include "pxr/usd/sdf/types.h"

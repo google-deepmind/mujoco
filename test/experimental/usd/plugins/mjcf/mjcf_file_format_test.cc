@@ -17,12 +17,12 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "src/experimental/usd/mjcPhysics/actuatorAPI.h"
-#include "src/experimental/usd/mjcPhysics/collisionAPI.h"
-#include "src/experimental/usd/mjcPhysics/meshCollisionAPI.h"
-#include "src/experimental/usd/mjcPhysics/sceneAPI.h"
-#include "src/experimental/usd/mjcPhysics/siteAPI.h"
-#include "src/experimental/usd/mjcPhysics/tokens.h"
+#include <mujoco/experimental/usd/mjcPhysics/actuatorAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/meshCollisionAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/tokens.h>
 #include "test/experimental/usd/test_utils.h"
 #include "test/fixture.h"
 #include <pxr/base/gf/vec2f.h>

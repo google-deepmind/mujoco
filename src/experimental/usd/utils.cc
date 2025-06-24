@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "third_party/mujoco/src/experimental/usd/utils.h"
+#include <mujoco/experimental/usd/utils.h>
 
 #include <mujoco/mujoco.h>
 #include <pxr/usd/sdf/path.h>

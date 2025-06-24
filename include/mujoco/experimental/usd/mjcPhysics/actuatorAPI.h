@@ -17,8 +17,8 @@
 
 /// \file mjcPhysics/actuatorAPI.h
 
-#include "./api.h"
-#include "./tokens.h"
+#include <mujoco/experimental/usd/mjcPhysics/api.h>
+#include <mujoco/experimental/usd/mjcPhysics/tokens.h>
 #include "pxr/base/gf/matrix4d.h"
 #include "pxr/base/gf/vec3d.h"
 #include "pxr/base/gf/vec3f.h"
