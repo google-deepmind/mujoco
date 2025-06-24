@@ -21,7 +21,7 @@
 
 #include <mujoco/mujoco.h>
 #include "mjcf/mujoco_to_usd.h"
-#include "third_party/tinyxml2/tinyxml2.h"
+#include "tinyxml2.h"
 #include <pxr/base/tf/diagnostic.h>
 #include <pxr/base/tf/enum.h>
 #include <pxr/base/tf/pathUtils.h>

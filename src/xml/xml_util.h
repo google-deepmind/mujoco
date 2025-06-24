@@ -24,10 +24,9 @@
 #include <vector>
 #include <sstream>
 
-#include "tinyxml2.h"
-
 #include <mujoco/mujoco.h>
 #include "user/user_util.h"
+#include "tinyxml2.h"
 
 // error string copy
 void mjCopyError(char* dst, const char* src, int maxlen);

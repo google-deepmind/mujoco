@@ -26,7 +26,6 @@
 #include "xml/xml_native_reader.h"
 #include "xml/xml_urdf.h"
 #include "xml/xml_util.h"
-
 #include "tinyxml2.h"
 
 using tinyxml2::XMLElement;

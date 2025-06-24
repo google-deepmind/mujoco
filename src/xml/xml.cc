@@ -27,8 +27,6 @@
 #include <string_view>
 #include <unordered_set>
 
-#include "tinyxml2.h"
-
 #include <mujoco/mujoco.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
@@ -42,6 +40,7 @@
 #include "xml/xml_native_writer.h"
 #include "xml/xml_urdf.h"
 #include "xml/xml_util.h"
+#include "tinyxml2.h"
 
 namespace {
 
