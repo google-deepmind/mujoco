@@ -757,21 +757,29 @@ class ModelWriter {
         AddUVTextureShader(material_path, pxr::TfToken("uvmap"));
     const mjStringVec &textures = *(material->textures);
 
-    // Set the values of metallic and roughness. These can come from an ORM
-    // texture or as a value defined in mjsMaterial_. Occlusion is only present
-    // in the ORM texture.
+    // Set the values of metallic, roughness and occlusion. These can come from
+    // an ORM packed texture, as individual textures, or as a values defined in
+    // mjsMaterial_ (with the exception of occlusion).
     pxr::SdfPath metallic_attr = CreateAttributeSpec(
         data_, preview_surface_shader_path, kTokens->inputsMetallic,
         pxr::SdfValueTypeNames->Float);
     pxr::SdfPath roughness_attr = CreateAttributeSpec(
         data_, preview_surface_shader_path, kTokens->inputsRoughness,
         pxr::SdfValueTypeNames->Float);
-    // Find the ORM (occlusion, roughness, metallic) packed-channel texture if
-    // specified.
+    // Find the occlusion, roughness, and metallic textures.
     if (mjTEXROLE_ORM < textures.size()) {
       std::string orm_texture_name = textures[mjTEXROLE_ORM];
       mjsTexture *orm_texture = mjs_asTexture(
           mjs_findElement(spec_, mjOBJ_TEXTURE, orm_texture_name.c_str()));
+      std::string occlusion_texture_name = textures[mjTEXROLE_OCCLUSION];
+      mjsTexture *occlusion_texture = mjs_asTexture(mjs_findElement(
+          spec_, mjOBJ_TEXTURE, occlusion_texture_name.c_str()));
+      std::string roughness_texture_name = textures[mjTEXROLE_ROUGHNESS];
+      mjsTexture *roughness_texture = mjs_asTexture(mjs_findElement(
+          spec_, mjOBJ_TEXTURE, roughness_texture_name.c_str()));
+      std::string metallic_texture_name = textures[mjTEXROLE_METALLIC];
+      mjsTexture *metallic_texture = mjs_asTexture(
+          mjs_findElement(spec_, mjOBJ_TEXTURE, metallic_texture_name.c_str()));
       if (orm_texture) {
         // Create the ORM shader and connect its output to the preview
         // surface ORM attrs.
@@ -788,8 +796,43 @@ class ModelWriter {
           AddAttributeConnection(data_, metallic_attr, orm_output_attrs[2]);
         }
       } else {
-        SetAttributeDefault(data_, metallic_attr, material->metallic);
-        SetAttributeDefault(data_, roughness_attr, material->roughness);
+        if (metallic_texture) {
+          const std::vector<pxr::SdfPath> metallic_output_attrs =
+              AddTextureShader(material_path, metallic_texture->file->c_str(),
+                               pxr::TfToken("metallic"), uvmap_st_output_attr,
+                               {kTokens->outputsRgb});
+          if (metallic_output_attrs.size() == 1) {
+            AddAttributeConnection(data_, metallic_attr,
+                                   metallic_output_attrs[0]);
+          }
+        } else {
+          SetAttributeDefault(data_, metallic_attr, material->metallic);
+        }
+        if (roughness_texture) {
+          const std::vector<pxr::SdfPath> roughness_output_attrs =
+              AddTextureShader(material_path, roughness_texture->file->c_str(),
+                               pxr::TfToken("roughness"), uvmap_st_output_attr,
+                               {kTokens->outputsRgb});
+          if (roughness_output_attrs.size() == 1) {
+            AddAttributeConnection(data_, roughness_attr,
+                                   roughness_output_attrs[0]);
+          }
+        } else {
+          SetAttributeDefault(data_, roughness_attr, material->roughness);
+        }
+        if (occlusion_texture) {
+          pxr::SdfPath occlusion_attr = CreateAttributeSpec(
+              data_, preview_surface_shader_path, kTokens->inputsOcclusion,
+              pxr::SdfValueTypeNames->Float);
+          const std::vector<pxr::SdfPath> occlusion_output_attrs =
+              AddTextureShader(material_path, occlusion_texture->file->c_str(),
+                               pxr::TfToken("occlusion"), uvmap_st_output_attr,
+                               {kTokens->outputsRgb});
+          if (occlusion_output_attrs.size() == 1) {
+            AddAttributeConnection(data_, occlusion_attr,
+                                   occlusion_output_attrs[0]);
+          }
+        }
       }
     }
     // Find the normal texture if specified.

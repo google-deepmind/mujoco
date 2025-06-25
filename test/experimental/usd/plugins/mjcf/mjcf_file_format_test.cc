@@ -166,56 +166,101 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
       stage, "/mesh_test/Materials/material_texture/diffuse.inputs:file",
       pxr::SdfAssetPath("textures/cube.png"));
 
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_metallic");
+  EXPECT_PRIM_VALID(stage,
+                    "/mesh_test/Materials/material_metallic/PreviewSurface");
+  ExpectAttributeEqual(
+      stage,
+      "/mesh_test/Materials/material_metallic/PreviewSurface.inputs:metallic",
+      0.6f);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialLayers) {
+  const std::string xml_path = GetTestDataFilePath(kMaterialsPath);
+  auto stage = pxr::UsdStage::Open(xml_path);
+  EXPECT_THAT(stage, testing::NotNull());
+
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered");
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/uvmap");
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/diffuse");
 
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/normal");
   ExpectAttributeHasConnection(
-    stage,
-    "/mesh_test/Materials/material_layered/"
-    "PreviewSurface.inputs:normal",
-    "/mesh_test/Materials/material_layered/normal.outputs:rgb");
+      stage,
+      "/mesh_test/Materials/material_layered/"
+      "PreviewSurface.inputs:normal",
+      "/mesh_test/Materials/material_layered/normal.outputs:rgb");
   ExpectAttributeEqual(
-    stage, "/mesh_test/Materials/material_layered/normal.inputs:file",
-    pxr::SdfAssetPath("textures/normal.png"));
+      stage, "/mesh_test/Materials/material_layered/normal.inputs:file",
+      pxr::SdfAssetPath("textures/normal.png"));
 
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/orm_packed");
   ExpectAttributeHasConnection(
-    stage,
-    "/mesh_test/Materials/material_layered/"
-    "PreviewSurface.inputs:occlusion",
-    "/mesh_test/Materials/material_layered/orm_packed.outputs:r");
+      stage,
+      "/mesh_test/Materials/material_layered/"
+      "PreviewSurface.inputs:occlusion",
+      "/mesh_test/Materials/material_layered/orm_packed.outputs:r");
   ExpectAttributeHasConnection(
-    stage,
-    "/mesh_test/Materials/material_layered/"
-    "PreviewSurface.inputs:roughness",
-    "/mesh_test/Materials/material_layered/orm_packed.outputs:g");
+      stage,
+      "/mesh_test/Materials/material_layered/"
+      "PreviewSurface.inputs:roughness",
+      "/mesh_test/Materials/material_layered/orm_packed.outputs:g");
   ExpectAttributeHasConnection(
-    stage,
-    "/mesh_test/Materials/material_layered/"
-    "PreviewSurface.inputs:metallic",
-    "/mesh_test/Materials/material_layered/orm_packed.outputs:b");
+      stage,
+      "/mesh_test/Materials/material_layered/"
+      "PreviewSurface.inputs:metallic",
+      "/mesh_test/Materials/material_layered/orm_packed.outputs:b");
   ExpectAttributeEqual(
-    stage, "/mesh_test/Materials/material_layered/orm_packed.inputs:file",
-    pxr::SdfAssetPath("textures/orm.png"));
+      stage, "/mesh_test/Materials/material_layered/orm_packed.inputs:file",
+      pxr::SdfAssetPath("textures/orm.png"));
 
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_layered/emissive");
   ExpectAttributeHasConnection(
-    stage,
-    "/mesh_test/Materials/material_layered/"
-    "PreviewSurface.inputs:emissiveColor",
-    "/mesh_test/Materials/material_layered/emissive.outputs:rgb");
+      stage,
+      "/mesh_test/Materials/material_layered/"
+      "PreviewSurface.inputs:emissiveColor",
+      "/mesh_test/Materials/material_layered/emissive.outputs:rgb");
   ExpectAttributeEqual(
-    stage, "/mesh_test/Materials/material_layered/emissive.inputs:file",
-    pxr::SdfAssetPath("textures/emissive.png"));
+      stage, "/mesh_test/Materials/material_layered/emissive.inputs:file",
+      pxr::SdfAssetPath("textures/emissive.png"));
+}
 
-  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_metallic");
+TEST_F(MjcfSdfFileFormatPluginTest, TestMaterialPBRSeparate) {
+  const std::string xml_path = GetTestDataFilePath(kMaterialsPath);
+  auto stage = pxr::UsdStage::Open(xml_path);
+
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_pbr_separate");
+  EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_pbr_separate/uvmap");
   EXPECT_PRIM_VALID(stage,
-                    "/mesh_test/Materials/material_metallic/PreviewSurface");
-  ExpectAttributeEqual(stage,
-    "/mesh_test/Materials/material_metallic/PreviewSurface.inputs:metallic",
-    0.6f);
+                    "/mesh_test/Materials/material_pbr_separate/occlusion");
+  ExpectAttributeHasConnection(
+      stage,
+      "/mesh_test/Materials/material_pbr_separate/"
+      "PreviewSurface.inputs:occlusion",
+      "/mesh_test/Materials/material_pbr_separate/occlusion.outputs:rgb");
+  ExpectAttributeEqual(
+      stage, "/mesh_test/Materials/material_pbr_separate/occlusion.inputs:file",
+      pxr::SdfAssetPath("textures/occlusion.png"));
+  EXPECT_PRIM_VALID(stage,
+                    "/mesh_test/Materials/material_pbr_separate/roughness");
+  ExpectAttributeHasConnection(
+      stage,
+      "/mesh_test/Materials/material_pbr_separate/"
+      "PreviewSurface.inputs:roughness",
+      "/mesh_test/Materials/material_pbr_separate/roughness.outputs:rgb");
+  ExpectAttributeEqual(
+      stage, "/mesh_test/Materials/material_pbr_separate/roughness.inputs:file",
+      pxr::SdfAssetPath("textures/roughness.png"));
+  EXPECT_PRIM_VALID(stage,
+                    "/mesh_test/Materials/material_pbr_separate/metallic");
+  ExpectAttributeHasConnection(
+      stage,
+      "/mesh_test/Materials/material_pbr_separate/"
+      "PreviewSurface.inputs:metallic",
+      "/mesh_test/Materials/material_pbr_separate/metallic.outputs:rgb");
+  ExpectAttributeEqual(
+      stage, "/mesh_test/Materials/material_pbr_separate/metallic.inputs:file",
+      pxr::SdfAssetPath("textures/metallic.png"));
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {
