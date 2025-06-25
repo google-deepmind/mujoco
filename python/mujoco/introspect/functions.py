@@ -9175,7 +9175,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Detach but not delete object corresponding to the given element, return 0 on success.',  # pylint: disable=line-too-long
+         doc='Remove object corresponding to the given element, return 0 on success.',  # pylint: disable=line-too-long
      )),
     ('mjs_addActuator',
      FunctionDecl(

@@ -340,7 +340,7 @@ int mj_copyBack(mjSpec* s, const mjModel* m) {
 
 
 
-// detach body from mjSpec, return 0 on success
+// remove body from mjSpec, return 0 on success
 int mjs_delete(mjSpec* s, mjsElement* element) {
   mjCModel* model = static_cast<mjCModel*>(s->element);
   if (!element) {

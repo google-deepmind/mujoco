@@ -96,25 +96,37 @@ Elements cannot be created directly; they are returned to the user by the corres
    my_geom->type = mjGEOM_BOX;                                    // set geom type
    my_geom->size[0] = my_geom->size[1] = my_geom->size[2] = 0.5;  // set box size
    mjModel* model = mj_compile(spec, NULL);                       // compile to mjModel
+   ...
+   mj_deleteModel(model);                                         // free model
+   mj_deleteSpec(spec);                                           // free spec
 
 The ``NULL`` second argument to :ref:`mjs_addGeom` is the optional default class pointer. When using defaults
 procedurally, default classes are passed in explicitly to element constructors. The global defaults of all elements
 (used when no default class is passed in) can be inspected in
 `user_init.c <https://github.com/google-deepmind/mujoco/blob/main/src/user/user_init.c>`__.
 
+.. _meMemory:
+
+Memory management
+^^^^^^^^^^^^^^^^^
+
+As seen in the examples above, model elements are never allocated by the user directly, but rather returned by a
+constructor. The library takes ownership of all elements and frees them when the parent :ref:`mjSpec` is deleted using
+:ref:`mj_deleteSpec`. The user is only responsible for freeing :ref:`mjSpec` structs.
+
 .. _meAttachment:
 
 Attachment
 ^^^^^^^^^^
 
-This framework introduces a powerful new feature: attaching and detaching model subtrees. This feature is already used
-to power the :ref:`attach<body-attach>` an :ref:`replicate<replicate>` meta-elements in MJCF. Attachment allows the user
-to move or copy a subtree from one model into another, while also copying or moving related referenced assets and
-referencing elements from outside the kinematic tree (e.g., actuators and sensors). Similarly, detaching a subtree will
-remove all associated elements from the model. The default behavior is to move the child into the parent while
-attaching, so subsequent changes to the child will also change the parent. Alternatively, the user can choose to make an
-entirely new copy during attach using :ref:`mjs_setDeepCopy`. This flag is temporarily set to true while parsing XMLs.
-It is possible to :ref:`attach a body to a frame<mjs_attach>`:
+This framework introduces a powerful new feature: attaching and deleting model subtrees. This feature is already used to
+power the :ref:`attach<body-attach>` an :ref:`replicate<replicate>` meta-elements in MJCF. Attachment allows the user to
+move or copy a subtree from one model into another, while also copying or moving related referenced assets and
+referencing elements from outside the kinematic tree (e.g., actuators and sensors). Similarly, deleting a subtree will
+remove all associated elements from the model. The default behavior ("shallow copy") is to move the child into the
+parent while attaching, so subsequent changes to the child will also change the parent. Alternatively, the user can
+choose to make an entirely new copy during attach using :ref:`mjs_setDeepCopy`. This flag is temporarily set to true
+while parsing XMLs. It is possible to :ref:`attach a body to a frame<mjs_attach>`:
 
 .. code-block:: C
 

@@ -103,7 +103,7 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
 
-// Detach but not delete object corresponding to the given element, return 0 on success.
+// Remove object corresponding to the given element, return 0 on success.
 MJAPI int mjs_delete(mjSpec* s, mjsElement* element);
 
 

@@ -605,7 +605,7 @@ Element removal
 ^^^^^^^^^^^^^^^
 The method ``delete()`` removes the corresponding element from the spec, e.g. ``spec.delete(spec.geom('my_geom'))`` will
 remove the geom named "my_geom" and all of the elements that reference it. For elements that can have children (bodies
-and defaults), ``delete`` removes also all of their children. When detaching body subtrees, all elements which reference
+and defaults), ``delete`` also removes all of their children. When deleting body subtrees, all elements which reference
 elements in the subtree, will also be removed.
 
 Tree traversal
