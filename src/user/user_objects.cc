@@ -1739,9 +1739,9 @@ void mjCBody::AccumulateInertia(const mjsBody* other, mjsBody* result) {
   // body_ipose = body_pose * body_ipose
   double other_ipos[3];
   double other_iquat[4];
-  mjuu_copyvec(other_ipos, other->ipos, 3);
-  mjuu_copyvec(other_iquat, other->iquat, 4);
-  mjuu_frameaccum(other_ipos, other_iquat, other->pos, other->quat);
+  mjuu_copyvec(other_ipos, other->pos, 3);
+  mjuu_copyvec(other_iquat, other->quat, 4);
+  mjuu_frameaccum(other_ipos, other_iquat, other->ipos, other->iquat);
 
   // organize data
   double mass[2] = {
