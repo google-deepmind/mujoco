@@ -78,7 +78,7 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((light, "Light"))
                          ((meshScope, "MeshSources"))
                          ((materialsScope, "Materials"))
-                         ((surface, "PreviewSurface"))
+                         ((previewSurface, "PreviewSurface"))
                          ((world, "World"))
                          ((xformOpTransform, "xformOp:transform"))
                          ((xformOpScale, "xformOp:scale"))
@@ -710,30 +710,49 @@ class ModelWriter {
   }
 
   void WriteMaterial(mjsMaterial *material, const pxr::SdfPath &parent_path) {
+    // Create a Material prim.
     auto name = GetAvailablePrimName(
         *material->name, pxr::UsdShadeTokens->Material, parent_path);
     pxr::SdfPath material_path =
         CreatePrimSpec(data_, parent_path, name, pxr::UsdShadeTokens->Material);
 
-    // Shader "PreviewSurface"
-    pxr::SdfPath preview_surface_shader_path = CreatePrimSpec(
-        data_, material_path, kTokens->surface, pxr::UsdShadeTokens->Shader);
+    // Create a Shader prim "PreviewSurface" under the Material prim.
+    pxr::SdfPath preview_surface_shader_path =
+        CreatePrimSpec(data_, material_path, kTokens->previewSurface,
+                       pxr::UsdShadeTokens->Shader);
 
+    // Set the Shader'sinfoId attribute to UsdPreviewSurface, a standard surface
+    // shader.
     pxr::SdfPath info_id_attr = CreateAttributeSpec(
         data_, preview_surface_shader_path, pxr::UsdShadeTokens->infoId,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
     SetAttributeDefault(data_, info_id_attr,
                         pxr::UsdImagingTokens->UsdPreviewSurface);
 
+    // Connect material's surface output to the preview surface's surface
+    // output.
     pxr::SdfPath surface_output_attr = CreateAttributeSpec(
         data_, preview_surface_shader_path, pxr::UsdShadeTokens->outputsSurface,
         pxr::SdfValueTypeNames->Token);
+    pxr::SdfPath material_surface_output_attr = CreateAttributeSpec(
+        data_, material_path, pxr::UsdShadeTokens->outputsSurface,
+        pxr::SdfValueTypeNames->Token);
+    AddAttributeConnection(data_, material_surface_output_attr,
+                           surface_output_attr);
 
+    // Connect material's displacement output to the preview surface's
+    // displacement output.
     pxr::SdfPath displacement_output_attr =
         CreateAttributeSpec(data_, preview_surface_shader_path,
                             pxr::UsdShadeTokens->outputsDisplacement,
                             pxr::SdfValueTypeNames->Token);
+    pxr::SdfPath material_displacement_output_attr = CreateAttributeSpec(
+        data_, material_path, pxr::UsdShadeTokens->outputsDisplacement,
+        pxr::SdfValueTypeNames->Token);
+    AddAttributeConnection(data_, material_displacement_output_attr,
+                           displacement_output_attr);
 
+    // Add an st (uv) Shader, a prim var reader for the UV coordinates.
     const pxr::SdfPath &uvmap_st_output_attr =
         AddUVTextureShader(material_path, pxr::TfToken("uvmap"));
     const mjStringVec &textures = *(material->textures);
@@ -815,6 +834,8 @@ class ModelWriter {
       }
     }
 
+    // Set the value of diffuse color. This can come from a diffuse texture
+    // or as a value defined in mjsMaterial_.
     pxr::SdfPath diffuse_color_attr = CreateAttributeSpec(
         data_, preview_surface_shader_path, kTokens->inputsDiffuseColor,
         pxr::SdfValueTypeNames->Color3f);
@@ -840,20 +861,6 @@ class ModelWriter {
                           pxr::GfVec3f(material->rgba[0], material->rgba[1],
                                        material->rgba[2]));
     }
-
-    pxr::SdfPath material_surface_output_attr = CreateAttributeSpec(
-        data_, material_path, pxr::UsdShadeTokens->outputsSurface,
-        pxr::SdfValueTypeNames->Token);
-
-    AddAttributeConnection(data_, material_surface_output_attr,
-                           surface_output_attr);
-
-    pxr::SdfPath material_displacement_output_attr = CreateAttributeSpec(
-        data_, material_path, pxr::UsdShadeTokens->outputsDisplacement,
-        pxr::SdfValueTypeNames->Token);
-
-    AddAttributeConnection(data_, material_displacement_output_attr,
-                           displacement_output_attr);
   }
 
   void WriteMaterials() {

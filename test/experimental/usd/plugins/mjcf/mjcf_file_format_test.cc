@@ -143,6 +143,14 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
       stage,
       "/mesh_test/Materials/material_red/PreviewSurface.inputs:diffuseColor",
       pxr::GfVec3f(0.8, 0, 0));
+  ExpectAttributeHasConnection(
+    stage,
+    "/mesh_test/Materials/material_red.outputs:surface",
+    "/mesh_test/Materials/material_red/PreviewSurface.outputs:surface");
+  ExpectAttributeHasConnection(
+    stage,
+    "/mesh_test/Materials/material_red.outputs:displacement",
+    "/mesh_test/Materials/material_red/PreviewSurface.outputs:displacement");
 
   EXPECT_PRIM_VALID(stage, "/mesh_test/Materials/material_texture");
   EXPECT_PRIM_VALID(stage,
