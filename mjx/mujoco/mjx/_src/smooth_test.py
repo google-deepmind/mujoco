@@ -321,32 +321,7 @@ class TendonTest(parameterized.TestCase):
   @parameterized.parameters(JacobianType.DENSE, JacobianType.SPARSE)
   def test_tendon_armature(self, jacobian):
     """Tests MJX tendon armature matches MuJoCo."""
-    m = mujoco.MjModel.from_xml_string("""
-        <mujoco>
-          <worldbody>
-            <site name="site0" pos="1 0 1"/>
-            <body>
-              <joint type="slide" axis="0 0 1"/>
-              <joint type="hinge" axis="0 1 0"/>
-              <geom type="box" size="0.1 0.1 0.1" mass="1" pos="1 0 0"/>
-              <site name="site1"/>
-            </body>
-          </worldbody>
-          <tendon>
-            <spatial armature="123">
-              <site site="site0"/>
-              <site site="site1"/>
-            </spatial>
-            <spatial armature="456">
-              <site site="site0"/>
-              <site site="site1"/>
-            </spatial>
-          </tendon>
-          <keyframe>
-            <key qpos="1.2345 1.2345" qvel="1.2345 1.2345"/>
-          </keyframe>
-        </mujoco>
-        """)
+    m = test_util.load_test_file('tendon/armature.xml')
     m.opt.jacobian = jacobian
     d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, 0)
