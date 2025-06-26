@@ -42,14 +42,26 @@ option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
 option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
 option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
 option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
-option(MUJOCO_BUILD_USD_PLUGINS "Build OpenUSD plugins" OFF)
+option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
 
-# USD libs to compile against.
-set(MUJOCO_USD_ALLOWED_TARGET_VALUES "USD" "Houdini")
-set(MUJOCO_USD_TARGET "USD" CACHE STRING "Select the USD target for the project.")
-set_property(CACHE MUJOCO_USD_TARGET
-  PROPERTY STRINGS ${MUJOCO_USD_ALLOWED_TARGET_VALUES}
-)
+# Option to provide a path to an existing USD build directory or to Houdini HFS directory.
+set(USD_DIR "" CACHE PATH "Path to an existing USD build directory.")
+set(HOUDINI_HFS_DIR "" CACHE PATH "Path to Houdini HFS directory to build USD plugins against.")
+if(USD_DIR)
+  if(EXISTS "${USD_DIR}")
+    # If the path is provided, set MUJOCO_WITH_USD to ON and add the path to CMAKE_PREFIX_PATH.
+    set(MUJOCO_WITH_USD ON CACHE BOOL "Build with OpenUSD" FORCE)
+    list(PREPEND CMAKE_PREFIX_PATH "${USD_DIR}")
+    message(STATUS "Using custom USD build directory: ${USD_DIR}")
+  else()
+    message(WARNING "Invalid path provided for USD_DIR: ${USD_DIR}")
+  endif()
+elseif(HOUDINI_HFS_DIR)
+  if(EXISTS "${HOUDINI_HFS_DIR}")
+    set(MUJOCO_WITH_USD ON CACHE BOOL "Build with OpenUSD" FORCE)
+    message(STATUS "Building Mujoco USD against Houdini HFS: ${HOUDINI_HFS_DIR}")
+  endif()
+endif()
 
 if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
   enable_language(OBJC)
@@ -189,8 +201,8 @@ if(MUJOCO_BUILD_EXAMPLES)
   add_subdirectory(sample)
 endif()
 
-if(MUJOCO_BUILD_USD_PLUGINS)
-  add_subdirectory(src/experimental/usd/plugins)
+if(MUJOCO_WITH_USD)
+  add_subdirectory(src/experimental/usd)
 endif()
 
 if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
