@@ -14,10 +14,10 @@
 
 #include <mujoco/experimental/usd/mjcPhysics/actuatorAPI.h>
 
-#include "pxr/usd/sdf/assetPath.h"
-#include "pxr/usd/sdf/types.h"
-#include "pxr/usd/usd/schemaRegistry.h"
-#include "pxr/usd/usd/typed.h"
+#include <pxr/usd/sdf/assetPath.h>
+#include <pxr/usd/sdf/types.h>
+#include <pxr/usd/usd/schemaRegistry.h>
+#include <pxr/usd/usd/typed.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
