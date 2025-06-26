@@ -1821,6 +1821,17 @@ class ModelWriter {
                                          : pxr::KindTokens->subcomponent;
     SetPrimKind(data_, body_path, kind);
 
+    // If the parent is not the world body, but is child of the world body
+    // then we need to apply the articulation root API.
+    if (parent_id != kWorldIndex) {
+      int parent_parent_id =
+          mjs_getId(mjs_getParent(parent->element)->element);
+      if (parent_parent_id == kWorldIndex) {
+        ApplyApiSchema(data_, parent_path,
+                       pxr::UsdPhysicsTokens->PhysicsArticulationRootAPI);
+      }
+    }
+
     // Apply the PhysicsRigidBodyAPI schema if we are writing physics.
     if (write_physics_) {
       // If the body had a mass specified then it must have either inertia or
@@ -1925,13 +1936,6 @@ class ModelWriter {
         CreatePrimSpec(data_, pxr::SdfPath::AbsoluteRootPath(), name,
                        pxr::UsdGeomTokens->Xform);
     SetPrimKind(data_, world_group_path, pxr::KindTokens->group);
-
-    if (write_physics_) {
-      // Apply the PhysicsArticulationRootAPI to the world body so that
-      // everything under it is automatically considered an articulation.
-      ApplyApiSchema(data_, world_group_path,
-                     pxr::UsdPhysicsTokens->PhysicsArticulationRootAPI);
-    }
 
     return world_group_path;
   }

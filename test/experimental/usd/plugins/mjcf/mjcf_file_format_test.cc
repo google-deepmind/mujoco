@@ -1139,6 +1139,9 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsRigidBody) {
             <geom name="test_geom_2" type="sphere" size="1"/>
           </body>
         </body>
+        <body name="test_body_3" pos="0 0 0">
+          <geom name="test_geom_3" type="sphere" size="1"/>
+        </body>
       </worldbody>
     </mujoco>
   )";
@@ -1153,18 +1156,26 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsRigidBody) {
   EXPECT_PRIM_VALID(stage, "/physics_test/test_body");
   EXPECT_PRIM_VALID(stage, "/physics_test/test_body/test_body_2");
 
-  // Articulation root is applied to the root of the physics scene (worldbody).
-  EXPECT_PRIM_API_APPLIED(stage, "/physics_test",
-                          pxr::UsdPhysicsArticulationRootAPI);
-
   EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body",
                           pxr::UsdPhysicsRigidBodyAPI);
-  EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body",
-                              pxr::UsdPhysicsArticulationRootAPI);
   EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body/test_body_2",
                           pxr::UsdPhysicsRigidBodyAPI);
+  EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body_3",
+                          pxr::UsdPhysicsRigidBodyAPI);
+
+  // Articulation root is applied to the children of the world body.
+  EXPECT_PRIM_API_APPLIED(stage, "/physics_test/test_body",
+                          pxr::UsdPhysicsArticulationRootAPI);
+  // test_body_3 is a child of the world but has no children so should not be
+  // an articulation root.
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body_3",
+                          pxr::UsdPhysicsArticulationRootAPI);
+
+  // Articulation root is not applied to other bodies or world body.
+  EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test",
+                          pxr::UsdPhysicsArticulationRootAPI);
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body/test_body_2",
-                              pxr::UsdPhysicsArticulationRootAPI);
+                          pxr::UsdPhysicsArticulationRootAPI);
 
   // Geoms should not have RigidBodyAPI applied either.
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body/test_geom",
