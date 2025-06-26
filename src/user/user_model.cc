@@ -4515,10 +4515,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   }
 
   // check mass and inertia of moving bodies
-  if (bodies_.size() > 1) {
-    // we ignore the first body as it is the world body
-    if (!CheckBodiesMassInertia(std::vector<mjCBody*>(bodies_.begin()+1, bodies_.end()))) {
-      throw mjCError(0, "mass and inertia of moving bodies must be larger than mjMINVAL");
+  for (int i=1; i < bodies_.size(); i++) {
+    if (!bodies_[i]->joints.empty() && !CheckBodyMassInertia(bodies_[i])) {
+      throw mjCError(bodies_[i], "mass and inertia of moving bodies must be larger than mjMINVAL");
     }
   }
 
@@ -4759,20 +4758,6 @@ uint64_t mjCModel::Signature() {
     tree += "<key/>\n";
   }
   return mj_hashString(tree.c_str(), UINT64_MAX);
-}
-
-
-
-bool mjCModel::CheckBodiesMassInertia(std::vector<mjCBody*> bodies) {
-  // check mass and inertia of moving bodies
-  for (int i=0; i < bodies.size(); i++) {
-    if (!bodies[i]->joints.empty()) {
-      if (!CheckBodyMassInertia(bodies[i])) {
-        return false;
-      }
-    }
-  }
-  return true;
 }
 
 

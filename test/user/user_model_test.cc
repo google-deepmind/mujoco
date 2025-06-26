@@ -196,7 +196,7 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
     <worldbody>
       <body>
         <geom size="1"/>
-        <body>
+        <body name="bad">
           <freejoint/>
           <body>
             <body>
@@ -214,6 +214,7 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
       error,
       HasSubstr(
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
+  EXPECT_THAT(error, HasSubstr("Element name 'bad'"));
   mj_deleteModel(model);
 }
 

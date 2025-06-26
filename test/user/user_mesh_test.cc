@@ -529,7 +529,7 @@ TEST_F(MjCMeshTest, TinyInertiaFails) {
       <mesh name="tiny" vertex="0 0 0  1e-4 0 0  0 1e-4 0  0 0 1e-4"/>
     </asset>
     <worldbody>
-      <body>
+      <body name="tiny_body">
         <freejoint/>
         <geom type="mesh" mesh="tiny"/>
       </body>
@@ -542,6 +542,7 @@ TEST_F(MjCMeshTest, TinyInertiaFails) {
       error.data(),
       HasSubstr(
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
+  EXPECT_THAT(error.data(), HasSubstr("Element name 'tiny_body'"));
 }
 
 TEST_F(MjCMeshTest, FlippedFaceAllowedLegacyInertia) {
