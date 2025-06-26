@@ -1503,6 +1503,31 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsActuatorGeneral) {
                        pxr::VtDoubleArray{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}});
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointActuator) {
+  static constexpr char xml[] = R"(
+  <mujoco model="test">
+    <worldbody>
+      <body name="axle">
+        <body name="rod">
+          <joint name="rod_hinge" type="hinge"/>
+          <geom name="box" type="box" size=".05 .05 .05" density="1234"/>
+        </body>
+      </body>
+    </worldbody>
+    <actuator>
+      <general
+        name="general"
+        joint="rod_hinge"
+      />
+    </actuator>
+  </mujoco>
+  )";
+  auto stage = OpenStageWithPhysics(xml);
+
+  EXPECT_PRIM_API_APPLIED(stage, "/test/axle/rod/rod_hinge",
+                          pxr::MjcPhysicsActuatorAPI);
+}
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsBodyActuator) {
   static constexpr char xml[] = R"(
   <mujoco model="test">

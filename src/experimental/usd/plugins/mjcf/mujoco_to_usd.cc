@@ -171,6 +171,7 @@ class ModelWriter {
       : spec_(spec), model_(model), data_(data), class_path_("/Bad_Path") {
     body_paths_ = std::vector<pxr::SdfPath>(model->nbody);
     site_paths_ = std::vector<pxr::SdfPath>(model->nsite);
+    joint_paths_ = std::vector<pxr::SdfPath>(model->njnt);
   }
   ~ModelWriter() { mj_deleteModel(model_); }
 
@@ -221,6 +222,8 @@ class ModelWriter {
   std::vector<pxr::SdfPath> body_paths_;
   // Mapping from Mujoco site id to SdfPath.
   std::vector<pxr::SdfPath> site_paths_;
+  // Mapping from Mujoco joint id to SdfPath.
+  std::vector<pxr::SdfPath> joint_paths_;
   // Mapping from mesh names to Mesh prim path.
   std::unordered_map<std::string, pxr::SdfPath> mesh_paths_;
   // Whether to write physics data.
@@ -935,6 +938,9 @@ class ModelWriter {
                actuator->trntype == mjtTrn::mjTRN_SLIDERCRANK) {
       int site_id = mj_name2id(model_, mjOBJ_SITE, actuator->target->c_str());
       transmission_path = site_paths_[site_id];
+    } else if (actuator->trntype == mjtTrn::mjTRN_JOINT) {
+      int joint_id = mj_name2id(model_, mjOBJ_JOINT, actuator->target->c_str());
+      transmission_path = joint_paths_[joint_id];
     } else {
       TF_WARN(UnsupportedActuatorTypeError,
               "Unsupported actuator type for actuator %d",
@@ -1710,6 +1716,9 @@ class ModelWriter {
               upper_limit);
         }
       }
+    }
+    if (joint_id >= 0) {
+      joint_paths_[joint_id] = joint_path;
     }
   }
 
