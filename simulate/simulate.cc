@@ -2364,6 +2364,10 @@ void Simulate::LoadOnRenderThread() {
     }
   }
 
+#ifdef mjBUILDSIMULATEXR
+  if (this->simXr.is_initialized()) this->simXr.set_vis_params(this->m_);
+#endif  // mjBUILDSIMULATEXR
+
   // re-create scene
   mjv_makeScene(this->m_, &this->scn, kMaxGeom);
 
@@ -2407,6 +2411,11 @@ void Simulate::LoadOnRenderThread() {
     m_passive_ = mj_copyModel(nullptr, m_);
     d_passive_ = mj_copyData(nullptr, m_passive_, d_);
   }
+
+#ifdef mjBUILDSIMULATEXR
+  if (this->simXr.is_initialized())
+    this->simXr.set_scn_params(&this->scn);
+#endif // mjBUILDSIMULATEXR
 
   // set window title to model name
   if (this->m_->names) {
@@ -2597,7 +2606,23 @@ void Simulate::Render() {
   }
 
   // render scene
+#ifdef mjBUILDSIMULATEXR
+  if (this->simXr.is_initialized()) {
+    this->simXr.before_render(&this->scn, this->m_);
+    mjrRect rectXR = {0, 0, 0, 0};
+    rectXR.width = (int)this->simXr.width_render;
+    rectXR.height = (int)this->simXr.height;
+    // render in offscreen buffer
+    mjr_setBuffer(mjFB_OFFSCREEN, &this->platform_ui->mjr_context());
+    mjr_render(rectXR, &this->scn, &this->platform_ui->mjr_context());
+    this->simXr.after_render(&this->platform_ui->mjr_context());
+    mjr_setBuffer(mjFB_WINDOW, &this->platform_ui->mjr_context());
+  } else {
+    mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
+  }
+#else //mjBUILDSIMULATEXR
   mjr_render(rect, &this->scn, &this->platform_ui->mjr_context());
+#endif //mjBUILDSIMULATEXR
 
   // show last loading error
   if (this->load_error[0]) {
@@ -2749,6 +2774,14 @@ void Simulate::Render() {
 
 
 void Simulate::RenderLoop() {
+#ifdef mjBUILDSIMULATEXR
+  this->simXr.init();
+  if (this->simXr.is_initialized()) {
+    this->simXr.set_scn_params(&this->scn);
+    this->simXr.set_vis_params(this->m_);
+  }
+#endif  // mjBUILDSIMULATEXR
+
   // Set timer callback (milliseconds)
   mjcb_time = Timer;
 
@@ -2898,6 +2931,10 @@ void Simulate::RenderLoop() {
     mj_deleteData(d_passive_);
     mj_deleteModel(m_passive_);
   }
+
+#ifdef mjBUILDSIMULATEXR
+  this->simXr.deinit();
+#endif  // mjBUILDSIMULATEXR
 
   this->exitrequest.store(2);
 }
