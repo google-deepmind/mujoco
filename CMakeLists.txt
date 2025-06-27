@@ -96,7 +96,7 @@ else()
   set(MUJOCO_RESOURCE_FILES "")
 endif()
 
-add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
+add_library(mujoco ${MUJOCO_RESOURCE_FILES})
 target_include_directories(
   mujoco
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -115,7 +115,13 @@ add_subdirectory(src/render)
 add_subdirectory(src/thread)
 add_subdirectory(src/ui)
 
-target_compile_definitions(mujoco PRIVATE _GNU_SOURCE CCD_STATIC_DEFINE MUJOCO_DLL_EXPORTS -DMC_IMPLEM_ENABLE)
+target_compile_definitions(mujoco PRIVATE _GNU_SOURCE CCD_STATIC_DEFINE -DMC_IMPLEM_ENABLE)
+if(BUILD_SHARED_LIBS)
+  target_compile_definitions(mujoco PRIVATE MUJOCO_DLL_EXPORTS)
+else()
+  target_compile_definitions(mujoco PRIVATE MJ_STATIC)
+endif()
+
 if(MUJOCO_ENABLE_AVX_INTRINSICS)
   target_compile_definitions(mujoco PUBLIC mjUSEPLATFORMSIMD)
 endif()
@@ -216,7 +222,7 @@ endif()
 if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
   # Install the libraries.
   install(
-    TARGETS mujoco
+    TARGETS mujoco lodepng
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT runtime
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT runtime
