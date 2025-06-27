@@ -49,6 +49,8 @@
 #include <pxr/usd/usdGeom/gprim.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/plane.h>
+#include <pxr/usd/usdGeom/primvar.h>
+#include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdGeom/sphere.h>
 #include <pxr/usd/usdGeom/tokens.h>
 #include <pxr/usd/usdGeom/xformCache.h>
@@ -740,6 +742,32 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
 
   if (prim.HasAPI<pxr::MjcPhysicsCollisionAPI>()) {
     ParseMjcPhysicsCollisionAPI(geom, pxr::MjcPhysicsCollisionAPI(prim));
+  }
+
+  // Convert displayColor and displayOpacity to rgba.
+  // We want to support primvar inheritance, hence FindPrimvarWithInheritance.
+  pxr::UsdGeomPrimvarsAPI primvarsAPI(prim);
+  pxr::UsdGeomPrimvar displayColorPrimvar =
+      primvarsAPI.FindPrimvarWithInheritance(
+          pxr::UsdGeomTokens->primvarsDisplayColor);
+  pxr::UsdGeomPrimvar displayOpacityPrimvar =
+      primvarsAPI.FindPrimvarWithInheritance(
+          pxr::UsdGeomTokens->primvarsDisplayOpacity);
+  if (displayColorPrimvar.HasAuthoredValue()) {
+    pxr::VtArray<pxr::GfVec3f> display_color;
+    displayColorPrimvar.Get(&display_color);
+    if (!display_color.empty()) {
+      geom->rgba[0] = display_color[0][0];
+      geom->rgba[1] = display_color[0][1];
+      geom->rgba[2] = display_color[0][2];
+    }
+  }
+  if (displayOpacityPrimvar.HasAuthoredValue()) {
+    pxr::VtArray<float> display_opacity;
+    displayOpacityPrimvar.Get(&display_opacity);
+    if (!display_opacity.empty()) {
+      geom->rgba[3] = display_opacity[0];
+    }
   }
 
   SetLocalPoseFromPrim(prim, parent_prim, geom, xform_cache);
