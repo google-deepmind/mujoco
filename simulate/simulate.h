@@ -54,9 +54,10 @@ class Simulate {
       std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
       mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, bool is_passive);
 
-  // Synchronize mjModel and mjData state with UI inputs, and update
-  // visualization.
-  void Sync();
+  // Synchronize state with UI inputs, and update visualization.  If state_only
+  // is false mjData and mjModel will be updated, otherwise only the subset of
+  // mjData corresponding to mjSTATE_INTEGRATION will be synced.
+  void Sync(bool state_only = false);
 
   void UpdateHField(int hfieldid);
   void UpdateMesh(int meshid);

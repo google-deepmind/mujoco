@@ -15,6 +15,8 @@ General
 ^^^^^^^
 - Added support for setting the initial camera in the viewer using
   :ref:`visual/global/cameraid<visual-global-cameraid>`.
+- Added support to only sync the state in the Python :ref:`passive viewer<PyViewerPassive>`'s ``Sync`` method, this is
+  useful to improve performance. The default behavior is unchanged and copies the entire model and data.
 
 Bug fixes
 ^^^^^^^^^
