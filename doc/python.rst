@@ -90,11 +90,11 @@ code to continue execution. In this mode, the user's script is responsible for t
 and mouse-drag perturbations will not work unless the user explicitly synchronizes incoming events.
 
 .. warning::
-  On MacOS, ``launch_passive`` requires that the user script is executed via a special ``mjpython`` launcher.
-  The ``mjpython`` command is installed as part of the ``mujoco`` package, and can be used as a drop-in replacement
-  for the usual ``python`` command and supports an identical set of command line flags and arguments. For example,
-  a script can be executed via ``mjpython my_script.py``, and an IPython shell can be launched via
-  ``mjpython -m IPython``.
+  On MacOS, ``launch_passive`` requires that the user script is executed via a special ``mjpython`` launcher, this is
+  needed to circumvent a platform limitation which requires the main thread to be one that does the rendering. The
+  ``mjpython`` command is installed as part of the ``mujoco`` package, and can be used as a drop-in replacement for the
+  usual ``python`` command and supports an identical set of command line flags and arguments. For example, a script can
+  be executed via ``mjpython my_script.py``, and an IPython shell can be launched via ``mjpython -m IPython``.
 
 The ``launch_passive`` function returns a handle which can be used to interact with the viewer. It has the following
 attributes:
