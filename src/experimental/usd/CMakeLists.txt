@@ -152,6 +152,7 @@ endif()
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
 add_library(${MJCF_PLUGIN_TARGET_NAME} SHARED)
+add_library(mujoco::usd::mjcf ALIAS ${MJCF_PLUGIN_TARGET_NAME})
 target_sources(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
   plugins/mjcf/mjcf_file_format.cc
   plugins/mjcf/mjcf_file_format.h
@@ -190,6 +191,7 @@ target_include_directories(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PUBLIC
 ## mj_usd
 
 add_library(${MJ_USD_TARGET_NAME} SHARED)
+add_library(mujoco::usd ALIAS ${MJ_USD_TARGET_NAME})
 target_sources(${MJ_USD_TARGET_NAME} PRIVATE
   writer.cc
   layer_sink.cc
