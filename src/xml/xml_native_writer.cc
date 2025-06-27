@@ -395,10 +395,14 @@ void mjXWriter::OneJoint(XMLElement* elem, const mjCJoint* joint, mjCDef* def,
   WriteAttr(elem, "solimpfriction", mjNIMP, joint->solimp_friction, def->Joint().solimp_friction,
             true);
   WriteAttr(elem, "stiffness", 1, &joint->stiffness, &def->Joint().stiffness);
-  WriteAttrKey(elem, "limited", TFAuto_map, 3, joint->limited, def->Joint().limited);
+  if (joint->type != mjJNT_FREE) {
+    WriteAttrKey(elem, "limited", TFAuto_map, 3, joint->limited, def->Joint().limited);
+  }
   WriteAttr(elem, "range", 2, joint->range, def->Joint().range);
-  WriteAttrKey(elem, "actuatorfrclimited", TFAuto_map, 3, joint->actfrclimited,
-               def->Joint().actfrclimited);
+  if (joint->type != mjJNT_FREE && joint->type != mjJNT_BALL) {
+    WriteAttrKey(elem, "actuatorfrclimited", TFAuto_map, 3, joint->actfrclimited,
+                def->Joint().actfrclimited);
+  }
   WriteAttrKey(elem, "actuatorgravcomp", bool_map, 2, joint->actgravcomp, def->Joint().actgravcomp);
   WriteAttr(elem, "actuatorfrcrange", 2, joint->actfrcrange, def->Joint().actfrcrange);
   WriteAttr(elem, "margin", 1, &joint->margin, &def->Joint().margin);

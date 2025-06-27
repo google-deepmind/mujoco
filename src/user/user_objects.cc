@@ -2392,6 +2392,7 @@ int mjCJoint::Compile(void) {
   if (type == mjJNT_FREE) {
     limited = mjLIMITED_FALSE;
   }
+
   // otherwise if limited is auto, check consistency wrt auto-limits
   else if (limited == mjLIMITED_AUTO) {
     bool hasrange = !(range[0] == 0 && range[1] == 0);
@@ -2423,6 +2424,7 @@ int mjCJoint::Compile(void) {
   if (type == mjJNT_FREE || type == mjJNT_BALL) {
     actfrclimited = mjLIMITED_FALSE;
   }
+
   // otherwise if actfrclimited is auto, check consistency wrt auto-limits
   else if (actfrclimited == mjLIMITED_AUTO) {
     bool hasrange = !(actfrcrange[0] == 0 && actfrcrange[1] == 0);
