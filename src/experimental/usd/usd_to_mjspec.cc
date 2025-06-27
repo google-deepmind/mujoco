@@ -872,10 +872,8 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     type = mjJNT_HINGE;
   } else if (prim.IsA<pxr::UsdPhysicsPrismaticJoint>()) {
     type = mjJNT_SLIDE;
-  } else if (prim.IsA<pxr::UsdPhysicsSphericalJoint>()) {
-    type = mjJNT_BALL;
   } else {
-    // Unknown joint type.
+    // Unsupported joint type.
     mju_warning("Unsupported joint type for %s",
                 prim.GetPath().GetAsString().c_str());
     return;
