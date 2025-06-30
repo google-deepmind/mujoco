@@ -28,12 +28,11 @@
 namespace mujoco {
 namespace {
 
+using ::testing::DoubleNear;
 using ::testing::ElementsAre;
+using ::testing::Pointwise;
 using IslandTest = MujocoTest;
 
-std::vector<int> AsVector(const int* array, int n) {
-  return std::vector<int>(array, array + n);
-}
 
 TEST_F(IslandTest, FloodFillSingleton) {
   // adjacency matrix for the graph  0   1   2
@@ -365,6 +364,30 @@ TEST_F(IslandTest, IslandEfc) {
   EXPECT_EQ(data->nefc, 30);
 
   mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(IslandTest, IslandFlex) {
+  const std::string xml_path = GetTestDataFilePath("testdata/flex.xml");
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  mjData* data1 = mj_makeData(model);
+  mjData* data2 = mj_makeData(model);
+
+  model->opt.enableflags |= mjENBL_ISLAND;
+  while (data1->time < 0.2) {
+    mj_step(model, data1);
+  }
+
+  model->opt.enableflags &= ~mjENBL_ISLAND;
+  while (data2->time < 0.2) {
+    mj_step(model, data2);
+  }
+
+  EXPECT_THAT(AsVector(data1->qpos, model->nq),
+              Pointwise(DoubleNear(1e-6), AsVector(data2->qpos, model->nq)));
+
+  mj_deleteData(data2);
+  mj_deleteData(data1);
   mj_deleteModel(model);
 }
 
