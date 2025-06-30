@@ -963,6 +963,7 @@ void mjCModel::Clear() {
   nbvh = 0;
   nbvhstatic = 0;
   nbvhdynamic = 0;
+  noct = 0;
   njnt = 0;
   ngeom = 0;
   nsite = 0;
@@ -1726,6 +1727,7 @@ void mjCModel::IndexAssets(bool discard) {
           ((mjCMesh*)mesh)->SetNotVisual();  // reset to true by mesh->Compile()
         }
         geom->mesh = (discard && geom->visual_) ? nullptr : (mjCMesh*)mesh;
+        static_cast<mjCMesh*>(mesh)->needoct_ |= geom->spec.type == mjGEOM_SDF;
       } else {
         throw mjCError(geom, "mesh '%s' not found in geom %d", geom->get_meshname().c_str(), i);
       }
@@ -1936,6 +1938,7 @@ void mjCModel::SetSizes() {
   }
   for (int i=0; i < nmesh; i++) {
     nbvhstatic += meshes_[i]->tree().Nbvh();
+    noct += meshes_[i]->octree().NumNodes();
   }
   for (int i=0; i < nflex; i++) {
     nbvhdynamic += flexes_[i]->tree.Nbvh();
@@ -2943,7 +2946,7 @@ int mjCModel::CountNJmom(const mjModel* m) {
 
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
-  int adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr;
+  int adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
   int edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, evpair_adr;
   int bonevert_adr, graph_adr, data_adr, bvh_adr;
   int poly_adr, polymap_adr, polyvert_adr;
@@ -2963,6 +2966,7 @@ void mjCModel::CopyObjects(mjModel* m) {
   }
 
   // meshes
+  oct_adr = 0;
   vert_adr = 0;
   normal_adr = 0;
   texcoord_adr = 0;
@@ -2989,6 +2993,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->mesh_graphadr[i] = (pme->szgraph() ? graph_adr : -1);
     m->mesh_bvhnum[i] = pme->tree().Nbvh();
     m->mesh_bvhadr[i] = pme->tree().Nbvh() ? bvh_adr : -1;
+    m->mesh_octnum[i] = pme->octree().NumNodes();
+    m->mesh_octadr[i] = pme->octree().NumNodes() ? oct_adr : -1;
     mjuu_copyvec(&m->mesh_scale[3 * i], pme->Scale(), 3);
     mjuu_copyvec(&m->mesh_pos[3 * i], pme->GetPosPtr(), 3);
     mjuu_copyvec(&m->mesh_quat[4 * i], pme->GetQuatPtr(), 4);
@@ -3023,6 +3029,14 @@ void mjCModel::CopyObjects(mjModel* m) {
       }
     }
 
+    // copy octree data
+    if (pme->octree().NumNodes()) {
+      int n_oct = pme->octree().NumNodes();
+      memcpy(m->oct_aabb + 6*oct_adr, pme->octree().Nodes().data(), 6*n_oct*sizeof(mjtNum));
+      memcpy(m->oct_child + 8*oct_adr, pme->octree().Child().data(), 8*n_oct*sizeof(int));
+      memcpy(m->oct_depth + oct_adr, pme->octree().Level().data(), n_oct*sizeof(int));
+    }
+
     // advance counters
     poly_adr += pme->npolygon();
     polyvert_adr += pme->npolygonvert();
@@ -3033,6 +3047,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     face_adr += pme->nface();
     graph_adr += pme->szgraph();
     bvh_adr += pme->tree().Nbvh();
+    oct_adr += pme->octree().NumNodes();
   }
 
   // flexes
@@ -4523,7 +4538,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // create low-level model
   mj_makeModel(&m,
-               nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, njnt, ngeom, nsite,
+               nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ngeom, nsite,
                ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
                nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord,
                nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,

@@ -460,7 +460,7 @@ static void freeModelBuffers(mjModel* m) {
 // allocate and initialize mjModel structure
 void mj_makeModel(mjModel** dest,
     int nq, int nv, int nu, int na, int nbody, int nbvh,
-    int nbvhstatic, int nbvhdynamic, int njnt, int ngeom, int nsite, int ncam,
+    int nbvhstatic, int nbvhdynamic, int noct, int njnt, int ngeom, int nsite, int ncam,
     int nlight, int nflex, int nflexnode, int nflexvert, int nflexedge, int nflexelem,
     int nflexelemdata, int nflexelemedge, int nflexshelldata, int nflexevpair, int nflextexcoord,
     int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
@@ -499,6 +499,7 @@ void mj_makeModel(mjModel** dest,
   m->nbvh = nbvh;
   m->nbvhstatic = nbvhstatic;
   m->nbvhdynamic = nbvhdynamic;
+  m->noct = noct;
   m->njnt = njnt;
   m->ngeom = ngeom;
   m->nsite = nsite;
@@ -639,7 +640,7 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   if (!dest) {
     mj_makeModel(&dest,
       src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
-      src->nbvhstatic, src->nbvhdynamic, src->njnt, src->ngeom, src->nsite,
+      src->nbvhstatic, src->nbvhdynamic, src->noct, src->njnt, src->ngeom, src->nsite,
       src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert, src->nflexedge,
       src->nflexelem, src->nflexelemdata, src->nflexelemedge, src->nflexshelldata,
       src->nflexevpair, src->nflextexcoord, src->nmesh, src->nmeshvert,
@@ -835,7 +836,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
                ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
                ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
-               ints[63], ints[64], ints[65], ints[66], ints[67], ints[68]);
+               ints[63], ints[64], ints[65], ints[66], ints[67], ints[68], ints[69]);
   if (!m || m->nbuffer != sizes[getnsize()-1]) {
     mju_warning("Corrupted model, wrong size parameters");
     mj_deleteModel(m);

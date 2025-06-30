@@ -1264,6 +1264,30 @@ TEST_F(MjCMeshTest, LoadSkin) {
   mj_deleteSpec(spec);
 }
 
+// ------------- test octree ---------------------------------------------------
+
+TEST_F(MjCMeshTest, Octree) {
+  const std::string xml_path = GetTestDataFilePath(kTorusPath);
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
+  mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
+  geom->type = mjGEOM_SDF;
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_GT(model->mesh_octnum[0], 0);
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, OctreeNotComputedForNonSDF) {
+  const std::string xml_path = GetTestDataFilePath(kTorusPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->noct, 0);
+  mj_deleteModel(model);
+}
+
 
 }  // namespace
 }  // namespace mujoco

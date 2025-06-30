@@ -206,9 +206,50 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
     // position of the element in the BVH axes
     double lpos[3];
   };
-
+  void Make(std::vector<BVElement>& elements);
   int MakeBVH(std::vector<BVElement>::iterator elements_begin,
               std::vector<BVElement>::iterator elements_end, int lev = 0);
+};
+
+
+
+//------------------------- class mjCOctree --------------------------------------------------------
+
+typedef std::array<std::array<double, 3>, 3> Triangle;
+
+struct mjCOctree_ {
+  int nnode_ = 0;
+  std::vector<int> child_;           // children of each node     (nnode x 8)
+  std::vector<double> node_;         // bounding boxes            (nnode x 6)
+  std::vector<int> level_;           // levels of each node       (nnode x 1)
+  std::vector<Triangle> face_;       // mesh faces                (nface x 3)
+  double ipos_[3] = {0, 0, 0};
+  double iquat_[4] = {1, 0, 0, 0};
+};
+
+class mjCOctree : public mjCOctree_ {
+ public:
+  void CreateOctree(const double aamm[6]);
+
+  int NumNodes() const { return nnode_; }
+  const std::vector<int>& Child() const { return child_; }
+  const std::vector<double>& Nodes() const { return node_; }
+  const std::vector<int>& Level() const { return level_; }
+  void SetFace(const std::vector<double>& vert, const std::vector<int>& face);
+  int Size() const {
+    return sizeof(int) * child_.size() + sizeof(double) * node_.size() +
+           sizeof(int) * level_.size() + sizeof(Triangle) * face_.size();
+  }
+  void Clear() {
+    child_.clear();
+    node_.clear();
+    level_.clear();
+    face_.clear();
+  }
+
+ private:
+  void Make(std::vector<Triangle>& elements);
+  int MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev = 0);
 };
 
 
@@ -965,6 +1006,7 @@ class mjCMesh_ : public mjCBase {
   std::vector<int> spec_facetexcoord_;
 
   // used by the compiler
+  bool needoct_;                                 // needs octree
   bool visual_;                                  // true: the mesh is only visual
   std::vector< std::pair<int, int> > halfedge_;  // half-edge data
 
@@ -985,8 +1027,12 @@ class mjCMesh_ : public mjCBase {
   bool needhull_;                     // needs convex hull for collisions
   int maxhullvert_;                   // max vertex count of convex hull
 
+  // bounding volume hierarchy tree
   mjCBoundingVolumeHierarchy tree_;   // bounding volume hierarchy
   std::vector<double> face_aabb_;     // bounding boxes of all faces
+
+  // octree
+  mjCOctree octree_;                  // octree of the mesh
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
@@ -1060,6 +1106,9 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
 
   // bounding volume hierarchy tree
   const mjCBoundingVolumeHierarchy& tree() { return tree_; }
+
+  // octree
+  const mjCOctree& octree() { return octree_; }
 
   void Compile(const mjVFS* vfs);                   // compiler
   double* GetPosPtr();                              // get position

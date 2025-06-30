@@ -404,9 +404,15 @@ mjCBoundingVolumeHierarchy::AddBoundingVolume(const int* id, int contype, int co
 
 // create bounding volume hierarchy
 void mjCBoundingVolumeHierarchy::CreateBVH() {
+  std::vector<BVElement> elements;
+  Make(elements);
+  MakeBVH(elements.begin(), elements.end());
+}
+
+
+void mjCBoundingVolumeHierarchy::Make(std::vector<BVElement>& elements) {
   // precompute the positions of each element in the hierarchy's axes, and drop
   // visual-only elements.
-  std::vector<BVElement> elements;
   elements.reserve(bvleaf_.size());
   double qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
   for (int i = 0; i < bvleaf_.size(); i++) {
@@ -420,8 +426,8 @@ void mjCBoundingVolumeHierarchy::CreateBVH() {
       elements.push_back(std::move(element));
     }
   }
-  MakeBVH(elements.begin(), elements.end());
 }
+
 
 // compute bounding volume hierarchy
 int mjCBoundingVolumeHierarchy::MakeBVH(
@@ -546,9 +552,108 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
   return index;
 }
 
+
+
+//------------------------- class mjCOctree implementation --------------------------------------------
+
+void mjCOctree::SetFace(const std::vector<double>& vert, const std::vector<int>& face) {
+  for (int i = 0; i < face.size(); i += 3) {
+    std::array<double, 3> v0 = {vert[3*face[i+0]], vert[3*face[i+0]+1], vert[3*face[i+0]+2]};
+    std::array<double, 3> v1 = {vert[3*face[i+1]], vert[3*face[i+1]+1], vert[3*face[i+1]+2]};
+    std::array<double, 3> v2 = {vert[3*face[i+2]], vert[3*face[i+2]+1], vert[3*face[i+2]+2]};
+    face_.push_back({v0, v1, v2});
+  }
+}
+
+
+// TODO: use the same code as mjCBoundingVolumeHierarchy::Make()
+void mjCOctree::Make(std::vector<Triangle>& elements) {
+  // rotate triangles to the body inertial frame
+  elements.assign(face_.size(), {{{0}}});
+  double qinv[4] = {iquat_[0], -iquat_[1], -iquat_[2], -iquat_[3]};
+  for (int i = 0; i < face_.size(); i++) {
+    for (int j = 0; j < 3; j++) {
+      double vert[3] = {face_[i][j][0] - ipos_[0],
+                        face_[i][j][1] - ipos_[1],
+                        face_[i][j][2] - ipos_[2]};
+      mjuu_rotVecQuat(elements[i][j].data(), vert, qinv);
+    }
+  }
+}
+
+
+void mjCOctree::CreateOctree(const double aamm[6]) {
+  std::vector<Triangle> elements;
+  Make(elements);
+  std::vector<Triangle*> elements_ptrs(elements.size());
+  std::transform(elements.begin(), elements.end(), elements_ptrs.begin(),
+                 [](Triangle& triangle) { return &triangle; });
+  MakeOctree(elements_ptrs, aamm);
+}
+
+
+static bool boxTriangle(const Triangle& element, const double aamm[6]) {
+  for (int i = 0; i < 3; i++) {
+    if (element[0][i] < aamm[i] && element[1][i] < aamm[i] && element[2][i] < aamm[i]) {
+      return false;
+    }
+    int j = i + 3;
+    if (element[0][i] > aamm[j] && element[1][i] > aamm[j] && element[2][i] > aamm[j]) {
+      return false;
+    }
+  }
+  // TODO: add additionally separating axis tests
+  return true;
+}
+
+
+int mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev) {
+  level_.push_back(lev);
+
+  // create a new node
+  int index = nnode_++;
+  double aabb[6] = {(aamm[0] + aamm[3]) / 2, (aamm[1] + aamm[4]) / 2, (aamm[2] + aamm[5]) / 2,
+                    (aamm[3] - aamm[0]) / 2, (aamm[4] - aamm[1]) / 2, (aamm[5] - aamm[2]) / 2};
+  for (int i = 0; i < 6; i++) {
+    node_.push_back(aabb[i]);
+  }
+  for (int i = 0; i < 8; i++) {
+    child_.push_back(-1);
+  }
+
+  // find all triangles that intersect the current box
+  std::vector<Triangle*> colliding;
+  for (auto* element : elements) {
+    if (boxTriangle(*element, aamm)) {
+      colliding.push_back(element);
+    }
+  }
+
+  // return if the box is empty
+  if (colliding.empty() || lev >= 6) {
+    return index;
+  }
+
+  // split the box into 8 sub-boxes
+  double new_aamm[8][6];
+  for (int i = 0; i < 8; i++) {
+    new_aamm[i][0] = aabb[0] + aabb[3] * (i & 1 ? -1 : 0);
+    new_aamm[i][1] = aabb[1] + aabb[4] * (i & 2 ? -1 : 0);
+    new_aamm[i][2] = aabb[2] + aabb[5] * (i & 4 ? -1 : 0);
+    new_aamm[i][3] = aabb[0] + aabb[3] * (i & 1 ? 0 : 1);
+    new_aamm[i][4] = aabb[1] + aabb[4] * (i & 2 ? 0 : 1);
+    new_aamm[i][5] = aabb[2] + aabb[5] * (i & 4 ? 0 : 1);
+  }
+
+  // recursive calls to create sub-boxes
+  for (int i = 0; i < 8; i++) {
+    child_[8*index + i] = MakeOctree(colliding, new_aamm[i], lev + 1);
+  }
+
+  return index;
+}
+
 //------------------------- class mjCDef implementation --------------------------------------------
-
-
 
 // constructor
 mjCDef::mjCDef() {

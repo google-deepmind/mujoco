@@ -763,7 +763,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_MESHBVH]) {
     for (int geomid = 0; geomid < m->ngeom; geomid++) {
       int meshid = m->geom_dataid[geomid];
-      if (meshid == -1) {
+      if (m->geom_type[geomid] == mjGEOM_SDF || meshid == -1) {
         continue;
       }
 
@@ -800,6 +800,43 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_addTo3(pos, xpos);
 
         START
+        mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
+        FINISH
+      }
+    }
+  }
+
+  // mesh octree
+  category = mjCAT_DECOR;
+  objtype = mjOBJ_UNKNOWN;
+  if (vopt->flags[mjVIS_MESHBVH]) {
+    for (int geomid = 0; geomid < m->ngeom; geomid++) {
+      int meshid = m->geom_dataid[geomid];
+      if (m->geom_type[geomid] != mjGEOM_SDF || meshid == -1) {
+        continue;
+      }
+
+      for (int b = 0; b < m->mesh_octnum[meshid]; b++) {
+        int i = b + m->mesh_octadr[meshid];
+
+        START
+        if (m->oct_depth[i] != vopt->bvh_depth) {
+          continue;
+        }
+
+        // box color
+        const float* rgba = m->vis.rgba.bv;
+
+        // get xpos, xmat, size
+        const mjtNum* xpos = d->geom_xpos + 3 * geomid;
+        const mjtNum* xmat = d->geom_xmat + 9 * geomid;
+        const mjtNum *size = m->oct_aabb + 6*i + 3;
+
+        // offset xpos with aabb center (not always at geom origin)
+        const mjtNum *center = m->oct_aabb + 6*i;
+        mjtNum pos[3];
+        mju_mulMatVec3(pos, xmat, center);
+        mju_addTo3(pos, xpos);
         mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
         FINISH
       }
