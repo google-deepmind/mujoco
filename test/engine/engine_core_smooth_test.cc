@@ -18,7 +18,6 @@
 #include "src/engine/engine_util_misc.h"
 #include "src/engine/engine_util_sparse.h"
 
-#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>
