@@ -230,21 +230,98 @@ class SmoothTest(absltest.TestCase):
 
 
 class RnePostConstraintTest(parameterized.TestCase):
+  _CONNECT_SITE = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+    </equality>
+    """
+  _CONNECT_BODY = """
+    <equality>
+      <connect body1="body1" body2="body2" anchor="1 2 3"/>
+    </equality>
+    """
+  _WELD_SITE = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_BODY = """
+    <equality>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_WELD_SITE = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <weld site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_SITE_CONNECT_SITE = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+      <connect site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_SITE_CONNECT_SITE_WELD_BODY = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+      <connect site1="site1" site2="site2"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_WELD_SITE_WELD_BODY = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <weld site1="site1" site2="site2"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_CONNECT_BODY_CONNECT_WELD = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <connect body1="body1" body2="body2" anchor="1 2 3"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
 
-  @parameterized.parameters(ConeType)
-  def test_rnepostconstraint(self, cone_type):
+  @parameterized.parameters(
+      ('', ConeType.PYRAMIDAL, None),
+      ('', ConeType.ELLIPTIC, None),
+      (_CONNECT_SITE, ConeType.PYRAMIDAL, None),
+      (_CONNECT_BODY, ConeType.PYRAMIDAL, None),
+      (_WELD_SITE, ConeType.PYRAMIDAL, None),
+      (_WELD_BODY, ConeType.PYRAMIDAL, None),
+      (_CONNECT_SITE_WELD_SITE, ConeType.PYRAMIDAL, None),
+      (
+          _WELD_SITE_CONNECT_SITE,
+          ConeType.PYRAMIDAL,
+          np.array([6, 7, 8, 0, 1, 2, 3, 4, 5]),
+      ),
+      (
+          _WELD_SITE_CONNECT_SITE_WELD_BODY,
+          ConeType.PYRAMIDAL,
+          np.array([6, 7, 8, 0, 1, 2, 3, 4, 5]),
+      ),
+      (_CONNECT_SITE_WELD_SITE_WELD_BODY, ConeType.PYRAMIDAL, None),
+      (_CONNECT_SITE_CONNECT_BODY_CONNECT_WELD, ConeType.PYRAMIDAL, None),
+  )
+  def test_rnepostconstraint(self, equality, cone_type, efc_map):
     """Tests MJX rne_postconstraint function to match MuJoCo mj_rnePostConstraint."""
 
-    m = mujoco.MjModel.from_xml_string("""
+    m = mujoco.MjModel.from_xml_string(f"""
         <mujoco>
           <worldbody>
             <geom name="floor" size="10 10 .05" type="plane"/>
-            <body pos="0 0 1">
+            <site name="site1"/>
+            <body name="body1">
+            </body>
+            <body pos="0 0 1" name="body2">
               <joint type="ball" damping="1"/>
               <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0" condim="1"/>
               <body pos="0.5 0 0">
                 <joint type="ball" damping="1"/>
                 <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0"  condim="3"/>
+                <site name="site2"/>
               </body>
             </body>
             <body pos="0 1 1">
@@ -256,6 +333,7 @@ class RnePostConstraintTest(parameterized.TestCase):
               </body>
             </body>
           </worldbody>
+          {equality}
           <keyframe>
             <key qpos='0.424577 0.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697 0.424577 1.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697'/>
           </keyframe>
@@ -272,6 +350,11 @@ class RnePostConstraintTest(parameterized.TestCase):
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
     dx = mjx.put_data(m, d)
+
+    if efc_map is not None:
+      efc_force = d.efc_force.copy()
+      efc_force[: len(efc_map)] = d.efc_force[efc_map]
+      dx = dx.tree_replace({'_impl.efc_force': jp.array(efc_force)})
 
     # rne postconstraint
     mujoco.mj_rnePostConstraint(m, d)

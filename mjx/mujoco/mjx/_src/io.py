@@ -248,23 +248,6 @@ def _put_model_jax(
       if t == mujoco.mjtGeom.mjGEOM_MESH:
         mesh_geomid.add(g)
 
-  # check for unsupported sensor and equality constraint combinations
-  sensor_rne_postconstraint = (
-      np.any(m.sensor_type == types.SensorType.ACCELEROMETER)
-      | np.any(m.sensor_type == types.SensorType.FORCE)
-      | np.any(m.sensor_type == types.SensorType.TORQUE)
-      | np.any(m.sensor_type == types.SensorType.FRAMELINACC)
-      | np.any(m.sensor_type == types.SensorType.FRAMEANGACC)
-  )
-  eq_connect_weld = np.any(m.eq_type == types.EqType.CONNECT) | np.any(
-      m.eq_type == types.EqType.WELD
-  )
-  if sensor_rne_postconstraint and eq_connect_weld:
-    raise NotImplementedError(
-        'rne_postconstraint not implemented with equality constraints:'
-        ' connect, weld.'
-    )
-
   for enum_field, enum_type, mj_type in (
       (m.actuator_biastype, types.BiasType, mujoco.mjtBias),
       (m.actuator_dyntype, types.DynType, mujoco.mjtDyn),

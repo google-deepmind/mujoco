@@ -29,6 +29,7 @@ from mujoco.mjx._src.types import EqType
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
+from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import TrnType
 from mujoco.mjx._src.types import WrapType
 # pylint: enable=g-importing-member
@@ -659,11 +660,126 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
         cfrc_contact.reshape((-1, 6))
     )
 
-  # TODO(taylorhowell): connect and weld constraints
-  if np.any(m.eq_type == EqType.CONNECT):
-    raise NotImplementedError('Connect constraints are not implemented.')
-  if np.any(m.eq_type == EqType.WELD):
-    raise NotImplementedError('Weld constraints are not implemented.')
+  # cfrc_ext += connect, weld
+  cfrc_ext_equality = []
+  cfrc_ext_equality_adr = []
+
+  connect_id = m.eq_type == EqType.CONNECT
+  nconnect = connect_id.sum()
+
+  if nconnect:
+    cfrc_connect_force = d._impl.efc_force[: 3 * nconnect].reshape(
+        (nconnect, 3)
+    )
+
+    is_site = m.eq_objtype == ObjType.SITE
+    body1id = np.copy(m.eq_obj1id)
+    body2id = np.copy(m.eq_obj2id)
+    pos1 = m.eq_data[:, :3]
+    pos2 = m.eq_data[:, 3:6]
+
+    if m.nsite:
+      body1id[is_site] = m.site_bodyid[m.eq_obj1id[is_site]]
+      body2id[is_site] = m.site_bodyid[m.eq_obj2id[is_site]]
+      pos1 = jp.where(is_site[:, None], m.site_pos[m.eq_obj1id], pos1)
+      pos2 = jp.where(is_site[:, None], m.site_pos[m.eq_obj2id], pos2)
+
+    # body 1
+    k1_connect = body1id[connect_id]
+    k1_connect_mask = k1_connect != 0
+    offset1_connect = pos1[connect_id]
+
+    pos1_connect = jax.vmap(lambda pnt, mat, vec: mat @ pnt + vec)(
+        offset1_connect, d.xmat[k1_connect], d.xpos[k1_connect]
+    )
+    subtree_com1_connect = d.subtree_com[jp.array(m.body_rootid)[k1_connect]]
+    cfrc_com1_connect = jax.vmap(
+        lambda dif, frc, mask: mask * jp.concatenate([-jp.cross(dif, frc), frc])
+    )(subtree_com1_connect - pos1_connect, cfrc_connect_force, k1_connect_mask)
+
+    # body 2
+    k2_connect = body2id[connect_id]
+    k2_connect_mask = -1 * (k2_connect != 0)
+    offset2_connect = pos2[connect_id]
+
+    pos2_connect = jax.vmap(lambda pnt, mat, vec: mat @ pnt + vec)(
+        offset2_connect, d.xmat[k2_connect], d.xpos[k2_connect]
+    )
+    subtree_com2_connect = d.subtree_com[jp.array(m.body_rootid)[k2_connect]]
+    cfrc_com2_connect = jax.vmap(
+        lambda dif, frc, mask: mask * jp.concatenate([-jp.cross(dif, frc), frc])
+    )(subtree_com2_connect - pos2_connect, cfrc_connect_force, k2_connect_mask)
+
+    cfrc_ext_equality.append(jp.vstack([cfrc_com1_connect, cfrc_com2_connect]))
+    cfrc_ext_equality_adr.append(jp.concatenate([k1_connect, k2_connect]))
+
+  weld_id = m.eq_type == EqType.WELD
+  nweld = weld_id.sum()
+
+  if nweld:
+    cfrc_weld = d._impl.efc_force[
+        3 * nconnect : 3 * nconnect + 6 * nweld
+    ].reshape((nweld, 6))
+    cfrc_weld_force = cfrc_weld[:, :3]
+    cfrc_weld_torque = cfrc_weld[:, 3:]
+
+    is_site = m.eq_objtype == ObjType.SITE
+    body1id = np.copy(m.eq_obj1id)
+    body2id = np.copy(m.eq_obj2id)
+    pos1 = m.eq_data[:, 3:6]
+    pos2 = m.eq_data[:, :3]
+
+    if m.nsite:
+      body1id[is_site] = m.site_bodyid[m.eq_obj1id[is_site]]
+      body2id[is_site] = m.site_bodyid[m.eq_obj2id[is_site]]
+      pos1 = jp.where(is_site[:, None], m.site_pos[m.eq_obj1id], pos1)
+      pos2 = jp.where(is_site[:, None], m.site_pos[m.eq_obj2id], pos2)
+
+    # body 1
+    k1_weld = body1id[weld_id]
+    k1_weld_mask = k1_weld != 0
+    offset1_weld = pos1[weld_id]
+
+    pos1_weld = jax.vmap(lambda pnt, mat, vec: mat @ pnt + vec)(
+        offset1_weld, d.xmat[k1_weld], d.xpos[k1_weld]
+    )
+    subtree_com1_weld = d.subtree_com[jp.array(m.body_rootid)[k1_weld]]
+    cfrc_com1_weld = jax.vmap(
+        lambda dif, frc, trq, mask: mask
+        * jp.concatenate([trq - jp.cross(dif, frc), frc])
+    )(
+        subtree_com1_weld - pos1_weld,
+        cfrc_weld_force,
+        cfrc_weld_torque,
+        k1_weld_mask,
+    )
+
+    # body 2
+    k2_weld = body2id[weld_id]
+    k2_weld_mask = -1 * (k2_weld != 0)
+    offset2_weld = pos2[weld_id]
+
+    pos2_weld = jax.vmap(lambda pnt, mat, vec: mat @ pnt + vec)(
+        offset2_weld, d.xmat[k2_weld], d.xpos[k2_weld]
+    )
+    subtree_com2_weld = d.subtree_com[jp.array(m.body_rootid)[k2_weld]]
+    cfrc_com2_weld = jax.vmap(
+        lambda dif, frc, trq, mask: mask
+        * jp.concatenate([trq - jp.cross(dif, frc), frc])
+    )(
+        subtree_com2_weld - pos2_weld,
+        cfrc_weld_force,
+        cfrc_weld_torque,
+        k2_weld_mask,
+    )
+
+    cfrc_ext_equality.append(jp.vstack([cfrc_com1_weld, cfrc_com2_weld]))
+    cfrc_ext_equality_adr.append(jp.concatenate([k1_weld, k2_weld]))
+
+  if nconnect or nweld:
+    cfrc_ext = cfrc_ext.at[jp.concatenate(cfrc_ext_equality_adr)].add(
+        jp.vstack(cfrc_ext_equality)
+    )
 
   # forward pass over bodies: compute cacc, cfrc_int
   def _forward(carry, cfrc_ext, cinert, cvel, body_dofadr, body_dofnum):
