@@ -130,6 +130,10 @@ struct MjcPhysicsTokensType {
   ///
   /// Fallback value for MjcPhysicsMeshCollisionAPI::GetInertiaAttr()
   const TfToken legacy;
+  /// \brief "mjc:act"
+  ///
+  /// MjcPhysicsKeyframe
+  const TfToken mjcAct;
   /// \brief "mjc:actDim"
   ///
   /// MjcPhysicsActuatorAPI
@@ -162,6 +166,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuatorAPI
   const TfToken mjcCrankLength;
+  /// \brief "mjc:ctrl"
+  ///
+  /// MjcPhysicsKeyframe
+  const TfToken mjcCtrl;
   /// \brief "mjc:ctrlLimited"
   ///
   /// MjcPhysicsActuatorAPI
@@ -314,6 +322,14 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuatorAPI
   const TfToken mjcLengthRangeMin;
+  /// \brief "mjc:mpos"
+  ///
+  /// MjcPhysicsKeyframe
+  const TfToken mjcMpos;
+  /// \brief "mjc:mquat"
+  ///
+  /// MjcPhysicsKeyframe
+  const TfToken mjcMquat;
   /// \brief "mjc:option:actuatorgroupdisable"
   ///
   /// MjcPhysicsSceneAPI
@@ -418,6 +434,14 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcOptionWind;
+  /// \brief "mjc:qpos"
+  ///
+  /// MjcPhysicsKeyframe
+  const TfToken mjcQpos;
+  /// \brief "mjc:qvel"
+  ///
+  /// MjcPhysicsKeyframe
+  const TfToken mjcQvel;
   /// \brief "mjc:refSite"
   ///
   /// MjcPhysicsActuatorAPI
@@ -484,23 +508,27 @@ struct MjcPhysicsTokensType {
   const TfToken user;
   /// \brief "CollisionAPI"
   ///
-  /// Schema identifer and family for MjcPhysicsCollisionAPI
+  /// Schema identifier and family for MjcPhysicsCollisionAPI
   const TfToken CollisionAPI;
+  /// \brief "Keyframe"
+  ///
+  /// Schema identifier and family for MjcPhysicsKeyframe
+  const TfToken Keyframe;
   /// \brief "MeshCollisionAPI"
   ///
-  /// Schema identifer and family for MjcPhysicsMeshCollisionAPI
+  /// Schema identifier and family for MjcPhysicsMeshCollisionAPI
   const TfToken MeshCollisionAPI;
   /// \brief "PhysicsActuatorAPI"
   ///
-  /// Schema identifer and family for MjcPhysicsActuatorAPI
+  /// Schema identifier and family for MjcPhysicsActuatorAPI
   const TfToken PhysicsActuatorAPI;
   /// \brief "SceneAPI"
   ///
-  /// Schema identifer and family for MjcPhysicsSceneAPI
+  /// Schema identifier and family for MjcPhysicsSceneAPI
   const TfToken SceneAPI;
   /// \brief "SiteAPI"
   ///
-  /// Schema identifer and family for MjcPhysicsSiteAPI
+  /// Schema identifier and family for MjcPhysicsSiteAPI
   const TfToken SiteAPI;
   /// A vector of all of the tokens listed above.
   const std::vector<TfToken> allTokens;

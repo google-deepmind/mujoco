@@ -663,3 +663,35 @@ class "PhysicsActuatorAPI"
 }
 
 
+class Keyframe "Keyframe"
+(
+    doc = """Represents time independent keyframe values."""
+
+    inherits = </Typed>
+)
+{
+  double[] mjc:qpos (
+    doc = "Vector of joint positions, copied into mjData.qpos when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:qvel (
+    doc = "Vector of joint velocities, copied into mjData.qvel when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:act (
+    doc = "Vector of actuator activations, copied into mjData.act when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:ctrl (
+    doc = "Vector of controls, copied into mjData.ctrl when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:mpos (
+    doc = "Vector of mocap body positions, copied into mjData.mocap_pos when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:mquat (
+    doc = "Vector of mocap body quaternions, copied into mjData.mocap_quat when the simulation state is set to this keyframe."
+  )
+}
+
