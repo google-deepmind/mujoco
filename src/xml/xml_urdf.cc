@@ -329,7 +329,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
         if (urGeomNames.find(geom_name) == urGeomNames.end()) {
           mjs_setString(pgeom->name, geom_name.c_str());
           urGeomNames.insert(geom_name);
-        } else {
+        } else if (!geom_name.empty()) {
           std::cerr << "WARNING: Geom with duplicate name '" << geom_name
                     << "' encountered in URDF, creating an unnamed geom."
                     << std::endl;
@@ -352,7 +352,7 @@ void mjXURDF::Body(XMLElement* body_elem) {
       if (urGeomNames.find(geom_name) == urGeomNames.end()) {
         mjs_setString(pgeom->name, geom_name.c_str());
         urGeomNames.insert(geom_name);
-      } else {
+      } else if (!geom_name.empty()) {
         std::cerr << "WARNING: Geom with duplicate name '" << geom_name
                   << "' encountered in URDF, creating an unnamed geom."
                   << std::endl;
