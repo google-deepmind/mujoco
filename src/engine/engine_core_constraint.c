@@ -1390,7 +1390,7 @@ static void getimpedance(const mjtNum* solimp, mjtNum pos, mjtNum margin,
     yP = solimp[4] * a*power(x, solimp[4]-1);
   }
 
-  // y(x) = 1-b*(1-x)^p is x>midpoint
+  // y(x) = 1-b*(1-x)^p if x>midpoint
   else {
     mjtNum b = 1/power(1-solimp[3], solimp[4]-1);
     y = 1-b*power(1-x, solimp[4]);
