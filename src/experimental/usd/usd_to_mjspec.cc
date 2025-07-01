@@ -25,6 +25,7 @@
 
 #include <mujoco/experimental/usd/mjcPhysics/actuatorAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/meshCollisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
@@ -717,6 +718,170 @@ void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,
   }
 }
 
+void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
+                             const pxr::MjcPhysicsJointAPI& joint_api) {
+  auto springdamper_attr = joint_api.GetMjcSpringdamperAttr();
+  if (springdamper_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray springdamper;
+    springdamper_attr.Get(&springdamper);
+    if (springdamper.size() == 2) {
+      mj_joint->springdamper[0] = springdamper[0];
+      mj_joint->springdamper[1] = springdamper[1];
+    } else {
+      mju_warning(
+          "springdamper attribute for joint %s has incorrect size %zu, "
+          "expected 2.",
+          mj_joint->name->c_str(), springdamper.size());
+    }
+  }
+
+  auto solreflimit_attr = joint_api.GetMjcSolreflimitAttr();
+  if (solreflimit_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solreflimit;
+    solreflimit_attr.Get(&solreflimit);
+    if (solreflimit.size() == mjNREF) {
+      for (int i = 0; i < mjNREF; ++i) {
+        mj_joint->solref_limit[i] = solreflimit[i];
+      }
+    } else {
+      mju_warning(
+          "solreflimit attribute for joint %s has incorrect size %zu, "
+          "expected %d.",
+          mj_joint->name->c_str(), solreflimit.size(), mjNREF);
+    }
+  }
+
+  auto solimplimit_attr = joint_api.GetMjcSolimplimitAttr();
+  if (solimplimit_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solimplimit;
+    solimplimit_attr.Get(&solimplimit);
+    if (solimplimit.size() == mjNIMP) {
+      for (int i = 0; i < mjNIMP; ++i) {
+        mj_joint->solimp_limit[i] = solimplimit[i];
+      }
+    } else {
+      mju_warning(
+          "solimplimit attribute for joint %s has incorrect size %zu, "
+          "expected %d.",
+          mj_joint->name->c_str(), solimplimit.size(), mjNIMP);
+    }
+  }
+
+  auto solreffriction_attr = joint_api.GetMjcSolreffrictionAttr();
+  if (solreffriction_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solreffriction;
+    solreffriction_attr.Get(&solreffriction);
+    if (solreffriction.size() == mjNREF) {
+      for (int i = 0; i < mjNREF; ++i) {
+        mj_joint->solref_friction[i] = solreffriction[i];
+      }
+    } else {
+      mju_warning(
+          "solreffriction attribute for joint %s has incorrect size %zu, "
+          "expected %d.",
+          mj_joint->name->c_str(), solreffriction.size(), mjNREF);
+    }
+  }
+
+  auto solimpfriction_attr = joint_api.GetMjcSolimpfrictionAttr();
+  if (solimpfriction_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solimpfriction;
+    solimpfriction_attr.Get(&solimpfriction);
+    if (solimpfriction.size() == mjNIMP) {
+      for (int i = 0; i < mjNIMP; ++i) {
+        mj_joint->solimp_friction[i] = solimpfriction[i];
+      }
+    } else {
+      mju_warning(
+          "solimpfriction attribute for joint %s has incorrect size %zu, "
+          "expected %d.",
+          mj_joint->name->c_str(), solimpfriction.size(), mjNIMP);
+    }
+  }
+
+  auto stiffness_attr = joint_api.GetMjcStiffnessAttr();
+  if (stiffness_attr.HasAuthoredValue()) {
+    double stiffness;
+    stiffness_attr.Get(&stiffness);
+    mj_joint->stiffness = stiffness;
+  }
+
+  auto actuatorfrcrange_min_attr = joint_api.GetMjcActuatorfrcrangeMinAttr();
+  if (actuatorfrcrange_min_attr.HasAuthoredValue()) {
+    double min_val;
+    actuatorfrcrange_min_attr.Get(&min_val);
+    mj_joint->actfrcrange[0] = min_val;
+  }
+  auto actuatorfrcrange_max_attr = joint_api.GetMjcActuatorfrcrangeMaxAttr();
+  if (actuatorfrcrange_max_attr.HasAuthoredValue()) {
+    double max_val;
+    actuatorfrcrange_max_attr.Get(&max_val);
+    mj_joint->actfrcrange[1] = max_val;
+  }
+
+  auto actuatorfrclimited_attr = joint_api.GetMjcActuatorfrclimitedAttr();
+  if (actuatorfrclimited_attr.HasAuthoredValue()) {
+    pxr::TfToken limited;
+    actuatorfrclimited_attr.Get(&limited);
+    if (limited == MjcPhysicsTokens->true_) {
+      mj_joint->actfrclimited = mjLIMITED_TRUE;
+    } else if (limited == MjcPhysicsTokens->false_) {
+      mj_joint->actfrclimited = mjLIMITED_FALSE;
+    } else if (limited == MjcPhysicsTokens->auto_) {
+      mj_joint->actfrclimited = mjLIMITED_AUTO;
+    }
+  }
+
+  auto actuatorgravcomp_attr = joint_api.GetMjcActuatorgravcompAttr();
+  if (actuatorgravcomp_attr.HasAuthoredValue()) {
+    bool gravcomp;
+    actuatorgravcomp_attr.Get(&gravcomp);
+    mj_joint->actgravcomp = gravcomp;
+  }
+
+  auto margin_attr = joint_api.GetMjcMarginAttr();
+  if (margin_attr.HasAuthoredValue()) {
+    double margin;
+    margin_attr.Get(&margin);
+    mj_joint->margin = margin;
+  }
+
+  auto ref_attr = joint_api.GetMjcRefAttr();
+  if (ref_attr.HasAuthoredValue()) {
+    double ref;
+    ref_attr.Get(&ref);
+    mj_joint->ref = ref;
+  }
+
+  auto springref_attr = joint_api.GetMjcSpringrefAttr();
+  if (springref_attr.HasAuthoredValue()) {
+    double springref;
+    springref_attr.Get(&springref);
+    mj_joint->springref = springref;
+  }
+
+  auto armature_attr = joint_api.GetMjcArmatureAttr();
+  if (armature_attr.HasAuthoredValue()) {
+    double armature;
+    armature_attr.Get(&armature);
+    mj_joint->armature = armature;
+  }
+
+  auto damping_attr = joint_api.GetMjcDampingAttr();
+  if (damping_attr.HasAuthoredValue()) {
+    double damping;
+    damping_attr.Get(&damping);
+    mj_joint->damping = damping;
+  }
+
+  auto frictionloss_attr = joint_api.GetMjcFrictionlossAttr();
+  if (frictionloss_attr.HasAuthoredValue()) {
+    double frictionloss;
+    frictionloss_attr.Get(&frictionloss);
+    mj_joint->frictionloss = frictionloss;
+  }
+}
+
 void ParseUsdPhysicsCollider(mjSpec* spec,
                              const pxr::UsdPhysicsCollisionAPI& collision_api,
                              const pxr::UsdPrim& parent_prim, mjsBody* parent,
@@ -958,6 +1123,10 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
   if (prim.HasAPI<pxr::MjcPhysicsActuatorAPI>()) {
     ParseMjcPhysicsGeneralActuatorAPI(spec, pxr::MjcPhysicsActuatorAPI(prim),
                                       mjtTrn::mjTRN_JOINT, mj_joint->name);
+  }
+
+  if (prim.HasAPI<pxr::MjcPhysicsJointAPI>()) {
+    ParseMjcPhysicsJointAPI(mj_joint, pxr::MjcPhysicsJointAPI(prim));
   }
 }
 
