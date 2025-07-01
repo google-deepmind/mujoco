@@ -63,7 +63,6 @@
 #include <pxr/usd/usdPhysics/revoluteJoint.h>
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 #include <pxr/usd/usdPhysics/scene.h>
-#include <pxr/usd/usdPhysics/sphericalJoint.h>
 namespace {
 
 using pxr::MjcPhysicsTokens;
@@ -1350,7 +1349,7 @@ void ParseCurrentAndDescendants(mjSpec* spec, const pxr::UsdPrim& prim,
     if (child.HasAPI<pxr::UsdPhysicsRigidBodyAPI>()) {
       continue;
     }
-    if (xform_cache.GetResetXformStack(prim)) {
+    if (xform_cache.GetResetXformStack(child)) {
       continue;
     }
     ParseCurrentAndDescendants(spec, child, prim, body, xform_cache);
@@ -1458,11 +1457,14 @@ pxr::UsdPrim GetNestingBodyPrim(const pxr::UsdPrim& prim,
   }
   pxr::UsdPrim previous_prim = prim.GetParent();
   while (previous_prim.IsValid()) {
-    if (xform_cache.GetResetXformStack(previous_prim)) {
-      return pxr::UsdPrim();
-    }
+    // If we find a rigid body, this is our answer. The prim is nested.
     if (previous_prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>()) {
       return previous_prim;
+    }
+    // If we encounter a prim that resets the transform stack *before* finding
+    // a rigid body, the chain is broken. The prim is not nested.
+    if (xform_cache.GetResetXformStack(previous_prim)) {
+      return pxr::UsdPrim();
     }
     previous_prim = previous_prim.GetParent();
   }
