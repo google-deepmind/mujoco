@@ -90,7 +90,7 @@ if(NOT TARGET lodepng)
     GIT_REPOSITORY https://github.com/lvandeve/lodepng.git
     GIT_TAG ${MUJOCO_DEP_VERSION_lodepng}
   )
-
+  
   FetchContent_GetProperties(lodepng)
   if(NOT lodepng_POPULATED)
     FetchContent_Populate(lodepng)
@@ -269,22 +269,6 @@ if(SIMULATE_BUILD_EXECUTABLE)
       ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
       PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/simulate" COMPONENT simulate
       )
-    endif()
-
-    if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
-      # We downloaded GLFW. Depending if it is a static or shared LIBRARY we might
-      # need to install it.
-      get_target_property(MJ_GLFW_LIBRARY_TYPE glfw TYPE)
-      if(MJ_GLFW_LIBRARY_TYPE STREQUAL SHARED_LIBRARY)
-        install(
-          TARGETS glfw
-          EXPORT ${PROJECT_NAME}
-          RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
-          LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-          ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-          PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT simulate
-        )
-      endif()
     endif()
   endif()
 endif()
