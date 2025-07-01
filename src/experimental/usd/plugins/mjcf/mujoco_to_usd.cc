@@ -557,13 +557,13 @@ class ModelWriter {
                           MjcPhysicsTokens->mjcOptionMagnetic, magnetic);
 
     pxr::VtArray<double> o_solref(spec_->option.o_solref,
-                                  spec_->option.o_solref + 2);
+                                  spec_->option.o_solref + mjNREF);
     WriteUniformAttribute(physics_scene_path,
                           pxr::SdfValueTypeNames->DoubleArray,
                           MjcPhysicsTokens->mjcOptionO_solref, o_solref);
 
     pxr::VtArray<double> o_solimp(spec_->option.o_solimp,
-                                  spec_->option.o_solimp + 5);
+                                  spec_->option.o_solimp + mjNIMP);
     WriteUniformAttribute(physics_scene_path,
                           pxr::SdfValueTypeNames->DoubleArray,
                           MjcPhysicsTokens->mjcOptionO_solimp, o_solimp);
@@ -1716,6 +1716,80 @@ class ModelWriter {
               upper_limit);
         }
       }
+
+      // Finally write the mjcPhysicsJointAPI attributes.
+      ApplyApiSchema(data_, joint_path, MjcPhysicsTokens->PhysicsJointsAPI);
+
+      WriteUniformAttribute(
+          joint_path, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSpringdamper,
+          pxr::VtArray<double>(joint->springdamper, joint->springdamper + 2));
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->DoubleArray,
+                            MjcPhysicsTokens->mjcSolreflimit,
+                            pxr::VtArray<double>(joint->solref_limit,
+                                                 joint->solref_limit + mjNREF));
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->DoubleArray,
+                            MjcPhysicsTokens->mjcSolimplimit,
+                            pxr::VtArray<double>(joint->solimp_limit,
+                                                 joint->solimp_limit + mjNIMP));
+
+      WriteUniformAttribute(
+          joint_path, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSolreffriction,
+          pxr::VtArray<double>(joint->solref_friction,
+                               joint->solref_friction + mjNREF));
+
+      WriteUniformAttribute(
+          joint_path, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSolimpfriction,
+          pxr::VtArray<double>(joint->solimp_friction,
+                               joint->solimp_friction + mjNIMP));
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcStiffness, joint->stiffness);
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcActuatorfrcrangeMin,
+                            joint->actfrcrange[0]);
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcActuatorfrcrangeMax,
+                            joint->actfrcrange[1]);
+
+      pxr::TfToken actuatorfrclimited_token = MjcPhysicsTokens->auto_;
+      if (joint->actfrclimited == mjLIMITED_TRUE) {
+        actuatorfrclimited_token = MjcPhysicsTokens->true_;
+      } else if (joint->actfrclimited == mjLIMITED_FALSE) {
+        actuatorfrclimited_token = MjcPhysicsTokens->false_;
+      }
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Token,
+                            MjcPhysicsTokens->mjcActuatorfrclimited,
+                            actuatorfrclimited_token);
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Bool,
+                            MjcPhysicsTokens->mjcActuatorgravcomp,
+                            static_cast<bool>(joint->actgravcomp));
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcMargin, joint->margin);
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcRef, joint->ref);
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcSpringref, joint->springref);
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcArmature, joint->armature);
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcDamping, joint->damping);
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcFrictionloss,
+                            joint->frictionloss);
     }
     if (joint_id >= 0) {
       joint_paths_[joint_id] = joint_path;
@@ -1824,8 +1898,7 @@ class ModelWriter {
     // If the parent is not the world body, but is child of the world body
     // then we need to apply the articulation root API.
     if (parent_id != kWorldIndex) {
-      int parent_parent_id =
-          mjs_getId(mjs_getParent(parent->element)->element);
+      int parent_parent_id = mjs_getId(mjs_getParent(parent->element)->element);
       if (parent_parent_id == kWorldIndex) {
         ApplyApiSchema(data_, parent_path,
                        pxr::UsdPhysicsTokens->PhysicsArticulationRootAPI);

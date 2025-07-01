@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/experimental/usd/mjcPhysics/actuatorAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/meshCollisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
@@ -1169,13 +1170,13 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsRigidBody) {
   // test_body_3 is a child of the world but has no children so should not be
   // an articulation root.
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body_3",
-                          pxr::UsdPhysicsArticulationRootAPI);
+                              pxr::UsdPhysicsArticulationRootAPI);
 
   // Articulation root is not applied to other bodies or world body.
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test",
-                          pxr::UsdPhysicsArticulationRootAPI);
+                              pxr::UsdPhysicsArticulationRootAPI);
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body/test_body_2",
-                          pxr::UsdPhysicsArticulationRootAPI);
+                              pxr::UsdPhysicsArticulationRootAPI);
 
   // Geoms should not have RigidBodyAPI applied either.
   EXPECT_PRIM_API_NOT_APPLIED(stage, "/physics_test/test_body/test_geom",
@@ -1587,6 +1588,69 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsSliderCrankActuator) {
   EXPECT_REL_HAS_TARGET(stage, "/test/body/crank.mjc:sliderSite",
                         "/test/body/slider");
   ExpectAttributeEqual(stage, "/test/body/crank.mjc:crankLength", 1.23);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointAPI) {
+  static constexpr char xml[] = R"(
+  <mujoco model="test">
+    <worldbody>
+      <body name="parent">
+        <body name="child">
+          <joint name="my_joint" type="hinge"
+            springdamper="1 2"
+            solreflimit="0.1 0.2"
+            solimplimit="0.3 0.4 0.5 0.6 0.7"
+            solreffriction="0.8 0.9"
+            solimpfriction="1.0 1.1 1.2 1.3 1.4"
+            stiffness="1.5"
+            actuatorfrcrange="-1.6 1.7"
+            actuatorfrclimited="true"
+            actuatorgravcomp="true"
+            margin="1.8"
+            ref="1.9"
+            springref="2.0"
+            armature="2.1"
+            damping="2.2"
+            frictionloss="2.3"
+          />
+          <geom type="sphere" size="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  auto stage = OpenStageWithPhysics(xml);
+
+  const SdfPath joint_path("/test/parent/child/my_joint");
+  EXPECT_PRIM_API_APPLIED(stage, joint_path, pxr::MjcPhysicsJointAPI);
+
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:springdamper",
+                       pxr::VtArray<double>({1, 2}));
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:solreflimit",
+                       pxr::VtArray<double>({0.1, 0.2}));
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:solimplimit",
+                       pxr::VtArray<double>({0.3, 0.4, 0.5, 0.6, 0.7}));
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:solreffriction",
+                       pxr::VtArray<double>({0.8, 0.9}));
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:solimpfriction",
+                       pxr::VtArray<double>({1.0, 1.1, 1.2, 1.3, 1.4}));
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:stiffness", 1.5);
+  ExpectAttributeEqual(
+      stage, "/test/parent/child/my_joint.mjc:actuatorfrcrange:min", -1.6);
+  ExpectAttributeEqual(
+      stage, "/test/parent/child/my_joint.mjc:actuatorfrcrange:max", 1.7);
+  ExpectAttributeEqual(stage,
+                       "/test/parent/child/my_joint.mjc:actuatorfrclimited",
+                       MjcPhysicsTokens->true_);
+  ExpectAttributeEqual(
+      stage, "/test/parent/child/my_joint.mjc:actuatorgravcomp", true);
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:margin", 1.8);
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:ref", 1.9);
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:springref", 2.0);
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:armature", 2.1);
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:damping", 2.2);
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:frictionloss",
+                       2.3);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsFloatingAndFixedBaseBody) {
