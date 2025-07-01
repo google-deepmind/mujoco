@@ -36,14 +36,16 @@ cp -r "${package_dir}"/* .
 # Generate header files.
 old_pythonpath="${PYTHONPATH}"
 if [[ "$(uname)" == CYGWIN* || "$(uname)" == MINGW* ]]; then
-  export PYTHONPATH="${old_pythonpath};${package_dir}/.."
+  export PYTHONPATH="${old_pythonpath};${package_dir}/mujoco/python/.."
 else
-  export PYTHONPATH="${old_pythonpath}:${package_dir}/.."
+  export PYTHONPATH="${old_pythonpath}:${package_dir}/mujoco/python/.."
 fi
 python "${package_dir}"/mujoco/codegen/generate_enum_traits.py > \
     mujoco/enum_traits.h
 python "${package_dir}"/mujoco/codegen/generate_function_traits.py > \
     mujoco/function_traits.h
+python "${package_dir}"/mujoco/codegen/generate_spec_bindings.py > \
+    mujoco/specs.cc.inc
 export PYTHONPATH="${old_pythonpath}"
 
 # Copy over the LICENSE file.

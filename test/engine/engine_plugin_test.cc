@@ -17,6 +17,7 @@
 
 #include "src/engine/engine_plugin.h"
 
+#include <array>
 #include <cstdint>
 #include <sstream>
 #include <string>
@@ -36,9 +37,9 @@ using ::testing::DoubleNear;
 using ::testing::HasSubstr;
 using ::testing::NotNull;
 
-constexpr int kNumTruePlugins = 12;
+constexpr int kNumTruePlugins = 10;
 constexpr int kNumFakePlugins = 30;
-constexpr int kNumTestPlugins = 3;
+constexpr int kNumTestPlugins = 4;
 
 class BaseTestPlugin {
  public:
@@ -148,12 +149,6 @@ class TestActuator : public BaseTestPlugin {
     } else {
       multiplier = kDefaultMultiplier;
     }
-    s = mj_getPluginConfig(m, instance, "actdim");
-    if (*s) {
-      std::stringstream(s) >> actdim_;
-    } else {
-      actdim_ = 0;
-    }
     for (int i = 0; i < m->nu; ++i) {
       if (m->actuator_plugin[i] == instance) {
         actuators.push_back(&d->actuator_force[i]);
@@ -186,7 +181,13 @@ class TestActuator : public BaseTestPlugin {
       if (m->actuator_plugin[i] != instance_) {
         continue;
       }
-      mju_fill(d->act_dot + m->actuator_actadr[i], kActDotValue, actdim_);
+      // If the user specified an actdim, fill the act_dot values that belong
+      // to the plugin.
+      int actnum = m->actuator_actnum[i];
+      if (m->actuator_dyntype[i] != mjDYN_NONE) {
+        actnum--;
+      }
+      mju_fill(d->act_dot + m->actuator_actadr[i], kActDotValue, actnum);
     }
   }
 
@@ -194,7 +195,6 @@ class TestActuator : public BaseTestPlugin {
   mjtNum multiplier;
   std::vector<mjtNum*> actuators;
   int instance_;
-  int actdim_;
 
   void WriteActuatorForce() {
     for (mjtNum* actuator_force : actuators) {
@@ -239,7 +239,7 @@ int RegisterSensorPlugin() {
     TestSensor::DestroyCount()++;
   };
 
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto sensor = reinterpret_cast<TestSensor*>(plugin_data);
     sensor->Reset();
@@ -262,7 +262,7 @@ int RegisterActuatorPlugin() {
 
   plugin.name = "mujoco.test.actuator";
 
-  const char* attributes[] = {"stride", "multiplier", "actdim"};
+  const char* attributes[] = {"stride", "multiplier"};
   plugin.nattribute = sizeof(attributes) / sizeof(*attributes);
   plugin.attributes = attributes;
 
@@ -282,7 +282,7 @@ int RegisterActuatorPlugin() {
     TestActuator::DestroyCount()++;
   };
 
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto actuator = reinterpret_cast<TestActuator*>(plugin_data);
     actuator->Reset();
@@ -294,16 +294,6 @@ int RegisterActuatorPlugin() {
   plugin.advance = +[](const mjModel* m, mjData* d, int instance) {
     auto actuator = reinterpret_cast<TestActuator*>(d->plugin_data[instance]);
     actuator->Advance();
-  };
-  plugin.actuator_actdim =
-      +[](const mjModel* m, int instance, int actuator_id) {
-    const char* actdim_str = mj_getPluginConfig(m, instance, "actdim");
-    if (actdim_str) {
-      int actdim = 0;
-      std::stringstream(actdim_str) >> actdim;
-      return actdim;
-    }
-    return 0;
   };
   plugin.actuator_act_dot = +[](const mjModel* m, mjData* d, int instance) {
     auto actuator = reinterpret_cast<TestActuator*>(d->plugin_data[instance]);
@@ -337,7 +327,43 @@ int RegisterPassivePlugin() {
     d->plugin_data[instance] = 0;
   };
 
-  plugin.reset = +[](const mjModel* m, double* plugin_state, void* plugin_data,
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
+                     int instance) {
+    auto passive = reinterpret_cast<TestPassive*>(plugin_data);
+    passive->Reset();
+  };
+  plugin.compute = +[](const mjModel* m, mjData* d, int instance, int type) {
+    auto passive = reinterpret_cast<TestPassive*>(d->plugin_data[instance]);
+    passive->Compute();
+  };
+
+  return mjp_registerPlugin(&plugin);
+}
+
+int RegisterNoAttributePlugin() {
+  mjpPlugin plugin;
+  mjp_defaultPlugin(&plugin);
+
+  plugin.name = "mujoco.test.noattribute";
+
+  plugin.nattribute = 0;
+  plugin.attributes = nullptr;
+
+  plugin.capabilityflags |= mjPLUGIN_PASSIVE;
+
+  plugin.nstate = +[](const mjModel* m, int instance) { return 0; };
+
+  plugin.init = +[](const mjModel* m, mjData* d, int instance) {
+    auto* passive = new TestPassive(m, d, instance);
+    d->plugin_data[instance] = reinterpret_cast<uintptr_t>(passive);
+    return 0;
+  };
+  plugin.destroy = +[](mjData* d, int instance) {
+    delete reinterpret_cast<TestPassive*>(d->plugin_data[instance]);
+    d->plugin_data[instance] = 0;
+  };
+
+  plugin.reset = +[](const mjModel* m, mjtNum* plugin_state, void* plugin_data,
                      int instance) {
     auto passive = reinterpret_cast<TestPassive*>(plugin_data);
     passive->Reset();
@@ -366,6 +392,7 @@ class EnginePluginTest : public PluginTest {
 
     RegisterActuatorPlugin();
     RegisterPassivePlugin();
+    RegisterNoAttributePlugin();
   }
 };
 
@@ -382,8 +409,10 @@ constexpr char xml[] = R"(
       <instance name="actuator2">
         <config key="stride" value="2"/>
         <config key="multiplier" value="0.125"/>
-        <config key="actdim" value="3"/>
       </instance>
+    </plugin>
+    <plugin plugin="mujoco.test.noattribute">
+      <instance name="noattribute"/>
     </plugin>
     <plugin plugin="mujoco.test.passive"/>
   </extension>
@@ -415,14 +444,46 @@ constexpr char xml[] = R"(
       <config key="stride" value="4"/>
       <config key="multiplier" value="0.03125"/>
     </plugin>
-    <plugin joint="h2" instance="actuator2"/>
-    <plugin joint="h2" dyntype="filter" dynprm="0.9" instance="actuator2"/>
+    <plugin joint="h2" actdim="3" instance="actuator2"/>
+    <plugin joint="h2" actdim="4" dyntype="filter" dynprm="0.9" instance="actuator2"/>
   </actuator>
 </mujoco>
 )";
 
+TEST_F(MujocoTest, EmptyPluginDisallowed) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <plugin/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::IsNull()) << error.data();
+  EXPECT_THAT(error.data(), HasSubstr(
+              "neither 'plugin' nor 'instance' is specified for body 'world'"));
+  mj_deleteModel(m);
+}
+
 TEST_F(PluginTest, FirstPartyPlugins) {
   EXPECT_THAT(mjp_pluginCount(), kNumTruePlugins);
+}
+
+TEST_F(EnginePluginTest, NoAttributePlugin) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <extension>
+      <plugin plugin="mujoco.test.noattribute">
+        <instance name="noattribute"/>
+      </plugin>
+    </extension>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(m, testing::NotNull()) << error.data();
+  mj_deleteModel(m);
 }
 
 TEST_F(EnginePluginTest, MultiplePluginTableBlocks) {
@@ -524,7 +585,7 @@ TEST_F(EnginePluginTest, SensorPlugin) {
   EXPECT_EQ(TestSensor::InitCount(), expected_init_count);
   EXPECT_EQ(TestSensor::DestroyCount(), expected_destroy_count);
 
-  EXPECT_EQ(m->nplugin, 6);
+  EXPECT_EQ(m->nplugin, 7);
   EXPECT_EQ(mj_name2id(m, mjOBJ_PLUGIN, "twosensors"), 0);
   EXPECT_EQ(mj_name2id(m, mjOBJ_PLUGIN, "threesensors"), 1);
 
@@ -542,8 +603,8 @@ TEST_F(EnginePluginTest, SensorPlugin) {
                                                   m->plugin_stateadr[1]),
                   testing::ElementsAreArray<int>({3*(i+1), 6*j, 3*j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[3]>(d->plugin_state +
-                                                  m->plugin_stateadr[4]),
-                  testing::ElementsAreArray<int>({4*(i+1), 8*j, 4*j}));
+                                                  m->plugin_stateadr[5]),
+                  testing::ElementsAreArray<int>({5*(i+1), 10*j, 5*j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[18]>(d->sensordata),
                   testing::ElementsAreArray<int>({   i+1,   2*j,   j,
                                                   5*(i+1), 10*j, 5*j,
@@ -582,7 +643,7 @@ TEST_F(EnginePluginTest, ActuatorPlugin) {
   EXPECT_EQ(TestActuator::InitCount(), expected_init_count);
   EXPECT_EQ(TestActuator::DestroyCount(), expected_destroy_count);
 
-  EXPECT_EQ(m->nplugin, 6);
+  EXPECT_EQ(m->nplugin, 7);
   EXPECT_EQ(mj_name2id(m, mjOBJ_PLUGIN, "actuator2"), 2);
 
   mjData* d = mj_makeData(m);
@@ -623,7 +684,7 @@ TEST_F(EnginePluginTest, FilteredActuatorPlugin) {
 
   // Expecting 7 actuator state variables: 3x2 from actuator2 instances, and 1
   // from setting dyntype="filter" on one of the plugin actuators
-  EXPECT_EQ(m->na, 7);
+  ASSERT_EQ(m->na, 7);
   EXPECT_EQ(m->actuator_actnum[0], 0);
   EXPECT_EQ(m->actuator_actnum[1], 3);
   EXPECT_EQ(m->actuator_actnum[2], 4);

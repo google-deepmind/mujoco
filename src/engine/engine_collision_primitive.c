@@ -14,8 +14,6 @@
 
 #include "engine/engine_collision_primitive.h"
 
-#include <math.h>
-
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
@@ -219,7 +217,7 @@ int mjc_PlaneBox(const mjModel* m, const mjData* d,
 
     // get corner in global coordinates relative to box center
     mjtNum corner[3];
-    mju_rotVecMat(corner, vec, mat2);
+    mju_mulMatVec3(corner, mat2, vec);
 
     // compute distance to plane, skip if too far or pointing up
     mjtNum ldist = mju_dot3(norm, corner);
@@ -414,7 +412,7 @@ int mjraw_CapsuleCapsule(mjContact* con, mjtNum margin,
   mjtNum det = ma*mc - mb*mb;
 
   // general configuration (non-parallel axes)
-  if (fabs(det) >= mjMINVAL) {
+  if (mju_abs(det) >= mjMINVAL) {
     // find projections, clip to segments
     mjtNum x1 = (mc*u - mb*v) / det;
     mjtNum x2 = (ma*v - mb*u) / det;

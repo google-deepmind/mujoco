@@ -59,6 +59,10 @@ MJAPI void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale);
 // compute quaternion performing rotation from z-axis to given vector
 MJAPI void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]);
 
+// extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion
+// returns the number of iterations required to converge
+MJAPI int mju_mat2Rot(mjtNum quat[4], const mjtNum mat[9]);
+
 
 //------------------------------ pose operations (pos, quat) ---------------------------------------
 
@@ -75,6 +79,9 @@ MJAPI void mju_negPose(mjtNum posres[3], mjtNum quatres[4],
 MJAPI void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[4],
                           const mjtNum vec[3]);
 
+// convert sequence of Euler angles (radians) to quaternion
+// seq[0,1,2] must be in 'xyzXYZ', lower/upper-case mean intrinsic/extrinsic rotations
+MJAPI void mju_euler2Quat(mjtNum quat[4], const mjtNum euler[3], const char* seq);
 
 //------------------------------ spatial algebra ---------------------------------------------------
 

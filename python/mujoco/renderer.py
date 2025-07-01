@@ -32,7 +32,7 @@ class Renderer:
       model: _structs.MjModel,
       height: int = 240,
       width: int = 320,
-      max_geom: int = 10000
+      max_geom: int = 10000,
   ) -> None:
     """Initializes a new `Renderer`.
 
@@ -43,6 +43,7 @@ class Renderer:
       max_geom: Optional integer specifying the maximum number of geoms that can
         be rendered in the same scene. If None this will be chosen automatically
         based on the estimated maximum number of renderable geoms in the model.
+
     Raises:
       ValueError: If `camera_id` is outside the valid range, or if `width` or
         `height` exceed the dimensions of MuJoCo's offscreen framebuffer.
@@ -78,8 +79,11 @@ the clause:
 
     # Create render contexts.
     # TODO(nimrod): Figure out why pytype doesn't like gl_context.GLContext
-    self._gl_context = gl_context.GLContext(width, height)  # type: ignore
-    self._gl_context.make_current()
+    self._gl_context = None  # type: ignore
+    if gl_context.GLContext is not None:
+      self._gl_context = gl_context.GLContext(width, height)
+    if self._gl_context:
+      self._gl_context.make_current()
     self._mjr_context = _render.MjrContext(
         model, _enums.mjtFontScale.mjFONTSCALE_150.value
     )
@@ -136,6 +140,9 @@ the clause:
       A new numpy array holding the pixels with shape `(H, W)` or `(H, W, 3)`,
       depending on the value of `self._depth_rendering` unless
       `out is None`, in which case a reference to `out` is returned.
+
+    Raises:
+      RuntimeError: if this method is called after the close method.
     """
     original_flags = self._scene.flags.copy()
 
@@ -145,7 +152,11 @@ the clause:
       self._scene.flags[_enums.mjtRndFlag.mjRND_SEGMENT] = True
       self._scene.flags[_enums.mjtRndFlag.mjRND_IDCOLOR] = True
 
-    self._gl_context.make_current()
+    if self._mjr_context is None:
+      raise RuntimeError('render cannot be called after close.')
+
+    if self._gl_context:
+      self._gl_context.make_current()
 
     if self._depth_rendering:
       out_shape = (self._height, self._width)
@@ -210,9 +221,7 @@ the clause:
       # Convert 3-channel uint8 to 1-channel uint32.
       image3 = out.astype(np.uint32)
       segimage = (
-          image3[:, :, 0]
-          + image3[:, :, 1] * (2**8)
-          + image3[:, :, 2] * (2**16)
+          image3[:, :, 0] + image3[:, :, 1] * (2**8) + image3[:, :, 2] * (2**16)
       )
       # Remap segid to 2-channel (object ID, object type) pair.
       # Seg ID 0 is background -- will be remapped to (-1, -1).
@@ -241,15 +250,15 @@ the clause:
       self,
       data: _structs.MjData,
       camera: Union[int, str, _structs.MjvCamera] = -1,
-      scene_option: Optional[_structs.MjvOption] = None
-    ):
+      scene_option: Optional[_structs.MjvOption] = None,
+  ):
     """Updates geometry used for rendering.
 
     Args:
       data: An instance of `MjData`.
       camera: An instance of `MjvCamera`, a string or an integer
-      scene_option: A custom `MjvOption` instance to use to render
-        the scene instead of the default.
+      scene_option: A custom `MjvOption` instance to use to render the scene
+        instead of the default.
 
     Raises:
       ValueError: If `camera_id` is outside the valid range, or if camera does
@@ -264,8 +273,10 @@ the clause:
         if camera_id == -1:
           raise ValueError(f'The camera "{camera}" does not exist.')
       if camera_id < -1 or camera_id >= self._model.ncam:
-        raise ValueError(f'The camera id {camera_id} is out of'
-                         f' range [-1, {self._model.ncam}).')
+        raise ValueError(
+            f'The camera id {camera_id} is out of'
+            f' range [-1, {self._model.ncam}).'
+        )
 
       # Render camera.
       camera = _structs.MjvCamera()
@@ -285,6 +296,42 @@ the clause:
         data,
         scene_option,
         None,
-        camera, _enums.mjtCatBit.mjCAT_ALL.value,
+        camera,
+        _enums.mjtCatBit.mjCAT_ALL.value,
         self._scene,
     )
+
+  def close(self) -> None:
+    """Frees the resources used by the renderer.
+
+    This method can be used directly:
+
+    ```python
+    renderer = Renderer(...)
+    # Use renderer.
+    renderer.close()
+    ```
+
+    or via a context manager:
+
+    ```python
+    with Renderer(...) as renderer:
+      # Use renderer.
+    ```
+    """
+    if self._gl_context:
+      self._gl_context.free()
+    self._gl_context = None
+    if self._mjr_context:
+      self._mjr_context.free()
+    self._mjr_context = None
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    del exc_type, exc_value, traceback  # Unused.
+    self.close()
+
+  def __del__(self) -> None:
+    self.close()

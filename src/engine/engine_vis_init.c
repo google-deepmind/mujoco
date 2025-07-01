@@ -68,32 +68,32 @@ const char* mjFRAMESTRING[mjNFRAME] = {
 
 // visual options: {name, initial value, shortcut}
 const char* mjVISSTRING[mjNVISFLAG][3] = {
-  {"Convex &Hull",    "0", "H"},
-  {"Te&xture",        "1", "X"},
-  {"&Joint",          "0", "J"},
+  {"Convex Hull",     "0", "H"},
+  {"Texture",         "1", "X"},
+  {"Joint",           "0", "J"},
   {"Camera",          "0", "Q"},
-  {"Act&uator",       "0", "U"},
-  {"Act&ivation",     "0", ","},
+  {"Actuator",        "0", "U"},
+  {"Activation",      "0", ","},
   {"Light",           "0", "Z"},
   {"Tendon",          "1", "V"},
   {"Range Finder",    "1", "Y"},
-  {"Co&nstraint",     "0", "E"},
-  {"&Inertia",        "0", "I"},
+  {"Equality",        "0", "E"},
+  {"Inertia",         "0", "I"},
   {"Scale Inertia",   "0", "'"},
-  {"Pertur&b Force",  "0", "B"},
-  {"Perturb &Object", "1", "O"},
-  {"&Contact Point",  "0", "C"},
+  {"Perturb Force",   "0", "B"},
+  {"Perturb Object",  "1", "O"},
+  {"Contact Point",   "0", "C"},
   {"Island",          "1", ""},   // TODO(b/295296178): turn off after islands are on by default.
-  {"Contact &Force",  "0", "F"},
-  {"Contact S&plit",  "0", "P"},
-  {"&Transparent",    "0", "T"},
-  {"&Auto Connect",   "0", "A"},
-  {"Center of &Mass", "0", "M"},
-  {"S&elect Point",   "0", ""},
-  {"Static Bo&dy",    "1", "D"},
+  {"Contact Force",   "0", "F"},
+  {"Contact Split",   "0", "P"},
+  {"Transparent",     "0", "T"},
+  {"Auto Connect",    "0", "A"},
+  {"Center of Mass",  "0", "M"},
+  {"Select Point",    "0", ""},
+  {"Static Body",     "1", "D"},
   {"Skin",            "1", ";"},
   {"Flex Vert",       "0", ""},
-  {"Flex Edge",       "0", ""},
+  {"Flex Edge",       "1", ""},
   {"Flex Face",       "0", ""},
   {"Flex Skin",       "1", ""},
   {"Body Tree",       "0", "`"},
@@ -359,15 +359,16 @@ void mjv_defaultCamera(mjvCamera* cam) {
 void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam) {
   memset(cam, 0, sizeof(mjvCamera));
 
-  cam->type        = mjCAMERA_FREE;
-  cam->fixedcamid  = -1;
-  cam->trackbodyid = -1;
-  cam->lookat[0]   = m->stat.center[0];
-  cam->lookat[1]   = m->stat.center[1];
-  cam->lookat[2]   = m->stat.center[2];
-  cam->distance    = 1.5 * m->stat.extent;
-  cam->azimuth     = m->vis.global.azimuth;
-  cam->elevation   = m->vis.global.elevation;
+  cam->type         = mjCAMERA_FREE;
+  cam->fixedcamid   = -1;
+  cam->trackbodyid  = -1;
+  cam->lookat[0]    = m->stat.center[0];
+  cam->lookat[1]    = m->stat.center[1];
+  cam->lookat[2]    = m->stat.center[2];
+  cam->distance     = 1.5 * m->stat.extent;
+  cam->azimuth      = m->vis.global.azimuth;
+  cam->elevation    = m->vis.global.elevation;
+  cam->orthographic = m->vis.global.orthographic;
 }
 
 

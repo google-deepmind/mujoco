@@ -52,9 +52,6 @@ class Pid {
   // Returns the number of state variables for the plugin instance
   static int StateSize(const mjModel* m, int instance);
 
-  // Returns the number of activation variables for the plugin instance
-  static int ActDim(const mjModel* m, int instance, int actuator_id);
-
   // Resets the C++ Pid instance's state.
   // plugin_state is a C array pointer into mjData->plugin_state, with a size
   // equal to the value returned from StateSize.
@@ -75,6 +72,9 @@ class Pid {
 
  private:
   Pid(PidConfig config, std::vector<int> actuators);
+
+  // Returns the expected number of activation variables for the instance.
+  static int ActDim(const mjModel* m, int instance, int actuator_id);
 
   struct State {
     mjtNum previous_ctrl = 0;

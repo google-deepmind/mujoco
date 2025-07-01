@@ -13,6 +13,7 @@ Global variable and constant definitions can be classified as:
 - The :ref:`collision table<glCollision>` containing narrow-phase collision functions.
 - :ref:`String constants<glString>`.
 - :ref:`Numeric constants<glNumeric>`.
+- :ref:`Macros<Macros>`.
 - :ref:`X Macros<tyXMacro>`.
 
 .. _glError:
@@ -413,12 +414,6 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 50
      - The maximum depth of each body and mesh bounding volume hierarchy. If this large limit is exceeded, a warning
        is raised and ray casting may not be possible. For a balanced hierarchy, this implies 1E15 bounding volumes.
-   * - ``mjMAXVFS``
-     - 200
-     - The maximal number of characters in the name of each file in the virtual file system.
-   * - ``mjMAXVFSNAME``
-     - 100
-     - The maximal number of characters in the name of each file in the virtual file system.
    * - ``mjNEQDATA``
      - 11
      - The maximal number of real-valued parameters used to define each equality constraint. Determines the size of
@@ -453,7 +448,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 200
      - The number of iterations where solver statistics can be stored in ``mjData.solver``. This array is used
        to store diagnostic information about each iteration of the constraint solver.
-       The actual number of iterations is given by ``mjData.solver_iter``.
+       The actual number of iterations is given by ``mjData.solver_niter``.
    * - ``mjNISLAND``
      - 20
      - The number of islands for which solver statistics can be stored in ``mjData.solver``. This array is
@@ -489,7 +484,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 1000
      - Maximum number of textures allowed.
        Defined in `mjrender.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjrender.h>`_.
-   * - ``mjMAXTHREADS``
+   * - ``mjMAXTHREAD``
      - 128
      - Maximum number OS threads that can be used in a thread pool.
        Defined in `mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`_.
@@ -522,10 +517,93 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - Maximum number of UI rectangles.
        Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjVERSION_HEADER``
-     - 302
+     - 334
      - The version of the MuJoCo headers; changes with every release. This is an integer equal to 100x the software
        version, so 210 corresponds to version 2.1. Defined in  mujoco.h. The API function :ref:`mj_version` returns a
        number with the same meaning but for the compiled library.
+
+
+.. _Macros:
+
+Macros
+^^^^^^
+
+
+.. _mjUSESINGLE:
+
+mjUSESINGLE
+~~~~~~~~~~~
+
+Compile-time flag, see :ref:`mjtNum`.
+
+.. _mjDISABLED:
+
+mjDISABLED
+~~~~~~~~~~
+
+.. code-block:: C
+
+   #define mjDISABLED(x) (m->opt.disableflags & (x))
+
+Check if a given standard feature has been disabled via the physics options, assuming mjModel\* m is defined. x is of
+type :ref:`mjtDisableBit`.
+
+
+.. _mjENABLED:
+
+mjENABLED
+~~~~~~~~~
+
+.. code-block:: C
+
+   #define mjENABLED(x) (m->opt.enableflags & (x))
+
+Check if a given optional feature has been enabled via the physics options, assuming mjModel\* m is defined. x is of
+type :ref:`mjtEnableBit`.
+
+
+.. _mjMAX:
+
+mjMAX
+~~~~~
+
+.. code-block:: C
+
+   #define mjMAX(a,b) (((a) > (b)) ? (a) : (b))
+
+Return maximum value. To avoid repeated evaluation with mjtNum types, use the function :ref:`mju_max`.
+
+
+.. _mjMIN:
+
+mjMIN
+~~~~~
+
+.. code-block:: C
+
+   #define mjMIN(a,b) (((a) < (b)) ? (a) : (b))
+
+Return minimum value. To avoid repeated evaluation with mjtNum types, use the function :ref:`mju_min`.
+
+
+.. _mjPLUGIN_LIB_INIT:
+
+mjPLUGIN_LIB_INIT
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: C
+
+   #define mjPLUGIN_LIB_INIT                                                                 \
+     static void _mjplugin_dllmain(void);                                                    \
+     mjEXTERNC int __stdcall mjDLLMAIN(void* hinst, unsigned long reason, void* reserved) {  \
+       if (reason == 1) {                                                                    \
+         _mjplugin_dllmain();                                                                \
+       }                                                                                     \
+       return 1;                                                                             \
+     }                                                                                       \
+     static void _mjplugin_dllmain(void)
+
+Register a plugin as a dynamic library. See :ref:`plugin registration<exRegistration>` for more details.
 
 
 .. _tyXMacro:

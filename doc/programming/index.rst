@@ -8,7 +8,7 @@ Introduction
 ~~~~~~~~~~~~
 
 This chapter is the MuJoCo programming guide. A separate chapter contains the :doc:`../APIreference/index`
-documentation. MuJoCo is a dynamic library compatible with Windows, Linux and macOS, which requires a process with AVX
+documentation. MuJoCo is a dynamic library compatible with Windows, Linux and macOS, which requires a processor with AVX
 instructions. The library exposes the full functionality of the simulator through a compiler-independent shared-memory C
 API. It can also be used in C++ programs.
 
@@ -18,7 +18,7 @@ Engine
    The simulator (or physics engine) is written in C. It is responsible for all runtime computations.
 Parser
    The XML parser is written in C++. It can parse MJCF models and URDF models, converting them into an internal mjCModel
-   C++ object which is not directly exposed to the user.
+   C++ object which is exposed to the user via mjSpec.
 Compiler
    The compiler is written in C++. It takes an mjCModel C++ object constructed by the parser, and converts it into an
    mjModel C structure used at runtime.
@@ -72,34 +72,20 @@ directory; it contains error and warning messages, and can be deleted at any tim
      doc     - README.txt and REFERENCE.txt
      include - header files needed to develop with MuJoCo
      model   - model collection
-     sample  - code samples and makefile need to build them
+     sample  - code samples and CMakeLists.txt needed to build them
 
 After verifying that the simulator works, you may also want to re-compile the code samples to ensure that you have a
-working development environment. We provide Makefiles for `Windows
-<https://github.com/google-deepmind/mujoco/blob/main/sample/Makefile.windows>`_, `macOS
-<https://github.com/google-deepmind/mujoco/blob/main/sample/Makefile.macos>`_, and `Linux
-<https://github.com/google-deepmind/mujoco/blob/main/sample/Makefile>`_, and also a cross-platform `CMake
-<https://github.com/google-deepmind/mujoco/blob/main/sample/CMakeLists.txt>`_ setup that can be used to build sample
-applications independently of the MuJoCo library itself. If you are using the vanilla Makefile, we assume that you are
-using Visual Studio on Windows and LLVM/Clang on Linux. On Windows, you also need to either open a Visual Studio command
-prompt with native x64 tools or call the ``vcvarsall.bat`` script that comes with your MSVC installation to set up the
-appropriate environment variables.
+working development environment. We provide a cross-platform `CMake
+<https://github.com/google-deepmind/mujoco/blob/main/sample/CMakeLists.txt>`__ setup that can be used to build sample
+applications independently of the MuJoCo library itself.
 
 On macOS, the DMG disk image contains ``MuJoCo.app``, which you can double-click to launch the ``simulate`` GUI. You can
-also drag ``MuJoCo.app`` into the ``/Application`` on your system, as you would to install any other app. While
-``MuJoCo.app`` may look like a file, it is in fact an `Application Bundle <https://developer.apple.com/go/?id=bundle-
-structure>`_, which is a directory that contains executable binaries for all of MuJoCo's sample applications, along with
-an embedded `framework
-<https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPFrameworks/Concepts/WhatAreFrameworks.html>`_,
-which is a subdirectory containing the MuJoCo dynamic library and all of its public headers. In other words,
-``MuJoCo.app`` contains all the same files that are shipped in the archive on Windows and Linux. To see this, right
-click (or control-click) on ``MuJoCo.app`` and click "Show Package Contents".
-
-As mentioned above, ``mujoco.framework`` contains the library and headers that are necessary to build any application
-that depends on MuJoCo. If you are using Xcode, you can import it as a framework dependency on your project. (This also
+also drag ``MuJoCo.app`` into the ``/Application`` on your system, as you would to install any other app. As well as the
+``MuJoCo.app`` `Application Bundle <https://developer.apple.com/go/?id=bundle-
+structure>`__, the DMG includes the ``mujoco.framework`` subdirectory containing the MuJoCo dynamic library and all of
+its public headers. If you are using Xcode, you can import it as a framework dependency on your project. (This also
 works for Swift projects without any modification). If you are building manually, you can use ``-F`` and
-``-framework mujoco`` to specify the header search path and the library search path respectively. The macOS Makefile
-provides an example for this.
+``-framework mujoco`` to specify the header search path and the library search path respectively.
 
 .. _inBuild:
 
@@ -108,10 +94,10 @@ Building from source
 
 To build MuJoCo from source, you will need CMake and a working C++17 compiler installed. The steps are:
 
- #. Clone the ``mujoco`` repository from GitHub.
- #. Create a new build directory somewhere, and ``cd`` into it.
- #. Run ``cmake $PATH_TO_CLONED_REPO`` to configure the build.
- #. Run ``cmake --build .`` to build.
+#. Clone the ``mujoco`` repository: ``git clone https://github.com/deepmind/mujoco.git``
+#. Create a new build directory and ``cd`` into it.
+#. Run :shell:`cmake $PATH_TO_CLONED_REPO` to configure the build.
+#. Run ``cmake --build .`` to build.
 
 MuJoCo's build system automatically fetches dependencies from upstream repositories over the Internet using CMake's
 `FetchContent <https://cmake.org/cmake/help/latest/module/FetchContent.html>`_ module.
@@ -123,16 +109,29 @@ section of the documentation.
 Additionally, the CMake setup also implements an installation phase which will copy and organize the output files to a
 target directory.
 
- 5. Select the directory: ``cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>``
- #. After building, install with ``cmake --install .``
+5. Select the directory: :shell:`cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>`
+#. After building, install with ``cmake --install .``
 
 When building on Windows, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or later is
-installed (see `here <https://github.com/google-deepmind/mujoco/issues/862>`__ for more details).
+installed (see :github:issue:`862` for more details).
 
 .. tip::
    As a reference, a working build configuration can be found in MuJoCo's
    `continuous integration setup <https://github.com/google-deepmind/mujoco/blob/main/.github/workflows/build.yml>`_ on
    GitHub.
+
+.. _inBuildDocs:
+
+Building the docs
+~~~~~~~~~~~~~~~~~
+
+If you wish to build the documentation locally, for example to test pull-requests that improve it, do:
+
+1. Clone the ``mujoco`` repository: ``git clone https://github.com/deepmind/mujoco.git``
+2. Go to the ``doc/`` directory: ``cd mujoco/doc``
+3. Install the dependencies: ``pip install -r requirements.txt``
+4. Build the HTML: ``make html``
+5. Open ``_build/html/index.html`` in your browser of choice.
 
 .. _inHeader:
 
@@ -144,7 +143,7 @@ links below, to make this documentation self-contained.
 
 `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`__
    This is the main header file and must be included in all programs using MuJoCo. It defines all API functions and
-   global variables, and includes the all other header files except mjxmacro.h.
+   global variables, and includes all other header files except mjxmacro.h.
 `mjmodel.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmodel.h>`__
    Defines the C structure :ref:`mjModel` which is the runtime representation of the
    model being simulated. It also defines a number of primitive types and other structures needed to define mjModel.
@@ -160,6 +159,12 @@ links below, to make this documentation self-contained.
    Defines the primitive types and structures needed by the UI framework.
 `mjtnum.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjtnum.h>`__
    Defines MuJoCo's ``mjtNum`` floating-point type to be either ``double`` or ``float``. See :ref:`mjtNum`.
+`mjspec.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjspec.h>`__
+   Defines enums and structs used for :doc:`procedural model editing <modeledit>`.
+`mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
+   Defines data structures required by :ref:`engine plugins<exPlugin>`.
+`mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`__
+   Defines data structures and functions required by :ref:`thread<Thread>`.
 `mjmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjmacro.h>`__
    Defines C macros that are useful in user code.
 `mjxmacro.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjxmacro.h>`__
@@ -169,10 +174,8 @@ links below, to make this documentation self-contained.
 `mjexport.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjexport.h>`__
    Macros used for exporting public symbols from the MuJoCo library. This header should not be used directly by client
    code.
-`mjplugin.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjplugin.h>`__
-   Defines data structures required by :ref:`engine plugins<exPlugin>`.
-`mjthread.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjthread.h>`__
-   Defines data structures and functions required by :ref:`thread<Thread>`.
+`mjsan.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjsan.h>`__
+   Definitions required when building with sanitizer instrumentation.
 
 .. _inVersion:
 
@@ -196,7 +199,7 @@ the symbol :ref:`mjVERSION_HEADER <glNumeric>` and the library provides the func
 .. code-block:: C
 
    // recommended version check
-   if( mjVERSION_HEADER!=mj_version() )
+   if (mjVERSION_HEADER!=mj_version())
      complain();
 
 Note that only the main header defines this symbol. We assume that the collection of headers released with each software
@@ -226,6 +229,8 @@ to which the symbol belongs. First we list the prefixes corresponding to type de
    Data structure related to OpenGL rendering, for example :ref:`mjrContext`.
 ``mjui``
    Data structure related to UI framework, for example :ref:`mjuiSection`.
+``mjs``
+   Data structure related :doc:`procedural model editing <modeledit>`, for example :ref:`mjsJoint`.
 
 Next we list the prefixes corresponding to function definitions. Note that function prefixes always end with underscore.
 
@@ -247,6 +252,8 @@ Next we list the prefixes corresponding to function definitions. Note that funct
    custom callbacks by setting these global pointers to user-defined functions.
 ``mjd_``
    Functions for computing derivatives, for example :ref:`mjd_transitionFD`.
+``mjs_``
+   Functions for :doc:`procedural model editing <modeledit>`, for example :ref:`mjs_addJoint`.
 
 .. _inOpenGL:
 
@@ -276,5 +283,6 @@ now lazily resolved at runtime after the switch to GLAD, the "nogl" libraries ar
     simulation
     visualization
     ui
+    modeledit
     samples
     extension

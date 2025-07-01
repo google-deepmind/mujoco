@@ -85,15 +85,13 @@ Ellipsoid model
    :figwidth: 50%
    :align: right
 
-   The flight-capable Drosophila Melanogaster model in this figure will be described in a
-   forthcoming publication.
+   The flight-capable Drosophila Melanogaster model in this figure is described in :cite:t:`Vaxenburg2024`.
 
 
 In this section we describe and derive a stateless model of the forces exerted onto a moving rigid body by the
 surrounding fluid, based on an ellipsoidal approximation of geom shape. This model provides finer-grained control of the
 different types of fluid forces than the inertia-based model of the previous section. The motivating use-case for this
 model is insect flight, see figure on the right.
-
 
 Summary
 ~~~~~~~
@@ -118,26 +116,26 @@ also disables the inertia-based model for the parent body. The
      - :math:`C_{D, \text{blunt}}`
      - 0.5
    * - 1
-     - Slender drag coeficient
+     - Slender drag coefficient
      - :math:`C_{D, \text{slender}}`
      - 0.25
    * - 2
-     - Angular drag coeficient
+     - Angular drag coefficient
      - :math:`C_{D, \text{angular}}`
      - 1.5
    * - 3
-     - Kutta lift coeficient
+     - Kutta lift coefficient
      - :math:`C_K`
      - 1.0
    * - 4
-     - Magnus lift coeficient
+     - Magnus lift coefficient
      - :math:`C_M`
      - 1.0
 
 Elements of the model are a generalization of :cite:t:`andersen2005b` to 3 dimensions.
 The force :math:`\mathbf{f}_{\text{ellipsoid}}` and torque
 :math:`\mathbf{g}_{\text{ellipsoid}}` exerted by the fluid onto the solid are
-the sum of of the terms
+the sum of the terms
 
 .. math::
    \begin{align*}
@@ -310,7 +308,7 @@ We present the following result.
          :math:`\mathcal{E}` with :math:`\Pi_{\mathbf{u}}` (denoted :math:`\mathcal{E}^{\cap}_{\mathbf{u}}`).
 
          An important property of :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}` is that :math:`\mathbf{u}` is tangent
-         tangent to the ellipsoid :math:`\mathcal{E}` at every point on :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`.
+         to the ellipsoid :math:`\mathcal{E}` at every point on :math:`\mathcal{E}^{\mathrm{proj}}_{\mathbf{u}}`.
 
          We can regard :math:`\mathcal{E}` as the image of the unit sphere :math:`\mathcal{S}` under a stretching
          transformation :math:`T = \mathrm{diag}(r_x, r_y, r_z)`. Furthermore, if :math:`\mathbf{\tilde{u}}` is a vector
@@ -426,7 +424,7 @@ increasing Reynolds numbers, and a single reference area :math:`A_D` may not be 
 drag for highly irregular or slender bodies. For example, experimental fits are derived from problems ranging from
 falling playing cards :cite:p:`wang2004,andersen2005a,andersen2005b` to particle transport :cite:p:`loth2008,
 bagheri2016`. See screen capture of the
-`cards.xml <https://github.com/deepmind/mujoco/blob/main/model/card/cards.xml>`__ model on the right.
+`cards.xml <https://github.com/deepmind/mujoco/blob/main/model/cards/cards.xml>`__ model on the right.
 
 We derive a formula for :math:`\mathbf{f}_\text{D}` based on two surfaces :math:`A^\text{proj}_\mathbf{v}` and
 :math:`A_\text{max}`. The first, :math:`A^\text{proj}_\mathbf{v}`, is the cylindrical projection of the body onto a
@@ -520,8 +518,14 @@ in the surrounding flow a circulation of sufficient strength to hold the rear st
 This is the Kutta condition, a fluid dynamic phenomenon that can be observed for solid bodies with sharp corners, such
 as slender bodies or the trailing edges of airfoils.
 
-.. cssclass:: caption-small
 .. figure:: ../images/computation/kutta_cond_plate.svg
+   :class: only-light
+   :figwidth: 95%
+   :align: left
+
+.. cssclass:: caption-small
+.. figure:: ../images/computation/kutta_cond_plate_dark.svg
+   :class: only-dark
    :figwidth: 95%
    :align: left
 

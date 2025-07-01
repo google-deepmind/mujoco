@@ -21,116 +21,129 @@ from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import test_util
-# pylint: disable=g-importing-member
-from mujoco.mjx._src.types import DisableBit
-# pylint: enable=g-importing-member
+from mujoco.mjx._src.types import ConeType  # pylint: disable=g-importing-member
+from mujoco.mjx._src.types import JacobianType  # pylint: disable=g-importing-member
 import numpy as np
 
-
-def _assert_eq(a, b, name, step, fname, atol=5e-4, rtol=5e-4):
-  err_msg = f'mismatch: {name} at step {step} in {fname}'
-  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
-
-
-def _assert_attr_eq(a, b, attr, step, fname, atol=5e-4, rtol=5e-4):
-  err_msg = f'mismatch: {attr} at step {step} in {fname}'
-  a, b = getattr(a, attr), getattr(b, attr)
-  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
+# tolerance for difference between MuJoCo and MJX smooth calculations - mostly
+# due to float precision
+_TOLERANCE = 5e-5
 
 
-class SmoothTest(parameterized.TestCase):
+def _assert_eq(a, b, name):
+  tol = _TOLERANCE * 10  # avoid test noise
+  err_msg = f'mismatch: {name}'
+  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
-  @parameterized.parameters(enumerate(test_util.TEST_FILES))
-  def test_smooth(self, seed, fname):
-    """Tests mujoco mj smooth functions match mujoco_mjx smooth functions."""
-    if fname in ('convex.xml', 'equality.xml'):
-      return
 
-    np.random.seed(seed)
+def _assert_attr_eq(a, b, attr):
+  _assert_eq(getattr(a, attr), getattr(b, attr), attr)
 
-    m = test_util.load_test_file(fname)
+
+class SmoothTest(absltest.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    # although we already have generous padding of thresholds, it doesn't hurt
+    # to also fix the seed to reduce test flakiness
+    np.random.seed(0)
+
+  def test_smooth(self):
+    """Tests MJX smooth functions match MuJoCo smooth functions."""
+
+    m = test_util.load_test_file('pendula.xml')
+    # tell MJX to use sparse mass matrices:
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
     d = mujoco.MjData(m)
-
-    kinematics_jit_fn = jax.jit(mjx.kinematics)
-    com_pos_jit_fn = jax.jit(mjx.com_pos)
-    crb_jit_fn = jax.jit(mjx.crb)
-    factor_m_fn = jax.jit(mjx.factor_m)
-    com_vel_jit_fn = jax.jit(mjx.com_vel)
-    rne_jit_fn = jax.jit(mjx.rne)
-    mul_m_jit_fn = jax.jit(mjx.mul_m)
-    transmission_jit_fn = jax.jit(mjx.transmission)
-
-    mx = mjx.device_put(m)
-    dx = mjx.make_data(mx)
-
     # give the system a little kick to ensure we have non-identity rotations
     d.qvel = np.random.random(m.nv)
-    for i in range(100):
-      qpos, qvel = d.qpos.copy(), d.qvel.copy()
-      mujoco.mj_step(m, d)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    # randomize mocap
+    d.mocap_pos = np.random.random(d.mocap_pos.shape)
+    d.mocap_quat = np.random.random(d.mocap_quat.shape)
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
 
-      # kinematics
-      dx = kinematics_jit_fn(mx, dx.replace(qpos=qpos, qvel=qvel))
-      _assert_attr_eq(d, dx, 'xanchor', i, fname)
-      _assert_attr_eq(d, dx, 'xaxis', i, fname)
-      _assert_attr_eq(d, dx, 'xpos', i, fname)
-      _assert_attr_eq(d, dx, 'xquat', i, fname)
-      _assert_eq(d.xmat.reshape((-1, 3, 3)), dx.xmat, 'xmat', i, fname)
-      _assert_attr_eq(d, dx, 'xipos', i, fname)
-      _assert_eq(d.ximat.reshape((-1, 3, 3)), dx.ximat, 'ximat', i, fname)
-      _assert_attr_eq(d, dx, 'geom_xpos', i, fname)
-      _assert_eq(
-          d.geom_xmat.reshape((-1, 3, 3)),
-          dx.geom_xmat,
-          'geom_xmat',
-          i,
-          fname,
-      )
+    # kinematics
+    dx = jax.jit(mjx.kinematics)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'xanchor')
+    _assert_attr_eq(d, dx, 'xaxis')
+    _assert_attr_eq(d, dx, 'xpos')
+    _assert_attr_eq(d, dx, 'xquat')
+    _assert_eq(d.xmat.reshape((-1, 3, 3)), dx.xmat, 'xmat')
+    _assert_attr_eq(d, dx, 'xipos')
+    _assert_eq(d.ximat.reshape((-1, 3, 3)), dx.ximat, 'ximat')
+    _assert_attr_eq(d, dx, 'geom_xpos')
+    _assert_eq(d.geom_xmat.reshape((-1, 3, 3)), dx.geom_xmat, 'geom_xmat')
+    _assert_attr_eq(d, dx, 'site_xpos')
+    _assert_eq(d.site_xmat.reshape((-1, 3, 3)), dx.site_xmat, 'site_xmat')
+    # com_pos
+    dx = jax.jit(mjx.com_pos)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'subtree_com')
+    _assert_attr_eq(d, dx._impl, 'cinert')
+    _assert_attr_eq(d, dx._impl, 'cdof')
+    # camlight
+    dx = jax.jit(mjx.camlight)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'cam_xpos')
+    _assert_eq(d.cam_xmat.reshape((-1, 3, 3)), dx.cam_xmat, 'cam_xmat')
+    # crb
+    dx = jax.jit(mjx.crb)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx._impl, 'crb')
+    _assert_attr_eq(d, dx._impl, 'qM')
+    # factor_m
+    dx = jax.jit(mjx.factor_m)(mx, mjx.put_data(m, d))
+    qLDLegacy = np.zeros(mx.nM)  # pylint:disable=invalid-name
+    for i in range(m.nC):
+      qLDLegacy[d.mapM2M[i]] = d.qLD[i]
+    _assert_eq(qLDLegacy, dx._impl.qLD, 'qLD')
+    _assert_attr_eq(d, dx._impl, 'qLDiagInv')
+    # com_vel
+    dx = jax.jit(mjx.com_vel)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'cvel')
+    _assert_attr_eq(d, dx._impl, 'cdof_dot')
+    # rne
+    dx = jax.jit(mjx.rne)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx, 'qfrc_bias')
+    # rne (flg_acc=True)
+    qfrc_bias = np.zeros(m.nv)
+    mujoco.mj_rne(m, d, 1, qfrc_bias)
+    dx = jax.jit(mjx.rne, static_argnums=(2,))(
+        mx, mjx.put_data(m, d), flg_acc=True
+    )
+    _assert_eq(dx.qfrc_bias, qfrc_bias, 'qfrc_bias')
 
-      # com_pos
-      dx = com_pos_jit_fn(mx, dx)
-      _assert_attr_eq(d, dx, 'subtree_com', i, fname)
-      _assert_attr_eq(d, dx, 'cinert', i, fname)
-      _assert_attr_eq(d, dx, 'cdof', i, fname)
+    # set dense jacobian for tendon:
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-identity rotations
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mujoco.mj_forward(m, d)
+    # tendon
+    dx = jax.jit(mjx.tendon)(mx, mjx.put_data(m, d))
+    _assert_attr_eq(d, dx._impl, 'ten_J')
+    _assert_attr_eq(d, dx._impl, 'ten_length')
+    # transmission
+    dx = jax.jit(mjx.transmission)(mx, dx)
+    _assert_attr_eq(d, dx._impl, 'actuator_length')
 
-      # crb
-      dx = crb_jit_fn(mx, dx)
-      _assert_attr_eq(d, dx, 'crb', i, fname)
-      _assert_attr_eq(d, dx, 'qM', i, fname)
+    # convert sparse actuator_moment to dense representation
+    moment = np.zeros((m.nu, m.nv))
+    mujoco.mju_sparse2dense(
+        moment,
+        d.actuator_moment,
+        d.moment_rownnz,
+        d.moment_rowadr,
+        d.moment_colind,
+    )
+    _assert_eq(moment, dx._impl.actuator_moment, 'actuator_moment')
 
-      # factor_m
-      dx = factor_m_fn(mx, dx, dx.qM)
-      _assert_attr_eq(d, dx, 'qLD', i, fname, atol=1e-3)
-      _assert_attr_eq(d, dx, 'qLDiagInv', i, fname, atol=1e-3)
-
-      # com_vel
-      dx = com_vel_jit_fn(mx, dx)
-      _assert_attr_eq(d, dx, 'cvel', i, fname)
-      _assert_attr_eq(d, dx, 'cdof_dot', i, fname)
-
-      # rne
-      dx = rne_jit_fn(mx, dx)
-      _assert_attr_eq(d, dx, 'qfrc_bias', i, fname)
-
-      # mul_m (auxilliary function, not part of smooth step)
-      vec = np.random.random(m.nv)
-      mjx_vec = mul_m_jit_fn(mx, dx, jp.array(vec))
-      mj_vec = np.zeros(m.nv)
-      mujoco.mj_mulM(m, d, mj_vec, vec)
-      _assert_eq(mj_vec, mjx_vec, 'mul_m', i, fname)
-
-      # transmission
-      dx = transmission_jit_fn(mx, dx)
-      _assert_attr_eq(d, dx, 'actuator_length', i, fname)
-      _assert_attr_eq(d, dx, 'actuator_moment', i, fname)
-
-
-class DisableGravityTest(absltest.TestCase):
-
-  def test_disabled(self):
+  def test_disable_gravity(self):
     m = mujoco.MjModel.from_xml_string("""
         <mujoco>
-          <option timestep="0.01"/>
+          <option>
+            <flag gravity="disable"/>
+          </option>
           <worldbody>
             <body>
               <joint type="free"/>
@@ -139,62 +152,284 @@ class DisableGravityTest(absltest.TestCase):
           </worldbody>
         </mujoco>
         """)
-    mx = mjx.device_put(m)
     d = mujoco.MjData(m)
-    dx = mjx.device_put(d)
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
 
-    # test with gravity
-    step_jit_fn = jax.jit(mjx.step)
-    dx = step_jit_fn(mx, dx)
-    np.testing.assert_array_almost_equal(
-        dx.qpos, np.array([0.0, 0.0, -9.81e-4, 1.0, 0.0, 0.0, 0.0]), decimal=7
-    )
+    dx = jax.jit(mjx.rne)(mx, dx)
+    np.testing.assert_allclose(dx.qfrc_bias, 0)
 
-    # test with gravity disabled
-    mx = mx.tree_replace(
-        {'opt.disableflags': mx.opt.disableflags | DisableBit.GRAVITY}
-    )
-    dx = mjx.device_put(d)
-    step_jit_fn = jax.jit(mjx.step)
-    dx = step_jit_fn(mx, dx)
-    np.testing.assert_equal(
-        dx.qpos, np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-    )
-
-
-class SiteTest(absltest.TestCase):
-
-  def test_site(self):
-    """Tests that site positions and orientations match MuJoCo."""
+  def test_site_transmission(self):
     m = mujoco.MjModel.from_xml_string("""
-      <mujoco>
+        <mujoco>
+        <compiler autolimits="true"/>
         <worldbody>
-          <site name="origin"/>
           <body>
             <joint type="free"/>
-            <geom pos="1 0 1" type="box" size="0.1 0.01 0.01"/>
-            <site name="s1" pos="1.3 0 0"/>     <!-- pos only -->
-            <site name="s2"/>                   <!-- no pos, no quat -->
-            <site name="s3" quat="1 0 1 0"/>    <!- quat only -->
-            <site name="s4" pos="0 1.5 0" quat="1 0 1 0"/>
-            <site name="s5" pos="1 0 1"/>       <!-- same as ipos -->
-            <site/>
+            <geom type="box" size=".05 .05 .05" mass="1"/>
+            <site name="site1"/>
+            <body>
+              <joint type="hinge"/>
+              <geom size="0.1" mass="1"/>
+              <site name="site2" pos="0.1 0.2 0.3"/>
+            </body>
+          </body>
+          <body pos="1 0 0">
+            <joint name="slide" type="hinge"/>
+            <geom type="box" size=".05 .05 .05" mass="1"/>
           </body>
         </worldbody>
-      </mujoco>
+        <actuator>
+          <position site="site1" kv="0.1" gear="1 2 3 0 0 0"/>
+          <position site="site1" kv="0.2" gear="0 0 0 1 2 3"/>
+          <position site="site2" kv="0.3" gear="0 3 0 0 0 1"/>
+          <position joint="slide" kv="0.05" />
+          <position site="site2" refsite="site1" gear="1 2 3 0.5 0.4 0.6"/>
+        </actuator>
+        </mujoco>
       """)
     d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
 
-    mx = mjx.device_put(m)
-    dx = mjx.device_put(d)
+    mujoco.mj_transmission(m, d)
+    dx = jax.jit(mjx.transmission)(mx, dx)
+    _assert_attr_eq(d, dx._impl, 'actuator_length')
+
+    # convert sparse actuator_moment to dense representation
+    moment = np.zeros((m.nu, m.nv))
+    mujoco.mju_sparse2dense(
+        moment,
+        d.actuator_moment,
+        d.moment_rownnz,
+        d.moment_rowadr,
+        d.moment_colind,
+    )
+    _assert_eq(moment, dx._impl.actuator_moment, 'actuator_moment')
+
+  def test_subtree_vel(self):
+    """Tests MJX subtree_vel function matches MuJoCo mj_subtreeVel."""
+
+    m = test_util.load_test_file('humanoid/humanoid.xml')
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-identity rotations
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    # subtree velocity
+    mujoco.mj_subtreeVel(m, d)
+    dx = jax.jit(mjx.subtree_vel)(mx, dx)
+
+    _assert_attr_eq(d, dx._impl, 'subtree_linvel')
+    _assert_attr_eq(d, dx._impl, 'subtree_angmom')
+
+
+class RnePostConstraintTest(parameterized.TestCase):
+  _CONNECT_SITE = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+    </equality>
+    """
+  _CONNECT_BODY = """
+    <equality>
+      <connect body1="body1" body2="body2" anchor="1 2 3"/>
+    </equality>
+    """
+  _WELD_SITE = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_BODY = """
+    <equality>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_WELD_SITE = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <weld site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_SITE_CONNECT_SITE = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+      <connect site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_SITE_CONNECT_SITE_WELD_BODY = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+      <connect site1="site1" site2="site2"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_WELD_SITE_WELD_BODY = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <weld site1="site1" site2="site2"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_CONNECT_BODY_CONNECT_WELD = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <connect body1="body1" body2="body2" anchor="1 2 3"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+
+  @parameterized.parameters(
+      ('', ConeType.PYRAMIDAL, None),
+      ('', ConeType.ELLIPTIC, None),
+      (_CONNECT_SITE, ConeType.PYRAMIDAL, None),
+      (_CONNECT_BODY, ConeType.PYRAMIDAL, None),
+      (_WELD_SITE, ConeType.PYRAMIDAL, None),
+      (_WELD_BODY, ConeType.PYRAMIDAL, None),
+      (_CONNECT_SITE_WELD_SITE, ConeType.PYRAMIDAL, None),
+      (
+          _WELD_SITE_CONNECT_SITE,
+          ConeType.PYRAMIDAL,
+          np.array([6, 7, 8, 0, 1, 2, 3, 4, 5]),
+      ),
+      (
+          _WELD_SITE_CONNECT_SITE_WELD_BODY,
+          ConeType.PYRAMIDAL,
+          np.array([6, 7, 8, 0, 1, 2, 3, 4, 5]),
+      ),
+      (_CONNECT_SITE_WELD_SITE_WELD_BODY, ConeType.PYRAMIDAL, None),
+      (_CONNECT_SITE_CONNECT_BODY_CONNECT_WELD, ConeType.PYRAMIDAL, None),
+  )
+  def test_rnepostconstraint(self, equality, cone_type, efc_map):
+    """Tests MJX rne_postconstraint function to match MuJoCo mj_rnePostConstraint."""
+
+    m = mujoco.MjModel.from_xml_string(f"""
+        <mujoco>
+          <worldbody>
+            <geom name="floor" size="10 10 .05" type="plane"/>
+            <site name="site1"/>
+            <body name="body1">
+            </body>
+            <body pos="0 0 1" name="body2">
+              <joint type="ball" damping="1"/>
+              <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0" condim="1"/>
+              <body pos="0.5 0 0">
+                <joint type="ball" damping="1"/>
+                <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0"  condim="3"/>
+                <site name="site2"/>
+              </body>
+            </body>
+            <body pos="0 1 1">
+              <joint type="ball" damping="1"/>
+              <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0" condim="6"/>
+              <body pos="0.5 0 0">
+                <joint type="ball" damping="1"/>
+                <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0"  condim="3"/>
+              </body>
+            </body>
+          </worldbody>
+          {equality}
+          <keyframe>
+            <key qpos='0.424577 0.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697 0.424577 1.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697'/>
+          </keyframe>
+        </mujoco>
+    """)
+    # set cone type
+    m.opt.cone = cone_type
+    # create data and set to keyframe
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    # apply external forces
+    d.xfrc_applied = 0.001 * np.ones(d.xfrc_applied.shape)
+    mujoco.mj_step(m, d, 2)
+    mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    if efc_map is not None:
+      efc_force = d.efc_force.copy()
+      efc_force[: len(efc_map)] = d.efc_force[efc_map]
+      dx = dx.tree_replace({'_impl.efc_force': jp.array(efc_force)})
+
+    # rne postconstraint
+    mujoco.mj_rnePostConstraint(m, d)
+    dx = jax.jit(mjx.rne_postconstraint)(mx, dx)
+
+    _assert_eq(d.cacc, dx._impl.cacc, 'cacc')
+    _assert_eq(d.cfrc_ext, dx._impl.cfrc_ext, 'cfrc_ext')
+    _assert_eq(d.cfrc_int, dx._impl.cfrc_int, 'cfrc_int')
+
+
+class TendonTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      'tendon/fixed.xml',
+      'tendon/fixed_site.xml',
+      'tendon/fixed_site_wrap.xml',
+      'tendon/pulley_fixed_site_wrap.xml',
+      'tendon/pulley_site.xml',
+      'tendon/pulley_site_wrap.xml',
+      'tendon/pulley_wrap.xml',
+      'tendon/no_tendon.xml',
+      'tendon/site.xml',
+      'tendon/site_wrap.xml',
+      'tendon/tendon.xml',
+      'tendon/wrap_sidesite.xml',
+  )
+  def test_tendon(self, filename):
+    """Tests MJX tendon function matches MuJoCo mj_tendon."""
+    m = test_util.load_test_file(filename)
+    d = mujoco.MjData(m)
+    # give the system a little kick to ensure we have non-identity rotations
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d, 10)  # let dynamics get state significantly non-zero
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
 
     mujoco.mj_forward(m, d)
-    dx = mjx.forward(mx, dx)
+    dx = jax.jit(mjx.forward)(mx, dx)
 
-    np.testing.assert_array_almost_equal(dx.site_xpos, d.site_xpos)
-    np.testing.assert_array_almost_equal(
-        dx.site_xmat, d.site_xmat.reshape((-1, 3, 3))
+    _assert_eq(d.ten_length, dx._impl.ten_length, 'ten_length')
+    _assert_eq(d.ten_J, dx._impl.ten_J, 'ten_J')
+    _assert_eq(d.ten_wrapnum, dx._impl.ten_wrapnum, 'ten_wrapnum')
+    _assert_eq(d.ten_wrapadr, dx._impl.ten_wrapadr, 'ten_wrapadr')
+    _assert_eq(d.wrap_obj, dx._impl.wrap_obj, 'wrap_obj')
+    _assert_eq(d.wrap_xpos, dx._impl.wrap_xpos, 'wrap_xpos')
+
+  @parameterized.parameters(JacobianType.DENSE, JacobianType.SPARSE)
+  def test_tendon_armature(self, jacobian):
+    """Tests MJX tendon armature matches MuJoCo."""
+    m = test_util.load_test_file('tendon/armature.xml')
+    m.opt.jacobian = jacobian
+    d = mujoco.MjData(m)
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    mujoco.mj_forward(m, d)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    dx = dx.tree_replace(
+        {'_impl.qM': jp.zeros((m.nv, m.nv)), 'qfrc_bias': jp.zeros(m.nv)}
     )
+
+    dx = mjx.crb(mx, dx)
+    dx = mjx.tendon_armature(mx, dx)
+
+    if jacobian == JacobianType.DENSE:
+      qM = np.zeros((m.nv, m.nv))  # pylint: disable=invalid-name
+      mujoco.mj_fullM(m, qM, d.qM)
+    else:
+      qM = d.qM  # pylint: disable=invalid-name
+    _assert_eq(dx._impl.qM, qM, 'qM')
+
+    dx = mjx.rne(mx, dx)
+    dx = mjx.tendon_bias(mx, dx)
+    _assert_eq(dx.qfrc_bias, d.qfrc_bias, 'qfrc_bias')
 
 
 if __name__ == '__main__':

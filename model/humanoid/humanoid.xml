@@ -26,7 +26,7 @@
 
   <asset>
     <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512"/>
-    <texture name="body" type="cube" builtin="flat" mark="cross" width="128" height="128" rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1" random="0.01"/>
+    <texture name="body" type="cube" builtin="flat" mark="cross" width="128" height="128" rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1"/>
     <material name="body" texture="body" texuniform="true" rgba="0.8 0.6 .4 1"/>
     <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4"/>
     <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2"/>
@@ -104,8 +104,8 @@
   <worldbody>
     <geom name="floor" size="0 0 .05" type="plane" material="grid" condim="3"/>
     <light name="spotlight" mode="targetbodycom" target="torso" diffuse=".8 .8 .8" specular="0.3 0.3 0.3" pos="0 -6 4" cutoff="30"/>
+    <light name="top" pos="0 0 2" mode="trackcom"/>
     <body name="torso" pos="0 0 1.282" childclass="body">
-      <light name="top" pos="0 0 2" mode="trackcom"/>
       <camera name="back" pos="-3 0 1" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
       <camera name="side" pos="0 -3 1" xyaxes="1 0 0 0 1 2" mode="trackcom"/>
       <freejoint name="root"/>
@@ -200,21 +200,21 @@
   </tendon>
 
   <actuator>
-    <motor name="abdomen_y"       gear="40"  joint="abdomen_y"/>
     <motor name="abdomen_z"       gear="40"  joint="abdomen_z"/>
+    <motor name="abdomen_y"       gear="40"  joint="abdomen_y"/>
     <motor name="abdomen_x"       gear="40"  joint="abdomen_x"/>
     <motor name="hip_x_right"     gear="40"  joint="hip_x_right"/>
     <motor name="hip_z_right"     gear="40"  joint="hip_z_right"/>
     <motor name="hip_y_right"     gear="120" joint="hip_y_right"/>
     <motor name="knee_right"      gear="80"  joint="knee_right"/>
-    <motor name="ankle_x_right"   gear="20"  joint="ankle_x_right"/>
     <motor name="ankle_y_right"   gear="20"  joint="ankle_y_right"/>
+    <motor name="ankle_x_right"   gear="20"  joint="ankle_x_right"/>
     <motor name="hip_x_left"      gear="40"  joint="hip_x_left"/>
     <motor name="hip_z_left"      gear="40"  joint="hip_z_left"/>
     <motor name="hip_y_left"      gear="120" joint="hip_y_left"/>
     <motor name="knee_left"       gear="80"  joint="knee_left"/>
-    <motor name="ankle_x_left"    gear="20"  joint="ankle_x_left"/>
     <motor name="ankle_y_left"    gear="20"  joint="ankle_y_left"/>
+    <motor name="ankle_x_left"    gear="20"  joint="ankle_x_left"/>
     <motor name="shoulder1_right" gear="20"  joint="shoulder1_right"/>
     <motor name="shoulder2_right" gear="20"  joint="shoulder2_right"/>
     <motor name="elbow_right"     gear="40"  joint="elbow_right"/>
@@ -233,17 +233,35 @@
       left leg
       arms
     -->
-    <key name="squat" qpos="0 0 0.596
-                            0.988015 0 0.154359 0
-                            0 0.4 0
-                            -0.25 -0.5 -2.5 -2.65 -0.8 0.56
-                            -0.25 -0.5 -2.5 -2.65 -0.8 0.56
-                            0 0 0 0 0 0"/>
-    <key name="stand_on_left_leg" qpos="0 0 1.21948
-                                        0.971588 -0.179973 0.135318 -0.0729076
-                                        -0.0516 -0.202 0.23
-                                        -0.24 -0.007 -0.34 -1.76 -0.466 -0.0415
-                                        -0.08 -0.01 -0.37 -0.685 -0.35 -0.09
-                                        0.109 -0.067 -0.7 -0.05 0.12 0.16"/>
+    <key name="squat"
+         qpos="0 0 0.596
+               0.988015 0 0.154359 0
+               0 0.4 0
+               -0.25 -0.5 -2.5 -2.65 -0.8 0.56
+               -0.25 -0.5 -2.5 -2.65 -0.8 0.56
+               0 0 0 0 0 0"/>
+    <key name="stand_on_left_leg"
+         qpos="0 0 1.21948
+               0.971588 -0.179973 0.135318 -0.0729076
+               -0.0516 -0.202 0.23
+               -0.24 -0.007 -0.34 -1.76 -0.466 -0.0415
+               -0.08 -0.01 -0.37 -0.685 -0.35 -0.09
+               0.109 -0.067 -0.7 -0.05 0.12 0.16"/>
+    <key name="prone"
+         qpos="0.4 0 0.0757706
+               0.7325 0 0.680767 0
+               0 0.0729 0
+               0.0077 0.0019 -0.026 -0.351 -0.27 0
+               0.0077 0.0019 -0.026 -0.351 -0.27 0
+               0.56 -0.62 -1.752
+               0.56 -0.62 -1.752"/>
+    <key name="supine"
+         qpos="-0.4 0 0.08122
+               0.722788 0 -0.69107 0
+               0 -0.25 0
+               0.0182 0.0142 0.3 0.042 -0.44 -0.02
+               0.0182 0.0142 0.3 0.042 -0.44 -0.02
+               0.186 -0.73 -1.73
+               0.186 -0.73 -1.73"/>
   </keyframe>
 </mujoco>

@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjthread.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"
@@ -65,7 +66,7 @@ class ThreadPoolImpl : public mjThreadPool {
  public:
   ThreadPoolImpl(int num_worker) : mjThreadPool{num_worker} {
     // initialize worker threads
-    for (int i = 0; i < std::min(num_worker, mjMAXTHREADS); ++i) {
+    for (int i = 0; i < std::min(num_worker, mjMAXTHREAD); ++i) {
       WorkerThread worker{
         std::make_unique<std::thread>(ThreadPoolWorker, this, i)};
       workers_.push_back(std::move(worker));

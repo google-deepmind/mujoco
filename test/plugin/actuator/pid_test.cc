@@ -14,12 +14,14 @@
 
 // Tests for the PID controller plugin
 
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <absl/cleanup/cleanup.h>
+#include <absl/strings/str_replace.h>
 #include <absl/strings/string_view.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
@@ -109,7 +111,7 @@ TEST_F(PidTest, PGainWithFilterExact) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j1" plugin="mujoco.pid" instance="pid1"
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1"
         dyntype="filterexact" dynprm="0.1" actearly="true"/>
     <general joint="j2" gainprm="4.0 0 0" biastype="affine" biasprm="0 -4.0 0"
         dyntype="filterexact" dynprm="0.1" actearly="true"/>
@@ -169,7 +171,7 @@ TEST_F(PidTest, SlewMaxRate) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" />
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1" />
     <position joint="j2" kp="4.0" />
   </actuator>
   </mujoco>
@@ -235,10 +237,10 @@ TEST_F(PidTest, IntegratedVelocitySlewMaxRate) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" />
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1"/>
     <!-- make an integrated velocity controller using the PID plugin -->
     <plugin joint="j2" plugin="mujoco.pid" instance="pid2"
-        dyntype="integrator" dynprm="1 0 0" actearly="true"/>
+        dyntype="integrator" dynprm="1 0 0" actearly="true" actdim="1"/>
   </actuator>
   </mujoco>
   )";
@@ -250,9 +252,9 @@ TEST_F(PidTest, IntegratedVelocitySlewMaxRate) {
 
   // having a slew rate means that there should be one extra state variable
   // for the plugin.
-  EXPECT_EQ(m->actuator_actnum[0], 1);
+  ASSERT_EQ(m->actuator_actnum[0], 1);
   // The integrated-velocity controller should have one activation variable too.
-  EXPECT_EQ(m->actuator_actnum[1], 1);
+  ASSERT_EQ(m->actuator_actnum[1], 1);
 
   mjData* d = mj_makeData(m);
   absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
@@ -299,7 +301,9 @@ TEST_F(PidTest, SlewMaxRateUsesFirstCtrl) {
     </body>
   </worldbody>
 
-  <actuator><plugin joint="j1" plugin="mujoco.pid" instance="pid1" /></actuator>
+  <actuator>
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1"/>
+  </actuator>
   </mujoco>
   )";
 
@@ -363,8 +367,8 @@ TEST_F(PidTest, ITerm) {
 
   <actuator>
     <plugin joint="j1" plugin="mujoco.pid" instance="pid1" />
-    <plugin joint="j2" plugin="mujoco.pid" instance="pid2" />
-    <plugin joint="j3" plugin="mujoco.pid" instance="pid3" />
+    <plugin joint="j2" plugin="mujoco.pid" instance="pid2" actdim="1" />
+    <plugin joint="j3" plugin="mujoco.pid" instance="pid3" actdim="1" />
   </actuator>
   </mujoco>
   )";
@@ -413,7 +417,7 @@ TEST_F(PidTest, FiniteDifferencing) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j" plugin="mujoco.pid" instance="pid" />
+    <plugin joint="j" plugin="mujoco.pid" instance="pid" actdim="2" />
   </actuator>
   </mujoco>
   )";
@@ -425,7 +429,7 @@ TEST_F(PidTest, FiniteDifferencing) {
 
   // actuators with an I term and max slew rate should have 2 activation
   // variables.
-  EXPECT_EQ(m->actuator_actnum[0], 2);
+  ASSERT_EQ(m->actuator_actnum[0], 2);
 
   mjData* d = mj_makeData(m);
   absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
@@ -471,7 +475,7 @@ TEST_F(PidTest, CtrlClamp) {
 
   <actuator>
     <plugin joint="j1" plugin="mujoco.pid" instance="pid"
-        ctrlrange="0.25 0.75" />
+        ctrlrange="0.25 0.75" actdim="1" />
   </actuator>
   </mujoco>
   )";
@@ -534,7 +538,7 @@ TEST_F(PidTest, CopyData) {
 
   <actuator>
     <plugin joint="j1" plugin="mujoco.pid" instance="pid1" />
-    <plugin joint="j2" plugin="mujoco.pid" instance="pid2" />
+    <plugin joint="j2" plugin="mujoco.pid" instance="pid2" actdim="2"/>
   </actuator>
   </mujoco>
   )";
@@ -588,8 +592,8 @@ TEST_F(PidTest, MultipleActuatorsSamePlugin) {
   </worldbody>
 
   <actuator>
-    <plugin joint="j1" plugin="mujoco.pid" instance="pid" />
-    <plugin joint="j2" plugin="mujoco.pid" instance="pid" />
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid" actdim="1" />
+    <plugin joint="j2" plugin="mujoco.pid" instance="pid" actdim="1" />
   </actuator>
   </mujoco>
   )";
@@ -648,8 +652,8 @@ TEST_F(PidTest, InvalidClamp) {
   mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
   EXPECT_THAT(m, IsNull());
 
-  // TODO: b/303654852 - ensure that the compilation error includes "imax"
   EXPECT_THAT(std::string_view(error), HasSubstr("plugin"));
+  EXPECT_THAT(std::string_view(error), HasSubstr("imax"));
 }
 
 TEST_F(PidTest, InvalidSlew) {
@@ -679,8 +683,108 @@ TEST_F(PidTest, InvalidSlew) {
   mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
   ASSERT_THAT(m, IsNull());
 
-  // TODO: b/303654852 - ensure that the compilation error includes "slewmax"
   EXPECT_THAT(std::string_view(error), HasSubstr("plugin"));
+  EXPECT_THAT(std::string_view(error), HasSubstr("slewmax"));
+}
+
+TEST_F(PidTest, WrongActdim) {
+  // XML where PLACEHOLDER is going to be replaced with various things
+  constexpr absl::string_view kBaseXml = R"(
+  <mujoco>
+  <extension>
+    <plugin plugin="mujoco.pid">
+      <instance name="pid1">
+        <config key="kp" value="4.0"/>
+        <config key="slewmax" value="0.75"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <worldbody>
+    <body>
+      <joint name="j1" type="slide"/>
+      <geom size="0.01"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" PLACEHOLDER />
+  </actuator>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  {
+    std::string no_actdim =
+        absl::StrReplaceAll(kBaseXml, {{"PLACEHOLDER", ""}});
+    mjModel* m = LoadModelFromString(no_actdim, error, sizeof(error));
+    EXPECT_THAT(m, IsNull());
+    EXPECT_THAT(std::string_view(error), HasSubstr("actdim=\"1\""));
+  }
+
+  {
+    std::string big_actdim =
+        absl::StrReplaceAll(kBaseXml, {{"PLACEHOLDER", "actdim=\"2\""}});
+    mjModel* m = LoadModelFromString(big_actdim, error, sizeof(error));
+    EXPECT_THAT(m, IsNull());
+    EXPECT_THAT(std::string_view(error), HasSubstr("actdim=\"1\""));
+  }
+
+  {
+    std::string dyntype_integrator = absl::StrReplaceAll(
+        kBaseXml, {{"PLACEHOLDER", "dyntype=\"integrator\" actdim=\"1\""}});
+    mjModel* m = LoadModelFromString(dyntype_integrator, error, sizeof(error));
+    EXPECT_THAT(m, IsNull());
+    EXPECT_THAT(std::string_view(error), HasSubstr("actdim=\"2\""));
+  }
+}
+
+// Regression test: loading models with PID plugin and keyframes used to crash.
+TEST_F(PidTest, Keyframe) {
+  constexpr absl::string_view kModelXml = R"(
+  <mujoco>
+  <extension>
+    <plugin plugin="mujoco.pid">
+      <instance name="pid1">
+        <config key="kp" value="4.0"/>
+        <config key="slewmax" value="0.75"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <worldbody>
+    <body>
+      <joint name="j1" type="slide"/>
+      <geom size="0.01"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <plugin joint="j1" plugin="mujoco.pid" instance="pid1" actdim="1" />
+  </actuator>
+  <keyframe>
+    <key name="home" qpos="0" act="1" />
+  </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024] = {0};
+  mjModel* m = LoadModelFromString(kModelXml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  absl::Cleanup m_deleter = [m] { mj_deleteModel(m); };
+
+  // having a slew rate means that there should be one extra state variable
+  // for the plugin.
+  EXPECT_EQ(m->actuator_actnum[0], 1);
+  EXPECT_EQ(m->na, 1);
+  ASSERT_EQ(m->nkey, 1);
+  EXPECT_EQ(m->key_act[0], 1.0);
+
+  mjData* d = mj_makeData(m);
+  absl::Cleanup d_deleter = [d] { mj_deleteData(d); };
+
+  mj_resetDataKeyframe(m, d, 0);
+  EXPECT_EQ(d->act[0], 1.0);
 }
 }  // namespace
 }  // namespace mujoco

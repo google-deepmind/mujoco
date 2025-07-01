@@ -14,6 +14,8 @@
 
 #include "test/fixture.h"
 
+#include <array>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest-spi.h>
 #include <gtest/gtest.h>
@@ -47,6 +49,23 @@ TEST_F(MujocoErrorTestGuardTest, NestedErrorGuards) {
   }
   EXPECT_THAT(mju_user_error, IsNull());
   EXPECT_THAT(mju_user_warning, IsNull());
+}
+
+TEST_F(MujocoTestTest, MockFilesystemTest) {
+  MockFilesystem fs("MockFilesystemTest");
+  std::array<unsigned char, 3> data = {'a', 'b', 'c'};
+  fs.ChangeDirectory("tmp");
+
+  fs.AddFile("../tmp2/file2", data.data(), data.size());
+  fs.AddFile("./file1", data.data(), data.size());
+
+  ASSERT_TRUE(fs.FileExists("/tmp/file1"));
+  ASSERT_TRUE(fs.FileExists("/tmp2/file2"));
+
+  fs.ChangeDirectory("../tmp2");
+
+  ASSERT_TRUE(fs.FileExists("../tmp/file1"));
+  ASSERT_TRUE(fs.FileExists("file2"));
 }
 
 }  // namespace

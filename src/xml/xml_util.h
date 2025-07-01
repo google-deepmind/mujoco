@@ -19,20 +19,22 @@
 #include <array>
 #include <functional>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 #include <sstream>
 
-#include <mujoco/mjmodel.h>
-
-
-// TinyXML
+#include <mujoco/mujoco.h>
+#include "user/user_util.h"
 #include "tinyxml2.h"
-
 
 // error string copy
 void mjCopyError(char* dst, const char* src, int maxlen);
 
+using tinyxml2::XMLElement;
+
+XMLElement* FirstChildElement(XMLElement* e, const char* name = nullptr);
+XMLElement* NextSiblingElement(XMLElement* e, const char* name = nullptr);
 
 // XML Error info
 class [[nodiscard]] mjXError {
@@ -54,24 +56,22 @@ class [[nodiscard]] mjXError {
 // Custom XML file validation
 class mjXSchema {
  public:
-  mjXSchema(const char* schema[][mjXATTRNUM],         // constructor
-            int nrow, bool checkptr = true);
-  ~mjXSchema();                                       // destructor
+  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow);
 
-  std::string GetError(void);                         // return error
-  void Print(std::stringstream& str, int level);      // print schema
-  void PrintHTML(std::stringstream& str, int level, bool pad);
+  std::string GetError();                         // return error
+  void Print(std::stringstream& str, int level) const;      // print schema
+  void PrintHTML(std::stringstream& str, int level, bool pad) const;
 
   bool NameMatch(tinyxml2::XMLElement* elem, int level);               // does name match
   tinyxml2::XMLElement* Check(tinyxml2::XMLElement* elem, int level);  // validator
 
  private:
-  std::string name;                   // element name
-  char type;                          // element type: '?', '!', '*', 'R'
-  std::vector<std::string> attr;      // allowed attributes
-  std::vector<mjXSchema*> child;      // allowed child elements
+  std::string name_;                  // element name
+  char type_;                         // element type: '?', '!', '*', 'R'
+  std::set<std::string> attr_;        // allowed attributes
+  std::vector<mjXSchema> subschema_;  // allowed child elements
 
-  int refcnt;                         // refcount used for validation
+  int refcnt_ = 0;                    // refcount used for validation
   std::string error;                  // error from constructor or Check
 };
 
@@ -102,22 +102,33 @@ class mjXUtil {
 
   // if attribute is present, return vector of numerical data
   template<typename T>
-  static std::optional<std::vector<T>> ReadAttrVec(tinyxml2::XMLElement* elem, const char* attr,
+  static std::optional<std::vector<T>> ReadAttrVec(tinyxml2::XMLElement* elem,
+                                                   const char* attr,
                                                    bool required = false);
 
   // if attribute is present, return attribute as a string
-  static std::optional<std::string> ReadAttrStr(tinyxml2::XMLElement* elem, const char* attr,
+  static std::optional<std::string> ReadAttrStr(tinyxml2::XMLElement* elem,
+                                                const char* attr,
                                                 bool required = false);
+
+  // if attribute is present, return attribute as a filename
+  static std::optional<mujoco::user::FilePath>
+      ReadAttrFile(tinyxml2::XMLElement* elem, const char* attr,
+                   const mjVFS* vfs,
+                   const mujoco::user::FilePath& dir = mujoco::user::FilePath(),
+                   bool required = false);
 
   // if attribute is present, return numerical value of attribute
   template<typename T>
-  static std::optional<T> ReadAttrNum(tinyxml2::XMLElement* elem, const char* attr,
+  static std::optional<T> ReadAttrNum(tinyxml2::XMLElement* elem,
+                                      const char* attr,
                                       bool required = false);
 
   // if attribute is present, return array of numerical data
   // N should be small as data is allocated on the stack
   template<typename T, int N>
-  static std::optional<std::array<T, N>> ReadAttrArr(tinyxml2::XMLElement* elem, const char* attr,
+  static std::optional<std::array<T, N>> ReadAttrArr(tinyxml2::XMLElement* elem,
+                                                     const char* attr,
                                                      bool required = false) {
     std::array<T, N> arr;
     int n = 0;
@@ -141,7 +152,7 @@ class mjXUtil {
 
   // deprecated: use ReadAttrVec or ReadAttrArr
   template<typename T>
-  static int ReadAttr(tinyxml2::XMLElement* elem, const char* attr, const int len,
+  static int ReadAttr(tinyxml2::XMLElement* elem, const char* attr, int len,
                       T* data, std::string& text,
                       bool required = false, bool exact = true);
 
@@ -160,29 +171,9 @@ class mjXUtil {
   static bool ReadAttrInt(tinyxml2::XMLElement* elem, const char* attr, int* data,
                           bool required = false);
 
-  // read vector<string> from string
-  static void String2Vector(const std::string& txt, std::vector<std::string>& vec);
-
-  // read vector<double> from string
-  static void String2Vector(const std::string& txt, std::vector<double>& vec);
-
-  // read vector<float> from string
-  static void String2Vector(const std::string& txt, std::vector<float>& vec);
-
-  // read vector<int> from string
-  static void String2Vector(const std::string& txt, std::vector<int>& vec);
-
-  // write vector<string> to string
-  static void Vector2String(std::string& txt, const std::vector<std::string>& vec);
-
-  // write vector<double> to string
-  static void Vector2String(std::string& txt, const std::vector<double>& vec);
-
   // write vector<float> to string
-  static void Vector2String(std::string& txt, const std::vector<float>& vec);
+  static void Vector2String(std::string& txt, const std::vector<float>& vec, int ncol = 0);
 
-  // write vector<int> to string
-  static void Vector2String(std::string& txt, const std::vector<int>& vec);
 
   // find subelement with given name, make sure it is unique
   static tinyxml2::XMLElement* FindSubElem(tinyxml2::XMLElement* elem, std::string name,
@@ -195,12 +186,13 @@ class mjXUtil {
   // write attribute- any type
   template<typename T>
   static void WriteAttr(tinyxml2::XMLElement* elem, std::string name, int n, const T* data,
-                        const T* def = 0);
+                        const T* def = 0, bool trim = false);
 
   // write vector<double> attribute, with and without default
-  static void WriteVector(tinyxml2::XMLElement* elem, std::string name, std::vector<double>& vec);
-  static void WriteVector(tinyxml2::XMLElement* elem, std::string name, std::vector<double>& vec,
-                          std::vector<double>& def);
+  static void WriteVector(tinyxml2::XMLElement* elem, std::string name,
+                          const std::vector<double>& vec);
+  static void WriteVector(tinyxml2::XMLElement* elem, std::string name,
+                          const std::vector<double>& vec, const std::vector<double>& def);
 
   // write attribute- string
   static void WriteAttrTxt(tinyxml2::XMLElement* elem, std::string name, std::string value);

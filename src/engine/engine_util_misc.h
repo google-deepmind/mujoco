@@ -29,9 +29,11 @@ extern "C" {
 //------------------------------ tendons and actuators ---------------------------------------------
 
 // wrap tendons around spheres and cylinders
-mjtNum mju_wrap(mjtNum* wpnt, const mjtNum* x0, const mjtNum* x1,
-                const mjtNum* xpos, const mjtNum* xmat, const mjtNum* size,
-                int type, const mjtNum* side);
+mjtNum mju_wrap(mjtNum wpnt[6], const mjtNum x0[3], const mjtNum x1[3], const mjtNum xpos[3],
+                const mjtNum xmat[9], mjtNum radius, int type, const mjtNum side[3]);
+
+// normalized muscle length-gain curve
+MJAPI mjtNum mju_muscleGainLength(mjtNum length, mjtNum lmin, mjtNum lmax);
 
 // muscle active force, prm = (range[2], force, scale, lmin, lmax, vmax, fpmax, fvmax)
 MJAPI mjtNum mju_muscleGain(mjtNum len, mjtNum vel, const mjtNum lengthrange[2],
@@ -50,6 +52,11 @@ MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
 // all 3 semi-axes of a geom
 MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);
+
+// ----------------------------- Flex interpolation ------------------------------------------------
+
+// evaluate the deformation gradient at p using the nodal dof values
+MJAPI void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int order);
 
 // ----------------------------- Base64 -----------------------------------------------------------
 
@@ -77,6 +84,12 @@ MJAPI void mju_decodePyramid(mjtNum* force, const mjtNum* pyramid,
 
 // integrate spring-damper analytically, return pos(dt)
 MJAPI mjtNum mju_springDamper(mjtNum pos0, mjtNum vel0, mjtNum Kp, mjtNum Kv, mjtNum dt);
+
+// return 1 if point is outside box given by pos, mat, size * inflate
+// return -1 if point is inside box given by pos, mat, size / inflate
+// return 0 if point is between the inflated and deflated boxes
+MJAPI int mju_outsideBox(const mjtNum point[3], const mjtNum pos[3], const mjtNum mat[9],
+                         const mjtNum size[3], mjtNum inflate);
 
 // print matrix
 MJAPI void mju_printMat(const mjtNum* mat, int nr, int nc);
@@ -143,6 +156,18 @@ MJAPI void mju_d2n(mjtNum* res, const double* vec, int n);
 // convert from mjtNum to double
 MJAPI void mju_n2d(double* res, const mjtNum* vec, int n);
 
+// gather mjtNums
+MJAPI void mju_gather(mjtNum* res, const mjtNum* vec, const int* ind, int n);
+
+// scatter mjtNums
+MJAPI void mju_scatter(mjtNum* res, const mjtNum* vec, const int* ind, int n);
+
+// gather integers
+MJAPI void mju_gatherInt(int* res, const int* vec, const int* ind, int n);
+
+// scatter integers
+MJAPI void mju_scatterInt(int* res, const int* vec, const int* ind, int n);
+
 // insertion sort, increasing order
 MJAPI void mju_insertionSort(mjtNum* list, int n);
 
@@ -154,10 +179,6 @@ MJAPI mjtNum mju_Halton(int index, int base);
 
 // call strncpy, then set dst[n-1] = 0
 MJAPI char* mju_strncpy(char *dst, const char *src, int n);
-
-// assemble full filename from directory and filename, return 0 on success
-MJAPI int mju_makefullname(char* full, size_t nfull,
-                           const char* dir, const char* file);
 
 // sigmoid function over 0<=x<=1 using quintic polynomial
 MJAPI mjtNum mju_sigmoid(mjtNum x);

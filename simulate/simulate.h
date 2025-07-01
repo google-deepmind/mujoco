@@ -23,6 +23,7 @@
 #include <optional>
 #include <ratio>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -53,9 +54,10 @@ class Simulate {
       std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
       mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, bool is_passive);
 
-  // Synchronize mjModel and mjData state with UI inputs, and update
-  // visualization.
-  void Sync();
+  // Synchronize state with UI inputs, and update visualization.  If state_only
+  // is false mjData and mjModel will be updated, otherwise only the subset of
+  // mjData corresponding to mjSTATE_INTEGRATION will be synced.
+  void Sync(bool state_only = false);
 
   void UpdateHField(int hfieldid);
   void UpdateMesh(int meshid);
@@ -85,6 +87,9 @@ class Simulate {
 
   // add state to history buffer
   void AddToHistory();
+
+  // inject control noise
+  void InjectNoise();
 
   // constants
   static constexpr int kMaxFilenameLength = 1000;
@@ -118,6 +123,8 @@ class Simulate {
   std::vector<std::optional<std::pair<mjtNum, mjtNum>>> actuator_ctrlrange_;
   std::vector<std::string> actuator_names_;
 
+  std::vector<std::string> equality_names_;
+
   std::vector<mjtNum> history_;  // history buffer (nhistory x state_size)
 
   // mjModel and mjData fields that can be modified by the user through the GUI
@@ -125,11 +132,21 @@ class Simulate {
   std::vector<mjtNum> qpos_prev_;
   std::vector<mjtNum> ctrl_;
   std::vector<mjtNum> ctrl_prev_;
+  std::vector<mjtByte> eq_active_;
+  std::vector<mjtByte> eq_active_prev_;
 
-  mjvSceneState scnstate_;
+  // in passive mode the user owns m_ and d_, these "passive" instances are
+  // owned by Simulate, updated from the user by the Sync() method
+  mjModel* m_passive_ = nullptr;
+  mjData* d_passive_ = nullptr;
+  std::vector<mjvGeom> user_scn_geoms_;
+
   mjOption mjopt_prev_;
+  mjVisual mjvis_prev_;
+  mjStatistic mjstat_prev_;
   mjvOption opt_prev_;
   mjvCamera cam_prev_;
+
   int warn_vgeomfull_prev_;
 
   // pending GUI-driven actions, to be applied at the next call to Sync
@@ -140,7 +157,8 @@ class Simulate {
     std::optional<std::string> print_data;
     bool reset;
     bool align;
-    bool copy_pose;
+    bool copy_key;
+    bool copy_key_full_precision;
     bool load_from_history;
     bool load_key;
     bool save_key;
@@ -151,8 +169,10 @@ class Simulate {
     bool ui_update_simulation;
     bool ui_update_physics;
     bool ui_update_rendering;
+    bool ui_update_visualization;
     bool ui_update_joint;
     bool ui_update_ctrl;
+    bool ui_update_equality;
     bool ui_remake_ctrl;
   } pending_ = {};
 
@@ -192,6 +212,9 @@ class Simulate {
   std::atomic_int droploadrequest = 0;
   std::atomic_int screenshotrequest = 0;
   std::atomic_int uiloadrequest = 0;
+  std::atomic_int newfigurerequest = 0;
+  std::atomic_int newtextrequest = 0;
+  std::atomic_int newimagerequest = 0;
 
   // loadrequest
   //   3: display a loading message
@@ -245,8 +268,15 @@ class Simulate {
   mjvFigure figsize = {};
   mjvFigure figsensor = {};
 
-  // additional user-defined visualization geoms (used in passive mode)
+  // additional user-defined visualization
   mjvScene* user_scn = nullptr;
+  mjtByte user_scn_flags_prev_[mjNRNDFLAG];
+  std::vector<std::pair<mjrRect, mjvFigure>> user_figures_;
+  std::vector<std::pair<mjrRect, mjvFigure>> user_figures_new_;
+  std::vector<std::tuple<int, int, std::string, std::string>> user_texts_;
+  std::vector<std::tuple<int, int, std::string, std::string>> user_texts_new_;
+  std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_;
+  std::vector<std::tuple<mjrRect, std::unique_ptr<unsigned char[]>>> user_images_new_;
 
   // OpenGL rendering and UI
   int refresh_rate = 60;
@@ -260,7 +290,7 @@ class Simulate {
   // Constant arrays needed for the option section of UI and the UI interface
   // TODO setting the size here is not ideal
   const mjuiDef def_option[13] = {
-    {mjITEM_SECTION,  "Option",        1, nullptr,           "AO"},
+    {mjITEM_SECTION,  "Option",        mjPRESERVE, nullptr,  "AO"},
     {mjITEM_CHECKINT, "Help",          2, &this->help,       " #290"},
     {mjITEM_CHECKINT, "Info",          2, &this->info,       " #291"},
     {mjITEM_CHECKINT, "Profiler",      2, &this->profiler,   " #292"},
@@ -282,17 +312,17 @@ class Simulate {
 
   // simulation section of UI
   const mjuiDef def_simulation[14] = {
-    {mjITEM_SECTION,   "Simulation",    1, nullptr,              "AS"},
+    {mjITEM_SECTION,   "Simulation",    mjPRESERVE, nullptr,     "AS"},
     {mjITEM_RADIO,     "",              5, &this->run,           "Pause\nRun"},
     {mjITEM_BUTTON,    "Reset",         2, nullptr,              " #259"},
     {mjITEM_BUTTON,    "Reload",        5, nullptr,              "CL"},
     {mjITEM_BUTTON,    "Align",         2, nullptr,              "CA"},
-    {mjITEM_BUTTON,    "Copy pose",     2, nullptr,              "CC"},
+    {mjITEM_BUTTON,    "Copy state",    2, nullptr,              "CC"},
     {mjITEM_SLIDERINT, "Key",           3, &this->key,           "0 0"},
     {mjITEM_BUTTON,    "Load key",      3},
     {mjITEM_BUTTON,    "Save key",      3},
-    {mjITEM_SLIDERNUM, "Noise scale",   5, &this->ctrl_noise_std,  "0 2"},
-    {mjITEM_SLIDERNUM, "Noise rate",    5, &this->ctrl_noise_rate, "0 2"},
+    {mjITEM_SLIDERNUM, "Noise scale",   5, &this->ctrl_noise_std,  "0 1"},
+    {mjITEM_SLIDERNUM, "Noise rate",    5, &this->ctrl_noise_rate, "0 4"},
     {mjITEM_SEPARATOR, "History",       1},
     {mjITEM_SLIDERINT, "",              5, &this->scrub_index,     "0 0"},
     {mjITEM_END}
@@ -301,7 +331,7 @@ class Simulate {
 
   // watch section of UI
   const mjuiDef def_watch[5] = {
-    {mjITEM_SECTION,   "Watch",         0, nullptr,              "AW"},
+    {mjITEM_SECTION,   "Watch",         mjPRESERVE, nullptr,     "AW"},
     {mjITEM_EDITTXT,   "Field",         2, this->field,          "qpos"},
     {mjITEM_EDITINT,   "Index",         2, &this->index,         "1"},
     {mjITEM_STATIC,    "Value",         2, nullptr,              " "},

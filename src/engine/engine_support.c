@@ -15,11 +15,14 @@
 #include "engine/engine_support.h"
 
 #include <stddef.h>
-#include <stdint.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include "engine/engine_collision_convex.h"
+#include "engine/engine_collision_driver.h"
+#include "engine/engine_collision_gjk.h"
+#include "engine/engine_collision_primitive.h"
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
@@ -30,7 +33,7 @@
 #include "engine/engine_util_spatial.h"
 
 #ifdef mjUSEPLATFORMSIMD
-  #if defined(__AVX__) && defined(mjUSEDOUBLE)
+  #if defined(__AVX__) && !defined(mjUSESINGLE)
     #define mjUSEAVX
     #include "immintrin.h"
   #endif
@@ -38,8 +41,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 302
-#define mjVERSIONSTRING "3.0.2"
+ #define mjVERSION 334
+#define mjVERSIONSTRING "3.3.4"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -57,7 +60,9 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Refsafe",
   "Sensor",
   "Midphase",
-  "Eulerdamp"
+  "Eulerdamp",
+  "AutoReset",
+  "NativeCCD"
 };
 
 
@@ -66,7 +71,6 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Override",
   "Energy",
   "Fwdinv",
-  "Sensornoise",
   "InvDiscrete",
   "MultiCCD",
   "Island"
@@ -89,7 +93,6 @@ const char* mjTIMERSTRING[mjNTIMER]= {
   "pos_make",
   "pos_project",
   "col_broadphase",
-  "col_midphase",
   "col_narrowphase"
 };
 
@@ -233,6 +236,28 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int 
 
 
 
+// copy current state to the k-th model keyframe
+void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
+  // check keyframe index
+  if (k >= m->nkey) {
+    mjERROR("index must be smaller than %d (keyframes allocated in model)", m->nkey);
+  }
+  if (k < 0) {
+    mjERROR("keyframe index cannot be negative");
+  }
+
+  // copy state to model keyframe
+  m->key_time[k] = d->time;
+  mju_copy(m->key_qpos + k*m->nq, d->qpos, m->nq);
+  mju_copy(m->key_qvel + k*m->nv, d->qvel, m->nv);
+  mju_copy(m->key_act + k*m->na, d->act, m->na);
+  mju_copy(m->key_mpos + k*3*m->nmocap, d->mocap_pos, 3*m->nmocap);
+  mju_copy(m->key_mquat + k*4*m->nmocap, d->mocap_quat, 4*m->nmocap);
+  mju_copy(m->key_ctrl + k*m->nu, d->ctrl, m->nu);
+}
+
+
+
 //-------------------------- sparse chains ---------------------------------------------------------
 
 // merge dof chains for two bodies
@@ -252,7 +277,7 @@ int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2) {
     return 0;
   }
 
-  // intialize last dof address for each body
+  // initialize last dof address for each body
   da1 = m->body_dofadr[b1] + m->body_dofnum[b1] - 1;
   da2 = m->body_dofadr[b2] + m->body_dofnum[b2] - 1;
 
@@ -335,7 +360,7 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
       return 0;
     }
 
-    // intialize last dof
+    // initialize last dof
     int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
     int NV = 0;
 
@@ -363,19 +388,17 @@ int mj_bodyChain(const mjModel* m, int body, int* chain) {
 // compute 3/6-by-nv Jacobian of global point attached to given body
 void mj_jac(const mjModel* m, const mjData* d,
             mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body) {
-  int da, nv = m->nv;
-  mjtNum offset[3], tmp[3], *cdof = d->cdof;
+  int nv = m->nv;
+  mjtNum offset[3];
 
-  // clear jacobians
+  // clear jacobians, compute offset if required
   if (jacp) {
     mju_zero(jacp, 3*nv);
+    mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
   }
   if (jacr) {
     mju_zero(jacr, 3*nv);
   }
-
-  // compute point-com offset
-  mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
 
   // skip fixed bodies
   while (body && !m->body_dofnum[body]) {
@@ -388,27 +411,30 @@ void mj_jac(const mjModel* m, const mjData* d,
   }
 
   // get last dof that affects this (as well as the original) body
-  da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+  int i = m->body_dofadr[body] + m->body_dofnum[body] - 1;
 
   // backward pass over dof ancestor chain
-  while (da >= 0) {
+  while (i >= 0) {
+    mjtNum* cdof = d->cdof+6*i;
+
     // construct rotation jacobian
     if (jacr) {
-      jacr[da] = cdof[6*da];
-      jacr[da+nv] = cdof[6*da+1];
-      jacr[da+2*nv] = cdof[6*da+2];
+      jacr[i+0*nv] = cdof[0];
+      jacr[i+1*nv] = cdof[1];
+      jacr[i+2*nv] = cdof[2];
     }
 
     // construct translation jacobian (correct for rotation)
     if (jacp) {
-      mju_cross(tmp, cdof+6*da, offset);
-      jacp[da] = cdof[6*da+3] + tmp[0];
-      jacp[da+nv] = cdof[6*da+4] + tmp[1];
-      jacp[da+2*nv] = cdof[6*da+5] + tmp[2];
+      mjtNum tmp[3];
+      mju_cross(tmp, cdof, offset);
+      jacp[i+0*nv] = cdof[3] + tmp[0];
+      jacp[i+1*nv] = cdof[4] + tmp[1];
+      jacp[i+2*nv] = cdof[5] + tmp[2];
     }
 
     // advance to parent dof
-    da = m->dof_parentid[da];
+    i = m->dof_parentid[i];
   }
 }
 
@@ -432,7 +458,7 @@ void mj_jacBodyCom(const mjModel* m, const mjData* d, mjtNum* jacp, mjtNum* jacr
 void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body) {
   int nv = m->nv;
   mj_markStack(d);
-  mjtNum* jacp_b = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacp_b = mjSTACKALLOC(d, 3*nv, mjtNum);
 
   // clear output
   mju_zero(jacp, 3*nv);
@@ -478,8 +504,8 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
 
   // get full Jacobian of point
   mj_markStack(d);
-  mjtNum* jacp = (jacPoint ? jacPoint : mj_stackAllocNum(d, 3*nv));
-  mjtNum* jacr = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jacp = (jacPoint ? jacPoint : mjSTACKALLOC(d, 3*nv, mjtNum));
+  mjtNum* jacr = mjSTACKALLOC(d, 3*nv, mjtNum);
   mj_jac(m, d, jacp, jacr, point, body);
 
   // jacAxis_col = cross(jacr_col, axis)
@@ -500,9 +526,6 @@ void mj_jacPointAxis(const mjModel* m, mjData* d, mjtNum* jacPoint, mjtNum* jacA
 void mj_jacSparse(const mjModel* m, const mjData* d,
                   mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
                   int NV, const int* chain) {
-  int da, ci;
-  mjtNum offset[3], tmp[3], *cdof = d->cdof;
-
   // clear jacobians
   if (jacp) {
     mju_zero(jacp, 3*NV);
@@ -512,6 +535,7 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
   }
 
   // compute point-com offset
+  mjtNum offset[3];
   mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
 
   // skip fixed bodies
@@ -525,10 +549,10 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
   }
 
   // get last dof that affects this (as well as the original) body
-  da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+  int da = m->body_dofadr[body] + m->body_dofnum[body] - 1;
 
   // start and the end of the chain (chain is in increasing order)
-  ci = NV-1;
+  int ci = NV-1;
 
   // backward pass over dof ancestor chain
   while (da >= 0) {
@@ -542,20 +566,23 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
       mjERROR("dof index %d not found in chain", da);
     }
 
+    const mjtNum* cdof = d->cdof + 6*da;
+
     // construct rotation jacobian
     if (jacr) {
-      jacr[ci] = cdof[6*da];
-      jacr[ci+NV] = cdof[6*da+1];
-      jacr[ci+2*NV] = cdof[6*da+2];
+      jacr[ci+0*NV] = cdof[0];
+      jacr[ci+1*NV] = cdof[1];
+      jacr[ci+2*NV] = cdof[2];
     }
 
     // construct translation jacobian (correct for rotation)
     if (jacp) {
-      mju_cross(tmp, cdof+6*da, offset);
+      mjtNum tmp[3];
+      mju_cross(tmp, cdof, offset);
 
-      jacp[ci] = cdof[6*da+3] + tmp[0];
-      jacp[ci+NV] = cdof[6*da+4] + tmp[1];
-      jacp[ci+2*NV] = cdof[6*da+5] + tmp[2];
+      jacp[ci+0*NV] = cdof[3] + tmp[0];
+      jacp[ci+1*NV] = cdof[4] + tmp[1];
+      jacp[ci+2*NV] = cdof[5] + tmp[2];
     }
 
     // advance to parent dof
@@ -569,9 +596,8 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
 void mj_jacSparseSimple(const mjModel* m, const mjData* d,
                         mjtNum* jacdifp, mjtNum* jacdifr, const mjtNum* point,
                         int body, int flg_second, int NV, int start) {
-  mjtNum offset[3], tmp[3], *cdof = d->cdof;
-
   // compute point-com offset
+  mjtNum offset[3];
   mju_sub3(offset, point, d->subtree_com+3*m->body_rootid[body]);
 
   // skip fixed body
@@ -583,39 +609,42 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
   int ci = start;
   int end = m->body_dofadr[body] + m->body_dofnum[body];
   for (int da=m->body_dofadr[body]; da < end; da++) {
+    mjtNum *cdof = d->cdof+6*da;
+
     // construct rotation jacobian
     if (jacdifr) {
       // plus sign
       if (flg_second) {
-        jacdifr[ci] = cdof[6*da];
-        jacdifr[ci+NV] = cdof[6*da+1];
-        jacdifr[ci+2*NV] = cdof[6*da+2];
+        jacdifr[ci+0*NV] = cdof[0];
+        jacdifr[ci+1*NV] = cdof[1];
+        jacdifr[ci+2*NV] = cdof[2];
       }
 
       // minus sign
       else {
-        jacdifr[ci] = -cdof[6*da];
-        jacdifr[ci+NV] = -cdof[6*da+1];
-        jacdifr[ci+2*NV] = -cdof[6*da+2];
+        jacdifr[ci+0*NV] = -cdof[0];
+        jacdifr[ci+1*NV] = -cdof[1];
+        jacdifr[ci+2*NV] = -cdof[2];
       }
     }
 
     // construct translation jacobian (correct for rotation)
     if (jacdifp) {
-      mju_cross(tmp, cdof+6*da, offset);
+      mjtNum tmp[3];
+      mju_cross(tmp, cdof, offset);
 
       // plus sign
       if (flg_second) {
-        jacdifp[ci] = (cdof[6*da+3] + tmp[0]);
-        jacdifp[ci+NV] = (cdof[6*da+4] + tmp[1]);
-        jacdifp[ci+2*NV] = (cdof[6*da+5] + tmp[2]);
+        jacdifp[ci+0*NV] = (cdof[3] + tmp[0]);
+        jacdifp[ci+1*NV] = (cdof[4] + tmp[1]);
+        jacdifp[ci+2*NV] = (cdof[5] + tmp[2]);
       }
 
       // plus sign
       else {
-        jacdifp[ci] = -(cdof[6*da+3] + tmp[0]);
-        jacdifp[ci+NV] = -(cdof[6*da+4] + tmp[1]);
-        jacdifp[ci+2*NV] = -(cdof[6*da+5] + tmp[2]);
+        jacdifp[ci+0*NV] = -(cdof[3] + tmp[0]);
+        jacdifp[ci+1*NV] = -(cdof[4] + tmp[1]);
+        jacdifp[ci+2*NV] = -(cdof[5] + tmp[2]);
       }
     }
 
@@ -712,15 +741,15 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
   mjtNum* jacr = flg_rot ? jac + 3*nv : NULL;
 
   mj_markStack(d);
-  mjtNum* jtmp = mj_stackAllocNum(d, flg_rot ? 6*nv : 3*nv);
+  mjtNum* jtmp = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
   mjtNum* jp = jtmp;
   mjtNum* jr = flg_rot ? jtmp + 3*nv : NULL;
 
   // sparse
   if (mj_isSparse(m)) {
-    mjtNum* buf = mj_stackAllocNum(d, flg_rot ? 6*nv : 3*nv);
-    int* buf_ind = mj_stackAllocInt(d, nv);
-    int* bodychain = mj_stackAllocInt(d, nv);
+    mjtNum* buf = mjSTACKALLOC(d, flg_rot ? 6*nv : 3*nv, mjtNum);
+    int* buf_ind = mjSTACKALLOC(d, nv, int);
+    int* bodychain = mjSTACKALLOC(d, nv, int);
 
     // set first
     NV = mj_bodyChain(m, body[0], chain);
@@ -777,265 +806,148 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
 
 
 
-//-------------------------- name functions --------------------------------------------------------
+// compute 3/6-by-nv Jacobian time derivative of global point attached to given body
+void mj_jacDot(const mjModel* m, const mjData* d,
+               mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body) {
+  int nv = m->nv;
+  mjtNum offset[3];
+  mjtNum pvel[6];  // point velocity (rot:lin order)
 
-// get number of objects and name addresses for given object type
-static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
-  int num = -1;
-  // map address starts at the end, subtract with explicit switch fallthrough below
-  *mapadr = m->nnames_map;
-
-  // get address list and size for object type
-  switch (type) {
-  case mjOBJ_BODY:
-  case mjOBJ_XBODY:
-    *mapadr -= mjLOAD_MULTIPLE*m->nbody;
-    *padr = m->name_bodyadr;
-    num = m->nbody;
-    mjFALLTHROUGH;
-
-  case mjOBJ_JOINT:
-    *mapadr -= mjLOAD_MULTIPLE*m->njnt;
-    if (num < 0) {
-      *padr = m->name_jntadr;
-      num = m->njnt;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_GEOM:
-    *mapadr -= mjLOAD_MULTIPLE*m->ngeom;
-    if (num < 0) {
-      *padr = m->name_geomadr;
-      num = m->ngeom;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_SITE:
-    *mapadr -= mjLOAD_MULTIPLE*m->nsite;
-    if (num < 0) {
-      *padr = m->name_siteadr;
-      num = m->nsite;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_CAMERA:
-    *mapadr -= mjLOAD_MULTIPLE*m->ncam;
-    if (num < 0) {
-      *padr = m->name_camadr;
-      num = m->ncam;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_LIGHT:
-    *mapadr -= mjLOAD_MULTIPLE*m->nlight;
-    if (num < 0) {
-      *padr = m->name_lightadr;
-      num = m->nlight;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_FLEX:
-    *mapadr -= mjLOAD_MULTIPLE*m->nflex;
-    if (num < 0) {
-      *padr = m->name_flexadr;
-      num =  m->nflex;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_MESH:
-    *mapadr -= mjLOAD_MULTIPLE*m->nmesh;
-    if (num < 0) {
-      *padr = m->name_meshadr;
-      num =  m->nmesh;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_SKIN:
-    *mapadr -= mjLOAD_MULTIPLE*m->nskin;
-    if (num < 0) {
-      *padr = m->name_skinadr;
-      num = m->nskin;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_HFIELD:
-    *mapadr -= mjLOAD_MULTIPLE*m->nhfield;
-    if (num < 0) {
-      *padr = m->name_hfieldadr;
-      num = m->nhfield;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_TEXTURE:
-    *mapadr -= mjLOAD_MULTIPLE*m->ntex;
-    if (num < 0) {
-      *padr = m->name_texadr;
-      num = m->ntex;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_MATERIAL:
-    *mapadr -= mjLOAD_MULTIPLE*m->nmat;
-    if (num < 0) {
-      *padr = m->name_matadr;
-      num = m->nmat;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_PAIR:
-    *mapadr -= mjLOAD_MULTIPLE*m->npair;
-    if (num < 0) {
-      *padr = m->name_pairadr;
-      num = m->npair;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_EXCLUDE:
-    *mapadr -= mjLOAD_MULTIPLE*m->nexclude;
-    if (num < 0) {
-      *padr = m->name_excludeadr;
-      num = m->nexclude;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_EQUALITY:
-    *mapadr -= mjLOAD_MULTIPLE*m->neq;
-    if (num < 0) {
-      *padr = m->name_eqadr;
-      num = m->neq;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_TENDON:
-    *mapadr -= mjLOAD_MULTIPLE*m->ntendon;
-    if (num < 0) {
-      *padr = m->name_tendonadr;
-      num = m->ntendon;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_ACTUATOR:
-    *mapadr -= mjLOAD_MULTIPLE*m->nu;
-    if (num < 0) {
-      *padr = m->name_actuatoradr;
-      num = m->nu;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_SENSOR:
-    *mapadr -= mjLOAD_MULTIPLE*m->nsensor;
-    if (num < 0) {
-      *padr = m->name_sensoradr;
-      num = m->nsensor;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_NUMERIC:
-    *mapadr -= mjLOAD_MULTIPLE*m->nnumeric;
-    if (num < 0) {
-      *padr = m->name_numericadr;
-      num = m->nnumeric;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_TEXT:
-    *mapadr -= mjLOAD_MULTIPLE*m->ntext;
-    if (num < 0) {
-      *padr = m->name_textadr;
-      num = m->ntext;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_TUPLE:
-    *mapadr -= mjLOAD_MULTIPLE*m->ntuple;
-    if (num < 0) {
-      *padr = m->name_tupleadr;
-      num = m->ntuple;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_KEY:
-    *mapadr -= mjLOAD_MULTIPLE*m->nkey;
-    if (num < 0) {
-      *padr = m->name_keyadr;
-      num = m->nkey;
-    }
-    mjFALLTHROUGH;
-
-  case mjOBJ_PLUGIN:
-    *mapadr -= mjLOAD_MULTIPLE*m->nplugin;
-    if (num < 0) {
-      *padr = m->name_pluginadr;
-      num = m->nplugin;
-    }
-    mjFALLTHROUGH;
-
-  default:
-    if (num < 0) {
-      *padr = 0;
-      num = 0;
-    }
+  // clear jacobians, compute offset and pvel if required
+  if (jacp) {
+    mju_zero(jacp, 3*nv);
+    const mjtNum* com = d->subtree_com+3*m->body_rootid[body];
+    mju_sub3(offset, point, com);
+    mju_transformSpatial(pvel, d->cvel+6*body, 0, point, com, 0);
+  }
+  if (jacr) {
+    mju_zero(jacr, 3*nv);
   }
 
-  return num;
-}
-
-// get string hash, see http://www.cse.yorku.ca/~oz/hash.html
-uint64_t mj_hashdjb2(const char* s, uint64_t n) {
-  uint64_t h = 5381;
-  int c;
-  while ((c = *s++)) {
-    h  = ((h << 5) + h) + c;
+  // skip fixed bodies
+  while (body && !m->body_dofnum[body]) {
+    body = m->body_parentid[body];
   }
-  return h % n;
-}
 
-// get id of object with the specified mjtObj type and name,
-// returns -1 if id not found
-int mj_name2id(const mjModel* m, int type, const char* name) {
-  int mapadr;
-  int* adr = 0;
-
-  // get number of objects and name addresses
-  int num = mjLOAD_MULTIPLE*_getnumadr(m, type, &adr, &mapadr);
-
-  // search
-  if (num) {    // look up at hash address
-    uint64_t hash = mj_hashdjb2(name, num);
-    uint64_t i = hash;
-
-    do {
-      int j = m->names_map[mapadr + i];
-      if (j < 0) {
-        return -1;
-      }
-
-      if (!strncmp(name, m->names+adr[j], m->nnames-adr[j])) {
-        return j;
-      }
-      if ((++i) == num)i = 0;
-    } while (i != hash);
+  // no movable body found: nothing to do
+  if (!body) {
+    return;
   }
-  return -1;
+
+  // get last dof that affects this (as well as the original) body
+  int i = m->body_dofadr[body] + m->body_dofnum[body] - 1;
+
+  // backward pass over dof ancestor chain
+  while (i >= 0) {
+    mjtNum cdof_dot[6];
+    mju_copy(cdof_dot, d->cdof_dot+6*i, 6);
+    mjtNum* cdof = d->cdof+6*i;
+
+    // check for quaternion
+    mjtJoint type = m->jnt_type[m->dof_jntid[i]];
+    int dofadr = m->jnt_dofadr[m->dof_jntid[i]];
+    int is_quat = type == mjJNT_BALL || (type == mjJNT_FREE && i >= dofadr + 3);
+
+    // compute cdof_dot for quaternion (use current body cvel)
+    if (is_quat) {
+      mju_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[i], cdof);
+    }
+
+    // construct rotation jacobian
+    if (jacr) {
+      jacr[i+0*nv] += cdof_dot[0];
+      jacr[i+1*nv] += cdof_dot[1];
+      jacr[i+2*nv] += cdof_dot[2];
+    }
+
+    // construct translation jacobian (correct for rotation)
+    if (jacp) {
+      // first correction term, account for varying cdof
+      mjtNum tmp1[3];
+      mju_cross(tmp1, cdof_dot, offset);
+
+      // second correction term, account for point translational velocity
+      mjtNum tmp2[3];
+      mju_cross(tmp2, cdof, pvel + 3);
+
+      jacp[i+0*nv] += cdof_dot[3] + tmp1[0] + tmp2[0];
+      jacp[i+1*nv] += cdof_dot[4] + tmp1[1] + tmp2[1];
+      jacp[i+2*nv] += cdof_dot[5] + tmp1[2] + tmp2[2];
+    }
+
+    // advance to parent dof
+    i = m->dof_parentid[i];
+  }
 }
 
 
 
-// get name of object with the specified mjtObj type and id,
-// returns NULL if name not found
-const char* mj_id2name(const mjModel* m, int type, int id) {
-  int mapadr;
-  int* adr = 0;
+// compute subtree angular momentum matrix
+void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
+  int nv = m->nv;
+  mj_markStack(d);
 
-  // get number of objects and name addresses
-  int num = _getnumadr(m, type, &adr, &mapadr);
+  // stack allocations
+  mjtNum* jacp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacr = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* term1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* term2 = mjSTACKALLOC(d, 3*nv, mjtNum);
 
-  // id is in [0, num) and the found name is not the empty string "\0"
-  if (id >= 0 && id < num && m->names[adr[id]]) {
-    return m->names+adr[id];
+  // clear output
+  mju_zero(mat, 3*nv);
+
+  // save the location of the subtree COM
+  mjtNum subtree_com[3];
+  mju_copy3(subtree_com, d->subtree_com+3*body);
+
+  for (int b=body; b < m->nbody; b++) {
+    // end of body subtree, break from the loop
+    if (b > body && m->body_parentid[b] < body) {
+      break;
+    }
+
+    // linear and angular velocity Jacobian of the body COM (inertial frame)
+    mj_jacBodyCom(m, d, jacp, jacr, b);
+
+    // orientation of the COM (inertial) frame of b-th body
+    mjtNum ximat[9];
+    mju_copy(ximat, d->ximat+9*b, 9);
+
+    // save the inertia matrix of b-th body
+    mjtNum inertia[9] = {0};
+    inertia[0] = m->body_inertia[3*b];   // inertia(1,1)
+    inertia[4] = m->body_inertia[3*b+1]; // inertia(2,2)
+    inertia[8] = m->body_inertia[3*b+2]; // inertia(3,3)
+
+    // term1 = body angular momentum about self COM in world frame
+    mjtNum tmp1[9], tmp2[9];
+    mju_mulMatMat3(tmp1, ximat, inertia);          // tmp1  = ximat * inertia
+    mju_mulMatMatT3(tmp2, tmp1, ximat);            // tmp2  = ximat * inertia * ximat^T
+    mju_mulMatMat(term1, tmp2, jacr, 3, 3, nv);    // term1 = ximat * inertia * ximat^T * jacr
+
+    // location of body COM w.r.t subtree COM
+    mjtNum com[3];
+    mju_sub3(com, d->xipos+3*b, subtree_com);
+
+    // skew symmetric matrix representing body_com vector
+    mjtNum com_mat[9] = {0};
+    com_mat[1] = -com[2];
+    com_mat[2] = com[1];
+    com_mat[3] = com[2];
+    com_mat[5] = -com[0];
+    com_mat[6] = -com[1];
+    com_mat[7] = com[0];
+
+    // term2 = moment of linear momentum
+    mju_mulMatMat(term2, com_mat, jacp, 3, 3, nv);   // term2 = com_mat * jacp
+    mju_scl(term2, term2, m->body_mass[b], 3 * nv);  // term2 = com_mat * jacp * mass
+
+    // mat += term1 + term2
+    mju_addTo(mat, term1, 3*nv);
+    mju_addTo(mat, term2, 3*nv);
   }
 
-  return NULL;
+  mj_freeStack(d);
 }
 
 
@@ -1060,14 +972,9 @@ void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
 
 
 
-// multiply vector by inertia matrix
-void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
-  int nv = m->nv;
-  const mjtNum* M = d->qM;
-  const int* Madr = m->dof_Madr;
-  const int* parentid = m->dof_parentid;
-  const int* simplenum = m->dof_simplenum;
-
+// multiply vector by inertia matrix (implementation)
+void mj_mulM_impl(mjtNum* res, const mjtNum* vec, int nv, const mjtNum* M,
+                  const int* Madr, const int* parentid, const int* simplenum) {
   mju_zero(res, nv);
 
   for (int i=0; i < nv; i++) {
@@ -1119,330 +1026,62 @@ void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) 
 
 
 
-// multiply vector by inertia matrix for one dof island
-void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
-                    int island, int flg_vecunc) {
-  // if no island, call regular function
-  if (island < 0) {
-    mj_mulM(m, d, res, vec);
-    return;
-  }
-
-  // local constants: general
-  const mjtNum* M = d->qM;
-  const int* Madr = m->dof_Madr;
-  const int* parentid = m->dof_parentid;
-  const int* simplenum = m->dof_simplenum;
-
-  // local constants: island specific
-  int ndof = d->island_dofnum[island];
-  const int* dofind = d->island_dofind + d->island_dofadr[island];
-  const int* islandind = d->dof_islandind;
-
-  mju_zero(res, ndof);
-
-  for (int k=0; k < ndof; k++) {
-    // address in full dof vector
-    int i = dofind[k];
-
-    // address in M
-    int adr = Madr[i];
-
-    // diagonal
-    if (flg_vecunc) {
-      res[k] = M[adr]*vec[i];
-    } else {
-      res[k] = M[adr]*vec[k];
-    }
-
-    // simple dof: continue
-    if (simplenum[i]) {
-      continue;
-    }
-
-    // off-diagonal
-    int j = parentid[i];
-    while (j >= 0) {
-      adr++;
-      int l = islandind[j];
-      if (flg_vecunc) {
-        res[k] += M[adr]*vec[j];
-        res[l] += M[adr]*vec[i];
-      } else {
-        res[k] += M[adr]*vec[l];
-        res[l] += M[adr]*vec[k];
-      }
-
-      // advance to parent
-      j = parentid[j];
-    }
-  }
+// multiply vector by inertia matrix
+void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
+  mj_mulM_impl(res, vec, m->nv, d->qM, m->dof_Madr, m->dof_parentid, m->dof_simplenum);
 }
 
 
 
 // multiply vector by M^(1/2)
 void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
-  int adr, nv = m->nv;
+  int  nv = m->nv;
   const mjtNum* qLD = d->qLD;
-  const mjtNum* qLDiagSqrtInv = d->qLDiagSqrtInv;
-  const int* dofMadr = m->dof_Madr;
 
   mju_zero(res, nv);
 
+  // res = L * vec
   for (int i=0; i < nv; i++) {
-#ifdef mjUSEAVX
-    // simple: diagonal division, AVX
-    if (m->dof_simplenum[i] >= 4) {
-      // init
-      __m256d result, val1, val2;
+    // diagonal
+    res[i] = vec[i];
 
-      // parallel computation
-      val1 = _mm256_loadu_pd(vec+i);
-      val2 = _mm256_set_pd(qLDiagSqrtInv[dofMadr[i+3]],
-                           qLDiagSqrtInv[dofMadr[i+2]],
-                           qLDiagSqrtInv[dofMadr[i+1]],
-                           qLDiagSqrtInv[dofMadr[i+0]]);
-      result = _mm256_div_pd(val1, val2);
-
-      // store result
-      _mm256_storeu_pd(res+i, result);
-
-      // skip rest of block
-      i += 3;
-      continue;
+    // non-simple: add off-diagonals
+    if (!m->dof_simplenum[i]) {
+      int adr = d->M_rowadr[i];
+      res[i] += mju_dotSparse(qLD+adr, vec, d->M_rownnz[i] - 1, d->M_colind+adr);
     }
-#endif
+  }
 
-    // simple: diagonal division
-    if (m->dof_simplenum[i]) {
-      res[i] = vec[i]/qLDiagSqrtInv[i];
-    }
-
-    // regular: full multiplication
-    else {
-      // diagonal
-      adr = dofMadr[i];
-      res[i] += vec[i]/qLDiagSqrtInv[i];
-
-      // off-diagonal
-      int j = m->dof_parentid[i];
-      adr++;
-      while (j >= 0) {
-        res[i] += qLD[adr]*vec[j];
-
-        // advance to next element
-        j = m->dof_parentid[j];
-        adr++;
-      }
-    }
+  // res *= sqrt(D)
+  for (int i=0; i < nv; i++) {
+    int diag = d->M_rowadr[i] + d->M_rownnz[i] - 1;
+    res[i] *= mju_sqrt(qLD[diag]);
   }
 }
 
 
 
 // add inertia matrix to destination matrix
-//  destination can be sparse uncompressed, or dense when all int* are NULL
+//  destination can be sparse or dense when all int* are NULL
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
              int* rownnz, int* rowadr, int* colind) {
+  int nv = m->nv;
   // sparse
   if (rownnz && rowadr && colind) {
-    int nv = m->nv;
     mj_markStack(d);
-    // create sparse inertia matrix M
-    int nnz = m->nD;  // use sparse dof-dof matrix
-    int* M_rownnz = mj_stackAllocInt(d, nv);  // actual nnz count
-    int* M_colind = mj_stackAllocInt(d, nnz);
-    mjtNum* M = mj_stackAllocNum(d, nnz);
+    mjtNum* buf_val = mjSTACKALLOC(d, nv, mjtNum);
+    int* buf_ind = mjSTACKALLOC(d, nv, int);
 
-    mj_makeMSparse(m, d, M, M_rownnz, NULL, M_colind);
-    mj_addMSparse(m, d, dst, rownnz, rowadr, colind, M,
-                  M_rownnz, NULL, M_colind);
+    mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
+      d->M, d->M_rownnz, d->M_rowadr, d->M_colind,
+      buf_val, buf_ind);
+
     mj_freeStack(d);
   }
 
   // dense
   else {
-    mj_addMDense(m, d, dst);
-  }
-}
-
-
-
-// make inertia matrix M
-void mj_makeMSparse(const mjModel* m, mjData* d, mjtNum* M,
-                    int* M_rownnz, int* M_rowadr, int* M_colind) {
-  int nv = m->nv;
-  // currently the sparse dof-dof matrix D row addresses are used, since D has
-  // the same predetermined sparsity structure as M, however with simple bodies
-  // M has less non-zeros and can be precounted for further memory reduction
-  if (M_rowadr == NULL) {
-    M_rowadr = d->D_rowadr;
-  }
-
-  // build M into sparse format, lower triangle
-  for (int i = 0; i < nv; i++) {
-    int Madr = m->dof_Madr[i];
-
-    // simple, fill diagonal only
-    if (m->dof_simplenum[i]) {
-      M_rownnz[i] = 1;
-      M[M_rowadr[i]] = d->qM[Madr];
-      M_colind[M_rowadr[i]] = i;
-      continue;
-    }
-
-    // backward pass over dofs: construct M_row(i) in reverse order
-    int col = M_rowadr[i];  // current column in row i
-    for (int j = i; j >= 0; j = m->dof_parentid[j]) {
-      M[col] = d->qM[Madr++];
-      M_colind[col++] = j;
-    }
-
-    // track nnz of lower triangle for row i
-    int nnz = M_rownnz[i] = col - M_rowadr[i];
-
-    // reverse order
-    int end = nnz >> 1;
-    for (int j = 0; j < end; j++) {
-      int a1 = M_rowadr[i] + j;              // address 1
-      int a2 = (M_rowadr[i] + nnz - 1) - j;  // address 2
-
-      // swap M data on row i
-      mjtNum val = M[a1];
-      M[a1] = M[a2];
-      M[a2] = val;
-
-      // swap M column indices on row i
-      int ind = M_colind[a1];
-      M_colind[a1] = M_colind[a2];
-      M_colind[a2] = ind;
-    }
-  }
-
-  // fill upper triangle
-  for (int i = 1; i < nv; i++) {
-    int end = M_rowadr[i] + M_rownnz[i] - 1;
-    for (int j = M_rowadr[i]; j < end; j++) {
-      int a = M_rowadr[M_colind[j]] + M_rownnz[M_colind[j]]++;
-      M[a] = M[j];
-      M_colind[a] = i;
-    }
-  }
-}
-
-
-
-// add inertia matrix to sparse destination matrix
-void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                   int* rownnz, int* rowadr, int* colind, mjtNum* M,
-                   int* M_rownnz, int* M_rowadr, int* M_colind) {
-  int nv = m->nv;
-  // currently the sparse dof-dof matrix D row addresses are used, since D has
-  // the same predetermined sparsity structure as M, however with simple bodies
-  // M has less non-zeros and can be precounted for further memory reduction
-  if (M_rowadr == NULL) {
-    M_rowadr = d->D_rowadr;
-  }
-
-  mj_markStack(d);
-  int* buf_ind = mj_stackAllocInt(d, nv);
-  mjtNum* sparse_buf = mj_stackAllocNum(d, nv);
-
-  // add to destination
-  for (int i=0; i < nv; i++) {
-    rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], 1, 1,
-                                  rownnz[i], M_rownnz[i], colind + rowadr[i],
-                                  M_colind + M_rowadr[i], sparse_buf, buf_ind);
-  }
-  mj_freeStack(d);
-}
-
-
-
-// add inertia matrix to dense destination matrix
-void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst) {
-  int nv = m->nv;
-
-  for (int i = 0; i < nv; i++) {
-    int adr = m->dof_Madr[i];
-    int j = i;
-    while (j >= 0) {
-      // add
-      dst[i*nv+j] += d->qM[adr];
-      if (j < i) {
-        dst[j*nv+i] += d->qM[adr];
-      }
-
-      // only diagonal if simplenum
-      if (m->dof_simplenum[i]) {
-        break;
-      }
-
-      // advance
-      j = m->dof_parentid[j];
-      adr++;
-    }
-  }
-}
-
-
-//-------------------------- sparse system matrix conversion ---------------------------------------
-
-// dst[D] = src[M], handle different sparsity representations
-void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src) {
-  int nv = m->nv;
-  mj_markStack(d);
-
-  // init remaining
-  int* remaining = mj_stackAllocInt(d, nv);
-  mju_copyInt(remaining, d->D_rownnz, nv);
-
-  // copy data
-  for (int i = nv - 1; i >= 0; i--) {
-    // init at diagonal
-    int adr = m->dof_Madr[i];
-    remaining[i]--;
-    dst[d->D_rowadr[i] + remaining[i]] = src[adr];
-    adr++;
-
-    // process below diagonal
-    int j = i;
-    while ((j = m->dof_parentid[j]) >= 0) {
-      remaining[i]--;
-      dst[d->D_rowadr[i] + remaining[i]] = src[adr];
-
-      remaining[j]--;
-      dst[d->D_rowadr[j] + remaining[j]] = src[adr];
-
-      adr++;
-    }
-  }
-
-  mj_freeStack(d);
-}
-
-
-
-// dst[M] = src[D lower], handle different sparsity representations
-void mj_copyD2MSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src) {
-  int nv = m->nv;
-
-  // copy data
-  for (int i = nv - 1; i >= 0; i--) {
-    // find diagonal in qDeriv
-    int j = 0;
-    while (d->D_colind[d->D_rowadr[i] + j] < i) {
-      j++;
-    }
-
-    // copy
-    int adr = m->dof_Madr[i];
-    while (j >= 0) {
-      dst[adr] = src[d->D_rowadr[i] + j];
-      adr++;
-      j--;
-    }
+    mju_addToSymSparse(dst, d->M, nv, d->M_rownnz, d->M_rowadr, d->M_colind, /*flg_upper=*/ 1);
   }
 }
 
@@ -1458,9 +1097,9 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
   // allocate local variables
   mj_markStack(d);
-  mjtNum* jacp = force ? mj_stackAllocNum(d, 3*nv) : NULL;
-  mjtNum* jacr = torque ? mj_stackAllocNum(d, 3*nv) : NULL;
-  mjtNum* qforce = mj_stackAllocNum(d, nv);
+  mjtNum* jacp = force ? mjSTACKALLOC(d, 3*nv, mjtNum) : NULL;
+  mjtNum* jacr = torque ? mjSTACKALLOC(d, 3*nv, mjtNum) : NULL;
+  mjtNum* qforce = mjSTACKALLOC(d, nv, mjtNum);
 
   // make sure body is in range
   if (body < 0 || body >= m->nbody) {
@@ -1470,7 +1109,7 @@ void mj_applyFT(const mjModel* m, mjData* d,
   // sparse case
   if (mj_isSparse(m)) {
     // construct chain and sparse Jacobians
-    int* chain = mj_stackAllocInt(d, nv);
+    int* chain = mjSTACKALLOC(d, nv, int);
     int NV = mj_bodyChain(m, body, chain);
     mj_jacSparse(m, d, jacp, jacr, point, body, NV, chain);
 
@@ -1635,6 +1274,86 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
 //-------------------------- miscellaneous ---------------------------------------------------------
 
+// returns the smallest distance between two geoms (using nativeccd)
+static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int g2,
+                                 mjtNum distmax, mjtNum fromto[6]) {
+  mjCCDConfig config;
+  mjCCDStatus status;
+
+  // set config
+  config.max_iterations = m->opt.ccd_iterations;
+  config.tolerance = m->opt.ccd_tolerance;
+  config.max_contacts = 1;        // want contacts
+  config.dist_cutoff = distmax;   // want geom distances
+
+  mjCCDObj obj1, obj2;
+  mjc_initCCDObj(&obj1, m, d, g1, 0);
+  mjc_initCCDObj(&obj2, m, d, g2, 0);
+
+  mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
+
+  if (fromto && status.nx > 0) {
+    mju_copy3(fromto, status.x1);
+    mju_copy3(fromto+3, status.x2);
+  }
+
+  return dist;
+}
+
+
+
+// returns the smallest distance between two geoms
+mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, mjtNum distmax,
+                       mjtNum fromto[6]) {
+  mjContact con[mjMAXCONPAIR];
+  mjtNum dist = distmax;
+  if (fromto) mju_zero(fromto, 6);
+
+  // flip geom order if required
+  int flip = m->geom_type[geom1] > m->geom_type[geom2];
+  int g1 = flip ? geom2 : geom1;
+  int g2 = flip ? geom1 : geom2;
+  int type1 = m->geom_type[g1];
+  int type2 = m->geom_type[g2];
+
+  mjfCollision func = mjCOLLISIONFUNC[type1][type2];
+
+  // call collision function if it exists
+  if (!func) {
+    return dist;
+  }
+
+  // use nativecdd if flag is enabled
+  if (!mjDISABLED(mjDSBL_NATIVECCD)) {
+    if (func == mjc_Convex || func == mjc_BoxBox) {
+      return mj_geomDistanceCCD(m, d, g1, g2, distmax, fromto);
+    }
+  }
+
+  int num = func(m, d, con, g1, g2, distmax);
+
+  // find smallest distance
+  int smallest = -1;
+  for (int i=0; i < num; i++) {
+    mjtNum dist_i = con[i].dist;
+    if (dist_i < dist) {
+      dist = dist_i;
+      smallest = i;
+    }
+  }
+
+  // write fromto if given and a collision has been found
+  if (fromto && smallest >= 0) {
+    mjtNum sign = flip ? -1 : 1;
+    mju_addScl3(fromto+0, con[smallest].pos, con[smallest].frame, -0.5*sign*dist);
+    mju_addScl3(fromto+3, con[smallest].pos, con[smallest].frame, 0.5*sign*dist);
+  }
+
+  return dist;
+}
+
+
+
 // extract 6D force:torque for one contact, in contact frame
 void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]) {
   mjContact* con;
@@ -1743,43 +1462,42 @@ void mj_normalizeQuat(const mjModel* m, mjtNum* qpos) {
 void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
                      const mjtNum pos[3], const mjtNum quat[4],
                      int body, mjtByte sameframe) {
-  mjtNum tmp[4];
+  mjtSameFrame sf = sameframe;
 
   // position
   if (xpos && pos) {
-    // compute
-    if (sameframe == 0) {
-      mju_rotVecMat(xpos, pos, d->xmat+9*body);
+    switch (sf) {
+    case mjSAMEFRAME_NONE:
+    case mjSAMEFRAME_BODYROT:
+    case mjSAMEFRAME_INERTIAROT:
+      mju_mulMatVec3(xpos, d->xmat+9*body, pos);
       mju_addTo3(xpos, d->xpos+3*body);
-    }
-
-    // copy body position
-    else if (sameframe == 1) {
+      break;
+    case mjSAMEFRAME_BODY:
       mju_copy3(xpos, d->xpos+3*body);
-    }
-
-    // copy inertial body position
-    else {
+      break;
+    case mjSAMEFRAME_INERTIA:
       mju_copy3(xpos, d->xipos+3*body);
+      break;
     }
   }
 
   // orientation
   if (xmat && quat) {
-    // compute
-    if (sameframe == 0) {
+    mjtNum tmp[4];
+    switch (sf) {
+    case mjSAMEFRAME_NONE:
       mju_mulQuat(tmp, d->xquat+4*body, quat);
       mju_quat2Mat(xmat, tmp);
-    }
-
-    // copy body orientation
-    else if (sameframe == 1) {
+      break;
+    case mjSAMEFRAME_BODY:
+    case mjSAMEFRAME_BODYROT:
       mju_copy(xmat, d->xmat+9*body, 9);
-    }
-
-    // copy inertial body orientation
-    else {
+      break;
+    case mjSAMEFRAME_INERTIA:
+    case mjSAMEFRAME_INERTIAROT:
       mju_copy(xmat, d->ximat+9*body, 9);
+      break;
     }
   }
 }

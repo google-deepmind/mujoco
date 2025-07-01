@@ -1,0 +1,28 @@
+<mujoco>
+  <compiler>
+    <lengthrange mode="all"/>
+  </compiler>
+
+  <worldbody>
+    <light pos="0 0 10"/>
+    <site name="a" size=".02"/>
+    <replicate offset="0 .1 0" count="17">
+      <body pos="1 0 1">
+        <joint axis="0 -1 0" range="0 90"/>
+        <geom type="capsule" size=".02" fromto="0 0 0 0 0 -1"/>
+        <site name="b" pos="0 0 -1"/>
+      </body>
+    </replicate>
+  </worldbody>
+
+  <tendon>
+    <spatial name="b">
+      <site site="a"/>
+      <site site="b"/>
+    </spatial>
+  </tendon>
+
+  <actuator>
+    <position name="b" tendon="b" ctrlrange="0 3" kp="100" dampratio="1"/>
+  </actuator>
+</mujoco>

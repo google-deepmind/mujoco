@@ -13,17 +13,26 @@
 # limitations under the License.
 
 set(MUJOCO_USER_SRCS
+    user_api.cc
+    user_api.h
+    user_cache.cc
+    user_cache.h
     user_composite.cc
     user_composite.h
     user_flexcomp.cc
     user_flexcomp.h
+    user_init.c
     user_mesh.cc
     user_model.cc
     user_model.h
     user_objects.cc
     user_objects.h
+    user_resource.cc
+    user_resource.h
     user_util.cc
     user_util.h
+    user_vfs.cc
+    user_vfs.h
 )
 
 target_sources(mujoco PRIVATE ${MUJOCO_USER_SRCS})

@@ -31,24 +31,24 @@ Loading models
 
 As explained in :ref:`Model instances <Instance>` in the Overview chapter, MuJoCo models can be loaded from plain-text
 XML files in the MJCF or URDF formats, and then compiled into a low-level mjModel. Alternatively a previously saved
-mjModel can be loaded directly from a binary MJB file - whose format is not documented but is essentially a copy of the
+mjModel can be loaded directly from a binary MJB file -- whose format is not documented but is essentially a copy of the
 mjModel memory buffer. MJCF and URDF files are loaded with :ref:`mj_loadXML` while MJB files are loaded with
 :ref:`mj_loadModel`.
 
 When an XML file is loaded, it is first parsed into a document object model (DOM) using the TinyXML parser internally.
-This DOM is then processed and converted into a high-level mjCModel object. The conversion depends on the model format
-- which is inferred from the top-level element in the XML file, and not from the file extension. Recall that a valid
-XML file has a unique top-level element. This element must be :el:`mujoco` for MJCF, and :el:`robot` for URDF.
+This DOM is then processed and converted into a high-level :ref:`mjSpec` object. The conversion depends on the model
+format -- which is inferred from the top-level element in the XML file, and not from the file extension. Recall that a
+valid XML file has a unique top-level element. This element must be :el:`mujoco` for MJCF, and :el:`robot` for URDF.
 
 .. _Compile:
 
 Compiling models
 ~~~~~~~~~~~~~~~~
 
-Once a high-level mjCModel is created - by loading an MJCF file or a URDF file, or programmatically when such
-functionality becomes available - it is compiled into mjModel. Even though loading and compilation are presently
-combined in one step, compilation is independent of loading, meaning that the compiler works in the same way
-regardless of how mjCModel was created. Both the parser and the compiler perform extensive error checking, and abort
+Once a high-level :ref:`mjSpec` is created---by loading an MJCF file or a URDF file, or
+:doc:`programmatically<programming/modeledit>`---it is compiled into :ref:`mjModel`.
+Compilation is independent of loading, meaning that the compiler works in the same way regardless of how :ref:`mjSpec`
+was created. Both the parser and the compiler perform extensive error checking, and abort
 when the first error is encountered. The resulting error messages contain the row and column number in the XML file,
 and are self-explanatory so we do not document them here. The parser uses a custom schema to make sure that the file
 structure, elements and attributes are valid. The compiler then applies many additional semantic checks. Finally, one
@@ -56,7 +56,7 @@ simulation step of the compiled model is performed and any runtime errors are in
 (temporarily) setting :ref:`mju_user_error` to point to a function that throws C++
 exceptions; the user can implement similar error-interception functionality at runtime if desired.
 
-The entire process of parsing and compilation is very fast - less than a second if the model does not contain large
+The entire process of parsing and compilation is very fast -- less than a second if the model does not contain large
 meshes or actuator lengthranges that need to be computed via simulation. This makes it possible to design models
 interactively, by re-loading often and visualizing the changes. Note that the :ref:`simulate.cc <saSimulate>` code
 sample has a keyboard shortcut for re-loading the current model (Ctrl+L).
@@ -72,9 +72,9 @@ binary MJB file with :ref:`mj_saveModel`. The MJB is a stand-alone file and does
 refer to any other files. It also loads faster. So we recommend saving commonly used models as MJB and loading them
 when needed for simulation.
 
-It is also possible to save a compiled mjCModel as MJCF with :ref:`mj_saveLastXML`. If any real-valued fields in the
-corresponding mjModel were modified after compilation (which is unusual but can happen in system identification
-applications for example), the modifications are automatically copied back into mjCModel before saving. Note that
+It is also possible to save a compiled :ref:`mjSpec` as MJCF with :ref:`mj_saveLastXML`. If any real-valued fields in
+the corresponding mjModel were modified after compilation (which is unusual but can happen in system identification
+applications for example), the modifications are automatically copied back into :ref:`mjSpec` before saving. Note that
 structural changes cannot be made in the compiled model. The XML writer attempts to generate the smallest MJCF file
 which is guaranteed to compile into the same model, modulo negligible numeric differences caused by the plain text
 representation of real values. The resulting file may not have the same structure as the original because MJCF has many
@@ -82,6 +82,14 @@ user convenience features, allowing the same model to be specified in different 
 subset of MJCF where all coordinates are local and all body positions, orientations and inertial properties are
 explicitly specified. In the Computation chapter we showed an `example <_static/example.xml>`__ MJCF file and the
 corresponding `saved example <_static/example_saved.xml>`__.
+
+.. _EditModel:
+
+Editing models
+~~~~~~~~~~~~~~
+
+As of MuJoCo 3.2, it is possible to create and modify models using the :ref:`mjSpec` struct and related API.
+For further documentation, please see the :doc:`Model Editing<programming/modeledit>` chapter.
 
 .. _Mechanisms:
 
@@ -128,21 +136,21 @@ the model. We start with an example.
 .. code-block:: xml
 
    <mujoco>
-       <default class="main">
-           <geom rgba="1 0 0 1"/>
-           <default class="sub">
-               <geom rgba="0 1 0 1"/>
-           </default>
+     <default class="main">
+       <geom rgba="1 0 0 1"/>
+       <default class="sub">
+         <geom rgba="0 1 0 1"/>
        </default>
+     </default>
 
-       <worldbody>
-           <geom type="box"/>
-           <body childclass="sub">
-               <geom type="ellipsoid"/>
-               <geom type="sphere" rgba="0 0 1 1"/>
-               <geom type="cylinder" class="main"/>
-           </body>
-       </worldbody>
+     <worldbody>
+       <geom type="box"/>
+       <body childclass="sub">
+         <geom type="ellipsoid"/>
+         <geom type="sphere" rgba="0 0 1 1"/>
+         <geom type="cylinder" class="main"/>
+       </body>
+     </worldbody>
    </mujoco>
 
 This example will not actually compile because some required information is missing, but here we are only interested
@@ -166,7 +174,7 @@ which overrides the default settings. The cylinder specifies defaults class "mai
 "sub", even though the latter was specified in the childclass attribute of the body containing the geom.
 
 Now we describe the general rules. MuJoCo supports unlimited number of defaults classes, created by possibly nested
-:ref:`default <default>` elements in the XML. Each class has a unique name - which is a required
+:ref:`default <default>` elements in the XML. Each class has a unique name -- which is a required
 attribute except for the top-level class whose name is "main" if left undefined. Each class also has a complete
 collection of dummy model elements, with their attributes set as follows. When a defaults class is defined within
 another defaults class, the child automatically inherits all attribute values from the parent. It can then override
@@ -248,7 +256,7 @@ specified by the user, the frame is not rotated.
 :at:`zaxis`: :at-val:`real(3), optional`
    The Z axis of the frame. The compiler finds the minimal rotation that maps the vector :math:`(0, 0, 1)` into the
    vector specified here. This determines the X and Y axes of the frame implicitly. This is useful for geoms with
-   rotational symmetry around the Z axis, as well as lights - which are oriented along the Z axis of their frame.
+   rotational symmetry around the Z axis, as well as lights -- which are oriented along the Z axis of their frame.
 
 .. _CSolver:
 
@@ -272,6 +280,7 @@ approximately
 
 .. math::
    \ac + d \cdot (b v + k r) = (1 - d)\cdot \au
+   :label: eq:constraint
 
 Again, the parameters that are under the user's control are :math:`d, b, k`. The remaining quantities are functions of
 the system state and are computed automatically at each time step.
@@ -317,7 +326,15 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
    units of :math:`\text{width}`. Note that when :math:`\text{power}` is 1, the function is linear regardless of the
    :math:`\text{midpoint}`.
 
-   |image0|
+   .. image:: images/modeling/impedance.png
+      :width: 600px
+      :align: center
+      :class: only-light
+
+   .. image:: images/modeling/impedance_dark.png
+      :width: 600px
+      :align: center
+      :class: only-dark
 
    These plots show the impedance :math:`d(r)` on the vertical axis, as a function of the constraint violation :math:`r`
    on the horizontal axis.
@@ -330,8 +347,15 @@ of the function :math:`d(r)` is determined by the element-specific parameter vec
    For friction loss or friction dimensions of elliptic cones, the violation :math:`r` is identically zero, so
    only :math:`d(0)` affects these constraints, all other :at:`solimp` values are ignored.
 
-   .. tip::
-      For completely smooth dynamics, limits and contacts should have :math:`d_0=0`.
+   .. _solimp0:
+
+   .. admonition:: Smoothness and differentiability
+      :class: tip
+
+      For completely smooth (differentiable) dynamics, limits and contacts should have :math:`d_0=0` (``solimp[0]=0``).
+      Specifically for contacts, the :ref:`mixing rules<solmixing>` of geom-associated solver parameters should be kept
+      in mind. See also discussion of derivatives in the :ref:`Computation chapter<derivatives>` and in the
+      :ref:`mjd_transitionFD` documentation.
 
 .. _CSolverReference:
 
@@ -343,12 +367,9 @@ Next we explain the setting of the stiffness :math:`k` and damping :math:`b` whi
 
 .. admonition:: Intuitive description of the **reference acceleration**
 
-   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in
-   order to rectify violation. For example, consider a contact between a motionless free body pulled down by gravity
-   onto a static plane geom. Since there is no motion, the penetration will be entirely determined by the impedance
-   while the reference has no effect. Now imagine that the body is dropped onto the plane. Upon impact the constraint
-   will generate a normal force which attempts to rectify the penetration using a particular motion; this motion is
-   the reference acceleration.
+   The *reference acceleration* :math:`\ar` determines the **motion that constraint is trying to achieve** in order to
+   rectify violation. Imagine a body dropped onto the plane. Upon impact the constraint will generate a normal force
+   which attempts to rectify the penetration using a particular motion; this motion is the reference acceleration.
 
    Another way of understanding the reference acceleration is to think of the unmodeled deformation variables
    described in the :ref:`Computation chapter<soPrimal>`. Imagine two bodies pressed together, leading to deformation at
@@ -393,7 +414,12 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    can go unstable. This is enforced internally, unless the :ref:`refsafe<option-flag-refsafe>` attribute of :ref:`flag
    <option-flag>` is set to false. The :math:`\text{dampratio}` parameter would normally be set to 1, corresponding to
    critical damping. Smaller values result in under-damped or bouncy constraints, while larger values result in
-   over-damped constraints.
+   over-damped constraints. Combining the above formula with :eq:`eq:constraint`, we can derive the following result.
+   If the reference acceleration is given using the positive number format and the impedance is constant
+   :math:`d = d_0 = d_\text{width}`, then the penetration depth at rest is
+
+   .. math::
+      r = \au \cdot (1 - d) \cdot \text{timeconst}^2 \cdot \text{dampratio}^2
 
    Next we describe the direct format where the two numbers are :math:`(-\text{stiffness}, -\text{damping})`. This
    allows direct control over restitution in particular. We still apply some scaling so that the same numbers can be
@@ -403,8 +429,14 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
    .. math::
       \begin{aligned}
       b &= \text{damping} / d_\text{width} \\
-      k &= \text{stiffness} / d_\text{width}^2 \\
+      k &= \text{stiffness} \cdot d(r) / d_\text{width}^2 \\
       \end{aligned}
+
+   Similarly to the above derivation, if the reference acceleration is given using the negative number format and the
+   impedance is constant, then the penetration depth at rest is
+
+   .. math::
+      r = \frac{\au (1 - d)}{\text{stiffness}}
 
 .. tip::
    In the positive-value default format, the :math:`\text{timeconst}` parameter controls constraint **softness**.
@@ -413,6 +445,9 @@ and the damping ratio is ignored. Equivalently, in the direct format, the :math:
 
    The negative-value "direct" format is more flexible, for example allowing for perfectly elastic collisions
    (:math:`\text{damping} = 0`). It is the recommended format for system identification.
+
+   A :math:`\text{dampratio}` of 1 in the positive-value format is equivalent to
+   :math:`\text{damping} = 2 \sqrt{ \text{stiffness} }` in the direct format.
 
 .. _CContact:
 
@@ -428,37 +463,43 @@ there is nothing to do, but what if their parameters are different? In that case
 :at:`solmix` and :at:`priority` to decide how to combine them. The combination rules for each contact parameter
 are as follows:
 
-condim
+**condim**
    If one of the two geoms has higher priority, its condim is used. If both geoms have the same priority, the maximum of
    the two condims is used. In this way a frictionless geom and a frictional geom form a frictional contact, unless the
    frictionless geom has higher priority. The latter is desirable in particle systems for example, where we may not want
    the particles to stick to any objects.
-friction
+**friction**
    Recall that contacts can have up to 5 friction coefficients: two tangential, one torsional, two rolling. Each contact
    in mjData.contact actually has all 5 of them, even if condim is less than 6 and not all coefficients are used. In
    contrast, geoms have only 3 friction coefficients: tangential (same for both axes), torsional, rolling (same for both
    axes). Each of these 3D vectors of friction coefficients is expanded into a 5D vector of friction coefficients by
-   replicating the tangetial and rolling components. The contact friction coefficients are then computed according to
-   the following rule: if one of the two geoms has higher priority, its friction coefficients are used. Otherwise the
-   element-wise maximum of each friction coefficient over the two geoms is used. The rationale is similar to taking the
-   maximum over condim: we want the more frictional geom to win.
+   replicating the tangetial and rolling components. See the :ref:`Contact<coContact>` section in the Computation
+   chapter for an intuitive description of the semantics of tangential, torsional and rolling coefficients.
+
+   The contact friction coefficients are then computed according to the following rule: if one of the two geoms has
+   higher priority, its friction coefficients are used. Otherwise the **element-wise maximum** of each friction
+   coefficient over the two geoms is used.
+
    The reason for having 5 coefficients per contact and only 3 per geom is as follows. For a contact pair, we want to
    allow the most flexible model our solver can handle. As mentioned earlier, anisotropic friction can be exploited to
    model effects such as skating. This however requires knowing how the two axes of the contact tangent plane are
    oriented. For a predefined contact pair we know the two geom types in advance, and the corresponding collision
-   function always generates contact frames oriented in the same way - which we do not describe here but it can be seen
+   function always generates contact frames oriented in the same way -- which we do not describe here but it can be seen
    in the visualizer. For individual geoms however, we do not know which other geoms they might collide with and what
    their geom types might be, so there is no way to know how the contact tangent plane will be oriented when specifying
    an individual geom. This is why MuJoCo does not allow anisotropic friction in the individual geom specifications, but
    only in the explicit contact pair specifications.
-margin, gap
+**margin**, **gap**
    The maximum of the two geom margins (or gaps respectively) is used. The geom priority is ignored here, because the
    margin and gap are distance properties and a one-sided specification makes little sense.
-solref, solimp
-   If one of the two geoms has higher priority, its solref and solimp parameters are used. If both geoms have the same
-   priority, the weighted average is used. The weights are proportional to the solmix attributes, i.e., weight1 =
-   solmix1 / (solmix1 + solmix2) and similarly for weight2. There is one important exception to this weighted averaging
-   rule. If solref for either geom is non-positive, i.e., it relies on the direct format,
+
+.. _solmixing:
+
+**solref**, **solimp**
+   If one of the two geoms has higher :ref:`priority<body-geom-priority>`, its solref and solimp parameters are used. If
+   both geoms have the same priority, the weighted average is used. The weights are proportional to the solmix
+   attributes, i.e., weight1 = solmix1 / (solmix1 + solmix2) and similarly for weight2. There is one important exception
+   to this weighted averaging rule. If solref for either geom is non-positive, i.e., it relies on the direct format,
    then the element-wise minimum is used regardless of solmix. This is because averaging solref parameters in different
    formats would be meaningless.
 
@@ -473,7 +514,7 @@ facilitate this process, we provide a mechanism to override some of the solver p
 the actual model. Once the override is disabled, the simulation reverts to the parameters specified in the model. This
 mechanism can also be used to implement continuation methods in the context of numerical optimization (such as optimal
 control or state estimation). This is done by allowing contacts to act from a distance in the early phases of
-optimization - so as to help the optimizer find a gradient and get close to a good solution - and reducing this effect
+optimization---so as to help the optimizer find a gradient and get close to a good solution---and reducing this effect
 later to make the final solution physically realistic.
 
 The relevant settings here are the :at:`override` attribute of :ref:`flag <option-flag>` which
@@ -536,12 +577,12 @@ general guidelines and observations:
    threshold is better defined in terms of number of active constraints, which is model and behavior dependent.
 -  The choice between pyramidal and elliptic friction cones is a modeling choice rather than an algorithmic choice,
    i.e., it leads to a different optimization problem solved with the same algorithms. Elliptic cones correspond more
-   closely to physical reality. However pyramidal cones can improve the performance of the algorithms - but not
+   closely to physical reality. However pyramidal cones can improve the performance of the algorithms -- but not
    necessarily. While the default is pyramidal, we recommend trying the elliptic cones. When contact slip is a problem,
    the best way to suppress it is to use elliptic cones, large impratio, and the Newton algorithm with very small
    tolerance. If that is not sufficient, enable the Noslip solver.
 -  The Newton algorithm is the best choice for most models. It has quadratic convergence near the global minimum and
-   gets there in surprisingly few iterations - usually around 5, and rarely more than 20. It should be used with
+   gets there in surprisingly few iterations -- usually around 5, and rarely more than 20. It should be used with
    aggressive tolerance values, say 1e-10, because it is capable of achieving high accuracy without added delay (due to
    quadratic convergence at the end). The only situation where we have seen it slow down are large models with elliptic
    cones and many slipping contacts. In that regime the Hessian factorization needs a lot of updates. It may also slow
@@ -588,11 +629,12 @@ Group disable
 The :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` attribute, which can be changed at runtime by setting the
 :ref:`mjOption.disableactuator<mjOption>` integer bitfield, allows the user to disable sets of actuators according to
 their :ref:`group<actuator-general-group>`. This feature is convenient when one would like to use multiple types of
-actuators for the same kinematic tree. For example consider a robot with firmware that supports mutiple control modes
+actuators for the same kinematic tree. For example consider a robot with firmware that supports multiple control modes
 e.g., torque-control and position-control. In this case, one can define both types of actuators in the same MJCF
 model, assigning one type of actuator to group 0 and the other to group 1.
 
 .. youtube:: H9qG9Zf2W44
+   :aspect: 2:1
    :align: right
    :width: 40%
 
@@ -682,7 +724,10 @@ Force clamping at joint input with :ref:`joint/actuatorfrcrange<body-joint-actua
   :ref:`jointactuatorfrc<sensor-jointactuatorfrc>` sensor to report the total actuator force acting on a joint.
   The standard :ref:`actuatorfrc<sensor-actuatorfrc>` sensor will continue to report the pre-clamped actuator force.
 
-The three clamping options above are non-exclusive and can be combined as required.
+Force clamping at tendon input with :ref:`tendon/actuatorfrcrange<tendon-spatial-actuatorfrcrange>`:
+  This tendon attribute clamps input forces from all actuators acting on the tendon.
+
+The clamping options above are non-exclusive and can be combined as required.
 
 .. _CLengthRange:
 
@@ -706,8 +751,7 @@ Automatic computation of actuator length ranges is done at compile time, and the
 mjModel.actuator_lengthrange of the compiled model. If the model is then saved (either as XML or MJB), the computation
 does not need to be repeated at the next load. This is important because the computation can slow down the model
 compiler with large musculo-skeletal models. Indeed we have made the compiler multi-threaded just to speed up this
-operation (different actuators are processed in parallel in different threads). Incidentally, this is why the flag
-'-pthread' is now needed when linking user code against the MuJoCo library on Linux and macOS.
+operation (different actuators are processed in parallel in different threads).
 
 Automatic computation relies on modified physics simulation. For each actuator we apply force (negative when computing
 the minimum, positive when computing the maximum) through the actuator's transmission, advance the simulation in a
@@ -856,7 +900,15 @@ The advantage of the scaled quantities is that all muscles behave similarly in t
 captured by the Force-Length-Velocity (:math:`\text{\small FLV}`) function measured in many experimental papers. We
 approximate this function as follows:
 
-|image1|
+.. image:: images/modeling/musclemodel.png
+   :width: 650px
+   :align: center
+   :class: only-light
+
+.. image:: images/modeling/musclemodel_dark.png
+   :width: 650px
+   :align: center
+   :class: only-dark
 
 The function is in the form:
 
@@ -898,7 +950,15 @@ Before embarking on a mission to design more accurate :math:`\text{\small FLV}` 
 operating range of the muscle has a bigger effect than the shape of the :math:`\text{\small FLV}` function, and in many
 cases this parameter is unknown. Below is a graphical illustration:
 
-|image2|
+.. image:: images/modeling/musclerange.png
+   :width: 500px
+   :align: center
+   :class: only-light
+
+.. image:: images/modeling/musclerange_dark.png
+   :width: 500px
+   :align: center
+   :class: only-dark
 
 This figure format is common in the biomechanics literature, showing the operating range of each muscle superimposed on
 the normalized :math:`\text{FL}` curve (ignore the vertical displacement). Our default range is shown in black. The blue
@@ -1024,9 +1084,10 @@ Here we describe the XML attributes common to all sensor types, so as to avoid r
 :at:`name`: :at-val:`string, optional`
    Name of the sensor.
 :at:`noise`: :at-val:`real, "0"`
-   The standard deviation of zero-mean Gaussian noise added to the sensor output, when the :at:`sensornoise`
-   attribute of :ref:`flag <option-flag>` is enabled. Sensor noise respects the sensor data type:
-   quaternions and unit vectors remain normalized, non-negative quantities remain non-negative.
+   The standard deviation of the noise model of this sensor. In versions prior to 3.1.4, this would lead to noise being
+   added to the sensors. In release 3.1.4 this feature was removed, see :doc:`3.1.4 changelog <changelog>` for a
+   detailed justification. As of subsequent versions, this attrbute serves as a convenient location for saving standard
+   deviation information for later use.
 :at:`cutoff`: :at-val:`real, "0"`
    When this value is positive, it limits the absolute value of the sensor output. It is also used to normalize the
    sensor output in the sensor data plots in :ref:`simulate.cc <saSimulate>`.
@@ -1063,121 +1124,39 @@ Intrinsics
 Composite objects
 ~~~~~~~~~~~~~~~~~
 
-Composite objects are not new model elements. Instead, they are (large) collections of existing elements designed to
-simulate particle systems, ropes, cloth, and soft bodies. These collections are generated by the model compiler
-automatically. The user configures the automatic generator on a high level, using the new XML element
-:ref:`composite <body-composite>` and its attributes and sub-elements, as described in the XML reference
-chapter. If the compiled model is then saved, :el:`composite` is no longer present and is replaced with the collection
-of regular model elements that were automatically generated. So think of it as a macro that gets expanded by the model
-compiler.
+Composite objects are not new model elements. Instead, they are collections of existing element originally designed to
+simulate particle systems, ropes, cloth, and soft bodies. Over time, most of these types have been replaced by
+:ref:`replicate<replicate>` (for repeated objects) and :ref:`flexcomp<body-flexcomp>` (for soft objects). Therefore, the
+only supported composite type is now ``cable``, which produces an inextensible chain of bodies connected with ball
+joints.
 
-Composite objects are made up of regular MuJoCo bodies, which we call "element bodies" in this context. The element
-bodies are created as children of the body within which :el:`composite` appears; thus a composite object appears in the
-same place in the XML where a regular child body may have been defined. Each automatically-generated element body has a
-single geom attached to it, usually a sphere but could also be a capsule or an ellipsoid. Thus the composite object is
-essentially a particle system, however the particles can be constrained to move together in ways that simulate various
-flexible objects. The initial positions of the element bodies form a regular grid in 1D, 2D or 3D. They could all be
-children of the parent body (which can be the world or another regular body; composite objects cannot be nested) and
-have joints allowing motion relative to the parent, or they could form a kinematic tree with joints between the element
-bodies. They can also be connected with tendons with soft equality constraints on the tendon length, creating the
-necessary coupling. Joint equality constraints are also used in some cases. The :at:`solref` and :at:`solimp` attributes
-of these equality constraints can be adjusted by the user, thereby adjusting the softness and flexibility of the
-composite objects.
+Composite objects are made up of regular MuJoCo bodies, which we call "element bodies" in this context. The collection
+of element bodies is generated by the model compiler automatically. The user configures the automatic generator on a
+high level, using the new XML element :ref:`composite <body-composite>` and its attributes and sub-elements, as
+described in the XML reference chapter. If the compiled model is then saved, :el:`composite` is no longer present and is
+replaced with the collection of regular model elements that were automatically generated. So think of it as a macro that
+gets expanded by the model compiler. The element bodies are created as children of the body within which :el:`composite`
+appears; thus a composite object appears in the same place in the XML where a regular child body may have been defined.
+Each automatically-generated element body has a single geom attached to it. We have designed the composite object
+generator to have intuitive high-level controls as much as possible, but at the same time it exposes a large number of
+options that interact with each other and can profoundly affect the resulting physics. So at some point users should
+read the :ref:`reference documentation <body-composite>` carefully.
 
-In addition to setting up the physics, the composite object generator creates suitable rendering. 2D and 3D objects
-can be rendered as :ref:`skins <asset-skin>`. The skin is generated
-automatically, and can be textured as well as subdivided using bi-cubic interpolation. The actual physics and in
-particular the collision detection are based on the element bodies and their geoms, while the skin is purely a
-visualization object. Yet in most situations we prefer to look at the skin representation. To facilitate this, the
-generator places all geoms, sites and tendons in group 3 whose visualization is disabled by default. So when you load
-a 2D grid for example, you will see a continuous flexible surface and not a collection of spheres connected with
-tendons. However when fine-tuning the model and trying to understand the physics behind it, it is useful to be able to
-render the spheres and tendons. To switch the rendering style, disable the rendering of skins and enable group 3 for
-geoms and tendons.
-
-We have designed the composite object generator to have intuitive high-level controls as much as possible, but at the
-same time it exposes a large number of options that interact with each other and can profoundly affect the resulting
-physics. So at some point users should read the :ref:`reference documentation <body-composite>` carefully.
-As a quick start though, MuJoCo comes with an example of each composite object type. Below we go over these
-examples and explain the less obvious aspects. In all examples we have a static scene which is included in the model,
-followed by a single composite object. The static scene has a mocap body (large capsule) that can be moved around with
-the mouse to probe the behavior of the system. The XML snippets below are just the definition of the composite object;
-see the XML model files in the distribution for the complete examples.
-
-**Particle**.
-
-|image4| |image5|
-
-.. code-block:: xml
-
-   <worldbody>
-     <composite type="particle" count="10 10 10" spacing="0.07" offset="0 0 1">
-       <geom size=".02" rgba=".8 .2 .1 1"/>
-     </composite>
-   </worldbody>
-
-The above XML is all it takes to create a system with 1000 particles with initial positions on a 10-10-10 grid, and
-set the size, color, spacing and offset of the particles. The resulting element bodies become children of the world
-body. One could adjust many other properties including the softness of the contacts and the joint attributes. The plot
-on the right shows the joints. Each element body has 3 orthogonal slider joints, allowing it to translate but not
-rotate. The idea is that particles should have position but no orientation. MuJoCo bodies always have orientation,
-however by using only slider joints we do not allow the orientation to change. The geom defaults are adjusted
-automatically so that they make frictionless contacts with each other and with the rest of the model. So this system
-has 1000 bodies (each with a geom), 3000 degrees of freedom and around 1000 active contacts. Evaluating the dynamics
-takes around 1 ms on a single core of a modern processor. As with most other MuJoCo models, the soft constraints allow
-simulation at much larger timesteps (this model is stable at 30 ms timestep and even higher).
-
-Particles are also compatible with the passive forces 2D and 3D plugins, discussed in the :ref:`deformable
-<CDeformable>` section. However, collisions are limited to the particle themselves and not to the whole boundary of the
-skin that encloses them. This makes contacts very fast but does not guarantee that all penetrations can be avoided. For
-a more complete treatment, see again the :ref:`deformable <CDeformable>` section, which outlines how to use
-:ref:`flexcomp<body-flexcomp>` to create such an object. It is easy to port models create with composite particles to
-flex, see the folder `elasticity/ <https://github.com/google-deepmind/mujoco/tree/main/model/plugin/elasticity>`__ for
-several examples.
-
-**1D grid**.
-
-|image6| |image7|
-
-.. code-block:: xml
-
-   <composite type="grid" count="20 1 1" spacing="0.045" offset="0 0 1">
-     <joint kind="main" damping="0.001"/>
-     <tendon kind="main" width="0.01"/>
-     <geom size=".02" rgba=".8 .2 .1 1"/>
-     <pin coord="1"/>
-     <pin coord="13"/>
-   </composite>
-
-The grid type can create 1D or 2D grids, depending on the :at:`count` attribute. Here we illustrate 1D grids. These
-are strings of spheres connected with tendons whose length is soft-equality-constrained. The softness can be adjusted.
-Similar to particles, the element bodies here have slider joints but no rotational joints. The plot on the right
-illustrates pinning. The :el:`pin` sub-element is used to specify the grid coordinates of the pinned bodies, and the
-model compiler does not generate joints for these bodies, thereby fixing them rigidly to the parent body (in this case
-the world). This makes the string in the right plot hang in space. The same mechanism can be used to model a whip for
-example; in that case the parent body would be moving, and the first element body would be pinned to the parent.
-
-**2D grid**.
-
-|image8| |image9|
-
-.. code-block:: xml
-
-   <composite type="grid" count="9 9 1" spacing="0.05" offset="0 0 1">
-     <skin material="matcarpet" inflate="0.001" subgrid="3" texcoord="true"/>
-     <geom size=".02"/>
-     <pin coord="0 0"/>
-     <pin coord="8 0"/>
-   </composite>
-
-A 2D grid can be used to simulate cloth. What it really simulates is a 2D grid of spheres connected with
-equality-constrained tendons (not shown). The model compiler can also generate skin, enabled with the :el:`skin`
-sub-element in the above XML. Some of the element bodies can also be pinned, similar to 1D grids but using two grid
-coordinates. The plot on the right shows a cloth pinned to the world body at the two corners, and draping over our
-capsule probe. The skin on the right is subdivided using bi-cubic interpolation, which increases visual quality in the
-absence of textures. When textures are present (left) the benefits of subdivision are less visible.
+In addition to setting up the physics, the composite object generator creates suitable rendering. Objects can be
+rendered as :ref:`skins <asset-skin>`. The skin is generated automatically, and can be textured as well as subdivided
+using bi-cubic interpolation. The actual physics and in particular the collision detection are based on the element
+bodies and their geoms, while the skin is purely a visualization object. Yet in some situations we prefer to look at the
+skin representation, as in `this model
+<https://github.com/google-deepmind/mujoco/blob/main/model/plugin/elasticity/belt.xml>`__, whose skin is a continuous
+flexible surface and not a collection of discontinuous thin boxes. However when fine-tuning the model and trying to
+understand the physics behind it, it is useful to be able to render the geoms. To switch the rendering style, disable
+the rendering of skins and enable group 3 for geoms and tendons.
 
 **Cable**.
+
+As a quick start, MuJoCo comes with an example of composite cables. In all examples we have a static scene which is
+included in the model, followed by a single composite object. The XML snippets below are just the definition of the
+composite object; see the XML model files in the distribution for the complete examples.
 
 |coil|
 
@@ -1212,6 +1191,16 @@ stiffnesses can be set independently. Moreover, it is possible to specify if the
 curve, such as in the case of coil springs. The cable requires using a first-party :ref:`engine plugin<exPlugin>`, which
 may be integrated directly into the engine in the future.
 
+**Particle**.
+
+The particle type is deprecated. It is recommended to use the more generic :ref:`replicate<replicate>` instead, for
+example `this model <https://github.com/google-deepmind/mujoco/blob/main/model/replicate/particle.xml>`__.
+
+**Grid**.
+
+The grid composite type has been removed. It is recommended to use 2D flex :ref:`deformable objects <CDeformable>` for
+simulating thin elastic structures.
+
 **Rope and loop**.
 
 The rope and loop are deprecated. It is recommended to use the cable for simulating inextensible elastic rods that are
@@ -1223,62 +1212,11 @@ scenario (e.g. a stretched rubber band).
 The cloth is deprecated. It is recommended to use 2D flex :ref:`deformable objects <CDeformable>` for simulating thin
 elastic structures.
 
-**Box**.
+**Box, cylinder and ellipsoid**.
 
-|image14| |image15|
 
-.. code-block:: xml
-
-   <body pos="0 0 1">
-     <freejoint/>
-     <composite type="box" count="7 7 7" spacing="0.04">
-       <skin texcoord="true" material="matsponge" rgba=".7 .7 .7 1"/>
-       <geom type="capsule" size=".015 0.05" rgba=".8 .2 .1 1"/>
-     </composite>
-   </body>
-
-The box type, as well as the cylinder and ellipsoid types below, are used to model soft 3D objects. The element bodies
-form a grid along the outer shell, thus the number of element bodies scales with the square of the linear dimension.
-This is much more efficient than simulating a 3D grid. The parent body within which :el:`composite` appears is at the
-center of the soft object. All element bodies are children of the parent. Each element body has a single sliding joint
-pointing away from the parent. These joints allow the surface of the soft object to compress and expand at any point.
-The joints are equality-constrained to their initial position, so as to maintain the shape. In addition each joint is
-equality-constrained to its neighbor joints, so that when the soft objects deforms, the deformation is smooth.
-Finally, there is a tendon equality constraint specifying that the sum of all joints should remain constant. This
-attempts to preserve the volume of the soft object approximately. If the object is squeezed from all sides it will
-compress and the volume will decrease, but otherwise some element bodies will stick out to compensate for squeezing
-elsewhere. The plot on the left shows this effect; we are using the capsule probe to compress one corner, and the
-opposite sides of the cube expand a bit, while the deformations remain smooth. The :at:`count` attribute determines
-the number of element bodies in each dimension, so if the counts are different the resulting object will be a
-rectangular box and not a cube. The geoms attached to the element bodies can be spheres, capsules or ellipsoids.
-Spheres are faster for collision detection, but they result in a thin shell, allowing other bodies to "get under the
-skin" of the soft object. When capsules or ellipsoids are used, they are automatically oriented so that the long axis
-points to the outside, thus creating a thicker shell which is harder to penetrate.
-
-**Cylinder and ellipsoid**.
-
-|image16| |image17|
-
-.. code-block:: xml
-
-   <body pos="0 0 1">
-     <freejoint/>
-     <composite type="ellipsoid" count="5 7 9" spacing="0.05">
-       <skin texcoord="true" material="matsponge" rgba=".7 .7 .7 1"/>
-       <geom type="capsule" size=".015 0.05" rgba=".8 .2 .1 1"/>
-     </composite>
-   </body>
-
-Cylinders and ellipsoids are created in the same way as boxes. The only difference is that the reference positions of
-the element bodies (relative to the parent) are projected on a cylinder or ellipsoid, with size implied by the
-:at:`count` attribute. The automatic skin generator is aware of the smooth surfaces, and adjusts the skin normals
-accordingly. In the plots we have used the capsule probe to press on each body, then paused the simulation and moved the
-probe away (which is possible because the probe is a mocap body which can move independent of the physics). In this way
-we can see the indentation made by the probe, and the resulting deformation in the rest of the body. By changing the
-solref and solimp attributes of the equality constraints that hold the soft object together, one can adjust the behavior
-of the system making it softer or harder, damped or springy, etc. Note that box, cylinder and ellipsoid objects do not
-involve long kinematic chains, and can be simulated at large timesteps - similar to particle and grid, and unlike rope
-and cloth.
+The box type, as well as the cylinder and ellipsoid types, are now deprecated in favor of 3D flex :ref:`deformable
+objects <CDeformable>`. element.
 
 .. _CDeformable:
 
@@ -1302,7 +1240,9 @@ A flex is a collection of MuJoCo bodies that are connected with massless stretch
 capsules (1D flex), triangles (2D flex), or tetrahedra (3D flex). In all cases we allow a radius, which makes the
 elements smooth and also volumetric in 1D and 2D. The primitive elements are illustrated below:
 
-|flexelem|
+.. image:: images/modeling/flexelem.png
+   :width: 600px
+   :align: center
 
 Thus far these look like geoms. But the key difference is that they deform: as the bodies (vertices) move independently
 of each other, the shape of the elements changes in real time. Collisions and contact forces are now generalized to
@@ -1327,9 +1267,7 @@ improved realism and accuracy. The edge-based model could be seen as a "lumped" 
 coupling of deformation modes (e.g. shear and volumetric) is averaged in a single quantity. The continuum model enables
 instead to specify shear and volumetic stiffnesses separately using the `Poisson's ratio
 <https://en.wikipedia.org/wiki/Poisson%27s_ratio>`__ of the material. For more details, see the `Saint Venant-Kirchhoff
-<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ hyperelastic model. This
-functionality is currently based on first-party :ref:`engine plugins<exPlugin>` as of MuJoCo 3.0 but may be integrated
-into the engine in future releases.
+<https://en.wikipedia.org/wiki/Hyperelastic_material#Saint_Venant%E2%80%93Kirchhoff_model>`__ hyperelastic model.
 
 **Creation and visualization**.
 
@@ -1337,20 +1275,12 @@ into the engine in future releases.
 
    <option timestep=".001"/>
 
-   <extension>
-      <plugin plugin="mujoco.elasticity.solid"/>
-   </extension>
-
    <worldbody>
       <flexcomp type="grid" count="24 4 4" spacing=".1 .1 .1" pos=".1 0 1.5"
                 radius=".0" rgba="0 .7 .7 1" name="softbody" dim="3" mass="7">
          <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001" selfcollide="none"/>
          <edge damping="1"/>
-         <plugin plugin="mujoco.elasticity.solid">
-            <config key="poisson" value="0.2"/>
-            <!--Units are in Pa (SI)-->
-            <config key="young" value="5e4"/>
-         </plugin>
+         <elasticity poisson="0.2" young="5e4">
       </flexcomp>
    </worldbody>
 
@@ -1358,14 +1288,15 @@ Using the :ref:`flexcomp<body-flexcomp>` element, we can create flexes from mesh
 automatically generate all the bodies/vertices and connect them with suitable elements. We can also create grids and
 other topologies automatically. This machinery makes it easy to create very large flexes, involving thousands or even
 tens of thousands of bodies, elements and edges. Obviously such simulations will not be fast. Even for medium-sized
-flexes, pruning of collision pairs and essential. This is why we have developed elaborate methods for pruning
+flexes, pruning of collision pairs is essential. This is why we have developed elaborate methods for pruning
 self-collisions; see XML reference.
 
 In case of 3D flexes made of tetrahedra, it may be useful to examine how the flex is "triangulated" internally. We have
 a special visualization mode that peels off the outer layers. Below is an example with the Stanford Bunny. Note how it
 has smaller tetrahedra on the outside and larger ones on the inside. This mesh design makes sense, because we want the
-collision surface to be accurate, but on the inside we just need soft material properties - which require less spatial
-resolution.
+collision surface to be accurate, but on the inside we just need soft material properties -- which require less spatial
+resolution. In order to convert a surface mesh to a tetrahedral mesh, we recommend open tools like the
+`fTetWild library <https://github.com/wildmeshing/fTetWild>`__.
 
 |bunny1| |bunny2|
 
@@ -1396,7 +1327,7 @@ The flexibility of repeated MCJF sections comes at a price: global settings that
 the :at:`angle` attribute of :ref:`compiler <compiler>` for example, can be defined multiple times.
 MuJoCo allows this, and uses the last definition encountered in the composite model, after all include elements have
 been processed. So if model A is defined in degrees and model B is defined in radians, and A is included in B after
-the :el:`compiler` element in B, the entire composite model will be treated as if it was defined in degrees - leading
+the :el:`compiler` element in B, the entire composite model will be treated as if it was defined in degrees -- leading
 to undesirable consequences in this case. The user has to make sure that models included in each other are compatible
 in this sense; local vs. global coordinates is another compatibility requirement.
 
@@ -1429,7 +1360,7 @@ unless there is a specific reason to define it. There can be several such reason
    is useful for custom computations involving a model element that is identified by its name in the XML (as opposed to
    relying on a fixed index which can change when the model is edited).
 -  The model file could in principle become more readable by naming certain elements. Keep in mind however that XML
-   itself has a commenting mechanism, and that mechanism is more suitable for achieving readability - especially since
+   itself has a commenting mechanism, and that mechanism is more suitable for achieving readability -- especially since
    most text editors provide syntax highlighting which detects XML comments.
 
 .. _CURDF:
@@ -1443,10 +1374,12 @@ elements available in MuJoCo. In addition to standard URDF files, MuJoCo can loa
 viewpoint of URDF) :el:`mujoco` element as a child of the top-level element :el:`robot`. This custom element can have
 sub-elements :ref:`compiler <compiler>`, :ref:`option <option>`,
 :ref:`size <size>` with the same functionality as in MJCF, except that the default compiler settings
-are modified so as to accomodate the URDF modeling convention. The :ref:`compiler <compiler>` extension
+are modified so as to accommodate the URDF modeling convention. The :ref:`compiler <compiler>` extension
 in particular has proven very useful, and indeed several of its attributes were introduced because a number of
 existing URDF models have non-physical dynamics parameters which MuJoCo's built-in compiler will reject if left
-unmodified. This extension is also needed to specify mesh directories.
+unmodified. This extension is also needed to specify mesh directories. Also note that the compiler attributes
+:ref:`strippath<compiler-strippath>`, :ref:`angle<compiler-angle>`, :ref:`fusestatic<compiler-fusestatic>` and
+:ref:`discardvisual<compiler-discardvisual>` have different default values for URDF and MJCF.
 
 Note that the while MJCF models are checked against a custom XML schema by the parser, URDF models are not. Even the
 MuJoCo-specific elements embedded in the URDF file are not checked. As a result, mis-typed attribute names are
@@ -1492,15 +1425,15 @@ mocap bodies around:
 
 |particle|
 
-The key thing to understand about mocap bodies is that the simulator treats them as being fixed. We are causing them
-to move from one simulation time step to the next by updating their position and orientation directly, but as far as
-the physics model is concerned their position and orientation are constant. So what happens if we make contact with a
-regular dynamic body, as in the composite object examples provided with the MuJoCo distribution (recall that in
-those example we have a capsule probe which is a mocap body that we move with the mouse). A contact between two
-regular bodies will experience penetration as well as relative velocity, while contact with a mocap body is missing
-the relative velocity component because the simulator does not know that the mocap body itself is moving. So the
-resulting contact force is smaller and it takes longer for the contact to push the dynamic object away. Also, in more
-complex simulations the fact that we are doing something inconsistent with the physics can cause instabilities.
+The key thing to understand about mocap bodies is that the simulator treats them as being fixed. We are causing them to
+move from one simulation time step to the next by updating their position and orientation directly, but as far as the
+physics model is concerned their position and orientation are constant. So what happens if we make contact with a
+regular dynamic body, as in the particle examples provided with the MuJoCo distribution (recall that in those example we
+have a capsule probe which is a mocap body that we move with the mouse). A contact between two regular bodies will
+experience penetration as well as relative velocity, while contact with a mocap body is missing the relative velocity
+component because the simulator does not know that the mocap body itself is moving. So the resulting contact force is
+smaller and it takes longer for the contact to push the dynamic object away. Also, in more complex simulations the fact
+that we are doing something inconsistent with the physics can cause instabilities.
 
 There is however a better-behaved alternative. In addition to the mocap body, we include a second regular body and
 connect it to the mocap body with a weld equality constraint. In the plots below, the pink box is the mocap body and
@@ -1575,6 +1508,116 @@ Here we provide guidance on how to accomplish some common modeling tasks. There 
 that everything in this section can be inferred from the rest of the documentation. Nevertheless the inference process
 is not always obvious, so it may be useful to have it spelled out.
 
+.. _CPerformance:
+
+Performance tuning
+~~~~~~~~~~~~~~~~~~
+
+Below is a list of steps one can take in order to maximize simulation throughput. All of the recommendations
+involve parameter tweaking. It is recommended that these be carried out in interactive fashion while looking at the
+:ref:`simulate<saSimulate>` utility's built-in profiler. A detailed and sometimes more useful profile is also reported
+by the :ref:`testspeed<saTestspeed>` utility. When embarking on the more elaborate steps below, target the most
+expensive pipeline component reported by the profiler. Note that some of these are subtly different for MJX, see
+dedicated section :ref:`therein<MjxPerformance>`.
+
+1. :ref:`Timestep<option-timestep>`: Try to increase the simulation timestep. As explained at the end of the
+   :ref:`Numerical Integration<geIntegration>` section, the timestep is the single most important parameter in any
+   model. The default value is chosen for stability rather than efficiency, and can often be increased. At some point,
+   increasing it further will cause diveregence, so the optimal timestep is the largest timestep at which divergence
+   never happens or is very rare. The actual value is model-dependent.
+2. :ref:`Integrator<option-integrator>`: Choose your integrator according to the recommendations at the end of the
+   :ref:`Numerical Integration<geIntegration>` section. The default recommended choice is the ``implicitfast``
+   integrator.
+3. :ref:`Constraint Jacobians<option-jacobian>`: Try switching the Jacobian setting between "dense" and "sparse". These
+   two options use separate code paths using dense or sparse algebra, but are otherwise computationally identical, so
+   the faster one is always preferred. The default "auto" heuristic does not always make the right choice.
+4. **Constraint solver:** If the profiler reports that a large chunk of time is spent in the solver, consider the
+   following:
+
+   - :ref:`solver<option-solver>`: The default Newton is often the fastest solver, as it requires the smallest
+     number of iterations to converge. For large models the CG solver might be faster, for models with more degrees of
+     freedom than constraints, the PGS solver will be fastest, though this situation is not common.
+   - :ref:`iterations<option-iterations>` and :ref:`tolerance<option-tolerance>`: Try reducing the number of iterations
+     or, equivalently, increasing the solver's termination tolerance. In particular for the Newton solver, which
+     typically achieves numerical convergence in 2-3 (expensive) iterations, the last iteration increases the precision
+     to a level that has no noticeable effect, and can be skipped.
+5. **Collisions:** If the profiler reports that collision detection takes up a large chunk of the computation
+   time, consider the following steps:
+
+   - Reduce the number of checked collisions using the
+     :ref:`contype<body-geom-contype>` / :ref:`conaffinity<body-geom-conaffinity>` mechanism described in the
+     :ref:`Collison detection<Collision>` section.
+   - Modify collision geometries, replacing expensive collision tests (e.g. mesh-mesh) with cheaper primitive-primitive
+     collisions. As a rule of thumb, collisions which have custom pair functions in the collision table at the top of
+     `engine_collision_driver.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_collision_driver.c>`__
+     are significantly cheaper than those that use the generic convex-convex collider ``mjc_Convex``. The most expensive
+     collisions are those involving SDF geometries.
+   - If replacing collision meshes with primitives is not feasible, decimate the meshes as much as possible. Open source
+     tools like trimesh, Blender, MeshLab and CoACD are very useful in this regard.
+6. :ref:`Friction cones<option-cone>`: Elliptic cones are more accurate and better at preventing slip with high
+   :ref:`impratio<option-impratio>`, but are more expensive. If accurate friction is not important, try switching
+   to pyramidal cones.
+7. Compile MuJoCo with 32-bit floating point precision (rather than the default 64). For large models running in
+   multi-threaded mode, where memory access is more expensive than computation, this can lead to (up to) 2x performance
+   improvement. See :ref:`mjtNum` for more information.
+
+.. _CSlippage:
+
+Preventing slip
+~~~~~~~~~~~~~~~
+
+Below is a list of steps one can take in order to diagnose and solve contact slippage, which is especially problematic
+in manipulation tasks. In order to diagnose slippage, it is recommended to use the :ref:`simulate<saSimulate>` utility's
+built in visualization options to inspect contacts and contact forces. It is often helpful to tweak the visual size of
+contacts and forces (using the global :ref:`meansize<statistic-meansize>` or the specific
+:ref:`contactwidth<visual-scale-contactwidth>`, :ref:`contactheight<visual-scale-contactheight>` and
+:ref:`forcewidth<visual-scale-forcewidth>` attributes) and the :ref:`force scaling<visual-map-force>` attribute, to
+better visualize and understand the contact configuration and resulting forces.
+
+**Slip-preventing contact forces are outside the friction cone**
+  This implies that the physics cannot prevent slip, even in principle. This occurs when:
+
+  a. *The normal force is too small.* Ensure that the maximum force that can be applied by the gripper mutiplied by
+     the sliding friction coefficient is significantly greater than the weight of the object.
+  b. *The sliding friction coefficient is too low.* Increase the sliding :ref:`friction<body-geom-friction>`
+     coefficient.
+  c. *Torsional friction is insufficient to apply the required torques.* Increase :ref:`condim<body-geom-condim>` to
+     4 or 6 and choose appropriate friction coefficients.
+     **condim 4** enables torsional friction, preventing rotation around the normal.
+     **condim 6** also enables rolling friction, preventing rotation around the tangential directions.
+     See the :ref:`Contact<coContact>` section for details and the specifc semantics of these coefficients.
+
+**The geometry does not support the required forces or torques**
+  This is a common real-world problem, solved by improved design of grippers and handles.
+
+  a. Improve the geometry of the contacting geoms in order to add more contact points, possibly with non-flat
+     geometry (e.g., bumps), so slippage is prevented by the normal force and not only frictional components.
+  b. If contacts are between flat surfaces, try enabling the :ref:`multiccd<option-flag-multiccd>` flag, which allows
+     the detector to find more contacts than the single contact returned by the convex-convex collider.
+  c. Try enabling the native collision detection pipeline by setting the :ref:`nativeccd<option-flag-nativeccd>` flag,
+     which uses a more accurate and efficient convex collision detection algorithm.
+
+**High-frequency vibration**
+  High-frequency, low-amplitude vibrations are also a real-world problem in many industrial settings, but unlike in
+  simulation, in the real world they are audible. Such vibration is often caused by controllers with very
+  high gains and sometimes by stick-slip feedback from contacts or joints, resonating with the eigen-modes of the
+  mechanism. The easist way to diagnose such vibration is to visualize contact forces in
+  :ref:`simulate<saSimulate>`. The solution is usually to reduce the :ref:`timestep<option-timestep>` and/or add
+  some :ref:`armature<body-joint-armature>` to the relevant joints. Another reason for vibration is feedback from
+  explicit damping. Use the implicit or implicitfast integrators, as documented in the
+  :ref:`Numerical Integration<geIntegration>` section.
+
+**Slow slippage**
+  Unlike the above problems which lead to fast slippage, slow, gradual slippage is a property of MuJoCo's contact
+  model by design, since without it the inverse dynamics are not defined. This is discussed in detail in the
+  :ref:`softness and slip<Soft>` clarification. This type of slippage can be addressed in two ways.
+
+  a. Increase the :ref:`impratio<option-impratio>` parameter. This will reduce (but not entirely prevent) slow
+     slippage. Note that high impratio values work well only with :ref:`elliptic cones<option-cone>`.
+  b. Enable the noslip solver by increasing :ref:`noslip_iterations<option-noslip_iterations>` to a positive integer.
+     A small number (1, 2 or 3) is usually sufficient. The noslip post-processing solver will entirely prevent slip,
+     at the cost of making inverse dynamics ill-defined and additional computational cost.
+
 .. _CBacklash:
 
 Backlash
@@ -1609,39 +1652,6 @@ limits, the equality constraint approach will generate a softer transition betwe
 regime. It will also be active all the time, which is convenient in user code that needs the constraint violation or
 constraint force as input.
 
-.. _CDamping:
-
-Damping
-~~~~~~~
-
-Damping generates a force proportional to velocity and opposite to it. In a physical system damping always increases
-stability. But this is only because the Universe is equipped with an ideal continuous-time integrator which does not
-accumulate errors due to time discretization. In a computer simulation where time is discretized, large damping can
-destabilize the system because of integration errors. This was already discussed in the
-:ref:`Computation <gePassive>` chapter.
-
-The standard approach to reducing integration errors is to reduce the timestep or use the Runge-Kutta integrator, both
-of which are effective but slow down the simulation. An alternative approach is to put all damping in the joints and
-use the Euler integrator. In that case damping forces are integrated implicitly - meaning that the inertia matrix is
-adjusted and re-factorized internally as part of the velocity update, in a way transparent to the user. Implicit
-integration is much more stable than explicit integration, allowing substantially larger time steps. Note that the
-Runge-Kutta integrator is explicit, and so is Euler except for the way it treats damping forces. Ideally we would have
-a fully implicit integrator, but there is no publicly available physics engine that currently has such an integrator.
-It is on our todo list for a future MuJoCo release.
-
-Given this state of affairs, joint damping is better behaved than damping in tendons or actuators, because the latter
-are not integrated implicitly. Now consider a velocity servo producing force:
-
-::
-
-       force = gain * (desired_velocity - current_velocity)
-
-This can be modeled as a velocity actuator, however such an actuator adds damping to the system and could cause
-instability when the gain is high. Instead we could split the above force in two terms. For the first term, define a
-motor which generates force = gain \* desired_velocity, by treating desired_velocity as the control signal. For the
-second term, add damping in the joint, with damping coefficient equal to the above servo gain. Now the overall force is
-the same yet the damping component of the force is integrated implicitly.
-
 .. _CRestitution:
 
 Restitution
@@ -1668,12 +1678,6 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    </worldbody>
 
 
-.. |image0| image:: images/modeling/impedance.png
-   :width: 600px
-.. |image1| image:: images/modeling/musclemodel.png
-   :width: 650px
-.. |image2| image:: images/modeling/musclerange.png
-   :width: 400px
 .. |image3| image:: images/modeling/tendonwraps.png
    :width: 500px
 .. |image4| image:: images/modeling/particle.png
@@ -1710,8 +1714,6 @@ in a visible way, and the energy fluctuates around the initial value instead of 
    :height: 250px
 .. |particle| image:: images/models/particle.gif
    :width: 270px
-.. |flexelem| image:: images/modeling/flexelem.png
-   :width: 400px
 .. |bunny1| image:: images/modeling/bunny1.png
    :width: 300px
 .. |bunny2| image:: images/modeling/bunny2.png

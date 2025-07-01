@@ -24,8 +24,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - os: ubuntu-24.04
+            label: "ubuntu-24.04-gcc-14"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-14
+              -DCMAKE_CXX_COMPILER:STRING=g++-14
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+            tmpdir: "/tmp"
+          - os: ubuntu-24.04
+            label: "ubuntu-24.04-gcc-13"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=gcc-13
+              -DCMAKE_CXX_COMPILER:STRING=g++-13
+              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+            tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "-gcc-12"
+            label: "ubuntu-22.04-gcc-12"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-12
@@ -33,7 +49,7 @@ jobs:
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "-gcc-11"
+            label: "ubuntu-22.04-gcc-11"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-11
@@ -41,23 +57,47 @@ jobs:
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "-gcc-10"
+            label: "ubuntu-22.04-gcc-10"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=gcc-10
               -DCMAKE_CXX_COMPILER:STRING=g++-10
               -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
             tmpdir: "/tmp"
-          - os: ubuntu-22.04
-            additional_label: "-gcc-9"
+          - os: ubuntu-24.04
+            label: "ubuntu-24.04-clang-18"
             cmake_args: >-
               -G Ninja
-              -DCMAKE_C_COMPILER:STRING=gcc-9
-              -DCMAKE_CXX_COMPILER:STRING=g++-9
-              -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--no-as-needed
+              -DCMAKE_C_COMPILER:STRING=clang-18
+              -DCMAKE_CXX_COMPILER:STRING=clang++-18
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-24.04
+            label: "ubuntu-24.04-clang-17"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-17
+              -DCMAKE_CXX_COMPILER:STRING=clang++-17
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-24.04
+            label: "ubuntu-24.04-clang-16"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-16
+              -DCMAKE_CXX_COMPILER:STRING=clang++-16
+              -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "-clang-14"
+            label: "ubuntu-22.04-clang-15"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-15
+              -DCMAKE_CXX_COMPILER:STRING=clang++-15
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: ubuntu-22.04
+            label: "ubuntu-22.04-clang-14"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-14
@@ -65,49 +105,33 @@ jobs:
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
           - os: ubuntu-22.04
-            additional_label: "-clang-13"
+            label: "ubuntu-22.04-clang-13"
             cmake_args: >-
               -G Ninja
               -DCMAKE_C_COMPILER:STRING=clang-13
               -DCMAKE_CXX_COMPILER:STRING=clang++-13
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
-          - os: ubuntu-20.04
-            additional_label: "-clang-12"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=clang-12
-              -DCMAKE_CXX_COMPILER:STRING=clang++-12
-              -DMUJOCO_HARDEN:BOOL=ON
-            tmpdir: "/tmp"
-          - os: ubuntu-20.04
-            additional_label: "-clang-11"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=clang-11
-              -DCMAKE_CXX_COMPILER:STRING=clang++-11
-              -DMUJOCO_HARDEN:BOOL=ON
-            tmpdir: "/tmp"
-          - os: ubuntu-20.04
-            additional_label: "-clang-10"
-            cmake_args: >-
-              -G Ninja
-              -DCMAKE_C_COMPILER:STRING=clang-10
-              -DCMAKE_CXX_COMPILER:STRING=clang++-10
-              -DMUJOCO_HARDEN:BOOL=ON
-            tmpdir: "/tmp"
-          - os: macos-12
+          - os: macos-15
+            label: "macos-15-arm64"
             cmake_args: >-
               -G Ninja
               -DMUJOCO_HARDEN:BOOL=ON
             tmpdir: "/tmp"
-          - os: windows-2022
+          - os: macos-15-large
+            label: "macos-15-x86_64"
             cmake_args: >-
-              -DCMAKE_SYSTEM_VERSION="10.0.22621.0"
+              -G Ninja
+              -DMUJOCO_HARDEN:BOOL=ON
+            tmpdir: "/tmp"
+          - os: windows-2025
+            label: "windows-2025"
+            cmake_args: >-
+              -DCMAKE_SYSTEM_VERSION="10.0.26100.0"
             cmake_build_args: "-- -m"
             tmpdir: "C:/Temp"
 
-    name: "${{ matrix.os }}${{ matrix.additional_label }}"
+    name: "${{ matrix.label }}"
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -142,18 +166,30 @@ jobs:
         fi
         source venv/bin/activate
         python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
+        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
     - name: Configure MuJoCo
       run: >
         mkdir build &&
         cd build &&
         cmake ..
         -DCMAKE_BUILD_TYPE:STRING=Release
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
         -DCMAKE_INSTALL_PREFIX:STRING=${{ matrix.tmpdir }}/mujoco_install
         -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF
         ${{ matrix.cmake_args }}
     - name: Build MuJoCo
       working-directory: build
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+    - name: Copy in the correct VC runtime DLLs (workaround for actions/runner-images#10004)
+      if: ${{ runner.os == 'Windows' }}
+      working-directory: build
+      shell: powershell
+      run: |
+        Copy-Item (Join-Path `
+          ((Get-ChildItem -Directory `
+              -Path "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC\14.*" |
+            Sort -Descending | Select-Object -First 1).FullName
+          ) 'x64\Microsoft.VC143.CRT\*.dll') "bin\Release"
     - name: Test MuJoCo
       working-directory: build
       run: ctest -C Release --output-on-failure .
@@ -167,7 +203,7 @@ jobs:
            cp lib/libactuator.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libsensor.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libsdf.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+           cp lib/libsdf_plugin.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
     - name: Copy plugins (Windows)
       if: ${{ runner.os == 'Windows' }}
       working-directory: build
@@ -182,6 +218,7 @@ jobs:
         cd build &&
         cmake ..
         -DCMAKE_BUILD_TYPE:STRING=Release
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
         -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
         ${{ matrix.cmake_args }}
     - name: Build samples
@@ -194,6 +231,7 @@ jobs:
         cd build &&
         cmake ..
         -DCMAKE_BUILD_TYPE:STRING=Release
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
         -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
         ${{ matrix.cmake_args }}
     - name: Build simulate
@@ -250,7 +288,7 @@ jobs:
       shell: bash
       run:
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pytest -n auto -v --pyargs mujoco.mjx
+        pytest -n auto -v -k 'not IntegrationTest' --pyargs mujoco.mjx
     - name: Notify team chat
       shell: bash
       env:
@@ -259,7 +297,7 @@ jobs:
         CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
         CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
         CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        CHATMSG_JOB_ID: ${{ matrix.os }}${{ matrix.additional_label }}
+        CHATMSG_JOB_ID: ${{ matrix.label }}
       if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
       run: |
         CHATMSG="$(cat <<-'EOF' | python3
@@ -274,7 +312,7 @@ jobs:
             email=env('CHATMSG_AUTHOR_EMAIL'),
             msg=env('CHATMSG_COMMIT_MESSAGE').replace('```', '')
         )
-        text = '<{result}|*FAILURE*>: job `{job}` commit `{commit}`\n```Author: {name}<{email}>\n\n{msg}```'.format(**data)
+        text = '<{result}|*FAILURE*>: job `{job}` commit `{commit}`\n```Author: {name} <{email}>\n\n{msg}```'.format(**data)
         print(json.dumps({'text' : text}))
         EOF
         )" &&

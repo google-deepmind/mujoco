@@ -93,6 +93,32 @@ void mjr_restoreBuffer(const mjrContext* con) {
 
 
 
+// emit one warning about mjGLAD_GL_ARB_clip_control
+static void warnAboutARBClipControl(void) {
+  // not thread safe, but the consequence is just too many log lines
+  static int warned = 0;
+  if (!warned) {
+    warned = 1;
+    mju_warning("ARB_clip_control unavailable while mjDEPTH_ZEROFAR requested, "
+                "depth accuracy will be limited");
+  }
+}
+
+
+
+// emit one warning about mjGLAD_GL_ARB_depth_buffer_float
+static void warnAboutARBDepthBuffer(void) {
+  // not thread safe, but the consequence is just too many log lines
+  static int warned = 0;
+  if (!warned) {
+    warned = 1;
+    mju_warning("ARB_depth_buffer_float unavailable while mjDEPTH_ZEROFAR requested, "
+                "depth accuracy will be limited");
+  }
+}
+
+
+
 static inline void flipDepthIfRequired(float* depth, mjrRect viewport, const mjrContext* con) {
   if (con->readDepthMap == mjDEPTH_ZERONEAR) {
     int npixel = viewport.width * viewport.height;
@@ -100,11 +126,9 @@ static inline void flipDepthIfRequired(float* depth, mjrRect viewport, const mjr
       depth[i] = 1.0 - depth[i];  // Reverse the reversed Z buffer
     }
   } else if (!mjGLAD_GL_ARB_clip_control) {
-    mju_warning("ARB_clip_control unavailable while mjDEPTH_ZEROFAR requested, "
-                "depth accuracy will be limited");
+    warnAboutARBClipControl();
   } else if (!mjGLAD_GL_ARB_depth_buffer_float) {
-    mju_warning("ARB_depth_buffer_float unavailable while mjDEPTH_ZEROFAR requested, "
-                "depth accuracy will be limited");
+    warnAboutARBDepthBuffer();
   }
 }
 

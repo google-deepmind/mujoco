@@ -18,6 +18,8 @@
 #include <string.h>
 
 #include <mujoco/mjdata.h>
+#include <mujoco/mjmacro.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtnum.h>
 #include "engine/engine_io.h"
 #include "engine/engine_util_blas.h"
@@ -26,60 +28,11 @@
 
 //------------------------------ sparse operations -------------------------------------------------
 
-// dot-product, first vector is sparse
-//  flg_unc1: is vec1 memory layout uncompressed
-mjtNum mju_dotSparse(const mjtNum* vec1, const mjtNum* vec2,
-                     const int nnz1, const int* ind1, int flg_unc1) {
-#ifdef mjUSEAVX
-  return mju_dotSparse_avx(vec1, vec2, nnz1, ind1, flg_unc1);
-#else
-  int i = 0;
-  mjtNum res = 0;
-  int n_4 = nnz1 - 4;
-  mjtNum res0 = 0;
-  mjtNum res1 = 0;
-  mjtNum res2 = 0;
-  mjtNum res3 = 0;
-
-
-  if (flg_unc1) {
-    for (; i <= n_4; i+=4) {
-      res0 += vec1[ind1[i+0]] * vec2[ind1[i+0]];
-      res1 += vec1[ind1[i+1]] * vec2[ind1[i+1]];
-      res2 += vec1[ind1[i+2]] * vec2[ind1[i+2]];
-      res3 += vec1[ind1[i+3]] * vec2[ind1[i+3]];
-    }
-  } else {
-    for (; i <= n_4; i+=4) {
-      res0 += vec1[i+0] * vec2[ind1[i+0]];
-      res1 += vec1[i+1] * vec2[ind1[i+1]];
-      res2 += vec1[i+2] * vec2[ind1[i+2]];
-      res3 += vec1[i+3] * vec2[ind1[i+3]];
-    }
-  }
-  res = (res0 + res2) + (res1 + res3);
-
-  // scalar part
-  if (flg_unc1) {
-    for (; i < nnz1; i++) {
-      res += vec1[ind1[i]] * vec2[ind1[i]];
-    }
-  } else {
-    for (; i < nnz1; i++) {
-      res += vec1[i] * vec2[ind1[i]];
-    }
-  }
-
-  return res;
-#endif  // mjUSEAVX
-}
-
-
 
 // dot-productX3, first vector is sparse; supernode of size 3
 void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
                      const mjtNum* vec10, const mjtNum* vec11, const mjtNum* vec12,
-                     const mjtNum* vec2, const int nnz1, const int* ind1) {
+                     const mjtNum* vec2, int nnz1, const int* ind1) {
 #ifdef mjUSEAVX
   mju_dotSparseX3_avx(res0, res1, res2, vec10, vec11, vec12, vec2, nnz1, ind1);
 #else
@@ -108,10 +61,8 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
 
 
 // dot-product, both vectors are sparse
-//  flg_unc2: is vec2 memory layout uncompressed
-mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
-                      const int nnz1, const int* ind1,
-                      const int nnz2, const int* ind2, int flg_unc2) {
+mjtNum mju_dotSparse2(const mjtNum* vec1, const int* ind1, int nnz1,
+                      const mjtNum* vec2, const int* ind2, int nnz2) {
   int i1 = 0, i2 = 0;
   mjtNum res = 0;
 
@@ -126,12 +77,7 @@ mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
 
     // match: accumulate result, advance both
     if (adr1 == adr2) {
-      if (flg_unc2) {
-        res += vec1[i1++] * vec2[adr2];
-        i2++;
-      } else {
-        res += vec1[i1++] * vec2[i2++];
-      }
+      res += vec1[i1++] * vec2[i2++];
     }
 
     // otherwise advance smaller
@@ -148,8 +94,13 @@ mjtNum mju_dotSparse2(const mjtNum* vec1, const mjtNum* vec2,
 
 
 // convert matrix from dense to sparse
-void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                      int* rownnz, int* rowadr, int* colind) {
+//  nnz is size of res and colind, return 1 if too small, 0 otherwise
+int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
+                     int* rownnz, int* rowadr, int* colind, int nnz) {
+  if (nnz <= 0) {
+    return 1;
+  }
+
   int adr = 0;
 
   // find non-zeros and construct sparse
@@ -161,6 +112,11 @@ void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
     // find non-zeros
     for (int c=0; c < nc; c++) {
       if (mat[r*nc+c]) {
+        // check for out of bounds
+        if (adr >= nnz) {
+          return 1;
+        }
+
         // record index and count
         colind[adr] = c;
         rownnz[r]++;
@@ -170,6 +126,7 @@ void mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
       }
     }
   }
+  return 0;
 }
 
 
@@ -199,33 +156,100 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 #else
   // regular sparse dot-product
   for (int r=0; r < nr; r++) {
-    res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r], /*flg_unc1=*/0);
+    res[r] = mju_dotSparse(mat+rowadr[r], vec, rownnz[r], colind+rowadr[r]);
   }
 #endif  // mjUSEAVX
 }
 
 
 
-// res = res*scl1 + vec*scl2
-static void mju_addToSclScl(mjtNum* res, const mjtNum* vec, mjtNum scl1, mjtNum scl2, int n) {
-#ifdef mjUSEAVX
-  mju_addToSclScl_avx(res, vec, scl1, scl2, n);
-#else
+// multiply transposed sparse matrix and dense vector:  res = mat' * vec.
+void mju_mulMatTVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc,
+                          const int* rownnz, const int* rowadr, const int* colind) {
+  // clear res
+  mju_zero(res, nc);
+
+  for (int i=0; i < nr; i++) {
+    mjtNum scl = vec[i];
+
+    // skip if 0
+    if (!scl) continue;
+
+    // add row scaled by the corresponding vector element
+    int nnz = rownnz[i];
+    int adr = rowadr[i];
+    const int* ind = colind + adr;
+    const mjtNum* row = mat + adr;
+    for (int j=0; j < nnz; j++) {
+      res[ind[j]] += row[j] * scl;
+    }
+  }
+}
+
+
+// add sparse matrix M to sparse destination matrix, requires pre-allocated buffers
+void mju_addToMatSparse(mjtNum* dst, int* rownnz, int* rowadr, int* colind, int nr,
+                        const mjtNum* M, const int* M_rownnz, const int* M_rowadr,
+                        const int* M_colind,
+                        mjtNum* buf_val, int* buf_ind) {
+  for (int i=0; i < nr; i++) {
+    rownnz[i] = mju_combineSparse(dst + rowadr[i], M + M_rowadr[i], 1, 1,
+                                  rownnz[i], M_rownnz[i], colind + rowadr[i],
+                                  M_colind + M_rowadr[i], buf_val, buf_ind);
+  }
+}
+
+
+// add symmetric matrix (lower triangle) to dense matrix, upper triangle optional
+void mju_addToSymSparse(mjtNum* res, const mjtNum* mat, int n,
+                        const int* rownnz, const int* rowadr, const int* colind, int flg_upper) {
   for (int i=0; i < n; i++) {
-    res[i] = res[i]*scl1 + vec[i]*scl2;
+    int start = rowadr[i];
+    int end = start + rownnz[i];
+    for (int adr=start; adr < end; adr++) {
+      mjtNum val = mat[adr];
+      int j = colind[adr];
+
+      // lower + diagonal
+      res[i*n + j] += val;
+
+      // strict upper
+      if (flg_upper && j < i) {
+        res[j*n + i] += val;
+      }
+    }
   }
-#endif  // mjUSEAVX
 }
 
 
 
-// return 1 if vec1==vec2, 0 otherwise
-static int mju_compare(const int* vec1, const int* vec2, int n) {
-#ifdef mjUSEAVX
-  return mju_compare_avx(vec1, vec2, n);
-#else
-  return !memcmp(vec1, vec2, n*sizeof(int));
-#endif  // mjUSEAVX
+// multiply symmetric matrix (only lower triangle represented) by vector:
+//  res = (mat + strict_upper(mat')) * vec
+void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
+                         const mjtNum* restrict vec, int n,
+                         const int* restrict rownnz, const int* restrict rowadr,
+                         const int* restrict colind) {
+  // clear res
+  mju_zero(res, n);
+
+  // multiply
+  for (int i=0; i < n; i++) {
+    int adr = rowadr[i];
+    int diag = rownnz[i] - 1;
+    const mjtNum* row = mat + adr;
+
+    // diagonal
+    res[i] = row[diag] * vec[i];
+
+    // off-diagonals
+    const int* ind = colind + adr;
+    for (int k=diag-1; k >= 0; k--) {
+      int j = ind[k];
+      mjtNum val = row[k];
+      res[i] += val * vec[j]; // strict lower
+      res[j] += val * vec[i]; // strict upper
+    }
+  }
 }
 
 
@@ -257,72 +281,9 @@ int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_
 
 
 
-// combine two sparse vectors: dst = a*dst + b*src, return nnz of result
-int mju_combineSparse(mjtNum* dst, const mjtNum* src, mjtNum a, mjtNum b,
-                      int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind,
-                      mjtNum* buf, int* buf_ind) {
-  // check for identical pattern
-  if (dst_nnz == src_nnz) {
-    if (mju_compare(dst_ind, src_ind, dst_nnz)) {
-      // combine mjtNum data directly
-      mju_addToSclScl(dst, src, a, b, dst_nnz);
-      return dst_nnz;
-    }
-  }
-
-  // copy dst into buf
-  if (dst_nnz) {
-    mju_copy(buf, dst, dst_nnz);
-    mju_copyInt(buf_ind, dst_ind, dst_nnz);
-  }
-
-  // prepare to merge buf and src into dst
-  int bi = 0, si = 0, nnz = 0;
-  int buf_nnz = dst_nnz;
-
-  // merge vectors
-  while (bi < buf_nnz && si < src_nnz) {
-    int badr = buf_ind[bi];
-    int sadr = src_ind[si];
-
-    if (badr == sadr) {
-      dst[nnz] = a*buf[bi++] + b*src[si++];
-      dst_ind[nnz++] = badr;
-    }
-
-    // buf only
-    else if (badr < sadr) {
-      dst[nnz] = a*buf[bi++];
-      dst_ind[nnz++] = badr;
-    }
-
-    // src only
-    else {
-      dst[nnz] = b*src[si++];
-      dst_ind[nnz++] = sadr;
-    }
-  }
-
-  // the rest of src only
-  while (si < src_nnz) {
-    dst[nnz] = b*src[si];
-    dst_ind[nnz++] = src_ind[si++];
-  }
-
-  // the rest of buf only
-  while (bi < buf_nnz) {
-    dst[nnz] = a*buf[bi];
-    dst_ind[nnz++] = buf_ind[bi++];
-  }
-
-  return nnz;
-}
-
-
-
 // incomplete combine sparse: dst = a*dst + b*src at common indices
 void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNum b,
-                          int dst_nnz, int src_nnz, int* dst_ind, const int* src_ind) {
+                          int dst_nnz, int src_nnz, const int* dst_ind, const int* src_ind) {
   // check for identical pattern
   if (dst_nnz == src_nnz) {
     if (mju_compare(dst_ind, src_ind, dst_nnz)) {
@@ -368,10 +329,10 @@ void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNu
 
 
 
-// dst += src, only at common non-zero indices
-void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
-                        int nnzdst, const int* inddst,
-                        int nnzsrc, const int* indsrc) {
+// dst += scl*src, only at common non-zero indices
+void mju_addToSclSparseInc(mjtNum* dst, const mjtNum* src,
+                           int nnzdst, const int* inddst,
+                           int nnzsrc, const int* indsrc, mjtNum scl) {
   if (!nnzdst || !nnzsrc) {
     return;
   }
@@ -381,7 +342,7 @@ void mju_addToSparseInc(mjtNum* dst, const mjtNum* src,
     // common non-zero index
     if (inds == indd) {
       // add
-      dst[adrd] += src[adrs];
+      dst[adrd] += scl * src[adrs];
 
       // advance src
       if (++adrs < nnzsrc) {
@@ -538,39 +499,60 @@ int mju_addChains(int* res, int n, int NV1, int NV2,
 
 
 
-// compress layout of sparse matrix
-void mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, int* colind) {
-  rowadr[0] = 0;
-  int adr = rownnz[0];
-  for (int r=1; r < nr; r++) {
+// compress sparse matrix, remove elements with abs(value) <= minval, return total non-zeros
+int mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, int* colind,
+                       mjtNum minval) {
+  int remove_small = minval >= 0;
+  int adr = 0;
+  for (int r=0; r < nr; r++) {
     // save old rowadr, record new
-    int rowadr1 = rowadr[r];
+    int rowadr_old = rowadr[r];
     rowadr[r] = adr;
 
-    // shift mat and mat_colind
-    for (int adr1=rowadr1; adr1 < rowadr1+rownnz[r]; adr1++) {
-      mat[adr] = mat[adr1];
-      colind[adr] = colind[adr1];
+    // shift mat and colind
+    int nnz = 0;
+    int end = rowadr_old + rownnz[r];
+    for (int adr_old=rowadr_old; adr_old < end; adr_old++) {
+      if (remove_small && mju_abs(mat[adr_old]) <= minval) {
+        continue;
+      }
+      if (adr != adr_old) {
+        mat[adr] = mat[adr_old];
+        colind[adr] = colind[adr_old];
+      }
       adr++;
+      if (remove_small) nnz++;
     }
+    if (remove_small) rownnz[r] = nnz;
   }
+
+  return rowadr[nr-1] + rownnz[nr-1];
 }
 
 
 
-// transpose sparse matrix
+// transpose sparse matrix, optionally compute row supernodes
 void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
-                         int* res_rownnz, int* res_rowadr, int* res_colind,
+                         int* res_rownnz, int* res_rowadr, int* res_colind, int* res_rowsuper,
                          const int* rownnz, const int* rowadr, const int* colind) {
   // clear number of non-zeros for each row of transposed
   mju_zeroInt(res_rownnz, nc);
 
-  // total number of non-zeros of mat
-  int nnz = rowadr[nr-1] + rownnz[nr-1];
-
   // count the number of non-zeros for each row of the transposed matrix
-  for (int i = 0; i < nnz; i++) {
-    res_rownnz[colind[i]]++;
+  for (int r = 0; r < nr; r++) {
+    int start = rowadr[r];
+    int end = start + rownnz[r];
+    for (int j = start; j < end; j++) {
+      res_rownnz[colind[j]]++;
+    }
+  }
+
+  // init res_rowsuper
+  if (res_rowsuper) {
+    for (int i = 0; i < nc - 1; i++) {
+      res_rowsuper[i] = (res_rownnz[i] == res_rownnz[i + 1]);
+    }
+    res_rowsuper[nc - 1] = 0;
   }
 
   // compute the row addresses for the transposed matrix
@@ -579,26 +561,44 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
     res_rowadr[i] = res_rowadr[i-1] + res_rownnz[i-1];
   }
 
-  // r holds the current row in mat
-  int r = 0;
+  // iterate through each row (column) of mat (res)
+  for (int r = 0; r < nr; r++) {
+    int c_prev = -1;
+    int start = rowadr[r];
+    int end = start + rownnz[r];
+    for (int i = start; i < end; i++) {
+      // swap rows with columns and increment res_rowadr
+      int c = colind[i];
+      int adr = res_rowadr[c]++;
+      res_colind[adr] = r;
+      if (res) {
+        res[adr] = mat[i];
+      }
 
-  // iterate through each non-zero entry of mat
-  for (int i = 0; i < nnz; i++) {
-    // iterate to get to the current row (skipping rows with all zeros)
-    while ((i-rowadr[r]) >= rownnz[r]) r++;
-
-    // swap rows with columns and increment res_rowadr
-    int c = res_rowadr[colind[i]]++;
-    res[c] = mat[i];
-    res_colind[c] = r;
+      // mark non-supernodes
+      if (res_rowsuper) {
+        if (c > 0 && c != c_prev + 1 && res_rowsuper[c - 1]) {
+          res_rowsuper[c - 1] = 0;
+        }
+        c_prev = c;
+      }
+    }
   }
 
   // shift back row addresses
   for (int i = nc-1; i > 0; i--) {
     res_rowadr[i] = res_rowadr[i-1];
   }
-
   res_rowadr[0] = 0;
+
+  // accumulate supernodes
+  if (res_rowsuper) {
+    for (int i = nc - 2; i >= 0; i--) {
+      if (res_rowsuper[i]) {
+        res_rowsuper[i] += res_rowsuper[i + 1];
+      }
+    }
+  }
 }
 
 
@@ -636,26 +636,26 @@ void mju_superSparse(int nr, int* rowsuper,
 }
 
 
-// precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse
-void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
-                            int nr, int nc,  const int* rownnz,
-                            const int* rowadr, const int* colind,
-                            const int* rownnzT, const int* rowadrT,
-                            const int* colindT, const int* rowsuperT,
-                            mjData* d) {
+// precount res_rownnz and precompute res_rowadr for mju_sqrMatTDSparse, return total non-zeros
+int mju_sqrMatTDSparseCount(int* res_rownnz, int* res_rowadr, int nr,
+                            const int* rownnz, const int* rowadr, const int* colind,
+                            const int* rownnzT, const int* rowadrT, const int* colindT,
+                            const int* rowsuperT, mjData* d, int flg_upper) {
   mj_markStack(d);
-  int* chain = mj_stackAllocInt(d, 2*nc);
+  int* chain = mjSTACKALLOC(d, 2*nr, int);
   int nchain = 0;
   int* res_colind = NULL;
 
-  for (int r=0; r < nc; r++) {
+  for (int r=0; r < nr; r++) {
     // supernode; copy everything to next row
     if (rowsuperT && r > 0 && rowsuperT[r-1] > 0) {
       res_rownnz[r] = res_rownnz[r - 1];
 
       // fill in upper triangle
-      for (int j=0; j < nchain; j++) {
-        res_rownnz[res_colind[j]]++;
+      if (flg_upper) {
+        for (int j=0; j < nchain; j++) {
+          res_rownnz[res_colind[j]]++;
+        }
       }
 
       // update chain with diagonal
@@ -664,7 +664,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
         res_rownnz[r]++;
       }
     } else {
-      int inew = 0, iold = nc;
+      int inew = 0, iold = nr;
       nchain = 0;
 
       for (int i=0; i < rownnzT[r]; i++) {
@@ -679,8 +679,7 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
         int end = rowadr[c] + rownnz[c];
         for (int adr1=rowadr[c]; adr1 < end; adr1++) {
           int col_mat = colind[adr1];
-          while (adr < nchain && chain[iold + adr] < col_mat &&
-                 chain[iold + adr] <= r) {
+          while (adr < nchain && chain[iold + adr] < col_mat && chain[iold + adr] <= r) {
             chain[inew + nnewchain++] = chain[iold + adr++];
           }
 
@@ -706,25 +705,29 @@ void mju_sqrMatTDSparseInit(int* res_rownnz, int* res_rowadr,
       res_colind = chain + inew;
 
       // update upper triangle
-      int nchain_end = nchain;
+      if (flg_upper) {
+        int nchain_end = nchain;
 
-      // avoid double counting.
-      if (nchain > 0 && res_colind[nchain-1] == r) {
-        nchain_end = nchain - 1;
-      }
+        // avoid double counting
+        if (nchain > 0 && res_colind[nchain-1] == r) {
+          nchain_end = nchain - 1;
+        }
 
-      for (int j=0; j < nchain_end; j++) {
-        res_rownnz[res_colind[j]]++;
+        for (int j=0; j < nchain_end; j++) {
+          res_rownnz[res_colind[j]]++;
+        }
       }
     }
   }
 
   res_rowadr[0] = 0;
-  for (int r = 1; r < nc; r++) {
+  for (int r = 1; r < nr; r++) {
     res_rowadr[r] = res_rowadr[r-1] + res_rownnz[r-1];
   }
 
   mj_freeStack(d);
+
+  return res_rowadr[nr-1] + res_rownnz[nr-1];
 }
 
 
@@ -737,28 +740,231 @@ void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc) {
 
 
 
-// compute sparse M'*diag*M (diag=NULL: compute M'*M), res has uncompressed layout
-// res_rowadr is required to be precomputed
+// max number of supernodes handled
+#define mjMAXSUPER 8
+
+// compute sparse M'*diag*M (diag=NULL: compute M'*M), res_rowadr must be precomputed
 void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
                         const mjtNum* diag, int nr, int nc,
-                        int* res_rownnz, int* res_rowadr, int* res_colind,
+                        int* res_rownnz, const int* res_rowadr, int* res_colind,
                         const int* rownnz, const int* rowadr,
                         const int* colind, const int* rowsuper,
                         const int* rownnzT, const int* rowadrT,
                         const int* colindT, const int* rowsuperT,
-                        mjData* d) {
+                        mjData* d, int* diagind) {
+  mj_markStack(d);
+
+  // reinterpret transposed matrices as compressed sparse column
+  const mjtNum* mat_csc  = matT;
+  const int* colnnz      = rownnzT;
+  const int* coladr      = rowadrT;
+  const int* rowind      = colindT;
+  const int* colsuper    = rowsuperT;
+  const mjtNum* matT_csc = mat;
+  const int* colnnzT     = rownnz;
+  const int* coladrT     = rowadr;
+  const int* rowindT     = colind;
+  // rowsuper is unused
+
+  // marker[i] = 1 if row i is set in current column
+  int* marker = mjSTACKALLOC(d, nc, int);
+  mju_zeroInt(marker, nc);
+
+  // dense buffer (considered column-major) containing up to mjMAXSUPER columns
+  mjtNum* buffer = mjSTACKALLOC(d, nc*mjMAXSUPER, mjtNum);
+
+  // dense index vector of the current column (unsorted)
+  int* buffer_idx = mjSTACKALLOC(d, nc, int);
+
+  // rowstart[i]: address of first row in column mat'[:, i] with index > current column
+  int* rowstart = mjSTACKALLOC(d, nr, int);
+  mju_zeroInt(rowstart, nr);
+
+  // clear res_rownnz
+  mju_zeroInt(res_rownnz, nc);
+
+  // construct res[lower+diagonal], by column
+  for (int c=0; c < nc; c++) {
+    int buffer_nnz = 0;
+
+    // prepare column c of mat
+    int nnz = colnnz[c];
+    int adr = coladr[c];
+    const int* ind = rowind + adr;
+
+    // val: array of ns > 0 column pointers with identical pattern to c
+    const mjtNum* val[mjMAXSUPER];
+
+    // first column is c
+    int ns = 1;
+    val[0] = mat_csc + adr;
+
+    // add c's supernodes, if any
+    int cs;
+    if (colsuper && (cs = colsuper[c])) {
+      ns += mjMIN(cs, mjMAXSUPER - 1);
+      for (int s=1; s < ns; s++) {
+        val[s] = mat_csc + coladr[c + s];
+      }
+    }
+
+    // diagonal special-case: dense dot product of column c, with/out diag
+    mjtNum diag_c[mjMAXSUPER];
+    if (diag) {
+      for (int s=0; s < ns; s++) {
+        mjtNum ds = 0;
+        for (int k=0; k < nnz; k++) {
+          ds += (val[s][k] * val[s][k]) * diag[ind[k]];
+        }
+        diag_c[s] = ds;
+      }
+    } else {
+      for (int s=0; s < ns; s++) {
+        diag_c[s] = mju_dot(val[s], val[s], nnz);
+      }
+    }
+
+    // in the strict lower triangle, compute
+    // res[:, c] = mat' * mat[:, c] = sum_r(diag[r] * mat'[:, r] * mat[:, c])
+    for (int i=0; i < nnz; i++) {
+      // prepare column r of mat'
+      int r = ind[i];
+      int adrT = coladrT[r];
+      int nnzT = colnnzT[r];
+      const int* indT = rowindT + adrT;
+      const mjtNum* valT = matT_csc + adrT;
+
+      // get v[s] = diag[r] * mat[r, c + s] for s in [0, ns)
+      mjtNum v[mjMAXSUPER];
+      if (diag) {
+        mjtNum diag_r = diag[r];
+        for (int s=0; s < ns; s++) {
+          v[s] = diag_r * val[s][i];
+        }
+      } else {
+        for (int s=0; s < ns; s++) {
+          v[s] = val[s][i];
+        }
+      }
+
+      // gather to dense buffer columns:  buffer[:, s] += mat'[:, r] * v[s]
+      for (int k=rowstart[r]; k < nnzT; k++) {
+        int j = indT[k];
+
+        // if j is not in the strict lower triangle, increment rowstart and continue
+        if (j <= c) {
+          rowstart[r]++;
+          continue;
+        }
+
+        // first nonzero in row j: mark and set value
+        if (!marker[j]) {
+          // mark j and save it
+          marker[j] = 1;
+          buffer_idx[buffer_nnz++] = j;
+
+          // set value
+          mjtNum vk = valT[k];
+          for (int s=0; s < ns; s++) {
+            buffer[s*nc + j] = vk * v[s];
+          }
+        }
+
+        // otherwise existing nonzero in row j: add to value
+        else {
+          mjtNum vk = valT[k];
+          for (int s=0; s < ns; s++) {
+            buffer[s*nc + j] += vk * v[s];
+          }
+        }
+      }
+    }
+
+    // scatter to res from dense buffer:  res[:, c + s] = buffer[:, s] for s in [0, ns)
+
+    // write values under diagonal
+    for (int i=0; i < buffer_nnz; i++) {
+      int j = buffer_idx[i];
+      marker[j] = 0;
+      int adr_j = res_rowadr[j] + res_rownnz[j];
+
+      // truncate row to strict lower triangle
+      int lower = j - c;
+      int nm = mjMIN(ns, lower);
+
+      // increment nonzeros
+      res_rownnz[j] += nm;
+
+      // write value
+      for (int s=0; s < nm; s++) {
+        res[adr_j + s] = buffer[s*nc + j];
+      }
+
+      // write index
+      for (int s=0; s < nm; s++) {
+        res_colind[adr_j + s] = c + s;
+      }
+    }
+
+    // write diagonal value
+    for (int s=0; s < ns; s++) {
+      int adr_s = res_rowadr[c + s] + res_rownnz[c + s]++;
+      res_colind[adr_s] = c + s;
+      res[adr_s] = diag_c[s];
+    }
+
+    // supernode: skip ahead if ns > 1
+    c += ns - 1;
+  }
+
+  // upper triangle requested: save diagonal indices and fill
+  if (diagind) {
+    // save diagonal indices
+    for (int i=0; i < nc; i++) {
+      diagind[i] = res_rowadr[i] + res_rownnz[i] - 1;
+    }
+
+    // fill upper triangle
+    for (int i=0; i < nc; i++) {
+      int start = res_rowadr[i];
+      int end = start + res_rownnz[i] - 1;
+      for (int j=start; j < end; j++) {
+        int adr = res_rowadr[res_colind[j]] + res_rownnz[res_colind[j]]++;
+        res[adr] = res[j];
+        res_colind[adr] = i;
+      }
+    }
+  }
+
+  mj_freeStack(d);
+}
+
+#undef mjMAXSUPER
+
+
+
+// legacy row-based implementation (reference)
+void mju_sqrMatTDSparse_row(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
+                            const mjtNum* diag, int nr, int nc,
+                            int* res_rownnz, const int* res_rowadr, int* res_colind,
+                            const int* rownnz, const int* rowadr,
+                            const int* colind, const int* rowsuper,
+                            const int* rownnzT, const int* rowadrT,
+                            const int* colindT, const int* rowsuperT,
+                            mjData* d, int* diagind) {
   // allocate space for accumulation buffer and matT
   mj_markStack(d);
 
   // a dense row buffer that stores the current row in the resulting matrix
-  mjtNum* buffer = mj_stackAllocNum(d, nc);
+  mjtNum* buffer = mjSTACKALLOC(d, nc, mjtNum);
 
   // these mark the currently set columns in the dense row buffer,
   // used for when creating the resulting sparse row
-  int* markers = mj_stackAllocInt(d, nc);
+  int* markers = mjSTACKALLOC(d, nc, int);
 
   for (int i=0; i < nc; i++) {
-    int* cols = res_colind+res_rowadr[i];
+    int rowadr_i = res_rowadr[i];
+    int* cols = res_colind + rowadr_i;
 
     res_rownnz[i] = 0;
     buffer[i] = 0;
@@ -771,18 +977,26 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
     }
 
     // iterate through each row of M'
-    int end = rowadrT[i] + rownnzT[i];
-    for (int r = rowadrT[i]; r < end; r++) {
+    int adrT = rowadrT[i];
+    int end_r = adrT + rownnzT[i];
+    for (int r = adrT; r < end_r; r++) {
       int t = colindT[r];
-      mjtNum v = diag ? matT[r] * diag[t] : matT[r];
-      for (int c=rowadr[t]; c < rowadr[t]+rownnz[t]; c++) {
+      int adr = rowadr[t];
+      int end_c = adr + rownnz[t];
+      for (int c=adr; c < end_c; c++) {
         int cc = colind[c];
+
         // ignore upper triangle
         if (cc > i) {
           break;
         }
 
-        buffer[cc] += v*mat[c];
+        // add value to buffer
+        if (diag) {
+          buffer[cc] += matT[r] * diag[t] * mat[c];
+        } else {
+          buffer[cc] += matT[r] * mat[c];
+        }
 
         // only need to insert nnz if not marked
         if (!markers[cc]) {
@@ -826,36 +1040,149 @@ void mju_sqrMatTDSparse(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
       }
     }
 
-    end = res_rownnz[i];
+    end_r = res_rownnz[i];
 
     // rowsuperT: reuse sparsity, copy into res
     if (rowsuperT && rowsuperT[i]) {
-      for (int r=0; r < end; r++) {
-        res[res_rowadr[i] + r] = buffer[cols[r]];
-        buffer[cols[r]] = 0;
+      for (int r=0; r < end_r; r++) {
+        int c = cols[r];
+        res[rowadr_i + r] = buffer[c];
+        buffer[c] = 0;
       }
-    } else {
-      // clear out buffers since sparsity cannot be reused
-      for (int r=0; r < end; r++) {
-        int cc = cols[r];
-        res[res_rowadr[i] + r] = buffer[cc];
-        res_colind[res_rowadr[i] + r] = cc;
-        buffer[cc] = 0;
-        markers[cc] = 0;
+    }
+
+    // clear out buffers, sparsity cannot be reused
+    else {
+      for (int r=0; r < end_r; r++) {
+        int c = cols[r];
+        int adr = rowadr_i + r;
+        res[adr] = buffer[c];
+        res_colind[adr] = c;
+        buffer[c] = 0;
+        markers[c] = 0;
       }
     }
   }
 
 
-  // fill upper triangle
-  for (int i=0; i < nc; i++) {
-    int end = res_rowadr[i] + res_rownnz[i] - 1;
-    for (int j=res_rowadr[i]; j < end; j++) {
-      int adr = res_rowadr[res_colind[j]] + res_rownnz[res_colind[j]]++;
-      res[adr] = res[j];
-      res_colind[adr] = i;
+  // diagonal indices requested: fill upper triangle
+  if (diagind) {
+    // save diagonal indices
+    for (int i=0; i < nc; i++) {
+      diagind[i] = res_rowadr[i] + res_rownnz[i] - 1;
+    }
+
+    // fill upper triangle
+    for (int i=0; i < nc; i++) {
+      int start = res_rowadr[i];
+      int end = start + res_rownnz[i] - 1;
+      for (int j=start; j < end; j++) {
+        int adr = res_rowadr[res_colind[j]] + res_rownnz[res_colind[j]]++;
+        res[adr] = res[j];
+        res_colind[adr] = i;
+      }
     }
   }
 
   mj_freeStack(d);
 }
+
+
+
+// block-diagonalize a dense matrix
+//   res         output matrix
+//   mat         input matrix
+//   nc_mat      number of columns in mat
+//   nc_res      number of columns in res
+//   nb          number of blocks
+//   perm_r      reverse permutation of rows (res -> mat)
+//   perm_c      reverse permutation of columns (res -> mat)
+//   block_nr    number of rows in each block
+//   block_nc    number of columns in each block
+//   block_r     first row of each block
+//   block_c     first column of each block
+void mju_blockDiag(mjtNum* restrict res, const mjtNum* restrict mat,
+                   int nc_mat, int nc_res, int nb,
+                   const int* restrict perm_r, const int* restrict perm_c,
+                   const int* restrict block_nr, const int* restrict block_nc,
+                   const int* restrict block_r, const int* restrict block_c) {
+  for (int b=0; b < nb; b++) {
+    int bnr = block_nr[b];
+    int bnc = block_nc[b];
+    const int* adr_r = perm_r + block_r[b];
+    const int* adr_c = perm_c + block_c[b];
+    int adr = nc_res * block_r[b];
+    for (int r = 0; r < bnr; r++) {
+      for (int c = 0; c < bnc; c++) {
+        res[adr++] = mat[nc_mat * adr_r[r] + adr_c[c]];
+      }
+    }
+  }
+}
+
+
+// block-diagonalize a sparse matrix
+//   res         values of the target matrix res
+//   res_rownnz  number of non-zeros in each row of res
+//   res_rowadr  row address of each non-zero in res
+//   res_colind  column index of each non-zero in res
+//   mat         values of the source matrix mat
+//   mat_rownnz  number of non-zeros in each row of mat
+//   mat_rowadr  row address of each non-zero in mat
+//   mat_colind  column index of each non-zero in mat
+//   nr          number of rows in mat/res
+//   nb          number of blocks
+//   perm_r      reverse permutation of rows (res -> mat)
+//   perm_c      forward permutation of columns (mat -> res)
+//   block_r     first row of each block in res
+//   block_c     first column of each block in res
+//   mat2        optional additional source matrix (same structure as mat)
+//   res2        optional additional target matrix (same structure as res)
+void mju_blockDiagSparse(mjtNum* restrict res, int* restrict res_rownnz,
+                         int* restrict res_rowadr, int* restrict res_colind,
+                         const mjtNum* restrict mat, const int* restrict rownnz,
+                         const int* restrict rowadr, const int* restrict colind,
+                         int nr, int nb,
+                         const int* restrict perm_r, const int* restrict perm_c,
+                         const int* restrict block_r, const int* restrict block_c,
+                         mjtNum* restrict res2, const mjtNum* restrict mat2) {
+  int block = 0;
+  int col_offset = block_c[block];
+  int row_next = block + 1 < nb ? block_r[block + 1] : nr;
+  for (int r=0; r < nr; r++) {
+    // row k in mat goes to row r in res
+    int k = perm_r[r];
+
+    // rownnz
+    int nnz = rownnz[k];
+    res_rownnz[r] = nnz;
+
+    // rowadr
+    int res_adr = (r == 0) ? 0 : res_rowadr[r-1] + res_rownnz[r-1];
+    res_rowadr[r] = res_adr;
+
+    // colind
+    int* res_colind_r = res_colind + res_adr;
+    mjtNum* res_r = res + res_adr;
+    int mat_adr = rowadr[k];
+    const int* colind_k = colind + mat_adr;
+    const mjtNum* mat_k = mat + mat_adr;
+    for (int j=0; j < nnz; j++) {
+      res_colind_r[j] = perm_c[colind_k[j]] - col_offset;
+    }
+
+    // values (dense copy: partial order within block is guaranteed)
+    mju_copy(res_r, mat_k, nnz);
+    if (mat2 && res2) {
+      mju_copy(res2 + res_adr, mat2 + mat_adr, nnz);
+    }
+
+    // end of block reached: update block counter, column offset, next row
+    if (r + 1 >= row_next && block + 1 < nb ) {
+      block++;
+      col_offset = block_c[block];
+      row_next = block + 1 < nb ? block_r[block + 1] : nr;
+    }
+  }
+}
+

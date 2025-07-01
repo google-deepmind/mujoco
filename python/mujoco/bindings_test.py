@@ -27,6 +27,7 @@ import numpy as np
 TEST_XML = r"""
 <mujoco model="test">
   <compiler coordinate="local" angle="radian" eulerseq="xyz"/>
+  <size nkey="2"/>
   <option timestep="0.002" gravity="0 0 -9.81"/>
   <visual>
     <global fovy="50" />
@@ -92,6 +93,19 @@ TEST_XML_PLUGIN = r"""
 </mujoco>
 """
 
+TEST_XML_TEXTURE = r"""
+<mujoco>
+  <asset>
+    <texture name="tex" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2"
+      width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>
+    <material name="mat" reflectance="0.3" texture="tex" texrepeat="1 1" texuniform="true"/>
+  </asset>
+  <worldbody>
+    <geom type="plane" size="1 1 1" material="mat"/>
+  </worldbody>
+</mujoco>
+"""
+
 
 @contextlib.contextmanager
 def temporary_callback(setter, callback):
@@ -119,34 +133,48 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     xml_2 = rb"""<mujoco><geom name="box" type="box" size="1 1 1"/></mujoco>"""
     xml_3 = rb"""<mujoco><geom name="ball" type="sphere" size="1"/></mujoco>"""
     model = mujoco.MjModel.from_xml_string(
-        xml_1, {'model_.xml': xml_2, 'model__.xml': xml_3})
+        xml_1, {'model_.xml': xml_2, 'model__.xml': xml_3}
+    )
     self.assertEqual(
-        mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, 'plane'), 0)
+        mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, 'plane'), 0
+    )
     self.assertEqual(
-        mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, 'box'), 1)
+        mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, 'box'), 1
+    )
     self.assertEqual(
-        mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, 'ball'), 2)
+        mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, 'ball'), 2
+    )
+
+  def test_load_xml_repeated_asset_name(self):
+    # Assets aren't allowed to have the same filename (even if they have
+    # different paths).
+    with self.assertRaisesRegex(ValueError, r'Repeated.*'):
+      mujoco.MjModel.from_xml_string(
+          '<mujoco/>', {'asset.xml': b'asset1', 'path/asset.xml': b'asset2'}
+      )
 
   def test_can_read_array(self):
     np.testing.assert_array_equal(
         self.model.body_pos,
-        [[0, 0, 0], [0, 0, 0.1], [0, 0, 0], [0, 0, 0], [42.0, 0, 42.0]])
+        [[0, 0, 0], [0, 0, 0.1], [0, 0, 0], [0, 0, 0], [42.0, 0, 42.0]],
+    )
 
   def test_can_set_array(self):
     self.data.qpos = 0.12345
     np.testing.assert_array_equal(
-        self.data.qpos, [0.12345]*len(self.data.qpos))
+        self.data.qpos, [0.12345] * len(self.data.qpos)
+    )
 
   def test_array_is_a_view(self):
     qpos_ref = self.data.qpos
     self.data.qpos = 0.789
-    np.testing.assert_array_equal(
-        qpos_ref, [0.789]*len(self.data.qpos))
+    np.testing.assert_array_equal(qpos_ref, [0.789] * len(self.data.qpos))
 
   # This test is disabled on PyPy as it uses sys.getrefcount
   # However PyPy is not officially supported by MuJoCo
-  @absltest.skipIf(sys.implementation.name == 'pypy',
-                   reason='requires sys.getrefcount')
+  @absltest.skipIf(
+      sys.implementation.name == 'pypy', reason='requires sys.getrefcount'
+  )
   def test_array_keeps_struct_alive(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML)
     qpos0 = model.qpos0
@@ -176,11 +204,15 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
   def test_named_indexing_actuator_ctrl(self):
     actuator_id = mujoco.mj_name2id(
-        self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, 'myactuator')
-    self.assertIs(self.data.actuator('myactuator'),
-                  self.data.actuator(actuator_id))
-    self.assertIs(self.data.actuator('myactuator').ctrl,
-                  self.data.actuator(actuator_id).ctrl)
+        self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, 'myactuator'
+    )
+    self.assertIs(
+        self.data.actuator('myactuator'), self.data.actuator(actuator_id)
+    )
+    self.assertIs(
+        self.data.actuator('myactuator').ctrl,
+        self.data.actuator(actuator_id).ctrl,
+    )
     self.assertEqual(self.data.actuator('myactuator').ctrl.shape, (1,))
 
     # Test that the indexer is returning a view into the underlying struct.
@@ -193,41 +225,49 @@ class MuJoCoBindingsTest(parameterized.TestCase):
   def test_named_indexing_invalid_names_in_model(self):
     with self.assertRaisesRegex(
         KeyError,
-        r"Invalid name 'badgeom'\. Valid names: \['mybox', 'myplane'\]"):
+        r"Invalid name 'badgeom'\. Valid names: \['mybox', 'myplane'\]",
+    ):
       self.model.geom('badgeom')
 
   def test_named_indexing_no_name_argument_in_model(self):
     with self.assertRaisesRegex(
         KeyError,
-        r"Invalid name ''\. Valid names: \['myball', 'myfree', 'myhinge'\]"):
+        r"Invalid name ''\. Valid names: \['myball', 'myfree', 'myhinge'\]",
+    ):
       self.model.joint()
 
   def test_named_indexing_invalid_names_in_data(self):
     with self.assertRaisesRegex(
         KeyError,
-        r"Invalid name 'badgeom'\. Valid names: \['mybox', 'myplane'\]"):
+        r"Invalid name 'badgeom'\. Valid names: \['mybox', 'myplane'\]",
+    ):
       self.data.geom('badgeom')
 
   def test_named_indexing_no_name_argument_in_data(self):
     with self.assertRaisesRegex(
         KeyError,
-        r"Invalid name ''\. Valid names: \['myball', 'myfree', 'myhinge'\]"):
+        r"Invalid name ''\. Valid names: \['myball', 'myfree', 'myhinge'\]",
+    ):
       self.data.jnt()
 
   def test_named_indexing_invalid_index_in_model(self):
     with self.assertRaisesRegex(
-        IndexError, r'Invalid index 3\. Valid indices from 0 to 2'):
+        IndexError, r'Invalid index 3\. Valid indices from 0 to 2'
+    ):
       self.model.geom(3)
     with self.assertRaisesRegex(
-        IndexError, r'Invalid index -1\. Valid indices from 0 to 2'):
+        IndexError, r'Invalid index -1\. Valid indices from 0 to 2'
+    ):
       self.model.geom(-1)
 
   def test_named_indexing_invalid_index_in_data(self):
     with self.assertRaisesRegex(
-        IndexError, r'Invalid index 3\. Valid indices from 0 to 2'):
+        IndexError, r'Invalid index 3\. Valid indices from 0 to 2'
+    ):
       self.data.geom(3)
     with self.assertRaisesRegex(
-        IndexError, r'Invalid index -1\. Valid indices from 0 to 2'):
+        IndexError, r'Invalid index -1\. Valid indices from 0 to 2'
+    ):
       self.data.geom(-1)
 
   def test_named_indexing_geom_size(self):
@@ -258,45 +298,53 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
   def test_named_indexing_ragged_qpos(self):
     balljoint_id = mujoco.mj_name2id(
-        self.model, mujoco.mjtObj.mjOBJ_JOINT, 'myball')
+        self.model, mujoco.mjtObj.mjOBJ_JOINT, 'myball'
+    )
     self.assertIs(self.data.joint('myball'), self.data.joint(balljoint_id))
-    self.assertIs(self.data.joint('myball').qpos,
-                  self.data.joint(balljoint_id).qpos)
+    self.assertIs(
+        self.data.joint('myball').qpos, self.data.joint(balljoint_id).qpos
+    )
     self.assertEqual(self.data.joint('myball').qpos.shape, (4,))
 
     # Test that the indexer is returning a view into the underlying struct.
     qpos_from_indexer = self.data.joint('myball').qpos
     qpos_idx = self.model.jnt_qposadr[balljoint_id]
-    self.data.qpos[qpos_idx:qpos_idx+4] = [4, 5, 6, 7]
+    self.data.qpos[qpos_idx : qpos_idx + 4] = [4, 5, 6, 7]
     np.testing.assert_array_equal(qpos_from_indexer, [4, 5, 6, 7])
     self.data.joint('myball').qpos = [9, 8, 7, 6]
-    np.testing.assert_array_equal(self.data.qpos[qpos_idx:qpos_idx+4],
-                                  [9, 8, 7, 6])
+    np.testing.assert_array_equal(
+        self.data.qpos[qpos_idx : qpos_idx + 4], [9, 8, 7, 6]
+    )
 
   def test_named_indexing_ragged2d_cdof(self):
     freejoint_id = mujoco.mj_name2id(
-        self.model, mujoco.mjtObj.mjOBJ_JOINT, 'myfree')
+        self.model, mujoco.mjtObj.mjOBJ_JOINT, 'myfree'
+    )
     self.assertIs(self.data.joint('myfree'), self.data.joint(freejoint_id))
-    self.assertIs(self.data.joint('myfree').cdof,
-                  self.data.joint(freejoint_id).cdof)
+    self.assertIs(
+        self.data.joint('myfree').cdof, self.data.joint(freejoint_id).cdof
+    )
     self.assertEqual(self.data.joint('myfree').cdof.shape, (6, 6))
 
     # Test that the indexer is returning a view into the underlying struct.
     cdof_from_indexer = self.data.joint('myfree').cdof
     dof_idx = self.model.jnt_dofadr[freejoint_id]
-    self.data.cdof[dof_idx:dof_idx+6, :] = np.reshape(range(36), (6, 6))
-    np.testing.assert_array_equal(cdof_from_indexer,
-                                  np.reshape(range(36), (6, 6)))
+    self.data.cdof[dof_idx : dof_idx + 6, :] = np.reshape(range(36), (6, 6))
+    np.testing.assert_array_equal(
+        cdof_from_indexer, np.reshape(range(36), (6, 6))
+    )
     self.data.joint('myfree').cdof = 42
-    np.testing.assert_array_equal(self.data.cdof[dof_idx:dof_idx+6], [[42]*6]*6)
+    np.testing.assert_array_equal(
+        self.data.cdof[dof_idx : dof_idx + 6], [[42] * 6] * 6
+    )
 
   def test_named_indexing_repr_in_data(self):
-    expected_repr = '''<_MjDataGeomViews
+    expected_repr = """<_MjDataGeomViews
   id: 1
   name: 'mybox'
   xmat: array([0., 0., 0., 0., 0., 0., 0., 0., 0.])
   xpos: array([0., 0., 0.])
->'''
+>"""
     self.assertEqual(expected_repr, repr(self.data.geom('mybox')))
 
   def test_named_indexing_body_repr_in_data(self):
@@ -319,8 +367,21 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertGreater(self.data._address, 0)
     self.assertGreater(model2._address, 0)
     self.assertGreater(data2._address, 0)
-    self.assertLen({self.model._address, self.data._address,
-                    model2._address, data2._address}, 4)
+    self.assertLen(
+        {
+            self.model._address,
+            self.data._address,
+            model2._address,
+            data2._address,
+        },
+        4,
+    )
+
+  def test_mjvisual_repr(self):
+    # Regression test for issue #2488.
+    vis_repr = repr(self.model.vis)
+    self.assertNotEmpty(vis_repr)
+    self.assertIn('MjVisual', vis_repr)
 
   def test_mjmodel_can_read_and_write_opt(self):
     self.assertEqual(self.model.opt.timestep, 0.002)
@@ -352,7 +413,9 @@ class MuJoCoBindingsTest(parameterized.TestCase):
   def test_mjmodel_can_access_names_directly(self):
     # mjModel offers direct access to names array, to allow usecases other than
     # id2name
-    model_name = str(self.model.names[0:self.model.names.find(b'\0')], 'utf-8')
+    model_name = str(
+        self.model.names[0 : self.model.names.find(b'\0')], 'utf-8'
+    )
     self.assertEqual(model_name, 'test')
 
     start_index = self.model.name_geomadr[0]
@@ -393,42 +456,32 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     model_copy = copy.copy(self.model)
 
     self.assertEqual(
-        mujoco.mj_id2name(model_copy, mujoco.mjtObj.mjOBJ_JOINT, 0),
-        'myfree')
+        mujoco.mj_id2name(model_copy, mujoco.mjtObj.mjOBJ_JOINT, 0), 'myfree'
+    )
 
     self.assertEqual(
-        mujoco.mj_id2name(model_copy, mujoco.mjtObj.mjOBJ_GEOM, 0),
-        'myplane')
+        mujoco.mj_id2name(model_copy, mujoco.mjtObj.mjOBJ_GEOM, 0), 'myplane'
+    )
     self.assertEqual(
-        mujoco.mj_id2name(model_copy, mujoco.mjtObj.mjOBJ_GEOM, 1),
-        'mybox')
+        mujoco.mj_id2name(model_copy, mujoco.mjtObj.mjOBJ_GEOM, 1), 'mybox'
+    )
 
     # Make sure it's a copy.
     self.model.geom_size[1] = 0.5
     np.testing.assert_array_equal(self.model.geom_size[1], [0.5, 0.5, 0.5])
     np.testing.assert_array_equal(model_copy.geom_size[1], [0.1, 0.1, 0.1])
 
-  def test_assets_array_filename_too_long(self):
-    # Longest allowed filename (excluding null byte)
-    limit = mujoco.mjMAXVFSNAME - 1
-    contents = b'<mujoco/>'
-    valid_filename = 'a' * limit
-    mujoco.MjModel.from_xml_path(valid_filename, {valid_filename: contents})
-    invalid_filename = 'a' * (limit + 1)
-    expected_message = (
-        f'Filename length 1000 exceeds 999 character limit: {invalid_filename}')
-    with self.assertRaisesWithLiteralMatch(ValueError, expected_message):
-      mujoco.MjModel.from_xml_path(invalid_filename,
-                                   {invalid_filename: contents})
-
   def test_mjdata_can_copy(self):
     self.data.qpos = [0, 0, 0.1*np.sqrt(2) - 0.001,
                       np.cos(np.pi/8), np.sin(np.pi/8), 0, 0, 0,
-                      1, 0, 0, 0]
+                      1, 0, 0, 0]  # fmt: skip
     mujoco.mj_forward(self.model, self.data)
 
     data_copy = copy.copy(self.data)
     self.assertEqual(data_copy.ncon, 2)
+
+    # Make sure contact details are copied.
+    self.assertEqual(data_copy.contact[0].dist, self.data.contact[0].dist)
 
     # Make sure it's a copy.
     mujoco.mj_resetData(self.model, self.data)
@@ -456,7 +509,8 @@ class MuJoCoBindingsTest(parameterized.TestCase):
       contact_copy.append(copy.copy(self.data.contact[i]))
     # Sort contacts in anticlockwise order
     contact_copy = sorted(
-        contact_copy, key=lambda x: np.arctan2(x.pos[1], x.pos[0]))
+        contact_copy, key=lambda x: np.arctan2(x.pos[1], x.pos[0])
+    )
     np.testing.assert_allclose(contact_copy[0].pos[:2], [-0.1, -0.1])
     np.testing.assert_allclose(contact_copy[1].pos[:2], [0.1, -0.1])
     np.testing.assert_allclose(contact_copy[2].pos[:2], [0.1, 0.1])
@@ -503,7 +557,8 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
     # Sort contacts in anticlockwise order
     sorted_contact = sorted(
-        contact, key=lambda x: np.arctan2(x.pos[1], x.pos[0]))
+        contact, key=lambda x: np.arctan2(x.pos[1], x.pos[0])
+    )
     np.testing.assert_allclose(sorted_contact[0].pos[:2], [-0.1, -0.1])
     np.testing.assert_allclose(sorted_contact[1].pos[:2], [0.1, -0.1])
     np.testing.assert_allclose(sorted_contact[2].pos[:2], [0.1, 0.1])
@@ -529,6 +584,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     expected_ncon = 4
     mujoco.mj_forward(self.model, self.data)
     self.assertLen(self.data.contact, expected_ncon)
+    np.testing.assert_array_equal(self.data.contact.geom, [[0, 1]] * 4)
 
     expected_pos = []
     for contact in self.data.contact:
@@ -551,6 +607,13 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertLen(expected_H, expected_ncon)
     np.testing.assert_array_equal(self.data.contact.H, expected_H)
 
+    expected_geom = []
+    for i, contact in enumerate(self.data.contact):
+      expected_geom.append([i, i + 1])
+      contact.geom = expected_geom[-1]
+    self.assertLen(expected_geom, expected_ncon)
+    np.testing.assert_array_equal(self.data.contact.geom, expected_geom)
+
   def test_realloc_con_efc(self):
     self.assertEmpty(self.data.contact)
 
@@ -560,10 +623,12 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
     ncon = 13
     nefc = 17
-    mujoco._functions._realloc_con_efc(self.data, ncon=ncon, nefc=nefc)
+    nj = 21
+    mujoco._functions._realloc_con_efc(self.data, ncon=ncon, nefc=nefc, nJ=nj)
 
     self.assertLen(self.data.contact, ncon)
     self.assertEqual(self.data.efc_id.shape, (nefc,))
+    self.assertEqual(self.data.efc_J.shape, (nj,))
     self.assertEqual(self.data.efc_KBIP.shape, (nefc, 4))
 
     expected_error = 'insufficient arena memory available'
@@ -582,7 +647,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertEqual(data2.ncon, 4)
     self.assertEqual(data2.contact, self.data.contact)
 
-    self.data.qpos[3:7] = [np.cos(np.pi/8), np.sin(np.pi/8), 0, 0]
+    self.data.qpos[3:7] = [np.cos(np.pi / 8), np.sin(np.pi / 8), 0, 0]
     self.data.qpos[2] *= (np.sqrt(2) - 1) * 0.1 - 1e-6
     mujoco.mj_forward(self.model, self.data)
     self.assertEqual(self.data.ncon, 2)
@@ -615,7 +680,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertEqual(struct, struct2)
 
     self.assertNotEqual(struct, 3)
-    self.assertNotEqual(struct, None)
+    self.assertIsNotNone(struct)
 
     # mutable structs shouldn't declare __hash__
     with self.assertRaises(TypeError):
@@ -667,7 +732,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
   def test_mju_rotVecQuat(self):  # pylint: disable=invalid-name
     vec = [1, 0, 0]
-    quat = [np.cos(np.pi/8), 0, 0, np.sin(np.pi/8)]
+    quat = [np.cos(np.pi / 8), 0, 0, np.sin(np.pi / 8)]
     expected = np.array([1, 1, 0]) / np.sqrt(2)
 
     # Check that the output argument works, and that the binding returns None.
@@ -697,7 +762,8 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
     # Check that the output argument must have the correct dtype.
     with self.assertRaises(TypeError):
-      mujoco.mju_rotVecQuat(vec, quat, res=np.zeros(3, int))
+      res = np.zeros(3, np.int32)
+      mujoco.mju_rotVecQuat(res, vec, quat)
 
   def test_getsetstate(self):  # pylint: disable=invalid-name
     mujoco.mj_step(self.model, self.data)
@@ -714,7 +780,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     size = mujoco.mj_stateSize(self.model, spec)
 
     state_bad_size = np.empty(size + 1, np.float64)
-    expected_message = ('state size should equal mj_stateSize(m, spec)')
+    expected_message = 'state size should equal mj_stateSize(m, spec)'
     with self.assertRaisesWithLiteralMatch(TypeError, expected_message):
       mujoco.mj_getState(self.model, self.data, state_bad_size, spec)
 
@@ -736,6 +802,47 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     # Expect next states to be equal.
     np.testing.assert_array_equal(state1a, state1b)
 
+  def test_mj_setKeyframe(self):  # pylint: disable=invalid-name
+    mujoco.mj_step(self.model, self.data)
+
+    # Test for invalid state spec
+    invalid_key = 2
+    expected_message = (
+        f'mj_setKeyframe: index must be smaller than {invalid_key} (keyframes'
+        ' allocated in model)'
+    )
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, expected_message):
+      mujoco.mj_setKeyframe(self.model, self.data, invalid_key)
+
+    valid_key = 1
+    time = self.data.time
+    qpos = self.data.qpos.copy()
+    qvel = self.data.qvel.copy()
+    act = self.data.act.copy()
+    mujoco.mj_setKeyframe(self.model, self.data, valid_key)
+
+    # Step, assert that time has changed.
+    mujoco.mj_step(self.model, self.data)
+    self.assertNotEqual(time, self.data.time)
+
+    # Reset to keyframe, assert that time, qpos, qvel, act are the same.
+    mujoco.mj_resetDataKeyframe(self.model, self.data, valid_key)
+    self.assertEqual(time, self.data.time)
+    np.testing.assert_array_equal(qpos, self.data.qpos)
+    np.testing.assert_array_equal(qvel, self.data.qvel)
+    np.testing.assert_array_equal(act, self.data.act)
+
+  def test_mj_angmomMat(self):  # pylint: disable=invalid-name
+    self.data.qvel = np.ones(self.model.nv, np.float64)
+    mujoco.mj_forward(self.model, self.data)
+    mujoco.mj_subtreeVel(self.model, self.data)
+
+    mat = np.empty((3, 10), np.float64)
+    mujoco.mj_angmomMat(self.model, self.data, mat, 0)
+    np.testing.assert_almost_equal(
+        mat @ self.data.qvel, self.data.subtree_angmom[0, :]
+    )
+
   def test_mj_jacSite(self):  # pylint: disable=invalid-name
     mujoco.mj_forward(self.model, self.data)
     site_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, 'mysite')
@@ -744,20 +851,22 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     jacp = np.empty((3, 10), np.float64)
     mujoco.mj_jacSite(self.model, self.data, jacp, None, site_id)
 
-    expected_jacp = np.array(
-        [[0, 0, 0, 0, 0, 0, -1, 0, 0, 0],
-         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+    expected_jacp = np.array([
+        [0, 0, 0, 0, 0, 0, -1, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ])
     np.testing.assert_array_equal(jacp, expected_jacp)
 
     # Call mj_jacSite with only jacr.
     jacr = np.empty((3, 10), np.float64)
     mujoco.mj_jacSite(self.model, self.data, None, jacr, site_id)
 
-    expected_jacr = np.array(
-        [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-         [0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
-         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+    expected_jacr = np.array([
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ])
     np.testing.assert_array_equal(jacr, expected_jacr)
 
     # Call mj_jacSite with both jacp and jacr.
@@ -770,12 +879,14 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     # Check that the jacp argument must have the right size.
     with self.assertRaises(TypeError):
       mujoco.mj_jacSite(
-          self.model, self.data, np.empty((3, 6), jacp.dtype), None, site_id)
+          self.model, self.data, np.empty((3, 6), jacp.dtype), None, site_id
+      )
 
     # Check that the jacr argument must have the right size.
     with self.assertRaises(TypeError):
       mujoco.mj_jacSite(
-          self.model, self.data, None, np.empty((4, 7), jacr.dtype), site_id)
+          self.model, self.data, None, np.empty((4, 7), jacr.dtype), site_id
+      )
 
     # The following two checks need to be done with fully initialized arrays,
     # since pybind11 prints out the array's contents when generating TypeErrors.
@@ -784,12 +895,14 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     # Check that the jacp argument must have the right dtype.
     with self.assertRaises(TypeError):
       mujoco.mj_jacSite(
-          self.model, self.data, np.zeros(jacp.shape, int), None, site_id)
+          self.model, self.data, np.zeros(jacp.shape, int), None, site_id
+      )
 
     # Check that the jacr argument must have the right dtype.
     with self.assertRaises(TypeError):
       mujoco.mj_jacSite(
-          self.model, self.data, None, np.zeros(jacr.shape, int), site_id)
+          self.model, self.data, None, np.zeros(jacr.shape, int), site_id
+      )
 
   def test_docstrings(self):  # pylint: disable=invalid-name
     self.assertEqual(
@@ -797,16 +910,15 @@ class MuJoCoBindingsTest(parameterized.TestCase):
         """mj_versionString() -> str
 
 Return the current version of MuJoCo as a null-terminated string.
-""")
+""",
+    )
     self.assertEqual(
         mujoco.mj_Euler.__doc__,
         """mj_Euler(m: mujoco._structs.MjModel, d: mujoco._structs.MjData) -> None
 
 Euler integrator, semi-implicit in velocity.
-""")
-
-  def test_int_constant(self):
-    self.assertEqual(mujoco.mjMAXVFSNAME, 1000)
+""",
+    )
 
   def test_float_constant(self):
     self.assertEqual(mujoco.mjMAXVAL, 1e10)
@@ -821,26 +933,27 @@ Euler integrator, semi-implicit in velocity.
     self.assertLen(mujoco.mjVISSTRING, mujoco.mjtVisFlag.mjNVISFLAG)
     self.assertLen(mujoco.mjRNDSTRING, mujoco.mjtRndFlag.mjNRNDFLAG)
     self.assertEqual(mujoco.mjDISABLESTRING[11], 'Refsafe')
-    self.assertEqual(mujoco.mjVISSTRING[mujoco.mjtVisFlag.mjVIS_INERTIA],
-                     ('&Inertia', '0', 'I'))
+    self.assertEqual(
+        mujoco.mjVISSTRING[mujoco.mjtVisFlag.mjVIS_INERTIA],
+        ('Inertia', '0', 'I'),
+    )
 
   def test_enum_values(self):
     self.assertEqual(mujoco.mjtJoint.mjJNT_FREE, 0)
     self.assertEqual(mujoco.mjtJoint.mjJNT_BALL, 1)
     self.assertEqual(mujoco.mjtJoint.mjJNT_SLIDE, 2)
     self.assertEqual(mujoco.mjtJoint.mjJNT_HINGE, 3)
-    self.assertEqual(mujoco.mjtEnableBit.mjENBL_OVERRIDE, 1<<0)
-    self.assertEqual(mujoco.mjtEnableBit.mjENBL_ENERGY, 1<<1)
-    self.assertEqual(mujoco.mjtEnableBit.mjENBL_FWDINV, 1<<2)
-    self.assertEqual(mujoco.mjtEnableBit.mjENBL_SENSORNOISE, 1<<4)
-    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 7)
+    self.assertEqual(mujoco.mjtEnableBit.mjENBL_OVERRIDE, 1 << 0)
+    self.assertEqual(mujoco.mjtEnableBit.mjENBL_ENERGY, 1 << 1)
+    self.assertEqual(mujoco.mjtEnableBit.mjENBL_FWDINV, 1 << 2)
+    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 6)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_PLANE, 0)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_HFIELD, 1)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_SPHERE, 2)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_ARROW, 100)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_ARROW1, 101)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_ARROW2, 102)
-    self.assertEqual(mujoco.mjtGeom.mjGEOM_TRIANGLE, 107)
+    self.assertEqual(mujoco.mjtGeom.mjGEOM_TRIANGLE, 108)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_NONE, 1001)
 
   def test_enum_from_int(self):
@@ -855,8 +968,9 @@ Euler integrator, semi-implicit in velocity.
     x = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
     self.assertEqual(x[mujoco.mjtFrame.mjFRAME_WORLD], 'h')
     self.assertEqual(
-        x[mujoco.mjtFrame.mjFRAME_GEOM:mujoco.mjtFrame.mjFRAME_CAMERA],
-        ['c', 'd'])
+        x[mujoco.mjtFrame.mjFRAME_GEOM : mujoco.mjtFrame.mjFRAME_CAMERA],
+        ['c', 'd'],
+    )
 
   def test_enum_ops(self):
     # Note: when modifying this test, make sure the enum value is an odd number
@@ -865,10 +979,12 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD, 7.0)
     self.assertEqual(7, mujoco.mjtFrame.mjFRAME_WORLD)
     self.assertEqual(7.0, mujoco.mjtFrame.mjFRAME_WORLD)
-    self.assertEqual(mujoco.mjtFrame.mjFRAME_WORLD,
-                     mujoco.mjtFrame.mjFRAME_WORLD)
-    self.assertNotEqual(mujoco.mjtFrame.mjFRAME_WORLD,
-                        mujoco.mjtFrame.mjFRAME_NONE)
+    self.assertEqual(
+        mujoco.mjtFrame.mjFRAME_WORLD, mujoco.mjtFrame.mjFRAME_WORLD
+    )
+    self.assertNotEqual(
+        mujoco.mjtFrame.mjFRAME_WORLD, mujoco.mjtFrame.mjFRAME_NONE
+    )
 
     self.assertEqual(-mujoco.mjtFrame.mjFRAME_WORLD, -7)
     self.assertIsInstance(-mujoco.mjtFrame.mjFRAME_WORLD, int)
@@ -945,23 +1061,43 @@ Euler integrator, semi-implicit in velocity.
 
     self.assertEqual(
         mujoco.mjtDisableBit.mjDSBL_GRAVITY | mujoco.mjtDisableBit.mjDSBL_LIMIT,
-        72)
+        72,
+    )
     self.assertEqual(mujoco.mjtDisableBit.mjDSBL_PASSIVE | 33, 33)
     self.assertEqual(mujoco.mjtDisableBit.mjDSBL_PASSIVE & 33, 32)
     self.assertEqual(mujoco.mjtDisableBit.mjDSBL_PASSIVE ^ 33, 1)
     self.assertEqual(33 | mujoco.mjtDisableBit.mjDSBL_PASSIVE, 33)
     self.assertEqual(33 & mujoco.mjtDisableBit.mjDSBL_PASSIVE, 32)
     self.assertEqual(33 ^ mujoco.mjtDisableBit.mjDSBL_PASSIVE, 1)
-    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL << 1,
-                     mujoco.mjtDisableBit.mjDSBL_WARMSTART)
-    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL >> 3,
-                     mujoco.mjtDisableBit.mjDSBL_CONTACT)
+    self.assertEqual(
+        mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL << 1,
+        mujoco.mjtDisableBit.mjDSBL_WARMSTART,
+    )
+    self.assertEqual(
+        mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL >> 3,
+        mujoco.mjtDisableBit.mjDSBL_CONTACT,
+    )
 
   def test_can_raise_error(self):
     self.data.pstack = self.data.narena
-    with self.assertRaisesRegex(mujoco.FatalError,
-                                r'\Amj_stackAlloc: insufficient memory:'):
+    with self.assertRaisesRegex(
+        mujoco.FatalError, r'\Amj_stackAlloc: out of memory, stack overflow'
+    ):
       mujoco.mj_forward(self.model, self.data)
+
+  def test_timer_installed_by_default(self):
+    timer_step = mujoco.mjtTimer.mjTIMER_STEP
+    self.assertEqual(self.data.timer[timer_step].number, 0)
+    self.assertEqual(self.data.timer[timer_step].duration, 0.0)
+
+    mujoco.mj_step(self.model, self.data)
+    self.assertEqual(self.data.timer[timer_step].number, 1)
+    duration_1 = self.data.timer[timer_step].duration
+    self.assertGreater(duration_1, 0.0)
+
+    mujoco.mj_step(self.model, self.data, 5)
+    self.assertEqual(self.data.timer[timer_step].number, 6)
+    self.assertGreater(self.data.timer[timer_step].duration, duration_1)
 
   def test_mjcb_time(self):
 
@@ -998,7 +1134,8 @@ Euler integrator, semi-implicit in velocity.
       with self.assertRaises(TestError) as e:
         mujoco.mj_forward(self.model, self.data)
       self.assertEqual(
-          e.exception.args, ('string', (1, 2, 3), {'a': 1, 'b': 2}))
+          e.exception.args, ('string', (1, 2, 3), {'a': 1, 'b': 2})
+      )
 
     # Should not raise now that we've cleared the callback.
     mujoco.mj_forward(self.model, self.data)
@@ -1006,12 +1143,14 @@ Euler integrator, semi-implicit in velocity.
   def test_mjcb_time_wrong_return_type(self):
     with temporary_callback(mujoco.set_mjcb_time, lambda: 'string'):
       with self.assertRaisesWithLiteralMatch(
-          TypeError, 'mjcb_time callback did not return a number'):
+          TypeError, 'mjcb_time callback did not return a number'
+      ):
         mujoco.mj_forward(self.model, self.data)
 
   def test_mjcb_time_not_callable(self):
     with self.assertRaisesWithLiteralMatch(
-        TypeError, 'callback is not an Optional[Callable]'):
+        TypeError, 'callback is not an Optional[Callable]'
+    ):
       mujoco.set_mjcb_time(1)
 
   def test_mjcb_sensor(self):
@@ -1044,8 +1183,9 @@ Euler integrator, semi-implicit in velocity.
 
   # This test is disabled on PyPy as it uses sys.getrefcount
   # However PyPy is not officially supported by MuJoCo
-  @absltest.skipIf(sys.implementation.name == 'pypy',
-                   reason='requires sys.getrefcount')
+  @absltest.skipIf(
+      sys.implementation.name == 'pypy', reason='requires sys.getrefcount'
+  )
   def test_mjcb_control_not_leak_memory(self):
     model_instances = []
     data_instances = []
@@ -1066,8 +1206,9 @@ Euler integrator, semi-implicit in velocity.
 
   # This test is disabled on PyPy as it uses sys.getrefcount
   # However PyPy is not officially supported by MuJoCo
-  @absltest.skipIf(sys.implementation.name == 'pypy',
-                   reason='requires sys.getrefcount')
+  @absltest.skipIf(
+      sys.implementation.name == 'pypy', reason='requires sys.getrefcount'
+  )
   def test_mjdata_holds_ref_to_model(self):
     data = mujoco.MjData(mujoco.MjModel.from_xml_string('<mujoco/>'))
     model = data.model
@@ -1106,9 +1247,15 @@ Euler integrator, semi-implicit in velocity.
     # When the scene is updated, geoms are added to the scene
     # (ngeom is incremented)
     mujoco.mj_forward(self.model, self.data)
-    mujoco.mjv_updateScene(self.model, self.data, mujoco.MjvOption(),
-                           None, mujoco.MjvCamera(),
-                           mujoco.mjtCatBit.mjCAT_ALL, scene)
+    mujoco.mjv_updateScene(
+        self.model,
+        self.data,
+        mujoco.MjvOption(),
+        None,
+        mujoco.MjvCamera(),
+        mujoco.mjtCatBit.mjCAT_ALL,
+        scene,
+    )
     self.assertGreater(scene.ngeom, 0)
 
   def test_mjv_scene_without_model(self):
@@ -1120,10 +1267,19 @@ Euler integrator, semi-implicit in velocity.
     # mj_ray has tricky argument types
     geomid = np.zeros(1, np.int32)
     mujoco.mj_forward(self.model, self.data)
-    mujoco.mj_ray(self.model, self.data, [0, 0, 0], [0, 0, 1], None, 0, 0,
-                  geomid)
-    mujoco.mj_ray(self.model, self.data, [0, 0, 0], [0, 0, 1],
-                  [0, 0, 0, 0, 0, 0], 0, 0, geomid)
+    mujoco.mj_ray(
+        self.model, self.data, [0, 0, 0], [0, 0, 1], None, 0, 0, geomid
+    )
+    mujoco.mj_ray(
+        self.model,
+        self.data,
+        [0, 0, 0],
+        [0, 0, 1],
+        [0, 0, 0, 0, 0, 0],
+        0,
+        0,
+        geomid,
+    )
     # Check that named arguments work
     mujoco.mj_ray(
         m=self.model,
@@ -1133,7 +1289,8 @@ Euler integrator, semi-implicit in velocity.
         geomgroup=None,
         flg_static=0,
         bodyexclude=0,
-        geomid=geomid)
+        geomid=geomid,
+    )
 
   def test_mj_multi_ray(self):
     nray = 3
@@ -1157,14 +1314,13 @@ Euler integrator, semi-implicit in velocity.
         geomid=geomid,
         dist=dist,
         nray=nray,
-        cutoff=mujoco.mjMAXVAL)
+        cutoff=mujoco.mjMAXVAL,
+    )
 
     for i in range(0, 3):
       self.assertEqual(
           dist[i],
-          mujoco.mj_ray(
-              self.model, self.data, pnt, vec[i], None, 1, -1, geom1
-          ),
+          mujoco.mj_ray(self.model, self.data, pnt, vec[i], None, 1, -1, geom1),
       )
       self.assertEqual(geomid[i], geom1)
       self.assertEqual(geomid[i], geom_ex[i])
@@ -1173,8 +1329,28 @@ Euler integrator, semi-implicit in velocity.
   def test_inverse_fd_none(self):
     eps = 1e-6
     flg_centered = 0
-    mujoco.mjd_inverseFD(self.model, self.data, eps, flg_centered,
-                         None, None, None, None, None, None, None)
+    mujoco.mjd_inverseFD(
+        self.model,
+        self.data,
+        eps,
+        flg_centered,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+
+  def test_geom_distance(self):
+    mujoco.mj_forward(self.model, self.data)
+    fromto = np.empty(6, np.float64)
+    dist = mujoco.mj_geomDistance(self.model, self.data, 0, 2, 200, fromto)
+    self.assertEqual(dist, 41.9)
+    np.testing.assert_array_equal(
+        fromto, np.array((42.0, 0.0, 0.0, 42.0, 0.0, 41.9))
+    )
 
   def test_inverse_fd(self):
     eps = 1e-6
@@ -1186,8 +1362,19 @@ Euler integrator, semi-implicit in velocity.
     ds_dv = np.zeros((self.model.nv, self.model.nsensordata))
     ds_da = np.zeros((self.model.nv, self.model.nsensordata))
     dm_dq = np.zeros((self.model.nv, self.model.nM))
-    mujoco.mjd_inverseFD(self.model, self.data, eps, flg_centered,
-                         df_dq, df_dv, df_da, ds_dq, ds_dv, ds_da, dm_dq)
+    mujoco.mjd_inverseFD(
+        self.model,
+        self.data,
+        eps,
+        flg_centered,
+        df_dq,
+        df_dv,
+        df_da,
+        ds_dq,
+        ds_dv,
+        ds_da,
+        dm_dq,
+    )
     self.assertGreater(np.linalg.norm(df_dq), eps)
     self.assertGreater(np.linalg.norm(df_dv), eps)
     self.assertGreater(np.linalg.norm(df_da), eps)
@@ -1197,10 +1384,16 @@ Euler integrator, semi-implicit in velocity.
 
   def test_mjd_sub_quat(self):
     quat1 = np.array((0.2, 0.3, 0.3, 0.4))
-    quat2 = np.array((0.2, 0.3, 0.3, 0.4))
+    quat2 = np.array((0.1, 0.2, 0.4, 0.5))
     d1 = np.empty(9, np.float64)
     d2 = np.empty(9, np.float64)
     mujoco.mjd_subQuat(quat1, quat2, d1, d2)
+    d3 = np.empty((3, 3), np.float64)
+    d4 = np.empty((3, 3), np.float64)
+    mujoco.mjd_subQuat(quat1, quat2, None, d3)
+    mujoco.mjd_subQuat(quat1, quat2, d4, None)
+    np.testing.assert_array_equal(d2, d3.flatten())
+    np.testing.assert_array_equal(d1, d4.flatten())
 
   def test_mjd_quat_intergrate(self):
     scale = 0.1
@@ -1214,15 +1407,17 @@ Euler integrator, semi-implicit in velocity.
     n_total = 4
     n_band = 1
     n_dense = 1
-    dense = np.array([[1.0, 0, 0, 0.1],
-                      [0, 2.0, 0, 0.2],
-                      [0, 0, 3.0, 0.3],
-                      [0.1, 0.2, 0.3, 4.0]])
-    band = np.zeros(n_band*(n_total-n_dense) + n_dense*n_total)
+    dense = np.array([
+        [1.0, 0, 0, 0.1],
+        [0, 2.0, 0, 0.2],
+        [0, 0, 3.0, 0.3],
+        [0.1, 0.2, 0.3, 4.0],
+    ])
+    band = np.zeros(n_band * (n_total - n_dense) + n_dense * n_total)
     mujoco.mju_dense2Band(band, dense, n_total, n_band, n_dense)
     for i in range(4):
       index = mujoco.mju_bandDiag(i, n_total, n_band, n_dense)
-      self.assertEqual(band[index], i+1)
+      self.assertEqual(band[index], i + 1)
     dense2 = np.zeros((n_total, n_total))
     flg_sym = 1
     mujoco.mju_band2Dense(dense2, band, n_total, n_band, n_dense, flg_sym)
@@ -1230,20 +1425,22 @@ Euler integrator, semi-implicit in velocity.
     vec = np.array([[2.0], [2.0], [3.0], [4.0]])
     res = np.zeros_like(vec)
     n_vec = 1
-    mujoco.mju_bandMulMatVec(res, band, vec,
-                             n_total, n_band, n_dense, n_vec, flg_sym)
+    mujoco.mju_bandMulMatVec(
+        res, band, vec, n_total, n_band, n_dense, n_vec, flg_sym
+    )
     np.testing.assert_array_equal(res, dense @ vec)
     diag_add = 0
     diag_mul = 0
-    mujoco.mju_cholFactorBand(band, n_total, n_band, n_dense,
-                              diag_add, diag_mul)
+    mujoco.mju_cholFactorBand(
+        band, n_total, n_band, n_dense, diag_add, diag_mul
+    )
     mujoco.mju_cholSolveBand(res, band, vec, n_total, n_band, n_dense)
     np.testing.assert_almost_equal(res, np.linalg.solve(dense, vec))
 
   def test_mju_box_qp(self):
     n = 5
     res = np.zeros(n)
-    r = np.zeros((n, n+7))
+    r = np.zeros((n, n + 7))
     index = np.zeros(n, np.int32)
     h = np.eye(n)
     g = np.ones((n,))
@@ -1266,7 +1463,7 @@ Euler integrator, semi-implicit in velocity.
     mat = np.linspace(0, 1, 16).reshape(4, 4)
     res = np.empty((4, 4), np.float64)
     mujoco.mju_symmetrize(res, mat)
-    np.testing.assert_array_equal(res, 0.5*(mat + mat.T))
+    np.testing.assert_array_equal(res, 0.5 * (mat + mat.T))
 
   def test_mju_clip(self):
     self.assertEqual(mujoco.mju_clip(1.5, 1.0, 2.0), 1.5)
@@ -1274,10 +1471,54 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(mujoco.mju_clip(1.5, 0.0, 1.0), 1.0)
 
   def test_mju_mul_vec_mat_vec(self):
-    vec1 = np.array([1., 2., 3.])
-    vec2 = np.array([3., 2., 1.])
-    mat = np.array([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]])
-    self.assertEqual(mujoco.mju_mulVecMatVec(vec1, mat, vec2), 204.)
+    vec1 = np.array([1.0, 2.0, 3.0])
+    vec2 = np.array([3.0, 2.0, 1.0])
+    mat = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+    self.assertEqual(mujoco.mju_mulVecMatVec(vec1, mat, vec2), 204.0)
+
+  def test_mju_dense_to_sparse(self):
+    mat = np.array([[0.0, 1.0, 0.0], [2.0, 0.0, 3.0]])
+    expected_vals = np.array([1.0, 2.0, 3.0])
+    expected_rownnz = np.array([1, 2])
+    expected_rowadr = np.array([0, 1])
+    expected_colind = np.array([1, 0, 2])
+    vals = np.zeros(3)
+    row_nnz = np.zeros(2, np.int32)
+    row_adr = np.zeros(2, np.int32)
+    col_ind = np.zeros(3, np.int32)
+    status = mujoco.mju_dense2sparse(vals, mat, row_nnz, row_adr, col_ind)
+    np.testing.assert_equal(status, 0)
+    np.testing.assert_array_equal(vals, expected_vals)
+    np.testing.assert_array_equal(row_nnz, expected_rownnz)
+    np.testing.assert_array_equal(row_adr, expected_rowadr)
+    np.testing.assert_array_equal(col_ind, expected_colind)
+
+  def test_mju_sparse_to_dense(self):
+    expected = np.array([[0.0, 1.0, 0.0], [2.0, 0.0, 3.0]])
+    mat = np.array((1.0, 2.0, 3.0))
+    rownnz = np.array([1, 2])
+    rowadr = np.array([0, 1])
+    colind = np.array([1, 0, 2])
+    res = np.zeros((2, 3))
+    mujoco.mju_sparse2dense(res, mat, rownnz, rowadr, colind)
+    np.testing.assert_array_equal(res, expected)
+
+  def test_mju_euler_to_quat(self):
+    quat = np.zeros(4)
+    euler = np.array([0, np.pi / 2, 0])
+    seq = 'xyz'
+    mujoco.mju_euler2Quat(quat, euler, seq)
+    expected_quat = np.array([np.sqrt(0.5), 0, np.sqrt(0.5), 0.0])
+    np.testing.assert_almost_equal(quat, expected_quat)
+
+    error = 'mju_euler2Quat: seq must contain exactly 3 characters'
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, error):
+      mujoco.mju_euler2Quat(quat, euler, 'xy')
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, error):
+      mujoco.mju_euler2Quat(quat, euler, 'xyzy')
+    error = "mju_euler2Quat: seq[2] is 'p', should be one of x, y, z, X, Y, Z"
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, error):
+      mujoco.mju_euler2Quat(quat, euler, 'xYp')
 
   @parameterized.product(flg_html=(False, True), flg_pad=(False, True))
   def test_mj_printSchema(self, flg_html, flg_pad):  # pylint: disable=invalid-name
@@ -1285,12 +1526,47 @@ Euler integrator, semi-implicit in velocity.
     # (e.g. because the internal output buffer is too small)
     self.assertIn('mujoco', mujoco.mj_printSchema(flg_html, flg_pad))
 
+  def test_pickle_mjdata_clean(self):
+    data2 = pickle.loads(pickle.dumps(self.data))
+    attr_to_compare = ('time', 'qpos', 'qvel', 'mocap_pos')
+    self._assert_attributes_equal(data2, self.data, attr_to_compare)
+
   def test_pickle_mjdata(self):
     mujoco.mj_step(self.model, self.data)
     data2 = pickle.loads(pickle.dumps(self.data))
     attr_to_compare = (
-        'time', 'qpos', 'qvel', 'qacc', 'xpos', 'mocap_pos',
-        'warning', 'energy'
+        'time',
+        'qpos',
+        'qvel',
+        'qacc',
+        'xpos',
+        'mocap_pos',
+        'warning',
+        'energy',
+        'contact',
+        'efc_J',
+    )
+    self._assert_attributes_equal(data2, self.data, attr_to_compare)
+    for _ in range(10):
+      mujoco.mj_step(self.model, self.data)
+      mujoco.mj_step(self.model, data2)
+    self._assert_attributes_equal(data2, self.data, attr_to_compare)
+
+  def test_pickle_mjdata_sparse(self):
+    self.model.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
+    mujoco.mj_step(self.model, self.data)
+    data2 = pickle.loads(pickle.dumps(self.data))
+    attr_to_compare = (
+        'time',
+        'qpos',
+        'qvel',
+        'qacc',
+        'xpos',
+        'mocap_pos',
+        'warning',
+        'energy',
+        'contact',
+        'efc_J',
     )
     self._assert_attributes_equal(data2, self.data, attr_to_compare)
     for _ in range(10):
@@ -1301,7 +1577,10 @@ Euler integrator, semi-implicit in velocity.
   def test_pickle_mjmodel(self):
     model2 = pickle.loads(pickle.dumps(self.model))
     attr_to_compare = (
-        'nq', 'nmat', 'body_pos', 'names',
+        'nq',
+        'nmat',
+        'body_pos',
+        'names',
     )
     self._assert_attributes_equal(model2, self.model, attr_to_compare)
 
@@ -1375,6 +1654,10 @@ Euler integrator, semi-implicit in velocity.
     self.assertIsNot(data1.model, data2.model)
     self.assertNotEqual(data1.model._address, data2.model._address)
 
+  def test_texture_size(self):
+    model = mujoco.MjModel.from_xml_string(TEST_XML_TEXTURE)
+    self.assertEqual(model.tex('tex').data.shape, (512, 512, 3))
+
   def _assert_attributes_equal(self, actual_obj, expected_obj, attr_to_compare):
     for name in attr_to_compare:
       actual_value = getattr(actual_obj, name)
@@ -1385,8 +1668,11 @@ Euler integrator, semi-implicit in velocity.
         else:
           self.assertEqual(actual_value, expected_value)
       except AssertionError as e:
-        self.fail("Attribute '{}' differs from expected value: {}".format(
-            name, str(e)))
+        self.fail(
+            "Attribute '{}' differs from expected value: {}".format(
+                name, str(e)
+            )
+        )
 
 
 if __name__ == '__main__':

@@ -16,158 +16,159 @@
 
 from absl.testing import absltest
 from absl.testing import parameterized
-import jax
 from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import constraint
 from mujoco.mjx._src import test_util
-# pylint: disable=g-importing-member
-from mujoco.mjx._src.types import DisableBit
-from mujoco.mjx._src.types import SolverType
-# pylint: enable=g-importing-member
 import numpy as np
 
 
-def _assert_eq(a, b, name, step, fname, atol=5e-3, rtol=5e-3):
-  err_msg = f'mismatch: {name} at step {step} in {fname}'
-  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=atol, rtol=rtol)
+# tolerance for difference between MuJoCo and MJX constraint calculations,
+# mostly due to float precision
+_TOLERANCE = 5e-5
+
+
+def _assert_eq(a, b, name):
+  tol = _TOLERANCE * 10  # avoid test noise
+  err_msg = f'mismatch: {name}'
+  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
+
+
+def _assert_attr_eq(a, b, attr):
+  _assert_eq(getattr(a, attr), getattr(b, attr), attr)
 
 
 class ConstraintTest(parameterized.TestCase):
 
-  @parameterized.parameters(enumerate(test_util.TEST_FILES))
-  def test_constraints(self, seed, fname):
+  def setUp(self):
+    super().setUp()
+    np.random.seed(42)
+
+  @parameterized.parameters(
+      {'cone': mujoco.mjtCone.mjCONE_PYRAMIDAL, 'rand_eq_active': False},
+      {'cone': mujoco.mjtCone.mjCONE_ELLIPTIC, 'rand_eq_active': False},
+      {'cone': mujoco.mjtCone.mjCONE_PYRAMIDAL, 'rand_eq_active': True},
+      {'cone': mujoco.mjtCone.mjCONE_ELLIPTIC, 'rand_eq_active': True},
+  )
+  def test_constraints(self, cone, rand_eq_active):
     """Test constraints."""
-    np.random.seed(seed)
-
-    # exclude convex.xml since convex contacts are not exactly equivalent
-    if fname == 'convex.xml':
-      return
-
-    m = test_util.load_test_file(fname)
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.cone = cone
     d = mujoco.MjData(m)
-    mx = mjx.device_put(m)
-    dx = mjx.make_data(mx)
 
-    forward_jit_fn = jax.jit(mjx.forward)
+    # sample a mix of active/inactive constraints at different timesteps
+    for key in range(3):
+      mujoco.mj_resetDataKeyframe(m, d, key)
+      if rand_eq_active:
+        d.eq_active[:] = np.random.randint(0, 2, size=m.neq)
+      mujoco.mj_forward(m, d)
+      mx = mjx.put_model(m)
+      dx = mjx.put_data(m, d)
+      dx = mjx.make_constraint(mx, dx)
 
-    # give the system a little kick to ensure we have non-identity rotations
-    d.qvel = np.random.random(m.nv)
-    for i in range(100):
-      dx = dx.replace(qpos=jax.device_put(d.qpos), qvel=jax.device_put(d.qvel))
-      mujoco.mj_step(m, d)
-      dx = forward_jit_fn(mx, dx)
-
-      nnz_filter = dx.efc_J.any(axis=1)
-
-      mj_efc_j = d.efc_J.reshape((-1, m.nv))
-      mjx_efc_j = dx.efc_J[nnz_filter]
-      _assert_eq(mj_efc_j, mjx_efc_j, 'efc_J', i, fname)
-
-      mjx_efc_d = dx.efc_D[nnz_filter]
-      _assert_eq(d.efc_D, mjx_efc_d, 'efc_D', i, fname)
-
-      mjx_efc_aref = dx.efc_aref[nnz_filter]
-      _assert_eq(d.efc_aref, mjx_efc_aref, 'efc_aref', i, fname)
-
-      mjx_efc_frictionloss = dx.efc_frictionloss[nnz_filter]
+      order = test_util.efc_order(m, d, dx)
+      d_efc_j = d.efc_J.reshape((-1, m.nv))
+      _assert_eq(d_efc_j, dx._impl.efc_J[order][: d.nefc], 'efc_J')
+      _assert_eq(0, dx._impl.efc_J[order][d.nefc :], 'efc_J')
+      _assert_eq(d.efc_aref, dx._impl.efc_aref[order][: d.nefc], 'efc_aref')
+      _assert_eq(0, dx._impl.efc_aref[order][d.nefc :], 'efc_aref')
+      _assert_eq(d.efc_D, dx._impl.efc_D[order][: d.nefc], 'efc_D')
+      _assert_eq(d.efc_pos, dx._impl.efc_pos[order][: d.nefc], 'efc_pos')
+      _assert_eq(dx._impl.efc_pos[order][d.nefc :], 0, 'efc_pos')
       _assert_eq(
           d.efc_frictionloss,
-          mjx_efc_frictionloss,
+          dx._impl.efc_frictionloss[order][: d.nefc],
           'efc_frictionloss',
-          i,
-          fname,
       )
 
-  _JNT_RANGE = """
-    <mujoco>
-      <worldbody>
-        <body pos="0 0 1">
-          <joint type="slide" axis="1 0 0" range="-1.8 1.8" solreflimit=".08 1"
-           damping="5e-4"/>
-          <geom type="box" size="0.2 0.15 0.1" mass="1"/>
-          <body>
-            <joint axis="0 1 0" damping="2e-6"/>
-            <geom type="capsule" fromto="0 0 0 0 0 1" size="0.045" mass=".1"/>
-          </body>
-        </body>
-      </worldbody>
-    </mujoco>
-  """
-
-  def test_jnt_range(self):
-    """Tests that mixed joint ranges are respected."""
-    # TODO(robotics-simulation): also test ball
-    m = mujoco.MjModel.from_xml_string(self._JNT_RANGE)
-    m.opt.solver = SolverType.CG.value
-    d = mujoco.MjData(m)
-    d.qpos = np.array([2.0, 15.0])
-
-    mx = mjx.device_put(m)
-    dx = mjx.device_put(d)
-    efc = jax.jit(constraint._instantiate_limit_slide_hinge)(mx, dx)
-
-    # first joint is outside the joint range
-    np.testing.assert_array_almost_equal(efc.J[0, 0], -1.0)
-
-    # second joint has no range, so only one efc row
-    self.assertEqual(efc.J.shape[0], 1)
-
   def test_disable_refsafe(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('constraints.xml')
 
     timeconst = m.opt.timestep / 4.0  # timeconst < 2 * timestep
     solimp = jp.array([timeconst, 1.0])
     solref = jp.array([0.8, 0.99, 0.001, 0.2, 2])
     pos = jp.ones(3)
 
-    m.opt.disableflags = m.opt.disableflags | DisableBit.REFSAFE
-    mx = mjx.device_put(m)
+    m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.REFSAFE
+    mx = mjx.put_model(m)
     k, *_ = constraint._kbi(mx, solimp, solref, pos)
     self.assertEqual(k, 1 / (0.99**2 * timeconst**2))
 
-    m.opt.disableflags = m.opt.disableflags & ~DisableBit.REFSAFE
-    mx = mjx.device_put(m)
-    k, *_ = constraint._kbi(mx, solimp, solref, pos)
-    self.assertEqual(k, 1 / (0.99**2 * (2 * m.opt.timestep) ** 2))
-
-  def test_disableconstraint(self):
-    m = test_util.load_test_file('ant.xml')
-    d = mujoco.MjData(m)
-
-    m.opt.disableflags = m.opt.disableflags | DisableBit.CONSTRAINT
-    mx, dx = mjx.device_put(m), mjx.device_put(d)
-    dx = constraint.make_constraint(mx, dx)
-    self.assertEqual(dx.efc_J.shape[0], 0)
+  def test_disable_constraint(self):
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.CONSTRAINT
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
+    self.assertEqual(ne, 0)
+    self.assertEqual(nf, 0)
+    self.assertEqual(nl, 0)
+    self.assertEqual(nc, 0)
+    dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
+    self.assertEqual(dx._impl.efc_J.shape[0], 0)
 
   def test_disable_equality(self):
-    m = test_util.load_test_file('equality.xml')
-    d = mujoco.MjData(m)
-
-    m.opt.disableflags = m.opt.disableflags | DisableBit.EQUALITY
-    mx, dx = mjx.device_put(m), mjx.device_put(d)
-    dx = constraint.make_constraint(mx, dx)
-    self.assertEqual(dx.efc_J.shape[0], 0)
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.EQUALITY
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
+    self.assertEqual(ne, 0)
+    self.assertEqual(nf, 2)
+    self.assertEqual(nl, 5)
+    self.assertEqual(nc, 180)
+    dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
+    self.assertEqual(
+        dx._impl.efc_J.shape[0], 187
+    )  # only joint/tendon limit, contact
 
   def test_disable_contact(self):
-    m = test_util.load_test_file('ant.xml')
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.CONTACT
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
+    self.assertEqual(ne, 20)
+    self.assertEqual(nf, 2)
+    self.assertEqual(nl, 5)
+    self.assertEqual(nc, 0)
+    dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
+    self.assertEqual(
+        dx._impl.efc_J.shape[0], 27
+    )  # only equality, joint/tendon limit
+
+  def test_disable_frictionloss(self):
+    m = test_util.load_test_file('constraints.xml')
+    m.opt.disableflags = m.opt.disableflags | mjx.DisableBit.FRICTIONLOSS
+    ne, nf, nl, nc = constraint.counts(constraint.make_efc_type(m))
+    self.assertEqual(ne, 20)
+    self.assertEqual(nf, 0)
+    self.assertEqual(nl, 5)
+    self.assertEqual(nc, 180)
+    dx = constraint.make_constraint(mjx.put_model(m), mjx.make_data(m))
+    self.assertEqual(dx._impl.efc_J.shape[0], 205)
+
+  def test_margin(self):
+    """Test margin."""
+    m = mujoco.MjModel.from_xml_string("""
+       <mujoco>
+          <worldbody>
+            <geom name="floor" size="0 0 .05" type="plane" condim="3"/>
+            <body pos="0 0 0.1">
+              <freejoint/>
+              <geom size="0.1" margin="0.25"/>
+            </body>
+            <body pos="0 0 1">
+              <joint type="hinge" limited="true" range="-1 1" margin="0.005"/>
+              <geom size="1" margin="0.01"/>
+            </body>
+          </worldbody>
+        </mujoco>
+    """)
     d = mujoco.MjData(m)
-    d.qpos[2] = 0.0
     mujoco.mj_forward(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    dx = mjx.make_constraint(mx, dx)
 
-    m.opt.disableflags = m.opt.disableflags & ~DisableBit.CONTACT
-    mx, dx = mjx.device_put(m), mjx.device_put(d)
-    dx = dx.tree_replace(
-        {'contact.frame': dx.contact.frame.reshape((-1, 3, 3))}
-    )
-    efc = constraint._instantiate_contact(mx, dx)
-    self.assertIsNotNone(efc)
-
-    m.opt.disableflags = m.opt.disableflags | DisableBit.CONTACT
-    mx, dx = mjx.device_put(m), mjx.device_put(d)
-    efc = constraint._instantiate_contact(mx, dx)
-    self.assertIsNone(efc)
+    order = test_util.efc_order(m, d, dx)
+    _assert_eq(d.efc_pos, dx._impl.efc_pos[order][: d.nefc], 'efc_pos')
+    _assert_eq(d.efc_margin, dx._impl.efc_margin[order][: d.nefc], 'efc_margin')
 
 
 if __name__ == '__main__':

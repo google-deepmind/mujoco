@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include "user/user_model.h"
 #include "user/user_objects.h"
 
@@ -30,9 +31,6 @@ typedef enum _mjtCompType {
   mjCOMPTYPE_ROPE,
   mjCOMPTYPE_LOOP,
   mjCOMPTYPE_CLOTH,
-  mjCOMPTYPE_BOX,
-  mjCOMPTYPE_CYLINDER,
-  mjCOMPTYPE_ELLIPSOID,
 
   mjNCOMPTYPES
 } mjtCompType;
@@ -40,18 +38,14 @@ typedef enum _mjtCompType {
 
 typedef enum _mjtCompKind {
   mjCOMPKIND_JOINT = 0,
-  mjCOMPKIND_TWIST,
-  mjCOMPKIND_STRETCH,
-  mjCOMPKIND_TENDON,
-  mjCOMPKIND_SHEAR,
-  mjCOMPKIND_PARTICLE,
 
   mjNCOMPKINDS
 } mjtCompKind;
 
 
 typedef enum _mjtCompShape {
-  mjCOMPSHAPE_LINE = 0,
+  mjCOMPSHAPE_INVALID = -1,
+  mjCOMPSHAPE_LINE,
   mjCOMPSHAPE_COS,
   mjCOMPSHAPE_SIN,
   mjCOMPSHAPE_ZERO,
@@ -66,57 +60,36 @@ class mjCComposite {
 
   void SetDefault(void);
   bool AddDefaultJoint(char* error = NULL, int error_sz = 0);
-  void AdjustSoft(mjtNum* solref, mjtNum* solimp, int level);
 
-  bool Make(mjCModel* model, mjCBody* body, char* error, int error_sz);
-
-  bool MakeParticle(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeGrid(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeRope(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeCable(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  bool MakeBox(mjCModel* model, mjCBody* body, char* error, int error_sz);
-  void MakeShear(mjCModel* model);
+  bool Make(mjSpec* spec, mjsBody* body, char* error, int error_sz);
+  bool MakeCable(mjCModel* model, mjsBody* body, char* error, int error_sz);
 
   void MakeSkin2(mjCModel* model, mjtNum inflate);
   void MakeSkin2Subgrid(mjCModel* model, mjtNum inflate);
-  void MakeClothBones(mjCModel* model, mjCSkin* skin);
-  void MakeClothBonesSubgrid(mjCModel* model, mjCSkin* skin);
-  void MakeCableBones(mjCModel* model, mjCSkin* skin);
-  void MakeCableBonesSubgrid(mjCModel* model, mjCSkin* skin);
-
-  void MakeSkin3(mjCModel* model);
-  void MakeSkin3Box(mjCSkin* skin, int c0, int c1, int side, int& vcnt, const char* format);
-  void MakeSkin3Smooth(mjCSkin* skin, int c0, int c1, int side,
-                       const std::map<std::string, int>& vmap, const char* format);
-
-  void BoxProject(double* pos);
+  void MakeCableBones(mjCModel* model, mjsSkin* skin);
+  void MakeCableBonesSubgrid(mjCModel* model, mjsSkin* skin);
 
   // common properties
   std::string prefix;             // name prefix
   mjtCompType type;               // composite type
   int count[3];                   // geom count in each dimension
-  double spacing;                 // spacing between elements
-  double offset[3];               // position offset for particle and grid
-  std::vector<int> pin;           // pin elements of grid (do not create main joint)
-  double flatinertia;             // flatten ineria of cloth elements; 0: disable
-  mjtNum solrefsmooth[mjNREF];    // solref for smoothing equality
-  mjtNum solimpsmooth[mjNIMP];    // solimp for smoothing equality
+  double offset[3];               // position offset
+  double quat[4];                 // quaternion offset
 
   // currently used only for cable
   std::string initial;            // root boundary type
   std::vector<float> uservert;    // user-specified vertex positions
-  std::string userface;           // connectivity
-  mjtNum size[3];                 // rope size (meaning depends on the shape)
+  double size[3];                 // rope size (meaning depends on the shape)
   mjtCompShape curve[3];          // geometric shape
+  mjsFrame* frame;                // frame where the composite is defined
 
   // body names used in the skin
   std::vector<std::string> username;
 
   // plugin support
-  bool is_plugin;
   std::string plugin_name;
   std::string plugin_instance_name;
-  mjCPlugin* plugin_instance;
+  mjsPlugin plugin;
 
   // skin
   bool skin;                      // generate skin
@@ -136,8 +109,17 @@ class mjCComposite {
   int dim;                        // dimensionality
 
  private:
-  mjCBody* AddRopeBody(mjCModel* model, mjCBody* body, int ix, int ix1);
-  mjCBody* AddCableBody(mjCModel* model, mjCBody* body, int ix, mjtNum normal[3], mjtNum prev_quat[4]);
+  mjsBody* AddCableBody(mjCModel* model, mjsBody* body, int ix, double normal[3], double prev_quat[4]);
+
+  // temporary skin vectors
+  void CopyIntoSkin(mjsSkin* skin);
+  std::vector<int> face;
+  std::vector<float> vert;
+  std::vector<float> bindpos;
+  std::vector<float> bindquat;
+  std::vector<float> texcoord;
+  std::vector<std::vector<int>> vertid;
+  std::vector<std::vector<float>> vertweight;
 };
 
 #endif  // MUJOCO_SRC_USER_USER_COMPOSITE_H_

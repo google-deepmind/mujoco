@@ -1,0 +1,23 @@
+<mujoco model="fixed">
+  <worldbody>
+    <body>
+      <joint name="joint0" type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+      <body pos="0.5 0 0">
+        <joint name="joint1" type="hinge" axis="0 1 0"/>
+        <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+        <body pos="0.5 0 0">
+          <joint name="joint2" type="hinge" axis="0 1 0"/>
+          <geom type="capsule" size="0.05 0.5" fromto="0 0 0 0.5 0 0"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <tendon>
+    <fixed>
+      <joint joint="joint0" coef=".1"/>
+      <joint joint="joint1" coef=".2"/>
+      <joint joint="joint2" coef=".3"/>
+    </fixed>
+  </tendon>
+</mujoco>

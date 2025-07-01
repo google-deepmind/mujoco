@@ -1,0 +1,46 @@
+<mujoco>
+  <option>
+    <flag multiccd="enable"/>
+  </option>
+
+  <visual>
+    <scale forcewidth="0.01" contactwidth="0.05" contactheight="0.05"/>
+    <map force="0.1"/>
+  </visual>
+
+  <asset>
+    <mesh name="die" file="die.obj" scale=".02 .02 .02"/>
+  </asset>
+
+  <default>
+    <geom condim="1" type="mesh" solref="2e-5 1"/>
+    <default class="wall">
+      <geom type="box" rgba="0.1 0.2 1 .2"/>
+    </default>
+    <default class="floor">
+      <geom type="box" rgba="0.1 0.2 1 1"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 1" dir="0 0 -1" castshadow="false"/>
+     <body name="container" pos="0 0 -0.11">
+      <geom class="floor" size="0.27 0.27 0.01"/>
+      <geom class="wall"  size="0.26 0.01 0.10" pos="0.01 0.26 0.11"/>
+      <geom class="wall"  size="0.26 0.01 0.10" pos="-0.01 -0.26 0.11"/>
+      <geom class="wall"  size="0.01 0.26 0.10" pos="0.26 -0.01 0.11"/>
+      <geom class="wall"  size="0.01 0.26 0.10" pos="-0.26 0.01 0.11"/>
+    </body>
+
+    <replicate count="5" offset=".1 0 0">
+      <replicate count="5" offset="0 .1 0">
+        <replicate count="4" offset="0 0 .1">
+          <body pos="-.2 -.2 0.15">
+            <freejoint/>
+            <geom type="mesh" mesh="die"/>
+          </body>
+        </replicate>
+      </replicate>
+    </replicate>
+  </worldbody>
+</mujoco>

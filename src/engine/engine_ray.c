@@ -15,12 +15,12 @@
 
 #include "engine/engine_ray.h"
 
-#include <math.h>
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
@@ -343,7 +343,7 @@ static mjtNum ray_cylinder(const mjtNum* pos, const mjtNum* mat, const mjtNum* s
   int side;
   if (mju_abs(lvec[2]) > mjMINVAL) {
     for (side=-1; side <= 1; side+=2) {
-      // soludion of: lpnt[2] + x*lvec[2] = side*height_size
+      // solution of: lpnt[2] + x*lvec[2] = side*height_size
       sol = (side*size[1]-lpnt[2])/lvec[2];
 
       // process if non-negative
@@ -417,7 +417,7 @@ static mjtNum ray_box(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
   for (int i=0; i < 3; i++) {
     if (mju_abs(lvec[i]) > mjMINVAL) {
       for (int side=-1; side <= 1; side+=2) {
-        // soludion of: lpnt[i] + x*lvec[i] = side*size[i]
+        // solution of: lpnt[i] + x*lvec[i] = side*size[i]
         sol = (side*size[i]-lpnt[i])/lvec[i];
 
         // process if non-negative
@@ -627,6 +627,7 @@ int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
 // ray vs tree intersection
 mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
                    const mjtNum* vec) {
+  int mark_active = m->vis.global.bvactive;
   const int meshid = m->geom_dataid[id];
   const int bvhadr = m->mesh_bvhadr[meshid];
   const int* faceid = m->bvh_nodeid + bvhadr;
@@ -701,12 +702,17 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
       // update
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
+        if (mark_active) {
+          d->bvh_active[node + bvhadr] = 1;
+        }
       }
       continue;
     }
 
     // used for rendering
-    d->bvh_active[node + bvhadr] = 1;
+    if (mark_active) {
+      d->bvh_active[node + bvhadr] = 1;
+    }
 
     // add children to the stack
     for (int i=0; i < 2; i++) {
@@ -1116,7 +1122,7 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 
   // compute point in local coordinates of the box
   mju_sub3(point, pnt, xpos);
-  mju_rotVecMatT(point, point, xmat);
+  mju_mulMatTVec3(point, xmat, point);
   mju_subFrom3(point, aabb);
 
   // check intersections
@@ -1131,14 +1137,13 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 
 
 
-//---------------------------- main entry point ---------------------------------------------------
+//---------------------------- main entry point ----------------------------------------------------
 
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
 mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum* vec,
-              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-              int geomid[1]) {
+              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude, int geomid[1]) {
   mjtNum dist, newdist;
 
   // check vector length
@@ -1148,7 +1153,7 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
 
   // clear result
   dist = -1;
-  *geomid = -1;
+  if (geomid) *geomid = -1;
 
   // loop over geoms not eliminated by mask and bodyexclude
   for (int i=0; i < m->ngeom; i++) {
@@ -1171,7 +1176,7 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
       // update if closer intersection found
       if (newdist >= 0 && (newdist < dist || dist < 0)) {
         dist = newdist;
-        *geomid = i;
+        if (geomid) *geomid = i;
       }
     }
   }
@@ -1233,7 +1238,7 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
         vert[2] = (v&4 ? aabb[2]+aabb[5] : aabb[2]-aabb[5]);
 
         // rotate to the world frame
-        mju_rotVecMat(box, vert, xmat);
+        mju_mulMatVec3(box, xmat, vert);
         mju_addTo3(box, xpos);
 
         // spherical coordinates
@@ -1346,8 +1351,8 @@ void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum*
   mj_markStack(d);
 
   // allocate source
-  mjtNum* geom_ba = mj_stackAllocNum(d, 4*m->ngeom);
-  int* geom_eliminate = mj_stackAllocInt(d, m->ngeom);
+  mjtNum* geom_ba = mjSTACKALLOC(d, 4*m->ngeom, mjtNum);
+  int* geom_eliminate = mjSTACKALLOC(d, m->ngeom, int);
 
   // initialize source
   mju_multiRayPrepare(m, d, pnt, NULL, geomgroup, flg_static, bodyexclude,

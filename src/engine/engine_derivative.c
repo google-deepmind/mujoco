@@ -16,6 +16,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
@@ -62,8 +63,7 @@ static void mjd_cross(const mjtNum a[3], const mjtNum b[3],
 
 
 // derivative of mju_crossMotion w.r.t velocity
-static void mjd_crossMotion_vel(mjtNum D[36], const mjtNum v[6])
-{
+static void mjd_crossMotion_vel(mjtNum D[36], const mjtNum v[6]) {
   mju_zero(D, 36);
 
   // res[0] = -vel[2]*v[1] + vel[1]*v[2]
@@ -100,8 +100,7 @@ static void mjd_crossMotion_vel(mjtNum D[36], const mjtNum v[6])
 
 
 // derivative of mju_crossForce w.r.t. velocity
-static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6])
-{
+static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6]) {
   mju_zero(D, 36);
 
   // res[0] = -vel[2]*f[1] + vel[1]*f[2] - vel[5]*f[4] + vel[4]*f[5]
@@ -138,8 +137,7 @@ static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6])
 
 
 // derivative of mju_crossForce w.r.t. force
-static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6])
-{
+static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6]) {
   mju_zero(D, 36);
 
   // res[0] = -vel[2]*f[1] + vel[1]*f[2] - vel[5]*f[4] + vel[4]*f[5]
@@ -176,8 +174,7 @@ static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6])
 
 
 // derivative of mju_mulInertVec w.r.t vel
-static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10])
-{
+static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10]) {
   mju_zero(D, 36);
 
   // res[0] = i[0]*v[0] + i[3]*v[1] + i[4]*v[2] - i[8]*v[4] + i[7]*v[5]
@@ -220,8 +217,7 @@ static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10])
 
 
 // derivative of mju_subQuat w.r.t inputs
-void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9])
-{
+void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9]) {
   // no outputs, quick return
   if (!Da && !Db) {
     return;
@@ -251,7 +247,7 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
 
   // add term linear in K * K
   mjtNum KK[9];
-  mju_mulMatMat(KK, K, K, 3, 3, 3);
+  mju_mulMatMat3(KK, K, K);
   mjtNum coef = 1.0 - (half_angle < 6e-8 ? 1.0 : half_angle / mju_tan(half_angle));
   mju_addToScl(Da_tmp, KK, coef, 9);
 
@@ -320,7 +316,7 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
     if (Dvel || Dscale) Dvel_[i] = b*eye[i] + c*cross[i] + d*outer[i];
   }
   if (Dvel) mju_copy(Dvel, Dvel_, 9);
-  if (Dscale) mju_rotVecMat(Dscale, vel, Dvel_);
+  if (Dscale) mju_mulMatVec3(Dscale, Dvel_, vel);
 }
 
 
@@ -329,8 +325,7 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
 // no longer used, except in tests
 
 // derivative of cvel, cdof_dot w.r.t qvel (dense version)
-static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot)
-{
+static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot) {
   int nv = m->nv, nbody = m->nbody;
   mjtNum mat[36];
 
@@ -338,7 +333,7 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
   mju_zero(Dcvel, nbody*6*nv);
 
   // forward pass over bodies: accumulate Dcvel, set Dcdofdot
-  for (int i=1; i < m->nbody; i++) {
+  for (int i=1; i < nbody; i++) {
     // Dcvel = Dcvel_parent
     mju_copy(Dcvel+i*6*nv, Dcvel+m->body_parentid[i]*6*nv, 6*nv);
 
@@ -400,11 +395,11 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
   mj_markStack(d);
-  mjtNum* Dcvel = mj_stackAllocNum(d, nbody*6*nv);
-  mjtNum* Dcdofdot = mj_stackAllocNum(d, nv*6*nv);
-  mjtNum* Dcacc = mj_stackAllocNum(d, nbody*6*nv);
-  mjtNum* Dcfrcbody = mj_stackAllocNum(d, nbody*6*nv);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* Dcvel = mjSTACKALLOC(d, nbody*6*nv, mjtNum);
+  mjtNum* Dcdofdot = mjSTACKALLOC(d, nv*6*nv, mjtNum);
+  mjtNum* Dcacc = mjSTACKALLOC(d, nbody*6*nv, mjtNum);
+  mjtNum* Dcfrcbody = mjSTACKALLOC(d, nbody*6*nv, mjtNum);
+  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // compute Dcvel and Dcdofdot
   mjd_comVel_vel_dense(m, d, Dcvel, Dcdofdot);
@@ -450,7 +445,7 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
   mju_zero(Dcfrcbody, 6*nv);
 
   // backward pass over bodies: accumulate Dcfrcbody
-  for (int i=m->nbody-1; i > 0; i--) {
+  for (int i=nbody-1; i > 0; i--) {
     if (m->body_parentid[i]) {
       mju_addTo(Dcfrcbody+m->body_parentid[i]*6*nv, Dcfrcbody+i*6*nv, 6*nv);
     }
@@ -615,11 +610,11 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
   mj_markStack(d);
-  mjtNum* Dcdofdot = mj_stackAllocNum(d, 6*m->nD);
-  mjtNum* Dcvel = mj_stackAllocNum(d, 6*m->nB);
-  mjtNum* Dcacc = mj_stackAllocNum(d, 6*m->nB);
-  mjtNum* Dcfrcbody = mj_stackAllocNum(d, 6*m->nB);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* Dcdofdot = mjSTACKALLOC(d, 6*m->nD, mjtNum);
+  mjtNum* Dcvel = mjSTACKALLOC(d, 6*m->nB, mjtNum);
+  mjtNum* Dcacc = mjSTACKALLOC(d, 6*m->nB, mjtNum);
+  mjtNum* Dcfrcbody = mjSTACKALLOC(d, 6*m->nB, mjtNum);
+  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // clear
   mju_zero(Dcdofdot, 6*m->nD);
@@ -700,7 +695,7 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
 
   // allocate dense row
   mj_markStack(d);
-  mjtNum* row = mj_stackAllocNum(d, nv);
+  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
 
   // process non-zero elements of B
   for (int i=0; i < n; i++) {
@@ -735,11 +730,6 @@ static void addJTBJSparse(
   const mjModel* m, mjData* d, const mjtNum* J,
   const mjtNum* B, int n, int offset,
   const int* J_rownnz, const int* J_rowadr, const int* J_colind) {
-  int nv = m->nv;
-
-  // allocate row
-  mj_markStack(d);
-  mjtNum* row = mj_stackAllocNum(d, nv);
 
   // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
   for (int i = 0; i < n; i++) {
@@ -754,19 +744,14 @@ static void addJTBJSparse(
         int ik = J_rowadr[offset_i] + k;
         int colik = J_colind[ik];
 
-        // row = J(i,k)*B(i,j)*J(j,:)
-        mju_scl(row, J + J_rowadr[offset_j], J[ik]*B[i*n+j], J_rownnz[offset_j]);
-
-        // qDeriv(k,:) += row
-        mju_addToSparseInc(d->qDeriv + d->D_rowadr[colik], row,
-                           d->D_rownnz[colik], d->D_colind + d->D_rowadr[colik],
-                           J_rownnz[offset_j], J_colind + J_rowadr[offset_j]);
+        // qDeriv(k,:) += J(j,:) * J(i,k)*B(i,j)
+        mju_addToSclSparseInc(d->qDeriv + d->D_rowadr[colik], J + J_rowadr[offset_j],
+                              d->D_rownnz[colik], d->D_colind + d->D_rowadr[colik],
+                              J_rownnz[offset_j], J_colind + J_rowadr[offset_j],
+                              J[ik]*B[i*n+j]);
       }
     }
   }
-
-  // free space
-  mj_freeStack(d);
 }
 
 
@@ -790,11 +775,6 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
     force = scale / mju_max(mjMINVAL, acc0);
   }
 
-  // mid-ranges
-  mjtNum a = 0.5*(lmin+1);
-  mjtNum b = 0.5*(1+lmax);
-  mjtNum x;
-
   // optimum length
   mjtNum L0 = (lengthrange[1]-lengthrange[0]) / mju_max(mjMINVAL, range[1]-range[0]);
 
@@ -803,20 +783,7 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
   mjtNum V = vel / mju_max(mjMINVAL, L0*vmax);
 
   // length curve
-  mjtNum FL = 0;
-  if (L >= lmin && L <= a) {
-    x = (L-lmin) / mju_max(mjMINVAL, a-lmin);
-    FL = 0.5*x*x;
-  } else if (L <= 1) {
-    x = (1-L) / mju_max(mjMINVAL, 1-a);
-    FL = 1 - 0.5*x*x;
-  } else if (L <= b) {
-    x = (L-1) / mju_max(mjMINVAL, b-1);
-    FL = 1 - 0.5*x*x;
-  } else if (L <= lmax) {
-    x = (lmax-L) / mju_max(mjMINVAL, lmax-b);
-    FL = 0.5*x*x;
-  }
+  mjtNum FL = mju_muscleGainLength(L, lmin, lmax);
 
   // velocity curve
   mjtNum dFV;
@@ -843,15 +810,24 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv;
+  int nv = m->nv, nu = m->nu;
 
   // disabled: nothing to add
   if (mjDISABLED(mjDSBL_ACTUATION)) {
     return;
   }
 
+  // allocate dense actuator_moment row
+  mj_markStack(d);
+  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
+
   // process actuators
-  for (int i=0; i < m->nu; i++) {
+  for (int i=0; i < nu; i++) {
+    // skip if disabled
+    if (mj_actuatorDisabled(m, i)) {
+      continue;
+    }
+
     mjtNum bias_vel = 0, gain_vel = 0;
 
     // affine bias
@@ -880,15 +856,22 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
       if (m->actuator_dyntype[i] == mjDYN_NONE) {
         bias_vel += gain_vel * d->ctrl[i];
       } else {
-        bias_vel += gain_vel * d->act[i-(m->nu - m->na)];
+        int act_first = m->actuator_actadr[i];
+        int act_last = act_first + m->actuator_actnum[i] - 1;
+        bias_vel += gain_vel * d->act[act_last];
       }
     }
 
     // add
     if (bias_vel != 0) {
-      addJTBJ(m, d, d->actuator_moment+i*nv, &bias_vel, 1);
+      mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
+                       d->moment_rowadr + i, d->moment_colind);
+      addJTBJ(m, d, moment, &bias_vel, 1);
     }
   }
+
+  // free space
+  mj_freeStack(d);
 }
 
 
@@ -979,8 +962,7 @@ static void mjd_addedMassForces(
 static inline void mjd_viscous_torque(
   mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
   const mjtNum fluid_viscosity, const mjtNum size[3],
-  const mjtNum slender_drag_coef, const mjtNum ang_drag_coef)
-{
+  const mjtNum slender_drag_coef, const mjtNum ang_drag_coef) {
   const mjtNum d_max = mju_max(mju_max(size[0], size[1]), size[2]);
   const mjtNum d_min = mju_min(mju_min(size[0], size[1]), size[2]);
   const mjtNum d_mid = size[0] + size[1] + size[2] - d_max - d_min;
@@ -1189,10 +1171,10 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
   int nv = m->nv;
   int nnz = nv;
   int rownnz[6], rowadr[6];
-  mjtNum* J = mj_stackAllocNum(d, 6*nv);
-  mjtNum* tmp = mj_stackAllocNum(d, 3*nv);
-  int* colind = mj_stackAllocInt(d, 6*nv);
-  int* colind_compressed = mj_stackAllocInt(d, 6*nv);
+  mjtNum* J = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* colind = mjSTACKALLOC(d, 6*nv, int);
+  int* colind_compressed = mjSTACKALLOC(d, 6*nv, int);
 
   mjtNum lvel[6], wind[6], lwind[6];
   mjtNum geom_interaction_coef, magnus_lift_coef, kutta_lift_coef;
@@ -1290,15 +1272,14 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
 
 // fluid forces based on inertia-box approximation
-void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i)
-{
+void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
   mj_markStack(d);
 
   int nv = m->nv;
   int rownnz[6], rowadr[6];
-  mjtNum* J = mj_stackAllocNum(d, 6*nv);
-  mjtNum* tmp = mj_stackAllocNum(d, 3*nv);
-  int* colind = mj_stackAllocInt(d, 6*nv);
+  mjtNum* J = mjSTACKALLOC(d, 6*nv, mjtNum);
+  mjtNum* tmp = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* colind = mjSTACKALLOC(d, 6*nv, int);
 
   mjtNum lvel[6], wind[6], lwind[6], box[3], B;
   mjtNum* inertia = m->body_inertia + 3*i;

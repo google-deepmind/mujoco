@@ -18,6 +18,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjvisualize.h>
 
 // Type aliases for MuJoCo C structs to allow us refer to consistently refer
@@ -28,6 +29,36 @@ using MjContact = ::mjContact;
 using MjData = ::mjData;
 using MjLROpt = ::mjLROpt;
 using MjModel = ::mjModel;
+using MjSpec = ::mjSpec;
+using MjsElement = ::mjsElement;
+using MjsOrientation = ::mjsOrientation;
+using MjsPlugin = ::mjsPlugin;
+using MjsBody = ::mjsBody;
+using MjsFrame = ::mjsFrame;
+using MjsJoint = ::mjsJoint;
+using MjsGeom = ::mjsGeom;
+using MjsSite = ::mjsSite;
+using MjsCamera = ::mjsCamera;
+using MjsLight = ::mjsLight;
+using MjsFlex = ::mjsFlex;
+using MjsMesh = ::mjsMesh;
+using MjsHField = ::mjsHField;
+using MjsSkin = ::mjsSkin;
+using MjsTexture = ::mjsTexture;
+using MjsMaterial = ::mjsMaterial;
+using MjsPair = ::mjsPair;
+using MjsExclude = ::mjsExclude;
+using MjsEquality = ::mjsEquality;
+using MjsTendon = ::mjsTendon;
+using MjsWrap = ::mjsWrap;
+using MjsActuator = ::mjsActuator;
+using MjsSensor = ::mjsSensor;
+using MjsNumeric = ::mjsNumeric;
+using MjsText = ::mjsText;
+using MjsTuple = ::mjsTuple;
+using MjsKey = ::mjsKey;
+using MjsDefault = ::mjsDefault;
+using MjsCompiler = ::mjsCompiler;
 using MjOption = ::mjOption;
 using MjSolverStat = ::mjSolverStat;
 using MjStatistic = ::mjStatistic;

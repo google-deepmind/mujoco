@@ -53,12 +53,23 @@ void CheckRosetta() {
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace {
-std::string_view SymbolizeCached(void* pc) {
+const std::pair<std::string, std::string>&
+FuncNameAndDebugInfoCached(void* pc) {
+  static const std::unordered_set<std::string>* const kIgnoredInlinedFunctions =
+      []() {
+        return new std::unordered_set<std::string>{
+            "mj_freeStack",
+            "mj_markStack",
+        };
+      }();
+
   static auto* mu = new std::shared_mutex;
-  static auto* pc_to_func_name_map = new std::unordered_map<void*, std::string>;
+  static auto* pc_to_func_name_map =
+      new std::unordered_map<void*, std::pair<std::string, std::string>>;
 
   {
     std::shared_lock lock(*mu);
@@ -70,14 +81,43 @@ std::string_view SymbolizeCached(void* pc) {
 
   std::array<char, 256> buf;
   __sanitizer_symbolize_pc(pc, "%f", buf.data(), buf.size());
+
+  // buf contains sequence of null-terminated strings of inlined function names
+  // so we walk through the sequence until we find the first unignored function
+  std::string_view func_name(buf.data());
+  int idx = 0;
+  while (kIgnoredInlinedFunctions->find(func_name.data()) !=
+         kIgnoredInlinedFunctions->end()) {
+    func_name = func_name.data() + func_name.size() + 1;
+    ++idx;
+  }
+
+  std::array<char, 1024> buf2;
+  __sanitizer_symbolize_pc(pc, "%F at %S", buf2.data(), buf2.size());
+  std::string_view debug_info(buf2.data());
+  for (int i = 0; i < idx; ++i) {
+    debug_info = debug_info.data() + debug_info.size() + 1;
+  }
+
   {
     std::unique_lock lock(*mu);
-    return pc_to_func_name_map->emplace(pc, buf.data()).first->second;
+    return pc_to_func_name_map
+        ->emplace(
+            pc, std::make_pair(std::string(func_name), std::string(debug_info)))
+        .first->second;
   }
+}
+
+const std::string& SymbolizeCached(void* pc) {
+  return FuncNameAndDebugInfoCached(pc).first;
+}
+
+const std::string& DebugInfoCached(void* pc) {
+  return FuncNameAndDebugInfoCached(pc).second;
 }
 }  // namespace
 
-int _mj_comparePcFuncName(void* pc1, void* pc2) {
+int mj__comparePcFuncName(void* pc1, void* pc2) {
   static auto* mu = new std::shared_mutex;
   static auto* same_func_map = new std::map<std::pair<void*, void*>, bool>;
 
@@ -95,5 +135,9 @@ int _mj_comparePcFuncName(void* pc1, void* pc2) {
     std::unique_lock lock(*mu);
     return same_func_map->emplace(pc_pair, is_same).first->second;
   }
+}
+
+const char* mj__getPcDebugInfo(void* pc) {
+  return DebugInfoCached(pc).c_str();
 }
 #endif  // ADDRESS_SANITIZER

@@ -78,11 +78,11 @@ public class MjScene : MonoBehaviour {
 
   private List<MjComponent> _orderedComponents;
 
-  public EventHandler<MjStepArgs> postInitEvent;
-  public EventHandler preUpdateEvent;
-  public EventHandler<MjStepArgs> ctrlCallback;
-  public EventHandler postUpdateEvent;
-  public EventHandler<MjStepArgs> preDestroyEvent;
+  public event EventHandler<MjStepArgs> postInitEvent;
+  public event EventHandler<MjStepArgs> preUpdateEvent;
+  public event EventHandler<MjStepArgs> ctrlCallback;
+  public event EventHandler<MjStepArgs> postUpdateEvent;
+  public event EventHandler<MjStepArgs> preDestroyEvent;
 
   protected unsafe void Start() {
     SceneRecreationAtLateUpdateRequested = false;
@@ -94,9 +94,9 @@ public class MjScene : MonoBehaviour {
   }
 
   protected unsafe void FixedUpdate() {
-    preUpdateEvent?.Invoke(this, EventArgs.Empty);
+    preUpdateEvent?.Invoke(this, new MjStepArgs(Model, Data));
     StepScene();
-    postUpdateEvent?.Invoke(this, EventArgs.Empty);
+    postUpdateEvent?.Invoke(this, new MjStepArgs(Model, Data));
   }
 
   public bool SceneRecreationAtLateUpdateRequested = false;

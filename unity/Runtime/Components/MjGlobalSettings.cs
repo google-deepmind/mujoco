@@ -73,7 +73,6 @@ public struct MjcfOptionFlag {
   public EnableDisableFlag Override;
   public EnableDisableFlag Energy;
   public EnableDisableFlag FwdInv;
-  public EnableDisableFlag SensorNoise;
   public EnableDisableFlag MultiCCD;
   public static MjcfOptionFlag Default = new MjcfOptionFlag() {
     Constraint = EnableDisableFlag.enable,
@@ -91,7 +90,6 @@ public struct MjcfOptionFlag {
     Override = EnableDisableFlag.disable,
     Energy = EnableDisableFlag.disable,
     FwdInv = EnableDisableFlag.disable,
-    SensorNoise = EnableDisableFlag.disable,
     MultiCCD = EnableDisableFlag.disable
   };
 
@@ -114,7 +112,6 @@ public struct MjcfOptionFlag {
     Override = mjcf.GetEnumAttribute<EnableDisableFlag>("override", localDefault.Override);
     Energy = mjcf.GetEnumAttribute<EnableDisableFlag>("energy", localDefault.Energy);
     FwdInv = mjcf.GetEnumAttribute<EnableDisableFlag>("fwdinv", localDefault.FwdInv);
-    SensorNoise = mjcf.GetEnumAttribute<EnableDisableFlag>("sensornoise", localDefault.SensorNoise);
     MultiCCD = mjcf.GetEnumAttribute<EnableDisableFlag>("multiccd", localDefault.MultiCCD);
   }
 
@@ -134,7 +131,6 @@ public struct MjcfOptionFlag {
     mjcf.SetAttribute("override", Override.ToString());
     mjcf.SetAttribute("energy", Energy.ToString());
     mjcf.SetAttribute("fwdinv", FwdInv.ToString());
-    mjcf.SetAttribute("sensornoise", SensorNoise.ToString());
     mjcf.SetAttribute("multiccd", MultiCCD.ToString());
   }
 }
@@ -194,9 +190,9 @@ public struct MjOptionStruct {
   [Tooltip("Threshold used for early termination of the Noslip solver.")]
   public float NoSlipTolerance;
   [Tooltip("Maximum iterations for convex mesh collisions.")]
-  public int MprIterations;
+  public int CcdIterations;
   [Tooltip("Threshold used for early termination of the MPR algorithm.")]
-  public float MprTolerance;
+  public float CcdTolerance;
 
   public MjcfOptionFlag Flag;
 
@@ -218,8 +214,8 @@ public struct MjOptionStruct {
     Tolerance = 1e-8f,
     NoSlipIterations = 0,
     NoSlipTolerance = 1e-6f,
-    MprIterations = 50,
-    MprTolerance = 1e-6f,
+    CcdIterations = 50,
+    CcdTolerance = 1e-6f,
     Flag = MjcfOptionFlag.Default
   };
 
@@ -262,8 +258,8 @@ public struct MjOptionStruct {
     NoSlipIterations = (int)mjcf.GetFloatAttribute(
         "noslip_iterations", localDefault.NoSlipIterations);
     NoSlipTolerance = mjcf.GetFloatAttribute("noslip_tolerance", localDefault.NoSlipTolerance);
-    MprIterations = (int)mjcf.GetFloatAttribute("mpr_iterations", localDefault.MprIterations);
-    MprTolerance = mjcf.GetFloatAttribute("mpr_tolerance", localDefault.MprTolerance);
+    CcdIterations = (int)mjcf.GetFloatAttribute("ccd_iterations", localDefault.CcdIterations);
+    CcdTolerance = mjcf.GetFloatAttribute("ccd_tolerance", localDefault.CcdTolerance);
 
     var flagElements = mjcf.GetElementsByTagName("flag");
     if (flagElements.Count == 1) {
@@ -295,8 +291,8 @@ public struct MjOptionStruct {
     mjcf.SetAttribute("tolerance", MjEngineTool.MakeLocaleInvariant($"{Tolerance}"));
     mjcf.SetAttribute("noslip_iterations", MjEngineTool.MakeLocaleInvariant($"{NoSlipIterations}"));
     mjcf.SetAttribute("noslip_tolerance", MjEngineTool.MakeLocaleInvariant($"{NoSlipTolerance}"));
-    mjcf.SetAttribute("mpr_iterations", MjEngineTool.MakeLocaleInvariant($"{MprIterations}"));
-    mjcf.SetAttribute("mpr_tolerance", MjEngineTool.MakeLocaleInvariant($"{MprTolerance}"));
+    mjcf.SetAttribute("ccd_iterations", MjEngineTool.MakeLocaleInvariant($"{CcdIterations}"));
+    mjcf.SetAttribute("ccd_tolerance", MjEngineTool.MakeLocaleInvariant($"{CcdTolerance}"));
 
     var flags = (XmlElement)mjcf.AppendChild(
         mjcf.OwnerDocument.CreateElement("flag"));
@@ -339,8 +335,8 @@ public class MjGlobalSettings : MonoBehaviour {
         } else if (instances.Length == 1) {
           _instance = instances[0];
         }
-      }
-      return _instance;
+     }
+     return _instance;
     }
   }
 

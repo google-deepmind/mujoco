@@ -1,0 +1,75 @@
+<mujoco model="Convex-Convex collisions">
+  <option>
+    <flag gravity="disable"/>
+  </option>
+
+  <asset>
+    <mesh name="halfbox1" scale=".2 .3 .1"
+          vertex="0 0 0  1 0 0  0 1 0  1 1 0
+                  0 0 1  1 0 1  0 1 1 "/>
+    <mesh name="halfbox2" scale=".2 .3 .1"
+          vertex="1 0 0  0 1 0  1 1 0
+                  0 0 1  1 0 1  0 1 1 "/>
+    <hfield name="hfield" nrow="3" ncol="4" size="1 1 .1 .08"
+            elevation="1 0 1 2
+                       0 2 1 1
+                       1 0 1 0"/>
+  </asset>
+
+  <default>
+    <geom rgba=".2 .2 .6 1"/>
+  </default>
+
+  <worldbody>
+    <light pos=".5 0 3"/>
+    <light pos="-.5 0 3"/>
+
+    <geom name="hfield" type="hfield" hfield="hfield" rgba="0.5 0.5 0.5 1"/>
+
+    <body pos=".2 0 .6">
+      <freejoint/>
+      <geom name="sphere" type="sphere" size=".15"/>
+    </body>
+
+    <body pos="0 0 .3">
+      <freejoint/>
+      <geom name="ellipsoid" type="ellipsoid" size=".1 .1 .2"/>
+    </body>
+
+    <body pos=".4 0 .3">
+      <freejoint/>
+      <geom name="cylinder" type="cylinder" size=".1 .15"/>
+    </body>
+
+    <body pos="-.5 0 .3">
+      <freejoint/>
+      <geom name="box" type="box" size=".2 .15 .1"/>
+    </body>
+
+    <body pos="-.5 0 .6">
+      <freejoint/>
+      <geom name="mesh1" type="mesh" mesh="halfbox1"/>
+    </body>
+
+    <body pos="-.5 -.6 .3">
+      <freejoint/>
+      <geom name="mesh2" type="mesh" mesh="halfbox2"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <fromto geom1="ellipsoid" geom2="box" cutoff="1"/>
+    <fromto geom1="ellipsoid" geom2="cylinder" cutoff="1"/>
+    <fromto geom1="ellipsoid" geom2="mesh2" cutoff="1"/>
+    <fromto geom1="mesh1" geom2="sphere" cutoff="1"/>
+    <fromto geom1="mesh1" geom2="box" cutoff="1"/>
+    <fromto geom1="mesh1" geom2="mesh2" cutoff="1"/>
+
+    <fromto geom1="ellipsoid" geom2="box" cutoff="0.2"/>
+    <fromto geom1="ellipsoid" geom2="cylinder" cutoff="0.2"/>
+    <fromto geom1="ellipsoid" geom2="mesh2" cutoff="0.2"/>
+    <fromto geom1="mesh1" geom2="sphere" cutoff="0.2"/>
+    <fromto geom1="mesh1" geom2="box" cutoff="0.2"/>
+    <fromto geom1="mesh1" geom2="mesh2" cutoff="0.2"/>
+  </sensor>
+</mujoco>

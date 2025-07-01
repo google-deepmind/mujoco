@@ -39,6 +39,9 @@ MJAPI void mj_flex(const mjModel* m, mjData* d);
 // compute tendon lengths, velocities and moment arms
 MJAPI void mj_tendon(const mjModel* m, mjData* d);
 
+// compute time derivative of dense tendon Jacobian for one tendon
+MJAPI void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot);
+
 // compute actuator transmission lengths and moments
 MJAPI void mj_transmission(const mjModel* m, mjData* d);
 
@@ -48,25 +51,38 @@ MJAPI void mj_transmission(const mjModel* m, mjData* d);
 // composite rigid body inertia algorithm
 MJAPI void mj_crb(const mjModel* m, mjData* d);
 
-// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
-MJAPI void mj_factorI(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD, mjtNum* qLDiagInv,
-                      mjtNum* qLDiagSqrtInv);
+// add tendon armature to qM
+MJAPI void mj_tendonArmature(const mjModel* m, mjData* d);
+
+// make inertia matrix
+MJAPI void mj_makeM(const mjModel* m, mjData* d);
+
+// sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd  (legacy implementation)
+MJAPI void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M,
+                             mjtNum* qLD, mjtNum* qLDiagInv);
+
+// sparse L'*D*L factorizaton of inertia-like matrix
+MJAPI void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
+                      const int* rownnz, const int* rowadr, const int* colind);
 
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 MJAPI void mj_factorM(const mjModel* m, mjData* d);
 
-// sparse backsubstitution:  x = inv(L'*D*L)*y
-MJAPI void mj_solveLD(const mjModel* m, mjtNum* x, int n,
-                      const mjtNum* qLD, const mjtNum* qLDiagInv);
+// sparse backsubstitution:  x = inv(L'*D*L)*x  (legacy implementation)
+MJAPI void mj_solveLD_legacy(const mjModel* m, mjtNum* x, int n,
+                             const mjtNum* qLD, const mjtNum* qLDiagInv);
+
+// in-place sparse backsubstitution:  x = inv(L'*D*L)*x
+//  handle n vectors at once
+MJAPI void mj_solveLD(mjtNum* x, const mjtNum* qLD, const mjtNum* qLDiagInv, int nv, int n,
+                      const int* rownnz, const int* rowadr, const int* colind);
 
 // sparse backsubstitution:  x = inv(L'*D*L)*y, use factorization in d
 MJAPI void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
 
-// sparse backsubstitution for one island:  x = inv(L'*D*L)*x, use factorization in d
-MJAPI void mj_solveM_island(const mjModel* m, const mjData* d, mjtNum* x, int island);
-
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
-MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n);
+MJAPI void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
+                      const mjtNum* sqrtInvD, int n);
 
 
 //-------------------------- velocity --------------------------------------------------------------
@@ -85,6 +101,12 @@ MJAPI void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result);
 
 // RNE with complete data: compute cacc, cfrc_ext, cfrc_int
 MJAPI void mj_rnePostConstraint(const mjModel* m, mjData* d);
+
+
+//-------------------------- tendon bias -----------------------------------------------------------
+
+// add bias force due to tendon armature
+MJAPI void mj_tendonBias(const mjModel* m, mjData* d, mjtNum* qfrc);
 
 #ifdef __cplusplus
 }

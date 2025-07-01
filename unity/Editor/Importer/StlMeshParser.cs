@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Mujoco {
 
@@ -26,6 +26,17 @@ public static class BinaryReaderExtensions {
     var y = reader.ReadSingle();
     var z = reader.ReadSingle();
     return new Vector3(x, y, z);
+  }
+
+  public static int GetOrCreateVertexIndex(Dictionary<Vector3, int> vertexIndexMap, List<Vector3> vertices, List<Vector3>normals, Vector3 vertex, Vector3 normal) {
+    if (vertexIndexMap.TryGetValue(vertex, out int existingIndex)) {
+      return existingIndex;
+    }
+    int newIndex = vertexIndexMap.Count;
+    vertexIndexMap.Add(vertex, newIndex);
+    vertices.Add(vertex);
+    normals.Add(normal);
+    return newIndex;
   }
 }
 
@@ -50,7 +61,7 @@ public class StlMeshParser {
   // The binary STL format is described here: https://en.wikipedia.org/wiki/STL_(file_format)
   public static Mesh ParseBinary(byte[] stlFileContents, Vector3 scale) {
     var fileTypeId = System.Text.Encoding.UTF8.GetString(
-      stlFileContents.Take(_asciiFileTypeId.Length).ToArray());
+        stlFileContents.Take(_asciiFileTypeId.Length).ToArray());
     if (fileTypeId == _asciiFileTypeId) {
       throw new IOException("Ascii STL file format is not supported.");
     }
@@ -59,27 +70,39 @@ public class StlMeshParser {
       using (var reader = new BinaryReader(stream)) {
         reader.ReadBytes(_headerLength);
         var numTriangles = reader.ReadUInt32();
-        var numVertices = numTriangles * _verticesPerTriangle;
-        if (numVertices > _unityLimitNumVerticesPerMesh) {
-          throw new IndexOutOfRangeException(
-              "The mesh exceeds the number of vertices per mesh allowed by Unity. " +
-              $"({numVertices} > {_unityLimitNumVerticesPerMesh})");
-        }
-        var triangleIndices = new List<int>(capacity: (int)numVertices);
-        var vertices = new List<Vector3>(capacity: (int)numVertices);
-        var normals = new List<Vector3>(capacity: (int)numVertices);
-        for (var i = 0; i < numVertices; i += _verticesPerTriangle) {
+        var maxNumVertices = numTriangles * _verticesPerTriangle;
+
+        Dictionary<Vector3, int> vertexIndexMap = new Dictionary<Vector3, int>();
+        var triangleIndices = new int[(int)numTriangles * _verticesPerTriangle];
+        var vertices = new List<Vector3>(capacity: (int)maxNumVertices);
+        var normals = new List<Vector3>(capacity: (int)maxNumVertices);
+        for (var i = 0; i < numTriangles; i++) {
           var triangleNormal = ToXZY(reader.ReadVector3());
-          normals.AddRange(new[] { triangleNormal, triangleNormal, triangleNormal });
-          vertices.AddRange(new[] {
-            ToXZY(reader.ReadVector3()),
-            ToXZY(reader.ReadVector3()),
-            ToXZY(reader.ReadVector3()) });
-          triangleIndices.AddRange(new[] {i, i + 2, i + 1});
-          reader.ReadInt16();  // Read the unused attribute indices field.
+          var verts = new[]
+          {
+              ToXZY(reader.ReadVector3()),
+              ToXZY(reader.ReadVector3()),
+              ToXZY(reader.ReadVector3())
+          };
+          var indices = new[] { verts[0], verts[2], verts[1] }.Select(v =>
+              BinaryReaderExtensions.GetOrCreateVertexIndex(vertexIndexMap,
+                  vertices,
+                  normals,
+                  v,
+                  triangleNormal)).ToArray();
+          for (int j = 0; j < 3; j++) {
+            triangleIndices[i * 3 + j] = indices[j];
+          }
+          reader.ReadInt16(); // Read the unused attribute indices field.
         }
 
         var mesh = new Mesh();
+        var numVertices = vertexIndexMap.Count;
+
+        if (numVertices > _unityLimitNumVerticesPerMesh) {
+          mesh.indexFormat = IndexFormat.UInt32;
+        }
+
         mesh.vertices = vertices.ToArray();
         mesh.normals = normals.ToArray();
         mesh.triangles = triangleIndices.ToArray();
@@ -88,6 +111,7 @@ public class StlMeshParser {
         mesh.RecalculateNormals();
         mesh.RecalculateTangents();
         mesh.RecalculateBounds();
+
         return mesh;
       }
     }
@@ -126,7 +150,8 @@ public class StlMeshParser {
 
           writer.Write((short)0);
         }
-        return stream.GetBuffer();
+
+        return stream.ToArray();
       }
     }
   }

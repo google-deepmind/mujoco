@@ -49,7 +49,9 @@ def _take(obj: Y, idx: np.ndarray) -> Y:
 
   def take(x):
     # TODO(erikfrey): if this helps perf, add support for striding too
-    if (
+    if not x.shape[0]:
+      return x
+    elif (
         len(idx.shape) == 1
         and idx.size > 0
         and (idx == np.arange(idx[0], idx[0] + idx.size)).all()
@@ -60,7 +62,7 @@ def _take(obj: Y, idx: np.ndarray) -> Y:
       x = x.take(jp.array(idx), axis=0, mode='wrap')
     return x
 
-  return jax.tree_map(take, obj)
+  return jax.tree_util.tree_map(take, obj)
 
 
 def _q_bodyid(m: Model) -> np.ndarray:
@@ -113,8 +115,12 @@ def _nvmap(f: Callable[..., Y], *args) -> Y:
     if isinstance(arg, np.ndarray) and not np.all(arg == arg[0]):
       raise RuntimeError(f'numpy arg elements do not match: {arg}')
 
+  # split out numpy and jax args
   np_args = [a[0] if isinstance(a, np.ndarray) else None for a in args]
   args = [a if n is None else None for n, a in zip(np_args, args)]
+
+  # remove empty args that we should not vmap over
+  args = jax.tree_util.tree_map(lambda a: a if a.shape[0] else None, args)
   in_axes = [None if a is None else 0 for a in args]
 
   def outer_f(*args, np_args=np_args):
@@ -126,16 +132,25 @@ def _nvmap(f: Callable[..., Y], *args) -> Y:
 
 def _check_input(m: Model, args: Any, in_types: str) -> None:
   """Checks that scan input has the right shape."""
-  size = {'b': m.nbody, 'j': m.njnt, 'q': m.nq, 'v': m.nv, 'u': m.nu, 'a': m.na}
+  if m.nv == 0:
+    raise ValueError('Scan across Model with zero DoFs unsupported.')
+  size = {
+      'b': m.nbody,
+      'j': m.njnt,
+      'q': m.nq,
+      'v': m.nv,
+      'u': m.nu,
+      'a': m.na,
+      's': m.nsite,
+      'c': m.ncam,
+  }
   for idx, (arg, typ) in enumerate(zip(args, in_types)):
     if len(arg) != size[typ]:
-      raise IndexError(
-          (
-              f'f argument "{idx}" with type "{typ}" has length "{len(arg)}"'
-              f' which does not match the in_types[{idx}] expected length of '
-              f'"{size[typ]}".'
-          )
-      )
+      raise IndexError((
+          f'f argument "{idx}" with type "{typ}" has length "{len(arg)}"'
+          f' which does not match the in_types[{idx}] expected length of '
+          f'"{size[typ]}".'
+      ))
 
 
 def _check_output(
@@ -143,13 +158,11 @@ def _check_output(
 ) -> None:
   """Checks that scan output has the right shape."""
   if y.shape[0] != take_ids.shape[0]:
-    raise IndexError(
-        (
-            f'f output "{idx}" with type "{typ}" has shape "{y.shape[0]}" '
-            f'which does not match the out_types[{idx}] expected size of'
-            f' "{take_ids.shape[0]}".'
-        )
-    )
+    raise IndexError((
+        f'f output "{idx}" with type "{typ}" has shape "{y.shape[0]}" '
+        f'which does not match the out_types[{idx}] expected size of'
+        f' "{take_ids.shape[0]}".'
+    ))
 
 
 def flat(
@@ -162,7 +175,7 @@ def flat(
 ) -> Y:
   r"""Scan a function across bodies or actuators.
 
-  Scan group data according to type and batch shape then calls vmap(f) on it.
+  Scan group data according to type and batch shape then calls vmap(f) on it.\
 
   Args:
     m: an mjx model
@@ -179,6 +192,7 @@ def flat(
       'v': split according to degrees of freedom (len(qvel))
       'u': split according to actuators
       'a': split according to actuator activations
+      'c': split according to camera
     out_types: string specifying the types the output dimension matches
     *args: the input arguments corresponding to ``in_types``
     group_by: the type to group by, either joints or actuators
@@ -191,22 +205,13 @@ def flat(
   """
   _check_input(m, args, in_types)
 
-  if group_by not in {'j', 'u'}:
+  if group_by not in {'j', 'u', 'c'}:
     raise NotImplementedError(f'group by type "{group_by}" not implemented.')
 
-  def key_j(ids):
+  def key_j(type_ids):
     if any(t in 'jqv' for t in in_types + out_types):
-      return tuple(m.jnt_type[ids])
+      return tuple(m.jnt_type[type_ids['j']])
     return ()
-
-  def key_u(ids_u, ids_j):
-    return (
-        m.actuator_biastype[ids_u],
-        m.actuator_gaintype[ids_u],
-        m.actuator_dyntype[ids_u],
-        m.actuator_trntype[ids_u],
-        m.jnt_type[ids_j],
-    )
 
   def type_ids_j(m, i):
     return {
@@ -216,36 +221,62 @@ def flat(
         'q': np.nonzero(_q_bodyid(m) == i)[0],
     }
 
+  def key_u(type_ids):
+    ids_u, ids_j = type_ids['u'], type_ids['j']
+    return (
+        m.actuator_biastype[ids_u],
+        m.actuator_gaintype[ids_u],
+        m.actuator_dyntype[ids_u],
+        m.actuator_trntype[ids_u],
+        m.jnt_type[ids_j],
+        m.actuator_trnid[ids_u, 1] == -1,  # key by refsite being present
+    )
+
   def type_ids_u(m, i):
     typ_ids = {
         'u': i,
         'a': m.actuator_actadr[i],
         'j': (
             m.actuator_trnid[i, 0]
-            if m.actuator_trntype[i] == TrnType.JOINT
-            else np.array(-1)
+            if m.actuator_trntype[i] in (TrnType.JOINT, TrnType.JOINTINPARENT)
+            else -1
+        ),
+        's': (
+            m.actuator_trnid[i]
+            if m.actuator_trntype[i] == TrnType.SITE
+            else np.array([-1, -1])
         ),
     }
-    # v/q associated with joint transmissions
-    typ_ids.update({
-        'v': np.nonzero(m.dof_jntid == typ_ids['j'])[0],
-        'q': np.nonzero(_q_jointid(m) == typ_ids['j'])[0],
-    })
+    v, q = np.array([-1]), np.array([-1])
+    if m.actuator_trntype[i] in (TrnType.JOINT, TrnType.JOINTINPARENT):
+      # v/q are associated with the joint transmissions only
+      v = np.nonzero(m.dof_jntid == typ_ids['j'])[0]
+      q = np.nonzero(_q_jointid(m) == typ_ids['j'])[0]
+
+    typ_ids.update({'v': v, 'q': q})
+
     return typ_ids
+
+  def key_c(type_ids):
+    return m.cam_mode[type_ids['c']], m.cam_targetbodyid[type_ids['c']] >= 0
+
+  def type_ids_c(unused_m, i):
+    return {
+        'c': i,
+    }
+
+  type_ids_fn = {'j': type_ids_j, 'u': type_ids_u, 'c': type_ids_c}[group_by]
+  key_fn = {'j': key_j, 'u': key_u, 'c': key_c}[group_by]
 
   # build up a grouping of type take-ids in body/actuator order
   key_typ_ids, order = {}, []
   all_types = set(in_types + out_types)
-  n_items = {'j': m.nbody, 'u': m.nu}[group_by]
+  n_items = {'j': m.nbody, 'u': m.nu, 'c': m.ncam}[group_by]
   for i in np.arange(n_items, dtype=np.int32):
-    typ_ids = type_ids_j(m, i) if group_by == 'j' else type_ids_u(m, i)
+    typ_ids = type_ids_fn(m, i)
 
     # create grouping key
-    key = (
-        key_j(typ_ids['j'])
-        if group_by == 'j'
-        else key_u(typ_ids['u'], typ_ids['j'])
-    )
+    key = key_fn(typ_ids)
     order.append((key, typ_ids))
 
     # add ids per type to the corresponding group
@@ -284,12 +315,12 @@ def flat(
   # concatenate back to a single tree and drop the grouping dimension
   f_ret_is_seq = isinstance(ys[0], (list, tuple))
   ys = ys if f_ret_is_seq else [[y] for y in ys]
-  flat_ = {'j': 'b', 'u': 'uaj'}[group_by]
+  flat_ = {'j': 'b', 'u': 'uaj', 'c': 'c'}[group_by]
   ys = [
       [v if typ in flat_ else jp.concatenate(v) for v, typ in zip(y, out_types)]
       for y in ys
   ]
-  ys = jax.tree_map(lambda *x: jp.concatenate(x), *ys)
+  ys = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *ys)
 
   # put concatenated results back in order
   reordered_ys = []
@@ -367,7 +398,7 @@ def body_tree(
       if t == 'b':
         continue
       elif t == 'j':
-        key += (tuple(m.jnt_type[np.nonzero(m.jnt_bodyid == id_)[0]]))
+        key += tuple(m.jnt_type[np.nonzero(m.jnt_bodyid == id_)[0]])
       elif t == 'v':
         key += (len(np.nonzero(m.dof_bodyid == id_)[0]),)
       elif t == 'q':
@@ -432,15 +463,15 @@ def body_tree(
         def index_sum(x, i=id_map, s=body_ids.size):
           return jax.ops.segment_sum(x, i, s)
 
-        y = jax.tree_map(index_sum, y)
-        carry = y if carry is None else jax.tree_map(jp.add, carry, y)
+        y = jax.tree_util.tree_map(index_sum, y)
+        carry = y if carry is None else jax.tree_util.tree_map(jp.add, carry, y)
     elif key in key_parents:
       ys = [key_y[p] for p in key_parents[key]]
-      y = jax.tree_map(lambda *x: jp.concatenate(x), *ys)
+      y = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *ys)
       body_ids = np.concatenate([key_body_ids[p] for p in key_parents[key]])
       parent_ids = m.body_parentid[key_body_ids[key]]
       take_fn = lambda x, i=_index(body_ids, parent_ids): _take(x, i)
-      carry = jax.tree_map(take_fn, y)
+      carry = jax.tree_util.tree_map(take_fn, y)
 
     f_args = [_take(arg, ids) for arg, ids in zip(args, key_in_take[key])]
     key_y[key] = _nvmap(f, carry, *f_args)
@@ -455,8 +486,8 @@ def body_tree(
     if len(out_types) > 1:
       y_typ = [y_[i] for y_ in y_typ]
     if typ != 'b':
-      y_typ = jax.tree_map(jp.concatenate, y_typ)
-    y_typ = jax.tree_map(lambda *x: jp.concatenate(x), *y_typ)
+      y_typ = jax.tree_util.tree_map(jp.concatenate, y_typ)
+    y_typ = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *y_typ)
     y_take = np.argsort(np.concatenate([key_y_take[key][i] for key in keys]))
     _check_output(y_typ, y_take, typ, i)
     y.append(_take(y_typ, y_take))

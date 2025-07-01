@@ -24,6 +24,7 @@
 extern "C" {
 #endif
 
+
 //-------------------------- Jacobian-related ------------------------------------------------------
 
 // determine type of friction cone
@@ -38,16 +39,9 @@ MJAPI int mj_isDual(const mjModel* m);
 // multiply Jacobian by vector
 MJAPI void mj_mulJacVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
-// multiply Jacobian by vector, for one island
-MJAPI void mj_mulJacVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
-                               int island, int flg_resunc, int flg_vecunc);
-
 // multiply JacobianT by vector
 MJAPI void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
-// multiply JacobianT by vector, for one island
-MJAPI void mj_mulJacTVec_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
-                                int island, int flg_resunc, int flg_vecunc);
 
 //-------------------------- utility functions -----------------------------------------------------
 
@@ -90,6 +84,7 @@ void mj_diagApprox(const mjModel* m, mjData* d);
 // compute efc_R, efc_D, efc_KDIP, adjust diagApprox
 void mj_makeImpedance(const mjModel* m, mjData* d);
 
+
 //---------------------------- top-level API for constraint construction ---------------------------
 
 // main driver: call all functions above
@@ -101,14 +96,19 @@ MJAPI void mj_projectConstraint(const mjModel* m, mjData* d);
 // compute efc_vel, efc_aref
 MJAPI void mj_referenceConstraint(const mjModel* m, mjData* d);
 
+// compute efc_state, efc_force
+//  optional: cost(qacc) = s_hat(jar); cone Hessians
+MJAPI void mj_constraintUpdate_impl(int ne, int nf, int nefc,
+                                    const mjtNum* D, const mjtNum* R, const mjtNum* floss,
+                                    const mjtNum* jar, const int* type, const int* id,
+                                    mjContact* contact, int* state, mjtNum* force, mjtNum cost[1],
+                                    int flg_coneHessian);
+
 // compute efc_state, efc_force, qfrc_constraint
-// optional: cost(qacc) = shat(jar) where jar = Jac*qacc-aref; cone Hessians
+// optional: cost(qacc) = s_hat(jar) where jar = Jac*qacc-aref; cone Hessians
 MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                                mjtNum cost[1], int flg_coneHessian);
 
-// compute efc_state, efc_force, qfrc_constraint for one island
-MJAPI void mj_constraintUpdate_island(const mjModel* m, mjData* d, const mjtNum* jar,
-                                      mjtNum cost[1], int flg_coneHessian, int island);
 
 #ifdef __cplusplus
 }

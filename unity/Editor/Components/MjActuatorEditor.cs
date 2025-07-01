@@ -35,6 +35,7 @@ namespace Mujoco {
     private SerializedProperty _biasPrm;
     // Position actuator properties.
     private SerializedProperty _kp;
+    private SerializedProperty _kvp;
     // Velocity actuator properties.
     private SerializedProperty _kv;
     // Cylinder actuator properties.
@@ -70,6 +71,7 @@ namespace Mujoco {
       _biasPrm = customParams.FindPropertyRelative("BiasPrm");
       // Position actuator properties.
       _kp = customParams.FindPropertyRelative("Kp");
+      _kvp = customParams.FindPropertyRelative("Kvp");
       // Velocity actuator properties.
       _kv = customParams.FindPropertyRelative("Kv");
       // Cylinder actuator properties.
@@ -166,6 +168,7 @@ namespace Mujoco {
 
     private void EditPositionParams(MjActuator.CustomParameters parameters) {
       EditorGUILayout.PropertyField(_kp);
+      EditorGUILayout.PropertyField(_kvp, new GUIContent("Kv"));
     }
 
     private void EditVelocityParams(MjActuator.CustomParameters parameters) {

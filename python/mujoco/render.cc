@@ -14,6 +14,8 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
+#include <type_traits>
 
 #include <Eigen/Core>
 #include <mujoco/mjrender.h>
@@ -40,7 +42,10 @@ class MjWrapper<raw::MjrContext> : public WrapperBase<raw::MjrContext> {
 
   void Free();
 
-#define X(var) py_array_or_tuple_t<mjtNum> var
+  #define X(var)                                                   \
+    py_array_or_tuple_t<                                           \
+        std::remove_all_extents_t<decltype(raw::MjrContext::var)>> \
+        var
   X(fogRGBA);
   X(auxWidth);
   X(auxHeight);
@@ -49,6 +54,9 @@ class MjWrapper<raw::MjrContext> : public WrapperBase<raw::MjrContext> {
   X(auxFBO_r);
   X(auxColor);
   X(auxColor_r);
+  X(mat_texid);
+  X(mat_texuniform);
+  X(mat_texrepeat);
   X(textureType);
   X(texture);
   X(skinvertVBO);
@@ -90,6 +98,9 @@ MjrContextWrapper::MjWrapper()
       X(auxFBO_r),
       X(auxColor),
       X(auxColor_r),
+      X(mat_texid),
+      X(mat_texuniform),
+      X(mat_texrepeat),
       X(textureType),
       X(texture),
       X_SKIN(skinvertVBO),
@@ -114,6 +125,9 @@ MjrContextWrapper::MjWrapper(const MjModelWrapper& model, int fontscale)
       X(auxFBO_r),
       X(auxColor),
       X(auxColor_r),
+      X(mat_texid),
+      X(mat_texuniform),
+      X(mat_texrepeat),
       X(textureType),
       X(texture),
       X_SKIN(skinvertVBO),
@@ -233,6 +247,9 @@ PYBIND11_MODULE(_render, pymodule) {
   X(auxFBO_r);
   X(auxColor);
   X(auxColor_r);
+  X(mat_texid);
+  X(mat_texuniform);
+  X(mat_texrepeat);
   X(textureType);
   X(texture);
   X(skinvertVBO);

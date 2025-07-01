@@ -1,0 +1,89 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    doc = """Generated from Composed Stage of root layer 
+"""
+    endTimeCode = 1
+    startTimeCode = 0
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+)
+
+def Xform "World"
+{
+    def Xform "Light_Xform_0"
+    {
+        double3 xformOp:translate.timeSamples = {
+            0: (0, -3.674234628677368, 3.674234628677368),
+        }
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+
+        def SphereLight "Light_0"
+        {
+            color3f inputs:color = (0.4, 0.4, 0.4)
+            float inputs:intensity = 10000
+            bool inputs:normalize = 1
+            float inputs:radius = 0.3
+            bool treatAsPoint = 0
+        }
+    }
+
+    def Xform "Camera_Xform_closeup"
+    {
+        matrix4d xformOp:transform.timeSamples = {
+            0: ( (1, 0, -0, 0), (0, 0.009999499656260014, 0.9999499917030334, 0), (0, -0.9999499917030334, 0.009999499656260014, 0), (0, -6, 0, 1) ),
+        }
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+        def Camera "Camera_closeup"
+        {
+            float2 clippingRange = (0.0001, 1000000)
+            float focalLength = 12
+            float focusDistance = 400
+            float horizontalAperture = 12
+        }
+    }
+
+    def Xform "Mesh_Xform_white_box_id0_geom"
+    {
+        token visibility.timeSamples = {
+            0: "inherited",
+            1: "invisible",
+        }
+        float3 xformOp:scale
+        matrix4d xformOp:transform.timeSamples = {
+            0: ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0, 1) ),
+        }
+        uniform token[] xformOpOrder = ["xformOp:transform", "xformOp:scale"]
+
+        def Mesh "Mesh_white_box_id0_geom" (
+            apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            int[] faceVertexCounts = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+            int[] faceVertexIndices = [4, 7, 5, 4, 6, 7, 0, 2, 4, 2, 6, 4, 0, 1, 2, 1, 3, 2, 1, 5, 7, 1, 7, 3, 2, 3, 7, 2, 7, 6, 0, 4, 1, 1, 4, 5]
+            rel material:binding = </World/_materials/Material_white_box_id0_geom>
+            point3f[] points = [(-1, -1, -1), (1, -1, -1), (-1, -1, 1), (1, -1, 1), (-1, 1, -1), (1, 1, -1), (-1, 1, 1), (1, 1, 1)]
+            uniform token subdivisionScheme = "none"
+        }
+    }
+
+    def "_materials"
+    {
+        def Material "Material_white_box_id0_geom"
+        {
+            token outputs:surface.connect = </World/_materials/Material_white_box_id0_geom/Principled_BSDF.outputs:surface>
+
+            def Shader "Principled_BSDF"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (1, 1, 1)
+                float inputs:metallic = 0.5
+                float inputs:opacity = 1
+                float inputs:roughness = 0.5
+                token outputs:surface
+            }
+        }
+    }
+}
+

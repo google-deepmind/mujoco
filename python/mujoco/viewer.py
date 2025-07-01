@@ -23,7 +23,7 @@ import queue
 import sys
 import threading
 import time
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 import weakref
 
 import glfw
@@ -42,7 +42,7 @@ PERCENT_REALTIME = (
     10, 8, 6.6, 5, 4, 3.3, 2.5, 2, 1.6, 1.3,
     1, 0.8, 0.66, 0.5, 0.4, 0.33, 0.25, 0.2, 0.16, 0.13,
     0.1
-)
+)  # fmt: skip
 
 # Maximum time mis-alignment before re-sync.
 MAX_SYNC_MISALIGN = 0.1
@@ -94,6 +94,117 @@ class Handle:
   def user_scn(self):
     return self._user_scn
 
+  @property
+  def m(self):
+    sim = self._sim()
+    if sim is not None:
+      return sim.m
+    return None
+
+  @property
+  def d(self):
+    sim = self._sim()
+    if sim is not None:
+      return sim.d
+    return None
+
+  @property
+  def viewport(self):
+    sim = self._sim()
+    if sim is not None:
+      return sim.viewport
+    return None
+
+  def set_figures(
+      self, viewports_figures: Union[Tuple[mujoco.MjrRect, mujoco.MjvFigure],
+                                   List[Tuple[mujoco.MjrRect, mujoco.MjvFigure]]]
+  ):
+    """Overlay figures on the viewer.
+
+    Args:
+      viewports_figures: Single tuple or list of tuples of (viewport, figure)
+        viewport: Rectangle defining position and size of the figure
+        figure: MjvFigure object containing the figure data to display
+    """
+    sim = self._sim()
+    if sim is not None:
+      # Convert single tuple to list if needed
+      if isinstance(viewports_figures, tuple):
+        viewports_figures = [viewports_figures]
+      sim.set_figures(viewports_figures)
+
+  def clear_figures(self):
+    sim = self._sim()
+    if sim is not None:
+      sim.clear_figures()
+
+  def set_texts(self, texts: Union[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]],
+                                            List[Tuple[Optional[int], Optional[int], Optional[str], Optional[str]]]]):
+    """Overlay text on the viewer.
+
+    Args:
+      texts: Single tuple or list of tuples of (font, gridpos, text1, text2)
+        font: Font style from mujoco.mjtFontScale
+        gridpos: Position of text box from mujoco.mjtGridPos
+        text1: Left text column, defaults to empty string if None
+        text2: Right text column, defaults to empty string if None
+    """
+    sim = self._sim()
+    if sim is not None:
+      # Convert single tuple to list if needed
+      if isinstance(texts, tuple):
+        texts = [texts]
+
+      # Convert None values to empty strings
+      default_font = mujoco.mjtFontScale.mjFONTSCALE_150
+      default_gridpos = mujoco.mjtGridPos.mjGRID_TOPLEFT
+      processed_texts = [(
+                        default_font if font is None else font,
+                        default_gridpos if gridpos is None else gridpos,
+                         "" if text1 is None else text1,
+                         "" if text2 is None else text2)
+                        for font, gridpos, text1, text2 in texts]
+
+      sim.set_texts(processed_texts)
+
+  def clear_texts(self):
+    sim = self._sim()
+    if sim is not None:
+      sim.clear_texts()
+
+  def set_images(
+      self, viewports_images: Union[Tuple[mujoco.MjrRect, np.ndarray],
+                                  List[Tuple[mujoco.MjrRect, np.ndarray]]]
+  ):
+    """Overlay images on the viewer.
+
+    Args:
+      viewports_images: Single tuple or list of tuples of (viewport, image)
+        viewport: Rectangle defining position and size of the image
+        image: RGB image with shape (height, width, 3)
+    """
+    sim = self._sim()
+    if sim is not None:
+      # Convert single tuple to list if needed
+      if isinstance(viewports_images, tuple):
+        viewports_images = [viewports_images]
+
+      processed_images = []
+      for viewport, image in viewports_images:
+        targ_shape = (viewport.height, viewport.width)
+        # Check if image is already the correct shape
+        if image.shape[:2] != targ_shape:
+          raise ValueError(f"Image shape {image.shape[:2]} does not match target shape {targ_shape}")
+        flipped = np.flip(image, axis=0)
+        contiguous = np.ascontiguousarray(flipped)
+        processed_images.append((viewport, contiguous))
+      sim.set_images(processed_images)
+
+  def clear_images(self):
+    sim = self._sim()
+    if sim is not None:
+      sim.clear_images()
+
   def close(self):
     sim = self._sim()
     if sim is not None:
@@ -119,10 +230,10 @@ class Handle:
       return sim.lock()
     return contextlib.nullcontext()
 
-  def sync(self):
+  def sync(self, state_only: bool = False):
     sim = self._get_sim()
     if sim is not None:
-      sim.sync()  # locks internally
+      sim.sync(state_only)  # locks internally
 
   def update_hfield(self, hfieldid: int):
     sim = self._get_sim()
@@ -169,7 +280,10 @@ def _file_loader(path: str) -> _LoaderWithPathType:
   """Loads an MJCF model from file path."""
 
   def load(path=path) -> Tuple[mujoco.MjModel, mujoco.MjData, str]:
-    m = mujoco.MjModel.from_xml_path(path)
+    if len(path) >= 4 and path[-4:] == '.mjb':
+      m = mujoco.MjModel.from_binary_path(path)
+    else:
+      m = mujoco.MjModel.from_xml_path(path)
     d = mujoco.MjData(m)
     return m, d, path
 
@@ -177,12 +291,13 @@ def _file_loader(path: str) -> _LoaderWithPathType:
 
 
 def _reload(
-    simulate: _Simulate, loader: _InternalLoaderType,
-    notify_loaded: Optional[Callable[[], None]] = None
+    simulate: _Simulate,
+    loader: _InternalLoaderType,
+    notify_loaded: Optional[Callable[[], None]] = None,
 ) -> Optional[Tuple[mujoco.MjModel, mujoco.MjData]]:
   """Internal function for reloading a model in the viewer."""
   try:
-    simulate.load_message('') # path is unknown at this point
+    simulate.load_message('')  # path is unknown at this point
     load_tuple = loader()
   except Exception as e:  # pylint: disable=broad-except
     simulate.load_error = str(e)
@@ -198,6 +313,9 @@ def _reload(
 
     path = load_tuple[2] if len(load_tuple) == 3 else ''
     simulate.load(m, d, path)
+
+    # Make sure any load_error message is cleared
+    simulate.load_error = ''
 
     if notify_loaded:
       notify_loaded()
@@ -255,14 +373,16 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
           # Inject noise.
           if simulate.ctrl_noise_std != 0.0:
             # Convert rate and scale to discrete time (Ornstein–Uhlenbeck).
-            rate = math.exp(-m.opt.timestep /
-                            max(simulate.ctrl_noise_rate, mujoco.mjMINVAL))
+            rate = math.exp(
+                -m.opt.timestep / max(simulate.ctrl_noise_rate, mujoco.mjMINVAL)
+            )
             scale = simulate.ctrl_noise_std * math.sqrt(1 - rate * rate)
 
             for i in range(m.nu):
               # Update noise.
-              ctrl_noise[i] = (rate * ctrl_noise[i] +
-                               scale * mujoco.mju_standardNormal(None))
+              ctrl_noise[i] = rate * ctrl_noise[
+                  i
+              ] + scale * mujoco.mju_standardNormal(None)
 
               # Apply noise.
               d.ctrl[i] = ctrl_noise[i]
@@ -271,12 +391,18 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
           slowdown = 100 / PERCENT_REALTIME[simulate.real_time_index]
 
           # Misalignment: distance from target sim time > MAX_SYNC_MISALIGN.
-          misaligned = abs(elapsedcpu / slowdown -
-                           elapsedsim) > MAX_SYNC_MISALIGN
+          misaligned = (
+              abs(elapsedcpu / slowdown - elapsedsim) > MAX_SYNC_MISALIGN
+          )
 
           # Out-of-sync (for any reason): reset sync times, step.
-          if (elapsedsim < 0 or elapsedcpu < 0 or synccpu == 0 or misaligned or
-              simulate.speed_changed):
+          if (
+              elapsedsim < 0
+              or elapsedcpu < 0
+              or synccpu == 0
+              or misaligned
+              or simulate.speed_changed
+          ):
             # Re-sync.
             synccpu = startcpu
             syncsim = d.time
@@ -292,9 +418,9 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
             prevsim = d.time
             refreshtime = SIM_REFRESH_FRACTION / simulate.refresh_rate
             # Step while sim lags behind CPU and within refreshtime.
-            while (((d.time - syncsim) * slowdown <
-                    (time.time() - synccpu)) and
-                   ((time.time() - startcpu) < refreshtime)):
+            while (
+                (d.time - syncsim) * slowdown < (time.time() - synccpu)
+            ) and ((time.time() - startcpu) < refreshtime):
               # Measure slowdown before first step.
               if not measured and elapsedsim:
                 simulate.measured_slowdown = elapsedcpu / elapsedsim
@@ -309,7 +435,7 @@ def _physics_loop(simulate: _Simulate, loader: Optional[_InternalLoaderType]):
                 break
 
           # save current state to history buffer
-          if (stepped):
+          if stepped:
             simulate.add_to_history()
 
         else:  # simulate.run is False: GUI is paused.
@@ -335,7 +461,8 @@ def _launch_internal(
     raise ValueError('mjData is specified but mjModel is not')
   elif callable(model) and data is not None:
     raise ValueError(
-        'mjData should not be specified when an mjModel loader is used')
+        'mjData should not be specified when an mjModel loader is used'
+    )
   elif loader is not None and model is not None:
     raise ValueError('model and loader are both specified')
   elif run_physics_thread and handle_return is not None:
@@ -378,14 +505,17 @@ def _launch_internal(
 
   if run_physics_thread:
     side_thread = threading.Thread(
-        target=_physics_loop, args=(simulate, loader))
+        target=_physics_loop, args=(simulate, loader)
+    )
   else:
     side_thread = threading.Thread(
-        target=_reload, args=(simulate, loader, notify_loaded))
+        target=_reload, args=(simulate, loader, notify_loaded)
+    )
 
   def make_exit(simulate):
     def exit_simulate():
       simulate.exit()
+
     return exit_simulate
 
   exit_simulate = make_exit(simulate)
@@ -436,8 +566,7 @@ def launch_passive(
   if not isinstance(data, mujoco.MjData):
     raise ValueError(f'`data` is not a mujoco.MjData: got {data!r}')
   if key_callback is not None and not callable(key_callback):
-    raise ValueError(
-        f'`key_callback` is not callable: got {key_callback!r}')
+    raise ValueError(f'`key_callback` is not callable: got {key_callback!r}')
 
   mujoco.mj_forward(model, data)
   handle_return = queue.Queue(1)
@@ -460,7 +589,8 @@ def launch_passive(
     if not isinstance(_MJPYTHON, _MjPythonBase):
       raise RuntimeError(
           '`launch_passive` requires that the Python script be run under '
-          '`mjpython` on macOS')
+          '`mjpython` on macOS'
+      )
     _MJPYTHON.launch_on_ui_thread(
         model,
         data,

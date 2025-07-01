@@ -20,13 +20,38 @@ import jax
 from jax import numpy as jp
 
 
+def matmul_unroll(a: jax.Array, b: jax.Array) -> jax.Array:
+  """Calculates a @ b via explicit cell value operations.
+
+  This is faster than XLA matmul for small matrices (e.g. 3x3, 4x4).
+
+  Args:
+    a: left hand of matmul operand
+    b: right hand of matmul operand
+
+  Returns:
+    the matrix product of the inputs.
+  """
+  c = []
+  for i in range(a.shape[0]):
+    row = []
+    for j in range(b.shape[1]):
+      s = 0.0
+      for k in range(a.shape[1]):
+        s += a[i, k] * b[k, j]
+      row.append(s)
+    c.append(row)
+
+  return jp.array(c)
+
+
 def norm(
     x: jax.Array, axis: Optional[Union[Tuple[int, ...], int]] = None
 ) -> jax.Array:
   """Calculates a linalg.norm(x) that's safe for gradients at x=0.
 
   Avoids a poorly defined gradient for jnp.linal.norm(0) see
-  https://github.com/google/jax/issues/3058 for details
+  https://github.com/jax-ml/jax/issues/3058 for details
   Args:
     x: A jnp.array
     axis: The axis along which to compute the norm
@@ -219,6 +244,11 @@ def inert_mul(i: jax.Array, v: jax.Array) -> jax.Array:
   ang = jp.dot(inr, v[:3]) + jp.cross(pos, v[3:])
   vel = mass * v[3:] - jp.cross(pos, v[:3])
   return jp.concatenate((ang, vel))
+
+
+def sign(x: jax.Array) -> jax.Array:
+  """Returns the sign of x in the set {-1, 1}."""
+  return jp.where(x < 0, -1, 1)
 
 
 def transform_motion(vel: jax.Array, offset: jax.Array, rotmat: jax.Array):

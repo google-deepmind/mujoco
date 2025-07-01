@@ -1,0 +1,41 @@
+<!-- Copyright 2024 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Pancake">
+  <include file="scene.xml"/>
+
+  <option timestep="0.001" solver="CG" tolerance="1e-6" integrator="implicitfast"/>
+
+  <size memory="10M"/>
+
+  <visual>
+    <map stiffness="100"/>
+  </visual>
+
+  <default>
+    <default class="wall">
+      <geom type="plane" size=".5 .5 .05"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <flexcomp type="disc" count="9 9 1" spacing=".1 .1 .1" pos="0 0 .5"
+              radius=".01" mass=".5" name="plate" dim="2">
+      <contact condim="3" solref="0.01 1" solimp=".95 .99 .0001"/>
+      <edge equality="true" damping="10"/>
+      <elasticity poisson="0" thickness="8e-3" young="3e5" elastic2d="bend"/>
+    </flexcomp>
+  </worldbody>
+</mujoco>

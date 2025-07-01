@@ -15,8 +15,6 @@
 #ifndef MUJOCO_SRC_ENGINE_ENGINE_SUPPORT_H_
 #define MUJOCO_SRC_ENGINE_ENGINE_SUPPORT_H_
 
-#include <stdint.h>
-
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
@@ -43,6 +41,8 @@ MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigne
 // set state
 MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
 
+// copy current state to the k-th model keyframe
+MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 
 //-------------------------- sparse chains ---------------------------------------------------------
 
@@ -107,17 +107,12 @@ int mj_jacSum(const mjModel* m, mjData* d, int* chain,
               int n, const int* body, const mjtNum* weight,
               const mjtNum point[3], mjtNum* jac, int flg_rot);
 
+// compute 3/6-by-nv Jacobian time derivative of global point attached to given body
+MJAPI void mj_jacDot(const mjModel* m, const mjData* d,
+                     mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body);
 
-//-------------------------- name functions --------------------------------------------------------
-
-// get string hash, see http://www.cse.yorku.ca/~oz/hash.html
-uint64_t mj_hashdjb2(const char* s, uint64_t n);
-
-// get id of object with the specified mjtObj type and name, returns -1 if id not found
-MJAPI int mj_name2id(const mjModel* m, int type, const char* name);
-
-// get name of object with the specified mjtObj type and id, returns NULL if name not found
-MJAPI const char* mj_id2name(const mjModel* m, int type, int id);
+// compute subtree angular momentum matrix
+MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 
 
 //-------------------------- inertia functions -----------------------------------------------------
@@ -125,41 +120,20 @@ MJAPI const char* mj_id2name(const mjModel* m, int type, int id);
 // convert sparse inertia matrix M into full matrix
 MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
 
+// multiply vector by inertia matrix (implementation)
+MJAPI void mj_mulM_impl(mjtNum* res, const mjtNum* vec, int nv, const mjtNum* M,
+                        const int* Madr, const int* parentid, const int* simplenum);
+
 // multiply vector by inertia matrix
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
-
-// multiply vector by inertia matrix for one dof island
-MJAPI void mj_mulM_island(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec,
-                          int island, int flg_vecunc);
 
 // multiply vector by (inertia matrix)^(1/2)
 MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
 // add inertia matrix to destination matrix
-//  destination can be sparse uncompressed, or dense when all int* are NULL
+//  destination can be sparse or dense when all int* are NULL
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
                    int* rownnz, int* rowadr, int* colind);
-
-// make inertia matrix M
-MJAPI void mj_makeMSparse(const mjModel* m, mjData* d, mjtNum* M,
-                          int* M_rownnz, int* M_rowadr, int* M_colind);
-
-// add inertia matrix to sparse destination matrix
-MJAPI void mj_addMSparse(const mjModel* m, mjData* d, mjtNum* dst,
-                         int* rownnz, int* rowadr, int* colind, mjtNum* M,
-                         int* M_rownnz, int* M_rowadr, int* M_colind);
-
-// add inertia matrix to dense destination matrix
-MJAPI void mj_addMDense(const mjModel* m, mjData* d, mjtNum* dst);
-
-
-//-------------------------- sparse system matrix conversion ---------------------------------------
-
-// dst[D] = src[M], handle different sparsity representations
-MJAPI void mj_copyM2DSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src);
-
-// dst[M] = src[D lower], handle different sparsity representations
-MJAPI void mj_copyD2MSparse(const mjModel* m, mjData* d, mjtNum* dst, const mjtNum* src);
 
 
 //-------------------------- perturbations ---------------------------------------------------------
@@ -185,6 +159,10 @@ MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
 
 //-------------------------- miscellaneous ---------------------------------------------------------
+
+// returns the smallest distance between two geoms
+MJAPI mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2,
+                             mjtNum distmax, mjtNum fromto[6]);
 
 // extract 6D force:torque for one contact, in contact frame
 MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);

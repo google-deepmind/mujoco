@@ -14,12 +14,12 @@
 
 #include "engine/engine_vis_interact.h"
 
-#include <math.h>
 #include <stddef.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_io.h"
@@ -223,16 +223,29 @@ void mjv_cameraInRoom(mjtNum* headpos, mjtNum* forward, mjtNum* up, const mjvSce
 
 // get frustum height at unit distance from camera; average left and right OpenGL cameras
 mjtNum mjv_frustumHeight(const mjvScene* scn) {
-  mjtNum height;
+  const mjvGLCamera* cam1 = scn->camera;
+  const mjvGLCamera* cam2 = scn->camera + 1;
 
-  // check znear
-  if (scn->camera[0].frustum_near < mjMINVAL || scn->camera[1].frustum_near < mjMINVAL) {
-    mjERROR("mjvScene frustum_near too small");
+  if (cam1->orthographic != cam2->orthographic) {
+    mjERROR("cannot average frustums of perspective and orthographic cameras");
   }
 
-  // add normalized height for left and right cameras
-  height = (scn->camera[0].frustum_top-scn->camera[0].frustum_bottom)/scn->camera[0].frustum_near +
-           (scn->camera[1].frustum_top-scn->camera[1].frustum_bottom)/scn->camera[1].frustum_near;
+  // get height
+  mjtNum height;
+  if (!cam1->orthographic) {
+    // check znear
+    if (cam1->frustum_near < mjMINVAL || cam2->frustum_near < mjMINVAL) {
+      mjERROR("mjvScene frustum_near too small");
+    }
+
+    // add normalized height for left and right cameras
+    height = (cam1->frustum_top - cam1->frustum_bottom) / cam1->frustum_near +
+             (cam2->frustum_top - cam2->frustum_bottom) / cam2->frustum_near;
+  } else {
+    // add height for left and right cameras
+    height = (cam1->frustum_top - cam1->frustum_bottom) +
+             (cam2->frustum_top - cam2->frustum_bottom);
+  }
 
   // average
   return 0.5*height;
@@ -241,7 +254,7 @@ mjtNum mjv_frustumHeight(const mjvScene* scn) {
 
 
 // rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_y)
-MJAPI void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
+void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
   mjtNum xaxis[2], yaxis[2];
 
   // forward-aligned y-axis
@@ -336,6 +349,9 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     // compute scaling: rendered lookat displacement = mouse displacement
     mju_sub3(dif, cam->lookat, headpos);
     scl = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
+
+    // multiply by mystery coefficient TODO: b/346130949
+    if (cam->orthographic) scl *= 0.15;
 
     // move lookat point in opposite direction
     mju_addToScl3(cam->lookat, vec, -scl);
@@ -481,7 +497,7 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     // get current model rotation
     mju_f2n(rotate, scn->rotate, 4);
 
-    // compose rotation, normalize and and set
+    // compose rotation, normalize and set
     mju_mulQuat(result, quat, rotate);
     mju_normalize4(result);
     mju_n2f(scn->rotate, result, 4);
@@ -523,8 +539,9 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   int sel = pert->select;
   mjtNum headpos[3], forward[3], dif[3];
 
-  mjtNum* jac = mj_stackAllocNum(d, 3*nv);
-  mjtNum* jacM2 = mj_stackAllocNum(d, 3*nv);
+  mjtNum* jac = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacM2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* sqrtInvD = mjSTACKALLOC(d, nv, mjtNum);
 
   // invalid selected body: return
   if (sel <= 0 || sel >= m->nbody) {
@@ -534,16 +551,19 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
 
   // compute selection point in world coordinates
   mjtNum selpos[3];
-  mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
+  mju_mulMatVec3(selpos, d->xmat+9*sel, pert->localpos);
   mju_addTo3(selpos, d->xpos+3*sel);
 
   // compute average spatial inertia at selection point
+  for (int i=0; i < nv; i++) {
+    sqrtInvD[i] = mju_sqrt(d->qLDiagInv[i]);
+  }
   mj_jac(m, d, jac, NULL, selpos, sel);
-  mj_solveM2(m, d, jacM2, jac, 3);
+  mj_solveM2(m, d, jacM2, jac, sqrtInvD, 3);
   mjtNum invmass = mju_dot(jacM2+0*nv, jacM2+0*nv, nv) +
                    mju_dot(jacM2+1*nv, jacM2+1*nv, nv) +
                    mju_dot(jacM2+2*nv, jacM2+2*nv, nv);
-  pert->localmass = 3 / mju_max(invmass, mjMINVAL);
+  pert->localmass = (invmass == 0) ? 1 : 3 / mju_max(invmass, mjMINVAL);
 
   // scale localmass with flex average number of edges per vertex
   if (pert->flexselect >= 0 && !m->flex_rigid[pert->flexselect]) {
@@ -562,6 +582,9 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
   // compute scaling: rendered pert->refselpos displacement = mouse displacement
   mju_sub3(dif, pert->refselpos, headpos);
   pert->scale = mjv_frustumHeight(scn) * mju_dot3(dif, forward);
+
+  // multiply by mystery coefficient TODO: b/346130949
+  if (scn->camera[0].orthographic) pert->scale *= 0.15;
 
   mj_freeStack(d);
 }
@@ -642,12 +665,13 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
   mjtNum *body_rotvel = bvel;
 
   // body rotational inertia
-  mjtNum inertia = 1.0/mju_max(mjMINVAL, m->body_invweight0[2*sel+1]);
+  mjtNum invweight = m->body_invweight0[2*sel+1];
+  mjtNum inertia = invweight ? 1.0/mju_max(mjMINVAL, invweight) : 1;
 
   if (((pert->active | pert->active2) & mjPERT_TRANSLATE)) {
     // compute selection point in world coordinates
     mjtNum selpos[3];
-    mju_rotVecMat(selpos, pert->localpos, d->xmat+9*sel);
+    mju_mulMatVec3(selpos, d->xmat+9*sel, pert->localpos);
     mju_addTo3(selpos, d->xpos+3*sel);
 
     // displacement of selection point from reference point
@@ -669,7 +693,7 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
     mju_addTo3(svel, body_linvel);
 
     // add critical damping force of selection point
-    mju_addToScl3(force, svel, -sqrtf(stiffness)*pert->localmass);
+    mju_addToScl3(force, svel, -mju_sqrt(stiffness)*pert->localmass);
 
     // torque on body com due to force
     mju_cross(torque, moment_arm, force);
@@ -677,7 +701,7 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
     // add critically damped torsional torque along displacement axis
     stiffness = m->vis.map.stiffnessrot;
     mju_normalize3(diff);
-    mju_addToScl3(torque, diff, -sqrtf(stiffness)*inertia*mju_dot3(diff, body_rotvel));
+    mju_addToScl3(torque, diff, -mju_sqrt(stiffness)*inertia*mju_dot3(diff, body_rotvel));
   }
 
   if (((pert->active | pert->active2) & mjPERT_ROTATE)) {
@@ -688,7 +712,7 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
     mju_negQuat(xiquat, xiquat);
     mju_mulQuat(difquat, pert->refquat, xiquat);
     mju_quat2Vel(torque, difquat, 1.0/(stiffness*inertia));
-    mju_addToScl3(torque, body_rotvel, -sqrtf(stiffness)*inertia);
+    mju_addToScl3(torque, body_rotvel, -mju_sqrt(stiffness)*inertia);
   }
 }
 
@@ -732,6 +756,12 @@ mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2) 
   cam.frustum_near   = 0.5f * (cam1->frustum_near + cam2->frustum_near);
   cam.frustum_far    = 0.5f * (cam1->frustum_far + cam2->frustum_far);
 
+  if (cam1->orthographic != cam2->orthographic) {
+    mjERROR("cannot average perspective and orthographic cameras");
+  } else {
+    cam.orthographic = cam1->orthographic;
+  }
+
   return cam;
 }
 
@@ -754,17 +784,31 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
   // compute frustum halfwidth so as to match viewport aspect ratio
   mjtNum halfwidth = 0.5*aspectratio*(cam.frustum_top - cam.frustum_bottom);
 
-  // construct ray
+  // compute up and left offsets from normalized cursor
+  mjtNum d_up = cam.frustum_bottom + rely*(cam.frustum_top-cam.frustum_bottom);
+  mjtNum d_left = -(cam.frustum_center + (2*relx-1)*halfwidth);
+
+  // define ray
   mjtNum ray[3];
-  mju_scl3(ray, forward, cam.frustum_near);
-  mju_addToScl3(ray, up, cam.frustum_bottom + rely*(cam.frustum_top-cam.frustum_bottom));
-  mju_addToScl3(ray, left, -(cam.frustum_center + (2*relx-1)*halfwidth));
-  mju_normalize3(ray);
+
+  // construct ray for orthographic camera: fixed direction, modify pos
+  if (cam.orthographic) {
+    mju_copy3(ray, forward);
+    mju_addToScl3(pos, up, d_up);
+    mju_addToScl3(pos, left, d_left);
+  }
+
+  // construct ray for perspective camera: fixed pos, modify direction
+  else {
+    mju_scl3(ray, forward, cam.frustum_near);
+    mju_addToScl3(ray, up, d_up);
+    mju_addToScl3(ray, left, d_left);
+    mju_normalize3(ray);
+  }
 
   // find intersection with geoms
   *geomid = -1;
-  mjtNum geomdist = mj_ray(m, d, pos, ray, vopt->geomgroup,
-                           vopt->flags[mjVIS_STATIC], -1, geomid);
+  mjtNum geomdist = mj_ray(m, d, pos, ray, vopt->geomgroup, vopt->flags[mjVIS_STATIC], -1, geomid);
 
   // find intersection with flexes
   int flexbodyid = -1;
@@ -784,9 +828,24 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
       // update if closer intersection found
       if (newdist >= 0 && (newdist < flexdist || flexdist < 0)) {
         flexdist = newdist;
-        flexbodyid = m->flex_vertbodyid[m->flex_vertadr[i] + vertid];
+        if (m->flex_interp[i]) {
+          mjtNum* vert0 = m->flex_vert0 + 3*(m->flex_vertadr[i] + vertid);
+          int l = vert0[0] > 0.5 ? 1 : 0;
+          int j = vert0[1] > 0.5 ? 1 : 0;
+          int k = vert0[2] > 0.5 ? 1 : 0;
+          int nodeid = 4*l+2*j+k;
+          flexbodyid = m->flex_nodebodyid[m->flex_nodeadr[i] + nodeid];
+          if (m->flex_centered[i]) {
+            mju_copy3(flexpnt, d->xpos + 3*flexbodyid);
+          } else {
+            mju_mulMatVec3(flexpnt, d->xmat + 9*flexbodyid, m->flex_node + 3*nodeid);
+            mju_addTo3(flexpnt, d->xpos + 3*flexbodyid);
+          }
+        } else {
+          flexbodyid = m->flex_vertbodyid[m->flex_vertadr[i] + vertid];
+          mju_copy3(flexpnt, d->flexvert_xpos + 3*(m->flex_vertadr[i] + vertid));
+        }
         *flexid = i;
-        mju_copy3(flexpnt, d->flexvert_xpos + 3*(m->flex_vertadr[i] + vertid));
       }
     }
   }
@@ -849,7 +908,6 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
       }
     }
   }
-
 
   // geom
   if (best == 0) {

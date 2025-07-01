@@ -17,7 +17,6 @@
 #include <array>
 #include <cstdint>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <optional>
 
@@ -29,6 +28,7 @@
 #include "functions.h"
 #include "private.h"
 #include "raw.h"
+#include "structs.h"
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -106,11 +106,12 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_defaultOption>(pymodule);
   Def<traits::mj_defaultVisual>(pymodule);
   // Skipped: mj_copyModel (have MjModel.__copy__, memory managed by MjModel)
-  DEF_WITH_OMITTED_PY_ARGS(traits::mj_saveModel, "buffer_sz")(
-      pymodule,
-      [](const raw::MjModel* m, const std::optional<std::string>& filename,
-         std::optional<
-             Eigen::Ref<Eigen::Vector<std::uint8_t, Eigen::Dynamic>>> buffer) {
+  pymodule.def(
+      "mj_saveModel",
+      [](const MjModelWrapper& m,
+         const std::optional<std::string>& filename = std::nullopt,
+         std::optional<Eigen::Ref<Eigen::Vector<std::uint8_t, Eigen::Dynamic>>>
+             buffer = std::nullopt) {
         void* buffer_ptr = nullptr;
         int buffer_sz = 0;
         if (buffer.has_value()) {
@@ -118,9 +119,12 @@ PYBIND11_MODULE(_functions, pymodule) {
           buffer_sz = buffer->size();
         }
         return InterceptMjErrors(::mj_saveModel)(
-            m, filename.has_value() ? filename->c_str() : nullptr,
+            m.get(), filename.has_value() ? filename->c_str() : nullptr,
             buffer_ptr, buffer_sz);
-      });
+      },
+      py::arg("m"), py::arg_v("filename", std::nullopt),
+      py::arg_v("buffer", std::nullopt), py::doc(traits::mj_saveModel::doc),
+      py::call_guard<py::gil_scoped_release>());
   // Skipped: mj_loadModel (have MjModel.from_binary_path)
   // Skipped: mj_deleteModel (have MjModel.__del__)
   Def<traits::mj_sizeModel>(pymodule);
@@ -207,6 +211,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_tendon>(pymodule);
   Def<traits::mj_transmission>(pymodule);
   Def<traits::mj_crb>(pymodule);
+  Def<traits::mj_makeM>(pymodule);
   Def<traits::mj_factorM>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_solveM, "n")(
       pymodule,
@@ -230,7 +235,7 @@ PYBIND11_MODULE(_functions, pymodule) {
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_solveM2, "n")(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d, Eigen::Ref<EigenArrayXX> x,
-         Eigen::Ref<const EigenArrayXX> y) {
+         Eigen::Ref<const EigenArrayXX> y, Eigen::Ref<const EigenArrayXX> sqrtInvD) {
         if (x.rows() != y.rows()) {
           throw py::type_error(
               "the first dimension of x and y should be of the same size");
@@ -243,8 +248,12 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw py::type_error(
               "the last dimension of y should be of size nv");
         }
+        if (sqrtInvD.size() != m->nv) {
+          throw py::type_error(
+              "the size of sqrtInvD should be nv");
+        }
         return InterceptMjErrors(::mj_solveM2)(
-            m, d, x.data(), y.data(), y.rows());
+            m, d, x.data(), y.data(), sqrtInvD.data(), y.rows());
       });
   Def<traits::mj_comVel>(pymodule);
   Def<traits::mj_passive>(pymodule);
@@ -298,6 +307,7 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
         return InterceptMjErrors(::mj_setState)(m, d, state.data(), spec);
       });
+  Def<traits::mj_setKeyframe>(pymodule);
   Def<traits::mj_addContact>(pymodule);
   Def<traits::mj_isPyramidal>(pymodule);
   Def<traits::mj_isSparse>(pymodule);
@@ -444,6 +454,34 @@ PYBIND11_MODULE(_functions, pymodule) {
             jacr.has_value() ? jacr->data() : nullptr,
             &(*point)[0], &(*axis)[0], body);
       });
+  Def<traits::mj_jacDot>(
+      pymodule,
+      [](const raw::MjModel* m, raw::MjData* d,
+         std::optional<Eigen::Ref<EigenArrayXX>> jacp,
+         std::optional<Eigen::Ref<EigenArrayXX>> jacr,
+         const mjtNum (*point)[3], int body) {
+        if (jacp.has_value() &&
+            (jacp->rows() != 3 || jacp->cols() != m->nv)) {
+          throw py::type_error("jacp should be of shape (3, nv)");
+        }
+        if (jacr.has_value() &&
+            (jacr->rows() != 3 || jacr->cols() != m->nv)) {
+          throw py::type_error("jacr should be of shape (3, nv)");
+        }
+        return InterceptMjErrors(::mj_jacDot)(
+            m, d,
+            jacp.has_value() ? jacp->data() : nullptr,
+            jacr.has_value() ? jacr->data() : nullptr,
+            &(*point)[0], body);
+      });
+  Def<traits::mj_angmomMat>(
+      pymodule, [](const raw::MjModel* m, raw::MjData* d,
+                   Eigen::Ref<EigenArrayXX> mat, int body) {
+        if (mat.rows() != 3 || mat.cols() != m->nv) {
+          throw py::type_error("mat should be of shape (3, nv)");
+        }
+        return InterceptMjErrors(::mj_angmomMat)(m, d, mat.data(), body);
+      });
   Def<traits::mj_name2id>(pymodule);
   Def<traits::mj_id2name>(pymodule);
   Def<traits::mj_fullM>(
@@ -519,6 +557,18 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_objectVelocity>(pymodule);
   Def<traits::mj_objectAcceleration>(pymodule);
   Def<traits::mj_contactForce>(pymodule);
+  Def<traits::mj_geomDistance>(
+      pymodule,
+      [](const raw::MjModel* m, const raw::MjData* d,
+         int geom1, int geom2, mjtNum distmax,
+         std::optional<Eigen::Ref<EigenArrayXX>> fromto) {
+        if (fromto.has_value() && fromto->size() != 6) {
+          throw py::type_error("fromto should be of size 6");
+        }
+        return InterceptMjErrors(::mj_geomDistance)(
+            m, d, geom1, geom2, distmax,
+            fromto.has_value() ? fromto->data() : nullptr);
+      });
   Def<traits::mj_differentiatePos>(
       pymodule,
       [](const raw::MjModel* m, Eigen::Ref<EigenVectorX> qvel,
@@ -630,7 +680,6 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_defaultOption>(pymodule);
   Def<traits::mjv_defaultFigure>(pymodule);
   Def<traits::mjv_initGeom>(pymodule);
-  Def<traits::mjv_makeConnector>(pymodule);
   Def<traits::mjv_connector>(pymodule);
   // Skipped: mjv_defaultScene (have MjvScene.__init__, memory managed by
   // MjvScene).
@@ -673,8 +722,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_norm3>(pymodule);
   Def<traits::mju_dot3>(pymodule);
   Def<traits::mju_dist3>(pymodule);
-  Def<traits::mju_rotVecMat>(pymodule);
-  Def<traits::mju_rotVecMatT>(pymodule);
+  Def<traits::mju_mulMatVec3>(pymodule);
+  Def<traits::mju_mulMatTVec3>(pymodule);
   Def<traits::mju_cross>(pymodule);
   Def<traits::mju_zero4>(pymodule);
   Def<traits::mju_unit4>(pymodule);
@@ -974,6 +1023,44 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
   Def<traits::mju_transformSpatial>(pymodule);
 
+  // Sparse math
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_dense2sparse, "nr", "nc", "nnz")(
+      pymodule,
+      [](Eigen::Ref<EigenVectorX> res, Eigen::Ref<const EigenArrayXX> mat,
+         Eigen::Ref<EigenVectorI> rownnz, Eigen::Ref<EigenVectorI> rowadr,
+         Eigen::Ref<EigenVectorI> colind) {
+        if (mat.rows() != rownnz.size()) {
+          throw py::type_error("#rows in mat should equal size of rownnz");
+        }
+        if (mat.rows() != rowadr.size()) {
+          throw py::type_error("#rows in mat should equal size of rowadr");
+        }
+        if (res.size() != colind.size()) {
+          throw py::type_error("#size of res should equal size of colind");
+        }
+        return ::mju_dense2sparse(res.data(), mat.data(), mat.rows(),
+                                  mat.cols(), rownnz.data(), rowadr.data(),
+                                  colind.data(), res.size());
+      });
+
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_sparse2dense, "nr", "nc")(
+      pymodule,
+      [](Eigen::Ref<EigenArrayXX> res,
+         Eigen::Ref<const EigenVectorX> mat,
+         Eigen::Ref<const EigenVectorI> rownnz,
+         Eigen::Ref<const EigenVectorI> rowadr,
+         Eigen::Ref<const EigenVectorI> colind) {
+        if (res.rows() != rownnz.size()) {
+          throw py::type_error("#rows in res should equal size of rownnz");
+        }
+        if (res.rows() != rowadr.size()) {
+          throw py::type_error("#rows in res should equal size of rowadr");
+        }
+        return ::mju_sparse2dense(res.data(), mat.data(), res.rows(),
+                                  res.cols(), rownnz.data(), rowadr.data(),
+                                  colind.data());
+      });
+
   // Quaternions
   Def<traits::mju_rotVecQuat>(pymodule);
   Def<traits::mju_negQuat>(pymodule);
@@ -987,6 +1074,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mju_derivQuat>(pymodule);
   Def<traits::mju_quatIntegrate>(pymodule);
   Def<traits::mju_quatZ2Vec>(pymodule);
+  Def<traits::mju_mat2Rot>(pymodule);
+  Def<traits::mju_euler2Quat>(pymodule);
 
   // Poses
   Def<traits::mju_mulPose>(pymodule);
@@ -1353,15 +1442,36 @@ PYBIND11_MODULE(_functions, pymodule) {
             DsDa.has_value() ? DsDa->data() : nullptr,
             DmDq.has_value() ? DmDq->data() : nullptr);
       });
-  Def<traits::mjd_subQuat>(pymodule);
+  Def<traits::mjd_subQuat>(
+      pymodule,
+      [](Eigen::Ref<const EigenVectorX> qa, Eigen::Ref<const EigenVectorX> qb,
+         std::optional<Eigen::Ref<EigenArrayXX>> Da,
+         std::optional<Eigen::Ref<EigenArrayXX>> Db) {
+        if (qa.size() != 4) {
+          throw py::type_error("qa must have size 4");
+        }
+        if (qb.size() != 4) {
+          throw py::type_error("qb must have size 4");
+        }
+        if (Da.has_value() && Da->size() != 9) {
+          throw py::type_error("Da must have size 9");
+        }
+        if (Db.has_value() && Db->size() != 9) {
+          throw py::type_error("Db must have size 9");
+        }
+        return InterceptMjErrors(::mjd_subQuat)(
+            qa.data(), qb.data(),
+            Da.has_value() ? Da->data() : nullptr,
+            Db.has_value() ? Db->data() : nullptr);
+      });
   Def<traits::mjd_quatIntegrate>(pymodule);
 
   pymodule.def(
       "_realloc_con_efc",
-      [](MjDataWrapper& d, int ncon, int nefc) {
+      [](MjDataWrapper& d, int ncon, int nefc, int nJ) {
         raw::MjData* data = d.get();
 
-        auto cleanup = [](raw::MjData* data) {
+        auto cleanup = [](raw::MjData* data, int nJ) {
 #ifdef ADDRESS_SANITIZER
         ASAN_POISON_MEMORY_REGION(
             static_cast<char*>(data->arena),
@@ -1370,21 +1480,23 @@ PYBIND11_MODULE(_functions, pymodule) {
           data->parena = 0;
           data->ncon = 0;
           data->nefc = 0;
+          if (nJ > -1) data->nJ = 0;
           data->contact = static_cast<raw::MjContact*>(data->arena);
 #define X(type, name, nr, nc) data->name = nullptr;
-          MJDATA_ARENA_POINTERS_PRIMAL
+          MJDATA_ARENA_POINTERS_SOLVER
           MJDATA_ARENA_POINTERS_DUAL
 #undef X
         };
 
-        cleanup(data);
+        cleanup(data, nJ);
         data->ncon = ncon;
         data->nefc = nefc;
+        if (nJ > -1) data->nJ = nJ;
         data->contact =
             static_cast<raw::MjContact*>(InterceptMjErrors(::mj_arenaAllocByte)(
                 data, ncon * sizeof(raw::MjContact), alignof(raw::MjContact)));
         if (!data->contact) {
-          cleanup(data);
+          cleanup(data, nJ);
           throw FatalError("insufficient arena memory available");
         }
 
@@ -1396,11 +1508,11 @@ PYBIND11_MODULE(_functions, pymodule) {
   data->name = static_cast<type*>(InterceptMjErrors(::mj_arenaAllocByte)( \
       data, sizeof(type) * (nr) * (nc), alignof(type)));                  \
   if (!data->name) {                                                      \
-    cleanup(data);                                                        \
+    cleanup(data, nJ);                                                        \
     throw FatalError("insufficient arena memory available");              \
   }
 
-        MJDATA_ARENA_POINTERS_PRIMAL
+        MJDATA_ARENA_POINTERS_SOLVER
         if (mj_isDual(d.model().get())) {
           MJDATA_ARENA_POINTERS_DUAL
         }
@@ -1410,7 +1522,7 @@ PYBIND11_MODULE(_functions, pymodule) {
 #undef MJ_M
 #define MJ_M(x) x
       },
-      py::arg("d"), py::arg("ncon"), py::arg("nefc"),
+      py::arg("d"), py::arg("ncon"), py::arg("nefc"), py::arg("nJ") = -1,
       py::call_guard<py::gil_scoped_release>());
 }  // PYBIND11_MODULE NOLINT(readability/fn_size)
 }  // namespace

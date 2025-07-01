@@ -9,18 +9,18 @@ files (MJCF, URDF and included files), STL meshes, PNGs for textures and height 
 height field format. Model and resource files in the VFS can also be constructed programmatically (say using a Python
 library that writes to memory). Once all desired files are in the VFS, the user can call :ref:`mj_loadModel` or
 :ref:`mj_loadXML` with a pointer to the VFS. When this pointer is not NULL, the loaders will first check the VFS for any
-file they are about to load, and only access the disk if the file is not found in the VFS. The file names stored in the
-VFS have their name and extension but the path information is stripped; this can be bypassed however by using a custom
-path symbol in the file names, say "mydir_myfile.xml".
+files they are about to load, and only access the disk if the file is not found in the VFS.
 
-The entire VFS is contained in the data structure :ref:`mjVFS`. All utility functions for maintaining the VFS operate on
-this data structure. The common usage pattern is to first clear it with mj_defaultVFS, then add disk files to it with
-mj_addFileVFS (which allocates memory buffers and loads the file content in memory), then call mj_loadXML or
-mj_loadModel, and then clear everything with mj_deleteVFS.
+The VFS must first be allocated using :ref:`mj_defaultVFS` and must be freed with :ref:`mj_deleteVFS`.
+
+
+.. _mj_defaultVFS:
+
+Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VFS.
 
 .. _mj_addFileVFS:
 
-Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success, 1 when VFS is full,
+Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success,
 2 on name collision, or -1 when an internal error occurs.
 
 .. _Parseandcompile:
@@ -29,31 +29,67 @@ The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and c
 a valid mjModel, or NULL - in which case the user should check the error information in the user-provided string.
 The model and all files referenced in it can be loaded from disk or from a VFS when provided.
 
+.. _mj_compile:
+
+Compile :ref:`mjSpec` to :ref:`mjModel`. A spec can be edited and compiled multiple times, returning a new
+:ref:`mjModel` instance that takes the edits into account.
+If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read with :ref:`mjs_getError`.
+
+.. _mj_recompile:
+
+Recompile spec to model, preserving the state. Like :ref:`mj_compile`, this function compiles an :ref:`mjSpec` to an
+:ref:`mjModel`, with two differences. First, rather than returning an entirely new model, it will
+reallocate existing :ref:`mjModel` and :ref:`mjData` instances in-place. Second, it will preserve the
+:ref:`integration state<geIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
+newly added or removed degrees of freedom. This allows the user to continue simulation with the same model and data
+struct pointers while editing the model programmatically.
+
+:ref:`mj_recompile` returns 0 if compilation succeed. In the case of failure, the given :ref:`mjModel` and :ref:`mjData`
+instances will be deleted; as in :ref:`mj_compile`, the compilation error can be read with :ref:`mjs_getError`.
+
+.. _mj_saveLastXML:
+
+Update XML data structures with info from low-level model created with :ref:`mj_loadXML`, save as MJCF.
+If error is not NULL, it must have size error_sz.
+
+Note that this function only saves models that have been loaded with :ref:`mj_loadXML`, the legacy loading mechanism.
+See the :ref:`model editing<meOverview>` chapter to understand the difference between the old and new model loading and
+saving mechanisms.
+
+.. _mj_saveXMLString:
+
+Save spec to XML string, return 0 on success, -1 on failure. If the length of the output buffer is too small, returns
+the required size. XML saving automatically compiles the spec before saving.
+
+.. _mj_saveXML:
+
+Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
+
 .. _Mainsimulation:
 
 These are the main entry points to the simulator. Most users will only need to call :ref:`mj_step`, which computes
 everything and advanced the simulation state by one time step. Controls and applied forces must either be set in advance
-(in mjData.{ctrl, qfrc_applied, xfrc_applied}), or a control callback :ref:`mjcb_control` must be installed which will be
-called just before the controls and applied forces are needed. Alternatively, one can use :ref:`mj_step1` and
+(in ``mjData.{ctrl, qfrc_applied, xfrc_applied}``), or a control callback :ref:`mjcb_control` must be installed which
+will be called just before the controls and applied forces are needed. Alternatively, one can use :ref:`mj_step1` and
 :ref:`mj_step2` which break down the simulation pipeline into computations that are executed before and after the
 controls are needed; in this way one can set controls that depend on the results from :ref:`mj_step1`. Keep in mind
-though that the RK4 solver does not work with mj_step1/2.
+though that the RK4 solver does not work with mj_step1/2. See :ref:`Pipeline` for a more detailed description.
 
 mj_forward performs the same computations as :ref:`mj_step` but without the integration. It is useful after loading or
 resetting a model (to put the entire mjData in a valid state), and also for out-of-order computations that involve
 sampling or finite-difference approximations.
 
-mj_inverse runs the inverse dynamics, and writes its output in ``mjData.qfrc_inverse``. Note that ``mjData.qacc`` must
-be set before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration,
+:ref:`mj_inverse` runs the inverse dynamics, and writes its output in ``mjData.qfrc_inverse``. Note that ``mjData.qacc``
+must be set before calling this function. Given the state (qpos, qvel, act), mj_forward maps from force to acceleration,
 while mj_inverse maps from acceleration to force. Mathematically these functions are inverse of each other, but
 numerically this may not always be the case because the forward dynamics rely on a constraint optimization algorithm
 which is usually terminated early. The difference between the results of forward and inverse dynamics can be computed
-with the function :ref:`mj_compareFwdInv`, which can be thought of as another solver accuracy check (as well as a general
-sanity check).
+with the function :ref:`mj_compareFwdInv`, which can be thought of as another solver accuracy check (as well as a
+general sanity check).
 
 The skip version of :ref:`mj_forward` and :ref:`mj_inverse` are useful for example when qpos was unchanged but qvel was
 changed (usually in the context of finite differencing). Then there is no point repeating the computations that only
-depend on qpos. Calling the dynamics with skipstage = mjSTAGE_POS will achieve these savings.
+depend on qpos. Calling the dynamics with skipstage = :ref:`mjSTAGE_POS<mjtStage>` will achieve these savings.
 
 .. _Initialization:
 
@@ -77,8 +113,14 @@ Integrates the simulation state using an implicit-in-velocity integrator (either
 
 .. _Subcomponents:
 
-These are sub-components of the simulation pipeline, called internally from the components above. It is very unlikely
-that the user will need to call them.
+These are sub-components of the simulation pipeline, called internally from the components above.
+
+.. _mj_makeM:
+
+Compute the composite rigid body inertia with :ref:`mj_crb`, add terms due
+to :ref:`tendon armature<tendon-spatial-armature>`. The joint-space inertia matrix is stored in both ``mjData.qM`` and
+``mjData.M``. These arrays represent the same quantity using different layouts (parent-based and compressed sparse row,
+respectively).
 
 .. _mj_factorM:
 
@@ -165,13 +207,54 @@ degrees-of-freedom and a given point. Given a body specified by its integer id (
 frame (``point``) treated as attached to the body, the Jacobian has both translational (``jacp``) and rotational
 (``jacr``) components. Passing ``NULL`` for either pointer will skip that part of the computation. Each component is a
 3-by-nv matrix. Each row of this matrix is the gradient of the corresponding coordinate of the specified point with
-respect to the degrees-of-freedom. The ability to compute end-effector Jacobians efficiently and analytically is one of
-the advantages of working in minimal coordinates.
+respect to the degrees-of-freedom. The frame with respect to which the Jacobian is computed is centered at the body
+center-of-mass but aligned with the world frame. The minimal :ref:`pipeline stages<piForward>` required for Jacobian
+computations to be consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` followed
+by :ref:`mj_comPos`.
 
 .. _mj_jacBody:
 
 This and the remaining variants of the Jacobian function call mj_jac internally, with the center of the body, geom or
 site. They are just shortcuts; the same can be achieved by calling mj_jac directly.
+
+.. _mj_jacDot:
+
+This function computes the time-derivative of an end-effector kinematic Jacobian computed by :ref:`mj_jac`.
+The minimal :ref:`pipeline stages<piStages>` required for computation to be
+consistent with the current generalized positions and velocities ``mjData.{qpos, qvel}`` are
+:ref:`mj_kinematics`, :ref:`mj_comPos`, :ref:`mj_comVel` (in that order).
+
+.. _mj_angmomMat:
+
+This function computes the ``3 x nv`` angular momentum matrix :math:`H(q)`, providing the linear mapping from
+generalized velocities to subtree angular momentum. More precisely if :math:`h` is the subtree angular momentum of
+body index ``body`` in ``mjData.subtree_angmom`` (reported by the :ref:`subtreeangmom<sensor-subtreeangmom>` sensor)
+and :math:`\dot q` is the generalized velocity ``mjData.qvel``, then :math:`h = H \dot q`.
+
+.. _mj_name2id:
+
+Get id of object with the specified :ref:`mjtObj` type and name, returns -1 if id not found.
+
+.. _mj_id2name:
+
+Get name of object with the specified :ref:`mjtObj` type and id, returns ``NULL`` if name not found.
+
+.. _mj_geomDistance:
+
+Returns the smallest signed distance between two geoms and optionally the segment from ``geom1`` to ``geom2``.
+Returned distances are bounded from above by ``distmax``. |br| If no collision of distance smaller than ``distmax`` is
+found, the function will return ``distmax`` and ``fromto``, if given, will be set to (0, 0, 0, 0, 0, 0).
+
+   .. admonition:: different (correct) behavior under `nativeccd`
+      :class: note
+
+      As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
+      :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
+
+.. _mj_fullM:
+
+Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
+|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same size as ``mjData.qM``.
 
 .. _mj_mulM:
 
@@ -232,7 +315,7 @@ bodyexclude=-1 can be used to indicate that all bodies are included.
 
 .. _Interaction:
 
-These function implement abstract mouse interactions, allowing control over cameras and perturbations. Their use is well
+These functions implement abstract mouse interactions, allowing control over cameras and perturbations. Their use is well
 illustrated in :ref:`simulate<saSimulate>`.
 
 .. _mjv_select:
@@ -245,8 +328,8 @@ an illustration.
 
 .. _Visualization-api:
 
-The functions in this section implement abstract visualization. The results are used by the OpenGL rendered, and can
-also be used by users wishing to implement their own rendered, or hook up MuJoCo to advanced rendering tools such as
+The functions in this section implement abstract visualization. The results are used by the OpenGL renderer, and can
+also be used by users wishing to implement their own renderer, or hook up MuJoCo to advanced rendering tools such as
 Unity or Unreal Engine. See :ref:`simulate<saSimulate>` for illustration of how to use these functions.
 
 .. _OpenGLrendering:
@@ -288,7 +371,7 @@ depending on which UI item was modified and what the state of that item is after
 
 This function is called in the screen refresh loop. It copies the offscreen OpenGL buffer to the window framebuffer. If
 there are multiple UIs in the application, it should be called once for each UI. Thus ``mjui_render`` is called all the
-time, while :ref:`mjui_update` is called only when changes in the UI take place.
+time, while :ref:`mjui_update` is called only when changes in the UI take place. dsffsdg
 
 
 
@@ -509,6 +592,18 @@ Symmetrize square matrix :math:`R = \frac{1}{2}(M + M^T)`.
 
 .. _Miscellaneous:
 
+.. _mju_sigmoid:
+
+Twice continuously differentiable sigmoid function using a quintic polynomial:
+
+.. math::
+   s(x) =
+   \begin{cases}
+      0,                    &       & x \le 0  \\
+      6x^5 - 15x^4 + 10x^3, & 0 \lt & x \lt 1  \\
+      1,                    & 1 \le & x \qquad
+   \end{cases}
+
 .. _Derivatives-api:
 
 The functions below provide useful derivatives of various functions, both analytic and
@@ -517,11 +612,11 @@ outputs of derivative functions are the trailing rather than leading arguments.
 
 .. _mjd_transitionFD:
 
-Finite-differenced discrete-time transition matrices.
+Compute finite-differenced discrete-time transition matrices.
 
 Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
 vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
-values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`.
+values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`
 :ref:`mjd_transitionFD` computes the four associated Jacobians using finite-differencing.
 These matrices and their dimensions are:
 
@@ -538,9 +633,27 @@ These matrices and their dimensions are:
 - All outputs are optional (can be NULL).
 - ``eps`` is the finite-differencing epsilon.
 - ``flg_centered`` denotes whether to use forward (0) or centered (1) differences.
-- Accuracy can be somewhat improved if solver :ref:`iterations<option-iterations>` are set to a
-  fixed (small) value and solver :ref:`tolerance<option-tolerance>` is set to 0. This insures that
-  all calls to the solver will perform exactly the same number of iterations.
+- The Runge-Kutta integrator (:ref:`mjINT_RK4<mjtIntegrator>`) is not supported.
+
+.. admonition:: Improving speed and accuracy
+   :class: tip
+
+   warmstart
+     If warm-starts are not :ref:`disabled<option-flag-warmstart>`, the warm-start accelerations
+     ``mjData.qacc_warmstart`` which are present at call-time are loaded at the start of every relevant pipeline call,
+     to preserve determinism. If solver computations are an expensive part of the simulation, the following trick can
+     lead to significant speed-ups: First call :ref:`mj_forward` to let the solver converge, then reduce :ref:`solver
+     iterations<option-iterations>` significantly, then call :ref:`mjd_transitionFD`, finally, restore the original
+     value of :ref:`iterations<option-iterations>`. Because we are already near the solution, few iteration are required
+     to find the new minimum. This is especially true for the :ref:`Newton<option-solver>` solver, where the required
+     number of iteration for convergence near the minimum can be as low as 1.
+
+   tolerance
+      Accuracy can be improved if solver :ref:`tolerance<option-tolerance>` is set to 0. This means that all calls to
+      the solver will perform exactly the same number of iterations, preventing numerical errors due to early
+      termination. Of course, this means that :ref:`solver iterations<option-iterations>` should be small, to not tread
+      water at the minimum. This method and the one described above can and should be combined.
+
 
 .. _mjd_inverseFD:
 
@@ -573,6 +686,12 @@ using finite-differencing. These matrices and their dimensions are:
 - ``eps`` is the (forward) finite-differencing epsilon.
 - ``flg_actuation`` denotes whether to subtract actuation forces (``qfrc_actuator``) from the output of the inverse
   dynamics. If this flag is positive, actuator forces are not considered as external.
+- The model option flag ``invdiscrete`` should correspond to the representation of ``mjData.qacc`` in order to compute
+  the correct derivative information.
+
+.. attention::
+   - The Runge-Kutta 4th-order integrator (``mjINT_RK4``) is not supported.
+   - The noslip solver is not supported.
 
 .. _mjd_subQuat:
 
@@ -599,3 +718,8 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
+
+.. _mjs_delete:
+
+Delete object corresponding to the given element, return 0 on success. This function should only be used for element
+types that cannot have children, i.e. excluding bodies and default classes.

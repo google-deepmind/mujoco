@@ -11,6 +11,7 @@
   <asset>
     <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".8 .6 .4" rgb2=".2 .3 .4"/>
     <material name="grid" texture="grid" texrepeat="9 16" texuniform="false" reflectance=".2"/>
+    <texture type="skybox" builtin="flat" rgb1=".5 .5 1" height="1" width="1"/>
   </asset>
 
   <worldbody>

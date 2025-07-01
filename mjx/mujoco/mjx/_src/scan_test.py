@@ -55,21 +55,18 @@ class ScanTest(absltest.TestCase):
         <worldbody/>
       </mujoco>
     """)
-    m = mjx.device_put(m)
+    m = mjx.put_model(m)
 
     def fn(body_id):
       return body_id + 1
 
     b_in = jp.array([1])
-    b_expect = jp.array([2])
-    b_out = scan.flat(m, fn, 'b', 'b', b_in)
-
-    np.testing.assert_equal(np.array(b_out), np.array(b_expect))
+    self.assertRaises(ValueError, scan.flat, m, fn, 'b', 'b', b_in)
 
   def test_flat_joints(self):
     """Tests scanning over bodies with joints of different types."""
     m = mujoco.MjModel.from_xml_string(self._MULTI_DOF_XML)
-    m = mjx.device_put(m)
+    m = mjx.put_model(m)
 
     # we will test two functions:
     #   1) j_fn receives jnt_types as a jp array
@@ -90,6 +87,7 @@ class ScanTest(absltest.TestCase):
       if tuple(jnt_types) == (JointType.FREE,):
         return None
       return val + sum(jnt_types)
+
     b_expect = jp.array([[0, 0], [3, 3], [8, 8]])
     b_out = scan.flat(m, no_free, 'jb', 'b', m.jnt_type, b_in)
     np.testing.assert_equal(np.array(b_out), np.array(b_expect))
@@ -99,13 +97,14 @@ class ScanTest(absltest.TestCase):
       if jnt_types.size == 0:
         self.fail('world has no dofs, should not be called')
       return val + sum(jnt_types)
+
     v_in = jp.ones((m.nv, 1))
     scan.flat(m, no_world, 'jv', 'v', m.jnt_type, v_in)
 
   def test_body_tree(self):
     """Tests tree scanning over bodies with different joint counts."""
     m = mujoco.MjModel.from_xml_string(self._MULTI_DOF_XML)
-    m = mjx.device_put(m)
+    m = mjx.put_model(m)
 
     # we will test two functions:
     #   1) j_fn receives jnt_pos which is a jp array
@@ -141,6 +140,7 @@ class ScanTest(absltest.TestCase):
         return None
       carry = jp.zeros_like(val) if carry is None else carry
       return carry + val + sum(jnt_types)
+
     b_expect = jp.array([[0, 0], [3, 3], [8, 8]])
     b_out = scan.body_tree(m, no_free, 'jb', 'b', m.jnt_type, b_in)
     np.testing.assert_equal(np.array(b_out), np.array(b_expect))
@@ -193,10 +193,10 @@ class ScanTest(absltest.TestCase):
     </mujoco>
   """
 
-  def testscan_actuators(self):
+  def test_scan_actuators(self):
     """Tests scanning over actuators."""
     m = mujoco.MjModel.from_xml_string(self._MULTI_ACT_XML)
-    m = mjx.device_put(m)
+    m = mjx.put_model(m)
 
     fn = lambda *args: args
     args = (

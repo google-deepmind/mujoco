@@ -30,21 +30,19 @@ const int maxthread = 512;
 mjModel* m = NULL;
 mjData* d[maxthread];
 
-
 // per-thread statistics
 int contacts[maxthread];
 int constraints[maxthread];
-double simtime[maxthread];
+mjtNum iterations[maxthread];
+mjtNum simtime[maxthread];
 
-
-// timer
-std::chrono::steady_clock::time_point tm_start;
+// timer (microseconds)
 mjtNum gettm(void) {
-  std::chrono::duration<double, std::micro> elapsed;
-  elapsed = std::chrono::steady_clock::now() - tm_start;
-  return elapsed.count();
+  using Clock = std::chrono::steady_clock;
+  using Microseconds = std::chrono::duration<mjtNum, std::micro>;
+  static const Clock::time_point tm_start = Clock::now();
+  return Microseconds(Clock::now() - tm_start).count();
 }
-
 
 // deallocate and print message
 int finish(const char* msg = NULL, mjModel* m = NULL) {
@@ -85,9 +83,10 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
   // clear statistics
   contacts[id] = 0;
   constraints[id] = 0;
+  iterations[id] = 0;
 
   // run and time
-  double start = gettm();
+  mjtNum start = gettm();
   for (int i=0; i < nstep; i++) {
     // inject pseudo-random control noise
     mju_copy(d[id]->ctrl, ctrl + i*m->nu, m->nu);
@@ -98,6 +97,16 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
     // accumulate statistics
     contacts[id] += d[id]->ncon;
     constraints[id] += d[id]->nefc;
+    int nisland = mjMAX(1, mjMIN(d[id]->nisland, mjNISLAND));
+    if (nisland == 1 || nisland == 0) {
+      iterations[id] += d[id]->solver_niter[0];
+    } else {
+      mjtNum niter = 0;
+      for (int j=0; j < nisland; j++) {
+        niter += d[id]->solver_niter[j];
+      }
+      iterations[id] += niter / nisland;
+    }
   }
   simtime[id] = 1e-6 * (gettm() - start);
 }
@@ -126,7 +135,7 @@ int main(int argc, char** argv) {
   // read arguments
   int nstep = 10000, nthread = 0, npoolthread = 0;
   // inject small noise by default, to avoid fixed contact state
-  mjtNum ctrlnoise = 0.01;
+  double ctrlnoise = 0.01;
   if (argc > 2 && (std::sscanf(argv[2], "%d", &nstep) != 1 || nstep <= 0)) {
     return finish("Invalid nstep argument");
   }
@@ -149,7 +158,7 @@ int main(int argc, char** argv) {
 
   // get filename, determine file type
   std::string filename(argv[1]);
-  bool binary = (filename.find(".mjb") != std::string::npos);
+  bool binary = (filename.find(".mjb") != std::string::npos);  // NOLINT
 
   // load model
   char error[1000] = "Could not load binary model";
@@ -187,12 +196,21 @@ int main(int argc, char** argv) {
   mjcb_time = gettm;
 
   // print start
-  std::printf("\nRolling out %d steps%s, at dt = %g",
+  std::printf("\nRolling out %d steps%s at dt = %g",
               nstep,
               nthread > 1 ? " per thread" : "",
               m->opt.timestep);
+
+  // print precision
+  if (sizeof(mjtNum) == 4) {
+    std::printf(", using single precision");
+  } else {
+    std::printf(", using double precision");
+  }
+
+  // print threadpool size
   if (npoolthread > 1) {
-    std::printf(", using %d threads for engine-internal threadpool", npoolthread);
+    std::printf(", using %d threads", npoolthread);
   }
   std::printf("...\n\n");
 
@@ -222,14 +240,23 @@ int main(int argc, char** argv) {
     std::printf("Details for thread 0\n\n");
   }
 
+  // solver names indexed by mjtSolver
+  const char* solver[] = {"PGS", "CG", "Newton"};
+  const char* solto6[] = {"   ", "    ", ""};  // complete to 6 characters
+
   // details for thread 0
   std::printf(" Simulation time      : %.2f s\n", simtime[0]);
   std::printf(" Steps per second     : %.0f\n", nstep/simtime[0]);
   std::printf(" Realtime factor      : %.2f x\n", nstep*m->opt.timestep/simtime[0]);
   std::printf(" Time per step        : %.1f %ss\n\n", 1e6*simtime[0]/nstep, mu_str);
-  std::printf(" Contacts per step    : %.2f\n", static_cast<float>(contacts[0])/nstep);
-  std::printf(" Constraints per step : %.2f\n", static_cast<float>(constraints[0])/nstep);
-  std::printf(" Degrees of freedom   : %d\n\n", m->nv);
+  std::printf(" %s iters / step  %s: %.2f\n",
+              solver[m->opt.solver], solto6[m->opt.solver], iterations[0]/nstep);
+  std::printf(" Contacts / step      : %.2f\n", static_cast<float>(contacts[0])/nstep);
+  std::printf(" Constraints / step   : %.2f\n", static_cast<float>(constraints[0])/nstep);
+  std::printf(" Degrees of freedom   : %d\n", m->nv);
+  std::printf(" Dynamic memory usage : %.1f%% of %s\n\n",
+              100 * d[0]->maxuse_arena / (double)(d[0]->narena),
+              mju_writeNumBytes(d[0]->narena));
 
   // profiler, top-level
   printf(" Internal profiler%s, %ss per step\n", nthread > 1 ? " for thread 0" : "", mu_str);
@@ -278,7 +305,7 @@ int main(int argc, char** argv) {
 
     // components of mjTIMER_POS_COLLISION
     if (i == mjTIMER_POS_COLLISION) {
-      for (int j : {mjTIMER_COL_BROAD, mjTIMER_COL_MID, mjTIMER_COL_NARROW}) {
+      for (int j : {mjTIMER_COL_BROAD, mjTIMER_COL_NARROW}) {
         int number = d[0]->timer[j].number;
         mjtNum jstep = number ? d[0]->timer[j].duration/number : 0.0;
         mjtNum percent = number ? 100*jstep/tstep : 0.0;
