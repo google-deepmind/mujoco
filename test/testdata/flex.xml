@@ -1,5 +1,7 @@
 <mujoco model="flex">
-  <option timestep="0.01" integrator="implicitfast"/>
+  <option timestep="0.01" integrator="implicitfast">
+    <flag island="enable"/>
+  </option>
 
   <asset>
     <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="512" height="512"/>

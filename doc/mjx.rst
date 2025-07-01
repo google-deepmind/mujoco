@@ -206,7 +206,7 @@ The following features are **fully supported** in MJX:
    * - Category
      - Feature
    * - Dynamics
-     - :ref:`Forward <mj_forward>`
+     - :ref:`Forward <mj_forward>`, :ref:`Inverse <mj_inverse>`
    * - :ref:`Joint <mjtJoint>`
      - ``FREE``, ``BALL``, ``SLIDE``, ``HINGE``
    * - :ref:`Transmission <mjtTrn>`
@@ -235,8 +235,6 @@ The following features are **fully supported** in MJX:
      - 1, 3, 4, 6 (1 is not supported with ``ELLIPTIC``)
    * - :ref:`Solver <mjtSolver>`
      - ``CG``, ``NEWTON``
-   * - Dynamics
-     - :ref:`Inverse <mj_inverse>`
    * - Fluid Model
      - :ref:`flInertia`
    * - :ref:`Tendons <tendon>`
@@ -248,6 +246,8 @@ The following features are **fully supported** in MJX:
        ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``, ``TOUCH``, ``ACCELEROMETER``, ``FORCE``, ``TORQUE``,
        ``ACTUATORFRC``, ``JOINTACTFRC``, ``TENDONACTFRC``, ``FRAMELINACC``, ``FRAMEANGACC``
        (``ACCELEROMETER``, ``FORCE``, ``TORQUE`` not supported with connect or weld equality constraints)
+   * - Lights
+     - Positions and directions of lights
 
 The following features are **in development** and coming soon:
 
@@ -268,8 +268,6 @@ The following features are **in development** and coming soon:
      - :ref:`flEllipsoid`
    * - :ref:`Sensors <mjtSensor>`
      - All except ``PLUGIN``, ``USER``
-   * - Lights
-     - Positions and directions of lights
 
 The following features are **unsupported**:
 

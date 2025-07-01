@@ -213,14 +213,21 @@ TouchStress::TouchStress(const mjModel* m, mjData* d, int instance,
 
   // Get parent weld id.
   int site_id = m->sensor_objid[id_];
-  int parent_body = m->body_weldid[m->site_bodyid[site_id]];
+  int parent_body = m->site_bodyid[site_id];
   parent_weld_ = m->body_weldid[parent_body];
 
   // Get geom id.
-  if (m->body_geomnum[parent_body] != 1) {
-    mju_error("Touch sensor must be attached to a body with exactly one geom");
+  int collision_geoms = 0;
+  for (int i = 0; i < m->body_geomnum[parent_body]; ++i) {
+    int geom_id = m->body_geomadr[parent_body]+i;
+    if (m->geom_contype[geom_id] || m->geom_conaffinity[geom_id]) {
+      collision_geoms++;
+      geom_id_ = geom_id;
+    }
   }
-  geom_id_ = m->body_geomadr[parent_body];
+  if (collision_geoms == 0) {
+    mju_error("Touch sensor requires a body with at least one collision geom");
+  }
 
   // Create bin edges.
   x_edges_.assign(size[0] + 1, 0);
@@ -236,7 +243,7 @@ TouchStress::TouchStress(const mjModel* m, mjData* d, int instance,
       mjtNum aer[3];
       aer[0] = 0.5*(x_edges_[i+1]+x_edges_[i]);
       aer[1] = 0.5*(y_edges_[j+1]+y_edges_[j]);
-      aer[2] = m->geom_size[3*geom_id_];
+      aer[2] = m->geom_rbound[geom_id_];
       SphericalToCartesian(aer, pos_.data() + 3 * (i * size[1] + j));
       dist_[i*size[1]+j] = mju_abs(aer[2]);
       TangentFrame(aer, mat_.data() + 9 * (i * size[1] + j));
@@ -300,6 +307,11 @@ void TouchStress::Compute(const mjModel* m, mjData* d, int instance) {
     } else {
       sdf_instance[0] = geom;
       geomtype[0] = (mjtGeom)m->geom_type[geom];
+    }
+
+    // Skip mesh geoms.
+    if (geomtype[0] == mjGEOM_MESH) {
+      continue;
     }
 
     // Set SDF parameters.

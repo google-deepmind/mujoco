@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "./collisionAPI.h"
+#include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
 
-#include "pxr/usd/sdf/assetPath.h"
-#include "pxr/usd/sdf/types.h"
-#include "pxr/usd/usd/schemaRegistry.h"
-#include "pxr/usd/usd/typed.h"
+#include <pxr/usd/sdf/assetPath.h>
+#include <pxr/usd/sdf/types.h>
+#include <pxr/usd/usd/schemaRegistry.h>
+#include <pxr/usd/usd/typed.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 

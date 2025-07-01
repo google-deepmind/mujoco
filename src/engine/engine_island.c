@@ -141,29 +141,6 @@ int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, cons
 
 
 
-// return upper bound on number of tree-tree edges
-static int countMaxEdge(const mjModel* m, const mjData* d) {
-  int nedge_max = 0;
-  nedge_max += 2*d->ncon;  // contact: 2 edges
-  nedge_max += 2*d->ne;    // equality: 2 edges
-  nedge_max += d->nl;      // limit: 1 edges (always within same tree)
-  nedge_max += d->nf;      // joint friction: 1 edge (always within same tree)
-
-  // tendon limits and friction add up to tendon_num edges
-  for (int i=0; i < m->ntendon; i++) {
-    if (m->tendon_frictionloss[i]) {
-      nedge_max += m->tendon_num[i];
-    }
-    if (m->tendon_limited[i]) {
-      nedge_max += m->tendon_num[i];
-    }
-  }
-
-  return nedge_max;
-}
-
-
-
 // return id of next tree in Jacobian row i that is different from tree, -1 if not found
 //   start search from *index
 //   write the index of the found tree to *index
@@ -242,21 +219,27 @@ static int treeFirst(const mjModel* m, const mjData* d, int tree[2], int i) {
   if (efc_type == mjCNSTR_CONTACT_FRICTIONLESS ||
       efc_type == mjCNSTR_CONTACT_PYRAMIDAL ||
       efc_type == mjCNSTR_CONTACT_ELLIPTIC) {
-    tree[0] = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom[0]]];
-    tree[1] = m->body_treeid[m->geom_bodyid[d->contact[efc_id].geom[1]]];
+    int g1 = d->contact[efc_id].geom[0];
+    int g2 = d->contact[efc_id].geom[1];
 
-    // handle static bodies
-    if (tree[0] < 0) {
-      if (tree[1] < 0) {
-        mjERROR("contact %d is between two static bodies", efc_id);  // SHOULD NOT OCCUR
-      } else {
-        int tmp = tree[0];
-        tree[0] = tree[1];
-        tree[1] = tmp;
+    // no shortcut for flex contacts (handled in the generic case)
+    if (g1 >=0 && g2 >= 0) {
+      tree[0] = m->body_treeid[m->geom_bodyid[g1]];
+      tree[1] = m->body_treeid[m->geom_bodyid[g2]];
+
+      // handle static bodies
+      if (tree[0] < 0) {
+        if (tree[1] < 0) {
+          mjERROR("contact %d is between two static bodies", efc_id);  // SHOULD NOT OCCUR
+        } else {
+          int tmp = tree[0];
+          tree[0] = tree[1];
+          tree[1] = tmp;
+        }
       }
-    }
 
-    return -1;
+      return -1;
+    }
   }
 
   // connect or weld constraints
@@ -373,9 +356,12 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
 
   int nedge = 0;
   for (int i=0; i < nefc; i++) {
-    // row i is still in the same constraint: skip
+    // row i is still in the same constraint: skip it,
     if (efc_type == d->efc_type[i] && efc_id == d->efc_id[i]) {
-      continue;
+      // unless it is a flex equality, where the tree pattern changes per dof
+      if (!(efc_type == mjCNSTR_EQUALITY && m->eq_type[efc_id] == mjEQ_FLEX)) {
+        continue;
+      }
     }
     efc_type = d->efc_type[i];
     efc_id = d->efc_id[i];
@@ -425,21 +411,19 @@ void mj_island(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc, ntree=m->ntree;
 
   // no constraints: quick return
-  if (!nefc || m->nflex) {  // TODO: add flex support to island discovery
-    d->nisland = 0;
-    d->nidof = 0;
+  if (!mjENABLED(mjENBL_ISLAND) || !nefc) {
+    d->nisland = d->nidof = 0;
     return;
   }
 
   mj_markStack(d);
 
-  // allocate edge array
-  int nedge_max = countMaxEdge(m, d);
-  int* edge = mjSTACKALLOC(d, 2*nedge_max, int);
+  // allocate edge array, nJ is an upper bound
+  int* edge = mjSTACKALLOC(d, 2*d->nJ, int);
 
   // get tree-tree edges and rownnz counts from efc arrays
   int* rownnz = mjSTACKALLOC(d, ntree, int);  // number of edges per tree
-  int nedge = findEdges(m, d, rownnz, edge, nedge_max);
+  int nedge = findEdges(m, d, rownnz, edge, d->nJ);
 
   // compute starting address of tree's column indices while resetting rownnz
   int* rowadr = mjSTACKALLOC(d, ntree, int);

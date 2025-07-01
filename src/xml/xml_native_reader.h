@@ -18,13 +18,12 @@
 #include <sstream>
 #include <string>
 
-#include "tinyxml2.h"
-
 #include <mujoco/mujoco.h>
 #include <mujoco/mjspec.h>
 #include "user/user_util.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
+#include "tinyxml2.h"
 
 class mjXReader : public mjXBase {
  public:

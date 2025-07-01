@@ -14,9 +14,9 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <mujoco/experimental/usd.h>
+#include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
+#include <mujoco/experimental/usd/usd.h>
 #include <mujoco/mujoco.h>
-#include "src/experimental/usd/mjcPhysics/siteAPI.h"
 #include "test/fixture.h"
 #include <pxr/base/tf/token.h>
 #include <pxr/usd/sdf/path.h>

@@ -15,7 +15,7 @@
 # Build configuration for third party libraries used in MuJoCo.
 
 set(MUJOCO_DEP_VERSION_lodepng
-    b4ed2cd7ecf61d29076169b49199371456d4f90b
+    17d08dd26cac4d63f43af217ebd70318bfb8189c
     CACHE STRING "Version of `lodepng` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_tinyxml2
@@ -35,21 +35,21 @@ set(MUJOCO_DEP_VERSION_ccd
     CACHE STRING "Version of `ccd` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_qhull
-    0c8fc90d2037588024d9964515c1e684f6007ecc
+    c7bee59d068a69f427b1273e71cdc5bc455a5bdd
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
-    464c1d097891a1462ab28bf8bb763c1683883892
+    d0b490ee091629068e0c11953419eb089f9e6bb2
     CACHE STRING "Version of `Eigen3` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_abseil
-    d9e4955c65cd4367dd6bf46f4ccb8cd3d100540b # LTS 20250127.1
+    bc257a88f7c1939f24e0379f14a3589e926c950c # LTS 20250512.0
     CACHE STRING "Version of `abseil` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_gtest
-    6910c9d9165801d8827d628cb72eb7ea9dd538c5 # v1.16.0
+    52eb8108c5bdec04579160ae17225d66034bd723 # v1.17.0
     CACHE STRING "Version of `gtest` to be fetched."
 )
 

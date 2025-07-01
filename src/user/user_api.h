@@ -76,11 +76,6 @@ MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 MJAPI mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                              const char* prefix, const char* suffix);
 
-// Detach body from mjSpec, remove all references and delete the body, return 0 on success.
-MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
-
-// Detach default from mjSpec, remove all references and delete the default, return 0 on success.
-MJAPI int mjs_detachDefault(mjSpec* s, mjsDefault* d);
 
 //---------------------------------- Add tree elements ---------------------------------------------
 
@@ -108,8 +103,8 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
 
-// Delete object corresponding to the given element, return 0 on success.
-MJAPI int mjs_delete(mjsElement* element);
+// Remove object corresponding to the given element, return 0 on success.
+MJAPI int mjs_delete(mjSpec* s, mjsElement* element);
 
 
 //---------------------------------- Add non-tree elements -----------------------------------------
@@ -165,6 +160,37 @@ MJAPI mjsPlugin* mjs_addPlugin(mjSpec* s);
 // Add default.
 MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
 
+
+//---------------------------------- Set actuator parameters ---------------------------------------
+
+// Set actuator to motor, return error on failure.
+MJAPI const char* mjs_setToMotor(mjsActuator* actuator);
+
+// Set actuator to position, return error on failure.
+MJAPI const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
+                                    double dampratio[1], double timeconst[1], double inheritrange);
+
+// Set actuator to integrated velocity, return error on failure.
+MJAPI const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
+                                       double dampratio[1], double timeconst[1], double inheritrange);
+
+// Set actuator to velocity, return error on failure.
+MJAPI const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
+
+// Set actuator to damper, return error on failure.
+MJAPI const char* mjs_setToDamper(mjsActuator* actuator, double kv);
+
+// Set actuator to cylinder actuator, return error on failure.
+MJAPI const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst,
+                                    double bias, double area, double diameter);
+
+// Set actuator to muscle, return error on failure.
+MJAPI const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double tausmooth,
+                                  double range[2], double force, double scale, double lmin,
+                                  double lmax, double vmax, double fpmax, double fvmax);
+
+// Set actuator to adhesion, return error on failure.
+MJAPI const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 
 //---------------------------------- Add assets ----------------------------------------------------
 

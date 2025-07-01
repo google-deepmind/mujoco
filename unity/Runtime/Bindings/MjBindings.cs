@@ -110,7 +110,7 @@ public const int mjMAXLINEPNT = 1000;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
-public const int mjVERSION_HEADER = 333;
+public const int mjVERSION_HEADER = 334;
 
 
 // ------------------------------------Enums------------------------------------
@@ -5114,6 +5114,7 @@ public unsafe struct mjOption_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct global {
+  public int cameraid;
   public int orthographic;
   public float fovy;
   public float ipd;
@@ -5241,6 +5242,7 @@ public unsafe struct mjModel_ {
   public int nbvh;
   public int nbvhstatic;
   public int nbvhdynamic;
+  public int noct;
   public int njnt;
   public int ngeom;
   public int nsite;
@@ -5357,6 +5359,9 @@ public unsafe struct mjModel_ {
   public int* bvh_child;
   public int* bvh_nodeid;
   public double* bvh_aabb;
+  public int* oct_depth;
+  public int* oct_child;
+  public double* oct_aabb;
   public int* jnt_type;
   public int* jnt_qposadr;
   public int* jnt_dofadr;
@@ -5527,6 +5532,8 @@ public unsafe struct mjModel_ {
   public int* mesh_facenum;
   public int* mesh_bvhadr;
   public int* mesh_bvhnum;
+  public int* mesh_octadr;
+  public int* mesh_octnum;
   public int* mesh_normaladr;
   public int* mesh_normalnum;
   public int* mesh_texcoordadr;
@@ -6110,6 +6117,7 @@ public unsafe struct mjvOption_ {
   public fixed byte skingroup[6];
   public fixed byte flags[32];
   public int bvh_depth;
+  public int oct_depth;
   public int flex_layer;
 }
 

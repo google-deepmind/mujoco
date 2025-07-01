@@ -336,6 +336,7 @@ PYBIND11_MODULE(_simulate, pymodule) {
            CallIfNotNull(&mujoco::Simulate::LoadMessageClear),
            py::call_guard<py::gil_scoped_release>())
       .def("sync", CallIfNotNull(&mujoco::Simulate::Sync),
+           py::arg("state_only") = false,
            py::call_guard<py::gil_scoped_release>())
       .def("add_to_history", CallIfNotNull(&mujoco::Simulate::AddToHistory),
            py::call_guard<py::gil_scoped_release>())

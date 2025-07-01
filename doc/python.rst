@@ -50,25 +50,17 @@ Interactive viewer
 
 An interactive GUI viewer is provided as part of the Python package in the ``mujoco.viewer`` module. It is based on the
 same codebase as the :ref:`simulate<saSimulate>` application that ships with the MuJoCo binary releases. Three distinct
-use cases are supported:
-
-.. _PyViewerApp:
-
-Standalone app
---------------
-
-- ``python -m mujoco.viewer`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
-- ``python -m mujoco.viewer --mjcf=/path/to/some/mjcf.xml`` launches a visualization session for the specified
-  model file.
+use cases are supported: :ref:`managed viewer<PyViewerManaged>`, :ref:`standalone app<PyViewerApp>`, and :ref:`passive
+viewer<PyViewerPassive>`.
 
 .. _PyViewerManaged:
 
 Managed viewer
 --------------
 
-Called from a Python program/script, through the function ``viewer.launch``. This function *blocks user code* to
-support precise timing of the physics loop. This mode should be used if user code is implemented as
-:ref:`engine plugins<exPlugin>` or :ref:`physics callbacks<glPhysics>`, and is called by MuJoCo during :ref:`mj_step`.
+The ``viewer.launch`` function launches the interactive viewer and *blocks user code* which is useful to support precise
+timing of the physics loop. This mode should be used if user code is implemented as :ref:`engine
+plugins<exPlugin>` or :ref:`physics callbacks<glPhysics>`, and is called by MuJoCo during :ref:`mj_step`.
 
 - ``viewer.launch()`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
 - ``viewer.launch(model)`` launches a visualization session for the given ``mjModel`` where the visualizer
@@ -76,21 +68,33 @@ support precise timing of the physics loop. This mode should be used if user cod
 - ``viewer.launch(model, data)`` is the same as above, except that the visualizer operates directly on the given
   ``mjData`` instance -- upon exit the ``data`` object will have been modified.
 
+.. _PyViewerApp:
+
+Standalone app
+--------------
+
+The ``mujoco.viewer`` Python package uses the ``if __name__ == '__main__'`` mechanism to allow the :ref:`managed
+viewer<PyViewerManaged>` to be called directly from the command line as a standalone app:
+
+- ``python -m mujoco.viewer`` launches an empty visualization session, where a model can be loaded by drag-and-drop.
+- ``python -m mujoco.viewer --mjcf=/path/to/some/mjcf.xml`` launches a visualization session for the specified
+  model file.
+
 .. _PyViewerPassive:
 
 Passive viewer
 --------------
 
-By calling ``viewer.launch_passive(model, data)``. This function *does not block*, allowing user code to continue
-execution. In this mode, the user's script is responsible for timing and advancing the physics state, and mouse-drag
-perturbations will not work unless the user explicitly synchronizes incoming events.
+The ``viewer.launch_passive`` function launches the interactive viewer in a way which *does not block*, allowing user
+code to continue execution. In this mode, the user's script is responsible for timing and advancing the physics state,
+and mouse-drag perturbations will not work unless the user explicitly synchronizes incoming events.
 
 .. warning::
-  On MacOS, ``launch_passive`` requires that the user script is executed via a special ``mjpython`` launcher.
-  The ``mjpython`` command is installed as part of the ``mujoco`` package, and can be used as a drop-in replacement
-  for the usual ``python`` command and supports an identical set of command line flags and arguments. For example,
-  a script can be executed via ``mjpython my_script.py``, and an IPython shell can be launched via
-  ``mjpython -m IPython``.
+  On MacOS, ``launch_passive`` requires that the user script is executed via a special ``mjpython`` launcher, this is
+  needed to circumvent a platform limitation which requires the main thread to be one that does the rendering. The
+  ``mjpython`` command is installed as part of the ``mujoco`` package, and can be used as a drop-in replacement for the
+  usual ``python`` command and supports an identical set of command line flags and arguments. For example, a script can
+  be executed via ``mjpython my_script.py``, and an IPython shell can be launched via ``mjpython -m IPython``.
 
 The ``launch_passive`` function returns a handle which can be used to interact with the viewer. It has the following
 attributes:
@@ -103,10 +107,14 @@ attributes:
   state. These include the ``mjModel`` and ``mjData`` instance passed to ``launch_passive``, and also the ``cam``,
   ``opt``, and ``pert`` properties of the viewer handle.
 
-- ``sync()``: synchronizes state between ``mjModel``, ``mjData``, and GUI user inputs since the previous call to
-  ``sync``. In order to allow user scripts to make arbitrary modifications to ``mjModel`` and ``mjData`` without
-  needing to hold the viewer lock, the passive viewer does not access or modify these structs outside of ``sync``
-  calls.
+- ``sync(state_only=False)``: synchronizes between the user's ``mjModel``, ``mjData`` and the GUI. In order to allow
+  user scripts to make arbitrary modifications to ``mjModel`` and ``mjData`` without needing to hold the viewer lock,
+  the passive viewer does not access or modify these structs outside of ``sync`` calls. If the ``state_only`` argument
+  is ``True``, instead of syncing everything, only the ``mjData`` fields corresponding to
+  :ref:`mjSTATE_INTEGRATION<mjtState>` are synced, followed by a call to :ref:`mj_forward`. The latter option is much
+  faster, but would not pick up arbitrary changes as in the default case. Changes made via the GUI are picked up in
+  either case but changing e.g., ``mjModel.geom_rgba`` via code will be picked up when ``state_only=False`` but not when
+  ``state_only=True``.
 
   User scripts must call ``sync`` in order for the viewer to reflect physics state changes. The ``sync`` function
   also transfers user inputs from the GUI back into ``mjOption`` (inside ``mjModel``) and ``mjData``, including
@@ -603,11 +611,10 @@ Lists of all elements in a spec can be accessed using named properties, using th
 
 Element removal
 ^^^^^^^^^^^^^^^
-For elements that can have children (bodies and defaults), the methods ``spec.detach_body(body)`` and
-``spec.detach_default(def)`` remove, respectively, ``body`` and ``def`` from the spec, together with all of their
-children. When detaching body subtrees, all elements which reference elements in the subtree, will also be removed. For
-all other elements, the method ``delete()`` removes the corresponding element from the spec, e.g.
-``spec.geom('my_geom').delete()`` will remove the geom named "my_geom" and all of the elements that reference it.
+The method ``delete()`` removes the corresponding element from the spec, e.g. ``spec.delete(spec.geom('my_geom'))`` will
+remove the geom named "my_geom" and all of the elements that reference it. For elements that can have children (bodies
+and defaults), ``delete`` also removes all of their children. When deleting body subtrees, all elements which reference
+elements in the subtree, will also be removed.
 
 Tree traversal
 ^^^^^^^^^^^^^^
@@ -1061,5 +1068,5 @@ non-exhaustive list of specific mujoco-py features:
    This is the one context in which the MuJoCo library (and therefore also ``mujoco``) is stateful: it holds a copy in
    memory of the last XML that was compiled, which is used in :ref:`mujoco.mj_saveLastXML(fname) <mj_saveLastXML>`. Note
    that mujoco-py’s implementation has a convenient extra feature, whereby the pose (as determined by ``sim.data``’s
-   state) is transformed to a keyframe that’s added to the model before saving.  This extra feature is not currently
+   state) is transformed to a keyframe that’s added to the model before saving. This extra feature is not currently
    available in ``mujoco``.

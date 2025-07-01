@@ -277,9 +277,6 @@ class "PhysicsActuatorAPI" (
     uniform double mjc:crankLength = 0 (
         doc = "Used only for the slider-crank transmission type. Specifies the length of the connecting rod. The compiler expects this value to be positive when a slider-crank transmission is present."
     )
-    rel mjc:crankSite (
-        doc = "If specified, the actuator acts on a slider-crank mechanism which is implicitly determined by the actuator (i.e., it is not a separate model element). The target site corresponds to the pin joining the crank and the connecting rod."
-    )
     uniform token mjc:ctrlLimited = "auto" (
         allowedTokens = ["false", "true", "auto"]
         doc = "If true, the control input to this actuator is automatically clamped to ctrlrange at runtime. If false, control input clamping is disabled. If 'auto' and autolimits is set in compiler, control clamping will automatically be set to true if ctrlrange is defined without explicitly setting this attribute to 'true'. Note that control input clamping can also be globally disabled with the clampctrl attribute of option/flag."
@@ -331,6 +328,85 @@ class "PhysicsActuatorAPI" (
     )
     rel mjc:sliderSite (
         doc = "Used only for the slider-crank transmission type. The target site is the pin joining the slider and the connecting rod. The slider moves along the z-axis of the slidersite frame. Therefore the site should be oriented as needed when it is defined in the kinematic tree; its orientation cannot be changed in the actuator definition."
+    )
+}
+
+class Keyframe "Keyframe" (
+    doc = "Represents time independent keyframe values."
+)
+{
+    double[] mjc:act (
+        doc = "Vector of actuator activations, copied into mjData.act when the simulation state is set to this keyframe."
+    )
+    double[] mjc:ctrl (
+        doc = "Vector of controls, copied into mjData.ctrl when the simulation state is set to this keyframe."
+    )
+    double[] mjc:mpos (
+        doc = "Vector of mocap body positions, copied into mjData.mocap_pos when the simulation state is set to this keyframe."
+    )
+    double[] mjc:mquat (
+        doc = "Vector of mocap body quaternions, copied into mjData.mocap_quat when the simulation state is set to this keyframe."
+    )
+    double[] mjc:qpos (
+        doc = "Vector of joint positions, copied into mjData.qpos when the simulation state is set to this keyframe."
+    )
+    double[] mjc:qvel (
+        doc = "Vector of joint velocities, copied into mjData.qvel when the simulation state is set to this keyframe."
+    )
+}
+
+class "PhysicsJointsAPI" (
+    doc = "API describing a Mujoco joint."
+)
+{
+    uniform token mjc:actuatorfrclimited = "auto" (
+        allowedTokens = ["false", "true", "auto"]
+        doc = "This attribute specifies whether actuator forces acting on the joint should be clamped. See Force limits for details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. This attribute interacts with the actuatorfrcrange attribute. If this attribute is 'false', actuator force clamping is disabled. If it is 'true', actuator force clamping is enabled. If this attribute is 'auto', and autolimits is set in compiler, actuator force clamping will be enabled if actuatorfrcrange is defined."
+    )
+    uniform double mjc:actuatorfrcrange:max = 0 (
+        doc = "Maximum range for clamping total actuator forces acting on this joint. See Force limits for details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. The compiler expects the first value to be smaller than the second value. Setting this attribute without specifying actuatorfrclimited is an error if compiler-autolimits is 'false'."
+    )
+    uniform double mjc:actuatorfrcrange:min = 0 (
+        doc = "Minimum range for clamping total actuator forces acting on this joint. See Force limits for details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. The compiler expects the first value to be smaller than the second value. Setting this attribute without specifying actuatorfrclimited is an error if compiler-autolimits is 'false'."
+    )
+    uniform bool mjc:actuatorgravcomp = 0 (
+        doc = "If this flag is enabled, gravity compensation applied to this joint is added to actuator forces (mjData.qfrc_actuator) rather than passive forces (mjData.qfrc_passive). Notionally, this means that gravity compensation is the result of a control system rather than natural buoyancy. In practice, enabling this flag is useful when joint-level actuator force clamping is used. In this case, the total actuation force applied on a joint, including gravity compensation, is guaranteed to not exceed the specified limits. See Force limits and actuatorfrcrange for more details on this type of force limit."
+    )
+    uniform double mjc:armature = 0 (
+        doc = "Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually due to a rotor (a.k.a armature) spinning faster than the joint itself due to a geared transmission. The value applies to all degrees of freedom created by this joint. Besides increasing the realism of joints with geared transmission, positive armature significantly improves simulation stability, even for small values, and is a recommended possible fix when encountering stability issues."
+    )
+    uniform double mjc:damping = 0 (
+        doc = "Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles damping implicitly. See Integration in the Computation chapter."
+    )
+    uniform double mjc:frictionloss = 0 (
+        doc = "Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."
+    )
+    uniform double mjc:margin = 0 (
+        doc = "The distance threshold below which limits become active. Recall that the Constraint solver normally generates forces as soon as a constraint becomes active, even if the margin parameter makes that happen at a distance. This attribute together with solreflimit and solimplimit can be used to model a soft joint limit."
+    )
+    uniform double mjc:ref = 0 (
+        doc = "The reference position or angle of the joint. This attribute is only used for slide and hinge joints. It defines the joint value corresponding to the initial model configuration. The amount of spatial transformation that the joint applies at runtime equals the current joint value stored in mjData.qpos minus this reference value stored in mjModel.qpos0. The meaning of these vectors was discussed in the Stand-alone section in the Overview chapter."
+    )
+    uniform double[] mjc:solimpfriction = [0.9, 0.95, 0.001, 0.5, 2] (
+        doc = "Constraint solver parameters for simulating dry friction."
+    )
+    uniform double[] mjc:solimplimit = [0.9, 0.95, 0.001, 0.5, 2] (
+        doc = "Constraint solver parameters for simulating joint limits."
+    )
+    uniform double[] mjc:solreffriction = [0.02, 1] (
+        doc = "Constraint solver parameters for simulating dry friction."
+    )
+    uniform double[] mjc:solreflimit = [0.02, 1] (
+        doc = "Constraint solver parameters for simulating joint limits."
+    )
+    uniform double[] mjc:springdamper = [0, 0] (
+        doc = "When both numbers are positive, the compiler will override any stiffness and damping values specified with the attributes below, and will instead set them automatically so that the resulting mass-spring-damper for this joint has the desired time constant (first value) and damping ratio (second value). This is done by taking into account the joint inertia in the model reference configuration. Note that the format is the same as the solref parameter of the constraint solver."
+    )
+    uniform double mjc:springref = 0 (
+        doc = "The joint position or angle in which the joint spring (if any) achieves equilibrium. Similar to the vector mjModel.qpos0 which stores all joint reference values specified with the ref attribute above, all spring reference values specified with this attribute are stored in the vector mjModel.qpos_spring. The model configuration corresponding to mjModel.qpos_spring is also used to compute the spring reference lengths of all tendons, stored in mjModel.tendon_lengthspring. This is because tendons can also have springs."
+    )
+    uniform double mjc:stiffness = 0 (
+        doc = "Joint stiffness. If this value is positive, a spring will be created with equilibrium position given by springref below. The spring force is computed along with the other passive forces."
     )
 }
 

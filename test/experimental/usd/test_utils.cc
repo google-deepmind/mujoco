@@ -18,6 +18,8 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <pxr/base/gf/math.h>
+#include <pxr/base/gf/quatf.h>
 #include <pxr/base/tf/token.h>
 #include <pxr/usd/sdf/assetPath.h>
 #include <pxr/usd/sdf/childrenPolicies.h>
@@ -97,7 +99,8 @@ void ExpectAllAuthoredAttributesMatchSchemaTypes(const pxr::UsdPrim& prim) {
 
       for (const pxr::SdfPropertySpecHandle& spec : propStack) {
         // We only care about attribute specs.
-        if (auto attrSpec = TfDynamic_cast<pxr::SdfAttributeSpecHandle>(spec)) {
+        if (auto attrSpec =
+                pxr::TfDynamic_cast<pxr::SdfAttributeSpecHandle>(spec)) {
           // 3. Check if this spec has an authored `typeName`.
           if (attrSpec->HasField(pxr::SdfFieldKeys->TypeName)) {
             const pxr::TfToken authoredTypeName =
@@ -118,6 +121,21 @@ void ExpectAllAuthoredAttributesMatchSchemaTypes(const pxr::UsdPrim& prim) {
       }
     }
   }
+}
+
+bool AreQuatsSameRotation(const pxr::GfQuatf& q1, const pxr::GfQuatf& q2,
+                          float tolerance) {
+  // The dot product of two unit quaternions (q1 and q2) is cos(theta), where
+  // theta is the angle between them on the 4D hypersphere.
+  //
+  // If q1 is close to q2, dot(q1, q2) is close to 1.
+  // If q1 is close to -q2, dot(q1, q2) is close to -1.
+  //
+  // By taking the absolute value of the dot product, we can check for
+  // closeness to 1 to see if the quaternions are collinear, which is what
+  // we want. This works for both cases.
+  const float dot = pxr::GfDot(q1, q2);
+  return pxr::GfIsClose(pxr::GfAbs(dot), 1.0f, tolerance);
 }
 }  // namespace usd
 }  // namespace mujoco

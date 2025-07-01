@@ -129,7 +129,7 @@
       <geom geom="wrapping" sidesite="sidesite"/>
       <site site="anchor2"/>
     </spatial>
-    <spatial name="knee" limited="true" range=".4 .5" rgba="1 0 1 1">
+    <spatial name="knee" limited="true" range=".4 .5" rgba="1 0 1 1" armature="0.1">
       <site site="anchor_knee"/>
       <site site="knee_2"/>
     </spatial>

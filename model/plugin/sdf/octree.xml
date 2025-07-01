@@ -1,0 +1,31 @@
+<mujoco>
+  <compiler texturedir="asset"/>
+
+  <asset>
+    <texture name="texspot" type="2d" file="spot.png"/>
+    <material name="matspot" texture="texspot"/>
+    <mesh name="spot" file="asset/spot.obj"/>
+  </asset>
+
+  <option sdf_iterations="20" sdf_initpoints="40"/>
+
+  <visual>
+    <map force="1000"/>
+  </visual>
+
+  <default>
+    <geom solref="0.01 1" solimp=".95 .99 .0001" friction="0.5"/>
+  </default>
+
+  <statistic meansize="0.2"/>
+
+  <include file="scene.xml"/>
+
+  <worldbody>
+    <body euler="90 0 0" pos="0 0 .7">
+      <geom type="sdf" name="cow1" mesh="spot" material="matspot"/>
+    </body>
+    <light name="left" pos="0 0 1"/>
+    <light name="right" pos="1 0 1"/>
+  </worldbody>
+</mujoco>

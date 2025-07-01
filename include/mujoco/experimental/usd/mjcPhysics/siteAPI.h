@@ -12,59 +12,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MJCPHYSICS_GENERATED_COLLISIONAPI_H
-#define MJCPHYSICS_GENERATED_COLLISIONAPI_H
+#ifndef MJCPHYSICS_GENERATED_SITEAPI_H
+#define MJCPHYSICS_GENERATED_SITEAPI_H
 
-/// \file mjcPhysics/collisionAPI.h
+/// \file mjcPhysics/siteAPI.h
 
-#include "./api.h"
-#include "./tokens.h"
-#include "pxr/base/gf/matrix4d.h"
-#include "pxr/base/gf/vec3d.h"
-#include "pxr/base/gf/vec3f.h"
-#include "pxr/base/tf/token.h"
-#include "pxr/base/tf/type.h"
-#include "pxr/base/vt/value.h"
-#include "pxr/pxr.h"
-#include "pxr/usd/usd/apiSchemaBase.h"
-#include "pxr/usd/usd/prim.h"
-#include "pxr/usd/usd/stage.h"
+#include <mujoco/experimental/usd/mjcPhysics/api.h>
+#include <pxr/base/gf/matrix4d.h>
+#include <pxr/base/gf/vec3d.h>
+#include <pxr/base/gf/vec3f.h>
+#include <pxr/base/tf/token.h>
+#include <pxr/base/tf/type.h>
+#include <pxr/base/vt/value.h>
+#include <pxr/pxr.h>
+#include <pxr/usd/usd/apiSchemaBase.h>
+#include <pxr/usd/usd/prim.h>
+#include <pxr/usd/usd/stage.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
 class SdfAssetPath;
 
 // -------------------------------------------------------------------------- //
-// COLLISIONAPI                                                               //
+// SITEAPI                                                                    //
 // -------------------------------------------------------------------------- //
 
-/// \class MjcPhysicsCollisionAPI
+/// \class MjcPhysicsSiteAPI
 ///
-/// API describing a Mujoco collider.
+/// API describing a Mujoco site.
 ///
-class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
+class MjcPhysicsSiteAPI : public UsdAPISchemaBase {
  public:
   /// Compile time constant representing what kind of schema this class is.
   ///
   /// \sa UsdSchemaKind
   static const UsdSchemaKind schemaKind = UsdSchemaKind::SingleApplyAPI;
 
-  /// Construct a MjcPhysicsCollisionAPI on UsdPrim \p prim .
-  /// Equivalent to MjcPhysicsCollisionAPI::Get(prim.GetStage(), prim.GetPath())
+  /// Construct a MjcPhysicsSiteAPI on UsdPrim \p prim .
+  /// Equivalent to MjcPhysicsSiteAPI::Get(prim.GetStage(), prim.GetPath())
   /// for a \em valid \p prim, but will not immediately throw an error for
   /// an invalid \p prim
-  explicit MjcPhysicsCollisionAPI(const UsdPrim &prim = UsdPrim())
+  explicit MjcPhysicsSiteAPI(const UsdPrim &prim = UsdPrim())
       : UsdAPISchemaBase(prim) {}
 
-  /// Construct a MjcPhysicsCollisionAPI on the prim held by \p schemaObj .
-  /// Should be preferred over MjcPhysicsCollisionAPI(schemaObj.GetPrim()),
+  /// Construct a MjcPhysicsSiteAPI on the prim held by \p schemaObj .
+  /// Should be preferred over MjcPhysicsSiteAPI(schemaObj.GetPrim()),
   /// as it preserves SchemaBase state.
-  explicit MjcPhysicsCollisionAPI(const UsdSchemaBase &schemaObj)
+  explicit MjcPhysicsSiteAPI(const UsdSchemaBase &schemaObj)
       : UsdAPISchemaBase(schemaObj) {}
 
   /// Destructor.
   MJCPHYSICS_API
-  virtual ~MjcPhysicsCollisionAPI();
+  virtual ~MjcPhysicsSiteAPI();
 
   /// Return a vector of names of all pre-declared attributes for this schema
   /// class and all its ancestor classes.  Does not include attributes that
@@ -73,18 +72,17 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   static const TfTokenVector &GetSchemaAttributeNames(
       bool includeInherited = true);
 
-  /// Return a MjcPhysicsCollisionAPI holding the prim adhering to this
+  /// Return a MjcPhysicsSiteAPI holding the prim adhering to this
   /// schema at \p path on \p stage.  If no prim exists at \p path on
   /// \p stage, or if the prim at that path does not adhere to this schema,
   /// return an invalid schema object.  This is shorthand for the following:
   ///
   /// \code
-  /// MjcPhysicsCollisionAPI(stage->GetPrimAtPath(path));
+  /// MjcPhysicsSiteAPI(stage->GetPrimAtPath(path));
   /// \endcode
   ///
   MJCPHYSICS_API
-  static MjcPhysicsCollisionAPI Get(const UsdStagePtr &stage,
-                                    const SdfPath &path);
+  static MjcPhysicsSiteAPI Get(const UsdStagePtr &stage, const SdfPath &path);
 
   /// Returns true if this <b>single-apply</b> API schema can be applied to
   /// the given \p prim. If this schema can not be a applied to the prim,
@@ -106,11 +104,11 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   static bool CanApply(const UsdPrim &prim, std::string *whyNot = nullptr);
 
   /// Applies this <b>single-apply</b> API schema to the given \p prim.
-  /// This information is stored by adding "CollisionAPI" to the
+  /// This information is stored by adding "SiteAPI" to the
   /// token-valued, listOp metadata \em apiSchemas on the prim.
   ///
-  /// \return A valid MjcPhysicsCollisionAPI object is returned upon success.
-  /// An invalid (or empty) MjcPhysicsCollisionAPI object is returned upon
+  /// \return A valid MjcPhysicsSiteAPI object is returned upon success.
+  /// An invalid (or empty) MjcPhysicsSiteAPI object is returned upon
   /// failure. See \ref UsdPrim::ApplyAPI() for conditions
   /// resulting in failure.
   ///
@@ -121,7 +119,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// \sa UsdPrim::RemoveAPI()
   ///
   MJCPHYSICS_API
-  static MjcPhysicsCollisionAPI Apply(const UsdPrim &prim);
+  static MjcPhysicsSiteAPI Apply(const UsdPrim &prim);
 
  protected:
   /// Returns the kind of schema this class belongs to.
@@ -141,31 +139,6 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   // override SchemaBase virtuals.
   MJCPHYSICS_API
   const TfType &_GetTfType() const override;
-
- public:
-  // --------------------------------------------------------------------- //
-  // SHELLINERTIA
-  // --------------------------------------------------------------------- //
-  /// Enables handling of the inertia assuming mass is concentrated on the
-  /// surface.
-  ///
-  /// | ||
-  /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:shellinertia = 0` |
-  /// | C++ Type | bool |
-  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
-  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
-  MJCPHYSICS_API
-  UsdAttribute GetShellInertiaAttr() const;
-
-  /// See GetShellInertiaAttr(), and also
-  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
-  /// If specified, author \p defaultValue as the attribute's default,
-  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
-  /// the default for \p writeSparsely is \c false.
-  MJCPHYSICS_API
-  UsdAttribute CreateShellInertiaAttr(VtValue const &defaultValue = VtValue(),
-                                      bool writeSparsely = false) const;
 
  public:
   // ===================================================================== //

@@ -529,7 +529,7 @@ TEST_F(MjCMeshTest, TinyInertiaFails) {
       <mesh name="tiny" vertex="0 0 0  1e-4 0 0  0 1e-4 0  0 0 1e-4"/>
     </asset>
     <worldbody>
-      <body>
+      <body name="tiny_body">
         <freejoint/>
         <geom type="mesh" mesh="tiny"/>
       </body>
@@ -542,6 +542,7 @@ TEST_F(MjCMeshTest, TinyInertiaFails) {
       error.data(),
       HasSubstr(
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
+  EXPECT_THAT(error.data(), HasSubstr("Element name 'tiny_body'"));
 }
 
 TEST_F(MjCMeshTest, FlippedFaceAllowedLegacyInertia) {
@@ -1261,6 +1262,30 @@ TEST_F(MjCMeshTest, LoadSkin) {
   EXPECT_THAT(m2, NotNull());
   mj_deleteModel(m2);
   mj_deleteSpec(spec);
+}
+
+// ------------- test octree ---------------------------------------------------
+
+TEST_F(MjCMeshTest, Octree) {
+  const std::string xml_path = GetTestDataFilePath(kTorusPath);
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
+  mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
+  geom->type = mjGEOM_SDF;
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_GT(model->mesh_octnum[0], 0);
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, OctreeNotComputedForNonSDF) {
+  const std::string xml_path = GetTestDataFilePath(kTorusPath);
+  std::array<char, 1024> error;
+  mjModel* model = mj_loadXML(xml_path.c_str(), 0, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->noct, 0);
+  mj_deleteModel(model);
 }
 
 

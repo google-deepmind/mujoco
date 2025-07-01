@@ -139,6 +139,7 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   maxhullvert_ = -1;
   processed_ = false;
   visual_ = true;
+  needoct_ = false;
 
   // reset to default if given
   if (_def) {
@@ -406,6 +407,7 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
   }
   mesh->tree_ = tree_;
   mesh->face_aabb_ = face_aabb_;
+  mesh->octree_ = octree_;
 
   // calculate estimated size of mesh
   std::size_t size = sizeof(mjCMesh)
@@ -423,6 +425,7 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
                      + (sizeof(double) * 18)
                      + (sizeof(int) * ncenter)
                      + tree_.Size()
+                     + octree_.Size()
                      + (sizeof(double) * face_aabb_.size());
 
   std::shared_ptr<const void> cached_data(mesh, +[] (const void* data) {
@@ -680,6 +683,14 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     if (!file_.empty()) {
       CacheMesh(cache, resource_);
     }
+  }
+
+  // make octree
+  if (!needoct_) {
+    octree_.Clear();
+  } else if (octree_.Nodes().empty()) {
+    octree_.SetFace(vert_, face_);
+    octree_.CreateOctree(aamm_);
   }
 
   // close resource
@@ -1073,6 +1084,7 @@ bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
     }
     tree_ = mesh->tree_;
     face_aabb_ = mesh->face_aabb_;
+    octree_ = mesh->octree_;
     return true;
   };
 

@@ -230,10 +230,10 @@ class Handle:
       return sim.lock()
     return contextlib.nullcontext()
 
-  def sync(self):
+  def sync(self, state_only: bool = False):
     sim = self._get_sim()
     if sim is not None:
-      sim.sync()  # locks internally
+      sim.sync(state_only)  # locks internally
 
   def update_hfield(self, hfieldid: int):
     sim = self._get_sim()

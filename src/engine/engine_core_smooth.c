@@ -1469,9 +1469,12 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
 //-------------------------- inertia ---------------------------------------------------------------
 
-// add tendon armature to qM
+// add tendon armature to M
 void mj_tendonArmature(const mjModel* m, mjData* d) {
   int nv = m->nv, ntendon = m->ntendon, issparse = mj_isSparse(m);
+  const int* M_rownnz = d->M_rownnz;
+  const int* M_rowadr = d->M_rowadr;
+  const int* M_colind = d->M_colind;
 
   for (int k=0; k < ntendon; k++) {
     mjtNum armature = m->tendon_armature[k];
@@ -1482,11 +1485,19 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
 
     // dense
     if (!issparse) {
+      // M += armature * ten_J' * ten_J
       mjtNum* ten_J = d->ten_J + nv*k;
-      for (int i=0; i < m->nv; i++) {
-        int Madr = m->dof_Madr[i];
-        for (int j = i; j >= 0; j = m->dof_parentid[j]) {
-          d->qM[Madr++] += armature * ten_J[j] * ten_J[i];
+      for (int i=0; i < nv; i++) {
+        mjtNum ten_J_i = ten_J[i];
+        if (!ten_J_i) {
+          continue;
+        }
+
+        // M[i,:] += armature * ten_J[i] * ten_J
+        int start = M_rowadr[i];
+        int end = start + M_rownnz[i];
+        for (int adr = start; adr < end; adr++) {
+          d->M[adr] += armature * ten_J_i * ten_J[M_colind[adr]];
         }
       }
     }
@@ -1494,29 +1505,24 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
     // sparse
     else {
       // get sparse info for tendon k
-      int rowadr = d->ten_J_rowadr[k];
-      int rownnz = d->ten_J_rownnz[k];
-      const int* colind = d->ten_J_colind + rowadr;
-      mjtNum* ten_J = d->ten_J + rowadr;
+      int J_rowadr = d->ten_J_rowadr[k];
+      int J_rownnz = d->ten_J_rownnz[k];
+      const int* J_colind = d->ten_J_colind + J_rowadr;
+      mjtNum* ten_J = d->ten_J + J_rowadr;
 
-      // iterate forward on nonzero rows i
-      for (int adr_i=0; adr_i < rownnz; adr_i++) {
-        int i = colind[adr_i];
-        int Madr = m->dof_Madr[i];
-        int adr_j = rownnz - 1;
-
-        // iterate backward on ancestors of i, find matching column j
-        for (int j = i; j >= 0; j = m->dof_parentid[j]) {
-          // reduce adr_j until column index is no bigger than j
-          while (colind[adr_j] > j && adr_j >= 0) {
-            adr_j--;
-          }
-
-          // found match, update qM
-          if (colind[adr_j] == j) {
-            d->qM[Madr++] += armature * ten_J[adr_j] * ten_J[adr_i];
-          }
+      // M += armature * ten_J' * ten_J
+      for (int j=0; j < J_rownnz; j++) {
+        mjtNum ten_J_i = ten_J[j];
+        if (!ten_J_i) {
+          continue;
         }
+
+        // M[i,:] += armature * ten_J[i] * ten_J
+        int i = J_colind[j];
+        int M_adr = M_rowadr[i];
+        mju_addToSclSparseInc(d->M + M_adr, ten_J,
+                              M_rownnz[i], M_colind + M_adr,
+                              J_rownnz, J_colind, armature * ten_J_i);
       }
     }
   }
@@ -1526,22 +1532,22 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
 
 // composite rigid body inertia algorithm
 void mj_crb(const mjModel* m, mjData* d) {
+  int nv = m->nv;
   mjtNum buf[6];
   mjtNum* crb = d->crb;
-  int last_body = m->nbody - 1, nv = m->nv;
 
   // crb = cinert
   mju_copy(crb, d->cinert, 10*m->nbody);
 
   // backward pass over bodies, accumulate composite inertias
-  for (int i=last_body; i > 0; i--) {
+  for (int i=m->nbody - 1; i > 0; i--) {
     if (m->body_parentid[i] > 0) {
       mju_addTo(crb+10*m->body_parentid[i], crb+10*i, 10);
     }
   }
 
-  // clear qM
-  mju_zero(d->qM, m->nM);
+  // clear M
+  mju_zero(d->M, m->nC);
 
   // dense forward pass over dofs
   for (int i=0; i < nv; i++) {
@@ -1549,7 +1555,7 @@ void mj_crb(const mjModel* m, mjData* d) {
     if (m->dof_simplenum[i]) {
       int n = i + m->dof_simplenum[i];
       for (; i < n; i++) {
-        d->qM[m->dof_Madr[i]] = m->dof_M0[i];
+        d->M[d->M_rowadr[i]] = m->dof_M0[i];
       }
 
       // finish or else fall through with next row
@@ -1559,8 +1565,8 @@ void mj_crb(const mjModel* m, mjData* d) {
     }
 
     // init M(i,i) with armature inertia
-    int Madr_ij = m->dof_Madr[i];
-    d->qM[Madr_ij] = m->dof_armature[i];
+    int Madr_ij = d->M_rowadr[i] + d->M_rownnz[i] - 1;
+    d->M[Madr_ij] = m->dof_armature[i];
 
     // precompute buf = crb_body_i * cdof_i
     mju_mulInertVec(buf, crb+10*m->dof_bodyid[i], d->cdof+6*i);
@@ -1568,7 +1574,7 @@ void mj_crb(const mjModel* m, mjData* d) {
     // sparse backward pass over ancestors
     for (int j=i; j >= 0; j = m->dof_parentid[j]) {
       // M(i,j) += cdof_j * (crb_body_i * cdof_i)
-      d->qM[Madr_ij++] += mju_dot(d->cdof+6*j, buf, 6);
+      d->M[Madr_ij--] += mju_dot(d->cdof+6*j, buf, 6);
     }
   }
 }
@@ -1579,7 +1585,7 @@ void mj_makeM(const mjModel* m, mjData* d) {
   TM_START;
   mj_crb(m, d);
   mj_tendonArmature(m, d);
-  mju_gather(d->M, d->qM, d->mapM2M, m->nC);
+  mju_scatter(d->qM, d->M, d->mapM2M, m->nC);
   TM_END(mjTIMER_POS_INERTIA);
 }
 

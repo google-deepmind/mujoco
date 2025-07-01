@@ -36,6 +36,19 @@
 
 //---------------------------- primitives sdf ---------------------------------------------
 
+static void radialField3d(mjtNum field[3], const mjtNum a[3], const mjtNum x[3],
+                          const mjtNum size[3]) {
+  field[0] = -size[0] / a[0];
+  field[1] = -size[1] / a[1];
+  field[2] = -size[2] / a[2];
+  mju_normalize3(field);
+
+  // flip sign if necessary
+  if (x[0] < 0) field[0] = -field[0];
+  if (x[1] < 0) field[1] = -field[1];
+  if (x[2] < 0) field[2] = -field[2];
+}
+
 static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p,
                            int i, const mjtNum x[3], mjtGeom type) {
   mjtNum a[3], b[3];
@@ -48,13 +61,23 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
   case mjGEOM_SPHERE:
     return mju_norm3(x) - size[0];
   case mjGEOM_BOX:
+    // compute shortest distance to box surface if outside, otherwise
+    // intersect with a unit gradient that linearly rotates from radial to the face normals
     a[0] = mju_abs(x[0]) - size[0];
     a[1] = mju_abs(x[1]) - size[1];
     a[2] = mju_abs(x[2]) - size[2];
-    b[0] = mju_max(a[0], 0);
-    b[1] = mju_max(a[1], 0);
-    b[2] = mju_max(a[2], 0);
-    return mju_norm3(b) + mju_min(mju_max(a[0], mju_max(a[1], a[2])), 0);
+    if (a[0] >= 0 || a[1] >= 0 || a[2] >= 0) {
+      b[0] = mju_max(a[0], 0);
+      b[1] = mju_max(a[1], 0);
+      b[2] = mju_max(a[2], 0);
+      return mju_norm3(b) + mju_min(mju_max(a[0], mju_max(a[1], a[2])), 0);
+    }
+    radialField3d(b, a, x, size);
+    mjtNum t[3];
+    t[0] = -a[0] / mju_abs(b[0]);
+    t[1] = -a[1] / mju_abs(b[1]);
+    t[2] = -a[2] / mju_abs(b[2]);
+    return -mju_min(t[0], mju_min(t[1], t[2])) * mju_norm3(b);
   case mjGEOM_CAPSULE:
     a[0] = x[0];
     a[1] = x[1];
@@ -111,7 +134,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     int k = a[0] > a[1] ? 0 : 1;
     int l = a[2] > a[k] ? 2 : k;
     if (a[l] < 0) {
-      gradient[l] = x[l] / mju_abs(x[l]);
+      radialField3d(gradient, a, x, size);
     } else {
       b[0] = mju_max(a[0], 0);
       b[1] = mju_max(a[1], 0);

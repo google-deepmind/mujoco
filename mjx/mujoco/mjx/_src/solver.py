@@ -403,7 +403,9 @@ def _update_gradient(m: Model, d: Data, ctx: Context) -> Context:
     else:
       h = (d._impl.efc_J.T * d._impl.efc_D * ctx.active) @ d._impl.efc_J
     h = support.full_m(m, d) + h
-    h_ = jax.scipy.linalg.cho_factor(h)
+    # Symmetrize to reduce the chance of numerical issues in cholesky.
+    h_sym = (h + h.T) * 0.5
+    h_ = jax.scipy.linalg.cho_factor(h_sym)
     mgrad = jax.scipy.linalg.cho_solve(h_, grad)
   else:
     raise NotImplementedError(f'unsupported solver type: {m.opt.solver}')

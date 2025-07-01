@@ -18,7 +18,6 @@
 #include "src/engine/engine_util_misc.h"
 #include "src/engine/engine_util_sparse.h"
 
-#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -237,6 +236,7 @@ TEST_F(CoreSmoothTest, TendonArmature) {
 
     // put only CRB inertia in M2
     mj_crb(m, d);
+    mju_scatter(d->qM, d->M, d->mapM2M, m->nC);
     vector<mjtNum> M2(nv*nv);
     mj_fullM(m, M2.data(), d->qM);
 

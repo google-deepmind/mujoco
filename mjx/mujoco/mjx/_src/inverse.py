@@ -93,11 +93,15 @@ def inverse(m: Model, d: Data) -> Data:
     d = discrete_acc(m, d)
 
   d = inv_constraint(m, d)
-  d = smooth.rne(m, d, flg_acc=True)
+  d = smooth.rne(m, d)
+  d = smooth.tendon_bias(m, d)
   d = sensor.sensor_acc(m, d)
 
   qfrc_inverse = (
-      d.qfrc_bias + m.dof_armature * d.qacc - d.qfrc_passive - d.qfrc_constraint
+      d.qfrc_bias
+      + support.mul_m(m, d, d.qacc)
+      - d.qfrc_passive
+      - d.qfrc_constraint
   )
 
   if m.opt.enableflags & EnableBit.INVDISCRETE:

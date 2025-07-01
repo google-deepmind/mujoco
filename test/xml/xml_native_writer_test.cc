@@ -762,7 +762,7 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
         <frame pos="0 1 0" name="f2" childclass="dframe">
           <geom pos="0 1 0"/>
           <frame pos="0 1 0" name="f3">
-            <frame pos="0 1 0" name="f4">
+            <frame pos="0 1 0">
               <body pos="1 0 0">
                 <geom pos="0 0 1"/>
               </body>
@@ -791,16 +791,14 @@ TEST_F(XMLWriterTest, WritesFrameDefaults) {
       <frame name="f2" childclass="dframe">
         <geom pos="0 2 0"/>
         <frame name="f3" childclass="dframe">
-          <frame name="f4" childclass="dframe">
+          <frame childclass="dframe">
             <body pos="1 3 0">
               <geom pos="0 0 1"/>
             </body>
           </frame>
         </frame>
       </frame>
-      <frame>
-        <light pos="0 0 1" dir="0 0 -1"/>
-      </frame>
+      <light pos="0 0 1" dir="0 0 -1"/>
     </body>
     <frame name="f1">
       <geom size="0.5" quat="0.906308 0 0 0.422618"/>

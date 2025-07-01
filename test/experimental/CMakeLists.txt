@@ -12,7 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if(MUJOCO_BUILD_USD_PLUGINS AND MUJOCO_USD_TARGET STREQUAL "USD")
+# Only support testing when building against a standalone version of USD.
+if(MUJOCO_WITH_USD AND USD_DIR)
+  find_package(pxr REQUIRED)
+
+  add_library(usd_test_utils STATIC usd/test_utils.h usd/test_utils.cc)
+  target_include_directories(usd_test_utils PUBLIC ${MUJOCO_TEST_INCLUDE})
+  target_compile_definitions(usd_test_utils PUBLIC MJSTATIC)
+  target_link_libraries(
+    usd_test_utils
+    PUBLIC usd
+           tf
+           gtest
+           gmock
+           mujoco
+  )
+
   add_subdirectory(usd/plugins/mjcf)
 endif()
 

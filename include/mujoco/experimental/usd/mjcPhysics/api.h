@@ -15,7 +15,7 @@
 #ifndef MJCPHYSICS_API_H
 #define MJCPHYSICS_API_H
 
-#include "pxr/base/arch/export.h"
+#include <pxr/base/arch/export.h>
 
 #if defined(PXR_STATIC)
 #define MJCPHYSICS_API

@@ -48,6 +48,8 @@ from mujoco.mjx._src.smooth import rne
 from mujoco.mjx._src.smooth import rne_postconstraint
 from mujoco.mjx._src.smooth import subtree_vel
 from mujoco.mjx._src.smooth import tendon
+from mujoco.mjx._src.smooth import tendon_armature
+from mujoco.mjx._src.smooth import tendon_bias
 from mujoco.mjx._src.smooth import transmission
 from mujoco.mjx._src.solver import solve
 from mujoco.mjx._src.support import apply_ft

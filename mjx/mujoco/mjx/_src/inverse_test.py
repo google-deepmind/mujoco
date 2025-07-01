@@ -19,6 +19,7 @@ from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import support
+from mujoco.mjx._src import test_util
 import numpy as np
 
 # tolerance for difference between MuJoCo and MJX calculations - mostly
@@ -92,6 +93,41 @@ class InverseTest(parameterized.TestCase):
     if invdiscrete:
       dx = dx.replace(qacc=qacc_fd)
 
+    dxinv = mjx.inverse(mx, dx)
+
+    fwdinv0 = jp.linalg.norm(
+        dxinv.qfrc_constraint - dx.qfrc_constraint, ord=np.inf
+    )
+    fwdinv1 = jp.linalg.norm(
+        dxinv.qfrc_inverse
+        - (
+            dx.qfrc_applied + dx.qfrc_actuator + support.xfrc_accumulate(mx, dx)
+        ),
+        ord=np.inf,
+    )
+
+    self.assertLess(fwdinv0, 1.0e-3)
+    self.assertLess(fwdinv1, 1.0e-3)
+    _assert_eq(dxinv.qacc, dx.qacc, 'qacc')
+
+  def test_inverse_tendon_armature(self):
+    m = test_util.load_test_file('tendon/armature.xml')
+
+    d = mujoco.MjData(m)
+    d.qvel = np.random.uniform(low=-0.01, high=0.01, size=d.qvel.shape)
+    d.ctrl = np.random.uniform(low=-0.01, high=0.01, size=d.ctrl.shape)
+    d.qfrc_applied = np.random.uniform(
+        low=-0.01, high=0.01, size=d.qfrc_applied.shape
+    )
+    d.xfrc_applied = np.random.uniform(
+        low=-0.01, high=0.01, size=d.xfrc_applied.shape
+    )
+    mujoco.mj_step(m, d, 10)
+
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    dx = mjx.forward(mx, dx)
     dxinv = mjx.inverse(mx, dx)
 
     fwdinv0 = jp.linalg.norm(

@@ -41,24 +41,6 @@ using mujoco::user::StringToVector;
 static constexpr std::size_t kGlobalCacheSize = 500 * (1 << 20);
 
 
-// prepend prefix
-template <typename T>
-static T& operator+(std::string_view prefix, T& base) {
-  base.prefix = std::string(prefix);
-  return base;
-}
-
-
-
-// append suffix
-template <typename T>
-static T& operator+(T& base, std::string_view suffix) {
-  base.suffix = std::string(suffix);
-  return base;
-}
-
-
-
 // create model
 mjSpec* mj_makeSpec() {
   mjCModel* modelC = new mjCModel;
@@ -135,8 +117,11 @@ static void SetFrame(mjsBody* body, mjtObj objtype, mjsFrame* frame) {
 // attach body to a frame of the parent
 static mjsElement* attachBody(mjCFrame* parent, const mjCBody* child,
                               const char* prefix, const char* suffix) {
+  mjCBody* mutable_child = const_cast<mjCBody*>(child);
+  mutable_child->prefix = prefix;
+  mutable_child->suffix = suffix;
   try {
-    *parent += std::string(prefix) + *(mjCBody*)child + std::string(suffix);
+    *parent += *mutable_child;
   } catch (mjCError& e) {
     parent->model->SetError(e);
     return nullptr;
@@ -151,8 +136,11 @@ static mjsElement* attachBody(mjCFrame* parent, const mjCBody* child,
 // attach frame to a parent body
 static mjsElement* attachFrame(mjCBody* parent, const mjCFrame* child,
                                const char* prefix, const char* suffix) {
+  mjCFrame* mutable_child = const_cast<mjCFrame*>(child);
+  mutable_child->prefix = prefix;
+  mutable_child->suffix = suffix;
   try {
-    *parent += std::string(prefix) + *(mjCFrame*)child + std::string(suffix);
+    *parent += *mutable_child;
   } catch (mjCError& e) {
     parent->model->SetError(e);
     return nullptr;
@@ -295,37 +283,6 @@ const char* mjs_getError(mjSpec* s) {
 
 
 
-// detach body from mjSpec, return 0 on success
-int mjs_detachBody(mjSpec* s, mjsBody* b) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
-  mjCBody* body = static_cast<mjCBody*>(b->element);
-  try {
-    *model -= *body;
-  } catch (mjCError& e) {
-    model->SetError(e);
-    return -1;
-  }
-  model->Detach(body);
-  return 0;
-}
-
-// detach default from mjSpec, return 0 on success
-int mjs_detachDefault(mjSpec* s, mjsDefault* def) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  if (!def) {
-    modelC->SetError(mjCError(0, "Cannot detach, default is null"));
-    return -1;
-  }
-  mjCDef* defC = static_cast<mjCDef*>(def->element);
-  try {
-    *modelC -= *defC;
-  } catch (mjCError& e) {
-    modelC->SetError(e);
-    return -1;
-  }
-  return 0;
-}
-
 // check if model has warnings
 int mjs_isWarning(mjSpec* s) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
@@ -383,16 +340,20 @@ int mj_copyBack(mjSpec* s, const mjModel* m) {
 
 
 
-// delete object, return 0 on success
-int mjs_delete(mjsElement* element) {
-  mjCModel* model;
-  if (element->elemtype == mjOBJ_DEFAULT)
-    model = static_cast<mjCDef*>(element)->model;
-  else
-    model = static_cast<mjCBase*>(element)->model;
+// remove body from mjSpec, return 0 on success
+int mjs_delete(mjSpec* s, mjsElement* element) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (!element) {
+    model->SetError(mjCError(0, "Element is null."));
+    return -1;
+  }
   try {
-    // it will call the appropriate destructor since ~mjCBase is virtual
-    model->DeleteElement(element);
+    if (element->elemtype == mjOBJ_DEFAULT) {
+      mjCDef* def = static_cast<mjCDef*>(element);
+      *model -= *def;
+    } else {
+      *model -= element;
+    }
     return 0;
   } catch (mjCError& e) {
     model->SetError(e);
@@ -695,6 +656,188 @@ mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* p
 
 
 
+// set actuator to motor
+const char* mjs_setToMotor(mjsActuator* actuator) {
+  // unit gain
+  actuator->gainprm[0] = 1;
+
+  // implied parameters
+  actuator->dyntype = mjDYN_NONE;
+  actuator->gaintype = mjGAIN_FIXED;
+  actuator->biastype = mjBIAS_NONE;
+  return "";
+}
+
+
+
+// set to position actuator
+const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
+                              double dampratio[1], double timeconst[1], double inheritrange) {
+  actuator->gainprm[0] = kp;
+  actuator->biasprm[1] = -kp;
+
+  // set biasprm[2]; negative: regular damping, positive: dampratio
+  if (dampratio && kv) {
+    return "kv and dampratio cannot both be defined";
+  }
+
+  if (kv) {
+    if (*kv < 0) return "kv cannot be negative";
+    actuator->biasprm[2] = -(*kv);
+  }
+  if (dampratio) {
+    if (*dampratio < 0) return "dampratio cannot be negative";
+    actuator->biasprm[2] = *dampratio;
+  }
+  if (timeconst) {
+    if (*timeconst < 0) return "timeconst cannot be negative";
+    actuator->dynprm[0] = *timeconst;
+    actuator->dyntype = *timeconst == 0 ? mjDYN_NONE : mjDYN_FILTEREXACT;
+  }
+  actuator->inheritrange = inheritrange;
+
+  if (inheritrange > 0) {
+    if (actuator->ctrlrange[0] || actuator->ctrlrange[1]) {
+      return "ctrlrange and inheritrange cannot both be defined";
+    }
+  }
+
+  actuator->gaintype = mjGAIN_FIXED;
+  actuator->biastype = mjBIAS_AFFINE;
+  return "";
+}
+
+
+
+// Set to integrated velocity actuator.
+const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
+                                 double dampratio[1], double timeconst[1], double inheritrange) {
+  mjs_setToPosition(actuator, kp, kv, dampratio, timeconst, inheritrange);
+  actuator->dyntype = mjDYN_INTEGRATOR;
+  actuator->actlimited = 1;
+
+  if (inheritrange > 0) {
+    if (actuator->actrange[0] || actuator->actrange[1]) {
+      return "actrange and inheritrange cannot both be defined";
+    }
+  }
+  return "";
+}
+
+
+
+// Set to velocity actuator.
+const char* mjs_setToVelocity(mjsActuator* actuator, double kv) {
+  mjuu_zerovec(actuator->biasprm, mjNBIAS);
+  actuator->gainprm[0] = kv;
+  actuator->biasprm[2] = -kv;
+  actuator->dyntype = mjDYN_NONE;
+  actuator->gaintype = mjGAIN_FIXED;
+  actuator->biastype = mjBIAS_AFFINE;
+  return "";
+}
+
+
+
+// Set to damper actuator.
+const char* mjs_setToDamper(mjsActuator* actuator, double kv) {
+  mjuu_zerovec(actuator->gainprm, mjNGAIN);
+  actuator->gainprm[2] = -kv;
+  actuator->ctrllimited = 1;
+  actuator->dyntype = mjDYN_NONE;
+  actuator->gaintype = mjGAIN_AFFINE;
+  actuator->biastype = mjBIAS_NONE;
+
+  if (kv < 0) {
+    return "damping coefficient cannot be negative";
+  }
+  if (actuator->ctrlrange[0] < 0 || actuator->ctrlrange[1] < 0) {
+    return "damper control range cannot be negative";
+  }
+  return "";
+}
+
+
+
+// Set to cylinder actuator.
+const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst, double bias,
+                       double area, double diameter) {
+  actuator->dynprm[0] = timeconst;
+  actuator->biasprm[0] = bias;
+  actuator->gainprm[0] = area;
+  if (diameter >= 0) {
+    actuator->gainprm[0] = mjPI / 4 * diameter*diameter;
+  }
+  actuator->dyntype = mjDYN_FILTER;
+  actuator->gaintype = mjGAIN_FIXED;
+  actuator->biastype = mjBIAS_AFFINE;
+  return "";
+}
+
+
+
+// Set to muscle actuator.
+const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double tausmooth,
+                            double range[2], double force, double scale, double lmin,
+                            double lmax, double vmax, double fpmax, double fvmax) {
+  // set muscle defaults if same as global defaults
+  if (actuator->dynprm[0] == 1) actuator->dynprm[0] = 0.01;    // tau act
+  if (actuator->dynprm[1] == 0) actuator->dynprm[1] = 0.04;    // tau deact
+  if (actuator->gainprm[0] == 1) actuator->gainprm[0] = 0.75;  // range[0]
+  if (actuator->gainprm[1] == 0) actuator->gainprm[1] = 1.05;  // range[1]
+  if (actuator->gainprm[2] == 0) actuator->gainprm[2] = -1;    // force
+  if (actuator->gainprm[3] == 0) actuator->gainprm[3] = 200;   // scale
+  if (actuator->gainprm[4] == 0) actuator->gainprm[4] = 0.5;   // lmin
+  if (actuator->gainprm[5] == 0) actuator->gainprm[5] = 1.6;   // lmax
+  if (actuator->gainprm[6] == 0) actuator->gainprm[6] = 1.5;   // vmax
+  if (actuator->gainprm[7] == 0) actuator->gainprm[7] = 1.3;   // fpmax
+  if (actuator->gainprm[8] == 0) actuator->gainprm[8] = 1.2;   // fvmax
+
+  if (tausmooth < 0)
+    return "muscle tausmooth cannot be negative";
+
+  actuator->dynprm[2] = tausmooth;
+  if (timeconst[0] >= 0) actuator->dynprm[0] = timeconst[0];
+  if (timeconst[1] >= 0) actuator->dynprm[1] = timeconst[1];
+  if (range[0] >= 0) actuator->gainprm[0] = range[0];
+  if (range[1] >= 0) actuator->gainprm[1] = range[1];
+  if (force >= 0) actuator->gainprm[2] = force;
+  if (scale >= 0) actuator->gainprm[3] = scale;
+  if (lmin >= 0) actuator->gainprm[4] = lmin;
+  if (lmax >= 0) actuator->gainprm[5] = lmax;
+  if (vmax >= 0) actuator->gainprm[6] = vmax;
+  if (fpmax >= 0) actuator->gainprm[7] = fpmax;
+  if (fvmax >= 0) actuator->gainprm[8] = fvmax;
+
+  // biasprm = gainprm
+  for (int n=0; n < 9; n++) {
+    actuator->biasprm[n] = actuator->gainprm[n];
+  }
+
+  actuator->dyntype = mjDYN_MUSCLE;
+  actuator->gaintype = mjGAIN_MUSCLE;
+  actuator->biastype = mjBIAS_MUSCLE;
+  return "";
+}
+
+
+
+// Set to adhesion actuator.
+const char* mjs_setToAdhesion(mjsActuator* actuator, double gain) {
+  actuator->gainprm[0] = gain;
+  actuator->ctrllimited = 1;
+  actuator->gaintype = mjGAIN_FIXED;
+  actuator->biastype = mjBIAS_NONE;
+
+  if (gain < 0)
+    return "adhesion gain cannot be negative";
+  if (actuator->ctrlrange[0] < 0 || actuator->ctrlrange[1] < 0)
+    return "adhesion control range cannot be negative";
+  return "";
+}
+
+
+
 // get spec from body
 mjSpec* mjs_getSpec(mjsElement* element) {
   return &(static_cast<mjCBase*>(element)->model->spec);
@@ -766,6 +909,8 @@ mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name) {
     case mjOBJ_LIGHT:
     case mjOBJ_FRAME:
       return model->FindTree(model->GetWorld(), type, std::string(name));  // recursive search
+    case mjOBJ_TEXTURE:
+      return model->FindTexture(std::string(name));  // check filename too
     default:
       return model->FindObject(type, std::string(name));  // always available
   }
@@ -863,7 +1008,7 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
 mjsFrame* mjs_bodyToFrame(mjsBody** body) {
   mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
   mjCFrame* frameC = bodyC->ToFrame();
-  bodyC->model->Detach(bodyC);
+  *bodyC->model -= (*body)->element;
   *body = nullptr;
   return &frameC->spec;
 }

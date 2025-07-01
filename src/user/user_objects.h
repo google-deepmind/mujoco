@@ -206,9 +206,50 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
     // position of the element in the BVH axes
     double lpos[3];
   };
-
+  void Make(std::vector<BVElement>& elements);
   int MakeBVH(std::vector<BVElement>::iterator elements_begin,
               std::vector<BVElement>::iterator elements_end, int lev = 0);
+};
+
+
+
+//------------------------- class mjCOctree --------------------------------------------------------
+
+typedef std::array<std::array<double, 3>, 3> Triangle;
+
+struct mjCOctree_ {
+  int nnode_ = 0;
+  std::vector<int> child_;           // children of each node     (nnode x 8)
+  std::vector<double> node_;         // bounding boxes            (nnode x 6)
+  std::vector<int> level_;           // levels of each node       (nnode x 1)
+  std::vector<Triangle> face_;       // mesh faces                (nface x 3)
+  double ipos_[3] = {0, 0, 0};
+  double iquat_[4] = {1, 0, 0, 0};
+};
+
+class mjCOctree : public mjCOctree_ {
+ public:
+  void CreateOctree(const double aamm[6]);
+
+  int NumNodes() const { return nnode_; }
+  const std::vector<int>& Child() const { return child_; }
+  const std::vector<double>& Nodes() const { return node_; }
+  const std::vector<int>& Level() const { return level_; }
+  void SetFace(const std::vector<double>& vert, const std::vector<int>& face);
+  int Size() const {
+    return sizeof(int) * child_.size() + sizeof(double) * node_.size() +
+           sizeof(int) * level_.size() + sizeof(Triangle) * face_.size();
+  }
+  void Clear() {
+    child_.clear();
+    node_.clear();
+    level_.clear();
+    face_.clear();
+  }
+
+ private:
+  void Make(std::vector<Triangle>& elements);
+  int MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev = 0);
 };
 
 
@@ -388,8 +429,8 @@ class mjCBody : public mjCBody_, private mjsBody {
   friend class mjXURDF;
 
  public:
-  mjCBody(mjCModel*);  // constructor
-  ~mjCBody();          // destructor
+  explicit mjCBody(mjCModel*);
+  ~mjCBody();
 
   // API for adding objects to body
   mjCBody*    AddBody(mjCDef* = 0);
@@ -571,7 +612,7 @@ class mjCJoint : public mjCJoint_, private mjsJoint {
   friend class mjXURDF;
 
  public:
-  mjCJoint(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCJoint(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCJoint(const mjCJoint& other);
   mjCJoint& operator=(const mjCJoint& other);
 
@@ -651,7 +692,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   friend class mjXURDF;
 
  public:
-  mjCGeom(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCGeom(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCGeom(const mjCGeom& other);
   mjCGeom& operator=(const mjCGeom& other);
 
@@ -716,7 +757,7 @@ class mjCSite : public mjCSite_, private mjsSite {
   friend class mjXURDF;
 
  public:
-  mjCSite(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCSite(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCSite(const mjCSite& other);
   mjCSite& operator=(const mjCSite& other);
 
@@ -766,7 +807,7 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
   friend class mjXWriter;
 
  public:
-  mjCCamera(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCCamera(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCCamera(const mjCCamera& other);
   mjCCamera& operator=(const mjCCamera& other);
 
@@ -786,6 +827,7 @@ class mjCCamera : public mjCCamera_, private mjsCamera {
   void CopyFromSpec(void);
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
+  void ResolveReferences(const mjCModel* m);
 };
 
 
@@ -811,7 +853,7 @@ class mjCLight : public mjCLight_, private mjsLight {
   friend class mjXWriter;
 
  public:
-  mjCLight(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCLight(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCLight(const mjCLight& other);
   mjCLight& operator=(const mjCLight& other);
 
@@ -831,6 +873,7 @@ class mjCLight : public mjCLight_, private mjsLight {
   void CopyFromSpec(void);
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
+  void ResolveReferences(const mjCModel* m);
 };
 
 
@@ -895,7 +938,7 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
   friend class mjXWriter;
 
  public:
-  mjCFlex(mjCModel* = nullptr);
+  explicit mjCFlex(mjCModel* = nullptr);
   mjCFlex(const mjCFlex& other);
   mjCFlex& operator=(const mjCFlex& other);
 
@@ -963,6 +1006,7 @@ class mjCMesh_ : public mjCBase {
   std::vector<int> spec_facetexcoord_;
 
   // used by the compiler
+  bool needoct_;                                 // needs octree
   bool visual_;                                  // true: the mesh is only visual
   std::vector< std::pair<int, int> > halfedge_;  // half-edge data
 
@@ -983,8 +1027,12 @@ class mjCMesh_ : public mjCBase {
   bool needhull_;                     // needs convex hull for collisions
   int maxhullvert_;                   // max vertex count of convex hull
 
+  // bounding volume hierarchy tree
   mjCBoundingVolumeHierarchy tree_;   // bounding volume hierarchy
   std::vector<double> face_aabb_;     // bounding boxes of all faces
+
+  // octree
+  mjCOctree octree_;                  // octree of the mesh
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
@@ -995,7 +1043,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   friend class mjCModel;
 
  public:
-  mjCMesh(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCMesh(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCMesh(const mjCMesh& other);
   mjCMesh& operator=(const mjCMesh& other);
   ~mjCMesh();
@@ -1058,6 +1106,9 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
 
   // bounding volume hierarchy tree
   const mjCBoundingVolumeHierarchy& tree() { return tree_; }
+
+  // octree
+  const mjCOctree& octree() { return octree_; }
 
   void Compile(const mjVFS* vfs);                   // compiler
   double* GetPosPtr();                              // get position
@@ -1198,7 +1249,7 @@ class mjCSkin: public mjCSkin_, private mjsSkin {
   friend class mjXWriter;
 
  public:
-  mjCSkin(mjCModel* = nullptr);
+  explicit mjCSkin(mjCModel* = nullptr);
   mjCSkin(const mjCSkin& other);
   mjCSkin& operator=(const mjCSkin& other);
   ~mjCSkin();
@@ -1256,7 +1307,7 @@ class mjCHField : public mjCHField_, private mjsHField {
   friend class mjXWriter;
 
  public:
-  mjCHField(mjCModel* model);
+  explicit mjCHField(mjCModel* model);
   mjCHField(const mjCHField& other);
   mjCHField& operator=(const mjCHField& other);
   ~mjCHField();
@@ -1308,7 +1359,7 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
   friend class mjXWriter;
 
  public:
-  mjCTexture(mjCModel*);
+  explicit mjCTexture(mjCModel*);
   mjCTexture(const mjCTexture& other);
   mjCTexture& operator=(const mjCTexture& other);
   ~mjCTexture();
@@ -1369,7 +1420,7 @@ class mjCMaterial : public mjCMaterial_, private mjsMaterial {
   friend class mjXWriter;
 
  public:
-  mjCMaterial(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCMaterial(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCMaterial(const mjCMaterial& other);
   mjCMaterial& operator=(const mjCMaterial& other);
 
@@ -1409,7 +1460,7 @@ class mjCPair : public mjCPair_, private mjsPair {
   friend class mjXWriter;
 
  public:
-  mjCPair(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCPair(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCPair(const mjCPair& other);
   mjCPair& operator=(const mjCPair& other);
 
@@ -1458,7 +1509,7 @@ class mjCBodyPair : public mjCBodyPair_, private mjsExclude {
   friend class mjCModel;
 
  public:
-  mjCBodyPair(mjCModel*);
+  explicit mjCBodyPair(mjCModel*);
   mjCBodyPair(const mjCBodyPair& other);
   mjCBodyPair& operator=(const mjCBodyPair& other);
 
@@ -1504,7 +1555,7 @@ class mjCEquality : public mjCEquality_, private mjsEquality {
   friend class mjXWriter;
 
  public:
-  mjCEquality(mjCModel* = 0, mjCDef* = 0);
+  explicit mjCEquality(mjCModel* = 0, mjCDef* = 0);
   mjCEquality(const mjCEquality& other);
   mjCEquality& operator=(const mjCEquality& other);
 
@@ -1543,7 +1594,7 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
   friend class mjXWriter;
 
  public:
-  mjCTendon(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCTendon(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCTendon(const mjCTendon& other);
   mjCTendon& operator=(const mjCTendon& other);
   ~mjCTendon();
@@ -1639,7 +1690,7 @@ class mjCPlugin : public mjCPlugin_ {
   friend class mjXWriter;
 
  public:
-  mjCPlugin(mjCModel*);
+  explicit mjCPlugin(mjCModel*);
   mjCPlugin(const mjCPlugin& other);
   mjCPlugin& operator=(const mjCPlugin& other);
 
@@ -1687,7 +1738,7 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
   friend class mjXWriter;
 
  public:
-  mjCActuator(mjCModel* = nullptr, mjCDef* = nullptr);
+  explicit mjCActuator(mjCModel* = nullptr, mjCDef* = nullptr);
   mjCActuator(const mjCActuator& other);
   mjCActuator& operator=(const mjCActuator& other);
 
@@ -1748,7 +1799,7 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
   friend class mjXWriter;
 
  public:
-  mjCSensor(mjCModel*);
+  explicit mjCSensor(mjCModel*);
   mjCSensor(const mjCSensor& other);
   mjCSensor& operator=(const mjCSensor& other);
 
@@ -1789,7 +1840,7 @@ class mjCNumeric : public mjCNumeric_, private mjsNumeric {
   friend class mjXWriter;
 
  public:
-  mjCNumeric(mjCModel*);
+  explicit mjCNumeric(mjCModel*);
   mjCNumeric(const mjCNumeric& other);
   mjCNumeric& operator=(const mjCNumeric& other);
   ~mjCNumeric();
@@ -1821,7 +1872,7 @@ class mjCText : public mjCText_, private mjsText {
   friend class mjXWriter;
 
  public:
-  mjCText(mjCModel*);
+  explicit mjCText(mjCModel*);
   mjCText(const mjCText& other);
   mjCText& operator=(const mjCText& other);
   ~mjCText();
@@ -1858,7 +1909,7 @@ class mjCTuple : public mjCTuple_, private mjsTuple {
   friend class mjXWriter;
 
  public:
-  mjCTuple(mjCModel*);
+  explicit mjCTuple(mjCModel*);
   mjCTuple(const mjCTuple& other);
   mjCTuple& operator=(const mjCTuple& other);
   ~mjCTuple();
@@ -1902,7 +1953,7 @@ class mjCKey : public mjCKey_, private mjsKey {
   friend class mjXWriter;
 
  public:
-  mjCKey(mjCModel*);
+  explicit mjCKey(mjCModel*);
   mjCKey(const mjCKey& other);
   mjCKey& operator=(const mjCKey& other);
   ~mjCKey();
@@ -1928,7 +1979,7 @@ class mjCDef : public mjsElement {
 
  public:
   mjCDef();
-  mjCDef(mjCModel*);
+  explicit mjCDef(mjCModel*);
   mjCDef(const mjCDef& other);
   mjCDef& operator=(const mjCDef& other);
   mjCDef& operator+=(const mjCDef& other);

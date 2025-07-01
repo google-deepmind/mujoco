@@ -604,7 +604,7 @@ class SpecsTest(absltest.TestCase):
 
     # test delete default
     def1 = spec.find_default('def1')
-    spec.detach_default(def1)
+    spec.delete(def1)
     def1 = spec.find_default('def1')
     self.assertIsNone(def1)
 
@@ -838,9 +838,9 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(site)
     self.assertEqual(site, spec.site('head'))
 
-    site.delete()
-    spec.sensors[-1].delete()
-    spec.sensors[-1].delete()
+    spec.delete(site)
+    spec.delete(spec.sensors[-1])
+    spec.delete(spec.sensors[-1])
 
     model = spec.compile()
     self.assertIsNotNone(model)
@@ -861,7 +861,7 @@ class SpecsTest(absltest.TestCase):
 
     body = spec.worldbody.add_body()
     body.plugin = plugin
-    body.plugin.plugin_name = 'mujoco.elasticity.cable'
+    body.plugin.name = 'instance_name'
     body.plugin.active = True
 
     geom = body.add_geom()
@@ -930,7 +930,7 @@ class SpecsTest(absltest.TestCase):
     """)
     plugin = spec.plugins[0]
     self.assertIsNotNone(plugin)
-    plugin.delete()
+    spec.delete(plugin)
 
     model = spec.compile()
     self.assertIsNotNone(model)
@@ -1000,6 +1000,14 @@ class SpecsTest(absltest.TestCase):
     texture = spec.add_texture(name='texture', height=2, width=2)
     texture.data = np.zeros((2, 2, 3), dtype=np.uint8).tobytes()
     spec.compile()
+
+  def test_find_unnamed_texture(self):
+    spec = mujoco.MjSpec()
+    texture_file = spec.add_texture(file='file.png')
+    texture_name = spec.add_texture(name='name')
+    self.assertEqual(spec.texture('file'), texture_file)
+    self.assertEqual(spec.texture('name'), texture_name)
+    self.assertIsNone(spec.texture('none'))
 
   def test_attach_units(self):
     child = mujoco.MjSpec()
@@ -1231,6 +1239,62 @@ class SpecsTest(absltest.TestCase):
     self.assertGreater(spec2._address, 0)
     self.assertGreater(spec3._address, 0)
     self.assertLen({spec1._address, spec2._address, spec3._address}, 3)
+
+  def test_actuator_shortname(self):
+    spec = mujoco.MjSpec()
+    actuator = spec.add_actuator(
+        gainprm=np.zeros((10, 1)),
+        dyntype=mujoco.mjtDyn.mjDYN_FILTER,
+        gaintype=mujoco.mjtGain.mjGAIN_AFFINE,
+        biastype=mujoco.mjtBias.mjBIAS_AFFINE,
+    )
+    actuator.set_to_motor()
+    self.assertEqual(actuator.gainprm[0], 1)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_NONE)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_FIXED)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_NONE)
+
+    actuator.set_to_position(kp=2.0, kv=3.0, timeconst=4.0, inheritrange=True)
+    self.assertEqual(actuator.gainprm[0], 2)
+    self.assertEqual(actuator.biasprm[1], -2)
+    self.assertEqual(actuator.biasprm[2], -3)
+    self.assertEqual(actuator.dynprm[0], 4)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_FILTEREXACT)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_FIXED)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_AFFINE)
+    self.assertEqual(actuator.inheritrange, True)
+
+    actuator.set_to_intvelocity(
+        kp=2.0, kv=3.0, timeconst=4.0, inheritrange=True
+    )
+    self.assertEqual(actuator.gainprm[0], 2)
+    self.assertEqual(actuator.biasprm[1], -2)
+    self.assertEqual(actuator.biasprm[2], -3)
+    self.assertEqual(actuator.dynprm[0], 4)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_INTEGRATOR)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_FIXED)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_AFFINE)
+    self.assertEqual(actuator.inheritrange, True)
+
+    actuator.set_to_velocity(kv=5.0)
+    self.assertEqual(actuator.gainprm[0], 5)
+    self.assertEqual(actuator.biasprm[2], -5)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_NONE)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_FIXED)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_AFFINE)
+
+    actuator.set_to_damper(kv=6.0)
+    self.assertEqual(actuator.gainprm[0], 0)
+    self.assertEqual(actuator.gainprm[2], -6)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_NONE)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_AFFINE)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_NONE)
+
+    actuator.set_to_adhesion(gain=7.0)
+    self.assertEqual(actuator.gainprm[0], 7)
+    self.assertEqual(actuator.dyntype, mujoco.mjtDyn.mjDYN_NONE)
+    self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_FIXED)
+    self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_NONE)
 
 if __name__ == '__main__':
   absltest.main()

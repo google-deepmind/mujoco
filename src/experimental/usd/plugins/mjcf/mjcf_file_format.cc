@@ -21,6 +21,7 @@
 
 #include <mujoco/mujoco.h>
 #include "mjcf/mujoco_to_usd.h"
+#include "tinyxml2.h"
 #include <pxr/base/tf/diagnostic.h>
 #include <pxr/base/tf/enum.h>
 #include <pxr/base/tf/pathUtils.h>
@@ -37,7 +38,6 @@
 #include <pxr/usd/sdf/fileFormat.h>
 #include <pxr/usd/sdf/layer.h>
 #include <pxr/usd/usd/usdaFileFormat.h>
-#include "tinyxml2.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 

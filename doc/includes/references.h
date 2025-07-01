@@ -795,8 +795,8 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
   mjtNum tolrange;                // convergence tolerance (relative to range)
 };
 typedef struct mjLROpt_ mjLROpt;
-struct mjVFS_ {                               // virtual file system for loading from memory
-  void* impl_;                                // internal pointer to VFS memory
+struct mjVFS_ {                   // virtual file system for loading from memory
+  void* impl_;                    // internal pointer to VFS memory
 };
 typedef struct mjVFS_ mjVFS;
 struct mjOption_ {                // physics options
@@ -844,7 +844,8 @@ struct mjOption_ {                // physics options
 typedef struct mjOption_ mjOption;
 struct mjVisual_ {                // visualization options
   struct {                        // global parameters
-    int orthographic;             // is the free camera orthographic (0: no, 1: yes)
+    int   cameraid;               // initial camera id (-1: free)
+    int   orthographic;           // is the free camera orthographic (0: no, 1: yes)
     float fovy;                   // y field-of-view of free camera (orthographic ? length : degree)
     float ipd;                    // inter-pupilary distance for free camera
     float azimuth;                // initial azimuth of free camera (degrees)
@@ -958,6 +959,7 @@ struct mjModel_ {
   int nbvh;                       // number of total bounding volumes in all bodies
   int nbvhstatic;                 // number of static bounding volumes (aabb stored in mjModel)
   int nbvhdynamic;                // number of dynamic bounding volumes (aabb stored in mjData)
+  int noct;                       // number of total octree cells in all meshes
   int njnt;                       // number of joints
   int ngeom;                      // number of geoms
   int nsite;                      // number of sites
@@ -1090,6 +1092,11 @@ struct mjModel_ {
   int*      bvh_child;            // left and right children in tree          (nbvh x 2)
   int*      bvh_nodeid;           // geom or elem id of node; -1: non-leaf    (nbvh x 1)
   mjtNum*   bvh_aabb;             // local bounding box (center, size)        (nbvhstatic x 6)
+
+  // octree spatial partitioning
+  int*      oct_depth;            // depth in the octree                      (noct x 1)
+  int*      oct_child;            // children of octree node                  (noct x 8)
+  mjtNum*   oct_aabb;             // octree node bounding box (center, size)  (noct x 6)
 
   // joints
   int*      jnt_type;             // type of joint (mjtJoint)                 (njnt x 1)
@@ -1278,6 +1285,8 @@ struct mjModel_ {
   int*      mesh_facenum;         // number of faces                          (nmesh x 1)
   int*      mesh_bvhadr;          // address of bvh root                      (nmesh x 1)
   int*      mesh_bvhnum;          // number of bvh                            (nmesh x 1)
+  int*      mesh_octadr;          // address of octree root                   (nmesh x 1)
+  int*      mesh_octnum;          // number of octree nodes                   (nmesh x 1)
   int*      mesh_normaladr;       // first normal address                     (nmesh x 1)
   int*      mesh_normalnum;       // number of normals                        (nmesh x 1)
   int*      mesh_texcoordadr;     // texcoord data address; -1: no texcoord   (nmesh x 1)
@@ -2875,6 +2884,7 @@ struct mjvOption_ {                  // abstract visualization options
   mjtByte  skingroup[mjNGROUP];      // skin visualization by group
   mjtByte  flags[mjNVISFLAG];        // visualization flags (indexed by mjtVisFlag)
   int      bvh_depth;                // depth of the bounding volume hierarchy to be visualized
+  int      oct_depth;                // depth of the octree to be visualized
   int      flex_layer;               // element layer to be visualized for 3D flex
 };
 typedef struct mjvOption_ mjvOption;
@@ -3410,8 +3420,6 @@ void mju_defaultTask(mjTask* task);
 void mju_taskJoin(mjTask* task);
 mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                        const char* prefix, const char* suffix);
-int mjs_detachBody(mjSpec* s, mjsBody* b);
-int mjs_detachDefault(mjSpec* s, mjsDefault* d);
 mjsBody* mjs_addBody(mjsBody* body, const mjsDefault* def);
 mjsSite* mjs_addSite(mjsBody* body, const mjsDefault* def);
 mjsJoint* mjs_addJoint(mjsBody* body, const mjsDefault* def);
@@ -3420,7 +3428,7 @@ mjsGeom* mjs_addGeom(mjsBody* body, const mjsDefault* def);
 mjsCamera* mjs_addCamera(mjsBody* body, const mjsDefault* def);
 mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
-int mjs_delete(mjsElement* element);
+int mjs_delete(mjSpec* spec, mjsElement* element);
 mjsActuator* mjs_addActuator(mjSpec* s, const mjsDefault* def);
 mjsSensor* mjs_addSensor(mjSpec* s);
 mjsFlex* mjs_addFlex(mjSpec* s);
@@ -3438,6 +3446,19 @@ mjsTuple* mjs_addTuple(mjSpec* s);
 mjsKey* mjs_addKey(mjSpec* s);
 mjsPlugin* mjs_addPlugin(mjSpec* s);
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
+const char* mjs_setToMotor(mjsActuator* actuator);
+const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
+                              double dampratio[1], double timeconst[1], double inheritrange);
+const char* mjs_setToIntVelocity(mjsActuator* actuator, double kp, double kv[1],
+                                 double dampratio[1], double timeconst[1], double inheritrange);
+const char* mjs_setToVelocity(mjsActuator* actuator, double kv);
+const char* mjs_setToDamper(mjsActuator* actuator, double kv);
+const char* mjs_setToCylinder(mjsActuator* actuator, double timeconst,
+                              double bias, double area, double diameter);
+const char* mjs_setToMuscle(mjsActuator* actuator, double timeconst[2], double tausmooth,
+                            double range[2], double force, double scale, double lmin,
+                            double lmax, double vmax, double fpmax, double fvmax);
+const char* mjs_setToAdhesion(mjsActuator* actuator, double gain);
 mjsMesh* mjs_addMesh(mjSpec* s, const mjsDefault* def);
 mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);

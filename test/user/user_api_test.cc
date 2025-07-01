@@ -18,6 +18,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -217,7 +219,7 @@ TEST_F(PluginTest, DeletePlugin) {
   EXPECT_THAT(model->actuator_plugin[0], 0);
 
   // delete actuator
-  mjs_delete(actuator->element);
+  mjs_delete(spec, actuator->element);
 
   // recompile and check that the plugin is not present
   mjModel* newmodel = mj_compile(spec, NULL);
@@ -324,7 +326,7 @@ TEST_F(PluginTest, DetachPlugin) {
   // detach the body and compile
   mjsBody* body_to_detach = mjs_findBody(parent, "child-body");
   EXPECT_THAT(body_to_detach, NotNull());
-  EXPECT_THAT(mjs_detachBody(parent, body_to_detach), 0);
+  EXPECT_THAT(mjs_delete(parent, body_to_detach->element), 0);
   mjModel* model = mj_compile(parent, nullptr);
   EXPECT_THAT(model, NotNull());
   EXPECT_THAT(model->nbody, 2);
@@ -343,32 +345,35 @@ TEST_F(PluginTest, AttachExplicitPlugin) {
       </worldbody>
     </mujoco>)";
 
-  static constexpr char xml_child[] = R"(
-    <mujoco>
-      <extension>
-        <plugin plugin="mujoco.sensor.touch_grid"/>
-      </extension>
-      <worldbody>
-        <body name="body">
-          <geom type="sphere" size=".1" />
-          <site name="touch2" size="0.001"/>
-        </body>
-      </worldbody>
-      <sensor>
-        <plugin name="touch2" plugin="mujoco.sensor.touch_grid" objtype="site" objname="touch2">
-          <config key="size" value="8 12"/>
-          <config key="fov" value="10 13"/>
-          <config key="gamma" value="0"/>
-          <config key="nchannel" value="1"/>
-        </plugin>
-      </sensor>
-    </mujoco>)";
-
   std::array<char, 1000> err;
   mjSpec* parent = mj_parseXMLString(xml_parent, 0, err.data(), err.size());
   ASSERT_THAT(parent, NotNull()) << err.data();
-  mjSpec* child = mj_parseXMLString(xml_child, 0, err.data(), err.size());
-  ASSERT_THAT(child, NotNull()) << err.data();
+
+  mjSpec* child = mj_makeSpec();
+  mjsBody* body = mjs_addBody(mjs_findBody(child, "world"), 0);
+  mjsGeom* geom = mjs_addGeom(body, 0);
+  mjsSite* site = mjs_addSite(body, 0);
+  mjsSensor* sensor = mjs_addSensor(child);
+  mjsPlugin* plugin = mjs_addPlugin(child);
+  mjs_activatePlugin(child, "mujoco.sensor.touch_grid");
+  mjs_setString(plugin->plugin_name, "mujoco.sensor.touch_grid");
+  mjs_setString(sensor->plugin.plugin_name, "mujoco.sensor.touch_grid");
+  mjs_setString(body->name, "body");
+  mjs_setString(sensor->name, "touch2");
+  mjs_setString(sensor->objname, "touch2");
+  mjs_setString(site->name, "touch2");
+  geom->size[0] = 0.1;
+  site->size[0] = 0.001;
+  sensor->type = mjSENS_PLUGIN;
+  sensor->objtype = mjOBJ_SITE;
+  sensor->plugin.element = plugin->element;
+  sensor->plugin.active = true;
+  std::map<std::string, std::string, std::less<> > config_attribs;
+  config_attribs["size"] = "8 12";
+  config_attribs["fov"] = "10 13";
+  config_attribs["gamma"] = "0";
+  config_attribs["nchannel"] = "1";
+  mjs_setPluginAttributes(plugin, &config_attribs);
 
   mjsBody* body_parent = mjs_findBody(parent, "body");
   EXPECT_THAT(body_parent, NotNull());
@@ -1363,12 +1368,8 @@ void TestDetachBody(bool compile) {
   mjsBody* body = mjs_findBody(child, "body");
   EXPECT_THAT(body, NotNull());
 
-  // get an error if trying to delete the body
-  EXPECT_EQ(mjs_delete(body->element), -1);
-  EXPECT_THAT(mjs_getError(child), HasSubstr("use detach instead"));
-
-  // detach subtree
-  EXPECT_THAT(mjs_detachBody(child, body), 0);
+  // delete subtree
+  EXPECT_THAT(mjs_delete(child, body->element), 0);
 
   // try saving to XML before compiling again
   std::array<char, 1024> e;
@@ -1893,12 +1894,12 @@ TEST_F(MujocoTest, PreserveState) {
   // detach subtree
   mjsBody* body = mjs_findBody(spec, "detachable");
   EXPECT_THAT(body, NotNull());
-  EXPECT_THAT(mjs_detachBody(spec, body), 0);
+  EXPECT_THAT(mjs_delete(spec, body->element), 0);
 
   // detach mocap
   mjsBody* mocap_body = mjs_findBody(spec, "mocap_detach");
   EXPECT_THAT(mocap_body, NotNull());
-  EXPECT_THAT(mjs_detachBody(spec, mocap_body), 0);
+  EXPECT_THAT(mjs_delete(spec, mocap_body->element), 0);
 
   // add body
   mjsBody* newbody = mjs_addBody(mjs_findBody(spec, "world"), 0);
@@ -2782,25 +2783,20 @@ TEST_F(MujocoTest, DetachDefault) {
   mjsDefault* child = mjs_findDefault(spec, "child1");
   EXPECT_THAT(child, NotNull());
 
-  // try using mjs_delete to remove default, should fail
-  EXPECT_EQ(mjs_delete(child->element), -1);
-
-  // detach default
-  EXPECT_EQ(mjs_detachDefault(spec, child), 0);
+  // delete default
+  EXPECT_EQ(mjs_delete(spec, child->element), 0);
   child = mjs_findDefault(spec, "child1");
   EXPECT_THAT(child, IsNull());
 
   // try and detach previously detached default, should fail
-  EXPECT_EQ(mjs_detachDefault(spec, child), -1);
+  EXPECT_EQ(mjs_delete(spec, nullptr), -1);
   child = mjs_findDefault(spec, "child1");
   EXPECT_THAT(child, IsNull());
-  EXPECT_THAT(mjs_getError(spec),
-              HasSubstr("Cannot detach, default is null"));
 
   // detach parent
   mjsDefault* parent = mjs_findDefault(spec, "parent");
   EXPECT_THAT(parent, NotNull());
-  mjs_detachDefault(spec, parent);
+  mjs_delete(spec, parent->element);
 
   // both parent and remaining child should be removed
   parent = mjs_findDefault(spec, "parent");
@@ -2811,7 +2807,7 @@ TEST_F(MujocoTest, DetachDefault) {
   // error when trying to detach the 'main' default
   mjsDefault* main = mjs_findDefault(spec, "main");
   EXPECT_THAT(main, NotNull());
-  EXPECT_EQ(mjs_detachDefault(spec, main), -1);
+  EXPECT_EQ(mjs_delete(spec, main->element), -1);
   EXPECT_THAT(mjs_getError(spec),
               HasSubstr("cannot remove the global default ('main')"));
 

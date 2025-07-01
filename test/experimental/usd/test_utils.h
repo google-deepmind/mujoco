@@ -18,6 +18,7 @@
 #include <string>
 
 #include <gtest/gtest.h>
+#include <pxr/base/gf/quatf.h>
 #include <pxr/usd/sdf/assetPath.h>
 #include <pxr/usd/sdf/declareHandles.h>
 #include <pxr/usd/sdf/fileFormat.h>
@@ -28,6 +29,9 @@
 
 #define EXPECT_PRIM_VALID(stage, path) \
   EXPECT_TRUE((stage)->GetPrimAtPath(SdfPath(path)).IsValid());
+
+#define EXPECT_PRIM_INVALID(stage, path) \
+  EXPECT_FALSE((stage)->GetPrimAtPath(SdfPath(path)).IsValid());
 
 #define EXPECT_PRIM_IS_A(stage, path, type)                         \
   {                                                                 \
@@ -65,6 +69,19 @@
 
 #define EXPECT_ATTRIBUTE_HAS_NO_VALUE(stage, path) \
   EXPECT_FALSE((stage)->GetAttributeAtPath(SdfPath(path)).HasValue());
+
+#define EXPECT_ATTRIBUTE_HAS_AUTHORED_VALUE(stage, path) \
+  EXPECT_TRUE((stage)->GetAttributeAtPath(SdfPath(path)).HasAuthoredValue());
+
+#define EXPECT_ATTRIBUTE_HAS_NO_AUTHORED_VALUE(stage, path) \
+  EXPECT_FALSE((stage)->GetAttributeAtPath(SdfPath(path)).HasAuthoredValue());
+
+#define EXPECT_REL_TARGET_COUNT(stage, path, count)                     \
+  {                                                                     \
+    pxr::SdfPathVector targets;                                         \
+    (stage)->GetRelationshipAtPath(SdfPath(path)).GetTargets(&targets); \
+    EXPECT_TRUE(targets.size() == count);                               \
+  }
 
 #define EXPECT_REL_HAS_TARGET(stage, path, target_path)                 \
   {                                                                     \
@@ -115,6 +132,10 @@ void ExpectAttributeHasConnection(pxr::UsdStageRefPtr stage, const char* path,
 // Checks that all authored attributes on the given prim have types that match
 // the schema types.
 void ExpectAllAuthoredAttributesMatchSchemaTypes(const pxr::UsdPrim& prim);
+
+// Checks if two quaternions represent the same rotation.
+bool AreQuatsSameRotation(const pxr::GfQuatf& q1, const pxr::GfQuatf& q2,
+                          float tolerance = 1e-6);
 }  // namespace usd
 }  // namespace mujoco
 #endif  // MUJOCO_TEST_EXPERIMENTAL_USD_PLUGINS_MJCF_FIXTURE_H_

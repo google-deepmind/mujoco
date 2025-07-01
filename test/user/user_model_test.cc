@@ -196,7 +196,7 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
     <worldbody>
       <body>
         <geom size="1"/>
-        <body>
+        <body name="bad">
           <freejoint/>
           <body>
             <body>
@@ -214,6 +214,7 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
       error,
       HasSubstr(
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
+  EXPECT_THAT(error, HasSubstr("Element name 'bad'"));
   mj_deleteModel(model);
 }
 
@@ -438,6 +439,100 @@ TEST_F(FuseStaticTest, FuseStaticEquivalent) {
   mj_deleteData(d_no_fuse);
   mj_deleteModel(m_fuse);
   mj_deleteModel(m_no_fuse);
+}
+
+TEST_F(FuseStaticTest, FuseStaticActuatorReferencedBody) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5" pos="1 0 0" contype="0" conaffinity="0"/>
+        <body name="not_referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+        <body name="referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <adhesion body="referenced" ctrlrange="0 1"/>
+    </actuator>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml_template, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
+  mj_deleteModel(m);
+}
+
+TEST_F(FuseStaticTest, FuseStaticLightReferencedBody) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+
+    <worldbody>
+      <light mode="targetbody" target="referenced"/>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5" pos="1 0 0" contype="0" conaffinity="0"/>
+        <body name="not_referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+        <body name="referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml_template, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
+  mj_deleteModel(m);
+}
+
+TEST_F(FuseStaticTest, FuseStaticForceSensorReferencedBody) {
+  static constexpr char xml_template[] = R"(
+  <mujoco>
+    <compiler fusestatic="true"/>
+
+    <worldbody>
+      <body>
+        <joint axis="1 0 0"/>
+        <geom size="0.5" pos="1 0 0" contype="0" conaffinity="0"/>
+        <body name="not_referenced">
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+        <body name="referenced">
+          <site name="force"/>
+          <geom size="0.5" pos="0 1 0" contype="1" conaffinity="1"/>
+          <geom size="0.5" pos="0 -2 0" contype="1" conaffinity="1"/>
+        </body>
+      </body>
+    </worldbody>
+
+    <sensor>
+      <force site="force"/>
+    </sensor>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml_template, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_EQ(m->nbody, 3) << "Expecting a world body and two others";
+  mj_deleteModel(m);
 }
 
 // ------------- test discardvisual --------------------------------------------

@@ -175,6 +175,7 @@ PYBIND11_MODULE(_structs, m) {
                      });
   DefineStructFunctions(mjVisualGlobal);
 #define X(var) mjVisualGlobal.def_readwrite(#var, &raw::MjVisualGlobal::var)
+  X(cameraid);
   X(orthographic);
   X(fovy);
   X(ipd);
@@ -1109,6 +1110,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(label);
   X(frame);
   X(bvh_depth);
+  X(oct_depth);
   X(flex_layer);
 #undef X
 

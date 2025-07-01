@@ -724,13 +724,20 @@ has any effect. The settings here are global and apply to the entire model.
    compiler converts degrees into radians, and mjModel always uses radians. For URDF models the parser sets this
    attribute to "radian" internally, regardless of the XML setting.
 
+.. image:: images/changelog/meshfit.png
+   :align: right
+   :width: 40%
+
 .. _compiler-fitaabb:
 
 :at:`fitaabb`: :at-val:`[false, true], "false"`
    The compiler is able to replace a mesh with a geometric primitive fitted to that mesh; see :ref:`geom <body-geom>`
    below. If this attribute is "true", the fitting procedure uses the axis-aligned bounding box (aabb) of the mesh.
    Otherwise it uses the equivalent-inertia box of the mesh. The type of geometric primitive used for fitting is
-   specified separately for each geom.
+   specified separately for each geom. The models used to generate the image on the right can be found
+   `here <https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/fitmesh_inertiabox.xml>`__ (fit inertia
+   box) and `here <https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/fitmesh_aabb.xml>`__ (fit
+   aabb).
 
 .. _compiler-eulerseq:
 
@@ -792,12 +799,14 @@ has any effect. The settings here are global and apply to the entire model.
 
 :at:`fusestatic`: :at-val:`[false, true], "false" for MJCF, "true" for URDF`
    This attribute controls a compiler optimization feature where static bodies are fused with their parent, and any
-   elements defined in those bodies are reassigned to the parent. This feature can only be used in models which do not
-   have elements capable of named references inside the kinematic tree - namely skins, contact pairs, excludes, tendons,
-   actuators, sensors, tuples, cameras, lights. If a model has any these elements, fusestatic does nothing even if
-   enabled. This optimization is particularly useful when importing URDF models which often have many dummy bodies, but
-   can also be used to optimize MJCF models. After optimization, the new model has identical kinematics and dynamics as
-   the original but is faster to simulate.
+   elements defined in those bodies are reassigned to the parent. Static bodies are fused with their parent unless
+
+   - They are referenced by another element in the model.
+   - They contain a site which is referenced by a :ref:`force<sensor-force>` or :ref:`torque<sensor-torque>` sensor.
+
+   This optimization is particularly useful when importing URDF models which often have many dummy bodies, but can also
+   be used to optimize MJCF models. After optimization, the new model has identical kinematics and dynamics as the
+   original but is faster to simulate.
 
 .. _compiler-inertiafromgeom:
 
@@ -1228,7 +1237,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 :at:`content_type`: :at-val:`string, optional`
    If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME type) of the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME type) of the
    file to be loaded. Any filename extensions will be overloaded.  Currently ``model/vnd.mujoco.msh``, ``model/obj``,
    and ``model/stl`` are supported.
 
@@ -1776,15 +1785,19 @@ properties are grouped together.
 
 .. _asset-material-metallic:
 
-:at:`metallic`: :at-val:`real, "0"`
+:at:`metallic`: :at-val:`real, "-1"`
    This attribute corresponds to uniform metallicity coefficient applied to the entire material. This attribute has no
-   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with an external renderer.
+   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with a physically-based renderer. In
+   this case, if a non-negative value is specified, this metallic value should be multiplied by the metallic texture
+   sampled value to obtain the final metallicity of the material.
 
 .. _asset-material-roughness:
 
-:at:`roughness`: :at-val:`real, "1"`
+:at:`roughness`: :at-val:`real, "-1"`
    This attribute corresponds to uniform roughness coefficient applied to the entire material. This attribute has no
-   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with an external renderer.
+   effect in MuJoCo's native renderer, but it can be useful when rendering scenes with a physically-based renderer. In
+   this case, if a non-negative value is specified, this roughness value should be multiplied by the roughness texture
+   sampled value to obtain the final roughness of the material.
 
 .. _asset-material-rgba:
 
@@ -7527,6 +7540,12 @@ coordinated visual settings corresponding to a "theme", and then include this fi
 
 While all settings in mjVisual are global, the settings here could not be fit into any of the other subsections. So this
 is effectively a miscellaneous subsection.
+
+.. _visual-global-cameraid:
+
+:at:`cameraid`: :at-val:`int, "-1"`
+   The id of the camera used when initially loading the model in the visualizer. The default value of -1 means the free
+   camera. In order to specify a :ref:`modeled camera<body-camera>`, use the camera's id as given by :ref:`mj_name2id`.
 
 .. _visual-global-orthographic:
 

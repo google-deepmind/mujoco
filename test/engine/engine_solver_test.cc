@@ -123,7 +123,7 @@ TEST_F(SolverTest, IslandsEquivalentForward) {
   model->opt.tolerance = 0;                     // set tolerance to 0
   model->opt.ls_tolerance = 0;                  // set ls_tolerance to 0
 
-  mjtNum rtol = 2e-6;
+  mjtNum rtol = 3e-6;
 
   mjData* data_island = mj_makeData(model);
   mjData* data_noisland = mj_makeData(model);

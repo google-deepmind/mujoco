@@ -14,8 +14,8 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 #include <mujoco/mujoco.h>
-#include "src/experimental/usd/mjcPhysics/sceneAPI.h"
 #include "test/fixture.h"
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/vt/types.h>

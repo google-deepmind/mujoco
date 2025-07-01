@@ -17,18 +17,18 @@
 
 /// \file mjcPhysics/actuatorAPI.h
 
-#include "./api.h"
-#include "./tokens.h"
-#include "pxr/base/gf/matrix4d.h"
-#include "pxr/base/gf/vec3d.h"
-#include "pxr/base/gf/vec3f.h"
-#include "pxr/base/tf/token.h"
-#include "pxr/base/tf/type.h"
-#include "pxr/base/vt/value.h"
-#include "pxr/pxr.h"
-#include "pxr/usd/usd/apiSchemaBase.h"
-#include "pxr/usd/usd/prim.h"
-#include "pxr/usd/usd/stage.h"
+#include <mujoco/experimental/usd/mjcPhysics/api.h>
+#include <mujoco/experimental/usd/mjcPhysics/tokens.h>
+#include <pxr/base/gf/matrix4d.h>
+#include <pxr/base/gf/vec3d.h>
+#include <pxr/base/gf/vec3f.h>
+#include <pxr/base/tf/token.h>
+#include <pxr/base/tf/type.h>
+#include <pxr/base/vt/value.h>
+#include <pxr/pxr.h>
+#include <pxr/usd/usd/apiSchemaBase.h>
+#include <pxr/usd/usd/prim.h>
+#include <pxr/usd/usd/stage.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -774,23 +774,6 @@ class MjcPhysicsActuatorAPI : public UsdAPISchemaBase {
   /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create
   MJCPHYSICS_API
   UsdRelationship CreateMjcRefSiteRel() const;
-
- public:
-  // --------------------------------------------------------------------- //
-  // MJCCRANKSITE
-  // --------------------------------------------------------------------- //
-  /// If specified, the actuator acts on a slider-crank mechanism which is
-  /// implicitly determined by the actuator (i.e., it is not a separate model
-  /// element). The target site corresponds to the pin joining the crank and the
-  /// connecting rod.
-  ///
-  MJCPHYSICS_API
-  UsdRelationship GetMjcCrankSiteRel() const;
-
-  /// See GetMjcCrankSiteRel(), and also
-  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create
-  MJCPHYSICS_API
-  UsdRelationship CreateMjcCrankSiteRel() const;
 
  public:
   // --------------------------------------------------------------------- //

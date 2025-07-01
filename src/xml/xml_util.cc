@@ -31,8 +31,6 @@
 #include <utility>
 #include <vector>
 
-#include "tinyxml2.h"
-
 #include <mujoco/mujoco.h>
 #include "cc/array_safety.h"
 #include "engine/engine_util_errmem.h"
@@ -40,6 +38,7 @@
 #include "user/user_util.h"
 #include "xml/xml_util.h"
 #include "xml/xml_numeric_format.h"
+#include "tinyxml2.h"
 
 namespace {
 

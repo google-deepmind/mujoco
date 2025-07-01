@@ -173,9 +173,7 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 
   TM_RESTART;
   mj_makeConstraint(m, d);
-  if (mjENABLED(mjENBL_ISLAND)) {
-    mj_island(m, d);
-  }
+  mj_island(m, d);
   TM_END(mjTIMER_POS_MAKE);
 
   TM_RESTART;
