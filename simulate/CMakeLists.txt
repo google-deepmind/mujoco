@@ -41,9 +41,6 @@ if(APPLE)
   enable_language(OBJCXX)
 endif()
 
-if(NOT DEFINED expose_headers)
-    
-endif()
 option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
 option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
 
