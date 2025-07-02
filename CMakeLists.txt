@@ -44,6 +44,9 @@ option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
 option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
 option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
 
+# Option to install plugins to a specific destination path
+set(MUJOCO_PLUGIN_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}/mujoco_plugin" CACHE STRING "Directory to install MuJoCo Plugins to")
+
 # Option to provide a path to an existing USD build directory or to Houdini HFS directory.
 set(USD_DIR "" CACHE PATH "Path to an existing USD build directory.")
 set(HOUDINI_HFS_DIR "" CACHE PATH "Path to Houdini HFS directory to build USD plugins against.")
