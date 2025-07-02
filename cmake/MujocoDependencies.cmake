@@ -150,26 +150,25 @@ target_compile_options(qhullstatic_r PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(qhullstatic_r PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 option(MUJOCO_USE_SYSTEM_TINYXML2 "Use the system's tinyxml2" OFF)
+set(tinyxml2_BUILD_TESTING OFF)
+findorfetch(
+  USE_SYSTEM_PACKAGE
+  ${MUJOCO_USE_SYSTEM_TINYXML2}
+  PACKAGE_NAME
+  tinyxml2
+  LIBRARY_NAME
+  tinyxml2
+  GIT_REPO
+  https://github.com/leethomason/tinyxml2.git
+  GIT_TAG
+  ${MUJOCO_DEP_VERSION_tinyxml2}
+  TARGETS
+  tinyxml2
+  EXCLUDE_FROM_ALL
+)
 if(MUJOCO_USE_SYSTEM_TINYXML2)
-  find_package(tinyxml2 REQUIRED)
   add_library(tinyxml2 ALIAS tinyxml2::tinyxml2)
 else()
-  set(tinyxml2_BUILD_TESTING OFF)
-  findorfetch(
-    USE_SYSTEM_PACKAGE
-    OFF
-    PACKAGE_NAME
-    tinyxml2
-    LIBRARY_NAME
-    tinyxml2
-    GIT_REPO
-    https://github.com/leethomason/tinyxml2.git
-    GIT_TAG
-    ${MUJOCO_DEP_VERSION_tinyxml2}
-    TARGETS
-    tinyxml2
-    EXCLUDE_FROM_ALL
-  )
   target_compile_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
   target_link_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 endif()
