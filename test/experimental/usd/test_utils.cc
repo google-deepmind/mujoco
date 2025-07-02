@@ -30,6 +30,7 @@
 #include <pxr/usd/usd/common.h>
 #include <pxr/usd/usd/modelAPI.h>
 #include <pxr/usd/usd/stage.h>
+#include <pxr/usd/usd/timeCode.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 namespace mujoco {
@@ -59,7 +60,8 @@ pxr::UsdStageRefPtr OpenStageWithPhysics(const std::string& xml) {
 template <>
 void ExpectAttributeEqual<pxr::SdfAssetPath>(pxr::UsdStageRefPtr stage,
                                              pxr::SdfPath path,
-                                             const pxr::SdfAssetPath& value) {
+                                             const pxr::SdfAssetPath& value,
+                                             const pxr::UsdTimeCode time) {
   auto attr = stage->GetAttributeAtPath(path);
   EXPECT_TRUE(attr.IsValid());
   pxr::SdfAssetPath attr_value;

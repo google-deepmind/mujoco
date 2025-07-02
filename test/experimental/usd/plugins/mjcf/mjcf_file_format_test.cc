@@ -48,6 +48,7 @@
 #include <pxr/usd/usd/prim.h>
 #include <pxr/usd/usd/primRange.h>  // IWYU pragma: keep, used for TraverseAll
 #include <pxr/usd/usd/stage.h>
+#include <pxr/usd/usd/timeCode.h>
 #include <pxr/usd/usdGeom/capsule.h>
 #include <pxr/usd/usdGeom/cube.h>
 #include <pxr/usd/usdGeom/cylinder.h>
@@ -1993,6 +1994,38 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsUnsupportedJoint) {
 
   EXPECT_PRIM_INVALID(stage, "/test/parent/ball_joint");
 }
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsKeyframe) {
+  static constexpr char xml[] = R"(
+  <mujoco model="test">
+      <worldbody>
+        <frame name="frame"/>
+        <body name="body">
+          <joint/>
+          <geom size="0.1"/>
+        </body>
+      </worldbody>
+      <keyframe>
+        <key name="home" qpos="1"/>
+        <key time="1" qpos="2"/>
+        <key time="2" qpos="3"/>
+      </keyframe>
+    </mujoco>)";
+  auto stage = OpenStageWithPhysics(xml);
+
+  EXPECT_PRIM_VALID(stage, "/test/Keyframes/home");
+  EXPECT_PRIM_VALID(stage, "/test/Keyframes/Keyframe");
+  ExpectAttributeEqual(stage, "/test/Keyframes/home.mjc:qpos",
+                       pxr::VtDoubleArray({1}));
+
+  // Check time samples are correctly authored.
+  ExpectAttributeEqual(stage, "/test/Keyframes/Keyframe.mjc:qpos",
+                       pxr::VtDoubleArray({2}), pxr::UsdTimeCode(1.0));
+
+  ExpectAttributeEqual(stage, "/test/Keyframes/Keyframe.mjc:qpos",
+                       pxr::VtDoubleArray({3}), pxr::UsdTimeCode(2.0));
+}
+
 }  // namespace
 }  // namespace usd
 }  // namespace mujoco

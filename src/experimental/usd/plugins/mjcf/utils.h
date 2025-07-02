@@ -85,6 +85,21 @@ void SetField(pxr::SdfAbstractDataRefPtr& data, const pxr::SdfPath& field_path,
   data->Set(field_path, key, untyped_val);
 }
 
+// Set the value specified by key on any field at field_path.
+template <typename T>
+void SetFieldTimeSample(pxr::SdfAbstractDataRefPtr& data,
+                        const pxr::SdfPath& field_path, double time,
+                        T&& value) {
+  using Deduced = typename std::remove_reference_t<T>;
+  const auto typed_val = pxr::SdfAbstractDataConstTypedValue<Deduced>(&value);
+  const pxr::SdfAbstractDataConstValue& untyped_val = typed_val;
+
+  pxr::VtValue vt_value;
+  untyped_val.GetValue(&vt_value);
+  // NOTE: SetTimeSample doesn't accept an SdfAbstractDataConstValue yet.
+  data->SetTimeSample(field_path, time, vt_value);
+}
+
 // Set the value specified by key on an attribute spec at attribute_path.
 template <typename T>
 void SetAttribute(pxr::SdfAbstractDataRefPtr& data,
@@ -115,6 +130,15 @@ void SetAttributeDefault(pxr::SdfAbstractDataRefPtr& data,
                          const pxr::SdfPath& attribute_path,
                          T&& default_value) {
   SetAttribute(data, attribute_path, pxr::SdfFieldKeys->Default, default_value);
+}
+
+// Set the default value on an attribute spec at attribute_path.
+template <typename T>
+void SetAttributeTimeSample(pxr::SdfAbstractDataRefPtr& data,
+                         const pxr::SdfPath& attribute_path,
+                         double time,
+                         T&& default_value) {
+  SetFieldTimeSample(data, attribute_path, time, default_value);
 }
 
 // Set the value specified by key on the root layer.

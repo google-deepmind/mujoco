@@ -102,6 +102,12 @@ pxr::SdfPath CreateAttributeSpec(pxr::SdfAbstractDataRefPtr& data,
                                  const pxr::SdfValueTypeName& type_name,
                                  pxr::SdfVariability variability) {
   const pxr::SdfPath propertyPath = prim_path.AppendProperty(name);
+
+  // Early exit if the attribute spec already exists.
+  if (data->HasSpec(propertyPath)) {
+    return propertyPath;
+  }
+
   data->CreateSpec(propertyPath, pxr::SdfSpecTypeAttribute);
 
   pxr::TfToken typeNameToken = type_name.GetAsToken();

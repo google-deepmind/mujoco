@@ -26,6 +26,7 @@
 #include <pxr/usd/usd/common.h>
 #include <pxr/usd/usd/modelAPI.h>
 #include <pxr/usd/usd/stage.h>
+#include <pxr/usd/usd/timeCode.h>
 
 #define EXPECT_PRIM_VALID(stage, path) \
   EXPECT_TRUE((stage)->GetPrimAtPath(SdfPath(path)).IsValid());
@@ -101,20 +102,22 @@ pxr::SdfLayerRefPtr LoadLayer(
 pxr::UsdStageRefPtr OpenStageWithPhysics(const std::string& xml);
 
 template <typename T>
-void ExpectAttributeEqual(pxr::UsdStageRefPtr stage, pxr::SdfPath path,
-                          const T& value) {
+void ExpectAttributeEqual(
+    pxr::UsdStageRefPtr stage, pxr::SdfPath path, const T& value,
+    const pxr::UsdTimeCode time = pxr::UsdTimeCode::Default()) {
   auto attr = stage->GetAttributeAtPath(pxr::SdfPath(path));
   EXPECT_TRUE(attr.IsValid()) << "Attribute " << path << " is not valid";
   T attr_value;
-  attr.Get(&attr_value);
+  attr.Get(&attr_value, time);
   EXPECT_EQ(attr_value, value) << "Attribute " << path << " has value "
                                << attr_value << ". Expected: " << value;
 }
 
 template <typename T>
-void ExpectAttributeEqual(pxr::UsdStageRefPtr stage, const char* path,
-                          const T& value) {
-  ExpectAttributeEqual(stage, pxr::SdfPath(path), value);
+void ExpectAttributeEqual(
+    pxr::UsdStageRefPtr stage, const char* path, const T& value,
+    const pxr::UsdTimeCode time = pxr::UsdTimeCode::Default()) {
+  ExpectAttributeEqual(stage, pxr::SdfPath(path), value, time);
 }
 
 // Specialization for SdfAssetPath, so that we can compare only the asset path
@@ -122,9 +125,9 @@ void ExpectAttributeEqual(pxr::UsdStageRefPtr stage, const char* path,
 // Otherwise the default operator== would fail because it tests for equality of
 // the asset path AND the resolved path.
 template <>
-void ExpectAttributeEqual<pxr::SdfAssetPath>(pxr::UsdStageRefPtr stage,
-                                             pxr::SdfPath,
-                                             const pxr::SdfAssetPath& value);
+void ExpectAttributeEqual<pxr::SdfAssetPath>(
+    pxr::UsdStageRefPtr stage, pxr::SdfPath, const pxr::SdfAssetPath& value,
+    pxr::UsdTimeCode time);
 
 void ExpectAttributeHasConnection(pxr::UsdStageRefPtr stage, const char* path,
                                   const char* connection_path);

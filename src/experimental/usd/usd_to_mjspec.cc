@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <deque>
 #include <iterator>
 #include <map>
@@ -26,6 +27,7 @@
 #include <mujoco/experimental/usd/mjcPhysics/actuatorAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
 #include <mujoco/experimental/usd/mjcPhysics/meshCollisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
@@ -1154,6 +1156,65 @@ void ParseMjcPhysicsSite(mjSpec* spec, const pxr::MjcPhysicsSiteAPI& site_api,
   }
 }
 
+void ParseMjcPhysicsKeyframe(mjSpec* spec,
+                             const pxr::MjcPhysicsKeyframe& keyframe) {
+  auto prim = keyframe.GetPrim();
+  auto qpos_attr = keyframe.GetMjcQposAttr();
+  auto qvel_attr = keyframe.GetMjcQvelAttr();
+  auto act_attr = keyframe.GetMjcActAttr();
+  auto ctrl_attr = keyframe.GetMjcCtrlAttr();
+  auto mpos_attr = keyframe.GetMjcMposAttr();
+  auto mquat_attr = keyframe.GetMjcMquatAttr();
+
+  auto setKeyframeData = [](mjsKey* key, const pxr::UsdAttribute& attr,
+                            std::vector<double>** key_data, double* time = nullptr) {
+    if (attr.HasAuthoredValue()) {
+      pxr::VtDoubleArray data;
+      if (time == nullptr) {
+        attr.Get(&data);
+      } else {
+        attr.Get(&data, *time);
+      }
+      *key_data = new std::vector<double>(data.begin(), data.end());
+    }
+  };
+
+  size_t n_time_samples = 0;
+  if (qpos_attr.HasAuthoredValue()) {
+    n_time_samples = qpos_attr.GetNumTimeSamples();
+  }
+
+  if (n_time_samples == 0) {
+    // If no time samples, we create a single keyframe.
+    mjsKey* key = mjs_addKey(spec);
+    mjs_setString(key->name, prim.GetName().GetString().c_str());
+    setKeyframeData(key, qpos_attr, &key->qpos);
+    setKeyframeData(key, qvel_attr, &key->qvel);
+    setKeyframeData(key, act_attr, &key->act);
+    setKeyframeData(key, ctrl_attr, &key->ctrl);
+    setKeyframeData(key, mpos_attr, &key->mpos);
+    setKeyframeData(key, mquat_attr, &key->mquat);
+  } else {
+    // If time samples, we create a keyframe for each time sample.
+    std::vector<double> times;
+    qpos_attr.GetTimeSamples(&times);
+    int keyframe_id = 0;
+    for (double time : times) {
+      mjsKey* key = mjs_addKey(spec);
+      std::string key_name =
+          prim.GetName().GetString() + "_" + std::to_string(keyframe_id++);
+      mjs_setString(key->name, key_name.c_str());
+      key->time = time;
+      setKeyframeData(key, qpos_attr, &key->qpos, &time);
+      setKeyframeData(key, qvel_attr, &key->qvel, &time);
+      setKeyframeData(key, act_attr, &key->act, &time);
+      setKeyframeData(key, ctrl_attr, &key->ctrl, &time);
+      setKeyframeData(key, mpos_attr, &key->mpos, &time);
+      setKeyframeData(key, mquat_attr, &key->mquat, &time);
+    }
+  }
+}
+
 mjsBody* ParseUsdPhysicsRigidbody(
     mjSpec* spec, const pxr::UsdPhysicsRigidBodyAPI& rigidbody_api,
     const pxr::UsdPrim& parent_prim, mjsBody* parent,
@@ -1563,6 +1624,9 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
       }
 
       AddEdge(edges, body0_path, body1_path, joint_path);
+    } else if (prim.IsA<pxr::MjcPhysicsKeyframe>()) {
+      ParseMjcPhysicsKeyframe(spec, pxr::MjcPhysicsKeyframe(prim));
+      continue;
     } else if (prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>()) {
       pxr::SdfPath body_path = prim.GetPath();
       body_paths.push_back(body_path);

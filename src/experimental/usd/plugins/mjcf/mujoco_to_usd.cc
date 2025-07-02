@@ -84,6 +84,9 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((meshScope, "MeshSources"))
                          ((materialsScope, "Materials"))
                          ((previewSurface, "PreviewSurface"))
+                         ((keyframesScope, "Keyframes"))
+                         ((keyframe, "Keyframe"))
+                         ((surface, "PreviewSurface"))
                          ((world, "World"))
                          ((xformOpTransform, "xformOp:transform"))
                          ((xformOpScale, "xformOp:scale"))
@@ -144,6 +147,7 @@ using mujoco::usd::CreatePrimSpec;
 using mujoco::usd::CreateRelationshipSpec;
 using mujoco::usd::SetAttributeDefault;
 using mujoco::usd::SetAttributeMetadata;
+using mujoco::usd::SetAttributeTimeSample;
 using mujoco::usd::SetLayerMetadata;
 using mujoco::usd::SetPrimKind;
 using mujoco::usd::SetPrimMetadata;
@@ -207,6 +211,7 @@ class ModelWriter {
     if (write_physics_) {
       WriteActuators();
     }
+    WriteKeyframes();
   }
 
  private:
@@ -926,6 +931,95 @@ class ModelWriter {
     while (material) {
       WriteMaterial(material, scope_path);
       material = mjs_asMaterial(mjs_nextElement(spec_, material->element));
+    }
+  }
+
+  void WriteKeyframesWithName(const std::string &name,
+                              const std::vector<mjsKey *> &keyframes,
+                              const pxr::SdfPath &parent_path) {
+    if (keyframes.empty()) {
+      return;
+    }
+    const auto keyframe_name = pxr::TfToken(pxr::TfMakeValidIdentifier(
+        name.empty() ? MjcPhysicsTokens->Keyframe : name));
+    pxr::SdfPath keyframe_path = parent_path.AppendChild(keyframe_name);
+    if (!data_->HasSpec(keyframe_path)) {
+      CreatePrimSpec(data_, parent_path, keyframe_name,
+                     pxr::MjcPhysicsTokens->Keyframe);
+    }
+    auto set_attribute_data = [&](const pxr::SdfPath &attr_path,
+                                  const pxr::VtDoubleArray &value,
+                                  mjsKey *keyframe) {
+      // If the keyframe time is the default, and there are no other keyframes
+      // set the attribute at the default time code.
+      if (keyframe->time == 0 && keyframes.size() == 1) {
+        SetAttributeDefault(data_, attr_path, value);
+      } else {
+        SetAttributeTimeSample(data_, attr_path, keyframe->time, value);
+      }
+    };
+
+    for (auto *keyframe : keyframes) {
+      pxr::SdfPath qpos_attr_path =
+          CreateAttributeSpec(data_, keyframe_path, MjcPhysicsTokens->mjcQpos,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(qpos_attr_path,
+                         pxr::VtDoubleArray(keyframe->qpos->begin(),
+                                            keyframe->qpos->end()), keyframe);
+
+      pxr::SdfPath qvel_attr_path =
+          CreateAttributeSpec(data_, keyframe_path, MjcPhysicsTokens->mjcQvel,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(qvel_attr_path,
+                         pxr::VtDoubleArray(keyframe->qvel->begin(),
+                                            keyframe->qvel->end()), keyframe);
+
+      pxr::SdfPath act_attr_path =
+          CreateAttributeSpec(data_, keyframe_path, MjcPhysicsTokens->mjcAct,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(act_attr_path,
+                         pxr::VtDoubleArray(keyframe->act->begin(),
+                                            keyframe->act->end()), keyframe);
+
+      pxr::SdfPath ctrl_attr_path =
+          CreateAttributeSpec(data_, keyframe_path, MjcPhysicsTokens->mjcCtrl,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(ctrl_attr_path,
+                         pxr::VtDoubleArray(keyframe->ctrl->begin(),
+                                            keyframe->ctrl->end()), keyframe);
+
+      pxr::SdfPath mpos_attr_path =
+          CreateAttributeSpec(data_, keyframe_path, MjcPhysicsTokens->mjcMpos,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(mpos_attr_path,
+                         pxr::VtDoubleArray(keyframe->mpos->begin(),
+                                            keyframe->mpos->end()), keyframe);
+
+      pxr::SdfPath mquat_attr_path =
+          CreateAttributeSpec(data_, keyframe_path, MjcPhysicsTokens->mjcMquat,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(mquat_attr_path,
+                         pxr::VtDoubleArray(keyframe->mquat->begin(),
+                                            keyframe->mquat->end()), keyframe);
+    }
+  }
+
+  void WriteKeyframes() {
+    std::unordered_map<std::string, std::vector<mjsKey *>> keyframes_map;
+    mjsKey *keyframe = mjs_asKey(mjs_firstElement(spec_, mjOBJ_KEY));
+    while (keyframe) {
+      std::string keyframe_name = keyframe->name->empty()
+                                      ? MjcPhysicsTokens->Keyframe
+                                      : *keyframe->name;
+      keyframes_map[keyframe_name].push_back(keyframe);
+      keyframe = mjs_asKey(mjs_nextElement(spec_, keyframe->element));
+    }
+
+    pxr::SdfPath scope_path =
+        CreatePrimSpec(data_, body_paths_[kWorldIndex], kTokens->keyframesScope,
+                       pxr::UsdGeomTokens->Scope);
+    for (const auto &[keyframe_name, keyframes] : keyframes_map) {
+      WriteKeyframesWithName(keyframe_name, keyframes, scope_path);
     }
   }
 
