@@ -175,6 +175,8 @@ add_library(${MJC_PHYSICS_PLUGIN_TARGET_NAME} SHARED)
 target_sources(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
   mjcPhysics/actuatorAPI.cpp
   mjcPhysics/collisionAPI.cpp
+  mjcPhysics/jointAPI.cpp
+  mjcPhysics/keyframe.cpp
   mjcPhysics/meshCollisionAPI.cpp
   mjcPhysics/sceneAPI.cpp
   mjcPhysics/siteAPI.cpp
