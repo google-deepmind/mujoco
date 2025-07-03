@@ -3456,7 +3456,7 @@ mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse);
 mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse);
 mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
 mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
-void mjs_setName(mjsElement* element, const char* name);
+int mjs_setName(mjsElement* element, const char* name);
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 void mjs_setString(mjString* dest, const char* text);
 void mjs_setStringVec(mjStringVec* dest, const char* text);

@@ -887,7 +887,7 @@ class SpecsTest(absltest.TestCase):
       ):
         s.compile()
 
-  def test_recompile_error(self):
+  def test_duplicate_name_error(self):
     main_xml = """
     <mujoco>
       <worldbody>
@@ -899,16 +899,11 @@ class SpecsTest(absltest.TestCase):
     """
 
     spec = mujoco.MjSpec.from_string(main_xml)
-    model = spec.compile()
-    data = mujoco.MjData(model)
-
     spec.add_material().name = 'yellow'
-    spec.add_material().name = 'yellow'
-
     with self.assertRaisesRegex(
         ValueError, "Error: repeated name 'yellow' in material"
     ):
-      spec.recompile(model, data)
+      spec.add_material().name = 'yellow'
 
   def test_delete_unused_plugin(self):
     spec = mujoco.MjSpec.from_string("""

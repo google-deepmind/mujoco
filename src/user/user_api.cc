@@ -1342,14 +1342,21 @@ mjsPlugin* mjs_asPlugin(mjsElement* element) {
 
 
 // set element name
-void mjs_setName(mjsElement* element, const char* name) {
+int mjs_setName(mjsElement* element, const char* name) {
   if (element->elemtype == mjOBJ_DEFAULT) {
     mjCDef* def = static_cast<mjCDef*>(element);
     def->name = std::string(name);
-    return;
+    return 0;
   }
   mjCBase* baseC = static_cast<mjCBase*>(element);
   baseC->name = std::string(name);
+  try {
+    baseC->model->CheckRepeat(element->elemtype);
+  } catch (mjCError& e) {
+    baseC->model->SetError(e);
+    return -1;
+  }
+  return 0;
 }
 
 

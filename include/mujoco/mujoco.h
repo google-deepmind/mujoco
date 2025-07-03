@@ -1600,8 +1600,8 @@ MJAPI mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
 
 //---------------------------------- Attribute setters ---------------------------------------------
 
-// Set element's name.
-MJAPI void mjs_setName(mjsElement* element, const char* name);
+// Set element's name, return 0 on success.
+MJAPI int mjs_setName(mjsElement* element, const char* name);
 
 // Copy buffer.
 MJAPI void mjs_setBuffer(mjByteVec* dest, const void* array, int size);

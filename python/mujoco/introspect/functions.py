@@ -10194,7 +10194,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mjs_setName',
      FunctionDecl(
          name='mjs_setName',
-         return_type=ValueType(name='void'),
+         return_type=ValueType(name='int'),
          parameters=(
              FunctionParameterDecl(
                  name='element',
@@ -10209,7 +10209,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc="Set element's name.",
+         doc="Set element's name, return 0 on success.",
      )),
     ('mjs_setBuffer',
      FunctionDecl(

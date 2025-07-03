@@ -4235,7 +4235,7 @@ Attribute setters
 
 .. mujoco-include:: mjs_setName
 
-Set element's name.
+Set element's name, return 0 on success.
 
 .. _mjs_setBuffer:
 

@@ -1403,7 +1403,6 @@ mjCJoint* mjCBody::AddFreeJoint() {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-
   // update signature
   model->spec.element->signature = model->Signature();
   return obj;
@@ -1424,7 +1423,6 @@ mjCJoint* mjCBody::AddJoint(mjCDef* _def) {
   // recompute lists
   model->ResetTreeLists();
   model->MakeTreeLists();
-
 
   // update signature
   model->spec.element->signature = model->Signature();
@@ -1447,7 +1445,6 @@ mjCGeom* mjCBody::AddGeom(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-
   // update signature
   model->spec.element->signature = model->Signature();
   return obj;
@@ -1468,7 +1465,6 @@ mjCSite* mjCBody::AddSite(mjCDef* _def) {
   // recompute lists
   model->ResetTreeLists();
   model->MakeTreeLists();
-
 
   // update signature
   model->spec.element->signature = model->Signature();
@@ -1491,7 +1487,6 @@ mjCCamera* mjCBody::AddCamera(mjCDef* _def) {
   model->ResetTreeLists();
   model->MakeTreeLists();
 
-
   // update signature
   model->spec.element->signature = model->Signature();
   return obj;
@@ -1512,7 +1507,6 @@ mjCLight* mjCBody::AddLight(mjCDef* _def) {
   // recompute lists
   model->ResetTreeLists();
   model->MakeTreeLists();
-
 
   // update signature
   model->spec.element->signature = model->Signature();

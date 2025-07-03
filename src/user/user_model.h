@@ -323,6 +323,9 @@ class mjCModel : public mjCModel_, private mjSpec {
   // set attached flag
   void SetAttached(bool deepcopy) { attached_ |= !deepcopy; }
 
+  // check for repeated names in list
+  void CheckRepeat(mjtObj type);
+
  private:
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
@@ -410,6 +413,10 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // populate objects ids
   void ProcessLists(bool checkrepeat = true);
+
+  // process list of objects
+  template <class T> void ProcessList_(mjListKeyMap& ids, std::vector<T*>& list,
+                                       mjtObj type, bool checkrepeat = true);
 
   // reset lists of kinematic tree
   void ResetTreeLists();

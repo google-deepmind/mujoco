@@ -17,6 +17,9 @@ General
   :ref:`visual/global/cameraid<visual-global-cameraid>`.
 - Added support to only sync the state in the Python :ref:`passive viewer<PyViewerPassive>`'s ``Sync`` method, this is
   useful to improve performance. The default behavior is unchanged and copies the entire model and data.
+- In the mjSpec C API, directly setting an element's name using :ref:`mjs_setString` has been replaced with a new
+  function :ref:`mjs_setName` which allows checking for naming collisions at set-time rather than compile-time, for
+  earlier catching of errors.
 
 Bug fixes
 ^^^^^^^^^

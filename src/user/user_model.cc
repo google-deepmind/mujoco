@@ -116,50 +116,6 @@ bool IsNullPose(const T pos[3], const T quat[4]) {
   return IsSamePose(pos, zero, quat, qunit);
 }
 
-
-// set ids, check for repeated names
-template <class T>
-static void processlist(mjListKeyMap& ids, vector<T*>& list,
-                        mjtObj type, bool checkrepeat = true) {
-  // assign ids for regular elements
-  if (type < mjNOBJECT) {
-    for (size_t i=0; i < list.size(); i++) {
-      // check for incompatible id setting; SHOULD NOT OCCUR
-      if (list[i]->id != -1 && list[i]->id != i) {
-        throw mjCError(list[i], "incompatible id in %s array, position %d", mju_type2Str(type), i);
-      }
-
-      // id equals position in array
-      list[i]->id = i;
-
-      // add to ids map
-      ids[type][list[i]->name] = i;
-    }
-  }
-
-  // check for repeated names
-  if (checkrepeat) {
-    // created vectors with all names
-    vector<string> allnames;
-    for (size_t i=0; i < list.size(); i++) {
-      if (!list[i]->name.empty()) {
-        allnames.push_back(list[i]->name);
-      }
-    }
-
-    // sort and check for duplicates
-    if (allnames.size() > 1) {
-      std::sort(allnames.begin(), allnames.end());
-      auto adjacent = std::adjacent_find(allnames.begin(), allnames.end());
-      if (adjacent != allnames.end()) {
-        string msg = "repeated name '" + *adjacent + "' in " + mju_type2Str(type);
-        throw mjCError(nullptr, "%s", msg.c_str());
-      }
-    }
-  }
-}
-
-
 }  // namespace
 
 //---------------------------------- CONSTRUCTOR AND DESTRUCTOR ------------------------------------
@@ -308,7 +264,7 @@ void mjCModel::CopyList(std::vector<T*>& dest,
     dest.back()->CopyPlugin();
   }
   if (!dest.empty()) {
-    processlist(ids, dest, dest[0]->elemtype);
+    ProcessList_(ids, dest, dest[0]->elemtype);
   }
 }
 
@@ -548,7 +504,7 @@ void mjCModel::RemoveFromList(std::vector<T*>& list, const mjCModel& other) {
   }
   if (removed > 0 && !list.empty()) {
     // if any elements were removed, update ids using processlist
-    processlist(ids, list, list[0]->elemtype, /*checkrepeat=*/false);
+    ProcessList_(ids, list, list[0]->elemtype, /*checkrepeat=*/false);
   }
 }
 
@@ -604,7 +560,7 @@ void mjCModel::RemovePlugins() {
 
   // if any elements were removed, update ids using processlist
   if (removed > 0 && !plugins_.empty()) {
-    processlist(ids, plugins_, plugins_[0]->elemtype, /*checkrepeat=*/false);
+    ProcessList_(ids, plugins_, plugins_[0]->elemtype, /*checkrepeat=*/false);
   }
 }
 
@@ -4052,7 +4008,7 @@ void mjCModel::FuseStatic(void) {
   }
 
   // remove empty names
-  processlist(ids, bodies_, mjOBJ_BODY, true);
+  ProcessList_(ids, bodies_, mjOBJ_BODY, /*checkrepeat=*/true);
 }
 
 
@@ -4083,12 +4039,70 @@ void mjCModel::ProcessLists(bool checkrepeat) {
   for (int i = 0; i < mjNOBJECT; i++) {
     if (i != mjOBJ_XBODY && object_lists_[i]) {
       ids[i].clear();
-      processlist(ids, *object_lists_[i], (mjtObj) i, checkrepeat);
+      ProcessList_(ids, *object_lists_[i], (mjtObj) i, checkrepeat);
     }
   }
 
   // check repeated names in meta elements
-  processlist(ids, frames_, mjOBJ_FRAME, checkrepeat);
+  ProcessList_(ids, frames_, mjOBJ_FRAME, checkrepeat);
+}
+
+
+
+// set ids, check for repeated names
+template <class T>
+void mjCModel::ProcessList_(mjListKeyMap& ids, vector<T*>& list,
+                            mjtObj type, bool checkrepeat) {
+  // assign ids for regular elements
+  if (type < mjNOBJECT) {
+    for (size_t i=0; i < list.size(); i++) {
+      // check for incompatible id setting; SHOULD NOT OCCUR
+      if (list[i]->id != -1 && list[i]->id != i) {
+        throw mjCError(list[i], "incompatible id in %s array, position %d", mju_type2Str(type), i);
+      }
+
+      // id equals position in array
+      list[i]->id = i;
+
+      // add to ids map
+      ids[type][list[i]->name] = i;
+    }
+  }
+
+  // check for repeated names
+  if (checkrepeat) {
+    CheckRepeat(type);
+  }
+}
+
+
+
+// check for repeated names in list
+void mjCModel::CheckRepeat(mjtObj type) {
+  std::vector<mjCBase*>* list = nullptr;
+  if (type < mjNOBJECT) {
+    list = object_lists_[type];
+  } else if (type == mjOBJ_FRAME) {
+    list = (std::vector<mjCBase*>*) &frames_;
+  }
+
+  // created vectors with all names
+  vector<string> allnames;
+  for (size_t i=0; i < list->size(); i++) {
+    if (!(*list)[i]->name.empty()) {
+      allnames.push_back((*list)[i]->name);
+    }
+  }
+
+  // sort and check for duplicates
+  if (allnames.size() > 1) {
+    std::sort(allnames.begin(), allnames.end());
+    auto adjacent = std::adjacent_find(allnames.begin(), allnames.end());
+    if (adjacent != allnames.end()) {
+      string msg = "repeated name '" + *adjacent + "' in " + mju_type2Str(type);
+      throw mjCError(nullptr, "%s", msg.c_str());
+    }
+  }
 }
 
 

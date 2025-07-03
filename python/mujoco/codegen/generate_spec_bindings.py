@@ -677,7 +677,9 @@ def generate_name() -> None:
         return mjs_getName(self.element);
       }},
       [](raw::{titlecase}& self, std::string& name) -> void {{
-        mjs_setName(self.element, name.c_str());
+        if (mjs_setName(self.element, name.c_str())) {{
+          throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
+        }}
       }}, py::return_value_policy::reference_internal);
     """
     print(code)
