@@ -55,8 +55,8 @@ General
       this property is now read correctly from PNG files, textures files which use sRGB will now be rendered
       differently.
 
-      **Migration:** Set :ref:`colorspace<asset-texture-colorspace>` to "linear" for all textures that should be
-      look like they did before this change.
+      **Migration:** Set :ref:`colorspace<asset-texture-colorspace>` to "linear" for all textures that should look like
+      they did before this change.
 
 5. Added new sub-component :ref:`mj_makeM` which combines the :ref:`mj_crb` call with additional logic to support the
    introduction in 3.3.1 of :ref:`tendon armature<tendon-spatial-armature>`. In addition to the traditional
