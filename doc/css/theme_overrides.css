@@ -226,6 +226,12 @@ table td > div.wy-table-responsive {
   margin-bottom: 0;
 }
 
+[role="main"] .table-wrapper.container {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: .2rem .2rem .2rem;
+}
+
 /* Remove vertical spacing before/after code blocks. */
 div[class*=" highlight-"], div[class^=highlight-] {
   margin: 0;

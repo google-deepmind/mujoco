@@ -192,6 +192,8 @@ favicons = [
     },
 ]
 
+html_permalinks_icon = '#'
+
 # -- Options for katex ------------------------------------------------------
 
 # See: https://sphinxcontrib-katex.readthedocs.io/en/0.4.1/macros.html
