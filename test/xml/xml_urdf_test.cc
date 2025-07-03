@@ -308,9 +308,9 @@ TEST_F(MujocoTest, RepeatedMeshName) {
   EXPECT_THAT(mesh1, NotNull());
   EXPECT_THAT(mesh2, NotNull());
   EXPECT_THAT(mesh3, IsNull());
-  EXPECT_STREQ(mjs_getString(mesh->name), "mesh");
-  EXPECT_STREQ(mjs_getString(mesh1->name), "mesh1");
-  EXPECT_STREQ(mjs_getString(mesh2->name), "mesh2");
+  EXPECT_STREQ(mjs_getName(mesh->element)->c_str(), "mesh");
+  EXPECT_STREQ(mjs_getName(mesh1->element)->c_str(), "mesh1");
+  EXPECT_STREQ(mjs_getName(mesh2->element)->c_str(), "mesh2");
 
   mj_deleteSpec(spec);
 }

@@ -334,14 +334,14 @@ class ModelWriter {
   }
 
   void WriteMesh(const mjsMesh *mesh, const pxr::SdfPath &parent_path) {
-    auto name = GetAvailablePrimName(*mesh->name, pxr::UsdGeomTokens->Mesh,
+    auto name = GetAvailablePrimName(*mjs_getName(mesh->element), pxr::UsdGeomTokens->Mesh,
                                      parent_path);
     pxr::SdfPath subcomponent_path =
         CreatePrimSpec(data_, parent_path, name, pxr::UsdGeomTokens->Xform);
     pxr::SdfPath mesh_path =
         CreatePrimSpec(data_, subcomponent_path, kTokens->sourceMesh,
                        pxr::UsdGeomTokens->Mesh);
-    mesh_paths_[*mesh->name] = subcomponent_path;
+    mesh_paths_[*mjs_getName(mesh->element)] = subcomponent_path;
 
     if (write_physics_) {
       ApplyApiSchema(data_, mesh_path, MjcPhysicsTokens->MeshCollisionAPI);
@@ -725,8 +725,9 @@ class ModelWriter {
 
   void WriteMaterial(mjsMaterial *material, const pxr::SdfPath &parent_path) {
     // Create a Material prim.
-    auto name = GetAvailablePrimName(
-        *material->name, pxr::UsdShadeTokens->Material, parent_path);
+    auto name =
+        GetAvailablePrimName(*mjs_getName(material->element),
+                             pxr::UsdShadeTokens->Material, parent_path);
     pxr::SdfPath material_path =
         CreatePrimSpec(data_, parent_path, name, pxr::UsdShadeTokens->Material);
 
@@ -1008,9 +1009,9 @@ class ModelWriter {
     std::unordered_map<std::string, std::vector<mjsKey *>> keyframes_map;
     mjsKey *keyframe = mjs_asKey(mjs_firstElement(spec_, mjOBJ_KEY));
     while (keyframe) {
-      std::string keyframe_name = keyframe->name->empty()
+      std::string keyframe_name = mjs_getName(keyframe->element)->empty()
                                       ? MjcPhysicsTokens->Keyframe
-                                      : *keyframe->name;
+                                      : *mjs_getName(keyframe->element);
       keyframes_map[keyframe_name].push_back(keyframe);
       keyframe = mjs_asKey(mjs_nextElement(spec_, keyframe->element));
     }
@@ -1174,7 +1175,9 @@ class ModelWriter {
 
   pxr::SdfPath WriteMeshGeom(const mjsGeom *geom,
                              const pxr::SdfPath &body_path) {
-    std::string mj_name = geom->name->empty() ? *geom->meshname : *geom->name;
+    std::string mj_name = mjs_getName(geom->element)->empty()
+                              ? *geom->meshname
+                              : *mjs_getName(geom->element);
     auto name =
         GetAvailablePrimName(mj_name, pxr::UsdGeomTokens->Mesh, body_path);
     pxr::SdfPath subcomponent_path =
@@ -1196,8 +1199,8 @@ class ModelWriter {
 
   pxr::SdfPath WriteSiteGeom(const mjsSite *site,
                              const pxr::SdfPath &body_path) {
-    auto name =
-        GetAvailablePrimName(*site->name, pxr::UsdGeomTokens->Cube, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(site->element),
+                                     pxr::UsdGeomTokens->Cube, body_path);
 
     int site_idx = mjs_getId(site->element);
     const mjtNum *size = &model_->site_size[site_idx * 3];
@@ -1254,8 +1257,8 @@ class ModelWriter {
 
   pxr::SdfPath WriteBoxGeom(const mjsGeom *geom,
                             const pxr::SdfPath &body_path) {
-    auto name =
-        GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Cube, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Cube, body_path);
 
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
@@ -1282,8 +1285,8 @@ class ModelWriter {
 
   pxr::SdfPath WriteCapsuleGeom(const mjsGeom *geom,
                                 const pxr::SdfPath &body_path) {
-    auto name = GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Capsule,
-                                     body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Capsule, body_path);
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
 
@@ -1310,8 +1313,8 @@ class ModelWriter {
 
   pxr::SdfPath WriteCylinderGeom(const mjsGeom *geom,
                                  const pxr::SdfPath &body_path) {
-    auto name = GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Cylinder,
-                                     body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Cylinder, body_path);
 
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
@@ -1340,8 +1343,8 @@ class ModelWriter {
 
   pxr::SdfPath WriteEllipsoidGeom(const mjsGeom *geom,
                                   const pxr::SdfPath &body_path) {
-    auto name = GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Sphere,
-                                     body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Sphere, body_path);
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
 
@@ -1362,8 +1365,8 @@ class ModelWriter {
 
   pxr::SdfPath WriteSphereGeom(const mjsGeom *geom,
                                const pxr::SdfPath &body_path) {
-    auto name = GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Sphere,
-                                     body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Sphere, body_path);
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
     return WriteSphere(name, geom_size, body_path);
@@ -1399,8 +1402,8 @@ class ModelWriter {
 
   pxr::SdfPath WritePlaneGeom(const mjsGeom *geom,
                               const pxr::SdfPath &body_path) {
-    auto name =
-        GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Plane, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Plane, body_path);
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
     return WritePlane(name, geom_size, body_path);
@@ -1409,8 +1412,8 @@ class ModelWriter {
   void WriteSite(mjsSite *site, const mjsBody *body) {
     const int body_id = mjs_getId(body->element);
     const auto &body_path = body_paths_[body_id];
-    auto name =
-        GetAvailablePrimName(*site->name, pxr::UsdGeomTokens->Xform, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(site->element),
+                                     pxr::UsdGeomTokens->Xform, body_path);
 
     // Create a geom primitive and set its purpose to guide so it won't be
     // rendered.
@@ -1519,7 +1522,8 @@ class ModelWriter {
     }
 
     mjsDefault *spec_default = mjs_getDefault(geom->element);
-    pxr::TfToken valid_class_name = GetValidPrimName(*spec_default->name);
+    pxr::TfToken valid_class_name =
+        GetValidPrimName(*mjs_getName(spec_default->element));
     pxr::SdfPath geom_class_path = class_path_.AppendChild(valid_class_name);
     if (!data_->HasSpec(geom_class_path)) {
       pxr::SdfPath class_path =
@@ -1645,7 +1649,7 @@ class ModelWriter {
           break;
         default:
           TF_WARN("Unsupported joint type '%d' for joint '%s'. Skipping.",
-                  (int)type, joint->name->c_str());
+                  (int)type, mjs_getName(joint->element)->c_str());
           return;
       }
     }
@@ -1658,7 +1662,7 @@ class ModelWriter {
     int body0_id_usd = model_->body_parentid[body_id];
 
     const pxr::SdfPath &body1_path_usd = body_paths_[body1_id_usd];
-    auto joint_name = joint ? *joint->name : "FixedJoint";
+    auto joint_name = joint ? *mjs_getName(joint->element) : "FixedJoint";
     pxr::TfToken joint_name_token =
         GetAvailablePrimName(joint_name, kTokens->joint, body1_path_usd);
     pxr::SdfPath joint_path = CreatePrimSpec(data_, body1_path_usd,
@@ -1892,7 +1896,7 @@ class ModelWriter {
 
   void WriteCamera(mjsCamera *spec_cam, const mjsBody *body) {
     const auto &body_path = body_paths_[mjs_getId(body->element)];
-    auto name = GetAvailablePrimName(*spec_cam->name,
+    auto name = GetAvailablePrimName(*mjs_getName(spec_cam->element),
                                      pxr::UsdGeomTokens->Camera, body_path);
     // Create a root Xform for the world body with the model name if it exists
     // otherwise called 'World'.
@@ -1950,7 +1954,8 @@ class ModelWriter {
 
   void WriteLight(mjsLight *light, const mjsBody *body) {
     const auto &body_path = body_paths_[mjs_getId(body->element)];
-    auto name = GetAvailablePrimName(*light->name, kTokens->light, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(light->element),
+                                     kTokens->light, body_path);
     // Create a root Xform for the world body with the model name if it exists
     // otherwise called 'World'.
     pxr::SdfPath light_path =
@@ -1978,7 +1983,7 @@ class ModelWriter {
     mjsBody *parent = mjs_getParent(body->element);
     int parent_id = mjs_getId(parent->element);
     pxr::SdfPath parent_path = body_paths_[parent_id];
-    pxr::TfToken body_name = GetValidPrimName(*body->name);
+    pxr::TfToken body_name = GetValidPrimName(*mjs_getName(body->element));
 
     // Create Xform prim for body.
     pxr::SdfPath body_path = CreatePrimSpec(data_, parent_path, body_name,
@@ -2046,7 +2051,8 @@ class ModelWriter {
     // Create classes if necessary
     mjsDefault *spec_default = mjs_getDefault(body->element);
 
-    pxr::TfToken body_class_name = GetValidPrimName(*spec_default->name);
+    pxr::TfToken body_class_name =
+        GetValidPrimName(*mjs_getName(spec_default->element));
     pxr::SdfPath body_class_path = class_path_.AppendChild(body_class_name);
     if (!data_->HasSpec(body_class_path)) {
       CreateClassSpec(data_, class_path_, body_class_name);
@@ -2069,7 +2075,7 @@ class ModelWriter {
                       pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
 
     pxr::VtDictionary customData;
-    customData[kTokens->body_name] = *body->name;
+    customData[kTokens->body_name] = *mjs_getName(body->element);
     SetPrimMetadata(data_, body_path, pxr::SdfFieldKeys->CustomData,
                     customData);
 

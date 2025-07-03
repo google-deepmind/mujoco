@@ -709,7 +709,7 @@ TEST_F(MujocoTest, Modeldir) {
   mjsGeom* geom = mjs_addGeom(mjs_findBody(child, "world"), 0);
   mjs_setString(child->meshdir, "meshdir");
   mjs_setString(mesh->file, "cube.obj");
-  mjs_setString(mesh->name, "cube");
+  mjs_setName(mesh->element, "cube");
   mjs_setString(geom->meshname, "cube");
   mjs_setFrame(geom->element, frame);
   geom->type = mjGEOM_MESH;

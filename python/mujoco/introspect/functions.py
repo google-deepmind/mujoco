@@ -10191,6 +10191,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc="Return spec's next element; return NULL if element is last.",
      )),
+    ('mjs_setName',
+     FunctionDecl(
+         name='mjs_setName',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='name',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc="Set element's name.",
+     )),
     ('mjs_setBuffer',
      FunctionDecl(
          name='mjs_setBuffer',
@@ -10438,6 +10458,22 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Set plugin attributes.',
+     )),
+    ('mjs_getName',
+     FunctionDecl(
+         name='mjs_getName',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjString'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='element',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsElement'),
+                 ),
+             ),
+         ),
+         doc="Get element's name.",
      )),
     ('mjs_getString',
      FunctionDecl(

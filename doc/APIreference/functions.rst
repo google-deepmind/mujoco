@@ -4228,6 +4228,15 @@ Return spec's next element; return NULL if element is last.
 
 Attribute setters
 ^^^^^^^^^^^^^^^^^
+.. _mjs_setName:
+
+`mjs_setName <#mjs_setName>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_setName
+
+Set element's name.
+
 .. _mjs_setBuffer:
 
 `mjs_setBuffer <#mjs_setBuffer>`__
@@ -4331,6 +4340,15 @@ Set plugin attributes.
 
 Attribute getters
 ^^^^^^^^^^^^^^^^^
+.. _mjs_getName:
+
+`mjs_getName <#mjs_getName>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getName
+
+Get element's name.
+
 .. _mjs_getString:
 
 `mjs_getString <#mjs_getString>`__

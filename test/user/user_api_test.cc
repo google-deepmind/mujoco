@@ -54,11 +54,11 @@ TEST_F(MujocoTest, GetSetData) {
     double vec[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     const char* str = "sitename";
 
-    mjs_setString(site->name, str);
+    mjs_setName(site->element, str);
     mjs_setDouble(site->userdata, vec, 10);
   }
 
-  EXPECT_THAT(mjs_getString(site->name), HasSubstr("sitename"));
+  EXPECT_THAT(mjs_getName(site->element)->c_str(), HasSubstr("sitename"));
 
   int nsize;
   const double* vec = mjs_getDouble(site->userdata, &nsize);
@@ -199,7 +199,7 @@ TEST_F(PluginTest, DeletePlugin) {
   mjsBody* body = mjs_addBody(mjs_findBody(spec, "world"), 0);
   mjsJoint* joint = mjs_addJoint(body, 0);
   mjsGeom* geom = mjs_addGeom(body, 0);
-  mjs_setString(joint->name, "j1");
+  mjs_setName(joint->element, "j1");
   joint->type = mjJNT_SLIDE;
   geom->size[0] = 1;
 
@@ -358,10 +358,10 @@ TEST_F(PluginTest, AttachExplicitPlugin) {
   mjs_activatePlugin(child, "mujoco.sensor.touch_grid");
   mjs_setString(plugin->plugin_name, "mujoco.sensor.touch_grid");
   mjs_setString(sensor->plugin.plugin_name, "mujoco.sensor.touch_grid");
-  mjs_setString(body->name, "body");
-  mjs_setString(sensor->name, "touch2");
+  mjs_setName(body->element, "body");
+  mjs_setName(sensor->element, "touch2");
   mjs_setString(sensor->objname, "touch2");
-  mjs_setString(site->name, "touch2");
+  mjs_setName(site->element, "touch2");
   geom->size[0] = 0.1;
   site->size[0] = 0.001;
   sensor->type = mjSENS_PLUGIN;
@@ -470,8 +470,8 @@ TEST_F(MujocoTest, RecompileFails) {
 
   mjsMaterial* mat1 = mjs_addMaterial(spec, 0);
   mjsMaterial* mat2 = mjs_addMaterial(spec, 0);
-  mjs_setString(mat1->name, "yellow");
-  mjs_setString(mat2->name, "yellow");
+  mjs_setName(mat1->element, "yellow");
+  mjs_setName(mat2->element, "yellow");
 
   EXPECT_EQ(mj_recompile(spec, 0, model, data), -1);
   EXPECT_STREQ(mjs_getError(spec), "Error: repeated name 'yellow' in material");
@@ -752,7 +752,7 @@ TEST_F(PluginTest, TextureFromBuffer) {
   mjSpec* spec = mj_makeSpec();
 
   mjsTexture* t1 = mjs_addTexture(spec);
-  mjs_setString(t1->name, "tex1");
+  mjs_setName(t1->element, "tex1");
   t1->type = mjTEXTURE_2D;
   t1->width = 3;
   t1->height = 2;
@@ -760,7 +760,7 @@ TEST_F(PluginTest, TextureFromBuffer) {
   mjs_setBuffer(t1->data, (std::byte*)tex1, 18);
 
   mjsTexture* t2 = mjs_addTexture(spec);
-  mjs_setString(t2->name, "tex2");
+  mjs_setName(t2->element, "tex2");
   t2->type = mjTEXTURE_2D;
   t2->width = 3;
   t2->height = 2;
@@ -768,7 +768,7 @@ TEST_F(PluginTest, TextureFromBuffer) {
   mjs_setBuffer(t2->data, (std::byte*)tex2, 18);
 
   mjsMaterial* mat = mjs_addMaterial(spec, nullptr);
-  mjs_setString(mat->name, "mat");
+  mjs_setName(mat->element, "mat");
   mjs_setInStringVec(mat->textures, mjTEXROLE_RGB, "tex1");
   mjs_setInStringVec(mat->textures, mjTEXROLE_ORM, "tex2");
 
@@ -1706,7 +1706,7 @@ TEST_F(MujocoTest, AttachSpecToSite) {
   EXPECT_THAT(world, NotNull());
   mjsFrame* frame = mjs_addFrame(world, 0);
   EXPECT_THAT(frame, NotNull());
-  mjs_setString(frame->name, "world");
+  mjs_setName(frame->element, "world");
   mjs_setFrame(mjs_firstChild(world, mjOBJ_BODY, 0), frame);
   mjs_setFrame(mjs_firstChild(world, mjOBJ_CAMERA, 0), frame);
 
@@ -1784,7 +1784,7 @@ TEST_F(MujocoTest, AttachSpecToBody) {
   EXPECT_THAT(world, NotNull());
   mjsFrame* frame = mjs_addFrame(world, 0);
   EXPECT_THAT(frame, NotNull());
-  mjs_setString(frame->name, "world");
+  mjs_setName(frame->element, "world");
   mjs_setFrame(mjs_firstChild(world, mjOBJ_BODY, 0), frame);
   mjs_setFrame(mjs_firstChild(world, mjOBJ_CAMERA, 0), frame);
 
@@ -2152,14 +2152,14 @@ TEST_F(MujocoTest, InitTexture) {
   EXPECT_THAT(spec, NotNull());
 
   mjsTexture* texture = mjs_addTexture(spec);
-  mjs_setString(texture->name, "checker");
+  mjs_setName(texture->element, "checker");
   texture->type = mjTEXTURE_CUBE;
   texture->builtin = mjBUILTIN_CHECKER;
   texture->width = 300;
   texture->height = 300;
 
   mjsMaterial* material = mjs_addMaterial(spec, 0);
-  mjs_setString(material->name, "floor");
+  mjs_setName(material->element, "floor");
   mjs_setInStringVec(material->textures, mjTEXROLE_RGB, "checker");
 
   mjsGeom* floor = mjs_addGeom(mjs_findBody(spec, "world"), 0);
@@ -2848,8 +2848,8 @@ TEST_F(MujocoTest, SetFrameReverseOrder) {
   mjsBody* world = mjs_findBody(spec, "world");
   mjsFrame* child = mjs_addFrame(world, nullptr);
   mjsFrame* parent = mjs_addFrame(world, nullptr);
-  mjs_setString(child->name, "child");
-  mjs_setString(parent->name, "parent");
+  mjs_setName(child->element, "child");
+  mjs_setName(parent->element, "parent");
   mjs_setFrame(child->element, parent);
   mjSpec* copy = mj_copySpec(spec);
   EXPECT_THAT(copy, NotNull());

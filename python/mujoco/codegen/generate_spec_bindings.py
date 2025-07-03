@@ -341,9 +341,14 @@ def generate_add() -> None:
       else:
         return '', '', ''
 
-    code_field = ''
-    set_types = []
-    names = []
+    if key == 'mjsPlugin':
+      code_field = ''
+      set_types = []
+      names = []
+    else:
+      code_field = 'set_name("name", out->element);'
+      set_types = ['name']
+      names = ['name']
     for field in structs.STRUCTS[key].fields:
       line, set_type, name = _field(field)
       if line:
@@ -571,6 +576,21 @@ def generate_add() -> None:
             }
           };
           """
+        elif t == 'name':
+          code += """\n
+          auto set_name = [&kwargs](const char* str, raw::MjsElement* el) {
+            if (kwargs.contains(str)) {
+              try {
+                std::string name = kwargs[str].cast<std::string>();
+                mjs_setName(el, name.c_str());
+              } catch (const py::cast_error &e) {
+                throw pybind11::value_error(std::string(str) + " should be a string.");
+              }
+            }
+          };
+          """
+        else:
+          raise NotImplementedError(f'Unsupported set type: {t} in {key}')
 
     code += code_field
     code += f"""\n
@@ -644,6 +664,25 @@ def generate_id() -> None:
     print(code)
 
 
+def generate_name() -> None:
+  """Generate name functions."""
+  for key, _, _, _, _ in SPECS + [('mjsDefault', '', '', '', '')]:
+    if key == 'mjsPlugin':
+      continue
+    elem = key.removeprefix('mjs')
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      {key}.def_property("name",
+      [](raw::{titlecase}& self) -> std::string* {{
+        return mjs_getName(self.element);
+      }},
+      [](raw::{titlecase}& self, std::string& name) -> void {{
+        mjs_setName(self.element, name.c_str());
+      }}, py::return_value_policy::reference_internal);
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
@@ -652,6 +691,7 @@ def main(argv: Sequence[str]) -> None:
   generate_find()
   generate_signature()
   generate_id()
+  generate_name()
 
 
 if __name__ == '__main__':

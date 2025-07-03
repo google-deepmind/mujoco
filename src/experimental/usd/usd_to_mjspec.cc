@@ -556,7 +556,7 @@ void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,
                                        const std::string* name) {
   pxr::UsdPrim prim = act.GetPrim();
   mjsActuator* mj_act = mjs_addActuator(spec, nullptr);
-  mjs_setString(mj_act->name, prim.GetPath().GetAsString().c_str());
+  mjs_setName(mj_act->element, prim.GetPath().GetAsString().c_str());
   mjs_setString(mj_act->target, name->c_str());
   mj_act->trntype = tran_type;
 
@@ -732,7 +732,7 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
       mju_warning(
           "springdamper attribute for joint %s has incorrect size %zu, "
           "expected 2.",
-          mj_joint->name->c_str(), springdamper.size());
+          mjs_getName(mj_joint->element)->c_str(), springdamper.size());
     }
   }
 
@@ -748,7 +748,7 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
       mju_warning(
           "solreflimit attribute for joint %s has incorrect size %zu, "
           "expected %d.",
-          mj_joint->name->c_str(), solreflimit.size(), mjNREF);
+          mjs_getName(mj_joint->element)->c_str(), solreflimit.size(), mjNREF);
     }
   }
 
@@ -764,7 +764,7 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
       mju_warning(
           "solimplimit attribute for joint %s has incorrect size %zu, "
           "expected %d.",
-          mj_joint->name->c_str(), solimplimit.size(), mjNIMP);
+          mjs_getName(mj_joint->element)->c_str(), solimplimit.size(), mjNIMP);
     }
   }
 
@@ -780,7 +780,8 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
       mju_warning(
           "solreffriction attribute for joint %s has incorrect size %zu, "
           "expected %d.",
-          mj_joint->name->c_str(), solreffriction.size(), mjNREF);
+          mjs_getName(mj_joint->element)->c_str(), solreffriction.size(),
+          mjNREF);
     }
   }
 
@@ -796,7 +797,8 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
       mju_warning(
           "solimpfriction attribute for joint %s has incorrect size %zu, "
           "expected %d.",
-          mj_joint->name->c_str(), solimpfriction.size(), mjNIMP);
+          mjs_getName(mj_joint->element)->c_str(), solimpfriction.size(),
+          mjNIMP);
     }
   }
 
@@ -898,7 +900,7 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
   }
 
   mjsGeom* geom = mjs_addGeom(parent, nullptr);
-  mjs_setString(geom->name, prim.GetPath().GetAsString().c_str());
+  mjs_setName(geom->element, prim.GetPath().GetAsString().c_str());
   geom->contype = 1;
   geom->conaffinity = 1;
 
@@ -983,7 +985,7 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
       }
 
       std::string mesh_name = usd_mesh.GetPath().GetAsString();
-      mjs_setString(mesh->name, mesh_name.c_str());
+      mjs_setName(mesh->element, mesh_name.c_str());
       mjs_setFloat(mesh->uservert, uservert.data(), uservert.size());
       mjs_setInt(mesh->userface, userface.data(), userface.size());
 
@@ -1047,7 +1049,7 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
 
   mjsJoint* mj_joint = mjs_addJoint(body, nullptr);
   mj_joint->type = type;
-  mjs_setString(mj_joint->name, prim.GetPath().GetAsString().c_str());
+  mjs_setName(mj_joint->element, prim.GetPath().GetAsString().c_str());
 
   if (prim.IsA<pxr::UsdPhysicsRevoluteJoint>()) {
     pxr::UsdPhysicsRevoluteJoint revolute(prim);
@@ -1123,7 +1125,8 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
 
   if (prim.HasAPI<pxr::MjcPhysicsActuatorAPI>()) {
     ParseMjcPhysicsGeneralActuatorAPI(spec, pxr::MjcPhysicsActuatorAPI(prim),
-                                      mjtTrn::mjTRN_JOINT, mj_joint->name);
+                                      mjtTrn::mjTRN_JOINT,
+                                      mjs_getName(mj_joint->element));
   }
 
   if (prim.HasAPI<pxr::MjcPhysicsJointAPI>()) {
@@ -1136,7 +1139,7 @@ void ParseMjcPhysicsSite(mjSpec* spec, const pxr::MjcPhysicsSiteAPI& site_api,
                          pxr::UsdGeomXformCache& xform_cache) {
   auto prim = site_api.GetPrim();
   mjsSite* site = mjs_addSite(parent, 0);
-  mjs_setString(site->name, site_api.GetPrim().GetPath().GetAsString().c_str());
+  mjs_setName(site->element, site_api.GetPrim().GetPath().GetAsString().c_str());
   SetLocalPoseFromPrim(site_api.GetPrim(), parent_prim, site, xform_cache);
 
   // Convert USD type to MuJoCo type.
@@ -1152,7 +1155,7 @@ void ParseMjcPhysicsSite(mjSpec* spec, const pxr::MjcPhysicsSiteAPI& site_api,
     ParseMjcPhysicsGeneralActuatorAPI(
         spec, pxr::MjcPhysicsActuatorAPI(prim),
         slider_crank ? mjtTrn::mjTRN_SLIDERCRANK : mjtTrn::mjTRN_SITE,
-        site->name);
+        mjs_getName(site->element));
   }
 }
 
@@ -1187,7 +1190,7 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
   if (n_time_samples == 0) {
     // If no time samples, we create a single keyframe.
     mjsKey* key = mjs_addKey(spec);
-    mjs_setString(key->name, prim.GetName().GetString().c_str());
+    mjs_setName(key->element, prim.GetName().GetString().c_str());
     setKeyframeData(key, qpos_attr, &key->qpos);
     setKeyframeData(key, qvel_attr, &key->qvel);
     setKeyframeData(key, act_attr, &key->act);
@@ -1203,7 +1206,7 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
       mjsKey* key = mjs_addKey(spec);
       std::string key_name =
           prim.GetName().GetString() + "_" + std::to_string(keyframe_id++);
-      mjs_setString(key->name, key_name.c_str());
+      mjs_setName(key->element, key_name.c_str());
       key->time = time;
       setKeyframeData(key, qpos_attr, &key->qpos, &time);
       setKeyframeData(key, qvel_attr, &key->qvel, &time);
@@ -1221,7 +1224,7 @@ mjsBody* ParseUsdPhysicsRigidbody(
     pxr::UsdGeomXformCache& xform_cache) {
   pxr::UsdPrim prim = rigidbody_api.GetPrim();
   mjsBody* body = mjs_addBody(parent, nullptr);
-  mjs_setString(body->name, prim.GetPath().GetAsString().c_str());
+  mjs_setName(body->element, prim.GetPath().GetAsString().c_str());
   SetLocalPoseFromPrim(prim, parent_prim, body, xform_cache);
 
   if (prim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
@@ -1230,7 +1233,8 @@ mjsBody* ParseUsdPhysicsRigidbody(
 
   if (prim.HasAPI<pxr::MjcPhysicsActuatorAPI>()) {
     ParseMjcPhysicsGeneralActuatorAPI(spec, pxr::MjcPhysicsActuatorAPI(prim),
-                                      mjtTrn::mjTRN_BODY, body->name);
+                                      mjtTrn::mjTRN_BODY,
+                                      mjs_getName(body->element));
   }
 
   mujoco::usd::SetUsdPrimPathUserValue(body->element, prim.GetPath());

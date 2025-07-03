@@ -521,7 +521,8 @@ PYBIND11_MODULE(_specs, m) {
             }
           } else if (key == "name") {
             try {
-              *out->name = kwargs["name"].cast<std::string>();
+              mjs_setName(out->element,
+                          kwargs["name"].cast<std::string>().c_str());
             } catch (const py::cast_error& e) {
               throw pybind11::value_error("name is the wrong type.");
             }
@@ -552,7 +553,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsBody& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
   mjsBody.def(
       "find_all",
       [](raw::MjsBody& self, mjtObj objtype) -> py::list {
@@ -819,7 +821,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsGeom& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
   mjsGeom.def_property_readonly(
       "frame",
       [](raw::MjsGeom& self) -> raw::MjsFrame* {
@@ -849,7 +852,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsJoint& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
   mjsJoint.def_property_readonly(
       "frame",
       [](raw::MjsJoint& self) -> raw::MjsFrame* {
@@ -879,7 +883,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsSite& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
   mjsSite.def(
       "attach_body",
       [](raw::MjsSite& self, raw::MjsBody& body,
@@ -926,7 +931,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsCamera& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
   mjsCamera.def_property_readonly(
       "frame",
       [](raw::MjsCamera& self) -> raw::MjsFrame* {
@@ -956,7 +962,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsLight& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
   mjsLight.def_property_readonly(
       "frame",
       [](raw::MjsLight& self) -> raw::MjsFrame* {
@@ -975,7 +982,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsMaterial& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSMESH =====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsMesh& obj) {
@@ -988,7 +996,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsMesh& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSPAIR =====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsPair& obj) {
@@ -1001,7 +1010,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsPair& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSEQUAL ====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsEquality& obj) {
@@ -1014,7 +1024,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsEquality& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
 
   // ============================= MJSACTUATOR =================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsActuator& obj) {
@@ -1027,7 +1038,8 @@ PYBIND11_MODULE(_specs, m) {
       },
       [](raw::MjsActuator& self, raw::MjsDefault& default_) -> void {
         mjs_setDefault(self.element, &default_);
-      });
+      },
+      py::return_value_policy::reference_internal);
   mjsActuator.def("set_to_motor", [](raw::MjsActuator* self) {
     std::string err = mjs_setToMotor(self);
     if (!err.empty()) {
