@@ -643,7 +643,7 @@ class SpecsTest(absltest.TestCase):
       <worldbody>
         <body name="body1">
           <site name="site1"/>
-          <body name="body3">
+          <body name="body2">
             <site name="site4"/>
           </body>
           <geom name="geom1" size="1"/>
@@ -652,7 +652,7 @@ class SpecsTest(absltest.TestCase):
           <site name="site3"/>
           <geom name="geom3" size="1"/>
         </body>
-        <body name="body2">
+        <body name="body3">
           <site name="site5"/>
         </body>
       </worldbody>
@@ -669,12 +669,12 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.bodies[2].name, 'body2')
     self.assertEqual(spec.bodies[3].name, 'body3')
     self.assertEqual(spec.bodies[1].parent, spec.bodies[0])
-    self.assertEqual(spec.bodies[2].parent, spec.bodies[0])
-    self.assertEqual(spec.bodies[3].parent, spec.bodies[1])
+    self.assertEqual(spec.bodies[2].parent, spec.bodies[1])
+    self.assertEqual(spec.bodies[3].parent, spec.bodies[0])
     self.assertLen(spec.worldbody.find_all(bodytype), 3)
     self.assertLen(spec.bodies[1].find_all(bodytype), 1)
     self.assertEmpty(spec.bodies[3].find_all(bodytype))
-    self.assertEqual(spec.bodies[1].find_all('body')[0].name, 'body3')
+    self.assertEqual(spec.bodies[1].find_all('body')[0].name, 'body2')
     self.assertEmpty(spec.bodies[3].find_all('body'))
     self.assertEmpty(spec.bodies[2].find_all('body'))
     for i, body in enumerate(spec.worldbody.find_all('body')):
@@ -687,8 +687,8 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(spec.bodies[1].sites[0].name, 'site1')
     self.assertEqual(spec.bodies[1].sites[1].name, 'site2')
     self.assertEqual(spec.bodies[1].sites[2].name, 'site3')
-    self.assertEqual(spec.bodies[3].sites[0].name, 'site4')
-    self.assertEqual(spec.bodies[2].sites[0].name, 'site5')
+    self.assertEqual(spec.bodies[2].sites[0].name, 'site4')
+    self.assertEqual(spec.bodies[3].sites[0].name, 'site5')
     for body in spec.bodies:
       for site in body.sites:
         self.assertEqual(site.parent, body)

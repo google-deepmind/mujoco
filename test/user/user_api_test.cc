@@ -98,6 +98,9 @@ TEST_F(MujocoTest, TreeTraversal) {
   mjsBody* body1 = mjs_findBody(spec, "body1");
   mjsBody* body2 = mjs_findBody(spec, "body2");
   mjsBody* body3 = mjs_findBody(spec, "body3");
+  mjsElement* b1 = body1->element;
+  mjsElement* b2 = body2->element;
+  mjsElement* b3 = body3->element;
   mjsElement* site1 = mjs_findElement(spec, mjOBJ_SITE, "site1");
   mjsElement* site2 = mjs_findElement(spec, mjOBJ_SITE, "site2");
   mjsElement* site3 = mjs_findElement(spec, mjOBJ_SITE, "site3");
@@ -144,6 +147,8 @@ TEST_F(MujocoTest, TreeTraversal) {
   EXPECT_EQ(mjs_nextElement(spec, geom3), nullptr);
 
   // text next, recursive
+  EXPECT_EQ(b2, mjs_nextChild(world, b1, /*recursive=*/true));
+  EXPECT_EQ(b3, mjs_nextChild(world, b2, /*recursive=*/true));
   EXPECT_EQ(site2, mjs_nextChild(body1, site1, /*recursive=*/true));
   EXPECT_EQ(site3, mjs_nextChild(body1, site2, /*recursive=*/true));
   EXPECT_EQ(site4, mjs_nextChild(body1, site3, /*recursive=*/true));

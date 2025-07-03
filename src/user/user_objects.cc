@@ -1656,29 +1656,41 @@ mjCBase* mjCBody::FindObject(mjtObj type, std::string _name, bool recursive) {
 
 
 
+// return true if child is descendant of this body
+bool mjCBody::IsAncestor(const mjCBody* child) const {
+  if (!child) {
+    return false;
+  }
+
+  if (child == this) {
+    return true;
+  }
+
+  return IsAncestor(child->parent);
+}
+
+
+
 template <class T>
-mjsElement* mjCBody::GetNext(const std::vector<T*>& list, const mjsElement* child, bool* found) {
+mjsElement* mjCBody::GetNext(const std::vector<T*>& list, const mjsElement* child) {
   if (list.empty()) {
     // no children
     return nullptr;
   }
 
-  if (!child) {
-    // first child
-    return list[0]->spec.element;
-  }
+  for (unsigned int i = 0; i < list.size() - (child ? 1 : 0); i++) {
+    if (!IsAncestor(list[i]->GetParent())) {
+      continue;  // TODO: this recursion is wasteful
+    }
 
-  for (unsigned int i = 0; i < list.size()-1; i++) {
+    // first child in this body
+    if (!child) {
+      return list[i]->spec.element;
+
     // next child is in this body
-    if (list[i]->spec.element == child) {
-      *found = true;
+    } else if (list[i]->spec.element == child && IsAncestor(list[i+1]->GetParent())) {
       return list[i+1]->spec.element;
     }
-  }
-
-  if (list.back()->spec.element == child) {
-    // next child is in another body
-    *found = true;
   }
 
   return nullptr;
@@ -1687,7 +1699,7 @@ mjsElement* mjCBody::GetNext(const std::vector<T*>& list, const mjsElement* chil
 
 
 // get next child of given type
-mjsElement* mjCBody::NextChild(const mjsElement* child, mjtObj type, bool recursive, bool* found) {
+mjsElement* mjCBody::NextChild(const mjsElement* child, mjtObj type, bool recursive) {
   if (type == mjOBJ_UNKNOWN) {
     if (!child) {
       throw mjCError(this, "child type must be specified if no child element is given");
@@ -1698,49 +1710,36 @@ mjsElement* mjCBody::NextChild(const mjsElement* child, mjtObj type, bool recurs
     throw mjCError(this, "child element is not of requested type");
   }
 
-  bool found_ = false;
-  if (!found) {
-    found = &found_;
-  }
 
   mjsElement* candidate = nullptr;
   switch (type) {
     case mjOBJ_BODY:
     case mjOBJ_XBODY:
-      candidate = GetNext(bodies, child, found);
+      candidate = GetNext(recursive ? model->bodies_ : bodies, child);
       break;
     case mjOBJ_JOINT:
-      candidate = GetNext(joints, child, found);
+      candidate = GetNext(recursive ? model->joints_ : joints, child);
       break;
     case mjOBJ_GEOM:
-      candidate = GetNext(geoms, child, found);
+      candidate = GetNext(recursive ? model->geoms_ : geoms, child);
       break;
     case mjOBJ_SITE:
-      candidate = GetNext(sites, child, found);
+      candidate = GetNext(recursive ? model->sites_ : sites, child);
       break;
     case mjOBJ_CAMERA:
-      candidate = GetNext(cameras, child, found);
+      candidate = GetNext(recursive ? model->cameras_ : cameras, child);
       break;
     case mjOBJ_LIGHT:
-      candidate = GetNext(lights, child, found);
+      candidate = GetNext(recursive ? model->lights_ : lights, child);
       break;
     case mjOBJ_FRAME:
-      candidate = GetNext(frames, child, found);
+      candidate = GetNext(recursive ? model->frames_ : frames, child);
       break;
     default:
       throw mjCError(this,
                      "Body.NextChild supports the types: body, frame, geom, "
                      "site, light, camera");
       break;
-  }
-
-  if (!candidate && recursive) {
-    for (int i=0; i < (int)bodies.size(); i++) {
-      candidate = bodies[i]->NextChild(*found ? nullptr : child, type, recursive, found);
-      if (candidate) {
-        return candidate;
-      }
-    }
   }
 
   return candidate;

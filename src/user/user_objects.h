@@ -475,7 +475,7 @@ class mjCBody : public mjCBody_, private mjsBody {
   // returns nullptr if the next child is not found or if `child` is the last element, returns
   // the next child after the input `child` otherwise
   mjsElement* NextChild(const mjsElement* child, mjtObj type = mjOBJ_UNKNOWN,
-                        bool recursive = false, bool* found = nullptr);
+                        bool recursive = false);
 
   // reset keyframe references for allowing self-attach
   void ForgetKeyframes() const;
@@ -534,7 +534,9 @@ class mjCBody : public mjCBody_, private mjsBody {
 
   // gets next child of the same type in this body
   template <class T>
-  mjsElement* GetNext(const std::vector<T*>& list, const mjsElement* child, bool* found);
+  mjsElement* GetNext(const std::vector<T*>& list, const mjsElement* child);
+
+  bool IsAncestor(const mjCBody* child) const;  // true if child is a descendant of this body
 };
 
 
