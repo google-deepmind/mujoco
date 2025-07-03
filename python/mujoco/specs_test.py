@@ -642,68 +642,56 @@ class SpecsTest(absltest.TestCase):
     <mujoco>
       <worldbody>
         <body name="body1">
+          <site name="site1"/>
           <body name="body3">
-            <site name="site1"/>
-            <site name="site2"/>
-            <site name="site3"/>
             <site name="site4"/>
-            <body name="body4">
-              <site name="site5"/>
-              <joint name="joint1"/>
-              <geom name="geom1" size="1"/>
-            </body>
           </body>
+          <geom name="geom1" size="1"/>
+          <geom name="geom2" size="1"/>
+          <site name="site2"/>
+          <site name="site3"/>
+          <geom name="geom3" size="1"/>
         </body>
-        <body name="body2"/>
+        <body name="body2">
+          <site name="site5"/>
+        </body>
       </worldbody>
     </mujoco>
     """
     spec = mujoco.MjSpec.from_string(main_xml)
     bodytype = mujoco.mjtObj.mjOBJ_BODY
-    self.assertLen(spec.bodies, 5)
+    self.assertLen(spec.bodies, 4)
     self.assertLen(spec.sites, 5)
-    self.assertLen(spec.worldbody.find_all('body'), 4)
+    self.assertLen(spec.worldbody.find_all('body'), 3)
     self.assertLen(spec.worldbody.find_all('site'), 5)
-    self.assertLen(spec.worldbody.find_all('joint'), 1)
-    self.assertLen(spec.worldbody.find_all('geom'), 1)
+    self.assertLen(spec.worldbody.find_all('geom'), 3)
     self.assertEqual(spec.bodies[1].name, 'body1')
     self.assertEqual(spec.bodies[2].name, 'body2')
     self.assertEqual(spec.bodies[3].name, 'body3')
-    self.assertEqual(spec.bodies[4].name, 'body4')
-    self.assertEqual(spec.bodies[1].parent, spec.worldbody)
-    self.assertEqual(spec.bodies[2].parent, spec.worldbody)
+    self.assertEqual(spec.bodies[1].parent, spec.bodies[0])
+    self.assertEqual(spec.bodies[2].parent, spec.bodies[0])
     self.assertEqual(spec.bodies[3].parent, spec.bodies[1])
-    self.assertEqual(spec.bodies[4].parent, spec.bodies[3])
-    self.assertLen(spec.worldbody.find_all(bodytype), 4)
-    self.assertLen(spec.bodies[1].find_all(bodytype), 2)
-    self.assertLen(spec.bodies[3].find_all(bodytype), 1)
-    self.assertEqual(spec.worldbody.find_all('body')[0].name, 'body1')
-    self.assertEqual(spec.worldbody.find_all('body')[1].name, 'body2')
-    self.assertEqual(spec.worldbody.find_all('body')[2].name, 'body3')
-    self.assertEqual(spec.worldbody.find_all('body')[3].name, 'body4')
+    self.assertLen(spec.worldbody.find_all(bodytype), 3)
+    self.assertLen(spec.bodies[1].find_all(bodytype), 1)
+    self.assertEmpty(spec.bodies[3].find_all(bodytype))
     self.assertEqual(spec.bodies[1].find_all('body')[0].name, 'body3')
-    self.assertEqual(spec.bodies[1].find_all('body')[1].name, 'body4')
-    self.assertEqual(spec.bodies[3].find_all('body')[0].name, 'body4')
+    self.assertEmpty(spec.bodies[3].find_all('body'))
     self.assertEmpty(spec.bodies[2].find_all('body'))
-    self.assertEmpty(spec.bodies[4].find_all('body'))
-    self.assertEqual(spec.worldbody.find_all('site')[0].name, 'site1')
-    self.assertEqual(spec.worldbody.find_all('site')[1].name, 'site2')
-    self.assertEqual(spec.worldbody.find_all('site')[2].name, 'site3')
-    self.assertEqual(spec.worldbody.find_all('site')[3].name, 'site4')
-    self.assertEqual(spec.worldbody.find_all('site')[4].name, 'site5')
-    self.assertEmpty(spec.bodies[2].sites)
-    self.assertLen(spec.bodies[3].sites, 4)
-    self.assertLen(spec.bodies[4].sites, 1)
-    self.assertEqual(spec.bodies[3].sites[0].name, 'site1')
-    self.assertEqual(spec.bodies[3].sites[1].name, 'site2')
-    self.assertEqual(spec.bodies[3].sites[2].name, 'site3')
-    self.assertEqual(spec.bodies[3].sites[3].name, 'site4')
-    self.assertEqual(spec.bodies[4].sites[0].name, 'site5')
-    self.assertEqual(spec.bodies[3].sites[0].parent, spec.bodies[3])
-    self.assertEqual(spec.bodies[3].sites[1].parent, spec.bodies[3])
-    self.assertEqual(spec.bodies[3].sites[2].parent, spec.bodies[3])
-    self.assertEqual(spec.bodies[3].sites[3].parent, spec.bodies[3])
-    self.assertEqual(spec.bodies[4].sites[0].parent, spec.bodies[4])
+    for i, body in enumerate(spec.worldbody.find_all('body')):
+      self.assertEqual(body.name, 'body' + str(i + 1))
+    for i, site in enumerate(spec.worldbody.find_all('site')):
+      self.assertEqual(site.name, 'site' + str(i + 1))
+    self.assertLen(spec.bodies[1].sites, 3)
+    self.assertLen(spec.bodies[2].sites, 1)
+    self.assertLen(spec.bodies[3].sites, 1)
+    self.assertEqual(spec.bodies[1].sites[0].name, 'site1')
+    self.assertEqual(spec.bodies[1].sites[1].name, 'site2')
+    self.assertEqual(spec.bodies[1].sites[2].name, 'site3')
+    self.assertEqual(spec.bodies[3].sites[0].name, 'site4')
+    self.assertEqual(spec.bodies[2].sites[0].name, 'site5')
+    for body in spec.bodies:
+      for site in body.sites:
+        self.assertEqual(site.parent, body)
     with self.assertRaises(ValueError) as cm:
       spec.worldbody.find_all('actuator')
     self.assertEqual(
@@ -711,9 +699,9 @@ class SpecsTest(absltest.TestCase):
         'body.find_all supports the types: body, frame, geom, site,'
         ' joint, light, camera.',
     )
-    body4 = spec.worldbody.find_all('body')[3]
-    body4.name = 'body4_new'
-    self.assertEqual(spec.bodies[4].name, 'body4_new')
+    body3 = spec.worldbody.find_all('body')[2]
+    body3.name = 'body3_new'
+    self.assertEqual(spec.bodies[3].name, 'body3_new')
 
   def test_geom_list(self):
     main_xml = """

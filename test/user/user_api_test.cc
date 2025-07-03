@@ -72,18 +72,18 @@ TEST_F(MujocoTest, TreeTraversal) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
-      <body name="body">
-        <body name="body1">
+      <body name="body1">
+        <site name="site1"/>
+        <body name="body2">
           <site name="site4"/>
         </body>
-        <site name="site1"/>
         <geom name="geom1" size="1"/>
         <geom name="geom2" size="1"/>
         <site name="site2"/>
         <site name="site3"/>
         <geom name="geom3" size="1"/>
       </body>
-      <body name="body2">
+      <body name="body3">
         <site name="site5"/>
       </body>
     </worldbody>
@@ -95,9 +95,9 @@ TEST_F(MujocoTest, TreeTraversal) {
   ASSERT_THAT(spec, NotNull()) << err.data();
 
   mjsBody* world = mjs_findBody(spec, "world");
-  mjsBody* body = mjs_findBody(spec, "body");
   mjsBody* body1 = mjs_findBody(spec, "body1");
   mjsBody* body2 = mjs_findBody(spec, "body2");
+  mjsBody* body3 = mjs_findBody(spec, "body3");
   mjsElement* site1 = mjs_findElement(spec, mjOBJ_SITE, "site1");
   mjsElement* site2 = mjs_findElement(spec, mjOBJ_SITE, "site2");
   mjsElement* site3 = mjs_findElement(spec, mjOBJ_SITE, "site3");
@@ -110,30 +110,30 @@ TEST_F(MujocoTest, TreeTraversal) {
   // test nonexistent
   EXPECT_EQ(mjs_firstElement(spec, mjOBJ_ACTUATOR), nullptr);
   EXPECT_EQ(mjs_firstElement(spec, mjOBJ_LIGHT), nullptr);
-  EXPECT_EQ(mjs_firstChild(body, mjOBJ_CAMERA, /*recurse=*/true), nullptr);
-  EXPECT_EQ(mjs_firstChild(body, mjOBJ_TENDON, /*recurse=*/true), nullptr);
+  EXPECT_EQ(mjs_firstChild(body1, mjOBJ_CAMERA, /*recurse=*/true), nullptr);
+  EXPECT_EQ(mjs_firstChild(body1, mjOBJ_TENDON, /*recurse=*/true), nullptr);
 
   // test first, nonrecursive
   EXPECT_EQ(mjs_firstElement(spec, mjOBJ_BODY), world->element);
   EXPECT_EQ(site1, mjs_firstElement(spec, mjOBJ_SITE));
-  EXPECT_EQ(site1, mjs_firstChild(body, mjOBJ_SITE, /*recurse=*/false));
-  EXPECT_EQ(geom1, mjs_firstChild(body, mjOBJ_GEOM, /*recurse=*/false));
-  EXPECT_EQ(site4, mjs_firstChild(body1, mjOBJ_SITE, /*recurse=*/false));
-  EXPECT_EQ(site5, mjs_firstChild(body2, mjOBJ_SITE, /*recurse=*/false));
+  EXPECT_EQ(site1, mjs_firstChild(body1, mjOBJ_SITE, /*recurse=*/false));
+  EXPECT_EQ(geom1, mjs_firstChild(body1, mjOBJ_GEOM, /*recurse=*/false));
+  EXPECT_EQ(site4, mjs_firstChild(body2, mjOBJ_SITE, /*recurse=*/false));
+  EXPECT_EQ(site5, mjs_firstChild(body3, mjOBJ_SITE, /*recurse=*/false));
 
   // test first, recursive
   EXPECT_EQ(site1, mjs_firstChild(world, mjOBJ_SITE, /*recurse=*/true));
   EXPECT_EQ(geom1, mjs_firstChild(world, mjOBJ_GEOM, /*recurse=*/true));
-  EXPECT_EQ(site4, mjs_firstChild(body1, mjOBJ_SITE, /*recurse=*/true));
-  EXPECT_EQ(site5, mjs_firstChild(body2, mjOBJ_SITE, /*recurse=*/true));
+  EXPECT_EQ(site4, mjs_firstChild(body2, mjOBJ_SITE, /*recurse=*/true));
+  EXPECT_EQ(site5, mjs_firstChild(body3, mjOBJ_SITE, /*recurse=*/true));
 
   // text next, nonrecursive
-  EXPECT_EQ(site2, mjs_nextChild(body, site1, /*recursive=*/false));
-  EXPECT_EQ(site3, mjs_nextChild(body, site2, /*recursive=*/false));
-  EXPECT_EQ(nullptr, mjs_nextChild(body, site3, /*recursive=*/false));
-  EXPECT_EQ(geom2, mjs_nextChild(body, geom1, /*recursive=*/false));
-  EXPECT_EQ(geom3, mjs_nextChild(body, geom2, /*recursive=*/false));
-  EXPECT_EQ(nullptr, mjs_nextChild(body, geom3, /*recursive=*/false));
+  EXPECT_EQ(site2, mjs_nextChild(body1, site1, /*recursive=*/false));
+  EXPECT_EQ(site3, mjs_nextChild(body1, site2, /*recursive=*/false));
+  EXPECT_EQ(nullptr, mjs_nextChild(body1, site3, /*recursive=*/false));
+  EXPECT_EQ(geom2, mjs_nextChild(body1, geom1, /*recursive=*/false));
+  EXPECT_EQ(geom3, mjs_nextChild(body1, geom2, /*recursive=*/false));
+  EXPECT_EQ(nullptr, mjs_nextChild(body1, geom3, /*recursive=*/false));
   EXPECT_EQ(mjs_nextElement(spec, site1), site2);
   EXPECT_EQ(mjs_nextElement(spec, site2), site3);
   EXPECT_EQ(mjs_nextElement(spec, site3), site4);
@@ -144,15 +144,15 @@ TEST_F(MujocoTest, TreeTraversal) {
   EXPECT_EQ(mjs_nextElement(spec, geom3), nullptr);
 
   // text next, recursive
-  EXPECT_EQ(site2, mjs_nextChild(body, site1, /*recursive=*/true));
-  EXPECT_EQ(site3, mjs_nextChild(body, site2, /*recursive=*/true));
-  EXPECT_EQ(site4, mjs_nextChild(body, site3, /*recursive=*/true));
+  EXPECT_EQ(site2, mjs_nextChild(body1, site1, /*recursive=*/true));
+  EXPECT_EQ(site3, mjs_nextChild(body1, site2, /*recursive=*/true));
+  EXPECT_EQ(site4, mjs_nextChild(body1, site3, /*recursive=*/true));
   EXPECT_EQ(site4, mjs_nextChild(world, site3, /*recursive=*/true));
   EXPECT_EQ(site5, mjs_nextChild(world, site4, /*recursive=*/true));
-  EXPECT_EQ(nullptr, mjs_nextChild(body, site5, /*recursive=*/true));
-  EXPECT_EQ(geom2, mjs_nextChild(body, geom1, /*recursive=*/true));
-  EXPECT_EQ(geom3, mjs_nextChild(body, geom2, /*recursive=*/true));
-  EXPECT_EQ(nullptr, mjs_nextChild(body, geom3, /*recursive=*/true));
+  EXPECT_EQ(nullptr, mjs_nextChild(body1, site5, /*recursive=*/true));
+  EXPECT_EQ(geom2, mjs_nextChild(body1, geom1, /*recursive=*/true));
+  EXPECT_EQ(geom3, mjs_nextChild(body1, geom2, /*recursive=*/true));
+  EXPECT_EQ(nullptr, mjs_nextChild(body1, geom3, /*recursive=*/true));
 
   // check compilation ordering of sites
   mjModel* model = mj_compile(spec, nullptr);
