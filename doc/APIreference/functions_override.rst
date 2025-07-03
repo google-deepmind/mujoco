@@ -718,8 +718,3 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
-
-.. _mjs_delete:
-
-Delete object corresponding to the given element, return 0 on success. This function should only be used for element
-types that cannot have children, i.e. excluding bodies and default classes.
