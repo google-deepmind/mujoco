@@ -734,20 +734,23 @@ static void addJTBJSparse(
   // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
-      int offset_i = offset+i, offset_j = offset+j;
       if (!B[i*n+j]) {
         continue;
       }
 
       // loop over non-zero elements of J(i,:)
-      for (int k = 0; k < J_rownnz[offset_i]; k++) {
-        int ik = J_rowadr[offset_i] + k;
+      int nnz_i = J_rownnz[offset+i];
+      int adr_i = J_rowadr[offset+i];
+      int nnz_j = J_rownnz[offset+j];
+      int adr_j = J_rowadr[offset+j];
+      for (int k = 0; k < nnz_i; k++) {
+        int ik = adr_i + k;
         int colik = J_colind[ik];
 
         // qDeriv(k,:) += J(j,:) * J(i,k)*B(i,j)
-        mju_addToSclSparseInc(d->qDeriv + d->D_rowadr[colik], J + J_rowadr[offset_j],
+        mju_addToSclSparseInc(d->qDeriv + d->D_rowadr[colik], J + adr_j,
                               d->D_rownnz[colik], d->D_colind + d->D_rowadr[colik],
-                              J_rownnz[offset_j], J_colind + J_rowadr[offset_j],
+                              nnz_j, J_colind + adr_j,
                               J[ik]*B[i*n+j]);
       }
     }
@@ -810,16 +813,12 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv, nu = m->nu;
+  int nu = m->nu;
 
   // disabled: nothing to add
   if (mjDISABLED(mjDSBL_ACTUATION)) {
     return;
   }
-
-  // allocate dense actuator_moment row
-  mj_markStack(d);
-  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
 
   // process actuators
   for (int i=0; i < nu; i++) {
@@ -864,14 +863,10 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // add
     if (bias_vel != 0) {
-      mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
-                       d->moment_rowadr + i, d->moment_colind);
-      addJTBJ(m, d, moment, &bias_vel, 1);
+      addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, i,
+                    d->moment_rownnz, d->moment_rowadr, d->moment_colind);
     }
   }
-
-  // free space
-  mj_freeStack(d);
 }
 
 
@@ -1260,8 +1255,7 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     if (mj_isSparse(m)) {
       addJTBJSparse(m, d, J, B, 6, 0, rownnz, rowadr, colind_compressed);
-    }
-    else {
+    } else {
       addJTBJ(m, d, J, B, 6);
     }
   }
