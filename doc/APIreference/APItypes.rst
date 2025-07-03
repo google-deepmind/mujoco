@@ -197,6 +197,16 @@ uses RGB textures.  These values are used to store the texture index in the mate
 .. mujoco-include:: mjtTextureRole
 
 
+.. _mjtColorSpace:
+
+mjtColorSpace
+~~~~~~~~~~~~~
+
+Type of color space encoding for textures.
+
+.. mujoco-include:: mjtColorSpace
+
+
 .. _mjtIntegrator:
 
 mjtIntegrator
