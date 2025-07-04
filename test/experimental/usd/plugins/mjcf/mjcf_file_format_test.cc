@@ -976,6 +976,38 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimSDFIterations) {
                        60);
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimGravity) {
+  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+    <mujoco model="test">
+      <option gravity="-123 0 0"> </option>
+    </mujoco>
+  )"));
+
+  ExpectAttributeEqual(stage,
+                       kPhysicsScenePrimPath.AppendProperty(
+                           pxr::UsdPhysicsTokens->physicsGravityMagnitude),
+                       123.0f);
+  ExpectAttributeEqual(stage,
+                       kPhysicsScenePrimPath.AppendProperty(
+                           pxr::UsdPhysicsTokens->physicsGravityDirection),
+                       pxr::GfVec3f(-1.0f, 0.0f, 0.0f));
+
+  stage = pxr::UsdStage::Open(LoadLayer(R"(
+    <mujoco model="test">
+      <option gravity="2 3 6"> </option>
+    </mujoco>
+  )"));
+
+  ExpectAttributeEqual(stage,
+                       kPhysicsScenePrimPath.AppendProperty(
+                           pxr::UsdPhysicsTokens->physicsGravityMagnitude),
+                       7.0f);
+  ExpectAttributeEqual(stage,
+                       kPhysicsScenePrimPath.AppendProperty(
+                           pxr::UsdPhysicsTokens->physicsGravityDirection),
+                       pxr::GfVec3f(0.2857143f, 0.42857143f, 0.85714287f));
+}
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
   auto stage = pxr::UsdStage::Open(LoadLayer(R"(
     <mujoco model="test">
