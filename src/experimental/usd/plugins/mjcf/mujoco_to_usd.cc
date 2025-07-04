@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -231,6 +232,8 @@ class ModelWriter {
   std::vector<pxr::SdfPath> joint_paths_;
   // Mapping from mesh names to Mesh prim path.
   std::unordered_map<std::string, pxr::SdfPath> mesh_paths_;
+  // Set of body ids that have had the articulation root API applied.
+  std::unordered_set<int> articulation_roots_;
   // Whether to write physics data.
   bool write_physics_ = false;
 
@@ -1998,9 +2001,13 @@ class ModelWriter {
     // then we need to apply the articulation root API.
     if (parent_id != kWorldIndex) {
       int parent_parent_id = mjs_getId(mjs_getParent(parent->element)->element);
-      if (parent_parent_id == kWorldIndex) {
+      // We guard against applying the API more than once, which can happen when
+      // there are multiple children.
+      if (parent_parent_id == kWorldIndex &&
+          articulation_roots_.find(parent_id) == articulation_roots_.end()) {
         ApplyApiSchema(data_, parent_path,
                        pxr::UsdPhysicsTokens->PhysicsArticulationRootAPI);
+        articulation_roots_.insert(parent_id);
       }
     }
 
