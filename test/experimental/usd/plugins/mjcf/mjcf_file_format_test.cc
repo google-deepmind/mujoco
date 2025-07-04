@@ -619,8 +619,10 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestGeomsPrims) {
   EXPECT_PRIM_VALID(stage, "/test/box_geom");
   EXPECT_PRIM_IS_A(stage, "/test/box_geom", pxr::UsdGeomCube);
   // Box is a special case, it uses a UsdGeomCube and scales it with
-  // xformOp:scale. The radius is always set to 2.
+  // xformOp:scale. The radius is always set to 2 and the extent from -1 to 1.
   ExpectAttributeEqual(stage, "/test/box_geom.size", 2.0);
+  ExpectAttributeEqual(stage, "/test/box_geom.extent",
+                       pxr::VtArray<pxr::GfVec3f>({{-1, -1, -1}, {1, 1, 1}}));
   ExpectAttributeEqual(stage, "/test/box_geom.xformOp:scale",
                        pxr::GfVec3f(10.0, 20.0, 30.0));
   // Sphere
