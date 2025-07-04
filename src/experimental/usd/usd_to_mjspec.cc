@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <deque>
-#include <iterator>
 #include <map>
+#include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -35,6 +32,7 @@
 #include <mujoco/experimental/usd/usd.h>
 #include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mujoco.h>
+#include "experimental/usd/kinematic_tree.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/vec3d.h>
@@ -887,7 +885,7 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
 
 void ParseUsdPhysicsCollider(mjSpec* spec,
                              const pxr::UsdPhysicsCollisionAPI& collision_api,
-                             const pxr::UsdPrim& parent_prim, mjsBody* parent,
+                             const pxr::UsdPrim& body_prim, mjsBody* parent,
                              pxr::UsdGeomXformCache& xform_cache) {
   pxr::UsdPrim prim = collision_api.GetPrim();
   // UsdPhysicsCollisionAPI can only be applied to gprim primitives.
@@ -938,7 +936,7 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
     }
   }
 
-  SetLocalPoseFromPrim(prim, parent_prim, geom, xform_cache);
+  SetLocalPoseFromPrim(prim, body_prim, geom, xform_cache);
 
   if (!MaybeParseGeomPrimitive(prim, geom, xform_cache)) {
     if (prim.IsA<pxr::UsdGeomMesh>()) {
@@ -1139,7 +1137,8 @@ void ParseMjcPhysicsSite(mjSpec* spec, const pxr::MjcPhysicsSiteAPI& site_api,
                          pxr::UsdGeomXformCache& xform_cache) {
   auto prim = site_api.GetPrim();
   mjsSite* site = mjs_addSite(parent, 0);
-  mjs_setName(site->element, site_api.GetPrim().GetPath().GetAsString().c_str());
+  mjs_setName(site->element,
+              site_api.GetPrim().GetPath().GetAsString().c_str());
   SetLocalPoseFromPrim(site_api.GetPrim(), parent_prim, site, xform_cache);
 
   // Convert USD type to MuJoCo type.
@@ -1170,7 +1169,8 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
   auto mquat_attr = keyframe.GetMjcMquatAttr();
 
   auto setKeyframeData = [](mjsKey* key, const pxr::UsdAttribute& attr,
-                            std::vector<double>** key_data, double* time = nullptr) {
+                            std::vector<double>** key_data,
+                            double* time = nullptr) {
     if (attr.HasAuthoredValue()) {
       pxr::VtDoubleArray data;
       if (time == nullptr) {
@@ -1257,290 +1257,77 @@ bool IsObjectInPhysicsScene(const T& object,
   return false;
 };
 
-// A struct to hold the forest representation.
-// The forest is a map from a root path to its tree.
-// A tree is an adjacency list, mapping a parent path to its children paths.
-using MjUsdForest =
-    std::map<pxr::SdfPath, std::map<pxr::SdfPath, std::vector<pxr::SdfPath>>>;
+// Helper type to store all the prims that belong to a body.
+using BodyPrimMap = std::map<pxr::SdfPath, std::vector<pxr::SdfPath>>;
 
-// A directed edge.
-using Edge = std::pair<pxr::SdfPath, pxr::SdfPath>;
+// Recursively traverses the kinematic tree, creating bodies, joints, and geoms
+// in the mjSpec.
+void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
+                          mjsBody* parent_mj_body,
+                          const mujoco::usd::KinematicNode* parent_node,
+                          const mujoco::usd::KinematicNode& current_node,
+                          pxr::UsdGeomXformCache& xform_cache,
+                          const BodyPrimMap& body_to_prims) {
+  mjsBody* current_mj_body;
 
-// A map from a directed edge to the path of the joint representing that edge.
-using EdgesMap = std::map<Edge, pxr::SdfPath>;
-
-// Constructs and validates a forest (a collection of disjoint trees)
-// from a list of directed edges. It also considers all rigid bodies in the
-// scene, treating those not involved in any edge as isolated, free-floating
-// bodies.
-//
-// An empty 'from' path represents the world body. Returns `std::nullopt` for
-// invalid forest structures (e.g. cycles, multiple parents).
-std::optional<MjUsdForest> BuildForestFromEdges(
-    const EdgesMap& edges, const std::vector<pxr::SdfPath>& all_body_paths) {
-  if (edges.empty() && all_body_paths.empty()) {
-    return MjUsdForest{};
-  }
-
-  std::map<pxr::SdfPath, std::vector<pxr::SdfPath>> children_map;
-  std::map<pxr::SdfPath, pxr::SdfPath> parent_map;
-  std::set<pxr::SdfPath> all_nodes(all_body_paths.begin(),
-                                   all_body_paths.end());
-
-  // 1. Initial Pass: Build maps and perform local validation
-  for (const auto& edge_pair : edges) {
-    const auto& [from, to] = edge_pair.first;
-    if (from == to) {
-      mju_error("Self-loop detected at node %s", to.GetString().c_str());
-      return std::nullopt;
-    }
-    if (parent_map.count(to)) {
-      mju_error("Node %s has multiple parents ('%s' and '%s').",
-                to.GetString().c_str(), parent_map.at(to).GetString().c_str(),
-                from.GetString().c_str());
-      return std::nullopt;
-    }
-
-    children_map[from].push_back(to);
-    parent_map[to] = from;
-    all_nodes.insert(from);
-    all_nodes.insert(to);
-  }
-
-  // 2. Find all root nodes
-  // A root is a node that is not a child of any other node. This includes
-  // roots of kinematic trees and isolated rigid bodies.
-  std::set<pxr::SdfPath> roots = all_nodes;
-  for (const auto& pair : parent_map) {
-    roots.erase(pair.first);  // `pair.first` is a child node.
-  }
-
-  if (roots.empty() && !all_nodes.empty()) {
-    mju_error("No root nodes found, but edges exist. A cycle is present.");
-    return std::nullopt;
-  }
-
-  // 3. Build the forest, claiming nodes for each tree
-  MjUsdForest forest;
-  std::set<pxr::SdfPath> claimed_nodes;
-
-  for (const auto& root : roots) {
-    // Perform a traversal (BFS) to find all nodes in this tree
-    std::deque<pxr::SdfPath> q;
-    q.push_back(root);
-    std::set<pxr::SdfPath> nodes_in_this_tree;
-
-    while (!q.empty()) {
-      pxr::SdfPath current_node = q.front();
-      q.pop_front();
-
-      if (claimed_nodes.count(current_node)) {
-        mju_error("Node %s is shared between multiple trees.",
-                  current_node.GetString().c_str());
-        return std::nullopt;
-      }
-
-      nodes_in_this_tree.insert(current_node);
-      claimed_nodes.insert(current_node);
-
-      if (children_map.count(current_node)) {
-        for (const auto& child : children_map.at(current_node)) {
-          q.push_back(child);
-        }
-      }
-    }
-
-    // Construct the adjacency list for this specific tree
-    std::map<pxr::SdfPath, std::vector<pxr::SdfPath>> tree_adj_list;
-    for (const auto& node : nodes_in_this_tree) {
-      if (children_map.count(node)) {
-        tree_adj_list[node] = children_map.at(node);
-      }
-    }
-    forest[root] = tree_adj_list;
-  }
-
-  // 4. Final check for cycles (unclaimed nodes)
-  std::set<pxr::SdfPath> unclaimed_nodes;  // all_nodes - claimed_nodes
-  std::set_difference(all_nodes.begin(), all_nodes.end(), claimed_nodes.begin(),
-                      claimed_nodes.end(),
-                      std::inserter(unclaimed_nodes, unclaimed_nodes.begin()));
-
-  if (!unclaimed_nodes.empty()) {
-    std::string unclaimed_str;
-    for (const auto& node : unclaimed_nodes) {
-      unclaimed_str += "'" + node.GetString() + "' ";
-    }
-    mju_error(
-        "Cycle detected. The following nodes are part of a cycle "
-        "and not reachable from any root: %s",
-        unclaimed_str.c_str());
-    return std::nullopt;
-  }
-
-  return forest;
-}
-
-void TraverseAndBuildTree(
-    pxr::UsdStageRefPtr stage, mjSpec* spec, mjsBody* parent_mj_body,
-    const pxr::SdfPath& parent_body_path, const pxr::SdfPath& current_body_path,
-    const std::map<pxr::SdfPath, std::vector<pxr::SdfPath>>& tree,
-    const EdgesMap& edges, pxr::UsdGeomXformCache& xform_cache);
-
-// Traverses the prim and all its descendants in the USD hierarchy and parses
-// supported entities like colliders and sites, attaching them to the given
-// mjBody. The traversal for a given branch stops when:
-// - a descendant with a RigidBodyAPI is found, as that will be handled by
-// TraverseAndBuildTree.
-// - a descendant with a ResetXformStack is found, as that will be handled by
-// the top level traversal of independent prims.
-void ParseCurrentAndDescendants(mjSpec* spec, const pxr::UsdPrim& prim,
-                                const pxr::UsdPrim& parent_prim, mjsBody* body,
-                                pxr::UsdGeomXformCache& xform_cache) {
-  if (prim.HasAPI<pxr::UsdPhysicsCollisionAPI>()) {
-    ParseUsdPhysicsCollider(spec, pxr::UsdPhysicsCollisionAPI(prim),
-                            parent_prim, body, xform_cache);
-  }
-  if (prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
-    ParseMjcPhysicsSite(spec, pxr::MjcPhysicsSiteAPI(prim), parent_prim, body,
-                        xform_cache);
-  }
-
-  // Make sure we traverse into instance proxies to ensure we support
-  // instanceable references.
-  // See https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html
-  for (const auto& child :
-       prim.GetFilteredChildren(pxr::UsdTraverseInstanceProxies())) {
-    if (child.HasAPI<pxr::UsdPhysicsRigidBodyAPI>()) {
-      continue;
-    }
-    if (xform_cache.GetResetXformStack(child)) {
-      continue;
-    }
-    ParseCurrentAndDescendants(spec, child, prim, body, xform_cache);
-  }
-}
-
-// Recursively traverses a kinematic tree, creating bodies and joints in the
-// mjSpec.
-void TraverseAndBuildTree(
-    pxr::UsdStageRefPtr stage, mjSpec* spec, mjsBody* parent_mj_body,
-    const pxr::SdfPath& parent_body_path, const pxr::SdfPath& current_body_path,
-    const std::map<pxr::SdfPath, std::vector<pxr::SdfPath>>& tree,
-    const EdgesMap& edges, pxr::UsdGeomXformCache& xform_cache) {
-  pxr::UsdPrim current_body_prim = stage->GetPrimAtPath(current_body_path);
-  pxr::UsdPrim parent_prim_for_xform =
-      parent_body_path.IsEmpty() ? stage->GetPseudoRoot()
-                                 : stage->GetPrimAtPath(parent_body_path);
-
-  mjsBody* current_mj_body = ParseUsdPhysicsRigidbody(
-      spec, pxr::UsdPhysicsRigidBodyAPI(current_body_prim),
-      parent_prim_for_xform, parent_mj_body, xform_cache);
-
-  auto edge_key = std::make_pair(parent_body_path, current_body_path);
-  auto it_edge = edges.find(edge_key);
-
-  if (it_edge != edges.end()) {
-    // An edge exists, indicating a connection to the parent. This body is
-    // either world-attached or part of a larger articulation.
-    const pxr::SdfPath& joint_path = it_edge->second;
-    if (!joint_path.IsEmpty()) {
-      // An explicit joint prim exists, so we parse it.
-      pxr::UsdPrim joint_prim = stage->GetPrimAtPath(joint_path);
-      ParseUsdPhysicsJoint(spec, joint_prim, current_mj_body, xform_cache);
-    }
-    // If joint_path is empty, it's an implicit fixed joint. No joint is created
-    // in the mjSpec, effectively welding the body to its parent.
+  if (current_node.body_path.IsEmpty()) {
+    // This is the world root node.
+    current_mj_body = mjs_findBody(spec, "world");
   } else {
-    // No edge found. This condition is met for the root of a floating-base
-    // tree, which has no defined joint connecting it to the world.
-    if (parent_mj_body == mjs_findBody(spec, "world")) {
-      // We explicitly create a free joint to make it a floating-base body.
+    // This is a regular body.
+    pxr::UsdPrim current_body_prim =
+        stage->GetPrimAtPath(current_node.body_path);
+    pxr::SdfPath parent_body_path =
+        parent_node ? parent_node->body_path : pxr::SdfPath();
+    pxr::UsdPrim parent_prim_for_xform =
+        parent_body_path.IsEmpty() ? stage->GetPseudoRoot()
+                                   : stage->GetPrimAtPath(parent_body_path);
+
+    current_mj_body = ParseUsdPhysicsRigidbody(
+        spec, pxr::UsdPhysicsRigidBodyAPI(current_body_prim),
+        parent_prim_for_xform, parent_mj_body, xform_cache);
+
+    if (!current_node.joint_path.IsEmpty()) {
+      pxr::UsdPrim joint_prim = stage->GetPrimAtPath(current_node.joint_path);
+      ParseUsdPhysicsJoint(spec, joint_prim, current_mj_body, xform_cache);
+    } else if (parent_mj_body == mjs_findBody(spec, "world")) {
+      // No joint to parent, and parent is world: this is a floating body.
       mjsJoint* free_joint = mjs_addJoint(current_mj_body, nullptr);
       free_joint->type = mjJNT_FREE;
     }
   }
 
-  // Parse all geoms/sites that are found on this body in the USD hierarchy.
-  ParseCurrentAndDescendants(spec, current_body_prim, parent_prim_for_xform,
-                             current_mj_body, xform_cache);
-  // Recurse through the kinematic tree.
-  auto it_tree = tree.find(current_body_path);
-  if (it_tree != tree.end()) {
-    const auto& children_paths = it_tree->second;
-    for (const auto& child_path : children_paths) {
-      TraverseAndBuildTree(stage, spec, current_mj_body, current_body_path,
-                           child_path, tree, edges, xform_cache);
-    }
-  }
-}
-
-// Adds a new edge to the edges map, dealing with duplicates:
-// - explicit joints always replace implicit joints
-// - more than one explicit joint is unsupported so we print a warning and
-// keep the first one found
-void AddEdge(EdgesMap& edges, const pxr::SdfPath& from, const pxr::SdfPath& to,
-             const pxr::SdfPath& joint) {
-  auto edge_key = std::make_pair(from, to);
-  auto it = edges.find(edge_key);
-
-  if (it == edges.end()) {
-    // No existing edge, add the new one.
-    edges[edge_key] = joint;
-  } else {
-    // Edge already exists.
-    pxr::SdfPath& existing_joint = it->second;
-    bool new_is_explicit = !joint.IsEmpty();
-    bool existing_is_explicit = !existing_joint.IsEmpty();
-
-    if (new_is_explicit) {
-      if (existing_is_explicit) {
-        // Both are explicit: this is an error condition.
-        mju_warning(
-            "Multiple explicit joints defined between body %s and body %s. "
-            "Joint1: %s, Joint2: %s. Keeping the first one found: %s",
-            (from.IsEmpty() ? "<worldbody>" : from.GetString()).c_str(),
-            to.GetString().c_str(), existing_joint.GetString().c_str(),
-            joint.GetString().c_str(), existing_joint.GetString().c_str());
-
-      } else {
-        // New is explicit, existing is implicit: replace.
-        existing_joint = joint;
+  // Add geoms/sites/etc. belonging to the current body.
+  auto it_prims = body_to_prims.find(current_node.body_path);
+  if (it_prims != body_to_prims.end()) {
+    pxr::UsdPrim body_prim_for_xform =
+        current_node.body_path.IsEmpty()
+            ? stage->GetPseudoRoot()
+            : stage->GetPrimAtPath(current_node.body_path);
+    for (const auto& gprim_path : it_prims->second) {
+      pxr::UsdPrim prim = stage->GetPrimAtPath(gprim_path);
+      if (prim.HasAPI<pxr::UsdPhysicsCollisionAPI>()) {
+        ParseUsdPhysicsCollider(spec, pxr::UsdPhysicsCollisionAPI(prim),
+                                body_prim_for_xform, current_mj_body,
+                                xform_cache);
+      }
+      if (prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
+        ParseMjcPhysicsSite(spec, pxr::MjcPhysicsSiteAPI(prim),
+                            body_prim_for_xform, current_mj_body, xform_cache);
       }
     }
-    // If new is implicit, and an edge already exists (either explicit or
-    // implicit), we keep the existing one. No action needed.
   }
-}
 
-// Returns the nesting body prim (or an invalid prim if there's
-// any resets_xform_stack, or we've reached the end).
-pxr::UsdPrim GetNestingBodyPrim(const pxr::UsdPrim& prim,
-                                pxr::UsdGeomXformCache& xform_cache) {
-  if (xform_cache.GetResetXformStack(prim)) {
-    return pxr::UsdPrim();
+  // Recurse through children.
+  for (const auto& child_node : current_node.children) {
+    PopulateSpecFromTree(stage, spec, current_mj_body, &current_node,
+                         *child_node, xform_cache, body_to_prims);
   }
-  pxr::UsdPrim previous_prim = prim.GetParent();
-  while (previous_prim.IsValid()) {
-    // If we find a rigid body, this is our answer. The prim is nested.
-    if (previous_prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>()) {
-      return previous_prim;
-    }
-    // If we encounter a prim that resets the transform stack *before* finding
-    // a rigid body, the chain is broken. The prim is not nested.
-    if (xform_cache.GetResetXformStack(previous_prim)) {
-      return pxr::UsdPrim();
-    }
-    previous_prim = previous_prim.GetParent();
-  }
-  return pxr::UsdPrim();
 }
 }  // namespace
 
 mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
   mjSpec* spec = mj_makeSpec();
-
-  mjsBody* world = mjs_findBody(spec, "world");
 
   std::vector<pxr::UsdPhysicsScene> physics_scenes;
 
@@ -1573,135 +1360,79 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
     default_prim_path = stage->GetDefaultPrim().GetPath();
   }
 
-  std::vector<pxr::SdfPath> body_paths;
-  EdgesMap edges;
-  // TODO(robinalazard): Re-introduce properly adding objects to their
-  // respective physics scene, or default.
+  // Data Structures
+  std::vector<pxr::UsdPhysicsJoint> all_joints;
+  std::vector<pxr::SdfPath> all_body_paths_vec;
+  BodyPrimMap body_to_prims;
 
-  // Traverse all prims under the pseudo-root.
-  // We ensure to traverse into instance proxies to ensure we support
-  // instanceable references.
-  // See https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html
-  for (auto prim : stage->Traverse(pxr::UsdTraverseInstanceProxies())) {
-    // When traversing the whole scene, if we encounter a rigidbody or a joint,
-    // then we populate the edges map and the list of body paths, which will be
-    // processed later to build the articulation trees.
-    //
-    // If we encounter _anything else_:
-    // - if we find that it's an independent prim (e.g. a static collider or
-    // site) not belonging to any rigidbody, then we add it directly to the
-    // world.
-    // - otherwise, they will be handled when building the articulation trees.
+  // =========================================================================
+  // PASS 1: Collect Bodies, Joints, and Geoms/Sites/etc.
+  // =========================================================================
+  // A single DFS pass to find all bodies, joints, and determine
+  // which body owns each geom/site/etc. prim.
+  std::vector<pxr::SdfPath> owner_stack;
+  owner_stack.push_back(pxr::SdfPath());  // Start with the world as owner.
+
+  const auto range = pxr::UsdPrimRange::PreAndPostVisit(
+      stage->GetPseudoRoot(), pxr::UsdTraverseInstanceProxies());
+
+  for (auto it = range.begin(); it != range.end(); ++it) {
+    pxr::UsdPrim prim = *it;
+
+    bool is_body = prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>();
+    bool resets = xform_cache.GetResetXformStack(prim);
+    // Only update (push/pop) the owner stack for bodies (becomes new owner) and
+    // resetXformStack (reset owner to world).
+    bool is_pushed_to_stack = is_body || resets;
+
+    if (it.IsPostVisit()) {
+      if (is_pushed_to_stack) {
+        owner_stack.pop_back();
+      }
+      continue;
+    }
+
+    pxr::SdfPath prim_path = prim.GetPath();
+    pxr::SdfPath prim_owner = owner_stack.back();
+
+    if (is_body) {
+      all_body_paths_vec.push_back(prim_path);
+      prim_owner = prim_path;
+    } else if (resets) {
+      prim_owner = pxr::SdfPath();  // Reset owner to world.
+    }
+
+    if (is_pushed_to_stack) {
+      owner_stack.push_back(prim_owner);
+    }
+
+    if (prim.HasAPI<pxr::UsdPhysicsCollisionAPI>() ||
+        prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
+      body_to_prims[prim_owner].push_back(prim_path);
+    }
 
     if (prim.IsA<pxr::UsdPhysicsJoint>()) {
-      pxr::SdfPath joint_path = prim.GetPath();
-      pxr::UsdPhysicsJoint joint(prim);
+      all_joints.push_back(pxr::UsdPhysicsJoint(prim));
 
-      pxr::SdfPath body1_path;
-      pxr::SdfPathVector body1_paths;
-      joint.GetBody1Rel().GetTargets(&body1_paths);
-      if (body1_paths.empty()) {
-        mju_warning("Joint %s does not have body1 rel. Skipping.",
-                    prim.GetPath().GetAsString().c_str());
-        continue;
-      } else if (body1_paths.size() > 1) {
-        mju_warning("Joint %s has multiple body1 rels. Skipping.",
-                    prim.GetPath().GetAsString().c_str());
-        continue;
-      }
-      body1_path = body1_paths[0];
-
-      pxr::SdfPath body0_path;
-      pxr::SdfPathVector body0_paths;
-      joint.GetBody0Rel().GetTargets(&body0_paths);
-      if (body0_paths.size() > 1) {
-        mju_warning("Joint %s has multiple body0 rels. Skipping.",
-                    prim.GetPath().GetAsString().c_str());
-        continue;
-      }
-      // Empty body0, or body0 pointing to the default prim means we'll attach
-      // to the worldbody.
-      if (body0_paths.empty() || body0_paths[0] == default_prim_path) {
-        body0_path = pxr::SdfPath();
-      } else {
-        body0_path = body0_paths[0];
-      }
-
-      AddEdge(edges, body0_path, body1_path, joint_path);
+      it.PruneChildren();
     } else if (prim.IsA<pxr::MjcPhysicsKeyframe>()) {
       ParseMjcPhysicsKeyframe(spec, pxr::MjcPhysicsKeyframe(prim));
-      continue;
-    } else if (prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>()) {
-      pxr::SdfPath body_path = prim.GetPath();
-      body_paths.push_back(body_path);
 
-      // Find whether we are nested under a parent body.
-      // Note: if any xform in between (including the current prim) resets the
-      // xform stack then we are not nested.
-      pxr::UsdPrim nesting_body_prim = GetNestingBodyPrim(prim, xform_cache);
-      if (nesting_body_prim.IsValid()) {
-        AddEdge(edges, nesting_body_prim.GetPath(), body_path, pxr::SdfPath());
-      }
-    } else {
-      // TODO(robinalazard): the way we handle independent prims right now means
-      // their relative transforms will be ignored be always pass
-      // stage->GetPseudoRoot() as the parent. It works for most scene
-      // realistically. But we should fix it.
-
-      if (prim.HasAPI<pxr::UsdPhysicsCollisionAPI>()) {
-        // Find whether the collider belongs to a body. If yes, it will be we
-        // handled later when building the articulation trees. Otherwise, it's a
-        // static collider and we add it directly to the world.
-        pxr::UsdPrim nesting_body_prim = GetNestingBodyPrim(prim, xform_cache);
-        if (!nesting_body_prim.IsValid()) {
-          ParseUsdPhysicsCollider(spec, pxr::UsdPhysicsCollisionAPI(prim),
-                                  stage->GetPseudoRoot(), world, xform_cache);
-        }
-      }
-      if (prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
-        // Find whether the site belongs to a body. If yes, it will be we
-        // handled later when building the articulation trees. Otherwise, it's a
-        // static site and we add it directly to the world.
-        pxr::UsdPrim nesting_body_prim = GetNestingBodyPrim(prim, xform_cache);
-        if (!nesting_body_prim.IsValid()) {
-          ParseMjcPhysicsSite(spec, pxr::MjcPhysicsSiteAPI(prim),
-                              stage->GetPseudoRoot(), world, xform_cache);
-        }
-      }
+      it.PruneChildren();
     }
   }
 
-  std::optional<MjUsdForest> forest = BuildForestFromEdges(edges, body_paths);
-  if (forest.has_value()) {
-    // Now that we have the forest, we can walk through it and add the bodies
-    // and joints to the spec. From each body we can also visit and parse all
-    // the children to also add the corresponding colliders to the body in the
-    // spec.
-    for (const auto& [root_path, tree] : *forest) {
-      if (root_path.IsEmpty()) {
-        // This root is the world. This case handles all kinematic trees that
-        // are attached to the world (fixed-base articulations).
-        // We iterate through its direct children which are the root bodies of
-        // each world-attached tree. We iterate through these children and begin
-        // the recursive build from there.
-        const auto& children_of_world = tree.at(pxr::SdfPath());
-        for (const auto& child_path : children_of_world) {
-          TraverseAndBuildTree(stage, spec, world, root_path, child_path, tree,
-                               edges, xform_cache);
-        }
-      } else {
-        // Conversely, this case handles all the remaining top-level root bodies
-        // which are their own roots and are not attached to the world
-        // (floating-base articulations). This includes isolated bodies.
-        // We directly begin the recursive build from the toplevel root.
-        //
-        // Note: the absence of an edge in the `edges` map connecting the world
-        // to this root is what signals to `TraverseAndBuildTree` that this is a
-        // floating base, prompting the creation of a free joint.
-        TraverseAndBuildTree(stage, spec, world, pxr::SdfPath(), root_path,
-                             tree, edges, xform_cache);
-      }
-    }
+  // =========================================================================
+  // PASS 2: Build the kinematic tree and populate the mjSpec.
+  // =========================================================================
+  std::unique_ptr<mujoco::usd::KinematicNode> kinematic_tree =
+      mujoco::usd::BuildKinematicTree(all_joints, all_body_paths_vec,
+                                      default_prim_path);
+
+  if (kinematic_tree) {
+    PopulateSpecFromTree(stage, spec, /*parent_mj_body=*/nullptr,
+                         /*parent_node=*/nullptr, *kinematic_tree, xform_cache,
+                         body_to_prims);
   }
 
   return spec;
