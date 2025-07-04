@@ -25,6 +25,7 @@ Bug fixes
 ^^^^^^^^^
 - Inverse dynamics were not being computed correctly when :ref:`tendon armature<tendon-spatial-armature>` was present,
   now fixed.
+- Fix bug in ``mjx.put_data`` where ``actuator_moment`` was not being copied correctly for the C implementation.
 
 Documentation
 ^^^^^^^^^^^^^

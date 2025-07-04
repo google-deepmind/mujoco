@@ -289,7 +289,10 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d._impl.cinert.shape, (nbody, 10))
     self.assertEqual(d._impl.crb.shape, (nbody, 10))
     self.assertEqual(d._impl.actuator_length.shape, (1,))
-    self.assertEqual(d._impl.actuator_moment.shape, (1, nv))
+    if impl == 'jax':
+      self.assertEqual(d._impl.actuator_moment.shape, (1, nv))
+    elif impl == 'c':
+      self.assertEqual(d._impl.actuator_moment.shape, (m.nJmom,))
     self.assertEqual(d._impl.contact.dist.shape, (ncon,))
     self.assertEqual(d._impl.contact.pos.shape, (ncon, 3))
     self.assertEqual(d._impl.contact.frame.shape, (ncon, 3, 3))
