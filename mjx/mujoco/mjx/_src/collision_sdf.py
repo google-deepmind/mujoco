@@ -26,11 +26,11 @@ from typing import Tuple
 
 import jax
 from jax import numpy as jp
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.collision_types import Collision
 from mujoco.mjx._src.collision_types import GeomInfo
-from mujoco.mjx._src.dataclasses import PyTreeNode
+from mujoco.mjx._src.mjx_dataclasses import PyTreeNode
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import Model

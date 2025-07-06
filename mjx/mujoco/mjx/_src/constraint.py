@@ -20,10 +20,10 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco.mjx._src import collision_driver
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
-from mujoco.mjx._src.dataclasses import PyTreeNode
+from mujoco.mjx._src.mjx_dataclasses import PyTreeNode
 from mujoco.mjx._src.types import ConeType
 from mujoco.mjx._src.types import ConstraintType
 from mujoco.mjx._src.types import Contact

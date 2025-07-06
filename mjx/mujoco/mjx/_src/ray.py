@@ -19,7 +19,7 @@ from typing import Sequence, Tuple
 import jax
 from jax import numpy as jp
 import mujoco
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import GeomType
