@@ -910,7 +910,9 @@ mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name) {
     case mjOBJ_FRAME:
       return model->FindTree(model->GetWorld(), type, std::string(name));  // recursive search
     case mjOBJ_TEXTURE:
-      return model->FindTexture(std::string(name));  // check filename too
+      return model->FindAsset(std::string(name), model->Textures());  // check filename too
+    case mjOBJ_MESH:
+      return model->FindAsset(std::string(name), model->Meshes());  // check filename too
     default:
       return model->FindObject(type, std::string(name));  // always available
   }

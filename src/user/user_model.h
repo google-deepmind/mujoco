@@ -246,11 +246,14 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCDef* FindDefault(std::string name);                            // find defaults class name
   mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);   // add defaults class to array
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
-  mjCBase* FindTexture(std::string_view name) const;                // find texture given name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
   mjSpec* FindSpec(const mjsCompiler* compiler_);                   // find spec given mjsCompiler
   void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
+
+  // find asset given name checking both name and filename
+  template <class T>
+  mjCBase* FindAsset(std::string_view name, const std::vector<T*>& list) const;
 
   // accessors
   std::string get_meshdir() const { return meshdir_; }

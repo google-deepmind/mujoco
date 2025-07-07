@@ -984,13 +984,18 @@ class SpecsTest(absltest.TestCase):
     texture.data = np.zeros((2, 2, 3), dtype=np.uint8).tobytes()
     spec.compile()
 
-  def test_find_unnamed_texture(self):
+  def test_find_unnamed_asset(self):
     spec = mujoco.MjSpec()
     texture_file = spec.add_texture(file='file.png')
     texture_name = spec.add_texture(name='name')
+    mesh_file = spec.add_mesh(file='file.obj')
+    mesh_name = spec.add_mesh(name='mesh')
     self.assertEqual(spec.texture('file'), texture_file)
     self.assertEqual(spec.texture('name'), texture_name)
+    self.assertEqual(spec.mesh('file'), mesh_file)
+    self.assertEqual(spec.mesh('mesh'), mesh_name)
     self.assertIsNone(spec.texture('none'))
+    self.assertIsNone(spec.mesh('none'))
 
   def test_attach_units(self):
     child = mujoco.MjSpec()

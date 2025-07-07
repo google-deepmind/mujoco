@@ -1338,18 +1338,24 @@ static T* findobject(std::string_view name, const vector<T*>& list, const mjKeyM
 
 
 
-mjCBase* mjCModel::FindTexture(std::string_view name) const {
-  for (unsigned int i=0; i < textures_.size(); i++) {
-    if (textures_[i]->name == name) {
-      return textures_[i];
+template <class T>
+mjCBase* mjCModel::FindAsset(std::string_view name, const std::vector<T*>& list) const {
+  for (unsigned int i=0; i < list.size(); i++) {
+    if (list[i]->name == name) {
+      return list[i];
     }
-    if (textures_[i]->name.empty() &&
-        std::filesystem::path(textures_[i]->spec_file_).filename().stem() == name) {
-      return textures_[i];
+    if (list[i]->name.empty() &&
+        std::filesystem::path(list[i]->spec_file_).filename().stem() == name) {
+      return list[i];
     }
   }
   return nullptr;
 }
+
+template mjCBase* mjCModel::FindAsset<mjCTexture>(
+    std::string_view name, const std::vector<mjCTexture*>& list) const;
+template mjCBase* mjCModel::FindAsset<mjCMesh>(
+    std::string_view name, const std::vector<mjCMesh*>& list) const;
 
 
 
