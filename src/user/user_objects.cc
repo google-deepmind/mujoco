@@ -6508,7 +6508,6 @@ mjCSensor::mjCSensor(mjCModel* _model) {
   spec_userdata_.clear();
   obj = nullptr;
   ref = nullptr;
-  refid = -1;
 
   // in case this sensor is not compiled
   CopyFromSpec();
@@ -6610,7 +6609,7 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
     ref = m->FindObject(reftype, refname_);
   }
 
-  // get objid from objtype and objname
+  // check object
   if (objtype != mjOBJ_UNKNOWN) {
     // check for missing object name
     if (objname_.empty()) {
@@ -6635,7 +6634,7 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
     throw mjCError(this, "invalid type in sensor");
   }
 
-  // get refid from reftype and refname
+  // check reference object
   if (reftype != mjOBJ_UNKNOWN) {
     // check for missing object name
     if (refname_.empty()) {
@@ -6653,9 +6652,6 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
       throw mjCError(this,
                      "reference frame object must be (x)body, geom, site or camera in sensor");
     }
-
-    // get sensorized object id
-    refid = ref->id;
   }
 
   spec_objname_ = objname_;

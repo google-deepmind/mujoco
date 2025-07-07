@@ -3447,7 +3447,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->sensor_objtype[i] = psen->objtype;
     m->sensor_objid[i] = psen->obj ? psen->obj->id : -1;
     m->sensor_reftype[i] = psen->reftype;
-    m->sensor_refid[i] = psen->refid;
+    m->sensor_refid[i] = psen->ref ? psen->ref->id : -1;
     m->sensor_dim[i] = psen->dim;
     m->sensor_cutoff[i] = (mjtNum)psen->cutoff;
     m->sensor_noise[i] = (mjtNum)psen->noise;

@@ -1764,8 +1764,6 @@ class mjCActuator : public mjCActuator_, private mjsActuator {
 
 class mjCSensor_ : public mjCBase {
  protected:
-  int refid;                      // id of reference frame
-
   // variable-size data
   std::string plugin_name;
   std::string plugin_instance_name;
