@@ -318,10 +318,10 @@ class "PhysicsActuatorAPI" (
         doc = "If true and applied to ball and free joints, the 3d rotation axis given by gear is defined in the parent frame (which is the world frame for free joints) rather than the child frame."
     )
     uniform double mjc:lengthRange:max = 0 (
-        doc = "Maximum range of feasible lengths of the actuator’s transmission."
+        doc = "Maximum range of feasible lengths of the actuator's transmission."
     )
     uniform double mjc:lengthRange:min = 0 (
-        doc = "Minimum range of feasible lengths of the actuator’s transmission."
+        doc = "Minimum range of feasible lengths of the actuator's transmission."
     )
     rel mjc:refSite (
         doc = "When applied to a site, measure the translation and rotation w.r.t the frame of the refsite. In this case the actuator does have length and position actuators can be used to directly control an end effector, see refsite.xml example model. As above, the length is the dot product of the gear vector and the frame difference. So gear='0 1 0 0 0 0' means 'Y-offset of site in the refsite frame', while gear='0 0 0 0 0 1' means rotation 'Z- rotation of site in the refsite frame'. It is recommended to use a normalized gear vector with nonzeros in only the first 3 or the last 3 elements of gear, so the actuator length will be in either length units or radians, respectively. As with ball joints (see joint above), for rotations which exceed a total angle of pi will wrap around, so tighter limits are recommended."

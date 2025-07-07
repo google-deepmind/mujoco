@@ -403,7 +403,7 @@ class MjcPhysicsActuatorAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // MJCLENGTHRANGEMIN
   // --------------------------------------------------------------------- //
-  /// Minimum range of feasible lengths of the actuator’s transmission.
+  /// Minimum range of feasible lengths of the actuator's transmission.
   ///
   /// | ||
   /// | -- | -- |
@@ -428,7 +428,7 @@ class MjcPhysicsActuatorAPI : public UsdAPISchemaBase {
   // --------------------------------------------------------------------- //
   // MJCLENGTHRANGEMAX
   // --------------------------------------------------------------------- //
-  /// Maximum range of feasible lengths of the actuator’s transmission.
+  /// Maximum range of feasible lengths of the actuator's transmission.
   ///
   /// | ||
   /// | -- | -- |

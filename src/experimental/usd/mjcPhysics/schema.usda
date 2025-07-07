@@ -597,11 +597,11 @@ class "PhysicsActuatorAPI"
     )
 
     uniform double mjc:lengthRange:min = 0 (
-        doc = "Minimum range of feasible lengths of the actuator’s transmission."
+        doc = "Minimum range of feasible lengths of the actuator's transmission."
     )
 
     uniform double mjc:lengthRange:max = 0 (
-        doc = "Maximum range of feasible lengths of the actuator’s transmission."
+        doc = "Maximum range of feasible lengths of the actuator's transmission."
     )
 
     # Transmission Properties
