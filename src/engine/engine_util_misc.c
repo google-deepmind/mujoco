@@ -422,9 +422,8 @@ mjtNum mju_wrap(mjtNum wpnt[6], const mjtNum x0[3], const mjtNum x1[3],
 
 
 // all 3 semi-axes of a geom
-void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]) {
-  mjtNum* size = m->geom_size + 3*geom_id;
-  switch ((mjtGeom) m->geom_type[geom_id]) {
+void mju_geomSemiAxes(mjtNum semiaxes[3], const mjtNum size[3], mjtGeom type) {
+  switch (type) {
   case mjGEOM_SPHERE:
     semiaxes[0] = size[0];
     semiaxes[1] = size[0];

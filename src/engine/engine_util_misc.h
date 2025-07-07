@@ -51,7 +51,7 @@ MJAPI mjtNum mju_muscleDynamicsTimescale(mjtNum dctrl, mjtNum tau_act, mjtNum ta
 MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
 // all 3 semi-axes of a geom
-MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);
+MJAPI void mju_geomSemiAxes(mjtNum semiaxes[3], const mjtNum size[3], mjtGeom type);
 
 // ----------------------------- Flex interpolation ------------------------------------------------
 
