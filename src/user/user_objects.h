@@ -1593,10 +1593,10 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
   void del_material() { material_.clear(); }
 
   // API for adding wrapping objects
-  void WrapSite(std::string name, std::string_view info = "");                    // site
-  void WrapGeom(std::string name, std::string side, std::string_view info = "");  // geom
-  void WrapJoint(std::string name, double coef, std::string_view info = "");      // joint
-  void WrapPulley(double divisor, std::string_view info = "");                    // pulley
+  void WrapSite(std::string wrapname, std::string_view wrapinfo = "");                    // site
+  void WrapGeom(std::string wrapname, std::string side, std::string_view wrapinfo = "");  // geom
+  void WrapJoint(std::string wrapname, double coef, std::string_view wrapinfo = "");      // joint
+  void WrapPulley(double divisor, std::string_view wrapinfo = "");                        // pulley
 
   // API for access to wrapping objects
   int NumWraps() const;                       // number of wraps

@@ -5714,14 +5714,14 @@ void mjCTendon::SetModel(mjCModel* _model) {
 
 
 // add site as wrap object
-void mjCTendon::WrapSite(std::string name, std::string_view info) {
+void mjCTendon::WrapSite(std::string wrapname, std::string_view wrapinfo) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
-  wrap->info = info;
+  wrap->info = wrapinfo;
 
   // set parameters, add to path
   wrap->type = mjWRAP_SITE;
-  wrap->name = name;
+  wrap->name = wrapname;
   wrap->id = (int)path.size();
   path.push_back(wrap);
 }
@@ -5729,14 +5729,14 @@ void mjCTendon::WrapSite(std::string name, std::string_view info) {
 
 
 // add geom (with side site) as wrap object
-void mjCTendon::WrapGeom(std::string name, std::string sidesite, std::string_view info) {
+void mjCTendon::WrapGeom(std::string wrapname, std::string sidesite, std::string_view wrapinfo) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
-  wrap->info = info;
+  wrap->info = wrapinfo;
 
   // set parameters, add to path
   wrap->type = mjWRAP_SPHERE;         // replace with cylinder later if needed
-  wrap->name = name;
+  wrap->name = wrapname;
   wrap->sidesite = sidesite;
   wrap->id = (int)path.size();
   path.push_back(wrap);
@@ -5745,14 +5745,14 @@ void mjCTendon::WrapGeom(std::string name, std::string sidesite, std::string_vie
 
 
 // add joint as wrap object
-void mjCTendon::WrapJoint(std::string name, double coef, std::string_view info) {
+void mjCTendon::WrapJoint(std::string wrapname, double coef, std::string_view wrapinfo) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
-  wrap->info = info;
+  wrap->info = wrapinfo;
 
   // set parameters, add to path
   wrap->type = mjWRAP_JOINT;
-  wrap->name = name;
+  wrap->name = wrapname;
   wrap->prm = coef;
   wrap->id = (int)path.size();
   path.push_back(wrap);
@@ -5761,10 +5761,10 @@ void mjCTendon::WrapJoint(std::string name, double coef, std::string_view info) 
 
 
 // add pulley
-void mjCTendon::WrapPulley(double divisor, std::string_view info) {
+void mjCTendon::WrapPulley(double divisor, std::string_view wrapinfo) {
   // create wrap object
   mjCWrap* wrap = new mjCWrap(model, this);
-  wrap->info = info;
+  wrap->info = wrapinfo;
 
   // set parameters, add to path
   wrap->type = mjWRAP_PULLEY;
