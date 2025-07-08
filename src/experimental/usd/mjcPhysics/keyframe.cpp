@@ -27,10 +27,10 @@ TF_REGISTRY_FUNCTION(TfType) {
 
   // Register the usd prim typename as an alias under UsdSchemaBase. This
   // enables one to call
-  // TfType::Find<UsdSchemaBase>().FindDerivedByName("Keyframe")
+  // TfType::Find<UsdSchemaBase>().FindDerivedByName("MjcKeyframe")
   // to find TfType<MjcPhysicsKeyframe>, which is how IsA queries are
   // answered.
-  TfType::AddAlias<UsdSchemaBase, MjcPhysicsKeyframe>("Keyframe");
+  TfType::AddAlias<UsdSchemaBase, MjcPhysicsKeyframe>("MjcKeyframe");
 }
 
 /* virtual */
@@ -49,7 +49,7 @@ MjcPhysicsKeyframe MjcPhysicsKeyframe::Get(const UsdStagePtr &stage,
 /* static */
 MjcPhysicsKeyframe MjcPhysicsKeyframe::Define(const UsdStagePtr &stage,
                                               const SdfPath &path) {
-  static TfToken usdPrimTypeName("Keyframe");
+  static TfToken usdPrimTypeName("MjcKeyframe");
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
     return MjcPhysicsKeyframe();

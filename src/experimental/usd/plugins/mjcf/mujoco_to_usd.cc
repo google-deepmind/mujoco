@@ -347,7 +347,7 @@ class ModelWriter {
     mesh_paths_[*mjs_getName(mesh->element)] = subcomponent_path;
 
     if (write_physics_) {
-      ApplyApiSchema(data_, mesh_path, MjcPhysicsTokens->MeshCollisionAPI);
+      ApplyApiSchema(data_, mesh_path, MjcPhysicsTokens->MjcMeshCollisionAPI);
 
       pxr::TfToken inertia = MjcPhysicsTokens->legacy;
       if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_EXACT) {
@@ -464,7 +464,7 @@ class ModelWriter {
         data_, body_paths_[kWorldIndex], pxr::UsdPhysicsTokens->PhysicsScene,
         pxr::UsdPhysicsTokens->PhysicsScene);
 
-    ApplyApiSchema(data_, physics_scene_path, MjcPhysicsTokens->SceneAPI);
+    ApplyApiSchema(data_, physics_scene_path, MjcPhysicsTokens->MjcSceneAPI);
 
     const std::vector<std::pair<pxr::TfToken, double>>
         option_double_attributes = {
@@ -955,11 +955,11 @@ class ModelWriter {
       return;
     }
     const auto keyframe_name = pxr::TfToken(pxr::TfMakeValidIdentifier(
-        name.empty() ? MjcPhysicsTokens->Keyframe : name));
+        name.empty() ? MjcPhysicsTokens->MjcKeyframe : name));
     pxr::SdfPath keyframe_path = parent_path.AppendChild(keyframe_name);
     if (!data_->HasSpec(keyframe_path)) {
       CreatePrimSpec(data_, parent_path, keyframe_name,
-                     pxr::MjcPhysicsTokens->Keyframe);
+                     pxr::MjcPhysicsTokens->MjcKeyframe);
     }
     auto set_attribute_data = [&](const pxr::SdfPath &attr_path,
                                   const pxr::VtDoubleArray &value,
@@ -1029,7 +1029,7 @@ class ModelWriter {
     mjsKey *keyframe = mjs_asKey(mjs_firstElement(spec_, mjOBJ_KEY));
     while (keyframe) {
       std::string keyframe_name = mjs_getName(keyframe->element)->empty()
-                                      ? MjcPhysicsTokens->Keyframe
+                                      ? kTokens->keyframe
                                       : *mjs_getName(keyframe->element);
       keyframes_map[keyframe_name].push_back(keyframe);
       keyframe = mjs_asKey(mjs_nextElement(spec_, keyframe->element));
@@ -1063,7 +1063,7 @@ class ModelWriter {
     }
 
     ApplyApiSchema(data_, transmission_path,
-                   MjcPhysicsTokens->PhysicsActuatorAPI);
+                   MjcPhysicsTokens->MjcActuatorAPI);
 
     if (!actuator->refsite->empty()) {
       int refsite_id =
@@ -1438,7 +1438,7 @@ class ModelWriter {
     pxr::SdfPath site_path = WriteSiteGeom(site, body_path);
     SetPrimPurpose(data_, site_path, pxr::UsdGeomTokens->guide);
 
-    ApplyApiSchema(data_, site_path, MjcPhysicsTokens->SiteAPI);
+    ApplyApiSchema(data_, site_path, MjcPhysicsTokens->MjcSiteAPI);
 
     int site_id = mjs_getId(site->element);
     auto transform = MujocoPosQuatToTransform(&model_->site_pos[3 * site_id],
@@ -1491,7 +1491,7 @@ class ModelWriter {
                            model_->geom_conaffinity[geom_id] != 0)) {
       ApplyApiSchema(data_, geom_path,
                      pxr::UsdPhysicsTokens->PhysicsCollisionAPI);
-      ApplyApiSchema(data_, geom_path, MjcPhysicsTokens->CollisionAPI);
+      ApplyApiSchema(data_, geom_path, MjcPhysicsTokens->MjcCollisionAPI);
 
       WriteUniformAttribute(
           geom_path, pxr::SdfValueTypeNames->Bool,
@@ -1834,7 +1834,7 @@ class ModelWriter {
       }
 
       // Finally write the mjcPhysicsJointAPI attributes.
-      ApplyApiSchema(data_, joint_path, MjcPhysicsTokens->PhysicsJointsAPI);
+      ApplyApiSchema(data_, joint_path, MjcPhysicsTokens->MjcJointAPI);
 
       WriteUniformAttribute(
           joint_path, pxr::SdfValueTypeNames->DoubleArray,

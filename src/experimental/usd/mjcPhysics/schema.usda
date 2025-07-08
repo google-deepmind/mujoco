@@ -9,6 +9,7 @@ over "GLOBAL" (
   customData = {
     string libraryName = "mjcPhysics"
     string libraryPath = "."
+    string libraryPrefix = "MjcPhysics"
     bool useLiteralIdentifier = 0
     dictionary libraryTokens = {
         dictionary euler = {
@@ -92,8 +93,11 @@ over "GLOBAL" (
 
 }
 
-class "SceneAPI"
+class "MjcSceneAPI"
 (
+    customData = {
+        string className = "SceneAPI"
+    }
     doc = """API providing global simulation options for Mujoco."""
 
     inherits = </APISchemaBase>
@@ -507,16 +511,22 @@ class "SceneAPI"
     )
 }
 
-class "SiteAPI"
+class "MjcSiteAPI"
 (
+    customData = {
+        string className = "SiteAPI"
+    }
     doc = """API describing a Mujoco site."""
 
     inherits = </APISchemaBase>
 )
 {}
 
-class "CollisionAPI"
+class "MjcCollisionAPI"
 (
+    customData = {
+        string className = "CollisionAPI"
+    }
     doc = """API describing a Mujoco collider."""
 
     inherits = </APISchemaBase>
@@ -531,9 +541,12 @@ class "CollisionAPI"
     )
 }
 
-class "MeshCollisionAPI"
+class "MjcMeshCollisionAPI"
 (
-    doc = """API describing a Mujoco collider."""
+    customData = {
+        string className = "MeshCollisionAPI"
+    }
+    doc = """API describing a Mujoco mesh collider."""
 
     inherits = </APISchemaBase>
 )
@@ -548,7 +561,7 @@ class "MeshCollisionAPI"
     )
 }
 
-class "PhysicsActuatorAPI"
+class "MjcActuatorAPI"
 (
     customData = {
         string className = "ActuatorAPI"
@@ -663,8 +676,11 @@ class "PhysicsActuatorAPI"
 }
 
 
-class Keyframe "Keyframe"
+class MjcKeyframe "MjcKeyframe"
 (
+    customData = {
+        string className = "Keyframe"
+    }
     doc = """Represents time independent keyframe values."""
 
     inherits = </Typed>
@@ -695,7 +711,7 @@ class Keyframe "Keyframe"
   )
 }
 
-class "PhysicsJointsAPI"
+class "MjcJointAPI"
 (
     customData = {
         string className = "JointAPI"

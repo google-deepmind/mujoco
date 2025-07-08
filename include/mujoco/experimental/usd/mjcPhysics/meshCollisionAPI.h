@@ -35,12 +35,12 @@ PXR_NAMESPACE_OPEN_SCOPE
 class SdfAssetPath;
 
 // -------------------------------------------------------------------------- //
-// MESHCOLLISIONAPI                                                           //
+// MJCMESHCOLLISIONAPI                                                        //
 // -------------------------------------------------------------------------- //
 
 /// \class MjcPhysicsMeshCollisionAPI
 ///
-/// API describing a Mujoco collider.
+/// API describing a Mujoco mesh collider.
 ///
 /// For any described attribute \em Fallback \em Value or \em Allowed \em Values
 /// below that are text/tokens, the actual token is published and defined in
@@ -111,7 +111,7 @@ class MjcPhysicsMeshCollisionAPI : public UsdAPISchemaBase {
   static bool CanApply(const UsdPrim &prim, std::string *whyNot = nullptr);
 
   /// Applies this <b>single-apply</b> API schema to the given \p prim.
-  /// This information is stored by adding "MeshCollisionAPI" to the
+  /// This information is stored by adding "MjcMeshCollisionAPI" to the
   /// token-valued, listOp metadata \em apiSchemas on the prim.
   ///
   /// \return A valid MjcPhysicsMeshCollisionAPI object is returned upon

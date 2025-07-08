@@ -573,34 +573,34 @@ struct MjcPhysicsTokensType {
   /// value for MjcPhysicsActuatorAPI::GetMjcDynTypeAttr(), Possible value for
   /// MjcPhysicsActuatorAPI::GetMjcGainTypeAttr()
   const TfToken user;
-  /// \brief "CollisionAPI"
-  ///
-  /// Schema identifier and family for MjcPhysicsCollisionAPI
-  const TfToken CollisionAPI;
-  /// \brief "Keyframe"
-  ///
-  /// Schema identifier and family for MjcPhysicsKeyframe
-  const TfToken Keyframe;
-  /// \brief "MeshCollisionAPI"
-  ///
-  /// Schema identifier and family for MjcPhysicsMeshCollisionAPI
-  const TfToken MeshCollisionAPI;
-  /// \brief "PhysicsActuatorAPI"
+  /// \brief "MjcActuatorAPI"
   ///
   /// Schema identifier and family for MjcPhysicsActuatorAPI
-  const TfToken PhysicsActuatorAPI;
-  /// \brief "PhysicsJointsAPI"
+  const TfToken MjcActuatorAPI;
+  /// \brief "MjcCollisionAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsCollisionAPI
+  const TfToken MjcCollisionAPI;
+  /// \brief "MjcJointAPI"
   ///
   /// Schema identifier and family for MjcPhysicsJointAPI
-  const TfToken PhysicsJointsAPI;
-  /// \brief "SceneAPI"
+  const TfToken MjcJointAPI;
+  /// \brief "MjcKeyframe"
+  ///
+  /// Schema identifier and family for MjcPhysicsKeyframe
+  const TfToken MjcKeyframe;
+  /// \brief "MjcMeshCollisionAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsMeshCollisionAPI
+  const TfToken MjcMeshCollisionAPI;
+  /// \brief "MjcSceneAPI"
   ///
   /// Schema identifier and family for MjcPhysicsSceneAPI
-  const TfToken SceneAPI;
-  /// \brief "SiteAPI"
+  const TfToken MjcSceneAPI;
+  /// \brief "MjcSiteAPI"
   ///
   /// Schema identifier and family for MjcPhysicsSiteAPI
-  const TfToken SiteAPI;
+  const TfToken MjcSiteAPI;
   /// A vector of all of the tokens listed above.
   const std::vector<TfToken> allTokens;
 };

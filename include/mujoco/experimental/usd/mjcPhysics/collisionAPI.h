@@ -35,7 +35,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 class SdfAssetPath;
 
 // -------------------------------------------------------------------------- //
-// COLLISIONAPI                                                               //
+// MJCCOLLISIONAPI                                                            //
 // -------------------------------------------------------------------------- //
 
 /// \class MjcPhysicsCollisionAPI
@@ -106,7 +106,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   static bool CanApply(const UsdPrim &prim, std::string *whyNot = nullptr);
 
   /// Applies this <b>single-apply</b> API schema to the given \p prim.
-  /// This information is stored by adding "CollisionAPI" to the
+  /// This information is stored by adding "MjcCollisionAPI" to the
   /// token-valued, listOp metadata \em apiSchemas on the prim.
   ///
   /// \return A valid MjcPhysicsCollisionAPI object is returned upon success.
