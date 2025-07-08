@@ -18,6 +18,12 @@
 #include <mujoco/mujoco.h>
 #include <pxr/usd/usd/common.h>
 
+// Given a USD file parse to a spec, then compile and return the low-level model.
+//
+// Particular care is taken for physics data to be lossless but visual
+// data such as materials may be lossy.
+MJAPI mjModel* mj_loadUSD(const char* filename, const mjVFS* vfs, char* error, int error_sz);
+
 // Given a USD stage, this function will do a best effort conversion to
 // mjSpec.
 //

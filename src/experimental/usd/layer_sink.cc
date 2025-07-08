@@ -41,8 +41,7 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 TF_DEFINE_PRIVATE_TOKENS(_layer_sink_tokens,
-                         ((xformOpTransform,
-                           "xformOp:transform:mujoco"))(Xform));
+                         ((xformOpTransform, "xformOp:transform:mujoco")));
 PXR_NAMESPACE_CLOSE_SCOPE
 
 namespace {

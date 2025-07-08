@@ -25,11 +25,8 @@
 #include <string>
 #include <thread>
 
-#if defined(SIMULATE_WITH_USD)
+#if defined(mjUSEUSD)
 #include <mujoco/experimental/usd/usd.h>
-#include <pxr/pxr.h>
-#include <pxr/usd/usd/common.h>
-#include <pxr/usd/usd/stage.h>
 #endif
 #include <mujoco/mujoco.h>
 #include "glfw_adapter.h"
@@ -244,34 +241,10 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
     if (!mnew) {
       mju::strcpy_arr(loadError, "could not load binary model");
     }
-#if defined(SIMULATE_WITH_USD)
+#if defined(mjUSEUSD)
   } else if (extension == ".usda" || extension == ".usd" ||
              extension == ".usdc" || extension == ".usdz" ) {
-    auto stage = pxr::UsdStage::Open(filename);
-    if (!stage) {
-      mju::strcpy_arr(loadError, "could not open USD stage");
-    } else {
-      mjSpec* spec = mj_parseUSDStage(stage);
-      if (!spec) {
-        mju::strcpy_arr(loadError, "could not parse USD stage to mjSpec");
-      } else {
-        mjModel* model = mj_compile(spec, nullptr);
-        if (!model) {
-          mju::strcpy_arr(loadError,
-                          "could not compile USD parsed mjSpec to mjModel:\n");
-          mju::strcat_arr(loadError, mjs_getError(spec));
-        } else {
-          // handle compile warning
-          if (mjs_isWarning(spec)) {
-            mju::strcpy_arr(
-                loadError,
-                "warning while compiling USD parsed mjSpec to mjModel:\n");
-            mju::strcat_arr(loadError, mjs_getError(spec));
-          }
-        }
-        mnew = model;
-      }
-    }
+    mnew = mj_loadUSD(filename, nullptr, loadError, kErrorLength);
 #endif
   } else {
     mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
@@ -537,7 +510,7 @@ int main(int argc, char** argv) {
   // scan for libraries in the plugin directory to load additional plugins
   scanPluginLibraries();
 
-#if defined(SIMULATE_WITH_USD)
+#if defined(mjUSEUSD)
   // If USD is used, print the version.
   std::printf("OpenUSD version v%d.%02d\n", PXR_MINOR_VERSION, PXR_PATCH_VERSION);
 #endif

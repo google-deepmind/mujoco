@@ -202,6 +202,7 @@ if(MUJOCO_BUILD_EXAMPLES)
 endif()
 
 if(MUJOCO_WITH_USD)
+  target_compile_definitions(mujoco PUBLIC mjUSEUSD)
   add_subdirectory(src/experimental/usd)
 endif()
 

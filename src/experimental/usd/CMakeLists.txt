@@ -16,7 +16,6 @@
 # Plugin target names (used for library and plugInfo.json)
 set(MJCF_PLUGIN_TARGET_NAME usdMjcf)
 set(MJC_PHYSICS_PLUGIN_TARGET_NAME mjcPhysics)
-set(MJ_USD_TARGET_NAME mj_usd)
 
 # Installation directory for USD plugins
 set(MJ_USD_INSTALL_DIR_LIB ${CMAKE_INSTALL_LIBDIR}/mujocoUsd)
@@ -187,14 +186,12 @@ set_target_properties(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PROPERTIES
   ${DEFAULT_CXX_VISIBILITY_PROPS}
 )
 target_include_directories(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}/mjcPhysics"
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../../include>
 )
 
 ## mj_usd
 
-add_library(${MJ_USD_TARGET_NAME} SHARED)
-add_library(mujoco::usd ALIAS ${MJ_USD_TARGET_NAME})
-target_sources(${MJ_USD_TARGET_NAME} PRIVATE
+target_sources(mujoco PRIVATE
   kinematic_tree.cc
   kinematic_tree.h
   layer_sink.cc
@@ -212,8 +209,6 @@ if (USD_DIR)
 
   target_link_libraries(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
     ${OPENUSD_CORE_LIBS}
-    mujoco
-    tinyxml2
   )
 
   target_link_libraries(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
@@ -223,10 +218,8 @@ if (USD_DIR)
     ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
   )
 
-  target_link_libraries(${MJ_USD_TARGET_NAME} PUBLIC
+  target_link_libraries(mujoco PUBLIC
     ${OPENUSD_CORE_LIBS}
-    mujoco
-    tinyxml2
     ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
   )
 elseif (HOUDINI_HFS_DIR)
@@ -237,11 +230,9 @@ elseif (HOUDINI_HFS_DIR)
   # so we need to manually link all the required libraries.
   configure_houdini_target(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE PRIVATE)
   configure_houdini_target(${MJCF_PLUGIN_TARGET_NAME} PRIVATE PRIVATE)
-  configure_houdini_target(${MJ_USD_TARGET_NAME} PUBLIC PUBLIC)
 
   # Re-add inter-plugin dependencies after Houdini-specific linking
   target_link_libraries(${MJCF_PLUGIN_TARGET_NAME} PRIVATE ${MJC_PHYSICS_PLUGIN_TARGET_NAME})
-  target_link_libraries(${MJ_USD_TARGET_NAME} PUBLIC ${MJC_PHYSICS_PLUGIN_TARGET_NAME})
 
 endif()
 
@@ -272,6 +263,6 @@ install(FILES
 install(TARGETS
   ${MJCF_PLUGIN_TARGET_NAME}
   ${MJC_PHYSICS_PLUGIN_TARGET_NAME}
-  ${MJ_USD_TARGET_NAME}
+  EXPORT ${PROJECT_NAME}
   LIBRARY DESTINATION ${MJ_USD_INSTALL_DIR_LIB}
 )

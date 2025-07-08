@@ -34,6 +34,10 @@
 #include "xml/xml.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_util.h"
+#if defined(mjUSEUSD)
+#include <mujoco/experimental/usd/usd.h>
+#include <pxr/usd/usd/stage.h>
+#endif
 
 //---------------------------------- Globals -------------------------------------------------------
 
@@ -126,7 +130,36 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   return m;
 }
 
+#if defined(mjUSEUSD)
+//  parse USD file, compile it, and return low-level model.
+//  if vfs is not NULL, look up files in vfs before reading from disk
+//  error can be NULL; otherwise assumed to have size error_sz
+mjModel* mj_loadUSD(const char* filename, const mjVFS* vfs, char* error, int error_sz) {
+  auto stage = pxr::UsdStage::Open(filename);
 
+  if (stage == nullptr) {
+    mjCopyError(error, "Failed to load USD stage from file.", error_sz);
+    return nullptr;
+  }
+
+  // Parse USD into mjSpec.
+  std::unique_ptr<mjSpec, std::function<void(mjSpec*)> > spec(
+    mj_parseUSDStage(stage),
+    [](mjSpec* s) {
+      mj_deleteSpec(s);
+    });
+
+  // Compile new model.
+  mjModel* m = mj_compile(spec.get(), vfs);
+  if (!m) {
+    mjCopyError(error, mjs_getError(spec.get()), error_sz);
+    return nullptr;
+  }
+
+  GetGlobalModel().Set(spec.release());
+  return m;
+}
+#endif
 
 // update XML data structures with info from low-level model, save as MJCF
 //  returns 1 if successful, 0 otherwise
