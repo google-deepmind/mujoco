@@ -548,16 +548,14 @@ int mj_collideOBB(const mjtNum aabb1[6], const mjtNum aabb2[6],
   // compute centers in local coordinates
   if (product == NULL) {
     for (int i=0; i < 2; i++) {  // bounding boxes
-      for (int j=0; j < 3; j++) {  // axes
-        if (xmat[i]) {
-          mju_mulMatVec3(xcenter[i], xmat[i], aabb[i]);
-        } else {
-          mju_copy3(xcenter[i], aabb[i]);
-        }
+      if (xmat[i]) {
+        mju_mulMatVec3(xcenter[i], xmat[i], aabb[i]);
+      } else {
+        mju_copy3(xcenter[i], aabb[i]);
+      }
 
-        if (xpos[i]) {
-          mju_addTo3(xcenter[i], xpos[i]);
-        }
+      if (xpos[i]) {
+        mju_addTo3(xcenter[i], xpos[i]);
       }
     }
   }
