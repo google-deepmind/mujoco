@@ -2,35 +2,35 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
+Version 3.3.4 (July 8, 2025)
 -----------------------------------
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The functions ``mjs_detachBody`` and ``mjs_detachDefault`` have been replaced by :ref:`mjs_delete`.
-   - The Python functions ``element.delete`` have been replaced by ``spec.delete(element)``.
+   1. The functions ``mjs_detachBody`` and ``mjs_detachDefault`` have been replaced by :ref:`mjs_delete`.
+   2. The Python functions ``element.delete`` have been replaced by ``spec.delete(element)``.
 
 General
 ^^^^^^^
-- Added support for setting the initial camera in the viewer using
-  :ref:`visual/global/cameraid<visual-global-cameraid>`.
-- Added support to only sync the state in the Python :ref:`passive viewer<PyViewerPassive>`'s ``Sync`` method, this is
-  useful to improve performance. The default behavior is unchanged and copies the entire model and data.
-- In the mjSpec C API, directly setting an element's name using :ref:`mjs_setString` has been replaced with a new
-  function :ref:`mjs_setName` which allows checking for naming collisions at set-time rather than compile-time, for
-  earlier catching of errors.
+3. Added support for setting the initial camera in the viewer using
+   :ref:`visual/global/cameraid<visual-global-cameraid>`.
+4. Added support to only sync the state in the Python :ref:`passive viewer<PyViewerPassive>`'s ``Sync`` method, this is
+   useful to improve performance. The default behavior is unchanged and copies the entire model and data.
+5. In the mjSpec C API, directly setting an element's name using :ref:`mjs_setString` has been replaced with a new
+   function :ref:`mjs_setName` which allows checking for naming collisions at set-time rather than compile-time, for
+   earlier catching of errors.
 
 Bug fixes
 ^^^^^^^^^
-- Inverse dynamics were not being computed correctly when :ref:`tendon armature<tendon-spatial-armature>` was present,
-  now fixed.
-- Fix bug in ``mjx.put_data`` where ``actuator_moment`` was not being copied correctly for the C implementation.
+6. Inverse dynamics were not being computed correctly when :ref:`tendon armature<tendon-spatial-armature>` was present,
+   now fixed.
+7. Fix bug in ``mjx.put_data`` where ``actuator_moment`` was not being copied correctly for the C implementation.
 
 Documentation
 ^^^^^^^^^^^^^
-- Added missing item documentation and clarified the nature of breaking changes in the 3.3.3 changelog.
-  See items 3 and 4 below.
+8. Added missing item documentation and clarified the nature of breaking changes in the 3.3.3 changelog.
+   See items 3 and 4 below.
 
 Version 3.3.3 (June 10, 2025)
 -----------------------------
@@ -69,8 +69,8 @@ General
 Simulate
 ^^^^^^^^
 8. The struct ``mjv_sceneState`` has been removed. This struct was used for partial synchronization of ``mjModel`` and
-   ``mjData`` when the Python viewer is used in passive mode. This functionality is now provided by :ref:`mjv_copyModel`
-   and :ref:`mjv_copyData`, which don't copy arrays which are not required for visualization.
+   ``mjData`` when the Python viewer is used in passive mode. This functionality is now provided by
+   :ref:`mjv_copyModel` and :ref:`mjv_copyData`, which don't copy arrays which are not required for visualization.
 
 .. image:: images/changelog/procedural_terrain_generation.png
    :width: 33%
