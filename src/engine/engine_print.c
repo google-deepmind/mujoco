@@ -1280,6 +1280,10 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     printVector("     frame        ", d->contact[i].frame, 9, fp, float_format);
     printVector("     friction     ", d->contact[i].friction, 5, fp, float_format);
     printVector("     mu           ", &d->contact[i].mu, 1, fp, float_format);
+    mjtNum force[6] = {0};
+    mj_contactForce(m, d, i, force);
+    printVector("     force        ", force, 6, fp, float_format);
+
   }
   if (d->ncon) fprintf(fp, "\n");
 
