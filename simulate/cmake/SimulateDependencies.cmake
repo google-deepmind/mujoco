@@ -102,3 +102,4 @@ if(NOT SIMULATE_STANDALONE)
   target_compile_options(glfw PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
   target_link_options(glfw PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 endif()
+
