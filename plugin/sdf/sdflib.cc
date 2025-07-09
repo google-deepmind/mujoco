@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include <TriangleMeshDistance/include/tmd/TriangleMeshDistance.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mujoco.h>
 #include "sdf.h"
@@ -140,44 +139,19 @@ std::optional<SdfLib> SdfLib::Create(const mjModel* m, mjData* d,
       break;
     }
   }
-  int meshid = m->geom_dataid[geomid];
-  int nvert = m->mesh_vertnum[meshid];
-  int nface = m->mesh_facenum[meshid];
-  int* indices = m->mesh_face + 3*m->mesh_faceadr[meshid];
-  float* verts = m->mesh_vert + 3*m->mesh_vertadr[meshid];
-  std::vector<double> vertices(3*nvert);
-  for (int i = 0; i < nvert; i++) {
-    mjtNum vert[3] = {verts[3*i+0], verts[3*i+1], verts[3*i+2]};
-    mju_rotVecQuat(vert, vert, m->mesh_quat + 4*meshid);
-    mju_addTo3(vert, m->mesh_pos + 3*meshid);
-    vertices[3*i+0] = vert[0];
-    vertices[3*i+1] = vert[1];
-    vertices[3*i+2] = vert[2];
-  }
-  tmd::TriangleMeshDistance mesh(vertices.data(), nvert, indices, nface);
-  return SdfLib(mesh, m, meshid);
+  return SdfLib(m, m->geom_dataid[geomid]);
 }
 
 // plugin constructor
-SdfLib::SdfLib(const tmd::TriangleMeshDistance& sdf, const mjModel* m,
-               int meshid) {
-  // TODO: do not evaluate the SDF multiple times at the same vertex
-  // TODO: the value at hanging vertices should be computed from the parent
+SdfLib::SdfLib(const mjModel* m, int meshid) {
   int octadr = m->mesh_octadr[meshid];
   int octnum = m->mesh_octnum[meshid];
   oct_aabb_.assign(m->oct_aabb + 6*octadr,
                    m->oct_aabb + 6*octadr + 6*octnum);
   oct_child_.assign(m->oct_child + 8 * octadr,
                     m->oct_child + 8 * octadr + 8 * octnum);
-  for (int i = 0; i < octnum; ++i) {
-    for (int j = 0; j < 8; j++) {
-        mjtNum v[3];
-        v[0] = oct_aabb_[6*i+0] + (j&1 ? 1 : -1) * oct_aabb_[6*i+3];
-        v[1] = oct_aabb_[6*i+1] + (j&2 ? 1 : -1) * oct_aabb_[6*i+4];
-        v[2] = oct_aabb_[6*i+2] + (j&4 ? 1 : -1) * oct_aabb_[6*i+5];
-        sdf_coeff_.push_back(sdf.signed_distance(v).distance);
-    }
-  }
+  sdf_coeff_.assign(8 * octnum, 0);
+  memcpy(sdf_coeff_.data(), m->oct_coeff + 8*octadr, 8*octnum*sizeof(mjtNum));
   mju_copy(box_, m->oct_aabb + 6*octadr, 6);
 }
 

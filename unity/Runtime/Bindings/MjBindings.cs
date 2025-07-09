@@ -5364,6 +5364,7 @@ public unsafe struct mjModel_ {
   public int* oct_depth;
   public int* oct_child;
   public double* oct_aabb;
+  public double* oct_coeff;
   public int* jnt_type;
   public int* jnt_qposadr;
   public int* jnt_dofadr;

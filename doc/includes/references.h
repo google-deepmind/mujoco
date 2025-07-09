@@ -1098,6 +1098,7 @@ struct mjModel_ {
   int*      oct_depth;            // depth in the octree                      (noct x 1)
   int*      oct_child;            // children of octree node                  (noct x 8)
   mjtNum*   oct_aabb;             // octree node bounding box (center, size)  (noct x 6)
+  mjtNum*   oct_coeff;            // octree interpolation coefficients        (noct x 8)
 
   // joints
   int*      jnt_type;             // type of joint (mjtJoint)                 (njnt x 1)

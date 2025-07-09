@@ -2997,6 +2997,11 @@ void mjCModel::CopyObjects(mjModel* m) {
       memcpy(m->oct_aabb + 6*oct_adr, pme->octree().Nodes().data(), 6*n_oct*sizeof(mjtNum));
       memcpy(m->oct_child + 8*oct_adr, pme->octree().Child().data(), 8*n_oct*sizeof(int));
       memcpy(m->oct_depth + oct_adr, pme->octree().Level().data(), n_oct*sizeof(int));
+      if (!pme->octree().Coeff().empty()) {
+        memcpy(m->oct_coeff + 8*oct_adr, pme->octree().Coeff().data(), 8*n_oct*sizeof(mjtNum));
+      } else {
+        mjuu_zerovec(m->oct_coeff + 8*oct_adr, 8*n_oct);
+      }
     }
 
     // advance counters

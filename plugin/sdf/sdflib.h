@@ -23,7 +23,6 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 #include "sdf.h"
-#include <TriangleMeshDistance/include/tmd/TriangleMeshDistance.h>
 
 namespace mujoco::plugin::sdf {
 class SdfLib {
@@ -44,7 +43,7 @@ class SdfLib {
   static void RegisterPlugin();
 
  private:
-  SdfLib(const tmd::TriangleMeshDistance& sdf, const mjModel* m, int meshid);
+  SdfLib(const mjModel* m, int meshid);
   SdfVisualizer visualizer_;
   std::vector<double> sdf_coeff_;
 

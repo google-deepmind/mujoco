@@ -1590,6 +1590,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('noct', 6),
              ),
              StructFieldDecl(
+                 name='oct_coeff',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='octree interpolation coefficients',
+                 array_extent=('noct', 8),
+             ),
+             StructFieldDecl(
                  name='jnt_type',
                  type=PointerType(
                      inner_type=ValueType(name='int'),

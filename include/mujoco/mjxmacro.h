@@ -220,6 +220,7 @@
     X   ( int,     oct_depth,             noct,          1                    ) \
     X   ( int,     oct_child,             noct,          8                    ) \
     X   ( mjtNum,  oct_aabb,              noct,          6                    ) \
+    X   ( mjtNum,  oct_coeff,             noct,          8                    ) \
     X   ( int,     jnt_type,              njnt,          1                    ) \
     X   ( int,     jnt_qposadr,           njnt,          1                    ) \
     X   ( int,     jnt_dofadr,            njnt,          1                    ) \

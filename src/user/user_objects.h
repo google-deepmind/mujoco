@@ -222,6 +222,7 @@ struct mjCOctree_ {
   std::vector<int> child_;           // children of each node     (nnode x 8)
   std::vector<double> node_;         // bounding boxes            (nnode x 6)
   std::vector<int> level_;           // levels of each node       (nnode x 1)
+  std::vector<double> coeff_;        // interpo coefficients      (nnode x 8)
   std::vector<Triangle> face_;       // mesh faces                (nface x 3)
   double ipos_[3] = {0, 0, 0};
   double iquat_[4] = {1, 0, 0, 0};
@@ -246,6 +247,8 @@ class mjCOctree : public mjCOctree_ {
     level_.clear();
     face_.clear();
   }
+  void AddCoeff(double coeff) { coeff_.push_back(coeff); }
+  const std::vector<double>& Coeff() const { return coeff_; }
 
  private:
   void Make(std::vector<Triangle>& elements);

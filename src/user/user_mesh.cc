@@ -32,6 +32,7 @@
 
 #include <mujoco/mjspec.h>
 #include "user/user_api.h"
+#include <TriangleMeshDistance/include/tmd/TriangleMeshDistance.h>
 
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -1548,6 +1549,25 @@ void mjCMesh::Process() {
     }
     octree_.SetFace(vert_, face_);
     octree_.CreateOctree(aamm);
+
+    // compute sdf coefficients
+    // TODO: only check !plugin.active once sdflib is removed
+    if (plugin.active && *plugin.name == "sdf") {
+      tmd::TriangleMeshDistance sdf(vert_.data(), nvert(), face_.data(), nface());
+
+      // TODO: do not evaluate the SDF multiple times at the same vertex
+      // TODO: the value at hanging vertices should be computed from the parent
+      const double* nodes = octree_.Nodes().data();
+      for (int i = 0; i < octree_.NumNodes(); ++i) {
+        for (int j = 0; j < 8; j++) {
+            mjtNum v[3];
+            v[0] = nodes[6*i+0] + (j&1 ? 1 : -1) * nodes[6*i+3];
+            v[1] = nodes[6*i+1] + (j&2 ? 1 : -1) * nodes[6*i+4];
+            v[2] = nodes[6*i+2] + (j&4 ? 1 : -1) * nodes[6*i+5];
+            octree_.AddCoeff(sdf.signed_distance(v).distance);
+        }
+      }
+    }
   }
 
   // transform CoM to origin
