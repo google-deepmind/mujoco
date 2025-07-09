@@ -199,10 +199,6 @@ target_sources(mujoco PRIVATE
   utils.cc
   writer.cc
 )
-target_include_directories(${MJ_USD_TARGET_NAME} PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}/../../"
-)
-
 
 if (USD_DIR)
   find_package(pxr REQUIRED)
