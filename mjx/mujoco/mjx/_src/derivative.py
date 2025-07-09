@@ -28,7 +28,7 @@ from mujoco.mjx._src.types import Model
 
 
 def deriv_smooth_vel(m: Model, d: Data) -> Optional[jax.Array]:
-  """Analytical derivative of smooth forces w.r.t velocities."""
+  """Analytical derivative of smooth forces w.r.t. velocities."""
 
   qderiv = None
 
