@@ -3532,11 +3532,7 @@ void mjCSite::Compile(void) {
     }
 
     // size[1] = length (for capsule and cylinder)
-    double vec[3] = {
-      fromto[0]-fromto[3],
-      fromto[1]-fromto[4],
-      fromto[2]-fromto[5]
-    };
+    double vec[3] = {fromto[0]-fromto[3], fromto[1]-fromto[4], fromto[2]-fromto[5]};
     size[1] = mjuu_normvec(vec, 3)/2;
     if (size[1] < mjEPS) {
       throw mjCError(this, "fromto points too close in geom");
@@ -6938,6 +6934,19 @@ void mjCSensor::Compile(void) {
       } else {
         needstage = mjSTAGE_VEL;
       }
+      break;
+
+    case mjSENS_INSIDESITE:
+      if (objtype != mjOBJ_BODY && objtype != mjOBJ_XBODY &&
+          objtype != mjOBJ_GEOM && objtype != mjOBJ_SITE && objtype != mjOBJ_CAMERA) {
+        throw mjCError(this, "sensor must be attached to (x)body, geom, site or camera");
+      }
+      if (reftype != mjOBJ_SITE) {
+        throw mjCError(this, "sensor must be associated with a site");
+      }
+      dim = 1;
+      datatype = mjDATATYPE_REAL;
+      needstage = mjSTAGE_POS;
       break;
 
     case mjSENS_GEOMDIST:

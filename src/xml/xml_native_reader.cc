@@ -477,6 +477,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"subtreecom", "*", "5", "name", "body", "cutoff", "noise", "user"},
         {"subtreelinvel", "*", "5", "name", "body", "cutoff", "noise", "user"},
         {"subtreeangmom", "*", "5", "name", "body", "cutoff", "noise", "user"},
+        {"insidesite", "*", "7", "name", "site", "objtype", "objname", "cutoff", "noise", "user"},
         {"distance", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
         {"normal", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
         {"fromto", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
@@ -4081,6 +4082,13 @@ void mjXReader::Sensor(XMLElement* section) {
       ReadAttrTxt(elem, "objname", objname, true);
     } else if (type == "frameangacc") {
       sensor->type = mjSENS_FRAMEANGACC;
+      ReadAttrTxt(elem, "objtype", text, true);
+      sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
+      ReadAttrTxt(elem, "objname", objname, true);
+    } else if (type == "insidesite") {
+      sensor->type = mjSENS_INSIDESITE;
+      sensor->reftype = mjOBJ_SITE;
+      ReadAttrTxt(elem, "site", refname, true);
       ReadAttrTxt(elem, "objtype", text, true);
       sensor->objtype = (mjtObj)mju_str2Type(text.c_str());
       ReadAttrTxt(elem, "objname", objname, true);

@@ -365,6 +365,15 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         mju_copy3(d->sensordata+adr, d->subtree_com+3*objid);
         break;
 
+      case mjSENS_INSIDESITE:                             // insidesite
+        get_xpos_xmat(d, objtype, objid, i, &xpos, &xmat);
+        d->sensordata[adr] = mju_insideGeom(d->site_xpos + 3*refid,
+                                            d->site_xmat + 9*refid,
+                                            m->site_size + 3*refid,
+                                            m->site_type[refid],
+                                            xpos);
+        break;
+
       case mjSENS_GEOMDIST:                               // signed distance between two geoms
       case mjSENS_GEOMNORMAL:                             // normal direction between two geoms
       case mjSENS_GEOMFROMTO:                             // segment between two geoms

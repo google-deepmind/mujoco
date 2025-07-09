@@ -41,6 +41,7 @@ static std::vector<mjtNum> GetSensor(const mjModel* model,
 
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
+using ::testing::NotNull;
 using ::testing::StrEq;
 
 using SensorTest = MujocoTest;
@@ -616,9 +617,6 @@ TEST_F(SensorTest, CollisionSequential) {
   mj_deleteModel(model);
 }
 
-// ------------------------- camera sensor tests  ------------------------------
-
-// test clock sensor
 TEST_F(SensorTest, CameraProjection) {
   constexpr char xml[] = R"(
   <mujoco>
@@ -657,6 +655,50 @@ TEST_F(SensorTest, CameraProjection) {
   EXPECT_NEAR(data->sensordata[3], 1200, eps);
   EXPECT_NEAR(data->sensordata[4], 960, eps);
   EXPECT_NEAR(data->sensordata[5], 600, eps);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, InsideSite) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body pos="0 0 1">
+        <joint type="slide" axis="1 0 0" range="-.75 .75"/>
+        <geom name="query" type="sphere" size=".01" rgba="1 0 0 1"/>
+      </body>
+
+      <site name="sphere"    type="sphere"    size=".11"                           pos="-.5 0 1"/>
+      <site name="capsule"   type="capsule"   size=".08 .15"     euler="20 -40 60" pos="-.25 0 1"/>
+      <site name="ellipsoid" type="ellipsoid" size=".11 .15 .09" euler="20 40 -60" pos="0 0 1"/>
+      <site name="cylinder"  type="cylinder"  size=".09 .12"     euler="-20 40 60" pos=".25 0 1"/>
+      <site name="box"       type="box"       size=".08 .1 .14"  euler="20 -40 60" pos=".5 0 1"/>
+    </worldbody>
+
+    <sensor>
+      <insidesite name="sphere"    site="sphere"    objtype="geom" objname="query"/>
+      <insidesite name="capsule"   site="capsule"   objtype="geom" objname="query"/>
+      <insidesite name="ellipsoid" site="ellipsoid" objtype="geom" objname="query"/>
+      <insidesite name="cylinder"  site="cylinder"  objtype="geom" objname="query"/>
+      <insidesite name="box"       site="box"       objtype="geom" objname="query"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  ASSERT_EQ(model->nsensordata, 5);
+  mjData* data = mj_makeData(model);
+
+  mjtNum hpos[5] = {-.5, -.25, 0, .25, .5};
+  for (int i = 0; i < 5; i++) {
+    data->qpos[0] = hpos[i];
+    mj_forward(model, data);
+    std::vector<mjtNum> expected(5, 0.0);
+    expected[i] = 1.0;
+    EXPECT_EQ(AsVector(data->sensordata, model->nsensordata), expected);
+  }
 
   mj_deleteData(data);
   mj_deleteModel(model);

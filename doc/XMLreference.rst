@@ -7123,6 +7123,45 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 :at:`body`: :at-val:`string, required`
    Name of the body where the kinematic subtree is rooted.
 
+
+.. _sensor-insidesite:
+
+:el-prefix:`sensor/` |-| **insidesite** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+This element creates a sensor that returns 1 if the given object is inside a site, 0 otherwise.
+It is useful for triggering events in surrounding environment logic.
+See `example model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/insidesite.xml>`__.
+
+.. _sensor-insidesite-name:
+
+.. _sensor-insidesite-noise:
+
+.. _sensor-insidesite-cutoff:
+
+.. _sensor-insidesite-user:
+
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+   See :ref:`CSensor`.
+
+.. _sensor-insidesite-objtype:
+
+:at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
+   The type of the object whose position will be queried.
+   See :ref:`framepos<sensor-framepos>`.
+
+.. _sensor-insidesite-objname:
+
+:at:`objname`: :at-val:`string, required`
+   The name of the object whose position will be queried.
+   See :ref:`framepos<sensor-framepos>`.
+
+.. _sensor-insidesite-site:
+
+:at:`site`: :at-val:`string`
+   The site defining the volume used for the inside check.
+
+
+
 .. _collision-sensors:
 
 collision sensors

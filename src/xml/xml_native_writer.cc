@@ -2184,6 +2184,12 @@ void mjXWriter::Sensor(XMLElement* root) {
         elem = InsertEnd(section, "subtreeangmom");
         WriteAttrTxt(elem, "body", sensor->get_objname());
         break;
+      case mjSENS_INSIDESITE:
+        elem = InsertEnd(section, "insidesite");
+        WriteAttrTxt(elem, "objtype", mju_type2Str(sensor->objtype));
+        WriteAttrTxt(elem, "objname", sensor->get_objname());
+        WriteAttrTxt(elem, "site", sensor->get_refname());
+        break;
       case mjSENS_GEOMDIST:
         elem = InsertEnd(section, "distance");
         WriteAttrTxt(elem, sensor->objtype == mjOBJ_BODY ? "body1" : "geom1", sensor->get_objname());

@@ -725,7 +725,8 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_SUBTREELINVEL,           // 3D linear velocity of subtree
   mjSENS_SUBTREEANGMOM,           // 3D angular momentum of subtree
 
-  // sensors for geometric distance; attached to geoms or bodies
+  // sensors of geometric relationships
+  mjSENS_INSIDESITE,              // 1 if object is inside a site, 0 otherwise
   mjSENS_GEOMDIST,                // signed distance between two geoms
   mjSENS_GEOMNORMAL,              // normal direction between two geoms
   mjSENS_GEOMFROMTO,              // segment between two geoms
