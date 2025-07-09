@@ -271,7 +271,7 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
       # pair contacts get their params from m.pair_* fields
       params.append((
           m.pair_margin[ip] - m.pair_gap[ip],
-          jp.clip(m.pair_friction[ip], a_min=eps),
+          m.pair_friction[ip],
           m.pair_solref[ip],
           m.pair_solreffriction[ip],
           m.pair_solimp[ip],
@@ -321,7 +321,7 @@ def _contact_groups(m: Model, d: Data) -> Dict[FunctionKey, Contact]:
         pos=None,
         frame=None,
         includemargin=includemargin,
-        friction=friction,
+        friction=jp.maximum(friction, mujoco.mjMINMU),
         solref=solref,
         solreffriction=solreffriction,
         solimp=solimp,
