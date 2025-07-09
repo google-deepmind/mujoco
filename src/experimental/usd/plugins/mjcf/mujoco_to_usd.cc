@@ -555,14 +555,17 @@ class ModelWriter {
     }
 
     pxr::GfVec3f gravity(spec_->option.gravity[0], spec_->option.gravity[1],
-                      spec_->option.gravity[2]);
-    // Normalize will normalize gravity in place and return the magnitude before normalization.
+                         spec_->option.gravity[2]);
+    // Normalize will normalize gravity in place and return the magnitude before
+    // normalization.
     float gravity_magnitude = gravity.Normalize();
 
     WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Float,
-                          pxr::UsdPhysicsTokens->physicsGravityMagnitude, gravity_magnitude);
+                          pxr::UsdPhysicsTokens->physicsGravityMagnitude,
+                          gravity_magnitude);
     WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Vector3f,
-                          pxr::UsdPhysicsTokens->physicsGravityDirection, gravity);
+                          pxr::UsdPhysicsTokens->physicsGravityDirection,
+                          gravity);
 
     pxr::GfVec3d wind(spec_->option.wind[0], spec_->option.wind[1],
                       spec_->option.wind[2]);
