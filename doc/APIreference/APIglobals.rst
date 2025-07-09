@@ -444,6 +444,10 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 5
      - The maximal number of real-valued parameters used to define the impedance of each scalar constraint.
        Determines the size of all ``mjModel.XXX_solimp`` fields.
+   * - ``mjNSENS``
+     - 2
+     - The number of sensor parameters.
+       Determines the size of ``mjModel.sensor_intprm``.
    * - ``mjNSOLVER``
      - 200
      - The number of iterations where solver statistics can be stored in ``mjData.solver``. This array is used

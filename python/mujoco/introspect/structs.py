@@ -4150,6 +4150,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nsensor',),
              ),
              StructFieldDecl(
+                 name='sensor_intprm',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='sensor parameters',
+                 array_extent=('nsensor', 'mjNSENS'),
+             ),
+             StructFieldDecl(
                  name='sensor_dim',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -10387,6 +10395,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjString'),
                  ),
                  doc='name of referenced object',
+             ),
+             StructFieldDecl(
+                 name='intprm',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(2,),
+                 ),
+                 doc='integer parameters',
              ),
              StructFieldDecl(
                  name='datatype',

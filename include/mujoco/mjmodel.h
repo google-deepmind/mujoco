@@ -41,6 +41,7 @@
 #define mjNFLUID        12        // number of fluid interaction parameters
 #define mjNREF          2         // number of solver reference parameters
 #define mjNIMP          5         // number of solver impedance parameters
+#define mjNSENS         2         // number of sensor parameters
 #define mjNSOLVER       200       // size of one mjData.solver array
 #define mjNISLAND       20        // number of mjData.solver arrays
 
@@ -1130,6 +1131,7 @@ struct mjModel_ {
   int*      sensor_objid;         // id of sensorized object                  (nsensor x 1)
   int*      sensor_reftype;       // type of reference frame (mjtObj)         (nsensor x 1)
   int*      sensor_refid;         // id of reference frame; -1: global frame  (nsensor x 1)
+  int*      sensor_intprm;        // sensor parameters                        (nsensor x mjNSENS)
   int*      sensor_dim;           // number of scalar outputs                 (nsensor x 1)
   int*      sensor_adr;           // address in sensor array                  (nsensor x 1)
   mjtNum*   sensor_cutoff;        // cutoff for real and positive; 0: ignore  (nsensor x 1)

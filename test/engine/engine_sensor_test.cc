@@ -544,7 +544,37 @@ TEST_F(SensorTest, Clock) {
   mj_deleteModel(model);
 }
 
-// test clock sensor
+// test that integer parameters pass through
+TEST_F(SensorTest, IntPrm) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <sensor>
+      <clock name="dummy"/>
+    </sensor>
+  </mujoco>
+  )";
+  ASSERT_EQ(mjNSENS, 2);
+
+  char err[1024];
+  mjSpec* spec = mj_parseXMLString(xml, 0, err, sizeof(err));
+  ASSERT_THAT(spec, NotNull()) << err;
+
+  mjModel* model = mj_compile(spec, nullptr);
+  EXPECT_EQ(model->sensor_intprm[0], 0);
+  EXPECT_EQ(model->sensor_intprm[1], 0);
+  mj_deleteModel(model);
+
+  mjsSensor* s = mjs_asSensor(mjs_findElement(spec, mjOBJ_SENSOR, "dummy"));
+  s->intprm[0] = 3;
+  s->intprm[1] = 4;
+  model = mj_compile(spec, nullptr);
+  EXPECT_EQ(model->sensor_intprm[0], 3);
+  EXPECT_EQ(model->sensor_intprm[1], 4);
+  mj_deleteModel(model);
+  mj_deleteSpec(spec);
+}
+
+// test sequential collision sensors
 TEST_F(SensorTest, CollisionSequential) {
   constexpr char xml[] = R"(
   <mujoco>

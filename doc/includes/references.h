@@ -1458,6 +1458,7 @@ struct mjModel_ {
   int*      sensor_objid;         // id of sensorized object                  (nsensor x 1)
   int*      sensor_reftype;       // type of reference frame (mjtObj)         (nsensor x 1)
   int*      sensor_refid;         // id of reference frame; -1: global frame  (nsensor x 1)
+  int*      sensor_intprm;        // sensor parameters                        (nsensor x mjNSENS)
   int*      sensor_dim;           // number of scalar outputs                 (nsensor x 1)
   int*      sensor_adr;           // address in sensor array                  (nsensor x 1)
   mjtNum*   sensor_cutoff;        // cutoff for real and positive; 0: ignore  (nsensor x 1)
@@ -2324,6 +2325,7 @@ typedef struct mjsSensor_ {        // sensor specification
   mjString* objname;               // name of sensorized object
   mjtObj reftype;                  // type of referenced object
   mjString* refname;               // name of referenced object
+  int intprm[mjNSENS];             // integer parameters
 
   // user-defined sensors
   mjtDataType datatype;            // data type for sensor measurement

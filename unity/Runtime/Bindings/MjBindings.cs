@@ -49,6 +49,7 @@ public const int mjNBIAS = 10;
 public const int mjNFLUID = 12;
 public const int mjNREF = 2;
 public const int mjNIMP = 5;
+public const int mjNSENS = 2;
 public const int mjNSOLVER = 200;
 public const int mjNISLAND = 20;
 public const bool THIRD_PARTY_MUJOCO_INCLUDE_MJPLUGIN_H_ = true;
@@ -5683,6 +5684,7 @@ public unsafe struct mjModel_ {
   public int* sensor_objid;
   public int* sensor_reftype;
   public int* sensor_refid;
+  public int* sensor_intprm;
   public int* sensor_dim;
   public int* sensor_adr;
   public double* sensor_cutoff;

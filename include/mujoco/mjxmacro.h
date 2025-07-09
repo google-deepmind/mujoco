@@ -540,6 +540,7 @@
     X   ( int,     sensor_objid,          nsensor,       1                    ) \
     X   ( int,     sensor_reftype,        nsensor,       1                    ) \
     X   ( int,     sensor_refid,          nsensor,       1                    ) \
+    X   ( int,     sensor_intprm,         nsensor,       mjNSENS              ) \
     X   ( int,     sensor_dim,            nsensor,       1                    ) \
     X   ( int,     sensor_adr,            nsensor,       1                    ) \
     X   ( mjtNum,  sensor_cutoff,         nsensor,       1                    ) \

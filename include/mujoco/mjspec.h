@@ -692,6 +692,7 @@ typedef struct mjsSensor_ {        // sensor specification
   mjString* objname;               // name of sensorized object
   mjtObj reftype;                  // type of referenced object
   mjString* refname;               // name of referenced object
+  int intprm[mjNSENS];             // integer parameters
 
   // user-defined sensors
   mjtDataType datatype;            // data type for sensor measurement
