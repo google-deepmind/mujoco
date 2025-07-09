@@ -28,8 +28,6 @@ set(MUJOCO_SDF_SRCS
     register.cc
     nut.cc
     nut.h
-    sdflib.cc
-    sdflib.h
     torus.cc
     torus.h
 )

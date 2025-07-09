@@ -34,6 +34,168 @@
 #define MAXMESHPNT 500
 
 
+//---------------------------- interpolated sdf -------------------------------------------
+
+mjtNum boxProjection(mjtNum point[3], const mjtNum box[6]) {
+  mjtNum r[3] = {point[0] - box[0], point[1] - box[1], point[2] - box[2]};
+  mjtNum q[3] = {mju_abs(r[0]) - box[3], mju_abs(r[1]) - box[4],
+                 mju_abs(r[2]) - box[5]};
+  mjtNum dist_sqr = 0;
+  mjtNum eps = 1e-6;
+
+  // skip the projection if inside
+  if (q[0] <= 0 && q[1] <= 0 && q[2] <= 0) {
+    return mju_max(q[0], mju_max(q[1], q[2]));
+  }
+
+  // in-place projection inside the box if outside
+  if ( q[0] >= 0 ) {
+    dist_sqr += q[0] * q[0];
+    point[0] -= r[0] > 0 ? (q[0]+eps) : -(q[0]+eps);
+  }
+  if ( q[1] >= 0 ) {
+    dist_sqr += q[1] * q[1];
+    point[1] -= r[1] > 0 ? (q[1]+eps) : -(q[1]+eps);
+  }
+  if ( q[2] >= 0 ) {
+    dist_sqr += q[2] * q[2];
+    point[2] -= r[2] > 0 ? (q[2]+eps) : -(q[2]+eps);
+  }
+
+  return mju_sqrt(dist_sqr);
+}
+
+// find the octree leaf containing the point p, return the index of the leaf and
+// populate the weights of the interpolated function (if w is not null) and of
+// its gradient (if dw is not null) using the vertices as degrees of freedom for
+// trilinear interpolation.
+static int findOct(mjtNum w[8], mjtNum dw[8][3], const mjtNum* oct_aabb,
+                   const int* oct_child, const mjtNum p[3]) {
+  int stack = 0;
+  mjtNum eps = 1e-8;
+  int niter = 100;
+
+  while (niter-- > 0) {
+    int node = stack;
+    mjtNum vmin[3], vmax[3];
+
+    if (node == -1) {  // SHOULD NOT OCCUR
+      mju_error("Invalid node number");
+      return -1;
+    }
+
+    for (int j = 0; j < 3; j++) {
+      vmin[j] = oct_aabb[6*node+j] - oct_aabb[6*node+3+j];
+      vmax[j] = oct_aabb[6*node+j] + oct_aabb[6*node+3+j];
+    }
+
+    // check if the point is inside the aabb of the octree node
+    if (p[0] + eps < vmin[0] || p[0] - eps > vmax[0] ||
+        p[1] + eps < vmin[1] || p[1] - eps > vmax[1] ||
+        p[2] + eps < vmin[2] || p[2] - eps > vmax[2]) {
+      continue;
+    }
+
+    mjtNum coord[3] = {(p[0] - vmin[0]) / (vmax[0] - vmin[0]),
+                       (p[1] - vmin[1]) / (vmax[1] - vmin[1]),
+                       (p[2] - vmin[2]) / (vmax[2] - vmin[2])};
+
+    // check if the node is a leaf
+    if (oct_child[8*node+0] == -1 && oct_child[8*node+1] == -1 &&
+        oct_child[8*node+2] == -1 && oct_child[8*node+3] == -1 &&
+        oct_child[8*node+4] == -1 && oct_child[8*node+5] == -1 &&
+        oct_child[8*node+6] == -1 && oct_child[8*node+7] == -1) {
+      for (int j = 0; j < 8; j++) {
+        if (w) {
+          w[j] = (j & 1 ? coord[0] : 1 - coord[0]) *
+                 (j & 2 ? coord[1] : 1 - coord[1]) *
+                 (j & 4 ? coord[2] : 1 - coord[2]);
+        }
+        if (dw) {
+          dw[j][0] = (j & 1 ? 1 : -1) *
+                     (j & 2 ? coord[1] : 1 - coord[1]) *
+                     (j & 4 ? coord[2] : 1 - coord[2]);
+          dw[j][1] = (j & 1 ? coord[0] : 1 - coord[0]) *
+                     (j & 2 ? 1 : -1) *
+                     (j & 4 ? coord[2] : 1 - coord[2]);
+          dw[j][2] = (j & 1 ? coord[0] : 1 - coord[0]) *
+                     (j & 2 ? coord[1] : 1 - coord[1]) *
+                     (j & 4 ? 1 : -1);
+        }
+      }
+      return node;
+    }
+
+    // compute which of 8 children to visit next
+    int x = coord[0] < .5 ? 1 : 0;
+    int y = coord[1] < .5 ? 1 : 0;
+    int z = coord[2] < .5 ? 1 : 0;
+    stack = oct_child[8 * node + 4*z + 2*y + x];
+  }
+
+  mju_error("Node not found");  // SHOULD NOT OCCUR
+  return -1;
+}
+
+// sdf
+mjtNum oct_distance(const mjModel* m, const mjtNum p[3], int meshid) {
+  int octadr = m->mesh_octadr[meshid];
+  int* oct_child = m->oct_child + 8*octadr;
+  mjtNum* oct_aabb = m->oct_aabb + 6*octadr;
+  mjtNum* oct_coeff = m->oct_coeff + 8*octadr;
+
+  mjtNum w[8];
+  mjtNum sdf = 0;
+  mjtNum point[3] = {p[0], p[1], p[2]};
+  mjtNum boxDist = boxProjection(point, oct_aabb);
+  if (boxDist > 0) {
+    return boxDist;
+  }
+  int node = findOct(w, NULL, oct_aabb, oct_child, point);
+  for (int i = 0; i < 8; ++i) {
+    sdf += w[i] * oct_coeff[8*node + i];
+  }
+  return sdf;
+}
+
+// gradient of sdf
+void oct_gradient(const mjModel* m, mjtNum grad[3], const mjtNum point[3], int meshid) {
+  mju_zero3(grad);
+  mjtNum p[3] = {point[0], point[1], point[2]};
+
+  int octadr = m->mesh_octadr[meshid];
+  int* oct_child = m->oct_child + 8*octadr;
+  mjtNum* oct_aabb = m->oct_aabb + 6*octadr;
+  mjtNum* oct_coeff = m->oct_coeff + 8*octadr;
+
+  // analytic in the interior
+  if (boxProjection(p, oct_aabb) <= 0) {
+    mjtNum dw[8][3];
+    int node = findOct(NULL, dw, oct_aabb, oct_child, p);
+    for (int i = 0; i < 8; ++i) {
+      grad[0] += dw[i][0] * oct_coeff[8*node + i];
+      grad[1] += dw[i][1] * oct_coeff[8*node + i];
+      grad[2] += dw[i][2] * oct_coeff[8*node + i];
+    }
+    return;
+  }
+
+  // finite difference in the exterior
+  mjtNum eps = 1e-8;
+  mjtNum dist0 = oct_distance(m, point, meshid);
+  mjtNum pointX[3] = {point[0]+eps, point[1], point[2]};
+  mjtNum distX = oct_distance(m, pointX, meshid);
+  mjtNum pointY[3] = {point[0], point[1]+eps, point[2]};
+  mjtNum distY = oct_distance(m, pointY, meshid);
+  mjtNum pointZ[3] = {point[0], point[1], point[2]+eps};
+  mjtNum distZ = oct_distance(m, pointZ, meshid);
+
+  grad[0] = (distX - dist0) / eps;
+  grad[1] = (distY - dist0) / eps;
+  grad[2] = (distZ - dist0) / eps;
+}
+
+
 //---------------------------- primitives sdf ---------------------------------------------
 
 static void radialField3d(mjtNum field[3], const mjtNum a[3], const mjtNum x[3],
@@ -100,7 +262,11 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
     b[1] = mju_max(a[1], 0);
     return mju_min(mju_max(a[0], a[1]), 0) + mju_norm(b, 2);
   case mjGEOM_SDF:
-    return p->sdf_distance(x, d, i);
+    if (p) {
+      return p->sdf_distance(x, d, i);
+    } else {
+      return oct_distance(m, x, i);
+    }
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
     return 0;
@@ -199,7 +365,11 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     }
     break;
   case mjGEOM_SDF:
-    p->sdf_gradient(gradient, x, d, i);
+    if (p) {
+      p->sdf_gradient(gradient, x, d, i);
+    } else {
+      oct_gradient(m, gradient, x, i);
+    }
     break;
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
@@ -608,7 +778,8 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
 
   // get sdf plugin
   int instance = m->geom_plugin[g2];
-  const mjpPlugin* sdf_ptr = mjc_getSDF(m, g2);
+  const mjpPlugin* sdf_ptr = instance == -1 ? NULL : mjc_getSDF(m, g2);
+  instance = instance == -1 ? m->geom_dataid[g2] : instance;
   mjtGeom geomtype = mjGEOM_SDF;
 
   // copy into data
@@ -750,22 +921,26 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
   mjtGeom geomtypes[2] = {m->geom_type[g2], m->geom_type[g1]};
 
   instance[0] = m->geom_plugin[g2];
-  sdf_ptr[0] = mjc_getSDF(m, g2);
+  sdf_ptr[0] = instance[0] == -1 ? NULL : mjc_getSDF(m, g2);
 
   // get sdf plugins
   if (m->geom_type[g1] == mjGEOM_SDF) {
     instance[1] = m->geom_plugin[g1];
-    sdf_ptr[1] = mjc_getSDF(m, g1);
+    sdf_ptr[1] = instance[1] == -1 ? NULL : mjc_getSDF(m, g1);
   } else {
     instance[1] = g1;
     sdf_ptr[1] = NULL;
   }
 
   // reset visualization count
-  sdf_ptr[0]->reset(m, NULL, (void*)(d->plugin_data[instance[0]]), instance[0]);
+  if (sdf_ptr[0]) {
+    sdf_ptr[0]->reset(m, NULL, (void*)(d->plugin_data[instance[0]]), instance[0]);
+  }
 
   // copy into sdf
   mjSDF sdf;
+  instance[0] = instance[0] == -1 ? m->geom_dataid[g2] : instance[0];
+  instance[1] = instance[1] == -1 ? m->geom_dataid[g1] : instance[1];
   sdf.id = instance;
   sdf.relpos = offset21;
   sdf.relmat = rotation21;
@@ -794,7 +969,9 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
     i++;
 
     // start counters
-    sdf_ptr[0]->compute(m, (mjData*)d, instance[0], mjPLUGIN_SDF);
+    if (sdf_ptr[0]) {
+      sdf_ptr[0]->compute(m, (mjData*)d, instance[0], mjPLUGIN_SDF);
+    }
 
     // gradient descent - we use a special function of the two SDF as objective
     sdf.type = mjSDFTYPE_COLLISION;

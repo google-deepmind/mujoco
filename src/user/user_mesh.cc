@@ -1551,8 +1551,7 @@ void mjCMesh::Process() {
     octree_.CreateOctree(aamm);
 
     // compute sdf coefficients
-    // TODO: only check !plugin.active once sdflib is removed
-    if (plugin.active && *plugin.name == "sdf") {
+    if (!plugin.active) {
       tmd::TriangleMeshDistance sdf(vert_.data(), nvert(), face_.data(), nface());
 
       // TODO: do not evaluate the SDF multiple times at the same vertex

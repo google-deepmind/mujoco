@@ -8,19 +8,12 @@
         <config key="radius2" value="0.05"/>
       </instance>
     </plugin>
-    <plugin plugin="mujoco.sdf.sdflib">
-      <instance name="sdf">
-        <config key="aabb" value="0"/>
-      </instance>
-    </plugin>
   </extension>
 
   <asset>
     <texture name="texspot" type="2d" file="spot.png"/>
     <material name="matspot" texture="texspot"/>
-    <mesh name="spot" file="asset/spot.obj">
-      <plugin instance="sdf"/>
-    </mesh>
+    <mesh name="spot" file="asset/spot.obj"/>
     <mesh name="torus">
       <plugin instance="torus"/>
     </mesh>
@@ -48,15 +41,11 @@
       </geom>
     </body>
     <body euler="90 0 0" pos="0 0 .7">
-      <geom type="sdf" name="cow1" mesh="spot" material="matspot">
-        <plugin instance="sdf"/>
-      </geom>
+      <geom type="sdf" name="cow1" mesh="spot" material="matspot"/>
     </body>
     <body pos="0.05 .25 2.2">
       <freejoint/>
-      <geom type="sdf" name="cow2" mesh="spot" material="matspot">
-        <plugin instance="sdf"/>
-      </geom>
+      <geom type="sdf" name="cow2" mesh="spot" material="matspot"/>
     </body>
     <light name="left" pos="0 0 1"/>
     <light name="right" pos="1 0 1"/>
