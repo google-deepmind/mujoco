@@ -66,11 +66,11 @@ Parameters:
 
 Implemented in [sdflib.cc](sdflib.cc). Example usage in [cow.xml](../../model/plugin/sdf/cow.xml).
 
-This plugin uses the library [SdfLib](https://github.com/UPC-ViRVIG/SdfLib) to compute a voxel-based approximation of a
-user-specified mesh. The mesh can be arbitrary and not necessarily convex. This offers an alternative to
-convex-decomposed meshes. The performance is likely to be slower than that of analytic SDFs, since a cubic
-approximation has to be evaluated on the convex grid. However, the SDF generation is done automatically, simplifying the
-task of creating an SDF, which can be difficult for complex shapes.
+This plugin uses the library [TriangleMeshDistance](https://github.com/InteractiveComputerGraphics/TriangleMeshDistance)
+to compute a voxel-based approximation of a user-specified mesh. The mesh can be arbitrary and not necessarily convex.
+This offers an alternative to convex-decomposed meshes. The performance is likely to be slower than that of analytic
+SDFs, since a cubic approximation has to be evaluated on the convex grid. However, the SDF generation is done
+automatically, simplifying the task of creating an SDF, which can be difficult for complex shapes.
 
 ### How to make your own SDF
 

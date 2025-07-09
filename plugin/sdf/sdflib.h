@@ -16,14 +16,14 @@
 #define MUJOCO_PLUGIN_SDF_SDFLIB_H_
 
 #include <optional>
+#include <vector>
 
-#include <SdfLib/utils/Mesh.h>
-#include <SdfLib/OctreeSdf.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 #include "sdf.h"
+#include <TriangleMeshDistance/include/tmd/TriangleMeshDistance.h>
 
 namespace mujoco::plugin::sdf {
 class SdfLib {
@@ -44,9 +44,13 @@ class SdfLib {
   static void RegisterPlugin();
 
  private:
-  SdfLib(sdflib::Mesh&& mesh);
+  SdfLib(const tmd::TriangleMeshDistance& sdf, const mjModel* m, int meshid);
   SdfVisualizer visualizer_;
-  sdflib::OctreeSdf sdf_func_;
+  std::vector<double> sdf_coeff_;
+
+  mjtNum box_[6];
+  std::vector<mjtNum> oct_aabb_;
+  std::vector<int> oct_child_;
 };
 
 }  // namespace mujoco::plugin::sdf

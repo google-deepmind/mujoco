@@ -13,12 +13,12 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <cstring>
 #include <optional>
 #include <utility>
 #include <vector>
 
-#include <SdfLib/utils/Mesh.h>
-#include <SdfLib/OctreeSdf.h>
+#include <TriangleMeshDistance/include/tmd/TriangleMeshDistance.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mujoco.h>
 #include "sdf.h"
@@ -27,36 +27,105 @@
 namespace mujoco::plugin::sdf {
 namespace {
 
-inline unsigned int* MakeNonConstUnsigned(const int* ptr) {
-  return reinterpret_cast<unsigned int*>(const_cast<int*>(ptr));
-}
-
-mjtNum boxProjection(glm::vec3& point, const sdflib::BoundingBox& box) {
-  glm::vec3 r = point - box.getCenter();
-  glm::vec3 q = glm::abs(r) - 0.5f * box.getSize();
+mjtNum boxProjection(mjtNum point[3], const mjtNum box[6]) {
+  mjtNum r[3] = {point[0] - box[0], point[1] - box[1], point[2] - box[2]};
+  mjtNum q[3] = {mju_abs(r[0]) - box[3], mju_abs(r[1]) - box[4],
+                 mju_abs(r[2]) - box[5]};
   mjtNum dist_sqr = 0;
   mjtNum eps = 1e-6;
 
   // skip the projection if inside
-  if (q.x <= 0 && q.y <= 0 && q.z <= 0) {
-    return glm::max(q.x, glm::max(q.y, q.z));
+  if (q[0] <= 0 && q[1] <= 0 && q[2] <= 0) {
+    return mju_max(q[0], mju_max(q[1], q[2]));
   }
 
   // in-place projection inside the box if outside
-  if ( q.x >= 0 ) {
-    dist_sqr += q.x * q.x;
-    point.x -= r.x > 0 ? (q.x+eps) : -(q.x+eps);
+  if ( q[0] >= 0 ) {
+    dist_sqr += q[0] * q[0];
+    point[0] -= r[0] > 0 ? (q[0]+eps) : -(q[0]+eps);
   }
-  if ( q.y >= 0 ) {
-    dist_sqr += q.y * q.y;
-    point.y -= r.y > 0 ? (q.y+eps) : -(q.y+eps);
+  if ( q[1] >= 0 ) {
+    dist_sqr += q[1] * q[1];
+    point[1] -= r[1] > 0 ? (q[1]+eps) : -(q[1]+eps);
   }
-  if ( q.z >= 0 ) {
-    dist_sqr += q.z * q.z;
-    point.z -= r.z > 0 ? (q.z+eps) : -(q.z+eps);
+  if ( q[2] >= 0 ) {
+    dist_sqr += q[2] * q[2];
+    point[2] -= r[2] > 0 ? (q[2]+eps) : -(q[2]+eps);
   }
 
   return mju_sqrt(dist_sqr);
+}
+
+// find the octree leaf containing the point p, return the index of the leaf and
+// populate the weights of the interpolated function (if w is not null) and of
+// its gradient (if dw is not null) using the vertices as degrees of freedom for
+// trilinear interpolation.
+static int findOct(mjtNum w[8], mjtNum dw[8][3], const mjtNum* oct_aabb,
+                   const int* oct_child, const mjtNum p[3]) {
+  std::vector<int> stack = {0};
+  mjtNum eps = 1e-8;
+
+  while (!stack.empty()) {
+    int node = stack.back();
+    stack.pop_back();
+    mjtNum vmin[3], vmax[3];
+
+    if (node == -1) {  // SHOULD NOT OCCUR
+      mju_error("Invalid node number");
+      return -1;
+    }
+
+    for (int j = 0; j < 3; j++) {
+      vmin[j] = oct_aabb[6*node+j] - oct_aabb[6*node+3+j];
+      vmax[j] = oct_aabb[6*node+j] + oct_aabb[6*node+3+j];
+    }
+
+    // check if the point is inside the aabb of the octree node
+    if (p[0] + eps < vmin[0] || p[0] - eps > vmax[0] ||
+        p[1] + eps < vmin[1] || p[1] - eps > vmax[1] ||
+        p[2] + eps < vmin[2] || p[2] - eps > vmax[2]) {
+      continue;
+    }
+
+    mjtNum coord[3] = {(p[0] - vmin[0]) / (vmax[0] - vmin[0]),
+                       (p[1] - vmin[1]) / (vmax[1] - vmin[1]),
+                       (p[2] - vmin[2]) / (vmax[2] - vmin[2])};
+
+    // check if the node is a leaf
+    if (oct_child[8*node+0] == -1 && oct_child[8*node+1] == -1 &&
+        oct_child[8*node+2] == -1 && oct_child[8*node+3] == -1 &&
+        oct_child[8*node+4] == -1 && oct_child[8*node+5] == -1 &&
+        oct_child[8*node+6] == -1 && oct_child[8*node+7] == -1) {
+      for (int j = 0; j < 8; j++) {
+        if (w) {
+          w[j] = (j & 1 ? coord[0] : 1 - coord[0]) *
+                 (j & 2 ? coord[1] : 1 - coord[1]) *
+                 (j & 4 ? coord[2] : 1 - coord[2]);
+        }
+        if (dw) {
+          dw[j][0] = (j & 1 ? 1 : -1) *
+                     (j & 2 ? coord[1] : 1 - coord[1]) *
+                     (j & 4 ? coord[2] : 1 - coord[2]);
+          dw[j][1] = (j & 1 ? coord[0] : 1 - coord[0]) *
+                     (j & 2 ? 1 : -1) *
+                     (j & 4 ? coord[2] : 1 - coord[2]);
+          dw[j][2] = (j & 1 ? coord[0] : 1 - coord[0]) *
+                     (j & 2 ? coord[1] : 1 - coord[1]) *
+                     (j & 4 ? 1 : -1);
+        }
+      }
+      return node;
+    }
+
+    // compute which of 8 children to visit next
+    int x = coord[0] < .5 ? 1 : 0;
+    int y = coord[1] < .5 ? 1 : 0;
+    int z = coord[2] < .5 ? 1 : 0;
+    stack.push_back(oct_child[8*node + 4*z + 2*y + x]);
+  }
+
+  mju_error("Node not found");  // SHOULD NOT OCCUR
+  return -1;
 }
 
 }  // namespace
@@ -76,30 +145,40 @@ std::optional<SdfLib> SdfLib::Create(const mjModel* m, mjData* d,
   int nface = m->mesh_facenum[meshid];
   int* indices = m->mesh_face + 3*m->mesh_faceadr[meshid];
   float* verts = m->mesh_vert + 3*m->mesh_vertadr[meshid];
-  std::vector<glm::vec3> vertices(nvert);
+  std::vector<double> vertices(3*nvert);
   for (int i = 0; i < nvert; i++) {
     mjtNum vert[3] = {verts[3*i+0], verts[3*i+1], verts[3*i+2]};
     mju_rotVecQuat(vert, vert, m->mesh_quat + 4*meshid);
     mju_addTo3(vert, m->mesh_pos + 3*meshid);
-    vertices[i].x = vert[0];
-    vertices[i].y = vert[1];
-    vertices[i].z = vert[2];
+    vertices[3*i+0] = vert[0];
+    vertices[3*i+1] = vert[1];
+    vertices[3*i+2] = vert[2];
   }
-  sdflib::Mesh mesh(vertices.data(), nvert,
-                    MakeNonConstUnsigned(indices), 3*nface);
-  mesh.computeBoundingBox();
-  return SdfLib(std::move(mesh));
+  tmd::TriangleMeshDistance mesh(vertices.data(), nvert, indices, nface);
+  return SdfLib(mesh, m, meshid);
 }
 
 // plugin constructor
-SdfLib::SdfLib(sdflib::Mesh&& mesh) {
-  sdflib::BoundingBox box = mesh.getBoundingBox();
-  const glm::vec3 modelBBsize = box.getSize();
-  box.addMargin(
-      0.1f * glm::max(glm::max(modelBBsize.x, modelBBsize.y), modelBBsize.z));
-  sdf_func_ =
-      sdflib::OctreeSdf(mesh, box, 8, 3, 1e-3,
-                        sdflib::OctreeSdf::InitAlgorithm::CONTINUITY, 1);
+SdfLib::SdfLib(const tmd::TriangleMeshDistance& sdf, const mjModel* m,
+               int meshid) {
+  // TODO: do not evaluate the SDF multiple times at the same vertex
+  // TODO: the value at hanging vertices should be computed from the parent
+  int octadr = m->mesh_octadr[meshid];
+  int octnum = m->mesh_octnum[meshid];
+  oct_aabb_.assign(m->oct_aabb + 6*octadr,
+                   m->oct_aabb + 6*octadr + 6*octnum);
+  oct_child_.assign(m->oct_child + 8 * octadr,
+                    m->oct_child + 8 * octadr + 8 * octnum);
+  for (int i = 0; i < octnum; ++i) {
+    for (int j = 0; j < 8; j++) {
+        mjtNum v[3];
+        v[0] = oct_aabb_[6*i+0] + (j&1 ? 1 : -1) * oct_aabb_[6*i+3];
+        v[1] = oct_aabb_[6*i+1] + (j&2 ? 1 : -1) * oct_aabb_[6*i+4];
+        v[2] = oct_aabb_[6*i+2] + (j&4 ? 1 : -1) * oct_aabb_[6*i+5];
+        sdf_coeff_.push_back(sdf.signed_distance(v).distance);
+    }
+  }
+  mju_copy(box_, m->oct_aabb + 6*octadr, 6);
 }
 
 // plugin computation
@@ -120,22 +199,35 @@ void SdfLib::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
 
 // sdf
 mjtNum SdfLib::Distance(const mjtNum p[3]) const {
-  glm::vec3 point(p[0], p[1], p[2]);
-  mjtNum boxDist = boxProjection(point, sdf_func_.getGridBoundingBox());
-  return sdf_func_.getDistance(point) + (boxDist <= 0 ? 0 : boxDist);
+  mjtNum w[8];
+  mjtNum sdf = 0;
+  mjtNum point[3] = {p[0], p[1], p[2]};
+  mjtNum boxDist = boxProjection(point, box_);
+  if (boxDist > 0) {
+    return boxDist;
+  }
+  int node = findOct(w, nullptr, oct_aabb_.data(), oct_child_.data(), point);
+  for (int i = 0; i < 8; ++i) {
+    sdf += w[i] * sdf_coeff_[8*node + i];
+  }
+  return sdf;
 }
 
 // gradient of sdf
 void SdfLib::Gradient(mjtNum grad[3], const mjtNum point[3]) const {
-  glm::vec3 gradient;
-  glm::vec3 p(point[0], point[1], point[2]);
+
+  mjtNum p[3] = {point[0], point[1], point[2]};
 
   // analytic in the interior
-  if (boxProjection(p, sdf_func_.getGridBoundingBox()) <= 0) {
-    sdf_func_.getDistance(p, gradient);
-    grad[0] = gradient[0];
-    grad[1] = gradient[1];
-    grad[2] = gradient[2];
+  if (boxProjection(p, box_) <= 0) {
+    mjtNum dw[8][3];
+    mju_zero3(grad);
+    int node = findOct(nullptr, dw, oct_aabb_.data(), oct_child_.data(), p);
+    for (int i = 0; i < 8; ++i) {
+      grad[0] += dw[i][0] * sdf_coeff_[8*node + i];
+      grad[1] += dw[i][1] * sdf_coeff_[8*node + i];
+      grad[2] += dw[i][2] * sdf_coeff_[8*node + i];
+    }
     return;
   }
 

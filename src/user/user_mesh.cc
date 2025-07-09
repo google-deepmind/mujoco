@@ -628,7 +628,8 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     resource_ = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
 
     // try loading from cache
-    if (cache != nullptr && LoadCachedMesh(cache, resource_)) {
+    // TODO: move octree to mesh frame so it can be cached
+    if (cache != nullptr && !needoct_ && LoadCachedMesh(cache, resource_)) {
       mju_closeResource(resource_);
       resource_ = nullptr;
       fromCache = true;
@@ -682,14 +683,6 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     if (!file_.empty()) {
       CacheMesh(cache, resource_);
     }
-  }
-
-  // make octree
-  if (!needoct_) {
-    octree_.Clear();
-  } else if (octree_.Nodes().empty()) {
-    octree_.SetFace(vert_, face_);
-    octree_.CreateOctree(aamm_);
   }
 
   // close resource
@@ -1538,6 +1531,24 @@ void mjCMesh::Process() {
   boxsz_[0] = 0.5 * std::sqrt(6*(eigval[1] + eigval[2] - eigval[0])/volume);
   boxsz_[1] = 0.5 * std::sqrt(6*(eigval[0] + eigval[2] - eigval[1])/volume);
   boxsz_[2] = 0.5 * std::sqrt(6*(eigval[0] + eigval[1] - eigval[2])/volume);
+
+  // make octree in the geom frame
+  // TODO: make octree in the mesh frame, update engine_collision_sdf
+  if (!needoct_) {
+    octree_.Clear();
+  } else if (octree_.Nodes().empty()) {
+    double aamm[6] = {mjMAXVAL, mjMAXVAL, mjMAXVAL, -mjMAXVAL, -mjMAXVAL, -mjMAXVAL};
+    for (int i = 0; i < nvert(); i++) {
+      aamm[0] = std::min(aamm[0], vert_[3*i + 0]);
+      aamm[3] = std::max(aamm[3], vert_[3*i + 0]);
+      aamm[1] = std::min(aamm[1], vert_[3*i + 1]);
+      aamm[4] = std::max(aamm[4], vert_[3*i + 1]);
+      aamm[2] = std::min(aamm[2], vert_[3*i + 2]);
+      aamm[5] = std::max(aamm[5], vert_[3*i + 2]);
+    }
+    octree_.SetFace(vert_, face_);
+    octree_.CreateOctree(aamm);
+  }
 
   // transform CoM to origin
   for (int i=0; i < nvert(); i++) {
