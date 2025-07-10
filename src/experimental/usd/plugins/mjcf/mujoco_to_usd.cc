@@ -1733,11 +1733,8 @@ class ModelWriter {
 
     // Local joint frame for body1
     pxr::GfVec3f local_pos1(mj_jnt_pos);
-    pxr::GfRotation().SetRotateInto(pxr::GfVec3f::ZAxis(), mj_jnt_axis);
     pxr::GfQuatf local_rot1(
-        pxr::GfRotation()
-            .SetRotateInto(pxr::GfVec3f::ZAxis(), mj_jnt_axis)
-            .GetQuat());
+        pxr::GfRotation(pxr::GfVec3f::ZAxis(), mj_jnt_axis).GetQuat());
 
     SetAttributeDefault(
         data_,
@@ -1783,8 +1780,7 @@ class ModelWriter {
     if (joint_prim_type == pxr::UsdPhysicsTokens->PhysicsRevoluteJoint ||
         joint_prim_type == pxr::UsdPhysicsTokens->PhysicsPrismaticJoint) {
       pxr::GfQuatf other_rot0(
-          pxr::GfRotation()
-              .SetRotateInto(pxr::GfVec3f::ZAxis(), jnt_axis_parent_local)
+          pxr::GfRotation(pxr::GfVec3f::ZAxis(), jnt_axis_parent_local)
               .GetQuat());
 
       SetAttributeDefault(
