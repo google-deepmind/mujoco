@@ -112,8 +112,11 @@ target directory.
 5. Select the directory: :shell:`cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>`
 #. After building, install with ``cmake --install .``
 
-When building on Windows, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or later is
-installed (see :github:issue:`862` for more details).
+**Notes:**
+
+- When building on Windows, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or later is
+  installed (see :github:issue:`862` for more details).
+- To optimize runtime performance build with ``-DCMAKE_BUILD_TYPE=Release``
 
 .. tip::
    As a reference, a working build configuration can be found in MuJoCo's
