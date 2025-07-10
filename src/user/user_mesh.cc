@@ -362,6 +362,7 @@ void mjCMesh::LoadSDF() {
   }
 
   needreorient_ = false;
+  needoct_ = false;
   normal_ = std::move(usernormal);
   face_ = std::move(userface);
   ProcessVertices(uservert);
@@ -631,8 +632,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     resource_ = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
 
     // try loading from cache
-    // TODO: move octree to mesh frame so it can be cached
-    if (cache != nullptr && !needoct_ && LoadCachedMesh(cache, resource_)) {
+    if (cache != nullptr && LoadCachedMesh(cache, resource_)) {
       mju_closeResource(resource_);
       resource_ = nullptr;
       fromCache = true;
@@ -682,10 +682,37 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
   // compute mesh properties
   if (!fromCache) {
     Process();
+  }
 
-    if (!file_.empty()) {
-      CacheMesh(cache, resource_);
+  // make octree
+  if (!needoct_) {
+    octree_.Clear();  // this occurs when a non-SDF mesh is loaded from a cached SDF mesh
+  } else if (octree_.Nodes().empty()) {
+    octree_.SetFace(vert_, face_);
+    octree_.CreateOctree(aamm_);
+
+    // compute sdf coefficients
+    if (!plugin.active) {
+      tmd::TriangleMeshDistance sdf(vert_.data(), nvert(), face_.data(), nface());
+
+      // TODO: do not evaluate the SDF multiple times at the same vertex
+      // TODO: the value at hanging vertices should be computed from the parent
+      const double* nodes = octree_.Nodes().data();
+      for (int i = 0; i < octree_.NumNodes(); ++i) {
+        for (int j = 0; j < 8; j++) {
+            mjtNum v[3];
+            v[0] = nodes[6*i+0] + (j&1 ? 1 : -1) * nodes[6*i+3];
+            v[1] = nodes[6*i+1] + (j&2 ? 1 : -1) * nodes[6*i+4];
+            v[2] = nodes[6*i+2] + (j&4 ? 1 : -1) * nodes[6*i+5];
+            octree_.AddCoeff(sdf.signed_distance(v).distance);
+        }
+      }
     }
+  }
+
+  // cache mesh
+  if (!fromCache && !file_.empty()) {
+    CacheMesh(cache, resource_);
   }
 
   // close resource
@@ -1548,32 +1575,6 @@ void mjCMesh::Process() {
     vert_[3*i + 2] -= CoM[2];
   }
   Rotate(quattmp);
-
-  // make octree in mesh frame
-  if (!needoct_) {
-    octree_.Clear();
-  } else if (octree_.Nodes().empty()) {
-    octree_.SetFace(vert_, face_);
-    octree_.CreateOctree(aamm_);
-
-    // compute sdf coefficients
-    if (!plugin.active) {
-      tmd::TriangleMeshDistance sdf(vert_.data(), nvert(), face_.data(), nface());
-
-      // TODO: do not evaluate the SDF multiple times at the same vertex
-      // TODO: the value at hanging vertices should be computed from the parent
-      const double* nodes = octree_.Nodes().data();
-      for (int i = 0; i < octree_.NumNodes(); ++i) {
-        for (int j = 0; j < 8; j++) {
-            mjtNum v[3];
-            v[0] = nodes[6*i+0] + (j&1 ? 1 : -1) * nodes[6*i+3];
-            v[1] = nodes[6*i+1] + (j&2 ? 1 : -1) * nodes[6*i+4];
-            v[2] = nodes[6*i+2] + (j&4 ? 1 : -1) * nodes[6*i+5];
-            octree_.AddCoeff(sdf.signed_distance(v).distance);
-        }
-      }
-    }
-  }
 
   // save the pos and quat that was used to transform the mesh
   mjuu_copyvec(pos_, CoM, 3);
