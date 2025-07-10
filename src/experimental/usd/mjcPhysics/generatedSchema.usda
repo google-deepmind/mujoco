@@ -99,7 +99,7 @@ class "MjcSceneAPI" (
         displayName = "Solver Warm-Starting Toggle"
         doc = "Enables warm-starting of the constraint solver, using the solution from the previous time step to initialize the iterative optimization."
     )
-    uniform int[] mjc:option:actuatorgroupdisable (
+    uniform int[] mjc:option:actuatorgroupdisable = [] (
         displayName = "Actuator Group Disable"
         doc = "List of actuator groups to disable."
     )

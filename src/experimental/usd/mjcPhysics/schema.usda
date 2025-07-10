@@ -318,7 +318,7 @@ class "MjcSceneAPI"
         Distance Field collisions."""
     )
 
-    uniform int[] mjc:option:actuatorgroupdisable (
+    uniform int[] mjc:option:actuatorgroupdisable  = [] (
         customData = {
             string apiName = "ActuatorGroupDisable"
         }

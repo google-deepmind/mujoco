@@ -773,7 +773,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform int[] mjc:option:actuatorgroupdisable` |
+  /// | Declaration | `uniform int[] mjc:option:actuatorgroupdisable = []` |
   /// | C++ Type | VtArray<int> |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->IntArray |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
