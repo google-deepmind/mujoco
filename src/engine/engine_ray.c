@@ -22,6 +22,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
+#include "engine/engine_collision_sdf.h"
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
@@ -743,33 +744,27 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
     return -1;
   }
 
-  // get sdf
+  // get sdf plugin
   int instance = m->geom_plugin[g];
-  const int nslot = mjp_pluginCount();
-  const int slot = m->plugin[instance];
-  const mjpPlugin* sdf = mjp_getPluginAtSlotUnsafe(slot, nslot);
-  if (!sdf) mjERROR("invalid plugin slot: %d", slot);
-  if (!(sdf->capabilityflags & mjPLUGIN_SDF)) {
-    mjERROR("Plugin is not a sign distance field at slot %d", slot);
-  }
+  const mjpPlugin* sdf_ptr = instance == -1 ? NULL : mjc_getSDF(m, g);
+  instance = instance == -1 ? m->geom_dataid[g] : instance;
+  mjtGeom geomtype = mjGEOM_SDF;
+
+  // construct sdf struct
+  mjSDF sdf;
+  sdf.id = &instance;
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.plugin = &sdf_ptr;
+  sdf.geomtype = &geomtype;
 
   // reset counter
-  sdf->reset(m, NULL, (void*)(d->plugin_data[instance]), instance);
-
-  // compute transformation
-  mjtNum sdf_quat[4], sdf_xmat[9], sdf_xpos[9];
-  mjtNum negpos[3], negquat[4], xquat[4];
-  mjtNum* xpos = d->geom_xpos + 3*g;
-  mjtNum* pos = m->mesh_pos + 3*m->geom_dataid[g];
-  mjtNum* quat = m->mesh_quat + 4*m->geom_dataid[g];
-  mju_mat2Quat(xquat, d->geom_xmat + 9*g);
-  mju_negPose(negpos, negquat, pos, quat);
-  mju_mulPose(sdf_xpos, sdf_quat, xpos, xquat, negpos, negquat);
-  mju_quat2Mat(sdf_xmat, sdf_quat);
+  if (sdf_ptr) {
+    sdf_ptr->reset(m, NULL, (void*)(d->plugin_data[instance]), instance);
+  }
 
   // map to local frame
   mjtNum lpnt[3], lvec[3];
-  ray_map(sdf_xpos, sdf_xmat, pnt, vec, lpnt, lvec);
+  ray_map(d->geom_xpos + 3*g, d->geom_xmat + 9*g, pnt, vec, lpnt, lvec);
 
   // unit direction
   mju_normalize3(lvec);
@@ -777,7 +772,7 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   // ray marching, see e.g. https://en.wikipedia.org/wiki/Ray_marching
   for (int i=0; i < 40; i++) {
     mju_addScl3(p, lpnt, lvec, distance_total);
-    mjtNum distance = sdf->sdf_distance(p, (mjData*)d, instance);
+    mjtNum distance = mjc_distance(m, d, &sdf, p);
     distance_total += distance;
     if (mju_abs(distance) < kMinDist) {
       return distance_total;
@@ -789,7 +784,9 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   }
 
   // reset counter
-  sdf->reset(m, NULL, (void*)(d->plugin_data[instance]), instance);
+  if (sdf_ptr) {
+    sdf_ptr->reset(m, NULL, (void*)(d->plugin_data[instance]), instance);
+  }
 
   return -1;
 }

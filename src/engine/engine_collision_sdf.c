@@ -480,24 +480,6 @@ static void mapPose(const mjtNum xpos1[3], const mjtNum xquat1[4],
   mju_quat2Mat(mat12, quat12);
 }
 
-// subtract mesh position from sdf transformation
-static void undoTransformation(const mjModel* m, const mjData* d, int g,
-                               mjtNum sdf_xpos[3], mjtNum sdf_quat[4]) {
-  mjtNum* xpos = d->geom_xpos + 3 * g;
-  mjtNum* xmat = d->geom_xmat + 9 * g;
-  if (m->geom_type[g] == mjGEOM_MESH || m->geom_type[g] == mjGEOM_SDF) {
-    mjtNum negpos[3], negquat[4], xquat[4];
-    mjtNum* pos = m->mesh_pos + 3 * m->geom_dataid[g];
-    mjtNum* quat = m->mesh_quat + 4 * m->geom_dataid[g];
-    mju_mat2Quat(xquat, xmat);
-    mju_negPose(negpos, negquat, pos, quat);
-    mju_mulPose(sdf_xpos, sdf_quat, xpos, xquat, negpos, negquat);
-  } else {
-    mju_copy3(sdf_xpos, xpos);
-    mju_mat2Quat(sdf_quat, xmat);
-  }
-}
-
 //---------------------------- narrow phase -----------------------------------------------
 
 // comparison function for contact sorting
@@ -767,8 +749,7 @@ int mjc_HFieldSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int
 
 // collision between a mesh and a signed distance field
 int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
-  mjtNum* pos1 = d->geom_xpos + 3 * g1;
-  mjtNum* mat1 = d->geom_xmat + 9 * g1;
+  mjGETINFO;
 
   mjtNum offset[3], rotation[9], corners[9], x[3], depth;
   mjtNum points[3*MAXSDFFACE], dist[MAXMESHPNT], candidate[3*MAXMESHPNT];
@@ -790,10 +771,10 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
   sdf.geomtype = &geomtype;
 
   // compute transformation from g1 to g2
-  mjtNum pos2true[3], sdf_quat[4], quat1[4];
+  mjtNum sdf_quat[4], quat1[4];
   mju_mat2Quat(quat1, mat1);
-  undoTransformation(m, d, g2, pos2true, sdf_quat);
-  mapPose(pos1, quat1, pos2true, sdf_quat, offset, rotation);
+  mju_mat2Quat(sdf_quat, mat2);
+  mapPose(pos1, quat1, pos2, sdf_quat, offset, rotation);
 
   // binary tree search
   collideBVH(m, (mjData*)d, g1, offset, rotation, faces, &npoints, &n0, &sdf);
@@ -845,7 +826,7 @@ int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g
 
   // add only the first mjMAXCONPAIR pairs
   for (int i=0; i < mju_min(ncandidate, mjMAXCONPAIR); i++) {
-    cnt = addContact(points, con, candidate + 3*index[i], pos2true, sdf_quat,
+    cnt = addContact(points, con, candidate + 3*index[i], pos2, sdf_quat,
                      dist[index[i]], cnt, m, &sdf, (mjData*)d);
   }
 
@@ -871,17 +852,13 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
 
   // compute transformations from/to g1 to/from g2
   mjtNum quat1[4], quat2[4];
-  mjtNum pos1true[3], offset21[3], rotation21[9], rotation12[9];
-  mjtNum pos2true[3], offset1[3], rotation1[9], offset12[3];
-  mjtNum offset2[3], rotation2[9], squat1[4], squat2[4];
-  undoTransformation(m, d, g1, pos1true, squat1);
-  undoTransformation(m, d, g2, pos2true, squat2);
+  mjtNum offset21[3], rotation21[9], rotation12[9];
+  mjtNum offset12[3], offset2[3], rotation2[9];
   mju_mat2Quat(quat1, mat1);
   mju_mat2Quat(quat2, mat2);
-  mapPose(pos2, quat2, pos1, quat1, offset1, rotation1);
-  mapPose(pos1, quat1, pos1true, squat1, offset2, rotation2);
-  mapPose(pos2true, squat2, pos1true, squat1, offset21, rotation21);
-  mapPose(pos1true, squat1, pos2true, squat2, offset12, rotation12);
+  mapPose(pos1, quat1, pos1, quat1, offset2, rotation2);
+  mapPose(pos2, quat2, pos1, quat1, offset21, rotation21);
+  mapPose(pos1, quat1, pos2, quat2, offset12, rotation12);
 
   // axis-aligned bounding boxes in g1 frame
   for (int i=0; i < 8; i++) {
@@ -893,8 +870,8 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
     vec2[1] = (i&2 ? size2[1]+size2[4] : size2[1]-size2[4]);
     vec2[2] = (i&4 ? size2[2]+size2[5] : size2[2]-size2[5]);
 
-    mju_mulMatVec3(vec2, rotation1, vec2);
-    mju_addTo3(vec2, offset1);
+    mju_mulMatVec3(vec2, rotation21, vec2);
+    mju_addTo3(vec2, offset21);
 
     for (int k=0; k < 3; k++) {
       aabb1[0+k] = mju_min(aabb1[0+k], vec1[k]);
@@ -983,7 +960,7 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
 
     // contact point and normal - we use the midsurface where SDF1=SDF2 as zero level set
     sdf.type = mjSDFTYPE_MIDSURFACE;
-    cnt = addContact(contacts, con, x, pos2true, squat2, dist, cnt, m, &sdf, (mjData*)d);
+    cnt = addContact(contacts, con, x, pos2, quat2, dist, cnt, m, &sdf, (mjData*)d);
 
     // SHOULD NOT OCCUR
     if (cnt > mjMAXCONPAIR) {
