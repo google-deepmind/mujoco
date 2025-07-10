@@ -127,16 +127,6 @@ bool IsUniformScale(const pxr::GfVec3d& scale) {
 }
 
 template <typename T>
-void SetScale(T* element, const pxr::GfMatrix4d& world_transform,
-              const pxr::GfVec3d& scale) {
-  pxr::GfVec3d transform_scale =
-      pxr::GfCompMult(GetScale(world_transform), scale);
-  element->size[0] = transform_scale[0];
-  element->size[1] = transform_scale[1];
-  element->size[2] = transform_scale[2];
-}
-
-template <typename T>
 bool MaybeParseGeomPrimitive(const pxr::UsdPrim& prim, T* element,
                              pxr::UsdGeomXformCache& xform_cache) {
   auto world_xform = xform_cache.GetLocalToWorldTransform(prim);
@@ -222,9 +212,41 @@ bool MaybeParseGeomPrimitive(const pxr::UsdPrim& prim, T* element,
       return false;
     }
     // MuJoCo uses half-length for box size.
-    SetScale(element, xform_cache.GetLocalToWorldTransform(prim),
-             pxr::GfVec3d(size / 2));
+    size = size / 2;
+    element->size[0] = scale[0] * size;
+    element->size[1] = scale[1] * size;
+    element->size[2] = scale[2] * size;
+  } else if (prim.IsA<pxr::UsdGeomPlane>()) {
+    element->type = mjGEOM_PLANE;
 
+    pxr::UsdGeomPlane plane(prim);
+    TfToken axis;
+    if (!plane.GetAxisAttr().Get(&axis)) {
+      mju_error("Could not get plane axis attr.");
+      return false;
+    }
+    if (axis != pxr::UsdGeomTokens->z) {
+      mju_error("Only z-axis planes are supported.");
+      return false;
+    }
+
+    double length;
+    if (!plane.GetLengthAttr().Get(&length)) {
+      mju_error("Could not get plane length attr.");
+      return false;
+    }
+    double width;
+    if (!plane.GetWidthAttr().Get(&width)) {
+      mju_error("Could not get plane width attr.");
+      return false;
+    }
+    // MuJoCo uses half-length for plane size.
+    width = width / 2;
+    length = length / 2;
+    // Plane geoms in mjc are always infinite. Scale is used for visualization.
+    element->size[0] = scale[0] * width;
+    element->size[1] = scale[1] * length;
+    element->size[2] = scale[2];
   } else {
     return false;
   }
@@ -1040,37 +1062,6 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
       mjs_setInt(mesh->userface, userface.data(), userface.size());
 
       mjs_setString(geom->meshname, mesh_name.c_str());
-    } else if (prim.IsA<pxr::UsdGeomPlane>()) {
-      geom->type = mjGEOM_PLANE;
-
-      pxr::UsdGeomPlane plane(prim);
-      TfToken axis;
-      if (!plane.GetAxisAttr().Get(&axis)) {
-        mju_error("Could not get plane axis attr.");
-        return;
-      }
-      if (axis != pxr::UsdGeomTokens->z) {
-        mju_error("Only z-axis planes are supported.");
-        return;
-      }
-
-      // This block of code distributes the plane length and width along the
-      // scale as per the specification here:
-      // https://openusd.org/dev/api/class_usd_geom_plane.html#a89fa6076111984682db77fc8a4e57496.
-      double length;
-      if (!plane.GetLengthAttr().Get(&length)) {
-        mju_error("Could not get plane length attr.");
-        return;
-      }
-      double width;
-      if (!plane.GetWidthAttr().Get(&width)) {
-        mju_error("Could not get plane width attr.");
-        return;
-      }
-      // Plane geoms in mjc are always infinite. We set the scale here just
-      // for visualization.
-      SetScale(geom, xform_cache.GetLocalToWorldTransform(prim),
-               pxr::GfVec3d(width, length, 1));
     }
   }
 }
