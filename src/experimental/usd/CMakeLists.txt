@@ -172,7 +172,6 @@ target_include_directories(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
 
 add_library(${MJC_PHYSICS_PLUGIN_TARGET_NAME} SHARED)
 target_sources(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
-  mjcPhysics/actuatorAPI.cpp
   mjcPhysics/collisionAPI.cpp
   mjcPhysics/jointAPI.cpp
   mjcPhysics/keyframe.cpp
@@ -180,6 +179,7 @@ target_sources(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
   mjcPhysics/sceneAPI.cpp
   mjcPhysics/siteAPI.cpp
   mjcPhysics/tokens.cpp
+  mjcPhysics/transmission.cpp
 )
 set_target_properties(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PROPERTIES
   OUTPUT_NAME ${MJC_PHYSICS_PLUGIN_TARGET_NAME}

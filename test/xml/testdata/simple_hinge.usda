@@ -36,10 +36,7 @@ def Xform "World"
                 uniform token[] xformOpOrder = ["xformOp:transform"]
             }
 
-            def PhysicsRevoluteJoint "HingeJoint" (
-                prepend apiSchemas = ["PhysicsActuatorAPI"]
-            )
-            {
+            def PhysicsRevoluteJoint "HingeJoint" {
                 rel physics:body0 = </World/Axle>
                 rel physics:body1 = </World/Axle/Rod>
                 point3f physics:localPos0 = (0, 0, 0)
@@ -66,6 +63,12 @@ def Xform "World"
             rel physics:body0 = None
             rel physics:body1 = </World/Axle>
         }
+    }
+
+    def Scope "Transmissions" {
+      def MjcTransmission "HingeActuator" {
+        rel mjc:target = </World/Axle/Rod/HingeJoint>
+      }
     }
 }
 

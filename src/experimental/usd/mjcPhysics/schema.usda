@@ -569,16 +569,20 @@ class "MjcMeshCollisionAPI"
     )
 }
 
-class "MjcActuatorAPI"
+class MjcTransmission "MjcTransmission"
 (
     customData = {
-        string className = "ActuatorAPI"
+        string className = "Transmission"
     }
-    doc = """API describing a Mujoco actuator."""
+    doc = """Known as actuator in MuJoCo, this prim represents force transmission to joints, bodies, or sites."""
 
-    inherits = </APISchemaBase>
+    inherits = </Typed>
 )
 {
+    rel mjc:target (
+        doc = "Actuator transmission target."
+    )
+
     # Control/Force/Activation Limits
     uniform token mjc:ctrlLimited = "auto" (
         doc = "If true, the control input to this actuator is automatically clamped to ctrlrange at runtime. If false, control input clamping is disabled. If 'auto' and autolimits is set in compiler, control clamping will automatically be set to true if ctrlrange is defined without explicitly setting this attribute to 'true'. Note that control input clamping can also be globally disabled with the clampctrl attribute of option/flag."

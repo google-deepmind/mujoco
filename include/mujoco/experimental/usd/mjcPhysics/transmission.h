@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MJCPHYSICS_GENERATED_ACTUATORAPI_H
-#define MJCPHYSICS_GENERATED_ACTUATORAPI_H
+#ifndef MJCPHYSICS_GENERATED_TRANSMISSION_H
+#define MJCPHYSICS_GENERATED_TRANSMISSION_H
 
-/// \file mjcPhysics/actuatorAPI.h
+/// \file mjcPhysics/transmission.h
 
 #include <mujoco/experimental/usd/mjcPhysics/api.h>
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
@@ -26,50 +26,51 @@
 #include <pxr/base/tf/type.h>
 #include <pxr/base/vt/value.h>
 #include <pxr/pxr.h>
-#include <pxr/usd/usd/apiSchemaBase.h>
 #include <pxr/usd/usd/prim.h>
 #include <pxr/usd/usd/stage.h>
+#include <pxr/usd/usd/typed.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
 class SdfAssetPath;
 
 // -------------------------------------------------------------------------- //
-// MJCACTUATORAPI                                                             //
+// MJCTRANSMISSION                                                            //
 // -------------------------------------------------------------------------- //
 
-/// \class MjcPhysicsActuatorAPI
+/// \class MjcPhysicsTransmission
 ///
-/// API describing a Mujoco actuator.
+/// Known as actuator in MuJoCo, this prim represents force transmission to
+/// joints, bodies, or sites.
 ///
 /// For any described attribute \em Fallback \em Value or \em Allowed \em Values
 /// below that are text/tokens, the actual token is published and defined in
 /// \ref MjcPhysicsTokens. So to set an attribute to the value "rightHanded",
 /// use MjcPhysicsTokens->rightHanded as the value.
 ///
-class MjcPhysicsActuatorAPI : public UsdAPISchemaBase {
+class MjcPhysicsTransmission : public UsdTyped {
  public:
   /// Compile time constant representing what kind of schema this class is.
   ///
   /// \sa UsdSchemaKind
-  static const UsdSchemaKind schemaKind = UsdSchemaKind::SingleApplyAPI;
+  static const UsdSchemaKind schemaKind = UsdSchemaKind::ConcreteTyped;
 
-  /// Construct a MjcPhysicsActuatorAPI on UsdPrim \p prim .
-  /// Equivalent to MjcPhysicsActuatorAPI::Get(prim.GetStage(), prim.GetPath())
+  /// Construct a MjcPhysicsTransmission on UsdPrim \p prim .
+  /// Equivalent to MjcPhysicsTransmission::Get(prim.GetStage(), prim.GetPath())
   /// for a \em valid \p prim, but will not immediately throw an error for
   /// an invalid \p prim
-  explicit MjcPhysicsActuatorAPI(const UsdPrim &prim = UsdPrim())
-      : UsdAPISchemaBase(prim) {}
+  explicit MjcPhysicsTransmission(const UsdPrim &prim = UsdPrim())
+      : UsdTyped(prim) {}
 
-  /// Construct a MjcPhysicsActuatorAPI on the prim held by \p schemaObj .
-  /// Should be preferred over MjcPhysicsActuatorAPI(schemaObj.GetPrim()),
+  /// Construct a MjcPhysicsTransmission on the prim held by \p schemaObj .
+  /// Should be preferred over MjcPhysicsTransmission(schemaObj.GetPrim()),
   /// as it preserves SchemaBase state.
-  explicit MjcPhysicsActuatorAPI(const UsdSchemaBase &schemaObj)
-      : UsdAPISchemaBase(schemaObj) {}
+  explicit MjcPhysicsTransmission(const UsdSchemaBase &schemaObj)
+      : UsdTyped(schemaObj) {}
 
   /// Destructor.
   MJCPHYSICS_API
-  virtual ~MjcPhysicsActuatorAPI();
+  virtual ~MjcPhysicsTransmission();
 
   /// Return a vector of names of all pre-declared attributes for this schema
   /// class and all its ancestor classes.  Does not include attributes that
@@ -78,55 +79,44 @@ class MjcPhysicsActuatorAPI : public UsdAPISchemaBase {
   static const TfTokenVector &GetSchemaAttributeNames(
       bool includeInherited = true);
 
-  /// Return a MjcPhysicsActuatorAPI holding the prim adhering to this
+  /// Return a MjcPhysicsTransmission holding the prim adhering to this
   /// schema at \p path on \p stage.  If no prim exists at \p path on
   /// \p stage, or if the prim at that path does not adhere to this schema,
   /// return an invalid schema object.  This is shorthand for the following:
   ///
   /// \code
-  /// MjcPhysicsActuatorAPI(stage->GetPrimAtPath(path));
+  /// MjcPhysicsTransmission(stage->GetPrimAtPath(path));
   /// \endcode
   ///
   MJCPHYSICS_API
-  static MjcPhysicsActuatorAPI Get(const UsdStagePtr &stage,
-                                   const SdfPath &path);
+  static MjcPhysicsTransmission Get(const UsdStagePtr &stage,
+                                    const SdfPath &path);
 
-  /// Returns true if this <b>single-apply</b> API schema can be applied to
-  /// the given \p prim. If this schema can not be a applied to the prim,
-  /// this returns false and, if provided, populates \p whyNot with the
-  /// reason it can not be applied.
+  /// Attempt to ensure a \a UsdPrim adhering to this schema at \p path
+  /// is defined (according to UsdPrim::IsDefined()) on this stage.
   ///
-  /// Note that if CanApply returns false, that does not necessarily imply
-  /// that calling Apply will fail. Callers are expected to call CanApply
-  /// before calling Apply if they want to ensure that it is valid to
-  /// apply a schema.
+  /// If a prim adhering to this schema at \p path is already defined on this
+  /// stage, return that prim.  Otherwise author an \a SdfPrimSpec with
+  /// \a specifier == \a SdfSpecifierDef and this schema's prim type name for
+  /// the prim at \p path at the current EditTarget.  Author \a SdfPrimSpec s
+  /// with \p specifier == \a SdfSpecifierDef and empty typeName at the
+  /// current EditTarget for any nonexistent, or existing but not \a Defined
+  /// ancestors.
   ///
-  /// \sa UsdPrim::GetAppliedSchemas()
-  /// \sa UsdPrim::HasAPI()
-  /// \sa UsdPrim::CanApplyAPI()
-  /// \sa UsdPrim::ApplyAPI()
-  /// \sa UsdPrim::RemoveAPI()
+  /// The given \a path must be an absolute prim path that does not contain
+  /// any variant selections.
+  ///
+  /// If it is impossible to author any of the necessary PrimSpecs, (for
+  /// example, in case \a path cannot map to the current UsdEditTarget's
+  /// namespace) issue an error and return an invalid \a UsdPrim.
+  ///
+  /// Note that this method may return a defined prim whose typeName does not
+  /// specify this schema class, in case a stronger typeName opinion overrides
+  /// the opinion at the current EditTarget.
   ///
   MJCPHYSICS_API
-  static bool CanApply(const UsdPrim &prim, std::string *whyNot = nullptr);
-
-  /// Applies this <b>single-apply</b> API schema to the given \p prim.
-  /// This information is stored by adding "MjcActuatorAPI" to the
-  /// token-valued, listOp metadata \em apiSchemas on the prim.
-  ///
-  /// \return A valid MjcPhysicsActuatorAPI object is returned upon success.
-  /// An invalid (or empty) MjcPhysicsActuatorAPI object is returned upon
-  /// failure. See \ref UsdPrim::ApplyAPI() for conditions
-  /// resulting in failure.
-  ///
-  /// \sa UsdPrim::GetAppliedSchemas()
-  /// \sa UsdPrim::HasAPI()
-  /// \sa UsdPrim::CanApplyAPI()
-  /// \sa UsdPrim::ApplyAPI()
-  /// \sa UsdPrim::RemoveAPI()
-  ///
-  MJCPHYSICS_API
-  static MjcPhysicsActuatorAPI Apply(const UsdPrim &prim);
+  static MjcPhysicsTransmission Define(const UsdStagePtr &stage,
+                                       const SdfPath &path);
 
  protected:
   /// Returns the kind of schema this class belongs to.
@@ -146,6 +136,30 @@ class MjcPhysicsActuatorAPI : public UsdAPISchemaBase {
   // override SchemaBase virtuals.
   MJCPHYSICS_API
   const TfType &_GetTfType() const override;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // GROUP
+  // --------------------------------------------------------------------- //
+  /// Integer MuJoCo group to which the transmission belongs.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform int mjc:group = 0` |
+  /// | C++ Type | int |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetGroupAttr() const;
+
+  /// See GetGroupAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateGroupAttr(VtValue const &defaultValue = VtValue(),
+                               bool writeSparsely = false) const;
 
  public:
   // --------------------------------------------------------------------- //
@@ -749,6 +763,20 @@ class MjcPhysicsActuatorAPI : public UsdAPISchemaBase {
   MJCPHYSICS_API
   UsdAttribute CreateMjcActEarlyAttr(VtValue const &defaultValue = VtValue(),
                                      bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // MJCTARGET
+  // --------------------------------------------------------------------- //
+  /// Actuator transmission target.
+  ///
+  MJCPHYSICS_API
+  UsdRelationship GetMjcTargetRel() const;
+
+  /// See GetMjcTargetRel(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create
+  MJCPHYSICS_API
+  UsdRelationship CreateMjcTargetRel() const;
 
  public:
   // --------------------------------------------------------------------- //

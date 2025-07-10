@@ -251,8 +251,8 @@ class "MjcMeshCollisionAPI" (
     )
 }
 
-class "MjcActuatorAPI" (
-    doc = "API describing a Mujoco actuator."
+class MjcTransmission "MjcTransmission" (
+    doc = "Known as actuator in MuJoCo, this prim represents force transmission to joints, bodies, or sites."
 )
 {
     uniform int mjc:actDim = -1 (
@@ -332,6 +332,9 @@ class "MjcActuatorAPI" (
     )
     rel mjc:sliderSite (
         doc = "Used only for the slider-crank transmission type. The target site is the pin joining the slider and the connecting rod. The slider moves along the z-axis of the slidersite frame. Therefore the site should be oriented as needed when it is defined in the kinematic tree; its orientation cannot be changed in the actuator definition."
+    )
+    rel mjc:target (
+        doc = "Actuator transmission target."
     )
 }
 

@@ -86,6 +86,7 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((materialsScope, "Materials"))
                          ((previewSurface, "PreviewSurface"))
                          ((keyframesScope, "Keyframes"))
+                         ((transmissionsScope, "Transmissions"))
                          ((keyframe, "Keyframe"))
                          ((surface, "PreviewSurface"))
                          ((world, "World"))
@@ -210,7 +211,7 @@ class ModelWriter {
     WriteMaterials();
     WriteBodies();
     if (write_physics_) {
-      WriteActuators();
+      WriteTransmissions();
     }
     WriteKeyframes();
   }
@@ -1050,27 +1051,39 @@ class ModelWriter {
     }
   }
 
-  void WriteActuator(mjsActuator *actuator) {
-    pxr::SdfPath transmission_path;
+  void WriteTransmission(mjsActuator *actuator,
+                         const pxr::SdfPath &parent_path) {
+    pxr::TfToken valid_name = GetValidPrimName(*mjs_getName(actuator->element));
+    pxr::SdfPath transmission_path = parent_path.AppendChild(valid_name);
+    if (!data_->HasSpec(transmission_path)) {
+      CreatePrimSpec(data_, parent_path, valid_name,
+                     pxr::MjcPhysicsTokens->MjcTransmission);
+    }
+
+    pxr::SdfPath target_path;
     if (actuator->trntype == mjtTrn::mjTRN_BODY) {
       int body_id = mj_name2id(model_, mjOBJ_BODY, actuator->target->c_str());
-      transmission_path = body_paths_[body_id];
+      target_path = body_paths_[body_id];
     } else if (actuator->trntype == mjtTrn::mjTRN_SITE ||
                actuator->trntype == mjtTrn::mjTRN_SLIDERCRANK) {
       int site_id = mj_name2id(model_, mjOBJ_SITE, actuator->target->c_str());
-      transmission_path = site_paths_[site_id];
+      target_path = site_paths_[site_id];
     } else if (actuator->trntype == mjtTrn::mjTRN_JOINT) {
       int joint_id = mj_name2id(model_, mjOBJ_JOINT, actuator->target->c_str());
-      transmission_path = joint_paths_[joint_id];
+      target_path = joint_paths_[joint_id];
     } else {
       TF_WARN(UnsupportedActuatorTypeError,
-              "Unsupported actuator type for actuator %d",
+              "Unsupported transmission type for actuator %d",
               mjs_getId(actuator->element));
       return;
     }
 
-    ApplyApiSchema(data_, transmission_path,
-                   MjcPhysicsTokens->MjcActuatorAPI);
+    CreateRelationshipSpec(data_, transmission_path,
+                           MjcPhysicsTokens->mjcTarget, target_path,
+                           pxr::SdfVariabilityUniform);
+
+    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcGroup, actuator->group);
 
     if (!actuator->refsite->empty()) {
       int refsite_id =
@@ -1190,11 +1203,14 @@ class ModelWriter {
         pxr::VtDoubleArray(actuator->biasprm, actuator->biasprm + 10));
   }
 
-  void WriteActuators() {
+  void WriteTransmissions() {
+    pxr::SdfPath scope_path =
+        CreatePrimSpec(data_, body_paths_[kWorldIndex],
+                       kTokens->transmissionsScope, pxr::UsdGeomTokens->Scope);
     mjsActuator *actuator =
         mjs_asActuator(mjs_firstElement(spec_, mjOBJ_ACTUATOR));
     while (actuator) {
-      WriteActuator(actuator);
+      WriteTransmission(actuator, scope_path);
       actuator = mjs_asActuator(mjs_nextElement(spec_, actuator->element));
     }
   }

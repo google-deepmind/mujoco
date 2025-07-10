@@ -134,6 +134,7 @@ MjcPhysicsTokensType::MjcPhysicsTokensType()
       mjcSpringdamper("mjc:springdamper", TfToken::Immortal),
       mjcSpringref("mjc:springref", TfToken::Immortal),
       mjcStiffness("mjc:stiffness", TfToken::Immortal),
+      mjcTarget("mjc:target", TfToken::Immortal),
       muscle("muscle", TfToken::Immortal),
       newton("newton", TfToken::Immortal),
       none("none", TfToken::Immortal),
@@ -144,13 +145,13 @@ MjcPhysicsTokensType::MjcPhysicsTokensType()
       sparse("sparse", TfToken::Immortal),
       true_("true", TfToken::Immortal),
       user("user", TfToken::Immortal),
-      MjcActuatorAPI("MjcActuatorAPI", TfToken::Immortal),
       MjcCollisionAPI("MjcCollisionAPI", TfToken::Immortal),
       MjcJointAPI("MjcJointAPI", TfToken::Immortal),
       MjcKeyframe("MjcKeyframe", TfToken::Immortal),
       MjcMeshCollisionAPI("MjcMeshCollisionAPI", TfToken::Immortal),
       MjcSceneAPI("MjcSceneAPI", TfToken::Immortal),
       MjcSiteAPI("MjcSiteAPI", TfToken::Immortal),
+      MjcTransmission("MjcTransmission", TfToken::Immortal),
       allTokens({affine,
                  auto_,
                  cg,
@@ -265,6 +266,7 @@ MjcPhysicsTokensType::MjcPhysicsTokensType()
                  mjcSpringdamper,
                  mjcSpringref,
                  mjcStiffness,
+                 mjcTarget,
                  muscle,
                  newton,
                  none,
@@ -275,13 +277,13 @@ MjcPhysicsTokensType::MjcPhysicsTokensType()
                  sparse,
                  true_,
                  user,
-                 MjcActuatorAPI,
                  MjcCollisionAPI,
                  MjcJointAPI,
                  MjcKeyframe,
                  MjcMeshCollisionAPI,
                  MjcSceneAPI,
-                 MjcSiteAPI}) {}
+                 MjcSiteAPI,
+                 MjcTransmission}) {}
 
 TfStaticData<MjcPhysicsTokensType> MjcPhysicsTokens;
 

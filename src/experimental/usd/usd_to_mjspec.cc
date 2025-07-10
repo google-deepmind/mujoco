@@ -21,7 +21,6 @@
 #include <utility>
 #include <vector>
 
-#include <mujoco/experimental/usd/mjcPhysics/actuatorAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
@@ -29,6 +28,7 @@
 #include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
+#include <mujoco/experimental/usd/mjcPhysics/transmission.h>
 #include <mujoco/experimental/usd/usd.h>
 #include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mujoco.h>
@@ -553,19 +553,46 @@ void ParseMjcPhysicsMeshCollisionAPI(
   }
 }
 
-void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,
-                                       const pxr::MjcPhysicsActuatorAPI& act,
-                                       mjtTrn tran_type,
-                                       const std::string* name) {
-  pxr::UsdPrim prim = act.GetPrim();
+void ParseMjcPhysicsTransmission(mjSpec* spec,
+                                 const pxr::MjcPhysicsTransmission& tran) {
+  pxr::UsdPrim prim = tran.GetPrim();
   mjsActuator* mj_act = mjs_addActuator(spec, nullptr);
   mjs_setName(mj_act->element, prim.GetPath().GetAsString().c_str());
-  mjs_setString(mj_act->target, name->c_str());
-  mj_act->trntype = tran_type;
 
-  if (tran_type == mjtTrn::mjTRN_SLIDERCRANK) {
+  auto group_attr = tran.GetGroupAttr();
+  if (group_attr.HasAuthoredValue()) {
+    group_attr.Get(&mj_act->group);
+  }
+
+  pxr::SdfPathVector targets;
+  tran.GetMjcTargetRel().GetTargets(&targets);
+  if (targets.empty()) {
+    mju_warning("Transmission %s has no target, skipping.",
+                prim.GetPath().GetAsString().c_str());
+    return;
+  }
+  if (targets.size() > 1) {
+    mju_warning("Transmission has more than one target, using the first.");
+  }
+  mjs_setString(mj_act->target, targets[0].GetAsString().c_str());
+
+  auto target_prim = prim.GetStage()->GetPrimAtPath(targets[0]);
+  bool slider_crank = tran.GetMjcSliderSiteRel().HasAuthoredTargets();
+  if (target_prim.IsA<pxr::UsdPhysicsJoint>()) {
+    mj_act->trntype = mjTRN_JOINT;
+  } else if (target_prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>()) {
+    mj_act->trntype = mjTRN_BODY;
+  } else if (target_prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
+    mj_act->trntype = slider_crank ? mjTRN_SLIDERCRANK : mjTRN_SITE;
+  } else {
+    mju_warning("Transmission %s has an invalid target type, skipping.",
+                prim.GetPath().GetAsString().c_str());
+    return;
+  }
+
+  if (slider_crank) {
     pxr::SdfPathVector slider_sites;
-    act.GetMjcSliderSiteRel().GetTargets(&slider_sites);
+    tran.GetMjcSliderSiteRel().GetTargets(&slider_sites);
     if (slider_sites.size() > 1) {
       mju_warning(
           "Slider crank slider site relationship has more than one target, "
@@ -590,9 +617,9 @@ void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,
     }
   };
 
-  setLimitedField(mj_act, act.GetMjcCtrlLimitedAttr(), &mj_act->ctrllimited);
-  setLimitedField(mj_act, act.GetMjcForceLimitedAttr(), &mj_act->forcelimited);
-  setLimitedField(mj_act, act.GetMjcActLimitedAttr(), &mj_act->actlimited);
+  setLimitedField(mj_act, tran.GetMjcCtrlLimitedAttr(), &mj_act->ctrllimited);
+  setLimitedField(mj_act, tran.GetMjcForceLimitedAttr(), &mj_act->forcelimited);
+  setLimitedField(mj_act, tran.GetMjcActLimitedAttr(), &mj_act->actlimited);
 
   auto setRangeField =
       [](mjsActuator* mj_act, const pxr::UsdAttribute& usd_min_attribute,
@@ -609,16 +636,16 @@ void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,
         }
       };
 
-  setRangeField(mj_act, act.GetMjcCtrlRangeMinAttr(),
-                act.GetMjcCtrlRangeMaxAttr(), mj_act->ctrlrange);
-  setRangeField(mj_act, act.GetMjcForceRangeMinAttr(),
-                act.GetMjcForceRangeMaxAttr(), mj_act->forcerange);
-  setRangeField(mj_act, act.GetMjcActRangeMinAttr(),
-                act.GetMjcActRangeMaxAttr(), mj_act->actrange);
-  setRangeField(mj_act, act.GetMjcLengthRangeMinAttr(),
-                act.GetMjcLengthRangeMaxAttr(), mj_act->lengthrange);
+  setRangeField(mj_act, tran.GetMjcCtrlRangeMinAttr(),
+                tran.GetMjcCtrlRangeMaxAttr(), mj_act->ctrlrange);
+  setRangeField(mj_act, tran.GetMjcForceRangeMinAttr(),
+                tran.GetMjcForceRangeMaxAttr(), mj_act->forcerange);
+  setRangeField(mj_act, tran.GetMjcActRangeMinAttr(),
+                tran.GetMjcActRangeMaxAttr(), mj_act->actrange);
+  setRangeField(mj_act, tran.GetMjcLengthRangeMinAttr(),
+                tran.GetMjcLengthRangeMaxAttr(), mj_act->lengthrange);
 
-  auto gear_attr = act.GetMjcGearAttr();
+  auto gear_attr = tran.GetMjcGearAttr();
   if (gear_attr.HasAuthoredValue()) {
     pxr::VtDoubleArray gear;
     gear_attr.Get(&gear);
@@ -627,14 +654,14 @@ void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,
     }
   }
 
-  auto crank_length_attr = act.GetMjcCrankLengthAttr();
+  auto crank_length_attr = tran.GetMjcCrankLengthAttr();
   if (crank_length_attr.HasAuthoredValue()) {
     double crank_length;
     crank_length_attr.Get(&crank_length);
     mj_act->cranklength = crank_length;
   }
 
-  auto dyn_type_attr = act.GetMjcDynTypeAttr();
+  auto dyn_type_attr = tran.GetMjcDynTypeAttr();
   if (dyn_type_attr.HasAuthoredValue()) {
     pxr::TfToken dyn_type;
     dyn_type_attr.Get(&dyn_type);
@@ -653,7 +680,7 @@ void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,
     }
   }
 
-  auto gain_type_attr = act.GetMjcGainTypeAttr();
+  auto gain_type_attr = tran.GetMjcGainTypeAttr();
   if (gain_type_attr.HasAuthoredValue()) {
     pxr::TfToken gain_type;
     gain_type_attr.Get(&gain_type);
@@ -668,7 +695,7 @@ void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,
     }
   }
 
-  auto biastype_attr = act.GetMjcBiasTypeAttr();
+  auto biastype_attr = tran.GetMjcBiasTypeAttr();
   if (biastype_attr.HasAuthoredValue()) {
     pxr::TfToken biastype;
     biastype_attr.Get(&biastype);
@@ -695,25 +722,25 @@ void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,
     }
   };
 
-  setPrmField(mj_act, act.GetMjcDynPrmAttr(), mj_act->dynprm);
-  setPrmField(mj_act, act.GetMjcBiasPrmAttr(), mj_act->biasprm);
-  setPrmField(mj_act, act.GetMjcGainPrmAttr(), mj_act->gainprm);
+  setPrmField(mj_act, tran.GetMjcDynPrmAttr(), mj_act->dynprm);
+  setPrmField(mj_act, tran.GetMjcBiasPrmAttr(), mj_act->biasprm);
+  setPrmField(mj_act, tran.GetMjcGainPrmAttr(), mj_act->gainprm);
 
-  auto act_dim_attr = act.GetMjcActDimAttr();
+  auto act_dim_attr = tran.GetMjcActDimAttr();
   if (act_dim_attr.HasAuthoredValue()) {
     int act_dim;
     act_dim_attr.Get(&act_dim);
     mj_act->actdim = act_dim;
   }
 
-  auto act_early_attr = act.GetMjcActEarlyAttr();
+  auto act_early_attr = tran.GetMjcActEarlyAttr();
   if (act_early_attr.HasAuthoredValue()) {
     bool act_early;
     act_early_attr.Get(&act_early);
     mj_act->actearly = (int)act_early;
   }
 
-  auto ref_site_rel = act.GetMjcRefSiteRel();
+  auto ref_site_rel = tran.GetMjcRefSiteRel();
   if (ref_site_rel.HasAuthoredTargets()) {
     pxr::SdfPathVector targets;
     ref_site_rel.GetTargets(&targets);
@@ -1126,12 +1153,6 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     SetDoubleArrFromGfVec3d(mj_joint->axis, rotated_axis);
   }
 
-  if (prim.HasAPI<pxr::MjcPhysicsActuatorAPI>()) {
-    ParseMjcPhysicsGeneralActuatorAPI(spec, pxr::MjcPhysicsActuatorAPI(prim),
-                                      mjtTrn::mjTRN_JOINT,
-                                      mjs_getName(mj_joint->element));
-  }
-
   if (prim.HasAPI<pxr::MjcPhysicsJointAPI>()) {
     ParseMjcPhysicsJointAPI(mj_joint, pxr::MjcPhysicsJointAPI(prim));
   }
@@ -1151,15 +1172,6 @@ void ParseMjcPhysicsSite(mjSpec* spec, const pxr::MjcPhysicsSiteAPI& site_api,
     mju_error("Prim with SiteAPI has unsupported typej %s",
               prim.GetTypeName().GetString().c_str());
     return;
-  }
-
-  if (prim.HasAPI<pxr::MjcPhysicsActuatorAPI>()) {
-    auto act_api = pxr::MjcPhysicsActuatorAPI(prim);
-    bool slider_crank = act_api.GetMjcSliderSiteRel().HasAuthoredTargets();
-    ParseMjcPhysicsGeneralActuatorAPI(
-        spec, pxr::MjcPhysicsActuatorAPI(prim),
-        slider_crank ? mjtTrn::mjTRN_SLIDERCRANK : mjtTrn::mjTRN_SITE,
-        mjs_getName(site->element));
   }
 }
 
@@ -1234,12 +1246,6 @@ mjsBody* ParseUsdPhysicsRigidbody(
 
   if (prim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
     ParseUsdPhysicsMassAPIForBody(body, pxr::UsdPhysicsMassAPI(prim));
-  }
-
-  if (prim.HasAPI<pxr::MjcPhysicsActuatorAPI>()) {
-    ParseMjcPhysicsGeneralActuatorAPI(spec, pxr::MjcPhysicsActuatorAPI(prim),
-                                      mjtTrn::mjTRN_BODY,
-                                      mjs_getName(body->element));
   }
 
   mujoco::usd::SetUsdPrimPathUserValue(body->element, prim.GetPath());
@@ -1424,6 +1430,10 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
       ParseMjcPhysicsKeyframe(spec, pxr::MjcPhysicsKeyframe(prim));
 
       it.PruneChildren();
+    } else if (prim.IsA<pxr::MjcPhysicsTransmission>()) {
+      ParseMjcPhysicsTransmission(spec, pxr::MjcPhysicsTransmission(prim));
+
+      it.PruneChildren();
     }
   }
 
@@ -1443,11 +1453,3 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
   return spec;
 }
 
-mjSpec* mj_parseUSDStage(const char* usd_path) {
-  pxr::UsdStageRefPtr stage = pxr::UsdStage::Open(usd_path);
-  if (!stage) {
-    mju_error("Could not open USD stage: %s", usd_path);
-    return nullptr;
-  }
-  return mj_parseUSDStage(stage);
-}
