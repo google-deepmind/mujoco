@@ -32,22 +32,18 @@
 }
 
 // sub-macro that merges two sub-sorted arrays [start, ..., mid), [mid, ..., end) together
-#define _mjMERGE(type, arr, buf, start, mid, end, cmp, context)                                    \
+#define _mjMERGE(type, src, dest, start, mid, end, cmp, context)                                   \
 {                                                                                                  \
-  int len1 = mid - start, len2 = end - mid;                                                        \
-  type* left = buf, *right = buf + len1;                                                           \
-  for (int i = 0; i < len1; i++) left[i] = arr[start + i];                                         \
-  for (int i = 0; i < len2; i++) right[i] = arr[mid + i];                                          \
-  int i = 0, j = 0, k = start;                                                                     \
-  while (i < len1 && j < len2) {                                                                   \
-    if (cmp(left + i, right + j, context) <= 0) {                                                  \
-       arr[k++] = left[i++];                                                                       \
+  int i = start, j = mid, k = start;                                                               \
+  while (i < mid && j < end) {                                                                     \
+    if (cmp(src + i, src + j, context) <= 0) {                                                     \
+       dest[k++] = src[i++];                                                                       \
     } else {                                                                                       \
-      arr[k++] = right[j++];                                                                       \
+      dest[k++] = src[j++];                                                                        \
     }                                                                                              \
   }                                                                                                \
-  while (i < len1) arr[k++] = left[i++];                                                           \
-  while (j < len2) arr[k++] = right[j++];                                                          \
+  if      (i < mid) memcpy(dest + k, src + i, (mid - i) * sizeof(type));                           \
+  else if (j < end) memcpy(dest + k, src + j, (end - j) * sizeof(type));                           \
 }
 
 // defines an inline stable sorting function via tiled merge sorting (timsort)
@@ -60,15 +56,20 @@
       int end = (start + _mjRUNSIZE < n) ? start + _mjRUNSIZE : n;                                 \
       _mjINSERTION_SORT(type, arr, start, end, cmp, context);                                      \
     }                                                                                              \
+    type* src = arr, *dest = buf, *tmp;                                                            \
     for (int len = _mjRUNSIZE; len < n; len *= 2) {                                                \
       for (int start = 0; start < n; start += 2*len) {                                             \
         int mid = start + len;                                                                     \
         int end = (start + 2*len < n) ? start + 2*len : n;                                         \
         if (mid < end) {                                                                           \
-          _mjMERGE(type, arr, buf, start, mid, end, cmp, context);                                 \
+          _mjMERGE(type, src, dest, start, mid, end, cmp, context);                                \
+        } else {                                                                                   \
+          memcpy(dest + start, src + start, (end - start) * sizeof(type));                         \
         }                                                                                          \
       }                                                                                            \
+      tmp = src; src = dest; dest = tmp;                                                           \
     }                                                                                              \
+    if (src != arr) memcpy(arr, src, n * sizeof(type));                                            \
   }
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_SORT_H_
