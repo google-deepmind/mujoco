@@ -35,6 +35,7 @@
 #include "experimental/usd/kinematic_tree.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
+#include <pxr/base/gf/rotation.h>
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/tf/token.h>
 #include <pxr/base/vt/types.h>
@@ -193,6 +194,25 @@ bool MaybeParseGeomPrimitive(const pxr::UsdPrim& prim, T* element,
     element->size[0] = scale[0] * radius;
     element->size[1] = scale[1] * height / 2.0f;
     element->size[2] = 0;
+
+    TfToken axis;
+    capsule.GetAxisAttr().Get(&axis);
+
+    // Mujoco (and USD) capsules are aligned with Z by default.
+    // When USD axis is X or Y, we apply a rotation to align with the Z axis.
+    pxr::GfQuatd axis_rot(1.0);
+    if (axis == pxr::UsdGeomTokens->x) {
+      axis_rot = pxr::GfRotation(pxr::GfVec3d::XAxis(), pxr::GfVec3d::ZAxis())
+                     .GetQuat();
+    } else if (axis == pxr::UsdGeomTokens->y) {
+      axis_rot = pxr::GfRotation(pxr::GfVec3d::YAxis(), pxr::GfVec3d::ZAxis())
+                     .GetQuat();
+    }
+
+    pxr::GfQuatd current_rot(element->quat[0], element->quat[1],
+                             element->quat[2], element->quat[3]);
+    pxr::GfQuatd new_rot = current_rot * axis_rot;
+    SetDoubleArrFromGfQuatd(element->quat, new_rot);
   } else if (prim.IsA<pxr::UsdGeomCube>()) {
     element->type = mjGEOM_BOX;
     auto cube = pxr::UsdGeomCube(prim);
@@ -1452,4 +1472,3 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
 
   return spec;
 }
-
