@@ -546,6 +546,11 @@ void ParseMjcPhysicsMeshCollisionAPI(
       mesh->inertia = mjtMeshInertia::mjMESH_INERTIA_LEGACY;
     }
   }
+
+  auto maxhullvert_attr = mesh_collision_api.GetMaxHullVertAttr();
+  if (maxhullvert_attr.HasAuthoredValue()) {
+    maxhullvert_attr.Get(&mesh->maxhullvert);
+  }
 }
 
 void ParseMjcPhysicsGeneralActuatorAPI(mjSpec* spec,

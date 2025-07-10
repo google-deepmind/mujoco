@@ -356,6 +356,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsJointAPI
   const TfToken mjcMargin;
+  /// \brief "mjc:maxhullvert"
+  ///
+  /// MjcPhysicsMeshCollisionAPI
+  const TfToken mjcMaxhullvert;
   /// \brief "mjc:mpos"
   ///
   /// MjcPhysicsKeyframe

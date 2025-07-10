@@ -360,6 +360,10 @@ class ModelWriter {
 
       WriteUniformAttribute(mesh_path, pxr::SdfValueTypeNames->Token,
                             MjcPhysicsTokens->mjcInertia, inertia);
+
+      WriteUniformAttribute(mesh_path, pxr::SdfValueTypeNames->Int,
+                            MjcPhysicsTokens->mjcMaxhullvert,
+                            mesh->maxhullvert);
     }
 
     // NOTE: The geometry data taken from the spec is the post-compilation

@@ -1440,6 +1440,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsMeshCollisionAPI) {
       <mesh name="tet_exact" inertia="exact" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
       <mesh name="tet_convex" inertia="convex" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
       <mesh name="tet_shell" inertia="shell" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+      <mesh name="tet_max_vert" inertia="shell" maxhullvert="12" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
     </asset>
     <worldbody>
       <body name="body">
@@ -1447,6 +1448,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsMeshCollisionAPI) {
         <geom name="tet_exact" type="mesh" mesh="tet_exact"/>
         <geom name="tet_convex" type="mesh" mesh="tet_convex"/>
         <geom name="tet_shell" type="mesh" mesh="tet_shell"/>
+        <geom name="tet_max_vert" type="mesh" mesh="tet_max_vert"/>
       </body>
     </worldbody>
   </mujoco>
@@ -1461,6 +1463,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsMeshCollisionAPI) {
                        MjcPhysicsTokens->convex);
   ExpectAttributeEqual(stage, "/test/body/tet_shell/Mesh.mjc:inertia",
                        MjcPhysicsTokens->shell);
+  ExpectAttributeEqual(stage, "/test/body/tet_max_vert/Mesh.mjc:maxhullvert",
+                       12);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIApplied) {

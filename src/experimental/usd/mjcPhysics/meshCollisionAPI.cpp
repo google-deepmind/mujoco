@@ -88,6 +88,17 @@ UsdAttribute MjcPhysicsMeshCollisionAPI::CreateInertiaAttr(
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
+UsdAttribute MjcPhysicsMeshCollisionAPI::GetMaxHullVertAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcMaxhullvert);
+}
+
+UsdAttribute MjcPhysicsMeshCollisionAPI::CreateMaxHullVertAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcMaxhullvert, SdfValueTypeNames->Int,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
     const TfTokenVector &left, const TfTokenVector &right) {
@@ -104,6 +115,7 @@ const TfTokenVector &MjcPhysicsMeshCollisionAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcInertia,
+      MjcPhysicsTokens->mjcMaxhullvert,
   };
   static TfTokenVector allNames = _ConcatenateAttributeNames(
       UsdAPISchemaBase::GetSchemaAttributeNames(true), localNames);

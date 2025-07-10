@@ -245,6 +245,10 @@ class "MjcMeshCollisionAPI" (
         displayName = "Inertia"
         doc = "Controls how a mesh is used when mass and inertia are inferred from geometry."
     )
+    uniform int mjc:maxhullvert = -1 (
+        displayName = "Maximum Hull Vertices"
+        doc = "Sets an upper limit on the number of vertices in the meshes convex hull. The default value of -1 means unlimited."
+    )
 }
 
 class "MjcActuatorAPI" (
