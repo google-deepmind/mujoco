@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 334
+#define mjVERSION_HEADER 335
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
