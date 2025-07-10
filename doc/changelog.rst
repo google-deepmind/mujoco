@@ -9,11 +9,11 @@ General
 ^^^^^^^
 - Added the :ref:`insidesite<sensor-insidesite>` sensor, for checking if an object is inside the volume of a site.
   It is useful for triggering events in surrounding environment logic.
-- Removed the SdfLib plugin and the dependency on `SdfLib` <https://github.com/UPC-ViRVIG/SdfLib>`__. SDFs are now
+- Removed the SdfLib plugin and the dependency on `SdfLib <https://github.com/UPC-ViRVIG/SdfLib>`__. SDFs are now
   supported natively in mjModel.
 
 Version 3.3.4 (July 8, 2025)
------------------------------------
+----------------------------
 
 .. admonition:: Breaking API changes
    :class: attention
