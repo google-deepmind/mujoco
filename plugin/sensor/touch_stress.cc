@@ -407,6 +407,9 @@ static const mjtNum kRelativeThickness = 0.02;
 
 void TouchStress::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
                              mjvScene* scn, int instance) {
+  if (!opt->flags[mjVIS_CONTACTPOINT]) {
+    return;
+  }
   mj_markStack(d);
 
   // Get sensor data.
