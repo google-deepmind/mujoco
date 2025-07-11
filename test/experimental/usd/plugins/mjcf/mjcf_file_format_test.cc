@@ -1097,10 +1097,10 @@ static constexpr char kSiteXml[] = R"(
       <worldbody>
         <site type="box" name="box_site"/>
         <body name="ball">
-          <site type="sphere" name="sphere_site"/>
-          <site type="capsule" name="capsule_site"/>
-          <site type="cylinder" name="cylinder_site"/>
-          <site type="ellipsoid" name="ellipsoid_site"/>
+          <site type="sphere" name="sphere_site" group="1"/>
+          <site type="capsule" name="capsule_site" group="2"/>
+          <site type="cylinder" name="cylinder_site" group="3"/>
+          <site type="ellipsoid" name="ellipsoid_site" group="4"/>
           <geom type="sphere" size="1 1 1"/>
         </body>
       </worldbody>
@@ -1130,6 +1130,12 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsAuthored) {
   EXPECT_PRIM_IS_A(stage, "/test/ball/ellipsoid_site", pxr::UsdGeomSphere);
   EXPECT_PRIM_API_APPLIED(stage, "/test/ball/ellipsoid_site",
                           pxr::MjcPhysicsSiteAPI);
+
+  ExpectAttributeEqual(stage, "/test/box_site.mjc:group", 0);
+  ExpectAttributeEqual(stage, "/test/ball/sphere_site.mjc:group", 1);
+  ExpectAttributeEqual(stage, "/test/ball/capsule_site.mjc:group", 2);
+  ExpectAttributeEqual(stage, "/test/ball/cylinder_site.mjc:group", 3);
+  ExpectAttributeEqual(stage, "/test/ball/ellipsoid_site.mjc:group", 4);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsPurpose) {
@@ -1538,6 +1544,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsTransmission) {
     <actuator>
       <general
         name="general"
+        group="123"
         site="site"
         refsite="ref"
         ctrllimited="true"
@@ -1569,6 +1576,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsTransmission) {
                         "/test/body/site");
   EXPECT_REL_HAS_TARGET(stage, "/test/Transmissions/general.mjc:refSite",
                         "/test/body/ref");
+  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:group", 123);
   ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:ctrlLimited",
                        pxr::MjcPhysicsTokens->true_);
   ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:ctrlRange:min",
@@ -1702,6 +1710,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointAPI) {
       <body name="parent">
         <body name="child">
           <joint name="my_joint" type="hinge"
+            group="4"
             springdamper="1 2"
             solreflimit="0.1 0.2"
             solimplimit="0.3 0.4 0.5 0.6 0.7"
@@ -1729,6 +1738,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointAPI) {
   const SdfPath joint_path("/test/parent/child/my_joint");
   EXPECT_PRIM_API_APPLIED(stage, joint_path, pxr::MjcPhysicsJointAPI);
 
+  ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:group", 4);
   ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:springdamper",
                        pxr::VtArray<double>({1, 2}));
   ExpectAttributeEqual(stage, "/test/parent/child/my_joint.mjc:solreflimit",
@@ -2129,7 +2139,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsKeyframe) {
   ExpectAttributeEqual(stage, "/test/Keyframes/Keyframe.mjc:qpos",
                        pxr::VtDoubleArray({3}), pxr::UsdTimeCode(2.0));
 }
-
 }  // namespace
 }  // namespace usd
 }  // namespace mujoco

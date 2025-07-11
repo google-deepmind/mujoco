@@ -570,6 +570,11 @@ void ParseMjcPhysicsCollisionAPI(
     geom->typeinertia = shell_inertia ? mjtGeomInertia::mjINERTIA_SHELL
                                       : mjtGeomInertia::mjINERTIA_VOLUME;
   }
+
+  auto group_attr = collision_api.GetGroupAttr();
+  if (group_attr.HasAuthoredValue()) {
+    group_attr.Get(&geom->group);
+  }
 }
 
 void ParseMjcPhysicsMeshCollisionAPI(
@@ -793,6 +798,11 @@ void ParseMjcPhysicsTransmission(mjSpec* spec,
 
 void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
                              const pxr::MjcPhysicsJointAPI& joint_api) {
+  auto group_attr = joint_api.GetGroupAttr();
+  if (group_attr.HasAuthoredValue()) {
+    group_attr.Get(&mj_joint->group);
+  }
+
   auto springdamper_attr = joint_api.GetMjcSpringdamperAttr();
   if (springdamper_attr.HasAuthoredValue()) {
     pxr::VtDoubleArray springdamper;
@@ -1177,6 +1187,11 @@ void ParseMjcPhysicsSite(mjSpec* spec, const pxr::MjcPhysicsSiteAPI& site_api,
   mjs_setName(site->element,
               site_api.GetPrim().GetPath().GetAsString().c_str());
   SetLocalPoseFromPrim(site_api.GetPrim(), parent_prim, site, xform_cache);
+
+  auto group_attr = site_api.GetGroupAttr();
+  if (group_attr.HasAuthoredValue()) {
+    group_attr.Get(&site->group);
+  }
 
   // Convert USD type to MuJoCo type.
   if (!MaybeParseGeomPrimitive(prim, site, xform_cache)) {

@@ -4,7 +4,7 @@
 )
 
 class "MjcSceneAPI" (
-    doc = "API providing global simulation options for Mujoco."
+    doc = "API providing global simulation options for MuJoCo."
 )
 {
     uniform bool mjc:flag:actuation = 1 (
@@ -221,15 +221,23 @@ class "MjcSceneAPI" (
 }
 
 class "MjcSiteAPI" (
-    doc = "API describing a Mujoco site."
+    doc = "API describing a MuJoCo site."
 )
 {
+    uniform int mjc:group = 0 (
+        displayName = "Group"
+        doc = "Integer MuJoCo group to which the collider belongs."
+    )
 }
 
 class "MjcCollisionAPI" (
-    doc = "API describing a Mujoco collider."
+    doc = "API describing a MuJoCo collider."
 )
 {
+    uniform int mjc:group = 0 (
+        displayName = "Group"
+        doc = "Integer MuJoCo group to which the collider belongs."
+    )
     uniform bool mjc:shellinertia = 0 (
         displayName = "Shell Inertia"
         doc = "Enables handling of the inertia assuming mass is concentrated on the surface."
@@ -237,7 +245,7 @@ class "MjcCollisionAPI" (
 }
 
 class "MjcMeshCollisionAPI" (
-    doc = "API describing a Mujoco mesh collider."
+    doc = "API describing a MuJoCo mesh collider."
 )
 {
     uniform token mjc:inertia = "legacy" (
@@ -318,6 +326,10 @@ class MjcTransmission "MjcTransmission" (
     uniform double[] mjc:gear = [1, 0, 0, 0, 0, 0] (
         doc = "This attribute scales the length (and consequently moment arms, velocity and force) of the actuator, for all transmission types. It is different from the gain in the force generation mechanism, because the gain only scales the force output and does not affect the length, moment arms and velocity. For actuators with scalar transmission, only the first element of this vector is used. The remaining elements are needed for joint, jointinparent and site transmissions where this attribute is used to specify 3D force and torque axes."
     )
+    uniform int mjc:group = 0 (
+        displayName = "Group"
+        doc = "Integer MuJoCo group to which the transmission belongs."
+    )
     uniform bool mjc:jointInParent = 0 (
         doc = "If true and applied to ball and free joints, the 3d rotation axis given by gear is defined in the parent frame (which is the world frame for free joints) rather than the child frame."
     )
@@ -363,7 +375,7 @@ class MjcKeyframe "MjcKeyframe" (
 }
 
 class "MjcJointAPI" (
-    doc = "API describing a Mujoco joint."
+    doc = "API describing a MuJoCo joint."
 )
 {
     uniform token mjc:actuatorfrclimited = "auto" (
@@ -387,6 +399,10 @@ class "MjcJointAPI" (
     )
     uniform double mjc:frictionloss = 0 (
         doc = "Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."
+    )
+    uniform int mjc:group = 0 (
+        displayName = "Group"
+        doc = "Integer MuJoCo group to which the joint belongs."
     )
     uniform double mjc:margin = 0 (
         doc = "The distance threshold below which limits become active. Recall that the Constraint solver normally generates forces as soon as a constraint becomes active, even if the margin parameter makes that happen at a distance. This attribute together with solreflimit and solimplimit can be used to model a soft joint limit."

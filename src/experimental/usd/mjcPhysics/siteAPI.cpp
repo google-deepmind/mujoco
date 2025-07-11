@@ -74,12 +74,36 @@ const TfType &MjcPhysicsSiteAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
+UsdAttribute MjcPhysicsSiteAPI::GetGroupAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcGroup);
+}
+
+UsdAttribute MjcPhysicsSiteAPI::CreateGroupAttr(VtValue const &defaultValue,
+                                                bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcGroup, SdfValueTypeNames->Int,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+namespace {
+static inline TfTokenVector _ConcatenateAttributeNames(
+    const TfTokenVector &left, const TfTokenVector &right) {
+  TfTokenVector result;
+  result.reserve(left.size() + right.size());
+  result.insert(result.end(), left.begin(), left.end());
+  result.insert(result.end(), right.begin(), right.end());
+  return result;
+}
+}  // namespace
+
 /*static*/
 const TfTokenVector &MjcPhysicsSiteAPI::GetSchemaAttributeNames(
     bool includeInherited) {
-  static TfTokenVector localNames;
-  static TfTokenVector allNames =
-      UsdAPISchemaBase::GetSchemaAttributeNames(true);
+  static TfTokenVector localNames = {
+      MjcPhysicsTokens->mjcGroup,
+  };
+  static TfTokenVector allNames = _ConcatenateAttributeNames(
+      UsdAPISchemaBase::GetSchemaAttributeNames(true), localNames);
 
   if (includeInherited)
     return allNames;

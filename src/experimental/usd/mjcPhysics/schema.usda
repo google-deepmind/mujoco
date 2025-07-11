@@ -98,7 +98,7 @@ class "MjcSceneAPI"
     customData = {
         string className = "SceneAPI"
     }
-    doc = """API providing global simulation options for Mujoco."""
+    doc = """API providing global simulation options for MuJoCo."""
 
     inherits = </APISchemaBase>
 )
@@ -516,22 +516,37 @@ class "MjcSiteAPI"
     customData = {
         string className = "SiteAPI"
     }
-    doc = """API describing a Mujoco site."""
+    doc = """API describing a MuJoCo site."""
 
     inherits = </APISchemaBase>
 )
-{}
+{
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the collider belongs."""
+    )
+}
 
 class "MjcCollisionAPI"
 (
     customData = {
         string className = "CollisionAPI"
     }
-    doc = """API describing a Mujoco collider."""
+    doc = """API describing a MuJoCo collider."""
 
     inherits = </APISchemaBase>
 )
 {
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the collider belongs."""
+    )
     uniform bool mjc:shellinertia = False (
         customData = {
             string apiName = "ShellInertia"
@@ -546,7 +561,7 @@ class "MjcMeshCollisionAPI"
     customData = {
         string className = "MeshCollisionAPI"
     }
-    doc = """API describing a Mujoco mesh collider."""
+    doc = """API describing a MuJoCo mesh collider."""
 
     inherits = </APISchemaBase>
 )
@@ -579,6 +594,14 @@ class MjcTransmission "MjcTransmission"
     inherits = </Typed>
 )
 {
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the transmission belongs."""
+    )
+
     rel mjc:target (
         doc = "Actuator transmission target."
     )
@@ -728,11 +751,19 @@ class "MjcJointAPI"
     customData = {
         string className = "JointAPI"
     }
-    doc = """API describing a Mujoco joint."""
+    doc = """API describing a MuJoCo joint."""
 
     inherits = </APISchemaBase>
 )
 {
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the joint belongs."""
+    )
+
     uniform double[] mjc:springdamper = [0, 0] (
         doc = "When both numbers are positive, the compiler will override any stiffness and damping values specified with the attributes below, and will instead set them automatically so that the resulting mass-spring-damper for this joint has the desired time constant (first value) and damping ratio (second value). This is done by taking into account the joint inertia in the model reference configuration. Note that the format is the same as the solref parameter of the constraint solver."
     )

@@ -1463,6 +1463,9 @@ class ModelWriter {
 
     ApplyApiSchema(data_, site_path, MjcPhysicsTokens->MjcSiteAPI);
 
+    WriteUniformAttribute(site_path, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcGroup, site->group);
+
     int site_id = mjs_getId(site->element);
     auto transform = MujocoPosQuatToTransform(&model_->site_pos[3 * site_id],
                                               &model_->site_quat[4 * site_id]);
@@ -1507,6 +1510,9 @@ class ModelWriter {
                 geom_id);
         return;
     }
+
+    WriteUniformAttribute(geom_path, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcGroup, geom->group);
 
     // Apply the physics schemas if we are writing physics and the
     // geom participates in collisions.
@@ -1854,6 +1860,9 @@ class ModelWriter {
 
       // Finally write the mjcPhysicsJointAPI attributes.
       ApplyApiSchema(data_, joint_path, MjcPhysicsTokens->MjcJointAPI);
+
+      WriteUniformAttribute(joint_path, pxr::SdfValueTypeNames->Int,
+                            MjcPhysicsTokens->mjcGroup, joint->group);
 
       WriteUniformAttribute(
           joint_path, pxr::SdfValueTypeNames->DoubleArray,

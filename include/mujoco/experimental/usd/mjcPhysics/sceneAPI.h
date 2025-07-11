@@ -40,7 +40,7 @@ class SdfAssetPath;
 
 /// \class MjcPhysicsSceneAPI
 ///
-/// API providing global simulation options for Mujoco.
+/// API providing global simulation options for MuJoCo.
 ///
 /// For any described attribute \em Fallback \em Value or \em Allowed \em Values
 /// below that are text/tokens, the actual token is published and defined in

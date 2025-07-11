@@ -74,6 +74,17 @@ const TfType &MjcPhysicsJointAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
+UsdAttribute MjcPhysicsJointAPI::GetGroupAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcGroup);
+}
+
+UsdAttribute MjcPhysicsJointAPI::CreateGroupAttr(VtValue const &defaultValue,
+                                                 bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcGroup, SdfValueTypeNames->Int,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
 UsdAttribute MjcPhysicsJointAPI::GetMjcSpringdamperAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcSpringdamper);
 }
@@ -265,6 +276,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 const TfTokenVector &MjcPhysicsJointAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
+      MjcPhysicsTokens->mjcGroup,
       MjcPhysicsTokens->mjcSpringdamper,
       MjcPhysicsTokens->mjcSolreflimit,
       MjcPhysicsTokens->mjcSolimplimit,

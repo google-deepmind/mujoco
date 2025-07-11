@@ -18,6 +18,7 @@
 /// \file mjcPhysics/siteAPI.h
 
 #include <mujoco/experimental/usd/mjcPhysics/api.h>
+#include <mujoco/experimental/usd/mjcPhysics/tokens.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/vec3d.h>
 #include <pxr/base/gf/vec3f.h>
@@ -39,7 +40,7 @@ class SdfAssetPath;
 
 /// \class MjcPhysicsSiteAPI
 ///
-/// API describing a Mujoco site.
+/// API describing a MuJoCo site.
 ///
 class MjcPhysicsSiteAPI : public UsdAPISchemaBase {
  public:
@@ -139,6 +140,30 @@ class MjcPhysicsSiteAPI : public UsdAPISchemaBase {
   // override SchemaBase virtuals.
   MJCPHYSICS_API
   const TfType &_GetTfType() const override;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // GROUP
+  // --------------------------------------------------------------------- //
+  /// Integer MuJoCo group to which the collider belongs.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform int mjc:group = 0` |
+  /// | C++ Type | int |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetGroupAttr() const;
+
+  /// See GetGroupAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateGroupAttr(VtValue const &defaultValue = VtValue(),
+                               bool writeSparsely = false) const;
 
  public:
   // ===================================================================== //

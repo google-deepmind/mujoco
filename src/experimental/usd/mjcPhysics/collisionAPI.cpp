@@ -75,6 +75,17 @@ const TfType &MjcPhysicsCollisionAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
+UsdAttribute MjcPhysicsCollisionAPI::GetGroupAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcGroup);
+}
+
+UsdAttribute MjcPhysicsCollisionAPI::CreateGroupAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcGroup, SdfValueTypeNames->Int,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
 UsdAttribute MjcPhysicsCollisionAPI::GetShellInertiaAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcShellinertia);
 }
@@ -101,6 +112,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 const TfTokenVector &MjcPhysicsCollisionAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
+      MjcPhysicsTokens->mjcGroup,
       MjcPhysicsTokens->mjcShellinertia,
   };
   static TfTokenVector allNames = _ConcatenateAttributeNames(

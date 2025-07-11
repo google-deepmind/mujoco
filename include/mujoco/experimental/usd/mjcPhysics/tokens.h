@@ -338,7 +338,8 @@ struct MjcPhysicsTokensType {
   const TfToken mjcGear;
   /// \brief "mjc:group"
   ///
-  /// MjcPhysicsTransmission
+  /// MjcPhysicsSiteAPI, MjcPhysicsImageableAPI, MjcPhysicsCollisionAPI,
+  /// MjcPhysicsTransmission, MjcPhysicsJointAPI
   const TfToken mjcGroup;
   /// \brief "mjc:inertia"
   ///
@@ -589,6 +590,10 @@ struct MjcPhysicsTokensType {
   ///
   /// Schema identifier and family for MjcPhysicsCollisionAPI
   const TfToken MjcCollisionAPI;
+  /// \brief "MjcImageableAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsImageableAPI
+  const TfToken MjcImageableAPI;
   /// \brief "MjcJointAPI"
   ///
   /// Schema identifier and family for MjcPhysicsJointAPI

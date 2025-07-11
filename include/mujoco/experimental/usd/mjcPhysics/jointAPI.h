@@ -40,7 +40,7 @@ class SdfAssetPath;
 
 /// \class MjcPhysicsJointAPI
 ///
-/// API describing a Mujoco joint.
+/// API describing a MuJoCo joint.
 ///
 /// For any described attribute \em Fallback \em Value or \em Allowed \em Values
 /// below that are text/tokens, the actual token is published and defined in
@@ -145,6 +145,30 @@ class MjcPhysicsJointAPI : public UsdAPISchemaBase {
   // override SchemaBase virtuals.
   MJCPHYSICS_API
   const TfType &_GetTfType() const override;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // GROUP
+  // --------------------------------------------------------------------- //
+  /// Integer MuJoCo group to which the joint belongs.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform int mjc:group = 0` |
+  /// | C++ Type | int |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetGroupAttr() const;
+
+  /// See GetGroupAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateGroupAttr(VtValue const &defaultValue = VtValue(),
+                               bool writeSparsely = false) const;
 
  public:
   // --------------------------------------------------------------------- //
