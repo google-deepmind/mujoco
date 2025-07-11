@@ -23,7 +23,7 @@ import mujoco
 from mujoco.mjx._src import collision_driver
 from mujoco.mjx._src import constraint
 from mujoco.mjx._src import derivative
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 from mujoco.mjx._src import passive
 from mujoco.mjx._src import scan
 from mujoco.mjx._src import sensor

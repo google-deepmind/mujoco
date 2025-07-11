@@ -22,7 +22,7 @@ import warnings
 import jax
 from jax import numpy as jp
 import mujoco
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.collision_types import ConvexInfo
 from mujoco.mjx._src.collision_types import GeomInfo

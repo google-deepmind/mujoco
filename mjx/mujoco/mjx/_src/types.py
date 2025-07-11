@@ -20,7 +20,7 @@ import warnings
 
 import jax
 import mujoco
-from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
+from mujoco.mjx._src.mjx_dataclasses import PyTreeNode  # pylint: disable=g-importing-member
 import numpy as np
 
 
