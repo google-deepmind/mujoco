@@ -86,7 +86,7 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((materialsScope, "Materials"))
                          ((previewSurface, "PreviewSurface"))
                          ((keyframesScope, "Keyframes"))
-                         ((transmissionsScope, "Transmissions"))
+                         ((actuatorsScope, "Actuators"))
                          ((keyframe, "Keyframe"))
                          ((surface, "PreviewSurface"))
                          ((world, "World"))
@@ -211,7 +211,7 @@ class ModelWriter {
     WriteMaterials();
     WriteBodies();
     if (write_physics_) {
-      WriteTransmissions();
+      WriteActuators();
     }
     WriteKeyframes();
   }
@@ -1051,13 +1051,13 @@ class ModelWriter {
     }
   }
 
-  void WriteTransmission(mjsActuator *actuator,
+  void WriteActuator(mjsActuator *actuator,
                          const pxr::SdfPath &parent_path) {
     pxr::TfToken valid_name = GetValidPrimName(*mjs_getName(actuator->element));
-    pxr::SdfPath transmission_path = parent_path.AppendChild(valid_name);
-    if (!data_->HasSpec(transmission_path)) {
+    pxr::SdfPath actuator_path = parent_path.AppendChild(valid_name);
+    if (!data_->HasSpec(actuator_path)) {
       CreatePrimSpec(data_, parent_path, valid_name,
-                     pxr::MjcPhysicsTokens->MjcTransmission);
+                     pxr::MjcPhysicsTokens->MjcActuator);
     }
 
     pxr::SdfPath target_path;
@@ -1078,18 +1078,18 @@ class ModelWriter {
       return;
     }
 
-    CreateRelationshipSpec(data_, transmission_path,
+    CreateRelationshipSpec(data_, actuator_path,
                            MjcPhysicsTokens->mjcTarget, target_path,
                            pxr::SdfVariabilityUniform);
 
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Int,
+    WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Int,
                           MjcPhysicsTokens->mjcGroup, actuator->group);
 
     if (!actuator->refsite->empty()) {
       int refsite_id =
           mj_name2id(model_, mjOBJ_SITE, actuator->refsite->c_str());
       pxr::SdfPath refsite_path = site_paths_[refsite_id];
-      CreateRelationshipSpec(data_, transmission_path,
+      CreateRelationshipSpec(data_, actuator_path,
                              MjcPhysicsTokens->mjcRefSite, refsite_path,
                              pxr::SdfVariabilityUniform);
     }
@@ -1098,7 +1098,7 @@ class ModelWriter {
       int slidersite_id =
           mj_name2id(model_, mjOBJ_SITE, actuator->slidersite->c_str());
       pxr::SdfPath slidersite_path = site_paths_[slidersite_id];
-      CreateRelationshipSpec(data_, transmission_path,
+      CreateRelationshipSpec(data_, actuator_path,
                              MjcPhysicsTokens->mjcSliderSite, slidersite_path,
                              pxr::SdfVariabilityUniform);
     }
@@ -1115,7 +1115,7 @@ class ModelWriter {
       } else if (value == mjLIMITED_FALSE) {
         limited_token = pxr::MjcPhysicsTokens->false_;
       }
-      WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+      WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Token,
                             token, limited_token);
     }
 
@@ -1132,18 +1132,18 @@ class ModelWriter {
             {MjcPhysicsTokens->mjcCrankLength, actuator->cranklength},
         };
     for (const auto &[token, value] : actuator_double_attributes) {
-      WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Double,
+      WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Double,
                             token, value);
     }
 
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Int,
+    WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Int,
                           MjcPhysicsTokens->mjcActDim, actuator->actdim);
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Bool,
+    WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Bool,
                           MjcPhysicsTokens->mjcActEarly,
                           (bool)actuator->actearly);
 
     WriteUniformAttribute(
-        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        actuator_path, pxr::SdfValueTypeNames->DoubleArray,
         MjcPhysicsTokens->mjcGear,
         pxr::VtDoubleArray(actuator->gear, actuator->gear + 6));
 
@@ -1161,10 +1161,10 @@ class ModelWriter {
     } else if (actuator->dyntype == mjtDyn::mjDYN_USER) {
       dyn_type = MjcPhysicsTokens->user;
     }
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+    WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Token,
                           MjcPhysicsTokens->mjcDynType, dyn_type);
     WriteUniformAttribute(
-        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        actuator_path, pxr::SdfValueTypeNames->DoubleArray,
         MjcPhysicsTokens->mjcDynPrm,
         pxr::VtDoubleArray(actuator->dynprm, actuator->dynprm + 10));
 
@@ -1178,10 +1178,10 @@ class ModelWriter {
     } else if (actuator->gaintype == mjtGain::mjGAIN_USER) {
       gain_type = MjcPhysicsTokens->user;
     }
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+    WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Token,
                           MjcPhysicsTokens->mjcGainType, gain_type);
     WriteUniformAttribute(
-        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        actuator_path, pxr::SdfValueTypeNames->DoubleArray,
         MjcPhysicsTokens->mjcGainPrm,
         pxr::VtDoubleArray(actuator->gainprm, actuator->gainprm + 10));
 
@@ -1195,22 +1195,22 @@ class ModelWriter {
     } else if (actuator->biastype == mjtBias::mjBIAS_USER) {
       bias_type = MjcPhysicsTokens->user;
     }
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+    WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Token,
                           MjcPhysicsTokens->mjcBiasType, bias_type);
     WriteUniformAttribute(
-        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        actuator_path, pxr::SdfValueTypeNames->DoubleArray,
         MjcPhysicsTokens->mjcBiasPrm,
         pxr::VtDoubleArray(actuator->biasprm, actuator->biasprm + 10));
   }
 
-  void WriteTransmissions() {
+  void WriteActuators() {
     pxr::SdfPath scope_path =
         CreatePrimSpec(data_, body_paths_[kWorldIndex],
-                       kTokens->transmissionsScope, pxr::UsdGeomTokens->Scope);
+                       kTokens->actuatorsScope, pxr::UsdGeomTokens->Scope);
     mjsActuator *actuator =
         mjs_asActuator(mjs_firstElement(spec_, mjOBJ_ACTUATOR));
     while (actuator) {
-      WriteTransmission(actuator, scope_path);
+      WriteActuator(actuator, scope_path);
       actuator = mjs_asActuator(mjs_nextElement(spec_, actuator->element));
     }
   }

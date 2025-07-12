@@ -259,7 +259,7 @@ class "MjcMeshCollisionAPI" (
     )
 }
 
-class MjcTransmission "MjcTransmission" (
+class MjcActuator "MjcActuator" (
     doc = "Known as actuator in MuJoCo, this prim represents force transmission to joints, bodies, or sites."
 )
 {

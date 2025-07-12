@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MJCPHYSICS_GENERATED_TRANSMISSION_H
-#define MJCPHYSICS_GENERATED_TRANSMISSION_H
+#ifndef MJCPHYSICS_GENERATED_ACTUATOR_H
+#define MJCPHYSICS_GENERATED_ACTUATOR_H
 
-/// \file mjcPhysics/transmission.h
+/// \file mjcPhysics/actuator.h
 
 #include <mujoco/experimental/usd/mjcPhysics/api.h>
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
@@ -35,10 +35,10 @@ PXR_NAMESPACE_OPEN_SCOPE
 class SdfAssetPath;
 
 // -------------------------------------------------------------------------- //
-// MJCTRANSMISSION                                                            //
+// MJCACTUATOR                                                                //
 // -------------------------------------------------------------------------- //
 
-/// \class MjcPhysicsTransmission
+/// \class MjcPhysicsActuator
 ///
 /// Known as actuator in MuJoCo, this prim represents force transmission to
 /// joints, bodies, or sites.
@@ -48,29 +48,29 @@ class SdfAssetPath;
 /// \ref MjcPhysicsTokens. So to set an attribute to the value "rightHanded",
 /// use MjcPhysicsTokens->rightHanded as the value.
 ///
-class MjcPhysicsTransmission : public UsdTyped {
+class MjcPhysicsActuator : public UsdTyped {
  public:
   /// Compile time constant representing what kind of schema this class is.
   ///
   /// \sa UsdSchemaKind
   static const UsdSchemaKind schemaKind = UsdSchemaKind::ConcreteTyped;
 
-  /// Construct a MjcPhysicsTransmission on UsdPrim \p prim .
-  /// Equivalent to MjcPhysicsTransmission::Get(prim.GetStage(), prim.GetPath())
+  /// Construct a MjcPhysicsActuator on UsdPrim \p prim .
+  /// Equivalent to MjcPhysicsActuator::Get(prim.GetStage(), prim.GetPath())
   /// for a \em valid \p prim, but will not immediately throw an error for
   /// an invalid \p prim
-  explicit MjcPhysicsTransmission(const UsdPrim &prim = UsdPrim())
+  explicit MjcPhysicsActuator(const UsdPrim &prim = UsdPrim())
       : UsdTyped(prim) {}
 
-  /// Construct a MjcPhysicsTransmission on the prim held by \p schemaObj .
-  /// Should be preferred over MjcPhysicsTransmission(schemaObj.GetPrim()),
+  /// Construct a MjcPhysicsActuator on the prim held by \p schemaObj .
+  /// Should be preferred over MjcPhysicsActuator(schemaObj.GetPrim()),
   /// as it preserves SchemaBase state.
-  explicit MjcPhysicsTransmission(const UsdSchemaBase &schemaObj)
+  explicit MjcPhysicsActuator(const UsdSchemaBase &schemaObj)
       : UsdTyped(schemaObj) {}
 
   /// Destructor.
   MJCPHYSICS_API
-  virtual ~MjcPhysicsTransmission();
+  virtual ~MjcPhysicsActuator();
 
   /// Return a vector of names of all pre-declared attributes for this schema
   /// class and all its ancestor classes.  Does not include attributes that
@@ -79,18 +79,17 @@ class MjcPhysicsTransmission : public UsdTyped {
   static const TfTokenVector &GetSchemaAttributeNames(
       bool includeInherited = true);
 
-  /// Return a MjcPhysicsTransmission holding the prim adhering to this
+  /// Return a MjcPhysicsActuator holding the prim adhering to this
   /// schema at \p path on \p stage.  If no prim exists at \p path on
   /// \p stage, or if the prim at that path does not adhere to this schema,
   /// return an invalid schema object.  This is shorthand for the following:
   ///
   /// \code
-  /// MjcPhysicsTransmission(stage->GetPrimAtPath(path));
+  /// MjcPhysicsActuator(stage->GetPrimAtPath(path));
   /// \endcode
   ///
   MJCPHYSICS_API
-  static MjcPhysicsTransmission Get(const UsdStagePtr &stage,
-                                    const SdfPath &path);
+  static MjcPhysicsActuator Get(const UsdStagePtr &stage, const SdfPath &path);
 
   /// Attempt to ensure a \a UsdPrim adhering to this schema at \p path
   /// is defined (according to UsdPrim::IsDefined()) on this stage.
@@ -115,8 +114,8 @@ class MjcPhysicsTransmission : public UsdTyped {
   /// the opinion at the current EditTarget.
   ///
   MJCPHYSICS_API
-  static MjcPhysicsTransmission Define(const UsdStagePtr &stage,
-                                       const SdfPath &path);
+  static MjcPhysicsActuator Define(const UsdStagePtr &stage,
+                                   const SdfPath &path);
 
  protected:
   /// Returns the kind of schema this class belongs to.

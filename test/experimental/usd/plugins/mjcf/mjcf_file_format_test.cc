@@ -18,13 +18,13 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <mujoco/experimental/usd/mjcPhysics/actuator.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/meshCollisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
-#include <mujoco/experimental/usd/mjcPhysics/transmission.h>
 #include "test/experimental/usd/test_utils.h"
 #include "test/fixture.h"
 #include <pxr/base/gf/quatf.h>
@@ -1531,7 +1531,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIDensity) {
   ExpectAttributeEqual(stage, "/test/body/box.physics:density", 1234.0f);
 }
 
-TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsTransmission) {
+TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsActuator) {
   static constexpr char xml[] = R"(
   <mujoco model="test">
     <worldbody>
@@ -1569,51 +1569,51 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsTransmission) {
   )";
   auto stage = OpenStageWithPhysics(xml);
 
-  EXPECT_PRIM_VALID(stage, "/test/Transmissions/general");
-  EXPECT_PRIM_IS_A(stage, "/test/Transmissions/general",
-                   pxr::MjcPhysicsTransmission);
-  EXPECT_REL_HAS_TARGET(stage, "/test/Transmissions/general.mjc:target",
+  EXPECT_PRIM_VALID(stage, "/test/Actuators/general");
+  EXPECT_PRIM_IS_A(stage, "/test/Actuators/general",
+                   pxr::MjcPhysicsActuator);
+  EXPECT_REL_HAS_TARGET(stage, "/test/Actuators/general.mjc:target",
                         "/test/body/site");
-  EXPECT_REL_HAS_TARGET(stage, "/test/Transmissions/general.mjc:refSite",
+  EXPECT_REL_HAS_TARGET(stage, "/test/Actuators/general.mjc:refSite",
                         "/test/body/ref");
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:group", 123);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:ctrlLimited",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:group", 123);
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:ctrlLimited",
                        pxr::MjcPhysicsTokens->true_);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:ctrlRange:min",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:ctrlRange:min",
                        0.0);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:ctrlRange:max",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:ctrlRange:max",
                        1.0);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:forceLimited",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:forceLimited",
                        pxr::MjcPhysicsTokens->true_);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:forceRange:min",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:forceRange:min",
                        2.0);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:forceRange:max",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:forceRange:max",
                        3.0);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:actLimited",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:actLimited",
                        pxr::MjcPhysicsTokens->false_);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:actRange:min",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:actRange:min",
                        4.0);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:actRange:max",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:actRange:max",
                        5.0);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:lengthRange:min",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:lengthRange:min",
                        6.0);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:lengthRange:max",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:lengthRange:max",
                        7.0);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:actDim", 1);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:dynType",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:actDim", 1);
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:dynType",
                        MjcPhysicsTokens->filter);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:gainType",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:gainType",
                        MjcPhysicsTokens->user);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:biasType",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:biasType",
                        MjcPhysicsTokens->user);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:actEarly", true);
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:gear",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:actEarly", true);
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:gear",
                        pxr::VtDoubleArray{{1, 2, 3, 4, 5, 6}});
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:dynPrm",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:dynPrm",
                        pxr::VtDoubleArray{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}});
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:gainPrm",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:gainPrm",
                        pxr::VtDoubleArray{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}});
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:biasPrm",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:biasPrm",
                        pxr::VtDoubleArray{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}});
 }
 
@@ -1638,10 +1638,10 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointActuator) {
   )";
   auto stage = OpenStageWithPhysics(xml);
 
-  EXPECT_PRIM_VALID(stage, "/test/Transmissions/general");
-  EXPECT_PRIM_IS_A(stage, "/test/Transmissions/general",
-                   pxr::MjcPhysicsTransmission);
-  EXPECT_REL_HAS_TARGET(stage, "/test/Transmissions/general.mjc:target",
+  EXPECT_PRIM_VALID(stage, "/test/Actuators/general");
+  EXPECT_PRIM_IS_A(stage, "/test/Actuators/general",
+                   pxr::MjcPhysicsActuator);
+  EXPECT_REL_HAS_TARGET(stage, "/test/Actuators/general.mjc:target",
                         "/test/axle/rod/rod_hinge");
 }
 
@@ -1663,10 +1663,10 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsBodyActuator) {
   )";
   auto stage = OpenStageWithPhysics(xml);
 
-  EXPECT_PRIM_VALID(stage, "/test/Transmissions/general");
-  EXPECT_PRIM_IS_A(stage, "/test/Transmissions/general",
-                   pxr::MjcPhysicsTransmission);
-  EXPECT_REL_HAS_TARGET(stage, "/test/Transmissions/general.mjc:target",
+  EXPECT_PRIM_VALID(stage, "/test/Actuators/general");
+  EXPECT_PRIM_IS_A(stage, "/test/Actuators/general",
+                   pxr::MjcPhysicsActuator);
+  EXPECT_REL_HAS_TARGET(stage, "/test/Actuators/general.mjc:target",
                         "/test/body");
 }
 
@@ -1692,14 +1692,14 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsSliderCrankActuator) {
   )";
   auto stage = OpenStageWithPhysics(xml);
 
-  EXPECT_PRIM_VALID(stage, "/test/Transmissions/general");
-  EXPECT_PRIM_IS_A(stage, "/test/Transmissions/general",
-                   pxr::MjcPhysicsTransmission);
-  EXPECT_REL_HAS_TARGET(stage, "/test/Transmissions/general.mjc:target",
+  EXPECT_PRIM_VALID(stage, "/test/Actuators/general");
+  EXPECT_PRIM_IS_A(stage, "/test/Actuators/general",
+                   pxr::MjcPhysicsActuator);
+  EXPECT_REL_HAS_TARGET(stage, "/test/Actuators/general.mjc:target",
                         "/test/body/crank");
-  EXPECT_REL_HAS_TARGET(stage, "/test/Transmissions/general.mjc:sliderSite",
+  EXPECT_REL_HAS_TARGET(stage, "/test/Actuators/general.mjc:sliderSite",
                         "/test/body/slider");
-  ExpectAttributeEqual(stage, "/test/Transmissions/general.mjc:crankLength",
+  ExpectAttributeEqual(stage, "/test/Actuators/general.mjc:crankLength",
                        1.23);
 }
 

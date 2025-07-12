@@ -65,8 +65,8 @@ def Xform "World"
         }
     }
 
-    def Scope "Transmissions" {
-      def MjcTransmission "HingeActuator" {
+    def Scope "Actuators" {
+      def MjcActuator "HingeActuator" {
         rel mjc:target = </World/Axle/Rod/HingeJoint>
       }
     }

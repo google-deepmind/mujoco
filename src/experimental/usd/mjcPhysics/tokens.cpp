@@ -146,14 +146,13 @@ MjcPhysicsTokensType::MjcPhysicsTokensType()
       sparse("sparse", TfToken::Immortal),
       true_("true", TfToken::Immortal),
       user("user", TfToken::Immortal),
+      MjcActuator("MjcActuator", TfToken::Immortal),
       MjcCollisionAPI("MjcCollisionAPI", TfToken::Immortal),
-      MjcImageableAPI("MjcImageableAPI", TfToken::Immortal),
       MjcJointAPI("MjcJointAPI", TfToken::Immortal),
       MjcKeyframe("MjcKeyframe", TfToken::Immortal),
       MjcMeshCollisionAPI("MjcMeshCollisionAPI", TfToken::Immortal),
       MjcSceneAPI("MjcSceneAPI", TfToken::Immortal),
       MjcSiteAPI("MjcSiteAPI", TfToken::Immortal),
-      MjcTransmission("MjcTransmission", TfToken::Immortal),
       allTokens({affine,
                  auto_,
                  cg,
@@ -280,14 +279,13 @@ MjcPhysicsTokensType::MjcPhysicsTokensType()
                  sparse,
                  true_,
                  user,
+                 MjcActuator,
                  MjcCollisionAPI,
-                 MjcImageableAPI,
                  MjcJointAPI,
                  MjcKeyframe,
                  MjcMeshCollisionAPI,
                  MjcSceneAPI,
-                 MjcSiteAPI,
-                 MjcTransmission}) {}
+                 MjcSiteAPI}) {}
 
 TfStaticData<MjcPhysicsTokensType> MjcPhysicsTokens;
 

@@ -584,10 +584,10 @@ class "MjcMeshCollisionAPI"
     )
 }
 
-class MjcTransmission "MjcTransmission"
+class MjcActuator "MjcActuator"
 (
     customData = {
-        string className = "Transmission"
+        string className = "Actuator"
     }
     doc = """Known as actuator in MuJoCo, this prim represents force transmission to joints, bodies, or sites."""
 

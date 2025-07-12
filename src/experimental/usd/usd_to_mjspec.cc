@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include <mujoco/experimental/usd/mjcPhysics/actuator.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
@@ -28,7 +29,6 @@
 #include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
-#include <mujoco/experimental/usd/mjcPhysics/transmission.h>
 #include <mujoco/experimental/usd/usd.h>
 #include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mujoco.h>
@@ -600,8 +600,8 @@ void ParseMjcPhysicsMeshCollisionAPI(
   }
 }
 
-void ParseMjcPhysicsTransmission(mjSpec* spec,
-                                 const pxr::MjcPhysicsTransmission& tran) {
+void ParseMjcPhysicsActuator(mjSpec* spec,
+                             const pxr::MjcPhysicsActuator& tran) {
   pxr::UsdPrim prim = tran.GetPrim();
   mjsActuator* mj_act = mjs_addActuator(spec, nullptr);
   mjs_setName(mj_act->element, prim.GetPath().GetAsString().c_str());
@@ -614,12 +614,12 @@ void ParseMjcPhysicsTransmission(mjSpec* spec,
   pxr::SdfPathVector targets;
   tran.GetMjcTargetRel().GetTargets(&targets);
   if (targets.empty()) {
-    mju_warning("Transmission %s has no target, skipping.",
+    mju_warning("Actuator %s has no target, skipping.",
                 prim.GetPath().GetAsString().c_str());
     return;
   }
   if (targets.size() > 1) {
-    mju_warning("Transmission has more than one target, using the first.");
+    mju_warning("Actuator has more than one target, using the first.");
   }
   mjs_setString(mj_act->target, targets[0].GetAsString().c_str());
 
@@ -632,7 +632,7 @@ void ParseMjcPhysicsTransmission(mjSpec* spec,
   } else if (target_prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
     mj_act->trntype = slider_crank ? mjTRN_SLIDERCRANK : mjTRN_SITE;
   } else {
-    mju_warning("Transmission %s has an invalid target type, skipping.",
+    mju_warning("Actuator %s has an invalid target type, skipping.",
                 prim.GetPath().GetAsString().c_str());
     return;
   }
@@ -1456,8 +1456,8 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
       ParseMjcPhysicsKeyframe(spec, pxr::MjcPhysicsKeyframe(prim));
 
       it.PruneChildren();
-    } else if (prim.IsA<pxr::MjcPhysicsTransmission>()) {
-      ParseMjcPhysicsTransmission(spec, pxr::MjcPhysicsTransmission(prim));
+    } else if (prim.IsA<pxr::MjcPhysicsActuator>()) {
+      ParseMjcPhysicsActuator(spec, pxr::MjcPhysicsActuator(prim));
 
       it.PruneChildren();
     }
