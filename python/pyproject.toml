@@ -30,6 +30,7 @@ dependencies = [
     "glfw",
     "numpy",
     "pyopengl",
+    "typing_extensions",
 ]
 dynamic = ["readme", "scripts"]
 
