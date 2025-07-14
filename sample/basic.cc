@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include <GLFW/glfw3.h>
@@ -104,7 +105,7 @@ int main(int argc, const char** argv) {
   // check command-line arguments
   if (argc!=2) {
     std::printf(" USAGE:  basic modelfile\n");
-    return 0;
+    return EXIT_FAILURE;
   }
 
   // load and compile model
@@ -186,5 +187,5 @@ int main(int argc, const char** argv) {
   glfwTerminate();
 #endif
 
-  return 1;
+  return EXIT_SUCCESS;
 }

@@ -16,6 +16,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 
@@ -49,7 +50,7 @@ int finish(const char* msg = 0, mjModel* m = 0) {
     std::cout << msg << std::endl;
   }
 
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 
