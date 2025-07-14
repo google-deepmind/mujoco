@@ -14,6 +14,7 @@
 
 // Tests for engine/engine_sensor.c.
 
+#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -857,6 +858,78 @@ TEST_F(SensorTest, ContactSubtree) {
 
     // compute the number of all contacts in two different ways
     EXPECT_EQ(all, w_t1 + w_t2 + t1_t1 + t2_t2 + t1_t2);
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, ContactNet) {
+  const string xml_path =
+      GetTestDataFilePath("engine/testdata/sensor/contact_net.xml");
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  int b1 = mj_name2id(model, mjOBJ_BODY, "b1");
+  int b2 = mj_name2id(model, mjOBJ_BODY, "b2");
+  int nv = model->nv;
+
+  mjData* data = mj_makeData(model);
+
+  for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+    model->opt.cone = cone;
+    mj_resetData(model, data);
+
+    // for each timestep, compare the net force computation to qfrc_constraint
+    // data->ncon varies in [0, 6]
+    int nconmax = 0;
+    while (data->time < 0.2) {
+      mj_step(model, data);
+      vector<mjtNum> qfrc_expected = AsVector(data->qfrc_constraint, nv);
+
+      // check net force, sensor returns body1 -> body2
+      vector net12 = GetSensor(model, data, "net12");
+      EXPECT_EQ(net12.size(), 9);
+      mjtNum* force = net12.data();
+      mjtNum* torque = net12.data() + 3;
+      mjtNum* point = net12.data() + 6;
+
+      // apply wrench to b2
+      vector<mjtNum> qfrc(nv, 0.0);
+      mj_applyFT(model, data, force, torque, point, b2, qfrc.data());
+
+      // apply opposite wrench to b1
+      mju_scl3(force, force, -1);
+      mju_scl3(torque, torque, -1);
+      mj_applyFT(model, data, force, torque, point, b1, qfrc.data());
+
+      // compare
+      EXPECT_THAT(qfrc, Pointwise(DoubleNear(1e-6), qfrc_expected));
+
+      // check net force, sensor returns body2 -> body1
+      vector net21 = GetSensor(model, data, "net21");
+      EXPECT_EQ(net21.size(), 9);
+      force = net21.data();
+      torque = net21.data() + 3;
+      point = net21.data() + 6;
+      qfrc.assign(nv, 0.0);
+
+      // apply wrench to b1
+      mj_applyFT(model, data, force, torque, point, b1, qfrc.data());
+
+      // apply opposite wrench to b2
+      mju_scl3(force, force, -1);
+      mju_scl3(torque, torque, -1);
+      mj_applyFT(model, data, force, torque, point, b2, qfrc.data());
+
+      // compare
+      EXPECT_THAT(qfrc, Pointwise(DoubleNear(1e-6), qfrc_expected));
+
+      nconmax = std::max(nconmax, data->ncon);
+    }
+
+    // at least 5 contacts happened
+    EXPECT_GT(nconmax, 4);
   }
 
   mj_deleteData(data);

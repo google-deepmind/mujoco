@@ -1,0 +1,31 @@
+<mujoco model="contact net">
+  <statistic meansize="0.05"/>
+
+  <default>
+    <geom condim="6"/>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom name="floor" type="plane" size=".5 1 .01"/>
+
+    <body name="b1" pos="0 0 .4" euler="5 5 5">
+      <freejoint/>
+      <geom type="box" pos="0 0 .06" size=".15 .15 .03" rgba=".8 .2 .1 .2"/>
+      <geom type="box" pos="-.05 0 .005" size=".04 .04 .025" rgba=".8 .2 .1 1" euler="1 1 1"/>
+      <geom size=".05" pos=".1 -.1 .04" rgba=".8 .2 .1 1"/>
+    </body>
+
+    <body name="b2" pos="0 0 .2">
+      <joint type="ball" springdamper="0.1 1"/>
+      <geom type="box" size=".2 .2 .05" rgba=".8 .2 .1 1"/>
+      <geom size=".05" pos=".1 .1 .05" rgba=".8 .2 .1 1"/>
+      <geom type="box" size=".05 .05 .01" pos=".1 -.1 .06" rgba=".8 .2 .1 1" euler="2 2 2"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <contact name="net12" body1="b1" body2="b2" data="force torque pos" reduce="netforce"/>
+    <contact name="net21" body1="b2" body2="b1" data="force torque pos" reduce="netforce"/>
+  </sensor>
+</mujoco>

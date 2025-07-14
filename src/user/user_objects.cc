@@ -7089,12 +7089,6 @@ void mjCSensor::Compile(void) {
                              "expected one of {0, 1, 2, 3}", "", intprm[1]);
       }
 
-      // netforce not yet implemented
-      if (intprm[1] == 3) {
-        throw mjCError(this, "netforce reduction is not yet implemented\n"
-                      "please contact the developers if you need this feature");
-      }
-
       needstage = mjSTAGE_ACC;
       datatype = mjDATATYPE_REAL;
       break;
