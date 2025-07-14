@@ -43,6 +43,10 @@ class LocklessQueue {
     return maximum_read_cursor_ == read_cursor_;
   }
 
+  void SetBusyWait(bool busy_wait) {
+    busy_wait_ = busy_wait;
+  }
+
   // Push an element into the queue.
   void push(const T& input) {
     // Reserve a slot in the queue
@@ -91,8 +95,13 @@ class LocklessQueue {
       // Wait until the queue has an element
       do {
         if (empty) {
-          std::this_thread::yield();
+          if (busy_wait_) {
+            std::this_thread::yield();
+          } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+          }
         }
+
         current_read_cursor = read_cursor_.load();
         current_maximum_read_cursor = maximum_read_cursor_.load();
 
@@ -145,6 +154,8 @@ class LocklessQueue {
   std::atomic<size_t> maximum_read_cursor_ = 0;
 
   std::atomic<T> buffer_[(buffer_capacity + 1)];
+
+  int busy_wait_ = 1;
 };
 
 }  // namespace mujoco

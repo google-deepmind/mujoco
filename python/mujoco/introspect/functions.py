@@ -8911,6 +8911,24 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Enqueue a task in a thread pool.',
      )),
+    ('mju_threadPoolSetBusyWait',
+     FunctionDecl(
+         name='mju_threadPoolSetBusyWait',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='thread_pool',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjThreadPool'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='busy_wait',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Set whether the thread pool should busy-waiting for its task queue.',
+     )),
     ('mju_threadPoolDestroy',
      FunctionDecl(
          name='mju_threadPoolDestroy',
