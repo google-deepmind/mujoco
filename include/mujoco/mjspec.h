@@ -462,6 +462,7 @@ typedef struct mjsMesh_ {          // mesh specification
   double scale[3];                 // rescale mesh
   mjtMeshInertia inertia;          // inertia type (convex, legacy, exact, shell)
   mjtByte smoothnormal;            // do not exclude large-angle faces from normals
+  mjtByte needsdf;                 // compute sdf from mesh
   int maxhullvert;                 // maximum vertex count for the convex hull
   mjFloatVec* uservert;            // user vertex data
   mjFloatVec* usernormal;          // user normal data

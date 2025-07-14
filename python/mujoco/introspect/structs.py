@@ -9389,6 +9389,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='do not exclude large-angle faces from normals',
              ),
              StructFieldDecl(
+                 name='needsdf',
+                 type=ValueType(name='mjtByte'),
+                 doc='compute sdf from mesh',
+             ),
+             StructFieldDecl(
                  name='maxhullvert',
                  type=ValueType(name='int'),
                  doc='maximum vertex count for the convex hull',

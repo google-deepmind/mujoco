@@ -140,7 +140,6 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   maxhullvert_ = -1;
   processed_ = false;
   visual_ = true;
-  needoct_ = false;
   needreorient_ = true;
 
   // reset to default if given
@@ -362,7 +361,7 @@ void mjCMesh::LoadSDF() {
   }
 
   needreorient_ = false;
-  needoct_ = false;
+  needsdf = false;
   normal_ = std::move(usernormal);
   face_ = std::move(userface);
   ProcessVertices(uservert);
@@ -685,7 +684,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
   }
 
   // make octree
-  if (!needoct_) {
+  if (!needsdf) {
     octree_.Clear();  // this occurs when a non-SDF mesh is loaded from a cached SDF mesh
   } else if (octree_.Nodes().empty()) {
     octree_.SetFace(vert_, face_);

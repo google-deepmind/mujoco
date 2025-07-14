@@ -1689,7 +1689,7 @@ void mjCModel::IndexAssets(bool discard) {
           ((mjCMesh*)mesh)->SetNotVisual();  // reset to true by mesh->Compile()
         }
         geom->mesh = (discard && geom->visual_) ? nullptr : (mjCMesh*)mesh;
-        static_cast<mjCMesh*>(mesh)->needoct_ |= geom->spec.type == mjGEOM_SDF;
+        static_cast<mjCMesh*>(mesh)->spec.needsdf |= geom->spec.type == mjGEOM_SDF;
       } else {
         throw mjCError(geom, "mesh '%s' not found in geom %d", geom->get_meshname().c_str(), i);
       }

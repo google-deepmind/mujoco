@@ -1004,7 +1004,6 @@ class mjCMesh_ : public mjCBase {
 
   // used by the compiler
   bool needreorient_;                            // needs reorientation
-  bool needoct_;                                 // needs octree
   bool visual_;                                  // true: the mesh is only visual
   std::vector< std::pair<int, int> > halfedge_;  // half-edge data
 
