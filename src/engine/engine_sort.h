@@ -72,4 +72,40 @@
     if (src != arr) memcpy(arr, src, n * sizeof(type));                                            \
   }
 
+
+// sub-macro that sifts down a node in a max heap to its correct position
+#define _mjSIFT_DOWN(type, buf, start, end, cmp, context)                                          \
+{                                                                                                  \
+  int root = start;                                                                                \
+  while (2 * root + 1 < end) {                                                                     \
+    int child = 2 * root + 1;                                                                      \
+    int swap = root;                                                                               \
+    if (cmp(buf + swap, buf + child, context) < 0) swap = child;                                   \
+    if (child + 1 < end && cmp(buf + swap, buf + child + 1, context) < 0) swap = child + 1;        \
+    if (swap == root) break;                                                                       \
+    type tmp = buf[root]; buf[root] = buf[swap]; buf[swap] = tmp;                                  \
+    root = swap;                                                                                   \
+  }                                                                                                \
+}
+
+// defines an inline function that selects the bottom k elements using partial heap sort
+// buf needs to be of size k
+#define mjPARTIAL_SORT(name, type, cmp)                                                            \
+  static inline void name(type* arr, type* buf, int n, int k, void* context) {                     \
+    if (k <= 0 || n < k) return;                                                                   \
+    /* fill initial heap */                                                                        \
+    for (int i = 0; i < k; i++) buf[i] = arr[i];                                                   \
+    for (int j = (k - 2) / 2; j >= 0; j--) _mjSIFT_DOWN(type, buf, j, k, cmp, context);            \
+    /* scan remaining elements */                                                                  \
+    for (int i = k; i < n; i++) {                                                                  \
+      if (cmp(arr + i, buf, context) < 0) {                                                        \
+        buf[0] = arr[i];                                                                           \
+        _mjSIFT_DOWN(type, buf, 0, k, cmp, context);                                               \
+      }                                                                                            \
+    }                                                                                              \
+    /* copy back and sort the result */                                                            \
+    for (int j = 0; j < k; j++) arr[j] = buf[j];                                                   \
+    _mjINSERTION_SORT(type, arr, 0, k, cmp, context);                                              \
+  }
+
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_SORT_H_
