@@ -433,3 +433,17 @@ class "MjcJointAPI" (
     )
 }
 
+class "MjcMaterialAPI" (
+    doc = "API providing extension attributes to represent physicsl MuJoCo materials."
+)
+{
+    uniform double mjc:rollingfriction = 0.0001 (
+        displayName = "Rolling Friction"
+        doc = "Friction value acting around both axes on the contact tangent plane."
+    )
+    uniform double mjc:torsionalfriction = 0.005 (
+        displayName = "Torsional Friction"
+        doc = "Friction value acting around contact normal."
+    )
+}
+

@@ -139,6 +139,41 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestBasicMeshSources) {
   EXPECT_PRIM_VALID(stage, "/mesh_test/test_body/tetrahedron/Mesh");
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsMaterials) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="physics materials test">
+      <worldbody>
+        <body name="test_body">
+          <geom name="geom_with_friction" type="sphere" size="1" friction="4 5 6"/>
+        </body>
+      </worldbody>
+    </mujoco>
+  )";
+  auto stage = OpenStageWithPhysics(kXml);
+  EXPECT_PRIM_VALID(
+      stage, "/physics_materials_test/PhysicsMaterials/geom_with_friction");
+  EXPECT_REL_HAS_TARGET(
+      stage,
+      "/physics_materials_test/test_body/geom_with_friction.material:binding",
+      "/physics_materials_test/PhysicsMaterials/geom_with_friction");
+  ExpectAttributeEqual(stage,
+                       "/physics_materials_test/PhysicsMaterials/"
+                       "geom_with_friction.physics:staticFriction",
+                       4.0f);
+  ExpectAttributeEqual(stage,
+                       "/physics_materials_test/PhysicsMaterials/"
+                       "geom_with_friction.physics:dynamicFriction",
+                       4.0f);
+  ExpectAttributeEqual(stage,
+                       "/physics_materials_test/PhysicsMaterials/"
+                       "geom_with_friction.mjc:torsionalfriction",
+                       5.0);
+  ExpectAttributeEqual(stage,
+                       "/physics_materials_test/PhysicsMaterials/"
+                       "geom_with_friction.mjc:rollingfriction",
+                       6.0);
+}
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestMaterials) {
   const std::string xml_path = GetTestDataFilePath(kMaterialsPath);
 

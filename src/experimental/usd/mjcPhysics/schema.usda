@@ -829,3 +829,30 @@ class "MjcJointAPI"
         doc = "Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."
     )
 }
+
+class "MjcMaterialAPI"
+(
+    customData = {
+        string className = "MaterialAPI"
+    }
+    doc = """API providing extension attributes to represent physicsl MuJoCo materials."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform double mjc:torsionalfriction = 0.005 (
+        customData = {
+            string apiName = "TorsionalFriction"
+        }
+        displayName = "Torsional Friction"
+        doc = """Friction value acting around contact normal."""
+    )
+
+    uniform double mjc:rollingfriction = 0.0001 (
+        customData = {
+            string apiName = "RollingFriction"
+        }
+        displayName = "Rolling Friction"
+        doc = """Friction value acting around both axes on the contact tangent plane."""
+    )
+}

@@ -493,6 +493,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuator
   const TfToken mjcRefSite;
+  /// \brief "mjc:rollingfriction"
+  ///
+  /// MjcPhysicsMaterialAPI
+  const TfToken mjcRollingfriction;
   /// \brief "mjc:shellinertia"
   ///
   /// MjcPhysicsCollisionAPI
@@ -533,6 +537,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuator
   const TfToken mjcTarget;
+  /// \brief "mjc:torsionalfriction"
+  ///
+  /// MjcPhysicsMaterialAPI
+  const TfToken mjcTorsionalfriction;
   /// \brief "muscle"
   ///
   /// Possible value for MjcPhysicsActuator::GetMjcBiasTypeAttr(), Possible
@@ -602,6 +610,10 @@ struct MjcPhysicsTokensType {
   ///
   /// Schema identifier and family for MjcPhysicsKeyframe
   const TfToken MjcKeyframe;
+  /// \brief "MjcMaterialAPI"
+  ///
+  /// Schema identifier and family for MjcPhysicsMaterialAPI
+  const TfToken MjcMaterialAPI;
   /// \brief "MjcMeshCollisionAPI"
   ///
   /// Schema identifier and family for MjcPhysicsMeshCollisionAPI

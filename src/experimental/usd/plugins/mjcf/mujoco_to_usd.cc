@@ -84,6 +84,7 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((light, "Light"))
                          ((meshScope, "MeshSources"))
                          ((materialsScope, "Materials"))
+                         ((physicsMaterialsScope, "PhysicsMaterials"))
                          ((previewSurface, "PreviewSurface"))
                          ((keyframesScope, "Keyframes"))
                          ((actuatorsScope, "Actuators"))
@@ -742,6 +743,48 @@ class ModelWriter {
           data_, texture_shader_path, output_channel, value_type));
     }
     return texture_output_attrs;
+  }
+
+  pxr::SdfPath WritePhysicsMaterial(mjsGeom *geom) {
+    pxr::SdfPath scope_path =
+        body_paths_[kWorldIndex].AppendChild(kTokens->physicsMaterialsScope);
+
+    if (!data_->HasSpec(scope_path)) {
+      CreatePrimSpec(data_, body_paths_[kWorldIndex],
+                     kTokens->physicsMaterialsScope, pxr::UsdGeomTokens->Scope);
+    }
+
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdShadeTokens->Material, scope_path);
+    pxr::SdfPath material_path =
+        CreatePrimSpec(data_, scope_path, name, pxr::UsdShadeTokens->Material);
+
+    ApplyApiSchema(data_, material_path,
+                   pxr::UsdPhysicsTokens->PhysicsMaterialAPI);
+    ApplyApiSchema(data_, material_path,
+                   MjcPhysicsTokens->MjcMaterialAPI);
+
+    mjsGeom *geom_default = mjs_getDefault(geom->element)->geom;
+    if (geom->friction[0] != geom_default->friction[0]) {
+      WriteUniformAttribute(material_path, pxr::SdfValueTypeNames->Float,
+                            pxr::UsdPhysicsTokens->physicsStaticFriction,
+                            (float)geom->friction[0]);
+      WriteUniformAttribute(material_path, pxr::SdfValueTypeNames->Float,
+                            pxr::UsdPhysicsTokens->physicsDynamicFriction,
+                            (float)geom->friction[0]);
+    }
+    if (geom->friction[1] != geom_default->friction[1]) {
+      WriteUniformAttribute(material_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcTorsionalfriction,
+                            geom->friction[1]);
+    }
+    if (geom->friction[2] != geom_default->friction[2]) {
+      WriteUniformAttribute(material_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcRollingfriction,
+                            geom->friction[2]);
+    }
+
+    return material_path;
   }
 
   void WriteMaterial(mjsMaterial *material, const pxr::SdfPath &parent_path) {
@@ -1549,6 +1592,20 @@ class ModelWriter {
 
         // Make sure to cast to float here since mjtNum might be a double.
         SetAttributeDefault(data_, density_attr, (float)geom->density);
+      }
+
+      mjsDefault *geom_default = mjs_getDefault(geom->element);
+
+      if (geom->friction[0] != geom_default->geom->friction[0] ||
+          geom->friction[1] != geom_default->geom->friction[1] ||
+          geom->friction[2] != geom_default->geom->friction[2]) {
+        pxr::SdfPath physics_material_path = WritePhysicsMaterial(geom);
+        ApplyApiSchema(data_, geom_path,
+                       pxr::UsdShadeTokens->MaterialBindingAPI);
+        // Bind the material to this geom.
+        CreateRelationshipSpec(
+            data_, geom_path, pxr::UsdShadeTokens->materialBinding,
+            physics_material_path, pxr::SdfVariabilityUniform);
       }
 
       // For meshes, also apply PhysicsMeshCollisionAPI and set the
