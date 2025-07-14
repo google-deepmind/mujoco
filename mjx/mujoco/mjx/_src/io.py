@@ -227,6 +227,9 @@ def _put_model_jax(
     device: Optional[jax.Device] = None,
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
+  if m.nflex:
+    raise NotImplementedError('Flex not implemented for JAX backend.')
+
   mesh_geomid = set()
   for g1, g2, ip in collision_driver.geom_pairs(m):
     t1, t2 = m.geom_type[[g1, g2]]

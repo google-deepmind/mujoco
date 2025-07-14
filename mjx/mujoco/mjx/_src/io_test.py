@@ -967,6 +967,19 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
     self.assertEqual(impl, Impl.C)
     self.assertEqual(device.platform, 'cpu')
 
+  def test_flex_jax(self):
+    with self.assertRaises(NotImplementedError):
+      m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <flexcomp name="flex" type="grid" dim="1" count="3 1 1" mass="1" spacing=".1 .1 .1">
+            <pin id="0"/>
+          </flexcomp>
+        </worldbody>
+      </mujoco>
+      """)
+      mjx.put_model(m, impl='jax')
+
 
 if __name__ == '__main__':
   absltest.main()

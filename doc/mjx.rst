@@ -293,6 +293,8 @@ The following features are **unsupported**:
      - ``PGS``
    * - :ref:`Sensors <mjtSensor>`
      - ``PLUGIN``, ``USER``
+   * - Flex
+     - All
 
 .. _MjxSharpBits:
 
