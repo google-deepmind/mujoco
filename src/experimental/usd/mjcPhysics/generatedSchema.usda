@@ -234,13 +234,41 @@ class "MjcCollisionAPI" (
     doc = "API describing a MuJoCo collider."
 )
 {
+    uniform int mjc:condim = 3 (
+        displayName = "ConDim"
+        doc = "The dimensionality of the contact space for a dynamically generated contact pair is set to the maximum of the condim values of the two participating geoms."
+    )
+    uniform double mjc:gap = 0 (
+        displayName = "Gap"
+        doc = "This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is positive, geom distances between margin and margin-gap correspond to such inactive contacts."
+    )
     uniform int mjc:group = 0 (
         displayName = "Group"
         doc = "Integer MuJoCo group to which the collider belongs."
     )
+    uniform double mjc:margin = 0 (
+        displayName = "Margin"
+        doc = "Distance threshold below which contacts are detected and included in the global array mjData.contact."
+    )
+    uniform int mjc:priority = 0 (
+        displayName = "Priority"
+        doc = "Priority determining how the properties of two colliders are combined to form the properties of the contact."
+    )
     uniform bool mjc:shellinertia = 0 (
         displayName = "Shell Inertia"
         doc = "Enables handling of the inertia assuming mass is concentrated on the surface."
+    )
+    uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2] (
+        displayName = "SolImp"
+        doc = "Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."
+    )
+    uniform double mjc:solmix = 1 (
+        displayName = "SolMix"
+        doc = "Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."
+    )
+    uniform double[] mjc:solref = [0.02, 1] (
+        displayName = "SolMix"
+        doc = "Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."
     )
 }
 

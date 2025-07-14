@@ -184,6 +184,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuator
   const TfToken mjcBiasType;
+  /// \brief "mjc:condim"
+  ///
+  /// MjcPhysicsCollisionAPI
+  const TfToken mjcCondim;
   /// \brief "mjc:crankLength"
   ///
   /// MjcPhysicsActuator
@@ -332,6 +336,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuator
   const TfToken mjcGainType;
+  /// \brief "mjc:gap"
+  ///
+  /// MjcPhysicsCollisionAPI
+  const TfToken mjcGap;
   /// \brief "mjc:gear"
   ///
   /// MjcPhysicsActuator
@@ -359,7 +367,7 @@ struct MjcPhysicsTokensType {
   const TfToken mjcLengthRangeMin;
   /// \brief "mjc:margin"
   ///
-  /// MjcPhysicsJointAPI
+  /// MjcPhysicsCollisionAPI, MjcPhysicsJointAPI
   const TfToken mjcMargin;
   /// \brief "mjc:maxhullvert"
   ///
@@ -477,6 +485,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcOptionWind;
+  /// \brief "mjc:priority"
+  ///
+  /// MjcPhysicsCollisionAPI
+  const TfToken mjcPriority;
   /// \brief "mjc:qpos"
   ///
   /// MjcPhysicsKeyframe
@@ -505,6 +517,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuator
   const TfToken mjcSliderSite;
+  /// \brief "mjc:solimp"
+  ///
+  /// MjcPhysicsCollisionAPI
+  const TfToken mjcSolimp;
   /// \brief "mjc:solimpfriction"
   ///
   /// MjcPhysicsJointAPI
@@ -513,6 +529,14 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsJointAPI
   const TfToken mjcSolimplimit;
+  /// \brief "mjc:solmix"
+  ///
+  /// MjcPhysicsCollisionAPI
+  const TfToken mjcSolmix;
+  /// \brief "mjc:solref"
+  ///
+  /// MjcPhysicsCollisionAPI
+  const TfToken mjcSolref;
   /// \brief "mjc:solreffriction"
   ///
   /// MjcPhysicsJointAPI

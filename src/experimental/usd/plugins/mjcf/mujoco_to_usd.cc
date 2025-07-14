@@ -761,8 +761,7 @@ class ModelWriter {
 
     ApplyApiSchema(data_, material_path,
                    pxr::UsdPhysicsTokens->PhysicsMaterialAPI);
-    ApplyApiSchema(data_, material_path,
-                   MjcPhysicsTokens->MjcMaterialAPI);
+    ApplyApiSchema(data_, material_path, MjcPhysicsTokens->MjcMaterialAPI);
 
     mjsGeom *geom_default = mjs_getDefault(geom->element)->geom;
     if (geom->friction[0] != geom_default->friction[0]) {
@@ -1094,8 +1093,7 @@ class ModelWriter {
     }
   }
 
-  void WriteActuator(mjsActuator *actuator,
-                         const pxr::SdfPath &parent_path) {
+  void WriteActuator(mjsActuator *actuator, const pxr::SdfPath &parent_path) {
     pxr::TfToken valid_name = GetValidPrimName(*mjs_getName(actuator->element));
     pxr::SdfPath actuator_path = parent_path.AppendChild(valid_name);
     if (!data_->HasSpec(actuator_path)) {
@@ -1121,9 +1119,8 @@ class ModelWriter {
       return;
     }
 
-    CreateRelationshipSpec(data_, actuator_path,
-                           MjcPhysicsTokens->mjcTarget, target_path,
-                           pxr::SdfVariabilityUniform);
+    CreateRelationshipSpec(data_, actuator_path, MjcPhysicsTokens->mjcTarget,
+                           target_path, pxr::SdfVariabilityUniform);
 
     WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Int,
                           MjcPhysicsTokens->mjcGroup, actuator->group);
@@ -1132,9 +1129,8 @@ class ModelWriter {
       int refsite_id =
           mj_name2id(model_, mjOBJ_SITE, actuator->refsite->c_str());
       pxr::SdfPath refsite_path = site_paths_[refsite_id];
-      CreateRelationshipSpec(data_, actuator_path,
-                             MjcPhysicsTokens->mjcRefSite, refsite_path,
-                             pxr::SdfVariabilityUniform);
+      CreateRelationshipSpec(data_, actuator_path, MjcPhysicsTokens->mjcRefSite,
+                             refsite_path, pxr::SdfVariabilityUniform);
     }
 
     if (!actuator->slidersite->empty()) {
@@ -1158,8 +1154,8 @@ class ModelWriter {
       } else if (value == mjLIMITED_FALSE) {
         limited_token = pxr::MjcPhysicsTokens->false_;
       }
-      WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Token,
-                            token, limited_token);
+      WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Token, token,
+                            limited_token);
     }
 
     const std::vector<std::pair<pxr::TfToken, double>>
@@ -1248,8 +1244,8 @@ class ModelWriter {
 
   void WriteActuators() {
     pxr::SdfPath scope_path =
-        CreatePrimSpec(data_, body_paths_[kWorldIndex],
-                       kTokens->actuatorsScope, pxr::UsdGeomTokens->Scope);
+        CreatePrimSpec(data_, body_paths_[kWorldIndex], kTokens->actuatorsScope,
+                       pxr::UsdGeomTokens->Scope);
     mjsActuator *actuator =
         mjs_asActuator(mjs_firstElement(spec_, mjOBJ_ACTUATOR));
     while (actuator) {
@@ -1569,6 +1565,34 @@ class ModelWriter {
           geom_path, pxr::SdfValueTypeNames->Bool,
           MjcPhysicsTokens->mjcShellinertia,
           geom->typeinertia == mjtGeomInertia::mjINERTIA_SHELL);
+
+      WriteUniformAttribute(geom_path, pxr::SdfValueTypeNames->Int,
+                            MjcPhysicsTokens->mjcPriority, geom->priority);
+
+      WriteUniformAttribute(geom_path, pxr::SdfValueTypeNames->Int,
+                            MjcPhysicsTokens->mjcCondim, geom->condim);
+
+      WriteUniformAttribute(geom_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcSolmix, geom->solmix);
+
+      WriteUniformAttribute(geom_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcSolmix, geom->solmix);
+
+      WriteUniformAttribute(
+          geom_path, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSolref,
+          pxr::VtArray<double>(geom->solref, geom->solref + mjNREF));
+
+      WriteUniformAttribute(
+          geom_path, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSolimp,
+          pxr::VtArray<double>(geom->solimp, geom->solimp + mjNIMP));
+
+      WriteUniformAttribute(geom_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcMargin, geom->margin);
+
+      WriteUniformAttribute(geom_path, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcGap, geom->gap);
 
       if (geom->mass >= mjMINVAL || geom->density >= mjMINVAL) {
         ApplyApiSchema(data_, geom_path, pxr::UsdPhysicsTokens->PhysicsMassAPI);

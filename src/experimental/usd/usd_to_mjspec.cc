@@ -584,6 +584,63 @@ void ParseMjcPhysicsCollisionAPI(
   if (group_attr.HasAuthoredValue()) {
     group_attr.Get(&geom->group);
   }
+
+  auto priority_attr = collision_api.GetPriorityAttr();
+  if (priority_attr.HasAuthoredValue()) {
+    priority_attr.Get(&geom->priority);
+  }
+
+  auto condim_attr = collision_api.GetConDimAttr();
+  if (condim_attr.HasAuthoredValue()) {
+    condim_attr.Get(&geom->condim);
+  }
+
+  auto solmix_attr = collision_api.GetSolMixAttr();
+  if (solmix_attr.HasAuthoredValue()) {
+    solmix_attr.Get(&geom->solmix);
+  }
+
+  auto solref_attr = collision_api.GetSolRefAttr();
+  if (solref_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solref;
+    solref_attr.Get(&solref);
+    if (solref.size() == mjNREF) {
+      for (int i = 0; i < mjNREF; ++i) {
+        geom->solref[i] = solref[i];
+      }
+    } else {
+      mju_warning(
+          "solref attribute for geom %s has incorrect size %zu, "
+          "expected %d.",
+          mjs_getName(geom->element)->c_str(), solref.size(), mjNREF);
+    }
+  }
+
+  auto solimp_attr = collision_api.GetSolImpAttr();
+  if (solimp_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solimp;
+    solimp_attr.Get(&solimp);
+    if (solimp.size() == mjNIMP) {
+      for (int i = 0; i < mjNIMP; ++i) {
+        geom->solimp[i] = solimp[i];
+      }
+    } else {
+      mju_warning(
+          "solimp attribute for geom %s has incorrect size %zu, "
+          "expected %d.",
+          mjs_getName(geom->element)->c_str(), solimp.size(), mjNIMP);
+    }
+  }
+
+  auto margin_attr = collision_api.GetMarginAttr();
+  if (margin_attr.HasAuthoredValue()) {
+    margin_attr.Get(&geom->margin);
+  }
+
+  auto gap_attr = collision_api.GetGapAttr();
+  if (gap_attr.HasAuthoredValue()) {
+    gap_attr.Get(&geom->gap);
+  }
 }
 
 void ParseMjcPhysicsMeshCollisionAPI(

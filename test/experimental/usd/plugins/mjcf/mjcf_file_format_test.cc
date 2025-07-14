@@ -1463,13 +1463,36 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsCollisionAPI) {
   <mujoco model="test">
     <worldbody>
       <body name="body">
-        <geom name="box" type="box" size=".05 .05 .05" mass="0.1" shellinertia="true"/>
+        <geom
+          name="box"
+          type="box"
+          size=".05 .05 .05"
+          mass="0.1"
+          group="4"
+          priority="2"
+          condim="4"
+          solmix="0.5"
+          solref="0.1 0.2"
+          solimp="0.3 0.4 0.5 0.6 0.7"
+          margin="0.8"
+          gap="0.9"
+          shellinertia="true"/>
       </body>
     </worldbody>
   </mujoco>
   )";
   auto stage = OpenStageWithPhysics(xml);
 
+  ExpectAttributeEqual(stage, "/test/body/box.mjc:group", 4);
+  ExpectAttributeEqual(stage, "/test/body/box.mjc:priority", 2);
+  ExpectAttributeEqual(stage, "/test/body/box.mjc:condim", 4);
+  ExpectAttributeEqual(stage, "/test/body/box.mjc:solmix", 0.5);
+  ExpectAttributeEqual(stage, "/test/body/box.mjc:solref",
+                       pxr::VtArray<double>({0.1, 0.2}));
+  ExpectAttributeEqual(stage, "/test/body/box.mjc:solimp",
+                       pxr::VtArray<double>({0.3, 0.4, 0.5, 0.6, 0.7}));
+  ExpectAttributeEqual(stage, "/test/body/box.mjc:margin", 0.8);
+  ExpectAttributeEqual(stage, "/test/body/box.mjc:gap", 0.9);
   ExpectAttributeEqual(stage, "/test/body/box.mjc:shellinertia", true);
 }
 
