@@ -792,7 +792,7 @@ XMLElement* mjXUtil::FindSubElem(XMLElement* elem, std::string name, bool requir
 
 
 
-// find attribute, translate key, return int value
+// find attribute, translate key into data, return true if found
 bool mjXUtil::MapValue(XMLElement* elem, const char* attr, int* data,
                        const mjMap* map, int mapSz, bool required) {
   // get attribute text
@@ -810,6 +810,42 @@ bool mjXUtil::MapValue(XMLElement* elem, const char* attr, int* data,
   // copy
   *data = value;
   return true;
+}
+
+
+
+// find attribute, translate unique space-separated keys to data, return number of keys found
+int mjXUtil::MapValues(XMLElement* elem, const char* attr, int* data,
+                       const mjMap* map, int mapSz, bool required) {
+  // get attribute text
+  auto maybe_text = ReadAttrStr(elem, attr, required);
+  if (!maybe_text.has_value()) {
+    return 0;
+  }
+
+  std::string text = maybe_text.value();
+  std::istringstream strm(text);
+  std::string key;
+  std::set<std::string> found_keys;
+  int count = 0;
+
+  while (strm >> key) {
+    if (found_keys.count(key)) {
+      throw mjXError(elem, "duplicate keyword: '%s'");
+      return 0;
+    }
+
+    int value = FindKey(map, mapSz, key);
+    if (value == -1) {
+      throw mjXError(elem, "invalid keyword: '%s'");
+      return 0;
+    }
+
+    found_keys.insert(key);
+    data[count++] = value;
+  }
+
+  return count;
 }
 
 
@@ -969,4 +1005,21 @@ void mjXUtil::WriteAttrKey(XMLElement* elem, std::string name,
   }
 
   WriteAttrTxt(elem, name, FindValue(map, mapsz, data));
+}
+
+
+// write attribute- space-separated keywords
+void mjXUtil::WriteAttrKeys(XMLElement* elem, std::string name, const mjMap* map,
+                            int mapsz, int* data, int ndata, int def) {
+  // skip default
+  if (ndata == 1 && data[0] == def) {
+    return;
+  }
+
+  std::string text = FindValue(map, mapsz, data[0]);
+  for (int i = 1; i < ndata; ++i) {
+    text += " " + FindValue(map, mapsz, data[i]);
+  }
+
+  WriteAttrTxt(elem, name, text);
 }

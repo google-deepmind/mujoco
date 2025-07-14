@@ -28,6 +28,7 @@
 #include <mujoco/mujoco.h>
 #include "engine/engine_io.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "user/user_model.h"
@@ -76,7 +77,7 @@ static string WriteDoc(XMLDocument& doc, char *error, size_t error_sz) {
 
   // top level sections
   std::array<string, 17> sections = {
-    "<actuator", "<asset",      "<compiler", "<contact",   "<custom",
+    "<actuator", "<asset",      "<compiler", "<contact>",  "<custom",
     "<default>", "<deformable", "<equality", "<extension", "<keyframe",
     "<option",   "<sensor",     "<size",     "<statistic", "<tendon",
     "<visual",   "<worldbody"};
@@ -2205,7 +2206,38 @@ void mjXWriter::Sensor(XMLElement* root) {
         WriteAttrTxt(elem, sensor->objtype == mjOBJ_BODY ? "body1" : "geom1", sensor->get_objname());
         WriteAttrTxt(elem, sensor->reftype == mjOBJ_BODY ? "body2" : "geom2", sensor->get_refname());
         break;
-
+      case mjSENS_CONTACT:
+        {
+          elem = InsertEnd(section, "contact");
+          if (sensor->objtype == mjOBJ_BODY) {
+            WriteAttrTxt(elem, "body1", sensor->get_objname());
+          } else if (sensor->objtype == mjOBJ_XBODY) {
+            WriteAttrTxt(elem, "subtree1", sensor->get_objname());
+          } else if (sensor->objtype == mjOBJ_GEOM) {
+            WriteAttrTxt(elem, "geom1", sensor->get_objname());
+          } else if (sensor->objtype == mjOBJ_SITE) {
+            WriteAttrTxt(elem, "site", sensor->get_objname());
+          }
+          if (sensor->reftype == mjOBJ_BODY) {
+            WriteAttrTxt(elem, "body2", sensor->get_refname());
+          } else if (sensor->reftype == mjOBJ_XBODY) {
+            WriteAttrTxt(elem, "subtree2", sensor->get_refname());
+          } else if (sensor->reftype == mjOBJ_GEOM) {
+            WriteAttrTxt(elem, "geom2", sensor->get_refname());
+          }
+          int dataspec = sensor->intprm[0];
+          WriteAttrInt(elem, "num", sensor->dim / mju_condataSize(dataspec), 1);
+          int data[mjNCONDATA];
+          int ndata = 0;
+          for (int i=0; i < mjNCONDATA; i++) {
+            if (dataspec & (1 << i)) {
+              data[ndata++] = i;
+            }
+          }
+          WriteAttrKeys(elem, "data", condata_map, mjNCONDATA, data, ndata, 0);
+          WriteAttrKey(elem, "reduce", reduce_map, reduce_sz, sensor->intprm[1], 0);
+        }
+        break;
       // global sensors
       case mjSENS_E_POTENTIAL:
         elem = InsertEnd(section, "potential");

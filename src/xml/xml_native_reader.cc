@@ -34,6 +34,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_plugin.h"
+#include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include <mujoco/mjspec.h>
@@ -481,6 +482,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"distance", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
         {"normal", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
         {"fromto", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
+        {"contact", "*", "12", "name", "geom1", "geom2", "body1", "body2", "subtree1", "subtree2", "site",
+            "num", "data", "reduce", "cutoff", "noise", "user"},
         {"e_potential", "*", "4", "name", "cutoff", "noise", "user"},
         {"e_kinetic", "*", "4", "name", "cutoff", "noise", "user"},
         {"clock", "*", "4", "name", "cutoff", "noise", "user"},
@@ -606,6 +609,7 @@ const mjMap texrole_map[texrole_sz] = {
   {"orm",           mjTEXROLE_ORM},
 };
 
+
 // integrator type
 const int integrator_sz = 4;
 const mjMap integrator_map[integrator_sz] = {
@@ -614,6 +618,7 @@ const mjMap integrator_map[integrator_sz] = {
   {"implicit",     mjINT_IMPLICIT},
   {"implicitfast", mjINT_IMPLICITFAST}
 };
+
 
 // cone type
 const int cone_sz = 2;
@@ -740,6 +745,28 @@ const mjMap datatype_map[datatype_sz] = {
   {"positive",    mjDATATYPE_POSITIVE},
   {"axis",        mjDATATYPE_AXIS},
   {"quaternion",  mjDATATYPE_QUATERNION}
+};
+
+
+// contact data type
+const mjMap condata_map[mjNCONDATA] = {
+  {"found",   mjCONDATA_FOUND},
+  {"force",   mjCONDATA_FORCE},
+  {"torque",  mjCONDATA_TORQUE},
+  {"dist",    mjCONDATA_DIST},
+  {"pos",     mjCONDATA_POS},
+  {"normal",  mjCONDATA_NORMAL},
+  {"tangent", mjCONDATA_TANGENT}
+};
+
+
+// contact reduction type
+const int reduce_sz = 4;
+const mjMap reduce_map[reduce_sz] = {
+  {"none",        0},
+  {"mindist",     1},
+  {"maxforce",    2},
+  {"netforce",    3}
 };
 
 
@@ -4130,6 +4157,74 @@ void mjXReader::Sensor(XMLElement* section) {
       } else {
         sensor->type = mjSENS_GEOMFROMTO;
       }
+    }
+
+    // sensor for contacts; attached to geoms or bodies or a site
+    else if (type == "contact") {
+      // first matching criterion
+      bool has_site = ReadAttrTxt(elem, "site", objname);
+      bool has_body1 = ReadAttrTxt(elem, "body1", objname);
+      bool has_subtree1 = ReadAttrTxt(elem, "subtree1", objname);
+      bool has_geom1 = ReadAttrTxt(elem, "geom1", objname);
+      if (has_site + has_body1 + has_subtree1 + has_geom1 > 1) {
+        throw mjXError(elem, "at most one of (geom1, body1, subtree1, site) can be specified");
+      }
+      if (has_site)          { sensor->objtype = mjOBJ_SITE; }
+      else if (has_body1)    { sensor->objtype = mjOBJ_BODY; }
+      else if (has_subtree1) { sensor->objtype = mjOBJ_XBODY; }
+      else if (has_geom1)    { sensor->objtype = mjOBJ_GEOM; }
+      else                   { sensor->objtype = mjOBJ_UNKNOWN; }
+
+      // second matching criterion
+      bool has_body2 = ReadAttrTxt(elem, "body2", refname);
+      bool has_subtree2 = ReadAttrTxt(elem, "subtree2", refname);
+      bool has_geom2 = ReadAttrTxt(elem, "geom2", refname);
+      if (has_body2 + has_subtree2 + has_geom2 > 1) {
+        throw mjXError(elem, "at most one of (geom2, body2, subtree2) can be specified");
+      }
+      if (has_body2)         { sensor->reftype = mjOBJ_BODY; }
+      else if (has_subtree2) { sensor->reftype = mjOBJ_XBODY; }
+      else if (has_geom2)    { sensor->reftype = mjOBJ_GEOM; }
+      else                   { sensor->reftype = mjOBJ_UNKNOWN; }
+
+      // process data specification (intprm[0])
+      int dataspec = 1 << mjCONDATA_FOUND;
+      std::vector<int> condata(mjNCONDATA);
+      int nkeys = MapValues(elem, "data", condata.data(), condata_map, mjNCONDATA);
+      if (nkeys) {
+        dataspec = 1 << condata[0];
+
+        // check ordering while adding bits to dataspec
+        for (int i = 1; i < nkeys; ++i) {
+          if (condata[i] <= condata[i-1]) {
+            std::string correct_order;
+            for (int j = 0; j < mjNCONDATA; ++j) {
+              correct_order += condata_map[j].key;
+              if (j < mjNCONDATA - 1) correct_order += ", ";
+            }
+            throw mjXError(elem, "data attributes must be in order: %s", correct_order.c_str());
+          }
+          dataspec |= 1 << condata[i];
+        }
+      }
+      sensor->intprm[0] = dataspec;
+
+      // number of contacts, sensor dim
+      sensor->dim = 1;
+      ReadAttrInt(elem, "num", &sensor->dim);
+      if (sensor->dim <= 0) {
+        throw mjXError(elem, "'num' must be positive in sensor");
+      }
+      sensor->dim *= mju_condataSize(dataspec);
+
+      // reduction type (intprm[1])
+      sensor->intprm[1] = 0;
+      if (MapValue(elem, "reduce", &n, reduce_map, reduce_sz)) {
+        sensor->intprm[1] = n;
+      }
+
+      // sensor type
+      sensor->type = mjSENS_CONTACT;
     }
 
     // global sensors

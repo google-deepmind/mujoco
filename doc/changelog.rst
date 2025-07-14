@@ -9,6 +9,9 @@ General
 ^^^^^^^
 - Added the :ref:`insidesite<sensor-insidesite>` sensor, for checking if an object is inside the volume of a site.
   It is useful for triggering events in surrounding environment logic.
+- Added the :ref:`contact<sensor-contact>` sensor, for reporting contact information according to user-defined criteria.
+  The purpose of the :el:`contact` sensor is to report contact-related information in a fixed-size array. This is useful
+  as input to learning-based agents and in environment logic.
 - Removed the SdfLib plugin and the dependency on `SdfLib <https://github.com/UPC-ViRVIG/SdfLib>`__. SDFs are now
   supported natively in mjModel.
 

@@ -183,6 +183,10 @@ class mjXUtil {
   static bool MapValue(tinyxml2::XMLElement* elem, const char* attr, int* data,
                        const mjMap* map, int mapSz, bool required = false);
 
+  // find attribute, translate unique space-separated keys to data, return number of keys found
+  static int MapValues(tinyxml2::XMLElement* elem, const char* attr, int* data,
+                       const mjMap* map, int mapSz, bool required = false);
+
   // write attribute- any type
   template<typename T>
   static void WriteAttr(tinyxml2::XMLElement* elem, std::string name, int n, const T* data,
@@ -203,6 +207,10 @@ class mjXUtil {
   // write attribute- keyword
   static void WriteAttrKey(tinyxml2::XMLElement* elem, std::string name,
                            const mjMap* map, int mapsz, int data, int def = -12345);
+
+  // write attribute- space-separated keywords
+  static void WriteAttrKeys(XMLElement* elem, std::string name, const mjMap* map,
+                            int mapsz, int* data, int ndata, int def = -12345);
 
  private:
   template<typename T>

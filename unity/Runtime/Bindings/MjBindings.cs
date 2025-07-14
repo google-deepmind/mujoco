@@ -394,11 +394,12 @@ public enum mjtSensor : int{
   mjSENS_GEOMDIST = 39,
   mjSENS_GEOMNORMAL = 40,
   mjSENS_GEOMFROMTO = 41,
-  mjSENS_E_POTENTIAL = 42,
-  mjSENS_E_KINETIC = 43,
-  mjSENS_CLOCK = 44,
-  mjSENS_PLUGIN = 45,
-  mjSENS_USER = 46,
+  mjSENS_CONTACT = 42,
+  mjSENS_E_POTENTIAL = 43,
+  mjSENS_E_KINETIC = 44,
+  mjSENS_CLOCK = 45,
+  mjSENS_PLUGIN = 46,
+  mjSENS_USER = 47,
 }
 public enum mjtStage : int{
   mjSTAGE_NONE = 0,
@@ -411,6 +412,16 @@ public enum mjtDataType : int{
   mjDATATYPE_POSITIVE = 1,
   mjDATATYPE_AXIS = 2,
   mjDATATYPE_QUATERNION = 3,
+}
+public enum mjtConDataField : int{
+  mjCONDATA_FOUND = 0,
+  mjCONDATA_FORCE = 1,
+  mjCONDATA_TORQUE = 2,
+  mjCONDATA_DIST = 3,
+  mjCONDATA_POS = 4,
+  mjCONDATA_NORMAL = 5,
+  mjCONDATA_TANGENT = 6,
+  mjNCONDATA = 7,
 }
 public enum mjtSameFrame : int{
   mjSAMEFRAME_NONE = 0,

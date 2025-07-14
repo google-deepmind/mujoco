@@ -37,6 +37,7 @@
 #include "lodepng.h"
 #include "cc/array_safety.h"
 #include "engine/engine_passive.h"
+#include "engine/engine_support.h"
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "user/user_api.h"
@@ -6686,6 +6687,7 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
              type != mjSENS_E_KINETIC   &&
              type != mjSENS_CLOCK       &&
              type != mjSENS_PLUGIN      &&
+             type != mjSENS_CONTACT     &&
              type != mjSENS_USER) {
     throw mjCError(this, "invalid type in sensor");
   }
@@ -7043,6 +7045,60 @@ void mjCSensor::Compile(void) {
       }
       break;
 
+    case mjSENS_CONTACT:
+      // check first matching criterion
+      if (objtype != mjOBJ_SITE &&
+          objtype != mjOBJ_BODY &&
+          objtype != mjOBJ_XBODY &&
+          objtype != mjOBJ_GEOM &&
+          objtype != mjOBJ_UNKNOWN) {
+        throw mjCError(this, "first matching criterion: if set, must be (x)body, geom or site");
+      }
+
+      // check that subtree1 is a full tree
+      if (objtype == mjOBJ_XBODY && static_cast<mjCBody*>(obj)->GetParent()->id != 0) {
+        throw mjCError(this, "subtree1 must be a child of the world");
+      }
+
+      // check second matching criterion
+      if (reftype != mjOBJ_BODY &&
+          reftype != mjOBJ_XBODY &&
+          reftype != mjOBJ_GEOM &&
+          reftype != mjOBJ_UNKNOWN) {
+        throw mjCError(this, "second matching criterion: if set, must be (x)body or geom");
+      }
+
+      // check that subtree2 is a full tree
+      if (reftype == mjOBJ_XBODY && static_cast<mjCBody*>(ref)->GetParent()->id != 0) {
+        throw mjCError(this, "subtree2 must be a child of the world");
+      }
+
+      // check for non-positive dim
+      if (dim <= 0) {
+        throw mjCError(this, "dim must be positive in sensor (got %d)", "", dim);
+      }
+
+      // check for dim correctness
+      if (dim % mju_condataSize(intprm[0]) != 0) {
+        throw mjCError(this, "dim %d does not match data spec", "", dim);
+      }
+
+      // check for reduce correctness
+      if (intprm[1] < 0 || intprm[1] > 3) {
+        throw mjCError(this, "unknown reduction criterion. got %d, "
+                             "expected one of {0, 1, 2, 3}", "", intprm[1]);
+      }
+
+      // netforce not yet implemented
+      if (intprm[1] == 3) {
+        throw mjCError(this, "netforce reduction is not yet implemented\n"
+                      "please contact the developers if you need this feature");
+      }
+
+      needstage = mjSTAGE_ACC;
+      datatype = mjDATATYPE_REAL;
+      break;
+
     case mjSENS_E_POTENTIAL:
     case mjSENS_E_KINETIC:
     case mjSENS_CLOCK:
@@ -7054,13 +7110,12 @@ void mjCSensor::Compile(void) {
     case mjSENS_USER:
       // check for negative dim
       if (dim < 0) {
-        throw mjCError(this, "sensor dim must be positive in sensor");
+        throw mjCError(this, "sensor dim must be non-negative in sensor");
       }
 
       // make sure dim is consistent with datatype
       if (datatype == mjDATATYPE_AXIS && dim != 3) {
-        throw mjCError(this,
-                       "datatype AXIS requires dim=3 in sensor");
+        throw mjCError(this, "datatype AXIS requires dim=3 in sensor");
       }
       if (datatype == mjDATATYPE_QUATERNION && dim != 4) {
         throw mjCError(this, "datatype QUATERNION requires dim=4 in sensor");

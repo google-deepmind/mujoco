@@ -97,6 +97,17 @@ const char* mjTIMERSTRING[mjNTIMER]= {
 };
 
 
+// size of contact data fields
+const int mjCONDATA_SIZE[mjNCONDATA] = {
+  1,  // mjCONDATA_FOUND
+  3,  // mjCONDATA_FORCE
+  3,  // mjCONDATA_TORQUE
+  1,  // mjCONDATA_DIST
+  3,  // mjCONDATA_POS
+  3,  // mjCONDATA_NORMAL
+  3   // mjCONDATA_TANGENT
+};
+
 
 //-------------------------- get/set state ---------------------------------------------------------
 
@@ -1575,4 +1586,17 @@ int mj_version(void) {
 const char* mj_versionString(void) {
   static const char versionstring[] = mjVERSIONSTRING;
   return versionstring;
+}
+
+
+
+// return total size of data in a contact sensor bitfield specification
+int mju_condataSize(int dataspec) {
+  int size = 0;
+  for (int i=0; i < mjNCONDATA; i++) {
+    if (dataspec & (1 << i)) {
+      size += mjCONDATA_SIZE[i];
+    }
+  }
+  return size;
 }

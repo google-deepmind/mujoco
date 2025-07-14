@@ -29,6 +29,9 @@ MJAPI extern const char* mjDISABLESTRING[mjNDISABLE];
 MJAPI extern const char* mjENABLESTRING[mjNENABLE];
 MJAPI extern const char* mjTIMERSTRING[mjNTIMER];
 
+// arrays
+MJAPI extern const int mjCONDATA_SIZE[mjNCONDATA];  // TODO(tassa): expose in public header?
+
 
 //-------------------------- get/set state ---------------------------------------------------------
 
@@ -199,6 +202,10 @@ MJAPI int mj_version(void);
 
 // current version of MuJoCo as a null-terminated string
 MJAPI const char* mj_versionString(void);
+
+// return total size of data fields in a contact sensor bitfield specification
+MJAPI int mju_condataSize(int dataSpec);
+
 #ifdef __cplusplus
 }
 #endif

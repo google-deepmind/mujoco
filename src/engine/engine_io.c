@@ -2159,6 +2159,7 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
   case mjSENS_FRAMEQUAT:
     return 4;
 
+  case mjSENS_CONTACT:
   case mjSENS_USER:
     return sensor_dim;
 

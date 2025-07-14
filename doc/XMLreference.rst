@@ -7240,7 +7240,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-distance-user:
 
-:at:`name`, :at:`noise`, :at:`user`
+:at:`name`, :at:`noise`, :at:`user`:
    See :ref:`CSensor`.
 
 
@@ -7287,7 +7287,7 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-normal-user:
 
-:at:`name`, :at:`noise`, :at:`user`
+:at:`name`, :at:`noise`, :at:`user`:
    See :ref:`CSensor`.
 
 
@@ -7335,9 +7335,154 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-fromto-user:
 
-:at:`name`, :at:`noise`, :at:`user`
+:at:`name`, :at:`noise`, :at:`user`:
    See :ref:`CSensor`.
 
+
+.. _sensor-contact:
+
+:el-prefix:`sensor/` |-| **contact** (*)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Motivation:** The array of contacts which occur during the main dynamics pipeline is inherently variable-sized. The
+purpose of the contact sensor is to report contact-related information in a fixed-size array. This is useful as
+input to learning-based agents and in environment logic.
+
+Unlike the purely geometric :ref:`collision-sensors` that act independently of the dynamics pipeline, the contact
+sensor reports information that was discovered during the collision and constraint steps, extracting data
+from ``mjData.{contact, efc_force}``, ignoring contacts that were filtered out by the :ref:`standard<coSelection>`
+mechanism and produce no force.
+
+Contact sensor output involves three stages: **matching**, **reduction** and **extraction**.
+
+Matching
+  Selects a set of contacts from ``mjData.contact`` using criteria defined by :ref:`geom1<sensor-contact-geom1>`,
+  :ref:`geom2<sensor-contact-geom2>`, :ref:`body1<sensor-contact-body1>`, :ref:`body2<sensor-contact-body2>`,
+  :ref:`subtree1<sensor-contact-subtree1>`, :ref:`subtree2<sensor-contact-subtree2>` and
+  :ref:`site<sensor-contact-site>`. Matching applies an intersection of criteria, for example setting
+  :ref:`body1<sensor-contact-body1>` and :ref:`body2<sensor-contact-body2>` will match contacts that involve both
+  bodies, while setting only :ref:`geom1<sensor-contact-geom1>` will match any contacts involving that geom. Setting
+  :ref:`site<sensor-contact-site>` will match contacts that are inside the volume defined by the site; this matching
+  criterion can be used with {geom2, body2, subtree2}. The subtree attributes take a body name and match all contacts
+  involving the subtree where that body is located. Setting :ref:`subtree1<sensor-contact-subtree1>` and
+  :ref:`subtree2<sensor-contact-subtree2>` to the same body or to two bodies in the same subtree will match
+  self-collisions in the subtree. Specifying no matching criterion will match all contacts.
+
+Reduction
+  Reduces the number of matched contacts to exactly :ref:`num<sensor-contact-num>` sub-arrays, or "slots".
+  If less than :at:`num` contacts match, the remaining slots are set to be identically zero. Note that the default,
+  "unsorted" reduction criterion is potentitally non-deterministic. See :ref:`reduce<sensor-contact-reduce>` below.
+
+Extraction
+  Copies the set of fields specified by the user into each slot, see :ref:`data<sensor-contact-data>`.
+
+.. _sensor-contact-geom1:
+.. _sensor-contact-geom2:
+
+:at:`geom1`, :at:`geom2`: :at-val:`string, optional`
+   Name of a geom participating in a contact. See **matching** :ref:`above <sensor-contact>`.
+
+.. _sensor-contact-body1:
+.. _sensor-contact-body2:
+
+:at:`body1`, :at:`body2`: :at-val:`string, optional`
+   Name of a body participating in a contact. See **matching** :ref:`above <sensor-contact>`.
+
+.. _sensor-contact-subtree1:
+.. _sensor-contact-subtree2:
+
+:at:`subtree1`, :at:`subtree2`: :at-val:`string, optional`
+   Name of a body whose subtree is participating in a contact. See **matching** :ref:`above <sensor-contact>`. Note
+   currently only "entire" subtrees are supported, in the sense that the specified body must be a direct child of the
+   world. General subtrees could be added in the future.
+
+.. _sensor-contact-site:
+
+:at:`site`: :at-val:`string, optional`
+   Name of a site within whose volume the contact position must be found in order to match.
+   See **matching** :ref:`above <sensor-contact>`.
+
+.. _sensor-contact-num:
+
+:at:`num`: :at-val:`int, "1"`
+   Number of contacts to report. The sensor will always report :at:`num` sequential data arrays ("slots") per contact.
+   The order in which contacts are reported depends on the :ref:`reduce<sensor-contact-reduce>` attribute.
+
+.. _sensor-contact-data:
+
+:at:`data`: :at-val:`[found, force, torque, dist, pos, normal, tangent], "found"`
+   Specification of which data field(s) to report from the selected contacts.
+
+   - :at-val:`found` **real(1)**: This field serves two purposes. First, it indicates whether a contact was found in
+     this slot, 0 means not found while a positive number means found. Second, the positive value equals the number of
+     *matching* contacts. So if :at:`num = 3` contacts were requested but only 2 were matched, the :at-val:`found`
+     fields will equal (2, 2, 0); if 6 were matched they will equal (6, 6, 6).
+   - :at-val:`force` **real(3)**: The contact force, in the contact frame.
+   - :at-val:`torque` **real(3)**: The contact torque, in the contact frame.
+   - :at-val:`dist` **real(1)**: The penetration distance.
+   - :at-val:`pos`: **real(3)**: The contact position, in the global frame.
+   - :at-val:`normal`: **real(3)**: The contact normal direction, in the global frame.
+   - :at-val:`tangent`: **real(3)**: The first tangent direction, in the global frame.
+     In order to complete the full 3x3 contact frame, use tangent2 = cross(normal, tangent).
+
+   Importantly, the :at:`data` attribute can contain **multiple sequential data types**, as long as the relative
+   order---as listed above---is maintained. For example, :at:`data` = :at-val:`"found force dist"` will return 5 numbers
+   per contact (the concateneated values of [found, force, dist]), while :at:`data` = :at-val:`"force found dist"` is an
+   error because :at-val:`found` must come before :at-val:`force`.
+
+   Missing contacts
+      If less than :at:`num` contacts satisfy the matching criterion, the entire data slot is set to be identically
+      zero. Because most data types can take 0 as a valid value, only the zero-ness of the :at-val:`normal` and
+      :at-val:`tangent` unit vectors can be used to unambiguously detect an empty slot. For this reason, the
+      :at-val:`found` data type is in place to allow for simple detection of missing contacts.
+
+   Size of sensordata block
+      Unlike other sensors, the size of the corresponding sensordata block depends on the values of its attributes
+      :ref:`num<sensor-contact-num>` and :ref:`data<sensor-contact-data>`. The total size of the output of a contact
+      sensor is the product ``num x size(selected data fields)``. For example, requesting :at:`num = 6` contacts
+      with :at:`data =` :at-val:`"force dist normal"` (3+1+3=7), will result in a sensordata block of 42 numbers (6
+      consecutive slots x 7 numbers per slot).
+
+   Direction convention
+      Because contacts create two equal-and-opposite forces between contacting bodies, there is freedom in the
+      choice of which body impinges on which.
+
+      The sensor's convention is for "geom1/body1/subtree1" and "geom2/body2/subtree2" to determine the direction of
+      the normal. The normal always points from the first to the second.
+
+      In the case that a direction cannot be determined, as when only a :at:`site` is used as the matching criterion, or
+      when both subtrees are the same, the normal direction is the same as it is in ``mjData.contact``, where the normal
+      points from the first to the second geom, and the two geoms are sorted according to their order in :ref:`mjtGeom`.
+
+.. _sensor-contact-reduce:
+
+:at:`reduce`: :at-val:`[none, mindist, maxforce, netforce], "none"`
+   Reduction criterion to use. Also see **reduction** :ref:`above <sensor-contact>`.
+
+   - **none**: Returns the first :at:`num` contacts that satisfy the matching criterion, in the order that they appear
+     in ``mjData.contact``. Note that while this is the fastest option, it is also potentially non-deterministic: future
+     changes to collision detection code may cause the identity and order of matching contacts to change.
+   - **mindist**: Returns :at:`num` contacts with the smallest penetration depth, ascending order.
+   - **maxforce**: Returns :at:`num` contacts with the largest force norm, descending order.
+   - **netforce**: This reduction criterion returns one new "synthetic" contact, located at the force-weighted centroid
+     of all matched contacts. The frame of the contact is the global frame, so normal and tangent directions lose their
+     natural semantic. The force and torque are computed such that a wrench applied at the computed position will have
+     the same net effect as all the matching contacts combined. Note that this reduction criterion always returns
+     exactly one contact.
+
+.. _sensor-contact-cutoff:
+
+:at:`cutoff`:
+   This attribute is ignored.
+
+.. _sensor-contact-name:
+
+.. _sensor-contact-user:
+
+.. _sensor-contact-noise:
+
+:at:`name`, :at:`noise`, :at:`user`:
+   See :ref:`CSensor`.
 
 .. _sensor-e_potential:
 

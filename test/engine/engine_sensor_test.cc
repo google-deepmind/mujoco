@@ -14,6 +14,8 @@
 
 // Tests for engine/engine_sensor.c.
 
+#include <cstddef>
+#include <string>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -28,21 +30,39 @@
 namespace mujoco {
 namespace {
 
+using ::std::string;
+using ::std::vector;
+
+using ::testing::DoubleNear;
+using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
+using ::testing::HasSubstr;
+using ::testing::IsNull;
+using ::testing::Not;
+using ::testing::NotNull;
+using ::testing::Pointwise;
+using ::testing::SizeIs;
+using ::testing::StrEq;
+using ::testing::WhenSorted;
+
 const mjtNum tol = 1e-14;  // nearness tolerance for floating point numbers
 
 // returns as a vector the measured values from sensor with index `id`
-static std::vector<mjtNum> GetSensor(const mjModel* model,
-                                     const mjData* data,
-                                     int id) {
-  return std::vector<mjtNum>(
+static vector<mjtNum> GetSensor(const mjModel* model,
+                                const mjData* data, int id) {
+  return vector<mjtNum>(
       data->sensordata + model->sensor_adr[id],
       data->sensordata + model->sensor_adr[id] + model->sensor_dim[id]);
 }
 
-using ::testing::Pointwise;
-using ::testing::DoubleNear;
-using ::testing::NotNull;
-using ::testing::StrEq;
+// returns as a vector the measured values from sensor with name `name
+static vector<mjtNum> GetSensor(const mjModel* model,
+                                const mjData* data, const char* name) {
+  int id = mj_name2id(model, mjOBJ_SENSOR, name);
+  return vector<mjtNum>(
+      data->sensordata + model->sensor_adr[id],
+      data->sensordata + model->sensor_adr[id] + model->sensor_dim[id]);
+}
 
 using SensorTest = MujocoTest;
 
@@ -112,13 +132,13 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMat) {
   mj_forward(model, data);
 
   // compare actual and expected values
-  std::vector pos = GetSensor(model, data, 0);
+  vector pos = GetSensor(model, data, 0);
   EXPECT_THAT(pos, Pointwise(DoubleNear(tol), {5, 5, 0}));
 
-  std::vector xaxis = GetSensor(model, data, 1);
+  vector xaxis = GetSensor(model, data, 1);
   EXPECT_THAT(xaxis, Pointwise(DoubleNear(tol), {0, -1, 0}));
 
-  std::vector yaxis = GetSensor(model, data, 2);
+  vector yaxis = GetSensor(model, data, 2);
   EXPECT_THAT(yaxis, Pointwise(DoubleNear(tol), {1, 0, 0}));
 
   mj_deleteData(data);
@@ -155,7 +175,7 @@ TEST_F(RelativeFrameSensorTest, ReferenceQuatMat) {
   mju_mat2Quat(converted_quat, mat);
 
   // compare quaternion sensor and quat derived from orientation matrix
-  std::vector quat = GetSensor(model, data, 3);
+  vector quat = GetSensor(model, data, 3);
   EXPECT_THAT(quat, Pointwise(DoubleNear(tol), converted_quat));
 
   mj_deleteData(data);
@@ -199,7 +219,7 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
 
   // call mj_forward, save global sensors (colocated with reference frame)
   mj_forward(model, data);
-  std::vector expected_values(data->sensordata, data->sensordata+nsensordata/2);
+  vector expected_values(data->sensordata, data->sensordata+nsensordata/2);
 
   // set qpos to arbitrary values, call mj_forward
   for (int i=0; i < 7; i++) {
@@ -208,7 +228,7 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMatQuat) {
   mj_forward(model, data);
 
   // get values from relative sensors after moving the object
-  std::vector actual_values(data->sensordata+nsensordata/2,
+  vector actual_values(data->sensordata+nsensordata/2,
                             data->sensordata+nsensordata);
 
   // object and reference have moved together, we expect values to not change
@@ -245,7 +265,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelLinearFixed) {
   mj_forward(model, data);
 
   // compare to expected values
-  std::vector linvel = GetSensor(model, data, 0);
+  vector linvel = GetSensor(model, data, 0);
   const mjtNum expected_linvel[3] = {-mju_sqrt(0.5), mju_sqrt(0.5), 0};
   EXPECT_THAT(linvel, Pointwise(DoubleNear(tol), expected_linvel));
 
@@ -278,7 +298,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngFixed) {
   mj_forward(model, data);
 
   // obj and ref rotate together, relative angular velocities should be zero
-  std::vector angvel = GetSensor(model, data, 0);
+  vector angvel = GetSensor(model, data, 0);
   EXPECT_THAT(angvel, Pointwise(DoubleNear(tol), {0, 0, 0}));
 
   mj_deleteData(data);
@@ -314,7 +334,7 @@ TEST_F(RelativeFrameSensorTest, FrameVelAngOpposing) {
   mj_forward(model, data);
 
   // obj and ref rotate on same axis, we can just difference the velocities
-  std::vector angvel = GetSensor(model, data, 0);
+  vector angvel = GetSensor(model, data, 0);
   const mjtNum expected_angvel[3] = {0, data->qvel[1]-data->qvel[0], 0};
   EXPECT_THAT(angvel, Pointwise(DoubleNear(tol), expected_angvel));
 
@@ -358,8 +378,8 @@ TEST_F(RelativeFrameSensorTest, FrameVelGeneral) {
   mj_forward(model, data);
 
   // save measured linear and angular velocities as vectors
-  std::vector linvel = GetSensor(model, data, 2);
-  std::vector angvel = GetSensor(model, data, 3);
+  vector linvel = GetSensor(model, data, 2);
+  vector angvel = GetSensor(model, data, 3);
 
   // save current position, quaternion as arrays
   mjtNum pos0[3], quat0[4];
@@ -615,20 +635,20 @@ TEST_F(SensorTest, CollisionSequential) {
   mjtNum eps = 1e-14;
 
   EXPECT_THAT(GetSensor(model, data, 3),
-              Pointwise(DoubleNear(eps), std::vector<mjtNum>{0, 0, 1}));
+              Pointwise(DoubleNear(eps), vector<mjtNum>{0, 0, 1}));
   EXPECT_THAT(GetSensor(model, data, 4),
-              Pointwise(DoubleNear(eps), std::vector<mjtNum>{0, 0, -1}));
+              Pointwise(DoubleNear(eps), vector<mjtNum>{0, 0, -1}));
   EXPECT_THAT(GetSensor(model, data, 5),
-              Pointwise(DoubleNear(eps), std::vector<mjtNum>{1, 0, 0}));
+              Pointwise(DoubleNear(eps), vector<mjtNum>{1, 0, 0}));
   EXPECT_THAT(GetSensor(model, data, 6),
               Pointwise(DoubleNear(eps),
-                        std::vector<mjtNum>{0, 0, 0, 0, 0, .8}));
+                        vector<mjtNum>{0, 0, 0, 0, 0, .8}));
   EXPECT_THAT(GetSensor(model, data, 7),
               Pointwise(DoubleNear(eps),
-                        std::vector<mjtNum>{1, 0, .7, 1, 0, 0}));
+                        vector<mjtNum>{1, 0, .7, 1, 0, 0}));
   EXPECT_THAT(GetSensor(model, data, 8),
               Pointwise(DoubleNear(eps),
-                        std::vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
+                        vector<mjtNum>{.2, 0, 1, .7, 0, 1}));
 
   EXPECT_THAT(GetSensor(model, data, 9),
               Pointwise(DoubleNear(eps), GetSensor(model, data, 0)));
@@ -642,6 +662,202 @@ TEST_F(SensorTest, CollisionSequential) {
               Pointwise(DoubleNear(eps), GetSensor(model, data, 8)));
   EXPECT_THAT(GetSensor(model, data, 14),
               Pointwise(DoubleNear(eps), GetSensor(model, data, 2)));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, BadContact) {
+  string xml_template = R"(
+  <mujoco>
+    <worldbody>
+      <geom name="sphere1" pos="0 0 1" size="0.2"/>
+      <body name="body">
+        <freejoint/>
+        <geom name="sphere2" pos="1 0 1" size="0.3"/>
+        <site name="site" pos="1 0 1" size="0.3"/>
+        <body name="non_root">
+          <geom name="sphere3" pos="1 0 1" size="0.3"/>
+        </body>
+      </body>
+    </worldbody>
+    <sensor>
+      <contact BAD_ATTR/>
+    </sensor>
+  </mujoco>
+  )";
+
+  struct Case {
+    string bad_attr;
+    string expected_error;
+  };
+
+  Case test_cases[] = {
+      {"geom1='sphere1' geom2='sphere2' data='dist force normal'",
+       "must be in order: found, force, torque, dist, pos, normal, tangent"},
+      {"geom1='sphere1' geom2='sphere2' num='-3'",
+       "'num' must be positive in sensor"},
+      {"geom1='sphere1' geom2='sphere2' site='site'",
+       "at most one of (geom1, body1, subtree1, site) can be specified"},
+      {"geom2='sphere1' body2='body'",
+       "at most one of (geom2, body2, subtree2) can be specified"},
+      {"subtree1='non_root'",
+       "must be a child of the world"}
+  };
+
+  for (const auto& test : test_cases) {
+    string xml = xml_template;
+    size_t pos = xml.find("BAD_ATTR");
+    ASSERT_NE(pos, string::npos);
+    xml.replace(pos, 8, test.bad_attr);
+
+    char error[1024];
+    mjModel* model = LoadModelFromString(xml.c_str(), error, sizeof(error));
+    ASSERT_THAT(model, IsNull()) << "Test case: " << test.bad_attr;
+    EXPECT_THAT(error, HasSubstr(test.expected_error))
+        << "Test case: " << test.bad_attr;
+  }
+}
+
+TEST_F(SensorTest, Contact) {
+  const string xml_path =
+      GetTestDataFilePath("engine/testdata/sensor/contact.xml");
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  mjData* data = mj_makeData(model);
+
+  for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+    model->opt.cone = cone;
+
+    mj_resetData(model, data);
+    while (data->time < 2) {
+      mj_step(model, data);
+    }
+
+    vector all = GetSensor(model, data, "all");
+    EXPECT_EQ(all, vector<mjtNum>{4});
+
+    vector world = GetSensor(model, data, "world");
+    EXPECT_EQ(world, vector<mjtNum>{3});
+
+    vector b1 = GetSensor(model, data, "b1");
+    EXPECT_EQ(b1, vector<mjtNum>{3});
+
+    vector g1 = GetSensor(model, data, "g1");
+    EXPECT_EQ(g1, vector<mjtNum>{3});
+
+    vector b1g2 = GetSensor(model, data, "b1:g2");
+    EXPECT_EQ(b1g2, vector<mjtNum>{1});
+
+    vector b1world = GetSensor(model, data, "b1:world");
+    EXPECT_EQ(b1world, vector<mjtNum>{2});
+
+    vector site = GetSensor(model, data, "site");
+    EXPECT_EQ(site, vector<mjtNum>{2});
+
+    vector sitewall = GetSensor(model, data, "site:wall");
+    EXPECT_EQ(sitewall, vector<mjtNum>{1});
+
+    mjtNum tol = 1e-4;
+    vector wall = GetSensor(model, data, "wall");
+    EXPECT_THAT(wall, Pointwise(DoubleNear(tol), {1,  8, 0, 0,  -1, 0, 0,
+                                                  0,  0, 0, 0,   0, 0, 0}));
+
+    // normals points *away* from b2 (towards floor / b1)
+    vector b2 = GetSensor(model, data, "b2");
+    EXPECT_THAT(b2, Pointwise(DoubleNear(tol), {3, 0, 0,  0, 0, -1,
+                                                4, 0, 0,  1, 0, 0}));
+
+    // normal points *towards* b2
+    vector b2f = GetSensor(model, data, "b2_flipped");
+    EXPECT_THAT(b2f, Pointwise(DoubleNear(tol), {3, 0, 0,  0, 0, 1,
+                                                 4, 0, 0, -1, 0, 0}));
+
+    vector b2r = GetSensor(model, data, "b2_reduced");
+    EXPECT_THAT(b2r, Pointwise(DoubleNear(tol), {4, 0, 0, -1, 0, 0}));
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, ContactSorted) {
+  const string xml_path =
+      GetTestDataFilePath("engine/testdata/sensor/contact_sorted.xml");
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  mjData* data = mj_makeData(model);
+  while (data->time < .5) {
+    mj_step(model, data);
+  }
+
+  vector unsorted = GetSensor(model, data, "unsorted");
+  EXPECT_THAT(unsorted, SizeIs(4));
+  EXPECT_THAT(unsorted, Not(WhenSorted(ElementsAreArray(unsorted))));
+
+  vector sorted = GetSensor(model, data, "sorted dist");
+  EXPECT_THAT(sorted, SizeIs(4));
+  EXPECT_THAT(sorted, WhenSorted(ElementsAreArray(sorted)));
+
+  vector sorted_force = GetSensor(model, data, "sorted force");
+  EXPECT_THAT(sorted_force, SizeIs(12));
+  vector<mjtNum> nnorms;
+  for (size_t i = 0; i < sorted_force.size(); i += 3) {
+    nnorms.push_back(-sorted_force[i]*sorted_force[i] +
+                     -sorted_force[i+1]*sorted_force[i+1] +
+                     -sorted_force[i+2]*sorted_force[i+2]);
+  }
+  EXPECT_THAT(nnorms, WhenSorted(ElementsAreArray(nnorms)));
+
+  vector smallest = GetSensor(model, data, "smallest dist");
+  EXPECT_THAT(smallest, SizeIs(1));
+  EXPECT_EQ(smallest[0], sorted[0]);
+
+  vector largest = GetSensor(model, data, "largest force");
+  EXPECT_THAT(largest, SizeIs(3));
+  EXPECT_THAT(largest, ElementsAre(sorted_force[0],
+                                   sorted_force[1],
+                                   sorted_force[2]));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, ContactSubtree) {
+  const string xml_path =
+      GetTestDataFilePath("engine/testdata/sensor/contact_subtree.xml");
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  mjData* data = mj_makeData(model);
+
+  while (data->time < 0.2) {
+    mj_step(model, data);
+
+    int all = GetSensor(model, data, "all")[0];
+    int w_t1 = GetSensor(model, data, "w_t1")[0];
+    int w_t2 = GetSensor(model, data, "w_t2")[0];
+    int t1 = GetSensor(model, data, "t1")[0];
+    int t2 = GetSensor(model, data, "t2")[0];
+    int t1_t1 = GetSensor(model, data, "t1_t1")[0];
+    int t2_t2 = GetSensor(model, data, "t2_t2")[0];
+    int t1_t2 = GetSensor(model, data, "t1_t2")[0];
+    int t2_t1 = GetSensor(model, data, "t2_t1")[0];
+
+    // compute the number of first tree contacts in two different ways
+    EXPECT_EQ(t1, w_t1 + t1_t1 + t1_t2);
+
+    // compute the number of second tree contacts in two different ways
+    EXPECT_EQ(t2, w_t2 + t2_t2 + t2_t1);
+
+    // compute the number of all contacts in two different ways
+    EXPECT_EQ(all, w_t1 + w_t2 + t1_t1 + t2_t2 + t1_t2);
+  }
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -725,7 +941,7 @@ TEST_F(SensorTest, InsideSite) {
   for (int i = 0; i < 5; i++) {
     data->qpos[0] = hpos[i];
     mj_forward(model, data);
-    std::vector<mjtNum> expected(5, 0.0);
+    vector<mjtNum> expected(5, 0.0);
     expected[i] = 1.0;
     EXPECT_EQ(AsVector(data->sensordata, model->nsensordata), expected);
   }

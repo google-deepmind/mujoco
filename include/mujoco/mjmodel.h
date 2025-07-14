@@ -369,6 +369,9 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_GEOMNORMAL,              // normal direction between two geoms
   mjSENS_GEOMFROMTO,              // segment between two geoms
 
+  // sensors for reporting contacts which occurred during the simulation
+  mjSENS_CONTACT,                 // contacts which occurred during the simulation
+
   // global sensors
   mjSENS_E_POTENTIAL,             // potential energy
   mjSENS_E_KINETIC,               // kinetic energy
@@ -396,6 +399,19 @@ typedef enum mjtDataType_ {       // data type for sensors
   mjDATATYPE_AXIS,                // 3D unit vector
   mjDATATYPE_QUATERNION           // unit quaternion
 } mjtDataType;
+
+
+typedef enum mjtConDataField_ {   // data fields returned by contact sensors
+  mjCONDATA_FOUND     = 0,        // whether a contact was found
+  mjCONDATA_FORCE,                // contact force
+  mjCONDATA_TORQUE,               // contact torque
+  mjCONDATA_DIST,                 // contact penetration distance
+  mjCONDATA_POS,                  // contact position
+  mjCONDATA_NORMAL,               // contact frame normal
+  mjCONDATA_TANGENT,              // contact frame first tangent
+
+  mjNCONDATA          = 7         // number of contact sensor data fields
+} mjtConDataField;
 
 
 typedef enum mjtSameFrame_ {      // frame alignment of bodies with their children
