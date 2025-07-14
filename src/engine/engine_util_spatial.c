@@ -491,7 +491,10 @@ void mju_mulDofVec(mjtNum* res, const mjtNum* dof, const mjtNum* vec, int n) {
 
 
 // transform 6D motion or force vector between frames
-//  rot is 3-by-3 matrix; flg_force determines vector type (motion or force)
+//   flg_force: determines vector type (motion or force)
+//   rotnew2old: rotation that maps vectors from new to old frame,
+//               its columns are the new frame's axes, expressed in the old frame
+//   oldpos and newpos are expressed in old frame
 void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_force,
                           const mjtNum newpos[3], const mjtNum oldpos[3],
                           const mjtNum rotnew2old[9]) {
@@ -508,7 +511,7 @@ void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_force,
     mju_sub3(tran+3, vec+3, cros);
   }
 
-  // apply rotation if provided
+  // if provided, apply old -> new rotation
   if (rotnew2old) {
     mju_mulMatTVec3(res, rotnew2old, tran);
     mju_mulMatTVec3(res+3, rotnew2old, tran+3);
