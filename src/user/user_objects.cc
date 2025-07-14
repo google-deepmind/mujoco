@@ -1660,45 +1660,101 @@ mjCBase* mjCBody::FindObject(mjtObj type, std::string _name, bool recursive) {
 
 
 
-// return true if child is descendant of this body
-bool mjCBody::IsAncestor(const mjCBody* child) const {
-  if (!child) {
-    return false;
-  }
+// get list of a given type
+template<>
+const std::vector<mjCBody*>& mjCBody::GetList<mjCBody>() const {
+  return bodies;
+}
 
-  if (child == this) {
-    return true;
-  }
+template<>
+const std::vector<mjCJoint*>& mjCBody::GetList<mjCJoint>() const {
+  return joints;
+}
 
-  return IsAncestor(child->parent);
+template<>
+const std::vector<mjCGeom*>& mjCBody::GetList<mjCGeom>() const {
+  return geoms;
+}
+
+template<>
+const std::vector<mjCSite*>& mjCBody::GetList<mjCSite>() const {
+  return sites;
+}
+
+template<>
+const std::vector<mjCCamera*>& mjCBody::GetList<mjCCamera>() const {
+  return cameras;
+}
+
+template<>
+const std::vector<mjCLight*>& mjCBody::GetList<mjCLight>() const {
+  return lights;
+}
+
+template<>
+const std::vector<mjCFrame*>& mjCBody::GetList<mjCFrame>() const {
+  return frames;
 }
 
 
 
+// gets next child of the same type, recursively depth first if requested
 template <class T>
-mjsElement* mjCBody::GetNext(const std::vector<T*>& list, const mjsElement* child) {
-  if (list.empty()) {
-    // no children
+static mjsElement* GetNext(const mjCBody* body, const mjsElement* child,
+                           bool* found, bool recursive) {
+  std::vector<T*> list = body->GetList<T>();
+
+  for (unsigned int i = 0; i < list.size(); i++) {
+    if (*found) {
+      return list[i]->spec.element;
+    }
+
+    if (list[i]->spec.element == child) {
+      *found = true;
+    }
+  }
+
+  if (!recursive) {
     return nullptr;
   }
 
-  for (unsigned int i = 0; i < list.size() - (child ? 1 : 0); i++) {
-    if (!IsAncestor(list[i]->GetParent())) {
-      continue;  // TODO: this recursion is wasteful
-    }
-
-    // first child in this body
-    if (!child) {
-      return list[i]->spec.element;
-
-    // next child is in this body
-    } else if (list[i]->spec.element == child && IsAncestor(list[i+1]->GetParent())) {
-      return list[i+1]->spec.element;
+  for (auto& other : body->Bodies()) {
+    mjsElement* candidate = GetNext<T>(other, child, found, true);
+    if (candidate) {
+      return candidate;
     }
   }
 
   return nullptr;
 }
+
+
+
+// get next body depth first
+static mjsElement* GetNextBody(const mjCBody* body, const mjsElement* child,
+                              bool* found, bool recursive) {
+  for (auto& other : body->Bodies()) {
+    if (*found) {
+      return other->spec.element;
+    }
+
+    if (other->spec.element == child) {
+      *found = true;
+    }
+
+    if (!recursive) {
+      continue;
+    }
+
+    mjsElement* candidate = GetNextBody(other, child, found, true);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return nullptr;
+}
+
 
 
 
@@ -1714,30 +1770,30 @@ mjsElement* mjCBody::NextChild(const mjsElement* child, mjtObj type, bool recurs
     throw mjCError(this, "child element is not of requested type");
   }
 
-
   mjsElement* candidate = nullptr;
+  bool found = child == nullptr;
   switch (type) {
     case mjOBJ_BODY:
     case mjOBJ_XBODY:
-      candidate = GetNext(recursive ? model->bodies_ : bodies, child);
+      candidate = GetNextBody(this, child, &found, recursive);
       break;
     case mjOBJ_JOINT:
-      candidate = GetNext(recursive ? model->joints_ : joints, child);
+      candidate = GetNext<mjCJoint>(this, child, &found, recursive);
       break;
     case mjOBJ_GEOM:
-      candidate = GetNext(recursive ? model->geoms_ : geoms, child);
+      candidate = GetNext<mjCGeom>(this, child, &found, recursive);
       break;
     case mjOBJ_SITE:
-      candidate = GetNext(recursive ? model->sites_ : sites, child);
+      candidate = GetNext<mjCSite>(this, child, &found, recursive);
       break;
     case mjOBJ_CAMERA:
-      candidate = GetNext(recursive ? model->cameras_ : cameras, child);
+      candidate = GetNext<mjCCamera>(this, child, &found, recursive);
       break;
     case mjOBJ_LIGHT:
-      candidate = GetNext(recursive ? model->lights_ : lights, child);
+      candidate = GetNext<mjCLight>(this, child, &found, recursive);
       break;
     case mjOBJ_FRAME:
-      candidate = GetNext(recursive ? model->frames_ : frames, child);
+      candidate = GetNext<mjCFrame>(this, child, &found, recursive);
       break;
     default:
       throw mjCError(this,

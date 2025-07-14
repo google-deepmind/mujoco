@@ -1152,6 +1152,38 @@ class SpecsTest(absltest.TestCase):
     with self.assertRaisesRegex(ValueError, 'Frame not found.'):
       parent.attach(child4, frame='invalid_frame', prefix='child3-')
 
+  def test_attach_valid_child_lists(self):
+    xml1 = """
+    <mujoco>
+      <worldbody>
+        <body name="b1">
+          <geom name="g1"/>
+          <joint name="j1" type="hinge"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    """
+
+    xml2 = """
+    <mujoco>
+      <worldbody>
+        <body name="b2">
+          <geom name="g2"/>
+          <joint name="j2" type="hinge"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    """
+
+    parent = mujoco.MjSpec.from_string(xml1)
+    child = mujoco.MjSpec.from_string(xml2)
+    self.assertLen(child.joints, 1)
+    self.assertLen(child.geoms, 1)
+    frame = parent.worldbody.add_frame()
+    parent.attach(child, prefix='', frame=frame)
+    self.assertLen(child.joints, 1)
+    self.assertLen(child.geoms, 1)
+
   def test_bind(self):
     spec = mujoco.MjSpec.from_string("""
     <mujoco>

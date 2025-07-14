@@ -505,6 +505,10 @@ class mjCBody : public mjCBody_, private mjsBody {
   // getters
   std::vector<mjCBody*> Bodies() const { return bodies; }
 
+  // get list of a given type
+  template <class T>
+  const std::vector<T*>& GetList() const;
+
   // accumulate inertia of another body into this body, if `result` is not nullptr, the accumulated
   // inertia will be stored in `result`, otherwise the body's private spec will be used.
   void AccumulateInertia(const mjsBody* other, mjsBody* result = nullptr);
@@ -534,12 +538,6 @@ class mjCBody : public mjCBody_, private mjsBody {
   template <typename T>
   void CopyList(std::vector<T*>& dst, const std::vector<T*>& src,
                 std::map<mjCFrame*, int>& fmap, const mjCFrame* pframe = nullptr);
-
-  // gets next child of the same type in this body
-  template <class T>
-  mjsElement* GetNext(const std::vector<T*>& list, const mjsElement* child);
-
-  bool IsAncestor(const mjCBody* child) const;  // true if child is a descendant of this body
 };
 
 
