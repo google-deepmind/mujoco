@@ -14,6 +14,11 @@ General
   as input to learning-based agents and in environment logic.
 - Removed the SdfLib plugin and the dependency on `SdfLib <https://github.com/UPC-ViRVIG/SdfLib>`__. SDFs are now
   supported natively in mjModel.
+- Inertia computation in MuJoCo C is now performed by a new :ref:`pipeline<piStages>` function :ref:`mj_makeM`, which
+  combines the Composite Rigid Body algorithm in :ref:`mj_crb` and additional terms related to
+  :ref:`tendon armature<tendon-spatial-armature>`. Code that uses :ref:`mj_crb` to compute the inertia should now use
+  :ref:`mj_makeM` instead.
+
 
 Bug fixes
 ^^^^^^^^^
