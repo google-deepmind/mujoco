@@ -598,6 +598,7 @@ void mjCOctree::CreateOctree(const double aamm[6]) {
 
 
 static bool boxTriangle(const Triangle& element, const double aamm[6]) {
+  // bounding box tests
   for (int i = 0; i < 3; i++) {
     if (element[0][i] < aamm[i] && element[1][i] < aamm[i] && element[2][i] < aamm[i]) {
       return false;
@@ -607,6 +608,23 @@ static bool boxTriangle(const Triangle& element, const double aamm[6]) {
       return false;
     }
   }
+
+  // test for triangle plane and box overlap
+  double n[3];
+  double v0[3] = {element[0][0], element[0][1], element[0][2]};
+  double e1[3] = {element[1][0] - v0[0], element[1][1] - v0[1], element[1][2] - v0[2]};
+  double e2[3] = {element[2][0] - v0[0], element[2][1] - v0[1], element[2][2] - v0[2]};
+
+  mjuu_crossvec(n, e1, e2);
+  double size[3] = {aamm[3] - aamm[0], aamm[4] - aamm[1], aamm[5] - aamm[2]};
+  double c[3] = {n[0] > 0 ? size[0] : 0, n[1] > 0 ? size[1] : 0, n[2] > 0 ? size[2] : 0};
+  double c1[3] = {c[0] - v0[0], c[1] - v0[1], c[2] - v0[2]};
+  double c2[3] = {size[0] - c[0] - v0[0], size[1] - c[1] - v0[1], size[2] - c[2] - v0[2]};
+
+  if ((mjuu_dot3(n, aamm) + mjuu_dot3(n, c1)) * (mjuu_dot3(n, aamm) + mjuu_dot3(n, c2)) > 0) {
+    return false;
+  }
+
   // TODO: add additionally separating axis tests
   return true;
 }
