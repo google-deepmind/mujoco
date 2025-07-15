@@ -309,8 +309,9 @@ void TouchStress::Compute(const mjModel* m, mjData* d, int instance) {
       geomtype[0] = (mjtGeom)m->geom_type[geom];
     }
 
-    // Skip mesh geoms.
-    if (geomtype[0] == mjGEOM_MESH) {
+    // Skip mesh geoms not having an octree.
+    if (geomtype[0] == mjGEOM_MESH &&
+        m->mesh_octadr[m->geom_dataid[geom]] == -1) {
       continue;
     }
 
@@ -345,9 +346,8 @@ void TouchStress::Compute(const mjModel* m, mjData* d, int instance) {
         mju_sub3(tmp, xpos, d->geom_xpos + 3*geom);
         mju_mulMatTVec3(lpos, d->geom_xmat + 9*geom, tmp);
 
-        // Add mesh position if needed.
-        if (m->geom_type[geom] == mjGEOM_MESH ||
-            m->geom_type[geom] == mjGEOM_SDF) {
+        // SDF plugins are in the original mesh frame.
+        if (sdf_ptr[0] != NULL) {
           mjtNum mesh_mat[9];
           mju_quat2Mat(mesh_mat, m->mesh_quat + 4 * m->geom_dataid[geom]);
           mju_mulMatVec3(lpos, mesh_mat, lpos);

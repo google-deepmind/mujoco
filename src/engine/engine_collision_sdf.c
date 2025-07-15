@@ -144,6 +144,11 @@ mjtNum oct_distance(const mjModel* m, const mjtNum p[3], int meshid) {
   mjtNum* oct_aabb = m->oct_aabb + 6*octadr;
   mjtNum* oct_coeff = m->oct_coeff + 8*octadr;
 
+  if (octadr == -1) {
+    mjERROR("Octree not found in mesh %d", meshid);
+    return 0;
+  }
+
   mjtNum w[8];
   mjtNum sdf = 0;
   mjtNum point[3] = {p[0], p[1], p[2]};
@@ -167,6 +172,10 @@ void oct_gradient(const mjModel* m, mjtNum grad[3], const mjtNum point[3], int m
   int* oct_child = m->oct_child + 8*octadr;
   mjtNum* oct_aabb = m->oct_aabb + 6*octadr;
   mjtNum* oct_coeff = m->oct_coeff + 8*octadr;
+
+  if (octadr == -1) {
+    mjERROR("Octree not found in mesh %d", meshid);
+  }
 
   // analytic in the interior
   if (boxProjection(p, oct_aabb) <= 0) {
@@ -267,6 +276,8 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
     } else {
       return oct_distance(m, x, i);
     }
+  case mjGEOM_MESH:
+    return oct_distance(m, x, i);
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
     return 0;
@@ -370,6 +381,9 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     } else {
       oct_gradient(m, gradient, x, i);
     }
+    break;
+  case mjGEOM_MESH:
+    oct_gradient(m, gradient, x, i);
     break;
   default:
     mjERROR("sdf collisions not available for geom type %d", type);

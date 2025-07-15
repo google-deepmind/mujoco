@@ -527,6 +527,9 @@ class ModelC(PyTreeNode):
   bvh_child: jax.Array
   bvh_nodeid: jax.Array
   bvh_aabb: jax.Array
+  oct_child: jax.Array
+  oct_aabb: jax.Array
+  oct_coeff: jax.Array
   geom_plugin: jax.Array
   light_bodyid: jax.Array
   light_targetbodyid: jax.Array
@@ -742,6 +745,8 @@ class Model(PyTreeNode):
   mesh_faceadr: np.ndarray
   mesh_bvhadr: np.ndarray
   mesh_bvhnum: np.ndarray
+  mesh_octadr: np.ndarray
+  mesh_octnum: np.ndarray
   mesh_graphadr: np.ndarray
   mesh_vert: np.ndarray
   mesh_face: np.ndarray
