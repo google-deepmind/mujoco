@@ -687,7 +687,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   // flex BVH
   category = mjCAT_DECOR;
   objtype = mjOBJ_UNKNOWN;
-  if (vopt->flags[mjVIS_FLEXBVH]) {
+  if (vopt->flags[mjVIS_MESHBVH]) {
     for (int f=0; f < m->nflex; f++) {
       if (m->flex_bvhnum[f] && vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[f]))]) {
         for (int i=m->flex_bvhadr[f]; i < m->flex_bvhadr[f]+m->flex_bvhnum[f]; i++) {

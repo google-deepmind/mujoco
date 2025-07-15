@@ -643,10 +643,9 @@ public enum mjtVisFlag : int{
   mjVIS_FLEXFACE = 26,
   mjVIS_FLEXSKIN = 27,
   mjVIS_BODYBVH = 28,
-  mjVIS_FLEXBVH = 29,
-  mjVIS_MESHBVH = 30,
-  mjVIS_SDFITER = 31,
-  mjNVISFLAG = 32,
+  mjVIS_MESHBVH = 29,
+  mjVIS_SDFITER = 30,
+  mjNVISFLAG = 31,
 }
 public enum mjtRndFlag : int{
   mjRND_SHADOW = 0,
@@ -6130,9 +6129,8 @@ public unsafe struct mjvOption_ {
   public fixed byte actuatorgroup[6];
   public fixed byte flexgroup[6];
   public fixed byte skingroup[6];
-  public fixed byte flags[32];
+  public fixed byte flags[31];
   public int bvh_depth;
-  public int oct_depth;
   public int flex_layer;
 }
 

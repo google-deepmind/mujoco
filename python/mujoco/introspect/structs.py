@@ -6925,7 +6925,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='flags',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtByte'),
-                     extents=(32,),
+                     extents=(31,),
                  ),
                  doc='visualization flags (indexed by mjtVisFlag)',
              ),
@@ -6933,11 +6933,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='bvh_depth',
                  type=ValueType(name='int'),
                  doc='depth of the bounding volume hierarchy to be visualized',
-             ),
-             StructFieldDecl(
-                 name='oct_depth',
-                 type=ValueType(name='int'),
-                 doc='depth of the octree to be visualized',
              ),
              StructFieldDecl(
                  name='flex_layer',

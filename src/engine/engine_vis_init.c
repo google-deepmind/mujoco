@@ -97,7 +97,6 @@ const char* mjVISSTRING[mjNVISFLAG][3] = {
   {"Flex Face",       "0", ""},
   {"Flex Skin",       "1", ""},
   {"Body Tree",       "0", "`"},
-  {"Flex Tree",       "0", ""},
   {"Mesh Tree",       "0", "\\"},
   {"SDF iters",       "0", ""}
 };

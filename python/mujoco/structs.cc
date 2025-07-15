@@ -1110,7 +1110,6 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(label);
   X(frame);
   X(bvh_depth);
-  X(oct_depth);
   X(flex_layer);
 #undef X
 
