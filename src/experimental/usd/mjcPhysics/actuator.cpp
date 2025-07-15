@@ -332,6 +332,17 @@ UsdAttribute MjcPhysicsActuator::CreateMjcActEarlyAttr(
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
+UsdAttribute MjcPhysicsActuator::GetMjcInheritRangeAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcInheritRange);
+}
+
+UsdAttribute MjcPhysicsActuator::CreateMjcInheritRangeAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcInheritRange, SdfValueTypeNames->Double,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
 UsdRelationship MjcPhysicsActuator::GetMjcTargetRel() const {
   return GetPrim().GetRelationship(MjcPhysicsTokens->mjcTarget);
 }
@@ -385,7 +396,7 @@ const TfTokenVector &MjcPhysicsActuator::GetSchemaAttributeNames(
       MjcPhysicsTokens->mjcDynType,        MjcPhysicsTokens->mjcGainType,
       MjcPhysicsTokens->mjcBiasType,       MjcPhysicsTokens->mjcDynPrm,
       MjcPhysicsTokens->mjcGainPrm,        MjcPhysicsTokens->mjcBiasPrm,
-      MjcPhysicsTokens->mjcActEarly,
+      MjcPhysicsTokens->mjcActEarly,       MjcPhysicsTokens->mjcInheritRange,
   };
   static TfTokenVector allNames = _ConcatenateAttributeNames(
       UsdTyped::GetSchemaAttributeNames(true), localNames);

@@ -1675,6 +1675,35 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsActuator) {
                        pxr::VtDoubleArray{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}});
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsPositionActuator) {
+  static constexpr char xml[] = R"(
+  <mujoco model="test">
+    <worldbody>
+      <body name="body">
+        <geom name="box" type="box" size=".05 .05 .05" density="1234"/>
+        <joint name="hinge" range="12 34"/>
+      </body>
+    </worldbody>
+    <actuator>
+      <position
+        name="position"
+        joint="hinge"
+        inheritrange="1"
+      />
+    </actuator>
+  </mujoco>
+  )";
+  auto stage = OpenStageWithPhysics(xml);
+
+  EXPECT_PRIM_VALID(stage, "/test/Actuators/position");
+  EXPECT_PRIM_IS_A(stage, "/test/Actuators/position",
+                   pxr::MjcPhysicsActuator);
+  EXPECT_REL_HAS_TARGET(stage, "/test/Actuators/position.mjc:target",
+                        "/test/body/hinge");
+  ExpectAttributeEqual(stage, "/test/Actuators/position.mjc:inheritRange",
+                       1.0);
+}
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointActuator) {
   static constexpr char xml[] = R"(
   <mujoco model="test">

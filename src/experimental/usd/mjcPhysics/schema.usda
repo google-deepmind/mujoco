@@ -668,10 +668,12 @@ class MjcActuator "MjcActuator"
         doc = "If true, the control input to this actuator is automatically clamped to ctrlrange at runtime. If false, control input clamping is disabled. If 'auto' and autolimits is set in compiler, control clamping will automatically be set to true if ctrlrange is defined without explicitly setting this attribute to 'true'. Note that control input clamping can also be globally disabled with the clampctrl attribute of option/flag."
         allowedTokens = ["false", "true", "auto"]
     )
+
     uniform token mjc:forceLimited = "auto" (
         doc = "If true, the force output of this actuator is automatically clamped to forcerange at runtime. If false, force clamping is disabled. If 'auto' and autolimits is set in compiler, force clamping will automatically be set to true if forcerange is defined without explicitly setting this attribute to 'true'."
         allowedTokens = ["false", "true", "auto"]
     )
+
     uniform token mjc:actLimited = "auto" (
         doc = "If true, the internal state (activation) associated with this actuator is automatically clamped to actrange at runtime. If false, activation clamping is disabled. If 'auto' and autolimits is set in compiler, activation clamping will automatically be set to true if actrange is defined without explicitly setting this attribute to 'true'. See the Activation clamping section for more details."
         allowedTokens = ["false", "true", "auto"]
@@ -764,6 +766,10 @@ class MjcActuator "MjcActuator"
 
     uniform bool mjc:actEarly = False (
         doc = "If true, force computation will use the next value of the activation variable rather than the current one. Setting this flag reduces the delay between the control and accelerations by one time-step."
+    )
+
+    uniform double mjc:inheritRange = 0 (
+        doc = "Automatically set the actuator’s ctrlrange to match the transmission target’s range. The default value means disabled. A positive value X sets the ctrlrange around the midpoint of the target range, scaled by X. For example if the target joint has range of [0, 1], then a value of 1.0 will set ctrlrange to [0, 1]; values of 0.8 and 1.2 will set the ctrlrange to [0.1, 0.9] and [-0.1, 1.1], respectively. Values smaller than 1 are useful for not hitting the limits; values larger than 1 are useful for maintaining control authority at the limits (being able to push on them). This attribute is exclusive with ctrlrange and available only for joint and tendon transmissions which have range defined."
     )
 }
 

@@ -1180,6 +1180,9 @@ class ModelWriter {
     WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Bool,
                           MjcPhysicsTokens->mjcActEarly,
                           (bool)actuator->actearly);
+    WriteUniformAttribute(actuator_path, pxr::SdfValueTypeNames->Double,
+                          MjcPhysicsTokens->mjcInheritRange,
+                          actuator->inheritrange);
 
     WriteUniformAttribute(
         actuator_path, pxr::SdfValueTypeNames->DoubleArray,

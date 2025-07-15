@@ -353,6 +353,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsMeshCollisionAPI
   const TfToken mjcInertia;
+  /// \brief "mjc:inheritRange"
+  ///
+  /// MjcPhysicsActuator
+  const TfToken mjcInheritRange;
   /// \brief "mjc:jointInParent"
   ///
   /// MjcPhysicsActuator

@@ -853,6 +853,11 @@ void ParseMjcPhysicsActuator(mjSpec* spec,
     mj_act->actearly = (int)act_early;
   }
 
+  auto inherit_range_attr = tran.GetMjcInheritRangeAttr();
+  if (act_early_attr.HasAuthoredValue()) {
+    act_early_attr.Get(&mj_act->inheritrange);
+  }
+
   auto ref_site_rel = tran.GetMjcRefSiteRel();
   if (ref_site_rel.HasAuthoredTargets()) {
     pxr::SdfPathVector targets;

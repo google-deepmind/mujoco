@@ -765,6 +765,40 @@ class MjcPhysicsActuator : public UsdTyped {
 
  public:
   // --------------------------------------------------------------------- //
+  // MJCINHERITRANGE
+  // --------------------------------------------------------------------- //
+  /// Automatically set the actuator’s ctrlrange to match the transmission
+  /// target’s range. The default value means disabled. A positive value X sets
+  /// the ctrlrange around the midpoint of the target range, scaled by X. For
+  /// example if the target joint has range of [0, 1], then a value of 1.0 will
+  /// set ctrlrange to [0, 1]; values of 0.8 and 1.2 will set the ctrlrange to
+  /// [0.1, 0.9] and [-0.1, 1.1], respectively. Values smaller than 1 are useful
+  /// for not hitting the limits; values larger than 1 are useful for
+  /// maintaining control authority at the limits (being able to push on them).
+  /// This attribute is exclusive with ctrlrange and available only for joint
+  /// and tendon transmissions which have range defined.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform double mjc:inheritRange = 0` |
+  /// | C++ Type | double |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetMjcInheritRangeAttr() const;
+
+  /// See GetMjcInheritRangeAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateMjcInheritRangeAttr(
+      VtValue const &defaultValue = VtValue(),
+      bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
   // MJCTARGET
   // --------------------------------------------------------------------- //
   /// Actuator transmission target.
