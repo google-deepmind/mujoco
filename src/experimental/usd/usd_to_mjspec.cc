@@ -950,8 +950,8 @@ void ParseMjcPhysicsActuator(mjSpec* spec,
   }
 
   auto inherit_range_attr = tran.GetMjcInheritRangeAttr();
-  if (act_early_attr.HasAuthoredValue()) {
-    act_early_attr.Get(&mj_act->inheritrange);
+  if (inherit_range_attr.HasAuthoredValue()) {
+    inherit_range_attr.Get(&mj_act->inheritrange);
   }
 
   auto ref_site_rel = tran.GetMjcRefSiteRel();
