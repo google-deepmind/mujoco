@@ -290,8 +290,8 @@ void TouchStress::Compute(const mjModel* m, mjData* d, int instance) {
   mjtNum* site_mat = d->site_xmat + 9*site_id;
 
   // Allocate contact forces and positions.
-  mjtNum* forces = mj_stackAllocNum(d, ncon*3);
   mjtNum* forcesT = mj_stackAllocNum(d, ncon*3);
+  mju_zero(forcesT, ncon*3);
 
   // Iterate over colliding geoms.
   for (auto geom : contact_geom_ids) {
@@ -357,7 +357,6 @@ void TouchStress::Compute(const mjModel* m, mjData* d, int instance) {
         // Compute distance.
         mjtNum depth = mju_min(mjc_distance(m, d, &geom_sdf, lpos), 0);
         if (depth == 0) {
-          mju_zero3(forces + 3*node);
           node++;
           continue;
         }
@@ -373,23 +372,24 @@ void TouchStress::Compute(const mjModel* m, mjData* d, int instance) {
         mju_sub3(vel_rel, vel_sensor+3, vel_other+3);
 
         // Get contact force/torque, rotate into node frame.
+        mjtNum force[3];
         mjtNum tmp_force[3], normal[3];
         mjtNum kMaxDepth = 0.05;
         mjtNum pressure = 1 / (kMaxDepth - depth) - 1 / kMaxDepth;
         mjc_gradient(m, d, &sensor_sdf, normal, pos);
         mju_scl3(tmp_force, normal, pressure);
-        mju_mulMatTVec3(forces + 3*node, mat, tmp_force);
-        forces[3*node+0] = mju_abs(mju_dot3(vel_rel, mat + 0));
-        forces[3*node+1] = mju_abs(mju_dot3(vel_rel, mat + 3));
+        mju_mulMatTVec3(force, mat, tmp_force);
+        force[0] = mju_abs(mju_dot3(vel_rel, mat + 0));
+        force[1] = mju_abs(mju_dot3(vel_rel, mat + 3));
 
         // Permute forces from x,y,z to z,x,y (normal, tangent, tangent)
-        xyz2zxy(forces + 3*node);
+        xyz2zxy(force);
+        forcesT[0*ncon + node] = force[0];
+        forcesT[1*ncon + node] = force[1];
+        forcesT[2*ncon + node] = force[2];
         node++;
       }
     }
-
-    // Transpose forces.
-    mju_transpose(forcesT, forces, ncon, 3);
 
     // Compute sensor output.
     for (int c = 0; c < nchannel_; c++) {
