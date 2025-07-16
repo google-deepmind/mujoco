@@ -394,6 +394,14 @@ void mjCModel::CopyPlugin(const std::vector<mjCPlugin*>& source,
       delete candidate;
     }
   }
+
+  // update other elements in the list in case of multiple references
+  for (auto& element : list) {
+    if (!element->plugin_instance_name.empty()) {
+      element->spec.plugin.element =
+          instances.at(element->plugin_instance_name)->spec.plugin.element;
+    }
+  }
 }
 
 
