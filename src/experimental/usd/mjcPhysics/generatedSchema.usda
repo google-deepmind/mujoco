@@ -528,7 +528,7 @@ class "MjcJointAPI" (
 }
 
 class "MjcMaterialAPI" (
-    doc = "API providing extension attributes to represent physicsl MuJoCo materials."
+    doc = "API providing extension attributes to represent physical MuJoCo materials."
 )
 {
     uniform double mjc:rollingfriction = 0.0001 (

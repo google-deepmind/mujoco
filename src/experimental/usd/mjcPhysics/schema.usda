@@ -1017,7 +1017,7 @@ class "MjcMaterialAPI"
     customData = {
         string className = "MaterialAPI"
     }
-    doc = """API providing extension attributes to represent physicsl MuJoCo materials."""
+    doc = """API providing extension attributes to represent physical MuJoCo materials."""
 
     inherits = </APISchemaBase>
 )

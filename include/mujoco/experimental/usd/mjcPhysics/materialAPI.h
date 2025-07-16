@@ -40,7 +40,7 @@ class SdfAssetPath;
 
 /// \class MjcPhysicsMaterialAPI
 ///
-/// API providing extension attributes to represent physicsl MuJoCo materials.
+/// API providing extension attributes to represent physical MuJoCo materials.
 ///
 class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
  public:
