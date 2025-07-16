@@ -66,6 +66,7 @@
 #include <pxr/usd/usdPhysics/revoluteJoint.h>
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 #include <pxr/usd/usdPhysics/scene.h>
+#include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
 namespace {
 
@@ -1136,19 +1137,8 @@ void ParseMjcPhysicsJointAPI(mjsJoint* mj_joint,
 
 void ParseUsdPhysicsMaterialAPI(
     mjsGeom* geom, const pxr::UsdPhysicsMaterialAPI& material_api) {
-  auto static_friction_attr = material_api.GetStaticFrictionAttr();
   auto dynamic_friction_attr = material_api.GetDynamicFrictionAttr();
-  if (static_friction_attr.HasAuthoredValue()) {
-    if (dynamic_friction_attr.HasAuthoredValue()) {
-      mju_warning(
-          "Material %s has both static and dynamic friction authored, taking "
-          "the static value.",
-          material_api.GetPath().GetString().c_str());
-    }
-    float static_friction;
-    static_friction_attr.Get(&static_friction);
-    geom->friction[0] = static_friction;
-  } else if (dynamic_friction_attr.HasAuthoredValue()) {
+  if (dynamic_friction_attr.HasAuthoredValue()) {
     float dynamic_friction;
     dynamic_friction_attr.Get(&dynamic_friction);
     geom->friction[0] = dynamic_friction;
@@ -1205,10 +1195,6 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
   geom->contype = 1;
   geom->conaffinity = 1;
 
-  if (prim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
-    ParseUsdPhysicsMassAPIForGeom(geom, pxr::UsdPhysicsMassAPI(prim));
-  }
-
   if (prim.HasAPI<pxr::MjcPhysicsCollisionAPI>()) {
     ParseMjcPhysicsCollisionAPI(geom, pxr::MjcPhysicsCollisionAPI(prim));
   }
@@ -1223,6 +1209,13 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
       ParseUsdPhysicsMaterialAPI(geom, pxr::UsdPhysicsMaterialAPI(bound_material_prim));
       ParseMjcPhysicsMaterialAPI(geom, pxr::MjcPhysicsMaterialAPI(bound_material_prim));
     }
+  }
+
+  // Parse the Mass API after the physics material APIs since the density attribute
+  // from the Mass API is supposed to override the Material API density attribute.
+  // See https://openusd.org/dev/api/usd_physics_page_front.html
+  if (prim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
+    ParseUsdPhysicsMassAPIForGeom(geom, pxr::UsdPhysicsMassAPI(prim));
   }
 
   // Convert displayColor and displayOpacity to rgba.

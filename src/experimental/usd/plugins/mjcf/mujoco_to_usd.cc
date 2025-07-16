@@ -831,9 +831,8 @@ class ModelWriter {
 
     mjsGeom *geom_default = mjs_getDefault(geom->element)->geom;
     if (geom->friction[0] != geom_default->friction[0]) {
-      WriteUniformAttribute(material_path, pxr::SdfValueTypeNames->Float,
-                            pxr::UsdPhysicsTokens->physicsStaticFriction,
-                            (float)geom->friction[0]);
+      // Since MuJoCo has no concept of static friction, only write dynamic
+      // friction to remain truthful to how MuJoCo perceives the data.
       WriteUniformAttribute(material_path, pxr::SdfValueTypeNames->Float,
                             pxr::UsdPhysicsTokens->physicsDynamicFriction,
                             (float)geom->friction[0]);

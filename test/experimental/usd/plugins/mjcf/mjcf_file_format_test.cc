@@ -157,10 +157,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsMaterials) {
       "/physics_materials_test/PhysicsMaterials/geom_with_friction");
   ExpectAttributeEqual(stage,
                        "/physics_materials_test/PhysicsMaterials/"
-                       "geom_with_friction.physics:staticFriction",
-                       4.0f);
-  ExpectAttributeEqual(stage,
-                       "/physics_materials_test/PhysicsMaterials/"
                        "geom_with_friction.physics:dynamicFriction",
                        4.0f);
   ExpectAttributeEqual(stage,
