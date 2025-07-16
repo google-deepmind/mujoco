@@ -60,8 +60,9 @@ struct MjcPhysicsTokensType {
   const TfToken affine;
   /// \brief "auto"
   ///
-  /// Fallback value for MjcPhysicsSceneAPI::GetJacobianAttr(), Fallback value
-  /// for MjcPhysicsActuator::GetMjcActLimitedAttr(), Fallback value for
+  /// Fallback value for MjcPhysicsSceneAPI::GetInertiaFromGeomAttr(), Fallback
+  /// value for MjcPhysicsSceneAPI::GetJacobianAttr(), Fallback value for
+  /// MjcPhysicsActuator::GetMjcActLimitedAttr(), Fallback value for
   /// MjcPhysicsActuator::GetMjcCtrlLimitedAttr(), Fallback value for
   /// MjcPhysicsActuator::GetMjcForceLimitedAttr(), Fallback value for
   /// MjcPhysicsJointAPI::GetMjcActuatorfrclimitedAttr(),  This token represents
@@ -76,6 +77,10 @@ struct MjcPhysicsTokensType {
   ///
   /// Possible value for MjcPhysicsMeshCollisionAPI::GetInertiaAttr()
   const TfToken convex;
+  /// \brief "degree"
+  ///
+  /// Fallback value for MjcPhysicsSceneAPI::GetAngleAttr()
+  const TfToken degree;
   /// \brief "dense"
   ///
   /// Possible value for MjcPhysicsSceneAPI::GetJacobianAttr(),  This token
@@ -97,8 +102,9 @@ struct MjcPhysicsTokensType {
   const TfToken exact;
   /// \brief "false"
   ///
-  /// Possible value for MjcPhysicsActuator::GetMjcActLimitedAttr(), Possible
-  /// value for MjcPhysicsActuator::GetMjcCtrlLimitedAttr(), Possible value for
+  /// Possible value for MjcPhysicsSceneAPI::GetInertiaFromGeomAttr(), Possible
+  /// value for MjcPhysicsActuator::GetMjcActLimitedAttr(), Possible value for
+  /// MjcPhysicsActuator::GetMjcCtrlLimitedAttr(), Possible value for
   /// MjcPhysicsActuator::GetMjcForceLimitedAttr(), Possible value for
   /// MjcPhysicsJointAPI::GetMjcActuatorfrclimitedAttr()
   const TfToken false_;
@@ -184,6 +190,62 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsActuator
   const TfToken mjcBiasType;
+  /// \brief "mjc:compiler:alignFree"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerAlignFree;
+  /// \brief "mjc:compiler:angle"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerAngle;
+  /// \brief "mjc:compiler:autoLimits"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerAutoLimits;
+  /// \brief "mjc:compiler:balanceInertia"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerBalanceInertia;
+  /// \brief "mjc:compiler:boundInertia"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerBoundInertia;
+  /// \brief "mjc:compiler:boundMass"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerBoundMass;
+  /// \brief "mjc:compiler:fitAABB"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerFitAABB;
+  /// \brief "mjc:compiler:fuseStatic"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerFuseStatic;
+  /// \brief "mjc:compiler:inertiaFromGeom"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerInertiaFromGeom;
+  /// \brief "mjc:compiler:inertiaGroupRange:max"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerInertiaGroupRangeMax;
+  /// \brief "mjc:compiler:inertiaGroupRange:min"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerInertiaGroupRangeMin;
+  /// \brief "mjc:compiler:saveInertial"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerSaveInertial;
+  /// \brief "mjc:compiler:setTotalMass"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerSetTotalMass;
+  /// \brief "mjc:compiler:useThread"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcCompilerUseThread;
   /// \brief "mjc:condim"
   ///
   /// MjcPhysicsCollisionAPI
@@ -595,6 +657,10 @@ struct MjcPhysicsTokensType {
   /// Fallback value for MjcPhysicsSceneAPI::GetConeAttr(),  This token
   /// represents the pyramidal contact friction cone type.
   const TfToken pyramidal;
+  /// \brief "radian"
+  ///
+  /// Possible value for MjcPhysicsSceneAPI::GetAngleAttr()
+  const TfToken radian;
   /// \brief "rk4"
   ///
   /// Possible value for MjcPhysicsSceneAPI::GetIntegratorAttr(),  This token
@@ -611,8 +677,9 @@ struct MjcPhysicsTokensType {
   const TfToken sparse;
   /// \brief "true"
   ///
-  /// Possible value for MjcPhysicsActuator::GetMjcActLimitedAttr(), Possible
-  /// value for MjcPhysicsActuator::GetMjcCtrlLimitedAttr(), Possible value for
+  /// Possible value for MjcPhysicsSceneAPI::GetInertiaFromGeomAttr(), Possible
+  /// value for MjcPhysicsActuator::GetMjcActLimitedAttr(), Possible value for
+  /// MjcPhysicsActuator::GetMjcCtrlLimitedAttr(), Possible value for
   /// MjcPhysicsActuator::GetMjcForceLimitedAttr(), Possible value for
   /// MjcPhysicsJointAPI::GetMjcActuatorfrclimitedAttr()
   const TfToken true_;

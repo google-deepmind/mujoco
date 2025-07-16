@@ -1362,6 +1362,410 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
                                     bool writeSparsely = false) const;
 
  public:
+  // --------------------------------------------------------------------- //
+  // AUTOLIMITS
+  // --------------------------------------------------------------------- //
+  /// This attribute affects the behavior of attributes such as "limited" (on
+  /// MjcJointAPI), "forcelimited" "ctrllimited", and "actlimited" (on
+  /// MjcActuator). If True, these attributes are unnecessary and their value
+  /// will be inferred from the presence of their corresponding "range"
+  /// attribute. If False, no such inference will happen: For a joint to be
+  /// limited, both limited=True and range:min/max must be specified. In this
+  /// mode, it is an error to specify a range without a limit.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform bool mjc:compiler:autoLimits = 1` |
+  /// | C++ Type | bool |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetAutoLimitsAttr() const;
+
+  /// See GetAutoLimitsAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateAutoLimitsAttr(VtValue const &defaultValue = VtValue(),
+                                    bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // BOUNDMASS
+  // --------------------------------------------------------------------- //
+  /// This attribute imposes a lower bound on the mass of each body except for
+  /// the world body.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform double mjc:compiler:boundMass = 0` |
+  /// | C++ Type | double |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetBoundMassAttr() const;
+
+  /// See GetBoundMassAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateBoundMassAttr(VtValue const &defaultValue = VtValue(),
+                                   bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // BOUNDINERTIA
+  // --------------------------------------------------------------------- //
+  /// This attribute imposes a lower bound on the diagonal inertia components of
+  /// each body except for the world body.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform double mjc:compiler:boundInertia = 0` |
+  /// | C++ Type | double |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetBoundInertiaAttr() const;
+
+  /// See GetBoundInertiaAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateBoundInertiaAttr(VtValue const &defaultValue = VtValue(),
+                                      bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // SETTOTALMASS
+  // --------------------------------------------------------------------- //
+  /// If this value is positive, the compiler will scale the masses and inertias
+  /// of all bodies in the model, so that the total mass equals the value
+  /// specified here. The world body has mass 0 and does not participate in any
+  /// mass-related computations. This scaling is performed last, after all other
+  /// operations affecting the body mass and inertia. The same scaling operation
+  /// can be applied at runtime to the compiled mjModel with the function
+  /// mj_setTotalmass.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform double mjc:compiler:setTotalMass = -1` |
+  /// | C++ Type | double |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetSetTotalMassAttr() const;
+
+  /// See GetSetTotalMassAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateSetTotalMassAttr(VtValue const &defaultValue = VtValue(),
+                                      bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // USETHREAD
+  // --------------------------------------------------------------------- //
+  /// If this is True, the model compiler will run in multi-threaded mode.
+  /// Currently multi-threading is used for computing the length ranges of
+  /// actuators and for parallel loading of meshes.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform bool mjc:compiler:useThread = 1` |
+  /// | C++ Type | bool |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetUseThreadAttr() const;
+
+  /// See GetUseThreadAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateUseThreadAttr(VtValue const &defaultValue = VtValue(),
+                                   bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // BALANCEINERTIA
+  // --------------------------------------------------------------------- //
+  /// A valid diagonal inertia matrix must satisfy A+B>=C for all permutations
+  /// of the three diagonal elements. Some poorly designed models violate this
+  /// constraint, which will normally result in a compile error. If this
+  /// attribute is set to "true", the compiler will silently set all three
+  /// diagonal elements to their average value whenever the above condition is
+  /// violated.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform bool mjc:compiler:balanceInertia = 0` |
+  /// | C++ Type | bool |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetBalanceInertiaAttr() const;
+
+  /// See GetBalanceInertiaAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateBalanceInertiaAttr(VtValue const &defaultValue = VtValue(),
+                                        bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // ANGLE
+  // --------------------------------------------------------------------- //
+  /// This attribute specifies whether the angles in mjcPhysics attributes have
+  /// units of degrees or radians if not otherwise noted.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform token mjc:compiler:angle = "degree"` |
+  /// | C++ Type | TfToken |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Token |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  /// | \ref MjcPhysicsTokens "Allowed Values" | degree, radian |
+  MJCPHYSICS_API
+  UsdAttribute GetAngleAttr() const;
+
+  /// See GetAngleAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateAngleAttr(VtValue const &defaultValue = VtValue(),
+                               bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // FITAABB
+  // --------------------------------------------------------------------- //
+  /// The compiler is able to replace a mesh with a geometric primitive fitted
+  /// to that mesh. If this attribute is True, the fitting procedure uses the
+  /// axis-aligned bounding box (AABB) of the mesh. Otherwise it uses the
+  /// equivalent-inertia box of the mesh.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform bool mjc:compiler:fitAABB = 0` |
+  /// | C++ Type | bool |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetFitAABBAttr() const;
+
+  /// See GetFitAABBAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateFitAABBAttr(VtValue const &defaultValue = VtValue(),
+                                 bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // FUSESTATIC
+  // --------------------------------------------------------------------- //
+  /// This attribute controls a compiler optimization feature where static
+  /// bodies are fused with their parent, and any elements defined in those
+  /// bodies are reassigned to the parent. Static bodies are fused with their
+  /// parent unless
+  ///
+  /// * They are referenced by another element in the model.
+  ///
+  /// * They contain a site which is referenced by a force or torque sensor.
+  ///
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform bool mjc:compiler:fuseStatic = 0` |
+  /// | C++ Type | bool |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetFuseStaticAttr() const;
+
+  /// See GetFuseStaticAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateFuseStaticAttr(VtValue const &defaultValue = VtValue(),
+                                    bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // INERTIAFROMGEOM
+  // --------------------------------------------------------------------- //
+  /// This attribute controls the automatic inference of body masses and
+  /// inertias from geoms attached to the body. If this setting is "false", no
+  /// automatic inference is performed. In that case each body must have
+  /// explicitly defined mass and inertia with the inertial element, or else a
+  /// compile error will be generated. If this setting is "true", the mass and
+  /// inertia of each body will be inferred from the geoms attached to it,
+  /// overriding any values specified with the inertial element. The default
+  /// setting "auto" means that masses and inertias are inferred automatically
+  /// only when the inertial element is missing in the body definition. One
+  /// reason to set this attribute to "true" instead of "auto" is to override
+  /// inertial data imported from a poorly designed model.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform token mjc:compiler:inertiaFromGeom = "auto"` |
+  /// | C++ Type | TfToken |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Token |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  /// | \ref MjcPhysicsTokens "Allowed Values" | false, true, auto |
+  MJCPHYSICS_API
+  UsdAttribute GetInertiaFromGeomAttr() const;
+
+  /// See GetInertiaFromGeomAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateInertiaFromGeomAttr(
+      VtValue const &defaultValue = VtValue(),
+      bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // ALIGNFREE
+  // --------------------------------------------------------------------- //
+  /// This attribute toggles the default behaviour of an optimization that
+  /// applies to bodies with a free joint and no child bodies. When True, the
+  /// body frame and free joint will automatically be aligned with inertial
+  /// frame, which leads to both faster and more stable simulation.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform bool mjc:compiler:alignFree = 0` |
+  /// | C++ Type | bool |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetAlignFreeAttr() const;
+
+  /// See GetAlignFreeAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateAlignFreeAttr(VtValue const &defaultValue = VtValue(),
+                                   bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // INERTIAGROUPRANGEMIN
+  // --------------------------------------------------------------------- //
+  /// This attribute specifies the maximum of the geom group range that is used
+  /// to infer body masses and inertias (when such inference is enabled). The
+  /// group attribute of geom is an integer. If this integer falls in the range
+  /// specified here, the collider will be used in the inertial computation,
+  /// otherwise it will be ignored. Note that the world body does not
+  /// participate in the inertial computations, so any geoms attached to it are
+  /// automatically ignored. Therefore it is not necessary to adjust this
+  /// attribute and the geom-specific groups so as to exclude world geoms from
+  /// the inertial computation.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform int mjc:compiler:inertiaGroupRange:min = 0` |
+  /// | C++ Type | int |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetInertiaGroupRangeMinAttr() const;
+
+  /// See GetInertiaGroupRangeMinAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateInertiaGroupRangeMinAttr(
+      VtValue const &defaultValue = VtValue(),
+      bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // INERTIAGROUPRANGEMAX
+  // --------------------------------------------------------------------- //
+  /// This attribute specifies the maximum of the geom group range that is used
+  /// to infer body masses and inertias (when such inference is enabled). The
+  /// group attribute of geom is an integer. If this integer falls in the range
+  /// specified here, the geom will be used in the inertial computation,
+  /// otherwise it will be ignored. This feature is useful in models that have
+  /// redundant sets of geoms for collision and visualization. Note that the
+  /// world body does not participate in the inertial computations, so any geoms
+  /// attached to it are automatically ignored. Therefore it is not necessary to
+  /// adjust this attribute and the geom-specific groups so as to exclude world
+  /// geoms from the inertial computation.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform int mjc:compiler:inertiaGroupRange:max = 5` |
+  /// | C++ Type | int |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetInertiaGroupRangeMaxAttr() const;
+
+  /// See GetInertiaGroupRangeMaxAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateInertiaGroupRangeMaxAttr(
+      VtValue const &defaultValue = VtValue(),
+      bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // SAVEINERTIAL
+  // --------------------------------------------------------------------- //
+  /// If True, the compiler will save explicit inertial clauses for all bodies.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform bool mjc:compiler:saveInertial = 0` |
+  /// | C++ Type | bool |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetSaveInertialAttr() const;
+
+  /// See GetSaveInertialAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateSaveInertialAttr(VtValue const &defaultValue = VtValue(),
+                                      bool writeSparsely = false) const;
+
+ public:
   // ===================================================================== //
   // Feel free to add custom code below this line, it will be preserved by
   // the code generator.

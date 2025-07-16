@@ -520,6 +520,102 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   bool island_flag;
   mjc_physics_scene.GetIslandFlagAttr().Get(&island_flag);
   spec->option.enableflags |= (island_flag ? mjENBL_ISLAND : 0);
+
+  // Compiler attributes
+  auto auto_limits_attr = mjc_physics_scene.GetAutoLimitsAttr();
+  if (auto_limits_attr.HasAuthoredValue()) {
+    bool autolimits;
+    auto_limits_attr.Get(&autolimits);
+    spec->compiler.autolimits = autolimits;
+  }
+
+  auto use_thread_attr = mjc_physics_scene.GetUseThreadAttr();
+  if (use_thread_attr.HasAuthoredValue()) {
+    bool use_thread;
+    use_thread_attr.Get(&use_thread);
+    spec->compiler.usethread = use_thread;
+  }
+
+  auto balance_inertia_attr = mjc_physics_scene.GetBalanceInertiaAttr();
+  if (balance_inertia_attr.HasAuthoredValue()) {
+    bool balanceinertia;
+    balance_inertia_attr.Get(&balanceinertia);
+    spec->compiler.balanceinertia = balanceinertia;
+  }
+
+  auto angle_attr = mjc_physics_scene.GetAngleAttr();
+  if (angle_attr.HasAuthoredValue()) {
+    pxr::TfToken angle;
+    angle_attr.Get(&angle);
+    spec->compiler.degree = angle == MjcPhysicsTokens->degree;
+  }
+
+  auto fit_aabb_attr = mjc_physics_scene.GetFitAABBAttr();
+  if (fit_aabb_attr.HasAuthoredValue()) {
+    bool fitaabb;
+    fit_aabb_attr.Get(&fitaabb);
+    spec->compiler.fitaabb = fitaabb;
+  }
+
+  auto fuse_static_attr = mjc_physics_scene.GetFuseStaticAttr();
+  if (fuse_static_attr.HasAuthoredValue()) {
+    bool fusestatic;
+    fuse_static_attr.Get(&fusestatic);
+    spec->compiler.fusestatic = fusestatic;
+  }
+
+  auto inertia_from_geom_attr = mjc_physics_scene.GetInertiaFromGeomAttr();
+  if (inertia_from_geom_attr.HasAuthoredValue()) {
+    pxr::TfToken inertiafromgeom;
+    inertia_from_geom_attr.Get(&inertiafromgeom);
+    if (inertiafromgeom == MjcPhysicsTokens->auto_) {
+      spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
+    } else if(inertiafromgeom == MjcPhysicsTokens->false_) {
+      spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_FALSE;
+    } else if(inertiafromgeom == MjcPhysicsTokens->true_){
+      spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_TRUE;
+    } else {
+      mju_warning("Invalid inertiafromgeom token: %s",
+                  inertiafromgeom.GetText());
+    }
+  }
+
+  auto align_free_attr = mjc_physics_scene.GetAlignFreeAttr();
+  if (align_free_attr.HasAuthoredValue()) {
+    bool alignfree;
+    align_free_attr.Get(&alignfree);
+    spec->compiler.alignfree = alignfree;
+  }
+
+  auto inertia_group_range_min_attr =
+      mjc_physics_scene.GetInertiaGroupRangeMinAttr();
+  auto inertia_group_range_max_attr =
+      mjc_physics_scene.GetInertiaGroupRangeMaxAttr();
+  if (inertia_group_range_min_attr.HasAuthoredValue() &&
+      inertia_group_range_max_attr.HasAuthoredValue()) {
+    int inertiagrouprangemin;
+    inertia_group_range_min_attr.Get(&inertiagrouprangemin);
+    int inertiagrouprangemax;
+    inertia_group_range_max_attr.Get(&inertiagrouprangemax);
+    spec->compiler.inertiagrouprange[0] = inertiagrouprangemin;
+    spec->compiler.inertiagrouprange[1] = inertiagrouprangemax;
+  } else if (inertia_group_range_min_attr.HasAuthoredValue() ||
+             inertia_group_range_max_attr.HasAuthoredValue()) {
+    mju_warning(
+        "Only one of inertiaGroupRangeMin and inertiaGroupRangeMax was "
+        "authored, ignoring both.");
+  }
+
+  auto save_inertial_attr = mjc_physics_scene.GetSaveInertialAttr();
+  if (save_inertial_attr.HasAuthoredValue()) {
+    bool saveinertial;
+    save_inertial_attr.Get(&saveinertial);
+    spec->compiler.saveinertial = saveinertial;
+  }
+
+  mjc_physics_scene.GetBoundMassAttr().Get(&spec->compiler.boundmass);
+  mjc_physics_scene.GetBoundInertiaAttr().Get(&spec->compiler.boundinertia);
+  mjc_physics_scene.GetSetTotalMassAttr().Get(&spec->compiler.settotalmass);
 }
 
 void ParseUsdPhysicsMassAPIForBody(mjsBody* body,

@@ -615,6 +615,162 @@ UsdAttribute MjcPhysicsSceneAPI::CreateIslandFlagAttr(
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
+UsdAttribute MjcPhysicsSceneAPI::GetAutoLimitsAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerAutoLimits);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateAutoLimitsAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerAutoLimits, SdfValueTypeNames->Bool,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetBoundMassAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerBoundMass);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateBoundMassAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerBoundMass, SdfValueTypeNames->Double,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetBoundInertiaAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerBoundInertia);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateBoundInertiaAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerBoundInertia, SdfValueTypeNames->Double,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetSetTotalMassAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerSetTotalMass);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateSetTotalMassAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerSetTotalMass, SdfValueTypeNames->Double,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetUseThreadAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerUseThread);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateUseThreadAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerUseThread, SdfValueTypeNames->Bool,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetBalanceInertiaAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerBalanceInertia);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateBalanceInertiaAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerBalanceInertia, SdfValueTypeNames->Bool,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetAngleAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerAngle);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateAngleAttr(VtValue const &defaultValue,
+                                                 bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerAngle, SdfValueTypeNames->Token,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetFitAABBAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerFitAABB);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateFitAABBAttr(VtValue const &defaultValue,
+                                                   bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerFitAABB, SdfValueTypeNames->Bool,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetFuseStaticAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerFuseStatic);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateFuseStaticAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerFuseStatic, SdfValueTypeNames->Bool,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetInertiaFromGeomAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerInertiaFromGeom);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateInertiaFromGeomAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerInertiaFromGeom, SdfValueTypeNames->Token,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetAlignFreeAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerAlignFree);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateAlignFreeAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerAlignFree, SdfValueTypeNames->Bool,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetInertiaGroupRangeMinAttr() const {
+  return GetPrim().GetAttribute(
+      MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMin);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateInertiaGroupRangeMinAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMin, SdfValueTypeNames->Int,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetInertiaGroupRangeMaxAttr() const {
+  return GetPrim().GetAttribute(
+      MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMax);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateInertiaGroupRangeMaxAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMax, SdfValueTypeNames->Int,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetSaveInertialAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerSaveInertial);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateSaveInertialAttr(
+    VtValue const &defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcCompilerSaveInertial, SdfValueTypeNames->Bool,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
     const TfTokenVector &left, const TfTokenVector &right) {
@@ -679,6 +835,20 @@ const TfTokenVector &MjcPhysicsSceneAPI::GetSchemaAttributeNames(
       MjcPhysicsTokens->mjcFlagInvdiscrete,
       MjcPhysicsTokens->mjcFlagMulticcd,
       MjcPhysicsTokens->mjcFlagIsland,
+      MjcPhysicsTokens->mjcCompilerAutoLimits,
+      MjcPhysicsTokens->mjcCompilerBoundMass,
+      MjcPhysicsTokens->mjcCompilerBoundInertia,
+      MjcPhysicsTokens->mjcCompilerSetTotalMass,
+      MjcPhysicsTokens->mjcCompilerUseThread,
+      MjcPhysicsTokens->mjcCompilerBalanceInertia,
+      MjcPhysicsTokens->mjcCompilerAngle,
+      MjcPhysicsTokens->mjcCompilerFitAABB,
+      MjcPhysicsTokens->mjcCompilerFuseStatic,
+      MjcPhysicsTokens->mjcCompilerInertiaFromGeom,
+      MjcPhysicsTokens->mjcCompilerAlignFree,
+      MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMin,
+      MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMax,
+      MjcPhysicsTokens->mjcCompilerSaveInertial,
   };
   static TfTokenVector allNames = _ConcatenateAttributeNames(
       UsdAPISchemaBase::GetSchemaAttributeNames(true), localNames);

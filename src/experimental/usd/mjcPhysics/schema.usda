@@ -509,6 +509,125 @@ class "MjcSceneAPI"
         displayName = "Constraint Island Discovery Toggle"
         doc = """Enables the discovery of constraint islands."""
     )
+
+    uniform bool mjc:compiler:autoLimits = True (
+        customData = {
+            string apiName = "AutoLimits"
+        }
+        displayName = "Automatic Limits"
+        doc = """This attribute affects the behavior of attributes such as "limited" (on MjcJointAPI), "forcelimited" "ctrllimited", and "actlimited" (on MjcActuator). If True, these attributes are unnecessary and their value will be inferred from the presence of their corresponding "range" attribute. If False, no such inference will happen: For a joint to be limited, both limited=True and range:min/max must be specified. In this mode, it is an error to specify a range without a limit."""
+    )
+
+    uniform double mjc:compiler:boundMass = 0.0 (
+        customData = {
+            string apiName = "BoundMass"
+        }
+        displayName = "Bound Mass"
+        doc = """This attribute imposes a lower bound on the mass of each body except for the world body."""
+    )
+
+    uniform double mjc:compiler:boundInertia = 0.0 (
+        customData = {
+            string apiName = "BoundInertia"
+        }
+        displayName = "Bound Inertia"
+        doc = """This attribute imposes a lower bound on the diagonal inertia components of each body except for the world body."""
+    )
+
+    uniform double mjc:compiler:setTotalMass = -1.0 (
+        customData = {
+            string apiName = "SetTotalMass"
+        }
+        displayName = "Set Total Mass"
+        doc = """If this value is positive, the compiler will scale the masses and inertias of all bodies in the model, so that the total mass equals the value specified here. The world body has mass 0 and does not participate in any mass-related computations. This scaling is performed last, after all other operations affecting the body mass and inertia. The same scaling operation can be applied at runtime to the compiled mjModel with the function mj_setTotalmass."""
+    )
+
+    uniform bool mjc:compiler:useThread = True (
+        customData = {
+            string apiName = "UseThread"
+        }
+        displayName = "Use Thread"
+        doc = """If this is True, the model compiler will run in multi-threaded mode. Currently multi-threading is used for computing the length ranges of actuators and for parallel loading of meshes."""
+    )
+
+    uniform bool mjc:compiler:balanceInertia = False (
+        customData = {
+            string apiName = "BalanceInertia"
+        }
+        displayName = "Balance Inertia"
+        doc = """A valid diagonal inertia matrix must satisfy A+B>=C for all permutations of the three diagonal elements. Some poorly designed models violate this constraint, which will normally result in a compile error. If this attribute is set to "true", the compiler will silently set all three diagonal elements to their average value whenever the above condition is violated."""
+    )
+
+    uniform token mjc:compiler:angle = "degree" (
+        allowedTokens = ["degree", "radian"]
+        customData = {
+            string apiName = "Angle"
+        }
+        displayName = "Angle"
+        doc = """This attribute specifies whether the angles in mjcPhysics attributes have units of degrees or radians if not otherwise noted."""
+    )
+
+    uniform bool mjc:compiler:fitAABB = False (
+        customData = {
+            string apiName = "FitAABB"
+        }
+        displayName = "Fit AABB"
+        doc = """The compiler is able to replace a mesh with a geometric primitive fitted to that mesh. If this attribute is True, the fitting procedure uses the axis-aligned bounding box (AABB) of the mesh. Otherwise it uses the equivalent-inertia box of the mesh."""
+    )
+
+    uniform bool mjc:compiler:fuseStatic = False (
+        customData = {
+            string apiName = "FuseStatic"
+        }
+        displayName = "Fuse Static"
+        doc = """This attribute controls a compiler optimization feature where static bodies are fused with their parent, and any elements defined in those bodies are reassigned to the parent. Static bodies are fused with their parent unless
+
+* They are referenced by another element in the model.
+
+* They contain a site which is referenced by a force or torque sensor.
+"""
+    )
+
+    uniform token mjc:compiler:inertiaFromGeom = "auto" (
+        allowedTokens = ["false", "true", "auto"]
+        customData = {
+            string apiName = "InertiaFromGeom"
+        }
+        displayName = "Inertia From Geom"
+        doc = """This attribute controls the automatic inference of body masses and inertias from geoms attached to the body. If this setting is "false", no automatic inference is performed. In that case each body must have explicitly defined mass and inertia with the inertial element, or else a compile error will be generated. If this setting is "true", the mass and inertia of each body will be inferred from the geoms attached to it, overriding any values specified with the inertial element. The default setting "auto" means that masses and inertias are inferred automatically only when the inertial element is missing in the body definition. One reason to set this attribute to "true" instead of "auto" is to override inertial data imported from a poorly designed model."""
+    )
+
+    uniform bool mjc:compiler:alignFree = False (
+        customData = {
+            string apiName = "AlignFree"
+        }
+        displayName = "Align Free"
+        doc = """This attribute toggles the default behaviour of an optimization that applies to bodies with a free joint and no child bodies. When True, the body frame and free joint will automatically be aligned with inertial frame, which leads to both faster and more stable simulation."""
+    )
+
+    uniform int mjc:compiler:inertiaGroupRange:min = 0 (
+        customData = {
+            string apiName = "InertiaGroupRangeMin"
+        }
+        displayName = "Inertia Group Range Min"
+        doc = """This attribute specifies the maximum of the geom group range that is used to infer body masses and inertias (when such inference is enabled). The group attribute of geom is an integer. If this integer falls in the range specified here, the collider will be used in the inertial computation, otherwise it will be ignored. Note that the world body does not participate in the inertial computations, so any geoms attached to it are automatically ignored. Therefore it is not necessary to adjust this attribute and the geom-specific groups so as to exclude world geoms from the inertial computation."""
+    )
+
+    uniform int mjc:compiler:inertiaGroupRange:max = 5 (
+        customData = {
+            string apiName = "InertiaGroupRangeMax"
+        }
+        displayName = "Inertia Group Range Max"
+        doc = """This attribute specifies the maximum of the geom group range that is used to infer body masses and inertias (when such inference is enabled). The group attribute of geom is an integer. If this integer falls in the range specified here, the geom will be used in the inertial computation, otherwise it will be ignored. This feature is useful in models that have redundant sets of geoms for collision and visualization. Note that the world body does not participate in the inertial computations, so any geoms attached to it are automatically ignored. Therefore it is not necessary to adjust this attribute and the geom-specific groups so as to exclude world geoms from the inertial computation."""
+    )
+
+    uniform bool mjc:compiler:saveInertial = False (
+        customData = {
+            string apiName = "SaveInertial"
+        }
+        displayName = "Save Inertial"
+        doc = """If True, the compiler will save explicit inertial clauses for all bodies."""
+    )
 }
 
 class "MjcSiteAPI"
