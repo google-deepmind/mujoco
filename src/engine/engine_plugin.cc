@@ -41,6 +41,9 @@ extern "C" {
 #include "engine/engine_global_table.h"
 #include "engine/engine_util_errmem.h"
 
+// MODIFIED: Added global variable to track override mode for plugin registration
+static thread_local bool g_override_existing_plugins = false;
+
 // set default plugin definition
 void mjp_defaultPlugin(mjpPlugin* plugin) {
   std::memset(plugin, 0, sizeof(*plugin));
@@ -265,6 +268,7 @@ bool GlobalTable<mjpResourceProvider>::CopyObject(mjpResourceProvider& dst, cons
   return true;
 }
 
+// MODIFIED: Updated to support override_existing functionality
 // globally register a plugin (thread-safe), return new slot id
 int mjp_registerPlugin(const mjpPlugin* plugin) {
   if (!plugin->name) {
@@ -276,6 +280,18 @@ int mjp_registerPlugin(const mjpPlugin* plugin) {
   } else if (plugin->nattribute > kMaxAttributes) {
     mju_error("plugin->nattribute exceeds the maximum limit of %i",
               kMaxAttributes);
+  }
+
+  // MODIFIED: Check if override mode is enabled
+  if (g_override_existing_plugins) {
+    // Check if plugin already exists
+    const mjpPlugin* existing = mjp_getPlugin(plugin->name, nullptr);
+    if (existing) {
+      // Log warning about overriding existing plugin
+      mju_warning("Overriding existing plugin: %s", plugin->name);
+      // Use AppendOrReplace instead of AppendIfUnique to allow overriding
+      return GlobalTable<mjpPlugin>::GetSingleton().AppendOrReplace(*plugin);
+    }
   }
 
   return GlobalTable<mjpPlugin>::GetSingleton().AppendIfUnique(*plugin);
@@ -382,8 +398,12 @@ const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot) {
   return GlobalTable<mjpResourceProvider>::GetSingleton().GetAtSlot(slot - 1);
 }
 
+// MODIFIED: Updated function signature to support override_existing parameter
 // load plugins from a dynamic library
-void mj_loadPluginLibrary(const char* path) {
+void mj_loadPluginLibrary(const char* path, int override_existing) {
+  // MODIFIED: Set the global override flag based on parameter
+  g_override_existing_plugins = override_existing;
+  
 #if defined(_WIN32) || defined(__CYGWIN__)
   LoadLibraryA(path);
 #else
@@ -397,11 +417,16 @@ void mj_loadPluginLibrary(const char* path) {
     }
   }
 #endif
+  
+  // MODIFIED: Reset the global override flag after loading
+  g_override_existing_plugins = false;
 }
 
+// MODIFIED: Updated function signature to support override_existing parameter
 // scan a directory and load all dynamic libraries
 void mj_loadAllPluginLibraries(const char* directory,
-                               mjfPluginLibraryLoadCallback callback) {
+                               mjfPluginLibraryLoadCallback callback,
+                               int override_existing) {
   auto load_dso_and_call_callback = [&](const std::string& filename,
                                         const std::string& dso_path) {
     int nplugin_before;
@@ -411,7 +436,8 @@ void mj_loadAllPluginLibraries(const char* directory,
     {
       auto lock = plugin_table.LockExclusively();
       nplugin_before = mjp_pluginCount();
-      mj_loadPluginLibrary(dso_path.c_str());
+      // MODIFIED: Pass override_existing parameter to mj_loadPluginLibrary
+      mj_loadPluginLibrary(dso_path.c_str(), override_existing);
       nplugin_after = mjp_pluginCount();
     }
 

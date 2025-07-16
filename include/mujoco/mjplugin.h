@@ -182,4 +182,14 @@ typedef struct mjSDF_ mjSDF;
 // function pointer type for mj_loadAllPluginLibraries callback
 typedef void (*mjfPluginLibraryLoadCallback)(const char* filename, int first, int count);
 
+// MODIFIED: Updated function signature to support override_existing parameter
+// load plugins from a dynamic library
+void mj_loadPluginLibrary(const char* path, int override_existing);
+
+// MODIFIED: Updated function signature to support override_existing parameter
+// scan a directory and load all dynamic libraries
+void mj_loadAllPluginLibraries(const char* directory,
+                               mjfPluginLibraryLoadCallback callback,
+                               int override_existing);
+
 #endif  // MUJOCO_INCLUDE_MJPLUGIN_H_
