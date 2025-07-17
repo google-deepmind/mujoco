@@ -96,14 +96,6 @@ void BinEdges(mjtNum* x_edges, mjtNum* y_edges, int size[2], mjtNum fov[2],
   mju_scl(y_edges, y_edges, fov[1]*mjPI / 180, size[1] + 1);
 }
 
-// Permute 3-vector from 0,1,2 to 2,0,1.
-static void xyz2zxy(mjtNum* x) {
-  mjtNum z = x[2];
-  x[2] = x[1];
-  x[1] = x[0];
-  x[0] = z;
-}
-
 // Transform spherical (azimuth, elevation, radius) to Cartesian (x,y,z).
 void SphericalToCartesian(const mjtNum aer[3], mjtNum xyz[3]) {
   mjtNum a = aer[0], e = aer[1], r = aer[2];
@@ -372,21 +364,17 @@ void TouchStress::Compute(const mjModel* m, mjData* d, int instance) {
         mju_sub3(vel_rel, vel_sensor+3, vel_other+3);
 
         // Get contact force/torque, rotate into node frame.
-        mjtNum force[3];
-        mjtNum tmp_force[3], normal[3];
+        mjtNum frc[3];
+        mjtNum normal[3];
         mjtNum kMaxDepth = 0.05;
         mjtNum pressure = 1 / (kMaxDepth - depth) - 1 / kMaxDepth;
         mjc_gradient(m, d, &sensor_sdf, normal, pos);
-        mju_scl3(tmp_force, normal, pressure);
-        mju_mulMatTVec3(force, mat, tmp_force);
-        force[0] = mju_abs(mju_dot3(vel_rel, mat + 0));
-        force[1] = mju_abs(mju_dot3(vel_rel, mat + 3));
+        mju_scl3(frc, normal, pressure);
 
-        // Permute forces from x,y,z to z,x,y (normal, tangent, tangent)
-        xyz2zxy(force);
-        forcesT[0*ncon + node] = force[0];
-        forcesT[1*ncon + node] = force[1];
-        forcesT[2*ncon + node] = force[2];
+        // one row of mat^T * force
+        forcesT[0*ncon + node] = mat[2]*frc[0] + mat[5]*frc[1] + mat[8]*frc[2];
+        forcesT[1*ncon + node] = mju_abs(mju_dot3(vel_rel, mat + 0));
+        forcesT[2*ncon + node] = mju_abs(mju_dot3(vel_rel, mat + 3));
         node++;
       }
     }
