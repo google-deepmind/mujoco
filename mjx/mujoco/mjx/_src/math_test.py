@@ -17,7 +17,7 @@
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax.numpy as jp
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 import numpy as np
 
 
