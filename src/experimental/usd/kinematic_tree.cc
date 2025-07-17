@@ -135,10 +135,20 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
       root->physics_scene = prim_path;
     }
 
-    if (prim.HasAPI<pxr::UsdPhysicsCollisionAPI>()) {
-      current_node->colliders.push_back(prim_path);
-    } else if (prim.IsA<pxr::UsdGeomGprim>()) {
-      current_node->visual_gprims.push_back(prim_path);
+    if (prim.IsA<pxr::UsdGeomGprim>()) {
+      bool has_collision_api = prim.HasAPI<pxr::UsdPhysicsCollisionAPI>();
+      if (has_collision_api) {
+        bool collision_enabled = false;
+        pxr::UsdPhysicsCollisionAPI(prim).GetCollisionEnabledAttr().Get(
+            &collision_enabled);
+        if (collision_enabled) {
+          current_node->colliders.push_back(prim_path);
+        } else {
+          current_node->visual_gprims.push_back(prim_path);
+        }
+      } else {
+        current_node->visual_gprims.push_back(prim_path);
+      }
     }
 
     if (prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
