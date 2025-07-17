@@ -16,17 +16,15 @@
 #include <cstddef>
 #include <map>
 #include <memory>
-#include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
-#include <mujoco/experimental/usd/mjcPhysics/meshCollisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/materialAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/meshCollisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
@@ -264,6 +262,56 @@ bool MaybeParseGeomPrimitive(const pxr::UsdPrim& prim, T* element,
   }
 
   return true;
+}
+
+mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom) {
+  if (!prim.IsA<pxr::UsdGeomMesh>()) {
+    return nullptr;
+  }
+  geom->type = mjGEOM_MESH;
+  pxr::UsdGeomMesh usd_mesh(prim);
+  std::vector<float> uservert;
+  std::vector<int> userface;
+
+  pxr::VtVec3fArray points;
+  usd_mesh.GetPointsAttr().Get(&points);
+
+  uservert.reserve(points.size() * 3);
+  for (const auto& pt : points) {
+    uservert.push_back(pt[0]);
+    uservert.push_back(pt[1]);
+    uservert.push_back(pt[2]);
+  }
+
+  pxr::VtIntArray indices;
+  usd_mesh.GetFaceVertexIndicesAttr().Get(&indices);
+  pxr::VtIntArray counts;
+  usd_mesh.GetFaceVertexCountsAttr().Get(&counts);
+
+  userface.reserve(indices.size());
+  int vtx_idx = 0;
+  for (int count : counts) {
+    int k = 1;
+    // If the prim is a triangle create a triangle fan rooted
+    // at the first index.
+    while (k < count - 1) {
+      userface.push_back(indices[vtx_idx]);
+      userface.push_back(indices[vtx_idx + k]);
+      userface.push_back(indices[vtx_idx + k + 1]);
+      k++;
+    }
+    vtx_idx += count;
+  }
+
+  mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+
+  std::string mesh_name = usd_mesh.GetPath().GetAsString();
+  mjs_setName(mesh->element, mesh_name.c_str());
+  mjs_setFloat(mesh->uservert, uservert.data(), uservert.size());
+  mjs_setInt(mesh->userface, userface.data(), userface.size());
+
+  mjs_setString(geom->meshname, mesh_name.c_str());
+  return mesh;
 }
 
 void ParseUsdPhysicsScene(mjSpec* spec,
@@ -573,9 +621,9 @@ void ParseUsdPhysicsScene(mjSpec* spec,
     inertia_from_geom_attr.Get(&inertiafromgeom);
     if (inertiafromgeom == MjcPhysicsTokens->auto_) {
       spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_AUTO;
-    } else if(inertiafromgeom == MjcPhysicsTokens->false_) {
+    } else if (inertiafromgeom == MjcPhysicsTokens->false_) {
       spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_FALSE;
-    } else if(inertiafromgeom == MjcPhysicsTokens->true_){
+    } else if (inertiafromgeom == MjcPhysicsTokens->true_) {
       spec->compiler.inertiafromgeom = mjINERTIAFROMGEOM_TRUE;
     } else {
       mju_warning("Invalid inertiafromgeom token: %s",
@@ -1178,6 +1226,49 @@ void ParseMjcPhysicsMaterialAPI(
   }
 }
 
+void ParseDisplayColorAndOpacity(const pxr::UsdPrim& prim, mjsGeom* geom) {
+  // Convert displayColor and displayOpacity to rgba.
+  // We want to support primvar inheritance, hence FindPrimvarWithInheritance.
+  pxr::UsdGeomPrimvarsAPI primvarsAPI(prim);
+  pxr::UsdGeomPrimvar displayColorPrimvar =
+      primvarsAPI.FindPrimvarWithInheritance(
+          pxr::UsdGeomTokens->primvarsDisplayColor);
+  pxr::UsdGeomPrimvar displayOpacityPrimvar =
+      primvarsAPI.FindPrimvarWithInheritance(
+          pxr::UsdGeomTokens->primvarsDisplayOpacity);
+  if (displayColorPrimvar.HasAuthoredValue()) {
+    pxr::VtArray<pxr::GfVec3f> display_color;
+    displayColorPrimvar.Get(&display_color);
+    if (!display_color.empty()) {
+      geom->rgba[0] = display_color[0][0];
+      geom->rgba[1] = display_color[0][1];
+      geom->rgba[2] = display_color[0][2];
+    }
+  }
+  if (displayOpacityPrimvar.HasAuthoredValue()) {
+    pxr::VtArray<float> display_opacity;
+    displayOpacityPrimvar.Get(&display_opacity);
+    if (!display_opacity.empty()) {
+      geom->rgba[3] = display_opacity[0];
+    }
+  }
+}
+
+void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
+                       const pxr::UsdPrim& body_prim, mjsBody* parent,
+                       UsdCaches& caches) {
+  mjsGeom* geom = mjs_addGeom(parent, nullptr);
+  mjs_setName(geom->element, gprim.GetPath().GetAsString().c_str());
+  geom->contype = 0;
+  geom->conaffinity = 0;
+
+  ParseDisplayColorAndOpacity(gprim, geom);
+  SetLocalPoseFromPrim(gprim, body_prim, geom, caches.xform_cache);
+  if (!MaybeParseGeomPrimitive(gprim, geom, caches.xform_cache)) {
+    ParseUsdMesh(spec, gprim, geom);
+  }
+}
+
 void ParseUsdPhysicsCollider(mjSpec* spec,
                              const pxr::UsdPhysicsCollisionAPI& collision_api,
                              const pxr::UsdPrim& body_prim, mjsBody* parent,
@@ -1208,8 +1299,10 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
     pxr::UsdPrim bound_material_prim = bound_material.GetPrim();
     if (bound_material_prim.HasAPI<pxr::UsdPhysicsMaterialAPI>() ||
         bound_material_prim.HasAPI<pxr::MjcPhysicsMaterialAPI>()) {
-      ParseUsdPhysicsMaterialAPI(geom, pxr::UsdPhysicsMaterialAPI(bound_material_prim));
-      ParseMjcPhysicsMaterialAPI(geom, pxr::MjcPhysicsMaterialAPI(bound_material_prim));
+      ParseUsdPhysicsMaterialAPI(
+          geom, pxr::UsdPhysicsMaterialAPI(bound_material_prim));
+      ParseMjcPhysicsMaterialAPI(
+          geom, pxr::MjcPhysicsMaterialAPI(bound_material_prim));
     }
   }
 
@@ -1220,84 +1313,15 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
     ParseUsdPhysicsMassAPIForGeom(geom, pxr::UsdPhysicsMassAPI(prim));
   }
 
-  // Convert displayColor and displayOpacity to rgba.
-  // We want to support primvar inheritance, hence FindPrimvarWithInheritance.
-  pxr::UsdGeomPrimvarsAPI primvarsAPI(prim);
-  pxr::UsdGeomPrimvar displayColorPrimvar =
-      primvarsAPI.FindPrimvarWithInheritance(
-          pxr::UsdGeomTokens->primvarsDisplayColor);
-  pxr::UsdGeomPrimvar displayOpacityPrimvar =
-      primvarsAPI.FindPrimvarWithInheritance(
-          pxr::UsdGeomTokens->primvarsDisplayOpacity);
-  if (displayColorPrimvar.HasAuthoredValue()) {
-    pxr::VtArray<pxr::GfVec3f> display_color;
-    displayColorPrimvar.Get(&display_color);
-    if (!display_color.empty()) {
-      geom->rgba[0] = display_color[0][0];
-      geom->rgba[1] = display_color[0][1];
-      geom->rgba[2] = display_color[0][2];
-    }
-  }
-  if (displayOpacityPrimvar.HasAuthoredValue()) {
-    pxr::VtArray<float> display_opacity;
-    displayOpacityPrimvar.Get(&display_opacity);
-    if (!display_opacity.empty()) {
-      geom->rgba[3] = display_opacity[0];
-    }
-  }
+  ParseDisplayColorAndOpacity(prim, geom);
 
   SetLocalPoseFromPrim(prim, body_prim, geom, caches.xform_cache);
 
   if (!MaybeParseGeomPrimitive(prim, geom, caches.xform_cache)) {
-    if (prim.IsA<pxr::UsdGeomMesh>()) {
-      geom->type = mjGEOM_MESH;
-      pxr::UsdGeomMesh usd_mesh(prim);
-      std::vector<float> uservert;
-      std::vector<int> userface;
-
-      pxr::VtVec3fArray points;
-      usd_mesh.GetPointsAttr().Get(&points);
-
-      uservert.reserve(points.size() * 3);
-      for (const auto& pt : points) {
-        uservert.push_back(pt[0]);
-        uservert.push_back(pt[1]);
-        uservert.push_back(pt[2]);
-      }
-
-      pxr::VtIntArray indices;
-      usd_mesh.GetFaceVertexIndicesAttr().Get(&indices);
-      pxr::VtIntArray counts;
-      usd_mesh.GetFaceVertexCountsAttr().Get(&counts);
-
-      userface.reserve(indices.size());
-      int vtx_idx = 0;
-      for (int count : counts) {
-        int k = 1;
-        // If the prim is a triangle create a triangle fan rooted
-        // at the first index.
-        while (k < count - 1) {
-          userface.push_back(indices[vtx_idx]);
-          userface.push_back(indices[vtx_idx + k]);
-          userface.push_back(indices[vtx_idx + k + 1]);
-          k++;
-        }
-        vtx_idx += count;
-      }
-
-      mjsMesh* mesh = mjs_addMesh(spec, nullptr);
-
-      if (prim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>()) {
-        ParseMjcPhysicsMeshCollisionAPI(mesh,
-                                        pxr::MjcPhysicsMeshCollisionAPI(prim));
-      }
-
-      std::string mesh_name = usd_mesh.GetPath().GetAsString();
-      mjs_setName(mesh->element, mesh_name.c_str());
-      mjs_setFloat(mesh->uservert, uservert.data(), uservert.size());
-      mjs_setInt(mesh->userface, userface.data(), userface.size());
-
-      mjs_setString(geom->meshname, mesh_name.c_str());
+    mjsMesh* mesh = ParseUsdMesh(spec, prim, geom);
+    if (mesh != nullptr && prim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>()) {
+      ParseMjcPhysicsMeshCollisionAPI(mesh,
+                                      pxr::MjcPhysicsMeshCollisionAPI(prim));
     }
   }
 }
@@ -1527,8 +1551,7 @@ using BodyPrimMap = std::map<pxr::SdfPath, std::vector<pxr::SdfPath>>;
 // in the mjSpec.
 void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
                           mjsBody* parent_mj_body, const Node* parent_node,
-                          const Node* current_node,
-                          UsdCaches& caches) {
+                          const Node* current_node, UsdCaches& caches) {
   mjsBody* current_mj_body = nullptr;
 
   if (!current_node->body_path.IsEmpty()) {
@@ -1562,6 +1585,11 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
           ? stage->GetPseudoRoot()
           : stage->GetPrimAtPath(current_node->body_path);
 
+  for (const auto& gprim_path : current_node->visual_gprims) {
+    ParseUsdGeomGprim(spec, stage->GetPrimAtPath(gprim_path),
+                      body_prim_for_xform, current_mj_body, caches);
+  }
+
   for (const auto& collider_path : current_node->colliders) {
     ParseUsdPhysicsCollider(
         spec, pxr::UsdPhysicsCollisionAPI(stage->GetPrimAtPath(collider_path)),
@@ -1569,9 +1597,9 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
   }
 
   for (const auto& site_path : current_node->sites) {
-    ParseMjcPhysicsSite(spec,
-                        pxr::MjcPhysicsSiteAPI(stage->GetPrimAtPath(site_path)),
-                        body_prim_for_xform, current_mj_body, caches.xform_cache);
+    ParseMjcPhysicsSite(
+        spec, pxr::MjcPhysicsSiteAPI(stage->GetPrimAtPath(site_path)),
+        body_prim_for_xform, current_mj_body, caches.xform_cache);
   }
 
   // Recurse through children.
@@ -1589,10 +1617,8 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
   std::unique_ptr<mujoco::usd::Node> root =
       mujoco::usd::BuildKinematicTree(stage);
 
-  // Set of caches to use for all queries when parsing.
-  mujoco::usd::UsdCaches caches;
-
-  // First parse the physics scene.
+  // First parse the physics scene and other root elements such as keyframes
+  // and actuators.
   if (!root->physics_scene.IsEmpty()) {
     mujoco::usd::ParseUsdPhysicsScene(
         spec, pxr::UsdPhysicsScene::Get(stage, root->physics_scene));
@@ -1612,8 +1638,9 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
     }
   }
 
+  // Set of caches to use for all queries when parsing.
+  mujoco::usd::UsdCaches caches;
   // Then populate the kinematic tree.
-  pxr::UsdGeomXformCache xform_cache;
   PopulateSpecFromTree(stage, spec, /*parent_mj_body=*/nullptr,
                        /*parent_node=*/nullptr, root.get(), caches);
 

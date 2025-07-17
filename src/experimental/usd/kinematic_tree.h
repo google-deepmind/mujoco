@@ -32,6 +32,7 @@ struct Node {
   pxr::SdfPath physics_scene;
   std::vector<pxr::SdfPath> actuators;
   std::vector<pxr::SdfPath> joints;
+  std::vector<pxr::SdfPath> visual_gprims;
   std::vector<pxr::SdfPath> colliders;
   std::vector<pxr::SdfPath> sites;
   std::vector<pxr::SdfPath> keyframes;

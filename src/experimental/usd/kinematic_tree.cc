@@ -26,6 +26,7 @@
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/usd/common.h>
 #include <pxr/usd/usd/primRange.h>
+#include <pxr/usd/usdGeom/gprim.h>
 #include <pxr/usd/usdGeom/xformCache.h>
 #include <pxr/usd/usdPhysics/collisionAPI.h>
 #include <pxr/usd/usdPhysics/joint.h>
@@ -135,11 +136,13 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
     }
 
     if (prim.HasAPI<pxr::UsdPhysicsCollisionAPI>()) {
-      current_node->colliders.push_back(prim.GetPath());
+      current_node->colliders.push_back(prim_path);
+    } else if (prim.IsA<pxr::UsdGeomGprim>()) {
+      current_node->visual_gprims.push_back(prim_path);
     }
 
     if (prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
-      current_node->sites.push_back(prim.GetPath());
+      current_node->sites.push_back(prim_path);
       // Sites should not have children.
       it.PruneChildren();
     }
@@ -159,7 +162,7 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
     }
 
     if (prim.IsA<pxr::MjcPhysicsKeyframe>()) {
-      root->keyframes.push_back(prim.GetPath());
+      root->keyframes.push_back(prim_path);
       // Keyframes should not have children.
       it.PruneChildren();
     }
@@ -252,7 +255,6 @@ std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
       return nullptr;
     }
   }
-
   return world_root;
 }
 
