@@ -264,7 +264,7 @@ bool MaybeParseGeomPrimitive(const pxr::UsdPrim& prim, T* element,
   return true;
 }
 
-mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom) {
+mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom, pxr::UsdGeomXformCache& xform_cache) {
   if (!prim.IsA<pxr::UsdGeomMesh>()) {
     return nullptr;
   }
@@ -304,6 +304,12 @@ mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom) {
   }
 
   mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+
+  auto world_xform = xform_cache.GetLocalToWorldTransform(prim);
+  auto scale = GetScale(world_xform);
+  mesh->scale[0] = scale[0];
+  mesh->scale[1] = scale[1];
+  mesh->scale[2] = scale[2];
 
   std::string mesh_name = usd_mesh.GetPath().GetAsString();
   mjs_setName(mesh->element, mesh_name.c_str());
@@ -1265,7 +1271,7 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   ParseDisplayColorAndOpacity(gprim, geom);
   SetLocalPoseFromPrim(gprim, body_prim, geom, caches.xform_cache);
   if (!MaybeParseGeomPrimitive(gprim, geom, caches.xform_cache)) {
-    ParseUsdMesh(spec, gprim, geom);
+    ParseUsdMesh(spec, gprim, geom, caches.xform_cache);
   }
 }
 
@@ -1318,7 +1324,7 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
   SetLocalPoseFromPrim(prim, body_prim, geom, caches.xform_cache);
 
   if (!MaybeParseGeomPrimitive(prim, geom, caches.xform_cache)) {
-    mjsMesh* mesh = ParseUsdMesh(spec, prim, geom);
+    mjsMesh* mesh = ParseUsdMesh(spec, prim, geom, caches.xform_cache);
     if (mesh != nullptr && prim.HasAPI<pxr::MjcPhysicsMeshCollisionAPI>()) {
       ParseMjcPhysicsMeshCollisionAPI(mesh,
                                       pxr::MjcPhysicsMeshCollisionAPI(prim));
