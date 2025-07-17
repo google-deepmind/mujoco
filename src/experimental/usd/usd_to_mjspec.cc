@@ -68,7 +68,9 @@
 #include <pxr/usd/usdPhysics/scene.h>
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
-namespace {
+
+namespace mujoco {
+namespace usd {
 
 using pxr::MjcPhysicsTokens;
 using pxr::TfToken;
@@ -1524,19 +1526,13 @@ using BodyPrimMap = std::map<pxr::SdfPath, std::vector<pxr::SdfPath>>;
 // Recursively traverses the kinematic tree, creating bodies, joints, and geoms
 // in the mjSpec.
 void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
-                          mjsBody* parent_mj_body,
-                          const mujoco::usd::KinematicNode* parent_node,
-                          const mujoco::usd::KinematicNode& current_node,
-                          UsdCaches& caches, const BodyPrimMap& body_to_prims) {
-  mjsBody* current_mj_body;
+                          mjsBody* parent_mj_body, const Node* parent_node,
+                          const Node* current_node,
+                          UsdCaches& caches) {
+  mjsBody* current_mj_body = nullptr;
 
-  if (current_node.body_path.IsEmpty()) {
-    // This is the world root node.
-    current_mj_body = mjs_findBody(spec, "world");
-  } else {
-    // This is a regular body.
-    pxr::UsdPrim current_body_prim =
-        stage->GetPrimAtPath(current_node.body_path);
+  if (!current_node->body_path.IsEmpty()) {
+    // This is *not* the world body.
     pxr::SdfPath parent_body_path =
         parent_node ? parent_node->body_path : pxr::SdfPath();
     pxr::UsdPrim parent_prim_for_xform =
@@ -1544,160 +1540,82 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
                                    : stage->GetPrimAtPath(parent_body_path);
 
     current_mj_body = ParseUsdPhysicsRigidbody(
-        spec, pxr::UsdPhysicsRigidBodyAPI(current_body_prim),
+        spec, pxr::UsdPhysicsRigidBodyAPI::Get(stage, current_node->body_path),
         parent_prim_for_xform, parent_mj_body, caches.xform_cache);
-
-    if (!current_node.joint_path.IsEmpty()) {
-      pxr::UsdPrim joint_prim = stage->GetPrimAtPath(current_node.joint_path);
-      ParseUsdPhysicsJoint(spec, joint_prim, current_mj_body,
-                           caches.xform_cache);
-    } else if (parent_mj_body == mjs_findBody(spec, "world")) {
-      // No joint to parent, and parent is world: this is a floating body.
-      mjsJoint* free_joint = mjs_addJoint(current_mj_body, nullptr);
-      free_joint->type = mjJNT_FREE;
-    }
+  } else {
+    current_mj_body = mjs_findBody(spec, "world");
   }
 
-  // Add geoms/sites/etc. belonging to the current body.
-  auto it_prims = body_to_prims.find(current_node.body_path);
-  if (it_prims != body_to_prims.end()) {
-    pxr::UsdPrim body_prim_for_xform =
-        current_node.body_path.IsEmpty()
-            ? stage->GetPseudoRoot()
-            : stage->GetPrimAtPath(current_node.body_path);
-    for (const auto& gprim_path : it_prims->second) {
-      pxr::UsdPrim prim = stage->GetPrimAtPath(gprim_path);
-      if (prim.HasAPI<pxr::UsdPhysicsCollisionAPI>()) {
-        ParseUsdPhysicsCollider(spec, pxr::UsdPhysicsCollisionAPI(prim),
-                                body_prim_for_xform, current_mj_body, caches);
-      }
-      if (prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
-        ParseMjcPhysicsSite(spec, pxr::MjcPhysicsSiteAPI(prim),
-                            body_prim_for_xform, current_mj_body, caches.xform_cache);
-      }
+  if (!current_node->joints.empty()) {
+    for (const auto& joint_path : current_node->joints) {
+      ParseUsdPhysicsJoint(spec, stage->GetPrimAtPath(joint_path),
+                           current_mj_body, caches.xform_cache);
     }
+  } else if (parent_mj_body == mjs_findBody(spec, "world")) {
+    // No joint to parent, and parent is world: this is a floating body.
+    mjsJoint* free_joint = mjs_addJoint(current_mj_body, nullptr);
+    free_joint->type = mjJNT_FREE;
+  }
+
+  pxr::UsdPrim body_prim_for_xform =
+      current_node->body_path.IsEmpty()
+          ? stage->GetPseudoRoot()
+          : stage->GetPrimAtPath(current_node->body_path);
+
+  for (const auto& collider_path : current_node->colliders) {
+    ParseUsdPhysicsCollider(
+        spec, pxr::UsdPhysicsCollisionAPI(stage->GetPrimAtPath(collider_path)),
+        body_prim_for_xform, current_mj_body, caches);
+  }
+
+  for (const auto& site_path : current_node->sites) {
+    ParseMjcPhysicsSite(spec,
+                        pxr::MjcPhysicsSiteAPI(stage->GetPrimAtPath(site_path)),
+                        body_prim_for_xform, current_mj_body, caches.xform_cache);
   }
 
   // Recurse through children.
-  for (const auto& child_node : current_node.children) {
-    PopulateSpecFromTree(stage, spec, current_mj_body, &current_node,
-                         *child_node, caches, body_to_prims);
+  for (const auto& child_node : current_node->children) {
+    PopulateSpecFromTree(stage, spec, current_mj_body, current_node,
+                         child_node.get(), caches);
   }
 }
-}  // namespace
+}  // namespace usd
+}  // namespace mujoco
 
 mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
   mjSpec* spec = mj_makeSpec();
 
-  std::vector<pxr::UsdPhysicsScene> physics_scenes;
+  std::unique_ptr<mujoco::usd::Node> root =
+      mujoco::usd::BuildKinematicTree(stage);
 
   // Set of caches to use for all queries when parsing.
-  UsdCaches caches;
+  mujoco::usd::UsdCaches caches;
 
-  // Search for UsdPhysicsScene type prim, use the first one that has
-  // the MjcPhysicsSceneAPI applied or the first UsdPhysicsScene otherwise.
-  std::optional<pxr::UsdPhysicsScene> physics_scene;
-  for (auto prim : stage->Traverse()) {
-    if (prim.IsA<pxr::UsdPhysicsScene>()) {
-      bool has_mjc_physics_api = prim.HasAPI<pxr::MjcPhysicsSceneAPI>();
-      if (!physics_scene.has_value() || has_mjc_physics_api) {
-        physics_scene = pxr::UsdPhysicsScene(prim);
-        // If we've found the first scene with MjcPhysicsSceneAPI, we can stop
-        // searching.
-        if (has_mjc_physics_api) {
-          break;
-        }
-      }
+  // First parse the physics scene.
+  if (!root->physics_scene.IsEmpty()) {
+    mujoco::usd::ParseUsdPhysicsScene(
+        spec, pxr::UsdPhysicsScene::Get(stage, root->physics_scene));
+  }
+
+  if (!root->keyframes.empty()) {
+    for (const auto& keyframe : root->keyframes) {
+      mujoco::usd::ParseMjcPhysicsKeyframe(
+          spec, pxr::MjcPhysicsKeyframe::Get(stage, keyframe));
     }
   }
 
-  if (physics_scene.has_value()) {
-    ParseUsdPhysicsScene(spec, *physics_scene);
-  }
-
-  pxr::SdfPath default_prim_path;
-  if (stage->GetDefaultPrim().IsValid()) {
-    default_prim_path = stage->GetDefaultPrim().GetPath();
-  }
-
-  // Data Structures
-  std::vector<pxr::UsdPhysicsJoint> all_joints;
-  std::vector<pxr::SdfPath> all_body_paths_vec;
-  BodyPrimMap body_to_prims;
-
-  // =========================================================================
-  // PASS 1: Collect Bodies, Joints, and Geoms/Sites/etc.
-  // =========================================================================
-  // A single DFS pass to find all bodies, joints, and determine
-  // which body owns each geom/site/etc. prim.
-  std::vector<pxr::SdfPath> owner_stack;
-  owner_stack.push_back(pxr::SdfPath());  // Start with the world as owner.
-
-  const auto range = pxr::UsdPrimRange::PreAndPostVisit(
-      stage->GetPseudoRoot(), pxr::UsdTraverseInstanceProxies());
-
-  for (auto it = range.begin(); it != range.end(); ++it) {
-    pxr::UsdPrim prim = *it;
-
-    bool is_body = prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>();
-    bool resets = caches.xform_cache.GetResetXformStack(prim);
-    // Only update (push/pop) the owner stack for bodies (becomes new owner) and
-    // resetXformStack (reset owner to world).
-    bool is_pushed_to_stack = is_body || resets;
-
-    if (it.IsPostVisit()) {
-      if (is_pushed_to_stack) {
-        owner_stack.pop_back();
-      }
-      continue;
-    }
-
-    pxr::SdfPath prim_path = prim.GetPath();
-    pxr::SdfPath prim_owner = owner_stack.back();
-
-    if (is_body) {
-      all_body_paths_vec.push_back(prim_path);
-      prim_owner = prim_path;
-    } else if (resets) {
-      prim_owner = pxr::SdfPath();  // Reset owner to world.
-    }
-
-    if (is_pushed_to_stack) {
-      owner_stack.push_back(prim_owner);
-    }
-
-    if (prim.HasAPI<pxr::UsdPhysicsCollisionAPI>() ||
-        prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
-      body_to_prims[prim_owner].push_back(prim_path);
-    }
-
-    if (prim.IsA<pxr::UsdPhysicsJoint>()) {
-      all_joints.push_back(pxr::UsdPhysicsJoint(prim));
-
-      it.PruneChildren();
-    } else if (prim.IsA<pxr::MjcPhysicsKeyframe>()) {
-      ParseMjcPhysicsKeyframe(spec, pxr::MjcPhysicsKeyframe(prim));
-
-      it.PruneChildren();
-    } else if (prim.IsA<pxr::MjcPhysicsActuator>()) {
-      ParseMjcPhysicsActuator(spec, pxr::MjcPhysicsActuator(prim));
-
-      it.PruneChildren();
+  if (!root->actuators.empty()) {
+    for (const auto& actuator : root->actuators) {
+      mujoco::usd::ParseMjcPhysicsActuator(
+          spec, pxr::MjcPhysicsActuator::Get(stage, actuator));
     }
   }
 
-  // =========================================================================
-  // PASS 2: Build the kinematic tree and populate the mjSpec.
-  // =========================================================================
-  std::unique_ptr<mujoco::usd::KinematicNode> kinematic_tree =
-      mujoco::usd::BuildKinematicTree(all_joints, all_body_paths_vec,
-                                      default_prim_path);
-
-  if (kinematic_tree) {
-    PopulateSpecFromTree(stage, spec, /*parent_mj_body=*/nullptr,
-                         /*parent_node=*/nullptr, *kinematic_tree, caches,
-                         body_to_prims);
-  }
+  // Then populate the kinematic tree.
+  pxr::UsdGeomXformCache xform_cache;
+  PopulateSpecFromTree(stage, spec, /*parent_mj_body=*/nullptr,
+                       /*parent_node=*/nullptr, root.get(), caches);
 
   return spec;
 }

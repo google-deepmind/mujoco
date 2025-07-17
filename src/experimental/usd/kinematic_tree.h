@@ -27,22 +27,27 @@ namespace usd {
 // A struct to represent a node in the kinematic tree.
 // Using a struct with a vector of children preserves the order of bodies,
 // which is important for things like keyframes and policy compatibility.
-struct KinematicNode {
+struct Node {
   pxr::SdfPath body_path;
-  pxr::SdfPath joint_path;  // Joint connecting this node to its parent.
-  std::vector<std::unique_ptr<KinematicNode>> children;
+  pxr::SdfPath physics_scene;
+  std::vector<pxr::SdfPath> actuators;
+  std::vector<pxr::SdfPath> joints;
+  std::vector<pxr::SdfPath> colliders;
+  std::vector<pxr::SdfPath> sites;
+  std::vector<pxr::SdfPath> keyframes;
+  std::vector<std::unique_ptr<Node>> children;
 };
 
-// Builds a single kinematic tree from a list of joints.
+// A kinematic edge represents a joint.
+using JointVec = std::vector<pxr::UsdPhysicsJoint>;
+
+// Builds a single kinematic tree from a list of directed edges.
 // The DFS order of bodies in the tree is determined by the order of bodies in
 // `all_body_paths`.
 // All bodies, including static and floating-base bodies, are organized under a
 // single world root. An empty 'from' path in an edge represents the world body.
 // Returns the root of the kinematic tree, or `nullptr` for invalid structures.
-std::unique_ptr<KinematicNode> BuildKinematicTree(
-    const std::vector<pxr::UsdPhysicsJoint>& joints,
-    const std::vector<pxr::SdfPath>& all_body_paths,
-    const pxr::SdfPath& default_prim_path);
+std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage);
 
 }  // namespace usd
 }  // namespace mujoco

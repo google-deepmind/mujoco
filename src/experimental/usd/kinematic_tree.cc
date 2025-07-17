@@ -14,24 +14,36 @@
 
 #include "experimental/usd/kinematic_tree.h"
 
-#include <algorithm>
-#include <deque>
 #include <map>
 #include <memory>
-#include <set>
 #include <utility>
 #include <vector>
 
+#include <mujoco/experimental/usd/mjcPhysics/actuator.h>
+#include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
+#include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/mujoco.h>
 #include <pxr/usd/sdf/path.h>
+#include <pxr/usd/usd/common.h>
+#include <pxr/usd/usd/primRange.h>
+#include <pxr/usd/usdGeom/xformCache.h>
+#include <pxr/usd/usdPhysics/collisionAPI.h>
 #include <pxr/usd/usdPhysics/joint.h>
+#include <pxr/usd/usdPhysics/rigidBodyAPI.h>
+#include <pxr/usd/usdPhysics/scene.h>
 
 namespace mujoco {
 namespace usd {
 
-bool GetJointBodies(const pxr::UsdPhysicsJoint& joint,
-                    const pxr::SdfPath& default_prim_path, pxr::SdfPath* from,
+bool GetJointBodies(const pxr::UsdPhysicsJoint& joint, pxr::SdfPath* from,
                     pxr::SdfPath* to) {
+  // Grab the default prim path
+  pxr::SdfPath default_prim_path;
+  auto stage = joint.GetPrim().GetStage();
+  if (stage->GetDefaultPrim().IsValid()) {
+    default_prim_path = stage->GetDefaultPrim().GetPath();
+  }
+
   pxr::SdfPathVector body1_paths;
   joint.GetBody1Rel().GetTargets(&body1_paths);
   if (body1_paths.empty()) {
@@ -62,121 +74,187 @@ bool GetJointBodies(const pxr::UsdPhysicsJoint& joint,
   return true;
 }
 
-std::unique_ptr<KinematicNode> BuildKinematicTree(
-    const std::vector<pxr::UsdPhysicsJoint>& joints,
-    const std::vector<pxr::SdfPath>& all_body_paths,
-    const pxr::SdfPath& default_prim_path) {
-  std::map<pxr::SdfPath, std::vector<pxr::SdfPath>> children_map;
-  std::map<pxr::SdfPath, pxr::SdfPath> parent_map;
-  std::map<std::pair<pxr::SdfPath, pxr::SdfPath>, pxr::SdfPath>
-      edge_to_joint_map;
-  std::set<pxr::SdfPath> all_nodes(all_body_paths.begin(),
-                                   all_body_paths.end());
+struct ExtractedPrims {
+  std::vector<std::unique_ptr<Node>> nodes;
+  std::vector<pxr::UsdPhysicsJoint> joints;
+};
 
-  for (const auto& joint : joints) {
-    pxr::SdfPath from, to;
-    if (!GetJointBodies(joint, default_prim_path, &from, &to)) {
+ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
+  pxr::UsdPhysicsScene physics_scene;
+  std::vector<std::unique_ptr<Node>> nodes;
+  std::vector<pxr::UsdPhysicsJoint> joints;
+  nodes.push_back(std::make_unique<Node>());
+  Node* root = nodes.back().get();
+
+  // =========================================================================
+  // PASS 1: Collect Bodies, Joints, and Geoms/Sites/etc.
+  // =========================================================================
+  // A single DFS pass to find all bodies, joints, and determine
+  // which body owns each geom/site/etc. prim.
+  std::vector<Node*> owner_stack;
+  owner_stack.push_back(root);  // Start with the world as owner.
+
+  const auto range = pxr::UsdPrimRange::PreAndPostVisit(
+      stage->GetPseudoRoot(), pxr::UsdTraverseInstanceProxies());
+
+  pxr::UsdGeomXformCache xform_cache;
+  for (auto it = range.begin(); it != range.end(); ++it) {
+    pxr::UsdPrim prim = *it;
+
+    bool is_body = prim.HasAPI<pxr::UsdPhysicsRigidBodyAPI>();
+    bool resets = xform_cache.GetResetXformStack(prim);
+    // Only update (push/pop) the owner stack for bodies (becomes new owner) and
+    // resetXformStack (reset owner to world).
+    bool is_pushed_to_stack = is_body || resets;
+
+    if (it.IsPostVisit()) {
+      if (is_pushed_to_stack) {
+        owner_stack.pop_back();
+      }
       continue;
     }
 
-    auto edge_key = std::make_pair(from, to);
-    auto it = edge_to_joint_map.find(edge_key);
-    if (it == edge_to_joint_map.end()) {
-      edge_to_joint_map[edge_key] = joint.GetPath();
-    } else {
-      mju_warning(
-          "Multiple explicit joints defined between body %s and body %s. "
-          "Joint1: %s, Joint2: %s. Keeping the first one found: %s",
-          (from.IsEmpty() ? "<worldbody>" : from.GetString()).c_str(),
-          to.GetString().c_str(), it->second.GetString().c_str(),
-          joint.GetPath().GetString().c_str(), it->second.GetString().c_str());
-      continue;
+    pxr::SdfPath prim_path = prim.GetPath();
+    Node* current_node = owner_stack.back();
+
+    if (is_body) {
+      auto new_node = std::make_unique<Node>();
+      new_node->body_path = prim_path;
+      nodes.push_back(std::move(new_node));
+      current_node = nodes.back().get();
+    } else if (resets) {
+      current_node = root;  // Reset owner to world.
     }
 
-    if (from == to) {
-      mju_error("Self-loop detected at node %s", to.GetString().c_str());
-      return nullptr;
+    if (is_pushed_to_stack) {
+      owner_stack.push_back(current_node);
     }
-    if (parent_map.count(to)) {
-      mju_error("Node %s has multiple parents ('%s' and '%s').",
-                to.GetString().c_str(), parent_map.at(to).GetString().c_str(),
-                from.GetString().c_str());
-      return nullptr;
+
+    if (prim.IsA<pxr::UsdPhysicsScene>() && root->physics_scene.IsEmpty()) {
+      root->physics_scene = prim_path;
     }
-    children_map[from].push_back(to);
-    parent_map[to] = from;
-    all_nodes.insert(from);
-    all_nodes.insert(to);
+
+    if (prim.HasAPI<pxr::UsdPhysicsCollisionAPI>()) {
+      current_node->colliders.push_back(prim.GetPath());
+    }
+
+    if (prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
+      current_node->sites.push_back(prim.GetPath());
+      // Sites should not have children.
+      it.PruneChildren();
+    }
+
+    if (prim.IsA<pxr::UsdPhysicsJoint>()) {
+      // We may not know which body this belongs to yet so we'll add it to a
+      // list and the caller can assign the joints when building the tree.
+      joints.push_back(pxr::UsdPhysicsJoint(prim));
+      // Joints should not have children.
+      it.PruneChildren();
+    }
+
+    if (prim.IsA<pxr::MjcPhysicsActuator>()) {
+      root->actuators.push_back(prim_path);
+      // Joints should not have children.
+      it.PruneChildren();
+    }
+
+    if (prim.IsA<pxr::MjcPhysicsKeyframe>()) {
+      root->keyframes.push_back(prim.GetPath());
+      // Keyframes should not have children.
+      it.PruneChildren();
+    }
+  }
+  return {.nodes = std::move(nodes), .joints = std::move(joints)};
+}
+
+std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
+  ExtractedPrims extraction = ExtractPrims(stage);
+
+  std::map<pxr::SdfPath, int> body_index;
+  body_index[pxr::SdfPath()] = 0;
+  for (int i = 0; i < extraction.nodes.size(); ++i) {
+    body_index[extraction.nodes[i]->body_path] = i;
   }
 
-  // Sort children in children_map to respect the DFS order from the stage.
-  for (auto& [_, children] : children_map) {
-    std::sort(
-        children.begin(), children.end(),
-        [&v = all_body_paths](const auto& a, const auto& b) {
-          return std::distance(v.begin(), std::find(v.begin(), v.end(), a)) <
-                 std::distance(v.begin(), std::find(v.begin(), v.end(), b));
-        });
+  // List of direct children for each body.
+  std::vector<std::vector<bool>> children(
+      extraction.nodes.size(), std::vector<bool>(extraction.nodes.size()));
+  // List of joint prim paths associated with a child for each body.
+  std::vector<std::vector<pxr::SdfPath>> parent_joints(extraction.nodes.size());
+  for (const pxr::UsdPhysicsJoint& joint : extraction.joints) {
+    pxr::SdfPath from, to;
+    if (!GetJointBodies(joint, &from, &to)) {
+      continue;
+    }
+
+    int from_idx = body_index[from];
+    int to_idx = body_index[to];
+    if (from_idx == to_idx) {
+      mju_error("Cycle detected: self referencing joint at node %s",
+                to.GetString().c_str());
+      return nullptr;
+    }
+
+    children[from_idx][to_idx] = true;
+    parent_joints[to_idx].push_back(joint.GetPath());
+    // Now that we know all the bodies, we can assign joints to respective
+    // nodes.
+    extraction.nodes[to_idx]->joints.push_back(joint.GetPath());
   }
 
   // The world body is represented by an empty SdfPath.
-  auto world_root = std::make_unique<KinematicNode>();
-  std::map<pxr::SdfPath, KinematicNode*> node_map;
-  node_map[pxr::SdfPath()] = world_root.get();
+  auto world_root = std::move(extraction.nodes[0]);
 
-  // Use a deque for traversal. We will add roots to the back and children
-  // to the front to perform a DFS on each root's tree.
-  std::deque<pxr::SdfPath> q;
+  std::vector<std::pair<int, Node*>> stack;
+  stack.emplace_back(0, world_root.get());
 
-  // Add roots (floating-base bodies and children of the world) to the queue,
-  // preserving the DFS order from the USD stage.
-  for (const auto& body_path : all_body_paths) {
-    if (!body_path.IsEmpty()) {
-      const auto it = parent_map.find(body_path);
-      // A root is a body that has no parent, or its parent is the world.
-      if (it == parent_map.end() || it->second.IsEmpty()) {
-        q.push_back(body_path);
-      }
+  // A node without any joints from a parent has a free joint.
+  // Add all free joints as children of the world body.
+  for (int i = 1; i < extraction.nodes.size(); ++i) {
+    if (parent_joints[i].empty()) {
+      children[0][i] = true;
     }
   }
 
-  while (!q.empty()) {
-    pxr::SdfPath current_path = q.front();
-    q.pop_front();
+  std::vector<bool> visited(extraction.nodes.size());
+  while (!stack.empty()) {
+    auto [current_body, parent] = stack.back();
+    stack.pop_back();
+    visited[current_body] = true;
 
-    pxr::SdfPath parent_path = parent_map.count(current_path)
-                                   ? parent_map.at(current_path)
-                                   : pxr::SdfPath();
-    KinematicNode* parent_node = node_map.at(parent_path);
-
-    auto new_node = std::make_unique<KinematicNode>();
-    new_node->body_path = current_path;
-    if (edge_to_joint_map.count({parent_path, current_path})) {
-      new_node->joint_path = edge_to_joint_map.at({parent_path, current_path});
+    Node* current_node = nullptr;
+    if (current_body > 0) {
+      parent->children.push_back(std::move(extraction.nodes[current_body]));
+      current_node = parent->children.back().get();
+    } else {
+      current_node = world_root.get();
     }
-    node_map[current_path] = new_node.get();
-    parent_node->children.push_back(std::move(new_node));
 
-    if (children_map.count(current_path)) {
-      const auto& children = children_map.at(current_path);
-      // Add children to the front of the queue in reverse order to ensure
-      // they are processed in the correct order by the DFS.
-      for (auto it = children.rbegin(); it != children.rend(); ++it) {
-        q.push_front(*it);
+    // Process children in reverse to maintain DFS.
+    for (int i = extraction.nodes.size() - 1; i > 0; --i) {
+      if (!children[current_body][i]) {
+        continue;
       }
+      if (visited[i]) {
+        mju_error("Cycle detected in the kinematic tree at node %s",
+                  current_node->body_path.GetString().c_str());
+        return nullptr;
+      }
+      stack.emplace_back(
+          i, current_body > 0 ? parent->children.back().get() : parent);
     }
   }
 
-  // After traversal, check for unvisited nodes.
-  // Unvisited nodes at this point imply a cycle.
-  for (const auto& node : all_nodes) {
-    if (!node.IsEmpty() && !node_map.count(node)) {
-      mju_error("Cycle detected involving node %s.", node.GetString().c_str());
+  for (int i = 1; i < visited.size(); ++i) {
+    if (!visited[i]) {
+      mju_error("Cycle detected: Node %s is not reachable from the world.",
+                extraction.nodes[i]->body_path.GetString().c_str());
       return nullptr;
     }
   }
 
   return world_root;
 }
+
 }  // namespace usd
 }  // namespace mujoco
