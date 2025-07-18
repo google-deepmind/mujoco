@@ -1380,10 +1380,13 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
     if (revolute.GetLowerLimitAttr().Get(&lower) &&
         revolute.GetUpperLimitAttr().Get(&upper)) {
       mj_joint->limited = mjLIMITED_TRUE;
-      // As per the XML Reference, the default unit for mjSpec is degrees, so we
-      // don't need to convert from USD (which is degrees).
-      mj_joint->range[0] = lower;
-      mj_joint->range[1] = upper;
+      if (spec->compiler.degree) {
+        mj_joint->range[0] = lower;
+        mj_joint->range[1] = upper;
+      } else {
+        mj_joint->range[0] = lower * M_PI / 180.0;
+        mj_joint->range[1] = upper * M_PI / 180.0;
+      }
     }
   } else if (prim.IsA<pxr::UsdPhysicsPrismaticJoint>()) {
     pxr::UsdPhysicsPrismaticJoint prismatic(prim);
