@@ -177,7 +177,7 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
       it.PruneChildren();
     }
   }
-  return {.nodes = std::move(nodes), .joints = std::move(joints)};
+  return {std::move(nodes), std::move(joints)};
 }
 
 std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
