@@ -296,6 +296,9 @@ void TouchStress::Compute(const mjModel* m, mjData* d, int instance) {
     if (m->geom_type[geom] == mjGEOM_SDF) {
       sdf_instance[0] = m->geom_plugin[geom];
       sdf_ptr[0] = mjc_getSDF(m, geom);
+    } else if (m->geom_type[geom] == mjGEOM_MESH) {
+      sdf_instance[0] = m->geom_dataid[geom];
+      geomtype[0] = (mjtGeom)m->geom_type[geom];
     } else {
       sdf_instance[0] = geom;
       geomtype[0] = (mjtGeom)m->geom_type[geom];
