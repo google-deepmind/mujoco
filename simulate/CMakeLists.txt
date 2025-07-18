@@ -47,7 +47,7 @@ option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamicall
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
 set(_INSTALL_SIMULATE ON)
-set(EXPOSE_HEADERS OFF)
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(SIMULATE_STANDALONE ON)
   # If standalone, do not install the samples.
@@ -124,12 +124,14 @@ if(SIMULATE_GLFW_DYNAMIC_SYMBOLS)
 endif()
 add_library(mujoco::platform_ui_adapter ALIAS platform_ui_adapter)
 
-add_library(libsimulate STATIC $<TARGET_OBJECTS:platform_ui_adapter>)
-set_target_properties(libsimulate PROPERTIES OUTPUT_NAME simulate)
-add_library(mujoco::libsimulate ALIAS libsimulate)
+add_library(libmujoco_simulate STATIC $<TARGET_OBJECTS:platform_ui_adapter>)
+set_target_properties(libmujoco_simulate PROPERTIES OUTPUT_NAME simulate)
+add_library(mujoco::libmujoco_simulate ALIAS libmujoco_simulate)
+set_target_properties(libmujoco_simulate PROPERTIES PUBLIC_HEADER "simulate.h;platform_ui_adapter.h;glfw_adapter.h;glfw_dispatch.h;glfw_corevideo.h;array_safety.h")
+
 
 target_sources(
-  libsimulate
+  libmujoco_simulate
   PUBLIC 
     simulate.h
     platform_ui_adapter.h
@@ -138,14 +140,14 @@ target_sources(
     array_safety.h
   PRIVATE simulate.cc 
 )
-target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(libsimulate PUBLIC lodepng mujoco::platform_ui_adapter mujoco::mujoco)
-target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+target_include_directories(libmujoco_simulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(libmujoco_simulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+target_link_libraries(libmujoco_simulate PUBLIC lodepng mujoco::platform_ui_adapter mujoco::mujoco)
+target_link_options(libmujoco_simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 if(APPLE)
-  target_sources(libsimulate PRIVATE macos_gui.mm)
-  target_link_libraries(libsimulate PUBLIC "-framework Cocoa")
+  target_sources(libmujoco_simulate PRIVATE macos_gui.mm)
+  target_link_libraries(libmujoco_simulate PUBLIC "-framework Cocoa")
 endif()
 
 # Build simulate executable
@@ -173,7 +175,7 @@ if(SIMULATE_BUILD_EXECUTABLE)
 
   target_link_libraries(
     simulate
-    libsimulate
+    libmujoco_simulate
     mujoco::mujoco
     glfw
     Threads::Threads
@@ -296,16 +298,16 @@ if(SIMULATE_BUILD_EXECUTABLE)
       PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT simulate
     )
 
-    # Specify public headers for libsimulate
-    if(SIMULATE_EXPOSE_HEADERS)
-      set_target_properties(libsimulate PROPERTIES PUBLIC_HEADER "simulate.h;platform_ui_adapter.h;glfw_adapter.h;glfw_dispatch.h;glfw_corevideo.h;array_safety.h")
+    # Specify public headers for libmujoco_simulate
 
-      install(
-      TARGETS libsimulate
-      EXPORT ${PROJECT_NAME}
-      ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-      PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/simulate" COMPONENT simulate
-      )
+    install(
+    TARGETS libmujoco_simulate
+    EXPORT ${PROJECT_NAME}
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/simulate" COMPONENT simulate
+    )
     endif()
   endif()
 endif()
