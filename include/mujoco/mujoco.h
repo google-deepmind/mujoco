@@ -1395,6 +1395,9 @@ MJAPI void mju_bindThreadPool(mjData* d, void* thread_pool);
 // Enqueue a task in a thread pool.
 MJAPI void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
 
+// Set whether the thread pool should use busy-waiting for its task queue.
+MJAPI void mju_threadPoolSetBusyWait(mjThreadPool* thread_pool, int busy_wait);
+
 // Destroy a thread pool.
 MJAPI void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 
