@@ -1395,7 +1395,7 @@ Euler integrator, semi-implicit in velocity.
     np.testing.assert_array_equal(d2, d3.flatten())
     np.testing.assert_array_equal(d1, d4.flatten())
 
-  def test_mjd_quat_intergrate(self):
+  def test_mjd_quat_integrate(self):
     scale = 0.1
     vel = np.array((0.2, 0.3, 0.3))
     d_quat = np.empty(9, np.float64)
