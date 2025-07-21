@@ -86,7 +86,9 @@ class EnableBit(enum.IntFlag):
   """
 
   INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
-  # unsupported: OVERRIDE, ENERGY, FWDINV, MULTICCD, ISLAND
+  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND
+  # required by the C implementation only, ignored otherwise: MULTICCD
+  MULTICCD = mujoco.mjtEnableBit.mjENBL_MULTICCD
 
 
 class JointType(enum.IntEnum):
