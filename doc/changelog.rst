@@ -39,16 +39,16 @@ Version 3.3.4 (July 8, 2025)
 
    1. The functions ``mjs_detachBody`` and ``mjs_detachDefault`` have been replaced by :ref:`mjs_delete`.
    2. The Python functions ``element.delete`` have been replaced by ``spec.delete(element)``.
+   3. In the mjSpec C API, directly setting an element's name using :ref:`mjs_setString` has been replaced with a new
+      function :ref:`mjs_setName` which allows checking for naming collisions at set-time rather than compile-time, for
+      earlier catching of errors. Relatedly, the ``name`` attribute has been removed from all mjs elements.
 
 General
 ^^^^^^^
-3. Added support for setting the initial camera in the viewer using
+4. Added support for setting the initial camera in the viewer using
    :ref:`visual/global/cameraid<visual-global-cameraid>`.
-4. Added support to only sync the state in the Python :ref:`passive viewer<PyViewerPassive>`'s ``Sync`` method, this is
+5. Added support to only sync the state in the Python :ref:`passive viewer<PyViewerPassive>`'s ``Sync`` method, this is
    useful to improve performance. The default behavior is unchanged and copies the entire model and data.
-5. In the mjSpec C API, directly setting an element's name using :ref:`mjs_setString` has been replaced with a new
-   function :ref:`mjs_setName` which allows checking for naming collisions at set-time rather than compile-time, for
-   earlier catching of errors.
 
 Bug fixes
 ^^^^^^^^^
