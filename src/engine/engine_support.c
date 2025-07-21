@@ -1303,12 +1303,14 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int 
 
   mjtNum dist = mjc_ccd(&config, &status, &obj1, &obj2);
 
+  // witness points are only computed if dist <= distmax
   if (fromto && status.nx > 0) {
     mju_copy3(fromto, status.x1);
     mju_copy3(fromto+3, status.x2);
   }
 
-  return dist;
+  // clamp dist to distmax as mjc_ccd returns DBL_MAX if dist > distmax
+  return dist < distmax ? dist : distmax;
 }
 
 
