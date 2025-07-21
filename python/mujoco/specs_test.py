@@ -98,9 +98,13 @@ class SpecsTest(absltest.TestCase):
     site = body.add_site()
     site.name = 'sitename'
     site.type = mujoco.mjtGeom.mjGEOM_BOX
-    site.userdata = [1, 2, 3, 4, 5, 6]
+    site.userdata = [7, 2, 3, 4, 5, 6]
     self.assertEqual(site.name, 'sitename')
     self.assertEqual(site.type, mujoco.mjtGeom.mjGEOM_BOX)
+    np.testing.assert_array_equal(site.userdata, [7, 2, 3, 4, 5, 6])
+
+    # Modify a single element of userdata.
+    site.userdata[0] = 1
     np.testing.assert_array_equal(site.userdata, [1, 2, 3, 4, 5, 6])
 
     # Compile the spec and check for expected values in the model.

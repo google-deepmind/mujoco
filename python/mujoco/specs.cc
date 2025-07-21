@@ -221,6 +221,9 @@ PYBIND11_MODULE(_specs, m) {
   DefineArray<char>(m, "MjCharVec");
   DefineArray<std::string>(m, "MjStringVec");
   DefineArray<std::byte>(m, "MjByteVec");
+  DefineArray<double>(m, "MjDoubleVec");
+  DefineArray<float>(m, "MjFloatVec");
+  DefineArray<int>(m, "MjIntVec");
 
   // ============================= MJSPEC =====================================
   mjSpec.def(py::init<>());

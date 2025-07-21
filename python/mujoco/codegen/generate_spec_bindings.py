@@ -193,7 +193,7 @@ def _ptr_binding_code(
       []({rawclassname}& self, std::string_view {varname}) {{
         *(self.{fullvarname}) = {varname};
     }});"""
-  elif (  # C++ vectors of values -> Python array
+  elif (  # C++ vectors of values -> custom array
       vartype == 'mjDoubleVec'
       or vartype == 'mjFloatVec'
       or vartype == 'mjIntVec'
@@ -202,9 +202,9 @@ def _ptr_binding_code(
     return f"""\
   {classname}.def_property(
     "{varname}",
-    []({rawclassname}& self) -> py::array_t<{vartype}> {{
-        return py::array_t<{vartype}>(self.{fullvarname}->size(),
-                                      self.{fullvarname}->data());
+    []({rawclassname}& self) -> MjTypeVec<{vartype}> {{
+        return MjTypeVec<{vartype}>(self.{fullvarname}->data(),
+                                    self.{fullvarname}->size());
       }},
     []({rawclassname}& self, py::object rhs) {{
         self.{fullvarname}->clear();
@@ -212,7 +212,7 @@ def _ptr_binding_code(
         for (auto val : rhs) {{
           self.{fullvarname}->push_back(py::cast<{vartype}>(val));
       }}
-    }}, py::return_value_policy::reference_internal);"""
+    }}, py::return_value_policy::move);"""
   elif vartype == 'mjByteVec':
     return f"""\
   {classname}.def_property(
