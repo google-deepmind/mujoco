@@ -728,7 +728,12 @@ This is useful for example when the MJB is not available as a file on disk.)"));
 
   // ==================== MJDATA ===============================================
   py::class_<MjDataWrapper> mjData(m, "MjData");
-  mjData.def(py::init<MjModelWrapper*>());
+  mjData.def(py::init([](MjModelWrapper* m) {
+    if (!m) {
+      throw py::type_error("MjModel cannot be None");
+    }
+    return MjDataWrapper(m);
+  }));
   mjData.def_property_readonly("_address", [](const MjDataWrapper& d) {
     return reinterpret_cast<std::uintptr_t>(d.get());
   });
