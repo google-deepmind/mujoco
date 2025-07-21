@@ -575,6 +575,7 @@ class ModelC(PyTreeNode):
   flex_bvhnum: jax.Array
   actuator_plugin: jax.Array
   sensor_plugin: jax.Array
+  sensor_intprm: jax.Array
   plugin: jax.Array
 
 
