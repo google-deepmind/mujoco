@@ -207,6 +207,9 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
       FINISH
     }
 
+    // mat = contact frame rotation matrix (normal along x)
+    mju_transpose(mat, con->frame, 3, 3);
+
     // contact frame
     if (vopt->frame == mjFRAME_CONTACT) {
       // set length and width of axis cylinders using half regular frame scaling
@@ -243,9 +246,6 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
     if (d->contact[i].efc_address < 0) {
       continue;
     }
-
-    // mat = contact frame rotation matrix (normal along x)
-    mju_transpose(mat, con->frame, 3, 3);
 
     // get contact force:torque in contact frame
     mj_contactForce(m, d, i, confrc);
