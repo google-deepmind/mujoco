@@ -148,7 +148,7 @@ def _resolve_impl_and_device(
   elif (has_impl, has_device) == (False, True):
     impl = _resolve_impl(device)
   else:
-    device = jax.devices(jax.default_backend())[0]
+    device = jax.devices()[0]
     logging.info('Using JAX default device: %s.', device)
     impl = _resolve_impl(device)
 
