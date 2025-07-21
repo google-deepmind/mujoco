@@ -245,7 +245,6 @@ The following features are **fully supported** in MJX:
        ``VELOCIMETER``, ``GYRO``, ``JOINTVEL``, ``TENDONVEL``, ``ACTUATORVEL``, ``BALLANGVEL``, ``FRAMELINVEL``,
        ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``, ``TOUCH``, ``ACCELEROMETER``, ``FORCE``, ``TORQUE``,
        ``ACTUATORFRC``, ``JOINTACTFRC``, ``TENDONACTFRC``, ``FRAMELINACC``, ``FRAMEANGACC``
-       (``ACCELEROMETER``, ``FORCE``, ``TORQUE`` not supported with connect or weld equality constraints)
    * - Lights
      - Positions and directions of lights
 
