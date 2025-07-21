@@ -304,7 +304,7 @@ static void mjc_cylinderSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3
   }
 
   // set result in Z direction
-  tmp[2] = mju_sign(local_dir[2]) * size[1];
+  tmp[2] = local_dir[2] >= 0 ? size[1] : -size[1];
 
   // transform result to global frame
   localToGlobal(res, mat, tmp, pos);
