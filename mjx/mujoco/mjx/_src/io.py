@@ -393,6 +393,7 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'time': (float_,),
       'qvel': (m.nv, float_),
       'act': (m.na, float_),
+      'plugin_state': (m.npluginstate, float_),
       'qacc_warmstart': (m.nv, float_),
       'ctrl': (m.nu, float_),
       'qfrc_applied': (m.nv, float_),

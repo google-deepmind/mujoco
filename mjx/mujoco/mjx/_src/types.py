@@ -579,6 +579,7 @@ class ModelC(PyTreeNode):
   sensor_plugin: jax.Array
   sensor_intprm: jax.Array
   plugin: jax.Array
+  plugin_stateadr: jax.Array
 
 
 class ModelJAX(PyTreeNode):
@@ -636,6 +637,7 @@ class Model(PyTreeNode):
   ngravcomp: int
   nuserdata: int
   nsensordata: int
+  npluginstate: int
   opt: Option
   stat: Statistic
   qpos0: jax.Array
@@ -1084,6 +1086,7 @@ class Data(PyTreeNode):
   qvel: jax.Array
   act: jax.Array
   qacc_warmstart: jax.Array
+  plugin_state: jax.Array
   # control:
   ctrl: jax.Array
   qfrc_applied: jax.Array
