@@ -115,7 +115,7 @@ if(APPLE)
   target_link_libraries(platform_ui_adapter PUBLIC "-framework CoreVideo")
 endif()
 target_include_directories(
-  platform_ui_adapter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  platform_ui_adapter PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                              $<TARGET_PROPERTY:glfw,INTERFACE_INCLUDE_DIRECTORIES>
 )
 target_link_libraries(platform_ui_adapter PUBLIC mujoco::mujoco)
@@ -140,7 +140,7 @@ target_sources(
     array_safety.h
   PRIVATE simulate.cc 
 )
-target_include_directories(libmujoco_simulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(libmujoco_simulate PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 target_compile_options(libmujoco_simulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
 target_link_libraries(libmujoco_simulate PUBLIC lodepng mujoco::platform_ui_adapter mujoco::mujoco)
 target_link_options(libmujoco_simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
@@ -308,6 +308,5 @@ if(SIMULATE_BUILD_EXECUTABLE)
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/simulate" COMPONENT simulate
     )
-    endif()
   endif()
 endif()
