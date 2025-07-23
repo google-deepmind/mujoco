@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/imageableAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/meshCollisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
@@ -1451,6 +1452,32 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
   ExpectAttributeEqual(stage,
                        "/test/body_3/body_3_col/Mesh.physics:approximation",
                        pxr::UsdPhysicsTokens->convexHull);
+}
+
+TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsImageableAPI) {
+  static constexpr char xml[] = R"(
+  <mujoco model="test">
+    <asset>
+      <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>
+    </asset>
+    <worldbody>
+      <body name="body">
+        <geom
+          name="mesh"
+          type="mesh"
+          mesh="tetrahedron"
+          group="4"
+          contype="0"
+          conaffinity="0"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  auto stage = OpenStageWithPhysics(xml);
+
+  EXPECT_PRIM_API_APPLIED(stage, "/test/body/mesh/Mesh",
+                          pxr::MjcPhysicsImageableAPI);
+  ExpectAttributeEqual(stage, "/test/body/mesh/Mesh.mjc:group", 4);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsCollisionAPI) {

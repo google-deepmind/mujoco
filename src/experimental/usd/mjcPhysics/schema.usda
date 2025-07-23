@@ -649,6 +649,25 @@ class "MjcSiteAPI"
     )
 }
 
+class "MjcImageableAPI"
+(
+    customData = {
+        string className = "ImageableAPI"
+    }
+    doc = """API describing attributes for visual entities in MuJoCo."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the imageable belongs."""
+    )
+}
+
 class "MjcCollisionAPI"
 (
     customData = {

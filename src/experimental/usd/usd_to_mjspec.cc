@@ -21,6 +21,7 @@
 
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/imageableAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
 #include <mujoco/experimental/usd/mjcPhysics/materialAPI.h>
@@ -1335,6 +1336,7 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   if (!MaybeParseGeomPrimitive(gprim, geom, caches.xform_cache)) {
     ParseUsdMesh(spec, gprim, geom, caches.xform_cache);
   }
+
   pxr::UsdShadeMaterial bound_material =
       pxr::UsdShadeMaterialBindingAPI(gprim).ComputeBoundMaterial(
           &caches.bindings_cache, &caches.collection_query_cache);
@@ -1349,6 +1351,14 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
       caches.parsed_materials[material_path] = material;
     }
     mjs_setString(geom->material, mjs_getName(material->element)->c_str());
+  }
+
+  if (gprim.HasAPI<pxr::MjcPhysicsImageableAPI>()) {
+    auto imageable_api = pxr::MjcPhysicsImageableAPI(gprim);
+    auto group_attr = imageable_api.GetGroupAttr();
+    if (group_attr.HasAuthoredValue()) {
+      group_attr.Get(&geom->group);
+    }
   }
 }
 
@@ -1389,9 +1399,10 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
     }
   }
 
-  // Parse the Mass API after the physics material APIs since the density attribute
-  // from the Mass API is supposed to override the Material API density attribute.
-  // See https://openusd.org/dev/api/usd_physics_page_front.html
+  // Parse the Mass API after the physics material APIs since the density
+  // attribute from the Mass API is supposed to override the Material API
+  // density attribute. See
+  // https://openusd.org/dev/api/usd_physics_page_front.html
   if (prim.HasAPI<pxr::UsdPhysicsMassAPI>()) {
     ParseUsdPhysicsMassAPIForGeom(geom, pxr::UsdPhysicsMassAPI(prim));
   }
@@ -1672,8 +1683,9 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
           : stage->GetPrimAtPath(current_node->body_path);
 
   for (const auto& gprim_path : current_node->visual_gprims) {
-    ParseUsdGeomGprim(spec, stage->GetPrimAtPath(gprim_path),
-                      body_prim_for_xform, current_mj_body, caches);
+    auto gprim = stage->GetPrimAtPath(gprim_path);
+    ParseUsdGeomGprim(spec, gprim, body_prim_for_xform, current_mj_body,
+                      caches);
   }
 
   for (const auto& collider_path : current_node->colliders) {

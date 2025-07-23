@@ -293,6 +293,16 @@ class "MjcSiteAPI" (
     )
 }
 
+class "MjcImageableAPI" (
+    doc = "API describing attributes for visual entities in MuJoCo."
+)
+{
+    uniform int mjc:group = 0 (
+        displayName = "Group"
+        doc = "Integer MuJoCo group to which the imageable belongs."
+    )
+}
+
 class "MjcCollisionAPI" (
     doc = "API describing a MuJoCo collider."
 )

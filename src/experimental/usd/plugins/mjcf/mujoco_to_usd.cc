@@ -656,7 +656,6 @@ class ModelWriter {
       create_flag_attr(token, flag, false);
     }
 
-
     // Compiler attributes
     WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Bool,
                           MjcPhysicsTokens->mjcCompilerAutoLimits,
@@ -684,7 +683,8 @@ class ModelWriter {
 
     WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Token,
                           MjcPhysicsTokens->mjcCompilerAngle,
-                          spec_->compiler.degree ? MjcPhysicsTokens->degree:MjcPhysicsTokens->radian);
+                          spec_->compiler.degree ? MjcPhysicsTokens->degree
+                                                 : MjcPhysicsTokens->radian);
 
     WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Bool,
                           MjcPhysicsTokens->mjcCompilerFitAABB,
@@ -1621,6 +1621,13 @@ class ModelWriter {
     WriteUniformAttribute(geom_path, pxr::SdfValueTypeNames->Int,
                           MjcPhysicsTokens->mjcGroup, geom->group);
 
+    if (model_->geom_contype[geom_id] == 0 &&
+                           model_->geom_conaffinity[geom_id] == 0) {
+      // If the geom is purely visual, apply the imageable API.
+      ApplyApiSchema(data_, geom_path,
+                     MjcPhysicsTokens->MjcImageableAPI);
+    }
+
     // Apply the physics schemas if we are writing physics and the
     // geom participates in collisions.
     if (write_physics_ && (model_->geom_contype[geom_id] != 0 ||
@@ -1715,6 +1722,11 @@ class ModelWriter {
         SetAttributeDefault(data_, approximation_attr,
                             pxr::UsdPhysicsTokens->convexHull);
       }
+    } else {
+      // Currently imageable only has a group API. But since it's the same
+      // naming in MjcCollisionsAPI we've already set it earlier in this
+      // function.
+      ApplyApiSchema(data_, geom_path, MjcPhysicsTokens->MjcImageableAPI);
     }
 
     mjsDefault *spec_default = mjs_getDefault(geom->element);
