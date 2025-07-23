@@ -2831,6 +2831,15 @@ Adds a thread pool to mjData and configures it for multi-threaded use.
 
 Enqueue a task in a thread pool.
 
+.. _mju_threadPoolSetBusyWait:
+
+`mju_threadPoolSetBusyWait <#mju_threadPoolSetBusyWait>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_threadPoolSetBusyWait
+
+Set whether the thread pool should busy-wait for its task queue. Set to 1 to busy-wait, or 0 to use sleep.
+
 .. _mju_threadPoolDestroy:
 
 `mju_threadPoolDestroy <#mju_threadPoolDestroy>`__
