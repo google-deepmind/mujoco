@@ -196,9 +196,18 @@ target_sources(mujoco PRIVATE
   kinematic_tree.cc
   kinematic_tree.h
   layer_sink.cc
+  material_parsing.cc
+  material_parsing.h
   usd_to_mjspec.cc
   utils.cc
   writer.cc
+)
+
+# pxr/usd/tf/hashset.h might include deprecated headers so disable this check
+# when compiling with USD enabled.
+target_compile_options(
+     mujoco
+     PRIVATE -Wno-deprecated
 )
 
 if (USD_DIR)

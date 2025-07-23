@@ -32,6 +32,7 @@
 #include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mujoco.h>
 #include "experimental/usd/kinematic_tree.h"
+#include "experimental/usd/material_parsing.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/rotation.h>
@@ -77,6 +78,7 @@ struct UsdCaches {
   pxr::UsdGeomXformCache xform_cache;
   pxr::UsdShadeMaterialBindingAPI::BindingsCache bindings_cache;
   pxr::UsdShadeMaterialBindingAPI::CollectionQueryCache collection_query_cache;
+  std::map<pxr::SdfPath, mjsMaterial*> parsed_materials;
 };
 
 void SetDoubleArrFromGfVec3d(double* to, const pxr::GfVec3d& from) {
@@ -1332,6 +1334,21 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   SetLocalPoseFromPrim(gprim, body_prim, geom, caches.xform_cache);
   if (!MaybeParseGeomPrimitive(gprim, geom, caches.xform_cache)) {
     ParseUsdMesh(spec, gprim, geom, caches.xform_cache);
+  }
+  pxr::UsdShadeMaterial bound_material =
+      pxr::UsdShadeMaterialBindingAPI(gprim).ComputeBoundMaterial(
+          &caches.bindings_cache, &caches.collection_query_cache);
+  if (bound_material) {
+    pxr::SdfPath material_path = bound_material.GetPrim().GetPath();
+    mjsMaterial* material = nullptr;
+    if (caches.parsed_materials.find(material_path) !=
+        caches.parsed_materials.end()) {
+      material = caches.parsed_materials[material_path];
+    } else {
+      material = ParseMaterial(spec, bound_material);
+      caches.parsed_materials[material_path] = material;
+    }
+    mjs_setString(geom->material, mjs_getName(material->element)->c_str());
   }
 }
 
