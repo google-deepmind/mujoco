@@ -104,6 +104,14 @@ void SphericalToCartesian(const mjtNum aer[3], mjtNum xyz[3]) {
   xyz[2] = -r * mju_cos(e) * mju_cos(a);
 }
 
+// Transform Cartesian (x,y,z) to spherical (azimuth, elevation, radius).
+void CartesianToSpherical(const mjtNum xyz[3], mjtNum aer[3]) {
+  mjtNum x = xyz[0], y = xyz[1], z = xyz[2];
+  aer[0] = mju_atan2(x, -z);
+  aer[1] = mju_atan2(y, mju_sqrt(x*x + z*z));
+  aer[2] = mju_sqrt(x*x + z*z + y*y);
+}
+
 // Tangent frame in Cartesian coordinates.
 void TangentFrame(const mjtNum aer[3], mjtNum mat[9]) {
   mjtNum a = aer[0], e = aer[1], r = aer[2];
@@ -222,10 +230,10 @@ TouchStress::TouchStress(const mjModel* m, mjData* d, int instance,
   }
 
   // Create bin edges.
-  x_edges_.assign(size[0] + 1, 0);
-  y_edges_.assign(size[1] + 1, 0);
-  BinEdges(x_edges_.data(), y_edges_.data(), size_, fov_, gamma_);
-  dist_.resize(size[0]*size[1], 0);
+  std::vector<mjtNum> x_edges(size[0] + 1, 0);
+  std::vector<mjtNum> y_edges(size[1] + 1, 0);
+  BinEdges(x_edges.data(), y_edges.data(), size_, fov_, gamma_);
+  dist_ = m->geom_rbound[geom_id_];
   pos_.resize(3*size[0]*size[1], 0);
   mat_.resize(9*size[0]*size[1], 0);
 
@@ -233,11 +241,10 @@ TouchStress::TouchStress(const mjModel* m, mjData* d, int instance,
   for (int i = 0; i < size[0]; i++) {
     for (int j = 0; j < size[1]; j++) {
       mjtNum aer[3];
-      aer[0] = 0.5*(x_edges_[i+1]+x_edges_[i]);
-      aer[1] = 0.5*(y_edges_[j+1]+y_edges_[j]);
+      aer[0] = 0.5*(x_edges[i+1]+x_edges[i]);
+      aer[1] = 0.5*(y_edges[j+1]+y_edges[j]);
       aer[2] = m->geom_rbound[geom_id_];
       SphericalToCartesian(aer, pos_.data() + 3 * (i * size[1] + j));
-      dist_[i*size[1]+j] = mju_abs(aer[2]);
       TangentFrame(aer, mat_.data() + 9 * (i * size[1] + j));
     }
   }
@@ -429,8 +436,7 @@ void TouchStress::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
   // Draw geoms.
   for (int i=0; i < size_[0]; i++) {
     for (int j=0; j < size_[1]; j++) {
-      mjtNum dist = dist_[i*size_[1]+j];
-      if (!dist) {
+      if (dist_ < mjMINVAL) {
         continue;
       }
       if (scn->ngeom >= scn->maxgeom) {
@@ -438,19 +444,28 @@ void TouchStress::Visualize(const mjModel* m, mjData* d, const mjvOption* opt,
         mj_freeStack(d);
         return;
       } else {
+        // position of center and neighbor in local frame
+        mjtNum pos[3];
+        mjtNum pos1[3];
+        int k = i < size_[0]-1 ? i+1 : i-1;
+        int l = j < size_[1]-1 ? j+1 : j-1;
+        mju_copy3(pos, pos_.data() + 3*(i*size_[1]+j));
+        mju_copy3(pos1, pos_.data() + 3*(k*size_[1]+l));
+
+        // position in spherical coordinates
+        mjtNum aer[3];
+        mjtNum aer1[3];
+        CartesianToSpherical(pos, aer);
+        CartesianToSpherical(pos1, aer1);
+
         // size
         mjtNum size[3];
-        size[0] = dist*0.5*(x_edges_[i+1]-x_edges_[i]);
-        size[1] = dist*0.5*(y_edges_[j+1]-y_edges_[j]);
-        size[2] = dist*kRelativeThickness;
+        size[0] = .5*dist_*mju_abs(aer1[0]-aer[0]);
+        size[1] = .5*dist_*mju_abs(aer1[1]-aer[1]);
+        size[2] = dist_*kRelativeThickness;
 
-        // position
-        mjtNum pos[3];
-        mjtNum aer[3];
-        aer[0] = 0.5*(x_edges_[i+1]+x_edges_[i]);
-        aer[1] = 0.5*(y_edges_[j+1]+y_edges_[j]);
-        aer[2] = dist*(1-kRelativeThickness);
-        SphericalToCartesian(aer, pos);
+        // position in global frame
+        mju_scl3(pos, pos, 1-kRelativeThickness);
         mju_mulMatVec3(pos, site_mat, pos);
         mju_addTo3(pos, site_pos);
 

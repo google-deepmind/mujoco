@@ -64,9 +64,7 @@ class TouchStress {
   TouchStress(const mjModel* m, mjData* d, int instance, int nchannel,
                int* size, mjtNum* fov_x, mjtNum gamma);
 
-  std::vector<mjtNum> x_edges_;
-  std::vector<mjtNum> y_edges_;
-  std::vector<mjtNum> dist_;
+  mjtNum dist_;
   std::vector<mjtNum> pos_;
   std::vector<mjtNum> mat_;
 
