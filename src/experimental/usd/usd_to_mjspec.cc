@@ -264,10 +264,13 @@ bool MaybeParseGeomPrimitive(const pxr::UsdPrim& prim, T* element,
   return true;
 }
 
-mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom, pxr::UsdGeomXformCache& xform_cache) {
+mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom,
+                      pxr::UsdGeomXformCache& xform_cache) {
   if (!prim.IsA<pxr::UsdGeomMesh>()) {
     return nullptr;
   }
+  mjsMesh* mesh = mjs_addMesh(spec, nullptr);
+
   geom->type = mjGEOM_MESH;
   pxr::UsdGeomMesh usd_mesh(prim);
   std::vector<float> uservert;
@@ -276,11 +279,54 @@ mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom, pxr
   pxr::VtVec3fArray points;
   usd_mesh.GetPointsAttr().Get(&points);
 
+  pxr::VtVec2fArray uvs;
+  pxr::VtIntArray uv_indices;
+  std::vector<float> texcoord;
+  std::vector<int> userfacetexcoord;
+
+  pxr::UsdGeomPrimvarsAPI primvarsAPI(prim);
+  pxr::UsdGeomPrimvar st_primvar =
+      primvarsAPI.FindPrimvarWithInheritance(pxr::TfToken("st"));
+
   uservert.reserve(points.size() * 3);
   for (const auto& pt : points) {
     uservert.push_back(pt[0]);
     uservert.push_back(pt[1]);
     uservert.push_back(pt[2]);
+  }
+
+  bool has_uvs = st_primvar.HasAuthoredValue();
+  bool face_varying_uvs = has_uvs && st_primvar.GetInterpolation() ==
+                                         pxr::UsdGeomTokens->faceVarying;
+  bool st_indexed = st_primvar.IsIndexed();
+  if (has_uvs) {
+    pxr::VtVec2fArray uvs;
+    st_primvar.Get(&uvs);
+
+    if (st_indexed) {
+      st_primvar.GetIndices(&uv_indices);
+    }
+
+    // If the UVs do not vary per point per face, then we need to compute the
+    // effective uv array taking indexing into account as we do not support UV
+    // indexing in mujoco.
+    if (!face_varying_uvs && st_primvar.IsIndexed()) {
+      texcoord.reserve(uv_indices.size() * 2);
+      for (const auto& idx : uv_indices) {
+        auto uv = uvs[idx];
+        texcoord.push_back(uv[0]);
+        // USD origin is bottom left, MuJoCo is top left.
+        texcoord.push_back(1.0f - uv[1]);
+      }
+    } else {
+      texcoord.reserve(uvs.size() * 2);
+      for (const auto& uv : uvs) {
+        texcoord.push_back(uv[0]);
+        // USD origin is bottom left, MuJoCo is top left.
+        texcoord.push_back(1.0f - uv[1]);
+      }
+    }
+    mjs_setFloat(mesh->usertexcoord, texcoord.data(), texcoord.size());
   }
 
   pxr::VtIntArray indices;
@@ -298,12 +344,21 @@ mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom, pxr
       userface.push_back(indices[vtx_idx]);
       userface.push_back(indices[vtx_idx + k]);
       userface.push_back(indices[vtx_idx + k + 1]);
+
+      // If the UVs vary per face, then we need to compute the effective
+      // index array after we've created the triangle fan for non triangular
+      // faces.
+      if (face_varying_uvs) {
+        userfacetexcoord.push_back(st_indexed ? uv_indices[vtx_idx] : vtx_idx);
+        userfacetexcoord.push_back(st_indexed ? uv_indices[vtx_idx + k]
+                                              : vtx_idx + k);
+        userfacetexcoord.push_back(st_indexed ? uv_indices[vtx_idx + k + 1]
+                                              : vtx_idx + k + 1);
+      }
       k++;
     }
     vtx_idx += count;
   }
-
-  mjsMesh* mesh = mjs_addMesh(spec, nullptr);
 
   auto world_xform = xform_cache.GetLocalToWorldTransform(prim);
   auto scale = GetScale(world_xform);
@@ -315,6 +370,11 @@ mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom, pxr
   mjs_setName(mesh->element, mesh_name.c_str());
   mjs_setFloat(mesh->uservert, uservert.data(), uservert.size());
   mjs_setInt(mesh->userface, userface.data(), userface.size());
+
+  if (face_varying_uvs) {
+    mjs_setInt(mesh->userfacetexcoord, userfacetexcoord.data(),
+               userfacetexcoord.size());
+  }
 
   mjs_setString(geom->meshname, mesh_name.c_str());
   return mesh;
