@@ -380,6 +380,7 @@ class SensorType(enum.IntEnum):
     SUBTREELINVEL: subtree linear velocity
     SUBTREEANGMOM: subtree angular momentum
     TOUCH: scalar contact normal forces summed over the sensor zone
+    CONTACT: contacts which occurred during the simulation
     ACCELEROMETER: accelerometer
     FORCE: force
     TORQUE: torque
@@ -415,6 +416,7 @@ class SensorType(enum.IntEnum):
   SUBTREELINVEL = mujoco.mjtSensor.mjSENS_SUBTREELINVEL
   SUBTREEANGMOM = mujoco.mjtSensor.mjSENS_SUBTREEANGMOM
   TOUCH = mujoco.mjtSensor.mjSENS_TOUCH
+  CONTACT = mujoco.mjtSensor.mjSENS_CONTACT
   ACCELEROMETER = mujoco.mjtSensor.mjSENS_ACCELEROMETER
   FORCE = mujoco.mjtSensor.mjSENS_FORCE
   TORQUE = mujoco.mjtSensor.mjSENS_TORQUE
@@ -577,7 +579,6 @@ class ModelC(PyTreeNode):
   flex_bvhnum: jax.Array
   actuator_plugin: jax.Array
   sensor_plugin: jax.Array
-  sensor_intprm: jax.Array
   plugin: jax.Array
   plugin_stateadr: jax.Array
 
@@ -843,6 +844,7 @@ class Model(PyTreeNode):
   sensor_objid: np.ndarray
   sensor_reftype: np.ndarray
   sensor_refid: np.ndarray
+  sensor_intprm: np.ndarray
   sensor_dim: np.ndarray
   sensor_adr: np.ndarray
   sensor_cutoff: np.ndarray

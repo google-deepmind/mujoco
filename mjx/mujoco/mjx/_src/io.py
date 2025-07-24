@@ -230,6 +230,41 @@ def _put_model_jax(
   if m.nflex:
     raise NotImplementedError('Flex not implemented for JAX backend.')
 
+  # contact sensor
+  is_contact_sensor = m.sensor_type == types.SensorType.CONTACT
+  if is_contact_sensor.any():
+    objtype = m.sensor_objtype[is_contact_sensor]
+    reftype = m.sensor_reftype[is_contact_sensor]
+    contact_sensor_type = set(np.concatenate([objtype, reftype]))
+
+    # site filter
+    if types.ObjType.SITE in set(objtype):
+      raise NotImplementedError(
+          'Contact sensor with site matching semantics not implemented for JAX'
+          ' backend.'
+      )
+
+    # body semantics
+    if types.ObjType.BODY in contact_sensor_type:
+      raise NotImplementedError(
+          'Contact sensor with body matching semantics not implemented for JAX'
+          ' backend.'
+      )
+
+    # subtree semantics
+    if types.ObjType.XBODY in contact_sensor_type:
+      raise NotImplementedError(
+          'Contact sensor with subtree matching semantics not implemented for'
+          ' JAX backend.'
+      )
+
+    # net force
+    if (m.sensor_intprm[is_contact_sensor, 1] == 3).any():
+      raise NotImplementedError(
+          'Contact sensor with netforce reduction not implemented for JAX'
+          ' backend.'
+      )
+
   mesh_geomid = set()
   for g1, g2, ip in collision_driver.geom_pairs(m):
     t1, t2 = m.geom_type[[g1, g2]]

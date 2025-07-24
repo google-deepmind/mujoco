@@ -247,6 +247,35 @@ class ModelIOTest(parameterized.TestCase):
         np.array([0, 0, 1, 0, 1, 0, 0]),
     )
 
+  @parameterized.parameters(
+      '<contact site="site"/>',
+      '<contact reduce="netforce"/>',
+      '<contact body1="body"/>',
+      '<contact body2="body"/>',
+      '<contact body1="body" body2="body"/>'
+      '<contact subtree1="body"/>',
+      '<contact subtree2="body"/>',
+      '<contact subtree1="body" subtree2="body"/>',
+  )
+  def test_contact_sensor_jax(self, contact_sensor):
+    m = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <site name="site"/>
+          <geom name="plane" type="plane" size="10 10 .001"/>
+          <body name="body">
+            <geom type="sphere" size=".1"/>
+            <joint type="slide" axis="0 0 1"/>
+          </body>
+        </worldbody>
+        <sensor>
+          {contact_sensor}
+        </sensor>
+      </mujoco>
+    """)
+    with self.assertRaises(NotImplementedError):
+      mjx.put_model(m, impl='jax')
+
 
 class DataIOTest(parameterized.TestCase):
   """IO tests for mjx.Data."""

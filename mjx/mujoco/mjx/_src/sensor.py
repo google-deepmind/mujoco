@@ -456,6 +456,25 @@ def sensor_acc(m: Model, d: Data) -> Data:
   }:
     d = smooth.rne_postconstraint(m, d)
 
+  contact_intprm = m.sensor_intprm[m.sensor_type == SensorType.CONTACT]
+  contact_maxforce = (contact_intprm[:, 1] == 2).any()
+  contact_dataforce = (contact_intprm[:, 0] & (1 << 1)).any()
+  contact_datatorque = (contact_intprm[:, 0] & (1 << 2)).any()
+  if (m.sensor_type[stage_acc] == SensorType.TOUCH).any() | (
+      (m.sensor_type[stage_acc] == SensorType.CONTACT).any()
+      and (contact_maxforce | contact_dataforce | contact_datatorque)
+  ):
+    # compute contact forces
+    contact_force = []
+    condim_ids = []
+    for dim in set(d._impl.contact.dim):
+      force, condim_id = support.contact_force_dim(m, d, dim)
+      contact_force.append(force)
+      condim_ids.append(condim_id)
+    contact_force = jp.concatenate(contact_force)[
+        np.argsort(np.concatenate(condim_ids))
+    ]
+
   sensors, adrs = [], []
 
   for sensor_type in sensor_types:
@@ -466,15 +485,6 @@ def sensor_acc(m: Model, d: Data) -> Data:
     data_type = m.sensor_datatype[idx]
 
     if sensor_type == SensorType.TOUCH:
-      # compute contact forces
-      forces = []
-      condim_ids = []
-      for dim in set(d._impl.contact.dim):
-        force, condim_id = support.contact_force_dim(m, d, dim)
-        forces.append(force)
-        condim_ids.append(condim_id)
-      forces = jp.concatenate(forces)[np.argsort(np.concatenate(condim_ids))]
-
       # get bodies of contact geoms
       conbody = jp.array(m.geom_bodyid)[d._impl.contact.geom]
 
@@ -493,7 +503,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
       # compute conray, flip if second body
       conray = jax.vmap(
           lambda frame, force: math.normalize(frame[0] * force[0])
-      )(d._impl.contact.frame, forces)
+      )(d._impl.contact.frame, contact_force)
       conray = jp.where(conbody1[..., None], -conray, conray)
 
       # compute distance, mapping over sites and contacts
@@ -523,7 +533,163 @@ def sensor_acc(m: Model, d: Data) -> Data:
       dist = jp.vstack(dist)[np.argsort(np.concatenate(dist_id))]
 
       # accumulate normal forces for each site
-      sensor = jp.dot((dist > 0) & contacts, forces[:, 0])
+      sensor = jp.dot((dist > 0) & contacts, contact_force[:, 0])
+    elif sensor_type == SensorType.CONTACT:
+      # maximum number of contacts
+      ncon = d._impl.ncon
+
+      # active contacts
+      dist = d._impl.contact.dist
+      pos = dist - d._impl.contact.includemargin
+      is_contact = pos < 0
+
+      # reduction criteria
+      if contact_maxforce:
+        # compute force magnitude for each contact
+        force_mag = jax.vmap(
+            lambda forcetorque: jp.dot(forcetorque[:3], forcetorque[:3])
+        )(contact_force)
+
+      def _reduce(reduction, mask):
+        if reduction == 1:  # mindist
+          return jp.argsort(pos * mask, descending=False)
+        if reduction == 2:  # maxforce
+          return jp.argsort(force_mag * mask, descending=True)
+        return jp.arange(mask.size)
+
+      # number of data elements per slot
+      def nslotdata(dataspec):
+        size = 0
+        # found, force, torque, dist, pos, normal, tangent
+        # TODO(taylorhowell): get sizes from mjCONDATA_SIZE
+        for i, size_i in enumerate([1, 3, 3, 1, 3, 3, 3]):
+          if dataspec & (1 << i):
+            size += size_i
+        return size
+
+      dataspecs, reduces = m.sensor_intprm[idx].T
+      dims = m.sensor_dim[idx]
+      objtypes = m.sensor_objtype[idx]
+      refid = m.sensor_refid[idx]
+      reftypes = m.sensor_reftype[idx]
+
+      for dataspec, reduce, objtype, reftype, dim in set(
+          zip(dataspecs, reduces, objtypes, reftypes, dims)
+      ):
+        idx_ds = (
+            (dataspec == dataspecs)
+            & (reduce == reduces)
+            & (objtype == objtypes)
+            & (reftype == reftypes)
+            & (dim == dims)
+        )
+
+        # TODO(taylorhowell): site filter
+
+        size = nslotdata(dataspec)
+        num = np.minimum(int(dim / size), ncon)
+
+        if objtype == ObjType.UNKNOWN and reftype == ObjType.UNKNOWN:
+          # all contacts match
+          match = np.ones(ncon, dtype=np.bool)
+
+          # matched and reduced contact ids
+          sort = _reduce(reduce, match)
+          cid = sort[:num]
+
+          # number of contacts per sensor
+          nfound = sum(is_contact)
+
+          # if duplicate sensor
+          nsensor = idx_ds.sum()
+          cid = np.tile(cid, (nsensor,))
+          match = np.tile(match[:num], (nsensor,))
+          nfound = np.tile(nfound, (nsensor,))
+          flip = np.ones((cid.size, 3))
+        elif objtype == ObjType.GEOM or reftype == ObjType.GEOM:
+          sensorid1 = objid[idx_ds]
+          sensorid2 = refid[idx_ds]
+          geomid0 = d._impl.contact.geom[:, 0]
+          geomid1 = d._impl.contact.geom[:, 1]
+
+          # match sensor ids and contact geom ids
+          geom0id1 = geomid0 == sensorid1[:, None]
+          geom0id2 = geomid0 == sensorid2[:, None]
+          geom1id1 = geomid1 == sensorid1[:, None]
+          geom1id2 = geomid1 == sensorid2[:, None]
+
+          if objtype == ObjType.GEOM and reftype == ObjType.UNKNOWN:  # geom1
+            mask12 = geom0id1
+            mask21 = geom1id1
+          elif objtype == ObjType.UNKNOWN and reftype == ObjType.GEOM:  # geom2
+            mask12 = geom0id2
+            mask21 = geom1id2
+          else:  # geom1, geom2
+            mask12 = geom0id1 & geom1id2
+            mask21 = geom0id2 & geom1id1
+
+          match = mask12 | mask21
+
+          # matched and reduced contact ids
+          cid = jax.vmap(lambda x: _reduce(reduce, x))(match)[:, :num]
+          cid = cid.reshape(-1)
+
+          # flip direction for force, torque, normal, tangent
+          if reftype == ObjType.UNKNOWN:  # geom1
+            is_flip = (geomid1[cid] == np.repeat(sensorid1, num))[:, None]
+          elif objtype == ObjType.UNKNOWN:  # geom2
+            is_flip = (geomid0[cid] == np.repeat(sensorid2, num))[:, None]
+          else:  # geom1, geom2
+            is_flip = np.repeat(sensorid1 > sensorid2, num)[:, None]
+
+          flip = jp.where(
+              is_flip,
+              jp.array([[1, 1, -1]]),
+              jp.array([[1, 1, 1]]),
+          )
+
+          # number of contacts per sensor
+          nfound = (match * is_contact[None, :]).sum(axis=1)
+
+          match = match[:, :num].reshape(-1)
+
+        # TODO(taylorhowell): matching criteria: body, subtree
+
+        else:
+          raise NotImplementedError(
+              f'Unsupported contact sensor semantics: {objtype} {reftype}.'
+          )
+
+        slot = []
+
+        if dataspec & (1 << 0):  # found
+          slot.append(jp.repeat(nfound, num)[:, None])
+
+        if dataspec & (1 << 1):  # force
+          slot.append(flip * contact_force[cid, :3])
+
+        if dataspec & (1 << 2):  # torque
+          slot.append(flip * contact_force[cid, 3:])
+
+        if dataspec & (1 << 3):  # dist
+          slot.append(dist[cid, None])
+
+        if dataspec & (1 << 4):  # pos
+          slot.append(d._impl.contact.pos[cid])
+
+        if dataspec & (1 << 5):  # normal
+          slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 0])
+
+        if dataspec & (1 << 6):  # tangent
+          slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 1])
+
+        found = is_contact[cid] & match
+        sensors.append((found[:, None] * np.hstack(slot)).reshape(-1))
+        adrs.append(
+            (adr[idx_ds][:, None] + np.arange(num * size)[None]).reshape(-1)
+        )
+      continue  # avoid adding to sensors/adrs list a second time
+
     elif sensor_type == SensorType.ACCELEROMETER:
 
       @jax.vmap
