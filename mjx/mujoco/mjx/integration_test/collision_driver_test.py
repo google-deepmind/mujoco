@@ -30,7 +30,10 @@ import numpy as np
 
 def _assert_attr_eq(mjx_d, mj_d, attr, name, atol):
   if attr == 'efc_address':
-    # we do not test efc_address since it gets set in constraint logic
+    # contact order not guaranteed to match
+    np.testing.assert_array_equal(
+        np.sort(mjx_d.efc_address), np.sort(mj_d.efc_address)
+    )
     return
   err_msg = f'mismatch: {attr} in run: {name}'
   mjx_d, mj_d = getattr(mjx_d, attr), getattr(mj_d, attr)
@@ -79,8 +82,11 @@ class CollisionDriverIntegrationTest(parameterized.TestCase):
     self.assertSequenceEqual(set(idx_mjx), set(idx_mj))
     idx = sorted(range(len(idx_mj)), key=lambda x: idx_mj.index(idx_mjx[x]))
 
-    mjx_contact = jax.tree_map(
+    mjx_contact = jax.tree_util.tree_map(
         lambda x: x.take(np.array(idx), axis=0), dx.contact
+    )
+    mjx_contact = mjx_contact.replace(
+        dim=mjx_contact.dim[idx], efc_address=mjx_contact.efc_address[idx]
     )
     for field in dataclasses.fields(Contact):
       _assert_attr_eq(mjx_contact, d.contact, field.name, seed, 1e-7)

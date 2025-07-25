@@ -63,7 +63,7 @@ _MULTIPLE_CONVEX_OBJECTS = """
 _MULTIPLE_CONSTRAINTS = """
   <mujoco>
     <worldbody>
-      <geom type="plane" size="3 3 .01"/>
+      <geom type="plane" size="3 3 .01" condim="6"/>
       <body name="cap1" pos="-.3 -.3 .2">
         <freejoint/>
         <geom type="capsule" size=".2 .05"/>
@@ -108,10 +108,6 @@ class ModelIOTest(parameterized.TestCase):
     np.testing.assert_allclose(mx.geom_bodyid, m.geom_bodyid)
     np.testing.assert_almost_equal(mx.geom_solref, m.geom_solref)
     np.testing.assert_almost_equal(mx.geom_pos, m.geom_pos)
-    self.assertLen(mx.geom_convex_face, 6)
-    self.assertLen(mx.geom_convex_vert, 6)
-    self.assertLen(mx.geom_convex_edge_dir, 6)
-    self.assertLen(mx.geom_convex_facenormal, 6)
 
     np.testing.assert_allclose(mx.jnt_type, m.jnt_type)
     np.testing.assert_allclose(mx.jnt_dofadr, m.jnt_dofadr)
@@ -177,22 +173,6 @@ class ModelIOTest(parameterized.TestCase):
           </tendon>
         </mujoco>"""))
 
-  def test_condim_not_implemented(self):
-    with self.assertRaises(NotImplementedError):
-      mjx.put_model(mujoco.MjModel.from_xml_string("""
-        <mujoco>
-          <worldbody>
-            <body>
-              <freejoint/>
-              <geom size="0.05" condim="1"/>
-            </body>
-            <body>
-              <freejoint/>
-              <geom size="0.05" condim="1"/>
-            </body>
-          </worldbody>
-        </mujoco>"""))
-
   def test_cylinder_not_implemented(self):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(mujoco.MjModel.from_xml_string("""
@@ -201,6 +181,25 @@ class ModelIOTest(parameterized.TestCase):
             <body>
               <freejoint/>
               <geom type="cylinder" size="0.05 0.05"/>
+            </body>
+            <body>
+              <freejoint/>
+              <geom size="0.05"/>
+            </body>
+          </worldbody>
+        </mujoco>"""))
+
+  def test_margin_gap_mesh_not_implemented(self):
+    with self.assertRaises(NotImplementedError):
+      mjx.put_model(mujoco.MjModel.from_xml_string("""
+        <mujoco>
+          <asset>
+            <mesh name="box" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1" scale="1 1 1"/>
+          </asset>
+          <worldbody>
+            <body>
+              <freejoint/>
+              <geom type="mesh" mesh="box" margin="0.3"/>
             </body>
             <body>
               <freejoint/>
@@ -225,6 +224,7 @@ class DataIOTest(parameterized.TestCase):
     nv = 19
     nefc = 185
 
+    self.assertEqual(d.nefc, nefc)
     self.assertEqual(d.qpos.shape, (nq,))
     self.assertEqual(d.qvel.shape, (nv,))
     self.assertEqual(d.act.shape, (0,))
@@ -317,21 +317,21 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(dx.site_xmat.reshape((1, 9)), d.site_xmat)
 
     # efc_ are also shape transformed and padded
-    self.assertEqual(dx.efc_J.shape, (21, 8))  # nefc, nv
+    self.assertEqual(dx.efc_J.shape, (45, 8))  # nefc, nv
     d_efc_j = d.efc_J.reshape((-1, 8))
     np.testing.assert_allclose(dx.efc_J[:3], d_efc_j[:3])  # connect eq
     np.testing.assert_allclose(dx.efc_J[3], d_efc_j[3])  # one active limit
     np.testing.assert_allclose(dx.efc_J[4], 0)  # one inactive limit
-    np.testing.assert_allclose(dx.efc_J[5:9], d_efc_j[4:8])  # contact
-    np.testing.assert_allclose(dx.efc_J[9:], 0)  # no contact
+    np.testing.assert_allclose(dx.efc_J[5:15], d_efc_j[4:14])  # contact
+    np.testing.assert_allclose(dx.efc_J[15:], 0)  # no contact
 
     # check another efc_ too
-    self.assertEqual(dx.efc_aref.shape, (21,))  # nefc
+    self.assertEqual(dx.efc_aref.shape, (45,))  # nefc
     np.testing.assert_allclose(dx.efc_aref[:3], d.efc_aref[:3])
     np.testing.assert_allclose(dx.efc_aref[3], d.efc_aref[3])
     np.testing.assert_allclose(dx.efc_aref[4], 0)
-    np.testing.assert_allclose(dx.efc_aref[5:9], d.efc_aref[4:8])
-    np.testing.assert_allclose(dx.efc_aref[9:], 0)
+    np.testing.assert_allclose(dx.efc_aref[5:15], d.efc_aref[4:14])
+    np.testing.assert_allclose(dx.efc_aref[15:], 0)
 
     # check sparse transform is correct
     m.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
@@ -388,12 +388,11 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(d_2.site_xmat, d.site_xmat)
 
     # efc_* are also shape transformed and filtered
-    self.assertEqual(d_2.efc_J.shape, (64,))  # nefc * nv
+    self.assertEqual(d_2.nefc, 14)
+    self.assertEqual(d_2.efc_J.shape, (112,))  # nefc * nv
     np.testing.assert_allclose(d_2.efc_J, d.efc_J)
-    self.assertEqual(d_2.efc_aref.shape, (8,))  # nefc
+    self.assertEqual(d_2.efc_aref.shape, (14,))  # nefc
     np.testing.assert_allclose(d_2.efc_aref, d.efc_aref)
-
-    # efc_address is created on demand
     np.testing.assert_allclose(d_2.contact.efc_address, d.contact.efc_address)
 
   def test_get_data_batched(self):
@@ -404,7 +403,7 @@ class DataIOTest(parameterized.TestCase):
     mujoco.mj_step(m, d, 2)
     dx = mjx.put_data(m, d)
     # second data in batch has contact dist > 0, disables contact
-    dx_b = jax.tree_map(lambda x: jp.stack((x, x + 0.05)), dx)
+    dx_b = jax.tree_util.tree_map(lambda x: jp.stack((x, x + 0.05)), dx)
     ds = mjx.get_data(m, dx_b)
     self.assertLen(ds, 2)
     np.testing.assert_allclose(ds[0].qpos, d.qpos)
@@ -433,6 +432,21 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(d_2.contact.dist, d.contact.dist)
     self.assertEqual(d_2.contact.frame.shape, (1, 9))
     np.testing.assert_allclose(d_2.contact.frame, d.contact.frame)
+
+  def test_make_matches_put(self):
+    """Test that make_data produces a pytree that matches put_data."""
+
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    mujoco.mj_step(m, d, 2)
+    dx = mjx.put_data(m, d)
+
+    step_fn = lambda d: d.replace(time=d.time + 1)
+    step_fn_jit = jax.jit(step_fn).lower(dx).compile()
+
+    # placing an MjData onto device should yield the same treedef mjx.Data as
+    # calling make_data.  they should be interchangeable for jax functions:
+    step_fn_jit(mjx.make_data(m))
 
 if __name__ == '__main__':
   absltest.main()

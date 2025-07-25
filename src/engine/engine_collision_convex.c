@@ -163,6 +163,7 @@ void mjccd_support(const void *obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
     break;
 
   case mjGEOM_MESH:
+  case mjGEOM_SDF:
     // init search
     vertdata = m->mesh_vert + 3*m->mesh_vertadr[m->geom_dataid[g]];
     tmp = -1E+10;
@@ -318,7 +319,7 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
   mjtNum mat[9], vec[3], rel[3];
 
   // rotate frame: xmat = rot*xmat
-  mju_mulMatMat(mat, rot, xmat, 3, 3, 3);
+  mju_mulMatMat3(mat, rot, xmat);
   mju_copy(xmat, mat, 9);
 
   // vector to rotation origin: rel = origin - xpos
@@ -682,7 +683,7 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   }
 
   // express geom2 mat in heightfield frame
-  mju_mulMatTMat(mat, mat1, mat2, 3, 3, 3);
+  mju_mulMatTMat3(mat, mat1, mat2);
 
   //------------------------------------- AABB computation, box-box test
 

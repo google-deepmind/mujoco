@@ -344,7 +344,8 @@ bool mjXSchema::NameMatch(XMLElement* elem, int level) {
   if (name_ == "body" &&
       ((level == 1 && !strcmp(elem->Value(), "worldbody")) ||
       (level != 1 && !strcmp(elem->Value(), "body")) ||
-      (level >= 1 && !strcmp(elem->Value(), "frame")))) {
+      (level >= 1 && !strcmp(elem->Value(), "frame")) ||
+      (level >= 1 && !strcmp(elem->Value(), "replicate")))) {
     return true;
   }
 
@@ -523,14 +524,13 @@ bool mjXUtil::SameVector(const T* vec1, const T* vec2, int n) {
     return false;
   }
 
-  bool same = true;
-  for (int i=0; i<n; i++) {
+  for (int i = 0; i < n; i++) {
     if (std::abs(vec1[i] - vec2[i]) > std::numeric_limits<T>::epsilon()) {
-      same = false;
+      return false;
     }
   }
 
-  return same;
+  return true;
 }
 
 template bool mjXUtil::SameVector(const double* vec1, const double* vec2, int n);

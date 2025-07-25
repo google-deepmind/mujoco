@@ -347,6 +347,29 @@ static void vfs_getdir_callback(mjResource* resource, const char** dir, int* ndi
 }
 
 
+// modified callback for the VFS resource provider
+// return > 0 if modified and 0 if unmodified
+static int vfs_modified_callback(const mjResource* resource, const char* timestamp) {
+  uint64_t filestamp;
+  if (mju_isValidBase64(timestamp) > sizeof(uint64_t)) {
+    return 2;  // error (assume modified)
+  }
+
+  mju_decodeBase64((uint8_t*) &filestamp, timestamp);
+  if (!filestamp) return 3;  // no hash (assume modified)
+
+  if (resource) {
+    const mjVFS* vfs = (const mjVFS*) resource->data;
+    int i = mj_findFileVFS(vfs, resource->name);
+    if (i < 0) return 4;  // missing file (assume modified)
+    if (!vfs->filestamp[i]) return 5;  // missing filestamp (assume modified)
+
+    if (vfs->filestamp[i] == filestamp) {
+      return 0;  // unmodified
+    }
+  }
+  return 1;  // modified
+}
 
 // open VFS resource
 mjResource* mju_openVfsResource(const char* name, const mjVFS* vfs) {
@@ -362,7 +385,7 @@ mjResource* mju_openVfsResource(const char* name, const mjVFS* vfs) {
     .read     = &vfs_read_callback,
     .close    = &vfs_close_callback,
     .getdir   = &vfs_getdir_callback,
-    .modified = NULL
+    .modified = &vfs_modified_callback,
   };
 
   // create resource

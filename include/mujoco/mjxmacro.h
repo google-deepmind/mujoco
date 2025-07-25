@@ -139,6 +139,7 @@
     X   ( njmax )              \
     X   ( nconmax )            \
     XMJV( ntree )              \
+    X   ( ngravcomp )          \
     X   ( nuserdata )          \
     XMJV( nsensordata )        \
     X   ( npluginstate )       \
@@ -215,6 +216,7 @@
     XMJV( int,     jnt_group,             njnt,          1                    ) \
     X   ( mjtByte, jnt_limited,           njnt,          1                    ) \
     X   ( mjtByte, jnt_actfrclimited,     njnt,          1                    ) \
+    X   ( mjtByte, jnt_actgravcomp,       njnt,          1                    ) \
     X   ( mjtNum,  jnt_solref,            njnt,          mjNREF               ) \
     X   ( mjtNum,  jnt_solimp,            njnt,          mjNIMP               ) \
     X   ( mjtNum,  jnt_pos,               njnt,          3                    ) \
@@ -291,6 +293,7 @@
     X   ( int,     light_targetbodyid,    nlight,        1                    ) \
     XMJV( mjtByte, light_directional,     nlight,        1                    ) \
     XMJV( mjtByte, light_castshadow,      nlight,        1                    ) \
+    XMJV( float,   light_bulbradius,      nlight,        1                    ) \
     XMJV( mjtByte, light_active,          nlight,        1                    ) \
     X   ( mjtNum,  light_pos,             nlight,        3                    ) \
     X   ( mjtNum,  light_dir,             nlight,        3                    ) \
@@ -364,6 +367,7 @@
     XMJV( int,     mesh_bvhadr,           nmesh,         1                    ) \
     XMJV( int,     mesh_bvhnum,           nmesh,         1                    ) \
     XMJV( int,     mesh_graphadr,         nmesh,         1                    ) \
+    X   ( mjtNum,  mesh_scale,            nmesh,         3                    ) \
     X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
     X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
     X   ( float,   mesh_vert,             nmeshvert,     3                    ) \
@@ -415,6 +419,8 @@
     XMJV( float,   mat_specular,          nmat,          1                    ) \
     XMJV( float,   mat_shininess,         nmat,          1                    ) \
     XMJV( float,   mat_reflectance,       nmat,          1                    ) \
+    XMJV( float,   mat_metallic,          nmat,          1                    ) \
+    XMJV( float,   mat_roughness,         nmat,          1                    ) \
     XMJV( float,   mat_rgba,              nmat,          4                    ) \
     X   ( int,     pair_dim,              npair,         1                    ) \
     X   ( int,     pair_geom1,            npair,         1                    ) \

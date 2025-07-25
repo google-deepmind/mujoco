@@ -15,6 +15,7 @@
 from typing import List, Optional, Tuple
 
 import mujoco
+import mujoco.usd.utils
 import numpy as np
 
 # TODO: b/288149332 - Remove once USD Python Binding works well with pytype.
@@ -36,21 +37,21 @@ class USDMesh:
       stage: Usd.Stage,
       model: mujoco.MjModel,
       geom: mujoco.MjvGeom,
-      objid: int,
+      obj_name: str,
       dataid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
     self.stage = stage
     self.model = model
     self.geom = geom
-    self.objid = objid
+    self.obj_name = obj_name
     self.rgba = rgba
     self.dataid = dataid
     self.texture_file = texture_file
 
-    xform_path = f"/World/Mesh_Xform_{objid}"
-    mesh_path = f"{xform_path}/Mesh_{objid}"
+    xform_path = f"/World/Mesh_Xform_{obj_name}"
+    mesh_path = f"{xform_path}/Mesh_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
     self.usd_prim = stage.GetPrimAtPath(mesh_path)
@@ -132,7 +133,7 @@ class USDMesh:
     return mesh_vert, mesh_face, mesh_facenum
 
   def _attach_material(self):
-    mtl_path = Sdf.Path(f"/World/_materials/Material_{self.objid}")
+    mtl_path = Sdf.Path(f"/World/_materials/Material_{self.obj_name}")
     mtl = UsdShade.Material.Define(self.stage, mtl_path)
 
     if self.texture_file:
@@ -216,7 +217,7 @@ class USDMesh:
     UsdShade.MaterialBindingAPI(self.usd_mesh).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd_utils.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -235,20 +236,20 @@ class USDPrimitiveMesh:
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      obj_name: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
     self.stage = stage
     self.geom = geom
-    self.objid = objid
+    self.obj_name = obj_name
     self.rgba = rgba
     self.texture_file = texture_file
 
     self.usd_prim = Usd.Prim()
-    self.usd_mesh = Usd.Mesh()
-    self.prim_mesh = Usd.PrimMesh()
-    self.transform_op = Usd.TransformOp()
+    self.usd_mesh = UsdGeom.Mesh()
+    self.prim_mesh = None
+    self.transform_op = Gf.Matrix4d(1.)
 
   def _set_refinement_properties(self):
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
@@ -282,7 +283,7 @@ class USDPrimitiveMesh:
     return mesh_vert, mesh_face, len(mesh_face)
 
   def _attach_material(self):
-    mtl_path = Sdf.Path(f"/World/_materials/Material_{self.objid}")
+    mtl_path = Sdf.Path(f"/World/_materials/Material_{self.obj_name}")
     mtl = UsdShade.Material.Define(self.stage, mtl_path)
     if self.texture_file:
       bsdf_shader = UsdShade.Shader.Define(
@@ -364,7 +365,7 @@ class USDPrimitiveMesh:
     UsdShade.MaterialBindingAPI(self.usd_mesh).Bind(mtl)
 
   def update(self, pos: np.ndarray, mat: np.ndarray, visible: bool, frame: int):
-    transformation_mat = mujoco.usd_util.create_transform_matrix(
+    transformation_mat = mujoco.usd.utils.create_transform_matrix(
         rotation_matrix=mat, translation_vector=pos
     ).T
     self.transform_op.Set(Gf.Matrix4d(transformation_mat.tolist()), frame)
@@ -383,13 +384,13 @@ class USDPrimitive:
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      obj_name: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
     self.stage = stage
     self.geom = geom
-    self.objid = objid
+    self.obj_name = obj_name
     self.rgba = rgba
     self.texture_file = texture_file
 
@@ -401,7 +402,7 @@ class USDPrimitive:
     self.usd_prim.GetAttribute("subdivisionScheme").Set("none")
 
   def _attach_material(self):
-    mtl_path = Sdf.Path(f"/World/_materials/Material_{self.objid}")
+    mtl_path = Sdf.Path(f"/World/_materials/Material_{self.obj_name}")
     mtl = UsdShade.Material.Define(self.stage, mtl_path)
     if self.texture_file:
       bsdf_shader = UsdShade.Shader.Define(
@@ -500,15 +501,15 @@ class USDCapsule(USDPrimitive):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      obj_name: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
-    super().__init__(stage, geom, objid, rgba, texture_file)
+    super().__init__(stage, geom, obj_name, rgba, texture_file)
 
-    xform_path = f"/World/Capsule_Xform_{objid}"
-    capsule_path = f"{xform_path}/Capsule_{objid}"
+    xform_path = f"/World/Capsule_Xform_{obj_name}"
+    capsule_path = f"{xform_path}/Capsule_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_primitive_shape = UsdGeom.Capsule.Define(stage, capsule_path)
     self.usd_prim = stage.GetPrimAtPath(capsule_path)
@@ -536,15 +537,15 @@ class USDEllipsoid(USDPrimitive):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      obj_name: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
-    super().__init__(stage, geom, objid, rgba, texture_file)
+    super().__init__(stage, geom, obj_name, rgba, texture_file)
 
-    xform_path = f"/World/Ellipsoid_Xform_{objid}"
-    ellipsoid_path = f"{xform_path}/Ellipsoid_{objid}"
+    xform_path = f"/World/Ellipsoid_Xform_{obj_name}"
+    ellipsoid_path = f"{xform_path}/Ellipsoid_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_primitive_shape = UsdGeom.Sphere.Define(stage, ellipsoid_path)
     self.usd_prim = stage.GetPrimAtPath(ellipsoid_path)
@@ -569,15 +570,15 @@ class USDCubeMesh(USDPrimitiveMesh):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      obj_name: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
-    super().__init__(stage, geom, objid, rgba, texture_file)
+    super().__init__(stage, geom, obj_name, rgba, texture_file)
 
-    xform_path = f"/World/CubeMesh_Xform_{objid}"
-    mesh_path = f"{xform_path}/CubeMesh_{objid}"
+    xform_path = f"/World/CubeMesh_Xform_{obj_name}"
+    mesh_path = f"{xform_path}/CubeMesh_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
     self.usd_prim = stage.GetPrimAtPath(mesh_path)
@@ -586,8 +587,6 @@ class USDCubeMesh(USDPrimitiveMesh):
         width=self.geom.size[0] * 2,
         height=self.geom.size[1] * 2,
         depth=self.geom.size[2] * 2,
-        create_uv_map=True,
-        map_texture_to_each_face=True,
     )
 
     self.prim_mesh.translate(-self.prim_mesh.get_center())
@@ -623,15 +622,15 @@ class USDSphereMesh(USDPrimitiveMesh):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      obj_name: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
-    super().__init__(stage, geom, objid, rgba, texture_file)
+    super().__init__(stage, geom, obj_name, rgba, texture_file)
 
-    xform_path = f"/World/SphereMesh_Xform_{objid}"
-    mesh_path = f"{xform_path}/SphereMesh_{objid}"
+    xform_path = f"/World/SphereMesh_Xform_{obj_name}"
+    mesh_path = f"{xform_path}/SphereMesh_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
     self.usd_prim = stage.GetPrimAtPath(mesh_path)
@@ -673,15 +672,15 @@ class USDCylinderMesh(USDPrimitiveMesh):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      obj_name: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
-    super().__init__(stage, geom, objid, rgba, texture_file)
+    super().__init__(stage, geom, obj_name, rgba, texture_file)
 
-    xform_path = f"/World/CylinderMesh_Xform_{objid}"
-    mesh_path = f"{xform_path}/CylinderMesh_{objid}"
+    xform_path = f"/World/CylinderMesh_Xform_{obj_name}"
+    mesh_path = f"{xform_path}/CylinderMesh_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_mesh = UsdGeom.Mesh.Define(stage, mesh_path)
     self.usd_prim = stage.GetPrimAtPath(mesh_path)
@@ -725,15 +724,15 @@ class USDPlaneMesh(USDPrimitiveMesh):
       self,
       stage: Usd.Stage,
       geom: mujoco.MjvGeom,
-      objid: int,
-      rgba: Tuple[int, ...] = (1, 1, 1, 1),
+      obj_name: str,
+      rgba: np.ndarray = np.array([1, 1, 1, 1]),
       texture_file: Optional[str] = None,
   ):
 
-    super().__init__(stage, geom, objid, rgba, texture_file)
+    super().__init__(stage, geom, obj_name, rgba, texture_file)
 
-    xform_path = f"/World/Plane_Xform_{objid}"
-    plane_path = f"{xform_path}/PlaneMesh_{objid}"
+    xform_path = f"/World/Plane_Xform_{obj_name}"
+    plane_path = f"{xform_path}/PlaneMesh_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_mesh = UsdGeom.Mesh.Define(stage, plane_path)
     self.usd_prim = stage.GetPrimAtPath(plane_path)
@@ -776,12 +775,12 @@ class USDPlaneMesh(USDPrimitiveMesh):
 class USDSphereLight:
 
   def __init__(
-      self, stage: Usd.Stage, objid: int, radius: Optional[float] = 0.3
+      self, stage: Usd.Stage, obj_name: str, radius: Optional[float] = 0.3
   ):
     self.stage = stage
 
-    xform_path = f"/World/Light_Xform_{objid}"
-    light_path = f"{xform_path}/Light_{objid}"
+    xform_path = f"/World/Light_Xform_{obj_name}"
+    light_path = f"{xform_path}/Light_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_light = UsdLux.SphereLight.Define(stage, light_path)
     self.usd_prim = stage.GetPrimAtPath(light_path)
@@ -808,11 +807,11 @@ class USDSphereLight:
 
 class USDDomeLight:
 
-  def __init__(self, stage: Usd.Stage, objid: int):
+  def __init__(self, stage: Usd.Stage, obj_name: str):
     self.stage = stage
 
-    xform_path = f"/World/Light_Xform_{objid}"
-    light_path = f"{xform_path}/Light_{objid}"
+    xform_path = f"/World/Light_Xform_{obj_name}"
+    light_path = f"{xform_path}/Light_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_light = UsdLux.DomeLight.Define(stage, light_path)
     self.usd_prim = stage.GetPrimAtPath(light_path)
@@ -821,7 +820,6 @@ class USDDomeLight:
     self.usd_light.GetNormalizeAttr().Set(True)
 
   def update(self, intensity: int, color: np.ndarray, frame: int):
-
     self.usd_light.GetIntensityAttr().Set(intensity)
     self.usd_light.GetExposureAttr().Set(0.0)
     self.usd_light.GetColorAttr().Set(Gf.Vec3d(color.tolist()))
@@ -829,11 +827,11 @@ class USDDomeLight:
 
 class USDCamera:
 
-  def __init__(self, stage: Usd.Stage, objid: int):
+  def __init__(self, stage: Usd.Stage, obj_name: str):
     self.stage = stage
 
-    xform_path = f"/World/Camera_Xform_{objid}"
-    camera_path = f"{xform_path}/Camera_{objid}"
+    xform_path = f"/World/Camera_Xform_{obj_name}"
+    camera_path = f"{xform_path}/Camera_{obj_name}"
     self.usd_xform = UsdGeom.Xform.Define(stage, xform_path)
     self.usd_camera = UsdGeom.Camera.Define(stage, camera_path)
     self.usd_prim = stage.GetPrimAtPath(camera_path)

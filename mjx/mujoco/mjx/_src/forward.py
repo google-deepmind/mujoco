@@ -174,16 +174,17 @@ def fwd_actuation(m: Model, d: Data) -> Data:
 
   qfrc_actuator = d.actuator_moment.T @ force
 
+  if m.ngravcomp:
+    # actuator-level gravity compensation, skip if added as passive force
+    qfrc_actuator += d.qfrc_gravcomp * m.jnt_actgravcomp[m.dof_jntid]
+
   # clamp qfrc_actuator
   actfrcrange = jp.where(
       m.jnt_actfrclimited[:, None],
       m.jnt_actfrcrange,
       jp.array([-jp.inf, jp.inf]),
   )
-  ids = sum(
-      ([i] * JointType(j).dof_width() for i, j in enumerate(m.jnt_type)), []
-  )
-  actfrcrange = jp.take(actfrcrange, jp.array(ids), axis=0)
+  actfrcrange = actfrcrange[m.dof_jntid]
   qfrc_actuator = jp.clip(qfrc_actuator, actfrcrange[:, 0], actfrcrange[:, 1])
 
   d = d.replace(act_dot=act_dot, qfrc_actuator=qfrc_actuator)
@@ -310,7 +311,7 @@ def rungekutta4(m: Model, d: Data) -> Data:
 
   kqvel = d.qvel  # intermediate RK solution
   # RK solutions sum
-  qvel, qacc, act_dot = jax.tree_map(
+  qvel, qacc, act_dot = jax.tree_util.tree_map(
       lambda k: B[0] * k, (kqvel, d.qacc, d.act_dot)
   )
   integrate_fn = lambda *args: _integrate_pos(*args, dt=m.opt.timestep)
@@ -318,7 +319,7 @@ def rungekutta4(m: Model, d: Data) -> Data:
   def f(carry, x):
     qvel, qacc, act_dot, kqvel, d = carry
     a, b, t = x  # tableau numbers
-    dqvel, dqacc, dact_dot = jax.tree_map(
+    dqvel, dqacc, dact_dot = jax.tree_util.tree_map(
         lambda k: a * k, (kqvel, d.qacc, d.act_dot)
     )
     # get intermediate RK solutions

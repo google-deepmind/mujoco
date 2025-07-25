@@ -245,6 +245,11 @@ def inert_mul(i: jax.Array, v: jax.Array) -> jax.Array:
   return jp.concatenate((ang, vel))
 
 
+def sign(x: jax.Array) -> jax.Array:
+  """Returns the sign of x in the set {-1, 1}."""
+  return jp.where(x < 0, -1, 1)
+
+
 def transform_motion(vel: jax.Array, offset: jax.Array, rotmat: jax.Array):
   """Transform spatial motion.
 

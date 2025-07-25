@@ -111,7 +111,7 @@ html_logo = 'images/banner.svg'
 SHARED_CSS_VARIABLES = {
     'admonition-font-size': '1rem',
     'admonition-title-font-size': '1rem',
-    'sidebar-item-font-size': '115%',
+    'sidebar-item-font-size': '130%',
 }
 
 # font-stack--monospace used in code blocks, Inconsolata fits in 100 chars.

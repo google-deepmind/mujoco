@@ -114,7 +114,7 @@ MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 //-------------------------- name functions --------------------------------------------------------
 
 // get string hash, see http://www.cse.yorku.ca/~oz/hash.html
-uint64_t mj_hashdjb2(const char* s, uint64_t n);
+uint64_t mj_hashString(const char* s, uint64_t n);
 
 // get id of object with the specified mjtObj type and name, returns -1 if id not found
 MJAPI int mj_name2id(const mjModel* m, int type, const char* name);

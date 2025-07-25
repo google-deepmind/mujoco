@@ -18,7 +18,7 @@ import copy
 import dataclasses
 
 import typing
-from typing import Any, Dict, Optional, Sequence, TypeVar, Union
+from typing import Dict, Optional, Sequence, Tuple, TypeVar, Union
 import jax
 import numpy as np
 
@@ -122,7 +122,7 @@ class PyTreeNode:
     raise NotImplementedError
 
   @classmethod
-  def fields(cls) -> tuple[dataclasses.Field[Any], ...]:
+  def fields(cls) -> Tuple[dataclasses.Field, ...]:  # pylint: disable=g-bare-generic
     return dataclasses.fields(cls)
 
   def tree_replace(

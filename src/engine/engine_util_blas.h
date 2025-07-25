@@ -109,6 +109,14 @@ MJAPI void mju_rotVecMat(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]
 // multiply vector by transposed 3D rotation matrix
 MJAPI void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]);
 
+// multiply 3x3 matrices
+MJAPI void mju_mulMatMat3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
+
+// multiply 3x3 matrices, first argument transposed
+MJAPI void mju_mulMatTMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]);
+
+// multiply 3x3 matrices, second argument transposed
+MJAPI void mju_mulMatMatT3(mjtNum res[9], const mjtNum mat1[9], const mjtNum mat2[9]);
 
 //------------------------------ 4D/quaternion operations ------------------------------------------
 

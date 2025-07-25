@@ -110,6 +110,20 @@
         </body>
       </body>
     </body>
+
+    <!-- triple pendulum of hinges with gravcomp -->
+    <body pos="3.0 0 0" gravcomp="1">
+      <joint name="joint15" axis="0.1 0.2 0.3" type="hinge"/>
+      <geom/>
+      <body pos="0 0 -0.8" gravcomp="2">
+        <joint name="joint16" axis="0.4 0.5 0.6" type="hinge" armature="0.02" range="-20 20"/>
+        <geom/>
+        <body pos="0 -0.7 0" gravcomp="3">
+          <joint name="joint17" axis="0.7 0.8 0.9" type="hinge" damping="0.75" range="-30 30" actuatorgravcomp="true"/>
+          <geom/>
+        </body>
+      </body>
+    </body>
   </worldbody>
 
   <actuator>
@@ -118,5 +132,8 @@
     <motor gear="0 0 300" joint="joint1" name="act3"/>
     <motor gear="275" joint="joint2" name="act4"/>
     <motor gear="275" joint="joint3" name="act5"/>
+    <motor gear="150" joint="joint15" name="act6"/>
+    <motor gear="150" joint="joint16" name="act7"/>
+    <motor gear="150" joint="joint17" name="act8"/>
   </actuator>
 </mujoco>

@@ -250,7 +250,7 @@ jobs:
       shell: bash
       run:
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pytest -n auto -v --pyargs mujoco.mjx
+        pytest -n auto -v -k 'not IntegrationTest' --pyargs mujoco.mjx
     - name: Notify team chat
       shell: bash
       env:

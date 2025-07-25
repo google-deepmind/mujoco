@@ -623,7 +623,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertEqual(struct, struct2)
 
     self.assertNotEqual(struct, 3)
-    self.assertNotEqual(struct, None)
+    self.assertIsNotNone(struct)
 
     # mutable structs shouldn't declare __hash__
     with self.assertRaises(TypeError):
@@ -705,7 +705,8 @@ class MuJoCoBindingsTest(parameterized.TestCase):
 
     # Check that the output argument must have the correct dtype.
     with self.assertRaises(TypeError):
-      mujoco.mju_rotVecQuat(vec, quat, res=np.zeros(3, int))
+      res = np.zeros(3, np.int32)
+      mujoco.mju_rotVecQuat(res, vec, quat)
 
   def test_getsetstate(self):  # pylint: disable=invalid-name
     mujoco.mj_step(self.model, self.data)
@@ -850,8 +851,7 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_OVERRIDE, 1<<0)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_ENERGY, 1<<1)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_FWDINV, 1<<2)
-    self.assertEqual(mujoco.mjtEnableBit.mjENBL_SENSORNOISE, 1<<4)
-    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 7)
+    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 6)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_PLANE, 0)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_HFIELD, 1)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_SPHERE, 2)
@@ -1302,6 +1302,23 @@ Euler integrator, semi-implicit in velocity.
     vec2 = np.array([3., 2., 1.])
     mat = np.array([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]])
     self.assertEqual(mujoco.mju_mulVecMatVec(vec1, mat, vec2), 204.)
+
+  def test_mju_euler_to_quat(self):
+    quat = np.zeros(4)
+    euler = np.array([0, np.pi/2, 0])
+    seq = 'xyz'
+    mujoco.mju_euler2Quat(quat, euler, seq)
+    expected_quat = np.array([np.sqrt(0.5), 0, np.sqrt(0.5), 0.])
+    np.testing.assert_almost_equal(quat, expected_quat)
+
+    error = 'mju_euler2Quat: seq must contain exactly 3 characters'
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, error):
+      mujoco.mju_euler2Quat(quat, euler, 'xy')
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, error):
+      mujoco.mju_euler2Quat(quat, euler, 'xyzy')
+    error = 'mju_euler2Quat: seq[2] is \'p\', should be one of x, y, z, X, Y, Z'
+    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, error):
+      mujoco.mju_euler2Quat(quat, euler, 'xYp')
 
   @parameterized.product(flg_html=(False, True), flg_pad=(False, True))
   def test_mj_printSchema(self, flg_html, flg_pad):  # pylint: disable=invalid-name

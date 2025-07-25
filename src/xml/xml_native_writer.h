@@ -27,7 +27,7 @@ class mjXWriter : public mjXBase {
  public:
   mjXWriter();                                        // constructor
   virtual ~mjXWriter() = default;                     // destructor
-  void SetModel(mjSpec* modelspec);
+  void SetModel(mjSpec* spec);
 
   // write XML document to string
   std::string Write(char *error, std::size_t error_sz);
@@ -40,23 +40,23 @@ class mjXWriter : public mjXBase {
   mjCModel* model = 0;
 
   // XML section writers
-  void Compiler(tinyxml2::XMLElement* root);                    // compiler section
-  void Option(tinyxml2::XMLElement* root);                      // option section
-  void Size(tinyxml2::XMLElement* root);                        // size section
-  void Visual(tinyxml2::XMLElement* root);                      // visual section
-  void Statistic(tinyxml2::XMLElement* root);                   // statistic section
-  void Default(tinyxml2::XMLElement* root, mjCDef* def);        // default section
-  void Extension(tinyxml2::XMLElement* root);                   // extension section
-  void Custom(tinyxml2::XMLElement* root);                      // custom section
-  void Asset(tinyxml2::XMLElement* root);                       // asset section
-  void Body(tinyxml2::XMLElement* elem, mjCBody* body);         // body/world section
-  void Contact(tinyxml2::XMLElement* root);                     // contact section
-  void Deformable(tinyxml2::XMLElement* root);                  // deformable section
-  void Equality(tinyxml2::XMLElement* root);                    // equality section
-  void Tendon(tinyxml2::XMLElement* root);                      // tendon section
-  void Actuator(tinyxml2::XMLElement* root);                    // actuator section
-  void Sensor(tinyxml2::XMLElement* root);                      // sensor section
-  void Keyframe(tinyxml2::XMLElement* root);                    // keyframe section
+  void Compiler(tinyxml2::XMLElement* root);                              // compiler section
+  void Option(tinyxml2::XMLElement* root);                                // option section
+  void Size(tinyxml2::XMLElement* root);                                  // size section
+  void Visual(tinyxml2::XMLElement* root);                                // visual section
+  void Statistic(tinyxml2::XMLElement* root);                             // statistic section
+  void Default(tinyxml2::XMLElement* root, mjCDef* def);                  // default section
+  void Extension(tinyxml2::XMLElement* root);                             // extension section
+  void Custom(tinyxml2::XMLElement* root);                                // custom section
+  void Asset(tinyxml2::XMLElement* root);                                 // asset section
+  void Body(tinyxml2::XMLElement* elem, mjCBody* body);                   // body/world section
+  void Contact(tinyxml2::XMLElement* root);                               // contact section
+  void Deformable(tinyxml2::XMLElement* root);                            // deformable section
+  void Equality(tinyxml2::XMLElement* root);                              // equality section
+  void Tendon(tinyxml2::XMLElement* root);                                // tendon section
+  void Actuator(tinyxml2::XMLElement* root);                              // actuator section
+  void Sensor(tinyxml2::XMLElement* root);                                // sensor section
+  void Keyframe(tinyxml2::XMLElement* root);                              // keyframe section
 
   // single element writers, used in defaults and main body
   void OneFlex(tinyxml2::XMLElement* elem,      mjCFlex* pflex);
@@ -72,7 +72,8 @@ class mjXWriter : public mjXBase {
   void OneEquality(tinyxml2::XMLElement* elem,  mjCEquality* pequality, mjCDef* def);
   void OneTendon(tinyxml2::XMLElement* elem,    mjCTendon* ptendon,     mjCDef* def);
   void OneActuator(tinyxml2::XMLElement* elem,  mjCActuator* pactuator, mjCDef* def);
-  void OnePlugin(tinyxml2::XMLElement* elem,    mjmPlugin* plugin);
+  void OnePlugin(tinyxml2::XMLElement* elem,    mjsPlugin* plugin);
+  tinyxml2::XMLElement* OneFrame(tinyxml2::XMLElement* elem, mjCFrame* frame);
 
   bool writingdefaults;                       // true during defaults write
 };

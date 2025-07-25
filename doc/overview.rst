@@ -56,7 +56,7 @@ Soft, convex and analytically-invertible contact dynamics
    equality constraints.
 
 Tendon geometry
-   MuJoCo can model the 3D geometry of tendons - which are minimum-path-length strings obeying wrapping and via-point
+   MuJoCo can model the 3D geometry of tendons -- which are minimum-path-length strings obeying wrapping and via-point
    constraints. The mechanism is similar to the one in OpenSim but implements a more restricted, closed-form set of
    wrapping options to speed up computation. It also offers robotics-specific structures such as pulleys and coupled
    degrees of freedom. Tendons can be used for actuation as well as to impose inequality or equality constraints on the
@@ -635,7 +635,7 @@ store results from custom computations there; recall that everything that change
 Custom text
 ^^^^^^^^^^^
 
-Custom text fields can be saved in the model. They can be used in custom computations - either to specify keyword
+Custom text fields can be saved in the model. They can be used in custom computations -- either to specify keyword
 commands, or to provide some other textual information. Do not use them for comments though; there is no benefit to
 saving comments in a compiled model. XML has its own commenting mechanism (ignored by MuJoCo's parser and compiler)
 which is more suitable.
@@ -788,7 +788,8 @@ For situations where it is desirable to suppress slip completely, there is a sec
 the main solver. It updates the contact forces in friction dimensions by disregarding constraint softness. When this
 option is used however, MuJoCo is no longer solving the convex optimization problem it was designed to solve, and the
 simulation may become less robust. Thus using the Newton solver with elliptic friction cones and large value of
-``impratio`` is the recommended way of reducing slip.
+``impratio`` is the recommended way of reducing slip. For more detailed recommendations, see
+:ref:`preventing slip<CSlippage>` in the Modeling chapter.
 
 .. _TypeNameId:
 
@@ -847,7 +848,7 @@ Now the differences. Bodies are used to construct the kinematic tree and are con
 geoms and sites. Bodies have a spatial frame, inertial properties, but no properties related to appearance or collision
 geometry. This is because such properties do not affect the physics (except for contacts of course, but these are
 handled separately). If you have seen diagrams of kinematic trees in robotics textbooks, the bodies are usually drawn as
-amorphous shapes - to make the point that their actual shape is irrelevant to the physics.
+amorphous shapes -- to make the point that their actual shape is irrelevant to the physics.
 
 Geoms (short for geometric primitive) are used to specify appearance and collision geometry. Each geom belongs to a body
 and is rigidly attached to that body. Multiple geoms can be attached to the same body. This is particularly useful in

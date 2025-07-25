@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <csetjmp>
 #include <cstddef>
@@ -60,6 +61,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_solve.h"
 #include "engine/engine_util_spatial.h"
+#include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_util.h"
@@ -78,7 +80,7 @@ static mjtNum _triangle(mjtNum* normal, mjtNum* center,
                         const float* v1, const float* v2, const float* v3) {
   // center
   if (center) {
-    for (int i=0; i<3; i++) {
+    for (int i=0; i < 3; i++) {
       center[i] = (v1[i] + v2[i] + v3[i])/3;
     }
   }
@@ -105,21 +107,6 @@ static mjtNum _triangle(mjtNum* normal, mjtNum* center,
   return len/2;
 }
 
-template <typename T>
-static T* VecToArray(std::vector<T>& vector,  bool clear = true){
-  if (vector.empty())
-    return nullptr;
-  else {
-    int n = (int)vector.size();
-    T* cvec = (T*) mju_malloc(n*sizeof(T));
-    memcpy(cvec, vector.data(), n*sizeof(T));
-    if (clear) {
-      vector.clear();
-    }
-    return cvec;
-  }
-}
-
 // Read data of type T from a potentially unaligned buffer pointer.
 template <typename T>
 static void ReadFromBuffer(T* dst, const char* src) {
@@ -129,7 +116,8 @@ static void ReadFromBuffer(T* dst, const char* src) {
 //------------------ class mjCMesh implementation --------------------------------------------------
 
 mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
-  mjm_defaultMesh(spec);
+  mjs_defaultMesh(&spec);
+  elemtype = mjOBJ_MESH;
 
   // clear internal variables
   mjuu_setvec(pos_surface_, 0, 0, 0);
@@ -143,18 +131,8 @@ mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
   mjuu_setvec(boxsz_volume_, 0, 0, 0);
   mjuu_setvec(aamm_, 1e10, 1e10, 1e10);
   mjuu_setvec(aamm_+3, -1e10, -1e10, -1e10);
-  nvert_ = 0;
-  nnormal_ = 0;
-  ntexcoord_ = 0;
-  nface_ = 0;
   szgraph_ = 0;
-  vert_ = NULL;
-  normal_ = NULL;
   center_ = NULL;
-  texcoord_ = NULL;
-  face_ = NULL;
-  facenormal_ = NULL;
-  facetexcoord_ = NULL;
   graph_ = NULL;
   needhull_ = false;
   invalidorientation_.first = -1;
@@ -194,46 +172,20 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCMesh_*>(this) = static_cast<const mjCMesh_&>(other);
-    *static_cast<mjmMesh*>(this) = static_cast<const mjmMesh&>(other);
-    if (other.vert_) {
-      size_t nvert = 3*other.nvert_*sizeof(float);
-      this->vert_ = (float*)mju_malloc(nvert);
-      memcpy(this->vert_, other.vert_, nvert);
-    }
-    if (other.normal_) {
-      size_t nnormal = 3*other.nnormal_*sizeof(float);
-      this->normal_ = (float*)mju_malloc(nnormal);
-      memcpy(this->normal_, other.normal_, nnormal);
-    }
+    *static_cast<mjsMesh*>(this) = static_cast<const mjsMesh&>(other);
     if (other.center_) {
-      size_t ncenter = 3*other.nface_*sizeof(double);
+      size_t ncenter = 3*other.nface()*sizeof(double);
       this->center_ = (double*)mju_malloc(ncenter);
       memcpy(this->center_, other.center_, ncenter);
-    }
-    if (other.texcoord_) {
-      size_t ntexcoord = 2*other.ntexcoord_*sizeof(float);
-      this->texcoord_ = (float*)mju_malloc(ntexcoord);
-      memcpy(this->texcoord_, other.texcoord_, ntexcoord);
-    }
-    if (other.face_) {
-      size_t nface = 3*other.nface_*sizeof(int);
-      this->face_ = (int*)mju_malloc(nface);
-      memcpy(this->face_, other.face_, nface);
-    }
-    if (other.facenormal_) {
-      size_t nfacenormal = 3*other.nface_*sizeof(int);
-      this->facenormal_ = (int*)mju_malloc(nfacenormal);
-      memcpy(this->facenormal_, other.facenormal_, nfacenormal);
-    }
-    if (other.facetexcoord_) {
-      size_t nfacetexcoord = 3*other.nface_*sizeof(int);
-      this->facetexcoord_ = (int*)mju_malloc(nfacetexcoord);
-      memcpy(this->facetexcoord_, other.facetexcoord_, nfacetexcoord);
+    } else {
+      this->center_ = NULL;
     }
     if (other.graph_) {
       size_t szgraph = szgraph_*sizeof(int);
       this->graph_ = (int*)mju_malloc(szgraph);
       memcpy(this->graph_, other.graph_, szgraph);
+    } else {
+      this->graph_ = NULL;
     }
   }
   PointToLocal();
@@ -243,15 +195,16 @@ mjCMesh& mjCMesh::operator=(const mjCMesh& other) {
 
 
 void mjCMesh::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.file = (mjString)&spec_file_;
   spec.content_type = (mjString)&spec_content_type_;
-  spec.uservert = (mjFloatVec)&spec_uservert_;
-  spec.usernormal = (mjFloatVec)&spec_usernormal_;
-  spec.userface = (mjIntVec)&spec_userface_;
-  spec.usertexcoord = (mjFloatVec)&spec_usertexcoord_;
+  spec.uservert = (mjFloatVec)&spec_vert_;
+  spec.usernormal = (mjFloatVec)&spec_normal_;
+  spec.userface = (mjIntVec)&spec_face_;
+  spec.usertexcoord = (mjFloatVec)&spec_texcoord_;
+  spec.userfacetexcoord = (mjIntVec)&spec_facetexcoord_;
   spec.plugin.name = (mjString)&plugin_name;
   spec.plugin.instance_name = (mjString)&plugin_instance_name;
   spec.info = (mjString)&info;
@@ -260,58 +213,38 @@ void mjCMesh::PointToLocal() {
 
 
 void mjCMesh::CopyFromSpec() {
-  *static_cast<mjmMesh*>(this) = spec;
+  *static_cast<mjsMesh*>(this) = spec;
   file_ = spec_file_;
   content_type_ = spec_content_type_;
-  uservert_ = spec_uservert_;
-  usernormal_ = spec_usernormal_;
-  userface_ = spec_userface_;
-  usertexcoord_ = spec_usertexcoord_;
+  vert_ = spec_vert_;
+  normal_ = spec_normal_;
+  face_ = spec_face_;
+  texcoord_ = spec_texcoord_;
+  facetexcoord_ = spec_facetexcoord_;
   file = (mjString)&file_;
   content_type = (mjString)&content_type_;
-  uservert = (mjFloatVec)&uservert_;
-  usernormal = (mjFloatVec)&usernormal_;
-  userface = (mjIntVec)&userface_;
-  usertexcoord = (mjFloatVec)&usertexcoord_;
+  uservert = (mjFloatVec)&vert_;
+  usernormal = (mjFloatVec)&normal_;
+  userface = (mjIntVec)&face_;
+  usertexcoord = (mjFloatVec)&texcoord_;
+  userfacetexcoord = (mjIntVec)&facetexcoord_;
   plugin.active = spec.plugin.active;
   plugin.instance = spec.plugin.instance;
   plugin.name = spec.plugin.name;
   plugin.instance_name = spec.plugin.instance_name;
 
   // clear precompiled asset. TODO: use asset cache
-  if (vert_) mju_free(vert_);
-  if (normal_) mju_free(normal_);
-  if (texcoord_) mju_free(texcoord_);
   if (center_) mju_free(center_);
-  if (face_) mju_free(face_);
-  if (facenormal_) mju_free(facenormal_);
-  if (facetexcoord_) mju_free(facetexcoord_);
   if (graph_) mju_free(graph_);
-  nvert_= 0;
-  nnormal_ = 0;
-  ntexcoord_ = 0;
-  nface_ = 0;
   szgraph_ = 0;
-  vert_ = NULL;
-  normal_ = NULL;
   center_ = NULL;
-  texcoord_ = NULL;
-  face_ = NULL;
-  facenormal_ = NULL;
-  facetexcoord_ = NULL;
   graph_ = NULL;
 }
 
 
 
 mjCMesh::~mjCMesh() {
-  if (vert_) mju_free(vert_);
-  if (normal_) mju_free(normal_);
-  if (texcoord_) mju_free(texcoord_);
   if (center_) mju_free(center_);
-  if (face_) mju_free(face_);
-  if (facenormal_) mju_free(facenormal_);
-  if (facetexcoord_) mju_free(facetexcoord_);
   if (graph_) mju_free(graph_);
 }
 
@@ -336,8 +269,9 @@ void mjCMesh::LoadSDF() {
                    name.c_str(), id);
   }
 
-  mjCPlugin* plugin_instance = (mjCPlugin*)plugin.instance;
+  mjCPlugin* plugin_instance = static_cast<mjCPlugin*>(plugin.instance);
   model->ResolvePlugin(this, plugin_name, plugin_instance_name, &plugin_instance);
+  plugin.instance = plugin_instance;
   const mjpPlugin* pplugin = mjp_getPluginAtSlot(plugin_instance->spec.plugin_slot);
   if (!(pplugin->capabilityflags & mjPLUGIN_SDF)) {
     throw mjCError(this, "plugin '%s' does not support signed distance fields", pplugin->name);
@@ -399,9 +333,9 @@ void mjCMesh::LoadSDF() {
     userface.push_back(mesh.indices.at(i));
   }
 
-  uservert_ = std::move(uservert);
-  usernormal_ = std::move(usernormal);
-  userface_ = std::move(userface);
+  vert_ = std::move(uservert);
+  normal_ = std::move(usernormal);
+  face_ = std::move(userface);
   delete[] field;
 }
 
@@ -410,15 +344,23 @@ void mjCMesh::LoadSDF() {
 // compiler
 void mjCMesh::Compile(const mjVFS* vfs) {
   CopyFromSpec();
+  visual_ = true;
+  std::string asset_type = GetAssetContentType(file_, content_type_);
 
   // load file
   if (!file_.empty()) {
+    vert_.clear();
+    face_.clear();
+    normal_.clear();
+    texcoord_.clear();
+    facenormal_.clear();
+    facetexcoord_.clear();
+
     // remove path from file if necessary
     if (model->strippath) {
       file_ = mjuu_strippath(file_);
     }
 
-    std::string asset_type = GetAssetContentType(file_, content_type_);
     if (asset_type.empty()) {
       throw mjCError(this, "unknown mesh content type for file: '%s'", file_.c_str());
     }
@@ -444,6 +386,38 @@ void mjCMesh::Compile(const mjVFS* vfs) {
       mju_closeResource(resource);
       throw err;
     }
+
+    // check repeated mesh data
+    if (!vert_.empty() && !spec_vert_.empty()) {
+      throw mjCError(this, "repeated vertex specification");
+    } else if (vert_.empty()) {
+      vert_ = spec_vert_;
+    }
+    if (!normal_.empty() && !spec_normal_.empty()) {
+      throw mjCError(this, "repeated normal specification");
+    } else if (normal_.empty()) {
+      normal_ = spec_normal_;
+    }
+    if (!texcoord_.empty() && !spec_texcoord_.empty()) {
+      throw mjCError(this, "repeated texcoord specification");
+    } else if (texcoord_.empty()) {
+      texcoord_ = spec_texcoord_;
+    }
+    if (!face_.empty() && !spec_face_.empty()) {
+      throw mjCError(this, "repeated face specification");
+    } else if (face_.empty()) {
+      face_ = spec_face_;
+    }
+    if (!facenormal_.empty() && !spec_normal_.empty()) {
+      throw mjCError(this, "repeated facenormal specification");
+    } else if (facenormal_.empty()) {
+      facenormal_ = spec_facenormal_;
+    }
+    if (!facetexcoord_.empty() && !spec_facetexcoord_.empty()) {
+      throw mjCError(this, "repeated facetexcoord specification");
+    } else if (facetexcoord_.empty()) {
+      facetexcoord_ = spec_facetexcoord_;
+    }
   }
 
   // create using marching cubes
@@ -451,178 +425,98 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     LoadSDF();
   }
 
-  // copy user vertex
-  if (!uservert_.empty()) {
-    // check repeated
-    if (vert_) {
-      throw mjCError(this, "repeated vertex specification");
-    }
+  // check sizes
+  if (vert_.size()<12) throw mjCError(this, "at least 4 vertices required");
+  if (vert_.size()%3) throw mjCError(this, "vertex data must be a multiple of 3");
+  if (normal_.size()%3) throw mjCError(this, "normal data must be a multiple of 3");
+  if (texcoord_.size()%2) throw mjCError(this, "texcoord must be a multiple of 2");
+  if (face_.size()%3) throw mjCError(this, "face data must be a multiple of 3");
 
-    // check size
-    if (uservert_.size()<12) {
-      throw mjCError(this, "at least 4 vertices required");
-    }
-    if (uservert_.size()%3) {
-      throw mjCError(this, "vertex data must be a multiple of 3");
-    }
-
-    // copy from user
-    nvert_ = (int)uservert_.size()/3;
-    vert_ = VecToArray(uservert_, !file_.empty());
+  // check texcoord size if no face texcoord indices are given
+  if (!texcoord_.empty() && texcoord_.size() != 2 * nvert() &&
+      facetexcoord_.empty() && asset_type != "model/obj") {
+    throw mjCError(this,
+        "texcoord must be 2*nv if face texcoord indices are not provided in an OBJ file");
   }
 
-  // copy user normal
-  if (!usernormal_.empty()) {
-    // check repeated
-    if (normal_) {
-      throw mjCError(this, "repeated normal specification");
+  // check vertices exist
+  for (int i=0; i < face_.size(); i++) {
+    if (face_[i] >= nvert() || face_[i] < 0) {
+      throw mjCError(this, "in face %d, vertex index %d does not exist",
+                      nullptr, i / 3, face_[i]);
     }
-
-    // check size
-    if (usernormal_.size()%3) {
-      throw mjCError(this, "normal data must be a multiple of 3");
-    }
-
-    // copy from user
-    nnormal_ = (int)usernormal_.size()/3;
-    normal_ = VecToArray(usernormal_, !file_.empty());
   }
 
-  // copy user texcoord
-  if (!usertexcoord_.empty()) {
-    // check repeated
-    if (texcoord_) {
-      throw mjCError(this, "repeated texcoord specification");
+  // create half-edge structure (if mesh was in XML)
+  if (halfedge_.empty()) {
+    for (int i=0; i < face_.size()/3; i++) {
+      int v0 = face_[3*i+0];
+      int v1 = face_[3*i+1];
+      int v2 = face_[3*i+2];
+      mjtNum normal[3];
+      float* vtx = vert_.data();
+      if (_triangle(normal, nullptr, vtx+3*v0, vtx+3*v1, vtx+3*v2)>sqrt(mjMINVAL)) {
+        halfedge_.push_back(std::pair(v0, v1));
+        halfedge_.push_back(std::pair(v1, v2));
+        halfedge_.push_back(std::pair(v2, v0));
+      } else {
+        // TODO(b/255525326)
+      }
     }
-
-    // check size
-    if (usertexcoord_.size()%2) {
-      throw mjCError(this, "texcoord must be a multiple of 2");
-    }
-
-    // check size if no face texcoord indices are given
-    if (usertexcoord_.size() != 2*nvert_ && userfacetexcoord_.empty()) {
-      throw mjCError(this,
-          "texcoord must be 2*nv if face texcoord indices are not provided in an OBJ file");
-    }
-
-    // copy from user
-    ntexcoord_ = (int)usertexcoord_.size()/2;
-    texcoord_ = VecToArray(usertexcoord_, !file_.empty());
   }
 
-  // copy user face
-  if (!userface_.empty()) {
-    // check repeated
-    if (face_) {
-      throw mjCError(this, "repeated face specification");
-    }
-
-    // check size
-    if (userface_.size()%3) {
-      throw mjCError(this, "face data must be a multiple of 3");
-    }
-
-    // check vertices exist
-    for (int i=0; i<userface_.size(); i++) {
-      if (userface_[i] >= nvert_ || userface_[i] < 0) {
-        throw mjCError(this, "index in face does not exist in vertex array");
-      }
-    }
-
-    // create half-edge structure (if mesh was in XML)
-    if (useredge_.empty()) {
-      for (int i=0; i<userface_.size()/3; i++) {
-        int v0 = userface_[3*i+0];
-        int v1 = userface_[3*i+1];
-        int v2 = userface_[3*i+2];
-        mjtNum normal[3];
-        if (_triangle(normal, nullptr, vert_+3*v0, vert_+3*v1, vert_+3*v2)>sqrt(mjMINVAL)) {
-          useredge_.push_back(std::pair(v0, v1));
-          useredge_.push_back(std::pair(v1, v2));
-          useredge_.push_back(std::pair(v2, v0));
-        } else {
-          // TODO(b/255525326)
-        }
-      }
-    }
-
-    // copy from user
-    nface_ = (int)userface_.size()/3;
-    face_ = VecToArray(userface_, !file_.empty());
-
-    // check vertices exist
-    for (auto vertex_index : userface_) {
-      if (vertex_index>=nvert_ || vertex_index < 0) {
-        throw mjCError(this, "found index in userface that exceeds uservert size.");
-      }
+  // check vertices exist
+  for (auto vertex_index : face_) {
+    if (vertex_index>=nvert() || vertex_index < 0) {
+      throw mjCError(this, "found index in userface that exceeds uservert size.");
     }
   }
 
   // check for inconsistent face orientations
-  if (!useredge_.empty()) {
-    std::stable_sort(useredge_.begin(), useredge_.end());
-    auto iterator = std::adjacent_find(useredge_.begin(), useredge_.end());
-    if (iterator != useredge_.end()) {
+  if (!halfedge_.empty()) {
+    std::stable_sort(halfedge_.begin(), halfedge_.end());
+    auto iterator = std::adjacent_find(halfedge_.begin(), halfedge_.end());
+    if (iterator != halfedge_.end()) {
       invalidorientation_.first = iterator->first+1;
       invalidorientation_.second = iterator->second+1;
     }
   }
 
   // require vertices
-  if (!vert_) {
+  if (vert_.empty()) {
     throw mjCError(this, "no vertices");
   }
 
   // make graph describing convex hull
-  if ((model->convexhull && needhull_) || !face_) {
+  if ((model->convexhull && needhull_) || face_.empty()) {
     MakeGraph();
   }
 
   // no faces: copy from convex hull
-  if (!face_) {
+  if (face_.empty()) {
     CopyGraph();
   }
 
   // no normals: make
-  if (!normal_) {
+  if (normal_.empty()) {
     MakeNormal();
   }
 
-  // copy user normal indices
-  if (!userfacenormal_.empty()) {
-    // check repeated
-    if (facenormal_) {
-      throw mjCError(this, "repeated facenormal specification");
-    }
-
-    if (userfacenormal_.size()!=3*nface_) {
-      throw mjCError(this, "face data must have the same size as face normal data");
-    }
-
-    facenormal_ = VecToArray(userfacenormal_, !file_.empty());
-  }
-
-  // copy user texcoord
-  if (!userfacetexcoord_.empty()) {
-    // check repeated
-    if (facetexcoord_) {
-      throw mjCError(this, "repeated facetexcoord specification");
-    }
-
-    facetexcoord_ = VecToArray(userfacetexcoord_, !file_.empty());
+  // check facenormal size
+  if (!facenormal_.empty() && facenormal_.size()!=3*nface()) {
+    throw mjCError(this, "face data must have the same size as face normal data");
   }
 
   // no facetexcoord: copy from faces
-  if (!facetexcoord_ && texcoord_) {
-    facetexcoord_ = (int*) mju_malloc(3*nface_*sizeof(int));
-    memcpy(facetexcoord_, face_, 3*nface_*sizeof(int));
+  if (facetexcoord_.empty() && !texcoord_.empty()) {
+    facetexcoord_.assign(3*nface(), 0);
+    memcpy(facetexcoord_.data(), face_.data(), 3*nface()*sizeof(int));
   }
 
   // facenormal might not exist if usernormal was specified
-  if (!facenormal_) {
-    facenormal_ = (int*) mju_malloc(3*nface_*sizeof(int));
-    memcpy(facenormal_, face_, 3*nface_*sizeof(int));
+  if (facenormal_.empty()) {
+    facenormal_.assign(3*nface(), 0);
+    memcpy(facenormal_.data(), face_.data(), 3*nface()*sizeof(int));
   }
 
   // scale, center, orient, compute mass and inertia
@@ -636,9 +530,9 @@ void mjCMesh::Compile(const mjVFS* vfs) {
 
   // make bounding volume hierarchy
   if (tree_.bvh.empty()) {
-    face_aabb_.assign(6*nface_, 0);
-    tree_.AllocateBoundingVolumes(nface_);
-    for (int i=0; i<nface_; i++) {
+    face_aabb_.assign(6*nface(), 0);
+    tree_.AllocateBoundingVolumes(nface());
+    for (int i=0; i < nface(); i++) {
       SetBoundingVolume(i);
     }
     tree_.CreateBVH();
@@ -711,43 +605,43 @@ double* mjCMesh::GetOffsetQuatPtr() {
 
 
 bool mjCMesh::HasTexcoord() const {
-  return texcoord_ != nullptr;
+  return !texcoord_.empty();
 }
 
 
 
 void mjCMesh::CopyVert(float* arr) const {
-  std::copy(vert_, vert_+3*nvert_, arr);
+  std::copy(vert_.begin(), vert_.end(), arr);
 }
 
 
 
 void mjCMesh::CopyNormal(float* arr) const {
-  std::copy(normal_, normal_+3*nnormal_, arr);
+  std::copy(normal_.begin(), normal_.end(), arr);
 }
 
 
 
 void mjCMesh::CopyFace(int* arr) const {
-  std::copy(face_, face_+3*nface_, arr);
+  std::copy(face_.begin(), face_.end(), arr);
 }
 
 
 
 void mjCMesh::CopyFaceTexcoord(int* arr) const {
-  std::copy(facetexcoord_, facetexcoord_+3*nface_, arr);
+  std::copy(facetexcoord_.begin(), facetexcoord_.end(), arr);
 }
 
 
 
 void mjCMesh::CopyFaceNormal(int* arr) const {
-  std::copy(facenormal_, facenormal_+3*nface_, arr);
+  std::copy(facenormal_.begin(), facenormal_.end(), arr);
 }
 
 
 
 void mjCMesh::CopyTexcoord(float* arr) const {
-  std::copy(texcoord_, texcoord_+2*ntexcoord_, arr);
+  std::copy(texcoord_.begin(), texcoord_.end(), arr);
 }
 
 
@@ -759,8 +653,7 @@ void mjCMesh::CopyGraph(int* arr) const {
 
 
 void mjCMesh::DelTexcoord() {
-  if (texcoord_) mju_free(texcoord_);
-  ntexcoord_ = 0;
+  texcoord_.clear();
 }
 
 
@@ -816,7 +709,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
     case mjGEOM_SPHERE:
       // find maximum distance
       geom->size[0] = 0;
-      for (int i=0; i<nvert_; i++) {
+      for (int i=0; i < nvert(); i++) {
         double v[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
         double dst = mjuu_dist3(v, cen);
         geom->size[0] = mju_max(geom->size[0], dst);
@@ -828,7 +721,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
       // find maximum distance in XY, separately in Z
       geom->size[0] = 0;
       geom->size[1] = 0;
-      for (int i=0; i<nvert_; i++) {
+      for (int i=0; i < nvert(); i++) {
         double v[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
         double dst = sqrt((v[0]-cen[0])*(v[0]-cen[0]) +
                           (v[1]-cen[1])*(v[1]-cen[1]));
@@ -842,7 +735,7 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
       // special handling of capsule: consider curved cap
       if (geom->type==mjGEOM_CAPSULE) {
         geom->size[1] = 0;
-        for (int i=0; i<nvert_; i++) {
+        for (int i=0; i < nvert(); i++) {
           // get distance in XY and Z
           double v[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
           double dst = sqrt((v[0]-cen[0])*(v[0]-cen[0]) +
@@ -896,17 +789,17 @@ void mjCMesh::RemoveRepeated() {
   int repeated = 0;
 
   // allocate sort and redirection indices, set to identity
-  auto index = std::unique_ptr<int[]>(new int[nvert_]);
-  auto redirect = std::unique_ptr<int[]>(new int[nvert_]);
-  for (int i=0; i < nvert_; i++) {
+  auto index = std::unique_ptr<int[]>(new int[nvert()]);
+  auto redirect = std::unique_ptr<int[]>(new int[nvert()]);
+  for (int i=0; i < nvert(); i++) {
     index[i] = redirect[i] = i;
   }
 
   // sort vertices
-  mjQUICKSORT(index.get(), nvert_, sizeof(int), vertcompare, vert_);
+  mjQUICKSORT(index.get(), nvert(), sizeof(int), vertcompare, vert_.data());
 
   // find repeated vertices, set redirect
-  for (int i=1; i < nvert_; i++) {
+  for (int i=1; i < nvert(); i++) {
     if (vert_[3*index[i]] == vert_[3*index[i-1]] &&
         vert_[3*index[i]+1] == vert_[3*index[i-1]+1] &&
         vert_[3*index[i]+2] == vert_[3*index[i-1]+2]) {
@@ -918,7 +811,7 @@ void mjCMesh::RemoveRepeated() {
   // compress vertices, change face data
   if (repeated) {
     // track redirections until non-redirected vertex, set
-    for (int i=0; i<nvert_; i++) {
+    for (int i=0; i < nvert(); i++) {
       int j = i;
       while (redirect[j]!=j) {
         j = redirect[j];
@@ -928,10 +821,10 @@ void mjCMesh::RemoveRepeated() {
 
     // find good vertices, compress, reuse index to save compressed position
     int j = 0;
-    for (int i=0; i<nvert_; i++) {
+    for (int i=0; i < nvert(); i++) {
       if (redirect[i]==i) {
         index[i] = j;
-        memcpy(vert_+3*j, vert_+3*i, 3*sizeof(float));
+        memcpy(vert_.data()+3*j, vert_.data()+3*i, 3*sizeof(float));
         j++;
       } else {
         index[i] = -1;
@@ -939,26 +832,22 @@ void mjCMesh::RemoveRepeated() {
     }
 
     // recompute face data to reflect compressed vertices
-    for (int i=0; i<3*nface_; i++) {
+    for (int i=0; i < 3*nface(); i++) {
       face_[i] = index[redirect[face_[i]]];
 
       // sanity check, SHOULD NOT OCCUR
-      if (face_[i]<0 || face_[i]>=nvert_-repeated) {
+      if (face_[i]<0 || face_[i]>=nvert()-repeated) {
         throw mjCError(
             this, "error removing vertices from mesh '%s'", name.c_str());
       }
     }
   }
 
-  // correct vertex count
-  nvert_ -= repeated;
-
   // resize vert if any vertices were removed
   if (repeated) {
-    float* old = vert_;
-    vert_ = (float*) mju_malloc(3*nvert_*sizeof(float));
-    memcpy(vert_, old, 3*nvert_*sizeof(float));
-    mju_free(old);
+    std::vector<float> old = vert_;
+    vert_.assign(3*(nvert()-repeated), 0);
+    memcpy(vert_.data(), old.data(), 3*nvert()*sizeof(float));
   }
 }
 
@@ -967,6 +856,19 @@ void mjCMesh::RemoveRepeated() {
 void mjCMesh::LoadOBJ(mjResource* resource) {
   tinyobj::ObjReader objReader;
   const void* bytes = nullptr;
+
+  // try loading from cache
+  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
+  if (cache) {
+    auto asset = cache->Get(resource->name);
+    if (asset.has_value() &&
+        !mju_isModifiedResource(resource, asset->Timestamp().c_str())) {
+      if (LoadCachedOBJ(asset.value())) {
+        return;
+      }
+    }
+  }
+
   int buffer_sz = mju_readResource(resource, &bytes);
   if (buffer_sz < 0) {
     throw mjCError(this, "could not read OBJ file '%s'", resource->name);
@@ -981,9 +883,11 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
   }
 
   const auto& attrib = objReader.GetAttrib();
-  uservert_ = attrib.vertices;  // copy from one std::vector to another
-  usernormal_ = attrib.normals;
-  usertexcoord_ = attrib.texcoords;
+  vert_ = attrib.vertices;  // copy from one std::vector to another
+  normal_ = attrib.normals;
+  texcoord_ = attrib.texcoords;
+  facenormal_.clear();
+  facetexcoord_.clear();
 
   if (!objReader.GetShapes().empty()) {
     const auto& mesh = objReader.GetShapes()[0].mesh;
@@ -1014,24 +918,132 @@ void mjCMesh::LoadOBJ(mjResource* resource) {
 
     // for each vertex, store index, normal, and texcoord
     for (const auto& mesh_index : face_indices) {
-      userface_.push_back(mesh_index.vertex_index);
+      face_.push_back(mesh_index.vertex_index);
 
-      if (!usernormal_.empty()) {
-        userfacenormal_.push_back(mesh_index.normal_index);
+      if (!normal_.empty()) {
+        facenormal_.push_back(mesh_index.normal_index);
       }
 
-      if (!usertexcoord_.empty()) {
-        userfacetexcoord_.push_back(mesh_index.texcoord_index);
+      if (!texcoord_.empty()) {
+        facetexcoord_.push_back(mesh_index.texcoord_index);
       }
     }
   }
 
   // flip the second texcoord
-  for (int i=0; i<usertexcoord_.size()/2; i++) {
-    usertexcoord_[2*i+1] = 1-usertexcoord_[2*i+1];
+  for (int i=0; i < texcoord_.size()/2; i++) {
+    texcoord_[2*i+1] = 1-texcoord_[2*i+1];
+  }
+
+  // try caching asset
+  if (cache) {
+    mjCAsset asset("", resource->name, resource->timestamp);
+
+    asset.AddVector("vert_", vert_);
+    asset.AddVector("normal_", normal_);
+    asset.AddVector("texcoord_", texcoord_);
+
+    if (!objReader.GetShapes().empty()) {
+      const auto& mesh = objReader.GetShapes()[0].mesh;
+      std::vector<int> vertex_index;
+      vertex_index.reserve(mesh.indices.size());
+
+      std::vector<int> normal_index;
+      normal_index.reserve(mesh.indices.size());
+
+      std::vector<int> texcoord_index;
+      texcoord_index.reserve(mesh.indices.size());
+
+      for (tinyobj::index_t index : mesh.indices) {
+        vertex_index.push_back(index.vertex_index);
+        normal_index.push_back(index.normal_index);
+        texcoord_index.push_back(index.texcoord_index);
+      }
+
+      asset.AddVector("num_face_vertices", mesh.num_face_vertices);
+      asset.AddVector("vertex_index", vertex_index);
+      asset.AddVector("normal_index", normal_index);
+      asset.AddVector("texcoord_index", texcoord_index);
+    } else {
+      asset.AddVector("num_face_vertices", std::vector<unsigned char>());
+      asset.AddVector("vertex_index", std::vector<int>());
+      asset.AddVector("normal_index", std::vector<int>());
+      asset.AddVector("texcoord_index", std::vector<int>());
+    }
+    cache->Insert(std::move(asset));
   }
 }
 
+
+
+// load OBJ from cached asset, return true on success
+bool mjCMesh::LoadCachedOBJ(const mjCAsset& asset) {
+  // check that asset has all data
+  if (!asset.HasData("vert_") || !asset.HasData("normal_")
+      || !asset.HasData("texcoord_") || !asset.HasData("num_face_vertices")
+      || !asset.HasData("vertex_index") || !asset.HasData("normal_index")
+      || !asset.HasData("texcoord_index")) {
+    return false;
+  }
+  vert_ = asset.GetVector<float>("vert_").value();
+  normal_ = asset.GetVector<float>("normal_").value();
+  texcoord_ = asset.GetVector<float>("texcoord_").value();
+
+  vector<int> vertex_index = asset.GetVector<int>("vertex_index").value();
+  vector<int> normal_index = asset.GetVector<int>("normal_index").value();
+  vector<int> texcoord_index = asset.GetVector<int>("texcoord_index").value();
+  vector<unsigned char> num_face_vertices =
+      asset.GetVector<unsigned char>("num_face_vertices").value();
+
+  bool righthand = (scale[0] * scale[1] * scale[2]) > 0;
+
+
+  for (int face = 0, i = 0; i < vertex_index.size();) {
+    int nfacevert = num_face_vertices[face];
+    if (nfacevert < 3 || nfacevert > 4) {
+      throw mjCError(
+          this, "only tri or quad meshes are supported for OBJ (file '%s')",
+          asset.Id().c_str());
+    }
+
+    face_.push_back(vertex_index[i]);
+    face_.push_back(vertex_index[i + (righthand == 1 ? 1 : 2)]);
+    face_.push_back(vertex_index[i + (righthand == 1 ? 2 : 1)]);
+
+    if (!normal_.empty()) {
+      facenormal_.push_back(normal_index[i]);
+      facenormal_.push_back(normal_index[i + (righthand == 1 ? 1 : 2)]);
+      facenormal_.push_back(normal_index[i + (righthand == 1 ? 2 : 1)]);
+    }
+
+    if (!texcoord_.empty()) {
+      facetexcoord_.push_back(texcoord_index[i]);
+      facetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 1 : 2)]);
+      facetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 2 : 1)]);
+    }
+
+    if (nfacevert == 4) {
+      face_.push_back(vertex_index[i]);
+      face_.push_back(vertex_index[i + (righthand == 1 ? 2 : 3)]);
+      face_.push_back(vertex_index[i + (righthand == 1 ? 3 : 2)]);
+
+      if (!normal_.empty()) {
+        facenormal_.push_back(normal_index[i]);
+        facenormal_.push_back(normal_index[i + (righthand == 1 ? 1 : 2)]);
+        facenormal_.push_back(normal_index[i + (righthand == 1 ? 2 : 1)]);
+      }
+
+      if (!texcoord_.empty()) {
+        facetexcoord_.push_back(texcoord_index[i]);
+        facetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 1 : 2)]);
+        facetexcoord_.push_back(texcoord_index[i + (righthand == 1 ? 2 : 1)]);
+      }
+    }
+    i += nfacevert;
+    ++face;
+  }
+  return true;
+}
 
 // load STL binary mesh
 void mjCMesh::LoadSTL(mjResource* resource) {
@@ -1054,15 +1066,16 @@ void mjCMesh::LoadSTL(mjResource* resource) {
   }
 
   // get number of triangles, check bounds
-  ReadFromBuffer(&nface_, buffer + 80);
-  if (nface_<1 || nface_>200000) {
+  int nfaces = 0;
+  ReadFromBuffer(&nfaces, buffer + 80);
+  if (nfaces<1 || nfaces>200000) {
     throw mjCError(this,
                    "number of faces should be between 1 and 200000 in STL file '%s';"
                    " perhaps this is an ASCII file?", resource->name);
   }
 
   // check remaining buffer size
-  if (nface_*50 != buffer_sz-84) {
+  if (nfaces*50 != buffer_sz-84) {
     throw mjCError(this,
                    "STL file '%s' has wrong size; perhaps this is an ASCII file?",
                    resource->name);
@@ -1072,11 +1085,11 @@ void mjCMesh::LoadSTL(mjResource* resource) {
   const char* stl = buffer + 84;
 
   // allocate face and vertex data
-  face_ = (int*) mju_malloc(3*nface_*sizeof(int));
-  vert_ = (float*) mju_malloc(9*nface_*sizeof(float));
+  face_.assign(3*nfaces, 0);
+  vert_.clear();
 
   // add vertices and faces, including repeated for now
-  for (int i=0; i<nface_; i++) {
+  for (int i=0; i < nfaces; i++) {
     for (int j=0; j<3; j++) {
       // read vertex coordinates
       float v[3];
@@ -1097,14 +1110,15 @@ void mjCMesh::LoadSTL(mjResource* resource) {
 
       // add vertex address in face; change order if scale makes it lefthanded
       if (righthand || j==0) {
-        face_[3*i+j] = nvert_;
+        face_[3*i+j] = nvert();
       } else {
-        face_[3*i+3-j] = nvert_;
+        face_[3*i+3-j] = nvert();
       }
 
       // add vertex data
-      memcpy(vert_+3*nvert_, v, 3*sizeof(float));
-      nvert_++;
+      vert_.push_back(v[0]);
+      vert_.push_back(v[1]);
+      vert_.push_back(v[2]);
     }
   }
 
@@ -1134,56 +1148,63 @@ void mjCMesh::LoadMSH(mjResource* resource) {
   }
 
   // get sizes from header
-  ReadFromBuffer(&nvert_, buffer);
-  ReadFromBuffer(&nnormal_, buffer + sizeof(int));
-  ReadFromBuffer(&ntexcoord_, buffer + 2*sizeof(int));
-  ReadFromBuffer(&nface_, buffer + 3*sizeof(int));
+  int nvbuf = 0, nfbuf = 0, nnbuf = 0, ntbuf = 0;
+  ReadFromBuffer(&nvbuf, buffer);
+  ReadFromBuffer(&nnbuf, buffer + sizeof(int));
+  ReadFromBuffer(&ntbuf, buffer + 2*sizeof(int));
+  ReadFromBuffer(&nfbuf, buffer + 3*sizeof(int));
 
   // check sizes
-  if (nvert_<4 || nface_<0 || nnormal_<0 || ntexcoord_<0 ||
-      (nnormal_>0 && nnormal_!=nvert_) ||
-      (ntexcoord_>0 && ntexcoord_!=nvert_)) {
+  if (nvbuf<4 || nfbuf<0 || nnbuf<0 || ntbuf<0 ||
+      (nnbuf>0 && nnbuf!=nvbuf) ||
+      (ntbuf>0 && ntbuf!=nvbuf)) {
     throw mjCError(this, "invalid sizes in MSH file '%s'", resource->name);
   }
 
+  if (nvbuf >= INT_MAX / sizeof(float) / 3 ||
+      nnbuf >= INT_MAX / sizeof(float) / 3 ||
+      ntbuf >= INT_MAX / sizeof(float) / 2 ||
+      nfbuf >= INT_MAX / sizeof(int) / 3) {
+    throw mjCError(this, "too large sizes in MSH file '%s'.", resource->name);
+  }
   // check file size
-  if (buffer_sz != 4*sizeof(int) + 3*nvert_*sizeof(float) + 3*nnormal_*sizeof(float) +
-      2*ntexcoord_*sizeof(float) + 3*nface_*sizeof(int)) {
+  if (buffer_sz != 4*sizeof(int) + 3*nvbuf*sizeof(float) + 3*nnbuf*sizeof(float) +
+      2*ntbuf*sizeof(float) + 3*nfbuf*sizeof(int)) {
     throw mjCError(this, "unexpected file size in MSH file '%s'", resource->name);
   }
 
   // allocate and copy
   using UnalignedFloat = char[sizeof(float)];
   auto fdata = reinterpret_cast<UnalignedFloat*>(buffer + 4*sizeof(int));
-  if (nvert_) {
-    vert_ = (float*) mju_malloc(3*nvert_*sizeof(float));
-    memcpy(vert_, fdata, 3*nvert_*sizeof(float));
-    fdata += 3*nvert_;
+  if (nvbuf) {
+    vert_.assign(3*nvbuf, 0);
+    memcpy(vert_.data(), fdata, 3*nvert()*sizeof(float));
+    fdata += 3*nvert();
   }
-  if (nnormal_) {
-    normal_ = (float*) mju_malloc(3*nvert_*sizeof(float));
-    memcpy(normal_, fdata, 3*nvert_*sizeof(float));
-    fdata += 3*nvert_;
+  if (nnbuf) {
+    normal_.assign(3*nvert(), 0);
+    memcpy(normal_.data(), fdata, 3*nvert()*sizeof(float));
+    fdata += 3*nvert();
   }
-  if (ntexcoord_) {
-    texcoord_ = (float*) mju_malloc(2*nvert_*sizeof(float));
-    memcpy(texcoord_, fdata, 2*nvert_*sizeof(float));
-    fdata += 2*nvert_;
+  if (ntbuf) {
+    texcoord_.assign(2*nvert(), 0);
+    memcpy(texcoord_.data(), fdata, 2*nvert()*sizeof(float));
+    fdata += 2*nvert();
   }
-  if (nface_) {
-    face_ = (int*) mju_malloc(3*nface_*sizeof(int));
-    facenormal_ = (int*) mju_malloc(3*nface_*sizeof(int));
-    memcpy(face_, fdata, 3*nface_*sizeof(int));
-    memcpy(facenormal_, fdata, 3*nface_*sizeof(int));
+  if (nfbuf) {
+    face_.assign(3*nfbuf, 0);
+    facenormal_.assign(3*nfbuf, 0);
+    memcpy(face_.data(), fdata, 3*nfbuf*sizeof(int));
+    memcpy(facenormal_.data(), fdata, 3*nfbuf*sizeof(int));
   }
-  if  (nface_ && texcoord_) {
-    facetexcoord_= (int*) mju_malloc(3*nface_*sizeof(int));
-    memcpy(facetexcoord_, fdata, 3*nface_*sizeof(int));
+  if  (nfbuf && !texcoord_.empty()) {
+    facetexcoord_.assign(3*nfbuf, 0);
+    memcpy(facetexcoord_.data(), fdata, 3*nfbuf*sizeof(int));
   }
 
   // rearrange face data if left-handed scaling
-  if (nface_ && !righthand) {
-    for (int i=0; i<nface_; i++) {
+  if (nfbuf && !righthand) {
+    for (int i=0; i < nfbuf; i++) {
       int tmp = face_[3*i+1];
       face_[3*i+1] = face_[3*i+2];
       face_[3*i+2] = tmp;
@@ -1198,9 +1219,10 @@ void mjCMesh::ComputeVolume(double CoM[3], mjtGeomInertia type,
   double cen[3];
   GetVolumeRef(type) = 0;
   mjuu_zerovec(CoM, 3);
-  for (int i=0; i<nface_; i++) {
+  for (int i=0; i < nface(); i++) {
     // get area, normal and center
-    double a = _triangle(nrm, cen, vert_+3*face_[3*i], vert_+3*face_[3*i+1], vert_+3*face_[3*i+2]);
+    float* vv = vert_.data();
+    double a = _triangle(nrm, cen, vv+3*face_[3*i], vv+3*face_[3*i+1], vv+3*face_[3*i+2]);
 
     // compute and add volume
     const double vec[3] = {cen[0]-facecen[0], cen[1]-facecen[1], cen[2]-facecen[2]};
@@ -1228,7 +1250,7 @@ void mjCMesh::ApplyTransformations() {
     float rp[3] = {(float)refpos[0], (float)refpos[1], (float)refpos[2]};
 
     // process vertices
-    for (int i=0; i<nvert_; i++) {
+    for (int i=0; i < nvert(); i++) {
       vert_[3*i] -= rp[0];
       vert_[3*i+1] -= rp[1];
       vert_[3*i+2] -= rp[2];
@@ -1244,7 +1266,7 @@ void mjCMesh::ApplyTransformations() {
     mju_quat2Mat(mat, quat);
 
     // process vertices
-    for (int i=0; i<nvert_; i++) {
+    for (int i=0; i < nvert(); i++) {
       mjtNum p1[3], p0[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
       mju_rotVecMatT(p1, p0, mat);
       vert_[3*i] = (float) p1[0];
@@ -1253,7 +1275,7 @@ void mjCMesh::ApplyTransformations() {
     }
 
     // process normals
-    for (int i=0; i<nnormal_; i++) {
+    for (int i=0; i < nnormal(); i++) {
       mjtNum n1[3], n0[3] = {normal_[3*i], normal_[3*i+1], normal_[3*i+2]};
       mju_rotVecMatT(n1, n0, mat);
       normal_[3*i] = (float) n1[0];
@@ -1264,13 +1286,13 @@ void mjCMesh::ApplyTransformations() {
 
   // scale
   if (scale[0]!=1 || scale[1]!=1 || scale[2]!=1) {
-    for (int i=0; i<nvert_; i++) {
+    for (int i=0; i < nvert(); i++) {
       vert_[3*i] *= scale[0];
       vert_[3*i+1] *= scale[1];
       vert_[3*i+2] *= scale[2];
     }
 
-    for (int i=0; i<nnormal_; i++) {
+    for (int i=0; i < nnormal(); i++) {
       normal_[3*i] *= scale[0];
       normal_[3*i+1] *= scale[1];
       normal_[3*i+2] *= scale[2];
@@ -1278,7 +1300,7 @@ void mjCMesh::ApplyTransformations() {
   }
 
   // normalize normals
-  for (int i=0; i<nnormal_; i++) {
+  for (int i=0; i < nnormal(); i++) {
     // compute length
     float len = normal_[3*i]*normal_[3*i] + normal_[3*i+1]*normal_[3*i+1] + normal_[3*i+2]*normal_[3*i+2];
 
@@ -1303,16 +1325,17 @@ void mjCMesh::ComputeFaceCentroid(double facecen[3]) {
   double nrm[3];
   double cen[3];
 
-  for (int i=0; i<nface_; i++) {
+  for (int i=0; i < nface(); i++) {
     // check vertex indices
     for (int j=0; j<3; j++) {
-      if (face_[3*i+j]<0 || face_[3*i+j]>=nvert_) {
+      if (face_[3*i+j]<0 || face_[3*i+j]>=nvert()) {
         throw mjCError(this, "vertex index out of range in %s (index = %d)", name.c_str(), i);
       }
     }
 
     // get area and center
-    double a = _triangle(nrm, cen, vert_+3*face_[3*i], vert_+3*face_[3*i+1], vert_+3*face_[3*i+2]);
+    float* vv = vert_.data();
+    double a = _triangle(nrm, cen, vv+3*face_[3*i], vv+3*face_[3*i+1], vv+3*face_[3*i+2]);
 
     // accumulate
     for (int j=0; j<3; j++) {
@@ -1375,7 +1398,7 @@ void mjCMesh::Process() {
 
     // re-center mesh at CoM
     if (type==mjINERTIA_VOLUME || validvolume_<=0) {
-      for (int i=0; i<nvert_; i++) {
+      for (int i=0; i < nvert(); i++) {
         for (int j=0; j<3; j++) {
           vert_[3*i+j] -= CoM[j];
         }
@@ -1386,10 +1409,10 @@ void mjCMesh::Process() {
     const int k[6][2] = {{0, 0}, {1, 1}, {2, 2}, {0, 1}, {0, 2}, {1, 2}};
     double P[6] = {0, 0, 0, 0, 0, 0};
     GetVolumeRef(type) = 0;
-    for (int i=0; i<nface_; i++) {
-      float* D = vert_+3*face_[3*i];
-      float* E = vert_+3*face_[3*i+1];
-      float* F = vert_+3*face_[3*i+2];
+    for (int i=0; i < nface(); i++) {
+      float* D = vert_.data()+3*face_[3*i];
+      float* E = vert_.data()+3*face_[3*i+1];
+      float* F = vert_.data()+3*face_[3*i+2];
 
       // get area, normal and center; update volume
       double a = _triangle(nrm, cen, D, E, F);
@@ -1462,7 +1485,7 @@ void mjCMesh::Process() {
     double neg[4] = {quattmp[0], -quattmp[1], -quattmp[2], -quattmp[3]};
     double mat[9];
     mjuu_quat2mat(mat, neg);
-    for (int i=0; i<nvert_; i++) {
+    for (int i=0; i < nvert(); i++) {
       // vertices
       const double vec[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
       double res[3];
@@ -1475,7 +1498,7 @@ void mjCMesh::Process() {
         aamm_[j+3] = mju_max(aamm_[j+3], res[j]);
       }
     }
-    for (int i=0; i<nnormal_; i++) {
+    for (int i=0; i < nnormal(); i++) {
       // normals
       const double nrm[3] = {normal_[3*i], normal_[3*i+1], normal_[3*i+2]};
       double res[3];
@@ -1493,7 +1516,7 @@ void mjCMesh::CheckMesh(mjtGeomInertia type) {
   if (!processed_) {
     return;
   }
-  if (invalidorientation_.first>=0 || invalidorientation_.second>=0)
+  if ((invalidorientation_.first>=0 || invalidorientation_.second>=0) && model->exactmeshinertia)
     throw mjCError(this,
                    "faces of mesh '%s' have inconsistent orientation. Please check the "
                    "faces containing the vertices %d and %d.",
@@ -1533,16 +1556,16 @@ void mjCMesh::MakeGraph(void) {
   char qhopt[10] = "qhull Qt";
 
   // graph not needed for small meshes
-  if (nvert_ < 4) {
+  if (nvert() < 4) {
     return;
   }
 
   // convert mesh data to double
-  data = (double*) mju_malloc(3*nvert_*sizeof(double));
+  data = (double*) mju_malloc(3*nvert()*sizeof(double));
   if (!data) {
     throw mjCError(this, "could not allocate data for qhull");
   }
-  for (int i=0; i<3*nvert_; i++) {
+  for (int i=0; i < 3*nvert(); i++) {
     if (!std::isfinite(vert_[i])) {
       mju_free(data);
       throw mjCError(this, "vertex coordinate %d is not finite", NULL, i);
@@ -1563,7 +1586,7 @@ void mjCMesh::MakeGraph(void) {
   if (!exitcode) {
     // actual init
     qh_initflags(qh, qhopt);
-    qh_init_B(qh, data, nvert_, 3, False);
+    qh_init_B(qh, data, nvert(), 3, False);
 
     // construct convex hull
     qh_qhull(qh);
@@ -1592,7 +1615,7 @@ void mjCMesh::MakeGraph(void) {
     FORALLvertices {
       // point id of this vertex, check
       int pid = qh_pointid(qh, vertex->point);
-      if (pid<0 || pid>=nvert_) {
+      if (pid<0 || pid>=nvert()) {
         ok = 0;
         break;
       }
@@ -1610,7 +1633,7 @@ void mjCMesh::MakeGraph(void) {
 
           // point id of face vertex, check
           int pid1 = qh_pointid(qh, vertex1->point);
-          if (pid1<0 || pid1>=nvert_) {
+          if (pid1<0 || pid1>=nvert()) {
             ok = 0;
             break;
           }
@@ -1685,7 +1708,7 @@ void mjCMesh::MakeGraph(void) {
     }
 
     // replace global ids with local ids in edge data
-    for (int i=0; i<numvert+3*numface; i++) {
+    for (int i=0; i < numvert+3*numface; i++) {
       if (edge_localid[i]>=0) {
         // search vert_globalid for match
         int adr;
@@ -1724,19 +1747,18 @@ void mjCMesh::MakeGraph(void) {
 // copy graph into face data
 void mjCMesh::CopyGraph(void) {
   // only if face data is missing
-  if (face_) {
+  if (!face_.empty()) {
     return;
   }
 
   // get info from graph, allocate
   int numvert = graph_[0];
-  nface_ = graph_[1];
-  face_ = (int*) mju_malloc(3*nface_*sizeof(int));
+  face_.assign(3*graph_[1], 0);
 
   // copy faces
-  for (int i=0; i<nface_; i++) {
+  for (int i=0; i < nface(); i++) {
     // address in graph
-    int j = 2 + 3*numvert + 3*nface_ + 3*i;
+    int j = 2 + 3*numvert + 3*nface() + 3*i;
 
     // copy
     face_[3*i] = graph_[j];
@@ -1750,22 +1772,19 @@ void mjCMesh::CopyGraph(void) {
 // compute vertex normals
 void mjCMesh::MakeNormal(void) {
   // only if normal data is missing
-  if (normal_) {
+  if (!normal_.empty()) {
     return;
   }
 
   // allocate and clear normals
-  nnormal_ = nvert_;
-  normal_ = (float*) mju_malloc(3*nnormal_*sizeof(float));
-  memset(normal_, 0, 3*nnormal_*sizeof(float));
+  normal_.assign(3*nvert(), 0);
 
-  if (!facenormal_) {
-    facenormal_ = (int*) mju_malloc(3*nface_*sizeof(int));
-    memset(facenormal_, 0, 3*nface_*sizeof(int));
+  if (facenormal_.empty()) {
+    facenormal_.assign(3*nface(), 0);
   }
 
   // loop over faces, accumulate vertex normals
-  for (int i=0; i<nface_; i++) {
+  for (int i=0; i < nface(); i++) {
     // get vertex ids
     int vertid[3];
     for (int j=0; j<3; j++) {
@@ -1796,11 +1815,11 @@ void mjCMesh::MakeNormal(void) {
   // remove large-angle faces
   if (!smoothnormal) {
     // allocate removal and clear
-    float* nremove = (float*) mju_malloc(3*nnormal_*sizeof(float));
-    memset(nremove, 0, 3*nnormal_*sizeof(float));
+    float* nremove = (float*) mju_malloc(3*nnormal()*sizeof(float));
+    memset(nremove, 0, 3*nnormal()*sizeof(float));
 
     // remove contributions from faces at large angles with vertex normal
-    for (int i=0; i<nface_; i++) {
+    for (int i=0; i < nface(); i++) {
       // get vertex ids
       int vertid[3];
       for (int j=0; j<3; j++) {
@@ -1835,14 +1854,14 @@ void mjCMesh::MakeNormal(void) {
     }
 
     // apply removal, free nremove
-    for (int i=0; i<3*nnormal_; i++) {
+    for (int i=0; i < 3*nnormal(); i++) {
       normal_[i] -= nremove[i];
     }
     mju_free(nremove);
   }
 
   // normalize normals
-  for (int i=0; i<nnormal_; i++) {
+  for (int i=0; i < nnormal(); i++) {
     // compute length
     float len = sqrtf(normal_[3*i]*normal_[3*i] +
                       normal_[3*i+1]*normal_[3*i+1] +
@@ -1868,12 +1887,12 @@ void mjCMesh::MakeCenter(void) {
   }
 
   // allocate and clear
-  center_ = (double*) mju_malloc(3*nface_*sizeof(double));
-  memset(center_, 0, 3*nface_*sizeof(double));
+  center_ = (double*) mju_malloc(3*nface()*sizeof(double));
+  memset(center_, 0, 3*nface()*sizeof(double));
 
-  for (int i=0; i<nface_; i++) {
+  for (int i=0; i < nface(); i++) {
     // get vertex ids
-    int* vertid = face_ + 3*i;
+    int* vertid = face_.data() + 3*i;
 
     // get triangle edges
     mjtNum a[3], b[3];
@@ -1910,7 +1929,8 @@ void mjCMesh::MakeCenter(void) {
 
 // constructor
 mjCSkin::mjCSkin(mjCModel* _model) {
-  mjm_defaultSkin(spec);
+  mjs_defaultSkin(&spec);
+  elemtype = mjOBJ_SKIN;
 
   // set model pointer
   model = _model;
@@ -1939,8 +1959,26 @@ mjCSkin::mjCSkin(mjCModel* _model) {
 
 
 
+mjCSkin::mjCSkin(const mjCSkin& other) {
+  *this = other;
+}
+
+
+
+mjCSkin& mjCSkin::operator=(const mjCSkin& other) {
+  if (this != &other) {
+    this->spec = other.spec;
+    *static_cast<mjCSkin_*>(this) = static_cast<const mjCSkin_&>(other);
+    *static_cast<mjsSkin*>(this) = static_cast<const mjsSkin&>(other);
+  }
+  PointToLocal();
+  return *this;
+}
+
+
+
 void mjCSkin::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.file = (mjString)&spec_file_;
@@ -1958,8 +1996,16 @@ void mjCSkin::PointToLocal() {
 
 
 
+void mjCSkin::NameSpace(const mjCModel* m) {
+  for (auto& name : spec_bodyname_) {
+    name = m->prefix + name + m->suffix;
+  }
+}
+
+
+
 void mjCSkin::CopyFromSpec() {
-  *static_cast<mjmSkin*>(this) = spec;
+  *static_cast<mjsSkin*>(this) = spec;
   file_ = spec_file_;
   material_ = spec_material_;
   vert_ = spec_vert_;
@@ -1997,6 +2043,20 @@ mjCSkin::~mjCSkin() {
   spec_vertid_.clear();
   spec_vertweight_.clear();
   bodyid.clear();
+}
+
+
+
+void mjCSkin::ResolveReferences(const mjCModel* m) {
+  size_t nbone = bodyname_.size();
+  bodyid.resize(nbone);
+  for (int i=0; i < nbone; i++) {
+    mjCBase* pbody = m->FindObject(mjOBJ_BODY, bodyname_[i]);
+    if (!pbody) {
+      throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str());
+    }
+    bodyid[i] = pbody->id;
+  }
 }
 
 
@@ -2081,14 +2141,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // resolve body names
-  bodyid.resize(nbone);
-  for (int i=0; i<nbone; i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, bodyname_[i]);
-    if (!pbody) {
-      throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str());
-    }
-    bodyid[i] = pbody->id;
-  }
+  ResolveReferences(model);
 
   // resolve material name
   mjCBase* pmat = model->FindObject(mjOBJ_MATERIAL, material_);
@@ -2105,7 +2158,7 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   fill(vw.begin(), vw.end(), 0.0f);
 
   // accumulate vertex weights from all bones
-  for (int i=0; i<nbone; i++) {
+  for (int i=0; i < nbone; i++) {
     // make sure bone has vertices and sizes match
     size_t nbv = vertid_[i].size();
     if (vertweight_[i].size()!=nbv || nbv==0) {
@@ -2126,21 +2179,21 @@ void mjCSkin::Compile(const mjVFS* vfs) {
   }
 
   // check coverage
-  for (int i=0; i<nvert; i++) {
+  for (int i=0; i < nvert; i++) {
     if (vw[i]<=mjMINVAL) {
       throw mjCError(this, "vertex %d must have positive total weight in skin", NULL, i);
     }
   }
 
   // normalize vertex weights
-  for (int i=0; i<nbone; i++) {
+  for (int i=0; i < nbone; i++) {
     for (int j=0; j<vertid_[i].size(); j++) {
       vertweight_[i][j] /= vw[vertid_[i][j]];
     }
   }
 
   // normalize bindquat
-  for (int i=0; i<nbone; i++) {
+  for (int i=0; i < nbone; i++) {
     mjtNum quat[4] = {
       (mjtNum)bindquat_[4*i],
       (mjtNum)bindquat_[4*i+1],
@@ -2223,7 +2276,7 @@ void mjCSkin::LoadSKN(mjResource* resource) {
   vertweight_.resize(nbone);
 
   // read bones
-  for (int i=0; i<nbone; i++) {
+  for (int i=0; i < nbone; i++) {
     // check size
     if (buffer_sz/4-4-cnt < 18) {
       throw mjCError(this, "insufficient data in SKN file '%s', bone %d", resource->name, i);
@@ -2301,7 +2354,8 @@ constexpr int eledge[3][6][2] = {{{ 0,  1}, {-1, -1}, {-1, -1},
 
 // constructor
 mjCFlex::mjCFlex(mjCModel* _model) {
-  mjm_defaultFlex(spec);
+  mjs_defaultFlex(&spec);
+  elemtype = mjOBJ_FLEX;
 
   // set model
   model = _model;
@@ -2328,7 +2382,7 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
   if (this != &other) {
     this->spec = other.spec;
     *static_cast<mjCFlex_*>(this) = static_cast<const mjCFlex_&>(other);
-    *static_cast<mjmFlex*>(this) = static_cast<const mjmFlex&>(other);
+    *static_cast<mjsFlex*>(this) = static_cast<const mjsFlex&>(other);
   }
   PointToLocal();
   return *this;
@@ -2336,7 +2390,7 @@ mjCFlex& mjCFlex::operator=(const mjCFlex& other) {
 
 
 void mjCFlex::PointToLocal() {
-  spec.element = (mjElement)this;
+  spec.element = static_cast<mjElement*>(this);
   spec.name = (mjString)&name;
   spec.classname = (mjString)&classname;
   spec.material = (mjString)&spec_material_;
@@ -2348,8 +2402,17 @@ void mjCFlex::PointToLocal() {
 }
 
 
+
+void mjCFlex::NameSpace(const mjCModel* m) {
+  for (auto& name : spec_vertbody_) {
+    name = m->prefix + name + m->suffix;
+  }
+}
+
+
+
 void mjCFlex::CopyFromSpec() {
-  *static_cast<mjmFlex*>(this) = spec;
+  *static_cast<mjsFlex*>(this) = spec;
   spec.info = (mjString)&info;
   material_ = spec_material_;
   vertbody_ = spec_vertbody_;
@@ -2377,6 +2440,18 @@ bool mjCFlex::HasTexcoord() const {
 
 void mjCFlex::DelTexcoord() {
   texcoord_.clear();
+}
+
+
+void mjCFlex::ResolveReferences(const mjCModel* m) {
+  for (const auto& vertbody : vertbody_) {
+    mjCBase* pbody = m->FindObject(mjOBJ_BODY, vertbody);
+    if (pbody) {
+      vertbodyid.push_back(pbody->id);
+    } else {
+        throw mjCError(this, "unkown body '%s' in flex", vertbody.c_str());
+    }
+  }
 }
 
 
@@ -2421,8 +2496,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // check elem vertex ids
-  for (int i=0; i<(int)elem_.size(); i++) {
-    if (elem_[i]<0 || elem_[i]>=nvert) {
+  for (const auto& elem : elem_) {
+    if (elem<0 || elem>=nvert) {
       throw mjCError(this, "elem vertex id out of range");
     }
   }
@@ -2441,14 +2516,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // resolve body ids
-  for (int i=0; i<(int)vertbody_.size(); i++) {
-    mjCBase* pbody = model->FindObject(mjOBJ_BODY, vertbody_[i]);
-    if (pbody) {
-      vertbodyid.push_back(pbody->id);
-    } else {
-        throw mjCError(this, "unkown body '%s' in flex", vertbody_[i].c_str());
-    }
-  }
+  ResolveReferences(model);
 
   // process elements
   for (int e=0; e<(int)elem_.size()/(dim+1); e++) {
@@ -2468,7 +2536,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // determine rigid if not already set
   if (!rigid) {
     rigid = true;
-    for (int i=1; i<(int)vertbodyid.size(); i++) {
+    for (unsigned i=1; i < vertbodyid.size(); i++) {
       if (vertbodyid[i]!=vertbodyid[0]) {
         rigid = false;
         break;
@@ -2479,8 +2547,8 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // determine centered if not already set
   if (!centered) {
     centered = true;
-    for (int i=0; i<(int)vert_.size(); i++) {
-      if (vert_[i]!=0) {
+    for (const auto& vert : vert_) {
+      if (vert!=0) {
         centered = false;
         break;
       }
@@ -2489,7 +2557,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
 
   // compute global vertex positions
   vertxpos = vector<mjtNum> (3*nvert);
-  for (int i=0; i<nvert; i++) {
+  for (int i=0; i < nvert; i++) {
     // get body id, set vertxpos = body.xpos0
     int b = rigid ? vertbodyid[0] : vertbodyid[i];
     mju_copy3(vertxpos.data()+3*i, model->bodies[b]->xpos0);
@@ -2534,7 +2602,7 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   std::unordered_map<std::pair<int, int>, int, PairHash> edge_indices;
 
   // insert local edges into global vector
-  for (int f = 0; f < (int)elem_.size()/(dim+1); f++) {
+  for (unsigned f = 0; f < elem_.size()/(dim+1); f++) {
     int* v = elem_.data() + f*(dim+1);
     for (int e = 0; e < kNumEdges[dim-1]; e++) {
       auto pair = std::pair(
@@ -2562,9 +2630,10 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   mjXUtil::Vector2String(userface, elem_);
   mjXUtil::Vector2String(useredge, edgeidx);
 
-  for (int i=0; i<(int)vertbodyid.size(); i++) {
-    if (model->bodies[vertbodyid[i]]->plugin.instance) {
-      mjCPlugin* plugin_instance = (mjCPlugin*)model->bodies[vertbodyid[i]]->plugin.instance;
+  for (const auto& vbodyid : vertbodyid) {
+    if (model->bodies[vbodyid]->plugin.instance) {
+      mjCPlugin* plugin_instance =
+          static_cast<mjCPlugin*>(model->bodies[vbodyid]->plugin.instance);
       plugin_instance->config_attribs["face"] = userface;
       plugin_instance->config_attribs["edge"] = useredge;
     }
@@ -2600,7 +2669,7 @@ void mjCFlex::CreateBVH(void) {
     mjtNum xmin[3], xmax[3];
     mju_copy3(xmin, vertxpos.data() + 3*edata[0]);
     mju_copy3(xmax, vertxpos.data() + 3*edata[0]);
-    for (int i=1; i<=dim; i++) {
+    for (int i=1; i <= dim; i++) {
       for (int j=0; j<3; j++) {
         xmin[j] = mjMIN(xmin[j], vertxpos[3*edata[i]+j]);
         xmax[j] = mjMAX(xmax[j], vertxpos[3*edata[i]+j]);
@@ -2766,7 +2835,7 @@ void mjCFlex::CreateShellPair(void) {
   }
 
   // create shell
-  for (int i=0; i<(int)borderfrag.size(); i++) {
+  for (unsigned i=0; i < borderfrag.size(); i++) {
     if (borderfrag[i]) {
       // add fragment vertices, in original order
       shell.insert(shell.end(), fragspec[i].begin()+dim+1, fragspec[i].end());
@@ -2790,9 +2859,9 @@ void mjCFlex::CreateShellPair(void) {
       change = false;
 
       // process edges of element connectivity graph
-      for (int i=0; i<(int)connectspec.size(); i++) {
-        int e1 = connectspec[i][0];             // get element pair for this edge
-        int e2 = connectspec[i][1];
+      for (const auto& connect : connectspec) {
+        int e1 = connect[0];             // get element pair for this edge
+        int e2 = connect[1];
           if (elemlayer[e1]>elemlayer[e2]+1) {
             elemlayer[e1] = elemlayer[e2]+1;    // better value found for e1: update
           change = true;
@@ -2807,20 +2876,20 @@ void mjCFlex::CreateShellPair(void) {
   // create evpairs in 1D and 2D
   if (dim<3) {
     // process connected element pairs containing a border element
-    for (int n=0; n<(int)connectspec.size(); n++) {
-      if (border[connectspec[n][0]] || border[connectspec[n][1]]) {
+    for (const auto& connect : connectspec) {
+      if (border[connect[0]] || border[connect[1]]) {
         // extract common fragment
-        vector<int> frag = {connectspec[n].begin()+2, connectspec[n].end()};
+        vector<int> frag = {connect.begin()+2, connect.end()};
 
         // process both elements
-        for (int ei=0; ei<2; ei++) {
-          const int* edata = elem_.data() + connectspec[n][ei]*(dim+1);
+        for (int ei=0; ei < 2; ei++) {
+          const int* edata = elem_.data() + connect[ei]*(dim+1);
 
           // find element vertex that is not in the common fragment
-          for (int i=0; i<=dim; i++) {
+          for (int i=0; i <= dim; i++) {
             if (frag.end() == std::find(frag.begin(), frag.end(), edata[i])) {
               // add ev pair, involving the other element in connectspec
-              evpair.push_back(connectspec[n][1-ei]);
+              evpair.push_back(connect[1-ei]);
               evpair.push_back(edata[i]);
 
               // one such vertex exists

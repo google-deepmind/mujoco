@@ -180,6 +180,51 @@ void mju_rotVecMatT(mjtNum res[3], const mjtNum vec[3], const mjtNum mat[9]) {
 
 
 
+// multiply 3x3 matrices,
+void mju_mulMatMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]) {
+  res[0] = a[0]*b[0] + a[1]*b[3] + a[2]*b[6];
+  res[1] = a[0]*b[1] + a[1]*b[4] + a[2]*b[7];
+  res[2] = a[0]*b[2] + a[1]*b[5] + a[2]*b[8];
+  res[3] = a[3]*b[0] + a[4]*b[3] + a[5]*b[6];
+  res[4] = a[3]*b[1] + a[4]*b[4] + a[5]*b[7];
+  res[5] = a[3]*b[2] + a[4]*b[5] + a[5]*b[8];
+  res[6] = a[6]*b[0] + a[7]*b[3] + a[8]*b[6];
+  res[7] = a[6]*b[1] + a[7]*b[4] + a[8]*b[7];
+  res[8] = a[6]*b[2] + a[7]*b[5] + a[8]*b[8];
+}
+
+
+
+// multiply 3x3 matrices, first argument transposed
+void mju_mulMatTMat3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]) {
+  res[0] = a[0]*b[0] + a[3]*b[3] + a[6]*b[6];
+  res[1] = a[0]*b[1] + a[3]*b[4] + a[6]*b[7];
+  res[2] = a[0]*b[2] + a[3]*b[5] + a[6]*b[8];
+  res[3] = a[1]*b[0] + a[4]*b[3] + a[7]*b[6];
+  res[4] = a[1]*b[1] + a[4]*b[4] + a[7]*b[7];
+  res[5] = a[1]*b[2] + a[4]*b[5] + a[7]*b[8];
+  res[6] = a[2]*b[0] + a[5]*b[3] + a[8]*b[6];
+  res[7] = a[2]*b[1] + a[5]*b[4] + a[8]*b[7];
+  res[8] = a[2]*b[2] + a[5]*b[5] + a[8]*b[8];
+}
+
+
+
+// multiply 3x3 matrices, second argument transposed
+void mju_mulMatMatT3(mjtNum res[9], const mjtNum a[9], const mjtNum b[9]) {
+  res[0] = a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+  res[1] = a[0]*b[3] + a[1]*b[4] + a[2]*b[5];
+  res[2] = a[0]*b[6] + a[1]*b[7] + a[2]*b[8];
+  res[3] = a[3]*b[0] + a[4]*b[1] + a[5]*b[2];
+  res[4] = a[3]*b[3] + a[4]*b[4] + a[5]*b[5];
+  res[5] = a[3]*b[6] + a[4]*b[7] + a[5]*b[8];
+  res[6] = a[6]*b[0] + a[7]*b[1] + a[8]*b[2];
+  res[7] = a[6]*b[3] + a[7]*b[4] + a[8]*b[5];
+  res[8] = a[6]*b[6] + a[7]*b[7] + a[8]*b[8];
+}
+
+
+
 //------------------------------ 4D vector and matrix-vector operations ----------------------------
 
 // res = 0

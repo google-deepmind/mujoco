@@ -78,8 +78,11 @@ the clause:
 
     # Create render contexts.
     # TODO(nimrod): Figure out why pytype doesn't like gl_context.GLContext
-    self._gl_context = gl_context.GLContext(width, height)  # type: ignore
-    self._gl_context.make_current()
+    self._gl_context = None  # type: ignore
+    if gl_context.GLContext is not None:
+      self._gl_context = gl_context.GLContext(width, height)
+    if self._gl_context:
+      self._gl_context.make_current()
     self._mjr_context = _render.MjrContext(
         model, _enums.mjtFontScale.mjFONTSCALE_150.value
     )
@@ -148,9 +151,11 @@ the clause:
       self._scene.flags[_enums.mjtRndFlag.mjRND_SEGMENT] = True
       self._scene.flags[_enums.mjtRndFlag.mjRND_IDCOLOR] = True
 
-    if self._gl_context is None:
+    if self._mjr_context is None:
       raise RuntimeError('render cannot be called after close.')
-    self._gl_context.make_current()
+
+    if self._gl_context:
+      self._gl_context.make_current()
 
     if self._depth_rendering:
       out_shape = (self._height, self._width)

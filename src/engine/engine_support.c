@@ -38,8 +38,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 314
-#define mjVERSIONSTRING "3.1.4"
+ #define mjVERSION 315
+#define mjVERSIONSTRING "3.1.5"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -66,7 +66,6 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Override",
   "Energy",
   "Fwdinv",
-  "Sensornoise",
   "InvDiscrete",
   "MultiCCD",
   "Island"
@@ -815,8 +814,8 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 
     // term1 = body angular momentum about self COM in world frame
     mjtNum tmp1[9], tmp2[9];
-    mju_mulMatMat(tmp1, ximat, inertia, 3, 3, 3);  // tmp1  = ximat * inertia
-    mju_mulMatMatT(tmp2, tmp1, ximat, 3, 3, 3);    // tmp2  = ximat * inertia * ximat^T
+    mju_mulMatMat3(tmp1, ximat, inertia);          // tmp1  = ximat * inertia
+    mju_mulMatMatT3(tmp2, tmp1, ximat);            // tmp2  = ximat * inertia * ximat^T
     mju_mulMatMat(term1, tmp2, jacr, 3, 3, nv);    // term1 = ximat * inertia * ximat^T * jacr
 
     // location of body COM w.r.t subtree COM
@@ -1050,11 +1049,11 @@ static int _getnumadr(const mjModel* m, mjtObj type, int** padr, int* mapadr) {
 }
 
 // get string hash, see http://www.cse.yorku.ca/~oz/hash.html
-uint64_t mj_hashdjb2(const char* s, uint64_t n) {
+uint64_t mj_hashString(const char* s, uint64_t n) {
   uint64_t h = 5381;
   int c;
   while ((c = *s++)) {
-    h  = ((h << 5) + h) + c;
+    h = ((h << 5) + h) ^ c;
   }
   return h % n;
 }
@@ -1070,7 +1069,7 @@ int mj_name2id(const mjModel* m, int type, const char* name) {
 
   // search
   if (num) {    // look up at hash address
-    uint64_t hash = mj_hashdjb2(name, num);
+    uint64_t hash = mj_hashString(name, num);
     uint64_t i = hash;
 
     do {

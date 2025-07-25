@@ -560,7 +560,7 @@ TEST_F(EnginePluginTest, SensorPlugin) {
                   testing::ElementsAreArray<int>({3*(i+1), 6*j, 3*j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[3]>(d->plugin_state +
                                                   m->plugin_stateadr[4]),
-                  testing::ElementsAreArray<int>({4*(i+1), 8*j, 4*j}));
+                  testing::ElementsAreArray<int>({5*(i+1), 10*j, 5*j}));
       EXPECT_THAT(*reinterpret_cast<mjtNum(*)[18]>(d->sensordata),
                   testing::ElementsAreArray<int>({   i+1,   2*j,   j,
                                                   5*(i+1), 10*j, 5*j,

@@ -90,7 +90,7 @@ class mjXBase : public mjXUtil {
   virtual void SetModel(mjSpec*);
 
   // read alternative orientation specification
-  static int ReadAlternative(tinyxml2::XMLElement* elem, mjmOrientation& alt);
+  static int ReadAlternative(tinyxml2::XMLElement* elem, mjsOrientation& alt);
 
  protected:
   mjSpec* model;                    // internally-allocated model

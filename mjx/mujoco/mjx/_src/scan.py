@@ -62,7 +62,7 @@ def _take(obj: Y, idx: np.ndarray) -> Y:
       x = x.take(jp.array(idx), axis=0, mode='wrap')
     return x
 
-  return jax.tree_map(take, obj)
+  return jax.tree_util.tree_map(take, obj)
 
 
 def _q_bodyid(m: Model) -> np.ndarray:
@@ -120,7 +120,7 @@ def _nvmap(f: Callable[..., Y], *args) -> Y:
   args = [a if n is None else None for n, a in zip(np_args, args)]
 
   # remove empty args that we should not vmap over
-  args = jax.tree_map(lambda a: a if a.shape[0] else None, args)
+  args = jax.tree_util.tree_map(lambda a: a if a.shape[0] else None, args)
   in_axes = [None if a is None else 0 for a in args]
 
   def outer_f(*args, np_args=np_args):
@@ -322,7 +322,7 @@ def flat(
       [v if typ in flat_ else jp.concatenate(v) for v, typ in zip(y, out_types)]
       for y in ys
   ]
-  ys = jax.tree_map(lambda *x: jp.concatenate(x), *ys)
+  ys = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *ys)
 
   # put concatenated results back in order
   reordered_ys = []
@@ -465,15 +465,15 @@ def body_tree(
         def index_sum(x, i=id_map, s=body_ids.size):
           return jax.ops.segment_sum(x, i, s)
 
-        y = jax.tree_map(index_sum, y)
-        carry = y if carry is None else jax.tree_map(jp.add, carry, y)
+        y = jax.tree_util.tree_map(index_sum, y)
+        carry = y if carry is None else jax.tree_util.tree_map(jp.add, carry, y)
     elif key in key_parents:
       ys = [key_y[p] for p in key_parents[key]]
-      y = jax.tree_map(lambda *x: jp.concatenate(x), *ys)
+      y = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *ys)
       body_ids = np.concatenate([key_body_ids[p] for p in key_parents[key]])
       parent_ids = m.body_parentid[key_body_ids[key]]
       take_fn = lambda x, i=_index(body_ids, parent_ids): _take(x, i)
-      carry = jax.tree_map(take_fn, y)
+      carry = jax.tree_util.tree_map(take_fn, y)
 
     f_args = [_take(arg, ids) for arg, ids in zip(args, key_in_take[key])]
     key_y[key] = _nvmap(f, carry, *f_args)
@@ -488,8 +488,8 @@ def body_tree(
     if len(out_types) > 1:
       y_typ = [y_[i] for y_ in y_typ]
     if typ != 'b':
-      y_typ = jax.tree_map(jp.concatenate, y_typ)
-    y_typ = jax.tree_map(lambda *x: jp.concatenate(x), *y_typ)
+      y_typ = jax.tree_util.tree_map(jp.concatenate, y_typ)
+    y_typ = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *y_typ)
     y_take = np.argsort(np.concatenate([key_y_take[key][i] for key in keys]))
     _check_output(y_typ, y_take, typ, i)
     y.append(_take(y_typ, y_take))

@@ -24,6 +24,7 @@ from mujoco.mjx._src import math
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.dataclasses import PyTreeNode
+from mujoco.mjx._src.types import ConstraintType
 from mujoco.mjx._src.types import Contact
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
@@ -32,6 +33,9 @@ from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
 import numpy as np
+
+
+_CONDIM_EFC_COUNT = {1: 1, 3: 4, 4: 6, 6: 10}
 
 
 class _Efc(PyTreeNode):
@@ -111,7 +115,7 @@ def _instantiate_equality_connect(m: Model, d: Data) -> Optional[_Efc]:
     return j, cpos, jp.repeat(math.norm(cpos), 3)
 
   # concatenate to drop connect grouping dimension
-  j, pos, pos_norm = jax.tree_map(jp.concatenate, fn(data, id1, id2))
+  j, pos, pos_norm = jax.tree_util.tree_map(jp.concatenate, fn(data, id1, id2))
   invweight = m.body_invweight0[id1, 0] + m.body_invweight0[id2, 0]
   invweight = jp.repeat(invweight, 3)
   solref = jp.tile(m.eq_solref[ids], (3, 1))
@@ -164,7 +168,7 @@ def _instantiate_equality_weld(m: Model, d: Data) -> Optional[_Efc]:
     return j, pos, jp.repeat(math.norm(pos), 6)
 
   # concatenate to drop weld grouping dimension
-  j, pos, pos_norm = jax.tree_map(jp.concatenate, fn(data, id1, id2))
+  j, pos, pos_norm = jax.tree_util.tree_map(jp.concatenate, fn(data, id1, id2))
   invweight = m.body_invweight0[id1] + m.body_invweight0[id2]
   invweight = jp.repeat(invweight, 3)
   solref = jp.tile(m.eq_solref[ids], (6, 1))
@@ -277,71 +281,107 @@ def _instantiate_limit_slide_hinge(m: Model, d: Data) -> Optional[_Efc]:
 def _instantiate_contact(m: Model, d: Data) -> Optional[_Efc]:
   """Calculates constraint rows for contacts."""
 
-  if collision_driver.ncon(m) == 0:
+  if d.ncon == 0:
     return None
 
-  @jax.vmap
-  def fn(c: Contact):
-    dist = c.dist - c.includemargin
-    geom_bodyid = jp.array(m.geom_bodyid)
-    body1, body2 = geom_bodyid[c.geom1], geom_bodyid[c.geom2]
-    diff = support.jac_dif_pair(m, d, c.pos, body1, body2)
-    t = m.body_invweight0[body1, 0] + m.body_invweight0[body2, 0]
+  def contact_efc(c: Contact, condim: int):
 
-    # rotate Jacobian differences to contact frame
-    diff_con = c.frame @ diff.T
+    @jax.vmap
+    def fn(c: Contact):
+      dist = c.dist - c.includemargin
+      active = dist < 0
+      body1, body2 = jp.array(m.geom_bodyid)[c.geom]
+      jac1p, jac1r = support.jac(m, d, c.pos, body1)
+      jac2p, jac2r = support.jac(m, d, c.pos, body2)
+      diff = c.frame @ (jac2p - jac1p).T
+      if condim > 3:  # only calculate rotational diff if needed
+        diff = jp.concatenate((diff, c.frame @ (jac2r - jac1r).T), axis=0)
+      tran = m.body_invweight0[body1, 0] + m.body_invweight0[body2, 0]
 
-    # TODO(robotics-simulation): add support for other friction dimensions
-    # 4 pyramidal friction directions
-    js, invweights = [], []
-    for diff_tan, friction in zip(diff_con[1:], c.friction[:2]):
-      for f in (friction, -friction):
-        js.append(diff_con[0] + diff_tan * f)
-        invweights.append((t + f * f * t) * 2 * f * f / m.opt.impratio)
+      if condim == 1:
+        return diff[0] * active, tran, dist * active, c.solref, c.solimp
 
-    active = dist < 0
-    j, invweight = jp.stack(js) * active, jp.stack(invweights)
-    pos = jp.repeat(dist, 4) * active
-    solref, solimp = jp.tile(c.solref, (4, 1)), jp.tile(c.solimp, (4, 1))
+      # a pair of opposing pyramid edges per friction dimension
+      # repeat friction directions with positive and negative sign
+      fri = jp.repeat(c.friction[: condim - 1], 2, axis=0).at[1::2].mul(-1)
+      # repeat condims of jacdiff to match +/- friction directions
+      j = diff[0] + jp.repeat(diff[1:condim], 2, axis=0) * fri[:, None]
+      # pyramidal has common invweight across all edges
+      diag_approx = tran + fri[0] * fri[0] * tran
+      inv_w = diag_approx * 2 * fri[0] * fri[0] / m.opt.impratio
+      repeat_fn = lambda x: jp.repeat(x[None], (condim - 1) * 2, axis=0)
+      inv_w, pos, solref, solimp = jax.tree_util.tree_map(
+          repeat_fn, (inv_w, dist, c.solref, c.solimp)
+      )
+      return j * active, inv_w, pos * active, solref, solimp
 
-    return j, invweight, pos, solref, solimp
+    return fn(c)
 
-  res = fn(d.contact)
-  # remove contact grouping dimension:
-  j, invweight, pos, solref, solimp = jax.tree_map(jp.concatenate, res)
+  # group efc calculations by condim
+  dims, begs = np.unique(d.contact.dim, return_index=True)
+  efcs = []
+  for i in range(len(dims)):
+    dim, beg = dims[i], begs[i]
+    end = begs[i + 1] if i < len(dims) - 1 else None
+    c = jax.tree_util.tree_map(lambda x, b=beg, e=end: x[b:e], d.contact)
+    efc = contact_efc(c, dim)
+    if dim > 1:
+      # remove efc grouping dimension
+      efc = jax.tree_util.tree_map(jp.concatenate, efc)
+    efcs.append(efc)
+
+  efc = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *efcs)
+  j, invweight, pos, solref, solimp = efc
   frictionloss = jp.zeros_like(pos)
 
   return _Efc(j, pos, pos, invweight, solref, solimp, frictionloss)
 
 
-def count_constraints(
-    m: Union[Model, mujoco.MjModel], d: Optional[Data] = None
-) -> Tuple[int, int, int, int]:
+def counts(efc_type: np.ndarray) -> Tuple[int, int, int, int]:
   """Returns equality, friction, limit, and contact constraint counts."""
-  if m.opt.disableflags & DisableBit.CONSTRAINT:
-    return 0, 0, 0, 0
-
-  if m.opt.disableflags & DisableBit.EQUALITY:
-    ne = 0
-  else:
-    ne_connect = (m.eq_type == EqType.CONNECT).sum()
-    ne_weld = (m.eq_type == EqType.WELD).sum()
-    ne_joint = (m.eq_type == EqType.JOINT).sum()
-    ne = ne_connect * 3 + ne_weld * 6 + ne_joint
-
-  nf = 0
-
-  if m.opt.disableflags & DisableBit.LIMIT:
-    nl = 0
-  else:
-    nl = int(m.jnt_limited.sum())
-
-  if d is None:
-    nc = collision_driver.ncon(m) * 4
-  else:
-    nc = d.efc_J.shape[-2] - ne - nf - nl
+  ne = (efc_type == ConstraintType.EQUALITY).sum()
+  nf = 0  # no support for friction loss yet
+  nl = (efc_type == ConstraintType.LIMIT_JOINT).sum()
+  nc_f = (efc_type == ConstraintType.CONTACT_FRICTIONLESS).sum()
+  nc_p = (efc_type == ConstraintType.CONTACT_PYRAMIDAL).sum()
+  nc = nc_f + nc_p
 
   return ne, nf, nl, nc
+
+
+def make_efc_type(
+    m: Union[Model, mujoco.MjModel], dim: Optional[np.ndarray] = None
+) -> np.ndarray:
+  """Returns efc_type that outlines the type of each constraint row."""
+  if m.opt.disableflags & DisableBit.CONSTRAINT:
+    return np.empty(0, dtype=int)
+
+  dim = collision_driver.make_condim(m) if dim is None else dim
+  efc_types = []
+
+  if not m.opt.disableflags & DisableBit.EQUALITY:
+    num_rows = (m.eq_type == EqType.CONNECT).sum() * 3
+    num_rows += (m.eq_type == EqType.WELD).sum() * 6
+    num_rows += (m.eq_type == EqType.JOINT).sum()
+    efc_types.extend([ConstraintType.EQUALITY] * num_rows)
+
+  if not m.opt.disableflags & DisableBit.LIMIT:
+    efc_types.extend([ConstraintType.LIMIT_JOINT] * m.jnt_limited.sum())
+
+  if not m.opt.disableflags & DisableBit.CONTACT:
+    num_rows = sum(_CONDIM_EFC_COUNT[d] for d in dim)
+    efc_types.extend([ConstraintType.CONTACT_PYRAMIDAL] * num_rows)
+
+  return np.array(efc_types)
+
+
+def make_efc_address(efc_type: np.ndarray, dim: np.ndarray) -> np.ndarray:
+  """Returns efc_address that maps contacts to constraint row address."""
+  nc = (efc_type == ConstraintType.CONTACT_PYRAMIDAL).sum()
+  nc_start = efc_type.size - nc
+  offsets = np.cumsum([0] + [_CONDIM_EFC_COUNT[d] for d in dim])[:-1]
+
+  return nc_start + offsets
 
 
 def make_constraint(m: Model, d: Data) -> Data:
@@ -366,7 +406,7 @@ def make_constraint(m: Model, d: Data) -> Data:
     d = d.replace(efc_D=z, efc_aref=z, efc_frictionloss=z)
     return d
 
-  efc = jax.tree_map(lambda *x: jp.concatenate(x), *efcs)
+  efc = jax.tree_util.tree_map(lambda *x: jp.concatenate(x), *efcs)
 
   @jax.vmap
   def fn(efc):

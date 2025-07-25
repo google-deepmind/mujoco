@@ -361,14 +361,6 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   }
   if (m->nbody) fprintf(fp, "\n");
 
-  // BVHs
-  for (int i=0; i < m->nbvh; i++) {
-    fprintf(fp, "\nBVH %d:\n", i);
-    object_class = &m->nbvh;
-    MJMODEL_POINTERS
-  }
-  if (m->nbvh) fprintf(fp, "\n");
-
   // joints
   for (int i=0; i < m->njnt; i++) {
     fprintf(fp, "\nJOINT %d:\n", i);
@@ -732,6 +724,15 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
 #undef X
 
+  // BVHs
+  fprintf(fp, "BVH:\n");
+  fprintf(fp, "  %-8s%-8s%-8s%-10s%-s\n","id", "depth", "nodeid", "child[0]" ,"child[1]");
+  for (int i=0; i < m->nbvh; i++) {
+    fprintf(fp, "  %-8d%-8d% -8d% -10d% -d\n",
+            i, m->bvh_depth[i], m->bvh_nodeid[i], m->bvh_child[2*i], m->bvh_child[2*i+1]);
+  }
+  fprintf(fp, "\n");
+
   if (filename) {
     fclose(fp);
   }
@@ -1032,11 +1033,31 @@ void mj_printFormattedData(const mjModel* m, mjData* d, const char* filename,
   fprintf(fp, "CONTACT\n");
   for (int i=0; i < d->ncon; i++) {
     fprintf(fp, "  %d:\n     dim           %d\n", i, d->contact[i].dim);
-    fprintf(fp, "     gfev          %d %d %d %d : %d %d %d %d\n",
-            d->contact[i].geom[0], d->contact[i].flex[0],
-            d->contact[i].elem[0], d->contact[i].vert[0],
-            d->contact[i].geom[1], d->contact[i].flex[1],
-            d->contact[i].elem[1], d->contact[i].vert[1]);
+    int g1 = d->contact[i].geom[0];
+    int g2 = d->contact[i].geom[1];
+
+    // special case for geom-geom contacts
+    if (g1 > -1 && g2 > -1) {
+      fprintf(fp, "     geoms         ");
+      const char* geom1 = mj_id2name(m, mjOBJ_GEOM, g1);
+      const char* geom2 = mj_id2name(m, mjOBJ_GEOM, g2);
+      if (geom1) {
+        fprintf(fp, "%s : ", geom1);
+      } else {
+        fprintf(fp, "%d : ", g1);
+      }
+      if (geom2) {
+        fprintf(fp, "%s\n", geom2);
+      } else {
+        fprintf(fp, "%d\n", g2);
+      }
+    } else {
+      fprintf(fp, "     gfev          %d %d %d %d : %d %d %d %d\n",
+              d->contact[i].geom[0], d->contact[i].flex[0],
+              d->contact[i].elem[0], d->contact[i].vert[0],
+              d->contact[i].geom[1], d->contact[i].flex[1],
+              d->contact[i].elem[1], d->contact[i].vert[1]);
+    }
     fprintf(fp, "     exclude       %d\n     efc_address   %d\n",
             d->contact[i].exclude, d->contact[i].efc_address);
     printVector("     solref       ", d->contact[i].solref, mjNREF, fp, float_format);

@@ -39,7 +39,8 @@ template<typename T> std::size_t mjCAsset::Add(const std::string& name,
   const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data);
   mjCAssetData& block = it->second;
 
-  block.bytes = std::make_shared<uint8_t[]>(nbytes);
+  block.bytes = std::shared_ptr<uint8_t>(new uint8_t[nbytes],
+                                        [](uint8_t *p) {delete [] p;});
   std::copy(ptr, ptr + nbytes, block.bytes.get());
   block.nbytes = nbytes;
   nbytes_ += nbytes;
@@ -49,6 +50,8 @@ template std::size_t mjCAsset::Add(const std::string& name,
                                    const uint8_t* data, std::size_t n);
 template std::size_t mjCAsset::Add(const std::string& name,
                                    const int* data, std::size_t n);
+template std::size_t mjCAsset::Add(const std::string& name,
+                                   const unsigned int* data, std::size_t n);
 template std::size_t mjCAsset::Add(const std::string& name,
                                    const float* data, std::size_t n);
 template std::size_t mjCAsset::Add(const std::string& name,
@@ -66,6 +69,8 @@ template std::size_t mjCAsset::AddVector(const std::string& name,
                                          const std::vector<uint8_t>& v);
 template std::size_t mjCAsset::AddVector(const std::string& name,
                                          const std::vector<int>& v);
+template std::size_t mjCAsset::AddVector(const std::string& name,
+                                         const std::vector<unsigned int>& v);
 template std::size_t mjCAsset::AddVector(const std::string& name,
                                          const std::vector<float>& v);
 template std::size_t mjCAsset::AddVector(const std::string& name,
@@ -100,6 +105,8 @@ const uint8_t* mjCAsset::Get(const std::string& name, std::size_t* n) const;
 template
 const int* mjCAsset::Get(const std::string& name, std::size_t* n) const;
 template
+const unsigned int* mjCAsset::Get(const std::string& name, std::size_t* n) const;
+template
 const float* mjCAsset::Get(const std::string& name, std::size_t* n) const;
 template
 const double* mjCAsset::Get(const std::string& name, std::size_t* n) const;
@@ -120,6 +127,8 @@ mjCAsset::GetVector(const std::string& name) const {
 template std::optional<std::vector<uint8_t>>
 mjCAsset::GetVector(const std::string& name) const;
 template std::optional<std::vector<int>>
+mjCAsset::GetVector(const std::string& name) const;
+template std::optional<std::vector<unsigned int>>
 mjCAsset::GetVector(const std::string& name) const;
 template std::optional<std::vector<float>>
 mjCAsset::GetVector(const std::string& name) const;
@@ -178,16 +187,23 @@ const std::string* mjCCache::HasAsset(const std::string& id) {
 // is updated only if the timestamps disagree
 bool mjCCache::Insert(const mjCAsset& asset) {
   std::lock_guard<std::mutex> lock(mutex_);
+
+  // check if asset is too large to fit in the cache
+  std::size_t nbytes = asset.BytesCount();
   const std::string& id = asset.Id();
+  if ((size_ + nbytes > max_size_) && lookup_.find(id) == lookup_.end()) {
+    return false;
+  }
+
   if (asset.References().size() != 1) {
     return false;
   }
   const std::string& filename = *(asset.References().begin());
   auto [it, inserted] = lookup_.insert({id, asset});
+  mjCAsset* asset_ptr = &(it->second);
 
   if (!inserted) {
-    mjCAsset* asset_ptr = &(it->second);
-    if (size_ - asset_ptr->BytesCount() + asset.BytesCount() > max_size_) {
+    if (size_ - asset_ptr->BytesCount() + nbytes > max_size_) {
       return false;
     }
     models_[filename].insert(asset_ptr);  // add it for the model
@@ -196,19 +212,16 @@ bool mjCCache::Insert(const mjCAsset& asset) {
       return true;
     }
     asset_ptr->SetTimestamp(asset.Timestamp());
-    size_ = size_ - asset_ptr->BytesCount() + asset.BytesCount();
-    asset_ptr->ReplaceBlocks(asset.Blocks(), asset.BytesCount());
+    size_ = size_ - asset_ptr->BytesCount() + nbytes;
+    asset_ptr->ReplaceBlocks(asset.Blocks(), nbytes);
     return true;
-  } else if (size_ + asset.BytesCount() > max_size_) {
-    return false;
   }
 
   // new asset
-  mjCAsset* asset_ptr = &(it->second);
   asset_ptr->SetInsertNum(insert_num_++);
   entries_.insert(asset_ptr);
   models_[filename].insert(asset_ptr);
-  size_ += asset.BytesCount();
+  size_ += nbytes;
   return true;
 }
 
@@ -216,16 +229,22 @@ bool mjCCache::Insert(const mjCAsset& asset) {
 
 bool mjCCache::Insert(mjCAsset&& asset) {
   std::lock_guard<std::mutex> lock(mutex_);
+
+  // check if asset is too large to fit in the cache
+  std::size_t nbytes = asset.BytesCount();
   const std::string& id = asset.Id();
+  if ((size_ + nbytes > max_size_) && lookup_.find(id) == lookup_.end()) {
+    return false;
+  }
+
   if (asset.References().size() != 1) {
     return false;
   }
   const std::string& filename = *(asset.References().begin());
-  std::size_t nbytes = asset.BytesCount();
   auto [it, inserted] = lookup_.try_emplace(id, std::move(asset));
+  mjCAsset* asset_ptr = &(it->second);
 
   if (!inserted) {
-    mjCAsset* asset_ptr = &(it->second);
     if (size_ - asset_ptr->BytesCount() + nbytes > max_size_) {
       return false;
     }
@@ -239,12 +258,9 @@ bool mjCCache::Insert(mjCAsset&& asset) {
     size_ = size_ - asset_ptr->BytesCount() + nbytes;
     asset_ptr->ReplaceBlocks(std::move(asset.blocks_), asset.nbytes_);
     return true;
-  } else if (size_ + nbytes > max_size_) {
-    return false;
   }
 
   // new asset
-  mjCAsset* asset_ptr = &(it->second);
   asset_ptr->SetInsertNum(insert_num_++);
   entries_.insert(asset_ptr);
   models_[filename].insert(asset_ptr);

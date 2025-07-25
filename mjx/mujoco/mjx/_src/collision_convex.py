@@ -20,10 +20,51 @@ from typing import Tuple
 import jax
 from jax import numpy as jp
 from mujoco.mjx._src import math
+from mujoco.mjx._src import mesh
 # pylint: disable=g-importing-member
-from mujoco.mjx._src.collision_base import Contact
-from mujoco.mjx._src.collision_base import GeomInfo
+from mujoco.mjx._src.collision_types import Collision
+from mujoco.mjx._src.collision_types import ConvexInfo
+from mujoco.mjx._src.collision_types import FunctionKey
+from mujoco.mjx._src.collision_types import GeomInfo
+from mujoco.mjx._src.types import Data
+from mujoco.mjx._src.types import GeomType
+from mujoco.mjx._src.types import Model
 # pylint: enable=g-importing-member
+
+
+def collider(ncon: int):
+  """Wraps collision functions for use by collision_driver."""
+
+  def wrapper(func):
+    def collide(
+        m: Model, d: Data, key: FunctionKey, geom: jax.Array
+    ) -> Collision:
+      g1, g2 = geom.T
+      infos = [
+          GeomInfo(d.geom_xpos[g1], d.geom_xmat[g1], m.geom_size[g1]),
+          GeomInfo(d.geom_xpos[g2], d.geom_xmat[g2], m.geom_size[g2]),
+      ]
+      in_axes = [0, 0]
+      for i in [0, 1]:
+        if key.types[i] == GeomType.BOX:
+          infos[i] = mesh.box(infos[i])
+          in_axes[i] = jax.tree_util.tree_map(lambda x: None, infos[i]).replace(
+              pos=0, mat=0, face=0, vert=0
+          )
+        elif key.types[i] == GeomType.MESH:
+          infos[i] = mesh.convex(m, key.data_ids[i], infos[i])
+          in_axes[i] = jax.tree_util.tree_map(lambda x: None, infos[i]).replace(
+              pos=0, mat=0
+          )
+      dist, pos, frame = jax.vmap(func, in_axes=in_axes)(*infos)
+      if ncon > 1:
+        return jax.tree_util.tree_map(jp.concatenate, (dist, pos, frame))
+      return dist, pos, frame
+
+    collide.ncon = ncon
+    return collide
+
+  return wrapper
 
 
 def _closest_segment_point_plane(
@@ -178,7 +219,8 @@ def _manifold_points(
   return jp.array([a_idx, b_idx, c_idx, d_idx])
 
 
-def plane_convex(plane: GeomInfo, convex: GeomInfo) -> Contact:
+@collider(ncon=4)
+def plane_convex(plane: GeomInfo, convex: ConvexInfo) -> Collision:
   """Calculates contacts between a plane and a convex object."""
   vert = convex.vert
 
@@ -186,7 +228,7 @@ def plane_convex(plane: GeomInfo, convex: GeomInfo) -> Contact:
   plane_pos = convex.mat.T @ (plane.pos - convex.pos)
   n = convex.mat.T @ plane.mat[:, 2]
   support = (plane_pos - vert) @ n
-  idx = _manifold_points(vert, support > 0, n)
+  idx = _manifold_points(vert, support > jp.maximum(0, support.max() - 1e-4), n)
   pos = vert[idx]
 
   # convert to world frame
@@ -200,10 +242,11 @@ def plane_convex(plane: GeomInfo, convex: GeomInfo) -> Contact:
   return dist, pos, frame
 
 
-def sphere_convex(sphere: GeomInfo, convex: GeomInfo) -> Contact:
+@collider(ncon=1)
+def sphere_convex(sphere: GeomInfo, convex: ConvexInfo) -> Collision:
   """Calculates contact between a sphere and a convex object."""
   faces = convex.face
-  normals = convex.facenorm
+  normals = convex.face_normal
 
   # Put sphere in convex frame.
   sphere_pos = convex.mat.T @ (sphere.pos - convex.pos)
@@ -215,58 +258,62 @@ def sphere_convex(sphere: GeomInfo, convex: GeomInfo) -> Contact:
     return jp.dot(pos - faces[0], normal)
 
   support = get_support(faces, normals)
+  has_separating_axis = jp.any(support >= 0)
 
-  # Pick the face with minimal penetration as long as it has support.
-  support = jp.where(support >= 0, -1e12, support)
+  # Pick the face with the best separating axis.
   best_idx = support.argmax()
   face = faces[best_idx]
-  normal = normals[best_idx]
+  face_normal = normals[best_idx]
 
   # Get closest point between the polygon face and the sphere center point.
   # Project the sphere center point onto poly plane. If it's inside polygon
-  # edge normals, then we're done.
-  pt = _project_pt_onto_plane(sphere_pos, face[0], normal)
+  # side planes, then we're done.
+  pt = _project_pt_onto_plane(sphere_pos, face[0], face_normal)
   edge_p0 = jp.roll(face, 1, axis=0)
   edge_p1 = face
-  edge_normals = jax.vmap(jp.cross, in_axes=[0, None])(
+  side_normals = jax.vmap(jp.cross, in_axes=[0, None])(
       edge_p1 - edge_p0,
-      normal,
+      face_normal,
   )
   edge_dist = jax.vmap(
       lambda plane_pt, plane_norm: (pt - plane_pt).dot(plane_norm)
-  )(edge_p0, edge_normals)
-  inside = jp.all(edge_dist <= 0)  # lte to handle degenerate edges
+  )(edge_p0, side_normals)
+  pt_on_face = jp.all(edge_dist <= 0)  # lte to handle degenerate edges
 
-  # If the point is outside edge normals, project onto the closest edge plane
+  # If the point is outside side planes, project onto the closest side plane
   # that the point is in front of.
-  degenerate_edge = jp.all(edge_normals == 0, axis=1)
+  degenerate_edge = jp.all(side_normals == 0, axis=1)
   behind = edge_dist < 0.0
   edge_dist = jp.where(degenerate_edge | behind, 1e12, edge_dist)
   idx = edge_dist.argmin()
   edge_pt = math.closest_segment_point(edge_p0[idx], edge_p1[idx], pt)
-
-  pt = jp.where(inside, pt, edge_pt)
+  pt = jp.where(pt_on_face, pt, edge_pt)
 
   # Get the normal, dist, and contact position.
-  n, d = math.normalize_with_norm(pt - sphere_pos)
+  pt_normal, d = math.normalize_with_norm(pt - sphere_pos)
+  # Ensure normal points towards convex centroid.
+  inside = jp.dot(pt, pt_normal) > 0
+  sign = jp.where(inside, -1, 1)
+  n = jp.where(pt_on_face | (d < 1e-6), -face_normal, sign * pt_normal)
+  d *= sign
+
   spt = sphere_pos + n * sphere.size[0]
-  dist = d - sphere.size[0]
+  dist = jp.where(has_separating_axis, 1.0, d - sphere.size[0])
   pos = (pt + spt) * 0.5
 
   # Go back to world frame.
   n = convex.mat @ n
   pos = convex.mat @ pos + convex.pos
 
-  return jax.tree_map(
-      lambda x: jp.expand_dims(x, axis=0), (dist, pos, math.make_frame(n))
-  )
+  return dist, pos, math.make_frame(n)
 
 
-def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
+@collider(ncon=2)
+def capsule_convex(cap: GeomInfo, convex: ConvexInfo) -> Collision:
   """Calculates contacts between a capsule and a convex object."""
   # Get convex transformed normals, faces, and vertices.
   faces = convex.face
-  normals = convex.facenorm
+  normals = convex.face_normal
 
   # Put capsule in convex frame.
   cap_pos = convex.mat.T @ (cap.pos - convex.pos)
@@ -288,22 +335,21 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
   support = get_support(faces, normals)
   has_support = jp.all(support < 0)
 
-  # Pick the face with minimal penetration as long as it has support.
-  support = jp.where(support >= 0, -1e12, support)
+  # Pick the face with minimal penetration.
   best_idx = support.argmax()
   face = faces[best_idx]
   normal = normals[best_idx]
 
-  # Clip the edge against side planes and create two contact points against the
-  # face.
+  # Clip the segment against side planes and create two contact points against
+  # the face.
   edge_p0 = jp.roll(face, 1, axis=0)
   edge_p1 = face
-  edge_normals = jax.vmap(jp.cross, in_axes=[0, None])(
+  side_planes = jax.vmap(jp.cross, in_axes=[0, None])(
       edge_p1 - edge_p0,
       normal,
   )
   cap_pts_clipped, mask = _clip_edge_to_planes(
-      cap_pts[0], cap_pts[1], edge_p0, edge_normals
+      cap_pts[0], cap_pts[1], edge_p0, side_planes
   )
   cap_pts_clipped = cap_pts_clipped - normal * cap.size[0]
   face_pts = jax.vmap(_project_pt_onto_plane, in_axes=[0, None, None])(
@@ -311,36 +357,79 @@ def capsule_convex(cap: GeomInfo, convex: GeomInfo) -> Contact:
   )
   # Create variables for the face contact.
   pos = (cap_pts_clipped + face_pts) * 0.5
-  norm = jp.stack([normal] * 2, 0)
-  penetration = jp.where(
+  contact_normal = -jp.stack([normal] * 2, 0)
+  face_penetration = jp.where(
       mask & has_support, jp.dot(face_pts - cap_pts_clipped, normal), -1
   )
 
-  # Get a potential edge contact.
-  edge_closest, cap_closest = jax.vmap(
-      math.closest_segment_to_segment_points, in_axes=[0, 0, None, None]
-  )(edge_p0, edge_p1, cap_pts[0], cap_pts[1])
-  e_idx = ((edge_closest - cap_closest) ** 2).sum(axis=1).argmin()
-  cap_closest_pt, edge_closest_pt = cap_closest[e_idx], edge_closest[e_idx]
-  edge_axis = cap_closest_pt - edge_closest_pt
-  edge_axis, edge_dist = math.normalize_with_norm(edge_axis)
+  # Pick a potential shallow edge contact.
+  def get_edge_axis(edge):
+    edge_closest_pt, cap_closest_pt = math.closest_segment_to_segment_points(
+        edge[0], edge[1], cap_pts[0], cap_pts[1]
+    )
+    edge_dir = edge_closest_pt - cap_closest_pt
+    degenerate_edge_dir = jp.sum(jp.square(edge_dir)) < 1e-6
+    edge_axis, edge_dist = math.normalize_with_norm(edge_dir)
+    return (
+        edge_dist,
+        edge_axis,
+        degenerate_edge_dir,
+        edge_closest_pt,
+        cap_closest_pt,
+    )
+
+  edge = jp.take(convex.vert, convex.edge, axis=0)
+  edge_face_normal = convex.edge_face_normal  # pytype: disable=attribute-error
+
+  res = jax.vmap(get_edge_axis)(edge.reshape(-1, 2, 3))
+  e_idx = jp.abs(res[0]).argmin()
+  (
+      edge_dist,
+      edge_axis,
+      degenerate_edge_dir,
+      edge_closest_pt,
+      cap_closest_pt,
+  ) = jax.tree_util.tree_map(lambda x, i=e_idx: jp.take(x, i, axis=0), res)
+
+  edge_face_normals = edge_face_normal[e_idx]
+  edge_voronoi_front = ((edge_face_normals @ edge_axis) < 0).all()
+  shallow = ~degenerate_edge_dir & edge_voronoi_front
+  edge_penetration = jp.where(shallow, cap.size[0] - edge_dist, -1)
+
+  # Determine edge contact position.
   edge_pos = (
-      edge_closest_pt + (cap_closest_pt - edge_axis * cap.size[0])
+      edge_closest_pt + (cap_closest_pt + edge_axis * cap.size[0])
   ) * 0.5
-  edge_norm = edge_axis
-  edge_penetration = cap.size[0] - edge_dist
-  has_edge_contact = edge_penetration > 0
+  edge_dir_parallel_to_face = (
+      jp.abs(edge_axis.dot(normal)) > 0.99
+  ) & ~degenerate_edge_dir
+  min_face_penetration = face_penetration.min()
+  has_edge_contact = (
+      (edge_penetration > 0)
+      # prefer edge contact if the edge is smaller than face penetration
+      & jp.where(
+          min_face_penetration > 0,
+          edge_penetration < min_face_penetration,
+          True,
+      )
+      # prefer face contact if the edge axis is parallel to the face normal
+      & ~edge_dir_parallel_to_face
+      # make sure we have a shallow contact
+      & edge_voronoi_front
+  )
 
   # Get the contact info.
   pos = jp.where(has_edge_contact, pos.at[0].set(edge_pos), pos)
-  n = -jp.where(has_edge_contact, norm.at[0].set(edge_norm), norm)
+  n = jp.where(
+      has_edge_contact, contact_normal.at[0].set(edge_axis), contact_normal
+  )
 
   # Go back to world frame.
   pos = convex.pos + pos @ convex.mat.T
   n = n @ convex.mat.T
 
   dist = -jp.where(
-      has_edge_contact, penetration.at[0].set(edge_penetration), penetration
+      has_edge_contact, jp.array([edge_penetration, -1]), face_penetration
   )
   frame = jax.vmap(math.make_frame)(n)
   return dist, pos, frame
@@ -583,8 +672,9 @@ def _sat_bruteforce(
   We return both the edge and face contacts. Valid contacts can be checked with
   dist < 0. Resulting edge contacts should be preferred over face contacts.
 
-  This method checks all unique edge-pairs and is thus costly to run over large
-  meshes, but is more performant for smaller meshes (boxes, tetrahedra, etc.).
+  This method checks all separating axes via a brute force support function, and
+  is thus costly to run over large meshes, but is more performant for smaller
+  meshes (boxes, tetrahedra, etc.).
 
   Args:
     faces_a: Faces for hull A.
@@ -684,7 +774,7 @@ def _arcs_intersect(
   return (cba * dba < 0) & (adc * bdc < 0) & (cba * bdc > 0)
 
 
-def _sat_approx(
+def _sat_gaussmap(
     centroid_a: jax.Array,
     faces_a: jax.Array,
     faces_b: jax.Array,
@@ -692,23 +782,16 @@ def _sat_approx(
     vertices_b: jax.Array,
     normals_a: jax.Array,
     normals_b: jax.Array,
-    face_edges_a: jax.Array,
-    face_edges_b: jax.Array,
-    face_edge_normals_a: jax.Array,
-    face_edge_normals_b: jax.Array,
+    edges_a: jax.Array,
+    edges_b: jax.Array,
+    edge_face_normals_a: jax.Array,
+    edge_face_normals_b: jax.Array,
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
   """Runs the Separating Axis Test for a pair of hulls.
 
-  Runs the separating axis test for all faces. After obtaining a reference
-  and incident face, tests edge separating axes via edge intersections
-  on gauss maps.
-
-  Certain meshes can have nearly parallel coplanar faces that are not merged.
-  Thus reference/incident faces can be non-overlapping, and face contacts will
-  not get generated. Since we only check edge separating axes on
-  reference/incident faces, the correct edge separating axes may also be
-  missing. We mitigate this issue by checking nearly coplanar anti-parallel
-  reference/incident faces for support, hence why this method is "approximate".
+  Runs the separating axis test for all faces. Tests edge separating axes via
+  edge intersections on gauss maps for all edge pairs. h/t to Dirk Gregorius
+  for the implementation details and gauss map trick.
 
   Args:
     centroid_a: Centroid of hull A.
@@ -718,10 +801,10 @@ def _sat_approx(
     vertices_b: Vertices for hull B.
     normals_a: Normal vectors for hull A faces.
     normals_b: Normal vectors for hull B faces.
-    face_edges_a: Edges for faces in hull A.
-    face_edges_b: Edges for faces in hull B.
-    face_edge_normals_a: Edge normals for faces in hull A.
-    face_edge_normals_b: Edge normals for faces in hull B.
+    edges_a: Edges for hull A.
+    edges_b: Edges for hull B.
+    edge_face_normals_a: Face normals for edges in hull A.
+    edge_face_normals_b: Face normals for edges in hull B.
 
   Returns:
     tuple of dist, pos, and normal
@@ -769,83 +852,68 @@ def _sat_approx(
       -best_axis,
   )
 
-  # Handle edge separating axes by checking edge pairs on the reference and
-  # incident faces. In principle, the correct edge-edge separating axis can be
-  # created from edge pairs on the reference and incident faces.
-  # first get the edge directions and face edge normals
-  face_edges_a = face_edges_a[face_a_idx]
-  v_norm = jax.vmap(math.normalize)
-  face_edges_dir_a = v_norm(face_edges_a[:, 0] - face_edges_a[:, 1])
-  face_edges_b = face_edges_b[face_b_idx]
-  face_edges_dir_b = v_norm(face_edges_b[:, 0] - face_edges_b[:, 1])
-  face_edge_normals_a = face_edge_normals_a[face_a_idx]
-  face_edge_normals_b = face_edge_normals_b[face_b_idx]
-
-  # scatter to all edge pairs
-  edge_idx_a = jp.repeat(
-      jp.arange(face_edges_a.shape[0]), face_edges_b.shape[0]
+  # Handle edge separating axes by checking all edge pairs.
+  a_idx = jp.tile(jp.arange(edges_a.shape[0]), reps=edges_b.shape[0])
+  b_idx = jp.repeat(
+      jp.arange(edges_b.shape[0]), repeats=edges_a.shape[0], axis=0
   )
-  edge_idx_b = jp.tile(jp.arange(face_edges_b.shape[0]), face_edges_a.shape[0])
-  face_edges_dir_a = face_edges_dir_a[edge_idx_a]
-  face_edges_dir_b = face_edges_dir_b[edge_idx_b]
-  face_edges_pt_a = face_edges_a[:, 0][edge_idx_a]
-  face_edges_pt_b = face_edges_b[:, 0][edge_idx_b]
-  face_edge_normals_a = face_edge_normals_a[edge_idx_a]
-  face_edge_normals_b = face_edge_normals_b[edge_idx_b]
+  normal_a_1 = edge_face_normals_a[a_idx, 0]
+  normal_a_2 = edge_face_normals_a[a_idx, 1]
+  normal_b_1 = edge_face_normals_b[b_idx, 0]
+  normal_b_2 = edge_face_normals_b[b_idx, 1]
+  is_minkowski_face = jax.vmap(_arcs_intersect)(
+      normal_a_1, normal_a_2, -normal_b_1, -normal_b_2
+  )
 
-  @jax.vmap
+  # get distances
+  edge_a_dir = jax.vmap(math.normalize)(edges_a[:, 0] - edges_a[:, 1])[a_idx]
+  edge_b_dir = jax.vmap(math.normalize)(edges_b[:, 0] - edges_b[:, 1])[b_idx]
+  edges_a, edges_b = edges_a[a_idx], edges_b[b_idx]
+  edge_a_pt, edge_a_pt_2 = edges_a[:, 0], edges_a[:, 1]
+  edge_b_pt, edge_b_pt_2 = edges_b[:, 0], edges_b[:, 1]
+
   def get_normals(a_dir, a_pt, b_dir):
-    edge_axis = math.normalize(jp.cross(a_dir, b_dir))
+    edge_axis = jp.cross(a_dir, b_dir)
+    degenerate_edge_axis = jp.sum(edge_axis**2) < 1e-6
+    edge_axis = math.normalize(edge_axis)
     # correct normal to point from a to b, object b is at the origin
     sign = jp.where(jp.dot(edge_axis, a_pt - centroid_a) > 0.0, 1.0, -1.0)
-    return edge_axis * sign
+    return edge_axis * sign, degenerate_edge_axis
 
-  edge_axes = get_normals(face_edges_dir_a, face_edges_pt_a, face_edges_dir_b)
-  edge_dist = jax.vmap(jp.dot)(edge_axes, face_edges_pt_b - face_edges_pt_a)
-  # handle degenerate axes
-  edge_dist = jp.where((edge_axes**2).sum(axis=1) < 1e-6, 1e6, edge_dist)
-  # ensure edges create a minkowski face by testing intersection on gauss maps
-  is_minkowski_face = jax.vmap(_arcs_intersect)(
-      face_edge_normals_a[:, 0],
-      face_edge_normals_a[:, 1],
-      -face_edge_normals_b[:, 0],
-      -face_edge_normals_b[:, 1],
-  )
-  edge_dist = jp.where(is_minkowski_face, edge_dist, 1e6)
-  edge_dist = jp.where(edge_dist > 0, -1e6, edge_dist)
+  edge_axes, degenerate_edge_axes = jax.vmap(get_normals)(
+      edge_a_dir, edge_a_pt, edge_b_dir)
+  edge_dist = jax.vmap(jp.dot)(edge_axes, edge_b_pt - edge_a_pt)
+  # handle degenerate axis
+  edge_dist = jp.where(degenerate_edge_axes, -jp.inf, edge_dist)
+  # ensure edges create minkowski face
+  edge_dist = jp.where(is_minkowski_face, edge_dist, -jp.inf)
 
   best_edge_idx = edge_dist.argmax()
   best_edge_dist = edge_dist[best_edge_idx]
-  # prefer edge over face contacts as long as we have a valid edge contact
-  is_edge_contact = (best_edge_dist > dist.min() + 1e-6) & (best_edge_dist < 0)
-  normal = jp.where(is_edge_contact, edge_axes[best_edge_idx], normal)
-  dist = jp.where(is_edge_contact, jp.array([best_edge_dist, 1, 1, 1]), dist)
-
-  # A failure mode occurs if faces are very narrow and nearly parallel
-  # (i.e. faces did not get merged properly as coplanar faces). The face
-  # contacts will be empty since the reference/incident faces may not overlap.
-  # An edge-edge separating axis will not be found, since the reference and
-  # incident faces will also not overlap or necessarily create a minkowski face.
-  # Thus, we approximate the contact for anti-parallel faces with support.
-  anti_parallel = incident_face_norm.dot(ref_face_norm) < -0.97
-  dist = dist.at[0].set(
-      jp.where(
-          anti_parallel
-          & ~is_face_separating
-          & (dist > 0).all()
-          & ~is_edge_contact,
-          -support[best_idx],
-          dist[0],
-      )
+  is_edge_contact = jp.where(
+      dist.max() < 0, best_edge_dist > dist.max() - 1e-6,
+      (best_edge_dist < 0) & ~jp.isinf(best_edge_dist)
   )
+  is_edge_contact = is_edge_contact & ~is_face_separating
+  normal = jp.where(is_edge_contact, edge_axes[best_edge_idx], normal)
+  dist = jp.where(
+      is_edge_contact,
+      jp.array([best_edge_dist, 1, 1, 1]),
+      dist,
+  )
+  a_closest, b_closest = math.closest_segment_to_segment_points(
+      edge_a_pt[best_edge_idx], edge_a_pt_2[best_edge_idx],
+      edge_b_pt[best_edge_idx], edge_b_pt_2[best_edge_idx])
+  pos = jp.where(
+      is_edge_contact,
+      jp.tile(0.5 * (a_closest + b_closest), (4, 1)), pos)
 
   return dist, pos, normal
 
 
-def convex_convex(c1: GeomInfo, c2: GeomInfo) -> Contact:
+@collider(ncon=4)
+def convex_convex(c1: ConvexInfo, c2: ConvexInfo) -> Collision:
   """Calculates contacts between two convex objects."""
-  if c1.face is None or c2.face is None or c1.vert is None or c2.vert is None:
-    raise AssertionError('Mesh info missing.')
   # pad face vertices so that we can broadcast between geom1 and geom2
   # face has shape (n_face, n_vert, 3)
   nvert1, nvert2 = c1.face.shape[1], c2.face.shape[1]
@@ -868,24 +936,24 @@ def convex_convex(c1: GeomInfo, c2: GeomInfo) -> Contact:
   to_local_mat = c2.mat.T @ c1.mat
 
   faces1 = to_local_pos + faces1 @ to_local_mat.T
-  normals1 = c1.facenorm @ to_local_mat.T
-  normals2 = c2.facenorm
+  normals1 = c1.face_normal @ to_local_mat.T
+  normals2 = c2.face_normal
 
   vertices1 = to_local_pos + c1.vert @ to_local_mat.T
   vertices2 = c2.vert
 
-  unique_edges1 = jp.take(vertices1, c1.edge, axis=0)
-  unique_edges2 = jp.take(vertices2, c2.edge, axis=0)
+  unique_edges1 = jp.take(vertices1, c1.edge_dir, axis=0)
+  unique_edges2 = jp.take(vertices2, c2.edge_dir, axis=0)
 
-  face_edges1 = jp.take(vertices1, c1.face_edge, axis=0)
-  face_edges2 = jp.take(vertices2, c2.face_edge, axis=0)
+  edges1 = jp.take(vertices1, c1.edge, axis=0)
+  edges2 = jp.take(vertices2, c2.edge, axis=0)
 
-  face_edge_normals1 = c1.face_edge_normal @ to_local_mat.T
-  face_edge_normals2 = c2.face_edge_normal
+  edge_face_normals1 = c1.edge_face_normal @ to_local_mat.T
+  edge_face_normals2 = c2.edge_face_normal
 
   enable_bruteforce = (
       unique_edges1.shape[0] * unique_edges2.shape[0]
-      < face_edges1[0].shape[0] * face_edges2[0].shape[0]
+      < edges1[0].shape[0] * edges2[0].shape[0]
   )
   if enable_bruteforce:
     dist, pos, normal = _sat_bruteforce(
@@ -899,7 +967,7 @@ def convex_convex(c1: GeomInfo, c2: GeomInfo) -> Contact:
         unique_edges2,
     )
   else:
-    dist, pos, normal = _sat_approx(
+    dist, pos, normal = _sat_gaussmap(
         to_local_pos,
         faces1,
         faces2,
@@ -907,23 +975,16 @@ def convex_convex(c1: GeomInfo, c2: GeomInfo) -> Contact:
         vertices2,
         normals1,
         normals2,
-        face_edges1,
-        face_edges2,
-        face_edge_normals1,
-        face_edge_normals2,
+        edges1,
+        edges2,
+        edge_face_normals1,
+        edge_face_normals2,
     )
 
   # Go back to world frame.
   pos = c2.pos + pos @ c2.mat.T
   normal = normal @ c2.mat.T
   normal = -normal if swapped else normal
-
   frame = jax.vmap(math.make_frame)(normal)
+
   return dist, pos, frame
-
-
-# store ncon as function attributes
-plane_convex.ncon = 4
-sphere_convex.ncon = 1
-capsule_convex.ncon = 2
-convex_convex.ncon = 4

@@ -2,16 +2,131 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.1.5 (May 7, 2024)
+---------------------------
+
+General
+^^^^^^^
+
+.. youtube:: 5k0_wsIRAFc
+   :align: right
+   :width: 240px
+
+1. Added the :ref:`replicate<replicate>` to MJCF, a :ref:`meta-element<meta-element>` which permits to repeat a subtree
+   with incremental translational and rotational offsets.
+2. Enabled an internal cache in the MuJoCo compiler resulting in recompilation speedup. Currently, processed
+   textures, hfields, and OBJ meshes are cached. Support for Unity environments is not yet available.
+3. Added ``mjModel.mesh_scale``: the scaling applied to asset vertices, as specified in the
+   :ref:`scale<asset-mesh-scale>` attribute.
+4. Added visual properties which are ignored by the native renderer, but can be used by external renderers:
+
+   - :ref:`light/bulbradius<body-light-bulbradius>` attribute and corresponding ``mjModel.light_bulbradius`` field.
+   - :ref:`material/metallic<asset-material-metallic>` attribute and corresponding ``mjModel.material_metallic`` field.
+   - :ref:`material/roughness<asset-material-roughness>` attribute and corresponding ``mjModel.material_roughness``
+     field.
+5. The type of the ``size`` argument of :ref:`mj_stackAllocNum` and :ref:`mj_stackAllocInt` was changed from ``int``
+   to ``size_t``.
+6. Added support for gmsh format version 2.2 surface meshes in :ref:`flexcomp<body-flexcomp-file>`.
 
 MJX
 ^^^
+.. admonition:: Breaking API changes
+   :class: attention
 
-1. Improved performance of SAT for convex collisions.
+   7. Removed deprecated ``mjx.device_get_into`` and ``mjx.device_put`` functions as they lack critical new
+      functionality.
+
+      **Migration:** Use ``mjx.get_data_into`` instead of ``mjx.device_get_into``, and ``mjx.put_data`` instead of
+      ``mjx.device_put``.
+
+8. Added cylinder plane collisions.
+9. Added ``efc_type`` to ``mjx.Data`` and ``dim``, ``efc_address`` to ``mjx.Contact``.
+10. Added ``geom`` to ``mjx.Contact`` and marked ``geom1``, ``geom2`` deprecated.
+11. Added ``ne``, ``nf``, ``nl``, ``nefc``, and ``ncon`` to ``mjx.Data`` to match ``mujoco.MjData``.
+12. Given the above added fields, removed ``mjx.get_params``, ``mjx.ncon``, and ``mjx.count_constraints``.
+13. Changed the way meshes are organized on device to speed up collision detection when a mesh is replicated for many
+    geoms.
+14. Fixed a bug where capsules might be ignored in broadphase colliision checking.
+15. Added cylinder collisions using SDFs.
+16. Added support for all :ref:`condim <coContact>`: 1, 3, 4, 6.
+17. Add support functions for ``id2name`` and ``name2id``, MJX versions of :ref:`mj_id2name` and :ref:`mj_name2id`.
+18. Added support for :ref:`gravcomp<body-gravcomp>` and :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>`.
+19. Fixed a bug in ``mjx.ray`` for sometimes allowed negative distances for ray-mesh tests.
+20. Added a new `differentiable physics tutorial <https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/training_apg.ipynb>`__ that demonstrates training locomotion policies with analytical gradients
+    automatically derived from the MJX physics step.  Contribution by :github:user:`Andrew-Luo1`.
+
+Bug fixes
+^^^^^^^^^
+21. Defaults of lights were not being saved, now fixed.
+22. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
+23. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
+    not optional.
+24. Fixed bug that prevented memory allocations larger than 2.15 GB.
+
+
+Version 3.1.4 (April 10th, 2024)
+--------------------------------
+
+General
+^^^^^^^
+.. admonition:: Breaking API changes
+   :class: attention
+
+   1. Removed the ability to natively add noise to sensors. Note that the ``mjModel.sensor_noise`` field and
+      :ref:`corresponding attribute<CSensor>` are kept and now function as a convenient location for the user to save
+      standard-deviation information for their own use. This feature was removed because:
+
+      - There was no mechanism to seed the random noise generator.
+      - It was not thread-safe, even if seeding would have been provided, sampling on multiple threads would lead to
+        non-reproducible results.
+      - This feature was seen as overreach by the engine. Adding noise should be the user's responsibility.
+      - We are not aware of anyone who was actually using the feature.
+
+      **Migration:** Add noise to sensor values yourself.
+
+2. Added the :ref:`actuatorgravcomp<body-joint-actuatorgravcomp>` joint attribute. When enabled, gravity compensation
+   forces on the joint are treated as applied by actuators. See attribute documentation for more details. The example
+   model
+   `refsite.xml <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/refsite.xml>`__,
+   which demostrates Cartesian actuation of an arm, has been updated to use this attribute.
+3. Added support for gmsh format 2.2 , tetrahedral mesh, as generated by e.g. `fTetwild <https://github.com/wildmeshing/fTetWild>`__.
+
+4. Added :ref:`mju_euler2Quat` for converting an Euler-angle sequence to quaternion.
+
+MJX
+^^^
+5. Improved performance of SAT for convex collisions.
+6. Fixed bug for sphere/capsule-convex deep penetration.
+7. Fixed bug where ``mjx.Data`` produced by ``mjx.put_data`` had different treedef than ``mjx.make_data``.
+8. Throw an error for margin/gap for convex mesh collisions, since they are not supported.
+9. Added ellipsoid plane collisions.
+10. Added support for userdata.
+11. Added ellipsoid-ellipsoid and ellipsoid-capsule collisions using signed distance functions (SDFs).
+
+Simulate
+^^^^^^^^
+12. Fixed bug in order of enable flag strings. Before this change, using the simulate UI to toggle the
+    :ref:`invdiscrete<option-flag-invdiscrete>` or the (now removed) ``sensornoise`` flags would actually toggle the
+    other flag.
+
+Python bindings
+^^^^^^^^^^^^^^^
+
+.. youtube:: xHDS0n5DpqM
+   :align: right
+   :width: 240px
+
+13. Added the ``mujoco.minimize`` Python module for nonlinear least-squares, designed for System Identification (sysID).
+    The sysID tutorial is work in progress, but a pedagogical colab notebook with examples, including Inverse
+    Kinematics, is available here: |ls_colab|
+    |br| The video on the right shows example clips from the tutorial.
+
+.. |ls_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
+
 
 Version 3.1.3 (March 5th, 2024)
------------------------------------
+-------------------------------
 
 General
 ^^^^^^^
@@ -30,7 +145,6 @@ General
 
 MJX
 ^^^
-
 4. Improved performance of getting and putting device data.
 
    - Use ``tobytes()`` for numpy array serialization, which is orders of magnitude faster than converting to tuples.
@@ -50,9 +164,8 @@ Python bindings
 11. Fixed incorrect data types in the bindings for the ``geom``, ``vert``, ``elem``, and ``flex`` array members
     of the ``mjContact`` struct, and all array members of the ``mjrContext`` struct.
 
-
 Version 3.1.2 (February 05, 2024)
------------------------------------
+---------------------------------
 
 General
 ^^^^^^^
@@ -84,7 +197,7 @@ MJX
 
 Python bindings
 ^^^^^^^^^^^^^^^
-12. Improved the implementation of the :ref:`rollout<PySample>` module. Note the changes below are breaking, dependent
+12. Improved the implementation of the :ref:`rollout<PyRollout>` module. Note the changes below are breaking, dependent
     code will require modification.
 
     - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.

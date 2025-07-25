@@ -15,6 +15,7 @@
 import os
 
 import mujoco
+import mujoco.usd.component as component_module
 import numpy as np
 import scipy
 import termcolor
@@ -235,60 +236,60 @@ class USDExporter:
 
     # handles meshes in scene
     if geom.type == mujoco.mjtGeom.mjGEOM_MESH:
-      usd_geom = mujoco.usd.USDMesh(
+      usd_geom = component_module.USDMesh(
           stage=self.stage,
           model=self.model,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           dataid=self.model.geom_dataid[geom.objid],
           rgba=geom.rgba,
           texture_file=texture_file,
       )
     elif geom.type == mujoco.mjtGeom.mjGEOM_PLANE:
-      usd_geom = mujoco.usd.USDPlaneMesh(
+      usd_geom = component_module.USDPlaneMesh(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
     elif geom.type == mujoco.mjtGeom.mjGEOM_SPHERE:
-      usd_geom = mujoco.usd.USDSphereMesh(
+      usd_geom = component_module.USDSphereMesh(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
     elif geom.type == mujoco.mjtGeom.mjGEOM_CAPSULE:
-      usd_geom = mujoco.usd.USDCapsule(
+      usd_geom = component_module.USDCapsule(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
     elif geom.type == mujoco.mjtGeom.mjGEOM_ELLIPSOID:
-      usd_geom = mujoco.usd.USDEllipsoid(
+      usd_geom = component_module.USDEllipsoid(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
     elif geom.type == mujoco.mjtGeom.mjGEOM_CYLINDER:
-      usd_geom = mujoco.usd.USDCylinderMesh(
+      usd_geom = component_module.USDCylinderMesh(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
     elif geom.type == mujoco.mjtGeom.mjGEOM_BOX:
-      usd_geom = mujoco.usd.USDCubeMesh(
+      usd_geom = component_module.USDCubeMesh(
           stage=self.stage,
           geom=geom,
-          objid=geom_name,
+          obj_name=geom_name,
           rgba=geom.rgba,
           texture_file=texture_file,
       )
@@ -331,7 +332,8 @@ class USDExporter:
     for i in range(self.scene.nlight):
       light = self.scene.lights[i]
       if not np.allclose(light.pos, [0, 0, 0]):
-        self.usd_lights.append(mujoco.usd.USDSphereLight(stage=self.stage, objid=i))
+        self.usd_lights.append
+        (component_module.USDSphereLight(stage=self.stage, obj_name=str(i)))
       else:
         self.usd_lights.append(None)
 
@@ -342,7 +344,7 @@ class USDExporter:
       if np.allclose(light.pos, [0, 0, 0]):
         continue
 
-      if self.usd_lights[i] is None:
+      if i >= len(self.usd_lights) or self.usd_lights[i] is None:
         continue
 
       self.usd_lights[i].update(
@@ -352,12 +354,12 @@ class USDExporter:
           frame=self.updates,
       )
 
-    print("done updating")
-
   def _load_cameras(self):
     self.usd_cameras = []
-    for name in self.camera_names:
-      self.usd_cameras.append(mujoco.usd.USDCamera(stage=self.stage, objid=name))
+    if self.camera_names is not None:
+      for name in self.camera_names:
+        self.usd_cameras.append(
+            component_module.USDCamera(stage=self.stage, obj_name=name))
 
   def _update_cameras(
       self,
@@ -373,7 +375,8 @@ class USDExporter:
           data, scene_option=scene_option, camera=camera_name
       )
 
-      avg_camera = mujoco.mjv_averageCamera(self.scene.camera[0], self.scene.camera[1])
+      avg_camera = mujoco.mjv_averageCamera(
+          self.scene.camera[0], self.scene.camera[1])
 
       forward = avg_camera.forward
       up = avg_camera.up
@@ -397,11 +400,12 @@ class USDExporter:
   ):
 
     if light_type == "sphere":
-      new_light = mujoco.usd.USDSphereLight(stage=self.stage, objid=objid, radius=radius)
+      new_light = component_module.USDSphereLight(stage=self.stage, obj_name=str(objid), radius=radius)
 
-      new_light.update(pos=pos, intensity=intensity, color=color, frame=0)
+      new_light.update(pos=np.array(pos), intensity=intensity, color=color, frame=0)
     elif light_type == "dome":
-      new_light = mujoco.usd.USDDomeLight(stage=self.stage, objid=objid)
+      new_light = component_module.USDDomeLight(
+          stage=self.stage, obj_name=str(objid))
 
       new_light.update(intensity=intensity, color=color, frame=0)
 
@@ -411,11 +415,12 @@ class USDExporter:
       rotation_xyz: List[float],
       objid: Optional[int] = 1,
   ):
-    new_camera = mujoco.usd.USDCamera(stage=self.stage, objid=objid)
+    new_camera = component_module.USDCamera(
+        stage=self.stage, obj_name=str(objid))
 
     r = scipy.spatial.transform.Rotation.from_euler(
         "xyz", rotation_xyz, degrees=True)
-    new_camera.update(cam_pos=pos, cam_mat=r.as_matrix(), frame=0)
+    new_camera.update(cam_pos=np.array(pos), cam_mat=r.as_matrix(), frame=0)
 
   def save_scene(self, filetype: str = "usd"):
     self.stage.SetEndTimeCode(self.frame_count)

@@ -34,13 +34,19 @@
 #include <mujoco/mjplugin.h>
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_errmem.h"
+#include "engine/engine_util_misc.h"
+
+// internal helper for mju_fileToMemory (closes fp automatically)
+static void* _fileToMemory(FILE* fp, const char* filename, size_t* filesize);
 
 // file buffer used internally for the OS filesystem
 typedef struct {
+  FILE* fp;         // file handle
+  int is_read;      // set to nonzero if buffer was read into
   uint8_t* buffer;  // raw bytes from file
   size_t nbuffer;   // size of buffer in bytes
   time_t mtime;     // last modified time
-} file_buffer;
+} file_spec;
 
 // open the given resource; if the name doesn't have a prefix matching with a
 // resource provider, then the OS filesystem is used
@@ -89,10 +95,13 @@ mjResource* mju_openResource(const char* name, char* error, size_t error_sz) {
 
   // lastly fallback to OS filesystem
   resource->provider = NULL;
-  resource->data = mju_malloc(sizeof(file_buffer));
-  file_buffer* fb = (file_buffer*) resource->data;
-  fb->buffer = mju_fileToMemory(name, &(fb->nbuffer));
-  if (fb->buffer == NULL) {
+  resource->data = mju_malloc(sizeof(file_spec));
+  file_spec* spec = (file_spec*) resource->data;
+  spec->is_read = 0;
+  spec->buffer = NULL;
+  spec->nbuffer = 0;
+  spec->fp = fopen(name, "rb");
+  if (!spec->fp) {
     if (error) {
       snprintf(error, error_sz,
                "resource not found via provider or OS filesystem: '%s'", name);
@@ -102,12 +111,11 @@ mjResource* mju_openResource(const char* name, char* error, size_t error_sz) {
   }
   struct stat file_stat;
   if (stat(name, &file_stat) == 0) {
-    memcpy(&fb->mtime, &file_stat.st_mtime, sizeof(time_t));
+    memcpy(&spec->mtime, &file_stat.st_mtime, sizeof(time_t));
   } else {
-    memset(&fb->mtime, 0, sizeof(time_t));
-    resource->timestamp[0] = '\0';
+    memset(&spec->mtime, 0, sizeof(time_t));
   }
-  strftime(resource->timestamp, 512, "%Y-%m-%d-%H:%M:%S", localtime(&(fb->mtime)));
+  mju_encodeBase64(resource->timestamp, (uint8_t*) &spec->mtime, sizeof(time_t));
   return resource;
 }
 
@@ -124,10 +132,10 @@ void mju_closeResource(mjResource* resource) {
     resource->provider->close(resource);
   } else {
     // clear OS filesystem if present
-    file_buffer* fb = (file_buffer*) resource->data;
-    if (fb) {
-      if (fb->buffer) mju_free(fb->buffer);
-      mju_free(fb);
+    file_spec* spec = (file_spec*) resource->data;
+    if (spec) {
+      if (spec->buffer) mju_free(spec->buffer);
+      mju_free(spec);
     }
   }
 
@@ -151,9 +159,19 @@ int mju_readResource(mjResource* resource, const void** buffer) {
 
 
   // if provider is NULL, then OS filesystem is used
-  const file_buffer* fb = (file_buffer*) resource->data;
-  *buffer = fb->buffer;
-  return fb->nbuffer;
+  file_spec* spec = (file_spec*) resource->data;
+  if (!spec->fp && !spec->is_read) {
+     mjERROR("internal error FILE pointer undefined");  // should not occur
+  }
+
+  // only read once from file
+  if (!spec->is_read) {
+    spec->buffer = _fileToMemory(spec->fp, resource->name, &(spec->nbuffer));
+    spec->fp = NULL;  // closed by _fileToMemory
+    spec->is_read = 1;
+  }
+  *buffer = spec->buffer;
+  return spec->nbuffer;
 }
 
 
@@ -180,19 +198,6 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
 
 
 
-// modified callback for OS filesystem
-static int mju_isModifiedFile(const char* name, const file_buffer* fb) {
-  if (fb != NULL) {
-    struct stat file_stat;
-    if (stat(name, &file_stat) == 0) {
-      return difftime(fb->mtime, file_stat.st_mtime) < 0;
-    }
-  }
-  return 1;  // modified (default)
-}
-
-
-
 // return 0 if the resource's timestamp matches the provided timestamp
 // return > 0 if the the resource is younger than the given timestamp
 // return < 0 if the resource is older than the given timestamp
@@ -205,7 +210,18 @@ int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
     return 1;  // default (modified)
   }
 
-  return mju_isModifiedFile(resource->name, (file_buffer*) resource->data);
+  // fallback to OS filesystem
+  if (mju_isValidBase64(timestamp) != sizeof(time_t)) {
+    return 1;  // error (assume modified)
+  }
+
+  time_t time1, time2;
+  mju_decodeBase64((uint8_t*) &time1, timestamp);
+  time2 = ((file_spec*) resource->data)->mtime;
+  double diff = difftime(time2, time1);
+  if (diff < 0) return -1;
+  if (diff > 0) return  1;
+  return 0;
 }
 
 
@@ -230,12 +246,18 @@ int mju_dirnamelen(const char* path) {
 
 // read file into memory buffer (allocated here with mju_malloc)
 void* mju_fileToMemory(const char* filename, size_t* filesize) {
-  // open file
-  *filesize = 0;
   FILE* fp = fopen(filename, "rb");
   if (!fp) {
     return NULL;
   }
+
+  return _fileToMemory(fp, filename, filesize);
+}
+
+// internal helper for mju_fileToMemory (closes fp automatically)
+static void* _fileToMemory(FILE* fp, const char* filename, size_t* filesize) {
+  // open file
+  *filesize = 0;
 
   // find size
   if (fseek(fp, 0, SEEK_END) != 0) {

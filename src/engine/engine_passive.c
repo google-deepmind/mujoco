@@ -175,7 +175,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
 // body-level gravity compensation, return 1 if any, 0 otherwise
 static int mj_gravcomp(const mjModel* m, mjData* d) {
-  if (mjDISABLED(mjDSBL_GRAVITY) || mju_norm3(m->opt.gravity) == 0) {
+  if (!m->ngravcomp || mjDISABLED(mjDSBL_GRAVITY) || mju_norm3(m->opt.gravity) == 0) {
     return 0;
   }
 
@@ -255,8 +255,39 @@ void mj_passive(const mjModel* m, mjData* d) {
 
   // add passive forces into qfrc_passive
   mju_add(d->qfrc_passive, d->qfrc_spring, d->qfrc_damper, nv);
-  if (has_gravcomp) mju_addTo(d->qfrc_passive, d->qfrc_gravcomp, nv);
   if (has_fluid) mju_addTo(d->qfrc_passive, d->qfrc_fluid, nv);
+  if (has_gravcomp) {
+    int njnt = m->njnt;
+    for (int i=0; i < njnt; i++) {
+      // skip if gravcomp added via actuators
+      if (m->jnt_actgravcomp[i]) {
+        continue;
+      }
+
+      // get number of dofs for this joint
+      int dofnum;
+      switch (m->jnt_type[i]) {
+      case mjJNT_HINGE:
+      case mjJNT_SLIDE:
+        dofnum = 1;
+        break;
+
+      case mjJNT_BALL:
+        dofnum = 3;
+        break;
+
+      case mjJNT_FREE:
+        dofnum = 6;
+        break;
+      }
+
+      // add gravcomp force
+      int dofadr = m->jnt_dofadr[i];
+      for (int j=0; j < dofnum; j++) {
+        d->qfrc_passive[dofadr+j] += d->qfrc_gravcomp[dofadr+j];
+      }
+    }
+  }
 
   // user callback: add custom passive forces
   if (mjcb_passive) {

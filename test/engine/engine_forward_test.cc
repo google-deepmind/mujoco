@@ -765,6 +765,80 @@ TEST_F(ActuatorTest, ActuatorForceClamping) {
   mj_deleteModel(model);
 }
 
+// Apply gravity compensation via actuators
+TEST_F(ActuatorTest, ActuatorGravcomp) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body gravcomp="1">
+        <joint name="joint" type="slide" axis="0 0 1"
+               actuatorfrcrange="-2 2" actuatorgravcomp="true"/>
+        <geom type="box" size=".05 .05 .05" mass="1"/>
+      </body>
+    </worldbody>
+
+    <actuator>
+      <motor name="actuator" joint="joint"/>
+    </actuator>
+
+    <sensor>
+      <actuatorfrc actuator="actuator"/>
+      <jointactuatorfrc joint="joint"/>
+    </sensor>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  mjData* data = mj_makeData(model);
+
+  mj_forward(model, data);
+
+  // expect force clamping as specified in the model
+  EXPECT_EQ(data->actuator_force[0], 0);
+  EXPECT_EQ(data->qfrc_actuator[0], 2);
+  EXPECT_EQ(data->qfrc_passive[0], 0);
+  EXPECT_EQ(data->sensordata[0], 0);
+  EXPECT_EQ(data->sensordata[1], 2);
+
+  // reduce gravity so gravcomp is not clamped
+  model->opt.gravity[2] = -1;
+  mj_forward(model, data);
+  EXPECT_EQ(data->actuator_force[0], 0);
+  EXPECT_EQ(data->qfrc_actuator[0], 1);
+  EXPECT_EQ(data->qfrc_passive[0], 0);
+  EXPECT_EQ(data->sensordata[0], 0);
+  EXPECT_EQ(data->sensordata[1], 1);
+
+  // add control, see that it adds up
+  data->ctrl[0] = 0.5;
+  mj_forward(model, data);
+  EXPECT_EQ(data->actuator_force[0], 0.5);
+  EXPECT_EQ(data->qfrc_actuator[0], 1.5);
+  EXPECT_EQ(data->qfrc_passive[0], 0);
+  EXPECT_EQ(data->sensordata[0], 0.5);
+  EXPECT_EQ(data->sensordata[1], 1.5);
+
+  // add larger control, expect clamping
+  data->ctrl[0] = 1.5;
+  mj_forward(model, data);
+  EXPECT_EQ(data->actuator_force[0], 1.5);
+  EXPECT_EQ(data->qfrc_actuator[0], 2);
+  EXPECT_EQ(data->qfrc_passive[0], 0);
+  EXPECT_EQ(data->sensordata[0], 1.5);
+  EXPECT_EQ(data->sensordata[1], 2);
+
+  // disable actgravcomp, expect gravcomp as a passive force
+  model->jnt_actgravcomp[0] = 0;
+  mj_forward(model, data);
+  EXPECT_EQ(data->actuator_force[0], 1.5);
+  EXPECT_EQ(data->qfrc_actuator[0], 1.5);
+  EXPECT_EQ(data->qfrc_passive[0], 1);
+  EXPECT_EQ(data->sensordata[0], 1.5);
+  EXPECT_EQ(data->sensordata[1], 1.5);
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // ----------------------- filterexact actuators -------------------------------
 
 using FilterExactTest = MujocoTest;
