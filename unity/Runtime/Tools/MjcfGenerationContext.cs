@@ -22,8 +22,8 @@ using UnityEngine;
 
 namespace Mujoco {
 
-// An instance of this class will be used to collect dynamic dependencies produced by a Mujoco model
-// during scene generation.
+// An instance of this class will be used to collect dynamic dependencies produced by a Mujoco
+// model during scene generation.
 public class MjcfGenerationContext {
 
   public int NUserSensor {
@@ -51,6 +51,7 @@ public class MjcfGenerationContext {
       _numGeneratedNames++;
       _meshAssets.Add(mesh, uniqueName);
     }
+
     return _meshAssets[mesh];
   }
 
@@ -62,6 +63,7 @@ public class MjcfGenerationContext {
       _numGeneratedNames++;
       _hFieldAssets.Add(hField, uniqueName);
     }
+
     return _hFieldAssets[hField];
   }
 
@@ -72,6 +74,7 @@ public class MjcfGenerationContext {
     } else {
       var name = $"{comp.gameObject.name}_{_numGeneratedNames}";
       _numGeneratedNames++;
+
       return name;
     }
   }
@@ -83,8 +86,10 @@ public class MjcfGenerationContext {
 
     var optionMjcf = (XmlElement)mjcf.AppendChild(doc.CreateElement("option"));
     optionMjcf.SetAttribute(
-        "gravity", MjEngineTool.Vector3ToMjcf(MjEngineTool.MjVector3(Physics.gravity)));
-    optionMjcf.SetAttribute("timestep", MjEngineTool.MakeLocaleInvariant($"{Time.fixedDeltaTime}"));
+        "gravity",
+        MjEngineTool.Vector3ToMjcf(MjEngineTool.MjVector3(Physics.gravity)));
+    optionMjcf.SetAttribute("timestep",
+        MjEngineTool.MakeLocaleInvariant($"{Time.fixedDeltaTime}"));
 
     var settings = MjGlobalSettings.Instance;
     if (settings) {

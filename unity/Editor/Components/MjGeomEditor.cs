@@ -41,6 +41,7 @@ public class MjGeomEditor : MjShapeComponentEditor {
     var geom = menuCommand.context as MjGeom;
     if (geom.GetComponentInParent<MjBody>()) {
       Debug.LogError("This geom already has a Body parent.", geom.GetComponentInParent<MjBody>());
+
       return;
     }
     var parent = new GameObject(geom.gameObject.name + " Body").AddComponent<MjBody>().transform;
@@ -92,11 +93,13 @@ public class MjGeomEditor : MjShapeComponentEditor {
     if (property.type != nameof(MjHeightFieldShape))
       return;
 
-    menu.AddItem(new GUIContent("Add Unity Terrain"), false, () =>
-    {
-      var geom = target as MjGeom;
-      geom.HField.AddTerrain();
-    });
+    menu.AddItem(new GUIContent("Add Unity Terrain"),
+        false,
+        () =>
+        {
+          var geom = target as MjGeom;
+          geom.HField.AddTerrain();
+        });
   }
 }
 }
