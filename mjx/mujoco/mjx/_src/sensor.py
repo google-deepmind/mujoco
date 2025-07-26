@@ -18,7 +18,7 @@ import jax
 from jax import numpy as jp
 import mujoco
 # pylint: disable=g-importing-member
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 from mujoco.mjx._src import ray
 from mujoco.mjx._src import smooth
 from mujoco.mjx._src import support

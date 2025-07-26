@@ -17,11 +17,11 @@
 import jax
 from jax import numpy as jp
 import mujoco
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 from mujoco.mjx._src import smooth
 from mujoco.mjx._src import support
 # pylint: disable=g-importing-member
-from mujoco.mjx._src.dataclasses import PyTreeNode
+from mujoco.mjx._src.mjx_dataclasses import PyTreeNode
 from mujoco.mjx._src.types import ConeType
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DataJAX
@@ -590,7 +590,13 @@ def solve(m: Model, d: Data) -> Data:
   if m.opt.iterations == 1:
     ctx = body(ctx)
   else:
-    ctx = jax.lax.while_loop(cond, body, ctx)
+    # if tolerance is 0, scan is differentiable. otherwise, use while_loop.
+    ctx = jax.lax.cond(
+        m.opt.tolerance == 0,
+        lambda c: _while_loop_scan(cond, body, c, m.opt.iterations),
+        lambda c: jax.lax.while_loop(cond, body, c),
+        ctx,
+    )
 
   d = d.tree_replace({
       'qacc_warmstart': ctx.qacc,
