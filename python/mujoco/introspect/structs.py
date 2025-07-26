@@ -7394,7 +7394,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='linedata',
                  type=ArrayType(
                      inner_type=ValueType(name='float'),
-                     extents=(100, 2000),
+                     extents=(100, 2002),
                  ),
                  doc='line data (x,y)',
              ),

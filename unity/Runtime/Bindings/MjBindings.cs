@@ -107,7 +107,7 @@ public const int mjNGROUP = 6;
 public const int mjMAXLIGHT = 100;
 public const int mjMAXOVERLAY = 500;
 public const int mjMAXLINE = 100;
-public const int mjMAXLINEPNT = 1000;
+public const int mjMAXLINEPNT = 1001;
 public const int mjMAXPLANEGRID = 200;
 public const bool THIRD_PARTY_MUJOCO_MJXMACRO_H_ = true;
 public const bool THIRD_PARTY_MUJOCO_MUJOCO_H_ = true;
@@ -6306,7 +6306,7 @@ public unsafe struct mjvFigure_ {
   public int highlightid;
   public float selection;
   public fixed int linepnt[100];
-  public fixed float linedata[100 * 2000];
+  public fixed float linedata[100 * 2002];
   public fixed int xaxispixel[2];
   public fixed int yaxispixel[2];
   public fixed float xaxisdata[2];

@@ -24,7 +24,7 @@
 #define mjMAXLIGHT      100       // maximum number of lights in a scene
 #define mjMAXOVERLAY    500       // maximum number of characters in overlay text
 #define mjMAXLINE       100       // maximum number of lines per plot
-#define mjMAXLINEPNT    1000      // maximum number points per line
+#define mjMAXLINEPNT    1001      // maximum number points per line
 #define mjMAXPLANEGRID  200       // maximum number of grid divisions for plane
 
 

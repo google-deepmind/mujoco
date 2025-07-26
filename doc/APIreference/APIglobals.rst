@@ -472,7 +472,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - The maximal number of lines per 2D figure (:ref:`mjvFigure`).
        Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjMAXLINEPNT``
-     - 1000
+     - 1001
      - The maximal number of points in each line in a 2D figure. Note that the buffer ``mjvFigure.linepnt`` has length
        ``2*mjMAXLINEPNT`` because each point has X and Y coordinates.
        Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
