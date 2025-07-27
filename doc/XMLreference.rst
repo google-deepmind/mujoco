@@ -2161,10 +2161,11 @@ rotations as unit quaternions.
 
 :at:`ref`: :at-val:`real, "0"`
    The reference position or angle of the joint. This attribute is only used for slide and hinge joints. It defines the
-   joint value corresponding to the initial model configuration. The amount of spatial transformation that the joint
-   applies at runtime equals the current joint value stored in mjData.qpos minus this reference value stored in
-   mjModel.qpos0. The meaning of these vectors was discussed in the :ref:`Stand-alone <Standalone>` section in
-   the Overview chapter.
+   joint value corresponding to the initial model configuration. Note that the initial configuration itself is
+   unmodified, only the value of the joint at this configuration. The amount of spatial transformation that the joint
+   applies at runtime equals the current joint value stored in ``mjData.qpos`` minus this reference value stored in
+   ``mjModel.qpos0``. The meaning of these vectors is discussed in the :ref:`Kinematic tree <Kinematic>` section in the
+   Overview chapter.
 
 .. _body-joint-springref:
 
