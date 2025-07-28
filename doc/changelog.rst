@@ -30,6 +30,8 @@ Bug fixes
 - Fixed a bug that caused object lists in the child to have missing elements after attaching an mjSpec. This was caused
   by adding to the lists only the objects that belong to the tree of the requested body, but this causes to skip objects
   that were attached, since they belong to the tree of the parent.
+- Fixed a bug where the convex hull of a collision mesh was not being computed if the mesh could only collide via a
+  :ref:`contact pair<contact-pair>`.
 
 Version 3.3.4 (July 8, 2025)
 ----------------------------

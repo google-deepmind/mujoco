@@ -218,6 +218,80 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
   mj_deleteModel(model);
 }
 
+TEST_F(UserCModelTest, ConvexHullForCollisionMeshes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh_no_hull" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+      <mesh name="mesh_with_hull_contype" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+      <mesh name="mesh_with_hull_conaffinity" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom name="geom_no_hull" type="mesh" mesh="mesh_no_hull" contype="0" conaffinity="0"/>
+      <geom name="geom_with_hull_contype" type="mesh" mesh="mesh_with_hull_contype" contype="1"/>
+      <geom name="geom_with_hull_conaffinity" type="mesh" mesh="mesh_with_hull_conaffinity" conaffinity="1"/>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  int no_hull_id = mj_name2id(model, mjOBJ_MESH, "mesh_no_hull");
+  int with_hull_contype_id =
+      mj_name2id(model, mjOBJ_MESH, "mesh_with_hull_contype");
+  int with_hull_conaffinity_id =
+      mj_name2id(model, mjOBJ_MESH, "mesh_with_hull_conaffinity");
+
+  EXPECT_NE(no_hull_id, -1);
+  EXPECT_NE(with_hull_contype_id, -1);
+  EXPECT_NE(with_hull_conaffinity_id, -1);
+
+  // mesh_no_hull should not have a convex hull.
+  EXPECT_EQ(model->mesh_graphadr[no_hull_id], -1);
+
+  // mesh_with_hull_contype should have a convex hull.
+  EXPECT_NE(model->mesh_graphadr[with_hull_contype_id], -1);
+
+  // mesh_with_hull_conaffinity should have a convex hull.
+  EXPECT_NE(model->mesh_graphadr[with_hull_conaffinity_id], -1);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(UserCModelTest, ConvexHullForPairCollisionMeshes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom name="geom1" type="sphere" size="1"/>
+      <geom name="geom_mesh" type="mesh" mesh="mesh" contype="0" conaffinity="0"/>
+    </worldbody>
+    <contact>
+      <pair name="hello" geom1="geom1" geom2="geom_mesh"/>
+    </contact>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  int mesh_in_pair_id = mj_name2id(model, mjOBJ_MESH, "mesh");
+
+  EXPECT_NE(mesh_in_pair_id, -1);
+
+  // mesh_in_pair should have a convex hull because it is in a collision pair.
+  EXPECT_NE(model->mesh_graphadr[mesh_in_pair_id], -1);
+
+  mj_deleteModel(model);
+}
+
 // ------------- test automatic inference of nuser_xxx -------------------------
 
 using UserDataTest = MujocoTest;

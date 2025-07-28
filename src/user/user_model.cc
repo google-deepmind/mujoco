@@ -4481,11 +4481,25 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // map names to asset references
   IndexAssets(/*discard=*/false);
 
+  // compile pairs for convex hull check
+  // TODO(quaglino): Consolidate the two calls to pair->Compile() in TryCompile.
+  for (auto pair : pairs_) pair->Compile();
+
   // mark meshes that need convex hull
   for (int i=0; i < geoms_.size(); i++) {
+    bool is_in_pair = false;
+    for (const mjCPair* pair : pairs_) {
+      if ((pair->geom1 && pair->geom1->id == geoms_[i]->id) ||
+          (pair->geom2 && pair->geom2->id == geoms_[i]->id)) {
+        is_in_pair = true;
+        break;
+      }
+    }
+
     if (geoms_[i]->mesh &&
-        (geoms_[i]->spec.type == mjGEOM_MESH || geoms_[i]->spec.type == mjGEOM_SDF) &&
-        (geoms_[i]->spec.contype || geoms_[i]->spec.conaffinity ||
+        (geoms_[i]->spec.type == mjGEOM_MESH ||
+         geoms_[i]->spec.type == mjGEOM_SDF) &&
+        (geoms_[i]->spec.contype || geoms_[i]->spec.conaffinity || is_in_pair ||
          geoms_[i]->mesh->spec.inertia == mjMESH_INERTIA_CONVEX)) {
       geoms_[i]->mesh->SetNeedHull(true);
     }
