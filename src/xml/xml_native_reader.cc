@@ -45,6 +45,9 @@
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
 #include "tinyxml2.h"
+#ifdef mjUSEUSD
+#include <mujoco/experimental/usd/usd.h>
+#endif  // mjUSEUSD
 
 namespace {
 using std::string;
@@ -3332,6 +3335,10 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
       if (content_type == "text/xml") {
         child = mj_parseXML(filename.c_str(), vfs, error.data(), error.size());
+#ifdef mjUSEUSD
+      } else if (content_type == "text/usd") {
+        child = mj_parseUSD(filename.c_str(), vfs, error.data(), error.size());
+#endif  // mjUSEUSD
       } else {
         throw mjXError(elem, "unsupported content_type: %s", content_type.c_str());
       }
