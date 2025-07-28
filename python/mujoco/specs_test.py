@@ -1320,5 +1320,128 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(actuator.gaintype, mujoco.mjtGain.mjGAIN_FIXED)
     self.assertEqual(actuator.biastype, mujoco.mjtBias.mjBIAS_NONE)
 
+  def test_bad_contact_sensor(self):
+    test_cases = [
+        dict(
+            expected_error='dim must be positive in sensor',
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                objtype=mujoco.mjtObj.mjOBJ_GEOM,
+                objname='sphere1',
+                dim=0,
+            ),
+        ),
+        dict(
+            expected_error='data spec (intprm[0]) must be positive, got 0',
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                objtype=mujoco.mjtObj.mjOBJ_GEOM,
+                objname='sphere1',
+                dim=1,
+                intprm=[0, 0],
+            ),
+        ),
+        dict(
+            expected_error=(
+                'data spec intprm[0]=1024 must have at least one bit set of the'
+                ' first mjNCONDATA bits'
+            ),
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                objtype=mujoco.mjtObj.mjOBJ_GEOM,
+                objname='sphere1',
+                dim=1,
+                intprm=[1 << 10, 0],
+            ),
+        ),
+        dict(
+            expected_error=(
+                'data spec intprm[0]=1025 has bits set beyond the first'
+                ' mjNCONDATA bits'
+            ),
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                objtype=mujoco.mjtObj.mjOBJ_GEOM,
+                objname='sphere1',
+                dim=1,
+                intprm=[(1 << 10) | 1, 0],
+            ),
+        ),
+        dict(
+            expected_error=(
+                'dim 2 not divisible by size 3 implied by data spec (intprm[0])'
+            ),
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                objtype=mujoco.mjtObj.mjOBJ_GEOM,
+                objname='sphere1',
+                dim=2,
+                intprm=[2, 0],  # force (size 3)
+            ),
+        ),
+        dict(
+            expected_error='unknown reduction criterion. got 4',
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                objtype=mujoco.mjtObj.mjOBJ_GEOM,
+                objname='sphere1',
+                dim=1,
+                intprm=[1, 4],
+            ),
+        ),
+        dict(
+            expected_error=(
+                'first matching criterion: if set, must be'
+                ' (x)body, geom or site'
+            ),
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                objtype=mujoco.mjtObj.mjOBJ_CAMERA,
+                objname='cam',
+            ),
+        ),
+        dict(
+            expected_error=(
+                'second matching criterion: if set, must be (x)body or geom'
+            ),
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                reftype=mujoco.mjtObj.mjOBJ_CAMERA,
+                refname='cam',
+            ),
+        ),
+        dict(
+            expected_error='subtree1 must be a child of the world',
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                objtype=mujoco.mjtObj.mjOBJ_XBODY,
+                objname='non_root',
+            ),
+        ),
+        dict(
+            expected_error='subtree2 must be a child of the world',
+            sensor_params=dict(
+                type=mujoco.mjtSensor.mjSENS_CONTACT,
+                reftype=mujoco.mjtObj.mjOBJ_XBODY,
+                refname='non_root',
+            ),
+        ),
+    ]
+
+    for params in test_cases:
+      expected_error = params.get('expected_error')
+      with self.subTest(expected_error):
+        spec = mujoco.MjSpec()
+        spec.worldbody.add_geom(name='sphere1', size=[.2, 0, 0], pos=[0, 0, 1])
+        body = spec.worldbody.add_body(name='body')
+        non_root = body.add_body(name='non_root')
+        non_root.add_geom(name='sphere3', size=[.3, 0, 0], pos=[1, 0, 1])
+        spec.worldbody.add_camera(name='cam')
+        spec.add_sensor(**params['sensor_params'])
+        error_predicate = lambda e, expected=expected_error: expected in str(e)
+        with self.assertRaisesWithPredicateMatch(ValueError, error_predicate):
+          spec.compile()
+
+
 if __name__ == '__main__':
   absltest.main()
