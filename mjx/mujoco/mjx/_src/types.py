@@ -1139,11 +1139,6 @@ class Data(PyTreeNode):
     }[type(self._impl)]
 
   def __getattr__(self, name: str):
-    if name == 'value':
-      # Special case for NNX, the value attribute may not exist on the parent
-      # PyTreeNode, before it exists on the child PyTreeNode. Thanks NNX.
-      return object.__getattribute__(self, 'value')
-
     try:
       impl_instsance = object.__getattribute__(self, '_impl')
       val = getattr(impl_instsance, name)
