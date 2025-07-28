@@ -640,7 +640,7 @@ static bool boxTriangle(const Triangle& v, const double aamm[6]) {
     int c = (a + 2) % 3;
     for (int i = 0; i < 3; i++) {
       double sign = n[a] >= 0 ? 1 : -1;
-      double ne[2] = {-e[i][c] * sign, -e[i][b] * sign};
+      double ne[2] = {-e[i][c] * sign, e[i][b] * sign};
       double vi[2] = {v[i][b], v[i][c]};
       double d = -dot2(ne, vi) + mju_max(0, size[b]*ne[0]) + mju_max(0, size[c]*ne[1]);
       double p[2] = {aamm[b], aamm[c]};
