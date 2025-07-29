@@ -153,14 +153,11 @@ mjtNum oct_distance(const mjModel* m, const mjtNum p[3], int meshid) {
   mjtNum sdf = 0;
   mjtNum point[3] = {p[0], p[1], p[2]};
   mjtNum boxDist = boxProjection(point, oct_aabb);
-  if (boxDist > 0) {
-    return boxDist;
-  }
   int node = findOct(w, NULL, oct_aabb, oct_child, point);
   for (int i = 0; i < 8; ++i) {
     sdf += w[i] * oct_coeff[8*node + i];
   }
-  return sdf;
+  return sdf + boxDist > 0 ? sdf + boxDist : sdf;
 }
 
 // gradient of sdf
