@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
+#include "engine/engine_support.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
 #include "user/user_cache.h"
@@ -1039,6 +1040,78 @@ const void* mjs_getUserValue(mjsElement* element, const char* key) {
 void mjs_deleteUserValue(mjsElement* element, const char* key) {
   mjCBase* baseC = static_cast<mjCBase*>(element);
   baseC->DeleteUserValue(key);
+}
+
+
+
+// return sensor dimension
+int mjs_sensorDim(const mjsSensor* sensor) {
+  switch (sensor->type) {
+  case mjSENS_TOUCH:
+  case mjSENS_RANGEFINDER:
+  case mjSENS_JOINTPOS:
+  case mjSENS_JOINTVEL:
+  case mjSENS_TENDONPOS:
+  case mjSENS_TENDONVEL:
+  case mjSENS_ACTUATORPOS:
+  case mjSENS_ACTUATORVEL:
+  case mjSENS_ACTUATORFRC:
+  case mjSENS_JOINTACTFRC:
+  case mjSENS_TENDONACTFRC:
+  case mjSENS_JOINTLIMITPOS:
+  case mjSENS_JOINTLIMITVEL:
+  case mjSENS_JOINTLIMITFRC:
+  case mjSENS_TENDONLIMITPOS:
+  case mjSENS_TENDONLIMITVEL:
+  case mjSENS_TENDONLIMITFRC:
+  case mjSENS_GEOMDIST:
+  case mjSENS_INSIDESITE:
+  case mjSENS_E_POTENTIAL:
+  case mjSENS_E_KINETIC:
+  case mjSENS_CLOCK:
+    return 1;
+
+  case mjSENS_CAMPROJECTION:
+    return 2;
+
+  case mjSENS_ACCELEROMETER:
+  case mjSENS_VELOCIMETER:
+  case mjSENS_GYRO:
+  case mjSENS_FORCE:
+  case mjSENS_TORQUE:
+  case mjSENS_MAGNETOMETER:
+  case mjSENS_BALLANGVEL:
+  case mjSENS_FRAMEPOS:
+  case mjSENS_FRAMEXAXIS:
+  case mjSENS_FRAMEYAXIS:
+  case mjSENS_FRAMEZAXIS:
+  case mjSENS_FRAMELINVEL:
+  case mjSENS_FRAMEANGVEL:
+  case mjSENS_FRAMELINACC:
+  case mjSENS_FRAMEANGACC:
+  case mjSENS_SUBTREECOM:
+  case mjSENS_SUBTREELINVEL:
+  case mjSENS_SUBTREEANGMOM:
+  case mjSENS_GEOMNORMAL:
+    return 3;
+
+  case mjSENS_GEOMFROMTO:
+    return 6;
+
+  case mjSENS_BALLQUAT:
+  case mjSENS_FRAMEQUAT:
+    return 4;
+
+  case mjSENS_CONTACT:
+    return sensor->intprm[2] * mju_condataSize(sensor->intprm[0]);
+
+  case mjSENS_USER:
+    return sensor->dim;
+
+  case mjSENS_PLUGIN:
+    return 0;  // to be filled in by plugin
+  }
+  return -1;
 }
 
 

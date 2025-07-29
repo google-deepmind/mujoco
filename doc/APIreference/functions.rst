@@ -4453,6 +4453,15 @@ Return user payload or NULL if none found.
 
 Delete user payload.
 
+.. _mjs_sensorDim:
+
+`mjs_sensorDim <#mjs_sensorDim>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_sensorDim
+
+Return sensor dimension.
+
 .. _ElementInitialization:
 
 Element initialization

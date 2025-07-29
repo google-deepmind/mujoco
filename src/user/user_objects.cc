@@ -6801,15 +6801,12 @@ void mjCSensor::Compile(void) {
         throw mjCError(this, "sensor must be attached to site");
       }
 
-      // set dim and datatype
+      // set datatype
       if (type == mjSENS_TOUCH || type == mjSENS_RANGEFINDER) {
-        dim = 1;
         datatype = mjDATATYPE_POSITIVE;
       } else if (type == mjSENS_CAMPROJECTION) {
-        dim = 2;
         datatype = mjDATATYPE_REAL;
       } else {
-        dim = 3;
         datatype = mjDATATYPE_REAL;
       }
 
@@ -6845,7 +6842,6 @@ void mjCSensor::Compile(void) {
       }
 
       // set
-      dim = 1;
       datatype = mjDATATYPE_REAL;
       if (type == mjSENS_JOINTPOS) {
         needstage = mjSTAGE_POS;
@@ -6863,7 +6859,6 @@ void mjCSensor::Compile(void) {
     }
 
     // set
-    dim = 1;
     datatype = mjDATATYPE_REAL;
     needstage = mjSTAGE_ACC;
     break;
@@ -6876,7 +6871,6 @@ void mjCSensor::Compile(void) {
       }
 
       // set
-      dim = 1;
       datatype = mjDATATYPE_REAL;
       if (type == mjSENS_TENDONPOS) {
         needstage = mjSTAGE_POS;
@@ -6894,7 +6888,6 @@ void mjCSensor::Compile(void) {
       }
 
       // set
-      dim = 1;
       datatype = mjDATATYPE_REAL;
       if (type == mjSENS_ACTUATORPOS) {
         needstage = mjSTAGE_POS;
@@ -6919,11 +6912,9 @@ void mjCSensor::Compile(void) {
 
       // set
       if (type == mjSENS_BALLQUAT) {
-        dim = 4;
         datatype = mjDATATYPE_QUATERNION;
         needstage = mjSTAGE_POS;
       } else {
-        dim = 3;
         datatype = mjDATATYPE_REAL;
         needstage = mjSTAGE_VEL;
       }
@@ -6943,7 +6934,6 @@ void mjCSensor::Compile(void) {
       }
 
       // set
-      dim = 1;
       datatype = mjDATATYPE_REAL;
       if (type == mjSENS_JOINTLIMITPOS) {
         needstage = mjSTAGE_POS;
@@ -6968,7 +6958,6 @@ void mjCSensor::Compile(void) {
       }
 
       // set
-      dim = 1;
       datatype = mjDATATYPE_REAL;
       if (type == mjSENS_TENDONLIMITPOS) {
         needstage = mjSTAGE_POS;
@@ -6992,13 +6981,6 @@ void mjCSensor::Compile(void) {
       if (objtype != mjOBJ_BODY && objtype != mjOBJ_XBODY &&
           objtype != mjOBJ_GEOM && objtype != mjOBJ_SITE && objtype != mjOBJ_CAMERA) {
         throw mjCError(this, "sensor must be attached to (x)body, geom, site or camera");
-      }
-
-      // set dim
-      if (type == mjSENS_FRAMEQUAT) {
-        dim = 4;
-      } else {
-        dim = 3;
       }
 
       // set datatype
@@ -7031,7 +7013,6 @@ void mjCSensor::Compile(void) {
       }
 
       // set
-      dim = 3;
       datatype = mjDATATYPE_REAL;
       if (type == mjSENS_SUBTREECOM) {
         needstage = mjSTAGE_POS;
@@ -7048,7 +7029,6 @@ void mjCSensor::Compile(void) {
       if (reftype != mjOBJ_SITE) {
         throw mjCError(this, "sensor must be associated with a site");
       }
-      dim = 1;
       datatype = mjDATATYPE_REAL;
       needstage = mjSTAGE_POS;
       break;
@@ -7076,13 +7056,10 @@ void mjCSensor::Compile(void) {
       // set
       needstage = mjSTAGE_POS;
       if (type == mjSENS_GEOMDIST) {
-        dim = 1;
         datatype = mjDATATYPE_POSITIVE;
       } else if (type == mjSENS_GEOMNORMAL) {
-        dim = 3;
         datatype = mjDATATYPE_AXIS;
       } else {
-        dim = 6;
         datatype = mjDATATYPE_REAL;
       }
       break;
@@ -7116,11 +7093,6 @@ void mjCSensor::Compile(void) {
           throw mjCError(this, "subtree2 must be a child of the world");
         }
 
-        // check for non-positive dim
-        if (dim <= 0) {
-          throw mjCError(this, "dim must be positive in sensor, got %d", nullptr, dim);
-        }
-
         // check for dataspec correctness
         int dataspec = intprm[0];
         if (dataspec <= 0) {
@@ -7136,18 +7108,16 @@ void mjCSensor::Compile(void) {
                          "mjNCONDATA bits", nullptr, dataspec);
         }
 
-        // check for dim correctness
-        int size = mju_condataSize(dataspec);
-        if (dim % size != 0) {
-          throw mjCError(this, "dim %d not divisible by size %d implied by data spec (intprm[0])",
-                         nullptr, dim, size);
-        }
-
         // check for reduce correctness
         int reduce = intprm[1];
         if (reduce < 0 || reduce > 3) {
           throw mjCError(this, "unknown reduction criterion. got %d, "
                          "expected one of {0, 1, 2, 3}", nullptr, reduce);
+        }
+
+        // check for non-positive num
+        if (intprm[2] <= 0) {
+          throw mjCError(this, "num (intprm[2]) must be positive in sensor, got %d", nullptr, dim);
         }
       }
 
@@ -7158,7 +7128,6 @@ void mjCSensor::Compile(void) {
     case mjSENS_E_POTENTIAL:
     case mjSENS_E_KINETIC:
     case mjSENS_CLOCK:
-      dim = 1;
       needstage = mjSTAGE_POS;
       datatype = mjDATATYPE_REAL;
       break;
@@ -7179,7 +7148,6 @@ void mjCSensor::Compile(void) {
       break;
 
     case mjSENS_PLUGIN:
-      dim = 0; // to be filled in by the plugin later
       datatype = mjDATATYPE_REAL; // no noise added to plugin sensors, this attribute is unused
 
       if (plugin_name.empty() && plugin_instance_name.empty()) {
@@ -7203,6 +7171,8 @@ void mjCSensor::Compile(void) {
     default:
       throw mjCError(this, "invalid type in sensor '%s' (id = %d)", name.c_str(), id);
   }
+
+  dim = mjs_sensorDim(this);
 
   // check cutoff for incompatible data types
   if (cutoff > 0 && (datatype == mjDATATYPE_QUATERNION ||

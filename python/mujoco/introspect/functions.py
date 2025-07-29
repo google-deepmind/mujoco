@@ -10688,6 +10688,20 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Delete user payload.',
      )),
+    ('mjs_sensorDim',
+     FunctionDecl(
+         name='mjs_sensorDim',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='sensor',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsSensor', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return sensor dimension.',
+     )),
     ('mjs_defaultSpec',
      FunctionDecl(
          name='mjs_defaultSpec',

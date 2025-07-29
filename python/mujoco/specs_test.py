@@ -20,7 +20,7 @@ import math
 import os
 import textwrap
 import typing
-import zipfile
+import zipfile  # pylint: disable=unused-import
 
 from absl.testing import absltest
 from etils import epath
@@ -542,7 +542,7 @@ class SpecsTest(absltest.TestCase):
     spec.to_xml()
 
   def test_modelname_default_class(self):
-    XML = textwrap.dedent("""\
+    xml = textwrap.dedent("""\
         <mujoco model="test">
           <compiler angle="radian"/>
 
@@ -573,7 +573,7 @@ class SpecsTest(absltest.TestCase):
     spec.worldbody.add_geom(main)
 
     spec.compile()
-    self.assertEqual(spec.to_xml(), XML)
+    self.assertEqual(spec.to_xml(), xml)
     spec = mujoco.MjSpec()
     spec.modelname = 'test'
 
@@ -588,7 +588,7 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(geom2.classname.name, 'main')
 
     spec.compile()
-    self.assertEqual(spec.to_xml(), XML)
+    self.assertEqual(spec.to_xml(), xml)
 
     spec = mujoco.MjSpec()
     spec.modelname = 'test'
@@ -604,7 +604,7 @@ class SpecsTest(absltest.TestCase):
     geom2.classname = main  # actually redundant, since main is always applied
 
     spec.compile()
-    self.assertEqual(spec.to_xml(), XML)
+    self.assertEqual(spec.to_xml(), xml)
 
     # test delete default
     def1 = spec.find_default('def1')
@@ -1323,12 +1323,12 @@ class SpecsTest(absltest.TestCase):
   def test_bad_contact_sensor(self):
     test_cases = [
         dict(
-            expected_error='dim must be positive in sensor',
+            expected_error='num (intprm[2]) must be positive in sensor',
             sensor_params=dict(
                 type=mujoco.mjtSensor.mjSENS_CONTACT,
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
-                dim=0,
+                intprm=[1, 0, 0],
             ),
         ),
         dict(
@@ -1337,8 +1337,7 @@ class SpecsTest(absltest.TestCase):
                 type=mujoco.mjtSensor.mjSENS_CONTACT,
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
-                dim=1,
-                intprm=[0, 0, 0],
+                intprm=[0, 0, 1],
             ),
         ),
         dict(
@@ -1350,8 +1349,7 @@ class SpecsTest(absltest.TestCase):
                 type=mujoco.mjtSensor.mjSENS_CONTACT,
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
-                dim=1,
-                intprm=[1 << 10, 0, 0],
+                intprm=[1 << 10, 0, 1],
             ),
         ),
         dict(
@@ -1363,20 +1361,7 @@ class SpecsTest(absltest.TestCase):
                 type=mujoco.mjtSensor.mjSENS_CONTACT,
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
-                dim=1,
-                intprm=[(1 << 10) | 1, 0, 0],
-            ),
-        ),
-        dict(
-            expected_error=(
-                'dim 2 not divisible by size 3 implied by data spec (intprm[0])'
-            ),
-            sensor_params=dict(
-                type=mujoco.mjtSensor.mjSENS_CONTACT,
-                objtype=mujoco.mjtObj.mjOBJ_GEOM,
-                objname='sphere1',
-                dim=2,
-                intprm=[2, 0, 0],  # force (size 3)
+                intprm=[(1 << 10) | 1, 0, 1],
             ),
         ),
         dict(
@@ -1385,8 +1370,7 @@ class SpecsTest(absltest.TestCase):
                 type=mujoco.mjtSensor.mjSENS_CONTACT,
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
-                dim=1,
-                intprm=[1, 4, 0],
+                intprm=[1, 4, 1],
             ),
         ),
         dict(
@@ -1441,6 +1425,24 @@ class SpecsTest(absltest.TestCase):
         error_predicate = lambda e, expected=expected_error: expected in str(e)
         with self.assertRaisesWithPredicateMatch(ValueError, error_predicate):
           spec.compile()
+
+  def test_sensor_data_size(self):
+    spec = mujoco.MjSpec()
+    quat = spec.add_sensor(
+        name='framequat',
+        type=mujoco.mjtSensor.mjSENS_FRAMEQUAT,
+        objtype=mujoco.mjtObj.mjOBJ_BODY,
+        objname='world',
+    )
+    self.assertEqual(quat.get_data_size(), 4)
+    clock = spec.add_sensor(
+        name='clock',
+        type=mujoco.mjtSensor.mjSENS_CLOCK,
+    )
+    self.assertEqual(clock.get_data_size(), 1)
+    mj_model = spec.compile()
+    self.assertEqual(mj_model.sensor_dim[0], 4)
+    self.assertEqual(mj_model.sensor_dim[1], 1)
 
 
 if __name__ == '__main__':

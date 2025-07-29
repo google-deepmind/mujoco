@@ -3500,6 +3500,7 @@ void mjs_setUserValueWithCleanup(mjsElement* element, const char* key,
                                  void (*cleanup)(const void*));
 const void* mjs_getUserValue(mjsElement* element, const char* key);
 void mjs_deleteUserValue(mjsElement* element, const char* key);
+int mjs_sensorDim(const mjsSensor* sensor);
 void mjs_defaultSpec(mjSpec* spec);
 void mjs_defaultOrientation(mjsOrientation* orient);
 void mjs_defaultBody(mjsBody* body);

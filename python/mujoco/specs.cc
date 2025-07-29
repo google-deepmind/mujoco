@@ -1172,6 +1172,9 @@ PYBIND11_MODULE(_specs, m) {
   mjSpec.def("delete", [](MjSpec& self, raw::MjsSensor& obj) {
     mjs_delete(self.ptr, obj.element);
   });
+  mjsSensor.def("get_data_size", [](raw::MjsSensor& self) -> int {
+    return mjs_sensorDim(&self);
+  });
 
   // ============================= MJSFLEX =====================================
   mjSpec.def("delete", [](MjSpec& self, raw::MjsFlex& obj) {

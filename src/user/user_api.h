@@ -420,6 +420,8 @@ MJAPI const void* mjs_getUserValue(mjsElement* element, const char* key);
 // Delete user payload.
 MJAPI void mjs_deleteUserValue(mjsElement* element, const char* key);
 
+// Return sensor dimension.
+MJAPI int mjs_sensorDim(const mjsSensor* sensor);
 
 //---------------------------------- Initialization  -----------------------------------------------
 

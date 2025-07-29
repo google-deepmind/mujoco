@@ -4216,18 +4216,17 @@ void mjXReader::Sensor(XMLElement* section) {
       }
       sensor->intprm[0] = dataspec;
 
-      // number of contacts, sensor dim
-      sensor->dim = 1;
-      ReadAttrInt(elem, "num", &sensor->dim);
-      if (sensor->dim <= 0) {
-        throw mjXError(elem, "'num' must be positive in sensor");
-      }
-      sensor->dim *= mju_condataSize(dataspec);
-
       // reduction type (intprm[1])
       sensor->intprm[1] = 0;
       if (MapValue(elem, "reduce", &n, reduce_map, reduce_sz)) {
         sensor->intprm[1] = n;
+      }
+
+      // number of contacts (intprm[2])
+      sensor->intprm[2] = 1;
+      ReadAttrInt(elem, "num", &sensor->intprm[2]);
+      if (sensor->intprm[2] <= 0) {
+        throw mjXError(elem, "'num' must be positive in sensor");
       }
 
       // sensor type
