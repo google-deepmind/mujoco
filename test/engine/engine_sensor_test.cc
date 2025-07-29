@@ -574,7 +574,7 @@ TEST_F(SensorTest, IntPrm) {
     </sensor>
   </mujoco>
   )";
-  ASSERT_EQ(mjNSENS, 2);
+  ASSERT_EQ(mjNSENS, 3);
 
   char err[1024];
   mjSpec* spec = mj_parseXMLString(xml, 0, err, sizeof(err));
@@ -588,9 +588,11 @@ TEST_F(SensorTest, IntPrm) {
   mjsSensor* s = mjs_asSensor(mjs_findElement(spec, mjOBJ_SENSOR, "dummy"));
   s->intprm[0] = 3;
   s->intprm[1] = 4;
+  s->intprm[2] = 5;
   model = mj_compile(spec, nullptr);
   EXPECT_EQ(model->sensor_intprm[0], 3);
   EXPECT_EQ(model->sensor_intprm[1], 4);
+  EXPECT_EQ(model->sensor_intprm[2], 5);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
 }

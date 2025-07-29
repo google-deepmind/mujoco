@@ -10408,7 +10408,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='intprm',
                  type=ArrayType(
                      inner_type=ValueType(name='int'),
-                     extents=(2,),
+                     extents=(3,),
                  ),
                  doc='integer parameters',
              ),

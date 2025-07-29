@@ -567,7 +567,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
             size += size_i
         return size
 
-      dataspecs, reduces = m.sensor_intprm[idx].T
+      dataspecs, reduces, _ = m.sensor_intprm[idx].T
       dims = m.sensor_dim[idx]
       objtypes = m.sensor_objtype[idx]
       refid = m.sensor_refid[idx]

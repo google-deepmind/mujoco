@@ -1338,7 +1338,7 @@ class SpecsTest(absltest.TestCase):
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
                 dim=1,
-                intprm=[0, 0],
+                intprm=[0, 0, 0],
             ),
         ),
         dict(
@@ -1351,7 +1351,7 @@ class SpecsTest(absltest.TestCase):
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
                 dim=1,
-                intprm=[1 << 10, 0],
+                intprm=[1 << 10, 0, 0],
             ),
         ),
         dict(
@@ -1364,7 +1364,7 @@ class SpecsTest(absltest.TestCase):
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
                 dim=1,
-                intprm=[(1 << 10) | 1, 0],
+                intprm=[(1 << 10) | 1, 0, 0],
             ),
         ),
         dict(
@@ -1376,7 +1376,7 @@ class SpecsTest(absltest.TestCase):
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
                 dim=2,
-                intprm=[2, 0],  # force (size 3)
+                intprm=[2, 0, 0],  # force (size 3)
             ),
         ),
         dict(
@@ -1386,7 +1386,7 @@ class SpecsTest(absltest.TestCase):
                 objtype=mujoco.mjtObj.mjOBJ_GEOM,
                 objname='sphere1',
                 dim=1,
-                intprm=[1, 4],
+                intprm=[1, 4, 0],
             ),
         ),
         dict(
