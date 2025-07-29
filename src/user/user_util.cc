@@ -192,6 +192,12 @@ float mjuu_normvec(float* vec, const int n) {
   return nrm;
 }
 
+// scale vector by scalar
+void mjuu_scalevec(double* res, const double* vec, double s, int n) {
+  for (int i = 0; i < n; i++) {
+    res[i] = s * vec[i];
+  }
+}
 
 // convert quaternion to rotation matrix
 void mjuu_quat2mat(double* res, const double* quat) {

@@ -73,6 +73,9 @@ double mjuu_L1(const double* a, const double* b, int n);
 double mjuu_normvec(double* vec, int n);
 float mjuu_normvec(float* vec, int n);
 
+// scale vector by scalar
+void mjuu_scalevec(double* res, const double* vec, double s, int n);
+
 // convert quaternion to rotation matrix
 void mjuu_quat2mat(double* res, const double* quat);
 

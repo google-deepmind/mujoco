@@ -2021,6 +2021,118 @@ TEST_F(XMLReaderTest, ReadShellParameter) {
   mj_deleteModel(model);
 }
 
+// ----------------------- test builtin mesh parsing ---------------------------
+
+TEST_F(XMLReaderTest, ReadWedgeMesh) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="wedge" builtin="wedge" params="25 25 180 90 0"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="wedge"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, UnsupportedMesh) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="cone" builtin="cone" params="25 25 180 90 0"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="cone"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("Unsupported mesh type"));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, BuiltinAndFile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="wedge" builtin="wedge" vertex="0 0 0 1 0 0 0 1 0 0 1 0"
+            params="25 25 180 90 0"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="wedge"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("builtin mesh cannot be used with user vertex data"));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, MakePlateNoParameters) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate" builtin="plate"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="plate" contype="0" conaffinity="0"/>
+    </worldbody>
+  </mujoco>)";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("required attribute missing: 'params'"));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, MakePlateTooFewParameters) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate" builtin="plate" params="1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="plate" contype="0" conaffinity="0"/>
+    </worldbody>
+  </mujoco>)";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("Plate builtin mesh type requires 2 parameters"));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, MakePlateInvalidParameters) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate" builtin="plate" params="-1 -1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="plate" contype="0" conaffinity="0"/>
+    </worldbody>
+  </mujoco>)";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("resolutions must be positive"));
+  mj_deleteModel(model);
+}
+
+// ----------------------- test skin parsing --------------------------------
+
 TEST_F(XMLReaderTest, ReadsSkinGroups) {
   static constexpr char xml[] = R"(
   <mujoco>

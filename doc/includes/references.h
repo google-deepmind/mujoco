@@ -1781,6 +1781,16 @@ typedef enum mjtMeshInertia_ {      // type of mesh inertia
   mjMESH_INERTIA_LEGACY,            // legacy mesh inertia
   mjMESH_INERTIA_SHELL              // shell mesh inertia
 } mjtMeshInertia;
+typedef enum mjtMeshBuiltin_ {      // type of built-in procedural mesh
+  mjMESH_BUILTIN_NONE = 0,          // no built-in mesh
+  mjMESH_BUILTIN_SPHERE,            // sphere
+  mjMESH_BUILTIN_HEMISPHERE,        // hemisphere
+  mjMESH_BUILTIN_PRISM,             // prism
+  mjMESH_BUILTIN_CONE,              // cone
+  mjMESH_BUILTIN_TORUS,             // torus
+  mjMESH_BUILTIN_WEDGE,             // wedge
+  mjMESH_BUILTIN_PLATE,             // plate
+} mjtMeshBuiltin;
 typedef enum mjtBuiltin_ {         // type of built-in procedural texture
   mjBUILTIN_NONE = 0,              // no built-in texture
   mjBUILTIN_GRADIENT,              // gradient: rgb1->rgb2
@@ -3457,6 +3467,7 @@ mjsHField* mjs_addHField(mjSpec* s);
 mjsSkin* mjs_addSkin(mjSpec* s);
 mjsTexture* mjs_addTexture(mjSpec* s);
 mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* def);
+int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams);
 mjSpec* mjs_getSpec(mjsElement* element);
 mjSpec* mjs_findSpec(mjSpec* spec, const char* name);
 mjsBody* mjs_findBody(mjSpec* s, const char* name);

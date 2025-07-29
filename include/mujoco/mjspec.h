@@ -70,6 +70,16 @@ typedef enum mjtMeshInertia_ {      // type of mesh inertia
   mjMESH_INERTIA_SHELL              // shell mesh inertia
 } mjtMeshInertia;
 
+typedef enum mjtMeshBuiltin_ {      // type of built-in procedural mesh
+  mjMESH_BUILTIN_NONE = 0,          // no built-in mesh
+  mjMESH_BUILTIN_SPHERE,            // sphere
+  mjMESH_BUILTIN_HEMISPHERE,        // hemisphere
+  mjMESH_BUILTIN_PRISM,             // prism
+  mjMESH_BUILTIN_CONE,              // cone
+  mjMESH_BUILTIN_TORUS,             // torus
+  mjMESH_BUILTIN_WEDGE,             // wedge
+  mjMESH_BUILTIN_PLATE,             // plate
+} mjtMeshBuiltin;
 
 typedef enum mjtBuiltin_ {         // type of built-in procedural texture
   mjBUILTIN_NONE = 0,              // no built-in texture

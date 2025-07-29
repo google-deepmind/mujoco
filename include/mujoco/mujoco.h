@@ -1545,6 +1545,8 @@ MJAPI mjsTexture* mjs_addTexture(mjSpec* s);
 // Add material.
 MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* def);
 
+// Sets the vertices and normals of a mesh.
+MJAPI int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams);
 
 //---------------------------------- Find and get utilities ----------------------------------------
 

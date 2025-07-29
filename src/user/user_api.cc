@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <functional>
 #include <iterator>
 #include <map>
@@ -27,9 +28,9 @@
 
 #include <mujoco/mujoco.h>
 #include "engine/engine_support.h"
+#include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
-#include "user/user_cache.h"
 #include "user/user_util.h"
 
 namespace {
@@ -500,7 +501,67 @@ mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* defspec) {
   return &material->spec;
 }
 
-
+// Sets the vertices and normals of a mesh.
+int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams) {
+  mjCMesh* meshC = static_cast<mjCMesh*>(mesh->element);
+  mjCModel* m = meshC->model;
+  if (builtin == mjMESH_BUILTIN_WEDGE) {
+    if (nparams != 5) {
+      m->SetError(mjCError(0, "Wedge builtin mesh types require 5 parameters"));
+      return -1;
+    }
+    int resolution[2] = {static_cast<int>(params[0]),
+                         static_cast<int>(params[1])};
+    double fov[2] = {params[2], params[3]};
+    double gamma = params[4];
+    if (fov[0] <= 0 || fov[0] > 180) {
+      m->SetError(
+          mjCError(0, "fov[0] must be a float between (0, 180] degrees"));
+      return -1;
+    }
+    if (fov[1] <= 0 || fov[1] > 90) {
+      m->SetError(
+          mjCError(0, "`fov[1]` must be a float between (0, 90] degrees"));
+      return -1;
+    }
+    if (resolution[0] <= 0 || resolution[1] <= 0) {
+      m->SetError(
+          mjCError(0, "Horizontal and vertical resolutions must be positive"));
+      return -1;
+    }
+    if (gamma < 0 || gamma > 1) {
+      m->SetError(
+          mjCError(0, "`gamma` must be a nonnegative float between [0, 1]"));
+      return -1;
+    }
+    meshC->MakeWedge(resolution, fov, gamma);
+    return 0;
+  } else if (builtin == mjMESH_BUILTIN_PLATE) {
+    if (nparams != 2) {
+      m->SetError(mjCError(0, "Plate builtin mesh type requires 2 parameters"));
+      return -1;
+    }
+    int resolution[2] = {static_cast<int>(params[0]),
+                         static_cast<int>(params[1])};
+    if (resolution[0] <= 0 || resolution[1] <= 0) {
+      m->SetError(
+          mjCError(0, "Horizontal and vertical resolutions must be positive"));
+      return -1;
+    }
+    meshC->MakeRect(resolution);
+    return 0;
+  } else if (builtin == mjMESH_BUILTIN_PRISM) {
+    if (nparams != 1) {
+      m->SetError(mjCError(0, "Prism mesh type requires 1 parameter"));
+      return -1;
+    }
+    int nedge = static_cast<int>(params[0]);
+    meshC->MakePrism(nedge);
+    return 0;
+  }
+  m->SetError(mjCError(0, "Unsupported mesh type"));
+  return 1;
+}
 
 // add pair to model
 mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* defspec) {

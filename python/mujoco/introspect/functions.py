@@ -9869,6 +9869,34 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Add material.',
      )),
+    ('mjs_makeMesh',
+     FunctionDecl(
+         name='mjs_makeMesh',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='mesh',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsMesh'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='builtin',
+                 type=ValueType(name='mjtMeshBuiltin'),
+             ),
+             FunctionParameterDecl(
+                 name='params',
+                 type=PointerType(
+                     inner_type=ValueType(name='double'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='nparams',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Sets the vertices and normals of a mesh.',
+     )),
     ('mjs_getSpec',
      FunctionDecl(
          name='mjs_getSpec',

@@ -791,6 +791,21 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjMESH_INERTIA_SHELL', 3),
          ]),
      )),
+    ('mjtMeshBuiltin',
+     EnumDecl(
+         name='mjtMeshBuiltin',
+         declname='enum mjtMeshBuiltin_',
+         values=dict([
+             ('mjMESH_BUILTIN_NONE', 0),
+             ('mjMESH_BUILTIN_SPHERE', 1),
+             ('mjMESH_BUILTIN_HEMISPHERE', 2),
+             ('mjMESH_BUILTIN_PRISM', 3),
+             ('mjMESH_BUILTIN_CONE', 4),
+             ('mjMESH_BUILTIN_TORUS', 5),
+             ('mjMESH_BUILTIN_WEDGE', 6),
+             ('mjMESH_BUILTIN_PLATE', 7),
+         ]),
+     )),
     ('mjtBuiltin',
      EnumDecl(
          name='mjtBuiltin',

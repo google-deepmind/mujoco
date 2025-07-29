@@ -75,6 +75,70 @@ namespace {
   using mujoco::user::FilePath;
   using std::max;
   using std::min;
+
+  // Parametrized linear/quintic interpolated nonlinearity.
+  double Fovea(double x, double gamma) {
+    // Quick return.
+    if (!gamma) return x;
+
+    // Foveal deformation.
+    double g = mjMAX(0, mjMIN(1, gamma));
+    return g * std::pow(x, 5) + (1 - g) * x;
+  }
+
+  // Evenly spaced numbers over a specified interval.
+  void LinSpace(double lower, double upper, int n, double array[]) {
+    double increment = n > 1 ? (upper - lower) / (n - 1) : 0;
+    for (int i = 0; i < n; ++i) {
+      *array = lower;
+      ++array;
+      lower += increment;
+    }
+  }
+
+  // Make bin edges.
+  void BinEdges(double* x_edges, double* y_edges, int size[2], double fov[2],
+                double gamma) {
+    // Make unit bin edges.
+    LinSpace(-1, 1, size[0] + 1, x_edges);
+    LinSpace(-1, 1, size[1] + 1, y_edges);
+
+    // Apply foveal deformation.
+    for (int i = 0; i < size[0] + 1; i++) {
+      x_edges[i] = Fovea(x_edges[i], gamma);
+    }
+    for (int i = 0; i < size[1] + 1; i++) {
+      y_edges[i] = Fovea(y_edges[i], gamma);
+    }
+
+    // Scale by field-of-view.
+    mjuu_scalevec(x_edges, x_edges, fov[0] * mjPI / 180, size[0] + 1);
+    mjuu_scalevec(y_edges, y_edges, fov[1] * mjPI / 180, size[1] + 1);
+  }
+
+  // Transform spherical (azimuth, elevation, radius) to Cartesian (x,y,z).
+  void SphericalToCartesian(const double aer[3], float xyz[3]) {
+    double a = aer[0], e = aer[1], r = aer[2];
+    xyz[0] = r * std::cos(e) * std::sin(a);
+    xyz[1] = r * std::sin(e);
+    xyz[2] = -r * std::cos(e) * std::cos(a);
+  }
+
+  // Tangent frame in Cartesian coordinates.
+  void TangentFrame(const double aer[3], float mat[9]) {
+    double a = aer[0], e = aer[1], r = aer[2];
+    double ta[3] = {r * std::cos(e) * std::cos(a), 0,
+                    r * std::cos(e) * std::sin(a)};
+    double te[3] = {-r * std::sin(e) * std::sin(a), r * std::cos(e),
+                    r * std::sin(e) * std::cos(a)};
+    double n[3];
+    mjuu_normvec(ta, 3);
+    mjuu_normvec(te, 3);
+    mjuu_copyvec(mat + 3, ta, 3);
+    mjuu_copyvec(mat + 6, te, 3);
+    mjuu_crossvec(n, te, ta);
+    mjuu_copyvec(mat, n, 3);
+  }
 }  // namespace
 
 // compute triangle area, surface normal, center
@@ -1488,7 +1552,11 @@ void mjCMesh::Process() {
 
   // facenormal might not exist if usernormal was specified
   if (facenormal_.empty()) {
-    facenormal_ = face_;
+    int normal_per_vertex = normal_.size() / vert_.size();
+    facenormal_.assign(face_.size(), 0);
+    for (int i = 0; i < face_.size(); i++) {
+      facenormal_[i] = normal_per_vertex * face_[i];
+    }
   }
 
   MakePolygons();
@@ -1954,7 +2022,89 @@ void mjCMesh::CopyGraph() {
   }
 }
 
+// make a mesh of a spherical wedge
+void mjCMesh::MakeWedge(int resolution[2], double fov[2], double gamma) {
+  std::vector<double> x_edges(resolution[0] + 1, 0);
+  std::vector<double> y_edges(resolution[1] + 1, 0);
+  BinEdges(x_edges.data(), y_edges.data(), resolution, fov, gamma);
+  std::vector<float> uservert(3 * resolution[0] * resolution[1], 0);
+  std::vector<float> usernormal(9 * resolution[0] * resolution[1], 0);
 
+  for (int i = 0; i < resolution[0]; i++) {
+    for (int j = 0; j < resolution[1]; j++) {
+      double aer[3];
+      aer[0] = 0.5 * (x_edges[i + 1] + x_edges[i]);
+      aer[1] = 0.5 * (y_edges[j + 1] + y_edges[j]);
+      aer[2] = 1;
+      SphericalToCartesian(aer, uservert.data() + 3 * (i * resolution[1] + j));
+      TangentFrame(aer, usernormal.data() + 9 * (i * resolution[1] + j));
+    }
+  }
+
+  mjs_setFloat(spec.uservert, uservert.data(),
+               3 * resolution[0] * resolution[1]);
+  mjs_setFloat(spec.usernormal, usernormal.data(),
+               9 * resolution[0] * resolution[1]);
+}
+
+// make a mesh of a rectangle
+void mjCMesh::MakeRect(int resolution[2]) {
+  std::vector<double> x_edges(resolution[0] + 1, 0);
+  std::vector<double> y_edges(resolution[1] + 1, 0);
+  LinSpace(-1, 1, resolution[0] + 1, x_edges.data());
+  LinSpace(-1, 1, resolution[1] + 1, y_edges.data());
+  std::vector<float> uservert(3 * resolution[0] * resolution[1], 0);
+  std::vector<float> usernormal(9 * resolution[0] * resolution[1], 0);
+  std::vector<int> userface(6 * (resolution[0] - 1) * (resolution[1] - 1), 0);
+  spec.inertia = mjMESH_INERTIA_SHELL;
+
+  for (int i = 0; i < resolution[0]; i++) {
+    for (int j = 0; j < resolution[1]; j++) {
+      int vert = i * resolution[1] + j;
+      mjtNum dx = 2. / resolution[0];
+      mjtNum dy = 2. / resolution[1];
+      uservert[3 * vert + 0] = -1 + (i + 0.5) * dx;
+      uservert[3 * vert + 1] = -1 + (j + 0.5) * dy;
+      uservert[3 * vert + 2] = -1;
+      usernormal[9 * vert + 0] = 1;
+      usernormal[9 * vert + 4] = 1;
+      usernormal[9 * vert + 8] = 1;
+      if (i > 0 && j > 0) {
+        int cell = (i - 1) * (resolution[1] - 1) + j - 1;
+        userface[6 * cell + 0] = (i - 1) * resolution[1] + j - 1;
+        userface[6 * cell + 1] = (i - 0) * resolution[1] + j - 1;
+        userface[6 * cell + 2] = (i - 1) * resolution[1] + j - 0;
+        userface[6 * cell + 3] = (i - 0) * resolution[1] + j - 0;
+        userface[6 * cell + 4] = (i - 1) * resolution[1] + j - 0;
+        userface[6 * cell + 5] = (i - 0) * resolution[1] + j - 1;
+      }
+    }
+  }
+
+  mjs_setFloat(spec.uservert, uservert.data(),
+               3 * resolution[0] * resolution[1]);
+  mjs_setFloat(spec.usernormal, usernormal.data(),
+               9 * resolution[0] * resolution[1]);
+  mjs_setInt(spec.userface, userface.data(),
+             6 * (resolution[0] - 1) * (resolution[1] - 1));
+}
+
+// make a mesh of a prism
+void mjCMesh::MakePrism(int nedge) {
+  int layer = 2;
+  std::vector<float> uservert(3 * nedge * layer, 0);
+
+  for (int i = 0; i < nedge; i++) {
+    for (int j = 0; j < layer; j++) {
+      int v = i * layer + j;
+      uservert[3 * v + 0] = std::cos(2 * i * mjPI / nedge);
+      uservert[3 * v + 1] = std::sin(2 * i * mjPI / nedge);
+      uservert[3 * v + 2] = -1 + 2 * j / (layer - 1);
+    }
+  }
+
+  mjs_setFloat(spec.uservert, uservert.data(), 3 * nedge * layer);
+}
 
 // compute vertex normals
 void mjCMesh::MakeNormal() {

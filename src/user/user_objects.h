@@ -1050,6 +1050,11 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void PointToLocal(void);
   void NameSpace(const mjCModel* m);
 
+  // make a mesh of a predefined shape
+  void MakeWedge(int resolution[2], double fov[2], double gamma);
+  void MakeRect(int resolution[2]);
+  void MakePrism(int nedge);
+
   // accessors
   const mjsPlugin& Plugin() const { return plugin; }
   const std::string& ContentType() const { return content_type_; }

@@ -4074,6 +4074,15 @@ Add texture.
 
 Add material.
 
+.. _mjs_makeMesh:
+
+`mjs_makeMesh <#mjs_makeMesh>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_makeMesh
+
+Sets the vertices and normals of a mesh.
+
 .. _FindAndGetUtilities:
 
 Find and get utilities
