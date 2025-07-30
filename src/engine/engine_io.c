@@ -1138,8 +1138,8 @@ static void checkDBSparse(const mjModel* m, mjData* d) {
 static void copyM2Sparse(const mjModel* m, mjData* d, int* dst, const int* src,
                          int reduced, int upper) {
   int nv = m->nv;
-  const int* rownnz;
-  const int* rowadr;
+  const int* rownnz = NULL;
+  const int* rowadr = NULL;
   if (reduced && !upper) {
     rownnz = d->M_rownnz;
     rowadr = d->M_rowadr;
