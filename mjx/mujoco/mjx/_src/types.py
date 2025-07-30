@@ -753,8 +753,11 @@ class Model(PyTreeNode):
   mesh_bvhnum: np.ndarray
   mesh_octadr: np.ndarray
   mesh_octnum: np.ndarray
+  mesh_normaladr: np.ndarray
+  mesh_normalnum: np.ndarray
   mesh_graphadr: np.ndarray
   mesh_vert: np.ndarray
+  mesh_normal: np.ndarray
   mesh_face: np.ndarray
   mesh_graph: np.ndarray
   mesh_pos: np.ndarray

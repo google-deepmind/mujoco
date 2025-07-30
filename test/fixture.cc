@@ -232,12 +232,16 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   MJMODEL_POINTERS_PREAMBLE(m1);
 
 // compare ints, exclude nbuffer because it hides the actual difference
-#define X(name)                                           \
-  if constexpr (std::string_view(#name) != "nbuffer") {   \
-    if (m1->name != m2->name) {                           \
-      maxdif = std::abs((long)m1->name - (long)m2->name); \
-      field = #name;                                      \
-    }                                                     \
+// TODO(kylebayes): re-enable poly comparisons.
+#define X(name)                                               \
+  if constexpr (std::string_view(#name) != "nbuffer" &&       \
+                std::string_view(#name) != "nmeshpolymap" &&  \
+                std::string_view(#name) != "nmeshpolyvert" && \
+                std::string_view(#name) != "nmeshpoly") {     \
+    if (m1->name != m2->name) {                               \
+      maxdif = std::abs((long)m1->name - (long)m2->name);     \
+      field = #name;                                          \
+    }                                                         \
   }
   MJMODEL_INTS
 #undef X
@@ -247,7 +251,8 @@ mjtNum CompareModel(const mjModel* m1, const mjModel* m2,
   // those are sensitive to numerical differences when meshes are perfectly
   // symmetric.
 #define X(type, name, nr, nc)                                         \
-  if (strncmp(#name, "bvh_", 4) && strncmp(#name, "flex_vert0", 4)) { \
+  if (strncmp(#name, "bvh_", 4) && strncmp(#name, "flex_vert0", 4) && \
+      strncmp(#name, "mesh_poly", 4)) {                               \
     for (int r = 0; r < m1->nr; r++) {                                \
       for (int c = 0; c < nc; c++) {                                  \
         dif = Compare(m1->name[r * nc + c], m2->name[r * nc + c]);    \

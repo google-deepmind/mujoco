@@ -1166,6 +1166,11 @@ int mjs_sensorDim(const mjsSensor* sensor) {
   case mjSENS_CONTACT:
     return sensor->intprm[2] * mju_condataSize(sensor->intprm[0]);
 
+  case mjSENS_TACTILE:
+    return 3 * static_cast<const mjCMesh*>(
+                   static_cast<mjCSensor*>(sensor->element)->get_obj())
+                   ->nvert();
+
   case mjSENS_USER:
     return sensor->dim;
 

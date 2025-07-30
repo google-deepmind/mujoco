@@ -2238,6 +2238,11 @@ void mjXWriter::Sensor(XMLElement* root) {
           WriteAttrKey(elem, "reduce", reduce_map, reduce_sz, sensor->intprm[1], 0);
         }
         break;
+      case mjSENS_TACTILE:
+        elem = InsertEnd(section, "tactile");
+        WriteAttrTxt(elem, "geom", sensor->get_refname());
+        WriteAttrTxt(elem, "mesh", sensor->get_objname());
+        break;
       // global sensors
       case mjSENS_E_POTENTIAL:
         elem = InsertEnd(section, "potential");

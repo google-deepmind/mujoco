@@ -492,6 +492,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"clock", "*", "4", "name", "cutoff", "noise", "user"},
         {"user", "*", "9", "name", "objtype", "objname", "datatype", "needstage",
             "dim", "cutoff", "noise", "user"},
+    {"tactile", "*", "4", "name", "geom", "mesh", "user"},
         {"plugin", "*", "9", "name", "plugin", "instance", "cutoff", "objtype", "objname", "reftype", "refname",
             "user"},
         {"<"},
@@ -4295,6 +4296,18 @@ void mjXReader::Sensor(XMLElement* section) {
       if (MapValue(elem, "datatype", &n, datatype_map, datatype_sz)) {
         sensor->datatype = (mjtDataType)n;
       }
+    }
+
+    // tactile sensor
+    if (type == "tactile") {
+      sensor->type = mjSENS_TACTILE;
+      sensor->reftype = mjOBJ_GEOM;
+      ReadAttrTxt(elem, "geom", refname, /*required=*/true);
+
+      // associate the sensor with a mesh
+      sensor->objtype = mjOBJ_MESH;
+      ReadAttrTxt(elem, "mesh", objname, /*required=*/true);
+      mjs_setString(sensor->objname, objname.c_str());
     }
 
     else if (type == "plugin") {

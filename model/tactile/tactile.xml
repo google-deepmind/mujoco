@@ -1,18 +1,11 @@
 <mujoco model="touchtest">
   <compiler autolimits="true"/>
+   <option sdf_initpoints="20"/>
 
   <extension>
     <plugin plugin="mujoco.sdf.gear">
       <instance name="gear">
         <config key="alpha" value="0"/>
-      </instance>
-    </plugin>
-    <plugin plugin="mujoco.sensor.touch_stress">
-      <instance name="touch_stress">
-        <config key="size" value="37 37"/>
-        <config key="fov" value="45 45"/>
-        <config key="gamma" value="0"/>
-        <config key="nchannel" value="3"/>
       </instance>
     </plugin>
   </extension>
@@ -24,6 +17,8 @@
     <mesh name="gear">
       <plugin instance="gear"/>
     </mesh>
+    <mesh name="sphere" builtin="wedge" params="37 37 45 45 0" scale=".3 .3 .3"/>
+    <mesh name="box" builtin="plate" params="37 37" scale=".3 .5 .2"/>
   </asset>
 
   <visual>
@@ -47,18 +42,25 @@
       <plugin instance="gear"/>
     </geom>
 
-    <body name="ball" pos="0 0 1">
+    <body name="ball" pos="-1 1 1">
       <joint name="x" type="slide" axis="1 0 0" damping="1"/>
       <joint name="y" type="slide" axis="0 1 0" damping="1"/>
       <joint name="z" type="slide" axis="0 0 1"/>
       <joint name="rx" axis="1 0 0" springdamper="0.2 1"/>
       <joint name="ry" axis="0 1 0" springdamper="0.2 1"/>
       <geom type="sphere" size=".3" mass="0.1" rgba=".5 .5 .5 .3"/>
-      <site name="touch"/>
+      <geom name="ball" type="mesh" mesh="sphere" mass="0" contype="0" conaffinity="0" rgba=".5 .5 .5 0"/>
+    </body>
+
+    <body name="finger" pos="0 0 1">
+      <freejoint/>
+      <geom type="box" size=".3 .5 .2" mass="0.1" rgba=".5 .5 .5 .3"/>
+      <geom name="finger" type="mesh" mesh="box" mass="0" contype="0" conaffinity="0" rgba=".5 .5 .5 0"/>
     </body>
   </worldbody>
 
   <sensor>
-    <plugin instance="touch_stress" objtype="site" objname="touch"/>
+    <tactile geom="ball" mesh="sphere"/>
+    <tactile geom="finger" mesh="box"/>
   </sensor>
 </mujoco>

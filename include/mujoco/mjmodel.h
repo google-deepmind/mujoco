@@ -377,6 +377,9 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_E_KINETIC,               // kinetic energy
   mjSENS_CLOCK,                   // simulation time
 
+  // sensors related to SDFs
+  mjSENS_TACTILE,                 // tactile sensor
+
   // plugin-controlled sensors
   mjSENS_PLUGIN,                  // plugin-controlled
 
