@@ -2160,6 +2160,7 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
     return 4;
 
   case mjSENS_CONTACT:
+  case mjSENS_TACTILE:
   case mjSENS_USER:
     return sensor_dim;
 
@@ -2587,6 +2588,20 @@ const char* mj_validateReferences(const mjModel* m) {
     }
     if (nobj != -1 && (m->sensor_refid[i] < -1 || m->sensor_refid[i] >= nobj)) {
       return "Invalid model: invalid sensor_refid";
+    }
+    if (sensor_type == mjSENS_TACTILE) {
+      int obj_id = m->sensor_objid[i];
+      int parent_body = m->geom_bodyid[obj_id];
+      int collision_geoms = 0;
+      for (int b = 0; b < m->body_geomnum[parent_body]; ++b) {
+        int geom_id = m->body_geomadr[parent_body]+b;
+        if (m->geom_contype[geom_id] || m->geom_conaffinity[geom_id]) {
+          collision_geoms++;
+        }
+      }
+      if (collision_geoms == 0) {
+        return "Touch sensor requires a body with at least one collision geom";
+      }
     }
   }
   for (int i=0; i < m->nexclude; i++) {

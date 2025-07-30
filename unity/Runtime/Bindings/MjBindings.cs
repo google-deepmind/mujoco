@@ -398,8 +398,9 @@ public enum mjtSensor : int{
   mjSENS_E_POTENTIAL = 43,
   mjSENS_E_KINETIC = 44,
   mjSENS_CLOCK = 45,
-  mjSENS_PLUGIN = 46,
-  mjSENS_USER = 47,
+  mjSENS_TACTILE = 46,
+  mjSENS_PLUGIN = 47,
+  mjSENS_USER = 48,
 }
 public enum mjtStage : int{
   mjSTAGE_NONE = 0,

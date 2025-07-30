@@ -12,6 +12,8 @@ General
 - Added the :ref:`contact<sensor-contact>` sensor, for reporting contact information according to user-defined criteria.
   The purpose of the :el:`contact` sensor is to report contact-related information in a fixed-size array. This is useful
   as input to learning-based agents and in environment logic.
+- Added the :ref:`tactile<sensor-tactile>` sensor, for measuring the penetration depth between two objects at given
+  points and the sliding velocities in the tangent frame. The sensor reports tactile data only when colliding with SDFs.
 - Removed the SdfLib plugin and the dependency on `SdfLib <https://github.com/UPC-ViRVIG/SdfLib>`__. SDFs are now
   supported natively in mjModel.
 - Removed ``oct_depth`` from :ref:`mjvOption` (unused).
