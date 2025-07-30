@@ -21,7 +21,7 @@ import jax
 from jax import numpy as jp
 import mujoco
 from mujoco.introspect import mjxmacro
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 from mujoco.mjx._src import scan
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import ConeType

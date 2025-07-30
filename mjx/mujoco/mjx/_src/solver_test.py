@@ -98,6 +98,36 @@ class SolverTest(parameterized.TestCase):
       mjx_cost = cost(dx.qacc)
       self.assertLess(mjx_cost, mj_cost * 1.015)
 
+  def test_solver_differentiable(self):
+    """Test that the solver is differentiable when tolerance is 0."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <worldbody>
+          <body pos="0 0 1">
+            <joint name='hinge' type='hinge' axis='0 1 0'/>
+            <geom type='capsule' fromto='0 0 0 0 0 -1' size='0.05'/>
+          </body>
+        </worldbody>
+        <actuator>
+          <motor joint='hinge' gear='1'/>
+        </actuator>
+      </mujoco>
+    """)
+    m.opt.iterations = 10
+    m.opt.tolerance = 0  # Use scan, which is differentiable
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    def loss(ctrl):
+      d_new = dx.replace(ctrl=ctrl)
+      d_out = mjx.step(mx, d_new)
+      return jax.numpy.sum(d_out.qacc)
+
+    g = jax.grad(loss)(dx.ctrl)
+    self.assertIsNotNone(g)
+    self.assertGreater(np.abs(g).sum(), 0)
+
   def test_no_warmstart(self):
     """Test no warmstart."""
     m = test_util.load_test_file('constraints.xml')

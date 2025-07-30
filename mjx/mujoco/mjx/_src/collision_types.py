@@ -17,7 +17,7 @@
 import dataclasses
 from typing import Tuple
 import jax
-from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
+from mujoco.mjx._src.mjx_dataclasses import PyTreeNode  # pylint: disable=g-importing-member
 import numpy as np
 
 # Collision returned by collision functions:

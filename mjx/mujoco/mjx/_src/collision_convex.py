@@ -19,7 +19,7 @@ from typing import Callable, Tuple, Union
 
 import jax
 from jax import numpy as jp
-from mujoco.mjx._src import math
+from mujoco.mjx._src import mjx_math as math
 from mujoco.mjx._src import mesh
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.collision_types import Collision
