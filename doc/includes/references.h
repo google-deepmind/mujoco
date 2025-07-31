@@ -134,8 +134,8 @@ struct mjSolverStat_ {       // per-iteration solver statistics
 typedef struct mjSolverStat_ mjSolverStat;
 struct mjData_ {
   // constant sizes
-  size_t  narena;            // size of the arena in bytes (inclusive of the stack)
-  size_t  nbuffer;           // size of main buffer in bytes
+  mjtSize narena;            // size of the arena in bytes (inclusive of the stack)
+  mjtSize nbuffer;           // size of main buffer in bytes
   int     nplugin;           // number of plugin instances
 
   // stack pointer
@@ -146,9 +146,9 @@ struct mjData_ {
   size_t  parena;            // first available byte in arena
 
   // memory utilization statistics
-  size_t  maxuse_stack;                       // maximum stack allocation in bytes
-  size_t  maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
-  size_t  maxuse_arena;                       // maximum arena allocation in bytes
+  mjtSize maxuse_stack;                       // maximum stack allocation in bytes
+  mjtSize maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
+  mjtSize maxuse_arena;                       // maximum arena allocation in bytes
   int     maxuse_con;                         // maximum number of contacts
   int     maxuse_efc;                         // maximum number of scalar constraints
 
@@ -1056,8 +1056,8 @@ struct mjModel_ {
   int nsensordata;                // number of mjtNums in sensor data vector
   int npluginstate;               // number of mjtNums in plugin state vector
 
-  size_t narena;                  // number of bytes in the mjData arena (inclusive of stack)
-  size_t nbuffer;                 // number of bytes in buffer
+  mjtSize narena;                 // number of bytes in the mjData arena (inclusive of stack)
+  mjtSize nbuffer;                // number of bytes in buffer
 
   // ------------------------------- options and statistics
 
@@ -1866,7 +1866,7 @@ typedef struct mjSpec_ {           // model specification
   mjStatistic stat;                // statistics override (if defined)
 
   // sizes
-  size_t memory;                   // number of bytes in arena+stack memory
+  mjtSize memory;                  // number of bytes in arena+stack memory
   int nemax;                       // max number of equality constraints
   int nuserdata;                   // number of mjtNums in userdata
   int nuser_body;                  // number of mjtNums in body_user
@@ -1880,7 +1880,7 @@ typedef struct mjSpec_ {           // model specification
   int nkey;                        // number of keyframes
   int njmax;                       // (deprecated) max number of constraints
   int nconmax;                     // (deprecated) max number of detected contacts
-  size_t nstack;                   // (deprecated) number of mjtNums in mjData stack
+  mjtSize nstack;                  // (deprecated) number of mjtNums in mjData stack
 
   // global data
   mjString* comment;               // comment at top of XML
