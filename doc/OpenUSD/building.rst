@@ -44,7 +44,7 @@ Houdini is a procedural content authoring tool with extensive support for USD wo
 highly popular in the VFX industry, and it's easy to imagine procedural generation tools for simulation ready assets and
 scenes.
 
-To allow support for loading MJCF files in Solaris, and usage of the mjhcPhysics schemas you can build against Houdini's
+To allow support for loading MJCF files in Solaris, and usage of the mjcPhysics schemas you can build against Houdini's
 USD libraries. To do so, simply run `source ./houdini_setup` as descrived in the `SideFX documentation
 <https://www.sidefx.com/faq/question/how-do-i-set-up-the-houdini-environment-for-command-line-tools>`__.
 
