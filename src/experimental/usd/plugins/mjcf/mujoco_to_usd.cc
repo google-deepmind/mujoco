@@ -317,6 +317,34 @@ class ModelWriter {
     SetAttributeDefault(data_, attr_path, value);
   }
 
+  template <typename T>
+  void WriteColorAndOpacityAttributes(const pxr::SdfPath &prim_path,
+                                      const T &element) {
+    // If rgba is not the default (0.5, 0.5, 0.5, 1), then set the
+    // displayColor attribute.
+    // No effort is made to properly handle the interaction between rgba
+    // and the material if both are specified.
+    if (element->rgba[0] != 0.5f || element->rgba[1] != 0.5f ||
+        element->rgba[2] != 0.5f || element->rgba[3] != 1.0f) {
+      // Set the displayColor attribute.
+      pxr::SdfPath display_color_attr = CreateAttributeSpec(
+          data_, prim_path, pxr::UsdGeomTokens->primvarsDisplayColor,
+          pxr::SdfValueTypeNames->Color3fArray);
+      SetAttributeDefault(
+          data_, display_color_attr,
+          pxr::VtArray<pxr::GfVec3f>{
+              {element->rgba[0], element->rgba[1], element->rgba[2]}});
+      // Set the displayOpacity attribute, only if the opacity is not 1.
+      if (element->rgba[3] != 1.0f) {
+        pxr::SdfPath display_opacity_attr = CreateAttributeSpec(
+            data_, prim_path, pxr::UsdGeomTokens->primvarsDisplayOpacity,
+            pxr::SdfValueTypeNames->FloatArray);
+        SetAttributeDefault(data_, display_opacity_attr,
+                            pxr::VtArray<float>{element->rgba[3]});
+      }
+    }
+  }
+
   void PrependToXformOpOrder(const pxr::SdfPath &prim_path,
                              const pxr::VtArray<pxr::TfToken> &order) {
     auto xform_op_order_path =
@@ -1573,6 +1601,8 @@ class ModelWriter {
     WriteUniformAttribute(site_path, pxr::SdfValueTypeNames->Int,
                           MjcPhysicsTokens->mjcGroup, site->group);
 
+    WriteColorAndOpacityAttributes(site_path, site);
+
     int site_id = mjs_getId(site->element);
     auto transform = MujocoPosQuatToTransform(&model_->site_pos[3 * site_id],
                                               &model_->site_quat[4 * site_id]);
@@ -1759,28 +1789,7 @@ class ModelWriter {
       }
     }
 
-    // If geom rgba is not the default (0.5, 0.5, 0.5, 1), then set the
-    // displayColor attribute.
-    // No effort is made to properly handle the interaction between geom rgba
-    // and the material if both are specified.
-    if (geom->rgba[0] != 0.5f || geom->rgba[1] != 0.5f ||
-        geom->rgba[2] != 0.5f || geom->rgba[3] != 1.0f) {
-      // Set the displayColor attribute.
-      pxr::SdfPath display_color_attr = CreateAttributeSpec(
-          data_, geom_path, pxr::UsdGeomTokens->primvarsDisplayColor,
-          pxr::SdfValueTypeNames->Color3fArray);
-      SetAttributeDefault(data_, display_color_attr,
-                          pxr::VtArray<pxr::GfVec3f>{
-                              {geom->rgba[0], geom->rgba[1], geom->rgba[2]}});
-      // Set the displayOpacity attribute, only if the opacity is not 1.
-      if (geom->rgba[3] != 1.0f) {
-        pxr::SdfPath display_opacity_attr = CreateAttributeSpec(
-            data_, geom_path, pxr::UsdGeomTokens->primvarsDisplayOpacity,
-            pxr::SdfValueTypeNames->FloatArray);
-        SetAttributeDefault(data_, display_opacity_attr,
-                            pxr::VtArray<float>{geom->rgba[3]});
-      }
-    }
+    WriteColorAndOpacityAttributes(geom_path, geom);
 
     if (body_id == kWorldIndex) {
       SetPrimKind(data_, geom_path, pxr::KindTokens->component);
