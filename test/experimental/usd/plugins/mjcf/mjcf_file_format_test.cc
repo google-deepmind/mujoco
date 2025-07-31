@@ -350,6 +350,25 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {
                        pxr::VtArray<float>{0.9});
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, TestSiteRgba) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="test">
+      <worldbody>
+        <site type="sphere" name="sphere_red" size="1" rgba="1 0 0 1"/>
+      </worldbody>
+    </mujoco>
+  )";
+
+  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
+  auto stage = pxr::UsdStage::Open(layer);
+
+  EXPECT_PRIM_VALID(stage, "/test/sphere_red");
+  ExpectAttributeEqual(stage, "/test/sphere_red.primvars:displayColor",
+                       pxr::VtArray<pxr::GfVec3f>{{1, 0, 0}});
+  EXPECT_ATTRIBUTE_HAS_NO_VALUE(stage,
+                                "/test/sphere_red.primvars:displayOpacity");
+}
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestFaceVaryingMeshSourcesSimpleMjcfMesh) {
   static constexpr char kXml[] = R"(
     <mujoco model="mesh test">
