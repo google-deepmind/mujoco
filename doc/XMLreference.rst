@@ -2889,13 +2889,14 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 .. _body-camera-principal:
 
 :at:`principal`: :at-val:`real(2), "0 0"`
-   Principal point of the camera in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`.
+   Offset of the principal point of the camera with respect to the camera center in length units. It is mutually
+   exclusive with :ref:`fovy <body-camera-fovy>`.
 
 .. _body-camera-principalpixel:
 
 :at:`principalpixel`: :at-val:`real(2), "0 0"`
-   Principal point of the camera in pixel units. If both :at:`principal`: and :at:`principalpixel`: are specified, the
-   former is ignored.
+   Offset of the principal point of the camera with respect to the camera center in pixel units. If both
+   :at:`principal`: and :at:`principalpixel`: are specified, the former is ignored.
 
 .. _body-camera-sensorsize:
 
