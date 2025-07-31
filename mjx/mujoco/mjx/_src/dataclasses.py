@@ -62,11 +62,19 @@ def dataclass(clz: _T, register_as_pytree: bool) -> _T:
     def iterate_clz_with_keys(x):
       def to_meta(field, obj):
         val = getattr(obj, field.name)
-        # numpy arrays are not hashable so return raw bytes instead
         if isinstance(val, np.ndarray):
+          # numpy arrays are not hashable so return raw bytes instead
           return (val.tobytes(), val.dtype, val.shape)
-        else:
-          return val
+        if typing.get_origin(field.type) == tuple:
+          # variadic tuples of numpy arrays
+          type_args = typing.get_args(field.type)
+          if (
+              len(type_args) == 2
+              and type_args[0] == np.ndarray
+              and type_args[1] == ...
+          ):
+            return tuple((v.tobytes(), v.dtype, v.shape) for v in val)
+        return val
 
       def to_data(field, obj):
         return (jax.tree_util.GetAttrKey(field.name), getattr(obj, field.name))
@@ -81,8 +89,20 @@ def dataclass(clz: _T, register_as_pytree: bool) -> _T:
         if field.type is np.ndarray:
           arr = np.frombuffer(meta[0], dtype=meta[1]).reshape(meta[2])
           return (field.name, arr)
-        else:
-          return (field.name, meta)
+        if typing.get_origin(field.type) == tuple:
+          type_args = typing.get_args(field.type)
+          if (
+              len(type_args) == 2
+              and type_args[0] == np.ndarray
+              and type_args[1] == ...
+          ):
+            return (
+                field.name,
+                tuple(
+                    np.frombuffer(m[0], dtype=m[1]).reshape(m[2]) for m in meta
+                ),
+            )
+        return (field.name, meta)
 
       from_data = lambda field, meta: (field.name, meta)
 

@@ -28,6 +28,7 @@ from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
+from mujoco.mjx._src.types import OptionJAX
 from mujoco.mjx._src.types import SolverType
 # pylint: enable=g-importing-member
 
@@ -75,7 +76,9 @@ class Context(PyTreeNode):
 
   @classmethod
   def create(cls, m: Model, d: Data, grad: bool = True) -> 'Context':
-    if not isinstance(d._impl, DataJAX):
+    if not isinstance(d._impl, DataJAX) or not isinstance(
+        m.opt._impl, OptionJAX
+    ):
       raise ValueError(
           'Constraint context requires JAX backend implementation.'
       )
@@ -430,7 +433,11 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
   Returns:
     updated context with new qacc, Ma, Jaref
   """
-  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+  if (
+      not isinstance(m._impl, ModelJAX)
+      or not isinstance(d._impl, DataJAX)
+      or not isinstance(m.opt._impl, OptionJAX)
+  ):
     raise ValueError('_lineasearch requires JAX backend implementation.')
 
   smag = math.norm(ctx.search) * m.stat.meaninertia * max(1, m.nv)
@@ -549,6 +556,8 @@ def _linesearch(m: Model, d: Data, ctx: Context) -> Context:
 
 def solve(m: Model, d: Data) -> Data:
   """Finds forces that satisfy constraints using conjugate gradient descent."""
+  if not isinstance(m.opt._impl, OptionJAX):
+    raise ValueError('solve requires JAX backend implementation.')
 
   def cond(ctx: Context) -> jax.Array:
     improvement = _rescale(m, ctx.prev_cost - ctx.cost)

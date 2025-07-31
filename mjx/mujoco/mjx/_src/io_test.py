@@ -24,12 +24,13 @@ import mujoco
 from mujoco import mjx
 from mujoco.mjx._src import io as mjx_io
 from mujoco.mjx._src import test_util
-
 # pylint: disable=g-importing-member
 from mujoco.mjx._src.types import ConeType
 from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import JacobianType
 # pylint: enable=g-importing-member
+import mujoco.mjx.warp as mjxw
+from mujoco.mjx.warp import types as mjxw_types
 import numpy as np
 
 
@@ -110,14 +111,31 @@ _SIMPLE_BODY = """
 """
 
 
+def _get_name_from_path(path: jax.tree_util.KeyPath) -> str:
+  """Returns a flattened name from a jax.tree_util.KeyPath."""
+  if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
+    is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
+    path = path[: is_seq_key.index(True)]
+  assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
+  path = [p for p in path if p.name != '_impl']
+  attr = '__'.join(p.name for p in path)
+  return attr
+
+
 class ModelIOTest(parameterized.TestCase):
   """IO tests for mjx.Model."""
 
   @parameterized.product(
       xml=(_MULTIPLE_CONVEX_OBJECTS, _MULTIPLE_CONSTRAINTS),
-      impl=('jax', 'c'),
+      impl=('jax', 'c', 'warp'),
   )
+  @mock.patch.dict(os.environ, {'MJX_GPU_DEFAULT_WARP': 'true'})
   def test_put_model(self, xml, impl):
+    if impl == 'warp' and not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp not installed.')
+    if impl == 'warp' and not mjx_io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device available.')
+
     m = mujoco.MjModel.from_xml_string(xml)
     mx = mjx.put_model(m, impl=impl)
 
@@ -146,9 +164,14 @@ class ModelIOTest(parameterized.TestCase):
       self.assertFalse(hasattr(mx, 'bvh_aabb'))
     elif impl == 'c':
       # Options specific to C are populated.
-      self.assertEqual(mx.opt.apirate, m.opt.apirate)
+      self.assertEqual(mx.opt._impl.apirate, m.opt.apirate)
       # Fields private to C backend impl are populated.
       self.assertTrue(hasattr(mx._impl, 'bvh_aabb'))
+    elif impl == 'warp':
+      # Options specific to Warp are populated.
+      self.assertTrue(hasattr(mx.opt._impl, 'ls_parallel'))
+      # Fields private to Warp backend impl are populated.
+      self.assertTrue(hasattr(mx._impl, 'nxn_geom_pair'))
 
     np.testing.assert_allclose(mx.body_parentid, m.body_parentid)
     np.testing.assert_allclose(mx.geom_type, m.geom_type)
@@ -170,7 +193,7 @@ class ModelIOTest(parameterized.TestCase):
 
     np.testing.assert_equal(mx.wrap_type, m.wrap_type)
     np.testing.assert_equal(mx.wrap_objid, m.wrap_objid)
-    np.testing.assert_equal(mx.wrap_prm, m.wrap_prm)
+    np.testing.assert_almost_equal(mx.wrap_prm, m.wrap_prm)
 
   def test_fluid_params(self):
     """Test that has_fluid_params is set when fluid params are present."""
@@ -180,7 +203,7 @@ class ModelIOTest(parameterized.TestCase):
         ),
         impl='jax',
     )
-    self.assertTrue(m.opt.has_fluid_params)
+    self.assertTrue(m.opt._impl.has_fluid_params)
 
   def test_implicit_not_implemented(self):
     """Test that MJX guards against models with unimplemented features."""
@@ -276,6 +299,29 @@ class ModelIOTest(parameterized.TestCase):
     with self.assertRaises(NotImplementedError):
       mjx.put_model(m, impl='jax')
 
+  def test_put_model_warp_has_expected_shapes(self):
+    """Tests that put_model produces expected shapes for MuJoCo Warp."""
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp not installed.')
+    if not mjx_io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device available.')
+
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    mx = mjx.put_model(m, impl='warp')
+
+    def check_ndim(path, x):
+      k = _get_name_from_path(path)
+      if k not in mjxw_types.NDIM['Model']:
+        return
+      is_batched = mjxw_types.BATCH_DIM['Model'][k]
+      expected_ndim = mjxw_types.NDIM['Model'][k] - is_batched
+      if not hasattr(x, 'ndim'):
+        return
+      msg = f'Field {k} has ndim {x.ndim} but expected {expected_ndim}'
+      self.assertEqual(x.ndim, expected_ndim, msg)
+
+    _ = jax.tree.map_with_path(check_ndim, mx)
+
 
 class DataIOTest(parameterized.TestCase):
   """IO tests for mjx.Data."""
@@ -365,6 +411,17 @@ class DataIOTest(parameterized.TestCase):
       # check C specific fields
       self.assertEqual(d._impl.light_xpos.shape, (m.nlight, 3))
       self.assertEqual(d._impl.bvh_active.shape, (m.nbvh,))
+
+  @mock.patch.dict(os.environ, {'MJX_GPU_DEFAULT_WARP': 'true'})
+  def test_make_data_warp(self):
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp is not installed.')
+    if not mjx_io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device.')
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
+    d = mjx.make_data(m, impl='warp', nconmax=9, njmax=11)
+    self.assertEqual(d._impl.contact__dist.shape[0], 9)
+    self.assertEqual(d._impl.efc__J.shape[0], 11)
 
   @parameterized.parameters('jax', 'c')
   def test_put_data(self, impl: str):
@@ -676,6 +733,47 @@ class DataIOTest(parameterized.TestCase):
 
     np.testing.assert_allclose(res_mj[0], res, rtol=1e-3, atol=1e-3)
 
+  def test_make_data_warp_has_expected_shapes(self):
+    """Tests that make_data produces expected shapes for MuJoCo Warp."""
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp is not installed.')
+    if not mjx_io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device.')
+
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    dx = mjx.make_data(m, impl='warp')
+
+    def check_ndim(path, x):
+      k = _get_name_from_path(path)
+      if k not in mjxw_types.NDIM['Data']:
+        return
+      is_batched = mjxw_types.BATCH_DIM['Data'][k]
+      expected_ndim = mjxw_types.NDIM['Data'][k] - is_batched
+      if not hasattr(x, 'ndim'):
+        return
+      msg = f'Field {k} has ndim {x.ndim} but expected {expected_ndim}'
+      self.assertEqual(x.ndim, expected_ndim, msg)
+
+    _ = jax.tree.map_with_path(check_ndim, dx)
+
+  @parameterized.parameters('jax', 'warp')
+  def test_data_slice(self, impl):
+    """Tests that slice on Data works as expected."""
+    if impl == 'warp' and not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp is not installed.')
+    if impl == 'warp' and not mjx_io.has_cuda_gpu_device():
+      self.skipTest('No CUDA GPU device.')
+
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    dx = jax.vmap(lambda x: mjx.make_data(m, impl=impl))(jp.arange(10))
+
+    self.assertEqual(dx.qpos.shape, (10, m.nq))
+    self.assertEqual(dx[0].qpos.shape, (m.nq,))
+
+    if impl == 'warp':
+      self.assertEqual(dx._impl.contact__dist.shape, (dx._impl.nconmax,))
+      self.assertEqual(dx[0]._impl.contact__dist.shape, (dx._impl.nconmax,))
+
 
 class FullCompatTest(parameterized.TestCase):
   """Tests for the _full_compat flag."""
@@ -711,7 +809,7 @@ _DEVICE_TEST_CASES = [
     # (device_type_str, impl_str,
     #  (expected_device, expected_impl)))
     # No backend specified.
-    ('cpu', None, ('cpu', Impl.C)),
+    ('cpu', None, ('cpu', Impl.JAX)),
     ('gpu-notnvidia', None, ('gpu', Impl.JAX)),
     ('gpu-nvidia', None, ('gpu', Impl.WARP)),
     ('tpu', None, ('tpu', Impl.JAX)),
@@ -739,7 +837,7 @@ _DEFAULT_DEVICE_TEST_CASES = [
     # (jax.default_device, impl_str,
     #  (expected_device, expected_impl))
     # No backend impl specified.
-    ('cpu', None, ('cpu', Impl.C)),
+    ('cpu', None, ('cpu', Impl.JAX)),
     ('gpu-notnvidia', None, ('gpu', Impl.JAX)),
     ('gpu-nvidia', None, ('gpu', Impl.WARP)),
     ('tpu', None, ('tpu', Impl.JAX)),
@@ -790,6 +888,9 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
 
     # Patch jax.devices for the entire test class using enter_context
     self.mock_jax_devices = self.enter_context(mock.patch('jax.devices'))
+    self.mock_jax_backends = self.enter_context(
+        mock.patch('jax.extend.backend.backends')
+    )
     self.mock_default_backend = self.enter_context(
         mock.patch('jax.default_backend')
     )
@@ -797,9 +898,7 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
   @parameterized.named_parameters(
       (f'{str(args[0])}_{str(args[1])}', *args) for args in _DEVICE_TEST_CASES
   )
-  @mock.patch.dict(
-      os.environ, {'MJX_WARP_ENABLED': 'true', 'MJX_C_DEFAULT_ENABLED': 'true'}
-  )
+  @mock.patch.dict(os.environ, {'MJX_GPU_DEFAULT_WARP': 'true'})
   def test_resolve_with_device(
       self,
       device_type_str,
@@ -819,7 +918,7 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
       if backend == 'cpu':
         return [self.mock_cpu]
       elif backend == 'gpu':
-        if 'nvidia' in device_type_str:
+        if device_type_str == 'gpu-nvidia':
           return [self.mock_nvidia_gpu]
         return [self.mock_other_gpu]
       elif backend == 'tpu':
@@ -828,8 +927,18 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
         return [self.mock_nvidia_gpu]
 
       raise AssertionError('Should not be called.')
-
     self.mock_jax_devices.side_effect = devices_side_effect
+
+    def backends_side_effect():
+      if device_type_str == 'gpu-nvidia':
+        return ['cuda', 'cpu']
+      if 'tpu' in device_type_str:
+        return ['tpu', 'cpu']
+      if 'gpu' in device_type_str:
+        return ['gpu', 'cpu']
+      return ['cpu']
+
+    self.mock_jax_backends.side_effect = backends_side_effect
 
     expected_device, expected_impl = expected
     if expected_impl == 'error':
@@ -838,6 +947,14 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
             impl=impl_str, device=input_device
         )
       return
+
+    if impl_str == 'warp' and not mjxw.WARP_INSTALLED:
+      with self.assertRaisesRegex(RuntimeError, 'not installed'):
+        mjx_io._resolve_impl_and_device(impl=impl_str, device=input_device)
+      return
+
+    if impl_str is None and not mjxw.WARP_INSTALLED:
+      expected_impl = Impl.JAX
 
     actual_impl, actual_device = (
         mjx_io._resolve_impl_and_device(
@@ -853,9 +970,7 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
       (f'{str(args[0])}_{str(args[1])}', *args)
       for args in _DEFAULT_DEVICE_TEST_CASES
   )
-  @mock.patch.dict(
-      os.environ, {'MJX_WARP_ENABLED': 'true', 'MJX_C_DEFAULT_ENABLED': 'true'}
-  )
+  @mock.patch.dict(os.environ, {'MJX_GPU_DEFAULT_WARP': 'true'})
   def test_resolve_without_device(
       self,
       default_device_str,
@@ -886,8 +1001,8 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
       if backend == 'cuda':
         raise RuntimeError('cuda backend not supported')
       raise AssertionError('jax.devices error')
-
     self.mock_jax_devices.side_effect = devices_side_effect
+
     default_device_side_effect_str = {
         'cpu': 'cpu',
         'gpu-nvidia': 'gpu',
@@ -898,6 +1013,17 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
         lambda: default_device_side_effect_str
     )
 
+    def backends_side_effect():
+      if default_device_str == 'gpu-nvidia':
+        return ['cuda', 'cpu']
+      if 'tpu' in default_device_str:
+        return ['tpu', 'cpu']
+      if 'gpu' in default_device_str:
+        return ['gpu', 'cpu']
+      return ['cpu']
+
+    self.mock_jax_backends.side_effect = backends_side_effect
+
     expected_device, expected_impl = expected
     if (
         expected_impl == 'error'
@@ -905,31 +1031,36 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
         and impl_str == 'warp'
     ):
       with self.assertRaisesRegex(RuntimeError, 'cuda backend not supported'):
-        mjx_io._resolve_impl_and_device(
-            impl=impl_str, device=None
-        )
+        mjx_io._resolve_impl_and_device(impl=impl_str, device=None)
       return
 
     if expected_impl == 'error':
       with self.assertRaises(AssertionError):
-        mjx_io._resolve_impl_and_device(
-            impl=impl_str, device=None
-        )
+        mjx_io._resolve_impl_and_device(impl=impl_str, device=None)
       return
 
-    actual_impl, actual_device = (
-        mjx_io._resolve_impl_and_device(
-            impl=impl_str, device=None
-        )
+    if impl_str == 'warp' and not mjxw.WARP_INSTALLED:
+      with self.assertRaises(RuntimeError):
+        mjx_io._resolve_impl_and_device(impl=impl_str, device=None)
+      return
+
+    if impl_str is None and not mjxw.WARP_INSTALLED:
+      expected_impl = Impl.JAX
+
+    actual_impl, actual_device = mjx_io._resolve_impl_and_device(
+        impl=impl_str, device=None
     )
 
     self.assertEqual(actual_impl, expected_impl)
     self.assertIsNotNone(actual_device)
     self.assertEqual(actual_device.platform, expected_device)
 
-  @mock.patch.dict(os.environ, {'MJX_WARP_ENABLED': 'false'})
+  @mock.patch.dict(os.environ, {'MJX_GPU_DEFAULT_WARP': 'false'})
   def test_resolve_warp_disabled(self):
-    """Tests behavior when MJX_WARP_ENABLED is false."""
+    """Tests behavior when MJX_GPU_DEFAULT_WARP is false."""
+    if not mjxw.WARP_INSTALLED:
+      self.skipTest('Warp is not installed.')
+
     self.mock_jax_devices.side_effect = lambda backend=None: (
         [self.mock_nvidia_gpu, self.mock_cpu]
         if backend is None
@@ -950,64 +1081,6 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
     )
     self.assertEqual(impl, Impl.JAX)
     self.assertEqual(device.platform, 'gpu')
-
-    # Requesting warp explicitly should fail since it is disabled.
-    with self.assertRaises(AssertionError):
-      mjx_io._resolve_impl_and_device(
-          impl='warp', device=self.mock_nvidia_gpu
-      )
-    with self.assertRaises(AssertionError):
-      mjx_io._resolve_impl_and_device(impl='warp', device=None)
-
-  @mock.patch.dict(os.environ, {'MJX_C_DEFAULT_ENABLED': 'false'})
-  def test_resolve_c_disabled(self):
-    """Tests behavior when MJX_C_DEFAULT_ENABLED is false."""
-    # Users expect that CPU defaults to the JAX impl. But in the future, it will
-    # default to the C backend implementation. This test checks that
-    # MJX_C_DEFAULT_ENABLED=false defaults to the old behavior, until the
-    # migration to MJEP-15 is complete.
-    self.mock_jax_devices.side_effect = lambda backend=None: ([self.mock_cpu])
-    self.mock_default_backend.side_effect = lambda: 'cpu'
-
-    # Default to JAX instead of C on CPU.
-    impl, device = mjx_io._resolve_impl_and_device(
-        impl=None, device=None
-    )
-    self.assertEqual(impl, Impl.JAX)
-    self.assertEqual(device.platform, 'cpu')
-
-    # Specifing CPU should still choose JAX.
-    impl, device = mjx_io._resolve_impl_and_device(
-        impl=None, device=self.mock_cpu
-    )
-    self.assertEqual(impl, Impl.JAX)
-    self.assertEqual(device.platform, 'cpu')
-
-    # Specifying C should choose C!
-    impl, device = mjx_io._resolve_impl_and_device(
-        impl='c', device=None
-    )
-    self.assertEqual(impl, Impl.C)
-    self.assertEqual(device.platform, 'cpu')
-
-    impl, device = mjx_io._resolve_impl_and_device(
-        impl='c', device=self.mock_cpu
-    )
-    self.assertEqual(impl, Impl.C)
-    self.assertEqual(device.platform, 'cpu')
-
-  def test_flex_jax(self):
-    with self.assertRaises(NotImplementedError):
-      m = mujoco.MjModel.from_xml_string("""
-      <mujoco>
-        <worldbody>
-          <flexcomp name="flex" type="grid" dim="1" count="3 1 1" mass="1" spacing=".1 .1 .1">
-            <pin id="0"/>
-          </flexcomp>
-        </worldbody>
-      </mujoco>
-      """)
-      mjx.put_model(m, impl='jax')
 
 
 if __name__ == '__main__':

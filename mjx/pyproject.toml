@@ -33,6 +33,8 @@ dependencies = [
     "mujoco>=3.3.5.dev0",
     "scipy",
     "trimesh",
+    "warp-lang==1.8.0; python_version >= '3.12' and sys_platform == 'linux'",
+    "warp-lang==1.8.0; python_version >= '3.12' and sys_platform == 'win32'",
 ]
 
 [project.scripts]
@@ -65,3 +67,8 @@ pyink-use-majority-quotes = true
 extend-exclude = '''(
  .ipynb$
 )'''
+
+[tool.pytest.ini_options]
+norecursedirs = [
+    "**/third_party",
+]

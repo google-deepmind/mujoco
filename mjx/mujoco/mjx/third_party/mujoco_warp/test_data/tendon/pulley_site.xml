@@ -1,0 +1,46 @@
+<mujoco>
+  <worldbody>
+    <site name="siteworld"/>
+    <body>
+      <joint type="slide" axis="1 0 0"/>
+      <geom type="sphere" size="0.1"/>
+      <site name="site0" pos="0 0 .1"/>
+      <body>
+        <joint type="slide" axis="1 0 0"/>
+        <joint type="hinge" axis="0 1 0"/>
+        <geom type="sphere" size="0.1"/>
+        <site name="site1" pos="0 0 .2"/>
+      </body>
+    </body>
+  </worldbody>
+  <tendon>
+    <spatial name="spatial0">
+      <pulley divisor="2"/>
+      <site site="siteworld"/>
+      <site site="site0"/>
+      <site site="site1"/>
+    </spatial>
+    <spatial name="spatial1">
+      <site site="siteworld"/>
+      <site site="site0"/>
+    </spatial>
+    <spatial name="spatial2">
+      <site site="siteworld"/>
+      <site site="site1"/>
+    </spatial>
+    <spatial name="spatial3">
+      <pulley divisor="3"/>
+      <site site="site0"/>
+      <site site="site1"/>
+    </spatial>
+  </tendon>
+  <actuator>
+    <motor tendon="spatial0"/>
+    <motor tendon="spatial1"/>
+    <motor tendon="spatial2"/>
+    <motor tendon="spatial3"/>
+  </actuator>
+  <keyframe>
+    <key qpos=".25 .5 .75"/>
+  </keyframe>
+</mujoco>

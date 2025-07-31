@@ -1,15 +1,18 @@
-jax[cuda12_local]==0.4.34; python_version >= '3.10' \
-    --hash=sha256:b957ca1fc91f7343f91a186af9f19c7f342c946f95a8c11c7f1e5cdfe2e58d9e
-jax[cuda12_local]==0.4.30; python_version == '3.9' \
-    --hash=sha256:289b30ae03b52f7f4baf6ef082a9f4e3e29c1080e22d13512c5ecf02d5f1a55b
-jax-cuda12-plugin==0.4.34; python_version >= '3.10' \
-    --hash=sha256:d035ea72bd9b8a65a6ea621bca1affdd33127fa3a52e7bded7692670d360adab \
-    --hash=sha256:db988b7ba5063483a936ddbf162f04d1b4412e0d64340f11788c7bbc877e8a43 \
-    --hash=sha256:e23721d1654b311b47cd6b35768520284bd036f8c7e6b11600143258b4a0409a \
-    --hash=sha256:b2099a4407225122ff76f6dcdc8dbdae47e6f29343bdfd21460ad337dc34a209
+jax-cuda12-plugin==0.5.3; python_version >= '3.10' \
+    --hash=sha256:6171aed2f4b3bdd5fc13782de1072c6a634fce13731b75d0cb0a6ab8f4e6e650 \
+    --hash=sha256:ba2555967f9b6c381c8b4ef9fb03d05bc55ec25ecfee5cfe45c5ace34f7d4152 \
+    --hash=sha256:298d2d768f1029b74a0b1d01270e549349d2c37dc07658796542cda967eb7bd3 \
+    --hash=sha256:aaa704a5ef547595d022db1c1e4878a0677116412a9360c115d67ff4b64e1596 \
+    --hash=sha256:c2517a7c2186f8708894696e26cf96ebd60b7879ceca398b2c46abb28d2c96c8 \
+    --hash=sha256:2030cf1208ce4ea70ee56cac61ddd239f9798695fc39bb7739c50a25d6e9da44 \
+    --hash=sha256:21fec1b56c98783ea0569b747a56751f1f9ff2187b48acc11c700d3bfc5e1a31 \
+    --hash=sha256:1862595b2b6d815679d11e0e889e523185ee54a46d46e022689f70fc4554dd91 \
+    --hash=sha256:6d43677f22f3be9544a205216cd6dac591335b1d9bbbed018cd17dbb1f3f4def \
+    --hash=sha256:5bb9ea0e68d72d44e57e4cb6a58a1a729fe3fe32e964f71e398d8a25c2103b19
 jax-cuda12-plugin==0.4.30; python_version == '3.9' \
     --hash=sha256:d8d196241b9253ecb1144a4409b5deacbb9771624f097b2bbf025da3c7d8f4f8
-jax-cuda12-pjrt==0.4.34; python_version >= '3.10' \
-    --hash=sha256:0c7cc98f962cc7fc8e0a5ea6331b42a0cee516f202f1c3019f6aa5cd9530cca0
+jax-cuda12-pjrt==0.5.3; python_version >= '3.10' \
+    --hash=sha256:04ee111eaf5fc2692978ad4a5c84d5925e42eb05c1701849ba3a53f6515400cc \
+    --hash=sha256:c5378306568ba0c81b230a779dd3194c9dd10339ab6360ae80928108d37e7f75
 jax-cuda12-pjrt==0.4.30; python_version == '3.9' \
     --hash=sha256:895d0198ad99638fcaf976c47592e2a543eef79ea15fabd24a402d055390c328

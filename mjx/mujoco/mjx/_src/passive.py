@@ -116,7 +116,11 @@ def _fluid(m: Model, d: Data) -> jax.Array:
 
 def passive(m: Model, d: Data) -> Data:
   """Adds all passive forces."""
-  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+  if (
+      not isinstance(m._impl, ModelJAX)
+      or not isinstance(d._impl, DataJAX)
+      or not isinstance(m.opt._impl, OptionJAX)
+  ):
     raise ValueError('passive requires JAX backend implementation.')
 
   if m.opt.disableflags & DisableBit.PASSIVE:
@@ -130,7 +134,7 @@ def passive(m: Model, d: Data) -> Data:
     # add gravcomp unless added via actuators
     qfrc_passive += qfrc_gravcomp * (1 - m.jnt_actgravcomp[m.dof_jntid])
 
-  if m.opt.has_fluid_params:  # pytype: disable=attribute-error
+  if m.opt._impl.has_fluid_params:  # pytype: disable=attribute-error
     qfrc_passive += _fluid(m, d)
 
   d = d.replace(qfrc_passive=qfrc_passive, qfrc_gravcomp=qfrc_gravcomp)
@@ -147,6 +151,11 @@ def _inertia_box_fluid_model(
     cvel: jax.Array,
 ) -> Tuple[jax.Array, jax.Array]:
   """Fluid forces based on inertia-box approximation."""
+  if not isinstance(m.opt._impl, OptionJAX):
+    raise ValueError(
+        '_inertia_box_fluid_model requires JAX backend implementation.'
+    )
+
   box = jp.repeat(inertia[None, :], 3, axis=0)
   box *= jp.ones((3, 3)) - 2 * jp.eye(3)
   box = 6.0 * jp.clip(jp.sum(box, axis=-1), a_min=1e-12)

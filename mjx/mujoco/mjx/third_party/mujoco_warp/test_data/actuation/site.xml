@@ -1,0 +1,31 @@
+<mujoco>
+  <worldbody>
+    <site name="siteworld"/>
+    <body>
+      <joint type="hinge" axis="1 0 0"/>
+      <geom type="sphere" size=".1" pos="0 .1 0"/>
+      <site name="site0"/>
+      <body>
+        <joint type="hinge" axis="0 1 0"/>
+        <geom type="sphere" size=".1" pos="0 0 .2"/>
+        <site name="site1"/>
+        <body>
+          <joint type="hinge" axis="0 0 1"/>
+          <geom type="sphere" size=".1" pos=".3 0 0"/>
+          <site name="site2"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor site="site0" gear="1 2 3 4 5 6"/>
+    <motor site="site0" refsite="siteworld" gear="1 2 3 4 5 6"/>
+    <motor site="site1" gear="1 2 3 4 5 6"/>
+    <motor site="site1" refsite="siteworld" gear="1 2 3 4 5 6"/>
+    <motor site="site2" gear="1 2 3 4 5 6"/>
+    <motor site="site2" refsite="siteworld" gear="1 2 3 4 5 6"/>
+  </actuator>
+  <keyframe>
+    <key qpos=".1 .2 .3"/>
+  </keyframe>
+</mujoco>
