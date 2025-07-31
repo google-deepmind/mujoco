@@ -115,13 +115,15 @@ def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Collision:
   vec = axis * prjaxis - n
   len_ = math.norm(vec)
 
-  vec = jp.where(
-      len_ < 1e-12,
-      # disk parallel to plane: pick x-axis of cylinder, scale by radius
-      cylinder.mat[:, 0] * cylinder.size[0],
-      # general configuration: normalize vector, scale by radius
-      vec / len_ * cylinder.size[0],
-  )
+  # disk parallel to plane: pick x-axis of cylinder, scale by radius
+  def disk_parallel_to_plane(vec, len_, cylinder):
+    return cylinder.mat[:, 0] * cylinder.size[0]
+
+  # general configuration: normalize vector, scale by radius
+  def general_configuration(vec, len_, cylinder):
+    return vec / len_ * cylinder.size[0]
+
+  vec = jax.lax.cond(len_ < 1e-12, disk_parallel_to_plane, general_configuration, vec, len_, cylinder)
 
   # project vector on normal
   prjvec = jp.dot(vec, n)
