@@ -139,6 +139,9 @@ MJAPI int mju_isZero(mjtNum* vec, int n);
 // set integer vector to 0
 MJAPI void mju_zeroInt(int* res, int n);
 
+// set mjtSize vector to 0
+MJAPI void mju_zeroSize(mjtSize* res, size_t n);
+
 // set size_t vector to 0
 MJAPI void mju_zeroSizeT(size_t* res, size_t n);
 

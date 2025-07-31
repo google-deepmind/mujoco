@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #include "engine/engine_io.h"
 
+#include <inttypes.h>  // NOLINT required for PRIu64
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -22,8 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <mujoco/mjmodel.h>
 #include <mujoco/mjmacro.h>
+#include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
@@ -320,11 +320,11 @@ static int getnint(void) {
 
 
 
-// count size_t members in mjModel
-static int getnsize(void) {
+// count buffer members in mjModel (mjtSize)
+static int getnbuffer(void) {
   int cnt = 0;
 
-#define X(name) cnt += _Generic(MJMODEL_MEMBER(name), size_t: 1, default: 0);
+#define X(name) cnt += _Generic(MJMODEL_MEMBER(name), mjtSize: 1, default: 0);
   MJMODEL_INTS
 #undef X
 
@@ -414,7 +414,10 @@ static void mj_setPtrModel(mjModel* m) {
   // check size
   ptrdiff_t sz = ptr - (char*)m->buffer;
   if (m->nbuffer != sz) {
-    mjERROR("mjModel buffer size mismatch, expected size: %zd,  actual size: %zu", m->nbuffer, sz);
+    mjERROR(
+        "mjModel buffer size mismatch, "
+        "expected size: %" PRIu64 ",  actual size: %td",
+        m->nbuffer, sz);
   }
 }
 
@@ -425,7 +428,7 @@ static void mj_setPtrModel(mjModel* m) {
 // performs the following operations:
 // *nbuffer += SKIP(*offset) + type_size*nr*nc;
 // *offset += SKIP(*offset) + type_size*nr*nc;
-static int safeAddToBufferSize(intptr_t* offset, size_t* nbuffer,
+static int safeAddToBufferSize(intptr_t* offset, mjtSize* nbuffer,
                                size_t type_size, int nr, int nc) {
   if (type_size < 0 || nr < 0 || nc < 0) {
     return 0;
@@ -724,7 +727,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
   int ptrbuf = 0;
 
   // standard header
-  int header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnsize(), getnptr()};
+  int header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnbuffer(), getnptr()};
 
   // open file for writing if no buffer
   if (!buffer) {
@@ -752,7 +755,7 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
       #undef X
     }
   } else {
-    bufwrite(header, sizeof(int)*sizeof(header) / sizeof(int), buffer_sz, buffer, &ptrbuf);
+    bufwrite(header, sizeof(header), buffer_sz, buffer, &ptrbuf);
     #define X(name) bufwrite(&m->name, sizeof(m->name), buffer_sz, buffer, &ptrbuf);
     MJMODEL_INTS
     #undef X
@@ -776,10 +779,6 @@ void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buff
 
 // load binary MJB model
 mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
-  int header[NHEADER] = {0};
-  int expected_header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnsize(), getnptr()};
-  int ints[256];
-  size_t sizes[8];
   int ptrbuf = 0;
   mjModel *m = 0;
 
@@ -788,9 +787,11 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
     return NULL;
   }
 
+  int header[NHEADER] = {0};
   bufread(header, NHEADER*sizeof(int), buffer_sz, buffer, &ptrbuf);
 
   // check header
+  int expected_header[NHEADER] = {ID, sizeof(mjtNum), getnint(), getnbuffer(), getnptr()};
   for (int i=0; i < NHEADER; i++) {
     if (header[i] != expected_header[i]) {
       switch (i) {
@@ -817,15 +818,16 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
     }
   }
 
-  // read mjModel structure: info only
-  if (ptrbuf + sizeof(int)*getnint() + sizeof(size_t)*getnsize() > buffer_sz) {
+  if (ptrbuf + sizeof(int)*getnint() + sizeof(mjtSize)*getnbuffer() > buffer_sz) {
     mju_warning("Truncated model file - ran out of data while reading sizes");
     return NULL;
   }
-  bufread(ints, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
-  bufread(sizes, sizeof(size_t)*getnsize(), buffer_sz, buffer, &ptrbuf);
 
-  // allocate new mjModel, check sizes
+  // read mjModel construction fields
+  int ints[256];
+  bufread(ints, sizeof(int)*getnint(), buffer_sz, buffer, &ptrbuf);
+
+  // allocate new mjModel
   mj_makeModel(&m,
                ints[0],  ints[1],  ints[2],  ints[3],  ints[4],  ints[5],  ints[6],
                ints[7],  ints[8],  ints[9],  ints[10], ints[11], ints[12], ints[13],
@@ -837,8 +839,14 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
                ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
                ints[63], ints[64], ints[65], ints[66], ints[67], ints[68], ints[69]);
-  if (!m || m->nbuffer != sizes[getnsize()-1]) {
-    mju_warning("Corrupted model, wrong size parameters");
+
+  // read mjModel mjtSize fields
+  mjtSize sizes[8];
+  bufread(sizes, sizeof(mjtSize)*getnbuffer(), buffer_sz, buffer, &ptrbuf);
+
+  // check mjtSize fields
+  if (!m || m->nbuffer != sizes[getnbuffer()-1]) {
+    mju_warning("Corrupted model, wrong nbuffer field");
     mj_deleteModel(m);
     return NULL;
   }
@@ -848,7 +856,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
     int int_idx = 0;
     int size_idx = 0;
     #define X(name) \
-        m->name = _Generic(m->name, size_t: sizes[size_idx++], default: ints[int_idx++]);
+        m->name = _Generic(m->name, mjtSize: sizes[size_idx++], default: ints[int_idx++]);
     MJMODEL_INTS
     #undef X
   }
@@ -908,7 +916,7 @@ void mj_deleteModel(mjModel* m) {
 int mj_sizeModel(const mjModel* m) {
   int size = (
     sizeof(int)*(NHEADER+getnint())
-    + sizeof(size_t)*getnsize()
+    + sizeof(mjtSize)*getnbuffer()
     + sizeof(mjOption)
     + sizeof(mjVisual)
     + sizeof(mjStatistic));
@@ -1285,7 +1293,10 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
   // check size
   ptrdiff_t sz = ptr - (char*)d->buffer;
   if (d->nbuffer != sz) {
-    mjERROR("mjData buffer size mismatch, expected size: %zd,  actual size: %zu", d->nbuffer, sz);
+    mjERROR(
+        "mjData buffer size mismatch, "
+        "expected size: %" PRIu64 ",  actual size: %td",
+        d->nbuffer, sz);
   }
 
   // zero-initialize arena pointers
@@ -1928,7 +1939,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // clear memory utilization stats
   d->maxuse_stack = 0;
-  mju_zeroSizeT(d->maxuse_threadstack, mjMAXTHREAD);
+  mju_zeroSize(d->maxuse_threadstack, mjMAXTHREAD);
   d->maxuse_arena = 0;
   d->maxuse_con = 0;
   d->maxuse_efc = 0;
