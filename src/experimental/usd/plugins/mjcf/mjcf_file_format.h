@@ -34,7 +34,6 @@ PXR_NAMESPACE_OPEN_SCOPE
     ((Id, "xml"))                    \
     ((Version, "1.0"))               \
     ((Target, "usd"))                \
-    ((ToggleUsdPhysicsArg, "usdMjcfToggleUsdPhysics"))
 // clang-format on
 
 TF_DECLARE_PUBLIC_TOKENS(UsdMjcfFileFormatTokens, USD_MJCF_FILE_FORMAT_TOKENS);
