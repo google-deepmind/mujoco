@@ -48,10 +48,8 @@ pxr::SdfLayerRefPtr LoadLayer(
   return layer;
 }
 
-pxr::UsdStageRefPtr OpenStageWithPhysics(const std::string& xml) {
-  pxr::SdfFileFormat::FileFormatArguments args;
-  args["usdMjcfToggleUsdPhysics"] = "true";
-  pxr::SdfLayerRefPtr layer = LoadLayer(xml, args);
+pxr::UsdStageRefPtr OpenStage(const std::string& xml) {
+  pxr::SdfLayerRefPtr layer = LoadLayer(xml);
   auto stage = pxr::UsdStage::Open(layer);
   EXPECT_THAT(stage, testing::NotNull());
   return stage;

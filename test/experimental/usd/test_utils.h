@@ -99,7 +99,7 @@ pxr::SdfLayerRefPtr LoadLayer(
     const std::string& xml,
     const pxr::SdfFileFormat::FileFormatArguments& args = {});
 
-pxr::UsdStageRefPtr OpenStageWithPhysics(const std::string& xml);
+pxr::UsdStageRefPtr OpenStage(const std::string& xml);
 
 template <typename T>
 void ExpectAttributeEqual(

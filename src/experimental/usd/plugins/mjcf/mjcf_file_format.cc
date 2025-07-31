@@ -147,17 +147,9 @@ bool UsdMjcfFileFormat::CanRead(const std::string &filePath) const {
 
 bool UsdMjcfFileFormat::ReadImpl(pxr::SdfLayer *layer, mjSpec *spec) const {
   auto args = layer->GetFileFormatArguments();
-
-  bool toggleUsdPhysics = false;
-  const auto it =
-      args.find(UsdMjcfFileFormatTokens->ToggleUsdPhysicsArg.GetString());
-  if (it != args.end()) {
-    toggleUsdPhysics = pxr::TfUnstringify<bool>(it->second);
-  }
-
   auto data = InitData(args);
 
-  auto success = mujoco::usd::WriteSpecToData(spec, data, toggleUsdPhysics);
+  auto success = mujoco::usd::WriteSpecToData(spec, data);
   mj_deleteSpec(spec);
   if (!success) {
     return false;
