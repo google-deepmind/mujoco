@@ -1,0 +1,45 @@
+<!-- Copyright 2021 DeepMind Technologies Limited
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<mujoco model="Poncho">
+  <include file="mannequin.xml"/>
+  <option timestep="0.001" integrator="Euler" solver="CG" tolerance="1e-6" jacobian="sparse">
+    <flag energy="enable"/>
+  </option>
+
+  <visual>
+    <map force="0.1" zfar="30"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <quality shadowsize="4096"/>
+    <global offwidth="800" offheight="800"/>
+  </visual>
+
+  <default>
+    <geom solref="0.003 1"/>
+  </default>
+
+  <worldbody>
+    <light directional="false" diffuse=".2 .2 .2" specular="0 0 0" pos="0 0 5" dir="0 0 -1"/>
+
+    <flexcomp name="towel" type="grid" count="15 15 1" spacing="0.1 0.1 0.1"
+              radius="0.03" dim="2" rgba="1 0.5 0.5 1" pos="0 0 2" mass=".1">
+      <edge equality="false"/>
+      <elasticity young="3e2" poisson="0" thickness="1e-1" damping="1e-3" elastic2d="both"/>
+      <contact vertcollide="true" conaffinity="0" contype="0"/>
+    </flexcomp>
+
+  </worldbody>
+
+</mujoco>

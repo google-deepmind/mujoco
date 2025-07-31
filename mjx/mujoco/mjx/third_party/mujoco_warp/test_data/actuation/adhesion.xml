@@ -1,0 +1,21 @@
+<mujoco>
+  <worldbody>
+    <geom type="plane" size="10 10 .001"/>
+    <body name="body">
+      <geom type="sphere" size=".1" pos=".1 0 0" margin=".01"/>
+      <geom type="sphere" size=".1" pos="0 .1 0" margin=".01" gap=".01"/>
+      <geom type="sphere" size=".1" pos=".1 .1 0" gap=".01"/>
+      <joint type="slide" axis="0 0 1"/>
+      <joint type="hinge" axis="1 0 1"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <adhesion body="body" gain=".123" ctrlrange="0 1"/>
+  </actuator>
+  <keyframe>
+    <key qpos=".11 0"/>
+    <key qpos=".12 0"/>
+    <key qpos=".09 0"/>
+    <key qpos=".08 0"/>
+  </keyframe>
+</mujoco>

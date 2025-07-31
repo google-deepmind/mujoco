@@ -21,6 +21,7 @@ import warnings
 import jax
 import mujoco
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
+from mujoco.mjx.warp import types as mjxw_types
 import numpy as np
 
 
@@ -465,48 +466,65 @@ class Statistic(PyTreeNode):
   center: jax.Array
 
 
-class Option(PyTreeNode):
-  """Physics options."""  # fmt: skip
-  timestep: jax.Array
-  impratio: jax.Array
-  tolerance: jax.Array
-  ls_tolerance: jax.Array
-  gravity: jax.Array
-  wind: jax.Array
-  magnetic: jax.Array
-  density: jax.Array
-  viscosity: jax.Array
+class StatisticWarp(mjxw_types.StatisticWarp, Statistic):
+  """Warp-specific model statistics."""
+
+  # NB: StatisticWarp type annotations may not match those on Statistic.
+  pass
+
+
+class OptionJAX(PyTreeNode):
+  """JAX-specific option."""
+
   o_margin: jax.Array
   o_solref: jax.Array
   o_solimp: jax.Array
   o_friction: jax.Array
-  integrator: IntegratorType
-  cone: ConeType
-  jacobian: JacobianType
-  solver: SolverType
-  iterations: int
-  ls_iterations: int
-  disableflags: DisableBit
-  enableflags: int
   disableactuator: int
   sdf_initpoints: int
+  has_fluid_params: bool
 
 
-class OptionC(Option):
+class OptionC(PyTreeNode):
   """C-specific option."""
 
+  o_margin: jax.Array
+  o_solref: jax.Array
+  o_solimp: jax.Array
+  o_friction: jax.Array
+  disableactuator: int
+  sdf_initpoints: int
+  has_fluid_params: bool
   apirate: jax.Array
   noslip_tolerance: jax.Array
   ccd_tolerance: jax.Array
   noslip_iterations: int
   ccd_iterations: int
   sdf_iterations: int
+  sdf_initpoints: int
 
 
-class OptionJAX(Option):
-  """JAX-specific option."""
+class Option(PyTreeNode):
+  """Physics options."""
 
-  has_fluid_params: bool
+  iterations: int
+  ls_iterations: int
+  tolerance: jax.Array
+  ls_tolerance: jax.Array
+  impratio: jax.Array
+  gravity: jax.Array
+  density: jax.Array
+  viscosity: jax.Array
+  magnetic: jax.Array
+  wind: jax.Array
+  jacobian: JacobianType
+  cone: ConeType
+  disableflags: DisableBit
+  enableflags: int
+  integrator: IntegratorType
+  solver: SolverType
+  timestep: jax.Array
+  _impl: Union[OptionJAX, OptionC, mjxw_types.OptionWarp]
 
 
 class ModelC(PyTreeNode):
@@ -640,7 +658,7 @@ class Model(PyTreeNode):
   nsensordata: int
   npluginstate: int
   opt: Option
-  stat: Statistic
+  stat: Union[Statistic, StatisticWarp]
   qpos0: jax.Array
   qpos_spring: jax.Array
   body_parentid: np.ndarray
@@ -743,8 +761,8 @@ class Model(PyTreeNode):
   light_pos: jax.Array
   light_dir: jax.Array
   light_poscom0: jax.Array
-  light_pos0: np.ndarray
-  light_dir0: np.ndarray
+  light_pos0: jax.Array
+  light_dir0: jax.Array
   light_cutoff: jax.Array
   mesh_vertadr: np.ndarray
   mesh_vertnum: np.ndarray
@@ -883,13 +901,14 @@ class Model(PyTreeNode):
   names: bytes
   signature: np.uint64
   _sizes: jax.Array
-  _impl: Union[ModelC, ModelJAX]
+  _impl: Union[ModelC, ModelJAX, mjxw_types.ModelWarp]
 
   @property
   def impl(self) -> Impl:
     return {
         ModelC: Impl.C,
         ModelJAX: Impl.JAX,
+        mjxw_types.ModelWarp: Impl.WARP,
     }[type(self._impl)]
 
   def __getattr__(self, name: str):
@@ -1132,13 +1151,14 @@ class Data(PyTreeNode):
   qacc_smooth: jax.Array
   qfrc_constraint: jax.Array
   qfrc_inverse: jax.Array
-  _impl: Union[DataC, DataJAX]
+  _impl: Union[DataC, DataJAX, mjxw_types.DataWarp]
 
   @property
   def impl(self) -> Impl:
     return {
         DataC: Impl.C,
         DataJAX: Impl.JAX,
+        mjxw_types.DataWarp: Impl.WARP,
     }[type(self._impl)]
 
   def __getattr__(self, name: str):
@@ -1157,3 +1177,23 @@ class Data(PyTreeNode):
           f"'{type(self).__name__}' object has no attribute '{name}'"
       )
     return val
+
+  def __getitem__(self, key):
+    def get_name_from_path(path: jax.tree_util.KeyPath) -> str:
+      if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
+        is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
+        path = path[: is_seq_key.index(True)]
+      assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
+      path = [p for p in path if p.name != '_impl']
+      attr = '__'.join(p.name for p in path)
+      return attr
+
+    if self.impl == Impl.WARP:
+      return jax.tree.map_with_path(
+          lambda path, x, k=key: x[k]
+          if get_name_from_path(path) not in mjxw_types.DATA_NON_VMAP
+          else x,
+          self,
+      )
+
+    return jax.tree.map(lambda x: x[key], self)

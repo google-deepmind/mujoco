@@ -1,0 +1,40 @@
+<mujoco>
+  <worldbody>
+    <site name="siteworld0"/>
+    <site name="siteworld1" pos="3 0 0"/>
+    <geom name="sphereworld0" type="sphere" size=".1" pos=".5 0 .025"/>
+    <geom name="sphereworld1" type="cylinder" size=".2 .3" pos="1.25 0 .1"/>
+    <body>
+      <joint type="slide" axis="1 0 0"/>
+      <geom type="sphere" size="0.1"/>
+      <site name="site0"/>
+    </body>
+    <body>
+      <joint type="slide" axis="1 0 0"/>
+      <geom type="cylinder" size=".2 .3"/>
+      <site name="site1"/>
+    </body>
+  </worldbody>
+  <tendon>
+    <spatial name="spatial0">
+      <site site="siteworld0"/>
+      <geom geom="sphereworld0"/>
+      <site site="site0"/>
+    </spatial>
+    <spatial name="spatial1">
+      <site site="siteworld0"/>
+      <site site="site0"/>
+      <geom geom="sphereworld1"/>
+      <site site="site1"/>
+    </spatial>
+    <spatial>
+      <site site="siteworld0"/>
+      <geom geom="sphereworld1"/>
+      <site site="site1"/>
+      <site site="siteworld1"/>
+    </spatial>
+  </tendon>
+  <keyframe>
+    <key qpos="1 2"/>
+  </keyframe>
+</mujoco>

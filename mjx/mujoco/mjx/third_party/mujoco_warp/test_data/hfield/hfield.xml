@@ -1,0 +1,84 @@
+<mujoco>
+  <asset>
+    <!--
+    <hfield name="terrain" nrow="5" ncol="5" size="1 1 0.5 0.3"
+    elevation="5 3 2 3 5
+               3 2 1 2 3
+               2 1 0 1 2
+               3 2 1 2 3
+               5 3 2 3 5"/>
+               -->
+    <!-- -->
+    <hfield name="terrain" nrow="3" ncol="3" size="1 1 0.1 0.3"
+    elevation="0 0 0
+               0 1 0
+               0 0 0"/>
+               <!-- -->
+    <!--
+    <hfield name="terrain" nrow="3" ncol="5" size="2 1 0.5 0.3"
+    elevation="8 4 2 4 8
+               4 2 1 2 4
+               8 4 2 4 8"/>
+               -->
+
+    <!--
+    <hfield name="terrain" nrow="2" ncol="3" size="2 1 0.5 0.3"
+    elevation="8 2 8
+               2 8 2"/>
+               -->
+
+    <!-- Simple box mesh, size will be scaled by the geom size
+    <mesh name="box_mesh" vertex="1 1 0  1 1 -1  1 -1 0.2  1 -1 -1  -1 1 0  -1 1 -1  -1 -1 0  -1 -1 -1"/>
+    -->
+  </asset>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom type="plane" size="2 2 0.1" pos="0 0 -0.3" rgba="0.8 0.8 0.8 1"/>
+    
+    <!-- Height fields -->
+    <geom type="hfield" hfield="terrain" pos="0 0 0" rgba="0.4 0.6 0.4 1"/>
+    <!--geom type="hfield" hfield="terrain" pos="2 0 0" rgba="0.4 0.6 0.4 1"/-->
+
+    <!--geom type="box" size="1.0 1.0 0.1" rgba="0.8 0.2 0.2 1"/-->
+
+    <!-- Spheres
+    <body name="sphere1" pos="-0.9 -0.9 0.5">
+      <freejoint/>
+      <geom type="sphere" size="0.1" rgba="0.8 0.2 0.2 1"/>
+    </body>
+    <body name="sphere2" pos="-0.85 -0.85 0.8">
+      <freejoint/>
+      <geom type="sphere" size="0.1" rgba="0.8 0.2 0.2 1"/>
+    </body>
+    <body name="sphere3" pos="-0.8 -0.8 1.1">
+      <freejoint/>
+      <geom type="sphere" size="0.1" rgba="0.8 0.2 0.2 1"/>
+    </body>
+    -->
+
+    <body pos="0 0.1 0.3">
+      <freejoint/>
+      <geom type="sphere" size="0.1 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
+    </body>
+
+    <!-- Boxes ->
+    <body name="box1" pos="0.8 0.8 0.6">
+      <freejoint/>
+      <geom type="box" size="0.1 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
+    </body>
+    <body name="box2" pos="0.75 0.75 0.9">
+      <freejoint/>
+      <geom type="box" size="0.1 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
+    </body>
+    <body name="box3" pos="0.7 0.7 1.2">
+      <freejoint/>
+      <geom type="box" size="0.1 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
+    </body>
+    <body name="box4" pos="0.65 0.65 1.5">
+      <freejoint/>
+      <geom type="box" size="0.1 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
+    </body>
+    -->
+  </worldbody>
+</mujoco> 

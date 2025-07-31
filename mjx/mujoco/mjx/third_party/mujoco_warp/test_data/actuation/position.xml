@@ -1,0 +1,40 @@
+<mujoco>
+  <option iterations="4" ls_iterations="4"/>
+  <worldbody>
+    <body pos="0 0 0">
+      <joint name="hinge0" type="hinge" axis="1 0 0"/>
+      <geom type="sphere" size=".1"/>
+      <body>
+        <joint name="hinge1" type="hinge" axis="1 0 0"/>
+        <geom type="sphere" size=".1"/>
+        <body>
+          <joint name="hinge2" type="hinge" axis="1 0 0"/>
+          <geom type="sphere" size=".1"/>
+        </body>
+      </body>
+    </body>
+    <body pos="1 0 0">
+      <joint name="hinge3" type="hinge" axis="1 0 0"/>
+      <geom type="sphere" size=".1"/>
+      <body>
+        <joint name="hinge4" type="hinge" axis="1 0 0"/>
+        <geom type="sphere" size=".1"/>
+        <body>
+          <joint name="hinge5" type="hinge" axis="1 0 0"/>
+          <geom type="sphere" size=".1"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <position joint="hinge0" kp="1" kv="2"/>
+    <position joint="hinge3" kp="7" kv="8"/>
+    <position joint="hinge4" kp="9" kv="10"/>
+    <position joint="hinge5" kp="11" kv="12"/>
+    <position joint="hinge2" kp="5" kv="6"/>
+    <position joint="hinge1" kp="3" kv="4"/>
+  </actuator>
+  <keyframe>
+    <key ctrl="1 2 3 4 5 6"/>
+  </keyframe>
+</mujoco>

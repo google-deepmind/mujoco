@@ -15,7 +15,10 @@
 """An example integration of MJX with the MuJoCo viewer."""
 
 import logging
-import time
+import os
+
+os.environ['XLA_FLAGS'] = '--xla_gpu_graph_min_graph_size=1'
+import time  # pylint: disable=g-import-not-at-top
 from typing import Sequence
 
 from absl import app
@@ -25,13 +28,29 @@ from jax import numpy as jp
 import mujoco
 from mujoco import mjx
 import mujoco.viewer
+import warp as wp
 
 
 _JIT = flags.DEFINE_bool('jit', True, 'To jit or not to jit.')
 _MODEL_PATH = flags.DEFINE_string(
     'mjcf', None, 'Path to a MuJoCo MJCF file.', required=True
 )
-
+_IMPL = flags.DEFINE_string('impl', 'jax', 'MJX implementation.')
+_WP_KERNEL_CACHE_DIR = flags.DEFINE_string(
+    'wp_kernel_cache_dir',
+    None,
+    'Path to the Warp kernel cache directory.',
+)
+_NCONMAX = flags.DEFINE_integer(
+    'nconmax',
+    None,
+    'Maximum number of contacts to simulate, warp only.',
+)
+_NJMAX = flags.DEFINE_integer(
+    'njmax',
+    None,
+    'Maximum number of constraints to simulate, warp only.',
+)
 
 _VIEWER_GLOBAL_STATE = {
     'running': True,
@@ -49,6 +68,9 @@ def _main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
+  if _WP_KERNEL_CACHE_DIR.value:
+    wp.config.kernel_cache_dir = _WP_KERNEL_CACHE_DIR.value
+
   jax.config.update('jax_debug_nans', True)
 
   print(f'Loading model from: {_MODEL_PATH.value}.')
@@ -57,8 +79,16 @@ def _main(argv: Sequence[str]) -> None:
   else:
     m = mujoco.MjModel.from_xml_path(_MODEL_PATH.value)
   d = mujoco.MjData(m)
-  mx = mjx.put_model(m)
-  dx = mjx.put_data(m, d)
+  mx = mjx.put_model(m, impl=_IMPL.value)
+  if _IMPL.value == 'warp':
+    # TODO(btaba): use put_data.
+    dx = mjx.make_data(
+        m, impl=_IMPL.value, nconmax=_NCONMAX.value, njmax=_NJMAX.value
+    )
+  else:
+    dx = mjx.put_data(
+        m, d, impl=_IMPL.value, nconmax=_NCONMAX.value, njmax=_NJMAX.value
+    )
 
   print(f'Default backend: {jax.default_backend()}')
   step_fn = mjx.step

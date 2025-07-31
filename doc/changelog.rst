@@ -47,6 +47,9 @@ Version 3.3.4 (July 8, 2025)
    3. In the mjSpec C API, directly setting an element's name using :ref:`mjs_setString` has been replaced with a new
       function :ref:`mjs_setName` which allows checking for naming collisions at set-time rather than compile-time, for
       earlier catching of errors. Relatedly, the ``name`` attribute has been removed from all mjs elements.
+   4. For MJX, the ``mjx.Option`` dataclass now has private and public fields similar to ``mjx.Model`` and
+     ``mjx.Data``. Some fields are no longer publicly available due to differences in the
+     underlying implementations of this data structure.
 
 General
 ^^^^^^^
@@ -65,6 +68,13 @@ Documentation
 ^^^^^^^^^^^^^
 8. Added missing item documentation and clarified the nature of breaking changes in the 3.3.3 changelog.
    See items 3 and 4 below.
+
+MJX
+^^^
+- Add Warp as a backend implementation for MJX. The implementation can be specified via
+  ``mjx.put_model(m, impl='warp')`` and ``mjx.make_data(m, impl='warp')``. The warp implementation requires
+  a CUDA device, Python 3.12, and `warp-lang` to be installed. This feature is available in "beta" and
+  some bugs are expected.
 
 Version 3.3.3 (June 10, 2025)
 -----------------------------

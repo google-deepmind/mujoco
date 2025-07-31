@@ -37,12 +37,14 @@ from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import DynType
 from mujoco.mjx._src.types import GainType
+from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import IntegratorType
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import TrnType
 # pylint: enable=g-importing-member
+import mujoco.mjx.warp as mjxw
 import numpy as np
 
 # RK4 tableau
@@ -423,6 +425,10 @@ def implicit(m: Model, d: Data) -> Data:
 @named_scope
 def forward(m: Model, d: Data) -> Data:
   """Forward dynamics."""
+  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    from mujoco.mjx.warp import forward as mjxw_forward  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+    return mjxw_forward.forward(m, d)
+
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('forward requires JAX backend implementation.')
 
@@ -446,6 +452,10 @@ def forward(m: Model, d: Data) -> Data:
 @named_scope
 def step(m: Model, d: Data) -> Data:
   """Advance simulation."""
+  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    from mujoco.mjx.warp import forward as mjxw_forward  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+    return mjxw_forward.step(m, d)
+
   d = forward(m, d)
 
   if m.opt.integrator == IntegratorType.EULER:
