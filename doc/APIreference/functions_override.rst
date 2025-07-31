@@ -23,6 +23,8 @@ Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VF
 Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success,
 2 on name collision, or -1 when an internal error occurs.
 
+*Nullable:* ``directory``
+
 .. _Parseandcompile:
 
 The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and compiler, and either returns a pointer to
@@ -169,6 +171,8 @@ the effect of spatial tendons, see :github:issue:`832`.
 Compute ``efc_state``, ``efc_force``, ``qfrc_constraint``, and (optionally) cone Hessians.
 If ``cost`` is not ``NULL``, set ``*cost = s(jar)`` where ``jar = Jac*qacc - aref``.
 
+*Nullable:* ``cost``
+
 .. _Support:
 
 These are support functions that need access to :ref:`mjModel` and :ref:`mjData`, unlike the utility functions which do
@@ -212,10 +216,14 @@ center-of-mass but aligned with the world frame. The minimal :ref:`pipeline stag
 computations to be consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` followed
 by :ref:`mj_comPos`.
 
+*Nullable:* ``jacp``, ``jacr``
+
 .. _mj_jacBody:
 
 This and the remaining variants of the Jacobian function call mj_jac internally, with the center of the body, geom or
 site. They are just shortcuts; the same can be achieved by calling mj_jac directly.
+
+*Nullable:* ``jacp``, ``jacr``
 
 .. _mj_jacDot:
 
@@ -223,6 +231,8 @@ This function computes the time-derivative of an end-effector kinematic Jacobian
 The minimal :ref:`pipeline stages<piStages>` required for computation to be
 consistent with the current generalized positions and velocities ``mjData.{qpos, qvel}`` are
 :ref:`mj_kinematics`, :ref:`mj_comPos`, :ref:`mj_comVel` (in that order).
+
+*Nullable:* ``jacp``, ``jacr``
 
 .. _mj_angmomMat:
 
@@ -245,11 +255,13 @@ Returns the smallest signed distance between two geoms and optionally the segmen
 Returned distances are bounded from above by ``distmax``. |br| If no collision of distance smaller than ``distmax`` is
 found, the function will return ``distmax`` and ``fromto``, if given, will be set to (0, 0, 0, 0, 0, 0).
 
-   .. admonition:: different (correct) behavior under `nativeccd`
-      :class: note
+*Nullable:* ``fromto``
 
-      As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
-      :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
+.. admonition:: different (correct) behavior under `nativeccd`
+   :class: note
+
+   As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
+   :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
 
 .. _mj_fullM:
 
@@ -312,6 +324,8 @@ group exclusion.
 If flg_static is 0, static geoms will be excluded.
 
 bodyexclude=-1 can be used to indicate that all bodies are included.
+
+*Nullable:* ``geomid``
 
 .. _Interaction:
 
@@ -654,6 +668,7 @@ These matrices and their dimensions are:
       termination. Of course, this means that :ref:`solver iterations<option-iterations>` should be small, to not tread
       water at the minimum. This method and the one described above can and should be combined.
 
+*Nullable:* ``A``, ``B``, ``D``, ``C``
 
 .. _mjd_inverseFD:
 
@@ -693,9 +708,13 @@ using finite-differencing. These matrices and their dimensions are:
    - The Runge-Kutta 4th-order integrator (``mjINT_RK4``) is not supported.
    - The noslip solver is not supported.
 
+*Nullable:* ``DfDq``, ``DfDv``, ``DfDa``, ``DsDq``, ``DsDv``, ``DsDa``, ``DmDq``
+
 .. _mjd_subQuat:
 
 Derivatives of :ref:`mju_subQuat` (quaternion difference).
+
+*Nullable:* ``Da``, ``Db``
 
 .. _mjd_quatIntegrate:
 
@@ -718,3 +737,5 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
+
+*Nullable:* ``Dquat``, ``Dvel``, ``Dscale``
