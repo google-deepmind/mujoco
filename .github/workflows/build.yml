@@ -281,7 +281,7 @@ jobs:
       working-directory: mjx
       run:
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pip install --require-hashes -r requirements.txt
+        pip install --require-hashes -r requirements.txt &&
         pip install --no-index dist/mujoco_mjx-*.whl
     - name: Test MJX
       if: ${{ runner.os != 'Windows' }}
