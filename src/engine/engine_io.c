@@ -14,7 +14,7 @@
 
 #include "engine/engine_io.h"
 
-#include <inttypes.h>  // NOLINT required for PRIu64
+#include <inttypes.h>  // NOLINT required for PRIu64, PRIuPTR
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -1699,13 +1699,12 @@ static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_
     } else {
       info[0] = '\0';
     }
-    mju_error("mj_stackAlloc: out of memory, stack overflow%s\n"
-              "  max = %zu, available = %zu, requested = %zu\n"
-              "  nefc = %d, ncon = %d",
-              info,
-              stack_info->bottom - stack_info->limit, stack_available_bytes, stack_required_bytes,
-              d->nefc, d->ncon);
-
+    mju_error(
+        "mj_stackAlloc: out of memory, stack overflow%s\n"
+        "  max = %" PRIuPTR ", available = %" PRIuPTR ", requested = %" PRIuPTR
+        "\n nefc = %d, ncon = %d",
+        info, stack_info->bottom - stack_info->limit, stack_available_bytes,
+        stack_required_bytes, d->nefc, d->ncon);
   }
 
 #ifdef ADDRESS_SANITIZER
