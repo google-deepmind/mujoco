@@ -16,6 +16,7 @@
    python
    MJX <mjx>
    unity
+   OpenUSD/index.rst
    models
    changelog
 
