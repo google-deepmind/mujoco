@@ -911,12 +911,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             }
 
             // draw triangles, one per side
-            for (int j = 0; j < 2; j++) {
-              START
-              makeTriangle(thisgeom, pos[0], pos[j ? 1 : 2], pos[j ? 2 : 1], rgba);
-              thisgeom->objid = id;
-              FINISH
-            }
+            START
+            makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
+            thisgeom->objid = id;
+            FINISH
           }
         }
       }
