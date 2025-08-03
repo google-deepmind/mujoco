@@ -910,6 +910,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               }
             }
 
+            if (rgba[0]==0 && rgba[1]==0 && rgba[2]==0) {
+              rgba[3] = .1;
+            }
+
             // draw triangles, one per side
             START
             makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
