@@ -1011,6 +1011,9 @@ PYBIND11_MODULE(_specs, m) {
         if (mjs_makeMesh(self, mjMESH_BUILTIN_WEDGE, params, 5)) {
           throw pybind11::value_error(mjs_getError(mjs_getSpec(self->element)));
         }
+        self->scale[0] = radius;
+        self->scale[1] = radius;
+        self->scale[2] = radius;
       },
       py::arg("resolution") = std::array<int, 2>{0, 0}, py::arg("radius"),
       py::arg("fov") = std::array<double, 2>{0, 0}, py::arg("gamma") = 0);

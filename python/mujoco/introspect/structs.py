@@ -1255,12 +1255,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='narena',
-                 type=ValueType(name='size_t'),
+                 type=ValueType(name='mjtSize'),
                  doc='number of bytes in the mjData arena (inclusive of stack)',
              ),
              StructFieldDecl(
                  name='nbuffer',
-                 type=ValueType(name='size_t'),
+                 type=ValueType(name='mjtSize'),
                  doc='number of bytes in buffer',
              ),
              StructFieldDecl(
@@ -4866,12 +4866,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
          fields=(
              StructFieldDecl(
                  name='narena',
-                 type=ValueType(name='size_t'),
+                 type=ValueType(name='mjtSize'),
                  doc='size of the arena in bytes (inclusive of the stack)',
              ),
              StructFieldDecl(
                  name='nbuffer',
-                 type=ValueType(name='size_t'),
+                 type=ValueType(name='mjtSize'),
                  doc='size of main buffer in bytes',
              ),
              StructFieldDecl(
@@ -4896,20 +4896,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='maxuse_stack',
-                 type=ValueType(name='size_t'),
+                 type=ValueType(name='mjtSize'),
                  doc='maximum stack allocation in bytes',
              ),
              StructFieldDecl(
                  name='maxuse_threadstack',
                  type=ArrayType(
-                     inner_type=ValueType(name='size_t'),
+                     inner_type=ValueType(name='mjtSize'),
                      extents=(128,),
                  ),
                  doc='maximum stack allocation per thread in bytes',
              ),
              StructFieldDecl(
                  name='maxuse_arena',
-                 type=ValueType(name='size_t'),
+                 type=ValueType(name='mjtSize'),
                  doc='maximum arena allocation in bytes',
              ),
              StructFieldDecl(
@@ -8043,7 +8043,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='memory',
-                 type=ValueType(name='size_t'),
+                 type=ValueType(name='mjtSize'),
                  doc='number of bytes in arena+stack memory',
              ),
              StructFieldDecl(
@@ -8113,7 +8113,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
              StructFieldDecl(
                  name='nstack',
-                 type=ValueType(name='size_t'),
+                 type=ValueType(name='mjtSize'),
                  doc='(deprecated) number of mjtNums in mjData stack',
              ),
              StructFieldDecl(

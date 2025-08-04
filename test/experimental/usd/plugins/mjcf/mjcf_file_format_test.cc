@@ -110,9 +110,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestClassAuthored) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
+  auto stage = OpenStage(kXml);
 
-  auto stage = pxr::UsdStage::Open(layer);
   EXPECT_PRIM_VALID(stage, "/__class__");
   EXPECT_PRIM_VALID(stage, "/__class__/test");
 }
@@ -131,9 +130,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestBasicMeshSources) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
-
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
   EXPECT_PRIM_VALID(stage, "/mesh_test");
   EXPECT_PRIM_VALID(stage, "/mesh_test/test_body/tetrahedron");
   EXPECT_PRIM_VALID(stage, "/mesh_test/test_body/tetrahedron/Mesh");
@@ -149,7 +146,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsMaterials) {
       </worldbody>
     </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(kXml);
+  auto stage = OpenStage(kXml);
   EXPECT_PRIM_VALID(
       stage, "/physics_materials_test/PhysicsMaterials/geom_with_friction");
   EXPECT_REL_HAS_TARGET(
@@ -315,8 +312,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
 
   EXPECT_PRIM_VALID(stage, "/test/sphere_red");
   ExpectAttributeEqual(stage, "/test/sphere_red.primvars:displayColor",
@@ -350,6 +346,25 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestGeomRgba) {
                        pxr::VtArray<float>{0.9});
 }
 
+TEST_F(MjcfSdfFileFormatPluginTest, TestSiteRgba) {
+  static constexpr char kXml[] = R"(
+    <mujoco model="test">
+      <worldbody>
+        <site type="sphere" name="sphere_red" size="1" rgba="1 0 0 1"/>
+      </worldbody>
+    </mujoco>
+  )";
+
+  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
+  auto stage = pxr::UsdStage::Open(layer);
+
+  EXPECT_PRIM_VALID(stage, "/test/sphere_red");
+  ExpectAttributeEqual(stage, "/test/sphere_red.primvars:displayColor",
+                       pxr::VtArray<pxr::GfVec3f>{{1, 0, 0}});
+  EXPECT_ATTRIBUTE_HAS_NO_VALUE(stage,
+                                "/test/sphere_red.primvars:displayOpacity");
+}
+
 TEST_F(MjcfSdfFileFormatPluginTest, TestFaceVaryingMeshSourcesSimpleMjcfMesh) {
   static constexpr char kXml[] = R"(
     <mujoco model="mesh test">
@@ -369,9 +384,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestFaceVaryingMeshSourcesSimpleMjcfMesh) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
-
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
 
   auto mesh = pxr::UsdGeomMesh::Get(
       stage, SdfPath("/mesh_test/test_body/tetrahedron/Mesh"));
@@ -506,9 +519,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestBody) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
-
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
 
   EXPECT_PRIM_VALID(stage, "/body_test");
   EXPECT_PRIM_VALID(stage, "/body_test/test_body");
@@ -529,9 +540,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestBasicParenting) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
-
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
   EXPECT_PRIM_VALID(stage, "/test/root");
   EXPECT_PRIM_VALID(stage, "/test/root/root_body_1");
   EXPECT_PRIM_VALID(stage, "/test/root/root_body_2");
@@ -559,9 +568,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestJointsDoNotAffectParenting) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
-
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
   EXPECT_PRIM_VALID(stage, "/test/root");
   EXPECT_PRIM_VALID(stage, "/test/root/middle");
   EXPECT_PRIM_VALID(stage, "/test/root/middle/tet");
@@ -588,9 +595,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestKindAuthoring) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
-
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
   EXPECT_PRIM_KIND(stage, "/test", pxr::KindTokens->group);
   EXPECT_PRIM_KIND(stage, "/test/root", pxr::KindTokens->component);
   EXPECT_PRIM_KIND(stage, "/test/root/middle", pxr::KindTokens->subcomponent);
@@ -614,8 +619,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestAttributesMatchSchemaTypes) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
 
   for (const auto& prim : stage->TraverseAll()) {
     ExpectAllAuthoredAttributesMatchSchemaTypes(prim);
@@ -636,8 +640,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestGeomsPrims) {
     </mujoco>
   )";
 
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
 
   // Note that all sizes are multiplied by 2 because Mujoco uses half sizes.
 
@@ -683,11 +686,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestGeomsPrims) {
 static const pxr::SdfPath kPhysicsScenePrimPath("/test/PhysicsScene");
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimTimestep) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option timestep="0.005"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -696,11 +699,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimTimestep) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimCone) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option cone="elliptic"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -709,11 +712,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimCone) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimWind) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option wind="1 2 3"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -722,11 +725,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimWind) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimApirate) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option apirate="1.2"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -735,11 +738,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimApirate) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimImpratio) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option impratio="0.8"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -748,11 +751,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimImpratio) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimMagnetic) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option magnetic="1 2 3"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -761,11 +764,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimMagnetic) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDensity) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option density="1.2"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -774,11 +777,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDensity) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimViscosity) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option viscosity="0.8"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -787,11 +790,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimViscosity) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimO_margin) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option o_margin="0.001"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -800,11 +803,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimO_margin) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimO_solref) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option o_solref="0.1 0.2"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -813,11 +816,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimO_solref) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimO_solimp) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option o_solimp="0.1 0.2 0.3 0.4 0.5"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -826,11 +829,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimO_solimp) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimTolerance) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option tolerance="0.0012"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -839,11 +842,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimTolerance) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimLSTolerance) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option ls_tolerance="0.0034"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -852,11 +855,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimLSTolerance) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimNoslipTolerance) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option noslip_tolerance="0.0056"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -865,11 +868,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimNoslipTolerance) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimCCDTolerance) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option ccd_tolerance="0.0078"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -878,11 +881,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimCCDTolerance) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimOFriction) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option o_friction="0.1 0.2 0.3 0.4 0.5"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -891,11 +894,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimOFriction) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimIntegrator) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option integrator="RK4"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -904,11 +907,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimIntegrator) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimJacobian) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option jacobian="sparse"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -917,11 +920,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimJacobian) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimSolver) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option solver="CG"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(
       stage,
@@ -930,11 +933,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimSolver) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimIterations) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option iterations="10"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -943,11 +946,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimIterations) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimLSIterations) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option ls_iterations="20"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -956,11 +959,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimLSIterations) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimNoslipIterations) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option noslip_iterations="30"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -969,11 +972,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimNoslipIterations) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimCCDIterations) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option ccd_iterations="40"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -982,11 +985,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimCCDIterations) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimSDFInitPoints) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option sdf_initpoints="50"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -995,11 +998,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimSDFInitPoints) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimSDFIterations) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option sdf_iterations="60"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -1008,11 +1011,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimSDFIterations) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimGravity) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option gravity="-123 0 0"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -1023,11 +1026,11 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimGravity) {
                            pxr::UsdPhysicsTokens->physicsGravityDirection),
                        pxr::GfVec3f(-1.0f, 0.0f, 0.0f));
 
-  stage = pxr::UsdStage::Open(LoadLayer(R"(
+  stage = OpenStage(R"(
     <mujoco model="test">
       <option gravity="2 3 6"> </option>
     </mujoco>
-  )"));
+  )");
 
   ExpectAttributeEqual(stage,
                        kPhysicsScenePrimPath.AppendProperty(
@@ -1040,7 +1043,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimGravity) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option>
         <flag
@@ -1064,7 +1067,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
         />
       </option>
     </mujoco>
-  )"));
+  )");
 
   const std::vector<pxr::TfToken> kFlags = {
       MjcPhysicsTokens->mjcFlagConstraint,
@@ -1092,7 +1095,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimEnableFlags) {
-  auto stage = pxr::UsdStage::Open(LoadLayer(R"(
+  auto stage = OpenStage(R"(
     <mujoco model="test">
       <option>
         <flag
@@ -1105,7 +1108,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimEnableFlags) {
         />
       </option>
     </mujoco>
-  )"));
+  )");
 
   // clang-format off
   const std::vector<pxr::TfToken> kFlags = {
@@ -1139,9 +1142,7 @@ static constexpr char kSiteXml[] = R"(
   )";
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsAuthored) {
-  pxr::SdfLayerRefPtr layer = LoadLayer(kSiteXml);
-
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kSiteXml);
   EXPECT_PRIM_VALID(stage, "/test/box_site");
   EXPECT_PRIM_IS_A(stage, "/test/box_site", pxr::UsdGeomCube);
   EXPECT_PRIM_API_APPLIED(stage, "/test/box_site", pxr::MjcPhysicsSiteAPI);
@@ -1170,9 +1171,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsAuthored) {
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsPurpose) {
-  pxr::SdfLayerRefPtr layer = LoadLayer(kSiteXml);
-
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kSiteXml);
   EXPECT_PRIM_PURPOSE(stage, "/test/box_site", pxr::UsdGeomTokens->guide);
   EXPECT_PRIM_PURPOSE(stage, "/test/ball/sphere_site",
                       pxr::UsdGeomTokens->guide);
@@ -1182,27 +1181,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestSitePrimsPurpose) {
                       pxr::UsdGeomTokens->guide);
   EXPECT_PRIM_PURPOSE(stage, "/test/ball/ellipsoid_site",
                       pxr::UsdGeomTokens->guide);
-}
-
-TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsToggleSdfFormatArg) {
-  std::string xml_path = GetTestDataFilePath(kMeshObjPath);
-
-  // Test that the default is no physics.
-  auto stage_no_physics = pxr::UsdStage::Open(xml_path);
-  EXPECT_THAT(stage_no_physics, testing::NotNull());
-  EXPECT_PRIM_VALID(stage_no_physics, "/mesh_test/test_body");
-  EXPECT_PRIM_API_NOT_APPLIED(stage_no_physics, "/mesh_test/test_body",
-                              pxr::UsdPhysicsRigidBodyAPI);
-
-  // Then test that the physics flag enables physics.
-  std::string xml_path_physics_flag =
-      xml_path + ":SDF_FORMAT_ARGS:usdMjcfToggleUsdPhysics=true";
-  auto stage_with_physics = pxr::UsdStage::Open(xml_path_physics_flag);
-  EXPECT_THAT(stage_with_physics, testing::NotNull());
-
-  EXPECT_PRIM_VALID(stage_with_physics, "/mesh_test/test_body");
-  EXPECT_PRIM_API_APPLIED(stage_with_physics, "/mesh_test/test_body",
-                          pxr::UsdPhysicsRigidBodyAPI);
 }
 
 TEST_F(MjcfSdfFileFormatPluginTest, TestArticulationRootAppliedOnce) {
@@ -1222,9 +1200,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestArticulationRootAppliedOnce) {
     </mujoco>
   )";
 
-  pxr::SdfFileFormat::FileFormatArguments args;
-  args["usdMjcfToggleUsdPhysics"] = "true";
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml, args);
+  pxr::SdfLayerRefPtr layer = LoadLayer(kXml);;
 
   // This test is particular in the sense that the authoring mistake, which is
   // made on the SdfLayer level, would disappear when we access the COMPOSED
@@ -1261,10 +1237,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsRigidBody) {
     </mujoco>
   )";
 
-  pxr::SdfFileFormat::FileFormatArguments args;
-  args["usdMjcfToggleUsdPhysics"] = "true";
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml, args);
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
 
   EXPECT_THAT(stage, testing::NotNull());
   EXPECT_PRIM_VALID(stage, "/physics_test");
@@ -1339,10 +1312,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsColliders) {
     </mujoco>
   )";
 
-  pxr::SdfFileFormat::FileFormatArguments args;
-  args["usdMjcfToggleUsdPhysics"] = "true";
-  pxr::SdfLayerRefPtr layer = LoadLayer(kXml, args);
-  auto stage = pxr::UsdStage::Open(layer);
+  auto stage = OpenStage(kXml);
 
   EXPECT_THAT(stage, testing::NotNull());
   EXPECT_PRIM_VALID(stage, "/test");
@@ -1473,7 +1443,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsImageableAPI) {
     </worldbody>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_API_APPLIED(stage, "/test/body/mesh/Mesh",
                           pxr::MjcPhysicsImageableAPI);
@@ -1503,7 +1473,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsCollisionAPI) {
     </worldbody>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   ExpectAttributeEqual(stage, "/test/body/box.mjc:group", 4);
   ExpectAttributeEqual(stage, "/test/body/box.mjc:priority", 2);
@@ -1539,7 +1509,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsMeshCollisionAPI) {
     </worldbody>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   ExpectAttributeEqual(stage, "/test/body/tet_legacy/Mesh.mjc:inertia",
                        MjcPhysicsTokens->legacy);
@@ -1563,7 +1533,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIApplied) {
     </worldbody>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_VALID(stage, "/test/body");
   EXPECT_PRIM_VALID(stage, "/test/body/box");
@@ -1583,7 +1553,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIAppliedToBody) {
     </worldbody>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_VALID(stage, "/test/body");
   EXPECT_PRIM_VALID(stage, "/test/body/box");
@@ -1606,7 +1576,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMassAPIDensity) {
     </worldbody>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   ExpectAttributeEqual(stage, "/test/body/box.physics:density", 1234.0f);
 }
@@ -1647,7 +1617,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsActuator) {
     </actuator>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_VALID(stage, "/test/Actuators/general");
   EXPECT_PRIM_IS_A(stage, "/test/Actuators/general", pxr::MjcPhysicsActuator);
@@ -1710,7 +1680,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsPositionActuator) {
     </actuator>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_VALID(stage, "/test/Actuators/position");
   EXPECT_PRIM_IS_A(stage, "/test/Actuators/position", pxr::MjcPhysicsActuator);
@@ -1738,7 +1708,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointActuator) {
     </actuator>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_VALID(stage, "/test/Actuators/general");
   EXPECT_PRIM_IS_A(stage, "/test/Actuators/general", pxr::MjcPhysicsActuator);
@@ -1762,7 +1732,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsBodyActuator) {
     </actuator>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_VALID(stage, "/test/Actuators/general");
   EXPECT_PRIM_IS_A(stage, "/test/Actuators/general", pxr::MjcPhysicsActuator);
@@ -1790,7 +1760,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsSliderCrankActuator) {
     </actuator>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_VALID(stage, "/test/Actuators/general");
   EXPECT_PRIM_IS_A(stage, "/test/Actuators/general", pxr::MjcPhysicsActuator);
@@ -1831,7 +1801,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsJointAPI) {
     </worldbody>
   </mujoco>
   )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   const SdfPath joint_path("/test/parent/child/my_joint");
   EXPECT_PRIM_API_APPLIED(stage, joint_path, pxr::MjcPhysicsJointAPI);
@@ -1881,7 +1851,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsFloatingAndFixedBaseBody) {
     </mujoco>
   )";
 
-  auto stage = OpenStageWithPhysics(kXml);
+  auto stage = OpenStage(kXml);
   EXPECT_THAT(stage, testing::NotNull());
 
   // Test that the fixed_base body has a UsdPhysicsJoint child connected to the
@@ -1922,7 +1892,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsFixedJoint) {
     </mujoco>
   )";
 
-  auto stage = OpenStageWithPhysics(kXml);
+  auto stage = OpenStage(kXml);
   EXPECT_THAT(stage, testing::NotNull());
 
   EXPECT_PRIM_IS_A(stage, "/test/parent/FixedJoint", pxr::UsdPhysicsFixedJoint);
@@ -1968,7 +1938,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsRevoluteJoint) {
     </mujoco>
   )";
 
-  auto stage = OpenStageWithPhysics(kXml);
+  auto stage = OpenStage(kXml);
   EXPECT_THAT(stage, testing::NotNull());
 
   // hinge_root doesn't set a type so it's the default: a revolute joint.
@@ -2027,7 +1997,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsPrismaticJoint) {
     </mujoco>
   )";
 
-  auto stage = OpenStageWithPhysics(kXml);
+  auto stage = OpenStage(kXml);
   EXPECT_THAT(stage, testing::NotNull());
 
   EXPECT_PRIM_IS_A(stage, "/test/parent/slide_root",
@@ -2079,7 +2049,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestRadianAnglesAreConvertedToDegrees) {
     </mujoco>
   )";
 
-  auto stage = OpenStageWithPhysics(kXml);
+  auto stage = OpenStage(kXml);
   EXPECT_THAT(stage, testing::NotNull());
 
   EXPECT_PRIM_VALID(stage, "/test/parent/hinge");
@@ -2109,7 +2079,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsJointFrames) {
     </mujoco>
   )";
 
-  auto stage = OpenStageWithPhysics(kXml);
+  auto stage = OpenStage(kXml);
   EXPECT_THAT(stage, testing::NotNull());
 
   // Test the hinge joint.
@@ -2201,7 +2171,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsUnsupportedJoint) {
     </mujoco>
   )";
 
-  auto stage = OpenStageWithPhysics(kXml);
+  auto stage = OpenStage(kXml);
   EXPECT_THAT(stage, testing::NotNull());
 
   EXPECT_PRIM_INVALID(stage, "/test/parent/ball_joint");
@@ -2223,7 +2193,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestMjcPhysicsKeyframe) {
         <key time="2" qpos="3"/>
       </keyframe>
     </mujoco>)";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_VALID(stage, "/test/Keyframes/home");
   EXPECT_PRIM_VALID(stage, "/test/Keyframes/Keyframe");
@@ -2258,7 +2228,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestCompilerOptions) {
   />
 </mujoco>
 )";
-  auto stage = OpenStageWithPhysics(xml);
+  auto stage = OpenStage(xml);
 
   EXPECT_PRIM_VALID(stage, "/test/PhysicsScene");
 

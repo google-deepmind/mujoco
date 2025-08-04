@@ -76,6 +76,7 @@ from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import GeomType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
+from mujoco.mjx._src.types import OptionJAX
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -342,6 +343,16 @@ def _numeric(m: Union[Model, mujoco.MjModel], name: str) -> int:
 
 def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
   """Returns the dims of the contacts for a Model."""
+  if isinstance(m, mujoco.MjModel):
+    sdf_initpoints = m.opt.sdf_initpoints
+  elif isinstance(m.opt._impl, OptionJAX):
+    sdf_initpoints = m.opt._impl.sdf_initpoints
+  else:
+    raise ValueError(
+        'make_condim requires mujoco.MjModel or mjx.Model with JAX backend'
+        ' implementation.'
+    )
+
   if m.opt.disableflags & DisableBit.CONTACT:
     return np.empty(0, dtype=int)
 
@@ -364,7 +375,7 @@ def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
   condim_counts = {}
   for k, v in group_counts.items():
     if k.types[1] == mujoco.mjtGeom.mjGEOM_SDF:
-      ncon = m.opt.sdf_initpoints
+      ncon = sdf_initpoints
     else:
       func = _COLLISION_FUNC[k.types]
       ncon = func.ncon  # pytype: disable=attribute-error

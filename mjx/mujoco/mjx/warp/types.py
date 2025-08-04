@@ -1,0 +1,1602 @@
+# Copyright 2025 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+"""MJX Warp types.
+
+DO NOT EDIT. This file is auto-generated.
+"""
+import dataclasses
+from typing import Tuple
+import jax
+from jax import tree_util
+from jax.interpreters import batching
+from mujoco.mjx._src import dataclasses as mjx_dataclasses
+import numpy as np
+
+PyTreeNode = mjx_dataclasses.PyTreeNode
+
+
+@dataclasses.dataclass(frozen=True)
+@tree_util.register_pytree_node_class
+class TileSet:
+  """Tiling configuration for decomposable block diagonal matrix.
+
+  For non-square, non-block-diagonal tiles, use two tilesets.
+
+  Attributes:
+    adr: address of each tile in the set
+    size: size of all the tiles in this set
+  """
+
+  adr: np.ndarray
+  size: int
+
+  def tree_flatten(self):
+    children = list((getattr(self, k) for k in self.__dataclass_fields__))
+    return (children, None)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del aux_data
+    return cls(*children)
+
+
+@dataclasses.dataclass(frozen=True)
+@tree_util.register_pytree_node_class
+class BlockDim:
+  """Block dimension 'block_dim' settings for wp.launch_tiled.
+
+  TODO(team): experimental and may be removed
+  """
+
+  actuator_velocity: int
+  cholesky_factorize: int
+  cholesky_factorize_solve: int
+  cholesky_solve: int
+  energy_vel_kinetic: int
+  euler_dense: int
+  mul_m_dense: int
+  qderiv_actuator_passive_actuation: int
+  qderiv_actuator_passive_no_actuation: int
+  qfrc_actuator: int
+  ray: int
+  segmented_sort: int
+  tendon_velocity: int
+  update_gradient_cholesky: int
+
+  def tree_flatten(self):
+    children = list((getattr(self, k) for k in self.__dataclass_fields__))
+    return (children, None)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del aux_data
+    return cls(*children)
+
+
+class StatisticWarp(PyTreeNode):
+  """Derived fields from Statistic."""
+
+  meaninertia: float
+
+
+class OptionWarp(PyTreeNode):
+  """Derived fields from Option."""
+
+  broadphase: int
+  broadphase_filter: int
+  epa_iterations: int
+  gjk_iterations: int
+  graph_conditional: bool
+  has_fluid: bool
+  is_sparse: bool
+  ls_parallel: bool
+  run_collision_detection: bool
+  sdf_initpoints: int
+  sdf_iterations: int
+
+
+class ModelWarp(PyTreeNode):
+  """Derived fields from Model."""
+
+  M_colind: np.ndarray
+  M_rowadr: np.ndarray
+  M_rownnz: np.ndarray
+  actuator_affine_bias_gain: bool
+  actuator_moment_tiles_nu: Tuple[TileSet, ...]
+  actuator_moment_tiles_nv: Tuple[TileSet, ...]
+  actuator_trntype_body_adr: np.ndarray
+  block_dim: BlockDim
+  body_tree: Tuple[np.ndarray, ...]
+  condim_max: int
+  dof_tri_col: np.ndarray
+  dof_tri_row: np.ndarray
+  eq_connect_adr: np.ndarray
+  eq_jnt_adr: np.ndarray
+  eq_ten_adr: np.ndarray
+  eq_wld_adr: np.ndarray
+  flex_bending: np.ndarray
+  flex_damping: np.ndarray
+  flex_dim: np.ndarray
+  flex_edge: np.ndarray
+  flex_edgeadr: np.ndarray
+  flex_edgeflap: np.ndarray
+  flex_elem: np.ndarray
+  flex_elemedge: np.ndarray
+  flex_elemedgeadr: np.ndarray
+  flex_stiffness: np.ndarray
+  flex_vertadr: np.ndarray
+  flex_vertbodyid: np.ndarray
+  flex_vertnum: np.ndarray
+  flexedge_length0: np.ndarray
+  geom_pair_type_count: Tuple[int, ...]
+  geom_plugin_index: np.ndarray
+  geompair2hfgeompair: np.ndarray
+  has_sdf_geom: bool
+  jnt_limited_ball_adr: np.ndarray
+  jnt_limited_slide_hinge_adr: np.ndarray
+  light_bodyid: np.ndarray
+  light_targetbodyid: np.ndarray
+  mapM2M: np.ndarray
+  mesh_polyadr: np.ndarray
+  mesh_polymap: np.ndarray
+  mesh_polymapadr: np.ndarray
+  mesh_polymapnum: np.ndarray
+  mesh_polynormal: np.ndarray
+  mesh_polynum: np.ndarray
+  mesh_polyvert: np.ndarray
+  mesh_polyvertadr: np.ndarray
+  mesh_polyvertnum: np.ndarray
+  mocap_bodyid: np.ndarray
+  nflex: int
+  nflexedge: int
+  nflexelem: int
+  nflexelemdata: int
+  nflexvert: int
+  nlsp: int
+  nmeshpoly: int
+  nmeshpolymap: int
+  nmeshpolyvert: int
+  nxn_geom_pair: np.ndarray
+  nxn_geom_pair_filtered: np.ndarray
+  nxn_pairid: np.ndarray
+  nxn_pairid_filtered: np.ndarray
+  plugin: np.ndarray
+  plugin_attr: np.ndarray
+  qLD_updates: Tuple[np.ndarray, ...]
+  qM_fullm_i: np.ndarray
+  qM_fullm_j: np.ndarray
+  qM_madr_ij: np.ndarray
+  qM_mulm_i: np.ndarray
+  qM_mulm_j: np.ndarray
+  qM_tiles: Tuple[TileSet, ...]
+  rangefinder_sensor_adr: np.ndarray
+  sensor_acc_adr: np.ndarray
+  sensor_e_kinetic: bool
+  sensor_e_potential: bool
+  sensor_limitfrc_adr: np.ndarray
+  sensor_limitpos_adr: np.ndarray
+  sensor_limitvel_adr: np.ndarray
+  sensor_pos_adr: np.ndarray
+  sensor_rangefinder_adr: np.ndarray
+  sensor_rangefinder_bodyid: np.ndarray
+  sensor_rne_postconstraint: bool
+  sensor_subtree_vel: bool
+  sensor_tendonactfrc_adr: np.ndarray
+  sensor_touch_adr: np.ndarray
+  sensor_vel_adr: np.ndarray
+  subtree_mass: jax.Array
+  ten_wrapadr_site: np.ndarray
+  ten_wrapnum_site: np.ndarray
+  tendon_geom_adr: np.ndarray
+  tendon_jnt_adr: np.ndarray
+  tendon_limited_adr: np.ndarray
+  tendon_site_pair_adr: np.ndarray
+  wrap_geom_adr: np.ndarray
+  wrap_jnt_adr: np.ndarray
+  wrap_pulley_scale: np.ndarray
+  wrap_site_adr: np.ndarray
+  wrap_site_pair_adr: np.ndarray
+
+
+class DataWarp(PyTreeNode):
+  """Derived fields from Data."""
+
+  act_dot_rk: jax.Array
+  act_t0: jax.Array
+  act_vel_integration: jax.Array
+  actuator_length: jax.Array
+  actuator_moment: jax.Array
+  actuator_trntype_body_ncon: jax.Array
+  actuator_velocity: jax.Array
+  cacc: jax.Array
+  cdof: jax.Array
+  cdof_dot: jax.Array
+  cfrc_ext: jax.Array
+  cfrc_int: jax.Array
+  cinert: jax.Array
+  collision_hftri_index: jax.Array
+  collision_pair: jax.Array
+  collision_pairid: jax.Array
+  collision_worldid: jax.Array
+  contact__dim: jax.Array
+  contact__dist: jax.Array
+  contact__efc_address: jax.Array
+  contact__frame: jax.Array
+  contact__friction: jax.Array
+  contact__geom: jax.Array
+  contact__includemargin: jax.Array
+  contact__pos: jax.Array
+  contact__solimp: jax.Array
+  contact__solref: jax.Array
+  contact__solreffriction: jax.Array
+  contact__worldid: jax.Array
+  crb: jax.Array
+  efc__D: jax.Array
+  efc__J: jax.Array
+  efc__Jaref: jax.Array
+  efc__Ma: jax.Array
+  efc__Mgrad: jax.Array
+  efc__active: jax.Array
+  efc__alpha: jax.Array
+  efc__aref: jax.Array
+  efc__beta: jax.Array
+  efc__beta_den: jax.Array
+  efc__beta_num: jax.Array
+  efc__cholesky_L_tmp: jax.Array
+  efc__cholesky_y_tmp: jax.Array
+  efc__condim: jax.Array
+  efc__cost: jax.Array
+  efc__cost_candidate: jax.Array
+  efc__done: jax.Array
+  efc__force: jax.Array
+  efc__frictionloss: jax.Array
+  efc__gauss: jax.Array
+  efc__grad: jax.Array
+  efc__grad_dot: jax.Array
+  efc__gtol: jax.Array
+  efc__h: jax.Array
+  efc__hi: jax.Array
+  efc__hi_alpha: jax.Array
+  efc__hi_next: jax.Array
+  efc__hi_next_alpha: jax.Array
+  efc__id: jax.Array
+  efc__jv: jax.Array
+  efc__lo: jax.Array
+  efc__lo_alpha: jax.Array
+  efc__lo_next: jax.Array
+  efc__lo_next_alpha: jax.Array
+  efc__ls_done: jax.Array
+  efc__margin: jax.Array
+  efc__mid: jax.Array
+  efc__mid_alpha: jax.Array
+  efc__mv: jax.Array
+  efc__p0: jax.Array
+  efc__pos: jax.Array
+  efc__prev_Mgrad: jax.Array
+  efc__prev_cost: jax.Array
+  efc__prev_grad: jax.Array
+  efc__quad: jax.Array
+  efc__quad_gauss: jax.Array
+  efc__search: jax.Array
+  efc__search_dot: jax.Array
+  efc__type: jax.Array
+  efc__u: jax.Array
+  efc__uu: jax.Array
+  efc__uv: jax.Array
+  efc__vel: jax.Array
+  efc__vv: jax.Array
+  energy: jax.Array
+  energy_vel_mul_m_skip: jax.Array
+  epa_face: jax.Array
+  epa_horizon: jax.Array
+  epa_index: jax.Array
+  epa_map: jax.Array
+  epa_norm2: jax.Array
+  epa_pr: jax.Array
+  epa_vert: jax.Array
+  epa_vert1: jax.Array
+  epa_vert2: jax.Array
+  epa_vert_index1: jax.Array
+  epa_vert_index2: jax.Array
+  flexedge_length: jax.Array
+  flexedge_velocity: jax.Array
+  flexvert_xpos: jax.Array
+  fluid_applied: jax.Array
+  geom_skip: jax.Array
+  inverse_mul_m_skip: jax.Array
+  light_xdir: jax.Array
+  light_xpos: jax.Array
+  ncollision: jax.Array
+  ncon: jax.Array
+  ncon_hfield: jax.Array
+  nconmax: int
+  ne: jax.Array
+  ne_connect: jax.Array
+  ne_jnt: jax.Array
+  ne_ten: jax.Array
+  ne_weld: jax.Array
+  nefc: jax.Array
+  nf: jax.Array
+  njmax: int
+  nl: jax.Array
+  nsolving: jax.Array
+  nworld: int
+  qLD: jax.Array
+  qLD_integration: jax.Array
+  qLDiagInv: jax.Array
+  qLDiagInv_integration: jax.Array
+  qM: jax.Array
+  qM_integration: jax.Array
+  qacc_discrete: jax.Array
+  qacc_integration: jax.Array
+  qacc_rk: jax.Array
+  qfrc_damper: jax.Array
+  qfrc_integration: jax.Array
+  qfrc_spring: jax.Array
+  qpos_t0: jax.Array
+  qvel_rk: jax.Array
+  qvel_t0: jax.Array
+  ray_bodyexclude: jax.Array
+  ray_dist: jax.Array
+  ray_geomid: jax.Array
+  sap_cumulative_sum: jax.Array
+  sap_projection_lower: jax.Array
+  sap_projection_upper: jax.Array
+  sap_range: jax.Array
+  sap_segment_index: jax.Array
+  sap_sort_index: jax.Array
+  sensor_rangefinder_dist: jax.Array
+  sensor_rangefinder_geomid: jax.Array
+  sensor_rangefinder_pnt: jax.Array
+  sensor_rangefinder_vec: jax.Array
+  solver_niter: jax.Array
+  subtree_angmom: jax.Array
+  subtree_bodyvel: jax.Array
+  subtree_linvel: jax.Array
+  ten_J: jax.Array
+  ten_Jdot: jax.Array
+  ten_actfrc: jax.Array
+  ten_bias_coef: jax.Array
+  ten_length: jax.Array
+  ten_velocity: jax.Array
+  ten_wrapadr: jax.Array
+  ten_wrapnum: jax.Array
+  wrap_geom_xpos: jax.Array
+  wrap_obj: jax.Array
+  wrap_xpos: jax.Array
+  shape = property(lambda self: self.cacc.shape)
+
+
+DATA_NON_VMAP = {
+    'collision_hftri_index',
+    'collision_pair',
+    'collision_pairid',
+    'collision_worldid',
+    'contact__dim',
+    'contact__dist',
+    'contact__efc_address',
+    'contact__frame',
+    'contact__friction',
+    'contact__geom',
+    'contact__includemargin',
+    'contact__pos',
+    'contact__solimp',
+    'contact__solref',
+    'contact__solreffriction',
+    'contact__worldid',
+    'efc__u',
+    'efc__uu',
+    'efc__uv',
+    'efc__vv',
+    'epa_face',
+    'epa_horizon',
+    'epa_index',
+    'epa_map',
+    'epa_norm2',
+    'epa_pr',
+    'epa_vert',
+    'epa_vert1',
+    'epa_vert2',
+    'epa_vert_index1',
+    'epa_vert_index2',
+    'geom_skip',
+    'ncollision',
+    'ncon',
+    'nconmax',
+    'njmax',
+    'nsolving',
+    'nworld',
+    'ray_bodyexclude',
+}
+
+
+def _to_elt(cont, _, d, axis):
+  return DataWarp(**{
+      f.name: (
+          cont(getattr(d, f.name), axis)
+          if f.name not in DATA_NON_VMAP
+          else getattr(d, f.name)
+      )
+      for f in DataWarp.fields()
+  })
+
+
+def _from_elt(cont, axis_size, d, axis_dest):
+  return DataWarp(**{
+      f.name: (
+          cont(axis_size, getattr(d, f.name), axis_dest)
+          if f.name not in DATA_NON_VMAP
+          else getattr(d, f.name)
+      )
+      for f in DataWarp.fields()
+  })
+
+
+batching.register_vmappable(DataWarp, int, int, _to_elt, _from_elt, None)
+
+NDIM = {
+    'Data': {
+        'act': 2,
+        'act_dot': 2,
+        'act_dot_rk': 2,
+        'act_t0': 2,
+        'act_vel_integration': 2,
+        'actuator_force': 2,
+        'actuator_length': 2,
+        'actuator_moment': 3,
+        'actuator_trntype_body_ncon': 2,
+        'actuator_velocity': 2,
+        'cacc': 3,
+        'cam_xmat': 4,
+        'cam_xpos': 3,
+        'cdof': 3,
+        'cdof_dot': 3,
+        'cfrc_ext': 3,
+        'cfrc_int': 3,
+        'cinert': 3,
+        'collision_hftri_index': 1,
+        'collision_pair': 2,
+        'collision_pairid': 1,
+        'collision_worldid': 1,
+        'contact__dim': 1,
+        'contact__dist': 1,
+        'contact__efc_address': 2,
+        'contact__frame': 3,
+        'contact__friction': 2,
+        'contact__geom': 2,
+        'contact__includemargin': 1,
+        'contact__pos': 2,
+        'contact__solimp': 2,
+        'contact__solref': 2,
+        'contact__solreffriction': 2,
+        'contact__worldid': 1,
+        'crb': 3,
+        'ctrl': 2,
+        'cvel': 3,
+        'efc__D': 2,
+        'efc__J': 3,
+        'efc__Jaref': 2,
+        'efc__Ma': 2,
+        'efc__Mgrad': 2,
+        'efc__active': 2,
+        'efc__alpha': 1,
+        'efc__aref': 2,
+        'efc__beta': 1,
+        'efc__beta_den': 1,
+        'efc__beta_num': 1,
+        'efc__cholesky_L_tmp': 3,
+        'efc__cholesky_y_tmp': 2,
+        'efc__condim': 2,
+        'efc__cost': 1,
+        'efc__cost_candidate': 2,
+        'efc__done': 1,
+        'efc__force': 2,
+        'efc__frictionloss': 2,
+        'efc__gauss': 1,
+        'efc__grad': 2,
+        'efc__grad_dot': 1,
+        'efc__gtol': 1,
+        'efc__h': 3,
+        'efc__hi': 2,
+        'efc__hi_alpha': 1,
+        'efc__hi_next': 2,
+        'efc__hi_next_alpha': 1,
+        'efc__id': 2,
+        'efc__jv': 2,
+        'efc__lo': 2,
+        'efc__lo_alpha': 1,
+        'efc__lo_next': 2,
+        'efc__lo_next_alpha': 1,
+        'efc__ls_done': 1,
+        'efc__margin': 2,
+        'efc__mid': 2,
+        'efc__mid_alpha': 1,
+        'efc__mv': 2,
+        'efc__p0': 2,
+        'efc__pos': 2,
+        'efc__prev_Mgrad': 2,
+        'efc__prev_cost': 1,
+        'efc__prev_grad': 2,
+        'efc__quad': 3,
+        'efc__quad_gauss': 2,
+        'efc__search': 2,
+        'efc__search_dot': 1,
+        'efc__type': 2,
+        'efc__u': 2,
+        'efc__uu': 1,
+        'efc__uv': 1,
+        'efc__vel': 2,
+        'efc__vv': 1,
+        'energy': 2,
+        'energy_vel_mul_m_skip': 1,
+        'epa_face': 3,
+        'epa_horizon': 2,
+        'epa_index': 2,
+        'epa_map': 2,
+        'epa_norm2': 2,
+        'epa_pr': 3,
+        'epa_vert': 3,
+        'epa_vert1': 3,
+        'epa_vert2': 3,
+        'epa_vert_index1': 2,
+        'epa_vert_index2': 2,
+        'eq_active': 2,
+        'flexedge_length': 2,
+        'flexedge_velocity': 2,
+        'flexvert_xpos': 3,
+        'fluid_applied': 3,
+        'geom_skip': 1,
+        'geom_xmat': 4,
+        'geom_xpos': 3,
+        'inverse_mul_m_skip': 1,
+        'light_xdir': 3,
+        'light_xpos': 3,
+        'mocap_pos': 3,
+        'mocap_quat': 3,
+        'ncollision': 1,
+        'ncon': 1,
+        'ncon_hfield': 2,
+        'nconmax': 0,
+        'ne': 1,
+        'ne_connect': 1,
+        'ne_jnt': 1,
+        'ne_ten': 1,
+        'ne_weld': 1,
+        'nefc': 1,
+        'nf': 1,
+        'njmax': 0,
+        'nl': 1,
+        'nsolving': 1,
+        'nworld': 0,
+        'qLD': 3,
+        'qLD_integration': 3,
+        'qLDiagInv': 2,
+        'qLDiagInv_integration': 2,
+        'qM': 3,
+        'qM_integration': 3,
+        'qacc': 2,
+        'qacc_discrete': 2,
+        'qacc_integration': 2,
+        'qacc_rk': 2,
+        'qacc_smooth': 2,
+        'qacc_warmstart': 2,
+        'qfrc_actuator': 2,
+        'qfrc_applied': 2,
+        'qfrc_bias': 2,
+        'qfrc_constraint': 2,
+        'qfrc_damper': 2,
+        'qfrc_fluid': 2,
+        'qfrc_gravcomp': 2,
+        'qfrc_integration': 2,
+        'qfrc_inverse': 2,
+        'qfrc_passive': 2,
+        'qfrc_smooth': 2,
+        'qfrc_spring': 2,
+        'qpos': 2,
+        'qpos_t0': 2,
+        'qvel': 2,
+        'qvel_rk': 2,
+        'qvel_t0': 2,
+        'ray_bodyexclude': 1,
+        'ray_dist': 2,
+        'ray_geomid': 2,
+        'sap_cumulative_sum': 2,
+        'sap_projection_lower': 3,
+        'sap_projection_upper': 2,
+        'sap_range': 2,
+        'sap_segment_index': 2,
+        'sap_sort_index': 3,
+        'sensor_rangefinder_dist': 2,
+        'sensor_rangefinder_geomid': 2,
+        'sensor_rangefinder_pnt': 3,
+        'sensor_rangefinder_vec': 3,
+        'sensordata': 2,
+        'site_xmat': 4,
+        'site_xpos': 3,
+        'solver_niter': 1,
+        'subtree_angmom': 3,
+        'subtree_bodyvel': 3,
+        'subtree_com': 3,
+        'subtree_linvel': 3,
+        'ten_J': 3,
+        'ten_Jdot': 3,
+        'ten_actfrc': 2,
+        'ten_bias_coef': 2,
+        'ten_length': 2,
+        'ten_velocity': 2,
+        'ten_wrapadr': 2,
+        'ten_wrapnum': 2,
+        'time': 1,
+        'wrap_geom_xpos': 3,
+        'wrap_obj': 3,
+        'wrap_xpos': 3,
+        'xanchor': 3,
+        'xaxis': 3,
+        'xfrc_applied': 3,
+        'ximat': 4,
+        'xipos': 3,
+        'xmat': 4,
+        'xpos': 3,
+        'xquat': 3,
+    },
+    'Model': {
+        'M_colind': 1,
+        'M_rowadr': 1,
+        'M_rownnz': 1,
+        'actuator_acc0': 1,
+        'actuator_actadr': 1,
+        'actuator_actearly': 1,
+        'actuator_actlimited': 1,
+        'actuator_actnum': 1,
+        'actuator_actrange': 3,
+        'actuator_affine_bias_gain': 0,
+        'actuator_biasprm': 3,
+        'actuator_biastype': 1,
+        'actuator_cranklength': 1,
+        'actuator_ctrllimited': 1,
+        'actuator_ctrlrange': 3,
+        'actuator_dynprm': 3,
+        'actuator_dyntype': 1,
+        'actuator_forcelimited': 1,
+        'actuator_forcerange': 3,
+        'actuator_gainprm': 3,
+        'actuator_gaintype': 1,
+        'actuator_gear': 3,
+        'actuator_lengthrange': 2,
+        'actuator_moment_tiles_nu': -1,
+        'actuator_moment_tiles_nv': -1,
+        'actuator_trnid': 2,
+        'actuator_trntype': 1,
+        'actuator_trntype_body_adr': 1,
+        'block_dim__actuator_velocity': 0,
+        'block_dim__cholesky_factorize': 0,
+        'block_dim__cholesky_factorize_solve': 0,
+        'block_dim__cholesky_solve': 0,
+        'block_dim__energy_vel_kinetic': 0,
+        'block_dim__euler_dense': 0,
+        'block_dim__mul_m_dense': 0,
+        'block_dim__qderiv_actuator_passive_actuation': 0,
+        'block_dim__qderiv_actuator_passive_no_actuation': 0,
+        'block_dim__qfrc_actuator': 0,
+        'block_dim__ray': 0,
+        'block_dim__segmented_sort': 0,
+        'block_dim__tendon_velocity': 0,
+        'block_dim__update_gradient_cholesky': 0,
+        'body_conaffinity': 1,
+        'body_contype': 1,
+        'body_dofadr': 1,
+        'body_dofnum': 1,
+        'body_geomadr': 1,
+        'body_geomnum': 1,
+        'body_gravcomp': 2,
+        'body_inertia': 3,
+        'body_invweight0': 3,
+        'body_ipos': 3,
+        'body_iquat': 3,
+        'body_jntadr': 1,
+        'body_jntnum': 1,
+        'body_mass': 2,
+        'body_mocapid': 1,
+        'body_parentid': 1,
+        'body_pos': 3,
+        'body_quat': 3,
+        'body_rootid': 1,
+        'body_subtreemass': 2,
+        'body_tree': -1,
+        'body_weldid': 1,
+        'cam_bodyid': 1,
+        'cam_fovy': 1,
+        'cam_intrinsic': 2,
+        'cam_mat0': 4,
+        'cam_mode': 1,
+        'cam_pos': 3,
+        'cam_pos0': 3,
+        'cam_poscom0': 3,
+        'cam_quat': 3,
+        'cam_resolution': 2,
+        'cam_sensorsize': 2,
+        'cam_targetbodyid': 1,
+        'condim_max': 0,
+        'dof_Madr': 1,
+        'dof_armature': 2,
+        'dof_bodyid': 1,
+        'dof_damping': 2,
+        'dof_frictionloss': 2,
+        'dof_invweight0': 2,
+        'dof_jntid': 1,
+        'dof_parentid': 1,
+        'dof_solimp': 3,
+        'dof_solref': 3,
+        'dof_tri_col': 1,
+        'dof_tri_row': 1,
+        'eq_active0': 1,
+        'eq_connect_adr': 1,
+        'eq_data': 3,
+        'eq_jnt_adr': 1,
+        'eq_obj1id': 1,
+        'eq_obj2id': 1,
+        'eq_objtype': 1,
+        'eq_solimp': 3,
+        'eq_solref': 3,
+        'eq_ten_adr': 1,
+        'eq_type': 1,
+        'eq_wld_adr': 1,
+        'exclude_signature': 1,
+        'flex_bending': 3,
+        'flex_damping': 1,
+        'flex_dim': 1,
+        'flex_edge': 2,
+        'flex_edgeadr': 1,
+        'flex_edgeflap': 2,
+        'flex_elem': 1,
+        'flex_elemedge': 1,
+        'flex_elemedgeadr': 1,
+        'flex_stiffness': 1,
+        'flex_vertadr': 1,
+        'flex_vertbodyid': 1,
+        'flex_vertnum': 1,
+        'flexedge_length0': 1,
+        'geom_aabb': 3,
+        'geom_bodyid': 1,
+        'geom_conaffinity': 1,
+        'geom_condim': 1,
+        'geom_contype': 1,
+        'geom_dataid': 1,
+        'geom_friction': 3,
+        'geom_gap': 2,
+        'geom_group': 1,
+        'geom_margin': 2,
+        'geom_matid': 2,
+        'geom_pair_type_count': -1,
+        'geom_plugin_index': 1,
+        'geom_pos': 3,
+        'geom_priority': 1,
+        'geom_quat': 3,
+        'geom_rbound': 2,
+        'geom_rgba': 3,
+        'geom_size': 3,
+        'geom_solimp': 3,
+        'geom_solmix': 2,
+        'geom_solref': 3,
+        'geom_type': 1,
+        'geompair2hfgeompair': 1,
+        'has_sdf_geom': 0,
+        'hfield_adr': 1,
+        'hfield_data': 1,
+        'hfield_ncol': 1,
+        'hfield_nrow': 1,
+        'hfield_size': 2,
+        'jnt_actfrclimited': 1,
+        'jnt_actfrcrange': 3,
+        'jnt_actgravcomp': 1,
+        'jnt_axis': 3,
+        'jnt_bodyid': 1,
+        'jnt_dofadr': 1,
+        'jnt_limited': 1,
+        'jnt_limited_ball_adr': 1,
+        'jnt_limited_slide_hinge_adr': 1,
+        'jnt_margin': 2,
+        'jnt_pos': 3,
+        'jnt_qposadr': 1,
+        'jnt_range': 3,
+        'jnt_solimp': 3,
+        'jnt_solref': 3,
+        'jnt_stiffness': 2,
+        'jnt_type': 1,
+        'light_bodyid': 1,
+        'light_dir': 3,
+        'light_dir0': 3,
+        'light_mode': 1,
+        'light_pos': 3,
+        'light_pos0': 3,
+        'light_poscom0': 3,
+        'light_targetbodyid': 1,
+        'mapM2M': 1,
+        'mat_rgba': 3,
+        'mesh_face': 2,
+        'mesh_faceadr': 1,
+        'mesh_graph': 1,
+        'mesh_graphadr': 1,
+        'mesh_polyadr': 1,
+        'mesh_polymap': 1,
+        'mesh_polymapadr': 1,
+        'mesh_polymapnum': 1,
+        'mesh_polynormal': 2,
+        'mesh_polynum': 1,
+        'mesh_polyvert': 1,
+        'mesh_polyvertadr': 1,
+        'mesh_polyvertnum': 1,
+        'mesh_vert': 2,
+        'mesh_vertadr': 1,
+        'mesh_vertnum': 1,
+        'mocap_bodyid': 1,
+        'nC': 0,
+        'nM': 0,
+        'na': 0,
+        'nbody': 0,
+        'ncam': 0,
+        'neq': 0,
+        'nexclude': 0,
+        'nflex': 0,
+        'nflexedge': 0,
+        'nflexelem': 0,
+        'nflexelemdata': 0,
+        'nflexvert': 0,
+        'ngeom': 0,
+        'ngravcomp': 0,
+        'nhfield': 0,
+        'nhfielddata': 0,
+        'njnt': 0,
+        'nlight': 0,
+        'nlsp': 0,
+        'nmeshface': 0,
+        'nmeshgraph': 0,
+        'nmeshpoly': 0,
+        'nmeshpolymap': 0,
+        'nmeshpolyvert': 0,
+        'nmeshvert': 0,
+        'nmocap': 0,
+        'npair': 0,
+        'nq': 0,
+        'nsensor': 0,
+        'nsensordata': 0,
+        'nsite': 0,
+        'ntendon': 0,
+        'nu': 0,
+        'nv': 0,
+        'nwrap': 0,
+        'nxn_geom_pair': 2,
+        'nxn_geom_pair_filtered': 2,
+        'nxn_pairid': 1,
+        'nxn_pairid_filtered': 1,
+        'opt__broadphase': 0,
+        'opt__broadphase_filter': 0,
+        'opt__cone': 0,
+        'opt__density': 1,
+        'opt__disableflags': 0,
+        'opt__enableflags': 0,
+        'opt__epa_iterations': 0,
+        'opt__gjk_iterations': 0,
+        'opt__graph_conditional': 0,
+        'opt__gravity': 2,
+        'opt__has_fluid': 0,
+        'opt__impratio': 1,
+        'opt__integrator': 0,
+        'opt__is_sparse': 0,
+        'opt__iterations': 0,
+        'opt__ls_iterations': 0,
+        'opt__ls_parallel': 0,
+        'opt__ls_tolerance': 1,
+        'opt__magnetic': 2,
+        'opt__run_collision_detection': 0,
+        'opt__sdf_initpoints': 0,
+        'opt__sdf_iterations': 0,
+        'opt__solver': 0,
+        'opt__timestep': 1,
+        'opt__tolerance': 1,
+        'opt__viscosity': 1,
+        'opt__wind': 2,
+        'pair_dim': 1,
+        'pair_friction': 3,
+        'pair_gap': 2,
+        'pair_geom1': 1,
+        'pair_geom2': 1,
+        'pair_margin': 2,
+        'pair_solimp': 3,
+        'pair_solref': 3,
+        'pair_solreffriction': 3,
+        'plugin': 1,
+        'plugin_attr': 2,
+        'qLD_updates': -1,
+        'qM_fullm_i': 1,
+        'qM_fullm_j': 1,
+        'qM_madr_ij': 1,
+        'qM_mulm_i': 1,
+        'qM_mulm_j': 1,
+        'qM_tiles': -1,
+        'qpos0': 2,
+        'qpos_spring': 2,
+        'rangefinder_sensor_adr': 1,
+        'sensor_acc_adr': 1,
+        'sensor_adr': 1,
+        'sensor_cutoff': 1,
+        'sensor_datatype': 1,
+        'sensor_dim': 1,
+        'sensor_e_kinetic': 0,
+        'sensor_e_potential': 0,
+        'sensor_limitfrc_adr': 1,
+        'sensor_limitpos_adr': 1,
+        'sensor_limitvel_adr': 1,
+        'sensor_objid': 1,
+        'sensor_objtype': 1,
+        'sensor_pos_adr': 1,
+        'sensor_rangefinder_adr': 1,
+        'sensor_rangefinder_bodyid': 1,
+        'sensor_refid': 1,
+        'sensor_reftype': 1,
+        'sensor_rne_postconstraint': 0,
+        'sensor_subtree_vel': 0,
+        'sensor_tendonactfrc_adr': 1,
+        'sensor_touch_adr': 1,
+        'sensor_type': 1,
+        'sensor_vel_adr': 1,
+        'site_bodyid': 1,
+        'site_pos': 3,
+        'site_quat': 3,
+        'site_size': 2,
+        'site_type': 1,
+        'stat__meaninertia': 0,
+        'subtree_mass': 2,
+        'ten_wrapadr_site': 1,
+        'ten_wrapnum_site': 1,
+        'tendon_actfrclimited': 1,
+        'tendon_actfrcrange': 3,
+        'tendon_adr': 1,
+        'tendon_armature': 2,
+        'tendon_damping': 2,
+        'tendon_frictionloss': 2,
+        'tendon_geom_adr': 1,
+        'tendon_invweight0': 2,
+        'tendon_jnt_adr': 1,
+        'tendon_length0': 2,
+        'tendon_lengthspring': 3,
+        'tendon_limited': 1,
+        'tendon_limited_adr': 1,
+        'tendon_margin': 2,
+        'tendon_num': 1,
+        'tendon_range': 3,
+        'tendon_site_pair_adr': 1,
+        'tendon_solimp_fri': 3,
+        'tendon_solimp_lim': 3,
+        'tendon_solref_fri': 3,
+        'tendon_solref_lim': 3,
+        'tendon_stiffness': 2,
+        'wrap_geom_adr': 1,
+        'wrap_jnt_adr': 1,
+        'wrap_objid': 1,
+        'wrap_prm': 1,
+        'wrap_pulley_scale': 1,
+        'wrap_site_adr': 1,
+        'wrap_site_pair_adr': 1,
+        'wrap_type': 1,
+    },
+    'Option': {
+        'broadphase': 0,
+        'broadphase_filter': 0,
+        'cone': 0,
+        'density': 1,
+        'disableflags': 0,
+        'enableflags': 0,
+        'epa_iterations': 0,
+        'gjk_iterations': 0,
+        'graph_conditional': 0,
+        'gravity': 2,
+        'has_fluid': 0,
+        'impratio': 1,
+        'integrator': 0,
+        'is_sparse': 0,
+        'iterations': 0,
+        'ls_iterations': 0,
+        'ls_parallel': 0,
+        'ls_tolerance': 1,
+        'magnetic': 2,
+        'run_collision_detection': 0,
+        'sdf_initpoints': 0,
+        'sdf_iterations': 0,
+        'solver': 0,
+        'timestep': 1,
+        'tolerance': 1,
+        'viscosity': 1,
+        'wind': 2,
+    },
+    'Statistic': {'meaninertia': 0},
+}
+BATCH_DIM = {
+    'Data': {
+        'act': True,
+        'act_dot': True,
+        'act_dot_rk': True,
+        'act_t0': True,
+        'act_vel_integration': True,
+        'actuator_force': True,
+        'actuator_length': True,
+        'actuator_moment': True,
+        'actuator_trntype_body_ncon': True,
+        'actuator_velocity': True,
+        'cacc': True,
+        'cam_xmat': True,
+        'cam_xpos': True,
+        'cdof': True,
+        'cdof_dot': True,
+        'cfrc_ext': True,
+        'cfrc_int': True,
+        'cinert': True,
+        'collision_hftri_index': False,
+        'collision_pair': False,
+        'collision_pairid': False,
+        'collision_worldid': False,
+        'contact__dim': False,
+        'contact__dist': False,
+        'contact__efc_address': False,
+        'contact__frame': False,
+        'contact__friction': False,
+        'contact__geom': False,
+        'contact__includemargin': False,
+        'contact__pos': False,
+        'contact__solimp': False,
+        'contact__solref': False,
+        'contact__solreffriction': False,
+        'contact__worldid': False,
+        'crb': True,
+        'ctrl': True,
+        'cvel': True,
+        'efc__D': True,
+        'efc__J': True,
+        'efc__Jaref': True,
+        'efc__Ma': True,
+        'efc__Mgrad': True,
+        'efc__active': True,
+        'efc__alpha': True,
+        'efc__aref': True,
+        'efc__beta': True,
+        'efc__beta_den': True,
+        'efc__beta_num': True,
+        'efc__cholesky_L_tmp': True,
+        'efc__cholesky_y_tmp': True,
+        'efc__condim': True,
+        'efc__cost': True,
+        'efc__cost_candidate': True,
+        'efc__done': True,
+        'efc__force': True,
+        'efc__frictionloss': True,
+        'efc__gauss': True,
+        'efc__grad': True,
+        'efc__grad_dot': True,
+        'efc__gtol': True,
+        'efc__h': True,
+        'efc__hi': True,
+        'efc__hi_alpha': True,
+        'efc__hi_next': True,
+        'efc__hi_next_alpha': True,
+        'efc__id': True,
+        'efc__jv': True,
+        'efc__lo': True,
+        'efc__lo_alpha': True,
+        'efc__lo_next': True,
+        'efc__lo_next_alpha': True,
+        'efc__ls_done': True,
+        'efc__margin': True,
+        'efc__mid': True,
+        'efc__mid_alpha': True,
+        'efc__mv': True,
+        'efc__p0': True,
+        'efc__pos': True,
+        'efc__prev_Mgrad': True,
+        'efc__prev_cost': True,
+        'efc__prev_grad': True,
+        'efc__quad': True,
+        'efc__quad_gauss': True,
+        'efc__search': True,
+        'efc__search_dot': True,
+        'efc__type': True,
+        'efc__u': False,
+        'efc__uu': False,
+        'efc__uv': False,
+        'efc__vel': True,
+        'efc__vv': False,
+        'energy': True,
+        'energy_vel_mul_m_skip': True,
+        'epa_face': False,
+        'epa_horizon': False,
+        'epa_index': False,
+        'epa_map': False,
+        'epa_norm2': False,
+        'epa_pr': False,
+        'epa_vert': False,
+        'epa_vert1': False,
+        'epa_vert2': False,
+        'epa_vert_index1': False,
+        'epa_vert_index2': False,
+        'eq_active': True,
+        'flexedge_length': True,
+        'flexedge_velocity': True,
+        'flexvert_xpos': True,
+        'fluid_applied': True,
+        'geom_skip': False,
+        'geom_xmat': True,
+        'geom_xpos': True,
+        'inverse_mul_m_skip': True,
+        'light_xdir': True,
+        'light_xpos': True,
+        'mocap_pos': True,
+        'mocap_quat': True,
+        'ncollision': False,
+        'ncon': False,
+        'ncon_hfield': True,
+        'nconmax': False,
+        'ne': True,
+        'ne_connect': True,
+        'ne_jnt': True,
+        'ne_ten': True,
+        'ne_weld': True,
+        'nefc': True,
+        'nf': True,
+        'njmax': False,
+        'nl': True,
+        'nsolving': False,
+        'nworld': False,
+        'qLD': True,
+        'qLD_integration': True,
+        'qLDiagInv': True,
+        'qLDiagInv_integration': True,
+        'qM': True,
+        'qM_integration': True,
+        'qacc': True,
+        'qacc_discrete': True,
+        'qacc_integration': True,
+        'qacc_rk': True,
+        'qacc_smooth': True,
+        'qacc_warmstart': True,
+        'qfrc_actuator': True,
+        'qfrc_applied': True,
+        'qfrc_bias': True,
+        'qfrc_constraint': True,
+        'qfrc_damper': True,
+        'qfrc_fluid': True,
+        'qfrc_gravcomp': True,
+        'qfrc_integration': True,
+        'qfrc_inverse': True,
+        'qfrc_passive': True,
+        'qfrc_smooth': True,
+        'qfrc_spring': True,
+        'qpos': True,
+        'qpos_t0': True,
+        'qvel': True,
+        'qvel_rk': True,
+        'qvel_t0': True,
+        'ray_bodyexclude': False,
+        'ray_dist': True,
+        'ray_geomid': True,
+        'sap_cumulative_sum': True,
+        'sap_projection_lower': True,
+        'sap_projection_upper': True,
+        'sap_range': True,
+        'sap_segment_index': True,
+        'sap_sort_index': True,
+        'sensor_rangefinder_dist': True,
+        'sensor_rangefinder_geomid': True,
+        'sensor_rangefinder_pnt': True,
+        'sensor_rangefinder_vec': True,
+        'sensordata': True,
+        'site_xmat': True,
+        'site_xpos': True,
+        'solver_niter': True,
+        'subtree_angmom': True,
+        'subtree_bodyvel': True,
+        'subtree_com': True,
+        'subtree_linvel': True,
+        'ten_J': True,
+        'ten_Jdot': True,
+        'ten_actfrc': True,
+        'ten_bias_coef': True,
+        'ten_length': True,
+        'ten_velocity': True,
+        'ten_wrapadr': True,
+        'ten_wrapnum': True,
+        'time': True,
+        'wrap_geom_xpos': True,
+        'wrap_obj': True,
+        'wrap_xpos': True,
+        'xanchor': True,
+        'xaxis': True,
+        'xfrc_applied': True,
+        'ximat': True,
+        'xipos': True,
+        'xmat': True,
+        'xpos': True,
+        'xquat': True,
+    },
+    'Model': {
+        'M_colind': False,
+        'M_rowadr': False,
+        'M_rownnz': False,
+        'actuator_acc0': False,
+        'actuator_actadr': False,
+        'actuator_actearly': False,
+        'actuator_actlimited': False,
+        'actuator_actnum': False,
+        'actuator_actrange': True,
+        'actuator_affine_bias_gain': False,
+        'actuator_biasprm': True,
+        'actuator_biastype': False,
+        'actuator_cranklength': False,
+        'actuator_ctrllimited': False,
+        'actuator_ctrlrange': True,
+        'actuator_dynprm': True,
+        'actuator_dyntype': False,
+        'actuator_forcelimited': False,
+        'actuator_forcerange': True,
+        'actuator_gainprm': True,
+        'actuator_gaintype': False,
+        'actuator_gear': True,
+        'actuator_lengthrange': False,
+        'actuator_moment_tiles_nu': False,
+        'actuator_moment_tiles_nv': False,
+        'actuator_trnid': False,
+        'actuator_trntype': False,
+        'actuator_trntype_body_adr': False,
+        'block_dim__actuator_velocity': False,
+        'block_dim__cholesky_factorize': False,
+        'block_dim__cholesky_factorize_solve': False,
+        'block_dim__cholesky_solve': False,
+        'block_dim__energy_vel_kinetic': False,
+        'block_dim__euler_dense': False,
+        'block_dim__mul_m_dense': False,
+        'block_dim__qderiv_actuator_passive_actuation': False,
+        'block_dim__qderiv_actuator_passive_no_actuation': False,
+        'block_dim__qfrc_actuator': False,
+        'block_dim__ray': False,
+        'block_dim__segmented_sort': False,
+        'block_dim__tendon_velocity': False,
+        'block_dim__update_gradient_cholesky': False,
+        'body_conaffinity': False,
+        'body_contype': False,
+        'body_dofadr': False,
+        'body_dofnum': False,
+        'body_geomadr': False,
+        'body_geomnum': False,
+        'body_gravcomp': True,
+        'body_inertia': True,
+        'body_invweight0': True,
+        'body_ipos': True,
+        'body_iquat': True,
+        'body_jntadr': False,
+        'body_jntnum': False,
+        'body_mass': True,
+        'body_mocapid': False,
+        'body_parentid': False,
+        'body_pos': True,
+        'body_quat': True,
+        'body_rootid': False,
+        'body_subtreemass': True,
+        'body_tree': False,
+        'body_weldid': False,
+        'cam_bodyid': False,
+        'cam_fovy': False,
+        'cam_intrinsic': False,
+        'cam_mat0': True,
+        'cam_mode': False,
+        'cam_pos': True,
+        'cam_pos0': True,
+        'cam_poscom0': True,
+        'cam_quat': True,
+        'cam_resolution': False,
+        'cam_sensorsize': False,
+        'cam_targetbodyid': False,
+        'condim_max': False,
+        'dof_Madr': False,
+        'dof_armature': True,
+        'dof_bodyid': False,
+        'dof_damping': True,
+        'dof_frictionloss': True,
+        'dof_invweight0': True,
+        'dof_jntid': False,
+        'dof_parentid': False,
+        'dof_solimp': True,
+        'dof_solref': True,
+        'dof_tri_col': False,
+        'dof_tri_row': False,
+        'eq_active0': False,
+        'eq_connect_adr': False,
+        'eq_data': True,
+        'eq_jnt_adr': False,
+        'eq_obj1id': False,
+        'eq_obj2id': False,
+        'eq_objtype': False,
+        'eq_solimp': True,
+        'eq_solref': True,
+        'eq_ten_adr': False,
+        'eq_type': False,
+        'eq_wld_adr': False,
+        'exclude_signature': False,
+        'flex_bending': False,
+        'flex_damping': False,
+        'flex_dim': False,
+        'flex_edge': False,
+        'flex_edgeadr': False,
+        'flex_edgeflap': False,
+        'flex_elem': False,
+        'flex_elemedge': False,
+        'flex_elemedgeadr': False,
+        'flex_stiffness': False,
+        'flex_vertadr': False,
+        'flex_vertbodyid': False,
+        'flex_vertnum': False,
+        'flexedge_length0': False,
+        'geom_aabb': False,
+        'geom_bodyid': False,
+        'geom_conaffinity': False,
+        'geom_condim': False,
+        'geom_contype': False,
+        'geom_dataid': False,
+        'geom_friction': True,
+        'geom_gap': True,
+        'geom_group': False,
+        'geom_margin': True,
+        'geom_matid': True,
+        'geom_pair_type_count': False,
+        'geom_plugin_index': False,
+        'geom_pos': True,
+        'geom_priority': False,
+        'geom_quat': True,
+        'geom_rbound': True,
+        'geom_rgba': True,
+        'geom_size': True,
+        'geom_solimp': True,
+        'geom_solmix': True,
+        'geom_solref': True,
+        'geom_type': False,
+        'geompair2hfgeompair': False,
+        'has_sdf_geom': False,
+        'hfield_adr': False,
+        'hfield_data': False,
+        'hfield_ncol': False,
+        'hfield_nrow': False,
+        'hfield_size': False,
+        'jnt_actfrclimited': False,
+        'jnt_actfrcrange': True,
+        'jnt_actgravcomp': False,
+        'jnt_axis': True,
+        'jnt_bodyid': False,
+        'jnt_dofadr': False,
+        'jnt_limited': False,
+        'jnt_limited_ball_adr': False,
+        'jnt_limited_slide_hinge_adr': False,
+        'jnt_margin': True,
+        'jnt_pos': True,
+        'jnt_qposadr': False,
+        'jnt_range': True,
+        'jnt_solimp': True,
+        'jnt_solref': True,
+        'jnt_stiffness': True,
+        'jnt_type': False,
+        'light_bodyid': False,
+        'light_dir': True,
+        'light_dir0': True,
+        'light_mode': False,
+        'light_pos': True,
+        'light_pos0': True,
+        'light_poscom0': True,
+        'light_targetbodyid': False,
+        'mapM2M': False,
+        'mat_rgba': True,
+        'mesh_face': False,
+        'mesh_faceadr': False,
+        'mesh_graph': False,
+        'mesh_graphadr': False,
+        'mesh_polyadr': False,
+        'mesh_polymap': False,
+        'mesh_polymapadr': False,
+        'mesh_polymapnum': False,
+        'mesh_polynormal': False,
+        'mesh_polynum': False,
+        'mesh_polyvert': False,
+        'mesh_polyvertadr': False,
+        'mesh_polyvertnum': False,
+        'mesh_vert': False,
+        'mesh_vertadr': False,
+        'mesh_vertnum': False,
+        'mocap_bodyid': False,
+        'nC': False,
+        'nM': False,
+        'na': False,
+        'nbody': False,
+        'ncam': False,
+        'neq': False,
+        'nexclude': False,
+        'nflex': False,
+        'nflexedge': False,
+        'nflexelem': False,
+        'nflexelemdata': False,
+        'nflexvert': False,
+        'ngeom': False,
+        'ngravcomp': False,
+        'nhfield': False,
+        'nhfielddata': False,
+        'njnt': False,
+        'nlight': False,
+        'nlsp': False,
+        'nmeshface': False,
+        'nmeshgraph': False,
+        'nmeshpoly': False,
+        'nmeshpolymap': False,
+        'nmeshpolyvert': False,
+        'nmeshvert': False,
+        'nmocap': False,
+        'npair': False,
+        'nq': False,
+        'nsensor': False,
+        'nsensordata': False,
+        'nsite': False,
+        'ntendon': False,
+        'nu': False,
+        'nv': False,
+        'nwrap': False,
+        'nxn_geom_pair': False,
+        'nxn_geom_pair_filtered': False,
+        'nxn_pairid': False,
+        'nxn_pairid_filtered': False,
+        'opt__broadphase': False,
+        'opt__broadphase_filter': False,
+        'opt__cone': False,
+        'opt__density': True,
+        'opt__disableflags': False,
+        'opt__enableflags': False,
+        'opt__epa_iterations': False,
+        'opt__gjk_iterations': False,
+        'opt__graph_conditional': False,
+        'opt__gravity': True,
+        'opt__has_fluid': False,
+        'opt__impratio': True,
+        'opt__integrator': False,
+        'opt__is_sparse': False,
+        'opt__iterations': False,
+        'opt__ls_iterations': False,
+        'opt__ls_parallel': False,
+        'opt__ls_tolerance': True,
+        'opt__magnetic': True,
+        'opt__run_collision_detection': False,
+        'opt__sdf_initpoints': False,
+        'opt__sdf_iterations': False,
+        'opt__solver': False,
+        'opt__timestep': True,
+        'opt__tolerance': True,
+        'opt__viscosity': True,
+        'opt__wind': True,
+        'pair_dim': False,
+        'pair_friction': True,
+        'pair_gap': True,
+        'pair_geom1': False,
+        'pair_geom2': False,
+        'pair_margin': True,
+        'pair_solimp': True,
+        'pair_solref': True,
+        'pair_solreffriction': True,
+        'plugin': False,
+        'plugin_attr': False,
+        'qLD_updates': False,
+        'qM_fullm_i': False,
+        'qM_fullm_j': False,
+        'qM_madr_ij': False,
+        'qM_mulm_i': False,
+        'qM_mulm_j': False,
+        'qM_tiles': False,
+        'qpos0': True,
+        'qpos_spring': True,
+        'rangefinder_sensor_adr': False,
+        'sensor_acc_adr': False,
+        'sensor_adr': False,
+        'sensor_cutoff': False,
+        'sensor_datatype': False,
+        'sensor_dim': False,
+        'sensor_e_kinetic': False,
+        'sensor_e_potential': False,
+        'sensor_limitfrc_adr': False,
+        'sensor_limitpos_adr': False,
+        'sensor_limitvel_adr': False,
+        'sensor_objid': False,
+        'sensor_objtype': False,
+        'sensor_pos_adr': False,
+        'sensor_rangefinder_adr': False,
+        'sensor_rangefinder_bodyid': False,
+        'sensor_refid': False,
+        'sensor_reftype': False,
+        'sensor_rne_postconstraint': False,
+        'sensor_subtree_vel': False,
+        'sensor_tendonactfrc_adr': False,
+        'sensor_touch_adr': False,
+        'sensor_type': False,
+        'sensor_vel_adr': False,
+        'site_bodyid': False,
+        'site_pos': True,
+        'site_quat': True,
+        'site_size': False,
+        'site_type': False,
+        'stat__meaninertia': False,
+        'subtree_mass': True,
+        'ten_wrapadr_site': False,
+        'ten_wrapnum_site': False,
+        'tendon_actfrclimited': False,
+        'tendon_actfrcrange': True,
+        'tendon_adr': False,
+        'tendon_armature': True,
+        'tendon_damping': True,
+        'tendon_frictionloss': True,
+        'tendon_geom_adr': False,
+        'tendon_invweight0': True,
+        'tendon_jnt_adr': False,
+        'tendon_length0': True,
+        'tendon_lengthspring': True,
+        'tendon_limited': False,
+        'tendon_limited_adr': False,
+        'tendon_margin': True,
+        'tendon_num': False,
+        'tendon_range': True,
+        'tendon_site_pair_adr': False,
+        'tendon_solimp_fri': True,
+        'tendon_solimp_lim': True,
+        'tendon_solref_fri': True,
+        'tendon_solref_lim': True,
+        'tendon_stiffness': True,
+        'wrap_geom_adr': False,
+        'wrap_jnt_adr': False,
+        'wrap_objid': False,
+        'wrap_prm': False,
+        'wrap_pulley_scale': False,
+        'wrap_site_adr': False,
+        'wrap_site_pair_adr': False,
+        'wrap_type': False,
+    },
+    'Option': {
+        'broadphase': False,
+        'broadphase_filter': False,
+        'cone': False,
+        'density': True,
+        'disableflags': False,
+        'enableflags': False,
+        'epa_iterations': False,
+        'gjk_iterations': False,
+        'graph_conditional': False,
+        'gravity': True,
+        'has_fluid': False,
+        'impratio': True,
+        'integrator': False,
+        'is_sparse': False,
+        'iterations': False,
+        'ls_iterations': False,
+        'ls_parallel': False,
+        'ls_tolerance': True,
+        'magnetic': True,
+        'run_collision_detection': False,
+        'sdf_initpoints': False,
+        'sdf_iterations': False,
+        'solver': False,
+        'timestep': True,
+        'tolerance': True,
+        'viscosity': True,
+        'wind': True,
+    },
+    'Statistic': {'meaninertia': False},
+}

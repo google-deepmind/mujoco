@@ -764,7 +764,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     for (int geomid = 0; geomid < m->ngeom; geomid++) {
       int meshid = m->geom_dataid[geomid];
       // skip if not a mesh or if there is an octree
-      if (m->geom_type[geomid] == mjGEOM_SDF || meshid == -1 || m->mesh_octadr[meshid] >= 0) {
+      if (meshid == -1 || m->geom_type[geomid] == mjGEOM_SDF || m->mesh_octadr[meshid] >= 0) {
         continue;
       }
 
@@ -813,7 +813,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_MESHBVH]) {
     for (int geomid = 0; geomid < m->ngeom; geomid++) {
       int meshid = m->geom_dataid[geomid];
-      if (meshid == -1 || (m->geom_type[geomid] == mjGEOM_MESH && m->mesh_octadr[meshid] == -1)) {
+      if (meshid == -1 || m->geom_type[geomid] == mjGEOM_HFIELD || m->mesh_octadr[meshid] == -1) {
         continue;
       }
 
@@ -842,6 +842,88 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         FINISH
       }
     }
+  }
+
+  // tactile sensor
+  category = mjCAT_DECOR;
+  objtype = mjOBJ_UNKNOWN;
+  if (vopt->flags[mjVIS_CONTACTPOINT]) {
+    mj_markStack(d);
+
+    for (int id = 0; id < m->nsensor; id++) {
+      if (m->sensor_type[id] == mjSENS_TACTILE) {
+        // get site id and frame
+        int mesh_id = m->sensor_objid[id];
+        int geom_id = m->sensor_refid[id];
+        mjtNum* geom_pos = d->geom_xpos + 3*geom_id;
+        mjtNum* geom_mat = d->geom_xmat + 9*geom_id;
+        mjtNum geom_quat[4];
+        mju_mat2Quat(geom_quat, geom_mat);
+
+        // get sensor data
+        mjtNum* sensordata = d->sensordata + m->sensor_adr[id];
+        int nchannel = m->sensor_dim[id] / m->mesh_vertnum[mesh_id];
+
+        // get maximum absolute normal force
+        mjtNum maxval = 0;
+        for (int j=0; j < m->mesh_vertnum[mesh_id]; j++) {
+          maxval = mju_max(maxval, mju_abs(sensordata[j]));
+        }
+
+        // if no normal force readings, quick return
+        if (!maxval || m->geom_rbound[geom_id] < mjMINVAL) {
+          continue;
+        }
+
+        // draw geoms
+        float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
+        int* face = m->mesh_face + 3*m->mesh_faceadr[mesh_id];
+        for (int i=0; i < m->mesh_facenum[mesh_id]; i++) {
+          if (scn->ngeom >= scn->maxgeom) {
+            mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);
+            mj_freeStack(d);
+            return;
+          } else {
+            // triangle in global frame
+            mjtNum pos[3][3];
+            for (int j = 0; j < 3; j++) {
+              mjtNum v[3] = {mesh_vert[3 * face[3 * i + j] + 0],
+                             mesh_vert[3 * face[3 * i + j] + 1],
+                             mesh_vert[3 * face[3 * i + j] + 2]};
+              mju_mulMatVec3(pos[j], geom_mat, v);
+              mju_addTo3(pos[j], geom_pos);
+            }
+
+            // color
+            float rgba[4] = {0, 0, 0, 1.0};
+            mjtNum nval[3] = {0, 0, 0};
+            for (int r = 0; r < mjMIN(nchannel, 3); r++) {
+              for (int j = 0; j < 3; j++) {
+                mjtNum val = sensordata[r*m->mesh_vertnum[mesh_id] + face[3*i+j]];
+                rgba[r] += mju_abs(val) / maxval;
+                if (val) {
+                  nval[r] += 1;
+                }
+              }
+              if (nval[r]) {
+                rgba[r] /= nval[r];
+              }
+            }
+
+            if (rgba[0]==0 && rgba[1]==0 && rgba[2]==0) {
+              rgba[3] = .1;
+            }
+
+            // draw triangles, one per side
+            START
+            makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
+            thisgeom->objid = id;
+            FINISH
+          }
+        }
+      }
+    }
+    mj_freeStack(d);
   }
 
   // inertia

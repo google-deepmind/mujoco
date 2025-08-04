@@ -170,7 +170,7 @@ typedef struct mjSpec_ {           // model specification
   mjStatistic stat;                // statistics override (if defined)
 
   // sizes
-  size_t memory;                   // number of bytes in arena+stack memory
+  mjtSize memory;                  // number of bytes in arena+stack memory
   int nemax;                       // max number of equality constraints
   int nuserdata;                   // number of mjtNums in userdata
   int nuser_body;                  // number of mjtNums in body_user
@@ -184,7 +184,7 @@ typedef struct mjSpec_ {           // model specification
   int nkey;                        // number of keyframes
   int njmax;                       // (deprecated) max number of constraints
   int nconmax;                     // (deprecated) max number of detected contacts
-  size_t nstack;                   // (deprecated) number of mjtNums in mjData stack
+  mjtSize nstack;                  // (deprecated) number of mjtNums in mjData stack
 
   // global data
   mjString* comment;               // comment at top of XML

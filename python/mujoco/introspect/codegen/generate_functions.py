@@ -95,7 +95,11 @@ class MjFunctionVisitor:
     else:
       strings = []
       for child in node['inner']:
-        strings.append(self._make_comment(child))
+        comment = self._make_comment(child)
+        nullable_index = comment.find('Nullable:')
+        if nullable_index != -1:
+          comment = comment[:nullable_index]
+        strings.append(comment)
       return ''.join(strings)
 
   def visit(self, node: ClangJsonNode) -> None:

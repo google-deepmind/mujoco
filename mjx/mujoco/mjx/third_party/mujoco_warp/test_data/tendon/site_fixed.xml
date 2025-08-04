@@ -1,0 +1,31 @@
+<mujoco>
+  <worldbody>
+    <site name="siteworld"/>
+    <body>
+      <joint name="jnt0" type="slide" axis="1 0 0"/>
+      <geom type="sphere" size="0.1"/>
+      <site name="site0" pos="0 0 .1"/>
+      <body>
+        <joint name="jnt1" type="slide" axis="1 0 0"/>
+        <joint name="jnt2" type="hinge" axis="0 1 0"/>
+        <geom type="sphere" size="0.1"/>
+        <site name="site1" pos="0 0 .2"/>
+      </body>
+    </body>
+  </worldbody>
+  <tendon>
+    <spatial>
+      <site site="siteworld"/>
+      <site site="site0"/>
+      <site site="site1"/>
+    </spatial>
+    <fixed>
+      <joint joint="jnt0" coef=".1"/>
+      <joint joint="jnt1" coef=".2"/>
+      <joint joint="jnt2" coef=".3"/>
+    </fixed>
+  </tendon>
+  <keyframe>
+    <key qpos=".25 .5 .75"/>
+  </keyframe>
+</mujoco>

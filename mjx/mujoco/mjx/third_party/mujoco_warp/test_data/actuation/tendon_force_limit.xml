@@ -1,0 +1,26 @@
+<mujoco>
+  <worldbody>
+    <body>
+      <joint name="joint" type="hinge"/>
+      <geom type="sphere" size=".1"/>
+    </body>
+  </worldbody>
+  <tendon>
+    <fixed name="fixed" actuatorfrclimited="true" actuatorfrcrange="-1 1">
+      <joint joint="joint" coef="1"/>
+    </fixed>
+  </tendon>
+  <actuator>
+    <motor tendon="fixed"/>
+    <motor tendon="fixed"/>
+  </actuator>
+  <keyframe>
+    <key ctrl="0 0"/>
+    <key ctrl="1 1"/>
+    <key ctrl="2 0"/>
+    <key ctrl="0 2"/>
+    <key ctrl=".5 .5"/>
+    <key ctrl="-1 -1"/>
+    <key ctrl="-2 0"/>
+  </keyframe>
+</mujoco>

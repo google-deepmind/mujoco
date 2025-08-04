@@ -21,8 +21,6 @@ set(MUJOCO_SENSOR_SRCS
     register.cc
     touch_grid.h
     touch_grid.cc
-    touch_stress.h
-    touch_stress.cc
 )
 
 add_library(sensor SHARED)

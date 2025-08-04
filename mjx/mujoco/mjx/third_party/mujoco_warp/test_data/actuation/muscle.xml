@@ -1,0 +1,22 @@
+<mujoco>
+  <worldbody>
+    <body>
+      <joint type="slide" axis="1 0 0"/>
+      <geom type="sphere" size=".1"/>
+      <site name="site"/>
+    </body>
+    <site name="siteworld" pos="1 0 0"/>
+  </worldbody>
+  <tendon>
+    <spatial name="spatial">
+      <site site="site"/>
+      <site site="siteworld"/>
+    </spatial>
+  </tendon>
+  <actuator>
+    <muscle tendon="spatial" lengthrange="0 1"/>
+  </actuator>
+  <keyframe>
+    <key ctrl=".123" act=".456" qpos=".1" qvel=".01"/>
+  </keyframe>
+</mujoco>

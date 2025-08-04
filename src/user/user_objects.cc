@@ -6720,9 +6720,12 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
       throw mjCError(this, "unrecognized name '%s' of sensorized object", objname_.c_str());
     }
 
-    // if geom mark it as non visual
+    // if geom or mesh, mark it as non visual
     if (objtype == mjOBJ_GEOM) {
-      ((mjCGeom*)obj)->SetNotVisual();
+      static_cast<mjCGeom*>(obj)->SetNotVisual();
+    }
+    if (objtype == mjOBJ_MESH) {
+      static_cast<mjCMesh*>(obj)->SetNotVisual();
     }
 
   } else if (type != mjSENS_E_POTENTIAL &&
@@ -6744,6 +6747,14 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
     // find name
     if (!ref) {
       throw mjCError(this, "unrecognized name '%s' of object", refname_.c_str());
+    }
+
+    // if geom or mesh, mark it as non visual
+    if (reftype == mjOBJ_GEOM) {
+      static_cast<mjCGeom*>(ref)->SetNotVisual();
+    }
+    if (reftype == mjOBJ_MESH) {
+      static_cast<mjCMesh*>(ref)->SetNotVisual();
     }
 
     // must be attached to object with spatial frame
@@ -7144,6 +7155,17 @@ void mjCSensor::Compile(void) {
       }
       if (datatype == mjDATATYPE_QUATERNION && dim != 4) {
         throw mjCError(this, "datatype QUATERNION requires dim=4 in sensor");
+      }
+      break;
+
+    case mjSENS_TACTILE:
+      needstage = mjSTAGE_ACC;
+      datatype = mjDATATYPE_REAL;
+      if (objtype != mjOBJ_MESH) {
+        throw mjCError(this, "sensor must be associated with a mesh");
+      }
+      if (reftype != mjOBJ_GEOM) {
+        throw mjCError(this, "sensor must be associated with a geom");
       }
       break;
 

@@ -1,0 +1,29 @@
+<mujoco>
+  <worldbody>
+    <body>
+      <joint name="joint0" type="hinge"/>
+      <geom type="sphere" size="0.1"/>
+      <body>
+        <joint name="joint1" type="hinge"/>
+        <geom type="sphere" size="0.1"/>
+        <body>
+          <joint name="joint2" type="hinge"/>
+          <geom type="sphere" size="0.1"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <tendon>
+    <fixed name="fixed">
+      <joint joint="joint0" coef=".25"/>
+      <joint joint="joint1" coef=".5"/>
+      <joint joint="joint2" coef=".75"/>
+    </fixed>
+  </tendon>
+  <actuator>
+    <motor tendon="fixed"/>
+  </actuator>
+  <keyframe>
+    <key qpos=".2 .4 .6" qvel=".1 .2 .3"/>
+  </keyframe>
+</mujoco>

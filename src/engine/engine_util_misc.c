@@ -1367,7 +1367,12 @@ void mju_zeroInt(int* res, int n) {
   memset(res, 0, n*sizeof(int));
 }
 
+// set mjtSize vector to 0
+void mju_zeroSize(mjtSize* res, size_t n) {
+  memset(res, 0, n*sizeof(mjtSize));
+}
 
+// set size_t vector to 0
 void mju_zeroSizeT(size_t* res, size_t n) {
   memset(res, 0, n*sizeof(size_t));
 }

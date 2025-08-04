@@ -1799,6 +1799,9 @@ class mjCSensor : public mjCSensor_, private mjsSensor {
   const std::string& get_objname() { return spec_objname_; }
   const std::string& get_refname() { return spec_refname_; }
 
+  const mjCBase* get_obj() { return obj; }
+  const mjCBase* get_ref() { return ref; }
+
  private:
   void Compile(void);             // compiler
   void CopyFromSpec();

@@ -286,6 +286,7 @@ jobs:
     - name: Test MJX
       if: ${{ runner.os != 'Windows' }}
       shell: bash
+      working-directory: mjx
       run:
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pytest -n auto -v -k 'not IntegrationTest' --pyargs mujoco.mjx

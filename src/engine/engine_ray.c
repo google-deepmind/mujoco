@@ -497,7 +497,8 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
 
   // construct basis vectors of normal plane
   mjtNum b0[3] = {1, 1, 1}, b1[3];
-  if (mju_abs(lvec[0]) >= mju_abs(lvec[1]) && mju_abs(lvec[0]) >= mju_abs(lvec[2])) {
+  if (mju_abs(lvec[0]) >= mju_abs(lvec[1]) &&
+      mju_abs(lvec[0]) >= mju_abs(lvec[2])) {
     b0[0] = 0;
   } else if (mju_abs(lvec[1]) >= mju_abs(lvec[2])) {
     b0[1] = 0;
@@ -528,9 +529,9 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
   }
 
   // compute ranges, with +1 padding
-  int cmin = mjMAX(0, (int)mju_floor(mjMIN(SX[0], SX[1]))-1);
+  int cmin = mjMAX(0,     (int)mju_floor(mjMIN(SX[0], SX[1]))-1);
   int cmax = mjMIN(ncol-1, (int)mju_ceil(mjMAX(SX[0], SX[1]))+1);
-  int rmin = mjMAX(0, (int)mju_floor(mjMIN(SY[0], SY[1]))-1);
+  int rmin = mjMAX(0,     (int)mju_floor(mjMIN(SY[0], SY[1]))-1);
   int rmax = mjMIN(nrow-1, (int)mju_ceil(mjMAX(SY[0], SY[1]))+1);
 
   // check triangles within bounds
@@ -540,7 +541,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
       mjtNum va[3][3] = {
         {dx*c-size[0], dy*r-size[1], data[r*ncol+c]*size[2]},
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]},
-        {dx*(c+1)-size[0], dy*r-size[1], data[r*ncol+(c+1)]*size[2]}
+        {dx*(c+1)-size[0], dy*(r+0)-size[1], data[(r+0)*ncol+(c+1)]*size[2]}
       };
       mjtNum sol = ray_triangle(va, lpnt, lvec, b0, b1);
       if (sol >= 0 && (x < 0 || sol < x)) {
@@ -551,7 +552,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
       mjtNum vb[3][3] = {
         {dx*c-size[0], dy*r-size[1], data[r*ncol+c]*size[2]},
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]},
-        {dx*c-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+c]*size[2]}
+        {dx*(c+0)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+0)]*size[2]}
       };
       sol = ray_triangle(vb, lpnt, lvec, b0, b1);
       if (sol >= 0 && (x < 0 || sol < x)) {
@@ -573,15 +574,15 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
       if (i < 2) {
         y = (lpnt[1] + all[i]*lvec[1] + size[1]) / dy;
         y0 = mjMAX(0, mjMIN(nrow-2, mju_floor(y)));
-        z0 = (mjtNum)data[mju_round(y0)*nrow + (i == 1 ? ncol-1 : 0)];
-        z1 = (mjtNum)data[mju_round(y0+1)*nrow + (i == 1 ? ncol-1 : 0)];
+        z0 = (mjtNum)data[mju_round(y0+0)*ncol + (i == 1 ? ncol-1 : 0)];
+        z1 = (mjtNum)data[mju_round(y0+1)*ncol + (i == 1 ? ncol-1 : 0)];
       }
 
       // side normal to y-axis
       else {
         y = (lpnt[0] + all[i]*lvec[0] + size[0]) / dx;
         y0 = mjMAX(0, mjMIN(ncol-2, mju_floor(y)));
-        z0 = (mjtNum)data[mju_round(y0) + (i == 3 ? (nrow-1)*ncol : 0)];
+        z0 = (mjtNum)data[mju_round(y0+0) + (i == 3 ? (nrow-1)*ncol : 0)];
         z1 = (mjtNum)data[mju_round(y0+1) + (i == 3 ? (nrow-1)*ncol : 0)];
       }
 
