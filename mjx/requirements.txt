@@ -103,12 +103,7 @@ trimesh==4.5.2 \
     --hash=sha256:2e50f3a7fd135c3045da887a1b9f91230528f3ce11d2ec1ba44750d82d6b4f73
 wheel==0.45.0 \
     --hash=sha256:52f0baa5e6522155090a09c6bd95718cc46956d1b51d537ea5454249edb671c7
-warp-lang==1.8.0; python_version >= '3.12' \
-    --hash=sha256:75a88d2795596f06fcf79eead94e2f194a6195dadbafbd4c9b7c8b4b05456cc4 \
-    --hash=sha256:1be62e7b3e8019ccccc00916c2798afc6c4bfce17d1d6025dc8ef5c790e42c1d \
-    --hash=sha256:373464bee59be37018d134b5924bf8fdb33d1313f484fd1b7c64296971c26ae2 \
-    --hash=sha256:0ecf3b07c1d6d16592ab0318c86f452e16fb3337cfe327bcb76d793a98226dd8 \
-    --hash=sha256:2c7627bee127b522551e02f44c35d7d6a4e5632ff4b58199208012e7f2f6c608
+# TODO(robotics-simulation): add back warp-lang dependencies
 
 # Transitive dependencies of etils[epath]
 fsspec==2024.10.0 \

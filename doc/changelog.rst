@@ -36,6 +36,13 @@ Bug fixes
 - Fixed a bug where the convex hull of a collision mesh was not being computed if the mesh could only collide via a
   :ref:`contact pair<contact-pair>`.
 
+MJX
+^^^
+- Add Warp as a backend implementation for MJX. The implementation can be specified via
+  ``mjx.put_model(m, impl='warp')`` and ``mjx.make_data(m, impl='warp')``. The warp implementation requires
+  a CUDA device and ``warp-lang`` to be installed (``pip install mujoco-mjx[warp]``). This feature is available in
+  "beta" and some bugs are expected.
+
 Version 3.3.4 (July 8, 2025)
 ----------------------------
 
@@ -68,13 +75,6 @@ Documentation
 ^^^^^^^^^^^^^
 8. Added missing item documentation and clarified the nature of breaking changes in the 3.3.3 changelog.
    See items 3 and 4 below.
-
-MJX
-^^^
-- Add Warp as a backend implementation for MJX. The implementation can be specified via
-  ``mjx.put_model(m, impl='warp')`` and ``mjx.make_data(m, impl='warp')``. The warp implementation requires
-  a CUDA device, Python 3.12, and `warp-lang` to be installed. This feature is available in "beta" and
-  some bugs are expected.
 
 Version 3.3.3 (June 10, 2025)
 -----------------------------
