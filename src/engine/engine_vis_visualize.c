@@ -764,7 +764,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     for (int geomid = 0; geomid < m->ngeom; geomid++) {
       int meshid = m->geom_dataid[geomid];
       // skip if not a mesh or if there is an octree
-      if (m->geom_type[geomid] == mjGEOM_SDF || meshid == -1 || m->mesh_octadr[meshid] >= 0) {
+      if (meshid == -1 || m->geom_type[geomid] == mjGEOM_SDF || m->mesh_octadr[meshid] >= 0) {
         continue;
       }
 
@@ -813,7 +813,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_MESHBVH]) {
     for (int geomid = 0; geomid < m->ngeom; geomid++) {
       int meshid = m->geom_dataid[geomid];
-      if (meshid == -1 || (m->geom_type[geomid] == mjGEOM_MESH && m->mesh_octadr[meshid] == -1)) {
+      if (meshid == -1 || m->geom_type[geomid] == mjGEOM_HFIELD || m->mesh_octadr[meshid] == -1) {
         continue;
       }
 
