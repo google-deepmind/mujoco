@@ -1763,6 +1763,55 @@ TEST_F(MjGjkTest, MeshEdge) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjGjkTest, MeshEdge2) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option>
+      <flag multiccd="enable"/>
+    </option>
+
+    <asset>
+      <mesh name="meshbox"
+            vertex="-1 -1 -1
+                     1 -1 -1
+                     1  1 -1
+                     1  1  1
+                     1 -1  1
+                    -1  1 -1
+                    -1  1  1
+                    -1 -1  1"/>
+    </asset>
+
+    <worldbody>
+      <geom type="box" name="floor" size="6 6 2" pos="0 0 -1"/>
+      <body pos="2 0 1" euler="0 5 0">
+        <freejoint/>
+        <geom type="mesh" name="meshbox" mesh="meshbox"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  std::array<char, 1000> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  int g1 = mj_name2id(model, mjOBJ_GEOM, "floor");
+  int g2 = mj_name2id(model, mjOBJ_GEOM, "meshbox");
+
+  mjCCDStatus status;
+  std::vector<mjtNum> dir, pos;
+  mjtNum dist;
+  int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 4);
+
+  EXPECT_EQ(ncons, 2);
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjGjkTest, EllipsoidEllipsoidPenetrating) {
   std::array<char, 1000> error;
   mjModel* model = LoadModelFromString(kEllipoid, error.data(), error.size());
