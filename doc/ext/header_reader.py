@@ -37,6 +37,9 @@ _STRUCT_END_REGEX_2 = re.compile(r'^}\s+(?P<token>mj\w+);')
 # Precompiled regex for matching a C enum ending.
 _ENUM_END_REGEX = re.compile(r'^}\s+(?P<token>mj\w+);')
 
+# Precompiled regex for matching a C type with a nullable annotation.
+_NULLABLE_REGEX = re.compile(r'(?P<leading_space>\s*)Nullable:\s*(?P<args>.*)')
+
 
 @dataclasses.dataclass
 class ApiDefinition:
@@ -120,7 +123,19 @@ def read(lines: List[str]) -> Dict[str, ApiDefinition]:
           s.end()
         continue
       elif line.startswith('//'):
-        s.doc = f'{s.doc}{line[3:]}'
+        if len(line) > 3 and line[3].isupper():
+          s.doc += '\n'
+        comment = line[3:]
+        match = re.match(_NULLABLE_REGEX, comment)
+        if match:
+          groups = match.groupdict()
+          args = [
+              f'``{arg.strip()}``'
+              for arg in groups['args'].split(',')
+              if arg.strip()
+          ]
+          comment = f'{groups["leading_space"]}*Nullable:* {", ".join(args)}'
+        s.doc = f'{s.doc}{comment}'
       else:
         s.end()
     if s.state == 'FUNCTION':

@@ -182,10 +182,7 @@ class ModelWriter {
   }
   ~ModelWriter() { mj_deleteModel(model_); }
 
-  void Write(bool write_physics) {
-    // Set working parameters.
-    write_physics_ = write_physics;
-
+  void Write() {
     // Create top level class holder.
     class_path_ = CreateClassSpec(data_, pxr::SdfPath::AbsoluteRootPath(),
                                   pxr::TfToken("__class__"));
@@ -211,9 +208,7 @@ class ModelWriter {
     WriteMeshes();
     WriteMaterials();
     WriteBodies();
-    if (write_physics_) {
-      WriteActuators();
-    }
+    WriteActuators();
     WriteKeyframes();
   }
 
@@ -236,8 +231,6 @@ class ModelWriter {
   std::unordered_map<std::string, pxr::SdfPath> mesh_paths_;
   // Set of body ids that have had the articulation root API applied.
   std::unordered_set<int> articulation_roots_;
-  // Whether to write physics data.
-  bool write_physics_ = false;
 
   // Given a name index and a parent prim path this returns a
   // token such that appending it to the parent prim path does not
@@ -317,6 +310,34 @@ class ModelWriter {
     SetAttributeDefault(data_, attr_path, value);
   }
 
+  template <typename T>
+  void WriteColorAndOpacityAttributes(const pxr::SdfPath &prim_path,
+                                      const T &element) {
+    // If rgba is not the default (0.5, 0.5, 0.5, 1), then set the
+    // displayColor attribute.
+    // No effort is made to properly handle the interaction between rgba
+    // and the material if both are specified.
+    if (element->rgba[0] != 0.5f || element->rgba[1] != 0.5f ||
+        element->rgba[2] != 0.5f || element->rgba[3] != 1.0f) {
+      // Set the displayColor attribute.
+      pxr::SdfPath display_color_attr = CreateAttributeSpec(
+          data_, prim_path, pxr::UsdGeomTokens->primvarsDisplayColor,
+          pxr::SdfValueTypeNames->Color3fArray);
+      SetAttributeDefault(
+          data_, display_color_attr,
+          pxr::VtArray<pxr::GfVec3f>{
+              {element->rgba[0], element->rgba[1], element->rgba[2]}});
+      // Set the displayOpacity attribute, only if the opacity is not 1.
+      if (element->rgba[3] != 1.0f) {
+        pxr::SdfPath display_opacity_attr = CreateAttributeSpec(
+            data_, prim_path, pxr::UsdGeomTokens->primvarsDisplayOpacity,
+            pxr::SdfValueTypeNames->FloatArray);
+        SetAttributeDefault(data_, display_opacity_attr,
+                            pxr::VtArray<float>{element->rgba[3]});
+      }
+    }
+  }
+
   void PrependToXformOpOrder(const pxr::SdfPath &prim_path,
                              const pxr::VtArray<pxr::TfToken> &order) {
     auto xform_op_order_path =
@@ -348,25 +369,22 @@ class ModelWriter {
                        pxr::UsdGeomTokens->Mesh);
     mesh_paths_[*mjs_getName(mesh->element)] = subcomponent_path;
 
-    if (write_physics_) {
-      ApplyApiSchema(data_, mesh_path, MjcPhysicsTokens->MjcMeshCollisionAPI);
+    ApplyApiSchema(data_, mesh_path, MjcPhysicsTokens->MjcMeshCollisionAPI);
 
-      pxr::TfToken inertia = MjcPhysicsTokens->legacy;
-      if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_EXACT) {
-        inertia = MjcPhysicsTokens->exact;
-      } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_CONVEX) {
-        inertia = MjcPhysicsTokens->convex;
-      } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_SHELL) {
-        inertia = MjcPhysicsTokens->shell;
-      }
-
-      WriteUniformAttribute(mesh_path, pxr::SdfValueTypeNames->Token,
-                            MjcPhysicsTokens->mjcInertia, inertia);
-
-      WriteUniformAttribute(mesh_path, pxr::SdfValueTypeNames->Int,
-                            MjcPhysicsTokens->mjcMaxhullvert,
-                            mesh->maxhullvert);
+    pxr::TfToken inertia = MjcPhysicsTokens->legacy;
+    if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_EXACT) {
+      inertia = MjcPhysicsTokens->exact;
+    } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_CONVEX) {
+      inertia = MjcPhysicsTokens->convex;
+    } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_SHELL) {
+      inertia = MjcPhysicsTokens->shell;
     }
+
+    WriteUniformAttribute(mesh_path, pxr::SdfValueTypeNames->Token,
+                          MjcPhysicsTokens->mjcInertia, inertia);
+
+    WriteUniformAttribute(mesh_path, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcMaxhullvert, mesh->maxhullvert);
 
     // NOTE: The geometry data taken from the spec is the post-compilation
     // data after it has been mjCMesh::Compile'd. So don't be surprised if
@@ -1573,6 +1591,8 @@ class ModelWriter {
     WriteUniformAttribute(site_path, pxr::SdfValueTypeNames->Int,
                           MjcPhysicsTokens->mjcGroup, site->group);
 
+    WriteColorAndOpacityAttributes(site_path, site);
+
     int site_id = mjs_getId(site->element);
     auto transform = MujocoPosQuatToTransform(&model_->site_pos[3 * site_id],
                                               &model_->site_quat[4 * site_id]);
@@ -1622,16 +1642,15 @@ class ModelWriter {
                           MjcPhysicsTokens->mjcGroup, geom->group);
 
     if (model_->geom_contype[geom_id] == 0 &&
-                           model_->geom_conaffinity[geom_id] == 0) {
+        model_->geom_conaffinity[geom_id] == 0) {
       // If the geom is purely visual, apply the imageable API.
-      ApplyApiSchema(data_, geom_path,
-                     MjcPhysicsTokens->MjcImageableAPI);
+      ApplyApiSchema(data_, geom_path, MjcPhysicsTokens->MjcImageableAPI);
     }
 
     // Apply the physics schemas if we are writing physics and the
     // geom participates in collisions.
-    if (write_physics_ && (model_->geom_contype[geom_id] != 0 ||
-                           model_->geom_conaffinity[geom_id] != 0)) {
+    if (model_->geom_contype[geom_id] != 0 ||
+        model_->geom_conaffinity[geom_id] != 0) {
       ApplyApiSchema(data_, geom_path,
                      pxr::UsdPhysicsTokens->PhysicsCollisionAPI);
       ApplyApiSchema(data_, geom_path, MjcPhysicsTokens->MjcCollisionAPI);
@@ -1759,28 +1778,7 @@ class ModelWriter {
       }
     }
 
-    // If geom rgba is not the default (0.5, 0.5, 0.5, 1), then set the
-    // displayColor attribute.
-    // No effort is made to properly handle the interaction between geom rgba
-    // and the material if both are specified.
-    if (geom->rgba[0] != 0.5f || geom->rgba[1] != 0.5f ||
-        geom->rgba[2] != 0.5f || geom->rgba[3] != 1.0f) {
-      // Set the displayColor attribute.
-      pxr::SdfPath display_color_attr = CreateAttributeSpec(
-          data_, geom_path, pxr::UsdGeomTokens->primvarsDisplayColor,
-          pxr::SdfValueTypeNames->Color3fArray);
-      SetAttributeDefault(data_, display_color_attr,
-                          pxr::VtArray<pxr::GfVec3f>{
-                              {geom->rgba[0], geom->rgba[1], geom->rgba[2]}});
-      // Set the displayOpacity attribute, only if the opacity is not 1.
-      if (geom->rgba[3] != 1.0f) {
-        pxr::SdfPath display_opacity_attr = CreateAttributeSpec(
-            data_, geom_path, pxr::UsdGeomTokens->primvarsDisplayOpacity,
-            pxr::SdfValueTypeNames->FloatArray);
-        SetAttributeDefault(data_, display_opacity_attr,
-                            pxr::VtArray<float>{geom->rgba[3]});
-      }
-    }
+    WriteColorAndOpacityAttributes(geom_path, geom);
 
     if (body_id == kWorldIndex) {
       SetPrimKind(data_, geom_path, pxr::KindTokens->component);
@@ -1813,8 +1811,6 @@ class ModelWriter {
   }
 
   void WriteJoints(mjsBody *body) {
-    if (!write_physics_) return;
-
     int body_id = mjs_getId(body->element);
     if (body_id == kWorldIndex) return;
 
@@ -2215,49 +2211,46 @@ class ModelWriter {
       }
     }
 
-    // Apply the PhysicsRigidBodyAPI schema if we are writing physics.
-    if (write_physics_) {
-      // If the body had a mass specified then it must have either inertia or
-      // fullinertia specified per inertia element XML documentation.
-      // Therefore it is sufficient to check if the mass is non-zero to see if
-      // we should set inertial attributes on the body.
-      //
-      // Note that if the user has NOT specified any inertial properties then
-      // we don't want to pull values from the compiled model since coming back
-      // into Mujoco would take those values instead of computing them
-      // automatically from the subtree.
-      if (body->mass > 0) {
-        // User might have specified the inertia via fullinertia and the
-        // compiler has extracted all values properly. So leverage those
-        // instead of doing the computation ourselves here.
-        ApplyApiSchema(data_, body_path, pxr::UsdPhysicsTokens->PhysicsMassAPI);
-        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Float,
-                              pxr::UsdPhysicsTokens->physicsMass,
-                              (float)model_->body_mass[body_id]);
+    // If the body had a mass specified then it must have either inertia or
+    // fullinertia specified per inertia element XML documentation.
+    // Therefore it is sufficient to check if the mass is non-zero to see if
+    // we should set inertial attributes on the body.
+    //
+    // Note that if the user has NOT specified any inertial properties then
+    // we don't want to pull values from the compiled model since coming back
+    // into Mujoco would take those values instead of computing them
+    // automatically from the subtree.
+    if (body->mass > 0) {
+      // User might have specified the inertia via fullinertia and the
+      // compiler has extracted all values properly. So leverage those
+      // instead of doing the computation ourselves here.
+      ApplyApiSchema(data_, body_path, pxr::UsdPhysicsTokens->PhysicsMassAPI);
+      WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Float,
+                            pxr::UsdPhysicsTokens->physicsMass,
+                            (float)model_->body_mass[body_id]);
 
-        mjtNum *body_ipos = &model_->body_ipos[body_id * 3];
-        pxr::GfVec3f inertial_pos(body_ipos[0], body_ipos[1], body_ipos[2]);
-        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Point3f,
-                              pxr::UsdPhysicsTokens->physicsCenterOfMass,
-                              inertial_pos);
+      mjtNum *body_ipos = &model_->body_ipos[body_id * 3];
+      pxr::GfVec3f inertial_pos(body_ipos[0], body_ipos[1], body_ipos[2]);
+      WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Point3f,
+                            pxr::UsdPhysicsTokens->physicsCenterOfMass,
+                            inertial_pos);
 
-        mjtNum *body_iquat = &model_->body_iquat[body_id * 4];
-        pxr::GfQuatf inertial_frame(body_iquat[0], body_iquat[1], body_iquat[2],
-                                    body_iquat[3]);
-        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Quatf,
-                              pxr::UsdPhysicsTokens->physicsPrincipalAxes,
-                              inertial_frame);
+      mjtNum *body_iquat = &model_->body_iquat[body_id * 4];
+      pxr::GfQuatf inertial_frame(body_iquat[0], body_iquat[1], body_iquat[2],
+                                  body_iquat[3]);
+      WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Quatf,
+                            pxr::UsdPhysicsTokens->physicsPrincipalAxes,
+                            inertial_frame);
 
-        mjtNum *inertia = &model_->body_inertia[body_id * 3];
-        pxr::GfVec3f diag_inertia(inertia[0], inertia[1], inertia[2]);
-        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Float3,
-                              pxr::UsdPhysicsTokens->physicsDiagonalInertia,
-                              diag_inertia);
-      }
-
-      ApplyApiSchema(data_, body_path,
-                     pxr::UsdPhysicsTokens->PhysicsRigidBodyAPI);
+      mjtNum *inertia = &model_->body_inertia[body_id * 3];
+      pxr::GfVec3f diag_inertia(inertia[0], inertia[1], inertia[2]);
+      WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Float3,
+                            pxr::UsdPhysicsTokens->physicsDiagonalInertia,
+                            diag_inertia);
     }
+
+    ApplyApiSchema(data_, body_path,
+                   pxr::UsdPhysicsTokens->PhysicsRigidBodyAPI);
 
     // Create classes if necessary
     mjsDefault *spec_default = mjs_getDefault(body->element);
@@ -2328,8 +2321,7 @@ class ModelWriter {
 namespace mujoco {
 namespace usd {
 
-bool WriteSpecToData(mjSpec *spec, pxr::SdfAbstractDataRefPtr &data,
-                     bool write_physics) {
+bool WriteSpecToData(mjSpec *spec, pxr::SdfAbstractDataRefPtr &data) {
   // Create pseudo root first.
   data->CreateSpec(pxr::SdfPath::AbsoluteRootPath(),
                    pxr::SdfSpecTypePseudoRoot);
@@ -2340,7 +2332,7 @@ bool WriteSpecToData(mjSpec *spec, pxr::SdfAbstractDataRefPtr &data,
     return false;
   }
 
-  ModelWriter(spec, model, data).Write(write_physics);
+  ModelWriter(spec, model, data).Write();
 
   return true;
 }

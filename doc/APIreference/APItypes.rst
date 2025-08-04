@@ -91,6 +91,18 @@ Byte type used to represent boolean variables.
    typedef unsigned char mjtByte;
 
 
+.. _mjtSize:
+
+mjtSize
+^^^^^^^
+
+Size type used to represent buffer sizes.
+
+.. code-block:: C
+
+   typedef uint64_t mjtSize;
+
+
 .. _tyEnums:
 
 Enum types

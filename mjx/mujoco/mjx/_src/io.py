@@ -22,23 +22,31 @@ import warnings
 
 import jax
 from jax import numpy as jp
+from jax.extend import backend
 import mujoco
 from mujoco.mjx._src import collision_driver
 from mujoco.mjx._src import constraint
 from mujoco.mjx._src import mesh
 from mujoco.mjx._src import support
 from mujoco.mjx._src import types
+import mujoco.mjx.warp as mjxw
+# pylint: disable=g-importing-member
+from mujoco.mjx.warp import mjwp_types
+from mujoco.mjx.warp import mujoco_warp as mjwp
+from mujoco.mjx.warp import warp as wp
+# pylint: enable=g-importing-member
 import numpy as np
 import scipy
 
 
+def has_cuda_gpu_device() -> bool:
+  return 'cuda' in backend.backends()
+
+
 def _is_cuda_gpu_device(device: jax.Device) -> bool:
-  try:
-    cuda_devices = jax.devices('cuda')
-  except RuntimeError:
-    logging.info('No CUDA GPU devices found in jax.devices("cuda").')
+  if not has_cuda_gpu_device():
     return False
-  return device in cuda_devices
+  return device in jax.devices('cuda')
 
 
 def _resolve_impl(
@@ -46,24 +54,19 @@ def _resolve_impl(
 ) -> types.Impl:
   """Pick a default implementation based on the device specified."""
   if _is_cuda_gpu_device(device):
-    # TODO(btaba): Remove flag once Warp is ready to launch.
-    mjx_warp_enabled = os.environ.get('MJX_WARP_ENABLED', 'f').lower() == 'true'
-    if mjx_warp_enabled:
+    # TODO(btaba): Remove flag once Warp is ready for GPU default.
+    mjx_gpu_default_warp = (
+        os.environ.get('MJX_GPU_DEFAULT_WARP', 'f').lower() == 'true'
+    )
+    if mjx_gpu_default_warp and mjxw.WARP_INSTALLED:
       logging.debug('Picking default implementation: Warp.')
       return types.Impl.WARP
-    logging.info('MJX Warp is disabled via MJX_WARP_ENABLED=false.')
 
   if device.platform in ('gpu', 'tpu'):
     logging.debug('Picking default implementation: JAX.')
     return types.Impl.JAX
 
   if device.platform == 'cpu':
-    mjx_c_default = (
-        os.environ.get('MJX_C_DEFAULT_ENABLED', 'f').lower() == 'true'
-    )
-    if mjx_c_default:
-      logging.debug('Picking default implementation: C.')
-      return types.Impl.C
     return types.Impl.JAX
 
   raise ValueError(f'Unsupported device: {device}')
@@ -115,11 +118,9 @@ def _check_impl_device_compatibility(
           'Warp implementation requires a CUDA GPU device, got '
           f'{device}.'
       )
-
-    mjx_warp_enabled = os.environ.get('MJX_WARP_ENABLED', 'f').lower() == 'true'
-    if not mjx_warp_enabled:
-      raise AssertionError(
-          'Warp implementation is disabled via MJX_WARP_ENABLED=false.'
+    if not mjxw.WARP_INSTALLED:
+      raise RuntimeError(
+          'Warp is not installed. Cannot use Warp implementation of MJX.'
       )
 
   is_cpu_device = device.platform == 'cpu'
@@ -165,10 +166,53 @@ def _strip_weak_type(tree):
   return jax.tree_util.tree_map(f, tree)
 
 
+def _wp_to_np_type(wp_field: Any, name: str = '') -> Any:
+  """Converts a warp type to an MJX compatible numpy type."""
+  if hasattr(wp_field, '_is_batched'):
+    wp_field.strides = wp_field.strides[1:]
+    wp_field.shape = wp_field.shape[1:]
+  # warp scalars
+  wp_dtype = type(wp_field)
+  if wp_dtype in wp.types.warp_type_to_np_dtype:
+    return wp.types.warp_type_to_np_dtype[wp_dtype](wp_field)
+
+  # warp arrays
+  if isinstance(wp_field, wp.types.array):
+    return wp_field.numpy()
+
+  # static
+  static_types = (bool, int, float, np.bool, np.int32, np.int64,
+                  np.float32, np.float64)  # fmt: skip
+  is_static = lambda x: isinstance(x, static_types)
+  if is_static(wp_field):
+    return wp_field
+
+  # tuples
+  if isinstance(wp_field, tuple) and len(wp_field) == 0:
+    return ()
+  if isinstance(wp_field, tuple) and isinstance(wp_field[0], wp.types.array):
+    return tuple(f.numpy() for f in wp_field)
+  if isinstance(wp_field, tuple) and isinstance(
+      wp_field[0], mjwp_types.TileSet
+  ):
+    return tuple(
+        mjxw.types.TileSet(wp_field[i].adr.numpy(), wp_field[i].size)
+        for i in range(len(wp_field))
+    )
+  if isinstance(wp_field, mjwp_types.BlockDim):
+    return mjxw.types.BlockDim(**wp_field.__dict__)
+  if isinstance(wp_field, tuple) and is_static(wp_field[0]):
+    return wp_field
+
+  raise NotImplementedError(
+      f'Field {name} has unsupported type {type(wp_field)}.'
+  )
+
+
 def _put_option(
     o: mujoco.MjOption,
     impl: types.Impl,
-    impl_fields: Optional[dict[str, Any]] = None,
+    impl_fields: Optional[Dict[str, Any]] = None,
 ) -> types.Option:
   """Returns mjx.Option given mujoco.MjOption."""
   if o.integrator not in set(types.IntegratorType):
@@ -187,32 +231,56 @@ def _put_option(
     if o.enableflags & 2**i and 2 ** i not in set(types.EnableBit):
       raise NotImplementedError(f'{mujoco.mjtEnableBit(2**i)}')
 
-  fields = {f.name: getattr(o, f.name, None) for f in types.Option.fields()}
+  fields = {
+      f.name: getattr(o, f.name, None)
+      for f in types.Option.fields()
+      if f.name != '_impl'
+  }
   fields['integrator'] = types.IntegratorType(o.integrator)
   fields['cone'] = types.ConeType(o.cone)
-  fields['jacobian'] = types.JacobianType(o.jacobian)
   fields['solver'] = types.SolverType(o.solver)
   fields['disableflags'] = types.DisableBit(o.disableflags)
   fields['enableflags'] = types.EnableBit(o.enableflags)
+  fields['jacobian'] = types.JacobianType(o.jacobian)
+
+  option_obj = {
+      types.Impl.C: types.OptionC,
+      types.Impl.JAX: types.OptionJAX,
+      types.Impl.WARP: mjxw.types.OptionWarp,
+  }[impl]
+  private_fields = {
+      f.name: getattr(o, f.name, None) for f in option_obj.fields()
+  }
+  impl_fields = impl_fields or {}
+  impl_fields = {**private_fields, **impl_fields}
 
   if impl == types.Impl.JAX:
     has_fluid_params = o.density > 0 or o.viscosity > 0 or o.wind.any()
     implicitfast = o.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
     if implicitfast and has_fluid_params:
       raise NotImplementedError('implicitfast not implemented for fluid drag.')
-    fields['has_fluid_params'] = has_fluid_params
-    return types.OptionJAX(**fields, **(impl_fields or {}))
+    impl_fields['has_fluid_params'] = has_fluid_params
+    return types.Option(**fields, _impl=types.OptionJAX(**impl_fields))
 
   if impl == types.Impl.C:
-    c_field_keys = types.OptionC.__annotations__.keys() - fields.keys()
-    c_fields = {k: getattr(o, k, None) for k in c_field_keys}
-    return types.OptionC(**fields, **c_fields, **(impl_fields or {}))
+    return types.Option(**fields, _impl=types.OptionC(**impl_fields))
+
+  if impl == types.Impl.WARP:
+    impl_fields = {k: _wp_to_np_type(v) for k, v in impl_fields.items()}
+    return types.Option(**fields, _impl=mjxw.types.OptionWarp(**impl_fields))
 
   raise NotImplementedError(f'Unsupported implementation: {impl}')
 
 
-def _put_statistic(s: mujoco.MjStatistic) -> types.Statistic:
+def _put_statistic(
+    s: mujoco.MjStatistic, impl: types.Impl
+) -> Union[types.Statistic, types.StatisticWarp]:
   """Puts mujoco.MjStatistic onto a device, resulting in mjx.Statistic."""
+  if impl == types.Impl.WARP:
+    fields = {
+        f.name: getattr(s, f.name, None) for f in types.StatisticWarp.fields()
+    }
+    return types.StatisticWarp(**fields)
   return types.Statistic(
       meaninertia=s.meaninertia,
       meanmass=s.meanmass,
@@ -305,7 +373,7 @@ def _put_model_jax(
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _put_option(m.opt, types.Impl.JAX)
-  fields['stat'] = _put_statistic(m.stat)
+  fields['stat'] = _put_statistic(m.stat, types.Impl.JAX)
 
   fields_jax = {}
   fields_jax['dof_hasfrictionloss'] = fields['dof_frictionloss'] > 0
@@ -362,7 +430,7 @@ def _put_model_c(
   fields = {f: getattr(m, f) for f in mj_field_names}
   fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
   fields['opt'] = _put_option(m.opt, impl=types.Impl.C)
-  fields['stat'] = _put_statistic(m.stat)
+  fields['stat'] = _put_statistic(m.stat, impl=types.Impl.C)
 
   c_impl_keys = (
       types.ModelC.__annotations__.keys() - types.Model.__annotations__.keys()
@@ -373,6 +441,51 @@ def _put_model_c(
   model = types.Model(
       **{k: copy.copy(v) for k, v in fields.items()}, _impl=c_impl_obj
   )
+  model = jax.device_put(model, device=device)
+  return _strip_weak_type(model)
+
+
+def _put_model_warp(
+    m: mujoco.MjModel,
+    device: Optional[jax.Device] = None,
+) -> types.Model:
+  """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
+  if not mjxw.WARP_INSTALLED:
+    raise RuntimeError('Warp not installed.')
+
+  with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
+    mw = mjwp.put_model(m)  # pylint: disable=undefined-variable
+    mw.opt.graph_conditional = False
+
+  fields = {f.name for f in types.Model.fields() if f.name != '_impl'}
+  fields = {f: getattr(m, f) for f in fields}
+  # Grab MJW private Option fields, and assume that public MjOption fields are
+  # directly compatible with MJXW.
+  option_keys = {f.name for f in mjxw.types.OptionWarp.fields()} - {
+      f.name for f in types.Option.fields()
+  }
+  private_options = {k: getattr(mw.opt, k) for k in option_keys}
+  fields['opt'] = _put_option(m.opt, types.Impl.WARP, private_options)
+  fields['stat'] = _put_statistic(m.stat, types.Impl.WARP)
+
+  # Use MJW fields directly instead of MjModel, so that shape and dtype are
+  # always compatible with MJXW (e.g. cam_mat0/geom_aabb).
+  for k in fields:
+    if not hasattr(mw, k) or k in ('stat', 'opt'):
+      continue
+    field = _wp_to_np_type(getattr(mw, k), k)
+    fields[k] = field
+
+  impl_fields = {}
+  for k in mjxw.types.ModelWarp.__annotations__.keys():
+    field = _wp_to_np_type(getattr(mw, k), k)
+    impl_fields[k] = field
+
+  model = types.Model(
+      **fields,
+      _impl=mjxw.types.ModelWarp(**impl_fields),
+  )
+
   model = jax.device_put(model, device=device)
   return _strip_weak_type(model)
 
@@ -416,7 +529,7 @@ def put_model(
   elif impl == types.Impl.C:
     return _put_model_c(m, device)
   elif impl == types.Impl.WARP:
-    raise NotImplementedError('Warp implementation not implemented yet.')
+    return _put_model_warp(m, device)
   else:
     raise ValueError(f'Unsupported implementation: {impl}')
 
@@ -719,11 +832,81 @@ def _make_data_c(
   return d
 
 
+def _get_nested_attr(obj: Any, attr_name: str, split: str) -> Any:
+  """Returns the nested attribute from an object."""
+  for part in attr_name.split(split):
+    obj = getattr(obj, part)
+  return obj
+
+
+def _make_data_warp(
+    m: Union[types.Model, mujoco.MjModel],
+    device: Optional[jax.Device] = None,
+    nconmax: int = -1,
+    njmax: int = -1,
+) -> types.Data:
+  """Allocate and initialize Data for the Warp implementation."""
+  if not isinstance(m, mujoco.MjModel):
+    raise ValueError(
+        'make_data for warp, only supports a mujoco.MjModel input, got'
+        f' {type(m)}.'
+    )
+
+  if not mjxw.WARP_INSTALLED:
+    raise RuntimeError('Warp is not installed.')
+
+  with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
+    dw = mjwp.make_data(m, nworld=1, nconmax=nconmax, njmax=njmax)  # pylint: disable=undefined-variable
+
+  fields = _make_data_public_fields(m)
+  for k in fields:
+    if k in {'userdata', 'plugin_state'}:
+      continue
+    if not hasattr(dw, k):
+      raise ValueError(f'Public data field {k} not found in Warp data.')
+    field = _wp_to_np_type(getattr(dw, k))
+    if mjxw.types.BATCH_DIM['Data'][k]:
+      field = field.reshape(field.shape[1:])
+    fields[k] = field
+
+  impl_fields = {}
+  for k in mjxw.types.DataWarp.__annotations__.keys():
+    field = _get_nested_attr(dw, k, split='__')
+    field = _wp_to_np_type(field)
+    if mjxw.types.BATCH_DIM['Data'][k]:
+      field = field.reshape(field.shape[1:])
+    impl_fields[k] = field
+
+  data = types.Data(
+      qpos=m.qpos0.astype(np.float32),
+      eq_active=m.eq_active0.astype(bool),
+      **fields,
+      _impl=mjxw.types.DataWarp(**impl_fields),
+  )
+
+  data = jax.device_put(data, device=device)
+
+  with wp.ScopedDevice('cuda:0'):  # pylint: disable=undefined-variable
+    # Warm-up the warp kernel cache.
+    # TODO(robotics-simulation): remove this warmup compilation once warp
+    # stops unloading modules during XLA graph capture for tile kernels.
+    # pylint: disable=undefined-variable
+    dw = mjwp.make_data(m, nworld=1)
+    mw = mjwp.put_model(m)
+    _ = mjwp.step(mw, dw)
+    # pylint: enable=undefined-variable
+  del dw, mw
+
+  return data
+
+
 def make_data(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
     _full_compat: bool = False,  # pylint: disable=invalid-name
+    nconmax: int = -1,
+    njmax: int = -1,
 ) -> types.Data:
   """Allocate and initialize Data.
 
@@ -734,6 +917,8 @@ def make_data(
     _full_compat: put all fields onto device irrespective of MJX support This is
       an experimental feature.  Avoid using it for now. If using this flag, also
       use _full_compat for put_model.
+    nconmax: maximum number of contacts to allocate for warp
+    njmax: maximum number of constraints to allocate for warp
 
   Returns:
     an initialized mjx.Data placed on device
@@ -764,6 +949,8 @@ def make_data(
     return _make_data_jax(m, device)
   elif impl == types.Impl.C:
     return _make_data_c(m, device)
+  elif impl == types.Impl.WARP:
+    return _make_data_warp(m, device, nconmax, njmax)
 
   raise NotImplementedError(
       f'make_data for implementation "{impl}" not implemented yet.'
@@ -1053,6 +1240,8 @@ def put_data(
     d: mujoco.MjData,
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
+    nconmax: int = -1,
+    njmax: int = -1,
     _full_compat: bool = False,  # pylint: disable=invalid-name
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data.
@@ -1062,6 +1251,8 @@ def put_data(
     d: the data to put on device
     device: which device to use - if unspecified picks the default device
     impl: implementation to use ('jax', 'warp')
+    nconmax: maximum number of contacts to allocate for warp
+    njmax: maximum number of constraints to allocate for warp
     _full_compat: put all MjModel fields onto device irrespective of MJX support
       This is an experimental feature.  Avoid using it for now. If using this
       flag, also use _full_compat for put_model.
@@ -1069,6 +1260,7 @@ def put_data(
   Returns:
     an mjx.Data placed on device
   """
+  del nconmax, njmax
   if _full_compat:
     warnings.warn(
         'mjx.put_data(..., _full_compat=True) is deprecated.  Use'
@@ -1084,6 +1276,8 @@ def put_data(
   elif impl == types.Impl.C:
     return _put_data_c(m, d, device)
 
+  # TODO(robotics-team): implement put_data_warp
+
   raise NotImplementedError(
       f'put_data for implementation "{impl}" not implemented yet.'
   )
@@ -1097,6 +1291,86 @@ def _get_contact(c: mujoco._structs._MjContactList, cx: types.Contact):
     if field.name == 'frame':
       value = value.reshape((-1, 9))
     getattr(c, field.name)[:] = value
+
+
+def _get_data_into_warp(
+    result: Union[mujoco.MjData, List[mujoco.MjData]],
+    m: mujoco.MjModel,
+    d: types.Data,
+):
+  """Gets mjx.Data from a device into an existing mujoco.MjData or list."""
+  batched = isinstance(result, list)
+  d = jax.device_get(d)
+  batch_size = d.qpos.shape[0] if batched else 1
+
+  for i in range(batch_size):
+    d_i = (
+        jax.tree.map_with_path(
+            lambda path, x, i=i: x[i]
+            if path[-1].name not in mjxw.types.DATA_NON_VMAP
+            else x,
+            d,
+        )
+        if batched
+        else d
+    )
+    result_i = result[i] if batched else result
+    ncon = d_i._impl.ncon[0]
+    nefc = int(d_i._impl.nefc[0])
+    # nj = int(d_i._impl.nj[0])
+    nj = 0  # TODO(btaba): add nj back
+
+    if ncon != result_i.ncon or nefc != result_i.nefc or nj != result_i.nJ:
+      mujoco._functions._realloc_con_efc(result_i, ncon=ncon, nefc=nefc, nJ=nj)  # pylint: disable=protected-access
+
+    all_fields = types.Data.fields() + mjxw.types.DataWarp.fields()
+    for field in all_fields:
+      if field.name not in mujoco.MjData.__dict__.keys():
+        continue
+
+      # TODO(btaba): contact
+      # TODO(btaba): actuator_moment
+
+      if hasattr(d_i._impl, field.name):
+        value = getattr(d_i._impl, field.name)
+      else:
+        value = getattr(d_i, field.name)
+
+      if field.name in ('ne', 'nl', 'nf'):
+        value = value[0]
+      elif field.name in ('nefc', 'ncon'):
+        value = {'nefc': nefc, 'ncon': ncon}[field.name]
+      elif field.name.endswith('xmat') or field.name == 'ximat':
+        value = value.reshape((-1, 9))
+      # elif field.name == 'efc_J':  # TODO(btaba): add this back
+      # elif field.name.startswith('efc_'):  # TODO(btaba): add this back
+      # TODO(btaba): qM, qLD, qLDiagInv
+
+      if field.name in (
+          'actuator_moment',
+          'contact',
+          'efc_J',
+          'qM',
+          'qLD',
+          'qLDiagInv',
+      ):
+        continue
+      if field.name.startswith('efc_'):
+        continue
+
+      if isinstance(value, np.ndarray) and value.shape:
+        result_field = getattr(result_i, field.name)
+        if result_field.shape != value.shape:
+          raise ValueError(
+              f'Input field {field.name} has shape {value.shape}, but output'
+              f' has shape {result_field.shape}'
+          )
+        result_field[:] = value
+      else:
+        setattr(result_i, field.name, value)
+
+    # TODO(btaba): add M back
+    # mujoco.mj_factorM(m, result_i)
 
 
 def _get_data_into(
@@ -1249,6 +1523,9 @@ def get_data_into(
   if d.impl in (types.Impl.JAX, types.Impl.C):
     # TODO(stunya): Split out _get_data_into once codepaths diverge enough.
     return _get_data_into(result, m, d)
+
+  if d.impl == types.Impl.WARP:
+    return _get_data_into_warp(result, m, d)
 
   raise NotImplementedError(
       f'get_data_into for implementation "{d.impl}" not implemented yet.'

@@ -21,6 +21,7 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_callback.h"
+#include "engine/engine_collision_sdf.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_io.h"
@@ -1075,6 +1076,185 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
             copySensorData(m, d, data, match[j].id, match[j].flip, nmatch);
             for (int k=0; k < mjNCONDATA; k++) {
               if (data[k]) data[k] += size;
+            }
+          }
+
+          mj_freeStack(d);
+        }
+        break;
+
+      case mjSENS_TACTILE:                                // tactile
+        {
+          mj_markStack(d);
+
+          // get parent weld id
+          int mesh_id = m->sensor_objid[i];
+          int geom_id = m->sensor_refid[i];
+          int parent_body = m->geom_bodyid[geom_id];
+          int parent_weld = m->body_weldid[parent_body];
+          int nchannel = m->sensor_dim[i] / m->mesh_vertnum[mesh_id];
+
+          // clear sensordata and distance matrix
+          mjtNum* sensordata = d->sensordata + m->sensor_adr[i];
+          mju_zero(sensordata, m->sensor_dim[i]);
+
+          // count contacts and get contact geom ids
+          // TODO: use a more efficient C version of unordered_set
+          int* contact_geom_ids = mj_stackAllocInt(d, d->ncon);
+          int ncontact = 0;
+          for (int k = 0; k < d->ncon; k++) {
+            int body1 = m->body_weldid[m->geom_bodyid[d->contact[k].geom1]];
+            int body2 = m->body_weldid[m->geom_bodyid[d->contact[k].geom2]];
+            if (body1 == parent_weld) {
+              int add = 1;
+              for (int j = 0; j < ncontact; j++) {
+                if (contact_geom_ids[j] == d->contact[k].geom2) {
+                  add = 0;
+                  break;
+                }
+              }
+              if (add) {
+                contact_geom_ids[ncontact] = d->contact[k].geom2;
+                ncontact++;
+              }
+            }
+            if (body2 == parent_weld) {
+              int add = 1;
+              for (int j = 0; j < ncontact; j++) {
+                if (contact_geom_ids[j] == d->contact[k].geom1) {
+                  add = 0;
+                  break;
+                }
+              }
+              if (add) {
+                contact_geom_ids[ncontact] = d->contact[k].geom1;
+                ncontact++;
+              }
+            }
+          }
+
+          // no contacts, return
+          if (ncontact == 0) {
+            mj_freeStack(d);
+            break;
+          }
+
+          // all of the quadrature points are contact points
+          int ncon = m->mesh_vertnum[mesh_id];
+
+          // get site frame
+          mjtNum* geom_pos = d->geom_xpos + 3*geom_id;
+          mjtNum* geom_mat = d->geom_xmat + 9*geom_id;
+
+          // allocate contact forces and positions
+          mjtNum* forcesT = mj_stackAllocNum(d, ncon*3);
+          mju_zero(forcesT, ncon*3);
+
+          // iterate over colliding geoms
+          for (int g = 0; g < ncontact; g++) {
+            int geom = contact_geom_ids[g];
+            int body = m->geom_bodyid[geom];
+
+            // get sdf plugin of the geoms
+            int sdf_instance[2] = {-1, -1};
+            mjtGeom geomtype[2] = {mjGEOM_SDF, mjGEOM_SPHERE};
+            const mjpPlugin* sdf_ptr[2] = {NULL, NULL};
+            if (m->geom_type[geom] == mjGEOM_SDF) {
+              sdf_instance[0] = m->geom_plugin[geom];
+              sdf_ptr[0] = mjc_getSDF(m, geom);
+            } else if (m->geom_type[geom] == mjGEOM_MESH) {
+              sdf_instance[0] = m->geom_dataid[geom];
+              geomtype[0] = (mjtGeom)m->geom_type[geom];
+            } else {
+              sdf_instance[0] = geom;
+              geomtype[0] = (mjtGeom)m->geom_type[geom];
+            }
+
+            // skip mesh geoms not having an octree
+            if (geomtype[0] == mjGEOM_MESH &&
+                m->mesh_octadr[m->geom_dataid[geom]] == -1) {
+              continue;
+            }
+
+            // set SDF parameters
+            mjSDF geom_sdf;
+            geom_sdf.id = &sdf_instance[0];
+            geom_sdf.type = mjSDFTYPE_SINGLE;
+            geom_sdf.plugin = &sdf_ptr[0];
+            geom_sdf.geomtype = &geomtype[0];
+
+            // get forces in mesh coordinates
+            int node = 0;
+            float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
+            float* mesh_normal = m->mesh_normal + 3*m->mesh_normaladr[mesh_id];
+            for (int j = 0; j < ncon; j++) {
+              // position in site frame
+              mjtNum pos[3] = {mesh_vert[3 * j + 0], mesh_vert[3 * j + 1],
+                               mesh_vert[3 * j + 2]};
+
+              // position in global frame
+              mjtNum xpos[3];
+              mju_mulMatVec3(xpos, geom_mat, pos);
+              mju_addTo3(xpos, geom_pos);
+
+              // position in other geom frame
+              mjtNum lpos[3];
+              mju_sub3(tmp, xpos, d->geom_xpos + 3*geom);
+              mju_mulMatTVec3(lpos, d->geom_xmat + 9*geom, tmp);
+
+              // SDF plugins are in the original mesh frame
+              if (sdf_ptr[0] != NULL) {
+                mjtNum mesh_mat[9];
+                mju_quat2Mat(mesh_mat, m->mesh_quat + 4 * m->geom_dataid[geom]);
+                mju_mulMatVec3(lpos, mesh_mat, lpos);
+                mju_addTo3(lpos, m->mesh_pos + 3 * m->geom_dataid[geom]);
+              }
+
+              // compute distance
+              mjtNum depth = mju_min(mjc_distance(m, d, &geom_sdf, lpos), 0);
+              if (depth == 0) {
+                node++;
+                continue;
+              }
+
+              // get velocity in global frame
+              mjtNum vel_sensor[6], vel_other[6], vel_rel[3];
+              mju_transformSpatial(
+                  vel_sensor, d->cvel + 6 * parent_weld, 0, xpos,
+                  d->subtree_com + 3 * m->body_rootid[parent_weld], NULL);
+              mju_transformSpatial(
+                  vel_other, d->cvel + 6 * body, 0, d->geom_xpos + 3 * geom,
+                  d->subtree_com + 3 * m->body_rootid[body], NULL);
+              mju_sub3(vel_rel, vel_sensor+3, vel_other+3);
+
+              mjtNum normal[3] = {mesh_normal[9 * j + 0], mesh_normal[9 * j + 1],
+                                  mesh_normal[9 * j + 2]};
+              mjtNum tang1[3] = {mesh_normal[9 * j + 3], mesh_normal[9 * j + 4],
+                                 mesh_normal[9 * j + 5]};
+              mjtNum tang2[3] = {mesh_normal[9 * j + 6], mesh_normal[9 * j + 7],
+                                 mesh_normal[9 * j + 8]};
+
+              // get contact force/torque, rotate into node frame
+              mju_rotVecQuat(normal, normal, m->mesh_quat + 4 * mesh_id);
+              mju_rotVecQuat(tang1, tang1, m->mesh_quat + 4 * mesh_id);
+              mju_rotVecQuat(tang2, tang2, m->mesh_quat + 4 * mesh_id);
+              mjtNum force[3];
+              mjtNum kMaxDepth = 0.05;
+              mjtNum pressure = depth / (kMaxDepth - depth);
+              mju_scl3(force, normal, pressure);
+
+              // one row of mat^T * force
+              forcesT[0*ncon + node] = mju_dot3(force, normal);
+              forcesT[1*ncon + node] = mju_abs(mju_dot3(vel_rel, tang1));
+              forcesT[2*ncon + node] = mju_abs(mju_dot3(vel_rel, tang2));
+              node++;
+            }
+          }
+
+          // compute sensor output
+          for (int c = 0; c < nchannel; c++) {
+            if (!mju_isZero(forcesT + c*ncon, ncon)) {
+              mju_addTo(sensordata + c*ncon, forcesT + c*ncon, ncon);
             }
           }
 

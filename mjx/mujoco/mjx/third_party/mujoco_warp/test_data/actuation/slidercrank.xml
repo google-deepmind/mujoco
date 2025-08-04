@@ -1,0 +1,15 @@
+<mujoco>
+  <compiler angle="degree"/>
+  <worldbody>
+    <site name="slidersite" euler="0 90 0"/>
+    <body pos="1 0 0">
+      <joint type="hinge" axis="0 0 1"/>
+      <geom type="sphere" size=".05" pos="0 0.2 0"/>
+      <geom type="cylinder" size=".2 .01"/>
+      <site name="cranksite" pos="0 0.2 0"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <motor cranklength="0.25" cranksite="cranksite" slidersite="slidersite"/>
+  </actuator>
+</mujoco>

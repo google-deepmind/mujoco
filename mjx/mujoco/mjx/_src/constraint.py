@@ -35,6 +35,7 @@ from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import ObjType
+from mujoco.mjx._src.types import OptionJAX
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -496,7 +497,11 @@ def _efc_contact_frictionless(m: Model, d: Data) -> Optional[_Efc]:
 
 def _efc_contact_pyramidal(m: Model, d: Data, condim: int) -> Optional[_Efc]:
   """Calculates constraint rows for frictional pyramidal contacts."""
-  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+  if (
+      not isinstance(m._impl, ModelJAX)
+      or not isinstance(d._impl, DataJAX)
+      or not isinstance(m.opt._impl, OptionJAX)
+  ):
     raise ValueError(
         '_efc_contact_pyramidal requires JAX backend implementation.'
     )
@@ -545,7 +550,11 @@ def _efc_contact_pyramidal(m: Model, d: Data, condim: int) -> Optional[_Efc]:
 
 def _efc_contact_elliptic(m: Model, d: Data, condim: int) -> Optional[_Efc]:
   """Calculates constraint rows for frictional elliptic contacts."""
-  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+  if (
+      not isinstance(m._impl, ModelJAX)
+      or not isinstance(d._impl, DataJAX)
+      or not isinstance(m.opt._impl, OptionJAX)
+  ):
     raise ValueError(
         '_efc_contact_elliptic requires JAX backend implementation.'
     )

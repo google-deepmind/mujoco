@@ -446,11 +446,15 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
     break;
 
   case mjGEOM_TRIANGLE:                       // triangle
+    glDisable(GL_CULL_FACE);
     glBegin(GL_TRIANGLES);
     glVertex3f(0, 0, 0);
     glVertex3f(size[0], 0, 0);
     glVertex3f(0, size[1], 0);
     glEnd();
+    if (scn->flags[mjRND_CULL_FACE]) {
+      glEnable(GL_CULL_FACE);
+    }
     break;
 
   case mjGEOM_FLEX:                           // flex

@@ -1,0 +1,20 @@
+<mujoco>
+  <option timestep=".1"/>
+  <worldbody>
+    <body>
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="sphere" size=".2" pos="1 0 0"/>
+      <site name="site0" pos="1 0 0"/>
+    </body>
+    <site name="site1" pos="1 0 0"/>
+  </worldbody>
+  <tendon>
+    <spatial damping="5">
+      <site site="site0"/>
+      <site site="site1"/>
+    </spatial>
+  </tendon>
+  <keyframe>
+    <key qpos="1" qvel=".5"/>
+  </keyframe>
+</mujoco>

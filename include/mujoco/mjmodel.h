@@ -377,6 +377,9 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_E_KINETIC,               // kinetic energy
   mjSENS_CLOCK,                   // simulation time
 
+  // sensors related to SDFs
+  mjSENS_TACTILE,                 // tactile sensor
+
   // plugin-controlled sensors
   mjSENS_PLUGIN,                  // plugin-controlled
 
@@ -728,8 +731,8 @@ struct mjModel_ {
   int nsensordata;                // number of mjtNums in sensor data vector
   int npluginstate;               // number of mjtNums in plugin state vector
 
-  size_t narena;                  // number of bytes in the mjData arena (inclusive of stack)
-  size_t nbuffer;                 // number of bytes in buffer
+  mjtSize narena;                 // number of bytes in the mjData arena (inclusive of stack)
+  mjtSize nbuffer;                // number of bytes in buffer
 
   // ------------------------------- options and statistics
 
