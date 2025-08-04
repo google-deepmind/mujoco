@@ -43,7 +43,6 @@ option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
 option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
 option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
 option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
-option(PROGUI "GUI for probots" ON)
 
 # Option to provide a path to an existing USD build directory or to Houdini HFS directory.
 set(USD_DIR "" CACHE PATH "Path to an existing USD build directory.")
@@ -200,10 +199,6 @@ endif()
 
 if(MUJOCO_BUILD_EXAMPLES)
   add_subdirectory(sample)
-endif()
-
-if(PROGUI)
-  add_subdirectory(progui)
 endif()
 
 if(MUJOCO_WITH_USD)
