@@ -73,6 +73,7 @@ static constexpr char kCubeletModel[] = R"(
 </mujoco>
 )";
 
+using ::testing::DoubleNear;
 using ::testing::NotNull;
 using RayTest = MujocoTest;
 
@@ -401,6 +402,58 @@ TEST_F(RayTest, RayMeshPruning) {
   ASSERT_THAT(m, NotNull());
   _rayMeshTest(m);
   mj_deleteModel(m);
+}
+
+TEST_F(RayTest, RayHfield) {
+  const char xml[] = R"(
+  <mujoco>
+    <asset>
+      <hfield name="J" size="2 3 1 1" nrow="4" ncol="3"
+              elevation="0 0 0
+                         0 0 0
+                         1 1 1
+                         1 1 1"/>
+    </asset>
+
+    <worldbody>
+      <light pos="0 0 1"/>
+      <body name="dummy">
+        <geom type="hfield" hfield="J" pos="0 0 .5"/>
+      </body>
+      <site name="1" pos="3 -2 1" zaxis="-1 0 0"/>
+      <site name="2" pos="3 -2 0" zaxis="-1 0 0"/>
+      <site name="3" pos="3  1 0" zaxis="-1 0 0"/>
+      <body mocap="true" pos="1 0 1.5">
+        <geom type="box" size=".2 .2 .2"/>
+        <site name="4" zaxis="0 0 -1"/>
+      </body>
+    </worldbody>
+
+    <sensor>
+      <rangefinder site="1"/>
+      <rangefinder site="2"/>
+      <rangefinder site="3"/>
+      <rangefinder site="4"/>
+    </sensor>
+  </mujoco>
+  )";
+
+
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error), 0);
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  mj_forward(model, data);
+
+  double tol = 1e-8;
+  EXPECT_THAT(data->sensordata[0], DoubleNear(1, tol));
+  EXPECT_THAT(data->sensordata[1], DoubleNear(1, tol));
+  EXPECT_THAT(data->sensordata[2], DoubleNear(1, tol));
+  EXPECT_THAT(data->sensordata[3], DoubleNear(0.5, tol));
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
 }
 
 }  // namespace
