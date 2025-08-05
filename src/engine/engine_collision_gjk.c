@@ -1723,7 +1723,7 @@ static inline void globalcoord(mjtNum res[3], const mjtNum mat[9], const mjtNum 
 
 
 
-// find up to n <= 2 common integers of two  arrays, return n
+// find up to n <= 2 common integers of two arrays, return n
 static int intersect(int res[2], const int* arr1, const int* arr2, int n, int m) {
   int count = 0;
   for (int i = 0; i < n; i++) {
@@ -1765,7 +1765,7 @@ static int meshNormals(mjtNum* res, int resind[3], int dim, mjCCDObj* obj,
     n = intersect(faceset, edgeset, m->mesh_polymap + v3_adr, n, v3_num);
     if (n == 0) return 0;
 
-    // three vertices defined an unique face
+    // three vertices on mesh define a unique face
     mjtNum* normal = m->mesh_polynormal + 3*(polyadr + faceset[0]);
     globalcoord(res, mat, NULL, normal[0], normal[1], normal[2]);
     resind[0] = faceset[0];
@@ -1779,7 +1779,7 @@ static int meshNormals(mjtNum* res, int resind[3], int dim, mjCCDObj* obj,
     int v2_adr = m->mesh_polymapadr[vertadr + v2];
     int v2_num = m->mesh_polymapnum[vertadr + v2];
 
-    // up to two faces if vertices defined an edge
+    // up to two faces as vertices on mesh define an edge
     int edgeset[2];
     int n = intersect(edgeset, m->mesh_polymap + v1_adr, m->mesh_polymap + v2_adr, v1_num, v2_num);
     if (n == 0) return 0;
@@ -1794,6 +1794,8 @@ static int meshNormals(mjtNum* res, int resind[3], int dim, mjCCDObj* obj,
   if (dim == 1) {
     int v1_adr = m->mesh_polymapadr[vertadr + v1];
     int v1_num = m->mesh_polymapnum[vertadr + v1];
+
+    // cap number of possible faces intersecting at a vertex
     if (v1_num > mjMAX_POLYVERT) v1_num = mjMAX_POLYVERT;
     for (int i = 0; i < v1_num; i++) {
       int index = m->mesh_polymap[v1_adr + i];
