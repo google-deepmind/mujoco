@@ -827,12 +827,11 @@ const mjMap meshinertia_map[4] = {
 
 
 // mesh builtin type
-const int meshbuiltin_sz = 8;
+const int meshbuiltin_sz = 7;
 const mjMap meshbuiltin_map[meshbuiltin_sz] = {
   {"none", mjMESH_BUILTIN_NONE},
   {"sphere", mjMESH_BUILTIN_SPHERE},
   {"hemisphere", mjMESH_BUILTIN_HEMISPHERE},
-  {"prism", mjMESH_BUILTIN_PRISM},
   {"cone", mjMESH_BUILTIN_CONE},
   {"torus", mjMESH_BUILTIN_TORUS},
   {"wedge", mjMESH_BUILTIN_WEDGE},

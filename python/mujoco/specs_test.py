@@ -486,12 +486,21 @@ class SpecsTest(absltest.TestCase):
 
   def test_make_mesh(self):
     spec = mujoco.MjSpec()
+
     mesh = spec.add_mesh(name='wedge')
-    mesh.make_wedge(resolution=[25, 25], radius=.1, fov=[90, 45], gamma=0)
+    mesh.make_wedge(resolution=[25, 25], fov=[90, 45], gamma=0)
+
+    mesh = spec.add_mesh(name='prism')
+    mesh.make_cone(nedge=5, radius=1)
+
+    mesh = spec.add_mesh(name='cone')
+    mesh.make_cone(nedge=6, radius=0)
+
     model = spec.compile()
-    self.assertEqual(model.nmesh, 1)
-    self.assertEqual(model.nmeshvert, 25 * 25)
-    np.testing.assert_array_equal(model.mesh_scale[0], [0.1, 0.1, 0.1])
+    self.assertEqual(model.nmesh, 3)
+    self.assertEqual(model.mesh_vertnum[0], 25 * 25)
+    self.assertEqual(model.mesh_vertnum[1], 10)
+    self.assertEqual(model.mesh_vertnum[2], 7)
 
   def test_compile_errors_with_line_info(self):
     spec = mujoco.MjSpec()

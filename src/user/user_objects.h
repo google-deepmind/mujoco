@@ -1053,7 +1053,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   // make a mesh of a predefined shape
   void MakeWedge(int resolution[2], double fov[2], double gamma);
   void MakeRect(int resolution[2]);
-  void MakePrism(int nedge);
+  void MakeCone(int nedge, double radius);
 
   // accessors
   const mjsPlugin& Plugin() const { return plugin; }

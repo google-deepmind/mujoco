@@ -1,13 +1,18 @@
-<mujoco model='makemesh'>
+<mujoco model="makemesh">
   <asset>
-    <mesh name="wedge" builtin="wedge" params="25 25 180 90 0"/>
-    <mesh name="plate" builtin="plate" params="37 37" scale="3 5 2"/>
-    <mesh name="prism" builtin="prism" params="3"/>
+    <mesh name="wedge" builtin="wedge" params="10 10 60 60 0"/>
+    <mesh name="prism3" builtin="cone" params="3 1" scale=".3 .3 .3"/>
+    <mesh name="prism5" builtin="cone" params="5 1" scale=".3 .3 .1"/>
+    <mesh name="cone6" builtin="cone" params="6 0" scale=".3 .3 .7"/>
+    <mesh name="cone4" builtin="cone" params="4 .5" scale=".3 .3 .3"/>
   </asset>
 
   <worldbody>
-    <geom mesh="wedge" type="mesh"/>
-    <geom mesh="plate" type="mesh" contype="0" conaffinity="0"/>
-    <geom mesh="prism" type="mesh" pos="0 0 3"/>
+    <light pos="0 0 10"/>
+    <geom mesh="wedge" type="mesh" euler="90 -90 0"/>
+    <geom mesh="prism5" type="mesh" pos="2 0 0" euler="90 0 0"/>
+    <geom mesh="prism3" type="mesh" pos="3 0 0"/>
+    <geom mesh="cone6" type="mesh" pos="4 0 0" euler="90 0 0"/>
+    <geom mesh="cone4" type="mesh" pos="5 0 0" />
   </worldbody>
 </mujoco>

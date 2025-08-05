@@ -1003,7 +1003,7 @@ PYBIND11_MODULE(_specs, m) {
       py::return_value_policy::reference_internal);
   mjsMesh.def(
       "make_wedge",
-      [](raw::MjsMesh* self, std::array<int, 2>& resolution, double radius,
+      [](raw::MjsMesh* self, std::array<int, 2>& resolution,
          std::array<double, 2>& fov, double gamma) {
         double params[5] = {static_cast<double>(resolution[0]),
                             static_cast<double>(resolution[1]), fov[0], fov[1],
@@ -1011,21 +1011,18 @@ PYBIND11_MODULE(_specs, m) {
         if (mjs_makeMesh(self, mjMESH_BUILTIN_WEDGE, params, 5)) {
           throw pybind11::value_error(mjs_getError(mjs_getSpec(self->element)));
         }
-        self->scale[0] = radius;
-        self->scale[1] = radius;
-        self->scale[2] = radius;
       },
-      py::arg("resolution") = std::array<int, 2>{0, 0}, py::arg("radius"),
+      py::arg("resolution") = std::array<int, 2>{0, 0},
       py::arg("fov") = std::array<double, 2>{0, 0}, py::arg("gamma") = 0);
   mjsMesh.def(
-      "make_prism",
-      [](raw::MjsMesh* self, int nedge) {
-        double params[1] = {static_cast<double>(nedge)};
-        if (mjs_makeMesh(self, mjMESH_BUILTIN_PRISM, params, 1)) {
+      "make_cone",
+      [](raw::MjsMesh* self, int nedge, double radius) {
+        double params[2] = {static_cast<double>(nedge), radius};
+        if (mjs_makeMesh(self, mjMESH_BUILTIN_CONE, params, 2)) {
           throw pybind11::value_error(mjs_getError(mjs_getSpec(self->element)));
         }
       },
-      py::arg("nedge"));
+      py::arg("nedge"), py::arg("radius"));
   mjsMesh.def(
       "make_plate",
       [](raw::MjsMesh* self, std::array<int, 2>& resolution) {

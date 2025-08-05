@@ -1340,15 +1340,13 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
       **subdivision**: integer in [0-10]: The number of subdivisions to apply to the pyramid.
 
-   :at-val:`prism` (nvert)
-      An extruded regular unit polygon.
+   :at-val:`cone` (nvert, radius)
+      The convex hull of a regular unit polygon at z = -1 and a unit polygon with the given radiusat z = 1.
+      If radius is 1, the mesh a prism. If radius is 0, only a single vertex is place at (0, 0, 1) and the mesh is a
+      discrete cone. If radius is positive, the mesh is a truncated discrete cone.
 
       **nvert**: integer >= 3: The number vertices in the polygon.
-
-   :at-val:`cone` (nvert)
-      The convex hull of a regular unit polygon and the vertex (0, 0, 1).
-
-      **nvert**: integer >= 3: The number vertices in the polygon.
+      |br| **radius**: real in [0, 1]: The radius of the top face.
 
    :at-val:`torus` (radius, resolution)
       A torus with major radius of 1 and given minor radius.

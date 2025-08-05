@@ -184,6 +184,8 @@ static void ReadFromBuffer(T* dst, const char* src) {
   std::memcpy(dst, src, sizeof(T));
 }
 
+
+
 //------------------ class mjCMesh implementation --------------------------------------------------
 
 mjCMesh::mjCMesh(mjCModel* _model, mjCDef* _def) {
@@ -432,6 +434,8 @@ void mjCMesh::LoadSDF() {
   delete[] field;
 }
 
+
+
 void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
   if (cache == nullptr) return;
 
@@ -520,6 +524,8 @@ struct VertexKey {
 };
 
 }  // namespace
+
+
 
 // convert vertices to double precision and remove repeated vertices if requested
 void mjCMesh::ProcessVertices(const std::vector<float>& vert, bool remove_repeated) {
@@ -622,6 +628,8 @@ bool mjCMesh::IsMSH() const {
   return content_type_ == "model/vnd.mujoco.msh";
 }
 
+
+
 // load mesh from resource; throw error on failure
 void mjCMesh::LoadFromResource(mjResource* resource, bool remove_repeated) {
   // set content type from resource name
@@ -645,6 +653,8 @@ void mjCMesh::LoadFromResource(mjResource* resource, bool remove_repeated) {
   }
 }
 
+
+
 // compiler wrapper
 void mjCMesh::Compile(const mjVFS* vfs) {
   try {
@@ -657,6 +667,8 @@ void mjCMesh::Compile(const mjVFS* vfs) {
     throw err;
   }
 }
+
+
 
 // compiler
 void mjCMesh::TryCompile(const mjVFS* vfs) {
@@ -1106,6 +1118,8 @@ void mjCMesh::LoadOBJ(mjResource* resource, bool remove_repeated) {
   ProcessVertices(attrib.vertices, remove_repeated);
 }
 
+
+
 // load mesh from cached asset, return true on success
 bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
   auto process_mesh = [&](const void* data) {
@@ -1176,6 +1190,8 @@ bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
   // check that cached asset has all data
   return cache->PopulateData(resource, process_mesh);
 }
+
+
 
 // load STL binary mesh
 void mjCMesh::LoadSTL(mjResource* resource) {
@@ -1339,6 +1355,8 @@ void mjCMesh::LoadMSH(mjResource* resource, bool remove_repeated) {
   ProcessVertices(vert, remove_repeated);
 }
 
+
+
 // compute the volume and center-of-mass of the mesh given the face centroid
 double mjCMesh::ComputeVolume(double CoM[3], const double facecen[3]) const {
   double normal[3], center[3], total_volume = 0;
@@ -1376,6 +1394,8 @@ double mjCMesh::ComputeVolume(double CoM[3], const double facecen[3]) const {
   return total_volume;
 }
 
+
+
 // compute the surface area and center-of-mass of the mesh given the face centroid
 double mjCMesh::ComputeSurfaceArea(double CoM[3], const double facecen[3]) const {
   double surface = 0;
@@ -1401,6 +1421,8 @@ double mjCMesh::ComputeSurfaceArea(double CoM[3], const double facecen[3]) const
   }
   return surface;
 }
+
+
 
 // apply transformations
 void mjCMesh::ApplyTransformations() {
@@ -1470,6 +1492,8 @@ void mjCMesh::ApplyTransformations() {
   }
 }
 
+
+
 // find centroid of faces, return total area
 double mjCMesh::ComputeFaceCentroid(double facecen[3]) const {
   double total_area = 0;
@@ -1495,6 +1519,8 @@ double mjCMesh::ComputeFaceCentroid(double facecen[3]) const {
   }
   return total_area;
 }
+
+
 
 void mjCMesh::Process() {
   // create half-edge structure (if mesh was in XML)
@@ -1737,6 +1763,7 @@ double mjCMesh::ComputeInertia(double inert[6], const double CoM[3]) const {
 }
 
 
+
 void mjCMesh::Rotate(double quat[4]) {
   // rotate vertices and normals of mesh by quaternion
   double neg[4] = {quat[0], -quat[1], -quat[2], -quat[3]};
@@ -1804,15 +1831,18 @@ void mjCMesh::CheckInitialMesh() const {
 
 
 
-// get inertia pointer
+// return inertia pointer
 double* mjCMesh::GetInertiaBoxPtr() {
   return boxsz_;
 }
 
 
+
+// return volume or surface area
 double mjCMesh::GetVolumeRef() const {
   return (inertia == mjMESH_INERTIA_SHELL) ? surface_ : volume_;
 }
+
 
 
 // make graph describing convex hull
@@ -1999,6 +2029,8 @@ void mjCMesh::MakeGraph() {
   }
 }
 
+
+
 // copy graph into face data
 void mjCMesh::CopyGraph() {
   // only if face data is missing
@@ -2021,6 +2053,8 @@ void mjCMesh::CopyGraph() {
     face_[3*i + 2] = graph_[j + 2];
   }
 }
+
+
 
 // make a mesh of a spherical wedge
 void mjCMesh::MakeWedge(int resolution[2], double fov[2], double gamma) {
@@ -2046,6 +2080,8 @@ void mjCMesh::MakeWedge(int resolution[2], double fov[2], double gamma) {
   mjs_setFloat(spec.usernormal, usernormal.data(),
                9 * resolution[0] * resolution[1]);
 }
+
+
 
 // make a mesh of a rectangle
 void mjCMesh::MakeRect(int resolution[2]) {
@@ -2089,22 +2125,35 @@ void mjCMesh::MakeRect(int resolution[2]) {
              6 * (resolution[0] - 1) * (resolution[1] - 1));
 }
 
-// make a mesh of a prism
-void mjCMesh::MakePrism(int nedge) {
-  int layer = 2;
-  std::vector<float> uservert(3 * nedge * layer, 0);
 
+
+// make a mesh of a generalized discrete cone
+void mjCMesh::MakeCone(int nedge, double radius) {
+  int n = 3 * (nedge + (radius > 0 ? nedge : 1));
+  std::vector<float> uservert(n, 0);
+
+  // bottom face
   for (int i = 0; i < nedge; i++) {
-    for (int j = 0; j < layer; j++) {
-      int v = i * layer + j;
-      uservert[3 * v + 0] = std::cos(2 * i * mjPI / nedge);
-      uservert[3 * v + 1] = std::sin(2 * i * mjPI / nedge);
-      uservert[3 * v + 2] = -1 + 2 * j / (layer - 1);
-    }
+    uservert[3 * i + 0] = std::cos(2 * i * mjPI / nedge);
+    uservert[3 * i + 1] = std::sin(2 * i * mjPI / nedge);
+    uservert[3 * i + 2] = -1;
   }
 
-  mjs_setFloat(spec.uservert, uservert.data(), 3 * nedge * layer);
+  // top face or single point
+  if (radius > 0) {
+    for (int i = nedge; i < 2 * nedge; i++) {
+      uservert[3 * i + 0] = radius * std::cos(2 * i * mjPI / nedge);
+      uservert[3 * i + 1] = radius * std::sin(2 * i * mjPI / nedge);
+      uservert[3 * i + 2] = 1;
+    }
+  } else {
+    uservert[3 * nedge + 2] = 1;
+  }
+
+  mjs_setFloat(spec.uservert, uservert.data(), n);
 }
+
+
 
 // compute vertex normals
 void mjCMesh::MakeNormal() {
@@ -2435,8 +2484,7 @@ void MeshPolygon::InsertFace(int v1, int v2, int v3) {
 
 
 
-// return the traverse vertices of the polygon; there may be multiple paths if the polygon is
-// not connected
+// return the transverse vertices of the polygon, multiple paths possible if not connected
 std::vector<std::vector<int> > MeshPolygon::Paths() const {
   std::vector<std::vector<int> > paths;
   // shortcut if polygon is just a triangular face
@@ -2548,6 +2596,7 @@ void mjCMesh::MakePolygons() {
     }
   }
 }
+
 
 
 //------------------ class mjCSkin implementation --------------------------------------------------

@@ -74,7 +74,6 @@ typedef enum mjtMeshBuiltin_ {      // type of built-in procedural mesh
   mjMESH_BUILTIN_NONE = 0,          // no built-in mesh
   mjMESH_BUILTIN_SPHERE,            // sphere
   mjMESH_BUILTIN_HEMISPHERE,        // hemisphere
-  mjMESH_BUILTIN_PRISM,             // prism
   mjMESH_BUILTIN_CONE,              // cone
   mjMESH_BUILTIN_TORUS,             // torus
   mjMESH_BUILTIN_WEDGE,             // wedge

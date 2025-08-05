@@ -2044,10 +2044,10 @@ TEST_F(XMLReaderTest, UnsupportedMesh) {
   static constexpr char xml[] = R"(
   <mujoco>
     <asset>
-      <mesh name="cone" builtin="cone" params="25 25 180 90 0"/>
+      <mesh name="torus" builtin="torus" params="25 25 180 90 0"/>
     </asset>
     <worldbody>
-      <geom type="mesh" mesh="cone"/>
+      <geom type="mesh" mesh="torus"/>
     </worldbody>
   </mujoco>
   )";
