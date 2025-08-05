@@ -590,6 +590,8 @@ attaching. However, it is possible to override the default behavior by setting `
    worldframe_in_site = parent.attach(child, site=site, prefix='child-')
    worldframe_in_frame = parent.attach(child, frame=frame, prefix='child-')
 
+.. _PyEditConvenience:
+
 Convenience methods
 -------------------
 
@@ -640,6 +642,17 @@ Serialization
 The ``MjSpec`` object can be serialized with all of its assets using the function ``spec.to_zip(file)``, where ``file``
 can be either a path to a file or a file object. In order to load the spec from a zip file, use ``spec =
 MjSpec.from_zip(file)``, where ``file`` is a path to a zip file or a zip file object.
+
+Mesh creation
+^^^^^^^^^^^^^
+The :ref:`mjsMesh` object includes convenience methods for model creation with named attributes, corresponding to the
+:ref:`mesh/builtin<asset-mesh-builtin>` semantics. See `specs_test.py
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/specs_test.py>`__.
+
+.. code-block:: python
+
+   mesh = spec.add_mesh(name='prism')
+   mesh.make_cone(nedge=5, radius=1)
 
 .. _PyMJCF:
 

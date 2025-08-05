@@ -1603,9 +1603,6 @@ native pipeline
 
 .. _coDistance:
 
-Geom distance
-^^^^^^^^^^^^^
-
 .. image:: ../images/computation/ccd_light.gif
    :width: 25%
    :align: right
@@ -1616,28 +1613,30 @@ Geom distance
    :align: right
    :class: only-dark
 
+Geom distance
+^^^^^^^^^^^^^
+
 The narrow-phase collision functions described :ref:`above<coChecking>` drive the :ref:`mj_geomDistance` function and
 associated :ref:`collision-sensors`. Due to the limitations of MPR, the legacy pipeline will return incorrect values
 (top) except at very small distances relative to the geom sizes, and is discouraged for this use case. In
 contrast, the GJK-based native pipeline (bottom), computes the correct values at all distances.
 
+.. _coDecomposition:
+
 Convex decomposition
 ^^^^^^^^^^^^^^^^^^^^
 
 In order to model a non-convex object other than a height field, the user must decompose it into a union of convex geoms
-(which can be primitive shapes or meshes) and attach them to the same body. A height-field is essentially a shape that
-is automatically-decomposed into prisms
+(which can be primitive shapes or meshes) and attach them to the same body. The other exception to this rule (besides
+height fields) are :ref:`Signed Distance Functions<exSDF>` (see documentation therein), which in certain cases (e.g.,
+`analytic SDFs <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md#gear>`__) can be efficient, but
+have other requirements and limitations.
 
-Open mesh-decomposition tools like the
-`CoACD library <https://github.com/SarahWeiii/CoACD>`__ can be used outside MuJoCo to automate this process. Finally,
-all built-in collision functions can be replaced with custom callbacks. This can be used to incorporate a
-general-purpose "triangle soup" collision detector for example. However we do not recommend such an approach.
-Pre-processing the geometry and representing it as a union of convex geoms takes some work, but it pays off at runtime
-and yields both faster and more stable simulation.
-
-The exception to this rule are :ref:`SDF plugins<exSDF>` (see documentation therein), which in
-`certain cases <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md#gear>`__ can be efficient,
-but have other requirements and limitations.
+Open source mesh-decomposition tools like the `CoACD library <https://github.com/SarahWeiii/CoACD>`__ can be used
+outside MuJoCo to automate this process. Finally, all built-in collision functions can be replaced with custom
+callbacks. This can be used to incorporate a general-purpose "triangle soup" collision detector for example. However we
+do not recommend such an approach. Pre-processing the geometry and representing it as a union of convex geoms takes some
+work, but it pays off at runtime and yields both faster and more stable simulation.
 
 .. _Pipeline:
 
