@@ -506,6 +506,24 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
   mjCMesh* meshC = static_cast<mjCMesh*>(mesh->element);
   mjCModel* m = meshC->model;
   switch (builtin) {
+    case mjMESH_BUILTIN_HEMISPHERE: {
+      if (nparams != 1) {
+        m->SetError(mjCError(0, "Hemisphere mesh type requires 1 parameter"));
+        return -1;
+      }
+      int subdiv = static_cast<int>(params[0]);
+      if (subdiv < 0) {
+        m->SetError(mjCError(0, "Hemisphere subdivision cannot be negative"));
+        return -1;
+      }
+      if (subdiv > 10) {
+        m->SetError(mjCError(0, "Hemisphere subdivision cannot be greater than 10"));
+        return -1;
+      }
+      meshC->MakeHemisphere(subdiv, /*make_faces*/ true, /*make_cap*/ true);
+      return 0;
+    }
+
     case mjMESH_BUILTIN_WEDGE: {
       if (nparams != 5) {
         m->SetError(mjCError(0, "Wedge builtin mesh types require 5 parameters"));

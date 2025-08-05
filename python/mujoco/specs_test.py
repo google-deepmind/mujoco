@@ -496,11 +496,15 @@ class SpecsTest(absltest.TestCase):
     mesh = spec.add_mesh(name='cone')
     mesh.make_cone(nedge=6, radius=0)
 
+    mesh = spec.add_mesh(name='hemisphere')
+    mesh.make_hemisphere(subdivision=4)
+
     model = spec.compile()
-    self.assertEqual(model.nmesh, 3)
+    self.assertEqual(model.nmesh, 4)
     self.assertEqual(model.mesh_vertnum[0], 25 * 25)
     self.assertEqual(model.mesh_vertnum[1], 10)
     self.assertEqual(model.mesh_vertnum[2], 7)
+    self.assertEqual(model.mesh_vertnum[3], 2 * (4 + 1) * (4 + 2) + 2)
 
   def test_compile_errors_with_line_info(self):
     spec = mujoco.MjSpec()

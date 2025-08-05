@@ -1336,7 +1336,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
       **subdivision**: integer in [0-4]: The number of subdivisions to apply to icosahedron faces.
 
    :at-val:`hemisphere` (subdivision)
-      Repeated subdivisions :math:`s` of a square-based pyramid. Has :math:`1 + 2(s+1)(s+2)` vertices.
+      Repeated subdivisions :math:`s` of a square-based pyramid. Has :math:`2+2(s+1)(s+2)` vertices.
 
       **subdivision**: integer in [0-10]: The number of subdivisions to apply to the pyramid.
 

@@ -1015,6 +1015,15 @@ PYBIND11_MODULE(_specs, m) {
       py::arg("resolution") = std::array<int, 2>{0, 0},
       py::arg("fov") = std::array<double, 2>{0, 0}, py::arg("gamma") = 0);
   mjsMesh.def(
+      "make_hemisphere",
+      [](raw::MjsMesh* self, int subdivision) {
+        double params[1] = {static_cast<double>(subdivision)};
+        if (mjs_makeMesh(self, mjMESH_BUILTIN_HEMISPHERE, params, 1)) {
+          throw pybind11::value_error(mjs_getError(mjs_getSpec(self->element)));
+        }
+      },
+      py::arg("subdivision"));
+  mjsMesh.def(
       "make_cone",
       [](raw::MjsMesh* self, int nedge, double radius) {
         double params[2] = {static_cast<double>(nedge), radius};

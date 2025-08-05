@@ -2056,6 +2056,128 @@ void mjCMesh::CopyGraph() {
 
 
 
+// make a mesh of a hemisphere
+void mjCMesh::MakeHemisphere(int res, bool make_faces, bool make_cap) {
+  constexpr double kNorthPole[3] = {0, 0, 1};
+  constexpr double kEquator[4][3] = {
+      {1, 0, 0},
+      {0, 1, 0},
+      {-1, 0, 0},
+      {0, -1, 0},
+  };
+
+  // allocate vertices
+  int nvert = 1 + 2 * (res + 1) * (res + 2);
+  nvert += make_cap && make_faces;  // add center vertex for bottom cap faces
+  std::vector<float> vert(3 * nvert);
+
+  // north pole
+  vert[0] = kNorthPole[0];
+  vert[1] = kNorthPole[1];
+  vert[2] = kNorthPole[2];
+
+  // iterate through rows from north pole to equator, compute vertices
+  int v = 1;
+  for (int row = 0; row <= res; row++) {
+    // iterate through the four sides
+    for (int side = 0; side < 4; side++) {
+      double factor = static_cast<double>(row + 1) / (res + 1);
+      double start[3], end[3];
+
+      // start and end points of current arc
+      for (int i = 0; i < 3; i++) {
+        start[i] = kNorthPole[i] + factor * (kEquator[side][i] - kNorthPole[i]);
+        end[i] = kNorthPole[i] + factor * (kEquator[(side + 1) % 4][i] - kNorthPole[i]);
+      }
+
+      // step size for interpolation along the arc
+      double delta[3];
+      for (int i = 0; i < 3; i++) {
+        delta[i] = (end[i] - start[i]) / (row + 1);
+      }
+
+      // interpolate points along the arc
+      for (int i = 0; i < row + 1; i++) {
+        double p[3];
+        for (int j = 0; j < 3; j++) {
+          p[j] = start[j] + i * delta[j];
+        }
+
+        // normalize point to lie on hemisphere surface
+        double norm = std::sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+        vert[3 * v + 0] = p[0] / norm;
+        vert[3 * v + 1] = p[1] / norm;
+        vert[3 * v + 2] = p[2] / norm;
+        v++;
+      }
+    }
+  }
+
+  // optional center vertex for bottom cap (for symmetry)
+  if (make_faces && make_cap) {
+    vert[3 * (nvert - 1) + 0] = 0;
+    vert[3 * (nvert - 1) + 1] = 0;
+    vert[3 * (nvert - 1) + 2] = 0;
+  }
+
+  // save vertices
+  mjs_setFloat(spec.uservert, vert.data(), 3 * nvert);
+
+  if (make_faces) {
+    // allocate faces
+    int nface = 4 * (res + 1) * (res + 1);
+    nface += make_cap * (4 * (res + 1));  // bottom cap faces
+    std::vector<int> face(3 * nface);
+
+    // faces connected to north pole
+    int f = 0;
+    face[f++] = 0; face[f++] = 1; face[f++] = 2;
+    face[f++] = 0; face[f++] = 2; face[f++] = 3;
+    face[f++] = 0; face[f++] = 3; face[f++] = 4;
+    face[f++] = 0; face[f++] = 4; face[f++] = 1;
+
+    // faces on the hemisphere from north pole to equator
+    for (int row = 0; row < res; row++) {
+      const int start_curr = 2 * row * (row + 1) + 1;
+      const int count_curr = 4 * (row + 1);
+      const int start_next = start_curr + count_curr;
+      const int count_next = 4 * (row + 2);
+
+      for (int side = 0; side < 4; side++) {
+        for (int i = 0; i < row + 2; i++) {
+          const int v_curr = i + (row + 1) * side;
+          const int v_next = i + (row + 2) * side;
+          face[f++] = start_curr + v_curr % count_curr;
+          face[f++] = start_next + v_next % count_next;
+          face[f++] = start_next + (v_next + 1) % count_next;
+
+          if (i < row + 1) {
+            face[f++] = start_curr + v_curr % count_curr;
+            face[f++] = start_next + (v_next + 1) % count_next;
+            face[f++] = start_curr + (v_curr + 1) % count_curr;
+          }
+        }
+      }
+    }
+
+    if (make_cap) {
+      // add faces for the bottom cap
+      const int start = 2 * res * (res + 1) + 1;
+      const int count = 4 * (res + 1);
+      for (int i = 0; i < count; i++) {
+        face[f++] = start + i;
+        face[f++] = nvert - 1;
+        face[f++] = start + (i + 1) % count;
+      }
+    }
+
+    // save faces
+    mjs_setInt(spec.userface, face.data(), 3 * nface);
+  }
+}
+
+
+
 // make a mesh of a spherical wedge
 void mjCMesh::MakeWedge(int resolution[2], double fov[2], double gamma) {
   std::vector<double> x_edges(resolution[0] + 1, 0);

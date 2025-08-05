@@ -1288,6 +1288,27 @@ TEST_F(MjCMeshTest, OctreeNotComputedForNonSDF) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, HemisphereSizes) {
+  static constexpr char xml[] = R"(
+  <mujoco model="makemesh">
+    <asset>
+      <mesh name="h0" builtin="hemisphere" params="0"/>
+      <mesh name="h1" builtin="hemisphere" params="1"/>
+      <mesh name="h2" builtin="hemisphere" params="2"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->mesh_vertnum[0], 2 * (0 + 1) * (0 + 2) + 2);
+  EXPECT_EQ(model->mesh_vertnum[1], 2 * (1 + 1) * (1 + 2) + 2);
+  EXPECT_EQ(model->mesh_vertnum[2], 2 * (2 + 1) * (2 + 2) + 2);
+  EXPECT_EQ(model->mesh_facenum[0], 4 * (0 + 1) * (0 + 2));
+  EXPECT_EQ(model->mesh_facenum[1], 4 * (1 + 1) * (1 + 2));
+  EXPECT_EQ(model->mesh_facenum[2], 4 * (2 + 1) * (2 + 2));
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco
