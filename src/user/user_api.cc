@@ -513,11 +513,11 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
       }
       int subdiv = static_cast<int>(params[0]);
       if (subdiv < 0) {
-        m->SetError(mjCError(0, "Hemisphere subdivision cannot be negative"));
+        m->SetError(mjCError(0, "Hemisphere resolution cannot be negative"));
         return -1;
       }
       if (subdiv > 10) {
-        m->SetError(mjCError(0, "Hemisphere subdivision cannot be greater than 10"));
+        m->SetError(mjCError(0, "Hemisphere resolution cannot be greater than 10"));
         return -1;
       }
       meshC->MakeHemisphere(subdiv, /*make_faces*/ true, /*make_cap*/ true);

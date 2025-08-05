@@ -1347,11 +1347,12 @@ The full list of processing steps applied by the compiler to each mesh is as fol
       :align: right
       :target: https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/makemesh.xml
 
-   :at-val:`hemisphere` (subdivision)
-      Repeated subdivisions of a square-based pyramid. For :math:`s` subdivisions, this mesh
-      has :math:`V = 2 + 2(s+1)(s+2)` vertices and :math:`F = 4(s+1)(s+2)` faces.
+   :at-val:`hemisphere` (resolution)
+      Quad-projected hemisphere. For resolution :math:`r`, this mesh has :math:`4r` edges and
+      vertices on the equator and a total of :math:`V = 2 + 2(r+1)(r+2)` vertices and
+      :math:`F = 4(r+1)(r+2)` faces.
 
-      **subdivision**: integer in [0-10]: The number of subdivisions to apply to the pyramid.
+      **resolution**: integer in [0-10]: Equator discretization of one hemisphere quadrant.
 
    .. image:: images/XMLreference/c.png
       :width: 23%

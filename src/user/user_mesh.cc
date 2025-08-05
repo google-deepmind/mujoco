@@ -2066,7 +2066,7 @@ void mjCMesh::CopyGraph() {
 
 
 
-// make a mesh of a hemisphere
+// make a mesh of a hemisphere (quad projected)
 void mjCMesh::MakeHemisphere(int res, bool make_faces, bool make_cap) {
   constexpr double kNorthPole[3] = {0, 0, 1};
   constexpr double kEquator[4][3] = {

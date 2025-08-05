@@ -497,7 +497,7 @@ class SpecsTest(absltest.TestCase):
     mesh.make_cone(nedge=6, radius=0)
 
     mesh = spec.add_mesh(name='hemisphere')
-    mesh.make_hemisphere(subdivision=4)
+    mesh.make_hemisphere(resolution=4)
 
     mesh = spec.add_mesh(name='sphere')
     mesh.make_sphere(subdivision=2)
