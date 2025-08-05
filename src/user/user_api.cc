@@ -524,6 +524,24 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
       return 0;
     }
 
+    case mjMESH_BUILTIN_SPHERE: {
+      if (nparams != 1) {
+        m->SetError(mjCError(0, "Sphere mesh type requires 1 parameter"));
+        return -1;
+      }
+      int subdiv = static_cast<int>(params[0]);
+      if (subdiv < 0) {
+        m->SetError(mjCError(0, "Sphere subdivision cannot be negative"));
+        return -1;
+      }
+      if (subdiv > 4) {
+        m->SetError(mjCError(0, "Sphere subdivision cannot be greater than 4"));
+        return -1;
+      }
+      meshC->MakeSphere(subdiv, /*make_faces*/ true);
+      return 0;
+    }
+
     case mjMESH_BUILTIN_WEDGE: {
       if (nparams != 5) {
         m->SetError(mjCError(0, "Wedge builtin mesh types require 5 parameters"));

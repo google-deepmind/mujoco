@@ -1,5 +1,6 @@
 <mujoco model="makemesh">
   <asset>
+    <mesh name="sphere" builtin="sphere" params="2" scale=".8 .8 .8"/>
     <mesh name="hemisphere" builtin="hemisphere" params="4" scale=".8 .8 .8"/>
     <mesh name="wedge" builtin="wedge" params="10 10 60 60 0"/>
     <mesh name="prism3" builtin="cone" params="3 1" scale=".3 .3 .3"/>
@@ -10,7 +11,8 @@
 
   <worldbody>
     <light pos="0 0 10"/>
-    <geom mesh="hemisphere" type="mesh" pos="-2 0 0"/>
+    <geom mesh="sphere" type="mesh" pos="-3 0 0"/>
+    <geom mesh="hemisphere" type="mesh" pos="-1 0 0"/>
     <geom mesh="wedge" type="mesh" euler="90 -90 0"/>
     <geom mesh="prism5" type="mesh" pos="2 0 0" euler="90 0 0"/>
     <geom mesh="prism3" type="mesh" pos="3 0 0"/>

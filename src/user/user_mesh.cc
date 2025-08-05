@@ -22,6 +22,7 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -2174,6 +2175,110 @@ void mjCMesh::MakeHemisphere(int res, bool make_faces, bool make_cap) {
     // save faces
     mjs_setInt(spec.userface, face.data(), 3 * nface);
   }
+}
+
+
+
+// make a mesh of a sphere using icosaheral subdivision
+void mjCMesh::MakeSphere(int subdiv, bool make_faces) {
+  // make icosahedron
+  const float phi = (1.0 + std::sqrt(5.0)) / 2.0;
+  std::vector<float> vert = {
+      -1.0,  phi, 0.0,
+       1.0,  phi, 0.0,
+      -1.0, -phi, 0.0,
+       1.0, -phi, 0.0,
+
+       0.0, -1.0,  phi,
+       0.0,  1.0,  phi,
+       0.0, -1.0, -phi,
+       0.0,  1.0, -phi,
+
+       phi,  0.0, -1.0,
+       phi,  0.0,  1.0,
+      -phi,  0.0, -1.0,
+      -phi,  0.0,  1.0,
+  };
+
+  // normalize vertices to be on a unit sphere
+  const double norm = std::sqrt(1.0 + phi * phi);
+  for (float& v : vert) {
+    v /= norm;
+  }
+
+  std::vector<int> face = {
+    0,  11, 5,    0,  5,  1,    0,  1,  7,    0,  7,  10,   0,  10, 11,
+    1,  5,  9,    5,  11, 4,    11, 10, 2,    10, 7,  6,    7,  1,  8,
+    3,  9,  4,    3,  4,  2,    3,  2,  6,    3,  6,  8,    3,  8,  9,
+    4,  9,  5,    2,  4,  11,   6,  2,  10,   8,  6,  7,    9,  8,  1
+  };
+
+  // subdivision
+  if (subdiv > 0) {
+    // helper to get or create a midpoint vertex
+    auto get_midpoint = [&vert](
+        int v1_idx, int v2_idx, std::map<std::pair<int, int>, int>& cache) -> int {
+      // key is the pair of vertex indices, sorted
+      std::pair<int, int> key = std::minmax(v1_idx, v2_idx);
+
+      // if midpoint is already in cache, return its index
+      auto it = cache.find(key);
+      if (it != cache.end()) {
+        return it->second;
+      }
+
+      // otherwise, create it
+      const float* v1 = &vert[v1_idx * 3];
+      const float* v2 = &vert[v2_idx * 3];
+
+      float mid_x = (v1[0] + v2[0]) / 2.0f;
+      float mid_y = (v1[1] + v2[1]) / 2.0f;
+      float mid_z = (v1[2] + v2[2]) / 2.0f;
+
+      // normalize the new vertex to put it on the sphere
+      float mid_norm = std::sqrt(mid_x * mid_x + mid_y * mid_y + mid_z * mid_z);
+      mid_x /= mid_norm;
+      mid_y /= mid_norm;
+      mid_z /= mid_norm;
+
+      // add the new vertex to the list
+      int new_idx = vert.size() / 3;
+      vert.push_back(mid_x);
+      vert.push_back(mid_y);
+      vert.push_back(mid_z);
+
+      // add to cache
+      cache[key] = new_idx;
+
+      return new_idx;
+    };
+
+    // subdivision loop
+    for (int i = 0; i < subdiv; ++i) {
+      std::map<std::pair<int, int>, int> midpoint_cache;
+      std::vector<int> new_face;
+      new_face.reserve(face.size() * 4);
+      for (size_t j = 0; j < face.size(); j += 3) {
+        int v1 = face[j];
+        int v2 = face[j+1];
+        int v3 = face[j+2];
+
+        int m12 = get_midpoint(v1, v2, midpoint_cache);
+        int m23 = get_midpoint(v2, v3, midpoint_cache);
+        int m31 = get_midpoint(v3, v1, midpoint_cache);
+
+        new_face.insert(new_face.end(), {v1, m12, m31});
+        new_face.insert(new_face.end(), {v2, m23, m12});
+        new_face.insert(new_face.end(), {v3, m31, m23});
+        new_face.insert(new_face.end(), {m12, m23, m31});
+      }
+      face = std::move(new_face);
+    }
+  }
+
+  // save vertices and maybe faces
+  mjs_setFloat(spec.uservert, vert.data(), vert.size());
+  if (make_faces) mjs_setInt(spec.userface, face.data(), face.size());
 }
 
 

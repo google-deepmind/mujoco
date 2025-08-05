@@ -15,6 +15,7 @@
 // Tests for user/user_objects.cc.
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <memory>
@@ -732,7 +733,6 @@ TEST_F(MjCMeshTest, VolumeTooSmall) {
   EXPECT_THAT(model, testing::IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
   mj_deleteModel(model);
-
 }
 
 TEST_F(MjCMeshTest, VisualVolumeTooSmall) {
@@ -760,7 +760,6 @@ TEST_F(MjCMeshTest, VisualVolumeTooSmall) {
   EXPECT_THAT(model, testing::IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
   mj_deleteModel(model);
-
 }
 
 TEST_F(MjCMeshTest, VisualVolumeSmallAllowedShell) {
@@ -1307,6 +1306,28 @@ TEST_F(MjCMeshTest, HemisphereSizes) {
   EXPECT_EQ(model->mesh_facenum[0], 4 * (0 + 1) * (0 + 2));
   EXPECT_EQ(model->mesh_facenum[1], 4 * (1 + 1) * (1 + 2));
   EXPECT_EQ(model->mesh_facenum[2], 4 * (2 + 1) * (2 + 2));
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, SphereSizes) {
+  static constexpr char xml[] = R"(
+  <mujoco model="makemesh">
+    <asset>
+      <mesh name="h0" builtin="sphere" params="0"/>
+      <mesh name="h1" builtin="sphere" params="1"/>
+      <mesh name="h2" builtin="sphere" params="2"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->mesh_vertnum[0], 2 + 10 * std::pow(4, 0));
+  EXPECT_EQ(model->mesh_vertnum[1], 2 + 10 * std::pow(4, 1));
+  EXPECT_EQ(model->mesh_vertnum[2], 2 + 10 * std::pow(4, 2));
+  EXPECT_EQ(model->mesh_facenum[0], 20 * std::pow(4, 0));
+  EXPECT_EQ(model->mesh_facenum[1], 20 * std::pow(4, 1));
+  EXPECT_EQ(model->mesh_facenum[2], 20 * std::pow(4, 2));
   mj_deleteModel(model);
 }
 
