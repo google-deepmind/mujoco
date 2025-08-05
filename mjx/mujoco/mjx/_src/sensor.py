@@ -684,7 +684,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
           slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 1])
 
         found = is_contact[cid] & match
-        sensors.append((found[:, None] * np.hstack(slot)).reshape(-1))
+        sensors.append((found[:, None] * jp.hstack(slot)).reshape(-1))
         adrs.append(
             (adr[idx_ds][:, None] + np.arange(num * size)[None]).reshape(-1)
         )
