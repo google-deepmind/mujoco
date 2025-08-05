@@ -1053,6 +1053,8 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   // make a mesh of a predefined shape
   void MakeHemisphere(int res, bool make_faces, bool make_cap);
   void MakeSphere(int subdiv, bool make_faces);
+  void MakeTorus(int res, double radius);
+  void MakeSupertorus(int res, double radius, double s, double t);
   void MakeWedge(int resolution[2], double fov[2], double gamma);
   void MakeRect(int resolution[2]);
   void MakeCone(int nedge, double radius);

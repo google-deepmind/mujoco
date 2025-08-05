@@ -502,13 +502,17 @@ class SpecsTest(absltest.TestCase):
     mesh = spec.add_mesh(name='sphere')
     mesh.make_sphere(subdivision=2)
 
+    mesh = spec.add_mesh(name='supertoroid')
+    mesh.make_supertorus(resolution=10, radius=0.5, s=1, t=1)
+
     model = spec.compile()
-    self.assertEqual(model.nmesh, 5)
+    self.assertEqual(model.nmesh, 6)
     self.assertEqual(model.mesh_vertnum[0], 25 * 25)
     self.assertEqual(model.mesh_vertnum[1], 10)
     self.assertEqual(model.mesh_vertnum[2], 7)
     self.assertEqual(model.mesh_vertnum[3], 2 * (4 + 1) * (4 + 2) + 2)
     self.assertEqual(model.mesh_vertnum[4], 2 + 10 * 4**2)
+    self.assertEqual(model.mesh_vertnum[5], 100)
 
   def test_compile_errors_with_line_info(self):
     spec = mujoco.MjSpec()

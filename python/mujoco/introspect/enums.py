@@ -801,7 +801,7 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjMESH_BUILTIN_SPHERE', 1),
              ('mjMESH_BUILTIN_HEMISPHERE', 2),
              ('mjMESH_BUILTIN_CONE', 3),
-             ('mjMESH_BUILTIN_TORUS', 4),
+             ('mjMESH_BUILTIN_SUPERTORUS', 4),
              ('mjMESH_BUILTIN_WEDGE', 5),
              ('mjMESH_BUILTIN_PLATE', 6),
          ]),

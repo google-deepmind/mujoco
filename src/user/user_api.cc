@@ -542,6 +542,35 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
       return 0;
     }
 
+    case mjMESH_BUILTIN_SUPERTORUS: {
+      if (nparams != 4) {
+        m->SetError(mjCError(0, "Supertorus mesh type requires 4 parameters"));
+        return -1;
+      }
+      int res = static_cast<int>(params[0]);
+      if (res < 3) {
+        m->SetError(mjCError(0, "Supertorus resolution must be greater than 3"));
+        return -1;
+      }
+      double radius = params[1];
+      if (radius <= 0 || radius > 1) {
+        m->SetError(mjCError(0, "Supertorus radius must be in (0, 1]"));
+        return -1;
+      }
+      double s = params[2];
+      if (s <= 0) {
+        m->SetError(mjCError(0, "Supertorus 's' must be greater than 0"));
+        return -1;
+      }
+      double t = params[3];
+      if (t <= 0) {
+        m->SetError(mjCError(0, "Supertorus 't' must be greater than 0"));
+        return -1;
+      }
+      meshC->MakeSupertorus(res, radius, s, t);
+      return 0;
+    }
+
     case mjMESH_BUILTIN_WEDGE: {
       if (nparams != 5) {
         m->SetError(mjCError(0, "Wedge builtin mesh types require 5 parameters"));

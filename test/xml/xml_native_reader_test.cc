@@ -2040,24 +2040,6 @@ TEST_F(XMLReaderTest, ReadWedgeMesh) {
   mj_deleteModel(model);
 }
 
-TEST_F(XMLReaderTest, UnsupportedMesh) {
-  static constexpr char xml[] = R"(
-  <mujoco>
-    <asset>
-      <mesh name="torus" builtin="torus" params="25 25 180 90 0"/>
-    </asset>
-    <worldbody>
-      <geom type="mesh" mesh="torus"/>
-    </worldbody>
-  </mujoco>
-  )";
-  std::array<char, 1024> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("Unsupported mesh type"));
-  mj_deleteModel(model);
-}
-
 TEST_F(XMLReaderTest, BuiltinAndFile) {
   static constexpr char xml[] = R"(
   <mujoco>

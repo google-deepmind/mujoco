@@ -1348,11 +1348,15 @@ The full list of processing steps applied by the compiler to each mesh is as fol
       **nvert**: integer >= 3: The number vertices in the polygon.
       |br| **radius**: real in [0, 1]: The radius of the top face.
 
-   :at-val:`torus` (radius, resolution)
-      A torus with major radius of 1 and given minor radius.
+   :at-val:`supertorus` (resolution, radius, s, t)
+      A generalization of a torus with major radius of 1 and given minor radius. If the **s** and **t** parameters are
+      both 1, the shape is a torus. See `here <https://en.wikipedia.org/wiki/Supertoroid>`__ for details regarding
+      the definition of supertori.
 
-      **radius**: real in (0, 1]: The minor radius of the torus.
-      |br| **resolution** integer >= 4: The discretization of both major and minor radii.
+      **resolution** integer >= 4: The discretization of both major and minor radii.
+      |br| **radius**: real in (0, 1]: The minor radius of the torus.
+      |br| **s**: real > 0: The "squareness" of major sections.
+      |br| **t**: real > 0: The "squareness" of minor sections.
 
    :at-val:`wedge` (res_phi, res_theta, fov_phi, fov_theta, gamma)
       A slice of a unit spherical shell in spherical coordinates.

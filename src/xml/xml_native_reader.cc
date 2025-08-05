@@ -833,7 +833,7 @@ const mjMap meshbuiltin_map[meshbuiltin_sz] = {
   {"sphere", mjMESH_BUILTIN_SPHERE},
   {"hemisphere", mjMESH_BUILTIN_HEMISPHERE},
   {"cone", mjMESH_BUILTIN_CONE},
-  {"torus", mjMESH_BUILTIN_TORUS},
+  {"supertorus", mjMESH_BUILTIN_SUPERTORUS},
   {"wedge", mjMESH_BUILTIN_WEDGE},
   {"plate", mjMESH_BUILTIN_PLATE}
 };
