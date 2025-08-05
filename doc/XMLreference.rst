@@ -1348,6 +1348,15 @@ The full list of processing steps applied by the compiler to each mesh is as fol
       **nvert**: integer >= 3: The number vertices in the polygon.
       |br| **radius**: real in [0, 1]: The radius of the top face.
 
+   :at-val:`supersphere` (resolution, e, n)
+      A generalization of a sphere, also known as a superellipsoid (we use "supersphere" since semiaxis rescaling is
+      performed by the :ref:`scale<asset-mesh-scale>` attribute). If the **n** and **e** parameters are both 1, the
+      shape is a sphere. See `here <https://en.wikipedia.org/wiki/Superellipsoid>`__ for the definition of superspheres.
+
+      **resolution** integer >= 4: The discretization of both major and minor radii.
+      |br| **e**: real >= 0: The "east-west" exponent.
+      |br| **n**: real >= 0: The "north-south" exponent.
+
    :at-val:`supertorus` (resolution, radius, s, t)
       A generalization of a torus with major radius of 1 and given minor radius. If the **s** and **t** parameters are
       both 1, the shape is a torus. See `here <https://en.wikipedia.org/wiki/Supertoroid>`__ for details regarding

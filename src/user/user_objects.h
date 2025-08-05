@@ -1055,6 +1055,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void MakeSphere(int subdiv, bool make_faces);
   void MakeTorus(int res, double radius);
   void MakeSupertorus(int res, double radius, double s, double t);
+  void MakeSupersphere(int res, double e, double n);
   void MakeWedge(int resolution[2], double fov[2], double gamma);
   void MakeRect(int resolution[2]);
   void MakeCone(int nedge, double radius);

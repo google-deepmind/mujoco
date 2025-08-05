@@ -1042,6 +1042,15 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::arg("nedge"), py::arg("radius"));
   mjsMesh.def(
+      "make_supersphere",
+      [](raw::MjsMesh* self, int resolution, double e, double n) {
+        double params[3] = {static_cast<double>(resolution), e, n};
+        if (mjs_makeMesh(self, mjMESH_BUILTIN_SUPERSPHERE, params, 3)) {
+          throw pybind11::value_error(mjs_getError(mjs_getSpec(self->element)));
+        }
+      },
+      py::arg("resolution"), py::arg("e"), py::arg("n"));
+  mjsMesh.def(
       "make_supertorus",
       [](raw::MjsMesh* self, int resolution, double radius, double s,
          double t) {

@@ -2292,6 +2292,68 @@ void mjCMesh::MakeSphere(int subdiv, bool make_faces) {
 
 
 
+// make a mesh of a supersphere
+void mjCMesh::MakeSupersphere(int res, double e, double n) {
+  // allocate vertices and faces
+  int nvert = (res - 1) * res + 2;
+  int nface = 2 * res * (res - 1);
+  std::vector<float> vert;
+  vert.reserve(3 * nvert);
+  std::vector<int> face;
+  face.reserve(3 * nface);
+
+  // south pole
+  vert.insert(vert.end(), {0.0f, 0.0f, -1.0f});
+
+  // rings
+  for (int i = 1; i < res; i++) {
+    double v = -mjPI/2 + i * mjPI / res;
+    for (int j = 0; j < res; j++) {
+      double u = -mjPI + j * 2 * mjPI / res;
+      vert.push_back(aux_c(v, n) * aux_c(u, e));
+      vert.push_back(aux_c(v, n) * aux_s(u, e));
+      vert.push_back(aux_s(v, n));
+    }
+  }
+
+  // north pole
+  vert.insert(vert.end(), {0.0f, 0.0f, 1.0f});
+
+  // south pole faces
+  for (int j = 0; j < res; j++) {
+    int v2 = 1 + j;
+    int v3 = 1 + (j + 1) % res;
+    face.insert(face.end(), {0, v3, v2});
+  }
+
+  // ring faces
+  for (int i = 0; i < res - 2; i++) {
+    for (int j = 0; j < res; j++) {
+      int v1 = 1 + i * res + j;
+      int v2 = 1 + i * res + (j + 1) % res;
+      int v4 = 1 + (i + 1) * res + j;
+      int v3 = 1 + (i + 1) * res + (j + 1) % res;
+      face.insert(face.end(), {v1, v2, v4});
+      face.insert(face.end(), {v2, v3, v4});
+    }
+  }
+
+  // north pole faces
+  int north_pole_idx = nvert - 1;
+  int last_ring_start_idx = 1 + (res - 2) * res;
+  for (int j = 0; j < res; j++) {
+    int v1 = last_ring_start_idx + j;
+    int v2 = last_ring_start_idx + (j + 1) % res;
+    face.insert(face.end(), {v1, v2, north_pole_idx});
+  }
+
+  // save vertices and faces
+  mjs_setFloat(spec.uservert, vert.data(), vert.size());
+  mjs_setInt(spec.userface, face.data(), face.size());
+}
+
+
+
 // make a mesh of a torus (subsumed by supertorus, kept for reference only)
 void mjCMesh::MakeTorus(int res, double radius) {
   // allocate vertices and faces

@@ -542,6 +542,30 @@ int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int npar
       return 0;
     }
 
+    case mjMESH_BUILTIN_SUPERSPHERE: {
+      if (nparams != 3) {
+        m->SetError(mjCError(0, "Supersphere mesh type requires 3 parameters"));
+        return -1;
+      }
+      int res = static_cast<int>(params[0]);
+      if (res < 3) {
+        m->SetError(mjCError(0, "Supersphere resolution must be greater than 2"));
+        return -1;
+      }
+      double e = params[1];
+      if (e < 0) {
+        m->SetError(mjCError(0, "Supersphere 'e' cannot be negative"));
+        return -1;
+      }
+      double n = params[2];
+      if (n < 0) {
+        m->SetError(mjCError(0, "Supersphere 'n' cannot be negative"));
+        return -1;
+      }
+      meshC->MakeSupersphere(res, e, n);
+      return 0;
+    }
+
     case mjMESH_BUILTIN_SUPERTORUS: {
       if (nparams != 4) {
         m->SetError(mjCError(0, "Supertorus mesh type requires 4 parameters"));

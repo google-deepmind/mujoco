@@ -557,24 +557,24 @@ const mjMap TFAuto_map[3] = {
 // joint type
 const int joint_sz = 4;
 const mjMap joint_map[joint_sz] = {
-  {"free",        mjJNT_FREE},
-  {"ball",        mjJNT_BALL},
-  {"slide",       mjJNT_SLIDE},
-  {"hinge",       mjJNT_HINGE}
+  {"free",          mjJNT_FREE},
+  {"ball",          mjJNT_BALL},
+  {"slide",         mjJNT_SLIDE},
+  {"hinge",         mjJNT_HINGE}
 };
 
 
 // geom type
 const mjMap geom_map[mjNGEOMTYPES] = {
-  {"plane",       mjGEOM_PLANE},
-  {"hfield",      mjGEOM_HFIELD},
-  {"sphere",      mjGEOM_SPHERE},
-  {"capsule",     mjGEOM_CAPSULE},
-  {"ellipsoid",   mjGEOM_ELLIPSOID},
-  {"cylinder",    mjGEOM_CYLINDER},
-  {"box",         mjGEOM_BOX},
-  {"mesh",        mjGEOM_MESH},
-  {"sdf",         mjGEOM_SDF}
+  {"plane",         mjGEOM_PLANE},
+  {"hfield",        mjGEOM_HFIELD},
+  {"sphere",        mjGEOM_SPHERE},
+  {"capsule",       mjGEOM_CAPSULE},
+  {"ellipsoid",     mjGEOM_ELLIPSOID},
+  {"cylinder",      mjGEOM_CYLINDER},
+  {"box",           mjGEOM_BOX},
+  {"mesh",          mjGEOM_MESH},
+  {"sdf",           mjGEOM_SDF}
 };
 
 
@@ -617,267 +617,268 @@ const mjMap texrole_map[texrole_sz] = {
 // integrator type
 const int integrator_sz = 4;
 const mjMap integrator_map[integrator_sz] = {
-  {"Euler",        mjINT_EULER},
-  {"RK4",          mjINT_RK4},
-  {"implicit",     mjINT_IMPLICIT},
-  {"implicitfast", mjINT_IMPLICITFAST}
+  {"Euler",         mjINT_EULER},
+  {"RK4",           mjINT_RK4},
+  {"implicit",      mjINT_IMPLICIT},
+  {"implicitfast",  mjINT_IMPLICITFAST}
 };
 
 
 // cone type
 const int cone_sz = 2;
 const mjMap cone_map[cone_sz] = {
-  {"pyramidal",   mjCONE_PYRAMIDAL},
-  {"elliptic",    mjCONE_ELLIPTIC}
+  {"pyramidal",     mjCONE_PYRAMIDAL},
+  {"elliptic",      mjCONE_ELLIPTIC}
 };
 
 
 // Jacobian type
 const int jac_sz = 3;
 const mjMap jac_map[jac_sz] = {
-  {"dense",       mjJAC_DENSE},
-  {"sparse",      mjJAC_SPARSE},
-  {"auto",        mjJAC_AUTO}
+  {"dense",         mjJAC_DENSE},
+  {"sparse",        mjJAC_SPARSE},
+  {"auto",          mjJAC_AUTO}
 };
 
 
 // solver type
 const int solver_sz = 3;
 const mjMap solver_map[solver_sz] = {
-  {"PGS",         mjSOL_PGS},
-  {"CG",          mjSOL_CG},
-  {"Newton",      mjSOL_NEWTON}
+  {"PGS",           mjSOL_PGS},
+  {"CG",            mjSOL_CG},
+  {"Newton",        mjSOL_NEWTON}
 };
 
 
 // constraint type
 const int equality_sz = 6;
 const mjMap equality_map[equality_sz] = {
-  {"connect",     mjEQ_CONNECT},
-  {"weld",        mjEQ_WELD},
-  {"joint",       mjEQ_JOINT},
-  {"tendon",      mjEQ_TENDON},
-  {"flex",        mjEQ_FLEX},
-  {"distance",    mjEQ_DISTANCE}
+  {"connect",       mjEQ_CONNECT},
+  {"weld",          mjEQ_WELD},
+  {"joint",         mjEQ_JOINT},
+  {"tendon",        mjEQ_TENDON},
+  {"flex",          mjEQ_FLEX},
+  {"distance",      mjEQ_DISTANCE}
 };
 
 
 // type for texture
 const int texture_sz = 3;
 const mjMap texture_map[texture_sz] = {
-  {"2d",          mjTEXTURE_2D},
-  {"cube",        mjTEXTURE_CUBE},
-  {"skybox",      mjTEXTURE_SKYBOX}
+  {"2d",            mjTEXTURE_2D},
+  {"cube",          mjTEXTURE_CUBE},
+  {"skybox",        mjTEXTURE_SKYBOX}
 };
 
 
 // colorspace for texture
 const int colorspace_sz = 3;
 const mjMap colorspace_map[colorspace_sz] = {
-  {"auto",        mjCOLORSPACE_AUTO},
-  {"linear",      mjCOLORSPACE_LINEAR},
-  {"sRGB",        mjCOLORSPACE_SRGB}
+  {"auto",          mjCOLORSPACE_AUTO},
+  {"linear",        mjCOLORSPACE_LINEAR},
+  {"sRGB",          mjCOLORSPACE_SRGB}
 };
 
 
 // builtin type for texture
 const int builtin_sz = 4;
 const mjMap builtin_map[builtin_sz] = {
-  {"none",        mjBUILTIN_NONE},
-  {"gradient",    mjBUILTIN_GRADIENT},
-  {"checker",     mjBUILTIN_CHECKER},
-  {"flat",        mjBUILTIN_FLAT}
+  {"none",          mjBUILTIN_NONE},
+  {"gradient",      mjBUILTIN_GRADIENT},
+  {"checker",       mjBUILTIN_CHECKER},
+  {"flat",          mjBUILTIN_FLAT}
 };
 
 
 // mark type for texture
 const int mark_sz = 4;
 const mjMap mark_map[mark_sz] = {
-  {"none",        mjMARK_NONE},
-  {"edge",        mjMARK_EDGE},
-  {"cross",       mjMARK_CROSS},
-  {"random",      mjMARK_RANDOM}
+  {"none",          mjMARK_NONE},
+  {"edge",          mjMARK_EDGE},
+  {"cross",         mjMARK_CROSS},
+  {"random",        mjMARK_RANDOM}
 };
 
 
 // dyn type
 const int dyn_sz = 6;
 const mjMap dyn_map[dyn_sz] = {
-  {"none",        mjDYN_NONE},
-  {"integrator",  mjDYN_INTEGRATOR},
-  {"filter",      mjDYN_FILTER},
-  {"filterexact", mjDYN_FILTEREXACT},
-  {"muscle",      mjDYN_MUSCLE},
-  {"user",        mjDYN_USER}
+  {"none",          mjDYN_NONE},
+  {"integrator",    mjDYN_INTEGRATOR},
+  {"filter",        mjDYN_FILTER},
+  {"filterexact",   mjDYN_FILTEREXACT},
+  {"muscle",        mjDYN_MUSCLE},
+  {"user",          mjDYN_USER}
 };
 
 
 // gain type
 const int gain_sz = 4;
 const mjMap gain_map[gain_sz] = {
-  {"fixed",       mjGAIN_FIXED},
-  {"affine",      mjGAIN_AFFINE},
-  {"muscle",      mjGAIN_MUSCLE},
-  {"user",        mjGAIN_USER}
+  {"fixed",         mjGAIN_FIXED},
+  {"affine",        mjGAIN_AFFINE},
+  {"muscle",        mjGAIN_MUSCLE},
+  {"user",          mjGAIN_USER}
 };
 
 
 // bias type
 const int bias_sz = 4;
 const mjMap bias_map[bias_sz] = {
-  {"none",        mjBIAS_NONE},
-  {"affine",      mjBIAS_AFFINE},
-  {"muscle",      mjBIAS_MUSCLE},
-  {"user",        mjBIAS_USER}
+  {"none",          mjBIAS_NONE},
+  {"affine",        mjBIAS_AFFINE},
+  {"muscle",        mjBIAS_MUSCLE},
+  {"user",          mjBIAS_USER}
 };
 
 
 // stage type
 const int stage_sz = 4;
 const mjMap stage_map[stage_sz] = {
-  {"none",        mjSTAGE_NONE},
-  {"pos",         mjSTAGE_POS},
-  {"vel",         mjSTAGE_VEL},
-  {"acc",         mjSTAGE_ACC}
+  {"none",          mjSTAGE_NONE},
+  {"pos",           mjSTAGE_POS},
+  {"vel",           mjSTAGE_VEL},
+  {"acc",           mjSTAGE_ACC}
 };
 
 
 // data type
 const int datatype_sz = 4;
 const mjMap datatype_map[datatype_sz] = {
-  {"real",        mjDATATYPE_REAL},
-  {"positive",    mjDATATYPE_POSITIVE},
-  {"axis",        mjDATATYPE_AXIS},
-  {"quaternion",  mjDATATYPE_QUATERNION}
+  {"real",          mjDATATYPE_REAL},
+  {"positive",      mjDATATYPE_POSITIVE},
+  {"axis",          mjDATATYPE_AXIS},
+  {"quaternion",    mjDATATYPE_QUATERNION}
 };
 
 
 // contact data type
 const mjMap condata_map[mjNCONDATA] = {
-  {"found",   mjCONDATA_FOUND},
-  {"force",   mjCONDATA_FORCE},
-  {"torque",  mjCONDATA_TORQUE},
-  {"dist",    mjCONDATA_DIST},
-  {"pos",     mjCONDATA_POS},
-  {"normal",  mjCONDATA_NORMAL},
-  {"tangent", mjCONDATA_TANGENT}
+  {"found",         mjCONDATA_FOUND},
+  {"force",         mjCONDATA_FORCE},
+  {"torque",        mjCONDATA_TORQUE},
+  {"dist",          mjCONDATA_DIST},
+  {"pos",           mjCONDATA_POS},
+  {"normal",        mjCONDATA_NORMAL},
+  {"tangent",       mjCONDATA_TANGENT}
 };
 
 
 // contact reduction type
 const int reduce_sz = 4;
 const mjMap reduce_map[reduce_sz] = {
-  {"none",        0},
-  {"mindist",     1},
-  {"maxforce",    2},
-  {"netforce",    3}
+  {"none",          0},
+  {"mindist",       1},
+  {"maxforce",      2},
+  {"netforce",      3}
 };
 
 
 // LR mode
 const int lrmode_sz = 4;
 const mjMap lrmode_map[lrmode_sz] = {
-  {"none",        mjLRMODE_NONE},
-  {"muscle",      mjLRMODE_MUSCLE},
-  {"muscleuser",  mjLRMODE_MUSCLEUSER},
-  {"all",         mjLRMODE_ALL}
+  {"none",          mjLRMODE_NONE},
+  {"muscle",        mjLRMODE_MUSCLE},
+  {"muscleuser",    mjLRMODE_MUSCLEUSER},
+  {"all",           mjLRMODE_ALL}
 };
 
 
 // composite type
 const mjMap comp_map[mjNCOMPTYPES] = {
-  {"particle",    mjCOMPTYPE_PARTICLE},
-  {"grid",        mjCOMPTYPE_GRID},
-  {"rope",        mjCOMPTYPE_ROPE},
-  {"loop",        mjCOMPTYPE_LOOP},
-  {"cable",       mjCOMPTYPE_CABLE},
-  {"cloth",       mjCOMPTYPE_CLOTH}
+  {"particle",      mjCOMPTYPE_PARTICLE},
+  {"grid",          mjCOMPTYPE_GRID},
+  {"rope",          mjCOMPTYPE_ROPE},
+  {"loop",          mjCOMPTYPE_LOOP},
+  {"cable",         mjCOMPTYPE_CABLE},
+  {"cloth",         mjCOMPTYPE_CLOTH}
 };
 
 
 // composite joint kind
 const mjMap jkind_map[1] = {
-  {"main",        mjCOMPKIND_JOINT}
+  {"main",          mjCOMPKIND_JOINT}
 };
 
 
 // composite rope shape
 const mjMap shape_map[mjNCOMPSHAPES] = {
-  {"s",           mjCOMPSHAPE_LINE},
-  {"cos(s)",      mjCOMPSHAPE_COS},
-  {"sin(s)",      mjCOMPSHAPE_SIN},
-  {"0",           mjCOMPSHAPE_ZERO}
+  {"s",             mjCOMPSHAPE_LINE},
+  {"cos(s)",        mjCOMPSHAPE_COS},
+  {"sin(s)",        mjCOMPSHAPE_SIN},
+  {"0",             mjCOMPSHAPE_ZERO}
 };
 
 
 // mesh type
 const mjMap meshtype_map[2] = {
-  {"false", mjINERTIA_VOLUME},
-  {"true",  mjINERTIA_SHELL},
+  {"false",         mjINERTIA_VOLUME},
+  {"true",          mjINERTIA_SHELL},
 };
 
 
 // mesh inertia type
 const mjMap meshinertia_map[4] = {
-  {"convex", mjMESH_INERTIA_CONVEX},
-  {"legacy", mjMESH_INERTIA_LEGACY},
-  {"exact", mjMESH_INERTIA_EXACT},
-  {"shell", mjMESH_INERTIA_SHELL}
+  {"convex",        mjMESH_INERTIA_CONVEX},
+  {"legacy",        mjMESH_INERTIA_LEGACY},
+  {"exact",         mjMESH_INERTIA_EXACT},
+  {"shell",         mjMESH_INERTIA_SHELL}
 };
 
 
 // mesh builtin type
-const int meshbuiltin_sz = 7;
+const int meshbuiltin_sz = 8;
 const mjMap meshbuiltin_map[meshbuiltin_sz] = {
-  {"none", mjMESH_BUILTIN_NONE},
-  {"sphere", mjMESH_BUILTIN_SPHERE},
-  {"hemisphere", mjMESH_BUILTIN_HEMISPHERE},
-  {"cone", mjMESH_BUILTIN_CONE},
-  {"supertorus", mjMESH_BUILTIN_SUPERTORUS},
-  {"wedge", mjMESH_BUILTIN_WEDGE},
-  {"plate", mjMESH_BUILTIN_PLATE}
+  {"none",          mjMESH_BUILTIN_NONE},
+  {"sphere",        mjMESH_BUILTIN_SPHERE},
+  {"hemisphere",    mjMESH_BUILTIN_HEMISPHERE},
+  {"cone",          mjMESH_BUILTIN_CONE},
+  {"supertorus",    mjMESH_BUILTIN_SUPERTORUS},
+  {"supersphere",   mjMESH_BUILTIN_SUPERSPHERE},
+  {"wedge",         mjMESH_BUILTIN_WEDGE},
+  {"plate",         mjMESH_BUILTIN_PLATE}
 };
 
 
 // flexcomp type
 const mjMap fcomp_map[mjNFCOMPTYPES] = {
-  {"grid",        mjFCOMPTYPE_GRID},
-  {"box",         mjFCOMPTYPE_BOX},
-  {"cylinder",    mjFCOMPTYPE_CYLINDER},
-  {"ellipsoid",   mjFCOMPTYPE_ELLIPSOID},
-  {"square",      mjFCOMPTYPE_SQUARE},
-  {"disc",        mjFCOMPTYPE_DISC},
-  {"circle",      mjFCOMPTYPE_CIRCLE},
-  {"mesh",        mjFCOMPTYPE_MESH},
-  {"gmsh",        mjFCOMPTYPE_GMSH},
-  {"direct",      mjFCOMPTYPE_DIRECT}
+  {"grid",          mjFCOMPTYPE_GRID},
+  {"box",           mjFCOMPTYPE_BOX},
+  {"cylinder",      mjFCOMPTYPE_CYLINDER},
+  {"ellipsoid",     mjFCOMPTYPE_ELLIPSOID},
+  {"square",        mjFCOMPTYPE_SQUARE},
+  {"disc",          mjFCOMPTYPE_DISC},
+  {"circle",        mjFCOMPTYPE_CIRCLE},
+  {"mesh",          mjFCOMPTYPE_MESH},
+  {"gmsh",          mjFCOMPTYPE_GMSH},
+  {"direct",        mjFCOMPTYPE_DIRECT}
 };
 
 
 // flexcomp dof type
 const mjMap fdof_map[mjNFCOMPDOFS] = {
-  {"full",        mjFCOMPDOF_FULL},
-  {"radial",      mjFCOMPDOF_RADIAL},
-  {"trilinear",   mjFCOMPDOF_TRILINEAR}
+  {"full",          mjFCOMPDOF_FULL},
+  {"radial",        mjFCOMPDOF_RADIAL},
+  {"trilinear",     mjFCOMPDOF_TRILINEAR}
 };
 
 
 // flex selfcollide type
 const mjMap flexself_map[5] = {
-  {"none",        mjFLEXSELF_NONE},
-  {"narrow",      mjFLEXSELF_NARROW},
-  {"bvh",         mjFLEXSELF_BVH},
-  {"sap",         mjFLEXSELF_SAP},
-  {"auto",        mjFLEXSELF_AUTO},
+  {"none",          mjFLEXSELF_NONE},
+  {"narrow",        mjFLEXSELF_NARROW},
+  {"bvh",           mjFLEXSELF_BVH},
+  {"sap",           mjFLEXSELF_SAP},
+  {"auto",          mjFLEXSELF_AUTO},
 };
 
 
 // flex elastic 2d type
 const mjMap elastic2d_map[5] = {
-  {"none",        0},
-  {"bend",        1},
-  {"stretch",     2},
-  {"both",        3},
+  {"none",          0},
+  {"bend",          1},
+  {"stretch",       2},
+  {"both",          3},
 };
 
 
