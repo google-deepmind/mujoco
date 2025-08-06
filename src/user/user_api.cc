@@ -1136,7 +1136,7 @@ mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
 
 // set frame
 int mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
-  if (!frame) {
+  if (!frame || !dest) {
     return -1;
   }
   mjCFrame* frameC = static_cast<mjCFrame*>(frame->element);
