@@ -35,7 +35,7 @@ set(MUJOCO_DEP_VERSION_ccd
     CACHE STRING "Version of `ccd` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_qhull
-    c7bee59d068a69f427b1273e71cdc5bc455a5bdd
+    62ccc56af071eaa478bef6ed41fd7a55d3bb2d80
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
