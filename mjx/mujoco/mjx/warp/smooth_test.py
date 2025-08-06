@@ -15,6 +15,7 @@
 """Tests for codegen'd smooth functions."""
 
 import functools
+import os
 
 from absl.testing import absltest
 import jax
@@ -33,6 +34,8 @@ try:
 except ImportError:
   smooth = None
 
+_FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
+
 
 class SmoothTest(absltest.TestCase):
 
@@ -44,10 +47,11 @@ class SmoothTest(absltest.TestCase):
 
   def test_kinematics(self):
     """Tests kinematics with unbatched data."""
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = tu.load_test_file('pendula.xml')
 
@@ -129,10 +133,11 @@ class SmoothTest(absltest.TestCase):
 
   def test_kinematics_nested_vmap(self):
     """Tests kinematics with nested batch data."""
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = tu.load_test_file('pendula.xml')
 
@@ -175,10 +180,11 @@ class SmoothTest(absltest.TestCase):
 
   def test_kinematics_model_vmap(self):
     """Tests kinematics with vmap on model and data fields."""
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = tu.load_test_file('pendula.xml')
 

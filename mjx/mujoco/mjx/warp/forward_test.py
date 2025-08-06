@@ -15,7 +15,7 @@
 """Tests for forward functions."""
 
 import functools
-import logging
+import os
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -35,6 +35,8 @@ try:
 except ImportError:
   forward = None
 
+_FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
+
 
 class ForwardTest(parameterized.TestCase):
 
@@ -50,10 +52,11 @@ class ForwardTest(parameterized.TestCase):
   )
   def test_jit_caching(self, xml):
     """Tests jit caching on the full step function."""
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     batch_size = 7
     m = test_util.load_test_file(xml)
@@ -63,34 +66,16 @@ class ForwardTest(parameterized.TestCase):
     dx_batch = jax.vmap(functools.partial(tu.make_data, m))(keys)
 
     step_fn = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))
+    dx_batch1 = step_fn(mx, dx_batch)
+    jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch1)
+    self.assertEqual(step_fn._cache_size(), 1)
 
-    was_logging_compiles = jax.config.jax_log_compiles
-    jax_logger = logging.getLogger('jax')
-    was_propagating = jax_logger.propagate
-    jax.config.update('jax_log_compiles', True)
-    jax_logger.propagate = False  # do not print to stdout for this test
-    with self.assertLogs('jax', level='INFO') as log:
-      dx_batch1 = step_fn(mx, dx_batch)
-      jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch1)
-
-      # Re-generate data and run step_fn again to test jit caching.
-      keys = jp.arange(batch_size, batch_size * 2)
-      dx_batch = jax.vmap(functools.partial(tu.make_data, m))(keys)
-      dx_batch2 = step_fn(mx, dx_batch)
-      jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch2)
-    jax.config.update('jax_log_compiles', was_logging_compiles)
-    jax_logger.propagate = was_propagating
-
-    compilation_logs = [
-        r for r in log.records if 'Compiling jit(step)' in r.getMessage()
-    ]
-    self.assertLen(
-        compilation_logs,
-        1,
-        msg=(
-            f'Expected 1 compilation, got {len(compilation_logs)} compilations.'
-        ),
-    )
+    # Re-generate data and run step_fn again to test jit caching.
+    keys = jp.arange(batch_size, batch_size * 2)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(keys)
+    dx_batch2 = step_fn(mx, dx_batch)
+    jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch2)
+    self.assertEqual(step_fn._cache_size(), 1)
 
   @parameterized.product(
       xml=(
@@ -100,10 +85,11 @@ class ForwardTest(parameterized.TestCase):
       batch_size=(1, 7),
   )
   def test_forward(self, xml: str, batch_size: int):
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = test_util.load_test_file(xml)
     m.opt.iterations = 10
@@ -228,10 +214,11 @@ class StepTest(parameterized.TestCase):
       batch_size=(1, 7),
   )
   def test_step(self, xml: str, batch_size: int):
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = test_util.load_test_file(xml)
     m.opt.iterations = 10

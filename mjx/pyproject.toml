@@ -32,11 +32,7 @@ dependencies = [
     "mujoco>=3.3.5.dev0",
     "scipy",
     "trimesh",
-]
-
-[project.optional-dependencies]
-warp = [
-    "warp-lang==1.8.0",
+    "warp-lang==1.8.1",
 ]
 
 [project.scripts]

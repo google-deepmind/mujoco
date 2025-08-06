@@ -103,7 +103,6 @@ trimesh==4.5.2 \
     --hash=sha256:2e50f3a7fd135c3045da887a1b9f91230528f3ce11d2ec1ba44750d82d6b4f73
 wheel==0.45.0 \
     --hash=sha256:52f0baa5e6522155090a09c6bd95718cc46956d1b51d537ea5454249edb671c7
-# TODO(robotics-simulation): add back warp-lang dependencies
 
 # Transitive dependencies of etils[epath]
 fsspec==2024.10.0 \
