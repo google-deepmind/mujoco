@@ -1240,7 +1240,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
               mju_rotVecQuat(tang2, tang2, m->mesh_quat + 4 * mesh_id);
               mjtNum force[3];
               mjtNum kMaxDepth = 0.05;
-              mjtNum pressure = depth / (kMaxDepth - depth);
+              mjtNum pressure = depth / mju_max(kMaxDepth - depth, mjMINVAL);
               mju_scl3(force, normal, pressure);
 
               // one row of mat^T * force
