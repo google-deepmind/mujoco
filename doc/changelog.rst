@@ -36,6 +36,11 @@ Bug fixes
 - Fixed a bug where the convex hull of a collision mesh was not being computed if the mesh could only collide via a
   :ref:`contact pair<contact-pair>`.
 
+Python
+^^^^^^
+- On Linux, built distribution packages (wheels) now target the ``manylinux_2_28`` platform tag. Previously MuJoCo
+  wheels targeted ``manylinux2014`` based on CentOS 7, which reached end-of-life in June 2024.
+
 MJX
 ^^^
 - Add Warp as a backend implementation for MJX. The implementation can be specified via
