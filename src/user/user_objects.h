@@ -275,7 +275,8 @@ class mjCOctree : public mjCOctree_ {
   void CopyChild(int* child) const;
   void CopyAabb(mjtNum* aabb) const;
   void CopyCoeff(mjtNum* coeff) const;
-  const double* Vert(int n, int v) const { return vert_[node_[n].vertid[v]].p.data(); }
+  const double* Vert(int i) const { return vert_[i].p.data(); }
+  int VertId(int n, int v) const { return node_[n].vertid[v]; }
   void SetFace(const std::vector<double>& vert, const std::vector<int>& face);
   int Size() const {
     return sizeof(OctNode) * node_.size() + sizeof(Triangle) * face_.size() +

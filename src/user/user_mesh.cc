@@ -780,11 +780,15 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     if (!plugin.active) {
       tmd::TriangleMeshDistance sdf(vert_.data(), nvert(), face_.data(), nface());
 
+      std::vector<double> coeffs(octree_.NumVerts());
+      for (int i = 0; i < octree_.NumVerts(); ++i) {
+        coeffs[i] = sdf.signed_distance(octree_.Vert(i)).distance;
+      }
+
       // TODO: the value at hanging vertices should be computed from the parent
       for (int i = 0; i < octree_.NumNodes(); ++i) {
         for (int j = 0; j < 8; j++) {
-            const double* v = octree_.Vert(i, j);
-            octree_.AddCoeff(i, j, sdf.signed_distance(v).distance);
+            octree_.AddCoeff(i, j, coeffs[octree_.VertId(i, j)]);
         }
       }
     }
