@@ -439,7 +439,7 @@ def _from_elt(cont, axis_size, d, axis_dest):
 
 batching.register_vmappable(DataWarp, int, int, _to_elt, _from_elt, None)
 
-NDIM = {
+_NDIM = {
     'Data': {
         'act': 2,
         'act_dot': 2,
@@ -1028,7 +1028,7 @@ NDIM = {
     },
     'Statistic': {'meaninertia': 0},
 }
-BATCH_DIM = {
+_BATCH_DIM = {
     'Data': {
         'act': True,
         'act_dot': True,

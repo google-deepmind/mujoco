@@ -1207,7 +1207,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       num_outputs=182,
       output_dims=output_dims,
       vmap_method=None,
-      graph_compatible=True,
       in_out_argnames={
           'act',
           'act_dot',
@@ -3298,7 +3297,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       num_outputs=194,
       output_dims=output_dims,
       vmap_method=None,
-      graph_compatible=True,
       in_out_argnames={
           'act',
           'act_dot',

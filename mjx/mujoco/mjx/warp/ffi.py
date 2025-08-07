@@ -97,7 +97,7 @@ def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):
 def jax_callable_variadic_tuple(
     func: Callable,  # pylint: disable=g-bare-generic
     num_outputs: int = 1,
-    graph_compatible: bool = True,
+    graph_mode: ffi.GraphMode = ffi.GraphMode.WARP,
     vmap_method: Optional[str] = None,
     output_dims: Optional[dict[str, tuple[int, ...]]] = None,
     in_out_argnames: Optional[Sequence[str]] = None,
@@ -116,7 +116,7 @@ def jax_callable_variadic_tuple(
     my_callable = ffi.jax_callable(
         func_wrapper,
         num_outputs=num_outputs,
-        graph_compatible=graph_compatible,
+        graph_mode=graph_mode,
         vmap_method=vmap_method,
         output_dims=output_dims,
         in_out_argnames=in_out_argnames,
@@ -154,7 +154,7 @@ def _format_arg(arg: Any, name: str, annotation: Any, verbose: bool):
   # Add stride 0 to first axis in case the underlying argument should be
   # batched.
   # NB: the outer marshalling does an "expand_dims" on Model fields.
-  is_batch_field = mjx_warp_types.BATCH_DIM['Model'].get(name, False)
+  is_batch_field = mjx_warp_types._BATCH_DIM['Model'].get(name, False)  # pylint: disable=protected-access
   if arg.shape[0] == 1 and is_batch_field:
     old_strides = arg.strides
     arg.strides = (0,) + arg.strides[1:]
@@ -243,13 +243,13 @@ def marshal_jax_warp_callable(func):
     # function.
     m_expanded = jax.tree.map_with_path(
         lambda path, x: _expand_dim_from_path(
-            path, x, mjx_warp_types.NDIM['Model']
+            path, x, mjx_warp_types._NDIM['Model']  # pylint: disable=protected-access
         ),
         m,
     )
     d_expanded = jax.tree.map_with_path(
         lambda path, x: _expand_dim_from_path(
-            path, x, mjx_warp_types.NDIM['Data']
+            path, x, mjx_warp_types._NDIM['Data']  # pylint: disable=protected-access
         ),
         d,
     )
@@ -292,9 +292,9 @@ def _maybe_broadcast_to(
     cls_str: str,
 ) -> Any:
   """Broadcasts fields that are used in MuJoCo Warp."""
-  ndim = _get_mapping_from_tree_path(path, mjx_warp_types.NDIM[cls_str])
+  ndim = _get_mapping_from_tree_path(path, mjx_warp_types._NDIM[cls_str])
   needs_batch_dim = _get_mapping_from_tree_path(
-      path, mjx_warp_types.BATCH_DIM[cls_str]
+      path, mjx_warp_types._BATCH_DIM[cls_str]  # pylint: disable=protected-access
   )
   needs_batch_dim = bool(needs_batch_dim) and (ndim is not None and ndim > 0)
   if needs_batch_dim and not is_batched:
@@ -319,13 +319,13 @@ def marshal_custom_vmap(vmap_func):
     # Flatten batch dims into the first axis if the vmap was nested.
     m_flat = jax.tree.map_with_path(
         lambda path, x: _flatten_batch_dim(
-            path, x, mjx_warp_types.NDIM['Model']
+            path, x, mjx_warp_types._NDIM['Model']  # pylint: disable=protected-access
         ),
         m,
     )
     d_broadcast_flat = jax.tree.map_with_path(
         lambda path, x: _flatten_batch_dim(
-            path, x, mjx_warp_types.NDIM['Data']
+            path, x, mjx_warp_types._NDIM['Data']  # pylint: disable=protected-access
         ),
         d_broadcast,
     )
@@ -336,7 +336,7 @@ def marshal_custom_vmap(vmap_func):
     out_batched = jax.tree.map_with_path(
         # NB: if a field is not in MuJoCo Warp, we let JAX do its magic.
         lambda path, x: _get_mapping_from_tree_path(
-            path, mjx_warp_types.BATCH_DIM['Data']
+            path, mjx_warp_types._BATCH_DIM['Data']  # pylint: disable=protected-access
         )
         or x,
         out_batched,

@@ -299,7 +299,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       num_outputs=37,
       output_dims=output_dims,
       vmap_method=None,
-      graph_compatible=True,
       in_out_argnames={
           'collision_hftri_index',
           'collision_pair',

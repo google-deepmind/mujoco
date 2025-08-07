@@ -311,10 +311,10 @@ class ModelIOTest(parameterized.TestCase):
 
     def check_ndim(path, x):
       k = _get_name_from_path(path)
-      if k not in mjxw_types.NDIM['Model']:
+      if k not in mjxw_types._NDIM['Model']:
         return
-      is_batched = mjxw_types.BATCH_DIM['Model'][k]
-      expected_ndim = mjxw_types.NDIM['Model'][k] - is_batched
+      is_batched = mjxw_types._BATCH_DIM['Model'][k]
+      expected_ndim = mjxw_types._NDIM['Model'][k] - is_batched
       if not hasattr(x, 'ndim'):
         return
       msg = f'Field {k} has ndim {x.ndim} but expected {expected_ndim}'
@@ -745,10 +745,10 @@ class DataIOTest(parameterized.TestCase):
 
     def check_ndim(path, x):
       k = _get_name_from_path(path)
-      if k not in mjxw_types.NDIM['Data']:
+      if k not in mjxw_types._NDIM['Data']:
         return
-      is_batched = mjxw_types.BATCH_DIM['Data'][k]
-      expected_ndim = mjxw_types.NDIM['Data'][k] - is_batched
+      is_batched = mjxw_types._BATCH_DIM['Data'][k]
+      expected_ndim = mjxw_types._NDIM['Data'][k] - is_batched
       if not hasattr(x, 'ndim'):
         return
       msg = f'Field {k} has ndim {x.ndim} but expected {expected_ndim}'

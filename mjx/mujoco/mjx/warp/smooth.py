@@ -179,7 +179,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       num_outputs=19,
       output_dims=output_dims,
       vmap_method=None,
-      graph_compatible=True,
       in_out_argnames={
           'flexedge_length',
           'flexedge_velocity',
