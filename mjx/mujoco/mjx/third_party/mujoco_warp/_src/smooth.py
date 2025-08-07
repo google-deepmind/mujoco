@@ -1252,6 +1252,7 @@ def _cfrc_ext_contact(
   body_rootid: wp.array(dtype=int),
   geom_bodyid: wp.array(dtype=int),
   # Data in:
+  njmax_in: int,
   ncon_in: wp.array(dtype=int),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   contact_pos_in: wp.array(dtype=wp.vec3),
@@ -1282,6 +1283,7 @@ def _cfrc_ext_contact(
   # contact force in world frame
   force = support.contact_force_fn(
     opt_cone,
+    njmax_in,
     ncon_in,
     contact_frame_in,
     contact_friction_in,
@@ -1351,6 +1353,7 @@ def rne_postconstraint(m: Model, d: Data):
       m.opt.cone,
       m.body_rootid,
       m.geom_bodyid,
+      d.njmax,
       d.ncon,
       d.subtree_com,
       d.contact.pos,

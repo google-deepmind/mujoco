@@ -1017,9 +1017,9 @@ def forward(m: Model, d: Data):
 
   fwd_actuation(m, d)
   fwd_acceleration(m, d, factorize=True)
-  sensor.sensor_acc(m, d)
 
   solver.solve(m, d)
+  sensor.sensor_acc(m, d)
 
 
 @event_scope

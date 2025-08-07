@@ -26,8 +26,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.test_util import fixture
 
 
 class JAXTest(parameterized.TestCase):
-  @parameterized.parameters("humanoid/humanoid.xml", "pendula.xml")
-  def test_jax(self, xml):
+  @parameterized.product(xml=("pendula.xml", "humanoid/humanoid.xml"), graph_conditional=(True, False))
+  def test_jax(self, xml, graph_conditional):
     os.environ["XLA_FLAGS"] = "--xla_gpu_graph_min_graph_size=1"
     # Force JAX to allocate memory on demand and deallocate when not needed (slow)
     os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
@@ -38,7 +38,7 @@ class JAXTest(parameterized.TestCase):
       self.skipTest("JAX not installed")
 
     from jax import numpy as jp
-    from warp.jax_experimental.ffi import jax_callable
+    from mujoco.mjx.third_party.warp.jax_experimental import ffi
 
     if jax.default_backend() != "gpu":
       self.skipTest("JAX default backend is not GPU")
@@ -51,14 +51,12 @@ class JAXTest(parameterized.TestCase):
       xml,
       nworld=NWORLDS,
       nconmax=NWORLDS * NCONTACTS,
-      njmax=NWORLDS * NCONTACTS * 4,
+      njmax=NCONTACTS * 4,
       iterations=1,
       ls_iterations=4,
       kick=True,
     )
-
-    # Disable CUDA graph conditional
-    m.opt.graph_conditional = False
+    m.opt.graph_conditional = graph_conditional
 
     def warp_step(
       qpos_in: wp.array(dtype=wp.float32, ndim=2),
@@ -82,14 +80,16 @@ class JAXTest(parameterized.TestCase):
 
       return qpos, qvel
 
-    warp_step_fn = jax_callable(
+    warp_step_fn = ffi.jax_callable(
       warp_step,
       num_outputs=2,
       output_dims={"qpos_out": (NWORLDS, mjm.nq), "qvel_out": (NWORLDS, mjm.nv)},
-      graph_compatible=True,
+      graph_mode=ffi.GraphMode.WARP,
     )
 
-    jax_qpos = jp.tile(jp.array(m.qpos0.numpy()), (NWORLDS, 1))
+    # temp qpos0 array to get the right numpy shape
+    qpos0_temp = wp.array(ptr=m.qpos0.ptr, shape=(1,) + m.qpos0.shape[1:], dtype=wp.float32)
+    jax_qpos = jp.tile(jp.array(qpos0_temp), (NWORLDS, 1))
     jax_qvel = jp.zeros((NWORLDS, m.nv))
 
     jax_unroll_fn = jax.jit(unroll).lower(jax_qpos, jax_qvel).compile()

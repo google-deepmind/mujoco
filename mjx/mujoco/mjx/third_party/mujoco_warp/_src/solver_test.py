@@ -68,6 +68,63 @@ class SolverTest(parameterized.TestCase):
 
       _assert_eq(mjwarp_cost, mj_cost, name="cost")
 
+  @parameterized.parameters(ConeType.PYRAMIDAL, ConeType.ELLIPTIC)
+  def test_parallel_linesearch(self, cone):
+    """Test that iterative and parallel linesearch leads to equivalent results."""
+
+    # TODO(team): Enable this case when elliptic/parallel linesearch is working
+    if cone == ConeType.ELLIPTIC:
+      return
+
+    _, _, m, d = test_util.fixture(
+      "humanoid/humanoid.xml",
+      cone=cone,
+      ls_parallel=False,
+      iterations=50,
+      ls_iterations=50,
+    )
+
+    # One step to obtain more non-zeros results
+    mjwarp.step(m, d)
+
+    # Preparing for linesearch
+    m.opt.iterations = 0
+    mjwarp.fwd_velocity(m, d)
+    mjwarp.fwd_acceleration(m, d, factorize=True)
+    solver.solve(m, d)
+
+    # Storing some initial values
+    d_efc_Ma = d.efc.Ma.numpy().copy()
+    d_efc_Jaref = d.efc.Jaref.numpy().copy()
+    d_qacc = d.qacc.numpy().copy()
+
+    # Launching iterative linesearch
+    m.opt.ls_parallel = False
+    solver._linesearch(m, d)
+    alpha_iterative = d.efc.alpha.numpy().copy()
+
+    # Launching parallel linesearch with 10 testing points
+    m.nlsp = 10
+    d.efc.Ma = wp.array2d(d_efc_Ma)
+    d.efc.Jaref = wp.array(d_efc_Jaref)
+    d.qacc = wp.array2d(d_qacc)
+    m.opt.ls_parallel = True
+    solver._linesearch(m, d)
+    alpha_parallel_10 = d.efc.alpha.numpy().copy()
+
+    # Launching parallel linesearch with 50 testing points
+    m.nlsp = 50
+    d.efc.Ma = wp.array2d(d_efc_Ma)
+    d.efc.Jaref = wp.array(d_efc_Jaref)
+    d.qacc = wp.array2d(d_qacc)
+    solver._linesearch(m, d)
+    alpha_parallel_50 = d.efc.alpha.numpy().copy()
+
+    # Checking that iterative and parallel linesearch lead to similar results
+    # and that increasing ls_iterations leads to better results
+    _assert_eq(alpha_iterative, alpha_parallel_50, name="linesearch alpha")
+    self.assertLessEqual(abs(alpha_iterative - alpha_parallel_50), abs(alpha_iterative - alpha_parallel_10))
+
   @parameterized.parameters(
     (ConeType.PYRAMIDAL, SolverType.CG, 5, 5, False, False),
     (ConeType.ELLIPTIC, SolverType.CG, 5, 5, False, False),

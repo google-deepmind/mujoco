@@ -64,7 +64,9 @@ from mujoco.mjx.third_party.mujoco_warp._src.solver import solve as solve
 from mujoco.mjx.third_party.mujoco_warp._src.support import contact_force as contact_force
 from mujoco.mjx.third_party.mujoco_warp._src.support import mul_m as mul_m
 from mujoco.mjx.third_party.mujoco_warp._src.support import xfrc_accumulate as xfrc_accumulate
+from mujoco.mjx.third_party.mujoco_warp._src.test_util import BenchmarkSuite as BenchmarkSuite
 from mujoco.mjx.third_party.mujoco_warp._src.test_util import benchmark as benchmark
+from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseFilter as BroadphaseFilter
 from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseType as BroadphaseType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType as ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Constraint as Constraint
@@ -72,6 +74,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Contact as Contact
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit as DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import DynType as DynType
 from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit as EnableBit
+from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType as IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType as JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Option as Option
 from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType as SolverType

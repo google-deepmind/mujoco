@@ -42,7 +42,6 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _collision_shim(
     # Model
@@ -489,8 +488,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def collision(m: types.Model, d: types.Data):
   return _collision_jax_impl(m, d)
-
-
 @collision.def_vmap
 @ffi.marshal_custom_vmap
 def collision_vmap(unused_axis_size, is_batched, m, d):

@@ -96,9 +96,11 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
 
     (
       dist,
+      count,
       x1,
       x2,
     ) = ccd(
+      False,
       1e-6,
       1.0e30,
       iterations,
@@ -123,8 +125,8 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
     )
 
     dist_out[0] = dist
-    pos_out[0] = x1
-    pos_out[1] = x2
+    pos_out[0] = x1[0]
+    pos_out[1] = x2[0]
 
   vert = wp.array(shape=(iterations,), dtype=wp.vec3)
   vert1 = wp.array(shape=(iterations,), dtype=wp.vec3)
@@ -253,8 +255,7 @@ class GJKTest(absltest.TestCase):
       """
     )
 
-    # TODO(kbayes): use margin trick instead of EPA for penetration recovery
-    dist, _, _ = _geom_dist(m, d, 0, 1, 500)
+    dist, _, _ = _geom_dist(m, d, 0, 1, 0)
     self.assertAlmostEqual(-2, dist)
 
   def test_box_box_contact(self):

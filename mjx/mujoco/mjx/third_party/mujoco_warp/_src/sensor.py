@@ -21,17 +21,21 @@ from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import ray
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import support
+from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import sdf
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXCONPAIR
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConstraintType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DataType
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
+from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import ObjType
 from mujoco.mjx.third_party.mujoco_warp._src.types import SensorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
@@ -1546,6 +1550,7 @@ def _frameangacc(
 @wp.kernel
 def _sensor_acc(
   # Model:
+  opt_cone: int,
   body_rootid: wp.array(dtype=int),
   jnt_dofadr: wp.array(dtype=int),
   geom_bodyid: wp.array(dtype=int),
@@ -1555,10 +1560,15 @@ def _sensor_acc(
   sensor_datatype: wp.array(dtype=int),
   sensor_objtype: wp.array(dtype=int),
   sensor_objid: wp.array(dtype=int),
+  sensor_intprm: wp.array2d(dtype=int),
+  sensor_dim: wp.array(dtype=int),
   sensor_adr: wp.array(dtype=int),
   sensor_cutoff: wp.array(dtype=float),
   sensor_acc_adr: wp.array(dtype=int),
+  sensor_contact_adr: wp.array(dtype=int),
   # Data in:
+  njmax_in: int,
+  ncon_in: wp.array(dtype=int),
   xpos_in: wp.array2d(dtype=wp.vec3),
   xipos_in: wp.array2d(dtype=wp.vec3),
   geom_xpos_in: wp.array2d(dtype=wp.vec3),
@@ -1569,8 +1579,18 @@ def _sensor_acc(
   cvel_in: wp.array2d(dtype=wp.spatial_vector),
   actuator_force_in: wp.array2d(dtype=float),
   qfrc_actuator_in: wp.array2d(dtype=float),
+  contact_dist_in: wp.array(dtype=float),
+  contact_pos_in: wp.array(dtype=wp.vec3),
+  contact_frame_in: wp.array(dtype=wp.mat33),
+  contact_friction_in: wp.array(dtype=vec5),
+  contact_dim_in: wp.array(dtype=int),
+  contact_efc_address_in: wp.array2d(dtype=int),
+  efc_force_in: wp.array2d(dtype=float),
   cacc_in: wp.array2d(dtype=wp.spatial_vector),
   cfrc_int_in: wp.array2d(dtype=wp.spatial_vector),
+  sensor_contact_nmatch_in: wp.array2d(dtype=int),
+  sensor_contact_matchid_in: wp.array3d(dtype=int),
+  sensor_contact_direction_in: wp.array3d(dtype=float),
   # Data out:
   sensordata_out: wp.array2d(dtype=float),
 ):
@@ -1580,7 +1600,123 @@ def _sensor_acc(
   objid = sensor_objid[sensorid]
   out = sensordata_out[worldid]
 
-  if sensortype == int(SensorType.ACCELEROMETER.value):
+  if sensortype == int(SensorType.CONTACT.value):
+    dataspec = sensor_intprm[sensorid, 0]
+    dim = sensor_dim[sensorid]
+    objtype = sensor_objtype[sensorid]
+
+    # found, force, torque, dist, pos, normal, tangent
+    # TODO(thowell): precompute slot size
+    found = False
+    force = False
+    torque = False
+    dist = False
+    pos = False
+    normal = False
+    tangent = False
+
+    size = int(0)
+    for i in range(7):
+      if dataspec & (1 << i):
+        if i == 0:
+          found = True
+          size += 1
+        elif i == 1:
+          force = True
+          size += 3
+        elif i == 2:
+          torque = True
+          size += 3
+        elif i == 3:
+          dist = True
+          size += 1
+        elif i == 4:
+          pos = True
+          size += 3
+        elif i == 5:
+          normal = True
+          size += 3
+        elif i == 6:
+          tangent = True
+          size += 3
+
+    num = dim // size  # number of slots
+
+    adr = sensor_adr[sensorid]
+
+    # TODO(team): precompute sensorid to contactsensorid mapping
+    contactsensorid = int(0)
+    for i in range(sensor_contact_adr.size):
+      if sensorid == sensor_contact_adr[i]:
+        contactsensorid = i
+        break
+
+    nmatch = sensor_contact_nmatch_in[worldid, contactsensorid]
+
+    for i in range(wp.min(nmatch, num)):
+      # sorted contact id
+      cid = sensor_contact_matchid_in[worldid, contactsensorid, i]
+
+      # contact direction
+      dir = sensor_contact_direction_in[worldid, contactsensorid, i]
+
+      adr_slot = adr + i * size
+
+      if found:
+        out[adr_slot] = float(nmatch)
+        adr_slot += 1
+      if force or torque:
+        contact_forcetorque = support.contact_force_fn(
+          opt_cone,
+          njmax_in,
+          ncon_in,
+          contact_frame_in,
+          contact_friction_in,
+          contact_dim_in,
+          contact_efc_address_in,
+          efc_force_in,
+          worldid,
+          cid,
+          False,
+        )
+      if force:
+        out[adr_slot + 0] = contact_forcetorque[0]
+        out[adr_slot + 1] = contact_forcetorque[1]
+        out[adr_slot + 2] = dir * contact_forcetorque[2]
+        adr_slot += 3
+      if torque:
+        out[adr_slot + 0] = contact_forcetorque[3]
+        out[adr_slot + 1] = contact_forcetorque[4]
+        out[adr_slot + 2] = dir * contact_forcetorque[5]
+        adr_slot += 3
+      if dist:
+        out[adr_slot] = contact_dist_in[cid]
+        adr_slot += 1
+      if pos:
+        contact_pos = contact_pos_in[cid]
+        out[adr_slot + 0] = contact_pos[0]
+        out[adr_slot + 1] = contact_pos[1]
+        out[adr_slot + 2] = contact_pos[2]
+        adr_slot += 3
+      if normal:
+        contact_normal = contact_frame_in[cid][0]
+        out[adr_slot + 0] = dir * contact_normal[0]
+        out[adr_slot + 1] = dir * contact_normal[1]
+        out[adr_slot + 2] = dir * contact_normal[2]
+        adr_slot += 3
+      if tangent:
+        contact_tangent = contact_frame_in[cid][1]
+        out[adr_slot + 0] = dir * contact_tangent[0]
+        out[adr_slot + 1] = dir * contact_tangent[1]
+        out[adr_slot + 2] = dir * contact_tangent[2]
+        adr_slot += 3
+
+    # zero remaining slots
+    for i in range(nmatch, num):
+      for j in range(size):
+        out[adr + i * size + j] = 0.0
+
+  elif sensortype == int(SensorType.ACCELEROMETER.value):
     vec3 = _accelerometer(
       body_rootid, site_bodyid, site_xpos_in, site_xmat_in, subtree_com_in, cvel_in, cacc_in, worldid, objid
     )
@@ -1726,6 +1862,210 @@ def _sensor_touch(
       wp.atomic_add(sensordata_out[worldid], adr, normalforce)
 
 
+@wp.kernel
+def _sensor_tactile_zero(
+  # Model:
+  sensor_type: wp.array(dtype=int),
+  sensor_dim: wp.array(dtype=int),
+  sensor_adr: wp.array(dtype=int),
+  # Data out:
+  sensordata_out: wp.array2d(dtype=float),
+):
+  worldid, sensorid = wp.tid()
+
+  if sensor_type[sensorid] != int(SensorType.TACTILE.value):
+    return
+
+  for i in range(sensor_dim[sensorid]):
+    sensordata_out[worldid, sensor_adr[sensorid] + i] = 0.0
+
+
+@wp.func
+def _transform_spatial(vec: wp.spatial_vector, dif: wp.vec3) -> wp.vec3:
+  return wp.spatial_bottom(vec) - wp.cross(dif, wp.spatial_top(vec))
+
+
+@wp.kernel
+def _sensor_tactile(
+  # Model:
+  body_rootid: wp.array(dtype=int),
+  body_weldid: wp.array(dtype=int),
+  geom_bodyid: wp.array(dtype=int),
+  mesh_vertadr: wp.array(dtype=int),
+  mesh_vert: wp.array(dtype=wp.vec3),
+  mesh_normaladr: wp.array(dtype=int),
+  mesh_normal: wp.array(dtype=wp.vec3),
+  mesh_quat: wp.array(dtype=wp.quat),
+  sensor_objid: wp.array(dtype=int),
+  sensor_refid: wp.array(dtype=int),
+  sensor_dim: wp.array(dtype=int),
+  sensor_adr: wp.array(dtype=int),
+  plugin: wp.array(dtype=int),
+  plugin_attr: wp.array(dtype=wp.vec3f),
+  geom_plugin_index: wp.array(dtype=int),
+  taxel_vertadr: wp.array(dtype=int),
+  taxel_sensorid: wp.array(dtype=int),
+  # Data in:
+  ncon_in: wp.array(dtype=int),
+  geom_xpos_in: wp.array2d(dtype=wp.vec3),
+  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  cvel_in: wp.array2d(dtype=wp.spatial_vector),
+  contact_geom_in: wp.array(dtype=wp.vec2i),
+  contact_worldid_in: wp.array(dtype=int),
+  # Data out:
+  sensordata_out: wp.array2d(dtype=float),
+):
+  conid, taxelid = wp.tid()
+
+  if conid >= ncon_in[0]:
+    return
+
+  worldid = contact_worldid_in[conid]
+
+  # get sensor_id
+  sensor_id = taxel_sensorid[taxelid]
+
+  # get parent weld id
+  mesh_id = sensor_objid[sensor_id]
+  geom_id = sensor_refid[sensor_id]
+  parent_body = geom_bodyid[geom_id]
+  parent_weld = body_weldid[parent_body]
+
+  # contact geom
+  body1 = body_weldid[geom_bodyid[contact_geom_in[conid][0]]]
+  body2 = body_weldid[geom_bodyid[contact_geom_in[conid][1]]]
+  if body1 == parent_weld:
+    geom = contact_geom_in[conid][1]
+  elif body2 == parent_weld:
+    geom = contact_geom_in[conid][0]
+  else:
+    return
+  body = geom_bodyid[geom]
+
+  # vertex local position
+  vertid = taxel_vertadr[taxelid] - mesh_vertadr[mesh_id]
+  pos = mesh_vert[vertid + mesh_vertadr[mesh_id]]
+
+  # position in global frame
+  xpos = geom_xmat_in[worldid, geom_id] @ pos
+  xpos += geom_xpos_in[worldid, geom_id]
+
+  # position in other geom frame
+  tmp = xpos - geom_xpos_in[worldid, geom]
+  lpos = wp.transpose(geom_xmat_in[worldid, geom]) @ tmp
+
+  # compute distance
+  plugin_id = geom_plugin_index[geom]
+  depth = wp.min(sdf(int(GeomType.SDF.value), lpos, plugin_attr[plugin_id], plugin[plugin_id]), 0.0)
+  if depth >= 0.0:
+    return
+
+  # get velocity in global
+  vel_sensor = _transform_spatial(cvel_in[worldid, parent_weld], xpos - subtree_com_in[worldid, body_rootid[parent_weld]])
+  vel_other = _transform_spatial(
+    cvel_in[worldid, body], geom_xpos_in[worldid, geom] - subtree_com_in[worldid, body_rootid[body]]
+  )
+  vel_rel = vel_sensor - vel_other
+
+  # get contact force/torque, rotate into node frame
+  offset = mesh_normaladr[mesh_id] + 3 * vertid
+  normal = math.rot_vec_quat(mesh_normal[offset], mesh_quat[mesh_id])
+  tang1 = math.rot_vec_quat(mesh_normal[offset + 1], mesh_quat[mesh_id])
+  tang2 = math.rot_vec_quat(mesh_normal[offset + 2], mesh_quat[mesh_id])
+  kMaxDepth = 0.05
+  pressure = depth / wp.max(kMaxDepth - depth, MJ_MINVAL)
+  force = wp.mul(normal, pressure)
+
+  # one row of mat^T * force
+  forceT = wp.vec3()
+  forceT[0] = wp.dot(force, normal)
+  forceT[1] = wp.abs(wp.dot(vel_rel, tang1))
+  forceT[2] = wp.abs(wp.dot(vel_rel, tang2))
+
+  # add to sensor output
+  dim = sensor_dim[sensor_id] / 3
+  wp.atomic_add(sensordata_out[worldid], sensor_adr[sensor_id] + 0 * dim + vertid, forceT[0])
+  wp.atomic_add(sensordata_out[worldid], sensor_adr[sensor_id] + 1 * dim + vertid, forceT[1])
+  wp.atomic_add(sensordata_out[worldid], sensor_adr[sensor_id] + 2 * dim + vertid, forceT[2])
+
+
+@wp.kernel
+def _contact_match(
+  # Model:
+  sensor_objid: wp.array(dtype=int),
+  sensor_refid: wp.array(dtype=int),
+  sensor_contact_adr: wp.array(dtype=int),
+  # Data in:
+  ncon_in: wp.array(dtype=int),
+  contact_dist_in: wp.array(dtype=float),
+  contact_geom_in: wp.array(dtype=wp.vec2i),
+  contact_worldid_in: wp.array(dtype=int),
+  # Data out:
+  sensor_contact_nmatch_out: wp.array2d(dtype=int),
+  sensor_contact_matchid_out: wp.array3d(dtype=int),
+  sensor_contact_criteria_out: wp.array3d(dtype=float),
+  sensor_contact_direction_out: wp.array3d(dtype=float),
+):
+  contactsensorid, contactid = wp.tid()
+  sensorid = sensor_contact_adr[contactsensorid]
+
+  if contactid >= ncon_in[0]:
+    return
+
+  # sensor information
+  objid = sensor_objid[sensorid]
+  refid = sensor_refid[sensorid]
+
+  # contact information
+  geom = contact_geom_in[contactid]
+
+  # geom-geom match
+  geom0geom1 = objid == geom[0] and refid == geom[1]
+  geom1geom0 = objid == geom[1] and refid == geom[0]
+  if geom0geom1 or geom1geom0:
+    worldid = contact_worldid_in[contactid]
+
+    contactmatchid = wp.atomic_add(sensor_contact_nmatch_out[worldid], contactsensorid, 1)
+    sensor_contact_matchid_out[worldid, contactsensorid, contactmatchid] = contactid
+
+    # TODO(thowell): alternative criteria
+    sensor_contact_criteria_out[worldid, contactsensorid, contactmatchid] = contact_dist_in[contactid]
+
+    # contact direction
+    if geom1geom0:
+      sensor_contact_direction_out[worldid, contactsensorid, contactmatchid] = -1.0
+    else:
+      sensor_contact_direction_out[worldid, contactsensorid, contactmatchid] = 1.0
+
+    return
+
+  # TODO(thowell): alternative matching
+
+
+@wp.kernel
+def _contact_sort(
+  # Data in:
+  sensor_contact_nmatch_in: wp.array2d(dtype=int),
+  sensor_contact_matchid_in: wp.array3d(dtype=int),
+  sensor_contact_criteria_in: wp.array3d(dtype=float),
+  # Data out:
+  sensor_contact_matchid_out: wp.array3d(dtype=int),
+):
+  worldid, contactsensorid = wp.tid()
+
+  nmatch = sensor_contact_nmatch_in[worldid, contactsensorid]
+
+  # skip sort
+  if nmatch <= 1:
+    return
+
+  criteria_tile = wp.tile_load(sensor_contact_criteria_in[worldid, contactsensorid], shape=MJ_MAXCONPAIR)
+  matchid_tile = wp.tile_load(sensor_contact_matchid_in[worldid, contactsensorid], shape=MJ_MAXCONPAIR)
+  wp.tile_sort(criteria_tile, matchid_tile)
+  wp.tile_store(sensor_contact_matchid_out[worldid, contactsensorid], matchid_tile)
+
+
 @event_scope
 def sensor_acc(m: Model, d: Data):
   """Compute acceleration-dependent sensor values."""
@@ -1772,6 +2112,94 @@ def sensor_acc(m: Model, d: Data):
     ],
   )
 
+  wp.launch(
+    _sensor_tactile_zero,
+    dim=(d.nworld, m.nsensordata),
+    inputs=[
+      m.sensor_type,
+      m.sensor_dim,
+      m.sensor_adr,
+    ],
+    outputs=[
+      d.sensordata,
+    ],
+  )
+
+  wp.launch(
+    _sensor_tactile,
+    dim=(d.nconmax, m.nsensortaxel),
+    inputs=[
+      m.body_rootid,
+      m.body_weldid,
+      m.geom_bodyid,
+      m.mesh_vertadr,
+      m.mesh_vert,
+      m.mesh_normaladr,
+      m.mesh_normal,
+      m.mesh_quat,
+      m.sensor_objid,
+      m.sensor_refid,
+      m.sensor_dim,
+      m.sensor_adr,
+      m.plugin,
+      m.plugin_attr,
+      m.geom_plugin_index,
+      m.taxel_vertadr,
+      m.taxel_sensorid,
+      d.ncon,
+      d.geom_xpos,
+      d.geom_xmat,
+      d.subtree_com,
+      d.cvel,
+      d.contact.geom,
+      d.contact.worldid,
+    ],
+    outputs=[
+      d.sensordata,
+    ],
+  )
+
+  if m.sensor_contact_adr.size:
+    # match criteria
+    d.sensor_contact_nmatch.zero_()
+    d.sensor_contact_matchid.zero_()
+    d.sensor_contact_criteria.zero_()
+
+    wp.launch(
+      _contact_match,
+      dim=(m.sensor_contact_adr.size, d.nconmax),
+      inputs=[
+        m.sensor_objid,
+        m.sensor_refid,
+        m.sensor_contact_adr,
+        d.ncon,
+        d.contact.dist,
+        d.contact.geom,
+        d.contact.worldid,
+      ],
+      outputs=[
+        d.sensor_contact_nmatch,
+        d.sensor_contact_matchid,
+        d.sensor_contact_criteria,
+        d.sensor_contact_direction,
+      ],
+    )
+
+    # sorting
+    wp.launch_tiled(
+      _contact_sort,
+      dim=(d.nworld, m.sensor_contact_adr.size),
+      inputs=[
+        d.sensor_contact_nmatch,
+        d.sensor_contact_matchid,
+        d.sensor_contact_criteria,
+      ],
+      outputs=[
+        d.sensor_contact_matchid,
+      ],
+      block_dim=m.block_dim.contact_sort,
+    )
+
   if m.sensor_rne_postconstraint:
     smooth.rne_postconstraint(m, d)
 
@@ -1779,6 +2207,7 @@ def sensor_acc(m: Model, d: Data):
     _sensor_acc,
     dim=(d.nworld, m.sensor_acc_adr.size),
     inputs=[
+      m.opt.cone,
       m.body_rootid,
       m.jnt_dofadr,
       m.geom_bodyid,
@@ -1788,9 +2217,14 @@ def sensor_acc(m: Model, d: Data):
       m.sensor_datatype,
       m.sensor_objtype,
       m.sensor_objid,
+      m.sensor_intprm,
+      m.sensor_dim,
       m.sensor_adr,
       m.sensor_cutoff,
       m.sensor_acc_adr,
+      m.sensor_contact_adr,
+      d.njmax,
+      d.ncon,
       d.xpos,
       d.xipos,
       d.geom_xpos,
@@ -1801,8 +2235,18 @@ def sensor_acc(m: Model, d: Data):
       d.cvel,
       d.actuator_force,
       d.qfrc_actuator,
+      d.contact.dist,
+      d.contact.pos,
+      d.contact.frame,
+      d.contact.friction,
+      d.contact.dim,
+      d.contact.efc_address,
+      d.efc.force,
       d.cacc,
       d.cfrc_int,
+      d.sensor_contact_nmatch,
+      d.sensor_contact_matchid,
+      d.sensor_contact_direction,
     ],
     outputs=[d.sensordata],
   )
