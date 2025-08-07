@@ -23,7 +23,6 @@
 #include <cstring>
 #include <functional>
 #include <limits>
-#include <map>
 #include <memory>
 #include <new>
 #include <optional>
@@ -31,6 +30,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -623,7 +623,8 @@ void mjCOctree::CreateOctree(const double aamm[6]) {
   std::vector<Triangle*> elements_ptrs(elements.size());
   std::transform(elements.begin(), elements.end(), elements_ptrs.begin(),
                  [](Triangle& triangle) { return &triangle; });
-  MakeOctree(elements_ptrs, box);
+  std::unordered_map<Point, int> vert_map;
+  MakeOctree(elements_ptrs, box, 0, vert_map);
 }
 
 
@@ -684,7 +685,8 @@ static bool boxTriangle(const Triangle& v, const double aamm[6]) {
 }
 
 
-int mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev) {
+int mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev,
+                          std::unordered_map<Point, int>& vert_map) {
   node_.push_back(OctNode());
   OctNode& node = node_.back();
   node.level = lev;
@@ -697,11 +699,17 @@ int mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double a
       (aamm[4] - aamm[1]) / 2, (aamm[5] - aamm[2]) / 2};
   node.aabb = aabb;
   for (int i = 0; i < 8; i++) {
-    Point v = {(i & 1) ? aamm[3] : aamm[0],
-               (i & 2) ? aamm[4] : aamm[1],
-               (i & 4) ? aamm[5] : aamm[2]};
-    vert_.push_back(v);
-    node.vertid[i] = nvert_++;
+    Point v = {{(i & 1) ? aamm[3] : aamm[0],
+                (i & 2) ? aamm[4] : aamm[1],
+                (i & 4) ? aamm[5] : aamm[2]}};
+    auto it = vert_map.find(v);
+    if (it != vert_map.end()) {
+      node.vertid[i] = it->second;
+    } else {
+      node.vertid[i] = nvert_;
+      vert_map[v] = nvert_++;
+      vert_.push_back(v);
+    }
     node.child[i] = -1;
   }
 
@@ -731,7 +739,7 @@ int mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double a
 
   // recursive calls to create sub-boxes
   for (int i = 0; i < 8; i++) {
-    node_[index].child[i] = MakeOctree(colliding, new_aamm[i], lev + 1);
+    node_[index].child[i] = MakeOctree(colliding, new_aamm[i], lev + 1, vert_map);
   }
 
   return index;

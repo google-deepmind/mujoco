@@ -17,10 +17,10 @@
 
 #include <stdbool.h>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <array>
 #include <functional>
-#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -215,8 +215,37 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 
 //------------------------- class mjCOctree --------------------------------------------------------
 
-typedef std::array<double, 3> Point;
-typedef std::array<Point, 3> Triangle;
+struct Point {
+  std::array<double, 3> p;
+
+  double& operator[](size_t i) { return p[i]; }
+  const double& operator[](size_t i) const { return p[i]; }
+
+  bool operator==(const Point& other) const {
+    constexpr double kEpsilon = 1e-9;
+    return std::abs(this->p[0] - other.p[0]) < kEpsilon &&
+           std::abs(this->p[1] - other.p[1]) < kEpsilon &&
+           std::abs(this->p[2] - other.p[2]) < kEpsilon;
+  }
+};
+
+namespace std {
+template <>
+struct hash<Point> {
+  size_t operator()(const Point& pt) const {
+    size_t h1 = hash<double>()(pt.p[0]);
+    size_t h2 = hash<double>()(pt.p[1]);
+    size_t h3 = hash<double>()(pt.p[2]);
+    // combine hashes
+    size_t seed = h1;
+    seed ^= h2 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= h3 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    return seed;
+  }
+};
+}  // namespace std
+
+typedef std::array<std::array<double, 3>, 3> Triangle;
 
 struct OctNode {
   int level = 0;                       // level of the node
@@ -246,7 +275,7 @@ class mjCOctree : public mjCOctree_ {
   void CopyChild(int* child) const;
   void CopyAabb(mjtNum* aabb) const;
   void CopyCoeff(mjtNum* coeff) const;
-  const double* Vert(int n, int v) const { return vert_[node_[n].vertid[v]].data(); }
+  const double* Vert(int n, int v) const { return vert_[node_[n].vertid[v]].p.data(); }
   void SetFace(const std::vector<double>& vert, const std::vector<int>& face);
   int Size() const {
     return sizeof(OctNode) * node_.size() + sizeof(Triangle) * face_.size() +
@@ -260,7 +289,8 @@ class mjCOctree : public mjCOctree_ {
 
  private:
   void Make(std::vector<Triangle>& elements);
-  int MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev = 0);
+  int MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev,
+                 std::unordered_map<Point, int>& vert_map);
 };
 
 

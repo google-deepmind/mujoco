@@ -780,7 +780,6 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     if (!plugin.active) {
       tmd::TriangleMeshDistance sdf(vert_.data(), nvert(), face_.data(), nface());
 
-      // TODO: do not evaluate the SDF multiple times at the same vertex
       // TODO: the value at hanging vertices should be computed from the parent
       for (int i = 0; i < octree_.NumNodes(); ++i) {
         for (int j = 0; j < 8; j++) {
