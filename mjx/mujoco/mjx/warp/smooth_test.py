@@ -16,6 +16,7 @@
 
 import functools
 import os
+import tempfile
 
 from absl.testing import absltest
 import jax
@@ -42,8 +43,14 @@ class SmoothTest(absltest.TestCase):
   def setUp(self):
     super().setUp()
     if mjxw.WARP_INSTALLED:
-      wp.clear_kernel_cache()
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
     np.random.seed(0)
+
+  def tearDown(self):
+    super().tearDown()
+    if hasattr(self, 'tempdir'):
+      self.tempdir.cleanup()
 
   def test_kinematics(self):
     """Tests kinematics with unbatched data."""
