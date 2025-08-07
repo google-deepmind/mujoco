@@ -58,7 +58,8 @@ Version 3.3.4 (July 8, 2025)
    2. The Python functions ``element.delete`` have been replaced by ``spec.delete(element)``.
    3. In the mjSpec C API, directly setting an element's name using :ref:`mjs_setString` has been replaced with a new
       function :ref:`mjs_setName` which allows checking for naming collisions at set-time rather than compile-time, for
-      earlier catching of errors. Relatedly, the ``name`` attribute has been removed from all mjs elements.
+      earlier catching of errors. Relatedly, the ``name`` attribute has been removed from all mjs elements. Known issue:
+      the error is not raised during parsing.
    4. For MJX, the ``mjx.Option`` dataclass now has private and public fields similar to ``mjx.Model`` and
       ``mjx.Data``. Some fields are no longer publicly available due to differences in the
       underlying implementations of this data structure.
