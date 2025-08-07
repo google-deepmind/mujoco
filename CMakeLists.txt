@@ -225,6 +225,19 @@ if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/mujoco" COMPONENT dev
   )
 
+  # Install plugin libraries
+  install(
+    TARGETS actuator elasticity sdf_plugin sensor
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/plugin" COMPONENT runtime
+    # LIBRARY DESTINATION "${CMAKE_INSTALL_BINDIR}/mujoco_plugin" COMPONENT runtime
+  )
+
+  # Create symlink (on supported OSs) to plugin libraries on binary folder for runtime plugin loading (https://stackoverflow.com/a/41037224)
+  install(CODE "execute_process( \
+      COMMAND ${CMAKE_COMMAND} -E create_symlink \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/plugin\" \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/mujoco_plugin\")"
+  )
+
+
   set(CONFIG_PACKAGE_LOCATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 
   # Generate and install the mujocoTargets.cmake file. This defines the targets as
