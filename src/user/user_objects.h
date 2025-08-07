@@ -215,15 +215,23 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 
 //------------------------- class mjCOctree --------------------------------------------------------
 
-typedef std::array<std::array<double, 3>, 3> Triangle;
+typedef std::array<double, 3> Point;
+typedef std::array<Point, 3> Triangle;
+
+struct OctNode {
+  int level = 0;                       // level of the node
+  std::array<int, 8> child = {-1};     // children nodes
+  std::array<int, 8> vertid = {-1};    // vertex id's
+  std::array<double, 6> aabb = {0};    // bounding box
+  std::array<double, 8> coeff = {0};   // interpolation coefficients
+};
 
 struct mjCOctree_ {
   int nnode_ = 0;
-  std::vector<int> child_;           // children of each node     (nnode x 8)
-  std::vector<double> node_;         // bounding boxes            (nnode x 6)
-  std::vector<int> level_;           // levels of each node       (nnode x 1)
-  std::vector<double> coeff_;        // interpo coefficients      (nnode x 8)
-  std::vector<Triangle> face_;       // mesh faces                (nface x 3)
+  int nvert_ = 0;
+  std::vector<OctNode> node_;
+  std::vector<Triangle> face_;       // mesh faces                (nmeshface x 3)
+  std::vector<Point> vert_;          // octree vertices           (nvert x 3)
   double ipos_[3] = {0, 0, 0};
   double iquat_[4] = {1, 0, 0, 0};
 };
@@ -233,22 +241,22 @@ class mjCOctree : public mjCOctree_ {
   void CreateOctree(const double aamm[6]);
 
   int NumNodes() const { return nnode_; }
-  const std::vector<int>& Child() const { return child_; }
-  const std::vector<double>& Nodes() const { return node_; }
-  const std::vector<int>& Level() const { return level_; }
+  int NumVerts() const { return nvert_; }
+  void CopyLevel(int* level) const;
+  void CopyChild(int* child) const;
+  void CopyAabb(mjtNum* aabb) const;
+  void CopyCoeff(mjtNum* coeff) const;
+  const double* Vert(int n, int v) const { return vert_[node_[n].vertid[v]].data(); }
   void SetFace(const std::vector<double>& vert, const std::vector<int>& face);
   int Size() const {
-    return sizeof(int) * child_.size() + sizeof(double) * node_.size() +
-           sizeof(int) * level_.size() + sizeof(Triangle) * face_.size();
+    return sizeof(OctNode) * node_.size() + sizeof(Triangle) * face_.size() +
+           sizeof(Point) * vert_.size();
   }
   void Clear() {
-    child_.clear();
     node_.clear();
-    level_.clear();
     face_.clear();
   }
-  void AddCoeff(double coeff) { coeff_.push_back(coeff); }
-  const std::vector<double>& Coeff() const { return coeff_; }
+  void AddCoeff(int n, int v, double coeff) { node_[n].coeff[v] = coeff; }
 
  private:
   void Make(std::vector<Triangle>& elements);

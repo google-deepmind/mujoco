@@ -3001,15 +3001,10 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // copy octree data
     if (pme->octree().NumNodes()) {
-      int n_oct = pme->octree().NumNodes();
-      memcpy(m->oct_aabb + 6*oct_adr, pme->octree().Nodes().data(), 6*n_oct*sizeof(mjtNum));
-      memcpy(m->oct_child + 8*oct_adr, pme->octree().Child().data(), 8*n_oct*sizeof(int));
-      memcpy(m->oct_depth + oct_adr, pme->octree().Level().data(), n_oct*sizeof(int));
-      if (!pme->octree().Coeff().empty()) {
-        memcpy(m->oct_coeff + 8*oct_adr, pme->octree().Coeff().data(), 8*n_oct*sizeof(mjtNum));
-      } else {
-        mjuu_zerovec(m->oct_coeff + 8*oct_adr, 8*n_oct);
-      }
+      pme->octree().CopyAabb(m->oct_aabb + 6*oct_adr);
+      pme->octree().CopyChild(m->oct_child + 8*oct_adr);
+      pme->octree().CopyLevel(m->oct_depth + oct_adr);
+      pme->octree().CopyCoeff(m->oct_coeff + 8*oct_adr);
     }
 
     // advance counters

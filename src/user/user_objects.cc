@@ -557,6 +557,36 @@ int mjCBoundingVolumeHierarchy::MakeBVH(
 
 //------------------------- class mjCOctree implementation --------------------------------------------
 
+void mjCOctree::CopyLevel(int* level) const {
+  for (int i = 0; i < node_.size(); ++i) {
+    level[i] = node_[i].level;
+  }
+}
+
+void mjCOctree::CopyChild(int* child) const {
+  for (int i = 0; i < node_.size(); ++i) {
+    for (int j = 0; j < 8; ++j) {
+      child[i * 8 + j] = node_[i].child[j];
+    }
+  }
+}
+
+void mjCOctree::CopyAabb(mjtNum* aabb) const {
+  for (int i = 0; i < node_.size(); ++i) {
+    for (int j = 0; j < 6; ++j) {
+      aabb[i * 6 + j] = node_[i].aabb[j];
+    }
+  }
+}
+
+void mjCOctree::CopyCoeff(mjtNum* coeff) const {
+  for (int i = 0; i < node_.size(); ++i) {
+    for (int j = 0; j < 8; ++j) {
+      coeff[i * 8 + j] = node_[i].coeff[j];
+    }
+  }
+}
+
 void mjCOctree::SetFace(const std::vector<double>& vert, const std::vector<int>& face) {
   for (int i = 0; i < face.size(); i += 3) {
     std::array<double, 3> v0 = {vert[3*face[i+0]], vert[3*face[i+0]+1], vert[3*face[i+0]+2]};
@@ -655,17 +685,24 @@ static bool boxTriangle(const Triangle& v, const double aamm[6]) {
 
 
 int mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev) {
-  level_.push_back(lev);
+  node_.push_back(OctNode());
+  OctNode& node = node_.back();
+  node.level = lev;
 
   // create a new node
   int index = nnode_++;
-  double aabb[6] = {(aamm[0] + aamm[3]) / 2, (aamm[1] + aamm[4]) / 2, (aamm[2] + aamm[5]) / 2,
-                    (aamm[3] - aamm[0]) / 2, (aamm[4] - aamm[1]) / 2, (aamm[5] - aamm[2]) / 2};
-  for (int i = 0; i < 6; i++) {
-    node_.push_back(aabb[i]);
-  }
+  std::array<double, 6> aabb = {
+      (aamm[0] + aamm[3]) / 2, (aamm[1] + aamm[4]) / 2,
+      (aamm[2] + aamm[5]) / 2, (aamm[3] - aamm[0]) / 2,
+      (aamm[4] - aamm[1]) / 2, (aamm[5] - aamm[2]) / 2};
+  node.aabb = aabb;
   for (int i = 0; i < 8; i++) {
-    child_.push_back(-1);
+    Point v = {(i & 1) ? aamm[3] : aamm[0],
+               (i & 2) ? aamm[4] : aamm[1],
+               (i & 4) ? aamm[5] : aamm[2]};
+    vert_.push_back(v);
+    node.vertid[i] = nvert_++;
+    node.child[i] = -1;
   }
 
   // find all triangles that intersect the current box
@@ -694,7 +731,7 @@ int mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double a
 
   // recursive calls to create sub-boxes
   for (int i = 0; i < 8; i++) {
-    child_[8*index + i] = MakeOctree(colliding, new_aamm[i], lev + 1);
+    node_[index].child[i] = MakeOctree(colliding, new_aamm[i], lev + 1);
   }
 
   return index;
