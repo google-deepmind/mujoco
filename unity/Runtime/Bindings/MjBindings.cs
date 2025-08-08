@@ -4947,6 +4947,7 @@ public unsafe struct mjData_ {
   public int* flexedge_J_colind;
   public double* flexedge_J;
   public double* flexedge_length;
+  public double* bvh_aabb_dyn;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
   public int* ten_J_rownnz;
@@ -4966,7 +4967,6 @@ public unsafe struct mjData_ {
   public double* M;
   public double* qLD;
   public double* qLDiagInv;
-  public double* bvh_aabb_dyn;
   public byte* bvh_active;
   public double* flexedge_velocity;
   public double* ten_velocity;

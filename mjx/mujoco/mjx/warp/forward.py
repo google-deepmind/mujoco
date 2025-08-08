@@ -195,6 +195,8 @@ def _forward_shim(
     mesh_faceadr: wp.array(dtype=int),
     mesh_graph: wp.array(dtype=int),
     mesh_graphadr: wp.array(dtype=int),
+    mesh_normal: wp.array(dtype=wp.vec3),
+    mesh_normaladr: wp.array(dtype=int),
     mesh_polyadr: wp.array(dtype=int),
     mesh_polymap: wp.array(dtype=int),
     mesh_polymapadr: wp.array(dtype=int),
@@ -204,6 +206,7 @@ def _forward_shim(
     mesh_polyvert: wp.array(dtype=int),
     mesh_polyvertadr: wp.array(dtype=int),
     mesh_polyvertnum: wp.array(dtype=int),
+    mesh_quat: wp.array(dtype=wp.quat),
     mesh_vert: wp.array(dtype=wp.vec3),
     mesh_vertadr: wp.array(dtype=int),
     mesh_vertnum: wp.array(dtype=int),
@@ -224,6 +227,8 @@ def _forward_shim(
     nlsp: int,
     nmeshface: int,
     nmocap: int,
+    nsensordata: int,
+    nsensortaxel: int,
     nsite: int,
     ntendon: int,
     nu: int,
@@ -252,10 +257,13 @@ def _forward_shim(
     rangefinder_sensor_adr: wp.array(dtype=int),
     sensor_acc_adr: wp.array(dtype=int),
     sensor_adr: wp.array(dtype=int),
+    sensor_contact_adr: wp.array(dtype=int),
     sensor_cutoff: wp.array(dtype=float),
     sensor_datatype: wp.array(dtype=int),
+    sensor_dim: wp.array(dtype=int),
     sensor_e_kinetic: bool,
     sensor_e_potential: bool,
+    sensor_intprm: wp.array2d(dtype=int),
     sensor_limitfrc_adr: wp.array(dtype=int),
     sensor_limitpos_adr: wp.array(dtype=int),
     sensor_limitvel_adr: wp.array(dtype=int),
@@ -278,6 +286,8 @@ def _forward_shim(
     site_size: wp.array(dtype=wp.vec3),
     site_type: wp.array(dtype=int),
     subtree_mass: wp.array2d(dtype=float),
+    taxel_sensorid: wp.array(dtype=int),
+    taxel_vertadr: wp.array(dtype=int),
     tendon_actfrclimited: wp.array(dtype=bool),
     tendon_actfrcrange: wp.array2d(dtype=wp.vec2),
     tendon_adr: wp.array(dtype=int),
@@ -418,6 +428,10 @@ def _forward_shim(
     sap_range: wp.array2d(dtype=int),
     sap_segment_index: wp.array2d(dtype=int),
     sap_sort_index: wp.array3d(dtype=int),
+    sensor_contact_criteria: wp.array3d(dtype=float),
+    sensor_contact_direction: wp.array3d(dtype=float),
+    sensor_contact_matchid: wp.array3d(dtype=int),
+    sensor_contact_nmatch: wp.array2d(dtype=int),
     sensor_rangefinder_dist: wp.array2d(dtype=float),
     sensor_rangefinder_geomid: wp.array2d(dtype=int),
     sensor_rangefinder_pnt: wp.array2d(dtype=wp.vec3),
@@ -471,8 +485,6 @@ def _forward_shim(
     efc__alpha: wp.array(dtype=float),
     efc__aref: wp.array2d(dtype=float),
     efc__beta: wp.array(dtype=float),
-    efc__beta_den: wp.array(dtype=float),
-    efc__beta_num: wp.array(dtype=float),
     efc__cholesky_L_tmp: wp.array3d(dtype=float),
     efc__cholesky_y_tmp: wp.array2d(dtype=float),
     efc__condim: wp.array2d(dtype=int),
@@ -669,6 +681,8 @@ def _forward_shim(
   _m.mesh_faceadr = mesh_faceadr
   _m.mesh_graph = mesh_graph
   _m.mesh_graphadr = mesh_graphadr
+  _m.mesh_normal = mesh_normal
+  _m.mesh_normaladr = mesh_normaladr
   _m.mesh_polyadr = mesh_polyadr
   _m.mesh_polymap = mesh_polymap
   _m.mesh_polymapadr = mesh_polymapadr
@@ -678,6 +692,7 @@ def _forward_shim(
   _m.mesh_polyvert = mesh_polyvert
   _m.mesh_polyvertadr = mesh_polyvertadr
   _m.mesh_polyvertnum = mesh_polyvertnum
+  _m.mesh_quat = mesh_quat
   _m.mesh_vert = mesh_vert
   _m.mesh_vertadr = mesh_vertadr
   _m.mesh_vertnum = mesh_vertnum
@@ -698,6 +713,8 @@ def _forward_shim(
   _m.nlsp = nlsp
   _m.nmeshface = nmeshface
   _m.nmocap = nmocap
+  _m.nsensordata = nsensordata
+  _m.nsensortaxel = nsensortaxel
   _m.nsite = nsite
   _m.ntendon = ntendon
   _m.nu = nu
@@ -752,10 +769,13 @@ def _forward_shim(
   _m.rangefinder_sensor_adr = rangefinder_sensor_adr
   _m.sensor_acc_adr = sensor_acc_adr
   _m.sensor_adr = sensor_adr
+  _m.sensor_contact_adr = sensor_contact_adr
   _m.sensor_cutoff = sensor_cutoff
   _m.sensor_datatype = sensor_datatype
+  _m.sensor_dim = sensor_dim
   _m.sensor_e_kinetic = sensor_e_kinetic
   _m.sensor_e_potential = sensor_e_potential
+  _m.sensor_intprm = sensor_intprm
   _m.sensor_limitfrc_adr = sensor_limitfrc_adr
   _m.sensor_limitpos_adr = sensor_limitpos_adr
   _m.sensor_limitvel_adr = sensor_limitvel_adr
@@ -779,6 +799,8 @@ def _forward_shim(
   _m.site_type = site_type
   _m.stat.meaninertia = stat__meaninertia
   _m.subtree_mass = subtree_mass
+  _m.taxel_sensorid = taxel_sensorid
+  _m.taxel_vertadr = taxel_vertadr
   _m.tendon_actfrclimited = tendon_actfrclimited
   _m.tendon_actfrcrange = tendon_actfrcrange
   _m.tendon_adr = tendon_adr
@@ -850,8 +872,6 @@ def _forward_shim(
   _d.efc.alpha = efc__alpha
   _d.efc.aref = efc__aref
   _d.efc.beta = efc__beta
-  _d.efc.beta_den = efc__beta_den
-  _d.efc.beta_num = efc__beta_num
   _d.efc.cholesky_L_tmp = efc__cholesky_L_tmp
   _d.efc.cholesky_y_tmp = efc__cholesky_y_tmp
   _d.efc.condim = efc__condim
@@ -957,6 +977,10 @@ def _forward_shim(
   _d.sap_range = sap_range
   _d.sap_segment_index = sap_segment_index
   _d.sap_sort_index = sap_sort_index
+  _d.sensor_contact_criteria = sensor_contact_criteria
+  _d.sensor_contact_direction = sensor_contact_direction
+  _d.sensor_contact_matchid = sensor_contact_matchid
+  _d.sensor_contact_nmatch = sensor_contact_nmatch
   _d.sensor_rangefinder_dist = sensor_rangefinder_dist
   _d.sensor_rangefinder_geomid = sensor_rangefinder_geomid
   _d.sensor_rangefinder_pnt = sensor_rangefinder_pnt
@@ -1077,6 +1101,10 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       'sap_range': d._impl.sap_range.shape,
       'sap_segment_index': d._impl.sap_segment_index.shape,
       'sap_sort_index': d._impl.sap_sort_index.shape,
+      'sensor_contact_criteria': d._impl.sensor_contact_criteria.shape,
+      'sensor_contact_direction': d._impl.sensor_contact_direction.shape,
+      'sensor_contact_matchid': d._impl.sensor_contact_matchid.shape,
+      'sensor_contact_nmatch': d._impl.sensor_contact_nmatch.shape,
       'sensor_rangefinder_dist': d._impl.sensor_rangefinder_dist.shape,
       'sensor_rangefinder_geomid': d._impl.sensor_rangefinder_geomid.shape,
       'sensor_rangefinder_pnt': d._impl.sensor_rangefinder_pnt.shape,
@@ -1130,8 +1158,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       'efc__alpha': d._impl.efc__alpha.shape,
       'efc__aref': d._impl.efc__aref.shape,
       'efc__beta': d._impl.efc__beta.shape,
-      'efc__beta_den': d._impl.efc__beta_den.shape,
-      'efc__beta_num': d._impl.efc__beta_num.shape,
       'efc__cholesky_L_tmp': d._impl.efc__cholesky_L_tmp.shape,
       'efc__cholesky_y_tmp': d._impl.efc__cholesky_y_tmp.shape,
       'efc__condim': d._impl.efc__condim.shape,
@@ -1178,10 +1204,9 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _forward_shim,
-      num_outputs=180,
+      num_outputs=182,
       output_dims=output_dims,
       vmap_method=None,
-      graph_compatible=True,
       in_out_argnames={
           'act',
           'act_dot',
@@ -1265,6 +1290,10 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'sap_range',
           'sap_segment_index',
           'sap_sort_index',
+          'sensor_contact_criteria',
+          'sensor_contact_direction',
+          'sensor_contact_matchid',
+          'sensor_contact_nmatch',
           'sensor_rangefinder_dist',
           'sensor_rangefinder_geomid',
           'sensor_rangefinder_pnt',
@@ -1318,8 +1347,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'efc__alpha',
           'efc__aref',
           'efc__beta',
-          'efc__beta_den',
-          'efc__beta_num',
           'efc__cholesky_L_tmp',
           'efc__cholesky_y_tmp',
           'efc__condim',
@@ -1515,6 +1542,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.mesh_faceadr,
       m.mesh_graph,
       m.mesh_graphadr,
+      m.mesh_normal,
+      m.mesh_normaladr,
       m._impl.mesh_polyadr,
       m._impl.mesh_polymap,
       m._impl.mesh_polymapadr,
@@ -1524,6 +1553,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.mesh_polyvert,
       m._impl.mesh_polyvertadr,
       m._impl.mesh_polyvertnum,
+      m.mesh_quat,
       m.mesh_vert,
       m.mesh_vertadr,
       m.mesh_vertnum,
@@ -1544,6 +1574,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.nlsp,
       m.nmeshface,
       m.nmocap,
+      m.nsensordata,
+      m._impl.nsensortaxel,
       m.nsite,
       m.ntendon,
       m.nu,
@@ -1572,10 +1604,13 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.rangefinder_sensor_adr,
       m._impl.sensor_acc_adr,
       m.sensor_adr,
+      m._impl.sensor_contact_adr,
       m.sensor_cutoff,
       m.sensor_datatype,
+      m.sensor_dim,
       m._impl.sensor_e_kinetic,
       m._impl.sensor_e_potential,
+      m.sensor_intprm,
       m._impl.sensor_limitfrc_adr,
       m._impl.sensor_limitpos_adr,
       m._impl.sensor_limitvel_adr,
@@ -1598,6 +1633,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.site_size,
       m.site_type,
       m._impl.subtree_mass,
+      m._impl.taxel_sensorid,
+      m._impl.taxel_vertadr,
       m.tendon_actfrclimited,
       m.tendon_actfrcrange,
       m.tendon_adr,
@@ -1737,6 +1774,10 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d._impl.sap_range,
       d._impl.sap_segment_index,
       d._impl.sap_sort_index,
+      d._impl.sensor_contact_criteria,
+      d._impl.sensor_contact_direction,
+      d._impl.sensor_contact_matchid,
+      d._impl.sensor_contact_nmatch,
       d._impl.sensor_rangefinder_dist,
       d._impl.sensor_rangefinder_geomid,
       d._impl.sensor_rangefinder_pnt,
@@ -1790,8 +1831,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d._impl.efc__alpha,
       d._impl.efc__aref,
       d._impl.efc__beta,
-      d._impl.efc__beta_den,
-      d._impl.efc__beta_num,
       d._impl.efc__cholesky_L_tmp,
       d._impl.efc__cholesky_y_tmp,
       d._impl.efc__condim,
@@ -1919,104 +1958,106 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       '_impl.sap_range': out[79],
       '_impl.sap_segment_index': out[80],
       '_impl.sap_sort_index': out[81],
-      '_impl.sensor_rangefinder_dist': out[82],
-      '_impl.sensor_rangefinder_geomid': out[83],
-      '_impl.sensor_rangefinder_pnt': out[84],
-      '_impl.sensor_rangefinder_vec': out[85],
-      'sensordata': out[86],
-      'site_xmat': out[87],
-      'site_xpos': out[88],
-      '_impl.solver_niter': out[89],
-      '_impl.subtree_angmom': out[90],
-      '_impl.subtree_bodyvel': out[91],
-      'subtree_com': out[92],
-      '_impl.subtree_linvel': out[93],
-      '_impl.ten_J': out[94],
-      '_impl.ten_Jdot': out[95],
-      '_impl.ten_actfrc': out[96],
-      '_impl.ten_bias_coef': out[97],
-      '_impl.ten_length': out[98],
-      '_impl.ten_velocity': out[99],
-      '_impl.ten_wrapadr': out[100],
-      '_impl.ten_wrapnum': out[101],
-      'time': out[102],
-      '_impl.wrap_geom_xpos': out[103],
-      '_impl.wrap_obj': out[104],
-      '_impl.wrap_xpos': out[105],
-      'xanchor': out[106],
-      'xaxis': out[107],
-      'xfrc_applied': out[108],
-      'ximat': out[109],
-      'xipos': out[110],
-      'xmat': out[111],
-      'xpos': out[112],
-      'xquat': out[113],
-      '_impl.contact__dim': out[114],
-      '_impl.contact__dist': out[115],
-      '_impl.contact__efc_address': out[116],
-      '_impl.contact__frame': out[117],
-      '_impl.contact__friction': out[118],
-      '_impl.contact__geom': out[119],
-      '_impl.contact__includemargin': out[120],
-      '_impl.contact__pos': out[121],
-      '_impl.contact__solimp': out[122],
-      '_impl.contact__solref': out[123],
-      '_impl.contact__solreffriction': out[124],
-      '_impl.contact__worldid': out[125],
-      '_impl.efc__D': out[126],
-      '_impl.efc__J': out[127],
-      '_impl.efc__Jaref': out[128],
-      '_impl.efc__Ma': out[129],
-      '_impl.efc__Mgrad': out[130],
-      '_impl.efc__active': out[131],
-      '_impl.efc__alpha': out[132],
-      '_impl.efc__aref': out[133],
-      '_impl.efc__beta': out[134],
-      '_impl.efc__beta_den': out[135],
-      '_impl.efc__beta_num': out[136],
-      '_impl.efc__cholesky_L_tmp': out[137],
-      '_impl.efc__cholesky_y_tmp': out[138],
-      '_impl.efc__condim': out[139],
-      '_impl.efc__cost': out[140],
-      '_impl.efc__cost_candidate': out[141],
-      '_impl.efc__done': out[142],
-      '_impl.efc__force': out[143],
-      '_impl.efc__frictionloss': out[144],
-      '_impl.efc__gauss': out[145],
-      '_impl.efc__grad': out[146],
-      '_impl.efc__grad_dot': out[147],
-      '_impl.efc__gtol': out[148],
-      '_impl.efc__h': out[149],
-      '_impl.efc__hi': out[150],
-      '_impl.efc__hi_alpha': out[151],
-      '_impl.efc__hi_next': out[152],
-      '_impl.efc__hi_next_alpha': out[153],
-      '_impl.efc__id': out[154],
-      '_impl.efc__jv': out[155],
-      '_impl.efc__lo': out[156],
-      '_impl.efc__lo_alpha': out[157],
-      '_impl.efc__lo_next': out[158],
-      '_impl.efc__lo_next_alpha': out[159],
-      '_impl.efc__ls_done': out[160],
-      '_impl.efc__margin': out[161],
-      '_impl.efc__mid': out[162],
-      '_impl.efc__mid_alpha': out[163],
-      '_impl.efc__mv': out[164],
-      '_impl.efc__p0': out[165],
-      '_impl.efc__pos': out[166],
-      '_impl.efc__prev_Mgrad': out[167],
-      '_impl.efc__prev_cost': out[168],
-      '_impl.efc__prev_grad': out[169],
-      '_impl.efc__quad': out[170],
-      '_impl.efc__quad_gauss': out[171],
-      '_impl.efc__search': out[172],
-      '_impl.efc__search_dot': out[173],
-      '_impl.efc__type': out[174],
-      '_impl.efc__u': out[175],
-      '_impl.efc__uu': out[176],
-      '_impl.efc__uv': out[177],
-      '_impl.efc__vel': out[178],
-      '_impl.efc__vv': out[179],
+      '_impl.sensor_contact_criteria': out[82],
+      '_impl.sensor_contact_direction': out[83],
+      '_impl.sensor_contact_matchid': out[84],
+      '_impl.sensor_contact_nmatch': out[85],
+      '_impl.sensor_rangefinder_dist': out[86],
+      '_impl.sensor_rangefinder_geomid': out[87],
+      '_impl.sensor_rangefinder_pnt': out[88],
+      '_impl.sensor_rangefinder_vec': out[89],
+      'sensordata': out[90],
+      'site_xmat': out[91],
+      'site_xpos': out[92],
+      '_impl.solver_niter': out[93],
+      '_impl.subtree_angmom': out[94],
+      '_impl.subtree_bodyvel': out[95],
+      'subtree_com': out[96],
+      '_impl.subtree_linvel': out[97],
+      '_impl.ten_J': out[98],
+      '_impl.ten_Jdot': out[99],
+      '_impl.ten_actfrc': out[100],
+      '_impl.ten_bias_coef': out[101],
+      '_impl.ten_length': out[102],
+      '_impl.ten_velocity': out[103],
+      '_impl.ten_wrapadr': out[104],
+      '_impl.ten_wrapnum': out[105],
+      'time': out[106],
+      '_impl.wrap_geom_xpos': out[107],
+      '_impl.wrap_obj': out[108],
+      '_impl.wrap_xpos': out[109],
+      'xanchor': out[110],
+      'xaxis': out[111],
+      'xfrc_applied': out[112],
+      'ximat': out[113],
+      'xipos': out[114],
+      'xmat': out[115],
+      'xpos': out[116],
+      'xquat': out[117],
+      '_impl.contact__dim': out[118],
+      '_impl.contact__dist': out[119],
+      '_impl.contact__efc_address': out[120],
+      '_impl.contact__frame': out[121],
+      '_impl.contact__friction': out[122],
+      '_impl.contact__geom': out[123],
+      '_impl.contact__includemargin': out[124],
+      '_impl.contact__pos': out[125],
+      '_impl.contact__solimp': out[126],
+      '_impl.contact__solref': out[127],
+      '_impl.contact__solreffriction': out[128],
+      '_impl.contact__worldid': out[129],
+      '_impl.efc__D': out[130],
+      '_impl.efc__J': out[131],
+      '_impl.efc__Jaref': out[132],
+      '_impl.efc__Ma': out[133],
+      '_impl.efc__Mgrad': out[134],
+      '_impl.efc__active': out[135],
+      '_impl.efc__alpha': out[136],
+      '_impl.efc__aref': out[137],
+      '_impl.efc__beta': out[138],
+      '_impl.efc__cholesky_L_tmp': out[139],
+      '_impl.efc__cholesky_y_tmp': out[140],
+      '_impl.efc__condim': out[141],
+      '_impl.efc__cost': out[142],
+      '_impl.efc__cost_candidate': out[143],
+      '_impl.efc__done': out[144],
+      '_impl.efc__force': out[145],
+      '_impl.efc__frictionloss': out[146],
+      '_impl.efc__gauss': out[147],
+      '_impl.efc__grad': out[148],
+      '_impl.efc__grad_dot': out[149],
+      '_impl.efc__gtol': out[150],
+      '_impl.efc__h': out[151],
+      '_impl.efc__hi': out[152],
+      '_impl.efc__hi_alpha': out[153],
+      '_impl.efc__hi_next': out[154],
+      '_impl.efc__hi_next_alpha': out[155],
+      '_impl.efc__id': out[156],
+      '_impl.efc__jv': out[157],
+      '_impl.efc__lo': out[158],
+      '_impl.efc__lo_alpha': out[159],
+      '_impl.efc__lo_next': out[160],
+      '_impl.efc__lo_next_alpha': out[161],
+      '_impl.efc__ls_done': out[162],
+      '_impl.efc__margin': out[163],
+      '_impl.efc__mid': out[164],
+      '_impl.efc__mid_alpha': out[165],
+      '_impl.efc__mv': out[166],
+      '_impl.efc__p0': out[167],
+      '_impl.efc__pos': out[168],
+      '_impl.efc__prev_Mgrad': out[169],
+      '_impl.efc__prev_cost': out[170],
+      '_impl.efc__prev_grad': out[171],
+      '_impl.efc__quad': out[172],
+      '_impl.efc__quad_gauss': out[173],
+      '_impl.efc__search': out[174],
+      '_impl.efc__search_dot': out[175],
+      '_impl.efc__type': out[176],
+      '_impl.efc__u': out[177],
+      '_impl.efc__uu': out[178],
+      '_impl.efc__uv': out[179],
+      '_impl.efc__vel': out[180],
+      '_impl.efc__vv': out[181],
   })
   return d
 
@@ -2025,8 +2066,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def forward(m: types.Model, d: types.Data):
   return _forward_jax_impl(m, d)
-
-
 @forward.def_vmap
 @ffi.marshal_custom_vmap
 def forward_vmap(unused_axis_size, is_batched, m, d):
@@ -2207,6 +2246,8 @@ def _step_shim(
     mesh_faceadr: wp.array(dtype=int),
     mesh_graph: wp.array(dtype=int),
     mesh_graphadr: wp.array(dtype=int),
+    mesh_normal: wp.array(dtype=wp.vec3),
+    mesh_normaladr: wp.array(dtype=int),
     mesh_polyadr: wp.array(dtype=int),
     mesh_polymap: wp.array(dtype=int),
     mesh_polymapadr: wp.array(dtype=int),
@@ -2216,6 +2257,7 @@ def _step_shim(
     mesh_polyvert: wp.array(dtype=int),
     mesh_polyvertadr: wp.array(dtype=int),
     mesh_polyvertnum: wp.array(dtype=int),
+    mesh_quat: wp.array(dtype=wp.quat),
     mesh_vert: wp.array(dtype=wp.vec3),
     mesh_vertadr: wp.array(dtype=int),
     mesh_vertnum: wp.array(dtype=int),
@@ -2236,6 +2278,8 @@ def _step_shim(
     nlsp: int,
     nmeshface: int,
     nmocap: int,
+    nsensordata: int,
+    nsensortaxel: int,
     nsite: int,
     ntendon: int,
     nu: int,
@@ -2264,10 +2308,13 @@ def _step_shim(
     rangefinder_sensor_adr: wp.array(dtype=int),
     sensor_acc_adr: wp.array(dtype=int),
     sensor_adr: wp.array(dtype=int),
+    sensor_contact_adr: wp.array(dtype=int),
     sensor_cutoff: wp.array(dtype=float),
     sensor_datatype: wp.array(dtype=int),
+    sensor_dim: wp.array(dtype=int),
     sensor_e_kinetic: bool,
     sensor_e_potential: bool,
+    sensor_intprm: wp.array2d(dtype=int),
     sensor_limitfrc_adr: wp.array(dtype=int),
     sensor_limitpos_adr: wp.array(dtype=int),
     sensor_limitvel_adr: wp.array(dtype=int),
@@ -2290,6 +2337,8 @@ def _step_shim(
     site_size: wp.array(dtype=wp.vec3),
     site_type: wp.array(dtype=int),
     subtree_mass: wp.array2d(dtype=float),
+    taxel_sensorid: wp.array(dtype=int),
+    taxel_vertadr: wp.array(dtype=int),
     tendon_actfrclimited: wp.array(dtype=bool),
     tendon_actfrcrange: wp.array2d(dtype=wp.vec2),
     tendon_adr: wp.array(dtype=int),
@@ -2443,6 +2492,10 @@ def _step_shim(
     sap_range: wp.array2d(dtype=int),
     sap_segment_index: wp.array2d(dtype=int),
     sap_sort_index: wp.array3d(dtype=int),
+    sensor_contact_criteria: wp.array3d(dtype=float),
+    sensor_contact_direction: wp.array3d(dtype=float),
+    sensor_contact_matchid: wp.array3d(dtype=int),
+    sensor_contact_nmatch: wp.array2d(dtype=int),
     sensor_rangefinder_dist: wp.array2d(dtype=float),
     sensor_rangefinder_geomid: wp.array2d(dtype=int),
     sensor_rangefinder_pnt: wp.array2d(dtype=wp.vec3),
@@ -2496,8 +2549,6 @@ def _step_shim(
     efc__alpha: wp.array(dtype=float),
     efc__aref: wp.array2d(dtype=float),
     efc__beta: wp.array(dtype=float),
-    efc__beta_den: wp.array(dtype=float),
-    efc__beta_num: wp.array(dtype=float),
     efc__cholesky_L_tmp: wp.array3d(dtype=float),
     efc__cholesky_y_tmp: wp.array2d(dtype=float),
     efc__condim: wp.array2d(dtype=int),
@@ -2695,6 +2746,8 @@ def _step_shim(
   _m.mesh_faceadr = mesh_faceadr
   _m.mesh_graph = mesh_graph
   _m.mesh_graphadr = mesh_graphadr
+  _m.mesh_normal = mesh_normal
+  _m.mesh_normaladr = mesh_normaladr
   _m.mesh_polyadr = mesh_polyadr
   _m.mesh_polymap = mesh_polymap
   _m.mesh_polymapadr = mesh_polymapadr
@@ -2704,6 +2757,7 @@ def _step_shim(
   _m.mesh_polyvert = mesh_polyvert
   _m.mesh_polyvertadr = mesh_polyvertadr
   _m.mesh_polyvertnum = mesh_polyvertnum
+  _m.mesh_quat = mesh_quat
   _m.mesh_vert = mesh_vert
   _m.mesh_vertadr = mesh_vertadr
   _m.mesh_vertnum = mesh_vertnum
@@ -2724,6 +2778,8 @@ def _step_shim(
   _m.nlsp = nlsp
   _m.nmeshface = nmeshface
   _m.nmocap = nmocap
+  _m.nsensordata = nsensordata
+  _m.nsensortaxel = nsensortaxel
   _m.nsite = nsite
   _m.ntendon = ntendon
   _m.nu = nu
@@ -2779,10 +2835,13 @@ def _step_shim(
   _m.rangefinder_sensor_adr = rangefinder_sensor_adr
   _m.sensor_acc_adr = sensor_acc_adr
   _m.sensor_adr = sensor_adr
+  _m.sensor_contact_adr = sensor_contact_adr
   _m.sensor_cutoff = sensor_cutoff
   _m.sensor_datatype = sensor_datatype
+  _m.sensor_dim = sensor_dim
   _m.sensor_e_kinetic = sensor_e_kinetic
   _m.sensor_e_potential = sensor_e_potential
+  _m.sensor_intprm = sensor_intprm
   _m.sensor_limitfrc_adr = sensor_limitfrc_adr
   _m.sensor_limitpos_adr = sensor_limitpos_adr
   _m.sensor_limitvel_adr = sensor_limitvel_adr
@@ -2806,6 +2865,8 @@ def _step_shim(
   _m.site_type = site_type
   _m.stat.meaninertia = stat__meaninertia
   _m.subtree_mass = subtree_mass
+  _m.taxel_sensorid = taxel_sensorid
+  _m.taxel_vertadr = taxel_vertadr
   _m.tendon_actfrclimited = tendon_actfrclimited
   _m.tendon_actfrcrange = tendon_actfrcrange
   _m.tendon_adr = tendon_adr
@@ -2879,8 +2940,6 @@ def _step_shim(
   _d.efc.alpha = efc__alpha
   _d.efc.aref = efc__aref
   _d.efc.beta = efc__beta
-  _d.efc.beta_den = efc__beta_den
-  _d.efc.beta_num = efc__beta_num
   _d.efc.cholesky_L_tmp = efc__cholesky_L_tmp
   _d.efc.cholesky_y_tmp = efc__cholesky_y_tmp
   _d.efc.condim = efc__condim
@@ -2996,6 +3055,10 @@ def _step_shim(
   _d.sap_range = sap_range
   _d.sap_segment_index = sap_segment_index
   _d.sap_sort_index = sap_sort_index
+  _d.sensor_contact_criteria = sensor_contact_criteria
+  _d.sensor_contact_direction = sensor_contact_direction
+  _d.sensor_contact_matchid = sensor_contact_matchid
+  _d.sensor_contact_nmatch = sensor_contact_nmatch
   _d.sensor_rangefinder_dist = sensor_rangefinder_dist
   _d.sensor_rangefinder_geomid = sensor_rangefinder_geomid
   _d.sensor_rangefinder_pnt = sensor_rangefinder_pnt
@@ -3128,6 +3191,10 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       'sap_range': d._impl.sap_range.shape,
       'sap_segment_index': d._impl.sap_segment_index.shape,
       'sap_sort_index': d._impl.sap_sort_index.shape,
+      'sensor_contact_criteria': d._impl.sensor_contact_criteria.shape,
+      'sensor_contact_direction': d._impl.sensor_contact_direction.shape,
+      'sensor_contact_matchid': d._impl.sensor_contact_matchid.shape,
+      'sensor_contact_nmatch': d._impl.sensor_contact_nmatch.shape,
       'sensor_rangefinder_dist': d._impl.sensor_rangefinder_dist.shape,
       'sensor_rangefinder_geomid': d._impl.sensor_rangefinder_geomid.shape,
       'sensor_rangefinder_pnt': d._impl.sensor_rangefinder_pnt.shape,
@@ -3181,8 +3248,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       'efc__alpha': d._impl.efc__alpha.shape,
       'efc__aref': d._impl.efc__aref.shape,
       'efc__beta': d._impl.efc__beta.shape,
-      'efc__beta_den': d._impl.efc__beta_den.shape,
-      'efc__beta_num': d._impl.efc__beta_num.shape,
       'efc__cholesky_L_tmp': d._impl.efc__cholesky_L_tmp.shape,
       'efc__cholesky_y_tmp': d._impl.efc__cholesky_y_tmp.shape,
       'efc__condim': d._impl.efc__condim.shape,
@@ -3229,10 +3294,9 @@ def _step_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _step_shim,
-      num_outputs=192,
+      num_outputs=194,
       output_dims=output_dims,
       vmap_method=None,
-      graph_compatible=True,
       in_out_argnames={
           'act',
           'act_dot',
@@ -3328,6 +3392,10 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'sap_range',
           'sap_segment_index',
           'sap_sort_index',
+          'sensor_contact_criteria',
+          'sensor_contact_direction',
+          'sensor_contact_matchid',
+          'sensor_contact_nmatch',
           'sensor_rangefinder_dist',
           'sensor_rangefinder_geomid',
           'sensor_rangefinder_pnt',
@@ -3381,8 +3449,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'efc__alpha',
           'efc__aref',
           'efc__beta',
-          'efc__beta_den',
-          'efc__beta_num',
           'efc__cholesky_L_tmp',
           'efc__cholesky_y_tmp',
           'efc__condim',
@@ -3579,6 +3645,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.mesh_faceadr,
       m.mesh_graph,
       m.mesh_graphadr,
+      m.mesh_normal,
+      m.mesh_normaladr,
       m._impl.mesh_polyadr,
       m._impl.mesh_polymap,
       m._impl.mesh_polymapadr,
@@ -3588,6 +3656,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.mesh_polyvert,
       m._impl.mesh_polyvertadr,
       m._impl.mesh_polyvertnum,
+      m.mesh_quat,
       m.mesh_vert,
       m.mesh_vertadr,
       m.mesh_vertnum,
@@ -3608,6 +3677,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.nlsp,
       m.nmeshface,
       m.nmocap,
+      m.nsensordata,
+      m._impl.nsensortaxel,
       m.nsite,
       m.ntendon,
       m.nu,
@@ -3636,10 +3707,13 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.rangefinder_sensor_adr,
       m._impl.sensor_acc_adr,
       m.sensor_adr,
+      m._impl.sensor_contact_adr,
       m.sensor_cutoff,
       m.sensor_datatype,
+      m.sensor_dim,
       m._impl.sensor_e_kinetic,
       m._impl.sensor_e_potential,
+      m.sensor_intprm,
       m._impl.sensor_limitfrc_adr,
       m._impl.sensor_limitpos_adr,
       m._impl.sensor_limitvel_adr,
@@ -3662,6 +3736,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.site_size,
       m.site_type,
       m._impl.subtree_mass,
+      m._impl.taxel_sensorid,
+      m._impl.taxel_vertadr,
       m.tendon_actfrclimited,
       m.tendon_actfrcrange,
       m.tendon_adr,
@@ -3814,6 +3890,10 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d._impl.sap_range,
       d._impl.sap_segment_index,
       d._impl.sap_sort_index,
+      d._impl.sensor_contact_criteria,
+      d._impl.sensor_contact_direction,
+      d._impl.sensor_contact_matchid,
+      d._impl.sensor_contact_nmatch,
       d._impl.sensor_rangefinder_dist,
       d._impl.sensor_rangefinder_geomid,
       d._impl.sensor_rangefinder_pnt,
@@ -3867,8 +3947,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d._impl.efc__alpha,
       d._impl.efc__aref,
       d._impl.efc__beta,
-      d._impl.efc__beta_den,
-      d._impl.efc__beta_num,
       d._impl.efc__cholesky_L_tmp,
       d._impl.efc__cholesky_y_tmp,
       d._impl.efc__condim,
@@ -4008,104 +4086,106 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       '_impl.sap_range': out[91],
       '_impl.sap_segment_index': out[92],
       '_impl.sap_sort_index': out[93],
-      '_impl.sensor_rangefinder_dist': out[94],
-      '_impl.sensor_rangefinder_geomid': out[95],
-      '_impl.sensor_rangefinder_pnt': out[96],
-      '_impl.sensor_rangefinder_vec': out[97],
-      'sensordata': out[98],
-      'site_xmat': out[99],
-      'site_xpos': out[100],
-      '_impl.solver_niter': out[101],
-      '_impl.subtree_angmom': out[102],
-      '_impl.subtree_bodyvel': out[103],
-      'subtree_com': out[104],
-      '_impl.subtree_linvel': out[105],
-      '_impl.ten_J': out[106],
-      '_impl.ten_Jdot': out[107],
-      '_impl.ten_actfrc': out[108],
-      '_impl.ten_bias_coef': out[109],
-      '_impl.ten_length': out[110],
-      '_impl.ten_velocity': out[111],
-      '_impl.ten_wrapadr': out[112],
-      '_impl.ten_wrapnum': out[113],
-      'time': out[114],
-      '_impl.wrap_geom_xpos': out[115],
-      '_impl.wrap_obj': out[116],
-      '_impl.wrap_xpos': out[117],
-      'xanchor': out[118],
-      'xaxis': out[119],
-      'xfrc_applied': out[120],
-      'ximat': out[121],
-      'xipos': out[122],
-      'xmat': out[123],
-      'xpos': out[124],
-      'xquat': out[125],
-      '_impl.contact__dim': out[126],
-      '_impl.contact__dist': out[127],
-      '_impl.contact__efc_address': out[128],
-      '_impl.contact__frame': out[129],
-      '_impl.contact__friction': out[130],
-      '_impl.contact__geom': out[131],
-      '_impl.contact__includemargin': out[132],
-      '_impl.contact__pos': out[133],
-      '_impl.contact__solimp': out[134],
-      '_impl.contact__solref': out[135],
-      '_impl.contact__solreffriction': out[136],
-      '_impl.contact__worldid': out[137],
-      '_impl.efc__D': out[138],
-      '_impl.efc__J': out[139],
-      '_impl.efc__Jaref': out[140],
-      '_impl.efc__Ma': out[141],
-      '_impl.efc__Mgrad': out[142],
-      '_impl.efc__active': out[143],
-      '_impl.efc__alpha': out[144],
-      '_impl.efc__aref': out[145],
-      '_impl.efc__beta': out[146],
-      '_impl.efc__beta_den': out[147],
-      '_impl.efc__beta_num': out[148],
-      '_impl.efc__cholesky_L_tmp': out[149],
-      '_impl.efc__cholesky_y_tmp': out[150],
-      '_impl.efc__condim': out[151],
-      '_impl.efc__cost': out[152],
-      '_impl.efc__cost_candidate': out[153],
-      '_impl.efc__done': out[154],
-      '_impl.efc__force': out[155],
-      '_impl.efc__frictionloss': out[156],
-      '_impl.efc__gauss': out[157],
-      '_impl.efc__grad': out[158],
-      '_impl.efc__grad_dot': out[159],
-      '_impl.efc__gtol': out[160],
-      '_impl.efc__h': out[161],
-      '_impl.efc__hi': out[162],
-      '_impl.efc__hi_alpha': out[163],
-      '_impl.efc__hi_next': out[164],
-      '_impl.efc__hi_next_alpha': out[165],
-      '_impl.efc__id': out[166],
-      '_impl.efc__jv': out[167],
-      '_impl.efc__lo': out[168],
-      '_impl.efc__lo_alpha': out[169],
-      '_impl.efc__lo_next': out[170],
-      '_impl.efc__lo_next_alpha': out[171],
-      '_impl.efc__ls_done': out[172],
-      '_impl.efc__margin': out[173],
-      '_impl.efc__mid': out[174],
-      '_impl.efc__mid_alpha': out[175],
-      '_impl.efc__mv': out[176],
-      '_impl.efc__p0': out[177],
-      '_impl.efc__pos': out[178],
-      '_impl.efc__prev_Mgrad': out[179],
-      '_impl.efc__prev_cost': out[180],
-      '_impl.efc__prev_grad': out[181],
-      '_impl.efc__quad': out[182],
-      '_impl.efc__quad_gauss': out[183],
-      '_impl.efc__search': out[184],
-      '_impl.efc__search_dot': out[185],
-      '_impl.efc__type': out[186],
-      '_impl.efc__u': out[187],
-      '_impl.efc__uu': out[188],
-      '_impl.efc__uv': out[189],
-      '_impl.efc__vel': out[190],
-      '_impl.efc__vv': out[191],
+      '_impl.sensor_contact_criteria': out[94],
+      '_impl.sensor_contact_direction': out[95],
+      '_impl.sensor_contact_matchid': out[96],
+      '_impl.sensor_contact_nmatch': out[97],
+      '_impl.sensor_rangefinder_dist': out[98],
+      '_impl.sensor_rangefinder_geomid': out[99],
+      '_impl.sensor_rangefinder_pnt': out[100],
+      '_impl.sensor_rangefinder_vec': out[101],
+      'sensordata': out[102],
+      'site_xmat': out[103],
+      'site_xpos': out[104],
+      '_impl.solver_niter': out[105],
+      '_impl.subtree_angmom': out[106],
+      '_impl.subtree_bodyvel': out[107],
+      'subtree_com': out[108],
+      '_impl.subtree_linvel': out[109],
+      '_impl.ten_J': out[110],
+      '_impl.ten_Jdot': out[111],
+      '_impl.ten_actfrc': out[112],
+      '_impl.ten_bias_coef': out[113],
+      '_impl.ten_length': out[114],
+      '_impl.ten_velocity': out[115],
+      '_impl.ten_wrapadr': out[116],
+      '_impl.ten_wrapnum': out[117],
+      'time': out[118],
+      '_impl.wrap_geom_xpos': out[119],
+      '_impl.wrap_obj': out[120],
+      '_impl.wrap_xpos': out[121],
+      'xanchor': out[122],
+      'xaxis': out[123],
+      'xfrc_applied': out[124],
+      'ximat': out[125],
+      'xipos': out[126],
+      'xmat': out[127],
+      'xpos': out[128],
+      'xquat': out[129],
+      '_impl.contact__dim': out[130],
+      '_impl.contact__dist': out[131],
+      '_impl.contact__efc_address': out[132],
+      '_impl.contact__frame': out[133],
+      '_impl.contact__friction': out[134],
+      '_impl.contact__geom': out[135],
+      '_impl.contact__includemargin': out[136],
+      '_impl.contact__pos': out[137],
+      '_impl.contact__solimp': out[138],
+      '_impl.contact__solref': out[139],
+      '_impl.contact__solreffriction': out[140],
+      '_impl.contact__worldid': out[141],
+      '_impl.efc__D': out[142],
+      '_impl.efc__J': out[143],
+      '_impl.efc__Jaref': out[144],
+      '_impl.efc__Ma': out[145],
+      '_impl.efc__Mgrad': out[146],
+      '_impl.efc__active': out[147],
+      '_impl.efc__alpha': out[148],
+      '_impl.efc__aref': out[149],
+      '_impl.efc__beta': out[150],
+      '_impl.efc__cholesky_L_tmp': out[151],
+      '_impl.efc__cholesky_y_tmp': out[152],
+      '_impl.efc__condim': out[153],
+      '_impl.efc__cost': out[154],
+      '_impl.efc__cost_candidate': out[155],
+      '_impl.efc__done': out[156],
+      '_impl.efc__force': out[157],
+      '_impl.efc__frictionloss': out[158],
+      '_impl.efc__gauss': out[159],
+      '_impl.efc__grad': out[160],
+      '_impl.efc__grad_dot': out[161],
+      '_impl.efc__gtol': out[162],
+      '_impl.efc__h': out[163],
+      '_impl.efc__hi': out[164],
+      '_impl.efc__hi_alpha': out[165],
+      '_impl.efc__hi_next': out[166],
+      '_impl.efc__hi_next_alpha': out[167],
+      '_impl.efc__id': out[168],
+      '_impl.efc__jv': out[169],
+      '_impl.efc__lo': out[170],
+      '_impl.efc__lo_alpha': out[171],
+      '_impl.efc__lo_next': out[172],
+      '_impl.efc__lo_next_alpha': out[173],
+      '_impl.efc__ls_done': out[174],
+      '_impl.efc__margin': out[175],
+      '_impl.efc__mid': out[176],
+      '_impl.efc__mid_alpha': out[177],
+      '_impl.efc__mv': out[178],
+      '_impl.efc__p0': out[179],
+      '_impl.efc__pos': out[180],
+      '_impl.efc__prev_Mgrad': out[181],
+      '_impl.efc__prev_cost': out[182],
+      '_impl.efc__prev_grad': out[183],
+      '_impl.efc__quad': out[184],
+      '_impl.efc__quad_gauss': out[185],
+      '_impl.efc__search': out[186],
+      '_impl.efc__search_dot': out[187],
+      '_impl.efc__type': out[188],
+      '_impl.efc__u': out[189],
+      '_impl.efc__uu': out[190],
+      '_impl.efc__uv': out[191],
+      '_impl.efc__vel': out[192],
+      '_impl.efc__vv': out[193],
   })
   return d
 
@@ -4114,8 +4194,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def step(m: types.Model, d: types.Data):
   return _step_jax_impl(m, d)
-
-
 @step.def_vmap
 @ffi.marshal_custom_vmap
 def step_vmap(unused_axis_size, is_batched, m, d):

@@ -66,8 +66,30 @@ def transform_aabb(aabb_pos: wp.vec3, aabb_size: wp.vec3, pos: wp.vec3, ori: wp.
 
 
 @wp.func
+def radial_field(a: wp.vec3, x: wp.vec3, size: wp.vec3) -> wp.vec3:
+  field = wp.cw_div(-size, a)
+  field = wp.normalize(field)
+  field[0] *= wp.sign(x[0])
+  field[1] *= wp.sign(x[1])
+  field[2] *= wp.sign(x[2])
+  return field
+
+
+@wp.func
 def sphere(p: wp.vec3, size: wp.vec3) -> float:
   return wp.length(p) - size[0]
+
+
+@wp.func
+def box(p: wp.vec3, size: wp.vec3) -> float:
+  a = wp.abs(p) - size
+  if a[0] >= 0 or a[1] >= 0 or a[2] >= 0:
+    z = wp.vec3(0.0, 0.0, 0.0)
+    b = wp.max(a, z)
+    return wp.norm_l2(b) + wp.min(wp.max(a), 0.0)
+  b = radial_field(a, p, size)
+  t = -wp.cw_div(a, wp.abs(b))
+  return -wp.min(t) * wp.norm_l2(b)
 
 
 @wp.func
@@ -89,6 +111,24 @@ def grad_sphere(p: wp.vec3) -> wp.vec3:
     return p / c
   else:
     wp.vec3(0.0)
+
+
+@wp.func
+def grad_box(p: wp.vec3, size: wp.vec3) -> wp.vec3:
+  a = wp.abs(p) - size
+  if wp.max(a) < 0:
+    return radial_field(a, p, size)
+  z = wp.vec3(0.0, 0.0, 0.0)
+  b = wp.max(a, z)
+  c = wp.norm_l2(b)
+  g = wp.cw_mul(wp.div(b, c), wp.cw_div(p, wp.abs(p)))
+  if a[0] <= 0:
+    g[0] = 0.0
+  if a[1] <= 0:
+    g[1] = 0.0
+  if a[2] <= 0:
+    g[2] = 0.0
+  return g
 
 
 @wp.func
@@ -128,8 +168,12 @@ def user_sdf_grad(p: wp.vec3, attr: wp.vec3, sdf_type: int) -> wp.vec3:
 
 @wp.func
 def sdf(type: int, p: wp.vec3, attr: wp.vec3, sdf_type: int) -> float:
-  if type == int(GeomType.SPHERE.value):
+  if type == int(GeomType.PLANE.value):
+    return p[2]
+  elif type == int(GeomType.SPHERE.value):
     return sphere(p, attr)
+  elif type == int(GeomType.BOX.value):
+    return box(p, attr)
   elif type == int(GeomType.ELLIPSOID.value):
     return ellipsoid(p, attr)
   elif type == int(GeomType.SDF.value):
@@ -140,8 +184,13 @@ def sdf(type: int, p: wp.vec3, attr: wp.vec3, sdf_type: int) -> float:
 
 @wp.func
 def sdf_grad(type: int, p: wp.vec3, attr: wp.vec3, sdf_type: int) -> wp.vec3:
-  if type == int(GeomType.SPHERE.value):
+  if type == int(GeomType.PLANE.value):
+    grad = wp.vec3(0.0, 0.0, 1.0)
+    return grad
+  elif type == int(GeomType.SPHERE.value):
     return grad_sphere(p)
+  elif type == int(GeomType.BOX.value):
+    return grad_box(p, attr)
   elif type == int(GeomType.ELLIPSOID.value):
     return grad_ellipsoid(p, attr)
   elif type == int(GeomType.SDF.value):
@@ -444,40 +493,39 @@ def _sdf_narrowphase(
   g1_plugin = geom_plugin_index[g1]
   g2_plugin = geom_plugin_index[g2]
 
-  g2_to_g1_rot = wp.transpose(geom2.rot) * geom1.rot
-  g2_to_g1_pos = wp.transpose(geom2.rot) * (geom1.pos - geom2.pos)
+  g1_to_g2_rot = wp.transpose(geom1.rot) * geom2.rot
+  g1_to_g2_pos = wp.transpose(geom1.rot) * (geom2.pos - geom1.pos)
 
   aabb_pos = geom_aabb[g1, 0]
   aabb_size = geom_aabb[g1, 1]
-  aabb1 = transform_aabb(aabb_pos, aabb_size, g2_to_g1_pos, g2_to_g1_rot)
-
+  identity = wp.identity(3, dtype=float)
+  aabb1 = transform_aabb(aabb_pos, aabb_size, wp.vec3(0.0), identity)
   aabb_pos = geom_aabb[g2, 0]
   aabb_size = geom_aabb[g2, 1]
-  aabb2 = transform_aabb(aabb_pos, aabb_size, wp.vec3(0.0), wp.mat33(1.0))
+  aabb2 = transform_aabb(aabb_pos, aabb_size, g1_to_g2_pos, g1_to_g2_rot)
 
   aabb_intersection = AABB()
   aabb_intersection.min = wp.max(aabb1.min, aabb2.min)
   aabb_intersection.max = wp.min(aabb1.max, aabb2.max)
 
-  geom_pos2 = geom_pos[worldid, g2]
-  quat2 = geom_quat[worldid, g2]
-  geom_mat2 = math.quat_to_mat(quat2)
-  rot2 = math.mul(geom2.rot, math.transpose(geom_mat2))
-  pos2 = wp.sub(geom2.pos, math.mul(rot2, geom_pos2))
+  pos2 = geom2.pos
+  rot2 = geom2.rot
+  pos1 = geom1.pos
+  rot1 = geom1.rot
 
   if type1 == int(GeomType.SDF.value):
-    geom_pos1 = geom_pos[worldid, g1]
-    quat1 = geom_quat[worldid, g1]
-    geom_mat1 = math.quat_to_mat(quat1)
-    rot1 = math.mul(geom1.rot, math.transpose(geom_mat1))
-    pos1 = wp.sub(geom1.pos, math.mul(rot1, geom_pos1))
     attr1 = plugin_attr[g1_plugin]
     g1_plugin_id = plugin[g1_plugin]
   else:
-    pos1 = geom1.pos
-    rot1 = geom1.rot
     attr1 = geom1.size
     g1_plugin_id = -1
+
+  if g2_plugin != -1:
+    attr2 = plugin_attr[g2_plugin]
+    g2_plugin_id = plugin[g2_plugin]
+  else:
+    attr2 = geom2.size
+    g2_plugin_id = -1
 
   for i in range(sdf_initpoints):
     x_g2 = wp.vec3(
@@ -486,11 +534,11 @@ def _sdf_narrowphase(
       aabb_intersection.min[2] + (aabb_intersection.max[2] - aabb_intersection.min[2]) * halton(i, 5),
     )
 
-    x = geom2.rot * x_g2 + geom2.pos
+    x = geom1.rot * x_g2 + geom1.pos
     x0_initial = wp.transpose(rot2) * (x - pos2)
 
     dist, pos, n = gradient_descent(
-      type1, x0_initial, attr1, plugin_attr[g2_plugin], pos1, rot1, pos2, rot2, g1_plugin_id, plugin[g2_plugin], sdf_iterations
+      type1, x0_initial, attr1, attr2, pos1, rot1, pos2, rot2, g1_plugin_id, g2_plugin_id, sdf_iterations
     )
 
     write_contact(

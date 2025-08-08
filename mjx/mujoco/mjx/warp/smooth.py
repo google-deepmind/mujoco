@@ -42,7 +42,6 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _kinematics_shim(
     # Model
@@ -180,7 +179,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       num_outputs=19,
       output_dims=output_dims,
       vmap_method=None,
-      graph_compatible=True,
       in_out_argnames={
           'flexedge_length',
           'flexedge_velocity',
@@ -282,8 +280,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def kinematics(m: types.Model, d: types.Data):
   return _kinematics_jax_impl(m, d)
-
-
 @kinematics.def_vmap
 @ffi.marshal_custom_vmap
 def kinematics_vmap(unused_axis_size, is_batched, m, d):

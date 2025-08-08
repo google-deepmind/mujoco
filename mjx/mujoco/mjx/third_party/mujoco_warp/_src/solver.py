@@ -14,6 +14,7 @@
 # ==============================================================================
 
 from math import ceil
+from math import sqrt
 
 import warp as wp
 
@@ -1651,8 +1652,6 @@ def update_constraint_zero_qfrc_constraint(
 
 @wp.kernel
 def update_constraint_init_qfrc_constraint(
-  # Model:
-  nv: int,
   # Data in:
   nefc_in: wp.array(dtype=int),
   efc_J_in: wp.array3d(dtype=float),
@@ -1661,47 +1660,58 @@ def update_constraint_init_qfrc_constraint(
   # Data out:
   qfrc_constraint_out: wp.array2d(dtype=float),
 ):
-  worldid, efcid = wp.tid()
-
-  if efcid >= nefc_in[worldid]:
-    return
-
-  if efc_done_in[worldid]:
-    return
-
-  force = efc_force_in[worldid, efcid]
-  for i in range(nv):
-    wp.atomic_add(
-      qfrc_constraint_out[worldid],
-      i,
-      efc_J_in[worldid, efcid, i] * force,
-    )
-
-
-@wp.kernel
-def update_constraint_gauss_cost(
-  # Data in:
-  qacc_in: wp.array2d(dtype=float),
-  qfrc_smooth_in: wp.array2d(dtype=float),
-  qacc_smooth_in: wp.array2d(dtype=float),
-  efc_Ma_in: wp.array2d(dtype=float),
-  efc_done_in: wp.array(dtype=bool),
-  # Data out:
-  efc_gauss_out: wp.array(dtype=float),
-  efc_cost_out: wp.array(dtype=float),
-):
   worldid, dofid = wp.tid()
 
   if efc_done_in[worldid]:
     return
 
-  gauss_cost = (
-    0.5
-    * (efc_Ma_in[worldid, dofid] - qfrc_smooth_in[worldid, dofid])
-    * (qacc_in[worldid, dofid] - qacc_smooth_in[worldid, dofid])
-  )
-  wp.atomic_add(efc_gauss_out, worldid, gauss_cost)
-  wp.atomic_add(efc_cost_out, worldid, gauss_cost)
+  sum_qfrc = float(0.0)
+  for efcid in range(nefc_in[worldid]):
+    efc_J = efc_J_in[worldid, efcid, dofid]
+    force = efc_force_in[worldid, efcid]
+    sum_qfrc += efc_J * force
+
+  qfrc_constraint_out[worldid, dofid] += sum_qfrc
+
+
+@cache_kernel
+def update_constraint_gauss_cost(nv: int, dofs_per_thread: int):
+  @nested_kernel
+  def kernel(
+    # Data in:
+    qacc_in: wp.array2d(dtype=float),
+    qfrc_smooth_in: wp.array2d(dtype=float),
+    qacc_smooth_in: wp.array2d(dtype=float),
+    efc_Ma_in: wp.array2d(dtype=float),
+    efc_done_in: wp.array(dtype=bool),
+    # Data out:
+    efc_gauss_out: wp.array(dtype=float),
+    efc_cost_out: wp.array(dtype=float),
+  ):
+    worldid, dofstart = wp.tid()
+
+    if efc_done_in[worldid]:
+      return
+
+    gauss_cost = float(0.0)
+
+    if wp.static(dofs_per_thread >= nv):
+      for i in range(wp.static(min(dofs_per_thread, nv))):
+        gauss_cost += (efc_Ma_in[worldid, i] - qfrc_smooth_in[worldid, i]) * (qacc_in[worldid, i] - qacc_smooth_in[worldid, i])
+      efc_gauss_out[worldid] += 0.5 * gauss_cost
+      efc_cost_out[worldid] += 0.5 * gauss_cost
+
+    else:
+      for i in range(wp.static(dofs_per_thread)):
+        ii = dofstart * wp.static(dofs_per_thread) + i
+        if ii < nv:
+          gauss_cost += (efc_Ma_in[worldid, ii] - qfrc_smooth_in[worldid, ii]) * (
+            qacc_in[worldid, ii] - qacc_smooth_in[worldid, ii]
+          )
+      wp.atomic_add(efc_gauss_out, worldid, gauss_cost)
+      wp.atomic_add(efc_cost_out, worldid, gauss_cost)
+
+  return kernel
 
 
 def _update_constraint(m: types.Model, d: types.Data):
@@ -1813,15 +1823,24 @@ def _update_constraint(m: types.Model, d: types.Data):
 
   wp.launch(
     update_constraint_init_qfrc_constraint,
-    dim=(d.nworld, d.njmax),
-    inputs=[m.nv, d.nefc, d.efc.J, d.efc.force, d.efc.done],
+    dim=(d.nworld, m.nv),
+    inputs=[d.nefc, d.efc.J, d.efc.force, d.efc.done],
     outputs=[d.qfrc_constraint],
   )
 
+  # if we are only using 1 thread, it makes sense to do more dofs and skip the atomics.
+  # For more than 1 thread, dofs_per_thread is lower for better load balancing.
+  if m.nv > 50:
+    dofs_per_thread = 20
+  else:
+    dofs_per_thread = 50
+
+  threads_per_efc = ceil(m.nv / dofs_per_thread)
+
   # gauss = 0.5 * (Ma - qfrc_smooth).T @ (qacc - qacc_smooth)
   wp.launch(
-    update_constraint_gauss_cost,
-    dim=(d.nworld, m.nv),
+    update_constraint_gauss_cost(m.nv, dofs_per_thread),
+    dim=(d.nworld, threads_per_efc),
     inputs=[d.qacc, d.qfrc_smooth, d.qacc_smooth, d.efc.Ma, d.efc.done],
     outputs=[d.efc.gauss, d.efc.cost],
   )
@@ -1927,16 +1946,12 @@ def update_gradient_copy_lower_triangle(
 
 @wp.kernel
 def update_gradient_JTDAJ(
-  # Model:
-  dof_tri_row: wp.array(dtype=int),
-  dof_tri_col: wp.array(dtype=int),
   # Data in:
   nefc_in: wp.array(dtype=int),
   efc_J_in: wp.array3d(dtype=float),
   efc_D_in: wp.array2d(dtype=float),
   efc_active_in: wp.array2d(dtype=bool),
   efc_done_in: wp.array(dtype=bool),
-  # In:
   # Data out:
   efc_h_out: wp.array3d(dtype=float),
 ):
@@ -1947,20 +1962,26 @@ def update_gradient_JTDAJ(
 
   nefc = nefc_in[worldid]
 
-  dofi = dof_tri_row[elementid]
-  dofj = dof_tri_col[elementid]
+  dofi = (int(sqrt(float(1 + 8 * elementid))) - 1) // 2
+  dofj = elementid - (dofi * (dofi + 1)) // 2
 
-  for efcid in range(nefc):
-    efc_D = efc_D_in[worldid, efcid]
-    active = efc_active_in[worldid, efcid]
-
-    if efc_D == 0.0 or not active:
-      continue
-
+  sum_h = float(0.0)
+  efc_D = efc_D_in[worldid, 0]
+  active = efc_active_in[worldid, 0]
+  efc_Ji = efc_J_in[worldid, 0, dofi]
+  efc_Jj = efc_J_in[worldid, 0, dofj]
+  for efcid in range(nefc - 1):
     # TODO(team): sparse efc_J
-    value = efc_J_in[worldid, efcid, dofi] * efc_J_in[worldid, efcid, dofj] * efc_D
-    if value != 0.0:
-      wp.atomic_add(efc_h_out[worldid, dofi], dofj, value)
+    sum_h += efc_Ji * efc_Jj * efc_D * float(active)
+
+    jj = efcid + 1
+    efc_D = efc_D_in[worldid, jj]
+    active = efc_active_in[worldid, jj]
+    efc_Ji = efc_J_in[worldid, jj, dofi]
+    efc_Jj = efc_J_in[worldid, jj, dofj]
+
+  sum_h += efc_Ji * efc_Jj * efc_D * float(active)
+  efc_h_out[worldid, dofi, dofj] += sum_h
 
 
 @wp.kernel
@@ -2184,12 +2205,12 @@ def _update_gradient(m: types.Model, d: types.Data):
         outputs=[d.efc.h],
       )
 
+    lower_triangle_dim = int(m.nv * (m.nv + 1) / 2)
+    # TODO(team): Investigate whether d.efc.h initialization can be merged into this kernel
     wp.launch(
       update_gradient_JTDAJ,
-      dim=(d.nworld, m.dof_tri_row.size),
+      dim=(d.nworld, lower_triangle_dim),
       inputs=[
-        m.dof_tri_row,
-        m.dof_tri_col,
         d.nefc,
         d.efc.J,
         d.efc.D,
@@ -2295,53 +2316,14 @@ def solve_prev_grad_Mgrad(
 
 
 @wp.kernel
-def solve_zero_beta_num_den(
-  # Data in:
-  efc_done_in: wp.array(dtype=bool),
-  # Data out:
-  efc_beta_num_out: wp.array(dtype=float),
-  efc_beta_den_out: wp.array(dtype=float),
-):
-  worldid = wp.tid()
-
-  if efc_done_in[worldid]:
-    return
-
-  efc_beta_num_out[worldid] = 0.0
-  efc_beta_den_out[worldid] = 0.0
-
-
-@wp.kernel
-def solve_beta_num_den(
+def solve_beta(
+  # Model:
+  nv: int,
   # Data in:
   efc_grad_in: wp.array2d(dtype=float),
   efc_Mgrad_in: wp.array2d(dtype=float),
   efc_prev_grad_in: wp.array2d(dtype=float),
   efc_prev_Mgrad_in: wp.array2d(dtype=float),
-  efc_done_in: wp.array(dtype=bool),
-  # Data out:
-  efc_beta_num_out: wp.array(dtype=float),
-  efc_beta_den_out: wp.array(dtype=float),
-):
-  worldid, dofid = wp.tid()
-
-  if efc_done_in[worldid]:
-    return
-
-  prev_Mgrad = efc_prev_Mgrad_in[worldid][dofid]
-  wp.atomic_add(
-    efc_beta_num_out,
-    worldid,
-    efc_grad_in[worldid, dofid] * (efc_Mgrad_in[worldid, dofid] - prev_Mgrad),
-  )
-  wp.atomic_add(efc_beta_den_out, worldid, efc_prev_grad_in[worldid, dofid] * prev_Mgrad)
-
-
-@wp.kernel
-def solve_beta(
-  # Data in:
-  efc_beta_num_in: wp.array(dtype=float),
-  efc_beta_den_in: wp.array(dtype=float),
   efc_done_in: wp.array(dtype=bool),
   # Data out:
   efc_beta_out: wp.array(dtype=float),
@@ -2351,7 +2333,14 @@ def solve_beta(
   if efc_done_in[worldid]:
     return
 
-  efc_beta_out[worldid] = wp.max(0.0, efc_beta_num_in[worldid] / wp.max(types.MJ_MINVAL, efc_beta_den_in[worldid]))
+  beta_num = float(0.0)
+  beta_den = float(0.0)
+  for dofid in range(nv):
+    prev_Mgrad = efc_prev_Mgrad_in[worldid][dofid]
+    beta_num += efc_grad_in[worldid, dofid] * (efc_Mgrad_in[worldid, dofid] - prev_Mgrad)
+    beta_den += efc_prev_grad_in[worldid, dofid] * prev_Mgrad
+
+  efc_beta_out[worldid] = wp.max(0.0, beta_num / wp.max(types.MJ_MINVAL, beta_den))
 
 
 @wp.kernel
@@ -2452,23 +2441,9 @@ def _solver_iteration(
   # polak-ribiere
   if m.opt.solver == types.SolverType.CG:
     wp.launch(
-      solve_zero_beta_num_den,
-      dim=(d.nworld),
-      inputs=[d.efc.done],
-      outputs=[d.efc.beta_num, d.efc.beta_den],
-    )
-
-    wp.launch(
-      solve_beta_num_den,
-      dim=(d.nworld, m.nv),
-      inputs=[d.efc.grad, d.efc.Mgrad, d.efc.prev_grad, d.efc.prev_Mgrad, d.efc.done],
-      outputs=[d.efc.beta_num, d.efc.beta_den],
-    )
-
-    wp.launch(
       solve_beta,
       dim=(d.nworld,),
-      inputs=[d.efc.beta_num, d.efc.beta_den, d.efc.done],
+      inputs=[m.nv, d.efc.grad, d.efc.Mgrad, d.efc.prev_grad, d.efc.prev_Mgrad, d.efc.done],
       outputs=[d.efc.beta],
     )
 
@@ -2539,8 +2514,10 @@ def solve(m: types.Model, d: types.Data):
 
 def _solve(m: types.Model, d: types.Data):
   """Finds forces that satisfy constraints."""
-  # warmstart
-  wp.copy(d.qacc, d.qacc_warmstart)
+  if not (m.opt.disableflags & types.DisableBit.WARMSTART):
+    wp.copy(d.qacc, d.qacc_warmstart)
+  else:
+    wp.copy(d.qacc, d.qacc_smooth)
 
   # create context
   create_context(m, d, grad=True)

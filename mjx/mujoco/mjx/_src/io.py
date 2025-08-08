@@ -455,7 +455,6 @@ def _put_model_warp(
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
     mw = mjwp.put_model(m)  # pylint: disable=undefined-variable
-    mw.opt.graph_conditional = False
 
   fields = {f.name for f in types.Model.fields() if f.name != '_impl'}
   fields = {f: getattr(m, f) for f in fields}
@@ -865,7 +864,7 @@ def _make_data_warp(
     if not hasattr(dw, k):
       raise ValueError(f'Public data field {k} not found in Warp data.')
     field = _wp_to_np_type(getattr(dw, k))
-    if mjxw.types.BATCH_DIM['Data'][k]:
+    if mjxw.types._BATCH_DIM['Data'][k]:  # pylint: disable=protected-access
       field = field.reshape(field.shape[1:])
     fields[k] = field
 
@@ -873,7 +872,7 @@ def _make_data_warp(
   for k in mjxw.types.DataWarp.__annotations__.keys():
     field = _get_nested_attr(dw, k, split='__')
     field = _wp_to_np_type(field)
-    if mjxw.types.BATCH_DIM['Data'][k]:
+    if mjxw.types._BATCH_DIM['Data'][k]:  # pylint: disable=protected-access
       field = field.reshape(field.shape[1:])
     impl_fields[k] = field
 

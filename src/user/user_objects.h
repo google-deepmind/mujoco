@@ -17,10 +17,10 @@
 
 #include <stdbool.h>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <array>
 #include <functional>
-#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -215,15 +215,52 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 
 //------------------------- class mjCOctree --------------------------------------------------------
 
+struct Point {
+  std::array<double, 3> p;
+
+  double& operator[](size_t i) { return p[i]; }
+  const double& operator[](size_t i) const { return p[i]; }
+
+  bool operator==(const Point& other) const {
+    constexpr double kEpsilon = 1e-9;
+    return std::abs(this->p[0] - other.p[0]) < kEpsilon &&
+           std::abs(this->p[1] - other.p[1]) < kEpsilon &&
+           std::abs(this->p[2] - other.p[2]) < kEpsilon;
+  }
+};
+
+namespace std {
+template <>
+struct hash<Point> {
+  size_t operator()(const Point& pt) const {
+    size_t h1 = hash<double>()(pt.p[0]);
+    size_t h2 = hash<double>()(pt.p[1]);
+    size_t h3 = hash<double>()(pt.p[2]);
+    // combine hashes
+    size_t seed = h1;
+    seed ^= h2 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= h3 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    return seed;
+  }
+};
+}  // namespace std
+
 typedef std::array<std::array<double, 3>, 3> Triangle;
+
+struct OctNode {
+  int level = 0;                       // level of the node
+  std::array<int, 8> child = {-1};     // children nodes
+  std::array<int, 8> vertid = {-1};    // vertex id's
+  std::array<double, 6> aabb = {0};    // bounding box
+  std::array<double, 8> coeff = {0};   // interpolation coefficients
+};
 
 struct mjCOctree_ {
   int nnode_ = 0;
-  std::vector<int> child_;           // children of each node     (nnode x 8)
-  std::vector<double> node_;         // bounding boxes            (nnode x 6)
-  std::vector<int> level_;           // levels of each node       (nnode x 1)
-  std::vector<double> coeff_;        // interpo coefficients      (nnode x 8)
-  std::vector<Triangle> face_;       // mesh faces                (nface x 3)
+  int nvert_ = 0;
+  std::vector<OctNode> node_;
+  std::vector<Triangle> face_;       // mesh faces                (nmeshface x 3)
+  std::vector<Point> vert_;          // octree vertices           (nvert x 3)
   double ipos_[3] = {0, 0, 0};
   double iquat_[4] = {1, 0, 0, 0};
 };
@@ -233,26 +270,28 @@ class mjCOctree : public mjCOctree_ {
   void CreateOctree(const double aamm[6]);
 
   int NumNodes() const { return nnode_; }
-  const std::vector<int>& Child() const { return child_; }
-  const std::vector<double>& Nodes() const { return node_; }
-  const std::vector<int>& Level() const { return level_; }
+  int NumVerts() const { return nvert_; }
+  void CopyLevel(int* level) const;
+  void CopyChild(int* child) const;
+  void CopyAabb(mjtNum* aabb) const;
+  void CopyCoeff(mjtNum* coeff) const;
+  const double* Vert(int i) const { return vert_[i].p.data(); }
+  int VertId(int n, int v) const { return node_[n].vertid[v]; }
   void SetFace(const std::vector<double>& vert, const std::vector<int>& face);
   int Size() const {
-    return sizeof(int) * child_.size() + sizeof(double) * node_.size() +
-           sizeof(int) * level_.size() + sizeof(Triangle) * face_.size();
+    return sizeof(OctNode) * node_.size() + sizeof(Triangle) * face_.size() +
+           sizeof(Point) * vert_.size();
   }
   void Clear() {
-    child_.clear();
     node_.clear();
-    level_.clear();
     face_.clear();
   }
-  void AddCoeff(double coeff) { coeff_.push_back(coeff); }
-  const std::vector<double>& Coeff() const { return coeff_; }
+  void AddCoeff(int n, int v, double coeff) { node_[n].coeff[v] = coeff; }
 
  private:
   void Make(std::vector<Triangle>& elements);
-  int MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev = 0);
+  int MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev,
+                 std::unordered_map<Point, int>& vert_map);
 };
 
 

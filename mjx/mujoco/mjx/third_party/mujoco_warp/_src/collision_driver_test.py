@@ -475,7 +475,7 @@ class CollisionTest(parameterized.TestCase):
 
   @classmethod
   def setUpClass(cls):
-    register_sdf_plugins(mjwarp._src.collision_sdf)
+    register_sdf_plugins(mjwarp)
 
   @parameterized.parameters(_SDF_SDF.keys())
   def test_sdf_collision(self, fixture):

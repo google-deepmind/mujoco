@@ -16,6 +16,7 @@
 
 import functools
 import os
+import tempfile
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -43,8 +44,14 @@ class ForwardTest(parameterized.TestCase):
   def setUp(self):
     super().setUp()
     if mjxw.WARP_INSTALLED:
-      wp.clear_kernel_cache()
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
     np.random.seed(0)
+
+  def tearDown(self):
+    super().tearDown()
+    if hasattr(self, 'tempdir'):
+      self.tempdir.cleanup()
 
   @parameterized.parameters(
       'pendula.xml',
@@ -203,8 +210,14 @@ class StepTest(parameterized.TestCase):
   def setUp(self):
     super().setUp()
     if mjxw.WARP_INSTALLED:
-      wp.clear_kernel_cache()
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
     np.random.seed(0)
+
+  def tearDown(self):
+    super().tearDown()
+    if hasattr(self, 'tempdir'):
+      self.tempdir.cleanup()
 
   @parameterized.product(
       xml=(

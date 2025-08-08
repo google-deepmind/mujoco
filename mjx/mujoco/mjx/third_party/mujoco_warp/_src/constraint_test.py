@@ -65,33 +65,32 @@ class ConstraintTest(parameterized.TestCase):
     xml = f"""
       <mujoco>
         <worldbody>
-          <body pos="0.0 0 0">
-            <freejoint/>
+          <body>
             <geom type="sphere" size=".1" condim="{condim1}"/>
-          </body>
-          <body pos="0.05 0 0">
             <freejoint/>
+          </body>
+          <body>
             <geom type="sphere" size=".1" condim="{condim2}"/>
           </body>
+          <body>
+            <geom type="ellipsoid" size=".1 .1 .1" condim="{condim2}"/>
+          </body>
         </worldbody>
+        <keyframe>
+          <key qpos=".10 .11 .12 .7071 .7071 0 0" />
+        </keyframe>
       </mujoco>
     """
 
-    _, mjd, m, d = test_util.fixture(xml=xml, cone=cone)
-
-    for arr in (
-      d.efc.D,
-      d.efc.aref,
-      d.efc.pos,
-      d.efc.margin,
-    ):
-      arr.zero_()
+    _, mjd, m, d = test_util.fixture(xml=xml, cone=cone, keyframe=0)
 
     # fill with nan to check whether we are not reading uninitialized values
-    d.efc.J.fill_(wp.nan)
+    for arr in (d.efc.J, d.efc.D, d.efc.aref, d.efc.pos, d.efc.margin):
+      arr.fill_(wp.nan)
 
     mjwarp.make_constraint(m, d)
 
+    _assert_eq(d.ncon.numpy()[0], mjd.ncon, "ncon")
     _assert_eq(d.efc.J.numpy()[0, : mjd.nefc, :].reshape(-1), mjd.efc_J, "efc_J")
     _assert_eq(d.efc.D.numpy()[0, : mjd.nefc], mjd.efc_D, "efc_D")
     _assert_eq(d.efc.aref.numpy()[0, : mjd.nefc], mjd.efc_aref, "efc_aref")
@@ -105,21 +104,12 @@ class ConstraintTest(parameterized.TestCase):
   def test_constraints(self, cone):
     """Test constraints."""
     for key in range(3):
-      mjm, mjd, m, d = test_util.fixture("constraints.xml", sparse=False, cone=cone, keyframe=key)
+      _, mjd, m, d = test_util.fixture("constraints.xml", sparse=False, cone=cone, keyframe=key)
 
-      for arr in (
-        d.efc.D,
-        d.efc.aref,
-        d.efc.pos,
-        d.efc.margin,
-        d.ne,
-        d.nefc,
-        d.nf,
-        d.nl,
-      ):
-        arr.zero_()
-
-      d.efc.J.fill_(wp.nan)
+      for arr in (d.ne, d.nefc, d.nf, d.nl, d.efc.type):
+        arr.fill_(-1)
+      for arr in (d.efc.J, d.efc.D, d.efc.aref, d.efc.pos, d.efc.margin):
+        arr.fill_(wp.nan)
 
       mjwarp.make_constraint(m, d)
 
@@ -140,8 +130,10 @@ class ConstraintTest(parameterized.TestCase):
     for keyframe in range(-1, 1):
       _, mjd, m, d = test_util.fixture("tendon/tendon_limit.xml", sparse=False, keyframe=keyframe)
 
-      for arr in (d.nefc, d.nl, d.efc.J, d.efc.D, d.efc.aref, d.efc.pos, d.efc.margin):
-        arr.zero_()
+      for arr in (d.nefc, d.nl, d.efc.type):
+        arr.fill_(-1)
+      for arr in (d.efc.J, d.efc.D, d.efc.aref, d.efc.pos, d.efc.margin):
+        arr.fill_(wp.nan)
 
       mjwarp.make_constraint(m, d)
 
@@ -197,8 +189,14 @@ class ConstraintTest(parameterized.TestCase):
           <key qpos=".1 .2 .3"/>
         </keyframe>
       </mujoco>
-    """
+    """,
+      keyframe=0,
     )
+
+    for arr in (d.nefc, d.ne, d.efc.type):
+      arr.fill_(-1)
+    for arr in (d.efc.J, d.efc.D, d.efc.vel, d.efc.aref, d.efc.pos, d.efc.margin):
+      arr.fill_(wp.nan)
 
     mjwarp.make_constraint(m, d)
 

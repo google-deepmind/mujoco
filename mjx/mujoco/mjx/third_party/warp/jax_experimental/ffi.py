@@ -16,6 +16,7 @@
 import ctypes
 import threading
 import traceback
+from enum import IntEnum
 from typing import Callable, Optional
 
 import jax
@@ -26,6 +27,12 @@ from warp.jax import get_jax_device
 from warp.types import array_t, launch_bounds_t, strides_from_shape, type_to_warp
 
 from .xla_ffi import *
+
+
+class GraphMode(IntEnum):
+    NONE = 0  # don't capture a graph
+    JAX = 1  # let JAX capture a graph
+    WARP = 2  # let Warp capture a graph
 
 
 class FfiArg:
@@ -331,15 +338,16 @@ class FfiKernel:
 class FfiCallDesc:
     def __init__(self, static_inputs):
         self.static_inputs = static_inputs
+        self.captures = {}
 
 
 class FfiCallable:
-    def __init__(self, func, num_outputs, graph_compatible, vmap_method, output_dims, in_out_argnames):
+    def __init__(self, func, num_outputs, graph_mode, vmap_method, output_dims, in_out_argnames):
         self.func = func
         self.name = generate_unique_name(func)
         self.num_outputs = num_outputs
         self.vmap_method = vmap_method
-        self.graph_compatible = graph_compatible
+        self.graph_mode = graph_mode
         self.output_dims = output_dims
         self.first_array_arg = None
         self.call_id = 0
@@ -395,6 +403,12 @@ class FfiCallable:
 
         self.input_args = self.args[: self.num_inputs]  # includes in-out args
         self.output_args = self.args[self.num_inputs :]  # pure output args
+
+        # Buffer indices for array arguments in callback.
+        # In-out buffers are the same pointers in the XLA call frame,
+        # so we only include them for inputs and skip them for outputs.
+        self.array_input_indices = [i for i, arg in enumerate(self.input_args) if arg.is_array]
+        self.array_output_indices = list(range(self.num_in_out, self.num_outputs))
 
         # Build input output aliases.
         out_id = 0
@@ -503,11 +517,10 @@ class FfiCallable:
 
     def ffi_callback(self, call_frame):
         try:
-            # TODO Try-catch around the body and return XLA_FFI_Error on error.
-            extension = call_frame.contents.extension_start
             # On the first call, XLA runtime will query the API version and traits
             # metadata using the |extension| field. Let us respond to that query
             # if the metadata extension is present.
+            extension = call_frame.contents.extension_start
             if extension:
                 # Try to set the version metadata.
                 if extension.contents.type == XLA_FFI_Extension_Type.Metadata:
@@ -515,15 +528,19 @@ class FfiCallable:
                     metadata_ext.contents.metadata.contents.api_version.major_version = 0
                     metadata_ext.contents.metadata.contents.api_version.minor_version = 1
                     # Turn on CUDA graphs for this handler.
-                    if self.graph_compatible:
+                    if self.graph_mode is GraphMode.JAX:
                         metadata_ext.contents.metadata.contents.traits = (
                             XLA_FFI_Handler_TraitsBits.COMMAND_BUFFER_COMPATIBLE
                         )
                     return None
 
             # retrieve call info
-            attrs = decode_attrs(call_frame.contents.attrs)
-            call_id = int(attrs["call_id"])
+            # NOTE: this assumes that there's only one attribute - call_id (int64).
+            # A more general but slower approach is this:
+            #   attrs = decode_attrs(call_frame.contents.attrs)
+            #   call_id = int(attrs["call_id"])
+            attr = ctypes.cast(call_frame.contents.attrs.attrs[0], ctypes.POINTER(XLA_FFI_Scalar)).contents
+            call_id = ctypes.cast(attr.value, ctypes.POINTER(ctypes.c_int64)).contents.value
             call_desc = self.call_descriptors[call_id]
 
             num_inputs = call_frame.contents.args.size
@@ -535,8 +552,35 @@ class FfiCallable:
             assert num_inputs == self.num_inputs
             assert num_outputs == self.num_outputs
 
-            device = wp.device_from_jax(get_jax_device())
             cuda_stream = get_stream_from_callframe(call_frame.contents)
+
+            if self.graph_mode == GraphMode.WARP:
+                # check if we already captured an identical call
+                ip = [inputs[i].contents.data for i in self.array_input_indices]
+                op = [outputs[i].contents.data for i in self.array_output_indices]
+                buffer_hash = hash((*ip, *op))
+                capture = call_desc.captures.get(buffer_hash)
+
+                # launch existing graph
+                if capture is not None:
+                    # NOTE: We use the native graph API to avoid overhead with obtaining Stream and Device objects in Python.
+                    # This code should match wp.capture_launch().
+                    graph = capture.graph
+                    if graph.graph_exec is None:
+                        g = ctypes.c_void_p()
+                        if not wp.context.runtime.core.wp_cuda_graph_create_exec(
+                            graph.device.context, cuda_stream, graph.graph, ctypes.byref(g)
+                        ):
+                            raise RuntimeError(f"Graph creation error: {wp.context.runtime.get_error_string()}")
+                        graph.graph_exec = g
+
+                    if not wp.context.runtime.core.wp_cuda_graph_launch(graph.graph_exec, cuda_stream):
+                        raise RuntimeError(f"Graph launch error: {wp.context.runtime.get_error_string()}")
+
+                    # early out
+                    return
+
+            device = wp.device_from_jax(get_jax_device())
             stream = wp.Stream(device, cuda_stream=cuda_stream)
 
             # reconstruct the argument list
@@ -564,11 +608,20 @@ class FfiCallable:
             # call the Python function with reconstructed arguments
             with wp.ScopedStream(stream, sync_enter=False):
                 if stream.is_capturing:
-                    with wp.ScopedCapture(stream=stream, external=True) as capture:
+                    # capturing with JAX
+                    with wp.ScopedCapture(external=True) as capture:
                         self.func(*arg_list)
                     # keep a reference to the capture object to prevent required modules getting unloaded
                     call_desc.capture = capture
+                elif self.graph_mode == GraphMode.WARP:
+                    # capturing with WARP
+                    with wp.ScopedCapture() as capture:
+                        self.func(*arg_list)
+                    wp.capture_launch(capture.graph)
+                    # keep a reference to the capture object and reuse it with same buffers
+                    call_desc.captures[buffer_hash] = capture
                 else:
+                    # not capturing
                     self.func(*arg_list)
 
         except Exception as e:
@@ -633,7 +686,8 @@ def jax_kernel(
 def jax_callable(
     func: Callable,
     num_outputs: int = 1,
-    graph_compatible: bool = True,
+    graph_compatible: Optional[bool] = None,  # deprecated
+    graph_mode: GraphMode = GraphMode.JAX,
     vmap_method: Optional[str] = "broadcast_all",
     output_dims=None,
     in_out_argnames=None,
@@ -647,8 +701,15 @@ def jax_callable(
     Args:
         func: The Python function to call.
         num_outputs: Optional. Specify the number of output arguments if greater than 1.
-                     This must include the number of ``in_out_arguments``.
+            This must include the number of ``in_out_arguments``.
         graph_compatible: Optional. Whether the function can be called during CUDA graph capture.
+            This argument is deprecated, use ``graph_mode`` instead.
+        graph_mode: Optional. CUDA graph capture mode.
+            ``GraphMode.JAX`` (default): Let JAX capture the graph, which may be used as a subgraph in an enclosing capture.
+            ``GraphMode.WARP``: Let Warp capture the graph. Use this mode when the callable cannot be used as a subraph,
+            such as when the callable uses conditional graph nodes.
+            ``GraphMode.NONE``: Disable graph capture. Use when the callable performs operations that are not legal in a graph,
+            such as host synchronization.
         vmap_method: Optional. String specifying how the callback transforms under ``vmap()``.
             This argument can also be specified for individual calls.
         output_dims: Optional. Specify the default dimensions of output arrays.
@@ -663,17 +724,27 @@ def jax_callable(
         - There must be at least one output or input-output argument.
         - Only the CUDA backend is supported.
     """
+
+    if graph_compatible is not None:
+        wp.utils.warn(
+            "The `graph_compatible` argument is deprecated, use `graph_mode` instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        if graph_compatible is False:
+            graph_mode = GraphMode.NONE
+
     key = (
         func,
         num_outputs,
-        graph_compatible,
+        graph_mode,
         vmap_method,
         tuple(sorted(output_dims.items())) if output_dims else output_dims,
     )
 
     with _FFI_REGISTRY_LOCK:
         if key not in _FFI_CALLABLE_REGISTRY:
-            new_callable = FfiCallable(func, num_outputs, graph_compatible, vmap_method, output_dims, in_out_argnames)
+            new_callable = FfiCallable(func, num_outputs, graph_mode, vmap_method, output_dims, in_out_argnames)
             _FFI_CALLABLE_REGISTRY[key] = new_callable
 
     return _FFI_CALLABLE_REGISTRY[key]
@@ -704,7 +775,6 @@ def register_ffi_callback(name: str, func: Callable, graph_compatible: bool = Tr
 
     def ffi_callback(call_frame):
         try:
-            # TODO Try-catch around the body and return XLA_FFI_Error on error.
             extension = call_frame.contents.extension_start
             # On the first call, XLA runtime will query the API version and traits
             # metadata using the |extension| field. Let us respond to that query

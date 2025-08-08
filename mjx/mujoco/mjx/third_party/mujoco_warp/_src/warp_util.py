@@ -14,6 +14,7 @@
 # ==============================================================================
 
 import functools
+import inspect
 from typing import Callable, Optional
 
 import warp as wp
@@ -97,6 +98,11 @@ def event_scope(fn, name: str = ""):
     global _STACK
     if _STACK is None:
       return fn(*args, **kwargs)
+
+    for frame_info in inspect.stack():
+      if frame_info.function in ("capture_while", "capture_if"):
+        return fn(*args, **kwargs)
+
     # push into next level of stack
     saved_stack, _STACK = _STACK, {}
     beg = wp.Event(enable_timing=True)

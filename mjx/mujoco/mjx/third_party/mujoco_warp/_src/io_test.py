@@ -23,10 +23,12 @@ import mujoco
 import numpy as np
 import warp as wp
 from absl.testing import absltest
+from absl.testing import parameterized
 
 import mujoco_warp as mjwarp
 
 from mujoco.mjx.third_party.mujoco_warp._src import test_util
+from mujoco.mjx.third_party.mujoco_warp._src.io import MAX_WORLDS
 
 
 def _dims_match(test_obj, d1: Any, d2: Any, prefix: str = ""):
@@ -173,7 +175,7 @@ def _leading_dims_scale_w_nworld(test_obj, d1: Any, d2: Any, nworld1: int, nworl
       test_obj.assertEqual(s1, nworld1, full_name + f" has leading dim {s1} with nworld={nworld1}. {msg}")
 
 
-class IOTest(absltest.TestCase):
+class IOTest(parameterized.TestCase):
   def test_make_put_data(self):
     """Tests that make_data and put_data are producing the same shapes for all arrays."""
     mjm, _, _, d = test_util.fixture("pendula.xml")
@@ -295,11 +297,11 @@ class IOTest(absltest.TestCase):
     m1 = mjwarp.put_model(mjm)
 
     self.assertTrue(hasattr(m1.geom_pos, "_is_batched"))
-    self.assertEqual(m1.geom_pos.shape[0], 1)
+    self.assertEqual(m1.geom_pos.shape[0], MAX_WORLDS)
     self.assertEqual(m1.geom_pos.strides[0], 0)
     self.assertLen(m1.geom_pos.strides, m1.geom_pos.ndim)
     self.assertTrue(hasattr(m1.opt.gravity, "_is_batched"))
-    self.assertEqual(m1.opt.gravity.shape[0], 1)
+    self.assertEqual(m1.opt.gravity.shape[0], MAX_WORLDS)
     self.assertEqual(m1.opt.gravity.strides[0], 0)
     self.assertLen(m1.opt.gravity.strides, m1.opt.gravity.ndim)
     self.assertFalse(hasattr(m1.body_parentid, "_is_batched"))
@@ -347,6 +349,34 @@ class IOTest(absltest.TestCase):
 
     _dims_match(self, dm2, dp2)
     _dims_match(self, dm3, dp3)
+
+  @parameterized.parameters(
+    '<contact geom1="plane"/>',
+    '<contact geom2="plane"/>',
+    '<contact site="site"/>',
+    '<contact reduce="maxforce"/>',
+    '<contact reduce="netforce"/>',
+    '<contact geom1="plane" geom2="sphere"/>',
+  )
+  def test_contact_sensor(self, contact_sensor):
+    mjm = mujoco.MjModel.from_xml_string(f"""
+      <mujoco>
+        <worldbody>
+          <site name="site"/>
+          <geom name="plane" type="plane" size="10 10 .001"/>
+          <body name="body">
+            <geom name="sphere" size=".1"/>
+            <joint type="slide" axis="0 0 1"/>
+          </body>
+        </worldbody>
+        <sensor>
+          {contact_sensor}
+        </sensor>
+      </mujoco>
+    """)
+
+    with self.assertRaises(NotImplementedError):
+      mjwarp.put_model(mjm)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 """MJX Warp types.
-
 DO NOT EDIT. This file is auto-generated.
 """
 import dataclasses
@@ -23,9 +22,7 @@ from jax import tree_util
 from jax.interpreters import batching
 from mujoco.mjx._src import dataclasses as mjx_dataclasses
 import numpy as np
-
 PyTreeNode = mjx_dataclasses.PyTreeNode
-
 
 @dataclasses.dataclass(frozen=True)
 @tree_util.register_pytree_node_class
@@ -38,7 +35,6 @@ class TileSet:
     adr: address of each tile in the set
     size: size of all the tiles in this set
   """
-
   adr: np.ndarray
   size: int
 
@@ -59,11 +55,11 @@ class BlockDim:
 
   TODO(team): experimental and may be removed
   """
-
   actuator_velocity: int
   cholesky_factorize: int
   cholesky_factorize_solve: int
   cholesky_solve: int
+  contact_sort: int
   energy_vel_kinetic: int
   euler_dense: int
   mul_m_dense: int
@@ -87,13 +83,10 @@ class BlockDim:
 
 class StatisticWarp(PyTreeNode):
   """Derived fields from Statistic."""
-
   meaninertia: float
-
 
 class OptionWarp(PyTreeNode):
   """Derived fields from Option."""
-
   broadphase: int
   broadphase_filter: int
   epa_iterations: int
@@ -106,10 +99,8 @@ class OptionWarp(PyTreeNode):
   sdf_initpoints: int
   sdf_iterations: int
 
-
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
-
   M_colind: np.ndarray
   M_rowadr: np.ndarray
   M_rownnz: np.ndarray
@@ -168,6 +159,7 @@ class ModelWarp(PyTreeNode):
   nmeshpoly: int
   nmeshpolymap: int
   nmeshpolyvert: int
+  nsensortaxel: int
   nxn_geom_pair: np.ndarray
   nxn_geom_pair_filtered: np.ndarray
   nxn_pairid: np.ndarray
@@ -183,6 +175,7 @@ class ModelWarp(PyTreeNode):
   qM_tiles: Tuple[TileSet, ...]
   rangefinder_sensor_adr: np.ndarray
   sensor_acc_adr: np.ndarray
+  sensor_contact_adr: np.ndarray
   sensor_e_kinetic: bool
   sensor_e_potential: bool
   sensor_limitfrc_adr: np.ndarray
@@ -197,6 +190,8 @@ class ModelWarp(PyTreeNode):
   sensor_touch_adr: np.ndarray
   sensor_vel_adr: np.ndarray
   subtree_mass: jax.Array
+  taxel_sensorid: np.ndarray
+  taxel_vertadr: np.ndarray
   ten_wrapadr_site: np.ndarray
   ten_wrapnum_site: np.ndarray
   tendon_geom_adr: np.ndarray
@@ -209,10 +204,8 @@ class ModelWarp(PyTreeNode):
   wrap_site_adr: np.ndarray
   wrap_site_pair_adr: np.ndarray
 
-
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
-
   act_dot_rk: jax.Array
   act_t0: jax.Array
   act_vel_integration: jax.Array
@@ -252,8 +245,6 @@ class DataWarp(PyTreeNode):
   efc__alpha: jax.Array
   efc__aref: jax.Array
   efc__beta: jax.Array
-  efc__beta_den: jax.Array
-  efc__beta_num: jax.Array
   efc__cholesky_L_tmp: jax.Array
   efc__cholesky_y_tmp: jax.Array
   efc__condim: jax.Array
@@ -321,6 +312,7 @@ class DataWarp(PyTreeNode):
   ncollision: jax.Array
   ncon: jax.Array
   ncon_hfield: jax.Array
+  ncon_world: jax.Array
   nconmax: int
   ne: jax.Array
   ne_connect: jax.Array
@@ -357,6 +349,10 @@ class DataWarp(PyTreeNode):
   sap_range: jax.Array
   sap_segment_index: jax.Array
   sap_sort_index: jax.Array
+  sensor_contact_criteria: jax.Array
+  sensor_contact_direction: jax.Array
+  sensor_contact_matchid: jax.Array
+  sensor_contact_nmatch: jax.Array
   sensor_rangefinder_dist: jax.Array
   sensor_rangefinder_geomid: jax.Array
   sensor_rangefinder_pnt: jax.Array
@@ -377,8 +373,6 @@ class DataWarp(PyTreeNode):
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   shape = property(lambda self: self.cacc.shape)
-
-
 DATA_NON_VMAP = {
     'collision_hftri_index',
     'collision_pair',
@@ -421,7 +415,6 @@ DATA_NON_VMAP = {
     'ray_bodyexclude',
 }
 
-
 def _to_elt(cont, _, d, axis):
   return DataWarp(**{
       f.name: (
@@ -446,7 +439,7 @@ def _from_elt(cont, axis_size, d, axis_dest):
 
 batching.register_vmappable(DataWarp, int, int, _to_elt, _from_elt, None)
 
-NDIM = {
+_NDIM = {
     'Data': {
         'act': 2,
         'act_dot': 2,
@@ -494,8 +487,6 @@ NDIM = {
         'efc__alpha': 1,
         'efc__aref': 2,
         'efc__beta': 1,
-        'efc__beta_den': 1,
-        'efc__beta_num': 1,
         'efc__cholesky_L_tmp': 3,
         'efc__cholesky_y_tmp': 2,
         'efc__condim': 2,
@@ -568,6 +559,7 @@ NDIM = {
         'ncollision': 1,
         'ncon': 1,
         'ncon_hfield': 2,
+        'ncon_world': 1,
         'nconmax': 0,
         'ne': 1,
         'ne_connect': 1,
@@ -618,6 +610,10 @@ NDIM = {
         'sap_range': 2,
         'sap_segment_index': 2,
         'sap_sort_index': 3,
+        'sensor_contact_criteria': 3,
+        'sensor_contact_direction': 3,
+        'sensor_contact_matchid': 3,
+        'sensor_contact_nmatch': 2,
         'sensor_rangefinder_dist': 2,
         'sensor_rangefinder_geomid': 2,
         'sensor_rangefinder_pnt': 3,
@@ -684,6 +680,7 @@ NDIM = {
         'block_dim__cholesky_factorize': 0,
         'block_dim__cholesky_factorize_solve': 0,
         'block_dim__cholesky_solve': 0,
+        'block_dim__contact_sort': 0,
         'block_dim__energy_vel_kinetic': 0,
         'block_dim__euler_dense': 0,
         'block_dim__mul_m_dense': 0,
@@ -829,6 +826,8 @@ NDIM = {
         'mesh_faceadr': 1,
         'mesh_graph': 1,
         'mesh_graphadr': 1,
+        'mesh_normal': 2,
+        'mesh_normaladr': 1,
         'mesh_polyadr': 1,
         'mesh_polymap': 1,
         'mesh_polymapadr': 1,
@@ -838,6 +837,7 @@ NDIM = {
         'mesh_polyvert': 1,
         'mesh_polyvertadr': 1,
         'mesh_polyvertnum': 1,
+        'mesh_quat': 2,
         'mesh_vert': 2,
         'mesh_vertadr': 1,
         'mesh_vertnum': 1,
@@ -872,6 +872,7 @@ NDIM = {
         'nq': 0,
         'nsensor': 0,
         'nsensordata': 0,
+        'nsensortaxel': 0,
         'nsite': 0,
         'ntendon': 0,
         'nu': 0,
@@ -931,11 +932,13 @@ NDIM = {
         'rangefinder_sensor_adr': 1,
         'sensor_acc_adr': 1,
         'sensor_adr': 1,
+        'sensor_contact_adr': 1,
         'sensor_cutoff': 1,
         'sensor_datatype': 1,
         'sensor_dim': 1,
         'sensor_e_kinetic': 0,
         'sensor_e_potential': 0,
+        'sensor_intprm': 2,
         'sensor_limitfrc_adr': 1,
         'sensor_limitpos_adr': 1,
         'sensor_limitvel_adr': 1,
@@ -959,6 +962,8 @@ NDIM = {
         'site_type': 1,
         'stat__meaninertia': 0,
         'subtree_mass': 2,
+        'taxel_sensorid': 1,
+        'taxel_vertadr': 1,
         'ten_wrapadr_site': 1,
         'ten_wrapnum_site': 1,
         'tendon_actfrclimited': 1,
@@ -1023,7 +1028,7 @@ NDIM = {
     },
     'Statistic': {'meaninertia': 0},
 }
-BATCH_DIM = {
+_BATCH_DIM = {
     'Data': {
         'act': True,
         'act_dot': True,
@@ -1071,8 +1076,6 @@ BATCH_DIM = {
         'efc__alpha': True,
         'efc__aref': True,
         'efc__beta': True,
-        'efc__beta_den': True,
-        'efc__beta_num': True,
         'efc__cholesky_L_tmp': True,
         'efc__cholesky_y_tmp': True,
         'efc__condim': True,
@@ -1145,6 +1148,7 @@ BATCH_DIM = {
         'ncollision': False,
         'ncon': False,
         'ncon_hfield': True,
+        'ncon_world': True,
         'nconmax': False,
         'ne': True,
         'ne_connect': True,
@@ -1195,6 +1199,10 @@ BATCH_DIM = {
         'sap_range': True,
         'sap_segment_index': True,
         'sap_sort_index': True,
+        'sensor_contact_criteria': True,
+        'sensor_contact_direction': True,
+        'sensor_contact_matchid': True,
+        'sensor_contact_nmatch': True,
         'sensor_rangefinder_dist': True,
         'sensor_rangefinder_geomid': True,
         'sensor_rangefinder_pnt': True,
@@ -1261,6 +1269,7 @@ BATCH_DIM = {
         'block_dim__cholesky_factorize': False,
         'block_dim__cholesky_factorize_solve': False,
         'block_dim__cholesky_solve': False,
+        'block_dim__contact_sort': False,
         'block_dim__energy_vel_kinetic': False,
         'block_dim__euler_dense': False,
         'block_dim__mul_m_dense': False,
@@ -1406,6 +1415,8 @@ BATCH_DIM = {
         'mesh_faceadr': False,
         'mesh_graph': False,
         'mesh_graphadr': False,
+        'mesh_normal': False,
+        'mesh_normaladr': False,
         'mesh_polyadr': False,
         'mesh_polymap': False,
         'mesh_polymapadr': False,
@@ -1415,6 +1426,7 @@ BATCH_DIM = {
         'mesh_polyvert': False,
         'mesh_polyvertadr': False,
         'mesh_polyvertnum': False,
+        'mesh_quat': False,
         'mesh_vert': False,
         'mesh_vertadr': False,
         'mesh_vertnum': False,
@@ -1449,6 +1461,7 @@ BATCH_DIM = {
         'nq': False,
         'nsensor': False,
         'nsensordata': False,
+        'nsensortaxel': False,
         'nsite': False,
         'ntendon': False,
         'nu': False,
@@ -1508,11 +1521,13 @@ BATCH_DIM = {
         'rangefinder_sensor_adr': False,
         'sensor_acc_adr': False,
         'sensor_adr': False,
+        'sensor_contact_adr': False,
         'sensor_cutoff': False,
         'sensor_datatype': False,
         'sensor_dim': False,
         'sensor_e_kinetic': False,
         'sensor_e_potential': False,
+        'sensor_intprm': False,
         'sensor_limitfrc_adr': False,
         'sensor_limitpos_adr': False,
         'sensor_limitvel_adr': False,
@@ -1536,6 +1551,8 @@ BATCH_DIM = {
         'site_type': False,
         'stat__meaninertia': False,
         'subtree_mass': True,
+        'taxel_sensorid': False,
+        'taxel_vertadr': False,
         'ten_wrapadr_site': False,
         'ten_wrapnum_site': False,
         'tendon_actfrclimited': False,
