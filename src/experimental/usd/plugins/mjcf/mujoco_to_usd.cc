@@ -128,10 +128,12 @@ using Arch_ConstructorEntry = pxr::Arch_ConstructorEntry;
 #endif
 enum ErrorCodes { UnsupportedActuatorTypeError, UnsupportedGeomTypeError, MujocoCompilationError };
 
+#ifndef _WIN32
 TF_REGISTRY_FUNCTION(pxr::TfEnum) {
   TF_ADD_ENUM_NAME(UnsupportedGeomTypeError, "UsdGeom type is unsupported.")
   TF_ADD_ENUM_NAME(MujocoCompilationError, "Mujoco spec failed to compile.")
 }
+#endif  // _WIN32
 
 // Usings to satisfy TF_ERROR macro.
 using pxr::TfCallContext;
