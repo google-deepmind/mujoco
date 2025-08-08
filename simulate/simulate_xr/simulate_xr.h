@@ -133,6 +133,9 @@ class SimulateXr {
   }
   struct ImageViewCreateInfo {
     void* image;
+    // Render Target View, Depth Stencil View
+    // Shader resource view, Unordered access view
+    // only RTV is used
     enum class Type : uint8_t { RTV, DSV, SRV, UAV } type;
     enum class View : uint8_t {
       TYPE_1D,
