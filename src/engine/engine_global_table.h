@@ -275,6 +275,9 @@ class GlobalTable {
   // threads have terminated. In other words, a static object may be accessed by another thread
   // after it is deleted. We avoid destruction issues by never running the destructor.
   alignas(Mutex) unsigned char mutex_[sizeof(Mutex)];
+  
+ protected:
+  static void FreeObject(T& obj) { /* default no-op */ }
 };
 
 }  // namespace mujoco
