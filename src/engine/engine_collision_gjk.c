@@ -278,6 +278,7 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 
     // we have a tetrahedron containing the origin so return early
     if (n == 4) {
+      x_norm = 0;
       break;
     }
   }
