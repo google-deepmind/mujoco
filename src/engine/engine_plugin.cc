@@ -48,9 +48,16 @@ void mjp_defaultPlugin(mjpPlugin* plugin) {
 
 namespace {
 using mujoco::GlobalTable;
+using mujoco::CaseInsensitiveEqual;
 
 constexpr int kMaxNameLength = 1024;
 constexpr int kMaxAttributes = 255;
+
+class OverrideModeGuard {
+ public:
+  OverrideModeGuard();
+  ~OverrideModeGuard();
+};
 
 // return the length of a null-terminated string, or -1 if it is not terminated after kMaxNameLength
 int strklen(const char* s) {
@@ -114,6 +121,16 @@ const char* PluginAttrSeek(const mjModel* m, int plugin_id, int attrib_id) {
   }
   return ptr;
 }
+thread_local int g_plugin_override_mode_count = 0;
+
+OverrideModeGuard::OverrideModeGuard() {
+  g_plugin_override_mode_count++;
+}
+
+OverrideModeGuard::~OverrideModeGuard() {
+  g_plugin_override_mode_count--;
+}
+
 }  // namespace
 
 template <>
@@ -164,6 +181,18 @@ bool GlobalTable<mjpPlugin>::ObjectEqual(const mjpPlugin& plugin1, const mjpPlug
   std::size_t remaining_size =
       sizeof(mjpPlugin) - (ptr1 - reinterpret_cast<const char*>(&plugin1));
   return !std::memcmp(ptr1, ptr2, remaining_size);
+}
+
+template <>
+void GlobalTable<mjpPlugin>::FreeObject(mjpPlugin& obj) {
+  delete[] obj.name;
+  if (obj.attributes) {
+    for (int i = 0; i < obj.nattribute; ++i) {
+      delete[] obj.attributes[i];
+    }
+    delete[] obj.attributes;
+  }
+  std::memset(&obj, 0, sizeof(obj));
 }
 
 template <>
@@ -225,6 +254,76 @@ bool GlobalTable<mjpPlugin>::CopyObject(mjpPlugin& dst, const mjpPlugin& src, Er
 }
 
 template <>
+int GlobalTable<mjpPlugin>::AppendIfUnique(const mjpPlugin& object) {
+  ErrorMessage err = "\0";
+
+  int slot = [&]() {
+    auto lock = LockExclusively();
+    
+    int count = count_.load(std::memory_order_acquire);
+    std::string_view key = ObjectKey(object);
+    
+    int local_idx = 0;
+    TableBlock<mjpPlugin>* block = &first_block_;
+    
+    for (int i = 0; i < count; ++i, ++local_idx) {
+      if (local_idx == TableBlock<mjpPlugin>::kBlockSize) {
+        local_idx = 0;
+        block = block->next;
+      }
+      const mjpPlugin& existing = block->objects[local_idx];
+      
+      if (ObjectEqual(object, existing)) {
+        return i;
+      }
+      
+      if (CaseInsensitiveEqual(ObjectKey(object), ObjectKey(existing))) {
+        if (g_plugin_override_mode_count > 0) {
+          FreeObject(block->objects[local_idx]);
+          
+          if (!CopyObject(block->objects[local_idx], object, err)) {
+            return -1;
+          }
+          
+          mju_warning("Plugin '%s' overridden", object.name);
+          return i;
+        } else {
+          std::snprintf(err, sizeof(err), "%s '%s' is already registered",
+                        HumanReadableTypeName(), std::string(ObjectKey(object)).c_str());
+          return -1;
+        }
+      }
+    }
+    
+    if (local_idx == TableBlock<mjpPlugin>::kBlockSize) {
+      local_idx = 0;
+      block->next = new(std::nothrow) TableBlock<mjpPlugin>;
+      if (!block->next) {
+        std::snprintf(err, sizeof(err), "failed to allocate memory for a new %s table block",
+                      HumanReadableTypeName());
+        return -1;
+      }
+      block = block->next;
+    }
+    
+    if (!CopyObject(block->objects[local_idx], object, err)) {
+      return -1;
+    }
+    
+    count_.store(count + 1, std::memory_order_release);
+    
+    return count;
+  }();
+  
+  if (slot < 0) {
+    err[sizeof(err) - 1] = '\0';
+    mju_error("%s", err);
+  }
+  
+  return slot;
+}
+
+template <>
 const char* GlobalTable<mjpResourceProvider>::HumanReadableTypeName() {
   return "resource provider";
 }
@@ -263,6 +362,12 @@ bool GlobalTable<mjpResourceProvider>::CopyObject(mjpResourceProvider& dst, cons
   dst = src;
   dst.prefix = prefix.release();
   return true;
+}
+
+// globally register a plugin with override capability (thread-safe), return new slot id
+int mjp_registerPluginWithOverride(const mjpPlugin* plugin) {
+  OverrideModeGuard guard;
+  return mjp_registerPlugin(plugin);
 }
 
 // globally register a plugin (thread-safe), return new slot id
@@ -382,10 +487,21 @@ const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot) {
   return GlobalTable<mjpResourceProvider>::GetSingleton().GetAtSlot(slot - 1);
 }
 
+// load plugins from a dynamic library with override support
+int mj_loadPluginLibraryEx(const char* path, int override_existing) {
+  if (override_existing) {
+    OverrideModeGuard guard;
+    return mj_loadPluginLibrary(path);
+  } else {
+    return mj_loadPluginLibrary(path);
+  }
+}
+
 // load plugins from a dynamic library
-void mj_loadPluginLibrary(const char* path) {
+int mj_loadPluginLibrary(const char* path) {
 #if defined(_WIN32) || defined(__CYGWIN__)
-  LoadLibraryA(path);
+  HMODULE handle = LoadLibraryA(path);
+  return handle != NULL;
 #else
   void* handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
   if (!handle) {
@@ -395,7 +511,9 @@ void mj_loadPluginLibrary(const char* path) {
     } else {
       mju_error("Unknown error loading plugin library '%s'\n", path);
     }
+    return 0;
   }
+  return 1;
 #endif
 }
 
@@ -406,13 +524,19 @@ void mj_loadAllPluginLibraries(const char* directory,
                                         const std::string& dso_path) {
     int nplugin_before;
     int nplugin_after;
+    int success;
 
     auto& plugin_table = GlobalTable<mjpPlugin>::GetSingleton();
     {
       auto lock = plugin_table.LockExclusively();
       nplugin_before = mjp_pluginCount();
-      mj_loadPluginLibrary(dso_path.c_str());
+      success = mj_loadPluginLibrary(dso_path.c_str());
       nplugin_after = mjp_pluginCount();
+      
+      if (!success) {
+        if (callback) callback(filename.c_str(), -1, 0);
+        return;
+      }
     }
 
     if (callback) {

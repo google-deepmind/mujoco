@@ -563,7 +563,12 @@ MJAPI void mj_setTotalmass(mjModel* m, mjtNum newmass);
 MJAPI const char* mj_getPluginConfig(const mjModel* m, int plugin_id, const char* attrib);
 
 // Load a dynamic library. The dynamic library is assumed to register one or more plugins.
-MJAPI void mj_loadPluginLibrary(const char* path);
+// Returns 1 on success, 0 on failure.
+MJAPI int mj_loadPluginLibrary(const char* path);
+
+// Load a dynamic library with override support. If override_existing is non-zero, allows 
+// replacing existing plugins with the same name. Returns 1 on success, 0 on failure.
+MJAPI int mj_loadPluginLibraryEx(const char* path, int override_existing);
 
 // Scan a directory and load all dynamic libraries. Dynamic libraries in the specified directory
 // are assumed to register one or more plugins. Optionally, if a callback is specified, it is called
@@ -1388,6 +1393,9 @@ MJAPI void mjp_defaultPlugin(mjpPlugin* plugin);
 // and the name and attribute strings are all identical, however the char pointers to the strings
 // need not be the same.
 MJAPI int mjp_registerPlugin(const mjpPlugin* plugin);
+
+// Register plugin with override capability - allows replacing existing plugins with the same name.
+MJAPI int mjp_registerPluginWithOverride(const mjpPlugin* plugin);
 
 // Return the number of globally registered plugins.
 MJAPI int mjp_pluginCount(void);
