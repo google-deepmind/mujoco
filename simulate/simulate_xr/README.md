@@ -5,7 +5,7 @@ Simulate XR is an extension of `simulate` that renders the scene for VR/XR/AR he
 
 ## Installation
 
-To build simulate with XR, switch the option in [simulate CMakeLists](/simulate/CMakeLists.txt#L56) to ON, then configure, build and install normally. I prefer to keep it in a separate location from usual build and install, because launching with built-in XR takes a bit longer. The XR capability is also fully integrated into `libsimulate`, so should be usable from the loaded library or python bindings (untested).
+To build simulate with XR, switch the `SIMULATE_BUILD_XR` option in [simulate CMakeLists](/simulate/CMakeLists.txt#L56) to ON, then configure, build and install normally. I prefer to keep it in a separate location from usual build and install, because launching with built-in XR takes a bit longer. The XR capability is also fully integrated into `libsimulate`, so should be usable from the loaded library or python bindings (untested).
 
 
 ## Running
@@ -63,9 +63,8 @@ To expand or integrate the XR code, you will need a copy of the files located in
 
 ## Current priorities
 
-* Unix/OS X support.
+* Adding controllers. - check the dev/controllers-resync branch
+* Unix/OS X support. Low priority, the systems do not easily support OpenXR.
 * Specify spawn location in the model file field.
-* Adding controllers.
-* Controller maps to keys.
 * Compile MuJoCo on the XR headsets themselves.
 * Expose the XR rendering parameters, like the projected region for the user.
