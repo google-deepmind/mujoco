@@ -2125,10 +2125,11 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
   mju_zero(loc_cfrc_body, 6);
 
   // backward pass over bodies: accumulate cfrc_body from children
-  for (int i=nbody-1; i > 0; i--)
+  for (int i=nbody-1; i > 0; i--) {
     if (m->body_parentid[i]) {
       mju_addTo(loc_cfrc_body+6*m->body_parentid[i], loc_cfrc_body+6*i, 6);
     }
+  }
 
   // result = cdof * cfrc_body
   for (int i=0; i < nv; i++) {
@@ -2154,7 +2155,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
 
   // cfrc_ext = perturb
   mju_zero(d->cfrc_ext, 6*nbody);
-  for (int i=1; i < nbody; i++)
+  for (int i=1; i < nbody; i++) {
     if (!mju_isZero(d->xfrc_applied+6*i, 6)) {
       // rearrange as torque:force
       mju_copy3(cfrc, d->xfrc_applied+6*i+3);
@@ -2166,51 +2167,57 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       // accumulate
       mju_addTo(d->cfrc_ext+6*i, cfrc_com, 6);
     }
+  }
 
   // cfrc_ext += contacts
   int ncon = d->ncon;
-  for (int i=0; i < ncon; i++)
-    if (d->contact[i].efc_address >= 0) {
-      // get contact pointer
-      con = d->contact+i;
+  for (int i=0; i < ncon; i++) {
+    // get contact pointer
+    con = d->contact+i;
 
-      // skip contact involving flex
-      if (con->geom[0] < 0 || con->geom[1] < 0) {
-        continue;
-      }
-
-      // tmp = contact-local force:torque vector
-      mj_contactForce(m, d, i, lfrc);
-
-      // cfrc = world-oriented torque:force vector (swap in the process)
-      mju_mulMatTVec3(cfrc, con->frame, lfrc+3);
-      mju_mulMatTVec3(cfrc+3, con->frame, lfrc);
-
-      // body 1
-      int k;
-      if ((k = m->geom_bodyid[con->geom[0]])) {
-        // tmp = subtree CoM-based torque_force vector
-        mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
-
-        // apply (opposite for body 1)
-        mju_subFrom(d->cfrc_ext+6*k, cfrc_com, 6);
-      }
-
-      // body 2
-      if ((k = m->geom_bodyid[con->geom[1]])) {
-        // tmp = subtree CoM-based torque_force vector
-        mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
-
-        // apply
-        mju_addTo(d->cfrc_ext+6*k, cfrc_com, 6);
-      }
+    // skip excluded contacts
+    if (con->efc_address < 0) {
+      continue;
     }
+
+    // skip contact involving flex
+    if (con->geom[0] < 0 || con->geom[1] < 0) {
+      continue;
+    }
+
+    // tmp = contact-local force:torque vector
+    mj_contactForce(m, d, i, lfrc);
+
+    // cfrc = world-oriented torque:force vector (swap in the process)
+    mju_mulMatTVec3(cfrc, con->frame, lfrc+3);
+    mju_mulMatTVec3(cfrc+3, con->frame, lfrc);
+
+    // body 1
+    int k;
+    if ((k = m->geom_bodyid[con->geom[0]])) {
+      // tmp = subtree CoM-based torque_force vector
+      mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
+
+      // apply (opposite for body 1)
+      mju_subFrom(d->cfrc_ext+6*k, cfrc_com, 6);
+    }
+
+    // body 2
+    if ((k = m->geom_bodyid[con->geom[1]])) {
+      // tmp = subtree CoM-based torque_force vector
+      mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[k], con->pos, 0);
+
+      // apply
+      mju_addTo(d->cfrc_ext+6*k, cfrc_com, 6);
+    }
+  }
 
   // cfrc_ext += connect, weld, flex constraints
   int i = 0, ne = d->ne;
   while (i < ne) {
-    if (d->efc_type[i] != mjCNSTR_EQUALITY)
+    if (d->efc_type[i] != mjCNSTR_EQUALITY) {
       mjERROR("row %d of efc is not an equality constraint", i);  // SHOULD NOT OCCUR
+    }
 
     int id = d->efc_id[i];
     mjtNum* eq_data = m->eq_data + mjNEQDATA*id;
