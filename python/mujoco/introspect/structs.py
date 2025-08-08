@@ -5379,6 +5379,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflexedge',),
              ),
              StructFieldDecl(
+                 name='bvh_aabb_dyn',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='global bounding box (center, size)',
+                 array_extent=('nbvhdynamic', 6),
+             ),
+             StructFieldDecl(
                  name='ten_wrapadr',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -5529,14 +5537,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='1/diag(D)',
                  array_extent=('nv',),
-             ),
-             StructFieldDecl(
-                 name='bvh_aabb_dyn',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='global bounding box (center, size)',
-                 array_extent=('nbvhdynamic', 6),
              ),
              StructFieldDecl(
                  name='bvh_active',
