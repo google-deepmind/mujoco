@@ -2,51 +2,53 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
+Version 3.3.5 (August 8, 2025)
 -----------------------------------
 
 General
 ^^^^^^^
-- Added the :ref:`insidesite<sensor-insidesite>` sensor, for checking if an object is inside the volume of a site.
-  It is useful for triggering events in surrounding environment logic.
-- Added the :ref:`contact<sensor-contact>` sensor, for reporting contact information according to user-defined criteria.
-  The purpose of the :el:`contact` sensor is to report contact-related information in a fixed-size array. This is useful
-  as input to learning-based agents and in environment logic.
-- Added the :ref:`tactile<sensor-tactile>` sensor, for measuring the penetration depth between two objects at given
-  points and the sliding velocities in the tangent frame. The sensor reports tactile data only when colliding with SDFs.
-- Removed the SdfLib plugin and the dependency on `SdfLib <https://github.com/UPC-ViRVIG/SdfLib>`__. SDFs are now
-  supported natively in mjModel.
-- Removed ``oct_depth`` from :ref:`mjvOption` (unused).
-- Added the functionality to create a builtin meshes, see :ref:`mesh/builtin<asset-mesh-builtin>`.
-- Inertia computation in MuJoCo C is now performed by a new :ref:`pipeline<piStages>` function :ref:`mj_makeM`, which
-  combines the Composite Rigid Body algorithm in :ref:`mj_crb` and additional terms related to
-  :ref:`tendon armature<tendon-spatial-armature>`. Code that uses :ref:`mj_crb` to compute the inertia should now use
-  :ref:`mj_makeM` instead.
+1. Added the :ref:`insidesite<sensor-insidesite>` sensor, for checking if an object is inside the volume of a site.
+   It is useful for triggering events in surrounding environment logic.
+2. Added the :ref:`contact<sensor-contact>` sensor, for reporting contact information according to user-defined
+   criteria.
+   The purpose of the :el:`contact` sensor is to report contact-related information in a fixed-size array. This is
+   useful as input to learning-based agents and in environment logic.
+3. Added the :ref:`tactile<sensor-tactile>` sensor, for measuring the penetration depth between two objects at given
+   points and the sliding velocities in the tangent frame. The sensor reports tactile data only when colliding with
+   SDFs.
+4. Removed the SdfLib plugin and the dependency on `SdfLib <https://github.com/UPC-ViRVIG/SdfLib>`__. SDFs are now
+   supported natively in mjModel.
+5. Removed ``oct_depth`` from :ref:`mjvOption` (unused).
+6. Added the functionality to create a builtin meshes, see :ref:`mesh/builtin<asset-mesh-builtin>`.
+7. Inertia computation in MuJoCo C is now performed by a new :ref:`pipeline<piStages>` function :ref:`mj_makeM`, which
+   combines the Composite Rigid Body algorithm in :ref:`mj_crb` and additional terms related to
+   :ref:`tendon armature<tendon-spatial-armature>`. Code that uses :ref:`mj_crb` to compute the inertia should now use
+   :ref:`mj_makeM` instead.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - Removed the ``mjVIS_FLEXBVH`` enum value, its functionality is now provided by :ref:`mjVIS_MESHBVH<mjtVisFlag>`.
+   8. Removed the ``mjVIS_FLEXBVH`` enum value, its functionality is now provided by :ref:`mjVIS_MESHBVH<mjtVisFlag>`.
 
 Bug fixes
 ^^^^^^^^^
-- Fixed a bug that caused object lists in the child to have missing elements after attaching an mjSpec. This was caused
-  by adding to the lists only the objects that belong to the tree of the requested body, but this causes to skip objects
-  that were attached, since they belong to the tree of the parent.
-- Fixed a bug where the convex hull of a collision mesh was not being computed if the mesh could only collide via a
-  :ref:`contact pair<contact-pair>`.
+9. Fixed a bug that caused object lists in the child to have missing elements after attaching an mjSpec. This was
+   caused by adding to the lists only the objects that belong to the tree of the requested body, but this causes to
+   skip objects that were attached, since they belong to the tree of the parent.
+10. Fixed a bug where the convex hull of a collision mesh was not being computed if the mesh could only collide via a
+    :ref:`contact pair<contact-pair>`.
 
 Python
 ^^^^^^
-- On Linux, built distribution packages (wheels) now target the ``manylinux_2_28`` platform tag. Previously MuJoCo
-  wheels targeted ``manylinux2014`` based on CentOS 7, which reached end-of-life in June 2024.
+11. On Linux, built distribution packages (wheels) now target the ``manylinux_2_28`` platform tag. Previously MuJoCo
+    wheels targeted ``manylinux2014`` based on CentOS 7, which reached end-of-life in June 2024.
 
 MJX
 ^^^
-- Add Warp as a backend implementation for MJX. The implementation can be specified via
-  ``mjx.put_model(m, impl='warp')`` and ``mjx.make_data(m, impl='warp')``. The warp implementation requires
-  a CUDA device and ``warp-lang`` to be installed (``pip install mujoco-mjx[warp]``). This feature is available in
-  "beta" and some bugs are expected.
+12. Add Warp as a backend implementation for MJX. The implementation can be specified via
+    ``mjx.put_model(m, impl='warp')`` and ``mjx.make_data(m, impl='warp')``. The warp implementation requires
+    a CUDA device and ``warp-lang`` to be installed (``pip install mujoco-mjx[warp]``). This feature is available in
+    "beta" and some bugs are expected.
 
 Version 3.3.4 (July 8, 2025)
 ----------------------------
