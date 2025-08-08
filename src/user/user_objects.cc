@@ -6876,6 +6876,8 @@ mjtDataType sensorDatatype(mjtSensor type) {
   case mjSENS_USER:
     return mjDATATYPE_REAL;
   }
+
+  return mjDATATYPE_REAL;  // all cases are covered but GCC is extra persnickety
 }
 
 // return sensor needstage
@@ -6936,6 +6938,8 @@ mjtStage sensorNeedstage(mjtSensor type) {
   case mjSENS_USER:
     return mjSTAGE_POS;
   }
+
+  return mjSTAGE_POS;  // all cases are covered but GCC is extra persnickety
 }
 
 // compiler
