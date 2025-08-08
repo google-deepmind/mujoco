@@ -771,8 +771,9 @@ void SimulateXr::_poll_events() {
         XrEventDataInteractionProfileChanged *interactionProfileChanged =
             reinterpret_cast<XrEventDataInteractionProfileChanged *>(
                 &eventData);
-        std::printf("OPENXR: Interaction Profile changed for Session: %lld.\n",
-                    (uint64_t)interactionProfileChanged->session);
+        // does not seem useful - spam
+        //std::printf("OPENXR: Interaction Profile changed for Session: %lld.\n",
+        //            (uint64_t)interactionProfileChanged->session);
         if (interactionProfileChanged->session != m_session) {
           std::printf(
               "XrEventDataInteractionProfileChanged for unknown Session");
