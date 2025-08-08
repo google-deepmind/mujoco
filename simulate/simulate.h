@@ -31,6 +31,10 @@
 #include <mujoco/mujoco.h>
 #include "platform_ui_adapter.h"
 
+#ifdef mjBUILDSIMULATEXR
+  #include "simulate_xr/simulate_xr.h"
+#endif // mjBUILDSIMULATEXR
+
 namespace mujoco {
 
 // The viewer itself doesn't require a reentrant mutex, however we use it in
@@ -267,6 +271,10 @@ class Simulate {
   mjvFigure figtimer = {};
   mjvFigure figsize = {};
   mjvFigure figsensor = {};
+
+#ifdef mjBUILDSIMULATEXR
+  SimulateXr simXr;
+#endif // mjBUILDSIMULATEXR
 
   // additional user-defined visualization
   mjvScene* user_scn = nullptr;
