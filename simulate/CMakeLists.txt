@@ -94,7 +94,7 @@ if(NOT TARGET lodepng)
     # This is not a CMake project.
     set(LODEPNG_SRCS ${lodepng_SOURCE_DIR}/lodepng.cpp)
     set(LODEPNG_HEADERS ${lodepng_SOURCE_DIR}/lodepng.h)
-    add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
+    add_library(lodepng OBJECT ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
     target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
     target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
@@ -124,7 +124,7 @@ if(SIMULATE_GLFW_DYNAMIC_SYMBOLS)
 endif()
 add_library(mujoco::platform_ui_adapter ALIAS platform_ui_adapter)
 
-add_library(libmujoco_simulate STATIC $<TARGET_OBJECTS:platform_ui_adapter>)
+add_library(libmujoco_simulate STATIC $<TARGET_OBJECTS:platform_ui_adapter> $<TARGET_OBJECTS:lodepng>)
 set_target_properties(libmujoco_simulate PROPERTIES OUTPUT_NAME simulate)
 add_library(mujoco::libmujoco_simulate ALIAS libmujoco_simulate)
 set_target_properties(libmujoco_simulate PROPERTIES PUBLIC_HEADER "simulate.h;platform_ui_adapter.h;glfw_adapter.h;glfw_dispatch.h;glfw_corevideo.h;array_safety.h")
@@ -132,17 +132,17 @@ set_target_properties(libmujoco_simulate PROPERTIES PUBLIC_HEADER "simulate.h;pl
 
 target_sources(
   libmujoco_simulate
-  PUBLIC 
-    simulate.h
-    platform_ui_adapter.h
-    glfw_adapter.h
-    glfw_dispatch.h
-    array_safety.h
   PRIVATE simulate.cc 
 )
-target_include_directories(libmujoco_simulate PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+target_include_directories(libmujoco_simulate 
+    PUBLIC 
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/simulate>
+    PRIVATE
+        ${lodepng_SOURCE_DIR}
+)
 target_compile_options(libmujoco_simulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(libmujoco_simulate PUBLIC lodepng mujoco::platform_ui_adapter mujoco::mujoco)
+target_link_libraries(libmujoco_simulate PUBLIC mujoco::mujoco)
 target_link_options(libmujoco_simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 if(APPLE)
@@ -179,8 +179,11 @@ if(SIMULATE_BUILD_EXECUTABLE)
     mujoco::mujoco
     glfw
     Threads::Threads
-    lodepng
   )
+  
+  if(APPLE)
+    target_link_libraries(simulate "-framework CoreVideo")
+  endif()
 
   if (MUJOCO_WITH_USD)
     target_link_libraries(
@@ -302,7 +305,7 @@ if(SIMULATE_BUILD_EXECUTABLE)
 
     install(
     TARGETS libmujoco_simulate
-    EXPORT ${PROJECT_NAME}
+    EXPORT mujoco
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
