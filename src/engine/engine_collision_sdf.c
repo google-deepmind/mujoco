@@ -157,7 +157,7 @@ mjtNum oct_distance(const mjModel* m, const mjtNum p[3], int meshid) {
   for (int i = 0; i < 8; ++i) {
     sdf += w[i] * oct_coeff[8*node + i];
   }
-  return sdf + boxDist > 0 ? sdf + boxDist : sdf;
+  return boxDist > 0 ? sdf + boxDist : sdf;
 }
 
 // gradient of sdf
