@@ -1138,97 +1138,27 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   // B sparse structure
   mj_printSparsity("B: body-dof matrix", m->nbody, m->nv, d->B_rowadr, NULL, d->B_rownnz, NULL,
                    d->B_colind, fp);
+  printArrayInt("B_ROWNNZ", 1, m->nbody, d->B_rownnz, fp);
+  printArrayInt("B_ROWADR", 1, m->nbody, d->B_rowadr, fp);
+  printArrayInt("B_COLIND", 1, m->nB,    d->B_colind, fp);
 
-  // B_rownnz
-  fprintf(fp, NAME_FORMAT, "B_rownnz");
-  for (int i = 0; i < m->nbody; i++) {
-    fprintf(fp, " %d", d->B_rownnz[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // B_rowadr
-  fprintf(fp, NAME_FORMAT, "B_rowadr");
-  for (int i = 0; i < m->nbody; i++) {
-    fprintf(fp, " %d", d->B_rowadr[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // B_colind
-  fprintf(fp, NAME_FORMAT, "B_colind");
-  for (int i = 0; i < m->nB; i++) {
-    fprintf(fp, " %d", d->B_colind[i]);
-  }
-  fprintf(fp, "\n\n");
 
   // M sparse structure
   mj_printSparsity("M: reduced inertia matrix", m->nv, m->nv, d->M_rowadr, NULL, d->M_rownnz,
                    NULL, d->M_colind, fp);
-
-  fprintf(fp, NAME_FORMAT, "M_rownnz");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->M_rownnz[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // C_rowadr
-  fprintf(fp, NAME_FORMAT, "M_rowadr");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->M_rowadr[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // C_colind
-  fprintf(fp, NAME_FORMAT, "M_colind");
-  for (int i = 0; i < m->nC; i++) {
-    fprintf(fp, " %d", d->M_colind[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // mapM2M
-  fprintf(fp, NAME_FORMAT, "mapM2M");
-  for (int i = 0; i < m->nC; i++) {
-    fprintf(fp, " %d", d->mapM2M[i]);
-  }
-  fprintf(fp, "\n\n");
+  printArrayInt("M_ROWNNZ", 1, m->nv, d->M_rownnz, fp);
+  printArrayInt("M_ROWADR", 1, m->nv, d->M_rowadr, fp);
+  printArrayInt("M_COLIND", 1, m->nC, d->M_colind, fp);
+  printArrayInt("MAPM2M",   1, m->nC, d->mapM2M,   fp);
 
   // D sparse structure
   mj_printSparsity("D: dof-dof matrix", m->nv, m->nv,
                    d->D_rowadr, d->D_diag, d->D_rownnz, NULL, d->D_colind, fp);
-
-  // D_rownnz
-  fprintf(fp, NAME_FORMAT, "D_rownnz");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->D_rownnz[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // D_rowadr
-  fprintf(fp, NAME_FORMAT, "D_rowadr");
-  for (int i = 0; i < m->nv; i++) {
-    fprintf(fp, " %d", d->D_rowadr[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // D_colind
-  fprintf(fp, NAME_FORMAT, "D_colind");
-  for (int i = 0; i < m->nD; i++) {
-    fprintf(fp, " %d", d->D_colind[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // mapM2D
-  fprintf(fp, NAME_FORMAT, "mapM2D");
-  for (int i = 0; i < m->nD; i++) {
-    fprintf(fp, " %d", d->mapM2D[i]);
-  }
-  fprintf(fp, "\n\n");
-
-  // mapD2M
-  fprintf(fp, NAME_FORMAT, "mapD2M");
-  for (int i = 0; i < m->nM; i++) {
-    fprintf(fp, " %d", d->mapD2M[i]);
-  }
-  fprintf(fp, "\n\n");
+  printArrayInt("D_ROWNNZ", 1, m->nv, d->D_rownnz, fp);
+  printArrayInt("D_ROWADR", 1, m->nv, d->D_rowadr, fp);
+  printArrayInt("D_COLIND", 1, m->nD, d->D_colind, fp);
+  printArrayInt("MAPM2D",   1, m->nD, d->mapM2D,   fp);
+  printArrayInt("MAPD2M",   1, m->nM, d->mapD2M,   fp);
 
   // print qDeriv
   if (!mju_isZero(d->qDeriv, m->nD)) {
