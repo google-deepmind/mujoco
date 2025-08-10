@@ -1115,25 +1115,27 @@ def muscle_dynamics_timescale(
     smoothing_width: jax.Array,
 ) -> jax.Array:
   """Muscle time constant with optional smoothing."""
-  # hard switching
-  tau_hard = jp.where(dctrl > 0, tau_act, tau_deact)
+  def hard_switching(tau_deact, tau_act, dctrl, smoothing_width):
+    tau_hard = jp.where(dctrl > 0, tau_act, tau_deact)
+    return tau_hard
 
-  def _sigmoid(x):
-    # sigmoid function over 0 <= x <= 1 using quintic polynomial
-    # sigmoid: f(x) = 6 * x^5 - 15 * x^4 + 10 * x^3
-    # solution of f(0) = f'(0) = f''(0) = 0, f(1) = 1, f'(1) = f''(1) = 0
-    sol = x * x * x * (3 * x * (2 * x - 5) + 10)
-    sol = jp.where(x <= 0, 0, sol)
-    sol = jp.where(x >= 1, 1, sol)
-    return sol
+  def smooth_smoothing(tau_deact, tau_act, dctrl, smoothing_width):
+    def _sigmoid(x):
+      # sigmoid function over 0 <= x <= 1 using quintic polynomial
+      # sigmoid: f(x) = 6 * x^5 - 15 * x^4 + 10 * x^3
+      # solution of f(0) = f'(0) = f''(0) = 0, f(1) = 1, f'(1) = f''(1) = 0
+      sol = x * x * x * (3 * x * (2 * x - 5) + 10)
+      sol = jp.where(x <= 0, 0, sol)
+      sol = jp.where(x >= 1, 1, sol)
+      return sol
 
-  # smooth switching
-  # scale by width, center around 0.5 midpoint, rescale to bounds
-  tau_smooth = tau_deact + (tau_act - tau_deact) * _sigmoid(
-      dctrl / smoothing_width + 0.5
-  )
+    # scale by width, center around 0.5 midpoint, rescale to bounds
+    tau_smooth = tau_deact + (tau_act - tau_deact) * _sigmoid(
+        dctrl / smoothing_width + 0.5
+    )
+    return tau_smooth
 
-  return jp.where(smoothing_width < mujoco.mjMINVAL, tau_hard, tau_smooth)
+  return jax.lax.cond(smoothing_width < mujoco.mjMINVAL, hard_switching, smooth_smoothing, tau_deact, tau_act, dctrl, smoothing_width)
 
 
 def muscle_dynamics(
