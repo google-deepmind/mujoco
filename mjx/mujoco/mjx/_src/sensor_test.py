@@ -111,6 +111,7 @@ class SensorTest(parameterized.TestCase):
     datas = itertools.chain.from_iterable(
         itertools.combinations(field, i) for i in range(len(field) + 1)
     )
+    datas = list(datas)
 
     contact_sensors = ''
     for num in [1, 2, 3, 4, 5]:
