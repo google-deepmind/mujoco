@@ -588,6 +588,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
 
         size = nslotdata(dataspec)
         num = np.minimum(int(dim / size), ncon)
+        nsensor = idx_ds.sum()
 
         if objtype == ObjType.UNKNOWN and reftype == ObjType.UNKNOWN:
           # all contacts match
@@ -601,11 +602,9 @@ def sensor_acc(m: Model, d: Data) -> Data:
           nfound = sum(is_contact)
 
           # if duplicate sensor
-          nsensor = idx_ds.sum()
-          cid = np.tile(cid, (nsensor,))
-          match = np.tile(match[:num], (nsensor,))
-          nfound = np.tile(nfound, (nsensor,))
-          flip = np.ones((cid.size, 3))
+          cid = jp.tile(cid, (nsensor,))
+          nfound = jp.tile(nfound, (nsensor,))
+          flip = jp.ones((cid.size, 3))
         elif objtype == ObjType.GEOM or reftype == ObjType.GEOM:
           sensorid1 = objid[idx_ds]
           sensorid2 = refid[idx_ds]
@@ -651,8 +650,6 @@ def sensor_acc(m: Model, d: Data) -> Data:
           # number of contacts per sensor
           nfound = (match * is_contact[None, :]).sum(axis=1)
 
-          match = match[:, :num].reshape(-1)
-
         # TODO(taylorhowell): matching criteria: body, subtree
 
         else:
@@ -683,7 +680,7 @@ def sensor_acc(m: Model, d: Data) -> Data:
         if dataspec & (1 << 6):  # tangent
           slot.append(flip[:, 2, None] * d._impl.contact.frame[cid, 1])
 
-        found = is_contact[cid] & match
+        found = jp.tile(jp.arange(num), nsensor) < jp.repeat(nfound, num)
         sensors.append((found[:, None] * jp.hstack(slot)).reshape(-1))
         adrs.append(
             (adr[idx_ds][:, None] + np.arange(num * size)[None]).reshape(-1)
