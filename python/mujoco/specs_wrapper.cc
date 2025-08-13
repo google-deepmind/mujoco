@@ -98,8 +98,7 @@ raw::MjModel* MjSpec::Compile() {
   mjVFS vfs;
   mj_defaultVFS(&vfs);
   for (const auto& asset : assets) {
-    std::string buffer_name =
-        _impl::StripPath(py::cast<std::string>(asset.first).c_str());
+    std::string buffer_name = py::cast<std::string>(asset.first).c_str();
     std::string buffer = py::cast<std::string>(asset.second);
     const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
         &vfs, buffer_name.c_str(), buffer.c_str(), buffer.size());
