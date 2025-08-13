@@ -1,4 +1,3 @@
-
 <mujoco>
   <extension>
     <plugin plugin="mujoco.sdf.torus">
@@ -9,12 +8,12 @@
     </plugin>
   </extension>
 
-  <option gravity="0 0 -9.81"/>
+  <option gravity="0 0 -9.81" sdf_iterations="3" sdf_initpoints="10"/>
   <asset>
     <mesh name="torus">
       <plugin instance="torus"/>
     </mesh>
-    <mesh file="../../mug/mug.obj" scale=".2 .2 .2"/>
+    <mesh name="die" file="asset/die.obj" scale="1 1 1"/>
   </asset>
 
   <include file="scene.xml"/>
@@ -27,7 +26,7 @@
       </geom>
     </body>
     <body>
-      <geom type="sdf" mesh="mug" euler="90 0 0" rgba="0 0 1 .2"/>
+      <geom type="mesh" mesh="die" euler="90 0 0" rgba="0 0 1 .2"/>
     </body>
     <light pos="1 0 7" dir="0 0 -1" castshadow="false"/>
     <light pos="-1 0 7" dir="0 0 -1" castshadow="false"/>
