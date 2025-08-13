@@ -26,6 +26,14 @@ from mujoco.mjx.third_party.mujoco_warp.test_data.collision_sdf.utils import reg
 from mujoco.mjx.third_party.mujoco_warp._src import test_util
 from mujoco.mjx.third_party.mujoco_warp._src import types
 
+_TOLERANCE = 5e-5
+
+
+def _assert_eq(a, b, name):
+  tol = _TOLERANCE * 10
+  err_msg = f"mismatch: {name}"
+  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
+
 
 class CollisionTest(parameterized.TestCase):
   """Tests the collision contact functions."""
@@ -863,7 +871,35 @@ class CollisionTest(parameterized.TestCase):
     self.assertEqual(d.ncon.numpy()[0], 1)
     np.testing.assert_allclose(d.contact.friction.numpy()[0], types.MJ_MINMU)
 
-  # TODO(team): test contact parameter mixing
+  @parameterized.parameters(("1", "1"), ("1", "2"), ("2", "1"))
+  def test_contact_parameter_mixing(self, priority1, priority2):
+    _, mjd, m, d = test_util.fixture(
+      xml=f"""
+    <mujoco>
+      <worldbody>
+        <geom type="plane" size="10 10 .001" friction=".01 .02 .03" priority="{priority1}" condim="1" margin=".002"/>
+        <body>
+          <geom type="sphere" size=".1" friction=".123 .456 .789" priority="{priority2}" condim="3" margin=".004"/>
+          <freejoint/>
+        </body>
+      </worldbody>
+      <keyframe>
+        <key qpos="0 0 .075 1 0 0 0"/>
+      </keyframe>
+    </mujoco>
+    """,
+      keyframe=0,
+    )
+
+    mjwarp.collision(m, d)
+
+    ncon = d.ncon.numpy()[0]
+    _assert_eq(ncon, 1, "ncon")
+    _assert_eq(d.contact.friction.numpy()[0], mjd.contact.friction[0], "friction")
+    _assert_eq(d.contact.solref.numpy()[0], mjd.contact.solref[0], "solref")
+    _assert_eq(d.contact.solimp.numpy()[0], mjd.contact.solimp[0], "solimp")
+    _assert_eq(d.contact.includemargin.numpy()[0], mjd.contact.includemargin[0], "includemargin")
+    _assert_eq(d.contact.dim.numpy()[0], mjd.contact.dim[0], "dim")
 
 
 if __name__ == "__main__":

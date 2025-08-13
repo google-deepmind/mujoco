@@ -175,6 +175,7 @@ class ModelWarp(PyTreeNode):
   qM_tiles: Tuple[TileSet, ...]
   rangefinder_sensor_adr: np.ndarray
   sensor_acc_adr: np.ndarray
+  sensor_adr_to_contact_adr: np.ndarray
   sensor_contact_adr: np.ndarray
   sensor_e_kinetic: bool
   sensor_e_potential: bool
@@ -241,13 +242,11 @@ class DataWarp(PyTreeNode):
   efc__Jaref: jax.Array
   efc__Ma: jax.Array
   efc__Mgrad: jax.Array
-  efc__active: jax.Array
   efc__alpha: jax.Array
   efc__aref: jax.Array
   efc__beta: jax.Array
   efc__cholesky_L_tmp: jax.Array
   efc__cholesky_y_tmp: jax.Array
-  efc__condim: jax.Array
   efc__cost: jax.Array
   efc__cost_candidate: jax.Array
   efc__done: jax.Array
@@ -282,12 +281,9 @@ class DataWarp(PyTreeNode):
   efc__quad_gauss: jax.Array
   efc__search: jax.Array
   efc__search_dot: jax.Array
+  efc__state: jax.Array
   efc__type: jax.Array
-  efc__u: jax.Array
-  efc__uu: jax.Array
-  efc__uv: jax.Array
   efc__vel: jax.Array
-  efc__vv: jax.Array
   energy: jax.Array
   energy_vel_mul_m_skip: jax.Array
   epa_face: jax.Array
@@ -390,10 +386,6 @@ DATA_NON_VMAP = {
     'contact__solref',
     'contact__solreffriction',
     'contact__worldid',
-    'efc__u',
-    'efc__uu',
-    'efc__uv',
-    'efc__vv',
     'epa_face',
     'epa_horizon',
     'epa_index',
@@ -483,13 +475,11 @@ _NDIM = {
         'efc__Jaref': 2,
         'efc__Ma': 2,
         'efc__Mgrad': 2,
-        'efc__active': 2,
         'efc__alpha': 1,
         'efc__aref': 2,
         'efc__beta': 1,
         'efc__cholesky_L_tmp': 3,
         'efc__cholesky_y_tmp': 2,
-        'efc__condim': 2,
         'efc__cost': 1,
         'efc__cost_candidate': 2,
         'efc__done': 1,
@@ -524,12 +514,9 @@ _NDIM = {
         'efc__quad_gauss': 2,
         'efc__search': 2,
         'efc__search_dot': 1,
+        'efc__state': 2,
         'efc__type': 2,
-        'efc__u': 2,
-        'efc__uu': 1,
-        'efc__uv': 1,
         'efc__vel': 2,
-        'efc__vv': 1,
         'energy': 2,
         'energy_vel_mul_m_skip': 1,
         'epa_face': 3,
@@ -932,6 +919,7 @@ _NDIM = {
         'rangefinder_sensor_adr': 1,
         'sensor_acc_adr': 1,
         'sensor_adr': 1,
+        'sensor_adr_to_contact_adr': 1,
         'sensor_contact_adr': 1,
         'sensor_cutoff': 1,
         'sensor_datatype': 1,
@@ -1072,13 +1060,11 @@ _BATCH_DIM = {
         'efc__Jaref': True,
         'efc__Ma': True,
         'efc__Mgrad': True,
-        'efc__active': True,
         'efc__alpha': True,
         'efc__aref': True,
         'efc__beta': True,
         'efc__cholesky_L_tmp': True,
         'efc__cholesky_y_tmp': True,
-        'efc__condim': True,
         'efc__cost': True,
         'efc__cost_candidate': True,
         'efc__done': True,
@@ -1113,12 +1099,9 @@ _BATCH_DIM = {
         'efc__quad_gauss': True,
         'efc__search': True,
         'efc__search_dot': True,
+        'efc__state': True,
         'efc__type': True,
-        'efc__u': False,
-        'efc__uu': False,
-        'efc__uv': False,
         'efc__vel': True,
-        'efc__vv': False,
         'energy': True,
         'energy_vel_mul_m_skip': True,
         'epa_face': False,
@@ -1521,6 +1504,7 @@ _BATCH_DIM = {
         'rangefinder_sensor_adr': False,
         'sensor_acc_adr': False,
         'sensor_adr': False,
+        'sensor_adr_to_contact_adr': False,
         'sensor_contact_adr': False,
         'sensor_cutoff': False,
         'sensor_datatype': False,

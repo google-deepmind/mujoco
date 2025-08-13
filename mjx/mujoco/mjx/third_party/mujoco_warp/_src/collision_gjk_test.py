@@ -26,10 +26,10 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 
-MAX_ITERATIONS = 10
+MAX_ITERATIONS = 20
 
 
-def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
+def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multiccd=False):
   @nested_kernel
   def _gjk_kernel(
     # Model:
@@ -39,6 +39,15 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
     mesh_vertadr: wp.array(dtype=int),
     mesh_vertnum: wp.array(dtype=int),
     mesh_vert: wp.array(dtype=wp.vec3),
+    mesh_polynum: wp.array(dtype=int),
+    mesh_polyadr: wp.array(dtype=int),
+    mesh_polynormal: wp.array(dtype=wp.vec3),
+    mesh_polyvertadr: wp.array(dtype=int),
+    mesh_polyvertnum: wp.array(dtype=int),
+    mesh_polyvert: wp.array(dtype=int),
+    mesh_polymapadr: wp.array(dtype=int),
+    mesh_polymapnum: wp.array(dtype=int),
+    mesh_polymap: wp.array(dtype=int),
     # Data in:
     geom_xpos_in: wp.array2d(dtype=wp.vec3),
     geom_xmat_in: wp.array2d(dtype=wp.mat33),
@@ -59,6 +68,7 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
     horizon: wp.array(dtype=int),
     # Out:
     dist_out: wp.array(dtype=float),
+    ncon_out: wp.array(dtype=int),
     pos_out: wp.array(dtype=wp.vec3),
   ):
     MESHGEOM = int(GeomType.MESH.value)
@@ -70,12 +80,22 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
     geom1.rot = geom_xmat_in[0, gid1]
     geom1.size = geom_size[0, gid1]
     geom1.graphadr = -1
+    geom1.mesh_polyadr = -1
 
     if geom_dataid[gid1] >= 0 and geom_type[gid1] == MESHGEOM:
       dataid = geom_dataid[gid1]
       geom1.vertadr = mesh_vertadr[dataid]
       geom1.vertnum = mesh_vertnum[dataid]
+      geom1.mesh_polynum = mesh_polynum[dataid]
+      geom1.mesh_polyadr = mesh_polyadr[dataid]
       geom1.vert = mesh_vert
+      geom1.mesh_polynormal = mesh_polynormal
+      geom1.mesh_polyvertadr = mesh_polyvertadr
+      geom1.mesh_polyvertnum = mesh_polyvertnum
+      geom1.mesh_polyvert = mesh_polyvert
+      geom1.mesh_polymapadr = mesh_polymapadr
+      geom1.mesh_polymapnum = mesh_polymapnum
+      geom1.mesh_polymap = mesh_polymap
 
     geom2 = Geom()
     geom2.index = -1
@@ -84,23 +104,33 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
     geom2.rot = geom_xmat_in[0, gid2]
     geom2.size = geom_size[0, gid2]
     geom2.graphadr = -1
+    geom2.mesh_polyadr = -1
 
     if geom_dataid[gid2] >= 0 and geom_type[gid2] == MESHGEOM:
       dataid = geom_dataid[gid2]
       geom2.vertadr = mesh_vertadr[dataid]
       geom2.vertnum = mesh_vertnum[dataid]
+      geom2.mesh_polynum = mesh_polynum[dataid]
+      geom2.mesh_polyadr = mesh_polyadr[dataid]
       geom2.vert = mesh_vert
+      geom2.mesh_polynormal = mesh_polynormal
+      geom2.mesh_polyvertadr = mesh_polyvertadr
+      geom2.mesh_polyvertnum = mesh_polyvertnum
+      geom2.mesh_polyvert = mesh_polyvert
+      geom2.mesh_polymapadr = mesh_polymapadr
+      geom2.mesh_polymapnum = mesh_polymapnum
+      geom2.mesh_polymap = mesh_polymap
 
     x_1 = geom_xpos_in[0, gid1]
     x_2 = geom_xpos_in[0, gid2]
 
     (
       dist,
-      count,
+      ncon,
       x1,
       x2,
     ) = ccd(
-      False,
+      multiccd,
       1e-6,
       1.0e30,
       iterations,
@@ -125,6 +155,7 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
     )
 
     dist_out[0] = dist
+    ncon_out[0] = ncon
     pos_out[0] = x1[0]
     pos_out[1] = x2[0]
 
@@ -133,13 +164,14 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
   vert2 = wp.array(shape=(iterations,), dtype=wp.vec3)
   vert_index1 = wp.array(shape=(iterations,), dtype=int)
   vert_index2 = wp.array(shape=(iterations,), dtype=int)
-  face = wp.array(shape=(2 * iterations,), dtype=wp.vec3i)
-  face_pr = wp.array(shape=(2 * iterations,), dtype=wp.vec3)
-  face_norm2 = wp.array(shape=(2 * iterations,), dtype=float)
-  face_index = wp.array(shape=(2 * iterations,), dtype=int)
-  face_map = wp.array(shape=(2 * iterations,), dtype=int)
-  horizon = wp.array(shape=(2 * iterations,), dtype=int)
+  face = wp.array(shape=(6 * iterations,), dtype=wp.vec3i)
+  face_pr = wp.array(shape=(6 * iterations,), dtype=wp.vec3)
+  face_norm2 = wp.array(shape=(6 * iterations,), dtype=float)
+  face_index = wp.array(shape=(6 * iterations,), dtype=int)
+  face_map = wp.array(shape=(6 * iterations,), dtype=int)
+  horizon = wp.array(shape=(6 * iterations,), dtype=int)
   dist_out = wp.array(shape=(1,), dtype=float)
+  ncon_out = wp.array(shape=(1,), dtype=int)
   pos_out = wp.array(shape=(2,), dtype=wp.vec3)
   wp.launch(
     _gjk_kernel,
@@ -151,6 +183,15 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
       m.mesh_vertadr,
       m.mesh_vertnum,
       m.mesh_vert,
+      m.mesh_polynum,
+      m.mesh_polyadr,
+      m.mesh_polynormal,
+      m.mesh_polyvertadr,
+      m.mesh_polyvertnum,
+      m.mesh_polyvert,
+      m.mesh_polymapadr,
+      m.mesh_polymapnum,
+      m.mesh_polymap,
       d.geom_xpos,
       d.geom_xmat,
       gid1,
@@ -170,10 +211,11 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int):
     ],
     outputs=[
       dist_out,
+      ncon_out,
       pos_out,
     ],
   )
-  return dist_out.numpy()[0], pos_out.numpy()[0], pos_out.numpy()[1]
+  return dist_out.numpy()[0], ncon_out.numpy()[0], pos_out.numpy()[0], pos_out.numpy()[1]
 
 
 class GJKTest(absltest.TestCase):
@@ -193,7 +235,7 @@ class GJKTest(absltest.TestCase):
        """
     )
 
-    dist, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
+    dist, _, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
     self.assertEqual(1.0, dist)
 
   def test_spheres_touching(self):
@@ -210,7 +252,7 @@ class GJKTest(absltest.TestCase):
        """
     )
 
-    dist, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
+    dist, _, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
     self.assertEqual(0.0, dist)
 
   def test_box_mesh_distance(self):
@@ -238,7 +280,7 @@ class GJKTest(absltest.TestCase):
        """
     )
 
-    dist, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
+    dist, _, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
     self.assertAlmostEqual(0.1, dist)
 
   def test_sphere_sphere_contact(self):
@@ -255,7 +297,7 @@ class GJKTest(absltest.TestCase):
       """
     )
 
-    dist, _, _ = _geom_dist(m, d, 0, 1, 0)
+    dist, _, _, _ = _geom_dist(m, d, 0, 1, 0)
     self.assertAlmostEqual(-2, dist)
 
   def test_box_box_contact(self):
@@ -271,7 +313,7 @@ class GJKTest(absltest.TestCase):
       </mujoco>
       """
     )
-    dist, x1, x2 = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
+    dist, _, x1, x2 = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
     self.assertAlmostEqual(-1, dist)
     normal = wp.normalize(x1 - x2)
     self.assertAlmostEqual(normal[0], 1)
@@ -312,8 +354,94 @@ class GJKTest(absltest.TestCase):
     </mujoco>
     """
     )
-    dist, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
+    dist, _, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
     self.assertAlmostEqual(-0.01, dist)
+
+  def test_cylinder_cylinder_contact(self):
+    """Test penetration between two cylinder."""
+
+    _, _, m, d = test_util.fixture(
+      xml=f"""
+      <mujoco>
+        <worldbody>
+          <geom pos="0 0 0" type="cylinder" size="1 .5"/>
+          <geom pos="1.999 0 0" type="cylinder" size="1 .5"/>
+        </worldbody>
+      </mujoco>
+    """
+    )
+
+    dist, _, _, _ = _geom_dist(m, d, 0, 1, 50)
+    self.assertAlmostEqual(-0.001, dist)
+
+  def test_box_edge(self):
+    """Test box edge."""
+
+    _, _, m, d = test_util.fixture(
+      xml=f"""
+    <mujoco>
+      <worldbody>
+        <geom pos="0 0 2" type="box" name="box2" size="1 1 1"/>
+        <geom pos="0 0 4.4" euler="0 90 40" type="box" name="box3" size="1 1 1"/>
+      </worldbody>
+    </mujoco>"""
+    )
+    _, ncon, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS, multiccd=True)
+    self.assertEqual(ncon, 2)
+
+  def test_box_box_ccd(self):
+    """Test box box."""
+
+    _, _, m, d = test_util.fixture(
+      xml=f"""
+       <mujoco>
+         <worldbody>
+           <geom name="geom1" type="box" pos="0 0 1.9" size="1 1 1"/>
+           <geom name="geom2" type="box" pos="0 0 0" size="10 10 1"/>
+         </worldbody>
+       </mujoco>
+       """
+    )
+    _, ncon, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS, multiccd=True)
+    self.assertEqual(ncon, 4)
+
+  def test_mesh_mesh_ccd(self):
+    """Test mesh-mesh multiccd."""
+
+    _, _, m, d = test_util.fixture(
+      xml=f"""
+       <mujoco>
+         <asset>
+           <mesh name="smallbox"
+                 vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"/>
+         </asset>
+         <worldbody>
+           <geom pos="0 0 2" type="mesh" name="box1" mesh="smallbox"/>
+          <geom pos="0 1 3.99" euler="0 0 40" type="mesh" name="box2" mesh="smallbox"/>
+         </worldbody>
+       </mujoco>
+       """
+    )
+
+    _, ncon, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS, multiccd=True)
+    self.assertEqual(ncon, 5)
+
+  def test_box_box_ccd2(self):
+    """Test box-box multiccd 2."""
+
+    _, _, m, d = test_util.fixture(
+      xml=f"""
+       <mujoco>
+         <worldbody>
+           <geom size="1 1 1" pos="0 0 2" type="box"/>
+          <geom size="1 1 1" pos="0 1 3.99" euler="0 0 40" type="box"/>
+         </worldbody>
+       </mujoco>
+       """
+    )
+
+    _, ncon, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS, multiccd=True)
+    self.assertEqual(ncon, 5)
 
 
 if __name__ == "__main__":

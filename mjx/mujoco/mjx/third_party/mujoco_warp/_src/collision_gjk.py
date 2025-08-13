@@ -41,7 +41,7 @@ polyindices = wp.types.vector(MAX_POLYVERT, dtype=int)
 mat43 = wp.types.matrix(shape=(4, 3), dtype=float)
 mat63 = wp.types.matrix(shape=(6, 3), dtype=float)
 
-MULTI_CONTACT_COUNT = 4
+MULTI_CONTACT_COUNT = 8
 mat3c = wp.types.matrix(shape=(MULTI_CONTACT_COUNT, 3), dtype=float)
 
 
@@ -91,6 +91,13 @@ class SupportPoint:
   point: wp.vec3
   cached_index: int
   vertex_index: int
+
+
+@wp.func
+def discrete_geoms(g1: int, g2: int):
+  return (g1 == int(GeomType.MESH.value) or g1 == int(GeomType.BOX.value) or g1 == int(GeomType.HFIELD.value)) and (
+    g2 == int(GeomType.MESH.value) or g2 == int(GeomType.BOX.value) or g2 == int(GeomType.HFIELD.value)
+  )
 
 
 @wp.func
@@ -590,6 +597,7 @@ def _gjk(
   use_margin: bool,
 ):
   """Find distance within a tolerance between two geoms."""
+  is_discrete = discrete_geoms(geomtype1, geomtype2)
   cutoff2 = cutoff * cutoff
   simplex = mat43()
   simplex1 = mat43()
@@ -598,7 +606,7 @@ def _gjk(
   simplex_index2 = wp.vec4i()
   n = int(0)
   coordinates = wp.vec4()  # barycentric coordinates
-  epsilon = 0.5 * tolerance * tolerance
+  epsilon = wp.where(is_discrete, 0.0, 0.5 * tolerance * tolerance)
 
   # set initial guess
   x_k = x1_0 - x2_0
@@ -1193,12 +1201,14 @@ def _polytope4(
 
 
 @wp.func
-def _epa(tolerance2: float, epa_iterations: int, pt: Polytope, geom1: Geom, geom2: Geom, geomtype1: int, geomtype2: int):
+def _epa(tolerance: float, epa_iterations: int, pt: Polytope, geom1: Geom, geom2: Geom, geomtype1: int, geomtype2: int):
   """Recover penetration data from two geoms in contact given an initial polytope."""
+  is_discrete = discrete_geoms(geomtype1, geomtype2)
   upper = FLOAT_MAX
   upper2 = FLOAT_MAX
   idx = int(-1)
   pidx = int(-1)
+  epsilon = wp.where(is_discrete, 1e-15, tolerance * tolerance)
 
   for k in range(epa_iterations):
     pidx = int(idx)
@@ -1235,8 +1245,18 @@ def _epa(tolerance2: float, epa_iterations: int, pt: Polytope, geom1: Geom, geom
       upper = upper_k
       upper2 = upper * upper
 
-    if upper - lower < tolerance2:
+    if upper - lower < epsilon:
       break
+
+    # check if vertex wi is a repeated support point
+    if is_discrete:
+      found_repeated = bool(False)
+      for i in range(pt.nvert - 1):
+        if pt.vert_index1[i] == pt.vert_index1[wi] and pt.vert_index2[i] == pt.vert_index2[wi]:
+          found_repeated = True
+          break
+      if found_repeated:
+        break
 
     pt.nmap = _delete_face(pt, idx)
     pt.nhorizon = _add_edge(pt, pt.face[idx][0], pt.face[idx][1])
@@ -1251,7 +1271,7 @@ def _epa(tolerance2: float, epa_iterations: int, pt: Polytope, geom1: Geom, geom
       if pt.face_index[i] == -2:
         continue
 
-      if wp.dot(pt.face_pr[i], pt.vert[wi]) - pt.face_norm2[i] > MJ_MINVAL:
+      if wp.dot(pt.face_pr[i], pt.vert[wi]) - pt.face_norm2[i] > 1e-10:
         pt.nmap = _delete_face(pt, i)
         pt.nhorizon = _add_edge(pt, pt.face[i][0], pt.face[i][1])
         pt.nhorizon = _add_edge(pt, pt.face[i][1], pt.face[i][2])
@@ -1694,7 +1714,7 @@ def plane_normal(v1: wp.vec3, v2: wp.vec3, n: wp.vec3):
 
 @wp.func
 def halfspace(a: wp.vec3, n: wp.vec3, p: wp.vec3):
-  return wp.dot(p - a, n) > -MJ_MINVAL
+  return wp.dot(p - a, n) > -1e-10
 
 
 @wp.func
@@ -1725,7 +1745,7 @@ def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n
   # compute plane normal and distance to plane for each vertex
   pn = polyverts()
   pd = polyvec()
-  for i in range(nface1):
+  for i in range(nface1 - 1):
     pdi, pni = plane_normal(face1[i], face1[i + 1], n)
     pd[i] = pdi
     pn[i] = pni
@@ -1734,13 +1754,10 @@ def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n
   pn[nface1 - 1] = pni
 
   # reserve 2 * max_sides as max sides for a clipped polygon
-  polygon1 = polyclip()
-  polygon2 = polyclip()
+  polygon = polyclip()
+  clipped = polyclip()
   npolygon = nface2
   nclipped = int(0)
-
-  polygon = polygon1
-  clipped = polygon2
 
   for i in range(nface2):
     polygon[i] = face2[i]
@@ -1768,7 +1785,7 @@ def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n
 
       # add new vertex to clipped polygon where PQ intersects the clipping edge
       t, res = plane_intersect(pn[e], pd[e], P, Q)
-      if t < 0.0 or t > 1.0:
+      if t >= 0.0 and t <= 1.0:
         clipped[nclipped] = res
         nclipped += 1
 
@@ -1790,8 +1807,8 @@ def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n
   # no pruning needed
   for i in range(npolygon):
     witness2[i] = polygon[i]
-    witness1[i] = witness2[i] + dir
-  return npolygon, witness2, witness1
+    witness1[i] = witness2[i] - dir
+  return npolygon, witness1, witness2
 
 
 # recover multiple contacts from EPA polytope
@@ -2125,11 +2142,14 @@ def ccd(
     witness2[0] = result.x2
     return result.dist, 1, witness1, witness2
 
-  dist, x1, x2, idx = _epa(tolerance * tolerance, epa_iterations, pt, geom1, geom2, geomtype1, geomtype2)
+  dist, x1, x2, idx = _epa(tolerance, epa_iterations, pt, geom1, geom2, geomtype1, geomtype2)
+  if idx == -1:
+    return FLOAT_MAX, 0, witness1, witness2
+
   if (
     multiccd
-    and (geomtype1 == int(GeomType.BOX.value) or geomtype1 == int(GeomType.MESH.value))
-    and (geomtype2 == int(GeomType.BOX.value) or geomtype2 == int(GeomType.MESH.value))
+    and (geomtype1 == int(GeomType.BOX.value) or (geomtype1 == int(GeomType.MESH.value) and geom1.mesh_polyadr > -1))
+    and (geomtype2 == int(GeomType.BOX.value) or (geomtype2 == int(GeomType.MESH.value) and geom2.mesh_polyadr > -1))
   ):
     num, w1, w2 = multicontact(pt, pt.face[idx], x1, x2, geom1, geom2, geomtype1, geomtype2)
     if num > 0:

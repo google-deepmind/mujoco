@@ -20,6 +20,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.math import closest_segment_point
 from mujoco.mjx.third_party.mujoco_warp._src.math import closest_segment_to_segment_points
 from mujoco.mjx.third_party.mujoco_warp._src.math import make_frame
 from mujoco.mjx.third_party.mujoco_warp._src.math import normalize_with_norm
+from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.math import upper_trid_index
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINMU
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
@@ -1275,7 +1276,7 @@ def sphere_cylinder(
     return
 
   # Corner collision
-  inv_len = 1.0 / wp.sqrt(p_proj_sqr)
+  inv_len = safe_div(1.0, wp.sqrt(p_proj_sqr))
   p_proj = p_proj * (cylinder.size[0] * inv_len)
 
   cap_offset = axis * (wp.sign(x) * cylinder.size[1])
@@ -1365,7 +1366,7 @@ def plane_cylinder(
   # Otherwise use cylinder's x-axis scaled by radius
   vec = wp.where(
     len_sqr >= 1e-12,
-    vec * (cylinder.size[0] / wp.sqrt(len_sqr)),
+    vec * safe_div(cylinder.size[0], wp.sqrt(len_sqr)),
     wp.vec3(cylinder.rot[0, 0], cylinder.rot[1, 0], cylinder.rot[2, 0]) * cylinder.size[0],
   )
 
@@ -1554,26 +1555,32 @@ def contact_params(
     g1 = geoms[0]
     g2 = geoms[1]
 
-    p1 = geom_priority[g1]
-    p2 = geom_priority[g2]
-
     solmix1 = geom_solmix[worldid, g1]
     solmix2 = geom_solmix[worldid, g2]
 
-    mix = solmix1 / (solmix1 + solmix2)
-    mix = wp.where((solmix1 < MJ_MINVAL) and (solmix2 < MJ_MINVAL), 0.5, mix)
-    mix = wp.where((solmix1 < MJ_MINVAL) and (solmix2 >= MJ_MINVAL), 0.0, mix)
-    mix = wp.where((solmix1 >= MJ_MINVAL) and (solmix2 < MJ_MINVAL), 1.0, mix)
-    mix = wp.where(p1 == p2, mix, wp.where(p1 > p2, 1.0, 0.0))
-
-    margin = wp.max(geom_margin[worldid, g1], geom_margin[worldid, g2])
-    gap = wp.max(geom_gap[worldid, g1], geom_gap[worldid, g2])
-
     condim1 = geom_condim[g1]
     condim2 = geom_condim[g2]
-    condim = wp.where(p1 == p2, wp.max(condim1, condim2), wp.where(p1 > p2, condim1, condim2))
 
-    max_geom_friction = wp.max(geom_friction[worldid, g1], geom_friction[worldid, g2])
+    # priority
+    p1 = geom_priority[g1]
+    p2 = geom_priority[g2]
+
+    if p1 > p2:
+      mix = 1.0
+      condim = condim1
+      max_geom_friction = geom_friction[worldid, g1]
+    elif p2 > p1:
+      mix = 0.0
+      condim = condim2
+      max_geom_friction = geom_friction[worldid, g2]
+    else:
+      mix = safe_div(solmix1, solmix1 + solmix2)
+      mix = wp.where((solmix1 < MJ_MINVAL) and (solmix2 < MJ_MINVAL), 0.5, mix)
+      mix = wp.where((solmix1 < MJ_MINVAL) and (solmix2 >= MJ_MINVAL), 0.0, mix)
+      mix = wp.where((solmix1 >= MJ_MINVAL) and (solmix2 < MJ_MINVAL), 1.0, mix)
+      condim = wp.max(condim1, condim2)
+      max_geom_friction = wp.max(geom_friction[worldid, g1], geom_friction[worldid, g2])
+
     friction = vec5(
       wp.max(MJ_MINMU, max_geom_friction[0]),
       wp.max(MJ_MINMU, max_geom_friction[0]),
@@ -1582,7 +1589,7 @@ def contact_params(
       wp.max(MJ_MINMU, max_geom_friction[2]),
     )
 
-    if geom_solref[worldid, g1].x > 0.0 and geom_solref[worldid, g2].x > 0.0:
+    if geom_solref[worldid, g1][0] > 0.0 and geom_solref[worldid, g2][0] > 0.0:
       solref = mix * geom_solref[worldid, g1] + (1.0 - mix) * geom_solref[worldid, g2]
     else:
       solref = wp.min(geom_solref[worldid, g1], geom_solref[worldid, g2])
@@ -1590,6 +1597,10 @@ def contact_params(
     solreffriction = wp.vec2(0.0, 0.0)
 
     solimp = mix * geom_solimp[worldid, g1] + (1.0 - mix) * geom_solimp[worldid, g2]
+
+    # geom priority is ignored
+    margin = wp.max(geom_margin[worldid, g1], geom_margin[worldid, g2])
+    gap = wp.max(geom_gap[worldid, g1], geom_gap[worldid, g2])
 
   return geoms, margin, gap, condim, friction, solref, solreffriction, solimp
 
@@ -1640,13 +1651,13 @@ def _sphere_box(
     closest = 2.0 * (box_size[0] + box_size[1] + box_size[2])
     k = wp.int32(0)
     for i in range(6):
-      face_dist = wp.abs(wp.where(i % 2, 1.0, -1.0) * box_size[i / 2] - center[i / 2])
+      face_dist = wp.abs(wp.where(i % 2, 1.0, -1.0) * box_size[i // 2] - center[i // 2])
       if closest > face_dist:
         closest = face_dist
         k = i
 
     nearest = wp.vec3(0.0)
-    nearest[k / 2] = wp.where(k % 2, -1.0, 1.0)
+    nearest[k // 2] = wp.where(k % 2, -1.0, 1.0)
     pos = center + nearest * (sphere_size - closest) / 2.0
     contact_normal = box_rot @ nearest
     contact_dist = -closest - sphere_size
@@ -1882,22 +1893,22 @@ def capsule_box(
       if x1 > 1:
         x1 = 1.0
         s1 = 2
-        x2 = (v - mb) / mc
+        x2 = safe_div(v - mb, mc)
       elif x1 < -1:
         x1 = -1.0
         s1 = 0
-        x2 = (v + mb) / mc
+        x2 = safe_div(v + mb, mc)
 
       x2_over = x2 > 1.0
       if x2_over or x2 < -1.0:
         if x2_over:
           x2 = 1.0
           s2 = 2
-          x1 = (u - mb) / ma
+          x1 = safe_div(u - mb, ma)
         else:
           x2 = -1.0
           s2 = 0
-          x1 = (u + mb) / ma
+          x1 = safe_div(u + mb, ma)
 
         if x1 > 1:
           x1 = 1.0
@@ -1918,7 +1929,7 @@ def capsule_box(
         bestsegmentpos = x2
         bestboxpos = x1
         # ct<6 means closest point on box is at lower end or middle of edge
-        c2 = ct / 6
+        c2 = ct // 6
 
         clcorner = i + (1 << j) * c2  # index of closest box corner
         cledge = j  # axis index of closest box edge
@@ -1951,7 +1962,7 @@ def capsule_box(
   if cltype == -4:  # invalid type
     return
 
-  if cltype >= 0 and cltype / 3 != 1:  # closest to a corner of the box
+  if cltype >= 0 and cltype // 3 != 1:  # closest to a corner of the box
     c1 = axisdir ^ clcorner
     # Calculate relative orientation between capsule and corner
     # There are two possible configurations:
@@ -1981,18 +1992,18 @@ def capsule_box(
         ax2 = 1
 
       if axis[ax] * axis[ax] > 0.5:  # second point along the edge of the box
-        m = 2.0 * box.size[ax] / wp.abs(halfaxis[ax])
+        m = 2.0 * safe_div(box.size[ax], wp.abs(halfaxis[ax]))
         secondpos = min(1.0 - wp.float32(mul) * bestsegmentpos, m)
       else:  # second point along a face of the box
         # check for overshoot again
         m = 2.0 * min(
-          box.size[ax1] / wp.abs(halfaxis[ax1]),
-          box.size[ax2] / wp.abs(halfaxis[ax2]),
+          safe_div(box.size[ax1], wp.abs(halfaxis[ax1])),
+          safe_div(box.size[ax2], wp.abs(halfaxis[ax2])),
         )
         secondpos = -min(1.0 + wp.float32(mul) * bestsegmentpos, m)
       secondpos *= wp.float32(mul)
 
-  elif cltype >= 0 and cltype / 3 == 1:  # we are on box's edge
+  elif cltype >= 0 and cltype // 3 == 1:  # we are on box's edge
     # Calculate relative orientation between capsule and edge
     # Two possible configurations:
     # - T configuration: c1 = 2^n (no additional contacts)
@@ -2028,7 +2039,7 @@ def capsule_box(
       # now find out whether we point towards the opposite side or towards one of the sides
       # and also find the farthest point along the capsule that is above the box
 
-      e1 = 2.0 * box.size[ax2] / wp.abs(halfaxis[ax2])
+      e1 = 2.0 * safe_div(box.size[ax2], wp.abs(halfaxis[ax2]))
       secondpos = min(e1, secondpos)
 
       if ((axisdir & (1 << ax)) != 0) == ((c1 & (1 << ax2)) != 0):
@@ -2036,7 +2047,7 @@ def capsule_box(
       else:
         e2 = 1.0 + bestboxpos
 
-      e1 = box.size[ax] * e2 / wp.abs(halfaxis[ax])
+      e1 = box.size[ax] * safe_div(e2, wp.abs(halfaxis[ax]))
 
       secondpos = min(e1, secondpos)
       secondpos *= wp.float32(mul)
@@ -2055,7 +2066,7 @@ def capsule_box(
 
       for i in range(3):
         if i != clface:
-          ha_r = wp.float32(mul) / halfaxis[i]
+          ha_r = safe_div(wp.float32(mul), halfaxis[i])
           e1 = (box.size[i] - tmp1[i]) * ha_r
           if 0 < e1 and e1 < secondpos:
             secondpos = e1
@@ -2300,7 +2311,7 @@ def box_box(
   if axis_code < 12:
     # Handle face-vertex collision
     face_idx = axis_code % 6
-    box_idx = axis_code / 6
+    box_idx = axis_code // 6
     rotmore = _compute_rotmore(face_idx)
 
     r = rotmore @ wp.where(box_idx, rot12, rot21)
@@ -2368,10 +2379,10 @@ def box_box(
       bx = cn2[0]
       ay = cn1[1]
       by = cn2[1]
-      C = 1.0 / (ax * by - bx * ay)
+      C = safe_div(1.0, ax * by - bx * ay)
 
       for i in range(4):
-        llx = wp.where(i / 2, lx, -lx)
+        llx = wp.where(i // 2, lx, -lx)
         lly = wp.where(i % 2, ly, -ly)
 
         x = llx - lp[0]
@@ -2410,7 +2421,7 @@ def box_box(
 
   else:
     # Handle edge-edge collision
-    edge1 = (axis_code - 12) / 3
+    edge1 = (axis_code - 12) // 3
     edge2 = (axis_code - 12) % 3
 
     # Set up non-contacting edges ax1, ax2 for box2 and pax1, pax2 for box 1
@@ -2523,12 +2534,12 @@ def box_box(
     bx = pts_cn2[0]
     ay = pts_cn1[1]
     by = pts_cn2[1]
-    C = 1.0 / (ax * by - bx * ay)
+    C = safe_div(1.0, ax * by - bx * ay)
 
     for i in range(4):
       if n == max_con_pair:
         break
-      llx = wp.where(i / 2, lx, -lx)
+      llx = wp.where(i // 2, lx, -lx)
       lly = wp.where(i % 2, ly, -ly)
 
       x = llx - pts_lp[0]

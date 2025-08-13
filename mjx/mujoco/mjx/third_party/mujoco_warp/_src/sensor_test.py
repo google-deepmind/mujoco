@@ -328,6 +328,7 @@ class SensorTest(parameterized.TestCase):
           </keyframe>
         </mujoco>
       """,
+        keyframe=keyframe,
       )
 
       d.sensordata.zero_()
@@ -420,6 +421,7 @@ class SensorTest(parameterized.TestCase):
     # data combinations
     field = ["found", "force", "torque", "dist", "pos", "normal", "tangent"]
     datas = itertools.chain.from_iterable([itertools.combinations(field, i) for i in range(len(field))])
+    datas = list(datas)
 
     for num in [1, 2, 3, 4, 5]:
       for geoms in [

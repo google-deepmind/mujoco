@@ -17,6 +17,7 @@ from typing import Tuple
 
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
@@ -107,7 +108,7 @@ def _ray_quad(a: float, b: float, c: float) -> Tuple[float, wp.vec2]:
   det = wp.sqrt(det)
 
   # compute the two solutions
-  den = 1.0 / a
+  den = safe_div(1.0, a)
   x0 = (-b - det) * den
   x1 = (-b + det) * den
   x = wp.vec2(x0, x1)
@@ -194,10 +195,7 @@ def _ray_plane(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp
   if x < 0.0:
     return wp.inf
 
-  p = wp.vec2(
-    lpnt[0] + x * lvec[0],
-    lpnt[1] + x * lvec[1],
-  )
+  p = wp.vec2(lpnt[0] + x * lvec[0], lpnt[1] + x * lvec[1])
 
   # accept only within rendered rectangle
   if (size[0] <= 0.0 or wp.abs(p[0]) <= size[0]) and (size[1] <= 0.0 or wp.abs(p[1]) <= size[1]):
@@ -284,11 +282,7 @@ def _ray_ellipsoid(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec
   lpnt, lvec = _ray_map(pos, mat, pnt, vec)
 
   # invert size^2
-  s = wp.vec3(
-    1.0 / (size[0] * size[0]),
-    1.0 / (size[1] * size[1]),
-    1.0 / (size[2] * size[2]),
-  )
+  s = wp.vec3(safe_div(1.0, size[0] * size[0]), safe_div(1.0, size[1] * size[1]), safe_div(1.0, size[2] * size[2]))
 
   # (x * lvec + lpnt)' * diag(1 / size^2) * (x * lvec + lpnt) = 1
   slvec = wp.cw_mul(s, lvec)
@@ -324,10 +318,7 @@ def _ray_cylinder(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec:
       # process if non-negative
       if sol >= 0.0:
         # intersection with horizontal face
-        p = wp.vec2(
-          lpnt[0] + sol * lvec[0],
-          lpnt[1] + sol * lvec[1],
-        )
+        p = wp.vec2(lpnt[0] + sol * lvec[0], lpnt[1] + sol * lvec[1])
 
         # accept within radius
         if wp.dot(p, p) <= size[0] * size[0]:
@@ -392,7 +383,7 @@ def _ray_box(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.v
               x = sol
 
             # save in all
-            all[2 * i + (side + 1) / 2] = sol
+            all[2 * i + (side + 1) // 2] = sol
 
   return x, all
 
@@ -459,7 +450,7 @@ def _ray_hfield(
     b0[1] = 0.0
   else:
     b0[2] = 0.0
-  b1 = b0 + lvec * -wp.dot(lvec, b0) / wp.dot(lvec, lvec)
+  b1 = b0 + lvec * -safe_div(wp.dot(lvec, b0), wp.dot(lvec, lvec))
   b1 = wp.normalize(b1)
 
   b2 = wp.cross(b1, lvec)
@@ -473,10 +464,10 @@ def _ray_hfield(
       seg[1] = all[i]
 
   # project segment endpoints in horizontal plane, discretize
-  dx = (2.0 * size[0]) / float(ncol - 1)
-  dy = (2.0 * size[1]) / float(nrow - 1)
-  SX = wp.vec2((lpnt[0] * seg[0] * lvec[0] + size[0]) / dx, (lpnt[0] * seg[1] * lvec[0] + size[0]) / dx)
-  SY = wp.vec2((lpnt[1] + seg[0] * lvec[1] + size[1]) / dy, (lpnt[1] + seg[1] * lvec[1] + size[1]) / dy)
+  dx = safe_div(2.0 * size[0], float(ncol - 1))
+  dy = safe_div(2.0 * size[1], float(nrow - 1))
+  SX = wp.vec2(safe_div(lpnt[0] * seg[0] * lvec[0] + size[0], dx), safe_div(lpnt[0] * seg[1] * lvec[0] + size[0], dx))
+  SY = wp.vec2(safe_div(lpnt[1] + seg[0] * lvec[1] + size[1], dy), safe_div(lpnt[1] + seg[1] * lvec[1] + size[1], dy))
 
   # compute ranges, with +1 padding
   cmin = wp.max(0, int(wp.floor(wp.min(SX[0], SX[1])) - 1.0))
@@ -511,12 +502,12 @@ def _ray_hfield(
   for i in range(4):
     if all[i] >= 0.0 and (all[i] < x or x < 0.0):
       # normalized height of intersection point
-      z = (lpnt[2] + all[i] * lvec[2]) / size[2]
+      z = safe_div(lpnt[2] + all[i] * lvec[2], size[2])
 
       # rectangle points: y, y0, z0, z1
       # side normal to x-axis
       if i < 2:
-        y = (lpnt[1] + all[i] * lvec[1] + size[1]) / dy
+        y = safe_div(lpnt[1] + all[i] * lvec[1] + size[1], dy)
         y0 = wp.max(0.0, wp.min(float(nrow - 2), wp.floor(y)))
         if i == 1:
           z0 = hfield_data[adr + int(wp.round(y0)) * nrow + ncol - 1]
@@ -526,7 +517,7 @@ def _ray_hfield(
           z1 = hfield_data[adr + int(wp.round(y0 + 1.0)) * nrow]
       # side normal to y-axis
       else:
-        y = (lpnt[0] + all[i] * lvec[0] + size[0]) / dx
+        y = safe_div(lpnt[0] + all[i] * lvec[0] + size[0], dx)
         y0 = wp.max(0.0, wp.min(float(ncol - 2), wp.floor(y)))
         if i == 3:
           z0 = hfield_data[adr + int(wp.round(y0)) + (nrow - 1) * ncol]

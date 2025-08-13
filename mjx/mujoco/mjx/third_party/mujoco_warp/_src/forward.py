@@ -1025,7 +1025,10 @@ def forward(m: Model, d: Data):
 @event_scope
 def step(m: Model, d: Data):
   """Advance simulation."""
+  # TODO(team): mj_checkPos
+  # TODO(team): mj_checkVel
   forward(m, d)
+  # TODO(team): mj_checkAcc
 
   if m.opt.integrator == IntegratorType.EULER:
     euler(m, d)
@@ -1035,3 +1038,44 @@ def step(m: Model, d: Data):
     implicit(m, d)
   else:
     raise NotImplementedError(f"integrator {m.opt.integrator} not implemented.")
+
+
+@event_scope
+def step1(m: Model, d: Data):
+  """Advance simulation in two phases: before input is set by user."""
+  energy = m.opt.enableflags & EnableBit.ENERGY
+  # TODO(team): mj_checkPos
+  # TODO(team): mj_checkVel
+  fwd_position(m, d)
+  sensor.sensor_pos(m, d)
+
+  if energy:
+    if m.sensor_e_potential == 0:  # not computed by sensor
+      sensor.energy_pos(m, d)
+  else:
+    wp.launch(_zero_energy, dim=d.nworld, inputs=[d.energy])
+
+  fwd_velocity(m, d)
+  sensor.sensor_vel(m, d)
+
+  if energy:
+    if m.sensor_e_kinetic == 0:  # not computed by sensor
+      sensor.energy_vel(m, d)
+
+
+@event_scope
+def step2(m: Model, d: Data):
+  """Advance simulation in two phases: after input is set by user."""
+  fwd_actuation(m, d)
+  fwd_acceleration(m, d)
+  solver.solve(m, d)
+  sensor.sensor_acc(m, d)
+  # TODO(team): mj_checkAcc
+
+  # integrate with Euler or implicitfast
+  # TODO(team): implicit
+  if m.opt.integrator == IntegratorType.IMPLICITFAST:
+    implicit(m, d)
+  else:
+    # note: RK4 defaults to Euler
+    euler(m, d)

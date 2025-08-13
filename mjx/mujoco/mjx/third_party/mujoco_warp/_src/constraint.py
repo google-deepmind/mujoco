@@ -1162,6 +1162,7 @@ def _efc_contact_pyramidal(
     efcid = wp.atomic_add(nefc_out, worldid, 1)
 
     if efcid >= njmax_in:
+      contact_efc_address_out[conid, dimid] = -1
       return
 
     timestep = opt_timestep[worldid]
@@ -1325,6 +1326,7 @@ def _efc_contact_elliptic(
     efcid = wp.atomic_add(nefc_out, worldid, 1)
 
     if efcid >= njmax_in:
+      contact_efc_address_out[conid, dimid] = -1
       return
 
     timestep = opt_timestep[worldid]

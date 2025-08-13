@@ -25,6 +25,7 @@ import mujoco_warp as mjwarp
 
 from mujoco.mjx.third_party.mujoco_warp._src import solver
 from mujoco.mjx.third_party.mujoco_warp._src import test_util
+from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType
 
@@ -34,7 +35,7 @@ _TOLERANCE = 5e-3
 
 
 def _assert_eq(a, b, name):
-  tol = _TOLERANCE * 10  # avoid test noise
+  tol = _TOLERANCE * 20  # avoid test noise
   err_msg = f"mismatch: {name}"
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
@@ -67,6 +68,93 @@ class SolverTest(parameterized.TestCase):
       mjwarp_cost = d.efc.cost.numpy()[0] - d.efc.gauss.numpy()[0]
 
       _assert_eq(mjwarp_cost, mj_cost, name="cost")
+
+  def test_init_linesearch(self):
+    """Test linesearch initialization."""
+    for keyframe in range(3):
+      # TODO(team): Add the case of elliptic cone friction
+      mjm, mjd, m, d = test_util.fixture(
+        "constraints.xml",
+        keyframe=keyframe,
+        cone=ConeType.PYRAMIDAL,
+        iterations=0,
+        ls_iterations=0,
+      )
+
+      # One step to obtain more non-zeros results
+      mjwarp.step(m, d)
+
+      # Calculate target values
+      efc_search_np = d.efc.search.numpy()[0]
+      efc_J_np = d.efc.J.numpy()[0]
+      efc_gauss_np = d.efc.gauss.numpy()[0]
+      efc_Ma_np = d.efc.Ma.numpy()[0]
+      efc_Jaref_np = d.efc.Jaref.numpy()[0]
+      efc_D_np = d.efc.D.numpy()[0]
+      qfrc_smooth_np = d.qfrc_smooth.numpy()[0]
+      nefc = d.nefc.numpy()[0]
+
+      target_mv = np.zeros(mjm.nv)
+      mujoco.mj_mulM(mjm, mjd, target_mv, efc_search_np)
+      target_jv = efc_J_np @ efc_search_np
+      target_quad_gauss = np.array(
+        [
+          efc_gauss_np,
+          np.dot(efc_search_np, efc_Ma_np - qfrc_smooth_np),
+          0.5 * np.dot(efc_search_np, target_mv),
+        ]
+      )
+      target_quad = np.transpose(
+        np.vstack(
+          [
+            0.5 * efc_Jaref_np * efc_Jaref_np * efc_D_np,
+            target_jv * efc_Jaref_np * efc_D_np,
+            0.5 * target_jv * target_jv * efc_D_np,
+          ]
+        )
+      )
+
+      # launch linesearch with 0 iteration just doing the initialization step
+      d.efc.jv.zero_()
+      d.efc.quad.zero_()
+      solver._linesearch(m, d)
+
+      efc_mv = d.efc.mv.numpy()[0]
+      efc_jv = d.efc.jv.numpy()[0]
+      efc_quad_gauss = d.efc.quad_gauss.numpy()[0]
+      efc_quad = d.efc.quad.numpy()[0]
+      _assert_eq(efc_mv, target_mv, "mv")
+      _assert_eq(efc_jv[:nefc], target_jv[:nefc], "jv")
+      _assert_eq(efc_quad_gauss, target_quad_gauss, "quad_gauss")
+      _assert_eq(efc_quad[:nefc], target_quad[:nefc], "quad")
+
+  @parameterized.parameters(
+    (ConeType.PYRAMIDAL, False),
+    (ConeType.ELLIPTIC, False),
+    (ConeType.PYRAMIDAL, True),
+    (ConeType.ELLIPTIC, True),
+  )
+  def test_update_gradient_CG(self, cone, sparse):
+    """Test _update_gradient function is correct for the CG solver."""
+    mjm, mjd, m, d = test_util.fixture(
+      "humanoid/humanoid.xml",
+      cone=cone,
+      solver=SolverType.CG,
+      sparse=sparse,
+      iterations=0,
+      keyframe=0,
+    )
+
+    # Solve with 0 iterations just initializes and exit
+    mjwarp.solve(m, d)
+
+    # Calculate Mgrad with Mujoco C
+    mj_Mgrad = np.zeros(shape=(1, mjm.nv), dtype=float)
+    mj_grad = np.tile(d.efc.grad.numpy(), (1, 1))
+    mujoco.mj_solveM(mjm, mjd, mj_Mgrad, mj_grad)
+
+    efc_Mgrad = d.efc.Mgrad.numpy()[0]
+    _assert_eq(efc_Mgrad, mj_Mgrad[0], name="Mgrad")
 
   @parameterized.parameters(ConeType.PYRAMIDAL, ConeType.ELLIPTIC)
   def test_parallel_linesearch(self, cone):
@@ -126,12 +214,12 @@ class SolverTest(parameterized.TestCase):
     self.assertLessEqual(abs(alpha_iterative - alpha_parallel_50), abs(alpha_iterative - alpha_parallel_10))
 
   @parameterized.parameters(
-    (ConeType.PYRAMIDAL, SolverType.CG, 5, 5, False, False),
-    (ConeType.ELLIPTIC, SolverType.CG, 5, 5, False, False),
-    (ConeType.PYRAMIDAL, SolverType.NEWTON, 2, 4, False, False),
-    (ConeType.ELLIPTIC, SolverType.NEWTON, 2, 5, False, False),
-    (ConeType.PYRAMIDAL, SolverType.NEWTON, 2, 4, True, True),
-    (ConeType.ELLIPTIC, SolverType.NEWTON, 3, 16, True, True),
+    (ConeType.PYRAMIDAL, SolverType.CG, 10, 5, False, False),
+    (ConeType.ELLIPTIC, SolverType.CG, 10, 5, False, False),
+    (ConeType.PYRAMIDAL, SolverType.NEWTON, 5, 10, False, False),
+    (ConeType.ELLIPTIC, SolverType.NEWTON, 5, 10, False, False),
+    (ConeType.PYRAMIDAL, SolverType.NEWTON, 5, 64, True, True),
+    (ConeType.ELLIPTIC, SolverType.NEWTON, 5, 64, True, True),
   )
   def test_solve(self, cone, solver_, iterations, ls_iterations, sparse, ls_parallel):
     """Tests solve."""

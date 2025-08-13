@@ -38,7 +38,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel as nested_k
 # TODO(team): improve compile time to enable backward pass
 wp.config.enable_backward = False
 
-MULTI_CONTACT_COUNT = 4
+MULTI_CONTACT_COUNT = 8
 mat3c = wp.types.matrix(shape=(MULTI_CONTACT_COUNT, 3), dtype=float)
 
 _CONVEX_COLLISION_PAIRS = [
@@ -288,6 +288,7 @@ def ccd_kernel_builder(
 
     points = mat3c()
 
+    # TODO(kbayes): remove legacy GJK once multicontact can be enabled
     if default_gjk:
       simplex, normal = gjk_legacy(
         gjk_iterations,
@@ -349,10 +350,11 @@ def ccd_kernel_builder(
         count = 0
         return
 
-    for i in range(count):
-      points[i] = 0.5 * (witness1[i] + witness2[i])
-    normal = witness1[0] - witness2[0]
-    frame = make_frame(normal)
+      for i in range(count):
+        points[i] = 0.5 * (witness1[i] + witness2[i])
+      normal = witness1[0] - witness2[0]
+      frame = make_frame(normal)
+
     for i in range(count):
       # limit maximum number of contacts with height field
       if _max_contacts_height_field(ngeom, geom_type, geompair2hfgeompair, g1, g2, worldid, ncon_hfield_out):

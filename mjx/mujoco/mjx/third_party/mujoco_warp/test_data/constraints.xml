@@ -58,7 +58,7 @@
 
     <body name="box_condim1" pos="4 0 0">
       <freejoint align="false"/>
-      <geom class="box" condim="3"/>
+      <geom class="box" condim="1"/>
     </body>
 
     <body name="box_condim3" pos="5 0 0">
@@ -68,12 +68,12 @@
 
     <body name="box_condim4" pos="6 0 0">
       <freejoint align="false"/>
-      <geom class="box" condim="3"/>
+      <geom class="box" condim="4"/>
     </body>
 
     <body name="box_condim6" pos="7 0 0">
       <freejoint align="false"/>
-      <geom class="box" condim="3"/>
+      <geom class="box" condim="6"/>
     </body>
   </worldbody>
 

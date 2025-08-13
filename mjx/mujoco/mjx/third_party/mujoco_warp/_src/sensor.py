@@ -1565,7 +1565,7 @@ def _sensor_acc(
   sensor_adr: wp.array(dtype=int),
   sensor_cutoff: wp.array(dtype=float),
   sensor_acc_adr: wp.array(dtype=int),
-  sensor_contact_adr: wp.array(dtype=int),
+  sensor_adr_to_contact_adr: wp.array(dtype=int),
   # Data in:
   njmax_in: int,
   ncon_in: wp.array(dtype=int),
@@ -1643,16 +1643,9 @@ def _sensor_acc(
     num = dim // size  # number of slots
 
     adr = sensor_adr[sensorid]
-
-    # TODO(team): precompute sensorid to contactsensorid mapping
-    contactsensorid = int(0)
-    for i in range(sensor_contact_adr.size):
-      if sensorid == sensor_contact_adr[i]:
-        contactsensorid = i
-        break
+    contactsensorid = sensor_adr_to_contact_adr[sensorid]
 
     nmatch = sensor_contact_nmatch_in[worldid, contactsensorid]
-
     for i in range(wp.min(nmatch, num)):
       # sorted contact id
       cid = sensor_contact_matchid_in[worldid, contactsensorid, i]
@@ -1808,7 +1801,7 @@ def _sensor_touch(
 ):
   conid, sensortouchadrid = wp.tid()
 
-  if conid > ncon_in[0]:
+  if conid >= ncon_in[0]:
     return
 
   sensorid = sensor_touch_adr[sensortouchadrid]
@@ -2114,7 +2107,7 @@ def sensor_acc(m: Model, d: Data):
 
   wp.launch(
     _sensor_tactile_zero,
-    dim=(d.nworld, m.nsensordata),
+    dim=(d.nworld, m.nsensor),
     inputs=[
       m.sensor_type,
       m.sensor_dim,
@@ -2222,7 +2215,7 @@ def sensor_acc(m: Model, d: Data):
       m.sensor_adr,
       m.sensor_cutoff,
       m.sensor_acc_adr,
-      m.sensor_contact_adr,
+      m.sensor_adr_to_contact_adr,
       d.njmax,
       d.ncon,
       d.xpos,

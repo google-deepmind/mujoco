@@ -143,21 +143,21 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
 
   # construct the two solutions, compute goodness
   sol00 = wp.vec2(
-    (end[0] * sqrad + radius * end[1] * sqrt0) / sqlen0,
-    (end[1] * sqrad - radius * end[0] * sqrt0) / sqlen0,
+    math.safe_div(end[0] * sqrad + radius * end[1] * sqrt0, sqlen0),
+    math.safe_div(end[1] * sqrad - radius * end[0] * sqrt0, sqlen0),
   )
   sol01 = wp.vec2(
-    (end[2] * sqrad - radius * end[3] * sqrt1) / sqlen1,
-    (end[3] * sqrad + radius * end[2] * sqrt1) / sqlen1,
+    math.safe_div(end[2] * sqrad - radius * end[3] * sqrt1, sqlen1),
+    math.safe_div(end[3] * sqrad + radius * end[2] * sqrt1, sqlen1),
   )
 
   sol10 = wp.vec2(
-    (end[0] * sqrad - radius * end[1] * sqrt0) / sqlen0,
-    (end[1] * sqrad + radius * end[0] * sqrt0) / sqlen0,
+    math.safe_div(end[0] * sqrad - radius * end[1] * sqrt0, sqlen0),
+    math.safe_div(end[1] * sqrad + radius * end[0] * sqrt0, sqlen0),
   )
   sol11 = wp.vec2(
-    (end[2] * sqrad + radius * end[3] * sqrt1) / sqlen1,
-    (end[3] * sqrad - radius * end[2] * sqrt1) / sqlen1,
+    math.safe_div(end[2] * sqrad + radius * end[3] * sqrt1, sqlen1),
+    math.safe_div(end[3] * sqrad - radius * end[2] * sqrt1, sqlen1),
   )
 
   # goodness: close to sd, or shorter path
@@ -249,11 +249,11 @@ def wrap_inside(
   pnt *= radius
 
   # compute function parameters: asin(A * z) + asin(B * z) - 2 * asin(z) + G = 0
-  A = radius / len0
-  B = radius / len1
+  A = math.safe_div(radius, len0)
+  B = math.safe_div(radius, len1)
   sq_A = A * A
   sq_B = B * B
-  cosG = (len0 * len0 + len1 * len1 - dd) / (2.0 * len0 * len1)
+  cosG = math.safe_div(len0 * len0 + len1 * len1 - dd, 2.0 * len0 * len1)
   if cosG < -1.0 + MJ_MINVAL:
     return -1.0, pnt, pnt
   elif cosG > 1.0 - MJ_MINVAL:
@@ -285,7 +285,7 @@ def wrap_inside(
       return 0.0, pnt, pnt
 
     # new point
-    z1 = z - f / df
+    z1 = z - math.safe_div(f, df)
 
     # make sure we are moving to the left; SHOULD NOT OCCUR
     if z1 > z:
@@ -435,8 +435,8 @@ def wrap(
     # set vertical coordinates
     L0 = wp.sqrt((p0[0] - res0[0]) * (p0[0] - res0[0]) + (p0[1] - res0[1]) * (p0[1] - res0[1]))
     L1 = wp.sqrt((p1[0] - res1[0]) * (p1[0] - res1[0]) + (p1[1] - res1[1]) * (p1[1] - res1[1]))
-    res0[2] = p0[2] + (p1[2] - p0[2]) * L0 / (L0 + wlen + L1)
-    res1[2] = p0[2] + (p1[2] - p0[2]) * (L0 + wlen) / (L0 + wlen + L1)
+    res0[2] = p0[2] + (p1[2] - p0[2]) * math.safe_div(L0, L0 + wlen + L1)
+    res1[2] = p0[2] + (p1[2] - p0[2]) * math.safe_div(L0 + wlen, L0 + wlen + L1)
 
     # correct wlen for height
     height = wp.abs(res1[2] - res0[2])
