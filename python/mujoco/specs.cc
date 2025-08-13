@@ -176,6 +176,22 @@ py::list FindAllImpl(raw::MjsBody& body, mjtObj objtype, bool recursive) {
   return list;  // list of pointers, so they can be copied
 }
 
+static std::string addSuffixBeforeExtension(const std::string& original_path,
+                                            const std::string& suffix_to_add) {
+  // Find the position of the last dot
+  size_t dot_pos = original_path.rfind('.');
+
+  // Check if a dot was found
+  if (dot_pos != std::string::npos) {
+    std::string new_path = original_path;
+    new_path.insert(dot_pos, suffix_to_add);
+    return new_path;
+  } else {
+    // No extension found, just append
+    return original_path + suffix_to_add;
+  }
+}
+
 PYBIND11_MODULE(_specs, m) {
   auto structs_m = py::module::import("mujoco._structs");
   py::function mjmodel_from_raw_ptr =
@@ -471,13 +487,35 @@ PYBIND11_MODULE(_specs, m) {
             throw pybind11::value_error(mjs_getError(self.ptr));
           }
         }
+        // append the assets adding the suffix to their path
+        std::string suff(s);
         for (const auto& asset : child.assets) {
-          if (self.assets.contains(asset.first) && !self.override_assets) {
+          std::string asset_name =
+              addSuffixBeforeExtension(asset.first.cast<std::string>(), suff);
+          if (self.assets.contains(asset_name) && !self.override_assets) {
             throw pybind11::value_error("Asset " +
                                         asset.first.cast<std::string>() +
                                         " already exists in parent spec.");
           }
-          self.assets[asset.first] = asset.second;
+          self.assets[py::str(asset_name)] = asset.second;
+        }
+        raw::MjsElement* mesh = mjs_firstElement(child.ptr, mjOBJ_MESH);
+        while (mesh) {
+          std::string file = mjs_getString(mjs_asMesh(mesh)->file);
+          if (!file.empty()) {
+            std::string mesh_file = addSuffixBeforeExtension(file, suff);
+            mjs_setString(mjs_asMesh(mesh)->file, mesh_file.c_str());
+          }
+          mesh = mjs_nextElement(child.ptr, mesh);
+        }
+        raw::MjsElement* tex = mjs_firstElement(child.ptr, mjOBJ_TEXTURE);
+        while (tex) {
+          std::string file = mjs_getString(mjs_asTexture(tex)->file);
+          if (!file.empty()) {
+            std::string tex_file = addSuffixBeforeExtension(file, suff);
+            mjs_setString(mjs_asTexture(tex)->file, tex_file.c_str());
+          }
+          tex = mjs_nextElement(child.ptr, tex);
         }
         child.parent = &self;
         return mjs_asFrame(attached_frame);

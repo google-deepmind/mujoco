@@ -1069,7 +1069,7 @@ class SpecsTest(absltest.TestCase):
     child2 = mujoco.MjSpec()
     child2.assets = {'cube2.obj': 'cube2_content'}
     body2 = child2.worldbody.add_body(name='body')
-    self.assertIsNotNone(parent.attach(child2, site=site, prefix='child2-'))
+    self.assertIsNotNone(parent.attach(child2, site=site, suffix='-child2'))
     self.assertIsNotNone(child2.worldbody)
     self.assertEqual(child2.parent, parent)
     body2.pos = [-1, -1, -1]
@@ -1081,13 +1081,13 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
     self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['cube2-child2.obj'], 'cube2_content')
 
     # Attach another spec to site (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
     child3.assets = {'cube3.obj': 'cube3_content'}
     body3 = child3.worldbody.add_body(name='body')
-    self.assertIsNotNone(parent.attach(child3, site='site', prefix='child3-'))
+    self.assertIsNotNone(parent.attach(child3, site='site', suffix='-child3'))
     self.assertIsNotNone(child3.worldbody)
     self.assertEqual(child3.parent, parent)
     body3.pos = [-2, -2, -2]
@@ -1101,8 +1101,8 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
     self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2.obj'], 'cube2_content')
-    self.assertEqual(parent.assets['cube3.obj'], 'cube3_content')
+    self.assertEqual(parent.assets['cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['cube3-child3.obj'], 'cube3_content')
 
     # Fail to attach to a site that does not exist.
     child4 = mujoco.MjSpec()
@@ -1150,7 +1150,7 @@ class SpecsTest(absltest.TestCase):
     child2.assets = {'cube2.obj': 'cube2_content'}
     body2 = child2.worldbody.add_body(name='body')
     body2.set_frame(child2.worldbody.add_frame(pos=[-1, -1, 1]))
-    self.assertIsNotNone(parent.attach(child2, frame=frame, prefix='child-'))
+    self.assertIsNotNone(parent.attach(child2, frame=frame, suffix='-child'))
     self.assertIsNotNone(child2.worldbody)
     self.assertEqual(child2.parent, parent)
     body2.pos = [-1, -1, -1]
@@ -1162,14 +1162,14 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
     self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['cube2-child.obj'], 'cube2_content')
 
     # Attach another spec to frame (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
     child3.assets = {'cube2.obj': 'new_cube2_content'}
     body3 = child3.worldbody.add_body(name='body')
     body3.set_frame(child3.worldbody.add_frame(pos=[-1, -1, 1]))
-    self.assertIsNotNone(parent.attach(child3, frame='frame', prefix='child3-'))
+    self.assertIsNotNone(parent.attach(child3, frame='frame', suffix='-child3'))
     self.assertIsNotNone(child3.worldbody)
     self.assertEqual(child3.parent, parent)
     body3.pos = [-2, -2, -2]
@@ -1183,7 +1183,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
     self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2.obj'], 'new_cube2_content')
+    self.assertEqual(parent.assets['cube2-child3.obj'], 'new_cube2_content')
 
     # Fail to attach to a frame that does not exist.
     child4 = mujoco.MjSpec()
