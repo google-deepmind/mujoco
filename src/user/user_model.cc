@@ -116,6 +116,20 @@ bool IsNullPose(const T pos[3], const T quat[4]) {
   return IsSamePose(pos, zero, quat, qunit);
 }
 
+// get body id from wrap object
+int GetBodyIdFromWrap(const mjCWrap* wrap) {
+  if (!wrap || !wrap->obj) return -1;
+  switch (wrap->type) {
+    case mjWRAP_SITE:
+      return static_cast<mjCSite*>(wrap->obj)->Body()->id;
+    case mjWRAP_CYLINDER:
+    case mjWRAP_SPHERE:
+      return static_cast<mjCGeom*>(wrap->obj)->GetParent()->id;
+    default:
+      return -1;
+  }
+}
+
 }  // namespace
 
 //---------------------------------- CONSTRUCTOR AND DESTRUCTOR ------------------------------------
@@ -880,6 +894,192 @@ void mjCModel::CopyFromSpec() {
   modelname_ = spec_modelname_;
   meshdir_ = spec_meshdir_;
   texturedir_ = spec_texturedir_;
+}
+
+
+
+// compute sparse matrix sizes
+void mjCModel::ComputeSparseSizes() {
+  // no dofs, quick return
+  if (nv == 0) {
+    nM = nD = nB = nC = 0;
+    return;
+  }
+
+  // 0. allocate local index vectors
+  std::vector<int> dof_parentid_pre(nv, -1);
+  std::vector<int> dof_bodyid_pre(nv);
+  std::vector<int> body_simple_pre(nbody);
+  std::vector<int> body_rootid_pre(nbody);
+  std::vector<int> dof_simplenum_pre(nv);
+  std::vector<int> body_lastdof_map(nbody);
+
+  // 1. build dof_parentid, dof_bodyid
+  if (nbody > 0) {
+    body_lastdof_map[0] = -1; // world has no parent dof
+  }
+  for (int i = 0; i < nbody; ++i) {
+    mjCBody* pb = bodies_[i];
+    mjCBody* par = pb->parent;
+
+    // the last dof of the current body's parent chain
+    int current_parent_dof = par ? body_lastdof_map[par->id] : -1;
+
+    for (const auto* jnt : pb->joints) {
+      for (int j1 = 0; j1 < jnt->nv(); ++j1) {
+        int dofadr = jnt->dofadr_ + j1;
+        if (dofadr < 0 || dofadr >= nv) {
+          throw mjCError(jnt, "dofadr out of bounds: dofadr=%d, nv=%d", nullptr, dofadr, nv);
+        }
+        dof_bodyid_pre[dofadr] = i;
+        dof_parentid_pre[dofadr] = current_parent_dof;
+        // the next dof in this joint is parented to the current one
+        current_parent_dof = dofadr;
+      }
+    }
+    // store the last dof added for this body
+    body_lastdof_map[i] = current_parent_dof;
+  }
+
+  // 2. compute nM
+  nM = 0;
+  for (int i = 0; i < nv; ++i) {
+    int j = i;
+    while (j != -1) {
+      nM++;
+      j = dof_parentid_pre[j];
+    }
+  }
+
+  // 3. compute nD
+  nD = 2 * nM - nv;
+
+  // 4. compute subtreedofs and nB
+  for(int i = nbody - 1; i >= 0; --i) {
+    bodies_[i]->subtreedofs = bodies_[i]->dofnum;
+    for (const auto* child : bodies_[i]->Bodies()) {
+      bodies_[i]->subtreedofs += child->subtreedofs;
+    }
+  }
+
+  nB = 0;
+  for (int i = 0; i < nbody; ++i) {
+    nB += bodies_[i]->subtreedofs;
+    mjCBody* parent = bodies_[i]->parent;
+    while (parent && parent->id > 0) {
+      nB += parent->dofnum;
+      parent = parent->parent;
+    }
+  }
+
+  // make sure all dofs are in world "subtree", SHOULD NOT OCCUR
+  if (bodies_[0]->subtreedofs != nv) {
+    throw mjCError(0, "all DOFs should be in world subtree");
+  }
+
+  // 5. compute nC
+  for(int i = 0; i < nbody; ++i) {
+    mjCBody* pb = bodies_[i];
+    mjCBody* par = pb->parent;
+    int parentid = par ? par->id : 0;
+
+    // rootid
+    if (i == 0 || !par || par->id == 0) {
+      body_rootid_pre[i] = i;
+    } else {
+      body_rootid_pre[i] = body_rootid_pre[parentid];
+    }
+
+    bool sameframe = IsNullPose(pb->ipos, pb->iquat);
+    body_simple_pre[i] = (sameframe &&
+                         (body_rootid_pre[i] == i ||
+                          (parentid > 0                       &&
+                           bodies_[parentid]->parent          &&
+                           bodies_[parentid]->parent->id == 0 &&
+                           bodies_[parentid]->dofnum == 0)));
+  }
+
+  // a parent body is never simple (unless world)
+  for (int i = 1; i < nbody; ++i) {
+    if (bodies_[i]->parent) {
+      body_simple_pre[bodies_[i]->parent->id] = 0;
+    }
+  }
+
+  // joint-based demotion for body_simple_pre
+  const double* nulldouble = nullptr;
+  for (int i = 1; i < nbody; ++i) {
+    if (!body_simple_pre[i]) continue;
+
+    // demote if non-aligned, non-zero pos, or multiple rotational joints
+    mjCBody* pb = bodies_[i];
+    int rotfound = 0;
+    for (const auto* pj : pb->joints) {
+      bool axis_aligned = ((std::abs(pj->axis[0]) > mjEPS) +
+                           (std::abs(pj->axis[1]) > mjEPS) +
+                           (std::abs(pj->axis[2]) > mjEPS)) == 1;
+      if (rotfound || !IsNullPose(pj->pos, nulldouble) ||
+          ((pj->type == mjJNT_HINGE || pj->type == mjJNT_SLIDE) && !axis_aligned)) {
+        body_simple_pre[i] = 0;
+        break;
+      }
+      if (pj->type == mjJNT_BALL || pj->type == mjJNT_HINGE) {
+        rotfound = 1;
+      }
+    }
+    if (!body_simple_pre[i]) continue;
+
+    // promote simple bodies with only sliders to level 2
+    if (pb->dofnum > 0) {
+      body_simple_pre[i] = 2;
+      for (const auto* pj : pb->joints) {
+        if (pj->type != mjJNT_SLIDE) {
+          body_simple_pre[i] = 1;
+          break;
+        }
+      }
+    }
+  }
+
+  // tendon-armature-based demotion
+  for (const auto* tendon : tendons_) {
+    if (tendon->armature > 0) {
+      for (const auto* wrap : tendon->path) {
+        int bodyId = GetBodyIdFromWrap(wrap);
+        if (bodyId != -1) {
+          body_simple_pre[bodyId] = 0;
+        }
+      }
+    }
+  }
+
+  // count dof_simplenum_pre
+  int count = 0;
+  for (int i = nv - 1; i >= 0; --i) {
+    if (dof_bodyid_pre[i] < 0 || dof_bodyid_pre[i] >= nbody) {
+      throw mjCError(0, "dof_bodyid out of bounds: dof=%d, body=%d", nullptr, i, dof_bodyid_pre[i]);
+    }
+    if (body_simple_pre[dof_bodyid_pre[i]]) {
+      count++;
+    } else {
+      count = 0;
+    }
+    dof_simplenum_pre[i] = count;
+  }
+
+  // compute nC
+  nC = 0;
+  int nOD = 0;
+  for (int i = 0; i < nv; ++i) {
+    if (!dof_simplenum_pre[i]) {
+      int j = i;
+      while (j != -1) {
+        if (j != i) nOD++;
+        j = dof_parentid_pre[j];
+      }
+    }
+  }
+  nC = nOD + nv;
 }
 
 
@@ -2352,6 +2552,8 @@ void mjCModel::CopyPaths(mjModel* m) {
 
 // copy objects inside kinematic tree
 void mjCModel::CopyTree(mjModel* m) {
+  const mjtNum* nullnum = nullptr;
+
   int jntadr = 0;         // addresses in global arrays
   int dofadr = 0;
   int qposadr = 0;
@@ -2425,7 +2627,6 @@ void mjCModel::CopyTree(mjModel* m) {
 
     // set sameframe
     mjtSameFrame sameframe;
-    mjtNum* nullnum = static_cast<mjtNum*>(nullptr);
     if (IsNullPose(m->body_ipos+3*i, m->body_iquat+4*i)) {
       sameframe = mjSAMEFRAME_BODY;
     } else if (IsNullPose(nullnum, m->body_iquat+4*i)) {
@@ -2455,15 +2656,13 @@ void mjCModel::CopyTree(mjModel* m) {
       int jid = pj->id;
 
       // set joint fields
-      pj->qposadr_ = qposadr;
-      pj->dofadr_ = dofadr;
       m->jnt_type[jid] = pj->type;
       m->jnt_group[jid] = pj->group;
       m->jnt_limited[jid] = (mjtByte)pj->is_limited();
       m->jnt_actfrclimited[jid] = (mjtByte)pj->is_actfrclimited();
       m->jnt_actgravcomp[jid] = pj->actgravcomp;
-      m->jnt_qposadr[jid] = qposadr;
-      m->jnt_dofadr[jid] = dofadr;
+      m->jnt_qposadr[jid] = pj->qposadr_;
+      m->jnt_dofadr[jid] = pj->dofadr_;
       m->jnt_bodyid[jid] = pj->body->id;
       mjuu_copyvec(m->jnt_pos+3*jid, pj->pos, 3);
       mjuu_copyvec(m->jnt_axis+3*jid, pj->axis, 3);
@@ -2587,7 +2786,7 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->geom_rgba+4*gid, pg->rgba, 4);
 
       // determine sameframe
-      double* nulldouble = static_cast<double*>(nullptr);
+      const double* nulldouble = nullptr;
       if (IsNullPose(m->geom_pos+3*gid, m->geom_quat+4*gid)) {
         sameframe = mjSAMEFRAME_BODY;
       } else if (IsNullPose(nullnum, m->geom_quat+4*gid)) {
@@ -2623,7 +2822,7 @@ void mjCModel::CopyTree(mjModel* m) {
       mjuu_copyvec(m->site_rgba+4*sid, ps->rgba, 4);
 
       // determine sameframe
-      double* nulldouble = static_cast<double*>(nullptr);
+      const double* nulldouble = nullptr;
       if (IsNullPose(m->site_pos+3*sid, m->site_quat+4*sid)) {
         sameframe = mjSAMEFRAME_BODY;
       } else if (IsNullPose(nullnum, m->site_quat+4*sid)) {
@@ -2719,55 +2918,43 @@ void mjCModel::CopyTree(mjModel* m) {
   }
   m->ngravcomp = ngravcomp;
 
-  // compute nM and dof_Madr
-  nM = 0;
+  // recompute nM and dof_Madr given m.dof_parentid, validate
+  int nM_post = 0;
   for (int i=0; i < nv; i++) {
     // set address of this dof
-    m->dof_Madr[i] = nM;
+    m->dof_Madr[i] = nM_post;
 
     // count ancestor dofs including self
     int j = i;
     while (j >= 0) {
-      nM++;
+      nM_post++;
       j = m->dof_parentid[j];
     }
   }
-  m->nM = nM;
+  if (nM_post != nM) throw mjCError(0, "nM mismatch: pre %d, post %d", nullptr, nM, nM_post);
+  m->nM = nM_post;
 
-  // compute nD
-  nD = 2 * nM - nv;
-  m->nD = nD;
+  // recompute nD, validate
+  int nD_post = 2 * m->nM - nv;
+  if (nD_post != nD) throw mjCError(0, "nD mismatch: pre %d, post %d", nullptr, nD, nD_post);
+  m->nD = nD_post;
 
-  // compute subtreedofs in backward pass over bodies
-  for (int i = nbody - 1; i > 0; i--) {
-    // add body dofs to self count
-    bodies_[i]->subtreedofs += bodies_[i]->dofnum;
+  // bodies_[]->subtreedofs already computed in ComputeSparseSizes
 
-    // add to parent count
-    if (bodies_[i]->parent) {
-      bodies_[i]->parent->subtreedofs += bodies_[i]->subtreedofs;
-    }
-  }
-
-  // make sure all dofs are in world "subtree", SHOULD NOT OCCUR
-  if (bodies_[0]->subtreedofs != nv) {
-    throw mjCError(0, "all DOFs should be in world subtree");
-  }
-
-  // compute nB
-  nB = 0;
+  // recompute nB given {body->subtreedofs, body->dofnum, body->parent}, validate
+  int nB_post = 0;
   for (int i = 0; i < nbody; i++) {
     // add subtree dofs (including self)
-    nB += bodies_[i]->subtreedofs;
-
+    nB_post += bodies_[i]->subtreedofs;
     // add dofs in ancestor bodies
     int j = bodies_[i]->parent ? bodies_[i]->parent->id : 0;
     while (j > 0) {
-      nB += bodies_[j]->dofnum;
+      nB_post += bodies_[j]->dofnum;
       j = bodies_[j]->parent ? bodies_[j]->parent->id : 0;
     }
   }
-  m->nB = nB;
+  if (nB_post != nB) throw mjCError(0, "nB mismatch: pre %d, post %d", nullptr, nB, nB_post);
+  m->nB = nB_post;
 }
 
 // copy plugin data
@@ -3598,8 +3785,8 @@ void mjCModel::FinalizeSimple(mjModel* m) {
     m->dof_simplenum[i] = count;
   }
 
-  // compute nC
-  int nOD = 0;  // number of off-diagonal (non-simple) parent dofs
+  // recompute nC given {dof_simplenum, dof_parentid}, validate
+  int nOD = 0;  // number of non-simple off-diagonal parent dofs
   for (int i=0; i < nv; i++) {
     // count ancestor (off-diagonal) dofs
     if (!m->dof_simplenum[i]) {
@@ -3610,7 +3797,9 @@ void mjCModel::FinalizeSimple(mjModel* m) {
       }
     }
   }
-  m->nC = nC = nOD + nv;
+  int nC_post = nOD + nv;
+  if (nC_post != nC) throw mjCError(0, "nC mismatch: pre %d, post %d", nullptr, nC, nC_post);
+  m->nC = nC_post;
 }
 
 
@@ -4561,6 +4750,10 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // resolve asset references, compute sizes
   IndexAssets(compiler.discardvisual);
   SetSizes();
+  SaveDofOffsets(/*computesize=*/false); // Populate jnt->dofadr_
+
+  // compute sparse matrix sizes
+  ComputeSparseSizes();
 
   // set nmocap and body.mocapid
   for (mjCBody* body : bodies_) {

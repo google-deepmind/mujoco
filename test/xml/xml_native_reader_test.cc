@@ -2192,7 +2192,7 @@ TEST_F(XMLReaderTest, ReadsSkinGroups) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
   int flexid1 = mj_name2id(model, mjOBJ_FLEX, "B0");
   int flexid2 = mj_name2id(model, mjOBJ_FLEX, "B1");
   EXPECT_THAT(model->flex_group[flexid1], 2);
@@ -2842,7 +2842,7 @@ TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_DOUBLE_EQ(model->actuator_gainprm[0], 5);
   EXPECT_DOUBLE_EQ(model->actuator_gainprm[mjNGAIN], 1);
   EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 0], 0);

@@ -345,6 +345,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void IndexAssets(bool discard);       // convert asset names into indices
   void CheckEmptyNames();               // check empty names
   void SetSizes();                      // compute sizes
+  void ComputeSparseSizes();            // compute nM, nD, nB, nC
   void AutoSpringDamper(mjModel*);      // automatic stiffness and damping computation
   void LengthRange(mjModel*, mjData*);  // compute actuator lengthrange
   void CopyNames(mjModel*);             // copy names, compute name addresses
