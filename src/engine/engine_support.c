@@ -1058,14 +1058,14 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 
     // non-simple: add off-diagonals
     if (!m->dof_simplenum[i]) {
-      int adr = d->M_rowadr[i];
-      res[i] += mju_dotSparse(qLD+adr, vec, d->M_rownnz[i] - 1, d->M_colind+adr);
+      int adr = m->M_rowadr[i];
+      res[i] += mju_dotSparse(qLD+adr, vec, m->M_rownnz[i] - 1, m->M_colind+adr);
     }
   }
 
   // res *= sqrt(D)
   for (int i=0; i < nv; i++) {
-    int diag = d->M_rowadr[i] + d->M_rownnz[i] - 1;
+    int diag = m->M_rowadr[i] + m->M_rownnz[i] - 1;
     res[i] *= mju_sqrt(qLD[diag]);
   }
 }
@@ -1084,7 +1084,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     int* buf_ind = mjSTACKALLOC(d, nv, int);
 
     mju_addToMatSparse(dst, rownnz, rowadr, colind, nv,
-      d->M, d->M_rownnz, d->M_rowadr, d->M_colind,
+      d->M, m->M_rownnz, m->M_rowadr, m->M_colind,
       buf_val, buf_ind);
 
     mj_freeStack(d);
@@ -1092,7 +1092,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
 
   // dense
   else {
-    mju_addToSymSparse(dst, d->M, nv, d->M_rownnz, d->M_rowadr, d->M_colind, /*flg_upper=*/ 1);
+    mju_addToSymSparse(dst, d->M, nv, m->M_rownnz, m->M_rowadr, m->M_colind, /*flg_upper=*/ 1);
   }
 }
 

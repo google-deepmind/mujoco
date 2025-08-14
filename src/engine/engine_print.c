@@ -1155,51 +1155,26 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
               d->moment_rowadr, d->moment_colind, fp, float_format);
   printArray("CRB", m->nbody, 10, d->crb, fp, float_format);
   printInertia("QM", d->qM, m, fp, float_format);
-  printSparse("M", d->M, m->nv, d->M_rownnz,
-              d->M_rowadr, d->M_colind, fp, float_format);
-  printSparse("QLD", d->qLD, m->nv, d->M_rownnz,
-              d->M_rowadr, d->M_colind, fp, float_format);
+  printSparse("M", d->M, m->nv, m->M_rownnz,
+              m->M_rowadr, m->M_colind, fp, float_format);
+  printSparse("QLD", d->qLD, m->nv, m->M_rownnz,
+              m->M_rowadr, m->M_colind, fp, float_format);
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
 
   if (!mju_isZero(d->qHDiagInv, m->nv)) {
-    printSparse("QH", d->qH, m->nv, d->M_rownnz, d->M_rowadr, d->M_colind, fp, float_format);
+    printSparse("QH", d->qH, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind, fp, float_format);
     printArray("QHDIAGINV", m->nv, 1, d->qHDiagInv, fp, float_format);
   }
 
-  // B sparse structure
-  mj_printSparsity("B: body-dof matrix", m->nbody, m->nv, d->B_rowadr, NULL, d->B_rownnz, NULL,
-                   d->B_colind, fp);
-  printArrayInt("B_ROWNNZ", 1, m->nbody, d->B_rownnz, fp);
-  printArrayInt("B_ROWADR", 1, m->nbody, d->B_rowadr, fp);
-  printArrayInt("B_COLIND", 1, m->nB,    d->B_colind, fp);
-
-
-  // M sparse structure
-  mj_printSparsity("M: reduced inertia matrix", m->nv, m->nv, d->M_rowadr, NULL, d->M_rownnz,
-                   NULL, d->M_colind, fp);
-  printArrayInt("M_ROWNNZ", 1, m->nv, d->M_rownnz, fp);
-  printArrayInt("M_ROWADR", 1, m->nv, d->M_rowadr, fp);
-  printArrayInt("M_COLIND", 1, m->nC, d->M_colind, fp);
-  printArrayInt("MAPM2M",   1, m->nC, d->mapM2M,   fp);
-
-  // D sparse structure
-  mj_printSparsity("D: dof-dof matrix", m->nv, m->nv,
-                   d->D_rowadr, d->D_diag, d->D_rownnz, NULL, d->D_colind, fp);
-  printArrayInt("D_ROWNNZ", 1, m->nv, d->D_rownnz, fp);
-  printArrayInt("D_ROWADR", 1, m->nv, d->D_rowadr, fp);
-  printArrayInt("D_COLIND", 1, m->nD, d->D_colind, fp);
-  printArrayInt("MAPM2D",   1, m->nD, d->mapM2D,   fp);
-  printArrayInt("MAPD2M",   1, m->nM, d->mapD2M,   fp);
-
   // print qDeriv
   if (!mju_isZero(d->qDeriv, m->nD)) {
-    printSparse("QDERIV", d->qDeriv, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind,
+    printSparse("QDERIV", d->qDeriv, m->nv, m->D_rownnz, m->D_rowadr, m->D_colind,
                 fp, float_format);
   }
 
   // print qLU
   if (!mju_isZero(d->qLU, m->nD)) {
-    printSparse("QLU", d->qLU, m->nv, d->D_rownnz, d->D_rowadr, d->D_colind, fp, float_format);
+    printSparse("QLU", d->qLU, m->nv, m->D_rownnz, m->D_rowadr, m->D_colind, fp, float_format);
   }
 
   // contact

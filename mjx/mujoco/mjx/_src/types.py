@@ -599,6 +599,19 @@ class ModelC(PyTreeNode):
   sensor_plugin: jax.Array
   plugin: jax.Array
   plugin_stateadr: jax.Array
+  B_rownnz: jax.Array  # pylint:disable=invalid-name
+  B_rowadr: jax.Array  # pylint:disable=invalid-name
+  B_colind: jax.Array  # pylint:disable=invalid-name
+  M_rownnz: jax.Array  # pylint:disable=invalid-name
+  M_rowadr: jax.Array  # pylint:disable=invalid-name
+  M_colind: jax.Array  # pylint:disable=invalid-name
+  mapM2M: jax.Array  # pylint:disable=invalid-name
+  D_rownnz: jax.Array  # pylint:disable=invalid-name
+  D_rowadr: jax.Array  # pylint:disable=invalid-name
+  D_diag: jax.Array  # pylint:disable=invalid-name
+  D_colind: jax.Array  # pylint:disable=invalid-name
+  mapM2D: jax.Array  # pylint:disable=invalid-name
+  mapD2M: jax.Array  # pylint:disable=invalid-name
 
 
 class ModelJAX(PyTreeNode):
@@ -1020,19 +1033,6 @@ class DataC(PyTreeNode):
   plugin_data: jax.Array
   qH: jax.Array  # pylint:disable=invalid-name
   qHDiagInv: jax.Array  # pylint:disable=invalid-name
-  B_rownnz: jax.Array  # pylint:disable=invalid-name
-  B_rowadr: jax.Array  # pylint:disable=invalid-name
-  B_colind: jax.Array  # pylint:disable=invalid-name
-  M_rownnz: jax.Array  # pylint:disable=invalid-name
-  M_rowadr: jax.Array  # pylint:disable=invalid-name
-  M_colind: jax.Array  # pylint:disable=invalid-name
-  mapM2M: jax.Array  # pylint:disable=invalid-name
-  D_rownnz: jax.Array  # pylint:disable=invalid-name
-  D_rowadr: jax.Array  # pylint:disable=invalid-name
-  D_diag: jax.Array  # pylint:disable=invalid-name
-  D_colind: jax.Array  # pylint:disable=invalid-name
-  mapM2D: jax.Array  # pylint:disable=invalid-name
-  mapD2M: jax.Array  # pylint:disable=invalid-name
   qDeriv: jax.Array  # pylint:disable=invalid-name
   qLU: jax.Array  # pylint:disable=invalid-name
   qfrc_spring: jax.Array

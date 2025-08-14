@@ -458,9 +458,9 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
       mju_scl(row, Dcfrcbody + (m->dof_bodyid[i]*6+k)*nv, d->cdof[i*6+k], nv);
 
       // dense to sparse: qDeriv -= row
-      int end = d->D_rowadr[i] + d->D_rownnz[i];
-      for (int adr=d->D_rowadr[i]; adr < end; adr++) {
-        d->qDeriv[adr] -= row[d->D_colind[adr]];
+      int end = m->D_rowadr[i] + m->D_rownnz[i];
+      for (int adr=m->D_rowadr[i]; adr < end; adr++) {
+        d->qDeriv[adr] -= row[m->D_colind[adr]];
       }
     }
   }
@@ -492,7 +492,7 @@ static void copyFromParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
   }
 
   // copy: guaranteed to be at beginning of sparse array, due to sorting
-  mju_copy(mat + 6*d->B_rowadr[n], mat + 6*d->B_rowadr[m->body_parentid[n]], 6*ndof);
+  mju_copy(mat + 6*m->B_rowadr[n], mat + 6*m->B_rowadr[m->body_parentid[n]], 6*ndof);
 }
 
 
@@ -507,10 +507,10 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
   // find matching nonzeros
   int np = m->body_parentid[n];
   int i = 0, ip = 0;
-  while (i < d->B_rownnz[n] && ip < d->B_rownnz[np]) {
+  while (i < m->B_rownnz[n] && ip < m->B_rownnz[np]) {
     // columns match
-    if (d->B_colind[d->B_rowadr[n] + i] == d->B_colind[d->B_rowadr[np] + ip]) {
-      mju_addTo(mat + 6*(d->B_rowadr[np] + ip), mat + 6*(d->B_rowadr[n] + i), 6);
+    if (m->B_colind[m->B_rowadr[n] + i] == m->B_colind[m->B_rowadr[np] + ip]) {
+      mju_addTo(mat + 6*(m->B_rowadr[np] + ip), mat + 6*(m->B_rowadr[n] + i), 6);
 
       // advance both
       i++;
@@ -518,7 +518,7 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
     }
 
     // mismatch columns: advance parent
-    else if (d->B_colind[d->B_rowadr[n] + i] > d->B_colind[d->B_rowadr[np] + ip]) {
+    else if (m->B_colind[m->B_rowadr[n] + i] > m->B_colind[m->B_rowadr[np] + ip]) {
       ip++;
     }
 
@@ -534,7 +534,7 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
 // derivative of cvel, cdof_dot w.r.t qvel
 static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot) {
   int nv = m->nv, nbody = m->nbody;
-  int* Badr = d->B_rowadr, * Dadr = d->D_rowadr;
+  int* Badr = m->B_rowadr, * Dadr = m->D_rowadr;
   mjtNum mat[36], matT[36];   // 6x6 matrices
 
   // forward pass over bodies: accumulate Dcvel, set Dcdofdot
@@ -603,9 +603,9 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
 // subtract d qfrc_bias / d qvel from qDeriv
 static void mjd_rne_vel(const mjModel* m, mjData* d) {
   int nv = m->nv, nbody = m->nbody;
-  const int* Badr = d->B_rowadr;
-  const int* Dadr = d->D_rowadr;
-  const int* Bnnz = d->B_rownnz;
+  const int* Badr = m->B_rowadr;
+  const int* Dadr = m->D_rowadr;
+  const int* Bnnz = m->B_rownnz;
 
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
@@ -710,10 +710,10 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
           mju_scl(row, J+j*nv, J[i*nv+k] * B[i*n+j], nv);
 
           // add row to qDeriv(k,:)
-          int rownnz_k = d->D_rownnz[k];
+          int rownnz_k = m->D_rownnz[k];
           for (int s=0; s < rownnz_k; s++) {
-            int adr = d->D_rowadr[k] + s;
-            d->qDeriv[adr] += row[d->D_colind[adr]];
+            int adr = m->D_rowadr[k] + s;
+            d->qDeriv[adr] += row[m->D_colind[adr]];
           }
         }
       }
@@ -748,8 +748,8 @@ static void addJTBJSparse(
         int colik = J_colind[ik];
 
         // qDeriv(k,:) += J(j,:) * J(i,k)*B(i,j)
-        mju_addToSclSparseInc(d->qDeriv + d->D_rowadr[colik], J + adr_j,
-                              d->D_rownnz[colik], d->D_colind + d->D_rowadr[colik],
+        mju_addToSclSparseInc(d->qDeriv + m->D_rowadr[colik], J + adr_j,
+                              m->D_rownnz[colik], m->D_colind + m->D_rowadr[colik],
                               nnz_j, J_colind + adr_j,
                               J[ik]*B[i*n+j]);
       }
@@ -1433,12 +1433,12 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
 
   // dof damping
   for (int i=0; i < nv; i++) {
-    int nnz_i = d->D_rownnz[i];
+    int nnz_i = m->D_rownnz[i];
     for (int j=0; j < nnz_i; j++) {
-      int ij = d->D_rowadr[i] + j;
+      int ij = m->D_rowadr[i] + j;
 
       // identify diagonal element
-      if (d->D_colind[ij] == i) {
+      if (m->D_colind[ij] == i) {
         d->qDeriv[ij] -= m->dof_damping[i];
         break;
       }

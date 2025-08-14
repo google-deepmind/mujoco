@@ -1118,18 +1118,18 @@ void mj_makeBSparse(int nv, int nbody, int nB,
 
 
 // check D and B sparsity for consistency
-static void checkDBSparse(const mjModel* m, mjData* d) {
+static void checkDBSparse(const mjModel* m) {
   // process all dofs
   for (int j = 0; j < m->nv; j++) {
     // get body for this dof
     int i = m->dof_bodyid[j];
 
     // D[row j] and B[row i] should be identical
-    if (d->D_rownnz[j] != d->B_rownnz[i]) {
+    if (m->D_rownnz[j] != m->B_rownnz[i]) {
       mjERROR("rows have different nnz");
     }
-    for (int k = 0; k < d->D_rownnz[j]; k++) {
-      if (d->D_colind[d->D_rowadr[j] + k] != d->B_colind[d->B_rowadr[i] + k]) {
+    for (int k = 0; k < m->D_rownnz[j]; k++) {
+      if (m->D_colind[m->D_rowadr[j] + k] != m->B_colind[m->B_rowadr[i] + k]) {
         mjERROR("rows have different colind");
       }
     }
@@ -2004,36 +2004,8 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     }
   }
 
-  // construct sparse matrix representations
-  if (m->body_dofadr) {
-    mj_markStack(d);
-    int* remaining = mjSTACKALLOC(d, m->nv, int);
-    int* count = mjSTACKALLOC(d, m->nbody, int);
-    int* M = mjSTACKALLOC(d, m->nM, int);
-    int* D = mjSTACKALLOC(d, m->nD, int);
-
-    // make D
-    mj_makeDofDofSparse(m->nv, m->nC, m->nD, m->nM, m->dof_parentid, m->dof_simplenum,
-                        d->D_rownnz, d->D_rowadr, d->D_diag, d->D_colind,
-                     /*reduced=*/0, /*upper=*/1, remaining);
-
-    // make B, check D and B
-    mj_makeBSparse(m->nv, m->nbody, m->nB, m->body_dofnum, m->body_parentid,
-                   m->body_dofadr, d->B_rownnz, d->B_rowadr, d->B_colind, count);
-    checkDBSparse(m, d);
-
-    // make C
-    mj_makeDofDofSparse(m->nv, m->nC, m->nD, m->nM, m->dof_parentid, m->dof_simplenum,
-                        d->M_rownnz, d->M_rowadr, NULL, d->M_colind,
-                        /*reduced=*/1, /*upper=*/0, remaining);
-
-    // make index mappings: mapM2D, mapD2M, mapM2C, mapM2M
-    mj_makeDofDofMaps(m->nv, m->nM, m->nC, m->nD, m->dof_Madr, m->dof_simplenum, m->dof_parentid,
-                      d->D_rownnz, d->D_rowadr, d->D_colind, d->M_rownnz, d->M_rowadr,
-                      d->mapM2D, d->mapD2M, d->mapM2M, remaining, M, D);
-
-    mj_freeStack(d);
-  }
+  // check consistency of sparse matrix representations
+  checkDBSparse(m);
 
   // restore pluginstate and plugindata
   if (d->nplugin) {

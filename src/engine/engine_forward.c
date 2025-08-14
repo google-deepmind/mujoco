@@ -869,18 +869,18 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
       // qH = M + h*diag(B)
       mju_copy(d->qH, d->M, nC);
       for (int i=0; i < nv; i++) {
-        d->qH[d->M_rowadr[i] + d->M_rownnz[i] - 1] += m->opt.timestep * m->dof_damping[i];
+        d->qH[m->M_rowadr[i] + m->M_rownnz[i] - 1] += m->opt.timestep * m->dof_damping[i];
       }
 
       // factorize in-place
-      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, d->M_colind);
+      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
     }
 
     // solve
     mju_add(qfrc, d->qfrc_smooth, d->qfrc_constraint, nv);
     mju_copy(qacc, qfrc, m->nv);
     mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1,
-               d->M_rownnz, d->M_rowadr, d->M_colind);
+               m->M_rownnz, m->M_rowadr, m->M_colind);
   }
 
   // advance state and time
@@ -1025,18 +1025,18 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
       // gather qLU <- qM (lower to full)
-      mju_gather(d->qLU, d->qM, d->mapM2D, nD);
+      mju_gather(d->qLU, d->qM, m->mapM2D, nD);
 
       // set qLU = qM - dt*qDeriv
       mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
 
       // factorize qLU
       int* scratch = mjSTACKALLOC(d, nv, int);
-      mju_factorLUSparse(d->qLU, nv, scratch, d->D_rownnz, d->D_rowadr, d->D_colind);
+      mju_factorLUSparse(d->qLU, nv, scratch, m->D_rownnz, m->D_rowadr, m->D_colind);
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
-    mju_solveLUSparse(qacc, d->qLU, qfrc, nv, d->D_rownnz, d->D_rowadr, d->D_diag, d->D_colind);
+    mju_solveLUSparse(qacc, d->qLU, qfrc, nv, m->D_rownnz, m->D_rowadr, m->D_diag, m->D_colind);
   }
 
   // IMPLICITFAST
@@ -1047,22 +1047,22 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
 
       // modified mass matrix: gather MhB <- qDeriv (full to lower)
       mjtNum* MhB = mjSTACKALLOC(d, nM, mjtNum);
-      mju_gather(MhB, d->qDeriv, d->mapD2M, nM);
+      mju_gather(MhB, d->qDeriv, m->mapD2M, nM);
 
       // set MhB = M - dt*qDeriv
       mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, nM);
 
       // gather qH <- MhB (legacy to CSR)
-      mju_gather(d->qH, MhB, d->mapM2M, nC);
+      mju_gather(d->qH, MhB, m->mapM2M, nC);
 
       // factorize in-place
-      mj_factorI(d->qH, d->qHDiagInv, nv, d->M_rownnz, d->M_rowadr, d->M_colind);
+      mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
     }
 
     // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
     mju_copy(qacc, qfrc, nv);
     mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1,
-               d->M_rownnz, d->M_rowadr, d->M_colind);
+               m->M_rownnz, m->M_rowadr, m->M_colind);
 
   } else {
     mjERROR("integrator must be implicit or implicitfast");

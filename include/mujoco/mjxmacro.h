@@ -700,19 +700,6 @@
     X   ( mjtNum,    subtree_angmom,    nbody,       3           ) \
     XNV ( mjtNum,    qH,                nC,          1           ) \
     X   ( mjtNum,    qHDiagInv,         nv,          1           ) \
-    XNV ( int,       B_rownnz,          nbody,       1           ) \
-    XNV ( int,       B_rowadr,          nbody,       1           ) \
-    XNV ( int,       B_colind,          nB,          1           ) \
-    XNV ( int,       M_rownnz,          nv,          1           ) \
-    XNV ( int,       M_rowadr,          nv,          1           ) \
-    XNV ( int,       M_colind,          nC,          1           ) \
-    XNV ( int,       mapM2M,            nC,          1           ) \
-    XNV ( int,       D_rownnz,          nv,          1           ) \
-    XNV ( int,       D_rowadr,          nv,          1           ) \
-    XNV ( int,       D_diag,            nv,          1           ) \
-    XNV ( int,       D_colind,          nD,          1           ) \
-    XNV ( int,       mapM2D,            nD,          1           ) \
-    XNV ( int,       mapD2M,            nM,          1           ) \
     XNV ( mjtNum,    qDeriv,            nD,          1           ) \
     XNV ( mjtNum,    qLU,               nD,          1           ) \
     X   ( mjtNum,    actuator_force,    nu,          1           ) \

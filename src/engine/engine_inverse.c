@@ -116,14 +116,14 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
     // gather qLU <- qM (lower to full)
-    mju_gather(d->qLU, d->qM, d->mapM2D, nD);
+    mju_gather(d->qLU, d->qM, m->mapM2D, nD);
 
     // set qLU = qM - dt*qDeriv
     mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
 
     // set qfrc = qLU * qacc
     mju_mulMatVecSparse(qfrc, d->qLU, qacc, nv,
-                        d->D_rownnz, d->D_rowadr, d->D_colind, /*rowsuper=*/NULL);
+                        m->D_rownnz, m->D_rowadr, m->D_colind, /*rowsuper=*/NULL);
     break;
 
   case mjINT_IMPLICITFAST:
@@ -137,7 +137,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     // set M = M - dt*qDeriv (reduced to M nonzeros)
     mjtNum* qDerivReduced = mjSTACKALLOC(d, m->nM, mjtNum);
     for (int i=0; i < nM; i++) {
-      qDerivReduced[i] = d->qDeriv[d->mapD2M[i]];
+      qDerivReduced[i] = d->qDeriv[m->mapD2M[i]];
     }
     mju_addToScl(d->qM, qDerivReduced, -m->opt.timestep, m->nM);
 

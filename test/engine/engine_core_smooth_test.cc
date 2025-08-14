@@ -236,7 +236,7 @@ TEST_F(CoreSmoothTest, TendonArmature) {
 
     // put only CRB inertia in M2
     mj_crb(m, d);
-    mju_scatter(d->qM, d->M, d->mapM2M, m->nC);
+    mju_scatter(d->qM, d->M, m->mapM2M, m->nC);
     vector<mjtNum> M2(nv*nv);
     mj_fullM(m, M2.data(), d->qM);
 
@@ -649,7 +649,7 @@ TEST_F(CoreSmoothTest, FactorI) {
   int nv = model->nv;
   vector<mjtNum> Ldense(nv*nv, 0);
   mju_sparse2dense(Ldense.data(), data->qLD, nv, nv,
-                   data->M_rownnz, data->M_rowadr, data->M_colind);
+                   model->M_rownnz, model->M_rowadr, model->M_colind);
   for (int i=0; i < nv; i++) {
     // set diagonal to 1
     Ldense[i*nv+i] = 1;
@@ -658,7 +658,7 @@ TEST_F(CoreSmoothTest, FactorI) {
   // dense D matrix
   vector<mjtNum> Ddense(nv*nv);
   mju_sparse2dense(Ddense.data(), data->qLD, nv, nv,
-                   data->M_rownnz, data->M_rowadr, data->M_colind);
+                   model->M_rownnz, model->M_rowadr, model->M_colind);
   for (int i=0; i < nv; i++) {
     for (int j=0; j < nv; j++) {
       // zero everything except the diagonal
@@ -698,12 +698,12 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   // copy M into LD: Legacy format
   vector<mjtNum> LDlegacy(nM, 0);
-  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, nC);
+  mju_scatter(LDlegacy.data(), d->qLD, m->mapM2M, nC);
 
   // compare LD and LDs densified matrices
   vector<mjtNum> LDdense(nv*nv);
   mju_sparse2dense(LDdense.data(), d->qLD, nv, nv,
-                   d->M_rownnz, d->M_rowadr, d->M_colind);
+                   m->M_rownnz, m->M_rowadr, m->M_colind);
   vector<mjtNum> LDdense2(nv*nv);
   mj_fullM(m, LDdense2.data(), LDlegacy.data());
 
@@ -722,7 +722,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   mj_solveLD_legacy(m, vec.data(), 1, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, 1,
-             d->M_rownnz, d->M_rowadr, d->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
@@ -746,7 +746,7 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   // copy LD into LDlegacy: Legacy format
   vector<mjtNum> LDlegacy(m->nM, 0);
-  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, m->nC);
+  mju_scatter(LDlegacy.data(), d->qLD, m->mapM2M, m->nC);
 
   // compare n LD and LDs vector solve
   int n = 3;
@@ -757,7 +757,7 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   mj_solveLD_legacy(m, vec.data(), n, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, d->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv*n; i++) {
@@ -781,7 +781,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
   int nv = m->nv;
   vector<mjtNum> sqrtInvD(nv);
   for (int i=0; i < nv; i++) {
-    int diag = d->M_rowadr[i] + d->M_rownnz[i] - 1;
+    int diag = m->M_rowadr[i] + m->M_rownnz[i] - 1;
     sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
   }
 
@@ -795,7 +795,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
 
   mj_solveM2(m, d, res.data(), vec.data(), sqrtInvD.data(), n);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, d->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind);
 
   // expect equality of dot(v, M^-1 * v) and dot(M^-1/2 * v, M^-1/2 * v)
   for (int i=0; i < n; i++) {
@@ -824,17 +824,17 @@ TEST_F(CoreSmoothTest, FactorIs) {
 
   // copy qLDlegacy into qLDexpected: CSR format
   vector<mjtNum> qLDexpected(nC);
-  mju_gather(qLDexpected.data(), qLDlegacy.data(), d->mapM2M, nC);
+  mju_gather(qLDexpected.data(), qLDlegacy.data(), m->mapM2M, nC);
 
   // copy qM into qLD: CSR format
   vector<mjtNum> qLD(nC);
-  mju_gather(qLD.data(), d->qM, d->mapM2M, nC);
+  mju_gather(qLD.data(), d->qM, m->mapM2M, nC);
 
   vector<mjtNum> qLDiagInvExpected(d->qLDiagInv, d->qLDiagInv + nv);
   vector<mjtNum> qLDiagInv(nv, 0);
 
   mj_factorI(qLD.data(), qLDiagInv.data(), nv,
-             d->M_rownnz, d->M_rowadr, d->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind);
 
   // expect outputs to match to floating point precision
   EXPECT_THAT(qLD, Pointwise(DoubleNear(1e-12), qLDexpected));

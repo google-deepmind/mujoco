@@ -337,21 +337,6 @@ struct mjData_ {
   mjtNum* qH;                // L'*D*L factorization of modified M               (nC x 1)
   mjtNum* qHDiagInv;         // 1/diag(D) of modified M                          (nv x 1)
 
-  // computed by mj_resetData
-  int*    B_rownnz;          // body-dof: non-zeros in each row                  (nbody x 1)
-  int*    B_rowadr;          // body-dof: address of each row in B_colind        (nbody x 1)
-  int*    B_colind;          // body-dof: column indices of non-zeros            (nB x 1)
-  int*    M_rownnz;          // reduced inertia: non-zeros in each row           (nv x 1)
-  int*    M_rowadr;          // reduced inertia: address of each row in M_colind (nv x 1)
-  int*    M_colind;          // reduced inertia: column indices of non-zeros     (nC x 1)
-  int*    mapM2M;            // index mapping from qM to M                       (nC x 1)
-  int*    D_rownnz;          // full inertia: non-zeros in each row              (nv x 1)
-  int*    D_rowadr;          // full inertia: address of each row in D_colind    (nv x 1)
-  int*    D_diag;            // full inertia: index of diagonal element          (nv x 1)
-  int*    D_colind;          // full inertia: column indices of non-zeros        (nD x 1)
-  int*    mapM2D;            // index mapping from qM to D                       (nD x 1)
-  int*    mapD2M;            // index mapping from D to qM                       (nM x 1)
-
   // computed by mj_implicit/mj_derivative
   mjtNum* qDeriv;            // d (passive + actuator - bias) / d qvel           (nD x 1)
 

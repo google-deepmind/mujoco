@@ -764,19 +764,6 @@ def _make_data_c(
       'ten_velocity': (m.ntendon, float_),
       'actuator_velocity': (m.nu, float_),
       'plugin_data': (get(m, 'nplugin'), np.uint64),
-      'B_rownnz': (m.nbody, np.int32),
-      'B_rowadr': (m.nbody, np.int32),
-      'B_colind': (m.nB, np.int32),
-      'M_rownnz': (m.nv, np.int32),
-      'M_rowadr': (m.nv, np.int32),
-      'M_colind': (m.nC, np.int32),
-      'mapM2M': (m.nC, np.int32),
-      'D_rownnz': (m.nv, np.int32),
-      'D_rowadr': (m.nv, np.int32),
-      'D_diag': (m.nv, np.int32),
-      'D_colind': (m.nD, np.int32),
-      'mapM2D': (m.nD, np.int32),
-      'mapD2M': (m.nM, np.int32),
       'qDeriv': (m.nD, float_),
       'qLU': (m.nD, float_),
       'qfrc_spring': (m.nv, float_),
@@ -1497,7 +1484,7 @@ def _get_data_into(
 
     # TODO(taylorhowell): remove mapping once qM is deprecated
     # map inertia (sparse) to reduced inertia (compressed sparse) representation
-    result_i.M[:] = result_i.qM[result_i.mapM2M]
+    result_i.M[:] = result_i.qM[m.mapM2M]
 
     # recalculate qLD and qLDiagInv as MJX and MuJoCo have different
     # representations of the Cholesky decomposition.

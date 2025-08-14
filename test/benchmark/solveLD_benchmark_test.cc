@@ -54,7 +54,7 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
   // scatter into legacy matrix
   mjtNum* LDlegacy = mj_stackAllocNum(d, m->nM);
   mju_zero(LDlegacy, m->nM);
-  mju_scatter(LDlegacy, d->qLD, d->mapM2M, m->nC);
+  mju_scatter(LDlegacy, d->qLD, m->mapM2M, m->nC);
 
   // benchmark
   while (state.KeepRunningBatch(kNumBenchmarkSteps)) {
@@ -64,7 +64,7 @@ static void BM_solveLD(benchmark::State& state, bool featherstone, bool coil) {
         mj_solveLD_legacy(m, res, 1, LDlegacy, d->qLDiagInv);
       } else {
         mj_solveLD(res, d->qLD, d->qLDiagInv, m->nv, 1,
-                   d->M_rownnz, d->M_rowadr, d->M_colind);
+                   m->M_rownnz, m->M_rowadr, m->M_colind);
       }
     }
   }

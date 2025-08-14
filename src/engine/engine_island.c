@@ -521,7 +521,7 @@ void mj_island(const mjModel* m, mjData* d) {
 
   // inertia: block-diagonalize both iLD <- qLD and iM <- qM
   mju_blockDiagSparse(d->iLD, d->iM_rownnz, d->iM_rowadr, d->iM_colind,
-                      d->qLD,  d->M_rownnz, d->M_rowadr, d->M_colind,
+                      d->qLD,  m->M_rownnz, m->M_rowadr, m->M_colind,
                       nidof, nisland,
                       d->map_idof2dof, d->map_dof2idof,
                       d->island_idofadr, d->island_idofadr,
