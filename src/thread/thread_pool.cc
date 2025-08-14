@@ -129,6 +129,10 @@ class ThreadPoolImpl : public mjThreadPool {
     thread_pool_bound_ = true;
   }
 
+  void SetQueueBusyWait(int busy_wait) {
+    lockless_queue_.SetBusyWait(busy_wait > 0);
+  }
+
   ~ThreadPoolImpl() { Shutdown(); }
 
  private:
@@ -276,6 +280,11 @@ size_t mju_threadPoolNumberOfThreads(mjThreadPool* thread_pool) {
 size_t mju_threadPoolCurrentWorkerId(mjThreadPool* thread_pool) {
   auto thread_pool_impl = static_cast<ThreadPoolImpl*>(thread_pool);
   return thread_pool_impl->GetWorkerId();
+}
+
+void mju_threadPoolSetBusyWait(mjThreadPool* thread_pool, int busy_wait) {
+  auto thread_pool_impl = static_cast<ThreadPoolImpl*>(thread_pool);
+  thread_pool_impl->SetQueueBusyWait(busy_wait);
 }
 
 // start a task in the threadpool
