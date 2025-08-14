@@ -152,7 +152,8 @@ def _mjx_efc(dx, worldid: int):
     return 0, empty, empty, np.zeros((0, dx.qvel.shape[0])), empty, empty
   efc_pos = select(dx._impl.efc__pos[:nefc])
   efc_type = select(dx._impl.efc__type[:nefc])
-  keys_sorted = np.lexsort((-efc_pos, efc_type))
+  efc_d = select(dx._impl.efc__D[:nefc])
+  keys_sorted = np.lexsort((-efc_pos, efc_type, efc_d))
   keys = keys[keys_sorted]
 
   nefc = len(keys)
@@ -178,7 +179,7 @@ def _mj_efc(d):
   else:
     efc_j = d.efc_J.reshape((-1, d.qvel.shape[0]))
 
-  keys = np.lexsort((-d.efc_pos, d.efc_type))
+  keys = np.lexsort((-d.efc_pos, d.efc_type, d.efc_D))
   type_ = d.efc_type[keys]
   pos = d.efc_pos[keys]
   efc_j = efc_j[keys]

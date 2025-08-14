@@ -285,3 +285,213 @@ def kinematics(m: types.Model, d: types.Data):
 def kinematics_vmap(unused_axis_size, is_batched, m, d):
   d = kinematics(m, d)
   return d, is_batched[1]
+
+
+_m = mjwarp.Model(
+    **{f.name: None for f in dataclasses.fields(mjwarp.Model) if f.init}
+)
+_d = mjwarp.Data(
+    **{f.name: None for f in dataclasses.fields(mjwarp.Data) if f.init}
+)
+_o = mjwarp.Option(
+    **{f.name: None for f in dataclasses.fields(mjwarp.Option) if f.init}
+)
+_s = mjwarp.Statistic(
+    **{f.name: None for f in dataclasses.fields(mjwarp.Statistic) if f.init}
+)
+_c = mjwarp.Contact(
+    **{f.name: None for f in dataclasses.fields(mjwarp.Contact) if f.init}
+)
+_e = mjwarp.Constraint(
+    **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
+)
+
+
+@ffi.format_args_for_warp
+def _tendon_shim(
+    # Model
+    nworld: int,
+    body_parentid: wp.array(dtype=int),
+    body_rootid: wp.array(dtype=int),
+    dof_bodyid: wp.array(dtype=int),
+    geom_bodyid: wp.array(dtype=int),
+    geom_size: wp.array2d(dtype=wp.vec3),
+    jnt_dofadr: wp.array(dtype=int),
+    jnt_qposadr: wp.array(dtype=int),
+    ntendon: int,
+    nv: int,
+    site_bodyid: wp.array(dtype=int),
+    tendon_adr: wp.array(dtype=int),
+    tendon_geom_adr: wp.array(dtype=int),
+    tendon_jnt_adr: wp.array(dtype=int),
+    tendon_num: wp.array(dtype=int),
+    tendon_site_pair_adr: wp.array(dtype=int),
+    wrap_geom_adr: wp.array(dtype=int),
+    wrap_jnt_adr: wp.array(dtype=int),
+    wrap_objid: wp.array(dtype=int),
+    wrap_prm: wp.array(dtype=float),
+    wrap_pulley_scale: wp.array(dtype=float),
+    wrap_site_pair_adr: wp.array(dtype=int),
+    wrap_type: wp.array(dtype=int),
+    # Data
+    cdof: wp.array2d(dtype=wp.spatial_vector),
+    geom_xmat: wp.array2d(dtype=wp.mat33),
+    geom_xpos: wp.array2d(dtype=wp.vec3),
+    qpos: wp.array2d(dtype=float),
+    site_xpos: wp.array2d(dtype=wp.vec3),
+    subtree_com: wp.array2d(dtype=wp.vec3),
+    ten_J: wp.array3d(dtype=float),
+    ten_length: wp.array2d(dtype=float),
+    ten_wrapadr: wp.array2d(dtype=int),
+    ten_wrapnum: wp.array2d(dtype=int),
+    wrap_geom_xpos: wp.array2d(dtype=wp.spatial_vector),
+    wrap_obj: wp.array2d(dtype=wp.vec2i),
+    wrap_xpos: wp.array2d(dtype=wp.spatial_vector),
+):
+  _m.stat = _s
+  _m.opt = _o
+  _d.efc = _e
+  _d.contact = _c
+  _m.body_parentid = body_parentid
+  _m.body_rootid = body_rootid
+  _m.dof_bodyid = dof_bodyid
+  _m.geom_bodyid = geom_bodyid
+  _m.geom_size = geom_size
+  _m.jnt_dofadr = jnt_dofadr
+  _m.jnt_qposadr = jnt_qposadr
+  _m.ntendon = ntendon
+  _m.nv = nv
+  _m.site_bodyid = site_bodyid
+  _m.tendon_adr = tendon_adr
+  _m.tendon_geom_adr = tendon_geom_adr
+  _m.tendon_jnt_adr = tendon_jnt_adr
+  _m.tendon_num = tendon_num
+  _m.tendon_site_pair_adr = tendon_site_pair_adr
+  _m.wrap_geom_adr = wrap_geom_adr
+  _m.wrap_jnt_adr = wrap_jnt_adr
+  _m.wrap_objid = wrap_objid
+  _m.wrap_prm = wrap_prm
+  _m.wrap_pulley_scale = wrap_pulley_scale
+  _m.wrap_site_pair_adr = wrap_site_pair_adr
+  _m.wrap_type = wrap_type
+  _d.cdof = cdof
+  _d.geom_xmat = geom_xmat
+  _d.geom_xpos = geom_xpos
+  _d.qpos = qpos
+  _d.site_xpos = site_xpos
+  _d.subtree_com = subtree_com
+  _d.ten_J = ten_J
+  _d.ten_length = ten_length
+  _d.ten_wrapadr = ten_wrapadr
+  _d.ten_wrapnum = ten_wrapnum
+  _d.wrap_geom_xpos = wrap_geom_xpos
+  _d.wrap_obj = wrap_obj
+  _d.wrap_xpos = wrap_xpos
+  _d.nworld = nworld
+  mjwarp.tendon(_m, _d)
+
+
+def _tendon_jax_impl(m: types.Model, d: types.Data):
+  output_dims = {
+      'cdof': d._impl.cdof.shape,
+      'geom_xmat': d.geom_xmat.shape,
+      'geom_xpos': d.geom_xpos.shape,
+      'qpos': d.qpos.shape,
+      'site_xpos': d.site_xpos.shape,
+      'subtree_com': d.subtree_com.shape,
+      'ten_J': d._impl.ten_J.shape,
+      'ten_length': d.ten_length.shape,
+      'ten_wrapadr': d._impl.ten_wrapadr.shape,
+      'ten_wrapnum': d._impl.ten_wrapnum.shape,
+      'wrap_geom_xpos': d._impl.wrap_geom_xpos.shape,
+      'wrap_obj': d._impl.wrap_obj.shape,
+      'wrap_xpos': d._impl.wrap_xpos.shape,
+  }
+  jf = ffi.jax_callable_variadic_tuple(
+      _tendon_shim,
+      num_outputs=13,
+      output_dims=output_dims,
+      vmap_method=None,
+      in_out_argnames={
+          'cdof',
+          'geom_xmat',
+          'geom_xpos',
+          'qpos',
+          'site_xpos',
+          'subtree_com',
+          'ten_J',
+          'ten_length',
+          'ten_wrapadr',
+          'ten_wrapnum',
+          'wrap_geom_xpos',
+          'wrap_obj',
+          'wrap_xpos',
+      },
+  )
+  out = jf(
+      d.qpos.shape[0],
+      m.body_parentid,
+      m.body_rootid,
+      m.dof_bodyid,
+      m.geom_bodyid,
+      m.geom_size,
+      m.jnt_dofadr,
+      m.jnt_qposadr,
+      m.ntendon,
+      m.nv,
+      m.site_bodyid,
+      m.tendon_adr,
+      m._impl.tendon_geom_adr,
+      m._impl.tendon_jnt_adr,
+      m.tendon_num,
+      m._impl.tendon_site_pair_adr,
+      m._impl.wrap_geom_adr,
+      m._impl.wrap_jnt_adr,
+      m.wrap_objid,
+      m.wrap_prm,
+      m._impl.wrap_pulley_scale,
+      m._impl.wrap_site_pair_adr,
+      m.wrap_type,
+      d._impl.cdof,
+      d.geom_xmat,
+      d.geom_xpos,
+      d.qpos,
+      d.site_xpos,
+      d.subtree_com,
+      d._impl.ten_J,
+      d.ten_length,
+      d._impl.ten_wrapadr,
+      d._impl.ten_wrapnum,
+      d._impl.wrap_geom_xpos,
+      d._impl.wrap_obj,
+      d._impl.wrap_xpos,
+  )
+  d = d.tree_replace({
+      '_impl.cdof': out[0],
+      'geom_xmat': out[1],
+      'geom_xpos': out[2],
+      'qpos': out[3],
+      'site_xpos': out[4],
+      'subtree_com': out[5],
+      '_impl.ten_J': out[6],
+      'ten_length': out[7],
+      '_impl.ten_wrapadr': out[8],
+      '_impl.ten_wrapnum': out[9],
+      '_impl.wrap_geom_xpos': out[10],
+      '_impl.wrap_obj': out[11],
+      '_impl.wrap_xpos': out[12],
+  })
+  return d
+
+
+@jax.custom_batching.custom_vmap
+@ffi.marshal_jax_warp_callable
+def tendon(m: types.Model, d: types.Data):
+  return _tendon_jax_impl(m, d)
+
+
+@tendon.def_vmap
+@ffi.marshal_custom_vmap
+def tendon_vmap(unused_axis_size, is_batched, m, d):
+  d = tendon(m, d)
+  return d, is_batched[1]

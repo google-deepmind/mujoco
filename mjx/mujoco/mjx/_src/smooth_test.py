@@ -122,7 +122,7 @@ class SmoothTest(absltest.TestCase):
     # tendon
     dx = jax.jit(mjx.tendon)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx._impl, 'ten_J')
-    _assert_attr_eq(d, dx._impl, 'ten_length')
+    _assert_attr_eq(d, dx, 'ten_length')
     # transmission
     dx = jax.jit(mjx.transmission)(mx, dx)
     _assert_attr_eq(d, dx._impl, 'actuator_length')
@@ -394,7 +394,7 @@ class TendonTest(parameterized.TestCase):
     mujoco.mj_forward(m, d)
     dx = jax.jit(mjx.forward)(mx, dx)
 
-    _assert_eq(d.ten_length, dx._impl.ten_length, 'ten_length')
+    _assert_eq(d.ten_length, dx.ten_length, 'ten_length')
     _assert_eq(d.ten_J, dx._impl.ten_J, 'ten_J')
     _assert_eq(d.ten_wrapnum, dx._impl.ten_wrapnum, 'ten_wrapnum')
     _assert_eq(d.ten_wrapadr, dx._impl.ten_wrapadr, 'ten_wrapadr')

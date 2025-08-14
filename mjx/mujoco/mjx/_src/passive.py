@@ -75,7 +75,7 @@ def _spring_damper(m: Model, d: Data) -> jax.Array:
   qfrc -= m.dof_damping * d.qvel
 
   # tendon-level spring-dampers
-  below, above = m.tendon_lengthspring.T - d._impl.ten_length
+  below, above = m.tendon_lengthspring.T - d.ten_length
   frc_spring = jp.where(below > 0, m.tendon_stiffness * below, 0)
   frc_spring = jp.where(above < 0, m.tendon_stiffness * above, frc_spring)
   frc_damper = -m.tendon_damping * d._impl.ten_velocity
