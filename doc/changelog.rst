@@ -2,6 +2,19 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+MJX
+^^^
+- Promote ``ten_length`` to the public MJX API. Add Warp support for ``mjx.tendon``.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - ``ten_length`` was moved from ``mjx.Data._impl.ten_length`` to a public field ``mjx.Data.ten_length``.
+
+
 Version 3.3.5 (August 8, 2025)
 -----------------------------------
 

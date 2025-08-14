@@ -576,6 +576,7 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'qfrc_constraint': (m.nv, float_),
       'qfrc_inverse': (m.nv, float_),
       'cvel': (m.nbody, 6, float_),
+      'ten_length': (m.ntendon, float_),
   }
   zero_fields = {
       k: np.zeros(v[:-1], dtype=v[-1]) for k, v in zero_fields.items()
@@ -637,7 +638,6 @@ def _make_data_jax(
       'ten_wrapadr': (m.ntendon, np.int32),
       'ten_wrapnum': (m.ntendon, np.int32),
       'ten_J': (m.ntendon, m.nv, float_),
-      'ten_length': (m.ntendon, float_),
       'wrap_obj': (m.nwrap, 2, np.int32),
       'wrap_xpos': (m.nwrap, 6, float_),
       'actuator_length': (m.nu, float_),
@@ -742,7 +742,6 @@ def _make_data_c(
       'ten_J_rowadr': (m.ntendon, np.int32),
       'ten_J_colind': (m.ntendon, m.nv, np.int32),
       'ten_J': (m.ntendon, m.nv, float_),
-      'ten_length': (m.ntendon, float_),
       'ten_wrapadr': (m.ntendon, np.int32),
       'ten_wrapnum': (m.ntendon, np.int32),
       'wrap_obj': (m.nwrap, 2, np.int32),

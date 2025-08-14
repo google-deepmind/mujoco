@@ -478,7 +478,7 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(dx.site_xmat.reshape((1, 9)), d.site_xmat)
 
     # tendon data is correct
-    np.testing.assert_allclose(dx._impl.ten_length, d.ten_length)
+    np.testing.assert_allclose(dx.ten_length, d.ten_length)
     np.testing.assert_equal(dx._impl.ten_wrapadr, np.zeros((1,)))
     np.testing.assert_equal(dx._impl.ten_wrapnum, np.zeros((1,)))
     np.testing.assert_equal(dx._impl.wrap_obj, np.zeros((2, 2)))

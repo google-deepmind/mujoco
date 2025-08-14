@@ -361,7 +361,6 @@ class DataWarp(PyTreeNode):
   ten_Jdot: jax.Array
   ten_actfrc: jax.Array
   ten_bias_coef: jax.Array
-  ten_length: jax.Array
   ten_velocity: jax.Array
   ten_wrapadr: jax.Array
   ten_wrapnum: jax.Array

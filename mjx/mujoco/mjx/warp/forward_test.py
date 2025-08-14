@@ -142,7 +142,7 @@ class ForwardTest(parameterized.TestCase):
       if m.ncam:
         tu.assert_attr_eq(dx, d, 'cam_xpos')
         tu.assert_eq(dx.cam_xmat, d.cam_xmat.reshape((-1, 3, 3)), 'cam_xmat')
-      tu.assert_attr_eq(dx._impl, d, 'ten_length')
+      tu.assert_attr_eq(dx, d, 'ten_length')
       tu.assert_attr_eq(dx._impl, d, 'ten_J')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapadr')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapnum')
