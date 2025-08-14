@@ -1047,7 +1047,7 @@ class SpecsTest(absltest.TestCase):
 
   def test_attach_to_site(self):
     parent = mujoco.MjSpec()
-    parent.assets = {'cube.obj': 'cube_content'}
+    parent.assets = {'path/cube.obj': 'cube_content'}
     site = parent.worldbody.add_site(pos=[1, 2, 3], quat=[0, 0, 0, 1])
     site.name = 'site'
 
@@ -1063,11 +1063,11 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model1.nbody, 2)
     np.testing.assert_array_equal(model1.body_pos[1], [0, 1, 4])
     np.testing.assert_array_equal(model1.body_quat[1], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
 
     # Attach entire spec to site and compile again.
     child2 = mujoco.MjSpec()
-    child2.assets = {'cube2.obj': 'cube2_content'}
+    child2.assets = {'path/cube2.obj': 'cube2_content'}
     body2 = child2.worldbody.add_body(name='body')
     self.assertIsNotNone(parent.attach(child2, site=site, suffix='-child2'))
     self.assertIsNotNone(child2.worldbody)
@@ -1080,14 +1080,14 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_pos[2], [2, 3, 2])
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
 
     # Attach another spec to site (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
-    child3.assets = {'cube3.obj': 'cube3_content'}
+    child3.assets = {'path/cube3.obj': 'cube3_content'}
     body3 = child3.worldbody.add_body(name='body')
-    self.assertIsNotNone(parent.attach(child3, site='site', suffix='-child3'))
+    self.assertIsNotNone(parent.attach(child3, site='site', prefix='child3-'))
     self.assertIsNotNone(child3.worldbody)
     self.assertEqual(child3.parent, parent)
     body3.pos = [-2, -2, -2]
@@ -1100,9 +1100,9 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2-child2.obj'], 'cube2_content')
-    self.assertEqual(parent.assets['cube3-child3.obj'], 'cube3_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path/child3-cube3.obj'], 'cube3_content')
 
     # Fail to attach to a site that does not exist.
     child4 = mujoco.MjSpec()
@@ -1127,13 +1127,13 @@ class SpecsTest(absltest.TestCase):
 
   def test_attach_to_frame(self):
     parent = mujoco.MjSpec()
-    parent.assets = {'cube.obj': 'cube_content'}
+    parent.assets = {'path/cube.obj': 'cube_content'}
     frame = parent.worldbody.add_frame(pos=[1, 2, 3], quat=[0, 0, 0, 1])
     frame.name = 'frame'
 
     # Attach body to frame and compile.
     child1 = mujoco.MjSpec()
-    child1.assets = {'cube1.obj': 'cube1_content'}
+    child1.assets = {'path/cube1.obj': 'cube1_content'}
     body1 = child1.worldbody.add_body()
     self.assertIs(body1, frame.attach_body(body1, prefix='_'))
     self.assertIsNotNone(child1.worldbody)
@@ -1143,11 +1143,11 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model1.nbody, 2)
     np.testing.assert_array_equal(model1.body_pos[1], [0, 1, 4])
     np.testing.assert_array_equal(model1.body_quat[1], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
 
     # Attach entire spec to frame and compile again.
     child2 = mujoco.MjSpec()
-    child2.assets = {'cube2.obj': 'cube2_content'}
+    child2.assets = {'path/cube2.obj': 'cube2_content'}
     body2 = child2.worldbody.add_body(name='body')
     body2.set_frame(child2.worldbody.add_frame(pos=[-1, -1, 1]))
     self.assertIsNotNone(parent.attach(child2, frame=frame, suffix='-child'))
@@ -1161,15 +1161,15 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_pos[2], [3, 4, 3])
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2-child.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube2-child.obj'], 'cube2_content')
 
     # Attach another spec to frame (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
-    child3.assets = {'cube2.obj': 'new_cube2_content'}
+    child3.assets = {'path/cube2.obj': 'new_content'}
     body3 = child3.worldbody.add_body(name='body')
     body3.set_frame(child3.worldbody.add_frame(pos=[-1, -1, 1]))
-    self.assertIsNotNone(parent.attach(child3, frame='frame', suffix='-child3'))
+    self.assertIsNotNone(parent.attach(child3, frame='frame', prefix='child3-'))
     self.assertIsNotNone(child3.worldbody)
     self.assertEqual(child3.parent, parent)
     body3.pos = [-2, -2, -2]
@@ -1182,8 +1182,8 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2-child3.obj'], 'new_cube2_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/child3-cube2.obj'], 'new_content')
 
     # Fail to attach to a frame that does not exist.
     child4 = mujoco.MjSpec()
