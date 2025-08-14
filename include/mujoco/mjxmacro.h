@@ -77,6 +77,10 @@
     X( nbvhdynamic )        \
     X( noct )               \
     X( njnt )               \
+    X( nM )                 \
+    X( nB )                 \
+    X( nC )                 \
+    X( nD )                 \
     X( ngeom )              \
     X( nsite )              \
     X( ncam )               \
@@ -138,10 +142,6 @@
     X( nnames )             \
     X( npaths )             \
     X( nnames_map )         \
-    X( nM )                 \
-    X( nB )                 \
-    X( nC )                 \
-    X( nD )                 \
     X( nJmom )              \
     X( ntree )              \
     X( ngravcomp )          \
@@ -597,6 +597,19 @@
     X   ( char,    names,                 nnames,        1                    ) \
     X   ( int,     names_map,             nnames_map,    1                    ) \
     X   ( char,    paths,                 npaths,        1                    ) \
+    X   ( int,     B_rownnz,              nbody,         1                    ) \
+    X   ( int,     B_rowadr,              nbody,         1                    ) \
+    X   ( int,     B_colind,              nB,            1                    ) \
+    X   ( int,     M_rownnz,              nv,            1                    ) \
+    X   ( int,     M_rowadr,              nv,            1                    ) \
+    X   ( int,     M_colind,              nC,            1                    ) \
+    X   ( int,     mapM2M,                nC,            1                    ) \
+    X   ( int,     D_rownnz,              nv,            1                    ) \
+    X   ( int,     D_rowadr,              nv,            1                    ) \
+    X   ( int,     D_diag,                nv,            1                    ) \
+    X   ( int,     D_colind,              nD,            1                    ) \
+    X   ( int,     mapM2D,                nD,            1                    ) \
+    X   ( int,     mapD2M,                nM,            1                    )
 
 //-------------------------------- mjData ----------------------------------------------------------
 
@@ -722,7 +735,7 @@
     X( mjContact, contact, MJ_D(ncon), 1 )
 
 // array fields of mjData that are used in the primal problem
-#define MJDATA_ARENA_POINTERS_SOLVER                      \
+#define MJDATA_ARENA_POINTERS_SOLVER                     \
     X  ( int,      efc_type,          MJ_D(nefc),    1 ) \
     X  ( int,      efc_id,            MJ_D(nefc),    1 ) \
     XNV( int,      efc_J_rownnz,      MJ_D(nefc),    1 ) \

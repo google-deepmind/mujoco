@@ -5267,6 +5267,10 @@ public unsafe struct mjModel_ {
   public int nbvhdynamic;
   public int noct;
   public int njnt;
+  public int nM;
+  public int nB;
+  public int nC;
+  public int nD;
   public int ngeom;
   public int nsite;
   public int ncam;
@@ -5328,10 +5332,6 @@ public unsafe struct mjModel_ {
   public int nnames;
   public int npaths;
   public int nnames_map;
-  public int nM;
-  public int nB;
-  public int nC;
-  public int nD;
   public int nJmom;
   public int ntree;
   public int ngravcomp;
@@ -5762,6 +5762,19 @@ public unsafe struct mjModel_ {
   public char* names;
   public int* names_map;
   public char* paths;
+  public int* B_rownnz;
+  public int* B_rowadr;
+  public int* B_colind;
+  public int* M_rownnz;
+  public int* M_rowadr;
+  public int* M_colind;
+  public int* mapM2M;
+  public int* D_rownnz;
+  public int* D_rowadr;
+  public int* D_diag;
+  public int* D_colind;
+  public int* mapM2D;
+  public int* mapD2M;
   public UInt64 signature;
 }
 

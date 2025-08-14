@@ -2932,12 +2932,10 @@ void mjCModel::CopyTree(mjModel* m) {
     }
   }
   if (nM_post != nM) throw mjCError(0, "nM mismatch: pre %d, post %d", nullptr, nM, nM_post);
-  m->nM = nM_post;
 
   // recompute nD, validate
   int nD_post = 2 * m->nM - nv;
   if (nD_post != nD) throw mjCError(0, "nD mismatch: pre %d, post %d", nullptr, nD, nD_post);
-  m->nD = nD_post;
 
   // bodies_[]->subtreedofs already computed in ComputeSparseSizes
 
@@ -2954,7 +2952,6 @@ void mjCModel::CopyTree(mjModel* m) {
     }
   }
   if (nB_post != nB) throw mjCError(0, "nB mismatch: pre %d, post %d", nullptr, nB, nB_post);
-  m->nB = nB_post;
 }
 
 // copy plugin data
@@ -3799,7 +3796,6 @@ void mjCModel::FinalizeSimple(mjModel* m) {
   }
   int nC_post = nOD + nv;
   if (nC_post != nC) throw mjCError(0, "nC mismatch: pre %d, post %d", nullptr, nC, nC_post);
-  m->nC = nC_post;
 }
 
 
@@ -4774,8 +4770,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // create low-level model
   mj_makeModel(&m,
-               nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ngeom, nsite,
-               ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
+               nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, nM, nB, nC, nD,
+               ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
                nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord,
                nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,
                nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert, nskinface, nskinbone,
@@ -4850,6 +4846,33 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     std::size_t nstack_mb = m->narena / kMegabyte;
     std::size_t residual_mb = m->narena % kMegabyte ? 1 : 0;
     m->narena = kMegabyte * (nstack_mb + residual_mb);
+  }
+
+  // sparsity structures
+  {
+    std::vector<int> remaining(m->nv);
+    std::vector<int> count(m->nbody);
+    std::vector<int> M(m->nM);
+    std::vector<int> D(m->nD);
+
+    // make D
+    mj_makeDofDofSparse(m->nv, m->nC, m->nD, m->nM, m->dof_parentid, m->dof_simplenum,
+                        m->D_rownnz, m->D_rowadr, m->D_diag, m->D_colind,
+                        /*reduced=*/0, /*upper=*/1, remaining.data());
+
+    // make B
+    mj_makeBSparse(m->nv, m->nbody, m->nB, m->body_dofnum, m->body_parentid,
+                  m->body_dofadr, m->B_rownnz, m->B_rowadr, m->B_colind, count.data());
+
+    // make C
+    mj_makeDofDofSparse(m->nv, m->nC, m->nD, m->nM, m->dof_parentid, m->dof_simplenum,
+                        m->M_rownnz, m->M_rowadr, NULL, m->M_colind,
+                        /*reduced=*/1, /*upper=*/0, remaining.data());
+
+    // make index mappings: mapM2D, mapD2M, mapM2M
+    mj_makeDofDofMaps(m->nv, m->nM, m->nC, m->nD, m->dof_Madr, m->dof_simplenum, m->dof_parentid,
+                      m->D_rownnz, m->D_rowadr, m->D_colind, m->M_rownnz, m->M_rowadr,
+                      m->mapM2D, m->mapD2M, m->mapM2M, remaining.data(), M.data(), D.data());
   }
 
   // create data

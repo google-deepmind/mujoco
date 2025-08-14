@@ -463,7 +463,8 @@ static void freeModelBuffers(mjModel* m) {
 // allocate and initialize mjModel structure
 void mj_makeModel(mjModel** dest,
     int nq, int nv, int nu, int na, int nbody, int nbvh,
-    int nbvhstatic, int nbvhdynamic, int noct, int njnt, int ngeom, int nsite, int ncam,
+    int nbvhstatic, int nbvhdynamic, int noct, int njnt,
+    int nM, int nB, int nC, int nD, int ngeom, int nsite, int ncam,
     int nlight, int nflex, int nflexnode, int nflexvert, int nflexedge, int nflexelem,
     int nflexelemdata, int nflexelemedge, int nflexshelldata, int nflexevpair, int nflextexcoord,
     int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
@@ -504,6 +505,10 @@ void mj_makeModel(mjModel** dest,
   m->nbvhdynamic = nbvhdynamic;
   m->noct = noct;
   m->njnt = njnt;
+  m->nM = nM;
+  m->nB = nB;
+  m->nC = nC;
+  m->nD = nD;
   m->ngeom = ngeom;
   m->nsite = nsite;
   m->ncam = ncam;
@@ -619,7 +624,7 @@ void mj_makeModel(mjModel** dest,
   // clear, set pointers in buffer
   memset(m->buffer, 0, m->nbuffer);
 #ifdef MEMORY_SANITIZER
-  // Tell msan to treat the entire buffer as uninitialized
+  // tell msan to treat the entire buffer as uninitialized
   __msan_allocated_memory(m->buffer, m->nbuffer);
 #endif
   mj_setPtrModel(m);
@@ -641,23 +646,24 @@ void mj_makeModel(mjModel** dest,
 mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   // allocate new model if needed
   if (!dest) {
-    mj_makeModel(&dest,
-      src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
-      src->nbvhstatic, src->nbvhdynamic, src->noct, src->njnt, src->ngeom, src->nsite,
-      src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert, src->nflexedge,
-      src->nflexelem, src->nflexelemdata, src->nflexelemedge, src->nflexshelldata,
-      src->nflexevpair, src->nflextexcoord, src->nmesh, src->nmeshvert,
-      src->nmeshnormal, src->nmeshtexcoord, src->nmeshface, src->nmeshgraph,
-      src->nmeshpoly, src->nmeshpolyvert, src->nmeshpolymap,
-      src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
-      src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata,
-      src->ntex, src->ntexdata, src->nmat, src->npair, src->nexclude,
-      src->neq, src->ntendon, src->nwrap, src->nsensor, src->nnumeric,
-      src->nnumericdata, src->ntext, src->ntextdata, src->ntuple,
-      src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
-      src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site,
-      src->nuser_cam, src->nuser_tendon, src->nuser_actuator,
-      src->nuser_sensor, src->nnames, src->npaths);
+    mj_makeModel(
+        &dest, src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
+        src->nbvhstatic, src->nbvhdynamic, src->noct, src->njnt, src->nM,
+        src->nB, src->nC, src->nD, src->ngeom, src->nsite, src->ncam,
+        src->nlight, src->nflex, src->nflexnode, src->nflexvert, src->nflexedge,
+        src->nflexelem, src->nflexelemdata, src->nflexelemedge,
+        src->nflexshelldata, src->nflexevpair, src->nflextexcoord, src->nmesh,
+        src->nmeshvert, src->nmeshnormal, src->nmeshtexcoord, src->nmeshface,
+        src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert, src->nmeshpolymap,
+        src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
+        src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata,
+        src->ntex, src->ntexdata, src->nmat, src->npair, src->nexclude,
+        src->neq, src->ntendon, src->nwrap, src->nsensor, src->nnumeric,
+        src->nnumericdata, src->ntext, src->ntextdata, src->ntuple,
+        src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
+        src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site,
+        src->nuser_cam, src->nuser_tendon, src->nuser_actuator,
+        src->nuser_sensor, src->nnames, src->npaths);
   }
   if (!dest) {
     mjERROR("failed to make mjModel. Invalid sizes.");
@@ -838,7 +844,8 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
                ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
                ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
-               ints[63], ints[64], ints[65], ints[66], ints[67], ints[68], ints[69]);
+               ints[63], ints[64], ints[65], ints[66], ints[67], ints[68], ints[69],
+               ints[70], ints[71], ints[72], ints[73]);
 
   // read mjModel mjtSize fields
   mjtSize sizes[8];
@@ -936,18 +943,15 @@ int mj_sizeModel(const mjModel* m) {
 //-------------------------- sparse system matrix construction -------------------------------------
 
 // construct sparse representation of dof-dof matrix
-static void makeDofDofSparse(const mjModel* m, mjData* d,
-                             int* rownnz, int* rowadr,  int* diag, int* colind,
-                             int reduced, int upper) {
-  int nv = m->nv;
-
+void mj_makeDofDofSparse(int nv, int nC, int nD, int nM,
+                         const int* dof_parentid, const int* dof_simplenum,
+                         int* rownnz, int* rowadr, int* diag, int* colind,
+                         int reduced, int upper,
+                         int* remaining) {
   // no dofs, nothing to do
   if (!nv) {
     return;
   }
-
-  mj_markStack(d);
-  int* remaining = mjSTACKALLOC(d, nv, int);
 
   // compute rownnz
   mju_zeroInt(rownnz, nv);
@@ -957,8 +961,8 @@ static void makeDofDofSparse(const mjModel* m, mjData* d,
     rownnz[i]++;
 
     // process below diagonal unless reduced and dof is simple
-    if (!(reduced && m->dof_simplenum[i])) {
-      while ((j = m->dof_parentid[j]) >= 0) {
+    if (!(reduced && dof_simplenum[i])) {
+      while ((j = dof_parentid[j]) >= 0) {
         // both reduced and non-reduced have lower triangle
         rownnz[i]++;
 
@@ -982,9 +986,9 @@ static void makeDofDofSparse(const mjModel* m, mjData* d,
     colind[rowadr[i] + remaining[i]] = i;
 
     // process below diagonal unless reduced and dof is simple
-    if (!(reduced && m->dof_simplenum[i])) {
+    if (!(reduced && dof_simplenum[i])) {
       int j = i;
-      while ((j = m->dof_parentid[j]) >= 0) {
+      while ((j = dof_parentid[j]) >= 0) {
         remaining[i]--;
         colind[rowadr[i] + remaining[i]] = j;
 
@@ -1005,7 +1009,7 @@ static void makeDofDofSparse(const mjModel* m, mjData* d,
   }
 
   // check total nnz; SHOULD NOT OCCUR
-  int expected_nnz = upper ? m->nD : (reduced ? m->nC : m->nM);
+  int expected_nnz = upper ? nD : (reduced ? nC : nM);
   if (rowadr[nv - 1] + rownnz[nv - 1] != expected_nnz) {
     mjERROR("sum of rownnz different from expected");
   }
@@ -1024,99 +1028,91 @@ static void makeDofDofSparse(const mjModel* m, mjData* d,
       diag[i] = j;
     }
   }
-
-  mj_freeStack(d);
 }
 
 // construct sparse representation of body-dof matrix
-static void makeBSparse(const mjModel* m, mjData* d) {
-  int nv = m->nv, nbody = m->nbody;
-  int* rownnz = d->B_rownnz;
-  int* rowadr = d->B_rowadr;
-  int* colind = d->B_colind;
-
+void mj_makeBSparse(int nv, int nbody, int nB,
+                    const int* body_dofnum, const int* body_parentid, const int* body_dofadr,
+                    int* B_rownnz, int* B_rowadr, int* B_colind,
+                    int* count) {
   // set rownnz to subtree dofs counts, including self
-  mju_zeroInt(rownnz, nbody);
+  mju_zeroInt(B_rownnz, nbody);
   for (int i = nbody - 1; i > 0; i--) {
-    rownnz[i] += m->body_dofnum[i];
-    rownnz[m->body_parentid[i]] += rownnz[i];
+    B_rownnz[i] += body_dofnum[i];
+    B_rownnz[body_parentid[i]] += B_rownnz[i];
   }
 
   // check if rownnz[0] != nv; SHOULD NOT OCCUR
-  if (rownnz[0] != nv) {
+  if (B_rownnz[0] != nv) {
     mjERROR("rownnz[0] different from nv");
   }
 
   // add dofs in ancestors bodies
   for (int i = 0; i < nbody; i++) {
-    int j = m->body_parentid[i];
+    int j = body_parentid[i];
     while (j > 0) {
-      rownnz[i] += m->body_dofnum[j];
-      j = m->body_parentid[j];
+      B_rownnz[i] += body_dofnum[j];
+      j = body_parentid[j];
     }
   }
 
   // compute rowadr
-  rowadr[0] = 0;
+  B_rowadr[0] = 0;
   for (int i = 1; i < nbody; i++) {
-    rowadr[i] = rowadr[i - 1] + rownnz[i - 1];
+    B_rowadr[i] = B_rowadr[i - 1] + B_rownnz[i - 1];
   }
 
   // check if total nnz != nB; SHOULD NOT OCCUR
-  if (m->nB != rowadr[nbody - 1] + rownnz[nbody - 1]) {
+  if (nB != B_rowadr[nbody - 1] + B_rownnz[nbody - 1]) {
     mjERROR("sum of rownnz different from nB");
   }
 
-  // allocate and clear incremental row counts
-  mj_markStack(d);
-  int* cnt = mjSTACKALLOC(d, nbody, int);
-  mju_zeroInt(cnt, nbody);
+  // clear incremental row counts
+  mju_zeroInt(count, nbody);
 
   // add subtree dofs to colind
   for (int i = nbody - 1; i > 0; i--) {
     // add this body's dofs to subtree
-    for (int n = 0; n < m->body_dofnum[i]; n++) {
-      colind[rowadr[i] + cnt[i]] = m->body_dofadr[i] + n;
-      cnt[i]++;
+    for (int n = 0; n < body_dofnum[i]; n++) {
+      B_colind[B_rowadr[i] + count[i]] = body_dofadr[i] + n;
+      count[i]++;
     }
 
     // add body subtree to parent
-    int par = m->body_parentid[i];
-    for (int n = 0; n < cnt[i]; n++) {
-      colind[rowadr[par] + cnt[par]] = colind[rowadr[i] + n];
-      cnt[par]++;
+    int par = body_parentid[i];
+    for (int n = 0; n < count[i]; n++) {
+      B_colind[B_rowadr[par] + count[par]] = B_colind[B_rowadr[i] + n];
+      count[par]++;
     }
   }
 
   // add all ancestor dofs
   for (int i = 0; i < nbody; i++) {
-    int par = m->body_parentid[i];
+    int par = body_parentid[i];
     while (par > 0) {
       // add ancestor body dofs
-      for (int n = 0; n < m->body_dofnum[par]; n++) {
-        colind[rowadr[i] + cnt[i]] = m->body_dofadr[par] + n;
-        cnt[i]++;
+      for (int n = 0; n < body_dofnum[par]; n++) {
+        B_colind[B_rowadr[i] + count[i]] = body_dofadr[par] + n;
+        count[i]++;
       }
 
       // advance to parent
-      par = m->body_parentid[par];
+      par = body_parentid[par];
     }
   }
 
   // process all bodies
   for (int i = 0; i < nbody; i++) {
     // make sure cnt = rownnz; SHOULD NOT OCCUR
-    if (rownnz[i] != cnt[i]) {
+    if (B_rownnz[i] != count[i]) {
       mjERROR("cnt different from rownnz");
     }
 
     // sort colind in each row
-    if (cnt[i] > 1) {
-      mju_insertionSortInt(colind + rowadr[i], cnt[i]);
+    if (count[i] > 1) {
+      mju_insertionSortInt(B_colind + B_rowadr[i], count[i]);
     }
   }
-
-  mj_freeStack(d);
 }
 
 
@@ -1143,39 +1139,26 @@ static void checkDBSparse(const mjModel* m, mjData* d) {
 
 
 // integer valued dst[D or C or M] = src[M (legacy)], handle different sparsity representations
-static void copyM2Sparse(const mjModel* m, mjData* d, int* dst, const int* src,
-                         int reduced, int upper) {
-  int nv = m->nv;
-  const int* rownnz = NULL;
-  const int* rowadr = NULL;
-  if (reduced && !upper) {
-    rownnz = d->M_rownnz;
-    rowadr = d->M_rowadr;
-  } else if (!reduced && upper) {
-    rownnz = d->D_rownnz;
-    rowadr = d->D_rowadr;
-  } else {
-    mjERROR("unsupported sparsity structure (reduced + upper)");
-  }
-
-  mj_markStack(d);
-
+static void copyM2Sparse(int nv,
+                         const int* dof_Madr, const int* dof_simplenum, const int* dof_parentid,
+                         const int* rownnz, const int* rowadr, const int* src,
+                         int* dst,
+                         int reduced, int upper, int* remaining) {
   // init remaining
-  int* remaining = mjSTACKALLOC(d, nv, int);
   mju_copyInt(remaining, rownnz, nv);
 
   // copy data
   for (int i = nv - 1; i >= 0; i--) {
     // init at diagonal
-    int adr = m->dof_Madr[i];
+    int adr = dof_Madr[i];
     remaining[i]--;
     dst[rowadr[i] + remaining[i]] = src[adr];
     adr++;
 
     // process below diagonal unless reduced and dof is simple
-    if (!(reduced && m->dof_simplenum[i])) {
+    if (!(reduced && dof_simplenum[i])) {
       int j = i;
-      while ((j = m->dof_parentid[j]) >= 0) {
+      while ((j = dof_parentid[j]) >= 0) {
         remaining[i]--;
         dst[rowadr[i] + remaining[i]] = src[adr];
 
@@ -1196,28 +1179,25 @@ static void copyM2Sparse(const mjModel* m, mjData* d, int* dst, const int* src,
       mjERROR("unassigned index");
     }
   }
-
-  mj_freeStack(d);
 }
 
 
 
 // integer valued dst[M] = src[D lower]
-static void copyD2MSparse(const mjModel* m, const mjData* d, int* dst, const int* src) {
-  int nv = m->nv;
-
+static void copyD2MSparse(int nv, const int* dof_Madr, const int* D_colind,
+                          const int* D_rowadr, const int* src, int* dst) {
   // copy data
   for (int i = nv - 1; i >= 0; i--) {
     // find diagonal in qDeriv
     int j = 0;
-    while (d->D_colind[d->D_rowadr[i] + j] < i) {
+    while (D_colind[D_rowadr[i] + j] < i) {
       j++;
     }
 
     // copy
-    int adr = m->dof_Madr[i];
+    int adr = dof_Madr[i];
     while (j >= 0) {
-      dst[adr] = src[d->D_rowadr[i] + j];
+      dst[adr] = src[D_rowadr[i] + j];
       adr++;
       j--;
     }
@@ -1227,48 +1207,47 @@ static void copyD2MSparse(const mjModel* m, const mjData* d, int* dst, const int
 
 
 // construct index mappings between M <-> D, M -> C, M (legacy) -> M (CSR)
-static void makeDofDofmaps(const mjModel* m, mjData* d) {
-  int nM = m->nM, nC = m->nC, nD = m->nD;
-  mj_markStack(d);
-
+void mj_makeDofDofMaps(int nv, int nM, int nC, int nD,
+                       const int* dof_Madr, const int* dof_simplenum, const int* dof_parentid,
+                       const int* D_rownnz, const int* D_rowadr, const int* D_colind,
+                       const int* M_rownnz, const int* M_rowadr,
+                       int* mapM2D, int* mapD2M, int* mapM2M,
+                       int* remaining, int* M, int* D) {
   // make mapM2D
-  int* M = mjSTACKALLOC(d, nM, int);
   for (int i=0; i < nM; i++) M[i] = i;
-  for (int i=0; i < nD; i++) d->mapM2D[i] = -1;
-  copyM2Sparse(m, d, d->mapM2D, M, /*reduced=*/0, /*upper=*/1);
+  for (int i=0; i < nD; i++) mapM2D[i] = -1;
+  copyM2Sparse(nv, dof_Madr, dof_simplenum, dof_parentid, D_rownnz,
+               D_rowadr, M, mapM2D, /*reduced=*/0, /*upper=*/1, remaining);
 
   // check that all indices are filled in
   for (int i=0; i < nD; i++) {
-    if (d->mapM2D[i] < 0) {
+    if (mapM2D[i] < 0) {
       mjERROR("unassigned index in mapM2D");
     }
   }
 
   // make mapD2M
-  int* D = mjSTACKALLOC(d, nD, int);
   for (int i=0; i < nD; i++) D[i] = i;
-  for (int i=0; i < nM; i++) d->mapD2M[i] = -1;
-  copyD2MSparse(m, d, d->mapD2M, D);
+  for (int i=0; i < nM; i++) mapD2M[i] = -1;
+  copyD2MSparse(nv, dof_Madr, D_colind, D_rowadr, D, mapD2M);
 
   // check that all indices are filled in
   for (int i=0; i < nM; i++) {
-    if (d->mapD2M[i] < 0) {
+    if (mapD2M[i] < 0) {
       mjERROR("unassigned index in mapD2M");
     }
   }
 
   // make mapM2C
-  for (int i=0; i < nC; i++) d->mapM2M[i] = -1;
-  copyM2Sparse(m, d, d->mapM2M, M, /*reduced=*/1, /*upper=*/0);
-
+  for (int i=0; i < nC; i++) mapM2M[i] = -1;
+  copyM2Sparse(nv, dof_Madr, dof_simplenum, dof_parentid, M_rownnz,
+               M_rowadr, M, mapM2M, /*reduced=*/1, /*upper=*/0, remaining);
   // check that all indices are filled in
   for (int i=0; i < nC; i++) {
-    if (d->mapM2M[i] < 0) {
+    if (mapM2M[i] < 0) {
       mjERROR("unassigned index in mapM2C");
     }
   }
-
-  mj_freeStack(d);
 }
 
 
@@ -2027,19 +2006,33 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // construct sparse matrix representations
   if (m->body_dofadr) {
+    mj_markStack(d);
+    int* remaining = mjSTACKALLOC(d, m->nv, int);
+    int* count = mjSTACKALLOC(d, m->nbody, int);
+    int* M = mjSTACKALLOC(d, m->nM, int);
+    int* D = mjSTACKALLOC(d, m->nD, int);
+
     // make D
-    makeDofDofSparse(m, d, d->D_rownnz, d->D_rowadr, d->D_diag, d->D_colind,
-                     /*reduced=*/0, /*upper=*/1);
+    mj_makeDofDofSparse(m->nv, m->nC, m->nD, m->nM, m->dof_parentid, m->dof_simplenum,
+                        d->D_rownnz, d->D_rowadr, d->D_diag, d->D_colind,
+                     /*reduced=*/0, /*upper=*/1, remaining);
 
     // make B, check D and B
-    makeBSparse(m, d);
+    mj_makeBSparse(m->nv, m->nbody, m->nB, m->body_dofnum, m->body_parentid,
+                   m->body_dofadr, d->B_rownnz, d->B_rowadr, d->B_colind, count);
     checkDBSparse(m, d);
 
     // make C
-    makeDofDofSparse(m, d, d->M_rownnz, d->M_rowadr, NULL, d->M_colind, /*reduced=*/1, /*upper=*/0);
+    mj_makeDofDofSparse(m->nv, m->nC, m->nD, m->nM, m->dof_parentid, m->dof_simplenum,
+                        d->M_rownnz, d->M_rowadr, NULL, d->M_colind,
+                        /*reduced=*/1, /*upper=*/0, remaining);
 
     // make index mappings: mapM2D, mapD2M, mapM2C, mapM2M
-    makeDofDofmaps(m, d);
+    mj_makeDofDofMaps(m->nv, m->nM, m->nC, m->nD, m->dof_Madr, m->dof_simplenum, m->dof_parentid,
+                      d->D_rownnz, d->D_rowadr, d->D_colind, d->M_rownnz, d->M_rowadr,
+                      d->mapM2D, d->mapD2M, d->mapM2M, remaining, M, D);
+
+    mj_freeStack(d);
   }
 
   // restore pluginstate and plugindata

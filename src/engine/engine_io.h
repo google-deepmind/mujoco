@@ -53,16 +53,16 @@ void mj_defaultStatistic(mjStatistic* stat);
 // allocate mjModel
 void mj_makeModel(mjModel** dest,
     int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic, int noct,
-    int njnt, int ngeom, int nsite, int ncam, int nlight, int nflex, int nflexnode, int nflexvert,
-    int nflexedge, int nflexelem, int nflexelemdata, int nflexelemedge, int nflexshelldata,
-    int nflexevpair, int nflextexcoord, int nmesh, int nmeshvert, int nmeshnormal,
-    int nmeshtexcoord, int nmeshface, int nmeshgraph,  int nmeshpoly, int nmeshpolyvert,
-    int nmeshpolymap, int nskin, int nskinvert, int nskintexvert, int nskinface, int nskinbone,
-    int nskinbonevert, int nhfield, int nhfielddata, int ntex, int ntexdata, int nmat, int npair,
-    int nexclude, int neq, int ntendon, int nwrap, int nsensor, int nnumeric, int nnumericdata, int ntext,
-    int ntextdata, int ntuple, int ntupledata, int nkey, int nmocap, int nplugin, int npluginattr,
-    int nuser_body, int nuser_jnt, int nuser_geom, int nuser_site, int nuser_cam, int nuser_tendon,
-    int nuser_actuator, int nuser_sensor, int nnames, int npaths);
+    int njnt, int nM, int nB, int nC, int nD, int ngeom, int nsite, int ncam, int nlight, int nflex,
+    int nflexnode, int nflexvert, int nflexedge, int nflexelem, int nflexelemdata,
+    int nflexelemedge, int nflexshelldata, int nflexevpair, int nflextexcoord, int nmesh,
+    int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface, int nmeshgraph, int nmeshpoly,
+    int nmeshpolyvert, int nmeshpolymap, int nskin, int nskinvert, int nskintexvert, int nskinface,
+    int nskinbone, int nskinbonevert, int nhfield, int nhfielddata, int ntex, int ntexdata,
+    int nmat, int npair, int nexclude, int neq, int ntendon, int nwrap, int nsensor, int nnumeric,
+    int nnumericdata, int ntext, int ntextdata, int ntuple, int ntupledata, int nkey, int nmocap,
+    int nplugin, int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom, int nuser_site,
+    int nuser_cam, int nuser_tendon, int nuser_actuator, int nuser_sensor, int nnames, int npaths);
 
 // copy mjModel; allocate new if dest is NULL
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
@@ -85,6 +85,25 @@ MJAPI int mj_sizeModel(const mjModel* m);
 // validate reference fields in a model; return null if valid, error message otherwise
 MJAPI const char* mj_validateReferences(const mjModel* m);
 
+// construct sparse representation of dof-dof matrix
+MJAPI void mj_makeDofDofSparse(int nv, int nC, int nD, int nM,
+                               const int* dof_parentid, const int* dof_simplenum,
+                               int* rownnz, int* rowadr, int* diag, int* colind,
+                               int reduced, int upper, int* remaining);
+
+// construct sparse representation of body-dof matrix
+MJAPI void mj_makeBSparse(int nv, int nbody, int nB,
+                          const int* body_dofnum, const int* body_parentid, const int* body_dofadr,
+                          int* B_rownnz, int* B_rowadr, int* B_colind,
+                          int* count);
+
+// construct index mappings between M <-> D, M (legacy) -> M (CSR)
+MJAPI void mj_makeDofDofMaps(int nv, int nM, int nC, int nD,
+                             const int* dof_Madr, const int* dof_simplenum, const int* dof_parentid,
+                             const int* D_rownnz, const int* D_rowadr, const int* D_colind,
+                             const int* M_rownnz, const int* M_rowadr,
+                             int* mapM2D, int* mapD2M, int* mapM2M,
+                             int* remaining, int* M, int* D);
 
 //------------------------------- mjData -----------------------------------------------------------
 
