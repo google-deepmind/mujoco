@@ -35,7 +35,7 @@ def _ray_quad(
   det = b * b - a * c
   det_2 = jp.sqrt(det)
 
-  x0, x1 = (-b - det_2) / a, (-b + det_2) / a
+  x0, x1 = math.safe_div(-b - det_2, a), math.safe_div(-b + det_2, a)
   x0 = jp.where((det < mujoco.mjMINVAL) | (x0 < 0), jp.inf, x0)
   x1 = jp.where((det < mujoco.mjMINVAL) | (x1 < 0), jp.inf, x1)
 
@@ -48,7 +48,7 @@ def _ray_plane(
     vec: jax.Array,
 ) -> jax.Array:
   """Returns the distance at which a ray intersects with a plane."""
-  x = -pnt[2] / vec[2]
+  x = -math.safe_div(pnt[2], vec[2])
 
   valid = vec[2] <= -mujoco.mjMINVAL  # z-vec pointing towards front face
   valid &= x >= 0
@@ -116,7 +116,7 @@ def _ray_ellipsoid(
   """Returns the distance at which a ray intersects with an ellipsoid."""
 
   # invert size^2
-  s = 1 / jp.square(size)
+  s = math.safe_div(1, jp.square(size))
 
   # (x*lvec+lpnt)' * diag(1/size^2) * (x*lvec+lpnt) = 1
   svec = s * vec
@@ -142,7 +142,7 @@ def _ray_box(
 
   # side +1, -1
   # solution of pnt[i] + x * vec[i] = side * size[i]
-  x = jp.concatenate([(size - pnt) / vec, (-size - pnt) / vec])
+  x = jp.concatenate([math.safe_div(size - pnt,  vec), -math.safe_div(size + pnt, vec)])
 
   # intersection with face
   p0 = pnt[iface[:, 0]] + x * vec[iface[:, 0]]
@@ -170,13 +170,13 @@ def _ray_triangle(
   b = -planar[2]
   det = A[0, 0] * A[1, 1] - A[1, 0] * A[0, 1]
 
-  t0 = (A[1, 1] * b[0] - A[1, 0] * b[1]) / det
-  t1 = (-A[0, 1] * b[0] + A[0, 0] * b[1]) / det
+  t0 = math.safe_div(A[1, 1] * b[0] - A[1, 0] * b[1], det)
+  t1 = math.safe_div(-A[0, 1] * b[0] + A[0, 0] * b[1], det)
   valid = (t0 >= 0) & (t1 >= 0) & (t0 + t1 <= 1)
 
   # intersect ray with plane of triangle
   nrm = jp.cross(vert[0] - vert[2], vert[1] - vert[2])
-  dist = jp.dot(vert[2] - pnt, nrm) / jp.dot(vec, nrm)
+  dist = math.safe_div(jp.dot(vert[2] - pnt, nrm), jp.dot(vec, nrm))
   valid &= dist >= 0
   dist = jp.where(valid, dist, jp.inf)
 

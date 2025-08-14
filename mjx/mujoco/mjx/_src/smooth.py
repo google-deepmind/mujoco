@@ -44,6 +44,7 @@ def kinematics(m: Model, d: Data) -> Data:
     from mujoco.mjx.warp import smooth as mjxw_smooth  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
     return mjxw_smooth.kinematics(m, d)
 
+
   def fn(carry, jnt_typs, jnt_pos, jnt_axis, qpos, qpos0, pos, quat):
     # calculate joint anchors, axes, body pos and quat in global frame
     # also normalize qpos while we're at it
@@ -910,7 +911,9 @@ def tendon(m: Model, d: Data) -> Data:
     dif = pnt1 - pnt0
     length = math.norm(dif)
     vec = jp.where(
-        length < mujoco.mjMINVAL, jp.array([1.0, 0.0, 0.0]), dif / length
+        length < mujoco.mjMINVAL,
+        jp.array([1.0, 0.0, 0.0]),
+        math.safe_div(dif, length),
     )
 
     jacp1, _ = support.jac(m, d, pnt0, body0)
@@ -1387,14 +1390,16 @@ def tendon_dot(m: Model, d: Data) -> jax.Array:
     dpnt = wpnt1 - wpnt0
     norm = math.norm(dpnt)
     dpnt = jp.where(
-        norm < mujoco.mjMINVAL, jp.array([1.0, 0.0, 0.0]), dpnt / norm
+        norm < mujoco.mjMINVAL,
+        jp.array([1.0, 0.0, 0.0]),
+        math.safe_div(dpnt, norm),
     )
 
     # dvel = d / dt(dpnt)
     dvel = wvel1 - wvel0
     dot = jp.dot(dpnt, dvel)
     dvel += dpnt * -dot
-    dvel = jp.where(norm > mujoco.mjMINVAL, dvel / norm, 0.0)
+    dvel = jp.where(norm > mujoco.mjMINVAL, math.safe_div(dvel, norm), 0.0)
 
     # get endpoint JacobianDots, subtract
     jacp1, _ = support.jac_dot(m, d, wpnt0, body0)
