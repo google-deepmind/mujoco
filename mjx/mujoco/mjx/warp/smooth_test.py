@@ -19,7 +19,6 @@ import os
 import tempfile
 
 from absl.testing import absltest
-from absl.testing import parameterized
 import jax
 from jax import numpy as jp
 import mujoco
@@ -39,7 +38,7 @@ except ImportError:
 _FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
 
 
-class SmoothTest(parameterized.TestCase):
+class SmoothTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -237,6 +236,7 @@ class SmoothTest(parameterized.TestCase):
       tu.assert_eq(d.geom_xmat.reshape((-1, 3, 3)), dx.geom_xmat, 'geom_xmat')
       tu.assert_attr_eq(d, dx, 'site_xpos')
       tu.assert_eq(d.site_xmat.reshape((-1, 3, 3)), dx.site_xmat, 'site_xmat')
+
 
 if __name__ == '__main__':
   absltest.main()

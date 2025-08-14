@@ -22,6 +22,7 @@ from mujoco.mjx._src import math
 from mujoco.mjx._src import ray
 from mujoco.mjx._src import smooth
 from mujoco.mjx._src import support
+from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
@@ -173,7 +174,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.JOINTPOS:
       sensor = d.qpos[m.jnt_qposadr[objid]]
     elif sensor_type == SensorType.TENDONPOS:
-      sensor = d.ten_length[objid]
+      sensor = d._impl.ten_length[objid]
     elif sensor_type == SensorType.ACTUATORPOS:
       sensor = d._impl.actuator_length[objid]
     elif sensor_type == SensorType.BALLQUAT:

@@ -998,6 +998,7 @@ class DataC(PyTreeNode):
   ten_J_rowadr: jax.Array  # pylint:disable=invalid-name
   ten_J_colind: jax.Array  # pylint:disable=invalid-name
   ten_J: jax.Array  # pylint:disable=invalid-name
+  ten_length: jax.Array
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   actuator_length: jax.Array
@@ -1069,6 +1070,7 @@ class DataJAX(PyTreeNode):
   ten_wrapadr: jax.Array
   ten_wrapnum: jax.Array
   ten_J: jax.Array  # pylint:disable=invalid-name
+  ten_length: jax.Array
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   actuator_length: jax.Array
@@ -1131,7 +1133,6 @@ class Data(PyTreeNode):
   ximat: jax.Array
   xanchor: jax.Array
   xaxis: jax.Array
-  ten_length: jax.Array
   geom_xpos: jax.Array
   geom_xmat: jax.Array
   site_xpos: jax.Array
