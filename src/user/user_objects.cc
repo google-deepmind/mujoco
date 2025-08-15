@@ -1902,11 +1902,12 @@ void mjCBody::InertiaFromGeom(void) {
   double toti[6] = {0, 0, 0, 0, 0, 0};
   std::vector<mjCGeom*> sel;
 
-  // select geoms based on group
+  // select geoms based on group, ignore tiny masses
   sel.clear();
   for (int i=0; i < geoms.size(); i++) {
     if (geoms[i]->group >= compiler->inertiagrouprange[0] &&
-        geoms[i]->group <= compiler->inertiagrouprange[1]) {
+        geoms[i]->group <= compiler->inertiagrouprange[1] &&
+        geoms[i]->mass_ > mjEPS) {
       sel.push_back(geoms[i]);
     }
   }
