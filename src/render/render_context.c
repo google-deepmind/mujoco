@@ -1303,23 +1303,7 @@ static void makeMaterial(const mjModel* m, mjrContext* con) {
   memset(con->mat_texid, -1, sizeof(con->mat_texid));
   memset(con->mat_texuniform, 0, sizeof(con->mat_texuniform));
   memset(con->mat_texrepeat, 0, sizeof(con->mat_texrepeat));
-  if (!m->nmat || !m->ntex) {
-    return;
-  }
 
-  if (m->nmat >= mjMAXMATERIAL-1) {
-    mju_error("Maximum number of materials is %d, got %d", mjMAXMATERIAL, m->nmat);
-  }
-  for (int i=0; i < m->nmat; i++) {
-    if (m->mat_texid[i*mjNTEXROLE + mjTEXROLE_RGB] >= 0) {
-      for (int j=0; j < mjNTEXROLE; j++) {
-        con->mat_texid[i*mjNTEXROLE + j] = m->mat_texid[i*mjNTEXROLE + j];
-      }
-      con->mat_texuniform[i] = m->mat_texuniform[i];
-      con->mat_texrepeat[2*i] = m->mat_texrepeat[2*i];
-      con->mat_texrepeat[2*i+1] = m->mat_texrepeat[2*i+1];
-    }
-  }
   // find skybox texture
   for (int i=0; i < m->ntex; i++) {
     if (m->tex_type[i] == mjTEXTURE_SKYBOX) {
@@ -1333,6 +1317,20 @@ static void makeMaterial(const mjModel* m, mjrContext* con) {
       con->mat_texid[mjNTEXROLE * (mjMAXMATERIAL-1) + mjTEXROLE_RGB] = i;
 
       break;
+    }
+  }
+
+  if (m->nmat >= mjMAXMATERIAL-1) {
+    mju_error("Maximum number of materials is %d, got %d", mjMAXMATERIAL, m->nmat);
+  }
+  for (int i=0; i < m->nmat; i++) {
+    if (m->mat_texid[i*mjNTEXROLE + mjTEXROLE_RGB] >= 0) {
+      for (int j=0; j < mjNTEXROLE; j++) {
+        con->mat_texid[i*mjNTEXROLE + j] = m->mat_texid[i*mjNTEXROLE + j];
+      }
+      con->mat_texuniform[i] = m->mat_texuniform[i];
+      con->mat_texrepeat[2*i] = m->mat_texrepeat[2*i];
+      con->mat_texrepeat[2*i+1] = m->mat_texrepeat[2*i+1];
     }
   }
 }
