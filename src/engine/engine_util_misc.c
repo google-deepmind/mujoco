@@ -1450,6 +1450,16 @@ void mju_gather(mjtNum* restrict res, const mjtNum* restrict vec, const int* res
 
 
 
+// masked gather (set to 0 at negative indices)
+void mju_gatherMasked(mjtNum* restrict res, const mjtNum* restrict vec,
+                      const int* restrict ind, int n) {
+  for (int i=0; i < n; i++) {
+    res[i] = ind[i] >= 0 ? vec[ind[i]] : 0;
+  }
+}
+
+
+
 // scatter
 void mju_scatter(mjtNum* restrict res, const mjtNum* restrict vec, const int* restrict ind, int n) {
   for (int i=0; i < n; i++) {
@@ -1472,6 +1482,97 @@ void mju_gatherInt(int* restrict res, const int* restrict vec, const int* restri
 void mju_scatterInt(int* restrict res, const int* restrict vec, const int* restrict ind, int n) {
   for (int i=0; i < n; i++) {
     res[ind[i]] = vec[i];
+  }
+}
+
+
+
+// build gather indices mapping src to res, assumes pattern(res) \subseteq pattern(src)
+void mju_sparseMap(int* map, int nr,
+                   const int* res_rowadr, const int* res_rownnz, const int* res_colind,
+                   const int* src_rowadr, const int* src_rownnz, const int* src_colind) {
+  for (int i = 0; i < nr; i++) {
+    int res_cursor = res_rowadr[i];
+    int res_end    = res_cursor + res_rownnz[i];
+    int src_cursor = src_rowadr[i];
+    int src_end    = src_cursor + src_rownnz[i];
+
+    while (res_cursor < res_end) {
+      int res_col = res_colind[res_cursor];
+      while (src_cursor < src_end && src_colind[src_cursor] < res_col) {
+        src_cursor++;
+      }
+
+      // found match, set index and advance cursors
+      map[res_cursor++] = src_cursor++;
+    }
+  }
+}
+
+
+
+// build masked-gather map to copy a lower-triangular src into symmetric res
+//  `cursor` is a preallocated buffer of size `nr`
+void mju_lower2SymMap(int* map, int nr,
+                      const int* res_rowadr, const int* res_rownnz, const int* res_colind,
+                      const int* src_rowadr, const int* src_rownnz, const int* src_colind,
+                      int* cursor) {
+  if (!nr) return;
+
+  // default all map entries to "no source"
+  int nnz = res_rowadr[nr-1] + res_rownnz[nr-1];
+  for (int i = 0; i < nnz; i++) {
+    map[i] = -1;
+  }
+
+  // initialize per-row cursor
+  for (int i = 0; i < nr; i++) {
+    cursor[i] = res_rowadr[i];
+  }
+
+  // sweep src rows; for each lower (i,j) set res(i,j) and res(j,i)
+  for (int i = 0; i < nr; i++) {
+    int src_start = src_rowadr[i];
+    int src_end   = src_start + src_rownnz[i];
+
+    // sweep src row
+    for (int k = src_start; k < src_end; k++) {
+      int j = src_colind[k];
+      if (j > i) break;  // use only lower triangle of src
+
+      // --- lower triangle: res(i, j)
+      int res_start = res_rowadr[i];
+      int res_end   = res_start + res_rownnz[i];
+      int c         = cursor[i];
+
+      // increment c until there is a match
+      while (c < res_end && res_colind[c] < j) c++;
+
+      // found match, set index, advance and save cursor
+      if (c < res_end && res_colind[c] == j) {
+        map[c] = k;
+        c++;
+      }
+      cursor[i] = c;
+
+
+      // --- upper mirror: res(j, i)
+      if (j != i) {
+        res_start = res_rowadr[j];
+        res_end   = res_start + res_rownnz[j];
+        c         = cursor[j];
+
+        // increment c until there is a match
+        while (c < res_end && res_colind[c] < i) c++;
+
+        // found match, set index and advance and save cursor
+        if (c < res_end && res_colind[c] == i) {
+          map[c] = k;
+          c++;
+        }
+        cursor[j] = c;
+      }
+    }
   }
 }
 

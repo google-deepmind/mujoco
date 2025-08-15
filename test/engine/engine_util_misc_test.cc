@@ -15,6 +15,7 @@
 // Tests for engine/engine_util_solve.c.
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -30,11 +31,11 @@ namespace mujoco {
 namespace {
 
 using ::testing::DoubleNear;
+using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
-using ::testing::Ne;
 using ::testing::Pointwise;
 using ::testing::StrEq;
-using ::testing::ElementsAreArray;
 
 using UtilMiscTest = MujocoTest;
 
@@ -211,6 +212,140 @@ TEST_F(UtilMiscTest, MuscleGainLength) {
   EXPECT_EQ(mju_muscleGainLength(2.0,  lmin, lmax), 0);
 }
 
+TEST_F(UtilMiscTest, MjuSparseMap) {
+  // nr = 3
+  // src = [[1, 2, 0],
+  //        [0, 3, 4],
+  //        [5, 0, 6]]
+  constexpr int nr = 3;
+  const mjtNum mat_src[] = {1, 2, 3, 4, 5, 6};
+  const int rownnz_src[] = {2, 2, 2};
+  const int rowadr_src[] = {0, 2, 4};
+  const int colind_src[] = {0, 1, 1, 2, 0, 2};
+
+  // res = [[1, 0, 0],
+  //        [0, 3, 0],
+  //        [5, 0, 6]]
+  constexpr int nnz_res = 4;
+  const int rownnz_res[] = {1, 1, 2};
+  const int rowadr_res[] = {0, 1, 2};
+  const int colind_res[] = {0, 1, 0, 2};
+
+  int map[nnz_res];
+  mju_sparseMap(map, nr, rowadr_res, rownnz_res, colind_res, rowadr_src,
+                rownnz_src, colind_src);
+
+  // Expected map:
+  // res[0] (1 at 0,0) -> src[0] (1 at 0,0) => map[0] = 0
+  // res[1] (3 at 1,1) -> src[2] (3 at 1,1) => map[1] = 2
+  // res[2] (5 at 2,0) -> src[4] (5 at 2,0) => map[2] = 4
+  // res[3] (6 at 2,2) -> src[5] (6 at 2,2) => map[3] = 5
+  EXPECT_THAT(map, ElementsAre(0, 2, 4, 5));
+
+  // Verify the map by checking values
+  mjtNum mat_res_gathered[nnz_res];
+  mju_gather(mat_res_gathered, mat_src, map, nnz_res);
+  EXPECT_THAT(AsVector(mat_res_gathered, nnz_res),
+              ElementsAre(1, 3, 5, 6));
+}
+
+
+TEST_F(UtilMiscTest, MjuSparseLower2SymMap) {
+  // nr = 3
+  // src = [[1, 0, 0],
+  //        [2, 3, 0],
+  //        [4, 5, 6]]
+  constexpr int nr = 3;
+  const mjtNum mat_src[] = {1, 2, 3, 4, 5, 6};
+  const int rownnz_src[] = {1, 2, 3};
+  const int rowadr_src[] = {0, 1, 3};
+  const int colind_src[] = {0, 0, 1, 0, 1, 2};
+
+  // res = [[*, *, *],
+  //        [*, *, *],
+  //        [*, *, *]] (dense symmetric)
+  constexpr int res_nnz = 9;
+  const int rownnz_res[] = {3, 3, 3};
+  const int rowadr_res[] = {0, 3, 6};
+  const int colind_res[] = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+
+  int map[res_nnz];
+  int cursor[nr];
+
+  mju_lower2SymMap(map, nr, rowadr_res, rownnz_res, colind_res,
+                   rowadr_src, rownnz_src, colind_src, cursor);
+
+  // Expected map:
+  // res(0,0) -> src(0,0) (k=0) => map[0] = 0
+  // res(0,1) -> src(1,0) (k=1) => map[1] = 1
+  // res(0,2) -> src(2,0) (k=3) => map[2] = 3
+  // res(1,0) -> src(1,0) (k=1) => map[3] = 1
+  // res(1,1) -> src(1,1) (k=2) => map[4] = 2
+  // res(1,2) -> src(2,1) (k=4) => map[5] = 4
+  // res(2,0) -> src(2,0) (k=3) => map[6] = 3
+  // res(2,1) -> src(2,1) (k=4) => map[7] = 4
+  // res(2,2) -> src(2,2) (k=5) => map[8] = 5
+  EXPECT_THAT(map, ElementsAre(0, 1, 3, 1, 2, 4, 3, 4, 5));
+
+  // Verify the map by checking values
+  mjtNum mat_res[res_nnz];
+  mju_gatherMasked(mat_res, mat_src, map, res_nnz);
+
+  EXPECT_THAT(AsVector(mat_res, res_nnz),
+              ElementsAre(1, 2, 4, 2, 3, 5, 4, 5, 6));
+}
+
+TEST_F(UtilMiscTest, MjuSparseLower2SymMapPartial) {
+  // nr = 3
+  // src = [[1, 0, 0],
+  //        [2, 3, 0],
+  //        [0, 0, 6]]
+  constexpr int nr = 3;
+  const mjtNum mat_src[] = {1, 2, 3, 6};
+  const int rownnz_src[] = {1, 2, 1};
+  const int rowadr_src[] = {0, 1, 3};
+  const int colind_src[] = {0, 0, 1, 2};
+
+  // res with a sparse symmetric pattern
+  // res = [[*, *, *],
+  //        [*, *, 0],
+  //        [*, 0, *]]
+  constexpr int res_nnz = 7;
+  const int rownnz_res[] = {3, 2, 2};
+  const int rowadr_res[] = {0, 3, 5};
+  const int colind_res[] = {0, 1, 2, 0, 1, 0, 2};
+
+  int map[res_nnz];
+  int cursor[nr];
+
+  mju_lower2SymMap(map, nr, rowadr_res, rownnz_res, colind_res,
+                   rowadr_src, rownnz_src, colind_src, cursor);
+
+  // Expected map for the non-zeros in res:
+  // res(0,0) -> src(0,0) (k=0) => map[0] = 0
+  // res(0,1) -> src(1,0) (k=1) => map[1] = 1
+  // res(0,2) -> Unmapped       => map[2] = -1
+  // res(1,0) -> src(1,0) (k=1) => map[3] = 1
+  // res(1,1) -> src(1,1) (k=2) => map[4] = 2
+  // res(2,0) -> Unmapped       => map[5] = -1
+  // res(2,2) -> src(2,2) (k=3) => map[6] = 3
+  EXPECT_THAT(map, ElementsAre(0, 1, -1, 1, 2, -1, 3));
+
+  // Verify the map by checking values
+  mjtNum mat_res[res_nnz];
+  mju_gatherMasked(mat_res, mat_src, map, res_nnz);
+
+  // Expected res values based on map:
+  // mat_res[0] = mat_src[0] = 1
+  // mat_res[1] = mat_src[1] = 2
+  // mat_res[2]              = 0 (unmapped)
+  // mat_res[3] = mat_src[1] = 2
+  // mat_res[4] = mat_src[2] = 3
+  // mat_res[5]              = 0 (unmapped)
+  // mat_res[6] = mat_src[3] = 6
+  EXPECT_THAT(AsVector(mat_res, res_nnz), ElementsAre(1, 2, 0, 2, 3, 0, 6));
+}
+
 // --------------------------------- Interpolation -----------------------------
 
 using InterpolationTest = MujocoTest;
@@ -334,7 +469,6 @@ TEST_F(Base64Test, mju_encodeBase64_align1) {
   EXPECT_THAT(buffer.data(), StrEq("QUI="));
   EXPECT_THAT(n, std::strlen(buffer.data()) + 1);
   EXPECT_THAT(n, buffer.size());
-
 }
 
 TEST_F(Base64Test, mju_encodeBase64_align2) {
