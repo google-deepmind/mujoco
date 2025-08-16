@@ -112,8 +112,8 @@ const int mjCONDATA_SIZE[mjNCONDATA] = {
 //-------------------------- get/set state ---------------------------------------------------------
 
 // return size of a single state element
-static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
-  switch (spec) {
+static inline int mj_stateElemSize(const mjModel* m, mjtState sig) {
+  switch (sig) {
   case mjSTATE_TIME:          return 1;
   case mjSTATE_QPOS:          return m->nq;
   case mjSTATE_QVEL:          return m->nv;
@@ -128,7 +128,7 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
   case mjSTATE_USERDATA:      return m->nuserdata;
   case mjSTATE_PLUGIN:        return m->npluginstate;
   default:
-    mjERROR("invalid state element %u", spec);
+    mjERROR("invalid state element %u", sig);
     return 0;
   }
 }
@@ -136,8 +136,8 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState spec) {
 
 
 // return pointer to a single state element
-static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState spec) {
-  switch (spec) {
+static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState sig) {
+  switch (sig) {
   case mjSTATE_TIME:          return &d->time;
   case mjSTATE_QPOS:          return d->qpos;
   case mjSTATE_QVEL:          return d->qvel;
@@ -151,29 +151,29 @@ static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState spec
   case mjSTATE_USERDATA:      return d->userdata;
   case mjSTATE_PLUGIN:        return d->plugin_state;
   default:
-    mjERROR("invalid state element %u", spec);
+    mjERROR("invalid state element %u", sig);
     return NULL;
   }
 }
 
 
 
-static inline const mjtNum* mj_stateElemConstPtr(const mjModel* m, const mjData* d, mjtState spec) {
-  return mj_stateElemPtr(m, (mjData*) d, spec);  // discard const qualifier from d
+static inline const mjtNum* mj_stateElemConstPtr(const mjModel* m, const mjData* d, mjtState sig) {
+  return mj_stateElemPtr(m, (mjData*) d, sig);  // discard const qualifier from d
 }
 
 
 
-// get size of state specification
-int mj_stateSize(const mjModel* m, unsigned int spec) {
-  if (spec >= (1<<mjNSTATE)) {
-    mjERROR("invalid state spec %u >= 2^mjNSTATE", spec);
+// get size of state signature
+int mj_stateSize(const mjModel* m, unsigned int sig) {
+  if (sig >= (1<<mjNSTATE)) {
+    mjERROR("invalid state signature %u >= 2^mjNSTATE", sig);
   }
 
   int size = 0;
   for (int i=0; i < mjNSTATE; i++) {
     mjtState element = 1<<i;
-    if (element & spec) {
+    if (element & sig) {
       size += mj_stateElemSize(m, element);
     }
   }
@@ -184,15 +184,15 @@ int mj_stateSize(const mjModel* m, unsigned int spec) {
 
 
 // get state
-void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec) {
-  if (spec >= (1<<mjNSTATE)) {
-    mjERROR("invalid state spec %u >= 2^mjNSTATE", spec);
+void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig) {
+  if (sig >= (1<<mjNSTATE)) {
+    mjERROR("invalid state signature %u >= 2^mjNSTATE", sig);
   }
 
   int adr = 0;
   for (int i=0; i < mjNSTATE; i++) {
     mjtState element = 1<<i;
-    if (element & spec) {
+    if (element & sig) {
       int size = mj_stateElemSize(m, element);
 
       // special handling of eq_active (mjtByte)
@@ -216,15 +216,15 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int 
 
 
 // set state
-void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec) {
-  if (spec >= (1<<mjNSTATE)) {
-    mjERROR("invalid state spec %u >= 2^mjNSTATE", spec);
+void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig) {
+  if (sig >= (1<<mjNSTATE)) {
+    mjERROR("invalid state signature %u >= 2^mjNSTATE", sig);
   }
 
   int adr = 0;
   for (int i=0; i < mjNSTATE; i++) {
     mjtState element = 1<<i;
-    if (element & spec) {
+    if (element & sig) {
       int size = mj_stateElemSize(m, element);
 
       // special handling of eq_active (mjtByte)

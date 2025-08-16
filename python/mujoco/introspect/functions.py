@@ -2226,11 +2226,11 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='spec',
+                 name='sig',
                  type=ValueType(name='unsigned int'),
              ),
          ),
-         doc='Return size of state specification.',
+         doc='Return size of state signature.',
      )),
     ('mj_getState',
      FunctionDecl(
@@ -2256,7 +2256,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='spec',
+                 name='sig',
                  type=ValueType(name='unsigned int'),
              ),
          ),
@@ -2286,7 +2286,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
              FunctionParameterDecl(
-                 name='spec',
+                 name='sig',
                  type=ValueType(name='unsigned int'),
              ),
          ),

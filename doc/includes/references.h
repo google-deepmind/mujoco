@@ -3105,9 +3105,9 @@ void mj_projectConstraint(const mjModel* m, mjData* d);
 void mj_referenceConstraint(const mjModel* m, mjData* d);
 void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                          mjtNum cost[1], int flg_coneHessian);
-int mj_stateSize(const mjModel* m, unsigned int spec);
-void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec);
-void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
+int mj_stateSize(const mjModel* m, unsigned int sig);
+void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
+void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 int mj_isPyramidal(const mjModel* m);

@@ -430,14 +430,14 @@ MJAPI void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
 
 //---------------------------------- Support -------------------------------------------------------
 
-// Return size of state specification.
-MJAPI int mj_stateSize(const mjModel* m, unsigned int spec);
+// Return size of state signature.
+MJAPI int mj_stateSize(const mjModel* m, unsigned int sig);
 
 // Get state.
-MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec);
+MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
 
 // Set state.
-MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
+MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 
 // Copy current state to the k-th model keyframe.
 MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);

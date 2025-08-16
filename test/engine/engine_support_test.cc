@@ -706,16 +706,16 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
   // take one step
   mj_step(model, data);
 
-  int spec = mjSTATE_INTEGRATION;
-  int size = mj_stateSize(model, spec);
+  int signature = mjSTATE_INTEGRATION;
+  int size = mj_stateSize(model, signature);
 
   // save the initial state and step
   vector<mjtNum> state0a(size);
-  mj_getState(model, data, state0a.data(), spec);
+  mj_getState(model, data, state0a.data(), signature);
 
   // get the initial state, expect equality
   vector<mjtNum> state0b(size);
-  mj_getState(model, data, state0b.data(), spec);
+  mj_getState(model, data, state0b.data(), signature);
   EXPECT_EQ(state0a, state0b);
 
   // take one step
@@ -723,16 +723,16 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
 
   // save the resulting state
   vector<mjtNum> state1a(size);
-  mj_getState(model, data, state1a.data(), spec);
+  mj_getState(model, data, state1a.data(), signature);
 
   // expect the state to be different after stepping
   EXPECT_THAT(state0a, testing::Ne(state1a));
 
   // reset to the saved state, step again, get the resulting state
-  mj_setState(model, data, state0a.data(), spec);
+  mj_setState(model, data, state0a.data(), signature);
   mj_step(model, data);
   vector<mjtNum> state1b(size);
-  mj_getState(model, data, state1b.data(), spec);
+  mj_getState(model, data, state1b.data(), signature);
 
   // expect the state to be the same after re-stepping
   EXPECT_EQ(state1a, state1b);

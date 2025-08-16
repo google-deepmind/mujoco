@@ -35,14 +35,14 @@ MJAPI extern const int mjCONDATA_SIZE[mjNCONDATA];  // TODO(tassa): expose in pu
 
 //-------------------------- get/set state ---------------------------------------------------------
 
-// return size of state specification
-MJAPI int mj_stateSize(const mjModel* m, unsigned int spec);
+// return size of state signature
+MJAPI int mj_stateSize(const mjModel* m, unsigned int sig);
 
 // get state
-MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec);
+MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
 
 // set state
-MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
+MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 
 // copy current state to the k-th model keyframe
 MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);

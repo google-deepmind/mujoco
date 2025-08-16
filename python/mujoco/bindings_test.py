@@ -768,36 +768,36 @@ class MuJoCoBindingsTest(parameterized.TestCase):
   def test_getsetstate(self):  # pylint: disable=invalid-name
     mujoco.mj_step(self.model, self.data)
 
-    # Test for invalid state spec
-    invalid_spec = 2**mujoco.mjtState.mjNSTATE.value
+    # Test for invalid state signature
+    invalid_sig = 2**mujoco.mjtState.mjNSTATE.value
     expected_message = (
-        f'mj_stateSize: invalid state spec {invalid_spec} >= 2^mjNSTATE'
+        f'mj_stateSize: invalid state signature {invalid_sig} >= 2^mjNSTATE'
     )
     with self.assertRaisesWithLiteralMatch(mujoco.FatalError, expected_message):
-      mujoco.mj_stateSize(self.model, invalid_spec)
+      mujoco.mj_stateSize(self.model, invalid_sig)
 
-    spec = mujoco.mjtState.mjSTATE_INTEGRATION
-    size = mujoco.mj_stateSize(self.model, spec)
+    sig = mujoco.mjtState.mjSTATE_INTEGRATION
+    size = mujoco.mj_stateSize(self.model, sig)
 
     state_bad_size = np.empty(size + 1, np.float64)
-    expected_message = 'state size should equal mj_stateSize(m, spec)'
+    expected_message = 'state size should equal mj_stateSize(m, sig)'
     with self.assertRaisesWithLiteralMatch(TypeError, expected_message):
-      mujoco.mj_getState(self.model, self.data, state_bad_size, spec)
+      mujoco.mj_getState(self.model, self.data, state_bad_size, sig)
 
     # Get initial state.
     state0 = np.empty(size, np.float64)
-    mujoco.mj_getState(self.model, self.data, state0, spec)
+    mujoco.mj_getState(self.model, self.data, state0, sig)
 
     # Step, get next state.
     mujoco.mj_step(self.model, self.data)
     state1a = np.empty(size, np.float64)
-    mujoco.mj_getState(self.model, self.data, state1a, spec)
+    mujoco.mj_getState(self.model, self.data, state1a, sig)
 
     # Reset to initial state, step again, get state again.
-    mujoco.mj_setState(self.model, self.data, state0, spec)
+    mujoco.mj_setState(self.model, self.data, state0, sig)
     mujoco.mj_step(self.model, self.data)
     state1b = np.empty(size, np.float64)
-    mujoco.mj_getState(self.model, self.data, state1b, spec)
+    mujoco.mj_getState(self.model, self.data, state1b, sig)
 
     # Expect next states to be equal.
     np.testing.assert_array_equal(state1a, state1b)
@@ -805,7 +805,7 @@ class MuJoCoBindingsTest(parameterized.TestCase):
   def test_mj_setKeyframe(self):  # pylint: disable=invalid-name
     mujoco.mj_step(self.model, self.data)
 
-    # Test for invalid state spec
+    # Test for invalid keyframe
     invalid_key = 2
     expected_message = (
         f'mj_setKeyframe: index must be smaller than {invalid_key} (keyframes'

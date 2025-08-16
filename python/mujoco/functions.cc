@@ -292,20 +292,20 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_getState>(
       pymodule,
       [](const raw::MjModel* m, const raw::MjData* d,
-         Eigen::Ref<EigenVectorX> state, unsigned int spec) {
-        if (state.size() != mj_stateSize(m, spec)) {
-          throw py::type_error("state size should equal mj_stateSize(m, spec)");
+         Eigen::Ref<EigenVectorX> state, unsigned int sig) {
+        if (state.size() != mj_stateSize(m, sig)) {
+          throw py::type_error("state size should equal mj_stateSize(m, sig)");
         }
-        return InterceptMjErrors(::mj_getState)(m, d, state.data(), spec);
+        return InterceptMjErrors(::mj_getState)(m, d, state.data(), sig);
       });
   Def<traits::mj_setState>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         const Eigen::Ref<EigenVectorX> state, unsigned int spec) {
-        if (state.size() != mj_stateSize(m, spec)) {
-          throw py::type_error("state size should equal mj_stateSize(m, spec)");
+         const Eigen::Ref<EigenVectorX> state, unsigned int sig) {
+        if (state.size() != mj_stateSize(m, sig)) {
+          throw py::type_error("state size should equal mj_stateSize(m, sig)");
         }
-        return InterceptMjErrors(::mj_setState)(m, d, state.data(), spec);
+        return InterceptMjErrors(::mj_setState)(m, d, state.data(), sig);
       });
   Def<traits::mj_setKeyframe>(pymodule);
   Def<traits::mj_addContact>(pymodule);
