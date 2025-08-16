@@ -2088,12 +2088,33 @@ void mjCModel::SetSizes() {
   ntuple = (int)tuples_.size();
   nkey = (int)keys_.size();
   nplugin = (int)plugins_.size();
-  nq = nv = nu = na = nmocap = 0;
+  nq = nv = ntree = nu = na = nmocap = 0;
 
-  // nq, nv
+  // nq, nv, ntree
   for (int i=0; i < njnt; i++) {
     nq += joints_[i]->nq();
     nv += joints_[i]->nv();
+
+    // increment ntree if this is the first joint in a moving body with static ancestry
+    mjCBody* parent = joints_[i]->GetParent();
+    bool is_first_joint = joints_[i] == parent->joints[0];
+    if (is_first_joint) {
+      // check if all ancestors are static
+      bool static_ancestry = true;
+      mjCBody* ancestor = parent;
+      while (ancestor != bodies_[0]) {
+        ancestor = ancestor->GetParent();
+        if (!ancestor->joints.empty()) {
+          static_ancestry = false;
+          break;
+        }
+      }
+
+      // if all ancestors are static, this joint starts a new kinematic tree
+      if (static_ancestry) {
+        ntree++;
+      }
+    }
   }
 
   // nu, na
@@ -2899,7 +2920,12 @@ void mjCModel::CopyTree(mjModel* m) {
     }
     m->dof_treeid[i] = ntree - 1;
   }
-  m->ntree = ntree;
+
+  // check number of trees constructed, SHOULD NOT OCCUR
+  if (ntree != m->ntree) {
+    throw mjCError(0, "unexpected number of TREEs. Counted %d, expected %d",
+                   nullptr, ntree, m->ntree);
+  }
 
   // compute body_treeid
   for (int i=0; i < nbody; i++) {
@@ -4770,8 +4796,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // create low-level model
   mj_makeModel(&m,
-               nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, nM, nB, nC, nD,
-               ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
+               nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
+               nD, ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
                nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord,
                nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,
                nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert, nskinface, nskinbone,

@@ -77,6 +77,7 @@
     X( nbvhdynamic )        \
     X( noct )               \
     X( njnt )               \
+    X( ntree )              \
     X( nM )                 \
     X( nB )                 \
     X( nC )                 \
@@ -143,7 +144,6 @@
     X( npaths )             \
     X( nnames_map )         \
     X( nJmom )              \
-    X( ntree )              \
     X( ngravcomp )          \
     X( nemax )              \
     X( njmax )              \

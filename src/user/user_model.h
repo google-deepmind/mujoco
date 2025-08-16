@@ -84,6 +84,7 @@ class mjCModel_ : public mjsElement {
   int nv;              // number of degrees of freedom = dim(qvel)
   int nu;              // number of actuators/controls
   int na;              // number of activation variables
+  int ntree;           // number of trees
   int nbvh;            // number of total boundary volume hierarchies
   int nbvhstatic;      // number of static boundary volume hierarchies
   int nbvhdynamic;     // number of dynamic boundary volume hierarchies

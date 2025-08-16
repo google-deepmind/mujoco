@@ -884,6 +884,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of joints',
              ),
              StructFieldDecl(
+                 name='ntree',
+                 type=ValueType(name='int'),
+                 doc='number of kinematic trees under world body',
+             ),
+             StructFieldDecl(
                  name='nM',
                  type=ValueType(name='int'),
                  doc='number of non-zeros in sparse inertia matrix',
@@ -1212,11 +1217,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='nJmom',
                  type=ValueType(name='int'),
                  doc='number of non-zeros in sparse actuator_moment matrix',
-             ),
-             StructFieldDecl(
-                 name='ntree',
-                 type=ValueType(name='int'),
-                 doc='number of kinematic trees under world body',
              ),
              StructFieldDecl(
                  name='ngravcomp',

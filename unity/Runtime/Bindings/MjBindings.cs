@@ -5254,6 +5254,7 @@ public unsafe struct mjModel_ {
   public int nbvhdynamic;
   public int noct;
   public int njnt;
+  public int ntree;
   public int nM;
   public int nB;
   public int nC;
@@ -5320,7 +5321,6 @@ public unsafe struct mjModel_ {
   public int npaths;
   public int nnames_map;
   public int nJmom;
-  public int ntree;
   public int ngravcomp;
   public int nemax;
   public int njmax;

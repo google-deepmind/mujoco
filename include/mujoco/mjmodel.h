@@ -654,6 +654,7 @@ struct mjModel_ {
   int nbvhdynamic;                // number of dynamic bounding volumes (aabb stored in mjData)
   int noct;                       // number of total octree cells in all meshes
   int njnt;                       // number of joints
+  int ntree;                      // number of kinematic trees under world body
   int nM;                         // number of non-zeros in sparse inertia matrix
   int nB;                         // number of non-zeros in sparse body-dof matrix
   int nC;                         // number of non-zeros in sparse reduced dof-dof matrix
@@ -722,7 +723,6 @@ struct mjModel_ {
   // sizes set after mjModel construction
   int nnames_map;                 // number of slots in the names hash map
   int nJmom;                      // number of non-zeros in sparse actuator_moment matrix
-  int ntree;                      // number of kinematic trees under world body
   int ngravcomp;                  // number of bodies with nonzero gravcomp
   int nemax;                      // number of potential equality-constraint rows
   int njmax;                      // number of available rows in constraint Jacobian (legacy)

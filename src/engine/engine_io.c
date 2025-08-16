@@ -463,7 +463,7 @@ static void freeModelBuffers(mjModel* m) {
 // allocate and initialize mjModel structure
 void mj_makeModel(mjModel** dest,
     int nq, int nv, int nu, int na, int nbody, int nbvh,
-    int nbvhstatic, int nbvhdynamic, int noct, int njnt,
+    int nbvhstatic, int nbvhdynamic, int noct, int njnt, int ntree,
     int nM, int nB, int nC, int nD, int ngeom, int nsite, int ncam,
     int nlight, int nflex, int nflexnode, int nflexvert, int nflexedge, int nflexelem,
     int nflexelemdata, int nflexelemedge, int nflexshelldata, int nflexevpair, int nflextexcoord,
@@ -505,6 +505,7 @@ void mj_makeModel(mjModel** dest,
   m->nbvhdynamic = nbvhdynamic;
   m->noct = noct;
   m->njnt = njnt;
+  m->ntree = ntree;
   m->nM = nM;
   m->nB = nB;
   m->nC = nC;
@@ -648,8 +649,8 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   if (!dest) {
     mj_makeModel(
         &dest, src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
-        src->nbvhstatic, src->nbvhdynamic, src->noct, src->njnt, src->nM,
-        src->nB, src->nC, src->nD, src->ngeom, src->nsite, src->ncam,
+        src->nbvhstatic, src->nbvhdynamic, src->noct, src->njnt, src->ntree,
+        src->nM, src->nB, src->nC, src->nD, src->ngeom, src->nsite, src->ncam,
         src->nlight, src->nflex, src->nflexnode, src->nflexvert, src->nflexedge,
         src->nflexelem, src->nflexelemdata, src->nflexelemedge,
         src->nflexshelldata, src->nflexevpair, src->nflextexcoord, src->nmesh,
@@ -845,7 +846,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
                ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
                ints[63], ints[64], ints[65], ints[66], ints[67], ints[68], ints[69],
-               ints[70], ints[71], ints[72], ints[73]);
+               ints[70], ints[71], ints[72], ints[73], ints[74]);
 
   // read mjModel mjtSize fields
   mjtSize sizes[8];
