@@ -4698,7 +4698,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='index mapping from qM to D',
+                 doc='index mapping from M to D',
                  array_extent=('nD',),
              ),
              StructFieldDecl(
@@ -4706,8 +4706,8 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='index mapping from D to qM',
-                 array_extent=('nM',),
+                 doc='index mapping from D to M',
+                 array_extent=('nC',),
              ),
              StructFieldDecl(
                  name='signature',

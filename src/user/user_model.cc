@@ -4876,29 +4876,30 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
   // sparsity structures
   {
-    std::vector<int> remaining(m->nv);
+    std::vector<int> scratch(m->nv);
     std::vector<int> count(m->nbody);
     std::vector<int> M(m->nM);
-    std::vector<int> D(m->nD);
 
     // make D
     mj_makeDofDofSparse(m->nv, m->nC, m->nD, m->nM, m->dof_parentid, m->dof_simplenum,
                         m->D_rownnz, m->D_rowadr, m->D_diag, m->D_colind,
-                        /*reduced=*/0, /*upper=*/1, remaining.data());
+                        /*reduced=*/0, /*upper=*/1, scratch.data());
 
     // make B
     mj_makeBSparse(m->nv, m->nbody, m->nB, m->body_dofnum, m->body_parentid,
                   m->body_dofadr, m->B_rownnz, m->B_rowadr, m->B_colind, count.data());
 
-    // make C
+    // make M
     mj_makeDofDofSparse(m->nv, m->nC, m->nD, m->nM, m->dof_parentid, m->dof_simplenum,
                         m->M_rownnz, m->M_rowadr, NULL, m->M_colind,
-                        /*reduced=*/1, /*upper=*/0, remaining.data());
+                        /*reduced=*/1, /*upper=*/0, scratch.data());
 
     // make index mappings: mapM2D, mapD2M, mapM2M
-    mj_makeDofDofMaps(m->nv, m->nM, m->nC, m->nD, m->dof_Madr, m->dof_simplenum, m->dof_parentid,
-                      m->D_rownnz, m->D_rowadr, m->D_colind, m->M_rownnz, m->M_rowadr,
-                      m->mapM2D, m->mapD2M, m->mapM2M, remaining.data(), M.data(), D.data());
+    mj_makeDofDofMaps(m->nv, m->nM, m->nC, m->nD,
+                      m->dof_Madr, m->dof_simplenum, m->dof_parentid,
+                      m->D_rownnz, m->D_rowadr, m->D_colind,
+                      m->M_rownnz, m->M_rowadr, m->M_colind,
+                      m->mapM2D, m->mapD2M, m->mapM2M, M.data(), scratch.data());
   }
 
   // create data

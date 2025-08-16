@@ -1009,7 +1009,7 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
-  int nv = m->nv, nM = m->nM, nD = m->nD, nC = m->nC;
+  int nv = m->nv, nD = m->nD, nC = m->nC;
 
   mj_markStack(d);
   mjtNum* qfrc = mjSTACKALLOC(d, nv, mjtNum);
@@ -1024,18 +1024,18 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       // compute analytical derivative qDeriv
       mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
-      // gather qLU <- qM (lower to full)
-      mju_gather(d->qLU, d->qM, m->mapM2D, nD);
+      // gather qLU <- M (lower to full)
+      mju_gatherMasked(d->qLU, d->M, m->mapM2D, nD);
 
-      // set qLU = qM - dt*qDeriv
-      mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
+      // set qLU = M - dt*qDeriv
+      mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, nD);
 
       // factorize qLU
       int* scratch = mjSTACKALLOC(d, nv, int);
       mju_factorLUSparse(d->qLU, nv, scratch, m->D_rownnz, m->D_rowadr, m->D_colind);
     }
 
-    // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
+    // solve for qacc: (M - dt*qDeriv) * qacc = qfrc
     mju_solveLUSparse(qacc, d->qLU, qfrc, nv, m->D_rownnz, m->D_rowadr, m->D_diag, m->D_colind);
   }
 
@@ -1045,21 +1045,17 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
       // compute analytical derivative qDeriv; skip rne derivative
       mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
-      // modified mass matrix: gather MhB <- qDeriv (full to lower)
-      mjtNum* MhB = mjSTACKALLOC(d, nM, mjtNum);
-      mju_gather(MhB, d->qDeriv, m->mapD2M, nM);
+      // modified mass matrix: gather qH <- qDeriv (full to lower)
+      mju_gather(d->qH, d->qDeriv, m->mapD2M, nC);
 
-      // set MhB = M - dt*qDeriv
-      mju_addScl(MhB, d->qM, MhB, -m->opt.timestep, nM);
-
-      // gather qH <- MhB (legacy to CSR)
-      mju_gather(d->qH, MhB, m->mapM2M, nC);
+      // set qH = M - dt*qDeriv
+      mju_addScl(d->qH, d->M, d->qH, -m->opt.timestep, nC);
 
       // factorize in-place
       mj_factorI(d->qH, d->qHDiagInv, nv, m->M_rownnz, m->M_rowadr, m->M_colind);
     }
 
-    // solve for qacc: (qM - dt*qDeriv) * qacc = qfrc
+    // solve for qacc: (M - dt*qDeriv) * qacc = qfrc
     mju_copy(qacc, qfrc, nv);
     mj_solveLD(qacc, d->qH, d->qHDiagInv, nv, 1,
                m->M_rownnz, m->M_rowadr, m->M_colind);

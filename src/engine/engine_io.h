@@ -101,9 +101,9 @@ MJAPI void mj_makeBSparse(int nv, int nbody, int nB,
 MJAPI void mj_makeDofDofMaps(int nv, int nM, int nC, int nD,
                              const int* dof_Madr, const int* dof_simplenum, const int* dof_parentid,
                              const int* D_rownnz, const int* D_rowadr, const int* D_colind,
-                             const int* M_rownnz, const int* M_rowadr,
+                             const int* M_rownnz, const int* M_rowadr, const int* M_colind,
                              int* mapM2D, int* mapD2M, int* mapM2M,
-                             int* remaining, int* M, int* D);
+                             int* M, int* scratch);
 
 //------------------------------- mjData -----------------------------------------------------------
 

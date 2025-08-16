@@ -1544,8 +1544,8 @@ struct mjModel_ {
   int*      D_rowadr;             // full inertia: row addresses              (nv x 1)
   int*      D_diag;               // full inertia: index of diagonal element  (nv x 1)
   int*      D_colind;             // full inertia: column indices             (nD x 1)
-  int*      mapM2D;               // index mapping from qM to D               (nD x 1)
-  int*      mapD2M;               // index mapping from D to qM               (nM x 1)
+  int*      mapM2D;               // index mapping from M to D                (nD x 1)
+  int*      mapD2M;               // index mapping from D to M                (nC x 1)
 
   // compilation signature
   uint64_t  signature;            // also held by the mjSpec that compiled this model

@@ -897,7 +897,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   printArrayInt("D_ROWADR", 1, m->nv, m->D_rowadr, fp);
   printArrayInt("D_COLIND", 1, m->nD, m->D_colind, fp);
   printArrayInt("MAPM2D",   1, m->nD, m->mapM2D,   fp);
-  printArrayInt("MAPD2M",   1, m->nM, m->mapD2M,   fp);
+  printArrayInt("MAPD2M",   1, m->nC, m->mapD2M,   fp);
 
   // signature
   fprintf(fp, "\nSIGNATURE\n");

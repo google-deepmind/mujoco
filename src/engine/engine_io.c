@@ -1183,70 +1183,29 @@ static void copyM2Sparse(int nv,
 }
 
 
-
-// integer valued dst[M] = src[D lower]
-static void copyD2MSparse(int nv, const int* dof_Madr, const int* D_colind,
-                          const int* D_rowadr, const int* src, int* dst) {
-  // copy data
-  for (int i = nv - 1; i >= 0; i--) {
-    // find diagonal in qDeriv
-    int j = 0;
-    while (D_colind[D_rowadr[i] + j] < i) {
-      j++;
-    }
-
-    // copy
-    int adr = dof_Madr[i];
-    while (j >= 0) {
-      dst[adr] = src[D_rowadr[i] + j];
-      adr++;
-      j--;
-    }
-  }
-}
-
-
-
 // construct index mappings between M <-> D, M -> C, M (legacy) -> M (CSR)
 void mj_makeDofDofMaps(int nv, int nM, int nC, int nD,
                        const int* dof_Madr, const int* dof_simplenum, const int* dof_parentid,
                        const int* D_rownnz, const int* D_rowadr, const int* D_colind,
-                       const int* M_rownnz, const int* M_rowadr,
+                       const int* M_rownnz, const int* M_rowadr, const int* M_colind,
                        int* mapM2D, int* mapD2M, int* mapM2M,
-                       int* remaining, int* M, int* D) {
-  // make mapM2D
+                       int* M, int* scratch) {
+  // make mapM2D: M -> D (lower to symmetric)
+  mju_lower2SymMap(mapM2D, nv, D_rowadr, D_rownnz, D_colind, M_rowadr, M_rownnz, M_colind, scratch);
+
+  // make mapD2M: D -> M (symmetric to lower)
+  mju_sparseMap(mapD2M, nv, M_rowadr, M_rownnz, M_colind, D_rowadr, D_rownnz, D_colind);
+
+  // make mapM2M
   for (int i=0; i < nM; i++) M[i] = i;
-  for (int i=0; i < nD; i++) mapM2D[i] = -1;
-  copyM2Sparse(nv, dof_Madr, dof_simplenum, dof_parentid, D_rownnz,
-               D_rowadr, M, mapM2D, /*reduced=*/0, /*upper=*/1, remaining);
-
-  // check that all indices are filled in
-  for (int i=0; i < nD; i++) {
-    if (mapM2D[i] < 0) {
-      mjERROR("unassigned index in mapM2D");
-    }
-  }
-
-  // make mapD2M
-  for (int i=0; i < nD; i++) D[i] = i;
-  for (int i=0; i < nM; i++) mapD2M[i] = -1;
-  copyD2MSparse(nv, dof_Madr, D_colind, D_rowadr, D, mapD2M);
-
-  // check that all indices are filled in
-  for (int i=0; i < nM; i++) {
-    if (mapD2M[i] < 0) {
-      mjERROR("unassigned index in mapD2M");
-    }
-  }
-
-  // make mapM2C
   for (int i=0; i < nC; i++) mapM2M[i] = -1;
   copyM2Sparse(nv, dof_Madr, dof_simplenum, dof_parentid, M_rownnz,
-               M_rowadr, M, mapM2M, /*reduced=*/1, /*upper=*/0, remaining);
+               M_rowadr, M, mapM2M, /*reduced=*/1, /*upper=*/0, scratch);
+
   // check that all indices are filled in
   for (int i=0; i < nC; i++) {
     if (mapM2M[i] < 0) {
-      mjERROR("unassigned index in mapM2C");
+      mjERROR("unassigned index in mapM2M");
     }
   }
 }

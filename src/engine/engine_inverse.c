@@ -73,7 +73,7 @@ void mj_invVelocity(const mjModel* m, mjData* d) {
 
 // convert discrete-time qacc to continuous-time qacc
 static void mj_discreteAcc(const mjModel* m, mjData* d) {
-  int nv = m->nv, nM = m->nM, nD = m->nD, dof_damping;
+  int nv = m->nv, nC = m->nC, nD = m->nD, dof_damping;
   mjtNum *qacc = d->qacc;
 
   mj_markStack(d);
@@ -116,7 +116,7 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     mjd_smooth_vel(m, d, /* flg_bias = */ 1);
 
     // gather qLU <- qM (lower to full)
-    mju_gather(d->qLU, d->qM, m->mapM2D, nD);
+    mju_gatherMasked(d->qLU, d->M, m->mapM2D, nD);
 
     // set qLU = qM - dt*qDeriv
     mju_addToScl(d->qLU, d->qDeriv, -m->opt.timestep, m->nD);
@@ -131,21 +131,17 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
     mjd_smooth_vel(m, d, /* flg_bias = */ 0);
 
     // save mass matrix
-    mjtNum* qMsave = mjSTACKALLOC(d, m->nM, mjtNum);
-    mju_copy(qMsave, d->qM, m->nM);
+    mjtNum* Msave = mjSTACKALLOC(d, m->nC, mjtNum);
+    mju_copy(Msave, d->M, m->nC);
 
-    // set M = M - dt*qDeriv (reduced to M nonzeros)
-    mjtNum* qDerivReduced = mjSTACKALLOC(d, m->nM, mjtNum);
-    for (int i=0; i < nM; i++) {
-      qDerivReduced[i] = d->qDeriv[m->mapD2M[i]];
-    }
-    mju_addToScl(d->qM, qDerivReduced, -m->opt.timestep, m->nM);
+    // modified mass matrix: gather qH <- qDeriv (full to lower)
+    mju_gather(d->qH, d->qDeriv, m->mapD2M, nC);
+
+    // set qH = M - dt*qDeriv
+    mju_addScl(d->qH, d->M, d->qH, -m->opt.timestep, nC);
 
     // set qfrc = (M - dt*qDeriv) * qacc
-    mj_mulM(m, d, qfrc, qacc);
-
-    // restore mass matrix
-    mju_copy(d->qM, qMsave, m->nM);
+    mju_mulSymVecSparse(qfrc, d->qH, qacc, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind);
     break;
   }
 
