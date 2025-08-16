@@ -70,7 +70,10 @@ static constexpr char AngMomTestingModel[] = R"(
 
 // compare subtree angular momentum computed in two ways
 TEST_F(AngMomMatTest, CompareAngMom) {
-  mjModel* model = LoadModelFromString(AngMomTestingModel);
+  char error[1024];
+  mjModel* model =
+      LoadModelFromString(AngMomTestingModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   int nv = model->nv;
   int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
 
@@ -104,7 +107,10 @@ TEST_F(AngMomMatTest, CompareAngMom) {
 
 // compare subtree angular momentum matrix: analytical and findiff
 TEST_F(AngMomMatTest, CompareAngMomMats) {
-  mjModel* model = LoadModelFromString(AngMomTestingModel);
+  char error[1024];
+  mjModel* model =
+      LoadModelFromString(AngMomTestingModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   int nv = model->nv;
   int bodyid = mj_name2id(model, mjOBJ_BODY, "link1");
   mjData* data = mj_makeData(model);
@@ -191,7 +197,10 @@ static constexpr char kJacobianTestingModel[] = R"(
 
 // compare analytic and finite-differenced subtree-com Jacobian
 TEST_F(JacobianTest, SubtreeJac) {
-  mjModel* model = LoadModelFromString(kJacobianTestingModel);
+  char error[1024];
+  mjModel* model =
+      LoadModelFromString(kJacobianTestingModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   int nv = model->nv;
   int bodyid = mj_name2id(model, mjOBJ_BODY, "main");
   mjData* data = mj_makeData(model);
@@ -242,7 +251,10 @@ TEST_F(JacobianTest, SubtreeJac) {
 // confirm that applying linear forces via the subtree-com Jacobian only creates
 // the expected linear accelerations (no accelerations of internal joints)
 TEST_F(JacobianTest, SubtreeJacNoInternalAcc) {
-  mjModel* model = LoadModelFromString(kJacobianTestingModel);
+  char error[1024];
+  mjModel* model =
+      LoadModelFromString(kJacobianTestingModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   int nv = model->nv;
   int bodyid = mj_name2id(model, mjOBJ_BODY, "main");
   mjData* data = mj_makeData(model);
@@ -407,7 +419,9 @@ static constexpr char kHinge[] = R"(
 // compare mj_jacDot with finite-differenced mj_jac
 TEST_F(JacobianTest, JacDot) {
   for (auto xml : {kHinge, kQuat, kTelescope, kFreeBall, kQuatlessPendulum}) {
-    mjModel* model = LoadModelFromString(xml);
+    char error[1024];
+    mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
     int nv = model->nv;
     mjData* data = mj_makeData(model);
 
@@ -520,7 +534,10 @@ static constexpr char name2idTestingModel[] = R"(
 )";
 
 TEST_F(Name2idTest, FindIds) {
-    mjModel* model = LoadModelFromString(name2idTestingModel);
+    char error[1024];
+    mjModel* model =
+        LoadModelFromString(name2idTestingModel, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
 
     EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "world"), 0);
     EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "body1"), 1);
@@ -542,7 +559,10 @@ TEST_F(Name2idTest, FindIds) {
 }
 
 TEST_F(Name2idTest,  MissingIds) {
-    mjModel* model = LoadModelFromString(name2idTestingModel);
+    char error[1024];
+    mjModel* model =
+        LoadModelFromString(name2idTestingModel, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
 
     EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, "abody3"), -1);
     EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "abody2_geom2"), -1);
@@ -561,7 +581,10 @@ TEST_F(Name2idTest,  MissingIds) {
 }
 
 TEST_F(Name2idTest, EmptyIds) {
-    mjModel* model = LoadModelFromString(name2idTestingModel);
+    char error[1024];
+    mjModel* model =
+        LoadModelFromString(name2idTestingModel, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
 
     EXPECT_THAT(mj_name2id(model, mjOBJ_BODY, ""), -1);
 
@@ -569,7 +592,10 @@ TEST_F(Name2idTest, EmptyIds) {
 }
 
 TEST_F(Name2idTest, Namespaces) {
-    mjModel* model = LoadModelFromString(name2idTestingModel);
+    char error[1024];
+    mjModel* model =
+        LoadModelFromString(name2idTestingModel, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
 
     EXPECT_THAT(mj_name2id(model, mjOBJ_GEOM, "camera1"), 3);
 
@@ -631,7 +657,9 @@ static constexpr char ballJointModel[] = R"(
 TEST_F(SupportTest, DifferentiatePosSubQuat) {
   const mjtNum eps = 1e-12;  // epsilon for float comparison
 
-  mjModel* model = LoadModelFromString(ballJointModel);
+  char error[1024];
+  mjModel* model = LoadModelFromString(ballJointModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
 
   int seed = 1;
   for (mjtNum angle : {0.0, 1e-5, 1e-2}) {
@@ -850,7 +878,10 @@ static constexpr char GeomDistanceTestingModel[] = R"(
 )";
 
 TEST_F(SupportTest, GeomDistance) {
-  mjModel* model = LoadModelFromString(GeomDistanceTestingModel);
+  char error[1024];
+  mjModel* model =
+      LoadModelFromString(GeomDistanceTestingModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   mj_kinematics(model, data);
 
@@ -920,7 +951,10 @@ static constexpr char kSetKeyframeTestingModel[] = R"(
 )";
 
 TEST_F(SupportTest, SetKeyframe) {
-  mjModel* model = LoadModelFromString(kSetKeyframeTestingModel);
+  char error[1024];
+  mjModel* model =
+      LoadModelFromString(kSetKeyframeTestingModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   data->ctrl[0] = 1;

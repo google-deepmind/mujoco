@@ -18,6 +18,7 @@
 #include "src/engine/engine_util_misc.h"
 #include "src/engine/engine_util_sparse.h"
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -61,8 +62,9 @@ TEST_F(CoreSmoothTest, MjDataWorldBodyValuesAreInitialized) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   mj_resetDataDebug(model, data, 'd');
   mj_forward(model, data);
@@ -98,8 +100,9 @@ TEST_F(CoreSmoothTest, MjKinematicsWorldXipos) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   mj_resetDataDebug(model, data, 'd');
@@ -141,8 +144,9 @@ TEST_F(CoreSmoothTest, FixedTendonSortedIndices) {
     </tendon>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   ASSERT_EQ(model->ntendon, 1);
   ASSERT_EQ(model->nwrap, 3);
 

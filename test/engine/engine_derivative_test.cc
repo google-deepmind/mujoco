@@ -159,7 +159,9 @@ TEST_F(DerivativeTest, DisabledActuators) {
   </mujoco>
   )";
 
-  mjModel* m1 = LoadModelFromString(xml1);
+  char error[1024];
+  mjModel* m1 = LoadModelFromString(xml1, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << error;
   mjData* d1 = mj_makeData(m1);
 
   d1->ctrl[0] = 6;

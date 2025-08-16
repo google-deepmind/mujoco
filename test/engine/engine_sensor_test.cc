@@ -78,7 +78,9 @@ TEST_F(SensorTest, DisableSensors) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // before calling anything, check that sensors are initialised to 0
@@ -128,7 +130,9 @@ TEST_F(RelativeFrameSensorTest, ReferencePosMat) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
 

@@ -238,7 +238,7 @@ TEST_F(MjCollisionBoxTest, DeepPenetration) {
   mj_forward(model, data);
 
   // expect 4 contact
-  EXPECT_EQ(data->ncon ,4);
+  EXPECT_EQ(data->ncon, 4);
 
   mj_deleteData(data);
   mj_deleteModel(model);
@@ -257,8 +257,9 @@ TEST_F(MjCollisionBoxTest, BoxSphere) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   for (mjtNum z : {-.015, -.00501, -.005, -.00499, 0.0, 0.004}) {

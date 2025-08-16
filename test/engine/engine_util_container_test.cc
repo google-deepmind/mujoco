@@ -82,8 +82,9 @@ TEST(TestMjArrayList, TestMjArrayListSingleThreaded) {
 }
 
 TEST(TestMjArrayList, ZeroInitialCapacity) {
-  mjModel* m = LoadModelFromString("<mujoco/>", nullptr, 0);
-  ASSERT_THAT(m, NotNull()) << "Failed to load model";
+  char error[1024];
+  mjModel* m = LoadModelFromString("<mujoco/>", error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
   mjData* d = mj_makeData(m);
   mj_markStack(d);
   mjArrayList* array_list =

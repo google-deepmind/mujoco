@@ -14,7 +14,6 @@
 
 // Tests for engine/engine_core_smooth.c.
 
-#include <cstddef>
 #include <string>
 
 #include <gmock/gmock.h>
@@ -57,7 +56,9 @@ TEST_F(EllipsoidFluidTest, GeomsEquivalentToBodies) {
   </mujoco>
   )";
 
-  mjModel* m2 = LoadModelFromString(two_bodies_xml);
+  char error[1024];
+  mjModel* m2 = LoadModelFromString(two_bodies_xml, error, sizeof(error));
+  ASSERT_THAT(m2, NotNull()) << error;
   mjData* d2 = mj_makeData(m2);
   for (int i = 0; i < 6; i++) {
     d2->qvel[i] = (mjtNum) i+1;
@@ -80,7 +81,8 @@ TEST_F(EllipsoidFluidTest, GeomsEquivalentToBodies) {
   </mujoco>
   )";
 
-  mjModel* m1 = LoadModelFromString(one_body_xml);
+  mjModel* m1 = LoadModelFromString(one_body_xml, error, sizeof(error));
+  ASSERT_THAT(m1, NotNull()) << error;
   mjData* d1 = mj_makeData(m1);
   for (int i = 0; i < 6; i++) {
     d1->qvel[i] = (mjtNum) i+1;
@@ -126,7 +128,9 @@ TEST_F(EllipsoidFluidTest, DefaultsPropagate) {
   </mujoco>
   )";
 
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   EXPECT_THAT(GetVector(model->geom_fluid, 6),
               ElementsAre(0, 0, 0, 0, 0, 0));
   EXPECT_THAT(GetVector(model->geom_fluid + mjNFLUID, 6),

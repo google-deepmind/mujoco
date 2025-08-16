@@ -47,8 +47,9 @@ static constexpr char kSdfModel[] = R"(
 )";
 
 TEST_F(SdfTest, SdfPrimitive) {
-  mjModel* model = LoadModelFromString(kSdfModel);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(kSdfModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   ASSERT_THAT(data, NotNull());
   ASSERT_THAT(model->ngeom, kgeoms);

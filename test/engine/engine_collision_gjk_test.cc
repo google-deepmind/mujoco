@@ -20,8 +20,8 @@
 #include <cstddef>
 #include <vector>
 
-#include <ccd/ccd.h>
-#include <ccd/vec3.h>
+#include <ccd/ccd.h>  // IWYU pragma: keep
+#include <ccd/vec3.h>  // IWYU pragma: keep
 
 #include "src/engine/engine_collision_convex.h"
 #include <mujoco/mujoco.h>
@@ -31,7 +31,7 @@
 #include <gtest/gtest.h>
 
 // uncomment to run tests with libccd
-//#define TEST_WITH_LIBCCD
+// #define TEST_WITH_LIBCCD
 
 namespace mujoco {
 namespace {

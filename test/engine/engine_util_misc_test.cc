@@ -34,6 +34,7 @@ using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
+using ::testing::NotNull;
 using ::testing::Pointwise;
 using ::testing::StrEq;
 
@@ -121,7 +122,9 @@ TEST_F(UtilMiscTest, SphereWrap) {
   </mujoco>
   )";
 
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // measure tendon length for keyframe 0

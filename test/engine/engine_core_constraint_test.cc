@@ -78,8 +78,9 @@ TEST_F(CoreConstraintTest, WeldRotJacobian) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, testing::NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, testing::NotNull()) << error;
   ASSERT_EQ(model->nq, 7);
   ASSERT_EQ(model->nv, 6);
   static const int nv = 6;  // for increased readability
@@ -172,8 +173,9 @@ TEST_F(CoreConstraintTest, RestPenetration) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, testing::NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, testing::NotNull()) << error;
   mjtNum gravity = -model->opt.gravity[2];
   mjtNum damping_ratio = 0.8;
   mjData* data = mj_makeData(model);
