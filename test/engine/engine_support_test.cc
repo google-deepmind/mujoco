@@ -858,6 +858,61 @@ TEST_F(InertiaTest, mulM2) {
   mj_deleteModel(model);
 }
 
+TEST_F(InertiaTest, FullM) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
+  int nv = m->nv;
+
+  // forward dynamics, populate qM and qLD
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+
+  // get dense mass matrix from qM using mj_fullM
+  vector<mjtNum> M(nv * nv);
+  mj_fullM(m, M.data(), d->qM);
+
+  // get dense mass matrix from M using mju_sparse2dense
+  vector<mjtNum> M_CSR(nv * nv);
+  mju_sparse2dense(M_CSR.data(), d->M, nv, nv,
+                   m->M_rownnz, m->M_rowadr, m->M_colind);
+
+  // expect lower triangles to match exactly
+  for (int i = 0; i < nv; ++i) {
+    for (int j = 0; j <= i; ++j) {
+      EXPECT_EQ(M[i * nv + j], M_CSR[i * nv + j]);
+    }
+  }
+
+  // get dense LTDL factor (D on the diagonal)
+  vector<mjtNum> LD(nv * nv);
+  mju_sparse2dense(LD.data(), d->qLD, nv, nv,
+                   m->M_rownnz, m->M_rowadr, m->M_colind);
+
+  // extract L and D from LD
+  vector<mjtNum> L = LD;
+  vector<mjtNum> D(nv * nv, 0.0);
+  for (int i = 0; i < nv; i++) {
+    D[i * nv + i] = LD[i * nv + i];
+    L[i * nv + i] = 1.0;
+  }
+
+  // compute DL = D * L
+  vector<mjtNum> DL(nv * nv, 0.0);
+  mju_mulMatMat(DL.data(), D.data(), L.data(), nv, nv, nv);
+
+  // compute the triple product P = L^T * D * L
+  vector<mjtNum> P(nv * nv, 0.0);
+  mju_mulMatTMat(P.data(), L.data(), DL.data(), nv, nv, nv);
+
+  // expect M and P to match to high precision
+  EXPECT_THAT(M, Pointwise(DoubleNear(1e-10), P));
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
 static constexpr char GeomDistanceTestingModel[] = R"(
 <mujoco>
   <option>
