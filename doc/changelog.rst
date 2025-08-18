@@ -5,6 +5,11 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+General
+^^^^^^^
+- Added support for shells with a curved reference configuration. See this `example
+   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/basket.xml>`__
+
 MJX
 ^^^
 - Promote ``ten_length`` to the public MJX API. Add Warp support for ``mjx.tendon``.

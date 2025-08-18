@@ -2811,7 +2811,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='bending stiffness',
-                 array_extent=('nflexedge', 16),
+                 array_extent=('nflexedge', 17),
              ),
              StructFieldDecl(
                  name='flex_damping',

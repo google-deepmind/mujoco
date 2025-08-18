@@ -454,7 +454,7 @@ def _flex_bending(
   flex_vertbodyid: wp.array(dtype=int),
   flex_edge: wp.array(dtype=wp.vec2i),
   flex_edgeflap: wp.array(dtype=wp.vec2i),
-  flex_bending: wp.array(dtype=wp.mat44f),
+  flex_bending: wp.array(dtype=float),
   # Data in:
   flexvert_xpos_in: wp.array2d(dtype=wp.vec3),
   # Data out:
@@ -481,7 +481,7 @@ def _flex_bending(
   for i in range(nvert):
     for j in range(nvert):
       for x in range(3):
-        force[i, x] -= flex_bending[edgeid][i, j] * flexvert_xpos_in[worldid, v[j]][x]
+        force[i, x] -= flex_bending[17*edgeid + 4*i + j] * flexvert_xpos_in[worldid, v[j]][x]
 
   for i in range(nvert):
     bodyid = flex_vertbodyid[flex_vertadr[f] + v[i]]

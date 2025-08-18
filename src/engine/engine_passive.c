@@ -116,7 +116,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
   // flex elasticity
   for (int f=0; f < m->nflex; f++) {
     mjtNum* k = m->flex_stiffness + 21*m->flex_elemadr[f];
-    mjtNum* b = m->flex_bending + 16*m->flex_edgeadr[f];
+    mjtNum* b = m->flex_bending + 17*m->flex_edgeadr[f];
     int dim = m->flex_dim[f];
 
     if (dim == 1 || m->flex_rigid[f]) {
@@ -136,12 +136,32 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
           // skip boundary edges
           continue;
         }
+
+        // flap edges
+        mjtNum ed[3][3];
+        mju_sub3(ed[0], xpos + 3*v[1], xpos + 3*v[0]);
+        mju_sub3(ed[1], xpos + 3*v[2], xpos + 3*v[0]);
+        mju_sub3(ed[2], xpos + 3*v[3], xpos + 3*v[0]);
+
+        // forces at the vertices due to curved reference
+        mjtNum frc[4][3];
+        mju_cross(frc[1], ed[1], ed[2]);
+        mju_cross(frc[2], ed[2], ed[0]);
+        mju_cross(frc[3], ed[0], ed[1]);
+        frc[0][0] = -(frc[1][0] + frc[2][0] + frc[3][0]);
+        frc[0][1] = -(frc[1][1] + frc[2][1] + frc[3][1]);
+        frc[0][2] = -(frc[1][2] + frc[2][2] + frc[3][2]);
+
+        // force
         mjtNum force[12] = {0};
-        for (int i = 0; i < 4; i++) {
-          for (int j = 0; j < 4; j++) {
-            for (int x = 0; x < 3; x++) {
-              force[3*i+x] += b[16*e+4*i+j] * xpos[3*v[j]+x];
+        for (int x = 0; x < 3; x++) {
+          for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+              // thin plate bending force
+              force[3*i+x] += b[17*e+4*i+j] * xpos[3*v[j]+x];
             }
+            // curved reference contribution
+            force[3*i+x] += b[17*e+16] * frc[i][x];
           }
         }
 

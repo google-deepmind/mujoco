@@ -737,7 +737,7 @@ _NDIM = {
         'eq_type': 1,
         'eq_wld_adr': 1,
         'exclude_signature': 1,
-        'flex_bending': 3,
+        'flex_bending': 1,
         'flex_damping': 1,
         'flex_dim': 1,
         'flex_edge': 2,

@@ -1199,7 +1199,7 @@ class Model:
   flex_elemedge: wp.array(dtype=int)
   flexedge_length0: wp.array(dtype=float)
   flex_stiffness: wp.array(dtype=float)
-  flex_bending: wp.array(dtype=wp.mat44f)
+  flex_bending: wp.array(dtype=float)
   flex_damping: wp.array(dtype=float)
   mesh_vertadr: wp.array(dtype=int)
   mesh_vertnum: wp.array(dtype=int)

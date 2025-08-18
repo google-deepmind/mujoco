@@ -161,7 +161,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
     case mjFCOMPTYPE_BOX:
     case mjFCOMPTYPE_CYLINDER:
     case mjFCOMPTYPE_ELLIPSOID:
-      res = MakeBox(error, error_sz);
+      res = MakeBox(error, error_sz, dflex->dim);
       break;
 
     case mjFCOMPTYPE_SQUARE:
@@ -853,18 +853,26 @@ bool mjCFlexcomp::MakeSquare(char* error, int error_sz) {
 
 
 
+static int mat2lin(int ix, int iy, int iz, const int count[3]) {
+  return ix*count[1]*count[2] + iy*count[2] + iz;
+}
+
+
+
 // make 3d box, ellipsoid or cylinder
-bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
+bool mjCFlexcomp::MakeBox(char* error, int error_sz, int dim, bool open) {
   double pos[3];
   bool needtex = texcoord.empty() && mjs_getString(def.spec.flex->material)[0];
 
-  // set 3D
-  def.spec.flex->dim = 3;
+  // set dimension
+  def.spec.flex->dim = dim;
 
   // add center point
-  point.push_back(0);
-  point.push_back(0);
-  point.push_back(0);
+  if (dim == 3) {
+    point.push_back(0);
+    point.push_back(0);
+    point.push_back(0);
+  }
 
   // add texture coordinates, if not specified explicitly
   if (needtex) {
@@ -872,33 +880,29 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
     texcoord.push_back(0);
   }
 
+  // add points
+  int n = 0;
+  std::vector<int> idx(count[0]*count[1]*count[2]);
+
   // iz=0/max
   for (int iz=0; iz < count[2]; iz+=count[2]-1) {
     for (int ix=0; ix < count[0]; ix++) {
       for (int iy=0; iy < count[1]; iy++) {
+        if (open && dim == 2 && iz != 0) {
+          continue;
+        }
+
         // add point
         BoxProject(pos, ix, iy, iz);
         point.push_back(pos[0]);
         point.push_back(pos[1]);
         point.push_back(pos[2]);
+        idx[mat2lin(ix, iy, iz, count)] = n++;
 
         // add texture coordinates, if not specified explicitly
         if (needtex) {
           texcoord.push_back(ix/(float)std::max(count[0]-1, 1));
           texcoord.push_back(iy/(float)std::max(count[1]-1, 1));
-        }
-
-        // add elements
-        if (ix < count[0]-1 && iy < count[1]-1) {
-          element.push_back(0);
-          element.push_back(BoxID(ix, iy, iz));
-          element.push_back(BoxID(ix+1, iy, iz));
-          element.push_back(BoxID(ix+1, iy+1, iz));
-
-          element.push_back(0);
-          element.push_back(BoxID(ix, iy, iz));
-          element.push_back(BoxID(ix, iy+1, iz));
-          element.push_back(BoxID(ix+1, iy+1, iz));
         }
       }
     }
@@ -909,30 +913,18 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
     for (int ix=0; ix < count[0]; ix++) {
       for (int iz=0; iz < count[2]; iz++) {
         // add point
-        if (iz > 0 && iz < count[2]-1) {
+        if (iz > 0 && ((open && dim == 2) || (iz < count[2]-1))) {
           BoxProject(pos, ix, iy, iz);
           point.push_back(pos[0]);
           point.push_back(pos[1]);
           point.push_back(pos[2]);
+          idx[mat2lin(ix, iy, iz, count)] = n++;
 
           // add texture coordinates
           if (needtex) {
             texcoord.push_back(ix/(float)std::max(count[0]-1, 1));
             texcoord.push_back(iz/(float)std::max(count[2]-1, 1));
           }
-        }
-
-        // add elements
-        if (ix < count[0]-1 && iz < count[2]-1) {
-          element.push_back(0);
-          element.push_back(BoxID(ix, iy, iz));
-          element.push_back(BoxID(ix+1, iy, iz));
-          element.push_back(BoxID(ix+1, iy, iz+1));
-
-          element.push_back(0);
-          element.push_back(BoxID(ix, iy, iz));
-          element.push_back(BoxID(ix, iy, iz+1));
-          element.push_back(BoxID(ix+1, iy, iz+1));
         }
       }
     }
@@ -943,11 +935,12 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
     for (int iy=0; iy < count[1]; iy++) {
       for (int iz=0; iz < count[2]; iz++) {
         // add point
-        if (iz > 0 && iz < count[2]-1 && iy > 0 && iy < count[1]-1) {
+        if (iz > 0 && ((open && dim == 2) || (iz < count[2]-1)) && iy > 0 && iy < count[1]-1) {
           BoxProject(pos, ix, iy, iz);
           point.push_back(pos[0]);
           point.push_back(pos[1]);
           point.push_back(pos[2]);
+          idx[mat2lin(ix, iy, iz, count)] = n++;
 
           // add texture coordinates
           if (needtex) {
@@ -955,18 +948,105 @@ bool mjCFlexcomp::MakeBox(char* error, int error_sz) {
             texcoord.push_back(iz/(float)std::max(count[2]-1, 1));
           }
         }
+      }
+    }
+  }
 
-        // add elements
+  // add elements
+
+  // iz=0/max
+  for (int iz=0; iz < count[2]; iz+=count[2]-1) {
+    for (int ix=0; ix < count[0]; ix++) {
+      for (int iy=0; iy < count[1]; iy++) {
+        if (open && dim == 2 && iz != 0) {
+          continue;
+        }
+
+        if (ix < count[0]-1 && iy < count[1]-1) {
+          if (dim==3) {
+            element.push_back(0);
+            element.push_back(BoxID(ix, iy, iz));
+            element.push_back(BoxID(ix+1, iy, iz));
+            element.push_back(BoxID(ix+1, iy+1, iz));
+
+            element.push_back(0);
+            element.push_back(BoxID(ix, iy, iz));
+            element.push_back(BoxID(ix, iy+1, iz));
+            element.push_back(BoxID(ix+1, iy+1, iz));
+          } else {
+            int step1 = iz == 0 ? 1 : 0;
+            int step2 = iz == 0 ? 0 : 1;
+            element.push_back(idx[mat2lin(ix, iy, iz, count)]);
+            element.push_back(idx[mat2lin(ix+1, iy+step1, iz, count)]);
+            element.push_back(idx[mat2lin(ix+1, iy+step2, iz, count)]);
+
+            element.push_back(idx[mat2lin(ix, iy, iz, count)]);
+            element.push_back(idx[mat2lin(ix+step2, iy+1, iz, count)]);
+            element.push_back(idx[mat2lin(ix+step1, iy+1, iz, count)]);
+          }
+        }
+      }
+    }
+  }
+
+  // iy=0/max
+  for (int iy=0; iy < count[1]; iy+=count[1]-1) {
+    for (int ix=0; ix < count[0]; ix++) {
+      for (int iz=0; iz < count[2]; iz++) {
+        if (ix < count[0]-1 && iz < count[2]-1) {
+          if (dim==3) {
+            element.push_back(0);
+            element.push_back(BoxID(ix, iy, iz));
+            element.push_back(BoxID(ix+1, iy, iz));
+            element.push_back(BoxID(ix+1, iy, iz+1));
+
+            element.push_back(0);
+            element.push_back(BoxID(ix, iy, iz));
+            element.push_back(BoxID(ix, iy, iz+1));
+            element.push_back(BoxID(ix+1, iy, iz+1));
+          } else {
+            int ix0 = iy == 0 ? ix : ix+1;
+            int dx = iy == 0 ? 1 : -1;
+            element.push_back(idx[mat2lin(ix0, iy, iz, count)]);
+            element.push_back(idx[mat2lin(ix0+dx, iy, iz, count)]);
+            element.push_back(idx[mat2lin(ix0+dx, iy, iz+1, count)]);
+
+            element.push_back(idx[mat2lin(ix0, iy, iz, count)]);
+            element.push_back(idx[mat2lin(ix0+dx, iy, iz+1, count)]);
+            element.push_back(idx[mat2lin(ix0, iy, iz+1, count)]);
+          }
+        }
+      }
+    }
+  }
+
+  // ix=0/max
+  for (int ix=0; ix < count[0]; ix+=count[0]-1) {
+    for (int iy=0; iy < count[1]; iy++) {
+      for (int iz=0; iz < count[2]; iz++) {
         if (iy < count[1]-1 && iz < count[2]-1) {
-          element.push_back(0);
-          element.push_back(BoxID(ix, iy, iz));
-          element.push_back(BoxID(ix, iy+1, iz));
-          element.push_back(BoxID(ix, iy+1, iz+1));
+          if (dim==3) {
+            element.push_back(0);
+            element.push_back(BoxID(ix, iy, iz));
+            element.push_back(BoxID(ix, iy+1, iz));
+            element.push_back(BoxID(ix, iy+1, iz+1));
 
-          element.push_back(0);
-          element.push_back(BoxID(ix, iy, iz));
-          element.push_back(BoxID(ix, iy, iz+1));
-          element.push_back(BoxID(ix, iy+1, iz+1));
+            element.push_back(0);
+            element.push_back(BoxID(ix, iy, iz));
+            element.push_back(BoxID(ix, iy, iz+1));
+            element.push_back(BoxID(ix, iy+1, iz+1));
+          } else {
+            int iy0 = ix != 0 ? iy : iy+1;
+            int dy = ix != 0 ? 1 : -1;
+            element.push_back(idx[mat2lin(ix, iy0, iz, count)]);
+            element.push_back(idx[mat2lin(ix, iy0+dy, iz, count)]);
+            element.push_back(idx[mat2lin(ix, iy0+dy, iz+1, count)]);
+
+            element.push_back(idx[mat2lin(ix, iy0, iz, count)]);
+            element.push_back(idx[mat2lin(ix, iy0+dy, iz+1, count)]);
+            element.push_back(idx[mat2lin(ix, iy0, iz+1, count)]);
+
+          }
         }
       }
     }

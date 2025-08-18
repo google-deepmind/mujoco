@@ -3716,7 +3716,7 @@ static void CreateFlapStencil(std::vector<StencilFlap>& flaps,
 }
 
 // cotangent between two edges
-double inline cot(double* x, int v0, int v1, int v2) {
+double inline cot(const double* x, int v0, int v1, int v2) {
   double normal[3];
   double edge1[3] = {x[3*v1]-x[3*v0], x[3*v1+1]-x[3*v0+1], x[3*v1+2]-x[3*v0+2]};
   double edge2[3] = {x[3*v2]-x[3*v0], x[3*v2+1]-x[3*v0+1], x[3*v2+2]-x[3*v0+2]};
@@ -3749,20 +3749,38 @@ void inline ComputeBending(double* bending, double* pos, const int v[4], double 
   // cotangent operator from Wardetzky at al., "Discrete Quadratic Curvature
   // Energies", https://cims.nyu.edu/gcl/papers/wardetzky2007dqb.pdf
 
-  mjtNum a01 = cot(pos, v[0], v[1], v[2]);
-  mjtNum a02 = cot(pos, v[0], v[3], v[1]);
-  mjtNum a03 = cot(pos, v[1], v[2], v[0]);
-  mjtNum a04 = cot(pos, v[1], v[0], v[3]);
-  mjtNum c[4] = {a03 + a04, a01 + a02, -(a01 + a03), -(a02 + a04)};
-  mjtNum volume = ComputeVolume(pos, v) +
-                  ComputeVolume(pos, vadj);
+  double a01 = cot(pos, v[0], v[1], v[2]);
+  double a02 = cot(pos, v[0], v[3], v[1]);
+  double a03 = cot(pos, v[1], v[2], v[0]);
+  double a04 = cot(pos, v[1], v[0], v[3]);
+  double c[4] = {a03 + a04, a01 + a02, -(a01 + a03), -(a02 + a04)};
+  double volume = ComputeVolume(pos, v) + ComputeVolume(pos, vadj);
+  double stiffness = 3 * mu * pow(thickness, 3) / (24 * volume);
+
+  // Garg et al., "Cubic Shells", https://cims.nyu.edu/gcl/papers/garg2007cs.pdf
+  const double* v0 = pos + 3*v[0];
+  const double* v1 = pos + 3*v[1];
+  const double* v2 = pos + 3*v[2];
+  const double* v3 = pos + 3*v[3];
+  double e0[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+  double e1[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+  double e2[3] = {v3[0] - v0[0], v3[1] - v0[1], v3[2] - v0[2]};
+  double e3[3] = {v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]};
+  double e4[3] = {v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]};
+  double t0[3] = {-(a03*e1[0] + a01*e3[0]), -(a03*e1[1] + a01*e3[1]), -(a03*e1[2] + a01*e3[2])};
+  double t1[3] = {-(a04*e2[0] + a02*e4[0]), -(a04*e2[1] + a02*e4[1]), -(a04*e2[2] + a02*e4[2])};
+  double sqr = mjuu_dot3(e0, e0);
+  double cos_theta = -mjuu_dot3(t0, t1) / sqr;
 
   for (int v1 = 0; v1 < T::kNumVerts; v1++) {
     for (int v2 = 0; v2 < T::kNumVerts; v2++) {
-      bending[4 * v1 + v2] +=
-          1.5 * c[v1] * c[v2] / volume * mu * pow(thickness, 3) / 12;
+      bending[4 * v1 + v2] += c[v1] * c[v2] * cos_theta * stiffness;
     }
   }
+
+  double n[3];
+  mjuu_crossvec(n, e0, e1);
+  bending[16] = mjuu_dot3(n, e2) * (a01 - a03) * (a04 - a02) * stiffness / (sqr * sqrt(sqr));
 }
 
 //----------------------------- linear elasticity --------------------------------------------------
@@ -4305,10 +4323,10 @@ void mjCFlex::Compile(const mjVFS* vfs) {
       if (thickness < 0) {
         throw mjCError(this, "thickness must be positive for bending stiffness");
       }
-      bending.assign(nedge*16, 0);
+      bending.assign(nedge*17, 0);
 
       for (unsigned int e = 0; e < nedge; e++) {
-        ComputeBending<StencilFlap>(bending.data() + 16 * e, vertxpos.data(), flaps[e].vertices,
+        ComputeBending<StencilFlap>(bending.data() + 17 * e, vertxpos.data(), flaps[e].vertices,
                                     young / (2 * (1 + poisson)), thickness);
       }
     }
