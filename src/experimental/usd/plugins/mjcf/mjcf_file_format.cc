@@ -16,8 +16,10 @@
 
 #include <array>
 #include <memory>
+#include <stack>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 #include <mujoco/mujoco.h>
 #include "mjcf/mujoco_to_usd.h"
@@ -54,48 +56,134 @@ TF_REGISTRY_FUNCTION(TfEnum) {
 
 namespace {
 
+bool IsAbsolutePath(const std::string &path) {
+  // empty: not absolute
+  if (path.empty()) {
+    return false;
+  }
+
+  // path is scheme:filename which we consider an absolute path
+  // e.g. file URI's are always absolute paths
+  if (mjp_getResourceProvider(path.c_str()) != nullptr) {
+    return true;
+  }
+
+  // check first char
+  const char *str = path.c_str();
+  if (str[0] == '\\' || str[0] == '/') {
+    return true;
+  }
+
+  // find ":/" or ":\"
+  if (path.find(":/") != std::string::npos ||
+      path.find(":\\") != std::string::npos) {
+    return true;
+  }
+
+  return false;
+}
+
 void ResolveMjcfDependencies(const std::string &xml_string,
                              const std::string &resolved_path);
 
-void AccumulateFilesRecursive(std::unordered_set<std::string> &files,
-                              tinyxml2::XMLElement *elem,
-                              const std::string &resolved_path) {
-  // get filename
-  const char *file = elem->Attribute("file");
+void AccumulateFiles(std::unordered_set<std::string> &files,
+                     tinyxml2::XMLElement *root,
+                     const std::string &resolved_path) {
+  const char *asset_dir = nullptr;
+  const char *mesh_dir = nullptr;
+  const char *texture_dir = nullptr;
+  std::vector<std::string> texture_files;
+  std::vector<std::string> mesh_files;
+  std::vector<std::string> hfield_files;
 
-  if (file != nullptr) {
-    auto identifier = pxr::ArGetResolver().CreateIdentifier(
-        std::string(file), pxr::ArResolvedPath(resolved_path));
-    if (!strcasecmp(elem->Value(), "include") ||
-        !strcasecmp(elem->Value(), "model")) {
-      auto include_resolved_path = pxr::ArGetResolver().Resolve(identifier);
-      auto asset = pxr::ArGetResolver().OpenAsset(include_resolved_path);
-      ResolveMjcfDependencies(asset->GetBuffer().get(), include_resolved_path);
+  const std::string parent_dir = TfNormPath(TfGetPathName(resolved_path));
 
-      // Neither of these elements should have children.
-      return;
-    }
-
-    files.insert(identifier);
-  }
-
-  if (!strcasecmp(elem->Value(), "texture")) {
-    static const char *attributes[] = {"fileright", "fileup",    "fileleft",
-                                       "filedown",  "filefront", "fileback"};
-    for (const auto &attribute : attributes) {
-      const char *file = elem->Attribute(attribute);
-      if (file != nullptr) {
+  auto accumulate_files = [&](const std::vector<std::string> &candidate_files,
+                              const char *prefix_path) {
+    for (const auto &file : candidate_files) {
+      std::string file_with_prefix = prefix_path == nullptr ? file : TfStringCatPaths(prefix_path, file);
+      if (IsAbsolutePath(file)) {
+        auto identifier = pxr::ArGetResolver().CreateIdentifier(file);
+        // If this path is an absolute path, insert that path.
+        files.insert(identifier);
+      } else if (IsAbsolutePath(file_with_prefix)) {
+        auto identifier =
+            pxr::ArGetResolver().CreateIdentifier(file_with_prefix);
+        // Else if prefix is an absolute path, insert prefix / file.
+        files.insert(identifier);
+      } else {
+        // Else insert resolved_path / prefix / file.
         auto identifier = pxr::ArGetResolver().CreateIdentifier(
-            std::string(file), pxr::ArResolvedPath(resolved_path));
+            file_with_prefix, pxr::ArResolvedPath(resolved_path));
         files.insert(identifier);
       }
     }
+  };
+
+  std::stack<tinyxml2::XMLElement *> elements;
+  elements.push(root);
+  while (!elements.empty()) {
+    tinyxml2::XMLElement *elem = elements.top();
+    elements.pop();
+
+    if (!strcasecmp(elem->Value(), "include") ||
+        !strcasecmp(elem->Value(), "model")) {
+      const char *file = elem->Attribute("file");
+      if (file != nullptr) {
+        auto identifier = pxr::ArGetResolver().CreateIdentifier(
+            std::string(file), pxr::ArResolvedPath(resolved_path));
+        auto include_resolved_path = pxr::ArGetResolver().Resolve(identifier);
+        auto asset = pxr::ArGetResolver().OpenAsset(include_resolved_path);
+        ResolveMjcfDependencies(asset->GetBuffer().get(),
+                                include_resolved_path);
+
+        // Neither of these elements should have children.
+        continue;
+      }
+    } else if (!strcasecmp(elem->Value(), "compiler")) {
+      asset_dir = elem->Attribute("assetdir");
+      mesh_dir = elem->Attribute("meshdir");
+      texture_dir = elem->Attribute("texturedir");
+
+      // compiler elements don't have children.
+      continue;
+    } else if (!strcasecmp(elem->Value(), "mesh")) {
+      // mesh elements don't have children.
+      const char *file = elem->Attribute("file");
+      if (file != nullptr) {
+        mesh_files.emplace_back(file);
+      }
+      continue;
+    } else if (!strcasecmp(elem->Value(), "hfield")) {
+      // hfield elements don't have children.
+      const char *file = elem->Attribute("file");
+      if (file != nullptr) {
+        hfield_files.emplace_back(file);
+      }
+      continue;
+    } else if (!strcasecmp(elem->Value(), "texture")) {
+      static const char *attributes[] = {"file",     "fileright", "fileup",
+                                         "fileleft", "filedown",  "filefront",
+                                         "fileback"};
+      for (const auto &attribute : attributes) {
+        const char *file = elem->Attribute(attribute);
+        if (file != nullptr) {
+          texture_files.emplace_back(file);
+        }
+      }
+    }
+
+    tinyxml2::XMLElement *child = elem->FirstChildElement();
+    while (child) {
+      elements.push(child);
+      child = child->NextSiblingElement();
+    }
   }
 
-  tinyxml2::XMLElement *child = elem->FirstChildElement();
-  for (; child; child = child->NextSiblingElement()) {
-    AccumulateFilesRecursive(files, child, resolved_path);
-  }
+  accumulate_files(texture_files,
+                   texture_dir == nullptr ? asset_dir : texture_dir);
+  accumulate_files(mesh_files, mesh_dir == nullptr ? asset_dir : mesh_dir);
+  accumulate_files(hfield_files, asset_dir);
 }
 
 void ResolveMjcfDependencies(const std::string &xml_string,
@@ -119,9 +207,9 @@ void ResolveMjcfDependencies(const std::string &xml_string,
 
   // Accumulate file dependencies.
   std::unordered_set<std::string> files = {};
-  AccumulateFilesRecursive(files, root, resolved_path);
+  AccumulateFiles(files, root, resolved_path);
 
-  auto open_asset = [resolved_path](const std::string &identifier) {
+  auto open_asset = [](const std::string &identifier) {
     pxr::ArGetResolver().OpenAsset(pxr::ArGetResolver().Resolve(identifier));
   };
   // Open all assets in parallel.
@@ -187,6 +275,7 @@ bool UsdMjcfFileFormat::Read(pxr::SdfLayer *layer,
   std::array<char, 1024> error;
   mjSpec *spec =
       mj_parseXML(resolved_path.c_str(), nullptr, error.data(), error.size());
+
   if (spec == nullptr) {
     TF_WARN(XmlParsingError, "%s", error.data());
     return false;
