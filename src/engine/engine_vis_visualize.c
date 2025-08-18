@@ -89,13 +89,54 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
 // advance counter
 #define FINISH { scn->ngeom++; }
 
+
+// convert HSV to RGB
+static void hsv2rgb(float *RGB, float H, float S, float V) {
+  float R, G, B;
+
+  if (S <= 0) {
+    R = G = B = V;
+  } else {
+    float hh = H * 6;
+    int i = (int)hh;
+    float ff = hh - i;
+    float p = V * (1 - S);
+    float q = V * (1 - (S * ff));
+    float t = V * (1 - (S * (1 - ff)));
+    if (i == 0) {
+      R=V;  G=t;  B=p;
+    } else if (i == 1) {
+      R=q;  G=V;  B=p;
+    } else if (i == 2) {
+      R=p;  G=V;  B=t;
+    } else if (i == 3) {
+      R=p;  G=q;  B=V;
+    } else if (i == 4) {
+      R=t;  G=p;  B=V;
+    } else {
+      R=V;  G=p;  B=q;
+    }
+  }
+
+  RGB[0] = R;
+  RGB[1] = G;
+  RGB[2] = B;
+}
+
+
+
+static const float kIslandSaturation  = 0.8;
+static const float kIslandValue       = 0.7;
+
 // assign pseudo-random rgba to constraint island using Halton sequence
-static void islandColor(float rgba[4], int islanddofadr) {
-  rgba[0] = 0.1f + 0.9f*mju_Halton(islanddofadr + 1, 2);
-  rgba[1] = 0.1f + 0.9f*mju_Halton(islanddofadr + 1, 3);
-  rgba[2] = 0.1f + 0.9f*mju_Halton(islanddofadr + 1, 5);
+static void islandColor(float rgba[4], int h) {
+  float hue = mju_Halton(h + 1, 2);
+  float saturation =  h >= 0 ? kIslandSaturation : 0;
+  hsv2rgb(rgba, hue, saturation, kIslandValue);
   rgba[3] = 1;
 }
+
+
 
 // make a triangle in thisgeom at coordinates v0, v1, v2 with a given color
 static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[3],
@@ -110,6 +151,8 @@ static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[
                     e1[2], e2[2], normal[2]};
   mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, lengths, v0, xmat, rgba);
 }
+
+
 
 // add contact-related geoms in mjvObject
 static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
@@ -150,9 +193,10 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
       int efc_adr = d->contact[i].efc_address;
 
       // override standard colors if visualizing islands
-      if (vopt->flags[mjVIS_ISLAND] && d->nisland && efc_adr >= 0) {
-        // set color using island's first dof
-        islandColor(thisgeom->rgba, d->island_dofadr[d->efc_island[efc_adr]]);
+      if (vopt->flags[mjVIS_ISLAND] && efc_adr >= 0) {
+        // set hue using island's first dof
+        int h = d->nisland > 0 ? d->island_dofadr[d->efc_island[efc_adr]] : -1;
+        islandColor(thisgeom->rgba, h);
       }
 
       // otherwise regular colors (different for included and excluded contacts)
@@ -568,8 +612,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // set texcoord
         if (m->flex_texcoordadr[i] >= 0) {
           thisgeom->texcoord = 1;
-        }
-        else {
+        } else {
           thisgeom->matid = -1;
         }
 
@@ -1452,23 +1495,24 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       // copy rbound from model
       thisgeom->modelrbound = (float)m->geom_rbound[i];
 
-      // set material properties, override if visualizing islands
+      // set material properties
       float* rgba = m->geom_rgba+4*i;
-      float rgba_island[4] = {.5, .5, .5, 1};
       int geom_matid = m->geom_matid[i];
-      if (vopt->flags[mjVIS_ISLAND] && d->nisland) {
-        geom_matid = -1;
-        rgba = rgba_island;
+      setMaterial(m, thisgeom, geom_matid, rgba, vopt->flags);
+
+      // override if visualizing islands
+      if (vopt->flags[mjVIS_ISLAND]) {
         int weld_id = m->body_weldid[m->geom_bodyid[i]];
         if (m->body_dofnum[weld_id]) {
-          int island = d->dof_island[m->body_dofadr[weld_id]];
-          if (island > -1) {
-            // color using island's first dof
-            islandColor(rgba_island, d->island_dofadr[island]);
-          }
+          // strip materials off moving geom
+          thisgeom->matid = -1;
+
+          // set hue using first island dof, -1 if no island
+          int island = d->nisland ? d->dof_island[m->body_dofadr[weld_id]] : -1;
+          int h = island >= 0 ? d->island_dofadr[island] : -1;
+          islandColor(thisgeom->rgba, h);
         }
       }
-      setMaterial(m, thisgeom, geom_matid, rgba, vopt->flags);
 
       // set texcoord
       if ((m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) &&
@@ -1945,20 +1989,23 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               // construct geom
               mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], d->wrap_xpos+3*j, d->wrap_xpos+3*j+3);
 
-              // set material properties, override if visualizing islands
+              // set material properties
               float* rgba = m->tendon_rgba+4*i;
-              float rgba_island[4] = {.5, .5, .5, 1};
               int tendon_matid = m->tendon_matid[i];
-              if (vopt->flags[mjVIS_ISLAND] && d->nisland) {
-                tendon_matid = -1;
-                rgba = rgba_island;
-                if (d->tendon_efcadr[i] != -1) {
-                  // set color using island's first dof
-                  int island = d->efc_island[d->tendon_efcadr[i]];
-                  islandColor(rgba_island, d->island_dofadr[island]);
-                }
-              }
               setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
+
+              // override if visualizing islands
+              if (vopt->flags[mjVIS_ISLAND]) {
+                // strip material
+                thisgeom->matid = -1;
+
+                // set hue with first island dof, if constrained
+                int h = -1;
+                if (d->nisland && d->tendon_efcadr[i] >= 0) {
+                  h = d->island_dofadr[d->efc_island[d->tendon_efcadr[i]]];
+                }
+                islandColor(thisgeom->rgba, h);
+              }
 
               // vopt->label: only the first segment
               if (vopt->label == mjLABEL_TENDON && j == d->ten_wrapadr[i]) {

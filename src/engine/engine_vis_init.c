@@ -83,7 +83,7 @@ const char* mjVISSTRING[mjNVISFLAG][3] = {
   {"Perturb Force",   "0", "B"},
   {"Perturb Object",  "1", "O"},
   {"Contact Point",   "0", "C"},
-  {"Island",          "1", ""},   // TODO(b/295296178): turn off after islands are on by default.
+  {"Island",          "0", "N"},
   {"Contact Force",   "0", "F"},
   {"Contact Split",   "0", "P"},
   {"Transparent",     "0", "T"},
