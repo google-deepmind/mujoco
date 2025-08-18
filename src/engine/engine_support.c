@@ -983,63 +983,9 @@ void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
 
 
 
-// multiply vector by inertia matrix (implementation)
-void mj_mulM_impl(mjtNum* res, const mjtNum* vec, int nv, const mjtNum* M,
-                  const int* Madr, const int* parentid, const int* simplenum) {
-  mju_zero(res, nv);
-
-  for (int i=0; i < nv; i++) {
-#ifdef mjUSEAVX
-    // simple: diagonal multiplication, AVX
-    if (simplenum[i] >= 4) {
-      // init
-      __m256d result, val1, val2;
-
-      // parallel computation
-      val1 = _mm256_loadu_pd(vec+i);
-      val2 = _mm256_set_pd(M[Madr[i+3]],
-                           M[Madr[i+2]],
-                           M[Madr[i+1]],
-                           M[Madr[i+0]]);
-      result = _mm256_mul_pd(val1, val2);
-
-      // store result
-      _mm256_storeu_pd(res+i, result);
-
-      // skip rest of block
-      i += 3;
-      continue;
-    }
-#endif
-    // address in M
-    int adr = Madr[i];
-
-    // compute diagonal
-    res[i] = M[adr]*vec[i];
-
-    // simple dof: continue
-    if (simplenum[i]) {
-      continue;
-    }
-
-    // compute off-diagonals
-    int j = parentid[i];
-    while (j >= 0) {
-      adr++;
-      res[i] += M[adr]*vec[j];
-      res[j] += M[adr]*vec[i];
-
-      // advance to parent
-      j = parentid[j];
-    }
-  }
-}
-
-
-
 // multiply vector by inertia matrix
 void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
-  mj_mulM_impl(res, vec, m->nv, d->qM, m->dof_Madr, m->dof_parentid, m->dof_simplenum);
+  mju_mulSymVecSparse(res, d->M, vec, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind);
 }
 
 

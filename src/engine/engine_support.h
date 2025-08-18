@@ -123,10 +123,6 @@ MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
 // convert sparse inertia matrix M into full matrix
 MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
 
-// multiply vector by inertia matrix (implementation)
-MJAPI void mj_mulM_impl(mjtNum* res, const mjtNum* vec, int nv, const mjtNum* M,
-                        const int* Madr, const int* parentid, const int* simplenum);
-
 // multiply vector by inertia matrix
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 

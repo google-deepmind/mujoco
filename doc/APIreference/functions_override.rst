@@ -276,10 +276,7 @@ pedagogical examples.
 
 .. _mj_mulM:
 
-This function multiplies the joint-space inertia matrix stored in mjData.qM by a vector. qM has a custom sparse format
-that the user should not attempt to manipulate directly. Alternatively one can convert qM to a dense matrix with
-mj_fullM and then user regular matrix-vector multiplication, but this is slower because it no longer benefits from
-sparsity.
+This function multiplies the joint-space inertia matrix stored in ``mjData.M`` by a vector.
 
 .. _mj_applyFT:
 
