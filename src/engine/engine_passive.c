@@ -152,20 +152,29 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
         frc[0][1] = -(frc[1][1] + frc[2][1] + frc[3][1]);
         frc[0][2] = -(frc[1][2] + frc[2][2] + frc[3][2]);
 
-        // force
-        mjtNum force[12] = {0};
-        for (int x = 0; x < 3; x++) {
-          for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-              // thin plate bending force
-              force[3*i+x] += b[17*e+4*i+j] * xpos[3*v[j]+x];
-            }
-            // curved reference contribution
-            force[3*i+x] += b[17*e+16] * frc[i][x];
-          }
+        // velocities
+        mjtNum* vel[4];
+        for (int i = 0; i < 4; i++) {
+          vel[i] = d->qvel + m->body_dofadr[bodyid[v[i]]];
         }
 
-        // TODO: add damping
+        // force
+        mjtNum spring[12] = {0};
+        mjtNum damper[12] = {0};
+        for (int i = 0; i < 4; i++) {
+          for (int x = 0; x < 3; x++) {
+            for (int j = 0; j < 4; j++) {
+              // thin plate bending force
+              spring[3*i+x] += b[17*e+4*i+j] * xpos[3*v[j]+x];
+
+              // thin plate damping force
+              // TODO: do not assume DOFs are in the world frame
+              damper[3*i+x] += b[17*e+4*i+j] * vel[j][x];
+            }
+            // curved reference contribution
+            spring[3*i+x] += b[17*e+16] * frc[i][x];
+          }
+        }
 
         // insert into global force
         for (int i = 0; i < 4; i++) {
@@ -173,7 +182,8 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
           int body_dofnum = m->body_dofnum[bid];
           int body_dofadr = m->body_dofadr[bid];
           for (int x = 0; x < body_dofnum; x++) {
-            d->qfrc_spring[body_dofadr+x] -= force[3*i+x];
+            d->qfrc_spring[body_dofadr+x] -= spring[3*i+x];
+            d->qfrc_damper[body_dofadr+x] -= damper[3*i+x] * m->flex_damping[f];
           }
         }
       }
