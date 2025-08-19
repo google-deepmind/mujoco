@@ -557,6 +557,7 @@ class Option:
     gjk_iterations: number of Gjk iterations in the convex narrowphase
     epa_iterations: number of Epa iterations in the convex narrowphase
     ls_parallel: evaluate engine solver step sizes in parallel
+    ls_parallel_min_step: minimum step size for solver linesearch
     wind: wind (for lift, drag, and viscosity)
     has_fluid: True if wind, density, or viscosity are non-zero at put_model time
     density: density of medium
@@ -587,7 +588,8 @@ class Option:
   is_sparse: bool
   gjk_iterations: int  # warp only
   epa_iterations: int  # warp only
-  ls_parallel: bool
+  ls_parallel: bool  # warp only
+  ls_parallel_min_step: float  # warp only
   wind: wp.array(dtype=wp.vec3)
   has_fluid: bool
   density: wp.array(dtype=float)

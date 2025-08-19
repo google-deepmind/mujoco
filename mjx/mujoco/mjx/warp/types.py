@@ -95,6 +95,7 @@ class OptionWarp(PyTreeNode):
   has_fluid: bool
   is_sparse: bool
   ls_parallel: bool
+  ls_parallel_min_step: float
   run_collision_detection: bool
   sdf_initpoints: int
   sdf_iterations: int
@@ -885,6 +886,7 @@ _NDIM = {
         'opt__iterations': 0,
         'opt__ls_iterations': 0,
         'opt__ls_parallel': 0,
+        'opt__ls_parallel_min_step': 0,
         'opt__ls_tolerance': 1,
         'opt__magnetic': 2,
         'opt__run_collision_detection': 0,
@@ -1002,6 +1004,7 @@ _NDIM = {
         'iterations': 0,
         'ls_iterations': 0,
         'ls_parallel': 0,
+        'ls_parallel_min_step': 0,
         'ls_tolerance': 1,
         'magnetic': 2,
         'run_collision_detection': 0,
@@ -1470,6 +1473,7 @@ _BATCH_DIM = {
         'opt__iterations': False,
         'opt__ls_iterations': False,
         'opt__ls_parallel': False,
+        'opt__ls_parallel_min_step': False,
         'opt__ls_tolerance': True,
         'opt__magnetic': True,
         'opt__run_collision_detection': False,
@@ -1587,6 +1591,7 @@ _BATCH_DIM = {
         'iterations': False,
         'ls_iterations': False,
         'ls_parallel': False,
+        'ls_parallel_min_step': False,
         'ls_tolerance': True,
         'magnetic': True,
         'run_collision_detection': False,

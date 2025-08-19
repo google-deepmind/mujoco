@@ -1986,14 +1986,22 @@ def _sensor_tactile(
 @wp.kernel
 def _contact_match(
   # Model:
+  opt_cone: int,
   sensor_objid: wp.array(dtype=int),
   sensor_refid: wp.array(dtype=int),
+  sensor_intprm: wp.array2d(dtype=int),
   sensor_contact_adr: wp.array(dtype=int),
   # Data in:
+  njmax_in: int,
   ncon_in: wp.array(dtype=int),
   contact_dist_in: wp.array(dtype=float),
+  contact_frame_in: wp.array(dtype=wp.mat33),
+  contact_friction_in: wp.array(dtype=vec5),
+  contact_dim_in: wp.array(dtype=int),
   contact_geom_in: wp.array(dtype=wp.vec2i),
+  contact_efc_address_in: wp.array2d(dtype=int),
   contact_worldid_in: wp.array(dtype=int),
+  efc_force_in: wp.array2d(dtype=float),
   # Data out:
   sensor_contact_nmatch_out: wp.array2d(dtype=int),
   sensor_contact_matchid_out: wp.array3d(dtype=int),
@@ -2009,6 +2017,7 @@ def _contact_match(
   # sensor information
   objid = sensor_objid[sensorid]
   refid = sensor_refid[sensorid]
+  reduce = sensor_intprm[sensorid, 1]
 
   # contact information
   geom = contact_geom_in[contactid]
@@ -2022,8 +2031,27 @@ def _contact_match(
     contactmatchid = wp.atomic_add(sensor_contact_nmatch_out[worldid], contactsensorid, 1)
     sensor_contact_matchid_out[worldid, contactsensorid, contactmatchid] = contactid
 
-    # TODO(thowell): alternative criteria
-    sensor_contact_criteria_out[worldid, contactsensorid, contactmatchid] = contact_dist_in[contactid]
+    if reduce == 1:  # mindist
+      sensor_contact_criteria_out[worldid, contactsensorid, contactmatchid] = contact_dist_in[contactid]
+    elif reduce == 2:  # maxforce
+      contact_force = support.contact_force_fn(
+        opt_cone,
+        njmax_in,
+        ncon_in,
+        contact_frame_in,
+        contact_friction_in,
+        contact_dim_in,
+        contact_efc_address_in,
+        efc_force_in,
+        worldid,
+        contactid,
+        False,
+      )
+      force_magnitude = (
+        contact_force[0] * contact_force[0] + contact_force[1] * contact_force[1] + contact_force[2] * contact_force[2]
+      )
+      sensor_contact_criteria_out[worldid, contactsensorid, contactmatchid] = -force_magnitude
+    # TODO(thowell): netforce
 
     # contact direction
     if geom1geom0:
@@ -2155,20 +2183,28 @@ def sensor_acc(m: Model, d: Data):
   if m.sensor_contact_adr.size:
     # match criteria
     d.sensor_contact_nmatch.zero_()
-    d.sensor_contact_matchid.zero_()
-    d.sensor_contact_criteria.zero_()
+    d.sensor_contact_matchid.fill_(-1)
+    d.sensor_contact_criteria.fill_(1.0e32)
 
     wp.launch(
       _contact_match,
       dim=(m.sensor_contact_adr.size, d.nconmax),
       inputs=[
+        m.opt.cone,
         m.sensor_objid,
         m.sensor_refid,
+        m.sensor_intprm,
         m.sensor_contact_adr,
+        d.njmax,
         d.ncon,
         d.contact.dist,
+        d.contact.frame,
+        d.contact.friction,
+        d.contact.dim,
         d.contact.geom,
+        d.contact.efc_address,
         d.contact.worldid,
+        d.efc.force,
       ],
       outputs=[
         d.sensor_contact_nmatch,

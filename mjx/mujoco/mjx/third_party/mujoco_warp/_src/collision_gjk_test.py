@@ -424,7 +424,7 @@ class GJKTest(absltest.TestCase):
     )
 
     _, ncon, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS, multiccd=True)
-    self.assertEqual(ncon, 5)
+    self.assertEqual(ncon, 4)
 
   def test_box_box_ccd2(self):
     """Test box-box multiccd 2."""
@@ -441,7 +441,7 @@ class GJKTest(absltest.TestCase):
     )
 
     _, ncon, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS, multiccd=True)
-    self.assertEqual(ncon, 5)
+    self.assertEqual(ncon, 4)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,6 @@ import mujoco_warp as mjwarp
 
 from mujoco.mjx.third_party.mujoco_warp._src import test_util
 from mujoco.mjx.third_party.mujoco_warp._src.types import BiasType
-from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import GainType
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 
@@ -133,14 +132,13 @@ class ForwardTest(parameterized.TestCase):
     mjm, mjd, _, _ = test_util.fixture("pendula.xml", kick=True, eulerdamp=eulerdamp, sparse=sparse)
     self.assertTrue((mjm.dof_damping > 0).any())
 
-    mjd.qvel[:] = 1.0
-    mjd.qacc[:] = 1.0
-    mujoco.mj_forward(mjm, mjd)
-
     m = mjwarp.put_model(mjm)
     d = mjwarp.put_data(mjm, mjd)
+    mujoco.mj_forward(mjm, mjd)
 
     mujoco.mj_Euler(mjm, mjd)
+
+    mjwarp.solve(m, d)  # compute efc.Ma
     mjwarp.euler(m, d)
 
     _assert_eq(d.qpos.numpy()[0], mjd.qpos, "qpos")
@@ -220,8 +218,10 @@ class ForwardTest(parameterized.TestCase):
     m = mjwarp.put_model(mjm)
     d = mjwarp.put_data(mjm, mjd)
 
-    mjwarp.implicit(m, d)
     mujoco.mj_implicit(mjm, mjd)
+
+    mjwarp.solve(m, d)  # compute efc.Ma
+    mjwarp.implicit(m, d)
 
     _assert_eq(d.qpos.numpy()[0], mjd.qpos, "qpos")
     _assert_eq(d.act.numpy()[0], mjd.act, "act")
@@ -230,6 +230,8 @@ class ForwardTest(parameterized.TestCase):
     mjm, mjd, m, d = test_util.fixture("actuation/position.xml", keyframe=0, integrator=IntegratorType.IMPLICITFAST, kick=True)
 
     mujoco.mj_implicit(mjm, mjd)
+
+    mjwarp.solve(m, d)  # compute efc.Ma
     mjwarp.implicit(m, d)
 
     _assert_eq(d.qpos.numpy()[0], mjd.qpos, "qpos")
@@ -239,6 +241,8 @@ class ForwardTest(parameterized.TestCase):
     mjm, mjd, m, d = test_util.fixture("tendon/damping.xml", keyframe=0, integrator=IntegratorType.IMPLICITFAST, kick=True)
 
     mujoco.mj_implicit(mjm, mjd)
+
+    mjwarp.solve(m, d)  # compute efc.Ma
     mjwarp.implicit(m, d)
 
     _assert_eq(d.qpos.numpy()[0], mjd.qpos, "qpos")

@@ -333,6 +333,7 @@ def _forward_shim(
     opt__iterations: int,
     opt__ls_iterations: int,
     opt__ls_parallel: bool,
+    opt__ls_parallel_min_step: float,
     opt__ls_tolerance: wp.array(dtype=float),
     opt__magnetic: wp.array(dtype=wp.vec3),
     opt__run_collision_detection: bool,
@@ -734,6 +735,7 @@ def _forward_shim(
   _m.opt.iterations = opt__iterations
   _m.opt.ls_iterations = opt__ls_iterations
   _m.opt.ls_parallel = opt__ls_parallel
+  _m.opt.ls_parallel_min_step = opt__ls_parallel_min_step
   _m.opt.ls_tolerance = opt__ls_tolerance
   _m.opt.magnetic = opt__magnetic
   _m.opt.run_collision_detection = opt__run_collision_detection
@@ -1662,6 +1664,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.opt.iterations,
       m.opt.ls_iterations,
       m.opt._impl.ls_parallel,
+      m.opt._impl.ls_parallel_min_step,
       m.opt.ls_tolerance,
       m.opt.magnetic,
       m.opt._impl.run_collision_detection,
@@ -2358,6 +2361,7 @@ def _step_shim(
     opt__iterations: int,
     opt__ls_iterations: int,
     opt__ls_parallel: bool,
+    opt__ls_parallel_min_step: float,
     opt__ls_tolerance: wp.array(dtype=float),
     opt__magnetic: wp.array(dtype=wp.vec3),
     opt__run_collision_detection: bool,
@@ -2773,6 +2777,7 @@ def _step_shim(
   _m.opt.iterations = opt__iterations
   _m.opt.ls_iterations = opt__ls_iterations
   _m.opt.ls_parallel = opt__ls_parallel
+  _m.opt.ls_parallel_min_step = opt__ls_parallel_min_step
   _m.opt.ls_tolerance = opt__ls_tolerance
   _m.opt.magnetic = opt__magnetic
   _m.opt.run_collision_detection = opt__run_collision_detection
@@ -3739,6 +3744,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.opt.iterations,
       m.opt.ls_iterations,
       m.opt._impl.ls_parallel,
+      m.opt._impl.ls_parallel_min_step,
       m.opt.ls_tolerance,
       m.opt.magnetic,
       m.opt._impl.run_collision_detection,

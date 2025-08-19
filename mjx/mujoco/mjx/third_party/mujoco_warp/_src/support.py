@@ -168,45 +168,6 @@ def mul_m(
 
 
 @wp.kernel
-def xfrc_accumulate_kernel(
-  # Model:
-  nbody: int,
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  dof_bodyid: wp.array(dtype=int),
-  # Data in:
-  xfrc_applied_in: wp.array2d(dtype=wp.spatial_vector),
-  xipos_in: wp.array2d(dtype=wp.vec3),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  # Out:
-  out: wp.array2d(dtype=float),
-):
-  """Accumulate applied forces on the subtree of a dof."""
-  worldid, dofid = wp.tid()
-  cdof = cdof_in[worldid, dofid]
-  rotational_cdof = wp.spatial_top(cdof)
-  jac = wp.spatial_vector(cdof[3], cdof[4], cdof[5], cdof[0], cdof[1], cdof[2])
-
-  bodyid = dof_bodyid[dofid]
-  accumul = float(0.0)
-
-  for child in range(bodyid, nbody):
-    # any body that is in the subtree of dof_bodyid is part of the jacobian
-    parentid = child
-    while parentid != 0 and parentid != bodyid:
-      parentid = body_parentid[parentid]
-    if parentid == 0:
-      continue  # body is not part of the subtree
-    offset = xipos_in[worldid, child] - subtree_com_in[worldid, body_rootid[child]]
-    cross_term = wp.cross(rotational_cdof, offset)
-    xfrc_applied = xfrc_applied_in[worldid, child]
-    accumul += wp.dot(jac, xfrc_applied) + wp.dot(cross_term, wp.spatial_top(xfrc_applied))
-
-  out[worldid, dofid] += accumul
-
-
-@wp.kernel
 def _apply_ft(
   # Model:
   nbody: int,
@@ -232,6 +193,9 @@ def _apply_ft(
   accumul = float(0.0)
 
   for bodyid in range(dofbodyid, nbody):
+    ft_body = ft_in[worldid, bodyid]
+    if ft_body == wp.spatial_vector():
+      continue
     # any body that is in the subtree of dofbodyid is part of the jacobian
     parentid = bodyid
     while parentid != 0 and parentid != dofbodyid:
@@ -240,7 +204,6 @@ def _apply_ft(
       continue  # body is not part of the subtree
     offset = xipos_in[worldid, bodyid] - subtree_com_in[worldid, body_rootid[bodyid]]
     cross_term = wp.cross(rotational_cdof, offset)
-    ft_body = ft_in[worldid, bodyid]
     accumul += wp.dot(jac, ft_body) + wp.dot(cross_term, wp.spatial_top(ft_body))
 
   if flg_add:

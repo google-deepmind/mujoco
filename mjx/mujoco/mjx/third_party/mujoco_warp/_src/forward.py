@@ -319,11 +319,7 @@ def _euler_damp_qfrc_sparse(
   opt_timestep: wp.array(dtype=float),
   dof_Madr: wp.array(dtype=int),
   dof_damping: wp.array2d(dtype=float),
-  # Data in:
-  qfrc_smooth_in: wp.array2d(dtype=float),
-  qfrc_constraint_in: wp.array2d(dtype=float),
   # Data out:
-  qfrc_integration_out: wp.array2d(dtype=float),
   qM_integration_out: wp.array3d(dtype=float),
 ):
   worldid, tid = wp.tid()
@@ -331,7 +327,6 @@ def _euler_damp_qfrc_sparse(
 
   adr = dof_Madr[tid]
   qM_integration_out[worldid, 0, adr] += timestep * dof_damping[worldid, tid]
-  qfrc_integration_out[worldid, tid] = qfrc_smooth_in[worldid, tid] + qfrc_constraint_in[worldid, tid]
 
 
 def _euler_sparse(m: Model, d: Data):
@@ -343,11 +338,8 @@ def _euler_sparse(m: Model, d: Data):
       m.opt.timestep,
       m.dof_Madr,
       m.dof_damping,
-      d.qfrc_smooth,
-      d.qfrc_constraint,
     ],
     outputs=[
-      d.qfrc_integration,
       d.qM_integration,
     ],
   )
@@ -358,7 +350,7 @@ def _euler_sparse(m: Model, d: Data):
     d.qLD_integration,
     d.qLDiagInv_integration,
     d.qacc_integration,
-    d.qfrc_integration,
+    d.efc.Ma,
   )
 
 
@@ -371,8 +363,7 @@ def _tile_euler_dense(tile: TileSet):
     opt_timestep: wp.array(dtype=float),
     # Data in:
     qM_in: wp.array3d(dtype=float),
-    qfrc_smooth_in: wp.array2d(dtype=float),
-    qfrc_constraint_in: wp.array2d(dtype=float),
+    efc_Ma_in: wp.array2d(dtype=float),
     # In:
     adr_in: wp.array(dtype=int),
     # Data out:
@@ -388,14 +379,10 @@ def _tile_euler_dense(tile: TileSet):
     damping_scaled = damping_tile * timestep
     qm_integration_tile = wp.tile_diag_add(M_tile, damping_scaled)
 
-    qfrc_smooth_tile = wp.tile_load(qfrc_smooth_in[worldid], shape=(TILE_SIZE,), offset=(dofid,))
-    qfrc_constraint_tile = wp.tile_load(qfrc_constraint_in[worldid], shape=(TILE_SIZE,), offset=(dofid,))
-
-    qfrc_tile = qfrc_smooth_tile + qfrc_constraint_tile
-
+    Ma_tile = wp.tile_load(efc_Ma_in[worldid], shape=(TILE_SIZE,), offset=(dofid,))
     L_tile = wp.tile_cholesky(qm_integration_tile)
-    qacc_tile = wp.tile_cholesky_solve(L_tile, qfrc_tile)
-    wp.tile_store(qacc_integration_out[worldid], qacc_tile, offset=(dofid))
+    qacc_integration_tile = wp.tile_cholesky_solve(L_tile, Ma_tile)
+    wp.tile_store(qacc_integration_out[worldid], qacc_integration_tile, offset=(dofid))
 
   return euler_dense
 
@@ -413,7 +400,7 @@ def euler(m: Model, d: Data):
         wp.launch_tiled(
           _tile_euler_dense(tile),
           dim=(d.nworld, tile.adr.size),
-          inputs=[m.dof_damping, m.opt.timestep, d.qM, d.qfrc_smooth, d.qfrc_constraint, tile.adr],
+          inputs=[m.dof_damping, m.opt.timestep, d.qM, d.efc.Ma, tile.adr],
           outputs=[d.qacc_integration],
           block_dim=m.block_dim.euler_dense,
         )

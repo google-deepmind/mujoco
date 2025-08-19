@@ -42,8 +42,8 @@ def _assert_eq(a, b, name):
 
 class SolverTest(parameterized.TestCase):
   @parameterized.product(cone=tuple(ConeType), solver_=tuple(SolverType))
-  def test_cost(self, cone, solver_):
-    """Tests cost function is correct."""
+  def test_constraint_update(self, cone, solver_):
+    """Tests _update_constraint function is correct."""
     for keyframe in range(3):
       mjm, mjd, m, d = test_util.fixture(
         "constraints.xml",
@@ -60,14 +60,37 @@ class SolverTest(parameterized.TestCase):
         mujoco.mj_constraintUpdate(mjm, mjd, jaref - mjd.efc_aref, cost, 0)
         return cost
 
-      mj_cost = cost(mjd.qacc)
+      mjd_cost = cost(mjd.qacc)
 
       # solve with 0 iterations just initializes constraints and costs and then exits
+      d.efc.force.zero_()
+      d.qfrc_constraint.zero_()
       mjwarp.solve(m, d)
 
-      mjwarp_cost = d.efc.cost.numpy()[0] - d.efc.gauss.numpy()[0]
+      # Get the ordering indices based on efc_force, efc_state for MJWarp
+      nefc = d.nefc.numpy()[0]
+      efc_force = d.efc.force.numpy()[0, :nefc]
+      efc_state = d.efc.state.numpy()[0, :nefc]
+      # Get the ordering indices based on efc_force, efc_state for MuJoCo
+      mjd_efc_force = mjd.efc_force[:nefc]
+      mjd_efc_state = mjd.efc_state[:nefc]
 
-      _assert_eq(mjwarp_cost, mj_cost, name="cost")
+      # Create sorting keys using lexsort (more efficient for multiple keys)
+      d_sort_indices = np.lexsort((efc_force, efc_state))
+      mjd_sort_indices = np.lexsort((mjd_efc_force, mjd_efc_state))
+
+      efc_cost = d.efc.cost.numpy()[0] - d.efc.gauss.numpy()[0]
+      qfrc_constraint = d.qfrc_constraint.numpy()[0]
+
+      efc_sorted_force = efc_force[d_sort_indices]
+      efc_sorted_state = efc_state[d_sort_indices]
+      mjd_sorted_force = mjd_efc_force[mjd_sort_indices]
+      mjd_sorted_state = mjd_efc_state[mjd_sort_indices]
+
+      _assert_eq(efc_sorted_state, mjd_sorted_state, "efc_state")
+      _assert_eq(efc_sorted_force, mjd_sorted_force, "efc_force")
+      _assert_eq(efc_cost, mjd_cost, "cost")
+      _assert_eq(qfrc_constraint, mjd.qfrc_constraint, "qfrc_constraint")
 
   def test_init_linesearch(self):
     """Test linesearch initialization."""
@@ -159,10 +182,6 @@ class SolverTest(parameterized.TestCase):
   @parameterized.parameters(ConeType.PYRAMIDAL, ConeType.ELLIPTIC)
   def test_parallel_linesearch(self, cone):
     """Test that iterative and parallel linesearch leads to equivalent results."""
-
-    # TODO(team): Enable this case when elliptic/parallel linesearch is working
-    if cone == ConeType.ELLIPTIC:
-      return
 
     _, _, m, d = test_util.fixture(
       "humanoid/humanoid.xml",

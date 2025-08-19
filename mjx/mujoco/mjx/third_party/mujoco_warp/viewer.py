@@ -50,6 +50,7 @@ _ENGINE = flags.DEFINE_enum_class("engine", EngineOptions.WARP, EngineOptions, "
 _NCONMAX = flags.DEFINE_integer("nconmax", None, "Maximum number of contacts.")
 _NJMAX = flags.DEFINE_integer("njmax", None, "Maximum number of constraints per world.")
 _OVERRIDE = flags.DEFINE_multi_string("override", [], "Model overrides (notation: foo.bar = baz)", short_name="o")
+_KEYFRAME = flags.DEFINE_integer("keyframe", 0, "keyframe to initialize simulation.")
 _DEVICE = flags.DEFINE_string("device", None, "override the default Warp device")
 
 
@@ -100,7 +101,7 @@ def _override(model: Union[mjw.Model, mujoco.MjModel]):
 
     if key in enum_fields:
       try:
-        val = str(enum_fields[key][val.upper()])
+        val = int(enum_fields[key][val.upper()])
       except KeyError:
         raise app.UsageError(f"Unrecognized enum value: {val}")
 
@@ -110,13 +111,12 @@ def _override(model: Union[mjw.Model, mujoco.MjModel]):
         raise app.UsageError(f"Unrecognized model field: {key}")
       if i < len(attrs) - 1:
         obj = getattr(obj, attr)
-      else:
+      elif key not in enum_fields:
         try:
           val = type(getattr(obj, attr))(ast.literal_eval(val))
         except (SyntaxError, ValueError):
           raise app.UsageError(f"Unrecognized value for field: {key}")
-
-        setattr(obj, attr, val)
+      setattr(obj, attr, val)
 
 
 def _compile_step(m, d):
@@ -138,6 +138,8 @@ def _main(argv: Sequence[str]) -> None:
 
   mjm = _load_model(epath.Path(argv[1]))
   mjd = mujoco.MjData(mjm)
+  if mjm.nkey > 0 and _KEYFRAME.value > -1:
+    mujoco.mj_resetDataKeyframe(mjm, mjd, _KEYFRAME.value)
   mujoco.mj_forward(mjm, mjd)
 
   if _ENGINE.value == EngineOptions.C:

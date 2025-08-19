@@ -366,7 +366,6 @@ class IOTest(parameterized.TestCase):
     '<contact geom1="plane"/>',
     '<contact geom2="plane"/>',
     '<contact site="site"/>',
-    '<contact reduce="maxforce"/>',
     '<contact reduce="netforce"/>',
     '<contact geom1="plane" geom2="sphere"/>',
   )

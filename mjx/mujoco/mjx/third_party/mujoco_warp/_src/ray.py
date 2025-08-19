@@ -510,20 +510,20 @@ def _ray_hfield(
         y = safe_div(lpnt[1] + all[i] * lvec[1] + size[1], dy)
         y0 = wp.max(0.0, wp.min(float(nrow - 2), wp.floor(y)))
         if i == 1:
-          z0 = hfield_data[adr + int(wp.round(y0)) * nrow + ncol - 1]
-          z1 = hfield_data[adr + int(wp.round(y0 + 1.0)) * nrow + ncol - 1]
+          z0 = hfield_data[adr + int(wp.round(y0 + 0.0)) * ncol + ncol - 1]
+          z1 = hfield_data[adr + int(wp.round(y0 + 1.0)) * ncol + ncol - 1]
         else:
-          z0 = hfield_data[adr + int(wp.round(y0)) * nrow]
-          z1 = hfield_data[adr + int(wp.round(y0 + 1.0)) * nrow]
+          z0 = hfield_data[adr + int(wp.round(y0 + 0.0)) * ncol]
+          z1 = hfield_data[adr + int(wp.round(y0 + 1.0)) * ncol]
       # side normal to y-axis
       else:
         y = safe_div(lpnt[0] + all[i] * lvec[0] + size[0], dx)
         y0 = wp.max(0.0, wp.min(float(ncol - 2), wp.floor(y)))
         if i == 3:
-          z0 = hfield_data[adr + int(wp.round(y0)) + (nrow - 1) * ncol]
+          z0 = hfield_data[adr + int(wp.round(y0 + 0.0)) + (nrow - 1) * ncol]
           z1 = hfield_data[adr + int(wp.round(y0 + 1.0)) + (nrow - 1) * ncol]
         else:
-          z0 = hfield_data[adr + int(wp.round(y0))]
+          z0 = hfield_data[adr + int(wp.round(y0 + 0.0))]
           z1 = hfield_data[adr + int(wp.round(y0 + 1.0))]
 
       # check if point is below line segments

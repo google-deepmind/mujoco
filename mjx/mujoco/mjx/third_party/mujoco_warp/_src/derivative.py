@@ -129,18 +129,6 @@ def _qderiv_tendon_damping(
       qM_integration_out[worldid, dofjid, dofiid] -= qderiv
 
 
-@wp.kernel
-def _qfrc_forward(
-  # Data in:
-  qfrc_smooth_in: wp.array2d(dtype=float),
-  qfrc_constraint_in: wp.array2d(dtype=float),
-  # Data out:
-  qfrc_integration_out: wp.array2d(dtype=float),
-):
-  worldid, dofid = wp.tid()
-  qfrc_integration_out[worldid, dofid] = qfrc_smooth_in[worldid, dofid] + qfrc_constraint_in[worldid, dofid]
-
-
 @event_scope
 def deriv_smooth_vel(m: Model, d: Data, flg_forward: bool = True):
   """Analytical derivative of smooth forces w.r.t. velocities.
@@ -193,12 +181,7 @@ def deriv_smooth_vel(m: Model, d: Data, flg_forward: bool = True):
     )
 
   if flg_forward:
-    wp.launch(
-      _qfrc_forward,
-      dim=(d.nworld, m.nv),
-      inputs=[d.qfrc_smooth, d.qfrc_constraint],
-      outputs=[d.qfrc_integration],
-    )
+    wp.copy(d.qfrc_integration, d.efc.Ma)
   else:
     # qfrc = qM @ qacc
     mul_m(m, d, d.qfrc_integration, d.qacc, d.inverse_mul_m_skip, d.qM_integration)

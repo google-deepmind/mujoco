@@ -41,6 +41,7 @@ polyindices = wp.types.vector(MAX_POLYVERT, dtype=int)
 mat43 = wp.types.matrix(shape=(4, 3), dtype=float)
 mat63 = wp.types.matrix(shape=(6, 3), dtype=float)
 
+# box-box currently supports up to 8 contacts
 MULTI_CONTACT_COUNT = 8
 mat3c = wp.types.matrix(shape=(MULTI_CONTACT_COUNT, 3), dtype=float)
 
@@ -94,7 +95,7 @@ class SupportPoint:
 
 
 @wp.func
-def discrete_geoms(g1: int, g2: int):
+def _discrete_geoms(g1: int, g2: int):
   return (g1 == int(GeomType.MESH.value) or g1 == int(GeomType.BOX.value) or g1 == int(GeomType.HFIELD.value)) and (
     g2 == int(GeomType.MESH.value) or g2 == int(GeomType.BOX.value) or g2 == int(GeomType.HFIELD.value)
   )
@@ -597,7 +598,7 @@ def _gjk(
   use_margin: bool,
 ):
   """Find distance within a tolerance between two geoms."""
-  is_discrete = discrete_geoms(geomtype1, geomtype2)
+  is_discrete = _discrete_geoms(geomtype1, geomtype2)
   cutoff2 = cutoff * cutoff
   simplex = mat43()
   simplex1 = mat43()
@@ -1203,7 +1204,7 @@ def _polytope4(
 @wp.func
 def _epa(tolerance: float, epa_iterations: int, pt: Polytope, geom1: Geom, geom2: Geom, geomtype1: int, geomtype2: int):
   """Recover penetration data from two geoms in contact given an initial polytope."""
-  is_discrete = discrete_geoms(geomtype1, geomtype2)
+  is_discrete = _discrete_geoms(geomtype1, geomtype2)
   upper = FLOAT_MAX
   upper2 = FLOAT_MAX
   idx = int(-1)
@@ -1309,9 +1310,60 @@ def _epa(tolerance: float, epa_iterations: int, pt: Polytope, geom1: Geom, geom2
   return 0.0, wp.vec3(), wp.vec3(), -1
 
 
+@wp.func
+def _area4(a: wp.vec3, b: wp.vec3, c: wp.vec3, d: wp.vec3):
+  """Computes area of a quadrilateral embedded in 3D space."""
+  return 0.5 * wp.norm_l2(wp.cross(a - d, d - b) + wp.cross(b - c, c - a))
+
+
+@wp.func
+def _next(n: int, i: int):
+  """Returns (i + 1) mod n for 0 <= i <= n - 1."""
+  return wp.where(i == n - 1, 0, i + 1)
+
+
+@wp.func
+def _polygon_quad(polygon: polyclip, npolygon: int):
+  """Returns the indices of a quadrilateral of maximum area in a convex polygon."""
+  b = _next(npolygon, 0)
+  c = _next(npolygon, b)
+  d = _next(npolygon, c)
+  res = wp.vec4i(0, b, c, d)
+  m = _area4(polygon[0], polygon[b], polygon[c], polygon[d])
+  for a in range(npolygon):
+    while True:
+      m_next = _area4(polygon[a], polygon[b], polygon[c], polygon[_next(npolygon, d)])
+      if m_next <= m:
+        break
+      m = m_next
+      d = _next(npolygon, d)
+      res = wp.vec4i(a, b, c, d)
+      while True:
+        m_next = _area4(polygon[a], polygon[b], polygon[_next(npolygon, c)], polygon[d])
+        if m_next <= m:
+          break
+        m = m_next
+        c = _next(npolygon, c)
+        res = wp.vec4i(a, b, c, d)
+      while True:
+        m_next = _area4(polygon[a], polygon[_next(npolygon, b)], polygon[c], polygon[d])
+        if m_next <= m:
+          break
+        m = m_next
+        b = _next(npolygon, b)
+        res = wp.vec4i(a, b, c, d)
+    if b == a:
+      b = _next(npolygon, b)
+      if c == b:
+        c = _next(npolygon, c)
+        if d == c:
+          d == _next(npolygon, d)
+  return res
+
+
 # return number (1, 2 or 3) of dimensions of a simplex; reorder vertices if necessary
 @wp.func
-def feature_dim(face: wp.vec3i, vert_index: wp.array(dtype=int), vert: wp.array(dtype=wp.vec3)):
+def _feature_dim(face: wp.vec3i, vert_index: wp.array(dtype=int), vert: wp.array(dtype=wp.vec3)):
   v1i = vert_index[face[0]]
   v2i = vert_index[face[1]]
   v3i = vert_index[face[2]]
@@ -1335,7 +1387,7 @@ def feature_dim(face: wp.vec3i, vert_index: wp.array(dtype=int), vert: wp.array(
 
 # find two normals that are facing each other within a tolerance, return 1 if found
 @wp.func
-def aligned_faces(vert1: polyverts, len1: int, vert2: polyverts, len2: int):
+def _aligned_faces(vert1: polyverts, len1: int, vert2: polyverts, len2: int):
   res = wp.vec2i()
   for i in range(len1):
     for j in range(len2):
@@ -1349,7 +1401,7 @@ def aligned_faces(vert1: polyverts, len1: int, vert2: polyverts, len2: int):
 # find two normals that are perpendicular to each other within a tolerance
 # return 1 if found
 @wp.func
-def aligned_face_edge(edge: polyverts, nedge: int, face: polyverts, nface: int):
+def _aligned_face_edge(edge: polyverts, nedge: int, face: polyverts, nface: int):
   res = wp.vec2i()
   for i in range(nface):
     for j in range(nedge):
@@ -1362,7 +1414,7 @@ def aligned_face_edge(edge: polyverts, nedge: int, face: polyverts, nface: int):
 
 # find up to n <= 2 common integers of two arrays, return n
 @wp.func
-def intersect1(a1: wp.array(dtype=int), a2: wp.array(dtype=int), start1: int, start2: int, len1: int, len2: int):
+def _intersect1(a1: wp.array(dtype=int), a2: wp.array(dtype=int), start1: int, start2: int, len1: int, len2: int):
   count = int(0)
   res = wp.vec2i()
   for i in range(start1, start1 + len1):
@@ -1376,7 +1428,7 @@ def intersect1(a1: wp.array(dtype=int), a2: wp.array(dtype=int), start1: int, st
 
 
 @wp.func
-def intersect2(a1: wp.vec2i, a2: wp.array(dtype=int), start2: int, len1: int, len2: int):
+def _intersect2(a1: wp.vec2i, a2: wp.array(dtype=int), start2: int, len1: int, len2: int):
   count = int(0)
   res = wp.vec2i()
   for i in range(len1):
@@ -1391,7 +1443,7 @@ def intersect2(a1: wp.vec2i, a2: wp.array(dtype=int), start2: int, len1: int, le
 
 # compute possible polygon normals of a mesh given up to 3 vertices
 @wp.func
-def mesh_normals(
+def _mesh_normals(
   # In:
   feature_dim: int,
   feature_index: wp.vec3i,
@@ -1420,10 +1472,10 @@ def mesh_normals(
     v3_num = polymapnum[vertadr + v3]
 
     faceset = wp.vec2i()
-    n, edgeset = intersect1(polymap, polymap, v1_adr, v2_adr, v1_num, v2_num)
+    n, edgeset = _intersect1(polymap, polymap, v1_adr, v2_adr, v1_num, v2_num)
     if n == 0:
       return 0, normals, indices
-    n, faceset = intersect2(edgeset, polymap, v3_adr, n, v3_num)
+    n, faceset = _intersect2(edgeset, polymap, v3_adr, n, v3_num)
     if n == 0:
       return 0, normals, indices
 
@@ -1440,7 +1492,7 @@ def mesh_normals(
     v2_num = polymapnum[vertadr + v2]
 
     # up to two faces as two vertices define an edge
-    n, edgeset = intersect1(polymap, polymap, v1_adr, v2_adr, v1_num, v2_num)
+    n, edgeset = _intersect1(polymap, polymap, v1_adr, v2_adr, v1_num, v2_num)
     if n == 0:
       return 0, normals, indices
     for i in range(n):
@@ -1462,7 +1514,7 @@ def mesh_normals(
 
 # compute normal directional vectors along possible edges given by up to two vertices
 @wp.func
-def mesh_edge_normals(
+def _mesh_edge_normals(
   # In:
   dim: int,
   mat: wp.mat33,
@@ -1511,7 +1563,7 @@ def mesh_edge_normals(
 
 # try recovering box normal from collision normal
 @wp.func
-def box_normals2(mat: wp.mat33, n: wp.vec3):
+def _box_normals2(mat: wp.mat33, n: wp.vec3):
   normals = polyverts()
   indices = polyindices()
 
@@ -1540,7 +1592,7 @@ def box_normals2(mat: wp.mat33, n: wp.vec3):
 
 # compute possible face normals of a box given up to 3 vertices
 @wp.func
-def box_normals(feature_dim: int, feature_index: wp.vec3i, mat: wp.mat33, dir: wp.vec3):
+def _box_normals(feature_dim: int, feature_index: wp.vec3i, mat: wp.mat33, dir: wp.vec3):
   normals = polyverts()
   indices = polyindices()
 
@@ -1568,7 +1620,7 @@ def box_normals(feature_dim: int, feature_index: wp.vec3i, mat: wp.mat33, dir: w
       indices[0] = indices[0] + 1
     if c == 1:
       return 1, normals, indices
-    return box_normals2(mat, dir)
+    return _box_normals2(mat, dir)
   if feature_dim == 2:
     c = 0
     x = float((v1 & 1) and (v2 & 1)) - float(not (v1 & 1) and not (v2 & 1))
@@ -1588,7 +1640,7 @@ def box_normals(feature_dim: int, feature_index: wp.vec3i, mat: wp.mat33, dir: w
       c += 1
     if c == 2:
       return 2, normals, indices
-    return box_normals2(mat, dir)
+    return _box_normals2(mat, dir)
 
   if feature_dim == 1:
     x = wp.where(v1 & 1, 1.0, -1.0)
@@ -1606,7 +1658,7 @@ def box_normals(feature_dim: int, feature_index: wp.vec3i, mat: wp.mat33, dir: w
 
 # compute possible edge normals for box for edge collisions
 @wp.func
-def box_edge_normals(dim: int, mat: wp.mat33, pos: wp.vec3, size: wp.vec3, v1: wp.vec3, v2: wp.vec3, v1i: int):
+def _box_edge_normals(dim: int, mat: wp.mat33, pos: wp.vec3, size: wp.vec3, v1: wp.vec3, v2: wp.vec3, v1i: int):
   normals = polyverts()
   endverts = polyverts()
 
@@ -1635,7 +1687,7 @@ def box_edge_normals(dim: int, mat: wp.mat33, pos: wp.vec3, size: wp.vec3, v1: w
 
 # recover face of a box from its index
 @wp.func
-def box_face(mat: wp.mat33, pos: wp.vec3, size: wp.vec3, idx: int):
+def _box_face(mat: wp.mat33, pos: wp.vec3, size: wp.vec3, idx: int):
   res = polyverts()
 
   # compute global coordinates of the box face and face normal
@@ -1680,7 +1732,7 @@ def box_face(mat: wp.mat33, pos: wp.vec3, size: wp.vec3, idx: int):
 
 # recover mesh polygon from its index, return number of edges
 @wp.func
-def mesh_face(
+def _mesh_face(
   # In:
   mat: wp.mat33,
   pos: wp.vec3,
@@ -1706,19 +1758,19 @@ def mesh_face(
 
 
 @wp.func
-def plane_normal(v1: wp.vec3, v2: wp.vec3, n: wp.vec3):
+def _plane_normal(v1: wp.vec3, v2: wp.vec3, n: wp.vec3):
   v3 = v1 + n
   res = wp.cross(v2 - v1, v3 - v1)
   return wp.dot(res, v1), res
 
 
 @wp.func
-def halfspace(a: wp.vec3, n: wp.vec3, p: wp.vec3):
+def _halfspace(a: wp.vec3, n: wp.vec3, p: wp.vec3):
   return wp.dot(p - a, n) > -1e-10
 
 
 @wp.func
-def plane_intersect(pn: wp.vec3, pd: float, a: wp.vec3, b: wp.vec3):
+def _plane_intersect(pn: wp.vec3, pd: float, a: wp.vec3, b: wp.vec3):
   res = wp.vec3()
   ab = b - a
   temp = wp.dot(pn, ab)
@@ -1734,7 +1786,7 @@ def plane_intersect(pn: wp.vec3, pd: float, a: wp.vec3, b: wp.vec3):
 
 # clip a polygon against another polygon
 @wp.func
-def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n: wp.vec3, dir: wp.vec3):
+def _polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n: wp.vec3, dir: wp.vec3):
   witness1 = mat3c()
   witness2 = mat3c()
 
@@ -1746,10 +1798,10 @@ def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n
   pn = polyverts()
   pd = polyvec()
   for i in range(nface1 - 1):
-    pdi, pni = plane_normal(face1[i], face1[i + 1], n)
+    pdi, pni = _plane_normal(face1[i], face1[i + 1], n)
     pd[i] = pdi
     pn[i] = pni
-  pdi, pni = plane_normal(face1[nface1 - 1], face1[0], n)
+  pdi, pni = _plane_normal(face1[nface1 - 1], face1[0], n)
   pd[nface1 - 1] = pdi
   pn[nface1 - 1] = pni
 
@@ -1770,8 +1822,8 @@ def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n
       Q = wp.where(i < npolygon - 1, polygon[i + 1], polygon[0])
 
       # determine if P and Q are in the halfspace of the clipping edge
-      inside1 = halfspace(face1[e], pn[e], P)
-      inside2 = halfspace(face1[e], pn[e], Q)
+      inside1 = _halfspace(face1[e], pn[e], P)
+      inside2 = _halfspace(face1[e], pn[e], Q)
 
       # PQ entirely outside the clipping edge, skip
       if not inside1 and not inside2:
@@ -1784,7 +1836,7 @@ def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n
         continue
 
       # add new vertex to clipped polygon where PQ intersects the clipping edge
-      t, res = plane_intersect(pn[e], pd[e], P, Q)
+      t, res = _plane_intersect(pn[e], pd[e], P, Q)
       if t >= 0.0 and t <= 1.0:
         clipped[nclipped] = res
         nclipped += 1
@@ -1804,6 +1856,13 @@ def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n
   if npolygon < 1:
     return 0, witness1, witness2
 
+  if npolygon > 4:
+    quad = _polygon_quad(polygon, npolygon)
+    for i in range(4):
+      witness2[i] = polygon[quad[i]]
+      witness1[i] = witness2[i] - dir
+    return 4, witness1, witness2
+
   # no pruning needed
   for i in range(npolygon):
     witness2[i] = polygon[i]
@@ -1813,7 +1872,7 @@ def polygon_clip(face1: polyverts, nface1: int, face2: polyverts, nface2: int, n
 
 # recover multiple contacts from EPA polytope
 @wp.func
-def multicontact(
+def _multicontact(
   pt: Polytope, face: wp.vec3i, x1: wp.vec3, x2: wp.vec3, geom1: Geom, geom2: Geom, geomtype1: int, geomtype2: int
 ):
   witness1 = mat3c()
@@ -1845,40 +1904,40 @@ def multicontact(
     polymap = geom2.mesh_polymap
 
   # get dimensions of features of geoms 1 and 2
-  nface1, feature_index1, feature_vertex1 = feature_dim(face, pt.vert_index1, pt.vert1)
-  nface2, feature_index2, feature_vertex2 = feature_dim(face, pt.vert_index2, pt.vert2)
+  nface1, feature_index1, feature_vertex1 = _feature_dim(face, pt.vert_index1, pt.vert1)
+  nface2, feature_index2, feature_vertex2 = _feature_dim(face, pt.vert_index2, pt.vert2)
 
   dir = x2 - x1
   dir_neg = -dir
 
   # get all possible face normals for each geom
   if geomtype1 == int(GeomType.BOX.value):
-    nnorms1, n1, idx1 = box_normals(nface1, feature_index1, geom1.rot, dir_neg)
+    nnorms1, n1, idx1 = _box_normals(nface1, feature_index1, geom1.rot, dir_neg)
   elif geomtype1 == int(GeomType.MESH.value):
-    nnorms1, n1, idx1 = mesh_normals(
+    nnorms1, n1, idx1 = _mesh_normals(
       nface1, feature_index1, geom1.rot, geom1.vertadr, geom1.mesh_polyadr, polynormal, polymapadr, polymapnum, polymap
     )
   if geomtype2 == int(GeomType.BOX.value):
-    nnorms2, n2, idx2 = box_normals(nface2, feature_index2, geom2.rot, dir)
+    nnorms2, n2, idx2 = _box_normals(nface2, feature_index2, geom2.rot, dir)
   elif geomtype2 == int(GeomType.MESH.value):
-    nnorms2, n2, idx2 = mesh_normals(
+    nnorms2, n2, idx2 = _mesh_normals(
       nface2, feature_index2, geom2.rot, geom2.vertadr, geom2.mesh_polyadr, polynormal, polymapadr, polymapnum, polymap
     )
 
   # determine if any two face normals match
   is_edge_contact_geom1 = 0
   is_edge_contact_geom2 = 0
-  nres, res = aligned_faces(n1, nnorms1, n2, nnorms2)
+  nres, res = _aligned_faces(n1, nnorms1, n2, nnorms2)
   if not nres:
     # check if edge-face collision
     if nface1 < 3 and nface1 <= nface2:
       nnorms1 = 0
       if geomtype1 == int(GeomType.BOX.value):
-        nnorms1, n1, endverts = box_edge_normals(
+        nnorms1, n1, endverts = _box_edge_normals(
           nface1, geom1.rot, geom1.pos, geom1.size, feature_vertex1[0], feature_vertex1[1], feature_index1[0]
         )
       elif geomtype1 == int(GeomType.MESH.value):
-        nnorms1, n1, endverts = mesh_edge_normals(
+        nnorms1, n1, endverts = _mesh_edge_normals(
           nface1,
           geom1.rot,
           geom1.pos,
@@ -1895,7 +1954,7 @@ def multicontact(
           feature_vertex1[1],
           feature_index1[0],
         )
-      nres, res = aligned_face_edge(n1, nnorms1, n2, nnorms2)
+      nres, res = _aligned_face_edge(n1, nnorms1, n2, nnorms2)
       if not nres:
         return 1, witness1, witness2
       is_edge_contact_geom1 = 1
@@ -1904,11 +1963,11 @@ def multicontact(
     elif nface2 < 3:
       nnorms2 = 0
       if geomtype2 == int(GeomType.BOX.value):
-        nnorms2, n2, endverts = box_edge_normals(
+        nnorms2, n2, endverts = _box_edge_normals(
           nface2, geom2.rot, geom2.pos, geom2.size, feature_vertex2[0], feature_vertex2[1], feature_index2[0]
         )
       elif geomtype2 == int(GeomType.MESH.value):
-        nnorms2, n2, endverts = mesh_edge_normals(
+        nnorms2, n2, endverts = _mesh_edge_normals(
           nface2,
           geom2.rot,
           geom2.pos,
@@ -1925,7 +1984,7 @@ def multicontact(
           feature_vertex2[1],
           feature_index2[0],
         )
-      nres, res = aligned_face_edge(n2, nnorms2, n1, nnorms1)
+      nres, res = _aligned_face_edge(n2, nnorms2, n1, nnorms1)
       if not nres:
         return 1, witness1, witness2
       is_edge_contact_geom2 = 1
@@ -1944,9 +2003,9 @@ def multicontact(
   else:
     ind = wp.where(is_edge_contact_geom2, idx1[j], idx1[i])
     if geomtype1 == int(GeomType.BOX.value):
-      nface1, face1 = box_face(geom1.rot, geom1.pos, geom1.size, ind)
+      nface1, face1 = _box_face(geom1.rot, geom1.pos, geom1.size, ind)
     elif geomtype1 == int(GeomType.MESH.value):
-      nface1, face1 = mesh_face(
+      nface1, face1 = _mesh_face(
         geom1.rot, geom1.pos, geom1.vertadr, geom1.mesh_polyadr, vert, polyvertadr, polyvertnum, polyvert, ind
       )
 
@@ -1957,9 +2016,9 @@ def multicontact(
     nface2 = 2
   else:
     if geomtype2 == int(GeomType.BOX.value):
-      nface2, face2 = box_face(geom2.rot, geom2.pos, geom2.size, idx2[j])
+      nface2, face2 = _box_face(geom2.rot, geom2.pos, geom2.size, idx2[j])
     elif geomtype2 == int(GeomType.MESH.value):
-      nface2, face2 = mesh_face(
+      nface2, face2 = _mesh_face(
         geom2.rot, geom2.pos, geom2.vertadr, geom2.mesh_polyadr, vert, polyvertadr, polyvertnum, polyvert, idx2[j]
       )
 
@@ -1971,20 +2030,20 @@ def multicontact(
   # face1 is an edge; clip face1 against face2
   if is_edge_contact_geom1:
     approx_dir = wp.norm_l2(dir) * n2[j]
-    return polygon_clip(face2, nface2, face1, nface1, n2[j], approx_dir)
+    return _polygon_clip(face2, nface2, face1, nface1, n2[j], approx_dir)
 
   # face2 is an edge; clip face2 against face1
   if is_edge_contact_geom2:
     approx_dir = -wp.norm_l2(dir) * n1[j]
-    return polygon_clip(face1, nface1, face2, nface2, n1[j], approx_dir)
+    return _polygon_clip(face1, nface1, face2, nface2, n1[j], approx_dir)
 
   # face-face collision
   approx_dir = wp.norm_l2(dir) * n2[j]
-  return polygon_clip(face1, nface1, face2, nface2, n1[i], approx_dir)
+  return _polygon_clip(face1, nface1, face2, nface2, n1[i], approx_dir)
 
 
 @wp.func
-def inflate(dist: float, x1: wp.vec3, x2: wp.vec3, margin1: float, margin2: float):
+def _inflate(dist: float, x1: wp.vec3, x2: wp.vec3, margin1: float, margin2: float):
   n = wp.normalize(x2 - x1)
   if margin1 > 0.0:
     x1 += margin1 * n
@@ -2021,9 +2080,9 @@ def ccd(
   face_map: wp.array(dtype=int),
   horizon: wp.array(dtype=int),
 ):
+  """General convex collision detection via GJK/EPA."""
   witness1 = mat3c()
   witness2 = mat3c()
-  """General convex collision detection via GJK/EPA."""
   margin1 = 0.0
   margin2 = 0.0
 
@@ -2044,7 +2103,7 @@ def ccd(
         witness1[0] = result.x1
         witness2[0] = result.x2
         return result.dist, 1, witness1, witness2
-      dist, x1, x2 = inflate(result.dist, result.x1, result.x2, margin1, margin2)
+      dist, x1, x2 = _inflate(result.dist, result.x1, result.x2, margin1, margin2)
       witness1[0] = x1
       witness2[0] = x2
       return dist, 1, witness1, witness2
@@ -2151,7 +2210,7 @@ def ccd(
     and (geomtype1 == int(GeomType.BOX.value) or (geomtype1 == int(GeomType.MESH.value) and geom1.mesh_polyadr > -1))
     and (geomtype2 == int(GeomType.BOX.value) or (geomtype2 == int(GeomType.MESH.value) and geom2.mesh_polyadr > -1))
   ):
-    num, w1, w2 = multicontact(pt, pt.face[idx], x1, x2, geom1, geom2, geomtype1, geomtype2)
+    num, w1, w2 = _multicontact(pt, pt.face[idx], x1, x2, geom1, geom2, geomtype1, geomtype2)
     if num > 0:
       return dist, num, w1, w2
   witness1[0] = x1

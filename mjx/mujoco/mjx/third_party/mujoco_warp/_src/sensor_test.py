@@ -411,7 +411,7 @@ class SensorTest(parameterized.TestCase):
   @parameterized.parameters(
     'type="sphere" size=".1"',
     'type="capsule" size=".1 .1" euler="0 89 89"',
-    'type="box" size=".1 .1 .1" euler=".02 .05 .1"',
+    'type="box" size=".1 .11 .12" euler=".02 .05 .1"',
   )
   def test_contact_sensor(self, geom):
     """Test contact sensor."""
@@ -419,22 +419,18 @@ class SensorTest(parameterized.TestCase):
     contact_sensor = ""
 
     # data combinations
-    field = ["found", "force", "torque", "dist", "pos", "normal", "tangent"]
-    datas = itertools.chain.from_iterable([itertools.combinations(field, i) for i in range(len(field))])
-    datas = list(datas)
+    datas = ["found", "force dist normal", "torque pos tangent", "found force torque dist pos normal tangent"]
 
-    for num in [1, 2, 3, 4, 5]:
-      for geoms in [
-        'geom1="plane" geom2="geom"',
-        'geom1="geom" geom2="plane"',
-        'geom1="plane" geom2="sphere"',
-        'geom1="sphere" geom2="plane"',
-        'geom1="geom" geom2="sphere"',
-        'geom1="sphere" geom2="geom"',
-      ]:
-        for data in datas:
-          data = " ".join(data)
-          contact_sensor += f'<contact {geoms} num="{num}" reduce="mindist" data="{data}"/>'
+    for geoms in [
+      'geom1="plane" geom2="geom"',
+      'geom1="geom" geom2="plane"',
+      'geom1="sphere" geom2="plane"',
+      'geom1="geom" geom2="sphere"',
+    ]:
+      for num in [1, 3, 5]:
+        for reduce in ["mindist", "maxforce"]:
+          for data in datas:
+            contact_sensor += f'<contact {geoms} num="{num}" reduce="{reduce}" data="{data}"/>'
 
     _MJCF = f"""
     <mujoco>
