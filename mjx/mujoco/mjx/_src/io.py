@@ -1301,7 +1301,7 @@ def _get_data_into_warp(
     )
     result_i = result[i] if batched else result
     ncon = d_i._impl.ncon[0]
-    nefc = int(d_i._impl.nefc[0])
+    nefc = int(d_i._impl.nefc)
     # nj = int(d_i._impl.nj[0])
     nj = 0  # TODO(btaba): add nj back
 
@@ -1322,7 +1322,7 @@ def _get_data_into_warp(
         value = getattr(d_i, field.name)
 
       if field.name in ('ne', 'nl', 'nf'):
-        value = value[0]
+        pass
       elif field.name in ('nefc', 'ncon'):
         value = {'nefc': nefc, 'ncon': ncon}[field.name]
       elif field.name.endswith('xmat') or field.name == 'ximat':
