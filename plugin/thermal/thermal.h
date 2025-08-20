@@ -41,10 +41,10 @@ struct ThermalConfig {
 
 class Thermal {
  public:
-  static std::unique_ptr<Thermal> Create(const mjModel* m, int instance);
+  static std::unique_ptr<Thermal> Create(const mjModel* m, mjData* d, int instance);
   static constexpr char kAmbientTemperature[] = "ambient_temperature";
 
-  void Reset(mjtNum* plugin_state);
+  void Reset(const mjModel* m, mjtNum* plugin_state, int instance);
   void Compute(const mjModel* m, mjData* d, int instance);
   static void RegisterPlugin();
 
