@@ -100,13 +100,76 @@ void Thermal::RegisterPlugin()
 }
 
 Thermal::Thermal(ThermalConfig config, std::vector<int> actuators)
-    : _model(std::move(config)), _actuators(std::move(actuators)) {}
+    : _model(std::move(config)), _sensors(std::move(actuators)) {}
 
 std::unique_ptr<Thermal> Thermal::Create(const mjModel *m, int instance) 
 {
     ThermalConfig config = ThermalConfig::FromModel(m, instance);
-    std::vector<int> actuators; // TODO: populate actuator list
-    return std::unique_ptr<Thermal>(new Thermal(config, actuators));
+    
+    if (config.thermal_capacitance <= 0) {
+        mju_warning("Invalid thermal_capacitance (%.6f) for thermal plugin instance %d: must be > 0", config.thermal_capacitance, instance);
+        return nullptr;
+    }
+    if (config.thermal_resistance <= 0) {
+        mju_warning("Invalid thermal_resistance (%.6f) for thermal plugin instance %d: must be > 0", config.thermal_resistance, instance);
+        return nullptr;
+    }
+    if (config.electrical_nominal_resistance <= 0) {
+        mju_warning("Invalid electrical_nominal_resistance (%.6f) for thermal plugin instance %d: must be > 0", config.electrical_nominal_resistance, instance);
+        return nullptr;
+    }
+    if (config.temperature_coefficient_of_resistance < 0) {
+        mju_warning("Invalid temperature_coefficient_of_resistance (%.6f) for thermal plugin instance %d: must be >= 0", config.temperature_coefficient_of_resistance, instance);
+        return nullptr;
+    }
+    if (config.torque_constant_25 <= 0) {
+        mju_warning("Invalid torque_constant_25 (%.6f) for thermal plugin instance %d: must be > 0", config.torque_constant_25, instance);
+        return nullptr;
+    }
+    if (config.torque_constant_130 <= 0) {
+        mju_warning("Invalid torque_constant_130 (%.6f) for thermal plugin instance %d: must be > 0", config.torque_constant_130, instance);
+        return nullptr;
+    }
+    if (config.gear_ratio <= 0) {
+        mju_warning("Invalid gear_ratio (%.6f) for thermal plugin instance %d: must be > 0", config.gear_ratio, instance);
+        return nullptr;
+    }
+
+    std::vector<int> sensors; 
+    for(int i = 0; i < m->nsensor; i++){
+        if (m->sensor_plugin[i] == instance) {
+            sensors.push_back(i);
+        }
+    }
+
+    if (sensors.empty()) {
+        mju_warning("No sensors found for this plugin instance %d", instance);
+        return nullptr;
+    }
+
+    for(int sensor: sensors) {
+       if( m->sensor_objtype[sensor] != mjOBJ_ACTUATOR && m->sensor_objid[sensor] == -1)
+         {
+                mju_warning("Sensor %d is not associated with an actuator for plugin instance %d", sensor, instance);
+                return nullptr;
+        }
+    }
+
+    //TODO: Ask for a better way to handle this.
+    int ambient_temp_id = mj_name2id(m, mjOBJ_NUMERIC, Thermal::kAmbientTemperature);
+    if(ambient_temp_id < 0)
+    {
+        mju_warning("Ambient temperature value not found");
+        return nullptr;
+    }
+
+    if(m->numeric_data[m->numeric_adr[ambient_temp_id]] < 273.15)
+    {
+        mju_warning("Ambient temperature below absolute zero");
+        return nullptr;
+    }
+
+    return std::unique_ptr<Thermal>(new Thermal(config,  std::move(sensors)));
 }
 
 } // namespace mujoco::plugin::thermal
