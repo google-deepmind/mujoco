@@ -79,7 +79,7 @@ void Thermal::RegisterPlugin()
   };
 
   plugin.init = +[](const mjModel *m, mjData *d, int instance) {
-    std::unique_ptr<Thermal> thermal = Thermal::Create(m, instance);
+    std::unique_ptr<Thermal> thermal = Thermal::Create(m, d, instance);
     if (thermal == nullptr) {
       return -1;
     }
@@ -94,7 +94,7 @@ void Thermal::RegisterPlugin()
   plugin.reset = +[](const mjModel *m, mjtNum *plugin_state, void *plugin_data,
                      int instance) {
     auto *thermal = reinterpret_cast<Thermal *>(plugin_data);
-    thermal->Reset(plugin_state);
+    thermal->Reset(m, plugin_state, instance);
   };
 
   plugin.compute =
@@ -108,7 +108,7 @@ void Thermal::RegisterPlugin()
 Thermal::Thermal(ThermalConfig config, std::vector<int> actuators)
     : _model(std::move(config)), _sensors(std::move(actuators)) {}
 
-std::unique_ptr<Thermal> Thermal::Create(const mjModel *m, int instance) 
+std::unique_ptr<Thermal> Thermal::Create(const mjModel *m, mjData* d, int instance) 
 {
     ThermalConfig config = ThermalConfig::FromModel(m, instance);
     
@@ -169,15 +169,30 @@ std::unique_ptr<Thermal> Thermal::Create(const mjModel *m, int instance)
         return nullptr;
     }
 
-    if(m->numeric_data[m->numeric_adr[ambient_temp_id]] < 273.15)
+    double ambient_temp = m->numeric_data[m->numeric_adr[ambient_temp_id]];
+    if(ambient_temp < 273.15)
     {
         mju_warning("Ambient temperature below absolute zero");
         return nullptr;
     }
 
+    for(int i = 0; i < m->plugin_statenum[instance]; i++) {
+      // Initialize the plugin state to the ambient temperature.
+      d->plugin_state[m->plugin_stateadr[instance] + i] = ambient_temp;
+    }
 
 
     return std::unique_ptr<Thermal>(new Thermal(config,  std::move(sensors)));
+}
+
+void Thermal::Reset(const mjModel* m, mjtNum* plugin_state, int instance) {
+    int ambient_temp_id = mj_name2id(m, mjOBJ_NUMERIC, Thermal::kAmbientTemperature);
+  double ambient_temp = m->numeric_data[m->numeric_adr[ambient_temp_id]];
+
+    for(int i = 0; i < m->plugin_statenum[instance]; i++) {
+      // Initialize the plugin state to the ambient temperature.
+      plugin_state[m->plugin_stateadr[instance] + i] = ambient_temp;
+    }
 }
 
 } // namespace mujoco::plugin::thermal
