@@ -26,34 +26,36 @@
 namespace mujoco::plugin::thermal {
 
 struct ThermalConfig {
-    float thermal_capacitance;
-    float thermal_resistance;
-    float electrical_nominal_resistance;
-    float temperature_coefficient;
+    double thermal_capacitance;
+    double thermal_resistance;
+    double electrical_nominal_resistance;
+    double temperature_coefficient_of_resistance;
     // Motor Constant at 25 C (Kt25)
-    float motor_constant_25;
+    double torque_constant_25;
     // Motor Constant at 135 C (Kt130)
-    float motor_constant_130;
+    double torque_constant_130;
+    double gear_ratio;
 
+    static ThermalConfig FromModel(const mjModel* m, int instance);
 } ;
 
 class Thermal {
  public:
-  static std::unique_ptr<Thermal>* Create(const mjModel* m, mjData* d, int instance);
+  static std::unique_ptr<Thermal> Create(const mjModel* m, int instance);
+  static constexpr char kAmbientTemperature[] = "ambient_temperature";
 
-  void Reset(const mjModel* m, int instance);
+  void Reset(mjtNum* plugin_state);
   void Compute(const mjModel* m, mjData* d, int instance);
-  int GetNumberOfStates();
   static void RegisterPlugin();
 
  private:
-  Thermal(ThermalConfig model, std::vector<int> actuators);
+  Thermal(ThermalConfig model, std::vector<int> sensors);
   
   ThermalConfig _model; //Thermal model of the actuator
-  std::vector<int> _actuators; // Actuators the plugin is managing
+  std::vector<int> _sensors; // Actuators the plugin is managing
 };
 
 
 }  // namespace mujoco::plugin::actuator
 
-#endif  // MUJOCO_PLUGIN_ACTUATOR_PID_H_
+#endif  // MUJOCO_PLUGIN_THERMAL_H_
