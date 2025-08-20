@@ -193,7 +193,7 @@ class Simulate {
   int info = 0;
   int profiler = 0;
   int sensor = 0;
-  int pause_update = 1;
+  int pause_update = 0;
   int fullscreen = 0;
   int vsync = 1;
   int busywait = 0;

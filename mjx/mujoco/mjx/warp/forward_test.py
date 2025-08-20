@@ -192,14 +192,6 @@ class ForwardTest(parameterized.TestCase):
       tu.assert_attr_eq(dx, d, 'qfrc_smooth')
       tu.assert_attr_eq(dx, d, 'qacc_smooth')
 
-      # solve
-      np.testing.assert_allclose(
-          dx.qacc_warmstart,
-          d.qacc_warmstart,
-          err_msg='qacc_warmstart',
-          rtol=1e-5,
-          atol=1.0,
-      )
       np.testing.assert_allclose(
           dx.qacc, d.qacc, err_msg='qacc', rtol=1e-5, atol=1.0
       )

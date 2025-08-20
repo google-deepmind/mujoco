@@ -709,7 +709,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   // no constraints: copy unconstrained acc, clear forces, return
   if (!nefc) {
     mju_copy(d->qacc, d->qacc_smooth, nv);
-    mju_copy(d->qacc_warmstart, d->qacc_smooth, nv);
     mju_zeroInt(d->solver_niter, mjNISLAND);
     TM_END(mjTIMER_CONSTRAINT);
     return;
@@ -783,9 +782,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     }
   }
 
-  // save result for next step warmstart
-  mju_copy(d->qacc_warmstart, d->qacc, nv);
-
   // run noslip solver if enabled
   if (m->opt.noslip_iterations > 0) {
     mj_solNoSlip(m, d, m->opt.noslip_iterations);
@@ -837,6 +833,9 @@ static void mj_advance(const mjModel* m, mjData* d,
       }
     }
   }
+
+  // save qacc for next step warmstart
+  mju_copy(d->qacc_warmstart, d->qacc, m->nv);
 }
 
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation

@@ -78,11 +78,7 @@ class SolverTest(parameterized.TestCase):
       mjx_cost = ctx.cost - ctx.gauss
       _assert_eq(mj_cost, mjx_cost, 'cost')
 
-      # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
-      # before the step so that MJX does not have a trivial solution
-      warmstart = d.qacc_warmstart.copy()
       mujoco.mj_forward(m, d)
-      d.qacc_warmstart = warmstart
       dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
 
       # MJX finds very similar solutions with the newton solver
@@ -120,11 +116,7 @@ class SolverTest(parameterized.TestCase):
     # significant constraint forces keyframe 2
     mujoco.mj_resetDataKeyframe(m, d, 2)
 
-    # mj_forward overwrites qacc_warmstart, so let's restore it to what it was
-    # at the beginning of the step so that MJX does not have a trivial solution
-    warmstart = d.qacc_warmstart.copy()
     mujoco.mj_forward(m, d)
-    d.qacc_warmstart = warmstart
 
     dx = jax.jit(mjx.solve)(mjx.put_model(m), mjx.put_data(m, d))
 

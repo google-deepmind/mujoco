@@ -7,8 +7,29 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The update of ``mjData.qacc_warmstart`` was moved from the end of the solver call (:ref:`mj_fwdConstraint`) to the
+     end of :ref:`mj_step`, and is now updated with all other state variables. This change makes :ref:`mj_forward`
+     fully idempotent.
+
+     Before this change, calling :ref:`mj_forward` repeatedly would make the constraint solver converge,
+     since each subsequent call would start from the previously updated ``qacc_warmstart`` value.
+     Indeed, this is precisely what happened in the viewer, which calls :ref:`mj_forward` repeatedly in PAUSE mode.
+
+     **Migration:** If your code depended on this behavior, you can recover it by updating manually after each
+     :ref:`mj_forward`: ``qacc_warmstart ← qacc``. The behavior is available in :ref:`simulate<saSimulate>` by
+     clicking the "Pause update" toggle (off by default).
+
+     Furthermore, this change has a numerical impact on the output of the :ref:`RK4 <geIntegrators>` integrator. Before
+     this change, due to the ``qacc_warmstart`` update occurring after each of the four Runge-Kutta substeps, the solver
+     convergence of RK4 was faster, at the cost of unprincipled integration. This change makes the RK4 integration
+     principled and well-defined. Since this change to RK4 is effectively a bug fix, migration to the previous behavior
+     is not provided.
+
 - Added support for shells with a curved reference configuration. See this `example
-   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/basket.xml>`__
+  <https://github.com/google-deepmind/mujoco/blob/main/model/flex/basket.xml>`__.
 
 MJX
 ^^^
@@ -21,7 +42,7 @@ MJX
 
 
 Version 3.3.5 (August 8, 2025)
------------------------------------
+------------------------------
 
 General
 ^^^^^^^

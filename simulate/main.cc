@@ -285,7 +285,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
 
 // simulate in background thread (while rendering in main thread)
 void PhysicsLoop(mj::Simulate& sim) {
-  // cpu-sim syncronization point
+  // cpu-sim synchronization point
   std::chrono::time_point<mj::Simulate::Clock> syncCPU;
   mjtNum syncSim = 0;
 
@@ -438,6 +438,9 @@ void PhysicsLoop(mj::Simulate& sim) {
         else {
           // run mj_forward, to update rendering and joint sliders
           mj_forward(m, d);
+          if (sim.pause_update) {
+            mju_copy(d->qacc_warmstart, d->qacc, m->nv);
+          }
           sim.speed_changed = true;
         }
       }

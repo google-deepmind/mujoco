@@ -1922,8 +1922,8 @@ void Simulate::Sync(bool state_only) {
     return;
   }
 
-  bool update_profiler = this->profiler && (this->pause_update || this->run);
-  bool update_sensor = this->sensor && (this->pause_update || this->run);
+  bool update_profiler = this->profiler;
+  bool update_sensor = this->sensor;
 
   for (int i = 0; i < m_->njnt; ++i) {
     std::optional<std::pair<mjtNum, mjtNum>> range;
