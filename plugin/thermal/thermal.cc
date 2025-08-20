@@ -64,8 +64,14 @@ void Thermal::RegisterPlugin()
   plugin.needstage = mjSTAGE_ACC;
 
   plugin.nstate = +[](const mjModel *m, int instance) {
-    return 1;
-  }; // We are keeping the state size as 1 to record the true temperature. And
+    int nstate = 0;
+    for(int i = 0; i < m->nsensor; i++) {
+      if (m->sensor_plugin[i] == instance) {
+        nstate++;
+      }
+    }
+    return nstate;
+  }; // We are allocating plugin_state array to record the true current temperature of the actuator. And
      // the sensor output as "observed temperature". In the future we can add a
      // sensor noise model to this.
   plugin.nsensordata = +[](const mjModel *m, int instance, int sensor_id) {
@@ -168,6 +174,8 @@ std::unique_ptr<Thermal> Thermal::Create(const mjModel *m, int instance)
         mju_warning("Ambient temperature below absolute zero");
         return nullptr;
     }
+
+
 
     return std::unique_ptr<Thermal>(new Thermal(config,  std::move(sensors)));
 }
