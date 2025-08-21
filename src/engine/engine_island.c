@@ -597,20 +597,6 @@ void mj_island(const mjModel* m, mjData* d) {
       mju_superSparse(d->island_nefc[island], d->iefc_J_rowsuper + adr,
                       d->iefc_J_rownnz + adr, d->iefc_J_rowadr + adr, d->iefc_J_colind);
     }
-
-    // block-diagonalize Jacobian-transpose
-    mju_blockDiagSparse(d->iefc_JT, d->iefc_JT_rownnz, d->iefc_JT_rowadr, d->iefc_JT_colind,
-                        d->efc_JT, d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
-                        nidof, nisland,
-                        d->map_idof2dof, d->map_efc2iefc,
-                        d->island_idofadr, d->island_iefcadr, NULL, NULL);
-
-    // recompute rowsuper per island
-    for (int island=0; island < nisland; island++) {
-      int adr = d->island_idofadr[island];
-      mju_superSparse(d->island_nv[island], d->iefc_JT_rowsuper + adr,
-                      d->iefc_JT_rownnz + adr, d->iefc_JT_rowadr + adr, d->iefc_JT_colind);
-    }
   }
 
   // copy position-dependent efc vectors required by solver

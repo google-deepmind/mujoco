@@ -467,27 +467,6 @@ TEST_F(IslandTest, IslandJacobian) {
               EXPECT_EQ(J_island[i * nv_island + j], J[efc * nv + dof]);
             }
           }
-
-          // === test JT (if sparse)
-
-          // get pointer to J_island, dense (nefc_island x nv_island) submatrix
-          if (jac == mjJAC_SPARSE) {
-            // dense copy of island in iJ (here used as scratch)
-            mju_sparse2dense(iJ, d->iefc_JT, nv_island, nefc_island,
-                             d->iefc_JT_rownnz + idof,
-                             d->iefc_JT_rowadr + idof,
-                             d->iefc_JT_colind);
-            J_island = iJ;
-
-            // sequential memory in J_island equals random access memory in J
-            for (int i=0; i < nv_island; i++) {
-              for (int j=0; j < nefc_island; j++) {
-                int dof = d->map_idof2dof[idof + i];
-                int efc = d->map_iefc2efc[iefc + j];
-                EXPECT_EQ(J_island[i * nefc_island + j], J[efc * nv + dof]);
-              }
-            }
-          }
         }
 
         mju_free(iJ);

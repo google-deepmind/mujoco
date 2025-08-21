@@ -5001,12 +5001,7 @@ public unsafe struct mjData_ {
   public int* efc_J_rowadr;
   public int* efc_J_rowsuper;
   public int* efc_J_colind;
-  public int* efc_JT_rownnz;
-  public int* efc_JT_rowadr;
-  public int* efc_JT_rowsuper;
-  public int* efc_JT_colind;
   public double* efc_J;
-  public double* efc_JT;
   public double* efc_pos;
   public double* efc_margin;
   public double* efc_frictionloss;
@@ -5043,12 +5038,7 @@ public unsafe struct mjData_ {
   public int* iefc_J_rowadr;
   public int* iefc_J_rowsuper;
   public int* iefc_J_colind;
-  public int* iefc_JT_rownnz;
-  public int* iefc_JT_rowadr;
-  public int* iefc_JT_rowsuper;
-  public int* iefc_JT_colind;
   public double* iefc_J;
-  public double* iefc_JT;
   public double* iefc_frictionloss;
   public double* iefc_D;
   public double* iefc_R;

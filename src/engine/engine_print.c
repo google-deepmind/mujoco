@@ -1236,8 +1236,6 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     printArrayInt("EFC_J_ROWADR", d->nefc, 1, d->efc_J_rowadr, fp);
     printSparse("EFC_J", d->efc_J, d->nefc, d->efc_J_rownnz,
                 d->efc_J_rowadr, d->efc_J_colind, fp, float_format);
-    mj_printSparsity("JT: constraint Jacobian transposed", m->nv, d->nefc, d->efc_JT_rowadr, NULL,
-                     d->efc_JT_rownnz, d->efc_JT_rowsuper, d->efc_JT_colind, fp);
     if (mj_isDual(m)) {
       printArrayInt("EFC_AR_ROWNNZ", d->nefc, 1, d->efc_AR_rownnz, fp);
       printArrayInt("EFC_AR_ROWADR", d->nefc, 1, d->efc_AR_rowadr, fp);

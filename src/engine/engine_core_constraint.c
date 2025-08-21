@@ -386,10 +386,10 @@ void mj_mulJacTVec(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum*
   }
 
   // sparse Jacobian
-  if (mj_isSparse(m))
-    mju_mulMatVecSparse(res, d->efc_JT, vec, m->nv,
-                        d->efc_JT_rownnz, d->efc_JT_rowadr,
-                        d->efc_JT_colind, d->efc_JT_rowsuper);
+  if (mj_isSparse(m)) {
+    mju_mulMatTVecSparse(res, d->efc_J, vec, d->nefc, m->nv,
+                        d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+  }
 
   // dense Jacobian
   else {
@@ -1996,12 +1996,6 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
 
   // transpose sparse Jacobian, make row supernodes
   if (mj_isSparse(m)) {
-    // transpose
-    mju_transposeSparse(d->efc_JT, d->efc_J, d->nefc, m->nv,
-                        d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind, d->efc_JT_rowsuper,
-                        d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
-
-
 #ifdef mjUSEAVX
     // compute supernodes of J; used by mju_mulMatVecSparse_avx
     mju_superSparse(d->nefc, d->efc_J_rowsuper,

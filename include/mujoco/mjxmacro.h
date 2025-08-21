@@ -729,12 +729,7 @@
     XNV( int,      efc_J_rowadr,      MJ_D(nefc),    1 ) \
     XNV( int,      efc_J_rowsuper,    MJ_D(nefc),    1 ) \
     XNV( int,      efc_J_colind,      MJ_D(nJ),      1 ) \
-    XNV( int,      efc_JT_rownnz,     MJ_M(nv),      1 ) \
-    XNV( int,      efc_JT_rowadr,     MJ_M(nv),      1 ) \
-    XNV( int,      efc_JT_rowsuper,   MJ_M(nv),      1 ) \
-    XNV( int,      efc_JT_colind,     MJ_D(nJ),      1 ) \
     XNV( mjtNum,   efc_J,             MJ_D(nJ),      1 ) \
-    XNV( mjtNum,   efc_JT,            MJ_D(nJ),      1 ) \
     X  ( mjtNum,   efc_pos,           MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_margin,        MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1 ) \
@@ -786,12 +781,7 @@
     XNV( int,     iefc_J_rowadr,     MJ_D(nefc),     1 ) \
     XNV( int,     iefc_J_rowsuper,   MJ_D(nefc),     1 ) \
     XNV( int,     iefc_J_colind,     MJ_D(nJ),       1 ) \
-    XNV( int,     iefc_JT_rownnz,    MJ_D(nidof),    1 ) \
-    XNV( int,     iefc_JT_rowadr,    MJ_D(nidof),    1 ) \
-    XNV( int,     iefc_JT_rowsuper,  MJ_D(nidof),    1 ) \
-    XNV( int,     iefc_JT_colind,    MJ_D(nJ),       1 ) \
     XNV( mjtNum,  iefc_J,            MJ_D(nJ),       1 ) \
-    XNV( mjtNum,  iefc_JT,           MJ_D(nJ),       1 ) \
     X  ( mjtNum,  iefc_frictionloss, MJ_D(nefc),     1 ) \
     X  ( mjtNum,  iefc_D,            MJ_D(nefc),     1 ) \
     X  ( mjtNum,  iefc_R,            MJ_D(nefc),     1 ) \

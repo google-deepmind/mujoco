@@ -5915,51 +5915,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nJ',),
              ),
              StructFieldDecl(
-                 name='efc_JT_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of non-zeros in constraint Jacobian row T',
-                 array_extent=('nv',),
-             ),
-             StructFieldDecl(
-                 name='efc_JT_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='row start address in colind array              T',
-                 array_extent=('nv',),
-             ),
-             StructFieldDecl(
-                 name='efc_JT_rowsuper',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of subsequent rows in supernode         T',
-                 array_extent=('nv',),
-             ),
-             StructFieldDecl(
-                 name='efc_JT_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices in constraint Jacobian          T',
-                 array_extent=('nJ',),
-             ),
-             StructFieldDecl(
                  name='efc_J',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='constraint Jacobian',
-                 array_extent=('nJ',),
-             ),
-             StructFieldDecl(
-                 name='efc_JT',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='constraint Jacobian transposed',
                  array_extent=('nJ',),
              ),
              StructFieldDecl(
@@ -6251,51 +6211,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nJ',),
              ),
              StructFieldDecl(
-                 name='iefc_JT_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of non-zeros in constraint Jacobian row T',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
-                 name='iefc_JT_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='row start address in colind array              T',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
-                 name='iefc_JT_rowsuper',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of subsequent rows in supernode         T',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
-                 name='iefc_JT_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices in constraint Jacobian          T',
-                 array_extent=('nJ',),
-             ),
-             StructFieldDecl(
                  name='iefc_J',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='constraint Jacobian',
-                 array_extent=('nJ',),
-             ),
-             StructFieldDecl(
-                 name='iefc_JT',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='constraint Jacobian transposed',
                  array_extent=('nJ',),
              ),
              StructFieldDecl(
