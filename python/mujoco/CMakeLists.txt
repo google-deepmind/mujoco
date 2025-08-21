@@ -454,7 +454,7 @@ mujoco_pybind11_module(_simulate simulate.cc)
 target_link_libraries(
   _simulate
   PRIVATE mujoco
-          mujoco::libsimulate
+          mujoco::libmujoco_simulate
           errors_header
           raw
           structs_header
