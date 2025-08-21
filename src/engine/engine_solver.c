@@ -773,6 +773,7 @@ struct _mjCGContext {
   int ne;                 // number of equalities
   int nf;                 // number of friction constraints
   int nefc;               // number of all constraints
+  int nJ;                 // number of nonzeros in Jacobian
 
   // contact array
   mjContact* contact;
@@ -806,12 +807,12 @@ struct _mjCGContext {
   const int* J_rowadr;
   const int* J_rowsuper;
   const int* J_colind;
-  const int* JT_rownnz;
-  const int* JT_rowadr;
-  const int* JT_rowsuper;
-  const int* JT_colind;
   const mjtNum* J;
-  const mjtNum* JT;
+  int* JT_rownnz;
+  int* JT_rowadr;
+  int* JT_rowsuper;
+  int* JT_colind;
+  mjtNum* JT;
 
   // common arrays (CGallocate)
   mjtNum* Jaref;          // Jac*qacc - aref                              (nefc x 1)
@@ -877,6 +878,7 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
     ctx->ne               = d->ne;
     ctx->nf               = d->nf;
     ctx->nefc             = d->nefc;
+    ctx->nJ               = d->nJ;
 
     // dof arrays
     ctx->qfrc_smooth      = d->qfrc_smooth;
@@ -909,11 +911,6 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
       ctx->J_rowadr       = d->efc_J_rowadr;
       ctx->J_rowsuper     = d->efc_J_rowsuper;
       ctx->J_colind       = d->efc_J_colind;
-      ctx->JT_rownnz      = d->efc_JT_rownnz;
-      ctx->JT_rowadr      = d->efc_JT_rowadr;
-      ctx->JT_rowsuper    = d->efc_JT_rowsuper;
-      ctx->JT_colind      = d->efc_JT_colind;
-      ctx->JT             = d->efc_JT;
     }
   }
 
@@ -959,12 +956,9 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
       ctx->J_rowadr       = d->iefc_J_rowadr     + iefcadr;
       ctx->J_rowsuper     = d->iefc_J_rowsuper   + iefcadr;
       ctx->J_colind       = d->iefc_J_colind;
-      ctx->JT_rownnz      = d->iefc_JT_rownnz    + idofadr;
-      ctx->JT_rowadr      = d->iefc_JT_rowadr    + idofadr;
-      ctx->JT_rowsuper    = d->iefc_JT_rowsuper  + idofadr;
-      ctx->JT_colind      = d->iefc_JT_colind;
       ctx->J              = d->iefc_J;
-      ctx->JT             = d->iefc_JT;
+      ctx->nJ             = ctx->J_rowadr[ctx->nefc-1] + ctx->J_rownnz[ctx->nefc-1]
+                            - ctx->J_rowadr[0];
     }
   }
 }
@@ -987,6 +981,19 @@ static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
   ctx->Mgrad  = mjSTACKALLOC(d, nv, mjtNum);
   ctx->search = mjSTACKALLOC(d, nv, mjtNum);
   ctx->quad   = mjSTACKALLOC(d, nefc*3, mjtNum);
+
+  // sparse only, compute Jacobian transpose
+  if (ctx->is_sparse) {
+    ctx->JT_rownnz   = mjSTACKALLOC(d, nv, int);
+    ctx->JT_rowadr   = mjSTACKALLOC(d, nv, int);
+    ctx->JT_rowsuper = mjSTACKALLOC(d, nv, int);
+    ctx->JT_colind   = mjSTACKALLOC(d, d->nJ, int);
+    ctx->JT          = mjSTACKALLOC(d, d->nJ, mjtNum);
+    int offset       = ctx->J_rowadr[0];
+    mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
+                        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
+                        ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
+  }
 
   // Newton only, known-size arrays
   if (flg_Newton) {
