@@ -62,9 +62,11 @@ class ValueType:
   name: str
   is_const: bool = False
   is_volatile: bool = False
+  nullable: bool = False
 
   def __init__(self, name: str, is_const: bool = False,
-               is_volatile: bool = False):
+               is_volatile: bool = False,
+               nullable: bool = False):
     is_valid_type_name = (
         name == 'void *(*)(void *)' or
         VALID_TYPE_NAME_PATTERN.fullmatch(name) or
@@ -74,6 +76,7 @@ class ValueType:
     self.name = name
     self.is_const = is_const
     self.is_volatile = is_volatile
+    self.nullable = nullable
 
   def decl(self, name_or_decl: Optional[str] = None) -> str:
     parts = []
@@ -96,9 +99,11 @@ class ArrayType:
 
   inner_type: Union[ValueType, 'PointerType']
   extents: Tuple[int, ...]
+  nullable: bool = False
 
-  def __init__(self, inner_type: Union[ValueType, 'PointerType'],
-               extents: Sequence[int]):
+  def __init__(
+      self, inner_type: Union[ValueType, 'PointerType'], extents: Sequence[int]
+  ):
     self.inner_type = inner_type
     self.extents = tuple(extents)
 
@@ -119,6 +124,7 @@ class PointerType:
   """Represents a C pointer type."""
 
   inner_type: Union[ValueType, ArrayType, 'PointerType']
+  nullable: bool = False
   is_const: bool = False
   is_volatile: bool = False
   is_restrict: bool = False
@@ -126,6 +132,8 @@ class PointerType:
   def decl(self, name_or_decl: Optional[str] = None) -> str:
     """Creates a string that declares an object of this type."""
     parts = ['*']
+    if self.nullable:
+      parts.append('nullable')
     if self.is_const:
       parts.append('const')
     if self.is_volatile:
@@ -155,6 +163,7 @@ class FunctionParameterDecl:
 
   name: str
   type: Union[ValueType, ArrayType, PointerType]
+  nullable: bool = False
 
   def __str__(self):
     return self.type.decl(self.name)

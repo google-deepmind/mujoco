@@ -174,6 +174,29 @@ class AstNodesTest(absltest.TestCase):
     self.assertEqual(str(union), 'union {int foo; float bar[3];}')
     self.assertEqual(union.decl('var'), 'union {int foo; float bar[3];} var')
 
+  def test_function_parameter_decl_nullable(self):
+    param_ptr_nullable = ast_nodes.FunctionParameterDecl(
+        name='ptr_param',
+        type=ast_nodes.PointerType(ast_nodes.ValueType('int')),
+        nullable=True
+    )
+    self.assertTrue(param_ptr_nullable.nullable)
+    self.assertEqual(str(param_ptr_nullable), 'int * ptr_param')
+
+    param_ptr_not_nullable = ast_nodes.FunctionParameterDecl(
+        name='ptr_param',
+        type=ast_nodes.PointerType(ast_nodes.ValueType('int')),
+    )
+    self.assertFalse(param_ptr_not_nullable.nullable)
+    self.assertEqual(str(param_ptr_not_nullable), 'int * ptr_param')
+
+    param_array_nullable = ast_nodes.FunctionParameterDecl(
+        name='array_param',
+        type=ast_nodes.ArrayType(ast_nodes.ValueType('float'), (10,)),
+        nullable=True
+    )
+    self.assertTrue(param_array_nullable.nullable)
+    self.assertEqual(str(param_array_nullable), 'float array_param[10]')
 
 if __name__ == '__main__':
   absltest.main()
