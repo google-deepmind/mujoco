@@ -242,7 +242,10 @@ the clause:
     else:
       _render.mjr_readPixels(out, None, self._rect, self._mjr_context)
 
-    out[:] = np.flipud(out)
+    if self._gl_context:
+      # If using EGL, OSMesa, or GLFW, the output image is flipped vertically.
+      # No flip is needed for Filament.
+      out[:] = np.flipud(out)
 
     return out
 
