@@ -52,6 +52,11 @@ MJAPI mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, 
 MJAPI int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz);
 MJAPI int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz);
 
+// Optional-prefix variant: parse XML and compile with a name prefix applied to MJCF elements.
+// Existing behavior is unchanged unless this function is used and prefix is non-empty.
+MJAPI mjModel* mj_loadXMLWithPrefix(const char* filename, const mjVFS* vfs,
+                                    const char* prefix, char* error, int error_sz);
+
 #ifdef __cplusplus
 }
 #endif

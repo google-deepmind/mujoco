@@ -4667,6 +4667,29 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   for (const auto& asset : textures_) asset->CopyFromSpec();
   CheckEmptyNames();
 
+  // apply optional instance prefix for MJCF if provided via model->prefix
+  // this namespaces names before duplicate checks and indexing
+  if (!prefix.empty()) {
+    if (!bodies_.empty() && bodies_[0]) {
+      bodies_[0]->NameSpace(this);
+    }
+    for (auto* obj : meshes_)    obj->NameSpace(this);
+    for (auto* obj : skins_)     obj->NameSpace(this);
+    for (auto* obj : hfields_)   obj->NameSpace(this);
+    for (auto* obj : textures_)  obj->NameSpace(this);
+    for (auto* obj : materials_) obj->NameSpace(this);
+    for (auto* obj : pairs_)     obj->NameSpace(this);
+    for (auto* obj : excludes_)  obj->NameSpace(this);
+    for (auto* obj : equalities_) obj->NameSpace(this);
+    for (auto* obj : tendons_)   obj->NameSpace(this);
+    for (auto* obj : actuators_) obj->NameSpace(this);
+    for (auto* obj : sensors_)   obj->NameSpace(this);
+    for (auto* obj : numerics_)  obj->NameSpace(this);
+    for (auto* obj : texts_)     obj->NameSpace(this);
+    for (auto* obj : tuples_)    obj->NameSpace(this);
+    for (auto* obj : plugins_)   obj->NameSpace(this);
+  }
+
   // create pending keyframes
   for (const auto& info : key_pending_) {
     mjCKey* key = AddKey();

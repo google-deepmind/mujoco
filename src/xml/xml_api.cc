@@ -34,6 +34,7 @@
 #include "xml/xml.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_util.h"
+#include "user/user_model.h"
 #if defined(mjUSEUSD)
 #include <mujoco/experimental/usd/usd.h>
 #include <pxr/usd/usd/stage.h>
@@ -109,6 +110,48 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
     });
   if (!spec) {
     return nullptr;
+  }
+
+  // compile new model
+  mjModel* m = mj_compile(spec.get(), vfs);
+  if (!m) {
+    mjCopyError(error, mjs_getError(spec.get()), error_sz);
+    return nullptr;
+  }
+
+  // handle compile warning
+  if (mjs_isWarning(spec.get())) {
+    mjCopyError(error, mjs_getError(spec.get()), error_sz);
+  } else if (error) {
+    error[0] = '\0';
+  }
+
+  // clear old and assign new
+  GetGlobalModel().Set(spec.release());
+  return m;
+}
+
+// parse XML file and compile with an optional name prefix (MJCF only). If prefix
+// is null or empty, behaves like mj_loadXML. This function preserves existing
+// behavior for callers of mj_loadXML.
+mjModel* mj_loadXMLWithPrefix(const char* filename, const mjVFS* vfs,
+                              const char* prefix, char* error, int error_sz) {
+
+  // parse new model (MJCF or URDF)
+  std::unique_ptr<mjSpec, std::function<void(mjSpec*)> > spec(
+    ParseXML(filename, vfs, error, error_sz),
+    [](mjSpec* s) {
+      mj_deleteSpec(s);
+    });
+  if (!spec) {
+    return nullptr;
+  }
+
+  // if a non-empty prefix is provided, set it on the owning mjCModel
+  if (prefix && prefix[0]) {
+    // spec->element is created by the parser as an mjCModel
+    auto* modelC = static_cast<mjCModel*>(spec->element);
+    modelC->prefix = prefix;
   }
 
   // compile new model
