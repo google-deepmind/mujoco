@@ -45,8 +45,8 @@ void Thermal::RegisterPlugin()
 {
   mjpPlugin plugin;
   mjp_defaultPlugin(&plugin);
-  plugin.name = "mujoco.thermal";
-  plugin.capabilityflags |= mjPLUGIN_ACTUATOR;
+  plugin.name = "mujoco.sensor.thermal";
+  plugin.capabilityflags |= mjPLUGIN_SENSOR;
   plugin.needstage = mjSTAGE_ACC;
 
 
@@ -181,13 +181,12 @@ std::unique_ptr<Thermal> Thermal::Create(const mjModel *m, mjData* d, int instan
       d->plugin_state[m->plugin_stateadr[instance] + i] = ambient_temp;
     }
 
-
     return std::unique_ptr<Thermal>(new Thermal(config,  std::move(sensors)));
 }
 
 void Thermal::Reset(const mjModel* m, mjtNum* plugin_state, int instance) {
     int ambient_temp_id = mj_name2id(m, mjOBJ_NUMERIC, Thermal::kAmbientTemperature);
-  double ambient_temp = m->numeric_data[m->numeric_adr[ambient_temp_id]];
+    double ambient_temp = m->numeric_data[m->numeric_adr[ambient_temp_id]];
 
     for(int i = 0; i < m->plugin_statenum[instance]; i++) {
       // Initialize the plugin state to the ambient temperature.
@@ -203,14 +202,14 @@ void Thermal::Compute(const mjModel* m, mjData* d, int instance)
     for(int i = 0 ; i < _sensors.size(); i++){
         double current_temp = d->plugin_state[m->plugin_stateadr[instance] + i];
         double Kt = _model.torque_constant_25 + ((_model.torque_constant_130 - _model.torque_constant_25) / (403.15 - 298.15)) * ( current_temp- 298.15);
-        double current = d->actuator_force[m->sensor_objid[_sensors[i]]] / Kt * _model.gear_ratio;
+        double current = d->actuator_force[m->sensor_objid[_sensors[i]]] / (Kt * _model.gear_ratio);
         double resistance = _model.electrical_nominal_resistance * (1 + _model.temperature_coefficient_of_resistance * (current_temp - 298.15));
         double power_in = current * current * resistance;
         double thermal_resistance = _model.thermal_resistance;
         double thermal_capacitance = _model.thermal_capacitance;
         double power_out = (current_temp - ambient_temp) / thermal_resistance;
         double dTdt = (power_in - power_out) / thermal_capacitance;
-        current_temp += dTdt * m->opt.timestep; // Update the temperature based on
+        current_temp += dTdt * m->opt.timestep;
         d->plugin_state[m->plugin_stateadr[instance] + i] = current_temp;
         d->sensordata[m->sensor_adr[_sensors[i]]] = current_temp;
     }

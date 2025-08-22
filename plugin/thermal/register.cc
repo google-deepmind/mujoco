@@ -21,4 +21,4 @@ mjPLUGIN_LIB_INIT {
   Thermal::RegisterPlugin();
 }
 
-}  // namespace mujoco::plugin::sensor
+}  // namespace mujoco::plugin::thermal
