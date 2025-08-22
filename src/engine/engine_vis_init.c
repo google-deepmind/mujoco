@@ -463,7 +463,7 @@ float mjv_rbound(const mjvGeom* geom) {
 
   // compute rbound according to type
   const float* s = geom->size;
-  switch ((mjtMouse) geom->type) {
+  switch ((mjtGeom) geom->type) {
   case mjGEOM_SPHERE:
     return s[0];
 
