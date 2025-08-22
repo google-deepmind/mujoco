@@ -3365,7 +3365,12 @@ void mjCGeom::ComputeAABB(void) {
   mjuu_copyvec(aabb+3, size, 3);
 }
 
-
+const std::string& mjCGeom::get_material() const {
+  if (mesh && spec_material_.empty()) {
+    return mesh->Material();
+  }
+  return spec_material_;
+}
 
 // compiler
 void mjCGeom::Compile(void) {

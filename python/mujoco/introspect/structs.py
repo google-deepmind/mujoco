@@ -9354,6 +9354,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='sdf plugin',
              ),
              StructFieldDecl(
+                 name='material',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='name of material',
+             ),
+             StructFieldDecl(
                  name='info',
                  type=PointerType(
                      inner_type=ValueType(name='mjString'),

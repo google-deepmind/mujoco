@@ -1379,5 +1379,28 @@ TEST_F(MjCMeshTest, SphereSizes) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, MeshMaterial) {
+  static constexpr char xml[] = R"(
+  <mujoco model="mesh_material">
+    <asset>
+      <mesh name="h0" builtin="sphere" params="0" material="m1"/>
+      <material name="m0" rgba="1 0 0 1"/>
+      <material name="m1" rgba="1 1 0 1"/>
+    </asset>
+
+    <worldbody>
+      <geom name="g0" type="mesh" mesh="h0"/>
+      <geom name="g1" type="mesh" mesh="h0" material="m0"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->geom_matid[0], 1);
+  EXPECT_EQ(model->geom_matid[1], 0);
+  mj_deleteModel(model);
+}
+
 }  // namespace
 }  // namespace mujoco

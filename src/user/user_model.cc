@@ -1879,27 +1879,29 @@ void mjCModel::IndexAssets(bool discard) {
   for (int i=0; i < geoms_.size(); i++) {
     mjCGeom* geom = geoms_[i];
 
-    // find material by name
+
+    // find mesh by name
+    if (!geom->get_meshname().empty()) {
+      mjCMesh* mesh = static_cast<mjCMesh*>(FindObject(mjOBJ_MESH, geom->get_meshname()));
+      if (mesh) {
+        if (!geom->visual_) {
+          mesh->SetNotVisual();  // reset to true by mesh->Compile()
+        }
+        geom->mesh = (discard && geom->visual_) ? nullptr : mesh;
+        mesh->spec.needsdf |= geom->spec.type == mjGEOM_SDF;
+      } else {
+        throw mjCError(geom, "mesh '%s' not found in geom %d", geom->get_meshname().c_str(), i);
+      }
+    }
+
+    // find material by name, this has to happen after mesh assignment so that if
+    // the geom does not specify a material but the mesh does it can fall back.
     if (!geom->get_material().empty()) {
       mjCBase* material = FindObject(mjOBJ_MATERIAL, geom->get_material());
       if (material) {
         geom->matid = material->id;
       } else {
         throw mjCError(geom, "material '%s' not found in geom %d", geom->get_material().c_str(), i);
-      }
-    }
-
-    // find mesh by name
-    if (!geom->get_meshname().empty()) {
-      mjCBase* mesh = FindObject(mjOBJ_MESH, geom->get_meshname());
-      if (mesh) {
-        if (!geom->visual_) {
-          ((mjCMesh*)mesh)->SetNotVisual();  // reset to true by mesh->Compile()
-        }
-        geom->mesh = (discard && geom->visual_) ? nullptr : (mjCMesh*)mesh;
-        static_cast<mjCMesh*>(mesh)->spec.needsdf |= geom->spec.type == mjGEOM_SDF;
-      } else {
-        throw mjCError(geom, "mesh '%s' not found in geom %d", geom->get_meshname().c_str(), i);
       }
     }
 
