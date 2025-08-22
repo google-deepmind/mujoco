@@ -592,14 +592,12 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='solimp',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
-                 nullable=True,
              ),
          ),
          doc='Set solver parameters to default values.',
@@ -644,7 +642,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjModel'),
                  ),
-                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='src',
