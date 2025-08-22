@@ -230,9 +230,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"asset", "*", "0"},
     {"<"},
-        {"mesh", "*", "16", "name", "class", "content_type", "file", "vertex", "normal",
+        {"mesh", "*", "17", "name", "class", "content_type", "file", "vertex", "normal",
             "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal",
-            "maxhullvert", "inertia", "builtin", "params"},
+            "maxhullvert", "inertia", "builtin", "params", "material"},
         {"<"},
           {"plugin", "*", "2", "plugin", "instance"},
           {"<"},
@@ -1567,6 +1567,11 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
     if (mjs_makeMesh(mesh, (mjtMeshBuiltin)n, params.data(), nparams)) {
       throw mjXError(elem, mjs_getError(spec));
     }
+  }
+
+  std::string material;
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjs_setString(mesh->material, material.c_str());
   }
 
   // write error info

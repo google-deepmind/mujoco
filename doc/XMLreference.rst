@@ -1424,6 +1424,11 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    The parameters used to generate a builtin mesh. The number and type of parameters and their semantic depends on the
    mesh type. See :ref:`mesh/builtin<asset-mesh-builtin>` for details.
 
+.. _asset-mesh-material:
+
+:at:`material`: :at-val:`string, optional`
+   Fallback material for mesh geoms that do not specify their own material.
+
 .. _mesh-plugin:
 
 :el-prefix:`mesh/` |-| **plugin** (?)
@@ -2553,13 +2558,15 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-material:
 
 :at:`material`: :at-val:`string, optional`
-   If specified, this attribute applies a material to the geom. The material determines the visual properties of the
-   geom. The only exception is color: if the rgba attribute below is different from its internal default, it takes
-   precedence while the remaining material properties are still applied. Note that if the same material is referenced
-   from multiple geoms (as well as sites and tendons) and the user changes some of its properties at runtime, these
-   changes will take effect immediately for all model elements referencing the material. This is because the compiler
-   saves the material and its properties as a separate element in mjModel, and the elements using this material only
-   keep a reference to it.
+   If specified, this attribute applies a material to the geom. Otherwise, if unspecified and the type of the geom is
+   a **mesh** the compiler will apply the mesh asset :ref:`material <asset-mesh-material>` if present.
+
+   The material determines the visual properties of the geom. The only exception is color: if the rgba attribute below
+   is different from its internal default, it takes precedence while the remaining material properties are still
+   applied. Note that if the same material is referenced from multiple geoms (as well as sites and tendons) and the user
+   changes some of its properties at runtime, these changes will take effect immediately for all model elements
+   referencing the material. This is because the compiler saves the material and its properties as a separate element in
+   mjModel, and the elements using this material only keep a reference to it.
 
 .. _body-geom-rgba:
 

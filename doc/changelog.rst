@@ -31,6 +31,9 @@ General
 - Added support for shells with a curved reference configuration. See this `example
   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/basket.xml>`__.
 
+- Added support for assigning a default material to a mesh asset using the :ref:`mesh/material <asset-mesh-material>`
+  attribute.
+
 MJX
 ^^^
 - Promote ``ten_length`` to the public MJX API. Add Warp support for ``mjx.tendon``.

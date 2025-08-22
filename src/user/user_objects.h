@@ -49,9 +49,9 @@ class mjCSite;
 class mjCCamera;
 class mjCLight;
 class mjCHField;
-class mjCFlex;         // defined in user_mesh.h
-class mjCMesh;         // defined in user_mesh.h
-class mjCSkin;         // defined in user_mesh.h
+class mjCFlex;
+class mjCMesh;
+class mjCSkin;
 class mjCTexture;
 class mjCMaterial;
 class mjCPair;
@@ -753,7 +753,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   const std::vector<double>& get_userdata() const { return userdata_; }
   const std::string& get_hfieldname() const { return spec_hfieldname_; }
   const std::string& get_meshname() const { return spec_meshname_; }
-  const std::string& get_material() const { return spec_material_; }
+  const std::string& get_material() const;
   void del_material() { spec_material_.clear(); }
 
  private:
@@ -1029,6 +1029,7 @@ class mjCMesh_ : public mjCBase {
   std::vector<int> face_;                        // vertex indices
   std::vector<int> facenormal_;                  // normal indices
   std::vector<int> facetexcoord_;                // texcoord indices
+  std::string material_;                         // mesh fallback material
 
   std::string spec_content_type_;
   std::string spec_file_;
@@ -1038,6 +1039,7 @@ class mjCMesh_ : public mjCBase {
   std::vector<int> spec_face_;
   std::vector<int> spec_facenormal_;
   std::vector<int> spec_facetexcoord_;
+  std::string spec_material_;
 
   // used by the compiler
   bool needreorient_;                            // needs reorientation
@@ -1117,6 +1119,8 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const std::vector<int>& Face() const { return face_; }
   const std::vector<int>& UserFace() const { return spec_face_; }
   mjtMeshInertia Inertia() const { return spec.inertia; }
+  const std::string& Material() const { return material_; }
+
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
 
