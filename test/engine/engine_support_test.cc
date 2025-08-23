@@ -743,24 +743,24 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
 
 using InertiaTest = MujocoTest;
 
-TEST_F(InertiaTest, DenseSameAsSparse) {
-  mjModel* m = LoadModelFromPath("humanoid/humanoid100.xml");
-  mjData* d = mj_makeData(m);
+static const char* const kInertiaPath = "engine/testdata/inertia.xml";
+
+TEST_F(InertiaTest, AddMdenseSameAsSparse) {
+  const std::string xml_path = GetTestDataFilePath(kInertiaPath);
+  char error[1024];
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << "Failed to load model: " << error;
   int nv = m->nv;
 
-  // force use of sparse matrices
-  m->opt.jacobian = mjJAC_SPARSE;
+  mjData* d = mj_makeData(m);
 
-  // warm-up rollout to get a typical state
-  while (d->time < 2) {
-    mj_step(m, d);
-  }
+  mj_step(m, d);
 
-  // dense zero matrix
-  vector<mjtNum> dst_sparse(nv * nv, 0.0);
+  // dense matrix, all values are 3.0
+  vector<mjtNum> dst_dense(nv * nv, 3.0);
 
-  // sparse zero matrix
-  vector<mjtNum> dst_dense(nv * nv, 0.0);
+  // sparse matrix, all values are 3.0
+  vector<mjtNum> dst_sparse(nv * nv, 3.0);
   vector<int> rownnz(nv, nv);
   vector<int> rowadr(nv, 0);
   vector<int> colind(nv * nv, 0);
@@ -780,9 +780,9 @@ TEST_F(InertiaTest, DenseSameAsSparse) {
   // dense addM
   mj_addM(m, d, dst_dense.data(), nullptr, nullptr, nullptr);
 
-  // dense comparison, lower triangle should match
+  // dense comparison (lower triangle)
   for (int i=0; i < nv; i++) {
-    for (int j=0; j < i; j++) {
+    for (int j=0; j < nv; j++) {
       EXPECT_EQ(dst_dense[i*nv+j], dst_sparse[i*nv+j]);
     }
   }
@@ -791,8 +791,6 @@ TEST_F(InertiaTest, DenseSameAsSparse) {
   mj_deleteData(d);
   mj_deleteModel(m);
 }
-
-static const char* const kInertiaPath = "engine/testdata/inertia.xml";
 
 TEST_F(InertiaTest, mulM) {
   const std::string xml_path = GetTestDataFilePath(kInertiaPath);

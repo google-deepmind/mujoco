@@ -1038,7 +1038,7 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
 
   // dense
   else {
-    mju_addToSymSparse(dst, d->M, nv, m->M_rownnz, m->M_rowadr, m->M_colind, /*flg_upper=*/ 1);
+    mju_addToSymSparse(dst, d->M, nv, m->M_rownnz, m->M_rowadr, m->M_colind, /*flg_upper*/ 0);
   }
 }
 

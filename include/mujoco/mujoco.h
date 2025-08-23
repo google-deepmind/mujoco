@@ -512,7 +512,7 @@ MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum*
 // Multiply vector by (inertia matrix)^(1/2).
 MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
-// Add inertia matrix to destination matrix.
+// Add inertia matrix to destination matrix (lower triangle only).
 // Destination can be sparse or dense when all int* are NULL.
 // Nullable: rownnz, rowadr, colind
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst, int* rownnz, int* rowadr, int* colind);
