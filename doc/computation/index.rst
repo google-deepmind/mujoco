@@ -151,68 +151,68 @@ mathematical notation.
      - Size
      - Description
      - MuJoCo field
-   * - :math:`n_Q`
+   * - :math:`\nq`
      -
      - number of position coordinates
      - ``mjModel.nq``
-   * - :math:`n_V`
+   * - :math:`\nv`
      -
      - number of degrees of freedom
      - ``mjModel.nv``
-   * - :math:`n_C`
+   * - :math:`\nc`
      -
      - number of active constraints
      - ``mjData.nefc``
    * - :math:`q`
-     - :math:`n_Q`
+     - :math:`\nq`
      - joint position
      - ``mjData.qpos``
    * - :math:`v`
-     - :math:`n_V`
+     - :math:`\nv`
      - joint velocity
      - ``mjData.qvel``
    * - :math:`\tau`
-     - :math:`n_V`
+     - :math:`\nv`
      - applied force: passive, actuation, external
      - ``mjData.qfrc_passive`` + ``mjData.qfrc_actuator`` + ``mjData.qfrc_applied``
    * - :math:`c(q, v)`
-     - :math:`n_V`
+     - :math:`\nv`
      - bias force: Coriolis, centrifugal, gravitational
      - ``mjData.qfrc_bias``
    * - :math:`M(q)`
-     - :math:`n_V \times n_V`
+     - :math:`\nv \times \nv`
      - inertia in joint space
      - ``mjData.qM``
    * - :math:`J(q)`
-     - :math:`n_C \times n_V`
+     - :math:`\nq \times \nv`
      - constraint
        Jacobian
      - ``mjData.efc_J``
    * - :math:`r(q)`
-     - :math:`n_C`
+     - :math:`\nq`
      - constraint residual
      - ``mjData.efc_pos``
    * - :math:`f(q, v,\tau)`
-     - :math:`n_C`
+     - :math:`\nq`
      - constraint force
      - ``mjData.efc_force``
 
 All model elements are enumerated at compile time and assembled into the above system-level vectors and matrices. In our
-earlier arm model :ref:`example <Examples>` the model has :math:`n_V = 13` degrees of freedom: 3 for the ball joint, one
+earlier arm model :ref:`example <Examples>` the model has :math:`\nv = 13` degrees of freedom: 3 for the ball joint, one
 for each of the 4 hinge joints, and 6 for the free-floating object. They appear in the same order in all system-level
-vectors and matrices whose dimensionality is :math:`n_V`. The data corresponding to a given model element can be
+vectors and matrices whose dimensionality is :math:`\nv`. The data corresponding to a given model element can be
 recovered via indexing operations as illustrated in the :ref:`Clarifications` section in the Overview chapter. Vectors
-and matrices with dimensionality :math:`n_C` are somewhat different because the active :ref:`constraints <Constraint>`
+and matrices with dimensionality :math:`\nq` are somewhat different because the active :ref:`constraints <Constraint>`
 change at runtime. In that case there is still a fixed enumeration order (corresponding to the order in which the model
 elements appear in ``mjModel``) but any inactive constraints are omitted.
 
-The number of position coordinates :math:`n_Q` is larger than the number of degrees of freedom :math:`n_V` whenever
+The number of position coordinates :math:`\nq` is larger than the number of degrees of freedom :math:`\nv` whenever
 quaternions are used to represent 3D orientations. This occurs when the model contains ball joints or free joints (i.e.,
 in most models). In that case :math:`\dot{q}` does not equal :math:`v`, at least not in the usual sense. Instead one has
 to consider the group of rigid body orientations :math:`SO(3)` - which has the geometry of a unit sphere in 4D space.
 Velocities live in the 3D tangent space to this sphere. This is taken into account by all internal computations. For
 custom computations, MuJoCo provides the function :ref:`mj_differentiatePos` which "subtracts" two position vectors with
-dimensionality :math:`n_Q` and returns a velocity vector with dimensionality :math:`n_V`. A number of quaternion-related
+dimensionality :math:`\nq` and returns a velocity vector with dimensionality :math:`\nv`. A number of quaternion-related
 utility functions are also provided.
 
 MuJoCo computes both forward and inverse dynamics in continuous time. Forward dynamics are then integrated over the
@@ -279,7 +279,7 @@ Transmission
 ^^^^^^^^^^^^
 
 Each actuator has a scalar length :math:`l_i(q)` defined by the type of transmission and its parameters. The gradient
-:math:`\nabla l_i` is an :math:`n_V`-dimensional vector of moment arms. It determines the mapping from scalar
+:math:`\nabla l_i` is an :math:`\nv`-dimensional vector of moment arms. It determines the mapping from scalar
 actuator force to joint force. The transmission properties are determined by the MuJoCo object to which the actuator
 is attached; the possible attachment object types are :at:`joint`, :at:`tendon`, :at:`jointinparent`,
 :at:`slider-crank`, :at:`site`, and :at:`body`.
@@ -727,8 +727,8 @@ Constraint model
 
 MuJoCo has a very flexible constraint model, which is nevertheless handled in a uniform way by the
 :ref:`solver <Solver>` described later. Here we explain what the individual constraints are conceptually, and how they
-are laid out in the system-level vector and matrices with dimensionality :math:`n_C`. Each conceptual constraint can
-contribute one or more scalar constraints towards the total count :math:`n_C`, and each scalar constraint has a
+are laid out in the system-level vector and matrices with dimensionality :math:`\nq`. Each conceptual constraint can
+contribute one or more scalar constraints towards the total count :math:`\nq`, and each scalar constraint has a
 corresponding row in the constraint Jacobian :math:`J`. Active constraints are ordered by type in the order in which the
 types are described below, and then by model element within each type. The types are: equality, friction loss, limit,
 contact. Limits are handled as frictionless contacts by the solver and are not treated as a separate type internally. We
@@ -742,10 +742,10 @@ Equality
 MuJoCo can model equality constraints in the general form :math:`r(q) = 0` where :math:`r` can be any differentiable
 scalar or vector function of the position vector :math:`q`. It has the semantics of a residual. The solver can actually
 work with non-holonomic constraints as well, but we do not yet have such constraint types defined. Each equality
-constraint contributes :math:`\dim(r)` elements to the total constraint count :math:`n_C`. The corresponding block in
+constraint contributes :math:`\dim(r)` elements to the total constraint count :math:`\nq`. The corresponding block in
 :math:`J` is simply the Jacobian of the residual, namely :math:`\partial r / \partial q`. Note that due to the
-properties of quaternions, differentiation with respect to :math:`q` produces vectors of size :math:`n_V` rather than
-:math:`n_Q`.
+properties of quaternions, differentiation with respect to :math:`q` produces vectors of size :math:`\nv` rather than
+:math:`\nq`.
 
 Among other applications, equality constraints can be used to create "loop joints", i.e., joints that cannot be modeled
 via the kinematic tree. Gaming engines represent all joints in this way. The same can be done in MuJoCo but is not
@@ -999,7 +999,7 @@ vectors correspond to the edges of a pyramid. Each vector combines a normal forc
 force or a frictional torque component. The scaling by the friction coefficients ensures that all basis vectors lie
 within the elliptic friction cone we are approximating. The same holds for any convex combination of these vectors.
 
-Finally we specify how the contact Jacobian is computed. First we construct the :math:`6`-by-:math:`n_V` matrix
+Finally we specify how the contact Jacobian is computed. First we construct the :math:`6`-by-:math:`\nv` matrix
 :math:`S` which maps joint velocities :math:`v` to spatial velocities :math:`S v` expressed in the contact frame. This
 is done by considering the contact point as belonging to one or the other geom, computing its spatial Jacobian, and
 subtracting these two Jacobians to obtain :math:`S`. The convention we use is that the contact force acts from the first
@@ -1046,34 +1046,34 @@ We will use the following notation beyond the notation introduced earlier:
      - Size
      - Description
    * - :math:`z`
-     - :math:`n_C`
+     - :math:`\nq`
      - constraint deformations
    * - :math:`\omega`
-     - :math:`n_C`
+     - :math:`\nq`
      - velocity of constraint deformations
    * - :math:`k`
-     - :math:`n_C`
+     - :math:`\nq`
      - virtual constraint stiffness
    * - :math:`b`
-     - :math:`n_C`
+     - :math:`\nq`
      - virtual constraint damping
    * - :math:`d`
-     - :math:`n_C`
+     - :math:`\nq`
      - constraint impedance
    * - :math:`A(q)`
-     - :math:`n_C \times n_C`
+     - :math:`\nq \times \nq`
      - inverse inertia in constraint space
    * - :math:`R(q)`
-     - :math:`n_C \times n_C`
+     - :math:`\nq \times \nq`
      - diagonal regularizer in constraint space
    * - :math:`\ar`
-     - :math:`n_C`
+     - :math:`\nq`
      - reference acceleration in constraint space
    * - :math:`\au(q, v, \tau)`
-     - :math:`n_C`
+     - :math:`\nq`
      - unconstrained acceleration in constraint space
    * - :math:`\ac(q, v, \dot{v})`
-     - :math:`n_C`
+     - :math:`\nq`
      - constrained acceleration in constraint space
    * - :math:`\mathcal{K}(q)`
      -
@@ -1395,7 +1395,7 @@ Thus the constrained acceleration interpolates between the unconstrained and the
 in the limit :math:`R \to 0` we have a hard constraint and :math:`\ac = \ar`, while in the limit :math:`R \to \infty` we
 have have an infinitely soft constraint (i.e., no constraint) and :math:`\ac = \au`. It is then natural to introduce a
 model parameter which directly controls the interpolation. We call this parameter *impedance* and denote it :math:`d`.
-It is a vector with dimensionality :math:`n_C` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
+It is a vector with dimensionality :math:`\nq` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
 the diagonal elements of the regularizer as
 
 .. math::

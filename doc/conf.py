@@ -206,6 +206,9 @@ latex_macros = r"""
     \def \ari            {a_{{\rm ref},i}}
     \def \aui            {a_{0,i}}
     \def \aci            {a_{1,i}}
+    \def \nv             {n_{\scriptscriptstyle V}}
+    \def \nc             {n_{\scriptscriptstyle C}}
+    \def \nq             {n_{\scriptscriptstyle Q}}
 """
 
 # Translate LaTeX macros to KaTeX and add to options for HTML builder
