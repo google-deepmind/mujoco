@@ -387,20 +387,17 @@
     X   ( float,   flex_texcoord,         nflextexcoord, 2                    ) \
     X   ( int,     mesh_vertadr,          nmesh,         1                    ) \
     X   ( int,     mesh_vertnum,          nmesh,         1                    ) \
-    X   ( int,     mesh_normaladr,        nmesh,         1                    ) \
-    X   ( int,     mesh_normalnum,        nmesh,         1                    ) \
-    X   ( int,     mesh_texcoordadr,      nmesh,         1                    ) \
-    X   ( int,     mesh_texcoordnum,      nmesh,         1                    ) \
     X   ( int,     mesh_faceadr,          nmesh,         1                    ) \
     X   ( int,     mesh_facenum,          nmesh,         1                    ) \
     X   ( int,     mesh_bvhadr,           nmesh,         1                    ) \
     X   ( int,     mesh_bvhnum,           nmesh,         1                    ) \
     X   ( int,     mesh_octadr,           nmesh,         1                    ) \
     X   ( int,     mesh_octnum,           nmesh,         1                    ) \
+    X   ( int,     mesh_normaladr,        nmesh,         1                    ) \
+    X   ( int,     mesh_normalnum,        nmesh,         1                    ) \
+    X   ( int,     mesh_texcoordadr,      nmesh,         1                    ) \
+    X   ( int,     mesh_texcoordnum,      nmesh,         1                    ) \
     X   ( int,     mesh_graphadr,         nmesh,         1                    ) \
-    X   ( mjtNum,  mesh_scale,            nmesh,         3                    ) \
-    X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
-    X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
     XNV ( float,   mesh_vert,             nmeshvert,     3                    ) \
     XNV ( float,   mesh_normal,           nmeshnormal,   3                    ) \
     XNV ( float,   mesh_texcoord,         nmeshtexcoord, 2                    ) \
@@ -408,6 +405,9 @@
     XNV ( int,     mesh_facenormal,       nmeshface,     3                    ) \
     XNV ( int,     mesh_facetexcoord,     nmeshface,     3                    ) \
     XNV ( int,     mesh_graph,            nmeshgraph,    1                    ) \
+    X   ( mjtNum,  mesh_scale,            nmesh,         3                    ) \
+    X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
+    X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
     X   ( int,     mesh_pathadr,          nmesh,         1                    ) \
     XNV ( int,     mesh_polynum,          nmesh,         1                    ) \
     XNV ( int,     mesh_polyadr,          nmesh,         1                    ) \
@@ -670,8 +670,8 @@
     X   ( int,       ten_J_rownnz,      ntendon,     1           ) \
     X   ( int,       ten_J_rowadr,      ntendon,     1           ) \
     X   ( int,       ten_J_colind,      ntendon,     MJ_M(nv)    ) \
-    X   ( mjtNum,    ten_length,        ntendon,     1           ) \
     X   ( mjtNum,    ten_J,             ntendon,     MJ_M(nv)    ) \
+    X   ( mjtNum,    ten_length,        ntendon,     1           ) \
     X   ( int,       wrap_obj,          nwrap,       2           ) \
     X   ( mjtNum,    wrap_xpos,         nwrap,       6           ) \
     X   ( mjtNum,    actuator_length,   nu,          1           ) \
@@ -741,8 +741,8 @@
     X  ( mjtNum,   efc_vel,           MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_aref,          MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_b,             MJ_D(nefc),    1 ) \
-    X  ( mjtNum,   efc_force,         MJ_D(nefc),    1 ) \
-    X  ( int,      efc_state,         MJ_D(nefc),    1 )
+    X  ( int,      efc_state,         MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_force,         MJ_D(nefc),    1 )
 
 // array fields of mjData that are used in the dual problem
 #define MJDATA_ARENA_POINTERS_DUAL                       \
@@ -826,12 +826,12 @@
 // vector fields of mjData
 #define MJDATA_VECTOR                                                \
     X( size_t,         maxuse_threadstack, mjMAXTHREAD,  1         ) \
-    X( mjWarningStat,  warning,            mjNWARNING,   1         ) \
-    X( mjTimerStat,    timer,              mjNTIMER,     1         ) \
     X( mjSolverStat,   solver,             mjNISLAND,    mjNSOLVER ) \
     X( int,            solver_niter,       mjNISLAND,    1         ) \
     X( int,            solver_nnz,         mjNISLAND,    1         ) \
     X( mjtNum,         solver_fwdinv,      2,            1         ) \
+    X( mjWarningStat,  warning,            mjNWARNING,   1         ) \
+    X( mjTimerStat,    timer,              mjNTIMER,     1         ) \
     X( mjtNum,         energy,             2,            1         )
 
 // alias XNV to be the same as X
