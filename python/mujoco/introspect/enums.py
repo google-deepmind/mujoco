@@ -327,18 +327,6 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjCNSTR_CONTACT_ELLIPTIC', 7),
          ]),
      )),
-    ('mjtConstraintState',
-     EnumDecl(
-         name='mjtConstraintState',
-         declname='enum mjtConstraintState_',
-         values=dict([
-             ('mjCNSTRSTATE_SATISFIED', 0),
-             ('mjCNSTRSTATE_QUADRATIC', 1),
-             ('mjCNSTRSTATE_LINEARNEG', 2),
-             ('mjCNSTRSTATE_LINEARPOS', 3),
-             ('mjCNSTRSTATE_CONE', 4),
-         ]),
-     )),
     ('mjtSensor',
      EnumDecl(
          name='mjtSensor',
@@ -511,6 +499,18 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjSTATE_FULLPHYSICS', 4111),
              ('mjSTATE_USER', 4064),
              ('mjSTATE_INTEGRATION', 8191),
+         ]),
+     )),
+    ('mjtConstraintState',
+     EnumDecl(
+         name='mjtConstraintState',
+         declname='enum mjtConstraintState_',
+         values=dict([
+             ('mjCNSTRSTATE_SATISFIED', 0),
+             ('mjCNSTRSTATE_QUADRATIC', 1),
+             ('mjCNSTRSTATE_LINEARNEG', 2),
+             ('mjCNSTRSTATE_LINEARPOS', 3),
+             ('mjCNSTRSTATE_CONE', 4),
          ]),
      )),
     ('mjtWarning',

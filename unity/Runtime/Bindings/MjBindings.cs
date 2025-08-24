@@ -115,6 +115,13 @@ public const int mjVERSION_HEADER = 336;
 
 
 // ------------------------------------Enums------------------------------------
+public enum mjtConstraintState : int{
+  mjCNSTRSTATE_SATISFIED = 0,
+  mjCNSTRSTATE_QUADRATIC = 1,
+  mjCNSTRSTATE_LINEARNEG = 2,
+  mjCNSTRSTATE_LINEARPOS = 3,
+  mjCNSTRSTATE_CONE = 4,
+}
 public enum mjtWarning : int{
   mjWARN_INERTIA = 0,
   mjWARN_CONTACTFULL = 1,
@@ -343,13 +350,6 @@ public enum mjtConstraint : int{
   mjCNSTR_CONTACT_FRICTIONLESS = 5,
   mjCNSTR_CONTACT_PYRAMIDAL = 6,
   mjCNSTR_CONTACT_ELLIPTIC = 7,
-}
-public enum mjtConstraintState : int{
-  mjCNSTRSTATE_SATISFIED = 0,
-  mjCNSTRSTATE_QUADRATIC = 1,
-  mjCNSTRSTATE_LINEARNEG = 2,
-  mjCNSTRSTATE_LINEARPOS = 3,
-  mjCNSTRSTATE_CONE = 4,
 }
 public enum mjtSensor : int{
   mjSENS_TOUCH = 0,

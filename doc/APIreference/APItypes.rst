@@ -338,15 +338,6 @@ of active constraints is constructed at each simulation time step.
 
 .. mujoco-include:: mjtConstraint
 
-.. _mjtConstraintState:
-
-mjtConstraintState
-~~~~~~~~~~~~~~~~~~
-
-These values are used by the solver internally to keep track of the constraint states.
-
-.. mujoco-include:: mjtConstraintState
-
 
 .. _mjtSensor:
 
@@ -438,6 +429,16 @@ State component elements as integer bitflags and several convenient combinations
 :ref:`mj_getState`, :ref:`mj_setState` and :ref:`mj_stateSize`.
 
 .. mujoco-include:: mjtState
+
+
+.. _mjtConstraintState:
+
+mjtConstraintState
+~~~~~~~~~~~~~~~~~~
+
+These values are used by the solver internally to keep track of the constraint states.
+
+.. mujoco-include:: mjtConstraintState
 
 
 .. _mjtWarning:
