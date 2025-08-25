@@ -30,14 +30,14 @@ struct ThermalConfig {
     double thermal_resistance;
     double electrical_nominal_resistance;
     double temperature_coefficient_of_resistance;
-    // Motor Constant at 25 C (Kt25)
+    // Motor torque constant at 25°C (Kt25).
     double torque_constant_25;
-    // Motor Constant at 135 C (Kt130)
+    // Motor torque constant at 130°C (Kt130).
     double torque_constant_130;
     double gear_ratio;
 
     static ThermalConfig FromModel(const mjModel* m, int instance);
-} ;
+};
 
 class Thermal {
  public:
@@ -51,11 +51,11 @@ class Thermal {
  private:
   Thermal(ThermalConfig model, std::vector<int> sensors);
   
-  ThermalConfig _model; //Thermal model of the actuator
-  std::vector<int> _sensors; // Actuators the plugin is managing
+  ThermalConfig model_;  // Thermal model of the actuator.
+  std::vector<int> sensors_;  // Actuators the plugin is managing.
 };
 
 
-}  // namespace mujoco::plugin::actuator
+}  // namespace mujoco::plugin::thermal
 
 #endif  // MUJOCO_PLUGIN_THERMAL_H_
