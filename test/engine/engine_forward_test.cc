@@ -335,7 +335,7 @@ TEST_F(ImplicitIntegratorTest, EulerDampLimit) {
 }
 
 // Euler and implicit should be equivalent if there is only joint damping
-TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
+TEST_F(ImplicitIntegratorTest, EulerImplicitEquivalent) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -381,7 +381,7 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
 }
 
 // Joint and actuator damping should integrate identically under implicit
-TEST_F(ImplicitIntegratorTest, JointActuatorEqivalent) {
+TEST_F(ImplicitIntegratorTest, JointActuatorEquivalent) {
   const std::string xml_path = GetTestDataFilePath(kDampedActuatorsPath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   mjData* data = mj_makeData(model);
