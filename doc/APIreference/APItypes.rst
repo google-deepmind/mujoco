@@ -328,17 +328,6 @@ MuJoCo object types. These are used, for example, in the support functions :ref:
 .. mujoco-include:: mjtObj
 
 
-.. _mjtConstraint:
-
-mjtConstraint
-~~~~~~~~~~~~~
-
-Constraint types. These values are not used in mjModel, but are used in the mjData field ``d->efc_type`` when the list
-of active constraints is constructed at each simulation time step.
-
-.. mujoco-include:: mjtConstraint
-
-
 .. _mjtSensor:
 
 mjtSensor
@@ -429,6 +418,17 @@ State component elements as integer bitflags and several convenient combinations
 :ref:`mj_getState`, :ref:`mj_setState` and :ref:`mj_stateSize`.
 
 .. mujoco-include:: mjtState
+
+
+.. _mjtConstraint:
+
+mjtConstraint
+~~~~~~~~~~~~~
+
+Constraint types. These values are not used in mjModel, but are used in the mjData field ``d->efc_type`` when the list
+of active constraints is constructed at each simulation time step.
+
+.. mujoco-include:: mjtConstraint
 
 
 .. _mjtConstraintState:
