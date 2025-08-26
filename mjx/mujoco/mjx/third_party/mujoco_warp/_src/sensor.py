@@ -227,18 +227,6 @@ def _ball_quat(jnt_qposadr: wp.array(dtype=int), qpos_in: wp.array2d(dtype=float
 
 
 @wp.kernel
-def _limit_pos_zero(
-  # Model:
-  sensor_adr: wp.array(dtype=int),
-  sensor_limitpos_adr: wp.array(dtype=int),
-  # Data out:
-  sensordata_out: wp.array2d(dtype=float),
-):
-  worldid, limitposid = wp.tid()
-  sensordata_out[worldid, sensor_adr[sensor_limitpos_adr[limitposid]]] = 0.0
-
-
-@wp.kernel
 def _limit_pos(
   # Model:
   sensor_datatype: wp.array(dtype=int),
@@ -695,13 +683,6 @@ def sensor_pos(m: Model, d: Data):
 
   # jointlimitpos and tendonlimitpos
   wp.launch(
-    _limit_pos_zero,
-    dim=(d.nworld, m.sensor_limitpos_adr.size),
-    inputs=[m.sensor_adr, m.sensor_limitpos_adr],
-    outputs=[d.sensordata],
-  )
-
-  wp.launch(
     _limit_pos,
     dim=(d.nworld, d.njmax, m.sensor_limitpos_adr.size),
     inputs=[
@@ -786,18 +767,6 @@ def _actuator_vel(actuator_velocity_in: wp.array2d(dtype=float), worldid: int, o
 def _ball_ang_vel(jnt_dofadr: wp.array(dtype=int), qvel_in: wp.array2d(dtype=float), worldid: int, objid: int) -> wp.vec3:
   adr = jnt_dofadr[objid]
   return wp.vec3(qvel_in[worldid, adr + 0], qvel_in[worldid, adr + 1], qvel_in[worldid, adr + 2])
-
-
-@wp.kernel
-def _limit_vel_zero(
-  # Model:
-  sensor_adr: wp.array(dtype=int),
-  sensor_limitvel_adr: wp.array(dtype=int),
-  # Data out:
-  sensordata_out: wp.array2d(dtype=float),
-):
-  worldid, limitvelid = wp.tid()
-  sensordata_out[worldid, sensor_adr[sensor_limitvel_adr[limitvelid]]] = 0.0
 
 
 @wp.kernel
@@ -1251,13 +1220,6 @@ def sensor_vel(m: Model, d: Data):
   )
 
   wp.launch(
-    _limit_vel_zero,
-    dim=(d.nworld, m.sensor_limitvel_adr.size),
-    inputs=[m.sensor_adr, m.sensor_limitvel_adr],
-    outputs=[d.sensordata],
-  )
-
-  wp.launch(
     _limit_vel,
     dim=(d.nworld, d.njmax, m.sensor_limitvel_adr.size),
     inputs=[
@@ -1368,20 +1330,6 @@ def _joint_actuator_force(
 
 
 @wp.kernel
-def _tendon_actuator_force_zero(
-  # Model:
-  sensor_adr: wp.array(dtype=int),
-  sensor_tendonactfrc_adr: wp.array(dtype=int),
-  # Data out:
-  sensordata_out: wp.array2d(dtype=float),
-):
-  worldid, tenactfrcid = wp.tid()
-  sensorid = sensor_tendonactfrc_adr[tenactfrcid]
-  adr = sensor_adr[sensorid]
-  sensordata_out[worldid, adr] = 0.0
-
-
-@wp.kernel
 def _tendon_actuator_force(
   # Model:
   actuator_trntype: wp.array(dtype=int),
@@ -1420,18 +1368,6 @@ def _tendon_actuator_force_cutoff(
   val = sensordata_in[worldid, adr]
 
   _write_scalar(sensor_datatype, sensor_adr, sensor_cutoff, sensorid, val, sensordata_out[worldid])
-
-
-@wp.kernel
-def _limit_frc_zero(
-  # Model:
-  sensor_adr: wp.array(dtype=int),
-  sensor_limitfrc_adr: wp.array(dtype=int),
-  # Data out:
-  sensordata_out: wp.array2d(dtype=float),
-):
-  worldid, limitfrcid = wp.tid()
-  sensordata_out[worldid, sensor_adr[sensor_limitfrc_adr[limitfrcid]]] = 0.0
 
 
 @wp.kernel
@@ -1761,20 +1697,6 @@ def _sensor_acc(
 
 
 @wp.kernel
-def _sensor_touch_zero(
-  # Model:
-  sensor_adr: wp.array(dtype=int),
-  sensor_touch_adr: wp.array(dtype=int),
-  # Data out:
-  sensordata_out: wp.array2d(dtype=float),
-):
-  worldid, sensortouchadrid = wp.tid()
-  sensorid = sensor_touch_adr[sensortouchadrid]
-  adr = sensor_adr[sensorid]
-  sensordata_out[worldid, adr] = 0.0
-
-
-@wp.kernel
 def _sensor_touch(
   # Model:
   opt_cone: int,
@@ -1853,24 +1775,6 @@ def _sensor_touch(
     ):
       adr = sensor_adr[sensorid]
       wp.atomic_add(sensordata_out[worldid], adr, normalforce)
-
-
-@wp.kernel
-def _sensor_tactile_zero(
-  # Model:
-  sensor_type: wp.array(dtype=int),
-  sensor_dim: wp.array(dtype=int),
-  sensor_adr: wp.array(dtype=int),
-  # Data out:
-  sensordata_out: wp.array2d(dtype=float),
-):
-  worldid, sensorid = wp.tid()
-
-  if sensor_type[sensorid] != int(SensorType.TACTILE.value):
-    return
-
-  for i in range(sensor_dim[sensorid]):
-    sensordata_out[worldid, sensor_adr[sensorid] + i] = 0.0
 
 
 @wp.func
@@ -2094,18 +1998,6 @@ def sensor_acc(m: Model, d: Data):
     return
 
   wp.launch(
-    _sensor_touch_zero,
-    dim=(d.nworld, m.sensor_touch_adr.size),
-    inputs=[
-      m.sensor_adr,
-      m.sensor_touch_adr,
-    ],
-    outputs=[
-      d.sensordata,
-    ],
-  )
-
-  wp.launch(
     _sensor_touch,
     dim=(d.nconmax, m.sensor_touch_adr.size),
     inputs=[
@@ -2127,19 +2019,6 @@ def sensor_acc(m: Model, d: Data):
       d.contact.efc_address,
       d.contact.worldid,
       d.efc.force,
-    ],
-    outputs=[
-      d.sensordata,
-    ],
-  )
-
-  wp.launch(
-    _sensor_tactile_zero,
-    dim=(d.nworld, m.nsensor),
-    inputs=[
-      m.sensor_type,
-      m.sensor_dim,
-      m.sensor_adr,
     ],
     outputs=[
       d.sensordata,
@@ -2281,18 +2160,6 @@ def sensor_acc(m: Model, d: Data):
   )
 
   wp.launch(
-    _tendon_actuator_force_zero,
-    dim=(d.nworld, m.sensor_tendonactfrc_adr.size),
-    inputs=[
-      m.sensor_adr,
-      m.sensor_tendonactfrc_adr,
-    ],
-    outputs=[
-      d.sensordata,
-    ],
-  )
-
-  wp.launch(
     _tendon_actuator_force,
     dim=(d.nworld, m.sensor_tendonactfrc_adr.size, m.nu),
     inputs=[
@@ -2318,13 +2185,6 @@ def sensor_acc(m: Model, d: Data):
       m.sensor_tendonactfrc_adr,
       d.sensordata,
     ],
-    outputs=[d.sensordata],
-  )
-
-  wp.launch(
-    _limit_frc_zero,
-    dim=(d.nworld, m.sensor_limitfrc_adr.size),
-    inputs=[m.sensor_adr, m.sensor_limitfrc_adr],
     outputs=[d.sensordata],
   )
 

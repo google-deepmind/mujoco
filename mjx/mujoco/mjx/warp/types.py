@@ -94,6 +94,7 @@ class OptionWarp(PyTreeNode):
   graph_conditional: bool
   has_fluid: bool
   is_sparse: bool
+  legacy_gjk: bool
   ls_parallel: bool
   ls_parallel_min_step: float
   run_collision_detection: bool
@@ -256,24 +257,11 @@ class DataWarp(PyTreeNode):
   efc__gauss: jax.Array
   efc__grad: jax.Array
   efc__grad_dot: jax.Array
-  efc__gtol: jax.Array
   efc__h: jax.Array
-  efc__hi: jax.Array
-  efc__hi_alpha: jax.Array
-  efc__hi_next: jax.Array
-  efc__hi_next_alpha: jax.Array
   efc__id: jax.Array
   efc__jv: jax.Array
-  efc__lo: jax.Array
-  efc__lo_alpha: jax.Array
-  efc__lo_next: jax.Array
-  efc__lo_next_alpha: jax.Array
-  efc__ls_done: jax.Array
   efc__margin: jax.Array
-  efc__mid: jax.Array
-  efc__mid_alpha: jax.Array
   efc__mv: jax.Array
-  efc__p0: jax.Array
   efc__pos: jax.Array
   efc__prev_Mgrad: jax.Array
   efc__prev_cost: jax.Array
@@ -488,24 +476,11 @@ _NDIM = {
         'efc__gauss': 1,
         'efc__grad': 2,
         'efc__grad_dot': 1,
-        'efc__gtol': 1,
         'efc__h': 3,
-        'efc__hi': 2,
-        'efc__hi_alpha': 1,
-        'efc__hi_next': 2,
-        'efc__hi_next_alpha': 1,
         'efc__id': 2,
         'efc__jv': 2,
-        'efc__lo': 2,
-        'efc__lo_alpha': 1,
-        'efc__lo_next': 2,
-        'efc__lo_next_alpha': 1,
-        'efc__ls_done': 1,
         'efc__margin': 2,
-        'efc__mid': 2,
-        'efc__mid_alpha': 1,
         'efc__mv': 2,
-        'efc__p0': 2,
         'efc__pos': 2,
         'efc__prev_Mgrad': 2,
         'efc__prev_cost': 1,
@@ -884,6 +859,7 @@ _NDIM = {
         'opt__integrator': 0,
         'opt__is_sparse': 0,
         'opt__iterations': 0,
+        'opt__legacy_gjk': 0,
         'opt__ls_iterations': 0,
         'opt__ls_parallel': 0,
         'opt__ls_parallel_min_step': 0,
@@ -1002,6 +978,7 @@ _NDIM = {
         'integrator': 0,
         'is_sparse': 0,
         'iterations': 0,
+        'legacy_gjk': 0,
         'ls_iterations': 0,
         'ls_parallel': 0,
         'ls_parallel_min_step': 0,
@@ -1075,24 +1052,11 @@ _BATCH_DIM = {
         'efc__gauss': True,
         'efc__grad': True,
         'efc__grad_dot': True,
-        'efc__gtol': True,
         'efc__h': True,
-        'efc__hi': True,
-        'efc__hi_alpha': True,
-        'efc__hi_next': True,
-        'efc__hi_next_alpha': True,
         'efc__id': True,
         'efc__jv': True,
-        'efc__lo': True,
-        'efc__lo_alpha': True,
-        'efc__lo_next': True,
-        'efc__lo_next_alpha': True,
-        'efc__ls_done': True,
         'efc__margin': True,
-        'efc__mid': True,
-        'efc__mid_alpha': True,
         'efc__mv': True,
-        'efc__p0': True,
         'efc__pos': True,
         'efc__prev_Mgrad': True,
         'efc__prev_cost': True,
@@ -1471,6 +1435,7 @@ _BATCH_DIM = {
         'opt__integrator': False,
         'opt__is_sparse': False,
         'opt__iterations': False,
+        'opt__legacy_gjk': False,
         'opt__ls_iterations': False,
         'opt__ls_parallel': False,
         'opt__ls_parallel_min_step': False,
@@ -1589,6 +1554,7 @@ _BATCH_DIM = {
         'integrator': False,
         'is_sparse': False,
         'iterations': False,
+        'legacy_gjk': False,
         'ls_iterations': False,
         'ls_parallel': False,
         'ls_parallel_min_step': False,

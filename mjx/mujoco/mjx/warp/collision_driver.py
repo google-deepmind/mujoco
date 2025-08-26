@@ -42,6 +42,7 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _collision_shim(
     # Model
@@ -105,6 +106,7 @@ def _collision_shim(
     opt__epa_iterations: int,
     opt__gjk_iterations: int,
     opt__graph_conditional: bool,
+    opt__legacy_gjk: bool,
     opt__sdf_initpoints: int,
     opt__sdf_iterations: int,
     # Data
@@ -201,6 +203,7 @@ def _collision_shim(
   _m.opt.epa_iterations = opt__epa_iterations
   _m.opt.gjk_iterations = opt__gjk_iterations
   _m.opt.graph_conditional = opt__graph_conditional
+  _m.opt.legacy_gjk = opt__legacy_gjk
   _m.opt.sdf_initpoints = opt__sdf_initpoints
   _m.opt.sdf_iterations = opt__sdf_iterations
   _m.pair_dim = pair_dim
@@ -400,6 +403,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.opt._impl.epa_iterations,
       m.opt._impl.gjk_iterations,
       m.opt._impl.graph_conditional,
+      m.opt._impl.legacy_gjk,
       m.opt._impl.sdf_initpoints,
       m.opt._impl.sdf_iterations,
       d._impl.nconmax,

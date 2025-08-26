@@ -33,7 +33,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.io import MAX_WORLDS
 _IO_TEST_MODELS = (
   "pendula.xml",
   "collision_sdf/tactile.xml",
-  "flex/cloth.xml",
+  "flex/floppy.xml",
   "actuation/tendon_force_limit.xml",
   "hfield/hfield.xml",
 )

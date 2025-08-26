@@ -104,7 +104,7 @@ def _max_contacts_height_field(
 
 @cache_kernel
 def ccd_kernel_builder(
-  default_gjk: bool,
+  legacy_gjk: bool,
   geomtype1: int,
   geomtype2: int,
   gjk_iterations: int,
@@ -286,10 +286,16 @@ def ccd_kernel_builder(
       hftri_index,
     )
 
-    points = mat3c()
-
     # TODO(kbayes): remove legacy GJK once multicontact can be enabled
-    if default_gjk:
+    if wp.static(legacy_gjk):
+      # find prism center for height field
+      if geomtype1 == int(GeomType.HFIELD.value):
+        x1 = wp.vec3(0.0, 0.0, 0.0)
+        for i in range(6):
+          x1 += hfield_prism_vertex(geom1.hfprism, i)
+        x1 = geom1.pos + geom1.rot @ (x1 / 6.0)
+        geom1.pos = x1
+
       simplex, normal = gjk_legacy(
         gjk_iterations,
         geom1,
@@ -303,24 +309,28 @@ def ccd_kernel_builder(
       )
       dist = -depth
 
-      if (dist - margin) >= 0.0 or depth != depth:
+      if dist >= 0.0 or depth < -depth_extension:
+        count = 0
         return
       sphere = int(GeomType.SPHERE.value)
       ellipsoid = int(GeomType.ELLIPSOID.value)
       if geom_type[g1] == sphere or geom_type[g1] == ellipsoid or geom_type[g2] == sphere or geom_type[g2] == ellipsoid:
         count, points = multicontact_legacy(geom1, geom2, geomtype1, geomtype2, depth_extension, depth, normal, 1, 2, 1.0e-5)
       else:
-        count, points = multicontact_legacy(geom1, geom2, geomtype1, geomtype2, depth_extension, depth, normal, 4, 8, 1.0e-3)
+        count, points = multicontact_legacy(geom1, geom2, geomtype1, geomtype2, depth_extension, depth, normal, 4, 8, 1.0e-1)
+      frame = make_frame(normal)
     else:
+      points = mat3c()
+
       x1 = geom1.pos
       x2 = geom2.pos
 
       # find prism center for height field
       if geomtype1 == int(GeomType.HFIELD.value):
-        x1 = wp.vec3(0.0, 0.0, 0.0)
+        x1_ = wp.vec3(0.0, 0.0, 0.0)
         for i in range(6):
-          x1 += hfield_prism_vertex(geom1.hfprism, i)
-        x1 = x1 / 6.0
+          x1_ += hfield_prism_vertex(geom1.hfprism, i)
+        x1 += geom1.rot @ (x1_ / 6.0)
 
       dist, count, witness1, witness2 = ccd(
         False,
@@ -411,13 +421,13 @@ def convex_narrowphase(m: Model, d: Data):
     if m.geom_pair_type_count[upper_trid_index(len(GeomType), geom_pair[0], geom_pair[1])]:
       wp.launch(
         ccd_kernel_builder(
-          False,
+          m.opt.legacy_gjk,
           geom_pair[0],
           geom_pair[1],
           m.opt.gjk_iterations,
           m.opt.epa_iterations,
-          False,
-          0.1,
+          True,
+          1e9,
         ),
         dim=d.nconmax,
         inputs=[

@@ -421,6 +421,7 @@ class ForwardTest(parameterized.TestCase):
       "qfrc_actuator",
       "qfrc_smooth",
       "qacc",
+      "qacc_warmstart",
       "qvel",
       "qpos",
       "efc_force",

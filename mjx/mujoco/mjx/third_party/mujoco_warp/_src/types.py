@@ -55,7 +55,7 @@ class BlockDim:
   cholesky_solve: int = 256
   cholesky_factorize_solve: int = 256
   # solver
-  update_gradient_cholesky: int = 256
+  update_gradient_cholesky: int = 64
   # support
   mul_m_dense: int = 256
 
@@ -570,6 +570,7 @@ class Option:
     run_collision_detection: if False, skips collision detection and allows user-populated
       contacts during the physics step (as opposed to DisableBit.CONTACT which explicitly
       zeros out the contacts at each step)
+    legacy_gjk: run legacy gjk algorithm
   """
 
   timestep: wp.array(dtype=float)
@@ -600,6 +601,7 @@ class Option:
   sdf_initpoints: int
   sdf_iterations: int
   run_collision_detection: bool  # warp only
+  legacy_gjk: bool
 
 
 @dataclasses.dataclass
@@ -639,7 +641,6 @@ class Constraint:
     cost: constraint + Gauss cost                     (nworld,)
     prev_cost: cost from previous iter                (nworld,)
     state: constraint state                           (nworld, njmax)
-    gtol: linesearch termination tolerance            (nworld,)
     mv: qM @ search                                   (nworld, nv)
     jv: efc_J @ search                                (nworld, njmax)
     quad: quadratic cost coefficients                 (nworld, njmax, 3)
@@ -650,18 +651,6 @@ class Constraint:
     prev_Mgrad: previous Mgrad                        (nworld, nv)
     beta: polak-ribiere beta                          (nworld,)
     done: solver done                                 (nworld,)
-    ls_done: linesearch done                          (nworld,)
-    p0: initial point                                 (nworld, 3)
-    lo: low point bounding the line search interval   (nworld, 3)
-    lo_alpha: alpha for low point                     (nworld,)
-    hi: high point bounding the line search interval  (nworld, 3)
-    hi_alpha: alpha for high point                    (nworld,)
-    lo_next: next low point                           (nworld, 3)
-    lo_next_alpha: alpha for next low point           (nworld,)
-    hi_next: next high point                          (nworld, 3)
-    hi_next_alpha: alpha for next high point          (nworld,)
-    mid: loss at mid_alpha                            (nworld, 3)
-    mid_alpha: midpoint between lo_alpha and hi_alpha (nworld,)
     cost_candidate: costs associated with step sizes  (nworld, nlsp)
   """
 
@@ -688,7 +677,6 @@ class Constraint:
   cost: wp.array(dtype=float)
   prev_cost: wp.array(dtype=float)
   state: wp.array2d(dtype=int)
-  gtol: wp.array(dtype=float)
   mv: wp.array2d(dtype=float)
   jv: wp.array2d(dtype=float)
   quad: wp.array2d(dtype=wp.vec3)
@@ -700,18 +688,6 @@ class Constraint:
   beta: wp.array(dtype=float)
   done: wp.array(dtype=bool)
   # linesearch
-  ls_done: wp.array(dtype=bool)
-  p0: wp.array(dtype=wp.vec3)
-  lo: wp.array(dtype=wp.vec3)
-  lo_alpha: wp.array(dtype=float)
-  hi: wp.array(dtype=wp.vec3)
-  hi_alpha: wp.array(dtype=float)
-  lo_next: wp.array(dtype=wp.vec3)
-  lo_next_alpha: wp.array(dtype=float)
-  hi_next: wp.array(dtype=wp.vec3)
-  hi_next_alpha: wp.array(dtype=float)
-  mid: wp.array(dtype=wp.vec3)
-  mid_alpha: wp.array(dtype=float)
   cost_candidate: wp.array2d(dtype=float)
 
 
