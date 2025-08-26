@@ -1362,14 +1362,44 @@ representations of the constraint Jacobian and related matrices.
    axes. The right panel illustrates our solution to this problem. We still update one contact at a time, but within a
    contact we update along non-orthogonal axes adapted to the constraint surface, as follows. First, we optimize the
    quadratic cost along the ray from the tip of the cone through the current solution. Then we slice the cone with a
-   hyperplane passing through the current solution and orthogonal to the contact normal. This yields an ellipsoid -which
-   can be up to 5-dimensional given our contact model. Now we optimize the quadratic cost within this ellipsoid. This is
-   an instance of quadratically constrained quadratic programming (QCQP). Since there is only one scalar constraint
+   hyperplane passing through the current solution and orthogonal to the contact normal. This yields an ellipsoid which
+   can be up to 5-dimensional, given our contact model. Now we optimize the quadratic cost within this ellipsoid. This
+   is an instance of quadratically constrained quadratic programming (QCQP). Since there is only one scalar constraint
    (however nonlinear it may be), the dual is a scalar optimization problem over the unknown Lagrange multiplier. We
    solve this problem with Newton's method applied until convergence -- which in practice takes less than 10 iterations,
    and involves small matrices. Overall this algorithm has similar behavior to PGS for pyramidal cones, but it can
    handle elliptic cones without approximating them. It does more work per contact, however the contact dimensionality
    is smaller, and these two factors roughly balance each other.
+
+.. _soIsland:
+
+Constraint islands
+~~~~~~~~~~~~~~~~~~
+
+.. image:: ../images/computation/island.svg
+   :width: 58%
+   :align: right
+
+Consider the abstract graph defined by degrees of freedom (dofs) and constraints. A vertex is all the dofs in a single
+kinematic subtree; an edge is a constraint (a contact or equality) between two bodies belonging to different subtrees. A
+*constraint island* is a disjoint sub-graph which can be solved for independently, because constraint forces cannot
+propagate between islands. Constraint island discovery and construction ("islanding") invloves finding the disjoint
+subgraphs and reordering both the dofs and constraints to make them memory-contiguous. This amounts to a
+block-diagonalization of the constraint Jacobian :math:`J`, as illustrated in the figure. On the left is the monolithic
+Jacobian of size :math:`\nc \times \nv`, where we use the :ref:`corresponding <Framework>` size names from MuJoCo's data
+structures ``mjData.nefc`` and ``mjModel.nv``. On the right is the block-diagonalized Jacobian with 3 islands that can
+be solved indepenently. Note that islanding also identifies unconstrained dofs, so ``mjData.nidof``, the total number of
+dofs in all islands, might be smaller than ``mjModel.nv``. While islanding is not free (see implementation in
+`engine_island.c <https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_island.c>`__), it is worth the
+effort:
+
+- Different islands require different numbers of iterations to converge, and a monolithic solve would run for the
+  number required by the slowest island.
+- Unconstrained dofs are completely untouched by the solver, which otherwise needs to discover that they are unaffected.
+- Solving separate islands can be multi-threaded.
+
+Islanding is not yet supported by the PGS solver.
+
 
 .. _soParameters:
 
@@ -1694,7 +1724,8 @@ The stages below compute quantities that depend on the generalized positions ``m
 7. Compute the sparse factorization of the joint-space inertia matrix: :ref:`mj_factorM`
 8. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection:
    :ref:`mj_collision`
-9. Construct the constraint Jacobian and compute the constraint residuals: :ref:`mj_makeConstraint`
+9. Construct the constraint Jacobian, compute the constraint residuals, construct islands: :ref:`mj_makeConstraint`,
+   ``mj_island`` (not yet exposed in the API)
 10. Compute the actuator lengths and moment arms: :ref:`mj_transmission`
 11. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
 12. Compute sensor data that only depends on position, and the potential energy if enabled: :ref:`mj_sensorPos`,

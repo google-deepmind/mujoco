@@ -121,7 +121,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"flag", "?", "23", "constraint", "equality", "frictionloss", "limit", "contact",
             "passive", "gravity", "clampctrl", "warmstart",
             "filterparent", "actuation", "refsafe", "sensor", "midphase", "eulerdamp", "autoreset",
-            "override", "energy", "fwdinv", "invdiscrete", "multiccd", "island", "nativeccd"},
+            "nativeccd", "island", "override", "energy", "fwdinv", "invdiscrete", "multiccd"},
     {">"},
 
     {"size", "*", "14", "memory", "njmax", "nconmax", "nstack", "nuserdata", "nkey",
@@ -1199,6 +1199,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("eulerdamp",    mjDSBL_EULERDAMP)
     READDSBL("autoreset",    mjDSBL_AUTORESET)
     READDSBL("nativeccd",    mjDSBL_NATIVECCD)
+    READDSBL("island",       mjDSBL_ISLAND)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
@@ -1211,7 +1212,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("fwdinv",      mjENBL_FWDINV)
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
     READENBL("multiccd",    mjENBL_MULTICCD)
-    READENBL("island",      mjENBL_ISLAND)
 #undef READENBL
   }
 }

@@ -62,7 +62,8 @@ const char* mjDISABLESTRING[mjNDISABLE] = {
   "Midphase",
   "Eulerdamp",
   "AutoReset",
-  "NativeCCD"
+  "NativeCCD",
+  "Island"
 };
 
 
@@ -72,8 +73,7 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Energy",
   "Fwdinv",
   "InvDiscrete",
-  "MultiCCD",
-  "Island"
+  "MultiCCD"
 };
 
 

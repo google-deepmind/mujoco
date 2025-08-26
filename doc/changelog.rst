@@ -7,8 +7,15 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Constraint island discovery and construction, previously an experimental feature, is now :ref:`documented<soIsland>`
+  and promoted to default; disable it with :ref:`option/flag/island <option-flag-island>`. We expect islanding to be
+  a strict improvement over the monolithic constraint solver, please let us know if you experience any issues.
+
 .. admonition:: Breaking API changes
    :class: attention
+
+   - The promotion of islanding to default involved removing the enable flag ``mjENBL_ISLAND`` and
+     converting it to a disable flag :ref:`mjDSBL_ISLAND <mjtDisableBit>`.
 
    - The update of ``mjData.qacc_warmstart`` was moved from the end of the solver call (:ref:`mj_fwdConstraint`) to the
      end of :ref:`mj_step`, and is now updated with all other state variables. This change makes :ref:`mj_forward`
@@ -42,6 +49,11 @@ MJX
    :class: attention
 
    - ``ten_length`` was moved from ``mjx.Data._impl.ten_length`` to a public field ``mjx.Data.ten_length``.
+
+Bug fixes
+^^^^^^^^^
+- Fixed a latent bug where MjData objects were not serialized correctly by the Python bindings when islanding was
+  enabled.
 
 
 Version 3.3.5 (August 8, 2025)

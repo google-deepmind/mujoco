@@ -58,6 +58,13 @@ class SolverTest(parameterized.TestCase):
     m.opt.solver = solver_
     m.opt.cone = cone
     m.opt.iterations = iterations
+
+    # with islanding on, MuJoCo CG converges *much* faster,
+    # too fast for the low-iteration comparison to be meaningful,
+    # so we disable islanding at low iteration count
+    if iterations < 5:
+      m.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_ISLAND
+
     d = mujoco.MjData(m)
 
     def cost(qacc):

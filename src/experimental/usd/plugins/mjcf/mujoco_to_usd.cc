@@ -643,7 +643,6 @@ class ModelWriter {
 
     const std::vector<std::pair<pxr::TfToken, int>> enable_flags = {
         {MjcPhysicsTokens->mjcFlagMulticcd, mjENBL_MULTICCD},
-        {MjcPhysicsTokens->mjcFlagIsland, mjENBL_ISLAND},
         {MjcPhysicsTokens->mjcFlagFwdinv, mjENBL_FWDINV},
         {MjcPhysicsTokens->mjcFlagEnergy, mjENBL_ENERGY},
         {MjcPhysicsTokens->mjcFlagOverride, mjENBL_OVERRIDE},
@@ -669,7 +668,8 @@ class ModelWriter {
         {MjcPhysicsTokens->mjcFlagMidphase, mjDSBL_MIDPHASE},
         {MjcPhysicsTokens->mjcFlagEulerdamp, mjDSBL_EULERDAMP},
         {MjcPhysicsTokens->mjcFlagAutoreset, mjDSBL_AUTORESET},
-        {MjcPhysicsTokens->mjcFlagNativeccd, mjDSBL_NATIVECCD}};
+        {MjcPhysicsTokens->mjcFlagNativeccd, mjDSBL_NATIVECCD},
+        {MjcPhysicsTokens->mjcFlagIsland, mjDSBL_ISLAND}};
     for (const auto &[token, flag] : disable_flags) {
       create_flag_attr(token, flag, false);
     }

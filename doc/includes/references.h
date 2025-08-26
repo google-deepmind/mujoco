@@ -464,8 +464,9 @@ typedef enum mjtDisableBit_ {     // disable default feature bitflags
   mjDSBL_EULERDAMP    = 1<<14,    // implicit integration of joint damping in Euler integrator
   mjDSBL_AUTORESET    = 1<<15,    // automatic reset when numerical issues are detected
   mjDSBL_NATIVECCD    = 1<<16,    // native convex collision detection
+  mjDSBL_ISLAND       = 1<<17,    // constraint island discovery
 
-  mjNDISABLE          = 17        // number of disable flags
+  mjNDISABLE          = 18        // number of disable flags
 } mjtDisableBit;
 typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_OVERRIDE     = 1<<0,     // override contact parameters
@@ -474,9 +475,8 @@ typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_INVDISCRETE  = 1<<3,     // discrete-time inverse dynamics
                                   // experimental features:
   mjENBL_MULTICCD     = 1<<4,     // multi-point convex collision detection
-  mjENBL_ISLAND       = 1<<5,     // constraint island discovery
 
-  mjNENABLE           = 6         // number of enable flags
+  mjNENABLE           = 5         // number of enable flags
 } mjtEnableBit;
 typedef enum mjtJoint_ {          // type of degree of freedom
   mjJNT_FREE          = 0,        // global position and orientation (quat)       (7)

@@ -617,6 +617,10 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   mjc_physics_scene.GetAutoResetFlagAttr().Get(&autoreset_flag);
   spec->option.disableflags |= (!autoreset_flag ? mjDSBL_AUTORESET : 0);
 
+  bool island_flag;
+  mjc_physics_scene.GetIslandFlagAttr().Get(&island_flag);
+  spec->option.disableflags |= (!island_flag ? mjDSBL_ISLAND : 0);
+
   bool override_flag;
   mjc_physics_scene.GetOverrideFlagAttr().Get(&override_flag);
   spec->option.enableflags |= (override_flag ? mjENBL_OVERRIDE : 0);
@@ -636,10 +640,6 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   bool multiccd_flag;
   mjc_physics_scene.GetMultiCCDFlagAttr().Get(&multiccd_flag);
   spec->option.enableflags |= (multiccd_flag ? mjENBL_MULTICCD : 0);
-
-  bool island_flag;
-  mjc_physics_scene.GetIslandFlagAttr().Get(&island_flag);
-  spec->option.enableflags |= (island_flag ? mjENBL_ISLAND : 0);
 
   // Compiler attributes
   auto auto_limits_attr = mjc_physics_scene.GetAutoLimitsAttr();

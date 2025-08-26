@@ -179,7 +179,8 @@ public enum mjtDisableBit : int{
   mjDSBL_EULERDAMP = 16384,
   mjDSBL_AUTORESET = 32768,
   mjDSBL_NATIVECCD = 65536,
-  mjNDISABLE = 17,
+  mjDSBL_ISLAND = 131072,
+  mjNDISABLE = 18,
 }
 public enum mjtEnableBit : int{
   mjENBL_OVERRIDE = 1,
@@ -187,8 +188,7 @@ public enum mjtEnableBit : int{
   mjENBL_FWDINV = 4,
   mjENBL_INVDISCRETE = 8,
   mjENBL_MULTICCD = 16,
-  mjENBL_ISLAND = 32,
-  mjNENABLE = 6,
+  mjNENABLE = 5,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,

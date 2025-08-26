@@ -587,7 +587,7 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
   // force use of sparse matrices, Newton solver, no islands
   m->opt.jacobian = mjJAC_SPARSE;
   m->opt.solver = mjSOL_NEWTON;
-  m->opt.enableflags &= ~mjENBL_ISLAND;
+  m->opt.disableflags |= mjDSBL_ISLAND;
 
   mjData* d = mj_makeData(m);
 

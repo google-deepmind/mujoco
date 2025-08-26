@@ -411,7 +411,7 @@ void mj_island(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc, ntree=m->ntree;
 
   // no constraints: quick return
-  if (!mjENABLED(mjENBL_ISLAND) || !nefc) {
+  if (mjDISABLED(mjDSBL_ISLAND) || !nefc) {
     d->nisland = d->nidof = 0;
     return;
   }
@@ -454,7 +454,7 @@ void mj_island(const mjModel* m, mjData* d) {
     return;
   }
 
-  // count ni: total number of dofs in islands
+  // count nidof: total number of dofs in islands
   int nidof = 0;
   for (int i=0; i < nv; i++) {
     nidof += (tree_island[m->dof_treeid[i]] >= 0);
