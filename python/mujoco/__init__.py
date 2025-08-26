@@ -207,7 +207,7 @@ def _load_all_bundled_plugins():
   for directory, _, filenames in os.walk(PLUGINS_DIR):
     for filename in filenames:
       if os.path.splitext(filename)[-1] in [".dll", ".dylib", ".so"]:
-        PLUGIN_HANDLES.append(ctypes.CDLL(os.path.join(directory, filename)))
+        PLUGIN_HANDLES.append(ctypes.CDLL(os.path.join(directory, filename), winmode=0))
       elif filename == "__init__.py":
         pass
       else:
