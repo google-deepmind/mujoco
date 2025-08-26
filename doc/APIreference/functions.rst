@@ -1342,6 +1342,8 @@ Set default options for length range computation.
 
 Set solver parameters to default values.
 
+*Nullable:* ``solref``, ``solimp``
+
 .. _mj_defaultOption:
 
 `mj_defaultOption <#mj_defaultOption>`__
@@ -1368,6 +1370,8 @@ Set visual options to default values.
 .. mujoco-include:: mj_copyModel
 
 Copy mjModel, allocate new if dest is NULL.
+
+*Nullable:* ``dest``
 
 .. _mj_saveModel:
 

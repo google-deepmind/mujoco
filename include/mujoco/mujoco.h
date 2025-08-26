@@ -166,6 +166,7 @@ MJAPI void mj_inverseSkip(const mjModel* m, mjData* d, int skipstage, int skipse
 MJAPI void mj_defaultLROpt(mjLROpt* opt);
 
 // Set solver parameters to default values.
+// Nullable: solref, solimp
 MJAPI void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp);
 
 // Set physics options to default values.
@@ -175,6 +176,7 @@ MJAPI void mj_defaultOption(mjOption* opt);
 MJAPI void mj_defaultVisual(mjVisual* vis);
 
 // Copy mjModel, allocate new if dest is NULL.
+// Nullable: dest
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 
 // Save model to binary MJB file or memory buffer; buffer has precedence when given.
