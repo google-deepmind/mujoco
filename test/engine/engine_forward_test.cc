@@ -394,7 +394,7 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEquivalent) {
   EXPECT_GT(fabs(data->qpos[0]-data->qpos[2]), 1e-4);
   EXPECT_GT(fabs(data->qpos[1]-data->qpos[3]), 1e-4);
 
-  // reset, take 1000 steps with implicit
+  // reset, take 10 steps with implicit
   mj_resetData(model, data);
   model->opt.integrator = mjINT_IMPLICIT;
   for (int i=0; i < 10; i++) {
