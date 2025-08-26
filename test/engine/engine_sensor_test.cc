@@ -708,8 +708,6 @@ TEST_F(SensorTest, BadContact) {
        "at most one of (geom1, body1, subtree1, site) can be specified"},
       {"geom2='sphere1' body2='body'",
        "at most one of (geom2, body2, subtree2) can be specified"},
-      {"subtree1='non_root'",
-       "must be a child of the world"}
   };
 
   for (const auto& test : test_cases) {
@@ -865,6 +863,31 @@ TEST_F(SensorTest, ContactSubtree) {
     // compute the number of all contacts in two different ways
     EXPECT_EQ(all, w_t1 + w_t2 + t1_t1 + t2_t2 + t1_t2);
   }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, ContactSubtreePartial) {
+  const string xml_path =
+      GetTestDataFilePath("engine/testdata/sensor/contact_subtree_partial.xml");
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  mjData* data = mj_makeData(model);
+
+  while (data->time < 0.6) {
+    mj_step(model, data);
+  }
+
+  EXPECT_EQ(GetSensor(model, data, "all")[0],     4);
+  EXPECT_EQ(GetSensor(model, data, "world")[0],   4);
+  EXPECT_EQ(GetSensor(model, data, "thigh")[0],   4);
+  EXPECT_EQ(GetSensor(model, data, "shin")[0],    2);
+  EXPECT_EQ(GetSensor(model, data, "foot")[0],    1);
+  EXPECT_EQ(GetSensor(model, data, "foot_w")[0],  0);
+  EXPECT_EQ(GetSensor(model, data, "foot_w2")[0], 1);
 
   mj_deleteData(data);
   mj_deleteModel(model);

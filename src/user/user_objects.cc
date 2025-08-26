@@ -7152,22 +7152,12 @@ void mjCSensor::Compile(void) {
           throw mjCError(this, "first matching criterion: if set, must be (x)body, geom or site");
         }
 
-        // check that subtree1 is a full tree
-        if (objtype == mjOBJ_XBODY && static_cast<mjCBody*>(obj)->GetParent()->id != 0) {
-          throw mjCError(this, "subtree1 must be a child of the world");
-        }
-
         // check second matching criterion
         if (reftype != mjOBJ_BODY &&
             reftype != mjOBJ_XBODY &&
             reftype != mjOBJ_GEOM &&
             reftype != mjOBJ_UNKNOWN) {
           throw mjCError(this, "second matching criterion: if set, must be (x)body or geom");
-        }
-
-        // check that subtree2 is a full tree
-        if (reftype == mjOBJ_XBODY && static_cast<mjCBody*>(ref)->GetParent()->id != 0) {
-          throw mjCError(this, "subtree2 must be a child of the world");
         }
 
         // check for dataspec correctness

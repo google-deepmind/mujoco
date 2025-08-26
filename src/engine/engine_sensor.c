@@ -247,7 +247,14 @@ static int checkMatch(const mjModel* m, int body, int geom, mjtObj type, int id)
   if (type == mjOBJ_SITE)    return 1;  // already passed site filter test
   if (type == mjOBJ_GEOM)    return id == geom;
   if (type == mjOBJ_BODY)    return id == body;
-  if (type == mjOBJ_XBODY)   return body >= 0 && m->body_rootid[id] == m->body_rootid[body];
+  if (type == mjOBJ_XBODY) {
+    // traverse up the tree from body, return true if we land on id
+    while (body > id) {
+      body = m->body_parentid[body];
+    }
+    return body == id;
+  }
+
   return 0;
 }
 

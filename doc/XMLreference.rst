@@ -7502,9 +7502,7 @@ Extraction
 .. _sensor-contact-subtree2:
 
 :at:`subtree1`, :at:`subtree2`: :at-val:`string, optional`
-   Name of a body whose subtree is participating in a contact. See **matching** :ref:`above <sensor-contact>`. Note
-   currently only "entire" subtrees are supported, in the sense that the specified body must be a direct child of the
-   world. General subtrees could be added in the future.
+   Name of a body whose subtree is participating in a contact. See **matching** :ref:`above <sensor-contact>`.
 
 .. _sensor-contact-site:
 

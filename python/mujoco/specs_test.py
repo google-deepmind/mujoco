@@ -1428,22 +1428,6 @@ class SpecsTest(absltest.TestCase):
                 refname='cam',
             ),
         ),
-        dict(
-            expected_error='subtree1 must be a child of the world',
-            sensor_params=dict(
-                type=mujoco.mjtSensor.mjSENS_CONTACT,
-                objtype=mujoco.mjtObj.mjOBJ_XBODY,
-                objname='non_root',
-            ),
-        ),
-        dict(
-            expected_error='subtree2 must be a child of the world',
-            sensor_params=dict(
-                type=mujoco.mjtSensor.mjSENS_CONTACT,
-                reftype=mujoco.mjtObj.mjOBJ_XBODY,
-                refname='non_root',
-            ),
-        ),
     ]
 
     for params in test_cases:

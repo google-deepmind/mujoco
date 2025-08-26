@@ -10,6 +10,8 @@ General
 - Constraint island discovery and construction, previously an experimental feature, is now :ref:`documented<soIsland>`
   and promoted to default; disable it with :ref:`option/flag/island <option-flag-island>`. We expect islanding to be
   a strict improvement over the monolithic constraint solver, please let us know if you experience any issues.
+- :ref:`Contact sensor<sensor-contact>` :at-val:`subtree1/subtree2` specification is now available for any body, not
+  just direct children of the world.
 
 .. admonition:: Breaking API changes
    :class: attention
