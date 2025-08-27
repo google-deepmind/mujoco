@@ -574,7 +574,6 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjMOUSE_MOVE_V', 3),
              ('mjMOUSE_MOVE_H', 4),
              ('mjMOUSE_ZOOM', 5),
-             ('mjMOUSE_SELECT', 6),
          ]),
      )),
     ('mjtPertBit',

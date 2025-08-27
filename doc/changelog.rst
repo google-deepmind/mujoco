@@ -16,9 +16,6 @@ General
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The promotion of islanding to default involved removing the enable flag ``mjENBL_ISLAND`` and
-     converting it to a disable flag :ref:`mjDSBL_ISLAND <mjtDisableBit>`.
-
    - The update of ``mjData.qacc_warmstart`` was moved from the end of the solver call (:ref:`mj_fwdConstraint`) to the
      end of :ref:`mj_step`, and is now updated with all other state variables. This change makes :ref:`mj_forward`
      fully idempotent.
@@ -36,6 +33,14 @@ General
      convergence of RK4 was faster, at the cost of unprincipled integration. This change makes the RK4 integration
      principled and well-defined. Since this change to RK4 is effectively a bug fix, migration to the previous behavior
      is not provided.
+
+.. admonition:: Breaking ABI changes
+   :class: attention
+
+   - Removed ``mjMOUSE_SELECT`` flag for :ref:`mjtMouse` as it is no longer in use.
+
+   - The promotion of islanding to default involved removing the enable flag ``mjENBL_ISLAND`` and
+     converting it to a disable flag :ref:`mjDSBL_ISLAND <mjtDisableBit>`.
 
 - Added support for shells with a curved reference configuration. See this `example
   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/basket.xml>`__.

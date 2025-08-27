@@ -581,7 +581,6 @@ public enum mjtMouse : int{
   mjMOUSE_MOVE_V = 3,
   mjMOUSE_MOVE_H = 4,
   mjMOUSE_ZOOM = 5,
-  mjMOUSE_SELECT = 6,
 }
 public enum mjtPertBit : int{
   mjPERT_TRANSLATE = 1,
