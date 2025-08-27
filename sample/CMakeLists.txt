@@ -118,24 +118,28 @@ if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   set(_INSTALL_SAMPLES OFF)
 endif()
 
-if(_INSTALL_SAMPLES)
+option(MUJOCO_SAMPLES_INSTALL "If ON, also install samples executables." ${_INSTALL_SAMPLES})
 
-  include(TargetAddRpath)
+if(MUJOCO_SAMPLES_INSTALL)
 
-  # Add support to RPATH for the samples.
-  target_add_rpath(
-    TARGETS
-    basic
-    compile
-    record
-    testspeed
-    INSTALL_DIRECTORY
-    "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
-    LIB_DIRS
-    "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
-    DEPENDS
-    MUJOCO_ENABLE_RPATH
-  )
+  if(MUJOCO_ENABLE_RPATH)
+    include(TargetAddRpath)
+
+    # Add support to RPATH for the samples.
+    target_add_rpath(
+      TARGETS
+      basic
+      compile
+      record
+      testspeed
+      INSTALL_DIRECTORY
+      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
+      LIB_DIRS
+      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
+      DEPENDS
+      MUJOCO_ENABLE_RPATH
+    )
+  endif()
 
   install(
     TARGETS basic
