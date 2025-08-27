@@ -455,6 +455,7 @@ target_link_libraries(
   _simulate
   PRIVATE mujoco
           mujoco::libmujoco_simulate
+          glfw
           errors_header
           raw
           structs_header
