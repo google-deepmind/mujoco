@@ -65,7 +65,6 @@ class BlockDim:
   mul_m_dense: int
   qderiv_actuator_passive_actuation: int
   qderiv_actuator_passive_no_actuation: int
-  qfrc_actuator: int
   ray: int
   segmented_sort: int
   tendon_velocity: int
@@ -139,9 +138,11 @@ class ModelWarp(PyTreeNode):
   has_sdf_geom: bool
   jnt_limited_ball_adr: np.ndarray
   jnt_limited_slide_hinge_adr: np.ndarray
+  light_active: jax.Array
   light_bodyid: np.ndarray
   light_targetbodyid: np.ndarray
   mapM2M: np.ndarray
+  mat_texrepeat: jax.Array
   mesh_polyadr: np.ndarray
   mesh_polymap: np.ndarray
   mesh_polymapadr: np.ndarray
@@ -648,7 +649,6 @@ _NDIM = {
         'block_dim__mul_m_dense': 0,
         'block_dim__qderiv_actuator_passive_actuation': 0,
         'block_dim__qderiv_actuator_passive_no_actuation': 0,
-        'block_dim__qfrc_actuator': 0,
         'block_dim__ray': 0,
         'block_dim__segmented_sort': 0,
         'block_dim__tendon_velocity': 0,
@@ -774,7 +774,9 @@ _NDIM = {
         'jnt_solref': 3,
         'jnt_stiffness': 2,
         'jnt_type': 1,
+        'light_active': 2,
         'light_bodyid': 1,
+        'light_castshadow': 2,
         'light_dir': 3,
         'light_dir0': 3,
         'light_mode': 1,
@@ -782,8 +784,11 @@ _NDIM = {
         'light_pos0': 3,
         'light_poscom0': 3,
         'light_targetbodyid': 1,
+        'light_type': 2,
         'mapM2M': 1,
         'mat_rgba': 3,
+        'mat_texid': 3,
+        'mat_texrepeat': 3,
         'mesh_face': 2,
         'mesh_faceadr': 1,
         'mesh_graph': 1,
@@ -823,6 +828,7 @@ _NDIM = {
         'njnt': 0,
         'nlight': 0,
         'nlsp': 0,
+        'nmat': 0,
         'nmeshface': 0,
         'nmeshgraph': 0,
         'nmeshpoly': 0,
@@ -1224,7 +1230,6 @@ _BATCH_DIM = {
         'block_dim__mul_m_dense': False,
         'block_dim__qderiv_actuator_passive_actuation': False,
         'block_dim__qderiv_actuator_passive_no_actuation': False,
-        'block_dim__qfrc_actuator': False,
         'block_dim__ray': False,
         'block_dim__segmented_sort': False,
         'block_dim__tendon_velocity': False,
@@ -1350,7 +1355,9 @@ _BATCH_DIM = {
         'jnt_solref': True,
         'jnt_stiffness': True,
         'jnt_type': False,
+        'light_active': True,
         'light_bodyid': False,
+        'light_castshadow': True,
         'light_dir': True,
         'light_dir0': True,
         'light_mode': False,
@@ -1358,8 +1365,11 @@ _BATCH_DIM = {
         'light_pos0': True,
         'light_poscom0': True,
         'light_targetbodyid': False,
+        'light_type': True,
         'mapM2M': False,
         'mat_rgba': True,
+        'mat_texid': True,
+        'mat_texrepeat': True,
         'mesh_face': False,
         'mesh_faceadr': False,
         'mesh_graph': False,
@@ -1399,6 +1409,7 @@ _BATCH_DIM = {
         'njnt': False,
         'nlight': False,
         'nlsp': False,
+        'nmat': False,
         'nmeshface': False,
         'nmeshgraph': False,
         'nmeshpoly': False,
