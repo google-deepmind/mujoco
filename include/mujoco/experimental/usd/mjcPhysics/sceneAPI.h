@@ -58,13 +58,13 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// Equivalent to MjcPhysicsSceneAPI::Get(prim.GetStage(), prim.GetPath())
   /// for a \em valid \p prim, but will not immediately throw an error for
   /// an invalid \p prim
-  explicit MjcPhysicsSceneAPI(const UsdPrim &prim = UsdPrim())
+  explicit MjcPhysicsSceneAPI(const UsdPrim& prim = UsdPrim())
       : UsdAPISchemaBase(prim) {}
 
   /// Construct a MjcPhysicsSceneAPI on the prim held by \p schemaObj .
   /// Should be preferred over MjcPhysicsSceneAPI(schemaObj.GetPrim()),
   /// as it preserves SchemaBase state.
-  explicit MjcPhysicsSceneAPI(const UsdSchemaBase &schemaObj)
+  explicit MjcPhysicsSceneAPI(const UsdSchemaBase& schemaObj)
       : UsdAPISchemaBase(schemaObj) {}
 
   /// Destructor.
@@ -75,7 +75,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// class and all its ancestor classes.  Does not include attributes that
   /// may be authored by custom/extended methods of the schemas involved.
   MJCPHYSICS_API
-  static const TfTokenVector &GetSchemaAttributeNames(
+  static const TfTokenVector& GetSchemaAttributeNames(
       bool includeInherited = true);
 
   /// Return a MjcPhysicsSceneAPI holding the prim adhering to this
@@ -88,7 +88,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// \endcode
   ///
   MJCPHYSICS_API
-  static MjcPhysicsSceneAPI Get(const UsdStagePtr &stage, const SdfPath &path);
+  static MjcPhysicsSceneAPI Get(const UsdStagePtr& stage, const SdfPath& path);
 
   /// Returns true if this <b>single-apply</b> API schema can be applied to
   /// the given \p prim. If this schema can not be a applied to the prim,
@@ -107,7 +107,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// \sa UsdPrim::RemoveAPI()
   ///
   MJCPHYSICS_API
-  static bool CanApply(const UsdPrim &prim, std::string *whyNot = nullptr);
+  static bool CanApply(const UsdPrim& prim, std::string* whyNot = nullptr);
 
   /// Applies this <b>single-apply</b> API schema to the given \p prim.
   /// This information is stored by adding "MjcSceneAPI" to the
@@ -125,7 +125,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// \sa UsdPrim::RemoveAPI()
   ///
   MJCPHYSICS_API
-  static MjcPhysicsSceneAPI Apply(const UsdPrim &prim);
+  static MjcPhysicsSceneAPI Apply(const UsdPrim& prim);
 
  protected:
   /// Returns the kind of schema this class belongs to.
@@ -138,13 +138,13 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   // needs to invoke _GetStaticTfType.
   friend class UsdSchemaRegistry;
   MJCPHYSICS_API
-  static const TfType &_GetStaticTfType();
+  static const TfType& _GetStaticTfType();
 
   static bool _IsTypedSchema();
 
   // override SchemaBase virtuals.
   MJCPHYSICS_API
-  const TfType &_GetTfType() const override;
+  const TfType& _GetTfType() const override;
 
  public:
   // --------------------------------------------------------------------- //
@@ -167,7 +167,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateTimestepAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateTimestepAttr(VtValue const& defaultValue = VtValue(),
                                   bool writeSparsely = false) const;
 
  public:
@@ -192,7 +192,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateApiRateAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateApiRateAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -217,7 +217,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateImpRatioAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateImpRatioAttr(VtValue const& defaultValue = VtValue(),
                                   bool writeSparsely = false) const;
 
  public:
@@ -241,7 +241,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateWindAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateWindAttr(VtValue const& defaultValue = VtValue(),
                               bool writeSparsely = false) const;
 
  public:
@@ -265,7 +265,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMagneticAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMagneticAttr(VtValue const& defaultValue = VtValue(),
                                   bool writeSparsely = false) const;
 
  public:
@@ -289,7 +289,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateDensityAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateDensityAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -313,7 +313,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateViscosityAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateViscosityAttr(VtValue const& defaultValue = VtValue(),
                                    bool writeSparsely = false) const;
 
  public:
@@ -338,7 +338,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateOMarginAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateOMarginAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -363,7 +363,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateOSolRefAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateOSolRefAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -388,7 +388,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateOSolImpAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateOSolImpAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -413,7 +413,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateOFrictionAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateOFrictionAttr(VtValue const& defaultValue = VtValue(),
                                    bool writeSparsely = false) const;
 
  public:
@@ -439,7 +439,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateIntegratorAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateIntegratorAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -464,7 +464,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateConeAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateConeAttr(VtValue const& defaultValue = VtValue(),
                               bool writeSparsely = false) const;
 
  public:
@@ -489,7 +489,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateJacobianAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateJacobianAttr(VtValue const& defaultValue = VtValue(),
                                   bool writeSparsely = false) const;
 
  public:
@@ -514,7 +514,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateSolverAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateSolverAttr(VtValue const& defaultValue = VtValue(),
                                 bool writeSparsely = false) const;
 
  public:
@@ -538,7 +538,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateIterationsAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateIterationsAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -563,7 +563,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateToleranceAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateToleranceAttr(VtValue const& defaultValue = VtValue(),
                                    bool writeSparsely = false) const;
 
  public:
@@ -588,7 +588,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateLSIterationsAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateLSIterationsAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:
@@ -613,7 +613,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateLSToleranceAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateLSToleranceAttr(VtValue const& defaultValue = VtValue(),
                                      bool writeSparsely = false) const;
 
  public:
@@ -638,7 +638,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateNoslipIterationsAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -663,7 +663,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateNoslipToleranceAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -687,7 +687,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateCCDIterationsAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateCCDIterationsAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -712,7 +712,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateCCDToleranceAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateCCDToleranceAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:
@@ -737,7 +737,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateSDFIterationsAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateSDFIterationsAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -762,7 +762,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateSDFInitPointsAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateSDFInitPointsAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -787,7 +787,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateActuatorGroupDisableAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -811,7 +811,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateConstraintFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateConstraintFlagAttr(VtValue const& defaultValue = VtValue(),
                                         bool writeSparsely = false) const;
 
  public:
@@ -835,7 +835,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateEqualityFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateEqualityFlagAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:
@@ -860,7 +860,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateFrictionLossFlagAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -885,7 +885,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateLimitFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateLimitFlagAttr(VtValue const& defaultValue = VtValue(),
                                    bool writeSparsely = false) const;
 
  public:
@@ -910,7 +910,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateContactFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateContactFlagAttr(VtValue const& defaultValue = VtValue(),
                                      bool writeSparsely = false) const;
 
  public:
@@ -935,7 +935,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreatePassiveFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreatePassiveFlagAttr(VtValue const& defaultValue = VtValue(),
                                      bool writeSparsely = false) const;
 
  public:
@@ -960,7 +960,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateGravityFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateGravityFlagAttr(VtValue const& defaultValue = VtValue(),
                                      bool writeSparsely = false) const;
 
  public:
@@ -985,7 +985,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateClampCtrlFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateClampCtrlFlagAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -1010,7 +1010,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateWarmStartFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateWarmStartFlagAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -1036,7 +1036,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateFilterParentFlagAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -1061,7 +1061,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateActuationFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateActuationFlagAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -1086,7 +1086,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateRefSafeFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateRefSafeFlagAttr(VtValue const& defaultValue = VtValue(),
                                      bool writeSparsely = false) const;
 
  public:
@@ -1110,7 +1110,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateSensorFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateSensorFlagAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -1135,7 +1135,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMidPhaseFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMidPhaseFlagAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:
@@ -1160,7 +1160,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateNativeCCDFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateNativeCCDFlagAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -1185,7 +1185,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateEulerDampFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateEulerDampFlagAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -1210,7 +1210,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateAutoResetFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateAutoResetFlagAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -1234,7 +1234,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateOverrideFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateOverrideFlagAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:
@@ -1259,7 +1259,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateEnergyFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateEnergyFlagAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -1283,7 +1283,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateFwdinvFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateFwdinvFlagAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -1309,7 +1309,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateInvDiscreteFlagAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -1334,7 +1334,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMultiCCDFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMultiCCDFlagAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:
@@ -1358,7 +1358,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateIslandFlagAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateIslandFlagAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -1388,7 +1388,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateAutoLimitsAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateAutoLimitsAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -1413,7 +1413,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateBoundMassAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateBoundMassAttr(VtValue const& defaultValue = VtValue(),
                                    bool writeSparsely = false) const;
 
  public:
@@ -1438,7 +1438,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateBoundInertiaAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateBoundInertiaAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:
@@ -1468,7 +1468,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateSetTotalMassAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateSetTotalMassAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:
@@ -1494,7 +1494,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateUseThreadAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateUseThreadAttr(VtValue const& defaultValue = VtValue(),
                                    bool writeSparsely = false) const;
 
  public:
@@ -1523,7 +1523,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateBalanceInertiaAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateBalanceInertiaAttr(VtValue const& defaultValue = VtValue(),
                                         bool writeSparsely = false) const;
 
  public:
@@ -1549,7 +1549,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateAngleAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateAngleAttr(VtValue const& defaultValue = VtValue(),
                                bool writeSparsely = false) const;
 
  public:
@@ -1576,7 +1576,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateFitAABBAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateFitAABBAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -1608,7 +1608,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateFuseStaticAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateFuseStaticAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -1644,7 +1644,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateInertiaFromGeomAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -1671,7 +1671,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateAlignFreeAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateAlignFreeAttr(VtValue const& defaultValue = VtValue(),
                                    bool writeSparsely = false) const;
 
  public:
@@ -1704,7 +1704,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateInertiaGroupRangeMinAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -1738,7 +1738,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateInertiaGroupRangeMaxAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -1762,7 +1762,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateSaveInertialAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateSaveInertialAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:

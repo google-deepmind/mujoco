@@ -30,8 +30,8 @@ TF_REGISTRY_FUNCTION(TfType) {
 MjcPhysicsCollisionAPI::~MjcPhysicsCollisionAPI() {}
 
 /* static */
-MjcPhysicsCollisionAPI MjcPhysicsCollisionAPI::Get(const UsdStagePtr &stage,
-                                                   const SdfPath &path) {
+MjcPhysicsCollisionAPI MjcPhysicsCollisionAPI::Get(const UsdStagePtr& stage,
+                                                   const SdfPath& path) {
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
     return MjcPhysicsCollisionAPI();
@@ -45,13 +45,13 @@ UsdSchemaKind MjcPhysicsCollisionAPI::_GetSchemaKind() const {
 }
 
 /* static */
-bool MjcPhysicsCollisionAPI::CanApply(const UsdPrim &prim,
-                                      std::string *whyNot) {
+bool MjcPhysicsCollisionAPI::CanApply(const UsdPrim& prim,
+                                      std::string* whyNot) {
   return prim.CanApplyAPI<MjcPhysicsCollisionAPI>(whyNot);
 }
 
 /* static */
-MjcPhysicsCollisionAPI MjcPhysicsCollisionAPI::Apply(const UsdPrim &prim) {
+MjcPhysicsCollisionAPI MjcPhysicsCollisionAPI::Apply(const UsdPrim& prim) {
   if (prim.ApplyAPI<MjcPhysicsCollisionAPI>()) {
     return MjcPhysicsCollisionAPI(prim);
   }
@@ -59,7 +59,7 @@ MjcPhysicsCollisionAPI MjcPhysicsCollisionAPI::Apply(const UsdPrim &prim) {
 }
 
 /* static */
-const TfType &MjcPhysicsCollisionAPI::_GetStaticTfType() {
+const TfType& MjcPhysicsCollisionAPI::_GetStaticTfType() {
   static TfType tfType = TfType::Find<MjcPhysicsCollisionAPI>();
   return tfType;
 }
@@ -71,7 +71,7 @@ bool MjcPhysicsCollisionAPI::_IsTypedSchema() {
 }
 
 /* virtual */
-const TfType &MjcPhysicsCollisionAPI::_GetTfType() const {
+const TfType& MjcPhysicsCollisionAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
@@ -80,7 +80,7 @@ UsdAttribute MjcPhysicsCollisionAPI::GetGroupAttr() const {
 }
 
 UsdAttribute MjcPhysicsCollisionAPI::CreateGroupAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcGroup, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -91,7 +91,7 @@ UsdAttribute MjcPhysicsCollisionAPI::GetShellInertiaAttr() const {
 }
 
 UsdAttribute MjcPhysicsCollisionAPI::CreateShellInertiaAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcShellinertia, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -102,7 +102,7 @@ UsdAttribute MjcPhysicsCollisionAPI::GetPriorityAttr() const {
 }
 
 UsdAttribute MjcPhysicsCollisionAPI::CreatePriorityAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcPriority, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -113,7 +113,7 @@ UsdAttribute MjcPhysicsCollisionAPI::GetConDimAttr() const {
 }
 
 UsdAttribute MjcPhysicsCollisionAPI::CreateConDimAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCondim, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -124,7 +124,7 @@ UsdAttribute MjcPhysicsCollisionAPI::GetSolMixAttr() const {
 }
 
 UsdAttribute MjcPhysicsCollisionAPI::CreateSolMixAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcSolmix, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -135,7 +135,7 @@ UsdAttribute MjcPhysicsCollisionAPI::GetSolRefAttr() const {
 }
 
 UsdAttribute MjcPhysicsCollisionAPI::CreateSolRefAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcSolref, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -146,7 +146,7 @@ UsdAttribute MjcPhysicsCollisionAPI::GetSolImpAttr() const {
 }
 
 UsdAttribute MjcPhysicsCollisionAPI::CreateSolImpAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcSolimp, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -157,7 +157,7 @@ UsdAttribute MjcPhysicsCollisionAPI::GetMarginAttr() const {
 }
 
 UsdAttribute MjcPhysicsCollisionAPI::CreateMarginAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcMargin, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -167,7 +167,7 @@ UsdAttribute MjcPhysicsCollisionAPI::GetGapAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcGap);
 }
 
-UsdAttribute MjcPhysicsCollisionAPI::CreateGapAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsCollisionAPI::CreateGapAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcGap, SdfValueTypeNames->Double,
@@ -176,7 +176,7 @@ UsdAttribute MjcPhysicsCollisionAPI::CreateGapAttr(VtValue const &defaultValue,
 
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
-    const TfTokenVector &left, const TfTokenVector &right) {
+    const TfTokenVector& left, const TfTokenVector& right) {
   TfTokenVector result;
   result.reserve(left.size() + right.size());
   result.insert(result.end(), left.begin(), left.end());
@@ -186,7 +186,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 }  // namespace
 
 /*static*/
-const TfTokenVector &MjcPhysicsCollisionAPI::GetSchemaAttributeNames(
+const TfTokenVector& MjcPhysicsCollisionAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcGroup,    MjcPhysicsTokens->mjcShellinertia,

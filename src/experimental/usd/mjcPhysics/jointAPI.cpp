@@ -30,8 +30,8 @@ TF_REGISTRY_FUNCTION(TfType) {
 MjcPhysicsJointAPI::~MjcPhysicsJointAPI() {}
 
 /* static */
-MjcPhysicsJointAPI MjcPhysicsJointAPI::Get(const UsdStagePtr &stage,
-                                           const SdfPath &path) {
+MjcPhysicsJointAPI MjcPhysicsJointAPI::Get(const UsdStagePtr& stage,
+                                           const SdfPath& path) {
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
     return MjcPhysicsJointAPI();
@@ -45,12 +45,12 @@ UsdSchemaKind MjcPhysicsJointAPI::_GetSchemaKind() const {
 }
 
 /* static */
-bool MjcPhysicsJointAPI::CanApply(const UsdPrim &prim, std::string *whyNot) {
+bool MjcPhysicsJointAPI::CanApply(const UsdPrim& prim, std::string* whyNot) {
   return prim.CanApplyAPI<MjcPhysicsJointAPI>(whyNot);
 }
 
 /* static */
-MjcPhysicsJointAPI MjcPhysicsJointAPI::Apply(const UsdPrim &prim) {
+MjcPhysicsJointAPI MjcPhysicsJointAPI::Apply(const UsdPrim& prim) {
   if (prim.ApplyAPI<MjcPhysicsJointAPI>()) {
     return MjcPhysicsJointAPI(prim);
   }
@@ -58,7 +58,7 @@ MjcPhysicsJointAPI MjcPhysicsJointAPI::Apply(const UsdPrim &prim) {
 }
 
 /* static */
-const TfType &MjcPhysicsJointAPI::_GetStaticTfType() {
+const TfType& MjcPhysicsJointAPI::_GetStaticTfType() {
   static TfType tfType = TfType::Find<MjcPhysicsJointAPI>();
   return tfType;
 }
@@ -70,7 +70,7 @@ bool MjcPhysicsJointAPI::_IsTypedSchema() {
 }
 
 /* virtual */
-const TfType &MjcPhysicsJointAPI::_GetTfType() const {
+const TfType& MjcPhysicsJointAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
@@ -78,7 +78,7 @@ UsdAttribute MjcPhysicsJointAPI::GetGroupAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcGroup);
 }
 
-UsdAttribute MjcPhysicsJointAPI::CreateGroupAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsJointAPI::CreateGroupAttr(VtValue const& defaultValue,
                                                  bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcGroup, SdfValueTypeNames->Int,
@@ -90,7 +90,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcSpringdamperAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcSpringdamperAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcSpringdamper, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -101,7 +101,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcSolreflimitAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcSolreflimitAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcSolreflimit, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -112,7 +112,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcSolimplimitAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcSolimplimitAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcSolimplimit, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -123,7 +123,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcSolreffrictionAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcSolreffrictionAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcSolreffriction, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -134,7 +134,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcSolimpfrictionAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcSolimpfrictionAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcSolimpfriction, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -145,7 +145,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcStiffnessAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcStiffnessAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcStiffness, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -156,7 +156,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcActuatorfrcrangeMinAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcActuatorfrcrangeMinAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcActuatorfrcrangeMin, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -167,7 +167,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcActuatorfrcrangeMaxAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcActuatorfrcrangeMaxAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcActuatorfrcrangeMax, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -178,7 +178,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcActuatorfrclimitedAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcActuatorfrclimitedAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcActuatorfrclimited, SdfValueTypeNames->Token,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -189,7 +189,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcActuatorgravcompAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcActuatorgravcompAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcActuatorgravcomp, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -200,7 +200,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcMarginAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcMarginAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcMargin, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -210,7 +210,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcRefAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcRef);
 }
 
-UsdAttribute MjcPhysicsJointAPI::CreateMjcRefAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsJointAPI::CreateMjcRefAttr(VtValue const& defaultValue,
                                                   bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcRef, SdfValueTypeNames->Double,
@@ -222,7 +222,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcSpringrefAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcSpringrefAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcSpringref, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -233,7 +233,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcArmatureAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcArmatureAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcArmature, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -244,7 +244,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcDampingAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcDampingAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcDamping, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -255,7 +255,7 @@ UsdAttribute MjcPhysicsJointAPI::GetMjcFrictionlossAttr() const {
 }
 
 UsdAttribute MjcPhysicsJointAPI::CreateMjcFrictionlossAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFrictionloss, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -263,7 +263,7 @@ UsdAttribute MjcPhysicsJointAPI::CreateMjcFrictionlossAttr(
 
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
-    const TfTokenVector &left, const TfTokenVector &right) {
+    const TfTokenVector& left, const TfTokenVector& right) {
   TfTokenVector result;
   result.reserve(left.size() + right.size());
   result.insert(result.end(), left.begin(), left.end());
@@ -273,7 +273,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 }  // namespace
 
 /*static*/
-const TfTokenVector &MjcPhysicsJointAPI::GetSchemaAttributeNames(
+const TfTokenVector& MjcPhysicsJointAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcGroup,

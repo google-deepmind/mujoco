@@ -30,8 +30,8 @@ TF_REGISTRY_FUNCTION(TfType) {
 MjcPhysicsSiteAPI::~MjcPhysicsSiteAPI() {}
 
 /* static */
-MjcPhysicsSiteAPI MjcPhysicsSiteAPI::Get(const UsdStagePtr &stage,
-                                         const SdfPath &path) {
+MjcPhysicsSiteAPI MjcPhysicsSiteAPI::Get(const UsdStagePtr& stage,
+                                         const SdfPath& path) {
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
     return MjcPhysicsSiteAPI();
@@ -45,12 +45,12 @@ UsdSchemaKind MjcPhysicsSiteAPI::_GetSchemaKind() const {
 }
 
 /* static */
-bool MjcPhysicsSiteAPI::CanApply(const UsdPrim &prim, std::string *whyNot) {
+bool MjcPhysicsSiteAPI::CanApply(const UsdPrim& prim, std::string* whyNot) {
   return prim.CanApplyAPI<MjcPhysicsSiteAPI>(whyNot);
 }
 
 /* static */
-MjcPhysicsSiteAPI MjcPhysicsSiteAPI::Apply(const UsdPrim &prim) {
+MjcPhysicsSiteAPI MjcPhysicsSiteAPI::Apply(const UsdPrim& prim) {
   if (prim.ApplyAPI<MjcPhysicsSiteAPI>()) {
     return MjcPhysicsSiteAPI(prim);
   }
@@ -58,7 +58,7 @@ MjcPhysicsSiteAPI MjcPhysicsSiteAPI::Apply(const UsdPrim &prim) {
 }
 
 /* static */
-const TfType &MjcPhysicsSiteAPI::_GetStaticTfType() {
+const TfType& MjcPhysicsSiteAPI::_GetStaticTfType() {
   static TfType tfType = TfType::Find<MjcPhysicsSiteAPI>();
   return tfType;
 }
@@ -70,7 +70,7 @@ bool MjcPhysicsSiteAPI::_IsTypedSchema() {
 }
 
 /* virtual */
-const TfType &MjcPhysicsSiteAPI::_GetTfType() const {
+const TfType& MjcPhysicsSiteAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
@@ -78,7 +78,7 @@ UsdAttribute MjcPhysicsSiteAPI::GetGroupAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcGroup);
 }
 
-UsdAttribute MjcPhysicsSiteAPI::CreateGroupAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSiteAPI::CreateGroupAttr(VtValue const& defaultValue,
                                                 bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcGroup, SdfValueTypeNames->Int,
@@ -87,7 +87,7 @@ UsdAttribute MjcPhysicsSiteAPI::CreateGroupAttr(VtValue const &defaultValue,
 
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
-    const TfTokenVector &left, const TfTokenVector &right) {
+    const TfTokenVector& left, const TfTokenVector& right) {
   TfTokenVector result;
   result.reserve(left.size() + right.size());
   result.insert(result.end(), left.begin(), left.end());
@@ -97,7 +97,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 }  // namespace
 
 /*static*/
-const TfTokenVector &MjcPhysicsSiteAPI::GetSchemaAttributeNames(
+const TfTokenVector& MjcPhysicsSiteAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcGroup,

@@ -53,13 +53,13 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// Equivalent to MjcPhysicsKeyframe::Get(prim.GetStage(), prim.GetPath())
   /// for a \em valid \p prim, but will not immediately throw an error for
   /// an invalid \p prim
-  explicit MjcPhysicsKeyframe(const UsdPrim &prim = UsdPrim())
+  explicit MjcPhysicsKeyframe(const UsdPrim& prim = UsdPrim())
       : UsdTyped(prim) {}
 
   /// Construct a MjcPhysicsKeyframe on the prim held by \p schemaObj .
   /// Should be preferred over MjcPhysicsKeyframe(schemaObj.GetPrim()),
   /// as it preserves SchemaBase state.
-  explicit MjcPhysicsKeyframe(const UsdSchemaBase &schemaObj)
+  explicit MjcPhysicsKeyframe(const UsdSchemaBase& schemaObj)
       : UsdTyped(schemaObj) {}
 
   /// Destructor.
@@ -70,7 +70,7 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// class and all its ancestor classes.  Does not include attributes that
   /// may be authored by custom/extended methods of the schemas involved.
   MJCPHYSICS_API
-  static const TfTokenVector &GetSchemaAttributeNames(
+  static const TfTokenVector& GetSchemaAttributeNames(
       bool includeInherited = true);
 
   /// Return a MjcPhysicsKeyframe holding the prim adhering to this
@@ -83,7 +83,7 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// \endcode
   ///
   MJCPHYSICS_API
-  static MjcPhysicsKeyframe Get(const UsdStagePtr &stage, const SdfPath &path);
+  static MjcPhysicsKeyframe Get(const UsdStagePtr& stage, const SdfPath& path);
 
   /// Attempt to ensure a \a UsdPrim adhering to this schema at \p path
   /// is defined (according to UsdPrim::IsDefined()) on this stage.
@@ -108,8 +108,8 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// the opinion at the current EditTarget.
   ///
   MJCPHYSICS_API
-  static MjcPhysicsKeyframe Define(const UsdStagePtr &stage,
-                                   const SdfPath &path);
+  static MjcPhysicsKeyframe Define(const UsdStagePtr& stage,
+                                   const SdfPath& path);
 
  protected:
   /// Returns the kind of schema this class belongs to.
@@ -122,13 +122,13 @@ class MjcPhysicsKeyframe : public UsdTyped {
   // needs to invoke _GetStaticTfType.
   friend class UsdSchemaRegistry;
   MJCPHYSICS_API
-  static const TfType &_GetStaticTfType();
+  static const TfType& _GetStaticTfType();
 
   static bool _IsTypedSchema();
 
   // override SchemaBase virtuals.
   MJCPHYSICS_API
-  const TfType &_GetTfType() const override;
+  const TfType& _GetTfType() const override;
 
  public:
   // --------------------------------------------------------------------- //
@@ -151,7 +151,7 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcQposAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcQposAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -175,7 +175,7 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcQvelAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcQvelAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -199,7 +199,7 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcActAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcActAttr(VtValue const& defaultValue = VtValue(),
                                 bool writeSparsely = false) const;
 
  public:
@@ -223,7 +223,7 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcCtrlAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcCtrlAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -247,7 +247,7 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcMposAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcMposAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -271,7 +271,7 @@ class MjcPhysicsKeyframe : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcMquatAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcMquatAttr(VtValue const& defaultValue = VtValue(),
                                   bool writeSparsely = false) const;
 
  public:
