@@ -112,6 +112,56 @@ static void printSparse(const char* str, const mjtNum* mat, int nr,
 }
 
 
+// print block-diagonal dense matrix, embedded in a larger matrix
+static void printBlockArray(const char* str, const mjtNum* data, int nr, int nc,
+                            int nisland, const int* island_nr, const int* island_nc,
+                            const int* island_r, const int* island_c,
+                            FILE* fp, const char* float_format) {
+  if (!data || !nr || !nc) {
+    return;
+  }
+
+  fprintf(fp, "%s\n", str);
+
+  // determine the width of the float format (already validated by validateFloatFormat)
+  char dummy_buffer[100];
+  int format_width = snprintf(dummy_buffer, sizeof(dummy_buffer), float_format, 0.0);
+
+  for (int b = 0; b < nisland; b++) {
+    int bnr = island_nr[b];
+    int bnc = island_nc[b];
+    int r_start = island_r[b];
+    int c_start = island_c[b];
+    const mjtNum* data_ptr = data + r_start * nc;
+
+    // print rows for this block
+    for (int r_block = 0; r_block < bnr; r_block++) {
+      fprintf(fp, " ");
+      // leading dots
+      for (int c = 0; c < c_start; c++) {
+        for (int i = 0; i < format_width; i++) fprintf(fp, ".");
+        fprintf(fp, " ");
+      }
+
+      // block data
+      for (int c = 0; c < bnc; c++) {
+        fprintf(fp, " ");
+        fprintf(fp, float_format, *data_ptr++);
+      }
+
+      // trailing dots
+      for (int c = c_start + bnc; c < nc; c++) {
+        for (int i = 0; i < format_width; i++) fprintf(fp, ".");
+        fprintf(fp, " ");
+      }
+      fprintf(fp, "\n");
+    }
+  }
+
+  fprintf(fp, "\n");
+}
+
+
 
 // print sparse inertia-like matrix
 static void printInertia(const char* str, const mjtNum* mat, const mjModel* m,
@@ -183,6 +233,66 @@ void mj_printSparsity(const char* str, int nr, int nc, const int* rowadr, const 
     if (r < nr-1) fprintf(fp, " ");
   }
   for (int c=0; c < nc+2; c++) fprintf(fp, "-");
+  fprintf(fp, "\n\n");
+}
+
+
+
+// print block-diagonal sparse matrix structure
+void mj_printBlockSparsity(const char* str, int nr, int nc, int nisland,
+                           const int* island_block_ncols,
+                           const int* island_col_offset,
+                           const int* entity_island,
+                           const int* map_row_to_entity,
+                           const int* rownnz, const int* rowadr, const int* colind,
+                           const int* rowsuper, FILE* fp) {
+  // if no rows / columns, or too many columns to be visually useful, return
+  if (!nr || !nc || nc > 300) {
+    return;
+  }
+  fprintf(fp, "%s\n", str);
+
+  for (int c = 0; c < nc + 2; c++) fprintf(fp, "-");
+  fprintf(fp, "\n");
+
+  for (int r = 0; r < nr; r++) {
+    fprintf(fp, " ");
+    int entity_r = map_row_to_entity[r];
+    int island = entity_island[entity_r];
+
+    // SHOULD NOT OCCUR
+    if (island < 0 || island >= nisland) {
+      for (int c = 0; c < nc; c++) fprintf(fp, " ");
+      fprintf(fp, " | Error: invalid island %d for row %d (entity %d)\n", island, r, entity_r);
+      continue;
+    }
+
+    int c_start = island_col_offset[island];
+    int bnc = island_block_ncols[island];
+    int current_nnz = 0;
+    int adr = rowadr[r];
+    char nz_char = (island < 10) ? ('0' + island) : 'x';
+
+    for (int c = 0; c < nc; c++) {  // c is the global column index
+      bool nonzero = false;
+      if (c >= c_start && c < c_start + bnc) {
+        int c_block = c - c_start;  // c_block is the island-local column index
+
+        // search for c_block in colind for the current row r
+        while (current_nnz < rownnz[r] && colind[adr + current_nnz] < c_block) {
+          current_nnz++;
+        }
+        if (current_nnz < rownnz[r] && colind[adr + current_nnz] == c_block) {
+          nonzero = true;
+        }
+      }
+      fprintf(fp, "%c", nonzero ? nz_char : ' ');
+    }
+    fprintf(fp, " |");
+    if (rowsuper && rowsuper[r] > 0) fprintf(fp, " %d", rowsuper[r]);
+    fprintf(fp, "\n");
+  }
+  for (int c = 0; c < nc + 2; c++) fprintf(fp, "-");
   fprintf(fp, "\n\n");
 }
 
@@ -1160,6 +1270,17 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printSparse("QLD", d->qLD, m->nv, m->M_rownnz,
               m->M_rowadr, m->M_colind, fp, float_format);
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
+  if (d->nisland) {
+    // the static full inertia structure is already printed in printModel, so we only repeat it here
+    // if islands are present, for comparison
+    mj_printSparsity("M: inertia structure", m->nv, m->nv, m->M_rowadr, NULL,
+                     m->M_rownnz, NULL, m->M_colind, fp);
+    mj_printBlockSparsity("iM: block-diagonal inertia (nnzs are island ids)",
+                          d->nidof, d->nidof, d->nisland,
+                          d->island_nv, d->island_idofadr,
+                          d->dof_island, d->map_idof2dof,
+                          d->iM_rownnz, d->iM_rowadr, d->iM_colind, NULL, fp);
+  }
 
   if (!mju_isZero(d->qHDiagInv, m->nv)) {
     printSparse("QH", d->qH, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind, fp, float_format);
@@ -1228,14 +1349,29 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
 
   if (!mj_isSparse(m)) {
     printArray("EFC_J", d->nefc, m->nv, d->efc_J, fp, float_format);
+    if (d->nisland) {
+      printBlockArray("IEFC_J", d->iefc_J, d->nefc, d->nidof,
+                      d->nisland, d->island_nefc, d->island_nv,
+                      d->island_iefcadr, d->island_idofadr,
+                      fp, float_format);
+    }
     printArray("EFC_AR", d->nefc, d->nefc, d->efc_AR, fp, float_format);
   } else {
-    mj_printSparsity("J: constraint Jacobian", d->nefc, m->nv, d->efc_J_rowadr, NULL,
-                     d->efc_J_rownnz, d->efc_J_rowsuper, d->efc_J_colind, fp);
     printArrayInt("EFC_J_ROWNNZ", d->nefc, 1, d->efc_J_rownnz, fp);
     printArrayInt("EFC_J_ROWADR", d->nefc, 1, d->efc_J_rowadr, fp);
     printSparse("EFC_J", d->efc_J, d->nefc, d->efc_J_rownnz,
                 d->efc_J_rowadr, d->efc_J_colind, fp, float_format);
+    mj_printSparsity("J: constraint Jacobian", d->nefc, m->nv, d->efc_J_rowadr, NULL,
+                     d->efc_J_rownnz, d->efc_J_rowsuper, d->efc_J_colind, fp);
+    if (d->nisland) {
+      mj_printBlockSparsity("IEFC_J: block-diagonalized constraint Jacobian (nnzs are island ids)",
+                            d->nefc, d->nidof, d->nisland,
+                            d->island_nv, d->island_idofadr,
+                            d->efc_island, d->map_iefc2efc,
+                            d->iefc_J_rownnz, d->iefc_J_rowadr, d->iefc_J_colind,
+                            d->iefc_J_rowsuper, fp);
+    }
+
     if (mj_isDual(m)) {
       printArrayInt("EFC_AR_ROWNNZ", d->nefc, 1, d->efc_AR_rownnz, fp);
       printArrayInt("EFC_AR_ROWADR", d->nefc, 1, d->efc_AR_rowadr, fp);
