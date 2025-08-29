@@ -18,6 +18,7 @@ import enum
 from typing import Tuple, Union
 import warnings
 
+from typing import Optional
 import jax
 import mujoco
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
@@ -483,6 +484,7 @@ class OptionJAX(PyTreeNode):
   disableactuator: int
   sdf_initpoints: int
   has_fluid_params: bool
+  fixed_iterations: Optional[int] = None 
 
 
 class OptionC(PyTreeNode):
