@@ -417,14 +417,25 @@ UsdAttribute MjcPhysicsSceneAPI::CreateContactFlagAttr(
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::GetPassiveFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagPassive);
+UsdAttribute MjcPhysicsSceneAPI::GetSpringFlagAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagSpring);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreatePassiveFlagAttr(
+UsdAttribute MjcPhysicsSceneAPI::CreateSpringFlagAttr(
     VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcFlagPassive, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagSpring, SdfValueTypeNames->Bool,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetDamperFlagAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagDamper);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateDamperFlagAttr(
+    VtValue const& defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcFlagDamper, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
@@ -817,7 +828,8 @@ const TfTokenVector& MjcPhysicsSceneAPI::GetSchemaAttributeNames(
       MjcPhysicsTokens->mjcFlagFrictionloss,
       MjcPhysicsTokens->mjcFlagLimit,
       MjcPhysicsTokens->mjcFlagContact,
-      MjcPhysicsTokens->mjcFlagPassive,
+      MjcPhysicsTokens->mjcFlagSpring,
+      MjcPhysicsTokens->mjcFlagDamper,
       MjcPhysicsTokens->mjcFlagGravity,
       MjcPhysicsTokens->mjcFlagClampctrl,
       MjcPhysicsTokens->mjcFlagWarmstart,

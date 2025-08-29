@@ -848,7 +848,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 
   // check for dof damping if disable flag is not set
   int dof_damping = 0;
-  if (!mjDISABLED(mjDSBL_EULERDAMP)) {
+  if (!mjDISABLED(mjDSBL_EULERDAMP) && !mjDISABLED(mjDSBL_DAMPER)) {
     for (int i=0; i < nv; i++) {
       if (m->dof_damping[i] > 0) {
         dof_damping = 1;

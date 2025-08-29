@@ -523,11 +523,25 @@ from its default.
 :at:`contact`: :at-val:`[disable, enable], "enable"`
    This flag disables collision detection and all standard computations related to contact constraints.
 
-.. _option-flag-passive:
+.. _option-flag-spring:
 
-:at:`passive`: :at-val:`[disable, enable], "enable"`
-   This flag disables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive
+:at:`spring`: :at-val:`[disable, enable], "enable"`
+
+   This flag disables passive joint and tendon springs. If passive :ref:`damper <option-flag-damper>` forces are
+   also disabled, *all* passive forces are disabled, including gravity compensation, fluid forces, forces computed by
+   the :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
+   :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
+
+   , fluid dynamics forces, and custom passive
    forces computed by the :ref:`mjcb_passive` callback. As a result, no passive forces are applied.
+
+.. _option-flag-damper:
+
+:at:`damping`: :at-val:`[disable, enable], "enable"`
+   This flag disables passive joint and tendon dampers. If passive :ref:`spring <option-flag-spring>` forces are also
+   disabled, *all* passive forces are disabled, including gravity compensation, fluid forces, forces computed by the
+   :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
+   :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
 
 .. _option-flag-gravity:
 

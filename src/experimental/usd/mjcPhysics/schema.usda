@@ -366,12 +366,20 @@ class "MjcSceneAPI"
         doc = """Enables collision detection and all standard computations related to contact constraints."""
     )
 
-    uniform bool mjc:flag:passive = True (
+    uniform bool mjc:flag:spring = True (
         customData = {
-            string apiName = "PassiveFlag"
+            string apiName = "SpringFlag"
         }
-        displayName = "Passive Forces Toggle"
-        doc = """Enables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive forces."""
+        displayName = "Spring Forces Toggle"
+        doc = """Enables the simulation of joint and tendon springs."""
+    )
+
+    uniform bool mjc:flag:damper = True (
+        customData = {
+            string apiName = "DamperFlag"
+        }
+        displayName = "Damper Forces Toggle"
+        doc = """Enables the simulation of joint and tendon dampers."""
     )
 
     uniform bool mjc:flag:gravity = True (

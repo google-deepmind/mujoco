@@ -90,6 +90,10 @@ class "MjcSceneAPI" (
         displayName = "Contact Constraints and Collision Detection Toggle"
         doc = "Enables collision detection and all standard computations related to contact constraints."
     )
+    uniform bool mjc:flag:damper = 1 (
+        displayName = "Damper Forces Toggle"
+        doc = "Enables the simulation of joint and tendon dampers."
+    )
     uniform bool mjc:flag:energy = 0 (
         displayName = "Energy Computation Toggle"
         doc = "Enables the computation of potential and kinetic energy (mjData.energy[0,1])."
@@ -146,10 +150,6 @@ class "MjcSceneAPI" (
         displayName = "Contact Override Mechanism Toggle"
         doc = "Enables the contact override mechanism."
     )
-    uniform bool mjc:flag:passive = 1 (
-        displayName = "Passive Forces Toggle"
-        doc = "Enables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive forces."
-    )
     uniform bool mjc:flag:refsafe = 1 (
         displayName = "Solver Reference Safety Mechanism Toggle"
         doc = "Enables a safety mechanism that prevents instabilities due to solref[0] being too small compared to the simulation timestep."
@@ -157,6 +157,10 @@ class "MjcSceneAPI" (
     uniform bool mjc:flag:sensor = 1 (
         displayName = "Sensor Computations Toggle"
         doc = "Enables all computations related to sensors."
+    )
+    uniform bool mjc:flag:spring = 1 (
+        displayName = "Spring Forces Toggle"
+        doc = "Enables the simulation of joint and tendon springs."
     )
     uniform bool mjc:flag:warmstart = 1 (
         displayName = "Solver Warm-Starting Toggle"

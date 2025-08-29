@@ -523,7 +523,7 @@ def implicit(m: Model, d: Data):
   """Integrates fully implicit in velocity."""
 
   # compile-time constants
-  passive_enabled = not m.opt.disableflags & DisableBit.PASSIVE.value
+  passive_enabled = not m.opt.disableflags & (DisableBit.SPRING.value | DisableBit.DAMPER.value)
   actuation_enabled = (not m.opt.disableflags & DisableBit.ACTUATION.value) and m.actuator_affine_bias_gain
 
   if passive_enabled or actuation_enabled:

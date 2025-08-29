@@ -148,8 +148,10 @@ TEST_F(MjcPhysicsSceneTest, TestDefaults) {
   EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(LimitFlag, mjDSBL_LIMIT);
   EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(ContactFlag,
                                                     mjDSBL_CONTACT);
-  EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(PassiveFlag,
-                                                    mjDSBL_PASSIVE);
+  EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(SpringFlag,
+                                                    mjDSBL_SPRING);
+  EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(DamperFlag,
+                                                    mjDSBL_DAMPER);
   EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(GravityFlag,
                                                     mjDSBL_GRAVITY);
   EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(ClampCtrlFlag,

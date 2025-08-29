@@ -194,7 +194,8 @@ class ForwardTest(parameterized.TestCase):
       "pendula.xml",
       integrator=IntegratorType.IMPLICITFAST,
       actuation=actuation,
-      passive=passive,
+      spring=passive,
+      damper=passive,
       sparse=sparse,
     )
 

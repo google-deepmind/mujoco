@@ -915,28 +915,51 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
 
  public:
   // --------------------------------------------------------------------- //
-  // PASSIVEFLAG
+  // SPRINGFLAG
   // --------------------------------------------------------------------- //
-  /// Enables the simulation of joint and tendon spring-dampers, fluid dynamics
-  /// forces, and custom passive forces.
+  /// Enables the simulation of joint and tendon springs.
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:flag:passive = 1` |
+  /// | Declaration | `uniform bool mjc:flag:spring = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
   MJCPHYSICS_API
-  UsdAttribute GetPassiveFlagAttr() const;
+  UsdAttribute GetSpringFlagAttr() const;
 
-  /// See GetPassiveFlagAttr(), and also
+  /// See GetSpringFlagAttr(), and also
   /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
   /// If specified, author \p defaultValue as the attribute's default,
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreatePassiveFlagAttr(VtValue const& defaultValue = VtValue(),
-                                     bool writeSparsely = false) const;
+  UsdAttribute CreateSpringFlagAttr(VtValue const& defaultValue = VtValue(),
+                                    bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
+  // DAMPERFLAG
+  // --------------------------------------------------------------------- //
+  /// Enables the simulation of joint and tendon dampers.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform bool mjc:flag:damper = 1` |
+  /// | C++ Type | bool |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetDamperFlagAttr() const;
+
+  /// See GetDamperFlagAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateDamperFlagAttr(VtValue const& defaultValue = VtValue(),
+                                    bool writeSparsely = false) const;
 
  public:
   // --------------------------------------------------------------------- //

@@ -1424,69 +1424,14 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
 
 // add (d qfrc_passive / d qvel) to qDeriv
 void mjd_passive_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv, nbody = m->nbody;
-
-  // disabled: nothing to add
-  if (mjDISABLED(mjDSBL_PASSIVE)) {
+  // all disabled: nothing to add
+  if (mjDISABLED(mjDSBL_SPRING) && mjDISABLED(mjDSBL_DAMPER)) {
     return;
-  }
-
-  // dof damping
-  for (int i=0; i < nv; i++) {
-    int nnz_i = m->D_rownnz[i];
-    for (int j=0; j < nnz_i; j++) {
-      int ij = m->D_rowadr[i] + j;
-
-      // identify diagonal element
-      if (m->D_colind[ij] == i) {
-        d->qDeriv[ij] -= m->dof_damping[i];
-        break;
-      }
-    }
-  }
-
-  // flex edge damping
-  for (int f=0; f < m->nflex; f++) {
-    if (!m->flex_rigid[f] && m->flex_edgedamping[f]) {
-      mjtNum B = -m->flex_edgedamping[f];
-      int flex_edgeadr = m->flex_edgeadr[f];
-      int flex_edgenum = m->flex_edgenum[f];
-
-      // process non-rigid edges of this flex
-      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
-        // skip rigid
-        if (m->flexedge_rigid[e]) {
-          continue;
-        }
-
-        // add sparse or dense
-        if (mj_isSparse(m)) {
-          addJTBJSparse(m, d, d->flexedge_J, &B, 1, e,
-                        d->flexedge_J_rownnz, d->flexedge_J_rowadr, d->flexedge_J_colind);
-        } else {
-          addJTBJ(m, d, d->flexedge_J+e*nv, &B, 1);
-        }
-      }
-    }
-  }
-
-  // tendon damping
-  for (int i=0; i < m->ntendon; i++) {
-    if (m->tendon_damping[i] > 0) {
-      mjtNum B = -m->tendon_damping[i];
-
-      // add sparse or dense
-      if (mj_isSparse(m)) {
-        addJTBJSparse(m, d, d->ten_J, &B, 1, i,
-                      d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
-      } else {
-        addJTBJ(m, d, d->ten_J+i*nv, &B, 1);
-      }
-    }
   }
 
   // fluid drag model, either body-level (inertia box) or geom-level (ellipsoid)
   if (m->opt.viscosity > 0 || m->opt.density > 0) {
+    int nbody = m->nbody;
     for (int i=1; i < nbody; i++) {
       if (m->body_mass[i] < mjMINVAL) {
         continue;
@@ -1503,6 +1448,61 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
       } else {
         mjd_inertiaBoxFluid(m, d, i);
       }
+    }
+  }
+
+  // disabled: nothing to add
+  if (mjDISABLED(mjDSBL_DAMPER)) {
+    return;
+  }
+
+  // dof damping
+  int nv = m->nv;
+  for (int i=0; i < nv; i++) {
+    d->qDeriv[m->D_rowadr[i] + m->D_diag[i]] -= m->dof_damping[i];
+  }
+
+  // flex edge damping
+  for (int f=0; f < m->nflex; f++) {
+    mjtNum B = -m->flex_edgedamping[f];
+    if (m->flex_rigid[f] || !B) {
+      continue;
+    }
+
+    int flex_edgeadr = m->flex_edgeadr[f];
+    int flex_edgenum = m->flex_edgenum[f];
+
+    // process non-rigid edges of this flex
+    for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+      // skip rigid
+      if (m->flexedge_rigid[e]) {
+        continue;
+      }
+
+      // add sparse or dense
+      if (mj_isSparse(m)) {
+        addJTBJSparse(m, d, d->flexedge_J, &B, 1, e,
+                      d->flexedge_J_rownnz, d->flexedge_J_rowadr, d->flexedge_J_colind);
+      } else {
+        addJTBJ(m, d, d->flexedge_J+e*nv, &B, 1);
+      }
+    }
+  }
+
+  // tendon damping
+  int ntendon = m->ntendon;
+  for (int i=0; i < ntendon; i++) {
+    mjtNum B = -m->tendon_damping[i];
+
+    if (!B) {
+      continue;
+    }
+
+    // add sparse or dense
+    if (mj_isSparse(m)) {
+      addJTBJSparse(m, d, d->ten_J, &B, 1, i, d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
+    } else {
+      addJTBJ(m, d, d->ten_J+i*nv, &B, 1);
     }
   }
 }

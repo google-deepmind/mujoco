@@ -2323,7 +2323,7 @@ void* LRfunc(void* arg) {
 void mjCModel::LengthRange(mjModel* m, mjData* data) {
   // save options and modify
   mjOption saveopt = m->opt;
-  m->opt.disableflags = mjDSBL_FRICTIONLOSS | mjDSBL_CONTACT | mjDSBL_PASSIVE |
+  m->opt.disableflags = mjDSBL_FRICTIONLOSS | mjDSBL_CONTACT | mjDSBL_SPRING | mjDSBL_DAMPER |
                         mjDSBL_GRAVITY | mjDSBL_ACTUATION;
   if (compiler.LRopt.timestep > 0) {
     m->opt.timestep = compiler.LRopt.timestep;

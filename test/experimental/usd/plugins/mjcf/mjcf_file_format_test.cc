@@ -1052,7 +1052,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
           frictionloss="disable"
           limit="disable"
           contact="disable"
-          passive="disable"
+          spring="disable"
+          damper="disable"
           gravity="disable"
           clampctrl="disable"
           warmstart="disable"
@@ -1075,7 +1076,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
       MjcPhysicsTokens->mjcFlagFrictionloss,
       MjcPhysicsTokens->mjcFlagLimit,
       MjcPhysicsTokens->mjcFlagContact,
-      MjcPhysicsTokens->mjcFlagPassive,
+      MjcPhysicsTokens->mjcFlagSpring,
+      MjcPhysicsTokens->mjcFlagDamper,
       MjcPhysicsTokens->mjcFlagGravity,
       MjcPhysicsTokens->mjcFlagClampctrl,
       MjcPhysicsTokens->mjcFlagWarmstart,

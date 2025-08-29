@@ -34,6 +34,16 @@ General
      principled and well-defined. Since this change to RK4 is effectively a bug fix, migration to the previous behavior
      is not provided.
 
+   - The ``mjDSBL_PASSIVE`` flag for disabling passive forces was removed and replaced by
+     :ref:`mjDSBL_SPRING<mjtDisableBit>` and :ref:`mjDSBL_DAMPER<mjtDisableBit>` with corresponding
+     :ref:`mjcf<option-flag-spring>` :ref:`attributes<option-flag-damper>`. Each flag disables only joint and tendon
+     springs or dampers, respectively. When both flags are set, *all* passive forces are disabled, including gravity
+     compensation, fluid forces, forces computed by the :ref:`mjcb_passive` callback, and forces computed by
+     :ref:`plugins <exPlugin>` when passed the :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag. Setting
+     both flags recovers the behavior of the previous flag and is the migration path for existing code using
+     ``mjDSBL_PASSIVE``.
+
+
 .. admonition:: Breaking ABI changes
    :class: attention
 

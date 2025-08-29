@@ -140,7 +140,7 @@ def deriv_smooth_vel(m: Model, d: Data, flg_forward: bool = True):
                                   Default is True.
   """
   actuation_enabled = not (m.opt.disableflags & DisableBit.ACTUATION)
-  passive_enabled = not (m.opt.disableflags & DisableBit.PASSIVE)
+  passive_enabled = not (m.opt.disableflags & (DisableBit.SPRING | DisableBit.DAMPER))
 
   qMi = m.qM_fullm_i if m.opt.is_sparse else m.dof_tri_row
   qMj = m.qM_fullm_j if m.opt.is_sparse else m.dof_tri_col
