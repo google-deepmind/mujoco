@@ -526,20 +526,16 @@ from its default.
 .. _option-flag-spring:
 
 :at:`spring`: :at-val:`[disable, enable], "enable"`
-
    This flag disables passive joint and tendon springs. If passive :ref:`damper <option-flag-damper>` forces are
-   also disabled, *all* passive forces are disabled, including gravity compensation, fluid forces, forces computed by
+   also disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by
    the :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
    :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
-
-   , fluid dynamics forces, and custom passive
-   forces computed by the :ref:`mjcb_passive` callback. As a result, no passive forces are applied.
 
 .. _option-flag-damper:
 
 :at:`damping`: :at-val:`[disable, enable], "enable"`
    This flag disables passive joint and tendon dampers. If passive :ref:`spring <option-flag-spring>` forces are also
-   disabled, *all* passive forces are disabled, including gravity compensation, fluid forces, forces computed by the
+   disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by the
    :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
    :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
 
@@ -623,7 +619,7 @@ from its default.
 .. _option-flag-override:
 
 :at:`override`: :at-val:`[disable, enable], "disable"`
-   This flag enables to :ref:`Contact override <COverride>` mechanism explained above.
+   This flag enables the :ref:`Contact override <COverride>` mechanism.
 
 .. _option-flag-energy:
 
