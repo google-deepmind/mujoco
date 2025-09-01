@@ -335,6 +335,7 @@
     X   ( mjtByte, flex_internal,         nflex,         1                    ) \
     X   ( int,     flex_selfcollide,      nflex,         1                    ) \
     X   ( int,     flex_activelayers,     nflex,         1                    ) \
+    X   ( int,     flex_passive,          nflex,         1                    ) \
     X   ( int,     flex_dim,              nflex,         1                    ) \
     X   ( int,     flex_matid,            nflex,         1                    ) \
     X   ( int,     flex_group,            nflex,         1                    ) \

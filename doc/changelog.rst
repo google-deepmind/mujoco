@@ -54,6 +54,7 @@ General
 
 - Added support for shells with a curved reference configuration. See this `example
   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/basket.xml>`__.
+- Added experimental option for :ref:`passive<flex-contact-passive>` contacts involving flexes.
 
 - Added support for assigning a default material to a mesh asset using the :ref:`mesh/material <asset-mesh-material>`
   attribute.

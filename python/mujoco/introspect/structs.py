@@ -2510,6 +2510,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flex_passive',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='passive collisions enabled',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
                  name='flex_dim',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -4878,7 +4886,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='exclude',
                  type=ValueType(name='int'),
-                 doc='0: include, 1: in gap, 2: fused, 3: no dofs',
+                 doc='0: include, 1: in gap, 2: fused, 3: no dofs, 4: passive',
              ),
              StructFieldDecl(
                  name='efc_address',
@@ -9124,6 +9132,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='vertcollide',
                  type=ValueType(name='int'),
                  doc='mode for vertex collision',
+             ),
+             StructFieldDecl(
+                 name='passive',
+                 type=ValueType(name='int'),
+                 doc='mode for passive collisions',
              ),
              StructFieldDecl(
                  name='activelayers',

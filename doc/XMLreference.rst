@@ -3735,6 +3735,7 @@ saving the XML:
 .. _flexcomp-contact-solimp:
 .. _flexcomp-contact-margin:
 .. _flexcomp-contact-gap:
+.. _flexcomp-contact-passive:
 
 .. |body/flexcomp/contact attrib list| replace::
    :at:`internal`, :at:`selfcollide`, :at:`vertcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`,
@@ -4297,6 +4298,13 @@ extensions specific to flexes.
 
 |deformable/flex/contact attrib list|
    Same meaning as regular :ref:`geom <body-geom>` attributes.
+
+.. _flex-contact-passive:
+
+:at:`passive`: :at-val:`[true, false], "false"`
+   When enabled, the contact is not added to the contact solver but it is instead used to compute passive
+   (spring-damper) contact forces. All contacts, regardless of the specified condim, are frictionless (condim 1). This
+   is an experimental feature and might change in future releases.
 
 
 .. _deformable-skin:

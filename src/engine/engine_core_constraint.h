@@ -65,8 +65,14 @@ void mj_instantiateFriction(const mjModel* m, mjData* d);
 // joint and tendon limits
 void mj_instantiateLimit(const mjModel* m, mjData* d);
 
-// frictionelss and frictional contacts
+// frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d);
+
+// compute Jacobian for contact, return number of DOFs affected
+int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
+                       mjtNum* jac, mjtNum* jacdif, mjtNum* jacdifp,
+                       mjtNum* jacdifr, mjtNum* jac1p, mjtNum* jac2p,
+                       mjtNum* jac1r, mjtNum* jac2r, int* chain);
 
 
 //------------------------ parameter computation/extraction ----------------------------------------

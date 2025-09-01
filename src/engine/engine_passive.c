@@ -36,6 +36,9 @@
 
 //----------------------------- passive forces -----------------------------------------------------
 
+// stiffness for passive contacts
+static const mjtNum kContactStiffness = 1e4;
+
 // local edge-based vertex indexing for 2D and 3D elements, 2D and 3D elements
 // have 3 and 6 edges, respectively so the missing indexes are set to 0
 static const int edges[2][6][2] = {{{1, 2}, {2, 0}, {0, 1}, {0, 0}, {0, 0}, {0, 0}},
@@ -515,6 +518,89 @@ static int mj_fluid(const mjModel* m, mjData* d) {
 
 
 
+// passive contact forces
+int mj_contactPassive(const mjModel* m, mjData* d) {
+  int ncon = d->ncon, issparse = mj_isSparse(m);
+  int dim, NV, nv = m->nv, *chain = NULL;
+  mjtNum *jac, *jacdif, *jacdifp, *jacdifr, *jac1p, *jac2p, *jac1r, *jac2r, *qfrc;
+  mjContact* con;
+  int has_contact = 0;
+
+  if (mjDISABLED(mjDSBL_CONTACT) || ncon == 0 || nv == 0) {
+    return 0;
+  }
+
+  // early return if no contact to be included
+  for (int i=0; i < ncon; i++) {
+    if (d->contact[i].exclude != 4) {
+      continue;
+    }
+    has_contact = 1;
+  }
+
+  if (!has_contact) {
+    return 0;
+  }
+
+  // allocate Jacobian
+  mj_markStack(d);
+  jac     = mjSTACKALLOC(d, 6*nv, mjtNum);
+  jacdif  = mjSTACKALLOC(d, 6*nv, mjtNum);
+  jacdifp = jacdif;
+  jacdifr = jacdif + 3*nv;
+  jac1p   = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac2p   = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac1r   = mjSTACKALLOC(d, 3*nv, mjtNum);
+  jac2r   = mjSTACKALLOC(d, 3*nv, mjtNum);
+  qfrc    = mjSTACKALLOC(d, nv, mjtNum);
+  if (issparse) {
+    chain = mjSTACKALLOC(d, nv, int);
+  }
+
+  // find contacts to be included
+  for (int i=0; i < ncon; i++) {
+    if (d->contact[i].exclude != 4) {
+      continue;
+    }
+
+    // get contact info, safe efc_address
+    con = d->contact + i;
+    dim = con->dim;
+    con->efc_address = -1;
+    NV = mj_contactJacobian(m, d, con, dim, jac, jacdif, jacdifp, jacdifr,
+                            jac1p, jac2p, jac1r, jac2r, chain);
+
+    // skip contact if no DOFs affected
+    if (NV == 0) {
+      con->efc_address = -1;
+      con->exclude = 3;
+      continue;
+    }
+
+    // rotate Jacobian differences to contact frame
+    mju_mulMatMat(jac, con->frame, jacdifp, dim > 1 ? 3 : 1, 3, NV);
+    if (dim > 3) {
+      mju_mulMatMat(jac + 3*NV, con->frame, jacdifr, dim-3, 3, NV);
+    }
+
+    // compute passive contact force (dim = 1)
+    mjtNum scl = -kContactStiffness*con->dist;
+    if (!issparse) {
+      mju_addToScl(d->qfrc_spring, jac, scl, nv);
+    } else {
+      mju_scl(qfrc, jac, scl, NV);
+      for (int j=0; j < NV; j++) {
+        d->qfrc_spring[chain[j]] += qfrc[j];
+      }
+    }
+  }
+
+  mj_freeStack(d);
+  return has_contact;
+}
+
+
+
 // all passive forces
 void mj_passive(const mjModel* m, mjData* d) {
   int nv = m->nv;
@@ -540,9 +626,14 @@ void mj_passive(const mjModel* m, mjData* d) {
   // fluid forces
   int has_fluid = mj_fluid(m, d);
 
+  // contact forces
+  mj_contactPassive(m, d);
+
   // add passive forces into qfrc_passive
   mju_add(d->qfrc_passive, d->qfrc_spring, d->qfrc_damper, nv);
-  if (has_fluid) mju_addTo(d->qfrc_passive, d->qfrc_fluid, nv);
+  if (has_fluid) {
+    mju_addTo(d->qfrc_passive, d->qfrc_fluid, nv);
+  }
   if (has_gravcomp) {
     int njnt = m->njnt;
     for (int i=0; i < njnt; i++) {

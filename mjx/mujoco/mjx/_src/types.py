@@ -570,6 +570,7 @@ class ModelC(PyTreeNode):
   flex_internal: jax.Array
   flex_selfcollide: jax.Array
   flex_activelayers: jax.Array
+  flex_passive: jax.Array
   flex_dim: jax.Array
   flex_vertadr: jax.Array
   flex_vertnum: jax.Array

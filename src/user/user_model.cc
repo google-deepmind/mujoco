@@ -3321,6 +3321,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_flatskin[i] = pfl->flatskin;
     m->flex_selfcollide[i] = pfl->selfcollide;
     m->flex_activelayers[i] = pfl->activelayers;
+    m->flex_passive[i] = pfl->passive;
     m->flex_bvhnum[i] = pfl->tree.Nbvh();
     m->flex_bvhadr[i] = pfl->tree.Nbvh() ? bvh_adr : -1;
 

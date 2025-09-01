@@ -5477,6 +5477,7 @@ public unsafe struct mjModel_ {
   public byte* flex_internal;
   public int* flex_selfcollide;
   public int* flex_activelayers;
+  public int* flex_passive;
   public int* flex_dim;
   public int* flex_matid;
   public int* flex_group;

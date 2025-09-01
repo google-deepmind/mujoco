@@ -316,9 +316,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
             {"edge", "?", "5", "equality", "solref", "solimp", "stiffness", "damping"},
             {"elasticity", "?", "5", "young", "poisson", "damping", "thickness", "elastic2d"},
-            {"contact", "?", "14", "contype", "conaffinity", "condim", "priority",
+            {"contact", "?", "15", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide"},
+                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
             {"pin", "*", "4", "id", "range", "grid", "gridrange"},
             {"plugin", "*", "2", "plugin", "instance"},
             {"<"},
@@ -332,9 +332,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"flex", "*", "13", "name", "group", "dim", "radius", "material",
             "rgba", "flatskin", "body", "vertex", "element", "texcoord", "elemtexcoord", "node"},
         {"<"},
-            {"contact", "?", "14", "contype", "conaffinity", "condim", "priority",
+            {"contact", "?", "15", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide"},
+                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
             {"edge", "?", "2", "stiffness", "damping"},
             {"elasticity", "?", "5", "young", "poisson", "damping", "thickness", "elastic2d"},
         {">"},
@@ -1459,6 +1459,9 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
     MapValue(cont, "selfcollide", &flex->selfcollide, flexself_map, 5);
     if (MapValue(cont, "vertcollide", &flex->vertcollide, bool_map, 2)) {
       flex->vertcollide = (n == 1);
+    }
+    if (MapValue(cont, "passive", &flex->passive, bool_map, 2)) {
+      flex->passive = (n == 1);
     }
     ReadAttrInt(cont, "activelayers", &flex->activelayers);
   }
@@ -2720,6 +2723,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
     if (MapValue(cont, "vertcollide", &n, bool_map, 2)) {
       dflex.vertcollide = (n == 1);
+    }
+    if (MapValue(cont, "passive", &n, bool_map, 2)) {
+      dflex.passive = (n == 1);
     }
     ReadAttrInt(cont, "activelayers", &dflex.activelayers);
   }
