@@ -39,7 +39,7 @@ mjtNum gettm(void) {
 }
 
 // deallocate and print message
-int finish(const char* msg = 0, mjModel* m = 0) {
+int finish(const char* msg = 0, int exitcode = EXIT_SUCCESS, mjModel* m = 0) {
   // deallocated everything
   if (m) {
     mj_deleteModel(m);
@@ -50,7 +50,7 @@ int finish(const char* msg = 0, mjModel* m = 0) {
     std::cout << msg << std::endl;
   }
 
-  return EXIT_SUCCESS;
+  return exitcode;
 }
 
 
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
 
   // print help if arguments are missing
   if (argc!=3 && argc!=2) {
-    return finish(helpstring);
+    return finish(helpstring, EXIT_FAILURE);
   }
 
   // determine file types
@@ -119,7 +119,7 @@ int main(int argc, char** argv) {
   // check types
   if (type1==typeUNKNOWN || type1==typeTXT ||
       type2==typeUNKNOWN || (type1==typeMJB && type2==typeXML)) {
-    return finish("Illegal combination of file formats");
+    return finish("Illegal combination of file formats", EXIT_FAILURE);
   }
 
   // check if output file exists
@@ -153,16 +153,16 @@ int main(int argc, char** argv) {
   // check error
   if (!m) {
     if (type1==typeXML) {
-      return finish(error, 0);
+      return finish(error, EXIT_FAILURE);
     } else {
-      return finish("Could not load model", 0);
+      return finish("Could not load model", EXIT_FAILURE);
     }
   }
 
   // save model
   if (type2==typeXML) {
     if (!mj_saveLastXML(argv[2], m, error, 1000)) {
-      return finish(error, m);
+      return finish(error, EXIT_FAILURE, m);
     }
   } else if (type2==typeMJB) {
     mj_saveModel(m, argv[2], 0, 0);
@@ -181,5 +181,5 @@ int main(int argc, char** argv) {
     snprintf(msg, sizeof(msg), "Done.");
   }
 
-  return finish(msg, m);
+  return finish(msg, EXIT_SUCCESS, m);
 }
