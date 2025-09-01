@@ -27,12 +27,6 @@ extern "C" {
 
 //-------------------------- Jacobian-related ------------------------------------------------------
 
-// determine type of friction cone
-MJAPI int mj_isPyramidal(const mjModel* m);
-
-// determine type of constraint Jacobian
-MJAPI int mj_isSparse(const mjModel* m);
-
 // determine type of solver
 MJAPI int mj_isDual(const mjModel* m);
 
@@ -59,7 +53,6 @@ mjtNum mj_assignMargin(const mjModel* m, mjtNum source);
 
 // add contact to d->contact list; return 0 if success; 1 if buffer full
 MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
-
 
 //-------------------------- constraint instantiation ----------------------------------------------
 

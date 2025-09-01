@@ -23,7 +23,9 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"

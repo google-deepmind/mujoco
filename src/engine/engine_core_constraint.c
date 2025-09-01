@@ -22,9 +22,9 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
+#include "engine/engine_core_util.h"
 #include "engine/engine_core_smooth.h"
-#include "engine/engine_io.h"
-#include "engine/engine_support.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -84,29 +84,6 @@ static int arenaAllocEfc(const mjModel* m, mjData* d) {
 
 
 
-// determine type of friction cone
-int mj_isPyramidal(const mjModel* m) {
-  if (m->opt.cone == mjCONE_PYRAMIDAL) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
-
-
-// determine type of constraint Jacobian
-int mj_isSparse(const mjModel* m) {
-  if (m->opt.jacobian == mjJAC_SPARSE ||
-      (m->opt.jacobian == mjJAC_AUTO && m->nv >= 60)) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
-
-
 // determine type of solver
 int mj_isDual(const mjModel* m) {
   if (m->opt.solver == mjSOL_PGS || m->opt.noslip_iterations > 0) {
@@ -130,6 +107,7 @@ void mj_assignFriction(const mjModel* m, mjtNum* target, const mjtNum* source) {
     }
   }
 }
+
 
 
 

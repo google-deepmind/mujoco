@@ -21,7 +21,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtnum.h>
-#include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_misc.h"
 

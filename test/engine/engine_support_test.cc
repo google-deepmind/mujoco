@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests for engine/engine_support.c.
+// Tests for engine/{engine_support.c and engine_core_util.c}
 
+#include "src/engine/engine_core_util.h"
 #include "src/engine/engine_support.h"
 
 #include <limits>

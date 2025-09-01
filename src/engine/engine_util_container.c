@@ -20,7 +20,7 @@
 
 #include <mujoco/mujoco.h>
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 
 // stack allocate and initialize new mjArrayList
 mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_capacity) {

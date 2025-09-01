@@ -23,7 +23,8 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_array_safety.h"
-#include "engine/engine_io.h"
+#include "engine/engine_core_util.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_name.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"

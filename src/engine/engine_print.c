@@ -25,6 +25,7 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_io.h"
 #include "engine/engine_name.h"
 #include "engine/engine_macro.h"
