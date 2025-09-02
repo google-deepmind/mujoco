@@ -141,6 +141,7 @@ target_link_libraries(
           qhullstatic_r
           tinyobjloader
           tinyxml2
+          cglm
 )
 
 set_target_properties(
