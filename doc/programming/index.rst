@@ -111,6 +111,8 @@ target directory.
 
 5. Select the directory: :shell:`cmake $PATH_TO_CLONED_REPO -DCMAKE_INSTALL_PREFIX=<my_install_dir>`
 #. After building, install with ``cmake --install .``
+#. If desired, proceed to building the Python bindings - see
+   :ref:`PyBuild`.
 
 **Notes:**
 
