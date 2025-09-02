@@ -587,15 +587,17 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   // values used by MJMODEL_POINTERS macro
   MJMODEL_POINTERS_PREAMBLE(m)
 
-  // object_class points to the integer size identifying the class of arrays currently being printed
-  //   used to organise the printout into category groups
-  //   note that comparison is based on the integer address, not its value
+  // touch unused sizes to avoid unused variable warning
+  (void)nq;
+  (void)nv;
+  (void)na;
+  (void)nu;
+  (void)nmocap;
+
   const int* object_class;
 
 #define X(type, name, num, sz)                                              \
-  if (&m->num == object_class && strncmp(#name, "name_", 5) &&              \
-      strncmp(#name, "M_", 2) && strncmp(#name, "B_", 2)    &&              \
-      strncmp(#name, "D_", 2) && sz > 0) {                                  \
+  if (&m->num == object_class && sz > 0) {                                  \
     const char* format = _Generic(*m->name,                                 \
                                   double:  float_format,                    \
                                   float:   float_format,                    \
@@ -612,92 +614,93 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
       fprintf(fp, "\n");                                                    \
     }                                                                       \
   }
+#define XNV X
 
   // bodies
+  object_class = &m->nbody;
   for (int i=0; i < m->nbody; i++) {
     fprintf(fp, "\nBODY %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_bodyadr[i]);
-    object_class = &m->nbody;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_BODY
   }
   if (m->nbody) fprintf(fp, "\n");
 
   // joints
+  object_class = &m->njnt;
   for (int i=0; i < m->njnt; i++) {
     fprintf(fp, "\nJOINT %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_jntadr[i]);
-    object_class = &m->njnt;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_JOINT
   }
   if (m->njnt) fprintf(fp, "\n");
 
   // dofs
+  object_class = &m->nv;
   for (int i=0; i < m->nv; i++) {
     fprintf(fp, "\nDOF %d:\n", i);
-    object_class = &m->nv;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_DOF
   }
   if (m->nv) fprintf(fp, "\n");
 
   // geoms
+  object_class = &m->ngeom;
   for (int i=0; i < m->ngeom; i++) {
     fprintf(fp, "\nGEOM %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_geomadr[i]);
-    object_class = &m->ngeom;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_GEOM
   }
   if (m->ngeom) fprintf(fp, "\n");
 
   // sites
+  object_class = &m->nsite;
   for (int i=0; i < m->nsite; i++) {
     fprintf(fp, "\nSITE %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_siteadr[i]);
-    object_class = &m->nsite;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_SITE
   }
   if (m->nsite) fprintf(fp, "\n");
 
   // cameras
+  object_class = &m->ncam;
   for (int i=0; i < m->ncam; i++) {
     fprintf(fp, "\nCAMERA %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_camadr[i]);
-    object_class = &m->ncam;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_CAMERA
   }
   if (m->ncam) fprintf(fp, "\n");
 
   // lights
+  object_class = &m->nlight;
   for (int i=0; i < m->nlight; i++) {
     fprintf(fp, "\nLIGHT %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_lightadr[i]);
-    object_class = &m->nlight;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_LIGHT
   }
   if (m->nlight) fprintf(fp, "\n");
 
   // flexes
+  object_class = &m->nflex;
   for (int i=0; i < m->nflex; i++) {
     fprintf(fp, "\nFLEX %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_flexadr[i]);
-    object_class = &m->nflex;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_FLEX
   }
   if (m->nflex) fprintf(fp, "\n");
 
   // meshes
+  object_class = &m->nmesh;
   for (int i=0; i < m->nmesh; i++) {
     fprintf(fp, "\nMESH %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_meshadr[i]);
-    object_class = &m->nmesh;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_MESH
     if (m->mesh_graphadr[i] >= 0) {
       fprintf(fp, "  " NAME_FORMAT, "qhull face");
       fprintf(fp, " %d\n", m->mesh_graph[m->mesh_graphadr[i]+1]);
@@ -708,82 +711,82 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nmesh) fprintf(fp, "\n");
 
   // skins
+  object_class = &m->nskin;
   for (int i=0; i < m->nskin; i++) {
     fprintf(fp, "\nSKIN %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_skinadr[i]);
-    object_class = &m->nskin;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_SKIN
   }
   if (m->nskin) fprintf(fp, "\n");
 
   // hfields
+  object_class = &m->nhfield;
   for (int i=0; i < m->nhfield; i++) {
     fprintf(fp, "\nHEIGHTFIELD %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, "  %s\n", m->names + m->name_hfieldadr[i]);
-    object_class = &m->nhfield;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_HFIELD
   }
   if (m->nhfield) fprintf(fp, "\n");
 
   // textures
+  object_class = &m->ntex;
   for (int i=0; i < m->ntex; i++) {
     fprintf(fp, "\nTEXTURE %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_texadr[i]);
-    object_class = &m->ntex;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_TEXTURE
   }
   if (m->ntex) fprintf(fp, "\n");
 
   // materials
+  object_class = &m->nmat;
   for (int i=0; i < m->nmat; i++) {
     fprintf(fp, "\nMATERIAL %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_matadr[i]);
-    object_class = &m->nmat;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_MATERIAL
   }
   if (m->nmat) fprintf(fp, "\n");
 
   // pairs
+  object_class = &m->npair;
   for (int i=0; i < m->npair; i++) {
     fprintf(fp, "\nPAIR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_pairadr[i]);
-    object_class = &m->npair;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_PAIR
   }
   if (m->npair) fprintf(fp, "\n");
 
   // excludes
+  object_class = &m->nexclude;
   for (int i=0; i < m->nexclude; i++) {
     fprintf(fp, "\nEXCLUDE %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_excludeadr[i]);
-    object_class = &m->nexclude;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_EXCLUDE
   }
   if (m->nexclude) fprintf(fp, "\n");
 
   // equality constraints
+  object_class = &m->neq;
   for (int i=0; i < m->neq; i++) {
     fprintf(fp, "\nEQUALITY %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_eqadr[i]);
-    object_class = &m->neq;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_EQUALITY
   }
   if (m->neq) fprintf(fp, "\n");
 
   // tendons
+  object_class = &m->ntendon;
   for (int i=0; i < m->ntendon; i++) {
     fprintf(fp, "\nTENDON %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_tendonadr[i]);
-    object_class = &m->ntendon;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_TENDON
     fprintf(fp, "  path\n");
     fprintf(fp, "    type  objid  prm\n");
     for (int j=0; j < m->tendon_num[i]; j++) {
@@ -797,22 +800,22 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->ntendon) fprintf(fp, "\n");
 
   // actuators
+  object_class = &m->nu;
   for (int i=0; i < m->nu; i++) {
     fprintf(fp, "\nACTUATOR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_actuatoradr[i]);
-    object_class = &m->nu;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_ACTUATOR
   }
   if (m->nu) fprintf(fp, "\n");
 
   // sensors
+  object_class = &m->nsensor;
   for (int i=0; i < m->nsensor; i++) {
     fprintf(fp, "\nSENSOR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_sensoradr[i]);
-    object_class = &m->nsensor;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_SENSOR
   }
   if (m->nsensor) fprintf(fp, "\n");
 
