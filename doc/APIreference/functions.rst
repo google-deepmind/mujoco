@@ -1289,6 +1289,12 @@ Add file to VFS. The directory argument is optional and can be NULL or empty. Re
 
 *Nullable:* ``directory``
 
+
+.. Assetcache:
+
+The asset cache is a mechanism for caching assets (e.g. textures, meshes, etc.) to avoid repeated slow recompilation.
+The following methods provide way to control the capacity of the cache or to disable it altogether.
+
 .. _mj_addBufferVFS:
 
 `mj_addBufferVFS <#mj_addBufferVFS>`__

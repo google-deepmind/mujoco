@@ -789,6 +789,10 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
   mjtNum tolrange;                // convergence tolerance (relative to range)
 };
 typedef struct mjLROpt_ mjLROpt;
+struct mjCache_ {                 // asset cache used by the compiler
+  void* impl_;                    // internal pointer to cache
+};
+typedef struct mjCache_ mjCache;
 struct mjVFS_ {                   // virtual file system for loading from memory
   void* impl_;                    // internal pointer to VFS memory
 };
@@ -2999,6 +3003,11 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename);
 int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer, int nbuffer);
 int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 void mj_deleteVFS(mjVFS* vfs);
+size_t mj_getCacheSize(const mjCache* cache);
+size_t mj_getCacheCapacity(const mjCache* cache);
+size_t mj_setCacheCapacity(mjCache* cache, size_t size);
+mjCache* mj_getCache(void);
+void mj_clearCache(mjCache* cache);
 mjModel* mj_loadXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);

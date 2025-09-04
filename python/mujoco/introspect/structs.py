@@ -85,6 +85,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
+    ('mjCache',
+     StructDecl(
+         name='mjCache',
+         declname='struct mjCache_',
+         fields=(
+             StructFieldDecl(
+                 name='impl_',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
+                 ),
+                 doc='internal pointer to cache',
+             ),
+         ),
+     )),
     ('mjVFS',
      StructDecl(
          name='mjVFS',

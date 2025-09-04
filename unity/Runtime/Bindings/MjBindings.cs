@@ -5076,6 +5076,11 @@ public unsafe struct mjLROpt_ {
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public unsafe struct mjCache_ {
+  public void* impl_;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public unsafe struct _mjVFS
 {
   public void* impl_;
@@ -6333,6 +6338,21 @@ public static unsafe extern int mj_deleteFileVFS(void* vfs, [MarshalAs(Unmanaged
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteVFS(void* vfs);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern UIntPtr mj_getCacheSize(mjCache_* cache);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern UIntPtr mj_getCacheCapacity(mjCache_* cache);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern UIntPtr mj_setCacheCapacity(mjCache_* cache, UIntPtr size);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern mjCache_* mj_getCache();
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_clearCache(mjCache_* cache);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjModel_* mj_loadXML([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs, StringBuilder error, int error_sz);

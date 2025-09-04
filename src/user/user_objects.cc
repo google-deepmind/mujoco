@@ -77,7 +77,7 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
                         LodePNGColorType color_type) {
   PNGImage image;
   image.color_type_ = color_type;
-  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
+  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
 
   // cache callback
   auto callback = [&image](const void* data) {

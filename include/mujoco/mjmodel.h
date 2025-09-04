@@ -450,6 +450,12 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
 };
 typedef struct mjLROpt_ mjLROpt;
 
+//---------------------------------- mjCache -------------------------------------------------------
+
+struct mjCache_ {                 // asset cache used by the compiler
+  void* impl_;                    // internal pointer to cache
+};
+typedef struct mjCache_ mjCache;
 
 //---------------------------------- mjVFS ---------------------------------------------------------
 

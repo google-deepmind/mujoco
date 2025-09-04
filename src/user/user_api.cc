@@ -1730,22 +1730,63 @@ const void* mjs_getPluginAttributes(const mjsPlugin* plugin) {
 
 // -------------------------- GLOBAL ASSET CACHE -------------------------------
 
-void mj_setCacheSize(mjCache cache, std::size_t size) {
-  mjCCache* ccache = reinterpret_cast<mjCCache*>(cache);
-  if (ccache) {
-    ccache->SetMaxSize(size);
+// get the capacity of the asset cache in bytes
+size_t mj_getCacheCapacity(const mjCache* cache) {
+  if (cache) {
+    const mjCCache* ccache = reinterpret_cast<const mjCCache*>(cache->impl_);
+    if (ccache) {
+      return ccache->Capacity();
+    }
   }
+  return 0;
 }
 
 
+// set the capacity of the asset cache in bytes (0 to disable)
+size_t mj_setCacheCapacity(mjCache* cache, size_t size) {
+  if (cache) {
+    mjCCache* ccache = reinterpret_cast<mjCCache*>(cache->impl_);
+    if (ccache) {
+      ccache->SetCapacity(size);
+      return ccache->Capacity();
+    }
+  }
+  return 0;
+}
 
-mjCache mj_globalCache() {
+
+// get the current size of the asset cache in bytes
+size_t mj_getCacheSize(const mjCache* cache) {
+  if (cache) {
+    const mjCCache* ccache = reinterpret_cast<const mjCCache*>(cache->impl_);
+    if (ccache) {
+      return ccache->Size();
+    }
+  }
+  return 0;
+}
+
+
+// clear the asset cache
+void mj_clearCache(mjCache* cache) {
+  if (cache) {
+    mjCCache* ccache = reinterpret_cast<mjCCache*>(cache->impl_);
+    if (ccache) {
+      ccache->Reset();
+    }
+  }
+}
+
+// get the internal asset cache used by the compiler
+mjCache* mj_getCache() {
   // mjCCache is not trivially destructible and so the global cache needs to
   // allocated on the heap
   if constexpr (kGlobalCacheSize != 0) {
     static mjCCache* cache = new(std::nothrow) mjCCache(kGlobalCacheSize);
-    return (mjCache) cache;
+    static mjCache cache_cwrapper;
+    cache_cwrapper.impl_ = cache;
+    return cache->Capacity() > 0 ? &cache_cwrapper : nullptr;
   } else {
-    return NULL;
+    return nullptr;
   }
 }

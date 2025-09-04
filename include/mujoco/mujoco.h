@@ -90,6 +90,22 @@ MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 // Delete all files from VFS and deallocates VFS internal memory.
 MJAPI void mj_deleteVFS(mjVFS* vfs);
 
+//------------------------------------ Asset cache -------------------------------------------------
+
+// Get the current size of the asset cache in bytes.
+MJAPI size_t mj_getCacheSize(const mjCache* cache);
+
+// Get the capacity of the asset cache in bytes.
+MJAPI size_t mj_getCacheCapacity(const mjCache* cache);
+
+// Set the capacity of the asset cache in bytes (0 to disable); returns the new capacity.
+MJAPI size_t mj_setCacheCapacity(mjCache* cache, size_t size);
+
+// Get the internal asset cache used by the compiler.
+MJAPI mjCache* mj_getCache(void);
+
+// Clear the asset cache.
+MJAPI void mj_clearCache(mjCache* cache);
 
 //---------------------------------- Parse and compile ---------------------------------------------
 

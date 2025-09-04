@@ -25,6 +25,12 @@ Add file to VFS. The directory argument is optional and can be NULL or empty. Re
 
 *Nullable:* ``directory``
 
+
+.. Assetcache:
+
+The asset cache is a mechanism for caching assets (e.g. textures, meshes, etc.) to avoid repeated slow recompilation.
+The following methods provide way to control the capacity of the cache or to disable it altogether.
+
 .. _Parseandcompile:
 
 The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and compiler, and either returns a pointer to

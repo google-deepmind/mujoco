@@ -130,6 +130,75 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Delete all files from VFS and deallocates VFS internal memory.',
      )),
+    ('mj_getCacheSize',
+     FunctionDecl(
+         name='mj_getCacheSize',
+         return_type=ValueType(name='size_t'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='cache',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjCache', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Get the current size of the asset cache in bytes.',
+     )),
+    ('mj_getCacheCapacity',
+     FunctionDecl(
+         name='mj_getCacheCapacity',
+         return_type=ValueType(name='size_t'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='cache',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjCache', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Get the capacity of the asset cache in bytes.',
+     )),
+    ('mj_setCacheCapacity',
+     FunctionDecl(
+         name='mj_setCacheCapacity',
+         return_type=ValueType(name='size_t'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='cache',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjCache'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='size',
+                 type=ValueType(name='size_t'),
+             ),
+         ),
+         doc='Set the capacity of the asset cache in bytes (0 to disable); returns the new capacity.',  # pylint: disable=line-too-long
+     )),
+    ('mj_getCache',
+     FunctionDecl(
+         name='mj_getCache',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjCache'),
+         ),
+         parameters=(),
+         doc='Get the internal asset cache used by the compiler.',
+     )),
+    ('mj_clearCache',
+     FunctionDecl(
+         name='mj_clearCache',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='cache',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjCache'),
+                 ),
+             ),
+         ),
+         doc='Clear the asset cache.',
+     )),
     ('mj_loadXML',
      FunctionDecl(
          name='mj_loadXML',

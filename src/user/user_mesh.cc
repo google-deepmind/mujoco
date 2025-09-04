@@ -688,7 +688,7 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
   bool fromCache = false;
   CopyFromSpec();
   visual_ = true;
-  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_globalCache());
+  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
 
   // load file
   if (!file_.empty()) {
