@@ -27,6 +27,16 @@ set(MUJOCO_DEP_VERSION_lodepng
     CACHE STRING "Version of `lodepng` to be fetched."
 )
 
+set(MUJOCO_URL_openxr
+    https://github.com/KhronosGroup/OpenXR-SDK-Source/archive/refs/tags/release-1.0.34.zip
+    CACHE STRING "Link to fetch `openxr`."
+)
+
+set(MUJOCO_URL_HASH_openxr
+    924a94a2da0b5ef8e82154c623d88644 # 1.0.34
+    CACHE STRING "URL hash to check fetched `openxr`."
+)
+
 project(
   mujoco_simulate
   VERSION 3.3.6
@@ -43,6 +53,7 @@ endif()
 
 option(SIMULATE_BUILD_EXECUTABLE "Build the simulate executable binary." ON)
 option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamically." OFF)
+option(SIMULATE_BUILD_XR "Build XR-enabled simulate executable binary." OFF)
 
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
@@ -79,6 +90,7 @@ if(MUJOCO_HARDEN)
   endif()
 endif()
 
+
 # Fetch lodepng dependency.
 if(NOT TARGET lodepng)
   FetchContent_Declare(
@@ -98,6 +110,19 @@ if(NOT TARGET lodepng)
     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
     target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
   endif()
+endif()
+
+
+# Fetch OpenXR dependency.
+if(NOT TARGET openxr)
+  FetchContent_Declare(
+      openxr
+      URL_HASH MD5=${MUJOCO_URL_HASH_openxr}
+      URL ${MUJOCO_URL_openxr}
+          SOURCE_DIR
+          openxr
+  )
+  FetchContent_MakeAvailable(OpenXR)
 endif()
 
 # Simulate library
@@ -132,10 +157,34 @@ target_sources(
   PUBLIC simulate.h
   PRIVATE simulate.cc array_safety.h
 )
-target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(libsimulate PUBLIC lodepng mujoco::platform_ui_adapter mujoco::mujoco)
 target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+
+if(SIMULATE_BUILD_XR)
+  set(SIMULATE_OPENXR_HEADERS
+      simulate_xr/simulate_xr.h)
+  set(SIMULATE_OPENXR_SOURCES
+      simulate_xr/simulate_xr.cc)
+  set(SIMULATE_OPENXR_GLAD
+      simulate_xr/glad/glad.h simulate_xr/glad/glad.c)
+  target_include_directories(libsimulate PUBLIC
+      ${SIMULATE_OPENXR_HEADERS} ${SIMULATE_OPENXR_SOURCES}
+      # From OpenXR repo
+      "${openxr_SOURCE_DIR}/src/common"
+      "${openxr_SOURCE_DIR}/external/include"
+  )
+  target_link_libraries(libsimulate PUBLIC openxr_loader)
+  target_sources(
+    libsimulate
+    PUBLIC ${SIMULATE_OPENXR_HEADERS}
+    PRIVATE ${SIMULATE_OPENXR_SOURCES} ${SIMULATE_OPENXR_GLAD}
+  )
+
+  # DEFINE to change the code
+  target_compile_definitions(mujoco PUBLIC mjBUILDSIMULATEXR)
+endif()
 
 if(APPLE)
   target_sources(libsimulate PRIVATE macos_gui.mm)
