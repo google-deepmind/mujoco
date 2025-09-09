@@ -7657,7 +7657,8 @@ void mjCKey::Compile(const mjModel* m) {
       qpos_[i] = (double)m->qpos0[i];
     }
   } else if (qpos_.size() != m->nq) {
-    throw mjCError(this, "keyframe %d: invalid qpos size, expected length %d", nullptr, id, m->nq);
+    throw mjCError(this, "keyframe '%s': invalid qpos size, expected %d, got %d",
+                   name.c_str(), m->nq, qpos_.size());
   }
 
   // qvel: allocate or check size
@@ -7667,7 +7668,8 @@ void mjCKey::Compile(const mjModel* m) {
       qvel_[i] = 0;
     }
   } else if (qvel_.size() != m->nv) {
-    throw mjCError(this, "keyframe %d: invalid qvel size, expected length %d", nullptr, id, m->nv);
+    throw mjCError(this, "keyframe '%s': invalid qvel size, expected %d, got %d",
+                   name.c_str(), m->nv, qvel_.size());
   }
 
   // act: allocate or check size
@@ -7677,7 +7679,8 @@ void mjCKey::Compile(const mjModel* m) {
       act_[i] = 0;
     }
   } else if (act_.size() != m->na) {
-    throw mjCError(this, "keyframe %d: invalid act size, expected length %d", nullptr, id, m->na);
+    throw mjCError(this, "keyframe '%s': invalid act size, expected %d, got %d",
+                   name.c_str(), m->na, act_.size());
   }
 
   // mpos: allocate or check size

@@ -476,14 +476,7 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   }
 
   // resize keyframes in the parent model
-  if (!keys_.empty()) {
-    SaveDofOffsets(/*computesize=*/true);
-    ComputeReference();
-    for (auto* key : keys_) {
-      ResizeKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
-    }
-    nq = nv = na = nu = nmocap = 0;
-  }
+  ExpandAllKeyframes();
 
   // update pointers to local elements
   PointToLocal();
@@ -4543,26 +4536,41 @@ void mjCModel::ComputeReference() {
 
 
 
+// resize keyframes in the model
+void mjCModel::ExpandAllKeyframes() {
+  if (keys_.empty()) {
+    return;
+  }
+  SaveDofOffsets(/*computesize=*/true);
+  ComputeReference();
+  for (auto* key : keys_) {
+    ExpandKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
+  }
+  nq = nv = na = nu = nmocap = 0;
+}
+
+
+
 // resizes a keyframe, filling in missing values
-void mjCModel::ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_,
+void mjCModel::ExpandKeyframe(mjCKey* key, const mjtNum* qpos0_,
                               const mjtNum* bpos, const mjtNum* bquat) {
-  if (!key->spec_qpos_.empty()) {
+  if (!key->spec_qpos_.empty() && nq > key->spec_qpos_.size()) {
     int nq0 = key->spec_qpos_.size();
     key->spec_qpos_.resize(nq);
     for (int i=nq0; i < nq; i++) {
       key->spec_qpos_[i] = (double)qpos0_[i];
     }
   }
-  if (!key->spec_qvel_.empty()) {
+  if (!key->spec_qvel_.empty() && nv > key->spec_qvel_.size()) {
     key->spec_qvel_.resize(nv);
   }
-  if (!key->spec_act_.empty()) {
+  if (!key->spec_act_.empty() && na > key->spec_act_.size()) {
     key->spec_act_.resize(na);
   }
-  if (!key->spec_ctrl_.empty()) {
+  if (!key->spec_ctrl_.empty() && nu > key->spec_ctrl_.size()) {
     key->spec_ctrl_.resize(nu);
   }
-  if (!key->spec_mpos_.empty()) {
+  if (!key->spec_mpos_.empty() && nmocap > key->spec_mpos_.size() / 3) {
     int nmocap0 = key->spec_mpos_.size() / 3;
     key->spec_mpos_.resize(3*nmocap);
     for (unsigned int j = 0; j < bodies_.size(); j++) {
@@ -4575,7 +4583,7 @@ void mjCModel::ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_,
       key->spec_mpos_[3*i+2] = (double)bpos[3*j+2];
     }
   }
-  if (!key->spec_mquat_.empty()) {
+  if (!key->spec_mquat_.empty() && nmocap > key->spec_mquat_.size() / 4) {
     int nmocap0 = key->spec_mquat_.size() / 4;
     key->spec_mquat_.resize(4*nmocap);
     for (unsigned int j = 0; j < bodies_.size(); j++) {
@@ -4669,6 +4677,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   for (const auto& asset : hfields_) asset->CopyFromSpec();
   for (const auto& asset : textures_) asset->CopyFromSpec();
   CheckEmptyNames();
+
+  // resize keyframes in case the spec was edited after the last attach
+  ExpandAllKeyframes();
 
   // create pending keyframes
   for (const auto& info : key_pending_) {

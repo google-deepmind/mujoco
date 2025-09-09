@@ -432,8 +432,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   // convert pending keyframes info to actual keyframes
   void ResolveKeyframes(const mjModel* m);
 
-  // resize a keyframe, filling in missing values
-  void ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
+  // expand a keyframe, filling in missing values
+  void ExpandKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
 
   // compute qpos0
   void ComputeReference();
@@ -462,6 +462,9 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // delete all plugins created by the subtree
   void DeleteSubtreePlugin(mjCBody* subtree);
+
+  // expand all keyframes in the model
+  void ExpandAllKeyframes();
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info

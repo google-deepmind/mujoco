@@ -7817,7 +7817,9 @@ in :ref:`simulate.cc <saSimulate>` the simulation state can be copied into a sel
 :el-prefix:`keyframe/` |-| **key** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element sets the data for one of the keyframes. They are set in the order in which they appear here.
+This element sets the data for one of the keyframes. They are set in the order in which they appear here. If the number
+of elements specified in the given vectors is less than the size of the corresponding mjData array, missing entries will
+be set to their values in the default configuration.
 
 
 .. _keyframe-key-name:

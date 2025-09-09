@@ -464,7 +464,7 @@ TEST_F(KeyframeTest, BadSize) {
   size_t error_sz = 1024;
   mjModel* model = LoadModelFromString(xml, error, error_sz);
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("invalid qpos size, expected length 0"));
+  EXPECT_THAT(error, HasSubstr("invalid qpos size, expected 0, got 1"));
 }
 
 // ------------- test relative frame sensor compilation-------------------------
