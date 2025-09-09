@@ -2,44 +2,44 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
+3.3.6 (September 9, 2025)
 -----------------------------------
 
 General
 ^^^^^^^
-- Constraint island discovery and construction, previously an experimental feature, is now :ref:`documented<soIsland>`
-  and promoted to default; disable it with :ref:`option/flag/island <option-flag-island>`. We expect islanding to be
-  a strict improvement over the monolithic constraint solver, please let us know if you experience any issues.
-- :ref:`Contact sensor<sensor-contact>` :at-val:`subtree1/subtree2` specification is now available for any body, not
-  just direct children of the world.
+1. Constraint island discovery and construction, previously an experimental feature, is now :ref:`documented<soIsland>`
+   and promoted to default; disable it with :ref:`option/flag/island <option-flag-island>`. We expect islanding to be
+   a strict improvement over the monolithic constraint solver, please let us know if you experience any issues.
+2. :ref:`Contact sensor<sensor-contact>` :at-val:`subtree1/subtree2` specification is now available for any body, not
+   just direct children of the world.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The update of ``mjData.qacc_warmstart`` was moved from the end of the solver call (:ref:`mj_fwdConstraint`) to the
-     end of :ref:`mj_step`, and is now updated with all other state variables. This change makes :ref:`mj_forward`
-     fully idempotent.
+   3. The update of ``mjData.qacc_warmstart`` was moved from the end of the solver call (:ref:`mj_fwdConstraint`) to
+      the end of :ref:`mj_step`, and is now updated with all other state variables. This change makes :ref:`mj_forward`
+      fully idempotent.
 
-     Before this change, calling :ref:`mj_forward` repeatedly would make the constraint solver converge,
-     since each subsequent call would start from the previously updated ``qacc_warmstart`` value.
-     Indeed, this is precisely what happened in the viewer, which calls :ref:`mj_forward` repeatedly in PAUSE mode.
+      Before this change, calling :ref:`mj_forward` repeatedly would make the constraint solver converge,
+      since each subsequent call would start from the previously updated ``qacc_warmstart`` value.
+      Indeed, this is precisely what happened in the viewer, which calls :ref:`mj_forward` repeatedly in PAUSE mode.
 
-     **Migration:** If your code depended on this behavior, you can recover it by updating manually after each
-     :ref:`mj_forward`: ``qacc_warmstart ← qacc``. The behavior is available in :ref:`simulate<saSimulate>` by
-     clicking the "Pause update" toggle (off by default).
+      **Migration:** If your code depended on this behavior, you can recover it by updating manually after each
+      :ref:`mj_forward`: ``qacc_warmstart ← qacc``. The behavior is available in :ref:`simulate<saSimulate>` by
+      clicking the "Pause update" toggle (off by default).
 
-     Furthermore, this change has a numerical impact on the output of the :ref:`RK4 <geIntegrators>` integrator. Before
-     this change, due to the ``qacc_warmstart`` update occurring after each of the four Runge-Kutta substeps, the solver
-     convergence of RK4 was faster, at the cost of unprincipled integration. This change makes the RK4 integration
-     principled and well-defined. Since this change to RK4 is effectively a bug fix, migration to the previous behavior
-     is not provided.
+      Furthermore, this change has a numerical impact on the output of the :ref:`RK4 <geIntegrators>` integrator.
+      Before this change, due to the ``qacc_warmstart`` update occurring after each of the four Runge-Kutta substeps,
+      the solver convergence of RK4 was faster, at the cost of unprincipled integration. This change makes the RK4
+      integration principled and well-defined. Since this change to RK4 is effectively a bug fix, migration to the
+      previous behavior is not provided.
 
-   - The ``mjDSBL_PASSIVE`` flag for disabling passive forces was removed and replaced by
-     :ref:`mjDSBL_SPRING<mjtDisableBit>` and :ref:`mjDSBL_DAMPER<mjtDisableBit>` with corresponding
-     :ref:`mjcf<option-flag-spring>` :ref:`attributes<option-flag-damper>`. Each flag disables only joint and tendon
-     springs or dampers, respectively. When both flags are set, **all** passive forces are disabled, including gravity
-     compensation, fluid forces, forces computed by the :ref:`mjcb_passive` callback, and forces computed by
-     :ref:`plugins <exPlugin>` when passed the :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
+   4. The ``mjDSBL_PASSIVE`` flag for disabling passive forces was removed and replaced by
+      :ref:`mjDSBL_SPRING<mjtDisableBit>` and :ref:`mjDSBL_DAMPER<mjtDisableBit>` with corresponding
+      :ref:`mjcf<option-flag-spring>` :ref:`attributes<option-flag-damper>`. Each flag disables only joint and tendon
+      springs or dampers, respectively. When both flags are set, **all** passive forces are disabled, including gravity
+      compensation, fluid forces, forces computed by the :ref:`mjcb_passive` callback, and forces computed by
+      :ref:`plugins <exPlugin>` when passed the :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
 
      **Migration:** Set both flags to recover the behavior of the previous flag.
 
@@ -47,31 +47,31 @@ General
 .. admonition:: Breaking ABI changes
    :class: attention
 
-   - Removed ``mjMOUSE_SELECT`` flag for :ref:`mjtMouse` as it is no longer in use.
+   5. Removed ``mjMOUSE_SELECT`` flag for :ref:`mjtMouse` as it is no longer in use.
 
-   - The promotion of islanding to default involved removing the enable flag ``mjENBL_ISLAND`` and
-     converting it to a disable flag :ref:`mjDSBL_ISLAND <mjtDisableBit>`.
+   6. The promotion of islanding to default involved removing the enable flag ``mjENBL_ISLAND`` and
+      converting it to a disable flag :ref:`mjDSBL_ISLAND <mjtDisableBit>`.
 
-- Added support for shells with a curved reference configuration. See this `example
-  <https://github.com/google-deepmind/mujoco/blob/main/model/flex/basket.xml>`__.
-- Added experimental option for :ref:`passive<flex-contact-passive>` contacts involving flexes.
+7. Added support for shells with a curved reference configuration. See this `example
+   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/basket.xml>`__.
+8. Added experimental option for :ref:`passive<flex-contact-passive>` contacts involving flexes.
 
-- Added support for assigning a default material to a mesh asset using the :ref:`mesh/material <asset-mesh-material>`
-  attribute.
+9. Added support for assigning a default material to a mesh asset using the :ref:`mesh/material <asset-mesh-material>`
+   attribute.
 
 MJX
 ^^^
-- Promote ``ten_length`` to the public MJX API. Add Warp support for ``mjx.tendon``.
+10. Promote ``ten_length`` to the public MJX API. Add Warp support for ``mjx.tendon``.
 
 .. admonition:: Breaking API changes
    :class: attention
 
-   - ``ten_length`` was moved from ``mjx.Data._impl.ten_length`` to a public field ``mjx.Data.ten_length``.
+   11. ``ten_length`` was moved from ``mjx.Data._impl.ten_length`` to a public field ``mjx.Data.ten_length``.
 
 Bug fixes
 ^^^^^^^^^
-- Fixed a latent bug where MjData objects were not serialized correctly by the Python bindings when islanding was
-  enabled.
+12. Fixed a latent bug where MjData objects were not serialized correctly by the Python bindings when islanding was
+    enabled.
 
 
 Version 3.3.5 (August 8, 2025)
