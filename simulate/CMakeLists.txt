@@ -129,8 +129,13 @@ add_library(mujoco::libsimulate ALIAS libsimulate)
 
 target_sources(
   libsimulate
-  PUBLIC simulate.h
-  PRIVATE simulate.cc array_safety.h
+  PUBLIC 
+    simulate.h
+    platform_ui_adapter.h
+    glfw_adapter.h
+    glfw_dispatch.h
+    array_safety.h
+  PRIVATE simulate.cc 
 )
 target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
@@ -270,8 +275,20 @@ if(SIMULATE_BUILD_EXECUTABLE)
       LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
       ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
       BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
-      PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
+      PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT simulate
     )
+
+    # Specify public headers for libsimulate
+    if(SIMULATE_EXPOSE_HEADERS)
+      set_target_properties(libsimulate PROPERTIES PUBLIC_HEADER "simulate.h;platform_ui_adapter.h;glfw_adapter.h;glfw_dispatch.h;glfw_corevideo.h;array_safety.h")
+
+      install(
+      TARGETS libsimulate
+      EXPORT ${PROJECT_NAME}
+      ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+      PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/simulate" COMPONENT simulate
+      )
+    endif()
 
     if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
       # We downloaded GLFW. Depending if it is a static or shared LIBRARY we might
@@ -284,7 +301,7 @@ if(SIMULATE_BUILD_EXECUTABLE)
           RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
           LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
           ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-          PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
+          PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT simulate
         )
       endif()
     endif()
