@@ -2310,6 +2310,7 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
 
     // set default properties
     memset(thislight, 0, sizeof(mjvLight));
+    thislight->id = -1;
     thislight->headlight = 1;
     thislight->texid = -1;
     thislight->type = mjLIGHT_DIRECTIONAL;
@@ -2341,6 +2342,7 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
 
       // copy properties
       memset(thislight, 0, sizeof(mjvLight));
+      thislight->id = i;
       thislight->type = m->light_type[i];
       thislight->texid = m->light_texid[i];
       thislight->castshadow = m->light_castshadow[i];

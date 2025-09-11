@@ -259,6 +259,7 @@ typedef struct mjvGeom_ mjvGeom;
 //---------------------------------- mjvLight ------------------------------------------------------
 
 struct mjvLight_ {                // OpenGL light
+  int      id;                    // light id, -1 for headlight
   float    pos[3];                // position rel. to body frame
   float    dir[3];                // direction rel. to body frame
   int      type;                  // type (mjtLightType)

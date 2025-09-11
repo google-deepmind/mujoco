@@ -1076,6 +1076,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
       [](MjvLightWrapper& c, decltype(raw::MjvLight::var) rhs) {   \
         c.get()->var = rhs;                                        \
       })
+  X(id);
   X(cutoff);
   X(exponent);
   X(headlight);

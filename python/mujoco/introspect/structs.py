@@ -6698,6 +6698,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
          declname='struct mjvLight_',
          fields=(
              StructFieldDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+                 doc='light id, -1 for headlight',
+             ),
+             StructFieldDecl(
                  name='pos',
                  type=ArrayType(
                      inner_type=ValueType(name='float'),

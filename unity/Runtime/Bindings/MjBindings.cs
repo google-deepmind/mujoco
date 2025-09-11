@@ -6110,6 +6110,7 @@ public unsafe struct mjvGeom_ {
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjvLight_ {
+  public int id;
   public fixed float pos[3];
   public fixed float dir[3];
   public int type;
