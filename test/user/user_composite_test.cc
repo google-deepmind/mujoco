@@ -70,5 +70,32 @@ TEST_F(UserCompositeTest, InvalidShape) {
               HasSubstr("The curve array contains an invalid shape"));
 }
 
+TEST_F(UserCompositeTest, QuatRotation) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <composite type="cable" quat="0 0 1 0" initial="none" vertex="
+            0.00  0.   0.
+            0.01  0.   0.
+            0.02  0.   0.
+            0.03  0.   0.
+            0.04  0.   0.">
+        <geom  type="box" size="0.005 0.005 0.005" rgba=".8 .2 .1 1" group="3"/> 
+      </composite>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  mjData* d = mj_makeData(m);
+  mj_forward(m, d);
+  int body_id = mj_name2id(m, mjOBJ_BODY, "B_first");
+  const double* q = d->xquat + body_id*4;
+  EXPECT_THAT(q[0], ::testing::DoubleEq(0.0));
+  EXPECT_THAT(q[1], ::testing::DoubleEq(0.0));
+  EXPECT_THAT(q[2], ::testing::DoubleEq(1.0));
+  EXPECT_THAT(q[3], ::testing::DoubleEq(0.0));
+}
+
 }  // namespace
 }  // namespace mujoco
