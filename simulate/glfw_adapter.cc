@@ -1,3 +1,4 @@
+#include "glfw_adapter.h"
 // Copyright 2023 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,7 +51,13 @@ GlfwAdapter::GlfwAdapter() {
   }
 
   // multisampling
+#ifdef mjBUILDSIMULATEXR
+  // window resampling must be disabled to allow different resolutions on monitor and VR headset
+  Glfw().glfwWindowHint(GLFW_SAMPLES, 0);
+#else
   Glfw().glfwWindowHint(GLFW_SAMPLES, 4);
+#endif // mjBUILDSIMULATEXR
+
   Glfw().glfwWindowHint(GLFW_VISIBLE, 1);
 
   // get video mode and save
@@ -161,7 +168,13 @@ void GlfwAdapter::SetVSync(bool enabled){
     core_video_.reset();
   }
 #else
+#ifdef mjBUILDSIMULATEXR
+  // might interfere with frame loop timing
+  // TODO(AS) consider disabling it somewhere else?
+  Glfw().glfwSwapInterval(0);
+#else // mjBUILDSIMULATEXR
   Glfw().glfwSwapInterval(enabled);
+#endif // mjBUILDSIMULATEXR
 #endif
 }
 
