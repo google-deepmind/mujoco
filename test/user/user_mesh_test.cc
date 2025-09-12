@@ -1279,6 +1279,93 @@ TEST_F(MjCMeshTest, Octree) {
   mj_deleteModel(model);
 }
 
+namespace {
+bool AreAabbsAdjacent(const mjtNum* aabb1, const mjtNum* aabb2) {
+  const double kEps = 1e-6;
+  int touching_dims = 0;
+  int overlapping_dims = 0;
+
+  for (int dim = 0; dim < 3; ++dim) {
+    const mjtNum center1 = aabb1[dim];
+    const mjtNum half_size1 = aabb1[dim + 3];
+    const mjtNum center2 = aabb2[dim];
+    const mjtNum half_size2 = aabb2[dim + 3];
+    const mjtNum gap =
+        std::abs(center1 - center2) - (half_size1 + half_size2);
+    if (std::abs(gap) < kEps) {
+      touching_dims++;
+    } else if (gap < -kEps) {
+      overlapping_dims++;
+    }
+  }
+
+  return touching_dims == 1 && overlapping_dims == 2;
+}
+}  // namespace
+
+TEST_F(MjCMeshTest, OctreeIsBalanced) {
+  const std::string xml_path = GetTestDataFilePath(kTorusPath);
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
+  mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
+  geom->type = mjGEOM_SDF;
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_GT(model->mesh_octnum[0], 0);
+
+  const int octree_adr = model->mesh_octadr[0];
+  const int noct = model->mesh_octnum[0];
+
+  std::vector<int> leaves;
+  for (int i = 0; i < noct; ++i) {
+    bool is_leaf = true;
+    for (int j = 0; j < 8; ++j) {
+      if (model->oct_child[(octree_adr + i) * 8 + j] != -1) {
+        is_leaf = false;
+        break;
+      }
+    }
+    if (is_leaf) {
+      leaves.push_back(i);
+    }
+  }
+
+  int unbalanced_pairs = 0;
+  for (int i = 0; i < leaves.size(); ++i) {
+    for (int j = i + 1; j < leaves.size(); ++j) {
+      const int node1_idx = leaves[i];
+      const int node2_idx = leaves[j];
+      const mjtNum* aabb1 = &model->oct_aabb[(octree_adr + node1_idx) * 6];
+      const mjtNum* aabb2 = &model->oct_aabb[(octree_adr + node2_idx) * 6];
+
+      if (AreAabbsAdjacent(aabb1, aabb2)) {
+        const int level1 = model->oct_depth[octree_adr + node1_idx];
+        const int level2 = model->oct_depth[octree_adr + node2_idx];
+        if (std::abs(level1 - level2) > 1) {
+          if (unbalanced_pairs < 10) {
+            ADD_FAILURE()
+                << "Nodes " << node1_idx << " (level " << level1 << ") and "
+                << node2_idx << " (level " << level2 << ") are not balanced."
+                << "\nAABB1: center=(" << aabb1[0] << ", " << aabb1[1] << ", "
+                << aabb1[2] << "), half_size=(" << aabb1[3] << ", "
+                << aabb1[4] << ", " << aabb1[5] << ")"
+                << "\nAABB2: center=(" << aabb2[0] << ", " << aabb2[1] << ", "
+                << aabb2[2] << "), half_size=(" << aabb2[3] << ", "
+                << aabb2[4] << ", " << aabb2[5] << ")";
+          }
+          unbalanced_pairs++;
+        }
+      }
+    }
+  }
+
+  EXPECT_EQ(unbalanced_pairs, 0)
+      << "Found " << unbalanced_pairs << " unbalanced adjacent leaf pairs.";
+
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjCMeshTest, OctreeNotComputedForNonSDF) {
   const std::string xml_path = GetTestDataFilePath(kTorusPath);
   std::array<char, 1024> error;
@@ -1313,7 +1400,7 @@ TEST_F(MjCMeshTest, OctreeCube) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(m, NotNull()) << error.data();
-  EXPECT_EQ(m->noct, 54089);
+  EXPECT_EQ(m->noct, 63497);
   mjData* d = mj_makeData(m);
   ASSERT_THAT(d, NotNull());
   mj_forward(m, d);

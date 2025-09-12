@@ -250,6 +250,8 @@ typedef std::array<std::array<double, 3>, 3> Triangle;
 
 struct OctNode {
   int level = 0;                       // level of the node
+  int parent_index = -1;               // index of the parent node
+  int child_slot = -1;                 // slot of the child node in the parent node
   std::array<int, 8> child = {-1};     // children nodes
   std::array<int, 8> vertid = {-1};    // vertex id's
   std::array<double, 6> aamm = {0};    // bounding box
@@ -302,8 +304,12 @@ class mjCOctree : public mjCOctree_ {
   void MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6],
                   std::unordered_map<Point, int>& vert_map);
   void TaskToNode(const OctreeTask& task, OctNode& node, std::unordered_map<Point, int>& vert_map);
-  void Subdivide(std::deque<OctreeTask>& queue, const std::vector<Triangle*>& colliding,
-                 const OctreeTask& task, std::unordered_map<Point, int>& vert_map);
+  void Subdivide(const OctreeTask& task, std::unordered_map<Point, int>& vert_map,
+                 std::deque<OctreeTask>* queue = nullptr,
+                 const std::vector<Triangle*>& colliding = {});
+  int FindNeighbor(int node_idx, int dir);
+  int FindCoarseNeighbor(int node_idx, int dir);
+  void BalanceOctree(std::unordered_map<Point, int>& vert_map);
 };
 
 

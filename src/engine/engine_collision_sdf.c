@@ -124,9 +124,9 @@ static int findOct(mjtNum w[8], mjtNum dw[8][3], const mjtNum* oct_aabb,
     }
 
     // compute which of 8 children to visit next
-    int x = coord[0] < .5 ? 1 : 0;
-    int y = coord[1] < .5 ? 1 : 0;
-    int z = coord[2] < .5 ? 1 : 0;
+    int x = coord[0] < .5 ? 0 : 1;
+    int y = coord[1] < .5 ? 0 : 1;
+    int z = coord[2] < .5 ? 0 : 1;
     stack = oct_child[8 * node + 4*z + 2*y + x];
   }
 
