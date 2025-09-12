@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -573,9 +574,12 @@ void mjCOctree::CopyChild(int* child) const {
 
 void mjCOctree::CopyAabb(mjtNum* aabb) const {
   for (int i = 0; i < node_.size(); ++i) {
-    for (int j = 0; j < 6; ++j) {
-      aabb[i * 6 + j] = node_[i].aabb[j];
-    }
+    aabb[i * 6 + 0] = (node_[i].aamm[0] + node_[i].aamm[3]) / 2;
+    aabb[i * 6 + 1] = (node_[i].aamm[1] + node_[i].aamm[4]) / 2;
+    aabb[i * 6 + 2] = (node_[i].aamm[2] + node_[i].aamm[5]) / 2;
+    aabb[i * 6 + 3] = (node_[i].aamm[3] - node_[i].aamm[0]) / 2;
+    aabb[i * 6 + 4] = (node_[i].aamm[4] - node_[i].aamm[1]) / 2;
+    aabb[i * 6 + 5] = (node_[i].aamm[5] - node_[i].aamm[2]) / 2;
   }
 }
 
@@ -624,7 +628,7 @@ void mjCOctree::CreateOctree(const double aamm[6]) {
   std::transform(elements.begin(), elements.end(), elements_ptrs.begin(),
                  [](Triangle& triangle) { return &triangle; });
   std::unordered_map<Point, int> vert_map;
-  MakeOctree(elements_ptrs, box, 0, vert_map);
+  MakeOctree(elements_ptrs, box, vert_map);
 }
 
 
@@ -685,23 +689,25 @@ static bool boxTriangle(const Triangle& v, const double aamm[6]) {
 }
 
 
-int mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev,
-                          std::unordered_map<Point, int>& vert_map) {
-  node_.push_back(OctNode());
-  OctNode& node = node_.back();
-  node.level = lev;
+void mjCOctree::TaskToNode(const OctreeTask& task, OctNode& node,
+                           std::unordered_map<Point, int>& vert_map) {
+  node.level = task.lev;
 
-  // create a new node
-  int index = nnode_++;
-  std::array<double, 6> aabb = {
-      (aamm[0] + aamm[3]) / 2, (aamm[1] + aamm[4]) / 2,
-      (aamm[2] + aamm[5]) / 2, (aamm[3] - aamm[0]) / 2,
-      (aamm[4] - aamm[1]) / 2, (aamm[5] - aamm[2]) / 2};
-  node.aabb = aabb;
+  if (task.parent_index != -1) {
+    node_[task.parent_index].child[task.child_slot] = task.node_index;
+    const auto parent_aamm = node_[task.parent_index].aamm;
+    node.aamm[0] = task.child_slot & 1 ? parent_aamm[0] : (parent_aamm[3] + parent_aamm[0]) / 2;
+    node.aamm[1] = task.child_slot & 2 ? parent_aamm[1] : (parent_aamm[4] + parent_aamm[1]) / 2;
+    node.aamm[2] = task.child_slot & 4 ? parent_aamm[2] : (parent_aamm[5] + parent_aamm[2]) / 2;
+    node.aamm[3] = task.child_slot & 1 ? (parent_aamm[0] + parent_aamm[3]) / 2 : parent_aamm[3];
+    node.aamm[4] = task.child_slot & 2 ? (parent_aamm[1] + parent_aamm[4]) / 2 : parent_aamm[4];
+    node.aamm[5] = task.child_slot & 4 ? (parent_aamm[2] + parent_aamm[5]) / 2 : parent_aamm[5];
+  }
+
   for (int i = 0; i < 8; i++) {
-    Point v = {{(i & 1) ? aamm[3] : aamm[0],
-                (i & 2) ? aamm[4] : aamm[1],
-                (i & 4) ? aamm[5] : aamm[2]}};
+    Point v = {{(i & 1) ? node.aamm[3] : node.aamm[0],
+                (i & 2) ? node.aamm[4] : node.aamm[1],
+                (i & 4) ? node.aamm[5] : node.aamm[2]}};
     auto it = vert_map.find(v);
     if (it != vert_map.end()) {
       node.vertid[i] = it->second;
@@ -712,37 +718,63 @@ int mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double a
     }
     node.child[i] = -1;
   }
+}
 
-  // find all triangles that intersect the current box
-  std::vector<Triangle*> colliding;
-  for (auto* element : elements) {
-    if (boxTriangle(*element, aamm)) {
-      colliding.push_back(element);
+
+void mjCOctree::Subdivide(std::deque<OctreeTask>& queue, const std::vector<Triangle*>& colliding,
+                          const OctreeTask& task, std::unordered_map<Point, int>& vert_map) {
+  for (int i = 0; i < 8; i++) {
+    OctreeTask new_task;
+    new_task.elements = colliding;
+    new_task.lev = task.lev + 1;
+    new_task.parent_index = task.node_index;
+    new_task.node_index = nnode_++;
+    new_task.child_slot = i;
+
+    node_.push_back(OctNode());
+    TaskToNode(new_task, node_.back(), vert_map);
+    queue.push_back(std::move(new_task));
+  }
+}
+
+
+void mjCOctree::MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6],
+                           std::unordered_map<Point, int>& vert_map) {
+  std::deque<OctreeTask> queue;
+  OctreeTask initial_task;
+  initial_task.elements = elements;
+  initial_task.lev = 0;
+  initial_task.parent_index = -1;
+  initial_task.child_slot = -1;
+  initial_task.node_index = nnode_++;
+  queue.push_back(std::move(initial_task));
+
+  // create root node
+  node_.push_back(OctNode());
+  OctNode& root = node_.back();
+  std::copy(aamm, aamm + 6, root.aamm.data());
+  TaskToNode(queue.front(), node_.back(), vert_map);
+
+  while (!queue.empty()) {
+    OctreeTask task = std::move(queue.front());
+    queue.pop_front();
+
+    // find all triangles that intersect the current box
+    std::vector<Triangle*> colliding;
+    for (auto* element : task.elements) {
+      if (boxTriangle(*element, node_[task.node_index].aamm.data())) {
+        colliding.push_back(element);
+      }
     }
-  }
 
-  // return if the box is empty
-  if (colliding.empty() || lev >= 6) {
-    return index;
-  }
+    // skip if the box is empty
+    if (colliding.empty() || task.lev >= 6) {
+      continue;
+    }
 
-  // split the box into 8 sub-boxes
-  double new_aamm[8][6];
-  for (int i = 0; i < 8; i++) {
-    new_aamm[i][0] = aabb[0] + aabb[3] * (i & 1 ? -1 : 0);
-    new_aamm[i][1] = aabb[1] + aabb[4] * (i & 2 ? -1 : 0);
-    new_aamm[i][2] = aabb[2] + aabb[5] * (i & 4 ? -1 : 0);
-    new_aamm[i][3] = aabb[0] + aabb[3] * (i & 1 ? 0 : 1);
-    new_aamm[i][4] = aabb[1] + aabb[4] * (i & 2 ? 0 : 1);
-    new_aamm[i][5] = aabb[2] + aabb[5] * (i & 4 ? 0 : 1);
+    // subdivide the node
+    Subdivide(queue, colliding, task, vert_map);
   }
-
-  // recursive calls to create sub-boxes
-  for (int i = 0; i < 8; i++) {
-    node_[index].child[i] = MakeOctree(colliding, new_aamm[i], lev + 1, vert_map);
-  }
-
-  return index;
 }
 
 //------------------------- class mjCDef implementation --------------------------------------------

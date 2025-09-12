@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstddef>
 #include <array>
+#include <deque>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -251,8 +252,16 @@ struct OctNode {
   int level = 0;                       // level of the node
   std::array<int, 8> child = {-1};     // children nodes
   std::array<int, 8> vertid = {-1};    // vertex id's
-  std::array<double, 6> aabb = {0};    // bounding box
+  std::array<double, 6> aamm = {0};    // bounding box
   std::array<double, 8> coeff = {0};   // interpolation coefficients
+};
+
+struct OctreeTask {
+  std::vector<Triangle*> elements;
+  int lev;
+  int parent_index;
+  int child_slot;
+  int node_index;
 };
 
 struct mjCOctree_ {
@@ -290,8 +299,11 @@ class mjCOctree : public mjCOctree_ {
 
  private:
   void Make(std::vector<Triangle>& elements);
-  int MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev,
-                 std::unordered_map<Point, int>& vert_map);
+  void MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6],
+                  std::unordered_map<Point, int>& vert_map);
+  void TaskToNode(const OctreeTask& task, OctNode& node, std::unordered_map<Point, int>& vert_map);
+  void Subdivide(std::deque<OctreeTask>& queue, const std::vector<Triangle*>& colliding,
+                 const OctreeTask& task, std::unordered_map<Point, int>& vert_map);
 };
 
 
