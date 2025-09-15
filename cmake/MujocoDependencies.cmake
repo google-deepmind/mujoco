@@ -168,6 +168,11 @@ findorfetch(
 target_compile_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
+# update cmake_minimum_required version for compatibility with newer version of cmake
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM ${MUJOCO_CMAKE_MIN_REQ})
+  set(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED ON)
+endif()
 findorfetch(
   USE_SYSTEM_PACKAGE
   OFF
@@ -183,6 +188,10 @@ findorfetch(
   tinyobjloader
   EXCLUDE_FROM_ALL
 )
+if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+  unset(CMAKE_POLICY_VERSION_MINIMUM)
+  unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+endif()
 
 if(NOT TARGET trianglemeshdistance)
   FetchContent_Declare(
@@ -200,6 +209,11 @@ endif()
 
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)
+# update cmake_minimum_required version for compatibility with newer version of cmake
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM ${MUJOCO_CMAKE_MIN_REQ})
+  set(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED ON)
+endif()
 findorfetch(
   USE_SYSTEM_PACKAGE
   OFF
@@ -215,6 +229,10 @@ findorfetch(
   ccd
   EXCLUDE_FROM_ALL
 )
+if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+  unset(CMAKE_POLICY_VERSION_MINIMUM)
+  unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+endif()
 target_compile_options(ccd PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(ccd PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
