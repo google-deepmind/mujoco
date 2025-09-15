@@ -78,6 +78,8 @@ mark_as_advanced(MUJOCO_DEP_VERSION_TriangleMeshDistance)
 include(FetchContent)
 include(FindOrFetch)
 
+set(PATCH_SCRIPT ${PROJECT_SOURCE_DIR}/cmake/UpdateCMakeMinimumRequired.cmake)
+
 # Override the BUILD_SHARED_LIBS setting, just for building third party libs (since we always want
 # static libraries). The ccd CMakeLists.txt doesn't expose an option to build a static ccd library,
 # unless BUILD_SHARED_LIBS is set.
@@ -179,6 +181,8 @@ findorfetch(
   https://github.com/tinyobjloader/tinyobjloader.git
   GIT_TAG
   ${MUJOCO_DEP_VERSION_tinyobjloader}
+  PATCH_COMMAND
+  ${CMAKE_COMMAND} -DDESIRED_VERSION=${MUJOCO_CMAKE_MIN_REQ} -DTARGET_FILE=<SOURCE_DIR>/CMakeLists.txt -P ${PATCH_SCRIPT}
   TARGETS
   tinyobjloader
   EXCLUDE_FROM_ALL
@@ -211,6 +215,8 @@ findorfetch(
   https://github.com/danfis/libccd.git
   GIT_TAG
   ${MUJOCO_DEP_VERSION_ccd}
+  PATCH_COMMAND
+  ${CMAKE_COMMAND} -DDESIRED_VERSION=${MUJOCO_CMAKE_MIN_REQ} -DTARGET_FILE=<SOURCE_DIR>/CMakeLists.txt -P ${PATCH_SCRIPT}
   TARGETS
   ccd
   EXCLUDE_FROM_ALL
