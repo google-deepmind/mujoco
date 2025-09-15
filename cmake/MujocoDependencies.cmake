@@ -181,6 +181,7 @@ findorfetch(
   https://github.com/tinyobjloader/tinyobjloader.git
   GIT_TAG
   ${MUJOCO_DEP_VERSION_tinyobjloader}
+  # update cmake_minimum_required version for compatibility with newer version of cmake
   PATCH_COMMAND
   ${CMAKE_COMMAND} -DDESIRED_VERSION=${MUJOCO_CMAKE_MIN_REQ} -DTARGET_FILE=<SOURCE_DIR>/CMakeLists.txt -P ${PATCH_SCRIPT}
   TARGETS
@@ -215,6 +216,7 @@ findorfetch(
   https://github.com/danfis/libccd.git
   GIT_TAG
   ${MUJOCO_DEP_VERSION_ccd}
+  # update cmake_minimum_required version for compatibility with newer version of cmake
   PATCH_COMMAND
   ${CMAKE_COMMAND} -DDESIRED_VERSION=${MUJOCO_CMAKE_MIN_REQ} -DTARGET_FILE=<SOURCE_DIR>/CMakeLists.txt -P ${PATCH_SCRIPT}
   TARGETS
