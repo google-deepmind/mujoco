@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Replace cmake_minimum_required version.
+
 file(READ "${TARGET_FILE}" FILE_CONTENTS)
 
 string(REGEX REPLACE
