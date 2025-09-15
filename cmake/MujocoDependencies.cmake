@@ -78,8 +78,6 @@ mark_as_advanced(MUJOCO_DEP_VERSION_TriangleMeshDistance)
 include(FetchContent)
 include(FindOrFetch)
 
-set(PATCH_SCRIPT ${PROJECT_SOURCE_DIR}/cmake/UpdateCMakeMinimumRequired.cmake)
-
 # Override the BUILD_SHARED_LIBS setting, just for building third party libs (since we always want
 # static libraries). The ccd CMakeLists.txt doesn't expose an option to build a static ccd library,
 # unless BUILD_SHARED_LIBS is set.
@@ -170,6 +168,11 @@ findorfetch(
 target_compile_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
+# update cmake_minimum_required version for compatibility with newer version of cmake
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM ${MUJOCO_CMAKE_MIN_REQ})
+  set(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED ON)
+endif()
 findorfetch(
   USE_SYSTEM_PACKAGE
   OFF
@@ -181,13 +184,14 @@ findorfetch(
   https://github.com/tinyobjloader/tinyobjloader.git
   GIT_TAG
   ${MUJOCO_DEP_VERSION_tinyobjloader}
-  # update cmake_minimum_required version for compatibility with newer version of cmake
-  PATCH_COMMAND
-  ${CMAKE_COMMAND} -DDESIRED_VERSION=${MUJOCO_CMAKE_MIN_REQ} -DTARGET_FILE=<SOURCE_DIR>/CMakeLists.txt -P ${PATCH_SCRIPT}
   TARGETS
   tinyobjloader
   EXCLUDE_FROM_ALL
 )
+if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+  unset(CMAKE_POLICY_VERSION_MINIMUM)
+  unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+endif()
 
 if(NOT TARGET trianglemeshdistance)
   FetchContent_Declare(
@@ -205,6 +209,11 @@ endif()
 
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)
+# update cmake_minimum_required version for compatibility with newer version of cmake
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM ${MUJOCO_CMAKE_MIN_REQ})
+  set(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED ON)
+endif()
 findorfetch(
   USE_SYSTEM_PACKAGE
   OFF
@@ -216,13 +225,14 @@ findorfetch(
   https://github.com/danfis/libccd.git
   GIT_TAG
   ${MUJOCO_DEP_VERSION_ccd}
-  # update cmake_minimum_required version for compatibility with newer version of cmake
-  PATCH_COMMAND
-  ${CMAKE_COMMAND} -DDESIRED_VERSION=${MUJOCO_CMAKE_MIN_REQ} -DTARGET_FILE=<SOURCE_DIR>/CMakeLists.txt -P ${PATCH_SCRIPT}
   TARGETS
   ccd
   EXCLUDE_FROM_ALL
 )
+if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+  unset(CMAKE_POLICY_VERSION_MINIMUM)
+  unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+endif()
 target_compile_options(ccd PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(ccd PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
