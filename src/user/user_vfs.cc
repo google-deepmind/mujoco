@@ -219,7 +219,8 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   VFS* cvfs = GetVFSImpl(vfs);
 
   // make full name
-  FilePath fullname = FilePath(directory, filename);
+  const char* dir = directory != nullptr ? directory : "";
+  FilePath fullname = FilePath(dir, filename);
 
   // strip path
   FilePath newname = StripPath(filename);
