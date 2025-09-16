@@ -113,7 +113,7 @@ def _support_margin(geom: Geom, geomtype: int, dir: wp.vec3):
     local_dir = wp.transpose(geom.rot) @ dir
     res = wp.vec3()
     res[2] = wp.where(local_dir[2] >= 0, geom.size[1], -geom.size[1])
-    sp.point = res
+    sp.point = geom.rot @ res + geom.pos
     return sp
 
 

@@ -35,9 +35,6 @@ extern "C" {
 // Set default options for length range computation.
 MJAPI void mj_defaultLROpt(mjLROpt* opt);
 
-// set default solver parameters
-MJAPI void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp);
-
 // set options to default values
 MJAPI void mj_defaultOption(mjOption* opt);
 
@@ -130,59 +127,11 @@ MJAPI void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_va
 // Reset data. If 0 <= key < nkey, set fields from specified keyframe.
 MJAPI void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key);
 
-// mjData arena allocate
-MJAPI void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment);
-
 // init plugins
 MJAPI void mj_initPlugin(const mjModel* m, mjData* d);
 
-#ifndef ADDRESS_SANITIZER
-
-// mjData mark stack frame
-MJAPI void mj_markStack(mjData* d);
-
-// mjData free stack frame
-MJAPI void mj_freeStack(mjData* d);
-
-#else
-
-void mj__markStack(mjData* d) __attribute__((noinline));
-void mj__freeStack(mjData* d) __attribute__((noinline));
-
-#endif  // ADDRESS_SANITIZER
-
-// returns the number of bytes available on the stack
-MJAPI size_t mj_stackBytesAvailable(mjData* d);
-
-// allocate bytes on the stack
-MJAPI void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment);
-
-// allocate bytes on the stack, with added caller information
-MJAPI void* mj_stackAllocInfo(mjData* d, size_t bytes, size_t alignment,
-                              const char* caller, int line);
-
-// macro to allocate a stack array of given type, adds caller information
-#define mjSTACKALLOC(d, num, type) \
-(type*) mj_stackAllocInfo(d, (num) * sizeof(type), _Alignof(type), __func__, __LINE__)
-
-// mjData stack allocate for array of mjtNums
-MJAPI mjtNum* mj_stackAllocNum(mjData* d, size_t size);
-
-// mjData stack allocate for array of ints
-MJAPI int* mj_stackAllocInt(mjData* d, size_t size);
-
 // deallocate data
 MJAPI void mj_deleteData(mjData* d);
-
-// clear arena pointers in mjData
-static inline void mj_clearEfc(mjData* d) {
-#define X(type, name, nr, nc) d->name = NULL;
-  MJDATA_ARENA_POINTERS
-#undef X
-  d->nefc = 0;
-  d->nisland = 0;
-  d->contact = (mjContact*) d->arena;
-}
 
 #ifdef __cplusplus
 }

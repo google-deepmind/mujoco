@@ -602,7 +602,6 @@ def solve(m: Model, d: Data) -> Data:
     ctx = jax.lax.while_loop(cond, body, ctx)
 
   d = d.tree_replace({
-      'qacc_warmstart': ctx.qacc,
       'qfrc_constraint': ctx.qfrc_constraint,
       'qacc': ctx.qacc,
       '_impl.efc_force': ctx.efc_force,

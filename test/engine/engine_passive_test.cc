@@ -28,12 +28,50 @@ namespace {
 
 using ::testing::ElementsAre;
 using ::testing::NotNull;
-using CoreSmoothTest = MujocoTest;
 
-static std::vector<mjtNum> GetVector(const mjtNum* array, int length) {
-  return std::vector<mjtNum>(array, array + length);
+using PassiveTest = MujocoTest;
+
+TEST_F(PassiveTest, DisableFlags) {
+  static constexpr char flex_xml[] = R"(
+  <mujoco>
+    <option gravity="0 0 -10"/>
+    <worldbody>
+      <body gravcomp="1">
+        <joint type="slide" springref="1" stiffness="10" damping="1"/>
+        <geom size="1" mass="1"/>
+      </body>
+    </worldbody>
+
+    <keyframe>
+      <key qvel="-1"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* m = LoadModelFromString(flex_xml, error, sizeof(error));
+  ASSERT_THAT(m, testing::NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  mj_resetDataKeyframe(m, d, 0);
+
+  mj_forward(m, d);
+  EXPECT_FLOAT_EQ(d->qacc[0], 11);
+
+  m->opt.disableflags = mjDSBL_DAMPER;
+  mj_forward(m, d);
+  EXPECT_FLOAT_EQ(d->qacc[0], 10);
+
+  m->opt.disableflags = mjDSBL_SPRING;
+  mj_forward(m, d);
+  EXPECT_FLOAT_EQ(d->qacc[0], 1);
+
+  m->opt.disableflags = mjDSBL_SPRING | mjDSBL_DAMPER;
+  mj_forward(m, d);
+  EXPECT_EQ(d->qacc[0], -10);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
 }
-
 
 // ------------------------ ellipsoid fluid model ------------------------------
 
@@ -132,9 +170,9 @@ TEST_F(EllipsoidFluidTest, DefaultsPropagate) {
   char error[1024];
   mjModel* model = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
-  EXPECT_THAT(GetVector(model->geom_fluid, 6),
+  EXPECT_THAT(AsVector(model->geom_fluid, 6),
               ElementsAre(0, 0, 0, 0, 0, 0));
-  EXPECT_THAT(GetVector(model->geom_fluid + mjNFLUID, 6),
+  EXPECT_THAT(AsVector(model->geom_fluid + mjNFLUID, 6),
               ElementsAre(1, 2, 3, 4, 5, 6));
   mj_deleteModel(model);
 }

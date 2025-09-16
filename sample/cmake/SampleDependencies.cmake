@@ -30,7 +30,7 @@ option(MUJOCO_SAMPLES_USE_SYSTEM_MUJOCO "Use installed MuJoCo version." OFF)
 option(MUJOCO_SAMPLES_USE_SYSTEM_GLFW "Use installed GLFW version." OFF)
 
 set(MUJOCO_DEP_VERSION_glfw3
-    7482de6071d21db77a7236155da44c172a7f6c9e # 3.3.8
+    7b6aead9fb88b3623e3b3725ebb42670cbe4c579 # 3.4
     CACHE STRING "Version of `glfw` to be fetched."
 )
 mark_as_advanced(MUJOCO_DEP_VERSION_glfw3)

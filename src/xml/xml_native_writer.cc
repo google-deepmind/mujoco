@@ -1044,7 +1044,8 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("frictionloss",   mjDSBL_FRICTIONLOSS)
     WRITEDSBL("limit",          mjDSBL_LIMIT)
     WRITEDSBL("contact",        mjDSBL_CONTACT)
-    WRITEDSBL("passive",        mjDSBL_PASSIVE)
+    WRITEDSBL("spring",         mjDSBL_SPRING)
+    WRITEDSBL("damper",         mjDSBL_DAMPER)
     WRITEDSBL("gravity",        mjDSBL_GRAVITY)
     WRITEDSBL("clampctrl",      mjDSBL_CLAMPCTRL)
     WRITEDSBL("warmstart",      mjDSBL_WARMSTART)
@@ -1056,6 +1057,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("eulerdamp",      mjDSBL_EULERDAMP)
     WRITEDSBL("autoreset",      mjDSBL_AUTORESET)
     WRITEDSBL("nativeccd",      mjDSBL_NATIVECCD)
+    WRITEDSBL("island",         mjDSBL_ISLAND)
 #undef WRITEDSBL
 
 #define WRITEENBL(NAME, MASK) \
@@ -1066,7 +1068,6 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEENBL("fwdinv",         mjENBL_FWDINV)
     WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
     WRITEENBL("multiccd",       mjENBL_MULTICCD)
-    WRITEENBL("island",         mjENBL_ISLAND)
 #undef WRITEENBL
   }
 

@@ -17,74 +17,49 @@ from typing import Tuple
 
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 
 
 @wp.func
-def _hfield_overlap_range(
-  # Model:
-  geom_dataid: wp.array(dtype=int),
-  geom_rbound: wp.array2d(dtype=float),
-  geom_margin: wp.array2d(dtype=float),
-  hfield_nrow: wp.array(dtype=int),
-  hfield_ncol: wp.array(dtype=int),
-  hfield_size: wp.array(dtype=wp.vec4),
-  # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+def _hfield_subgrid(
   # In:
-  hfieldid: int,
-  geomid: int,
-  worldid: int,
+  nrow: int,
+  ncol: int,
+  size: wp.vec4,
+  xmax: float,
+  xmin: float,
+  ymax: float,
+  ymin: float,
 ) -> Tuple[int, int, int, int]:
-  """Returns min/max grid coordinates of height field cells overlapped by a geom's bounds.
+  """Returns height field subgrid that overlaps with geom AABB.
 
   Args:
-    geom_dataid: Array of geom data IDs
-    geom_rbound: Array of geom bounding radii
-    geom_margin: Array of geom margins
-    hfield_nrow: Array of heightfield rows
-    hfield_ncol: Array of heightfield columns
-    hfield_size: Array of heightfield sizes
-    geom_xpos_in: Array of geom positions
-    geom_xmat_in: Array of geom orientation matrices
-    hfieldid: Index of the height field geom
-    geomid: Index of the other geom
-    worldid: Current world index
+    nrow: height field number of rows
+    ncol: height field number of columns
+    size: height field size
+    xmax: geom maximum x position
+    xmin: geom minimum x position
+    ymax: geom maximum y position
+    ymin: geom minimum y position
 
   Returns:
-    min_i, min_j, max_i, max_j: Grid coordinate bounds
+    grid coordinate bounds
   """
-  # get height field dimensions
-  dataid = geom_dataid[hfieldid]
-  nrow = hfield_nrow[dataid]
-  ncol = hfield_ncol[dataid]
-  size = hfield_size[dataid]  # (x, y, z_top, z_bottom)
 
-  # get positions and transforms
-  hf_pos = geom_xpos_in[worldid, hfieldid]
-  hf_mat = geom_xmat_in[worldid, hfieldid]
-  geom_pos = geom_xpos_in[worldid, geomid]
+  # grid resolution
+  x_scale = 0.5 * float(ncol - 1) / size[0]
+  y_scale = 0.5 * float(nrow - 1) / size[1]
 
-  # transform geom_pos to height field local space
-  local_pos = wp.transpose(hf_mat) @ (geom_pos - hf_pos)
+  # subgrid
+  cmin = wp.max(0, int(wp.floor((xmin + size[0]) * x_scale)))
+  cmax = wp.min(ncol - 1, int(wp.ceil((xmax + size[0]) * x_scale)))
+  rmin = wp.max(0, int(wp.floor((ymin + size[1]) * y_scale)))
+  rmax = wp.min(nrow - 1, int(wp.ceil((ymax + size[1]) * y_scale)))
 
-  # get bounding radius of other geometry (including margin)
-  bound_radius = geom_rbound[worldid, geomid] + geom_margin[worldid, geomid]
-
-  # calculate grid resolution
-  x_scale = 2.0 * size[0] / float(ncol - 1)
-  y_scale = 2.0 * size[1] / float(nrow - 1)
-
-  # calculate min/max grid coordinates that could contain the object
-  min_i = wp.max(0, int((local_pos[0] - bound_radius + size[0]) / x_scale))
-  max_i = wp.min(ncol - 2, int((local_pos[0] + bound_radius + size[0]) / x_scale) + 1)
-  min_j = wp.max(0, int((local_pos[1] - bound_radius + size[1]) / y_scale))
-  max_j = wp.min(nrow - 2, int((local_pos[1] + bound_radius + size[1]) / y_scale) + 1)
-
-  return min_i, min_j, max_i, max_j
+  return cmin, rmin, cmax, rmax
 
 
 @wp.func
@@ -100,20 +75,20 @@ def hfield_triangle_prism(
   hfieldid: int,
   hftri_index: int,
 ) -> wp.mat33:
-  """Returns the vertices of a triangular prism for a heightfield triangle.
+  """Returns triangular prism vertex information in compressed representation.
 
   Args:
-    geom_dataid: Array of geometry data IDs
-    hfield_adr: Array of heightfield addresses
-    hfield_nrow: Array of heightfield rows
-    hfield_ncol: Array of heightfield columns
-    hfield_size: Array of heightfield sizes
-    hfield_data: Array of heightfield data
-    hfieldid: Index of the height field geometry
-    hftri_index: Index of the triangle in the heightfield
+    geom_dataid: geom data ids
+    hfield_adr: address for height field
+    hfield_nrow: height field number of rows
+    hfield_ncol: height field number of columns
+    hfield_size: height field sizes
+    hfield_data: height field data
+    hfieldid: height field geom id
+    hftri_index: height field triangle index
 
   Returns:
-    3x3 matrix containing the vertices of the triangular prism
+    triangular prism vertex information (compressed)
   """
   # https://mujoco.readthedocs.io/en/stable/XMLreference.html#asset-hfield
 
@@ -160,21 +135,14 @@ def hfield_triangle_prism(
   z10 = z10 * z_top
   z11 = z11 * z_top
 
-  # set bottom z-value
-  z_bottom = -size[3]
+  x2 = wp.where(hftri_index % 2, 1.0, 0.0)
+  y2 = wp.where(hftri_index % 2, z10, z01)
+  z22 = -size[3]
 
   # compress 6 prism vertices into 3x3 matrix, see hfield_prism_vertex for details
-  return wp.mat33(
-    x0,
-    y0,
-    z00,
-    x1,
-    y1,
-    z11,
-    wp.where(hftri_index % 2, 1.0, 0.0),
-    wp.where(hftri_index % 2, z10, z01),
-    z_bottom,
-  )
+  return wp.mat33(x0, y0, z00,
+                  x1, y1, z11,
+                  x2, y2, z22)  # fmt: off
 
 
 @wp.func
@@ -194,10 +162,10 @@ def hfield_prism_vertex(prism: wp.mat33, vert_index: int) -> wp.vec3:
 
   Args:
       prism: 3x3 compressed representation of a triangular prism
-      vert_index: Index of vertex to extract (0-5)
+      vert_index: index of vertex to extract (0-5)
 
   Returns:
-      The 3D coordinates of the requested vertex
+      3D coordinates of the requested vertex
   """
   if vert_index == 0 or vert_index == 1:
     return prism[vert_index]  # first two vertices stored directly
@@ -223,6 +191,7 @@ def _hfield_midphase(
   # Model:
   geom_type: wp.array(dtype=int),
   geom_dataid: wp.array(dtype=int),
+  geom_aabb: wp.array2d(dtype=wp.vec3),
   geom_rbound: wp.array2d(dtype=float),
   geom_margin: wp.array2d(dtype=float),
   hfield_nrow: wp.array(dtype=int),
@@ -250,130 +219,171 @@ def _hfield_midphase(
   one for each potentially colliding triangle.
 
   Args:
-    geom_type: Array of geometry types
-    geom_dataid: Array of geometry data IDs
-    geom_rbound: Array of geometry bounding radii
-    geom_margin: Array of geometry margins
-    hfield_nrow: Array of heightfield rows
-    hfield_ncol: Array of heightfield columns
-    hfield_size: Array of heightfield sizes
-    nconmax_in: Max number of collisions
-    geom_xpos_in: Array of geometry positions
-    geom_xmat_in: Array of geometry orientation matrices
-    collision_pair_in: Array of collision pairs
-    collision_hftri_index_in: Array of heightfield triangle indices, -1 for heightfield
-                              pairs
-    collision_pairid_in: Array of collision pair IDs
-    collision_worldid_in: Array of collision world IDs
-
-    collision_pair_out: Output array of collision pairs
-    collision_hftri_index_out: Output array of heightfield triangle indices
-    collision_pairid_out: Output array of collision pair IDs
-    collision_worldid_out: Output array of collision world IDs
-    ncollision_out: Output counter for number of collisions
+    geom_type: geom type
+    geom_dataid: geom data id
+    geom_rbound: geom bounding sphere radius
+    geom_margin: geom margin
+    hfield_nrow: height field number of rows
+    hfield_ncol: height field number of columns
+    hfield_size: height field size
+    nconmax_in: maximum number of contacts
+    geom_xpos_in: geom position
+    geom_xmat_in: geom orientation
+    collision_pair_in: collision pair
+    collision_hftri_index_in: triangle indices, -1 for height field pair
+    collision_pairid_in: collision pair id from broadphase
+    collision_worldid_in: collision world id from broadphase
+    collision_pair_out: collision pair from midphase
+    collision_hftri_index_out: triangle indices from midphase
+    collision_pairid_out: collision pair id from midphase
+    collision_worldid_out: collision world id from midphase
+    ncollision_out: number of collisions from broadphase and midphase
   """
   pairid = wp.tid()
 
-  # only process pairs that are marked for heightfield collision (-1)
-  # the buffer is cleared at the start of each frame in collision_driver.py
+  # only process pairs that are marked for height field collision (-1)
   if collision_hftri_index_in[pairid] != -1:
     return
 
-  # get the collision pair info
-  pair = collision_pair_in[pairid]
+  # collision pair info
   worldid = collision_worldid_in[pairid]
   pair_id = collision_pairid_in[pairid]
 
-  # identify which geom is the heightfield
+  pair = collision_pair_in[pairid]
   g1 = pair[0]
   g2 = pair[1]
 
   hfieldid = g1
   geomid = g2
 
-  # if the first geom is not a heightfield, swap them
-  # in theory, shouldn't happen as _add_geom_pair already sorted the pair
+  # SHOULD NOT OCCUR: if the first geom is not a heightfield, swap
   if geom_type[g1] != int(GeomType.HFIELD.value):
     hfieldid = g2
     geomid = g1
 
-  # get min/max grid coordinates for overlap region
-  min_i, min_j, max_i, max_j = _hfield_overlap_range(
-    geom_dataid,
-    geom_rbound,
-    geom_margin,
-    hfield_nrow,
-    hfield_ncol,
-    hfield_size,
-    geom_xpos_in,
-    geom_xmat_in,
-    hfieldid,
-    geomid,
-    worldid,
-  )
+  # height field info
+  hfdataid = geom_dataid[hfieldid]
+  size1 = hfield_size[hfdataid]
+  pos1 = geom_xpos_in[worldid, hfieldid]
+  mat1 = geom_xmat_in[worldid, hfieldid]
+  mat1T = wp.transpose(mat1)
 
-  # get hfield dimensions for triangle index calculation
-  dataid = geom_dataid[hfieldid]
-  ncol = hfield_ncol[dataid]
+  # geom info
+  pos2 = geom_xpos_in[worldid, geomid]
+  pos = mat1T @ (pos2 - pos1)
+  r2 = geom_rbound[worldid, geomid]
 
-  # loop through grid cells and add pairs for all triangles
-  for j in range(min_j, max_j + 1):
-    for i in range(min_i, max_i + 1):
-      # each grid cell contains two triangles
-      base_idx = ((j * (ncol - 1)) + i) * 2
+  # TODO(team): margin?
+  margin = wp.max(geom_margin[worldid, hfieldid], geom_margin[worldid, geomid])
 
+  # box-sphere test: horizontal plane
+  for i in range(2):
+    if (size1[i] < pos[i] - r2 - margin) or (-size1[i] > pos[i] + r2 + margin):
+      return
+
+  # box-sphere test: vertical direction
+  if size1[2] < pos[2] - r2 - margin:  # up
+    return
+
+  if -size1[3] > pos[2] + r2 + margin:  # down
+    return
+
+  mat2 = geom_xmat_in[worldid, geomid]
+  mat = mat1T @ mat2
+
+  # aabb for geom in height field frame
+  xmax = -MJ_MAXVAL
+  ymax = -MJ_MAXVAL
+  zmax = -MJ_MAXVAL
+  xmin = MJ_MAXVAL
+  ymin = MJ_MAXVAL
+  zmin = MJ_MAXVAL
+
+  center2 = geom_aabb[geomid, 0]
+  size2 = geom_aabb[geomid, 1]
+
+  pos += mat1T @ center2
+
+  sign = wp.vec2(-1.0, 1.0)
+
+  for i in range(2):
+    for j in range(2):
+      for k in range(2):
+        corner_local = wp.vec3(sign[i] * size2[0], sign[j] * size2[1], sign[k] * size2[2])
+        corner_hf = mat @ corner_local
+
+        if corner_hf[0] > xmax:
+          xmax = corner_hf[0]
+        if corner_hf[1] > ymax:
+          ymax = corner_hf[1]
+        if corner_hf[2] > zmax:
+          zmax = corner_hf[2]
+        if corner_hf[0] < xmin:
+          xmin = corner_hf[0]
+        if corner_hf[1] < ymin:
+          ymin = corner_hf[1]
+        if corner_hf[2] < zmin:
+          zmin = corner_hf[2]
+
+  xmax += pos[0]
+  xmin += pos[0]
+  ymax += pos[1]
+  ymin += pos[1]
+  zmax += pos[2]
+  zmin += pos[2]
+
+  # box-box test
+  if (
+    (xmin - margin > size1[0])
+    or (xmax + margin < -size1[0])
+    or (ymin - margin > size1[1])
+    or (ymax + margin < -size1[1])
+    or (zmin - margin > size1[2])
+    or (zmax + margin < -size1[3])
+  ):
+    return
+
+  # height field subgrid
+  nrow = hfield_nrow[hfieldid]
+  ncol = hfield_ncol[hfieldid]
+  size = hfield_size[hfieldid]
+  cmin, rmin, cmax, rmax = _hfield_subgrid(nrow, ncol, size, xmax, xmin, ymax, ymin)
+
+  # loop over subgrid triangles
+  for r in range(rmin, rmax):
+    for c in range(cmin, cmax):
       # add both triangles from this cell
-      for t in range(2):
-        if i == 0 and j == 0 and t == 0:
+      for i in range(2):
+        if r == rmin and c == cmin and i == 0:
           # reuse the initial pair for the 1st triangle
           new_pairid = pairid
         else:
-          # for the rest create a new pair
+          # create a new pair
           new_pairid = wp.atomic_add(ncollision_out, 0, 1)
 
         if new_pairid >= nconmax_in:
           return
 
         collision_pair_out[new_pairid] = pair
-        collision_hftri_index_out[new_pairid] = base_idx + t
+        collision_hftri_index_out[new_pairid] = 2 * (r * (ncol - 1) + c) + i
         collision_pairid_out[new_pairid] = pair_id
         collision_worldid_out[new_pairid] = worldid
 
 
 def hfield_midphase(m: Model, d: Data):
-  """Midphase collision detection for heightfield triangles with other geoms.
+  """Midphase collision detection for height field triangles with other geoms.
 
-  Processes collision pairs from the broadphase where one geom is a heightfield and expands
+  Processes collision pairs from the broadphase where one geom is a height field and expands
   them into multiple collision pairs, one for each potentially colliding triangle. The
   function directly writes to the same collision buffers used by _add_geom_pair.
-
-  Args:
-    m: Model containing geometry and heightfield data
-      - geom_type: Array of geometry types
-      - geom_dataid: Array of geometry data IDs
-      - hfield_nrow: Array of heightfield rows
-      - hfield_ncol: Array of heightfield columns
-      - hfield_size: Array of heightfield sizes
-      - geom_rbound: Array of geometry bounding radii
-      - geom_margin: Array of geometry margins
-    d: Data containing current state and collision information
-      - nconmax: Maximum number of contacts
-      - geom_xpos: Array of geometry positions
-      - geom_xmat: Array of geometry orientation matrices
-      - collision_pair: Array of collision pairs
-      - collision_hftri_index: Array of heightfield triangle indices
-      - collision_pairid: Array of collision pair IDs
-      - collision_worldid: Array of collision world IDs
-      - ncollision: Number of collisions
   """
-  # launch the midphase kernel to expand height field collision pairs
-  # write directly to the same buffers that _add_geom_pair writes to
   wp.launch(
     kernel=_hfield_midphase,
-    dim=d.nconmax,  # launch threads to process all potential pairs
+    dim=d.nconmax,
     inputs=[
       m.geom_type,
       m.geom_dataid,
+      m.geom_aabb,
       m.geom_rbound,
       m.geom_margin,
       m.hfield_nrow,
@@ -387,11 +397,5 @@ def hfield_midphase(m: Model, d: Data):
       d.collision_pairid,
       d.collision_worldid,
     ],
-    outputs=[
-      d.collision_pair,
-      d.collision_hftri_index,
-      d.collision_pairid,
-      d.collision_worldid,
-      d.ncollision,
-    ],
+    outputs=[d.collision_pair, d.collision_hftri_index, d.collision_pairid, d.collision_worldid, d.ncollision],
   )

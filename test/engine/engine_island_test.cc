@@ -381,12 +381,12 @@ TEST_F(IslandTest, IslandFlex) {
   mjData* data1 = mj_makeData(model);
   mjData* data2 = mj_makeData(model);
 
-  model->opt.enableflags |= mjENBL_ISLAND;
+  model->opt.disableflags &= ~mjDSBL_ISLAND;
   while (data1->time < 0.2) {
     mj_step(model, data1);
   }
 
-  model->opt.enableflags &= ~mjENBL_ISLAND;
+  model->opt.disableflags |= mjDSBL_ISLAND;
   while (data2->time < 0.2) {
     mj_step(model, data2);
   }
@@ -465,27 +465,6 @@ TEST_F(IslandTest, IslandJacobian) {
               int efc = d->map_iefc2efc[iefc + i];
               int dof = d->map_idof2dof[idof + j];
               EXPECT_EQ(J_island[i * nv_island + j], J[efc * nv + dof]);
-            }
-          }
-
-          // === test JT (if sparse)
-
-          // get pointer to J_island, dense (nefc_island x nv_island) submatrix
-          if (jac == mjJAC_SPARSE) {
-            // dense copy of island in iJ (here used as scratch)
-            mju_sparse2dense(iJ, d->iefc_JT, nv_island, nefc_island,
-                             d->iefc_JT_rownnz + idof,
-                             d->iefc_JT_rowadr + idof,
-                             d->iefc_JT_colind);
-            J_island = iJ;
-
-            // sequential memory in J_island equals random access memory in J
-            for (int i=0; i < nv_island; i++) {
-              for (int j=0; j < nefc_island; j++) {
-                int dof = d->map_idof2dof[idof + i];
-                int efc = d->map_iefc2efc[iefc + j];
-                EXPECT_EQ(J_island[i * nefc_island + j], J[efc * nv + dof]);
-              }
             }
           }
         }

@@ -53,13 +53,13 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   /// Equivalent to MjcPhysicsMaterialAPI::Get(prim.GetStage(), prim.GetPath())
   /// for a \em valid \p prim, but will not immediately throw an error for
   /// an invalid \p prim
-  explicit MjcPhysicsMaterialAPI(const UsdPrim &prim = UsdPrim())
+  explicit MjcPhysicsMaterialAPI(const UsdPrim& prim = UsdPrim())
       : UsdAPISchemaBase(prim) {}
 
   /// Construct a MjcPhysicsMaterialAPI on the prim held by \p schemaObj .
   /// Should be preferred over MjcPhysicsMaterialAPI(schemaObj.GetPrim()),
   /// as it preserves SchemaBase state.
-  explicit MjcPhysicsMaterialAPI(const UsdSchemaBase &schemaObj)
+  explicit MjcPhysicsMaterialAPI(const UsdSchemaBase& schemaObj)
       : UsdAPISchemaBase(schemaObj) {}
 
   /// Destructor.
@@ -70,7 +70,7 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   /// class and all its ancestor classes.  Does not include attributes that
   /// may be authored by custom/extended methods of the schemas involved.
   MJCPHYSICS_API
-  static const TfTokenVector &GetSchemaAttributeNames(
+  static const TfTokenVector& GetSchemaAttributeNames(
       bool includeInherited = true);
 
   /// Return a MjcPhysicsMaterialAPI holding the prim adhering to this
@@ -83,8 +83,8 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   /// \endcode
   ///
   MJCPHYSICS_API
-  static MjcPhysicsMaterialAPI Get(const UsdStagePtr &stage,
-                                   const SdfPath &path);
+  static MjcPhysicsMaterialAPI Get(const UsdStagePtr& stage,
+                                   const SdfPath& path);
 
   /// Returns true if this <b>single-apply</b> API schema can be applied to
   /// the given \p prim. If this schema can not be a applied to the prim,
@@ -103,7 +103,7 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   /// \sa UsdPrim::RemoveAPI()
   ///
   MJCPHYSICS_API
-  static bool CanApply(const UsdPrim &prim, std::string *whyNot = nullptr);
+  static bool CanApply(const UsdPrim& prim, std::string* whyNot = nullptr);
 
   /// Applies this <b>single-apply</b> API schema to the given \p prim.
   /// This information is stored by adding "MjcMaterialAPI" to the
@@ -121,7 +121,7 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   /// \sa UsdPrim::RemoveAPI()
   ///
   MJCPHYSICS_API
-  static MjcPhysicsMaterialAPI Apply(const UsdPrim &prim);
+  static MjcPhysicsMaterialAPI Apply(const UsdPrim& prim);
 
  protected:
   /// Returns the kind of schema this class belongs to.
@@ -134,13 +134,13 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   // needs to invoke _GetStaticTfType.
   friend class UsdSchemaRegistry;
   MJCPHYSICS_API
-  static const TfType &_GetStaticTfType();
+  static const TfType& _GetStaticTfType();
 
   static bool _IsTypedSchema();
 
   // override SchemaBase virtuals.
   MJCPHYSICS_API
-  const TfType &_GetTfType() const override;
+  const TfType& _GetTfType() const override;
 
  public:
   // --------------------------------------------------------------------- //
@@ -164,7 +164,7 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateTorsionalFrictionAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -189,7 +189,7 @@ class MjcPhysicsMaterialAPI : public UsdAPISchemaBase {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateRollingFrictionAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:

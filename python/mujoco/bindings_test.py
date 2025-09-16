@@ -932,7 +932,7 @@ Euler integrator, semi-implicit in velocity.
     self.assertLen(mujoco.mjFRAMESTRING, mujoco.mjtFrame.mjNFRAME)
     self.assertLen(mujoco.mjVISSTRING, mujoco.mjtVisFlag.mjNVISFLAG)
     self.assertLen(mujoco.mjRNDSTRING, mujoco.mjtRndFlag.mjNRNDFLAG)
-    self.assertEqual(mujoco.mjDISABLESTRING[11], 'Refsafe')
+    self.assertEqual(mujoco.mjDISABLESTRING[11], 'Actuation')
     self.assertEqual(
         mujoco.mjVISSTRING[mujoco.mjtVisFlag.mjVIS_INERTIA],
         ('Inertia', '0', 'I'),
@@ -946,7 +946,7 @@ Euler integrator, semi-implicit in velocity.
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_OVERRIDE, 1 << 0)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_ENERGY, 1 << 1)
     self.assertEqual(mujoco.mjtEnableBit.mjENBL_FWDINV, 1 << 2)
-    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 6)
+    self.assertEqual(mujoco.mjtEnableBit.mjNENABLE, 5)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_PLANE, 0)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_HFIELD, 1)
     self.assertEqual(mujoco.mjtGeom.mjGEOM_SPHERE, 2)
@@ -1061,20 +1061,20 @@ Euler integrator, semi-implicit in velocity.
 
     self.assertEqual(
         mujoco.mjtDisableBit.mjDSBL_GRAVITY | mujoco.mjtDisableBit.mjDSBL_LIMIT,
-        72,
+        136,
     )
-    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_PASSIVE | 33, 33)
-    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_PASSIVE & 33, 32)
-    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_PASSIVE ^ 33, 1)
-    self.assertEqual(33 | mujoco.mjtDisableBit.mjDSBL_PASSIVE, 33)
-    self.assertEqual(33 & mujoco.mjtDisableBit.mjDSBL_PASSIVE, 32)
-    self.assertEqual(33 ^ mujoco.mjtDisableBit.mjDSBL_PASSIVE, 1)
+    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_SPRING | 33, 33)
+    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_SPRING & 33, 32)
+    self.assertEqual(mujoco.mjtDisableBit.mjDSBL_SPRING ^ 33, 1)
+    self.assertEqual(33 | mujoco.mjtDisableBit.mjDSBL_SPRING, 33)
+    self.assertEqual(33 & mujoco.mjtDisableBit.mjDSBL_SPRING, 32)
+    self.assertEqual(33 ^ mujoco.mjtDisableBit.mjDSBL_SPRING, 1)
     self.assertEqual(
         mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL << 1,
         mujoco.mjtDisableBit.mjDSBL_WARMSTART,
     )
     self.assertEqual(
-        mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL >> 3,
+        mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL >> 4,
         mujoco.mjtDisableBit.mjDSBL_CONTACT,
     )
 

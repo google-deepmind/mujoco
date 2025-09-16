@@ -254,9 +254,7 @@ class SolverTest(parameterized.TestCase):
         ls_parallel=ls_parallel,
       )
 
-      qacc_warmstart = mjd.qacc_warmstart.copy()
       mujoco.mj_forward(mjm, mjd)
-      mjd.qacc_warmstart = qacc_warmstart
 
       d.qacc.zero_()
       d.qfrc_constraint.zero_()

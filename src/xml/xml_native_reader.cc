@@ -118,10 +118,10 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         "solver", "iterations", "ls_iterations", "noslip_iterations", "ccd_iterations",
         "sdf_iterations", "sdf_initpoints", "actuatorgroupdisable"},
     {"<"},
-        {"flag", "?", "23", "constraint", "equality", "frictionloss", "limit", "contact",
-            "passive", "gravity", "clampctrl", "warmstart",
+        {"flag", "?", "24", "constraint", "equality", "frictionloss", "limit", "contact",
+            "spring", "damper", "gravity", "clampctrl", "warmstart",
             "filterparent", "actuation", "refsafe", "sensor", "midphase", "eulerdamp", "autoreset",
-            "override", "energy", "fwdinv", "invdiscrete", "multiccd", "island", "nativeccd"},
+            "nativeccd", "island", "override", "energy", "fwdinv", "invdiscrete", "multiccd"},
     {">"},
 
     {"size", "*", "14", "memory", "njmax", "nconmax", "nstack", "nuserdata", "nkey",
@@ -230,9 +230,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
 
     {"asset", "*", "0"},
     {"<"},
-        {"mesh", "*", "16", "name", "class", "content_type", "file", "vertex", "normal",
+        {"mesh", "*", "17", "name", "class", "content_type", "file", "vertex", "normal",
             "texcoord", "face", "refpos", "refquat", "scale", "smoothnormal",
-            "maxhullvert", "inertia", "builtin", "params"},
+            "maxhullvert", "inertia", "builtin", "params", "material"},
         {"<"},
           {"plugin", "*", "2", "plugin", "instance"},
           {"<"},
@@ -316,9 +316,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
             {"edge", "?", "5", "equality", "solref", "solimp", "stiffness", "damping"},
             {"elasticity", "?", "5", "young", "poisson", "damping", "thickness", "elastic2d"},
-            {"contact", "?", "14", "contype", "conaffinity", "condim", "priority",
+            {"contact", "?", "15", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide"},
+                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
             {"pin", "*", "4", "id", "range", "grid", "gridrange"},
             {"plugin", "*", "2", "plugin", "instance"},
             {"<"},
@@ -332,9 +332,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"flex", "*", "13", "name", "group", "dim", "radius", "material",
             "rgba", "flatskin", "body", "vertex", "element", "texcoord", "elemtexcoord", "node"},
         {"<"},
-            {"contact", "?", "14", "contype", "conaffinity", "condim", "priority",
+            {"contact", "?", "15", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide"},
+                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
             {"edge", "?", "2", "stiffness", "damping"},
             {"elasticity", "?", "5", "young", "poisson", "damping", "thickness", "elastic2d"},
         {">"},
@@ -1187,7 +1187,8 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("frictionloss", mjDSBL_FRICTIONLOSS)
     READDSBL("limit",        mjDSBL_LIMIT)
     READDSBL("contact",      mjDSBL_CONTACT)
-    READDSBL("passive",      mjDSBL_PASSIVE)
+    READDSBL("spring",       mjDSBL_SPRING)
+    READDSBL("damper",       mjDSBL_DAMPER)
     READDSBL("gravity",      mjDSBL_GRAVITY)
     READDSBL("clampctrl",    mjDSBL_CLAMPCTRL)
     READDSBL("warmstart",    mjDSBL_WARMSTART)
@@ -1199,6 +1200,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("eulerdamp",    mjDSBL_EULERDAMP)
     READDSBL("autoreset",    mjDSBL_AUTORESET)
     READDSBL("nativeccd",    mjDSBL_NATIVECCD)
+    READDSBL("island",       mjDSBL_ISLAND)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
@@ -1211,7 +1213,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("fwdinv",      mjENBL_FWDINV)
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
     READENBL("multiccd",    mjENBL_MULTICCD)
-    READENBL("island",      mjENBL_ISLAND)
 #undef READENBL
   }
 }
@@ -1459,6 +1460,9 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
     if (MapValue(cont, "vertcollide", &flex->vertcollide, bool_map, 2)) {
       flex->vertcollide = (n == 1);
     }
+    if (MapValue(cont, "passive", &flex->passive, bool_map, 2)) {
+      flex->passive = (n == 1);
+    }
     ReadAttrInt(cont, "activelayers", &flex->activelayers);
   }
 
@@ -1567,6 +1571,11 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
     if (mjs_makeMesh(mesh, (mjtMeshBuiltin)n, params.data(), nparams)) {
       throw mjXError(elem, mjs_getError(spec));
     }
+  }
+
+  std::string material;
+  if (ReadAttrTxt(elem, "material", material)) {
+    mjs_setString(mesh->material, material.c_str());
   }
 
   // write error info
@@ -2714,6 +2723,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
     if (MapValue(cont, "vertcollide", &n, bool_map, 2)) {
       dflex.vertcollide = (n == 1);
+    }
+    if (MapValue(cont, "passive", &n, bool_map, 2)) {
+      dflex.passive = (n == 1);
     }
     ReadAttrInt(cont, "activelayers", &dflex.activelayers);
   }

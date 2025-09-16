@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstddef>
 #include <array>
+#include <deque>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -49,9 +50,9 @@ class mjCSite;
 class mjCCamera;
 class mjCLight;
 class mjCHField;
-class mjCFlex;         // defined in user_mesh.h
-class mjCMesh;         // defined in user_mesh.h
-class mjCSkin;         // defined in user_mesh.h
+class mjCFlex;
+class mjCMesh;
+class mjCSkin;
 class mjCTexture;
 class mjCMaterial;
 class mjCPair;
@@ -249,18 +250,29 @@ typedef std::array<std::array<double, 3>, 3> Triangle;
 
 struct OctNode {
   int level = 0;                       // level of the node
+  int parent_index = -1;               // index of the parent node
+  int child_slot = -1;                 // slot of the child node in the parent node
   std::array<int, 8> child = {-1};     // children nodes
   std::array<int, 8> vertid = {-1};    // vertex id's
-  std::array<double, 6> aabb = {0};    // bounding box
+  std::array<double, 6> aamm = {0};    // bounding box
   std::array<double, 8> coeff = {0};   // interpolation coefficients
+};
+
+struct OctreeTask {
+  std::vector<Triangle*> elements;
+  int lev;
+  int parent_index;
+  int child_slot;
+  int node_index;
 };
 
 struct mjCOctree_ {
   int nnode_ = 0;
   int nvert_ = 0;
   std::vector<OctNode> node_;
-  std::vector<Triangle> face_;       // mesh faces                (nmeshface x 3)
-  std::vector<Point> vert_;          // octree vertices           (nvert x 3)
+  std::vector<Triangle> face_;          // mesh faces                (nmeshface x 3)
+  std::vector<Point> vert_;             // octree vertices           (nvert x 3)
+  std::vector<std::vector<int>> hang_;  // hanging nodes status      (nvert x 1)
   double ipos_[3] = {0, 0, 0};
   double iquat_[4] = {1, 0, 0, 0};
 };
@@ -276,7 +288,9 @@ class mjCOctree : public mjCOctree_ {
   void CopyAabb(mjtNum* aabb) const;
   void CopyCoeff(mjtNum* coeff) const;
   const double* Vert(int i) const { return vert_[i].p.data(); }
+  const std::vector<int>& Hang(int i) const { return hang_[i]; }
   int VertId(int n, int v) const { return node_[n].vertid[v]; }
+  const std::array<int, 8>& Children(int i) const { return node_[i].child; }
   void SetFace(const std::vector<double>& vert, const std::vector<int>& face);
   int Size() const {
     return sizeof(OctNode) * node_.size() + sizeof(Triangle) * face_.size() +
@@ -290,8 +304,16 @@ class mjCOctree : public mjCOctree_ {
 
  private:
   void Make(std::vector<Triangle>& elements);
-  int MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev,
-                 std::unordered_map<Point, int>& vert_map);
+  void MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6],
+                  std::unordered_map<Point, int>& vert_map);
+  void TaskToNode(const OctreeTask& task, OctNode& node, std::unordered_map<Point, int>& vert_map);
+  void Subdivide(const OctreeTask& task, std::unordered_map<Point, int>& vert_map,
+                 std::deque<OctreeTask>* queue = nullptr,
+                 const std::vector<Triangle*>& colliding = {});
+  int FindNeighbor(int node_idx, int dir);
+  int FindCoarseNeighbor(int node_idx, int dir);
+  void BalanceOctree(std::unordered_map<Point, int>& vert_map);
+  void MarkHangingNodes();
 };
 
 
@@ -753,7 +775,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   const std::vector<double>& get_userdata() const { return userdata_; }
   const std::string& get_hfieldname() const { return spec_hfieldname_; }
   const std::string& get_meshname() const { return spec_meshname_; }
-  const std::string& get_material() const { return spec_material_; }
+  const std::string& get_material() const;
   void del_material() { spec_material_.clear(); }
 
  private:
@@ -1029,6 +1051,7 @@ class mjCMesh_ : public mjCBase {
   std::vector<int> face_;                        // vertex indices
   std::vector<int> facenormal_;                  // normal indices
   std::vector<int> facetexcoord_;                // texcoord indices
+  std::string material_;                         // mesh fallback material
 
   std::string spec_content_type_;
   std::string spec_file_;
@@ -1038,6 +1061,7 @@ class mjCMesh_ : public mjCBase {
   std::vector<int> spec_face_;
   std::vector<int> spec_facenormal_;
   std::vector<int> spec_facetexcoord_;
+  std::string spec_material_;
 
   // used by the compiler
   bool needreorient_;                            // needs reorientation
@@ -1117,6 +1141,8 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const std::vector<int>& Face() const { return face_; }
   const std::vector<int>& UserFace() const { return spec_face_; }
   mjtMeshInertia Inertia() const { return spec.inertia; }
+  const std::string& Material() const { return material_; }
+
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
 

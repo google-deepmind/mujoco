@@ -1428,22 +1428,6 @@ class SpecsTest(absltest.TestCase):
                 refname='cam',
             ),
         ),
-        dict(
-            expected_error='subtree1 must be a child of the world',
-            sensor_params=dict(
-                type=mujoco.mjtSensor.mjSENS_CONTACT,
-                objtype=mujoco.mjtObj.mjOBJ_XBODY,
-                objname='non_root',
-            ),
-        ),
-        dict(
-            expected_error='subtree2 must be a child of the world',
-            sensor_params=dict(
-                type=mujoco.mjtSensor.mjSENS_CONTACT,
-                reftype=mujoco.mjtObj.mjOBJ_XBODY,
-                refname='non_root',
-            ),
-        ),
     ]
 
     for params in test_cases:
@@ -1478,6 +1462,34 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(mj_model.sensor_dim[0], 4)
     self.assertEqual(mj_model.sensor_dim[1], 1)
 
+  def test_mesh_material(self):
+    spec = mujoco.MjSpec()
+
+    spec.add_material(name='red', rgba=(1, 0, 0, 1))
+    spec.add_material(name='green', rgba=(0, 1, 0, 1))
+
+    mesh = spec.add_mesh(name='sphere')
+    mesh.make_sphere(subdivision=1)
+    mesh.material = 'red'
+
+    geom = spec.worldbody.add_geom()
+    geom.type = mujoco.mjtGeom.mjGEOM_MESH
+    geom.meshname = 'sphere'
+
+    geom_2 = spec.worldbody.add_geom()
+    geom_2.type = mujoco.mjtGeom.mjGEOM_MESH
+    geom_2.meshname = 'sphere'
+    geom_2.material = 'green'
+
+    model = spec.compile()
+
+    self.assertEqual(model.geom_matid[0], 0)
+    self.assertEqual(model.geom_matid[1], 1)
+
+    mesh.material = 'green'
+    model = spec.compile()
+
+    self.assertEqual(model.geom_matid[0], 1)
 
 if __name__ == '__main__':
   absltest.main()

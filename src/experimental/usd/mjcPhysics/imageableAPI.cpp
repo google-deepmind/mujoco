@@ -30,8 +30,8 @@ TF_REGISTRY_FUNCTION(TfType) {
 MjcPhysicsImageableAPI::~MjcPhysicsImageableAPI() {}
 
 /* static */
-MjcPhysicsImageableAPI MjcPhysicsImageableAPI::Get(const UsdStagePtr &stage,
-                                                   const SdfPath &path) {
+MjcPhysicsImageableAPI MjcPhysicsImageableAPI::Get(const UsdStagePtr& stage,
+                                                   const SdfPath& path) {
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
     return MjcPhysicsImageableAPI();
@@ -45,13 +45,13 @@ UsdSchemaKind MjcPhysicsImageableAPI::_GetSchemaKind() const {
 }
 
 /* static */
-bool MjcPhysicsImageableAPI::CanApply(const UsdPrim &prim,
-                                      std::string *whyNot) {
+bool MjcPhysicsImageableAPI::CanApply(const UsdPrim& prim,
+                                      std::string* whyNot) {
   return prim.CanApplyAPI<MjcPhysicsImageableAPI>(whyNot);
 }
 
 /* static */
-MjcPhysicsImageableAPI MjcPhysicsImageableAPI::Apply(const UsdPrim &prim) {
+MjcPhysicsImageableAPI MjcPhysicsImageableAPI::Apply(const UsdPrim& prim) {
   if (prim.ApplyAPI<MjcPhysicsImageableAPI>()) {
     return MjcPhysicsImageableAPI(prim);
   }
@@ -59,7 +59,7 @@ MjcPhysicsImageableAPI MjcPhysicsImageableAPI::Apply(const UsdPrim &prim) {
 }
 
 /* static */
-const TfType &MjcPhysicsImageableAPI::_GetStaticTfType() {
+const TfType& MjcPhysicsImageableAPI::_GetStaticTfType() {
   static TfType tfType = TfType::Find<MjcPhysicsImageableAPI>();
   return tfType;
 }
@@ -71,7 +71,7 @@ bool MjcPhysicsImageableAPI::_IsTypedSchema() {
 }
 
 /* virtual */
-const TfType &MjcPhysicsImageableAPI::_GetTfType() const {
+const TfType& MjcPhysicsImageableAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
@@ -80,7 +80,7 @@ UsdAttribute MjcPhysicsImageableAPI::GetGroupAttr() const {
 }
 
 UsdAttribute MjcPhysicsImageableAPI::CreateGroupAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcGroup, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -88,7 +88,7 @@ UsdAttribute MjcPhysicsImageableAPI::CreateGroupAttr(
 
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
-    const TfTokenVector &left, const TfTokenVector &right) {
+    const TfTokenVector& left, const TfTokenVector& right) {
   TfTokenVector result;
   result.reserve(left.size() + right.size());
   result.insert(result.end(), left.begin(), left.end());
@@ -98,7 +98,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 }  // namespace
 
 /*static*/
-const TfTokenVector &MjcPhysicsImageableAPI::GetSchemaAttributeNames(
+const TfTokenVector& MjcPhysicsImageableAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcGroup,

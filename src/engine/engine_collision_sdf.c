@@ -124,9 +124,9 @@ static int findOct(mjtNum w[8], mjtNum dw[8][3], const mjtNum* oct_aabb,
     }
 
     // compute which of 8 children to visit next
-    int x = coord[0] < .5 ? 1 : 0;
-    int y = coord[1] < .5 ? 1 : 0;
-    int z = coord[2] < .5 ? 1 : 0;
+    int x = coord[0] < .5 ? 0 : 1;
+    int y = coord[1] < .5 ? 0 : 1;
+    int z = coord[2] < .5 ? 0 : 1;
     stack = oct_child[8 * node + 4*z + 2*y + x];
   }
 
@@ -274,12 +274,14 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
     if (m->mesh_octnum[i]) {
       return oct_distance(m, x, i);
     } else {
-      mjtNum dir[3] = {-x[0], -x[1], -x[2]};
-      mjtNum r = mju_normalize3(dir);
-      mjtNum dist = mj_rayMesh(m, d, i, x, dir);
+      mju_mulMatVec3(a, d->geom_xmat + 9 * i, x);
+      mju_addTo3(a, d->geom_xpos + 3 * i);
+      mjtNum dir[3] = {-a[0], -a[1], -a[2]};
+      mjtNum r = mju_norm3(dir);
+      mjtNum dist = mj_rayMesh(m, d, i, a, dir);
       if (dist > r) {
         mju_scl3(dir, dir, -1);
-        return -mj_rayMesh(m, d, i, x, dir);
+        return -mj_rayMesh(m, d, i, a, dir);
       }
       return dist;
     }
@@ -391,9 +393,11 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     if (m->mesh_octnum[i]) {
       oct_gradient(m, gradient, x, i);
     } else {
-      mjtNum dir[3] = {-x[0], -x[1], -x[2]};
-      mjtNum r = mju_normalize3(dir);
-      mjtNum dist = mj_rayMesh(m, d, i, x, dir);
+      mju_mulMatVec3(a, d->geom_xmat+9*i, x);
+      mju_addTo3(a, d->geom_xpos+3*i);
+      mjtNum dir[3] = {-a[0], -a[1], -a[2]};
+      mjtNum r = mju_norm3(dir);
+      mjtNum dist = mj_rayMesh(m, d, i, a, dir);
       gradient[0] = dist > r ? 1 : -1;
       gradient[1] = dist > r ? 1 : -1;
       gradient[2] = dist > r ? 1 : -1;

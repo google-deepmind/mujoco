@@ -53,7 +53,8 @@ class DisableBit(enum.IntFlag):
     FRICTIONLOSS: joint and tendon frictionloss constraints
     LIMIT:        joint and tendon limit constraints
     CONTACT:      contact constraints
-    PASSIVE:      passive forces
+    SPRING:       passive spring forces
+    DAMPER:       passive damper forces
     GRAVITY:      gravitational forces
     CLAMPCTRL:    clamp control to specified range
     WARMSTART:    warmstart constraint solver
@@ -67,7 +68,8 @@ class DisableBit(enum.IntFlag):
   FRICTIONLOSS = mujoco.mjtDisableBit.mjDSBL_FRICTIONLOSS
   LIMIT = mujoco.mjtDisableBit.mjDSBL_LIMIT
   CONTACT = mujoco.mjtDisableBit.mjDSBL_CONTACT
-  PASSIVE = mujoco.mjtDisableBit.mjDSBL_PASSIVE
+  SPRING = mujoco.mjtDisableBit.mjDSBL_SPRING
+  DAMPER = mujoco.mjtDisableBit.mjDSBL_DAMPER
   GRAVITY = mujoco.mjtDisableBit.mjDSBL_GRAVITY
   CLAMPCTRL = mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL
   WARMSTART = mujoco.mjtDisableBit.mjDSBL_WARMSTART
@@ -568,6 +570,7 @@ class ModelC(PyTreeNode):
   flex_internal: jax.Array
   flex_selfcollide: jax.Array
   flex_activelayers: jax.Array
+  flex_passive: jax.Array
   flex_dim: jax.Array
   flex_vertadr: jax.Array
   flex_vertnum: jax.Array

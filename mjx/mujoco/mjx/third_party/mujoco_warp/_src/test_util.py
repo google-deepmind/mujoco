@@ -46,7 +46,8 @@ def fixture(
   contact: bool = True,
   constraint: bool = True,
   equality: bool = True,
-  passive: bool = True,
+  spring: bool = True,
+  damper: bool = True,
   gravity: bool = True,
   clampctrl: bool = True,
   filterparent: bool = True,
@@ -87,8 +88,10 @@ def fixture(
     mjm.opt.disableflags |= DisableBit.CONSTRAINT
   if not equality:
     mjm.opt.disableflags |= DisableBit.EQUALITY
-  if not passive:
-    mjm.opt.disableflags |= DisableBit.PASSIVE
+  if not spring:
+    mjm.opt.disableflags |= DisableBit.SPRING
+  if not damper:
+    mjm.opt.disableflags |= DisableBit.DAMPER
   if not gravity:
     mjm.opt.disableflags |= DisableBit.GRAVITY
   if not clampctrl:
@@ -146,6 +149,7 @@ def fixture(
     mjd.mocap_quat = mocap_quat
 
   mujoco.mj_forward(mjm, mjd)
+  mjd.qacc_warmstart = mjd.qacc
   m = io.put_model(mjm)
   if ls_parallel is not None:
     m.opt.ls_parallel = ls_parallel

@@ -22,7 +22,9 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_ray.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -292,12 +294,14 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
     break;
 
   case mjMOUSE_MOVE_V:
+  case mjMOUSE_MOVE_V_REL:
     vec[0] = dx;
     vec[1] = 0;
     vec[2] = -dy;
     break;
 
   case mjMOUSE_MOVE_H:
+  case mjMOUSE_MOVE_H_REL:
     vec[0] = dx;
     vec[1] = -dy;
     vec[2] = 0;
@@ -319,7 +323,7 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
 // move camera with mouse; action is mjtMouse
 void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
                     const mjvScene* scn, mjvCamera* cam) {
-  mjtNum headpos[3], forward[3];
+  mjtNum headpos[3], forward[3], up[3], right[3];
   mjtNum vec[3], dif[3], scl;
 
   // fixed camera: nothing to do
@@ -361,6 +365,25 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     cam->distance -= mju_log(1 + cam->distance/m->stat.extent/3) * reldy * 9 * m->stat.extent;
     break;
 
+  case mjMOUSE_MOVE_V_REL:
+  case mjMOUSE_MOVE_H_REL:
+    // do not move lookat point of tracking camera
+    if (cam->type == mjCAMERA_TRACKING) {
+      return;
+    }
+
+    mjv_cameraInModel(headpos, forward, up, scn);
+    mju_cross(right, forward, up);
+
+    // y-axis movement moves forward/backward (ie. camera dolly) on horizontal plane or up/down
+    // (ie. camera pedestal) on vertical plane
+    mju_addToScl3(cam->lookat, (action == mjMOUSE_MOVE_V_REL) ? up : forward, reldy);
+
+    // x-axis movement strafes left/right (ie. camera truck)
+    mju_addToScl3(cam->lookat, right, reldx);
+
+    break;
+
   default:
     mjERROR("unexpected action %d", action);
   }
@@ -391,7 +414,12 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
 // move perturb object with mouse; action is mjtMouse
 void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
                      mjtNum reldy, const mjvScene* scn, mjvPerturb* pert) {
+  const mjtNum xaxis[3] = {1, 0, 0};
+  const mjtNum yaxis[3] = {0, 1, 0};
+  const mjtNum zaxis[3] = {0, 0, 1};
+
   int sel = pert->select;
+  const mjtNum* xmat = d->xmat+9*sel;
   mjtNum forward[3], vec[3], scl, q1[4], xiquat[4];
 
   // get camera info and align
@@ -402,8 +430,27 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
   switch ((mjtMouse) action) {
   case mjMOUSE_MOVE_V:
   case mjMOUSE_MOVE_H:
+    // move along world-space horizontal/vertical planes relative to camera
     mju_addToScl3(pert->refpos, vec, pert->scale);
     mju_addToScl3(pert->refselpos, vec, pert->scale);
+    break;
+
+  case mjMOUSE_MOVE_V_REL:
+  case mjMOUSE_MOVE_H_REL:
+    // move along object's local coordinate frame
+    if (action == mjMOUSE_MOVE_H_REL) {
+      mju_mulMatVec3(vec, xmat, xaxis);
+      mju_addToScl3(pert->refpos, vec, pert->scale * reldy);
+      mju_addToScl3(pert->refselpos, vec, pert->scale * reldy);
+    } else {
+      mju_mulMatVec3(vec, xmat, zaxis);
+      mju_addToScl3(pert->refpos, vec, pert->scale * reldy);
+      mju_addToScl3(pert->refselpos, vec, pert->scale * reldy);
+    }
+
+    mju_mulMatVec3(vec, xmat, yaxis);
+    mju_addToScl3(pert->refpos, vec, pert->scale * reldx);
+    mju_addToScl3(pert->refselpos, vec, pert->scale * reldx);
     break;
 
   case mjMOUSE_ROTATE_V:
@@ -504,12 +551,14 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
     break;
 
   case mjMOUSE_MOVE_V:
+  case mjMOUSE_MOVE_V_REL:
     for (int i=0; i < 3; i++) {
       scn->translate[i] += (float)(roomright[i]*reldx - roomup[i]*reldy) * m->stat.extent;
     }
     break;
 
   case mjMOUSE_MOVE_H:
+  case mjMOUSE_MOVE_H_REL:
     for (int i=0; i < 3; i++) {
       scn->translate[i] += (float)(roomright[i]*reldx - roomforward[i]*reldy) * m->stat.extent;
     }

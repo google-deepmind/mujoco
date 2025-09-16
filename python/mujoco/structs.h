@@ -667,12 +667,12 @@ class MjWrapper<raw::MjData>: public WrapperBase<raw::MjData> {
   py_array_or_tuple_t<mjContact> contact;
 
   py_array_or_tuple_t<size_t> maxuse_threadstack;
-  py_array_or_tuple_t<raw::MjWarningStat> warning;
-  py_array_or_tuple_t<raw::MjTimerStat> timer;
   py_array_or_tuple_t<raw::MjSolverStat> solver;
   py_array_or_tuple_t<int> solver_niter;
   py_array_or_tuple_t<int> solver_nnz;
   py_array_or_tuple_t<mjtNum> solver_fwdinv;
+  py_array_or_tuple_t<raw::MjWarningStat> warning;
+  py_array_or_tuple_t<raw::MjTimerStat> timer;
   py_array_or_tuple_t<mjtNum> energy;
 
  protected:

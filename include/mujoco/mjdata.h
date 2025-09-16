@@ -51,6 +51,27 @@ typedef enum mjtState_ {          // state elements
 } mjtState;
 
 
+typedef enum mjtConstraint_ {     // type of constraint
+  mjCNSTR_EQUALITY    = 0,        // equality constraint
+  mjCNSTR_FRICTION_DOF,           // dof friction
+  mjCNSTR_FRICTION_TENDON,        // tendon friction
+  mjCNSTR_LIMIT_JOINT,            // joint limit
+  mjCNSTR_LIMIT_TENDON,           // tendon limit
+  mjCNSTR_CONTACT_FRICTIONLESS,   // frictionless contact
+  mjCNSTR_CONTACT_PYRAMIDAL,      // frictional contact, pyramidal friction cone
+  mjCNSTR_CONTACT_ELLIPTIC        // frictional contact, elliptic friction cone
+} mjtConstraint;
+
+
+typedef enum mjtConstraintState_ {  // constraint state
+  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
+  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
+  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
+  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
+  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
+} mjtConstraintState;
+
+
 typedef enum mjtWarning_ {   // warning types
   mjWARN_INERTIA      = 0,   // (near) singular inertia matrix
   mjWARN_CONTACTFULL,        // too many contacts in contact list
@@ -122,7 +143,7 @@ struct mjContact_ {                // result of collision detection functions
   int     vert[2];                 // vertex ids;  -1 for geom or flex element
 
   // flag set by mj_setContact or mj_instantiateContact
-  int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs
+  int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs, 4: passive
 
   // address computed by mj_instantiateContact
   int     efc_address;             // address in efc; -1: not included
@@ -377,12 +398,7 @@ struct mjData_ {
   int*    efc_J_rowadr;      // row start address in colind array                (nefc x 1)
   int*    efc_J_rowsuper;    // number of subsequent rows in supernode           (nefc x 1)
   int*    efc_J_colind;      // column indices in constraint Jacobian            (nJ x 1)
-  int*    efc_JT_rownnz;     // number of non-zeros in constraint Jacobian row T (nv x 1)
-  int*    efc_JT_rowadr;     // row start address in colind array              T (nv x 1)
-  int*    efc_JT_rowsuper;   // number of subsequent rows in supernode         T (nv x 1)
-  int*    efc_JT_colind;     // column indices in constraint Jacobian          T (nJ x 1)
   mjtNum* efc_J;             // constraint Jacobian                              (nJ x 1)
-  mjtNum* efc_JT;            // constraint Jacobian transposed                   (nJ x 1)
   mjtNum* efc_pos;           // constraint position (equality, contact)          (nefc x 1)
   mjtNum* efc_margin;        // inclusion margin (contact)                       (nefc x 1)
   mjtNum* efc_frictionloss;  // frictionloss (friction)                          (nefc x 1)
@@ -427,12 +443,7 @@ struct mjData_ {
   int*    iefc_J_rowadr;     // row start address in colind array                (nefc x 1)
   int*    iefc_J_rowsuper;   // number of subsequent rows in supernode           (nefc x 1)
   int*    iefc_J_colind;     // column indices in constraint Jacobian            (nJ x 1)
-  int*    iefc_JT_rownnz;    // number of non-zeros in constraint Jacobian row T (nidof x 1)
-  int*    iefc_JT_rowadr;    // row start address in colind array              T (nidof x 1)
-  int*    iefc_JT_rowsuper;  // number of subsequent rows in supernode         T (nidof x 1)
-  int*    iefc_JT_colind;    // column indices in constraint Jacobian          T (nJ x 1)
   mjtNum* iefc_J;            // constraint Jacobian                              (nJ x 1)
-  mjtNum* iefc_JT;           // constraint Jacobian transposed                   (nJ x 1)
   mjtNum* iefc_frictionloss; // frictionloss (friction)                          (nefc x 1)
   mjtNum* iefc_D;            // constraint mass                                  (nefc x 1)
   mjtNum* iefc_R;            // inverse constraint mass                          (nefc x 1)

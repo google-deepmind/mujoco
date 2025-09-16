@@ -505,13 +505,20 @@ MJAPI void mjs_defaultPlugin(mjsPlugin* plugin);
 
 //---------------------------------- Compiler cache ------------------------------------------------
 
-typedef struct mjCache_* mjCache;
+// Get the capacity of the asset cache in bytes.
+MJAPI size_t mj_getCacheCapacity(const mjCache* cache);
 
-// Set the size of the cache in bytes.
-MJAPI void mj_setCacheSize(mjCache cache, size_t size);
+// Set the capacity of the asset cache in bytes (0 to disable); returns the new capacity.
+MJAPI size_t mj_setCacheCapacity(mjCache* cache, size_t size);
 
-// Get internal global cache context.
-MJAPI mjCache mj_globalCache(void);
+// Get the current size of the asset cache in bytes.
+MJAPI size_t mj_getCacheSize(const mjCache* cache);
+
+// Clear the asset cache.
+MJAPI void mj_clearCache(mjCache* cache);
+
+// Get the internal asset cache used by the compiler.
+MJAPI mjCache* mj_getCache(void);
 
 #ifdef __cplusplus
 }  // extern "C"

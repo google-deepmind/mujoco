@@ -21,7 +21,7 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtnum.h>
-#include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_misc.h"
 
@@ -535,12 +535,17 @@ int mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, in
 void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
                          int* res_rownnz, int* res_rowadr, int* res_colind, int* res_rowsuper,
                          const int* rownnz, const int* rowadr, const int* colind) {
+  if (!nr || !nc) return;
+
   // clear number of non-zeros for each row of transposed
   mju_zeroInt(res_rownnz, nc);
 
+  // handle the case where the first row of mat is nonzero (offset wrt the base pointers)
+  int row_offset = rowadr[0];
+
   // count the number of non-zeros for each row of the transposed matrix
   for (int r = 0; r < nr; r++) {
-    int start = rowadr[r];
+    int start = rowadr[r] - row_offset;
     int end = start + rownnz[r];
     for (int j = start; j < end; j++) {
       res_rownnz[colind[j]]++;
@@ -564,7 +569,7 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
   // iterate through each row (column) of mat (res)
   for (int r = 0; r < nr; r++) {
     int c_prev = -1;
-    int start = rowadr[r];
+    int start = rowadr[r] - row_offset;
     int end = start + rownnz[r];
     for (int i = start; i < end; i++) {
       // swap rows with columns and increment res_rowadr

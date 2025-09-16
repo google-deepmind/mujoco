@@ -31,6 +31,7 @@
 #include "engine/engine_island.h"
 #include "engine/engine_io.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_passive.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_sensor.h"
@@ -709,7 +710,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   // no constraints: copy unconstrained acc, clear forces, return
   if (!nefc) {
     mju_copy(d->qacc, d->qacc_smooth, nv);
-    mju_copy(d->qacc_warmstart, d->qacc_smooth, nv);
     mju_zeroInt(d->solver_niter, mjNISLAND);
     TM_END(mjTIMER_CONSTRAINT);
     return;
@@ -724,7 +724,7 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
   mju_zeroInt(d->solver_niter, mjNISLAND);
 
   // check if islands are supported
-  int islands_supported = mjENABLED(mjENBL_ISLAND)      &&
+  int islands_supported = !mjDISABLED(mjDSBL_ISLAND)    &&
                           nisland > 0                   &&
                           m->opt.noslip_iterations == 0 &&
                           (m->opt.solver == mjSOL_CG || m->opt.solver == mjSOL_NEWTON);
@@ -783,9 +783,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
     }
   }
 
-  // save result for next step warmstart
-  mju_copy(d->qacc_warmstart, d->qacc, nv);
-
   // run noslip solver if enabled
   if (m->opt.noslip_iterations > 0) {
     mj_solNoSlip(m, d, m->opt.noslip_iterations);
@@ -837,6 +834,9 @@ static void mj_advance(const mjModel* m, mjData* d,
       }
     }
   }
+
+  // save qacc for next step warmstart
+  mju_copy(d->qacc_warmstart, d->qacc, m->nv);
 }
 
 // Euler integrator, semi-implicit in velocity, possibly skipping factorisation
@@ -849,7 +849,7 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 
   // check for dof damping if disable flag is not set
   int dof_damping = 0;
-  if (!mjDISABLED(mjDSBL_EULERDAMP)) {
+  if (!mjDISABLED(mjDSBL_EULERDAMP) && !mjDISABLED(mjDSBL_DAMPER)) {
     for (int i=0; i < nv; i++) {
       if (m->dof_damping[i] > 0) {
         dof_damping = 1;

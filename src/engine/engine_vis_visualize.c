@@ -23,7 +23,8 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_array_safety.h"
-#include "engine/engine_io.h"
+#include "engine/engine_core_util.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_name.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"
@@ -557,10 +558,138 @@ static int bodycategory(const mjModel* m, int bodyid) {
 // computes the camera frustum
 static void getFrustum(float zver[2], float zhor[2], float znear,
                        const float intrinsic[4], const float sensorsize[2]) {
-  zhor[0] = znear / intrinsic[0] * (sensorsize[0]/2.f - intrinsic[2]);
-  zhor[1] = znear / intrinsic[0] * (sensorsize[0]/2.f + intrinsic[2]);
-  zver[0] = znear / intrinsic[1] * (sensorsize[1]/2.f - intrinsic[3]);
-  zver[1] = znear / intrinsic[1] * (sensorsize[1]/2.f + intrinsic[3]);
+  if (zhor) {
+    zhor[0] = znear / intrinsic[0] * (sensorsize[0]/2.f - intrinsic[2]);
+    zhor[1] = znear / intrinsic[0] * (sensorsize[0]/2.f + intrinsic[2]);
+  }
+  if (zver) {
+    zver[0] = znear / intrinsic[1] * (sensorsize[1]/2.f - intrinsic[3]);
+    zver[1] = znear / intrinsic[1] * (sensorsize[1]/2.f + intrinsic[3]);
+  }
+}
+
+
+
+void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum right[3],
+                     const mjData* d, const mjvCamera* cam) {
+  switch (cam->type) {
+    case mjCAMERA_FREE:
+    case mjCAMERA_TRACKING: {
+      const mjtNum ca = mju_cos(cam->azimuth/180.0*mjPI);
+      const mjtNum sa = mju_sin(cam->azimuth/180.0*mjPI);
+      const mjtNum ce = mju_cos(cam->elevation/180.0*mjPI);
+      const mjtNum se = mju_sin(cam->elevation/180.0*mjPI);
+      if (forward) {
+        forward[0] = ce*ca;
+        forward[1] = ce*sa;
+        forward[2] = se;
+      }
+      if (up) {
+        up[0] = -se*ca;
+        up[1] = -se*sa;
+        up[2] = ce;
+      }
+      if (right) {
+        right[0] = sa;
+        right[1] = -ca;
+        right[2] = 0;
+      }
+      if (headpos) {
+        mju_addScl3(headpos, cam->lookat, forward, -cam->distance);
+      }
+      break;
+    }
+
+    case mjCAMERA_FIXED: {
+      const int cid = cam->fixedcamid;
+      const mjtNum* mat = d->cam_xmat + 9*cid;
+      if (forward) {
+        forward[0] = -mat[2];
+        forward[1] = -mat[5];
+        forward[2] = -mat[8];
+      }
+      if (up) {
+        up[0] = mat[1];
+        up[1] = mat[4];
+        up[2] = mat[7];
+      }
+      if (right) {
+        right[0] = mat[0];
+        right[1] = mat[3];
+        right[2] = mat[6];
+      }
+      if (headpos) {
+        mju_copy3(headpos, d->cam_xpos + 3*cid);
+      }
+      break;
+    }
+
+    default: {
+      mjERROR("unknown camera type");
+    }
+  }
+}
+
+
+void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjModel* m,
+                       const mjvCamera* cam) {
+  mjtNum fovy;
+  int orthographic = 0, cid = 0;
+  float* intrinsic = NULL;
+  float* sensorsize = NULL;
+
+  // get ipd, fovy, orthographic, intrinsic
+  switch (cam->type) {
+  case mjCAMERA_FREE:
+  case mjCAMERA_TRACKING:
+    orthographic = m->vis.global.orthographic;
+    fovy = m->vis.global.fovy;
+    break;
+
+  case mjCAMERA_FIXED:
+    // get id, check range
+    cid = cam->fixedcamid;
+    if (cid < 0 || cid >= m->ncam) {
+      mjERROR("fixed camera id is outside valid range");
+    }
+    orthographic = m->cam_orthographic[cid];
+    fovy = m->cam_fovy[cid];
+
+    // if positive sensorsize, get sensorsize and intrinsic
+    if (m->cam_sensorsize[2*cid+1]) {
+      sensorsize = m->cam_sensorsize + 2*cid;
+      intrinsic = m->cam_intrinsic + 4*cid;
+    }
+    break;
+
+  default:
+    mjERROR("unknown camera type");
+  }
+
+  const float znear = m->vis.map.znear * m->stat.extent;
+
+  if (orthographic) {
+    if (zver) {
+      zver[0] = zver[1] = fovy / 2;
+    }
+    if (zhor) {
+      zhor[0] = zhor[1] = 0.0f;
+    }
+  } else if (intrinsic) {
+    getFrustum(zver, zhor, znear, intrinsic, sensorsize);
+  } else {
+    if (zver) {
+      zver[0] = zver[1] = znear * mju_tan(fovy * mjPI/360.0);
+    }
+    if (zhor) {
+      zhor[0] = zhor[1] = 0.0f;
+    }
+  }
+
+  if (zclip) {
+    zclip[0] = znear;
+    zclip[1] = m->vis.map.zfar * m->stat.extent;
+  }
 }
 
 
@@ -2309,6 +2438,7 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
 
     // set default properties
     memset(thislight, 0, sizeof(mjvLight));
+    thislight->id = -1;
     thislight->headlight = 1;
     thislight->texid = -1;
     thislight->type = mjLIGHT_DIRECTIONAL;
@@ -2340,6 +2470,7 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
 
       // copy properties
       memset(thislight, 0, sizeof(mjvLight));
+      thislight->id = i;
       thislight->type = m->light_type[i];
       thislight->texid = m->light_texid[i];
       thislight->castshadow = m->light_castshadow[i];
@@ -2376,108 +2507,50 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     return;
   }
 
-  // define extrinsics
-  mjtNum move[3];
+  // move lookat for tracking
+  if (cam->type == mjCAMERA_TRACKING) {
+    // get id and check
+    int bid = cam->trackbodyid;
+    if (bid < 0 || bid >= m->nbody) {
+      mjERROR("track body id is outside valid range");
+    }
+
+    // smooth tracking of subtree com
+    mjtNum move[3];
+    mju_sub3(move, d->subtree_com + 3*cam->trackbodyid, cam->lookat);
+    mju_addToScl3(cam->lookat, move, 0.2);  // constant ???
+  }
+
+  // get camera frame
   mjtNum headpos[3], forward[3], up[3], right[3];
+  mjv_cameraFrame(headpos, forward, up, right, d, cam);
 
-  // define intrinsics
+  // get camera frustum
+  float zver[2], zhor[2], zclip[2] = {0, 0};
+  mjv_cameraFrustum(zver, zhor, zclip, m, cam);
+
+  // get ipd, orthographic
   int cid, orthographic = 0;
-  mjtNum fovy, ipd;
-  float* intrinsic = NULL;
-  float* sensorsize = NULL;
+  mjtNum ipd;
 
-  // get headpos, forward, up, right, ipd, fovy, orthographic, intrinsic
   switch (cam->type) {
   case mjCAMERA_FREE:
   case mjCAMERA_TRACKING:
-    // get global ipd
     ipd = m->vis.global.ipd;
-
-    // get orthographic, fovy
     orthographic = m->vis.global.orthographic;
-    fovy = m->vis.global.fovy;
-
-    // move lookat for tracking
-    if (cam->type == mjCAMERA_TRACKING) {
-      // get id and check
-      int bid = cam->trackbodyid;
-      if (bid < 0 || bid >= m->nbody) {
-        mjERROR("track body id is outside valid range");
-      }
-
-      // smooth tracking of subtree com
-      mju_sub3(move, d->subtree_com + 3*cam->trackbodyid, cam->lookat);
-      mju_addToScl3(cam->lookat, move, 0.2);  // constant ???
-    }
-
-    // compute frame
-    mjtNum ca = mju_cos(cam->azimuth/180.0*mjPI);
-    mjtNum sa = mju_sin(cam->azimuth/180.0*mjPI);
-    mjtNum ce = mju_cos(cam->elevation/180.0*mjPI);
-    mjtNum se = mju_sin(cam->elevation/180.0*mjPI);
-    forward[0] = ce*ca;
-    forward[1] = ce*sa;
-    forward[2] = se;
-    up[0] = -se*ca;
-    up[1] = -se*sa;
-    up[2] = ce;
-    right[0] = sa;
-    right[1] = -ca;
-    right[2] = 0;
-    mju_addScl3(headpos, cam->lookat, forward, -cam->distance);
     break;
-
   case mjCAMERA_FIXED:
     // get id, check range
     cid = cam->fixedcamid;
     if (cid < 0 || cid >= m->ncam) {
       mjERROR("fixed camera id is outside valid range");
     }
-
-    // get camera-specific ipd, orthographic, fovy
     ipd = m->cam_ipd[cid];
-
     orthographic = m->cam_orthographic[cid];
-    fovy = m->cam_fovy[cid];
-
-    // if positive sensorsize, get sensorsize and intrinsic
-    if (m->cam_sensorsize[2*cid+1]) {
-      sensorsize = m->cam_sensorsize + 2*cid;
-      intrinsic = m->cam_intrinsic + 4*cid;
-    }
-
-    // get pointer to camera orientation matrix
-    mjtNum* mat = d->cam_xmat + 9*cid;
-
-    // get frame
-    forward[0] = -mat[2];
-    forward[1] = -mat[5];
-    forward[2] = -mat[8];
-    up[0] = mat[1];
-    up[1] = mat[4];
-    up[2] = mat[7];
-    right[0] = mat[0];
-    right[1] = mat[3];
-    right[2] = mat[6];
-    mju_copy3(headpos, d->cam_xpos + 3*cid);
     break;
 
   default:
     mjERROR("unknown camera type");
-  }
-
-  // convert intrinsics to frustum parameters
-  float znear = m->vis.map.znear * m->stat.extent;
-  float zfar = m->vis.map.zfar * m->stat.extent;
-  float zver[2], zhor[2] = {0, 0};
-  if (orthographic){
-    zver[0] = zver[1] = fovy / 2;
-  } else {
-    if (!intrinsic) {
-      zver[0] = zver[1] = znear * mju_tan(fovy * mjPI/360.0);
-    } else {
-      getFrustum(zver, zhor, znear, intrinsic, sensorsize);
-    }
   }
 
   // compute GL cameras
@@ -2497,8 +2570,8 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
     scn->camera[view].frustum_bottom = -zver[0];
     scn->camera[view].frustum_center = (zhor[1] - zhor[0]) / 2;
     scn->camera[view].frustum_width = (zhor[1] + zhor[0]) / 2;
-    scn->camera[view].frustum_near = znear;
-    scn->camera[view].frustum_far = zfar;
+    scn->camera[view].frustum_near = zclip[0];
+    scn->camera[view].frustum_far = zclip[1];
   }
 
   // disable model transformation (do not clear float data; user may need it later)

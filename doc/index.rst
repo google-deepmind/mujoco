@@ -14,7 +14,8 @@
    programming/index.rst
    APIreference/index.rst
    python
-   MJX <mjx>
+   MuJoCo XLA <mjx>
+   MuJoCo Warp <mjwarp/index.rst>
    unity
    OpenUSD/index.rst
    models

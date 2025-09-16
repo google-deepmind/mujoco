@@ -569,9 +569,13 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   mjc_physics_scene.GetContactFlagAttr().Get(&contact_flag);
   spec->option.disableflags |= (!contact_flag ? mjDSBL_CONTACT : 0);
 
-  bool passive_flag;
-  mjc_physics_scene.GetPassiveFlagAttr().Get(&passive_flag);
-  spec->option.disableflags |= (!passive_flag ? mjDSBL_PASSIVE : 0);
+  bool spring_flag;
+  mjc_physics_scene.GetSpringFlagAttr().Get(&spring_flag);
+  spec->option.disableflags |= (!spring_flag ? mjDSBL_SPRING : 0);
+
+  bool damper_flag;
+  mjc_physics_scene.GetDamperFlagAttr().Get(&damper_flag);
+  spec->option.disableflags |= (!damper_flag ? mjDSBL_DAMPER : 0);
 
   bool gravity_flag;
   mjc_physics_scene.GetGravityFlagAttr().Get(&gravity_flag);
@@ -617,6 +621,10 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   mjc_physics_scene.GetAutoResetFlagAttr().Get(&autoreset_flag);
   spec->option.disableflags |= (!autoreset_flag ? mjDSBL_AUTORESET : 0);
 
+  bool island_flag;
+  mjc_physics_scene.GetIslandFlagAttr().Get(&island_flag);
+  spec->option.disableflags |= (!island_flag ? mjDSBL_ISLAND : 0);
+
   bool override_flag;
   mjc_physics_scene.GetOverrideFlagAttr().Get(&override_flag);
   spec->option.enableflags |= (override_flag ? mjENBL_OVERRIDE : 0);
@@ -636,10 +644,6 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   bool multiccd_flag;
   mjc_physics_scene.GetMultiCCDFlagAttr().Get(&multiccd_flag);
   spec->option.enableflags |= (multiccd_flag ? mjENBL_MULTICCD : 0);
-
-  bool island_flag;
-  mjc_physics_scene.GetIslandFlagAttr().Get(&island_flag);
-  spec->option.enableflags |= (island_flag ? mjENBL_ISLAND : 0);
 
   // Compiler attributes
   auto auto_limits_attr = mjc_physics_scene.GetAutoLimitsAttr();

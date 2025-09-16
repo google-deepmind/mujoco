@@ -140,7 +140,7 @@ findorfetch(
   GIT_REPO
   https://github.com/abseil/abseil-cpp
   GIT_TAG
-  76bb24329e8bf5f39704eb10d21b9a80befa7c81 # LTS 20250512.0
+  987c57f325f7fa8472fa84e1f885f7534d391b0d # LTS 20250814.0.0
   TARGETS
   ${MUJOCO_PYTHON_ABSL_TARGETS}
   EXCLUDE_FROM_ALL
@@ -191,7 +191,7 @@ findorfetch(
   GIT_REPO
   https://github.com/pybind/pybind11
   GIT_TAG
-  f0ecf21301c0c24bc78b8b310347c7507d9f41d0 # v3.0.0
+  e86205cb2ba070755d582856430c0f83c0af6694 # v3.0.1
   TARGETS
   pybind11::pybind11_headers
   EXCLUDE_FROM_ALL

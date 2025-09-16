@@ -437,6 +437,7 @@ typedef struct mjsFlex_ {          // flex specification
   mjtByte flatskin;                // render flex skin with flat shading
   int selfcollide;                 // mode for flex self collision
   int vertcollide;                 // mode for vertex collision
+  int passive;                     // mode for passive collisions
   int activelayers;                // number of active element layers in 3D
   int group;                       // group for visualizatioh
   double edgestiffness;            // edge stiffness
@@ -480,6 +481,7 @@ typedef struct mjsMesh_ {          // mesh specification
   mjIntVec* userface;              // user vertex indices
   mjIntVec* userfacetexcoord;      // user texcoord indices
   mjsPlugin plugin;                // sdf plugin
+  mjString* material;              // name of material
   mjString* info;                  // message appended to compiler errors
 } mjsMesh;
 

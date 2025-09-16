@@ -41,9 +41,9 @@ mjCAsset mjCAsset::Copy(const mjCAsset& other) {
 // sets the total maximum size of the cache in bytes
 // low-priority cached assets will be dropped to make the new memory
 // requirement
-void mjCCache::SetMaxSize(std::size_t size) {
+void mjCCache::SetCapacity(std::size_t size) {
   std::lock_guard<std::mutex> lock(mutex_);
-  max_size_ = size;
+  capacity_ = size;
   Trim();
 }
 
@@ -69,7 +69,7 @@ bool mjCCache::Insert(const std::string& modelname, const mjResource *resource,
   std::lock_guard<std::mutex> lock(mutex_);
 
   // check if asset is too large to fit in the cache
-  if ((size_ + size > max_size_) &&
+  if ((size_ + size > capacity_) &&
       lookup_.find(resource->name) == lookup_.end()) {
     return false;
   }
@@ -78,7 +78,7 @@ bool mjCCache::Insert(const std::string& modelname, const mjResource *resource,
   mjCAsset* asset_ptr = &(it->second);
 
   if (!inserted) {
-    if (size_ - asset_ptr->BytesCount() + size > max_size_) {
+    if (size_ - asset_ptr->BytesCount() + size > capacity_) {
       return false;
     }
     models_[modelname].insert(asset_ptr);  // add it for the model
@@ -164,9 +164,9 @@ void mjCCache::Reset() {
 
 
 
-std::size_t mjCCache::MaxSize() const {
+std::size_t mjCCache::Capacity() const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return max_size_;
+  return capacity_;
 }
 
 
@@ -218,7 +218,7 @@ void mjCCache::Delete(mjCAsset* asset, const std::string& skip) {
 
 // trims out data to meet memory requirements
 void mjCCache::Trim() {
-  while (size_ > max_size_) {
+  while (size_ > capacity_) {
     Delete(*entries_.begin());
   }
 }

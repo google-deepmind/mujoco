@@ -25,6 +25,7 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_io.h"
 #include "engine/engine_name.h"
 #include "engine/engine_macro.h"
@@ -112,6 +113,56 @@ static void printSparse(const char* str, const mjtNum* mat, int nr,
 }
 
 
+// print block-diagonal dense matrix, embedded in a larger matrix
+static void printBlockArray(const char* str, const mjtNum* data, int nr, int nc,
+                            int nisland, const int* island_nr, const int* island_nc,
+                            const int* island_r, const int* island_c,
+                            FILE* fp, const char* float_format) {
+  if (!data || !nr || !nc) {
+    return;
+  }
+
+  fprintf(fp, "%s\n", str);
+
+  // determine the width of the float format (already validated by validateFloatFormat)
+  char dummy_buffer[100];
+  int format_width = snprintf(dummy_buffer, sizeof(dummy_buffer), float_format, 0.0);
+
+  for (int b = 0; b < nisland; b++) {
+    int bnr = island_nr[b];
+    int bnc = island_nc[b];
+    int r_start = island_r[b];
+    int c_start = island_c[b];
+    const mjtNum* data_ptr = data + r_start * nc;
+
+    // print rows for this block
+    for (int r_block = 0; r_block < bnr; r_block++) {
+      fprintf(fp, " ");
+      // leading dots
+      for (int c = 0; c < c_start; c++) {
+        for (int i = 0; i < format_width; i++) fprintf(fp, ".");
+        fprintf(fp, " ");
+      }
+
+      // block data
+      for (int c = 0; c < bnc; c++) {
+        fprintf(fp, " ");
+        fprintf(fp, float_format, *data_ptr++);
+      }
+
+      // trailing dots
+      for (int c = c_start + bnc; c < nc; c++) {
+        for (int i = 0; i < format_width; i++) fprintf(fp, ".");
+        fprintf(fp, " ");
+      }
+      fprintf(fp, "\n");
+    }
+  }
+
+  fprintf(fp, "\n");
+}
+
+
 
 // print sparse inertia-like matrix
 static void printInertia(const char* str, const mjtNum* mat, const mjModel* m,
@@ -183,6 +234,66 @@ void mj_printSparsity(const char* str, int nr, int nc, const int* rowadr, const 
     if (r < nr-1) fprintf(fp, " ");
   }
   for (int c=0; c < nc+2; c++) fprintf(fp, "-");
+  fprintf(fp, "\n\n");
+}
+
+
+
+// print block-diagonal sparse matrix structure
+void mj_printBlockSparsity(const char* str, int nr, int nc, int nisland,
+                           const int* island_block_ncols,
+                           const int* island_col_offset,
+                           const int* entity_island,
+                           const int* map_row_to_entity,
+                           const int* rownnz, const int* rowadr, const int* colind,
+                           const int* rowsuper, FILE* fp) {
+  // if no rows / columns, or too many columns to be visually useful, return
+  if (!nr || !nc || nc > 300) {
+    return;
+  }
+  fprintf(fp, "%s\n", str);
+
+  for (int c = 0; c < nc + 2; c++) fprintf(fp, "-");
+  fprintf(fp, "\n");
+
+  for (int r = 0; r < nr; r++) {
+    fprintf(fp, " ");
+    int entity_r = map_row_to_entity[r];
+    int island = entity_island[entity_r];
+
+    // SHOULD NOT OCCUR
+    if (island < 0 || island >= nisland) {
+      for (int c = 0; c < nc; c++) fprintf(fp, " ");
+      fprintf(fp, " | Error: invalid island %d for row %d (entity %d)\n", island, r, entity_r);
+      continue;
+    }
+
+    int c_start = island_col_offset[island];
+    int bnc = island_block_ncols[island];
+    int current_nnz = 0;
+    int adr = rowadr[r];
+    char nz_char = (island < 10) ? ('0' + island) : 'x';
+
+    for (int c = 0; c < nc; c++) {  // c is the global column index
+      bool nonzero = false;
+      if (c >= c_start && c < c_start + bnc) {
+        int c_block = c - c_start;  // c_block is the island-local column index
+
+        // search for c_block in colind for the current row r
+        while (current_nnz < rownnz[r] && colind[adr + current_nnz] < c_block) {
+          current_nnz++;
+        }
+        if (current_nnz < rownnz[r] && colind[adr + current_nnz] == c_block) {
+          nonzero = true;
+        }
+      }
+      fprintf(fp, "%c", nonzero ? nz_char : ' ');
+    }
+    fprintf(fp, " |");
+    if (rowsuper && rowsuper[r] > 0) fprintf(fp, " %d", rowsuper[r]);
+    fprintf(fp, "\n");
+  }
+  for (int c = 0; c < nc + 2; c++) fprintf(fp, "-");
   fprintf(fp, "\n\n");
 }
 
@@ -476,15 +587,17 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   // values used by MJMODEL_POINTERS macro
   MJMODEL_POINTERS_PREAMBLE(m)
 
-  // object_class points to the integer size identifying the class of arrays currently being printed
-  //   used to organise the printout into category groups
-  //   note that comparison is based on the integer address, not its value
+  // touch unused sizes to avoid unused variable warning
+  (void)nq;
+  (void)nv;
+  (void)na;
+  (void)nu;
+  (void)nmocap;
+
   const int* object_class;
 
 #define X(type, name, num, sz)                                              \
-  if (&m->num == object_class && strncmp(#name, "name_", 5) &&              \
-      strncmp(#name, "M_", 2) && strncmp(#name, "B_", 2)    &&              \
-      strncmp(#name, "D_", 2) && sz > 0) {                                  \
+  if (&m->num == object_class && sz > 0) {                                  \
     const char* format = _Generic(*m->name,                                 \
                                   double:  float_format,                    \
                                   float:   float_format,                    \
@@ -501,92 +614,93 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
       fprintf(fp, "\n");                                                    \
     }                                                                       \
   }
+#define XNV X
 
   // bodies
+  object_class = &m->nbody;
   for (int i=0; i < m->nbody; i++) {
     fprintf(fp, "\nBODY %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_bodyadr[i]);
-    object_class = &m->nbody;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_BODY
   }
   if (m->nbody) fprintf(fp, "\n");
 
   // joints
+  object_class = &m->njnt;
   for (int i=0; i < m->njnt; i++) {
     fprintf(fp, "\nJOINT %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_jntadr[i]);
-    object_class = &m->njnt;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_JOINT
   }
   if (m->njnt) fprintf(fp, "\n");
 
   // dofs
+  object_class = &m->nv;
   for (int i=0; i < m->nv; i++) {
     fprintf(fp, "\nDOF %d:\n", i);
-    object_class = &m->nv;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_DOF
   }
   if (m->nv) fprintf(fp, "\n");
 
   // geoms
+  object_class = &m->ngeom;
   for (int i=0; i < m->ngeom; i++) {
     fprintf(fp, "\nGEOM %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_geomadr[i]);
-    object_class = &m->ngeom;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_GEOM
   }
   if (m->ngeom) fprintf(fp, "\n");
 
   // sites
+  object_class = &m->nsite;
   for (int i=0; i < m->nsite; i++) {
     fprintf(fp, "\nSITE %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_siteadr[i]);
-    object_class = &m->nsite;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_SITE
   }
   if (m->nsite) fprintf(fp, "\n");
 
   // cameras
+  object_class = &m->ncam;
   for (int i=0; i < m->ncam; i++) {
     fprintf(fp, "\nCAMERA %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_camadr[i]);
-    object_class = &m->ncam;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_CAMERA
   }
   if (m->ncam) fprintf(fp, "\n");
 
   // lights
+  object_class = &m->nlight;
   for (int i=0; i < m->nlight; i++) {
     fprintf(fp, "\nLIGHT %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_lightadr[i]);
-    object_class = &m->nlight;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_LIGHT
   }
   if (m->nlight) fprintf(fp, "\n");
 
   // flexes
+  object_class = &m->nflex;
   for (int i=0; i < m->nflex; i++) {
     fprintf(fp, "\nFLEX %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_flexadr[i]);
-    object_class = &m->nflex;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_FLEX
   }
   if (m->nflex) fprintf(fp, "\n");
 
   // meshes
+  object_class = &m->nmesh;
   for (int i=0; i < m->nmesh; i++) {
     fprintf(fp, "\nMESH %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_meshadr[i]);
-    object_class = &m->nmesh;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_MESH
     if (m->mesh_graphadr[i] >= 0) {
       fprintf(fp, "  " NAME_FORMAT, "qhull face");
       fprintf(fp, " %d\n", m->mesh_graph[m->mesh_graphadr[i]+1]);
@@ -597,82 +711,82 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->nmesh) fprintf(fp, "\n");
 
   // skins
+  object_class = &m->nskin;
   for (int i=0; i < m->nskin; i++) {
     fprintf(fp, "\nSKIN %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_skinadr[i]);
-    object_class = &m->nskin;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_SKIN
   }
   if (m->nskin) fprintf(fp, "\n");
 
   // hfields
+  object_class = &m->nhfield;
   for (int i=0; i < m->nhfield; i++) {
     fprintf(fp, "\nHEIGHTFIELD %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, "  %s\n", m->names + m->name_hfieldadr[i]);
-    object_class = &m->nhfield;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_HFIELD
   }
   if (m->nhfield) fprintf(fp, "\n");
 
   // textures
+  object_class = &m->ntex;
   for (int i=0; i < m->ntex; i++) {
     fprintf(fp, "\nTEXTURE %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_texadr[i]);
-    object_class = &m->ntex;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_TEXTURE
   }
   if (m->ntex) fprintf(fp, "\n");
 
   // materials
+  object_class = &m->nmat;
   for (int i=0; i < m->nmat; i++) {
     fprintf(fp, "\nMATERIAL %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_matadr[i]);
-    object_class = &m->nmat;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_MATERIAL
   }
   if (m->nmat) fprintf(fp, "\n");
 
   // pairs
+  object_class = &m->npair;
   for (int i=0; i < m->npair; i++) {
     fprintf(fp, "\nPAIR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_pairadr[i]);
-    object_class = &m->npair;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_PAIR
   }
   if (m->npair) fprintf(fp, "\n");
 
   // excludes
+  object_class = &m->nexclude;
   for (int i=0; i < m->nexclude; i++) {
     fprintf(fp, "\nEXCLUDE %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_excludeadr[i]);
-    object_class = &m->nexclude;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_EXCLUDE
   }
   if (m->nexclude) fprintf(fp, "\n");
 
   // equality constraints
+  object_class = &m->neq;
   for (int i=0; i < m->neq; i++) {
     fprintf(fp, "\nEQUALITY %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_eqadr[i]);
-    object_class = &m->neq;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_EQUALITY
   }
   if (m->neq) fprintf(fp, "\n");
 
   // tendons
+  object_class = &m->ntendon;
   for (int i=0; i < m->ntendon; i++) {
     fprintf(fp, "\nTENDON %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_tendonadr[i]);
-    object_class = &m->ntendon;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_TENDON
     fprintf(fp, "  path\n");
     fprintf(fp, "    type  objid  prm\n");
     for (int j=0; j < m->tendon_num[i]; j++) {
@@ -686,22 +800,22 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->ntendon) fprintf(fp, "\n");
 
   // actuators
+  object_class = &m->nu;
   for (int i=0; i < m->nu; i++) {
     fprintf(fp, "\nACTUATOR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_actuatoradr[i]);
-    object_class = &m->nu;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_ACTUATOR
   }
   if (m->nu) fprintf(fp, "\n");
 
   // sensors
+  object_class = &m->nsensor;
   for (int i=0; i < m->nsensor; i++) {
     fprintf(fp, "\nSENSOR %d:\n", i);
     fprintf(fp, "  " NAME_FORMAT, "name");
     fprintf(fp, " %s\n", m->names + m->name_sensoradr[i]);
-    object_class = &m->nsensor;
-    MJMODEL_POINTERS
+    MJMODEL_POINTERS_SENSOR
   }
   if (m->nsensor) fprintf(fp, "\n");
 
@@ -1160,6 +1274,17 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printSparse("QLD", d->qLD, m->nv, m->M_rownnz,
               m->M_rowadr, m->M_colind, fp, float_format);
   printArray("QLDIAGINV", m->nv, 1, d->qLDiagInv, fp, float_format);
+  if (d->nisland) {
+    // the static full inertia structure is already printed in printModel, so we only repeat it here
+    // if islands are present, for comparison
+    mj_printSparsity("M: inertia structure", m->nv, m->nv, m->M_rowadr, NULL,
+                     m->M_rownnz, NULL, m->M_colind, fp);
+    mj_printBlockSparsity("iM: block-diagonal inertia (nnzs are island ids)",
+                          d->nidof, d->nidof, d->nisland,
+                          d->island_nv, d->island_idofadr,
+                          d->dof_island, d->map_idof2dof,
+                          d->iM_rownnz, d->iM_rowadr, d->iM_colind, NULL, fp);
+  }
 
   if (!mju_isZero(d->qHDiagInv, m->nv)) {
     printSparse("QH", d->qH, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind, fp, float_format);
@@ -1228,16 +1353,29 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
 
   if (!mj_isSparse(m)) {
     printArray("EFC_J", d->nefc, m->nv, d->efc_J, fp, float_format);
+    if (d->nisland) {
+      printBlockArray("IEFC_J", d->iefc_J, d->nefc, d->nidof,
+                      d->nisland, d->island_nefc, d->island_nv,
+                      d->island_iefcadr, d->island_idofadr,
+                      fp, float_format);
+    }
     printArray("EFC_AR", d->nefc, d->nefc, d->efc_AR, fp, float_format);
   } else {
-    mj_printSparsity("J: constraint Jacobian", d->nefc, m->nv, d->efc_J_rowadr, NULL,
-                     d->efc_J_rownnz, d->efc_J_rowsuper, d->efc_J_colind, fp);
     printArrayInt("EFC_J_ROWNNZ", d->nefc, 1, d->efc_J_rownnz, fp);
     printArrayInt("EFC_J_ROWADR", d->nefc, 1, d->efc_J_rowadr, fp);
     printSparse("EFC_J", d->efc_J, d->nefc, d->efc_J_rownnz,
                 d->efc_J_rowadr, d->efc_J_colind, fp, float_format);
-    mj_printSparsity("JT: constraint Jacobian transposed", m->nv, d->nefc, d->efc_JT_rowadr, NULL,
-                     d->efc_JT_rownnz, d->efc_JT_rowsuper, d->efc_JT_colind, fp);
+    mj_printSparsity("J: constraint Jacobian", d->nefc, m->nv, d->efc_J_rowadr, NULL,
+                     d->efc_J_rownnz, d->efc_J_rowsuper, d->efc_J_colind, fp);
+    if (d->nisland) {
+      mj_printBlockSparsity("IEFC_J: block-diagonalized constraint Jacobian (nnzs are island ids)",
+                            d->nefc, d->nidof, d->nisland,
+                            d->island_nv, d->island_idofadr,
+                            d->efc_island, d->map_iefc2efc,
+                            d->iefc_J_rownnz, d->iefc_J_rowadr, d->iefc_J_colind,
+                            d->iefc_J_rowsuper, fp);
+    }
+
     if (mj_isDual(m)) {
       printArrayInt("EFC_AR_ROWNNZ", d->nefc, 1, d->efc_AR_rownnz, fp);
       printArrayInt("EFC_AR_ROWADR", d->nefc, 1, d->efc_AR_rowadr, fp);

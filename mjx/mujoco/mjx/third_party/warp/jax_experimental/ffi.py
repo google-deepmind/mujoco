@@ -381,6 +381,7 @@ class FfiCallable:
             if arg_name == "return":
                 if arg_type is not None:
                     raise TypeError("Function must not return a value")
+                continue
             else:
                 arg = FfiArg(arg_name, arg_type, arg_name in in_out_argnames)
                 if arg_name in in_out_argnames:

@@ -302,6 +302,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcFlagContact;
+  /// \brief "mjc:flag:damper"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcFlagDamper;
   /// \brief "mjc:flag:energy"
   ///
   /// MjcPhysicsSceneAPI
@@ -358,10 +362,6 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcFlagOverride;
-  /// \brief "mjc:flag:passive"
-  ///
-  /// MjcPhysicsSceneAPI
-  const TfToken mjcFlagPassive;
   /// \brief "mjc:flag:refsafe"
   ///
   /// MjcPhysicsSceneAPI
@@ -370,6 +370,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcFlagSensor;
+  /// \brief "mjc:flag:spring"
+  ///
+  /// MjcPhysicsSceneAPI
+  const TfToken mjcFlagSpring;
   /// \brief "mjc:flag:warmstart"
   ///
   /// MjcPhysicsSceneAPI

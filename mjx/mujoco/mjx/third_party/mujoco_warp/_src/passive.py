@@ -505,7 +505,7 @@ def _flex_bending(
 def passive(m: Model, d: Data):
   """Adds all passive forces."""
 
-  if m.opt.disableflags & DisableBit.PASSIVE:
+  if m.opt.disableflags & (DisableBit.SPRING | DisableBit.DAMPER):
     d.qfrc_spring.zero_()
     d.qfrc_damper.zero_()
     d.qfrc_gravcomp.zero_()

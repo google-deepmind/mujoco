@@ -30,8 +30,8 @@ TF_REGISTRY_FUNCTION(TfType) {
 MjcPhysicsSceneAPI::~MjcPhysicsSceneAPI() {}
 
 /* static */
-MjcPhysicsSceneAPI MjcPhysicsSceneAPI::Get(const UsdStagePtr &stage,
-                                           const SdfPath &path) {
+MjcPhysicsSceneAPI MjcPhysicsSceneAPI::Get(const UsdStagePtr& stage,
+                                           const SdfPath& path) {
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
     return MjcPhysicsSceneAPI();
@@ -45,12 +45,12 @@ UsdSchemaKind MjcPhysicsSceneAPI::_GetSchemaKind() const {
 }
 
 /* static */
-bool MjcPhysicsSceneAPI::CanApply(const UsdPrim &prim, std::string *whyNot) {
+bool MjcPhysicsSceneAPI::CanApply(const UsdPrim& prim, std::string* whyNot) {
   return prim.CanApplyAPI<MjcPhysicsSceneAPI>(whyNot);
 }
 
 /* static */
-MjcPhysicsSceneAPI MjcPhysicsSceneAPI::Apply(const UsdPrim &prim) {
+MjcPhysicsSceneAPI MjcPhysicsSceneAPI::Apply(const UsdPrim& prim) {
   if (prim.ApplyAPI<MjcPhysicsSceneAPI>()) {
     return MjcPhysicsSceneAPI(prim);
   }
@@ -58,7 +58,7 @@ MjcPhysicsSceneAPI MjcPhysicsSceneAPI::Apply(const UsdPrim &prim) {
 }
 
 /* static */
-const TfType &MjcPhysicsSceneAPI::_GetStaticTfType() {
+const TfType& MjcPhysicsSceneAPI::_GetStaticTfType() {
   static TfType tfType = TfType::Find<MjcPhysicsSceneAPI>();
   return tfType;
 }
@@ -70,7 +70,7 @@ bool MjcPhysicsSceneAPI::_IsTypedSchema() {
 }
 
 /* virtual */
-const TfType &MjcPhysicsSceneAPI::_GetTfType() const {
+const TfType& MjcPhysicsSceneAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
@@ -78,7 +78,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetTimestepAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionTimestep);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateTimestepAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateTimestepAttr(VtValue const& defaultValue,
                                                     bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionTimestep, SdfValueTypeNames->Double,
@@ -89,7 +89,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetApiRateAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionApirate);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateApiRateAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateApiRateAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionApirate, SdfValueTypeNames->Double,
@@ -100,7 +100,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetImpRatioAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionImpratio);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateImpRatioAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateImpRatioAttr(VtValue const& defaultValue,
                                                     bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionImpratio, SdfValueTypeNames->Double,
@@ -111,7 +111,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetWindAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionWind);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateWindAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateWindAttr(VtValue const& defaultValue,
                                                 bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionWind, SdfValueTypeNames->Double3,
@@ -122,7 +122,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetMagneticAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionMagnetic);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateMagneticAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateMagneticAttr(VtValue const& defaultValue,
                                                     bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionMagnetic, SdfValueTypeNames->Double3,
@@ -133,7 +133,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetDensityAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionDensity);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateDensityAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateDensityAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionDensity, SdfValueTypeNames->Double,
@@ -145,7 +145,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetViscosityAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateViscosityAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionViscosity, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -155,7 +155,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetOMarginAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionO_margin);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateOMarginAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateOMarginAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionO_margin, SdfValueTypeNames->Double,
@@ -166,7 +166,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetOSolRefAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionO_solref);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateOSolRefAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateOSolRefAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionO_solref, SdfValueTypeNames->DoubleArray,
@@ -177,7 +177,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetOSolImpAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionO_solimp);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateOSolImpAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateOSolImpAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionO_solimp, SdfValueTypeNames->DoubleArray,
@@ -189,7 +189,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetOFrictionAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateOFrictionAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionO_friction, SdfValueTypeNames->DoubleArray,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -200,7 +200,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetIntegratorAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateIntegratorAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionIntegrator, SdfValueTypeNames->Token,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -210,7 +210,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetConeAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionCone);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateConeAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateConeAttr(VtValue const& defaultValue,
                                                 bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionCone, SdfValueTypeNames->Token,
@@ -221,7 +221,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetJacobianAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionJacobian);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateJacobianAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateJacobianAttr(VtValue const& defaultValue,
                                                     bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionJacobian, SdfValueTypeNames->Token,
@@ -232,7 +232,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetSolverAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionSolver);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateSolverAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateSolverAttr(VtValue const& defaultValue,
                                                   bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionSolver, SdfValueTypeNames->Token,
@@ -244,7 +244,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetIterationsAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateIterationsAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionIterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -255,7 +255,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetToleranceAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateToleranceAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionTolerance, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -266,7 +266,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetLSIterationsAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateLSIterationsAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionLs_iterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -277,7 +277,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetLSToleranceAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateLSToleranceAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionLs_tolerance, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -288,7 +288,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetNoslipIterationsAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateNoslipIterationsAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionNoslip_iterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -299,7 +299,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetNoslipToleranceAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateNoslipToleranceAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionNoslip_tolerance, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -310,7 +310,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetCCDIterationsAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateCCDIterationsAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionCcd_iterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -321,7 +321,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetCCDToleranceAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateCCDToleranceAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionCcd_tolerance, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -332,7 +332,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetSDFIterationsAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateSDFIterationsAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionSdf_iterations, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -343,7 +343,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetSDFInitPointsAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateSDFInitPointsAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionSdf_initpoints, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -355,7 +355,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetActuatorGroupDisableAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateActuatorGroupDisableAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcOptionActuatorgroupdisable,
       SdfValueTypeNames->IntArray,
@@ -367,7 +367,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetConstraintFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateConstraintFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagConstraint, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -378,7 +378,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetEqualityFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateEqualityFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagEquality, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -389,7 +389,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetFrictionLossFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateFrictionLossFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagFrictionloss, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -400,7 +400,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetLimitFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateLimitFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagLimit, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -411,20 +411,31 @@ UsdAttribute MjcPhysicsSceneAPI::GetContactFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateContactFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagContact, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::GetPassiveFlagAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagPassive);
+UsdAttribute MjcPhysicsSceneAPI::GetSpringFlagAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagSpring);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreatePassiveFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+UsdAttribute MjcPhysicsSceneAPI::CreateSpringFlagAttr(
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcFlagPassive, SdfValueTypeNames->Bool,
+      MjcPhysicsTokens->mjcFlagSpring, SdfValueTypeNames->Bool,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::GetDamperFlagAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcFlagDamper);
+}
+
+UsdAttribute MjcPhysicsSceneAPI::CreateDamperFlagAttr(
+    VtValue const& defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcFlagDamper, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
@@ -433,7 +444,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetGravityFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateGravityFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagGravity, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -444,7 +455,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetClampCtrlFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateClampCtrlFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagClampctrl, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -455,7 +466,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetWarmStartFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateWarmStartFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagWarmstart, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -466,7 +477,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetFilterParentFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateFilterParentFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagFilterparent, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -477,7 +488,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetActuationFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateActuationFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagActuation, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -488,7 +499,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetRefSafeFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateRefSafeFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagRefsafe, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -499,7 +510,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetSensorFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateSensorFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagSensor, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -510,7 +521,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetMidPhaseFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateMidPhaseFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagMidphase, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -521,7 +532,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetNativeCCDFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateNativeCCDFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagNativeccd, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -532,7 +543,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetEulerDampFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateEulerDampFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagEulerdamp, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -543,7 +554,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetAutoResetFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateAutoResetFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagAutoreset, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -554,7 +565,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetOverrideFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateOverrideFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagOverride, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -565,7 +576,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetEnergyFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateEnergyFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagEnergy, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -576,7 +587,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetFwdinvFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateFwdinvFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagFwdinv, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -587,7 +598,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetInvDiscreteFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateInvDiscreteFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagInvdiscrete, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -598,7 +609,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetMultiCCDFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateMultiCCDFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagMulticcd, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -609,7 +620,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetIslandFlagAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateIslandFlagAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcFlagIsland, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -620,7 +631,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetAutoLimitsAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateAutoLimitsAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerAutoLimits, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -631,7 +642,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetBoundMassAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateBoundMassAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerBoundMass, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -642,7 +653,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetBoundInertiaAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateBoundInertiaAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerBoundInertia, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -653,7 +664,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetSetTotalMassAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateSetTotalMassAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerSetTotalMass, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -664,7 +675,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetUseThreadAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateUseThreadAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerUseThread, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -675,7 +686,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetBalanceInertiaAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateBalanceInertiaAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerBalanceInertia, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -685,7 +696,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetAngleAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerAngle);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateAngleAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateAngleAttr(VtValue const& defaultValue,
                                                  bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerAngle, SdfValueTypeNames->Token,
@@ -696,7 +707,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetFitAABBAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCompilerFitAABB);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::CreateFitAABBAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsSceneAPI::CreateFitAABBAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerFitAABB, SdfValueTypeNames->Bool,
@@ -708,7 +719,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetFuseStaticAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateFuseStaticAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerFuseStatic, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -719,7 +730,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetInertiaFromGeomAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateInertiaFromGeomAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerInertiaFromGeom, SdfValueTypeNames->Token,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -730,7 +741,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetAlignFreeAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateAlignFreeAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerAlignFree, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -742,7 +753,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetInertiaGroupRangeMinAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateInertiaGroupRangeMinAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMin, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -754,7 +765,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetInertiaGroupRangeMaxAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateInertiaGroupRangeMaxAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMax, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -765,7 +776,7 @@ UsdAttribute MjcPhysicsSceneAPI::GetSaveInertialAttr() const {
 }
 
 UsdAttribute MjcPhysicsSceneAPI::CreateSaveInertialAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCompilerSaveInertial, SdfValueTypeNames->Bool,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -773,7 +784,7 @@ UsdAttribute MjcPhysicsSceneAPI::CreateSaveInertialAttr(
 
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
-    const TfTokenVector &left, const TfTokenVector &right) {
+    const TfTokenVector& left, const TfTokenVector& right) {
   TfTokenVector result;
   result.reserve(left.size() + right.size());
   result.insert(result.end(), left.begin(), left.end());
@@ -783,7 +794,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 }  // namespace
 
 /*static*/
-const TfTokenVector &MjcPhysicsSceneAPI::GetSchemaAttributeNames(
+const TfTokenVector& MjcPhysicsSceneAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcOptionTimestep,
@@ -817,7 +828,8 @@ const TfTokenVector &MjcPhysicsSceneAPI::GetSchemaAttributeNames(
       MjcPhysicsTokens->mjcFlagFrictionloss,
       MjcPhysicsTokens->mjcFlagLimit,
       MjcPhysicsTokens->mjcFlagContact,
-      MjcPhysicsTokens->mjcFlagPassive,
+      MjcPhysicsTokens->mjcFlagSpring,
+      MjcPhysicsTokens->mjcFlagDamper,
       MjcPhysicsTokens->mjcFlagGravity,
       MjcPhysicsTokens->mjcFlagClampctrl,
       MjcPhysicsTokens->mjcFlagWarmstart,

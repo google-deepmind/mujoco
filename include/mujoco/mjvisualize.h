@@ -45,7 +45,8 @@ typedef enum mjtMouse_ {          // mouse interaction mode
   mjMOUSE_MOVE_V,                 // move, vertical plane
   mjMOUSE_MOVE_H,                 // move, horizontal plane
   mjMOUSE_ZOOM,                   // zoom
-  mjMOUSE_SELECT                  // selection
+  mjMOUSE_MOVE_V_REL,             // move, vertical plane, relative to target
+  mjMOUSE_MOVE_H_REL,             // move, horizontal plane, relative to target
 } mjtMouse;
 
 
@@ -258,6 +259,7 @@ typedef struct mjvGeom_ mjvGeom;
 //---------------------------------- mjvLight ------------------------------------------------------
 
 struct mjvLight_ {                // OpenGL light
+  int      id;                    // light id, -1 for headlight
   float    pos[3];                // position rel. to body frame
   float    dir[3];                // direction rel. to body frame
   int      type;                  // type (mjtLightType)

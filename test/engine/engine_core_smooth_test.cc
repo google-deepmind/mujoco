@@ -187,7 +187,9 @@ TEST_F(CoreSmoothTest, TendonJdot) {
       } else {
         mj_resetData(m, d);
         while (d->time < 1) {
+          mjtNum time = d->time;
           mj_step(m, d);
+          ASSERT_GT(d->time, time) << "Divergence detected";
         }
       }
 
@@ -307,7 +309,9 @@ TEST_F(CoreSmoothTest, TendonArmatureConservesEnergy) {
 
       double eps = std::max(energy_0, 1.0) * 1e-5;
       while (d->time < 1) {
+        mjtNum time = d->time;
         mj_step(m, d);
+        ASSERT_GT(d->time, time) << "Divergence detected";
         double energy_t = d->energy[0] + d->energy[1];
         EXPECT_THAT(energy_t, DoubleNear(energy_0, eps));
       }
@@ -336,7 +340,9 @@ TEST_F(CoreSmoothTest, TendonArmatureConservesMomentum) {
 
     double eps = 1e-5;
     while (d->time < 1) {
+      mjtNum time = d->time;
       mj_step(m, d);
+      ASSERT_GT(d->time, time) << "Divergence detected";
       vector<mjtNum> sdata_t = AsVector(d->sensordata, m->nsensordata);
       EXPECT_THAT(sdata_t, Pointwise(DoubleNear(eps), sdata_0));
     }
@@ -380,10 +386,14 @@ TEST_F(CoreSmoothTest, TendonInertiaEquivalent) {
     double eps = lpath == kTen_i0 ? 1e-6 : 1e-3;
 
     while (d->time < 1) {
+      mjtNum time = d->time;
       mj_step(m, d);
+      ASSERT_GT(d->time, time) << "Divergence detected";
       vector<mjtNum> xpos = AsVector(d->geom_xpos + 3*gid, 3);
 
+      time = d_e->time;
       mj_step(m_e, d_e);
+      ASSERT_GT(d_e->time, time) << "Divergence detected";
       vector<mjtNum> xpos_e = AsVector(d_e->geom_xpos + 3*gid_e, 3);
 
       EXPECT_THAT(xpos, Pointwise(DoubleNear(eps), xpos_e));
@@ -560,7 +570,9 @@ TEST_F(CoreSmoothTest, EqualityBodySite) {
 
   // simulate again, get sensordata
   while (data->time < 0.1) {
+    mjtNum time = data->time;
     mj_step(model, data);
+    ASSERT_GT(data->time, time) << "Divergence detected";
   }
 
   // compare
@@ -589,7 +601,9 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
 
   // step for 5 seconds
   while (data->time < 10) {
+    mjtNum time = data->time;
     mj_step(model, data);
+    ASSERT_GT(data->time, time) << "Divergence detected";
   }
 
   // get site IDs
@@ -628,7 +642,9 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   // simulate, assert that momentum is conserved
   mjtNum eps = 1e-9;
   while (data->time < 1) {
+    mjtNum time = data->time;
     mj_step(model, data);
+    ASSERT_GT(data->time, time) << "Divergence detected";
     for (int i=0; i < 6; i++) {
       EXPECT_LT(mju_abs(data->sensordata[i]), eps);
     }

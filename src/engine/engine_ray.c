@@ -24,6 +24,7 @@
 #include <mujoco/mjvisualize.h>
 #include "engine/engine_collision_sdf.h"
 #include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"

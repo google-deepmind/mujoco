@@ -194,7 +194,8 @@ class ForwardTest(parameterized.TestCase):
       "pendula.xml",
       integrator=IntegratorType.IMPLICITFAST,
       actuation=actuation,
-      passive=passive,
+      spring=passive,
+      damper=passive,
       sparse=sparse,
     )
 
@@ -421,6 +422,7 @@ class ForwardTest(parameterized.TestCase):
       "qfrc_actuator",
       "qfrc_smooth",
       "qacc",
+      "qacc_warmstart",
       "qvel",
       "qpos",
       "efc_force",

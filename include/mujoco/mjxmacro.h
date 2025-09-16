@@ -181,9 +181,7 @@
 // pointer fields of mjModel
 // XNV means that the field is not required to construct mjvScene
 // (by default we define XNV to be the same as X)
-#define MJMODEL_POINTERS                                                        \
-    X   ( mjtNum,  qpos0,                 nq,            1                    ) \
-    X   ( mjtNum,  qpos_spring,           nq,            1                    ) \
+#define MJMODEL_POINTERS_BODY                                                   \
     X   ( int,     body_parentid,         nbody,         1                    ) \
     X   ( int,     body_rootid,           nbody,         1                    ) \
     X   ( int,     body_weldid,           nbody,         1                    ) \
@@ -212,15 +210,9 @@
     X   ( int,     body_contype,          nbody,         1                    ) \
     X   ( int,     body_conaffinity,      nbody,         1                    ) \
     X   ( int,     body_bvhadr,           nbody,         1                    ) \
-    X   ( int,     body_bvhnum,           nbody,         1                    ) \
-    X   ( int,     bvh_depth,             nbvh,          1                    ) \
-    X   ( int,     bvh_child,             nbvh,          2                    ) \
-    X   ( int,     bvh_nodeid,            nbvh,          1                    ) \
-    X   ( mjtNum,  bvh_aabb,              nbvhstatic,    6                    ) \
-    X   ( int,     oct_depth,             noct,          1                    ) \
-    X   ( int,     oct_child,             noct,          8                    ) \
-    X   ( mjtNum,  oct_aabb,              noct,          6                    ) \
-    X   ( mjtNum,  oct_coeff,             noct,          8                    ) \
+    X   ( int,     body_bvhnum,           nbody,         1                    )
+
+#define MJMODEL_POINTERS_JOINT                                                  \
     X   ( int,     jnt_type,              njnt,          1                    ) \
     X   ( int,     jnt_qposadr,           njnt,          1                    ) \
     X   ( int,     jnt_dofadr,            njnt,          1                    ) \
@@ -237,7 +229,9 @@
     X   ( mjtNum,  jnt_range,             njnt,          2                    ) \
     X   ( mjtNum,  jnt_actfrcrange,       njnt,          2                    ) \
     X   ( mjtNum,  jnt_margin,            njnt,          1                    ) \
-    X   ( mjtNum,  jnt_user,              njnt,          MJ_M(nuser_jnt)      ) \
+    X   ( mjtNum,  jnt_user,              njnt,          MJ_M(nuser_jnt)      )
+
+#define MJMODEL_POINTERS_DOF                                                    \
     X   ( int,     dof_bodyid,            nv,            1                    ) \
     X   ( int,     dof_jntid,             nv,            1                    ) \
     X   ( int,     dof_parentid,          nv,            1                    ) \
@@ -250,7 +244,9 @@
     X   ( mjtNum,  dof_armature,          nv,            1                    ) \
     X   ( mjtNum,  dof_damping,           nv,            1                    ) \
     X   ( mjtNum,  dof_invweight0,        nv,            1                    ) \
-    X   ( mjtNum,  dof_M0,                nv,            1                    ) \
+    X   ( mjtNum,  dof_M0,                nv,            1                    )
+
+#define MJMODEL_POINTERS_GEOM                                                   \
     X   ( int,     geom_type,             ngeom,         1                    ) \
     X   ( int,     geom_contype,          ngeom,         1                    ) \
     X   ( int,     geom_conaffinity,      ngeom,         1                    ) \
@@ -275,7 +271,9 @@
     X   ( mjtNum,  geom_gap,              ngeom,         1                    ) \
     XNV ( mjtNum,  geom_fluid,            ngeom,         mjNFLUID             ) \
     X   ( mjtNum,  geom_user,             ngeom,         MJ_M(nuser_geom)     ) \
-    X   ( float,   geom_rgba,             ngeom,         4                    ) \
+    X   ( float,   geom_rgba,             ngeom,         4                    )
+
+#define MJMODEL_POINTERS_SITE                                                   \
     X   ( int,     site_type,             nsite,         1                    ) \
     X   ( int,     site_bodyid,           nsite,         1                    ) \
     X   ( int,     site_matid,            nsite,         1                    ) \
@@ -285,7 +283,9 @@
     X   ( mjtNum,  site_pos,              nsite,         3                    ) \
     X   ( mjtNum,  site_quat,             nsite,         4                    ) \
     X   ( mjtNum,  site_user,             nsite,         MJ_M(nuser_site)     ) \
-    X   ( float,   site_rgba,             nsite,         4                    ) \
+    X   ( float,   site_rgba,             nsite,         4                    )
+
+#define MJMODEL_POINTERS_CAMERA                                                 \
     X   ( int,     cam_mode,              ncam,          1                    ) \
     X   ( int,     cam_bodyid,            ncam,          1                    ) \
     X   ( int,     cam_targetbodyid,      ncam,          1                    ) \
@@ -300,7 +300,9 @@
     X   ( int,     cam_resolution,        ncam,          2                    ) \
     X   ( float,   cam_sensorsize,        ncam,          2                    ) \
     X   ( float,   cam_intrinsic,         ncam,          4                    ) \
-    X   ( mjtNum,  cam_user,              ncam,          MJ_M(nuser_cam)      ) \
+    X   ( mjtNum,  cam_user,              ncam,          MJ_M(nuser_cam)      )
+
+#define MJMODEL_POINTERS_LIGHT                                                  \
     X   ( int,     light_mode,            nlight,        1                    ) \
     X   ( int,     light_bodyid,          nlight,        1                    ) \
     X   ( int,     light_targetbodyid,    nlight,        1                    ) \
@@ -321,7 +323,9 @@
     X   ( float,   light_exponent,        nlight,        1                    ) \
     X   ( float,   light_ambient,         nlight,        3                    ) \
     X   ( float,   light_diffuse,         nlight,        3                    ) \
-    X   ( float,   light_specular,        nlight,        3                    ) \
+    X   ( float,   light_specular,        nlight,        3                    )
+
+#define MJMODEL_POINTERS_FLEX                                                   \
     X   ( int,     flex_contype,          nflex,         1                    ) \
     X   ( int,     flex_conaffinity,      nflex,         1                    ) \
     X   ( int,     flex_condim,           nflex,         1                    ) \
@@ -335,6 +339,7 @@
     X   ( mjtByte, flex_internal,         nflex,         1                    ) \
     X   ( int,     flex_selfcollide,      nflex,         1                    ) \
     X   ( int,     flex_activelayers,     nflex,         1                    ) \
+    X   ( int,     flex_passive,          nflex,         1                    ) \
     X   ( int,     flex_dim,              nflex,         1                    ) \
     X   ( int,     flex_matid,            nflex,         1                    ) \
     X   ( int,     flex_group,            nflex,         1                    ) \
@@ -384,23 +389,22 @@
     X   ( int,     flex_bvhadr,           nflex,         1                    ) \
     X   ( int,     flex_bvhnum,           nflex,         1                    ) \
     X   ( float,   flex_rgba,             nflex,         4                    ) \
-    X   ( float,   flex_texcoord,         nflextexcoord, 2                    ) \
+    X   ( float,   flex_texcoord,         nflextexcoord, 2                    )
+
+#define MJMODEL_POINTERS_MESH                                                   \
     X   ( int,     mesh_vertadr,          nmesh,         1                    ) \
     X   ( int,     mesh_vertnum,          nmesh,         1                    ) \
-    X   ( int,     mesh_normaladr,        nmesh,         1                    ) \
-    X   ( int,     mesh_normalnum,        nmesh,         1                    ) \
-    X   ( int,     mesh_texcoordadr,      nmesh,         1                    ) \
-    X   ( int,     mesh_texcoordnum,      nmesh,         1                    ) \
     X   ( int,     mesh_faceadr,          nmesh,         1                    ) \
     X   ( int,     mesh_facenum,          nmesh,         1                    ) \
     X   ( int,     mesh_bvhadr,           nmesh,         1                    ) \
     X   ( int,     mesh_bvhnum,           nmesh,         1                    ) \
     X   ( int,     mesh_octadr,           nmesh,         1                    ) \
     X   ( int,     mesh_octnum,           nmesh,         1                    ) \
+    X   ( int,     mesh_normaladr,        nmesh,         1                    ) \
+    X   ( int,     mesh_normalnum,        nmesh,         1                    ) \
+    X   ( int,     mesh_texcoordadr,      nmesh,         1                    ) \
+    X   ( int,     mesh_texcoordnum,      nmesh,         1                    ) \
     X   ( int,     mesh_graphadr,         nmesh,         1                    ) \
-    X   ( mjtNum,  mesh_scale,            nmesh,         3                    ) \
-    X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
-    X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
     XNV ( float,   mesh_vert,             nmeshvert,     3                    ) \
     XNV ( float,   mesh_normal,           nmeshnormal,   3                    ) \
     XNV ( float,   mesh_texcoord,         nmeshtexcoord, 2                    ) \
@@ -408,6 +412,9 @@
     XNV ( int,     mesh_facenormal,       nmeshface,     3                    ) \
     XNV ( int,     mesh_facetexcoord,     nmeshface,     3                    ) \
     XNV ( int,     mesh_graph,            nmeshgraph,    1                    ) \
+    X   ( mjtNum,  mesh_scale,            nmesh,         3                    ) \
+    X   ( mjtNum,  mesh_pos,              nmesh,         3                    ) \
+    X   ( mjtNum,  mesh_quat,             nmesh,         4                    ) \
     X   ( int,     mesh_pathadr,          nmesh,         1                    ) \
     XNV ( int,     mesh_polynum,          nmesh,         1                    ) \
     XNV ( int,     mesh_polyadr,          nmesh,         1                    ) \
@@ -417,7 +424,9 @@
     XNV ( int,     mesh_polyvert,         nmeshpolyvert, 1                    ) \
     XNV ( int,     mesh_polymapadr,       nmeshvert,     1                    ) \
     XNV ( int,     mesh_polymapnum,       nmeshvert,     1                    ) \
-    XNV ( int,     mesh_polymap,          nmeshpolymap,  1                    ) \
+    XNV ( int,     mesh_polymap,          nmeshpolymap,  1                    )
+
+#define MJMODEL_POINTERS_SKIN                                                   \
     X   ( int,     skin_matid,            nskin,         1                    ) \
     X   ( int,     skin_group,            nskin,         1                    ) \
     X   ( float,   skin_rgba,             nskin,         4                    ) \
@@ -439,13 +448,17 @@
     X   ( int,     skin_bonebodyid,       nskinbone,     1                    ) \
     X   ( int,     skin_bonevertid,       nskinbonevert, 1                    ) \
     X   ( float,   skin_bonevertweight,   nskinbonevert, 1                    ) \
-    X   ( int,     skin_pathadr,          nskin,         1                    ) \
+    X   ( int,     skin_pathadr,          nskin,         1                    )
+
+#define MJMODEL_POINTERS_HFIELD                                                 \
     X   ( mjtNum,  hfield_size,           nhfield,       4                    ) \
     X   ( int,     hfield_nrow,           nhfield,       1                    ) \
     X   ( int,     hfield_ncol,           nhfield,       1                    ) \
     X   ( int,     hfield_adr,            nhfield,       1                    ) \
     XNV ( float,   hfield_data,           nhfielddata,   1                    ) \
-    X   ( int,     hfield_pathadr,        nhfield,       1                    ) \
+    X   ( int,     hfield_pathadr,        nhfield,       1                    )
+
+#define MJMODEL_POINTERS_TEXTURE                                                \
     X   ( int,     tex_type,              ntex,          1                    ) \
     X   ( int,     tex_colorspace,        ntex,          1                    ) \
     X   ( int,     tex_height,            ntex,          1                    ) \
@@ -453,7 +466,9 @@
     X   ( int,     tex_nchannel,          ntex,          1                    ) \
     X   ( int,     tex_adr,               ntex,          1                    ) \
     XNV ( mjtByte, tex_data,              ntexdata,      1                    ) \
-    X   ( int,     tex_pathadr,           ntex,          1                    ) \
+    X   ( int,     tex_pathadr,           ntex,          1                    )
+
+#define MJMODEL_POINTERS_MATERIAL                                               \
     X   ( int,     mat_texid,             nmat,          mjNTEXROLE           ) \
     X   ( mjtByte, mat_texuniform,        nmat,          1                    ) \
     X   ( float,   mat_texrepeat,         nmat,          2                    ) \
@@ -463,7 +478,9 @@
     X   ( float,   mat_reflectance,       nmat,          1                    ) \
     X   ( float,   mat_metallic,          nmat,          1                    ) \
     X   ( float,   mat_roughness,         nmat,          1                    ) \
-    X   ( float,   mat_rgba,              nmat,          4                    ) \
+    X   ( float,   mat_rgba,              nmat,          4                    )
+
+#define MJMODEL_POINTERS_PAIR                                                   \
     X   ( int,     pair_dim,              npair,         1                    ) \
     X   ( int,     pair_geom1,            npair,         1                    ) \
     X   ( int,     pair_geom2,            npair,         1                    ) \
@@ -473,8 +490,12 @@
     X   ( mjtNum,  pair_solimp,           npair,         mjNIMP               ) \
     X   ( mjtNum,  pair_margin,           npair,         1                    ) \
     X   ( mjtNum,  pair_gap,              npair,         1                    ) \
-    X   ( mjtNum,  pair_friction,         npair,         5                    ) \
-    X   ( int,     exclude_signature,     nexclude,      1                    ) \
+    X   ( mjtNum,  pair_friction,         npair,         5                    )
+
+#define MJMODEL_POINTERS_EXCLUDE                                                \
+    X   ( int,     exclude_signature,     nexclude,      1                    )
+
+#define MJMODEL_POINTERS_EQUALITY                                               \
     X   ( int,     eq_type,               neq,           1                    ) \
     X   ( int,     eq_obj1id,             neq,           1                    ) \
     X   ( int,     eq_obj2id,             neq,           1                    ) \
@@ -482,7 +503,9 @@
     X   ( mjtByte, eq_active0,            neq,           1                    ) \
     X   ( mjtNum,  eq_solref,             neq,           mjNREF               ) \
     X   ( mjtNum,  eq_solimp,             neq,           mjNIMP               ) \
-    X   ( mjtNum,  eq_data,               neq,           mjNEQDATA            ) \
+    X   ( mjtNum,  eq_data,               neq,           mjNEQDATA            )
+
+#define MJMODEL_POINTERS_TENDON                                                 \
     X   ( int,     tendon_adr,            ntendon,       1                    ) \
     X   ( int,     tendon_num,            ntendon,       1                    ) \
     X   ( int,     tendon_matid,          ntendon,       1                    ) \
@@ -505,10 +528,9 @@
     X   ( mjtNum,  tendon_length0,        ntendon,       1                    ) \
     X   ( mjtNum,  tendon_invweight0,     ntendon,       1                    ) \
     X   ( mjtNum,  tendon_user,           ntendon,       MJ_M(nuser_tendon)   ) \
-    X   ( float,   tendon_rgba,           ntendon,       4                    ) \
-    X   ( int,     wrap_type,             nwrap,         1                    ) \
-    X   ( int,     wrap_objid,            nwrap,         1                    ) \
-    X   ( mjtNum,  wrap_prm,              nwrap,         1                    ) \
+    X   ( float,   tendon_rgba,           ntendon,       4                    )
+
+#define MJMODEL_POINTERS_ACTUATOR                                               \
     X   ( int,     actuator_trntype,      nu,            1                    ) \
     X   ( int,     actuator_dyntype,      nu,            1                    ) \
     X   ( int,     actuator_gaintype,     nu,            1                    ) \
@@ -533,7 +555,9 @@
     X   ( mjtNum,  actuator_length0,      nu,            1                    ) \
     X   ( mjtNum,  actuator_lengthrange,  nu,            2                    ) \
     X   ( mjtNum,  actuator_user,         nu,            MJ_M(nuser_actuator) ) \
-    X   ( int,     actuator_plugin,       nu,            1                    ) \
+    X   ( int,     actuator_plugin,       nu,            1                    )
+
+#define MJMODEL_POINTERS_SENSOR                                                 \
     X   ( int,     sensor_type,           nsensor,       1                    ) \
     X   ( int,     sensor_datatype,       nsensor,       1                    ) \
     X   ( int,     sensor_needstage,      nsensor,       1                    ) \
@@ -547,7 +571,41 @@
     X   ( mjtNum,  sensor_cutoff,         nsensor,       1                    ) \
     X   ( mjtNum,  sensor_noise,          nsensor,       1                    ) \
     X   ( mjtNum,  sensor_user,           nsensor,       MJ_M(nuser_sensor)   ) \
-    X   ( int,     sensor_plugin,         nsensor,       1                    ) \
+    X   ( int,     sensor_plugin,         nsensor,       1                    )
+
+#define MJMODEL_POINTERS                                                        \
+    X   ( mjtNum,  qpos0,                 nq,            1                    ) \
+    X   ( mjtNum,  qpos_spring,           nq,            1                    ) \
+    MJMODEL_POINTERS_BODY                                                       \
+    X   ( int,     bvh_depth,             nbvh,          1                    ) \
+    X   ( int,     bvh_child,             nbvh,          2                    ) \
+    X   ( int,     bvh_nodeid,            nbvh,          1                    ) \
+    X   ( mjtNum,  bvh_aabb,              nbvhstatic,    6                    ) \
+    X   ( int,     oct_depth,             noct,          1                    ) \
+    X   ( int,     oct_child,             noct,          8                    ) \
+    X   ( mjtNum,  oct_aabb,              noct,          6                    ) \
+    X   ( mjtNum,  oct_coeff,             noct,          8                    ) \
+    MJMODEL_POINTERS_JOINT                                                      \
+    MJMODEL_POINTERS_DOF                                                        \
+    MJMODEL_POINTERS_GEOM                                                       \
+    MJMODEL_POINTERS_SITE                                                       \
+    MJMODEL_POINTERS_CAMERA                                                     \
+    MJMODEL_POINTERS_LIGHT                                                      \
+    MJMODEL_POINTERS_FLEX                                                       \
+    MJMODEL_POINTERS_MESH                                                       \
+    MJMODEL_POINTERS_SKIN                                                       \
+    MJMODEL_POINTERS_HFIELD                                                     \
+    MJMODEL_POINTERS_TEXTURE                                                    \
+    MJMODEL_POINTERS_MATERIAL                                                   \
+    MJMODEL_POINTERS_PAIR                                                       \
+    MJMODEL_POINTERS_EXCLUDE                                                    \
+    MJMODEL_POINTERS_EQUALITY                                                   \
+    MJMODEL_POINTERS_TENDON                                                     \
+    X   ( int,     wrap_type,             nwrap,         1                    ) \
+    X   ( int,     wrap_objid,            nwrap,         1                    ) \
+    X   ( mjtNum,  wrap_prm,              nwrap,         1                    ) \
+    MJMODEL_POINTERS_ACTUATOR                                                   \
+    MJMODEL_POINTERS_SENSOR                                                     \
     X   ( int,     plugin,                nplugin,       1                    ) \
     X   ( int,     plugin_stateadr,       nplugin,       1                    ) \
     X   ( int,     plugin_statenum,       nplugin,       1                    ) \
@@ -670,8 +728,8 @@
     X   ( int,       ten_J_rownnz,      ntendon,     1           ) \
     X   ( int,       ten_J_rowadr,      ntendon,     1           ) \
     X   ( int,       ten_J_colind,      ntendon,     MJ_M(nv)    ) \
-    X   ( mjtNum,    ten_length,        ntendon,     1           ) \
     X   ( mjtNum,    ten_J,             ntendon,     MJ_M(nv)    ) \
+    X   ( mjtNum,    ten_length,        ntendon,     1           ) \
     X   ( int,       wrap_obj,          nwrap,       2           ) \
     X   ( mjtNum,    wrap_xpos,         nwrap,       6           ) \
     X   ( mjtNum,    actuator_length,   nu,          1           ) \
@@ -729,12 +787,7 @@
     XNV( int,      efc_J_rowadr,      MJ_D(nefc),    1 ) \
     XNV( int,      efc_J_rowsuper,    MJ_D(nefc),    1 ) \
     XNV( int,      efc_J_colind,      MJ_D(nJ),      1 ) \
-    XNV( int,      efc_JT_rownnz,     MJ_M(nv),      1 ) \
-    XNV( int,      efc_JT_rowadr,     MJ_M(nv),      1 ) \
-    XNV( int,      efc_JT_rowsuper,   MJ_M(nv),      1 ) \
-    XNV( int,      efc_JT_colind,     MJ_D(nJ),      1 ) \
     XNV( mjtNum,   efc_J,             MJ_D(nJ),      1 ) \
-    XNV( mjtNum,   efc_JT,            MJ_D(nJ),      1 ) \
     X  ( mjtNum,   efc_pos,           MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_margin,        MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_frictionloss,  MJ_D(nefc),    1 ) \
@@ -746,8 +799,8 @@
     X  ( mjtNum,   efc_vel,           MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_aref,          MJ_D(nefc),    1 ) \
     X  ( mjtNum,   efc_b,             MJ_D(nefc),    1 ) \
-    X  ( mjtNum,   efc_force,         MJ_D(nefc),    1 ) \
-    X  ( int,      efc_state,         MJ_D(nefc),    1 )
+    X  ( int,      efc_state,         MJ_D(nefc),    1 ) \
+    X  ( mjtNum,   efc_force,         MJ_D(nefc),    1 )
 
 // array fields of mjData that are used in the dual problem
 #define MJDATA_ARENA_POINTERS_DUAL                       \
@@ -786,12 +839,7 @@
     XNV( int,     iefc_J_rowadr,     MJ_D(nefc),     1 ) \
     XNV( int,     iefc_J_rowsuper,   MJ_D(nefc),     1 ) \
     XNV( int,     iefc_J_colind,     MJ_D(nJ),       1 ) \
-    XNV( int,     iefc_JT_rownnz,    MJ_D(nidof),    1 ) \
-    XNV( int,     iefc_JT_rowadr,    MJ_D(nidof),    1 ) \
-    XNV( int,     iefc_JT_rowsuper,  MJ_D(nidof),    1 ) \
-    XNV( int,     iefc_JT_colind,    MJ_D(nJ),       1 ) \
     XNV( mjtNum,  iefc_J,            MJ_D(nJ),       1 ) \
-    XNV( mjtNum,  iefc_JT,           MJ_D(nJ),       1 ) \
     X  ( mjtNum,  iefc_frictionloss, MJ_D(nefc),     1 ) \
     X  ( mjtNum,  iefc_D,            MJ_D(nefc),     1 ) \
     X  ( mjtNum,  iefc_R,            MJ_D(nefc),     1 ) \
@@ -836,12 +884,12 @@
 // vector fields of mjData
 #define MJDATA_VECTOR                                                \
     X( size_t,         maxuse_threadstack, mjMAXTHREAD,  1         ) \
-    X( mjWarningStat,  warning,            mjNWARNING,   1         ) \
-    X( mjTimerStat,    timer,              mjNTIMER,     1         ) \
     X( mjSolverStat,   solver,             mjNISLAND,    mjNSOLVER ) \
     X( int,            solver_niter,       mjNISLAND,    1         ) \
     X( int,            solver_nnz,         mjNISLAND,    1         ) \
     X( mjtNum,         solver_fwdinv,      2,            1         ) \
+    X( mjWarningStat,  warning,            mjNWARNING,   1         ) \
+    X( mjTimerStat,    timer,              mjNTIMER,     1         ) \
     X( mjtNum,         energy,             2,            1         )
 
 // alias XNV to be the same as X

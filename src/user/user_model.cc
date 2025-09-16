@@ -476,14 +476,7 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   }
 
   // resize keyframes in the parent model
-  if (!keys_.empty()) {
-    SaveDofOffsets(/*computesize=*/true);
-    ComputeReference();
-    for (auto* key : keys_) {
-      ResizeKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
-    }
-    nq = nv = na = nu = nmocap = 0;
-  }
+  ExpandAllKeyframes();
 
   // update pointers to local elements
   PointToLocal();
@@ -1879,27 +1872,29 @@ void mjCModel::IndexAssets(bool discard) {
   for (int i=0; i < geoms_.size(); i++) {
     mjCGeom* geom = geoms_[i];
 
-    // find material by name
+
+    // find mesh by name
+    if (!geom->get_meshname().empty()) {
+      mjCMesh* mesh = static_cast<mjCMesh*>(FindObject(mjOBJ_MESH, geom->get_meshname()));
+      if (mesh) {
+        if (!geom->visual_) {
+          mesh->SetNotVisual();  // reset to true by mesh->Compile()
+        }
+        geom->mesh = (discard && geom->visual_) ? nullptr : mesh;
+        mesh->spec.needsdf |= geom->spec.type == mjGEOM_SDF;
+      } else {
+        throw mjCError(geom, "mesh '%s' not found in geom %d", geom->get_meshname().c_str(), i);
+      }
+    }
+
+    // find material by name, this has to happen after mesh assignment so that if
+    // the geom does not specify a material but the mesh does it can fall back.
     if (!geom->get_material().empty()) {
       mjCBase* material = FindObject(mjOBJ_MATERIAL, geom->get_material());
       if (material) {
         geom->matid = material->id;
       } else {
         throw mjCError(geom, "material '%s' not found in geom %d", geom->get_material().c_str(), i);
-      }
-    }
-
-    // find mesh by name
-    if (!geom->get_meshname().empty()) {
-      mjCBase* mesh = FindObject(mjOBJ_MESH, geom->get_meshname());
-      if (mesh) {
-        if (!geom->visual_) {
-          ((mjCMesh*)mesh)->SetNotVisual();  // reset to true by mesh->Compile()
-        }
-        geom->mesh = (discard && geom->visual_) ? nullptr : (mjCMesh*)mesh;
-        static_cast<mjCMesh*>(mesh)->spec.needsdf |= geom->spec.type == mjGEOM_SDF;
-      } else {
-        throw mjCError(geom, "mesh '%s' not found in geom %d", geom->get_meshname().c_str(), i);
       }
     }
 
@@ -2321,7 +2316,7 @@ void* LRfunc(void* arg) {
 void mjCModel::LengthRange(mjModel* m, mjData* data) {
   // save options and modify
   mjOption saveopt = m->opt;
-  m->opt.disableflags = mjDSBL_FRICTIONLOSS | mjDSBL_CONTACT | mjDSBL_PASSIVE |
+  m->opt.disableflags = mjDSBL_FRICTIONLOSS | mjDSBL_CONTACT | mjDSBL_SPRING | mjDSBL_DAMPER |
                         mjDSBL_GRAVITY | mjDSBL_ACTUATION;
   if (compiler.LRopt.timestep > 0) {
     m->opt.timestep = compiler.LRopt.timestep;
@@ -3319,6 +3314,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_flatskin[i] = pfl->flatskin;
     m->flex_selfcollide[i] = pfl->selfcollide;
     m->flex_activelayers[i] = pfl->activelayers;
+    m->flex_passive[i] = pfl->passive;
     m->flex_bvhnum[i] = pfl->tree.Nbvh();
     m->flex_bvhadr[i] = pfl->tree.Nbvh() ? bvh_adr : -1;
 
@@ -4540,26 +4536,41 @@ void mjCModel::ComputeReference() {
 
 
 
+// resize keyframes in the model
+void mjCModel::ExpandAllKeyframes() {
+  if (keys_.empty()) {
+    return;
+  }
+  SaveDofOffsets(/*computesize=*/true);
+  ComputeReference();
+  for (auto* key : keys_) {
+    ExpandKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
+  }
+  nq = nv = na = nu = nmocap = 0;
+}
+
+
+
 // resizes a keyframe, filling in missing values
-void mjCModel::ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_,
+void mjCModel::ExpandKeyframe(mjCKey* key, const mjtNum* qpos0_,
                               const mjtNum* bpos, const mjtNum* bquat) {
-  if (!key->spec_qpos_.empty()) {
+  if (!key->spec_qpos_.empty() && nq > key->spec_qpos_.size()) {
     int nq0 = key->spec_qpos_.size();
     key->spec_qpos_.resize(nq);
     for (int i=nq0; i < nq; i++) {
       key->spec_qpos_[i] = (double)qpos0_[i];
     }
   }
-  if (!key->spec_qvel_.empty()) {
+  if (!key->spec_qvel_.empty() && nv > key->spec_qvel_.size()) {
     key->spec_qvel_.resize(nv);
   }
-  if (!key->spec_act_.empty()) {
+  if (!key->spec_act_.empty() && na > key->spec_act_.size()) {
     key->spec_act_.resize(na);
   }
-  if (!key->spec_ctrl_.empty()) {
+  if (!key->spec_ctrl_.empty() && nu > key->spec_ctrl_.size()) {
     key->spec_ctrl_.resize(nu);
   }
-  if (!key->spec_mpos_.empty()) {
+  if (!key->spec_mpos_.empty() && nmocap > key->spec_mpos_.size() / 3) {
     int nmocap0 = key->spec_mpos_.size() / 3;
     key->spec_mpos_.resize(3*nmocap);
     for (unsigned int j = 0; j < bodies_.size(); j++) {
@@ -4572,7 +4583,7 @@ void mjCModel::ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_,
       key->spec_mpos_[3*i+2] = (double)bpos[3*j+2];
     }
   }
-  if (!key->spec_mquat_.empty()) {
+  if (!key->spec_mquat_.empty() && nmocap > key->spec_mquat_.size() / 4) {
     int nmocap0 = key->spec_mquat_.size() / 4;
     key->spec_mquat_.resize(4*nmocap);
     for (unsigned int j = 0; j < bodies_.size(); j++) {
@@ -4666,6 +4677,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   for (const auto& asset : hfields_) asset->CopyFromSpec();
   for (const auto& asset : textures_) asset->CopyFromSpec();
   CheckEmptyNames();
+
+  // resize keyframes in case the spec was edited after the last attach
+  ExpandAllKeyframes();
 
   // create pending keyframes
   for (const auto& info : key_pending_) {

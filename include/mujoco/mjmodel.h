@@ -54,20 +54,22 @@ typedef enum mjtDisableBit_ {     // disable default feature bitflags
   mjDSBL_FRICTIONLOSS = 1<<2,     // joint and tendon frictionloss constraints
   mjDSBL_LIMIT        = 1<<3,     // joint and tendon limit constraints
   mjDSBL_CONTACT      = 1<<4,     // contact constraints
-  mjDSBL_PASSIVE      = 1<<5,     // passive forces
-  mjDSBL_GRAVITY      = 1<<6,     // gravitational forces
-  mjDSBL_CLAMPCTRL    = 1<<7,     // clamp control to specified range
-  mjDSBL_WARMSTART    = 1<<8,     // warmstart constraint solver
-  mjDSBL_FILTERPARENT = 1<<9,     // remove collisions with parent body
-  mjDSBL_ACTUATION    = 1<<10,    // apply actuation forces
-  mjDSBL_REFSAFE      = 1<<11,    // integrator safety: make ref[0]>=2*timestep
-  mjDSBL_SENSOR       = 1<<12,    // sensors
-  mjDSBL_MIDPHASE     = 1<<13,    // mid-phase collision filtering
-  mjDSBL_EULERDAMP    = 1<<14,    // implicit integration of joint damping in Euler integrator
-  mjDSBL_AUTORESET    = 1<<15,    // automatic reset when numerical issues are detected
-  mjDSBL_NATIVECCD    = 1<<16,    // native convex collision detection
+  mjDSBL_SPRING       = 1<<5,     // passive spring forces
+  mjDSBL_DAMPER       = 1<<6,     // passive damping forces
+  mjDSBL_GRAVITY      = 1<<7,     // gravitational forces
+  mjDSBL_CLAMPCTRL    = 1<<8,     // clamp control to specified range
+  mjDSBL_WARMSTART    = 1<<9,     // warmstart constraint solver
+  mjDSBL_FILTERPARENT = 1<<10,    // remove collisions with parent body
+  mjDSBL_ACTUATION    = 1<<11,    // apply actuation forces
+  mjDSBL_REFSAFE      = 1<<12,    // integrator safety: make ref[0]>=2*timestep
+  mjDSBL_SENSOR       = 1<<13,    // sensors
+  mjDSBL_MIDPHASE     = 1<<14,    // mid-phase collision filtering
+  mjDSBL_EULERDAMP    = 1<<15,    // implicit integration of joint damping in Euler integrator
+  mjDSBL_AUTORESET    = 1<<16,    // automatic reset when numerical issues are detected
+  mjDSBL_NATIVECCD    = 1<<17,    // native convex collision detection
+  mjDSBL_ISLAND       = 1<<18,    // constraint island discovery
 
-  mjNDISABLE          = 17        // number of disable flags
+  mjNDISABLE          = 19        // number of disable flags
 } mjtDisableBit;
 
 
@@ -78,9 +80,8 @@ typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_INVDISCRETE  = 1<<3,     // discrete-time inverse dynamics
                                   // experimental features:
   mjENBL_MULTICCD     = 1<<4,     // multi-point convex collision detection
-  mjENBL_ISLAND       = 1<<5,     // constraint island discovery
 
-  mjNENABLE           = 6         // number of enable flags
+  mjNENABLE           = 5         // number of enable flags
 } mjtEnableBit;
 
 
@@ -291,27 +292,6 @@ typedef enum mjtObj_ {            // type of MujoCo object
 } mjtObj;
 
 
-typedef enum mjtConstraint_ {     // type of constraint
-  mjCNSTR_EQUALITY    = 0,        // equality constraint
-  mjCNSTR_FRICTION_DOF,           // dof friction
-  mjCNSTR_FRICTION_TENDON,        // tendon friction
-  mjCNSTR_LIMIT_JOINT,            // joint limit
-  mjCNSTR_LIMIT_TENDON,           // tendon limit
-  mjCNSTR_CONTACT_FRICTIONLESS,   // frictionless contact
-  mjCNSTR_CONTACT_PYRAMIDAL,      // frictional contact, pyramidal friction cone
-  mjCNSTR_CONTACT_ELLIPTIC        // frictional contact, elliptic friction cone
-} mjtConstraint;
-
-
-typedef enum mjtConstraintState_ {  // constraint state
-  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
-  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
-  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
-  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
-  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
-} mjtConstraintState;
-
-
 typedef enum mjtSensor_ {         // type of sensor
   // common robotic sensors, attached to a site
   mjSENS_TOUCH        = 0,        // scalar contact normal forces summed over sensor zone
@@ -470,6 +450,12 @@ struct mjLROpt_ {                 // options for mj_setLengthRange()
 };
 typedef struct mjLROpt_ mjLROpt;
 
+//---------------------------------- mjCache -------------------------------------------------------
+
+struct mjCache_ {                 // asset cache used by the compiler
+  void* impl_;                    // internal pointer to cache
+};
+typedef struct mjCache_ mjCache;
 
 //---------------------------------- mjVFS ---------------------------------------------------------
 
@@ -919,6 +905,7 @@ struct mjModel_ {
   mjtByte*  flex_internal;        // internal flex collision enabled          (nflex x 1)
   int*      flex_selfcollide;     // self collision mode (mjtFlexSelf)        (nflex x 1)
   int*      flex_activelayers;    // number of active element layers, 3D only (nflex x 1)
+  int*      flex_passive;         // passive collisions enabled               (nflex x 1)
 
   // flexes: other properties
   int*      flex_dim;             // 1: lines, 2: triangles, 3: tetrahedra    (nflex x 1)

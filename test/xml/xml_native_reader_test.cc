@@ -1925,6 +1925,48 @@ TEST_F(XMLReaderTest, LookupCompilerOptionWithoutSpecCopy) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(XMLReaderTest, ResizeKeyframeAfterParsing) {
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="child" file="child.xml"/>
+    </asset>
+    <worldbody>
+      <attach model="child" body="world" prefix="child_"/>
+      <body name="body">
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="key" qpos="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "child.xml", child_xml, sizeof(child_xml));
+
+  std::array<char, 1024> error;
+  mjModel* m =
+      LoadModelFromString(parent_xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  mj_deleteModel(m);
+  mj_deleteVFS(vfs.get());
+}
+
 // ----------------------- test camera parsing ---------------------------------
 
 TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {

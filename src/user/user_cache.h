@@ -117,7 +117,7 @@ struct mjCAssetCompare {
 // the class container for a thread-safe asset cache
 class mjCCache {
  public:
-  explicit mjCCache(std::size_t size)  :  max_size_(size) {}
+  explicit mjCCache(std::size_t size)  :  capacity_(size) {}
 
   // move only
   mjCCache(mjCCache&& other) = delete;
@@ -125,10 +125,10 @@ class mjCCache {
   mjCCache(const mjCCache& other) = delete;
   mjCCache& operator=(const mjCCache& other) = delete;
 
-  // sets the total maximum size of the cache in bytes
+  // sets the capacity of the cache in bytes
   // low-priority cached assets will be dropped to make the new memory
   // requirement
-  void SetMaxSize(std::size_t size);
+  void SetCapacity(std::size_t size);
 
   // returns the corresponding timestamp, if the given asset is stored in
   // the cache
@@ -156,7 +156,7 @@ class mjCCache {
   void Reset();
 
   // accessors
-  std::size_t MaxSize() const;
+  std::size_t Capacity() const;
   std::size_t Size() const;
 
  private:
@@ -170,7 +170,7 @@ class mjCCache {
   mutable std::mutex mutex_;
   std::size_t insert_num_ = 0;  // a running counter of assets being inserted
   std::size_t size_ = 0;        // current size of the cache in bytes
-  std::size_t max_size_ = 0;    // max size of the cache in bytes
+  std::size_t capacity_ = 0;    // capacity of the cache in bytes
 
   // internal constant look up table for assets
   std::unordered_map<std::string, mjCAsset> lookup_;

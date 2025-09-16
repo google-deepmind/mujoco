@@ -492,7 +492,7 @@ Multiply vector by (inertia matrix)^(1/2).
 
 .. mujoco-include:: mj_addM
 
-Add inertia matrix to destination matrix.
+Add inertia matrix to destination matrix (lower triangle only).
 
 Destination can be sparse or dense when all int* are NULL.
 
@@ -1289,6 +1289,12 @@ Add file to VFS. The directory argument is optional and can be NULL or empty. Re
 
 *Nullable:* ``directory``
 
+
+.. Assetcache:
+
+The asset cache is a mechanism for caching assets (e.g. textures, meshes, etc.) to avoid repeated slow recompilation.
+The following methods provide way to control the capacity of the cache or to disable it altogether.
+
 .. _mj_addBufferVFS:
 
 `mj_addBufferVFS <#mj_addBufferVFS>`__
@@ -1342,6 +1348,8 @@ Set default options for length range computation.
 
 Set solver parameters to default values.
 
+*Nullable:* ``solref``, ``solimp``
+
 .. _mj_defaultOption:
 
 `mj_defaultOption <#mj_defaultOption>`__
@@ -1368,6 +1376,8 @@ Set visual options to default values.
 .. mujoco-include:: mj_copyModel
 
 Copy mjModel, allocate new if dest is NULL.
+
+*Nullable:* ``dest``
 
 .. _mj_saveModel:
 

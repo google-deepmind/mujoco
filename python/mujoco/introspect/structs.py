@@ -85,6 +85,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
+    ('mjCache',
+     StructDecl(
+         name='mjCache',
+         declname='struct mjCache_',
+         fields=(
+             StructFieldDecl(
+                 name='impl_',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
+                 ),
+                 doc='internal pointer to cache',
+             ),
+         ),
+     )),
     ('mjVFS',
      StructDecl(
          name='mjVFS',
@@ -2510,6 +2524,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flex_passive',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='passive collisions enabled',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
                  name='flex_dim',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -4878,7 +4900,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='exclude',
                  type=ValueType(name='int'),
-                 doc='0: include, 1: in gap, 2: fused, 3: no dofs',
+                 doc='0: include, 1: in gap, 2: fused, 3: no dofs, 4: passive',
              ),
              StructFieldDecl(
                  name='efc_address',
@@ -5915,51 +5937,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nJ',),
              ),
              StructFieldDecl(
-                 name='efc_JT_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of non-zeros in constraint Jacobian row T',
-                 array_extent=('nv',),
-             ),
-             StructFieldDecl(
-                 name='efc_JT_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='row start address in colind array              T',
-                 array_extent=('nv',),
-             ),
-             StructFieldDecl(
-                 name='efc_JT_rowsuper',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of subsequent rows in supernode         T',
-                 array_extent=('nv',),
-             ),
-             StructFieldDecl(
-                 name='efc_JT_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices in constraint Jacobian          T',
-                 array_extent=('nJ',),
-             ),
-             StructFieldDecl(
                  name='efc_J',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='constraint Jacobian',
-                 array_extent=('nJ',),
-             ),
-             StructFieldDecl(
-                 name='efc_JT',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='constraint Jacobian transposed',
                  array_extent=('nJ',),
              ),
              StructFieldDecl(
@@ -6251,51 +6233,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nJ',),
              ),
              StructFieldDecl(
-                 name='iefc_JT_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of non-zeros in constraint Jacobian row T',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
-                 name='iefc_JT_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='row start address in colind array              T',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
-                 name='iefc_JT_rowsuper',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of subsequent rows in supernode         T',
-                 array_extent=('nidof',),
-             ),
-             StructFieldDecl(
-                 name='iefc_JT_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices in constraint Jacobian          T',
-                 array_extent=('nJ',),
-             ),
-             StructFieldDecl(
                  name='iefc_J',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='constraint Jacobian',
-                 array_extent=('nJ',),
-             ),
-             StructFieldDecl(
-                 name='iefc_JT',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='constraint Jacobian transposed',
                  array_extent=('nJ',),
              ),
              StructFieldDecl(
@@ -6755,6 +6697,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
          name='mjvLight',
          declname='struct mjvLight_',
          fields=(
+             StructFieldDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+                 doc='light id, -1 for headlight',
+             ),
              StructFieldDecl(
                  name='pos',
                  type=ArrayType(
@@ -9206,6 +9153,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='mode for vertex collision',
              ),
              StructFieldDecl(
+                 name='passive',
+                 type=ValueType(name='int'),
+                 doc='mode for passive collisions',
+             ),
+             StructFieldDecl(
                  name='activelayers',
                  type=ValueType(name='int'),
                  doc='number of active element layers in 3D',
@@ -9432,6 +9384,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='plugin',
                  type=ValueType(name='mjsPlugin'),
                  doc='sdf plugin',
+             ),
+             StructFieldDecl(
+                 name='material',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='name of material',
              ),
              StructFieldDecl(
                  name='info',

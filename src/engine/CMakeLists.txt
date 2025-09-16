@@ -29,6 +29,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_collision_sdf.h
     engine_core_constraint.c
     engine_core_constraint.h
+    engine_core_util.c
+    engine_core_util.h
     engine_core_smooth.c
     engine_core_smooth.h
     engine_crossplatform.cc
@@ -47,6 +49,8 @@ set(MUJOCO_ENGINE_SRCS
     engine_io.c
     engine_io.h
     engine_macro.h
+    engine_memory.c
+    engine_memory.h
     engine_name.c
     engine_name.h
     engine_passive.c

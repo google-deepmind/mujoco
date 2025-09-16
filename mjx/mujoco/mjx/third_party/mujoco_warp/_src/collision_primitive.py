@@ -919,7 +919,7 @@ def plane_convex(
     a_dist = wp.float32(-_HUGE_VAL)
     for i in range(convex.vertnum):
       support = wp.dot(plane_pos - convex.vert[convex.vertadr + i], n)
-      dist = wp.where(support > threshold, 0.0, -_HUGE_VAL)
+      dist = wp.where(support > threshold, support, -_HUGE_VAL)
       if dist > a_dist:
         indices[0] = i
         a_dist = dist
@@ -942,7 +942,8 @@ def plane_convex(
     for i in range(convex.vertnum):
       support = wp.dot(plane_pos - convex.vert[convex.vertadr + i], n)
       dist_mask = wp.where(support > threshold, 0.0, -_HUGE_VAL)
-      dist = wp.length_sq(ab - convex.vert[convex.vertadr + i]) + dist_mask
+      ap = a - convex.vert[convex.vertadr + i]
+      dist = wp.abs(wp.dot(ap, ab)) + dist_mask
       if dist > c_dist:
         indices[2] = i
         c_dist = dist
@@ -955,8 +956,8 @@ def plane_convex(
     for i in range(convex.vertnum):
       support = wp.dot(plane_pos - convex.vert[convex.vertadr + i], n)
       dist_mask = wp.where(support > threshold, 0.0, -_HUGE_VAL)
-      ap = ac - convex.vert[convex.vertadr + i]
-      bp = bc - convex.vert[convex.vertadr + i]
+      ap = a - convex.vert[convex.vertadr + i]
+      bp = b - convex.vert[convex.vertadr + i]
       dist_ap = wp.abs(wp.dot(ap, ac)) + dist_mask
       dist_bp = wp.abs(wp.dot(bp, bc)) + dist_mask
       if dist_ap + dist_bp > d_dist:
@@ -993,10 +994,6 @@ def plane_convex(
     threshold = wp.max(0.0, max_support - 1e-3)
 
     a_dist = wp.float32(-_HUGE_VAL)
-    # hillclimb until no change
-    prev = int(-1)
-    imax = int(0)
-
     while True:
       prev = int(imax)
       i = int(convex.graph[vert_edgeadr + imax])
@@ -1004,7 +1001,7 @@ def plane_convex(
         subidx = convex.graph[edge_localid + i]
         idx = convex.graph[vert_globalid + subidx]
         support = wp.dot(plane_pos - convex.vert[convex.vertadr + idx], n)
-        dist = wp.where(support > threshold, 0.0, -_HUGE_VAL)
+        dist = wp.where(support > threshold, support, -_HUGE_VAL)
         if dist > a_dist:
           a_dist = dist
           imax = int(subidx)
@@ -1017,10 +1014,6 @@ def plane_convex(
 
     # Find point b (furthest from a)
     b_dist = wp.float32(-_HUGE_VAL)
-    # hillclimb until no change
-    prev = int(-1)
-    imax = int(0)
-
     while True:
       prev = int(imax)
       i = int(convex.graph[vert_edgeadr + imax])
@@ -1043,10 +1036,6 @@ def plane_convex(
     # Find point c (furthest along axis orthogonal to a-b)
     ab = wp.cross(n, a - b)
     c_dist = wp.float32(-_HUGE_VAL)
-    # hillclimb until no change
-    prev = int(-1)
-    imax = int(0)
-
     while True:
       prev = int(imax)
       i = int(convex.graph[vert_edgeadr + imax])
@@ -1055,7 +1044,8 @@ def plane_convex(
         idx = convex.graph[vert_globalid + subidx]
         support = wp.dot(plane_pos - convex.vert[convex.vertadr + idx], n)
         dist_mask = wp.where(support > threshold, 0.0, -_HUGE_VAL)
-        dist = wp.length_sq(ab - convex.vert[convex.vertadr + idx]) + dist_mask
+        ap = a - convex.vert[convex.vertadr + i]
+        dist = wp.abs(wp.dot(ap, ab)) + dist_mask
         if dist > c_dist:
           c_dist = dist
           imax = int(subidx)
@@ -1070,10 +1060,6 @@ def plane_convex(
     ac = wp.cross(n, a - c)
     bc = wp.cross(n, b - c)
     d_dist = wp.float32(-_HUGE_VAL)
-    # hillclimb until no change
-    prev = int(-1)
-    imax = int(0)
-
     while True:
       prev = int(imax)
       i = int(convex.graph[vert_edgeadr + imax])
@@ -1082,8 +1068,8 @@ def plane_convex(
         idx = convex.graph[vert_globalid + subidx]
         support = wp.dot(plane_pos - convex.vert[convex.vertadr + idx], n)
         dist_mask = wp.where(support > threshold, 0.0, -_HUGE_VAL)
-        ap = ac - convex.vert[convex.vertadr + idx]
-        bp = bc - convex.vert[convex.vertadr + idx]
+        ap = a - convex.vert[convex.vertadr + idx]
+        bp = b - convex.vert[convex.vertadr + idx]
         dist_ap = wp.abs(wp.dot(ap, ac)) + dist_mask
         dist_bp = wp.abs(wp.dot(bp, bc)) + dist_mask
         if dist_ap + dist_bp > d_dist:
@@ -2549,7 +2535,7 @@ def box_box(
       v = (y * ax - x * ay) * C
 
       if nl == 0:
-        if (u < 0 or u > 0) and (v < 0 or v > 1):
+        if (u < 0 or u > 1) and (v < 0 or v > 1):
           continue
       elif u < 0 or v < 0 or u > 1 or v > 1:
         continue

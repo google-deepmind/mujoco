@@ -106,7 +106,7 @@ TEST(CacheTest, InsertReplace) {
 // Trim cache based off of access count
 TEST(CacheTest, Limit1) {
   mjCCache cache(kMaxSize);
-  EXPECT_THAT(cache.MaxSize(), kMaxSize);
+  EXPECT_THAT(cache.Capacity(), kMaxSize);
 
   CacheText(cache, "fil.xml", "foo.obj", kText);
   CacheText(cache, "fil.xml", "bar.obj", kText);
@@ -117,7 +117,7 @@ TEST(CacheTest, Limit1) {
   GetCachedText(cache, "file.xml", "bar.obj", kText);
 
   // make max size so cache can hold only one asset
-  cache.SetMaxSize(12);
+  cache.SetCapacity(12);
 
   // foo should still be in cache
   EXPECT_THAT(cache.HasAsset("foo.obj"), NotNull());
@@ -138,7 +138,7 @@ TEST(CacheTest, Limit2) {
   GetCachedText(cache, "file.xml", "bar.obj", kText);
 
   // make max size so cache can hold only one asset
-  cache.SetMaxSize(12);
+  cache.SetCapacity(12);
 
   // foo should be gone because it's older
   EXPECT_THAT(cache.HasAsset("foo.obj"), IsNull());

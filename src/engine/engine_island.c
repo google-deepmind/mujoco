@@ -23,7 +23,9 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_constraint.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -411,7 +413,7 @@ void mj_island(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc, ntree=m->ntree;
 
   // no constraints: quick return
-  if (!mjENABLED(mjENBL_ISLAND) || !nefc) {
+  if (mjDISABLED(mjDSBL_ISLAND) || !nefc) {
     d->nisland = d->nidof = 0;
     return;
   }
@@ -454,7 +456,7 @@ void mj_island(const mjModel* m, mjData* d) {
     return;
   }
 
-  // count ni: total number of dofs in islands
+  // count nidof: total number of dofs in islands
   int nidof = 0;
   for (int i=0; i < nv; i++) {
     nidof += (tree_island[m->dof_treeid[i]] >= 0);
@@ -596,20 +598,6 @@ void mj_island(const mjModel* m, mjData* d) {
       int adr = d->island_iefcadr[island];
       mju_superSparse(d->island_nefc[island], d->iefc_J_rowsuper + adr,
                       d->iefc_J_rownnz + adr, d->iefc_J_rowadr + adr, d->iefc_J_colind);
-    }
-
-    // block-diagonalize Jacobian-transpose
-    mju_blockDiagSparse(d->iefc_JT, d->iefc_JT_rownnz, d->iefc_JT_rowadr, d->iefc_JT_colind,
-                        d->efc_JT, d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
-                        nidof, nisland,
-                        d->map_idof2dof, d->map_efc2iefc,
-                        d->island_idofadr, d->island_iefcadr, NULL, NULL);
-
-    // recompute rowsuper per island
-    for (int island=0; island < nisland; island++) {
-      int adr = d->island_idofadr[island];
-      mju_superSparse(d->island_nv[island], d->iefc_JT_rowsuper + adr,
-                      d->iefc_JT_rownnz + adr, d->iefc_JT_rowadr + adr, d->iefc_JT_colind);
     }
   }
 
