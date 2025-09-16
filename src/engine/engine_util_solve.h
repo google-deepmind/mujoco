@@ -17,7 +17,6 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmodel.h>
 
 #ifdef __cplusplus
 extern "C" {

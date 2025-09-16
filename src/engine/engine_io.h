@@ -18,7 +18,6 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjxmacro.h>
 
 #ifdef __cplusplus
 #include <cstddef>

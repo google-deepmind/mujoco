@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string.h>
+#include <math.h>
 
-#include <mujoco/mjmacro.h>
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_util_blas.h"
 

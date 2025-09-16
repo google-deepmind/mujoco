@@ -17,7 +17,6 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
-#include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_memory.h"

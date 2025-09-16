@@ -32,7 +32,6 @@
 #include "engine/engine_support.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "engine/engine_util_sparse.h"
 
 #ifdef MEMORY_SANITIZER
   #include <sanitizer/msan_interface.h>

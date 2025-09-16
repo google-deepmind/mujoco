@@ -24,7 +24,6 @@
 #include <string.h>
 
 #include <mujoco/mjtnum.h>
-#include "engine/engine_macro.h"
 
 
 //------------------------------ sparse operations using avx ---------------------------------------

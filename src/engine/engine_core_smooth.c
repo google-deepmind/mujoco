@@ -15,7 +15,6 @@
 #include "engine/engine_core_smooth.h"
 
 #include <stddef.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>

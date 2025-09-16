@@ -14,7 +14,7 @@
 
 #include "engine/engine_io.h"
 
-#include <inttypes.h>  // NOLINT required for PRIu64, PRIuPTR
+#include <inttypes.h>  // IWYU pragma: keep
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -22,13 +22,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
 #include "engine/engine_core_util.h"
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"

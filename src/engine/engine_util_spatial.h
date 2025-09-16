@@ -16,7 +16,7 @@
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPATIAL_H_
 
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {

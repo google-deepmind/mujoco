@@ -15,7 +15,6 @@
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_sparse_avx.h"  // IWYU pragma: keep
 
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>

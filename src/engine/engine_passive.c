@@ -15,7 +15,6 @@
 #include "engine/engine_passive.h"
 
 #include <stddef.h>
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -24,7 +23,6 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_io.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_support.h"

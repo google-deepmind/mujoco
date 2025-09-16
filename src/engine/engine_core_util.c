@@ -18,7 +18,6 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
-#include "engine/engine_crossplatform.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"

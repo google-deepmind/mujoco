@@ -18,7 +18,6 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
-#include "engine/engine_memory.h"
 
 #ifdef __cplusplus
 extern "C" {

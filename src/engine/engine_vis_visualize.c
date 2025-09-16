@@ -14,6 +14,7 @@
 
 #include "engine/engine_vis_visualize.h"
 
+#include <math.h>
 #include <stddef.h>
 #include <string.h>
 
