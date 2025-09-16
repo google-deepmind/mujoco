@@ -15,7 +15,9 @@
 """Tests for io functions."""
 
 import os
+import tempfile
 from unittest import mock
+
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
@@ -31,6 +33,7 @@ from mujoco.mjx._src.types import JacobianType
 # pylint: enable=g-importing-member
 import mujoco.mjx.warp as mjxw
 from mujoco.mjx.warp import types as mjxw_types
+from mujoco.mjx.warp import warp as wp  # pylint: disable=g-importing-member
 import numpy as np
 
 
@@ -124,6 +127,12 @@ def _get_name_from_path(path: jax.tree_util.KeyPath) -> str:
 
 class ModelIOTest(parameterized.TestCase):
   """IO tests for mjx.Model."""
+
+  def setUp(self):
+    super().setUp()
+    if mjxw.WARP_INSTALLED:
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
 
   @parameterized.product(
       xml=(_MULTIPLE_CONVEX_OBJECTS, _MULTIPLE_CONSTRAINTS),
@@ -325,6 +334,12 @@ class ModelIOTest(parameterized.TestCase):
 
 class DataIOTest(parameterized.TestCase):
   """IO tests for mjx.Data."""
+
+  def setUp(self):
+    super().setUp()
+    if mjxw.WARP_INSTALLED:
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
 
   @parameterized.parameters('jax', 'c')
   def test_make_data(self, impl: str):

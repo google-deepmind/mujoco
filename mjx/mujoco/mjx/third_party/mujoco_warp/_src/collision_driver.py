@@ -18,7 +18,6 @@ from typing import Any
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.collision_convex import convex_narrowphase
-from mujoco.mjx.third_party.mujoco_warp._src.collision_hfield import hfield_midphase
 from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import primitive_narrowphase
 from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import sdf_narrowphase
 from mujoco.mjx.third_party.mujoco_warp._src.math import upper_tri_index
@@ -37,29 +36,13 @@ wp.set_module_options({"enable_backward": False})
 
 
 @wp.kernel
-def _zero_collision_arrays(
-  # Data in:
-  nworld_in: int,
-  # In:
-  hfield_geom_pair_in: int,
+def _zero_ncon_ncollision(
   # Data out:
   ncon_out: wp.array(dtype=int),
-  ncon_hfield_out: wp.array(dtype=int),  # kernel_analyzer: ignore
-  collision_hftri_index_out: wp.array(dtype=int),
   ncollision_out: wp.array(dtype=int),
 ):
-  tid = wp.tid()
-
-  if tid == 0:
-    # Zero the single collision counter
-    ncollision_out[0] = 0
-    ncon_out[0] = 0
-
-  if tid < hfield_geom_pair_in * nworld_in:
-    ncon_hfield_out[tid] = 0
-
-  # Zero collision pair indices
-  collision_hftri_index_out[tid] = 0
+  ncollision_out[0] = 0
+  ncon_out[0] = 0
 
 
 @wp.func
@@ -316,7 +299,6 @@ def _add_geom_pair(
   nxnid: int,
   # Data out:
   collision_pair_out: wp.array(dtype=wp.vec2i),
-  collision_hftri_index_out: wp.array(dtype=int),
   collision_pairid_out: wp.array(dtype=int),
   collision_worldid_out: wp.array(dtype=int),
   ncollision_out: wp.array(dtype=int),
@@ -337,12 +319,6 @@ def _add_geom_pair(
   collision_pair_out[pairid] = pair
   collision_pairid_out[pairid] = nxn_pairid[nxnid]
   collision_worldid_out[pairid] = worldid
-
-  # Writing -1 to collision_hftri_index_out[pairid] signals
-  # hfield_midphase to generate a collision pair for every
-  # potentially colliding triangle
-  if type1 == int(GeomType.HFIELD.value) or type2 == int(GeomType.HFIELD.value):
-    collision_hftri_index_out[pairid] = -1
 
 
 @wp.func
@@ -419,7 +395,7 @@ def _sap_range(
 
 @cache_kernel
 def _sap_broadphase(broadphase_filter):
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def kernel(
     # Model:
     ngeom: int,
@@ -439,7 +415,6 @@ def _sap_broadphase(broadphase_filter):
     nsweep_in: int,
     # Data out:
     collision_pair_out: wp.array(dtype=wp.vec2i),
-    collision_hftri_index_out: wp.array(dtype=int),
     collision_pairid_out: wp.array(dtype=int),
     collision_worldid_out: wp.array(dtype=int),
     ncollision_out: wp.array(dtype=int),
@@ -485,7 +460,6 @@ def _sap_broadphase(broadphase_filter):
           worldid,
           idx,
           collision_pair_out,
-          collision_hftri_index_out,
           collision_pairid_out,
           collision_worldid_out,
           ncollision_out,
@@ -615,7 +589,6 @@ def sap_broadphase(m: Model, d: Data):
     ],
     outputs=[
       d.collision_pair,
-      d.collision_hftri_index,
       d.collision_pairid,
       d.collision_worldid,
       d.ncollision,
@@ -625,7 +598,7 @@ def sap_broadphase(m: Model, d: Data):
 
 @cache_kernel
 def _nxn_broadphase(broadphase_filter):
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def kernel(
     # Model:
     geom_type: wp.array(dtype=int),
@@ -640,7 +613,6 @@ def _nxn_broadphase(broadphase_filter):
     geom_xmat_in: wp.array2d(dtype=wp.mat33),
     # Data out:
     collision_pair_out: wp.array(dtype=wp.vec2i),
-    collision_hftri_index_out: wp.array(dtype=int),
     collision_pairid_out: wp.array(dtype=int),
     collision_worldid_out: wp.array(dtype=int),
     ncollision_out: wp.array(dtype=int),
@@ -661,7 +633,6 @@ def _nxn_broadphase(broadphase_filter):
         worldid,
         elementid,
         collision_pair_out,
-        collision_hftri_index_out,
         collision_pairid_out,
         collision_worldid_out,
         ncollision_out,
@@ -702,7 +673,6 @@ def nxn_broadphase(m: Model, d: Data):
     ],
     outputs=[
       d.collision_pair,
-      d.collision_hftri_index,
       d.collision_pairid,
       d.collision_worldid,
       d.ncollision,
@@ -711,10 +681,6 @@ def nxn_broadphase(m: Model, d: Data):
 
 
 def _narrowphase(m, d):
-  # Process heightfield collisions
-  if m.nhfield > 0:
-    hfield_midphase(m, d)
-
   # TODO(team): we should reject far-away contacts in the narrowphase instead of constraint
   #             partitioning because we can move some pressure of the atomics
   convex_narrowphase(m, d)
@@ -743,19 +709,8 @@ def collision(m: Model, d: Data):
   via `m.opt.disableflags` or if `d.nconmax` is 0.
   """
 
-  # zero collision-related arrays
-  wp.launch(
-    _zero_collision_arrays,
-    dim=d.nconmax,
-    inputs=[
-      d.nworld,
-      d.ncon_hfield.shape[1],
-      d.ncon,
-      d.ncon_hfield.reshape(-1),
-      d.collision_hftri_index,
-      d.ncollision,
-    ],
-  )
+  # zero contact and collision counters
+  wp.launch(_zero_ncon_ncollision, dim=1, outputs=[d.ncon, d.ncollision])
 
   if d.nconmax == 0 or m.opt.disableflags & (DisableBit.CONSTRAINT | DisableBit.CONTACT):
     return

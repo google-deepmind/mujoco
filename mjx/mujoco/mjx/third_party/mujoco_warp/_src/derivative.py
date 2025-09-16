@@ -82,8 +82,8 @@ def _qderiv_actuator_passive(
 
       qderiv += actuator_moment_in[worldid, actid, dofiid] * actuator_moment_in[worldid, actid, dofjid] * vel
 
-    if passive_enabled and dofiid == dofjid:
-      qderiv -= dof_damping[worldid, dofiid] / float(nu)
+  if passive_enabled and dofiid == dofjid:
+    qderiv -= dof_damping[worldid, dofiid]
 
   qderiv *= opt_timestep[worldid]
 

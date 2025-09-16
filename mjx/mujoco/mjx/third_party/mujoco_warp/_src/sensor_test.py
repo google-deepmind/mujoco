@@ -409,7 +409,6 @@ class SensorTest(parameterized.TestCase):
     _assert_eq(d.energy.numpy()[0][1], mjd.energy[1], "kinetic energy")
 
   @parameterized.parameters(
-    'type="sphere" size=".1"',
     'type="capsule" size=".1 .1" euler="0 89 89"',
     'type="box" size=".1 .11 .12" euler=".02 .05 .1"',
   )
@@ -422,33 +421,40 @@ class SensorTest(parameterized.TestCase):
     datas = ["found", "force dist normal", "torque pos tangent", "found force torque dist pos normal tangent"]
 
     for geoms in [
+      'geom2="plane"',
       'geom1="plane" geom2="geom"',
       'geom1="geom" geom2="plane"',
-      'geom1="sphere" geom2="plane"',
-      'geom1="geom" geom2="sphere"',
+      'body1="plane"',
+      'body1="plane" body2="geom"',
+      'body1="geom" body2="plane"',
     ]:
-      for num in [1, 3, 5]:
-        for reduce in ["mindist", "maxforce"]:
+      for num in [1, 5]:
+        for reduce in [None, "mindist", "maxforce"]:
           for data in datas:
-            contact_sensor += f'<contact {geoms} num="{num}" reduce="{reduce}" data="{data}"/>'
+            contact_sensor += f'<contact {geoms} num="{num}"'
+            if reduce is not None:
+              contact_sensor += f' reduce="{reduce}"'
+            contact_sensor += f' data="{data}"/>'
 
     _MJCF = f"""
     <mujoco>
       <compiler angle="degree"/>
       <option cone="pyramidal"/>
       <worldbody>
-        <geom name="plane" type="plane" size="10 10 .001"/>
-        <body>
+        <body name="plane">
+          <geom name="plane" type="plane" size="10 10 .001"/>
+        </body>
+        <body name="geom">
           <geom name="geom" {geom}/>
           <joint type="slide" axis="0 0 1"/>
         </body>
-        <body>
+        <body name="sphere">
           <geom name="sphere" type="sphere" size=".1"/>
           <joint type="slide" axis="0 0 1"/>
         </body>
       </worldbody>
       <keyframe>
-        <key qpos=".09 1"/>
+        <key qpos=".08 1"/>
       </keyframe>
       <sensor>
         {contact_sensor}
@@ -461,6 +467,143 @@ class SensorTest(parameterized.TestCase):
     d.sensordata.zero_()
     mjwarp.forward(m, d)
 
+    print(f"ncon: {d.ncon.numpy()}")
+
+    sensordata = d.sensordata.numpy()[0]
+    _assert_eq(sensordata, mjd.sensordata, "sensordata")
+    self.assertTrue(sensordata.any())  # check that sensordata is not empty
+
+  def test_contact_sensor_subtree(self):
+    """Test contact sensor with subtree matching semantics."""
+    _MJCF = f"""
+    <mujoco>
+      <worldbody>
+        <geom type="plane" size="2 2 .01"/>
+        <body name="thigh" pos="-1 0 .1">
+          <joint type="slide"/>
+          <geom type="capsule" size=".1" fromto="0 0 0 .5 0 0"/>
+          <body name="shin" pos=".7 0 0">
+            <joint axis="0 1 0"/>
+            <geom type="capsule" size=".1" fromto="0 0 0 0 0 .5"/>
+            <body name="foot" pos="0 0 .7">
+              <joint axis="0 1 0"/>
+              <geom type="capsule" size=".1" fromto="0 0 0 -.7 0 0"/>
+            </body>
+          </body>
+        </body>
+      </worldbody>
+      <sensor>
+        <contact name="all" reduce="mindist"/>
+        <contact name="world" subtree1="world" reduce="mindist"/>
+        <contact name="thigh" subtree1="thigh" reduce="mindist"/>
+        <contact name="shin" subtree1="shin" reduce="mindist"/>
+        <contact name="foot" subtree1="foot" reduce="mindist"/>
+        <contact name="foot_w" subtree1="foot" body2="world" reduce="mindist"/>
+        <contact name="foot_w2" subtree1="foot" subtree2="world" reduce="mindist"/>
+      </sensor>
+      <keyframe>
+        <key qpos="-6.96651e-05 -0.0478055 -0.746498"/>
+      </keyframe>
+    </mujoco>
+    """
+    _, _, m, d = test_util.fixture(xml=_MJCF, nconmax=12, njmax=48, keyframe=0)
+
+    d.sensordata.zero_()
+    mjwarp.forward(m, d)
+
+    _assert_eq(d.sensordata.numpy()[0], np.array([4, 4, 4, 2, 1, 0, 1]), "found")
+
+  def test_contact_sensor_subtree_found_zero(self):
+    """Test contact sensor with subtree matching semantics generates found=0."""
+    _MJCF = f"""
+    <mujoco>
+      <worldbody>
+        <geom type="plane" size="2 2 .01"/>
+        <body name="base">
+          <joint type="slide" axis="1 0 0"/>
+          <joint type="slide" axis="0 0 1"/>
+          <geom type="capsule" size=".1" fromto="0 0 0 1 0 0"/>
+          <body name="body0">
+            <joint axis="0 1 0"/>
+            <geom type="capsule" size=".1" fromto="0 0 0 0 0 -1"/>
+          </body>
+          <body name="body1" pos="1 0 0">
+            <joint axis="0 1 0"/>
+            <geom type="capsule" size=".1" fromto="0 0 0 0 0 -1"/>
+          </body>
+        </body>
+      </worldbody>
+      <sensor>
+        <contact subtree1="base" subtree2="base"/>
+      </sensor>
+      <keyframe>
+        <key qpos="0 1 0 0"/>
+      </keyframe>
+    </mujoco>
+    """
+    _, _, m, d = test_util.fixture(xml=_MJCF, nconmax=2, njmax=8, keyframe=0)
+
+    d.sensordata.fill_(wp.inf)
+    mjwarp.forward(m, d)
+
+    _assert_eq(d.ncon.numpy()[0], 2, "ncon")
+    _assert_eq(d.sensordata.numpy()[0], 0, "found")
+
+  @parameterized.product(site_geom=["sphere", "capsule", "ellipsoid", "cylinder", "box"], key_pos=["0 0 10", "0 0 .09"])
+  def test_contact_sensor_site(self, site_geom, key_pos):
+    _, mjd, m, d = test_util.fixture(
+      xml=f"""
+    <mujoco>
+      <worldbody>
+        <geom type="plane" size="10 10 .001"/>
+        <site name="site" type="{site_geom}" size=".1 .2 .3"/>
+        <body>
+          <geom type="sphere" size=".1"/>
+          <freejoint/>
+        </body>
+      </worldbody>
+      <sensor>
+        <contact site="site" reduce="mindist"/>
+      </sensor>
+      <keyframe>
+        <key qpos="{key_pos} 1 0 0 0"/>
+      </keyframe>
+    </mujoco>
+    """,
+      keyframe=0,
+    )
+
+    d.sensordata.zero_()
+    mjwarp.forward(m, d)
+
+    _assert_eq(d.sensordata.numpy()[0], mjd.sensordata, "sensordata")
+
+  def test_contact_sensor_netforce(self):
+    """Test contact sensor with netforce reduction."""
+    _, mjd, m, d = test_util.fixture(
+      xml="""
+    <mujoco>
+      <worldbody>
+        <geom name="plane" type="plane" size="10 10 .001"/>
+        <body>
+          <geom name="box" type="box" size=".1 .1 .1"/>
+          <freejoint/>
+        </body>
+      </worldbody>
+      <sensor>
+        <contact geom1="plane" geom2="box" data="found force torque dist pos normal tangent" reduce="netforce" num="2"/>
+        <contact geom1="box" geom2="plane" data="force torque" reduce="netforce"/>
+      </sensor>
+      <keyframe>
+        <key qpos="0 0 .09 1 0 0 0"/>
+      </keyframe>
+    </mujoco>
+    """,
+      keyframe=0,
+    )
+
+    d.sensordata.zero_()
+    mjwarp.forward(m, d)
     sensordata = d.sensordata.numpy()[0]
     _assert_eq(sensordata, mjd.sensordata, "sensordata")
     self.assertTrue(sensordata.any())  # check that sensordata is not empty

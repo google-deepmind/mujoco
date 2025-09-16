@@ -42,7 +42,6 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel as nested_kernel
 
 wp.set_module_options({"enable_backward": False})
@@ -358,7 +357,7 @@ def _euler_sparse(m: Model, d: Data):
 
 @cache_kernel
 def _tile_euler_dense(tile: TileSet):
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def euler_dense(
     # Model:
     dof_damping: wp.array2d(dtype=float),
@@ -558,7 +557,7 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
 def _actuator_velocity(m: Model, d: Data):
   NV = m.nv
 
-  @kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def actuator_velocity(
     # Data in:
     qvel_in: wp.array2d(dtype=float),
@@ -590,7 +589,7 @@ def _actuator_velocity(m: Model, d: Data):
 def _tendon_velocity(m: Model, d: Data):
   NV = m.nv
 
-  @kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def tendon_velocity(
     # Data in:
     qvel_in: wp.array2d(dtype=float),

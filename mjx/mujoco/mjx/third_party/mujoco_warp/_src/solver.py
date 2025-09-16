@@ -702,7 +702,7 @@ def linesearch_zero_jv(
 
 @cache_kernel
 def linesearch_jv_fused(nv: int, dofs_per_thread: int):
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
     nefc_in: wp.array(dtype=int),
@@ -1211,7 +1211,7 @@ def update_constraint_init_qfrc_constraint(
 
 @cache_kernel
 def update_constraint_gauss_cost(nv: int, dofs_per_thread: int):
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
     qacc_in: wp.array2d(dtype=float),
@@ -1603,7 +1603,7 @@ def update_gradient_JTCJ(
 
 @cache_kernel
 def update_gradient_cholesky(tile_size: int):
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
     efc_grad_in: wp.array2d(dtype=float),
@@ -1629,7 +1629,7 @@ def update_gradient_cholesky(tile_size: int):
 
 @cache_kernel
 def update_gradient_cholesky_blocked(tile_size: int):
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def kernel(
     # Data in:
     efc_grad_in: wp.array3d(dtype=float),

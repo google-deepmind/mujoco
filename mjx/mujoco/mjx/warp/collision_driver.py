@@ -42,6 +42,7 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
+
 @ffi.format_args_for_warp
 def _collision_shim(
     # Model
@@ -55,22 +56,21 @@ def _collision_shim(
     geom_margin: wp.array2d(dtype=float),
     geom_pair_type_count: tuple[int, ...],
     geom_plugin_index: wp.array(dtype=int),
-    geom_pos: wp.array2d(dtype=wp.vec3),
     geom_priority: wp.array(dtype=int),
-    geom_quat: wp.array2d(dtype=wp.quat),
     geom_rbound: wp.array2d(dtype=float),
     geom_size: wp.array2d(dtype=wp.vec3),
     geom_solimp: wp.array2d(dtype=mjwp_types.vec5),
     geom_solmix: wp.array2d(dtype=float),
     geom_solref: wp.array2d(dtype=wp.vec2),
     geom_type: wp.array(dtype=int),
-    geompair2hfgeompair: wp.array(dtype=int),
     has_sdf_geom: bool,
     hfield_adr: wp.array(dtype=int),
     hfield_data: wp.array(dtype=float),
     hfield_ncol: wp.array(dtype=int),
     hfield_nrow: wp.array(dtype=int),
     hfield_size: wp.array(dtype=wp.vec4),
+    mesh_face: wp.array(dtype=wp.vec3i),
+    mesh_faceadr: wp.array(dtype=int),
     mesh_graph: wp.array(dtype=int),
     mesh_graphadr: wp.array(dtype=int),
     mesh_polyadr: wp.array(dtype=int),
@@ -86,10 +86,13 @@ def _collision_shim(
     mesh_vertadr: wp.array(dtype=int),
     mesh_vertnum: wp.array(dtype=int),
     ngeom: int,
-    nhfield: int,
+    nmeshface: int,
     nxn_geom_pair_filtered: wp.array(dtype=wp.vec2i),
     nxn_pairid: wp.array(dtype=int),
     nxn_pairid_filtered: wp.array(dtype=int),
+    oct_aabb: wp.array2d(dtype=wp.vec3),
+    oct_child: wp.array(dtype=mjwp_types.vec8i),
+    oct_coeff: wp.array(dtype=mjwp_types.vec8f),
     pair_dim: wp.array(dtype=int),
     pair_friction: wp.array2d(dtype=mjwp_types.vec5),
     pair_gap: wp.array2d(dtype=float),
@@ -101,6 +104,7 @@ def _collision_shim(
     plugin_attr: wp.array(dtype=wp.vec3f),
     opt__broadphase: int,
     opt__broadphase_filter: int,
+    opt__ccd_tolerance: wp.array(dtype=float),
     opt__disableflags: int,
     opt__epa_iterations: int,
     opt__gjk_iterations: int,
@@ -110,7 +114,6 @@ def _collision_shim(
     opt__sdf_iterations: int,
     # Data
     nconmax: int,
-    collision_hftri_index: wp.array(dtype=int),
     collision_pair: wp.array(dtype=wp.vec2i),
     collision_pairid: wp.array(dtype=int),
     collision_worldid: wp.array(dtype=int),
@@ -127,9 +130,19 @@ def _collision_shim(
     epa_vert_index2: wp.array2d(dtype=int),
     geom_xmat: wp.array2d(dtype=wp.mat33),
     geom_xpos: wp.array2d(dtype=wp.vec3),
+    multiccd_clipped: wp.array2d(dtype=wp.vec3),
+    multiccd_endvert: wp.array2d(dtype=wp.vec3),
+    multiccd_face1: wp.array2d(dtype=wp.vec3),
+    multiccd_face2: wp.array2d(dtype=wp.vec3),
+    multiccd_idx1: wp.array2d(dtype=int),
+    multiccd_idx2: wp.array2d(dtype=int),
+    multiccd_n1: wp.array2d(dtype=wp.vec3),
+    multiccd_n2: wp.array2d(dtype=wp.vec3),
+    multiccd_pdist: wp.array2d(dtype=float),
+    multiccd_pnormal: wp.array2d(dtype=wp.vec3),
+    multiccd_polygon: wp.array2d(dtype=wp.vec3),
     ncollision: wp.array(dtype=int),
     ncon: wp.array(dtype=int),
-    ncon_hfield: wp.array2d(dtype=int),
     sap_cumulative_sum: wp.array2d(dtype=int),
     sap_projection_lower: wp.array3d(dtype=float),
     sap_projection_upper: wp.array2d(dtype=float),
@@ -161,22 +174,21 @@ def _collision_shim(
   _m.geom_margin = geom_margin
   _m.geom_pair_type_count = geom_pair_type_count
   _m.geom_plugin_index = geom_plugin_index
-  _m.geom_pos = geom_pos
   _m.geom_priority = geom_priority
-  _m.geom_quat = geom_quat
   _m.geom_rbound = geom_rbound
   _m.geom_size = geom_size
   _m.geom_solimp = geom_solimp
   _m.geom_solmix = geom_solmix
   _m.geom_solref = geom_solref
   _m.geom_type = geom_type
-  _m.geompair2hfgeompair = geompair2hfgeompair
   _m.has_sdf_geom = has_sdf_geom
   _m.hfield_adr = hfield_adr
   _m.hfield_data = hfield_data
   _m.hfield_ncol = hfield_ncol
   _m.hfield_nrow = hfield_nrow
   _m.hfield_size = hfield_size
+  _m.mesh_face = mesh_face
+  _m.mesh_faceadr = mesh_faceadr
   _m.mesh_graph = mesh_graph
   _m.mesh_graphadr = mesh_graphadr
   _m.mesh_polyadr = mesh_polyadr
@@ -192,12 +204,16 @@ def _collision_shim(
   _m.mesh_vertadr = mesh_vertadr
   _m.mesh_vertnum = mesh_vertnum
   _m.ngeom = ngeom
-  _m.nhfield = nhfield
+  _m.nmeshface = nmeshface
   _m.nxn_geom_pair_filtered = nxn_geom_pair_filtered
   _m.nxn_pairid = nxn_pairid
   _m.nxn_pairid_filtered = nxn_pairid_filtered
+  _m.oct_aabb = oct_aabb
+  _m.oct_child = oct_child
+  _m.oct_coeff = oct_coeff
   _m.opt.broadphase = opt__broadphase
   _m.opt.broadphase_filter = opt__broadphase_filter
+  _m.opt.ccd_tolerance = opt__ccd_tolerance
   _m.opt.disableflags = opt__disableflags
   _m.opt.epa_iterations = opt__epa_iterations
   _m.opt.gjk_iterations = opt__gjk_iterations
@@ -214,7 +230,6 @@ def _collision_shim(
   _m.pair_solreffriction = pair_solreffriction
   _m.plugin = plugin
   _m.plugin_attr = plugin_attr
-  _d.collision_hftri_index = collision_hftri_index
   _d.collision_pair = collision_pair
   _d.collision_pairid = collision_pairid
   _d.collision_worldid = collision_worldid
@@ -242,9 +257,19 @@ def _collision_shim(
   _d.epa_vert_index2 = epa_vert_index2
   _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
+  _d.multiccd_clipped = multiccd_clipped
+  _d.multiccd_endvert = multiccd_endvert
+  _d.multiccd_face1 = multiccd_face1
+  _d.multiccd_face2 = multiccd_face2
+  _d.multiccd_idx1 = multiccd_idx1
+  _d.multiccd_idx2 = multiccd_idx2
+  _d.multiccd_n1 = multiccd_n1
+  _d.multiccd_n2 = multiccd_n2
+  _d.multiccd_pdist = multiccd_pdist
+  _d.multiccd_pnormal = multiccd_pnormal
+  _d.multiccd_polygon = multiccd_polygon
   _d.ncollision = ncollision
   _d.ncon = ncon
-  _d.ncon_hfield = ncon_hfield
   _d.nconmax = nconmax
   _d.sap_cumulative_sum = sap_cumulative_sum
   _d.sap_projection_lower = sap_projection_lower
@@ -258,7 +283,6 @@ def _collision_shim(
 
 def _collision_jax_impl(m: types.Model, d: types.Data):
   output_dims = {
-      'collision_hftri_index': d._impl.collision_hftri_index.shape,
       'collision_pair': d._impl.collision_pair.shape,
       'collision_pairid': d._impl.collision_pairid.shape,
       'collision_worldid': d._impl.collision_worldid.shape,
@@ -275,9 +299,19 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       'epa_vert_index2': d._impl.epa_vert_index2.shape,
       'geom_xmat': d.geom_xmat.shape,
       'geom_xpos': d.geom_xpos.shape,
+      'multiccd_clipped': d._impl.multiccd_clipped.shape,
+      'multiccd_endvert': d._impl.multiccd_endvert.shape,
+      'multiccd_face1': d._impl.multiccd_face1.shape,
+      'multiccd_face2': d._impl.multiccd_face2.shape,
+      'multiccd_idx1': d._impl.multiccd_idx1.shape,
+      'multiccd_idx2': d._impl.multiccd_idx2.shape,
+      'multiccd_n1': d._impl.multiccd_n1.shape,
+      'multiccd_n2': d._impl.multiccd_n2.shape,
+      'multiccd_pdist': d._impl.multiccd_pdist.shape,
+      'multiccd_pnormal': d._impl.multiccd_pnormal.shape,
+      'multiccd_polygon': d._impl.multiccd_polygon.shape,
       'ncollision': d._impl.ncollision.shape,
       'ncon': d._impl.ncon.shape,
-      'ncon_hfield': d._impl.ncon_hfield.shape,
       'sap_cumulative_sum': d._impl.sap_cumulative_sum.shape,
       'sap_projection_lower': d._impl.sap_projection_lower.shape,
       'sap_projection_upper': d._impl.sap_projection_upper.shape,
@@ -298,11 +332,10 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _collision_shim,
-      num_outputs=37,
+      num_outputs=46,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames={
-          'collision_hftri_index',
           'collision_pair',
           'collision_pairid',
           'collision_worldid',
@@ -319,9 +352,19 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'epa_vert_index2',
           'geom_xmat',
           'geom_xpos',
+          'multiccd_clipped',
+          'multiccd_endvert',
+          'multiccd_face1',
+          'multiccd_face2',
+          'multiccd_idx1',
+          'multiccd_idx2',
+          'multiccd_n1',
+          'multiccd_n2',
+          'multiccd_pdist',
+          'multiccd_pnormal',
+          'multiccd_polygon',
           'ncollision',
           'ncon',
-          'ncon_hfield',
           'sap_cumulative_sum',
           'sap_projection_lower',
           'sap_projection_upper',
@@ -352,22 +395,21 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.geom_margin,
       m._impl.geom_pair_type_count,
       m._impl.geom_plugin_index,
-      m.geom_pos,
       m.geom_priority,
-      m.geom_quat,
       m.geom_rbound,
       m.geom_size,
       m.geom_solimp,
       m.geom_solmix,
       m.geom_solref,
       m.geom_type,
-      m._impl.geompair2hfgeompair,
       m._impl.has_sdf_geom,
       m.hfield_adr,
       m.hfield_data,
       m.hfield_ncol,
       m.hfield_nrow,
       m.hfield_size,
+      m.mesh_face,
+      m.mesh_faceadr,
       m.mesh_graph,
       m.mesh_graphadr,
       m._impl.mesh_polyadr,
@@ -383,10 +425,13 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.mesh_vertadr,
       m.mesh_vertnum,
       m.ngeom,
-      m.nhfield,
+      m.nmeshface,
       m._impl.nxn_geom_pair_filtered,
       m._impl.nxn_pairid,
       m._impl.nxn_pairid_filtered,
+      m._impl.oct_aabb,
+      m._impl.oct_child,
+      m._impl.oct_coeff,
       m.pair_dim,
       m.pair_friction,
       m.pair_gap,
@@ -398,6 +443,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.plugin_attr,
       m.opt._impl.broadphase,
       m.opt._impl.broadphase_filter,
+      m.opt._impl.ccd_tolerance,
       m.opt.disableflags,
       m.opt._impl.epa_iterations,
       m.opt._impl.gjk_iterations,
@@ -406,7 +452,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.opt._impl.sdf_initpoints,
       m.opt._impl.sdf_iterations,
       d._impl.nconmax,
-      d._impl.collision_hftri_index,
       d._impl.collision_pair,
       d._impl.collision_pairid,
       d._impl.collision_worldid,
@@ -423,9 +468,19 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       d._impl.epa_vert_index2,
       d.geom_xmat,
       d.geom_xpos,
+      d._impl.multiccd_clipped,
+      d._impl.multiccd_endvert,
+      d._impl.multiccd_face1,
+      d._impl.multiccd_face2,
+      d._impl.multiccd_idx1,
+      d._impl.multiccd_idx2,
+      d._impl.multiccd_n1,
+      d._impl.multiccd_n2,
+      d._impl.multiccd_pdist,
+      d._impl.multiccd_pnormal,
+      d._impl.multiccd_polygon,
       d._impl.ncollision,
       d._impl.ncon,
-      d._impl.ncon_hfield,
       d._impl.sap_cumulative_sum,
       d._impl.sap_projection_lower,
       d._impl.sap_projection_upper,
@@ -445,43 +500,52 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       d._impl.contact__worldid,
   )
   d = d.tree_replace({
-      '_impl.collision_hftri_index': out[0],
-      '_impl.collision_pair': out[1],
-      '_impl.collision_pairid': out[2],
-      '_impl.collision_worldid': out[3],
-      '_impl.epa_face': out[4],
-      '_impl.epa_horizon': out[5],
-      '_impl.epa_index': out[6],
-      '_impl.epa_map': out[7],
-      '_impl.epa_norm2': out[8],
-      '_impl.epa_pr': out[9],
-      '_impl.epa_vert': out[10],
-      '_impl.epa_vert1': out[11],
-      '_impl.epa_vert2': out[12],
-      '_impl.epa_vert_index1': out[13],
-      '_impl.epa_vert_index2': out[14],
-      'geom_xmat': out[15],
-      'geom_xpos': out[16],
-      '_impl.ncollision': out[17],
-      '_impl.ncon': out[18],
-      '_impl.ncon_hfield': out[19],
-      '_impl.sap_cumulative_sum': out[20],
-      '_impl.sap_projection_lower': out[21],
-      '_impl.sap_projection_upper': out[22],
-      '_impl.sap_range': out[23],
-      '_impl.sap_segment_index': out[24],
-      '_impl.sap_sort_index': out[25],
-      '_impl.contact__dim': out[26],
-      '_impl.contact__dist': out[27],
-      '_impl.contact__frame': out[28],
-      '_impl.contact__friction': out[29],
-      '_impl.contact__geom': out[30],
-      '_impl.contact__includemargin': out[31],
-      '_impl.contact__pos': out[32],
-      '_impl.contact__solimp': out[33],
-      '_impl.contact__solref': out[34],
-      '_impl.contact__solreffriction': out[35],
-      '_impl.contact__worldid': out[36],
+      '_impl.collision_pair': out[0],
+      '_impl.collision_pairid': out[1],
+      '_impl.collision_worldid': out[2],
+      '_impl.epa_face': out[3],
+      '_impl.epa_horizon': out[4],
+      '_impl.epa_index': out[5],
+      '_impl.epa_map': out[6],
+      '_impl.epa_norm2': out[7],
+      '_impl.epa_pr': out[8],
+      '_impl.epa_vert': out[9],
+      '_impl.epa_vert1': out[10],
+      '_impl.epa_vert2': out[11],
+      '_impl.epa_vert_index1': out[12],
+      '_impl.epa_vert_index2': out[13],
+      'geom_xmat': out[14],
+      'geom_xpos': out[15],
+      '_impl.multiccd_clipped': out[16],
+      '_impl.multiccd_endvert': out[17],
+      '_impl.multiccd_face1': out[18],
+      '_impl.multiccd_face2': out[19],
+      '_impl.multiccd_idx1': out[20],
+      '_impl.multiccd_idx2': out[21],
+      '_impl.multiccd_n1': out[22],
+      '_impl.multiccd_n2': out[23],
+      '_impl.multiccd_pdist': out[24],
+      '_impl.multiccd_pnormal': out[25],
+      '_impl.multiccd_polygon': out[26],
+      '_impl.ncollision': out[27],
+      '_impl.ncon': out[28],
+      '_impl.sap_cumulative_sum': out[29],
+      '_impl.sap_projection_lower': out[30],
+      '_impl.sap_projection_upper': out[31],
+      '_impl.sap_range': out[32],
+      '_impl.sap_segment_index': out[33],
+      '_impl.sap_sort_index': out[34],
+      '_impl.contact__dim': out[35],
+      '_impl.contact__dist': out[36],
+      '_impl.contact__frame': out[37],
+      '_impl.contact__friction': out[38],
+      '_impl.contact__geom': out[39],
+      '_impl.contact__includemargin': out[40],
+      '_impl.contact__pos': out[41],
+      '_impl.contact__solimp': out[42],
+      '_impl.contact__solref': out[43],
+      '_impl.contact__solreffriction': out[44],
+      '_impl.contact__worldid': out[45],
   })
   return d
 

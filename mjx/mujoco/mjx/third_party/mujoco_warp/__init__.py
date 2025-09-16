@@ -21,6 +21,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Model as Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data as Data
 # isort: on
 
+from ._src import test_util as test_util  # used by viewer and testspeed, not meant for public consumption
 from mujoco.mjx.third_party.mujoco_warp._src.collision_driver import collision as collision
 from mujoco.mjx.third_party.mujoco_warp._src.collision_driver import nxn_broadphase as nxn_broadphase
 from mujoco.mjx.third_party.mujoco_warp._src.collision_driver import sap_broadphase as sap_broadphase
@@ -43,6 +44,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.io import get_data_into as get_data
 from mujoco.mjx.third_party.mujoco_warp._src.io import make_data as make_data
 from mujoco.mjx.third_party.mujoco_warp._src.io import put_data as put_data
 from mujoco.mjx.third_party.mujoco_warp._src.io import put_model as put_model
+from mujoco.mjx.third_party.mujoco_warp._src.io import reset_data as reset_data
 from mujoco.mjx.third_party.mujoco_warp._src.passive import passive as passive
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray as ray
 from mujoco.mjx.third_party.mujoco_warp._src.sensor import energy_pos as energy_pos
@@ -66,8 +68,6 @@ from mujoco.mjx.third_party.mujoco_warp._src.solver import solve as solve
 from mujoco.mjx.third_party.mujoco_warp._src.support import contact_force as contact_force
 from mujoco.mjx.third_party.mujoco_warp._src.support import mul_m as mul_m
 from mujoco.mjx.third_party.mujoco_warp._src.support import xfrc_accumulate as xfrc_accumulate
-from mujoco.mjx.third_party.mujoco_warp._src.test_util import BenchmarkSuite as BenchmarkSuite
-from mujoco.mjx.third_party.mujoco_warp._src.test_util import benchmark as benchmark
 from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseFilter as BroadphaseFilter
 from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseType as BroadphaseType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType as ConeType

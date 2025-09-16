@@ -24,6 +24,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
 
+wp.set_module_options({"enable_backward": False})
+
 
 @wp.func
 def _ray_map(pos: wp.vec3, mat: wp.mat33, pnt: wp.vec3, vec: wp.vec3) -> Tuple[wp.vec3, wp.vec3]:
@@ -534,7 +536,7 @@ def _ray_hfield(
 
 
 @wp.func
-def _ray_mesh(
+def ray_mesh(
   # Model:
   nmeshface: int,
   mesh_vertadr: wp.array(dtype=int),
@@ -674,7 +676,7 @@ def _ray_geom_mesh(
     type = geom_type[geomid]
 
     if type == int(GeomType.MESH.value):
-      return _ray_mesh(
+      return ray_mesh(
         nmeshface,
         mesh_vertadr,
         mesh_vert,

@@ -16,6 +16,6 @@ jax-cuda12-pjrt==0.5.3; python_version >= '3.10' \
 jax-cuda12-pjrt==0.4.30; python_version == '3.9' \
     --hash=sha256:895d0198ad99638fcaf976c47592e2a543eef79ea15fabd24a402d055390c328 \
     --hash=sha256:c36fb1e0c236563bf3a87e70f4d1ab28a31d7cf5d722c9ede30c4172116e8bcb
-warp-lang==1.8.1 \
-    --hash=sha256:cfc59e1070ad71531b5d83186de48162507277af344a102fa33d5df9cdb942f7 \
-    --hash=sha256:1db9ca92c46902b76bb99565c544347d1a32e9fb875ce902f1cafb94978d1ac3
+warp-lang==1.9.0 \
+    --hash=sha256:23165d3291eeecc5ac47b9a3de0b93d34b4c921414e5a761ab96d68861efa3cb \
+    --hash=sha256:7ea8057e5d6fdb9b0885d725b51954c5fc6dac62d6ac007828148b1cb13ee615

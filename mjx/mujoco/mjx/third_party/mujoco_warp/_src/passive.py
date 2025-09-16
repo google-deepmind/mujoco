@@ -24,6 +24,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
+wp.set_module_options({"enable_backward": False})
+
 
 @wp.kernel
 def _spring_damper_dof_passive(

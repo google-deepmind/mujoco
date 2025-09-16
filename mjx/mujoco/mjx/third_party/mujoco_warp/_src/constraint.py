@@ -23,7 +23,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec11
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 
-wp.config.enable_backward = False
+wp.set_module_options({"enable_backward": False})
 
 
 @wp.kernel

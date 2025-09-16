@@ -21,6 +21,7 @@ import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import WrapType
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10
 
@@ -601,3 +602,36 @@ def muscle_dynamics(control: float, activation: float, prm: vec10) -> float:
 
   # filter output
   return dctrl / wp.max(MJ_MINVAL, tau)
+
+
+@wp.func
+def inside_geom(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, geomtype: int, point: wp.vec3) -> bool:
+  """Return True if point is inside primitive geom, False otherwise."""
+  # vector from geom to point
+  vec = point - pos
+
+  # quick return for spheres, frame rotation not required
+  if geomtype == int(GeomType.SPHERE.value):
+    return wp.dot(vec, vec) < size[0] * size[0]
+
+  # rotate into local frame
+  plocal = wp.transpose(mat) @ vec
+
+  # handle other geom types
+  if geomtype == int(GeomType.CAPSULE.value):
+    z = plocal[2]
+    z_clamped = wp.clamp(z, -size[1], size[1])
+    z_dif = z - z_clamped
+    z_dist_sq = z_dif * z_dif
+    return plocal[0] * plocal[0] + plocal[1] * plocal[1] + z_dist_sq < size[0] * size[0]
+  elif geomtype == int(GeomType.ELLIPSOID.value):
+    plocalsize = wp.cw_div(plocal, size)
+    return wp.dot(plocalsize, plocalsize) < 1.0
+  elif geomtype == int(GeomType.CYLINDER.value):
+    return (wp.abs(plocal[2]) < size[1]) and (plocal[0] * plocal[0] + plocal[1] * plocal[1] < size[0] * size[0])
+  elif geomtype == int(GeomType.BOX.value):
+    return wp.abs(plocal[0]) < size[0] and wp.abs(plocal[1]) < size[1] and wp.abs(plocal[2]) < size[2]
+  elif geomtype == int(GeomType.PLANE.value):
+    return plocal[2] < 0.0
+
+  return False

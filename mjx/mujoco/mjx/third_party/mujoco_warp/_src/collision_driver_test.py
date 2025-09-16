@@ -25,6 +25,24 @@ from mujoco.mjx.third_party.mujoco_warp.test_data.collision_sdf.utils import reg
 
 from mujoco.mjx.third_party.mujoco_warp._src import test_util
 from mujoco.mjx.third_party.mujoco_warp._src import types
+from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import VolumeData
+from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import sample_volume_sdf
+
+
+@wp.kernel
+def sample_sdf_kernel(
+  # In:
+  points: wp.array(dtype=wp.vec3),
+  volume_data: VolumeData,
+  # Out:
+  results_out: wp.array(dtype=float),
+):
+  """Kernel to sample SDF values at given points using Warp volume."""
+  tid = wp.tid()
+  point = points[tid]
+  sdf_value = sample_volume_sdf(point, volume_data)
+  results_out[tid] = sdf_value
+
 
 _TOLERANCE = 5e-5
 
@@ -599,7 +617,8 @@ class CollisionTest(parameterized.TestCase):
     self.assertEqual(m.nxn_geom_pair.numpy().shape[0], 3)
     np.testing.assert_equal(m.nxn_pairid.numpy(), np.array([-2, -1, -1]))
 
-  def test_contact_pair(self):
+  @parameterized.parameters(list(types.BroadphaseType))
+  def test_contact_pair(self, broadphase):
     """Tests contact pair."""
     # no pairs
     _, _, m, _ = test_util.fixture(
@@ -612,7 +631,8 @@ class CollisionTest(parameterized.TestCase):
           </body>
         </worldbody>
       </mujoco>
-    """
+    """,
+      broadphase=broadphase,
     )
     self.assertTrue((m.nxn_pairid.numpy() == -1).all())
 
@@ -797,8 +817,6 @@ class CollisionTest(parameterized.TestCase):
     np.testing.assert_allclose(d.contact.solref.numpy()[1], np.array([-0.25, -0.5]))
     np.testing.assert_allclose(d.contact.solreffriction.numpy()[1], np.array([2.0, 4.0]))
     np.testing.assert_allclose(d.contact.solimp.numpy()[1], np.array([0.1, 0.2, 0.3, 0.4, 0.5]))
-
-    # TODO(team): test sap_broadphase
 
   @parameterized.parameters(
     (True, True),

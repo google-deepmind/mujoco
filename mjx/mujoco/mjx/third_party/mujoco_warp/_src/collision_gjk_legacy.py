@@ -15,7 +15,6 @@
 
 import warp as wp
 
-from mujoco.mjx.third_party.mujoco_warp._src.collision_hfield import hfield_prism_vertex
 from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import Geom
 from mujoco.mjx.third_party.mujoco_warp._src.math import gjk_normalize
 from mujoco.mjx.third_party.mujoco_warp._src.math import orthonormal
@@ -26,7 +25,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 
 # TODO(team): improve compile time to enable backward pass
-wp.config.enable_backward = False
+wp.set_module_options({"enable_backward": False})
 
 FLOAT_MIN = -1e30
 FLOAT_MAX = 1e30
@@ -121,7 +120,7 @@ def _gjk_support_geom(geom: Geom, geomtype: int, dir: wp.vec3):
   elif geomtype == int(GeomType.HFIELD.value):
     max_dist = float(FLOAT_MIN)
     for i in range(6):
-      vert = hfield_prism_vertex(geom.hfprism, i)
+      vert = geom.hfprism[i]
       dist = wp.dot(vert, local_dir)
       if dist > max_dist:
         max_dist = dist

@@ -326,9 +326,6 @@ class BroadphaseTest(parameterized.TestCase):
     broadphase_caller(m, d)
     self.assertEqual(d.ncollision.numpy()[0], 0)
 
-  # TODO(team): test margin
-  # TODO(team): test DisableBit.FILTERPARENT
-
 
 if __name__ == "__main__":
   wp.init()

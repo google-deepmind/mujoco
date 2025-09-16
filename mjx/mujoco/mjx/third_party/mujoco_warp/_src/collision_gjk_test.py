@@ -30,7 +30,7 @@ MAX_ITERATIONS = 20
 
 
 def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multiccd=False):
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def _gjk_kernel(
     # Model:
     geom_type: wp.array(dtype=int),
@@ -66,6 +66,17 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multicc
     face_index: wp.array(dtype=int),
     face_map: wp.array(dtype=int),
     horizon: wp.array(dtype=int),
+    polygon: wp.array(dtype=wp.vec3),
+    clipped: wp.array(dtype=wp.vec3),
+    pnormal: wp.array(dtype=wp.vec3),
+    pdist: wp.array(dtype=float),
+    idx1: wp.array(dtype=int),
+    idx2: wp.array(dtype=int),
+    n1: wp.array(dtype=wp.vec3),
+    n2: wp.array(dtype=wp.vec3),
+    endvert: wp.array(dtype=wp.vec3),
+    face1: wp.array(dtype=wp.vec3),
+    face2: wp.array(dtype=wp.vec3),
     # Out:
     dist_out: wp.array(dtype=float),
     ncon_out: wp.array(dtype=int),
@@ -152,6 +163,17 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multicc
       face_index,
       face_map,
       horizon,
+      polygon,
+      clipped,
+      pnormal,
+      pdist,
+      idx1,
+      idx2,
+      n1,
+      n2,
+      endvert,
+      face1,
+      face2,
     )
 
     dist_out[0] = dist
@@ -170,6 +192,17 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multicc
   face_index = wp.array(shape=(6 * iterations,), dtype=int)
   face_map = wp.array(shape=(6 * iterations,), dtype=int)
   horizon = wp.array(shape=(6 * iterations,), dtype=int)
+  polygon = wp.array(shape=(150,), dtype=wp.vec3)
+  clipped = wp.array(shape=(150,), dtype=wp.vec3)
+  pnormal = wp.array(shape=(150,), dtype=wp.vec3)
+  pdist = wp.array(shape=(150,), dtype=float)
+  idx1 = wp.array(shape=(150,), dtype=int)
+  idx2 = wp.array(shape=(150,), dtype=int)
+  n1 = wp.array(shape=(150,), dtype=wp.vec3)
+  n2 = wp.array(shape=(150,), dtype=wp.vec3)
+  endvert = wp.array(shape=(150,), dtype=wp.vec3)
+  face1 = wp.array(shape=(150,), dtype=wp.vec3)
+  face2 = wp.array(shape=(150,), dtype=wp.vec3)
   dist_out = wp.array(shape=(1,), dtype=float)
   ncon_out = wp.array(shape=(1,), dtype=int)
   pos_out = wp.array(shape=(2,), dtype=wp.vec3)
@@ -208,6 +241,17 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multicc
       face_index,
       face_map,
       horizon,
+      polygon,
+      clipped,
+      pnormal,
+      pdist,
+      idx1,
+      idx2,
+      n1,
+      n2,
+      endvert,
+      face1,
+      face2,
     ],
     outputs=[
       dist_out,

@@ -86,7 +86,7 @@ def mul_m_sparse_ij(
 def mul_m_dense(tile: TileSet):
   """Returns a matmul kernel for some tile size"""
 
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def kernel(
     # Data In:
     qM_in: wp.array3d(dtype=float),

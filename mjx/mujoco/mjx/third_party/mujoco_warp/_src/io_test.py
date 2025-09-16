@@ -15,10 +15,6 @@
 
 """Tests for io functions."""
 
-import dataclasses
-import typing
-from typing import Any, Dict, Optional, Union
-
 import mujoco
 import numpy as np
 import warp as wp
@@ -28,8 +24,15 @@ from absl.testing import parameterized
 import mujoco_warp as mjwarp
 
 from mujoco.mjx.third_party.mujoco_warp._src import test_util
-from mujoco.mjx.third_party.mujoco_warp._src.io import MAX_WORLDS
 
+
+def _assert_eq(a, b, name):
+  tol = 5e-4
+  err_msg = f"mismatch: {name}"
+  np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
+
+
+# NOTE: modify io_jax_test _IO_TEST_MODELS if changed here.
 _IO_TEST_MODELS = (
   "pendula.xml",
   "collision_sdf/tactile.xml",
@@ -37,150 +40,6 @@ _IO_TEST_MODELS = (
   "actuation/tendon_force_limit.xml",
   "hfield/hfield.xml",
 )
-
-
-def _dims_match(test_obj, d1: Any, d2: Any, prefix: str = ""):
-  """Checks that two dataclasses have fields with the same leading dims."""
-  fields1, fields2 = dataclasses.fields(d1), dataclasses.fields(d2)
-  for f1, f2 in zip(fields1, fields2):
-    full_name = prefix + f1.name
-    a1, a2 = getattr(d1, f1.name), getattr(d2, f2.name)
-    if dataclasses.is_dataclass(a1) or dataclasses.is_dataclass(a2):
-      _dims_match(test_obj, a1, a2, prefix + f1.name + ".")
-      continue
-
-    if isinstance(f1.type, wp.types.array) or isinstance(f2.type, wp.types.array):
-      s1, s2 = a1.shape, a2.shape
-      test_obj.assertEqual(len(s1), len(s2), f"{full_name} dims mismatch. Got {s1} and {s2}.")
-      test_obj.assertEqual(s1, s2, f"{full_name} dims mismatch. Got {s1} and {s2}.")
-
-
-def _get_np_scalar_type(val: Any) -> Optional[Union[bool, int, float]]:
-  """Returns the python type from a numpy scalar."""
-  is_np_scalar = list(isinstance(val, t) for t in (np.integer, np.floating, np.bool_))
-  if any(is_np_scalar):
-    return [int, float, bool][is_np_scalar.index(True)]
-
-
-def _check_type_matches_annotation(test_obj, obj: Any, prefix: str = ""):
-  """Checks that dataclass annotations match the runtime types."""
-  assert dataclasses.is_dataclass(obj), prefix + " must be dataclass."
-  msg = "Type of {val_type} does not match annotation {type_} for field {prefix}{field_name}"
-
-  for field in dataclasses.fields(obj):
-    field_name = field.name
-    val = getattr(obj, field_name)
-    val_type = type(val)
-    type_ = field.type
-
-    if dataclasses.is_dataclass(val):
-      test_obj.assertTrue(dataclasses.is_dataclass(type_), msg.format(**locals()))
-      _check_type_matches_annotation(test_obj, val, prefix + field_name + ".")
-      continue
-
-    np_scalar_type = _get_np_scalar_type(val)
-    if np_scalar_type:
-      test_obj.assertIsInstance(np_scalar_type(val), type_, msg.format(**locals()))
-      continue
-
-    if isinstance(type_, wp.types.array):
-      test_obj.assertIsInstance(val, wp.types.array, msg.format(**locals()))
-      continue
-
-    origin_type = typing.get_origin(type_)
-    if tuple in (val_type, origin_type):
-      test_obj.assertEqual(val_type, origin_type, msg.format(**locals()))
-      field_name += ".tuple[]"
-      type_ = typing.get_args(type_)[0]
-
-      items = val
-      for val in items:
-        val_type = type(val)
-        if dataclasses.is_dataclass(val):
-          _check_type_matches_annotation(test_obj, val, prefix + field_name)
-          continue
-
-        np_scalar_type = _get_np_scalar_type(val)
-        if np_scalar_type:
-          test_obj.assertIsInstance(np_scalar_type(val), type_, msg.format(**locals()))
-          continue
-
-        if isinstance(type_, wp.types.array):
-          test_obj.assertIsInstance(val, wp.types.array, msg.format(**locals()))
-          continue
-
-        test_obj.assertEqual(type(val), type_, msg.format(**locals()))
-      continue
-
-    test_obj.assertEqual(type(val), field.type, msg.format(**locals()))
-
-
-def _check_annotation_compat(
-  annotations: Dict[str, Any], prefix: str = "", in_cls: bool = False, in_tuple: bool = False
-) -> Dict[str, Any]:
-  """Checks that dataclass annotations match criteria for JAX API compat."""
-  for k, v in annotations.items():
-    full_key = f"{prefix}{k}"
-    info = f"Found {v} for annotation {full_key}."
-
-    if v in (int, bool, float):
-      continue
-
-    if isinstance(v, wp.types.array):
-      continue
-
-    if v in wp.types.vector_types:
-      raise AssertionError(f"Vector types are not allowed. {info}")
-
-    if typing.get_origin(v) == tuple and (in_cls or in_tuple):
-      raise AssertionError(f"Nested args in Model/Data must not be tuple. {info}")
-
-    if typing.get_origin(v) == tuple:
-      tuple_args = typing.get_args(v)
-      if len(tuple_args) != 2 and tuple_args[1] != ...:
-        raise AssertionError(f"Tuple args must be variadic. {info}")
-
-      _check_annotation_compat(
-        {"[]": tuple_args[0]},
-        prefix=f"{full_key}.tuple",
-        in_cls=in_cls,
-        in_tuple=True,
-      )
-      continue
-
-    if hasattr(v, "__class__") and in_cls:
-      raise AssertionError(f"Nested object args in Model/Data are not allowed. {info}")
-
-    if hasattr(v, "__class__") and not dataclasses.is_dataclass(v):
-      raise AssertionError(f"Args that are objects must be dataclass. {info}")
-
-    if hasattr(v, "__class__") and not v.__module__.startswith("mujoco_warp"):
-      raise AssertionError(f"dataclass args must be within the mujoco_warp module. {info}")
-
-    if hasattr(v, "__class__"):
-      _check_annotation_compat(v.__annotations__, prefix=f"{full_key}{v.__name__}.", in_cls=True, in_tuple=in_tuple)
-      continue
-
-    raise AssertionError(f"Model/Data annotation is not allowed. {info}")
-
-
-def _leading_dims_scale_w_nworld(test_obj, d1: Any, d2: Any, nworld1: int, nworld2: int, prefix: str = ""):
-  """Checks that dataclass fields that scale with nworld have leading dim nworld."""
-  msg = "Arrays that scale with nworld should have leading dim nworld."
-  fields1, fields2 = dataclasses.fields(d1), dataclasses.fields(d2)
-  for f1, f2 in zip(fields1, fields2):
-    full_name = prefix + f1.name
-    a1, a2 = getattr(d1, f1.name), getattr(d2, f2.name)
-    if dataclasses.is_dataclass(a1) or dataclasses.is_dataclass(a2):
-      _leading_dims_scale_w_nworld(test_obj, a1, a2, nworld1, nworld2, prefix + f1.name + ".")
-      continue
-
-    if isinstance(f1.type, wp.types.array) or isinstance(f2.type, wp.types.array):
-      s1, s2 = a1.shape[0], a2.shape[0]
-      if s1 == s2:
-        continue
-      test_obj.assertEqual(s2, nworld2, full_name + f" has leading dim {s2} with nworld={nworld2}. {msg}")
-      test_obj.assertEqual(s1, nworld1, full_name + f" has leading dim {s1} with nworld={nworld1}. {msg}")
 
 
 class IOTest(parameterized.TestCase):
@@ -196,8 +55,6 @@ class IOTest(parameterized.TestCase):
     for attr, val in md.__dict__.items():
       if isinstance(val, wp.array):
         self.assertEqual(val.shape, getattr(d, attr).shape, f"{attr} shape mismatch")
-
-  # TODO(team): sensors
 
   def test_get_data_into_m(self):
     mjm = mujoco.MjModel.from_xml_string("""
@@ -299,95 +156,77 @@ class IOTest(parameterized.TestCase):
       """
       )
 
-  def test_put_model_nworld_array(self):
-    """Tests that put_model arrays with nworld leading dim have `_is_batched`."""
-    mjm, *_ = test_util.fixture("pendula.xml")
-    m1 = mjwarp.put_model(mjm)
-
-    self.assertTrue(hasattr(m1.geom_pos, "_is_batched"))
-    self.assertEqual(m1.geom_pos.shape[0], MAX_WORLDS)
-    self.assertEqual(m1.geom_pos.strides[0], 0)
-    self.assertLen(m1.geom_pos.strides, m1.geom_pos.ndim)
-    self.assertTrue(hasattr(m1.opt.gravity, "_is_batched"))
-    self.assertEqual(m1.opt.gravity.shape[0], MAX_WORLDS)
-    self.assertEqual(m1.opt.gravity.strides[0], 0)
-    self.assertLen(m1.opt.gravity.strides, m1.opt.gravity.ndim)
-    self.assertFalse(hasattr(m1.body_parentid, "_is_batched"))
-    self.assertGreater(m1.body_parentid.shape[0], 0)
-    self.assertGreater(m1.body_parentid.strides[0], 0)
-    self.assertLen(m1.body_parentid.strides, m1.body_parentid.ndim)
-
   @parameterized.parameters(*_IO_TEST_MODELS)
-  def test_put_data_nworld_array(self, xml):
-    """Tests that put_data arrays that scale with nworld have leading dim nworld."""
-    mjm, mjd, _, _ = test_util.fixture(xml)
-    d1 = mjwarp.put_data(mjm, mjd, nworld=1, nconmax=3_000, njmax=3_000)
-    dn = mjwarp.put_data(mjm, mjd, nworld=133, nconmax=3_000, njmax=3_000)
-    _leading_dims_scale_w_nworld(self, d1, dn, 1, 133)
+  def test_reset_data(self, xml):
+    reset_datafield = [
+      "ncon",
+      "ne",
+      "nf",
+      "nl",
+      "nefc",
+      "time",
+      "energy",
+      "qpos",
+      "qvel",
+      "act",
+      "ctrl",
+      "eq_active",
+      "qfrc_applied",
+      "xfrc_applied",
+      "qacc",
+      "qacc_warmstart",
+      "act_dot",
+      "sensordata",
+      "mocap_pos",
+      "mocap_quat",
+      "qM",
+    ]
 
-  @parameterized.parameters(*_IO_TEST_MODELS)
-  def test_make_data_nworld_array(self, xml):
-    """Tests that make_data arrays that scale with nworld have leading dim nworld."""
-    mjm, *_ = test_util.fixture(xml)
-    d1 = mjwarp.make_data(mjm, nworld=1, nconmax=3_000, njmax=3_000)
-    dn = mjwarp.make_data(mjm, nworld=133, nconmax=3_000, njmax=3_000)
-    _leading_dims_scale_w_nworld(self, d1, dn, 1, 133)
+    nworld = 1
+    mjm, mjd, m, d = test_util.fixture(xml, nworld=nworld)
+    nconmax = d.nconmax
 
-  def test_public_api_jax_compat(self):
-    """Tests that annotations meet a set of criteria for JAX compat."""
-    _check_annotation_compat(mjwarp.Model.__annotations__, "Model.")
-    _check_annotation_compat(mjwarp.Data.__annotations__, "Data.")
+    # data fields
+    for arr in reset_datafield:
+      attr = getattr(d, arr)
+      if attr.dtype == float:
+        attr.fill_(wp.nan)
+      else:
+        attr.fill_(-1)
 
-  @parameterized.parameters(*_IO_TEST_MODELS)
-  def test_types_match_annotations(self, xml):
-    """Tests that the types of dataclass fields match the annotations."""
-    mjm, _, m, d = test_util.fixture(xml)
+    for arr in d.contact.__dataclass_fields__:
+      attr = getattr(d.contact, arr)
+      if attr.dtype == float:
+        attr.fill_(wp.nan)
+      else:
+        attr.fill_(-1)
 
-    _check_type_matches_annotation(self, m, "Model.")
-    _check_type_matches_annotation(self, d, "Data.")
+    mujoco.mj_resetData(mjm, mjd)
 
-    d = mjwarp.make_data(mjm, nworld=2)
-    _check_type_matches_annotation(self, d, "Data.")
+    # set ncon in order to zero all contact memory
+    wp.copy(d.ncon, wp.array([nconmax], dtype=int))
+    mjwarp.reset_data(m, d)
 
-  @parameterized.parameters(*_IO_TEST_MODELS)
-  def test_make_put_data_dims_match(self, xml):
-    """Tests that make_data and put_data have matching dimensions."""
-    mjm, mjd, _, _ = test_util.fixture(xml)
-    dm2 = mjwarp.make_data(mjm, nworld=2, nconmax=3_000, njmax=4_200)
-    dm3 = mjwarp.make_data(mjm, nworld=3, nconmax=3_000, njmax=4_200)
+    for arr in reset_datafield:
+      d_arr = getattr(d, arr).numpy()
+      for i in range(d_arr.shape[0]):
+        di_arr = d_arr[i]
+        if arr == "qM":
+          di_arr = di_arr.reshape(-1)[: mjd.qM.size]
+        _assert_eq(di_arr, getattr(mjd, arr), arr)
 
-    dp2 = mjwarp.put_data(mjm, mjd, nworld=2, nconmax=3_000, njmax=4_200)
-    dp3 = mjwarp.put_data(mjm, mjd, nworld=3, nconmax=3_000, njmax=4_200)
+    for arr in d.contact.__dataclass_fields__:
+      _assert_eq(getattr(d.contact, arr).numpy(), 0.0, arr)
 
-    _dims_match(self, dm2, dp2)
-    _dims_match(self, dm3, dp3)
+  def test_sdf(self):
+    """Tests that an SDF can be loaded."""
+    mjm, mjd, m, d = test_util.fixture(fname="collision_sdf/cow.xml", qpos0=True)
 
-  @parameterized.parameters(
-    '<contact geom1="plane"/>',
-    '<contact geom2="plane"/>',
-    '<contact site="site"/>',
-    '<contact reduce="netforce"/>',
-    '<contact geom1="plane" geom2="sphere"/>',
-  )
-  def test_contact_sensor(self, contact_sensor):
-    mjm = mujoco.MjModel.from_xml_string(f"""
-      <mujoco>
-        <worldbody>
-          <site name="site"/>
-          <geom name="plane" type="plane" size="10 10 .001"/>
-          <body name="body">
-            <geom name="sphere" size=".1"/>
-            <joint type="slide" axis="0 0 1"/>
-          </body>
-        </worldbody>
-        <sensor>
-          {contact_sensor}
-        </sensor>
-      </mujoco>
-    """)
-
-    with self.assertRaises(NotImplementedError):
-      mjwarp.put_model(mjm)
+    self.assertIsInstance(m.oct_aabb, wp.array)
+    self.assertEqual(m.oct_aabb.dtype, wp.vec3)
+    self.assertEqual(len(m.oct_aabb.shape), 2)
+    if m.oct_aabb.size > 0:
+      self.assertEqual(m.oct_aabb.shape[1], 2)
 
 
 if __name__ == "__main__":
