@@ -52,6 +52,27 @@ PYBIND11_MODULE(_functions, pymodule) {
   // Virtual file system
   // Skipped entire section
 
+  // Asset cache
+  Def<traits::mj_getCacheSize>(pymodule, [](void* cache) {
+        return mj_getCacheSize(static_cast<mjCache*>(cache));
+      });
+
+  Def<traits::mj_getCacheCapacity>(pymodule, [](void* cache) {
+        return mj_getCacheCapacity(static_cast<mjCache*>(cache));
+      });
+
+  Def<traits::mj_setCacheCapacity>(pymodule, [](void* cache, std::size_t size) {
+        return mj_setCacheCapacity(static_cast<mjCache*>(cache), size);
+      });
+
+  Def<traits::mj_getCache>(pymodule, []() {
+        return static_cast<void*>(mj_getCache());
+      });
+
+  Def<traits::mj_clearCache>(pymodule, [](void* cache) {
+        return mj_clearCache(static_cast<mjCache*>(cache));
+      });
+
   // Parse and compile
   // Skipped: mj_loadXML (have MjModel.from_xml_string)
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_saveLastXML, "error", "error_sz")(

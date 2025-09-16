@@ -16,6 +16,7 @@
 
 #include <Python.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <ios>
 #include <iostream>
