@@ -270,8 +270,9 @@ struct mjCOctree_ {
   int nnode_ = 0;
   int nvert_ = 0;
   std::vector<OctNode> node_;
-  std::vector<Triangle> face_;       // mesh faces                (nmeshface x 3)
-  std::vector<Point> vert_;          // octree vertices           (nvert x 3)
+  std::vector<Triangle> face_;          // mesh faces                (nmeshface x 3)
+  std::vector<Point> vert_;             // octree vertices           (nvert x 3)
+  std::vector<std::vector<int>> hang_;  // hanging nodes status      (nvert x 1)
   double ipos_[3] = {0, 0, 0};
   double iquat_[4] = {1, 0, 0, 0};
 };
@@ -287,7 +288,9 @@ class mjCOctree : public mjCOctree_ {
   void CopyAabb(mjtNum* aabb) const;
   void CopyCoeff(mjtNum* coeff) const;
   const double* Vert(int i) const { return vert_[i].p.data(); }
+  const std::vector<int>& Hang(int i) const { return hang_[i]; }
   int VertId(int n, int v) const { return node_[n].vertid[v]; }
+  const std::array<int, 8>& Children(int i) const { return node_[i].child; }
   void SetFace(const std::vector<double>& vert, const std::vector<int>& face);
   int Size() const {
     return sizeof(OctNode) * node_.size() + sizeof(Triangle) * face_.size() +
@@ -310,6 +313,7 @@ class mjCOctree : public mjCOctree_ {
   int FindNeighbor(int node_idx, int dir);
   int FindCoarseNeighbor(int node_idx, int dir);
   void BalanceOctree(std::unordered_map<Point, int>& vert_map);
+  void MarkHangingNodes();
 };
 
 

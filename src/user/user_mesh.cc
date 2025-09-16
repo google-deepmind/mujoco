@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <functional>
 #include <limits>
 #include <map>
@@ -784,11 +785,44 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
       tmd::TriangleMeshDistance sdf(vert_.data(), nvert(), face_.data(), nface());
 
       std::vector<double> coeffs(octree_.NumVerts());
-      for (int i = 0; i < octree_.NumVerts(); ++i) {
-        coeffs[i] = sdf.signed_distance(octree_.Vert(i)).distance;
+      std::vector<bool> processed(octree_.NumVerts(), false);
+      std::deque<int> queue;
+
+      if (octree_.NumNodes() > 0) {
+        queue.push_back(0);  // start traversal from the root node
       }
 
-      // TODO: the value at hanging vertices should be computed from the parent
+      while (!queue.empty()) {
+        int node_idx = queue.front();
+        queue.pop_front();
+
+        for (int j = 0; j < 8; ++j) {
+          int vert_id = octree_.VertId(node_idx, j);
+          if (processed[vert_id]) {
+            continue;
+          }
+          if (octree_.Hang(vert_id).empty()) {
+            coeffs[vert_id] = sdf.signed_distance(octree_.Vert(vert_id)).distance;
+          } else {
+            double sum_coeff = 0;
+            for (int dep_id : octree_.Hang(vert_id)) {
+              sum_coeff += coeffs[dep_id];
+              if (!processed[dep_id]) {
+                throw mjCError(this, "sdf coefficient computation failed");
+              }
+            }
+            coeffs[vert_id] = sum_coeff / octree_.Hang(vert_id).size();
+          }
+          processed[vert_id] = true;
+        }
+
+        for (int child_idx : octree_.Children(node_idx)) {
+          if (child_idx != -1) {
+            queue.push_back(child_idx);
+          }
+        }
+      }
+
       for (int i = 0; i < octree_.NumNodes(); ++i) {
         for (int j = 0; j < 8; j++) {
             octree_.AddCoeff(i, j, coeffs[octree_.VertId(i, j)]);

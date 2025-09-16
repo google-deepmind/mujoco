@@ -629,6 +629,7 @@ void mjCOctree::CreateOctree(const double aamm[6]) {
                  [](Triangle& triangle) { return &triangle; });
   std::unordered_map<Point, int> vert_map;
   MakeOctree(elements_ptrs, box, vert_map);
+  MarkHangingNodes();
 }
 
 
@@ -864,6 +865,101 @@ void mjCOctree::BalanceOctree(std::unordered_map<Point, int>& vert_map) {
           task.node_index = node_idx;
           task.lev = node_[node_idx].level;
           Subdivide(task, vert_map);
+        }
+      }
+    }
+  }
+}
+
+
+// mark all hanging vertices in the octree
+void mjCOctree::MarkHangingNodes() {
+  hang_.assign(nvert_, std::vector<int>());
+
+  std::vector<int> leaves;
+  for (int i = 0; i < nnode_; ++i) {
+    if (node_[i].child[0] == -1) {
+      leaves.push_back(i);
+    }
+  }
+
+  for (int leaf_idx : leaves) {
+    for (int dir = 0; dir < 6; ++dir) {
+      int neighbor_idx = FindNeighbor(leaf_idx, dir);
+      if (neighbor_idx == -1 ||
+          node_[neighbor_idx].level >= node_[leaf_idx].level) {
+        continue;
+      }
+
+      // coarser neighbor found, this leaf's face has hanging nodes
+      int dim = dir / 2;
+      int side = dir % 2;
+
+      // iterate over the 4 vertices of the leaf's face
+      for (int i = 0; i < 4; ++i) {
+        // construct vertex index on the face
+        int v_idx = side << dim;
+        int d1 = (dim + 1) % 3;
+        int d2 = (dim + 2) % 3;
+        v_idx |= (i & 1) << d1;
+        v_idx |= ((i >> 1) & 1) << d2;
+
+        int hv_id = node_[leaf_idx].vertid[v_idx];
+        if (!hang_[hv_id].empty()) {
+          continue;  // already processed
+        }
+
+        const double* hv_pos = vert_[hv_id].p.data();
+        const auto& neighbor_aamm = node_[neighbor_idx].aamm;
+
+        bool is_min[3], is_max[3];
+        int on_boundary_planes = 0;
+        for (int d = 0; d < 3; ++d) {
+          is_min[d] = std::abs(hv_pos[d] - neighbor_aamm[d]) < 1e-9;
+          is_max[d] = std::abs(hv_pos[d] - neighbor_aamm[d + 3]) < 1e-9;
+          if (is_min[d] || is_max[d]) {
+            on_boundary_planes++;
+          }
+        }
+
+        if (on_boundary_planes == 2) {  // edge hanging
+          int d_mid = -1;
+          for (int d = 0; d < 3; ++d) {
+            if (!is_min[d] && !is_max[d]) {
+              d_mid = d;
+              break;
+            }
+          }
+
+          int bits[3];
+          bits[d_mid] = 0;  // this will be toggled
+          bits[(d_mid + 1) % 3] = is_max[(d_mid + 1) % 3];
+          bits[(d_mid + 2) % 3] = is_max[(d_mid + 2) % 3];
+
+          int nv_idx1 = (bits[2] << 2) | (bits[1] << 1) | bits[0];
+          bits[d_mid] = 1;
+          int nv_idx2 = (bits[2] << 2) | (bits[1] << 1) | bits[0];
+
+          hang_[hv_id].push_back(node_[neighbor_idx].vertid[nv_idx1]);
+          hang_[hv_id].push_back(node_[neighbor_idx].vertid[nv_idx2]);
+        } else if (on_boundary_planes == 1) {  // face hanging
+          int d_face = -1;
+          for (int d = 0; d < 3; ++d) {
+            if (is_min[d] || is_max[d]) {
+              d_face = d;
+              break;
+            }
+          }
+
+          int bits[3];
+          bits[d_face] = is_max[d_face];
+
+          for (int j = 0; j < 4; ++j) {
+            bits[(d_face + 1) % 3] = j & 1;
+            bits[(d_face + 2) % 3] = (j >> 1) & 1;
+            int nv_idx = (bits[2] << 2) | (bits[1] << 1) | bits[0];
+            hang_[hv_id].push_back(node_[neighbor_idx].vertid[nv_idx]);
+          }
         }
       }
     }

@@ -1366,6 +1366,167 @@ TEST_F(MjCMeshTest, OctreeIsBalanced) {
   mj_deleteModel(model);
 }
 
+TEST_F(MjCMeshTest, OctreeHangingNodeInterpolation) {
+  const std::string xml_path = GetTestDataFilePath(kTorusPath);
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
+  mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
+  geom->type = mjGEOM_SDF;
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_GT(model->mesh_octnum[0], 0);
+  double kEps = 1e-6;
+
+  const int octree_adr = model->mesh_octadr[0];
+  const int noct = model->mesh_octnum[0];
+  const mjtNum* sdf = model->oct_coeff + octree_adr * 8;
+
+  // find all leaves in the octree
+  std::vector<int> leaves;
+  for (int i = 0; i < noct; ++i) {
+    bool is_leaf = true;
+    for (int j = 0; j < 8; ++j) {
+      if (model->oct_child[(octree_adr + i) * 8 + j] != -1) {
+        is_leaf = false;
+        break;
+      }
+    }
+    if (is_leaf) {
+      leaves.push_back(i);
+    }
+  }
+
+  // do a n^2 check of all pairs of leaves in the octree
+  // for each pair, check if they are adjacent and if so, check that all hanging
+  // nodes within the octree can be interpolated from their parent nodes
+  int hanging_nodes_checked = 0;
+  int interpolation_failures = 0;
+  for (int i = 0; i < leaves.size(); ++i) {
+    for (int j = i + 1; j < leaves.size(); ++j) {
+      const int node1_idx = leaves[i];
+      const int node2_idx = leaves[j];
+      const mjtNum* aabb1 = &model->oct_aabb[(octree_adr + node1_idx) * 6];
+      const mjtNum* aabb2 = &model->oct_aabb[(octree_adr + node2_idx) * 6];
+
+      if (AreAabbsAdjacent(aabb1, aabb2)) {
+        const int level1 = model->oct_depth[octree_adr + node1_idx];
+        const int level2 = model->oct_depth[octree_adr + node2_idx];
+
+        if (level1 == level2) {
+          continue;
+        }
+
+        // decide which node is finer and which is coarser
+        const int finer_node_idx = (level1 > level2) ? node1_idx : node2_idx;
+        const int coarser_node_idx =
+            (level1 > level2) ? node2_idx : node1_idx;
+        const mjtNum* coarser_aabb =
+            &model->oct_aabb[(octree_adr + coarser_node_idx) * 6];
+        const mjtNum* finer_aabb =
+            &model->oct_aabb[(octree_adr + finer_node_idx) * 6];
+
+        mjtNum coarser_corners[8][3];
+        for (int c = 0; c < 8; ++c) {
+          int sx = (c & 1) ? 1 : -1;
+          int sy = (c & 2) ? 1 : -1;
+          int sz = (c & 4) ? 1 : -1;
+          coarser_corners[c][0] = coarser_aabb[0] + sx * coarser_aabb[3];
+          coarser_corners[c][1] = coarser_aabb[1] + sy * coarser_aabb[4];
+          coarser_corners[c][2] = coarser_aabb[2] + sz * coarser_aabb[5];
+        }
+
+        // for all vertices in the finer node, check if they are hanging and
+        // can be interpolated
+        for (int v_idx = 0; v_idx < 8; ++v_idx) {
+          mjtNum v_pos[3];
+          int sx = (v_idx & 1) ? 1 : -1;
+          int sy = (v_idx & 2) ? 1 : -1;
+          int sz = (v_idx & 4) ? 1 : -1;
+          v_pos[0] = finer_aabb[0] + sx * finer_aabb[3];
+          v_pos[1] = finer_aabb[1] + sy * finer_aabb[4];
+          v_pos[2] = finer_aabb[2] + sz * finer_aabb[5];
+
+          // skip finer vertices that are also coarse corners
+          bool is_coarse_corner = false;
+          for (int c = 0; c < 8; ++c) {
+            if (mju_dist3(v_pos, coarser_corners[c]) < 1e-6) {
+              is_coarse_corner = true;
+              break;
+            }
+          }
+          if (is_coarse_corner) {
+            continue;
+          }
+
+          // skip vertices that are not on the boundary
+          mjtNum p_local[3];
+          bool outside = false;
+          for (int d = 0; d < 3; ++d) {
+            p_local[d] = (v_pos[d] - coarser_aabb[d]) / coarser_aabb[d + 3];
+            if (std::abs(p_local[d]) > 1.0 + kEps) {
+              outside = true;
+              break;
+            }
+          }
+          if (outside) {
+            continue;
+          }
+
+          // count the number of dimensions that are on the boundary
+          int num_dim = 0;
+          for (int d = 0; d < 3; ++d) {
+            if (std::abs(p_local[d] - 1.0) < kEps) {
+              num_dim++;
+            } else if (std::abs(p_local[d] + 1.0) < kEps) {
+              num_dim++;
+            }
+          }
+
+          double interpolated_sdf = 0;
+          const mjtNum* coarser_sdf = sdf + coarser_node_idx * 8;
+
+          // for edge or face nodes, try to interpolate the hanging nodes
+          if (num_dim == 1 || num_dim == 2) {
+            for (int k = 0; k < 8; ++k) {
+              int sx = (k & 1) ? 1 : -1;
+              int sy = (k & 2) ? 1 : -1;
+              int sz = (k & 4) ? 1 : -1;
+              double weight = (1 + p_local[0] * sx) / 2.0 *
+                              (1 + p_local[1] * sy) / 2.0 *
+                              (1 + p_local[2] * sz) / 2.0;
+              if (weight > kEps && num_dim == 1) {
+                ASSERT_NEAR(weight, 0.25, kEps);
+              } else if (weight > kEps && num_dim == 2) {
+                ASSERT_NEAR(weight, 0.5, kEps);
+              }
+              interpolated_sdf += weight * coarser_sdf[k];
+            }
+          } else {
+            continue;
+          }
+
+          // if the values do not match, log an error
+          const mjtNum* finer_sdf = sdf + finer_node_idx * 8;
+          if (std::abs(finer_sdf[v_idx] - interpolated_sdf) > kEps) {
+            if (interpolation_failures < 10) {
+              EXPECT_NEAR(finer_sdf[v_idx], interpolated_sdf, kEps);
+            }
+            interpolation_failures++;
+          }
+          hanging_nodes_checked++;
+        }
+      }
+    }
+  }
+  EXPECT_GT(hanging_nodes_checked, 0);
+  EXPECT_EQ(interpolation_failures, 0)
+      << "Found " << interpolation_failures
+      << " hanging node interpolation failures.";
+
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjCMeshTest, OctreeNotComputedForNonSDF) {
   const std::string xml_path = GetTestDataFilePath(kTorusPath);
   std::array<char, 1024> error;
