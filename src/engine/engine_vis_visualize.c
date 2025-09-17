@@ -2516,10 +2516,7 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
       mjERROR("track body id is outside valid range");
     }
 
-    // smooth tracking of subtree com
-    mjtNum move[3];
-    mju_sub3(move, d->subtree_com + 3*cam->trackbodyid, cam->lookat);
-    mju_addToScl3(cam->lookat, move, 0.2);  // constant ???
+    mju_copy3(cam->lookat, d->subtree_com + 3*bid);
   }
 
   // get camera frame
