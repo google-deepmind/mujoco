@@ -596,8 +596,8 @@ typedef struct mjsPair_ {          // pair specification
 
 typedef struct mjsExclude_ {       // exclude specification
   mjsElement* element;             // element type
-  mjString* bodyname1;             // name of geom 1
-  mjString* bodyname2;             // name of geom 2
+  mjString* bodyname1;             // name of body 1
+  mjString* bodyname2;             // name of body 2
   mjString* info;                  // message appended to errors
 } mjsExclude;
 
