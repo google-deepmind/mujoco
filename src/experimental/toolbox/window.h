@@ -50,8 +50,12 @@ class Window {
     kQuitting,
   };
 
-  // Processes all pendings window events, returning the status of the window.
-  Status ProcessEvents();
+  // Processes all pendings window events and prepares ImGui for input handling
+  // and GUI rendering. Returns the status of the window.
+  Status NewFrame();
+
+  // Finalizes ImGui input handling. Must call NewFrame first.
+  void EndFrame();
 
   // Swaps and presents the window buffer.
   void Present();

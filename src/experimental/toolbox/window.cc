@@ -130,7 +130,7 @@ std::string Window::GetDropFile() {
   return tmp;
 }
 
-Window::Status Window::ProcessEvents() {
+Window::Status Window::NewFrame() {
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
     ImGui_ImplSDL2_ProcessEvent(&event);
@@ -156,6 +156,15 @@ Window::Status Window::ProcessEvents() {
   ImGui::NewFrame();
 
   return should_exit_ ? kQuitting : kRunning;
+}
+
+void Window::EndFrame() {
+  // We use ImGui for input management in addition to GUI rendering so its
+  // important to call ImGui::EndFrame even if we don't call ImGui::Render.
+  // Note ImGui::Render internally calls ImGui::EndFrame, but so long as
+  // ImGui::NewFrame has been called, ImGui::EndFrame may be called multiple
+  // times; it will be a no-op.
+  ImGui::EndFrame();
 }
 
 void Window::Present() {
