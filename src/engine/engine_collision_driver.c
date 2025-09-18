@@ -257,7 +257,7 @@ static inline int contactcompare(const mjContact* c1, const mjContact* c2, void*
 }
 
 // define contactSort function for sorting contacts
-mjSORT(contactSort, mjContact, contactcompare)
+mjSORT(contactSort, mjContact, contactcompare);
 
 
 
@@ -1139,7 +1139,7 @@ static inline int uintcmp(int* i, int* j, void* context) {
 }
 
 // define bfsort function for sorting bodyflex pairs
-mjSORT(bfsort, int, uintcmp)
+mjSORT(bfsort, int, uintcmp);
 
 
 // broadphase collision detector
