@@ -261,6 +261,34 @@ class StepTest(parameterized.TestCase):
       tu.assert_attr_eq(dx, d, 'mocap_quat')
       tu.assert_attr_eq(dx, d, 'sensordata')
 
+  def test_step_leading_dim_mismatch(self):
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    xml = 'humanoid/humanoid.xml'
+    batch_size = 7
+
+    m = test_util.load_test_file(xml)
+    mx = mjx.put_model(m, impl='warp')
+
+    worldids = jp.arange(batch_size)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
+    dx_batch_orig = dx_batch
+
+    with self.assertRaises(ValueError):
+      dx_batch = dx_batch.replace(qpos=dx_batch.qpos[1:])
+      _ = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))(mx, dx_batch)
+
+    dx_batch = dx_batch_orig
+    with self.assertRaises(ValueError):
+      dx_batch = dx_batch.tree_replace(
+          {'_impl.contact__pos': dx_batch._impl.contact__pos[1:]}
+      )
+      _ = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))(mx, dx_batch)
+
 
 if __name__ == '__main__':
   absltest.main()
