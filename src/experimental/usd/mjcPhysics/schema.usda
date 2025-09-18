@@ -283,7 +283,7 @@ class "MjcSceneAPI"
         doc = """Tolerance threshold used for early termination of the Noslip solver."""
     )
 
-    uniform int mjc:option:ccd_iterations = 50 (
+    uniform int mjc:option:ccd_iterations = 35 (
         customData = {
             string apiName = "CCDIterations"
         }

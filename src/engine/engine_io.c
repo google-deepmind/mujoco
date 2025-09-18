@@ -119,7 +119,7 @@ void mj_defaultOption(mjOption* opt) {
   opt->iterations         = 100;
   opt->ls_iterations      = 50;
   opt->noslip_iterations  = 0;
-  opt->ccd_iterations     = 50;
+  opt->ccd_iterations     = 35;
   opt->disableflags       = 0;
   opt->enableflags        = 0;
   opt->disableactuator    = 0;

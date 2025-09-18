@@ -674,7 +674,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform int mjc:option:ccd_iterations = 50` |
+  /// | Declaration | `uniform int mjc:option:ccd_iterations = 35` |
   /// | C++ Type | int |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Int |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
