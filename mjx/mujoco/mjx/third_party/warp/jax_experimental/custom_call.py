@@ -119,7 +119,7 @@ def _create_jax_warp_primitive():
     from jax._src.interpreters import batching
     from jax.interpreters import mlir
     from jax.interpreters.mlir import ir
-    from jax.jaxlib.hlo_helpers import custom_call
+    from jax.google.hlo_helpers import custom_call
 
     global _jax_warp_p
     global _cc_callback
