@@ -56,7 +56,7 @@ static int ContactInfoCompare(const ContactInfo* a, const ContactInfo* b, void* 
 
   return 0;
 }
-mjPARTIAL_SORT(ContactSelect, ContactInfo, ContactInfoCompare)
+mjPARTIAL_SORT(ContactSelect, ContactInfo, ContactInfoCompare);
 
 
 // apply cutoff after each stage

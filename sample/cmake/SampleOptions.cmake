@@ -92,7 +92,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang
       -Wimplicit-fallthrough
       -Wunused
       -Wvla
-      -Wno-extra-semi
       -Wno-int-in-bool-context
       -Wno-sign-compare
       -Wno-unknown-pragmas

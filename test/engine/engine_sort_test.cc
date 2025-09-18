@@ -77,8 +77,8 @@ int IntCompare(int* i, int* j, void* context) {
     return 1;
   }
 }
-mjSORT(IntSort, int, IntCompare)
-mjPARTIAL_SORT(IntSelect, int, IntCompare)
+mjSORT(IntSort, int, IntCompare);
+mjPARTIAL_SORT(IntSelect, int, IntCompare);
 
 int IntStructCompare(const IntStruct* x, const IntStruct* y, void* context) {
   IntStruct* a = (IntStruct*)x;
@@ -91,8 +91,8 @@ int IntStructCompare(const IntStruct* x, const IntStruct* y, void* context) {
     return 1;
   }
 }
-mjSORT(IntStructSort, IntStruct, IntStructCompare)
-mjPARTIAL_SORT(IntStructSelect, IntStruct, IntStructCompare)
+mjSORT(IntStructSort, IntStruct, IntStructCompare);
+mjPARTIAL_SORT(IntStructSelect, IntStruct, IntStructCompare);
 
 TEST_F(EngineSortTest, Sort) {
   int total = 0;

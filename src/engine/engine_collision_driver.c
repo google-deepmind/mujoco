@@ -1012,7 +1012,7 @@ static inline int SAPcmp(mjtSAP* obj1, mjtSAP* obj2, void* context) {
 }
 
 // define SAPsort function for sorting SAP sorting
-mjSORT(SAPsort, mjtSAP, SAPcmp)
+mjSORT(SAPsort, mjtSAP, SAPcmp);
 
 
 // given list of axis-aligned bounding boxes in AAMM (xmin[3], xmax[3]) format,
