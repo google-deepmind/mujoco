@@ -361,6 +361,9 @@ class mjCBase : public mjCBase_ {
   // Returns parent of this object
   virtual mjCBase* GetParent() const { return nullptr; }
 
+  // Returns the model of this object
+  mjsCompiler* FindCompiler(const mjsCompiler* compiler) const;
+
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
 
@@ -1094,7 +1097,6 @@ class mjCMesh_ : public mjCBase {
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
-  mujoco::user::FilePath meshdir_;
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
@@ -1310,7 +1312,6 @@ class mjCSkin_ : public mjCBase {
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
-  mujoco::user::FilePath meshdir_;
 };
 
 class mjCSkin: public mjCSkin_, private mjsSkin {
@@ -1366,7 +1367,6 @@ class mjCHField_ : public mjCBase {
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
-  mujoco::user::FilePath meshdir_;
 };
 
 class mjCHField : public mjCHField_, private mjsHField {
@@ -1417,7 +1417,6 @@ class mjCTexture_ : public mjCBase {
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
-  mujoco::user::FilePath texturedir_;
 };
 
 class mjCTexture : public mjCTexture_, private mjsTexture {

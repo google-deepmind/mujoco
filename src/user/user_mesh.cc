@@ -303,9 +303,6 @@ void mjCMesh::NameSpace(const mjCModel* m) {
   if (modelfiledir_.empty()) {
     modelfiledir_ = FilePath(m->spec_modelfiledir_);
   }
-  if (meshdir_.empty()) {
-    meshdir_ = FilePath(m->spec_meshdir_);
-  }
   if (!plugin_instance_name.empty()) {
     plugin_instance_name = m->prefix + plugin_instance_name + m->suffix;
   }
@@ -705,11 +702,11 @@ void mjCMesh::TryCompile(const mjVFS* vfs) {
     }
 
     // copy paths from model if not already defined
+    mujoco::user::FilePath meshdir_;
+    meshdir_ = FilePath(mjs_getString(compiler->meshdir));
+
     if (modelfiledir_.empty()) {
       modelfiledir_ = FilePath(model->modelfiledir_);
-    }
-    if (meshdir_.empty()) {
-      meshdir_ = FilePath(model->meshdir_);
     }
 
     // remove path from file if necessary
@@ -3131,9 +3128,6 @@ void mjCSkin::NameSpace(const mjCModel* m) {
   if (modelfiledir_.empty()) {
     modelfiledir_ = FilePath(m->spec_modelfiledir_);
   }
-  if (meshdir_.empty()) {
-    meshdir_ = FilePath(m->spec_meshdir_);
-  }
 }
 
 
@@ -3224,9 +3218,8 @@ void mjCSkin::Compile(const mjVFS* vfs) {
     if (modelfiledir_.empty()) {
       modelfiledir_ = FilePath(model->modelfiledir_);
     }
-    if (meshdir_.empty()) {
-      meshdir_ = FilePath(model->meshdir_);
-    }
+    mujoco::user::FilePath meshdir_;
+    meshdir_ = FilePath(mjs_getString(compiler->meshdir));
 
     FilePath filename = meshdir_ + FilePath(file_);
     mjResource* resource = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);

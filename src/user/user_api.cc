@@ -297,7 +297,7 @@ int mjs_isWarning(mjSpec* s) {
 void mj_deleteSpec(mjSpec* s) {
   if (s) {
     mjCModel* model = static_cast<mjCModel*>(s->element);
-    delete model;
+    model->Release();
   }
 }
 

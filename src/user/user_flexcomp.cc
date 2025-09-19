@@ -170,11 +170,11 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
       break;
 
     case mjFCOMPTYPE_MESH:
-      res = MakeMesh(model, error, error_sz);
+      res = MakeMesh(model, compiler, error, error_sz);
       break;
 
     case mjFCOMPTYPE_GMSH:
-      res = MakeGMSH(model, error, error_sz);
+      res = MakeGMSH(model, compiler, error, error_sz);
       break;
 
     case mjFCOMPTYPE_DIRECT:
@@ -1075,7 +1075,7 @@ template <typename T> static T* VecToArray(std::vector<T>& vector, bool clear = 
 
 
 // make mesh
-bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
+bool mjCFlexcomp::MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz) {
   // strip path
   if (!file.empty() && model->spec.strippath) {
     file = mjuu_strippath(file);
@@ -1092,7 +1092,7 @@ bool mjCFlexcomp::MakeMesh(mjCModel* model, char* error, int error_sz) {
   }
 
   // load resource
-  std::string filename = mjuu_combinePaths(mjs_getString(model->spec.meshdir), file);
+  std::string filename = mjuu_combinePaths(mjs_getString(compiler->meshdir), file);
   mjResource* resource = nullptr;
 
 
@@ -1194,7 +1194,7 @@ static int findstring(const char* buffer, int buffer_sz, const char* str) {
 
 
 // load points and elements from GMSH file
-bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
+bool mjCFlexcomp::MakeGMSH(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz) {
   // strip path
   if (!file.empty() && model->spec.strippath) {
     file = mjuu_strippath(file);
@@ -1208,7 +1208,7 @@ bool mjCFlexcomp::MakeGMSH(mjCModel* model, char* error, int error_sz) {
   // open resource
   mjResource* resource = nullptr;
   try {
-    std::string filename = mjuu_combinePaths(mjs_getString(model->spec.meshdir), file);
+    std::string filename = mjuu_combinePaths(mjs_getString(compiler->meshdir), file);
     resource = mjCBase::LoadResource(mjs_getString(model->spec.modelfiledir),
                                      filename, 0);
   } catch (mjCError err) {

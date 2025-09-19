@@ -593,6 +593,22 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::arg("degree"), py::arg("sequence") = py::none(),
       py::arg("orientation"), py::return_value_policy::copy);
+  mjSpec.def_property(
+      "meshdir",
+      [](MjSpec& self) -> std::string_view {
+        return *self.ptr->compiler.meshdir;
+      },
+      [](MjSpec& self, std::string_view meshdir) {
+        *(self.ptr->compiler.meshdir) = meshdir;
+      });
+  mjSpec.def_property(
+      "texturedir",
+      [](MjSpec& self) -> std::string_view {
+        return *self.ptr->compiler.texturedir;
+      },
+      [](MjSpec& self, std::string_view texturedir) {
+        *(self.ptr->compiler.texturedir) = texturedir;
+      });
 
   // ============================= MJSBODY =====================================
   mjsBody.def(
