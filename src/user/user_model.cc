@@ -140,8 +140,8 @@ mjCModel::mjCModel() {
   elemtype = mjOBJ_MODEL;
   spec_comment_.clear();
   spec_modelfiledir_.clear();
-  meshdir_.clear();
-  texturedir_.clear();
+  spec_meshdir_.clear();
+  spec_texturedir_.clear();
   spec_modelname_ = "MuJoCo Model";
 
   //------------------------ auto-computed statistics
@@ -201,12 +201,10 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     this->spec = other.spec;
     *static_cast<mjCModel_*>(this) = static_cast<const mjCModel_&>(other);
     *static_cast<mjSpec*>(this) = static_cast<const mjSpec&>(other);
-    PointToLocal();
 
     // copy attached specs first so that we can resolve references to them
-    for (auto* s : other.specs_) {
-      specs_.push_back(s);
-      static_cast<mjCModel*>(s->element)->AddRef();
+    for (const auto* s : other.specs_) {
+      specs_.push_back(mj_copySpec(s));
       compiler2spec_[&s->compiler] = specs_.back();
     }
 
@@ -871,11 +869,13 @@ void mjCModel::PointToLocal() {
   spec.comment = &spec_comment_;
   spec.modelfiledir = &spec_modelfiledir_;
   spec.modelname = &spec_modelname_;
-  spec.compiler.meshdir = &meshdir_;
-  spec.compiler.texturedir = &texturedir_;
+  spec.meshdir = &spec_meshdir_;
+  spec.texturedir = &spec_texturedir_;
   comment = nullptr;
   modelfiledir = nullptr;
   modelname = nullptr;
+  meshdir = nullptr;
+  texturedir = nullptr;
 }
 
 
@@ -885,6 +885,8 @@ void mjCModel::CopyFromSpec() {
   comment_ = spec_comment_;
   modelfiledir_ = spec_modelfiledir_;
   modelname_ = spec_modelname_;
+  meshdir_ = spec_meshdir_;
+  texturedir_ = spec_texturedir_;
 }
 
 

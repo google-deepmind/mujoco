@@ -5854,8 +5854,6 @@ public unsafe struct mjsCompiler_ {
   public byte saveinertial;
   public int alignfree;
   public mjLROpt_ LRopt;
-  public void* meshdir;
-  public void* texturedir;
 }
 
 [StructLayout(LayoutKind.Sequential)]
