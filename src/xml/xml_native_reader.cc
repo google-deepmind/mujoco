@@ -1067,16 +1067,16 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* s) {
     memcpy(s->compiler.eulerseq, text.c_str(), 3);
   }
   if (ReadAttrTxt(section, "assetdir", text)) {
-    mjs_setString(s->meshdir, text.c_str());
-    mjs_setString(s->texturedir, text.c_str());
+    mjs_setString(s->compiler.meshdir, text.c_str());
+    mjs_setString(s->compiler.texturedir, text.c_str());
   }
   // meshdir and texturedir take precedence over assetdir
   string meshdir, texturedir;
   if (ReadAttrTxt(section, "meshdir", meshdir)) {
-    mjs_setString(s->meshdir, meshdir.c_str());
+    mjs_setString(s->compiler.meshdir, meshdir.c_str());
   };
   if (ReadAttrTxt(section, "texturedir", texturedir)) {
-    mjs_setString(s->texturedir, texturedir.c_str());
+    mjs_setString(s->compiler.texturedir, texturedir.c_str());
   }
   if (MapValue(section, "discardvisual", &n, bool_map, 2)) {
     s->compiler.discardvisual = (n == 1);

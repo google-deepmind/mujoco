@@ -148,8 +148,6 @@ class mjCModel_ : public mjsElement {
   std::string spec_comment_;
   std::string spec_modelfiledir_;
   std::string spec_modelname_;
-  std::string spec_meshdir_;
-  std::string spec_texturedir_;
 };
 
 // mjCModel contains everything needed to generate the low-level model.
@@ -330,7 +328,18 @@ class mjCModel : public mjCModel_, private mjSpec {
   // check for repeated names in list
   void CheckRepeat(mjtObj type);
 
+  // increment and decrement reference count
+  void AddRef() { ++refcount; }
+  int GetRef() const { return refcount; }
+  void Release() {
+    if (--refcount == 0) {
+      delete this;
+    }
+  }
+
  private:
+  int refcount = 1;
+
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
 

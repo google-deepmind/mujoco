@@ -7928,6 +7928,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='mjLROpt'),
                  doc='options for lengthrange computation',
              ),
+             StructFieldDecl(
+                 name='meshdir',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='mesh and hfield directory',
+             ),
+             StructFieldDecl(
+                 name='texturedir',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='texture directory',
+             ),
          ),
      )),
     ('mjSpec',
@@ -7958,20 +7972,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='strippath',
                  type=ValueType(name='mjtByte'),
                  doc='automatically strip paths from mesh files',
-             ),
-             StructFieldDecl(
-                 name='meshdir',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjString'),
-                 ),
-                 doc='mesh and hfield directory',
-             ),
-             StructFieldDecl(
-                 name='texturedir',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjString'),
-                 ),
-                 doc='texture directory',
              ),
              StructFieldDecl(
                  name='option',
