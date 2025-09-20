@@ -1072,8 +1072,8 @@ non-exhaustive list of specific mujoco-py features:
 ``sim.get_state()``, ``sim.set_state(state)``, ``sim.get_flattened_state()``, ``sim.set_state_from_flattened(state)``
    The MuJoCo library’s computation is deterministic given a specific input, as explained in the :ref:`Programming
    section <Simulation>`. mujoco-py implements methods for getting and setting some of the relevant fields (and
-   similarly ``dm_control.Physics`` offers methods that correspond to the flattened case). ``mujoco`` do not offer such
-   abstraction, and the user is expected to get/set the values of the relevant fields explicitly.
+   similarly ``dm_control.Physics`` offers methods that correspond to the flattened case). This functionality is
+   described in the :ref:`state <geState>` section.
 
 ``sim.model.get_joint_qvel_addr(joint_name)``
    This is a convenience method in mujoco-py that returns a list of contiguous indices corresponding to this joint. The
