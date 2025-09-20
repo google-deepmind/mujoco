@@ -16,6 +16,9 @@ set(MUJOCO_RENDER_SRCS
     glad/glad.c
     glad/glad.h
     glad/loader.cc
+    glad/glad3.c
+    glad/glad3.h
+    glad/loader3.cc
     render_context.c
     render_context.h
     render_gl2.c
@@ -24,6 +27,14 @@ set(MUJOCO_RENDER_SRCS
     render_gl3.h
     render_util.c
     render_util.h
+    render3_context.c
+    render3_context.h
+    render3_gl2.c
+    render3_gl2.h
+    render3_gl3.c
+    render3_gl3.h
+    render3_util.c
+    render3_util.h
 )
 
 target_sources(mujoco PRIVATE ${MUJOCO_RENDER_SRCS})
