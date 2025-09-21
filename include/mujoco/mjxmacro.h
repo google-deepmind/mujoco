@@ -29,7 +29,7 @@
     X( mjtNum,  ccd_tolerance    )  \
     X( mjtNum,  density          )  \
     X( mjtNum,  viscosity        )  \
-    X( mjtNum,  o_margin         )  \
+    X( mjtNum,  o_margin         )
 
 
 #define MJOPTION_INTS               \
