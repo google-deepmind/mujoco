@@ -181,33 +181,24 @@ void mj_kinematics(const mjModel* m, mjData* d) {
 // map inertias and motion dofs to global frame centered at subtree-CoM
 void mj_comPos(const mjModel* m, mjData* d) {
   int nbody = m->nbody, njnt = m->njnt;
-  mjtNum offset[3], axis[3];
-  mj_markStack(d);
-  mjtNum* mass_subtree = mjSTACKALLOC(d, m->nbody, mjtNum);
 
-  // clear subtree
-  mju_zero(mass_subtree, m->nbody);
-  mju_zero(d->subtree_com, m->nbody*3);
+  // subtree_com: initialize with body moment
+  for (int i=0; i < nbody; i++) {
+    mju_scl3(d->subtree_com+3*i, d->xipos+3*i, m->body_mass[i]);
+  }
 
-  // backwards pass over bodies: compute subtree_com and mass_subtree
-  for (int i=nbody-1; i >= 0; i--) {
-    // add local info
-    mju_addToScl3(d->subtree_com+3*i, d->xipos+3*i, m->body_mass[i]);
-    mass_subtree[i] += m->body_mass[i];
+  // subtree_com: accumulate to parent in backward pass
+  for (int i=nbody-1; i > 0; i--) {
+    int j = m->body_parentid[i];
+    mju_addTo3(d->subtree_com+3*j, d->subtree_com+3*i);
+  }
 
-    // add to parent, except for world
-    if (i) {
-      int j = m->body_parentid[i];
-      mju_addTo3(d->subtree_com+3*j, d->subtree_com+3*i);
-      mass_subtree[j] += mass_subtree[i];
-    }
-
-    // compute local com
-    if (mass_subtree[i] < mjMINVAL) {
+  // subtree_com: normalize
+  for (int i=0; i < nbody; i++) {
+    if (m->body_subtreemass[i] < mjMINVAL) {
       mju_copy3(d->subtree_com+3*i, d->xipos+3*i);
     } else {
-      mju_scl3(d->subtree_com+3*i, d->subtree_com+3*i,
-               1.0/mjMAX(mjMINVAL, mass_subtree[i]));
+      mju_scl3(d->subtree_com+3*i, d->subtree_com+3*i, 1.0/m->body_subtreemass[i]);
     }
   }
 
@@ -216,6 +207,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
 
   // map inertias to frame centered at subtree_com
   for (int i=1; i < nbody; i++) {
+    mjtNum offset[3];
     mju_sub3(offset, d->xipos+3*i, d->subtree_com+3*m->body_rootid[i]);
     mju_inertCom(d->cinert+10*i, m->body_inertia+3*i, d->ximat+9*i,
                  offset, m->body_mass[i]);
@@ -228,6 +220,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
     int bi = m->jnt_bodyid[j];
 
     // compute com-anchor vector
+    mjtNum offset[3], axis[3];
     mju_sub3(offset, d->subtree_com+3*m->body_rootid[bi], d->xanchor+3*j);
 
     // create motion dof
@@ -264,8 +257,6 @@ void mj_comPos(const mjModel* m, mjData* d) {
       break;
     }
   }
-
-  mj_freeStack(d);
 }
 
 
