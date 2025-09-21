@@ -575,7 +575,7 @@ class FfiCallable:
                             raise RuntimeError(f"Graph creation error: {wp.context.runtime.get_error_string()}")
                         graph.graph_exec = g
 
-                    if not wp.context.runtime.core.wp_cuda_graph_launch(graph.graph_exec, cuda_stream):
+                    if not wp.context.runtime.core.cuda_graph_launch(graph.graph_exec, cuda_stream):
                         raise RuntimeError(f"Graph launch error: {wp.context.runtime.get_error_string()}")
 
                     # early out
