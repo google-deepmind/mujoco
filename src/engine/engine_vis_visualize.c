@@ -81,22 +81,35 @@ static inline int geomsExhausted(mjData* d, mjvScene* scn) {
   return 0;
 }
 
-// assign `thisgeom` to the next available/free geom in the scene
-// requires `objtype`, `category`, and `i` to be set.
-#define PREPARE_NEXT_GEOM                                        \
-  {                                                              \
-    thisgeom = scn->geoms + scn->ngeom;                          \
-    memset(thisgeom, 0, sizeof(mjvGeom));                        \
-    mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL); \
-    thisgeom->objtype = objtype;                                 \
-    thisgeom->objid = i;                                         \
-    thisgeom->category = category;                               \
-    thisgeom->segid = scn->ngeom;                                \
+// acquires and initializes the next available geom in the scene
+mjvGeom* acquireGeom(mjvScene* scn, int objid, int category, int objtype) {
+  // check for overflow, SHOULD NOT OCCUR
+  if (scn->ngeom >= scn->maxgeom) {
+    mju_error("Cannot acquire geom; all geoms are in use.");
+    return NULL;
   }
 
+  mjvGeom* thisgeom = scn->geoms + scn->ngeom;
+  memset(thisgeom, 0, sizeof(mjvGeom));
+  mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL);
+  thisgeom->objtype = objtype;
+  thisgeom->objid = objid;
+  thisgeom->category = category;
+  thisgeom->segid = scn->ngeom;
+  return thisgeom;
+}
 
-// "finalizes" `thisgeom` in the scene and sets the pointer to NULL
-#define FINISH_GEOM { scn->ngeom++; thisgeom = NULL; }
+
+// mark geom as used, set its pointer to NULL, increment scn->ngeom
+void releaseGeom(mjvGeom** geom, mjvScene* scn) {
+  // check geom being released was most recently acquired, SHOULD NOT OCCUR
+  if (*geom != scn->geoms + scn->ngeom) {
+    mju_error("Unexpected geom pointer; did you call acquireGeom?");
+  }
+
+  scn->ngeom++;
+  *geom = NULL;
+}
 
 
 // convert HSV to RGB
@@ -194,7 +207,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
       thisgeom->type = mjGEOM_CYLINDER;
       thisgeom->size[0] = thisgeom->size[1] = m->vis.scale.contactwidth * scl;
       float halfheight = m->vis.scale.contactheight * scl;
@@ -261,7 +274,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         mjSNPRINTF(thisgeom->label, "%s | %s", contactlabel[0], contactlabel[1]);
       }
 
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
     }
 
     // mat = contact frame rotation matrix (normal along x)
@@ -279,7 +292,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -299,7 +312,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         }
         thisgeom->rgba[3] = 1;
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
 
@@ -360,7 +373,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         mjtNum* from = con->pos;
         mjtNum to[3];
         mju_add3(to, from, vec);
@@ -371,7 +384,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         if (vopt->label == mjLABEL_CONTACTFORCE && j == (split ? 1 : 0)) {
           mjSNPRINTF(thisgeom->label, "%-.3g", mju_norm3(frc));
         }
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -750,7 +763,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // construct geom, pos = first vertex
         mjv_initGeom(thisgeom, mjGEOM_FLEX, NULL,
@@ -784,7 +797,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           makeLabel(m, mjOBJ_FLEX, i, thisgeom->label);
         }
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -799,7 +812,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // construct geom, pos = first bone
         mjv_initGeom(thisgeom, mjGEOM_SKIN, NULL,
@@ -828,7 +841,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           makeLabel(m, mjOBJ_SKIN, i, thisgeom->label);
         }
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -881,9 +894,9 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
       mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
 
     }
   }
@@ -916,9 +929,9 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             return;
           }
 
-          PREPARE_NEXT_GEOM
+          thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_initGeom(thisgeom, mjGEOM_LINEBOX, aabb+3, aabb, NULL, rgba);
-          FINISH_GEOM
+          releaseGeom(&thisgeom, scn);
         }
       }
 
@@ -949,27 +962,27 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                 return;
               }
 
-              PREPARE_NEXT_GEOM
+              thisgeom = acquireGeom(scn, i, category, objtype);
               mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*(i+1)+2*j+k));
-              FINISH_GEOM
+              releaseGeom(&thisgeom, scn);
             }
             if (j == 0) {
               if (geomsExhausted(d, scn)) {
                 return;
               }
 
-              PREPARE_NEXT_GEOM
+              thisgeom = acquireGeom(scn, i, category, objtype);
               mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*(j+1)+k));
-              FINISH_GEOM
+              releaseGeom(&thisgeom, scn);
             }
             if (k == 0) {
               if (geomsExhausted(d, scn)) {
                 return;
               }
 
-              PREPARE_NEXT_GEOM
+              thisgeom = acquireGeom(scn, i, category, objtype);
               mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*j+(k+1)));
-              FINISH_GEOM
+              releaseGeom(&thisgeom, scn);
             }
           }
         }
@@ -1024,9 +1037,9 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -1048,7 +1061,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         if (m->oct_depth[i] != vopt->bvh_depth) {
           continue;
         }
@@ -1067,7 +1080,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_mulMatVec3(pos, xmat, center);
         mju_addTo3(pos, xpos);
         mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -1147,10 +1160,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               return;
             }
 
-            PREPARE_NEXT_GEOM
+            thisgeom = acquireGeom(scn, i, category, objtype);
             makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
             thisgeom->objid = id;
-            FINISH_GEOM
+            releaseGeom(&thisgeom, scn);
           }
         }
       }
@@ -1169,7 +1182,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         mjtNum Ixx = m->body_inertia[3*i+0];
         mjtNum Iyy = m->body_inertia[3*i+1];
@@ -1212,7 +1225,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           makeLabel(m, mjOBJ_BODY, i, thisgeom->label);
         }
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -1228,7 +1241,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // compute selection point in world coordinates
       mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
@@ -1246,14 +1259,14 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
       f2f(thisgeom->rgba, rgba, 4);
 
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
 
       // add small sphere at end-effector
       if (geomsExhausted(d, scn)) {
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom
         sz[0] = 2*sz[0];
@@ -1261,7 +1274,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       mju_quat2Mat(mat, pert->refquat);
       mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, pert->refselpos, mat, rgba);
 
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
     }
 
     if ((pert->active | pert->active2) & mjPERT_ROTATE) {
@@ -1269,7 +1282,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // prepare color, use inertia color
       float rgba[4];
@@ -1293,7 +1306,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       mju_addTo3(pos, d->xipos+3*i);
       mjv_initGeom(thisgeom, mjGEOM_BOX, sz, pos, mat, rgba);
 
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
     }
   }
 
@@ -1327,7 +1340,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -1347,7 +1360,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         thisgeom->rgba[3] = 1;
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -1366,7 +1379,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       return;
     }
 
-    PREPARE_NEXT_GEOM
+    thisgeom = acquireGeom(scn, i, category, objtype);
     thisgeom->type = mjGEOM_SPHERE;
     thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = scl * m->vis.scale.selectpoint;
     mju_n2f(thisgeom->pos, selpos, 3);
@@ -1378,7 +1391,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         selpos[0], selpos[1], selpos[2],
         pert->localpos[0], pert->localpos[1], pert->localpos[2]);
     }
-    FINISH_GEOM
+    releaseGeom(&thisgeom, scn);
   }
 
   // label bodies when inertia boxes are not shown
@@ -1396,7 +1409,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // construct geom
         thisgeom->type = mjGEOM_LABEL;
@@ -1406,7 +1419,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // vopt->label
         makeLabel(m, mjOBJ_BODY, i, thisgeom->label);
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -1425,7 +1438,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // set type, size, pos, mat depending on joint type
         int j = m->jnt_bodyid[i];
@@ -1465,7 +1478,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           makeLabel(m, mjOBJ_JOINT, i, thisgeom->label);
         }
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -1551,7 +1564,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             return;
           }
 
-          PREPARE_NEXT_GEOM
+          thisgeom = acquireGeom(scn, i, category, objtype);
 
           // site actuators
           if (m->actuator_trntype[i] == mjTRN_SITE) {
@@ -1597,7 +1610,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
           }
 
-          FINISH_GEOM
+          releaseGeom(&thisgeom, scn);
         }
 
         // body actuators
@@ -1614,7 +1627,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                 return;
               }
 
-              PREPARE_NEXT_GEOM
+              thisgeom = acquireGeom(scn, i, category, objtype);
               // inflate sizes by 5%
               mju_scl3(sz, m->geom_size+3*k, 1.05);
 
@@ -1628,7 +1641,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               // set interpolated color
               f2f(thisgeom->rgba, rgba, 4);
 
-              FINISH_GEOM
+              releaseGeom(&thisgeom, scn);
             }
           }
         }
@@ -1641,7 +1654,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                 return;
               }
 
-              PREPARE_NEXT_GEOM
+              thisgeom = acquireGeom(scn, i, category, objtype);
 
               // determine width: smaller for segments inside wrapping objects
               if (d->wrap_obj[k] >= 0 && d->wrap_obj[k+1] >= 0) {
@@ -1667,7 +1680,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                 makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
               }
 
-              FINISH_GEOM
+              releaseGeom(&thisgeom, scn);
             }
           }
         }
@@ -1688,14 +1701,14 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             return;
           }
 
-          PREPARE_NEXT_GEOM
+          thisgeom = acquireGeom(scn, i, category, objtype);
 
           thisgeom->type = mjGEOM_LABEL;
           mju_n2f(thisgeom->pos, d->xipos+3*i, 3);
           mju_n2f(thisgeom->mat, d->ximat+9*i, 9);
           mjSNPRINTF(thisgeom->label, "%d", islandid);
 
-          FINISH_GEOM
+          releaseGeom(&thisgeom, scn);
         }
       }
     }
@@ -1726,7 +1739,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom
       mjv_initGeom(thisgeom, m->geom_type[i], m->geom_size+3*i,
@@ -1834,7 +1847,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_n2f(thisgeom->pos, tmp, 3);
       }
 
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
 
       // set type and category: frame
       objtype = mjOBJ_UNKNOWN;
@@ -1852,7 +1865,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -1872,7 +1885,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         thisgeom->rgba[3] = 1;
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -1894,7 +1907,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom
       mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i,
@@ -1918,7 +1931,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         makeLabel(m, mjOBJ_SITE, i, thisgeom->label);
       }
 
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
 
       // set category for site frame
       category = mjCAT_DECOR;
@@ -1935,7 +1948,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -1955,7 +1968,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         thisgeom->rgba[3] = 1;
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -2024,40 +2037,40 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             return;
           }
 
-          PREPARE_NEXT_GEOM
+          thisgeom = acquireGeom(scn, i, category, objtype);
           makeTriangle(thisgeom, vnear[e], vfar[e], vnear[(e+1)%4], rgba);
-          FINISH_GEOM
+          releaseGeom(&thisgeom, scn);
           if (geomsExhausted(d, scn)) {
             return;
           }
 
-          PREPARE_NEXT_GEOM
+          thisgeom = acquireGeom(scn, i, category, objtype);
           makeTriangle(thisgeom, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba);
-          FINISH_GEOM
+          releaseGeom(&thisgeom, scn);
           if (geomsExhausted(d, scn)) {
             return;
           }
 
-          PREPARE_NEXT_GEOM
+          thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
           f2f(thisgeom->rgba, rgba, 4);
-          FINISH_GEOM
+          releaseGeom(&thisgeom, scn);
           if (geomsExhausted(d, scn)) {
             return;
           }
 
-          PREPARE_NEXT_GEOM
+          thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4]);
           f2f(thisgeom->rgba, rgba, 4);
-          FINISH_GEOM
+          releaseGeom(&thisgeom, scn);
           if (geomsExhausted(d, scn)) {
             return;
           }
 
-          PREPARE_NEXT_GEOM
+          thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vfar[e]);
           f2f(thisgeom->rgba, rgba, 4);
-          FINISH_GEOM
+          releaseGeom(&thisgeom, scn);
         }
       }
 
@@ -2065,7 +2078,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom: camera body
       thisgeom->type = mjGEOM_BOX;
@@ -2081,13 +2094,13 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         makeLabel(m, mjOBJ_CAMERA, i, thisgeom->label);
       }
 
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
 
       if (geomsExhausted(d, scn)) {
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom: lens
       thisgeom->pos[0] = (float)(d->cam_xpos[3*i] -
@@ -2106,7 +2119,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         thisgeom->rgba[k] *= 0.5;  // make lens body darker
       }
 
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
 
       // set category for camera frame
       category = mjCAT_DECOR;
@@ -2123,7 +2136,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -2143,7 +2156,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         thisgeom->rgba[3] = 1;
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -2165,7 +2178,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom
       thisgeom->type = mjGEOM_CYLINDER;
@@ -2181,7 +2194,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         makeLabel(m, mjOBJ_LIGHT, i, thisgeom->label);
       }
 
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
 
       // set category for light frame
       category = mjCAT_DECOR;
@@ -2198,7 +2211,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -2218,7 +2231,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         thisgeom->rgba[3] = 1;
 
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -2274,7 +2287,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                 return;
               }
 
-              PREPARE_NEXT_GEOM
+              thisgeom = acquireGeom(scn, i, category, objtype);
 
               // determine width: smaller for segments inside wrapping objects
               if (d->wrap_obj[j] >= 0 && d->wrap_obj[j+1] >= 0) {
@@ -2309,7 +2322,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                 makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
               }
 
-              FINISH_GEOM
+              releaseGeom(&thisgeom, scn);
             }
           }
         }
@@ -2344,7 +2357,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               return;
             }
 
-            PREPARE_NEXT_GEOM
+            thisgeom = acquireGeom(scn, i, category, objtype);
 
             sz[0] = m->tendon_width[i];
 
@@ -2359,7 +2372,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
             }
 
-            FINISH_GEOM
+            releaseGeom(&thisgeom, scn);
           }
         }
       }
@@ -2401,21 +2414,21 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_connector(thisgeom, mjGEOM_CYLINDER, scl * m->vis.scale.slidercrank,
                       d->site_xpos+3*k, end);
         f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
         if (vopt->label == mjLABEL_ACTUATOR) {
           makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
         }
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
 
         // render crank
         if (geomsExhausted(d, scn)) {
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.slidercrank/2.0,
                       end, d->site_xpos+3*j);
         if (broken) {
@@ -2423,7 +2436,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         } else {
           f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
         }
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -2438,13 +2451,13 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         thisgeom->type = mjGEOM_SPHERE;
         thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = scl * m->vis.scale.com;
         mju_n2f(thisgeom->pos, d->subtree_com+3*i, 3);
         mju_n2f(thisgeom->mat, IDENTITY, 9);
         f2f(thisgeom->rgba, m->vis.rgba.com, 4);
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -2467,14 +2480,14 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             return;
           }
 
-          PREPARE_NEXT_GEOM
+          thisgeom = acquireGeom(scn, i, category, objtype);
             nxt = d->xanchor+3*j;
 
           // construct geom
           mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
           f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
 
-          FINISH_GEOM
+          releaseGeom(&thisgeom, scn);
             cur = nxt;
         }
       }
@@ -2484,11 +2497,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         return;
       }
 
-      PREPARE_NEXT_GEOM
+      thisgeom = acquireGeom(scn, i, category, objtype);
         nxt = d->xipos+3*m->body_parentid[i];
       mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
       f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
-      FINISH_GEOM
+      releaseGeom(&thisgeom, scn);
     }
   }
 
@@ -2512,14 +2525,14 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         mjtNum* from = d->site_xpos+3*sid;
         mjtNum to[3] = {from[0] + d->site_xmat[9*sid+2]*dst,
                         from[1] + d->site_xmat[9*sid+5]*dst,
                         from[2] + d->site_xmat[9*sid+8]*dst};
         mjv_connector(thisgeom, mjGEOM_LINE, 3, from, to);
         f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       } else if (m->sensor_type[i] == mjSENS_GEOMFROMTO) {
         // sensor data
         mjtNum* fromto = d->sensordata + m->sensor_adr[i];
@@ -2534,10 +2547,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_connector(thisgeom, mjGEOM_LINE, 3, fromto, fromto+3);
         f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -2560,13 +2573,13 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         mjtNum* from = xpos;
         mjtNum to[3];
         mju_add3(to, from, vec);
         mjv_connector(thisgeom, mjGEOM_ARROW, m->vis.scale.forcewidth * scl, from, to);
         f2f(thisgeom->rgba, m->vis.rgba.force, 4);
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -2604,23 +2617,23 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, xmat_j, m->vis.rgba.connect);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
 
         if (geomsExhausted(d, scn)) {
           return;
         }
 
-        PREPARE_NEXT_GEOM
+        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, xmat_k, m->vis.rgba.constraint);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
-        FINISH_GEOM
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -2630,9 +2643,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     addContactGeom(m, d, vopt->flags, vopt, scn);
   }
 }
-
-#undef PREPARE_NEXT_GEOM
-#undef FINISH_GEOM
 
 
 
