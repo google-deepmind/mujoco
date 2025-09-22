@@ -214,6 +214,8 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
   if (!mjDISABLED(mjDSBL_ACTUATION)) {
     mju_mulMatVecSparse(d->actuator_velocity, d->actuator_moment, d->qvel, m->nu,
                         d->moment_rownnz, d->moment_rowadr, d->moment_colind, NULL);
+  } else {
+    mju_zero(d->actuator_velocity, m->nu);
   }
 
   // com-based velocities, passive forces, constraint references
