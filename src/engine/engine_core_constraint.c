@@ -210,12 +210,6 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int v,
 
 // add contact to d->contact list; return 0 if success; 1 if buffer full
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con) {
-  // if nconmax is specified and ncon >= nconmax, warn and return error
-  if (m->nconmax != -1 && d->ncon >= m->nconmax) {
-    mj_warning(d, mjWARN_CONTACTFULL, d->ncon);
-    return 1;
-  }
-
   // move arena pointer back to the end of the existing contact array and invalidate efc_ arrays
   d->parena = d->ncon * sizeof(mjContact);
 #ifdef ADDRESS_SANITIZER

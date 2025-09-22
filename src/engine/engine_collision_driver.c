@@ -279,8 +279,7 @@ void mj_collision(const mjModel* m, mjData* d) {
   }
 
   // return if disabled
-  if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT)
-      || m->nconmax == 0 || nbodyflex < 2) {
+  if (mjDISABLED(mjDSBL_CONSTRAINT) || mjDISABLED(mjDSBL_CONTACT) || nbodyflex < 2) {
     return;
   }
 

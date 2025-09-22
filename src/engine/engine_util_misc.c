@@ -1302,8 +1302,7 @@ const char* mju_warningText(int warning, size_t info) {
 
   case mjWARN_CONTACTFULL:
     mjSNPRINTF(str,
-               "Too many contacts. Either the arena memory is full, or nconmax is specified and is "
-               "exceeded. Increase arena memory allocation, or increase/remove nconmax. "
+               "Too many contacts. The arena memory is full, increase arena memory allocation."
                "(ncon = %zu)", info);
     break;
 
