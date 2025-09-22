@@ -97,6 +97,19 @@ PYBIND11_MODULE(_structs, m) {
   mjOption.def("__deepcopy__", [](const MjOptionWrapper& other, py::dict) {
     return MjOptionWrapper(other);
   });
+  mjOption.def_property_readonly_static("_all_fields", [](py::object) {
+    std::vector<std::string> fields;
+#define X(dtype, name) fields.push_back(#name);
+    MJOPTION_FLOATS
+#undef X
+#define X(name, dim0) fields.push_back(#name);
+    MJOPTION_VECTORS
+#undef X
+#define X(dtype, name) fields.push_back(#name);
+    MJOPTION_INTS
+#undef X
+    return py::tuple(py::cast(fields));
+  });
   DefineStructFunctions(mjOption);
 
 #define X(type, var)                                               \
@@ -413,6 +426,17 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     std::vector<std::string> fields;
 #define X(var) fields.push_back(#var);
     MJMODEL_INTS
+#undef X
+    return py::tuple(py::cast(fields));
+  });
+
+  mjModel.def_property_readonly_static("_all_fields", [](py::object) {
+    std::vector<std::string> fields;
+#define X(var) fields.push_back(#var);
+    MJMODEL_INTS
+#undef X
+#define X(type, name, nr, nc) fields.push_back(#name);
+    MJMODEL_POINTERS
 #undef X
     return py::tuple(py::cast(fields));
   });
@@ -747,6 +771,17 @@ This is useful for example when the MJB is not available as a file on disk.)"));
     py::object new_model_py =
         py::cast(other.model()).attr("__deepcopy__")(memo);
     return MjDataWrapper(other, new_model_py.cast<MjModelWrapper*>());
+  });
+  mjData.def_property_readonly_static("_all_fields", [](py::object) {
+    std::vector<std::string> fields;
+#define X(dtype, name) fields.push_back(#name);
+    MJDATA_SCALAR
+#undef X
+#define X(dtype, name, dim0, dim1) fields.push_back(#name);
+    MJDATA_VECTOR
+    MJDATA_POINTERS
+#undef X
+    return py::tuple(py::cast(fields));
   });
   mjData.def(py::pickle(
       [](const MjDataWrapper& d) {  // __getstate__
