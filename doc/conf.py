@@ -25,6 +25,9 @@ import sys
 sys.path.insert(0, os.path.abspath('../'))
 sys.path.append(os.path.abspath('ext'))
 
+# MuJoCo Warp
+sys.path.append(os.path.abspath('../../mujoco_warp'))
+
 from sphinxcontrib import katex  # pylint: disable=g-import-not-at-top
 from sphinxcontrib import youtube  # pylint: disable=g-import-not-at-top,unused-import
 
@@ -42,6 +45,9 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
     'sphinxcontrib.bibtex',
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
@@ -53,6 +59,13 @@ extensions = [
     'sphinx_toolbox.sidebar_links',
     'mujoco_include',
 ]
+
+# MuJoCo Warp documentation
+napoleon_google_docstring = True
+autodoc_class_signature = 'separated'
+add_module_names = False
+toc_object_entries_show_parents = 'hide'
+default_role = 'literal'
 
 # GitHub-related options
 github_username = 'google-deepmind'
@@ -163,9 +176,11 @@ html_static_path = [
 ]
 html_css_files = [
     'theme_overrides.css',
+    'theme_overrides_mjwarp.css',
 ]
 html_js_files = [
     'linenumbers.js',
+    'onthispage_mjwarp.js',
 ]
 
 favicons = [

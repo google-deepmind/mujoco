@@ -1,0 +1,145 @@
+/*
+ * ===================================================================
+ * Unified Documentation Layout
+ *
+ * Creates a consistent two-column layout for class attributes and
+ * function/method parameters. Includes aggressive overrides to resolve
+ * conflicts with `theme_overrides.css`.
+ * ===================================================================
+ */
+
+
+/*
+ * Part 1: Class-Wide Attribute Alignment Grid
+ * -------------------------------------------
+ * This section creates a single grid for all attributes within a class,
+ * ensuring their names and descriptions are perfectly aligned.
+ */
+
+/* The container for all class members becomes the main grid. */
+dl.py.class > dd {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.5ch;
+  align-items: baseline;
+}
+
+/* This makes each attribute's <dl> transparent to the grid, promoting its
+ * <dt> and <dd> children to become direct grid items. This is the key
+ * to achieving the unified alignment.
+ */
+dl.py.attribute {
+  display: contents;
+}
+
+/* Other class members (main docstring, methods) must span both columns
+ * to avoid breaking the attribute grid layout.
+ */
+dl.py.class > dd > p,
+dl.py.class > dd > dl:not(.py.attribute) {
+  grid-column: 1 / -1;
+}
+dl.py.class > dd > p { margin-bottom: 1rem; }
+dl.py.class > dd > dl:not(.py.attribute) { margin-top: 1.5rem; }
+
+
+/*
+ * Part 2: Parameter & Return Value Layout
+ * ---------------------------------------
+ * This section applies a similar two-column grid to the parameters
+ * inside functions and methods for a consistent appearance.
+ */
+
+/* Target the inner list of parameters to avoid grabbing the main heading. */
+dl.py.function .field-list > dd > dl,
+dl.py.method .field-list > dd > dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.5ch;
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+}
+
+
+/*
+ * Part 3: Common Styling for Grid Content
+ * ---------------------------------------
+ * These rules reset default styling for elements within our new grids.
+ */
+
+/* Reset margins on all description blocks (<dd>) within our custom grids. */
+dl.py.attribute > dd,
+dl.py.function .field-list > dd > dl > dd,
+dl.py.method .field-list > dd > dl > dd {
+  margin: 0;
+  padding: 0;
+}
+/* Add vertical spacing between attribute rows. */
+dl.py.attribute > dd {
+  padding-bottom: 0.4rem;
+}
+
+/* Force the main description paragraph of an attribute to stay on one line. */
+dl.py.attribute > dd > p {
+  display: inline;
+  margin: 0;
+}
+
+
+/*
+ * Part 4: Specific Styling for Attribute Type Highlight
+ * -----------------------------------------------------
+ * This styles the highlighted box for an attribute's type.
+ */
+
+/* The container for the type information. */
+dl.py.attribute > dd > dl.field-list {
+  display: flex;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+/* Reset its children. */
+dl.py.attribute > dd > dl.field-list > dt,
+dl.py.attribute > dd > dl.field-list > dd {
+    margin: 0;
+    padding: 0;
+}
+/* The highlight box itself - reverted to a simple implementation. */
+dl.py.attribute > dd > dl.field-list > dd {
+  font-family: monospace;
+  font-size: 90%;
+}
+
+
+/*
+ * Part 5: Aggressive Theme Overrides
+ * ----------------------------------
+ * These rules use `!important` to forcefully win conflicts with
+ * `theme_overrides.css` and ensure our layout is not broken.
+ */
+
+/* CONFLICT FIX: Forcefully remove left margins that break our grids. */
+dl.py.attribute > dd,
+dl.py.attribute > dd > dl.field-list > dd,
+dl.py.function .field-list > dd > dl > dd,
+dl.py.method .field-list > dd > dl > dd {
+  margin-left: 0 !important;
+}
+
+/* CONFLICT FIX: Remove the double colon rendered by the theme. */
+.field-list > dt::after {
+  content: "" !important;
+}
+
+/* CONFLICT FIX: Hide unwanted labels ("TYPE:", "Return type:"). */
+dl.py.attribute > dd > dl.field-list > dt,
+dl.py.function .field-list > dt:last-of-type,
+dl.py.method .field-list > dt:last-of-type {
+    display: none !important;
+}
+
+/* Remove the underline from all links. */
+a {
+  text-decoration: none !important;
+}
+

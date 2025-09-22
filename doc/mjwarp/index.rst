@@ -4,6 +4,11 @@
 MuJoCo Warp (MJWarp)
 ====================
 
+.. toctree::
+    :hidden:
+
+    API <api.rst>
+
 MuJoCo Warp (MJWarp) is an implementation of MuJoCo written in `Warp <https://nvidia.github.io/warp/>`__ and optimized
 for `Nvidia <https://nvidia.com>`__ GPUs. MJWarp lives in the
 `google-deepmind/mujoco_warp <https://github.com/google-deepmind/mujoco_warp>`__ GitHub repository and is currently in
