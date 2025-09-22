@@ -242,21 +242,25 @@ if(SIMULATE_BUILD_EXECUTABLE)
     set(_INSTALL_SIMULATE OFF)
   endif()
 
-  if(_INSTALL_SIMULATE)
+  option(MUJOCO_SIMULATE_INSTALL "If ON, also install simulate executable." ${_INSTALL_SIMULATE})
 
-    include(TargetAddRpath)
+  if(MUJOCO_SIMULATE_INSTALL)
 
-    # Add support to RPATH for the samples.
-    target_add_rpath(
-      TARGETS
-      simulate
-      INSTALL_DIRECTORY
-      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
-      LIB_DIRS
-      "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
-      DEPENDS
-      MUJOCO_ENABLE_RPATH
-    )
+    if(MUJOCO_ENABLE_RPATH)
+      include(TargetAddRpath)
+
+      # Add support to RPATH for the samples.
+      target_add_rpath(
+        TARGETS
+        simulate
+        INSTALL_DIRECTORY
+        "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
+        LIB_DIRS
+        "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}"
+        DEPENDS
+        MUJOCO_ENABLE_RPATH
+      )
+    endif()
 
     if (MUJOCO_WITH_USD)
       target_compile_definitions(simulate PUBLIC mjUSEUSD)
