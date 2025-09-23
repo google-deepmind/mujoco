@@ -2236,16 +2236,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   objtype = mjOBJ_TENDON;
   category = mjCAT_DYNAMIC;
   if (vopt->flags[mjVIS_TENDON] && (category & catmask) && m->ntendon) {
-    // mark actuated tendons
-    mj_markStack(d);
-    int* tendon_actuated = mjSTACKALLOC(d, m->ntendon, int);
-    mju_zeroInt(tendon_actuated, m->ntendon);
-    for (int i=0; i < m->nu; i++) {
-      if (m->actuator_trntype[i] == mjTRN_TENDON) {
-        tendon_actuated[m->actuator_trnid[2*i]] = 1;
-      }
-    }
-
     // draw tendons
     for (int i=0; i < m->ntendon; i++) {
       if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
@@ -2272,8 +2262,17 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           m->tendon_num[i] == 2                 &&    // only two sites on the tendon
           (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
           m->tendon_damping[i] == 0             &&    // no damping
-          m->tendon_frictionloss[i] == 0        &&    // no frictionloss
-          tendon_actuated[i] == 0;                    // no actuator
+          m->tendon_frictionloss[i] == 0;             // no frictionloss
+
+        // no actuator
+        if (draw_catenary) {
+          for (int j=0; j < m->nu; j++) {
+            if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == i) {
+              draw_catenary = 0;
+              break;
+            }
+          }
+        }
 
         // conditions not met: draw straight lines
         if (!draw_catenary) {
@@ -2338,11 +2337,9 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             length = m->tendon_lengthspring[2*i+1];
           }
 
-          // get number of points along catenary path
-          int ncatenary = m->vis.quality.numslices + 1;
-
-          // allocate catenary
-          mjtNum* catenary = mjSTACKALLOC(d, 3*ncatenary, mjtNum);
+          // get number of points along catenary path (capped at 100)
+          int ncatenary = mjMIN(m->vis.quality.numslices + 1, 100);
+          mjtNum catenary[300];
 
           // points along catenary path
           int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
@@ -2373,7 +2370,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
       }
     }
-    mj_freeStack(d);
   }
 
   // slider-crank
