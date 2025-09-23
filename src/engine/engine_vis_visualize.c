@@ -1089,8 +1089,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   category = mjCAT_DECOR;
   objtype = mjOBJ_UNKNOWN;
   if (vopt->flags[mjVIS_CONTACTPOINT]) {
-    mj_markStack(d);
-
     for (int id = 0; id < m->nsensor; id++) {
       if (m->sensor_type[id] == mjSENS_TACTILE) {
         // get site id and frame
@@ -1122,7 +1120,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         for (int i=0; i < m->mesh_facenum[mesh_id]; i++) {
           if (scn->ngeom >= scn->maxgeom) {
             mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);
-            mj_freeStack(d);
             return;
           } else {
             // triangle in global frame
@@ -1168,7 +1165,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
       }
     }
-    mj_freeStack(d);
   }
 
   // inertia
