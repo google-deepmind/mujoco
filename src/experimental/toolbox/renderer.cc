@@ -22,8 +22,6 @@
 
 namespace mujoco::toolbox {
 
-static constexpr int kMaxGeom = 2000;
-
 Renderer::Renderer(MakeContextFn make_context_fn)
     : make_context_fn_(make_context_fn) {
 }
@@ -40,7 +38,8 @@ void Renderer::Init(const mjModel* model) {
   }
 
   make_context_fn_(model, &render_context_);
-  mjv_makeScene(model, &scene_, kMaxGeom);
+  mjv_defaultScene(&scene_);
+  mjv_makeScene(model, &scene_, 2000);
   initialized_ = true;
 }
 
