@@ -1,0 +1,46 @@
+<mujoco>
+  <asset>
+    <texture name="tex1" type="2d" file="noise.png"/>
+    <texture name="tex2" type="2d" file="noise.png"/>
+    <texture name="tex3" type="2d" file="noise.png"/>
+    <texture name="tex4" type="2d" file="noise.png"/>
+    <texture name="tex5" type="2d" file="noise.png"/>
+    <texture name="tex6" type="2d" hflip="true" vflip="true" file="noise.png"/>
+    <texture name="tex7" type="2d" hflip="true" vflip="true" file="noise.png"/>
+    <texture name="tex8" type="2d" hflip="true" vflip="true" file="noise.png"/>
+    <texture name="tex9" type="2d" hflip="true" vflip="true" file="noise.png"/>
+    <texture name="tex10" type="2d" hflip="true" vflip="true" file="noise.png"/>
+    <material name="mat1" texture="tex1"/>
+    <material name="mat2" texture="tex2"/>
+    <material name="mat3" texture="tex3"/>
+    <material name="mat4" texture="tex4"/>
+    <material name="mat5" texture="tex5"/>
+    <material name="mat6" texture="tex6"/>
+    <material name="mat7" texture="tex7"/>
+    <material name="mat8" texture="tex8"/>
+    <material name="mat9" texture="tex9"/>
+    <material name="mat10" texture="tex10"/>
+    <mesh name="mesh1" file="highres_sphere.obj"/>
+    <mesh name="mesh2" file="highres_sphere.obj"/>
+    <mesh name="mesh3" file="highres_sphere.obj"/>
+    <mesh name="mesh4" file="highres_sphere.obj"/>
+    <mesh name="mesh5" file="highres_sphere.obj"/>
+    <mesh name="mesh6" file="highres_sphere.obj"/>
+    <mesh name="mesh7" file="highres_sphere.obj"/>
+    <mesh name="mesh8" file="highres_sphere.obj"/>
+    <mesh name="mesh9" file="highres_sphere.obj"/>
+    <mesh name="mesh10" file="highres_sphere.obj"/>
+  </asset>
+  <worldbody>
+    <geom type="mesh" mesh="mesh1" material="mat1" pos="0 0 0"/>
+    <geom type="mesh" mesh="mesh2" material="mat2" pos="0.3 0 0"/>
+    <geom type="mesh" mesh="mesh3" material="mat3" pos="0.6 0 0"/>
+    <geom type="mesh" mesh="mesh4" material="mat4" pos="0.9 0 0"/>
+    <geom type="mesh" mesh="mesh5" material="mat5" pos="1.2 0 0"/>
+    <geom type="mesh" mesh="mesh6" material="mat6" pos="0 0.3 0"/>
+    <geom type="mesh" mesh="mesh7" material="mat7" pos="0.3 0.3 0"/>
+    <geom type="mesh" mesh="mesh8" material="mat8" pos="0.6 0.3 0"/>
+    <geom type="mesh" mesh="mesh9" material="mat9" pos="0.9 0.3 0"/>
+    <geom type="mesh" mesh="mesh10" material="mat10" pos="1.2 0.3 0"/>
+  </worldbody>
+</mujoco>
