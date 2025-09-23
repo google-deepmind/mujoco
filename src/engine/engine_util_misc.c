@@ -1350,9 +1350,35 @@ int mju_isBad(mjtNum x) {
 
 
 // return 1 if all elements are 0
-int mju_isZero(mjtNum* vec, int n) {
+int mju_isZero(const mjtNum* vec, int n) {
   for (int i=0; i < n; i++) {
     if (vec[i] != 0) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+
+
+// return 1 if all elements are 0
+int mju_isZeroByte(const unsigned char* vec, int n) {
+  size_t i = 0;
+
+  // unroll using 8-byte chunks
+  const uint64_t* vec64 = (const uint64_t*)vec;
+  size_t n64 = n / sizeof(uint64_t);
+  for (; i < n64; ++i) {
+    if (vec64[i]) {
+      return 0;
+    }
+  }
+
+  // remaining bytes
+  i *= sizeof(uint64_t);
+  for (; i < n; ++i) {
+    if (vec[i]) {
       return 0;
     }
   }

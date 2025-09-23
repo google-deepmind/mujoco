@@ -8343,7 +8343,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              FunctionParameterDecl(
                  name='vec',
                  type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
+                     inner_type=ValueType(name='mjtNum', is_const=True),
                  ),
              ),
              FunctionParameterDecl(

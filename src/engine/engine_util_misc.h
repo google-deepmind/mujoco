@@ -133,8 +133,11 @@ MJAPI const char* mju_warningText(int warning, size_t info);
 // return 1 if nan or abs(x)>mjMAXVAL, 0 otherwise
 MJAPI int mju_isBad(mjtNum x);
 
-// return 1 if all elements are 0
-MJAPI int mju_isZero(mjtNum* vec, int n);
+// return 1 if all elements are numerically 0 (-0.0 treated as zero)
+MJAPI int mju_isZero(const mjtNum* vec, int n);
+
+// return 1 if all elements are 0x00, can be ~2x faster than mju_isZero
+MJAPI int mju_isZeroByte(const unsigned char* vec, int n);
 
 // set integer vector to 0
 MJAPI void mju_zeroInt(int* res, int n);

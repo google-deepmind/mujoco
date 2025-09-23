@@ -3389,7 +3389,7 @@ int mju_str2Type(const char* str);
 const char* mju_writeNumBytes(size_t nbytes);
 const char* mju_warningText(int warning, size_t info);
 int mju_isBad(mjtNum x);
-int mju_isZero(mjtNum* vec, int n);
+int mju_isZero(const mjtNum* vec, int n);
 mjtNum mju_standardNormal(mjtNum* num2);
 void mju_f2n(mjtNum* res, const float* vec, int n);
 void mju_n2f(float* res, const mjtNum* vec, int n);

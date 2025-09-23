@@ -1303,7 +1303,7 @@ MJAPI const char* mju_warningText(int warning, size_t info);
 MJAPI int mju_isBad(mjtNum x);
 
 // Return 1 if all elements are 0.
-MJAPI int mju_isZero(mjtNum* vec, int n);
+MJAPI int mju_isZero(const mjtNum* vec, int n);
 
 // Standard normal random number generator (optional second number).
 MJAPI mjtNum mju_standardNormal(mjtNum* num2);

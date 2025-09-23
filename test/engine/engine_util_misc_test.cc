@@ -349,6 +349,17 @@ TEST_F(UtilMiscTest, MjuSparseLower2SymMapPartial) {
   EXPECT_THAT(AsVector(mat_res, res_nnz), ElementsAre(1, 2, 0, 2, 3, 0, 6));
 }
 
+TEST_F(UtilMiscTest, MjuIsZero) {
+  mjtNum vec[1] = {1};
+  EXPECT_EQ(mju_isZero(vec, 1), 0);
+  EXPECT_EQ(mju_isZero(vec, 0), 1);
+  vec[0] = 0;
+  EXPECT_EQ(mju_isZero(vec, 1), 1);
+  vec[0] = -0.0;
+  EXPECT_EQ(mju_isZero(vec, 1), 1);
+  EXPECT_EQ(mju_isZeroByte((const unsigned char*)vec, sizeof(mjtNum)), 0);
+}
+
 // --------------------------------- Interpolation -----------------------------
 
 using InterpolationTest = MujocoTest;
