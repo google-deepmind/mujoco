@@ -142,12 +142,6 @@ MJAPI int mju_isZeroByte(const unsigned char* vec, int n);
 // set integer vector to 0
 MJAPI void mju_zeroInt(int* res, int n);
 
-// set mjtSize vector to 0
-MJAPI void mju_zeroSize(mjtSize* res, size_t n);
-
-// set size_t vector to 0
-MJAPI void mju_zeroSizeT(size_t* res, size_t n);
-
 // copy int vector vec into res
 MJAPI void mju_copyInt(int* res, const int* vec, int n);
 
