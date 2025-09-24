@@ -1118,8 +1118,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
         int* face = m->mesh_face + 3*m->mesh_faceadr[mesh_id];
         for (int i=0; i < m->mesh_facenum[mesh_id]; i++) {
-          if (scn->ngeom >= scn->maxgeom) {
-            mj_warning(d, mjWARN_VGEOMFULL, scn->maxgeom);
+          if (geomsExhausted(d, scn)) {
             return;
           } else {
             // triangle in global frame
@@ -1153,10 +1152,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             }
 
             // draw triangles, one per side
-            if (geomsExhausted(d, scn)) {
-              return;
-            }
-
             thisgeom = acquireGeom(scn, i, category, objtype);
             makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
             thisgeom->objid = id;
