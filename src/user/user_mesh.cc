@@ -513,7 +513,7 @@ void mjCMesh::CacheMesh(mjCCache* cache, const mjResource* resource) {
     const mjCMesh* mesh = static_cast<const mjCMesh*>(data);
     delete mesh;
   });
-  cache->Insert("", resource, cached_data, size);
+  cache->Insert("", resource->name, resource, cached_data, size);
 }
 
 namespace {
@@ -1231,7 +1231,7 @@ bool mjCMesh::LoadCachedMesh(mjCCache *cache, const mjResource* resource) {
   };
 
   // check that cached asset has all data
-  return cache->PopulateData(resource, process_mesh);
+  return cache->PopulateData(resource->name, resource, process_mesh);
 }
 
 

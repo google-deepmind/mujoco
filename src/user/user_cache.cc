@@ -64,17 +64,17 @@ const std::string* mjCCache::HasAsset(const std::string& id) {
 
 // inserts an asset into the cache, if asset is already in the cache, its data
 // is updated only if the timestamps disagree
-bool mjCCache::Insert(const std::string& modelname, const mjResource *resource,
+bool mjCCache::Insert(const std::string& modelname, const std::string& id, const mjResource *resource,
                       std::shared_ptr<const void> data, std::size_t size) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   // check if asset is too large to fit in the cache
   if ((size_ + size > capacity_) &&
-      lookup_.find(resource->name) == lookup_.end()) {
+      lookup_.find(id) == lookup_.end()) {
     return false;
   }
-  mjCAsset asset(modelname, resource, data, size);
-  auto [it, inserted] = lookup_.insert({resource->name, asset});
+  mjCAsset asset(modelname, id, resource, data, size);
+  auto [it, inserted] = lookup_.insert({id, asset});
   mjCAsset* asset_ptr = &(it->second);
 
   if (!inserted) {
@@ -104,9 +104,9 @@ bool mjCCache::Insert(const std::string& modelname, const mjResource *resource,
 
 // populate data from the cache into the given function, return true if data was
 // copied
-bool mjCCache::PopulateData(const mjResource* resource, mjCDataFunc fn) {
+bool mjCCache::PopulateData(const std::string& id, const mjResource* resource, mjCDataFunc fn) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = lookup_.find(resource->name);
+  auto it = lookup_.find(id);
   if (it == lookup_.end()) {
     return false;
   }

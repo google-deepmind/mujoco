@@ -39,9 +39,9 @@ typedef void (*mjCDeallocFunc)(const void*);
 class mjCAsset {
   friend class mjCCache;
  public:
-  mjCAsset(std::string modelname, const mjResource* resource,
+  mjCAsset(std::string modelname, std::string id, const mjResource* resource,
            std::shared_ptr<const void> data, std::size_t size) :
-             id_(resource->name), timestamp_(resource->timestamp),
+             id_(id), timestamp_(resource->timestamp),
              size_(size), data_(std::move(data)) {
     AddReference(modelname);
   }
@@ -136,11 +136,11 @@ class mjCCache {
 
   // inserts an asset into the cache, if asset is already in the cache, its data
   // is updated only if the timestamps disagree
-  bool Insert(const std::string& modelname, const mjResource *resource,
+  bool Insert(const std::string& modelname, const std::string& id, const mjResource *resource,
               std::shared_ptr<const void> data, std::size_t size);
 
   // populate data from the cache into the given function
-  bool PopulateData(const mjResource* resource, mjCDataFunc fn);
+  bool PopulateData(const std::string& id, const mjResource* resource, mjCDataFunc fn);
 
   // deletes the asset from the cache with the given id
   void DeleteAsset(const std::string& id);

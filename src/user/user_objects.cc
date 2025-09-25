@@ -91,7 +91,7 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
   };
 
   // try loading from cache
-  if (cache && cache->PopulateData(resource, callback)) {
+  if (cache && cache->PopulateData(resource->name, resource, callback)) {
       return image;
   }
 
@@ -139,7 +139,7 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
     std::shared_ptr<const void> cached_data(cached_image, +[] (const void* data) {
         delete static_cast<const PNGImage*>(data);
       });
-    cache->Insert("", resource, cached_data, size);
+    cache->Insert("", resource->name, resource, cached_data, size);
   }
 
   return image;
