@@ -1967,6 +1967,26 @@ TEST_F(XMLReaderTest, ResizeKeyframeAfterParsing) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(XMLReaderTest, CheckTextureGridlayoutParsing) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture name="test_skybox" type="skybox" file="dummy_image.png" gridsize="2 4" gridlayout="LFRB.D.."/>
+    </asset>
+  </mujoco>
+  )";
+
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
+  EXPECT_THAT(spec, NotNull()) << error.data();
+  auto skybox_spec = mjs_asTexture(mjs_findElement(spec, mjOBJ_TEXTURE, "test_skybox"));
+  EXPECT_THAT(skybox_spec, NotNull()) << error.data();
+  EXPECT_EQ(std::strlen(skybox_spec->gridlayout), 8);
+  EXPECT_TRUE(std::strcmp(skybox_spec->gridlayout, "LFRB.D..") == 0);
+
+  mj_deleteSpec(spec);
+}
+
 // ----------------------- test camera parsing ---------------------------------
 
 TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
