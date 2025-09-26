@@ -617,8 +617,13 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
         pmesh = mjs_addMesh(spec, 0);
         meshes[meshname].push_back(pmesh);
         meshname = meshname + std::to_string(i);
-        newmesh = true;
+        newmesh = true;      
       }
+      else if(i>0)
+      {
+        meshname = meshname + std::to_string(i);
+      }
+
     }
 
     // set fields
