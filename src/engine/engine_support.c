@@ -485,6 +485,7 @@ mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, 
     }
   }
 
+  // call collision function with distmax as margin
   int num = func(m, d, con, g1, g2, distmax);
 
   // find smallest distance

@@ -551,11 +551,10 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
       case mjSENS_GEOMNORMAL:                             // normal direction between two geoms
       case mjSENS_GEOMFROMTO:                             // segment between two geoms
         {
-          // use cutoff for collision margin
-          mjtNum margin = m->sensor_cutoff[i];
+          mjtNum cutoff = m->sensor_cutoff[i];
 
           // initialize outputs
-          mjtNum dist = margin;    // collision distance
+          mjtNum dist = cutoff;    // collision distance
           mjtNum fromto[6] = {0};  // segment between geoms
 
           // get lists of geoms to collide
@@ -580,7 +579,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
           for (int geom1=id1; geom1 < id1+n1; geom1++) {
             for (int geom2=id2; geom2 < id2+n2; geom2++) {
               mjtNum fromto_new[6] = {0};
-              mjtNum dist_new = mj_geomDistance(m, d, geom1, geom2, margin, fromto_new);
+              mjtNum dist_new = mj_geomDistance(m, d, geom1, geom2, cutoff, fromto_new);
               if (dist_new < dist) {
                 dist = dist_new;
                 mju_copy(fromto, fromto_new, 6);
@@ -626,7 +625,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
                            m->sensor_objid[i+1]   == objid    &&
                            m->sensor_reftype[i+1] == reftype  &&
                            m->sensor_refid[i+1]   == refid    &&
-                           m->sensor_cutoff[i+1]  == margin;
+                           m->sensor_cutoff[i+1]  == cutoff;
 
             // if signature matches, increment external loop variable i
             if (write_sensor) {
