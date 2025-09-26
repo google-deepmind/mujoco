@@ -7494,8 +7494,8 @@ Matching
   bodies, while setting only :ref:`geom1<sensor-contact-geom1>` will match any contacts involving that geom. Setting
   :ref:`site<sensor-contact-site>` will match contacts that are inside the volume defined by the site; this matching
   criterion can be used with {geom2, body2, subtree2}. The subtree attributes take a body name and match all contacts
-  involving the subtree where that body is located. Setting :ref:`subtree1<sensor-contact-subtree1>` and
-  :ref:`subtree2<sensor-contact-subtree2>` to the same body or to two bodies in the same subtree will match
+  involving the body's subtree i.e., the body and all of its descendants. Setting
+  :ref:`subtree1<sensor-contact-subtree1>` and :ref:`subtree2<sensor-contact-subtree2>` to the same body will match
   self-collisions in the subtree. Specifying no matching criterion will match all contacts.
 
 Reduction
