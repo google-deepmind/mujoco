@@ -2,8 +2,25 @@
 Changelog
 =========
 
-3.3.6 (September 15, 2025)
+Upcoming version (not yet released)
 -----------------------------------
+
+General
+^^^^^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The mjSpec C API fields :ref:`meshdir<compiler-meshdir>` and :ref:`texturedir<compiler-texturedir>` have been moved
+     to `compiler.meshdir <https://github.com/google-deepmind/mujoco/blob/0baac589993220095cf09e153f194f35ca0f0738/include/mujoco/mjspec.h#L154>`__ and
+     `compiler.texturedir <https://github.com/google-deepmind/mujoco/blob/0baac589993220095cf09e153f194f35ca0f0738/include/mujoco/mjspec.h#L155>`__
+     respectively. For backwards compatibility, the old fields are still available in the Python API but will be removed
+     in a future release.
+
+     **Migration:** Replace ``meshdir`` and ``texturedir`` with ``compiler.meshdir`` and ``compiler.texturedir``.
+
+Version 3.3.6 (September 15, 2025)
+----------------------------------
 
 General
 ^^^^^^^
