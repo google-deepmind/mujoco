@@ -943,18 +943,4 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
 }
 
 
-// set default solver parameters
-void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp) {
-  if (solref) {
-    solref[0] = 0.02;       // timeconst
-    solref[1] = 1;          // dampratio
-  }
 
-  if (solimp) {
-    solimp[0] = 0.9;        // dmin
-    solimp[1] = 0.95;       // dmax
-    solimp[2] = 0.001;      // width
-    solimp[3] = 0.5;        // midpoint
-    solimp[4] = 2;          // power
-  }
-}
