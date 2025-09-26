@@ -607,8 +607,6 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
             mesh->scale[1] == meshscale[1] &&
             mesh->scale[2] == meshscale[2]) {
           pmesh = mesh;
-	  if (i>0)
-            meshname = meshname + std::to_string(i);
           break;
         }
         i++;
@@ -619,8 +617,13 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
         pmesh = mjs_addMesh(spec, 0);
         meshes[meshname].push_back(pmesh);
         meshname = meshname + std::to_string(i);
-        newmesh = true;
+        newmesh = true;      
       }
+      else if(i>0)
+      {
+        meshname = meshname + std::to_string(i);
+      }
+
     }
 
     // set fields
