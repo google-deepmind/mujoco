@@ -19,6 +19,12 @@ General
 
      **Migration:** Replace ``meshdir`` and ``texturedir`` with ``compiler.meshdir`` and ``compiler.texturedir``.
 
+- Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
+  limit, are recolored by using the :ref:`constraint impedance<soParameters>` :math:`d` to mix the existing color with
+  :ref:`visual/rgba/constraint<visual-rgba-constraint>`. For spatial tendons, this visualization aid is active only if
+  no :ref:`material<tendon-spatial-material>` is set and :ref:`rgba<tendon-spatial-rgba>` is default.
+
+
 Version 3.3.6 (September 15, 2025)
 ----------------------------------
 

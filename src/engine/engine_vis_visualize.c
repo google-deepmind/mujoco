@@ -1462,7 +1462,24 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           mjERROR("unknown joint type %d", m->jnt_type[i]);
         }
 
-        f2f(thisgeom->rgba, m->vis.rgba.joint, 4);
+        // loop over limit constraints, get impedance if this joint is limited
+        mjtNum imp = 0;
+        int efc_start = d->ne + d->nf;
+        int efc_end = efc_start + d->nl;
+        for (int k=efc_start; k < efc_end; k++) {
+          if (d->efc_type[k] == mjCNSTR_LIMIT_JOINT && d->efc_id[k] == i) {
+            imp = d->efc_KBIP[4*k + 2];
+          }
+        }
+
+        // use impedance to mix joint and constraint colors
+        float rgba[4];
+        rgba[0] = (1-imp) * m->vis.rgba.joint[0] + imp * m->vis.rgba.constraint[0];
+        rgba[1] = (1-imp) * m->vis.rgba.joint[1] + imp * m->vis.rgba.constraint[1];
+        rgba[2] = (1-imp) * m->vis.rgba.joint[2] + imp * m->vis.rgba.constraint[2];
+        rgba[3] = 1;
+
+        f2f(thisgeom->rgba, rgba, 4);
 
         // vopt->label
         if (vopt->label == mjLABEL_JOINT) {
@@ -2290,8 +2307,28 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
               mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], d->wrap_xpos+3*j, d->wrap_xpos+3*j+3);
 
               // set material properties
-              float* rgba = m->tendon_rgba+4*i;
               int tendon_matid = m->tendon_matid[i];
+              float rgba[4];
+              f2f(rgba, m->tendon_rgba+4*i, 4);
+
+              // if tendon has no material and the color is the default gray, re-color it using limit impedance
+              if (tendon_matid == -1 && rgba[0] == 0.5 && rgba[1] == 0.5 && rgba[2] == 0.5 && rgba[3] == 1) {
+                // loop over limit constraints, get impedance if this tendon is limited
+                mjtNum imp = 0;
+                int efc_start = d->ne + d->nf;
+                int efc_end = efc_start + d->nl;
+                for (int k=efc_start; k < efc_end; k++) {
+                  if (d->efc_type[k] == mjCNSTR_LIMIT_TENDON && d->efc_id[k] == i) {
+                    imp = d->efc_KBIP[4*k + 2];
+                  }
+                }
+
+                // use impedance to mix tendon and constraint colors
+                rgba[0] = (1-imp) * rgba[0] + imp * m->vis.rgba.constraint[0];
+                rgba[1] = (1-imp) * rgba[1] + imp * m->vis.rgba.constraint[1];
+                rgba[2] = (1-imp) * rgba[2] + imp * m->vis.rgba.constraint[2];
+              }
+
               setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
 
               // override if visualizing islands
