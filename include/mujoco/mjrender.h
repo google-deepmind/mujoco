@@ -147,6 +147,17 @@ struct mjrContext_ {                // custom OpenGL context
   unsigned int* skintexcoordVBO;    // skin vertex texture coordinate VBOs (nskin)
   unsigned int* skinfaceVBO;        // skin face index VBOs (nskin)
 
+  // Shaders
+  unsigned int defaultShader;
+  unsigned int wireframeShader;
+
+  // Plane buffers
+  int nplanes;
+  unsigned int planeIndexCount;
+  unsigned int planeVAO;           // Plane vertex array objects (nplane)
+  unsigned int planeVBO;           // Plane vertex buffer objects (nplane)
+  unsigned int planeEBO;            // Plane elemental buffer objects (nplane)
+
   // character info
   int charWidth[127];               // character widths: normal and shadow
   int charWidthBig[127];            // chacarter widths: big

@@ -27,7 +27,7 @@ option(MUJOCO_SAMPLES_USE_SYSTEM_MUJOCO "Use installed MuJoCo version."
 unset(DEFAULT_USE_SYSTEM_MUJOCO)
 
 option(MUJOCO_SAMPLES_USE_SYSTEM_MUJOCO "Use installed MuJoCo version." OFF)
-option(MUJOCO_SAMPLES_USE_SYSTEM_GLFW "Use installed GLFW version." OFF)
+option(MUJOCO_SAMPLES_USE_SYSTEM_GLFW "Use installed GLFW version." ON)
 
 set(MUJOCO_DEP_VERSION_glfw3
     7b6aead9fb88b3623e3b3725ebb42670cbe4c579 # 3.4
