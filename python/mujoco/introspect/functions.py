@@ -1274,7 +1274,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
              ),
          ),
-         doc='Print mjData to text file, specifying format. float_format must be a valid printf-style format string for a single float value',  # pylint: disable=line-too-long
+         doc='Print mjData to text file, specifying format. float_format must be a valid printf-style format string for a single float value.',  # pylint: disable=line-too-long
      )),
     ('mj_printData',
      FunctionDecl(
@@ -1391,6 +1391,52 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Print internal XML schema as plain text or HTML, with style-padding or &nbsp;.',  # pylint: disable=line-too-long
+     )),
+    ('mj_printScene',
+     FunctionDecl(
+         name='mj_printScene',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvScene', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Print scene to text file.',
+     )),
+    ('mj_printFormattedScene',
+     FunctionDecl(
+         name='mj_printFormattedScene',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='s',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvScene', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='float_format',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Print scene to text file, specifying format. float_format must be a valid printf-style format string for a single float value.',  # pylint: disable=line-too-long
      )),
     ('mj_fwdPosition',
      FunctionDecl(

@@ -1215,7 +1215,7 @@ Print model to text file.
 .. mujoco-include:: mj_printFormattedData
 
 Print mjData to text file, specifying format.
-float_format must be a valid printf-style format string for a single float value
+float_format must be a valid printf-style format string for a single float value.
 
 .. _mj_printData:
 
@@ -1252,6 +1252,25 @@ Print sparse matrix to screen.
 .. mujoco-include:: mj_printSchema
 
 Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;``.
+
+.. _mj_printScene:
+
+`mj_printScene <#mj_printScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printScene
+
+Print scene to text file.
+
+.. _mj_printFormattedScene:
+
+`mj_printFormattedScene <#mj_printFormattedScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printFormattedScene
+
+Print scene to text file, specifying format.
+float_format must be a valid printf-style format string for a single float value.
 
 .. _Virtualfilesystem:
 

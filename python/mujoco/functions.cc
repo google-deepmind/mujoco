@@ -174,6 +174,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_printModel>(pymodule);
   Def<traits::mj_printFormattedData>(pymodule);
   Def<traits::mj_printData>(pymodule);
+  Def<traits::mj_printFormattedScene>(pymodule);
+  Def<traits::mj_printScene>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_printMat, "nr", "nc")(
       pymodule,
       [](Eigen::Ref<const EigenArrayXX> mat) {

@@ -291,7 +291,7 @@ MJAPI void mj_printFormattedModel(const mjModel* m, const char* filename, const 
 MJAPI void mj_printModel(const mjModel* m, const char* filename);
 
 // Print mjData to text file, specifying format.
-// float_format must be a valid printf-style format string for a single float value
+// float_format must be a valid printf-style format string for a single float value.
 MJAPI void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filename,
                                  const char* float_format);
 
@@ -308,6 +308,14 @@ MJAPI void mju_printMatSparse(const mjtNum* mat, int nr,
 // Print internal XML schema as plain text or HTML, with style-padding or &nbsp;.
 MJAPI int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
                          int flg_html, int flg_pad);
+
+// Print scene to text file.
+MJAPI void mj_printScene(const mjvScene* s, const char* filename);
+
+// Print scene to text file, specifying format.
+// float_format must be a valid printf-style format string for a single float value.
+MJAPI void mj_printFormattedScene(const mjvScene* s, const char* filename,
+                                  const char* float_format);
 
 
 //---------------------------------- Components ----------------------------------------------------
