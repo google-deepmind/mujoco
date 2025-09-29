@@ -1519,6 +1519,8 @@ void App::VisualizationGui() {
 }
 
 void App::RenderingGui() {
+  mjvScene& scene = renderer_->GetScene();
+
   // Generate a list of camera names dynamically.
   std::vector<const char*> camera_names;
   camera_names.push_back("Free");
@@ -1540,7 +1542,7 @@ void App::RenderingGui() {
     SetCamera(ui_.camera_idx);
   }
   if (ImGui::Button("Copy Camera")) {
-    std::string camera_string = toolbox::CameraToString(&renderer_->GetScene());
+    std::string camera_string = toolbox::CameraToString(&scene);
     toolbox::MaybeSaveToClipboard(camera_string);
   }
 
@@ -1553,6 +1555,19 @@ void App::RenderingGui() {
     for (int i = 0; i < mjNVISFLAG; ++i) {
       Toggle(mjVISSTRING[i][0], vis_options_.flags[i]);
       if (i % 2 == 0 && i != mjNVISFLAG - 1) {
+        ImGui::SameLine();
+      }
+    }
+    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("Render Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
+
+    for (int i = 0; i < mjNRNDFLAG; ++i) {
+      Toggle(mjRNDSTRING[i][0], scene.flags[i]);
+      if (i % 2 == 0 && i != mjNRNDFLAG - 1) {
         ImGui::SameLine();
       }
     }
