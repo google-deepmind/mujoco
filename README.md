@@ -190,7 +190,7 @@ copy of the License at https://www.apache.org/licenses/LICENSE-2.0.
 
 This is not an officially supported Google product.
 
-[build from source]: https://mujoco.readthedocs.io/en/latest/programming#building-mujoco-from-source
+[build from source]: https://mujoco.readthedocs.io/en/latest/programming#building-from-source
 [Getting Started]: https://mujoco.readthedocs.io/en/latest/programming#getting-started
 [Unity]: https://unity.com/
 [releases page]: https://github.com/google-deepmind/mujoco/releases
