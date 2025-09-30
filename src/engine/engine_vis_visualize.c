@@ -379,7 +379,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         mju_add3(to, from, vec);
         mjv_connector(thisgeom,
                       bf[0] > 0 && bf[1] > 0 && !split ? mjGEOM_ARROW2 : mjGEOM_ARROW,
-                      m->vis.scale.forcewidth * scl,from, to);
+                      m->vis.scale.forcewidth * scl, from, to);
         f2f(thisgeom->rgba, j == 2 ? m->vis.rgba.contactfriction : m->vis.rgba.contactforce, 4);
         if (vopt->label == mjLABEL_CONTACTFORCE && j == (split ? 1 : 0)) {
           mjSNPRINTF(thisgeom->label, "%-.3g", mju_norm3(frc));
@@ -852,7 +852,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_BODYBVH]) {
     for (int i = 0; i < m->nbvhstatic; i++) {
       int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
-      if (scn->ngeom >= scn->maxgeom) break;
       if (m->bvh_depth[i] != vopt->bvh_depth) {
         if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
           continue;
@@ -876,10 +875,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       // get xpos, xmat, size
       const mjtNum* xpos = isleaf ? d->geom_xpos + 3 * geomid : d->xipos + 3 * bodyid;
       const mjtNum* xmat = isleaf ? d->geom_xmat + 9 * geomid : d->ximat + 9 * bodyid;
-      const mjtNum *size = isleaf ? m->geom_aabb + 6*geomid + 3 : m->bvh_aabb + 6*i + 3;
+      const mjtNum* size = isleaf ? m->geom_aabb + 6*geomid + 3 : m->bvh_aabb + 6*i + 3;
 
       // offset xpos with aabb center (not always at frame origin)
-      const mjtNum *center = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
+      const mjtNum* center = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
       mjtNum pos[3];
       mju_mulMatVec3(pos, xmat, center);
       mju_addTo3(pos, xpos);
@@ -909,7 +908,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       if (m->flex_bvhnum[f] && vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[f]))]) {
         for (int i=m->flex_bvhadr[f]; i < m->flex_bvhadr[f]+m->flex_bvhnum[f]; i++) {
           int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
-          if (scn->ngeom >= scn->maxgeom) break;
           if (m->bvh_depth[i] != vopt->bvh_depth) {
             if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
               continue;
@@ -917,7 +915,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           }
 
           // get box data
-          mjtNum *aabb = d->bvh_aabb_dyn + 6*(i - m->nbvhstatic);
+          mjtNum* aabb = d->bvh_aabb_dyn + 6*(i - m->nbvhstatic);
 
           // set box color
           const float* rgba = m->vis.rgba.bv;
@@ -956,7 +954,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       for (int i=0; i < 2; i++) {
         for (int j=0; j < 2; j++) {
           for (int k=0; k < 2; k++) {
-            if (scn->ngeom >= scn->maxgeom) break;
             if (i == 0) {
               if (geomsExhausted(scn)) {
                 return;
@@ -1004,7 +1001,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       for (int b = 0; b < m->mesh_bvhnum[meshid]; b++) {
         int i = b + m->mesh_bvhadr[meshid];
         int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
-        if (scn->ngeom >= scn->maxgeom) break;
         if (m->bvh_depth[i] != vopt->bvh_depth) {
           if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
             continue;
@@ -1025,10 +1021,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // get xpos, xmat, size
         const mjtNum* xpos = d->geom_xpos + 3 * geomid;
         const mjtNum* xmat = d->geom_xmat + 9 * geomid;
-        const mjtNum *size = m->bvh_aabb + 6*i + 3;
+        const mjtNum* size = m->bvh_aabb + 6*i + 3;
 
         // offset xpos with aabb center (not always at geom origin)
-        const mjtNum *center = m->bvh_aabb + 6*i;
+        const mjtNum* center = m->bvh_aabb + 6*i;
         mjtNum pos[3];
         mju_mulMatVec3(pos, xmat, center);
         mju_addTo3(pos, xpos);
@@ -1072,10 +1068,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // get xpos, xmat, size
         const mjtNum* xpos = d->geom_xpos + 3 * geomid;
         const mjtNum* xmat = d->geom_xmat + 9 * geomid;
-        const mjtNum *size = m->oct_aabb + 6*i + 3;
+        const mjtNum* size = m->oct_aabb + 6*i + 3;
 
         // offset xpos with aabb center (not always at geom origin)
-        const mjtNum *center = m->oct_aabb + 6*i;
+        const mjtNum* center = m->oct_aabb + 6*i;
         mjtNum pos[3];
         mju_mulMatVec3(pos, xmat, center);
         mju_addTo3(pos, xpos);
@@ -1120,43 +1116,43 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         for (int i=0; i < m->mesh_facenum[mesh_id]; i++) {
           if (geomsExhausted(scn)) {
             return;
-          } else {
-            // triangle in global frame
-            mjtNum pos[3][3];
-            for (int j = 0; j < 3; j++) {
-              mjtNum v[3] = {mesh_vert[3 * face[3 * i + j] + 0],
-                             mesh_vert[3 * face[3 * i + j] + 1],
-                             mesh_vert[3 * face[3 * i + j] + 2]};
-              mju_mulMatVec3(pos[j], geom_mat, v);
-              mju_addTo3(pos[j], geom_pos);
-            }
-
-            // color
-            float rgba[4] = {0, 0, 0, 1.0};
-            mjtNum nval[3] = {0, 0, 0};
-            for (int r = 0; r < mjMIN(nchannel, 3); r++) {
-              for (int j = 0; j < 3; j++) {
-                mjtNum val = sensordata[r*m->mesh_vertnum[mesh_id] + face[3*i+j]];
-                rgba[r] += mju_abs(val) / maxval;
-                if (val) {
-                  nval[r] += 1;
-                }
-              }
-              if (nval[r]) {
-                rgba[r] /= nval[r];
-              }
-            }
-
-            if (rgba[0]==0 && rgba[1]==0 && rgba[2]==0) {
-              rgba[3] = .1;
-            }
-
-            // draw triangles, one per side
-            thisgeom = acquireGeom(scn, i, category, objtype);
-            makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
-            thisgeom->objid = id;
-            releaseGeom(&thisgeom, scn);
           }
+
+          // triangle in global frame
+          mjtNum pos[3][3];
+          for (int j = 0; j < 3; j++) {
+            mjtNum v[3] = {mesh_vert[3 * face[3 * i + j] + 0],
+                           mesh_vert[3 * face[3 * i + j] + 1],
+                           mesh_vert[3 * face[3 * i + j] + 2]};
+            mju_mulMatVec3(pos[j], geom_mat, v);
+            mju_addTo3(pos[j], geom_pos);
+          }
+
+          // color
+          float rgba[4] = {0, 0, 0, 1.0};
+          mjtNum nval[3] = {0, 0, 0};
+          for (int r = 0; r < mjMIN(nchannel, 3); r++) {
+            for (int j = 0; j < 3; j++) {
+              mjtNum val = sensordata[r*m->mesh_vertnum[mesh_id] + face[3*i+j]];
+              rgba[r] += mju_abs(val) / maxval;
+              if (val) {
+                nval[r] += 1;
+              }
+            }
+            if (nval[r]) {
+              rgba[r] /= nval[r];
+            }
+          }
+
+          if (rgba[0]==0 && rgba[1]==0 && rgba[2]==0) {
+            rgba[3] = .1;
+          }
+
+          // draw triangles, one per side
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
+          thisgeom->objid = id;
+          releaseGeom(&thisgeom, scn);
         }
       }
     }
@@ -1260,7 +1256,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom
-        sz[0] = 2*sz[0];
+      sz[0] = 2*sz[0];
       sz[1] = sz[2] = sz[0];
       mju_quat2Mat(mat, pert->refquat);
       mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, pert->refselpos, mat, rgba);
@@ -2007,8 +2003,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*i, m->cam_sensorsize + 2*i);
 
         // frustum frame to convert from planes to vertex representation
-        mjtNum *cam_xpos = d->cam_xpos+3*i;
-        mjtNum *cam_xmat = d->cam_xmat+9*i;
+        mjtNum* cam_xpos = d->cam_xpos+3*i;
+        mjtNum* cam_xmat = d->cam_xmat+9*i;
         mjtNum x[] = {cam_xmat[0], cam_xmat[3], cam_xmat[6]};
         mjtNum y[] = {cam_xmat[1], cam_xmat[4], cam_xmat[7]};
         mjtNum z[] = {cam_xmat[2], cam_xmat[5], cam_xmat[8]};
@@ -2044,37 +2040,36 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           if (geomsExhausted(scn)) {
             return;
           }
-
           thisgeom = acquireGeom(scn, i, category, objtype);
           makeTriangle(thisgeom, vnear[e], vfar[e], vnear[(e+1)%4], rgba);
           releaseGeom(&thisgeom, scn);
+
           if (geomsExhausted(scn)) {
             return;
           }
-
           thisgeom = acquireGeom(scn, i, category, objtype);
           makeTriangle(thisgeom, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba);
           releaseGeom(&thisgeom, scn);
+
           if (geomsExhausted(scn)) {
             return;
           }
-
           thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
           f2f(thisgeom->rgba, rgba, 4);
           releaseGeom(&thisgeom, scn);
+
           if (geomsExhausted(scn)) {
             return;
           }
-
           thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4]);
           f2f(thisgeom->rgba, rgba, 4);
           releaseGeom(&thisgeom, scn);
+
           if (geomsExhausted(scn)) {
             return;
           }
-
           thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vfar[e]);
           f2f(thisgeom->rgba, rgba, 4);
@@ -2505,14 +2500,14 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           }
 
           thisgeom = acquireGeom(scn, i, category, objtype);
-            nxt = d->xanchor+3*j;
+          nxt = d->xanchor+3*j;
 
           // construct geom
           mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
           f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
 
           releaseGeom(&thisgeom, scn);
-            cur = nxt;
+          cur = nxt;
         }
       }
 
@@ -2522,7 +2517,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       }
 
       thisgeom = acquireGeom(scn, i, category, objtype);
-        nxt = d->xipos+3*m->body_parentid[i];
+      nxt = d->xipos+3*m->body_parentid[i];
       mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
       f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
       releaseGeom(&thisgeom, scn);
@@ -2585,7 +2580,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   for (int i=1; i < m->nbody; i++) {
     if (!mju_isZero(d->xfrc_applied+6*i, 6) && (category & catmask)) {
       // point of application and force
-      mjtNum *xpos = d->xipos+3*i;
+      mjtNum* xpos = d->xipos+3*i;
       xfrc = d->xfrc_applied+6*i;
 
       // force perturbation
@@ -3330,7 +3325,7 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
 //----------------------------------- catenary functions -------------------------------------------
 
 // returns hyperbolic cosine and optionally computes hyperbolic sine
-static inline mjtNum cosh_sinh(mjtNum x, mjtNum *sinh) {
+static inline mjtNum cosh_sinh(mjtNum x, mjtNum* sinh) {
   mjtNum expx = mju_exp(x);
   if (sinh) {
     *sinh = 0.5 * (expx - 1/expx);
@@ -3348,7 +3343,7 @@ static inline mjtNum catenary_intercept(mjtNum v, mjtNum h, mjtNum length) {
 
 
 // returns residual of catenary equation and optionally computes its gradient w.r.t b
-static inline mjtNum catenary_residual(mjtNum b, mjtNum intercept, mjtNum *grad) {
+static inline mjtNum catenary_residual(mjtNum b, mjtNum intercept, mjtNum* grad) {
   mjtNum a = 0.5 / b;
   mjtNum sinh, cosh = cosh_sinh(a, &sinh);
   if (grad) {
@@ -3364,7 +3359,7 @@ static const mjtNum tolerance = 1e-9;
 
 
 
-// solve trancendental catenary equation using change of variables proposed in
+// solve transcendental catenary equation using change of variables proposed in
 //   https://math.stackexchange.com/a/1002996
 static inline mjtNum solve_catenary(mjtNum v, mjtNum h, mjtNum length) {
   mjtNum intercept = catenary_intercept(v, h, length);
