@@ -80,22 +80,6 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
                         LodePNGColorType color_type) {
   PNGImage image;
   image.color_type_ = color_type;
-  mjCCache *cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
-
-  // cache callback
-  auto callback = [&image](const void* data) {
-    const PNGImage *cached_image = static_cast<const PNGImage*>(data);
-    if (cached_image->color_type_ == image.color_type_) {
-      image = *cached_image;
-      return true;
-    }
-    return false;
-  };
-
-  // try loading from cache
-  if (cache && cache->PopulateData(resource->name, resource, callback)) {
-      return image;
-  }
 
   // open PNG resource
   const unsigned char* buffer;
@@ -144,16 +128,6 @@ PNGImage PNGImage::Load(const mjCBase* obj, mjResource* resource,
     std::stringstream ss;
     ss << "error decoding PNG file '" << resource->name << "': " << "dimensions are invalid";
     throw mjCError(obj, "%s", ss.str().c_str());
-  }
-
-  // insert raw image data into cache
-  if (cache) {
-    PNGImage *cached_image = new PNGImage(image);;
-    std::size_t size = image.Size();
-    std::shared_ptr<const void> cached_data(cached_image, +[] (const void* data) {
-        delete static_cast<const PNGImage*>(data);
-      });
-    cache->Insert("", resource->name, resource, cached_data, size);
   }
 
   return image;
@@ -4397,6 +4371,12 @@ mjCHField::~mjCHField() {
 }
 
 
+std::string mjCHField::GetCacheId(const mjResource* resource, const std::string& asset_type) {
+  std::stringstream ss;
+  ss << "mjCHField:" << resource->name << ";ARGS:content_type=" << asset_type;
+  return ss.str();
+}
+
 
 // load elevation data from custom format
 void mjCHField::LoadCustom(mjResource* resource) {
@@ -4493,6 +4473,8 @@ void mjCHField::Compile(const mjVFS* vfs) {
       throw mjCError(this, "hfield specified from file and manually");
     }
 
+    mjCCache* cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
+
     std::string asset_type = GetAssetContentType(file_, content_type_);
 
     // fallback to custom
@@ -4514,16 +4496,46 @@ void mjCHField::Compile(const mjVFS* vfs) {
     FilePath filename = meshdir_ + FilePath(file_);
     mjResource* resource = LoadResource(modelfiledir_.Str(), filename.Str(), vfs);
 
-    try {
-      if (asset_type == "image/png") {
-        LoadPNG(resource);
-      } else {
-        LoadCustom(resource);
+    struct CachedHField {
+      int nrow, ncol;
+      std::vector<float> data;
+    };
+
+    // cache callback
+    auto callback = [&](const void* cached_data) {
+      const CachedHField* cached_hfield =
+          static_cast<const CachedHField*>(cached_data);
+      nrow = cached_hfield->nrow;
+      ncol = cached_hfield->ncol;
+      this->data = cached_hfield->data;
+      return true;
+    };
+
+    // try loading from cache
+    if (cache && cache->PopulateData(GetCacheId(resource, asset_type), resource, callback)) {
+      mju_closeResource(resource);
+    } else {
+      try {
+        if (asset_type == "image/png") {
+          LoadPNG(resource);
+        } else {
+          LoadCustom(resource);
+        }
+      } catch(mjCError err) {
+        mju_closeResource(resource);
+        throw err;
+      }
+
+      if (cache) {
+        CachedHField* cached_hfield = new CachedHField;
+        cached_hfield->nrow = nrow;
+        cached_hfield->ncol = ncol;
+        cached_hfield->data = this->data;
+        std::size_t size = sizeof(CachedHField) + this->data.size() * sizeof(float);
+        std::shared_ptr<CachedHField> cached_data{cached_hfield};
+        cache->Insert("", GetCacheId(resource, asset_type), resource, cached_data, size);
       }
       mju_closeResource(resource);
-    } catch(mjCError err) {
-      mju_closeResource(resource);
-      throw err;
     }
   }
 
@@ -5021,10 +5033,36 @@ void mjCTexture::FlipIfNeeded(std::vector<std::byte>& image, unsigned int w,
   }
 }
 
+std::string mjCTexture::GetCacheId(const mjResource* resource, const std::string& asset_type) {
+  std::stringstream ss;
+  ss << resource->name << ";ARGS:content_type=" << asset_type << ",nchannel=" << nchannel
+     << ",hflip=" << hflip << ",vflip=" << vflip << ";";
+  return ss.str();
+}
+
 // load from PNG or custom file, flip if specified
 void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
                           std::vector<std::byte>& image,
                           unsigned int& w, unsigned int& h, bool& is_srgb) {
+  mjCCache* cache = reinterpret_cast<mjCCache*>(mj_getCache()->impl_);
+
+  struct CachedImage {
+    unsigned int w, h, n_ch;
+    bool is_srgb;
+    std::vector<std::byte> image;
+  };
+
+  // cache callback
+  auto callback = [&](const void* data) {
+    const CachedImage* cached_image =
+        static_cast<const CachedImage*>(data);
+    w = cached_image->w;
+    h = cached_image->h;
+    is_srgb = cached_image->is_srgb;
+    image = cached_image->image;
+    return true;
+  };
+
   std::string asset_type = GetAssetContentType(filename, content_type_);
 
   // fallback to custom
@@ -5036,7 +5074,12 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
     throw mjCError(this, "unsupported content type: '%s'", asset_type.c_str());
   }
 
+  // try loading from cache
   mjResource* resource = LoadResource(modelfiledir_.Str(), filename, vfs);
+  if (cache && cache->PopulateData(GetCacheId(resource, asset_type), resource, callback)) {
+    mju_closeResource(resource);
+    return;
+  }
 
   try {
     if (asset_type == "image/png") {
@@ -5049,13 +5092,23 @@ void mjCTexture::LoadFlip(std::string filename, const mjVFS* vfs,
     } else {
       LoadCustom(resource, image, w, h, is_srgb);
     }
-    mju_closeResource(resource);
   } catch(mjCError err) {
     mju_closeResource(resource);
     throw err;
   }
 
   FlipIfNeeded(image, w, h);
+  if (cache) {
+    CachedImage* cached_texture = new CachedImage;
+    cached_texture->w = w;
+    cached_texture->h = h;
+    cached_texture->is_srgb = is_srgb;
+    cached_texture->image = image;
+    std::size_t size = sizeof(CachedImage) + image.size();
+    std::shared_ptr<CachedImage> cached_data{cached_texture};
+    cache->Insert("", GetCacheId(resource, asset_type), resource, cached_data, size);
+  }
+  mju_closeResource(resource);
 }
 
 // load 2D

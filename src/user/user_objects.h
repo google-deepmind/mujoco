@@ -1395,6 +1395,7 @@ class mjCHField : public mjCHField_, private mjsHField {
  private:
   void Compile(const mjVFS* vfs);         // compiler
 
+  std::string GetCacheId(const mjResource* resource, const std::string& asset_type);
   void LoadCustom(mjResource* resource);  // load from custom format
   void LoadPNG(mjResource* resource);     // load from PNG format
 };
@@ -1444,11 +1445,14 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
  private:
   void Compile(const mjVFS* vfs);         // compiler
 
-  void Builtin2D(void);                   // make builtin 2D
-  void BuiltinCube(void);                 // make builtin cube
-  void Load2D(std::string filename, const mjVFS* vfs);          // load 2D from file
-  void LoadCubeSingle(std::string filename, const mjVFS* vfs);  // load cube from single file
-  void LoadCubeSeparate(const mjVFS* vfs);                      // load cube from separate files
+  // store texture into asset cache
+  std::string GetCacheId(const mjResource* resource, const std::string& asset_type);
+  void Builtin2D(void);                                 // make builtin 2D
+  void BuiltinCube(void);                               // make builtin cube
+  void Load2D(std::string filename, const mjVFS* vfs);  // load 2D from file
+  void LoadCubeSingle(std::string filename,
+                      const mjVFS* vfs);    // load cube from single file
+  void LoadCubeSeparate(const mjVFS* vfs);  // load cube from separate files
 
   void FlipIfNeeded(std::vector<std::byte>& image, unsigned int w, unsigned int h);
 
