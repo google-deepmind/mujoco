@@ -72,20 +72,11 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
 
 
 
-// returns 1 if there are no more geoms available in the scene, 0 otherwise
-static inline int geomsExhausted(mjvScene* scn) {
-  if ( scn->ngeom>=scn->maxgeom ) {
-    scn->status = 1;
-    return 1;
-  }
-  return 0;
-}
-
 // acquires and initializes the next available geom in the scene
 mjvGeom* acquireGeom(mjvScene* scn, int objid, int category, int objtype) {
   // check for overflow, SHOULD NOT OCCUR
   if (scn->ngeom >= scn->maxgeom) {
-    mju_error("Cannot acquire geom; all geoms are in use.");
+    scn->status = 1;
     return NULL;
   }
 
@@ -203,11 +194,11 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
 
     // contact point
     if (flags[mjVIS_CONTACTPOINT]) {
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
 
-      thisgeom = acquireGeom(scn, i, category, objtype);
       thisgeom->type = mjGEOM_CYLINDER;
       thisgeom->size[0] = thisgeom->size[1] = m->vis.scale.contactwidth * scl;
       float halfheight = m->vis.scale.contactheight * scl;
@@ -288,11 +279,10 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
 
       // draw the three axes (separate geoms)
       for (int j=0; j < 3; j++) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -369,11 +359,11 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
         }
 
         // one-directional arrow for friction and world, symmetric otherwise
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
 
-        thisgeom = acquireGeom(scn, i, category, objtype);
         mjtNum* from = con->pos;
         mjtNum to[3];
         mju_add3(to, from, vec);
@@ -759,11 +749,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       (category & catmask)) {
     for (int i=0; i < m->nflex; i++) {
       if (vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[i]))]) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // construct geom, pos = first vertex
         mjv_initGeom(thisgeom, mjGEOM_FLEX, NULL,
@@ -808,11 +797,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_SKIN] && (category & catmask)) {
     for (int i=0; i < m->nskin; i++) {
       if (vopt->skingroup[mjMAX(0, mjMIN(mjNGROUP-1, m->skin_group[i]))]) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // construct geom, pos = first bone
         mjv_initGeom(thisgeom, mjGEOM_SKIN, NULL,
@@ -889,14 +877,13 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         rgba = m->vis.rgba.bvactive;
       }
 
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
 
-      thisgeom = acquireGeom(scn, i, category, objtype);
       mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
       releaseGeom(&thisgeom, scn);
-
     }
   }
 
@@ -923,11 +910,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             rgba = m->vis.rgba.bvactive;
           }
 
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
-
-          thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_initGeom(thisgeom, mjGEOM_LINEBOX, aabb+3, aabb, NULL, rgba);
           releaseGeom(&thisgeom, scn);
         }
@@ -955,29 +941,29 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         for (int j=0; j < 2; j++) {
           for (int k=0; k < 2; k++) {
             if (i == 0) {
-              if (geomsExhausted(scn)) {
+              thisgeom = acquireGeom(scn, i, category, objtype);
+              if (!thisgeom) {
                 return;
               }
 
-              thisgeom = acquireGeom(scn, i, category, objtype);
               mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*(i+1)+2*j+k));
               releaseGeom(&thisgeom, scn);
             }
             if (j == 0) {
-              if (geomsExhausted(scn)) {
+              thisgeom = acquireGeom(scn, i, category, objtype);
+              if (!thisgeom) {
                 return;
               }
 
-              thisgeom = acquireGeom(scn, i, category, objtype);
               mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*(j+1)+k));
               releaseGeom(&thisgeom, scn);
             }
             if (k == 0) {
-              if (geomsExhausted(scn)) {
+              thisgeom = acquireGeom(scn, i, category, objtype);
+              if (!thisgeom) {
                 return;
               }
 
-              thisgeom = acquireGeom(scn, i, category, objtype);
               mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*j+(k+1)));
               releaseGeom(&thisgeom, scn);
             }
@@ -1029,11 +1015,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_mulMatVec3(pos, xmat, center);
         mju_addTo3(pos, xpos);
 
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
         releaseGeom(&thisgeom, scn);
       }
@@ -1053,11 +1038,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       for (int b = 0; b < m->mesh_octnum[meshid]; b++) {
         int i = b + m->mesh_octadr[meshid];
 
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
         if (m->oct_depth[i] != vopt->bvh_depth) {
           continue;
         }
@@ -1114,7 +1098,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
         int* face = m->mesh_face + 3*m->mesh_faceadr[mesh_id];
         for (int i=0; i < m->mesh_facenum[mesh_id]; i++) {
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
 
@@ -1149,7 +1134,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
           }
 
           // draw triangles, one per side
-          thisgeom = acquireGeom(scn, i, category, objtype);
           makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
           thisgeom->objid = id;
           releaseGeom(&thisgeom, scn);
@@ -1165,11 +1149,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     for (int i=1; i < m->nbody; i++) {
       // skip if mass too small or if this body is static and static bodies are masked
       if (m->body_mass[i] > mjMINVAL && (bodycategory(m, i) & catmask)) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         mjtNum Ixx = m->body_inertia[3*i+0];
         mjtNum Iyy = m->body_inertia[3*i+1];
@@ -1224,11 +1207,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     int i = pert->select;
 
     if ((pert->active | pert->active2) & mjPERT_TRANSLATE) {
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
-
-      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // compute selection point in world coordinates
       mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
@@ -1249,11 +1231,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       releaseGeom(&thisgeom, scn);
 
       // add small sphere at end-effector
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
-
-      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom
       sz[0] = 2*sz[0];
@@ -1265,11 +1246,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
 
     if ((pert->active | pert->active2) & mjPERT_ROTATE) {
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
-
-      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // prepare color, use inertia color
       float rgba[4];
@@ -1323,11 +1303,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
       // draw the three axes (separate geoms)
       for (int j=0; j < 3; j++) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -1362,11 +1341,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
     mju_addTo3(selpos, d->xpos+3*pert->select);
 
-    if (geomsExhausted(scn)) {
+    thisgeom = acquireGeom(scn, i, category, objtype);
+    if (!thisgeom) {
       return;
     }
 
-    thisgeom = acquireGeom(scn, i, category, objtype);
     thisgeom->type = mjGEOM_SPHERE;
     thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = scl * m->vis.scale.selectpoint;
     mju_n2f(thisgeom->pos, selpos, 3);
@@ -1392,11 +1371,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         if (bodycategory(m, i) & ~catmask) {
           continue;
         }
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // construct geom
         thisgeom->type = mjGEOM_LABEL;
@@ -1421,11 +1399,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         sz[1] = m->vis.scale.jointlength * scl;
         sz[0] = m->vis.scale.jointwidth * scl;
 
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // set type, size, pos, mat depending on joint type
         int j = m->jnt_bodyid[i];
@@ -1564,11 +1541,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         if (m->actuator_trntype[i] == mjTRN_JOINT ||
             m->actuator_trntype[i] == mjTRN_JOINTINPARENT ||
             m->actuator_trntype[i] == mjTRN_SITE) {
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
-
-          thisgeom = acquireGeom(scn, i, category, objtype);
 
           // site actuators
           if (m->actuator_trntype[i] == mjTRN_SITE) {
@@ -1627,11 +1603,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
             // add inflated geom if it is a regular primitive
             if (geomtype != mjGEOM_PLANE && geomtype != mjGEOM_HFIELD &&
                 geomtype != mjGEOM_MESH  && geomtype != mjGEOM_SDF) {
-              if (geomsExhausted(scn)) {
+              thisgeom = acquireGeom(scn, i, category, objtype);
+              if (!thisgeom) {
                 return;
               }
 
-              thisgeom = acquireGeom(scn, i, category, objtype);
               // inflate sizes by 5%
               mju_scl3(sz, m->geom_size+3*k, 1.05);
 
@@ -1654,11 +1630,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         else if (m->actuator_trntype[i] == mjTRN_TENDON && d->ten_wrapnum[j]) {
           for (int k=d->ten_wrapadr[j]; k < d->ten_wrapadr[j]+d->ten_wrapnum[j]-1; k++) {
             if (d->wrap_obj[k] != -2 && d->wrap_obj[k+1] != -2) {
-              if (geomsExhausted(scn)) {
+              thisgeom = acquireGeom(scn, i, category, objtype);
+              if (!thisgeom) {
                 return;
               }
-
-              thisgeom = acquireGeom(scn, i, category, objtype);
 
               // determine width: smaller for segments inside wrapping objects
               if (d->wrap_obj[k] >= 0 && d->wrap_obj[k+1] >= 0) {
@@ -1701,11 +1676,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       if (m->body_dofnum[weld_id]) {
         int islandid = d->dof_island[m->body_dofadr[weld_id]];
         if (islandid > -1) {
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
-
-          thisgeom = acquireGeom(scn, i, category, objtype);
 
           thisgeom->type = mjGEOM_LABEL;
           mju_n2f(thisgeom->pos, d->xipos+3*i, 3);
@@ -1739,11 +1713,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     int geomgroup = mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]));
 
     if (vopt->geomgroup[geomgroup]) {
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
-
-      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom
       mjv_initGeom(thisgeom, m->geom_type[i], m->geom_size+3*i,
@@ -1865,11 +1838,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
       for (int j=0; j < 3; j++) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -1907,11 +1879,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
     // show if group enabled
     if (vopt->sitegroup[mjMAX(0, mjMIN(mjNGROUP-1, m->site_group[i]))]) {
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
-
-      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom
       mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i,
@@ -1948,11 +1919,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
       for (int j=0; j < 3; j++) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -2037,51 +2007,51 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
         // triangulation and wireframe of the frustum
         for (int e=0; e < 4; e++) {
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
-          thisgeom = acquireGeom(scn, i, category, objtype);
+
           makeTriangle(thisgeom, vnear[e], vfar[e], vnear[(e+1)%4], rgba);
           releaseGeom(&thisgeom, scn);
 
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
-          thisgeom = acquireGeom(scn, i, category, objtype);
           makeTriangle(thisgeom, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba);
           releaseGeom(&thisgeom, scn);
 
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
-          thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
           f2f(thisgeom->rgba, rgba, 4);
           releaseGeom(&thisgeom, scn);
 
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
-          thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4]);
           f2f(thisgeom->rgba, rgba, 4);
           releaseGeom(&thisgeom, scn);
 
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
-          thisgeom = acquireGeom(scn, i, category, objtype);
           mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vfar[e]);
           f2f(thisgeom->rgba, rgba, 4);
           releaseGeom(&thisgeom, scn);
         }
       }
 
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
-
-      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom: camera body
       thisgeom->type = mjGEOM_BOX;
@@ -2099,11 +2069,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
       releaseGeom(&thisgeom, scn);
 
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
-
-      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom: lens
       thisgeom->pos[0] = (float)(d->cam_xpos[3*i] -
@@ -2135,11 +2104,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
       for (int j=0; j < 3; j++) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -2177,11 +2145,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       // make light position: offset backward, to avoid casting shadow
       mju_addScl3(vec, d->light_xpos+3*i, d->light_xdir+3*i, -scl * m->vis.scale.light -0.0001);
 
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
-
-      thisgeom = acquireGeom(scn, i, category, objtype);
 
       // construct geom
       thisgeom->type = mjGEOM_CYLINDER;
@@ -2210,11 +2177,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
       for (int j=0; j < 3; j++) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
 
         // prepare axis
         for (int k=0; k < 3; k++) {
@@ -2285,11 +2251,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         if (!draw_catenary) {
           for (int j=d->ten_wrapadr[i]; j < d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
             if (d->wrap_obj[j] != -2 && d->wrap_obj[j+1] != -2) {
-              if (geomsExhausted(scn)) {
+              thisgeom = acquireGeom(scn, i, category, objtype);
+              if (!thisgeom) {
                 return;
               }
-
-              thisgeom = acquireGeom(scn, i, category, objtype);
 
               // determine width: smaller for segments inside wrapping objects
               if (d->wrap_obj[j] >= 0 && d->wrap_obj[j+1] >= 0) {
@@ -2373,11 +2338,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
           // draw npoints-1 segments
           for (int j=0; j < npoints-1; j++) {
-            if (geomsExhausted(scn)) {
+            thisgeom = acquireGeom(scn, i, category, objtype);
+            if (!thisgeom) {
               return;
             }
-
-            thisgeom = acquireGeom(scn, i, category, objtype);
 
             sz[0] = m->tendon_width[i];
 
@@ -2429,11 +2393,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         mju_addTo3(end, d->site_xpos+3*k);
 
         // render slider
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
 
-        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_connector(thisgeom, mjGEOM_CYLINDER, scl * m->vis.scale.slidercrank,
                       d->site_xpos+3*k, end);
         f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
@@ -2442,12 +2406,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         releaseGeom(&thisgeom, scn);
 
-        // render crank
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
 
-        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.slidercrank/2.0,
                       end, d->site_xpos+3*j);
         if (broken) {
@@ -2466,11 +2429,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   if (vopt->flags[mjVIS_COM] && (category & catmask)) {
     for (int i=1; i < m->nbody; i++) {
       if (m->body_rootid[i] == i) {
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
 
-        thisgeom = acquireGeom(scn, i, category, objtype);
         thisgeom->type = mjGEOM_SPHERE;
         thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = scl * m->vis.scale.com;
         mju_n2f(thisgeom->pos, d->subtree_com+3*i, 3);
@@ -2495,11 +2458,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       cur = d->xipos+3*i;
       if (m->body_jntnum[i]) {
         for (int j=m->body_jntadr[i]+m->body_jntnum[i]-1; j >= m->body_jntadr[i]; j--) {
-          if (geomsExhausted(scn)) {
+          thisgeom = acquireGeom(scn, i, category, objtype);
+          if (!thisgeom) {
             return;
           }
-
-          thisgeom = acquireGeom(scn, i, category, objtype);
           nxt = d->xanchor+3*j;
 
           // construct geom
@@ -2512,11 +2474,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       }
 
       // connect first joint (or com) to parent com
-      if (geomsExhausted(scn)) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
         return;
       }
 
-      thisgeom = acquireGeom(scn, i, category, objtype);
       nxt = d->xipos+3*m->body_parentid[i];
       mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
       f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
@@ -2540,11 +2502,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
 
         // make ray
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
 
-        thisgeom = acquireGeom(scn, i, category, objtype);
         mjtNum* from = d->site_xpos+3*sid;
         mjtNum to[3] = {from[0] + d->site_xmat[9*sid+2]*dst,
                         from[1] + d->site_xmat[9*sid+5]*dst,
@@ -2562,11 +2524,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
 
         // make ray
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
 
-        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_connector(thisgeom, mjGEOM_LINE, 3, fromto, fromto+3);
         f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
         releaseGeom(&thisgeom, scn);
@@ -2588,11 +2550,11 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // map force to spatial vector in world frame
         mju_scl3(vec, xfrc, m->vis.map.force/m->stat.meanmass);
 
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
 
-        thisgeom = acquireGeom(scn, i, category, objtype);
         mjtNum* from = xpos;
         mjtNum to[3];
         mju_add3(to, from, vec);
@@ -2632,22 +2594,22 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         // construct geom
         sz[0] = scl * m->vis.scale.constraint;
 
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
 
-        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, xmat_j, m->vis.rgba.connect);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
         }
         releaseGeom(&thisgeom, scn);
 
-        if (geomsExhausted(scn)) {
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
           return;
         }
 
-        thisgeom = acquireGeom(scn, i, category, objtype);
         mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, xmat_k, m->vis.rgba.constraint);
         if (vopt->label == mjLABEL_CONSTRAINT) {
           makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
