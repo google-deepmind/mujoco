@@ -6286,6 +6286,7 @@ public unsafe struct mjvScene_ {
   public fixed byte flags[10];
   public int framewidth;
   public fixed float framergb[3];
+  public int status;
 }
 
 [StructLayout(LayoutKind.Sequential)]

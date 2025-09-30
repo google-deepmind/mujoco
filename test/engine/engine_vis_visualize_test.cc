@@ -67,6 +67,7 @@ TEST_F(MjvSceneTest, UpdateScene) {
   }
 
   mjv_updateScene(model, data, &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
+  EXPECT_EQ(scn_.status, 0);
   EXPECT_GT(scn_.ngeom, 0);
   EXPECT_GT(scn_.nlight, 0);
   if (model->nskin) EXPECT_GT(scn_.nskin, 0);
@@ -98,6 +99,7 @@ TEST_F(MjvSceneTest, UpdateSceneGeomsExhausted) {
   // clear handlers to avoid test failure; we are explicitly expecting a warning
   mju_clearHandlers();
   mjv_updateScene(model, data, &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
+  EXPECT_EQ(scn_.status, 1);
   EXPECT_EQ(scn_.ngeom, maxgeoms);
   EXPECT_EQ(data->warning[mjWARN_VGEOMFULL].number, 1);
 

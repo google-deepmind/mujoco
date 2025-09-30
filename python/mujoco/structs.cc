@@ -1196,6 +1196,7 @@ This is useful for example when the MJB is not available as a file on disk.)"));
   X(scale);
   X(stereo);
   X(framewidth);
+  X(status);
 #undef X
 
 #define X(var) DefinePyArray(mjvScene, #var, &MjvSceneWrapper::var)

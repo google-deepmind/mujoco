@@ -7139,6 +7139,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='frame color',
              ),
+             StructFieldDecl(
+                 name='status',
+                 type=ValueType(name='int'),
+                 doc='status; 0: ok, 1: geoms exhausted',
+             ),
          ),
      )),
     ('mjvFigure',
