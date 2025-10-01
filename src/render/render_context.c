@@ -1172,6 +1172,7 @@ static void makeOff(mjrContext* con) {
       mju_error("Could not allocate offscreen color buffer_r");
     }
     glBindRenderbuffer(GL_RENDERBUFFER, con->offColor_r);
+    // store an object name for nsight UI
     glObjectLabel(GL_RENDERBUFFER, con->offColor_r, -1, "mjr_rb_offscreen_color_r");
 
     glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, con->offWidth, con->offHeight);
