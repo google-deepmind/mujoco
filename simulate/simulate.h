@@ -89,7 +89,7 @@ class Simulate {
   void AddToHistory();
 
   // inject control noise
-  void InjectNoise();
+  void InjectNoise(int key);
 
   // constants
   static constexpr int kMaxFilenameLength = 1000;
@@ -199,7 +199,7 @@ class Simulate {
   int busywait = 0;
 
   // keyframe index
-  int key = 0;
+  int key = -1;
 
   // index of history-scrubber slider
   int scrub_index = 0;

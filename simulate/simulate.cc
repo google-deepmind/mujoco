@@ -2917,7 +2917,7 @@ void Simulate::AddToHistory() {
 }
 
 // inject Brownian noise
-void Simulate::InjectNoise() {
+void Simulate::InjectNoise(int key) {
   // no noise, return
   if (ctrl_noise_std <= 0) {
     return;
@@ -2934,6 +2934,11 @@ void Simulate::InjectNoise() {
       top = m_->actuator_ctrlrange[2*i+1];
       midpoint =  0.5 * (top + bottom);  // target of exponential decay
       halfrange = 0.5 * (top - bottom);  // scales noise
+    }
+
+    // overwrite midpoint with keyframe, if given
+    if (key >= 0) {
+      midpoint = m_->key_ctrl[key*m_->nu+i];
     }
 
     // exponential convergence to midpoint at ctrl_noise_rate
