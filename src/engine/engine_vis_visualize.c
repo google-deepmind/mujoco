@@ -72,37 +72,6 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
 
 
 
-// acquires and initializes the next available geom in the scene
-mjvGeom* acquireGeom(mjvScene* scn, int objid, int category, int objtype) {
-  // check for overflow, SHOULD NOT OCCUR
-  if (scn->ngeom >= scn->maxgeom) {
-    scn->status = 1;
-    return NULL;
-  }
-
-  mjvGeom* thisgeom = scn->geoms + scn->ngeom;
-  memset(thisgeom, 0, sizeof(mjvGeom));
-  mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL);
-  thisgeom->objtype = objtype;
-  thisgeom->objid = objid;
-  thisgeom->category = category;
-  thisgeom->segid = scn->ngeom;
-  return thisgeom;
-}
-
-
-// mark geom as used, set its pointer to NULL, increment scn->ngeom
-void releaseGeom(mjvGeom** geom, mjvScene* scn) {
-  // check geom being released was most recently acquired, SHOULD NOT OCCUR
-  if (*geom != scn->geoms + scn->ngeom) {
-    mju_error("Unexpected geom pointer; did you call acquireGeom?");
-  }
-
-  scn->ngeom++;
-  *geom = NULL;
-}
-
-
 // convert HSV to RGB
 static void hsv2rgb(float *RGB, float H, float S, float V) {
   float R, G, B;
@@ -150,6 +119,67 @@ static void islandColor(float rgba[4], int h) {
 }
 
 
+// mix colors for perturbation object
+static void mixcolor(float rgba[4], const float ref[4], int flg1, int flg2) {
+  rgba[0] = flg1 ? ref[0] : 0;
+  if (flg2) {
+    rgba[0] = mjMAX(rgba[0], ref[1]);
+  }
+
+  rgba[1] = flg1 ? ref[1] : 0;
+  if (flg2) {
+    rgba[1] = mjMAX(rgba[1], ref[0]);
+  }
+
+  rgba[2] = ref[2];
+  rgba[3] = ref[3];
+}
+
+
+
+// a body is static if it is welded to the world and is not a mocap body
+static int bodycategory(const mjModel* m, int bodyid) {
+  if (m->body_weldid[bodyid] == 0 && m->body_mocapid[bodyid] == -1) {
+    return mjCAT_STATIC;
+  } else {
+    return mjCAT_DYNAMIC;
+  }
+}
+
+
+//----------------------------- geom functions -----------------------------------------------------
+
+// acquires and initializes the next available geom in the scene
+mjvGeom* acquireGeom(mjvScene* scn, int objid, int category, int objtype) {
+  // check for overflow, SHOULD NOT OCCUR
+  if (scn->ngeom >= scn->maxgeom) {
+    scn->status = 1;
+    return NULL;
+  }
+
+  mjvGeom* thisgeom = scn->geoms + scn->ngeom;
+  memset(thisgeom, 0, sizeof(mjvGeom));
+  mjv_initGeom(thisgeom, mjGEOM_NONE, NULL, NULL, NULL, NULL);
+  thisgeom->objtype = objtype;
+  thisgeom->objid = objid;
+  thisgeom->category = category;
+  thisgeom->segid = scn->ngeom;
+  return thisgeom;
+}
+
+
+// mark geom as used, set its pointer to NULL, increment scn->ngeom
+void releaseGeom(mjvGeom** geom, mjvScene* scn) {
+  // check geom being released was most recently acquired, SHOULD NOT OCCUR
+  if (*geom != scn->geoms + scn->ngeom) {
+    mju_error("Unexpected geom pointer; did you call acquireGeom?");
+  }
+
+  scn->ngeom++;
+  *geom = NULL;
+}
+
+
 
 // make a triangle in thisgeom at coordinates v0, v1, v2 with a given color
 static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[3],
@@ -166,6 +196,314 @@ static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[
 }
 
 
+
+// copy material fields from model to visual geom
+static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float* rgba,
+                        const mjtByte* flags) {
+  // set material properties if given
+  if (matid >= 0) {
+    f2f(geom->rgba, m->mat_rgba + 4*matid, 4);
+    geom->emission = m->mat_emission[matid];
+    geom->specular = m->mat_specular[matid];
+    geom->shininess = m->mat_shininess[matid];
+    geom->reflectance = m->mat_reflectance[matid];
+  }
+
+  // use rgba if different from default, or no material given
+  if (rgba[0] != 0.5f || rgba[1] != 0.5f || rgba[2] != 0.5f || rgba[3] != 1.0f || matid < 0) {
+    f2f(geom->rgba, rgba, 4);
+  }
+
+  // set texture
+  if (flags[mjVIS_TEXTURE] && matid >= 0) {
+    geom->matid = matid;
+  }
+
+  // scale alpha for dynamic geoms only
+  if (flags[mjVIS_TRANSPARENT] && (geom->category == mjCAT_DYNAMIC)) {
+    geom->rgba[3] *= m->vis.map.alpha;
+  }
+}
+
+
+
+// set (type, size, pos, mat) connector-type geom between given points
+//  assume that mjv_initGeom was already called to set all other properties
+void mjv_connector(mjvGeom* geom, int type, mjtNum width,
+                   const mjtNum from[3], const mjtNum to[3]) {
+  mjtNum quat[4], mat[9], dif[3] = {to[0]-from[0], to[1]-from[1], to[2]-from[2]};
+
+  // require connector-compatible type
+  if (type != mjGEOM_CAPSULE && type != mjGEOM_CYLINDER &&
+      type != mjGEOM_ARROW && type != mjGEOM_ARROW1 && type != mjGEOM_ARROW2
+      && type != mjGEOM_LINE) {
+    mjERROR("invalid geom type %d for connector", type);
+  }
+
+  // assign type
+  geom->type = type;
+
+  // compute size for XYZ scaling
+  geom->size[0] = geom->size[1] = (float)width;
+  geom->size[2] = (float)mju_norm3(dif);
+
+  // cylinder and capsule are centered, and size[0] is "radius"
+  if (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER) {
+    geom->pos[0] = 0.5*(from[0] + to[0]);
+    geom->pos[1] = 0.5*(from[1] + to[1]);
+    geom->pos[2] = 0.5*(from[2] + to[2]);
+    geom->size[2] *= 0.5;
+  }
+
+  // arrow is not centered
+  else {
+    geom->pos[0] = from[0];
+    geom->pos[1] = from[1];
+    geom->pos[2] = from[2];
+  }
+
+  // set mat to minimal rotation aligning b-a with z axis
+  mju_quatZ2Vec(quat, dif);
+  mju_quat2Mat(mat, quat);
+  mju_n2f(geom->mat, mat, 9);
+}
+
+
+
+// initialize given fields when not NULL, set the rest to their default values
+void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
+                  const mjtNum* pos, const mjtNum* mat, const float* rgba) {
+  // assign type
+  geom->type = type;
+
+  // set size (for XYZ scaling)
+  if (size) {
+    switch ((mjtGeom) type) {
+    case mjGEOM_SPHERE:
+      geom->size[0] = (float)size[0];
+      geom->size[1] = (float)size[0];
+      geom->size[2] = (float)size[0];
+      break;
+
+    case mjGEOM_CAPSULE:
+      geom->size[0] = (float)size[0];
+      geom->size[1] = (float)size[0];
+      geom->size[2] = (float)size[1];
+      break;
+
+    case mjGEOM_CYLINDER:
+      geom->size[0] = (float)size[0];
+      geom->size[1] = (float)size[0];
+      geom->size[2] = (float)size[1];
+      break;
+
+    default:
+      mju_n2f(geom->size, size, 3);
+    }
+  } else {
+    geom->size[0] = 0.1f;
+    geom->size[1] = 0.1f;
+    geom->size[2] = 0.1f;
+  }
+
+  // set pos
+  if (pos) {
+    mju_n2f(geom->pos, pos, 3);
+  } else {
+    geom->pos[0] = 0;
+    geom->pos[1] = 0;
+    geom->pos[2] = 0;
+  }
+
+  // set mat
+  if (mat) {
+    mju_n2f(geom->mat, mat, 9);
+  } else {
+    geom->mat[0] = 1;
+    geom->mat[1] = 0;
+    geom->mat[2] = 0;
+    geom->mat[3] = 0;
+    geom->mat[4] = 1;
+    geom->mat[5] = 0;
+    geom->mat[6] = 0;
+    geom->mat[7] = 0;
+    geom->mat[8] = 1;
+  }
+
+  // set rgba
+  if (rgba) {
+    f2f(geom->rgba, rgba, 4);
+  } else {
+    geom->rgba[0] = 0.5;
+    geom->rgba[1] = 0.5;
+    geom->rgba[2] = 0.5;
+    geom->rgba[3] = 1;
+  }
+
+  // set defaults that cannot be assigned via this function
+  geom->dataid       = -1;
+  geom->matid        = -1;
+  geom->texcoord     = 0;
+  geom->emission     = 0;
+  geom->specular     = 0.5;
+  geom->shininess    = 0.5;
+  geom->reflectance  = 0;
+  geom->label[0]     = 0;
+  geom->modelrbound  = 0;
+}
+
+
+
+// mark geom as selected
+static void markselected(const mjVisual* vis, mjvGeom* geom) {
+  // add emission
+  geom->emission += vis->global.glow;
+}
+
+
+
+//----------------------------- camera functions ---------------------------------------------------
+
+// computes the camera frustum
+static void getFrustum(float zver[2], float zhor[2], float znear,
+                       const float intrinsic[4], const float sensorsize[2]) {
+  if (zhor) {
+    zhor[0] = znear / intrinsic[0] * (sensorsize[0]/2.f - intrinsic[2]);
+    zhor[1] = znear / intrinsic[0] * (sensorsize[0]/2.f + intrinsic[2]);
+  }
+  if (zver) {
+    zver[0] = znear / intrinsic[1] * (sensorsize[1]/2.f - intrinsic[3]);
+    zver[1] = znear / intrinsic[1] * (sensorsize[1]/2.f + intrinsic[3]);
+  }
+}
+
+
+
+void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum right[3],
+                     const mjData* d, const mjvCamera* cam) {
+  switch (cam->type) {
+    case mjCAMERA_FREE:
+    case mjCAMERA_TRACKING: {
+      const mjtNum ca = mju_cos(cam->azimuth/180.0*mjPI);
+      const mjtNum sa = mju_sin(cam->azimuth/180.0*mjPI);
+      const mjtNum ce = mju_cos(cam->elevation/180.0*mjPI);
+      const mjtNum se = mju_sin(cam->elevation/180.0*mjPI);
+      if (forward) {
+        forward[0] = ce*ca;
+        forward[1] = ce*sa;
+        forward[2] = se;
+      }
+      if (up) {
+        up[0] = -se*ca;
+        up[1] = -se*sa;
+        up[2] = ce;
+      }
+      if (right) {
+        right[0] = sa;
+        right[1] = -ca;
+        right[2] = 0;
+      }
+      if (headpos) {
+        mju_addScl3(headpos, cam->lookat, forward, -cam->distance);
+      }
+      break;
+    }
+
+    case mjCAMERA_FIXED: {
+      const int cid = cam->fixedcamid;
+      const mjtNum* mat = d->cam_xmat + 9*cid;
+      if (forward) {
+        forward[0] = -mat[2];
+        forward[1] = -mat[5];
+        forward[2] = -mat[8];
+      }
+      if (up) {
+        up[0] = mat[1];
+        up[1] = mat[4];
+        up[2] = mat[7];
+      }
+      if (right) {
+        right[0] = mat[0];
+        right[1] = mat[3];
+        right[2] = mat[6];
+      }
+      if (headpos) {
+        mju_copy3(headpos, d->cam_xpos + 3*cid);
+      }
+      break;
+    }
+
+    default: {
+      mjERROR("unknown camera type");
+    }
+  }
+}
+
+
+void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjModel* m,
+                       const mjvCamera* cam) {
+  mjtNum fovy;
+  int orthographic = 0, cid = 0;
+  float* intrinsic = NULL;
+  float* sensorsize = NULL;
+
+  // get ipd, fovy, orthographic, intrinsic
+  switch (cam->type) {
+  case mjCAMERA_FREE:
+  case mjCAMERA_TRACKING:
+    orthographic = m->vis.global.orthographic;
+    fovy = m->vis.global.fovy;
+    break;
+
+  case mjCAMERA_FIXED:
+    // get id, check range
+    cid = cam->fixedcamid;
+    if (cid < 0 || cid >= m->ncam) {
+      mjERROR("fixed camera id is outside valid range");
+    }
+    orthographic = m->cam_orthographic[cid];
+    fovy = m->cam_fovy[cid];
+
+    // if positive sensorsize, get sensorsize and intrinsic
+    if (m->cam_sensorsize[2*cid+1]) {
+      sensorsize = m->cam_sensorsize + 2*cid;
+      intrinsic = m->cam_intrinsic + 4*cid;
+    }
+    break;
+
+  default:
+    mjERROR("unknown camera type");
+  }
+
+  const float znear = m->vis.map.znear * m->stat.extent;
+
+  if (orthographic) {
+    if (zver) {
+      zver[0] = zver[1] = fovy / 2;
+    }
+    if (zhor) {
+      zhor[0] = zhor[1] = 0.0f;
+    }
+  } else if (intrinsic) {
+    getFrustum(zver, zhor, znear, intrinsic, sensorsize);
+  } else {
+    if (zver) {
+      zver[0] = zver[1] = znear * mju_tan(fovy * mjPI/360.0);
+    }
+    if (zhor) {
+      zhor[0] = zhor[1] = 0.0f;
+    }
+  }
+
+  if (zclip) {
+    zclip[0] = znear;
+    zclip[1] = m->vis.map.zfar * m->stat.extent;
+  }
+}
+
+
+
+//----------------------------- main API functions -------------------------------------------------
 
 // add contact-related geoms in mjvObject
 static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
@@ -379,342 +717,6 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
     }
   }
 }
-
-
-
-// copy material fields from model to visual geom
-static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float* rgba,
-                        const mjtByte* flags) {
-  // set material properties if given
-  if (matid >= 0) {
-    f2f(geom->rgba, m->mat_rgba + 4*matid, 4);
-    geom->emission = m->mat_emission[matid];
-    geom->specular = m->mat_specular[matid];
-    geom->shininess = m->mat_shininess[matid];
-    geom->reflectance = m->mat_reflectance[matid];
-  }
-
-  // use rgba if different from default, or no material given
-  if (rgba[0] != 0.5f || rgba[1] != 0.5f || rgba[2] != 0.5f || rgba[3] != 1.0f || matid < 0) {
-    f2f(geom->rgba, rgba, 4);
-  }
-
-  // set texture
-  if (flags[mjVIS_TEXTURE] && matid >= 0) {
-    geom->matid = matid;
-  }
-
-  // scale alpha for dynamic geoms only
-  if (flags[mjVIS_TRANSPARENT] && (geom->category == mjCAT_DYNAMIC)) {
-    geom->rgba[3] *= m->vis.map.alpha;
-  }
-}
-
-
-
-//----------------------------- main API functions -------------------------------------------------
-
-// set (type, size, pos, mat) connector-type geom between given points
-//  assume that mjv_initGeom was already called to set all other properties
-void mjv_connector(mjvGeom* geom, int type, mjtNum width,
-                   const mjtNum from[3], const mjtNum to[3]) {
-  mjtNum quat[4], mat[9], dif[3] = {to[0]-from[0], to[1]-from[1], to[2]-from[2]};
-
-  // require connector-compatible type
-  if (type != mjGEOM_CAPSULE && type != mjGEOM_CYLINDER &&
-      type != mjGEOM_ARROW && type != mjGEOM_ARROW1 && type != mjGEOM_ARROW2
-      && type != mjGEOM_LINE) {
-    mjERROR("invalid geom type %d for connector", type);
-  }
-
-  // assign type
-  geom->type = type;
-
-  // compute size for XYZ scaling
-  geom->size[0] = geom->size[1] = (float)width;
-  geom->size[2] = (float)mju_norm3(dif);
-
-  // cylinder and capsule are centered, and size[0] is "radius"
-  if (type == mjGEOM_CAPSULE || type == mjGEOM_CYLINDER) {
-    geom->pos[0] = 0.5*(from[0] + to[0]);
-    geom->pos[1] = 0.5*(from[1] + to[1]);
-    geom->pos[2] = 0.5*(from[2] + to[2]);
-    geom->size[2] *= 0.5;
-  }
-
-  // arrow is not centered
-  else {
-    geom->pos[0] = from[0];
-    geom->pos[1] = from[1];
-    geom->pos[2] = from[2];
-  }
-
-  // set mat to minimal rotation aligning b-a with z axis
-  mju_quatZ2Vec(quat, dif);
-  mju_quat2Mat(mat, quat);
-  mju_n2f(geom->mat, mat, 9);
-}
-
-
-
-// initialize given fields when not NULL, set the rest to their default values
-void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
-                  const mjtNum* pos, const mjtNum* mat, const float* rgba) {
-  // assign type
-  geom->type = type;
-
-  // set size (for XYZ scaling)
-  if (size) {
-    switch ((mjtGeom) type) {
-    case mjGEOM_SPHERE:
-      geom->size[0] = (float)size[0];
-      geom->size[1] = (float)size[0];
-      geom->size[2] = (float)size[0];
-      break;
-
-    case mjGEOM_CAPSULE:
-      geom->size[0] = (float)size[0];
-      geom->size[1] = (float)size[0];
-      geom->size[2] = (float)size[1];
-      break;
-
-    case mjGEOM_CYLINDER:
-      geom->size[0] = (float)size[0];
-      geom->size[1] = (float)size[0];
-      geom->size[2] = (float)size[1];
-      break;
-
-    default:
-      mju_n2f(geom->size, size, 3);
-    }
-  } else {
-    geom->size[0] = 0.1f;
-    geom->size[1] = 0.1f;
-    geom->size[2] = 0.1f;
-  }
-
-  // set pos
-  if (pos) {
-    mju_n2f(geom->pos, pos, 3);
-  } else {
-    geom->pos[0] = 0;
-    geom->pos[1] = 0;
-    geom->pos[2] = 0;
-  }
-
-  // set mat
-  if (mat) {
-    mju_n2f(geom->mat, mat, 9);
-  } else {
-    geom->mat[0] = 1;
-    geom->mat[1] = 0;
-    geom->mat[2] = 0;
-    geom->mat[3] = 0;
-    geom->mat[4] = 1;
-    geom->mat[5] = 0;
-    geom->mat[6] = 0;
-    geom->mat[7] = 0;
-    geom->mat[8] = 1;
-  }
-
-  // set rgba
-  if (rgba) {
-    f2f(geom->rgba, rgba, 4);
-  } else {
-    geom->rgba[0] = 0.5;
-    geom->rgba[1] = 0.5;
-    geom->rgba[2] = 0.5;
-    geom->rgba[3] = 1;
-  }
-
-  // set defaults that cannot be assigned via this function
-  geom->dataid       = -1;
-  geom->matid        = -1;
-  geom->texcoord     = 0;
-  geom->emission     = 0;
-  geom->specular     = 0.5;
-  geom->shininess    = 0.5;
-  geom->reflectance  = 0;
-  geom->label[0]     = 0;
-  geom->modelrbound  = 0;
-}
-
-
-
-// mark geom as selected
-static void markselected(const mjVisual* vis, mjvGeom* geom) {
-  // add emission
-  geom->emission += vis->global.glow;
-}
-
-
-
-// mix colors for perturbation object
-static void mixcolor(float rgba[4], const float ref[4], int flg1, int flg2) {
-  rgba[0] = flg1 ? ref[0] : 0;
-  if (flg2) {
-    rgba[0] = mjMAX(rgba[0], ref[1]);
-  }
-
-  rgba[1] = flg1 ? ref[1] : 0;
-  if (flg2) {
-    rgba[1] = mjMAX(rgba[1], ref[0]);
-  }
-
-  rgba[2] = ref[2];
-  rgba[3] = ref[3];
-}
-
-
-
-// a body is static if it is welded to the world and is not a mocap body
-static int bodycategory(const mjModel* m, int bodyid) {
-  if (m->body_weldid[bodyid] == 0 && m->body_mocapid[bodyid] == -1) {
-    return mjCAT_STATIC;
-  } else {
-    return mjCAT_DYNAMIC;
-  }
-}
-
-
-
-// computes the camera frustum
-static void getFrustum(float zver[2], float zhor[2], float znear,
-                       const float intrinsic[4], const float sensorsize[2]) {
-  if (zhor) {
-    zhor[0] = znear / intrinsic[0] * (sensorsize[0]/2.f - intrinsic[2]);
-    zhor[1] = znear / intrinsic[0] * (sensorsize[0]/2.f + intrinsic[2]);
-  }
-  if (zver) {
-    zver[0] = znear / intrinsic[1] * (sensorsize[1]/2.f - intrinsic[3]);
-    zver[1] = znear / intrinsic[1] * (sensorsize[1]/2.f + intrinsic[3]);
-  }
-}
-
-
-
-void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum right[3],
-                     const mjData* d, const mjvCamera* cam) {
-  switch (cam->type) {
-    case mjCAMERA_FREE:
-    case mjCAMERA_TRACKING: {
-      const mjtNum ca = mju_cos(cam->azimuth/180.0*mjPI);
-      const mjtNum sa = mju_sin(cam->azimuth/180.0*mjPI);
-      const mjtNum ce = mju_cos(cam->elevation/180.0*mjPI);
-      const mjtNum se = mju_sin(cam->elevation/180.0*mjPI);
-      if (forward) {
-        forward[0] = ce*ca;
-        forward[1] = ce*sa;
-        forward[2] = se;
-      }
-      if (up) {
-        up[0] = -se*ca;
-        up[1] = -se*sa;
-        up[2] = ce;
-      }
-      if (right) {
-        right[0] = sa;
-        right[1] = -ca;
-        right[2] = 0;
-      }
-      if (headpos) {
-        mju_addScl3(headpos, cam->lookat, forward, -cam->distance);
-      }
-      break;
-    }
-
-    case mjCAMERA_FIXED: {
-      const int cid = cam->fixedcamid;
-      const mjtNum* mat = d->cam_xmat + 9*cid;
-      if (forward) {
-        forward[0] = -mat[2];
-        forward[1] = -mat[5];
-        forward[2] = -mat[8];
-      }
-      if (up) {
-        up[0] = mat[1];
-        up[1] = mat[4];
-        up[2] = mat[7];
-      }
-      if (right) {
-        right[0] = mat[0];
-        right[1] = mat[3];
-        right[2] = mat[6];
-      }
-      if (headpos) {
-        mju_copy3(headpos, d->cam_xpos + 3*cid);
-      }
-      break;
-    }
-
-    default: {
-      mjERROR("unknown camera type");
-    }
-  }
-}
-
-
-void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjModel* m,
-                       const mjvCamera* cam) {
-  mjtNum fovy;
-  int orthographic = 0, cid = 0;
-  float* intrinsic = NULL;
-  float* sensorsize = NULL;
-
-  // get ipd, fovy, orthographic, intrinsic
-  switch (cam->type) {
-  case mjCAMERA_FREE:
-  case mjCAMERA_TRACKING:
-    orthographic = m->vis.global.orthographic;
-    fovy = m->vis.global.fovy;
-    break;
-
-  case mjCAMERA_FIXED:
-    // get id, check range
-    cid = cam->fixedcamid;
-    if (cid < 0 || cid >= m->ncam) {
-      mjERROR("fixed camera id is outside valid range");
-    }
-    orthographic = m->cam_orthographic[cid];
-    fovy = m->cam_fovy[cid];
-
-    // if positive sensorsize, get sensorsize and intrinsic
-    if (m->cam_sensorsize[2*cid+1]) {
-      sensorsize = m->cam_sensorsize + 2*cid;
-      intrinsic = m->cam_intrinsic + 4*cid;
-    }
-    break;
-
-  default:
-    mjERROR("unknown camera type");
-  }
-
-  const float znear = m->vis.map.znear * m->stat.extent;
-
-  if (orthographic) {
-    if (zver) {
-      zver[0] = zver[1] = fovy / 2;
-    }
-    if (zhor) {
-      zhor[0] = zhor[1] = 0.0f;
-    }
-  } else if (intrinsic) {
-    getFrustum(zver, zhor, znear, intrinsic, sensorsize);
-  } else {
-    if (zver) {
-      zver[0] = zver[1] = znear * mju_tan(fovy * mjPI/360.0);
-    }
-    if (zhor) {
-      zhor[0] = zhor[1] = 0.0f;
-    }
-  }
-
-  if (zclip) {
-    zclip[0] = znear;
-    zclip[1] = m->vis.map.zfar * m->stat.extent;
-  }
-}
-
 
 
 // add abstract geoms
