@@ -362,7 +362,39 @@ static void markselected(const mjVisual* vis, mjvGeom* geom) {
 
 
 
-//----------------------------- camera functions ---------------------------------------------------
+// draw 3 cylinders representing a "frame" decor element
+void addFrameGeoms(mjvScene* scn, int i, mjtNum* pos, mjtNum* rot, float length, float width) {
+  // draw separate geoms for each axis
+  for (int j=0; j < 3; j++) {
+    mjtNum axis[3];
+    for (int k=0; k < 3; k++) {
+      axis[k] = (j == k ? length : 0);
+    }
+
+    mjtNum vec[3];
+    mju_mulMatVec(vec, rot, axis, 3, 3);
+
+    // create a cylinder
+    mjtNum to[3];
+    mju_add3(to, pos, vec);
+
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+    if (!thisgeom) {
+      return;
+    }
+
+    mjv_connector(thisgeom, mjGEOM_CYLINDER, width, pos, to);
+    for (int k=0; k < 3; k++) {
+      thisgeom->rgba[k] = (j == k ? 0.9 : 0);
+    }
+    thisgeom->rgba[3] = 1;
+    releaseGeom(&thisgeom, scn);
+  }
+}
+
+
+
+//----------------------------- camera functions --------------------------------------------------
 
 // computes the camera frustum
 static void getFrustum(float zver[2], float zhor[2], float znear,
@@ -509,7 +541,7 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
 static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
                            const mjvOption* vopt, mjvScene* scn) {
   int objtype = mjOBJ_UNKNOWN, category = mjCAT_DECOR;
-  mjtNum mat[9], tmp[9], vec[3], frc[3], confrc[6], axis[3];
+  mjtNum mat[9], tmp[9], vec[3], frc[3], confrc[6];
   mjtNum framewidth, framelength, scl = m->stat.meansize;
   mjContact* con;
   mjvGeom* thisgeom;
@@ -614,34 +646,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
       // set length and width of axis cylinders using half regular frame scaling
       framelength = m->vis.scale.framelength * scl / 2;
       framewidth = m->vis.scale.framewidth * scl / 2;
-
-      // draw the three axes (separate geoms)
-      for (int j=0; j < 3; j++) {
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        // prepare axis
-        for (int k=0; k < 3; k++) {
-          axis[k] = (j == k ? framelength : 0);
-        }
-        mju_mulMatVec(vec, mat, axis, 3, 3);
-
-        // create a cylinder
-        mjtNum* from = con->pos;
-        mjtNum to[3];
-        mju_add3(to, from, vec);
-        mjv_connector(thisgeom, mjGEOM_CYLINDER, framewidth, from, to);
-
-        // set color: R, G or B depending on axis
-        for (int k=0; k < 3; k++) {
-          thisgeom->rgba[k] = (j == k ? 0.9 : 0);
-        }
-        thisgeom->rgba[3] = 1;
-
-        releaseGeom(&thisgeom, scn);
-      }
+      addFrameGeoms(scn, i, con->pos, mat, framelength, framewidth);
     }
 
     // nothing else to do for excluded contacts
@@ -1302,34 +1307,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
       mjtNum* xmat = vopt->flags[mjVIS_INERTIA] ? d->ximat+9*i : d->xmat+9*i;
       mjtNum* xpos = vopt->flags[mjVIS_INERTIA] ? d->xipos+3*i : d->xpos+3*i;
-
-      // draw the three axes (separate geoms)
-      for (int j=0; j < 3; j++) {
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        // prepare axis
-        for (int k=0; k < 3; k++) {
-          axis[k] = (j == k ? sz[1] : 0);
-        }
-        mju_mulMatVec(vec, xmat, axis, 3, 3);
-
-        // create a cylinder
-        mjtNum* from = xpos;
-        mjtNum to[3];
-        mju_add3(to, from, vec);
-        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
-
-        // set color: R, G or B depending on axis
-        for (int k=0; k < 3; k++) {
-          thisgeom->rgba[k] = (j == k ? 0.9 : 0);
-        }
-        thisgeom->rgba[3] = 1;
-
-        releaseGeom(&thisgeom, scn);
-      }
+      addFrameGeoms(scn, i, xpos, xmat, sz[1], sz[0]);
     }
   }
 
@@ -1839,32 +1817,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       objtype = mjOBJ_UNKNOWN;
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
-      for (int j=0; j < 3; j++) {
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        // prepare axis
-        for (int k=0; k < 3; k++) {
-          axis[k] = (j == k ? sz[1] : 0);
-        }
-        mju_mulMatVec(vec, d->geom_xmat+9*i, axis, 3, 3);
-
-        // create a cylinder
-        mjtNum* from = d->geom_xpos+3*i;
-        mjtNum to[3];
-        mju_add3(to, from, vec);
-        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
-
-        // set color: R, G or B depending on axis
-        for (int k=0; k < 3; k++) {
-          thisgeom->rgba[k] = (j == k ? 0.9 : 0);
-        }
-        thisgeom->rgba[3] = 1;
-
-        releaseGeom(&thisgeom, scn);
-      }
+      addFrameGeoms(scn, i, d->geom_xpos+3*i, d->geom_xmat+9*i, sz[1], sz[0]);
     }
   }
 
@@ -1920,32 +1873,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       objtype = mjOBJ_UNKNOWN;
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
-      for (int j=0; j < 3; j++) {
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        // prepare axis
-        for (int k=0; k < 3; k++) {
-          axis[k] = (j == k ? sz[1] : 0);
-        }
-        mju_mulMatVec(vec, d->site_xmat+9*i, axis, 3, 3);
-
-        // create a cylinder
-        mjtNum* from = d->site_xpos+3*i;
-        mjtNum to[3];
-        mju_add3(to, from, vec);
-        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
-
-        // set color: R, G or B depending on axis
-        for (int k=0; k < 3; k++) {
-          thisgeom->rgba[k] = (j == k ? 0.9 : 0);
-        }
-        thisgeom->rgba[3] = 1;
-
-        releaseGeom(&thisgeom, scn);
-      }
+      addFrameGeoms(scn, i, d->site_xpos+3*i, d->site_xmat+9*i, sz[1], sz[0]);
     }
   }
 
@@ -2105,32 +2033,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       objtype = mjOBJ_UNKNOWN;
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
-      for (int j=0; j < 3; j++) {
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        // prepare axis
-        for (int k=0; k < 3; k++) {
-          axis[k] = (j == k ? sz[1] : 0);
-        }
-        mju_mulMatVec(vec, d->cam_xmat+9*i, axis, 3, 3);
-
-        // create a cylinder
-        mjtNum* from = d->cam_xpos+3*i;
-        mjtNum to[3];
-        mju_add3(to, from, vec);
-        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
-
-        // set color: R, G or B depending on axis
-        for (int k=0; k < 3; k++) {
-          thisgeom->rgba[k] = (j == k ? 0.9 : 0);
-        }
-        thisgeom->rgba[3] = 1;
-
-        releaseGeom(&thisgeom, scn);
-      }
+      addFrameGeoms(scn, i, d->cam_xpos+3*i, d->cam_xmat+9*i, sz[1], sz[0]);
     }
   }
 
@@ -2178,32 +2081,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       objtype = mjOBJ_UNKNOWN;
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
-      for (int j=0; j < 3; j++) {
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        // prepare axis
-        for (int k=0; k < 3; k++) {
-          axis[k] = (j == k ? sz[1] : 0);
-        }
-        mju_mulMatVec(vec, mat, axis, 3, 3);
-
-        // create a cylinder
-        mjtNum* from = d->light_xpos+3*i;
-        mjtNum to[3];
-        mju_add3(to, from, vec);
-        mjv_connector(thisgeom, mjGEOM_CYLINDER, sz[0], from, to);
-
-        // set color: R, G or B depending on axis
-        for (int k=0; k < 3; k++) {
-          thisgeom->rgba[k] = (j == k ? 0.9 : 0);
-        }
-        thisgeom->rgba[3] = 1;
-
-        releaseGeom(&thisgeom, scn);
-      }
+      addFrameGeoms(scn, i, d->light_xpos+3*i, mat, sz[1], sz[0]);
     }
   }
 
