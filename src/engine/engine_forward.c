@@ -65,7 +65,6 @@ void mj_checkPos(const mjModel* m, mjData* d) {
 }
 
 
-
 // check velocities, reset if bad
 void mj_checkVel(const mjModel* m, mjData* d) {
   for (int i=0; i < m->nv; i++) {
@@ -80,7 +79,6 @@ void mj_checkVel(const mjModel* m, mjData* d) {
     }
   }
 }
-
 
 
 // check accelerations, reset if bad
@@ -100,7 +98,6 @@ void mj_checkAcc(const mjModel* m, mjData* d) {
     }
   }
 }
-
 
 
 //-------------------------- solver components -----------------------------------------------------
@@ -126,7 +123,6 @@ void* mj_collisionThreaded(void* args) {
   mj_collision(forward_args->m, forward_args->d);
   return NULL;
 }
-
 
 
 // position-dependent computations
@@ -189,7 +185,6 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 }
 
 
-
 // velocity-dependent computations
 void mj_fwdVelocity(const mjModel* m, mjData* d) {
   TM_START;
@@ -233,7 +228,6 @@ void mj_fwdVelocity(const mjModel* m, mjData* d) {
 }
 
 
-
 // returns the next act given the current act_dot, after clamping
 static mjtNum nextActivation(const mjModel* m, const mjData* d,
                              int actuator_id, int act_adr, mjtNum act_dot) {
@@ -261,7 +255,6 @@ static mjtNum nextActivation(const mjModel* m, const mjData* d,
 }
 
 
-
 // clamp vector to range
 static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, int n,
                       const int* index) {
@@ -272,7 +265,6 @@ static void clampVec(mjtNum* vec, const mjtNum* range, const mjtByte* limited, i
     }
   }
 }
-
 
 
 // (qpos, qvel, ctrl, act) => (qfrc_actuator, actuator_force, act_dot)
@@ -554,7 +546,6 @@ void mj_fwdActuation(const mjModel* m, mjData* d) {
 }
 
 
-
 // add up all non-constraint forces, compute qacc_smooth
 void mj_fwdAcceleration(const mjModel* m, mjData* d) {
   int nv = m->nv;
@@ -568,7 +559,6 @@ void mj_fwdAcceleration(const mjModel* m, mjData* d) {
   // qacc_smooth = M \ qfrc_smooth
   mj_solveM(m, d, d->qacc_smooth, d->qfrc_smooth, 1);
 }
-
 
 
 // warmstart/init solver
@@ -651,7 +641,6 @@ static void warmstart(const mjModel* m, mjData* d) {
 }
 
 
-
 // struct encapsulating arguments to thread task
 struct mjSolIslandArgs_ {
   const mjModel* m;
@@ -698,7 +687,6 @@ static void solve_threaded(const mjModel* m, mjData* d, int flg_Newton) {
 
   mj_freeStack(d);
 }
-
 
 
 // compute efc_b, efc_force, qfrc_constraint; update qacc
@@ -792,7 +780,6 @@ void mj_fwdConstraint(const mjModel* m, mjData* d) {
 
   TM_END(mjTIMER_CONSTRAINT);
 }
-
 
 
 //-------------------------- integrators  ----------------------------------------------------------
@@ -894,12 +881,10 @@ void mj_EulerSkip(const mjModel* m, mjData* d, int skipfactor) {
 }
 
 
-
 // Euler integrator, semi-implicit in velocity
 void mj_Euler(const mjModel* m, mjData* d) {
   mj_EulerSkip(m, d, 0);
 }
-
 
 
 // RK4 tableau
@@ -1007,7 +992,6 @@ void mj_RungeKutta(const mjModel* m, mjData* d, int N) {
 }
 
 
-
 // fully implicit in velocity, possibly skipping factorization
 void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
   TM_START;
@@ -1075,12 +1059,10 @@ void mj_implicitSkip(const mjModel* m, mjData* d, int skipfactor) {
 }
 
 
-
 // fully implicit in velocity
 void mj_implicit(const mjModel* m, mjData* d) {
   mj_implicitSkip(m, d, 0);
 }
-
 
 
 // return 1 if potential energy was computed by sensor, 0 otherwise
@@ -1098,7 +1080,6 @@ static int energyPosSensor(const mjModel* m) {
 }
 
 
-
 // return 1 if kinetic energy was computed by sensor, 0 otherwise
 static int energyVelSensor(const mjModel* m) {
   if (mjDISABLED(mjDSBL_SENSOR)) {
@@ -1112,7 +1093,6 @@ static int energyVelSensor(const mjModel* m) {
   }
   return 0;
 }
-
 
 
 //-------------------------- top-level API ---------------------------------------------------------
@@ -1171,12 +1151,10 @@ void mj_forwardSkip(const mjModel* m, mjData* d, int skipstage, int skipsensor) 
 }
 
 
-
 // forward dynamics
 void mj_forward(const mjModel* m, mjData* d) {
   mj_forwardSkip(m, d, mjSTAGE_NONE, 0);
 }
-
 
 
 // advance simulation using control callback
@@ -1215,7 +1193,6 @@ void mj_step(const mjModel* m, mjData* d) {
 
   TM_END(mjTIMER_STEP);
 }
-
 
 
 // advance simulation in two phases: before input is set by user

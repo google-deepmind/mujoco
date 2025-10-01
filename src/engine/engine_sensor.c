@@ -91,7 +91,6 @@ static void apply_cutoff(const mjModel* m, mjData* d, mjtStage stage) {
 }
 
 
-
 // get xpos and xmat pointers to an object in mjData
 static void get_xpos_xmat(const mjData* d, mjtObj type, int id, int sensor_id,
                           mjtNum **xpos, mjtNum **xmat) {
@@ -122,7 +121,6 @@ static void get_xpos_xmat(const mjData* d, mjtObj type, int id, int sensor_id,
 }
 
 
-
 // get global quaternion of an object in mjData
 static void get_xquat(const mjModel* m, const mjData* d, mjtObj type, int id, int sensor_id,
                       mjtNum *quat) {
@@ -146,7 +144,6 @@ static void get_xquat(const mjModel* m, const mjData* d, mjtObj type, int id, in
     mjERROR("invalid object type in sensor %d", sensor_id);
   }
 }
-
 
 
 static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
@@ -241,7 +238,6 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
 }
 
 
-
 // check if a contact body/geom matches a sensor spec (type, id)
 static int checkMatch(const mjModel* m, int body, int geom, mjtObj type, int id) {
   if (type == mjOBJ_UNKNOWN) return 1;
@@ -314,7 +310,6 @@ static int matchContact(const mjModel* m, const mjData* d, int conid,
 }
 
 
-
 // fill in output data for contact sensor for all fields
 //   if flg_flip > 0, normal/tangent rotate 180 about frame[2]
 //   force/torque flip-z s.t. force is equal-and-opposite in new contact frame
@@ -361,7 +356,6 @@ static void copySensorData(const mjModel* m, const mjData* d,
 }
 
 
-
 // compute total wrench about one point, in the global frame
 static void total_wrench(mjtNum force[3], mjtNum torque[3], const mjtNum point[3], int n,
                         const mjtNum *wrench, const mjtNum *pos, const mjtNum *frame) {
@@ -386,7 +380,6 @@ static void total_wrench(mjtNum force[3], mjtNum torque[3], const mjtNum point[3
     mju_addTo3(torque, induced_torque);
   }
 }
-
 
 
 //-------------------------------- sensor ----------------------------------------------------------
@@ -692,7 +685,6 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 }
 
 
-
 // velocity-dependent sensors
 void mj_sensorVel(const mjModel* m, mjData* d) {
   int objtype, objid, reftype, refid, adr, nusersensor = 0;
@@ -873,7 +865,6 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
   // cutoff
   apply_cutoff(m, d, mjSTAGE_VEL);
 }
-
 
 
 // acceleration/force-dependent sensors
@@ -1400,7 +1391,6 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 }
 
 
-
 //-------------------------------- energy ----------------------------------------------------------
 
 // position-dependent energy (potential)
@@ -1489,7 +1479,6 @@ void mj_energyPos(const mjModel* m, mjData* d) {
     }
   }
 }
-
 
 
 // velocity-dependent energy (kinetic)

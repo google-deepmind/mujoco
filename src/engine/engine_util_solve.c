@@ -61,7 +61,6 @@ int mju_cholFactor(mjtNum* mat, int n, mjtNum mindiag) {
 }
 
 
-
 // Cholesky solve
 void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n) {
   // copy if source and destination are different
@@ -90,7 +89,6 @@ void mju_cholSolve(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n) {
     res[i] /= mat[i*(n+1)];
   }
 }
-
 
 
 // Cholesky rank-one update: L*L' +/- x*x'; return rank
@@ -135,7 +133,6 @@ int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus) {
 
   return rank;
 }
-
 
 
 //---------------------------- sparse Cholesky -----------------------------------------------------
@@ -188,7 +185,6 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
   mj_freeStack(d);
   return rank;
 }
-
 
 
 // precount row non-zeros of reverse-Cholesky factor L, return total non-zeros
@@ -244,7 +240,6 @@ int mju_cholFactorCount(int* L_rownnz, const int* rownnz, const int* rowadr, con
 }
 
 
-
 // sparse reverse-order Cholesky solve
 void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
                          const int* rownnz, const int* rowadr, const int* colind) {
@@ -286,7 +281,6 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
     res[i] /= mat[adr+nnz-1];
   }
 }
-
 
 
 // sparse reverse-order Cholesky rank-one update: L'*L +/- x*x'; return rank
@@ -444,7 +438,6 @@ mjtNum mju_cholFactorBand(mjtNum* mat, int ntotal, int nband, int ndense,
 }
 
 
-
 // solve with band-Cholesky decomposition
 void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                        int ntotal, int nband, int ndense) {
@@ -509,7 +502,6 @@ void mju_cholSolveBand(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 }
 
 
-
 // address of diagonal element i in band-dense matrix representation
 int mju_bandDiag(int i, int ntotal, int nband, int ndense) {
   int nsparse = ntotal-ndense;
@@ -524,7 +516,6 @@ int mju_bandDiag(int i, int ntotal, int nband, int ndense) {
     return nsparse*nband + (i-nsparse)*ntotal + i;
   }
 }
-
 
 
 // convert band matrix to dense matrix
@@ -560,7 +551,6 @@ void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int n
 }
 
 
-
 // convert dense matrix to band matrix
 void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int ndense) {
   int nsparse = ntotal-ndense;
@@ -579,7 +569,6 @@ void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int n
     mju_copy(res + nsparse*nband + (i-nsparse)*ntotal, mat + i*ntotal, i+1);
   }
 }
-
 
 
 // multiply band-diagonal matrix with vector
@@ -697,7 +686,6 @@ void mju_factorLUSparse(mjtNum* LU, int n, int* scratch,
 }
 
 
-
 // solve mat*res=vec given LU factorization of mat
 void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
                        const int* rownnz, const int* rowadr, const int* diag, const int* colind) {
@@ -727,7 +715,6 @@ void mju_solveLUSparse(mjtNum* res, const mjtNum* LU, const mjtNum* vec, int n,
     res[i] /= LU[adr + d];
   }
 }
-
 
 
 //--------------------------- eigen decomposition --------------------------------------------------
@@ -830,7 +817,6 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
 }
 
 
-
 //---------------------------------- QCQP ----------------------------------------------------------
 
 // solve QCQP in 2 dimensions:
@@ -898,7 +884,6 @@ int mju_QCQP2(mjtNum* res, const mjtNum* Ain, const mjtNum* bin,
 
   return (la != 0);
 }
-
 
 
 // solve QCQP in 3 dimensions:
@@ -989,7 +974,6 @@ int mju_QCQP3(mjtNum* res, const mjtNum* Ain, const mjtNum* bin,
 }
 
 
-
 // solve QCQP in n dimensions:
 //  min  0.5*x'*A*x + x'*b  s.t.  sum (xi/di)^2 <= r^2
 // return 0 if unconstrained, 1 if constrained
@@ -1062,7 +1046,6 @@ int mju_QCQP(mjtNum* res, const mjtNum* Ain, const mjtNum* bin,
 }
 
 
-
 //--------------------------- box-constrained quadratic program ------------------------------------
 
 // minimize 0.5*x'*H*x + x'*g  s.t. lower <= x <= upper, return rank or -1 if failed
@@ -1104,7 +1087,6 @@ int mju_boxQP(mjtNum* res, mjtNum* R, int* index,
 }
 
 
-
 // allocate heap memory for box-constrained Quadratic Program
 //   as in mju_boxQP, index, lower and upper are optional
 //   free all pointers with mju_free()
@@ -1122,7 +1104,6 @@ void mju_boxQPmalloc(mjtNum** res, mjtNum** R, int** index,
   if (upper) *upper = (mjtNum*) mju_malloc(sizeof(mjtNum)*n);
   if (index) *index = (int*) mju_malloc(sizeof(int)*n);
 }
-
 
 
 // local enum encoding mju_boxQP solver status (purely for readability)

@@ -177,7 +177,6 @@ void mj_kinematics(const mjModel* m, mjData* d) {
 }
 
 
-
 // map inertias and motion dofs to global frame centered at subtree-CoM
 void mj_comPos(const mjModel* m, mjData* d) {
   int nbody = m->nbody, njnt = m->njnt;
@@ -258,7 +257,6 @@ void mj_comPos(const mjModel* m, mjData* d) {
     }
   }
 }
-
 
 
 // compute camera and light positions and orientations
@@ -379,7 +377,6 @@ void mj_camlight(const mjModel* m, mjData* d) {
 }
 
 
-
 // update dynamic BVH; leaf aabbs must be updated before call
 void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
   mj_markStack(d);
@@ -425,7 +422,6 @@ void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
 
   mj_freeStack(d);
 }
-
 
 
 // compute flex-related quantities
@@ -634,7 +630,6 @@ void mj_flex(const mjModel* m, mjData* d) {
 
   mj_freeStack(d);
 }
-
 
 
 // compute tendon lengths and moments
@@ -850,7 +845,6 @@ void mj_tendon(const mjModel* m, mjData* d) {
 }
 
 
-
 // compute time derivative of dense tendon Jacobian for one tendon
 void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
   int nv = m->nv;
@@ -968,7 +962,6 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
 
   mj_freeStack(d);
 }
-
 
 
 // compute actuator/transmission lengths and moments
@@ -1456,7 +1449,6 @@ void mj_transmission(const mjModel* m, mjData* d) {
 }
 
 
-
 //-------------------------- inertia ---------------------------------------------------------------
 
 // add tendon armature to M
@@ -1519,7 +1511,6 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
 }
 
 
-
 // composite rigid body inertia algorithm
 void mj_crb(const mjModel* m, mjData* d) {
   int nv = m->nv;
@@ -1570,7 +1561,6 @@ void mj_crb(const mjModel* m, mjData* d) {
 }
 
 
-
 void mj_makeM(const mjModel* m, mjData* d) {
   TM_START;
   mj_crb(m, d);
@@ -1578,7 +1568,6 @@ void mj_makeM(const mjModel* m, mjData* d) {
   mju_scatter(d->qM, d->M, m->mapM2M, m->nC);
   TM_END(mjTIMER_POS_INERTIA);
 }
-
 
 
 // sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
@@ -1644,7 +1633,6 @@ void mj_factorI_legacy(const mjModel* m, mjData* d, const mjtNum* M, mjtNum* qLD
 }
 
 
-
 // sparse L'*D*L factorizaton of the inertia matrix M, assumed spd
 void mj_factorM(const mjModel* m, mjData* d) {
   TM_START;
@@ -1652,7 +1640,6 @@ void mj_factorM(const mjModel* m, mjData* d) {
   mj_factorI(d->qLD, d->qLDiagInv, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind);
   TM_ADD(mjTIMER_POS_INERTIA);
 }
-
 
 
 // sparse L'*D*L factorizaton of inertia-like matrix M, assumed spd
@@ -1678,7 +1665,6 @@ void mj_factorI(mjtNum* mat, mjtNum* diaginv, int nv,
     mju_scl(mat + start, mat + start, invD, diag);
   }
 }
-
 
 
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
@@ -1793,7 +1779,6 @@ void mj_solveLD_legacy(const mjModel* m, mjtNum* restrict x, int n,
 }
 
 
-
 // in-place sparse backsubstitution:  x = inv(L'*D*L)*x
 void mj_solveLD(mjtNum* restrict x, const mjtNum* qLD, const mjtNum* qLDiagInv, int nv, int n,
                 const int* rownnz, const int* rowadr, const int* colind) {
@@ -1875,7 +1860,6 @@ void mj_solveLD(mjtNum* restrict x, const mjtNum* qLD, const mjtNum* qLDiagInv, 
 }
 
 
-
 // sparse backsubstitution:  x = inv(L'*D*L)*y
 //  use factorization in d
 void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
@@ -1885,7 +1869,6 @@ void mj_solveM(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y, int n) {
   mj_solveLD(x, d->qLD, d->qLDiagInv, m->nv, n,
              m->M_rownnz, m->M_rowadr, m->M_colind);
 }
-
 
 
 // half of sparse backsubstitution:  x = sqrt(inv(D))*inv(L')*y
@@ -1933,7 +1916,6 @@ void mj_solveM2(const mjModel* m, mjData* d, mjtNum* x, const mjtNum* y,
     }
   }
 }
-
 
 
 //---------------------------------- velocity ------------------------------------------------------
@@ -2005,7 +1987,6 @@ void mj_comVel(const mjModel* m, mjData* d) {
     mju_copy(d->cdof_dot+6*bda, cdofdot, 6*dofnum);
   }
 }
-
 
 
 // subtree linear velocity and angular momentum
@@ -2128,7 +2109,6 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
 
   mj_freeStack(d);
 }
-
 
 
 // RNE with complete data: compute cacc, cfrc_ext, cfrc_int
@@ -2316,7 +2296,6 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     mju_addTo(d->cfrc_int+6*m->body_parentid[j], d->cfrc_int+6*j, 6);
   }
 }
-
 
 
 // add bias force due to tendon armature

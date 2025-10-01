@@ -119,7 +119,6 @@ static void printArray2dInt(const char* str, int nr, int nc, const int* data, FI
 }
 
 
-
 // print sparse matrix
 static void printSparse(const char* str, const mjtNum* mat, int nr,
                         const int* rownnz, const int* rowadr,
@@ -193,7 +192,6 @@ static void printBlockArray(const char* str, const mjtNum* data, int nr, int nc,
 }
 
 
-
 // print sparse inertia-like matrix
 static void printInertia(const char* str, const mjtNum* mat, const mjModel* m,
                          FILE* fp, const char* float_format) {
@@ -228,7 +226,6 @@ static void printInertia(const char* str, const mjtNum* mat, const mjModel* m,
   }
   fprintf(fp, "\n");
 }
-
 
 
 // print sparse matrix structure
@@ -266,7 +263,6 @@ void mj_printSparsity(const char* str, int nr, int nc, const int* rowadr, const 
   for (int c=0; c < nc+2; c++) fprintf(fp, "-");
   fprintf(fp, "\n\n");
 }
-
 
 
 // print block-diagonal sparse matrix structure
@@ -328,7 +324,6 @@ void mj_printBlockSparsity(const char* str, int nr, int nc, int nisland,
 }
 
 
-
 // print vector
 static void printVector(const char* str, const mjtNum* data, int n, FILE* fp,
                         const char* float_format) {
@@ -345,7 +340,6 @@ static void printVector(const char* str, const mjtNum* data, int n, FILE* fp,
   }
   fprintf(fp, "\n");
 }
-
 
 
 // print human readable memory size
@@ -367,7 +361,6 @@ static const char* memorySize(size_t nbytes) {
 }
 
 
-
 // return memory footprint of all significant mesh-related arrays
 static size_t sizeMesh(const mjModel* m) {
   size_t nbytes = 0;
@@ -380,7 +373,6 @@ static size_t sizeMesh(const mjModel* m) {
   nbytes += sizeof(int)   * m->nmeshgraph;         // mesh_graph
   return nbytes;
 }
-
 
 
 // return memory footprint of all significant skin-related arrays
@@ -398,7 +390,6 @@ static size_t sizeSkin(const mjModel* m) {
   nbytes += sizeof(float) * m->nskinbonevert;      // skin_bonevertweight
   return nbytes;
 }
-
 
 
 // return whether float_format is a valid format string for a single float

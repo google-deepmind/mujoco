@@ -65,7 +65,6 @@ static void saveStats(const mjModel* m, mjData* d, int island, int iter,
 }
 
 
-
 // finalize dual solver: map to joint space
 // TODO: b/295296178 - add island support to Dual solvers
 static void dualFinish(const mjModel* m, mjData* d) {
@@ -76,7 +75,6 @@ static void dualFinish(const mjModel* m, mjData* d) {
   mj_solveM(m, d, d->qacc, d->qfrc_constraint, 1);
   mju_addTo(d->qacc, d->qacc_smooth, m->nv);
 }
-
 
 
 // compute 1/diag(AR)
@@ -112,7 +110,6 @@ static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res, int flg_su
     }
   }
 }
-
 
 
 // extract diagonal block from AR, clamp diag to 1e-10 if flg_subR
@@ -175,7 +172,6 @@ static void extractBlock(const mjModel* m, const mjData* d, mjtNum* Ac,
 }
 
 
-
 // compute residual for one block
 // TODO: b/295296178 - add island support to Dual solvers
 static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int dim, int flg_subR) {
@@ -206,7 +202,6 @@ static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int 
 }
 
 
-
 // compute cost change
 // TODO: b/295296178 - add island support to Dual solvers
 static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
@@ -231,7 +226,6 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
 
   return change;
 }
-
 
 
 // set efc_state to dual constraint state; return nactive
@@ -318,7 +312,6 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
 
   return nactive;
 }
-
 
 
 //---------------------------- PGS solver ----------------------------------------------------------
@@ -542,7 +535,6 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
 }
 
 
-
 //---------------------------- NoSlip solver -------------------------------------------------------
 
 // TODO: b/295296178 - add island support to Dual solvers
@@ -759,7 +751,6 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 }
 
 
-
 //------------------------- CG and Newton solver  --------------------------------------------------
 
 // CG context
@@ -964,7 +955,6 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
 }
 
 
-
 // allocate fixed-size arrays in mjCGContext
 //  mj_{mark/free}Stack in calling function!
 static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
@@ -1013,7 +1003,6 @@ static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
 }
 
 
-
 // update efc_force, qfrc_constraint, cost-related
 static void CGupdateConstraint(mjCGContext* ctx, int flg_HessianCone) {
   int nefc = ctx->nefc, nv = ctx->nv;
@@ -1051,7 +1040,6 @@ static void CGupdateConstraint(mjCGContext* ctx, int flg_HessianCone) {
 }
 
 
-
 // update grad, Mgrad
 static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
   int nv = ctx->nv;
@@ -1078,7 +1066,6 @@ static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
                ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
   }
 }
-
 
 
 // prepare quadratic polynomials and contact cone quantities
@@ -1155,7 +1142,6 @@ static void CGprepare(mjCGContext* ctx) {
     quad[2] *= 0.5;
   }
 }
-
 
 
 // linesearch evaluation point
@@ -1306,7 +1292,6 @@ static void CGeval(mjCGContext* ctx, mjCGPnt* p) {
 }
 
 
-
 // update bracket point given 3 candidate points
 static int updateBracket(mjCGContext* ctx,
                          mjCGPnt* p, const mjCGPnt candidates[3], mjCGPnt* pnext) {
@@ -1335,7 +1320,6 @@ static int updateBracket(mjCGContext* ctx,
 
   return flag;
 }
-
 
 
 // line search
@@ -1527,7 +1511,6 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
 }
 
 
-
 // allocate and compute Hessian given efc_state
 //  mj_{mark/free}Stack in caller function!
 static void MakeHessian(mjData* d, mjCGContext* ctx) {
@@ -1637,7 +1620,6 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
 }
 
 
-
 // forward declaration of HessianCone (readability)
 static void HessianCone(mjData* d, mjCGContext* ctx);
 
@@ -1714,7 +1696,6 @@ static void FactorizeHessian(mjData* d, mjCGContext* ctx, int flg_recompute) {
   // mark full update
   ctx->nupdate = nefc;
 }
-
 
 
 // elliptic case: Hcone = H + cone_contributions
@@ -1795,7 +1776,6 @@ static void HessianCone(mjData* d, mjCGContext* ctx) {
 }
 
 
-
 // incremental update to Hessian factor due to changes in efc_state
 static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate) {
   int rank, nv = ctx->nv, nefc = ctx->nefc;
@@ -1861,7 +1841,6 @@ static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate)
 
   mj_freeStack(d);
 }
-
 
 
 // driver
@@ -2025,12 +2004,10 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
 }
 
 
-
 // CG entry point
 void mj_solCG(const mjModel* m, mjData* d, int maxiter) {
   mj_solCGNewton(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/0);
 }
-
 
 
 // CG entry point (one island)
@@ -2039,12 +2016,10 @@ void mj_solCG_island(const mjModel* m, mjData* d, int island, int maxiter) {
 }
 
 
-
 // Newton entry point
 void mj_solNewton(const mjModel* m, mjData* d, int maxiter) {
   mj_solCGNewton(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/1);
 }
-
 
 
 // Newton entry point (one island)

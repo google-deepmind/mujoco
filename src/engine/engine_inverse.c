@@ -63,12 +63,10 @@ void mj_invPosition(const mjModel* m, mjData* d) {
 }
 
 
-
 // velocity-dependent computations
 void mj_invVelocity(const mjModel* m, mjData* d) {
   mj_fwdVelocity(m, d);
 }
-
 
 
 // convert discrete-time qacc to continuous-time qacc
@@ -152,7 +150,6 @@ static void mj_discreteAcc(const mjModel* m, mjData* d) {
 }
 
 
-
 // inverse constraint solver
 void mj_invConstraint(const mjModel* m, mjData* d) {
   TM_START;
@@ -178,7 +175,6 @@ void mj_invConstraint(const mjModel* m, mjData* d) {
   mj_freeStack(d);
   TM_END(mjTIMER_CONSTRAINT);
 }
-
 
 
 // inverse dynamics with skip; skipstage is mjtStage
@@ -250,12 +246,10 @@ void mj_inverseSkip(const mjModel* m, mjData* d,
 }
 
 
-
 // inverse dynamics
 void mj_inverse(const mjModel* m, mjData* d) {
   mj_inverseSkip(m, d, mjSTAGE_NONE, 0);
 }
-
 
 
 // compare forward and inverse dynamics, without changing results of forward

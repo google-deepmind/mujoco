@@ -51,19 +51,16 @@ static void ray_map(const mjtNum* pos, const mjtNum* mat, const mjtNum* pnt, con
 }
 
 
-
 // map to azimuth angle in spherical coordinates
 static mjtNum longitude(const mjtNum vec[3]) {
   return mju_atan2(vec[1], vec[0]);
 }
 
 
-
 // map to elevation angle in spherical coordinates
 static mjtNum latitude(const mjtNum vec[3]) {
   return mju_atan2(mju_sqrt(vec[0]*vec[0] + vec[1]*vec[1]), vec[2]);
 }
-
 
 
 // eliminate geom
@@ -101,7 +98,6 @@ static int ray_eliminate(const mjModel* m, const mjData* d, int geomid,
 }
 
 
-
 // compute solution from quadratic:  a*x^2 + 2*b*x + c = 0
 static mjtNum ray_quad(mjtNum a, mjtNum b, mjtNum c, mjtNum* x) {
   // compute determinant and check
@@ -126,7 +122,6 @@ static mjtNum ray_quad(mjtNum a, mjtNum b, mjtNum c, mjtNum* x) {
     return -1;
   }
 }
-
 
 
 // intersect ray with triangle
@@ -218,7 +213,6 @@ static mjtNum ray_plane(const mjtNum* pos, const mjtNum* mat, const mjtNum* size
 }
 
 
-
 // sphere
 static mjtNum ray_sphere(const mjtNum* pos, const mjtNum* mat, mjtNum dist_sqr,
                          const mjtNum* pnt, const mjtNum* vec) {
@@ -232,7 +226,6 @@ static mjtNum ray_sphere(const mjtNum* pos, const mjtNum* mat, mjtNum dist_sqr,
   mjtNum xx[2];
   return ray_quad(a, b, c, xx);
 }
-
 
 
 // capsule
@@ -301,7 +294,6 @@ static mjtNum ray_capsule(const mjtNum* pos, const mjtNum* mat, const mjtNum* si
 }
 
 
-
 // ellipsoid
 static mjtNum ray_ellipsoid(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
                             const mjtNum* pnt, const mjtNum* vec) {
@@ -321,7 +313,6 @@ static mjtNum ray_ellipsoid(const mjtNum* pos, const mjtNum* mat, const mjtNum* 
   mjtNum xx[2];
   return ray_quad(a, b, c, xx);
 }
-
 
 
 // cylinder
@@ -381,7 +372,6 @@ static mjtNum ray_cylinder(const mjtNum* pos, const mjtNum* mat, const mjtNum* s
 
   return x;
 }
-
 
 
 // box
@@ -447,7 +437,6 @@ static mjtNum ray_box(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
 
   return x;
 }
-
 
 
 // intersect ray with hfield
@@ -597,7 +586,6 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
 }
 
 
-
 // ray vs axis-aligned bounding box using slab method
 // see Ericson, Real-time Collision Detection section 5.3.3.
 int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
@@ -732,7 +720,6 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
 }
 
 
-
 // intersect ray with signed distance field
 mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
                const mjtNum* pnt, const mjtNum* vec) {
@@ -793,7 +780,6 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
 }
 
 
-
 // intersect ray with mesh
 mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
                   const mjtNum* pnt, const mjtNum* vec) {
@@ -809,7 +795,6 @@ mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
 
   return mju_rayTree(m, d, id, pnt, vec);
 }
-
 
 
 // intersect ray with pure geom, no meshes or hfields
@@ -839,7 +824,6 @@ mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
     return -1;
   }
 }
-
 
 
 // intersect ray with flex, return nearest vertex id
@@ -1019,7 +1003,6 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
 }
 
 
-
 // intersect ray with skin, return nearest vertex id
 mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                    const mjtNum* pnt, const mjtNum* vec, int vertid[1]) {
@@ -1112,7 +1095,6 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
 }
 
 
-
 // return 1 if point is inside object-aligned bounding box, 0 otherwise
 static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
                         const mjtNum xmat[9], const mjtNum pnt[3]) {
@@ -1132,7 +1114,6 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 
   return 1;
 }
-
 
 
 //---------------------------- main entry point ----------------------------------------------------

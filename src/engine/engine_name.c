@@ -265,7 +265,6 @@ int mj_name2id(const mjModel* m, int type, const char* name) {
 }
 
 
-
 // get name of object with the specified mjtObj type and id,
 // returns NULL if name not found
 const char* mj_id2name(const mjModel* m, int type, int id) {

@@ -91,7 +91,6 @@ int mjraw_SphereBox(mjContact* con, mjtNum margin,
 }
 
 
-
 // sphere : box
 int mjc_SphereBox(const mjModel* m, const mjData* d, mjContact* con,
                   int g1, int g2, mjtNum margin)
@@ -100,7 +99,6 @@ int mjc_SphereBox(const mjModel* m, const mjData* d, mjContact* con,
 
   return mjraw_SphereBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
-
 
 
 /* GENERAL THEORY OF OPERATION
@@ -599,7 +597,6 @@ int mjc_CapsuleBox(const mjModel* m, const mjData* d, mjContact* con,
   mjGETINFO
   return mjraw_CapsuleBox(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
-
 
 
 // box : box

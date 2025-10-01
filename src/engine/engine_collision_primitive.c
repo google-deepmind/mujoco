@@ -49,14 +49,12 @@ static int mjraw_PlaneSphere(mjContact* con, mjtNum margin,
 }
 
 
-
 // plane : sphere
 int mjc_PlaneSphere(const mjModel* m, const mjData* d,
                     mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   return mjraw_PlaneSphere(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
-
 
 
 // plane : capsule
@@ -87,7 +85,6 @@ int mjc_PlaneCapsule(const mjModel* m, const mjData* d,
 
   return n1+n2;
 }
-
 
 
 // plane : cylinder
@@ -194,7 +191,6 @@ int mjc_PlaneCylinder(const mjModel* m, const mjData* d,
 }
 
 
-
 // plane : box
 int mjc_PlaneBox(const mjModel* m, const mjData* d,
                  mjContact* con, int g1, int g2, mjtNum margin) {
@@ -242,7 +238,6 @@ int mjc_PlaneBox(const mjModel* m, const mjData* d,
 }
 
 
-
 //--------------------------- sphere and capsule collisions ----------------------------------------
 
 // sphere : sphere (actual implementation, can be called with modified parameters)
@@ -280,14 +275,12 @@ static int mjraw_SphereSphere(mjContact* con, mjtNum margin,
 }
 
 
-
 // sphere : sphere
 int mjc_SphereSphere(const mjModel* m, const mjData* d,
                      mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   return mjraw_SphereSphere(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
-
 
 
 // raw sphere : capsule
@@ -309,14 +302,12 @@ int mjraw_SphereCapsule(mjContact* con, mjtNum margin,
 }
 
 
-
 // sphere : capsule
 int mjc_SphereCapsule(const mjModel* m, const mjData* d,
                       mjContact* con, int g1, int g2, mjtNum margin) {
   mjGETINFO
   return mjraw_SphereCapsule(con, margin, pos1, mat1, size1, pos2, mat2, size2);
 }
-
 
 
 // sphere : cylinder
@@ -390,7 +381,6 @@ int mjc_SphereCylinder(const mjModel* m, const mjData* d,
   mjtNum size_zero[1] = {0};
   return mjraw_SphereSphere(con, margin, pos1, mat1, size1, vec, mat2, size_zero);
 }
-
 
 
 // raw capsule : capsule
@@ -489,7 +479,6 @@ int mjraw_CapsuleCapsule(mjContact* con, mjtNum margin,
 }
 
 
-
 // capsule : capsule
 int mjc_CapsuleCapsule(const mjModel* m, const mjData* d,
                        mjContact* con, int g1, int g2, mjtNum margin) {
@@ -498,12 +487,10 @@ int mjc_CapsuleCapsule(const mjModel* m, const mjData* d,
 }
 
 
-
 // sign of (signed) area of planar triangle
 static mjtNum areaSign(const mjtNum p1[2], const mjtNum p2[2], const mjtNum p3[2]) {
   return mju_sign((p1[0]-p3[0])*(p2[1]-p3[1]) - (p2[0]-p3[0])*(p1[1]-p3[1]));
 }
-
 
 
 // find nearest point to p within line segment (u,v); return distance to p
@@ -530,7 +517,6 @@ static mjtNum pointSegment(mjtNum res[2], const mjtNum p[2],
   // compute distance
   return mju_sqrt((res[0]-p[0])*(res[0]-p[0]) + (res[1]-p[1])*(res[1]-p[1]));
 }
-
 
 
 // sphere : triangle with radius

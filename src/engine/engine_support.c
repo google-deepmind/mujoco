@@ -135,7 +135,6 @@ static inline int mj_stateElemSize(const mjModel* m, mjtState sig) {
 }
 
 
-
 // return pointer to a single state element
 static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState sig) {
   switch (sig) {
@@ -158,11 +157,9 @@ static inline mjtNum* mj_stateElemPtr(const mjModel* m, mjData* d, mjtState sig)
 }
 
 
-
 static inline const mjtNum* mj_stateElemConstPtr(const mjModel* m, const mjData* d, mjtState sig) {
   return mj_stateElemPtr(m, (mjData*) d, sig);  // discard const qualifier from d
 }
-
 
 
 // get size of state signature
@@ -181,7 +178,6 @@ int mj_stateSize(const mjModel* m, unsigned int sig) {
 
   return size;
 }
-
 
 
 // get state
@@ -215,7 +211,6 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int 
 }
 
 
-
 // set state
 void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig) {
   if (sig >= (1<<mjNSTATE)) {
@@ -247,7 +242,6 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int 
 }
 
 
-
 // copy current state to the k-th model keyframe
 void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
   // check keyframe index
@@ -269,7 +263,6 @@ void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
 }
 
 
-
 //-------------------------- inertia functions -----------------------------------------------------
 
 // convert sparse inertia matrix M into full matrix
@@ -289,12 +282,10 @@ void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M) {
 }
 
 
-
 // multiply vector by inertia matrix
 void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec) {
   mju_mulSymVecSparse(res, d->M, vec, m->nv, m->M_rownnz, m->M_rowadr, m->M_colind);
 }
-
 
 
 // multiply vector by M^(1/2)
@@ -324,7 +315,6 @@ void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec)
 }
 
 
-
 // add inertia matrix to destination matrix
 //  destination can be sparse or dense when all int* are NULL
 void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
@@ -348,7 +338,6 @@ void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
     mju_addToSymSparse(dst, d->M, nv, m->M_rownnz, m->M_rowadr, m->M_colind, /*flg_upper*/ 0);
   }
 }
-
 
 
 //-------------------------- perturbations ---------------------------------------------------------
@@ -412,7 +401,6 @@ void mj_applyFT(const mjModel* m, mjData* d,
 }
 
 
-
 // accumulate xfrc_applied in qfrc
 void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc) {
   for (int i=1; i < m->nbody; i++) {
@@ -421,7 +409,6 @@ void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc) {
     }
   }
 }
-
 
 
 
@@ -454,7 +441,6 @@ static mjtNum mj_geomDistanceCCD(const mjModel* m, const mjData* d, int g1, int 
   // clamp dist to distmax as mjc_ccd returns DBL_MAX if dist > distmax
   return dist < distmax ? dist : distmax;
 }
-
 
 
 // returns the smallest distance between two geoms
@@ -509,7 +495,6 @@ mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, 
 }
 
 
-
 // compute velocity by finite-differencing two positions
 void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
                          const mjtNum* qpos1, const mjtNum* qpos2) {
@@ -542,7 +527,6 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
     }
   }
 }
-
 
 
 // integrate qpos with given qvel
@@ -579,7 +563,6 @@ void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum 
 }
 
 
-
 // normalize all quaternions in qpos-type vector
 void mj_normalizeQuat(const mjModel* m, mjtNum* qpos) {
   // find quaternion fields and normalize
@@ -589,7 +572,6 @@ void mj_normalizeQuat(const mjModel* m, mjtNum* qpos) {
     }
   }
 }
-
 
 
 // return 1 if actuator i is disabled, 0 otherwise
@@ -614,7 +596,6 @@ mjtNum mj_getTotalmass(const mjModel* m) {
 }
 
 
-
 // scale all body masses and inertias to achieve specified total mass
 void mj_setTotalmass(mjModel* m, mjtNum newmass) {
   // compute scale factor, avoid zeros
@@ -632,12 +613,10 @@ void mj_setTotalmass(mjModel* m, mjtNum newmass) {
 }
 
 
-
 // version number
 int mj_version(void) {
   return mjVERSION;
 }
-
 
 
 // current version of MuJoCo as a null-terminated string
@@ -645,7 +624,6 @@ const char* mj_versionString(void) {
   static const char versionstring[] = mjVERSIONSTRING;
   return versionstring;
 }
-
 
 
 // return total size of data in a contact sensor bitfield specification

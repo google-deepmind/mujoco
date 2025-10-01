@@ -63,7 +63,6 @@ void mjv_room2model(mjtNum* modelpos, mjtNum* modelquat, const mjtNum* roompos,
 }
 
 
-
 // transform pose from model to room space
 void mjv_model2room(mjtNum* roompos, mjtNum* roomquat, const mjtNum* modelpos,
                     const mjtNum* modelquat, const mjvScene* scn) {
@@ -93,7 +92,6 @@ void mjv_model2room(mjtNum* roompos, mjtNum* roomquat, const mjtNum* modelpos,
     mju_copy4(roomquat, modelquat);
   }
 }
-
 
 
 // get camera info in model space: average left and right OpenGL cameras
@@ -169,7 +167,6 @@ void mjv_cameraInModel(mjtNum* headpos, mjtNum* forward, mjtNum* up, const mjvSc
 }
 
 
-
 // get camera info in room space: average left and right OpenGL cameras
 void mjv_cameraInRoom(mjtNum* headpos, mjtNum* forward, mjtNum* up, const mjvScene* scn) {
   mjtNum pos[3], fwd[3], u[3];
@@ -219,7 +216,6 @@ void mjv_cameraInRoom(mjtNum* headpos, mjtNum* forward, mjtNum* up, const mjvSce
 }
 
 
-
 // get frustum height at unit distance from camera; average left and right OpenGL cameras
 mjtNum mjv_frustumHeight(const mjvScene* scn) {
   const mjvGLCamera* cam1 = scn->camera;
@@ -251,7 +247,6 @@ mjtNum mjv_frustumHeight(const mjvScene* scn) {
 }
 
 
-
 // rotate 3D vec in horizontal plane by angle between (0,1) and (forward_x,forward_y)
 void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
   mjtNum xaxis[2], yaxis[2];
@@ -269,7 +264,6 @@ void mjv_alignToCamera(mjtNum* res, const mjtNum* vec, const mjtNum* forward) {
   res[1] = vec[0]*xaxis[1] + vec[1]*yaxis[1];
   res[2] = vec[2];
 }
-
 
 
 // convert 2D mouse motion to z-aligned 3D world coordinates
@@ -314,7 +308,6 @@ static void convert2D(mjtNum* res, int action, mjtNum dx, mjtNum dy, const mjtNu
   // call 3D converter
   mjv_alignToCamera(res, vec, forward);
 }
-
 
 
 // move camera with mouse; action is mjtMouse
@@ -407,7 +400,6 @@ void mjv_moveCamera(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
 }
 
 
-
 // move perturb object with mouse; action is mjtMouse
 void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx,
                      mjtNum reldy, const mjvScene* scn, mjvPerturb* pert) {
@@ -498,7 +490,6 @@ void mjv_movePerturb(const mjModel* m, const mjData* d, int action, mjtNum reldx
 }
 
 
-
 // move model with mouse; action is mjtMouse
 void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
                    const mjtNum roomup[3], mjvScene* scn) {
@@ -576,7 +567,6 @@ void mjv_moveModel(const mjModel* m, int action, mjtNum reldx, mjtNum reldy,
 }
 
 
-
 // copy perturb pos,quat from selected body; set scale for perturbation
 void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPerturb* pert) {
   mj_markStack(d);
@@ -636,7 +626,6 @@ void mjv_initPerturb(const mjModel* m, mjData* d, const mjvScene* scn, mjvPertur
 }
 
 
-
 // set perturb pos,quat in d->mocap when selected body is mocap, and in d->qpos otherwise
 //  d->qpos written only if flg_paused and subtree root for selected body has free joint
 void mjv_applyPerturbPose(const mjModel* m, mjData* d, const mjvPerturb* pert, int flg_paused) {
@@ -688,7 +677,6 @@ void mjv_applyPerturbPose(const mjModel* m, mjData* d, const mjvPerturb* pert, i
     mju_mulPose(Rpos, Rquat, refpos, refquat, pos2, quat2);     // ref*neg(child)*root
   }
 }
-
 
 
 // set perturb force,torque in d->xfrc_applied, if selected body is dynamic
@@ -763,7 +751,6 @@ void mjv_applyPerturbForce(const mjModel* m, mjData* d, const mjvPerturb* pert) 
 }
 
 
-
 // return the average of two OpenGL cameras
 mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2) {
   mjtNum pos[3], forward[3], up[3], projection, tmp1[3], tmp2[3];
@@ -810,7 +797,6 @@ mjvGLCamera mjv_averageCamera(const mjvGLCamera* cam1, const mjvGLCamera* cam2) 
 
   return cam;
 }
-
 
 
 // Select geom, flex or skin with mouse, return bodyid; -1: none selected.

@@ -601,7 +601,6 @@ static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
 }
 
 
-
 //------------------------------ collision functions -----------------------------------------------
 
 // collision between a height field and a signed distance field

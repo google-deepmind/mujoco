@@ -33,7 +33,6 @@
 //------------------------- derivatives of spatial algebra -----------------------------------------
 
 
-
 // derivatives of cross product, Da and Db are 3x3
 static void mjd_cross(const mjtNum a[3], const mjtNum b[3],
                       mjtNum* restrict Da, mjtNum* restrict Db) {
@@ -59,7 +58,6 @@ static void mjd_cross(const mjtNum a[3], const mjtNum b[3],
     Db[7] =  a[0];
   }
 }
-
 
 
 // derivative of mju_crossMotion w.r.t velocity
@@ -98,7 +96,6 @@ static void mjd_crossMotion_vel(mjtNum D[36], const mjtNum v[6]) {
 }
 
 
-
 // derivative of mju_crossForce w.r.t. velocity
 static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6]) {
   mju_zero(D, 36);
@@ -135,7 +132,6 @@ static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6]) {
 }
 
 
-
 // derivative of mju_crossForce w.r.t. force
 static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6]) {
   mju_zero(D, 36);
@@ -170,7 +166,6 @@ static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6]) {
   D[30 + 3] = -vel[1];
   D[30 + 4] = vel[0];
 }
-
 
 
 // derivative of mju_mulInertVec w.r.t vel
@@ -213,7 +208,6 @@ static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10]) {
   D[30 + 1] = -i[6];
   D[30 + 5] = i[9];
 }
-
 
 
 // derivative of mju_subQuat w.r.t inputs
@@ -260,7 +254,6 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
     mju_scl(Db, Db, -1.0, 9);
   }
 }
-
 
 
 // derivative of mju_quatIntegrate w.r.t scaled velocity
@@ -318,7 +311,6 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
   if (Dvel) mju_copy(Dvel, Dvel_, 9);
   if (Dscale) mju_mulMatVec3(Dscale, Dvel_, vel);
 }
-
 
 
 //------------------------- dense derivatives of component functions -------------------------------
@@ -386,7 +378,6 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
     }
   }
 }
-
 
 
 // subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
@@ -469,7 +460,6 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
 }
 
 
-
 //------------------------- sparse derivatives of component functions ------------------------------
 // internal sparse format: dense body/dof x sparse dof x 6   (inner size is 6)
 
@@ -494,7 +484,6 @@ static void copyFromParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
   // copy: guaranteed to be at beginning of sparse array, due to sorting
   mju_copy(mat + 6*m->B_rowadr[n], mat + 6*m->B_rowadr[m->body_parentid[n]], 6*ndof);
 }
-
 
 
 // add sparse B-row to parent, all overlapping nonzeros
@@ -528,7 +517,6 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
     }
   }
 }
-
 
 
 // derivative of cvel, cdof_dot w.r.t qvel
@@ -597,7 +585,6 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
     }
   }
 }
-
 
 
 // subtract d qfrc_bias / d qvel from qDeriv
@@ -686,7 +673,6 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
 }
 
 
-
 //--------------------- utility functions for (d force / d vel) Jacobians --------------------------
 
 // add J'*B*J to qDeriv
@@ -724,7 +710,6 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
 }
 
 
-
 // add J'*B*J to qDeriv, sparse version
 static void addJTBJSparse(
   const mjModel* m, mjData* d, const mjtNum* J,
@@ -756,7 +741,6 @@ static void addJTBJSparse(
     }
   }
 }
-
 
 
 //----------------------------- derivatives of actuator forces -------------------------------------
@@ -808,7 +792,6 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
   // compute FVL and scale, make it negative
   return -force*FL*dFV/mju_max(mjMINVAL, L0*vmax);
 }
-
 
 
 // add (d qfrc_actuator / d qvel) to qDeriv
@@ -870,13 +853,11 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 }
 
 
-
 //----------------- utilities for ellipsoid-based fluid force derivatives --------------------------
 
 static inline mjtNum pow2(const mjtNum val) {
   return val*val;
 }
-
 
 
 static inline mjtNum ellipsoid_max_moment(const mjtNum size[3], const int dir) {
@@ -885,7 +866,6 @@ static inline mjtNum ellipsoid_max_moment(const mjtNum size[3], const int dir) {
   const mjtNum d2 = size[(dir+2) % 3];
   return 8.0/15.0 * mjPI * d0 * pow2(pow2(mju_max(d1, d2)));
 }
-
 
 
 // add 3x3 matrix D to one of the four quadrants of the 6x6 matrix B
@@ -902,7 +882,6 @@ static void addToQuadrant(mjtNum* restrict B, const mjtNum D[9], int col_quad, i
   B[6*(c+2) + r+1] += D[7];
   B[6*(c+2) + r+2] += D[8];
 }
-
 
 
 //----------------- components of ellipsoid-based fluid force derivatives --------------------------
@@ -950,7 +929,6 @@ static void mjd_addedMassForces(
   }
   addToQuadrant(B, Da, 1, 1);
 }
-
 
 
 // torque due to motion in the fluid, D is 3x3
@@ -1004,7 +982,6 @@ static inline void mjd_viscous_torque(
   mju_addToScl3(D+3, mom_sq, y);
   mju_addToScl3(D+6, mom_sq, z);
 }
-
 
 
 // drag due to motion in the fluid, D is 3x3
@@ -1074,7 +1051,6 @@ static inline void mjd_viscous_drag(
 }
 
 
-
 // Kutta lift due to motion in the fluid, D is 3x3
 static inline void mjd_kutta_lift(
   mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
@@ -1128,7 +1104,6 @@ static inline void mjd_kutta_lift(
 }
 
 
-
 // Magnus force due to motion in the fluid, B is 6x6
 static inline void mjd_magnus_force(
   mjtNum* restrict B, const mjtNum lvel[6], const mjtNum fluid_density,
@@ -1154,7 +1129,6 @@ static inline void mjd_magnus_force(
   addToQuadrant(B, D_ang, 1, 0);
   addToQuadrant(B, D_lin, 1, 1);
 }
-
 
 
 //----------------- fluid force derivatives, ellipsoid and inertia-box models ----------------------
@@ -1262,7 +1236,6 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
   mj_freeStack(d);
 }
-
 
 
 // fluid forces based on inertia-box approximation
@@ -1419,7 +1392,6 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
 }
 
 
-
 //------------------------- derivatives of passive forces ------------------------------------------
 
 // add (d qfrc_passive / d qvel) to qDeriv
@@ -1506,7 +1478,6 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
     }
   }
 }
-
 
 
 //------------------------- main entry points ------------------------------------------------------

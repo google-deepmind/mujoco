@@ -36,6 +36,7 @@
 #include "engine/engine_vis_init.h"
 #include "engine/engine_vis_interact.h"
 
+
 //----------------------------- utility functions and macros ---------------------------------------
 
 static const mjtNum IDENTITY[9] = {1, 0, 0,
@@ -47,7 +48,6 @@ static const mjtNum IDENTITY[9] = {1, 0, 0,
 static void f2f(float* dest, const float* src, int n) {
   memcpy(dest, src, n*sizeof(float));
 }
-
 
 
 // make text label
@@ -69,7 +69,6 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
   strncpy(label, txt, 100);
   label[99] = '\0';
 }
-
 
 
 // convert HSV to RGB
@@ -106,7 +105,6 @@ static void hsv2rgb(float *RGB, float H, float S, float V) {
 }
 
 
-
 static const float kIslandSaturation  = 0.8;
 static const float kIslandValue       = 0.7;
 
@@ -134,7 +132,6 @@ static void mixcolor(float rgba[4], const float ref[4], int flg1, int flg2) {
   rgba[2] = ref[2];
   rgba[3] = ref[3];
 }
-
 
 
 // a body is static if it is welded to the world and is not a mocap body
@@ -180,7 +177,6 @@ void releaseGeom(mjvGeom** geom, mjvScene* scn) {
 }
 
 
-
 // make a triangle in thisgeom at coordinates v0, v1, v2 with a given color
 static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[3],
                          const mjtNum v2[3], const float rgba[4]) {
@@ -194,7 +190,6 @@ static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[
                     e1[2], e2[2], normal[2]};
   mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, lengths, v0, xmat, rgba);
 }
-
 
 
 // copy material fields from model to visual geom
@@ -224,7 +219,6 @@ static void setMaterial(const mjModel* m, mjvGeom* geom, int matid, const float*
     geom->rgba[3] *= m->vis.map.alpha;
   }
 }
-
 
 
 // set (type, size, pos, mat) connector-type geom between given points
@@ -267,7 +261,6 @@ void mjv_connector(mjvGeom* geom, int type, mjtNum width,
   mju_quat2Mat(mat, quat);
   mju_n2f(geom->mat, mat, 9);
 }
-
 
 
 // initialize given fields when not NULL, set the rest to their default values
@@ -353,13 +346,11 @@ void mjv_initGeom(mjvGeom* geom, int type, const mjtNum* size,
 }
 
 
-
 // mark geom as selected
 static void markselected(const mjVisual* vis, mjvGeom* geom) {
   // add emission
   geom->emission += vis->global.glow;
 }
-
 
 
 // draw 3 cylinders representing a "frame" decor element
@@ -393,7 +384,6 @@ void addFrameGeoms(mjvScene* scn, int i, mjtNum* pos, mjtNum* rot, float length,
 }
 
 
-
 //----------------------------- camera functions --------------------------------------------------
 
 // computes the camera frustum
@@ -408,7 +398,6 @@ static void getFrustum(float zver[2], float zhor[2], float znear,
     zver[1] = znear / intrinsic[1] * (sensorsize[1]/2.f + intrinsic[3]);
   }
 }
-
 
 
 void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum right[3],
@@ -532,7 +521,6 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
     zclip[1] = m->vis.map.zfar * m->stat.extent;
   }
 }
-
 
 
 //----------------------------- main API functions -------------------------------------------------
@@ -2506,7 +2494,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
-
 // make list of lights only
 void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
   mjvLight* thislight;
@@ -2580,7 +2567,6 @@ void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn) {
     }
   }
 }
-
 
 
 // update camera only
@@ -2659,7 +2645,6 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
 }
 
 
-
 // construct face, flat normals
 static void makeFace(float* _face, float* _normal,  mjtNum radius, const mjtNum* vertxpos,
                      int nface, int i0, int i1, int i2) {
@@ -2692,7 +2677,6 @@ static void makeFace(float* _face, float* _normal,  mjtNum radius, const mjtNum*
 }
 
 
-
 // add face normal to vertices
 static void addNormal(mjtNum* vertnorm, const mjtNum* vertxpos,
                       int i0, int i1, int i2) {
@@ -2711,7 +2695,6 @@ static void addNormal(mjtNum* vertnorm, const mjtNum* vertxpos,
   mju_addTo3(vertnorm + 3*i1, nrm);
   mju_addTo3(vertnorm + 3*i2, nrm);
 }
-
 
 
 // construct face, smooth normals
@@ -2761,7 +2744,6 @@ static void makeSmooth(float* _face, float* _normal, mjtNum radius, mjtByte flg_
 }
 
 
-
 // construct side in 2D face
 static void makeSide(float* _face, float* _normal, mjtNum radius,
                      const mjtNum* vertnorm, const mjtNum* vertxpos,
@@ -2798,7 +2780,6 @@ static void makeSide(float* _face, float* _normal, mjtNum radius,
 }
 
 
-
 // copy texcoord for face
 static void copyTex(float* dst, const float* src, int nface, int i0, int i1, int i2) {
   if (!dst || !src) {
@@ -2812,7 +2793,6 @@ static void copyTex(float* dst, const float* src, int nface, int i0, int i1, int
   dst[6*nface+4] = src[2*i2];
   dst[6*nface+5] = src[2*i2+1];
 }
-
 
 
 // update visible flexes only
@@ -2974,7 +2954,6 @@ void mjv_updateActiveFlex(const mjModel* m, mjData* d, mjvScene* scn, const mjvO
 }
 
 
-
 // update all skins, here for backward API compatibility
 void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn) {
   mjvOption opt;
@@ -2982,7 +2961,6 @@ void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn) {
   mjv_updateActiveSkin(m, d, scn, &opt);
   mju_warning("mjv_updateSkin is deprecated, please use mjv_updateActiveSkin.");
 }
-
 
 
 // update visible skins only
@@ -3113,7 +3091,6 @@ void mjv_updateActiveSkin(const mjModel* m, const mjData* d, mjvScene* scn, cons
 }
 
 
-
 // update entire scene
 void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
                      const mjvPerturb* pert, mjvCamera* cam, int catmask, mjvScene* scn) {
@@ -3163,7 +3140,6 @@ void mjv_updateScene(const mjModel* m, mjData* d, const mjvOption* opt,
 }
 
 
-
 //----------------------------------- catenary functions -------------------------------------------
 
 // returns hyperbolic cosine and optionally computes hyperbolic sine
@@ -3176,12 +3152,10 @@ static inline mjtNum cosh_sinh(mjtNum x, mjtNum* sinh) {
 }
 
 
-
 // returns intercept of the catenary equation
 static inline mjtNum catenary_intercept(mjtNum v, mjtNum h, mjtNum length) {
   return 1/mju_sqrt(mju_sqrt(length*length - v*v)/h - 1);
 }
-
 
 
 // returns residual of catenary equation and optionally computes its gradient w.r.t b
@@ -3193,7 +3167,6 @@ static inline mjtNum catenary_residual(mjtNum b, mjtNum intercept, mjtNum* grad)
   }
   return 1/mju_sqrt(2*b*sinh - 1) - intercept;
 }
-
 
 
 // convergence tolerance for catenary solver
@@ -3238,7 +3211,6 @@ static inline mjtNum solve_catenary(mjtNum v, mjtNum h, mjtNum length) {
 
   return b;
 }
-
 
 
 // points along catenary of given length between x0 and x1, returns number of points

@@ -460,7 +460,6 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 }
 
 
-
 // body-level gravity compensation, return 1 if any, 0 otherwise
 static int mj_gravcomp(const mjModel* m, mjData* d) {
   if (!m->ngravcomp || mjDISABLED(mjDSBL_GRAVITY) || mju_norm3(m->opt.gravity) == 0) {
@@ -481,7 +480,6 @@ static int mj_gravcomp(const mjModel* m, mjData* d) {
 
   return has_gravcomp;
 }
-
 
 
 // fluid forces
@@ -513,7 +511,6 @@ static int mj_fluid(const mjModel* m, mjData* d) {
 
   return has_fluid;
 }
-
 
 
 // passive contact forces
@@ -596,7 +593,6 @@ int mj_contactPassive(const mjModel* m, mjData* d) {
   mj_freeStack(d);
   return has_contact;
 }
-
 
 
 // all passive forces
@@ -692,7 +688,6 @@ void mj_passive(const mjModel* m, mjData* d) {
 }
 
 
-
 //---------------------------------- fluid models --------------------------------------------------
 
 // fluid forces based on inertia-box approximation
@@ -753,7 +748,6 @@ void mj_inertiaBoxFluidModel(const mjModel* m, mjData* d, int i) {
   // apply force and torque to body com
   mj_applyFT(m, d, bfrc+3, bfrc, d->xipos+3*i, i, d->qfrc_fluid);
 }
-
 
 
 // fluid forces based on ellipsoid approximation
@@ -872,7 +866,6 @@ static inline mjtNum mji_ellipsoid_max_moment(const mjtNum size[3], const int di
 }
 
 
-
 // lift and drag forces due to motion in the fluid
 void mj_viscousForces(
   const mjtNum local_vels[6], const mjtNum fluid_density,
@@ -960,7 +953,6 @@ void mj_viscousForces(
 }
 
 
-
 // read the geom_fluid_coefs array into its constituent parts
 void readFluidGeomInteraction(const mjtNum* geom_fluid_coefs,
                               mjtNum* geom_fluid_coef,
@@ -988,7 +980,6 @@ void readFluidGeomInteraction(const mjtNum* geom_fluid_coefs,
     mjERROR("wrong number of entries.");
   }
 }
-
 
 
 // write components into geom_fluid_coefs array

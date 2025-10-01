@@ -84,7 +84,6 @@ static int mjc_penetration(const mjModel* m, mjCCDObj* obj1, mjCCDObj* obj2,
 }
 
 
-
 // ccd center function
 void mjccd_center(const void *obj, ccd_vec3_t *center) {
   mjc_center(center->v, (const mjCCDObj*) obj);
@@ -114,7 +113,6 @@ void mjc_center(mjtNum res[3], const mjCCDObj *obj) {
 }
 
 
-
 // prism center function
 static void mjc_prism_center(mjtNum res[3], const mjCCDObj* obj) {
   // compute mean
@@ -124,7 +122,6 @@ static void mjc_prism_center(mjtNum res[3], const mjCCDObj* obj) {
   }
   mju_scl3(res, res, 1.0/6.0);
 }
-
 
 
 // ccd prism center function
@@ -143,7 +140,6 @@ static inline void mulMatTVec3(mjtNum res[3], const mjtNum mat[9], const mjtNum 
 }
 
 
-
 // transform a vector from local to global frame
 static inline void localToGlobal(mjtNum res[3], const mjtNum mat[9], const mjtNum dir[3],
                                  const mjtNum pos[3]) {
@@ -157,7 +153,6 @@ static inline void localToGlobal(mjtNum res[3], const mjtNum mat[9], const mjtNu
 }
 
 
-
 // point support function
 void mjc_pointSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   const mjtNum* pos = obj->data->geom_xpos + 3*obj->geom;
@@ -165,7 +160,6 @@ void mjc_pointSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   res[1] = pos[1];
   res[2] = pos[2];
 }
-
 
 
 // sphere support function
@@ -181,7 +175,6 @@ static void mjc_sphereSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3])
   res[1] = radius*dir[1] + pos[1];
   res[2] = radius*dir[2] + pos[2];
 }
-
 
 
 // line support function (capsule)
@@ -206,7 +199,6 @@ void mjc_lineSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   // transform result to global frame
   localToGlobal(res, mat, tmp, pos);
 }
-
 
 
 // capsule support function
@@ -236,7 +228,6 @@ static void mjc_capsuleSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]
   // transform result to global frame
   localToGlobal(res, mat, tmp, pos);
 }
-
 
 
 // ellipsoid support function
@@ -278,7 +269,6 @@ static void mjc_ellipsoidSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
 }
 
 
-
 // cylinder support function
 static void mjc_cylinderSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   const mjModel* m = obj->model;
@@ -309,7 +299,6 @@ static void mjc_cylinderSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3
   // transform result to global frame
   localToGlobal(res, mat, tmp, pos);
 }
-
 
 
 // box support function
@@ -343,12 +332,10 @@ static void mjc_boxSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
 }
 
 
-
 // dot product between mjtNum and float
 static inline mjtNum dot3f(const mjtNum a[3], const float b[3]) {
   return a[0]*(mjtNum)b[0] + a[1]*(mjtNum)b[1] + a[2]*(mjtNum)b[2];
 }
-
 
 
 // mesh support function via exhaustive search
@@ -396,7 +383,6 @@ static void mjc_meshSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   // transform result to global frame
   localToGlobal(res, mat, local_dir, pos);
 }
-
 
 
 // mesh support function via hill climbing
@@ -449,7 +435,6 @@ static void mjc_hillclimbSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
 }
 
 
-
 // prism support function
 static void mjc_prism_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   int istart, ibest;
@@ -469,7 +454,6 @@ static void mjc_prism_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3])
   // copy best point
   mju_copy3(res, obj->prism[ibest]);
 }
-
 
 
 // flex support function
@@ -510,7 +494,6 @@ static void mjc_flexSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
     return;
   }
 }
-
 
 
 // libccd support function
@@ -720,7 +703,6 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
 }
 
 
-
 // libccd prism support function
 static void mjccd_prism_support(const void *obj, const ccd_vec3_t *dir, ccd_vec3_t *vec) {
   mjc_prism_support(vec->v, (mjCCDObj*) obj, dir->v);
@@ -784,14 +766,12 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
 }
 
 
-
 // set flex data for CCD object
 static void mjc_setCCDObjFlex(mjCCDObj* obj, int flex, int elem, int vert) {
   obj->flex = flex;
   obj->elem = elem;
   obj->vert = vert;
 }
-
 
 
 // initialize CCD structure
@@ -801,7 +781,6 @@ static void mjc_initCCD(ccd_t* ccd, const mjModel* m) {
   ccd->epa_tolerance = m->opt.ccd_tolerance;  // use MPR tolerance for EPA
   ccd->max_iterations = m->opt.ccd_iterations;
 }
-
 
 
 // find convex-convex collision
@@ -873,7 +852,6 @@ static int mjc_CCDIteration(const mjModel* m, const mjData* d, mjCCDObj* obj1, m
 }
 
 
-
 // compare new contact to previous contacts, return 1 if it is far from all of them
 static int mjc_isDistinctContact(mjContact* con, int ncon, mjtNum tolerance) {
   for (int i=0; i < ncon-1; i++) {
@@ -883,7 +861,6 @@ static int mjc_isDistinctContact(mjContact* con, int ncon, mjtNum tolerance) {
   }
   return 1;
 }
-
 
 
 // in-place rotation of spatial frame around given point of origin
@@ -905,7 +882,6 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
   // correct xpos by subtracting displacement: xpos = xpos - vec
   mju_subFrom3(xpos, vec);
 }
-
 
 
 // return number of contacts supported by a single pass of narrowphase
@@ -934,7 +910,6 @@ static int maxContacts(const mjCCDObj* obj1, const mjCCDObj* obj2) {
   // not supported for other geom types
   return 1;
 }
-
 
 
 // multi-point convex-convex collision, using libccd
@@ -1024,7 +999,6 @@ int mjc_Convex(const mjModel* m, const mjData* d,
 }
 
 
-
 // parameters for plane-mesh extra contacts
 const int maxplanemesh = 3;
 const mjtNum tolplanemesh = 0.3;
@@ -1061,7 +1035,6 @@ static int addplanemesh(mjContact* con, const float vertex[3],
 
   return 1;
 }
-
 
 
 // plane-convex collision, using libccd
@@ -1164,7 +1137,6 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
 }
 
 
-
 //----------------------------  heightfield collisions ---------------------------------------------
 
 // ccd prism first dir
@@ -1189,7 +1161,6 @@ static void addVert(int* nvert, mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
   // count
   (*nvert)++;
 }
-
 
 
 // entry point for heightfield collisions
@@ -1379,7 +1350,6 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
 }
 
 
-
 //--------------------------- fix contact frame normal ---------------------------------------------
 
 // compute normal for point outside ellipsoid, using ray-projection SQP
@@ -1437,7 +1407,6 @@ static int mjc_ellipsoidInside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum 
 }
 
 
-
 // compute normal for point inside ellipsoid, using diagonal QCQP
 static int mjc_ellipsoidOutside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum size[3]) {
   // algorithm constants
@@ -1485,7 +1454,6 @@ static int mjc_ellipsoidOutside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum
 
   return 1;
 }
-
 
 
 // entry point
@@ -1637,7 +1605,6 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
 }
 
 
-
 //----------------------------  flex collisions ---------------------------------------------
 
 // geom-elem or elem-elem or vert-elem convex collision using ccd
@@ -1652,7 +1619,6 @@ int mjc_ConvexElem(const mjModel* m, const mjData* d, mjContact* con,
   // find contacts
   return mjc_CCDIteration(m, d, &obj1, &obj2, con, 1, margin);
 }
-
 
 
 // test a height field and a flex element for collision

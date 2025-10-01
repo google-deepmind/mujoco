@@ -39,7 +39,6 @@ mjArrayList* mju_arrayListCreate(mjData* d, size_t element_size, size_t initial_
 }
 
 
-
 // returns total number of elements in mjArrayList
 size_t mju_arrayListSize(const mjArrayList* array_list) {
   const mjArrayList* cursor = array_list;
@@ -50,7 +49,6 @@ size_t mju_arrayListSize(const mjArrayList* array_list) {
   }
   return array_list_size;
 }
-
 
 
 // copies one element into an mjArrayList
@@ -71,7 +69,6 @@ void mju_arrayListAdd(mjArrayList* array_list, void* element) {
          element, cursor->element_size);
   ++cursor->size;
 }
-
 
 
 // returns pointer to element at index, NULL if out of bounds
