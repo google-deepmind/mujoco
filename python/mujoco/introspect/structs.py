@@ -9379,6 +9379,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='user vertex indices',
              ),
              StructFieldDecl(
+                 name='userfacenormal',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjIntVec'),
+                 ),
+                 doc='user face normal indices',
+             ),
+             StructFieldDecl(
                  name='userfacetexcoord',
                  type=PointerType(
                      inner_type=ValueType(name='mjIntVec'),

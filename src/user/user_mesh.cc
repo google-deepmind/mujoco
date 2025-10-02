@@ -277,6 +277,7 @@ void mjCMesh::PointToLocal() {
   spec.uservert = &spec_vert_;
   spec.usernormal = &spec_normal_;
   spec.userface = &spec_face_;
+  spec.userfacenormal = &spec_facenormal_;
   spec.usertexcoord = &spec_texcoord_;
   spec.userfacetexcoord = &spec_facetexcoord_;
   spec.material = &spec_material_;
@@ -288,6 +289,7 @@ void mjCMesh::PointToLocal() {
   uservert = nullptr;
   usernormal = nullptr;
   userface = nullptr;
+  userfacenormal = nullptr;
   usertexcoord = nullptr;
   userfacetexcoord = nullptr;
 }
