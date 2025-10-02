@@ -829,6 +829,429 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
   }
 
+  // geom
+  int planeid = -1;
+  for (int i=0; i < m->ngeom; i++) {
+    // count planes, put current plane number in geom->dataid
+    if (m->geom_type[i] == mjGEOM_PLANE) {
+      planeid++;
+    }
+
+    // set type and category: geom
+    objtype = mjOBJ_GEOM;
+    category = bodycategory(m, m->geom_bodyid[i]);
+
+    // skip if category is masked
+    if (!(category & catmask)) {
+      continue;
+    }
+
+    // get geom group and clamp
+    int geomgroup = mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]));
+
+    if (vopt->geomgroup[geomgroup]) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
+        return;
+      }
+
+      // construct geom
+      mjv_initGeom(thisgeom, m->geom_type[i], m->geom_size+3*i,
+                   d->geom_xpos+3*i, d->geom_xmat+9*i, NULL);
+      thisgeom->dataid = m->geom_dataid[i];
+
+      // copy rbound from model
+      thisgeom->modelrbound = (float)m->geom_rbound[i];
+
+      // set material properties
+      float* rgba = m->geom_rgba+4*i;
+      int geom_matid = m->geom_matid[i];
+      setMaterial(m, thisgeom, geom_matid, rgba, vopt->flags);
+
+      // override if visualizing islands
+      if (vopt->flags[mjVIS_ISLAND]) {
+        int weld_id = m->body_weldid[m->geom_bodyid[i]];
+        if (m->body_dofnum[weld_id]) {
+          // strip materials off moving geom
+          thisgeom->matid = -1;
+
+          // set hue using first island dof, -1 if no island
+          int island = d->nisland ? d->dof_island[m->body_dofadr[weld_id]] : -1;
+          int h = island >= 0 ? d->island_dofadr[island] : -1;
+          islandColor(thisgeom->rgba, h);
+        }
+      }
+
+      // set texcoord
+      if ((m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) &&
+          m->geom_dataid[i] >= 0 &&
+          m->mesh_texcoordadr[m->geom_dataid[i]] >= 0) {
+        thisgeom->texcoord = 1;
+      }
+
+      // skip if alpha is 0
+      if (thisgeom->rgba[3] == 0) {
+        continue;
+      }
+
+      // glow geoms of selected body
+      if (pert->select > 0 && pert->select == m->geom_bodyid[i]) {
+        markselected(&m->vis, thisgeom);
+      }
+
+      // vopt->label
+      if (vopt->label == mjLABEL_GEOM) {
+        makeLabel(m, mjOBJ_GEOM, i, thisgeom->label);
+      }
+
+      // mesh: 2*i is original, 2*i+1 is convex hull
+      if (m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) {
+        thisgeom->dataid *= 2;
+        if (m->mesh_graphadr[m->geom_dataid[i]] >= 0 && vopt->flags[mjVIS_CONVEXHULL] &&
+            (m->geom_contype[i] || m->geom_conaffinity[i])) {
+          thisgeom->dataid += 1;
+        }
+      }
+
+      // plane
+      else if (m->geom_type[i] == mjGEOM_PLANE) {
+        // use current planeid
+        thisgeom->dataid = planeid;
+
+        // save initial pos
+        mju_copy3(tmp, d->geom_xpos+3*i);
+
+        // re-center infinite plane
+        if (m->geom_size[3*i] <= 0 || m->geom_size[3*i+1] <= 0) {
+          // vec = headpos - geompos
+          for (int j=0; j < 3; j++) {
+            vec[j] = 0.5*(scn->camera[0].pos[j] + scn->camera[1].pos[j]) - d->geom_xpos[3*i+j];
+          }
+
+          // construct axes
+          mjtNum ax[9];
+          mju_transpose(ax, d->geom_xmat+9*i, 3, 3);
+
+          // loop over (x,y)
+          for (int k=0; k < 2; k++) {
+            if (m->geom_size[3*i+k] <= 0) {
+              // compute zfar
+              mjtNum zfar = m->vis.map.zfar * m->stat.extent;
+
+              // get size increment
+              mjtNum sX;
+              int matid = m->geom_matid[i];
+              if (matid >= 0 && m->mat_texrepeat[2*matid+k] > 0) {
+                sX = 2/m->mat_texrepeat[2*matid+k];
+              } else {
+                sX = 2.1*zfar/(mjMAXPLANEGRID-2);
+              }
+
+              // project on frame, round to integer increment of size
+              mjtNum dX = mju_dot3(vec, ax+3*k);
+              dX = 2*sX*mju_round(0.5*dX/sX);
+
+              // translate
+              mju_addToScl3(tmp, ax+3*k, dX);
+            }
+          }
+        }
+
+        // set final pos
+        mju_n2f(thisgeom->pos, tmp, 3);
+      }
+
+      releaseGeom(&thisgeom, scn);
+
+      // set type and category: frame
+      objtype = mjOBJ_UNKNOWN;
+      category = mjCAT_DECOR;
+      if (!(category & catmask) || vopt->frame != mjFRAME_GEOM) {
+        continue;
+      }
+
+      // construct geom frame
+      objtype = mjOBJ_UNKNOWN;
+      sz[0] = m->vis.scale.framewidth * scl;
+      sz[1] = m->vis.scale.framelength * scl;
+      addFrameGeoms(scn, i, d->geom_xpos+3*i, d->geom_xmat+9*i, sz[1], sz[0]);
+    }
+  }
+
+  // site
+  for (int i=0; i < m->nsite; i++) {
+    // set type and category
+    objtype = mjOBJ_SITE;
+    category = bodycategory(m, m->site_bodyid[i]);
+
+    // skip if category is masked
+    if (!(category & catmask)) {
+      continue;
+    }
+
+    // show if group enabled
+    if (vopt->sitegroup[mjMAX(0, mjMIN(mjNGROUP-1, m->site_group[i]))]) {
+      thisgeom = acquireGeom(scn, i, category, objtype);
+      if (!thisgeom) {
+        return;
+      }
+
+      // construct geom
+      mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i,
+                   d->site_xpos+3*i, d->site_xmat+9*i, NULL);
+
+      // set material if given
+      setMaterial(m, thisgeom, m->site_matid[i], m->site_rgba+4*i, vopt->flags);
+
+      // skip if alpha is 0
+      if (thisgeom->rgba[3] == 0) {
+        continue;
+      }
+
+      // glow
+      if (pert->select > 0 && pert->select == m->site_bodyid[i]) {
+        markselected(&m->vis, thisgeom);
+      }
+
+      // vopt->label
+      if (vopt->label == mjLABEL_SITE) {
+        makeLabel(m, mjOBJ_SITE, i, thisgeom->label);
+      }
+
+      releaseGeom(&thisgeom, scn);
+
+      // set category for site frame
+      category = mjCAT_DECOR;
+      if (!(category & catmask) || vopt->frame != mjFRAME_SITE) {
+        continue;
+      }
+
+      // construct site frame
+      objtype = mjOBJ_UNKNOWN;
+      sz[0] = m->vis.scale.framewidth * scl;
+      sz[1] = m->vis.scale.framelength * scl;
+      addFrameGeoms(scn, i, d->site_xpos+3*i, d->site_xmat+9*i, sz[1], sz[0]);
+    }
+  }
+
+  // spatial tendons
+  objtype = mjOBJ_TENDON;
+  category = mjCAT_DYNAMIC;
+  if (vopt->flags[mjVIS_TENDON] && (category & catmask) && m->ntendon) {
+    // draw tendons
+    for (int i=0; i < m->ntendon; i++) {
+      if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
+        // tendon has a deadband spring
+        int limitedspring =
+          m->tendon_stiffness[i] > 0            &&    // positive stiffness
+          m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
+          m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
+
+        // tendon has a simple length constraint, but is currently not limited
+        mjtNum ten_length = d->ten_length[i];
+        mjtNum lower = m->tendon_range[2*i];
+        mjtNum upper = m->tendon_range[2*i + 1];
+        int limitedconstraint =
+          m->tendon_stiffness[i] == 0           &&    // zero stiffness
+          m->tendon_limited[i] == 1             &&    // limited length range
+          lower == 0                            &&    // range lower-bound is 0
+          ten_length < upper;                         // current length is smaller than upper bound
+
+        // conditions for drawing a catenary
+        int draw_catenary =
+          !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
+          mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
+          m->tendon_num[i] == 2                 &&    // only two sites on the tendon
+          (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
+          m->tendon_damping[i] == 0             &&    // no damping
+          m->tendon_frictionloss[i] == 0;             // no frictionloss
+
+        // no actuator
+        if (draw_catenary) {
+          for (int j=0; j < m->nu; j++) {
+            if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == i) {
+              draw_catenary = 0;
+              break;
+            }
+          }
+        }
+
+        // conditions not met: draw straight lines
+        if (!draw_catenary) {
+          for (int j=d->ten_wrapadr[i]; j < d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
+            if (d->wrap_obj[j] != -2 && d->wrap_obj[j+1] != -2) {
+              thisgeom = acquireGeom(scn, i, category, objtype);
+              if (!thisgeom) {
+                return;
+              }
+
+              // determine width: smaller for segments inside wrapping objects
+              if (d->wrap_obj[j] >= 0 && d->wrap_obj[j+1] >= 0) {
+                sz[0] = 0.5 * m->tendon_width[i];
+              } else {
+                sz[0] = m->tendon_width[i];
+              }
+
+              // construct geom
+              mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], d->wrap_xpos+3*j, d->wrap_xpos+3*j+3);
+
+              // set material properties
+              int tendon_matid = m->tendon_matid[i];
+              float rgba[4];
+              f2f(rgba, m->tendon_rgba+4*i, 4);
+
+              // if tendon has no material and the color is the default gray, re-color it using limit impedance
+              if (tendon_matid == -1 && rgba[0] == 0.5 && rgba[1] == 0.5 && rgba[2] == 0.5 && rgba[3] == 1) {
+                // loop over limit constraints, get impedance if this tendon is limited
+                mjtNum imp = 0;
+                int efc_start = d->ne + d->nf;
+                int efc_end = efc_start + d->nl;
+                for (int k=efc_start; k < efc_end; k++) {
+                  if (d->efc_type[k] == mjCNSTR_LIMIT_TENDON && d->efc_id[k] == i) {
+                    imp = d->efc_KBIP[4*k + 2];
+                  }
+                }
+
+                // use impedance to mix tendon and constraint colors
+                rgba[0] = (1-imp) * rgba[0] + imp * m->vis.rgba.constraint[0];
+                rgba[1] = (1-imp) * rgba[1] + imp * m->vis.rgba.constraint[1];
+                rgba[2] = (1-imp) * rgba[2] + imp * m->vis.rgba.constraint[2];
+              }
+
+              setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
+
+              // override if visualizing islands
+              if (vopt->flags[mjVIS_ISLAND]) {
+                // strip material
+                thisgeom->matid = -1;
+
+                // set hue with first island dof, if constrained
+                int h = -1;
+                if (d->nisland && d->tendon_efcadr[i] >= 0) {
+                  h = d->island_dofadr[d->efc_island[d->tendon_efcadr[i]]];
+                }
+                islandColor(thisgeom->rgba, h);
+              }
+
+              // vopt->label: only the first segment
+              if (vopt->label == mjLABEL_TENDON && j == d->ten_wrapadr[i]) {
+                makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
+              }
+
+              releaseGeom(&thisgeom, scn);
+            }
+          }
+        }
+
+        // special case handling of string-like tendons under gravity
+        else {
+          // two hanging points: x0, x1
+          mjtNum x0[3], x1[3];
+          mju_copy3(x0, d->wrap_xpos + 3*d->ten_wrapadr[i]);
+          mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
+
+          // length of the tendon
+          mjtNum length;
+          if (limitedconstraint) {
+            length = m->tendon_range[2*i+1];
+          } else {
+            length = m->tendon_lengthspring[2*i+1];
+          }
+
+          // get number of points along catenary path (capped at 100)
+          int ncatenary = mjMIN(m->vis.quality.numslices + 1, 100);
+          mjtNum catenary[300];
+
+          // points along catenary path
+          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
+
+          // draw npoints-1 segments
+          for (int j=0; j < npoints-1; j++) {
+            thisgeom = acquireGeom(scn, i, category, objtype);
+            if (!thisgeom) {
+              return;
+            }
+
+            sz[0] = m->tendon_width[i];
+
+            // construct geom
+            mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], catenary+3*j, catenary+3*j+3);
+
+            // set material if given
+            setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
+
+            // vopt->label: only the first segment
+            if (vopt->label == mjLABEL_TENDON && npoints/2) {
+              makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
+            }
+
+            releaseGeom(&thisgeom, scn);
+          }
+        }
+      }
+    }
+  }
+
+  // slider-crank
+  objtype = mjOBJ_ACTUATOR;
+  category = mjCAT_DYNAMIC;
+  if ((category & catmask)) {
+    for (int i=0; i < m->nu; i++) {
+      if (m->actuator_trntype[i] == mjTRN_SLIDERCRANK) {
+        // get data
+        int j = m->actuator_trnid[2*i];                 // crank
+        int k = m->actuator_trnid[2*i+1];               // slider
+        rod = m->actuator_cranklength[i];
+        axis[0] = d->site_xmat[9*k+2];
+        axis[1] = d->site_xmat[9*k+5];
+        axis[2] = d->site_xmat[9*k+8];
+
+        // compute crank length
+        mju_sub(vec, d->site_xpos+3*j, d->site_xpos+3*k, 3);
+        len = mju_dot3(vec, axis);
+        det = len*len + rod*rod - mju_dot3(vec, vec);
+        broken = 0;
+        if (det < 0) {
+          det = 0;
+          broken = 1;
+        }
+        len = len - mju_sqrt(det);
+
+        // compute slider endpoint
+        mju_scl3(end, axis, len);
+        mju_addTo3(end, d->site_xpos+3*k);
+
+        // render slider
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
+          return;
+        }
+
+        mjv_connector(thisgeom, mjGEOM_CYLINDER, scl * m->vis.scale.slidercrank,
+                      d->site_xpos+3*k, end);
+        f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
+        if (vopt->label == mjLABEL_ACTUATOR) {
+          makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
+        }
+        releaseGeom(&thisgeom, scn);
+
+        thisgeom = acquireGeom(scn, i, category, objtype);
+        if (!thisgeom) {
+          return;
+        }
+
+        mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.slidercrank/2.0,
+                      end, d->site_xpos+3*j);
+        if (broken) {
+          f2f(thisgeom->rgba, m->vis.rgba.crankbroken, 4);
+        } else {
+          f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
+        }
+        releaseGeom(&thisgeom, scn);
+      }
+    }
+  }
+
   // body BVH
   category = mjCAT_DECOR;
   objtype = mjOBJ_UNKNOWN;
@@ -1138,6 +1561,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   }
 
   // inertia
+  category = mjCAT_DECOR;
   objtype = mjOBJ_BODY;
   if (vopt->flags[mjVIS_INERTIA]) {
     int ellipsoid = m->vis.global.ellipsoidinertia == 1;
@@ -1660,211 +2084,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
   }
 
-  // geom
-  int planeid = -1;
-  for (int i=0; i < m->ngeom; i++) {
-    // count planes, put current plane number in geom->dataid
-    if (m->geom_type[i] == mjGEOM_PLANE) {
-      planeid++;
-    }
-
-    // set type and category: geom
-    objtype = mjOBJ_GEOM;
-    category = bodycategory(m, m->geom_bodyid[i]);
-
-    // skip if category is masked
-    if (!(category & catmask)) {
-      continue;
-    }
-
-    // get geom group and clamp
-    int geomgroup = mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]));
-
-    if (vopt->geomgroup[geomgroup]) {
-      thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // construct geom
-      mjv_initGeom(thisgeom, m->geom_type[i], m->geom_size+3*i,
-                   d->geom_xpos+3*i, d->geom_xmat+9*i, NULL);
-      thisgeom->dataid = m->geom_dataid[i];
-
-      // copy rbound from model
-      thisgeom->modelrbound = (float)m->geom_rbound[i];
-
-      // set material properties
-      float* rgba = m->geom_rgba+4*i;
-      int geom_matid = m->geom_matid[i];
-      setMaterial(m, thisgeom, geom_matid, rgba, vopt->flags);
-
-      // override if visualizing islands
-      if (vopt->flags[mjVIS_ISLAND]) {
-        int weld_id = m->body_weldid[m->geom_bodyid[i]];
-        if (m->body_dofnum[weld_id]) {
-          // strip materials off moving geom
-          thisgeom->matid = -1;
-
-          // set hue using first island dof, -1 if no island
-          int island = d->nisland ? d->dof_island[m->body_dofadr[weld_id]] : -1;
-          int h = island >= 0 ? d->island_dofadr[island] : -1;
-          islandColor(thisgeom->rgba, h);
-        }
-      }
-
-      // set texcoord
-      if ((m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) &&
-          m->geom_dataid[i] >= 0 &&
-          m->mesh_texcoordadr[m->geom_dataid[i]] >= 0) {
-        thisgeom->texcoord = 1;
-      }
-
-      // skip if alpha is 0
-      if (thisgeom->rgba[3] == 0) {
-        continue;
-      }
-
-      // glow geoms of selected body
-      if (pert->select > 0 && pert->select == m->geom_bodyid[i]) {
-        markselected(&m->vis, thisgeom);
-      }
-
-      // vopt->label
-      if (vopt->label == mjLABEL_GEOM) {
-        makeLabel(m, mjOBJ_GEOM, i, thisgeom->label);
-      }
-
-      // mesh: 2*i is original, 2*i+1 is convex hull
-      if (m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) {
-        thisgeom->dataid *= 2;
-        if (m->mesh_graphadr[m->geom_dataid[i]] >= 0 && vopt->flags[mjVIS_CONVEXHULL] &&
-            (m->geom_contype[i] || m->geom_conaffinity[i])) {
-          thisgeom->dataid += 1;
-        }
-      }
-
-      // plane
-      else if (m->geom_type[i] == mjGEOM_PLANE) {
-        // use current planeid
-        thisgeom->dataid = planeid;
-
-        // save initial pos
-        mju_copy3(tmp, d->geom_xpos+3*i);
-
-        // re-center infinite plane
-        if (m->geom_size[3*i] <= 0 || m->geom_size[3*i+1] <= 0) {
-          // vec = headpos - geompos
-          for (int j=0; j < 3; j++) {
-            vec[j] = 0.5*(scn->camera[0].pos[j] + scn->camera[1].pos[j]) - d->geom_xpos[3*i+j];
-          }
-
-          // construct axes
-          mjtNum ax[9];
-          mju_transpose(ax, d->geom_xmat+9*i, 3, 3);
-
-          // loop over (x,y)
-          for (int k=0; k < 2; k++) {
-            if (m->geom_size[3*i+k] <= 0) {
-              // compute zfar
-              mjtNum zfar = m->vis.map.zfar * m->stat.extent;
-
-              // get size increment
-              mjtNum sX;
-              int matid = m->geom_matid[i];
-              if (matid >= 0 && m->mat_texrepeat[2*matid+k] > 0) {
-                sX = 2/m->mat_texrepeat[2*matid+k];
-              } else {
-                sX = 2.1*zfar/(mjMAXPLANEGRID-2);
-              }
-
-              // project on frame, round to integer increment of size
-              mjtNum dX = mju_dot3(vec, ax+3*k);
-              dX = 2*sX*mju_round(0.5*dX/sX);
-
-              // translate
-              mju_addToScl3(tmp, ax+3*k, dX);
-            }
-          }
-        }
-
-        // set final pos
-        mju_n2f(thisgeom->pos, tmp, 3);
-      }
-
-      releaseGeom(&thisgeom, scn);
-
-      // set type and category: frame
-      objtype = mjOBJ_UNKNOWN;
-      category = mjCAT_DECOR;
-      if (!(category & catmask) || vopt->frame != mjFRAME_GEOM) {
-        continue;
-      }
-
-      // construct geom frame
-      objtype = mjOBJ_UNKNOWN;
-      sz[0] = m->vis.scale.framewidth * scl;
-      sz[1] = m->vis.scale.framelength * scl;
-      addFrameGeoms(scn, i, d->geom_xpos+3*i, d->geom_xmat+9*i, sz[1], sz[0]);
-    }
-  }
-
-  // site
-  for (int i=0; i < m->nsite; i++) {
-    // set type and category
-    objtype = mjOBJ_SITE;
-    category = bodycategory(m, m->site_bodyid[i]);
-
-    // skip if category is masked
-    if (!(category & catmask)) {
-      continue;
-    }
-
-    // show if group enabled
-    if (vopt->sitegroup[mjMAX(0, mjMIN(mjNGROUP-1, m->site_group[i]))]) {
-      thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // construct geom
-      mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i,
-                   d->site_xpos+3*i, d->site_xmat+9*i, NULL);
-
-      // set material if given
-      setMaterial(m, thisgeom, m->site_matid[i], m->site_rgba+4*i, vopt->flags);
-
-      // skip if alpha is 0
-      if (thisgeom->rgba[3] == 0) {
-        continue;
-      }
-
-      // glow
-      if (pert->select > 0 && pert->select == m->site_bodyid[i]) {
-        markselected(&m->vis, thisgeom);
-      }
-
-      // vopt->label
-      if (vopt->label == mjLABEL_SITE) {
-        makeLabel(m, mjOBJ_SITE, i, thisgeom->label);
-      }
-
-      releaseGeom(&thisgeom, scn);
-
-      // set category for site frame
-      category = mjCAT_DECOR;
-      if (!(category & catmask) || vopt->frame != mjFRAME_SITE) {
-        continue;
-      }
-
-      // construct site frame
-      objtype = mjOBJ_UNKNOWN;
-      sz[0] = m->vis.scale.framewidth * scl;
-      sz[1] = m->vis.scale.framelength * scl;
-      addFrameGeoms(scn, i, d->site_xpos+3*i, d->site_xmat+9*i, sz[1], sz[0]);
-    }
-  }
-
   // cameras and frustums
   objtype = mjOBJ_CAMERA;
   category = mjCAT_DECOR;
@@ -2025,7 +2244,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
   }
 
-
   // lights
   objtype = mjOBJ_LIGHT;
   category = mjCAT_DECOR;
@@ -2070,224 +2288,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
       addFrameGeoms(scn, i, d->light_xpos+3*i, mat, sz[1], sz[0]);
-    }
-  }
-
-  // spatial tendons
-  objtype = mjOBJ_TENDON;
-  category = mjCAT_DYNAMIC;
-  if (vopt->flags[mjVIS_TENDON] && (category & catmask) && m->ntendon) {
-    // draw tendons
-    for (int i=0; i < m->ntendon; i++) {
-      if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
-        // tendon has a deadband spring
-        int limitedspring =
-          m->tendon_stiffness[i] > 0            &&    // positive stiffness
-          m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
-          m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
-
-        // tendon has a simple length constraint, but is currently not limited
-        mjtNum ten_length = d->ten_length[i];
-        mjtNum lower = m->tendon_range[2*i];
-        mjtNum upper = m->tendon_range[2*i + 1];
-        int limitedconstraint =
-          m->tendon_stiffness[i] == 0           &&    // zero stiffness
-          m->tendon_limited[i] == 1             &&    // limited length range
-          lower == 0                            &&    // range lower-bound is 0
-          ten_length < upper;                         // current length is smaller than upper bound
-
-        // conditions for drawing a catenary
-        int draw_catenary =
-          !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
-          mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
-          m->tendon_num[i] == 2                 &&    // only two sites on the tendon
-          (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
-          m->tendon_damping[i] == 0             &&    // no damping
-          m->tendon_frictionloss[i] == 0;             // no frictionloss
-
-        // no actuator
-        if (draw_catenary) {
-          for (int j=0; j < m->nu; j++) {
-            if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == i) {
-              draw_catenary = 0;
-              break;
-            }
-          }
-        }
-
-        // conditions not met: draw straight lines
-        if (!draw_catenary) {
-          for (int j=d->ten_wrapadr[i]; j < d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
-            if (d->wrap_obj[j] != -2 && d->wrap_obj[j+1] != -2) {
-              thisgeom = acquireGeom(scn, i, category, objtype);
-              if (!thisgeom) {
-                return;
-              }
-
-              // determine width: smaller for segments inside wrapping objects
-              if (d->wrap_obj[j] >= 0 && d->wrap_obj[j+1] >= 0) {
-                sz[0] = 0.5 * m->tendon_width[i];
-              } else {
-                sz[0] = m->tendon_width[i];
-              }
-
-              // construct geom
-              mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], d->wrap_xpos+3*j, d->wrap_xpos+3*j+3);
-
-              // set material properties
-              int tendon_matid = m->tendon_matid[i];
-              float rgba[4];
-              f2f(rgba, m->tendon_rgba+4*i, 4);
-
-              // if tendon has no material and the color is the default gray, re-color it using limit impedance
-              if (tendon_matid == -1 && rgba[0] == 0.5 && rgba[1] == 0.5 && rgba[2] == 0.5 && rgba[3] == 1) {
-                // loop over limit constraints, get impedance if this tendon is limited
-                mjtNum imp = 0;
-                int efc_start = d->ne + d->nf;
-                int efc_end = efc_start + d->nl;
-                for (int k=efc_start; k < efc_end; k++) {
-                  if (d->efc_type[k] == mjCNSTR_LIMIT_TENDON && d->efc_id[k] == i) {
-                    imp = d->efc_KBIP[4*k + 2];
-                  }
-                }
-
-                // use impedance to mix tendon and constraint colors
-                rgba[0] = (1-imp) * rgba[0] + imp * m->vis.rgba.constraint[0];
-                rgba[1] = (1-imp) * rgba[1] + imp * m->vis.rgba.constraint[1];
-                rgba[2] = (1-imp) * rgba[2] + imp * m->vis.rgba.constraint[2];
-              }
-
-              setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
-
-              // override if visualizing islands
-              if (vopt->flags[mjVIS_ISLAND]) {
-                // strip material
-                thisgeom->matid = -1;
-
-                // set hue with first island dof, if constrained
-                int h = -1;
-                if (d->nisland && d->tendon_efcadr[i] >= 0) {
-                  h = d->island_dofadr[d->efc_island[d->tendon_efcadr[i]]];
-                }
-                islandColor(thisgeom->rgba, h);
-              }
-
-              // vopt->label: only the first segment
-              if (vopt->label == mjLABEL_TENDON && j == d->ten_wrapadr[i]) {
-                makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
-              }
-
-              releaseGeom(&thisgeom, scn);
-            }
-          }
-        }
-
-        // special case handling of string-like tendons under gravity
-        else {
-          // two hanging points: x0, x1
-          mjtNum x0[3], x1[3];
-          mju_copy3(x0, d->wrap_xpos + 3*d->ten_wrapadr[i]);
-          mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
-
-          // length of the tendon
-          mjtNum length;
-          if (limitedconstraint) {
-            length = m->tendon_range[2*i+1];
-          } else {
-            length = m->tendon_lengthspring[2*i+1];
-          }
-
-          // get number of points along catenary path (capped at 100)
-          int ncatenary = mjMIN(m->vis.quality.numslices + 1, 100);
-          mjtNum catenary[300];
-
-          // points along catenary path
-          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
-
-          // draw npoints-1 segments
-          for (int j=0; j < npoints-1; j++) {
-            thisgeom = acquireGeom(scn, i, category, objtype);
-            if (!thisgeom) {
-              return;
-            }
-
-            sz[0] = m->tendon_width[i];
-
-            // construct geom
-            mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], catenary+3*j, catenary+3*j+3);
-
-            // set material if given
-            setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
-
-            // vopt->label: only the first segment
-            if (vopt->label == mjLABEL_TENDON && npoints/2) {
-              makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
-            }
-
-            releaseGeom(&thisgeom, scn);
-          }
-        }
-      }
-    }
-  }
-
-  // slider-crank
-  objtype = mjOBJ_ACTUATOR;
-  category = mjCAT_DYNAMIC;
-  if ((category & catmask)) {
-    for (int i=0; i < m->nu; i++) {
-      if (m->actuator_trntype[i] == mjTRN_SLIDERCRANK) {
-        // get data
-        int j = m->actuator_trnid[2*i];                 // crank
-        int k = m->actuator_trnid[2*i+1];               // slider
-        rod = m->actuator_cranklength[i];
-        axis[0] = d->site_xmat[9*k+2];
-        axis[1] = d->site_xmat[9*k+5];
-        axis[2] = d->site_xmat[9*k+8];
-
-        // compute crank length
-        mju_sub(vec, d->site_xpos+3*j, d->site_xpos+3*k, 3);
-        len = mju_dot3(vec, axis);
-        det = len*len + rod*rod - mju_dot3(vec, vec);
-        broken = 0;
-        if (det < 0) {
-          det = 0;
-          broken = 1;
-        }
-        len = len - mju_sqrt(det);
-
-        // compute slider endpoint
-        mju_scl3(end, axis, len);
-        mju_addTo3(end, d->site_xpos+3*k);
-
-        // render slider
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjv_connector(thisgeom, mjGEOM_CYLINDER, scl * m->vis.scale.slidercrank,
-                      d->site_xpos+3*k, end);
-        f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
-        if (vopt->label == mjLABEL_ACTUATOR) {
-          makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
-        }
-        releaseGeom(&thisgeom, scn);
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.slidercrank/2.0,
-                      end, d->site_xpos+3*j);
-        if (broken) {
-          f2f(thisgeom->rgba, m->vis.rgba.crankbroken, 4);
-        } else {
-          f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
-        }
-        releaseGeom(&thisgeom, scn);
-      }
     }
   }
 
