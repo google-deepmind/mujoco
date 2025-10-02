@@ -19,6 +19,7 @@ import warp as wp
 from warp.context import type_str
 from warp.jax import get_jax_device
 from warp.types import array_t, launch_bounds_t, strides_from_shape
+from warp.utils import warn
 
 _jax_warp_p = None
 
@@ -28,7 +29,7 @@ _registered_kernels = [None]
 _registered_kernel_to_id = {}
 
 
-def jax_kernel(kernel, launch_dims=None):
+def jax_kernel(kernel, launch_dims=None, quiet=False):
     """Create a Jax primitive from a Warp kernel.
 
     NOTE: This is an experimental feature under development.
@@ -38,6 +39,7 @@ def jax_kernel(kernel, launch_dims=None):
         launch_dims: Optional. Specify the kernel launch dimensions. If None,
                      dimensions are inferred from the shape of the first argument.
                      This option when set will specify the output dimensions.
+        quiet: Optional. If True, suppress deprecation warnings with newer JAX versions.
 
     Limitations:
         - All kernel arguments must be contiguous arrays.
@@ -45,6 +47,27 @@ def jax_kernel(kernel, launch_dims=None):
         - There must be at least one input argument and at least one output argument.
         - Only the CUDA backend is supported.
     """
+
+    import jax
+
+    # check if JAX version supports this
+    if jax.__version_info__ < (0, 4, 25) or jax.__version_info__ >= (0, 8, 0):
+        msg = (
+            "This version of jax_kernel() requires JAX version 0.4.25 - 0.7.x, "
+            f"but installed JAX version is {jax.__version_info__}."
+        )
+        if jax.__version_info__ >= (0, 8, 0):
+            msg += " Please use warp.jax_experimental.ffi.jax_kernel instead."
+        raise RuntimeError(msg)
+
+    # deprecation warning
+    if jax.__version_info__ >= (0, 5, 0) and not quiet:
+        warn(
+            "This version of jax_kernel() is deprecated and will not be supported with newer JAX versions. "
+            "Please use the newer FFI version instead (warp.jax_experimental.ffi.jax_kernel). "
+            "In Warp release 1.10, the FFI version will become the default implementation of jax_kernel().",
+            DeprecationWarning,
+        )
 
     if _jax_warp_p is None:
         # Create and register the primitive
