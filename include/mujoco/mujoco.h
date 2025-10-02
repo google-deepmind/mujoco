@@ -644,6 +644,10 @@ MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtB
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                          const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
 
+//---------------------------------- Dependencies --------------------------------------------------
+
+// Given MJCF filename, fills dependencies with a list of all other files it depends on.
+MJAPI void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies);
 
 //---------------------------------- Interaction ---------------------------------------------------
 

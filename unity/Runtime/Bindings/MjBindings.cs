@@ -6758,6 +6758,9 @@ public static unsafe extern double mju_rayFlex(mjModel_* m, mjData_* d, int flex
 public static unsafe extern double mju_raySkin(int nface, int nvert, int* face, float* vert, double* pnt, double* vec, int* vertid);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mju_getXMLDependencies([MarshalAs(UnmanagedType.LPStr)]string filename, void* dependencies);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjv_defaultCamera(mjvCamera_* cam);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

@@ -1388,6 +1388,7 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
             // exclude files that fail the comparison test
             absl::StrContains(p.path().string(), "tactile") ||
             absl::StrContains(p.path().string(), "makemesh") ||
+            absl::StrContains(p.path().string(), "many_dependencies") ||
             absl::StrContains(p.path().string(), "usd") ||
             absl::StrContains(p.path().string(), "torus_maxhull") ||
             absl::StrContains(p.path().string(), "fitmesh_") ||

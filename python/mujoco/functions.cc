@@ -99,6 +99,14 @@ PYBIND11_MODULE(_functions, pymodule) {
         return std::string(buffer.get(), out_length);
       });
 
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_getXMLDependencies,
+                           "dependencies")(
+      pymodule, [](const char* filename){
+        mjStringVec dependencies;
+        InterceptMjErrors(::mju_getXMLDependencies)(filename, &dependencies);
+        return dependencies;
+      });
+
   // Main simulation
   pymodule.def(
       "mj_step",

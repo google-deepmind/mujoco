@@ -16,6 +16,7 @@
 
 import contextlib
 import copy
+from etils import epath
 import pickle
 import sys
 
@@ -1657,6 +1658,16 @@ Euler integrator, semi-implicit in velocity.
   def test_texture_size(self):
     model = mujoco.MjModel.from_xml_string(TEST_XML_TEXTURE)
     self.assertEqual(model.tex('tex').data.shape, (512, 512, 3))
+
+  def test_xml_dependencies(self):
+    model_path = str(epath.resource_path("mujoco") / "testdata" / "msh.xml")
+    msh_path =str(epath.resource_path("mujoco") / "testdata" / "abdomen_1_body.msh")
+
+    model_path = model_path.replace('\\', '/')
+    msh_path = msh_path.replace('\\', '/')
+    dependencies = mujoco.mju_getXMLDependencies(model_path)
+    self.assertIn(model_path, dependencies)
+    self.assertIn(msh_path, dependencies)
 
   def _assert_attributes_equal(self, actual_obj, expected_obj, attr_to_compare):
     for name in attr_to_compare:

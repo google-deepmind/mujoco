@@ -3925,6 +3925,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Intersect ray with skin, return nearest distance or -1 if no intersection, and also output nearest vertex id.',  # pylint: disable=line-too-long
      )),
+    ('mju_getXMLDependencies',
+     FunctionDecl(
+         name='mju_getXMLDependencies',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dependencies',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjStringVec'),
+                 ),
+             ),
+         ),
+         doc='Given MJCF filename, fills dependencies with a list of all other files it depends on.',  # pylint: disable=line-too-long
+     )),
     ('mjv_defaultCamera',
      FunctionDecl(
          name='mjv_defaultCamera',

@@ -16,6 +16,8 @@ mujoco_test(xml_api_test)
 
 mujoco_test(xml_native_reader_test)
 
+mujoco_test(xml_utils_test)
+
 mujoco_test(
   xml_native_writer_test
   ADDITIONAL_LINK_LIBRARIES
