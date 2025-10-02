@@ -360,6 +360,35 @@ TEST_F(UtilMiscTest, MjuIsZero) {
   EXPECT_EQ(mju_isZeroByte((const unsigned char*)vec, sizeof(mjtNum)), 0);
 }
 
+TEST_F(UtilMiscTest, MjuIsZeroByte) {
+  // Zero length array
+  EXPECT_TRUE(mju_isZeroByte(nullptr, 0));
+
+  // zero length array with non-null pointer
+  unsigned char vec0[1] = {0};
+  EXPECT_TRUE(mju_isZeroByte(vec0, sizeof(vec0)));
+
+  // one zero element array
+  unsigned char vec1[1] = {0};
+  EXPECT_TRUE(mju_isZeroByte(vec1, sizeof(vec1)));
+
+  // one non-zero element array
+  unsigned char vec2[2] = {1};
+  EXPECT_FALSE(mju_isZeroByte(vec2, sizeof(vec2)));
+
+  // Non-zero at start
+  unsigned char vec3[3] = {1, 0, 0};
+  EXPECT_FALSE(mju_isZeroByte(vec3, sizeof(vec3)));
+
+  // Non-zero at end
+  unsigned char vec4[3] = {0, 0, 1};
+  EXPECT_FALSE(mju_isZeroByte(vec4, sizeof(vec4)));
+
+  // Non-zero in middle
+  unsigned char vec5[3] = {0, 1, 0};
+  EXPECT_FALSE(mju_isZeroByte(vec5, sizeof(vec5)));
+}
+
 // --------------------------------- Interpolation -----------------------------
 
 using InterpolationTest = MujocoTest;

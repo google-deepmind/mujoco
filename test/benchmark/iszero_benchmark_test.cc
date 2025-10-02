@@ -46,6 +46,11 @@ ABSL_ATTRIBUTE_NO_TAIL_CALL static void IzZeroBenchmark(
 }
 
 // Define benchmarks.
+void BM_isZeroByte_10(benchmark::State& state) {
+  IzZeroBenchmark(state, 10, true);
+}
+BENCHMARK(BM_isZeroByte_10);
+
 void BM_isZeroByte_1e2(benchmark::State& state) {
   IzZeroBenchmark(state, 100, true);
 }
@@ -55,6 +60,11 @@ void BM_isZeroByte_1e5(benchmark::State& state) {
   IzZeroBenchmark(state, 100000, true);
 }
 BENCHMARK(BM_isZeroByte_1e5);
+
+void BM_isZero_10(benchmark::State& state) {
+  IzZeroBenchmark(state, 10, false);
+}
+BENCHMARK(BM_isZero_10);
 
 void BM_isZero_1e2(benchmark::State& state) {
   IzZeroBenchmark(state, 100, false);
