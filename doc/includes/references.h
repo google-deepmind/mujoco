@@ -3021,6 +3021,7 @@ int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int erro
 void mj_freeLastXML(void);
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz);
 int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz);
+void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies);
 void mj_step(const mjModel* m, mjData* d);
 void mj_step1(const mjModel* m, mjData* d);
 void mj_step2(const mjModel* m, mjData* d);
@@ -3182,7 +3183,6 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
                    const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
 mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                    const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
-void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies);
 void mjv_defaultCamera(mjvCamera* cam);
 void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam);
 void mjv_defaultPerturb(mjvPerturb* pert);

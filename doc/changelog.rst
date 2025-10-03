@@ -24,6 +24,10 @@ General
   :ref:`visual/rgba/constraint<visual-rgba-constraint>`. For spatial tendons, this visualization aid is active only if
   no :ref:`material<tendon-spatial-material>` is set and :ref:`rgba<tendon-spatial-rgba>` is default.
 
+- Added :ref:`mju_getXMLDependencies` for computing a list of unique asset dependencies from an MJCF file.
+
+- Added the code sample ``dependencies`` which provides command line utility for printing the result of :ref:`mju_getXMLDependencies`.
+
 
 MJX
 ^^^

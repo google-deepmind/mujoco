@@ -151,6 +151,9 @@ MJAPI int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, 
 // Nullable: error
 MJAPI int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz);
 
+// Given MJCF filename, fills dependencies with a list of all other asset files it depends on.
+// The search is recursive, and the list includes the filename itself.
+MJAPI void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies);
 
 //---------------------------------- Main simulation -----------------------------------------------
 
@@ -643,11 +646,6 @@ MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtB
 // Nullable: vertid
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                          const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
-
-//---------------------------------- Dependencies --------------------------------------------------
-
-// Given MJCF filename, fills dependencies with a list of all other files it depends on.
-MJAPI void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies);
 
 //---------------------------------- Interaction ---------------------------------------------------
 

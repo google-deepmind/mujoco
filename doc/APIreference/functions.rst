@@ -127,6 +127,17 @@ the required size. XML saving automatically compiles the spec before saving.
 
 Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
 
+.. _mju_getXMLDependencies:
+
+`mju_getXMLDependencies <#mju_getXMLDependencies>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_getXMLDependencies
+
+Given MJCF filename, fills dependencies with a list of all other asset files it depends on.
+
+The search is recursive, and the list includes the filename itself.
+
 .. _Mainsimulation:
 
 Main simulation
