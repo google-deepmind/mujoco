@@ -36,7 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 warp = [
-    "warp-lang==1.9.0",
+    "warp-lang==1.9.1",
 ]
 
 [project.scripts]
