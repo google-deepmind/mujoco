@@ -25,6 +25,11 @@ General
   no :ref:`material<tendon-spatial-material>` is set and :ref:`rgba<tendon-spatial-rgba>` is default.
 
 
+MJX
+^^^
+
+- Fix :github:issue:`2508`, ``qLD`` shapes mismatched mjModel during ``get_data_into``.
+
 Version 3.3.6 (September 15, 2025)
 ----------------------------------
 

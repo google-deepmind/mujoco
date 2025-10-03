@@ -1466,7 +1466,7 @@ def _get_data_into(
       if d.impl == types.Impl.JAX:
         if field.name == 'qM' and not support.is_sparse(m):
           value = value[dof_i, dof_j]
-        elif field.name == 'qLD' and not support.is_sparse(m):
+        elif field.name == 'qLD':
           value = np.zeros(m.nC)
         elif field.name == 'qLDiagInv' and not support.is_sparse(m):
           value = np.ones(m.nv)
