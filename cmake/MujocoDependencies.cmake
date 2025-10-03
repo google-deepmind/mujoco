@@ -61,6 +61,11 @@ set(MUJOCO_DEP_VERSION_benchmark
 set(MUJOCO_DEP_VERSION_TriangleMeshDistance
     2cb643de1436e1ba8e2be49b07ec5491ac604457
     CACHE STRING "Version of `TriangleMeshDistance` to be fetched."
+   )
+
+set(MUJOCO_DEP_VERSION_cglm
+    144d1e7c29b3b0c6dede7917a0476cc95248559c
+    CACHE STRING "Version of `CGLM` to be fetched."
 )
 
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
@@ -74,6 +79,7 @@ mark_as_advanced(MUJOCO_DEP_VERSION_abseil)
 mark_as_advanced(MUJOCO_DEP_VERSION_gtest)
 mark_as_advanced(MUJOCO_DEP_VERSION_benchmark)
 mark_as_advanced(MUJOCO_DEP_VERSION_TriangleMeshDistance)
+mark_as_advanced(MUJOCO_DEP_VERSION_cglm)
 
 include(FetchContent)
 include(FindOrFetch)
@@ -235,6 +241,24 @@ if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
 endif()
 target_compile_options(ccd PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(ccd PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+
+findorfetch(
+  USE_SYSTEM_PACKAGE
+  OFF
+  PACKAGE_NAME
+  cglm
+  LIBRARY_NAME
+  cglm
+  GIT_REPO
+  https://github.com/recp/cglm.git
+  GIT_TAG v0.9.6
+  ${MUJOCO_DEP_VERSION_cglm}
+  TARGETS
+  cglm
+  EXCLUDE_FROM_ALL
+)
+target_compile_options(cglm PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
+target_link_options(cglm PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
 # libCCD has an unconditional `#define _CRT_SECURE_NO_WARNINGS` on Windows.
 # TODO(stunya): Remove this after https://github.com/danfis/libccd/pull/77 is merged.

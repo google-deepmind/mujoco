@@ -96,20 +96,31 @@ target_link_libraries(
 )
 target_link_options(basic PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
-add_executable(record record.cc array_safety.h)
-target_compile_options(record PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
+add_executable(basic3 basic3.cc)
+target_compile_options(basic3 PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
 target_link_libraries(
-  record
+  basic3
   mujoco::mujoco
   glfw
   Threads::Threads
 )
-target_link_options(record PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+target_link_options(basic PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+
+# add_executable(record record.cc array_safety.h)
+# target_compile_options(record PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
+# target_link_libraries(
+#   record
+#   mujoco::mujoco
+#   glfw
+#   Threads::Threads
+# )
+# target_link_options(record PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
 
 if(APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS)
   embed_in_bundle(basic simulate)
+  embed_in_bundle(basic3 simulate)
   embed_in_bundle(compile simulate)
-  embed_in_bundle(record simulate)
+  # embed_in_bundle(record simulate)
   embed_in_bundle(testspeed simulate)
 endif()
 
@@ -126,8 +137,9 @@ if(_INSTALL_SAMPLES)
   target_add_rpath(
     TARGETS
     basic
+    basic3
     compile
-    record
+    # record
     testspeed
     INSTALL_DIRECTORY
     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
@@ -140,7 +152,7 @@ if(_INSTALL_SAMPLES)
   install(
     TARGETS basic
             compile
-            record
+            # record
             testspeed
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT samples

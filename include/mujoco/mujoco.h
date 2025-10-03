@@ -773,6 +773,7 @@ MJAPI void mjr_defaultContext(mjrContext* con);
 
 // Allocate resources in custom OpenGL context; fontscale is mjtFontScale.
 MJAPI void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale);
+MJAPI void mjr3_makeContext(const mjModel* m, mjrContext* con, int fontscale);
 
 // Change font of existing context.
 MJAPI void mjr_changeFont(int fontscale, mjrContext* con);
@@ -847,6 +848,7 @@ MJAPI void mjr_figure(mjrRect viewport, mjvFigure* fig, const mjrContext* con);
 
 // Render 3D scene.
 MJAPI void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con);
+MJAPI void mjr3_render(mjrRect viewport, mjvScene* scn, const mjrContext* con);
 
 // Call glFinish.
 MJAPI void mjr_finish(void);
