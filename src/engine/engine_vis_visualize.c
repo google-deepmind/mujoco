@@ -831,6 +831,8 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   }
 
   // geom
+  // category is determined on a per-geom basis
+  objtype = mjOBJ_GEOM;
   int planeid = -1;
   for (int i=0; i < m->ngeom; i++) {
     // count planes, put current plane number in geom->dataid
@@ -839,7 +841,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
     }
 
     // set type and category: geom
-    objtype = mjOBJ_GEOM;
     category = bodycategory(m, m->geom_bodyid[i]);
 
     // skip if category is masked
@@ -963,26 +964,14 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       }
 
       releaseGeom(&thisgeom, scn);
-
-      // set type and category: frame
-      objtype = mjOBJ_UNKNOWN;
-      category = mjCAT_DECOR;
-      if (!(category & catmask) || vopt->frame != mjFRAME_GEOM) {
-        continue;
-      }
-
-      // construct geom frame
-      objtype = mjOBJ_UNKNOWN;
-      sz[0] = m->vis.scale.framewidth * scl;
-      sz[1] = m->vis.scale.framelength * scl;
-      addFrame(scn, i, d->geom_xpos+3*i, d->geom_xmat+9*i, sz[1], sz[0]);
     }
   }
 
   // site
+  // category is determined on a per-site basis
+  objtype = mjOBJ_SITE;
   for (int i=0; i < m->nsite; i++) {
     // set type and category
-    objtype = mjOBJ_SITE;
     category = bodycategory(m, m->site_bodyid[i]);
 
     // skip if category is masked
@@ -1020,18 +1009,6 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       }
 
       releaseGeom(&thisgeom, scn);
-
-      // set category for site frame
-      category = mjCAT_DECOR;
-      if (!(category & catmask) || vopt->frame != mjFRAME_SITE) {
-        continue;
-      }
-
-      // construct site frame
-      objtype = mjOBJ_UNKNOWN;
-      sz[0] = m->vis.scale.framewidth * scl;
-      sz[1] = m->vis.scale.framelength * scl;
-      addFrame(scn, i, d->site_xpos+3*i, d->site_xmat+9*i, sz[1], sz[0]);
     }
   }
 
@@ -1250,6 +1227,64 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         }
         releaseGeom(&thisgeom, scn);
       }
+    }
+  }
+
+  // -- decor elements --
+
+  // geom frames
+  category = mjCAT_DECOR;
+  objtype = mjOBJ_GEOM;
+  if ((category & catmask) && vopt->frame == mjFRAME_GEOM) {
+    for (int i=0; i < m->ngeom; i++) {
+      if (!(bodycategory(m, m->geom_bodyid[i]) & catmask)) {
+        continue;
+      }
+
+      if (!vopt->geomgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]))]) {
+        continue;
+      }
+
+      // base element is invisible; don't show decors
+      int matid = m->geom_matid[i];
+      float* rgba = (matid >= 0) ? (m->mat_rgba + 4*matid) : (m->geom_rgba + 4*i);
+      if (rgba[3] == 0) {
+        continue;
+      }
+
+      // construct geom frame
+      sz[0] = m->vis.scale.framewidth * scl;
+      sz[1] = m->vis.scale.framelength * scl;
+      addFrame(scn, i, d->geom_xpos+3*i, d->geom_xmat+9*i, sz[1], sz[0]);
+    }
+  }
+
+  // site frames
+  category = mjCAT_DECOR;
+  objtype = mjOBJ_SITE;
+  if ((category & catmask) && vopt->frame == mjFRAME_SITE) {
+    for (int i=0; i < m->nsite; i++) {
+      // skip if category is masked
+      if (!(bodycategory(m, m->site_bodyid[i]) & catmask)) {
+        continue;
+      }
+
+      // show if group enabled
+      if (!vopt->sitegroup[mjMAX(0, mjMIN(mjNGROUP-1, m->site_group[i]))]) {
+        continue;
+      }
+
+      // base element is invisible; don't show decors
+      int matid = m->site_matid[i];
+      float* rgba = (matid >= 0) ? (m->mat_rgba + 4*matid) : (m->site_rgba + 4*i);
+      if (rgba[3] == 0) {
+        continue;
+      }
+
+      // construct site frame
+      sz[0] = m->vis.scale.framewidth * scl;
+      sz[1] = m->vis.scale.framelength * scl;
+      addFrame(scn, i, d->site_xpos+3*i, d->site_xmat+9*i, sz[1], sz[0]);
     }
   }
 
