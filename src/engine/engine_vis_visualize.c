@@ -354,7 +354,8 @@ static void markselected(const mjVisual* vis, mjvGeom* geom) {
 
 
 // draw 3 cylinders representing a "frame" decor element
-void addFrameGeoms(mjvScene* scn, int i, mjtNum* pos, mjtNum* rot, float length, float width) {
+void addFrame(mjvScene* scn, int objid, const mjtNum pos[3], const mjtNum rot[9], float length,
+              float width) {
   // draw separate geoms for each axis
   for (int j=0; j < 3; j++) {
     mjtNum axis[3];
@@ -363,13 +364,13 @@ void addFrameGeoms(mjvScene* scn, int i, mjtNum* pos, mjtNum* rot, float length,
     }
 
     mjtNum vec[3];
-    mju_mulMatVec(vec, rot, axis, 3, 3);
+    mju_mulMatVec3(vec, rot, axis);
 
     // create a cylinder
     mjtNum to[3];
     mju_add3(to, pos, vec);
 
-    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+    mjvGeom* thisgeom = acquireGeom(scn, objid, mjCAT_DECOR, mjOBJ_UNKNOWN);
     if (!thisgeom) {
       return;
     }
@@ -634,7 +635,7 @@ static void addContactGeom(const mjModel* m, mjData* d, const mjtByte* flags,
       // set length and width of axis cylinders using half regular frame scaling
       framelength = m->vis.scale.framelength * scl / 2;
       framewidth = m->vis.scale.framewidth * scl / 2;
-      addFrameGeoms(scn, i, con->pos, mat, framelength, framewidth);
+      addFrame(scn, i, con->pos, mat, framelength, framewidth);
     }
 
     // nothing else to do for excluded contacts
@@ -974,7 +975,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       objtype = mjOBJ_UNKNOWN;
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
-      addFrameGeoms(scn, i, d->geom_xpos+3*i, d->geom_xmat+9*i, sz[1], sz[0]);
+      addFrame(scn, i, d->geom_xpos+3*i, d->geom_xmat+9*i, sz[1], sz[0]);
     }
   }
 
@@ -1030,7 +1031,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       objtype = mjOBJ_UNKNOWN;
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
-      addFrameGeoms(scn, i, d->site_xpos+3*i, d->site_xmat+9*i, sz[1], sz[0]);
+      addFrame(scn, i, d->site_xpos+3*i, d->site_xmat+9*i, sz[1], sz[0]);
     }
   }
 
@@ -1719,7 +1720,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
       mjtNum* xmat = vopt->flags[mjVIS_INERTIA] ? d->ximat+9*i : d->xmat+9*i;
       mjtNum* xpos = vopt->flags[mjVIS_INERTIA] ? d->xipos+3*i : d->xpos+3*i;
-      addFrameGeoms(scn, i, xpos, xmat, sz[1], sz[0]);
+      addFrame(scn, i, xpos, xmat, sz[1], sz[0]);
     }
   }
 
@@ -2240,7 +2241,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       objtype = mjOBJ_UNKNOWN;
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
-      addFrameGeoms(scn, i, d->cam_xpos+3*i, d->cam_xmat+9*i, sz[1], sz[0]);
+      addFrame(scn, i, d->cam_xpos+3*i, d->cam_xmat+9*i, sz[1], sz[0]);
     }
   }
 
@@ -2287,7 +2288,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       objtype = mjOBJ_UNKNOWN;
       sz[0] = m->vis.scale.framewidth * scl;
       sz[1] = m->vis.scale.framelength * scl;
-      addFrameGeoms(scn, i, d->light_xpos+3*i, mat, sz[1], sz[0]);
+      addFrame(scn, i, d->light_xpos+3*i, mat, sz[1], sz[0]);
     }
   }
 
