@@ -8,6 +8,16 @@ build:
   tools:
     python: "3.10"
 
+  # install mujoco warp to generate api documentation
+  jobs:
+    post_install:
+      - pip install uv
+      - mkdir -p /tmp/mujoco_warp
+      - cp -r mjx/mujoco/mjx/third_party/mujoco_warp/ /tmp/mujoco_warp/
+      - cd /tmp/mujoco_warp
+      - mv mujoco_warp/pyproject.toml .
+      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH uv pip install -e .
+
 sphinx:
   builder: html
   configuration: doc/conf.py
