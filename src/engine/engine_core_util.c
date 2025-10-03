@@ -726,27 +726,6 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 }
 
 
-// count warnings, print only the first time
-void mj_warning(mjData* d, int warning, int info) {
-  // check type
-  if (warning < 0 || warning >= mjNWARNING) {
-    mjERROR("invalid warning type %d", warning);
-  }
-
-  // save info (override previous)
-  d->warning[warning].lastinfo = info;
-
-  // print message only the first time this warning is encountered
-  if (!d->warning[warning].number) {
-    mju_warning("%s Time = %.4f.", mju_warningText(warning, info), d->time);
-  }
-
-  // increase counter
-  d->warning[warning].number++;
-}
-
-
-
 // compute object 6D velocity in object-centered frame, world/local orientation
 void mj_objectVelocity(const mjModel* m, const mjData* d,
                        int objtype, int objid, mjtNum res[6], int flg_local) {
@@ -857,27 +836,6 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 }
 
 
-// extract 6D force:torque for one contact, in contact frame
-void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]) {
-  mjContact* con;
-
-  // clear result
-  mju_zero(result, 6);
-
-  // make sure contact is valid
-  if (id >= 0 && id < d->ncon && d->contact[id].efc_address >= 0) {
-    // get contact pointer
-    con = d->contact + id;
-
-    if (mj_isPyramidal(m)) {
-      mju_decodePyramid(result, d->efc_force + con->efc_address, con->friction, con->dim);
-    } else {
-      mju_copy(result, d->efc_force + con->efc_address, con->dim);
-    }
-  }
-}
-
-
 // map from body local to global Cartesian coordinates
 void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
                      const mjtNum pos[3], const mjtNum quat[4],
@@ -922,4 +880,44 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
   }
 }
 
+
+// extract 6D force:torque for one contact, in contact frame
+void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]) {
+  mjContact* con;
+
+  // clear result
+  mju_zero(result, 6);
+
+  // make sure contact is valid
+  if (id >= 0 && id < d->ncon && d->contact[id].efc_address >= 0) {
+    // get contact pointer
+    con = d->contact + id;
+
+    if (mj_isPyramidal(m)) {
+      mju_decodePyramid(result, d->efc_force + con->efc_address, con->friction, con->dim);
+    } else {
+      mju_copy(result, d->efc_force + con->efc_address, con->dim);
+    }
+  }
+}
+
+
+// count warnings, print only the first time
+void mj_warning(mjData* d, int warning, int info) {
+  // check type
+  if (warning < 0 || warning >= mjNWARNING) {
+    mjERROR("invalid warning type %d", warning);
+  }
+
+  // save info (override previous)
+  d->warning[warning].lastinfo = info;
+
+  // print message only the first time this warning is encountered
+  if (!d->warning[warning].number) {
+    mju_warning("%s Time = %.4f.", mju_warningText(warning, info), d->time);
+  }
+
+  // increase counter
+  d->warning[warning].number++;
+}
 

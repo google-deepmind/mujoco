@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+
+//-------------------------- model properties ------------------------------------------------------
+
 // determine type of friction cone
 MJAPI int mj_isPyramidal(const mjModel* m);
 
@@ -125,11 +128,6 @@ MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum res
 // high-level warning function: count warnings in mjData, print only the first time
 MJAPI void mj_warning(mjData* d, int warning, int info);
 
-// extract 6D force:torque for one contact, in contact frame
-MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
-
-// set default solver parameters
-MJAPI void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp);
 
 #ifdef __cplusplus
 }

@@ -22,6 +22,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
+#include "engine/engine_init.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_memory.h"
