@@ -1384,14 +1384,19 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   if (bound_material) {
     pxr::SdfPath material_path = bound_material.GetPrim().GetPath();
     mjsMaterial* material = nullptr;
-    if (caches.parsed_materials.find(material_path) !=
-        caches.parsed_materials.end()) {
-      material = caches.parsed_materials[material_path];
+    if (auto iter = caches.parsed_materials.find(material_path);
+        iter != caches.parsed_materials.end()) {
+      material = iter->second;
     } else {
       material = ParseMaterial(spec, bound_material);
-      caches.parsed_materials[material_path] = material;
+      // ParseMaterial may return a nullptr if the material is not supported.
+      if (material) {
+        caches.parsed_materials[material_path] = material;
+      }
     }
-    mjs_setString(geom->material, mjs_getName(material->element)->c_str());
+    if (material) {
+      mjs_setString(geom->material, mjs_getName(material->element)->c_str());
+    }
   }
 
   if (gprim.HasAPI<pxr::MjcPhysicsImageableAPI>()) {
@@ -1437,6 +1442,21 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
           geom, pxr::UsdPhysicsMaterialAPI(bound_material_prim));
       ParseMjcPhysicsMaterialAPI(
           geom, pxr::MjcPhysicsMaterialAPI(bound_material_prim));
+    }
+    pxr::SdfPath material_path = bound_material_prim.GetPath();
+    mjsMaterial* material = nullptr;
+    if (auto iter = caches.parsed_materials.find(material_path);
+        iter != caches.parsed_materials.end()) {
+      material = iter->second;
+    } else {
+      material = ParseMaterial(spec, bound_material);
+      // ParseMaterial may return a nullptr if the material is not supported.
+      if (material) {
+        caches.parsed_materials[material_path] = material;
+      }
+    }
+    if (material) {
+      mjs_setString(geom->material, mjs_getName(material->element)->c_str());
     }
   }
 
