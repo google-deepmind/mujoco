@@ -503,7 +503,6 @@ class OptionC(PyTreeNode):
   noslip_iterations: int
   ccd_iterations: int
   sdf_iterations: int
-  sdf_initpoints: int
 
 
 class Option(PyTreeNode):
