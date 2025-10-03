@@ -2464,11 +2464,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
    fromto attribute below.
 
    The **box** type defines a box. Three size parameters are required, corresponding to the half-sizes of the box along
-   the X, Y and Z axes of the geom's frame. Note that box-box collisions are the only pair-wise collision type that can
-   generate a large number of contact points, up to 8 depending on the configuration. The contact generation itself is
-   fast but this can slow down the constraint solver. As an alternative, we provide the boxconvex attribute in
-   :ref:`flag <option-flag>` which causes the general-purpose convex collider to be used instead, yielding at most one
-   contact point per geom pair.
+   the X, Y and Z axes of the geom's frame. Note that box-box collisions can generate up to 8 contact points.
 
    The **mesh** type defines a mesh. The geom must reference the desired mesh asset with the mesh attribute. Note that
    mesh assets can also be referenced from other geom types, causing primitive shapes to be fitted; see below. The size
