@@ -3463,6 +3463,10 @@ mjsTuple* mjs_addTuple(mjSpec* s);
 mjsKey* mjs_addKey(mjSpec* s);
 mjsPlugin* mjs_addPlugin(mjSpec* s);
 mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
+// Example usage:
+// mjs_addDefault(spec, "myclass", parent);  // Named default
+// mjs_addDefault(spec, nullptr, parent);     // Only for the root unnamed default
+mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
 const char* mjs_setToMotor(mjsActuator* actuator);
 const char* mjs_setToPosition(mjsActuator* actuator, double kp, double kv[1],
                               double dampratio[1], double timeconst[1], double inheritrange);
