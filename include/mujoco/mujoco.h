@@ -1566,6 +1566,10 @@ MJAPI mjsPlugin* mjs_addPlugin(mjSpec* s);
 
 // Add default.
 // Nullable: parent
+// Add a default class to the model. Pass a non-null classname for named defaults; only one unnamed default is allowed at the top level.
+// Example usage:
+// mjs_addDefault(spec, "myclass", parent);  // Named default
+// mjs_addDefault(spec, nullptr, parent);     // Only for the root unnamed default
 MJAPI mjsDefault* mjs_addDefault(mjSpec* s, const char* classname, const mjsDefault* parent);
 
 
