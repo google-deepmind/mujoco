@@ -188,14 +188,14 @@ struct mjData_ {
   int     nplugin;           // number of plugin instances
 
   // stack pointer
-  size_t  pstack;            // first available byte in stack
-  size_t  pbase;             // value of pstack when mj_markStack was last called
+  size_t  pstack;            // first available byte in stack (mutable)
+  size_t  pbase;             // value of pstack when mj_markStack was last called (mutable)
 
   // arena pointer
   size_t  parena;            // first available byte in arena
 
   // memory utilization statistics
-  mjtSize maxuse_stack;                       // maximum stack allocation in bytes
+  mjtSize maxuse_stack;                       // maximum stack allocation in bytes (mutable)
   mjtSize maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
   mjtSize maxuse_arena;                       // maximum arena allocation in bytes
   int     maxuse_con;                         // maximum number of contacts
@@ -208,7 +208,7 @@ struct mjData_ {
   mjtNum        solver_fwdinv[2];             // forward-inverse comparison: qfrc, efc
 
   // diagnostics
-  mjWarningStat warning[mjNWARNING];          // warning statistics
+  mjWarningStat warning[mjNWARNING];          // warning statistics (mutable)
   mjTimerStat   timer[mjNTIMER];              // timer statistics
 
   // variable sizes

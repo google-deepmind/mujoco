@@ -37,7 +37,7 @@ class StructsTest(absltest.TestCase):
       if field.name == 'warning':
         self.assertEqual(field.type,
                          type_parsing.parse_type('mjWarningStat[8]'))
-        self.assertEqual(field.doc, 'warning statistics')
+        self.assertEqual(field.doc, 'warning statistics (mutable)')
       elif field.name == 'qpos':
         self.assertEqual(field.type, type_parsing.parse_type('mjtNum*'))
         self.assertEqual(field.doc, 'position')
