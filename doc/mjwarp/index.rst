@@ -14,23 +14,6 @@ for `Nvidia <https://nvidia.com>`__ GPUs. MJWarp lives in the
 `google-deepmind/mujoco_warp <https://github.com/google-deepmind/mujoco_warp>`__ GitHub repository and is currently in
 beta.
 
-.. _MJW_getstarted:
-
-Getting Started
-===============
-
-.. code-block:: python
-
-    import mujoco
-    import mujoco_warp as mjw
-
-    mjm = mujoco.MjModel.from_file("example.xml")
-
-    m = mjw.put_model(mjm)
-    d = mjw.make_data(mjm)
-
-    mjw.step(m, d)
-
 .. _MJW_install:
 
 Installation
@@ -55,10 +38,96 @@ Test the Installation
 
     pytest
 
+.. _MJW_Usage:
+
+Basic usage
+===========
+
+Once installed, the package can be imported via ``import mujoco_warp as mjw``. Structs, functions, and enums are
+available directly from the top-level ``mjw`` module.
+
+Structs
+-------
+Before running MJWarp functions on an Nvidia GPU, structs must be copied onto the device via ``mjw.put_model`` and
+``mjw.make_data`` or ``mjw.put_data`` functions. Placing an :ref:`mjModel` on device yields an ``mjw.Model``. Placing
+an :ref:`mjData` on device yields an ``mjw.Data``:
+
+.. code-block:: python
+
+  mjm = mujoco.MjModel.from_xml_string("...")
+  mjd = mujoco.MjData(mjm)
+  m = mjw.put_model(mjm)
+  d = mjw.put_data(mjm, mjd)
+
+These MJWarp variants mirror their MuJoCo counterparts but have a few key differences:
+
+#. ``mjw.Model`` and ``mjw.Data`` contain Warp arrays that are copied onto device.
+#. Some fields are missing from ``mjw.Model`` and ``mjw.Data`` for features that are unsupported.
+
+Functions
+_________
+
+MuJoCo functions are exposed as MJWarp functions of the same name, but following
+`PEP 8 <https://peps.python.org/pep-0008/>`__-compliant names. Most of the :ref:`main simulation <Mainsimulation>` and
+some of the :ref:`sub-components <Subcomponents>` for forward simulation are available from the top-level ``mjw``
+module.
+
+Minimal example
+---------------
+
+.. code-block:: python
+
+   # Throw a ball at 100 different velocities.
+
+   import mujoco
+   import mujoco_warp as mjw
+   import warp as wp
+
+   _MJCF=r"""
+   <mujoco>
+     <worldbody>
+       <body>
+         <freejoint/>
+         <geom size=".15" mass="1" type="sphere"/>
+       </body>
+     </worldbody>
+   </mujoco>
+   """
+
+   mjm = mujoco.MjModel.from_xml_string(_MJCF)
+   m = mjw.put_model(mjm)
+   d = mjw.make_data(mjm, nworld=100)
+
+   # initialize velocities
+   wp.copy(d.qvel, wp.array([[float(i) / 100, 0.0, 0.0, 0.0, 0.0, 0.0] for i in range(100)], dtype=float))
+
+   # simulate physics
+   mjw.step(m, d)
+
+   print(f'qpos:\n{d.qpos.numpy()}')
+
+A call to ``mjw.step`` is comprised of a collection of kernel launches. Warp will launch these kernels individually if
+this function is called directly. To improve performance, especially if the function will be called multiple times, it
+is recommended to capture the operations that comprise the function as a CUDA graph
+
+.. code-block:: python
+
+  with wp.ScopedCapture() as capture:
+    mjw.step(m, d)
+
+The graph can then be launched or re-launched
+
+.. code-block:: python
+
+  wp.capture_launch(capture.graph)
+
+and will typically be significantly faster compared to calling ``mjw.step`` directly. Please see the
+`Warp Graph API reference <https://nvidia.github.io/warp/modules/runtime.html#graph-api-reference>`__ for details.
+
 .. _MJW_Cli:
 
-Utilities
-=========
+Helpful Command Line Scripts
+----------------------------
 
 Benchmark an environment with testspeed
 
