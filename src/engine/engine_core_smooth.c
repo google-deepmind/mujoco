@@ -1513,30 +1513,44 @@ void mj_tendonArmature(const mjModel* m, mjData* d) {
 
 // composite rigid body inertia algorithm
 void mj_crb(const mjModel* m, mjData* d) {
-  int nv = m->nv;
-  mjtNum buf[6];
+  int nv = m->nv, nbody = m->nbody;
+
+  // outputs
   mjtNum* crb = d->crb;
+  mjtNum* M   = d->M;
+
+  // inputs
+  const mjtNum* cinert       = d->cinert;
+  const mjtNum* cdof         = d->cdof;
+  const mjtNum* dof_M0       = m->dof_M0;
+  const mjtNum* dof_armature = m->dof_armature;
+  const int* rownnz          = m->M_rownnz;
+  const int* rowadr          = m->M_rowadr;
+  const int* body_parentid   = m->body_parentid;
+  const int* dof_parentid    = m->dof_parentid;
+  const int* dof_simplenum   = m->dof_simplenum;
+  const int* dof_bodyid      = m->dof_bodyid;
 
   // crb = cinert
-  mju_copy(crb, d->cinert, 10*m->nbody);
+  mju_copy(crb, cinert, 10*nbody);
 
   // backward pass over bodies, accumulate composite inertias
-  for (int i=m->nbody - 1; i > 0; i--) {
-    if (m->body_parentid[i] > 0) {
-      mju_addTo(crb+10*m->body_parentid[i], crb+10*i, 10);
+  for (int i=nbody - 1; i > 0; i--) {
+    if (body_parentid[i]) {
+      mju_addTo(crb + 10*body_parentid[i], crb + 10*i, 10);
     }
   }
 
   // clear M
-  mju_zero(d->M, m->nC);
+  mju_zero(M, m->nC);
 
   // dense forward pass over dofs
   for (int i=0; i < nv; i++) {
     // process block of diagonals (simple bodies)
-    if (m->dof_simplenum[i]) {
-      int n = i + m->dof_simplenum[i];
+    if (dof_simplenum[i]) {
+      int n = i + dof_simplenum[i];
       for (; i < n; i++) {
-        d->M[m->M_rowadr[i]] = m->dof_M0[i];
+        M[rowadr[i]] = dof_M0[i];
       }
 
       // finish or else fall through with next row
@@ -1546,16 +1560,17 @@ void mj_crb(const mjModel* m, mjData* d) {
     }
 
     // init M(i,i) with armature inertia
-    int Madr_ij = m->M_rowadr[i] + m->M_rownnz[i] - 1;
-    d->M[Madr_ij] = m->dof_armature[i];
+    int Madr_ij = rowadr[i] + rownnz[i] - 1;
+    M[Madr_ij] = dof_armature[i];
 
     // precompute buf = crb_body_i * cdof_i
-    mju_mulInertVec(buf, crb+10*m->dof_bodyid[i], d->cdof+6*i);
+    mjtNum buf[6];
+    mju_mulInertVec(buf, crb+10*dof_bodyid[i], cdof+6*i);
 
     // sparse backward pass over ancestors
-    for (int j=i; j >= 0; j = m->dof_parentid[j]) {
+    for (int j=i; j >= 0; j = dof_parentid[j]) {
       // M(i,j) += cdof_j * (crb_body_i * cdof_i)
-      d->M[Madr_ij--] += mju_dot(d->cdof+6*j, buf, 6);
+      M[Madr_ij--] += mju_dot(cdof+6*j, buf, 6);
     }
   }
 }
