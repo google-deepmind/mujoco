@@ -172,31 +172,6 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
 
  public:
   // --------------------------------------------------------------------- //
-  // APIRATE
-  // --------------------------------------------------------------------- //
-  /// Determines the rate (in Hz) at which an external API allows
-  /// the update function to be executed.
-  ///
-  /// | ||
-  /// | -- | -- |
-  /// | Declaration | `uniform double mjc:option:apirate = 100` |
-  /// | C++ Type | double |
-  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Double |
-  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
-  MJCPHYSICS_API
-  UsdAttribute GetApiRateAttr() const;
-
-  /// See GetApiRateAttr(), and also
-  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
-  /// If specified, author \p defaultValue as the attribute's default,
-  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
-  /// the default for \p writeSparsely is \c false.
-  MJCPHYSICS_API
-  UsdAttribute CreateApiRateAttr(VtValue const& defaultValue = VtValue(),
-                                 bool writeSparsely = false) const;
-
- public:
-  // --------------------------------------------------------------------- //
   // IMPRATIO
   // --------------------------------------------------------------------- //
   /// Ratio of frictional-to-normal constraint impedance for elliptic

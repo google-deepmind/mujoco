@@ -455,10 +455,6 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsSceneAPI
   const TfToken mjcOptionActuatorgroupdisable;
-  /// \brief "mjc:option:apirate"
-  ///
-  /// MjcPhysicsSceneAPI
-  const TfToken mjcOptionApirate;
   /// \brief "mjc:option:ccd_iterations"
   ///
   /// MjcPhysicsSceneAPI

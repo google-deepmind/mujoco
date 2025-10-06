@@ -445,10 +445,6 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   mjc_physics_scene.GetTimestepAttr().Get(&timestep);
   spec->option.timestep = timestep;
 
-  double apirate;
-  mjc_physics_scene.GetApiRateAttr().Get(&apirate);
-  spec->option.apirate = apirate;
-
   double impratio;
   mjc_physics_scene.GetImpRatioAttr().Get(&impratio);
   spec->option.impratio = impratio;

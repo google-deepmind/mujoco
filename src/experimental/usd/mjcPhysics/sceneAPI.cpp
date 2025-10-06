@@ -85,17 +85,6 @@ UsdAttribute MjcPhysicsSceneAPI::CreateTimestepAttr(VtValue const& defaultValue,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
-UsdAttribute MjcPhysicsSceneAPI::GetApiRateAttr() const {
-  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionApirate);
-}
-
-UsdAttribute MjcPhysicsSceneAPI::CreateApiRateAttr(VtValue const& defaultValue,
-                                                   bool writeSparsely) const {
-  return UsdSchemaBase::_CreateAttr(
-      MjcPhysicsTokens->mjcOptionApirate, SdfValueTypeNames->Double,
-      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
-}
-
 UsdAttribute MjcPhysicsSceneAPI::GetImpRatioAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcOptionImpratio);
 }
@@ -798,7 +787,6 @@ const TfTokenVector& MjcPhysicsSceneAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcOptionTimestep,
-      MjcPhysicsTokens->mjcOptionApirate,
       MjcPhysicsTokens->mjcOptionImpratio,
       MjcPhysicsTokens->mjcOptionWind,
       MjcPhysicsTokens->mjcOptionMagnetic,

@@ -5089,7 +5089,6 @@ public unsafe struct _mjVFS
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct mjOption_ {
   public double timestep;
-  public double apirate;
   public double impratio;
   public double tolerance;
   public double ls_tolerance;

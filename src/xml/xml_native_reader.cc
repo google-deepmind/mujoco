@@ -110,8 +110,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "inttotal", "interval", "tolrange"},
     {">"},
 
-    {"option", "*", "27",
-        "timestep", "apirate", "impratio", "tolerance", "ls_tolerance", "noslip_tolerance",
+    {"option", "*", "26",
+        "timestep", "impratio", "tolerance", "ls_tolerance", "noslip_tolerance",
         "ccd_tolerance", "gravity", "wind", "magnetic", "density", "viscosity",
         "o_margin", "o_solref", "o_solimp", "o_friction",
         "integrator", "cone", "jacobian",
@@ -1130,7 +1130,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
 
   // read options
   ReadAttr(section, "timestep", 1, &opt->timestep, text);
-  ReadAttr(section, "apirate", 1, &opt->apirate, text);
   ReadAttr(section, "impratio", 1, &opt->impratio, text);
   ReadAttr(section, "tolerance", 1, &opt->tolerance, text);
   ReadAttr(section, "ls_tolerance", 1, &opt->ls_tolerance, text);

@@ -500,7 +500,6 @@ class ModelWriter {
              spec_->option.noslip_tolerance},
             {MjcPhysicsTokens->mjcOptionCcd_tolerance,
              spec_->option.ccd_tolerance},
-            {MjcPhysicsTokens->mjcOptionApirate, spec_->option.apirate},
             {MjcPhysicsTokens->mjcOptionImpratio, spec_->option.impratio},
             {MjcPhysicsTokens->mjcOptionDensity, spec_->option.density},
             {MjcPhysicsTokens->mjcOptionViscosity, spec_->option.viscosity},

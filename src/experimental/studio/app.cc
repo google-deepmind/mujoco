@@ -1364,7 +1364,6 @@ void App::PhysicsGui() {
     ImGui_Input("Noslip Tol", &opt.noslip_tolerance, {0, 1, 0.01, 0.1, w});
     ImGui_Input("CCD Iter", &opt.ccd_iterations, {0, 1000, 1, 100, w});
     ImGui_Input("CCD Tol", &opt.ccd_tolerance, {0, 1, 0.01, 0.1, w});
-    ImGui_Input("API Rate", &opt.apirate, {0, 1000, 1, 100, w});
     ImGui_Input("SDF Iter", &opt.sdf_iterations, {1, 20, 1, 10, w});
     ImGui_Input("SDF Init", &opt.sdf_initpoints, {1, 100, 1, 10, w});
     ImGui::TreePop();

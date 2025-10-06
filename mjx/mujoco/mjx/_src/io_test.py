@@ -173,7 +173,7 @@ class ModelIOTest(parameterized.TestCase):
       self.assertFalse(hasattr(mx, 'bvh_aabb'))
     elif impl == 'c':
       # Options specific to C are populated.
-      self.assertEqual(mx.opt._impl.apirate, m.opt.apirate)
+      self.assertEqual(mx.opt._impl.noslip_iterations, m.opt.noslip_iterations)
       # Fields private to C backend impl are populated.
       self.assertTrue(hasattr(mx._impl, 'bvh_aabb'))
     elif impl == 'warp':

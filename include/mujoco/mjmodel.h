@@ -469,7 +469,6 @@ typedef struct mjVFS_ mjVFS;
 struct mjOption_ {                // physics options
   // timing parameters
   mjtNum timestep;                // timestep
-  mjtNum apirate;                 // update rate for remote API (Hz)
 
   // solver parameters
   mjtNum impratio;                // ratio of friction-to-normal contact impedance

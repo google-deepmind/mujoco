@@ -497,7 +497,6 @@ class OptionC(PyTreeNode):
   disableactuator: int
   sdf_initpoints: int
   has_fluid_params: bool
-  apirate: jax.Array
   noslip_tolerance: jax.Array
   ccd_tolerance: jax.Array
   noslip_iterations: int

@@ -124,11 +124,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='timestep',
              ),
              StructFieldDecl(
-                 name='apirate',
-                 type=ValueType(name='mjtNum'),
-                 doc='update rate for remote API (Hz)',
-             ),
-             StructFieldDecl(
                  name='impratio',
                  type=ValueType(name='mjtNum'),
                  doc='ratio of friction-to-normal contact impedance',

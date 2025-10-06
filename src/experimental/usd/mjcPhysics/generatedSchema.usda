@@ -170,11 +170,6 @@ class "MjcSceneAPI" (
         displayName = "Actuator Group Disable"
         doc = "List of actuator groups to disable."
     )
-    uniform double mjc:option:apirate = 100 (
-        displayName = "ApiRate"
-        doc = """Determines the rate (in Hz) at which an external API allows
-        the update function to be executed."""
-    )
     uniform int mjc:option:ccd_iterations = 35 (
         displayName = "CCD Iterations"
         doc = "Maximum number of iterations of the algorithm used for convex collisions."

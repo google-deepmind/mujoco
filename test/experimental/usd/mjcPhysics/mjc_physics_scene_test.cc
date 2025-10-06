@@ -104,7 +104,6 @@ TEST_F(MjcPhysicsSceneTest, TestDefaults) {
   // If this test is failing due to an update of defaults in Mujoco you need to
   // update mjcPhysics/schema.usda.
   EXPECT_REAL_USD_FALLBACK_EQ_MODEL_DEFAULT(Timestep, timestep);
-  EXPECT_REAL_USD_FALLBACK_EQ_MODEL_DEFAULT(ApiRate, apirate);
   EXPECT_REAL_USD_FALLBACK_EQ_MODEL_DEFAULT(ImpRatio, impratio);
 
   EXPECT_VEC3_USD_FALLBACK_EQ_MODEL_DEFAULT(Wind, wind);

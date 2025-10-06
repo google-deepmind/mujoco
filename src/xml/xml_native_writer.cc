@@ -990,7 +990,6 @@ void mjXWriter::Option(XMLElement* root) {
 
   // option
   WriteAttr(section, "timestep", 1, &model->option.timestep, &opt.timestep);
-  WriteAttr(section, "apirate", 1, &model->option.apirate, &opt.apirate);
   WriteAttr(section, "impratio", 1, &model->option.impratio, &opt.impratio);
   WriteAttr(section, "tolerance", 1, &model->option.tolerance, &opt.tolerance);
   WriteAttr(section, "ls_tolerance", 1, &model->option.ls_tolerance, &opt.ls_tolerance);

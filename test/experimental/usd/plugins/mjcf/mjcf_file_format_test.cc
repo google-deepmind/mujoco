@@ -724,19 +724,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimWind) {
       pxr::GfVec3d(1, 2, 3));
 }
 
-TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimApirate) {
-  auto stage = OpenStage(R"(
-    <mujoco model="test">
-      <option apirate="1.2"> </option>
-    </mujoco>
-  )");
-
-  ExpectAttributeEqual(
-      stage,
-      kPhysicsScenePrimPath.AppendProperty(MjcPhysicsTokens->mjcOptionApirate),
-      1.2);
-}
-
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimImpratio) {
   auto stage = OpenStage(R"(
     <mujoco model="test">

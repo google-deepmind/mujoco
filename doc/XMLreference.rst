@@ -308,13 +308,6 @@ adjust it properly through the XML.
    optimization-related applications, real-time is no longer good enough and instead it is desirable to run the
    simulation as fast as possible. In that case the time step should be made as large as possible.
 
-.. _option-apirate:
-
-:at:`apirate`: :at-val:`real, "100"`
-   This parameter determines the rate (in Hz) at which an external API allows the update function to be executed. This
-   mechanism is used to simulate devices with limited communication bandwidth. It only affects the socket API and not
-   the physics simulation.
-
 .. _option-impratio:
 
 :at:`impratio`: :at-val:`real, "1"`

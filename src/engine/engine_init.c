@@ -54,7 +54,6 @@ void mj_defaultOption(mjOption* opt) {
 
   // timing parameters
   opt->timestep           = 0.002;
-  opt->apirate            = 100;
 
   // solver parameters
   opt->impratio           = 1;
