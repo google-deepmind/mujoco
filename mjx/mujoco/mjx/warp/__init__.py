@@ -32,10 +32,10 @@ if not typing.TYPE_CHECKING:
     print('Failed to import warp:', e)
     WARP_INSTALLED = False
   try:
-    import mujoco.mjx.third_party.mujoco_warp as mujoco_warp
+    from mujoco.mjx.third_party import mujoco_warp
     from mujoco.mjx.third_party.mujoco_warp._src import types as mjwp_types
   except (ImportError, RuntimeError) as e:
-    print('Failed to import mujoco.mjx.third_party.mujoco_warp as mujoco_warp:', e)
+    print('Failed to import mujoco_warp:', e)
     pass
   # pylint: enable=g-import-not-at-top
 else:

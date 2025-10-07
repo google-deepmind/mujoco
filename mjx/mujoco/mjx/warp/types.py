@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 """MJX Warp types.
+
 DO NOT EDIT. This file is auto-generated.
 """
 import dataclasses
@@ -22,7 +23,9 @@ from jax import tree_util
 from jax.interpreters import batching
 from mujoco.mjx._src import dataclasses as mjx_dataclasses
 import numpy as np
+
 PyTreeNode = mjx_dataclasses.PyTreeNode
+
 
 @dataclasses.dataclass(frozen=True)
 @tree_util.register_pytree_node_class
@@ -35,6 +38,7 @@ class TileSet:
     adr: address of each tile in the set
     size: size of all the tiles in this set
   """
+
   adr: np.ndarray
   size: int
 
@@ -55,6 +59,7 @@ class BlockDim:
 
   TODO(team): experimental and may be removed
   """
+
   actuator_velocity: int
   cholesky_factorize: int
   cholesky_factorize_solve: int
@@ -82,16 +87,18 @@ class BlockDim:
 
 class StatisticWarp(PyTreeNode):
   """Derived fields from Statistic."""
+
   meaninertia: float
+
 
 class OptionWarp(PyTreeNode):
   """Derived fields from Option."""
+
   broadphase: int
   broadphase_filter: int
+  ccd_iterations: int
   ccd_tolerance: jax.Array
   contact_sensor_maxmatch: int
-  epa_iterations: int
-  gjk_iterations: int
   graph_conditional: bool
   has_fluid: bool
   is_sparse: bool
@@ -102,17 +109,19 @@ class OptionWarp(PyTreeNode):
   sdf_initpoints: int
   sdf_iterations: int
 
+
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
+
   M_colind: np.ndarray
   M_rowadr: np.ndarray
   M_rownnz: np.ndarray
-  actuator_affine_bias_gain: bool
   actuator_moment_tiles_nu: Tuple[TileSet, ...]
   actuator_moment_tiles_nv: Tuple[TileSet, ...]
   actuator_trntype_body_adr: np.ndarray
   block_dim: BlockDim
   body_tree: Tuple[np.ndarray, ...]
+  collision_sensor_adr: np.ndarray
   condim_max: int
   dof_tri_col: np.ndarray
   dof_tri_row: np.ndarray
@@ -160,9 +169,6 @@ class ModelWarp(PyTreeNode):
   nflexelemdata: int
   nflexvert: int
   nlsp: int
-  nmeshpoly: int
-  nmeshpolymap: int
-  nmeshpolyvert: int
   nsensortaxel: int
   nxn_geom_pair: np.ndarray
   nxn_geom_pair_filtered: np.ndarray
@@ -212,8 +218,10 @@ class ModelWarp(PyTreeNode):
   wrap_site_adr: np.ndarray
   wrap_site_pair_adr: np.ndarray
 
+
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
+
   act_dot_rk: jax.Array
   act_t0: jax.Array
   act_vel_integration: jax.Array
@@ -370,6 +378,8 @@ class DataWarp(PyTreeNode):
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   shape = property(lambda self: self.cacc.shape)
+
+
 DATA_NON_VMAP = {
     'collision_pair',
     'collision_pairid',
@@ -417,6 +427,7 @@ DATA_NON_VMAP = {
     'nworld',
     'ray_bodyexclude',
 }
+
 
 def _to_elt(cont, _, d, axis):
   return DataWarp(**{
@@ -650,7 +661,6 @@ _NDIM = {
         'actuator_actlimited': 1,
         'actuator_actnum': 1,
         'actuator_actrange': 3,
-        'actuator_affine_bias_gain': 0,
         'actuator_biasprm': 3,
         'actuator_biastype': 1,
         'actuator_cranklength': 1,
@@ -717,6 +727,7 @@ _NDIM = {
         'cam_resolution': 2,
         'cam_sensorsize': 2,
         'cam_targetbodyid': 1,
+        'collision_sensor_adr': 1,
         'condim_max': 0,
         'dof_Madr': 1,
         'dof_armature': 2,
@@ -884,14 +895,13 @@ _NDIM = {
         'oct_coeff': 2,
         'opt__broadphase': 0,
         'opt__broadphase_filter': 0,
+        'opt__ccd_iterations': 0,
         'opt__ccd_tolerance': 1,
         'opt__cone': 0,
         'opt__contact_sensor_maxmatch': 0,
         'opt__density': 1,
         'opt__disableflags': 0,
         'opt__enableflags': 0,
-        'opt__epa_iterations': 0,
-        'opt__gjk_iterations': 0,
         'opt__graph_conditional': 0,
         'opt__gravity': 2,
         'opt__has_fluid': 0,
@@ -1005,14 +1015,13 @@ _NDIM = {
     'Option': {
         'broadphase': 0,
         'broadphase_filter': 0,
+        'ccd_iterations': 0,
         'ccd_tolerance': 1,
         'cone': 0,
         'contact_sensor_maxmatch': 0,
         'density': 1,
         'disableflags': 0,
         'enableflags': 0,
-        'epa_iterations': 0,
-        'gjk_iterations': 0,
         'graph_conditional': 0,
         'gravity': 2,
         'has_fluid': 0,
@@ -1245,7 +1254,6 @@ _BATCH_DIM = {
         'actuator_actlimited': False,
         'actuator_actnum': False,
         'actuator_actrange': True,
-        'actuator_affine_bias_gain': False,
         'actuator_biasprm': True,
         'actuator_biastype': False,
         'actuator_cranklength': False,
@@ -1312,6 +1320,7 @@ _BATCH_DIM = {
         'cam_resolution': False,
         'cam_sensorsize': False,
         'cam_targetbodyid': False,
+        'collision_sensor_adr': False,
         'condim_max': False,
         'dof_Madr': False,
         'dof_armature': True,
@@ -1479,14 +1488,13 @@ _BATCH_DIM = {
         'oct_coeff': False,
         'opt__broadphase': False,
         'opt__broadphase_filter': False,
+        'opt__ccd_iterations': False,
         'opt__ccd_tolerance': True,
         'opt__cone': False,
         'opt__contact_sensor_maxmatch': False,
         'opt__density': True,
         'opt__disableflags': False,
         'opt__enableflags': False,
-        'opt__epa_iterations': False,
-        'opt__gjk_iterations': False,
         'opt__graph_conditional': False,
         'opt__gravity': True,
         'opt__has_fluid': False,
@@ -1600,14 +1608,13 @@ _BATCH_DIM = {
     'Option': {
         'broadphase': False,
         'broadphase_filter': False,
+        'ccd_iterations': False,
         'ccd_tolerance': True,
         'cone': False,
         'contact_sensor_maxmatch': False,
         'density': True,
         'disableflags': False,
         'enableflags': False,
-        'epa_iterations': False,
-        'gjk_iterations': False,
         'graph_conditional': False,
         'gravity': True,
         'has_fluid': False,

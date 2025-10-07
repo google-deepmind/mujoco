@@ -104,10 +104,9 @@ def _collision_shim(
     plugin_attr: wp.array(dtype=wp.vec3f),
     opt__broadphase: int,
     opt__broadphase_filter: int,
+    opt__ccd_iterations: int,
     opt__ccd_tolerance: wp.array(dtype=float),
     opt__disableflags: int,
-    opt__epa_iterations: int,
-    opt__gjk_iterations: int,
     opt__graph_conditional: bool,
     opt__legacy_gjk: bool,
     opt__sdf_initpoints: int,
@@ -213,10 +212,9 @@ def _collision_shim(
   _m.oct_coeff = oct_coeff
   _m.opt.broadphase = opt__broadphase
   _m.opt.broadphase_filter = opt__broadphase_filter
+  _m.opt.ccd_iterations = opt__ccd_iterations
   _m.opt.ccd_tolerance = opt__ccd_tolerance
   _m.opt.disableflags = opt__disableflags
-  _m.opt.epa_iterations = opt__epa_iterations
-  _m.opt.gjk_iterations = opt__gjk_iterations
   _m.opt.graph_conditional = opt__graph_conditional
   _m.opt.legacy_gjk = opt__legacy_gjk
   _m.opt.sdf_initpoints = opt__sdf_initpoints
@@ -443,10 +441,9 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m._impl.plugin_attr,
       m.opt._impl.broadphase,
       m.opt._impl.broadphase_filter,
+      m.opt._impl.ccd_iterations,
       m.opt._impl.ccd_tolerance,
       m.opt.disableflags,
-      m.opt._impl.epa_iterations,
-      m.opt._impl.gjk_iterations,
       m.opt._impl.graph_conditional,
       m.opt._impl.legacy_gjk,
       m.opt._impl.sdf_initpoints,
@@ -554,6 +551,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def collision(m: types.Model, d: types.Data):
   return _collision_jax_impl(m, d)
+
+
 @collision.def_vmap
 @ffi.marshal_custom_vmap
 def collision_vmap(unused_axis_size, is_batched, m, d):

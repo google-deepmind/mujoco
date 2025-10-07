@@ -74,6 +74,8 @@ def _forward_shim(
     block_dim: mjwp_types.BlockDim,
     body_dofadr: wp.array(dtype=int),
     body_dofnum: wp.array(dtype=int),
+    body_geomadr: wp.array(dtype=int),
+    body_geomnum: wp.array(dtype=int),
     body_gravcomp: wp.array2d(dtype=float),
     body_inertia: wp.array2d(dtype=wp.vec3),
     body_invweight0: wp.array2d(dtype=wp.vec2),
@@ -101,6 +103,7 @@ def _forward_shim(
     cam_resolution: wp.array(dtype=wp.vec2i),
     cam_sensorsize: wp.array(dtype=wp.vec2),
     cam_targetbodyid: wp.array(dtype=int),
+    collision_sensor_adr: wp.array(dtype=int),
     condim_max: int,
     dof_Madr: wp.array(dtype=int),
     dof_armature: wp.array2d(dtype=float),
@@ -319,14 +322,13 @@ def _forward_shim(
     wrap_type: wp.array(dtype=int),
     opt__broadphase: int,
     opt__broadphase_filter: int,
+    opt__ccd_iterations: int,
     opt__ccd_tolerance: wp.array(dtype=float),
     opt__cone: int,
     opt__contact_sensor_maxmatch: int,
     opt__density: wp.array(dtype=float),
     opt__disableflags: int,
     opt__enableflags: int,
-    opt__epa_iterations: int,
-    opt__gjk_iterations: int,
     opt__graph_conditional: bool,
     opt__gravity: wp.array(dtype=wp.vec3),
     opt__has_fluid: bool,
@@ -556,6 +558,8 @@ def _forward_shim(
   _m.block_dim = block_dim
   _m.body_dofadr = body_dofadr
   _m.body_dofnum = body_dofnum
+  _m.body_geomadr = body_geomadr
+  _m.body_geomnum = body_geomnum
   _m.body_gravcomp = body_gravcomp
   _m.body_inertia = body_inertia
   _m.body_invweight0 = body_invweight0
@@ -583,6 +587,7 @@ def _forward_shim(
   _m.cam_resolution = cam_resolution
   _m.cam_sensorsize = cam_sensorsize
   _m.cam_targetbodyid = cam_targetbodyid
+  _m.collision_sensor_adr = collision_sensor_adr
   _m.condim_max = condim_max
   _m.dof_Madr = dof_Madr
   _m.dof_armature = dof_armature
@@ -720,14 +725,13 @@ def _forward_shim(
   _m.oct_coeff = oct_coeff
   _m.opt.broadphase = opt__broadphase
   _m.opt.broadphase_filter = opt__broadphase_filter
+  _m.opt.ccd_iterations = opt__ccd_iterations
   _m.opt.ccd_tolerance = opt__ccd_tolerance
   _m.opt.cone = opt__cone
   _m.opt.contact_sensor_maxmatch = opt__contact_sensor_maxmatch
   _m.opt.density = opt__density
   _m.opt.disableflags = opt__disableflags
   _m.opt.enableflags = opt__enableflags
-  _m.opt.epa_iterations = opt__epa_iterations
-  _m.opt.gjk_iterations = opt__gjk_iterations
   _m.opt.graph_conditional = opt__graph_conditional
   _m.opt.gravity = opt__gravity
   _m.opt.has_fluid = opt__has_fluid
@@ -1395,6 +1399,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.block_dim,
       m.body_dofadr,
       m.body_dofnum,
+      m.body_geomadr,
+      m.body_geomnum,
       m.body_gravcomp,
       m.body_inertia,
       m.body_invweight0,
@@ -1422,6 +1428,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.cam_resolution,
       m.cam_sensorsize,
       m.cam_targetbodyid,
+      m._impl.collision_sensor_adr,
       m._impl.condim_max,
       m.dof_Madr,
       m.dof_armature,
@@ -1640,14 +1647,13 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.wrap_type,
       m.opt._impl.broadphase,
       m.opt._impl.broadphase_filter,
+      m.opt._impl.ccd_iterations,
       m.opt._impl.ccd_tolerance,
       m.opt.cone,
       m.opt._impl.contact_sensor_maxmatch,
       m.opt.density,
       m.opt.disableflags,
       m.opt.enableflags,
-      m.opt._impl.epa_iterations,
-      m.opt._impl.gjk_iterations,
       m.opt._impl.graph_conditional,
       m.opt.gravity,
       m.opt._impl.has_fluid,
@@ -2027,6 +2033,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def forward(m: types.Model, d: types.Data):
   return _forward_jax_impl(m, d)
+
+
 @forward.def_vmap
 @ffi.marshal_custom_vmap
 def forward_vmap(unused_axis_size, is_batched, m, d):
@@ -2066,7 +2074,6 @@ def _step_shim(
     actuator_actlimited: wp.array(dtype=bool),
     actuator_actnum: wp.array(dtype=int),
     actuator_actrange: wp.array2d(dtype=wp.vec2),
-    actuator_affine_bias_gain: bool,
     actuator_biasprm: wp.array2d(dtype=mjwp_types.vec10f),
     actuator_biastype: wp.array(dtype=int),
     actuator_cranklength: wp.array(dtype=float),
@@ -2086,6 +2093,8 @@ def _step_shim(
     block_dim: mjwp_types.BlockDim,
     body_dofadr: wp.array(dtype=int),
     body_dofnum: wp.array(dtype=int),
+    body_geomadr: wp.array(dtype=int),
+    body_geomnum: wp.array(dtype=int),
     body_gravcomp: wp.array2d(dtype=float),
     body_inertia: wp.array2d(dtype=wp.vec3),
     body_invweight0: wp.array2d(dtype=wp.vec2),
@@ -2113,6 +2122,7 @@ def _step_shim(
     cam_resolution: wp.array(dtype=wp.vec2i),
     cam_sensorsize: wp.array(dtype=wp.vec2),
     cam_targetbodyid: wp.array(dtype=int),
+    collision_sensor_adr: wp.array(dtype=int),
     condim_max: int,
     dof_Madr: wp.array(dtype=int),
     dof_armature: wp.array2d(dtype=float),
@@ -2331,14 +2341,13 @@ def _step_shim(
     wrap_type: wp.array(dtype=int),
     opt__broadphase: int,
     opt__broadphase_filter: int,
+    opt__ccd_iterations: int,
     opt__ccd_tolerance: wp.array(dtype=float),
     opt__cone: int,
     opt__contact_sensor_maxmatch: int,
     opt__density: wp.array(dtype=float),
     opt__disableflags: int,
     opt__enableflags: int,
-    opt__epa_iterations: int,
-    opt__gjk_iterations: int,
     opt__graph_conditional: bool,
     opt__gravity: wp.array(dtype=wp.vec3),
     opt__has_fluid: bool,
@@ -2562,7 +2571,6 @@ def _step_shim(
   _m.actuator_actlimited = actuator_actlimited
   _m.actuator_actnum = actuator_actnum
   _m.actuator_actrange = actuator_actrange
-  _m.actuator_affine_bias_gain = actuator_affine_bias_gain
   _m.actuator_biasprm = actuator_biasprm
   _m.actuator_biastype = actuator_biastype
   _m.actuator_cranklength = actuator_cranklength
@@ -2582,6 +2590,8 @@ def _step_shim(
   _m.block_dim = block_dim
   _m.body_dofadr = body_dofadr
   _m.body_dofnum = body_dofnum
+  _m.body_geomadr = body_geomadr
+  _m.body_geomnum = body_geomnum
   _m.body_gravcomp = body_gravcomp
   _m.body_inertia = body_inertia
   _m.body_invweight0 = body_invweight0
@@ -2609,6 +2619,7 @@ def _step_shim(
   _m.cam_resolution = cam_resolution
   _m.cam_sensorsize = cam_sensorsize
   _m.cam_targetbodyid = cam_targetbodyid
+  _m.collision_sensor_adr = collision_sensor_adr
   _m.condim_max = condim_max
   _m.dof_Madr = dof_Madr
   _m.dof_armature = dof_armature
@@ -2746,14 +2757,13 @@ def _step_shim(
   _m.oct_coeff = oct_coeff
   _m.opt.broadphase = opt__broadphase
   _m.opt.broadphase_filter = opt__broadphase_filter
+  _m.opt.ccd_iterations = opt__ccd_iterations
   _m.opt.ccd_tolerance = opt__ccd_tolerance
   _m.opt.cone = opt__cone
   _m.opt.contact_sensor_maxmatch = opt__contact_sensor_maxmatch
   _m.opt.density = opt__density
   _m.opt.disableflags = opt__disableflags
   _m.opt.enableflags = opt__enableflags
-  _m.opt.epa_iterations = opt__epa_iterations
-  _m.opt.gjk_iterations = opt__gjk_iterations
   _m.opt.graph_conditional = opt__graph_conditional
   _m.opt.gravity = opt__gravity
   _m.opt.has_fluid = opt__has_fluid
@@ -3439,7 +3449,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.actuator_actlimited,
       m.actuator_actnum,
       m.actuator_actrange,
-      m._impl.actuator_affine_bias_gain,
       m.actuator_biasprm,
       m.actuator_biastype,
       m.actuator_cranklength,
@@ -3459,6 +3468,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.block_dim,
       m.body_dofadr,
       m.body_dofnum,
+      m.body_geomadr,
+      m.body_geomnum,
       m.body_gravcomp,
       m.body_inertia,
       m.body_invweight0,
@@ -3486,6 +3497,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.cam_resolution,
       m.cam_sensorsize,
       m.cam_targetbodyid,
+      m._impl.collision_sensor_adr,
       m._impl.condim_max,
       m.dof_Madr,
       m.dof_armature,
@@ -3704,14 +3716,13 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.wrap_type,
       m.opt._impl.broadphase,
       m.opt._impl.broadphase_filter,
+      m.opt._impl.ccd_iterations,
       m.opt._impl.ccd_tolerance,
       m.opt.cone,
       m.opt._impl.contact_sensor_maxmatch,
       m.opt.density,
       m.opt.disableflags,
       m.opt.enableflags,
-      m.opt._impl.epa_iterations,
-      m.opt._impl.gjk_iterations,
       m.opt._impl.graph_conditional,
       m.opt.gravity,
       m.opt._impl.has_fluid,
@@ -4116,6 +4127,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def step(m: types.Model, d: types.Data):
   return _step_jax_impl(m, d)
+
+
 @step.def_vmap
 @ffi.marshal_custom_vmap
 def step_vmap(unused_axis_size, is_batched, m, d):
