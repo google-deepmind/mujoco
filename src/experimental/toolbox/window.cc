@@ -85,7 +85,7 @@ Window::Window(std::string_view title, int width, int height, Config config,
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-  } else if (config == kMujocoOpenGL || config == kFilamentOpenGL) {
+  } else if (config == kClassicOpenGL || config == kFilamentOpenGL) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -102,7 +102,7 @@ Window::Window(std::string_view title, int width, int height, Config config,
 
   InitImGui(sdl_window_, load_asset_fn);
 
-  if (config == kFilamentWebGL || config == kMujocoOpenGL) {
+  if (config == kFilamentWebGL || config == kClassicOpenGL) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
     SDL_GL_MakeCurrent(sdl_window_, gl_context);
   }

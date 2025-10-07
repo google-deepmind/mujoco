@@ -31,7 +31,7 @@ class Window {
  public:
   // Configures the window for the specified rendering backend.
   enum Config {
-    kMujocoOpenGL,
+    kClassicOpenGL,
     kFilamentVulkan,
     kFilamentOpenGL,
     kFilamentWebGL,

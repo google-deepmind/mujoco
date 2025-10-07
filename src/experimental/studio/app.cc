@@ -14,10 +14,6 @@
 
 #include "experimental/studio/app.h"
 
-#ifndef USE_FILAMENT_RENDERING
-#define USE_FILAMENT_RENDERING 0
-#endif
-
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -43,10 +39,12 @@
 #include "experimental/toolbox/renderer.h"
 #include "experimental/toolbox/window.h"
 
-#if USE_FILAMENT_RENDERING
+#if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "third_party/mujoco/google/filament/render_context_filament.h"
-#else
+#elif defined(USE_CLASSIC_OPENGL)
 #include "third_party/dear_imgui/backends/imgui_impl_opengl2.h"
+#else
+#error No rendering mode defined.
 #endif
 
 namespace mujoco::studio {
@@ -57,6 +55,16 @@ namespace mujoco::studio {
 // - solver iteration profiler
 // - "passive" mode
 // - async physics
+
+static constexpr toolbox::Window::Config kWindowConfig =
+#if defined(USE_FILAMENT_VULKAN)
+  toolbox::Window::Config::kFilamentVulkan;
+#elif defined(USE_FILAMENT_OPENGL)
+  toolbox::Window::Config::kFilamentOpenGL;
+#elif defined(USE_CLASSIC_OPENGL)
+  toolbox::Window::Config::kClassicOpenGL;
+#endif
+
 
 static void ToggleWindow(bool& window) {
   window = !window;
@@ -93,27 +101,25 @@ using toolbox::ToggleKind;
 App::App(int width, int height, std::string ini_path,
          const toolbox::LoadAssetFn& load_asset_fn)
     : ini_path_(std::move(ini_path)), load_asset_fn_(load_asset_fn) {
-#if USE_FILAMENT_RENDERING
-  const toolbox::Window::Config config =
-      toolbox::Window::Config::kFilamentVulkan;
-#else
-  const toolbox::Window::Config config = toolbox::Window::Config::kMujocoOpenGL;
-#endif
-
   window_ = std::make_unique<toolbox::Window>("MuJoCo Studio", width, height,
-                                              config, load_asset_fn);
+                                              kWindowConfig, load_asset_fn);
 
   auto make_context_fn = [&](const mjModel* m, mjrContext* con) {
-#if USE_FILAMENT_RENDERING
+#if defined(USE_CLASSIC_OPENGL)
+    mjr_makeContext(m, con, mjFONTSCALE_150);
+#else
     mjrFilamentConfig render_config;
     mjr_defaultFilamentConfig(&render_config);
     render_config.native_window = window_->GetNativeWindowHandle();
     render_config.load_asset = &App::LoadAssetCallback;
     render_config.load_asset_user_data = this;
     render_config.enable_gui = true;
+#if defined(USE_FILAMENT_OPENGL)
+    render_config.graphics_api = mjGFX_OPENGL;
+#elif defined(USE_FILAMENT_VULKAN)
+    render_config.graphics_api = mjGFX_VULKAN;
+#endif
     mjr_makeFilamentContext(m, con, &render_config);
-#else
-    mjr_makeContext(m, con, mjFONTSCALE_150);
 #endif
   };
   renderer_ = std::make_unique<toolbox::Renderer>(make_context_fn);
@@ -128,7 +134,7 @@ App::App(int width, int height, std::string ini_path,
   LoadSettings();
   ClearProfilerData();
 
-#if USE_FILAMENT_RENDERING == 0
+#ifdef USE_CLASSIC_OPENGL
   ImGui_ImplOpenGL2_Init();
 #endif
 }
@@ -153,7 +159,7 @@ void App::OnModelLoaded(std::string_view model_file) {
 bool App::Update() {
   const toolbox::Window::Status status = window_->NewFrame();
 
-#if USE_FILAMENT_RENDERING == 0
+#ifdef USE_CLASSIC_OPENGL
   ImGui_ImplOpenGL2_NewFrame();
 #endif
 
@@ -189,7 +195,7 @@ void App::Render() {
   renderer_->Render(Model(), Data(), &perturb_, &camera_, &vis_options_,
                     width * scale, height * scale);
 
-#if USE_FILAMENT_RENDERING == 0
+#ifdef USE_CLASSIC_OPENGL
   ImGui::Render();
   ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 #endif
