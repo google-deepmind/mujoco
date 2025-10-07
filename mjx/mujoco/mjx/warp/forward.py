@@ -74,6 +74,7 @@ def _forward_shim(
     block_dim: mjwp_types.BlockDim,
     body_dofadr: wp.array(dtype=int),
     body_dofnum: wp.array(dtype=int),
+    body_fluid_ellipsoid: wp.array(dtype=bool),
     body_geomadr: wp.array(dtype=int),
     body_geomnum: wp.array(dtype=int),
     body_gravcomp: wp.array2d(dtype=float),
@@ -144,6 +145,7 @@ def _forward_shim(
     geom_bodyid: wp.array(dtype=int),
     geom_condim: wp.array(dtype=int),
     geom_dataid: wp.array(dtype=int),
+    geom_fluid: wp.array2d(dtype=float),
     geom_friction: wp.array2d(dtype=wp.vec3),
     geom_gap: wp.array2d(dtype=float),
     geom_group: wp.array(dtype=int),
@@ -351,7 +353,7 @@ def _forward_shim(
     opt__wind: wp.array(dtype=wp.vec3),
     stat__meaninertia: float,
     # Data
-    nconmax: int,
+    naconmax: int,
     njmax: int,
     act: wp.array2d(dtype=float),
     act_dot: wp.array2d(dtype=float),
@@ -409,8 +411,8 @@ def _forward_shim(
     multiccd_pdist: wp.array2d(dtype=float),
     multiccd_pnormal: wp.array2d(dtype=wp.vec3),
     multiccd_polygon: wp.array2d(dtype=wp.vec3),
+    nacon: wp.array(dtype=int),
     ncollision: wp.array(dtype=int),
-    ncon: wp.array(dtype=int),
     ne: wp.array(dtype=int),
     ne_connect: wp.array(dtype=int),
     ne_jnt: wp.array(dtype=int),
@@ -558,6 +560,7 @@ def _forward_shim(
   _m.block_dim = block_dim
   _m.body_dofadr = body_dofadr
   _m.body_dofnum = body_dofnum
+  _m.body_fluid_ellipsoid = body_fluid_ellipsoid
   _m.body_geomadr = body_geomadr
   _m.body_geomnum = body_geomnum
   _m.body_gravcomp = body_gravcomp
@@ -628,6 +631,7 @@ def _forward_shim(
   _m.geom_bodyid = geom_bodyid
   _m.geom_condim = geom_condim
   _m.geom_dataid = geom_dataid
+  _m.geom_fluid = geom_fluid
   _m.geom_friction = geom_friction
   _m.geom_gap = geom_gap
   _m.geom_group = geom_group
@@ -936,9 +940,9 @@ def _forward_shim(
   _d.multiccd_pdist = multiccd_pdist
   _d.multiccd_pnormal = multiccd_pnormal
   _d.multiccd_polygon = multiccd_polygon
+  _d.nacon = nacon
+  _d.naconmax = naconmax
   _d.ncollision = ncollision
-  _d.ncon = ncon
-  _d.nconmax = nconmax
   _d.ne = ne
   _d.ne_connect = ne_connect
   _d.ne_jnt = ne_jnt
@@ -1071,8 +1075,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       'multiccd_pdist': d._impl.multiccd_pdist.shape,
       'multiccd_pnormal': d._impl.multiccd_pnormal.shape,
       'multiccd_polygon': d._impl.multiccd_polygon.shape,
+      'nacon': d._impl.nacon.shape,
       'ncollision': d._impl.ncollision.shape,
-      'ncon': d._impl.ncon.shape,
       'ne': d._impl.ne.shape,
       'ne_connect': d._impl.ne_connect.shape,
       'ne_jnt': d._impl.ne_jnt.shape,
@@ -1251,8 +1255,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
           'multiccd_pdist',
           'multiccd_pnormal',
           'multiccd_polygon',
+          'nacon',
           'ncollision',
-          'ncon',
           'ne',
           'ne_connect',
           'ne_jnt',
@@ -1399,6 +1403,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m._impl.block_dim,
       m.body_dofadr,
       m.body_dofnum,
+      m._impl.body_fluid_ellipsoid,
       m.body_geomadr,
       m.body_geomnum,
       m.body_gravcomp,
@@ -1469,6 +1474,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.geom_bodyid,
       m.geom_condim,
       m.geom_dataid,
+      m.geom_fluid,
       m.geom_friction,
       m.geom_gap,
       m.geom_group,
@@ -1675,7 +1681,7 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.opt.viscosity,
       m.opt.wind,
       m.stat.meaninertia,
-      d._impl.nconmax,
+      d._impl.naconmax,
       d._impl.njmax,
       d.act,
       d.act_dot,
@@ -1733,8 +1739,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       d._impl.multiccd_pdist,
       d._impl.multiccd_pnormal,
       d._impl.multiccd_polygon,
+      d._impl.nacon,
       d._impl.ncollision,
-      d._impl.ncon,
       d._impl.ne,
       d._impl.ne_connect,
       d._impl.ne_jnt,
@@ -1908,8 +1914,8 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       '_impl.multiccd_pdist': out[53],
       '_impl.multiccd_pnormal': out[54],
       '_impl.multiccd_polygon': out[55],
-      '_impl.ncollision': out[56],
-      '_impl.ncon': out[57],
+      '_impl.nacon': out[56],
+      '_impl.ncollision': out[57],
       '_impl.ne': out[58],
       '_impl.ne_connect': out[59],
       '_impl.ne_jnt': out[60],
@@ -2033,8 +2039,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def forward(m: types.Model, d: types.Data):
   return _forward_jax_impl(m, d)
-
-
 @forward.def_vmap
 @ffi.marshal_custom_vmap
 def forward_vmap(unused_axis_size, is_batched, m, d):
@@ -2093,6 +2097,7 @@ def _step_shim(
     block_dim: mjwp_types.BlockDim,
     body_dofadr: wp.array(dtype=int),
     body_dofnum: wp.array(dtype=int),
+    body_fluid_ellipsoid: wp.array(dtype=bool),
     body_geomadr: wp.array(dtype=int),
     body_geomnum: wp.array(dtype=int),
     body_gravcomp: wp.array2d(dtype=float),
@@ -2163,6 +2168,7 @@ def _step_shim(
     geom_bodyid: wp.array(dtype=int),
     geom_condim: wp.array(dtype=int),
     geom_dataid: wp.array(dtype=int),
+    geom_fluid: wp.array2d(dtype=float),
     geom_friction: wp.array2d(dtype=wp.vec3),
     geom_gap: wp.array2d(dtype=float),
     geom_group: wp.array(dtype=int),
@@ -2371,7 +2377,7 @@ def _step_shim(
     opt__wind: wp.array(dtype=wp.vec3),
     stat__meaninertia: float,
     # Data
-    nconmax: int,
+    naconmax: int,
     njmax: int,
     act: wp.array2d(dtype=float),
     act_dot: wp.array2d(dtype=float),
@@ -2432,8 +2438,8 @@ def _step_shim(
     multiccd_pdist: wp.array2d(dtype=float),
     multiccd_pnormal: wp.array2d(dtype=wp.vec3),
     multiccd_polygon: wp.array2d(dtype=wp.vec3),
+    nacon: wp.array(dtype=int),
     ncollision: wp.array(dtype=int),
-    ncon: wp.array(dtype=int),
     ne: wp.array(dtype=int),
     ne_connect: wp.array(dtype=int),
     ne_jnt: wp.array(dtype=int),
@@ -2590,6 +2596,7 @@ def _step_shim(
   _m.block_dim = block_dim
   _m.body_dofadr = body_dofadr
   _m.body_dofnum = body_dofnum
+  _m.body_fluid_ellipsoid = body_fluid_ellipsoid
   _m.body_geomadr = body_geomadr
   _m.body_geomnum = body_geomnum
   _m.body_gravcomp = body_gravcomp
@@ -2660,6 +2667,7 @@ def _step_shim(
   _m.geom_bodyid = geom_bodyid
   _m.geom_condim = geom_condim
   _m.geom_dataid = geom_dataid
+  _m.geom_fluid = geom_fluid
   _m.geom_friction = geom_friction
   _m.geom_gap = geom_gap
   _m.geom_group = geom_group
@@ -2972,9 +2980,9 @@ def _step_shim(
   _d.multiccd_pdist = multiccd_pdist
   _d.multiccd_pnormal = multiccd_pnormal
   _d.multiccd_polygon = multiccd_polygon
+  _d.nacon = nacon
+  _d.naconmax = naconmax
   _d.ncollision = ncollision
-  _d.ncon = ncon
-  _d.nconmax = nconmax
   _d.ne = ne
   _d.ne_connect = ne_connect
   _d.ne_jnt = ne_jnt
@@ -3119,8 +3127,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       'multiccd_pdist': d._impl.multiccd_pdist.shape,
       'multiccd_pnormal': d._impl.multiccd_pnormal.shape,
       'multiccd_polygon': d._impl.multiccd_polygon.shape,
+      'nacon': d._impl.nacon.shape,
       'ncollision': d._impl.ncollision.shape,
-      'ncon': d._impl.ncon.shape,
       'ne': d._impl.ne.shape,
       'ne_connect': d._impl.ne_connect.shape,
       'ne_jnt': d._impl.ne_jnt.shape,
@@ -3311,8 +3319,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
           'multiccd_pdist',
           'multiccd_pnormal',
           'multiccd_polygon',
+          'nacon',
           'ncollision',
-          'ncon',
           'ne',
           'ne_connect',
           'ne_jnt',
@@ -3468,6 +3476,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m._impl.block_dim,
       m.body_dofadr,
       m.body_dofnum,
+      m._impl.body_fluid_ellipsoid,
       m.body_geomadr,
       m.body_geomnum,
       m.body_gravcomp,
@@ -3538,6 +3547,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.geom_bodyid,
       m.geom_condim,
       m.geom_dataid,
+      m.geom_fluid,
       m.geom_friction,
       m.geom_gap,
       m.geom_group,
@@ -3745,7 +3755,7 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.opt.viscosity,
       m.opt.wind,
       m.stat.meaninertia,
-      d._impl.nconmax,
+      d._impl.naconmax,
       d._impl.njmax,
       d.act,
       d.act_dot,
@@ -3806,8 +3816,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       d._impl.multiccd_pdist,
       d._impl.multiccd_pnormal,
       d._impl.multiccd_polygon,
+      d._impl.nacon,
       d._impl.ncollision,
-      d._impl.ncon,
       d._impl.ne,
       d._impl.ne_connect,
       d._impl.ne_jnt,
@@ -3993,8 +4003,8 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       '_impl.multiccd_pdist': out[56],
       '_impl.multiccd_pnormal': out[57],
       '_impl.multiccd_polygon': out[58],
-      '_impl.ncollision': out[59],
-      '_impl.ncon': out[60],
+      '_impl.nacon': out[59],
+      '_impl.ncollision': out[60],
       '_impl.ne': out[61],
       '_impl.ne_connect': out[62],
       '_impl.ne_jnt': out[63],
@@ -4127,8 +4137,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def step(m: types.Model, d: types.Data):
   return _step_jax_impl(m, d)
-
-
 @step.def_vmap
 @ffi.marshal_custom_vmap
 def step_vmap(unused_axis_size, is_batched, m, d):

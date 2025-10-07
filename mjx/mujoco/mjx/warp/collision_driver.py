@@ -112,7 +112,7 @@ def _collision_shim(
     opt__sdf_initpoints: int,
     opt__sdf_iterations: int,
     # Data
-    nconmax: int,
+    naconmax: int,
     collision_pair: wp.array(dtype=wp.vec2i),
     collision_pairid: wp.array(dtype=int),
     collision_worldid: wp.array(dtype=int),
@@ -140,8 +140,8 @@ def _collision_shim(
     multiccd_pdist: wp.array2d(dtype=float),
     multiccd_pnormal: wp.array2d(dtype=wp.vec3),
     multiccd_polygon: wp.array2d(dtype=wp.vec3),
+    nacon: wp.array(dtype=int),
     ncollision: wp.array(dtype=int),
-    ncon: wp.array(dtype=int),
     sap_cumulative_sum: wp.array2d(dtype=int),
     sap_projection_lower: wp.array3d(dtype=float),
     sap_projection_upper: wp.array2d(dtype=float),
@@ -266,9 +266,9 @@ def _collision_shim(
   _d.multiccd_pdist = multiccd_pdist
   _d.multiccd_pnormal = multiccd_pnormal
   _d.multiccd_polygon = multiccd_polygon
+  _d.nacon = nacon
+  _d.naconmax = naconmax
   _d.ncollision = ncollision
-  _d.ncon = ncon
-  _d.nconmax = nconmax
   _d.sap_cumulative_sum = sap_cumulative_sum
   _d.sap_projection_lower = sap_projection_lower
   _d.sap_projection_upper = sap_projection_upper
@@ -308,8 +308,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       'multiccd_pdist': d._impl.multiccd_pdist.shape,
       'multiccd_pnormal': d._impl.multiccd_pnormal.shape,
       'multiccd_polygon': d._impl.multiccd_polygon.shape,
+      'nacon': d._impl.nacon.shape,
       'ncollision': d._impl.ncollision.shape,
-      'ncon': d._impl.ncon.shape,
       'sap_cumulative_sum': d._impl.sap_cumulative_sum.shape,
       'sap_projection_lower': d._impl.sap_projection_lower.shape,
       'sap_projection_upper': d._impl.sap_projection_upper.shape,
@@ -361,8 +361,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
           'multiccd_pdist',
           'multiccd_pnormal',
           'multiccd_polygon',
+          'nacon',
           'ncollision',
-          'ncon',
           'sap_cumulative_sum',
           'sap_projection_lower',
           'sap_projection_upper',
@@ -448,7 +448,7 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       m.opt._impl.legacy_gjk,
       m.opt._impl.sdf_initpoints,
       m.opt._impl.sdf_iterations,
-      d._impl.nconmax,
+      d._impl.naconmax,
       d._impl.collision_pair,
       d._impl.collision_pairid,
       d._impl.collision_worldid,
@@ -476,8 +476,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       d._impl.multiccd_pdist,
       d._impl.multiccd_pnormal,
       d._impl.multiccd_polygon,
+      d._impl.nacon,
       d._impl.ncollision,
-      d._impl.ncon,
       d._impl.sap_cumulative_sum,
       d._impl.sap_projection_lower,
       d._impl.sap_projection_upper,
@@ -524,8 +524,8 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
       '_impl.multiccd_pdist': out[24],
       '_impl.multiccd_pnormal': out[25],
       '_impl.multiccd_polygon': out[26],
-      '_impl.ncollision': out[27],
-      '_impl.ncon': out[28],
+      '_impl.nacon': out[27],
+      '_impl.ncollision': out[28],
       '_impl.sap_cumulative_sum': out[29],
       '_impl.sap_projection_lower': out[30],
       '_impl.sap_projection_upper': out[31],
@@ -551,8 +551,6 @@ def _collision_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def collision(m: types.Model, d: types.Data):
   return _collision_jax_impl(m, d)
-
-
 @collision.def_vmap
 @ffi.marshal_custom_vmap
 def collision_vmap(unused_axis_size, is_batched, m, d):

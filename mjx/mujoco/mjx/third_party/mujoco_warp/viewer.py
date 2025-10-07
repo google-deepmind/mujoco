@@ -71,7 +71,7 @@ def key_callback(key: int) -> None:
 
 def _load_model(path: epath.Path) -> mujoco.MjModel:
   if not path.exists():
-    resource_path = epath.resource_path("mujoco_warp") / path
+    resource_path = epath.resource_path("mjx") / "third_party/mujoco_warp" / path
     if not resource_path.exists():
       raise FileNotFoundError(f"file not found: {path}\nalso tried: {resource_path}")
     path = resource_path

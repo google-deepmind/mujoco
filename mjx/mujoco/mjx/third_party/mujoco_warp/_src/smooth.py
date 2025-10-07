@@ -1243,7 +1243,7 @@ def _cfrc_ext_contact(
   geom_bodyid: wp.array(dtype=int),
   # Data in:
   njmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   contact_pos_in: wp.array(dtype=wp.vec3),
   contact_frame_in: wp.array(dtype=wp.mat33),
@@ -1258,7 +1258,7 @@ def _cfrc_ext_contact(
 ):
   contactid = wp.tid()
 
-  if contactid >= ncon_in[0]:
+  if contactid >= nacon_in[0]:
     return
 
   geom = contact_geom_in[contactid]
@@ -1274,7 +1274,7 @@ def _cfrc_ext_contact(
   force = support.contact_force_fn(
     opt_cone,
     njmax_in,
-    ncon_in,
+    nacon_in,
     contact_frame_in,
     contact_friction_in,
     contact_dim_in,
@@ -1338,13 +1338,13 @@ def rne_postconstraint(m: Model, d: Data):
   # cfrc_ext += contacts
   wp.launch(
     _cfrc_ext_contact,
-    dim=(d.nconmax,),
+    dim=(d.naconmax,),
     inputs=[
       m.opt.cone,
       m.body_rootid,
       m.geom_bodyid,
       d.njmax,
-      d.ncon,
+      d.nacon,
       d.subtree_com,
       d.contact.pos,
       d.contact.frame,
@@ -2077,7 +2077,7 @@ def _transmission_body_moment(
   actuator_trnid: wp.array(dtype=wp.vec2i),
   actuator_trntype_body_adr: wp.array(dtype=int),
   # Data in:
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   cdof_in: wp.array2d(dtype=wp.spatial_vector),
   contact_dist_in: wp.array(dtype=float),
@@ -2097,7 +2097,7 @@ def _transmission_body_moment(
   actid = actuator_trntype_body_adr[trnbodyid]
   bodyid = actuator_trnid[actid][0]
 
-  if conid >= ncon_in[0]:
+  if conid >= nacon_in[0]:
     return
 
   worldid = contact_worldid_in[conid]
@@ -2247,11 +2247,7 @@ def transmission(m: Model, d: Data):
     # compute moments
     wp.launch(
       _transmission_body_moment,
-      dim=(
-        m.actuator_trntype_body_adr.size,
-        d.nconmax,
-        m.nv,
-      ),
+      dim=(m.actuator_trntype_body_adr.size, d.naconmax, m.nv),
       inputs=[
         m.opt.cone,
         m.body_parentid,
@@ -2260,7 +2256,7 @@ def transmission(m: Model, d: Data):
         m.geom_bodyid,
         m.actuator_trnid,
         m.actuator_trntype_body_adr,
-        d.ncon,
+        d.nacon,
         d.subtree_com,
         d.cdof,
         d.contact.dist,

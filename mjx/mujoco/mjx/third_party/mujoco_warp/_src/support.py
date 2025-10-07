@@ -296,7 +296,7 @@ def contact_force_fn(
   opt_cone: int,
   # Data in:
   njmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   contact_frame_in: wp.array(dtype=wp.mat33),
   contact_friction_in: wp.array(dtype=vec5),
   contact_dim_in: wp.array(dtype=int),
@@ -312,7 +312,7 @@ def contact_force_fn(
   condim = contact_dim_in[contact_id]
   efc_address = contact_efc_address_in[contact_id, 0]
 
-  if contact_id >= 0 and contact_id <= ncon_in[0] and efc_address >= 0:
+  if contact_id >= 0 and contact_id <= nacon_in[0] and efc_address >= 0:
     if opt_cone == ConeType.PYRAMIDAL:
       force = _decode_pyramid(
         njmax_in,
@@ -341,7 +341,7 @@ def contact_force_kernel(
   opt_cone: int,
   # Data in:
   njmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   contact_frame_in: wp.array(dtype=wp.mat33),
   contact_friction_in: wp.array(dtype=vec5),
   contact_dim_in: wp.array(dtype=int),
@@ -358,7 +358,7 @@ def contact_force_kernel(
 
   contactid = contact_ids[tid]
 
-  if contactid >= ncon_in[0]:
+  if contactid >= nacon_in[0]:
     return
 
   worldid = contact_worldid_in[contactid]
@@ -366,7 +366,7 @@ def contact_force_kernel(
   out[tid] = contact_force_fn(
     opt_cone,
     njmax_in,
-    ncon_in,
+    nacon_in,
     contact_frame_in,
     contact_friction_in,
     contact_dim_in,
@@ -401,7 +401,7 @@ def contact_force(
     inputs=[
       m.opt.cone,
       d.njmax,
-      d.ncon,
+      d.nacon,
       d.contact.frame,
       d.contact.friction,
       d.contact.dim,

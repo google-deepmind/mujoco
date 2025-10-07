@@ -1776,7 +1776,7 @@ def _sensor_acc(
   sensor_adr_to_contact_adr: wp.array(dtype=int),
   # Data in:
   njmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   xpos_in: wp.array2d(dtype=wp.vec3),
   xipos_in: wp.array2d(dtype=wp.vec3),
   geom_xpos_in: wp.array2d(dtype=wp.vec3),
@@ -1866,7 +1866,7 @@ def _sensor_acc(
         contact_forcetorque = support.contact_force_fn(
           opt_cone,
           njmax_in,
-          ncon_in,
+          nacon_in,
           contact_frame_in,
           contact_friction_in,
           contact_dim_in,
@@ -1896,7 +1896,7 @@ def _sensor_acc(
         contact_forcetorque = support.contact_force_fn(
           opt_cone,
           njmax_in,
-          ncon_in,
+          nacon_in,
           contact_frame_in,
           contact_friction_in,
           contact_dim_in,
@@ -1973,7 +1973,7 @@ def _sensor_acc(
           contact_forcetorque = support.contact_force_fn(
             opt_cone,
             njmax_in,
-            ncon_in,
+            nacon_in,
             contact_frame_in,
             contact_friction_in,
             contact_dim_in,
@@ -2082,7 +2082,7 @@ def _sensor_touch(
   sensor_adr: wp.array(dtype=int),
   sensor_touch_adr: wp.array(dtype=int),
   # Data in:
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   site_xpos_in: wp.array2d(dtype=wp.vec3),
   site_xmat_in: wp.array2d(dtype=wp.mat33),
   contact_pos_in: wp.array(dtype=wp.vec3),
@@ -2097,7 +2097,7 @@ def _sensor_touch(
 ):
   conid, sensortouchadrid = wp.tid()
 
-  if conid >= ncon_in[0]:
+  if conid >= nacon_in[0]:
     return
 
   sensorid = sensor_touch_adr[sensortouchadrid]
@@ -2182,7 +2182,7 @@ def _sensor_tactile(
   taxel_vertadr: wp.array(dtype=int),
   taxel_sensorid: wp.array(dtype=int),
   # Data in:
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   geom_xpos_in: wp.array2d(dtype=wp.vec3),
   geom_xmat_in: wp.array2d(dtype=wp.mat33),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
@@ -2194,7 +2194,7 @@ def _sensor_tactile(
 ):
   conid, taxelid = wp.tid()
 
-  if conid >= ncon_in[0]:
+  if conid >= nacon_in[0]:
     return
 
   worldid = contact_worldid_in[conid]
@@ -2308,7 +2308,7 @@ def _contact_match(
   sensor_contact_adr: wp.array(dtype=int),
   # Data in:
   njmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   site_xpos_in: wp.array2d(dtype=wp.vec3),
   site_xmat_in: wp.array2d(dtype=wp.mat33),
   contact_dist_in: wp.array(dtype=float),
@@ -2329,7 +2329,7 @@ def _contact_match(
   contactsensorid, contactid = wp.tid()
   sensorid = sensor_contact_adr[contactsensorid]
 
-  if contactid >= ncon_in[0]:
+  if contactid >= nacon_in[0]:
     return
 
   # sensor information
@@ -2403,7 +2403,7 @@ def _contact_match(
     contact_force = support.contact_force_fn(
       opt_cone,
       njmax_in,
-      ncon_in,
+      nacon_in,
       contact_frame_in,
       contact_friction_in,
       contact_dim_in,
@@ -2422,6 +2422,7 @@ def _contact_match(
   sensor_contact_direction_out[worldid, contactsensorid, contactmatchid] = dir
 
 
+@cache_kernel
 def _contact_sort(maxmatch: int):
   @nested_kernel(module="unique", enable_backward=False)
   def contact_sort(
@@ -2466,7 +2467,7 @@ def sensor_acc(m: Model, d: Data):
 
   wp.launch(
     _sensor_touch,
-    dim=(d.nconmax, m.sensor_touch_adr.size),
+    dim=(d.naconmax, m.sensor_touch_adr.size),
     inputs=[
       m.opt.cone,
       m.geom_bodyid,
@@ -2476,7 +2477,7 @@ def sensor_acc(m: Model, d: Data):
       m.sensor_objid,
       m.sensor_adr,
       m.sensor_touch_adr,
-      d.ncon,
+      d.nacon,
       d.site_xpos,
       d.site_xmat,
       d.contact.pos,
@@ -2494,7 +2495,7 @@ def sensor_acc(m: Model, d: Data):
 
   wp.launch(
     _sensor_tactile,
-    dim=(d.nconmax, m.nsensortaxel),
+    dim=(d.naconmax, m.nsensortaxel),
     inputs=[
       m.body_rootid,
       m.body_weldid,
@@ -2518,7 +2519,7 @@ def sensor_acc(m: Model, d: Data):
       m.geom_plugin_index,
       m.taxel_vertadr,
       m.taxel_sensorid,
-      d.ncon,
+      d.nacon,
       d.geom_xpos,
       d.geom_xmat,
       d.subtree_com,
@@ -2539,7 +2540,7 @@ def sensor_acc(m: Model, d: Data):
 
     wp.launch(
       _contact_match,
-      dim=(m.sensor_contact_adr.size, d.nconmax),
+      dim=(m.sensor_contact_adr.size, d.naconmax),
       inputs=[
         m.opt.cone,
         m.opt.contact_sensor_maxmatch,
@@ -2554,7 +2555,7 @@ def sensor_acc(m: Model, d: Data):
         m.sensor_intprm,
         m.sensor_contact_adr,
         d.njmax,
-        d.ncon,
+        d.nacon,
         d.site_xpos,
         d.site_xmat,
         d.contact.dist,
@@ -2616,7 +2617,7 @@ def sensor_acc(m: Model, d: Data):
       m.sensor_acc_adr,
       m.sensor_adr_to_contact_adr,
       d.njmax,
-      d.ncon,
+      d.nacon,
       d.xpos,
       d.xipos,
       d.geom_xpos,

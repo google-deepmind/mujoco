@@ -360,7 +360,7 @@ def marshal_custom_vmap(vmap_func):
     # Check leading dimensions.
     jax.tree.map_with_path(
         lambda path, x: _check_leading_dim(
-            path, x, d_broadcast.qpos.shape[0], d._impl.nconmax, d._impl.njmax  # pylint: disable=protected-access
+            path, x, d_broadcast.qpos.shape[0], d._impl.naconmax, d._impl.njmax  # pylint: disable=protected-access
         ),
         d_broadcast,
     )

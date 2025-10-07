@@ -786,8 +786,8 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(dx[0].qpos.shape, (m.nq,))
 
     if impl == 'warp':
-      self.assertEqual(dx._impl.contact__dist.shape, (dx._impl.nconmax,))
-      self.assertEqual(dx[0]._impl.contact__dist.shape, (dx._impl.nconmax,))
+      self.assertEqual(dx._impl.contact__dist.shape, (dx._impl.naconmax,))
+      self.assertEqual(dx[0]._impl.contact__dist.shape, (dx._impl.naconmax,))
 
 
 class FullCompatTest(parameterized.TestCase):

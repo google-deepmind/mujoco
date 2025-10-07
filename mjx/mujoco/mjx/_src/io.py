@@ -827,8 +827,8 @@ def _get_nested_attr(obj: Any, attr_name: str, split: str) -> Any:
 def _make_data_warp(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
-    nconmax: int = -1,
-    njmax: int = -1,
+    nconmax: Optional[int] = None,
+    njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the Warp implementation."""
   if not isinstance(m, mujoco.MjModel):
@@ -841,7 +841,7 @@ def _make_data_warp(
     raise RuntimeError('Warp is not installed.')
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, nconmax=nconmax, njmax=njmax)  # pylint: disable=undefined-variable
+    dw = mjwp.make_data(m, nworld=1, naconmax=nconmax, njmax=njmax)  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
@@ -876,7 +876,7 @@ def _make_data_warp(
     # TODO(robotics-simulation): remove this warmup compilation once warp
     # stops unloading modules during XLA graph capture for tile kernels.
     # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1)
+    dw = mjwp.make_data(m, nworld=1, naconmax=nconmax, njmax=njmax)
     mw = mjwp.put_model(m)
     _ = mjwp.step(mw, dw)
     # pylint: enable=undefined-variable
@@ -890,8 +890,8 @@ def make_data(
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
     _full_compat: bool = False,  # pylint: disable=invalid-name
-    nconmax: int = -1,
-    njmax: int = -1,
+    nconmax: Optional[int] = None,
+    njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data.
 
@@ -902,8 +902,12 @@ def make_data(
     _full_compat: put all fields onto device irrespective of MJX support This is
       an experimental feature.  Avoid using it for now. If using this flag, also
       use _full_compat for put_model.
-    nconmax: maximum number of contacts to allocate for warp
-    njmax: maximum number of constraints to allocate for warp
+    nconmax: maximum number of contacts to allocate for warp across all worlds
+      Since the number of worlds is **not** pre-defined in JAX, we use the
+      `nconmax` argument to set the upper bound for the number of contacts
+      across all worlds. In MuJoCo Warp, the analgous field is called
+      `naconmax`.
+    njmax: maximum number of constraints to allocate for warp across all worlds
 
   Returns:
     an initialized mjx.Data placed on device

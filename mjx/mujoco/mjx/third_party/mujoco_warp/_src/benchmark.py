@@ -105,7 +105,7 @@ def benchmark(
   """
 
   trace = {}
-  ncon, nefc, solver_niter = [], [], []
+  nacon, nefc, solver_niter = [], [], []
   center = wp.array([], dtype=wp.float32)
 
   with warp_util.EventTracer(enabled=event_trace) as tracer:
@@ -142,7 +142,7 @@ def benchmark(
       else:
         trace = tracer.trace()
       if measure_alloc:
-        ncon.append(np.max([d.ncon.numpy()[0], d.ncollision.numpy()[0]]))
+        nacon.append(np.max([d.nacon.numpy()[0], d.ncollision.numpy()[0]]))
         nefc.append(np.max(d.nefc.numpy()))
       if measure_solver_niter:
         solver_niter.append(d.solver_niter.numpy())
@@ -150,7 +150,7 @@ def benchmark(
     nsuccess = np.sum(~np.any(np.isnan(d.qpos.numpy()), axis=1))
     run_duration = np.sum(time_vec)
 
-  return jit_duration, run_duration, trace, ncon, nefc, solver_niter, nsuccess
+  return jit_duration, run_duration, trace, nacon, nefc, solver_niter, nsuccess
 
 
 class BenchmarkSuite:

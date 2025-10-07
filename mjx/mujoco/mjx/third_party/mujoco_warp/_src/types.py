@@ -807,6 +807,7 @@ class Model:
     body_contype: OR over all geom contypes                  (nbody,)
     body_conaffinity: OR over all geom conaffinities         (nbody,)
     body_gravcomp: antigravity force, units of body weight   (nworld, nbody)
+    body_fluid_ellipsoid: does body use ellipsoid fluid      (nbody,)
     jnt_type: type of joint (JointType)                      (njnt,)
     jnt_qposadr: start addr in 'qpos' for joint's data       (njnt,)
     jnt_dofadr: start addr in 'qvel' for joint's data        (njnt,)
@@ -849,6 +850,7 @@ class Model:
     geom_solref: constraint solver reference: contact        (nworld, ngeom, mjNREF)
     geom_solimp: constraint solver impedance: contact        (nworld, ngeom, mjNIMP)
     geom_size: geom-specific size parameters                 (ngeom, 3)
+    geom_fluid: fluid interaction parameters                 (ngeom, mjNFLUID)
     geom_aabb: bounding box, (center, size)                  (ngeom, 6)
     geom_rbound: radius of bounding sphere                   (nworld, ngeom,)
     geom_pos: local position offset rel. to body             (nworld, ngeom, 3)
@@ -1116,6 +1118,7 @@ class Model:
   body_contype: wp.array(dtype=int)
   body_conaffinity: wp.array(dtype=int)
   body_gravcomp: wp.array2d(dtype=float)
+  body_fluid_ellipsoid: wp.array(dtype=bool)
   jnt_type: wp.array(dtype=int)
   jnt_qposadr: wp.array(dtype=int)
   jnt_dofadr: wp.array(dtype=int)
@@ -1158,6 +1161,7 @@ class Model:
   geom_solref: wp.array2d(dtype=wp.vec2)
   geom_solimp: wp.array2d(dtype=vec5)
   geom_size: wp.array2d(dtype=wp.vec3)
+  geom_fluid: wp.array2d(dtype=float)
   geom_aabb: wp.array2d(dtype=wp.vec3)
   geom_rbound: wp.array2d(dtype=float)
   geom_pos: wp.array2d(dtype=wp.vec3)
@@ -1365,18 +1369,18 @@ class Contact:
   """Contact data.
 
   Attributes:
-    dist: distance between nearest points; neg: penetration
-    pos: position of contact point: midpoint between geoms
-    frame: normal is in [0-2], points from geom[0] to geom[1]
-    includemargin: include if dist<includemargin=margin-gap
-    friction: tangent1, 2, spin, roll1, 2
-    solref: constraint solver reference, normal direction
-    solreffriction: constraint solver reference, friction directions
-    solimp: constraint solver impedance
-    dim: contact space dimensionality: 1, 3, 4 or 6
-    geom: geom ids; -1 for flex
-    efc_address: address in efc; -1: not included
-    worldid: world id
+    dist: distance between nearest points; neg: penetration          (naconmax,)
+    pos: position of contact point: midpoint between geoms           (naconmax, 3)
+    frame: normal is in [0-2], points from geom[0] to geom[1]        (naconmax, 3, 3)
+    includemargin: include if dist<includemargin=margin-gap          (naconmax,)
+    friction: tangent1, 2, spin, roll1, 2                            (naconmax, 5)
+    solref: constraint solver reference, normal direction            (naconmax, 2)
+    solreffriction: constraint solver reference, friction directions (naconmax, 2)
+    solimp: constraint solver impedance                              (naconmax, 5)
+    dim: contact space dimensionality: 1, 3, 4 or 6                  (naconmax,)
+    geom: geom ids; -1 for flex                                      (naconmax, 2)
+    efc_address: address in efc; -1: not included                    (naconmax, ncondim)
+    worldid: world id                                                (naconmax,)
   """
 
   dist: wp.array(dtype=float)
@@ -1399,10 +1403,10 @@ class Data:
 
   Attributes:
     nworld: number of worlds
-    nconmax: maximum number of contacts
+    naconmax: maximum number of contacts (shared across all worlds)
     njmax: maximum number of constraints per world
     solver_niter: number of solver iterations                   (nworld,)
-    ncon: number of detected contacts
+    nacon: number of detected contacts (across all worlds)
     ne: number of equality constraints                          (nworld,)
     ne_connect: number of equality connect constraints          (nworld,)
     ne_weld: number of equality weld constraints                (nworld,)
@@ -1498,31 +1502,31 @@ class Data:
     sap_cumulative_sum: broadphase context                      (nworld, ngeom)
     sap_segment_index: broadphase context (requires nworld + 1) (nworld, 2)
     dyn_geom_aabb: dynamic geometry axis-aligned bounding boxes (nworld, ngeom, 2)
-    collision_pair: collision pairs from broadphase             (nconmax,)
-    collision_worldid: collision world ids from broadphase      (nconmax,)
+    collision_pair: collision pairs from broadphase             (naconmax,)
+    collision_worldid: collision world ids from broadphase      (naconmax,)
     ncollision: collision count from broadphase
-    epa_vert: vertices in EPA polytope in Minkowski space       (nconmax, 5 + CCDiter)
-    epa_vert1: vertices in EPA polytope in geom 1 space         (nconmax, 5 + CCDiter)
-    epa_vert2: vertices in EPA polytope in geom 2 space         (nconmax, 5 + CCDiter)
-    epa_vert_index1: vertex indices in EPA polytope for geom 1  (nconmax, 5 + CCDiter)
-    epa_vert_index2: vertex indices in EPA polytope for geom 2  (nconmax, 5 + CCDiter)
-    epa_face: faces of polytope represented by three indices    (nconmax, 6 + 5 * CCDiter)
-    epa_pr: projection of origin on polytope faces              (nconmax, 6 + 5 * CCDiter)
-    epa_norm2: epa_pr * epa_pr                                  (nconmax, 6 + 5 * CCDiter)
-    epa_index: index of face in polytope map                    (nconmax, 6 + 5 * CCDiter)
-    epa_map: status of faces in polytope                        (nconmax, 6 + 5 * CCDiter)
-    epa_horizon: index pair (i j) of edges on horizon           (nconmax, 2 * 12)
-    multiccd_polygon: clipped contact surface                   (nconmax, 2 * max_npolygon)
-    multiccd_clipped: clipped contact surface (intermediate)    (nconmax, 2 * max_npolygon)
-    multiccd_pnormal: plane normal of clipping polygon          (nconmax, max_npolygon)
-    multiccd_pdist: plane distance of clipping polygon          (nconmax, max_npolygon)
-    multiccd_idx1: list of normal index candidates for Geom 1   (nconmax, max_meshdegree)
-    multiccd_idx2: list of normal index candidates for Geom 2   (nconmax, max_meshdegree)
-    multiccd_n1: list of normal candidates for Geom 1           (nconmax, max_meshdegree)
-    multiccd_n2: list of normal candidates for Geom 1           (nconmax, max_meshdegree)
-    multiccd_endvert: list of edge vertices candidates          (nconmax, max_meshdegree)
-    multiccd_face1: contact face                                (nconmax, max_npolygon)
-    multiccd_face2: contact face                                (nconmax, max_npolygon)
+    epa_vert: vertices in EPA polytope in Minkowski space       (naconmax, 5 + CCDiter)
+    epa_vert1: vertices in EPA polytope in geom 1 space         (naconmax, 5 + CCDiter)
+    epa_vert2: vertices in EPA polytope in geom 2 space         (naconmax, 5 + CCDiter)
+    epa_vert_index1: vertex indices in EPA polytope for geom 1  (naconmax, 5 + CCDiter)
+    epa_vert_index2: vertex indices in EPA polytope for geom 2  (naconmax, 5 + CCDiter)
+    epa_face: faces of polytope represented by three indices    (naconmax, 6 + 5 * CCDiter)
+    epa_pr: projection of origin on polytope faces              (naconmax, 6 + 5 * CCDiter)
+    epa_norm2: epa_pr * epa_pr                                  (naconmax, 6 + 5 * CCDiter)
+    epa_index: index of face in polytope map                    (naconmax, 6 + 5 * CCDiter)
+    epa_map: status of faces in polytope                        (naconmax, 6 + 5 * CCDiter)
+    epa_horizon: index pair (i j) of edges on horizon           (naconmax, 2 * 12)
+    multiccd_polygon: clipped contact surface                   (naconmax, 2 * max_npolygon)
+    multiccd_clipped: clipped contact surface (intermediate)    (naconmax, 2 * max_npolygon)
+    multiccd_pnormal: plane normal of clipping polygon          (naconmax, max_npolygon)
+    multiccd_pdist: plane distance of clipping polygon          (naconmax, max_npolygon)
+    multiccd_idx1: list of normal index candidates for Geom 1   (naconmax, max_meshdegree)
+    multiccd_idx2: list of normal index candidates for Geom 2   (naconmax, max_meshdegree)
+    multiccd_n1: list of normal candidates for Geom 1           (naconmax, max_meshdegree)
+    multiccd_n2: list of normal candidates for Geom 1           (naconmax, max_meshdegree)
+    multiccd_endvert: list of edge vertices candidates          (naconmax, max_meshdegree)
+    multiccd_face1: contact face                                (naconmax, max_npolygon)
+    multiccd_face2: contact face                                (naconmax, max_npolygon)
     cacc: com-based acceleration                                (nworld, nbody, 6)
     cfrc_int: com-based interaction force with parent           (nworld, nbody, 6)
     cfrc_ext: com-based external force on body                  (nworld, nbody, 6)
@@ -1554,10 +1558,10 @@ class Data:
   """
 
   nworld: int  # warp only
-  nconmax: int  # warp only
+  naconmax: int  # warp only
   njmax: int  # warp only
   solver_niter: wp.array(dtype=int)
-  ncon: wp.array(dtype=int)
+  nacon: wp.array(dtype=int)
   ne: wp.array(dtype=int)
   ne_connect: wp.array(dtype=int)  # warp only
   ne_weld: wp.array(dtype=int)  # warp only

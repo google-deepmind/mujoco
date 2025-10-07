@@ -501,7 +501,7 @@ def linesearch_parallel_fused(
   opt_ls_parallel_min_step: float,
   # Data in:
   njmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   ne_in: wp.array(dtype=int),
   nf_in: wp.array(dtype=int),
   nefc_in: wp.array(dtype=int),
@@ -561,7 +561,7 @@ def linesearch_parallel_fused(
       # extract contact info
       conid = efc_id_in[worldid, efcid]
 
-      if conid >= ncon_in[0]:
+      if conid >= nacon_in[0]:
         continue
 
       efcid0 = contact_efc_address_in[conid, 0]
@@ -654,7 +654,7 @@ def _linesearch_parallel(m: types.Model, d: types.Data):
       m.opt.impratio,
       m.opt.ls_parallel_min_step,
       d.njmax,
-      d.ncon,
+      d.nacon,
       d.ne,
       d.nf,
       d.nefc,
@@ -771,7 +771,7 @@ def linesearch_prepare_quad(
   # Model:
   opt_impratio: wp.array(dtype=float),
   # Data in:
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   nefc_in: wp.array(dtype=int),
   contact_friction_in: wp.array(dtype=types.vec5),
   contact_dim_in: wp.array(dtype=int),
@@ -805,7 +805,7 @@ def linesearch_prepare_quad(
     # extract contact info
     conid = efc_id_in[worldid, efcid]
 
-    if conid >= ncon_in[0]:
+    if conid >= nacon_in[0]:
       return
 
     efcid0 = contact_efc_address_in[conid, 0]
@@ -951,7 +951,7 @@ def _linesearch(m: types.Model, d: types.Data):
     dim=(d.nworld, d.njmax),
     inputs=[
       m.opt.impratio,
-      d.ncon,
+      d.nacon,
       d.nefc,
       d.contact.friction,
       d.contact.dim,
@@ -1064,7 +1064,7 @@ def update_constraint_efc(
   # Model:
   opt_impratio: wp.array(dtype=float),
   # Data in:
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   ne_in: wp.array(dtype=int),
   nf_in: wp.array(dtype=int),
   nefc_in: wp.array(dtype=int),
@@ -1129,7 +1129,7 @@ def update_constraint_efc(
   else:  # elliptic friction cone contact
     conid = efc_id_in[worldid, efcid]
 
-    if conid >= ncon_in[0]:
+    if conid >= nacon_in[0]:
       return
 
     dim = contact_dim_in[conid]
@@ -1264,7 +1264,7 @@ def _update_constraint(m: types.Model, d: types.Data):
     dim=(d.nworld, d.njmax),
     inputs=[
       m.opt.impratio,
-      d.ncon,
+      d.nacon,
       d.ne,
       d.nf,
       d.nefc,
@@ -1468,8 +1468,8 @@ def update_gradient_JTCJ(
   dof_tri_row: wp.array(dtype=int),
   dof_tri_col: wp.array(dtype=int),
   # Data in:
-  nconmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  naconmax_in: int,
+  nacon_in: wp.array(dtype=int),
   contact_dist_in: wp.array(dtype=float),
   contact_includemargin_in: wp.array(dtype=float),
   contact_friction_in: wp.array(dtype=types.vec5),
@@ -1495,7 +1495,7 @@ def update_gradient_JTCJ(
   for i in range(nblocks_perblock):
     conid = conid_start + i * dim_block
 
-    if conid >= min(ncon_in[0], nconmax_in):
+    if conid >= min(nacon_in[0], naconmax_in):
       return
 
     worldid = contact_worldid_in[conid]
@@ -1727,9 +1727,9 @@ def _update_gradient(m: types.Model, d: types.Data):
         dim_block = ceil((sm_count * 6 * 256) / m.dof_tri_row.size)
       else:
         # fall back for CPU
-        dim_block = d.nconmax
+        dim_block = d.naconmax
 
-      nblocks_perblock = int((d.nconmax + dim_block - 1) / dim_block)
+      nblocks_perblock = int((d.naconmax + dim_block - 1) / dim_block)
 
       wp.launch(
         update_gradient_JTCJ,
@@ -1738,8 +1738,8 @@ def _update_gradient(m: types.Model, d: types.Data):
           m.opt.impratio,
           m.dof_tri_row,
           m.dof_tri_col,
-          d.nconmax,
-          d.ncon,
+          d.naconmax,
+          d.nacon,
           d.contact.dist,
           d.contact.includemargin,
           d.contact.friction,

@@ -42,7 +42,6 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _kinematics_shim(
     # Model
@@ -281,8 +280,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def kinematics(m: types.Model, d: types.Data):
   return _kinematics_jax_impl(m, d)
-
-
 @kinematics.def_vmap
 @ffi.marshal_custom_vmap
 def kinematics_vmap(unused_axis_size, is_batched, m, d):
@@ -308,7 +305,6 @@ _c = mjwarp.Contact(
 _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
-
 
 @ffi.format_args_for_warp
 def _tendon_shim(
@@ -491,8 +487,6 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
 @ffi.marshal_jax_warp_callable
 def tendon(m: types.Model, d: types.Data):
   return _tendon_jax_impl(m, d)
-
-
 @tendon.def_vmap
 @ffi.marshal_custom_vmap
 def tendon_vmap(unused_axis_size, is_batched, m, d):

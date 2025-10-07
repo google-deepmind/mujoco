@@ -668,7 +668,7 @@ def _sdf_narrowphase(
   plugin_attr: wp.array(dtype=wp.vec3f),
   geom_plugin_index: wp.array(dtype=int),
   # Data in:
-  nconmax_in: int,
+  naconmax_in: int,
   geom_xpos_in: wp.array2d(dtype=wp.vec3),
   geom_xmat_in: wp.array2d(dtype=wp.mat33),
   collision_pair_in: wp.array(dtype=wp.vec2i),
@@ -679,7 +679,7 @@ def _sdf_narrowphase(
   sdf_initpoints: int,
   sdf_iterations: int,
   # Data out:
-  ncon_out: wp.array(dtype=int),
+  nacon_out: wp.array(dtype=int),
   contact_dist_out: wp.array(dtype=float),
   contact_pos_out: wp.array(dtype=wp.vec3),
   contact_frame_out: wp.array(dtype=wp.mat33),
@@ -850,7 +850,7 @@ def _sdf_narrowphase(
     mesh_data2,
   )
   write_contact(
-    nconmax_in,
+    naconmax_in,
     dist,
     pos,
     make_frame(n),
@@ -863,7 +863,7 @@ def _sdf_narrowphase(
     solimp,
     geoms,
     worldid,
-    ncon_out,
+    nacon_out,
     contact_dist_out,
     contact_pos_out,
     contact_frame_out,
@@ -882,7 +882,7 @@ def _sdf_narrowphase(
 def sdf_narrowphase(m: Model, d: Data):
   wp.launch(
     _sdf_narrowphase,
-    dim=(m.opt.sdf_initpoints, d.nconmax),
+    dim=(m.opt.sdf_initpoints, d.naconmax),
     inputs=[
       m.nmeshface,
       m.geom_type,
@@ -931,7 +931,7 @@ def sdf_narrowphase(m: Model, d: Data):
       m.plugin,
       m.plugin_attr,
       m.geom_plugin_index,
-      d.nconmax,
+      d.naconmax,
       d.geom_xpos,
       d.geom_xmat,
       d.collision_pair,
@@ -942,7 +942,7 @@ def sdf_narrowphase(m: Model, d: Data):
       m.opt.sdf_iterations,
     ],
     outputs=[
-      d.ncon,
+      d.nacon,
       d.contact.dist,
       d.contact.pos,
       d.contact.frame,

@@ -30,11 +30,13 @@ General
    :class: attention
 
    - The attribute ``mjOption.apirate`` was unused and has been removed.
+   - MJX ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1.
 
 MJX
 ^^^
 - Fix :github:issue:`2508`, ``qLD`` shapes mismatched mjModel during ``get_data_into``.
-
+- Pull in MuJoCo Warp updatest to ``io.py``, and use ``naconmax`` instead of ``naconmax`` to set the maximum number of
+  contacts over all environments.
 
 Version 3.3.6 (September 15, 2025)
 ----------------------------------

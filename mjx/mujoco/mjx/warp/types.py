@@ -13,7 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 """MJX Warp types.
-
 DO NOT EDIT. This file is auto-generated.
 """
 import dataclasses
@@ -23,9 +22,7 @@ from jax import tree_util
 from jax.interpreters import batching
 from mujoco.mjx._src import dataclasses as mjx_dataclasses
 import numpy as np
-
 PyTreeNode = mjx_dataclasses.PyTreeNode
-
 
 @dataclasses.dataclass(frozen=True)
 @tree_util.register_pytree_node_class
@@ -38,7 +35,6 @@ class TileSet:
     adr: address of each tile in the set
     size: size of all the tiles in this set
   """
-
   adr: np.ndarray
   size: int
 
@@ -59,7 +55,6 @@ class BlockDim:
 
   TODO(team): experimental and may be removed
   """
-
   actuator_velocity: int
   cholesky_factorize: int
   cholesky_factorize_solve: int
@@ -87,13 +82,10 @@ class BlockDim:
 
 class StatisticWarp(PyTreeNode):
   """Derived fields from Statistic."""
-
   meaninertia: float
-
 
 class OptionWarp(PyTreeNode):
   """Derived fields from Option."""
-
   broadphase: int
   broadphase_filter: int
   ccd_iterations: int
@@ -109,10 +101,8 @@ class OptionWarp(PyTreeNode):
   sdf_initpoints: int
   sdf_iterations: int
 
-
 class ModelWarp(PyTreeNode):
   """Derived fields from Model."""
-
   M_colind: np.ndarray
   M_rowadr: np.ndarray
   M_rownnz: np.ndarray
@@ -120,6 +110,7 @@ class ModelWarp(PyTreeNode):
   actuator_moment_tiles_nv: Tuple[TileSet, ...]
   actuator_trntype_body_adr: np.ndarray
   block_dim: BlockDim
+  body_fluid_ellipsoid: np.ndarray
   body_tree: Tuple[np.ndarray, ...]
   collision_sensor_adr: np.ndarray
   condim_max: int
@@ -218,10 +209,8 @@ class ModelWarp(PyTreeNode):
   wrap_site_adr: np.ndarray
   wrap_site_pair_adr: np.ndarray
 
-
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
-
   act_dot_rk: jax.Array
   act_t0: jax.Array
   act_vel_integration: jax.Array
@@ -317,9 +306,9 @@ class DataWarp(PyTreeNode):
   multiccd_pdist: jax.Array
   multiccd_pnormal: jax.Array
   multiccd_polygon: jax.Array
+  nacon: jax.Array
+  naconmax: int
   ncollision: jax.Array
-  ncon: jax.Array
-  nconmax: int
   ne: jax.Array
   ne_connect: jax.Array
   ne_jnt: jax.Array
@@ -378,8 +367,6 @@ class DataWarp(PyTreeNode):
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
   shape = property(lambda self: self.cacc.shape)
-
-
 DATA_NON_VMAP = {
     'collision_pair',
     'collision_pairid',
@@ -419,15 +406,14 @@ DATA_NON_VMAP = {
     'multiccd_pdist',
     'multiccd_pnormal',
     'multiccd_polygon',
+    'nacon',
+    'naconmax',
     'ncollision',
-    'ncon',
-    'nconmax',
     'njmax',
     'nsolving',
     'nworld',
     'ray_bodyexclude',
 }
-
 
 def _to_elt(cont, _, d, axis):
   return DataWarp(**{
@@ -562,9 +548,9 @@ _NDIM = {
         'multiccd_pdist': 2,
         'multiccd_pnormal': 3,
         'multiccd_polygon': 3,
+        'nacon': 1,
+        'naconmax': 0,
         'ncollision': 1,
-        'ncon': 1,
-        'nconmax': 0,
         'ne': 1,
         'ne_connect': 1,
         'ne_jnt': 1,
@@ -697,6 +683,7 @@ _NDIM = {
         'body_contype': 1,
         'body_dofadr': 1,
         'body_dofnum': 1,
+        'body_fluid_ellipsoid': 1,
         'body_geomadr': 1,
         'body_geomnum': 1,
         'body_gravcomp': 2,
@@ -774,6 +761,7 @@ _NDIM = {
         'geom_condim': 1,
         'geom_contype': 1,
         'geom_dataid': 1,
+        'geom_fluid': 2,
         'geom_friction': 3,
         'geom_gap': 2,
         'geom_group': 1,
@@ -1155,9 +1143,9 @@ _BATCH_DIM = {
         'multiccd_pdist': False,
         'multiccd_pnormal': False,
         'multiccd_polygon': False,
+        'nacon': False,
+        'naconmax': False,
         'ncollision': False,
-        'ncon': False,
-        'nconmax': False,
         'ne': True,
         'ne_connect': True,
         'ne_jnt': True,
@@ -1290,6 +1278,7 @@ _BATCH_DIM = {
         'body_contype': False,
         'body_dofadr': False,
         'body_dofnum': False,
+        'body_fluid_ellipsoid': False,
         'body_geomadr': False,
         'body_geomnum': False,
         'body_gravcomp': True,
@@ -1367,6 +1356,7 @@ _BATCH_DIM = {
         'geom_condim': False,
         'geom_contype': False,
         'geom_dataid': False,
+        'geom_fluid': False,
         'geom_friction': True,
         'geom_gap': True,
         'geom_group': False,

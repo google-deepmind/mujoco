@@ -1110,7 +1110,7 @@ def _efc_contact_pyramidal(
   geom_bodyid: wp.array(dtype=int),
   # Data in:
   njmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   qvel_in: wp.array2d(dtype=float),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   cdof_in: wp.array2d(dtype=wp.spatial_vector),
@@ -1141,7 +1141,7 @@ def _efc_contact_pyramidal(
 ):
   conid, dimid = wp.tid()
 
-  if conid >= ncon_in[0]:
+  if conid >= nacon_in[0]:
     return
 
   condim = condim_in[conid]
@@ -1275,7 +1275,7 @@ def _efc_contact_elliptic(
   geom_bodyid: wp.array(dtype=int),
   # Data in:
   njmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   qvel_in: wp.array2d(dtype=float),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   cdof_in: wp.array2d(dtype=wp.spatial_vector),
@@ -1307,7 +1307,7 @@ def _efc_contact_elliptic(
 ):
   conid, dimid = wp.tid()
 
-  if conid >= ncon_in[0]:
+  if conid >= nacon_in[0]:
     return
 
   condim = condim_in[conid]
@@ -1799,7 +1799,7 @@ def make_constraint(m: types.Model, d: types.Data):
       if m.opt.cone == types.ConeType.PYRAMIDAL:
         wp.launch(
           _efc_contact_pyramidal,
-          dim=(d.nconmax, 2 * (m.condim_max - 1) if m.condim_max > 1 else 1),
+          dim=(d.naconmax, 2 * (m.condim_max - 1) if m.condim_max > 1 else 1),
           inputs=[
             m.nv,
             m.opt.timestep,
@@ -1810,7 +1810,7 @@ def make_constraint(m: types.Model, d: types.Data):
             m.dof_bodyid,
             m.geom_bodyid,
             d.njmax,
-            d.ncon,
+            d.nacon,
             d.qvel,
             d.subtree_com,
             d.cdof,
@@ -1843,7 +1843,7 @@ def make_constraint(m: types.Model, d: types.Data):
       elif m.opt.cone == types.ConeType.ELLIPTIC:
         wp.launch(
           _efc_contact_elliptic,
-          dim=(d.nconmax, m.condim_max),
+          dim=(d.naconmax, m.condim_max),
           inputs=[
             m.nv,
             m.opt.timestep,
@@ -1854,7 +1854,7 @@ def make_constraint(m: types.Model, d: types.Data):
             m.dof_bodyid,
             m.geom_bodyid,
             d.njmax,
-            d.ncon,
+            d.nacon,
             d.qvel,
             d.subtree_com,
             d.cdof,
