@@ -13,23 +13,23 @@
 # limitations under the License.
 # ==============================================================================
 
+import numpy as np
 import warp as wp
 from absl.testing import absltest
 
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel as nested_kernel
+from mujoco.mjx.third_party.mujoco_warp import Data
+from mujoco.mjx.third_party.mujoco_warp import GeomType
+from mujoco.mjx.third_party.mujoco_warp import Model
+from mujoco.mjx.third_party.mujoco_warp import test_data
 
-from mujoco.mjx.third_party.mujoco_warp._src import test_util
 from mujoco.mjx.third_party.mujoco_warp._src.collision_gjk import ccd
 from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import Geom
-from mujoco.mjx.third_party.mujoco_warp._src.types import Data
-from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
-from mujoco.mjx.third_party.mujoco_warp._src.types import Model
+from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel as nested_kernel
 
 MAX_ITERATIONS = 20
 
 
-def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multiccd=False):
+def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multiccd=False, margin=0.0):
   @nested_kernel(module="unique", enable_backward=False)
   def _gjk_kernel(
     # Model:
@@ -82,18 +82,17 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multicc
     ncon_out: wp.array(dtype=int),
     pos_out: wp.array(dtype=wp.vec3),
   ):
-    MESHGEOM = int(GeomType.MESH.value)
-
     geom1 = Geom()
     geom1.index = -1
     geomtype1 = geom_type[gid1]
     geom1.pos = geom_xpos_in[0, gid1]
     geom1.rot = geom_xmat_in[0, gid1]
     geom1.size = geom_size[0, gid1]
+    geom1.margin = margin
     geom1.graphadr = -1
     geom1.mesh_polyadr = -1
 
-    if geom_dataid[gid1] >= 0 and geom_type[gid1] == MESHGEOM:
+    if geom_dataid[gid1] >= 0 and geom_type[gid1] == GeomType.MESH:
       dataid = geom_dataid[gid1]
       geom1.vertadr = mesh_vertadr[dataid]
       geom1.vertnum = mesh_vertnum[dataid]
@@ -114,10 +113,11 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multicc
     geom2.pos = geom_xpos_in[0, gid2]
     geom2.rot = geom_xmat_in[0, gid2]
     geom2.size = geom_size[0, gid2]
+    geom2.margin = margin
     geom2.graphadr = -1
     geom2.mesh_polyadr = -1
 
-    if geom_dataid[gid2] >= 0 and geom_type[gid2] == MESHGEOM:
+    if geom_dataid[gid2] >= 0 and geom_type[gid2] == GeomType.MESH:
       dataid = geom_dataid[gid2]
       geom2.vertadr = mesh_vertadr[dataid]
       geom2.vertnum = mesh_vertnum[dataid]
@@ -144,7 +144,6 @@ def _geom_dist(m: Model, d: Data, gid1: int, gid2: int, iterations: int, multicc
       multiccd,
       1e-6,
       1.0e30,
-      iterations,
       iterations,
       geom1,
       geom2,
@@ -268,8 +267,8 @@ class GJKTest(absltest.TestCase):
   def test_spheres_distance(self):
     """Test distance between two spheres."""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
       <mujoco>
         <worldbody>
           <geom name="geom1" type="sphere" pos="-1.5 0 0" size="1"/>
@@ -279,14 +278,16 @@ class GJKTest(absltest.TestCase):
        """
     )
 
-    dist, _, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
+    dist, _, x1, x2 = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
     self.assertEqual(1.0, dist)
+    self.assertEqual(-0.5, x1[0])
+    self.assertEqual(0.5, x2[0])
 
   def test_spheres_touching(self):
     """Test two touching spheres have zero distance"""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
       <mujoco>
         <worldbody>
           <geom type="sphere" pos="-1 0 0" size="1"/>
@@ -302,8 +303,8 @@ class GJKTest(absltest.TestCase):
   def test_box_mesh_distance(self):
     """Test distance between a mesh and box"""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
       <mujoco model="MuJoCo Model">
         <asset>
           <mesh name="smallbox" scale="0.1 0.1 0.1"
@@ -330,8 +331,8 @@ class GJKTest(absltest.TestCase):
   def test_sphere_sphere_contact(self):
     """Test penetration depth between two spheres."""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
       <mujoco>
         <worldbody>
           <geom type="sphere" pos="-1 0 0" size="3"/>
@@ -347,8 +348,8 @@ class GJKTest(absltest.TestCase):
   def test_box_box_contact(self):
     """Test penetration between two boxes."""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
       <mujoco>
         <worldbody>
           <geom type="box" pos="-1 0 0" size="2.5 2.5 2.5"/>
@@ -358,8 +359,10 @@ class GJKTest(absltest.TestCase):
       """
     )
     dist, _, x1, x2 = _geom_dist(m, d, 0, 1, MAX_ITERATIONS)
+    diff = x1 - x2
+    normal = diff / np.linalg.norm(diff)
+
     self.assertAlmostEqual(-1, dist)
-    normal = wp.normalize(x1 - x2)
     self.assertAlmostEqual(normal[0], 1)
     self.assertAlmostEqual(normal[1], 0)
     self.assertAlmostEqual(normal[2], 0)
@@ -367,8 +370,8 @@ class GJKTest(absltest.TestCase):
   def test_mesh_mesh_contact(self):
     """Test penetration between two meshes."""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
     <mujoco>
       <asset>
         <mesh name="box" scale=".5 .5 .1"
@@ -404,8 +407,8 @@ class GJKTest(absltest.TestCase):
   def test_cylinder_cylinder_contact(self):
     """Test penetration between two cylinder."""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
       <mujoco>
         <worldbody>
           <geom pos="0 0 0" type="cylinder" size="1 .5"/>
@@ -421,8 +424,8 @@ class GJKTest(absltest.TestCase):
   def test_box_edge(self):
     """Test box edge."""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
     <mujoco>
       <worldbody>
         <geom pos="0 0 2" type="box" name="box2" size="1 1 1"/>
@@ -436,8 +439,8 @@ class GJKTest(absltest.TestCase):
   def test_box_box_ccd(self):
     """Test box box."""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
        <mujoco>
          <worldbody>
            <geom name="geom1" type="box" pos="0 0 1.9" size="1 1 1"/>
@@ -452,8 +455,8 @@ class GJKTest(absltest.TestCase):
   def test_mesh_mesh_ccd(self):
     """Test mesh-mesh multiccd."""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
        <mujoco>
          <asset>
            <mesh name="smallbox"
@@ -473,8 +476,8 @@ class GJKTest(absltest.TestCase):
   def test_box_box_ccd2(self):
     """Test box-box multiccd 2."""
 
-    _, _, m, d = test_util.fixture(
-      xml=f"""
+    _, _, m, d = test_data.fixture(
+      xml="""
        <mujoco>
          <worldbody>
            <geom size="1 1 1" pos="0 0 2" type="box"/>
@@ -485,7 +488,28 @@ class GJKTest(absltest.TestCase):
     )
 
     _, ncon, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS, multiccd=True)
-    self.assertEqual(ncon, 4)
+    self.assertEqual(ncon, 5)
+
+  def test_sphere_mesh_margin(self):
+    """Test sphere-mesh margin."""
+
+    _, _, m, d = test_data.fixture(
+      xml="""
+       <mujoco>
+         <asset>
+           <mesh name="box" scale=".2 .2 .2"
+                 vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1"/>
+         </asset>
+         <worldbody>
+           <geom type="sphere" pos="0 0 .349" size=".1"/>
+           <geom type="mesh" mesh="box"/>
+         </worldbody>
+       </mujoco>
+       """
+    )
+
+    dist, _, _, _ = _geom_dist(m, d, 0, 1, MAX_ITERATIONS, multiccd=False, margin=0.05)
+    self.assertAlmostEqual(dist, -0.001)
 
 
 if __name__ == "__main__":

@@ -27,9 +27,9 @@ import warp as wp
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import mujoco_warp as mjwarp
+import mujoco_warp as mjw
+from mujoco.mjx.third_party.mujoco_warp import test_data
 
-from mujoco.mjx.third_party.mujoco_warp._src import test_util
 from mujoco.mjx.third_party.mujoco_warp._src.io import MAX_WORLDS
 
 _IO_TEST_MODELS = (
@@ -189,8 +189,8 @@ def _leading_dims_scale_w_nworld(test_obj, d1: Any, d2: Any, nworld1: int, nworl
 class IOTest(parameterized.TestCase):
   def test_put_model_nworld_array(self):
     """Tests that put_model arrays with nworld leading dim have `_is_batched`."""
-    mjm, *_ = test_util.fixture("pendula.xml")
-    m1 = mjwarp.put_model(mjm)
+    mjm, *_ = test_data.fixture("pendula.xml")
+    m1 = mjw.put_model(mjm)
 
     self.assertTrue(hasattr(m1.geom_pos, "_is_batched"))
     self.assertEqual(m1.geom_pos.shape[0], MAX_WORLDS)
@@ -208,36 +208,36 @@ class IOTest(parameterized.TestCase):
   @parameterized.parameters(*_IO_TEST_MODELS)
   def test_put_data_nworld_array(self, xml):
     """Tests that put_data arrays that scale with nworld have leading dim nworld."""
-    mjm, mjd, _, _ = test_util.fixture(xml)
-    d1 = mjwarp.put_data(mjm, mjd, nworld=1, nconmax=3_000, njmax=3_000)
-    dn = mjwarp.put_data(mjm, mjd, nworld=133, nconmax=3_000, njmax=3_000)
+    mjm, mjd, _, _ = test_data.fixture(xml)
+    d1 = mjw.put_data(mjm, mjd, nworld=1, nconmax=3_000, njmax=3_000)
+    dn = mjw.put_data(mjm, mjd, nworld=133, nconmax=3_000, njmax=3_000)
     _leading_dims_scale_w_nworld(self, d1, dn, 1, 133)
 
   def test_public_api_jax_compat(self):
     """Tests that annotations meet a set of criteria for JAX compat."""
-    _check_annotation_compat(mjwarp.Model.__annotations__, "Model.")
-    _check_annotation_compat(mjwarp.Data.__annotations__, "Data.")
+    _check_annotation_compat(mjw.Model.__annotations__, "Model.")
+    _check_annotation_compat(mjw.Data.__annotations__, "Data.")
 
   @parameterized.parameters(*_IO_TEST_MODELS)
   def test_types_match_annotations(self, xml):
     """Tests that the types of dataclass fields match the annotations."""
-    mjm, _, m, d = test_util.fixture(xml)
+    mjm, _, m, d = test_data.fixture(xml)
 
     _check_type_matches_annotation(self, m, "Model.")
     _check_type_matches_annotation(self, d, "Data.")
 
-    d = mjwarp.make_data(mjm, nworld=2)
+    d = mjw.make_data(mjm, nworld=2)
     _check_type_matches_annotation(self, d, "Data.")
 
   @parameterized.parameters(*_IO_TEST_MODELS)
   def test_make_put_data_dims_match(self, xml):
     """Tests that make_data and put_data have matching dimensions."""
-    mjm, mjd, _, _ = test_util.fixture(xml)
-    dm2 = mjwarp.make_data(mjm, nworld=2, nconmax=3_000, njmax=4_200)
-    dm3 = mjwarp.make_data(mjm, nworld=3, nconmax=3_000, njmax=4_200)
+    mjm, mjd, _, _ = test_data.fixture(xml)
+    dm2 = mjw.make_data(mjm, nworld=2, nconmax=3_000, njmax=4_200)
+    dm3 = mjw.make_data(mjm, nworld=3, nconmax=3_000, njmax=4_200)
 
-    dp2 = mjwarp.put_data(mjm, mjd, nworld=2, nconmax=3_000, njmax=4_200)
-    dp3 = mjwarp.put_data(mjm, mjd, nworld=3, nconmax=3_000, njmax=4_200)
+    dp2 = mjw.put_data(mjm, mjd, nworld=2, nconmax=3_000, njmax=4_200)
+    dp3 = mjw.put_data(mjm, mjd, nworld=3, nconmax=3_000, njmax=4_200)
 
     _dims_match(self, dm2, dp2)
     _dims_match(self, dm3, dp3)

@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Utilities for testing."""
+"""Utilities for benchmarking MuJoCo Warp."""
 
 import importlib
 import os
@@ -23,181 +23,13 @@ from typing import Callable, Optional, Tuple
 import mujoco
 import numpy as np
 import warp as wp
-from etils import epath
 
 from mujoco.mjx.third_party.mujoco_warp._src import forward
 from mujoco.mjx.third_party.mujoco_warp._src import io
 from mujoco.mjx.third_party.mujoco_warp._src import warp_util
-from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseType
-from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
-from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
-from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit
-from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
-from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType
 from mujoco.mjx.third_party.mujoco_warp._src.util_misc import halton
-
-
-def fixture(
-  fname: Optional[str] = None,
-  xml: Optional[str] = None,
-  keyframe: int = -1,
-  actuation: bool = True,
-  contact: bool = True,
-  constraint: bool = True,
-  equality: bool = True,
-  spring: bool = True,
-  damper: bool = True,
-  gravity: bool = True,
-  clampctrl: bool = True,
-  filterparent: bool = True,
-  qpos0: bool = False,
-  kick: bool = False,
-  energy: bool = False,
-  eulerdamp: Optional[bool] = None,
-  cone: Optional[ConeType] = None,
-  integrator: Optional[IntegratorType] = None,
-  solver: Optional[SolverType] = None,
-  iterations: Optional[int] = None,
-  ls_iterations: Optional[int] = None,
-  ls_parallel: Optional[bool] = None,
-  sparse: Optional[bool] = None,
-  broadphase: Optional[BroadphaseType] = None,
-  disableflags: Optional[int] = None,
-  enableflags: Optional[int] = None,
-  applied: bool = False,
-  nstep: int = 3,
-  seed: int = 42,
-  nworld: int = None,
-  nconmax: int = None,
-  njmax: int = None,
-):
-  np.random.seed(seed)
-  if fname is not None:
-    path = epath.resource_path("mjx") / "third_party/mujoco_warp" / "test_data" / fname
-    mjm = mujoco.MjModel.from_xml_path(path.as_posix())
-  elif xml is not None:
-    mjm = mujoco.MjModel.from_xml_string(xml)
-  else:
-    raise ValueError("either fname or xml must be provided")
-
-  if not actuation:
-    mjm.opt.disableflags |= DisableBit.ACTUATION
-  if not contact:
-    mjm.opt.disableflags |= DisableBit.CONTACT
-  if not constraint:
-    mjm.opt.disableflags |= DisableBit.CONSTRAINT
-  if not equality:
-    mjm.opt.disableflags |= DisableBit.EQUALITY
-  if not spring:
-    mjm.opt.disableflags |= DisableBit.SPRING
-  if not damper:
-    mjm.opt.disableflags |= DisableBit.DAMPER
-  if not gravity:
-    mjm.opt.disableflags |= DisableBit.GRAVITY
-  if not clampctrl:
-    mjm.opt.disableflags |= DisableBit.CLAMPCTRL
-  if not eulerdamp:
-    mjm.opt.disableflags |= DisableBit.EULERDAMP
-  if not filterparent:
-    mjm.opt.disableflags |= DisableBit.FILTERPARENT
-
-  if energy:
-    mjm.opt.enableflags |= EnableBit.ENERGY
-
-  if cone is not None:
-    mjm.opt.cone = cone
-  if integrator is not None:
-    mjm.opt.integrator = integrator
-  if disableflags is not None:
-    mjm.opt.disableflags |= disableflags
-  if enableflags is not None:
-    mjm.opt.enableflags |= enableflags
-  if solver is not None:
-    mjm.opt.solver = solver
-  if iterations is not None:
-    mjm.opt.iterations = iterations
-  if ls_iterations is not None:
-    mjm.opt.ls_iterations = ls_iterations
-  if sparse is not None:
-    if sparse:
-      mjm.opt.jacobian = mujoco.mjtJacobian.mjJAC_SPARSE
-    else:
-      mjm.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
-
-  mjd = mujoco.MjData(mjm)
-  if keyframe > -1:
-    mujoco.mj_resetDataKeyframe(mjm, mjd, keyframe)
-  elif qpos0:
-    mjd.qpos[:] = mjm.qpos0
-  else:
-    # set random qpos, underlying code should gracefully handle un-normalized quats
-    mjd.qpos[:] = np.random.random(mjm.nq)
-
-  if kick:
-    # give the system a little kick to ensure we have non-identity rotations
-    mjd.qvel = np.random.uniform(-0.01, 0.01, mjm.nv)
-    mjd.ctrl = np.random.uniform(-0.1, 0.1, size=mjm.nu)
-  if applied:
-    mjd.qfrc_applied = np.random.uniform(-0.1, 0.1, size=mjm.nv)
-    mjd.xfrc_applied = np.random.uniform(-0.1, 0.1, size=mjd.xfrc_applied.shape)
-  if kick or applied:
-    mujoco.mj_step(mjm, mjd, nstep)  # let dynamics get state significantly non-zero
-
-  if mjm.nmocap:
-    mjd.mocap_pos = np.random.random(mjd.mocap_pos.shape)
-    mocap_quat = np.random.random(mjd.mocap_quat.shape)
-    mjd.mocap_quat = mocap_quat
-
-  mujoco.mj_forward(mjm, mjd)
-  mjd.qacc_warmstart = mjd.qacc
-  m = io.put_model(mjm)
-  if ls_parallel is not None:
-    m.opt.ls_parallel = ls_parallel
-  if broadphase is not None:
-    m.opt.broadphase = broadphase
-
-  d = io.put_data(mjm, mjd, nworld=nworld, nconmax=nconmax, njmax=njmax)
-  return mjm, mjd, m, d
-
-
-def find_keys(model: mujoco.MjModel, keyname_prefix: str) -> list[int]:
-  """Finds keyframes that start with keyname_prefix."""
-  keys = []
-
-  for keyid in range(model.nkey):
-    name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_KEY, keyid)
-    if name.startswith(keyname_prefix):
-      keys.append(keyid)
-
-  return keys
-
-
-def make_trajectory(model: mujoco.MjModel, keys: list[int]) -> np.ndarray:
-  """Make a ctrl trajectory with linear interpolation."""
-  ctrls = []
-  prev_ctrl_key = np.zeros(model.nu, dtype=np.float64)
-  prev_time, time = 0.0, 0.0
-
-  for key in keys:
-    ctrl_key, ctrl_time = model.key_ctrl[key], model.key_time[key]
-    if not ctrls and ctrl_time != 0.0:
-      raise ValueError("first keyframe must have time 0.0")
-    elif ctrls and ctrl_time <= prev_time:
-      raise ValueError("keyframes must be in time order")
-
-    while time < ctrl_time:
-      frac = (time - prev_time) / (ctrl_time - prev_time)
-      ctrls.append(prev_ctrl_key * (1 - frac) + ctrl_key * frac)
-      time += model.opt.timestep
-
-    ctrls.append(ctrl_key)
-    time += model.opt.timestep
-    prev_ctrl_key = ctrl_key
-    prev_time = time
-
-  return np.array(ctrls)
 
 
 def _sum(stack1, stack2):
@@ -372,10 +204,10 @@ class BenchmarkSuite:
     ctrls = None
 
     if self.replay:
-      keys = find_keys(mjm, self.replay)
+      keys = io.find_keys(mjm, self.replay)
       if not keys:
         raise ValueError(f"Key prefix not find: {self.replay}")
-      ctrls = make_trajectory(mjm, keys)
+      ctrls = io.make_trajectory(mjm, keys)
       mujoco.mj_resetDataKeyframe(mjm, mjd, keys[0])
 
     if mjm.nkey > 0:

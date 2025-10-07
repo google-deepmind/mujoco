@@ -90,25 +90,9 @@ class SupportPoint:
 
 @wp.func
 def _discrete_geoms(g1: int, g2: int) -> bool:
-  return (g1 == int(GeomType.MESH.value) or g1 == int(GeomType.BOX.value) or g1 == int(GeomType.HFIELD.value)) and (
-    g2 == int(GeomType.MESH.value) or g2 == int(GeomType.BOX.value) or g2 == int(GeomType.HFIELD.value)
+  return (g1 == GeomType.MESH or g1 == GeomType.BOX or g1 == GeomType.HFIELD) and (
+    g2 == GeomType.MESH or g2 == GeomType.BOX or g2 == GeomType.HFIELD
   )
-
-
-@wp.func
-def _support_margin(geom: Geom, geomtype: int, dir: wp.vec3) -> SupportPoint:
-  sp = SupportPoint()
-  sp.cached_index = -1
-  sp.vertex_index = -1
-  if geomtype == int(GeomType.SPHERE.value):
-    sp.point = geom.pos
-    return sp
-  elif geomtype == int(GeomType.CAPSULE.value):
-    local_dir = wp.transpose(geom.rot) @ dir
-    res = wp.vec3()
-    res[2] = wp.where(local_dir[2] >= 0, geom.size[1], -geom.size[1])
-    sp.point = geom.rot @ res + geom.pos
-    return sp
 
 
 @wp.func
@@ -116,28 +100,30 @@ def _support(geom: Geom, geomtype: int, dir: wp.vec3) -> SupportPoint:
   sp = SupportPoint()
   sp.cached_index = -1
   sp.vertex_index = -1
+  if geomtype == GeomType.SPHERE:
+    sp.point = geom.pos + (0.5 * geom.margin) * geom.size[0] * dir
+    return sp
+
   local_dir = wp.transpose(geom.rot) @ dir
-  if geomtype == int(GeomType.SPHERE.value):
-    sp.point = geom.pos + geom.size[0] * dir
-  elif geomtype == int(GeomType.BOX.value):
+  if geomtype == GeomType.BOX:
     tmp = wp.sign(local_dir)
     res = wp.cw_mul(tmp, geom.size)
     sp.point = geom.rot @ res + geom.pos
     sp.vertex_index = wp.where(tmp[0] > 0, 1, 0)
     sp.vertex_index += wp.where(tmp[1] > 0, 2, 0)
     sp.vertex_index += wp.where(tmp[2] > 0, 4, 0)
-  elif geomtype == int(GeomType.CAPSULE.value):
+  elif geomtype == GeomType.CAPSULE:
     res = local_dir * geom.size[0]
     # add cylinder contribution
     res[2] += wp.sign(local_dir[2]) * geom.size[1]
     sp.point = geom.rot @ res + geom.pos
-  elif geomtype == int(GeomType.ELLIPSOID.value):
+  elif geomtype == GeomType.ELLIPSOID:
     res = wp.cw_mul(local_dir, geom.size)
     res = wp.normalize(res)
     # transform to ellipsoid
     res = wp.cw_mul(res, geom.size)
     sp.point = geom.rot @ res + geom.pos
-  elif geomtype == int(GeomType.CYLINDER.value):
+  elif geomtype == GeomType.CYLINDER:
     res = wp.vec3(0.0, 0.0, 0.0)
     # set result in XY plane: support on circle
     d = wp.sqrt(local_dir[0] * local_dir[0] + local_dir[1] * local_dir[1])
@@ -148,7 +134,7 @@ def _support(geom: Geom, geomtype: int, dir: wp.vec3) -> SupportPoint:
     # set result in Z direction
     res[2] = wp.sign(local_dir[2]) * geom.size[1]
     sp.point = geom.rot @ res + geom.pos
-  elif geomtype == int(GeomType.MESH.value):
+  elif geomtype == GeomType.MESH:
     max_dist = float(FLOAT_MIN)
     if geom.graphadr == -1 or geom.vertnum < 10:
       if geom.index > -1:
@@ -195,7 +181,7 @@ def _support(geom: Geom, geomtype: int, dir: wp.vec3) -> SupportPoint:
       sp.point = geom.vert[geom.vertadr + imax]
 
     sp.point = geom.rot @ sp.point + geom.pos
-  elif geomtype == int(GeomType.HFIELD.value):
+  elif geomtype == GeomType.HFIELD:
     max_dist = float(FLOAT_MIN)
     for i in range(6):
       vert = geom.hfprism[i]
@@ -205,6 +191,8 @@ def _support(geom: Geom, geomtype: int, dir: wp.vec3) -> SupportPoint:
         sp.point = vert
     sp.point = geom.rot @ sp.point + geom.pos
 
+  if geom.margin > 0.0:
+    sp.point += dir * (0.5 * geom.margin)
   return sp
 
 
@@ -591,10 +579,9 @@ def gjk(
   geomtype1: int,
   geomtype2: int,
   cutoff: float,
-  use_margin: bool,
+  is_discrete: bool,
 ) -> GJKResult:
   """Find distance within a tolerance between two geoms."""
-  is_discrete = _discrete_geoms(geomtype1, geomtype2)
   cutoff2 = cutoff * cutoff
   simplex = mat43()
   simplex1 = mat43()
@@ -608,9 +595,6 @@ def gjk(
   # set initial guess
   x_k = x1_0 - x2_0
 
-  use_margin1 = use_margin and (geomtype1 == int(GeomType.SPHERE.value) or geomtype1 == int(GeomType.CAPSULE.value))
-  use_margin2 = use_margin and (geomtype2 == int(GeomType.SPHERE.value) or geomtype2 == int(GeomType.CAPSULE.value))
-
   for k in range(gjk_iterations):
     xnorm = wp.dot(x_k, x_k)
     # TODO(kbayes): determine new constant here
@@ -619,13 +603,13 @@ def gjk(
     dir_neg = x_k / wp.sqrt(xnorm)
 
     # compute kth support point in geom1
-    sp = wp.where(use_margin1, _support_margin(geom1, geomtype1, -dir_neg), _support(geom1, geomtype1, -dir_neg))
+    sp = _support(geom1, geomtype1, -dir_neg)
     simplex1[n] = sp.point
     geom1.index = sp.cached_index
     simplex_index1[n] = sp.vertex_index
 
     # compute kth support point in geom2
-    sp = wp.where(use_margin2, _support_margin(geom2, geomtype2, dir_neg), _support(geom2, geomtype2, dir_neg))
+    sp = _support(geom2, geomtype2, dir_neg)
     simplex2[n] = sp.point
     geom2.index = sp.cached_index
     simplex_index2[n] = sp.vertex_index
@@ -692,8 +676,10 @@ def gjk(
   result = GJKResult()
 
   # compute the approximate witness points
-  result.x1 = _linear_combine(n, coordinates, simplex1)
-  result.x2 = _linear_combine(n, coordinates, simplex2)
+  # if n is zero, then there was an immediate return meaning the initial points
+  # are the witness points
+  result.x1 = wp.where(n == 0, x1_0, _linear_combine(n, coordinates, simplex1))
+  result.x2 = wp.where(n == 0, x2_0, _linear_combine(n, coordinates, simplex2))
   result.dist = wp.norm_l2(x_k)
 
   result.dim = n
@@ -1199,10 +1185,17 @@ def _polytope4(
 
 @wp.func
 def _epa(
-  tolerance: float, epa_iterations: int, pt: Polytope, geom1: Geom, geom2: Geom, geomtype1: int, geomtype2: int
+  # In:
+  tolerance: float,
+  epa_iterations: int,
+  pt: Polytope,
+  geom1: Geom,
+  geom2: Geom,
+  geomtype1: int,
+  geomtype2: int,
+  is_discrete: bool,
 ) -> Tuple[float, wp.vec3, wp.vec3, int]:
   """Recover penetration data from two geoms in contact given an initial polytope."""
-  is_discrete = _discrete_geoms(geomtype1, geomtype2)
   upper = FLOAT_MAX
   upper2 = FLOAT_MAX
   idx = int(-1)
@@ -1808,6 +1801,7 @@ def _plane_intersect(pn: wp.vec3, pd: float, a: wp.vec3, b: wp.vec3) -> Tuple[fl
 @wp.func
 def _polygon_clip(
   # In:
+  prune: bool,
   plane_normal: wp.array(dtype=wp.vec3),
   plane_dist: wp.array(dtype=float),
   face1: wp.array(dtype=wp.vec3),
@@ -1887,7 +1881,7 @@ def _polygon_clip(
   if npolygon < 1:
     return 0, witness1, witness2
 
-  if npolygon > 4:
+  if prune and npolygon > 4:
     quad = _polygon_quad(polygon_out, npolygon)
     for i in range(4):
       witness2[i] = polygon_out[quad[i]]
@@ -1939,7 +1933,7 @@ def _multicontact(
   witness1[0] = x1
   witness2[0] = x2
 
-  if geomtype1 == int(GeomType.MESH.value):
+  if geomtype1 == GeomType.MESH:
     vert = geom1.vert
     polynormal = geom1.mesh_polynormal
     polyvertadr = geom1.mesh_polyvertadr
@@ -1948,7 +1942,7 @@ def _multicontact(
     polymapadr = geom1.mesh_polymapadr
     polymapnum = geom1.mesh_polymapnum
     polymap = geom1.mesh_polymap
-  elif geomtype2 == int(GeomType.MESH.value):
+  elif geomtype2 == GeomType.MESH:
     vert = geom2.vert
     polynormal = geom2.mesh_polynormal
     polyvertadr = geom2.mesh_polyvertadr
@@ -1966,9 +1960,9 @@ def _multicontact(
   dir_neg = -dir
 
   # get all possible face normals for each geom
-  if geomtype1 == int(GeomType.BOX.value):
+  if geomtype1 == GeomType.BOX:
     nnorms1 = _box_normals(nface1, feature_index1, geom1.rot, dir_neg, n1, idx1)
-  elif geomtype1 == int(GeomType.MESH.value):
+  elif geomtype1 == GeomType.MESH:
     nnorms1 = _mesh_normals(
       nface1,
       feature_index1,
@@ -1982,9 +1976,9 @@ def _multicontact(
       n1,
       idx1,
     )
-  if geomtype2 == int(GeomType.BOX.value):
+  if geomtype2 == GeomType.BOX:
     nnorms2 = _box_normals(nface2, feature_index2, geom2.rot, dir, n2, idx2)
-  elif geomtype2 == int(GeomType.MESH.value):
+  elif geomtype2 == GeomType.MESH:
     nnorms2 = _mesh_normals(
       nface2,
       feature_index2,
@@ -2007,11 +2001,11 @@ def _multicontact(
     # check if edge-face collision
     if nface1 < 3 and nface1 <= nface2:
       nnorms1 = 0
-      if geomtype1 == int(GeomType.BOX.value):
+      if geomtype1 == GeomType.BOX:
         nnorms1 = _box_edge_normals(
           nface1, geom1.rot, geom1.pos, geom1.size, feature_vertex1[0], feature_vertex1[1], feature_index1[0], n1, endvert
         )
-      elif geomtype1 == int(GeomType.MESH.value):
+      elif geomtype1 == GeomType.MESH:
         nnorms1 = _mesh_edge_normals(
           nface1,
           geom1.rot,
@@ -2039,11 +2033,11 @@ def _multicontact(
     # check if face-edge collision
     elif nface2 < 3:
       nnorms2 = 0
-      if geomtype2 == int(GeomType.BOX.value):
+      if geomtype2 == GeomType.BOX:
         nnorms2 = _box_edge_normals(
           nface2, geom2.rot, geom2.pos, geom2.size, feature_vertex2[0], feature_vertex2[1], feature_index2[0], n2, endvert
         )
-      elif geomtype2 == int(GeomType.MESH.value):
+      elif geomtype2 == GeomType.MESH:
         nnorms2 = _mesh_edge_normals(
           nface2,
           geom2.rot,
@@ -2079,9 +2073,9 @@ def _multicontact(
     nface1 = _set_edge(pt.vert1, endvert, face[0], i, face1)
   else:
     ind = wp.where(is_edge_contact_geom2, idx1[j], idx1[i])
-    if geomtype1 == int(GeomType.BOX.value):
+    if geomtype1 == GeomType.BOX:
       nface1 = _box_face(geom1.rot, geom1.pos, geom1.size, ind, face1)
-    elif geomtype1 == int(GeomType.MESH.value):
+    elif geomtype1 == GeomType.MESH:
       nface1 = _mesh_face(
         geom1.rot,
         geom1.pos,
@@ -2099,9 +2093,9 @@ def _multicontact(
   if is_edge_contact_geom2:
     nface2 = _set_edge(pt.vert2, endvert, face[0], i, face2)
   else:
-    if geomtype2 == int(GeomType.BOX.value):
+    if geomtype2 == GeomType.BOX:
       nface2 = _box_face(geom2.rot, geom2.pos, geom2.size, idx2[j], face2)
-    elif geomtype2 == int(GeomType.MESH.value):
+    elif geomtype2 == GeomType.MESH:
       nface2 = _mesh_face(
         geom2.rot,
         geom2.pos,
@@ -2123,16 +2117,19 @@ def _multicontact(
   # face1 is an edge; clip face1 against face2
   if is_edge_contact_geom1:
     approx_dir = wp.norm_l2(dir) * n2[j]
-    return _polygon_clip(plane_normal, plane_dist, face2, nface2, face1, nface1, n2[j], approx_dir, polygon, clipped)
+    return _polygon_clip(False, plane_normal, plane_dist, face2, nface2, face1, nface1, n2[j], approx_dir, polygon, clipped)
 
   # face2 is an edge; clip face2 against face1
   if is_edge_contact_geom2:
     approx_dir = -wp.norm_l2(dir) * n1[j]
-    return _polygon_clip(plane_normal, plane_dist, face1, nface1, face2, nface2, n1[j], approx_dir, polygon, clipped)
+    return _polygon_clip(False, plane_normal, plane_dist, face1, nface1, face2, nface2, n1[j], approx_dir, polygon, clipped)
 
   # face-face collision
   approx_dir = wp.norm_l2(dir) * n2[j]
-  return _polygon_clip(plane_normal, plane_dist, face1, nface1, face2, nface2, n1[i], approx_dir, polygon, clipped)
+
+  # don't prune box-box collisions (expect up to 8 contacts)
+  prune = not (geomtype1 == GeomType.BOX and geomtype2 == GeomType.BOX)
+  return _polygon_clip(prune, plane_normal, plane_dist, face1, nface1, face2, nface2, n1[i], approx_dir, polygon, clipped)
 
 
 @wp.func
@@ -2153,8 +2150,7 @@ def ccd(
   multiccd: bool,
   tolerance: float,
   cutoff: float,
-  gjk_iterations: int,
-  epa_iterations: int,
+  ccd_iterations: int,
   geom1: Geom,
   geom2: Geom,
   geomtype1: int,
@@ -2187,19 +2183,30 @@ def ccd(
   """General convex collision detection via GJK/EPA."""
   witness1 = mat3c()
   witness2 = mat3c()
-  margin1 = 0.0
-  margin2 = 0.0
+  full_margin1 = 0.0
+  full_margin2 = 0.0
+  size1 = 0.0
+  size2 = 0.0
 
-  if geomtype1 == int(GeomType.SPHERE.value) or geomtype1 == int(GeomType.CAPSULE.value):
-    margin1 = geom1.size[0]
+  # determine if the geoms being tested are discrete
+  is_discrete = _discrete_geoms(geomtype1, geomtype2) and (geom1.margin == 0.0 and geom2.margin == 0.0)
 
-  if geomtype2 == int(GeomType.SPHERE.value) or geomtype2 == int(GeomType.CAPSULE.value):
-    margin2 = geom2.size[0]
+  if geomtype1 == GeomType.SPHERE or geomtype1 == GeomType.CAPSULE:
+    size1 = geom1.size[0]
+    full_margin1 = size1 + 0.5 * geom1.margin
+    geom1.margin = 0.0
+    geom1.size = wp.vec3(0.0, geom1.size[1], geom1.size[2])
+
+  if geomtype2 == GeomType.SPHERE or geomtype2 == GeomType.CAPSULE:
+    size2 = geom2.size[0]
+    full_margin2 = size2 + 0.5 * geom2.margin
+    geom2.margin = 0.0
+    geom2.size = wp.vec3(0.0, geom2.size[1], geom2.size[2])
 
   # special handling for sphere and capsule (shrink to point and line respectively)
-  if margin1 + margin2 > 0.0:
-    cutoff += margin1 + margin2
-    result = gjk(tolerance, gjk_iterations, geom1, geom2, x_1, x_2, geomtype1, geomtype2, cutoff, True)
+  if size1 + size2 > 0.0:
+    cutoff += full_margin1 + full_margin2
+    result = gjk(tolerance, ccd_iterations, geom1, geom2, x_1, x_2, geomtype1, geomtype2, cutoff, is_discrete)
 
     # shallow penetration, inflate contact
     if result.dist > tolerance:
@@ -2207,15 +2214,19 @@ def ccd(
         witness1[0] = result.x1
         witness2[0] = result.x2
         return result.dist, 1, witness1, witness2
-      dist, x1, x2 = _inflate(result.dist, result.x1, result.x2, margin1, margin2)
+      dist, x1, x2 = _inflate(result.dist, result.x1, result.x2, full_margin1, full_margin2)
       witness1[0] = x1
       witness2[0] = x2
       return dist, 1, witness1, witness2
 
     # deep penetration, reset initial conditions and rerun GJK + EPA
-    cutoff -= margin1 + margin2
+    geom1.margin = full_margin1 - size1
+    geom1.size = wp.vec3(size1, geom1.size[1], geom1.size[2])
+    geom2.margin = full_margin2 - size2
+    geom2.size = wp.vec3(size2, geom2.size[1], geom2.size[2])
+    cutoff -= full_margin1 + full_margin2
 
-  result = gjk(tolerance, gjk_iterations, geom1, geom2, x_1, x_2, geomtype1, geomtype2, cutoff, False)
+  result = gjk(tolerance, ccd_iterations, geom1, geom2, x_1, x_2, geomtype1, geomtype2, cutoff, is_discrete)
 
   # no penetration depth to recover
   if result.dist > tolerance or result.dim < 2:
@@ -2305,14 +2316,19 @@ def ccd(
     witness2[0] = result.x2
     return result.dist, 1, witness1, witness2
 
-  dist, x1, x2, idx = _epa(tolerance, epa_iterations, pt, geom1, geom2, geomtype1, geomtype2)
+  dist, x1, x2, idx = _epa(tolerance, ccd_iterations, pt, geom1, geom2, geomtype1, geomtype2, is_discrete)
   if idx == -1:
     return FLOAT_MAX, 0, witness1, witness2
 
+  # multiccd is always on for box-box collisions
+  if geomtype1 == GeomType.BOX and geomtype2 == GeomType.BOX:
+    multiccd = True
+
   if (
     multiccd
-    and (geomtype1 == int(GeomType.BOX.value) or (geomtype1 == int(GeomType.MESH.value) and geom1.mesh_polyadr > -1))
-    and (geomtype2 == int(GeomType.BOX.value) or (geomtype2 == int(GeomType.MESH.value) and geom2.mesh_polyadr > -1))
+    and (geom1.margin == 0.0 and geom2.margin == 0.0)
+    and (geomtype1 == GeomType.BOX or (geomtype1 == GeomType.MESH and geom1.mesh_polyadr > -1))
+    and (geomtype2 == GeomType.BOX or (geomtype2 == GeomType.MESH and geom2.mesh_polyadr > -1))
   ):
     num, w1, w2 = _multicontact(
       polygon,

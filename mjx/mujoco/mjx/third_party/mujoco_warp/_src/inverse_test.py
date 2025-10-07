@@ -21,12 +21,12 @@ import warp as wp
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import mujoco_warp as mjwarp
+import mujoco_warp as mjw
+from mujoco.mjx.third_party.mujoco_warp import DisableBit
+from mujoco.mjx.third_party.mujoco_warp import IntegratorType
+from mujoco.mjx.third_party.mujoco_warp import test_data
 
 from mujoco.mjx.third_party.mujoco_warp._src import inverse
-from mujoco.mjx.third_party.mujoco_warp._src import support
-from mujoco.mjx.third_party.mujoco_warp._src import test_util
-from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 
 
 def _assert_eq(a, b, name):
@@ -60,20 +60,19 @@ _XML = """
 
 class InverseTest(parameterized.TestCase):
   @parameterized.product(
-    integrator=[IntegratorType.EULER, IntegratorType.IMPLICITFAST],
-    invdiscrete=[True, False],
-    sparse=[True, False],
+    integrator=(IntegratorType.EULER, IntegratorType.IMPLICITFAST),
+    jacobian=(mujoco.mjtJacobian.mjJAC_SPARSE, mujoco.mjtJacobian.mjJAC_DENSE),
+    invdiscrete=(True, False),
   )
-  def test_inverse(self, integrator, invdiscrete, sparse):
+  def test_inverse(self, integrator, jacobian, invdiscrete):
     """Tests inverse dynamics."""
-    mjm, mjd, m, d = test_util.fixture(
+    mjm, mjd, m, d = test_data.fixture(
       xml=_XML,
-      contact=False,
-      integrator=integrator,
-      kick=True,
-      applied=True,
-      nstep=10,
-      sparse=sparse,
+      qvel_noise=0.01,
+      ctrl_noise=0.1,
+      qfrc_noise=0.1,
+      xfrc_noise=0.1,
+      overrides={"opt.integrator": integrator, "opt.disableflags": DisableBit.CONTACT, "opt.jacobian": jacobian},
     )
 
     # discrete qacc
@@ -97,29 +96,34 @@ class InverseTest(parameterized.TestCase):
       mujoco.mj_forward(mjm, mjd)
       mjd.qacc = qacc_fd
 
-      m = mjwarp.put_model(mjm)
-      d = mjwarp.put_data(mjm, mjd)
+      m = mjw.put_model(mjm)
+      d = mjw.put_data(mjm, mjd)
 
     qacc = d.qacc.numpy()[0].copy()
     qfrc_constraint = d.qfrc_constraint.numpy()[0].copy()
 
     # qfrc_inverse = qfrc_applied + J.T @ xfrc_applied + qfrc_actuator
     qfrc_xfrc_applied = wp.zeros((d.nworld, m.nv), dtype=float)
-    support.xfrc_accumulate(m, d, qfrc_xfrc_applied)
+    mjw.xfrc_accumulate(m, d, qfrc_xfrc_applied)
     qfrc_inverse = d.qfrc_applied.numpy()[0] + d.qfrc_actuator.numpy()[0] + qfrc_xfrc_applied.numpy()[0]
 
     for arr in (d.qfrc_constraint, d.qfrc_inverse):
       arr.zero_()
 
-    mjwarp.inverse(m, d)
+    mjw.inverse(m, d)
 
     _assert_eq(d.qfrc_constraint.numpy()[0], qfrc_constraint, "qfrc_constraint")
     _assert_eq(d.qfrc_inverse.numpy()[0], qfrc_inverse, "qfrc_inverse")
     _assert_eq(d.qacc.numpy()[0], qacc, "qacc")
 
   def test_discrete_acc_eulerdamp(self):
-    _, _, m, d = test_util.fixture(
-      xml=_XML, integrator=IntegratorType.EULER, eulerdamp=False, kick=True, applied=True, nstep=10
+    _, _, m, d = test_data.fixture(
+      xml=_XML,
+      qvel_noise=0.01,
+      ctrl_noise=0.1,
+      qfrc_noise=0.1,
+      xfrc_noise=0.1,
+      overrides={"opt.integrator": IntegratorType.EULER, "opt.disableflags": DisableBit.EULERDAMP},
     )
     qacc = wp.zeros((1, m.nv), dtype=float)
     qfrc = wp.zeros((1, m.nv), dtype=float)
@@ -127,7 +131,7 @@ class InverseTest(parameterized.TestCase):
     _assert_eq(qacc.numpy()[0], d.qacc.numpy()[0], "qacc")
 
   def test_discrete_acc_rk4(self):
-    _, _, m, d = test_util.fixture(xml=_XML, integrator=IntegratorType.RK4)
+    _, _, m, d = test_data.fixture(xml=_XML, overrides={"opt.integrator": IntegratorType.RK4})
     qacc = wp.zeros((1, m.nv), dtype=float)
     qfrc = wp.zeros((1, m.nv), dtype=float)
 
@@ -136,14 +140,14 @@ class InverseTest(parameterized.TestCase):
 
   def test_inverse_tendon_armature(self):
     """Tests inverse dynamics with tendon armature."""
-    _, _, m, d = test_util.fixture(
+    _, _, m, d = test_data.fixture(
       "tendon/armature.xml",
-      constraint=False,
-      gravity=False,
-      kick=True,
-      applied=True,
-      nstep=10,
       keyframe=0,
+      qvel_noise=0.01,
+      ctrl_noise=0.1,
+      qfrc_noise=0.1,
+      xfrc_noise=0.1,
+      overrides={"opt.disableflags": DisableBit.GRAVITY | DisableBit.CONSTRAINT},
     )
 
     qacc = d.qacc.numpy()[0].copy()
@@ -151,13 +155,13 @@ class InverseTest(parameterized.TestCase):
 
     # qfrc_inverse = qfrc_applied + J.T @ xfrc_applied + qfrc_actuator
     qfrc_xfrc_applied = wp.zeros((d.nworld, m.nv), dtype=float)
-    support.xfrc_accumulate(m, d, qfrc_xfrc_applied)
+    mjw.xfrc_accumulate(m, d, qfrc_xfrc_applied)
     qfrc_inverse = d.qfrc_applied.numpy()[0] + d.qfrc_actuator.numpy()[0] + qfrc_xfrc_applied.numpy()[0]
 
     for arr in (d.qfrc_constraint, d.qfrc_inverse):
       arr.zero_()
 
-    mjwarp.inverse(m, d)
+    mjw.inverse(m, d)
 
     _assert_eq(d.qfrc_constraint.numpy()[0], qfrc_constraint, "qfrc_constraint")
     _assert_eq(d.qfrc_inverse.numpy()[0], qfrc_inverse, "qfrc_inverse")

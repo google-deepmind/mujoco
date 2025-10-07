@@ -21,10 +21,9 @@ import warp as wp
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import mujoco_warp as mjwarp
-
-from mujoco.mjx.third_party.mujoco_warp._src import test_util
-from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
+import mujoco_warp as mjw
+from mujoco.mjx.third_party.mujoco_warp import ConeType
+from mujoco.mjx.third_party.mujoco_warp import test_data
 
 # tolerance for difference between MuJoCo and MJWarp constraint calculations,
 # mostly due to float precision
@@ -143,13 +142,13 @@ class ConstraintTest(parameterized.TestCase):
       </mujoco>
     """
 
-    _, mjd, m, d = test_util.fixture(xml=xml, cone=cone, keyframe=0)
+    _, mjd, m, d = test_data.fixture(xml=xml, keyframe=0, overrides={"opt.cone": cone})
 
     # fill with nan to check whether we are not reading uninitialized values
     for arr in (d.efc.J, d.efc.D, d.efc.aref, d.efc.pos, d.efc.margin):
       arr.fill_(wp.nan)
 
-    mjwarp.make_constraint(m, d)
+    mjw.make_constraint(m, d)
 
     _assert_eq(d.ncon.numpy()[0], mjd.ncon, "ncon")
     _assert_eq(d.efc.J.numpy()[0, : mjd.nefc, :].reshape(-1), mjd.efc_J, "efc_J")
@@ -165,14 +164,14 @@ class ConstraintTest(parameterized.TestCase):
   def test_constraints(self, cone):
     """Test constraints."""
     for key in range(3):
-      _, mjd, m, d = test_util.fixture("constraints.xml", sparse=False, cone=cone, keyframe=key)
+      _, mjd, m, d = test_data.fixture("constraints.xml", keyframe=key, overrides={"opt.cone": cone})
 
       for arr in (d.ne, d.nefc, d.nf, d.nl, d.efc.type):
         arr.fill_(-1)
       for arr in (d.efc.J, d.efc.D, d.efc.vel, d.efc.aref, d.efc.pos, d.efc.margin):
         arr.fill_(wp.nan)
 
-      mjwarp.make_constraint(m, d)
+      mjw.make_constraint(m, d)
 
       _assert_eq(d.ne.numpy()[0], mjd.ne, "ne")
       _assert_eq(d.nefc.numpy()[0], mjd.nefc, "nefc")
@@ -183,14 +182,14 @@ class ConstraintTest(parameterized.TestCase):
   def test_limit_tendon(self):
     """Test limit tendon constraints."""
     for keyframe in range(-1, 1):
-      _, mjd, m, d = test_util.fixture("tendon/tendon_limit.xml", sparse=False, keyframe=keyframe)
+      _, mjd, m, d = test_data.fixture("tendon/tendon_limit.xml", keyframe=keyframe)
 
       for arr in (d.nefc, d.nl, d.efc.type):
         arr.fill_(-1)
       for arr in (d.efc.J, d.efc.D, d.efc.vel, d.efc.aref, d.efc.pos, d.efc.margin):
         arr.fill_(wp.nan)
 
-      mjwarp.make_constraint(m, d)
+      mjw.make_constraint(m, d)
 
       _assert_eq(d.nefc.numpy()[0], mjd.nefc, "nefc")
       _assert_eq(d.nl.numpy()[0], mjd.nl, "nl")
@@ -199,7 +198,7 @@ class ConstraintTest(parameterized.TestCase):
   def test_equality_tendon(self):
     """Test equality tendon constraints."""
 
-    _, mjd, m, d = test_util.fixture(
+    _, mjd, m, d = test_data.fixture(
       xml="""
       <mujoco>
         <option>
@@ -247,7 +246,7 @@ class ConstraintTest(parameterized.TestCase):
     for arr in (d.efc.J, d.efc.D, d.efc.vel, d.efc.aref, d.efc.pos, d.efc.margin):
       arr.fill_(wp.nan)
 
-    mjwarp.make_constraint(m, d)
+    mjw.make_constraint(m, d)
 
     _assert_eq(d.nefc.numpy()[0], mjd.nefc, "nefc")
     _assert_eq(d.ne.numpy()[0], mjd.ne, "ne")

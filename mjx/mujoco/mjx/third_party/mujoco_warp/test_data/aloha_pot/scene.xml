@@ -1,0 +1,635 @@
+<mujoco model="aloha with pot">
+  <compiler autolimits="true" boundmass="0.01" boundinertia="9.9999999999999995e-07" angle="radian"/>
+  <option impratio="10" cone="elliptic">
+    <flag multiccd="enable"/>
+  </option>
+  <visual>
+    <global azimuth="90" elevation="-20" offwidth="848" offheight="480"/>
+    <quality shadowsize="8192"/>
+    <headlight ambient="0.29999999999999999 0.29999999999999999 0.29999999999999999" diffuse="0.59999999999999998 0.59999999999999998 0.59999999999999998" specular="0 0 0"/>
+    <rgba haze="0.14999999999999999 0.25 0.34999999999999998 1"/>
+  </visual>
+  <statistic meansize="0.050000000000000003" extent="0.59999999999999998" center="0 -0.10000000000000001 0.20000000000000001"/>
+  <default>
+    <default class="/">
+      <default class="frame">
+        <geom type="mesh" group="1" material="black"/>
+      </default>
+      <default class="vx300s">
+        <joint axis="0 1 0" actuatorfrcrange="-35 35"/>
+        <site group="4"/>
+        <default class="waist">
+          <joint axis="0 0 1" range="-3.1415799999999998 3.1415799999999998" damping="5.7599999999999998"/>
+          <position ctrlrange="-3.1415799999999998 3.1415799999999998" kp="43"/>
+        </default>
+        <default class="shoulder">
+          <joint range="-1.85005 1.25664" actuatorfrcrange="-144 144" armature="0.39500000000000002" damping="20" frictionloss="2"/>
+          <position ctrlrange="-1.85005 1.25664" kp="265"/>
+        </default>
+        <default class="elbow">
+          <joint range="-1.76278 1.6056999999999999" actuatorfrcrange="-59 59" armature="0.38300000000000001" damping="18.489999999999998" frictionloss="1.1499999999999999"/>
+          <position ctrlrange="-1.76278 1.6056999999999999" kp="227"/>
+        </default>
+        <default class="forearm_roll">
+          <joint axis="1 0 0" range="-3.1415799999999998 3.1415799999999998" actuatorfrcrange="-22 22" armature="0.14000000000000001" damping="6.7800000000000002"/>
+          <position ctrlrange="-3.1415799999999998 3.1415799999999998" kp="78"/>
+        </default>
+        <default class="wrist_angle">
+          <joint range="-1.8674999999999999 2.2340200000000001" armature="0.0080000000000000002" damping="6.2800000000000002"/>
+          <position ctrlrange="-1.8674999999999999 2.2340200000000001" kp="37"/>
+        </default>
+        <default class="wrist_rotate">
+          <joint axis="1 0 0" range="-3.1415799999999998 3.1415799999999998" damping="1.2"/>
+          <position ctrlrange="-3.1415799999999998 3.1415799999999998" kp="10.4"/>
+        </default>
+        <default class="finger">
+          <joint type="slide" armature="0.24299999999999999" damping="40"/>
+          <position ctrlrange="0.002 0.036999999999999998" kp="2000" kv="124"/>
+          <default class="left_finger">
+            <joint axis="0 0 -1" range="0 0.041000000000000002"/>
+          </default>
+          <default class="right_finger">
+            <joint axis="0 0 -1" range="0 0.041000000000000002"/>
+          </default>
+        </default>
+        <default class="visual">
+          <geom type="mesh" contype="0" conaffinity="0" group="2" material="black" density="0"/>
+        </default>
+        <default class="collision">
+          <geom type="mesh" group="3"/>
+          <default class="finger_collision">
+            <geom condim="4" friction="1 0.0050000000000000001 0.0001" solref="0.01 1" solimp="2 1 0.01"/>
+          </default>
+          <default class="sphere_collision">
+            <geom type="sphere" size="0.00059999999999999995" rgba="1 0 0 1"/>
+          </default>
+        </default>
+      </default>
+    </default>
+    <default class="partnet_100015/">
+      <joint frictionloss="1"/>
+      <default class="partnet_100015/collision">
+        <mesh scale="0.20000000000000001 0.20000000000000001 0.20000000000000001" inertia="convex"/>
+        <geom type="mesh"/>
+      </default>
+    </default>
+  </default>
+  <asset>
+    <mesh name="extrusion_2040_880" class="/" file="extrusion_2040_880-df10c72c0b4ae36b2e4f79e29fe1fe8f3a9a678a.stl"/>
+    <mesh name="extrusion_150" class="/" file="extrusion_150-62e2ad6e912937b9c5f0ebde8e23f34ff982455a.stl"/>
+    <mesh name="corner_bracket" class="/" file="corner_bracket-c4129cf77510d68c89cf2ddf67bd36dacef387b3.stl"/>
+    <mesh name="extrusion_1220" class="/" file="extrusion_1220-a3c8ad369e839057b4e10539978b87e39b5f81bf.stl"/>
+    <mesh name="extrusion_1000" class="/" file="extrusion_1000-421ca8ed83291edde7bc9ab61d7d4828b37b0343.stl"/>
+    <mesh name="angled_extrusion" class="/" file="angled_extrusion-2b8426c7d466d59b03a7f048c5304d28205b3069.stl"/>
+    <mesh name="extrusion_600" class="/" file="extrusion_600-87df49f763bf3784925b76eab16d8c28641a4529.stl"/>
+    <mesh name="overhead_mount" class="/" file="overhead_mount-2edf90098757a980b68bc9b546bddce3257c7263.stl"/>
+    <mesh name="extrusion_2040_1000" class="/" file="extrusion_2040_1000-3ae7ca5723c6e8bedf8a1138046f5419c7440b72.stl"/>
+    <mesh name="wormseye_mount" class="/" file="wormseye_mount-4ac7acdce0b7e4d90ec0ec56b4fcd8a7ff0cf2e7.stl"/>
+    <mesh name="tablelegs" class="/" file="tablelegs-d0aaf6399ee429de60273fe61f29a7a7fcd20440.obj"/>
+    <mesh name="tabletop" class="/" file="tabletop-2972d9cc47a6f6792f1b4a7fd4ac6e6862d06105.obj"/>
+    <mesh name="table_mesh_mapped" class="/" file="table_mesh_mapped-6c055adb309111efb32fb9fc0417883865cf9bf2.obj"/>
+    <texture name="//unnamed_texture_3" type="skybox" builtin="gradient" rgb1="0.29999999999999999 0.5 0.69999999999999996" rgb2="0 0 0" width="512" height="3072"/>
+    <texture name="groundplane" type="2d" builtin="checker" rgb1="0.20000000000000001 0.29999999999999999 0.40000000000000002" rgb2="0.10000000000000001 0.20000000000000001 0.29999999999999999" mark="edge" markrgb="0.80000000000000004 0.80000000000000004 0.80000000000000004" width="300" height="300"/>
+    <material name="groundplane" class="/" texture="groundplane" texrepeat="5 5" texuniform="true" reflectance="0.20000000000000001"/>
+    <material name="metal" class="/" rgba="0.51700000000000002 0.52900000000000003 0.53700000000000003 1"/>
+    <material name="black" class="/" rgba="0.14999999999999999 0.14999999999999999 0.14999999999999999 1"/>
+    <mesh name="vx300s_1_base" class="/" file="vx300s_1_base-8911efddeb54716caf91218e0beee848e0083aad.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="vx300s_2_shoulder" class="/" file="vx300s_2_shoulder-5dee3af162e071b59ae35b1b7279fe257c375ffb.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="vx300s_3_upper_arm" class="/" file="vx300s_3_upper_arm-f0b3692a22ad52ba9b3c439033c552c51222ed28.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="vx300s_4_upper_forearm" class="/" file="vx300s_4_upper_forearm-6d4b69653fd0cc02e83bb7d65ba3e7ec1604b71c.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="vx300s_5_lower_forearm" class="/" file="vx300s_5_lower_forearm-8555d345ad2564df22bcbd24557f5a69d362ef68.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="vx300s_6_wrist" class="/" file="vx300s_6_wrist-b3facdc0498ab0119fb164f573de994a27c7401e.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="vx300s_7_gripper_prop" class="/" file="vx300s_7_gripper_prop-fb8e61f159d0594d74deb8fabda682e9971dc2b5.stl"/>
+    <mesh name="vx300s_7_gripper_bar" class="/" file="vx300s_7_gripper_bar-c5f4b35b626deb7894668277f953fc4143ad9898.stl"/>
+    <mesh name="vx300s_7_gripper_wrist_mount" class="/" file="vx300s_7_gripper_wrist_mount-61d29471843d7ca6e0e8a970bdc9256a822c8b15.stl"/>
+    <mesh name="vx300s_8_custom_finger_left" class="/" file="vx300s_8_custom_finger_left-bf982864f8591ef106a4b771fc7502c724ef3d7c.stl"/>
+    <mesh name="vx300s_8_custom_finger_right" class="/" file="vx300s_8_custom_finger_right-41349941da5624f43b137273d462f62ab9605c36.stl"/>
+    <mesh name="d405_solid" class="/" file="d405_solid-a35f08a7e5e7488eb120fc62c3e6458e6be0f956.stl"/>
+    <mesh name="partnet_100015/original-17_col_collision_0" class="partnet_100015/collision" file="original-17_col_collision_0-b439e444107a6087da79e6278eafc574c027bcd0.obj"/>
+    <mesh name="partnet_100015/original-17_col_collision_1" class="partnet_100015/collision" file="original-17_col_collision_1-ca56bb587dfb53ac2dc9a1b879f6ee4621776c47.obj"/>
+    <mesh name="partnet_100015/original-17_col_collision_2" class="partnet_100015/collision" file="original-17_col_collision_2-98d1a01665521786bae65a8926f051b0bfdbdbd6.obj"/>
+    <mesh name="partnet_100015/original-17_col_collision_3" class="partnet_100015/collision" file="original-17_col_collision_3-213ea4e7a3d15bd82c74f43117462d5098777802.obj"/>
+    <mesh name="partnet_100015/original-10_col_collision_0" class="partnet_100015/collision" file="original-10_col_collision_0-208fe51a40113c78c2172ae79d2d0b8a5d9002d1.obj"/>
+    <mesh name="partnet_100015/original-10_col_collision_1" class="partnet_100015/collision" file="original-10_col_collision_1-e1c239941aa3757c1a8c08c0e7ac9ce503ec8d05.obj"/>
+    <mesh name="partnet_100015/original-10_col_collision_2" class="partnet_100015/collision" file="original-10_col_collision_2-e190f600631515ffcf851e485d44658c713792e2.obj"/>
+    <mesh name="partnet_100015/original-11_col_collision_0" class="partnet_100015/collision" file="original-11_col_collision_0-a478c968f22f8fb86ec096bfa4739e8fa1eeceaf.obj"/>
+    <mesh name="partnet_100015/original-8_col_collision_0" class="partnet_100015/collision" file="original-8_col_collision_0-3e66afde19240856451b0fc8f5e31590e7e998f0.obj"/>
+    <mesh name="partnet_100015/original-13_col_collision_0" class="partnet_100015/collision" file="original-13_col_collision_0-0cd922b53e782e2add994cbafff464e869755941.obj"/>
+    <mesh name="partnet_100015/original-13_col_collision_1" class="partnet_100015/collision" file="original-13_col_collision_1-88e56b18a79a8daec67f71cf3dfb02c50659863c.obj"/>
+    <mesh name="partnet_100015/original-13_col_collision_2" class="partnet_100015/collision" file="original-13_col_collision_2-ec8e1afc2bcaa23895712349e76fcd00eb0bd33f.obj"/>
+    <mesh name="partnet_100015/original-13_col_collision_3" class="partnet_100015/collision" file="original-13_col_collision_3-722d5fffa71966e308e7f2993748005d70a874c9.obj"/>
+    <mesh name="partnet_100015/original-13_col_collision_4" class="partnet_100015/collision" file="original-13_col_collision_4-61a0de5070f55e2bb145b0122ecba1848e40cae6.obj"/>
+    <mesh name="partnet_100015/original-13_col_collision_5" class="partnet_100015/collision" file="original-13_col_collision_5-f927db3114dd0fe49bd66244990f88c818c756b3.obj"/>
+    <mesh name="partnet_100015/original-13_col_collision_6" class="partnet_100015/collision" file="original-13_col_collision_6-cfce18dc0d773030ae0aeb24475d7789b68e858e.obj"/>
+    <mesh name="partnet_100015/original-13_col_collision_7" class="partnet_100015/collision" file="original-13_col_collision_7-d3a6f38e04f915c4ac7c0a5134a0b680881190b8.obj"/>
+    <mesh name="partnet_100015/original-14_col_collision_0" class="partnet_100015/collision" file="original-14_col_collision_0-778f4a2bfbfe1a245ef5339cf88ba2d67f6047e3.obj"/>
+    <mesh name="partnet_100015/original-14_col_collision_1" class="partnet_100015/collision" file="original-14_col_collision_1-ee44d4c9c075207d4618aa4990a635cce9621dd7.obj"/>
+    <mesh name="partnet_100015/original-14_col_collision_2" class="partnet_100015/collision" file="original-14_col_collision_2-74987c61a726a3ac722b52fb4eee10763febd48d.obj"/>
+    <mesh name="partnet_100015/original-14_col_collision_3" class="partnet_100015/collision" file="original-14_col_collision_3-928a14acef9d0fb5ceb5658cdb1e61bbec00b058.obj"/>
+    <mesh name="partnet_100015/original-14_col_collision_4" class="partnet_100015/collision" file="original-14_col_collision_4-8977d2ce50ff654661aea7888c3851962f049c9c.obj"/>
+    <mesh name="partnet_100015/original-14_col_collision_5" class="partnet_100015/collision" file="original-14_col_collision_5-c336653cef4a18fe2bc8967e34ca58404b73fa4d.obj"/>
+    <mesh name="partnet_100015/original-14_col_collision_6" class="partnet_100015/collision" file="original-14_col_collision_6-6493d308c471712f4b27bd7ac69e433f779b31a6.obj"/>
+    <mesh name="partnet_100015/original-14_col_collision_7" class="partnet_100015/collision" file="original-14_col_collision_7-403fcdc88dfbd4473e87852461b45193c22f7a5d.obj"/>
+    <mesh name="partnet_100015/original-14_col_collision_8" class="partnet_100015/collision" file="original-14_col_collision_8-634b94344d8aa949eb4e59ce7cfc72e6c6421751.obj"/>
+    <mesh name="partnet_100015/original-29_col_collision_0" class="partnet_100015/collision" file="original-29_col_collision_0-898f82718a43061e3f7d46041e964fe213a45c18.obj"/>
+    <mesh name="partnet_100015/original-29_col_collision_1" class="partnet_100015/collision" file="original-29_col_collision_1-c2c4706030166e8c1b0834f343d6812fdc8623e0.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_0" class="partnet_100015/collision" file="original-21_col_collision_0-c8948b4fccbd63e4c4835435b6e32c87f0cd1b5b.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_1" class="partnet_100015/collision" file="original-21_col_collision_1-2708605fa032bbd3c3458a0823fc3adb4e6095d1.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_2" class="partnet_100015/collision" file="original-21_col_collision_2-3b94f002a719c9606862e1fb1227f9110825bb79.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_3" class="partnet_100015/collision" file="original-21_col_collision_3-e4933c58c0e8ad8b2de88ff6af7f4293ad96929c.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_4" class="partnet_100015/collision" file="original-21_col_collision_4-5465a7ef409ce22edd43097a0569168883c3eb5c.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_5" class="partnet_100015/collision" file="original-21_col_collision_5-d03b05250829877106a511befd9cf6fa8823675a.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_6" class="partnet_100015/collision" file="original-21_col_collision_6-12a5679233100eec0a3295abb54b1b7b9b4b0839.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_7" class="partnet_100015/collision" file="original-21_col_collision_7-2374e4da93bd05a4065813d1d2efe3cd2102dfe7.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_8" class="partnet_100015/collision" file="original-21_col_collision_8-d140e96d3a62e6fac0428a167cc13de2f120c57a.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_9" class="partnet_100015/collision" file="original-21_col_collision_9-6edf8358c6c7f7dd89929ae63b66ef778bd8746c.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_10" class="partnet_100015/collision" file="original-21_col_collision_10-225221cb64e522621919eddad8b1cbb56367ee40.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_11" class="partnet_100015/collision" file="original-21_col_collision_11-e3ef67903a31437ad5b27e2f0fca54596d68a026.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_12" class="partnet_100015/collision" file="original-21_col_collision_12-b44e24db22fafda8618c5c5c784debc3c74d4298.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_13" class="partnet_100015/collision" file="original-21_col_collision_13-cbc5cc87f26f9079dec574f7683dfd9e950cd10e.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_14" class="partnet_100015/collision" file="original-21_col_collision_14-8e8dfdca17412c2cacd2d3558f53110d9f9df0f2.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_15" class="partnet_100015/collision" file="original-21_col_collision_15-3a6e65dc60499d1b3ebabafd73eef5615cefc236.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_16" class="partnet_100015/collision" file="original-21_col_collision_16-3104b26d016115d98af353973731e730d3a6dc0a.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_17" class="partnet_100015/collision" file="original-21_col_collision_17-df37344b83d744900ac4fc2ca3397c2da1dba5cc.obj"/>
+    <mesh name="partnet_100015/original-21_col_collision_18" class="partnet_100015/collision" file="original-21_col_collision_18-e24714646f4c886da3b1472b959a9ada8f08333b.obj"/>
+    <mesh name="partnet_100015/original-30_col_collision_0" class="partnet_100015/collision" file="original-30_col_collision_0-18bf7ffccaf2bf740bd3134f32fa2c221678fa0f.obj"/>
+    <mesh name="partnet_100015/original-30_col_collision_1" class="partnet_100015/collision" file="original-30_col_collision_1-249061bdc92ac3a5e4ee6614811f4d022863ac30.obj"/>
+    <mesh name="partnet_100015/original-22_col_collision_0" class="partnet_100015/collision" file="original-22_col_collision_0-db5abc551d7a44ee3d4d97301c152cb05af78767.obj"/>
+    <mesh name="partnet_100015/original-22_col_collision_1" class="partnet_100015/collision" file="original-22_col_collision_1-96400f78b8859f07b401002cd19ffaa952da7468.obj"/>
+    <mesh name="partnet_100015/original-22_col_collision_2" class="partnet_100015/collision" file="original-22_col_collision_2-8a318237a2ff73b64244d87128194ea897852e93.obj"/>
+    <mesh name="partnet_100015/original-22_col_collision_3" class="partnet_100015/collision" file="original-22_col_collision_3-df7c5e4cd695911b0efeafbf97c62e1a82418c67.obj"/>
+    <mesh name="partnet_100015/original-22_col_collision_4" class="partnet_100015/collision" file="original-22_col_collision_4-dc9963e0fb42ed6852e78415fdc74faa645347ee.obj"/>
+    <mesh name="partnet_100015/original-22_col_collision_5" class="partnet_100015/collision" file="original-22_col_collision_5-6bcda3d287d1cfcabe91c62bc3aa506569f518b7.obj"/>
+    <mesh name="partnet_100015/original-22_col_collision_6" class="partnet_100015/collision" file="original-22_col_collision_6-60b9408de472c6c15fcfe0ddb302b65c5bf9e960.obj"/>
+    <mesh name="partnet_100015/original-22_col_collision_7" class="partnet_100015/collision" file="original-22_col_collision_7-9382299967302621d8e6ed94305028a9b209dfd2.obj"/>
+    <mesh name="partnet_100015/original-26_col_collision_0" class="partnet_100015/collision" file="original-26_col_collision_0-259901813433e123bb23132256974b4cbb27f450.obj"/>
+    <mesh name="partnet_100015/original-26_col_collision_1" class="partnet_100015/collision" file="original-26_col_collision_1-87f2f4ceb88b73a331d804f2c4658746126af80f.obj"/>
+    <mesh name="partnet_100015/original-5_col_collision_0" class="partnet_100015/collision" file="original-5_col_collision_0-03fd8fe1964def48aa4fe42635f9542bc6015573.obj"/>
+    <mesh name="partnet_100015/original-5_col_collision_1" class="partnet_100015/collision" file="original-5_col_collision_1-543900e1c3bad73bd2b2a016cf4ae951dc16a798.obj"/>
+    <mesh name="partnet_100015/original-5_col_collision_2" class="partnet_100015/collision" file="original-5_col_collision_2-6cc34f530a06ad54b80a9006aaf215bbac9509fa.obj"/>
+    <mesh name="partnet_100015/original-5_col_collision_3" class="partnet_100015/collision" file="original-5_col_collision_3-e12322ca1c81b79a05bff62846ac490b8d1ac3d4.obj"/>
+    <mesh name="partnet_100015/original-5_col_collision_4" class="partnet_100015/collision" file="original-5_col_collision_4-edc2a944b721ef784d23454f3252f30bae943bd2.obj"/>
+    <mesh name="partnet_100015/original-5_col_collision_5" class="partnet_100015/collision" file="original-5_col_collision_5-7b80b71c4d74bf20ac97b1f0875e34a789547c53.obj"/>
+    <mesh name="partnet_100015/original-5_col_collision_6" class="partnet_100015/collision" file="original-5_col_collision_6-6a99b40aab7dab531fef77ff92bdec5a3410b9bc.obj"/>
+    <mesh name="partnet_100015/original-5_col_collision_7" class="partnet_100015/collision" file="original-5_col_collision_7-2a8b7651225ffadfd716665f99970af90a86e52f.obj"/>
+    <mesh name="partnet_100015/original-5_col_collision_8" class="partnet_100015/collision" file="original-5_col_collision_8-f3ede03f8a622ddcc01fc62430a1d6c807741421.obj"/>
+    <mesh name="partnet_100015/original-27_col_collision_0" class="partnet_100015/collision" file="original-27_col_collision_0-c5b903ddd2b86d74a023dc3caa2977ddb0414ae8.obj"/>
+    <mesh name="partnet_100015/original-6_col_collision_0" class="partnet_100015/collision" file="original-6_col_collision_0-91dd649f5629943594425caa55f1e4d5a4e93e0d.obj"/>
+    <mesh name="partnet_100015/original-6_col_collision_1" class="partnet_100015/collision" file="original-6_col_collision_1-d99b4cd611d64e52b1529afd3668ba7bed221919.obj"/>
+    <mesh name="partnet_100015/original-6_col_collision_2" class="partnet_100015/collision" file="original-6_col_collision_2-a2fcfa80779b37d0b35006ff6ff99d1e2d77e774.obj"/>
+    <mesh name="partnet_100015/original-6_col_collision_3" class="partnet_100015/collision" file="original-6_col_collision_3-118912a3efd6064071faf75a14023617d7a29750.obj"/>
+    <mesh name="partnet_100015/original-6_col_collision_4" class="partnet_100015/collision" file="original-6_col_collision_4-a5d16325a58a37ef9fa2bbdaf15b6d20f798e33e.obj"/>
+    <mesh name="partnet_100015/original-6_col_collision_5" class="partnet_100015/collision" file="original-6_col_collision_5-da44cc1653ede725016118d7cdd0eceb1af55583.obj"/>
+    <mesh name="partnet_100015/original-6_col_collision_6" class="partnet_100015/collision" file="original-6_col_collision_6-ebfef0d9372bf84dec2f832426530128338bbfb2.obj"/>
+    <mesh name="partnet_100015/original-6_col_collision_7" class="partnet_100015/collision" file="original-6_col_collision_7-dbb4279ab8f42b3a35de1b776130701108a50bc3.obj"/>
+    <mesh name="partnet_100015/original-31_col_collision_0" class="partnet_100015/collision" file="original-31_col_collision_0-d7dd02393237429b33a2296feda0a0f2e3887e90.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_0" class="partnet_100015/collision" file="original-23_col_collision_0-12ce5ed902c7b7a8a0c407f48118fff68016dfec.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_1" class="partnet_100015/collision" file="original-23_col_collision_1-d498452198415d0e7d49f87079b6eeca643a356f.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_2" class="partnet_100015/collision" file="original-23_col_collision_2-6f4cedd984c14af625555605dec4650b7286d5fa.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_3" class="partnet_100015/collision" file="original-23_col_collision_3-b71ea9d6f39011787da8fbb18f65ed5932cd23db.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_4" class="partnet_100015/collision" file="original-23_col_collision_4-ea78c38f2458a8e06326875928b64ea676c3a083.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_5" class="partnet_100015/collision" file="original-23_col_collision_5-d519cc650173b632bc1329ddf4c2ddcf9337d5cd.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_6" class="partnet_100015/collision" file="original-23_col_collision_6-5a7124ea953dd835721ae4893a0d480c6202e9fc.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_7" class="partnet_100015/collision" file="original-23_col_collision_7-552ef675dbe9332f84d2ec2bd523ca31c5fc9c21.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_8" class="partnet_100015/collision" file="original-23_col_collision_8-a4f5b867c535a7b91a54511fd9e36eee82e9b943.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_9" class="partnet_100015/collision" file="original-23_col_collision_9-c3b5946fc3874b7ebfd1ac0f0a2bac3407b6d1ad.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_10" class="partnet_100015/collision" file="original-23_col_collision_10-73c4c0aeef953ee56e3531c0f2ae64b2dc3655ce.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_11" class="partnet_100015/collision" file="original-23_col_collision_11-8b7a70b9746eb429fd6fb1555649ae813a4cee43.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_12" class="partnet_100015/collision" file="original-23_col_collision_12-486a9bb9b03dc60fb32bb6ca9f7fddbd172f08fa.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_13" class="partnet_100015/collision" file="original-23_col_collision_13-920bb87696882db99697715207acc1d326b62947.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_14" class="partnet_100015/collision" file="original-23_col_collision_14-f1351b3484dabfb2999f03923638186f714e52ae.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_15" class="partnet_100015/collision" file="original-23_col_collision_15-f8ede1030270611430302fee1fc06cf8f6a8c101.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_16" class="partnet_100015/collision" file="original-23_col_collision_16-d605d61a021487a768f29be67bf681bf19bbbd36.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_17" class="partnet_100015/collision" file="original-23_col_collision_17-c3f2ecf0799db93fd1d265370bb939e0f33c5c18.obj"/>
+    <mesh name="partnet_100015/original-23_col_collision_18" class="partnet_100015/collision" file="original-23_col_collision_18-bb412f7d3891d34d1425bf5829dcdb9576b7fee5.obj"/>
+    <mesh name="partnet_100015/original-25_col_collision_0" class="partnet_100015/collision" file="original-25_col_collision_0-0f44eed200b016b11d4936140ec35102f9e8d4ab.obj"/>
+    <mesh name="partnet_100015/original-25_col_collision_1" class="partnet_100015/collision" file="original-25_col_collision_1-16ef9250fff030b5c0cc3df5565b7763875b1f11.obj"/>
+    <mesh name="partnet_100015/original-7_col_collision_0" class="partnet_100015/collision" file="original-7_col_collision_0-3638c6eae9bf1f3ae55798660678516b5820fc46.obj"/>
+    <mesh name="partnet_100015/original-7_col_collision_1" class="partnet_100015/collision" file="original-7_col_collision_1-616d2b3c89ad237434b655c8490aa663274cb58f.obj"/>
+    <mesh name="partnet_100015/original-7_col_collision_2" class="partnet_100015/collision" file="original-7_col_collision_2-25c9e799427a1745776a8110a2b9aeb34cb5d3b3.obj"/>
+    <mesh name="partnet_100015/original-7_col_collision_3" class="partnet_100015/collision" file="original-7_col_collision_3-27e866ca632c952bcd7e8fb4d08b1c02ca70230f.obj"/>
+    <mesh name="partnet_100015/original-7_col_collision_4" class="partnet_100015/collision" file="original-7_col_collision_4-06b9a772794eb9b36235a69486bb86d42e381ad2.obj"/>
+    <mesh name="partnet_100015/original-7_col_collision_5" class="partnet_100015/collision" file="original-7_col_collision_5-4b6a8bb29df4bfb7dcc3af405310880df1109f0b.obj"/>
+    <mesh name="partnet_100015/original-7_col_collision_6" class="partnet_100015/collision" file="original-7_col_collision_6-505d98f451863b8794bb95c618796c8c752c6518.obj"/>
+    <mesh name="partnet_100015/original-7_col_collision_7" class="partnet_100015/collision" file="original-7_col_collision_7-2e466ad73a6129bf39af3c092662bc00b560a663.obj"/>
+    <mesh name="partnet_100015/original-7_col_collision_8" class="partnet_100015/collision" file="original-7_col_collision_8-7f396c1ac75f494900bf8db473bcc89d6412342d.obj"/>
+    <mesh name="partnet_100015/original-19_col_collision_0" class="partnet_100015/collision" file="original-19_col_collision_0-ea922fffdad3044d90075c80dcb505681d487cb5.obj"/>
+  </asset>
+  <worldbody>
+    <light name="light" class="/" castshadow="true" pos="0 0.10000000000000001 2.5"/>
+    <geom name="floor" class="/" type="plane" size="2 2 0.050000000000000003" material="groundplane" pos="0 0 -0.75"/>
+    <body name="table" pos="0 0 -0.75">
+      <site name="worldref" class="/"/>
+      <geom name="tabletop" class="visual" quat="1 0 0 1" mesh="tabletop"/>
+      <geom name="tablelegs" class="visual" quat="1 0 0 1" mesh="tablelegs"/>
+      <geom name="table" class="collision" type="box" size="0.60999999999999999 0.37 0.10000000000000001" pos="0 0 0.65090000000000003"/>
+    </body>
+    <camera name="overhead_cam" class="/" mode="fixed" fovy="58" pos="0 -0.30379400000000001 1.0252399999999999" quat="0.97633199999999998 0.216277 0 0"/>
+    <camera name="worms_eye_cam" class="/" mode="fixed" fovy="58" pos="0 -0.37716699999999997 0.031605500000000002" quat="0.67265900000000001 0.73995299999999997 0 0"/>
+    <geom name="//unnamed_geom_4" class="frame" pos="0.44 -0.36099999999999999 1.03" quat="0 1 0 1" mesh="extrusion_2040_880"/>
+    <geom name="//unnamed_geom_5" class="frame" pos="0.44 -0.371 0.60999999999999999" quat="1 0 -1 0" mesh="extrusion_150"/>
+    <geom name="//unnamed_geom_6" class="frame" pos="0 -0.30379400000000001 1.0252399999999999" quat="0 0 0.97629600000000005 0.21643999999999999" mesh="d405_solid"/>
+    <geom name="//unnamed_geom_7" class="frame" pos="0.44 -0.38300000000000001 1.04" quat="0 0 -1 1" mesh="corner_bracket"/>
+    <geom name="//unnamed_geom_8" class="frame" pos="-0.60999999999999999 -0.39100000000000001 -0.01" quat="0 -1 0 1" mesh="extrusion_1220"/>
+    <geom name="//unnamed_geom_9" class="frame" pos="-0.58999999999999997 -0.371 0.60999999999999999" quat="0 -1 0 1" mesh="extrusion_150"/>
+    <geom name="//unnamed_geom_10" class="frame" pos="0.41999999999999998 -0.38300000000000001 0.62" quat="1 1 1 -1" mesh="corner_bracket"/>
+    <geom name="//unnamed_geom_11" class="frame" pos="0 -0.37716699999999997 0.031605500000000002" quat="0 0 -0.67236700000000005 -0.74021800000000004" mesh="d405_solid"/>
+    <geom name="//unnamed_geom_12" class="frame" pos="0.60999999999999999 -0.38300000000000001 0.62" quat="0 0 1 -1" mesh="corner_bracket"/>
+    <geom name="//unnamed_geom_13" class="frame" pos="-0.42999999999999999 -0.36099999999999999 1.02" quat="0 0 0 1" mesh="extrusion_2040_1000"/>
+    <geom name="//unnamed_geom_14" class="frame" pos="-0.60999999999999999 -0.38300000000000001 0.62" quat="1 1 1 -1" mesh="corner_bracket"/>
+    <geom name="//unnamed_geom_15" class="frame" material="metal" pos="-0.42999999999999999 -0.23999999999999999 0.12" quat="0.92300000000000004 0.38200000000000001 0 0" mesh="angled_extrusion"/>
+    <geom name="//unnamed_geom_16" class="frame" pos="-0.58999999999999997 -0.066000000000000003 0.01" quat="0 1 0 -1" mesh="extrusion_150"/>
+    <geom name="//unnamed_geom_17" class="frame" pos="-0.59999999999999998 -0.371 0.62" quat="0 0 0 -1" mesh="extrusion_600"/>
+    <geom name="//unnamed_geom_18" class="frame" pos="0.44 -0.63100000000000001 0.01" quat="1 0 -1 0" mesh="extrusion_150"/>
+    <geom name="//unnamed_geom_19" class="frame" pos="0 -0.35099999999999998 1.03" quat="0 0 1 1" mesh="overhead_mount"/>
+    <geom name="//unnamed_geom_20" class="frame" pos="-0.42999999999999999 -0.64100000000000001 0.01" quat="1 1 -1 1" mesh="extrusion_1000"/>
+    <geom name="//unnamed_geom_21" class="frame" material="metal" pos="0.59999999999999998 -0.26000000000000001 0.12" quat="0.92300000000000004 0.38200000000000001 0 0" mesh="angled_extrusion"/>
+    <geom name="//unnamed_geom_22" class="frame" pos="0.44 -0.066000000000000003 0.01" quat="1 0 -1 0" mesh="extrusion_150"/>
+    <geom name="//unnamed_geom_23" class="frame" pos="-0.44 -0.38300000000000001 1.04" quat="1 1 1 -1" mesh="corner_bracket"/>
+    <geom name="//unnamed_geom_24" class="frame" pos="-0.60999999999999999 0.36899999999999999 0.01" quat="0 1 0 -1" mesh="extrusion_1220"/>
+    <geom name="//unnamed_geom_25" class="frame" pos="0.42999999999999999 -0.64100000000000001 0.01" quat="0 0 -1 1" mesh="extrusion_1000"/>
+    <geom name="//unnamed_geom_26" class="frame" pos="0.59999999999999998 -0.64100000000000001 0.01" quat="0 0 -1 1" mesh="extrusion_1000"/>
+    <geom name="//unnamed_geom_27" class="frame" pos="-0.58999999999999997 -0.63100000000000001 0.01" quat="0 1 0 -1" mesh="extrusion_150"/>
+    <geom name="//unnamed_geom_28" class="frame" pos="-0.41999999999999998 -0.38300000000000001 0.62" quat="0 0 -1 1" mesh="corner_bracket"/>
+    <geom name="//unnamed_geom_29" class="frame" pos="-0.59999999999999998 -0.64100000000000001 0.01" quat="0 0 -1 1" mesh="extrusion_1000"/>
+    <geom name="//unnamed_geom_30" class="frame" pos="0.59999999999999998 -0.371 0.62" quat="1 0 0 1" mesh="extrusion_600"/>
+    <geom name="//unnamed_geom_31" class="frame" material="metal" pos="0.42999999999999999 -0.23999999999999999 0.12" quat="0.92300000000000004 0.38200000000000001 0 0" mesh="angled_extrusion"/>
+    <geom name="//unnamed_geom_32" class="frame" material="metal" pos="-0.59999999999999998 -0.26000000000000001 0.12" quat="0.92300000000000004 0.38200000000000001 0 0" mesh="angled_extrusion"/>
+    <geom name="//unnamed_geom_33" class="frame" pos="0.42999999999999999 -0.36099999999999999 1.02" quat="0 0 0 1" mesh="extrusion_2040_1000"/>
+    <geom name="//unnamed_geom_34" class="frame" pos="0 -0.39100000000000001 -0.01" quat="0 0 0 1" mesh="wormseye_mount"/>
+    <light name="tracking_light_left" class="/" mode="targetbodycom" target="left\gripper_link" pos="-0.5 0.69999999999999996 2.5" cutoff="55"/>
+    <light name="tracking_light_right" class="/" mode="targetbodycom" target="right\gripper_link" pos="0.5 0.69999999999999996 2.5" cutoff="55"/>
+    <camera name="teleoperator_pov" class="/" pos="0 -1.3540000000000001 0.68500000000000005" xyaxes="1 0 0 0 0.20000000000000001 0.80000000000000004"/>
+    <camera name="collaborator_pov" class="/" pos="0 1.5 0.80000000000000004" xyaxes="-1 0 0 0 -0.20000000000000001 0.80000000000000004"/>
+    <body name="left\base_link" childclass="vx300s" pos="-0.46899999999999997 -0.019 0.02">
+      <site name="left\base" group="5" pos="0 0 0"/>
+      <inertial pos="-0.053477400000000001 -0.00056257500000000005 0.020596099999999999" quat="-0.0029232400000000001 0.71251699999999996 0.00480387 0.70163299999999995" mass="0.96903399999999995" diaginertia="0.0071633 0.0060245100000000003 0.00169819"/>
+      <geom name="//unnamed_geom_35" class="visual" quat="1 0 0 1" mesh="vx300s_1_base"/>
+      <geom name="//unnamed_geom_36" class="collision" quat="1 0 0 1" mesh="vx300s_1_base"/>
+      <body name="left\shoulder_link" pos="0 0 0.079000000000000001">
+        <inertial pos="0.00025923299999999999 -3.3552000000000001e-06 0.011612900000000001" quat="-0.47611900000000001 0.47608299999999998 0.52278999999999998 0.52282600000000001" mass="0.79861400000000005" diaginertia="0.00120156 0.00113744 0.00093880000000000005"/>
+        <joint name="left\waist" class="waist"/>
+        <site name="left\waist" group="5" pos="0 0 0"/>
+        <geom name="//unnamed_geom_37" class="visual" pos="0 0 -0.0030000000000000001" quat="1 0 0 1" mesh="vx300s_2_shoulder"/>
+        <geom name="//unnamed_geom_38" class="collision" pos="0 0 -0.0030000000000000001" quat="1 0 0 1" mesh="vx300s_2_shoulder"/>
+        <body name="left\upper_arm_link" pos="0 0 0.048050000000000002">
+          <inertial pos="0.020694899999999999 4.0000000000000001e-10 0.22645899999999999" quat="0 0.072845800000000002 0 0.99734299999999998" mass="0.79259199999999996" diaginertia="0.0091133800000000008 0.0089250000000000006 0.00075931700000000002"/>
+          <joint name="left\shoulder" class="shoulder"/>
+          <site name="left\shoulder" group="5" pos="0 0 0"/>
+          <geom name="//unnamed_geom_39" class="visual" quat="1 0 0 1" mesh="vx300s_3_upper_arm"/>
+          <geom name="//unnamed_geom_40" class="collision" quat="1 0 0 1" mesh="vx300s_3_upper_arm"/>
+          <body name="left\upper_forearm_link" pos="0.059549999999999999 0 0.29999999999999999">
+            <inertial pos="0.105723 0 0" quat="-0.00062163099999999998 0.70472400000000002 0.010529200000000001 0.70940300000000001" mass="0.32222800000000001" diaginertia="0.00144107 0.0013422799999999999 0.00015204699999999999"/>
+            <site name="left\elbow" group="5" pos="0 0 0"/>
+            <joint name="left\elbow" class="elbow"/>
+            <geom name="//unnamed_geom_41" class="visual" mesh="vx300s_4_upper_forearm"/>
+            <geom name="//unnamed_geom_42" class="collision" mesh="vx300s_4_upper_forearm"/>
+            <body name="left\lower_forearm_link" pos="0.20000000000000001 0 0">
+              <inertial pos="0.051347700000000003 0.0068046199999999999 0" quat="-0.70260400000000001 -0.079672400000000004 -0.70260400000000001 0.079672400000000004" mass="0.414823" diaginertia="0.0005911 0.000546493 0.00015570699999999999"/>
+              <joint name="left\forearm_roll" class="forearm_roll"/>
+              <geom name="//unnamed_geom_43" class="visual" quat="0 1 0 0" mesh="vx300s_5_lower_forearm"/>
+              <geom name="//unnamed_geom_44" class="collision" quat="0 1 0 0" mesh="vx300s_5_lower_forearm"/>
+              <body name="left\wrist_link" pos="0.10000000000000001 0 0">
+                <site name="left\wrist" group="5" pos="0 0 0"/>
+                <inertial pos="0.046743 -7.6652000000000007e-06 0.010565" quat="-0.00100191 0.54458600000000001 0.0026583000000000002 0.8387" mass="0.115395" diaginertia="5.4570700000000003e-05 4.6310100000000002e-05 4.3269200000000002e-05"/>
+                <joint name="left\wrist_angle" class="wrist_angle"/>
+                <geom name="//unnamed_geom_45" class="visual" quat="1 0 0 1" mesh="vx300s_6_wrist"/>
+                <geom name="//unnamed_geom_46" class="collision" quat="1 0 0 1" mesh="vx300s_6_wrist"/>
+                <body name="left\gripper_link" pos="0.069744 0 0">
+                  <inertial pos="0.039566200000000003 -2.5631100000000002e-07 0.0040064899999999997" quat="0.62033000000000005 0.61991600000000002 -0.33968199999999998 0.33986899999999998" mass="0.25165199999999999" diaginertia="0.00068954599999999997 0.00065031599999999996 0.000468142"/>
+                  <joint name="left\wrist_rotate" class="wrist_rotate"/>
+                  <site name="left\gripper" group="5" pos="0.14999999999999999 0 0"/>
+                  <body name="left\gripper_base" pos="0.035000000000000003 0 0" euler="0 1.5700000000000001 -1.5700000000000001">
+                    <inertial pos="0.00018215399999999999 -0.034158899999999999 -0.0106026" quat="0.43528600000000001 0.55707399999999996 -0.551539 0.442718" mass="0.42158000000000001" diaginertia="0.0011043800000000001 0.00079053700000000001 0.00046972700000000002"/>
+                    <geom name="//unnamed_geom_47" class="visual" mesh="vx300s_7_gripper_prop"/>
+                    <geom name="//unnamed_geom_48" class="collision" mesh="vx300s_7_gripper_prop"/>
+                    <geom name="//unnamed_geom_49" class="visual" mesh="vx300s_7_gripper_bar"/>
+                    <geom name="//unnamed_geom_50" class="collision" mesh="vx300s_7_gripper_bar"/>
+                    <geom name="//unnamed_geom_51" class="visual" type="mesh" pos="0 -0.035249999999999997 -0.022700000000000001" quat="0 -1 0 -1" mesh="vx300s_7_gripper_wrist_mount"/>
+                    <geom name="//unnamed_geom_52" class="collision" type="mesh" pos="0 -0.035249999999999997 -0.022700000000000001" quat="0 -1 0 -1" mesh="vx300s_7_gripper_wrist_mount"/>
+                    <geom name="//unnamed_geom_53" class="visual" type="mesh" pos="0 -0.082474800000000001 -0.0095954999999999999" quat="0 0 -0.21643999999999999 -0.97629600000000005" mesh="d405_solid"/>
+                    <geom name="//unnamed_geom_54" class="collision" type="mesh" pos="0 -0.082474800000000001 -0.0095954999999999999" quat="0 0 -0.21643999999999999 -0.97629600000000005" mesh="d405_solid"/>
+                    <camera name="wrist_cam_left" mode="fixed" fovy="58" pos="0 -0.082474800000000001 -0.0095954999999999999" euler="2.7052595535899999 0 0"/>
+                    <body name="left\left_finger_link" pos="0.019099999999999999 -0.0141637 0.021172699999999999" quat="1 -1 -1 1">
+                      <inertial pos="0.014347800000000001 -0.0284791 0.012289700000000001" quat="0.53548600000000002 0.45876600000000001 -0.450407 0.547651" mass="0.086293700000000001" diaginertia="5.8684799999999998e-05 4.4688699999999998e-05 1.8397e-05"/>
+                      <joint name="left\left_finger" class="left_finger"/>
+                      <geom name="//unnamed_geom_55" class="visual" type="mesh" pos="0.0141637 0.021172699999999999 0.059999999999999998" quat="1 1 1 -1" mesh="vx300s_8_custom_finger_left"/>
+                      <geom name="//unnamed_geom_56" class="finger_collision" type="mesh" pos="0.0141637 0.021172699999999999 0.059999999999999998" quat="1 1 1 -1" mesh="vx300s_8_custom_finger_left"/>
+                      <geom name="//unnamed_geom_57" class="sphere_collision" pos="0.012999999999999999 -0.089200000000000002 0.026800000000000001"/>
+                      <geom name="//unnamed_geom_58" class="sphere_collision" pos="0.022200000000000001 -0.089200000000000002 0.026800000000000001"/>
+                      <geom name="//unnamed_geom_59" class="sphere_collision" pos="0.018200000000000001 -0.084500000000000006 0.026599999999999999"/>
+                      <site name="left\left_finger" pos="0.014999999999999999 -0.059999999999999998 0.02"/>
+                    </body>
+                    <body name="left\right_finger_link" pos="-0.019099999999999999 -0.0141637 0.021172699999999999" quat="1 1 1 1">
+                      <inertial pos="0.014371099999999999 0.0284792 0.012142099999999999" quat="0.46131699999999998 0.53761499999999995 -0.54547800000000002 0.44789400000000001" mass="0.0862932" diaginertia="5.86828e-05 4.4688699999999998e-05 1.8394899999999999e-05"/>
+                      <joint name="left\right_finger" class="right_finger"/>
+                      <geom name="//unnamed_geom_60" class="visual" type="mesh" pos="0.0141637 -0.021172699999999999 0.059706700000000001" quat="1 -1 -1 -1" mesh="vx300s_8_custom_finger_right"/>
+                      <geom name="//unnamed_geom_61" class="finger_collision" type="mesh" pos="0.0141637 -0.021172699999999999 0.059706700000000001" quat="1 -1 -1 -1" mesh="vx300s_8_custom_finger_right"/>
+                      <geom name="//unnamed_geom_62" class="sphere_collision" pos="0.012999999999999999 0.089200000000000002 0.026800000000000001"/>
+                      <geom name="//unnamed_geom_63" class="sphere_collision" pos="0.022200000000000001 0.089200000000000002 0.026800000000000001"/>
+                      <geom name="//unnamed_geom_64" class="sphere_collision" pos="0.018200000000000001 0.084500000000000006 0.026599999999999999"/>
+                      <site name="left\right_finger" pos="0.014999999999999999 0.059999999999999998 0.02"/>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="right\base_link" childclass="vx300s" pos="0.46899999999999997 -0.019 0.02" quat="0 0 0 1">
+      <site name="right\base" group="5" pos="0 0 0"/>
+      <inertial pos="-0.053477400000000001 -0.00056257500000000005 0.020596099999999999" quat="-0.0029232400000000001 0.71251699999999996 0.00480387 0.70163299999999995" mass="0.96903399999999995" diaginertia="0.0071633 0.0060245100000000003 0.00169819"/>
+      <geom name="//unnamed_geom_65" class="visual" quat="1 0 0 1" mesh="vx300s_1_base"/>
+      <geom name="//unnamed_geom_66" class="collision" quat="1 0 0 1" mesh="vx300s_1_base"/>
+      <body name="right\shoulder_link" pos="0 0 0.079000000000000001">
+        <inertial pos="0.00025923299999999999 -3.3552000000000001e-06 0.011612900000000001" quat="-0.47611900000000001 0.47608299999999998 0.52278999999999998 0.52282600000000001" mass="0.79861400000000005" diaginertia="0.00120156 0.00113744 0.00093880000000000005"/>
+        <joint name="right\waist" class="waist"/>
+        <site name="right\waist" group="5" pos="0 0 0"/>
+        <geom name="//unnamed_geom_67" class="visual" pos="0 0 -0.0030000000000000001" quat="1 0 0 1" mesh="vx300s_2_shoulder"/>
+        <geom name="//unnamed_geom_68" class="collision" pos="0 0 -0.0030000000000000001" quat="1 0 0 1" mesh="vx300s_2_shoulder"/>
+        <body name="right\upper_arm_link" pos="0 0 0.048050000000000002">
+          <inertial pos="0.020694899999999999 4.0000000000000001e-10 0.22645899999999999" quat="0 0.072845800000000002 0 0.99734299999999998" mass="0.79259199999999996" diaginertia="0.0091133800000000008 0.0089250000000000006 0.00075931700000000002"/>
+          <joint name="right\shoulder" class="shoulder"/>
+          <site name="right\shoulder" group="5" pos="0 0 0"/>
+          <geom name="//unnamed_geom_69" class="visual" quat="1 0 0 1" mesh="vx300s_3_upper_arm"/>
+          <geom name="//unnamed_geom_70" class="collision" quat="1 0 0 1" mesh="vx300s_3_upper_arm"/>
+          <body name="right\upper_forearm_link" pos="0.059549999999999999 0 0.29999999999999999">
+            <inertial pos="0.105723 0 0" quat="-0.00062163099999999998 0.70472400000000002 0.010529200000000001 0.70940300000000001" mass="0.32222800000000001" diaginertia="0.00144107 0.0013422799999999999 0.00015204699999999999"/>
+            <joint name="right\elbow" class="elbow"/>
+            <site name="right\elbow" group="5" pos="0 0 0"/>
+            <geom name="//unnamed_geom_71" class="visual" mesh="vx300s_4_upper_forearm"/>
+            <geom name="//unnamed_geom_72" class="collision" mesh="vx300s_4_upper_forearm"/>
+            <body name="right\lower_forearm_link" pos="0.20000000000000001 0 0">
+              <inertial pos="0.051347700000000003 0.0068046199999999999 0" quat="-0.70260400000000001 -0.079672400000000004 -0.70260400000000001 0.079672400000000004" mass="0.414823" diaginertia="0.0005911 0.000546493 0.00015570699999999999"/>
+              <joint name="right\forearm_roll" class="forearm_roll"/>
+              <geom name="//unnamed_geom_73" class="visual" quat="0 1 0 0" mesh="vx300s_5_lower_forearm"/>
+              <geom name="//unnamed_geom_74" class="collision" quat="0 1 0 0" mesh="vx300s_5_lower_forearm"/>
+              <body name="right\wrist_link" pos="0.10000000000000001 0 0">
+                <site name="right\wrist" group="5" pos="0 0 0"/>
+                <inertial pos="0.046743 -7.6652000000000007e-06 0.010565" quat="-0.00100191 0.54458600000000001 0.0026583000000000002 0.8387" mass="0.115395" diaginertia="5.4570700000000003e-05 4.6310100000000002e-05 4.3269200000000002e-05"/>
+                <joint name="right\wrist_angle" class="wrist_angle"/>
+                <geom name="//unnamed_geom_75" class="visual" quat="1 0 0 1" mesh="vx300s_6_wrist"/>
+                <geom name="//unnamed_geom_76" class="collision" quat="1 0 0 1" mesh="vx300s_6_wrist"/>
+                <body name="right\gripper_link" pos="0.069744 0 0">
+                  <inertial pos="0.039566200000000003 -2.5631100000000002e-07 0.0040064899999999997" quat="0.62033000000000005 0.61991600000000002 -0.33968199999999998 0.33986899999999998" mass="0.25165199999999999" diaginertia="0.00068954599999999997 0.00065031599999999996 0.000468142"/>
+                  <joint name="right\wrist_rotate" class="wrist_rotate"/>
+                  <site name="right\gripper" group="5" pos="0.14999999999999999 0 0"/>
+                  <body name="right\gripper_base" pos="0.035000000000000003 0 0" euler="0 1.5700000000000001 -1.5700000000000001">
+                    <inertial pos="0.00018215399999999999 -0.034158899999999999 -0.0106026" quat="0.43528600000000001 0.55707399999999996 -0.551539 0.442718" mass="0.42158000000000001" diaginertia="0.0011043800000000001 0.00079053700000000001 0.00046972700000000002"/>
+                    <geom name="//unnamed_geom_77" class="visual" mesh="vx300s_7_gripper_prop"/>
+                    <geom name="//unnamed_geom_78" class="collision" mesh="vx300s_7_gripper_prop"/>
+                    <geom name="//unnamed_geom_79" class="visual" mesh="vx300s_7_gripper_bar"/>
+                    <geom name="//unnamed_geom_80" class="collision" mesh="vx300s_7_gripper_bar"/>
+                    <geom name="//unnamed_geom_81" class="visual" type="mesh" pos="0 -0.035249999999999997 -0.022700000000000001" quat="0 -0.70710700000000004 0 -0.70710700000000004" mesh="vx300s_7_gripper_wrist_mount"/>
+                    <geom name="//unnamed_geom_82" class="collision" type="mesh" pos="0 -0.035249999999999997 -0.022700000000000001" quat="0 -0.70710700000000004 0 -0.70710700000000004" mesh="vx300s_7_gripper_wrist_mount"/>
+                    <geom name="//unnamed_geom_83" class="visual" type="mesh" pos="0 -0.082474800000000001 -0.0095954999999999999" quat="0 0 -0.21643999999999999 -0.97629600000000005" mesh="d405_solid"/>
+                    <geom name="//unnamed_geom_84" class="collision" type="mesh" pos="0 -0.082474800000000001 -0.0095954999999999999" quat="0 0 -0.21643999999999999 -0.97629600000000005" mesh="d405_solid"/>
+                    <camera name="wrist_cam_right" mode="fixed" fovy="58" pos="0 -0.082474800000000001 -0.0095954999999999999" euler="2.7052595535899999 0 0"/>
+                    <body name="right\left_finger_link" pos="0.019099999999999999 -0.0141637 0.021172699999999999" quat="1 -1 -1 1">
+                      <inertial pos="0.014347800000000001 -0.0284791 0.012289700000000001" quat="0.53548600000000002 0.45876600000000001 -0.450407 0.547651" mass="0.086293700000000001" diaginertia="5.8684799999999998e-05 4.4688699999999998e-05 1.8397e-05"/>
+                      <joint name="right\left_finger" class="left_finger"/>
+                      <geom name="//unnamed_geom_85" class="visual" type="mesh" pos="0.0141637 0.021172699999999999 0.059999999999999998" quat="1 1 1 -1" mesh="vx300s_8_custom_finger_left"/>
+                      <geom name="//unnamed_geom_86" class="finger_collision" type="mesh" pos="0.0141637 0.021172699999999999 0.059999999999999998" quat="1 1 1 -1" mesh="vx300s_8_custom_finger_left"/>
+                      <geom name="//unnamed_geom_87" class="sphere_collision" pos="0.012999999999999999 -0.089200000000000002 0.026800000000000001"/>
+                      <geom name="//unnamed_geom_88" class="sphere_collision" pos="0.022200000000000001 -0.089200000000000002 0.026800000000000001"/>
+                      <geom name="//unnamed_geom_89" class="sphere_collision" pos="0.018200000000000001 -0.084500000000000006 0.026599999999999999"/>
+                      <site name="right\left_finger" pos="0.014999999999999999 -0.059999999999999998 0.02"/>
+                    </body>
+                    <body name="right\right_finger_link" pos="-0.019099999999999999 -0.0141637 0.021172699999999999" quat="1 1 1 1">
+                      <inertial pos="0.014371099999999999 0.0284792 0.012142099999999999" quat="0.46131699999999998 0.53761499999999995 -0.54547800000000002 0.44789400000000001" mass="0.0862932" diaginertia="5.86828e-05 4.4688699999999998e-05 1.8394899999999999e-05"/>
+                      <joint name="right\right_finger" class="right_finger"/>
+                      <geom name="//unnamed_geom_90" class="visual" type="mesh" pos="0.0141637 -0.021172699999999999 0.059706700000000001" quat="1 -1 -1 -1" mesh="vx300s_8_custom_finger_right"/>
+                      <geom name="//unnamed_geom_91" class="finger_collision" type="mesh" pos="0.0141637 -0.021172699999999999 0.059706700000000001" quat="1 -1 -1 -1" mesh="vx300s_8_custom_finger_right"/>
+                      <geom name="//unnamed_geom_92" class="sphere_collision" pos="0.012999999999999999 0.089200000000000002 0.026800000000000001"/>
+                      <geom name="//unnamed_geom_93" class="sphere_collision" pos="0.022200000000000001 0.089200000000000002 0.026800000000000001"/>
+                      <geom name="//unnamed_geom_94" class="sphere_collision" pos="0.018200000000000001 0.084500000000000006 0.026599999999999999"/>
+                      <site name="right\right_finger" pos="0.014999999999999999 0.059999999999999998 0.02"/>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="partnet_100015/">
+      <freejoint name="partnet_100015/"/>
+      <body name="partnet_100015/base">
+        <body name="partnet_100015/link_1" quat="0.5 0.5 -0.5 -0.5">
+          <body name="partnet_100015/link_0">
+            <joint name="partnet_100015/joint_0" class="partnet_100015/" type="slide" pos="0 0 0" axis="0 1 0" range="0 0.059999999999999998"/>
+            <geom name="partnet_100015/original-17_col_collision_0" class="partnet_100015/collision" rgba="0.2429661695188895 0.1717615006243578 0.69881767504896219 1" mesh="partnet_100015/original-17_col_collision_0"/>
+            <geom name="partnet_100015/original-17_col_collision_1" class="partnet_100015/collision" rgba="0.81010754340812707 0.53695231897144846 0.013876290027652782 1" mesh="partnet_100015/original-17_col_collision_1"/>
+            <geom name="partnet_100015/original-17_col_collision_2" class="partnet_100015/collision" rgba="0.61929132709427115 0.15164945271003938 0.043109856905326538 1" mesh="partnet_100015/original-17_col_collision_2"/>
+            <geom name="partnet_100015/original-17_col_collision_3" class="partnet_100015/collision" rgba="0.71245854960298072 0.18590758961375298 0.48998273332128006 1" mesh="partnet_100015/original-17_col_collision_3"/>
+            <geom name="partnet_100015/original-10_col_collision_0" class="partnet_100015/collision" rgba="0.74506648581516055 0.60828647948130177 0.76323778542638598 1" mesh="partnet_100015/original-10_col_collision_0"/>
+            <geom name="partnet_100015/original-10_col_collision_1" class="partnet_100015/collision" rgba="0.73475666406722095 0.2757706920457742 0.60891585206548027 1" mesh="partnet_100015/original-10_col_collision_1"/>
+            <geom name="partnet_100015/original-10_col_collision_2" class="partnet_100015/collision" rgba="0.43991524596441545 0.3849750941545661 0.06954919022308681 1" mesh="partnet_100015/original-10_col_collision_2"/>
+            <geom name="partnet_100015/original-11_col_collision_0" class="partnet_100015/collision" rgba="0.028739351158978521 0.080516695471403832 0.38060516034291259 1" mesh="partnet_100015/original-11_col_collision_0"/>
+            <geom name="partnet_100015/original-8_col_collision_0" class="partnet_100015/collision" rgba="0.74732900109910538 0.34891463574247084 0.89125074406994009 1" mesh="partnet_100015/original-8_col_collision_0"/>
+            <geom name="partnet_100015/original-13_col_collision_0" class="partnet_100015/collision" rgba="0.31622816773024554 0.4714301435766769 0.95359888837939011 1" mesh="partnet_100015/original-13_col_collision_0"/>
+            <geom name="partnet_100015/original-13_col_collision_1" class="partnet_100015/collision" rgba="0.090821034085616481 0.99993520958227067 0.040537010495240278 1" mesh="partnet_100015/original-13_col_collision_1"/>
+            <geom name="partnet_100015/original-13_col_collision_2" class="partnet_100015/collision" rgba="0.61689046406202841 0.74822881402250929 0.51027190635397068 1" mesh="partnet_100015/original-13_col_collision_2"/>
+            <geom name="partnet_100015/original-13_col_collision_3" class="partnet_100015/collision" rgba="0.71113175162994957 0.166615841994179 0.27527495628870402 1" mesh="partnet_100015/original-13_col_collision_3"/>
+            <geom name="partnet_100015/original-13_col_collision_4" class="partnet_100015/collision" rgba="0.62798642938401084 0.8082792937698362 0.53077806693912455 1" mesh="partnet_100015/original-13_col_collision_4"/>
+            <geom name="partnet_100015/original-13_col_collision_5" class="partnet_100015/collision" rgba="0.43416469903665644 0.44395777194029418 0.21838712693177853 1" mesh="partnet_100015/original-13_col_collision_5"/>
+            <geom name="partnet_100015/original-13_col_collision_6" class="partnet_100015/collision" rgba="0.073079988733321888 0.63292125875073757 0.13242889868959895 1" mesh="partnet_100015/original-13_col_collision_6"/>
+            <geom name="partnet_100015/original-13_col_collision_7" class="partnet_100015/collision" rgba="0.43403334665574811 0.24770885729683023 0.16950415515514805 1" mesh="partnet_100015/original-13_col_collision_7"/>
+            <geom name="partnet_100015/original-14_col_collision_0" class="partnet_100015/collision" rgba="0.62613359688420211 0.11161824845709978 0.59936012616375545 1" mesh="partnet_100015/original-14_col_collision_0"/>
+            <geom name="partnet_100015/original-14_col_collision_1" class="partnet_100015/collision" rgba="0.26799822081402391 0.24581126257850716 0.94446830668512705 1" mesh="partnet_100015/original-14_col_collision_1"/>
+            <geom name="partnet_100015/original-14_col_collision_2" class="partnet_100015/collision" rgba="0.10190849794456081 0.23399443812466603 0.41677761873664509 1" mesh="partnet_100015/original-14_col_collision_2"/>
+            <geom name="partnet_100015/original-14_col_collision_3" class="partnet_100015/collision" rgba="0.99027650408276902 0.91293560417404884 0.054187787542814392 1" mesh="partnet_100015/original-14_col_collision_3"/>
+            <geom name="partnet_100015/original-14_col_collision_4" class="partnet_100015/collision" rgba="0.014709904683656405 0.99721322487133401 0.22876503343965016 1" mesh="partnet_100015/original-14_col_collision_4"/>
+            <geom name="partnet_100015/original-14_col_collision_5" class="partnet_100015/collision" rgba="0.63927574560847744 0.94937619687611396 0.06870714257528121 1" mesh="partnet_100015/original-14_col_collision_5"/>
+            <geom name="partnet_100015/original-14_col_collision_6" class="partnet_100015/collision" rgba="0.44313055034616489 0.22915639933825405 0.90688983420149683 1" mesh="partnet_100015/original-14_col_collision_6"/>
+            <geom name="partnet_100015/original-14_col_collision_7" class="partnet_100015/collision" rgba="0.19838702222933391 0.242561428520778 0.39810296391818434 1" mesh="partnet_100015/original-14_col_collision_7"/>
+            <geom name="partnet_100015/original-14_col_collision_8" class="partnet_100015/collision" rgba="0.35170814138262108 0.25511349015642981 0.85097503709343081 1" mesh="partnet_100015/original-14_col_collision_8"/>
+          </body>
+
+          <geom name="partnet_100015/original-29_col_collision_0" class="partnet_100015/collision" rgba="0.2371501395028518 0.73055075863239871 0.9991017182235109 1" mesh="partnet_100015/original-29_col_collision_0"/>
+          <geom name="partnet_100015/original-29_col_collision_1" class="partnet_100015/collision" rgba="0.36671837681918851 0.53879047456766505 0.41988237524477734 1" mesh="partnet_100015/original-29_col_collision_1"/>
+          <geom name="partnet_100015/original-21_col_collision_0" class="partnet_100015/collision" rgba="0.72694462892298073 0.088287303678812545 0.53670984612456041 1" mesh="partnet_100015/original-21_col_collision_0"/>
+          <geom name="partnet_100015/original-21_col_collision_1" class="partnet_100015/collision" rgba="0.87923835044474663 0.73913685429425213 0.44439314417412834 1" mesh="partnet_100015/original-21_col_collision_1"/>
+          <geom name="partnet_100015/original-21_col_collision_2" class="partnet_100015/collision" rgba="0.20001693649171337 0.85104953882982159 0.00052752290506863364 1" mesh="partnet_100015/original-21_col_collision_2"/>
+          <geom name="partnet_100015/original-21_col_collision_3" class="partnet_100015/collision" rgba="0.26632715877764701 0.29825962103676051 0.40719168236732506 1" mesh="partnet_100015/original-21_col_collision_3"/>
+          <geom name="partnet_100015/original-21_col_collision_4" class="partnet_100015/collision" rgba="0.60570051995790897 0.27917313750265582 0.38650544180232249 1" mesh="partnet_100015/original-21_col_collision_4"/>
+          <geom name="partnet_100015/original-21_col_collision_5" class="partnet_100015/collision" rgba="0.29882412806283865 0.86800527650689741 0.82398112316274419 1" mesh="partnet_100015/original-21_col_collision_5"/>
+          <geom name="partnet_100015/original-21_col_collision_6" class="partnet_100015/collision" rgba="0.75107873153317284 0.99113889492281448 0.56013587416356947 1" mesh="partnet_100015/original-21_col_collision_6"/>
+          <geom name="partnet_100015/original-21_col_collision_7" class="partnet_100015/collision" rgba="0.78721850235269852 0.5451900809408563 0.38887180915744501 1" mesh="partnet_100015/original-21_col_collision_7"/>
+          <geom name="partnet_100015/original-21_col_collision_8" class="partnet_100015/collision" rgba="0.16461820234671709 0.11696096798701006 0.0064006509578259374 1" mesh="partnet_100015/original-21_col_collision_8"/>
+          <geom name="partnet_100015/original-21_col_collision_9" class="partnet_100015/collision" rgba="0.66124903248795852 0.36955222187784265 0.085068671978545174 1" mesh="partnet_100015/original-21_col_collision_9"/>
+          <geom name="partnet_100015/original-21_col_collision_10" class="partnet_100015/collision" rgba="0.18455731743594517 0.50156698475223171 0.29162325846054427 1" mesh="partnet_100015/original-21_col_collision_10"/>
+          <geom name="partnet_100015/original-21_col_collision_11" class="partnet_100015/collision" rgba="0.35343840866402298 0.76367166624343663 0.79656270134104579 1" mesh="partnet_100015/original-21_col_collision_11"/>
+          <geom name="partnet_100015/original-21_col_collision_12" class="partnet_100015/collision" rgba="0.027799244594417849 0.99004866452511486 0.43609098090792664 1" mesh="partnet_100015/original-21_col_collision_12"/>
+          <geom name="partnet_100015/original-21_col_collision_13" class="partnet_100015/collision" rgba="0.39611678650311888 0.40523183172980715 0.72899074743971015 1" mesh="partnet_100015/original-21_col_collision_13"/>
+          <geom name="partnet_100015/original-21_col_collision_14" class="partnet_100015/collision" rgba="0.45339605915180736 0.10999468633978604 0.015499720375338866 1" mesh="partnet_100015/original-21_col_collision_14"/>
+          <geom name="partnet_100015/original-21_col_collision_15" class="partnet_100015/collision" rgba="0.30422567349334551 0.15983947090955219 0.33492761266589921 1" mesh="partnet_100015/original-21_col_collision_15"/>
+          <geom name="partnet_100015/original-21_col_collision_16" class="partnet_100015/collision" rgba="0.70726511865004393 0.26779715300370444 0.65195908819372073 1" mesh="partnet_100015/original-21_col_collision_16"/>
+          <geom name="partnet_100015/original-21_col_collision_17" class="partnet_100015/collision" rgba="0.39387732220289973 0.069000946585947798 0.069963261562612011 1" mesh="partnet_100015/original-21_col_collision_17"/>
+          <geom name="partnet_100015/original-21_col_collision_18" class="partnet_100015/collision" rgba="0.84525589378516641 0.17163919505705794 0.19071832020806478 1" mesh="partnet_100015/original-21_col_collision_18"/>
+          <geom name="partnet_100015/original-30_col_collision_0" class="partnet_100015/collision" rgba="0.23546052576135013 0.046664471806812324 0.1614593559147508 1" mesh="partnet_100015/original-30_col_collision_0"/>
+          <geom name="partnet_100015/original-30_col_collision_1" class="partnet_100015/collision" rgba="0.16248977741700932 0.49040752359416484 0.092424702292943639 1" mesh="partnet_100015/original-30_col_collision_1"/>
+          <geom name="partnet_100015/original-22_col_collision_0" class="partnet_100015/collision" rgba="0.12491967617364974 0.3521401081126323 0.9777753403621382 1" mesh="partnet_100015/original-22_col_collision_0"/>
+          <geom name="partnet_100015/original-22_col_collision_1" class="partnet_100015/collision" rgba="0.10760352751332014 0.90449972156595526 0.99425627382832593 1" mesh="partnet_100015/original-22_col_collision_1"/>
+          <geom name="partnet_100015/original-22_col_collision_2" class="partnet_100015/collision" rgba="0.043933301203645359 0.58608980893181395 0.010299120946716034 1" mesh="partnet_100015/original-22_col_collision_2"/>
+          <geom name="partnet_100015/original-22_col_collision_3" class="partnet_100015/collision" rgba="0.02547387145696689 0.28186772584206998 0.61025981386674599 1" mesh="partnet_100015/original-22_col_collision_3"/>
+          <geom name="partnet_100015/original-22_col_collision_4" class="partnet_100015/collision" rgba="0.50427577465974482 0.28484341902816934 0.69826634092453599 1" mesh="partnet_100015/original-22_col_collision_4"/>
+          <geom name="partnet_100015/original-22_col_collision_5" class="partnet_100015/collision" rgba="0.23878319538624515 0.0030386540727425082 0.60667233305404422 1" mesh="partnet_100015/original-22_col_collision_5"/>
+          <geom name="partnet_100015/original-22_col_collision_6" class="partnet_100015/collision" rgba="0.7781951368402884 0.019902001335425856 0.78351861065041395 1" mesh="partnet_100015/original-22_col_collision_6"/>
+          <geom name="partnet_100015/original-22_col_collision_7" class="partnet_100015/collision" rgba="0.56240576950467025 0.82631121499810467 0.38325169575128848 1" mesh="partnet_100015/original-22_col_collision_7"/>
+          <geom name="partnet_100015/original-26_col_collision_0" class="partnet_100015/collision" rgba="0.35201508651974633 0.76850927330474517 0.02685988091917213 1" mesh="partnet_100015/original-26_col_collision_0"/>
+          <geom name="partnet_100015/original-26_col_collision_1" class="partnet_100015/collision" rgba="0.766945416841188 0.32495251801500924 0.80956665557874719 1" mesh="partnet_100015/original-26_col_collision_1"/>
+          <geom name="partnet_100015/original-5_col_collision_0" class="partnet_100015/collision" rgba="0.64019153812667629 0.875587430811684 0.28407520663537589 1" mesh="partnet_100015/original-5_col_collision_0"/>
+          <geom name="partnet_100015/original-5_col_collision_1" class="partnet_100015/collision" rgba="0.18875744928029115 0.57862517522592405 0.10309527569060684 1" mesh="partnet_100015/original-5_col_collision_1"/>
+          <geom name="partnet_100015/original-5_col_collision_2" class="partnet_100015/collision" rgba="0.95213218205700012 0.032338553407572301 0.25187646149749543 1" mesh="partnet_100015/original-5_col_collision_2"/>
+          <geom name="partnet_100015/original-5_col_collision_3" class="partnet_100015/collision" rgba="0.87028430446278859 0.23970721231357461 0.45334546369671769 1" mesh="partnet_100015/original-5_col_collision_3"/>
+          <geom name="partnet_100015/original-5_col_collision_4" class="partnet_100015/collision" rgba="0.88612266074157287 0.26828984628744623 0.81040065538461392 1" mesh="partnet_100015/original-5_col_collision_4"/>
+          <geom name="partnet_100015/original-5_col_collision_5" class="partnet_100015/collision" rgba="0.34449197960191524 0.71668927620461886 0.060768356838344917 1" mesh="partnet_100015/original-5_col_collision_5"/>
+          <geom name="partnet_100015/original-5_col_collision_6" class="partnet_100015/collision" rgba="0.66576804277605273 0.3027781355323178 0.50403380025536759 1" mesh="partnet_100015/original-5_col_collision_6"/>
+          <geom name="partnet_100015/original-5_col_collision_7" class="partnet_100015/collision" rgba="0.65864903771003602 0.38234373333845662 0.074122585036215605 1" mesh="partnet_100015/original-5_col_collision_7"/>
+          <geom name="partnet_100015/original-5_col_collision_8" class="partnet_100015/collision" rgba="0.6968021877471624 0.45035925236760699 0.50355802495966118 1" mesh="partnet_100015/original-5_col_collision_8"/>
+          <geom name="partnet_100015/original-27_col_collision_0" class="partnet_100015/collision" rgba="0.92258410018875725 0.55670236684474705 0.15214841995255535 1" mesh="partnet_100015/original-27_col_collision_0"/>
+          <geom name="partnet_100015/original-6_col_collision_0" class="partnet_100015/collision" rgba="0.81998627871459895 0.3957513985257437 0.46075500653997881 1" mesh="partnet_100015/original-6_col_collision_0"/>
+          <geom name="partnet_100015/original-6_col_collision_1" class="partnet_100015/collision" rgba="0.45478206662981735 0.68989624905149705 0.056494157047724869 1" mesh="partnet_100015/original-6_col_collision_1"/>
+          <geom name="partnet_100015/original-6_col_collision_2" class="partnet_100015/collision" rgba="0.47060379633919702 0.97205093139196541 0.1674225055889802 1" mesh="partnet_100015/original-6_col_collision_2"/>
+          <geom name="partnet_100015/original-6_col_collision_3" class="partnet_100015/collision" rgba="0.88745373477829204 0.94021353230225857 0.077659363329541931 1" mesh="partnet_100015/original-6_col_collision_3"/>
+          <geom name="partnet_100015/original-6_col_collision_4" class="partnet_100015/collision" rgba="0.48221982586243217 0.38057057050939302 0.9786532506045964 1" mesh="partnet_100015/original-6_col_collision_4"/>
+          <geom name="partnet_100015/original-6_col_collision_5" class="partnet_100015/collision" rgba="0.52381681721586704 0.64612699550535868 0.36309803407923369 1" mesh="partnet_100015/original-6_col_collision_5"/>
+          <geom name="partnet_100015/original-6_col_collision_6" class="partnet_100015/collision" rgba="0.33775648158673777 0.30869112610378524 0.721076840479282 1" mesh="partnet_100015/original-6_col_collision_6"/>
+          <geom name="partnet_100015/original-6_col_collision_7" class="partnet_100015/collision" rgba="0.85528647160450411 0.439800967912372 0.16918323162160731 1" mesh="partnet_100015/original-6_col_collision_7"/>
+          <geom name="partnet_100015/original-31_col_collision_0" class="partnet_100015/collision" rgba="0.62826014606228253 0.54538920132542212 0.87188299736661445 1" mesh="partnet_100015/original-31_col_collision_0"/>
+          <geom name="partnet_100015/original-23_col_collision_0" class="partnet_100015/collision" rgba="0.22631516220221592 0.29444530923822321 0.39316809986465595 1" mesh="partnet_100015/original-23_col_collision_0"/>
+          <geom name="partnet_100015/original-23_col_collision_1" class="partnet_100015/collision" rgba="0.47479126880460587 0.66910797601999528 0.83603181510679614 1" mesh="partnet_100015/original-23_col_collision_1"/>
+          <geom name="partnet_100015/original-23_col_collision_2" class="partnet_100015/collision" rgba="0.054339540885102622 0.49898736711460367 0.69056751969195462 1" mesh="partnet_100015/original-23_col_collision_2"/>
+          <geom name="partnet_100015/original-23_col_collision_3" class="partnet_100015/collision" rgba="0.55596288614469269 0.024739242247220683 0.92040696510810882 1" mesh="partnet_100015/original-23_col_collision_3"/>
+          <geom name="partnet_100015/original-23_col_collision_4" class="partnet_100015/collision" rgba="0.73084414498316386 0.56231662103386548 0.81081260904006935 1" mesh="partnet_100015/original-23_col_collision_4"/>
+          <geom name="partnet_100015/original-23_col_collision_5" class="partnet_100015/collision" rgba="0.31745858434192853 0.61738224821690924 0.25979765921770348 1" mesh="partnet_100015/original-23_col_collision_5"/>
+          <geom name="partnet_100015/original-23_col_collision_6" class="partnet_100015/collision" rgba="0.17400189011086298 0.13450280336290454 0.53137278835861057 1" mesh="partnet_100015/original-23_col_collision_6"/>
+          <geom name="partnet_100015/original-23_col_collision_7" class="partnet_100015/collision" rgba="0.1317097898266929 0.22215587711455587 0.52617660722771098 1" mesh="partnet_100015/original-23_col_collision_7"/>
+          <geom name="partnet_100015/original-23_col_collision_8" class="partnet_100015/collision" rgba="0.2171380232784238 0.96786107175847214 0.27491761615325094 1" mesh="partnet_100015/original-23_col_collision_8"/>
+          <geom name="partnet_100015/original-23_col_collision_9" class="partnet_100015/collision" rgba="0.54587845879084296 0.40154766386540564 0.10820684366866329 1" mesh="partnet_100015/original-23_col_collision_9"/>
+          <geom name="partnet_100015/original-23_col_collision_10" class="partnet_100015/collision" rgba="0.45669477608856457 0.16009888719161536 0.33998644846548465 1" mesh="partnet_100015/original-23_col_collision_10"/>
+          <geom name="partnet_100015/original-23_col_collision_11" class="partnet_100015/collision" rgba="0.82036061885111289 0.79097580245985144 0.32424583324758738 1" mesh="partnet_100015/original-23_col_collision_11"/>
+          <geom name="partnet_100015/original-23_col_collision_12" class="partnet_100015/collision" rgba="0.35545667197357955 0.61531315664501107 0.6849850778505997 1" mesh="partnet_100015/original-23_col_collision_12"/>
+          <geom name="partnet_100015/original-23_col_collision_13" class="partnet_100015/collision" rgba="0.31603401560024336 0.79677249415968587 0.67219037501612033 1" mesh="partnet_100015/original-23_col_collision_13"/>
+          <geom name="partnet_100015/original-23_col_collision_14" class="partnet_100015/collision" rgba="0.25348353721095207 0.24844760631449225 0.21228719138813978 1" mesh="partnet_100015/original-23_col_collision_14"/>
+          <geom name="partnet_100015/original-23_col_collision_15" class="partnet_100015/collision" rgba="0.27481865599623578 0.040529413801638436 0.00029910608416472417 1" mesh="partnet_100015/original-23_col_collision_15"/>
+          <geom name="partnet_100015/original-23_col_collision_16" class="partnet_100015/collision" rgba="0.81113456616996316 0.26600656330743955 0.82481261311796872 1" mesh="partnet_100015/original-23_col_collision_16"/>
+          <geom name="partnet_100015/original-23_col_collision_17" class="partnet_100015/collision" rgba="0.4194621228442682 0.9813641690832432 0.69697296200167869 1" mesh="partnet_100015/original-23_col_collision_17"/>
+          <geom name="partnet_100015/original-23_col_collision_18" class="partnet_100015/collision" rgba="0.99357271523318846 0.28119615769006001 0.9524501064205716 1" mesh="partnet_100015/original-23_col_collision_18"/>
+          <geom name="partnet_100015/original-25_col_collision_0" class="partnet_100015/collision" rgba="0.21990968528834853 0.13723789522382335 0.28711249983431786 1" mesh="partnet_100015/original-25_col_collision_0"/>
+          <geom name="partnet_100015/original-25_col_collision_1" class="partnet_100015/collision" rgba="0.21569310611683401 0.93268316154734865 0.37703188423266076 1" mesh="partnet_100015/original-25_col_collision_1"/>
+          <geom name="partnet_100015/original-7_col_collision_0" class="partnet_100015/collision" rgba="0.42791027529461823 0.37740601695878906 0.44471295077949202 1" mesh="partnet_100015/original-7_col_collision_0"/>
+          <geom name="partnet_100015/original-7_col_collision_1" class="partnet_100015/collision" rgba="0.7465145519713714 0.56929119815332296 0.75228424030000773 1" mesh="partnet_100015/original-7_col_collision_1"/>
+          <geom name="partnet_100015/original-7_col_collision_2" class="partnet_100015/collision" rgba="0.99244828247151184 0.077280130728063834 0.77458083048184712 1" mesh="partnet_100015/original-7_col_collision_2"/>
+          <geom name="partnet_100015/original-7_col_collision_3" class="partnet_100015/collision" rgba="0.14044954823131417 0.22036989845327637 0.37895439936182418 1" mesh="partnet_100015/original-7_col_collision_3"/>
+          <geom name="partnet_100015/original-7_col_collision_4" class="partnet_100015/collision" rgba="0.41930318239812781 0.443183168010299 0.23516047384606287 1" mesh="partnet_100015/original-7_col_collision_4"/>
+          <geom name="partnet_100015/original-7_col_collision_5" class="partnet_100015/collision" rgba="0.39997723157664222 0.53730193289187533 0.63460201846103148 1" mesh="partnet_100015/original-7_col_collision_5"/>
+          <geom name="partnet_100015/original-7_col_collision_6" class="partnet_100015/collision" rgba="0.1050076227620852 0.46013551789532647 0.8687836904282441 1" mesh="partnet_100015/original-7_col_collision_6"/>
+          <geom name="partnet_100015/original-7_col_collision_7" class="partnet_100015/collision" rgba="0.63050306148031932 0.98564653562163296 0.10457433802786176 1" mesh="partnet_100015/original-7_col_collision_7"/>
+          <geom name="partnet_100015/original-7_col_collision_8" class="partnet_100015/collision" rgba="0.73512758698709335 0.18633873974288118 0.80447428086197459 1" mesh="partnet_100015/original-7_col_collision_8"/>
+          <geom name="partnet_100015/original-19_col_collision_0" class="partnet_100015/collision" rgba="0.076814437851910111 0.34142362485887601 0.52972081751580347 1" mesh="partnet_100015/original-19_col_collision_0"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <contact>
+    <exclude name="//unnamed_contact_0" body1="left\base_link" body2="left\shoulder_link"/>
+    <exclude name="//unnamed_contact_1" body1="right\base_link" body2="right\shoulder_link"/>
+  </contact>
+  <equality>
+    <joint name="//unnamed_equality_0" class="/" joint1="left\left_finger" joint2="left\right_finger" polycoef="0 1 0 0 0"/>
+    <joint name="//unnamed_equality_1" class="/" joint1="right\left_finger" joint2="right\right_finger" polycoef="0 1 0 0 0"/>
+  </equality>
+  <actuator>
+    <position name="left\waist" class="waist" joint="left\waist"/>
+    <position name="left\shoulder" class="shoulder" joint="left\shoulder"/>
+    <position name="left\elbow" class="elbow" joint="left\elbow"/>
+    <position name="left\forearm_roll" class="forearm_roll" joint="left\forearm_roll"/>
+    <position name="left\wrist_angle" class="wrist_angle" joint="left\wrist_angle"/>
+    <position name="left\wrist_rotate" class="wrist_rotate" joint="left\wrist_rotate"/>
+    <position name="left\gripper" class="finger" joint="left\left_finger"/>
+    <position name="right\waist" class="waist" joint="right\waist"/>
+    <position name="right\shoulder" class="shoulder" joint="right\shoulder"/>
+    <position name="right\elbow" class="elbow" joint="right\elbow"/>
+    <position name="right\forearm_roll" class="forearm_roll" joint="right\forearm_roll"/>
+    <position name="right\wrist_angle" class="wrist_angle" joint="right\wrist_angle"/>
+    <position name="right\wrist_rotate" class="wrist_rotate" joint="right\wrist_rotate"/>
+    <position name="right\gripper" class="finger" joint="right\left_finger"/>
+  </actuator>
+  <keyframe>
+    <key
+      name="neutral_pose" 
+      qpos="0 -0.95999999999999996 1.1599999999999999 0 -0.29999999999999999 0 0.0083999999999999995 0.0083999999999999995 0 -0.95999999999999996 1.1599999999999999 0 -0.29999999999999999 0 0.0083999999999999995 0.0083999999999999995 0 0 0.07 0 0 0 0 0" 
+      ctrl="0 -0.95999999999999996 1.1599999999999999 0 -0.29999999999999999 0 0.0083999999999999995 0 -0.95999999999999996 1.1599999999999999 0 -0.29999999999999999 0 0.0083999999999999995"
+    />
+    <key
+      name="gripper_gripper_pot"
+      qpos="0.0522448 -0.0228924 1.03994 -0.00207331 -0.749902 0.0188683 0.0370198 0.0377202 -0.0360912 0.180503 0.693542 0.00244294 -0.533146 0.0903328 0.0260351 0.0253522 -0.0621205 0.0428424 0.0658528 0.982187 0.000500987 0.00287579 -0.187886 -0.00376474"
+      ctrl="0 0.07634 1.0838 0 -0.3 0 0.037 0 0.309365 0.73006 0 -0.3 0 0.029825"
+    />
+    <key
+      name="gripper_gripper"
+      qpos="0.000544792 0.640155 -0.295839 -8.40927e-05 -0.496352 0.00202897 0.0082992 0.00828983 0.000573159 -0.923108 1.26083 8.81218e-05 -0.105956 0.00373117 0.00865876 0.00871353 6.04794e-05 -1.66169e-06 0.0661041 1 1.43934e-05 0.0003868 -1.27316e-05 -0.000398445"
+      ctrl="0 0.713275 -0.230105 0 -0.3 0 0.0084 0 -0.96 1.16 0 -0.3 0 0.0084"
+    />
+    <key
+      name="lift_pot0"
+      time="0.0"
+      qpos="0 -0.95999999999999996 1.1599999999999999 0 -0.29999999999999999 0 0.0083999999999999995 0.0083999999999999995 0 -0.95999999999999996 1.1599999999999999 0 -0.29999999999999999 0 0.0083999999999999995 0.0083999999999999995 0 0 0.07 0 0 0 0 0" 
+      ctrl="0 -0.95999999999999996 1.1599999999999999 0 -0.29999999999999999 0 0.0083999999999999995 0 -0.95999999999999996 1.1599999999999999 0 -0.29999999999999999 0 0.0083999999999999995"
+    />
+    <key
+      name="lift_pot1"
+      time="0.25"
+      qpos="-0.06284 -0.109168 0.8317 -0.694977 -0.348803 -0.955711 0.02545 0.025652 -2.32454e-22 -0.959344 1.18223 -0.000338501 -0.273951 6.73861e-05 0.0084 0.00839987 0.000136455 -1.18475e-05 0.0661709 1 0.000104223 0.000691438 -5.80988e-05 -0.000397908"
+      qvel="4.59567e-11 7.03873e-06 2.63436e-07 2.49295e-08 -2.72758e-08 4.75428e-08 -5.27381e-12 -6.50498e-10 -7.87096e-20 2.75766e-14 4.71937e-14 1.02985e-17 1.3687e-14 -2.37875e-18 -4.20066e-16 -4.07904e-16 6.53741e-05 -2.4776e-05 0.000108889 0.000378827 0.000995125 1.5826e-08 3.87087e-10"
+      ctrl="-0.06284 -0.125615 0.814285 -0.69124 -0.370135 -0.9426 0.02545 0 -0.96 1.16 0 -0.3 0 0.0084"
+    />
+    <key
+      name="lift_pot2"
+      time="0.5"
+      qpos="-0.0622045 0.00455266 0.665045 -0.69535 -0.346324 -0.955513 0.0373225 0.0376637 -3.89368e-22 -0.959344 1.18223 -0.000338501 -0.273951 6.73861e-05 0.0084 0.00839987 0.0011965 -0.000372867 0.0661628 0.999998 0.000494962 0.000368516 0.00188389 -0.000280979"
+      qvel="-7.25006e-05 5.14044e-06 5.36854e-06 2.71701e-05 -6.1276e-05 -0.000232219 -1.19322e-05 -1.51157e-05 -6.60205e-20 2.75622e-14 -5.54773e-14 9.35479e-18 1.33716e-14 -2.405e-18 3.79534e-17 2.14923e-16 4.68199e-06 -2.16824e-05 3.22963e-05 0.000317473 0.000122101 -5.11707e-06 -7.72497e-06"
+      ctrl="-0.06284 -0.01687 0.645835 -0.69124 -0.370135 -0.9426 0.037 0 -0.96 1.16 0 -0.3 0 0.0084"
+    />
+    <key
+      name="lift_pot3"
+      time="0.75"
+      qpos="-0.0666567 0.00705475 0.667518 -0.69766 -0.58328 -0.959819 0.0380652 0.0386102 -4.69461e-10 -0.318575 1.30042 0.000875759 -0.795254 1.4595 0.029825 0.0296084 0.000914295 0.000791536 0.0661751 0.999998 0.0002109 0.000604259 0.00202414 0.0343449"
+      qvel="-2.97614e-05 -2.25411e-06 -6.48002e-06 3.71124e-06 -4.84594e-05 -2.63178e-05 -4.28405e-06 -5.00618e-06 1.2486e-10 -0.000174334 1.30304e-06 2.36604e-07 7.82973e-07 4.92388e-07 -5.32223e-11 -6.59087e-09 -2.534e-09 -6.2484e-07 7.17951e-06 7.40905e-05 4.39815e-05 3.90078e-06 6.99747e-06"
+      ctrl="-0.06284 -0.01687 0.645835 -0.69124 -0.616195 -0.9426 0.037 0 -0.32757 1.28595 0 -0.821245 1.44532 0.029825"
+    />
+    <key
+      name="lift_pot4"
+      time="1.25"
+      qpos="-0.0634537 0.00708361 0.667696 -0.697971 -0.584109 -0.958934 0.0380752 0.0386232 1.50073e-13 -0.175636 1.16553 0.00086514 -0.795288 1.45947 0.029825 0.0296087 0.000281126 0.00104605 0.0661571 1 0.000438416 0.000397435 0.000431532 0.0343318"
+      qvel="0.00203275 -0.000280009 -0.000418974 0.00130122 -0.00915385 -0.00242222 -0.00141419 -0.00245574 9.25765e-14 2.63852e-07 1.11573e-08 -3.78505e-10 -1.31246e-09 -8.1875e-10 8.95424e-14 1.09563e-11 -9.60038e-05 0.000164636 -0.000163484 -0.00248963 -0.00146631 -3.27109e-05 -0.00680976"
+      ctrl="-0.06284 -0.01687 0.645835 -0.69124 -0.616195 -0.9426 0.037 0 -0.187755 1.15119 0 -0.821245 1.44532 0.029825"
+    />
+    <key
+      name="lift_pot5"
+      time="1.5"
+      qpos="-0.06284 -0.267752 0.916913 -0.695441 -0.389344 -0.956292 0.037 0.0372101 0.00353623 -0.172595 1.16737 0.000228081 -0.785767 1.46205 0.0206233 0.0204083 0.00108004 0.000371624 0.0662188 0.999977 -0.000503762 -0.000621187 -0.00669144 0.0295382"
+      qvel="-7.7027e-14 -6.50555e-09 -2.05704e-10 -2.22701e-11 6.83655e-12 -3.37802e-11 5.13717e-15 4.56464e-13 -0.000482027 -7.50141e-06 -6.73755e-05 8.11219e-05 -0.000848811 -0.000255331 -7.38207e-05 -7.70105e-05 -2.74873e-05 7.92029e-05 0.000139929 -0.00112458 -0.000673161 4.87405e-05 3.42944e-05"
+      ctrl="-0.06284 -0.280965 0.89851 -0.69124 -0.411145 -0.9426 0.037 0 -0.187755 1.15119 0 -0.821245 1.44532 0.019675"
+    />
+    <key
+      name="lift_pot6"
+      time="1.75"
+      qpos="-0.69124 -0.281607 0.700306 -0.696062 -0.389725 -0.957017 0.037 0.03722 -0.000968121 -0.0702878 0.970461 0.00185241 -0.775514 1.47248 0.0226513 0.022432 0.0011303 0.000543554 0.0662318 0.999985 0.00024485 -0.000740154 -0.0054495 0.0605792"
+      qvel="2.7742e-14 8.51128e-10 -2.63072e-11 1.87644e-12 3.55105e-12 1.34839e-12 -1.65829e-15 -1.90177e-14 0.000627646 0.000297702 -0.00041884 0.000113351 -0.000814384 0.000524359 -0.000186248 -9.58294e-05 -4.52773e-05 -9.63347e-05 0.000216984 0.00129658 -0.00138678 -0.000101176 -1.44314e-05"
+      ctrl="-0.69124 -0.2965 0.679525 -0.69124 -0.411145 -0.9426 0.037 0 -0.094545 0.949045 0 -0.821245 1.44532 0.019675"
+    />
+    <key
+      name="lift_pot7"
+      time="2.0"
+      qpos="-0.69124 -0.281607 0.700306 -0.696062 -0.389725 -0.957017 0.037 0.03722 2.9238e-06 -0.376457 1.07921 0.00151714 -0.897119 1.46184 0.0156323 0.0160891 0.0418407 -0.0172385 0.17467 0.99571 -0.0530113 0.00758821 0.0754516 0.0617851"
+      qvel="-2.71389e-14 -1.37835e-14 9.35015e-15 -2.7719e-14 -1.36093e-14 -2.69221e-14 1.64851e-15 1.64641e-15 -2.75022e-06 -5.29236e-05 3.10419e-05 4.07452e-05 -0.000533043 0.000207975 9.97739e-05 1.53945e-05 0.000137754 0.000298945 3.08758e-06 0.00228314 -0.00148682 1.08271e-05 -3.8164e-05"
+      ctrl="-0.69124 -0.2965 0.679525 -0.69124 -0.411145 -0.9426 0.037 0 -0.42078 1.01642 0 -1.0673 1.44532 0.002"
+    />
+  </keyframe>
+</mujoco>

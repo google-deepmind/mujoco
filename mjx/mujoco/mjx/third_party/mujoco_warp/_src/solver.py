@@ -177,7 +177,7 @@ def _eval_init(
     lo += _eval_pt(quad_f, alpha)
 
   for efcid in range(nef_clip, nefc_clip):
-    if type_in[efcid] == int(types.ConstraintType.CONTACT_ELLIPTIC.value):
+    if type_in[efcid] == types.ConstraintType.CONTACT_ELLIPTIC:
       conid = id_in[efcid]
 
       efcid0 = contact_efc_address_in[conid, 0]
@@ -255,7 +255,7 @@ def _eval(
     mid += _eval_pt(quad_f, mid_alpha)
 
   for efcid in range(nef_clip, nefc_clip):
-    if type_in[efcid] == int(types.ConstraintType.CONTACT_ELLIPTIC.value):
+    if type_in[efcid] == types.ConstraintType.CONTACT_ELLIPTIC:
       conid = id_in[efcid]
 
       efcid0 = contact_efc_address_in[conid, 0]
@@ -557,7 +557,7 @@ def linesearch_parallel_fused(
 
       out += _eval_cost(quad, alpha)
     # limit and contact
-    elif efc_type_in[worldid, efcid] == int(types.ConstraintType.CONTACT_ELLIPTIC.value):
+    elif efc_type_in[worldid, efcid] == types.ConstraintType.CONTACT_ELLIPTIC:
       # extract contact info
       conid = efc_id_in[worldid, efcid]
 
@@ -801,7 +801,7 @@ def linesearch_prepare_quad(
   quad = wp.vec3(0.5 * Jaref * Jaref * efc_D, jv * Jaref * efc_D, 0.5 * jv * jv * efc_D)
 
   # elliptic cone: extra processing
-  if efc_type_in[worldid, efcid] == int(types.ConstraintType.CONTACT_ELLIPTIC.value):
+  if efc_type_in[worldid, efcid] == types.ConstraintType.CONTACT_ELLIPTIC:
     # extract contact info
     conid = efc_id_in[worldid, efcid]
 
@@ -1099,7 +1099,7 @@ def update_constraint_efc(
   if efcid < ne:
     # equality
     efc_force_out[worldid, efcid] = -efc_D * Jaref
-    efc_state_out[worldid, efcid] = int(types.ConstraintState.QUADRATIC.value)
+    efc_state_out[worldid, efcid] = types.ConstraintState.QUADRATIC
     wp.atomic_add(efc_cost_out, worldid, 0.5 * efc_D * Jaref * Jaref)
   elif efcid < ne + nf:
     # friction
@@ -1107,24 +1107,24 @@ def update_constraint_efc(
     rf = math.safe_div(f, efc_D)
     if Jaref <= -rf:
       efc_force_out[worldid, efcid] = f
-      efc_state_out[worldid, efcid] = int(types.ConstraintState.LINEARNEG.value)
+      efc_state_out[worldid, efcid] = types.ConstraintState.LINEARNEG
       wp.atomic_add(efc_cost_out, worldid, -f * (0.5 * rf + Jaref))
     elif Jaref >= rf:
       efc_force_out[worldid, efcid] = -f
-      efc_state_out[worldid, efcid] = int(types.ConstraintState.LINEARPOS.value)
+      efc_state_out[worldid, efcid] = types.ConstraintState.LINEARPOS
       wp.atomic_add(efc_cost_out, worldid, -f * (0.5 * rf - Jaref))
     else:
       efc_force_out[worldid, efcid] = -efc_D * Jaref
-      efc_state_out[worldid, efcid] = int(types.ConstraintState.QUADRATIC.value)
+      efc_state_out[worldid, efcid] = types.ConstraintState.QUADRATIC
       wp.atomic_add(efc_cost_out, worldid, 0.5 * efc_D * Jaref * Jaref)
-  elif efc_type_in[worldid, efcid] != int(types.ConstraintType.CONTACT_ELLIPTIC.value):
+  elif efc_type_in[worldid, efcid] != types.ConstraintType.CONTACT_ELLIPTIC:
     # limit, frictionless contact, pyramidal friction cone contact
     if Jaref >= 0.0:
       efc_force_out[worldid, efcid] = 0.0
-      efc_state_out[worldid, efcid] = int(types.ConstraintState.SATISFIED.value)
+      efc_state_out[worldid, efcid] = types.ConstraintState.SATISFIED
     else:
       efc_force_out[worldid, efcid] = -efc_D * Jaref
-      efc_state_out[worldid, efcid] = int(types.ConstraintState.QUADRATIC.value)
+      efc_state_out[worldid, efcid] = types.ConstraintState.QUADRATIC
       wp.atomic_add(efc_cost_out, worldid, 0.5 * efc_D * Jaref * Jaref)
   else:  # elliptic friction cone contact
     conid = efc_id_in[worldid, efcid]
@@ -1162,11 +1162,11 @@ def update_constraint_efc(
     # top zone
     if (N >= mu * T) or ((T <= 0.0) and (N >= 0.0)):
       efc_force_out[worldid, efcid] = 0.0
-      efc_state_out[worldid, efcid] = int(types.ConstraintState.SATISFIED.value)
+      efc_state_out[worldid, efcid] = types.ConstraintState.SATISFIED
     # bottom zone
     elif (mu * N + T <= 0.0) or ((T <= 0.0) and (N < 0.0)):
       efc_force_out[worldid, efcid] = -efc_D * Jaref
-      efc_state_out[worldid, efcid] = int(types.ConstraintState.QUADRATIC.value)
+      efc_state_out[worldid, efcid] = types.ConstraintState.QUADRATIC
       wp.atomic_add(efc_cost_out, worldid, 0.5 * efc_D * Jaref * Jaref)
     # middle zone
     else:
@@ -1181,7 +1181,7 @@ def update_constraint_efc(
       else:
         efc_force_out[worldid, efcid] = -math.safe_div(force, T) * ufrictionj
 
-      efc_state_out[worldid, efcid] = int(types.ConstraintState.CONE.value)
+      efc_state_out[worldid, efcid] = types.ConstraintState.CONE
 
 
 @wp.kernel
@@ -1395,7 +1395,7 @@ def update_gradient_JTDAJ_sparse(
   efc_Jj = efc_J_in[worldid, 0, dofj]
   sum_h = float(0.0)
   for efcid in range(min(njmax_in, nefc) - 1):
-    if efc_state == int(types.ConstraintState.QUADRATIC.value) and efc_D != 0.0:
+    if efc_state == types.ConstraintState.QUADRATIC and efc_D != 0.0:
       sum_h += efc_Ji * efc_Jj * efc_D
 
     jj = efcid + 1
@@ -1405,7 +1405,7 @@ def update_gradient_JTDAJ_sparse(
     efc_state = efc_state_in[worldid, jj]
 
   # Adding the contribution from the last constraint row
-  if efc_state == int(types.ConstraintState.QUADRATIC.value) and efc_D != 0.0:
+  if efc_state == types.ConstraintState.QUADRATIC and efc_D != 0.0:
     sum_h += efc_Ji * efc_Jj * efc_D
 
   efc_h_out[worldid, dofi, dofj] = sum_h
@@ -1443,7 +1443,7 @@ def update_gradient_JTDAJ_dense(
   efc_Jj = efc_J_in[worldid, 0, dofj]
   sum_h = float(0.0)
   for efcid in range(min(njmax_in, nefc) - 1):
-    if efc_state == int(types.ConstraintState.QUADRATIC.value) and efc_D != 0.0:
+    if efc_state == types.ConstraintState.QUADRATIC and efc_D != 0.0:
       sum_h += efc_Ji * efc_Jj * efc_D
 
     jj = efcid + 1
@@ -1453,7 +1453,7 @@ def update_gradient_JTDAJ_dense(
     efc_state = efc_state_in[worldid, jj]
 
   # Adding the contribution from the last constraint row
-  if efc_state == int(types.ConstraintState.QUADRATIC.value) and efc_D != 0.0:
+  if efc_state == types.ConstraintState.QUADRATIC and efc_D != 0.0:
     sum_h += efc_Ji * efc_Jj * efc_D
 
   qM = qM_in[worldid, dofi, dofj]
@@ -1512,7 +1512,7 @@ def update_gradient_JTCJ(
       continue
 
     efcid0 = contact_efc_address_in[conid, 0]
-    if efc_state_in[worldid, efcid0] != int(types.ConstraintState.CONE.value):
+    if efc_state_in[worldid, efcid0] != types.ConstraintState.CONE:
       continue
 
     fri = contact_friction_in[conid]
@@ -1867,7 +1867,7 @@ def solve_search_update(
 
   search = -1.0 * efc_Mgrad_in[worldid, dofid]
 
-  if opt_solver == wp.static(types.SolverType.CG.value):
+  if opt_solver == types.SolverType.CG:
     search += efc_beta_in[worldid] * efc_search_in[worldid, dofid]
 
   efc_search_out[worldid, dofid] = search

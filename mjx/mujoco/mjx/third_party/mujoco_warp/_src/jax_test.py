@@ -19,8 +19,8 @@ import warp as wp
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import mujoco_warp as mjwarp
-from mujoco.mjx.third_party.mujoco_warp._src.test_util import fixture
+import mujoco_warp as mjw
+from mujoco.mjx.third_party.mujoco_warp import test_data
 
 # TODO(team): JAX test is temporary, remove after we land MJX:Warp
 
@@ -47,16 +47,13 @@ class JAXTest(parameterized.TestCase):
     NCONTACTS = 16
     UNROLL_LENGTH = 1
 
-    mjm, _, m, d = fixture(
-      xml,
-      nworld=NWORLDS,
-      nconmax=NWORLDS * NCONTACTS,
-      njmax=NCONTACTS * 4,
-      iterations=1,
-      ls_iterations=4,
-      kick=True,
+    mjm, mjd, _, _ = test_data.fixture(
+      xml, qvel_noise=0.01, ctrl_noise=0.1, overrides={"opt.iterations": 1, "opt.ls_iterations": 4}
     )
+
+    m = mjw.put_model(mjm)
     m.opt.graph_conditional = graph_conditional
+    d = mjw.put_data(mjm, mjd, nworld=2, nconmax=NCONTACTS, njmax=4 * NCONTACTS)
 
     def warp_step(
       qpos_in: wp.array(dtype=wp.float32, ndim=2),
@@ -66,7 +63,7 @@ class JAXTest(parameterized.TestCase):
     ):
       wp.copy(d.qpos, qpos_in)
       wp.copy(d.qvel, qvel_in)
-      mjwarp.step(m, d)
+      mjw.step(m, d)
       wp.copy(qpos_out, d.qpos)
       wp.copy(qvel_out, d.qvel)
 

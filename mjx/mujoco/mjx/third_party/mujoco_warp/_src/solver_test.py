@@ -21,13 +21,13 @@ import warp as wp
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import mujoco_warp as mjwarp
+import mujoco_warp as mjw
+from mujoco.mjx.third_party.mujoco_warp import ConeType
+from mujoco.mjx.third_party.mujoco_warp import SolverType
+from mujoco.mjx.third_party.mujoco_warp import test_data
 
 from mujoco.mjx.third_party.mujoco_warp._src import solver
-from mujoco.mjx.third_party.mujoco_warp._src import test_util
 from mujoco.mjx.third_party.mujoco_warp._src.math import safe_div
-from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
-from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType
 
 # tolerance for difference between MuJoCo and MJWarp solver calculations - mostly
 # due to float precision
@@ -45,12 +45,10 @@ class SolverTest(parameterized.TestCase):
   def test_constraint_update(self, cone, solver_):
     """Tests _update_constraint function is correct."""
     for keyframe in range(3):
-      mjm, mjd, m, d = test_util.fixture(
+      mjm, mjd, m, d = test_data.fixture(
         "constraints.xml",
         keyframe=keyframe,
-        cone=cone,
-        solver=solver_,
-        iterations=0,
+        overrides={"opt.solver": solver_, "opt.cone": cone, "opt.iterations": 0},
       )
 
       def cost(qacc):
@@ -65,7 +63,7 @@ class SolverTest(parameterized.TestCase):
       # solve with 0 iterations just initializes constraints and costs and then exits
       d.efc.force.zero_()
       d.qfrc_constraint.zero_()
-      mjwarp.solve(m, d)
+      mjw.solve(m, d)
 
       # Get the ordering indices based on efc_force, efc_state for MJWarp
       nefc = d.nefc.numpy()[0]
@@ -96,16 +94,14 @@ class SolverTest(parameterized.TestCase):
     """Test linesearch initialization."""
     for keyframe in range(3):
       # TODO(team): Add the case of elliptic cone friction
-      mjm, mjd, m, d = test_util.fixture(
+      mjm, mjd, m, d = test_data.fixture(
         "constraints.xml",
         keyframe=keyframe,
-        cone=ConeType.PYRAMIDAL,
-        iterations=0,
-        ls_iterations=0,
+        overrides={"opt.iterations": 0, "opt.ls_iterations": 0},
       )
 
       # One step to obtain more non-zeros results
-      mjwarp.step(m, d)
+      mjw.step(m, d)
 
       # Calculate target values
       efc_search_np = d.efc.search.numpy()[0]
@@ -151,25 +147,19 @@ class SolverTest(parameterized.TestCase):
       _assert_eq(efc_quad_gauss, target_quad_gauss, "quad_gauss")
       _assert_eq(efc_quad[:nefc], target_quad[:nefc], "quad")
 
-  @parameterized.parameters(
-    (ConeType.PYRAMIDAL, False),
-    (ConeType.ELLIPTIC, False),
-    (ConeType.PYRAMIDAL, True),
-    (ConeType.ELLIPTIC, True),
+  @parameterized.product(
+    cone=(ConeType.PYRAMIDAL, ConeType.ELLIPTIC), jacobian=(mujoco.mjtJacobian.mjJAC_SPARSE, mujoco.mjtJacobian.mjJAC_DENSE)
   )
-  def test_update_gradient_CG(self, cone, sparse):
+  def test_update_gradient_CG(self, cone, jacobian):
     """Test _update_gradient function is correct for the CG solver."""
-    mjm, mjd, m, d = test_util.fixture(
+    mjm, mjd, m, d = test_data.fixture(
       "humanoid/humanoid.xml",
-      cone=cone,
-      solver=SolverType.CG,
-      sparse=sparse,
-      iterations=0,
       keyframe=0,
+      overrides={"opt.cone": cone, "opt.solver": SolverType.CG, "opt.jacobian": jacobian, "opt.iterations": 0},
     )
 
     # Solve with 0 iterations just initializes and exit
-    mjwarp.solve(m, d)
+    mjw.solve(m, d)
 
     # Calculate Mgrad with Mujoco C
     mj_Mgrad = np.zeros(shape=(1, mjm.nv), dtype=float)
@@ -182,22 +172,19 @@ class SolverTest(parameterized.TestCase):
   @parameterized.parameters(ConeType.PYRAMIDAL, ConeType.ELLIPTIC)
   def test_parallel_linesearch(self, cone):
     """Test that iterative and parallel linesearch leads to equivalent results."""
-
-    _, _, m, d = test_util.fixture(
+    _, _, m, d = test_data.fixture(
       "humanoid/humanoid.xml",
-      cone=cone,
-      ls_parallel=False,
-      iterations=50,
-      ls_iterations=50,
+      qpos_noise=0.01,
+      overrides={"opt.cone": cone, "opt.iterations": 50, "opt.ls_iterations": 50},
     )
 
     # One step to obtain more non-zeros results
-    mjwarp.step(m, d)
+    mjw.step(m, d)
 
     # Preparing for linesearch
     m.opt.iterations = 0
-    mjwarp.fwd_velocity(m, d)
-    mjwarp.fwd_acceleration(m, d, factorize=True)
+    mjw.fwd_velocity(m, d)
+    mjw.fwd_acceleration(m, d, factorize=True)
     solver.solve(m, d)
 
     # Storing some initial values
@@ -233,25 +220,27 @@ class SolverTest(parameterized.TestCase):
     self.assertLessEqual(abs(alpha_iterative - alpha_parallel_50), abs(alpha_iterative - alpha_parallel_10))
 
   @parameterized.parameters(
-    (ConeType.PYRAMIDAL, SolverType.CG, 10, 5, False, False),
-    (ConeType.ELLIPTIC, SolverType.CG, 10, 5, False, False),
-    (ConeType.PYRAMIDAL, SolverType.NEWTON, 5, 10, False, False),
-    (ConeType.ELLIPTIC, SolverType.NEWTON, 5, 10, False, False),
-    (ConeType.PYRAMIDAL, SolverType.NEWTON, 5, 64, True, True),
-    (ConeType.ELLIPTIC, SolverType.NEWTON, 5, 64, True, True),
+    (ConeType.PYRAMIDAL, SolverType.CG, 10, 5, mujoco.mjtJacobian.mjJAC_DENSE, False),
+    (ConeType.ELLIPTIC, SolverType.CG, 10, 5, mujoco.mjtJacobian.mjJAC_DENSE, False),
+    (ConeType.PYRAMIDAL, SolverType.NEWTON, 5, 10, mujoco.mjtJacobian.mjJAC_DENSE, False),
+    (ConeType.ELLIPTIC, SolverType.NEWTON, 5, 10, mujoco.mjtJacobian.mjJAC_DENSE, False),
+    (ConeType.PYRAMIDAL, SolverType.NEWTON, 5, 64, mujoco.mjtJacobian.mjJAC_SPARSE, True),
+    (ConeType.ELLIPTIC, SolverType.NEWTON, 5, 64, mujoco.mjtJacobian.mjJAC_SPARSE, True),
   )
-  def test_solve(self, cone, solver_, iterations, ls_iterations, sparse, ls_parallel):
+  def test_solve(self, cone, solver_, iterations, ls_iterations, jacobian, ls_parallel):
     """Tests solve."""
     for keyframe in range(3):
-      mjm, mjd, m, d = test_util.fixture(
+      mjm, mjd, m, d = test_data.fixture(
         "constraints.xml",
         keyframe=keyframe,
-        sparse=sparse,
-        cone=cone,
-        solver=solver_,
-        iterations=iterations,
-        ls_iterations=ls_iterations,
-        ls_parallel=ls_parallel,
+        overrides={
+          "opt.jacobian": jacobian,
+          "opt.cone": cone,
+          "opt.solver": solver_,
+          "opt.iterations": iterations,
+          "opt.ls_iterations": ls_iterations,
+          "opt.ls_parallel": ls_parallel,
+        },
       )
 
       mujoco.mj_forward(mjm, mjd)
@@ -261,8 +250,8 @@ class SolverTest(parameterized.TestCase):
       d.efc.force.zero_()
 
       if solver_ == mujoco.mjtSolver.mjSOL_CG:
-        mjwarp.factor_m(m, d)
-      mjwarp.solve(m, d)
+        mjw.factor_m(m, d)
+      mjw.solve(m, d)
 
       def cost(qacc):
         jaref = np.zeros(mjd.nefc, dtype=float)
@@ -287,40 +276,28 @@ class SolverTest(parameterized.TestCase):
   def test_solve_batch(self, cone, solver_, iterations, ls_iterations):
     """Tests solve (batch)."""
 
-    mjm0, mjd0, _, _ = test_util.fixture(
+    mjm0, mjd0, _, _ = test_data.fixture(
       "humanoid/humanoid.xml",
       keyframe=0,
-      sparse=False,
-      cone=cone,
-      solver=solver_,
-      iterations=iterations,
-      ls_iterations=ls_iterations,
+      overrides={"opt.cone": cone, "opt.solver": solver_, "opt.iterations": iterations, "opt.ls_iterations": ls_iterations},
     )
     qacc_warmstart0 = mjd0.qacc_warmstart.copy()
     mujoco.mj_forward(mjm0, mjd0)
     mjd0.qacc_warmstart = qacc_warmstart0
 
-    mjm1, mjd1, _, _ = test_util.fixture(
+    mjm1, mjd1, _, _ = test_data.fixture(
       "humanoid/humanoid.xml",
       keyframe=2,
-      sparse=False,
-      cone=cone,
-      solver=solver_,
-      iterations=iterations,
-      ls_iterations=ls_iterations,
+      overrides={"opt.cone": cone, "opt.solver": solver_, "opt.iterations": iterations, "opt.ls_iterations": ls_iterations},
     )
     qacc_warmstart1 = mjd1.qacc_warmstart.copy()
     mujoco.mj_forward(mjm1, mjd1)
     mjd1.qacc_warmstart = qacc_warmstart1
 
-    mjm2, mjd2, _, _ = test_util.fixture(
+    mjm2, mjd2, _, _ = test_data.fixture(
       "humanoid/humanoid.xml",
       keyframe=1,
-      sparse=False,
-      cone=cone,
-      solver=solver_,
-      iterations=iterations,
-      ls_iterations=ls_iterations,
+      overrides={"opt.cone": cone, "opt.solver": solver_, "opt.iterations": iterations, "opt.ls_iterations": ls_iterations},
     )
     qacc_warmstart2 = mjd2.qacc_warmstart.copy()
     mujoco.mj_forward(mjm2, mjd2)
@@ -329,15 +306,11 @@ class SolverTest(parameterized.TestCase):
     nefc_active = mjd0.nefc + mjd1.nefc + mjd2.nefc
     ne_active = mjd0.ne + mjd1.ne + mjd2.ne
 
-    mjm, mjd, m, _ = test_util.fixture(
+    mjm, mjd, m, _ = test_data.fixture(
       "humanoid/humanoid.xml",
-      sparse=False,
-      cone=cone,
-      solver=solver_,
-      iterations=iterations,
-      ls_iterations=ls_iterations,
+      overrides={"opt.cone": cone, "opt.solver": solver_, "opt.iterations": iterations, "opt.ls_iterations": ls_iterations},
     )
-    d = mjwarp.put_data(mjm, mjd, nworld=3, njmax=2 * nefc_active)
+    d = mjw.put_data(mjm, mjd, nworld=3, njmax=2 * nefc_active)
 
     d.nefc = wp.array([nefc_active, nefc_active, nefc_active], dtype=wp.int32, ndim=1)
     d.ne = wp.array([ne_active, ne_active, ne_active], dtype=wp.int32, ndim=1)
@@ -417,19 +390,19 @@ class SolverTest(parameterized.TestCase):
     d.efc.aref = wp.from_numpy(efc_aref_fill, dtype=wp.float32)
 
     if solver_ == SolverType.CG:
-      m0 = mjwarp.put_model(mjm0)
-      d0 = mjwarp.put_data(mjm0, mjd0)
-      mjwarp.factor_m(m0, d0)
+      m0 = mjw.put_model(mjm0)
+      d0 = mjw.put_data(mjm0, mjd0)
+      mjw.factor_m(m0, d0)
       qLD0 = d0.qLD.numpy()
 
-      m1 = mjwarp.put_model(mjm1)
-      d1 = mjwarp.put_data(mjm1, mjd1)
-      mjwarp.factor_m(m1, d1)
+      m1 = mjw.put_model(mjm1)
+      d1 = mjw.put_data(mjm1, mjd1)
+      mjw.factor_m(m1, d1)
       qLD1 = d1.qLD.numpy()
 
-      m2 = mjwarp.put_model(mjm2)
-      d2 = mjwarp.put_data(mjm2, mjd2)
-      mjwarp.factor_m(m2, d2)
+      m2 = mjw.put_model(mjm2)
+      d2 = mjw.put_data(mjm2, mjd2)
+      mjw.factor_m(m2, d2)
       qLD2 = d2.qLD.numpy()
 
       qLD = np.vstack([qLD0, qLD1, qLD2])
@@ -492,8 +465,8 @@ class SolverTest(parameterized.TestCase):
   def test_frictionloss(self):
     """Tests solver with frictionloss."""
     for keyframe in range(3):
-      _, mjd, m, d = test_util.fixture("constraints.xml", keyframe=keyframe)
-      mjwarp.solve(m, d)
+      _, mjd, m, d = test_data.fixture("constraints.xml", keyframe=keyframe)
+      mjw.solve(m, d)
 
       _assert_eq(d.nf.numpy()[0], mjd.nf, "nf")
       _assert_eq(d.qacc.numpy()[0], mjd.qacc, "qacc")

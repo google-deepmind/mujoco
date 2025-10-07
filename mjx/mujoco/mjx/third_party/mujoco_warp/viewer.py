@@ -21,13 +21,12 @@ Example:
   mjwarp-viewer benchmark/humanoid/humanoid.xml -o "opt.solver=cg"
 """
 
-import ast
 import copy
 import enum
 import logging
 import sys
 import time
-from typing import Sequence, Union
+from typing import Sequence
 
 import mujoco
 import mujoco.viewer
@@ -38,6 +37,11 @@ from absl import flags
 from etils import epath
 
 import mujoco_warp as mjw
+
+# mjwarp-viewer has priviledged access to a few internal methods
+from mujoco.mjx.third_party.mujoco_warp._src.io import find_keys
+from mujoco.mjx.third_party.mujoco_warp._src.io import make_trajectory
+from mujoco.mjx.third_party.mujoco_warp._src.io import override_model
 
 
 class EngineOptions(enum.IntEnum):
@@ -67,7 +71,7 @@ def key_callback(key: int) -> None:
 
 def _load_model(path: epath.Path) -> mujoco.MjModel:
   if not path.exists():
-    resource_path = epath.resource_path("mujoco_warp") / path
+    resource_path = epath.resource_path("mjx") / "third_party/mujoco_warp" / path
     if not resource_path.exists():
       raise FileNotFoundError(f"file not found: {path}\nalso tried: {resource_path}")
     path = resource_path
@@ -83,40 +87,6 @@ def _load_model(path: epath.Path) -> mujoco.MjModel:
 
     register_sdf_plugins(mjw)
   return spec.compile()
-
-
-def _override(model: Union[mjw.Model, mujoco.MjModel]):
-  enum_fields = {
-    "opt.integrator": mjw.IntegratorType,
-    "opt.cone": mjw.ConeType,
-    "opt.solver": mjw.SolverType,
-    "opt.broadphase": mjw.BroadphaseType,
-    "opt.broadphase_filter": mjw.BroadphaseFilter,
-  }
-  for override in _OVERRIDE.value:
-    if "=" not in override:
-      raise app.UsageError(f"Invalid override format: {override}")
-    key, val = override.split("=", 1)
-    key, val = key.strip(), val.strip()
-
-    if key in enum_fields:
-      try:
-        val = int(enum_fields[key][val.upper()])
-      except KeyError:
-        raise app.UsageError(f"Unrecognized enum value: {val}")
-
-    obj, attrs = model, key.split(".")
-    for i, attr in enumerate(attrs):
-      if not hasattr(obj, attr):
-        raise app.UsageError(f"Unrecognized model field: {key}")
-      if i < len(attrs) - 1:
-        obj = getattr(obj, attr)
-      elif key not in enum_fields:
-        try:
-          val = type(getattr(obj, attr))(ast.literal_eval(val))
-        except (SyntaxError, ValueError):
-          raise app.UsageError(f"Unrecognized value for field: {key}")
-      setattr(obj, attr, val)
 
 
 def _compile_step(m, d):
@@ -142,17 +112,17 @@ def _main(argv: Sequence[str]) -> None:
   ctrls = None
   ctrlid = 0
   if _REPLAY.value:
-    keys = mjw.test_util.find_keys(mjm, _REPLAY.value)
+    keys = find_keys(mjm, _REPLAY.value)
     if not keys:
       raise app.UsageError(f"Key prefix not find: {_REPLAY.value}")
-    ctrls = mjw.test_util.make_trajectory(mjm, keys)
+    ctrls = make_trajectory(mjm, keys)
     mujoco.mj_resetDataKeyframe(mjm, mjd, keys[0])
   elif mjm.nkey > 0 and _KEYFRAME.value > -1:
     mujoco.mj_resetDataKeyframe(mjm, mjd, _KEYFRAME.value)
   mujoco.mj_forward(mjm, mjd)
 
   if _ENGINE.value == EngineOptions.C:
-    _override(mjm)
+    override_model(mjm, _OVERRIDE.value)
     print(
       f"  nbody: {mjm.nbody} nv: {mjm.nv} ngeom: {mjm.ngeom} nu: {mjm.nu}\n"
       f"  solver: {mujoco.mjtSolver(mjm.opt.solver).name} cone: {mujoco.mjtCone(mjm.opt.cone).name}"
@@ -168,7 +138,7 @@ def _main(argv: Sequence[str]) -> None:
 
     with wp.ScopedDevice(_DEVICE.value):
       m = mjw.put_model(mjm)
-      _override(m)
+      override_model(m, _OVERRIDE.value)
       broadphase, filter = mjw.BroadphaseType(m.opt.broadphase).name, mjw.BroadphaseFilter(m.opt.broadphase_filter).name
       solver, cone = mjw.SolverType(m.opt.solver).name, mjw.ConeType(m.opt.cone).name
       integrator = mjw.IntegratorType(m.opt.integrator).name
@@ -205,6 +175,7 @@ def _main(argv: Sequence[str]) -> None:
         wp.copy(d.time, wp.array([mjd.time], dtype=wp.float32))
 
         # if the user changed an option in the MuJoCo Simulate UI, go ahead and recompile the step
+        # TODO: update memory tied to option max iterations
         if mjm.opt != opt:
           opt = copy.copy(mjm.opt)
           m = mjw.put_model(mjm)

@@ -21,12 +21,13 @@ import warp as wp
 from absl.testing import absltest
 from absl.testing import parameterized
 
-import mujoco_warp as mjwarp
-
-from mujoco.mjx.third_party.mujoco_warp._src import test_util
-from mujoco.mjx.third_party.mujoco_warp._src.types import BiasType
-from mujoco.mjx.third_party.mujoco_warp._src.types import GainType
-from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
+import mujoco_warp as mjw
+from mujoco.mjx.third_party.mujoco_warp import BiasType
+from mujoco.mjx.third_party.mujoco_warp import DisableBit
+from mujoco.mjx.third_party.mujoco_warp import EnableBit
+from mujoco.mjx.third_party.mujoco_warp import GainType
+from mujoco.mjx.third_party.mujoco_warp import IntegratorType
+from mujoco.mjx.third_party.mujoco_warp import test_data
 
 # tolerance for difference between MuJoCo and mjwarp smooth calculations - mostly
 # due to float precision
@@ -43,39 +44,35 @@ class ForwardTest(parameterized.TestCase):
   # TODO(team): test sparse when actuator_moment and/or ten_J have sparse representation
   @parameterized.product(xml=["humanoid/humanoid.xml", "pendula.xml"])
   def test_fwd_velocity(self, xml):
-    _, mjd, m, d = test_util.fixture(xml, kick=True)
+    _, mjd, m, d = test_data.fixture(xml, qvel_noise=0.01, ctrl_noise=0.1)
 
     for arr in (d.actuator_velocity, d.qfrc_bias):
       arr.zero_()
 
-    mjwarp.fwd_velocity(m, d)
+    mjw.fwd_velocity(m, d)
 
     _assert_eq(d.actuator_velocity.numpy()[0], mjd.actuator_velocity, "actuator_velocity")
     _assert_eq(d.qfrc_bias.numpy()[0], mjd.qfrc_bias, "qfrc_bias")
 
   def test_fwd_velocity_tendon(self):
-    _, mjd, m, d = test_util.fixture("tendon/fixed.xml", sparse=False)
+    _, mjd, m, d = test_data.fixture("tendon/fixed.xml")
 
     d.ten_velocity.zero_()
-    mjwarp.fwd_velocity(m, d)
+    mjw.fwd_velocity(m, d)
 
     _assert_eq(d.ten_velocity.numpy()[0], mjd.ten_velocity, "ten_velocity")
 
-  @parameterized.parameters(
-    ("actuation/actuation.xml", True),
-    ("actuation/actuation.xml", False),
-    ("actuation/actuators.xml", True),
-    ("actuation/actuators.xml", False),
-    ("actuation/muscle.xml", True),
-    ("actuation/muscle.xml", False),
+  @parameterized.product(
+    xml=("actuation/actuation.xml", "actuation/actuators.xml", "actuation/muscle.xml"),
+    disableflags=(0, DisableBit.ACTUATION),
   )
-  def test_actuation(self, xml, actuation):
-    mjm, mjd, m, d = test_util.fixture(xml, actuation=actuation, keyframe=0)
+  def test_actuation(self, xml, disableflags):
+    mjm, mjd, m, d = test_data.fixture(xml, keyframe=0, overrides={"opt.disableflags": disableflags})
 
     for arr in (d.qfrc_actuator, d.actuator_force, d.act_dot):
       arr.zero_()
 
-    mjwarp.fwd_actuation(m, d)
+    mjw.fwd_actuation(m, d)
 
     _assert_eq(d.qfrc_actuator.numpy()[0], mjd.qfrc_actuator, "qfrc_actuator")
     _assert_eq(d.actuator_force.numpy()[0], mjd.actuator_force, "actuator_force")
@@ -85,15 +82,15 @@ class ForwardTest(parameterized.TestCase):
 
       # next activations
       mujoco.mj_step(mjm, mjd)
-      mjwarp.step(m, d)
+      mjw.step(m, d)
 
       _assert_eq(d.act.numpy()[0], mjd.act, "act")
 
     # TODO(team): test actearly
 
-  @parameterized.parameters(True, False)
-  def test_clampctrl(self, clampctrl):
-    _, mjd, _, d = test_util.fixture(
+  @parameterized.parameters(0, DisableBit.CLAMPCTRL)
+  def test_clampctrl(self, disableflags):
+    _, mjd, _, d = test_data.fixture(
       xml="""
     <mujoco>
       <worldbody>
@@ -110,43 +107,48 @@ class ForwardTest(parameterized.TestCase):
       </keyframe>
     </mujoco>
     """,
-      clampctrl=clampctrl,
       keyframe=0,
+      overrides={"opt.disableflags": disableflags},
     )
 
     _assert_eq(d.ctrl.numpy()[0], mjd.ctrl, "ctrl")
 
   def test_fwd_acceleration(self):
-    _, mjd, m, d = test_util.fixture("humanoid/humanoid.xml", kick=True)
+    _, mjd, m, d = test_data.fixture("humanoid/humanoid.xml", qvel_noise=0.01, ctrl_noise=0.1)
 
     for arr in (d.qfrc_smooth, d.qacc_smooth):
       arr.zero_()
 
-    mjwarp.fwd_acceleration(m, d)
+    mjw.fwd_acceleration(m, d)
 
     _assert_eq(d.qfrc_smooth.numpy()[0], mjd.qfrc_smooth, "qfrc_smooth")
     _assert_eq(d.qacc_smooth.numpy()[0], mjd.qacc_smooth, "qacc_smooth")
 
-  @parameterized.parameters((True, True), (True, False), (False, True), (False, False))
-  def test_euler(self, eulerdamp, sparse):
-    mjm, mjd, _, _ = test_util.fixture("pendula.xml", kick=True, eulerdamp=eulerdamp, sparse=sparse)
+  @parameterized.product(
+    jacobian=(mujoco.mjtJacobian.mjJAC_AUTO, mujoco.mjtJacobian.mjJAC_DENSE), disableflags=(0, DisableBit.EULERDAMP)
+  )
+  def test_euler(self, jacobian, disableflags):
+    mjm, mjd, _, _ = test_data.fixture(
+      "pendula.xml",
+      qvel_noise=0.01,
+      ctrl_noise=0.1,
+      overrides={"opt.jacobian": jacobian, "opt.disableflags": DisableBit.CONTACT | disableflags},
+    )
     self.assertTrue((mjm.dof_damping > 0).any())
 
-    m = mjwarp.put_model(mjm)
-    d = mjwarp.put_data(mjm, mjd)
+    m = mjw.put_model(mjm)
+    d = mjw.put_data(mjm, mjd)
     mujoco.mj_forward(mjm, mjd)
-
     mujoco.mj_Euler(mjm, mjd)
-
-    mjwarp.solve(m, d)  # compute efc.Ma
-    mjwarp.euler(m, d)
+    mjw.solve(m, d)  # compute efc.Ma
+    mjw.euler(m, d)
 
     _assert_eq(d.qpos.numpy()[0], mjd.qpos, "qpos")
     _assert_eq(d.qvel.numpy()[0], mjd.qvel, "qvel")
     _assert_eq(d.act.numpy()[0], mjd.act, "act")
 
   def test_rungekutta4(self):
-    mjm, mjd, m, d = test_util.fixture(
+    mjm, mjd, m, d = test_data.fixture(
       xml="""
         <mujoco>
           <option integrator="RK4" iterations="1" ls_iterations="1">
@@ -170,7 +172,7 @@ class ForwardTest(parameterized.TestCase):
       keyframe=0,
     )
 
-    mjwarp.rungekutta4(m, d)
+    mjw.rungekutta4(m, d)
     mujoco.mj_RungeKutta(mjm, mjd, 4)
 
     _assert_eq(d.qpos.numpy()[0], mjd.qpos, "qpos")
@@ -183,20 +185,25 @@ class ForwardTest(parameterized.TestCase):
       d.qpos = wp.ones_like(d.qpos)
       d.qvel = wp.ones_like(d.qvel)
       d.act = wp.ones_like(d.act)
-      mjwarp.rungekutta4(m, d)
+      mjw.rungekutta4(m, d)
       return d.qpos
 
     _assert_eq(rk_step().numpy()[0], rk_step().numpy()[0], "qpos")
 
-  @parameterized.product(actuation=[True, False], passive=[True, False], sparse=[True, False])
-  def test_implicit(self, actuation, passive, sparse):
-    mjm, mjd, _, _ = test_util.fixture(
+  @parameterized.product(
+    jacobian=(mujoco.mjtJacobian.mjJAC_AUTO, mujoco.mjtJacobian.mjJAC_DENSE),
+    actuation=(0, DisableBit.ACTUATION),
+    spring=(0, DisableBit.SPRING),
+    damper=(0, DisableBit.DAMPER),
+  )
+  def test_implicit(self, jacobian, actuation, spring, damper):
+    mjm, mjd, _, _ = test_data.fixture(
       "pendula.xml",
-      integrator=IntegratorType.IMPLICITFAST,
-      actuation=actuation,
-      spring=passive,
-      damper=passive,
-      sparse=sparse,
+      overrides={
+        "opt.jacobian": jacobian,
+        "opt.disableflags": DisableBit.CONTACT | actuation | spring | damper,
+        "opt.integrator": IntegratorType.IMPLICITFAST,
+      },
     )
 
     mjm.actuator_gainprm[:, 2] = np.random.uniform(low=0.01, high=10.0, size=mjm.actuator_gainprm[:, 2].shape)
@@ -216,78 +223,93 @@ class ForwardTest(parameterized.TestCase):
     mjd.act = np.random.uniform(low=-0.1, high=0.1, size=mjd.act.shape)
     mujoco.mj_forward(mjm, mjd)
 
-    m = mjwarp.put_model(mjm)
-    d = mjwarp.put_data(mjm, mjd)
+    m = mjw.put_model(mjm)
+    d = mjw.put_data(mjm, mjd)
 
     mujoco.mj_implicit(mjm, mjd)
 
-    mjwarp.solve(m, d)  # compute efc.Ma
-    mjwarp.implicit(m, d)
+    mjw.solve(m, d)  # compute efc.Ma
+    mjw.implicit(m, d)
 
     _assert_eq(d.qpos.numpy()[0], mjd.qpos, "qpos")
     _assert_eq(d.act.numpy()[0], mjd.act, "act")
 
   def test_implicit_position(self):
-    mjm, mjd, m, d = test_util.fixture("actuation/position.xml", keyframe=0, integrator=IntegratorType.IMPLICITFAST, kick=True)
+    mjm, mjd, m, d = test_data.fixture(
+      "actuation/position.xml",
+      keyframe=0,
+      qvel_noise=0.01,
+      ctrl_noise=0.1,
+      overrides={"opt.integrator": IntegratorType.IMPLICITFAST},
+    )
 
     mujoco.mj_implicit(mjm, mjd)
 
-    mjwarp.solve(m, d)  # compute efc.Ma
-    mjwarp.implicit(m, d)
+    mjw.solve(m, d)  # compute efc.Ma
+    mjw.implicit(m, d)
 
     _assert_eq(d.qpos.numpy()[0], mjd.qpos, "qpos")
     _assert_eq(d.qvel.numpy()[0], mjd.qvel, "qvel")
 
   def test_implicit_tendon_damping(self):
-    mjm, mjd, m, d = test_util.fixture("tendon/damping.xml", keyframe=0, integrator=IntegratorType.IMPLICITFAST, kick=True)
+    mjm, mjd, m, d = test_data.fixture(
+      "tendon/damping.xml",
+      keyframe=0,
+      qvel_noise=0.01,
+      ctrl_noise=0.1,
+      overrides={"opt.integrator": IntegratorType.IMPLICITFAST},
+    )
 
     mujoco.mj_implicit(mjm, mjd)
 
-    mjwarp.solve(m, d)  # compute efc.Ma
-    mjwarp.implicit(m, d)
+    mjw.solve(m, d)  # compute efc.Ma
+    mjw.implicit(m, d)
 
     _assert_eq(d.qpos.numpy()[0], mjd.qpos, "qpos")
     _assert_eq(d.qvel.numpy()[0], mjd.qvel, "qvel")
 
+  @absltest.skipIf(not wp.get_device().is_cuda, "Skipping test that requires GPU.")
   @parameterized.product(
     xml=("humanoid/humanoid.xml", "pendula.xml", "constraints.xml", "collision.xml"), graph_conditional=(True, False)
   )
   def test_graph_capture(self, xml, graph_conditional):
     # TODO(team): test more environments
-    if wp.get_device().is_cuda and wp.config.verify_cuda == False:
-      _, _, m, d = test_util.fixture(xml)
-      m.opt.graph_conditional = graph_conditional
+    _, _, m, d = test_data.fixture(xml, overrides={"opt.graph_conditional": graph_conditional})
 
-      with wp.ScopedCapture() as capture:
-        mjwarp.step(m, d)
+    with wp.ScopedCapture() as capture:
+      mjw.step(m, d)
 
-      # step a few times to ensure no errors at the step boundary
-      wp.capture_launch(capture.graph)
-      wp.capture_launch(capture.graph)
-      wp.capture_launch(capture.graph)
+    # step a few times to ensure no errors at the step boundary
+    wp.capture_launch(capture.graph)
+    wp.capture_launch(capture.graph)
+    wp.capture_launch(capture.graph)
 
-      self.assertTrue(d.time.numpy()[0] > 0.0)
+    self.assertTrue(d.time.numpy()[0] > 0.0)
 
   def test_forward_energy(self):
-    _, mjd, _, d = test_util.fixture("humanoid/humanoid.xml", kick=True, energy=True)
+    _, mjd, _, d = test_data.fixture(
+      "humanoid/humanoid.xml", qvel_noise=0.01, ctrl_noise=0.1, overrides={"opt.enableflags": EnableBit.ENERGY}
+    )
 
     _assert_eq(d.energy.numpy()[0][0], mjd.energy[0], "potential energy")
     _assert_eq(d.energy.numpy()[0][1], mjd.energy[1], "kinetic energy")
 
   def test_tendon_actuator_force_limits(self):
     for keyframe in range(7):
-      _, mjd, m, d = test_util.fixture("actuation/tendon_force_limit.xml", keyframe=keyframe)
+      _, mjd, m, d = test_data.fixture("actuation/tendon_force_limit.xml", keyframe=keyframe)
 
       d.actuator_force.zero_()
 
-      mjwarp.forward(m, d)
+      mjw.forward(m, d)
 
       _assert_eq(d.actuator_force.numpy()[0], mjd.actuator_force, "actuator_force")
 
-  @parameterized.parameters(("humanoid/humanoid.xml", True), ("humanoid/humanoid.xml", False))
+  @parameterized.product(xml=("humanoid/humanoid.xml",), energy=(0, EnableBit.ENERGY))
   def test_step1(self, xml, energy):
     # TODO(team): test more mjcfs
-    mjm, mjd, m, d = test_util.fixture(xml, kick=True, energy=energy)
+    mjm, mjd, m, d = test_data.fixture(
+      xml, qpos_noise=0.1, qvel_noise=0.01, ctrl_noise=0.1, overrides={"opt.enableflags": energy}
+    )
 
     # some of the fields updated by step1
     step1_field = [
@@ -360,7 +382,7 @@ class ForwardTest(parameterized.TestCase):
         attr.zero_()
 
     mujoco.mj_step1(mjm, mjd)
-    mjwarp.step1(m, d)
+    mjw.step1(m, d)
 
     for arr in step1_field:
       d_arr, is_nefc = _getattr(arr)
@@ -395,7 +417,7 @@ class ForwardTest(parameterized.TestCase):
 
         vec_wp = wp.array(vec, dtype=float)
         res_wp = wp.zeros((1, mjm.nv), dtype=float)
-        mjwarp.solve_m(m, d, res_wp, vec_wp)
+        mjw.solve_m(m, d, res_wp, vec_wp)
 
         d_arr = res_wp.numpy()[0]
         mjd_arr = res[0]
@@ -407,13 +429,12 @@ class ForwardTest(parameterized.TestCase):
     # TODO(team): sensor_pos
     # TODO(team): sensor_vel
 
-  @parameterized.parameters(
-    ("humanoid/humanoid.xml", IntegratorType.EULER),
-    ("humanoid/humanoid.xml", IntegratorType.IMPLICITFAST),
-    ("humanoid/humanoid.xml", IntegratorType.RK4),
+  @parameterized.product(
+    xml=("humanoid/humanoid.xml",),
+    integrator=(IntegratorType.EULER, IntegratorType.IMPLICITFAST, IntegratorType.RK4),
   )
   def test_step2(self, xml, integrator):
-    mjm, mjd, m, _ = test_util.fixture(xml, kick=True, integrator=integrator)
+    mjm, mjd, m, _ = test_data.fixture(xml, qvel_noise=0.01, ctrl_noise=0.1, overrides={"opt.integrator": integrator})
 
     # some of the fields updated by step2
     step2_field = [
@@ -445,7 +466,7 @@ class ForwardTest(parameterized.TestCase):
     mjd.qfrc_applied = qfrc_applied
     mjd.xfrc_applied = xfrc_applied
 
-    d = mjwarp.put_data(mjm, mjd)
+    d = mjw.put_data(mjm, mjd)
 
     for arr in step2_field:
       if arr in ["qpos", "qvel"]:
@@ -459,7 +480,7 @@ class ForwardTest(parameterized.TestCase):
         attr.zero_()
 
     mujoco.mj_step2(mjm, mjd)
-    mjwarp.step2(m, d)
+    mjw.step2(m, d)
 
     for arr in step2_field:
       d_arr, is_efc = _getattr(arr)

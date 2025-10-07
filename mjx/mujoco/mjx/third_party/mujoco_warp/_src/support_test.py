@@ -22,9 +22,8 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 import mujoco_warp as mjwarp
-
-from mujoco.mjx.third_party.mujoco_warp._src import test_util
-from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
+from mujoco.mjx.third_party.mujoco_warp import ConeType
+from mujoco.mjx.third_party.mujoco_warp import test_data
 
 # tolerance for difference between MuJoCo and MJWarp support calculations - mostly
 # due to float precision
@@ -38,10 +37,10 @@ def _assert_eq(a, b, name):
 
 
 class SupportTest(parameterized.TestCase):
-  @parameterized.parameters(True, False)
-  def test_mul_m(self, sparse):
+  @parameterized.parameters(mujoco.mjtJacobian.mjJAC_SPARSE, mujoco.mjtJacobian.mjJAC_DENSE)
+  def test_mul_m(self, jacobian):
     """Tests mul_m."""
-    mjm, mjd, m, d = test_util.fixture("pendula.xml", sparse=sparse)
+    mjm, mjd, m, d = test_data.fixture("pendula.xml", overrides={"opt.jacobian": jacobian})
 
     mj_res = np.zeros(mjm.nv)
     mj_vec = np.random.uniform(low=-1.0, high=1.0, size=mjm.nv)
@@ -52,11 +51,11 @@ class SupportTest(parameterized.TestCase):
     skip = wp.zeros((d.nworld), dtype=bool)
     mjwarp.mul_m(m, d, res, vec, skip)
 
-    _assert_eq(res.numpy()[0], mj_res, f"mul_m ({'sparse' if sparse else 'dense'})")
+    _assert_eq(res.numpy()[0], mj_res, f"mul_m ({jacobian})")
 
   def test_xfrc_accumulated(self):
     """Tests that xfrc_accumulate output matches mj_xfrcAccumulate."""
-    mjm, mjd, m, d = test_util.fixture("pendula.xml")
+    mjm, mjd, m, d = test_data.fixture("pendula.xml")
     xfrc = np.random.randn(*d.xfrc_applied.numpy().shape)
     d.xfrc_applied = wp.from_numpy(xfrc, dtype=wp.spatial_vector)
     qfrc = wp.zeros((1, mjm.nv), dtype=wp.float32)
@@ -101,7 +100,7 @@ class SupportTest(parameterized.TestCase):
         </keyframe>
       </mujoco>
     """
-    mjm, mjd, m, d = test_util.fixture(xml=_CONTACT, cone=cone, keyframe=0)
+    mjm, mjd, m, d = test_data.fixture(xml=_CONTACT, keyframe=0, overrides={"opt.cone": cone})
 
     mj_force = np.zeros(6, dtype=float)
     mujoco.mj_contactForce(mjm, mjd, 0, mj_force)

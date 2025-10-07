@@ -80,7 +80,7 @@ def _next_position(
   qpos_next = qpos_out[worldid]
   qvel = qvel_in[worldid]
 
-  if jnttype == wp.static(JointType.FREE.value):
+  if jnttype == JointType.FREE:
     qpos_pos = wp.vec3(qpos[qpos_adr], qpos[qpos_adr + 1], qpos[qpos_adr + 2])
     qvel_lin = wp.vec3(qvel[dof_adr], qvel[dof_adr + 1], qvel[dof_adr + 2]) * qvel_scale_in
 
@@ -104,7 +104,7 @@ def _next_position(
     qpos_next[qpos_adr + 5] = qpos_quat_new[2]
     qpos_next[qpos_adr + 6] = qpos_quat_new[3]
 
-  elif jnttype == wp.static(JointType.BALL.value):
+  elif jnttype == JointType.BALL:
     qpos_quat = wp.quat(
       qpos[qpos_adr + 0],
       qpos[qpos_adr + 1],
@@ -157,7 +157,7 @@ def _next_act(
   clamp: bool,
 ) -> float:
   # advance actuation
-  if actuator_dyntype == wp.static(DynType.FILTEREXACT.value):
+  if actuator_dyntype == DynType.FILTEREXACT:
     tau = wp.max(MJ_MINVAL, actuator_dynprm[0])
     act = act_in + act_dot_scale * act_dot_in * tau * (1.0 - wp.exp(-opt_timestep / tau))
   else:
@@ -393,7 +393,7 @@ def euler(m: Model, d: Data):
   """Euler integrator, semi-implicit in velocity."""
 
   # integrate damping implicitly
-  if not m.opt.disableflags & DisableBit.EULERDAMP.value:
+  if not m.opt.disableflags & (DisableBit.EULERDAMP | DisableBit.DAMPER):
     if m.opt.is_sparse:
       _euler_sparse(m, d)
     else:
@@ -520,12 +520,7 @@ def rungekutta4(m: Model, d: Data):
 @event_scope
 def implicit(m: Model, d: Data):
   """Integrates fully implicit in velocity."""
-
-  # compile-time constants
-  passive_enabled = not m.opt.disableflags & (DisableBit.SPRING.value | DisableBit.DAMPER.value)
-  actuation_enabled = (not m.opt.disableflags & DisableBit.ACTUATION.value) and m.actuator_affine_bias_gain
-
-  if passive_enabled or actuation_enabled:
+  if ~(m.opt.disableflags | ~(DisableBit.ACTUATION | DisableBit.SPRING | DisableBit.DAMPER)):
     derivative.deriv_smooth_vel(m, d)
     smooth.factor_solve_i(
       m, d, d.qM_integration, d.qLD_integration, d.qLDiagInv_integration, d.qacc_integration, d.qfrc_integration
@@ -553,10 +548,8 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
   smooth.transmission(m, d)
 
 
-# TODO(team): sparse actuator_moment version
-def _actuator_velocity(m: Model, d: Data):
-  NV = m.nv
-
+@cache_kernel
+def _create_actuator_velocity_kernel(NV: int):
   @nested_kernel(module="unique", enable_backward=False)
   def actuator_velocity(
     # Data in:
@@ -572,8 +565,15 @@ def _actuator_velocity(m: Model, d: Data):
     actuator_velocity_tile = wp.tile_reduce(wp.add, moment_qvel_tile)
     actuator_velocity_out[worldid, actid] = actuator_velocity_tile[0]
 
+  return actuator_velocity
+
+
+# TODO(team): sparse actuator_moment version
+def _actuator_velocity(m: Model, d: Data):
+  NV = m.nv
+
   wp.launch_tiled(
-    actuator_velocity,
+    _create_actuator_velocity_kernel(NV),
     dim=(d.nworld, m.nu),
     inputs=[
       d.qvel,
@@ -681,13 +681,13 @@ def _actuator_force(
     act_last = act_first + actuator_actnum[uid] - 1
     dyntype = actuator_dyntype[uid]
 
-    if dyntype == int(DynType.INTEGRATOR.value):
+    if dyntype == DynType.INTEGRATOR:
       act_dot = ctrl
-    elif dyntype == int(DynType.FILTER.value) or dyntype == int(DynType.FILTEREXACT.value):
+    elif dyntype == DynType.FILTER or dyntype == DynType.FILTEREXACT:
       dynprm = actuator_dynprm[worldid, uid]
       act = act_in[worldid, act_last]
       act_dot = (ctrl - act) / wp.max(dynprm[0], MJ_MINVAL)
-    elif dyntype == int(DynType.MUSCLE.value):
+    elif dyntype == DynType.MUSCLE:
       dynprm = actuator_dynprm[worldid, uid]
       act = act_in[worldid, act_last]
       act_dot = util_misc.muscle_dynamics(ctrl, act, dynprm)
@@ -697,7 +697,7 @@ def _actuator_force(
     act_dot_out[worldid, act_last] = act_dot
 
     if actuator_actearly[uid]:
-      if dyntype == int(DynType.INTEGRATOR.value) or dyntype == int(DynType.NONE.value):
+      if dyntype == DynType.INTEGRATOR or dyntype == DynType.NONE:
         dynprm = actuator_dynprm[worldid, uid]
         act = act_in[worldid, act_last]
 
@@ -722,11 +722,11 @@ def _actuator_force(
   gainprm = actuator_gainprm[worldid, uid]
 
   gain = 0.0
-  if gaintype == int(GainType.FIXED.value):
+  if gaintype == GainType.FIXED:
     gain = gainprm[0]
-  elif gaintype == int(GainType.AFFINE.value):
+  elif gaintype == GainType.AFFINE:
     gain = gainprm[0] + gainprm[1] * length + gainprm[2] * velocity
-  elif gaintype == int(GainType.MUSCLE.value):
+  elif gaintype == GainType.MUSCLE:
     acc0 = actuator_acc0[uid]
     lengthrange = actuator_lengthrange[uid]
     gain = util_misc.muscle_gain(length, velocity, lengthrange, acc0, gainprm)
@@ -736,9 +736,9 @@ def _actuator_force(
   biasprm = actuator_biasprm[worldid, uid]
 
   bias = 0.0  # BiasType.NONE
-  if biastype == int(BiasType.AFFINE.value):
+  if biastype == BiasType.AFFINE:
     bias = biasprm[0] + biasprm[1] * length + biasprm[2] * velocity
-  elif biastype == int(BiasType.MUSCLE.value):
+  elif biastype == BiasType.MUSCLE:
     acc0 = actuator_acc0[uid]
     lengthrange = actuator_lengthrange[uid]
     bias = util_misc.muscle_bias(length, lengthrange, acc0, biasprm)
@@ -766,7 +766,7 @@ def _tendon_actuator_force(
 ):
   worldid, actid = wp.tid()
 
-  if actuator_trntype[actid] == int(TrnType.TENDON.value):
+  if actuator_trntype[actid] == TrnType.TENDON:
     tenid = actuator_trnid[actid][0]
     # TODO(team): only compute for tendons with force limits?
     wp.atomic_add(ten_actfrc_out[worldid], tenid, actuator_force_in[worldid, actid])
@@ -786,7 +786,7 @@ def _tendon_actuator_force_clamp(
 ):
   worldid, actid = wp.tid()
 
-  if actuator_trntype[actid] == int(TrnType.TENDON.value):
+  if actuator_trntype[actid] == TrnType.TENDON:
     tenid = actuator_trnid[actid][0]
     if tendon_actfrclimited[tenid]:
       ten_actfrc = ten_actfrc_in[worldid, tenid]

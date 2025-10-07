@@ -13,19 +13,15 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Optional, Tuple
+from typing import Any, Optional, Sequence, Union
 
 import mujoco
 import numpy as np
 import warp as wp
 
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import conditional_graph_supported
-
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import types
-
-# number of max iterations to run GJK/EPA
-MJ_CCD_ITERATIONS = 12
+from mujoco.mjx.third_party.mujoco_warp._src import warp_util
 
 # max number of worlds supported
 MAX_WORLDS = 2**24
@@ -76,6 +72,12 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   geom_plugin_index = np.full_like(mjm.geom_type, -1)
 
   if mjm.nplugin > 0:
+    if (mjm.body_plugin != -1).any():
+      raise NotImplementedError("Body plugins not supported.")
+    if (mjm.actuator_plugin != -1).any():
+      raise NotImplementedError("Actuator plugins not supported.")
+    if (mjm.sensor_plugin != -1).any():
+      raise NotImplementedError("Sensor plugins not supported.")
     for i in range(len(mjm.geom_plugin)):
       if mjm.geom_plugin[i] != -1:
         p = mjm.geom_plugin[i]
@@ -121,6 +123,12 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
 
   if mjm.opt.noslip_iterations > 0:
     raise NotImplementedError(f"noslip solver not implemented.")
+
+  if (mjm.opt.viscosity > 0 or mjm.opt.density > 0) and mjm.opt.integrator in (
+    mujoco.mjtIntegrator.mjINT_IMPLICITFAST,
+    mujoco.mjtIntegrator.mjINT_IMPLICIT,
+  ):
+    raise NotImplementedError(f"Implicit integrators and fluid model not implemented.")
 
   # TODO(team): remove after _update_gradient for Newton uses tile operations for islands
   nv_max = 60
@@ -308,7 +316,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   mocap_bodyid = mocap_bodyid[mjm.body_mocapid[mjm.body_mocapid >= 0].argsort()]
 
   # precalculated geom pairs
-  filterparent = not (mjm.opt.disableflags & types.DisableBit.FILTERPARENT.value)
+  filterparent = not (mjm.opt.disableflags & types.DisableBit.FILTERPARENT)
 
   geom1, geom2 = np.triu_indices(mjm.ngeom, k=1)
   nxn_geom_pair = np.stack((geom1, geom2), axis=1)
@@ -362,7 +370,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
 
   # Disable collisions if there are no potentially colliding pairs
   if np.sum(geom_type_pair_count) == 0:
-    mjm.opt.disableflags |= types.DisableBit.CONTACT.value
+    mjm.opt.disableflags |= types.DisableBit.CONTACT
 
   def create_nmodel_batched_array(mjm_array, dtype, expand_dim=True):
     array = wp.array(mjm_array, dtype=dtype)
@@ -395,6 +403,58 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
 
   condim = np.concatenate((mjm.geom_condim, mjm.pair_dim))
   condim_max = np.max(condim) if len(condim) > 0 else 0
+
+  # collision sensors
+  is_collision_sensor = np.isin(
+    mjm.sensor_type, [mujoco.mjtSensor.mjSENS_GEOMDIST, mujoco.mjtSensor.mjSENS_GEOMNORMAL, mujoco.mjtSensor.mjSENS_GEOMFROMTO]
+  )
+  sensor_collision_adr = np.nonzero(is_collision_sensor)[0]
+  collision_sensor_adr = np.full(mjm.nsensor, -1)
+  collision_sensor_adr[sensor_collision_adr] = np.arange(len(sensor_collision_adr))
+
+  if is_collision_sensor.any():
+
+    def _collision_sensor_check(sensor_type, sensor_id, geom_type, err_msg):
+      for type_, id_ in zip(sensor_type, sensor_id):
+        if type_ == mujoco.mjtObj.mjOBJ_BODY:
+          geomnum = mjm.body_geomnum[id_]
+          geomadr = mjm.body_geomadr[id_]
+          for geomid in range(geomadr, geomadr + geomnum):
+            if mjm.geom_type[geomid] == geom_type:
+              raise NotImplementedError(err_msg)
+        elif type_ == mujoco.mjtObj.mjOBJ_GEOM:
+          if mjm.geom_type[id_] == geom_type:
+            raise NotImplementedError(err_msg)
+
+    sensor_collision_objtype = mjm.sensor_objtype[is_collision_sensor]
+    sensor_collision_objid = mjm.sensor_objid[is_collision_sensor]
+    sensor_collision_reftype = mjm.sensor_reftype[is_collision_sensor]
+    sensor_collision_refid = mjm.sensor_refid[is_collision_sensor]
+
+    _collision_sensor_check(
+      sensor_collision_objtype,
+      sensor_collision_objid,
+      mujoco.mjtGeom.mjGEOM_PLANE,
+      "Collision sensors with planes are not implemented.",
+    )
+    _collision_sensor_check(
+      sensor_collision_reftype,
+      sensor_collision_refid,
+      mujoco.mjtGeom.mjGEOM_PLANE,
+      "Collision sensors with planes are not implemented.",
+    )
+    _collision_sensor_check(
+      sensor_collision_objtype,
+      sensor_collision_objid,
+      mujoco.mjtGeom.mjGEOM_HFIELD,
+      "Collision sensors with height fields are not implemented.",
+    )
+    _collision_sensor_check(
+      sensor_collision_reftype,
+      sensor_collision_refid,
+      mujoco.mjtGeom.mjGEOM_HFIELD,
+      "Collision sensors with height fields are not implemented.",
+    )
 
   m = types.Model(
     nq=mjm.nq,
@@ -456,13 +516,10 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
       is_sparse=bool(is_sparse),
       ls_parallel=False,
       ls_parallel_min_step=1.0e-6,  # TODO(team): determine good default setting
-      gjk_iterations=MJ_CCD_ITERATIONS,
-      epa_iterations=MJ_CCD_ITERATIONS,
+      ccd_iterations=mjm.opt.ccd_iterations,
       broadphase=int(broadphase),
-      broadphase_filter=int(
-        types.BroadphaseFilter.PLANE.value | types.BroadphaseFilter.SPHERE.value | types.BroadphaseFilter.OBB.value
-      ),
-      graph_conditional=True and conditional_graph_supported(),
+      broadphase_filter=int(types.BroadphaseFilter.PLANE | types.BroadphaseFilter.SPHERE | types.BroadphaseFilter.OBB),
+      graph_conditional=True and warp_util.conditional_graph_supported(),
       sdf_initpoints=mjm.opt.sdf_initpoints,
       sdf_iterations=mjm.opt.sdf_iterations,
       run_collision_detection=True,
@@ -648,10 +705,10 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     eq_solimp=create_nmodel_batched_array(mjm.eq_solimp, dtype=types.vec5),
     eq_data=create_nmodel_batched_array(mjm.eq_data, dtype=types.vec11),
     # pre-compute indices of equality constraints
-    eq_connect_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.CONNECT.value)[0], dtype=int),
-    eq_wld_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.WELD.value)[0], dtype=int),
-    eq_jnt_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.JOINT.value)[0], dtype=int),
-    eq_ten_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.TENDON.value)[0], dtype=int),
+    eq_connect_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.CONNECT)[0], dtype=int),
+    eq_wld_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.WELD)[0], dtype=int),
+    eq_jnt_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.JOINT)[0], dtype=int),
+    eq_ten_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.TENDON)[0], dtype=int),
     actuator_moment_tiles_nv=actuator_moment_tiles_nv,
     actuator_moment_tiles_nu=actuator_moment_tiles_nu,
     actuator_trntype=wp.array(mjm.actuator_trntype, dtype=int),
@@ -676,11 +733,6 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     actuator_acc0=wp.array(mjm.actuator_acc0, dtype=float),
     actuator_lengthrange=wp.array(mjm.actuator_lengthrange, dtype=wp.vec2),
     exclude_signature=wp.array(mjm.exclude_signature, dtype=int),
-    # short-circuiting here allows us to skip a lot of code in implicit integration
-    actuator_affine_bias_gain=bool(
-      np.any(mjm.actuator_biastype == types.BiasType.AFFINE.value)
-      or np.any(mjm.actuator_gaintype == types.GainType.AFFINE.value)
-    ),
     nxn_geom_pair=wp.array(nxn_geom_pair, dtype=wp.vec2i),
     nxn_geom_pair_filtered=wp.array(nxn_geom_pair_filtered, dtype=wp.vec2i),
     nxn_pairid=wp.array(nxn_pairid, dtype=int),
@@ -781,6 +833,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     ),
     sensor_rangefinder_adr=wp.array(sensor_rangefinder_adr, dtype=int),
     rangefinder_sensor_adr=wp.array(rangefinder_sensor_adr, dtype=int),
+    collision_sensor_adr=wp.array(collision_sensor_adr, dtype=int),
     sensor_touch_adr=wp.array(
       np.nonzero(mjm.sensor_type == mujoco.mjtSensor.mjSENS_TOUCH)[0],
       dtype=int,
@@ -1061,17 +1114,17 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, nconmax: int = -1, njmax: in
     collision_worldid=wp.zeros((nconmax,), dtype=int),
     ncollision=wp.zeros((1,), dtype=int),
     # narrowphase (EPA polytope)
-    epa_vert=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert1=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert2=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert_index1=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=int),
-    epa_vert_index2=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=int),
-    epa_face=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=wp.vec3i),
-    epa_pr=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_norm2=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=float),
-    epa_index=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=int),
-    epa_map=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=int),
-    epa_horizon=wp.zeros(shape=(nconmax, 6 * MJ_CCD_ITERATIONS), dtype=int),
+    epa_vert=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert1=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert2=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert_index1=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=int),
+    epa_vert_index2=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=int),
+    epa_face=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=wp.vec3i),
+    epa_pr=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_norm2=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=float),
+    epa_index=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=int),
+    epa_map=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=int),
+    epa_horizon=wp.zeros(shape=(nconmax, 2 * types.MJ_MAX_EPAHORIZON), dtype=int),
     multiccd_polygon=wp.zeros(shape=(nconmax, 2 * max_npolygon), dtype=wp.vec3),
     multiccd_clipped=wp.zeros(shape=(nconmax, 2 * max_npolygon), dtype=wp.vec3),
     multiccd_pnormal=wp.zeros(shape=(nconmax, max_npolygon), dtype=wp.vec3),
@@ -1435,17 +1488,17 @@ def put_data(
     collision_worldid=wp.empty(nconmax, dtype=int),
     ncollision=wp.zeros(1, dtype=int),
     # narrowphase (EPA polytope)
-    epa_vert=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert1=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert2=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert_index1=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=int),
-    epa_vert_index2=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=int),
-    epa_face=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=wp.vec3i),
-    epa_pr=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_norm2=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=float),
-    epa_index=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=int),
-    epa_map=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=int),
-    epa_horizon=wp.zeros(shape=(nconmax, 6 * MJ_CCD_ITERATIONS), dtype=int),
+    epa_vert=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert1=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert2=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert_index1=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=int),
+    epa_vert_index2=wp.zeros(shape=(nconmax, 5 + mjm.opt.ccd_iterations), dtype=int),
+    epa_face=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=wp.vec3i),
+    epa_pr=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_norm2=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=float),
+    epa_index=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=int),
+    epa_map=wp.zeros(shape=(nconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=int),
+    epa_horizon=wp.zeros(shape=(nconmax, 2 * types.MJ_MAX_EPAHORIZON), dtype=int),
     multiccd_polygon=wp.zeros(shape=(nconmax, 2 * max_npolygon), dtype=wp.vec3),
     multiccd_clipped=wp.zeros(shape=(nconmax, 2 * max_npolygon), dtype=wp.vec3),
     multiccd_pnormal=wp.zeros(shape=(nconmax, max_npolygon), dtype=wp.vec3),
@@ -1844,3 +1897,109 @@ def reset_data(m: types.Model, d: types.Data):
       d.sensordata,
     ],
   )
+
+
+def override_model(model: Union[types.Model, mujoco.MjModel], overrides: Union[dict[str, Any], Sequence[str]]):
+  """Overrides model parameters.
+
+  Overrides are of the format:
+    opt.iterations = 1
+    opt.ls_parallel = True
+    opt.cone = pyramidal
+    opt.disableflags = contact | spring
+  """
+
+  enum_fields = {
+    "opt.broadphase": types.BroadphaseType,
+    "opt.broadphase_filter": types.BroadphaseFilter,
+    "opt.cone": types.ConeType,
+    "opt.disableflags": types.DisableBit,
+    "opt.enableflags": types.EnableBit,
+    "opt.integrator": types.IntegratorType,
+    "opt.solver": types.SolverType,
+  }
+  mjw_only_fields = {"opt.broadphase", "opt.broadphase_filter", "opt.ls_parallel", "opt.graph_conditional"}
+  mj_only_fields = {"opt.jacobian"}
+
+  if not isinstance(overrides, dict):
+    overrides_dict = {}
+    for override in overrides:
+      if "=" not in override:
+        raise ValueError(f"Invalid override format: {override}")
+      k, v = override.split("=", 1)
+      overrides_dict[k.strip()] = v.strip()
+    overrides = overrides_dict
+
+  for key, val in overrides.items():
+    # skip overrides on MjModel for properties that are only on mjw.Model
+    if key in mjw_only_fields and isinstance(model, mujoco.MjModel):
+      continue
+    if key in mj_only_fields and isinstance(model, types.Model):
+      continue
+
+    obj, attrs = model, key.split(".")
+    for i, attr in enumerate(attrs):
+      if not hasattr(obj, attr):
+        raise ValueError(f"Unrecognized model field: {key}")
+      if i < len(attrs) - 1:
+        obj = getattr(obj, attr)
+        continue
+
+      typ = type(getattr(obj, attr))
+
+      if key in enum_fields and isinstance(val, str):
+        # special case: enum value
+        enum_members = val.split("|")
+        val = 0
+        for enum_member in enum_members:
+          enum_member = enum_member.strip().upper()
+          if enum_member not in enum_fields[key].__members__:
+            raise ValueError(f"Unrecognized enum value for {enum_fields[key].__name__}: {enum_member}")
+          val |= int(enum_fields[key][enum_member])
+      elif typ is bool and isinstance(val, str):
+        # special case: "true", "TRUE", "false", "FALSE" etc.
+        if val.upper() not in ("TRUE", "FALSE"):
+          raise ValueError(f"Unrecognized value for field: {key}")
+        val = val.upper() == "TRUE"
+      else:
+        val = typ(val)
+
+      setattr(obj, attr, val)
+
+
+def find_keys(model: mujoco.MjModel, keyname_prefix: str) -> list[int]:
+  """Finds keyframes that start with keyname_prefix."""
+  keys = []
+
+  for keyid in range(model.nkey):
+    name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_KEY, keyid)
+    if name.startswith(keyname_prefix):
+      keys.append(keyid)
+
+  return keys
+
+
+def make_trajectory(model: mujoco.MjModel, keys: list[int]) -> np.ndarray:
+  """Make a ctrl trajectory with linear interpolation."""
+  ctrls = []
+  prev_ctrl_key = np.zeros(model.nu, dtype=np.float64)
+  prev_time, time = 0.0, 0.0
+
+  for key in keys:
+    ctrl_key, ctrl_time = model.key_ctrl[key], model.key_time[key]
+    if not ctrls and ctrl_time != 0.0:
+      raise ValueError("first keyframe must have time 0.0")
+    elif ctrls and ctrl_time <= prev_time:
+      raise ValueError("keyframes must be in time order")
+
+    while time < ctrl_time:
+      frac = (time - prev_time) / (ctrl_time - prev_time)
+      ctrls.append(prev_ctrl_key * (1 - frac) + ctrl_key * frac)
+      time += model.opt.timestep
+
+    ctrls.append(ctrl_key)
+    time += model.opt.timestep
+    prev_ctrl_key = ctrl_key
+    prev_time = time
+
+  return np.array(ctrls)

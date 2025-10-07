@@ -21,7 +21,6 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Model as Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data as Data
 # isort: on
 
-from ._src import test_util as test_util  # used by viewer and testspeed, not meant for public consumption
 from mujoco.mjx.third_party.mujoco_warp._src.collision_driver import collision as collision
 from mujoco.mjx.third_party.mujoco_warp._src.collision_driver import nxn_broadphase as nxn_broadphase
 from mujoco.mjx.third_party.mujoco_warp._src.collision_driver import sap_broadphase as sap_broadphase
@@ -68,6 +67,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.solver import solve as solve
 from mujoco.mjx.third_party.mujoco_warp._src.support import contact_force as contact_force
 from mujoco.mjx.third_party.mujoco_warp._src.support import mul_m as mul_m
 from mujoco.mjx.third_party.mujoco_warp._src.support import xfrc_accumulate as xfrc_accumulate
+from mujoco.mjx.third_party.mujoco_warp._src.types import BiasType as BiasType
 from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseFilter as BroadphaseFilter
 from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseType as BroadphaseType
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType as ConeType
@@ -76,6 +76,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Contact as Contact
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit as DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import DynType as DynType
 from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit as EnableBit
+from mujoco.mjx.third_party.mujoco_warp._src.types import GainType as GainType
+from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType as GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType as IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType as JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Option as Option

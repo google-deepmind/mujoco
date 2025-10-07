@@ -71,37 +71,37 @@ def register_sdf_plugins(mjwarp) -> Dict[str, int]:
   for i in range(m.ngeom):
     name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, i)
     if name == "ng":
-      sdf_types[SDFType.NUT.value] = int(m.plugin[i])
+      sdf_types[SDFType.NUT] = int(m.plugin[i])
     elif name == "bg":
-      sdf_types[SDFType.BOLT.value] = int(m.plugin[i])
+      sdf_types[SDFType.BOLT] = int(m.plugin[i])
     elif name == "tg":
-      sdf_types[SDFType.TORUS.value] = int(m.plugin[i])
+      sdf_types[SDFType.TORUS] = int(m.plugin[i])
 
     elif name == "gg":
-      sdf_types[SDFType.GEAR.value] = int(m.plugin[i])
+      sdf_types[SDFType.GEAR] = int(m.plugin[i])
 
   @wp.func
   def user_sdf(p: wp.vec3, attr: wp.vec3, sdf_type: int) -> float:
     result = 0.0
-    if sdf_type == wp.static(sdf_types[SDFType.NUT.value]):
+    if sdf_type == wp.static(sdf_types[SDFType.NUT]):
       result = nut(p, attr)
-    elif sdf_type == wp.static(sdf_types[SDFType.BOLT.value]):
+    elif sdf_type == wp.static(sdf_types[SDFType.BOLT]):
       result = bolt(p, attr)
-    elif sdf_type == wp.static(sdf_types[SDFType.TORUS.value]):
+    elif sdf_type == wp.static(sdf_types[SDFType.TORUS]):
       result = torus(p, attr)
-    elif sdf_type == wp.static(sdf_types[SDFType.GEAR.value]):
+    elif sdf_type == wp.static(sdf_types[SDFType.GEAR]):
       result = gear(p, attr)
     return result
 
   @wp.func
   def user_sdf_grad(p: wp.vec3, attr: wp.vec3, sdf_type: int) -> wp.vec3:
-    if sdf_type == wp.static(sdf_types[SDFType.NUT.value]):
+    if sdf_type == wp.static(sdf_types[SDFType.NUT]):
       return nut_sdf_grad(p, attr)
-    elif sdf_type == wp.static(sdf_types[SDFType.BOLT.value]):
+    elif sdf_type == wp.static(sdf_types[SDFType.BOLT]):
       return bolt_sdf_grad(p, attr)
-    elif sdf_type == wp.static(sdf_types[SDFType.TORUS.value]):
+    elif sdf_type == wp.static(sdf_types[SDFType.TORUS]):
       return torus_sdf_grad(p, attr)
-    elif sdf_type == wp.static(sdf_types[SDFType.GEAR.value]):
+    elif sdf_type == wp.static(sdf_types[SDFType.GEAR]):
       return gear_sdf_grad(p, attr)
     return wp.vec3()
 

@@ -22,8 +22,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 import mujoco_warp as mjwarp
-
-from mujoco.mjx.third_party.mujoco_warp._src import test_util
+from mujoco.mjx.third_party.mujoco_warp import test_data
 
 
 def _assert_eq(a, b, name):
@@ -45,7 +44,7 @@ _IO_TEST_MODELS = (
 class IOTest(parameterized.TestCase):
   def test_make_put_data(self):
     """Tests that make_data and put_data are producing the same shapes for all arrays."""
-    mjm, _, _, d = test_util.fixture("pendula.xml")
+    mjm, _, _, d = test_data.fixture("pendula.xml")
     md = mjwarp.make_data(mjm, nconmax=512, njmax=512)
 
     # same number of fields
@@ -148,7 +147,7 @@ class IOTest(parameterized.TestCase):
 
   def test_noslip_solver(self):
     with self.assertRaises(NotImplementedError):
-      test_util.fixture(
+      test_data.fixture(
         xml="""
       <mujoco>
         <option noslip_iterations="1"/>
@@ -182,8 +181,7 @@ class IOTest(parameterized.TestCase):
       "qM",
     ]
 
-    nworld = 1
-    mjm, mjd, m, d = test_util.fixture(xml, nworld=nworld)
+    mjm, mjd, m, d = test_data.fixture(xml)
     nconmax = d.nconmax
 
     # data fields
@@ -220,13 +218,102 @@ class IOTest(parameterized.TestCase):
 
   def test_sdf(self):
     """Tests that an SDF can be loaded."""
-    mjm, mjd, m, d = test_util.fixture(fname="collision_sdf/cow.xml", qpos0=True)
+    mjm, mjd, m, d = test_data.fixture("collision_sdf/cow.xml")
 
     self.assertIsInstance(m.oct_aabb, wp.array)
     self.assertEqual(m.oct_aabb.dtype, wp.vec3)
     self.assertEqual(len(m.oct_aabb.shape), 2)
     if m.oct_aabb.size > 0:
       self.assertEqual(m.oct_aabb.shape[1], 2)
+
+  @parameterized.parameters(
+    ('<distance geom1="plane" geom2="sphere"/>', NotImplementedError),
+    ('<distance geom1="sphere" geom2="plane"/>', NotImplementedError),
+    ('<distance geom1="hfield" geom2="sphere"/>', ValueError),
+    ('<distance geom1="sphere" geom2="hfield"/>', ValueError),
+  )
+  def test_collision_sensors(self, sensor, err):
+    """Tests for collision sensors that are not implemented."""
+    with self.assertRaises(err):
+      test_data.fixture(
+        xml=f"""
+      <mujoco>
+        <asset>
+          <hfield name="hfield" nrow="2" ncol="2" size="1 1 1 1"/>
+        </asset>
+        <worldbody>
+          <geom name="plane" type="plane" size="10 10 .01"/>
+          <geom name="hfield" type="hfield" hfield="hfield"/>
+          <body>
+            <geom name="sphere" type="sphere" size=".1"/>
+            <joint type="slide" axis="0 0 1"/>
+          </body>
+        </worldbody>
+        <sensor>
+          {sensor}
+        </sensor>
+      </mujoco>
+      """
+      )
+
+  def test_implicit_integrator_fluid_model(self):
+    """Tests for implicit integrator with fluid model."""
+    with self.assertRaises(NotImplementedError):
+      test_data.fixture(
+        xml="""
+        <mujoco>
+          <option viscosity="1" density="1" integrator="implicitfast"/>
+          <worldbody>
+            <body>
+              <geom type="sphere" size=".1"/>
+              <freejoint/>
+            </body>
+          </worldbody>
+        </mujoco>
+        """
+      )
+
+  def test_plugin(self):
+    with self.assertRaises(NotImplementedError):
+      test_data.fixture(
+        xml="""
+      <mujoco>
+        <extension>
+          <plugin plugin="mujoco.pid"/>
+          <plugin plugin="mujoco.sensor.touch_grid"/>
+          <plugin plugin="mujoco.elasticity.cable"/>
+        </extension>
+        <worldbody>
+          <geom type="plane" size="10 10 .001"/>
+          <body>
+            <joint name="joint" type="slide"/>
+            <geom type="sphere" size=".1"/>
+            <site name="site"/>
+          </body>
+          <composite type="cable" curve="s" count="41 1 1" size="1" offset="-.3 0 .6" initial="none">
+            <plugin plugin="mujoco.elasticity.cable">
+              <config key="twist" value="1e7"/>
+              <config key="bend" value="4e6"/>
+              <config key="vmax" value="0.05"/>
+            </plugin>
+            <joint kind="main" damping=".015"/>
+            <geom type="capsule" size=".005" rgba=".8 .2 .1 .1" condim="1"/>
+          </composite>
+        </worldbody>
+        <actuator>
+          <plugin plugin="mujoco.pid" joint="joint"/>
+        </actuator>
+        <sensor>
+          <plugin plugin="mujoco.sensor.touch_grid" objtype="site" objname="site">
+            <config key="size" value="7 7"/>
+            <config key="fov" value="45 45"/>
+            <config key="gamma" value="0"/>
+            <config key="nchannel" value="3"/>
+          </plugin>
+        </sensor>
+      </mujoco>
+      """
+      )
 
 
 if __name__ == "__main__":

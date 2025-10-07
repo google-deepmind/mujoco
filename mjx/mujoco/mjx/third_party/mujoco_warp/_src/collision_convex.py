@@ -43,33 +43,33 @@ mat3c = wp.types.matrix(shape=(MULTI_CONTACT_COUNT, 3), dtype=float)
 mat63 = wp.types.matrix(shape=(6, 3), dtype=float)
 
 _CONVEX_COLLISION_PAIRS = [
-  (GeomType.HFIELD.value, GeomType.SPHERE.value),
-  (GeomType.HFIELD.value, GeomType.CAPSULE.value),
-  (GeomType.HFIELD.value, GeomType.ELLIPSOID.value),
-  (GeomType.HFIELD.value, GeomType.CYLINDER.value),
-  (GeomType.HFIELD.value, GeomType.BOX.value),
-  (GeomType.HFIELD.value, GeomType.MESH.value),
-  (GeomType.SPHERE.value, GeomType.ELLIPSOID.value),
-  (GeomType.SPHERE.value, GeomType.MESH.value),
-  (GeomType.CAPSULE.value, GeomType.ELLIPSOID.value),
-  (GeomType.CAPSULE.value, GeomType.CYLINDER.value),
-  (GeomType.CAPSULE.value, GeomType.MESH.value),
-  (GeomType.ELLIPSOID.value, GeomType.ELLIPSOID.value),
-  (GeomType.ELLIPSOID.value, GeomType.CYLINDER.value),
-  (GeomType.ELLIPSOID.value, GeomType.BOX.value),
-  (GeomType.ELLIPSOID.value, GeomType.MESH.value),
-  (GeomType.CYLINDER.value, GeomType.CYLINDER.value),
-  (GeomType.CYLINDER.value, GeomType.BOX.value),
-  (GeomType.CYLINDER.value, GeomType.MESH.value),
-  (GeomType.BOX.value, GeomType.MESH.value),
-  (GeomType.MESH.value, GeomType.MESH.value),
+  (GeomType.HFIELD, GeomType.SPHERE),
+  (GeomType.HFIELD, GeomType.CAPSULE),
+  (GeomType.HFIELD, GeomType.ELLIPSOID),
+  (GeomType.HFIELD, GeomType.CYLINDER),
+  (GeomType.HFIELD, GeomType.BOX),
+  (GeomType.HFIELD, GeomType.MESH),
+  (GeomType.SPHERE, GeomType.ELLIPSOID),
+  (GeomType.SPHERE, GeomType.MESH),
+  (GeomType.CAPSULE, GeomType.ELLIPSOID),
+  (GeomType.CAPSULE, GeomType.CYLINDER),
+  (GeomType.CAPSULE, GeomType.MESH),
+  (GeomType.ELLIPSOID, GeomType.ELLIPSOID),
+  (GeomType.ELLIPSOID, GeomType.CYLINDER),
+  (GeomType.ELLIPSOID, GeomType.BOX),
+  (GeomType.ELLIPSOID, GeomType.MESH),
+  (GeomType.CYLINDER, GeomType.CYLINDER),
+  (GeomType.CYLINDER, GeomType.BOX),
+  (GeomType.CYLINDER, GeomType.MESH),
+  (GeomType.BOX, GeomType.MESH),
+  (GeomType.MESH, GeomType.MESH),
 ]
 
 
 def _check_convex_collision_pairs():
   prev_idx = -1
   for pair in _CONVEX_COLLISION_PAIRS:
-    idx = upper_trid_index(len(GeomType), pair[0], pair[1])
+    idx = upper_trid_index(len(GeomType), pair[0].value, pair[1].value)
     if pair[1] < pair[0] or idx <= prev_idx:
       return False
     prev_idx = idx
@@ -84,8 +84,7 @@ def ccd_kernel_builder(
   legacy_gjk: bool,
   geomtype1: int,
   geomtype2: int,
-  gjk_iterations: int,
-  epa_iterations: int,
+  ccd_iterations: int,
   epa_exact_neg_distance: bool,
   depth_extension: float,
   is_hfield: bool,
@@ -152,7 +151,7 @@ def ccd_kernel_builder(
     # TODO(kbayes): remove legacy GJK once multicontact can be enabled
     if wp.static(legacy_gjk):
       simplex, normal = gjk_legacy(
-        gjk_iterations,
+        ccd_iterations,
         geom1,
         geom2,
         geomtype1,
@@ -160,14 +159,14 @@ def ccd_kernel_builder(
       )
 
       depth, normal = epa_legacy(
-        epa_iterations, geom1, geom2, geomtype1, geomtype2, depth_extension, epa_exact_neg_distance, simplex, normal
+        ccd_iterations, geom1, geom2, geomtype1, geomtype2, depth_extension, epa_exact_neg_distance, simplex, normal
       )
       dist = -depth
 
       if dist >= 0.0 or depth < -depth_extension:
         return 0
-      sphere = int(GeomType.SPHERE.value)
-      ellipsoid = int(GeomType.ELLIPSOID.value)
+      sphere = GeomType.SPHERE
+      ellipsoid = GeomType.ELLIPSOID
       g1 = geoms[0]
       g2 = geoms[1]
       if geom_type[g1] == sphere or geom_type[g1] == ellipsoid or geom_type[g2] == sphere or geom_type[g2] == ellipsoid:
@@ -177,12 +176,13 @@ def ccd_kernel_builder(
       frame = make_frame(normal)
     else:
       points = mat3c()
+      geom1.margin = margin
+      geom2.margin = margin
       dist, ncontact, witness1, witness2 = ccd(
-        False,
+        False,  # ignored for box-box, multiccd always on
         opt_ccd_tolerance[worldid],
         0.0,
-        gjk_iterations,
-        epa_iterations,
+        ccd_iterations,
         geom1,
         geom2,
         geomtype1,
@@ -389,13 +389,13 @@ def ccd_kernel_builder(
       geomtype1,
       geom1_dataid,
       geom_size[worldid, g1],
-      mesh_vertadr[geom1_dataid],
-      mesh_vertnum[geom1_dataid],
+      mesh_vertadr,
+      mesh_vertnum,
       mesh_vert,
-      mesh_graphadr[geom1_dataid],
+      mesh_graphadr,
       mesh_graph,
-      mesh_polynum[geom1_dataid],
-      mesh_polyadr[geom1_dataid],
+      mesh_polynum,
+      mesh_polyadr,
       mesh_polynormal,
       mesh_polyvertadr,
       mesh_polyvertnum,
@@ -412,13 +412,13 @@ def ccd_kernel_builder(
       geomtype2,
       geom2_dataid,
       geom_size[worldid, g2],
-      mesh_vertadr[geom2_dataid],
-      mesh_vertnum[geom2_dataid],
+      mesh_vertadr,
+      mesh_vertnum,
       mesh_vert,
-      mesh_graphadr[geom2_dataid],
+      mesh_graphadr,
       mesh_graph,
-      mesh_polynum[geom2_dataid],
-      mesh_polyadr[geom2_dataid],
+      mesh_polynum,
+      mesh_polyadr,
       mesh_polynormal,
       mesh_polyvertadr,
       mesh_polyvertnum,
@@ -633,13 +633,11 @@ def convex_narrowphase(m: Model, d: Data):
   computations for non-existent pair types.
   """
   for geom_pair in _CONVEX_COLLISION_PAIRS:
-    g1 = geom_pair[0]
-    g2 = geom_pair[1]
+    g1 = geom_pair[0].value
+    g2 = geom_pair[1].value
     if m.geom_pair_type_count[upper_trid_index(len(GeomType), g1, g2)]:
       wp.launch(
-        ccd_kernel_builder(
-          m.opt.legacy_gjk, g1, g2, m.opt.gjk_iterations, m.opt.epa_iterations, True, 1e9, g1 == int(GeomType.HFIELD.value)
-        ),
+        ccd_kernel_builder(m.opt.legacy_gjk, g1, g2, m.opt.ccd_iterations, True, 1e9, g1 == GeomType.HFIELD),
         dim=d.nconmax,
         inputs=[
           m.opt.ccd_tolerance,
