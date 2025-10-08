@@ -620,7 +620,7 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
       }
 
       // if it is not the first mesh with this name, append index
-      if(i > 0) {
+      if (i > 0) {
         meshname = meshname + std::to_string(i);
       }
     }
