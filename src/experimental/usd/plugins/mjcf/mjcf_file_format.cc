@@ -39,7 +39,6 @@
 #include <pxr/usd/sdf/declareHandles.h>
 #include <pxr/usd/sdf/fileFormat.h>
 #include <pxr/usd/sdf/layer.h>
-#include <pxr/usd/usd/usdaFileFormat.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -285,7 +284,7 @@ bool UsdMjcfFileFormat::Read(pxr::SdfLayer *layer,
 
 bool UsdMjcfFileFormat::WriteToString(const SdfLayer &layer, std::string *str,
                                       const std::string &comment) const {
-  return SdfFileFormat::FindById(pxr::UsdUsdaFileFormatTokens->Id)
+  return SdfFileFormat::FindById(pxr::TfToken("usda"))
       ->WriteToString(layer, str, comment);
 }
 
