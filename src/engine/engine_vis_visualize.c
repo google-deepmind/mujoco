@@ -1001,8 +1001,8 @@ static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
-static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                  const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, int catmask,
+                                  mjvScene* scn) {
   const int category = mjCAT_DYNAMIC;
   if (!(category & catmask)) {
     return;
@@ -1166,8 +1166,8 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
 }
 
 
-static void addSliderCrankGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addSliderCrankGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, int catmask,
+                                mjvScene* scn) {
   const int category = mjCAT_DYNAMIC;
   if (!(category & catmask)) {
     return;
@@ -1234,8 +1234,8 @@ static void addSliderCrankGeoms(const mjModel* m, mjData* d, const mjvOption* vo
 }
 
 
-static void addGeomFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                              const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addGeomFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, int catmask,
+                              mjvScene* scn) {
   if (vopt->frame != mjFRAME_GEOM) {
     return;
   }
@@ -1264,8 +1264,8 @@ static void addGeomFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt
 }
 
 
-static void addSiteFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                              const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addSiteFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, int catmask,
+                              mjvScene* scn) {
   if (vopt->frame != mjFRAME_SITE) {
     return;
   }
@@ -1294,8 +1294,7 @@ static void addSiteFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt
 }
 
 
-static void addBodyBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                            const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addBodyBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn) {
   if (!vopt->flags[mjVIS_BODYBVH]) {
     return;
   }
@@ -1350,8 +1349,7 @@ static void addBodyBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
-static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                            const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn) {
   if (!vopt->flags[mjVIS_MESHBVH]) {
     return;
   }
@@ -1438,8 +1436,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
-static void addMeshBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                            const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addMeshBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn) {
   if (!vopt->flags[mjVIS_MESHBVH]) {
     return;
   }
@@ -1492,8 +1489,7 @@ static void addMeshBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
-static void addMeshOctreeGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                               const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addMeshOctreeGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn) {
   if (!vopt->flags[mjVIS_MESHBVH]) {
     return;
   }
@@ -1533,7 +1529,7 @@ static void addMeshOctreeGeoms(const mjModel* m, mjData* d, const mjvOption* vop
 
 
 static void addTactileSensorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                  const mjvPerturb* pert, int catmask, mjvScene* scn) {
+                                  mjvScene* scn) {
   if (!vopt->flags[mjVIS_CONTACTPOINT]) {
     return;
   }
@@ -1678,7 +1674,7 @@ static void addInertiaGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
 
 static void addPerturbGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                            const mjvPerturb* pert, int catmask, mjvScene* scn) {
+                            const mjvPerturb* pert, mjvScene* scn) {
   if (!vopt->flags[mjVIS_PERTOBJ]) {
     return;
   }
@@ -1766,8 +1762,8 @@ static void addPerturbGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
-static void addWorldBodyFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addWorldBodyFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, int catmask,
+                                   mjvScene* scn) {
   const float scl = m->stat.meansize;
   for (int i = (vopt->frame == mjFRAME_WORLD ? 0 : 1);
         i < (vopt->frame == mjFRAME_BODY ? m->nbody : 1);
@@ -1795,7 +1791,7 @@ static void addWorldBodyFrameGeoms(const mjModel* m, mjData* d, const mjvOption*
 
 
 static void addSelectionPointGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
+                                   const mjvPerturb* pert, mjvScene* scn) {
   if (pert->select <= 0) {
     return;
   }
@@ -1858,8 +1854,7 @@ static void addSelectionBodyLabelGeoms(const mjModel* m, mjData* d, const mjvOpt
 }
 
 
-static void addJointGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                          const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addJointGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn) {
   if (!vopt->flags[mjVIS_JOINT]) {
     return;
   }
@@ -1939,8 +1934,7 @@ static void addJointGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
-static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                             const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn) {
   if (!vopt->flags[mjVIS_ACTUATOR]) {
     return;
   }
@@ -2150,7 +2144,7 @@ static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
 
 static void addIslandLabelGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                const mjvPerturb* pert, int catmask, mjvScene* scn) {
+                                mjvScene* scn) {
   if (vopt->label != mjLABEL_ISLAND || !d->nisland) {
     return;
   }
@@ -2179,8 +2173,7 @@ static void addIslandLabelGeoms(const mjModel* m, mjData* d, const mjvOption* vo
 }
 
 
-static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                           const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn) {
   if (!vopt->flags[mjVIS_CAMERA]) {
     return;
   }
@@ -2338,9 +2331,7 @@ static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 }
 
 
-static void addLightGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                          const mjvPerturb* pert, int catmask, mjvScene* scn) {
-
+static void addLightGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn) {
   if (!vopt->flags[mjVIS_LIGHT]) {
     return;
   }
@@ -2388,8 +2379,9 @@ static void addLightGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   }
 }
 
+
 static void addCenterOfMassGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                 const mjvPerturb* pert, int catmask, mjvScene* scn) {
+                                 mjvScene* scn) {
   // center of mass for root bodies
   if (!vopt->flags[mjVIS_COM]) {
     return;
@@ -2415,7 +2407,7 @@ static void addCenterOfMassGeoms(const mjModel* m, mjData* d, const mjvOption* v
 
 
 static void addAutoConnectGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                const mjvPerturb* pert, int catmask, mjvScene* scn) {
+                                mjvScene* scn) {
   if (!vopt->flags[mjVIS_AUTOCONNECT]) {
     return;
   }
@@ -2461,7 +2453,7 @@ static void addAutoConnectGeoms(const mjModel* m, mjData* d, const mjvOption* vo
 
 
 static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                const mjvPerturb* pert, int catmask, mjvScene* scn) {
+                                mjvScene* scn) {
   if (!vopt->flags[mjVIS_RANGEFINDER]) {
     return;
   }
@@ -2514,7 +2506,7 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
 
 
 static void addExternalPerturbGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                    const mjvPerturb* pert, int catmask, mjvScene* scn) {
+                                    mjvScene* scn) {
   if (!vopt->flags[mjVIS_PERTFORCE]) {
     return;
   }
@@ -2550,8 +2542,7 @@ static void addExternalPerturbGeoms(const mjModel* m, mjData* d, const mjvOption
 }
 
 
-static void addConstraintGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                               const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addConstraintGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn) {
   if (!vopt->flags[mjVIS_CONSTRAINT]) {
     return;
   }
@@ -2629,36 +2620,36 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   addSkinGeoms(m, d, vopt, pert, catmask, scn);
   addGeomGeoms(m, d, vopt, pert, catmask, scn);
   addSiteGeoms(m, d, vopt, pert, catmask, scn);
-  addSpatialTendonGeoms(m, d, vopt, pert, catmask, scn);
-  addSliderCrankGeoms(m, d, vopt, pert, catmask, scn);
+  addSpatialTendonGeoms(m, d, vopt, catmask, scn);
+  addSliderCrankGeoms(m, d, vopt, catmask, scn);
 
-  // -- decor elements --
+  // remaining functions only add decor elements
   if (!(catmask & mjCAT_DECOR)) {
     return;
   }
 
-  addGeomFrameGeoms(m, d, vopt, pert, catmask, scn);
-  addSiteFrameGeoms(m, d, vopt, pert, catmask, scn);
-  addBodyBvhGeoms(m, d, vopt, pert, catmask, scn);
-  addFlexBvhGeoms(m, d, vopt, pert, catmask, scn);
-  addMeshBvhGeoms(m, d, vopt, pert, catmask, scn);
-  addMeshOctreeGeoms(m, d, vopt, pert, catmask, scn);
-  addTactileSensorGeoms(m, d, vopt, pert, catmask, scn);
+  addGeomFrameGeoms(m, d, vopt, catmask, scn);
+  addSiteFrameGeoms(m, d, vopt, catmask, scn);
+  addBodyBvhGeoms(m, d, vopt, scn);
+  addFlexBvhGeoms(m, d, vopt, scn);
+  addMeshBvhGeoms(m, d, vopt, scn);
+  addMeshOctreeGeoms(m, d, vopt, scn);
+  addTactileSensorGeoms(m, d, vopt, scn);
   addInertiaGeoms(m, d, vopt, pert, catmask, scn);
-  addPerturbGeoms(m, d, vopt, pert, catmask, scn);
-  addWorldBodyFrameGeoms(m, d, vopt, pert, catmask, scn);
-  addSelectionPointGeoms(m, d, vopt, pert, catmask, scn);
+  addPerturbGeoms(m, d, vopt, pert, scn);
+  addWorldBodyFrameGeoms(m, d, vopt, catmask, scn);
+  addSelectionPointGeoms(m, d, vopt, pert, scn);
   addSelectionBodyLabelGeoms(m, d, vopt, pert, catmask, scn);
-  addJointGeoms(m, d, vopt, pert, catmask, scn);
-  addActuatorGeoms(m, d, vopt, pert, catmask, scn);
-  addIslandLabelGeoms(m, d, vopt, pert, catmask, scn);
-  addCameraGeoms(m, d, vopt, pert, catmask, scn);
-  addLightGeoms(m, d, vopt, pert, catmask, scn);
-  addCenterOfMassGeoms(m, d, vopt, pert, catmask, scn);
-  addAutoConnectGeoms(m, d, vopt, pert, catmask, scn);
-  addRangefinderGeoms(m, d, vopt, pert, catmask, scn);
-  addExternalPerturbGeoms(m, d, vopt, pert, catmask, scn);
-  addConstraintGeoms(m, d, vopt, pert, catmask, scn);
+  addJointGeoms(m, d, vopt, scn);
+  addActuatorGeoms(m, d, vopt, scn);
+  addIslandLabelGeoms(m, d, vopt, scn);
+  addCameraGeoms(m, d, vopt, scn);
+  addLightGeoms(m, d, vopt, scn);
+  addCenterOfMassGeoms(m, d, vopt, scn);
+  addAutoConnectGeoms(m, d, vopt, scn);
+  addRangefinderGeoms(m, d, vopt, scn);
+  addExternalPerturbGeoms(m, d, vopt, scn);
+  addConstraintGeoms(m, d, vopt, scn);
   addContactGeoms(m, d, vopt->flags, vopt, scn, catmask);
 }
 
