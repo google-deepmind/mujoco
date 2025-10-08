@@ -529,8 +529,7 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
 // add contact-related geoms in mjvObject
 static void addContactGeoms(const mjModel* m, mjData* d, const mjtByte* flags,
                             const mjvOption* vopt, mjvScene* scn, int catmask) {
-  // contact
-  if (!(catmask & mjCAT_DECOR)) {
+  if (!flags[mjVIS_CONTACTPOINT] && !flags[mjVIS_CONTACTFORCE] && vopt->frame != mjFRAME_CONTACT) {
     return;
   }
 
@@ -540,11 +539,6 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjtByte* flags,
   mjContact* con;
   mjvGeom* thisgeom;
   mjtByte split;
-
-  // fast return if all relevant features are disabled
-  if (!flags[mjVIS_CONTACTPOINT] && !flags[mjVIS_CONTACTFORCE] && vopt->frame != mjFRAME_CONTACT) {
-    return;
-  }
 
   // loop over contacts
   for (int i=0; i < d->ncon; i++) {
@@ -720,111 +714,111 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjtByte* flags,
 
 static void addFlexGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                          const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // flex
-  const int objtype = mjOBJ_FLEX;
   const int category = mjCAT_DYNAMIC;
+  if (!(category & catmask)) {
+    return;
+  }
+  if (!vopt->flags[mjVIS_FLEXVERT] && !vopt->flags[mjVIS_FLEXEDGE] &&
+      !vopt->flags[mjVIS_FLEXFACE] && !vopt->flags[mjVIS_FLEXSKIN]) {
+    return;
+  }
 
-  if ((vopt->flags[mjVIS_FLEXVERT] || vopt->flags[mjVIS_FLEXEDGE] ||
-       vopt->flags[mjVIS_FLEXFACE] || vopt->flags[mjVIS_FLEXSKIN]) &&
-      (category & catmask)) {
-    for (int i=0; i < m->nflex; i++) {
-      if (vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[i]))]) {
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        // construct geom, pos = first vertex
-        mjv_initGeom(thisgeom, mjGEOM_FLEX, NULL,
-                     d->flexvert_xpos + 3*m->flex_vertadr[i], NULL, NULL);
-
-        // size[0] = radius
-        thisgeom->size[0] = m->flex_radius[i];
-
-        // set material properties
-        setMaterial(m, thisgeom, m->flex_matid[i], m->flex_rgba+4*i, vopt->flags);
-
-        // set texcoord
-        if (m->flex_texcoordadr[i] >= 0) {
-          thisgeom->texcoord = 1;
-        } else {
-          thisgeom->matid = -1;
-        }
-
-        // glow flex if selected
-        if (pert->flexselect == i) {
-          markselected(&m->vis, thisgeom);
-        }
-
-        // skip if alpha is 0
-        if (thisgeom->rgba[3] == 0) {
-          continue;
-        }
-
-        // vopt->label
-        if (vopt->label == mjLABEL_FLEX) {
-          makeLabel(m, mjOBJ_FLEX, i, thisgeom->label);
-        }
-
-        releaseGeom(&thisgeom, scn);
-      }
+  for (int i=0; i < m->nflex; i++) {
+    if (!vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[i]))]) {
+      continue;
     }
+
+    mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_FLEX);
+    if (!thisgeom) {
+      return;
+    }
+
+    // construct geom, pos = first vertex
+    mjv_initGeom(thisgeom, mjGEOM_FLEX, NULL,
+                  d->flexvert_xpos + 3*m->flex_vertadr[i], NULL, NULL);
+    thisgeom->size[0] = m->flex_radius[i];
+    setMaterial(m, thisgeom, m->flex_matid[i], m->flex_rgba+4*i, vopt->flags);
+
+    // set texcoord
+    if (m->flex_texcoordadr[i] >= 0) {
+      thisgeom->texcoord = 1;
+    } else {
+      thisgeom->matid = -1;
+    }
+
+    // glow flex if selected
+    if (pert->flexselect == i) {
+      markselected(&m->vis, thisgeom);
+    }
+
+    // skip if alpha is 0
+    if (thisgeom->rgba[3] == 0) {
+      continue;
+    }
+
+    // vopt->label
+    if (vopt->label == mjLABEL_FLEX) {
+      makeLabel(m, mjOBJ_FLEX, i, thisgeom->label);
+    }
+
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addSkinGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                          const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // skin
-  const int objtype = mjOBJ_SKIN;
   const int category = mjCAT_DYNAMIC;
+  if (!(category & catmask)) {
+    return;
+  }
+  if (!vopt->flags[mjVIS_SKIN]) {
+    return;
+  }
 
-  if (vopt->flags[mjVIS_SKIN] && (category & catmask)) {
-    for (int i=0; i < m->nskin; i++) {
-      if (vopt->skingroup[mjMAX(0, mjMIN(mjNGROUP-1, m->skin_group[i]))]) {
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        // construct geom, pos = first bone
-        mjv_initGeom(thisgeom, mjGEOM_SKIN, NULL,
-                     d->xpos + 3*m->skin_bonebodyid[m->skin_boneadr[i]], NULL, NULL);
-
-        // set material properties
-        setMaterial(m, thisgeom, m->skin_matid[i], m->skin_rgba+4*i, vopt->flags);
-
-        // glow skin if selected
-        if (pert->skinselect == i) {
-          markselected(&m->vis, thisgeom);
-        }
-
-        // set texcoord
-        if (m->skin_texcoordadr[i] >= 0) {
-          thisgeom->texcoord = 1;
-        }
-
-        // skip if alpha is 0
-        if (thisgeom->rgba[3] == 0) {
-          continue;
-        }
-
-        // vopt->label
-        if (vopt->label == mjLABEL_SKIN) {
-          makeLabel(m, mjOBJ_SKIN, i, thisgeom->label);
-        }
-
-        releaseGeom(&thisgeom, scn);
-      }
+  for (int i=0; i < m->nskin; i++) {
+    if (!vopt->skingroup[mjMAX(0, mjMIN(mjNGROUP-1, m->skin_group[i]))]) {
+      continue;
     }
+    mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_SKIN);
+    if (!thisgeom) {
+      return;
+    }
+
+    // construct geom, pos = first bone
+    mjv_initGeom(thisgeom, mjGEOM_SKIN, NULL,
+                  d->xpos + 3*m->skin_bonebodyid[m->skin_boneadr[i]], NULL, NULL);
+
+    // set material properties
+    setMaterial(m, thisgeom, m->skin_matid[i], m->skin_rgba+4*i, vopt->flags);
+
+    // glow skin if selected
+    if (pert->skinselect == i) {
+      markselected(&m->vis, thisgeom);
+    }
+
+    // set texcoord
+    if (m->skin_texcoordadr[i] >= 0) {
+      thisgeom->texcoord = 1;
+    }
+
+    // skip if alpha is 0
+    if (thisgeom->rgba[3] == 0) {
+      continue;
+    }
+
+    // vopt->label
+    if (vopt->label == mjLABEL_SKIN) {
+      makeLabel(m, mjOBJ_SKIN, i, thisgeom->label);
+    }
+
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addGeomGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                          const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // geom
-  // category is determined on a per-geom basis
   const int objtype = mjOBJ_GEOM;
   int planeid = -1;
   for (int i=0; i < m->ngeom; i++) {
@@ -833,341 +827,339 @@ static void addGeomGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
       planeid++;
     }
 
-    // set type and category: geom
-    int category = bodycategory(m, m->geom_bodyid[i]);
-
     // skip if category is masked
+    int category = bodycategory(m, m->geom_bodyid[i]);
     if (!(category & catmask)) {
       continue;
     }
 
-    // get geom group and clamp
-    int geomgroup = mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]));
-
-    if (vopt->geomgroup[geomgroup]) {
-      mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // construct geom
-      mjv_initGeom(thisgeom, m->geom_type[i], m->geom_size+3*i,
-                   d->geom_xpos+3*i, d->geom_xmat+9*i, NULL);
-      thisgeom->dataid = m->geom_dataid[i];
-
-      // copy rbound from model
-      thisgeom->modelrbound = (float)m->geom_rbound[i];
-
-      // set material properties
-      float* rgba = m->geom_rgba+4*i;
-      int geom_matid = m->geom_matid[i];
-      setMaterial(m, thisgeom, geom_matid, rgba, vopt->flags);
-
-      // override if visualizing islands
-      if (vopt->flags[mjVIS_ISLAND]) {
-        int weld_id = m->body_weldid[m->geom_bodyid[i]];
-        if (m->body_dofnum[weld_id]) {
-          // strip materials off moving geom
-          thisgeom->matid = -1;
-
-          // set hue using first island dof, -1 if no island
-          int island = d->nisland ? d->dof_island[m->body_dofadr[weld_id]] : -1;
-          int h = island >= 0 ? d->island_dofadr[island] : -1;
-          islandColor(thisgeom->rgba, h);
-        }
-      }
-
-      // set texcoord
-      if ((m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) &&
-          m->geom_dataid[i] >= 0 &&
-          m->mesh_texcoordadr[m->geom_dataid[i]] >= 0) {
-        thisgeom->texcoord = 1;
-      }
-
-      // skip if alpha is 0
-      if (thisgeom->rgba[3] == 0) {
-        continue;
-      }
-
-      // glow geoms of selected body
-      if (pert->select > 0 && pert->select == m->geom_bodyid[i]) {
-        markselected(&m->vis, thisgeom);
-      }
-
-      // vopt->label
-      if (vopt->label == mjLABEL_GEOM) {
-        makeLabel(m, mjOBJ_GEOM, i, thisgeom->label);
-      }
-
-      // mesh: 2*i is original, 2*i+1 is convex hull
-      if (m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) {
-        thisgeom->dataid *= 2;
-        if (m->mesh_graphadr[m->geom_dataid[i]] >= 0 && vopt->flags[mjVIS_CONVEXHULL] &&
-            (m->geom_contype[i] || m->geom_conaffinity[i])) {
-          thisgeom->dataid += 1;
-        }
-      }
-
-      // plane
-      else if (m->geom_type[i] == mjGEOM_PLANE) {
-        // use current planeid
-        thisgeom->dataid = planeid;
-
-        // save initial pos
-        mjtNum tmp[9];
-        mju_copy3(tmp, d->geom_xpos+3*i);
-
-        // re-center infinite plane
-        if (m->geom_size[3*i] <= 0 || m->geom_size[3*i+1] <= 0) {
-          // vec = headpos - geompos
-          mjtNum vec[3];
-          for (int j=0; j < 3; j++) {
-            vec[j] = 0.5*(scn->camera[0].pos[j] + scn->camera[1].pos[j]) - d->geom_xpos[3*i+j];
-          }
-
-          // construct axes
-          mjtNum ax[9];
-          mju_transpose(ax, d->geom_xmat+9*i, 3, 3);
-
-          // loop over (x,y)
-          for (int k=0; k < 2; k++) {
-            if (m->geom_size[3*i+k] <= 0) {
-              // compute zfar
-              mjtNum zfar = m->vis.map.zfar * m->stat.extent;
-
-              // get size increment
-              mjtNum sX;
-              int matid = m->geom_matid[i];
-              if (matid >= 0 && m->mat_texrepeat[2*matid+k] > 0) {
-                sX = 2/m->mat_texrepeat[2*matid+k];
-              } else {
-                sX = 2.1*zfar/(mjMAXPLANEGRID-2);
-              }
-
-              // project on frame, round to integer increment of size
-              mjtNum dX = mju_dot3(vec, ax+3*k);
-              dX = 2*sX*mju_round(0.5*dX/sX);
-
-              // translate
-              mju_addToScl3(tmp, ax+3*k, dX);
-            }
-          }
-        }
-
-        // set final pos
-        mju_n2f(thisgeom->pos, tmp, 3);
-      }
-
-      releaseGeom(&thisgeom, scn);
+    // skip if group is disabled
+    if (!vopt->geomgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]))]) {
+      continue;
     }
+
+    mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
+    if (!thisgeom) {
+      return;
+    }
+
+    // construct geom
+    mjv_initGeom(thisgeom, m->geom_type[i], m->geom_size+3*i,
+                  d->geom_xpos+3*i, d->geom_xmat+9*i, NULL);
+    thisgeom->dataid = m->geom_dataid[i];
+
+    // copy rbound from model
+    thisgeom->modelrbound = (float)m->geom_rbound[i];
+
+    // set material properties
+    float* rgba = m->geom_rgba+4*i;
+    int geom_matid = m->geom_matid[i];
+    setMaterial(m, thisgeom, geom_matid, rgba, vopt->flags);
+
+    // override if visualizing islands
+    if (vopt->flags[mjVIS_ISLAND]) {
+      int weld_id = m->body_weldid[m->geom_bodyid[i]];
+      if (m->body_dofnum[weld_id]) {
+        // strip materials off moving geom
+        thisgeom->matid = -1;
+
+        // set hue using first island dof, -1 if no island
+        int island = d->nisland ? d->dof_island[m->body_dofadr[weld_id]] : -1;
+        int h = island >= 0 ? d->island_dofadr[island] : -1;
+        islandColor(thisgeom->rgba, h);
+      }
+    }
+
+    // set texcoord
+    if ((m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) &&
+        m->geom_dataid[i] >= 0 &&
+        m->mesh_texcoordadr[m->geom_dataid[i]] >= 0) {
+      thisgeom->texcoord = 1;
+    }
+
+    // skip if alpha is 0
+    if (thisgeom->rgba[3] == 0) {
+      continue;
+    }
+
+    // glow geoms of selected body
+    if (pert->select > 0 && pert->select == m->geom_bodyid[i]) {
+      markselected(&m->vis, thisgeom);
+    }
+
+    // vopt->label
+    if (vopt->label == mjLABEL_GEOM) {
+      makeLabel(m, mjOBJ_GEOM, i, thisgeom->label);
+    }
+
+    // mesh: 2*i is original, 2*i+1 is convex hull
+    if (m->geom_type[i] == mjGEOM_MESH || m->geom_type[i] == mjGEOM_SDF) {
+      thisgeom->dataid *= 2;
+      if (m->mesh_graphadr[m->geom_dataid[i]] >= 0 && vopt->flags[mjVIS_CONVEXHULL] &&
+          (m->geom_contype[i] || m->geom_conaffinity[i])) {
+        thisgeom->dataid += 1;
+      }
+    }
+
+    // plane
+    else if (m->geom_type[i] == mjGEOM_PLANE) {
+      // use current planeid
+      thisgeom->dataid = planeid;
+
+      // save initial pos
+      mjtNum tmp[9];
+      mju_copy3(tmp, d->geom_xpos+3*i);
+
+      // re-center infinite plane
+      if (m->geom_size[3*i] <= 0 || m->geom_size[3*i+1] <= 0) {
+        // vec = headpos - geompos
+        mjtNum vec[3];
+        for (int j=0; j < 3; j++) {
+          vec[j] = 0.5*(scn->camera[0].pos[j] + scn->camera[1].pos[j]) - d->geom_xpos[3*i+j];
+        }
+
+        // construct axes
+        mjtNum ax[9];
+        mju_transpose(ax, d->geom_xmat+9*i, 3, 3);
+
+        // loop over (x,y)
+        for (int k=0; k < 2; k++) {
+          if (m->geom_size[3*i+k] <= 0) {
+            // compute zfar
+            mjtNum zfar = m->vis.map.zfar * m->stat.extent;
+
+            // get size increment
+            mjtNum sX;
+            int matid = m->geom_matid[i];
+            if (matid >= 0 && m->mat_texrepeat[2*matid+k] > 0) {
+              sX = 2/m->mat_texrepeat[2*matid+k];
+            } else {
+              sX = 2.1*zfar/(mjMAXPLANEGRID-2);
+            }
+
+            // project on frame, round to integer increment of size
+            mjtNum dX = mju_dot3(vec, ax+3*k);
+            dX = 2*sX*mju_round(0.5*dX/sX);
+
+            // translate
+            mju_addToScl3(tmp, ax+3*k, dX);
+          }
+        }
+      }
+
+      // set final pos
+      mju_n2f(thisgeom->pos, tmp, 3);
+    }
+
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addSiteGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                          const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // site
-  // category is determined on a per-site basis
-  const int objtype = mjOBJ_SITE;
   for (int i=0; i < m->nsite; i++) {
-    // set type and category
-    int category = bodycategory(m, m->site_bodyid[i]);
-
     // skip if category is masked
+    int category = bodycategory(m, m->site_bodyid[i]);
     if (!(category & catmask)) {
       continue;
     }
 
-    // show if group enabled
-    if (vopt->sitegroup[mjMAX(0, mjMIN(mjNGROUP-1, m->site_group[i]))]) {
-      mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // construct geom
-      mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i,
-                   d->site_xpos+3*i, d->site_xmat+9*i, NULL);
-
-      // set material if given
-      setMaterial(m, thisgeom, m->site_matid[i], m->site_rgba+4*i, vopt->flags);
-
-      // skip if alpha is 0
-      if (thisgeom->rgba[3] == 0) {
-        continue;
-      }
-
-      // glow
-      if (pert->select > 0 && pert->select == m->site_bodyid[i]) {
-        markselected(&m->vis, thisgeom);
-      }
-
-      // vopt->label
-      if (vopt->label == mjLABEL_SITE) {
-        makeLabel(m, mjOBJ_SITE, i, thisgeom->label);
-      }
-
-      releaseGeom(&thisgeom, scn);
+    // skip if group disabled
+    if (!vopt->sitegroup[mjMAX(0, mjMIN(mjNGROUP-1, m->site_group[i]))]) {
+      continue;
     }
+    mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_SITE);
+    if (!thisgeom) {
+      return;
+    }
+
+    // construct geom
+    mjv_initGeom(thisgeom, m->site_type[i], m->site_size+3*i,
+                  d->site_xpos+3*i, d->site_xmat+9*i, NULL);
+
+    // set material if given
+    setMaterial(m, thisgeom, m->site_matid[i], m->site_rgba+4*i, vopt->flags);
+
+    // skip if alpha is 0
+    if (thisgeom->rgba[3] == 0) {
+      continue;
+    }
+
+    // glow
+    if (pert->select > 0 && pert->select == m->site_bodyid[i]) {
+      markselected(&m->vis, thisgeom);
+    }
+
+    // vopt->label
+    if (vopt->label == mjLABEL_SITE) {
+      makeLabel(m, mjOBJ_SITE, i, thisgeom->label);
+    }
+
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // spatial tendons
-  const int objtype = mjOBJ_TENDON;
   const int category = mjCAT_DYNAMIC;
-  if (vopt->flags[mjVIS_TENDON] && (category & catmask) && m->ntendon) {
-    // draw tendons
-    for (int i=0; i < m->ntendon; i++) {
-      if (vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
-        // tendon has a deadband spring
-        int limitedspring =
-          m->tendon_stiffness[i] > 0            &&    // positive stiffness
-          m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
-          m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
+  if (!(category & catmask)) {
+    return;
+  }
+  if (!vopt->flags[mjVIS_TENDON]) {
+    return;
+  }
 
-        // tendon has a simple length constraint, but is currently not limited
-        mjtNum ten_length = d->ten_length[i];
-        mjtNum lower = m->tendon_range[2*i];
-        mjtNum upper = m->tendon_range[2*i + 1];
-        int limitedconstraint =
-          m->tendon_stiffness[i] == 0           &&    // zero stiffness
-          m->tendon_limited[i] == 1             &&    // limited length range
-          lower == 0                            &&    // range lower-bound is 0
-          ten_length < upper;                         // current length is smaller than upper bound
+  for (int i=0; i < m->ntendon; i++) {
+    if (!vopt->tendongroup[mjMAX(0, mjMIN(mjNGROUP-1, m->tendon_group[i]))]) {
+      continue;
+    }
 
-        // conditions for drawing a catenary
-        int draw_catenary =
-          !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
-          mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
-          m->tendon_num[i] == 2                 &&    // only two sites on the tendon
-          (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
-          m->tendon_damping[i] == 0             &&    // no damping
-          m->tendon_frictionloss[i] == 0;             // no frictionloss
+    // tendon has a deadband spring
+    int limitedspring =
+      m->tendon_stiffness[i] > 0            &&    // positive stiffness
+      m->tendon_lengthspring[2*i] == 0      &&    // range lower-bound is 0
+      m->tendon_lengthspring[2*i+1] > 0;          // range upper-bound is positive
 
-        // no actuator
-        if (draw_catenary) {
-          for (int j=0; j < m->nu; j++) {
-            if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == i) {
-              draw_catenary = 0;
-              break;
-            }
-          }
+    // tendon has a simple length constraint, but is currently not limited
+    mjtNum ten_length = d->ten_length[i];
+    mjtNum lower = m->tendon_range[2*i];
+    mjtNum upper = m->tendon_range[2*i + 1];
+    int limitedconstraint =
+      m->tendon_stiffness[i] == 0           &&    // zero stiffness
+      m->tendon_limited[i] == 1             &&    // limited length range
+      lower == 0                            &&    // range lower-bound is 0
+      ten_length < upper;                         // current length is smaller than upper bound
+
+    // conditions for drawing a catenary
+    int draw_catenary =
+      !mjDISABLED(mjDSBL_GRAVITY)           &&    // gravity enabled
+      mju_norm3(m->opt.gravity) > mjMINVAL  &&    // gravity strictly nonzero
+      m->tendon_num[i] == 2                 &&    // only two sites on the tendon
+      (limitedspring != limitedconstraint)  &&    // either spring or constraint length limits
+      m->tendon_damping[i] == 0             &&    // no damping
+      m->tendon_frictionloss[i] == 0;             // no frictionloss
+
+    // no actuator
+    if (draw_catenary) {
+      for (int j=0; j < m->nu; j++) {
+        if (m->actuator_trntype[j] == mjTRN_TENDON && m->actuator_trnid[2*j] == i) {
+          draw_catenary = 0;
+          break;
         }
+      }
+    }
 
-        // conditions not met: draw straight lines
-        if (!draw_catenary) {
-          for (int j=d->ten_wrapadr[i]; j < d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
-            if (d->wrap_obj[j] != -2 && d->wrap_obj[j+1] != -2) {
-              mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-              if (!thisgeom) {
-                return;
-              }
-
-              // determine width: smaller for segments inside wrapping objects
-              mjtNum width;
-              if (d->wrap_obj[j] >= 0 && d->wrap_obj[j+1] >= 0) {
-                width = 0.5 * m->tendon_width[i];
-              } else {
-                width = m->tendon_width[i];
-              }
-
-              // construct geom
-              mjv_connector(thisgeom, mjGEOM_CAPSULE, width, d->wrap_xpos+3*j, d->wrap_xpos+3*j+3);
-
-              // set material properties
-              int tendon_matid = m->tendon_matid[i];
-              float rgba[4];
-              f2f(rgba, m->tendon_rgba+4*i, 4);
-
-              // if tendon has no material and the color is the default gray, re-color it using limit impedance
-              if (tendon_matid == -1 && rgba[0] == 0.5 && rgba[1] == 0.5 && rgba[2] == 0.5 && rgba[3] == 1) {
-                // loop over limit constraints, get impedance if this tendon is limited
-                mjtNum imp = 0;
-                int efc_start = d->ne + d->nf;
-                int efc_end = efc_start + d->nl;
-                for (int k=efc_start; k < efc_end; k++) {
-                  if (d->efc_type[k] == mjCNSTR_LIMIT_TENDON && d->efc_id[k] == i) {
-                    imp = d->efc_KBIP[4*k + 2];
-                  }
-                }
-
-                // use impedance to mix tendon and constraint colors
-                rgba[0] = (1-imp) * rgba[0] + imp * m->vis.rgba.constraint[0];
-                rgba[1] = (1-imp) * rgba[1] + imp * m->vis.rgba.constraint[1];
-                rgba[2] = (1-imp) * rgba[2] + imp * m->vis.rgba.constraint[2];
-              }
-
-              setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
-
-              // override if visualizing islands
-              if (vopt->flags[mjVIS_ISLAND]) {
-                // strip material
-                thisgeom->matid = -1;
-
-                // set hue with first island dof, if constrained
-                int h = -1;
-                if (d->nisland && d->tendon_efcadr[i] >= 0) {
-                  h = d->island_dofadr[d->efc_island[d->tendon_efcadr[i]]];
-                }
-                islandColor(thisgeom->rgba, h);
-              }
-
-              // vopt->label: only the first segment
-              if (vopt->label == mjLABEL_TENDON && j == d->ten_wrapadr[i]) {
-                makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
-              }
-
-              releaseGeom(&thisgeom, scn);
-            }
+    // conditions not met: draw straight lines
+    if (!draw_catenary) {
+      for (int j=d->ten_wrapadr[i]; j < d->ten_wrapadr[i]+d->ten_wrapnum[i]-1; j++) {
+        if (d->wrap_obj[j] != -2 && d->wrap_obj[j+1] != -2) {
+          mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_TENDON);
+          if (!thisgeom) {
+            return;
           }
-        }
 
-        // special case handling of string-like tendons under gravity
-        else {
-          // two hanging points: x0, x1
-          mjtNum x0[3], x1[3];
-          mju_copy3(x0, d->wrap_xpos + 3*d->ten_wrapadr[i]);
-          mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
-
-          // length of the tendon
-          mjtNum length;
-          if (limitedconstraint) {
-            length = m->tendon_range[2*i+1];
+          // determine width: smaller for segments inside wrapping objects
+          mjtNum width;
+          if (d->wrap_obj[j] >= 0 && d->wrap_obj[j+1] >= 0) {
+            width = 0.5 * m->tendon_width[i];
           } else {
-            length = m->tendon_lengthspring[2*i+1];
+            width = m->tendon_width[i];
           }
 
-          // get number of points along catenary path (capped at 100)
-          int ncatenary = mjMIN(m->vis.quality.numslices + 1, 100);
-          mjtNum catenary[300];
+          // construct geom
+          mjv_connector(thisgeom, mjGEOM_CAPSULE, width, d->wrap_xpos+3*j, d->wrap_xpos+3*j+3);
 
-          // points along catenary path
-          int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
+          // set material properties
+          int tendon_matid = m->tendon_matid[i];
+          float rgba[4];
+          f2f(rgba, m->tendon_rgba+4*i, 4);
 
-          // draw npoints-1 segments
-          for (int j=0; j < npoints-1; j++) {
-            mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-            if (!thisgeom) {
-              return;
+          // if tendon has no material and the color is the default gray, re-color it using limit impedance
+          if (tendon_matid == -1 && rgba[0] == 0.5 && rgba[1] == 0.5 && rgba[2] == 0.5 && rgba[3] == 1) {
+            // loop over limit constraints, get impedance if this tendon is limited
+            mjtNum imp = 0;
+            int efc_start = d->ne + d->nf;
+            int efc_end = efc_start + d->nl;
+            for (int k=efc_start; k < efc_end; k++) {
+              if (d->efc_type[k] == mjCNSTR_LIMIT_TENDON && d->efc_id[k] == i) {
+                imp = d->efc_KBIP[4*k + 2];
+              }
             }
 
-            // construct geom
-            mjv_connector(thisgeom, mjGEOM_CAPSULE, m->tendon_width[i], catenary+3*j, catenary+3*j+3);
-
-            // set material if given
-            setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
-
-            // vopt->label: only the first segment
-            if (vopt->label == mjLABEL_TENDON && npoints/2) {
-              makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
-            }
-
-            releaseGeom(&thisgeom, scn);
+            // use impedance to mix tendon and constraint colors
+            rgba[0] = (1-imp) * rgba[0] + imp * m->vis.rgba.constraint[0];
+            rgba[1] = (1-imp) * rgba[1] + imp * m->vis.rgba.constraint[1];
+            rgba[2] = (1-imp) * rgba[2] + imp * m->vis.rgba.constraint[2];
           }
+
+          setMaterial(m, thisgeom, tendon_matid, rgba, vopt->flags);
+
+          // override if visualizing islands
+          if (vopt->flags[mjVIS_ISLAND]) {
+            // strip material
+            thisgeom->matid = -1;
+
+            // set hue with first island dof, if constrained
+            int h = -1;
+            if (d->nisland && d->tendon_efcadr[i] >= 0) {
+              h = d->island_dofadr[d->efc_island[d->tendon_efcadr[i]]];
+            }
+            islandColor(thisgeom->rgba, h);
+          }
+
+          // vopt->label: only the first segment
+          if (vopt->label == mjLABEL_TENDON && j == d->ten_wrapadr[i]) {
+            makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
+          }
+
+          releaseGeom(&thisgeom, scn);
         }
+      }
+    }
+
+    // special case handling of string-like tendons under gravity
+    else {
+      // two hanging points: x0, x1
+      mjtNum x0[3], x1[3];
+      mju_copy3(x0, d->wrap_xpos + 3*d->ten_wrapadr[i]);
+      mju_copy3(x1, d->wrap_xpos + 3*d->ten_wrapadr[i] + 3);
+
+      // length of the tendon
+      mjtNum length;
+      if (limitedconstraint) {
+        length = m->tendon_range[2*i+1];
+      } else {
+        length = m->tendon_lengthspring[2*i+1];
+      }
+
+      // get number of points along catenary path (capped at 100)
+      int ncatenary = mjMIN(m->vis.quality.numslices + 1, 100);
+      mjtNum catenary[300];
+
+      // points along catenary path
+      int npoints = mjv_catenary(x0, x1, m->opt.gravity, length, catenary, ncatenary);
+
+      // draw npoints-1 segments
+      for (int j=0; j < npoints-1; j++) {
+        mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_TENDON);
+        if (!thisgeom) {
+          return;
+        }
+
+        // construct geom
+        mjv_connector(thisgeom, mjGEOM_CAPSULE, m->tendon_width[i], catenary+3*j, catenary+3*j+3);
+
+        // set material if given
+        setMaterial(m, thisgeom, m->tendon_matid[i], m->tendon_rgba+4*i, vopt->flags);
+
+        // vopt->label: only the first segment
+        if (vopt->label == mjLABEL_TENDON && npoints/2) {
+          makeLabel(m, mjOBJ_TENDON, i, thisgeom->label);
+        }
+
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -1176,67 +1168,67 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
 
 static void addSliderCrankGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                 const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // slider-crank
-  const int objtype = mjOBJ_ACTUATOR;
   const int category = mjCAT_DYNAMIC;
+  if (!(category & catmask)) {
+    return;
+  }
+
   const float scl = m->stat.meansize;
-  if ((category & catmask)) {
-    for (int i=0; i < m->nu; i++) {
-      if (m->actuator_trntype[i] == mjTRN_SLIDERCRANK) {
-        // get data
-        int j = m->actuator_trnid[2*i];                 // crank
-        int k = m->actuator_trnid[2*i+1];               // slider
-        mjtNum rod = m->actuator_cranklength[i];
-        mjtNum axis[3];
-        axis[0] = d->site_xmat[9*k+2];
-        axis[1] = d->site_xmat[9*k+5];
-        axis[2] = d->site_xmat[9*k+8];
+  for (int i=0; i < m->nu; i++) {
+    if (m->actuator_trntype[i] == mjTRN_SLIDERCRANK) {
+      // get data
+      int j = m->actuator_trnid[2*i];                 // crank
+      int k = m->actuator_trnid[2*i+1];               // slider
+      mjtNum rod = m->actuator_cranklength[i];
+      mjtNum axis[3];
+      axis[0] = d->site_xmat[9*k+2];
+      axis[1] = d->site_xmat[9*k+5];
+      axis[2] = d->site_xmat[9*k+8];
 
-        // compute crank length
-        mjtNum vec[3];
-        mju_sub(vec, d->site_xpos+3*j, d->site_xpos+3*k, 3);
-        mjtNum len = mju_dot3(vec, axis);
-        mjtNum det = len*len + rod*rod - mju_dot3(vec, vec);
-        mjtByte broken = 0;
-        if (det < 0) {
-          det = 0;
-          broken = 1;
-        }
-        len = len - mju_sqrt(det);
-
-        // compute slider endpoint
-        mjtNum end[3];
-        mju_scl3(end, axis, len);
-        mju_addTo3(end, d->site_xpos+3*k);
-
-        // render slider
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjv_connector(thisgeom, mjGEOM_CYLINDER, scl * m->vis.scale.slidercrank,
-                      d->site_xpos+3*k, end);
-        f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
-        if (vopt->label == mjLABEL_ACTUATOR) {
-          makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
-        }
-        releaseGeom(&thisgeom, scn);
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.slidercrank/2.0,
-                      end, d->site_xpos+3*j);
-        if (broken) {
-          f2f(thisgeom->rgba, m->vis.rgba.crankbroken, 4);
-        } else {
-          f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
-        }
-        releaseGeom(&thisgeom, scn);
+      // compute crank length
+      mjtNum vec[3];
+      mju_sub(vec, d->site_xpos+3*j, d->site_xpos+3*k, 3);
+      mjtNum len = mju_dot3(vec, axis);
+      mjtNum det = len*len + rod*rod - mju_dot3(vec, vec);
+      mjtByte broken = 0;
+      if (det < 0) {
+        det = 0;
+        broken = 1;
       }
+      len = len - mju_sqrt(det);
+
+      // compute slider endpoint
+      mjtNum end[3];
+      mju_scl3(end, axis, len);
+      mju_addTo3(end, d->site_xpos+3*k);
+
+      // render slider
+      mjvGeom* thisgeom = acquireGeom(scn, i, category, mjOBJ_ACTUATOR);
+      if (!thisgeom) {
+        return;
+      }
+
+      mjv_connector(thisgeom, mjGEOM_CYLINDER, scl * m->vis.scale.slidercrank,
+                    d->site_xpos+3*k, end);
+      f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
+      if (vopt->label == mjLABEL_ACTUATOR) {
+        makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
+      }
+      releaseGeom(&thisgeom, scn);
+
+      thisgeom = acquireGeom(scn, i, category, mjOBJ_ACTUATOR);
+      if (!thisgeom) {
+        return;
+      }
+
+      mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.slidercrank/2.0,
+                    end, d->site_xpos+3*j);
+      if (broken) {
+        f2f(thisgeom->rgba, m->vis.rgba.crankbroken, 4);
+      } else {
+        f2f(thisgeom->rgba, m->vis.rgba.slidercrank, 4);
+      }
+      releaseGeom(&thisgeom, scn);
     }
   }
 }
@@ -1244,207 +1236,200 @@ static void addSliderCrankGeoms(const mjModel* m, mjData* d, const mjvOption* vo
 
 static void addGeomFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                               const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // geom frames
-  const int category = mjCAT_DECOR;
+  if (vopt->frame != mjFRAME_GEOM) {
+    return;
+  }
+
   const float scl = m->stat.meansize;
-  if ((category & catmask) && vopt->frame == mjFRAME_GEOM) {
-    for (int i=0; i < m->ngeom; i++) {
-      if (!(bodycategory(m, m->geom_bodyid[i]) & catmask)) {
-        continue;
-      }
-
-      if (!vopt->geomgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]))]) {
-        continue;
-      }
-
-      // base element is invisible; don't show decors
-      int matid = m->geom_matid[i];
-      float* rgba = (matid >= 0) ? (m->mat_rgba + 4*matid) : (m->geom_rgba + 4*i);
-      if (rgba[3] == 0) {
-        continue;
-      }
-
-      // construct geom frame
-      mjtNum width = m->vis.scale.framewidth * scl;
-      mjtNum length = m->vis.scale.framelength * scl;
-      addFrame(scn, i, d->geom_xpos+3*i, d->geom_xmat+9*i, length, width);
+  for (int i=0; i < m->ngeom; i++) {
+    if (!(bodycategory(m, m->geom_bodyid[i]) & catmask)) {
+      continue;
     }
+    if (!vopt->geomgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->geom_group[i]))]) {
+      continue;
+    }
+
+    // base element is invisible; don't show decors
+    int matid = m->geom_matid[i];
+    float* rgba = (matid >= 0) ? (m->mat_rgba + 4*matid) : (m->geom_rgba + 4*i);
+    if (rgba[3] == 0) {
+      continue;
+    }
+
+    // construct geom frame
+    mjtNum width = m->vis.scale.framewidth * scl;
+    mjtNum length = m->vis.scale.framelength * scl;
+    addFrame(scn, i, d->geom_xpos+3*i, d->geom_xmat+9*i, length, width);
   }
 }
 
 
 static void addSiteFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                               const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // site frames
-  const int category = mjCAT_DECOR;
+  if (vopt->frame != mjFRAME_SITE) {
+    return;
+  }
+
   const float scl = m->stat.meansize;
-  if ((category & catmask) && vopt->frame == mjFRAME_SITE) {
-    for (int i=0; i < m->nsite; i++) {
-      // skip if category is masked
-      if (!(bodycategory(m, m->site_bodyid[i]) & catmask)) {
-        continue;
-      }
-
-      // show if group enabled
-      if (!vopt->sitegroup[mjMAX(0, mjMIN(mjNGROUP-1, m->site_group[i]))]) {
-        continue;
-      }
-
-      // base element is invisible; don't show decors
-      int matid = m->site_matid[i];
-      float* rgba = (matid >= 0) ? (m->mat_rgba + 4*matid) : (m->site_rgba + 4*i);
-      if (rgba[3] == 0) {
-        continue;
-      }
-
-      // construct site frame
-      mjtNum width = m->vis.scale.framewidth * scl;
-      mjtNum length = m->vis.scale.framelength * scl;
-      addFrame(scn, i, d->site_xpos+3*i, d->site_xmat+9*i, length, width);
+  for (int i=0; i < m->nsite; i++) {
+    if (!(bodycategory(m, m->site_bodyid[i]) & catmask)) {
+      continue;
     }
+    if (!vopt->sitegroup[mjMAX(0, mjMIN(mjNGROUP-1, m->site_group[i]))]) {
+      continue;
+    }
+
+    // base element is invisible; don't show decors
+    int matid = m->site_matid[i];
+    float* rgba = (matid >= 0) ? (m->mat_rgba + 4*matid) : (m->site_rgba + 4*i);
+    if (rgba[3] == 0) {
+      continue;
+    }
+
+    // construct site frame
+    mjtNum width = m->vis.scale.framewidth * scl;
+    mjtNum length = m->vis.scale.framelength * scl;
+    addFrame(scn, i, d->site_xpos+3*i, d->site_xmat+9*i, length, width);
   }
 }
 
 
 static void addBodyBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                             const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // body BVH
-  const int category = mjCAT_DECOR;
-  const int objtype = mjOBJ_UNKNOWN;
-  if (vopt->flags[mjVIS_BODYBVH]) {
-    for (int i = 0; i < m->nbvhstatic; i++) {
-      int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
-      if (m->bvh_depth[i] != vopt->bvh_depth) {
-        if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
-          continue;
-        }
-      }
+  if (!vopt->flags[mjVIS_BODYBVH]) {
+    return;
+  }
 
-      // find geom number
-      int bodyid = 0;
-      int geomid = m->bvh_nodeid[i];
-      while (i >= m->body_bvhadr[bodyid] + m->body_bvhnum[bodyid]) {
-        if (++bodyid >= m->nbody) {
-          break;
-        }
+  for (int i = 0; i < m->nbvhstatic; i++) {
+    int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
+    if (m->bvh_depth[i] != vopt->bvh_depth) {
+      if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
+        continue;
       }
+    }
 
-      // stop after body bvh are finished
-      if (bodyid >= m->nbody) {
+    // find geom number
+    int bodyid = 0;
+    int geomid = m->bvh_nodeid[i];
+    while (i >= m->body_bvhadr[bodyid] + m->body_bvhnum[bodyid]) {
+      if (++bodyid >= m->nbody) {
         break;
       }
-
-      // get xpos, xmat, size
-      const mjtNum* xpos = isleaf ? d->geom_xpos + 3 * geomid : d->xipos + 3 * bodyid;
-      const mjtNum* xmat = isleaf ? d->geom_xmat + 9 * geomid : d->ximat + 9 * bodyid;
-      const mjtNum* size = isleaf ? m->geom_aabb + 6*geomid + 3 : m->bvh_aabb + 6*i + 3;
-
-      // offset xpos with aabb center (not always at frame origin)
-      const mjtNum* center = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
-      mjtNum pos[3];
-      mju_mulMatVec3(pos, xmat, center);
-      mju_addTo3(pos, xpos);
-
-      // set box color
-      const float* rgba = m->vis.rgba.bv;
-      if (m->vis.global.bvactive && d->bvh_active[i]) {
-        rgba = m->vis.rgba.bvactive;
-      }
-
-      mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
-      releaseGeom(&thisgeom, scn);
     }
+
+    // stop after body bvh are finished
+    if (bodyid >= m->nbody) {
+      break;
+    }
+
+    // get xpos, xmat, size
+    const mjtNum* xpos = isleaf ? d->geom_xpos + 3 * geomid : d->xipos + 3 * bodyid;
+    const mjtNum* xmat = isleaf ? d->geom_xmat + 9 * geomid : d->ximat + 9 * bodyid;
+    const mjtNum* size = isleaf ? m->geom_aabb + 6*geomid + 3 : m->bvh_aabb + 6*i + 3;
+
+    // offset xpos with aabb center (not always at frame origin)
+    const mjtNum* center = isleaf ? m->geom_aabb + 6*geomid : m->bvh_aabb + 6*i;
+    mjtNum pos[3];
+    mju_mulMatVec3(pos, xmat, center);
+    mju_addTo3(pos, xpos);
+
+    // set box color
+    const float* rgba = m->vis.rgba.bv;
+    if (m->vis.global.bvactive && d->bvh_active[i]) {
+      rgba = m->vis.rgba.bvactive;
+    }
+
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+    if (!thisgeom) {
+      return;
+    }
+
+    mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                             const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // flex BVH
-  const int category = mjCAT_DECOR;
-  const int objtype = mjOBJ_UNKNOWN;
-  if (vopt->flags[mjVIS_MESHBVH]) {
-    for (int f=0; f < m->nflex; f++) {
-      if (m->flex_bvhnum[f] && vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[f]))]) {
-        for (int i=m->flex_bvhadr[f]; i < m->flex_bvhadr[f]+m->flex_bvhnum[f]; i++) {
-          int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
-          if (m->bvh_depth[i] != vopt->bvh_depth) {
-            if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
-              continue;
-            }
+  if (!vopt->flags[mjVIS_MESHBVH]) {
+    return;
+  }
+  for (int f=0; f < m->nflex; f++) {
+    if (m->flex_bvhnum[f] && vopt->flexgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->flex_group[f]))]) {
+      for (int i=m->flex_bvhadr[f]; i < m->flex_bvhadr[f]+m->flex_bvhnum[f]; i++) {
+        int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
+        if (m->bvh_depth[i] != vopt->bvh_depth) {
+          if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
+            continue;
           }
+        }
 
-          // get box data
-          mjtNum* aabb = d->bvh_aabb_dyn + 6*(i - m->nbvhstatic);
+        // get box data
+        mjtNum* aabb = d->bvh_aabb_dyn + 6*(i - m->nbvhstatic);
 
-          // set box color
-          const float* rgba = m->vis.rgba.bv;
-          if (m->vis.global.bvactive && d->bvh_active[i]) {
-            rgba = m->vis.rgba.bvactive;
+        // set box color
+        const float* rgba = m->vis.rgba.bv;
+        if (m->vis.global.bvactive && d->bvh_active[i]) {
+          rgba = m->vis.rgba.bvactive;
+        }
+
+        mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+        if (!thisgeom) {
+          return;
+        }
+        mjv_initGeom(thisgeom, mjGEOM_LINEBOX, aabb+3, aabb, NULL, rgba);
+        releaseGeom(&thisgeom, scn);
+      }
+    }
+
+    if (!m->flex_interp[f]) {
+      continue;
+    }
+
+    // control points box
+    mjtNum xpos[mjMAXFLEXNODES];
+    int nstart = m->flex_nodeadr[f];
+    int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+    if (m->flex_centered[f]) {
+      for (int i=0; i < m->flex_nodenum[f]; i++) {
+        mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+      }
+    } else {
+      for (int i=0; i < m->flex_nodenum[f]; i++) {
+        mju_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
+        mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
+      }
+    }
+    for (int i=0; i < 2; i++) {
+      for (int j=0; j < 2; j++) {
+        for (int k=0; k < 2; k++) {
+          if (i == 0) {
+            mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+            if (!thisgeom) {
+              return;
+            }
+
+            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*(i+1)+2*j+k));
+            releaseGeom(&thisgeom, scn);
           }
+          if (j == 0) {
+            mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+            if (!thisgeom) {
+              return;
+            }
 
-          mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-          if (!thisgeom) {
-            return;
+            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*(j+1)+k));
+            releaseGeom(&thisgeom, scn);
           }
-          mjv_initGeom(thisgeom, mjGEOM_LINEBOX, aabb+3, aabb, NULL, rgba);
-          releaseGeom(&thisgeom, scn);
-        }
-      }
-
-      if (!m->flex_interp[f]) {
-        continue;
-      }
-
-      // control points box
-      mjtNum xpos[mjMAXFLEXNODES];
-      int nstart = m->flex_nodeadr[f];
-      int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
-      if (m->flex_centered[f]) {
-        for (int i=0; i < m->flex_nodenum[f]; i++) {
-          mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
-        }
-      } else {
-        for (int i=0; i < m->flex_nodenum[f]; i++) {
-          mju_mulMatVec3(xpos + 3*i, d->xmat + 9*bodyid[i], m->flex_node + 3*(i+nstart));
-          mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
-        }
-      }
-      for (int i=0; i < 2; i++) {
-        for (int j=0; j < 2; j++) {
-          for (int k=0; k < 2; k++) {
-            if (i == 0) {
-              mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-              if (!thisgeom) {
-                return;
-              }
-
-              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*(i+1)+2*j+k));
-              releaseGeom(&thisgeom, scn);
+          if (k == 0) {
+            mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+            if (!thisgeom) {
+              return;
             }
-            if (j == 0) {
-              mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-              if (!thisgeom) {
-                return;
-              }
 
-              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*(j+1)+k));
-              releaseGeom(&thisgeom, scn);
-            }
-            if (k == 0) {
-              mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-              if (!thisgeom) {
-                return;
-              }
-
-              mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*j+(k+1)));
-              releaseGeom(&thisgeom, scn);
-            }
+            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*j+(k+1)));
+            releaseGeom(&thisgeom, scn);
           }
         }
       }
@@ -1455,55 +1440,53 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
 static void addMeshBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                             const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // mesh BVH
-  const int category = mjCAT_DECOR;
-  const int objtype = mjOBJ_UNKNOWN;
-  if (vopt->flags[mjVIS_MESHBVH]) {
-    for (int geomid = 0; geomid < m->ngeom; geomid++) {
-      int meshid = m->geom_dataid[geomid];
-      // skip if not a mesh or if there is an octree
-      if (meshid == -1 || m->geom_type[geomid] == mjGEOM_SDF || m->mesh_octadr[meshid] >= 0) {
-        continue;
+  if (!vopt->flags[mjVIS_MESHBVH]) {
+    return;
+  }
+  for (int geomid = 0; geomid < m->ngeom; geomid++) {
+    int meshid = m->geom_dataid[geomid];
+    // skip if not a mesh or if there is an octree
+    if (meshid == -1 || m->geom_type[geomid] == mjGEOM_SDF || m->mesh_octadr[meshid] >= 0) {
+      continue;
+    }
+
+    for (int b = 0; b < m->mesh_bvhnum[meshid]; b++) {
+      int i = b + m->mesh_bvhadr[meshid];
+      int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
+      if (m->bvh_depth[i] != vopt->bvh_depth) {
+        if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
+          continue;
+        }
       }
 
-      for (int b = 0; b < m->mesh_bvhnum[meshid]; b++) {
-        int i = b + m->mesh_bvhadr[meshid];
-        int isleaf = m->bvh_child[2*i] == -1 && m->bvh_child[2*i+1] == -1;
-        if (m->bvh_depth[i] != vopt->bvh_depth) {
-          if (!isleaf || m->bvh_depth[i] > vopt->bvh_depth) {
-            continue;
-          }
+      // box color
+      const float* rgba = m->vis.rgba.bv;
+      if (m->vis.global.bvactive) {
+        if (d->bvh_active[i]) {
+          rgba = m->vis.rgba.bvactive;
+        } else {
+          // when marking active bvs, skip inactive volumes
+          continue;
         }
-
-        // box color
-        const float* rgba = m->vis.rgba.bv;
-        if (m->vis.global.bvactive) {
-          if (d->bvh_active[i]) {
-            rgba = m->vis.rgba.bvactive;
-          } else {
-            // when marking active bvs, skip inactive volumes
-            continue;
-          }
-        }
-
-        // get xpos, xmat, size
-        const mjtNum* xpos = d->geom_xpos + 3 * geomid;
-        const mjtNum* xmat = d->geom_xmat + 9 * geomid;
-        const mjtNum* size = m->bvh_aabb + 6*i + 3;
-
-        // offset xpos with aabb center (not always at geom origin)
-        const mjtNum* center = m->bvh_aabb + 6*i;
-        mjtNum pos[3];
-        mju_mulMatVec3(pos, xmat, center);
-        mju_addTo3(pos, xpos);
-
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-        mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
-        releaseGeom(&thisgeom, scn);
       }
+
+      // get xpos, xmat, size
+      const mjtNum* xpos = d->geom_xpos + 3 * geomid;
+      const mjtNum* xmat = d->geom_xmat + 9 * geomid;
+      const mjtNum* size = m->bvh_aabb + 6*i + 3;
+
+      // offset xpos with aabb center (not always at geom origin)
+      const mjtNum* center = m->bvh_aabb + 6*i;
+      mjtNum pos[3];
+      mju_mulMatVec3(pos, xmat, center);
+      mju_addTo3(pos, xpos);
+
+      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+      if (!thisgeom) {
+        return;
+      }
+      mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
+      releaseGeom(&thisgeom, scn);
     }
   }
 }
@@ -1511,43 +1494,39 @@ static void addMeshBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
 static void addMeshOctreeGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // mesh octree
-  const int category = mjCAT_DECOR;
-  const int objtype = mjOBJ_UNKNOWN;
-  if (vopt->flags[mjVIS_MESHBVH]) {
-    for (int geomid = 0; geomid < m->ngeom; geomid++) {
-      int meshid = m->geom_dataid[geomid];
-      if (meshid == -1 || m->geom_type[geomid] == mjGEOM_HFIELD || m->mesh_octadr[meshid] == -1) {
+  if (!vopt->flags[mjVIS_MESHBVH]) {
+    return;
+  }
+  for (int geomid = 0; geomid < m->ngeom; geomid++) {
+    int meshid = m->geom_dataid[geomid];
+    if (meshid == -1 || m->geom_type[geomid] == mjGEOM_HFIELD || m->mesh_octadr[meshid] == -1) {
+      continue;
+    }
+
+    for (int b = 0; b < m->mesh_octnum[meshid]; b++) {
+      int i = b + m->mesh_octadr[meshid];
+      if (m->oct_depth[i] != vopt->bvh_depth) {
         continue;
       }
 
-      for (int b = 0; b < m->mesh_octnum[meshid]; b++) {
-        int i = b + m->mesh_octadr[meshid];
-
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-        if (m->oct_depth[i] != vopt->bvh_depth) {
-          continue;
-        }
-
-        // box color
-        const float* rgba = m->vis.rgba.bv;
-
-        // get xpos, xmat, size
-        const mjtNum* xpos = d->geom_xpos + 3 * geomid;
-        const mjtNum* xmat = d->geom_xmat + 9 * geomid;
-        const mjtNum* size = m->oct_aabb + 6*i + 3;
-
-        // offset xpos with aabb center (not always at geom origin)
-        const mjtNum* center = m->oct_aabb + 6*i;
-        mjtNum pos[3];
-        mju_mulMatVec3(pos, xmat, center);
-        mju_addTo3(pos, xpos);
-        mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
-        releaseGeom(&thisgeom, scn);
+      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+      if (!thisgeom) {
+        return;
       }
+
+      const float* rgba = m->vis.rgba.bv;
+      const mjtNum* xpos = d->geom_xpos + 3 * geomid;
+      const mjtNum* xmat = d->geom_xmat + 9 * geomid;
+      const mjtNum* size = m->oct_aabb + 6*i + 3;
+
+      // offset xpos with aabb center (not always at geom origin)
+      const mjtNum* center = m->oct_aabb + 6*i;
+      mjtNum pos[3];
+      mju_mulMatVec3(pos, xmat, center);
+      mju_addTo3(pos, xpos);
+
+      mjv_initGeom(thisgeom, mjGEOM_LINEBOX, size, pos, xmat, rgba);
+      releaseGeom(&thisgeom, scn);
     }
   }
 }
@@ -1555,79 +1534,77 @@ static void addMeshOctreeGeoms(const mjModel* m, mjData* d, const mjvOption* vop
 
 static void addTactileSensorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // tactile sensor
-  const int category = mjCAT_DECOR;
-  const int objtype = mjOBJ_UNKNOWN;
-  if (vopt->flags[mjVIS_CONTACTPOINT]) {
-    for (int id = 0; id < m->nsensor; id++) {
-      if (m->sensor_type[id] == mjSENS_TACTILE) {
-        // get site id and frame
-        int mesh_id = m->sensor_objid[id];
-        int geom_id = m->sensor_refid[id];
-        mjtNum* geom_pos = d->geom_xpos + 3*geom_id;
-        mjtNum* geom_mat = d->geom_xmat + 9*geom_id;
-        mjtNum geom_quat[4];
-        mju_mat2Quat(geom_quat, geom_mat);
+  if (!vopt->flags[mjVIS_CONTACTPOINT]) {
+    return;
+  }
+  for (int id = 0; id < m->nsensor; id++) {
+    if (m->sensor_type[id] == mjSENS_TACTILE) {
+      // get site id and frame
+      int mesh_id = m->sensor_objid[id];
+      int geom_id = m->sensor_refid[id];
+      mjtNum* geom_pos = d->geom_xpos + 3*geom_id;
+      mjtNum* geom_mat = d->geom_xmat + 9*geom_id;
+      mjtNum geom_quat[4];
+      mju_mat2Quat(geom_quat, geom_mat);
 
-        // get sensor data
-        mjtNum* sensordata = d->sensordata + m->sensor_adr[id];
-        int nchannel = m->sensor_dim[id] / m->mesh_vertnum[mesh_id];
+      // get sensor data
+      mjtNum* sensordata = d->sensordata + m->sensor_adr[id];
+      int nchannel = m->sensor_dim[id] / m->mesh_vertnum[mesh_id];
 
-        // get maximum absolute normal force
-        mjtNum maxval = 0;
-        for (int j=0; j < m->mesh_vertnum[mesh_id]; j++) {
-          maxval = mju_max(maxval, mju_abs(sensordata[j]));
+      // get maximum absolute normal force
+      mjtNum maxval = 0;
+      for (int j=0; j < m->mesh_vertnum[mesh_id]; j++) {
+        maxval = mju_max(maxval, mju_abs(sensordata[j]));
+      }
+
+      // if no normal force readings, quick return
+      if (!maxval || m->geom_rbound[geom_id] < mjMINVAL) {
+        continue;
+      }
+
+      // draw geoms
+      float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
+      int* face = m->mesh_face + 3*m->mesh_faceadr[mesh_id];
+      for (int i=0; i < m->mesh_facenum[mesh_id]; i++) {
+        mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+        if (!thisgeom) {
+          return;
         }
 
-        // if no normal force readings, quick return
-        if (!maxval || m->geom_rbound[geom_id] < mjMINVAL) {
-          continue;
+        // triangle in global frame
+        mjtNum pos[3][3];
+        for (int j = 0; j < 3; j++) {
+          mjtNum v[3] = {mesh_vert[3 * face[3 * i + j] + 0],
+                          mesh_vert[3 * face[3 * i + j] + 1],
+                          mesh_vert[3 * face[3 * i + j] + 2]};
+          mju_mulMatVec3(pos[j], geom_mat, v);
+          mju_addTo3(pos[j], geom_pos);
         }
 
-        // draw geoms
-        float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
-        int* face = m->mesh_face + 3*m->mesh_faceadr[mesh_id];
-        for (int i=0; i < m->mesh_facenum[mesh_id]; i++) {
-          mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-          if (!thisgeom) {
-            return;
-          }
-
-          // triangle in global frame
-          mjtNum pos[3][3];
+        // color
+        float rgba[4] = {0, 0, 0, 1.0};
+        mjtNum nval[3] = {0, 0, 0};
+        for (int r = 0; r < mjMIN(nchannel, 3); r++) {
           for (int j = 0; j < 3; j++) {
-            mjtNum v[3] = {mesh_vert[3 * face[3 * i + j] + 0],
-                           mesh_vert[3 * face[3 * i + j] + 1],
-                           mesh_vert[3 * face[3 * i + j] + 2]};
-            mju_mulMatVec3(pos[j], geom_mat, v);
-            mju_addTo3(pos[j], geom_pos);
-          }
-
-          // color
-          float rgba[4] = {0, 0, 0, 1.0};
-          mjtNum nval[3] = {0, 0, 0};
-          for (int r = 0; r < mjMIN(nchannel, 3); r++) {
-            for (int j = 0; j < 3; j++) {
-              mjtNum val = sensordata[r*m->mesh_vertnum[mesh_id] + face[3*i+j]];
-              rgba[r] += mju_abs(val) / maxval;
-              if (val) {
-                nval[r] += 1;
-              }
-            }
-            if (nval[r]) {
-              rgba[r] /= nval[r];
+            mjtNum val = sensordata[r*m->mesh_vertnum[mesh_id] + face[3*i+j]];
+            rgba[r] += mju_abs(val) / maxval;
+            if (val) {
+              nval[r] += 1;
             }
           }
-
-          if (rgba[0]==0 && rgba[1]==0 && rgba[2]==0) {
-            rgba[3] = .1;
+          if (nval[r]) {
+            rgba[r] /= nval[r];
           }
-
-          // draw triangles, one per side
-          makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
-          thisgeom->objid = id;
-          releaseGeom(&thisgeom, scn);
         }
+
+        if (rgba[0]==0 && rgba[1]==0 && rgba[2]==0) {
+          rgba[3] = .1;
+        }
+
+        // draw triangles, one per side
+        makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
+        thisgeom->objid = id;
+        releaseGeom(&thisgeom, scn);
       }
     }
   }
@@ -1636,542 +1613,535 @@ static void addTactileSensorGeoms(const mjModel* m, mjData* d, const mjvOption* 
 
 static void addInertiaGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                             const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // inertia
-  const int category = mjCAT_DECOR;
-  const int objtype = mjOBJ_BODY;
-  if (vopt->flags[mjVIS_INERTIA]) {
-    int ellipsoid = m->vis.global.ellipsoidinertia == 1;
-    for (int i=1; i < m->nbody; i++) {
-      // skip if mass too small or if this body is static and static bodies are masked
-      if (m->body_mass[i] > mjMINVAL && (bodycategory(m, i) & catmask)) {
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjtNum Ixx = m->body_inertia[3*i+0];
-        mjtNum Iyy = m->body_inertia[3*i+1];
-        mjtNum Izz = m->body_inertia[3*i+2];
-        mjtNum mass = m->body_mass[i];
-        mjtNum scale_inertia = ellipsoid ? mju_sqrt(5) : mju_sqrt(3);
-
-        mjtNum sz[3];
-        sz[0] = mju_sqrt((Iyy + Izz - Ixx) / (2 * mass)) * scale_inertia;
-        sz[1] = mju_sqrt((Ixx + Izz - Iyy) / (2 * mass)) * scale_inertia;
-        sz[2] = mju_sqrt((Ixx + Iyy - Izz) / (2 * mass)) * scale_inertia;
-
-        // scale with mass if enabled
-        if (vopt->flags[mjVIS_SCLINERTIA]) {
-          // density = mass / volume
-          mjtNum scale_volume = ellipsoid ? 4.0/3.0*mjPI : 8.0;
-          mjtNum volume = scale_volume * sz[0]*sz[1]*sz[2];
-          mjtNum density = mass / mju_max(mjMINVAL, volume);
-
-          // scale = root3(density)
-          mjtNum scale = mju_pow(density*0.001, 1.0/3.0);
-
-          // scale sizes, so that box/ellipsoid with density of 1000 has same mass
-          sz[0] *= scale;
-          sz[1] *= scale;
-          sz[2] *= scale;
-        }
-
-        // construct geom
-        mjtGeom type = ellipsoid ? mjGEOM_ELLIPSOID : mjGEOM_BOX;
-        mjv_initGeom(thisgeom, type, sz, d->xipos+3*i, d->ximat+9*i, m->vis.rgba.inertia);
-
-        // glow
-        if (pert->select == i) {
-          markselected(&m->vis, thisgeom);
-        }
-
-        // vopt->label
-        if (vopt->label == mjLABEL_BODY ||
-            (vopt->label == mjLABEL_SELECTION && pert->select == i)) {
-          makeLabel(m, mjOBJ_BODY, i, thisgeom->label);
-        }
-
-        releaseGeom(&thisgeom, scn);
-      }
+  if (!vopt->flags[mjVIS_INERTIA]) {
+    return;
+  }
+  int ellipsoid = m->vis.global.ellipsoidinertia == 1;
+  for (int i=1; i < m->nbody; i++) {
+    if (m->body_mass[i] <= mjMINVAL) {
+      continue;
     }
+    if (!(bodycategory(m, i) & catmask)) {
+      continue;
+    }
+
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_BODY);
+    if (!thisgeom) {
+      return;
+    }
+
+    mjtNum Ixx = m->body_inertia[3*i+0];
+    mjtNum Iyy = m->body_inertia[3*i+1];
+    mjtNum Izz = m->body_inertia[3*i+2];
+    mjtNum mass = m->body_mass[i];
+    mjtNum scale_inertia = ellipsoid ? mju_sqrt(5) : mju_sqrt(3);
+
+    mjtNum sz[3];
+    sz[0] = mju_sqrt((Iyy + Izz - Ixx) / (2 * mass)) * scale_inertia;
+    sz[1] = mju_sqrt((Ixx + Izz - Iyy) / (2 * mass)) * scale_inertia;
+    sz[2] = mju_sqrt((Ixx + Iyy - Izz) / (2 * mass)) * scale_inertia;
+
+    // scale with mass if enabled
+    if (vopt->flags[mjVIS_SCLINERTIA]) {
+      // density = mass / volume
+      mjtNum scale_volume = ellipsoid ? 4.0/3.0*mjPI : 8.0;
+      mjtNum volume = scale_volume * sz[0]*sz[1]*sz[2];
+      mjtNum density = mass / mju_max(mjMINVAL, volume);
+
+      // scale = root3(density)
+      mjtNum scale = mju_pow(density*0.001, 1.0/3.0);
+
+      // scale sizes, so that box/ellipsoid with density of 1000 has same mass
+      sz[0] *= scale;
+      sz[1] *= scale;
+      sz[2] *= scale;
+    }
+
+    // construct geom
+    mjtGeom type = ellipsoid ? mjGEOM_ELLIPSOID : mjGEOM_BOX;
+    mjv_initGeom(thisgeom, type, sz, d->xipos+3*i, d->ximat+9*i, m->vis.rgba.inertia);
+
+    // glow
+    if (pert->select == i) {
+      markselected(&m->vis, thisgeom);
+    }
+
+    // vopt->label
+    if (vopt->label == mjLABEL_BODY ||
+        (vopt->label == mjLABEL_SELECTION && pert->select == i)) {
+      makeLabel(m, mjOBJ_BODY, i, thisgeom->label);
+    }
+
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addPerturbGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                             const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // connector to mouse perturbation target
-  const int objtype = mjOBJ_UNKNOWN;
-  const int category = mjCAT_DECOR;
-  const float scl = m->stat.meansize;
-  if (vopt->flags[mjVIS_PERTOBJ] && (category & catmask) && pert->select > 0) {
-    int i = pert->select;
-
-    if ((pert->active | pert->active2) & mjPERT_TRANSLATE) {
-      mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // compute selection point in world coordinates
-      mjtNum selpos[3];
-      mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
-      mju_addTo3(selpos, d->xpos+3*pert->select);
-
-      // construct geom
-      mjtNum sz[3];
-      sz[0] = scl * m->vis.scale.constraint;
-      mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], selpos, pert->refselpos);
-
-      // prepare color
-      float rgba[4];
-      mixcolor(rgba, m->vis.rgba.constraint,
-               (pert->active & mjPERT_TRANSLATE) > 0,
-               (pert->active2 & mjPERT_TRANSLATE) > 0);
-
-      f2f(thisgeom->rgba, rgba, 4);
-
-      releaseGeom(&thisgeom, scn);
-
-      // add small sphere at end-effector
-      thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // construct geom
-      sz[0] = 2*sz[0];
-      sz[1] = sz[2] = sz[0];
-
-      mjtNum mat[9];
-      mju_quat2Mat(mat, pert->refquat);
-      mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, pert->refselpos, mat, rgba);
-
-      releaseGeom(&thisgeom, scn);
-    }
-
-    if ((pert->active | pert->active2) & mjPERT_ROTATE) {
-      mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // prepare color, use inertia color
-      float rgba[4];
-      mixcolor(rgba, m->vis.rgba.inertia,
-               (pert->active & mjPERT_ROTATE) > 0,
-               (pert->active2 & mjPERT_ROTATE) > 0);
-
-      // construct geom: if body i has a collision aabb, use that
-      mjtNum pos[3] = {0};
-      mjtNum sz[3];
-      if (m->body_bvhnum[i]) {
-        mjtNum* aabb = m->bvh_aabb+6*m->body_bvhadr[i];
-        mju_copy3(sz, aabb+3);
-        mju_mulMatVec3(pos, d->ximat+9*i, aabb);
-      }
-
-      // otherwise box of size meansize
-      else {
-        sz[0] = sz[1] = sz[2] = scl;
-      }
-
-      mjtNum mat[9];
-      mju_quat2Mat(mat, pert->refquat);
-      mju_addTo3(pos, d->xipos+3*i);
-      mjv_initGeom(thisgeom, mjGEOM_BOX, sz, pos, mat, rgba);
-
-      releaseGeom(&thisgeom, scn);
-    }
+  if (!vopt->flags[mjVIS_PERTOBJ]) {
+    return;
   }
-}
-
-
-static void addWorldBodyFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // world and body frame
-  const int category = mjCAT_DECOR;
-  const float scl = m->stat.meansize;
-  if (category & catmask) {
-    for (int i = (vopt->frame == mjFRAME_WORLD ? 0 : 1);
-         i < (vopt->frame == mjFRAME_BODY ? m->nbody : 1);
-         i++) {
-      // set length(1) and width(0) of the axis cylinders
-      mjtNum sz[2];
-      if (i == 0) {
-        sz[1] = m->vis.scale.framelength * scl * 2;
-        sz[0] = m->vis.scale.framewidth * scl * 2;
-      } else {
-        sz[1] = m->vis.scale.framelength * scl;
-        sz[0] = m->vis.scale.framewidth * scl;
-      }
-
-      // skip if body is static and static bodies are masked
-      if (i > 0 && bodycategory(m, i) & ~catmask) {
-        continue;
-      }
-
-      mjtNum* xmat = vopt->flags[mjVIS_INERTIA] ? d->ximat+9*i : d->xmat+9*i;
-      mjtNum* xpos = vopt->flags[mjVIS_INERTIA] ? d->xipos+3*i : d->xpos+3*i;
-      addFrame(scn, i, xpos, xmat, sz[1], sz[0]);
-    }
+  if (pert->select <= 0) {
+    return;
   }
-}
 
-
-static void addSelectionPointGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // selection point
-  const int objtype = mjOBJ_UNKNOWN;
-  const int category = mjCAT_DECOR;
   const float scl = m->stat.meansize;
-  if ((category & catmask) && pert->select > 0 && vopt->flags[mjVIS_SELECT]) {
-    int i=0;
+  if ((pert->active | pert->active2) & mjPERT_TRANSLATE) {
+    mjvGeom* thisgeom = acquireGeom(scn, pert->select, mjCAT_DECOR, mjOBJ_UNKNOWN);
+    if (!thisgeom) {
+      return;
+    }
 
     // compute selection point in world coordinates
     mjtNum selpos[3];
     mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
     mju_addTo3(selpos, d->xpos+3*pert->select);
 
-    mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
+    // construct geom
+    mjtNum sz[3];
+    sz[0] = scl * m->vis.scale.constraint;
+    mjv_connector(thisgeom, mjGEOM_CAPSULE, sz[0], selpos, pert->refselpos);
+
+    // prepare color
+    float rgba[4];
+    mixcolor(rgba, m->vis.rgba.constraint,
+              (pert->active & mjPERT_TRANSLATE) > 0,
+              (pert->active2 & mjPERT_TRANSLATE) > 0);
+
+    f2f(thisgeom->rgba, rgba, 4);
+
+    releaseGeom(&thisgeom, scn);
+
+    // add small sphere at end-effector
+    thisgeom = acquireGeom(scn, pert->select, mjCAT_DECOR, mjOBJ_UNKNOWN);
     if (!thisgeom) {
       return;
     }
 
-    thisgeom->type = mjGEOM_SPHERE;
-    thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = scl * m->vis.scale.selectpoint;
-    mju_n2f(thisgeom->pos, selpos, 3);
-    mju_n2f(thisgeom->mat, IDENTITY, 9);
-    f2f(thisgeom->rgba, m->vis.rgba.selectpoint, 4);
-    if (vopt->label == mjLABEL_SELPNT) {
-      mjSNPRINTF(
-        thisgeom->label, "%.3f %.3f %.3f (local %.3f %.3f %.3f)",
-        selpos[0], selpos[1], selpos[2],
-        pert->localpos[0], pert->localpos[1], pert->localpos[2]);
+    // construct geom
+    sz[0] = 2*sz[0];
+    sz[1] = sz[2] = sz[0];
+
+    mjtNum mat[9];
+    mju_quat2Mat(mat, pert->refquat);
+    mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, pert->refselpos, mat, rgba);
+
+    releaseGeom(&thisgeom, scn);
+  }
+
+  if ((pert->active | pert->active2) & mjPERT_ROTATE) {
+    mjvGeom* thisgeom = acquireGeom(scn, pert->select, mjCAT_DECOR, mjOBJ_UNKNOWN);
+    if (!thisgeom) {
+      return;
     }
+
+    // prepare color, use inertia color
+    float rgba[4];
+    mixcolor(rgba, m->vis.rgba.inertia,
+              (pert->active & mjPERT_ROTATE) > 0,
+              (pert->active2 & mjPERT_ROTATE) > 0);
+
+    // construct geom: if body i has a collision aabb, use that
+    mjtNum pos[3] = {0};
+    mjtNum sz[3];
+    if (m->body_bvhnum[pert->select]) {
+      mjtNum* aabb = m->bvh_aabb+6*m->body_bvhadr[pert->select];
+      mju_copy3(sz, aabb+3);
+      mju_mulMatVec3(pos, d->ximat+9*pert->select, aabb);
+    }
+
+    // otherwise box of size meansize
+    else {
+      sz[0] = sz[1] = sz[2] = scl;
+    }
+
+    mjtNum mat[9];
+    mju_quat2Mat(mat, pert->refquat);
+    mju_addTo3(pos, d->xipos+3*pert->select);
+    mjv_initGeom(thisgeom, mjGEOM_BOX, sz, pos, mat, rgba);
+
     releaseGeom(&thisgeom, scn);
   }
 }
 
 
-static void addBodyLabelGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                              const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // label bodies when inertia boxes are not shown
-  const int objtype = mjOBJ_UNKNOWN;
-  const int category = mjCAT_DECOR;
-  if ((category & catmask) && (vopt->label == mjLABEL_SELECTION || vopt->label == mjLABEL_BODY) &&
-      !vopt->flags[mjVIS_INERTIA]) {
-    for (int i=1; i < m->nbody; i++) {
-      if (vopt->label == mjLABEL_BODY || (vopt->label == mjLABEL_SELECTION && pert->select == i)) {
-        // skip if body is static and static bodies are masked
-        if (bodycategory(m, i) & ~catmask) {
-          continue;
-        }
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        // construct geom
-        thisgeom->type = mjGEOM_LABEL;
-        mju_n2f(thisgeom->pos, d->xpos+3*i, 3);
-        mju_n2f(thisgeom->mat, d->xmat+9*i, 9);
-
-        // vopt->label
-        makeLabel(m, mjOBJ_BODY, i, thisgeom->label);
-
-        releaseGeom(&thisgeom, scn);
-      }
+static void addWorldBodyFrameGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
+                                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
+  const float scl = m->stat.meansize;
+  for (int i = (vopt->frame == mjFRAME_WORLD ? 0 : 1);
+        i < (vopt->frame == mjFRAME_BODY ? m->nbody : 1);
+        i++) {
+    // skip if body is static and static bodies are masked
+    if (i > 0 && bodycategory(m, i) & ~catmask) {
+      continue;
     }
+
+    // set length(1) and width(0) of the axis cylinders
+    mjtNum sz[2];
+    if (i == 0) {
+      sz[1] = m->vis.scale.framelength * scl * 2;
+      sz[0] = m->vis.scale.framewidth * scl * 2;
+    } else {
+      sz[1] = m->vis.scale.framelength * scl;
+      sz[0] = m->vis.scale.framewidth * scl;
+    }
+
+    mjtNum* xmat = vopt->flags[mjVIS_INERTIA] ? d->ximat+9*i : d->xmat+9*i;
+    mjtNum* xpos = vopt->flags[mjVIS_INERTIA] ? d->xipos+3*i : d->xpos+3*i;
+    addFrame(scn, i, xpos, xmat, sz[1], sz[0]);
   }
+}
+
+
+static void addSelectionPointGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
+                                   const mjvPerturb* pert, int catmask, mjvScene* scn) {
+  if (pert->select <= 0) {
+    return;
+  }
+  if (!vopt->flags[mjVIS_SELECT]) {
+    return;
+  }
+
+  const float scl = m->stat.meansize;
+
+  // compute selection point in world coordinates
+  mjtNum selpos[3];
+  mju_mulMatVec3(selpos, d->xmat+9*pert->select, pert->localpos);
+  mju_addTo3(selpos, d->xpos+3*pert->select);
+
+  mjvGeom* thisgeom = acquireGeom(scn, pert->select, mjCAT_DECOR, mjOBJ_UNKNOWN);
+  if (!thisgeom) {
+    return;
+  }
+
+  thisgeom->type = mjGEOM_SPHERE;
+  thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = scl * m->vis.scale.selectpoint;
+  mju_n2f(thisgeom->pos, selpos, 3);
+  mju_n2f(thisgeom->mat, IDENTITY, 9);
+  f2f(thisgeom->rgba, m->vis.rgba.selectpoint, 4);
+  if (vopt->label == mjLABEL_SELPNT) {
+    mjSNPRINTF(
+      thisgeom->label, "%.3f %.3f %.3f (local %.3f %.3f %.3f)",
+      selpos[0], selpos[1], selpos[2],
+      pert->localpos[0], pert->localpos[1], pert->localpos[2]);
+  }
+  releaseGeom(&thisgeom, scn);
+}
+
+
+static void addSelectionBodyLabelGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
+                                       const mjvPerturb* pert, int catmask, mjvScene* scn) {
+  if (vopt->flags[mjVIS_INERTIA]) {
+    return;
+  }
+  if (vopt->label != mjLABEL_SELECTION && vopt->label != mjLABEL_BODY) {
+    return;
+  }
+  if (pert->select <= 0 || pert->select >= m->nbody) {
+    return;
+  }
+  if (bodycategory(m, pert->select) & ~catmask) {
+    return;
+  }
+
+  mjvGeom* thisgeom = acquireGeom(scn, pert->select, mjCAT_DECOR, mjOBJ_UNKNOWN);
+  if (!thisgeom) {
+    return;
+  }
+
+  thisgeom->type = mjGEOM_LABEL;
+  mju_n2f(thisgeom->pos, d->xpos+3*pert->select, 3);
+  mju_n2f(thisgeom->mat, d->xmat+9*pert->select, 9);
+  makeLabel(m, mjOBJ_BODY, pert->select, thisgeom->label);
+  releaseGeom(&thisgeom, scn);
 }
 
 
 static void addJointGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                           const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // joint
-  const int objtype = mjOBJ_JOINT;
-  const int category = mjCAT_DECOR;
+  if (!vopt->flags[mjVIS_JOINT]) {
+    return;
+  }
   const float scl = m->stat.meansize;
-  if (vopt->flags[mjVIS_JOINT] && (category & catmask)) {
-    for (int i=0; i < m->njnt; i++) {
-      if (vopt->jointgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->jnt_group[i]))]) {
-        // set length(1) and width(0) of the connectors
-        mjtNum sz[2];
-        sz[1] = m->vis.scale.jointlength * scl;
-        sz[0] = m->vis.scale.jointwidth * scl;
+  for (int i=0; i < m->njnt; i++) {
+    if (!vopt->jointgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->jnt_group[i]))]) {
+      continue;
+    }
 
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_JOINT);
+    if (!thisgeom) {
+      return;
+    }
 
-        // set type, size, pos, mat depending on joint type
-        int j = m->jnt_bodyid[i];
-        mjtNum* from;
-        mjtNum to[3];
-        switch ((mjtJoint) m->jnt_type[i]) {
-        case mjJNT_FREE:
-          thisgeom->type = mjGEOM_BOX;
-          thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = 0.3*sz[1];
-          mju_n2f(thisgeom->pos, d->xanchor+3*i, 3);
-          mju_n2f(thisgeom->mat, d->xmat+9*j, 9);
-          break;
+    // set sz = {width, length} of the connectors
+    mjtNum sz[2];
+    sz[1] = m->vis.scale.jointlength * scl;
+    sz[0] = m->vis.scale.jointwidth * scl;
 
-        case mjJNT_BALL:
-          thisgeom->type = mjGEOM_SPHERE;
-          thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = 0.3*sz[1];
-          mju_n2f(thisgeom->pos, d->xanchor+3*i, 3);
-          mju_n2f(thisgeom->mat, d->xmat+9*j, 9);
-          break;
+    // set type, size, pos, mat depending on joint type
+    int j = m->jnt_bodyid[i];
+    mjtNum* from;
+    mjtNum to[3];
+    switch ((mjtJoint) m->jnt_type[i]) {
+    case mjJNT_FREE:
+      thisgeom->type = mjGEOM_BOX;
+      thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = 0.3*sz[1];
+      mju_n2f(thisgeom->pos, d->xanchor+3*i, 3);
+      mju_n2f(thisgeom->mat, d->xmat+9*j, 9);
+      break;
 
-        case mjJNT_SLIDE:
-        case mjJNT_HINGE:
-          from = d->xanchor+3*i;
-          mju_addScl3(to, from, d->xaxis+3*i, sz[1]);
-          mjv_connector(thisgeom, m->jnt_type[i] == mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1,
-                        sz[0], from, to);
-          break;
+    case mjJNT_BALL:
+      thisgeom->type = mjGEOM_SPHERE;
+      thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = 0.3*sz[1];
+      mju_n2f(thisgeom->pos, d->xanchor+3*i, 3);
+      mju_n2f(thisgeom->mat, d->xmat+9*j, 9);
+      break;
 
-        default:
-          mjERROR("unknown joint type %d", m->jnt_type[i]);
-        }
+    case mjJNT_SLIDE:
+    case mjJNT_HINGE:
+      from = d->xanchor+3*i;
+      mju_addScl3(to, from, d->xaxis+3*i, sz[1]);
+      mjv_connector(thisgeom, m->jnt_type[i] == mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1,
+                    sz[0], from, to);
+      break;
 
-        // loop over limit constraints, get impedance if this joint is limited
-        mjtNum imp = 0;
-        int efc_start = d->ne + d->nf;
-        int efc_end = efc_start + d->nl;
-        for (int k=efc_start; k < efc_end; k++) {
-          if (d->efc_type[k] == mjCNSTR_LIMIT_JOINT && d->efc_id[k] == i) {
-            imp = d->efc_KBIP[4*k + 2];
-          }
-        }
+    default:
+      mjERROR("unknown joint type %d", m->jnt_type[i]);
+    }
 
-        // use impedance to mix joint and constraint colors
-        float rgba[4];
-        rgba[0] = (1-imp) * m->vis.rgba.joint[0] + imp * m->vis.rgba.constraint[0];
-        rgba[1] = (1-imp) * m->vis.rgba.joint[1] + imp * m->vis.rgba.constraint[1];
-        rgba[2] = (1-imp) * m->vis.rgba.joint[2] + imp * m->vis.rgba.constraint[2];
-        rgba[3] = 1;
-
-        f2f(thisgeom->rgba, rgba, 4);
-
-        // vopt->label
-        if (vopt->label == mjLABEL_JOINT) {
-          makeLabel(m, mjOBJ_JOINT, i, thisgeom->label);
-        }
-
-        releaseGeom(&thisgeom, scn);
+    // loop over limit constraints, get impedance if this joint is limited
+    mjtNum imp = 0;
+    int efc_start = d->ne + d->nf;
+    int efc_end = efc_start + d->nl;
+    for (int k=efc_start; k < efc_end; k++) {
+      if (d->efc_type[k] == mjCNSTR_LIMIT_JOINT && d->efc_id[k] == i) {
+        imp = d->efc_KBIP[4*k + 2];
       }
     }
+
+    // use impedance to mix joint and constraint colors
+    float rgba[4];
+    rgba[0] = (1-imp) * m->vis.rgba.joint[0] + imp * m->vis.rgba.constraint[0];
+    rgba[1] = (1-imp) * m->vis.rgba.joint[1] + imp * m->vis.rgba.constraint[1];
+    rgba[2] = (1-imp) * m->vis.rgba.joint[2] + imp * m->vis.rgba.constraint[2];
+    rgba[3] = 1;
+
+    f2f(thisgeom->rgba, rgba, 4);
+
+    // vopt->label
+    if (vopt->label == mjLABEL_JOINT) {
+      makeLabel(m, mjOBJ_JOINT, i, thisgeom->label);
+    }
+
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                              const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // actuator
-  const int objtype = mjOBJ_ACTUATOR;
-  const int category = mjCAT_DECOR;
+  if (!vopt->flags[mjVIS_ACTUATOR]) {
+    return;
+  }
+
   const float scl = m->stat.meansize;
-  if (vopt->flags[mjVIS_ACTUATOR] && (category & catmask)) {
-    for (int i=0; i < m->nu; i++) {
-      if (vopt->actuatorgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->actuator_group[i]))]) {
-        // skip if disabled
-        if (mj_actuatorDisabled(m, i)) {
-          continue;
-        }
+  for (int i=0; i < m->nu; i++) {
+    if (!vopt->actuatorgroup[mjMAX(0, mjMIN(mjNGROUP-1, m->actuator_group[i]))]) {
+      continue;
+    }
+    if (mj_actuatorDisabled(m, i)) {
+      continue;
+    }
 
-        // determine extended range
-        mjtNum rng[3] = {-1, 0, +1};
-        mjtNum rmin = -1, rmax = 1, act = 0;
-        if (m->actuator_ctrllimited[i]) {
-          rmin = m->actuator_ctrlrange[2*i];
-          rmax = m->actuator_ctrlrange[2*i+1];
-        } else if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_actlimited[i]) {
-          rmin = m->actuator_actrange[2*i];
-          rmax = m->actuator_actrange[2*i+1];
-        }
-        if (rmin >= 0) {
-          rng[0] = -1;
-          rng[1] = rmin;
-          rng[2] = rmax;
-        } else if (rmax <= 0) {
-          rng[0] = rmin;
-          rng[1] = rmax;
-          rng[2] = +1;
-        } else {
-          rng[0] = rmin;
-          rng[1] = 0;
-          rng[2] = rmax;
-        }
+    // determine extended range
+    mjtNum rng[3] = {-1, 0, +1};
+    mjtNum rmin = -1, rmax = 1, act = 0;
+    if (m->actuator_ctrllimited[i]) {
+      rmin = m->actuator_ctrlrange[2*i];
+      rmax = m->actuator_ctrlrange[2*i+1];
+    } else if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_actlimited[i]) {
+      rmin = m->actuator_actrange[2*i];
+      rmax = m->actuator_actrange[2*i+1];
+    }
+    if (rmin >= 0) {
+      rng[0] = -1;
+      rng[1] = rmin;
+      rng[2] = rmax;
+    } else if (rmax <= 0) {
+      rng[0] = rmin;
+      rng[1] = rmax;
+      rng[2] = +1;
+    } else {
+      rng[0] = rmin;
+      rng[1] = 0;
+      rng[2] = rmax;
+    }
 
-        // adjust small ranges
-        if (rng[1]-rng[0] < mjMINVAL) {
-          rng[0] = rng[1] - mjMINVAL;
-        }
-        if (rng[2]-rng[1] < mjMINVAL) {
-          rng[2] = rng[1] + mjMINVAL;
-        }
+    // adjust small ranges
+    if (rng[1]-rng[0] < mjMINVAL) {
+      rng[0] = rng[1] - mjMINVAL;
+    }
+    if (rng[2]-rng[1] < mjMINVAL) {
+      rng[2] = rng[1] + mjMINVAL;
+    }
 
-        // clamp act to extended range
-        if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_dyntype[i]) {
-          act = mju_clip(d->act[m->actuator_actadr[i] + m->actuator_actnum[i] - 1], rng[0], rng[2]);
-        } else {
-          act = mju_clip(d->ctrl[i], rng[0], rng[2]);
-        }
+    // clamp act to extended range
+    if (vopt->flags[mjVIS_ACTIVATION] && m->actuator_dyntype[i]) {
+      act = mju_clip(d->act[m->actuator_actadr[i] + m->actuator_actnum[i] - 1], rng[0], rng[2]);
+    } else {
+      act = mju_clip(d->ctrl[i], rng[0], rng[2]);
+    }
 
-        // compute interpolants
-        float amin, amean, amax;
-        if (act <= rng[1]) {
-          amin = (rng[1]-act) / mjMAX(mjMINVAL, rng[1]-rng[0]);
-          amean = 1 - amin;
-          amax = 0;
-        } else {
-          amax = (act-rng[1]) / mjMAX(mjMINVAL, rng[2]-rng[1]);
-          amean = 1 - amax;
-          amin = 0;
-        }
+    // compute interpolants
+    float amin, amean, amax;
+    if (act <= rng[1]) {
+      amin = (rng[1]-act) / mjMAX(mjMINVAL, rng[1]-rng[0]);
+      amean = 1 - amin;
+      amax = 0;
+    } else {
+      amax = (act-rng[1]) / mjMAX(mjMINVAL, rng[2]-rng[1]);
+      amean = 1 - amax;
+      amin = 0;
+    }
 
-        // interpolated color
-        float rgba[4];
-        for (int j=0; j < 4; j++) {
-          rgba[j] = amin*m->vis.rgba.actuatornegative[j] +
-                    amean*m->vis.rgba.actuator[j] +
-                    amax*m->vis.rgba.actuatorpositive[j];
-        }
+    // interpolated color
+    float rgba[4];
+    for (int j=0; j < 4; j++) {
+      rgba[j] = amin*m->vis.rgba.actuatornegative[j] +
+                amean*m->vis.rgba.actuator[j] +
+                amax*m->vis.rgba.actuatorpositive[j];
+    }
 
-        // get transmission object id
-        int j = m->actuator_trnid[2*i];
+    // get transmission object id
+    int j = m->actuator_trnid[2*i];
 
-        // slide and hinge joint actuators
-        if (m->actuator_trntype[i] == mjTRN_JOINT ||
-            m->actuator_trntype[i] == mjTRN_JOINTINPARENT ||
-            m->actuator_trntype[i] == mjTRN_SITE) {
-          mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
+    // slide and hinge joint actuators
+    if (m->actuator_trntype[i] == mjTRN_JOINT ||
+        m->actuator_trntype[i] == mjTRN_JOINTINPARENT ||
+        m->actuator_trntype[i] == mjTRN_SITE) {
+      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_ACTUATOR);
+      if (!thisgeom) {
+        return;
+      }
+
+      // site actuators
+      mjtNum sz[3];
+      if (m->actuator_trntype[i] == mjTRN_SITE) {
+        // inflate sizes by 5%
+        mju_scl3(sz, m->site_size+3*j, 1.05);
+
+        // make geom
+        mjv_initGeom(thisgeom,
+                      m->site_type[j], sz,
+                      d->site_xpos + 3*j,
+                      d->site_xmat + 9*j,
+                      thisgeom->rgba);
+      } else if (m->jnt_type[j] == mjJNT_HINGE || m->jnt_type[j] == mjJNT_SLIDE) {
+        // set length(1) and width(0) of the connectors
+        sz[1] = m->vis.scale.actuatorlength * scl;
+        sz[0] = m->vis.scale.actuatorwidth * scl;
+
+        // make geom
+        mjtNum* from = d->xanchor + 3*j;
+        mjtNum to[3];
+        mju_addScl3(to, from, d->xaxis+3*j, sz[1]);
+        mjv_connector(thisgeom, m->jnt_type[j] == mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1,
+                      sz[0], from, to);
+      }
+
+      // ball or free joint
+      else if (m->jnt_type[j] == mjJNT_BALL || m->jnt_type[j] == mjJNT_FREE) {
+        sz[0] = sz[1] = sz[2] = m->vis.scale.jointlength * scl * 0.33;
+
+        // make geom
+        mjv_initGeom(thisgeom,
+                      m->jnt_type[j] == mjJNT_BALL ? mjGEOM_SPHERE : mjGEOM_BOX, sz,
+                      d->xanchor + 3*j,
+                      d->xmat + 9*m->jnt_bodyid[j],
+                      thisgeom->rgba);
+      }
+
+      // set interpolated color
+      f2f(thisgeom->rgba, rgba, 4);
+
+      // vopt->label
+      if (vopt->label == mjLABEL_ACTUATOR) {
+        makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
+      }
+
+      releaseGeom(&thisgeom, scn);
+    }
+
+    // body actuators
+    else if (m->actuator_trntype[i] == mjTRN_BODY) {
+      // iterate over body's geoms
+      int geomnum = m->body_geomnum[j];
+      int geomadr = m->body_geomadr[j];
+      for (int k=geomadr; k < geomadr+geomnum; k++) {
+        int geomtype = m->geom_type[k];
+        // add inflated geom if it is a regular primitive
+        if (geomtype != mjGEOM_PLANE && geomtype != mjGEOM_HFIELD &&
+            geomtype != mjGEOM_MESH  && geomtype != mjGEOM_SDF) {
+          mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_ACTUATOR);
           if (!thisgeom) {
             return;
           }
 
-          // site actuators
+          // inflate sizes by 5%
           mjtNum sz[3];
-          if (m->actuator_trntype[i] == mjTRN_SITE) {
-            // inflate sizes by 5%
-            mju_scl3(sz, m->site_size+3*j, 1.05);
+          mju_scl3(sz, m->geom_size+3*k, 1.05);
 
-            // make geom
-            mjv_initGeom(thisgeom,
-                         m->site_type[j], sz,
-                         d->site_xpos + 3*j,
-                         d->site_xmat + 9*j,
-                         thisgeom->rgba);
-          } else if (m->jnt_type[j] == mjJNT_HINGE || m->jnt_type[j] == mjJNT_SLIDE) {
-            // set length(1) and width(0) of the connectors
-            sz[1] = m->vis.scale.actuatorlength * scl;
-            sz[0] = m->vis.scale.actuatorwidth * scl;
-
-            // make geom
-            mjtNum* from = d->xanchor + 3*j;
-            mjtNum to[3];
-            mju_addScl3(to, from, d->xaxis+3*j, sz[1]);
-            mjv_connector(thisgeom, m->jnt_type[j] == mjJNT_SLIDE ? mjGEOM_ARROW : mjGEOM_ARROW1,
-                          sz[0], from, to);
-          }
-
-          // ball or free joint
-          else if (m->jnt_type[j] == mjJNT_BALL || m->jnt_type[j] == mjJNT_FREE) {
-            sz[0] = sz[1] = sz[2] = m->vis.scale.jointlength * scl * 0.33;
-
-            // make geom
-            mjv_initGeom(thisgeom,
-                         m->jnt_type[j] == mjJNT_BALL ? mjGEOM_SPHERE : mjGEOM_BOX, sz,
-                         d->xanchor + 3*j,
-                         d->xmat + 9*m->jnt_bodyid[j],
-                         thisgeom->rgba);
-          }
+          // make geom
+          mjv_initGeom(thisgeom,
+                        m->geom_type[k], sz,
+                        d->geom_xpos + 3*k,
+                        d->geom_xmat + 9*k,
+                        thisgeom->rgba);
 
           // set interpolated color
           f2f(thisgeom->rgba, rgba, 4);
 
-          // vopt->label
-          if (vopt->label == mjLABEL_ACTUATOR) {
+          releaseGeom(&thisgeom, scn);
+        }
+      }
+    }
+
+    // spatial tendon actuators
+    else if (m->actuator_trntype[i] == mjTRN_TENDON && d->ten_wrapnum[j]) {
+      for (int k=d->ten_wrapadr[j]; k < d->ten_wrapadr[j]+d->ten_wrapnum[j]-1; k++) {
+        if (d->wrap_obj[k] != -2 && d->wrap_obj[k+1] != -2) {
+          mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_ACTUATOR);
+          if (!thisgeom) {
+            return;
+          }
+
+          // determine width: smaller for segments inside wrapping objects
+          mjtNum width;
+          if (d->wrap_obj[k] >= 0 && d->wrap_obj[k+1] >= 0) {
+            width = 0.5 * m->tendon_width[j];
+          } else {
+            width = m->tendon_width[j];
+          }
+
+          // increase width for actuator
+          width *= m->vis.map.actuatortendon;
+
+          // construct geom
+          mjv_connector(thisgeom, mjGEOM_CAPSULE, width, d->wrap_xpos+3*k, d->wrap_xpos+3*k+3);
+
+          // set material if given
+          setMaterial(m, thisgeom, m->tendon_matid[j], m->tendon_rgba+4*j, vopt->flags);
+
+          // set interpolated color
+          f2f(thisgeom->rgba, rgba, 4);
+
+          // vopt->label: only the first segment
+          if (vopt->label == mjLABEL_ACTUATOR && k == d->ten_wrapadr[j]) {
             makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
           }
 
           releaseGeom(&thisgeom, scn);
-        }
-
-        // body actuators
-        else if (m->actuator_trntype[i] == mjTRN_BODY) {
-          // iterate over body's geoms
-          int geomnum = m->body_geomnum[j];
-          int geomadr = m->body_geomadr[j];
-          for (int k=geomadr; k < geomadr+geomnum; k++) {
-            int geomtype = m->geom_type[k];
-            // add inflated geom if it is a regular primitive
-            if (geomtype != mjGEOM_PLANE && geomtype != mjGEOM_HFIELD &&
-                geomtype != mjGEOM_MESH  && geomtype != mjGEOM_SDF) {
-              mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-              if (!thisgeom) {
-                return;
-              }
-
-              // inflate sizes by 5%
-              mjtNum sz[3];
-              mju_scl3(sz, m->geom_size+3*k, 1.05);
-
-              // make geom
-              mjv_initGeom(thisgeom,
-                           m->geom_type[k], sz,
-                           d->geom_xpos + 3*k,
-                           d->geom_xmat + 9*k,
-                           thisgeom->rgba);
-
-              // set interpolated color
-              f2f(thisgeom->rgba, rgba, 4);
-
-              releaseGeom(&thisgeom, scn);
-            }
-          }
-        }
-
-        // spatial tendon actuators
-        else if (m->actuator_trntype[i] == mjTRN_TENDON && d->ten_wrapnum[j]) {
-          for (int k=d->ten_wrapadr[j]; k < d->ten_wrapadr[j]+d->ten_wrapnum[j]-1; k++) {
-            if (d->wrap_obj[k] != -2 && d->wrap_obj[k+1] != -2) {
-              mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-              if (!thisgeom) {
-                return;
-              }
-
-              // determine width: smaller for segments inside wrapping objects
-              mjtNum width;
-              if (d->wrap_obj[k] >= 0 && d->wrap_obj[k+1] >= 0) {
-                width = 0.5 * m->tendon_width[j];
-              } else {
-                width = m->tendon_width[j];
-              }
-
-              // increase width for actuator
-              width *= m->vis.map.actuatortendon;
-
-              // construct geom
-              mjv_connector(thisgeom, mjGEOM_CAPSULE, width, d->wrap_xpos+3*k, d->wrap_xpos+3*k+3);
-
-              // set material if given
-              setMaterial(m, thisgeom, m->tendon_matid[j], m->tendon_rgba+4*j, vopt->flags);
-
-              // set interpolated color
-              f2f(thisgeom->rgba, rgba, 4);
-
-              // vopt->label: only the first segment
-              if (vopt->label == mjLABEL_ACTUATOR && k == d->ten_wrapadr[j]) {
-                makeLabel(m, mjOBJ_ACTUATOR, i, thisgeom->label);
-              }
-
-              releaseGeom(&thisgeom, scn);
-            }
-          }
         }
       }
     }
@@ -2181,272 +2151,264 @@ static void addActuatorGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
 
 static void addIslandLabelGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                 const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // island labels
-  const int objtype = mjOBJ_UNKNOWN;
-  const int category = mjCAT_DECOR;
-  if ((category & catmask) && (vopt->label == mjLABEL_ISLAND) && d->nisland) {
-    for (int i=1; i < m->nbody; i++) {
-      int weld_id = m->body_weldid[i];
-      if (m->body_dofnum[weld_id]) {
-        int islandid = d->dof_island[m->body_dofadr[weld_id]];
-        if (islandid > -1) {
-          mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-          if (!thisgeom) {
-            return;
-          }
-
-          thisgeom->type = mjGEOM_LABEL;
-          mju_n2f(thisgeom->pos, d->xipos+3*i, 3);
-          mju_n2f(thisgeom->mat, d->ximat+9*i, 9);
-          mjSNPRINTF(thisgeom->label, "%d", islandid);
-
-          releaseGeom(&thisgeom, scn);
-        }
-      }
+  if (vopt->label != mjLABEL_ISLAND || !d->nisland) {
+    return;
+  }
+  for (int i=1; i < m->nbody; i++) {
+    int weld_id = m->body_weldid[i];
+    if (!m->body_dofnum[weld_id]) {
+      continue;
     }
+    int islandid = d->dof_island[m->body_dofadr[weld_id]];
+    if (islandid <= -1) {
+      continue;
+    }
+
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+    if (!thisgeom) {
+      return;
+    }
+
+    thisgeom->type = mjGEOM_LABEL;
+    mju_n2f(thisgeom->pos, d->xipos+3*i, 3);
+    mju_n2f(thisgeom->mat, d->ximat+9*i, 9);
+    mjSNPRINTF(thisgeom->label, "%d", islandid);
+
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                            const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // cameras and frustums
-  int objtype = mjOBJ_CAMERA;
-  int category = mjCAT_DECOR;
+  if (!vopt->flags[mjVIS_CAMERA]) {
+    return;
+  }
+
   const float scl = m->stat.meansize;
-  if (vopt->flags[mjVIS_CAMERA] && (category & catmask)) {
-    for (int i=0; i < m->ncam; i++) {
-      // copy camera rgba
-      float cam_rgba[4];
-      f2f(cam_rgba, m->vis.rgba.camera, 4);
+  for (int i=0; i < m->ncam; i++) {
+    // copy camera rgba
+    float cam_rgba[4];
+    f2f(cam_rgba, m->vis.rgba.camera, 4);
 
-      // draw frustum if sensorsize is defined
-      if (m->cam_sensorsize[2*i+1] > 0) {
-        // when drawing frustum, make camera translucent
-        cam_rgba[3] = 0.3;
+    // draw frustum if sensorsize is defined
+    if (m->cam_sensorsize[2*i+1] > 0) {
+      // when drawing frustum, make camera translucent
+      cam_rgba[3] = 0.3;
 
-        // locals
-        const float* rgba = m->vis.rgba.frustum;
-        mjtNum vnear[4][3], vfar[4][3];
-        mjtNum center[3];
-        mjtNum znear = m->vis.map.znear * m->stat.extent;
-        mjtNum zfar = m->vis.scale.frustum * scl;
-        float zver[2], zhor[2];
+      // locals
+      const float* rgba = m->vis.rgba.frustum;
+      mjtNum vnear[4][3], vfar[4][3];
+      mjtNum center[3];
+      mjtNum znear = m->vis.map.znear * m->stat.extent;
+      mjtNum zfar = m->vis.scale.frustum * scl;
+      float zver[2], zhor[2];
 
-        // get frustum
-        getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*i, m->cam_sensorsize + 2*i);
+      // get frustum
+      getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*i, m->cam_sensorsize + 2*i);
 
-        // frustum frame to convert from planes to vertex representation
-        mjtNum* cam_xpos = d->cam_xpos+3*i;
-        mjtNum* cam_xmat = d->cam_xmat+9*i;
-        mjtNum x[] = {cam_xmat[0], cam_xmat[3], cam_xmat[6]};
-        mjtNum y[] = {cam_xmat[1], cam_xmat[4], cam_xmat[7]};
-        mjtNum z[] = {cam_xmat[2], cam_xmat[5], cam_xmat[8]};
+      // frustum frame to convert from planes to vertex representation
+      mjtNum* cam_xpos = d->cam_xpos+3*i;
+      mjtNum* cam_xmat = d->cam_xmat+9*i;
+      mjtNum x[] = {cam_xmat[0], cam_xmat[3], cam_xmat[6]};
+      mjtNum y[] = {cam_xmat[1], cam_xmat[4], cam_xmat[7]};
+      mjtNum z[] = {cam_xmat[2], cam_xmat[5], cam_xmat[8]};
 
-        // vertices of the near plane
-        mju_addScl3(center, cam_xpos, z, -znear);
-        mju_addScl3(vnear[0], center, x, -zhor[0]);
-        mju_addScl3(vnear[1], center, x,  zhor[1]);
-        mju_addScl3(vnear[2], center, x,  zhor[1]);
-        mju_addScl3(vnear[3], center, x, -zhor[0]);
-        mju_addToScl3(vnear[0], y, -zver[0]);
-        mju_addToScl3(vnear[1], y, -zver[0]);
-        mju_addToScl3(vnear[2], y,  zver[1]);
-        mju_addToScl3(vnear[3], y,  zver[1]);
+      // vertices of the near plane
+      mju_addScl3(center, cam_xpos, z, -znear);
+      mju_addScl3(vnear[0], center, x, -zhor[0]);
+      mju_addScl3(vnear[1], center, x,  zhor[1]);
+      mju_addScl3(vnear[2], center, x,  zhor[1]);
+      mju_addScl3(vnear[3], center, x, -zhor[0]);
+      mju_addToScl3(vnear[0], y, -zver[0]);
+      mju_addToScl3(vnear[1], y, -zver[0]);
+      mju_addToScl3(vnear[2], y,  zver[1]);
+      mju_addToScl3(vnear[3], y,  zver[1]);
 
-        // vertices of the far plane
-        zhor[0] *= zfar / znear;
-        zhor[1] *= zfar / znear;
-        zver[0] *= zfar / znear;
-        zver[1] *= zfar / znear;
-        mju_addScl3(center, cam_xpos, z, -zfar);
-        mju_addScl3(vfar[0], center, x, -zhor[0]);
-        mju_addScl3(vfar[1], center, x,  zhor[1]);
-        mju_addScl3(vfar[2], center, x,  zhor[1]);
-        mju_addScl3(vfar[3], center, x, -zhor[0]);
-        mju_addToScl3(vfar[0], y, -zver[0]);
-        mju_addToScl3(vfar[1], y, -zver[0]);
-        mju_addToScl3(vfar[2], y,  zver[1]);
-        mju_addToScl3(vfar[3], y,  zver[1]);
+      // vertices of the far plane
+      zhor[0] *= zfar / znear;
+      zhor[1] *= zfar / znear;
+      zver[0] *= zfar / znear;
+      zver[1] *= zfar / znear;
+      mju_addScl3(center, cam_xpos, z, -zfar);
+      mju_addScl3(vfar[0], center, x, -zhor[0]);
+      mju_addScl3(vfar[1], center, x,  zhor[1]);
+      mju_addScl3(vfar[2], center, x,  zhor[1]);
+      mju_addScl3(vfar[3], center, x, -zhor[0]);
+      mju_addToScl3(vfar[0], y, -zver[0]);
+      mju_addToScl3(vfar[1], y, -zver[0]);
+      mju_addToScl3(vfar[2], y,  zver[1]);
+      mju_addToScl3(vfar[3], y,  zver[1]);
 
-        // triangulation and wireframe of the frustum
-        for (int e=0; e < 4; e++) {
-          mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-          if (!thisgeom) {
-            return;
-          }
-
-          makeTriangle(thisgeom, vnear[e], vfar[e], vnear[(e+1)%4], rgba);
-          releaseGeom(&thisgeom, scn);
-
-          thisgeom = acquireGeom(scn, i, category, objtype);
-          if (!thisgeom) {
-            return;
-          }
-          makeTriangle(thisgeom, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba);
-          releaseGeom(&thisgeom, scn);
-
-          thisgeom = acquireGeom(scn, i, category, objtype);
-          if (!thisgeom) {
-            return;
-          }
-          mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
-          f2f(thisgeom->rgba, rgba, 4);
-          releaseGeom(&thisgeom, scn);
-
-          thisgeom = acquireGeom(scn, i, category, objtype);
-          if (!thisgeom) {
-            return;
-          }
-          mjv_connector(thisgeom, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4]);
-          f2f(thisgeom->rgba, rgba, 4);
-          releaseGeom(&thisgeom, scn);
-
-          thisgeom = acquireGeom(scn, i, category, objtype);
-          if (!thisgeom) {
-            return;
-          }
-          mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vfar[e]);
-          f2f(thisgeom->rgba, rgba, 4);
-          releaseGeom(&thisgeom, scn);
+      // triangulation and wireframe of the frustum
+      for (int e=0; e < 4; e++) {
+        mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
+        if (!thisgeom) {
+          return;
         }
+
+        makeTriangle(thisgeom, vnear[e], vfar[e], vnear[(e+1)%4], rgba);
+        releaseGeom(&thisgeom, scn);
+
+        thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
+        if (!thisgeom) {
+          return;
+        }
+        makeTriangle(thisgeom, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba);
+        releaseGeom(&thisgeom, scn);
+
+        thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
+        if (!thisgeom) {
+          return;
+        }
+        mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
+        f2f(thisgeom->rgba, rgba, 4);
+        releaseGeom(&thisgeom, scn);
+
+        thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
+        if (!thisgeom) {
+          return;
+        }
+        mjv_connector(thisgeom, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4]);
+        f2f(thisgeom->rgba, rgba, 4);
+        releaseGeom(&thisgeom, scn);
+
+        thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
+        if (!thisgeom) {
+          return;
+        }
+        mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vfar[e]);
+        f2f(thisgeom->rgba, rgba, 4);
+        releaseGeom(&thisgeom, scn);
       }
-
-      mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // construct geom: camera body
-      thisgeom->type = mjGEOM_BOX;
-      thisgeom->size[0] = scl * m->vis.scale.camera * 1.0;
-      thisgeom->size[1] = scl * m->vis.scale.camera * 0.8;
-      thisgeom->size[2] = scl * m->vis.scale.camera * 0.4;
-      mju_n2f(thisgeom->pos, d->cam_xpos+3*i, 3);
-      mju_n2f(thisgeom->mat, d->cam_xmat+9*i, 9);
-      f2f(thisgeom->rgba, cam_rgba, 4);
-
-      // vopt->label
-      if (vopt->label == mjLABEL_CAMERA) {
-        makeLabel(m, mjOBJ_CAMERA, i, thisgeom->label);
-      }
-
-      releaseGeom(&thisgeom, scn);
-
-      thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // construct geom: lens
-      thisgeom->pos[0] = (float)(d->cam_xpos[3*i] -
-                                 scl*m->vis.scale.camera*0.6 * d->cam_xmat[9*i+2]);
-      thisgeom->pos[1] = (float)(d->cam_xpos[3*i+1] -
-                                 scl*m->vis.scale.camera*0.6 * d->cam_xmat[9*i+5]);
-      thisgeom->pos[2] = (float)(d->cam_xpos[3*i+2] -
-                                 scl*m->vis.scale.camera*0.6 * d->cam_xmat[9*i+8]);
-      thisgeom->type = mjGEOM_CYLINDER;
-      thisgeom->size[0] = scl * m->vis.scale.camera * 0.4;
-      thisgeom->size[1] = scl * m->vis.scale.camera * 0.4;
-      thisgeom->size[2] = scl * m->vis.scale.camera * 0.3;
-      mju_n2f(thisgeom->mat, d->cam_xmat+9*i, 9);
-      f2f(thisgeom->rgba, cam_rgba, 4);
-      for (int k=0; k < 3; k++) {
-        thisgeom->rgba[k] *= 0.5;  // make lens body darker
-      }
-
-      releaseGeom(&thisgeom, scn);
-
-      // set category for camera frame
-      category = mjCAT_DECOR;
-      if (!(category & catmask) || vopt->frame != mjFRAME_CAMERA) {
-        continue;
-      }
-
-      // construct camera frame
-      objtype = mjOBJ_UNKNOWN;
-      mjtNum width = m->vis.scale.framewidth * scl;
-      mjtNum length = m->vis.scale.framelength * scl;
-      addFrame(scn, i, d->cam_xpos+3*i, d->cam_xmat+9*i, length, width);
     }
+
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
+    if (!thisgeom) {
+      return;
+    }
+
+    // construct geom: camera body
+    thisgeom->type = mjGEOM_BOX;
+    thisgeom->size[0] = scl * m->vis.scale.camera * 1.0;
+    thisgeom->size[1] = scl * m->vis.scale.camera * 0.8;
+    thisgeom->size[2] = scl * m->vis.scale.camera * 0.4;
+    mju_n2f(thisgeom->pos, d->cam_xpos+3*i, 3);
+    mju_n2f(thisgeom->mat, d->cam_xmat+9*i, 9);
+    f2f(thisgeom->rgba, cam_rgba, 4);
+
+    // vopt->label
+    if (vopt->label == mjLABEL_CAMERA) {
+      makeLabel(m, mjOBJ_CAMERA, i, thisgeom->label);
+    }
+
+    releaseGeom(&thisgeom, scn);
+
+    thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
+    if (!thisgeom) {
+      return;
+    }
+
+    // construct geom: lens
+    thisgeom->pos[0] = (float)(d->cam_xpos[3*i] -
+                                scl*m->vis.scale.camera*0.6 * d->cam_xmat[9*i+2]);
+    thisgeom->pos[1] = (float)(d->cam_xpos[3*i+1] -
+                                scl*m->vis.scale.camera*0.6 * d->cam_xmat[9*i+5]);
+    thisgeom->pos[2] = (float)(d->cam_xpos[3*i+2] -
+                                scl*m->vis.scale.camera*0.6 * d->cam_xmat[9*i+8]);
+    thisgeom->type = mjGEOM_CYLINDER;
+    thisgeom->size[0] = scl * m->vis.scale.camera * 0.4;
+    thisgeom->size[1] = scl * m->vis.scale.camera * 0.4;
+    thisgeom->size[2] = scl * m->vis.scale.camera * 0.3;
+    mju_n2f(thisgeom->mat, d->cam_xmat+9*i, 9);
+    f2f(thisgeom->rgba, cam_rgba, 4);
+    for (int k=0; k < 3; k++) {
+      thisgeom->rgba[k] *= 0.5;  // make lens body darker
+    }
+
+    releaseGeom(&thisgeom, scn);
+
+    if (vopt->frame != mjFRAME_CAMERA) {
+      continue;
+    }
+    mjtNum width = m->vis.scale.framewidth * scl;
+    mjtNum length = m->vis.scale.framelength * scl;
+    addFrame(scn, i, d->cam_xpos+3*i, d->cam_xmat+9*i, length, width);
   }
 }
 
 
 static void addLightGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                           const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // lights
-  const int objtype = mjOBJ_LIGHT;
-  const int category = mjCAT_DECOR;
+
+  if (!vopt->flags[mjVIS_LIGHT]) {
+    return;
+  }
+
   const float scl = m->stat.meansize;
-  if (vopt->flags[mjVIS_LIGHT] && (category & catmask)) {
-    for (int i=0; i < m->nlight; i++) {
-      // make light frame
-      mjtNum quat[4];
-      mju_quatZ2Vec(quat, d->light_xdir+3*i);
+  for (int i=0; i < m->nlight; i++) {
+    // make light frame
+    mjtNum quat[4];
+    mju_quatZ2Vec(quat, d->light_xdir+3*i);
 
-      mjtNum mat[9];
-      mju_quat2Mat(mat, quat);
+    mjtNum mat[9];
+    mju_quat2Mat(mat, quat);
 
-      // make light position: offset backward, to avoid casting shadow
-      mjtNum vec[3];
-      mju_addScl3(vec, d->light_xpos+3*i, d->light_xdir+3*i, -scl * m->vis.scale.light -0.0001);
+    // make light position: offset backward, to avoid casting shadow
+    mjtNum vec[3];
+    mju_addScl3(vec, d->light_xpos+3*i, d->light_xdir+3*i, -scl * m->vis.scale.light -0.0001);
 
-      mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      // construct geom
-      thisgeom->type = mjGEOM_CYLINDER;
-      thisgeom->size[0] = scl * m->vis.scale.light * 0.8;
-      thisgeom->size[1] = scl * m->vis.scale.light * 0.8;
-      thisgeom->size[2] = scl * m->vis.scale.light * 1.0;
-      mju_n2f(thisgeom->pos, vec, 3);
-      mju_n2f(thisgeom->mat, mat, 9);
-      f2f(thisgeom->rgba, m->vis.rgba.light, 4);
-
-      // vopt->label
-      if (vopt->label == mjLABEL_LIGHT) {
-        makeLabel(m, mjOBJ_LIGHT, i, thisgeom->label);
-      }
-
-      releaseGeom(&thisgeom, scn);
-
-      // set category for light frame
-      if (!(mjCAT_DECOR & catmask) || vopt->frame != mjFRAME_LIGHT) {
-        continue;
-      }
-
-      // construct light frame
-      mjtNum width = m->vis.scale.framewidth * scl;
-      mjtNum length = m->vis.scale.framelength * scl;
-      addFrame(scn, i, d->light_xpos+3*i, mat, length, width);
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_LIGHT);
+    if (!thisgeom) {
+      return;
     }
+
+    // construct geom
+    thisgeom->type = mjGEOM_CYLINDER;
+    thisgeom->size[0] = scl * m->vis.scale.light * 0.8;
+    thisgeom->size[1] = scl * m->vis.scale.light * 0.8;
+    thisgeom->size[2] = scl * m->vis.scale.light * 1.0;
+    mju_n2f(thisgeom->pos, vec, 3);
+    mju_n2f(thisgeom->mat, mat, 9);
+    f2f(thisgeom->rgba, m->vis.rgba.light, 4);
+
+    // vopt->label
+    if (vopt->label == mjLABEL_LIGHT) {
+      makeLabel(m, mjOBJ_LIGHT, i, thisgeom->label);
+    }
+
+    releaseGeom(&thisgeom, scn);
+
+    if (vopt->frame != mjFRAME_LIGHT) {
+      continue;
+    }
+    mjtNum width = m->vis.scale.framewidth * scl;
+    mjtNum length = m->vis.scale.framelength * scl;
+    addFrame(scn, i, d->light_xpos+3*i, mat, length, width);
   }
 }
 
 static void addCenterOfMassGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                  const mjvPerturb* pert, int catmask, mjvScene* scn) {
   // center of mass for root bodies
-  const int objtype = mjOBJ_UNKNOWN;
-  const int category = mjCAT_DECOR;
-  const float scl = m->stat.meansize;
-  if (vopt->flags[mjVIS_COM] && (category & catmask)) {
-    for (int i=1; i < m->nbody; i++) {
-      if (m->body_rootid[i] == i) {
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
+  if (!vopt->flags[mjVIS_COM]) {
+    return;
+  }
 
-        thisgeom->type = mjGEOM_SPHERE;
-        thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = scl * m->vis.scale.com;
-        mju_n2f(thisgeom->pos, d->subtree_com+3*i, 3);
-        mju_n2f(thisgeom->mat, IDENTITY, 9);
-        f2f(thisgeom->rgba, m->vis.rgba.com, 4);
-        releaseGeom(&thisgeom, scn);
+  const float scl = m->stat.meansize;
+  for (int i=1; i < m->nbody; i++) {
+    if (m->body_rootid[i] == i) {
+      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+      if (!thisgeom) {
+        return;
       }
+
+      thisgeom->type = mjGEOM_SPHERE;
+      thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = scl * m->vis.scale.com;
+      mju_n2f(thisgeom->pos, d->subtree_com+3*i, 3);
+      mju_n2f(thisgeom->mat, IDENTITY, 9);
+      f2f(thisgeom->rgba, m->vis.rgba.com, 4);
+      releaseGeom(&thisgeom, scn);
     }
   }
 }
@@ -2454,100 +2416,98 @@ static void addCenterOfMassGeoms(const mjModel* m, mjData* d, const mjvOption* v
 
 static void addAutoConnectGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                 const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // auto connect
-  const int objtype = mjOBJ_UNKNOWN;
-  const int category = mjCAT_DECOR;
+  if (!vopt->flags[mjVIS_AUTOCONNECT]) {
+    return;
+  }
+
   const float scl = m->stat.meansize;
-  if (vopt->flags[mjVIS_AUTOCONNECT] && (category & catmask)) {
-    for (int i=1; i < m->nbody; i++) {
-      // do not connect to world
-      if (m->body_parentid[i] == 0) {
-        continue;
-      }
-
-      // start at body com, connect joint centers in reverse order
-      mjtNum* cur = d->xipos+3*i;
-      if (m->body_jntnum[i]) {
-        for (int j=m->body_jntadr[i]+m->body_jntnum[i]-1; j >= m->body_jntadr[i]; j--) {
-          mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-          if (!thisgeom) {
-            return;
-          }
-          mjtNum* nxt = d->xanchor+3*j;
-
-          // construct geom
-          mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
-          f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
-
-          releaseGeom(&thisgeom, scn);
-          cur = nxt;
-        }
-      }
-
-      // connect first joint (or com) to parent com
-      mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-      if (!thisgeom) {
-        return;
-      }
-
-      mjtNum* first = d->xipos+3*m->body_parentid[i];
-      mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, first);
-      f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
-      releaseGeom(&thisgeom, scn);
+  for (int i=1; i < m->nbody; i++) {
+    // do not connect to world
+    if (m->body_parentid[i] == 0) {
+      continue;
     }
+
+    // start at body com, connect joint centers in reverse order
+    mjtNum* cur = d->xipos+3*i;
+    if (m->body_jntnum[i]) {
+      for (int j=m->body_jntadr[i]+m->body_jntnum[i]-1; j >= m->body_jntadr[i]; j--) {
+        mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+        if (!thisgeom) {
+          return;
+        }
+        mjtNum* nxt = d->xanchor+3*j;
+
+        // construct geom
+        mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
+        f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
+
+        releaseGeom(&thisgeom, scn);
+        cur = nxt;
+      }
+    }
+
+    // connect first joint (or com) to parent com
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+    if (!thisgeom) {
+      return;
+    }
+
+    mjtNum* first = d->xipos+3*m->body_parentid[i];
+    mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, first);
+    f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                 const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // rangefinders
-  const int objtype = mjOBJ_UNKNOWN;
-  const int category = mjCAT_DECOR;
-  if (vopt->flags[mjVIS_RANGEFINDER] && (category & catmask)) {
-    for (int i=0; i < m->nsensor; i++) {
-      if (m->sensor_type[i] == mjSENS_RANGEFINDER) {
-        // sensor data
-        mjtNum dst = d->sensordata[m->sensor_adr[i]];
-        int sid = m->sensor_objid[i];
+  if (!vopt->flags[mjVIS_RANGEFINDER]) {
+    return;
+  }
 
-        // null output: nothing to render
-        if (dst < 0) {
-          continue;
-        }
+  for (int i=0; i < m->nsensor; i++) {
+    if (m->sensor_type[i] == mjSENS_RANGEFINDER) {
+      // sensor data
+      mjtNum dst = d->sensordata[m->sensor_adr[i]];
+      int sid = m->sensor_objid[i];
 
-        // make ray
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjtNum* from = d->site_xpos+3*sid;
-        mjtNum to[3] = {from[0] + d->site_xmat[9*sid+2]*dst,
-                        from[1] + d->site_xmat[9*sid+5]*dst,
-                        from[2] + d->site_xmat[9*sid+8]*dst};
-        mjv_connector(thisgeom, mjGEOM_LINE, 3, from, to);
-        f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
-        releaseGeom(&thisgeom, scn);
-      } else if (m->sensor_type[i] == mjSENS_GEOMFROMTO) {
-        // sensor data
-        mjtNum* fromto = d->sensordata + m->sensor_adr[i];
-
-        // null output: nothing to render
-        if (mju_isZero(fromto, 6)) {
-          continue;
-        }
-
-        // make ray
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjv_connector(thisgeom, mjGEOM_LINE, 3, fromto, fromto+3);
-        f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
-        releaseGeom(&thisgeom, scn);
+      // null output: nothing to render
+      if (dst < 0) {
+        continue;
       }
+
+      // make ray
+      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+      if (!thisgeom) {
+        return;
+      }
+
+      mjtNum* from = d->site_xpos+3*sid;
+      mjtNum to[3] = {from[0] + d->site_xmat[9*sid+2]*dst,
+                      from[1] + d->site_xmat[9*sid+5]*dst,
+                      from[2] + d->site_xmat[9*sid+8]*dst};
+      mjv_connector(thisgeom, mjGEOM_LINE, 3, from, to);
+      f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
+      releaseGeom(&thisgeom, scn);
+    } else if (m->sensor_type[i] == mjSENS_GEOMFROMTO) {
+      // sensor data
+      mjtNum* fromto = d->sensordata + m->sensor_adr[i];
+
+      // null output: nothing to render
+      if (mju_isZero(fromto, 6)) {
+        continue;
+      }
+
+      // make ray
+      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+      if (!thisgeom) {
+        return;
+      }
+
+      mjv_connector(thisgeom, mjGEOM_LINE, 3, fromto, fromto+3);
+      f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
+      releaseGeom(&thisgeom, scn);
     }
   }
 }
@@ -2555,95 +2515,96 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
 
 static void addExternalPerturbGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                     const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // external perturbations
-  const int objtype = mjOBJ_UNKNOWN;
-  const int category = mjCAT_DECOR;
+  if (!vopt->flags[mjVIS_PERTFORCE]) {
+    return;
+  }
+
   const float scl = m->stat.meansize;
   for (int i=1; i < m->nbody; i++) {
-    if (!mju_isZero(d->xfrc_applied+6*i, 6) && (category & catmask)) {
-      // point of application and force
-      mjtNum* xpos = d->xipos+3*i;
-      mjtNum* xfrc = d->xfrc_applied+6*i;
-
-      // force perturbation
-      if (vopt->flags[mjVIS_PERTFORCE] && mju_norm3(xfrc) > mjMINVAL) {
-        // map force to spatial vector in world frame
-        mjtNum vec[3];
-        mju_scl3(vec, xfrc, m->vis.map.force/m->stat.meanmass);
-
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjtNum* from = xpos;
-        mjtNum to[3];
-        mju_add3(to, from, vec);
-        mjv_connector(thisgeom, mjGEOM_ARROW, m->vis.scale.forcewidth * scl, from, to);
-        f2f(thisgeom->rgba, m->vis.rgba.force, 4);
-        releaseGeom(&thisgeom, scn);
-      }
+    if (mju_isZero(d->xfrc_applied+6*i, 6)) {
+      continue;
     }
+    // force perturbation
+    mjtNum* xfrc = d->xfrc_applied+6*i;
+    if (mju_norm3(xfrc) <= mjMINVAL) {
+      continue;
+    }
+
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+    if (!thisgeom) {
+      return;
+    }
+
+    mjtNum* from = d->xipos+3*i;
+
+    // map force to spatial vector in world frame
+    mjtNum vec[3];
+    mju_scl3(vec, xfrc, m->vis.map.force/m->stat.meanmass);
+    mjtNum to[3];
+    mju_add3(to, from, vec);
+
+    mjv_connector(thisgeom, mjGEOM_ARROW, m->vis.scale.forcewidth * scl, from, to);
+    f2f(thisgeom->rgba, m->vis.rgba.force, 4);
+    releaseGeom(&thisgeom, scn);
   }
 }
 
 
 static void addConstraintGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
                                const mjvPerturb* pert, int catmask, mjvScene* scn) {
-  // connect and distance constraints
-  const int objtype = mjOBJ_EQUALITY;
-  const int category = mjCAT_DECOR;
+  if (!vopt->flags[mjVIS_CONSTRAINT]) {
+    return;
+  }
+
+  // connect or weld
   const float scl = m->stat.meansize;
-  if (vopt->flags[mjVIS_CONSTRAINT] && (category & catmask) && m->neq) {
-    // connect or weld
-    for (int i=0; i < m->neq; i++) {
-      int is_weld = m->eq_type[i] == mjEQ_WELD;
-      int is_connect = m->eq_type[i] == mjEQ_CONNECT;
-      if (d->eq_active[i] && (is_connect || is_weld)) {
-        // compute endpoints in global coordinates
-        mjtNum vec[3], end[3];
-        mjtNum *xmat_j, *xmat_k;
-        int j = m->eq_obj1id[i], k = m->eq_obj2id[i];
-        if (m->eq_objtype[i] == mjOBJ_SITE) {
-          mju_copy3(vec, d->site_xpos+3*j);
-          mju_copy3(end, d->site_xpos+3*k);
-          xmat_j = d->site_xmat+9*j;
-          xmat_k = d->site_xmat+9*k;
-        } else {
-          mju_mulMatVec3(vec, d->xmat+9*j, m->eq_data+mjNEQDATA*i+3*is_weld);
-          mju_addTo3(vec, d->xpos+3*j);
-          mju_mulMatVec3(end, d->xmat+9*k, m->eq_data+mjNEQDATA*i+3*is_connect);
-          mju_addTo3(end, d->xpos+3*k);
-          xmat_j = d->xmat+9*j;
-          xmat_k = d->xmat+9*k;
-        }
-
-        // construct geom
-        mjtNum sz[3];
-        sz[0] = scl * m->vis.scale.constraint;
-
-        mjvGeom* thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, xmat_j, m->vis.rgba.connect);
-        if (vopt->label == mjLABEL_CONSTRAINT) {
-          makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
-        }
-        releaseGeom(&thisgeom, scn);
-
-        thisgeom = acquireGeom(scn, i, category, objtype);
-        if (!thisgeom) {
-          return;
-        }
-
-        mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, xmat_k, m->vis.rgba.constraint);
-        if (vopt->label == mjLABEL_CONSTRAINT) {
-          makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
-        }
-        releaseGeom(&thisgeom, scn);
+  for (int i=0; i < m->neq; i++) {
+    int is_weld = m->eq_type[i] == mjEQ_WELD;
+    int is_connect = m->eq_type[i] == mjEQ_CONNECT;
+    if (d->eq_active[i] && (is_connect || is_weld)) {
+      // compute endpoints in global coordinates
+      mjtNum vec[3], end[3];
+      mjtNum *xmat_j, *xmat_k;
+      int j = m->eq_obj1id[i], k = m->eq_obj2id[i];
+      if (m->eq_objtype[i] == mjOBJ_SITE) {
+        mju_copy3(vec, d->site_xpos+3*j);
+        mju_copy3(end, d->site_xpos+3*k);
+        xmat_j = d->site_xmat+9*j;
+        xmat_k = d->site_xmat+9*k;
+      } else {
+        mju_mulMatVec3(vec, d->xmat+9*j, m->eq_data+mjNEQDATA*i+3*is_weld);
+        mju_addTo3(vec, d->xpos+3*j);
+        mju_mulMatVec3(end, d->xmat+9*k, m->eq_data+mjNEQDATA*i+3*is_connect);
+        mju_addTo3(end, d->xpos+3*k);
+        xmat_j = d->xmat+9*j;
+        xmat_k = d->xmat+9*k;
       }
+
+      // construct geom
+      mjtNum sz[3];
+      sz[0] = scl * m->vis.scale.constraint;
+
+      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_EQUALITY);
+      if (!thisgeom) {
+        return;
+      }
+
+      mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, vec, xmat_j, m->vis.rgba.connect);
+      if (vopt->label == mjLABEL_CONSTRAINT) {
+        makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
+      }
+      releaseGeom(&thisgeom, scn);
+
+      thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_EQUALITY);
+      if (!thisgeom) {
+        return;
+      }
+
+      mjv_initGeom(thisgeom, mjGEOM_SPHERE, sz, end, xmat_k, m->vis.rgba.constraint);
+      if (vopt->label == mjLABEL_CONSTRAINT) {
+        makeLabel(m, mjOBJ_EQUALITY, i, thisgeom->label);
+      }
+      releaseGeom(&thisgeom, scn);
     }
   }
 }
@@ -2672,6 +2633,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   addSliderCrankGeoms(m, d, vopt, pert, catmask, scn);
 
   // -- decor elements --
+  if (!(catmask & mjCAT_DECOR)) {
+    return;
+  }
+
   addGeomFrameGeoms(m, d, vopt, pert, catmask, scn);
   addSiteFrameGeoms(m, d, vopt, pert, catmask, scn);
   addBodyBvhGeoms(m, d, vopt, pert, catmask, scn);
@@ -2683,7 +2648,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   addPerturbGeoms(m, d, vopt, pert, catmask, scn);
   addWorldBodyFrameGeoms(m, d, vopt, pert, catmask, scn);
   addSelectionPointGeoms(m, d, vopt, pert, catmask, scn);
-  addBodyLabelGeoms(m, d, vopt, pert, catmask, scn);
+  addSelectionBodyLabelGeoms(m, d, vopt, pert, catmask, scn);
   addJointGeoms(m, d, vopt, pert, catmask, scn);
   addActuatorGeoms(m, d, vopt, pert, catmask, scn);
   addIslandLabelGeoms(m, d, vopt, pert, catmask, scn);
