@@ -1566,7 +1566,7 @@ static void addTactileSensorGeoms(const mjModel* m, mjData* d, const mjvOption* 
       float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
       int* face = m->mesh_face + 3*m->mesh_faceadr[mesh_id];
       for (int i=0; i < m->mesh_facenum[mesh_id]; i++) {
-        mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+        mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
         if (!thisgeom) {
           return;
         }
@@ -2478,7 +2478,7 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
       }
 
       // make ray
-      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
       if (!thisgeom) {
         return;
       }
@@ -2500,7 +2500,7 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
       }
 
       // make ray
-      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
       if (!thisgeom) {
         return;
       }
