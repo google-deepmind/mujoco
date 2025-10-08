@@ -30,8 +30,6 @@ ABSL_FLAG(int, window_width, 1400, "Window width");
 ABSL_FLAG(int, window_height, 700, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
 
-constexpr char kDataPath[] = "third_party/mujoco/google/filament/assets/data/";
-
 static std::vector<std::byte> LoadAsset(std::string_view path) {
   std::ifstream file(path, std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
