@@ -790,33 +790,6 @@ class DataIOTest(parameterized.TestCase):
       self.assertEqual(dx[0]._impl.contact__dist.shape, (dx._impl.naconmax,))
 
 
-class FullCompatTest(parameterized.TestCase):
-  """Tests for the _full_compat flag."""
-
-  def test_full_compat_deprecated(self):
-    """Tests that _full_compat is deprecated."""
-    xml = """
-      <mujoco>
-        <worldbody>
-          <body name="box">
-            <joint name="slide1" type="slide" axis="1 0 0" />
-            <geom type="box" size=".05 .05 .05" mass="1"/>
-          </body>
-        </worldbody>
-        <actuator>
-          <motor joint="slide1"/>
-        </actuator>
-      </mujoco>
-    """
-    m = mujoco.MjModel.from_xml_string(xml)
-    with self.assertWarns(DeprecationWarning):
-      out = mjx_io.put_model(m, _full_compat=True)
-      self.assertEqual(out.impl, Impl.C)
-    with self.assertWarns(DeprecationWarning):
-      out = mjx_io.make_data(m, _full_compat=True)
-      self.assertEqual(out.impl, Impl.C)
-
-
 # Test cases for `_resolve_impl_and_device` where the device is
 # specified by the user and the device is available.
 _DEVICE_TEST_CASES = [

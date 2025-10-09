@@ -18,6 +18,7 @@ General
      in a future release.
 
      **Migration:** Replace ``meshdir`` and ``texturedir`` with ``compiler.meshdir`` and ``compiler.texturedir``.
+   - Remove ``_full_compat`` from ``mjx.put_data`` and ``mjx.put_model``.
 
 - Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
   limit, are recolored by using the :ref:`constraint impedance<soParameters>` :math:`d` to mix the existing color with

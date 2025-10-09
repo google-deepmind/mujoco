@@ -493,7 +493,6 @@ def put_model(
     m: mujoco.MjModel,
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
-    _full_compat: bool = False,  # pylint: disable=invalid-name
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model.
 
@@ -501,26 +500,13 @@ def put_model(
     m: the model to put onto device
     device: which device to use - if unspecified picks the default device
     impl: implementation to use
-    _full_compat: put all MjModel fields onto device irrespective of MJX support
-      This is an experimental feature.  Avoid using it for now.
 
   Returns:
     an mjx.Model placed on device
 
   Raises:
     ValueError: if impl is not supported
-    DeprecationWarning: if _full_compat is True
   """
-
-  if _full_compat:
-    warnings.warn(
-        'mjx.put_model(..., _full_compat=True) is deprecated and will be'
-        ' removed in MuJoCo >=3.4.  Use mjx.put_model(..., impl=types.Impl.C)'
-        ' instead.',
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    impl = types.Impl.C
 
   impl, device = _resolve_impl_and_device(impl, device)
   if impl == types.Impl.JAX:
@@ -899,9 +885,6 @@ def make_data(
     m: the model to use
     device: which device to use - if unspecified picks the default device
     impl: implementation to use ('jax', 'warp')
-    _full_compat: put all fields onto device irrespective of MJX support This is
-      an experimental feature.  Avoid using it for now. If using this flag, also
-      use _full_compat for put_model.
     nconmax: maximum number of contacts to allocate for warp across all worlds
       Since the number of worlds is **not** pre-defined in JAX, we use the
       `nconmax` argument to set the upper bound for the number of contacts
@@ -915,17 +898,7 @@ def make_data(
   Raises:
     ValueError: if the model's impl does not match the make_data impl
     NotImplementedError: if the impl is not implemented yet
-    DeprecationWarning: if _full_compat is used
   """
-  if _full_compat:
-    warnings.warn(
-        'mjx.make_data(..., _full_compat=True) is deprecated.  Use'
-        ' mjx.make_data(..., impl=types.Impl.C) instead.',
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    impl = types.Impl.C
-
   impl, device = _resolve_impl_and_device(impl, device)
 
   if isinstance(m, types.Model) and m.impl != impl:
@@ -1231,7 +1204,6 @@ def put_data(
     impl: Optional[Union[str, types.Impl]] = None,
     nconmax: int = -1,
     njmax: int = -1,
-    _full_compat: bool = False,  # pylint: disable=invalid-name
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data.
 
@@ -1242,23 +1214,11 @@ def put_data(
     impl: implementation to use ('jax', 'warp')
     nconmax: maximum number of contacts to allocate for warp
     njmax: maximum number of constraints to allocate for warp
-    _full_compat: put all MjModel fields onto device irrespective of MJX support
-      This is an experimental feature.  Avoid using it for now. If using this
-      flag, also use _full_compat for put_model.
 
   Returns:
     an mjx.Data placed on device
   """
   del nconmax, njmax
-  if _full_compat:
-    warnings.warn(
-        'mjx.put_data(..., _full_compat=True) is deprecated.  Use'
-        ' mjx.put_data(..., impl=types.Impl.C) instead.',
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    impl = types.Impl.C
-
   impl, device = _resolve_impl_and_device(impl, device)
   if impl == types.Impl.JAX:
     return _put_data_jax(m, d, device)
