@@ -527,9 +527,10 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
 //----------------------------- main API functions -------------------------------------------------
 
 // add contact-related geoms in mjvObject
-static void addContactGeoms(const mjModel* m, mjData* d, const mjtByte* flags,
-                            const mjvOption* vopt, mjvScene* scn, int catmask) {
-  if (!flags[mjVIS_CONTACTPOINT] && !flags[mjVIS_CONTACTFORCE] && vopt->frame != mjFRAME_CONTACT) {
+static void addContactGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, mjvScene* scn,
+                           int catmask) {
+  if (!vopt->flags[mjVIS_CONTACTPOINT] && !vopt->flags[mjVIS_CONTACTFORCE] &&
+      vopt->frame != mjFRAME_CONTACT) {
     return;
   }
 
@@ -551,7 +552,7 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjtByte* flags,
     mju_transpose(mat, tmp, 3, 3);
 
     // contact point
-    if (flags[mjVIS_CONTACTPOINT]) {
+    if (vopt->flags[mjVIS_CONTACTPOINT]) {
       thisgeom = acquireGeom(scn, i, category, objtype);
       if (!thisgeom) {
         return;
@@ -646,7 +647,7 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjtByte* flags,
     mj_contactForce(m, d, i, confrc);
 
     // contact force
-    if (flags[mjVIS_CONTACTFORCE]) {
+    if (vopt->flags[mjVIS_CONTACTFORCE]) {
       // get force, fill zeros if only normal
       mju_zero3(frc);
       mju_copy(frc, confrc, mjMIN(3, con->dim));
@@ -655,7 +656,7 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjtByte* flags,
       }
 
       // render combined or split
-      split = (flags[mjVIS_CONTACTSPLIT] && con->dim > 1);
+      split = (vopt->flags[mjVIS_CONTACTSPLIT] && con->dim > 1);
       for (int j = (split ? 1 : 0); j < (split ? 3 : 1); j++) {
         // set vec to combined, normal or friction force, in world frame
         switch (j) {
@@ -2650,7 +2651,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   addRangefinderGeoms(m, d, vopt, scn);
   addExternalPerturbGeoms(m, d, vopt, scn);
   addConstraintGeoms(m, d, vopt, scn);
-  addContactGeoms(m, d, vopt->flags, vopt, scn, catmask);
+  addContactGeoms(m, d, vopt, scn, catmask);
 }
 
 
