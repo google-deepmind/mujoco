@@ -45,22 +45,22 @@ class BlockDim:
   qderiv_actuator_passive_actuation: int = 64
   qderiv_actuator_passive_no_actuation: int = 256
   # forward
-  euler_dense: int = 32
+  euler_dense: int = 256
   actuator_velocity: int = 32
-  tendon_velocity: int = 32
+  tendon_velocity: int = 256
   # ray
   ray: int = 64
   # sensor
   contact_sort: int = 64
-  energy_vel_kinetic: int = 32
+  energy_vel_kinetic: int = 256
   # smooth
-  cholesky_factorize: int = 32
-  cholesky_solve: int = 32
-  cholesky_factorize_solve: int = 32
+  cholesky_factorize: int = 256
+  cholesky_solve: int = 256
+  cholesky_factorize_solve: int = 256
   # solver
   update_gradient_cholesky: int = 64
   # support
-  mul_m_dense: int = 32
+  mul_m_dense: int = 256
 
 
 class BroadphaseType(enum.IntEnum):
