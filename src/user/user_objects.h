@@ -1186,7 +1186,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   double* GetQuatPtr();                             // get orientation
   double* GetInertiaBoxPtr();                       // get inertia box
   double GetVolumeRef() const;                      // get volume
-  void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
+  void FitGeom(mjCGeom* geom, double center[3]);    // approximate mesh with simple geom
   bool HasTexcoord() const;                         // texcoord not null
   void DelTexcoord();                               // delete texcoord
   bool IsVisual(void) const { return visual_; }     // is geom visual

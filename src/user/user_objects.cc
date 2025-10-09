@@ -3732,22 +3732,26 @@ void mjCGeom::Compile(void) {
 
     // save reference in case this is not an mjGEOM_MESH
     mjCMesh* pmesh = mesh;
+    double center[3] = {0, 0, 0};
 
     // fit geom if type is not mjGEOM_MESH
     if (type != mjGEOM_MESH && type != mjGEOM_SDF) {
-      double meshpos[3];
-      mesh->FitGeom(this, meshpos);
+      mesh->FitGeom(this, center);
 
       // remove reference to mesh
       meshname_.clear();
       mesh = nullptr;
-      mjuu_copyvec(pmesh->GetPosPtr(), meshpos, 3);
     } else if (typeinertia == mjINERTIA_SHELL) {
       throw mjCError(this, "for mesh geoms, inertia should be specified in the mesh asset");
     }
 
-    // apply geom pos/quat as offset
-    mjuu_frameaccum(pos, quat, pmesh->GetPosPtr(), pmesh->GetQuatPtr());
+    // rotate center to geom frame and add it to mesh frame
+    double meshpos[3];
+    mjuu_rotVecQuat(meshpos, center, pmesh->GetQuatPtr());
+    mjuu_addtovec(meshpos, pmesh->GetPosPtr(), 3);
+
+    // accumulate mesh frame into geom frame
+    mjuu_frameaccum(pos, quat, meshpos, pmesh->GetQuatPtr());
   }
 
   // check size parameters

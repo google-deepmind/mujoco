@@ -979,10 +979,7 @@ void mjCMesh::DelTexcoord() {
 
 
 // set geom size to match mesh
-void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
-  // copy mesh pos into meshpos
-  mjuu_copyvec(meshpos, GetPosPtr(), 3);
-
+void mjCMesh::FitGeom(mjCGeom* geom, double center[3]) {
   // use inertial box
   if (!model->compiler.fitaabb) {
     // get inertia box type (shell or volume)
@@ -1016,64 +1013,35 @@ void mjCMesh::FitGeom(mjCGeom* geom, double* meshpos) {
 
   // use aamm
   else {
-    // find aabb box center
-    double cen[3] = {(aamm_[0]+aamm_[3])/2, (aamm_[1]+aamm_[4])/2, (aamm_[2]+aamm_[5])/2};
+    // find aabb box center and size
+    center[0] = (aamm_[0]+aamm_[3])/2;
+    center[1] = (aamm_[1]+aamm_[4])/2;
+    center[2] = (aamm_[2]+aamm_[5])/2;
+    double size[3] = {aamm_[3] - center[0], aamm_[4] - center[1], aamm_[5] - center[2]};
 
-    // add box center into meshpos
-    meshpos[0] += cen[0];
-    meshpos[1] += cen[1];
-    meshpos[2] += cen[2];
-
-    // compute depending on type
+    // compute smallest geom whose aabb contains the mesh aabb
     switch (geom->type) {
       case mjGEOM_SPHERE:
-        // find maximum distance
-        geom->size[0] = 0;
-        for (int i=0; i < nvert(); i++) {
-          double v[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
-          double dst = mjuu_dist3(v, cen);
-          geom->size[0] = max(geom->size[0], dst);
-        }
+        geom->size[0] = max(max(size[0], size[1]), size[2]);
         break;
 
       case mjGEOM_CAPSULE:
       case mjGEOM_CYLINDER:
         // find maximum distance in XY, separately in Z
-        geom->size[0] = 0;
-        geom->size[1] = 0;
-        for (int i=0; i < nvert(); i++) {
-          double v[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
-          double dst = sqrt((v[0]-cen[0])*(v[0]-cen[0]) +
-                            (v[1]-cen[1])*(v[1]-cen[1]));
-          geom->size[0] = max(geom->size[0], dst);
-
-          // proceed with z: valid for cylinder
-          double dst2 = abs(v[2]-cen[2]);
-          geom->size[1] = max(geom->size[1], dst2);
-        }
+        geom->size[0] = max(size[0], size[1]);
+        geom->size[1] = size[2];
 
         // special handling of capsule: consider curved cap
         if (geom->type == mjGEOM_CAPSULE) {
-          geom->size[1] = 0;
-          for (int i=0; i < nvert(); i++) {
-            // get distance in XY and Z
-            double v[3] = {vert_[3*i], vert_[3*i+1], vert_[3*i+2]};
-            double dst = sqrt((v[0]-cen[0])*(v[0]-cen[0]) +
-                              (v[1]-cen[1])*(v[1]-cen[1]));
-            double dst2 = abs(v[2]-cen[2]);
-
-            // get spherical elevation at horizontal distance dst
-            double h = geom->size[0] * sin(acos(dst/geom->size[0]));
-            geom->size[1] = max(geom->size[1], dst2-h);
-          }
+          geom->size[1] -= geom->size[0];
         }
         break;
 
       case mjGEOM_ELLIPSOID:
       case mjGEOM_BOX:
-        geom->size[0] = aamm_[3] - cen[0];
-        geom->size[1] = aamm_[4] - cen[1];
-        geom->size[2] = aamm_[5] - cen[2];
+        geom->size[0] = size[0];
+        geom->size[1] = size[1];
+        geom->size[2] = size[2];
         break;
 
       default:

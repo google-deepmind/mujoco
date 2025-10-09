@@ -38,6 +38,12 @@ MJX
 - Pull in MuJoCo Warp updatest to ``io.py``, and use ``naconmax`` instead of ``naconmax`` to set the maximum number of
   contacts over all environments.
 
+Bug fixes
+^^^^^^^^^
+- Fix :github:issue:`2881`, :at:`fitaabb` was adding an offset to the mesh and applying an incorrect frame
+  transformation. Also, unify the meaning of fitting a geom to a mesh AABB: it now means to find the smallest geom such
+  that its AABB contains the mesh AABB.
+
 Version 3.3.6 (September 15, 2025)
 ----------------------------------
 
