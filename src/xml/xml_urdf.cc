@@ -616,8 +616,12 @@ mjsGeom* mjXURDF::Geom(XMLElement* geom_elem, mjsBody* pbody, bool collision) {
       if (i == meshes[meshname].size()) {
         pmesh = mjs_addMesh(spec, 0);
         meshes[meshname].push_back(pmesh);
-        meshname = meshname + std::to_string(i);
         newmesh = true;
+      }
+
+      // if it is not the first mesh with this name, append index
+      if (i > 0) {
+        meshname = meshname + std::to_string(i);
       }
     }
 
