@@ -335,21 +335,17 @@ void SceneView::UpdateScene(const mjrContext* context, const mjvScene* scene) {
   drawables_.clear();
   for (int i = 0; i < scene->ngeom; ++i) {
     const mjvGeom* geom = scene->geoms + i;
-    const mjtGeom geom_type = static_cast<mjtGeom>(geom->type);
 
-    if (geom_type == mjGEOM_LABEL) {
-      if (geom->label[0] == 0) {
-        continue;
-      }
+    if (geom->label[0] != 0) {
       if (auto pos = ClipFromWorld(ReadFloat3(geom->pos))) {
         DrawTextAt(geom->label, pos->x, pos->y, pos->z);
       }
-    } else {
-      auto drawable = std::make_unique<Drawable>(object_mgr_, *geom);
-      drawable->AddToScene(scene_);
-      drawable->Update(object_mgr_->GetModel(), scene, *geom);
-      drawables_.push_back(std::move(drawable));
     }
+
+    auto drawable = std::make_unique<Drawable>(object_mgr_, *geom);
+    drawable->AddToScene(scene_);
+    drawable->Update(object_mgr_->GetModel(), scene, *geom);
+    drawables_.push_back(std::move(drawable));
   }
 
   bool headlight_enabled = false;
