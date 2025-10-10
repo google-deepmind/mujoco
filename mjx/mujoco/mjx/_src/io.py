@@ -1264,7 +1264,7 @@ def _get_data_into_warp(
         else d
     )
     result_i = result[i] if batched else result
-    ncon = d_i._impl.ncon[0]
+    ncon = d_i._impl.nacon[0]
     nefc = int(d_i._impl.nefc)
     # nj = int(d_i._impl.nj[0])
     nj = 0  # TODO(btaba): add nj back
