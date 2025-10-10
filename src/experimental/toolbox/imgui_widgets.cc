@@ -18,7 +18,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "third_party/dear_imgui/imgui.h"
+#include <dear_imgui/imgui.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::toolbox {
