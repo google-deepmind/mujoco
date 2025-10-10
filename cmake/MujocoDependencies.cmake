@@ -203,6 +203,16 @@ if(NOT TARGET trianglemeshdistance)
   FetchContent_GetProperties(trianglemeshdistance)
   if(NOT trianglemeshdistance_POPULATED)
     FetchContent_Populate(trianglemeshdistance)
+    # Patch the source code to silence a warning/error related to a loop variable creating a copy.
+    # Since this is a header only library this fix is less intrusive than disabling the warning for
+    # any target including the header.
+    set(TMD_HEADER ${trianglemeshdistance_SOURCE_DIR}/TriangleMeshDistance/include/tmd/TriangleMeshDistance.h)
+    file(READ ${TMD_HEADER} TMD_CONTENT)
+    string(REPLACE
+      "for (const auto edge_count : edges_count) {"
+      "for (const auto& edge_count : edges_count) {"
+      TMD_CONTENT "${TMD_CONTENT}")
+    file(WRITE ${TMD_HEADER} "${TMD_CONTENT}")
     include_directories(${trianglemeshdistance_SOURCE_DIR})
   endif()
 endif()
