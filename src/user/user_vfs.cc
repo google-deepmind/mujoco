@@ -251,7 +251,12 @@ int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer,
   if (!(file = cvfs->AddFile(FilePath(name), std::move(inbuffer), 0))) {
     return 2;  // AddFile failed, repeated name
   }
-  file->filedata.reserve(nbuffer);
+  try {
+    file->filedata.reserve(nbuffer);
+  } catch (...) {
+    cvfs->DeleteFile(file->filename);  // delete file on error
+    return -1;
+  }
   file->filestamp = vfs_memcpy(file->filedata, buffer, nbuffer);
   return 0;
 }
