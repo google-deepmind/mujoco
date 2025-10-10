@@ -26,6 +26,8 @@ General
   no :ref:`material<tendon-spatial-material>` is set and :ref:`rgba<tendon-spatial-rgba>` is default.
 - Added :ref:`mju_getXMLDependencies` for computing a list of unique asset dependencies from an MJCF file.
 - Added the code sample ``dependencies`` which provides command line utility for printing the result of :ref:`mju_getXMLDependencies`.
+- The minimum C++ standard required to compile MuJoCo is now C++20, this has been the case within Google since 2023 but
+  the CMake update was forgotten.
 
 .. admonition:: Breaking ABI changes
    :class: attention
