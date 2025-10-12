@@ -1546,21 +1546,15 @@ void mj_crb(const mjModel* m, mjData* d) {
 
   // dense forward pass over dofs
   for (int i=0; i < nv; i++) {
-    // process block of diagonals (simple bodies)
+    // simple dof: fixed diagonal inertia
+    int adr = rowadr[i];
     if (dof_simplenum[i]) {
-      int n = i + dof_simplenum[i];
-      for (; i < n; i++) {
-        M[rowadr[i]] = dof_M0[i];
-      }
-
-      // finish or else fall through with next row
-      if (i == nv) {
-        break;
-      }
+      M[adr] = dof_M0[i];
+      continue;
     }
 
     // init M(i,i) with armature inertia
-    int Madr_ij = rowadr[i] + rownnz[i] - 1;
+    int Madr_ij = adr + rownnz[i] - 1;
     M[Madr_ij] = dof_armature[i];
 
     // precompute buf = crb_body_i * cdof_i
