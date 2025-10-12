@@ -772,6 +772,12 @@ void mj_objectVelocity(const mjModel* m, const mjData* d,
     mjERROR("invalid object type %d", objtype);
   }
 
+  // static body: quick return
+  if (m->body_weldid[bodyid] == 0) {
+    mju_zero(res, 6);
+    return;
+  }
+
   // transform velocity
   mju_transformSpatial(res, d->cvel+6*bodyid, 0, pos, d->subtree_com+3*m->body_rootid[bodyid], rot);
 }
@@ -782,7 +788,6 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
                            int objtype, int objid, mjtNum res[6], int flg_local) {
   int bodyid = 0;
   const mjtNum *pos = 0, *rot = 0;
-  mjtNum correction[3], vel[6];
 
   // body-inertial
   if (objtype == mjOBJ_BODY) {
@@ -824,13 +829,21 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
     mjERROR("invalid object type %d", objtype);
   }
 
-  // transform com-based velocity to local frame
-  mju_transformSpatial(vel, d->cvel+6*bodyid, 0, pos, d->subtree_com+3*m->body_rootid[bodyid], rot);
+  // static body: quick return
+  if (m->body_weldid[bodyid] == 0) {
+    mju_zero(res, 6);
+    return;
+  }
 
   // transform com-based acceleration to local frame
   mju_transformSpatial(res, d->cacc+6*bodyid, 0, pos, d->subtree_com+3*m->body_rootid[bodyid], rot);
 
-  // acc_tran += vel_rot x vel_tran
+  // transform com-based velocity to local frame
+  mjtNum vel[6];
+  mju_transformSpatial(vel, d->cvel+6*bodyid, 0, pos, d->subtree_com+3*m->body_rootid[bodyid], rot);
+
+  // add Coriolis correction due to rotating frame:  acc_tran += vel_rot x vel_tran
+  mjtNum correction[3];
   mju_cross(correction, vel, vel+3);
   mju_addTo3(res+3, correction);
 }
