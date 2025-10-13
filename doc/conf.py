@@ -25,9 +25,6 @@ import sys
 sys.path.insert(0, os.path.abspath('../'))
 sys.path.append(os.path.abspath('ext'))
 
-# MuJoCo Warp
-sys.path.append(os.path.abspath('../../mujoco_warp'))
-
 from sphinxcontrib import katex  # pylint: disable=g-import-not-at-top
 from sphinxcontrib import youtube  # pylint: disable=g-import-not-at-top,unused-import
 
