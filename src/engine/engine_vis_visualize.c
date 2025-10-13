@@ -1827,31 +1827,33 @@ static void addSelectionPointGeoms(const mjModel* m, mjData* d, const mjvOption*
 }
 
 
-static void addSelectionBodyLabelGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
-                                       const mjvPerturb* pert, int catmask, mjvScene* scn) {
+static void addBodyLabelGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
+                              const mjvPerturb* pert, int catmask, mjvScene* scn) {
   if (vopt->flags[mjVIS_INERTIA]) {
     return;
   }
   if (vopt->label != mjLABEL_SELECTION && vopt->label != mjLABEL_BODY) {
     return;
   }
-  if (pert->select <= 0 || pert->select >= m->nbody) {
-    return;
-  }
-  if (bodycategory(m, pert->select) & ~catmask) {
-    return;
-  }
+  for (int i=1; i < m->nbody; i++) {
+    if (vopt->label == mjLABEL_SELECTION && pert->select != i) {
+      continue;
+    }
+    if (bodycategory(m, i) & ~catmask) {
+      continue;
+    }
 
-  mjvGeom* thisgeom = acquireGeom(scn, pert->select, mjCAT_DECOR, mjOBJ_UNKNOWN);
-  if (!thisgeom) {
-    return;
-  }
+    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
+    if (!thisgeom) {
+      return;
+    }
 
-  thisgeom->type = mjGEOM_LABEL;
-  mju_n2f(thisgeom->pos, d->xpos+3*pert->select, 3);
-  mju_n2f(thisgeom->mat, d->xmat+9*pert->select, 9);
-  makeLabel(m, mjOBJ_BODY, pert->select, thisgeom->label);
-  releaseGeom(&thisgeom, scn);
+    thisgeom->type = mjGEOM_LABEL;
+    mju_n2f(thisgeom->pos, d->xpos+3*i, 3);
+    mju_n2f(thisgeom->mat, d->xmat+9*i, 9);
+    makeLabel(m, mjOBJ_BODY, i, thisgeom->label);
+    releaseGeom(&thisgeom, scn);
+  }
 }
 
 
@@ -2640,7 +2642,7 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
   addPerturbGeoms(m, d, vopt, pert, scn);
   addWorldBodyFrameGeoms(m, d, vopt, catmask, scn);
   addSelectionPointGeoms(m, d, vopt, pert, scn);
-  addSelectionBodyLabelGeoms(m, d, vopt, pert, catmask, scn);
+  addBodyLabelGeoms(m, d, vopt, pert, catmask, scn);
   addJointGeoms(m, d, vopt, scn);
   addActuatorGeoms(m, d, vopt, scn);
   addIslandLabelGeoms(m, d, vopt, scn);
