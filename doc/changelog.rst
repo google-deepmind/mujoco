@@ -2,7 +2,7 @@
 Changelog
 =========
 
-Version 3.4.0 (October 13, 2025)
+Version 3.3.7 (October 13, 2025)
 -----------------------------------
 
 General
@@ -11,41 +11,41 @@ General
 .. admonition:: Breaking API changes
    :class: attention
 
-   - The mjSpec C API fields :ref:`meshdir<compiler-meshdir>` and :ref:`texturedir<compiler-texturedir>` have been moved
-     to `compiler.meshdir <https://github.com/google-deepmind/mujoco/blob/0baac589993220095cf09e153f194f35ca0f0738/include/mujoco/mjspec.h#L154>`__ and
-     `compiler.texturedir <https://github.com/google-deepmind/mujoco/blob/0baac589993220095cf09e153f194f35ca0f0738/include/mujoco/mjspec.h#L155>`__
-     respectively. For backwards compatibility, the old fields are still available in the Python API but will be removed
-     in a future release.
+   1. The mjSpec C API fields :ref:`meshdir<compiler-meshdir>` and :ref:`texturedir<compiler-texturedir>` have been
+      moved to `compiler.meshdir <https://github.com/google-deepmind/mujoco/blob/0baac589993220095cf09e153f194f35ca0f0738/include/mujoco/mjspec.h#L154>`__
+      and `compiler.texturedir <https://github.com/google-deepmind/mujoco/blob/0baac589993220095cf09e153f194f35ca0f0738/include/mujoco/mjspec.h#L155>`__
+      respectively. For backwards compatibility, the old fields are still available in the Python API but will be
+      removed in a future release.
 
-     **Migration:** Replace ``meshdir`` and ``texturedir`` with ``compiler.meshdir`` and ``compiler.texturedir``.
-   - Remove ``_full_compat`` from ``mjx.put_data`` and ``mjx.put_model``.
+      **Migration:** Replace ``meshdir`` and ``texturedir`` with ``compiler.meshdir`` and ``compiler.texturedir``.
+   2. Remove ``_full_compat`` from ``mjx.put_data`` and ``mjx.put_model``.
 
-- Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
-  limit, are recolored by using the :ref:`constraint impedance<soParameters>` :math:`d` to mix the existing color with
-  :ref:`visual/rgba/constraint<visual-rgba-constraint>`. For spatial tendons, this visualization aid is active only if
-  no :ref:`material<tendon-spatial-material>` is set and :ref:`rgba<tendon-spatial-rgba>` is default.
-- Added :ref:`mju_getXMLDependencies` for computing a list of unique asset dependencies from an MJCF file.
-- Added the code sample ``dependencies`` which provides command line utility for printing the result of :ref:`mju_getXMLDependencies`.
-- The minimum C++ standard required to compile MuJoCo is now C++20, this has been the case within Google since 2023 but
-  the CMake update was forgotten.
+3. Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
+   limit, are recolored by using the :ref:`constraint impedance<soParameters>` :math:`d` to mix the existing color with
+   :ref:`visual/rgba/constraint<visual-rgba-constraint>`. For spatial tendons, this visualization aid is active only if
+   no :ref:`material<tendon-spatial-material>` is set and :ref:`rgba<tendon-spatial-rgba>` is default.
+4. Added :ref:`mju_getXMLDependencies` for computing a list of unique asset dependencies from an MJCF file.
+5. Added the code sample ``dependencies`` which provides command line utility for printing the result of :ref:`mju_getXMLDependencies`.
+6. The minimum C++ standard required to compile MuJoCo is now C++20, this has been the case within Google since 2023
+   but the CMake update was forgotten.
 
 .. admonition:: Breaking ABI changes
    :class: attention
 
-   - The attribute ``mjOption.apirate`` was unused and has been removed.
-   - MJX ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1.
+   7. The attribute ``mjOption.apirate`` was unused and has been removed.
+   8. MJX ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1.
 
 MJX
 ^^^
-- Fix :github:issue:`2508`, ``qLD`` shapes mismatched mjModel during ``get_data_into``.
-- Pull in MuJoCo Warp updatest to ``io.py``, and use ``naconmax`` instead of ``naconmax`` to set the maximum number of
-  contacts over all environments.
+9. Fix :github:issue:`2508`, ``qLD`` shapes mismatched mjModel during ``get_data_into``.
+10. Pull in MuJoCo Warp update to ``io.py``, and use ``naconmax`` instead of ``nconmax`` to set the maximum number
+    of contacts over all environments.
 
 Bug fixes
 ^^^^^^^^^
-- Fix :github:issue:`2881`, :at:`fitaabb` was adding an offset to the mesh and applying an incorrect frame
-  transformation. Also, unify the meaning of fitting a geom to a mesh AABB: it now means to find the smallest geom such
-  that its AABB contains the mesh AABB.
+11. Fix :github:issue:`2881`, :at:`fitaabb` was adding an offset to the mesh and applying an incorrect frame
+    transformation. Also, unify the meaning of fitting a geom to a mesh AABB: it now means to find the smallest geom
+    such that its AABB contains the mesh AABB.
 
 Version 3.3.6 (September 15, 2025)
 ----------------------------------
