@@ -51,11 +51,14 @@ class ObjectManager {
     kPhongCubeFade,
     kUnlitSegmentation,
     kUnlitDepth,
+    kUnlitLine,
     kUnlitUi,
     kNumMaterials,
   };
 
   enum ShapeType {
+    kLine,
+    kLineBox,
     kPlane,
     kBox,
     kSphere,

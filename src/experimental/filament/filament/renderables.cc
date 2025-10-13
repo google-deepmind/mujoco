@@ -96,8 +96,8 @@ utils::Entity Renderables::CreateEntity(const FilamentBuffers& buffers) {
   }
 
   filament::RenderableManager::Builder builder(1);
-  builder.geometry(0, filament::RenderableManager::PrimitiveType::TRIANGLES,
-                   buffers.vertex_buffer, buffers.index_buffer);
+  builder.geometry(0, buffers.type, buffers.vertex_buffer,
+                   buffers.index_buffer);
   if (material_instance_) {
     builder.material(0, material_instance_);
   }
@@ -124,8 +124,7 @@ void Renderables::UpdateEntity(utils::Entity entity,
     mju_error("Invalid (null) index buffer.");
   }
   filament::RenderableManager& rm = engine_->getRenderableManager();
-  rm.setGeometryAt(rm.getInstance(entity), 0,
-                   filament::RenderableManager::PrimitiveType::TRIANGLES,
+  rm.setGeometryAt(rm.getInstance(entity), 0, buffers.type,
                    buffers.vertex_buffer, buffers.index_buffer, 0,
                    buffers.index_buffer->getIndexCount());
 }

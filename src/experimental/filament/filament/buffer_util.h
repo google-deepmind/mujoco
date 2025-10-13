@@ -23,6 +23,7 @@
 #include <filament/Box.h>
 #include <filament/Engine.h>
 #include <filament/IndexBuffer.h>
+#include <filament/RenderableManager.h>
 #include <filament/VertexBuffer.h>
 
 // Functions for creating filament vertex and index buffers.
@@ -33,6 +34,8 @@ struct FilamentBuffers {
   filament::IndexBuffer* index_buffer = nullptr;
   filament::VertexBuffer* vertex_buffer = nullptr;
   filament::Box bounds = {{-1, -1, -1}, {1, 1, 1}};
+  filament::RenderableManager::PrimitiveType type =
+      filament::RenderableManager::PrimitiveType::TRIANGLES;
 };
 
 // Function that fills in the given buffer with actual data.

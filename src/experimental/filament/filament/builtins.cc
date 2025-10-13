@@ -58,10 +58,45 @@ std::size_t NumIndicesPerSide(int num_quads_per_axis) {
   return kNumIndicesPerQuad * num_quads_per_axis * num_quads_per_axis;
 }
 
+class LineBuilder {
+ public:
+  using VertexType = VertexNoUv;
+  using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::LINES;
+
+  explicit LineBuilder() {}
+
+  std::size_t NumVertices() const {
+    return 2;
+  }
+
+  std::size_t NumIndices() const {
+    return 2;
+  }
+
+  void GenerateVertices(VertexType* ptr, size_t num) const {
+    constexpr float4 kOrientation = {0, 0, 0, 1};  // Unused for lines.
+    ptr[0] = VertexType({0, 0, 0}, kOrientation);
+    ptr[1] = VertexType({0, 0, 1}, kOrientation);
+  }
+
+  void GenerateIndices(IndexType* ptr, size_t num) const {
+    ptr[0] = 0;
+    ptr[1] = 1;
+  }
+
+  filament::Box GetBounds() const {
+    return {{-0.001, -0.001, 0}, {0.001, 0.001, 1}};
+  }
+};
+
 class PlaneBuilder {
  public:
   using VertexType = VertexNoUv;
   using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::TRIANGLES;
 
   explicit PlaneBuilder(int num_quads_per_axis)
       : num_quads_per_axis_(num_quads_per_axis),
@@ -109,10 +144,74 @@ class PlaneBuilder {
   float4 orientation_;
 };
 
+class LineBoxBuilder {
+ public:
+  using VertexType = VertexNoUv;
+  using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::LINES;
+
+  explicit LineBoxBuilder() {}
+
+  std::size_t NumVertices() const {
+    return 8;
+  }
+
+  std::size_t NumIndices() const {
+    return 24;
+  }
+
+  void GenerateVertices(VertexType* ptr, size_t num) const {
+    constexpr float4 kOrientation = {0, 0, 0, 1};  // Unused for lines.
+    ptr[0] = VertexType({-1.0f, -1.0f, -1.0f}, kOrientation);
+    ptr[1] = VertexType({ 1.0f, -1.0f, -1.0f}, kOrientation);
+    ptr[2] = VertexType({-1.0f,  1.0f, -1.0f}, kOrientation);
+    ptr[3] = VertexType({ 1.0f,  1.0f, -1.0f}, kOrientation);
+    ptr[4] = VertexType({-1.0f, -1.0f,  1.0f}, kOrientation);
+    ptr[5] = VertexType({ 1.0f, -1.0f,  1.0f}, kOrientation);
+    ptr[6] = VertexType({-1.0f,  1.0f,  1.0f}, kOrientation);
+    ptr[7] = VertexType({ 1.0f,  1.0f,  1.0f}, kOrientation);
+  }
+
+  void GenerateIndices(IndexType* ptr, size_t num) const {
+    // Bottom square (where z == -1).
+    ptr[0] = 0;
+    ptr[1] = 1;
+    ptr[2] = 1;
+    ptr[3] = 3;
+    ptr[4] = 3;
+    ptr[5] = 2;
+    ptr[6] = 2;
+    ptr[7] = 0;
+    // Top square (where z == 1).
+    ptr[8] = 4;
+    ptr[9] = 5;
+    ptr[10] = 5;
+    ptr[11] = 7;
+    ptr[12] = 7;
+    ptr[13] = 6;
+    ptr[14] = 6;
+    ptr[15] = 4;
+    // Connect edges from bottom to top.
+    ptr[16] = 2;
+    ptr[17] = 6;
+    ptr[18] = 3;
+    ptr[19] = 7;
+    ptr[20] = 0;
+    ptr[21] = 4;
+    ptr[22] = 1;
+    ptr[23] = 5;
+  }
+
+  filament::Box GetBounds() const { return {{-1, -1, -1}, {1, 1, 1}}; }
+};
+
 class BoxBuilder {
  public:
   using VertexType = VertexNoUv;
   using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::TRIANGLES;
 
   static constexpr int kNumSides = 6;
 
@@ -196,6 +295,8 @@ class TubeBuilder {
  public:
   using VertexType = VertexNoUv;
   using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::TRIANGLES;
 
   TubeBuilder(int num_stacks, int num_slices)
       : num_stacks_(num_stacks), num_slices_(num_slices) {}
@@ -252,6 +353,8 @@ class ConeBuilder {
  public:
   using VertexType = VertexNoUv;
   using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::TRIANGLES;
 
   ConeBuilder(int num_stacks, int num_slices)
       : num_stacks_(num_stacks), num_slices_(num_slices) {}
@@ -341,6 +444,8 @@ class DiskBuilder {
  public:
   using VertexType = VertexNoUv;
   using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::TRIANGLES;
 
   explicit DiskBuilder(int num_slices) : num_slices_(num_slices) {
     orientation_ = CalculateOrientation({0, 0, 1});
@@ -388,6 +493,8 @@ class SphereBuilder {
  public:
   using VertexType = VertexNoUv;
   using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::TRIANGLES;
 
   static constexpr IndexType kNorthPoleIndex = 0;
   static constexpr IndexType kSouthPoleIndex = 1;
@@ -494,6 +601,8 @@ class DomeBuilder {
  public:
   using VertexType = VertexNoUv;
   using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::TRIANGLES;
 
   static constexpr IndexType kPoleIndex = 0;
 
@@ -617,7 +726,11 @@ FilamentBuffers CreateFromBuilder(filament::Engine* engine, const T& builder) {
 
   auto vb = CreateVertexBuffer<VertexType>(engine, num_vertices, vertices);
   auto ib = CreateIndexBuffer<IndexType>(engine, num_indices, indices);
-  return {ib, vb, builder.GetBounds()};
+  return {ib, vb, builder.GetBounds(), T::kPrimitiveType};
+}
+
+FilamentBuffers CreateLine(filament::Engine* engine, const mjModel* model) {
+  return CreateFromBuilder(engine, LineBuilder());
 }
 
 FilamentBuffers CreatePlane(filament::Engine* engine, const mjModel* model) {
@@ -628,6 +741,10 @@ FilamentBuffers CreatePlane(filament::Engine* engine, const mjModel* model) {
 FilamentBuffers CreateBox(filament::Engine* engine, const mjModel* model) {
   const int num_quads = model->vis.quality.numquads;
   return CreateFromBuilder(engine, BoxBuilder(num_quads));
+}
+
+FilamentBuffers CreateLineBox(filament::Engine* engine, const mjModel* model) {
+  return CreateFromBuilder(engine, LineBoxBuilder());
 }
 
 FilamentBuffers CreateSphere(filament::Engine* engine, const mjModel* model) {

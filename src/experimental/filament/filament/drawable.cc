@@ -106,6 +106,10 @@ Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
     AddShape(ObjectManager::kCone);
     AddShape(ObjectManager::kDisk);
     AddShape(ObjectManager::kDisk);
+  } else if (geom.type == mjGEOM_LINE) {
+    AddShape(ObjectManager::kLine);
+  } else if (geom.type == mjGEOM_LINEBOX) {
+    AddShape(ObjectManager::kLineBox);
   } else if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
     // Flex and skin geometries are dynamically updated every frame.
   } else {
@@ -298,53 +302,57 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
     textures.occlusion = object_mgr->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
   }
 
-  if (geom.matid >= 0) {
-    if (textures.orm) {
-      material_.SetNormalMaterialType(ObjectManager::kPbrPacked);
-    } else if (textures.metallic) {
-      material_.SetNormalMaterialType(ObjectManager::kPbr);
-    } else if (textures.roughness) {
-      material_.SetNormalMaterialType(ObjectManager::kPbr);
-    } else if (model->mat_metallic[geom.matid] >= 0) {
-      material_.SetNormalMaterialType(ObjectManager::kPbr);
-    } else if (model->mat_roughness[geom.matid] >= 0) {
-      material_.SetNormalMaterialType(ObjectManager::kPbr);
-    }
-  }
-
-  // Check to see if we're dealing with a mesh with texture coordinates.
-  // `data_id` is the id of the mesh in model (i.e. the geom has mesh geometry)
-  // and `mesh_texcoordadr` stores the address of the mesh uvs if it has them.
-  bool has_texcoords = false;
-  if ((geom.type == mjGEOM_MESH || geom.type == mjGEOM_SDF) &&
-      geom.dataid >= 0 && model->mesh_texcoordadr[geom.dataid / 2] >= 0) {
-    has_texcoords = true;
-  }
-
-  if (textures.color == nullptr) {
-    if (geom.rgba[3] < 1.0f) {
-      material_.SetNormalMaterialType(ObjectManager::kPhongColorFade);
-    } else {
-      material_.SetNormalMaterialType(ObjectManager::kPhongColor);
-    }
-  } else if (textures.color->getTarget() ==
-             filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-    if (geom.rgba[3] < 1.0f) {
-      material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
-    } else {
-      material_.SetNormalMaterialType(ObjectManager::kPhongCube);
-    }
-  } else if (has_texcoords) {
-    if (geom.rgba[3] < 1.0f) {
-      material_.SetNormalMaterialType(ObjectManager::kPhong2dUvFade);
-    } else {
-      material_.SetNormalMaterialType(ObjectManager::kPhong2dUv);
-    }
+  if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
+    material_.SetNormalMaterialType(ObjectManager::kUnlitLine);
   } else {
-    if (geom.rgba[3] < 1.0f) {
-      material_.SetNormalMaterialType(ObjectManager::kPhong2dFade);
+    if (geom.matid >= 0) {
+      if (textures.orm) {
+        material_.SetNormalMaterialType(ObjectManager::kPbrPacked);
+      } else if (textures.metallic) {
+        material_.SetNormalMaterialType(ObjectManager::kPbr);
+      } else if (textures.roughness) {
+        material_.SetNormalMaterialType(ObjectManager::kPbr);
+      } else if (model->mat_metallic[geom.matid] >= 0) {
+        material_.SetNormalMaterialType(ObjectManager::kPbr);
+      } else if (model->mat_roughness[geom.matid] >= 0) {
+        material_.SetNormalMaterialType(ObjectManager::kPbr);
+      }
+    }
+
+    // Check to see if we're dealing with a mesh with texture coordinates.
+    // `data_id` is the id of the mesh in model (i.e. the geom has mesh geometry)
+    // and `mesh_texcoordadr` stores the address of the mesh uvs if it has them.
+    bool has_texcoords = false;
+    if ((geom.type == mjGEOM_MESH || geom.type == mjGEOM_SDF) &&
+        geom.dataid >= 0 && model->mesh_texcoordadr[geom.dataid / 2] >= 0) {
+      has_texcoords = true;
+    }
+
+    if (textures.color == nullptr) {
+      if (geom.rgba[3] < 1.0f) {
+        material_.SetNormalMaterialType(ObjectManager::kPhongColorFade);
+      } else {
+        material_.SetNormalMaterialType(ObjectManager::kPhongColor);
+      }
+    } else if (textures.color->getTarget() ==
+              filament::Texture::Sampler::SAMPLER_CUBEMAP) {
+      if (geom.rgba[3] < 1.0f) {
+        material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
+      } else {
+        material_.SetNormalMaterialType(ObjectManager::kPhongCube);
+      }
+    } else if (has_texcoords) {
+      if (geom.rgba[3] < 1.0f) {
+        material_.SetNormalMaterialType(ObjectManager::kPhong2dUvFade);
+      } else {
+        material_.SetNormalMaterialType(ObjectManager::kPhong2dUv);
+      }
     } else {
-      material_.SetNormalMaterialType(ObjectManager::kPhong2d);
+      if (geom.rgba[3] < 1.0f) {
+        material_.SetNormalMaterialType(ObjectManager::kPhong2dFade);
+      } else {
+        material_.SetNormalMaterialType(ObjectManager::kPhong2d);
+      }
     }
   }
 

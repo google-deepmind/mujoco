@@ -68,7 +68,9 @@ struct Asset {
 ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine,
                              const mjrFilamentConfig* config)
     : model_(model), engine_(engine), config_(config) {
+  shapes_[kLine] = CreateLine(engine_, model_);
   shapes_[kBox] = CreateBox(engine_, model_);
+  shapes_[kLineBox] = CreateLineBox(engine_, model_);
   shapes_[kCone] = CreateCone(engine_, model_);
   shapes_[kDisk] = CreateDisk(engine_, model_);
   shapes_[kDome] = CreateDome(engine_, model_);
@@ -94,6 +96,7 @@ ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine,
   materials_[kPhongCube] = LoadMaterial("phong_cube.filamat");
   materials_[kPhongCubeFade] = LoadMaterial("phong_cube_fade.filamat");
   materials_[kUnlitSegmentation] = LoadMaterial("unlit_segmentation.filamat");
+  materials_[kUnlitLine] = LoadMaterial("unlit_line.filamat");
   materials_[kUnlitDepth] = LoadMaterial("unlit_depth.filamat");
   materials_[kUnlitUi] = LoadMaterial("unlit_ui.filamat");
 
