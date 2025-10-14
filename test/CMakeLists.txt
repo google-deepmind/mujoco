@@ -42,6 +42,7 @@ macro(mujoco_test name)
   )
 
   add_executable(${name} ${name}.cc)
+  target_link_options(${name} PRIVATE ${EXTRA_LINK_OPTIONS})
   target_link_libraries(${name} mujoco fixture gmock)
   if(_ARGS_MAIN_TARGET)
     target_link_libraries(${name} ${_ARGS_MAIN_TARGET})

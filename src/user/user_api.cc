@@ -279,6 +279,10 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
 
 // get error message from model
 const char* mjs_getError(mjSpec* s) {
+  if (!s) {
+    mju_error("spec is null");
+    return nullptr;
+  }
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   return modelC->GetError().message;
 }

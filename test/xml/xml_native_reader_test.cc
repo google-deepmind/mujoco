@@ -1529,7 +1529,7 @@ TEST_F(XMLReaderTest, ParseReplicateRepeatedName) {
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(spec, IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'b' in actuator"));
-  EXPECT_THAT(error.data(), HasSubstr("Element 'replicate'"));
+  EXPECT_THAT(error.data(), HasSubstr("Element 'position'"));
 }
 
 TEST_F(XMLReaderTest, RepeatedPrefix) {

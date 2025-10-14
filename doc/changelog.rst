@@ -2,6 +2,15 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^^^
+
+- Raise an error if there are name collisions also during parsing.
+- Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
+
 Version 3.3.7 (October 13, 2025)
 -----------------------------------
 

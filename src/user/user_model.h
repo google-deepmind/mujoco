@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -456,7 +457,7 @@ class mjCModel : public mjCModel_, private mjSpec {
                           const std::vector<T*>& list);
 
   // print the tree of a body
-  std::string PrintTree(const mjCBody* body, std::string indent = "");
+  void PrintTree(std::stringstream& tree, const mjCBody* body, int depth = 0);
 
   // generate a signature for the model
   uint64_t Signature();

@@ -27,6 +27,7 @@
 #include <filesystem>  // NOLINT(build/c++17)
 #include <functional>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -4999,78 +5000,98 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
 
 
-std::string mjCModel::PrintTree(const mjCBody* body, std::string indent) {
-  std::string tree;
-  tree += indent + "<body>\n";
-  indent += "  ";
+static void PrintIndent(std::stringstream& ss, int depth) {
+  // A static string of spaces, created only once during the program's lifetime.
+  static const std::string spaces(1024, ' ');
+
+  if (depth > 0) {
+    // Write 'depth * 2' spaces directly to the stringstream
+    // without creating any new std::string objects.
+    ss.write(spaces.c_str(), std::min((size_t)depth * 2, spaces.length()));
+  }
+}
+
+
+
+void mjCModel::PrintTree(std::stringstream& tree, const mjCBody* body, int depth) {
+  if (depth == 1024) {
+    throw mjCError(body, "depth limit exceeded in signature computation");
+  }
+  PrintIndent(tree, depth);
+  tree << "<body>\n";
   for (const auto& joint : body->joints) {
-    tree += indent + "<joint>" + std::to_string(joint->nq()) + "</joint>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<joint>" << std::to_string(joint->nq()) << "</joint>\n";
   }
   for (uint64_t i = 0; i < body->geoms.size(); ++i) {
-    tree += indent + "<geom/>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<geom/>\n";
   }
   for (uint64_t i = 0; i < body->sites.size(); ++i) {
-    tree += indent + "<site/>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<site/>\n";
   }
   for (uint64_t i = 0; i < body->cameras.size(); ++i) {
-    tree += indent + "<camera/>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<camera/>\n";
   }
   for (uint64_t i = 0; i < body->lights.size(); ++i) {
-    tree += indent + "<light/>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<light/>\n";
   }
   for (uint64_t i = 0; i < body->bodies.size(); ++i) {
-    tree += PrintTree(body->bodies[i], indent);
+    PrintTree(tree, body->bodies[i], depth + 1);
   }
-  indent.pop_back();
-  indent.pop_back();
-  tree += indent + "</body>\n";
-  return tree;
+  PrintIndent(tree, depth);
+  tree << "</body>\n";
 }
 
 
 
 uint64_t mjCModel::Signature() {
-  std::string tree = "\n" + PrintTree(bodies_[0]);
+  std::stringstream tree;
+  tree << "\n";
+  PrintTree(tree, bodies_[0]);
   for (unsigned int i = 0; i < flexes_.size(); ++i) {
-    tree += "<flex/>\n";
+    tree << "<flex/>\n";
   }
   for (unsigned int i = 0; i < meshes_.size(); ++i) {
-    tree += "<mesh/>\n";
+    tree << "<mesh/>\n";
   }
   for (unsigned int i = 0; i < skins_.size(); ++i) {
-    tree += "<skin/>\n";
+    tree << "<skin/>\n";
   }
   for (unsigned int i = 0; i < hfields_.size(); ++i) {
-    tree += "<heightfield/>\n";
+    tree << "<heightfield/>\n";
   }
   for (unsigned int i = 0; i < textures_.size(); ++i) {
-    tree += "<texture/>\n";
+    tree << "<texture/>\n";
   }
   for (unsigned int i = 0; i < materials_.size(); ++i) {
-    tree += "<material/>\n";
+    tree << "<material/>\n";
   }
   for (unsigned int i = 0; i < pairs_.size(); ++i) {
-    tree += "<pair/>\n";
+    tree << "<pair/>\n";
   }
   for (unsigned int i = 0; i < excludes_.size(); ++i) {
-    tree += "<exclude/>\n";
+    tree << "<exclude/>\n";
   }
   for (unsigned int i = 1; i < equalities_.size(); ++i) {
-    tree += "<equality/>\n";
+    tree << "<equality/>\n";
   }
   for (unsigned int i = 0; i < tendons_.size(); ++i) {
-    tree += "<tendon/>\n";
+    tree << "<tendon/>\n";
   }
   for (unsigned int i = 0; i < actuators_.size(); ++i) {
-    tree += "<actuator/>\n";
+    tree << "<actuator/>\n";
   }
   for (unsigned int i = 0; i < sensors_.size(); ++i) {
-    tree += "<sensor>" + std::to_string(sensors_[i]->spec.type) + "<sensor/>\n";
+    tree << "<sensor>" << std::to_string(sensors_[i]->spec.type) << "<sensor/>\n";
   }
   for (unsigned int i = 0; i < keys_.size(); ++i) {
-    tree += "<key/>\n";
+    tree << "<key/>\n";
   }
-  return mj_hashString(tree.c_str(), UINT64_MAX);
+  return mj_hashString(tree.str().c_str(), UINT64_MAX);
 }
 
 
