@@ -110,9 +110,16 @@ def jax_callable_variadic_tuple(
       return func(*unflat_args, **kwargs)
 
     # Provide a flattened signature for the Warp callable machinery.
-    func_wrapper.__signature__ = flatten_signature(
-        inspect.signature(func), args
-    )
+    new_signature = flatten_signature(inspect.signature(func), args)
+    func_wrapper.__signature__ = new_signature
+    func_wrapper.__annotations__ = {
+        p.name: p.annotation
+        for p in new_signature.parameters.values()
+        if p.annotation is not inspect.Parameter.empty
+    }
+    if new_signature.return_annotation is not inspect.Signature.empty:
+      func_wrapper.__annotations__['return'] = new_signature.return_annotation
+
     my_callable = ffi.jax_callable(
         func_wrapper,
         num_outputs=num_outputs,
