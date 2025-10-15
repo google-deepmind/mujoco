@@ -38,8 +38,11 @@ set(MUJOCO_DEP_VERSION_qhull
     62ccc56af071eaa478bef6ed41fd7a55d3bb2d80
     CACHE STRING "Version of `qhull` to be fetched."
 )
+# TODO(matijak): Update this commit only after google's version of Eigen version
+# is updated to include a fix to https://gitlab.com/libeigen/eigen/-/issues/2986
+# which is causing build errors in CI when using MSVC.
 set(MUJOCO_DEP_VERSION_Eigen3
-    4033cfcc1dd45b3cdf7285afd93556f2cfbe9425
+    4be7e6b4e0a82853e853c0c7c4ef72f395e1f497
     CACHE STRING "Version of `Eigen3` to be fetched."
 )
 
