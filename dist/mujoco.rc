@@ -1,6 +1,6 @@
 1 VERSIONINFO
-FILEVERSION 3,3,7,0
-PRODUCTVERSION 3,3,7,0
+FILEVERSION 3,3,8,0
+PRODUCTVERSION 3,3,8,0
 FILEOS 0x4
 FILETYPE 0x1
 {
@@ -9,9 +9,9 @@ FILETYPE 0x1
     BLOCK "040904b0"
     {
       VALUE "ProductName", "MuJoCo"
-      VALUE "ProductVersion", "3.3.7"
+      VALUE "ProductVersion", "3.3.8"
       VALUE "FileDescription", "MuJoCo"
-      VALUE "FileVersion", "3.3.7"
+      VALUE "FileVersion", "3.3.8"
       VALUE "InternalName", "mujoco.dll"
       VALUE "OriginalFilename", "mujoco.dll"
       VALUE "CompanyName", "Google DeepMind"
