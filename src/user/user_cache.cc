@@ -116,10 +116,10 @@ bool mjCCache::PopulateData(const std::string& id, const mjResource* resource, m
   }
 
   mjCAsset* asset = &(it->second);
-  asset->IncrementAccess();
 
   // update priority queue
   entries_.erase(asset);
+  asset->IncrementAccess();
   entries_.insert(asset);
 
   return asset->PopulateData(fn);

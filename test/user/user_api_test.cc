@@ -751,6 +751,42 @@ TEST_F(PluginTest, RecompileComparePngCache) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(PluginTest, DisableCache) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture content_type="image/png" file="tex.png" type="2d"/>
+      <material name="material" texture="tex"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+)";
+
+  mjCache* cache = mj_getCache();
+  std::size_t capacity = mj_getCacheCapacity(cache);
+  mj_setCacheCapacity(cache, 0);
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "tex.png", tex1, sizeof(tex1));
+
+  std::array<char, 1024> error;
+
+  // load model once
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
+
+  EXPECT_EQ(mj_getCacheSize(cache), 0);
+  EXPECT_EQ(m->ntexdata, 18);  // w x h x rgb = 3 x 2 x 3
+
+  mj_setCacheCapacity(cache, capacity);
+
+  mj_deleteModel(m);
+  mj_deleteVFS(vfs.get());
+}
+
 // -------------------------------- test textures ------------------------------
 
 TEST_F(PluginTest, TextureFromBuffer) {
