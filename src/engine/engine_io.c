@@ -1334,11 +1334,11 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 #endif
 
 #ifdef MEMORY_SANITIZER
-  // Tell msan to treat the entire buffer as uninitialized
+  // under MSAN, mark the entire buffer as uninitialized
   __msan_allocated_memory(d->buffer, d->nbuffer);
 #endif
 
-  // zero out arrays that are not affected by mj_forward
+  // zero out user-settable state and input arrays (MSAN: mark as initialized)
   mju_zero(d->qpos, m->nq);
   mju_zero(d->qvel, m->nv);
   mju_zero(d->act, m->na);
@@ -1346,11 +1346,10 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   for (int i=0; i < m->neq; i++) d->eq_active[i] = m->eq_active0[i];
   mju_zero(d->qfrc_applied, m->nv);
   mju_zero(d->xfrc_applied, 6*m->nbody);
-  mju_zero(d->qacc, m->nv);
+  mju_zero(d->qacc, m->nv);  // input to inverse dynamics
   mju_zero(d->qacc_warmstart, m->nv);
   mju_zero(d->act_dot, m->na);
   mju_zero(d->userdata, m->nuserdata);
-  mju_zero(d->sensordata, m->nsensordata);
   mju_zero(d->mocap_pos, 3*m->nmocap);
   mju_zero(d->mocap_quat, 4*m->nmocap);
 
@@ -1359,7 +1358,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // copy qpos0 from model
   if (m->qpos0) {
-    memcpy(d->qpos, m->qpos0, m->nq*sizeof(mjtNum));
+    mju_copy(d->qpos, m->qpos0, m->nq);
   }
 
   // set mocap_pos/quat = body_pos/quat for mocap bodies

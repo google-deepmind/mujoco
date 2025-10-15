@@ -69,7 +69,6 @@ using SensorTest = MujocoTest;
 
 // --------------------- test sensor disableflag  ------------------------------
 
-// hand-picked positions and orientations for simple expected values
 TEST_F(SensorTest, DisableSensors) {
   constexpr char xml[] = R"(
   <mujoco>
@@ -83,7 +82,8 @@ TEST_F(SensorTest, DisableSensors) {
   ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
-  // before calling anything, check that sensors are initialised to 0
+  // call mj_forward, expect clock to report 0
+  mj_forward(model, data);
   EXPECT_EQ(data->sensordata[0], 0.0);
 
   // call mj_step, mj_step1, expect clock to be incremented by timestep

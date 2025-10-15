@@ -647,6 +647,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_USER:                                   // user
+        // clear result, compute later
+        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
         nusersensor++;
         break;
 
@@ -822,6 +824,8 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_USER:                                   // user
+        // clear result, compute later
+        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
         nusersensor++;
         break;
 
@@ -1346,6 +1350,8 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_USER:                                   // user
+        // clear result, compute later
+        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
         nusersensor++;
         break;
 
