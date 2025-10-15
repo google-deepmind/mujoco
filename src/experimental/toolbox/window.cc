@@ -30,6 +30,11 @@
 #include "experimental/toolbox/helpers.h"
 #include <mujoco/mujoco.h>
 
+// Because X11/Xlib.h defines Status.
+#ifdef Status
+#undef Status
+#endif
+
 namespace mujoco::toolbox {
 
 static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn) {

@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "third_party/absl/flags/flag.h"
-#include "third_party/mujoco/google/runfiles/runfiles.h"
 #include "experimental/studio/app.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");
@@ -31,7 +30,7 @@ ABSL_FLAG(int, window_height, 700, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
 
 static std::vector<std::byte> LoadAsset(std::string_view path) {
-  std::ifstream file(path, std::ios::binary | std::ios::ate);
+  std::ifstream file(std::string(path), std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
     return {};
   }
@@ -48,7 +47,7 @@ int main(int argc, char** argv, char** envp) {
 
   const int width = absl::GetFlag(FLAGS_window_width);
   const int height = absl::GetFlag(FLAGS_window_height);
-  const std::string ini_path = file::JoinPath(getenv("HOME"), ".mujoco.ini");
+  const std::string ini_path = std::string(getenv("HOME")) + "/.mujoco.ini";
   mujoco::studio::App app(width, height, ini_path, LoadAsset);
 
   // If the model file is not specified, try to load it from the first argument
