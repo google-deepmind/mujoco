@@ -393,6 +393,48 @@ TEST_F(UtilMiscTest, MjuIsZeroByte) {
 
 using InterpolationTest = MujocoTest;
 
+TEST_F(InterpolationTest, mju_interpolate3D) {
+  // quadratic functions should be interpolated exactly if order = 2
+  auto quadratic_function_1 = [](mjtNum x, mjtNum y, mjtNum z) {
+    return x*x + y*y + z*z;
+  };
+  auto quadratic_function_2 = [](mjtNum x, mjtNum y, mjtNum z) {
+    return x*y*z + y*z*z + x*z*z;
+  };
+  auto quadratic_function_3 = [](mjtNum x, mjtNum y, mjtNum z) {
+    return x*y*z + y*z*z + x*z*z + y*y*z + x*x*z + x + y + z;
+  };
+  static constexpr int order = 2;
+  mjtNum coeff[3*(order+1)*(order+1)*(order+1)];
+  int index = 0;
+  for (int i = 0; i <= order; ++i) {
+    for (int j = 0; j <= order; ++j) {
+      for (int k = 0; k <= order; ++k) {
+        coeff[3*index+0] = quadratic_function_1(.5*i, .5*j, .5*k);
+        coeff[3*index+1] = quadratic_function_2(.5*i, .5*j, .5*k);
+        coeff[3*index+2] = quadratic_function_3(.5*i, .5*j, .5*k);
+        index++;
+      }
+    }
+  }
+  static constexpr int nsample = 5;
+  for (int i = 0; i < nsample; ++i) {
+    mjtNum sample[3];
+    mjtNum expected[3];
+    mjtNum res[3] = {0};
+    sample[0] = mju_Halton(i, 2);
+    sample[1] = mju_Halton(i, 3);
+    sample[2] = mju_Halton(i, 5);
+    expected[0] = quadratic_function_1(sample[0], sample[1], sample[2]);
+    expected[1] = quadratic_function_2(sample[0], sample[1], sample[2]);
+    expected[2] = quadratic_function_3(sample[0], sample[1], sample[2]);
+    mju_interpolate3D(res, sample, coeff, order);
+    EXPECT_NEAR(res[0], expected[0], 1e-10);
+    EXPECT_NEAR(res[1], expected[1], 1e-10);
+    EXPECT_NEAR(res[2], expected[2], 1e-10);
+  }
+}
+
 TEST_F(InterpolationTest, mju_defGradient) {
   int order = 1;
   mjtNum mat[9];

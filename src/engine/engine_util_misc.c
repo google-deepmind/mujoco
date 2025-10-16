@@ -496,33 +496,59 @@ int mju_insideGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3
 
 // ----------------------------- Flex interpolation ------------------------------------------------
 
-mjtNum static inline phi(mjtNum s, int i) {
-  if (i == 0) {
-    return 1-s;
+mjtNum static inline phi(mjtNum s, int i, int order) {
+  if (order == 1) {
+    return i == 0 ? 1 - s : s;
+  } else if (order == 2) {
+    switch (i) {
+      case 0:
+        return 2 * s * s - 3 * s + 1;
+      case 1:
+        return 4 * (s - s * s);
+      case 2:
+        return 2 * s * s - s;
+      default:
+        mjERROR("invalid index %d", i);
+        return 0;
+    }
   } else {
-    return s;
+    mjERROR("order must be 1 or 2");
+    return 0;
   }
 }
 
-mjtNum static inline dphi(mjtNum s, int i) {
-  if (i == 0) {
-    return -1;
+mjtNum static inline dphi(mjtNum s, int i, int order) {
+  if (order == 1) {
+    return i == 0 ? -1 : 1;
+  } else if (order == 2) {
+    switch (i) {
+      case 0:
+        return 4 * s - 3;
+      case 1:
+        return 4 * (1 - 2 * s);
+      case 2:
+        return 4 * s - 1;
+      default:
+        mjERROR("invalid index %d, must be 0, 1, or 2", i);
+        return 0;
+    }
   } else {
-    return 1;
+    mjERROR("order must be 1 or 2");
+    return 0;
   }
 }
 
 // evaluate the deformation gradient at p using the nodal dof values
 void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int order) {
+  int idx = 0;
   mjtNum gradient[3];
   mju_zero(res, 9);
   for (int i = 0; i <= order; i++) {
     for (int j = 0; j <= order; j++) {
       for (int k = 0; k <= order; k++) {
-        int idx = 4*i + 2*j + k;
-        gradient[0] = dphi(p[0], i) *  phi(p[1], j) *  phi(p[2], k);
-        gradient[1] =  phi(p[0], i) * dphi(p[1], j) *  phi(p[2], k);
-        gradient[2] =  phi(p[0], i) *  phi(p[1], j) * dphi(p[2], k);
+        gradient[0] = dphi(p[0], i, order) *  phi(p[1], j, order) *  phi(p[2], k, order);
+        gradient[1] =  phi(p[0], i, order) * dphi(p[1], j, order) *  phi(p[2], k, order);
+        gradient[2] =  phi(p[0], i, order) *  phi(p[1], j, order) * dphi(p[2], k, order);
         res[0] += dof[3*idx+0] * gradient[0];
         res[1] += dof[3*idx+0] * gradient[1];
         res[2] += dof[3*idx+0] * gradient[2];
@@ -532,6 +558,7 @@ void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int or
         res[6] += dof[3*idx+2] * gradient[0];
         res[7] += dof[3*idx+2] * gradient[1];
         res[8] += dof[3*idx+2] * gradient[2];
+        idx++;
       }
     }
   }
@@ -539,11 +566,13 @@ void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int or
 
 // evaluate the basis function at x for the i-th node
 mjtNum mju_evalBasis(const mjtNum x[3], int i, int order) {
-  if (order > 1) {
-    mjERROR("mju_evalBasis: order must be <= 1");
+  if (order == 1) {
+    return phi(x[2], i&1, order) * phi(x[1], i&2, order) * phi(x[0], i&4, order);
+  } else if (order == 2) {
+    return phi(x[2], i % 3, order) * phi(x[1], (i / 3) % 3, order) * phi(x[0], i / 9, order);
+  } else {
     return -1;
   }
-  return phi(x[2], i&1) * phi(x[1], i&2) * phi(x[0], i&4);
 }
 
 // interpolate a function at x with given interpolation coefficients and order n
