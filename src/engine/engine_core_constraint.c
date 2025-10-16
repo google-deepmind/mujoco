@@ -186,9 +186,7 @@ static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int v,
   int nb = 0;
 
   for (int i = nstart; i < nend; i++) {
-    mjtNum w = ((i-nstart)&1 ? coord[2] : 1-coord[2]) *
-               ((i-nstart)&2 ? coord[1] : 1-coord[1]) *
-               ((i-nstart)&4 ? coord[0] : 1-coord[0]);
+    mjtNum w = mju_evalBasis(coord, i-nstart, m->flex_interp[f]);
     if (w < 1e-5) {
       continue;
     }

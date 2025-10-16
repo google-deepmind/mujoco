@@ -537,6 +537,23 @@ void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int or
   }
 }
 
+// evaluate the basis function at x for the i-th node
+mjtNum mju_evalBasis(const mjtNum x[3], int i, int order) {
+  if (order > 1) {
+    mjERROR("mju_evalBasis: order must be <= 1");
+    return -1;
+  }
+  return phi(x[2], i&1) * phi(x[1], i&2) * phi(x[0], i&4);
+}
+
+// interpolate a function at x with given interpolation coefficients and order n
+void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order) {
+  int npoint = (order + 1) * (order + 1) * (order + 1);
+  for (int j=0; j < npoint; j++) {
+    mju_addToScl3(res, coeff+3*j, mju_evalBasis(x, j, order));
+  }
+}
+
 
 //------------------------------ actuator models ---------------------------------------------------
 

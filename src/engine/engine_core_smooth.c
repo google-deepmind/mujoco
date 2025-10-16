@@ -475,15 +475,14 @@ void mj_flex(const mjModel* m, mjData* d) {
         }
       }
 
+      int order = m->flex_interp[f];
+      if (nend - nstart != (order + 1) * (order + 1) * (order + 1)) {
+        mjERROR("flex_interp_order mismatch");
+      }
+
       for (int i=vstart; i < vend; i++) {
         mju_zero3(d->flexvert_xpos+3*i);
-        mjtNum* coord = m->flex_vert0 + 3*i;
-        for (int j=0; j < nend-nstart; j++) {
-          mjtNum coef = (j&1 ? coord[2] : 1-coord[2]) *
-                        (j&2 ? coord[1] : 1-coord[1]) *
-                        (j&4 ? coord[0] : 1-coord[0]);
-          mju_addToScl3(d->flexvert_xpos+3*i, nodexpos+3*j, coef);
-        }
+        mju_interpolate3D(d->flexvert_xpos+3*i, m->flex_vert0 + 3*i, nodexpos, order);
       }
     }
   }

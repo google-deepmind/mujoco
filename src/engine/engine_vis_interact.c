@@ -861,11 +861,20 @@ int mjv_select(const mjModel* m, const mjData* d, const mjvOption* vopt,
       if (newdist >= 0 && (newdist < flexdist || flexdist < 0)) {
         flexdist = newdist;
         if (m->flex_interp[i]) {
-          mjtNum* vert0 = m->flex_vert0 + 3*(m->flex_vertadr[i] + vertid);
-          int l = vert0[0] > 0.5 ? 1 : 0;
-          int j = vert0[1] > 0.5 ? 1 : 0;
-          int k = vert0[2] > 0.5 ? 1 : 0;
-          int nodeid = 4*l+2*j+k;
+          mjtNum* coord = m->flex_vert0 + 3*(m->flex_vertadr[i] + vertid);
+          int nodeid = -1;
+          int nstart = m->flex_nodeadr[i];
+          int nend = nstart + m->flex_nodenum[i];
+          mjtNum w = 0;
+          for (int j = nstart; j < nend; j++) {
+            if (mju_evalBasis(coord, j-nstart, m->flex_interp[i]) > w) {
+              w = mju_evalBasis(coord, j-nstart, m->flex_interp[i]);
+              nodeid = j;
+            }
+          }
+          if (nodeid < 0) {
+            mjERROR("flex %d: node closest to vertex %d not found", i, vertid);
+          }
           flexbodyid = m->flex_nodebodyid[m->flex_nodeadr[i] + nodeid];
           if (m->flex_centered[i]) {
             mju_copy3(flexpnt, d->xpos + 3*flexbodyid);
