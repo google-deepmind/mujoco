@@ -4,19 +4,17 @@
 version: 2
 
 build:
-  os: ubuntu-20.04
+  os: ubuntu-22.04
   tools:
     python: "3.10"
+  jobs:
+    post_create_environment:
+      - pip install uv
+    post_install:
+      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH uv pip install doc
+      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH uv pip install mjx/mujoco/mjx/third_party/mujoco_warp
 
 sphinx:
   builder: html
   configuration: doc/conf.py
   fail_on_warning: false
-
-python:
-  install:
-    - method: pip
-      requirements: ./doc/requirements.txt
-
-    - method: uv
-      path: ./mjx/mujoco/mjx/third_party/mujoco_warp
