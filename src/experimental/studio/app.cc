@@ -42,7 +42,7 @@
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "experimental/filament/render_context_filament.h"
 #elif defined(USE_CLASSIC_OPENGL)
-#include <dear_imgui/backends/imgui_impl_opengl2.h>
+#include <dear_imgui/backends/imgui_impl_opengl3.h>
 #else
 #error No rendering mode defined.
 #endif
@@ -135,7 +135,7 @@ App::App(int width, int height, std::string ini_path,
   ClearProfilerData();
 
 #ifdef USE_CLASSIC_OPENGL
-  ImGui_ImplOpenGL2_Init();
+  ImGui_ImplOpenGL3_Init();
 #endif
 }
 
@@ -160,7 +160,7 @@ bool App::Update() {
   const toolbox::Window::Status status = window_->NewFrame();
 
 #ifdef USE_CLASSIC_OPENGL
-  ImGui_ImplOpenGL2_NewFrame();
+  ImGui_ImplOpenGL3_NewFrame();
 #endif
 
   HandleMouseEvents();
@@ -197,7 +197,7 @@ void App::Render() {
 
 #ifdef USE_CLASSIC_OPENGL
   ImGui::Render();
-  ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 #endif
 
   // This call to EndFrame() is only needed if render_config.enable_gui is false
