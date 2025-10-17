@@ -1,7 +1,7 @@
 MuJoCo Warp API
 ===============
 
-.. automodule:: mujoco_warp
+.. automodule:: mujoco.mjx.third_party.mujoco_warp
   :members:
   :imported-members:
   :special-members: False
