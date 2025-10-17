@@ -34,7 +34,7 @@ The following script will use MuJoCo's python introspect library to generate a C
 
 ```sh
 # Run this inside `wasm` folder
-if [ ! -d ".venv" ]; then python3.11 -m venv .venv; fi && \
+if [ ! -d ".venv" ]; then python3 -m venv .venv; fi && \
 source .venv/bin/activate && \
 PYTHONPATH=../python/mujoco:./codegen python3 codegen/update.py && \
 PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py && \
