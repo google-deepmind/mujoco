@@ -17,29 +17,23 @@ def get_default_output_dir() -> str:
   return default_output_dir
 
 
-def get_file_path(
-    template_dir: str, output_dir: str, filename: str
-) -> tuple[str, str]:
-  """Constructs the template and output file paths.
+def get_file_path(template_dir: str, output_dir: str,
+                  filename: str) -> tuple[str, str]:
+    """Constructs the template and output file paths.
 
-  Args:
-      template_dir: The directory containing the template files.
-      output_dir: The directory where the generated files will be saved.
-      filename: The name of the file.
 
-  Returns:
-      A tuple containing the template file path and the output file path.
-  """
-  build_workspace_dir = os.getenv("BUILD_WORKSPACE_DIRECTORY")
-  template_file = os.path.join(
-      build_workspace_dir,
-      f"third_party/mujoco/wasm/codegen/{template_dir}/{filename}",
-  )
-  output_file = os.path.join(
-      build_workspace_dir,
-      f"third_party/mujoco/wasm/codegen/{output_dir}/{filename}",
-  )
-  return template_file, output_file
+    Args:
+        template_dir: The directory containing the template files.
+        output_dir: The directory where the generated files will be saved.
+        filename: The name of the file.
+
+
+    Returns:
+        A tuple containing the template file path and the output file path.
+    """
+    template_file = f"codegen/{template_dir}/{filename}"
+    output_file = f"codegen/{output_dir}/{filename}"
+    return template_file, output_file
 
 
 def write_to_file(filepath: str, content: str) -> None:
