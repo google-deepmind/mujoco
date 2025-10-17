@@ -81,8 +81,7 @@ and macOS (universal). This is the recommended way to use the software.
 ### Building from source
 
 Users who wish to build MuJoCo from source should consult the [build from
-source] section of the documentation. However, note that the commit at
-the tip of the `main` branch may be unstable.
+source] section of the documentation. If you wish to build and make using zig you can run `zig run setup.zig` or manually add the dependencies from the CMakeLists.txt and adapt the `build.zig` to the paths if necessary, after that run `zig build` . However, note that the commit at the tip of the `main` branch may be unstable.
 
 ### Python (>= 3.9)
 
