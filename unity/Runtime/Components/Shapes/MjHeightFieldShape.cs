@@ -92,7 +92,7 @@ public class MjHeightFieldShape : IMjShape {
     mjcf.SetAttribute("hfield", assetName);
     PrepareHeightMap();
     if (MinimumHeight <= 0) {
-      Debug.Log($"Adjusting MinimumHeight from {MinimumHeight} to 0.01f for MuJoCo compatibility");
+      // Unity imports hfields with min height = 0, which MuJoCo can't handle
       MinimumHeight = 0.01f;
     }
   }

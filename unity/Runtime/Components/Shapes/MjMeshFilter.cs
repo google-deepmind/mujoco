@@ -52,7 +52,7 @@ public class MjMeshFilter : MonoBehaviour {
     if (meshData == null)
     {
       Debug.LogWarning(
-          $"[Mujoco] Unsupported geom shape detected on '{gameObject.name}' (type: {_geom.ShapeType}). " +
+          $"Unsupported geom shape detected on '{gameObject.name}' (type: {_geom.ShapeType}). " +
           "Skipping mesh generation."
       );
       return;
