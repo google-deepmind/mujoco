@@ -26,15 +26,6 @@ class CodeBuilder:
     """Returns the complete code string."""
     return "\n".join(self._lines)
 
-  def _line_with_reduced_indent(self, content: str) -> None:
-    """Adds a line with the current indentation, but with one less space."""
-    current_indent = self._indent_str * self._indent_level
-    if current_indent:
-      # Remove the last character of the indent string
-      adjusted_indent = current_indent[:-1]
-      self._lines.append(adjusted_indent + content)
-    else:
-      self._lines.append(content)
 
   class IndentBlock:
     """Helper class to manage indentation within a `with` statement."""
