@@ -276,7 +276,8 @@ public struct MjOptionStruct {
   public XmlElement ToMjcf(XmlElement mjcf) {
     mjcf.SetAttribute("impratio", MjEngineTool.MakeLocaleInvariant($"{ImpRatio}"));
 
-    mjcf.SetAttribute("magnetic", MjEngineTool.MakeLocaleInvariant($"{Magnetic.x} {Magnetic.y} {Magnetic.z}"));
+    mjcf.SetAttribute("magnetic",
+    MjEngineTool.MakeLocaleInvariant($"{Magnetic.x} {Magnetic.y} {Magnetic.z}"));
     mjcf.SetAttribute("wind", MjEngineTool.MakeLocaleInvariant($"{Wind.x} {Wind.y} {Wind.z}"));
 
     mjcf.SetAttribute("density", MjEngineTool.MakeLocaleInvariant($"{Density}"));
