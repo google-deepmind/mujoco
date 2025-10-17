@@ -3,6 +3,9 @@
 
 version: 2
 
+formats:
+  - pdf
+
 build:
   os: ubuntu-24.04
   tools:
