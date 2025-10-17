@@ -1,0 +1,27 @@
+# go/google3metadata
+# proto-file: devtools/metadata/metadata.proto
+# proto-message: MetaData
+
+tricorder: {
+  options: {
+    builder: {
+      # Wasm modules require --config=wasm for emscripten headers.
+      # Using this target_tag to tag cc_library and cc_binary is a common
+      # pattern in google3 for the benefit of tricorder presubmit checks.
+      target_tag: "requires_wasm_config"
+      config: "wasm"
+    }
+  }
+}
+
+# Force CiderLSP to build C++ files in this tree with Emscripten.
+ide_config: {
+  build: {
+    language: CPP
+    glob: "**.**"
+    preset: {
+      name: "wasm"
+      flag: "--config=wasm"
+    }
+  }
+}

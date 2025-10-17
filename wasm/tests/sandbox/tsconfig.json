@@ -1,0 +1,2 @@
+// DO NOT EDIT see http://go/typescript/build_defs#ts-config-setup
+{"extends": "../../../../../blaze-bin/third_party/mujoco/wasm/tests/sandbox/tsconfig_editor.json"}
