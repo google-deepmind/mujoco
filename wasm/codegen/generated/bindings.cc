@@ -9,13 +9,13 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring> // NOLINT
+#include <cstring>  // NOLINT
 
 #include <array>
 #include <cstdint>
 #include <memory>
-#include <optional> // NOLINT
-#include <string>   // NOLINT
+#include <optional>  // NOLINT
+#include <string>    // NOLINT
 #include <vector>
 
 #include "mujoco/mjmodel.h"
