@@ -63,7 +63,8 @@ public struct MjcfOptionFlag {
   public EnableDisableFlag FrictionLoss;
   public EnableDisableFlag Limit;
   public EnableDisableFlag Contact;
-  public EnableDisableFlag Passive;
+  public EnableDisableFlag Spring;
+  public EnableDisableFlag Damper;
   public EnableDisableFlag Gravity;
   public EnableDisableFlag ClampCtrl;
   public EnableDisableFlag WarmStart;
@@ -80,7 +81,8 @@ public struct MjcfOptionFlag {
     FrictionLoss = EnableDisableFlag.enable,
     Limit = EnableDisableFlag.enable,
     Contact = EnableDisableFlag.enable,
-    Passive = EnableDisableFlag.enable,
+    Spring = EnableDisableFlag.enable,
+    Damper = EnableDisableFlag.enable,
     Gravity = EnableDisableFlag.enable,
     ClampCtrl = EnableDisableFlag.enable,
     WarmStart = EnableDisableFlag.enable,
@@ -101,7 +103,8 @@ public struct MjcfOptionFlag {
                                                             localDefault.FrictionLoss);
     Limit = mjcf.GetEnumAttribute<EnableDisableFlag>("limit", localDefault.Limit);
     Contact = mjcf.GetEnumAttribute<EnableDisableFlag>("contact", localDefault.Contact);
-    Passive = mjcf.GetEnumAttribute<EnableDisableFlag>("passive", localDefault.Passive);
+    Spring = mjcf.GetEnumAttribute<EnableDisableFlag>("spring", localDefault.Spring);
+    Damper = mjcf.GetEnumAttribute<EnableDisableFlag>("damper", localDefault.Damper);
     Gravity = mjcf.GetEnumAttribute<EnableDisableFlag>("gravity", localDefault.Gravity);
     ClampCtrl = mjcf.GetEnumAttribute<EnableDisableFlag>("clampctrl", localDefault.ClampCtrl);
     WarmStart = mjcf.GetEnumAttribute<EnableDisableFlag>("warmstart", localDefault.WarmStart);
@@ -121,7 +124,8 @@ public struct MjcfOptionFlag {
     mjcf.SetAttribute("frictionloss", FrictionLoss.ToString());
     mjcf.SetAttribute("limit", Limit.ToString());
     mjcf.SetAttribute("contact", Contact.ToString());
-   // mjcf.SetAttribute("passive", Passive.ToString());
+    mjcf.SetAttribute("spring", Spring.ToString());
+    mjcf.SetAttribute("damper", Damper.ToString());
     mjcf.SetAttribute("gravity", Gravity.ToString());
     mjcf.SetAttribute("clampctrl", ClampCtrl.ToString());
     mjcf.SetAttribute("warmstart", WarmStart.ToString());
@@ -328,7 +332,7 @@ public class MjGlobalSettings : MonoBehaviour {
   public static MjGlobalSettings Instance {
     get {
      if (_instance == null) {
-        var instances = FindObjectsOfType<MjGlobalSettings>();
+        var instances = FindObjectsByType<MjGlobalSettings>(FindObjectsSortMode.None);
         if (instances.Length > 1) {
           throw new InvalidOperationException(
               "Only one MjGlobalSettings instance is allowed - please resolve manually.");
