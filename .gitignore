@@ -17,6 +17,7 @@
 # Exclude temporary folders
 *.egg-info/
 build/
+wasm/**/dist/
 build_cmake/
 python/dist/
 doc/_build
@@ -37,3 +38,7 @@ MUJOCO_LOG.TXT
 
 # Clang cache
 .cache/
+
+#node modules folders
+
+**/node_modules/
