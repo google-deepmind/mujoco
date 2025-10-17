@@ -1,0 +1,69 @@
+"""Helper class to build code string line by line with indentation."""
+
+INDENT = "  "
+
+
+class CodeBuilder:
+  """Helper class to build code string line by line with indentation."""
+
+  def __init__(self, indent_str: str = INDENT):
+    self._lines = []
+    self._indent_level = 0
+    self._indent_str = indent_str
+
+  def line(self, line_content: str) -> None:
+    """Adds a line with indentation, special-casing "private:" and "public:"."""
+    indent = self._indent_str * self._indent_level
+    content = line_content.strip()
+    if content == "private:" or content == "public:":
+      self._lines.append(indent[:-1] + line_content)
+    elif content:
+      self._lines.append(indent + line_content)
+    else:
+      self._lines.append("")
+
+  def to_string(self) -> str:
+    """Returns the complete code string."""
+    return "\n".join(self._lines)
+
+  def _line_with_reduced_indent(self, content: str) -> None:
+    """Adds a line with the current indentation, but with one less space."""
+    current_indent = self._indent_str * self._indent_level
+    if current_indent:
+      # Remove the last character of the indent string
+      adjusted_indent = current_indent[:-1]
+      self._lines.append(adjusted_indent + content)
+    else:
+      self._lines.append(content)
+
+  class IndentBlock:
+    """Helper class to manage indentation within a `with` statement."""
+
+    def __init__(self, builder: "CodeBuilder", header_line=""):
+      self._builder = builder
+      self._header_line = header_line
+
+    def __enter__(self):
+      line = self._header_line
+      line += " {" if line else "{"
+      self._builder.line(line)
+      self._builder._indent_level += 1
+      return self._builder
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+      if self._builder._indent_level > 0:
+        self._builder._indent_level -= 1
+      self._builder.line("}")
+
+  def block(self, header_line="") -> IndentBlock:
+    """Creates a block including braces and an optional header before the opening brace.
+
+    Use via a `with` statement.
+
+    Args:
+        header_line: Optional header line to add before the opening brace.
+
+    Returns:
+        An IndentBlock instance that manages the indentation.
+    """
+    return self.IndentBlock(self, header_line)
