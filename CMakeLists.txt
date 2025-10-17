@@ -39,11 +39,14 @@ enable_language(CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
-option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
-option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
-option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
-option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
+# For Emscripten Disable native examples, tests, plugins and native rendering build
+if(NOT EMSCRIPTEN)
+  option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
+  option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
+  option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
+  option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
+  option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
+endif()
 
 # Option to provide a path to an existing USD build directory or to Houdini HFS directory.
 set(USD_DIR "" CACHE PATH "Path to an existing USD build directory.")
@@ -97,7 +100,13 @@ else()
   set(MUJOCO_RESOURCE_FILES "")
 endif()
 
-add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
+# Emscripten does not support SHARED libs
+if(NOT EMSCRIPTEN)
+  add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
+else()
+  add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
+endif()
+
 target_include_directories(
   mujoco
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -105,16 +114,18 @@ target_include_directories(
   PRIVATE src
 )
 
-add_subdirectory(plugin/elasticity)
-add_subdirectory(plugin/actuator)
-add_subdirectory(plugin/sensor)
-add_subdirectory(plugin/sdf)
+if(NOT EMSCRIPTEN)
+  add_subdirectory(plugin/elasticity)
+  add_subdirectory(plugin/actuator)
+  add_subdirectory(plugin/sensor)
+  add_subdirectory(plugin/sdf)
+  add_subdirectory(src/render)
+  add_subdirectory(src/ui)
+endif()
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
-add_subdirectory(src/render)
 add_subdirectory(src/thread)
-add_subdirectory(src/ui)
 
 target_compile_definitions(mujoco PRIVATE _GNU_SOURCE CCD_STATIC_DEFINE MUJOCO_DLL_EXPORTS -DMC_IMPLEM_ENABLE)
 if(MUJOCO_ENABLE_AVX_INTRINSICS)
@@ -216,9 +227,14 @@ if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
 endif()
 
 if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
+  set(MUJOCO_TARGETS mujoco)
+  if (EMSCRIPTEN)
+    list(APPEND MUJOCO_TARGETS lodepng)
+  endif()
+
   # Install the libraries.
   install(
-    TARGETS mujoco
+    TARGETS ${MUJOCO_TARGETS}
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT runtime
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT runtime
