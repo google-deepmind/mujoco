@@ -34,10 +34,11 @@ The following script will use MuJoCo's python introspect library to generate a C
 
 ```sh
 # Run this inside `wasm` folder
-[ ! -d ".venv" ] && python3 -m venv .venv && source .venv/bin/activate; && \
-PYTHONPATH=../python/mujoco:./codegen python codegen/update.py && \
-PYTHONPATH=../python/mujoco:../wasm python tests/enums_test_generator.py && \
-PYTHONPATH=../python/mujoco:./codegen pytest
+if [ ! -d ".venv" ]; then python3.11 -m venv .venv; fi && \
+source .venv/bin/activate && \
+PYTHONPATH=../python/mujoco:./codegen python3 codegen/update.py && \
+PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py && \
+PYTHONPATH=../python/mujoco:./codegen python3 -m pytest
 ```
 
 Once the C++ files are generated (note that for convenience we provide the output of the above script in the `wasm/codegen/generated` folder already) the next step is to build the `.wasm`, `.js`, and `.d.ts` files from the C++ files (which are the files you will call MuJoCo from JavaScript/TypeScript). To do this run the following:
