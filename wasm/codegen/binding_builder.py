@@ -67,13 +67,7 @@ class BindingBuilder:
     )
     for marker, content in struct_src_markers_and_content:
       self.content_cc = common.replace_lines_containing_marker(
-          self.content_cc, marker, content
-      )
-    self.content_cc = common.replace_lines_containing_marker(
-        self.content_cc,
-        '#include "third_party/mujoco/wasm/codegen/templates/bindings.h"',
-        '#include "third_party/mujoco/wasm/codegen/generated/bindings.h"\n',
-    )
+          self.content_cc, marker, content)
     return self
 
   def set_functions(self):
