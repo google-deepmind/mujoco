@@ -37,3 +37,10 @@ MUJOCO_LOG.TXT
 
 # Clang cache
 .cache/
+
+#python virtual env
+**/.venv/
+
+#node modules folders
+
+**/node_modules/
