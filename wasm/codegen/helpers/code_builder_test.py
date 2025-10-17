@@ -1,10 +1,10 @@
 """Tests for the code_builder module."""
 
-from absl.testing import absltest
-from google3.third_party.mujoco.wasm.codegen.helpers import code_builder
+import unittest
+from helpers import code_builder
 
 
-class CodeBuilderTest(absltest.TestCase):
+class CodeBuilderTest(unittest.TestCase):
 
   def test_code_builder_functionality(self):
     """Test nested indentation blocks."""
@@ -34,4 +34,4 @@ class CodeBuilderTest(absltest.TestCase):
 
 
 if __name__ == "__main__":
-  absltest.main()
+  unittest.main()

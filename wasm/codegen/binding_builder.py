@@ -1,14 +1,14 @@
 """Builds WASM bindings for MuJoCo."""
 
-from mujoco.introspect import enums as introspect_enums
-from mujoco.introspect import functions as introspect_functions
+from introspect import enums as introspect_enums
+from introspect import functions as introspect_functions
 
-from google3.third_party.mujoco.wasm.codegen.generators import enums
-from google3.third_party.mujoco.wasm.codegen.generators import functions
-from google3.third_party.mujoco.wasm.codegen.generators import structs
-from google3.third_party.mujoco.wasm.codegen.helpers import common
-from google3.third_party.mujoco.wasm.codegen.helpers import constants as _constants
-from google3.third_party.mujoco.wasm.codegen.helpers import function_utils
+from generators import enums
+from generators import functions
+from generators import structs
+from helpers import common
+from helpers import constants as _constants
+from helpers import function_utils
 
 
 class BindingBuilder:

@@ -1,7 +1,7 @@
-from absl.testing import absltest
-from mujoco.introspect import ast_nodes
+import unittest
+from introspect import ast_nodes
 
-from google3.third_party.mujoco.wasm.codegen.helpers import struct_field_handler
+from helpers import struct_field_handler
 
 
 StructFieldDecl = ast_nodes.StructFieldDecl
@@ -10,7 +10,7 @@ PointerType = ast_nodes.PointerType
 ArrayType = ast_nodes.ArrayType
 
 
-class StructFieldHandlerTest(absltest.TestCase):
+class StructFieldHandlerTest(unittest.TestCase):
 
   def test_scalar_field(self):
     """Test that a scalar type field is handled correctly."""
@@ -224,4 +224,4 @@ emscripten::val multi_dim_array() const {
 
 
 if __name__ == '__main__':
-  absltest.main()
+  unittest.main()

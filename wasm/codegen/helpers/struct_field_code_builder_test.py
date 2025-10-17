@@ -1,7 +1,7 @@
-from absl.testing import absltest
-from mujoco.introspect import ast_nodes
+import unittest
+from introspect import ast_nodes
 
-from google3.third_party.mujoco.wasm.codegen.helpers import struct_field_code_builder
+from helpers import struct_field_code_builder
 
 StructFieldDecl = ast_nodes.StructFieldDecl
 ValueType = ast_nodes.ValueType
@@ -9,7 +9,7 @@ PointerType = ast_nodes.PointerType
 ArrayType = ast_nodes.ArrayType
 
 
-class StructFieldCodeBuilderTest(absltest.TestCase):
+class StructFieldCodeBuilderTest(unittest.TestCase):
 
   def test_primitive_type_definition(self):
     field = StructFieldDecl(
@@ -154,4 +154,4 @@ std::vector<uint8_t> &vector_field() const {
 
 
 if __name__ == "__main__":
-  absltest.main()
+  unittest.main()

@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <memory>
 
-#include "third_party/mujoco/include/mujoco.h"
+#include "mujoco/mujoco.h"
 
 namespace mujoco::wasm {
 

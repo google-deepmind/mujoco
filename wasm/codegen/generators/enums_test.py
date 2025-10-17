@@ -1,11 +1,11 @@
-from absl.testing import absltest
+import unittest
 
-from mujoco.introspect import ast_nodes
+from introspect import ast_nodes
 
-from google3.third_party.mujoco.wasm.codegen.generators import enums
+from generators import enums
 
 
-class EnumsGeneratorTest(absltest.TestCase):
+class EnumsGeneratorTest(unittest.TestCase):
 
   def test_generate_enum_bindings(self):
 
@@ -45,4 +45,4 @@ class EnumsGeneratorTest(absltest.TestCase):
 
 
 if __name__ == "__main__":
-  absltest.main()
+  unittest.main()

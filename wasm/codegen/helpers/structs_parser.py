@@ -3,14 +3,14 @@
 import collections
 from typing import Dict, List
 
-from mujoco.introspect import ast_nodes
-from mujoco.introspect import structs
+from introspect import ast_nodes
+from introspect import structs
 
-from google3.third_party.mujoco.wasm.codegen.helpers import common
-from google3.third_party.mujoco.wasm.codegen.helpers import constants
-from google3.third_party.mujoco.wasm.codegen.helpers import struct_constructor_code_builder
-from google3.third_party.mujoco.wasm.codegen.helpers import struct_field_handler
-from google3.third_party.mujoco.wasm.codegen.helpers import structs_wrappers_data
+from helpers import common
+from helpers import constants
+from helpers import struct_constructor_code_builder
+from helpers import struct_field_handler
+from helpers import structs_wrappers_data
 
 
 WrappedFieldData = structs_wrappers_data.WrappedFieldData

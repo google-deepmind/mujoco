@@ -1,4 +1,4 @@
-#include "third_party/mujoco/wasm/unpack.h"
+#include "unpack.h"
 
 #include <cstddef>
 #include <cstring>

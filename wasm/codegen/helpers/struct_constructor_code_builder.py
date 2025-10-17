@@ -2,13 +2,13 @@
 
 from typing import List, cast
 
-from mujoco.introspect import ast_nodes
-from mujoco.introspect import structs as introspect_structs
+from introspect import ast_nodes
+from introspect import structs as introspect_structs
 
-from google3.third_party.mujoco.wasm.codegen.helpers import code_builder
-from google3.third_party.mujoco.wasm.codegen.helpers import common
-from google3.third_party.mujoco.wasm.codegen.helpers import constants
-from google3.third_party.mujoco.wasm.codegen.helpers import structs_wrappers_data
+from helpers import code_builder
+from helpers import common
+from helpers import constants
+from helpers import structs_wrappers_data
 
 
 def _has_nested_wrapper_members(

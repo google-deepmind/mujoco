@@ -2,8 +2,8 @@
 #include <emscripten/val.h>
 #include <algorithm>
 
-#include "third_party/mujoco/include/mujoco.h"
-#include "third_party/mujoco/wasm/unpack.h"
+#include "mujoco/mujoco.h"
+#include "../unpack.h"
 
 namespace mujoco::wasm {
 using emscripten::val;

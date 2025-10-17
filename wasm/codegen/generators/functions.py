@@ -3,11 +3,10 @@
 import pathlib
 from typing import List, Mapping, TypeAlias
 
-from mujoco.introspect import ast_nodes
+from introspect import ast_nodes
 
-from google3.third_party.mujoco.wasm.codegen.helpers import code_builder
-from google3.third_party.mujoco.wasm.codegen.helpers import common
-from google3.third_party.mujoco.wasm.codegen.helpers import function_utils
+from helpers import code_builder
+from helpers import function_utils
 
 FunctionDecl: TypeAlias = ast_nodes.FunctionDecl
 FunctionParameterDecl: TypeAlias = ast_nodes.FunctionParameterDecl

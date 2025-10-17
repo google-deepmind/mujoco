@@ -1,4 +1,6 @@
-import {MainModule, MjData, MjModel} from 'google3/third_party/mujoco/wasm/codegen/generated/bindings/mujoco';
+import { MainModule, MjData, MjModel } from "../../dist/mujoco_wasm"
+
+import loadMujoco from "../../dist/mujoco_wasm.js"
 
 declare function loadMujoco(): Promise<MainModule>;
 

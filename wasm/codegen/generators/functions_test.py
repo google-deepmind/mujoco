@@ -1,11 +1,11 @@
-from absl.testing import absltest
+import unittest
 
-from mujoco.introspect import ast_nodes
+from introspect import ast_nodes
 
-from google3.third_party.mujoco.wasm.codegen.generators import functions
+from generators import functions
 
 
-class FunctionsGeneratorTest(absltest.TestCase):
+class FunctionsGeneratorTest(unittest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -50,4 +50,4 @@ class FunctionsGeneratorTest(absltest.TestCase):
 
 
 if __name__ == "__main__":
-  absltest.main()
+  unittest.main()

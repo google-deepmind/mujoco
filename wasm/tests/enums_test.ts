@@ -1,10 +1,12 @@
 import 'jasmine';
 
-import {MainModule} from 'google3/third_party/mujoco/wasm/codegen/generated/bindings/mujoco';
 
-declare function loadMujoco(): Promise<MainModule>;
+import { MainModule } from "../dist/mujoco_wasm"
+import loadMujoco from "../dist/mujoco_wasm.js"
+
 
 let mujoco: MainModule;
+
 
 describe('Enums', () => {
   beforeAll(async () => {
@@ -91,14 +93,6 @@ describe('Enums', () => {
     expect(mujoco.mjtObj).toBeDefined();
   });
 
-  it('mjtConstraint should exist', () => {
-    expect(mujoco.mjtConstraint).toBeDefined();
-  });
-
-  it('mjtConstraintState should exist', () => {
-    expect(mujoco.mjtConstraintState).toBeDefined();
-  });
-
   it('mjtSensor should exist', () => {
     expect(mujoco.mjtSensor).toBeDefined();
   });
@@ -109,6 +103,10 @@ describe('Enums', () => {
 
   it('mjtDataType should exist', () => {
     expect(mujoco.mjtDataType).toBeDefined();
+  });
+
+  it('mjtConDataField should exist', () => {
+    expect(mujoco.mjtConDataField).toBeDefined();
   });
 
   it('mjtSameFrame should exist', () => {
@@ -133,6 +131,14 @@ describe('Enums', () => {
 
   it('mjtState should exist', () => {
     expect(mujoco.mjtState).toBeDefined();
+  });
+
+  it('mjtConstraint should exist', () => {
+    expect(mujoco.mjtConstraint).toBeDefined();
+  });
+
+  it('mjtConstraintState should exist', () => {
+    expect(mujoco.mjtConstraintState).toBeDefined();
   });
 
   it('mjtWarning should exist', () => {
@@ -209,6 +215,10 @@ describe('Enums', () => {
 
   it('mjtMeshInertia should exist', () => {
     expect(mujoco.mjtMeshInertia).toBeDefined();
+  });
+
+  it('mjtMeshBuiltin should exist', () => {
+    expect(mujoco.mjtMeshBuiltin).toBeDefined();
   });
 
   it('mjtBuiltin should exist', () => {

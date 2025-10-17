@@ -3,7 +3,7 @@
 import os
 import pathlib
 
-from google3.third_party.mujoco.wasm.codegen.helpers import constants
+from . import constants
 
 Path = pathlib.Path
 

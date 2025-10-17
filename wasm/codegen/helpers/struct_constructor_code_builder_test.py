@@ -1,7 +1,7 @@
-from absl.testing import absltest
-from mujoco.introspect import ast_nodes
-from google3.third_party.mujoco.wasm.codegen.helpers import struct_constructor_code_builder
-from google3.third_party.mujoco.wasm.codegen.helpers import struct_field_handler
+import unittest
+from introspect import ast_nodes
+from helpers import struct_constructor_code_builder
+from helpers import struct_field_handler
 
 StructFieldDecl = ast_nodes.StructFieldDecl
 ValueType = ast_nodes.ValueType
@@ -10,7 +10,7 @@ ArrayType = ast_nodes.ArrayType
 StructDecl = ast_nodes.StructDecl
 
 
-class StructConstructorCodeBuilderTest(absltest.TestCase):
+class StructConstructorCodeBuilderTest(unittest.TestCase):
 
   def test_constructor_code_with_default_function(self):
     self.assertEqual(
@@ -123,4 +123,4 @@ struct MjLROpt {
 
 
 if __name__ == "__main__":
-  absltest.main()
+  unittest.main()

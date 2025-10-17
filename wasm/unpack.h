@@ -14,7 +14,7 @@
 #include <variant>
 #include <vector>
 
-#include "third_party/mujoco/src/engine/engine_util_errmem.h"
+#include "engine/engine_util_errmem.h"
 
 namespace mujoco::wasm {
 

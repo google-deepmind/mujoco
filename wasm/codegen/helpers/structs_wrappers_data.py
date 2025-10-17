@@ -3,7 +3,7 @@
 import dataclasses
 from typing import Dict, List
 
-from google3.third_party.mujoco.wasm.codegen.helpers import common
+from helpers import common
 
 
 @dataclasses.dataclass

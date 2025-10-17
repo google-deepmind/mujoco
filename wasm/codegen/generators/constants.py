@@ -1,6 +1,6 @@
 """Generator for the constants."""
 
-from google3.third_party.mujoco.wasm.codegen.helpers import common
+from helpers import common
 
 
 # TODO(manevi): Delete this file and use the genrule to handle the file copying
