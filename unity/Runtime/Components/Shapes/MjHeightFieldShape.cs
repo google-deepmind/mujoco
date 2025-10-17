@@ -91,6 +91,10 @@ public class MjHeightFieldShape : IMjShape {
 
     mjcf.SetAttribute("hfield", assetName);
     PrepareHeightMap();
+    if (MinimumHeight <= 0) {
+      Debug.Log($"Adjusting MinimumHeight from {MinimumHeight} to 0.01f for MuJoCo compatibility");
+      MinimumHeight = 0.01f;
+    }
   }
 
   public void FromMjcf(XmlElement mjcf) {

@@ -51,7 +51,11 @@ public class MjMeshFilter : MonoBehaviour {
     Tuple<Vector3[], int[]> meshData = _geom.BuildMesh();
     if (meshData == null)
     {
-      throw new ArgumentException("Unsupported geom shape detected");
+      Debug.LogWarning(
+          $"[Mujoco] Unsupported geom shape detected on '{gameObject.name}' (type: {_geom.ShapeType}). " +
+          "Skipping mesh generation."
+      );
+      return;
     }
 
     DisposeCurrentMesh();
