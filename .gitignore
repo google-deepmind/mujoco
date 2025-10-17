@@ -17,6 +17,7 @@
 # Exclude temporary folders
 *.egg-info/
 build/
+wasm/**/dist/
 build_cmake/
 python/dist/
 doc/_build
