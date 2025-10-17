@@ -14,7 +14,6 @@ build:
       - asdf global uv latest
       - uv venv $READTHEDOCS_VIRTUALENV_PATH
       - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install -r doc/requirements.txt
-      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install mjx
       - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install mjx/mujoco/mjx/third_party/mujoco_warp
     install:
       - "true"  # skip
