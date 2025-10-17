@@ -1,50 +1,35 @@
-from absl.testing import absltest
-
-from google3.pyglib import resources
-from google3.third_party.mujoco.wasm.codegen import binding_builder
+import unittest
+import binding_builder
 
 ERROR_MESSAGE = """
 The file '{}' needs to be updated, please run:
-blaze run //third_party/mujoco/wasm/codegen:update""".lstrip()
+PYTHONPATH=../python/mujoco:./codegen python codegen/update.py""".lstrip()
 
 
-class BindingsDiffTest(absltest.TestCase):
+class BindingsDiffTest(unittest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.generated_hdr = resources.GetResource(
-        'google3/third_party/mujoco/wasm/codegen/generated/bindings.h'
-    ).decode()
-    self.generated_src = resources.GetResource(
-        'google3/third_party/mujoco/wasm/codegen/generated/bindings.cc'
-    ).decode()
+    with open('./codegen/generated/bindings.h', 'r') as f:
+      self.generated_hdr = f.read()
+    with open('./codegen/generated/bindings.cc', 'r') as f:
+      self.generated_src = f.read()
 
-    self.template_path_h = resources.GetResourceFilenameInDirectoryTree(
-        'google3/third_party/mujoco/wasm/codegen/templates/bindings.h'
-    )
-    self.template_path_cc = resources.GetResourceFilenameInDirectoryTree(
-        'google3/third_party/mujoco/wasm/codegen/templates/bindings.cc'
-    )
-    self.generated_path_h = resources.GetResourceFilenameInDirectoryTree(
-        'google3/third_party/mujoco/wasm/codegen/generated/bindings.h'
-    )
-    self.generated_path_cc = resources.GetResourceFilenameInDirectoryTree(
-        'google3/third_party/mujoco/wasm/codegen/generated/bindings.cc'
-    )
+    self.template_path_h = './codegen/templates/bindings.h'
+    self.template_path_cc = './codegen/templates/bindings.cc'
+    self.generated_path_h = './codegen/generated/bindings.h'
+    self.generated_path_cc = './codegen/generated/bindings.cc'
 
     self.builder = binding_builder.BindingBuilder(
-        self.template_path_h, self.template_path_cc,
+        self.template_path_h,
+        self.template_path_cc,
         self.generated_path_h,
         self.generated_path_cc,
     )
 
   def test_bindings_source(self):
-    generator_output = (
-        self.builder.set_enums()
-        .set_structs()
-        .set_functions()
-        .to_string_source()
-    )
+    generator_output = (self.builder.set_enums().set_structs().set_functions().
+                        to_string_source())
     self.assertEqual(
         generator_output,
         self.generated_src,
@@ -52,11 +37,7 @@ class BindingsDiffTest(absltest.TestCase):
     )
 
   def test_bindings_header(self):
-    generator_output = (
-        self.builder
-        .set_headers()
-        .to_string_header()
-    )
+    generator_output = (self.builder.set_headers().to_string_header())
     self.assertEqual(
         generator_output,
         self.generated_hdr,
@@ -65,4 +46,4 @@ class BindingsDiffTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
-  absltest.main()
+  unittest.main()

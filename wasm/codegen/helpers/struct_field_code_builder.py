@@ -1,7 +1,7 @@
 """Class to build the C++ code for a struct field wrapper."""
 
-from mujoco.introspect import ast_nodes
-from google3.third_party.mujoco.wasm.codegen.helpers import code_builder
+from introspect import ast_nodes
+from helpers import code_builder
 
 StructFieldDecl = ast_nodes.StructFieldDecl
 ValueType = ast_nodes.ValueType

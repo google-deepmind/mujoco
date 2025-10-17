@@ -1,6 +1,6 @@
 """Constants used in the code generation process."""
 
-from mujoco.introspect import structs as introspect_structs
+from introspect import structs as introspect_structs
 
 PRIMITIVE_TYPES = {
     # go/keep-sorted start

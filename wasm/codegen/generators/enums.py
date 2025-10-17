@@ -2,9 +2,9 @@
 
 from typing import Mapping
 
-from mujoco.introspect import ast_nodes
+from introspect import ast_nodes
 
-from google3.third_party.mujoco.wasm.codegen.helpers import code_builder
+from helpers import code_builder
 
 
 class Generator:

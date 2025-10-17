@@ -1,11 +1,13 @@
 """Tests to ensure that all Mujoco functions and structs are correctly handled.
 
+
 This file contains tests that verify:
 - All functions defined in Mujoco's introspect module are either bound in the
-  generated bindings.cc file or explicitly excluded in constants.py.
+ generated bindings.cc file or explicitly excluded in constants.py.
 - All structs defined in Mujoco's introspect module are either bound in the
-  generated bindings.cc file or explicitly skipped in SKIPPED_STRUCTS in
-  constants.py.
+ generated bindings.cc file or explicitly skipped in SKIPPED_STRUCTS in
+ constants.py.
+
 
 These tests help maintain the integrity of the generated WASM bindings by
 ensuring that no functions or structs are accidentally missed or incorrectly
@@ -14,20 +16,20 @@ handled during the code generation process.
 
 import re
 
-from absl.testing import absltest
-from mujoco.introspect import functions as introspect_functions
-from mujoco.introspect import structs as introspect_structs
+import unittest
+from introspect import functions as introspect_functions
+from introspect import structs as introspect_structs
 
-from google3.pyglib import resources
-from google3.third_party.mujoco.wasm.codegen.helpers import common
-from google3.third_party.mujoco.wasm.codegen.helpers import constants
-from google3.third_party.mujoco.wasm.codegen.helpers import function_utils
+from helpers import common
+from helpers import constants
+from helpers import function_utils
 
 
 def _get_resource_content(file_path: str) -> str:
   """Reads resource file content using resources.GetResource."""
   try:
-    return resources.GetResource(file_path).decode()
+    with open(file_path, 'r') as f:
+      return f.read()
   except FileNotFoundError:
     print(f'Warning: Resource {file_path} not found.')
     return ''
@@ -38,9 +40,7 @@ def _get_resource_content(file_path: str) -> str:
 
 def _get_bound_functions_from_cc() -> set[str]:
   """Reads bindings.cc and extracts the names of bound functions."""
-  content = _get_resource_content(
-      'google3/third_party/mujoco/wasm/codegen/generated/bindings.cc'
-  )
+  content = _get_resource_content('./codegen/generated/bindings.cc')
   if not content:
     return set()
 
@@ -53,9 +53,7 @@ def _get_bound_functions_from_cc() -> set[str]:
 
 def _get_bound_structs_from_cc() -> set[str]:
   """Reads bindings.cc and extracts the names of bound structs."""
-  content = _get_resource_content(
-      'google3/third_party/mujoco/wasm/codegen/generated/bindings.cc'
-  )
+  content = _get_resource_content('./codegen/generated/bindings.cc')
   if not content:
     return set()
 
@@ -66,7 +64,7 @@ def _get_bound_structs_from_cc() -> set[str]:
   return bound_structs
 
 
-class BindingCoverageTest(absltest.TestCase):
+class BindingCoverageTest(unittest.TestCase):
 
   def test_function_coverage(self):
     """Asserts that each function is either excluded or bound."""
@@ -80,22 +78,21 @@ class BindingCoverageTest(absltest.TestCase):
 
     missing_functions = []
     for func_name in all_functions:
-      if (
-          func_name not in excluded_functions
-          and func_name not in bound_functions
-      ):
+      if (func_name not in excluded_functions
+          and func_name not in bound_functions):
         missing_functions.append(func_name)
 
     if missing_functions:
       error_message = (
           f"""The following functions from functions.py are neither excluded in
-          constants.py nor bound in bindings.cc:
+         constants.py nor bound in bindings.cc:
 
-          {", ".join(sorted(missing_functions))}
 
-          Please either add them to a exclusion list in
-          constants.py or create a binding in bindings.cc."""
-      )
+         {", ".join(sorted(missing_functions))}
+
+
+         Please either add them to a exclusion list in
+         constants.py or create a binding in bindings.cc.""")
       self.fail(error_message)
 
   def test_struct_coverage(self):
@@ -111,27 +108,26 @@ class BindingCoverageTest(absltest.TestCase):
     }
     missing_structs = []
     for struct_name in all_structs:
-      if (
-          struct_name not in skipped_structs
-          and struct_name not in bound_structs
-      ):
+      if (struct_name not in skipped_structs
+          and struct_name not in bound_structs):
         missing_structs.append(struct_name)
     error_messages = []
 
     if missing_structs:
       error_messages.append(
           f"""The following structs are defined in structs.py but are neither
-            bound in bindings.cc nor listed in SKIPPED_STRUCTS:
+           bound in bindings.cc nor listed in SKIPPED_STRUCTS:
 
-            {", ".join(sorted(missing_structs))}
 
-            Please either add them to SKIPPED_STRUCTS or create its binding
-            in bindings.cc."""
-      )
+           {", ".join(sorted(missing_structs))}
+
+
+           Please either add them to SKIPPED_STRUCTS or create its binding
+           in bindings.cc.""")
 
     if error_messages:
       self.fail('\n\n'.join(error_messages))
 
 
 if __name__ == '__main__':
-  absltest.main()
+  unittest.main()

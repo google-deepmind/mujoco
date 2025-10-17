@@ -5,8 +5,8 @@ about its internal structures and then uses a code generation framework to
 produce corresponding WASM bindings.
 """
 
-from google3.third_party.mujoco.wasm.codegen import binding_builder
-from google3.third_party.mujoco.wasm.codegen.helpers import common
+import binding_builder
+from helpers import common
 
 
 def generate_all_bindings():

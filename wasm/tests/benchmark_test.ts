@@ -1,6 +1,7 @@
 import 'jasmine';
 
-import {DoubleBuffer, MainModule} from 'google3/third_party/mujoco/wasm/tests/benchmarks/mujoco_benchmarks';
+import { MainModule, DoubleBuffer } from "./dist/mujoco_wasm_benchmark"
+import loadMujoco from "./dist/mujoco_wasm_benchmark.js"
 
 declare function loadMujoco(): Promise<MainModule>;
 

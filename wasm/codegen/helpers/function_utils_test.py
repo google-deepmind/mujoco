@@ -1,10 +1,10 @@
 from typing import TypeAlias
 
-from absl.testing import absltest
-from mujoco.introspect import ast_nodes
+import unittest
+from introspect import ast_nodes
 
-from google3.third_party.mujoco.wasm.codegen.helpers import constants
-from google3.third_party.mujoco.wasm.codegen.helpers import function_utils
+from helpers import constants
+from helpers import function_utils
 
 
 PrimitiveTypes: TypeAlias = constants.PRIMITIVE_TYPES
@@ -15,7 +15,7 @@ FunctionParameterDecl: TypeAlias = ast_nodes.FunctionParameterDecl
 FunctionDecl: TypeAlias = ast_nodes.FunctionDecl
 
 
-class FunctionUtilsTest(absltest.TestCase):
+class FunctionUtilsTest(unittest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -219,4 +219,4 @@ class FunctionUtilsTest(absltest.TestCase):
 
 
 if __name__ == "__main__":
-  absltest.main()
+  unittest.main()

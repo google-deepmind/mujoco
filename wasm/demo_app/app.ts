@@ -1,6 +1,6 @@
-import {OrbitControls} from 'google3/third_party/javascript/threejs/r134/examples/jsm/controls/OrbitControls';
-import {MainModule} from 'google3/third_party/mujoco/wasm/codegen/generated/bindings/mujoco';
-import * as THREE from 'three';
+import * as THREE from "three"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import loadMujoco from "../dist/mujoco_wasm.js"
 
 declare function loadMujoco(): Promise<MainModule>;
 

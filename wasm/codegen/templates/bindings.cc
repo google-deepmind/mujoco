@@ -1,7 +1,7 @@
 // NOLINTBEGIN(whitespace/line_length)
 // NOLINTBEGIN(whitespace/semicolon)
 
-#include "third_party/mujoco/wasm/codegen/templates/bindings.h"
+#include "bindings.h"
 
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
@@ -18,11 +18,11 @@
 #include <string>    // NOLINT
 #include <vector>
 
-#include "third_party/mujoco/include/mjmodel.h"
-#include "third_party/mujoco/include/mjvisualize.h"
-#include "third_party/mujoco/include/mujoco.h"
-#include "third_party/mujoco/src/engine/engine_util_errmem.h"
-#include "third_party/mujoco/wasm/unpack.h"
+#include "mujoco/mjmodel.h"
+#include "mujoco/mjvisualize.h"
+#include "mujoco/mujoco.h"
+#include "engine/engine_util_errmem.h"
+#include "../../unpack.h"
 
 namespace mujoco::wasm {
 

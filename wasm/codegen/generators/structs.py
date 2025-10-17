@@ -2,9 +2,9 @@
 
 from typing import Optional
 
-from google3.third_party.mujoco.wasm.codegen.helpers import constants
-from google3.third_party.mujoco.wasm.codegen.helpers import structs_parser
-from google3.third_party.mujoco.wasm.codegen.helpers import structs_wrappers_data
+from helpers import constants
+from helpers import structs_parser
+from helpers import structs_wrappers_data
 
 
 class Generator:
