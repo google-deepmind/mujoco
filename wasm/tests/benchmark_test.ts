@@ -3,7 +3,6 @@ import 'jasmine';
 import { MainModule, DoubleBuffer } from "./dist/mujoco_wasm_benchmark"
 import loadMujoco from "./dist/mujoco_wasm_benchmark.js"
 
-declare function loadMujoco(): Promise<MainModule>;
 
 describe('MuJoCo WASM Benchmark Tests', () => {
   let mujoco: MainModule;
