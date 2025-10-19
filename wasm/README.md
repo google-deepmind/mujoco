@@ -42,29 +42,23 @@ PYTHONPATH=../python/mujoco:./codegen python3 codegen/update.py
 Once the C++ files are generated (note that for convenience we provide the output of the above script in the `wasm/codegen/generated` folder already) the next step is to build the `.wasm`, `.js`, and `.d.ts` files from the C++ files (which are the files you will call MuJoCo from JavaScript/TypeScript). Make sure you have set up the npm and Emscripten SDK prequisites then run the following (in the same terminal session where `emsdk` environment was sourced):
 
 > [!NOTE]
-> Make sure to run the following steps in the same terminal session in which the .
-> Also make sure no `build` and `dist` folder exist in the root of the project or inside `wasm` folder.
+> Make sure to run the following steps in the same terminal session in which the Emscripen SDK was sourced, also make sure no `build` and `dist` folder exist in the root of the project or inside `wasm` folder.
 
 ```sh
 # Run this inside `wasm` folder
 WASM_DIR=$(pwd) && PROJECT_ROOT=$(dirname "$WASM_DIR") && \
-echo "Cleaning old build/dist directories..." && \
-rm -rf "$PROJECT_ROOT/build" && \
-rm -rf "$WASM_DIR/build" && \
-rm -rf "$WASM_DIR/dist" && \
-echo "Done. Building MuJoCo source using Emscripten..." && \
 export PATH="${WASM_DIR}/node_modules/.bin:$PATH" && \
 emcmake cmake -S "$PROJECT_ROOT" -B "$PROJECT_ROOT/build" && \
 cmake --build "$PROJECT_ROOT/build" && \
-echo "Done. Building WASM bindings..." && \
 emcmake cmake -S "$WASM_DIR" -B "$WASM_DIR/build" && \
 cmake --build "$WASM_DIR/build"
 ```
 
-This will generate a few folders:
+The above command will generate the following folders:
+
 - `<project-root>/build` is the result of compiling MuJoCo with emscripten.
 - `<project-root>/wasm/build` is the result of compiling MuJoCo bindings with emscripten.
-- `<project-root>/wasm/dist` is MuJoCo WebAssembly module. To use it, the file you need to import here is the one ended in `.js`.
+- `<project-root>/wasm/dist` is MuJoCo WebAssembly module. To use it you need to import the `.js` file.
 
 ## Tests
 
