@@ -60,33 +60,38 @@ The above command will generate the following folders:
 - `<project-root>/wasm/build` is the result of compiling MuJoCo bindings with emscripten.
 - `<project-root>/wasm/dist` is MuJoCo WebAssembly module. To use it you need to import the `.js` file.
 
-## Tests
 
-```sh
-# Run this inside `wasm` folder
-PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py && \
-
-# Runs files of the form test_*.py or *_test.py in the current directory recursively
-PYTHONPATH=../python/mujoco:./codegen python3 -m pytest
-```
-
-The test suite will run three kind of tests:
-
-1. Enums bindings: assess all MuJoCo enums are declared.
-2. Function bindings: verifies a wide variety of MuJoCo functions and classes work correctly when called from Javascript.
-3. Benchmarks: measures shared memory buffer management approaches.
-
-Run the following commands (the benchmark bindings code is compilied first):
-```sh
-# Run this inside `wasm` folder
-WASM_DIR=$(pwd) && \
-export PATH="${WASM_DIR}/node_modules/.bin:$PATH" && \
-emcmake cmake -S "$WASM_DIR/tests" -B "$WASM_DIR/tests/build" && \
-cmake --build "$WASM_DIR/tests/build" && \
-npm run test
-```
-
-## Give it a try
+## TypeScript demo app
 
 - To run the demo app use `npm run dev:demo`. This is a use case scenario with a small ThreeJS app using MuJoCo WASM module.
-- To run the sandbox app use `npm run dev:sandbox`. This is a playground app meant for you to experiment any MuJoCo functionality you want in the browser.
+
+We plan to extend this demo into a simple application which can be used to build paper project pages.  Future work will likely provide an example using the new filament rendering and toolbox components.
+
+
+## Tests
+
+There are two three of tests:
+
+1. JavaScript/TypeScript API tests. verifies a wide variety of MuJoCo functions and classes work correctly when called from Javascript, there are also some preliminary benchmarks for shared memory buffers.  Run the following commands (the benchmark bindings code is compilied first):
+
+   ```sh
+   # Run this inside `wasm` folder
+   WASM_DIR=$(pwd) && \
+   export PATH="${WASM_DIR}/node_modules/.bin:$PATH" && \
+   emcmake cmake -S "$WASM_DIR/tests" -B "$WASM_DIR/tests/build" && \
+   cmake --build "$WASM_DIR/tests/build" && \
+   npm run test
+   ```
+
+2. JS/TS sandbox test app. Use `npm run dev:sandbox`. This is a playground app meant for you to experiment any MuJoCo functionality you want in the browser.
+
+3. Bindings Generator tests. These are relevant when developing/extending the bindings. The enums test is special since its auto-generated to cover all enums in the API.
+
+   ```sh
+   # Run this inside `wasm` folder
+   PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py && \
+
+   # Runs files of the form test_*.py or *_test.py in the current directory recursively
+   PYTHONPATH=../python/mujoco:./codegen python3 -m pytest
+   ```
+
