@@ -542,11 +542,15 @@ void App::BuildGuiWithWindows() {
 }
 
 void Section(const char* name, ImGuiTreeNodeFlags flags,
-             std::function<void()> content) {
+             std::function<void()> content, float indent_factor = 1.f) {
   if (ImGui::TreeNodeEx(name, flags)) {
-    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
+    if (indent_factor > 0.f) {
+      ImGui::Unindent(indent_factor * ImGui::GetTreeNodeToLabelSpacing());
+    }
     content();
-    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
+    if (indent_factor > 0.f) {
+      ImGui::Indent(indent_factor * ImGui::GetTreeNodeToLabelSpacing());
+    }
     ImGui::TreePop();
   }
 }
@@ -615,6 +619,7 @@ void App::BuildGuiWithSections() {
       Section("Controls", section_flags, [this] { ControlsGui(); });
       Section("Sensor", section_flags, [this] { SensorGui(); });
       Section("Profiler", section_flags, [this] { ProfilerGui(); });
+      Section("State", section_flags, [this] { StateGui(); }, .5f);
 
       // Cache the size and position of the window before we end it
       tmp_.size_ui_rhs[0] = ImGui::GetWindowSize().x;
@@ -1212,6 +1217,153 @@ void App::SimulationGui() {
 }
 
 void App::SensorGui() {}
+
+void App::StateGui() {
+  // State component names and tooltips.
+  static constexpr const char* name_and_tooltip[][2] = {
+      {"TIME", "Time"},
+      {"QPOS", "Position"},
+      {"QVEL", "Velocity"},
+      {"ACT", "Actuator activation"},
+      {"WARMSTART", "Acceleration used for warmstart"},
+      {"CTRL", "Control"},
+      {"QFRC_APPLIED", "Applied generalized force"},
+      {"XFRC_APPLIED", "Applied Cartesian force/torque"},
+      {"EQ_ACTIVE", "Enable/disable constraints"},
+      {"MOCAP_POS", "Positions of mocap bodies"},
+      {"MOCAP_QUAT", "Orientations of mocap bodies"},
+      {"USERDATA", "User data"},
+      {"PLUGIN", "Plugin state"},
+  };
+
+  int prev_state_sig = tmp_.state_sig;
+
+  // State component checkboxes.
+  if (ImGui::BeginTable("##StateSignature", 2)) {
+    for (int i = 0; i < mjNSTATE; ++i) {
+      ImGui::TableNextColumn();
+      bool checked = tmp_.state_sig & (1 << i);
+      ImGui::Checkbox(name_and_tooltip[i][0], &checked);
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", name_and_tooltip[i][1]);
+      }
+      tmp_.state_sig =
+          checked ? (tmp_.state_sig | (1 << i)) : (tmp_.state_sig & ~(1 << i));
+    }
+    ImGui::EndTable();
+  }
+
+  // Buttons to select commonly used state signatures.
+  const ImVec2 button_size(ImGui::CalcTextSize("Full Physics").x +
+                               2 * ImGui::GetStyle().FramePadding.x,
+                           0);
+  const int button_columns =
+      (ImGui::GetContentRegionAvail().x + ImGui::GetStyle().ItemSpacing.x) /
+      (button_size.x + ImGui::GetStyle().ItemSpacing.x);
+
+  if (ImGui::BeginTable("##CommonSignatures", button_columns,
+                        ImGuiTableFlags_None, ImVec2(0, 0))) {
+    for (int i = 0; i < button_columns; ++i) {
+      ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthFixed,
+                              button_size.x);
+    }
+    ImGui::TableNextColumn();
+    if (ImGui::Button("Physics", button_size)) {
+      tmp_.state_sig =
+          (tmp_.state_sig == mjSTATE_PHYSICS) ? 0 : mjSTATE_PHYSICS;
+    }
+    ImGui::TableNextColumn();
+    if (ImGui::Button("Full Physics", button_size)) {
+      tmp_.state_sig =
+          (tmp_.state_sig == mjSTATE_FULLPHYSICS) ? 0 : mjSTATE_FULLPHYSICS;
+    }
+    ImGui::TableNextColumn();
+    if (ImGui::Button("User", button_size)) {
+      tmp_.state_sig = (tmp_.state_sig == mjSTATE_USER) ? 0 : mjSTATE_USER;
+    }
+    ImGui::TableNextColumn();
+    if (ImGui::Button("Integration", button_size)) {
+      tmp_.state_sig =
+          (tmp_.state_sig == mjSTATE_INTEGRATION) ? 0 : mjSTATE_INTEGRATION;
+    }
+    ImGui::EndTable();
+  }
+
+  if (tmp_.state_sig != prev_state_sig) {
+    const int size = mj_stateSize(Model(), tmp_.state_sig);
+    tmp_.state.resize(size);
+  }
+
+  if (tmp_.state.empty()) {
+    // The state size is 0, let the user know why.
+    ImGui::Separator();
+    ImGui::BeginDisabled();
+    ImGui::TextWrapped(
+        tmp_.state_sig == 0
+            ? "State array is empty because no state components are selected."
+            : "State array is empty because the selected state components do "
+              "not exist in the model.");
+    ImGui::EndDisabled();
+  } else {
+    mj_getState(Model(), Data(), tmp_.state.data(), tmp_.state_sig);
+    bool changed = false;
+
+    if (ImGui::BeginTable(
+            "State", 3,
+            ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter |
+                ImGuiTableFlags_BordersV | ImGuiTableFlags_Resizable |
+                ImGuiTableFlags_ScrollY,
+            ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 20))) {
+      ImGui::TableSetupColumn("Index");
+      ImGui::TableSetupColumn("Name");
+      ImGui::TableSetupColumn("Value");
+      ImGui::TableSetupScrollFreeze(0, 1);
+      ImGui::TableHeadersRow();
+
+      ImGuiListClipper clipper;
+      clipper.Begin(tmp_.state.size());
+      while (clipper.Step()) {
+        int global = 0;
+        for (int i = 0; i < mjNSTATE; ++i) {
+          if (tmp_.state_sig & (1 << i)) {
+            for (int local = 0; local < mj_stateSize(Model(), (1 << i));
+                 ++local, ++global) {
+              if (global < clipper.DisplayStart) {
+                continue;
+              }
+              if (global >= clipper.DisplayEnd) {
+                break;
+              }
+              ImGui::TableNextRow();
+
+              ImGui::TableNextColumn();
+              ImGui::Text("%d", global);
+
+              ImGui::TableNextColumn();
+              ImGui::Text("%s[%d]", name_and_tooltip[i][0], local);
+
+              ImGui::TableNextColumn();
+              float value = tmp_.state[global];
+              ImGui::PushItemWidth(-std::numeric_limits<float>::min());
+              ImGui::PushID(global);
+              if (ImGui::DragFloat("##value", &value, 0.01f, 0, 0, "%.3f")) {
+                changed = true;
+              }
+              ImGui::PopID();
+              ImGui::PopItemWidth();
+              tmp_.state[global] = value;
+            }
+          }
+        }
+      }
+      ImGui::EndTable();
+    }
+
+    if (changed) {
+      mj_setState(Model(), Data(), tmp_.state.data(), tmp_.state_sig);
+    }
+  }
+}
 
 void App::ProfilerGui() {
   const int plot_flags = 0;

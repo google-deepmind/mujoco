@@ -121,6 +121,10 @@ class App {
     float size_ui_lhs[2];
     float size_ui_rhs[2];
 
+    // Data for StateGui
+    int state_sig = 0;
+    std::vector<mjtNum> state;
+
     char filename[1000] = "";
   };
 
@@ -154,6 +158,7 @@ class App {
   void WatchGui();
   void SensorGui();
   void ProfilerGui();
+  void StateGui();
   void JointsGui();
   void ControlsGui();
 
