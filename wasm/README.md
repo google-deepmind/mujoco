@@ -1,4 +1,4 @@
-# MuJoCo JavaScript/TypeScript Bindings
+# MuJoCo JavaScript Bindings
 
 These are the canonical JavaScript and TypeScript bindings for the MuJoCo physics engine, developed and maintained by Google DeepMind.
 
