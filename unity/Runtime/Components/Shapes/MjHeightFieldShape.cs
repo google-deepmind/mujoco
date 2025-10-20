@@ -112,7 +112,7 @@ public class MjHeightFieldShape : IMjShape {
 
     RenderTexture.active = null;
     if (ExportImage) {
-      if (minimumHeight > 0.0001)
+      if (minimumHeight < 0.0001)
         Debug.LogWarning("Due to assumptions in MuJoCo heightfields, terrains should have a " +
                          "minimum heightmap value of 0.");
       File.WriteAllBytes(FullHeightMapPath, texture.EncodeToPNG());
