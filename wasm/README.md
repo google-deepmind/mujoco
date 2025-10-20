@@ -66,9 +66,9 @@ cmake --build "$WASM_DIR/build"
 
 The above command will generate the following folders:
 
-- `<project-root>/build`: the result of compiling MuJoCo with Emscripten.
-- `<project-root>/wasm/build`: the result of compiling the MuJoCo bindings with Emscripten.
-- `<project-root>/wasm/dist`: the MuJoCo WebAssembly module. To use it, import the `.js` file.
+- `$PROJECT_ROOT/build`: the result of compiling MuJoCo with Emscripten.
+- `$PROJECT_ROOT/wasm/build`: the result of compiling the MuJoCo bindings with Emscripten.
+- `$PROJECT_ROOT/wasm/dist`: the MuJoCo WebAssembly module. To use it, import the `.js` file.
 
 ### Example Application
 
