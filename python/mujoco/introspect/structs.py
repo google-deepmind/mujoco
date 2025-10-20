@@ -10143,6 +10143,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='element type',
              ),
              StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='mjtWrap'),
+                 doc='wrap type',
+             ),
+             StructFieldDecl(
                  name='info',
                  type=PointerType(
                      inner_type=ValueType(name='mjString'),

@@ -6138,8 +6138,8 @@ void mjCTendon::CopyFromSpec() {
 
   // clear precompiled
   for (int i=0; i < path.size(); i++) {
-    if (path[i]->type == mjWRAP_CYLINDER) {
-      path[i]->type = mjWRAP_SPHERE;
+    if (path[i]->Type() == mjWRAP_CYLINDER) {
+      path[i]->spec.type = mjWRAP_SPHERE;
     }
   }
 }
@@ -6175,7 +6175,7 @@ void mjCTendon::WrapSite(std::string wrapname, std::string_view wrapinfo) {
   wrap->info = wrapinfo;
 
   // set parameters, add to path
-  wrap->type = mjWRAP_SITE;
+  wrap->spec.type = mjWRAP_SITE;
   wrap->name = wrapname;
   wrap->id = (int)path.size();
   path.push_back(wrap);
@@ -6190,7 +6190,7 @@ void mjCTendon::WrapGeom(std::string wrapname, std::string sidesite, std::string
   wrap->info = wrapinfo;
 
   // set parameters, add to path
-  wrap->type = mjWRAP_SPHERE;         // replace with cylinder later if needed
+  wrap->spec.type = mjWRAP_SPHERE;         // replace with cylinder later if needed
   wrap->name = wrapname;
   wrap->sidesite = sidesite;
   wrap->id = (int)path.size();
@@ -6206,7 +6206,7 @@ void mjCTendon::WrapJoint(std::string wrapname, double coef, std::string_view wr
   wrap->info = wrapinfo;
 
   // set parameters, add to path
-  wrap->type = mjWRAP_JOINT;
+  wrap->spec.type = mjWRAP_JOINT;
   wrap->name = wrapname;
   wrap->prm = coef;
   wrap->id = (int)path.size();
@@ -6222,7 +6222,7 @@ void mjCTendon::WrapPulley(double divisor, std::string_view wrapinfo) {
   wrap->info = wrapinfo;
 
   // set parameters, add to path
-  wrap->type = mjWRAP_PULLEY;
+  wrap->spec.type = mjWRAP_PULLEY;
   wrap->prm = divisor;
   wrap->id = (int)path.size();
   path.push_back(wrap);
@@ -6253,7 +6253,7 @@ void mjCTendon::ResolveReferences(const mjCModel* m) {
   for (int i=0; i < path.size(); i++) {
     std::string pname = path[i]->name;
     std::string psidesite = path[i]->sidesite;
-    if (path[i]->type == mjWRAP_PULLEY) {
+    if (path[i]->Type() == mjWRAP_PULLEY) {
       npulley++;
     }
     try {
@@ -6280,6 +6280,11 @@ void mjCTendon::ResolveReferences(const mjCModel* m) {
 
 // compiler
 void mjCTendon::Compile(void) {
+  // compile all wraps in the path
+  for (mjCWrap* wrap : path) {
+    wrap->Compile();
+  }
+
   CopyFromSpec();
 
   // resize userdata
@@ -6297,7 +6302,7 @@ void mjCTendon::Compile(void) {
   }
 
   // determine type
-  bool spatial = (path[0]->type != mjWRAP_JOINT);
+  bool spatial = (path[0]->Type() != mjWRAP_JOINT);
 
   // require at least two objects in spatial path
   if (spatial && sz < 2) {
@@ -6318,7 +6323,7 @@ void mjCTendon::Compile(void) {
     // fixed
     if (!spatial) {
       // make sure all objects are joints
-      if (path[i]->type != mjWRAP_JOINT) {
+      if (path[i]->Type() != mjWRAP_JOINT) {
         throw mjCError(this, "tendon '%s' (id = %d): spatial object found in fixed path at pos %d",
                        name.c_str(), id, i);
       }
@@ -6332,10 +6337,10 @@ void mjCTendon::Compile(void) {
                         name.c_str(), id);
       }
 
-      switch (path[i]->type) {
+      switch (path[i]->Type()) {
         case mjWRAP_PULLEY:
           // pulley should not follow other pulley
-          if (i > 0 && path[i-1]->type == mjWRAP_PULLEY) {
+          if (i > 0 && path[i-1]->Type() == mjWRAP_PULLEY) {
             throw mjCError(this, "tendon '%s' (id = %d): consecutive pulleys (pos %d)",
                            name.c_str(), id, i);
           }
@@ -6348,15 +6353,15 @@ void mjCTendon::Compile(void) {
 
         case mjWRAP_SITE:
           // site needs a neighbor that is not a pulley
-          if ((i == 0 || path[i-1]->type == mjWRAP_PULLEY) &&
-              (i == sz-1 || path[i+1]->type == mjWRAP_PULLEY)) {
+          if ((i == 0 || path[i-1]->Type() == mjWRAP_PULLEY) &&
+              (i == sz-1 || path[i+1]->Type() == mjWRAP_PULLEY)) {
             throw mjCError(this,
                            "tendon '%s' (id = %d): site %d needs a neighbor that is not a pulley",
                            name.c_str(), id, i);
           }
 
           // site cannot be repeated
-          if (i < sz-1 && path[i+1]->type == mjWRAP_SITE && path[i]->obj->id == path[i+1]->obj->id) {
+          if (i < sz-1 && path[i+1]->Type() == mjWRAP_SITE && path[i]->obj->id == path[i+1]->obj->id) {
             throw mjCError(this,
                            "tendon '%s' (id = %d): site %d is repeated",
                            name.c_str(), id, i);
@@ -6367,7 +6372,7 @@ void mjCTendon::Compile(void) {
         case mjWRAP_SPHERE:
         case mjWRAP_CYLINDER:
           // geom must be bracketed by sites
-          if (i == 0 || i == sz-1 || path[i-1]->type != mjWRAP_SITE || path[i+1]->type != mjWRAP_SITE) {
+          if (i == 0 || i == sz-1 || path[i-1]->Type() != mjWRAP_SITE || path[i+1]->Type() != mjWRAP_SITE) {
             throw mjCError(this,
                            "tendon '%s' (id = %d): geom at pos %d not bracketed by sites",
                            name.c_str(), id, i);
@@ -6442,7 +6447,7 @@ mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
   tendon = _tendon;
 
   // clear variables
-  type = mjWRAP_NONE;
+  spec.type = mjWRAP_NONE;
   obj = nullptr;
   sideid = -1;
   prm = 0;
@@ -6450,6 +6455,7 @@ mjCWrap::mjCWrap(mjCModel* _model, mjCTendon* _tendon) {
 
   // point to local
   PointToLocal();
+  CopyFromSpec();
 }
 
 
@@ -6478,7 +6484,9 @@ void mjCWrap::PointToLocal() {
   spec.info = &info;
 }
 
-
+void mjCWrap::CopyFromSpec() {
+  *static_cast<mjsWrap*>(this) = spec;
+}
 
 void mjCWrap::NameSpace(const mjCModel* m) {
   name = m->prefix + name + m->suffix;
@@ -6487,13 +6495,15 @@ void mjCWrap::NameSpace(const mjCModel* m) {
   }
 }
 
-
+void mjCWrap::Compile(void) {
+  CopyFromSpec();
+}
 
 void mjCWrap::ResolveReferences(const mjCModel* m) {
   mjCBase *pside;
 
   // handle wrap object types
-  switch (type) {
+  switch (spec.type) {
     case mjWRAP_JOINT:                        // joint
       // find joint by name
       obj = m->FindObject(mjOBJ_JOINT, name);
@@ -6516,7 +6526,7 @@ void mjCWrap::ResolveReferences(const mjCModel* m) {
 
       // set/check geom type
       if (((mjCGeom*)obj)->type == mjGEOM_CYLINDER) {
-        type = mjWRAP_CYLINDER;
+        spec.type = mjWRAP_CYLINDER;
       } else if (((mjCGeom*)obj)->type != mjGEOM_SPHERE) {
         throw mjCError(this,
                        "geom '%s' in tendon %d, wrap %d is not sphere or cylinder",
