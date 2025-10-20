@@ -1,8 +1,8 @@
 # MuJoCo JavaScript Bindings
 
-These are the canonical JavaScript and TypeScript bindings for the MuJoCo physics engine, developed and maintained by Google DeepMind.
+These are the canonical JavaScript and TypeScript bindings for the MuJoCo physics engine.
 
-This package provides a high-level API that allows you to interact with the core MuJoCo engine, which is compiled to a high-performance WebAssembly (WASM) module. These bindings are always up-to-date with the latest developments in MuJoCo.  For brevity, the documentation below will often refer to "JavaScript" but the concepts apply equally to TypeScript.
+This package provides a high-level API that allows you to interact with the core MuJoCo engine compiled to a high-performance WebAssembly (WASM) module. These bindings are developed and maintained by Google DeepMind and are always up-to-date with the latest developments in MuJoCo.  For brevity, the documentation below will often refer to "JavaScript" but the concepts apply equally to TypeScript.
 
 > [!IMPORTANT]
 > These bindings are still a WIP, for details see the [Future Work](#future-work) section. Also
