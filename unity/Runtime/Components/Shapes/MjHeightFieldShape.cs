@@ -93,7 +93,8 @@ public class MjHeightFieldShape : IMjShape {
     PrepareHeightMap();
     if (MinimumHeight <= 0) {
       // Unity imports hfields with min height = 0, which MuJoCo can't handle
-      MinimumHeight = 0.01f;
+      // Use a small fraction of max height, or a small constant
+      MinimumHeight = Mathf.Max(0.0001f, MaximumHeight * 0.0001f);
     }
   }
 
