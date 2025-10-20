@@ -22,7 +22,7 @@
 #include <string_view>
 #include <vector>
 
-#include "third_party/absl/flags/flag.h"
+#include <absl/flags/flag.h>
 #include "experimental/studio/app.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");

@@ -29,8 +29,8 @@
 #include <utility>
 #include <vector>
 
-#include <dear_imgui/imgui.h>
-#include <implot/implot.h>
+#include <imgui.h>
+#include <implot.h>
 #include <mujoco/mujoco.h>
 #include "experimental/toolbox/helpers.h"
 #include "experimental/toolbox/imgui_widgets.h"
@@ -42,7 +42,7 @@
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "experimental/filament/render_context_filament.h"
 #elif defined(USE_CLASSIC_OPENGL)
-#include <dear_imgui/backends/imgui_impl_opengl3.h>
+#include <backends/imgui_impl_opengl3.h>
 #else
 #error No rendering mode defined.
 #endif

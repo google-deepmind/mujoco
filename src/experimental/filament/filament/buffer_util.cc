@@ -16,7 +16,7 @@
 
 #include <cstddef>
 
-#include "third_party/filament/filament/backend/include/backend/BufferDescriptor.h"
+#include <backend/BufferDescriptor.h>
 
 namespace mujoco {
 

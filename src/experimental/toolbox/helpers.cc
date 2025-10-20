@@ -24,8 +24,8 @@
 #include <string>
 #include <vector>
 
-#include "third_party/libwebp/src/webp/encode.h"
-#include "third_party/libwebp/src/webp/types.h"
+#include "webp/encode.h"
+#include "webp/types.h"
 #include <mujoco/mjrender.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>

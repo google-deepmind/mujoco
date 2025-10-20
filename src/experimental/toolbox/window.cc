@@ -17,16 +17,16 @@
 #include <string>
 #include <string_view>
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_error.h>
-#include <SDL2/SDL_events.h>
-#include <SDL2/SDL_hints.h>
-#include <SDL2/SDL_syswm.h>
-#include <SDL2/SDL_version.h>
-#include <SDL2/SDL_video.h>
-#include <dear_imgui/backends/imgui_impl_sdl2.h>
-#include <dear_imgui/imgui.h>
-#include <implot/implot.h>
+#include <SDL.h>
+#include <SDL_error.h>
+#include <SDL_events.h>
+#include <SDL_hints.h>
+#include <SDL_syswm.h>
+#include <SDL_version.h>
+#include <SDL_video.h>
+#include <backends/imgui_impl_sdl2.h>
+#include <imgui.h>
+#include <implot.h>
 #include "experimental/toolbox/helpers.h"
 #include <mujoco/mujoco.h>
 

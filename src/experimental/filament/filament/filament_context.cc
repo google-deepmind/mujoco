@@ -20,7 +20,7 @@
 #include <memory>
 #include <utility>
 
-#include "third_party/filament/filament/backend/include/backend/DriverEnums.h"
+#include <backend/DriverEnums.h>
 #include <filament/Engine.h>
 #include <filament/IndexBuffer.h>
 #include <filament/IndirectLight.h>

@@ -19,7 +19,7 @@
 #include <string_view>
 
 #include "experimental/toolbox/helpers.h"
-#include <SDL2/SDL_video.h>
+#include <SDL_video.h>
 
 namespace mujoco::toolbox {
 
