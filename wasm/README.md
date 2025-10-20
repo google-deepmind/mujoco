@@ -54,10 +54,6 @@ PYTHONPATH=../python/mujoco:./codegen python3 codegen/update.py
 
 Once the C++ files are generated (note that, for convenience, we already provide the output of the above script in the [`generated`](codegen/generated) folder), the next step is to build the `.wasm`, `.js`, and `.d.ts` files from the C++ sources (which are the files you will use to call MuJoCo from JavaScript). Make sure you have set up npm and the Emscripten SDK prerequisites, then run the following in the same terminal session where the `emsdk` environment was sourced:
 
-> [!NOTE]
-> _Make sure to run the following steps in the same terminal session in which the Emscripten SDK was sourced.
-> Also ensure that no `build` or `dist` folders exist in the root of the project or inside the `wasm` folder._
-
 ```sh
 # Run this inside the `wasm` folder
 WASM_DIR=$(pwd) && PROJECT_ROOT=$(dirname "$WASM_DIR") && \
