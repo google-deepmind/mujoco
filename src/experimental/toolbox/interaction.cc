@@ -15,7 +15,7 @@
 #include "experimental/toolbox/interaction.h"
 #include <algorithm>
 
-#include <dear_imgui/imgui.h>
+#include <imgui.h>
 #include "experimental/toolbox/imgui_widgets.h"
 #include "experimental/toolbox/physics.h"
 #include "experimental/toolbox/renderer.h"

@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <type_traits>
-#include "third_party/filament/filament/backend/include/backend/BufferDescriptor.h"
+#include <backend/BufferDescriptor.h>
 #include <filament/Box.h>
 #include <filament/Engine.h>
 #include <filament/IndexBuffer.h>

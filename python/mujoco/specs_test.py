@@ -1491,5 +1491,69 @@ class SpecsTest(absltest.TestCase):
 
     self.assertEqual(model.geom_matid[0], 1)
 
+  def test_tendon_path(self):
+    spec = mujoco.MjSpec()
+
+    body = spec.worldbody.add_body(name='body')
+
+    body.add_geom(name='body_geom', pos=[0, 0, 0], size=[.1, 0, 0])
+    body.add_site(name='site1', pos=[0, 0, 0])
+    body.add_site(name='site2', pos=[0, 0, -1])
+    body.add_site(name='site3', pos=[0, 0, -4])
+    body.add_site(name='site4', pos=[0, 1, -6])
+
+    spec.worldbody.add_geom(name='sphere', size=[.2, 0, 0], pos=[0, 0, -2])
+
+    spec.worldbody.add_geom(
+        name='cylinder',
+        type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+        size=[0.1, 0.2, 0.3],
+        pos=[0, 0, -5]
+    )
+
+    body.add_joint(
+        name='joint1', type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0]
+    )
+
+    body2 = spec.worldbody.add_body(name='body2', pos=[2, 0, 0])
+    body2.add_geom(name='body2_geom', pos=[0, 0, 0], size=[.1, 0, 0])
+    body2.add_joint(
+        name='joint2', type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0]
+    )
+
+    spatial_tendon = spec.add_tendon()
+    fixed_tendon = spec.add_tendon()
+
+    wrap_site1 = spatial_tendon.wrap_site('site1')
+    wrap_site2 = spatial_tendon.wrap_site('site2')
+    wrap_pulley1 = spatial_tendon.wrap_pulley(2.0)
+    wrap_site3_1 = spatial_tendon.wrap_site('site3')
+    wrap_sphere = spatial_tendon.wrap_geom('sphere', '')
+    wrap_site4_1 = spatial_tendon.wrap_site('site4')
+    wrap_pulley2 = spatial_tendon.wrap_pulley(2.0)
+    wrap_site3_2 = spatial_tendon.wrap_site('site3')
+    wrap_cylinder = spatial_tendon.wrap_geom('cylinder', '')
+    wrap_site4_2 = spatial_tendon.wrap_site('site4')
+
+    wrap_joint1 = fixed_tendon.wrap_joint('joint1', 1.0)
+    wrap_joint2 = fixed_tendon.wrap_joint('joint2', 1.0)
+
+    # Wrap type for geom is only set during compilation.
+    spec.compile()
+
+    self.assertEqual(wrap_site1.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site2.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site3_1.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site4_1.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site3_2.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site4_2.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_pulley1.type, mujoco.mjtWrap.mjWRAP_PULLEY)
+    self.assertEqual(wrap_sphere.type, mujoco.mjtWrap.mjWRAP_SPHERE)
+    self.assertEqual(wrap_cylinder.type, mujoco.mjtWrap.mjWRAP_CYLINDER)
+    self.assertEqual(wrap_pulley2.type, mujoco.mjtWrap.mjWRAP_PULLEY)
+
+    self.assertEqual(wrap_joint1.type, mujoco.mjtWrap.mjWRAP_JOINT)
+    self.assertEqual(wrap_joint2.type, mujoco.mjtWrap.mjWRAP_JOINT)
+
 if __name__ == '__main__':
   absltest.main()

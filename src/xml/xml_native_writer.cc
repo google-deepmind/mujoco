@@ -715,7 +715,7 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
 
 // write tendon
 void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* tendon, mjCDef* def) {
-  bool fixed = (tendon->GetWrap(0) && tendon->GetWrap(0)->type == mjWRAP_JOINT);
+  bool fixed = (tendon->GetWrap(0) && tendon->GetWrap(0)->Type() == mjWRAP_JOINT);
 
   // regular
   if (!writingdefaults) {
@@ -1886,14 +1886,14 @@ void mjXWriter::Tendon(XMLElement* root) {
       continue;
     }
     XMLElement* elem = InsertEnd(section,
-                                 tendon->GetWrap(0)->type == mjWRAP_JOINT ? "fixed" : "spatial");
+                                 tendon->GetWrap(0)->Type() == mjWRAP_JOINT ? "fixed" : "spatial");
     OneTendon(elem, tendon, model->def_map[tendon->classname]);
 
     // write wraps
     XMLElement* wrapelem;
     for (int j=0; j < tendon->NumWraps(); j++) {
       const mjCWrap* wrap = tendon->GetWrap(j);
-      switch (wrap->type) {
+      switch (wrap->Type()) {
         case mjWRAP_JOINT:
           wrapelem = InsertEnd(elem, "joint");
           WriteAttrTxt(wrapelem, "joint", wrap->obj->name);

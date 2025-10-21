@@ -652,6 +652,7 @@ typedef struct mjsTendon_ {        // tendon specification
 
 typedef struct mjsWrap_ {          // wrapping object specification
   mjsElement* element;             // element type
+  mjtWrap type;                    // wrap type
   mjString* info;                  // message appended to errors
 } mjsWrap;
 

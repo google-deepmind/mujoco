@@ -19,7 +19,7 @@
 #include <cstring>
 #include <vector>
 
-#include <dear_imgui/imgui.h>
+#include <imgui.h>
 #include <filament/Engine.h>
 #include <filament/RenderableManager.h>
 #include <filament/TextureSampler.h>
