@@ -56,14 +56,16 @@ namespace mujoco::studio {
 // - "passive" mode
 // - async physics
 
-static constexpr toolbox::Window::Config kWindowConfig =
+static constexpr toolbox::Window::Config kWindowConfig = {
 #if defined(USE_FILAMENT_VULKAN)
-  toolbox::Window::Config::kFilamentVulkan;
+  .render_config = toolbox::Window::RenderConfig::kFilamentVulkan,
 #elif defined(USE_FILAMENT_OPENGL)
-  toolbox::Window::Config::kFilamentOpenGL;
+  .render_config = toolbox::Window::RenderConfig::kFilamentOpenGL,
 #elif defined(USE_CLASSIC_OPENGL)
-  toolbox::Window::Config::kClassicOpenGL;
+  .render_config = toolbox::Window::RenderConfig::kClassicOpenGL,
 #endif
+  .enable_keyboard = true,
+};
 
 
 static void ToggleWindow(bool& window) {
