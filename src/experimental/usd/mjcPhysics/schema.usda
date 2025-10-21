@@ -501,7 +501,7 @@ class "MjcSceneAPI"
         doc = """Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."""
     )
 
-    uniform bool mjc:flag:island = False (
+    uniform bool mjc:flag:island = True (
         customData = {
             string apiName = "IslandFlag"
         }

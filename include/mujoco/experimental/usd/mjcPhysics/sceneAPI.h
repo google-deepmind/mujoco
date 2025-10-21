@@ -1343,7 +1343,7 @@ class MjcPhysicsSceneAPI : public UsdAPISchemaBase {
   ///
   /// | ||
   /// | -- | -- |
-  /// | Declaration | `uniform bool mjc:flag:island = 0` |
+  /// | Declaration | `uniform bool mjc:flag:island = 1` |
   /// | C++ Type | bool |
   /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->Bool |
   /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |

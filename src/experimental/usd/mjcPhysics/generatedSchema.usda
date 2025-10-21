@@ -126,7 +126,7 @@ class "MjcSceneAPI" (
         displayName = "Discrete-Time Inverse Dynamics Toggle"
         doc = "Enables discrete-time inverse dynamics with mj_inverse for integrators other than RK4."
     )
-    uniform bool mjc:flag:island = 0 (
+    uniform bool mjc:flag:island = 1 (
         displayName = "Constraint Island Discovery Toggle"
         doc = "Enables the discovery of constraint islands."
     )
