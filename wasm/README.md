@@ -64,7 +64,7 @@ emcmake cmake -S "$WASM_DIR" -B "$WASM_DIR/build" && \
 cmake --build "$WASM_DIR/build"
 ```
 
-The above command will generate the following folders:
+The above command will generate the following folders (if you want to start from a clean slate you need to delete these):
 
 - `$PROJECT_ROOT/build`: the result of compiling MuJoCo with Emscripten.
 - `$PROJECT_ROOT/wasm/build`: the result of compiling the MuJoCo bindings with Emscripten.
