@@ -329,10 +329,24 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
         return InterceptMjErrors(::mj_getState)(m, d, state.data(), sig);
       });
+  Def<traits::mj_extractState>(
+    pymodule,
+    [](const raw::MjModel* m,
+       Eigen::Ref<const EigenVectorX> src, unsigned int srcsig,
+       Eigen::Ref<EigenVectorX> dst, unsigned int dstsig) {
+        if (src.size() != mj_stateSize(m, srcsig)) {
+          throw py::type_error("src size should equal mj_stateSize(m, srcsig)");
+        }
+        if (dst.size() != mj_stateSize(m, dstsig)) {
+          throw py::type_error("dst size should equal mj_stateSize(m, dstsig)");
+        }
+        return InterceptMjErrors(::mj_extractState)(m, src.data(), srcsig,
+                                                    dst.data(), dstsig);
+      });
   Def<traits::mj_setState>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         const Eigen::Ref<EigenVectorX> state, unsigned int sig) {
+         Eigen::Ref<const EigenVectorX> state, unsigned int sig) {
         if (state.size() != mj_stateSize(m, sig)) {
           throw py::type_error("state size should equal mj_stateSize(m, sig)");
         }

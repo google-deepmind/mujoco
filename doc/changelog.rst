@@ -10,6 +10,8 @@ General
 
 - Raise an error if there are name collisions also during parsing.
 - Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
+- Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
+  :ref:`mj_getState` to be extracted without having to be written back into ``mjData`` first.
 
 Version 3.3.7 (October 13, 2025)
 -----------------------------------

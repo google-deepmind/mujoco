@@ -211,6 +211,28 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int 
 }
 
 
+// extract a sub-state from a state
+void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
+                     mjtNum* dst, unsigned int dstsig) {
+  if ((srcsig & dstsig) != dstsig) {
+    mjERROR("dstsig is not a subset of srcsig");
+    return;
+  }
+
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & srcsig) {
+      int size = mj_stateElemSize(m, element);
+      if (element & dstsig) {
+        mju_copy(dst, src, size);
+        dst += size;
+      }
+      src += size;
+    }
+  }
+}
+
+
 // set state
 void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig) {
   if (sig >= (1<<mjNSTATE)) {
