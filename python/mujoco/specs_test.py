@@ -318,6 +318,14 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(frameb1.pos, frameb0.pos)
     np.testing.assert_array_equal(frameb1.quat, frameb0.quat)
 
+    # Add frame in frame.
+    framec0 = frameb0.add_frame(name='framec', pos=[7, 8, 9], quat=[0, 0, 0, 1])
+    self.assertEqual(framec0.name, 'framec')
+    self.assertEqual(framec0.parent, frameb0.parent)
+    self.assertEqual(framec0.frame, frameb0)
+    np.testing.assert_array_equal(framec0.pos, [7, 8, 9])
+    np.testing.assert_array_equal(framec0.quat, [0, 0, 0, 1])
+
     # Add joint.
     joint = body.add_joint(type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0])
     self.assertEqual(joint.type, mujoco.mjtJoint.mjJNT_HINGE)
@@ -339,6 +347,12 @@ class SpecsTest(absltest.TestCase):
     # Add light.
     light = body.add_light(attenuation=[1, 2, 3])
     np.testing.assert_array_equal(light.attenuation, [1, 2, 3])
+
+    # Add light in a frame.
+    light_in_frame = framea0.add_light(cutoff=10)
+    self.assertEqual(light_in_frame.cutoff, 10)
+    self.assertEqual(light_in_frame.parent, framea0.parent)
+    self.assertEqual(light_in_frame.frame, framea0)
 
     # Invalid input for valid keyword argument.
     with self.assertRaises(ValueError) as cm:
