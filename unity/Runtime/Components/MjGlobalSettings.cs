@@ -275,11 +275,9 @@ public struct MjOptionStruct {
 
   public XmlElement ToMjcf(XmlElement mjcf) {
     mjcf.SetAttribute("impratio", MjEngineTool.MakeLocaleInvariant($"{ImpRatio}"));
-
     mjcf.SetAttribute("magnetic",
-    MjEngineTool.MakeLocaleInvariant($"{Magnetic.x} {Magnetic.y} {Magnetic.z}"));
+        MjEngineTool.MakeLocaleInvariant($"{Magnetic.x} {Magnetic.y} {Magnetic.z}"));
     mjcf.SetAttribute("wind", MjEngineTool.MakeLocaleInvariant($"{Wind.x} {Wind.y} {Wind.z}"));
-
     mjcf.SetAttribute("density", MjEngineTool.MakeLocaleInvariant($"{Density}"));
     mjcf.SetAttribute("viscosity", MjEngineTool.MakeLocaleInvariant($"{Viscosity}"));
     mjcf.SetAttribute("o_margin", MjEngineTool.MakeLocaleInvariant($"{OverrideMargin}"));
@@ -291,7 +289,6 @@ public struct MjOptionStruct {
     mjcf.SetAttribute("cone", Cone.ToString());
     mjcf.SetAttribute("jacobian", Jacobian.ToString());
     mjcf.SetAttribute("solver", Solver.ToString());
-
     mjcf.SetAttribute("iterations", MjEngineTool.MakeLocaleInvariant($"{Iterations}"));
     mjcf.SetAttribute("tolerance", MjEngineTool.MakeLocaleInvariant($"{Tolerance}"));
     mjcf.SetAttribute("noslip_iterations", MjEngineTool.MakeLocaleInvariant($"{NoSlipIterations}"));
