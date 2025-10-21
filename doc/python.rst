@@ -26,7 +26,7 @@ Tutorial notebook
 
 A MuJoCo tutorial using the Python bindings is available here: |mjcolab|
 
-.. |mjcolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |mjcolab| image:: https://colab.research.google.com/assets/colab-badge.png
              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb
 
 .. _PyInstallation:
@@ -796,7 +796,7 @@ values. The rollouts are run in parallel with an internally managed thread pool 
 thread) are passed as an argument. This notebook shows how to use ``rollout`` |rollout_colab|, along with some
 benchmarks e.g., the figure below.
 
-.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.png
                    :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb
 
 .. image:: images/python/rollout.png
@@ -868,7 +868,7 @@ This module contains optimization-related utilities.
 The ``minimize.least_squares()`` function implements a nonlinear Least Squares optimizer solving sequential
 Quadratic Programs with :ref:`mju_boxQP`. It is documented in the associated notebook: |lscolab|
 
-.. |lscolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |lscolab| image:: https://colab.research.google.com/assets/colab-badge.png
              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
 
 .. _PyUSDexport:
