@@ -4388,6 +4388,42 @@ Return spec's first element of selected type.
 
 Return spec's next element; return NULL if element is last.
 
+.. _mjs_getWrapTarget:
+
+`mjs_getWrapTarget <#mjs_getWrapTarget>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapTarget
+
+Get wrapped element in tendon path.
+
+.. _mjs_getWrapSideSite:
+
+`mjs_getWrapSideSite <#mjs_getWrapSideSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapSideSite
+
+Get wrapped element side site in tendon path if it has one, nullptr otherwise.
+
+.. _mjs_getWrapDivisor:
+
+`mjs_getWrapDivisor <#mjs_getWrapDivisor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapDivisor
+
+Get divisor of mjsWrap wrapping a puller.
+
+.. _mjs_getWrapCoef:
+
+`mjs_getWrapCoef <#mjs_getWrapCoef>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapCoef
+
+Get coefficient of mjsWrap wrapping a joint.
+
 .. _AttributeSetters:
 
 Attribute setters
@@ -4532,6 +4568,24 @@ Get string contents.
 Get double array contents and optionally its size.
 
 *Nullable:* ``size``
+
+.. _mjs_getWrapNum:
+
+`mjs_getWrapNum <#mjs_getWrapNum>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapNum
+
+Get number of elements a tendon wraps.
+
+.. _mjs_getWrap:
+
+`mjs_getWrap <#mjs_getWrap>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrap
+
+Get mjsWrap element at position i in the tendon path.
 
 .. _mjs_getPluginAttributes:
 

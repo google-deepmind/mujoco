@@ -12,6 +12,15 @@ General
 - Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
 - Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
   :ref:`mj_getState` to be extracted without having to be written back into ``mjData`` first.
+- Tendon paths can now be queried from Python via ``MjsTendon.path``, the returned object
+  is iterable and indexing it will give the ``MjsWrap`` at the given index in the path.
+- ``MjsWrap`` now exposes:
+
+  - ``type -> mujoco.mjtWrap``
+  - ``target -> MjsSite|MjsJoint|MjsGeom|None``
+  - ``sidesite -> MjsSite|None``
+  - ``coef -> real``
+  - ``divisor -> real``
 
 Version 3.3.7 (October 13, 2025)
 -----------------------------------
