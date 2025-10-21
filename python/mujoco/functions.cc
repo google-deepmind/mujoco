@@ -52,6 +52,27 @@ PYBIND11_MODULE(_functions, pymodule) {
   // Virtual file system
   // Skipped entire section
 
+  // Asset cache
+  Def<traits::mj_getCacheSize>(pymodule, [](void* cache) {
+        return mj_getCacheSize(static_cast<mjCache*>(cache));
+      });
+
+  Def<traits::mj_getCacheCapacity>(pymodule, [](void* cache) {
+        return mj_getCacheCapacity(static_cast<mjCache*>(cache));
+      });
+
+  Def<traits::mj_setCacheCapacity>(pymodule, [](void* cache, std::size_t size) {
+        return mj_setCacheCapacity(static_cast<mjCache*>(cache), size);
+      });
+
+  Def<traits::mj_getCache>(pymodule, []() {
+        return static_cast<void*>(mj_getCache());
+      });
+
+  Def<traits::mj_clearCache>(pymodule, [](void* cache) {
+        return mj_clearCache(static_cast<mjCache*>(cache));
+      });
+
   // Parse and compile
   // Skipped: mj_loadXML (have MjModel.from_xml_string)
   DEF_WITH_OMITTED_PY_ARGS(traits::mj_saveLastXML, "error", "error_sz")(
@@ -76,6 +97,14 @@ PYBIND11_MODULE(_functions, pymodule) {
           throw UnexpectedError("output buffer too small");
         }
         return std::string(buffer.get(), out_length);
+      });
+
+  DEF_WITH_OMITTED_PY_ARGS(traits::mju_getXMLDependencies,
+                           "dependencies")(
+      pymodule, [](const char* filename){
+        mjStringVec dependencies;
+        InterceptMjErrors(::mju_getXMLDependencies)(filename, &dependencies);
+        return dependencies;
       });
 
   // Main simulation
@@ -153,6 +182,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mj_printModel>(pymodule);
   Def<traits::mj_printFormattedData>(pymodule);
   Def<traits::mj_printData>(pymodule);
+  Def<traits::mj_printFormattedScene>(pymodule);
+  Def<traits::mj_printScene>(pymodule);
   DEF_WITH_OMITTED_PY_ARGS(traits::mju_printMat, "nr", "nc")(
       pymodule,
       [](Eigen::Ref<const EigenArrayXX> mat) {
@@ -298,10 +329,24 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
         return InterceptMjErrors(::mj_getState)(m, d, state.data(), sig);
       });
+  Def<traits::mj_extractState>(
+    pymodule,
+    [](const raw::MjModel* m,
+       Eigen::Ref<const EigenVectorX> src, unsigned int srcsig,
+       Eigen::Ref<EigenVectorX> dst, unsigned int dstsig) {
+        if (src.size() != mj_stateSize(m, srcsig)) {
+          throw py::type_error("src size should equal mj_stateSize(m, srcsig)");
+        }
+        if (dst.size() != mj_stateSize(m, dstsig)) {
+          throw py::type_error("dst size should equal mj_stateSize(m, dstsig)");
+        }
+        return InterceptMjErrors(::mj_extractState)(m, src.data(), srcsig,
+                                                    dst.data(), dstsig);
+      });
   Def<traits::mj_setState>(
       pymodule,
       [](const raw::MjModel* m, raw::MjData* d,
-         const Eigen::Ref<EigenVectorX> state, unsigned int sig) {
+         Eigen::Ref<const EigenVectorX> state, unsigned int sig) {
         if (state.size() != mj_stateSize(m, sig)) {
           throw py::type_error("state size should equal mj_stateSize(m, sig)");
         }

@@ -17,7 +17,7 @@ for updates.
 mujoco-usd-converter
 --------------------
 
-To convert existing MJCF assets to USD following strong authoring guidelines we recommend the `NVIDIA
+To convert existing MJCF assets to USD following strong authoring guidelines we recommend the `Newton
 mujoco-usd-converter <https://github.com/newton-physics/mujoco-usd-converter>`__. These assets will have no reference to
 the original MJCF assets but will use the :doc:`mjcPhysics <mjcPhysics>` schemas to enable faithful representation of
 the source assets.

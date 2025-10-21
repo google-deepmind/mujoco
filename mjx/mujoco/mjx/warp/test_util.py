@@ -103,7 +103,7 @@ def make_data(
 
 def _mjx_contact(dx, worldid: int):
   keys = []
-  for i in range(dx._impl.ncon[0]):
+  for i in range(dx._impl.nacon[0]):
     if dx._impl.contact__worldid[i] != worldid:
       continue
 

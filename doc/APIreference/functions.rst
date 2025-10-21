@@ -127,6 +127,17 @@ the required size. XML saving automatically compiles the spec before saving.
 
 Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
 
+.. _mju_getXMLDependencies:
+
+`mju_getXMLDependencies <#mju_getXMLDependencies>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_getXMLDependencies
+
+Given MJCF filename, fills dependencies with a list of all other asset files it depends on.
+
+The search is recursive, and the list includes the filename itself.
+
 .. _Mainsimulation:
 
 Main simulation
@@ -247,6 +258,17 @@ correspond to element fields of :ref:`mjtState`.
 
 Copy concatenated state components specified by ``sig`` from ``d`` into ``state``. The bits of the integer
 ``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
+
+.. _mj_extractState:
+
+`mj_extractState <#mj_extractState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_extractState
+
+Extract into ``dst`` the subset of components specified by ``dstsig`` from a state ``src`` previously obtained via
+:ref:`mj_getState` with components specified by ``srcsig``. Fails with :ref:`mju_error` if the bits set in ``dstsig``
+is not a subset of the bits set in ``srcsig``.
 
 .. _mj_setState:
 
@@ -492,7 +514,7 @@ Multiply vector by (inertia matrix)^(1/2).
 
 .. mujoco-include:: mj_addM
 
-Add inertia matrix to destination matrix.
+Add inertia matrix to destination matrix (lower triangle only).
 
 Destination can be sparse or dense when all int* are NULL.
 
@@ -1215,7 +1237,7 @@ Print model to text file.
 .. mujoco-include:: mj_printFormattedData
 
 Print mjData to text file, specifying format.
-float_format must be a valid printf-style format string for a single float value
+float_format must be a valid printf-style format string for a single float value.
 
 .. _mj_printData:
 
@@ -1253,6 +1275,25 @@ Print sparse matrix to screen.
 
 Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;``.
 
+.. _mj_printScene:
+
+`mj_printScene <#mj_printScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printScene
+
+Print scene to text file.
+
+.. _mj_printFormattedScene:
+
+`mj_printFormattedScene <#mj_printFormattedScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printFormattedScene
+
+Print scene to text file, specifying format.
+float_format must be a valid printf-style format string for a single float value.
+
 .. _Virtualfilesystem:
 
 Virtual file system
@@ -1288,6 +1329,12 @@ Add file to VFS. The directory argument is optional and can be NULL or empty. Re
 2 on name collision, or -1 when an internal error occurs.
 
 *Nullable:* ``directory``
+
+
+.. Assetcache:
+
+The asset cache is a mechanism for caching assets (e.g. textures, meshes, etc.) to avoid repeated slow recompilation.
+The following methods provide way to control the capacity of the cache or to disable it altogether.
 
 .. _mj_addBufferVFS:
 
@@ -1342,6 +1389,8 @@ Set default options for length range computation.
 
 Set solver parameters to default values.
 
+*Nullable:* ``solref``, ``solimp``
+
 .. _mj_defaultOption:
 
 `mj_defaultOption <#mj_defaultOption>`__
@@ -1368,6 +1417,8 @@ Set visual options to default values.
 .. mujoco-include:: mj_copyModel
 
 Copy mjModel, allocate new if dest is NULL.
+
+*Nullable:* ``dest``
 
 .. _mj_saveModel:
 
@@ -4337,6 +4388,42 @@ Return spec's first element of selected type.
 
 Return spec's next element; return NULL if element is last.
 
+.. _mjs_getWrapTarget:
+
+`mjs_getWrapTarget <#mjs_getWrapTarget>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapTarget
+
+Get wrapped element in tendon path.
+
+.. _mjs_getWrapSideSite:
+
+`mjs_getWrapSideSite <#mjs_getWrapSideSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapSideSite
+
+Get wrapped element side site in tendon path if it has one, nullptr otherwise.
+
+.. _mjs_getWrapDivisor:
+
+`mjs_getWrapDivisor <#mjs_getWrapDivisor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapDivisor
+
+Get divisor of mjsWrap wrapping a puller.
+
+.. _mjs_getWrapCoef:
+
+`mjs_getWrapCoef <#mjs_getWrapCoef>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapCoef
+
+Get coefficient of mjsWrap wrapping a joint.
+
 .. _AttributeSetters:
 
 Attribute setters
@@ -4481,6 +4568,24 @@ Get string contents.
 Get double array contents and optionally its size.
 
 *Nullable:* ``size``
+
+.. _mjs_getWrapNum:
+
+`mjs_getWrapNum <#mjs_getWrapNum>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapNum
+
+Get number of elements a tendon wraps.
+
+.. _mjs_getWrap:
+
+`mjs_getWrap <#mjs_getWrap>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrap
+
+Get mjsWrap element at position i in the tendon path.
 
 .. _mjs_getPluginAttributes:
 

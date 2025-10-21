@@ -23,8 +23,9 @@
 #include "engine/engine_callback.h"
 #include "engine/engine_collision_sdf.h"
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_ray.h"
 #include "engine/engine_sort.h"
@@ -55,7 +56,7 @@ static int ContactInfoCompare(const ContactInfo* a, const ContactInfo* b, void* 
 
   return 0;
 }
-mjPARTIAL_SORT(ContactSelect, ContactInfo, ContactInfoCompare)
+mjPARTIAL_SORT(ContactSelect, ContactInfo, ContactInfoCompare);
 
 
 // apply cutoff after each stage
@@ -90,7 +91,6 @@ static void apply_cutoff(const mjModel* m, mjData* d, mjtStage stage) {
 }
 
 
-
 // get xpos and xmat pointers to an object in mjData
 static void get_xpos_xmat(const mjData* d, mjtObj type, int id, int sensor_id,
                           mjtNum **xpos, mjtNum **xmat) {
@@ -121,7 +121,6 @@ static void get_xpos_xmat(const mjData* d, mjtObj type, int id, int sensor_id,
 }
 
 
-
 // get global quaternion of an object in mjData
 static void get_xquat(const mjModel* m, const mjData* d, mjtObj type, int id, int sensor_id,
                       mjtNum *quat) {
@@ -145,7 +144,6 @@ static void get_xquat(const mjModel* m, const mjData* d, mjtObj type, int id, in
     mjERROR("invalid object type in sensor %d", sensor_id);
   }
 }
-
 
 
 static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
@@ -240,14 +238,20 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
 }
 
 
-
 // check if a contact body/geom matches a sensor spec (type, id)
 static int checkMatch(const mjModel* m, int body, int geom, mjtObj type, int id) {
   if (type == mjOBJ_UNKNOWN) return 1;
   if (type == mjOBJ_SITE)    return 1;  // already passed site filter test
   if (type == mjOBJ_GEOM)    return id == geom;
   if (type == mjOBJ_BODY)    return id == body;
-  if (type == mjOBJ_XBODY)   return body >= 0 && m->body_rootid[id] == m->body_rootid[body];
+  if (type == mjOBJ_XBODY) {
+    // traverse up the tree from body, return true if we land on id
+    while (body > id) {
+      body = m->body_parentid[body];
+    }
+    return body == id;
+  }
+
   return 0;
 }
 
@@ -306,7 +310,6 @@ static int matchContact(const mjModel* m, const mjData* d, int conid,
 }
 
 
-
 // fill in output data for contact sensor for all fields
 //   if flg_flip > 0, normal/tangent rotate 180 about frame[2]
 //   force/torque flip-z s.t. force is equal-and-opposite in new contact frame
@@ -353,7 +356,6 @@ static void copySensorData(const mjModel* m, const mjData* d,
 }
 
 
-
 // compute total wrench about one point, in the global frame
 static void total_wrench(mjtNum force[3], mjtNum torque[3], const mjtNum point[3], int n,
                         const mjtNum *wrench, const mjtNum *pos, const mjtNum *frame) {
@@ -378,7 +380,6 @@ static void total_wrench(mjtNum force[3], mjtNum torque[3], const mjtNum point[3
     mju_addTo3(torque, induced_torque);
   }
 }
-
 
 
 //-------------------------------- sensor ----------------------------------------------------------
@@ -543,11 +544,10 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
       case mjSENS_GEOMNORMAL:                             // normal direction between two geoms
       case mjSENS_GEOMFROMTO:                             // segment between two geoms
         {
-          // use cutoff for collision margin
-          mjtNum margin = m->sensor_cutoff[i];
+          mjtNum cutoff = m->sensor_cutoff[i];
 
           // initialize outputs
-          mjtNum dist = margin;    // collision distance
+          mjtNum dist = cutoff;    // collision distance
           mjtNum fromto[6] = {0};  // segment between geoms
 
           // get lists of geoms to collide
@@ -572,7 +572,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
           for (int geom1=id1; geom1 < id1+n1; geom1++) {
             for (int geom2=id2; geom2 < id2+n2; geom2++) {
               mjtNum fromto_new[6] = {0};
-              mjtNum dist_new = mj_geomDistance(m, d, geom1, geom2, margin, fromto_new);
+              mjtNum dist_new = mj_geomDistance(m, d, geom1, geom2, cutoff, fromto_new);
               if (dist_new < dist) {
                 dist = dist_new;
                 mju_copy(fromto, fromto_new, 6);
@@ -618,7 +618,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
                            m->sensor_objid[i+1]   == objid    &&
                            m->sensor_reftype[i+1] == reftype  &&
                            m->sensor_refid[i+1]   == refid    &&
-                           m->sensor_cutoff[i+1]  == margin;
+                           m->sensor_cutoff[i+1]  == cutoff;
 
             // if signature matches, increment external loop variable i
             if (write_sensor) {
@@ -647,6 +647,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_USER:                                   // user
+        // clear result, compute later
+        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
         nusersensor++;
         break;
 
@@ -683,7 +685,6 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
   // cutoff
   apply_cutoff(m, d, mjSTAGE_POS);
 }
-
 
 
 // velocity-dependent sensors
@@ -823,6 +824,8 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_USER:                                   // user
+        // clear result, compute later
+        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
         nusersensor++;
         break;
 
@@ -866,7 +869,6 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
   // cutoff
   apply_cutoff(m, d, mjSTAGE_VEL);
 }
-
 
 
 // acceleration/force-dependent sensors
@@ -1348,6 +1350,8 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_USER:                                   // user
+        // clear result, compute later
+        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
         nusersensor++;
         break;
 
@@ -1393,7 +1397,6 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 }
 
 
-
 //-------------------------------- energy ----------------------------------------------------------
 
 // position-dependent energy (potential)
@@ -1410,7 +1413,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
   }
 
   // add joint-level springs
-  if (!mjDISABLED(mjDSBL_PASSIVE)) {
+  if (!mjDISABLED(mjDSBL_SPRING)) {
     for (int i=0; i < m->njnt; i++) {
       stiffness = m->jnt_stiffness[i];
       padr = m->jnt_qposadr[i];
@@ -1443,7 +1446,7 @@ void mj_energyPos(const mjModel* m, mjData* d) {
   }
 
   // add tendon-level springs
-  if (!mjDISABLED(mjDSBL_PASSIVE)) {
+  if (!mjDISABLED(mjDSBL_SPRING)) {
     for (int i=0; i < m->ntendon; i++) {
       stiffness = m->tendon_stiffness[i];
       mjtNum length = d->ten_length[i];
@@ -1462,8 +1465,8 @@ void mj_energyPos(const mjModel* m, mjData* d) {
     }
   }
 
-  // add flex-level springs for dim=1 (dim>1 requires plugins)
-  if (!mjDISABLED(mjDSBL_PASSIVE)) {
+  // add flex-level springs for dim=1
+  if (!mjDISABLED(mjDSBL_SPRING)) {
     for (int i=0; i < m->nflex; i++) {
       stiffness = m->flex_edgestiffness[i];
       if (m->flex_rigid[i] || stiffness == 0 || m->flex_dim[i] > 1) {
@@ -1482,7 +1485,6 @@ void mj_energyPos(const mjModel* m, mjData* d) {
     }
   }
 }
-
 
 
 // velocity-dependent energy (kinetic)

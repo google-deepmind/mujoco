@@ -98,7 +98,7 @@ def _kinematics_level(
     pid = body_parentid[bodyid]
     xpos = (xmat_in[worldid, pid] * body_pos[worldid, bodyid]) + xpos_in[worldid, pid]
     xquat = math.mul_quat(xquat_in[worldid, pid], body_quat[worldid, bodyid])
-  elif jntnum == 1 and jnt_type[jntadr] == wp.static(JointType.FREE.value):
+  elif jntnum == 1 and jnt_type[jntadr] == JointType.FREE:
     # free joint
     qadr = jnt_qposadr[jntadr]
     xpos = wp.vec3(qpos[qadr], qpos[qadr + 1], qpos[qadr + 2])
@@ -120,7 +120,7 @@ def _kinematics_level(
       xanchor = math.rot_vec_quat(jnt_pos[worldid, jntadr], xquat) + xpos
       xaxis = math.rot_vec_quat(jnt_axis_, xquat)
 
-      if jnt_type_ == wp.static(JointType.BALL.value):
+      if jnt_type_ == JointType.BALL:
         qloc = wp.quat(
           qpos[qadr + 0],
           qpos[qadr + 1],
@@ -131,9 +131,9 @@ def _kinematics_level(
         xquat = math.mul_quat(xquat, qloc)
         # correct for off-center rotation
         xpos = xanchor - math.rot_vec_quat(jnt_pos[worldid, jntadr], xquat)
-      elif jnt_type_ == wp.static(JointType.SLIDE.value):
+      elif jnt_type_ == JointType.SLIDE:
         xpos += xaxis * (qpos[qadr] - qpos0[worldid, qadr])
-      elif jnt_type_ == wp.static(JointType.HINGE.value):
+      elif jnt_type_ == JointType.HINGE:
         qpos0_ = qpos0[worldid, qadr]
         qloc_ = math.axis_angle_to_quat(jnt_axis_, qpos[qadr] - qpos0_)
         xquat = math.mul_quat(xquat, qloc_)
@@ -347,10 +347,10 @@ def _subtree_com_init(
   # Data in:
   xipos_in: wp.array2d(dtype=wp.vec3),
   # Data out:
-  xipos_out: wp.array2d(dtype=wp.vec3),
+  subtree_com_out: wp.array2d(dtype=wp.vec3),
 ):
   worldid, bodyid = wp.tid()
-  xipos_out[worldid, bodyid] = xipos_in[worldid, bodyid] * body_mass[worldid, bodyid]
+  subtree_com_out[worldid, bodyid] = xipos_in[worldid, bodyid] * body_mass[worldid, bodyid]
 
 
 @wp.kernel
@@ -458,7 +458,7 @@ def _cdof(
   offset = subtree_com_in[worldid, body_rootid[bodyid]] - xanchor_in[worldid, jntid]
 
   res = cdof_out[worldid]
-  if jnt_type_ == wp.static(JointType.FREE.value):
+  if jnt_type_ == JointType.FREE:
     res[dofid + 0] = wp.spatial_vector(0.0, 0.0, 0.0, 1.0, 0.0, 0.0)
     res[dofid + 1] = wp.spatial_vector(0.0, 0.0, 0.0, 0.0, 1.0, 0.0)
     res[dofid + 2] = wp.spatial_vector(0.0, 0.0, 0.0, 0.0, 0.0, 1.0)
@@ -466,14 +466,14 @@ def _cdof(
     res[dofid + 3] = wp.spatial_vector(xmat[0], wp.cross(xmat[0], offset))
     res[dofid + 4] = wp.spatial_vector(xmat[1], wp.cross(xmat[1], offset))
     res[dofid + 5] = wp.spatial_vector(xmat[2], wp.cross(xmat[2], offset))
-  elif jnt_type_ == wp.static(JointType.BALL.value):  # ball
+  elif jnt_type_ == JointType.BALL:  # ball
     # I_3 rotation in child frame (assume no subsequent rotations)
     res[dofid + 0] = wp.spatial_vector(xmat[0], wp.cross(xmat[0], offset))
     res[dofid + 1] = wp.spatial_vector(xmat[1], wp.cross(xmat[1], offset))
     res[dofid + 2] = wp.spatial_vector(xmat[2], wp.cross(xmat[2], offset))
-  elif jnt_type_ == wp.static(JointType.SLIDE.value):
+  elif jnt_type_ == JointType.SLIDE:
     res[dofid] = wp.spatial_vector(wp.vec3(0.0), xaxis)
-  elif jnt_type_ == wp.static(JointType.HINGE.value):  # hinge
+  elif jnt_type_ == JointType.HINGE:  # hinge
     res[dofid] = wp.spatial_vector(xaxis, wp.cross(xaxis, offset))
 
 
@@ -486,7 +486,7 @@ def com_pos(m: Model, d: Data):
   Accumulates the mass-weighted positions up the kinematic tree, divides by total mass, and
   computes composite inertias and motion degrees of freedom in the subtree CoM frame.
   """
-  wp.launch(_subtree_com_init, dim=(d.nworld, m.nbody), inputs=[m.body_mass, d.xipos, d.subtree_com])
+  wp.launch(_subtree_com_init, dim=(d.nworld, m.nbody), inputs=[m.body_mass, d.xipos], outputs=[d.subtree_com])
 
   for i in reversed(range(len(m.body_tree))):
     body_tree = m.body_tree[i]
@@ -515,60 +515,45 @@ def com_pos(m: Model, d: Data):
 @wp.kernel
 def _cam_local_to_global(
   # Model:
-  cam_bodyid: wp.array(dtype=int),
-  cam_pos: wp.array2d(dtype=wp.vec3),
-  cam_quat: wp.array2d(dtype=wp.quat),
-  # Data in:
-  xpos_in: wp.array2d(dtype=wp.vec3),
-  xquat_in: wp.array2d(dtype=wp.quat),
-  # Data out:
-  cam_xpos_out: wp.array2d(dtype=wp.vec3),
-  cam_xmat_out: wp.array2d(dtype=wp.mat33),
-):
-  """Fixed cameras."""
-  worldid, camid = wp.tid()
-  bodyid = cam_bodyid[camid]
-  xpos = xpos_in[worldid, bodyid]
-  xquat = xquat_in[worldid, bodyid]
-  cam_xpos_out[worldid, camid] = xpos + math.rot_vec_quat(cam_pos[worldid, camid], xquat)
-  cam_xmat_out[worldid, camid] = math.quat_to_mat(math.mul_quat(xquat, cam_quat[worldid, camid]))
-
-
-@wp.kernel
-def _cam_fn(
-  # Model:
   cam_mode: wp.array(dtype=int),
   cam_bodyid: wp.array(dtype=int),
   cam_targetbodyid: wp.array(dtype=int),
+  cam_pos: wp.array2d(dtype=wp.vec3),
+  cam_quat: wp.array2d(dtype=wp.quat),
   cam_poscom0: wp.array2d(dtype=wp.vec3),
   cam_pos0: wp.array2d(dtype=wp.vec3),
   cam_mat0: wp.array2d(dtype=wp.mat33),
   # Data in:
   xpos_in: wp.array2d(dtype=wp.vec3),
+  xquat_in: wp.array2d(dtype=wp.quat),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   # Data out:
   cam_xpos_out: wp.array2d(dtype=wp.vec3),
   cam_xmat_out: wp.array2d(dtype=wp.mat33),
 ):
   worldid, camid = wp.tid()
-  is_target_cam = (cam_mode[camid] == wp.static(CamLightType.TARGETBODY.value)) or (
-    cam_mode[camid] == wp.static(CamLightType.TARGETBODYCOM.value)
-  )
+  is_target_cam = (cam_mode[camid] == CamLightType.TARGETBODY) or (cam_mode[camid] == CamLightType.TARGETBODYCOM)
   invalid_target = is_target_cam and (cam_targetbodyid[camid] < 0)
   if invalid_target:
-    return
-  elif cam_mode[camid] == wp.static(CamLightType.TRACK.value):
+    bodyid = cam_bodyid[camid]
+    xpos = xpos_in[worldid, bodyid]
+    xquat = xquat_in[worldid, bodyid]
+    cam_xpos_out[worldid, camid] = xpos + math.rot_vec_quat(cam_pos[worldid, camid], xquat)
+    cam_xmat_out[worldid, camid] = math.quat_to_mat(math.mul_quat(xquat, cam_quat[worldid, camid]))
+  elif cam_mode[camid] == CamLightType.TRACK:
     cam_xmat_out[worldid, camid] = cam_mat0[worldid, camid]
     body_xpos = xpos_in[worldid, cam_bodyid[camid]]
     cam_xpos_out[worldid, camid] = body_xpos + cam_pos0[worldid, camid]
-  elif cam_mode[camid] == wp.static(CamLightType.TRACKCOM.value):
+  elif cam_mode[camid] == CamLightType.TRACKCOM:
     cam_xmat_out[worldid, camid] = cam_mat0[worldid, camid]
     cam_xpos_out[worldid, camid] = subtree_com_in[worldid, cam_bodyid[camid]] + cam_poscom0[worldid, camid]
-  elif cam_mode[camid] == wp.static(CamLightType.TARGETBODY.value) or cam_mode[camid] == wp.static(
-    CamLightType.TARGETBODYCOM.value
-  ):
+  elif cam_mode[camid] == CamLightType.TARGETBODY or cam_mode[camid] == CamLightType.TARGETBODYCOM:
+    bodyid = cam_bodyid[camid]
+    xpos = xpos_in[worldid, bodyid]
+    xquat = xquat_in[worldid, bodyid]
+    cam_xpos_out[worldid, camid] = xpos + math.rot_vec_quat(cam_pos[worldid, camid], xquat)
     pos = xpos_in[worldid, cam_targetbodyid[camid]]
-    if cam_mode[camid] == wp.static(CamLightType.TARGETBODYCOM.value):
+    if cam_mode[camid] == CamLightType.TARGETBODYCOM:
       pos = subtree_com_in[worldid, cam_targetbodyid[camid]]
     # zaxis = -desired camera direction, in global frame
     mat_3 = wp.normalize(cam_xpos_out[worldid, camid] - pos)
@@ -582,68 +567,66 @@ def _cam_fn(
       mat_1[2], mat_2[2], mat_3[2]
     )
     # fmt: on
+  else:
+    bodyid = cam_bodyid[camid]
+    xpos = xpos_in[worldid, bodyid]
+    xquat = xquat_in[worldid, bodyid]
+    cam_xpos_out[worldid, camid] = xpos + math.rot_vec_quat(cam_pos[worldid, camid], xquat)
+    cam_xmat_out[worldid, camid] = math.quat_to_mat(math.mul_quat(xquat, cam_quat[worldid, camid]))
 
 
 @wp.kernel
 def _light_local_to_global(
   # Model:
-  light_bodyid: wp.array(dtype=int),
-  light_pos: wp.array2d(dtype=wp.vec3),
-  light_dir: wp.array2d(dtype=wp.vec3),
-  # Data in:
-  xpos_in: wp.array2d(dtype=wp.vec3),
-  xquat_in: wp.array2d(dtype=wp.quat),
-  # Data out:
-  light_xpos_out: wp.array2d(dtype=wp.vec3),
-  light_xdir_out: wp.array2d(dtype=wp.vec3),
-):
-  """Fixed lights."""
-  worldid, lightid = wp.tid()
-  bodyid = light_bodyid[lightid]
-  xpos = xpos_in[worldid, bodyid]
-  xquat = xquat_in[worldid, bodyid]
-  light_xpos_out[worldid, lightid] = xpos + math.rot_vec_quat(light_pos[worldid, lightid], xquat)
-  light_xdir_out[worldid, lightid] = math.rot_vec_quat(light_dir[worldid, lightid], xquat)
-
-
-@wp.kernel
-def _light_fn(
-  # Model:
   light_mode: wp.array(dtype=int),
   light_bodyid: wp.array(dtype=int),
   light_targetbodyid: wp.array(dtype=int),
+  light_pos: wp.array2d(dtype=wp.vec3),
+  light_dir: wp.array2d(dtype=wp.vec3),
   light_poscom0: wp.array2d(dtype=wp.vec3),
   light_pos0: wp.array2d(dtype=wp.vec3),
   light_dir0: wp.array2d(dtype=wp.vec3),
   # Data in:
   xpos_in: wp.array2d(dtype=wp.vec3),
-  light_xpos_in: wp.array2d(dtype=wp.vec3),
+  xquat_in: wp.array2d(dtype=wp.quat),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   # Data out:
   light_xpos_out: wp.array2d(dtype=wp.vec3),
   light_xdir_out: wp.array2d(dtype=wp.vec3),
 ):
   worldid, lightid = wp.tid()
-  is_target_light = (light_mode[lightid] == wp.static(CamLightType.TARGETBODY.value)) or (
-    light_mode[lightid] == wp.static(CamLightType.TARGETBODYCOM.value)
-  )
+  is_target_light = (light_mode[lightid] == CamLightType.TARGETBODY) or (light_mode[lightid] == CamLightType.TARGETBODYCOM)
   invalid_target = is_target_light and (light_targetbodyid[lightid] < 0)
   if invalid_target:
+    bodyid = light_bodyid[lightid]
+    xpos = xpos_in[worldid, bodyid]
+    xquat = xquat_in[worldid, bodyid]
+    light_xpos_out[worldid, lightid] = xpos + math.rot_vec_quat(light_pos[worldid, lightid], xquat)
+    light_xdir_out[worldid, lightid] = math.rot_vec_quat(light_dir[worldid, lightid], xquat)
     return
-  elif light_mode[lightid] == wp.static(CamLightType.TRACK.value):
+  elif light_mode[lightid] == CamLightType.TRACK:
     light_xdir_out[worldid, lightid] = light_dir0[worldid, lightid]
     body_xpos = xpos_in[worldid, light_bodyid[lightid]]
     light_xpos_out[worldid, lightid] = body_xpos + light_pos0[worldid, lightid]
-  elif light_mode[lightid] == wp.static(CamLightType.TRACKCOM.value):
+  elif light_mode[lightid] == CamLightType.TRACKCOM:
     light_xdir_out[worldid, lightid] = light_dir0[worldid, lightid]
     light_xpos_out[worldid, lightid] = subtree_com_in[worldid, light_bodyid[lightid]] + light_poscom0[worldid, lightid]
-  elif light_mode[lightid] == wp.static(CamLightType.TARGETBODY.value) or light_mode[lightid] == wp.static(
-    CamLightType.TARGETBODYCOM.value
-  ):
+  elif light_mode[lightid] == CamLightType.TARGETBODY or light_mode[lightid] == CamLightType.TARGETBODYCOM:
+    bodyid = light_bodyid[lightid]
+    xpos = xpos_in[worldid, bodyid]
+    xquat = xquat_in[worldid, bodyid]
+    light_xpos_out[worldid, lightid] = xpos + math.rot_vec_quat(light_pos[worldid, lightid], xquat)
     pos = xpos_in[worldid, light_targetbodyid[lightid]]
-    if light_mode[lightid] == wp.static(CamLightType.TARGETBODYCOM.value):
+    if light_mode[lightid] == CamLightType.TARGETBODYCOM:
       pos = subtree_com_in[worldid, light_targetbodyid[lightid]]
-    light_xdir_out[worldid, lightid] = pos - light_xpos_in[worldid, lightid]
+    light_xdir_out[worldid, lightid] = pos - light_xpos_out[worldid, lightid]
+  else:
+    bodyid = light_bodyid[lightid]
+    xpos = xpos_in[worldid, bodyid]
+    xquat = xquat_in[worldid, bodyid]
+    light_xpos_out[worldid, lightid] = xpos + math.rot_vec_quat(light_pos[worldid, lightid], xquat)
+    light_xdir_out[worldid, lightid] = math.rot_vec_quat(light_dir[worldid, lightid], xquat)
+
   light_xdir_out[worldid, lightid] = wp.normalize(light_xdir_out[worldid, lightid])
 
 
@@ -658,33 +641,35 @@ def camlight(m: Model, d: Data):
   wp.launch(
     _cam_local_to_global,
     dim=(d.nworld, m.ncam),
-    inputs=[m.cam_bodyid, m.cam_pos, m.cam_quat, d.xpos, d.xquat],
-    outputs=[d.cam_xpos, d.cam_xmat],
-  )
-  wp.launch(
-    _cam_fn,
-    dim=(d.nworld, m.ncam),
-    inputs=[m.cam_mode, m.cam_bodyid, m.cam_targetbodyid, m.cam_poscom0, m.cam_pos0, m.cam_mat0, d.xpos, d.subtree_com],
+    inputs=[
+      m.cam_mode,
+      m.cam_bodyid,
+      m.cam_targetbodyid,
+      m.cam_pos,
+      m.cam_quat,
+      m.cam_poscom0,
+      m.cam_pos0,
+      m.cam_mat0,
+      d.xpos,
+      d.xquat,
+      d.subtree_com,
+    ],
     outputs=[d.cam_xpos, d.cam_xmat],
   )
   wp.launch(
     _light_local_to_global,
     dim=(d.nworld, m.nlight),
-    inputs=[m.light_bodyid, m.light_pos, m.light_dir, d.xpos, d.xquat],
-    outputs=[d.light_xpos, d.light_xdir],
-  )
-  wp.launch(
-    _light_fn,
-    dim=(d.nworld, m.nlight),
     inputs=[
       m.light_mode,
       m.light_bodyid,
       m.light_targetbodyid,
+      m.light_pos,
+      m.light_dir,
       m.light_poscom0,
       m.light_pos0,
       m.light_dir0,
       d.xpos,
-      d.light_xpos,
+      d.xquat,
       d.subtree_com,
     ],
     outputs=[d.light_xpos, d.light_xdir],
@@ -928,7 +913,7 @@ def _factor_i_sparse(m: Model, d: Data, M: wp.array3d(dtype=float), L: wp.array3
 def _tile_cholesky_factorize(tile: TileSet):
   """Returns a kernel for dense Cholesky factorization of a tile."""
 
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def cholesky_factorize(
     # Data In:
     qM_in: wp.array3d(dtype=float),
@@ -1187,7 +1172,7 @@ def _cfrc_ext_equality(
 
   id = efc_id_in[worldid, efcid]
   eq_data_ = eq_data[worldid, id]
-  body_semantic = eq_objtype[id] == wp.static(ObjType.BODY.value)
+  body_semantic = eq_objtype[id] == ObjType.BODY
 
   obj1 = eq_obj1id[id]
   obj2 = eq_obj2id[id]
@@ -1258,7 +1243,7 @@ def _cfrc_ext_contact(
   geom_bodyid: wp.array(dtype=int),
   # Data in:
   njmax_in: int,
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   contact_pos_in: wp.array(dtype=wp.vec3),
   contact_frame_in: wp.array(dtype=wp.mat33),
@@ -1273,7 +1258,7 @@ def _cfrc_ext_contact(
 ):
   contactid = wp.tid()
 
-  if contactid >= ncon_in[0]:
+  if contactid >= nacon_in[0]:
     return
 
   geom = contact_geom_in[contactid]
@@ -1289,7 +1274,7 @@ def _cfrc_ext_contact(
   force = support.contact_force_fn(
     opt_cone,
     njmax_in,
-    ncon_in,
+    nacon_in,
     contact_frame_in,
     contact_friction_in,
     contact_dim_in,
@@ -1353,13 +1338,13 @@ def rne_postconstraint(m: Model, d: Data):
   # cfrc_ext += contacts
   wp.launch(
     _cfrc_ext_contact,
-    dim=(d.nconmax,),
+    dim=(d.naconmax,),
     inputs=[
       m.opt.cone,
       m.body_rootid,
       m.geom_bodyid,
       d.njmax,
-      d.ncon,
+      d.nacon,
       d.subtree_com,
       d.contact.pos,
       d.contact.frame,
@@ -1418,7 +1403,7 @@ def _tendon_dot(
 
   # fixed tendon has zero Jdot
   adr = tendon_adr[tenid]
-  if wrap_type[adr] == int(WrapType.JOINT.value):
+  if wrap_type[adr] == WrapType.JOINT:
     return
 
   # process spatial tendon
@@ -1433,7 +1418,7 @@ def _tendon_dot(
     id1 = wrap_objid[adr + j + 1]
 
     # pulley
-    pulley = int(WrapType.PULLEY.value)
+    pulley = WrapType.PULLEY
     if (type0 == pulley) or (type1 == pulley):
       # get divisor
       if type0 == pulley:
@@ -1454,7 +1439,7 @@ def _tendon_dot(
     wbody0 = site_bodyid[id0]
 
     # second object is geom: process site-geom-site
-    if (type1 == int(WrapType.SPHERE.value)) or (type1 == int(WrapType.CYLINDER.value)):
+    if (type1 == WrapType.SPHERE) or (type1 == WrapType.CYLINDER):
       # TODO(team): derivatives of util_misc.wrap
       return
 
@@ -1706,7 +1691,7 @@ def _comvel_level(
   for j in range(jntid, jntid + jntnum):
     jnttype = jnt_type[j]
 
-    if jnttype == wp.static(JointType.FREE.value):
+    if jnttype == JointType.FREE:
       cvel += cdof[dofid + 0] * qvel[dofid + 0]
       cvel += cdof[dofid + 1] * qvel[dofid + 1]
       cvel += cdof[dofid + 2] * qvel[dofid + 2]
@@ -1720,7 +1705,7 @@ def _comvel_level(
       cvel += cdof[dofid + 5] * qvel[dofid + 5]
 
       dofid += 6
-    elif jnttype == wp.static(JointType.BALL.value):
+    elif jnttype == JointType.BALL:
       cdof_dot_out[worldid, dofid + 0] = math.motion_cross(cvel, cdof[dofid + 0])
       cdof_dot_out[worldid, dofid + 1] = math.motion_cross(cvel, cdof[dofid + 1])
       cdof_dot_out[worldid, dofid + 2] = math.motion_cross(cvel, cdof[dofid + 2])
@@ -1798,15 +1783,15 @@ def _transmission(
   worldid, actid = wp.tid()
   trntype = actuator_trntype[actid]
   gear = actuator_gear[worldid, actid]
-  if trntype == wp.static(TrnType.JOINT.value) or trntype == wp.static(TrnType.JOINTINPARENT.value):
+  if trntype == TrnType.JOINT or trntype == TrnType.JOINTINPARENT:
     qpos = qpos_in[worldid]
     jntid = actuator_trnid[actid][0]
     jnt_typ = jnt_type[jntid]
     qadr = jnt_qposadr[jntid]
     vadr = jnt_dofadr[jntid]
-    if jnt_typ == wp.static(JointType.FREE.value):
+    if jnt_typ == JointType.FREE:
       actuator_length_out[worldid, actid] = 0.0
-      if trntype == wp.static(TrnType.JOINTINPARENT.value):
+      if trntype == TrnType.JOINTINPARENT:
         quat = wp.normalize(
           wp.quat(
             qpos[qadr + 3],
@@ -1826,23 +1811,23 @@ def _transmission(
       else:
         for i in range(6):
           actuator_moment_out[worldid, actid, vadr + i] = gear[i]
-    elif jnt_typ == wp.static(JointType.BALL.value):
+    elif jnt_typ == JointType.BALL:
       q = wp.quat(qpos[qadr + 0], qpos[qadr + 1], qpos[qadr + 2], qpos[qadr + 3])
       q = wp.normalize(q)
       axis_angle = math.quat_to_vel(q)
       gearaxis = wp.spatial_top(gear)  # [:3]
-      if trntype == wp.static(TrnType.JOINTINPARENT.value):
+      if trntype == TrnType.JOINTINPARENT:
         quat_neg = math.quat_inv(q)
         gearaxis = math.rot_vec_quat(gearaxis, quat_neg)
       actuator_length_out[worldid, actid] = wp.dot(axis_angle, gearaxis)
       for i in range(3):
         actuator_moment_out[worldid, actid, vadr + i] = gearaxis[i]
-    elif jnt_typ == wp.static(JointType.SLIDE.value) or jnt_typ == wp.static(JointType.HINGE.value):
+    elif jnt_typ == JointType.SLIDE or jnt_typ == JointType.HINGE:
       actuator_length_out[worldid, actid] = qpos[qadr] * gear[0]
       actuator_moment_out[worldid, actid, vadr] = gear[0]
     else:
       wp.printf("unrecognized joint type")
-  elif trntype == wp.static(TrnType.SLIDERCRANK.value):
+  elif trntype == TrnType.SLIDERCRANK:
     # get data
     trnid = actuator_trnid[actid]
     id = trnid[0]
@@ -1915,7 +1900,7 @@ def _transmission(
       # apply the chain rule
       moment = wp.dot(dlda, jacA) + wp.dot(dldv, jac)
       actuator_moment_out[worldid, actid, i] = moment * gear0
-  elif trntype == wp.static(TrnType.TENDON.value):
+  elif trntype == TrnType.TENDON:
     tenid = actuator_trnid[actid][0]
 
     gear0 = gear[0]
@@ -1923,7 +1908,7 @@ def _transmission(
 
     # fixed
     adr = tendon_adr[tenid]
-    if wrap_type[adr] == wp.static(WrapType.JOINT.value):
+    if wrap_type[adr] == WrapType.JOINT:
       ten_num = tendon_num[tenid]
       for i in range(ten_num):
         dofadr = jnt_dofadr[wrap_objid[adr + i]]
@@ -1931,7 +1916,7 @@ def _transmission(
     else:  # spatial
       for dofadr in range(nv):
         actuator_moment_out[worldid, actid, dofadr] = ten_J_in[worldid, tenid, dofadr] * gear0
-  elif trntype == wp.static(TrnType.BODY.value):
+  elif trntype == TrnType.BODY:
     # cannot compute meaningful length, set to zero
     actuator_length_out[worldid, actid] = 0.0
 
@@ -1940,7 +1925,7 @@ def _transmission(
       actuator_moment_out[worldid, actid, i] = 0.0
 
     # moment computed by _transmission_body_moment and _transmission_body_moment_scale
-  elif trntype == int(TrnType.SITE.value):
+  elif trntype == TrnType.SITE:
     trnid = actuator_trnid[actid]
     siteid = trnid[0]
     refid = trnid[1]
@@ -2092,7 +2077,7 @@ def _transmission_body_moment(
   actuator_trnid: wp.array(dtype=wp.vec2i),
   actuator_trntype_body_adr: wp.array(dtype=int),
   # Data in:
-  ncon_in: wp.array(dtype=int),
+  nacon_in: wp.array(dtype=int),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   cdof_in: wp.array2d(dtype=wp.spatial_vector),
   contact_dist_in: wp.array(dtype=float),
@@ -2112,7 +2097,7 @@ def _transmission_body_moment(
   actid = actuator_trntype_body_adr[trnbodyid]
   bodyid = actuator_trnid[actid][0]
 
-  if conid >= ncon_in[0]:
+  if conid >= nacon_in[0]:
     return
 
   worldid = contact_worldid_in[conid]
@@ -2144,7 +2129,7 @@ def _transmission_body_moment(
     contact_dim = contact_dim_in[conid]
     contact_efc_address = contact_efc_address_in[conid]
 
-    if contact_dim == 1 or opt_cone == int(ConeType.ELLIPTIC.value):
+    if contact_dim == 1 or opt_cone == ConeType.ELLIPTIC:
       efc_force = 1.0
       efcid0 = contact_efc_address[0]
       wp.atomic_add(actuator_moment_out[worldid, actid], dofid, efc_J_in[worldid, efcid0, dofid] * efc_force)
@@ -2262,11 +2247,7 @@ def transmission(m: Model, d: Data):
     # compute moments
     wp.launch(
       _transmission_body_moment,
-      dim=(
-        m.actuator_trntype_body_adr.size,
-        d.nconmax,
-        m.nv,
-      ),
+      dim=(m.actuator_trntype_body_adr.size, d.naconmax, m.nv),
       inputs=[
         m.opt.cone,
         m.body_parentid,
@@ -2275,7 +2256,7 @@ def transmission(m: Model, d: Data):
         m.geom_bodyid,
         m.actuator_trnid,
         m.actuator_trntype_body_adr,
-        d.ncon,
+        d.nacon,
         d.subtree_com,
         d.cdof,
         d.contact.dist,
@@ -2369,7 +2350,7 @@ def _solve_LD_sparse(
 def _tile_cholesky_solve(tile: TileSet):
   """Returns a kernel for dense Cholesky backsubstitution of a tile."""
 
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def cholesky_solve(
     # In:
     L: wp.array3d(dtype=float),
@@ -2448,7 +2429,7 @@ def solve_m(m: Model, d: Data, x: wp.array2d(dtype=float), y: wp.array2d(dtype=f
 def _tile_cholesky_factorize_solve(tile: TileSet):
   """Returns a kernel for dense Cholesky factorization and backsubstitution of a tile."""
 
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def cholesky_factorize_solve(
     # In:
     M: wp.array3d(dtype=float),
@@ -2456,6 +2437,7 @@ def _tile_cholesky_factorize_solve(tile: TileSet):
     adr: wp.array(dtype=int),
     # Out:
     x: wp.array2d(dtype=float),
+    L: wp.array3d(dtype=float),
   ):
     worldid, nodeid = wp.tid()
     TILE_SIZE = wp.static(tile.size)
@@ -2465,6 +2447,7 @@ def _tile_cholesky_factorize_solve(tile: TileSet):
     y_slice = wp.tile_load(y[worldid], shape=(TILE_SIZE,), offset=(dofid,))
 
     L_tile = wp.tile_cholesky(M_tile)
+    wp.tile_store(L[worldid], L_tile, offset=(dofid, dofid))
     x_slice = wp.tile_cholesky_solve(L_tile, y_slice)
     wp.tile_store(x[worldid], x_slice, offset=(dofid,))
 
@@ -2472,14 +2455,19 @@ def _tile_cholesky_factorize_solve(tile: TileSet):
 
 
 def _factor_solve_i_dense(
-  m: Model, d: Data, M: wp.array3d(dtype=float), x: wp.array2d(dtype=float), y: wp.array2d(dtype=float)
+  m: Model,
+  d: Data,
+  M: wp.array3d(dtype=float),
+  x: wp.array2d(dtype=float),
+  y: wp.array2d(dtype=float),
+  L: wp.array3d(dtype=float),
 ):
   for tile in m.qM_tiles:
     wp.launch_tiled(
       _tile_cholesky_factorize_solve(tile),
       dim=(d.nworld, tile.adr.size),
       inputs=[M, y, tile.adr],
-      outputs=[x],
+      outputs=[x, L],
       block_dim=m.block_dim.cholesky_factorize_solve,
     )
 
@@ -2505,7 +2493,7 @@ def factor_solve_i(m, d, M, L, D, x, y):
     _factor_i_sparse(m, d, M, L, D)
     _solve_LD_sparse(m, d, L, D, x, y)
   else:
-    _factor_solve_i_dense(m, d, M, x, y)
+    _factor_solve_i_dense(m, d, M, x, y, L)
 
 
 @wp.kernel
@@ -2921,7 +2909,7 @@ def _spatial_tendon_wrap(
     tendonnum = tendon_num[i]
 
     # process fixed tendon
-    if wrap_type[adr] == int(WrapType.JOINT.value):
+    if wrap_type[adr] == WrapType.JOINT:
       continue
 
     # process spatial tendon
@@ -2934,8 +2922,8 @@ def _spatial_tendon_wrap(
       id1 = wrap_objid[adr + j + 1]
 
       # pulley
-      pulley0 = type0 == int(WrapType.PULLEY.value)
-      if pulley0 or type1 == int(WrapType.PULLEY.value):
+      pulley0 = type0 == WrapType.PULLEY
+      if pulley0 or type1 == WrapType.PULLEY:
         if pulley0:
           row = wrapcount // 2
           col = wrapcount % 2
@@ -2956,7 +2944,7 @@ def _spatial_tendon_wrap(
       wpnt_site0 = site_xpos_in[worldid, id0]
 
       # second object is geom: process site-geom-site
-      if type1 == int(WrapType.SPHERE.value) or type1 == int(WrapType.CYLINDER.value):
+      if type1 == WrapType.SPHERE or type1 == WrapType.CYLINDER:
         wrap_geom_xpos = wrap_geom_xpos_in[worldid, wrapgeomid]
         wpnt_geom0 = wp.spatial_top(wrap_geom_xpos)
         wrapgeomid += 1
@@ -3031,7 +3019,7 @@ def _spatial_tendon_wrap(
 
       # assign last site before pulley or tendon end
       if adr + j + 1 < wrap_type.shape[0]:
-        last_before_pulley = wrap_type[adr + j + 1] == int(WrapType.PULLEY.value)
+        last_before_pulley = wrap_type[adr + j + 1] == WrapType.PULLEY
       else:
         last_before_pulley = False
 

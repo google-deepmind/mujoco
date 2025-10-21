@@ -279,6 +279,10 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
 
 // get error message from model
 const char* mjs_getError(mjSpec* s) {
+  if (!s) {
+    mju_error("spec is null");
+    return nullptr;
+  }
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   return modelC->GetError().message;
 }
@@ -297,7 +301,7 @@ int mjs_isWarning(mjSpec* s) {
 void mj_deleteSpec(mjSpec* s) {
   if (s) {
     mjCModel* model = static_cast<mjCModel*>(s->element);
-    delete model;
+    model->Release();
   }
 }
 
@@ -1334,6 +1338,76 @@ mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element) {
 
 
 
+mjsElement* mjs_getWrapTarget(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  mjtObj type = mjOBJ_UNKNOWN;
+  switch (cwrap->Type()) {
+    case mjWRAP_SPHERE:
+    case mjWRAP_CYLINDER:
+      type = mjOBJ_GEOM;
+      break;
+    case mjWRAP_SITE:
+      type = mjOBJ_SITE;
+      break;
+    case mjWRAP_JOINT:
+      type = mjOBJ_JOINT;
+      break;
+    case mjWRAP_PULLEY:
+      // Pulleys have no target.
+      return nullptr;
+    default:
+      return nullptr;
+  }
+  mjSpec* spec = mjs_getSpec(wrap->element);
+  mjsElement* target = mjs_findElement(spec, type, cwrap->name.c_str());
+  return target;
+}
+
+
+
+mjsSite* mjs_getWrapSideSite(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  // only sphere and cylinder (geoms) have side sites
+  if ((cwrap->Type() != mjWRAP_SPHERE &&
+      cwrap->Type() != mjWRAP_CYLINDER) ||
+      cwrap->sidesite.empty()) {
+    return nullptr;
+  }
+
+  mjSpec* spec = mjs_getSpec(wrap->element);
+  mjsElement* site = mjs_findElement(spec, mjOBJ_SITE, cwrap->sidesite.c_str());
+  if (site == nullptr) {
+    mju_warning("Could not find side site %s for wrap %s in spec",
+                cwrap->sidesite.c_str(), cwrap->name.c_str());
+    return nullptr;
+  }
+  return mjs_asSite(site);
+}
+
+
+
+double mjs_getWrapDivisor(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  if (cwrap->Type() != mjWRAP_PULLEY) {
+    mju_warning("Querying divisor attribute of non-pulley wrap: %s", cwrap->name.c_str());
+    return 1.0;
+  }
+  return cwrap->prm;
+}
+
+
+
+double mjs_getWrapCoef(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  if (cwrap->Type() != mjWRAP_JOINT) {
+    mju_warning("Querying coef attribute of non-joint wrap: %s", cwrap->name.c_str());
+    return 1.0;
+  }
+  return cwrap->prm;
+}
+
+
+
 // return body given mjsElement
 mjsBody* mjs_asBody(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_BODY) {
@@ -1708,7 +1782,18 @@ const double* mjs_getDouble(const mjDoubleVec* source, int* size) {
   return source->data();
 }
 
+int mjs_getWrapNum(const mjsTendon* tendonspec) {
+  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+  return tendon->NumWraps();
+}
 
+mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i) {
+  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+  if (i < 0 || i >= tendon->NumWraps()) {
+    mju_error("Wrap index out of range (0, %d)", tendon->NumWraps());
+  }
+  return &const_cast<mjCWrap*>(tendon->GetWrap(i))->spec;
+}
 
 // set plugin attributes
 void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes) {
@@ -1730,22 +1815,61 @@ const void* mjs_getPluginAttributes(const mjsPlugin* plugin) {
 
 // -------------------------- GLOBAL ASSET CACHE -------------------------------
 
-void mj_setCacheSize(mjCache cache, std::size_t size) {
-  mjCCache* ccache = reinterpret_cast<mjCCache*>(cache);
-  if (ccache) {
-    ccache->SetMaxSize(size);
+// get the capacity of the asset cache in bytes
+size_t mj_getCacheCapacity(const mjCache* cache) {
+  if (cache) {
+    const mjCCache* ccache = reinterpret_cast<const mjCCache*>(cache->impl_);
+    if (ccache) {
+      return ccache->Capacity();
+    }
   }
+  return 0;
 }
 
 
+// set the capacity of the asset cache in bytes (0 to disable)
+size_t mj_setCacheCapacity(mjCache* cache, size_t size) {
+  if (cache) {
+    mjCCache* ccache = reinterpret_cast<mjCCache*>(cache->impl_);
+    if (ccache) {
+      ccache->SetCapacity(size);
+      return ccache->Capacity();
+    }
+  }
+  return 0;
+}
 
-mjCache mj_globalCache() {
+
+// get the current size of the asset cache in bytes
+size_t mj_getCacheSize(const mjCache* cache) {
+  if (cache) {
+    const mjCCache* ccache = reinterpret_cast<const mjCCache*>(cache->impl_);
+    if (ccache) {
+      return ccache->Size();
+    }
+  }
+  return 0;
+}
+
+
+// clear the asset cache
+void mj_clearCache(mjCache* cache) {
+  if (cache) {
+    mjCCache* ccache = reinterpret_cast<mjCCache*>(cache->impl_);
+    if (ccache) {
+      ccache->Reset();
+    }
+  }
+}
+
+// get the internal asset cache used by the compiler
+mjCache* mj_getCache() {
+  static mjCache cache_cwrapper = {0};
   // mjCCache is not trivially destructible and so the global cache needs to
   // allocated on the heap
   if constexpr (kGlobalCacheSize != 0) {
     static mjCCache* cache = new(std::nothrow) mjCCache(kGlobalCacheSize);
-    return (mjCache) cache;
-  } else {
-    return NULL;
+    cache_cwrapper.impl_ = cache->Capacity() > 0 ? cache : nullptr;
   }
+  return &cache_cwrapper;
 }

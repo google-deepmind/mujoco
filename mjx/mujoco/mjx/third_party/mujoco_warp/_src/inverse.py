@@ -27,6 +27,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 
+wp.set_module_options({"enable_backward": False})
+
 
 @wp.kernel
 def _qfrc_eulerdamp(

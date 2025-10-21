@@ -30,8 +30,8 @@ TF_REGISTRY_FUNCTION(TfType) {
 MjcPhysicsMaterialAPI::~MjcPhysicsMaterialAPI() {}
 
 /* static */
-MjcPhysicsMaterialAPI MjcPhysicsMaterialAPI::Get(const UsdStagePtr &stage,
-                                                 const SdfPath &path) {
+MjcPhysicsMaterialAPI MjcPhysicsMaterialAPI::Get(const UsdStagePtr& stage,
+                                                 const SdfPath& path) {
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
     return MjcPhysicsMaterialAPI();
@@ -45,12 +45,12 @@ UsdSchemaKind MjcPhysicsMaterialAPI::_GetSchemaKind() const {
 }
 
 /* static */
-bool MjcPhysicsMaterialAPI::CanApply(const UsdPrim &prim, std::string *whyNot) {
+bool MjcPhysicsMaterialAPI::CanApply(const UsdPrim& prim, std::string* whyNot) {
   return prim.CanApplyAPI<MjcPhysicsMaterialAPI>(whyNot);
 }
 
 /* static */
-MjcPhysicsMaterialAPI MjcPhysicsMaterialAPI::Apply(const UsdPrim &prim) {
+MjcPhysicsMaterialAPI MjcPhysicsMaterialAPI::Apply(const UsdPrim& prim) {
   if (prim.ApplyAPI<MjcPhysicsMaterialAPI>()) {
     return MjcPhysicsMaterialAPI(prim);
   }
@@ -58,7 +58,7 @@ MjcPhysicsMaterialAPI MjcPhysicsMaterialAPI::Apply(const UsdPrim &prim) {
 }
 
 /* static */
-const TfType &MjcPhysicsMaterialAPI::_GetStaticTfType() {
+const TfType& MjcPhysicsMaterialAPI::_GetStaticTfType() {
   static TfType tfType = TfType::Find<MjcPhysicsMaterialAPI>();
   return tfType;
 }
@@ -70,7 +70,7 @@ bool MjcPhysicsMaterialAPI::_IsTypedSchema() {
 }
 
 /* virtual */
-const TfType &MjcPhysicsMaterialAPI::_GetTfType() const {
+const TfType& MjcPhysicsMaterialAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
@@ -79,7 +79,7 @@ UsdAttribute MjcPhysicsMaterialAPI::GetTorsionalFrictionAttr() const {
 }
 
 UsdAttribute MjcPhysicsMaterialAPI::CreateTorsionalFrictionAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcTorsionalfriction, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -90,7 +90,7 @@ UsdAttribute MjcPhysicsMaterialAPI::GetRollingFrictionAttr() const {
 }
 
 UsdAttribute MjcPhysicsMaterialAPI::CreateRollingFrictionAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcRollingfriction, SdfValueTypeNames->Double,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -98,7 +98,7 @@ UsdAttribute MjcPhysicsMaterialAPI::CreateRollingFrictionAttr(
 
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
-    const TfTokenVector &left, const TfTokenVector &right) {
+    const TfTokenVector& left, const TfTokenVector& right) {
   TfTokenVector result;
   result.reserve(left.size() + right.size());
   result.insert(result.end(), left.begin(), left.end());
@@ -108,7 +108,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 }  // namespace
 
 /*static*/
-const TfTokenVector &MjcPhysicsMaterialAPI::GetSchemaAttributeNames(
+const TfTokenVector& MjcPhysicsMaterialAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcTorsionalfriction,

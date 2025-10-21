@@ -13,33 +13,33 @@
 # limitations under the License.
 # ==============================================================================
 
-from typing import Optional, Tuple
+from typing import Any, Optional, Sequence, Union
 
 import mujoco
 import numpy as np
 import warp as wp
 
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import conditional_graph_supported
-
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import types
-
-# number of max iterations to run GJK/EPA
-MJ_CCD_ITERATIONS = 12
+from mujoco.mjx.third_party.mujoco_warp._src import warp_util
 
 # max number of worlds supported
 MAX_WORLDS = 2**24
 
+# tolerance override for float32
+_TOLERANCE_F32 = 1.0e-6
 
-def _hfield_geom_pair(mjm: mujoco.MjModel) -> Tuple[int, np.array]:
-  geom1, geom2 = np.triu_indices(mjm.ngeom, k=1)
-  geom_type_hf = mujoco.mjtGeom.mjGEOM_HFIELD
-  has_hfield = (mjm.geom_type[geom1] == geom_type_hf) | (mjm.geom_type[geom2] == geom_type_hf)
-  nhfieldgeompair = np.sum(has_hfield)
-  geompair2hfgeompair = -1 * np.ones(mjm.ngeom * (mjm.ngeom - 1) // 2, dtype=int)
-  geompair2hfgeompair[has_hfield] = np.arange(nhfieldgeompair)
 
-  return nhfieldgeompair, geompair2hfgeompair
+def _max_meshdegree(mjm: mujoco.MjModel) -> int:
+  if mjm.mesh_polyvertnum.size == 0:
+    return 4
+  return max(3, mjm.mesh_polymapnum.max())
+
+
+def _max_npolygon(mjm: mujoco.MjModel) -> int:
+  if mjm.mesh_polyvertnum.size == 0:
+    return 4
+  return max(4, mjm.mesh_polyvertnum.max())
 
 
 def put_model(mjm: mujoco.MjModel) -> types.Model:
@@ -72,6 +72,12 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   geom_plugin_index = np.full_like(mjm.geom_type, -1)
 
   if mjm.nplugin > 0:
+    if (mjm.body_plugin != -1).any():
+      raise NotImplementedError("Body plugins not supported.")
+    if (mjm.actuator_plugin != -1).any():
+      raise NotImplementedError("Actuator plugins not supported.")
+    if (mjm.sensor_plugin != -1).any():
+      raise NotImplementedError("Sensor plugins not supported.")
     for i in range(len(mjm.geom_plugin)):
       if mjm.geom_plugin[i] != -1:
         p = mjm.geom_plugin[i]
@@ -103,9 +109,6 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   if ((mjm.flex_contype != 0) | (mjm.flex_conaffinity != 0)).any():
     raise NotImplementedError("Flex collisions are not implemented.")
 
-  if mjm.geom_fluid.any():
-    raise NotImplementedError("Ellipsoid fluid model not implemented.")
-
   # check options
   for opt, opt_types, msg in (
     (mjm.opt.integrator, types.IntegratorType, "Integrator"),
@@ -118,19 +121,11 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   if mjm.opt.noslip_iterations > 0:
     raise NotImplementedError(f"noslip solver not implemented.")
 
-  # contact sensor
-  is_contact_sensor = mjm.sensor_type == types.SensorType.CONTACT
-  if is_contact_sensor.any():
-    # matching
-    if (
-      (mjm.sensor_objtype[is_contact_sensor] != types.ObjType.GEOM)
-      | (mjm.sensor_reftype[is_contact_sensor] != types.ObjType.GEOM)
-    ).any():
-      raise NotImplementedError("Contact sensor: only geom1-geom2 matching is implemented.")
-
-    # reduction
-    if (~((mjm.sensor_intprm[is_contact_sensor, 1] == 1) | (mjm.sensor_intprm[is_contact_sensor, 1] == 2))).any():
-      raise NotImplementedError(f"Contact sensor: only mindist and maxforce reduction are implemented.")
+  if (mjm.opt.viscosity > 0 or mjm.opt.density > 0) and mjm.opt.integrator in (
+    mujoco.mjtIntegrator.mjINT_IMPLICITFAST,
+    mujoco.mjtIntegrator.mjINT_IMPLICIT,
+  ):
+    raise NotImplementedError(f"Implicit integrators and fluid model not implemented.")
 
   # TODO(team): remove after _update_gradient for Newton uses tile operations for islands
   nv_max = 60
@@ -318,7 +313,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   mocap_bodyid = mocap_bodyid[mjm.body_mocapid[mjm.body_mocapid >= 0].argsort()]
 
   # precalculated geom pairs
-  filterparent = not (mjm.opt.disableflags & types.DisableBit.FILTERPARENT.value)
+  filterparent = not (mjm.opt.disableflags & types.DisableBit.FILTERPARENT)
 
   geom1, geom2 = np.triu_indices(mjm.ngeom, k=1)
   nxn_geom_pair = np.stack((geom1, geom2), axis=1)
@@ -372,7 +367,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
 
   # Disable collisions if there are no potentially colliding pairs
   if np.sum(geom_type_pair_count) == 0:
-    mjm.opt.disableflags |= types.DisableBit.CONTACT.value
+    mjm.opt.disableflags |= types.DisableBit.CONTACT
 
   def create_nmodel_batched_array(mjm_array, dtype, expand_dim=True):
     array = wp.array(mjm_array, dtype=dtype)
@@ -396,16 +391,78 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   # contact sensor
   sensor_adr_to_contact_adr = np.clip(np.cumsum(mjm.sensor_type == mujoco.mjtSensor.mjSENS_CONTACT) - 1, a_min=0, a_max=None)
 
-  # TODO(team): improve heuristic for selecting broadphase routine
-  if mjm.ngeom > 1000:
-    broadphase = types.BroadphaseType.SAP_SEGMENTED
-  elif mjm.ngeom > 100:
+  if nxn_geom_pair_filtered.shape[0] < 250_000:
+    broadphase = types.BroadphaseType.NXN
+  elif mjm.ngeom < 1000:
     broadphase = types.BroadphaseType.SAP_TILE
   else:
-    broadphase = types.BroadphaseType.NXN
+    broadphase = types.BroadphaseType.SAP_SEGMENTED
 
   condim = np.concatenate((mjm.geom_condim, mjm.pair_dim))
   condim_max = np.max(condim) if len(condim) > 0 else 0
+
+  # collision sensors
+  is_collision_sensor = np.isin(
+    mjm.sensor_type, [mujoco.mjtSensor.mjSENS_GEOMDIST, mujoco.mjtSensor.mjSENS_GEOMNORMAL, mujoco.mjtSensor.mjSENS_GEOMFROMTO]
+  )
+  sensor_collision_adr = np.nonzero(is_collision_sensor)[0]
+  collision_sensor_adr = np.full(mjm.nsensor, -1)
+  collision_sensor_adr[sensor_collision_adr] = np.arange(len(sensor_collision_adr))
+
+  if is_collision_sensor.any():
+
+    def _collision_sensor_check(sensor_type, sensor_id, geom_type, err_msg):
+      for type_, id_ in zip(sensor_type, sensor_id):
+        if type_ == mujoco.mjtObj.mjOBJ_BODY:
+          geomnum = mjm.body_geomnum[id_]
+          geomadr = mjm.body_geomadr[id_]
+          for geomid in range(geomadr, geomadr + geomnum):
+            if mjm.geom_type[geomid] == geom_type:
+              raise NotImplementedError(err_msg)
+        elif type_ == mujoco.mjtObj.mjOBJ_GEOM:
+          if mjm.geom_type[id_] == geom_type:
+            raise NotImplementedError(err_msg)
+
+    sensor_collision_objtype = mjm.sensor_objtype[is_collision_sensor]
+    sensor_collision_objid = mjm.sensor_objid[is_collision_sensor]
+    sensor_collision_reftype = mjm.sensor_reftype[is_collision_sensor]
+    sensor_collision_refid = mjm.sensor_refid[is_collision_sensor]
+
+    _collision_sensor_check(
+      sensor_collision_objtype,
+      sensor_collision_objid,
+      mujoco.mjtGeom.mjGEOM_PLANE,
+      "Collision sensors with planes are not implemented.",
+    )
+    _collision_sensor_check(
+      sensor_collision_reftype,
+      sensor_collision_refid,
+      mujoco.mjtGeom.mjGEOM_PLANE,
+      "Collision sensors with planes are not implemented.",
+    )
+    _collision_sensor_check(
+      sensor_collision_objtype,
+      sensor_collision_objid,
+      mujoco.mjtGeom.mjGEOM_HFIELD,
+      "Collision sensors with height fields are not implemented.",
+    )
+    _collision_sensor_check(
+      sensor_collision_reftype,
+      sensor_collision_refid,
+      mujoco.mjtGeom.mjGEOM_HFIELD,
+      "Collision sensors with height fields are not implemented.",
+    )
+
+  if mjm.geom_fluid.size:
+    geom_fluid_params = mjm.geom_fluid.reshape(mjm.ngeom, mujoco.mjNFLUID)
+  else:
+    geom_fluid_params = np.zeros((mjm.ngeom, mujoco.mjNFLUID))
+
+  body_fluid_ellipsoid = np.zeros(mjm.nbody, dtype=bool)
+  if mjm.ngeom:
+    active_geom = geom_fluid_params[:, 0] > 0
+    if np.any(active_geom):
+      body_fluid_ellipsoid[mjm.geom_bodyid[active_geom]] = True
 
   m = types.Model(
     nq=mjm.nq,
@@ -418,6 +475,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     nsite=mjm.nsite,
     ncam=mjm.ncam,
     nlight=mjm.nlight,
+    nmat=mjm.nmat,
     nflex=mjm.nflex,
     nflexvert=mjm.nflexvert,
     nflexedge=mjm.nflexedge,
@@ -444,8 +502,11 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     npair=mjm.npair,
     opt=types.Option(
       timestep=create_nmodel_batched_array(np.array(mjm.opt.timestep), dtype=float, expand_dim=False),
-      tolerance=create_nmodel_batched_array(np.array(mjm.opt.tolerance), dtype=float, expand_dim=False),
+      tolerance=create_nmodel_batched_array(
+        np.array(np.maximum(mjm.opt.tolerance, _TOLERANCE_F32)), dtype=float, expand_dim=False
+      ),
       ls_tolerance=create_nmodel_batched_array(np.array(mjm.opt.ls_tolerance), dtype=float, expand_dim=False),
+      ccd_tolerance=create_nmodel_batched_array(np.array(mjm.opt.ccd_tolerance), dtype=float, expand_dim=False),
       gravity=create_nmodel_batched_array(mjm.opt.gravity, dtype=wp.vec3, expand_dim=False),
       magnetic=create_nmodel_batched_array(mjm.opt.magnetic, dtype=wp.vec3, expand_dim=False),
       wind=create_nmodel_batched_array(mjm.opt.wind, dtype=wp.vec3, expand_dim=False),
@@ -463,16 +524,15 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
       is_sparse=bool(is_sparse),
       ls_parallel=False,
       ls_parallel_min_step=1.0e-6,  # TODO(team): determine good default setting
-      gjk_iterations=MJ_CCD_ITERATIONS,
-      epa_iterations=MJ_CCD_ITERATIONS,
+      ccd_iterations=mjm.opt.ccd_iterations,
       broadphase=int(broadphase),
-      broadphase_filter=int(
-        types.BroadphaseFilter.PLANE.value | types.BroadphaseFilter.SPHERE.value | types.BroadphaseFilter.OBB.value
-      ),
-      graph_conditional=True and conditional_graph_supported(),
+      broadphase_filter=int(types.BroadphaseFilter.PLANE | types.BroadphaseFilter.SPHERE | types.BroadphaseFilter.OBB),
+      graph_conditional=True and warp_util.conditional_graph_supported(),
       sdf_initpoints=mjm.opt.sdf_initpoints,
       sdf_iterations=mjm.opt.sdf_iterations,
       run_collision_detection=True,
+      legacy_gjk=False,
+      contact_sensor_maxmatch=64,
     ),
     stat=types.Statistic(
       meaninertia=mjm.stat.meaninertia,
@@ -514,6 +574,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     body_contype=wp.array(mjm.body_contype, dtype=int),
     body_conaffinity=wp.array(mjm.body_conaffinity, dtype=int),
     body_gravcomp=create_nmodel_batched_array(mjm.body_gravcomp, dtype=float),
+    body_fluid_ellipsoid=wp.array(body_fluid_ellipsoid, dtype=bool),
     jnt_type=wp.array(mjm.jnt_type, dtype=int),
     jnt_qposadr=wp.array(mjm.jnt_qposadr, dtype=int),
     jnt_dofadr=wp.array(mjm.jnt_dofadr, dtype=int),
@@ -565,6 +626,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     geom_solref=create_nmodel_batched_array(mjm.geom_solref, dtype=wp.vec2),
     geom_solimp=create_nmodel_batched_array(mjm.geom_solimp, dtype=types.vec5),
     geom_size=create_nmodel_batched_array(mjm.geom_size, dtype=wp.vec3),
+    geom_fluid=wp.array(geom_fluid_params, dtype=float),
     geom_aabb=wp.array2d(mjm.geom_aabb, dtype=wp.vec3),
     geom_rbound=create_nmodel_batched_array(mjm.geom_rbound, dtype=float),
     geom_pos=create_nmodel_batched_array(mjm.geom_pos, dtype=wp.vec3),
@@ -593,6 +655,9 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     light_mode=wp.array(mjm.light_mode, dtype=int),
     light_bodyid=wp.array(mjm.light_bodyid, dtype=int),
     light_targetbodyid=wp.array(mjm.light_targetbodyid, dtype=int),
+    light_type=create_nmodel_batched_array(mjm.light_type, dtype=int),
+    light_castshadow=create_nmodel_batched_array(mjm.light_castshadow, dtype=bool),
+    light_active=create_nmodel_batched_array(mjm.light_active, dtype=bool),
     light_pos=create_nmodel_batched_array(mjm.light_pos, dtype=wp.vec3),
     light_dir=create_nmodel_batched_array(mjm.light_dir, dtype=wp.vec3),
     light_poscom0=create_nmodel_batched_array(mjm.light_poscom0, dtype=wp.vec3),
@@ -631,6 +696,9 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     mesh_polymapadr=wp.array(mjm.mesh_polymapadr, dtype=int),
     mesh_polymapnum=wp.array(mjm.mesh_polymapnum, dtype=int),
     mesh_polymap=wp.array(mjm.mesh_polymap, dtype=int),
+    oct_aabb=wp.array2d(mjm.oct_aabb, dtype=wp.vec3),
+    oct_child=wp.array(mjm.oct_child, dtype=types.vec8i),
+    oct_coeff=wp.array(mjm.oct_coeff, dtype=types.vec8f),
     nhfield=mjm.nhfield,
     nhfielddata=mjm.nhfielddata,
     hfield_adr=wp.array(mjm.hfield_adr, dtype=int),
@@ -647,10 +715,10 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     eq_solimp=create_nmodel_batched_array(mjm.eq_solimp, dtype=types.vec5),
     eq_data=create_nmodel_batched_array(mjm.eq_data, dtype=types.vec11),
     # pre-compute indices of equality constraints
-    eq_connect_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.CONNECT.value)[0], dtype=int),
-    eq_wld_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.WELD.value)[0], dtype=int),
-    eq_jnt_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.JOINT.value)[0], dtype=int),
-    eq_ten_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.TENDON.value)[0], dtype=int),
+    eq_connect_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.CONNECT)[0], dtype=int),
+    eq_wld_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.WELD)[0], dtype=int),
+    eq_jnt_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.JOINT)[0], dtype=int),
+    eq_ten_adr=wp.array(np.nonzero(mjm.eq_type == types.EqType.TENDON)[0], dtype=int),
     actuator_moment_tiles_nv=actuator_moment_tiles_nv,
     actuator_moment_tiles_nu=actuator_moment_tiles_nu,
     actuator_trntype=wp.array(mjm.actuator_trntype, dtype=int),
@@ -675,11 +743,6 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     actuator_acc0=wp.array(mjm.actuator_acc0, dtype=float),
     actuator_lengthrange=wp.array(mjm.actuator_lengthrange, dtype=wp.vec2),
     exclude_signature=wp.array(mjm.exclude_signature, dtype=int),
-    # short-circuiting here allows us to skip a lot of code in implicit integration
-    actuator_affine_bias_gain=bool(
-      np.any(mjm.actuator_biastype == types.BiasType.AFFINE.value)
-      or np.any(mjm.actuator_gaintype == types.GainType.AFFINE.value)
-    ),
     nxn_geom_pair=wp.array(nxn_geom_pair, dtype=wp.vec2i),
     nxn_geom_pair_filtered=wp.array(nxn_geom_pair_filtered, dtype=wp.vec2i),
     nxn_pairid=wp.array(nxn_pairid, dtype=int),
@@ -780,6 +843,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     ),
     sensor_rangefinder_adr=wp.array(sensor_rangefinder_adr, dtype=int),
     rangefinder_sensor_adr=wp.array(rangefinder_sensor_adr, dtype=int),
+    collision_sensor_adr=wp.array(collision_sensor_adr, dtype=int),
     sensor_touch_adr=wp.array(
       np.nonzero(mjm.sensor_type == mujoco.mjtSensor.mjSENS_TOUCH)[0],
       dtype=int,
@@ -818,9 +882,10 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
     plugin=wp.array(plugin_id, dtype=int),
     plugin_attr=wp.array(plugin_attr, dtype=wp.vec3f),
     geom_plugin_index=wp.array(geom_plugin_index, dtype=int),
+    mat_texid=create_nmodel_batched_array(mjm.mat_texid, dtype=int),
+    mat_texrepeat=create_nmodel_batched_array(mjm.mat_texrepeat, dtype=wp.vec2),
     mat_rgba=create_nmodel_batched_array(mjm.mat_rgba, dtype=wp.vec4),
     actuator_trntype_body_adr=wp.array(np.nonzero(mjm.actuator_trntype == mujoco.mjtTrn.mjTRN_BODY)[0], dtype=int),
-    geompair2hfgeompair=wp.array(_hfield_geom_pair(mjm)[1], dtype=int),
     block_dim=types.BlockDim(),
     geom_pair_type_count=tuple(geom_type_pair_count),
     has_sdf_geom=bool(np.any(mjm.geom_type == mujoco.mjtGeom.mjGEOM_SDF)),
@@ -847,39 +912,47 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   return m
 
 
-def make_data(mjm: mujoco.MjModel, nworld: int = 1, nconmax: int = -1, njmax: int = -1) -> types.Data:
+def make_data(
+  mjm: mujoco.MjModel,
+  nworld: int = 1,
+  nconmax: Optional[int] = None,
+  njmax: Optional[int] = None,
+  naconmax: Optional[int] = None,
+) -> types.Data:
   """
   Creates a data object on device.
 
   Args:
     mjm (mujoco.MjModel): The model containing kinematic and dynamic information (host).
     nworld (int, optional): Number of worlds. Defaults to 1.
-    nconmax (int, optional): Maximum number of contacts for all worlds. Defaults to -1.
-    njmax (int, optional): Maximum number of constraints per world. Defaults to -1.
+    nworld (int, optional): The number of worlds. Defaults to 1.
+    nconmax (int, optional): Number of contacts to allocate per world.  Contacts exist in large
+                             heterogenous arrays: one world may have more than nconmax contacts.
+    njmax (int, optional): Number of constraints to allocate per world.  Constraint arrays are
+                           batched by world: no world may have more than njmax constraints.
+    naconmax (int, optional): Number of contacts to allocate for all worlds.  Overrides nconmax.
 
   Returns:
     Data: The data object containing the current state and output arrays (device).
   """
 
-  # TODO(team): move to Model?
-  if nconmax == -1:
-    # TODO(team): heuristic for nconmax
-    nconmax = nworld * 20
-  if njmax == -1:
-    # TODO(team): heuristic for njmax
-    njmax = 20 * 6
+  # TODO(team): move nconmax, njmax to Model?
+  # TODO(team): improve heuristic for nconmax and njmax
+  nconmax = nconmax or 20
+  njmax = njmax or nconmax * 6
 
   if nworld < 1 or nworld > MAX_WORLDS:
     raise ValueError(f"nworld must be >= 1 and <= {MAX_WORLDS}")
 
-  if nconmax < 0:
-    raise ValueError("nconmax must be >= 0")
+  if naconmax is None:
+    if nconmax < 0:
+      raise ValueError("nconmax must be >= 0")
+    naconmax = max(512, nworld * nconmax)
+  elif naconmax < 0:
+    raise ValueError("naconmax must be >= 0")
 
   if njmax < 0:
     raise ValueError("njmax must be >= 0")
-
-  condim = np.concatenate((mjm.geom_condim, mjm.pair_dim))
-  condim_max = np.max(condim) if len(condim) > 0 else 0
 
   if mujoco.mj_isSparse(mjm):
     qM = wp.zeros((nworld, 1, mjm.nM), dtype=float)
@@ -892,17 +965,19 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, nconmax: int = -1, njmax: in
     qM_integration = wp.zeros((nworld, mjm.nv, mjm.nv), dtype=float)
     qLD_integration = wp.zeros((nworld, mjm.nv, mjm.nv), dtype=float)
 
+  condim = np.concatenate((mjm.geom_condim, mjm.pair_dim))
+  condim_max = np.max(condim) if len(condim) > 0 else 0
+  max_npolygon = _max_npolygon(mjm)
+  max_meshdegree = _max_meshdegree(mjm)
   nsensorcontact = np.sum(mjm.sensor_type == mujoco.mjtSensor.mjSENS_CONTACT)
   nrangefinder = sum(mjm.sensor_type == mujoco.mjtSensor.mjSENS_RANGEFINDER)
 
   return types.Data(
     nworld=nworld,
-    nconmax=nconmax,
+    naconmax=naconmax,
     njmax=njmax,
     solver_niter=wp.zeros(nworld, dtype=int),
-    ncon=wp.zeros(1, dtype=int),
-    ncon_world=wp.zeros(nworld, dtype=int),
-    ncon_hfield=wp.zeros((nworld, _hfield_geom_pair(mjm)[0]), dtype=int),  # warp only
+    nacon=wp.zeros(1, dtype=int),
     ne=wp.zeros(nworld, dtype=int),
     ne_connect=wp.zeros(nworld, dtype=int),  # warp only
     ne_weld=wp.zeros(nworld, dtype=int),  # warp only
@@ -976,21 +1051,18 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, nconmax: int = -1, njmax: in
     qfrc_constraint=wp.zeros((nworld, mjm.nv), dtype=float),
     qfrc_inverse=wp.zeros((nworld, mjm.nv), dtype=float),
     contact=types.Contact(
-      dist=wp.zeros((nconmax,), dtype=float),
-      pos=wp.zeros((nconmax,), dtype=wp.vec3f),
-      frame=wp.zeros((nconmax,), dtype=wp.mat33f),
-      includemargin=wp.zeros((nconmax,), dtype=float),
-      friction=wp.zeros((nconmax,), dtype=types.vec5),
-      solref=wp.zeros((nconmax,), dtype=wp.vec2f),
-      solreffriction=wp.zeros((nconmax,), dtype=wp.vec2f),
-      solimp=wp.zeros((nconmax,), dtype=types.vec5),
-      dim=wp.zeros((nconmax,), dtype=int),
-      geom=wp.zeros((nconmax,), dtype=wp.vec2i),
-      efc_address=wp.zeros(
-        (nconmax, np.maximum(1, 2 * (condim_max - 1))),
-        dtype=int,
-      ),
-      worldid=wp.zeros((nconmax,), dtype=int),
+      dist=wp.zeros((naconmax,), dtype=float),
+      pos=wp.zeros((naconmax,), dtype=wp.vec3f),
+      frame=wp.zeros((naconmax,), dtype=wp.mat33f),
+      includemargin=wp.zeros((naconmax,), dtype=float),
+      friction=wp.zeros((naconmax,), dtype=types.vec5),
+      solref=wp.zeros((naconmax,), dtype=wp.vec2f),
+      solreffriction=wp.zeros((naconmax,), dtype=wp.vec2f),
+      solimp=wp.zeros((naconmax,), dtype=types.vec5),
+      dim=wp.zeros((naconmax,), dtype=int),
+      geom=wp.zeros((naconmax,), dtype=wp.vec2i),
+      efc_address=wp.zeros((naconmax, np.maximum(1, 2 * (condim_max - 1))), dtype=int),
+      worldid=wp.zeros((naconmax,), dtype=int),
     ),
     efc=types.Constraint(
       type=wp.zeros((nworld, njmax), dtype=int),
@@ -1016,7 +1088,6 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, nconmax: int = -1, njmax: in
       cost=wp.zeros((nworld,), dtype=float),
       prev_cost=wp.zeros((nworld,), dtype=float),
       state=wp.zeros((nworld, njmax), dtype=int),
-      gtol=wp.zeros((nworld,), dtype=float),
       mv=wp.zeros((nworld, mjm.nv), dtype=float),
       jv=wp.zeros((nworld, njmax), dtype=float),
       quad=wp.zeros((nworld, njmax), dtype=wp.vec3f),
@@ -1028,18 +1099,6 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, nconmax: int = -1, njmax: in
       beta=wp.zeros((nworld,), dtype=float),
       done=wp.zeros((nworld,), dtype=bool),
       # linesearch
-      ls_done=wp.zeros((nworld,), dtype=bool),
-      p0=wp.zeros((nworld,), dtype=wp.vec3),
-      lo=wp.zeros((nworld,), dtype=wp.vec3),
-      lo_alpha=wp.zeros((nworld,), dtype=float),
-      hi=wp.zeros((nworld,), dtype=wp.vec3),
-      hi_alpha=wp.zeros((nworld,), dtype=float),
-      lo_next=wp.zeros((nworld,), dtype=wp.vec3),
-      lo_next_alpha=wp.zeros((nworld,), dtype=float),
-      hi_next=wp.zeros((nworld,), dtype=wp.vec3),
-      hi_next_alpha=wp.zeros((nworld,), dtype=float),
-      mid=wp.zeros((nworld,), dtype=wp.vec3),
-      mid_alpha=wp.zeros((nworld,), dtype=float),
       cost_candidate=wp.zeros((nworld, mjm.opt.ls_iterations), dtype=float),
     ),
     # RK4
@@ -1066,23 +1125,33 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, nconmax: int = -1, njmax: in
       np.array([i * mjm.ngeom if i < nworld + 1 else 0 for i in range(2 * nworld)]).reshape((nworld, 2)), dtype=int
     ),
     # collision driver
-    collision_pair=wp.zeros((nconmax,), dtype=wp.vec2i),
-    collision_hftri_index=wp.zeros((nconmax,), dtype=int),
-    collision_pairid=wp.zeros((nconmax,), dtype=int),
-    collision_worldid=wp.zeros((nconmax,), dtype=int),
+    collision_pair=wp.zeros((naconmax,), dtype=wp.vec2i),
+    collision_pairid=wp.zeros((naconmax,), dtype=int),
+    collision_worldid=wp.zeros((naconmax,), dtype=int),
     ncollision=wp.zeros((1,), dtype=int),
     # narrowphase (EPA polytope)
-    epa_vert=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert1=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert2=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert_index1=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=int),
-    epa_vert_index2=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=int),
-    epa_face=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=wp.vec3i),
-    epa_pr=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_norm2=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=float),
-    epa_index=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=int),
-    epa_map=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=int),
-    epa_horizon=wp.zeros(shape=(nconmax, 6 * MJ_CCD_ITERATIONS), dtype=int),
+    epa_vert=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert1=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert2=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert_index1=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=int),
+    epa_vert_index2=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=int),
+    epa_face=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=wp.vec3i),
+    epa_pr=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_norm2=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=float),
+    epa_index=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=int),
+    epa_map=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=int),
+    epa_horizon=wp.zeros(shape=(naconmax, 2 * types.MJ_MAX_EPAHORIZON), dtype=int),
+    multiccd_polygon=wp.zeros(shape=(naconmax, 2 * max_npolygon), dtype=wp.vec3),
+    multiccd_clipped=wp.zeros(shape=(naconmax, 2 * max_npolygon), dtype=wp.vec3),
+    multiccd_pnormal=wp.zeros(shape=(naconmax, max_npolygon), dtype=wp.vec3),
+    multiccd_pdist=wp.zeros(shape=(naconmax, max_npolygon), dtype=float),
+    multiccd_idx1=wp.zeros(shape=(naconmax, max_meshdegree), dtype=int),
+    multiccd_idx2=wp.zeros(shape=(naconmax, max_meshdegree), dtype=int),
+    multiccd_n1=wp.zeros(shape=(naconmax, max_meshdegree), dtype=wp.vec3),
+    multiccd_n2=wp.zeros(shape=(naconmax, max_meshdegree), dtype=wp.vec3),
+    multiccd_endvert=wp.zeros(shape=(naconmax, max_meshdegree), dtype=wp.vec3),
+    multiccd_face1=wp.zeros(shape=(naconmax, max_npolygon), dtype=wp.vec3),
+    multiccd_face2=wp.zeros(shape=(naconmax, max_npolygon), dtype=wp.vec3),
     # rne_postconstraint
     cacc=wp.zeros((nworld, mjm.nbody), dtype=wp.spatial_vector),
     cfrc_int=wp.zeros((nworld, mjm.nbody), dtype=wp.spatial_vector),
@@ -1123,9 +1192,10 @@ def make_data(mjm: mujoco.MjModel, nworld: int = 1, nconmax: int = -1, njmax: in
 def put_data(
   mjm: mujoco.MjModel,
   mjd: mujoco.MjData,
-  nworld: Optional[int] = None,
+  nworld: int = 1,
   nconmax: Optional[int] = None,
   njmax: Optional[int] = None,
+  naconmax: Optional[int] = None,
 ) -> types.Data:
   """
   Moves data from host to a device.
@@ -1134,8 +1204,11 @@ def put_data(
     mjm (mujoco.MjModel): The model containing kinematic and dynamic information (host).
     mjd (mujoco.MjData): The data object containing current state and output arrays (host).
     nworld (int, optional): The number of worlds. Defaults to 1.
-    nconmax (int, optional): The maximum number of contacts for all worlds. Defaults to -1.
-    njmax (int, optional): The maximum number of constraints per world. Defaults to -1.
+    nconmax (int, optional): Number of contacts to allocate per world.  Contacts exist in large
+                             heterogenous arrays: one world may have more than nconmax contacts.
+    njmax (int, optional): Number of constraints to allocate per world.  Constraint arrays are
+                           batched by world: no world may have more than njmax constraints.
+    naconmax (int, optional): Number of contacts to allocate for all worlds.  Overrides nconmax.
 
   Returns:
     Data: The data object containing the current state and output arrays (device).
@@ -1144,26 +1217,32 @@ def put_data(
   # TODO(team): decide what to do about uninitialized warp-only fields created by put_data
   #             we need to ensure these are only workspace fields and don't carry state
 
-  nworld = nworld or 1
-  # TODO(team): better heuristic for nconmax
-  nconmax = nconmax or max(512, 4 * mjd.ncon * nworld)
-  # TODO(team): better heuristic for njmax
+  # TODO(team): better heuristic for nconmax and njmax
+  nconmax = nconmax or max(5, 4 * mjd.ncon)
   njmax = njmax or max(5, 4 * mjd.nefc)
 
   if nworld < 1 or nworld > MAX_WORLDS:
     raise ValueError(f"nworld must be >= 1 and <= {MAX_WORLDS}")
 
-  if nconmax < 0:
-    raise ValueError("nconmax must be >= 0")
+  if naconmax is None:
+    if nconmax < 0:
+      raise ValueError("nconmax must be >= 0")
+
+    if mjd.ncon > nconmax:
+      raise ValueError(f"nconmax overflow (nconmax must be >= {mjd.ncon})")
+
+    naconmax = max(512, nworld * nconmax)
+  elif naconmax < mjd.ncon * nworld:
+    raise ValueError(f"naconmax overflow (naconmax must be >= {mjd.ncon * nworld})")
 
   if njmax < 0:
     raise ValueError("njmax must be >= 0")
 
-  if nworld * mjd.ncon > nconmax:
-    raise ValueError(f"nconmax overflow (nconmax must be >= {nworld * mjd.ncon})")
-
   if mjd.nefc > njmax:
     raise ValueError(f"njmax overflow (njmax must be >= {mjd.nefc})")
+
+  max_npolygon = _max_npolygon(mjm)
+  max_meshdegree = _max_meshdegree(mjm)
 
   # calculate some fields that cannot be easily computed inline:
   if mujoco.mj_isSparse(mjm):
@@ -1205,7 +1284,7 @@ def put_data(
 
   condim = np.concatenate((mjm.geom_condim, mjm.pair_dim))
   condim_max = np.max(condim) if len(condim) > 0 else 0
-  contact_efc_address = np.zeros((nconmax, np.maximum(1, 2 * (condim_max - 1))), dtype=int)
+  contact_efc_address = np.zeros((naconmax, np.maximum(1, 2 * (condim_max - 1))), dtype=int)
   for i in range(nworld):
     for j in range(mjd.ncon):
       condim = mjd.contact.dim[j]
@@ -1219,7 +1298,7 @@ def put_data(
       for k in range(nconvar):
         contact_efc_address[i * mjd.ncon + j, k] = mjd.nefc * i + efc_address + k
 
-  contact_worldid = np.pad(np.repeat(np.arange(nworld), mjd.ncon), (0, nconmax - nworld * mjd.ncon))
+  contact_worldid = np.pad(np.repeat(np.arange(nworld), mjd.ncon), (0, naconmax - nworld * mjd.ncon))
 
   ne_connect = int(3 * np.sum((mjm.eq_type == mujoco.mjtEq.mjEQ_CONNECT) & mjd.eq_active))
   ne_weld = int(6 * np.sum((mjm.eq_type == mujoco.mjtEq.mjEQ_WELD) & mjd.eq_active))
@@ -1279,12 +1358,10 @@ def put_data(
 
   return types.Data(
     nworld=nworld,
-    nconmax=nconmax,
+    naconmax=naconmax,
     njmax=njmax,
     solver_niter=tile(mjd.solver_niter[0]),
-    ncon=arr([mjd.ncon * nworld]),
-    ncon_world=wp.zeros(nworld, dtype=int),
-    ncon_hfield=wp.zeros((nworld, _hfield_geom_pair(mjm)[0]), dtype=int),  # warp only
+    nacon=arr([mjd.ncon * nworld]),
     ne=wp.full(shape=(nworld), value=mjd.ne),
     ne_connect=wp.full(shape=(nworld), value=ne_connect),
     ne_weld=wp.full(shape=(nworld), value=ne_weld),
@@ -1358,16 +1435,16 @@ def put_data(
     qfrc_constraint=tile(mjd.qfrc_constraint),
     qfrc_inverse=tile(mjd.qfrc_inverse),
     contact=types.Contact(
-      dist=padtile(mjd.contact.dist, nconmax),
-      pos=padtile(mjd.contact.pos, nconmax, dtype=wp.vec3),
-      frame=padtile(mjd.contact.frame, nconmax, dtype=wp.mat33),
-      includemargin=padtile(mjd.contact.includemargin, nconmax),
-      friction=padtile(mjd.contact.friction, nconmax, dtype=types.vec5),
-      solref=padtile(mjd.contact.solref, nconmax, dtype=wp.vec2f),
-      solreffriction=padtile(mjd.contact.solreffriction, nconmax, dtype=wp.vec2f),
-      solimp=padtile(mjd.contact.solimp, nconmax, dtype=types.vec5),
-      dim=padtile(mjd.contact.dim, nconmax),
-      geom=padtile(mjd.contact.geom, nconmax, dtype=wp.vec2i),
+      dist=padtile(mjd.contact.dist, naconmax),
+      pos=padtile(mjd.contact.pos, naconmax, dtype=wp.vec3),
+      frame=padtile(mjd.contact.frame, naconmax, dtype=wp.mat33),
+      includemargin=padtile(mjd.contact.includemargin, naconmax),
+      friction=padtile(mjd.contact.friction, naconmax, dtype=types.vec5),
+      solref=padtile(mjd.contact.solref, naconmax, dtype=wp.vec2f),
+      solreffriction=padtile(mjd.contact.solreffriction, naconmax, dtype=wp.vec2f),
+      solimp=padtile(mjd.contact.solimp, naconmax, dtype=types.vec5),
+      dim=padtile(mjd.contact.dim, naconmax),
+      geom=padtile(mjd.contact.geom, naconmax, dtype=wp.vec2i),
       efc_address=arr(contact_efc_address),
       worldid=arr(contact_worldid),
     ),
@@ -1395,7 +1472,6 @@ def put_data(
       cost=wp.empty(shape=(nworld,), dtype=float),
       prev_cost=wp.empty(shape=(nworld,), dtype=float),
       state=wp.empty(shape=(nworld, njmax), dtype=int),
-      gtol=wp.empty(shape=(nworld,), dtype=float),
       mv=wp.empty(shape=(nworld, mjm.nv), dtype=float),
       jv=wp.empty(shape=(nworld, njmax), dtype=float),
       quad=wp.empty(shape=(nworld, njmax), dtype=wp.vec3f),
@@ -1406,18 +1482,6 @@ def put_data(
       prev_Mgrad=wp.empty(shape=(nworld, mjm.nv), dtype=float),
       beta=wp.empty(shape=(nworld,), dtype=float),
       done=wp.empty(shape=(nworld,), dtype=bool),
-      ls_done=wp.zeros(shape=(nworld,), dtype=bool),
-      p0=wp.empty(shape=(nworld,), dtype=wp.vec3),
-      lo=wp.empty(shape=(nworld,), dtype=wp.vec3),
-      lo_alpha=wp.empty(shape=(nworld,), dtype=float),
-      hi=wp.empty(shape=(nworld,), dtype=wp.vec3),
-      hi_alpha=wp.empty(shape=(nworld,), dtype=float),
-      lo_next=wp.empty(shape=(nworld,), dtype=wp.vec3),
-      lo_next_alpha=wp.empty(shape=(nworld,), dtype=float),
-      hi_next=wp.empty(shape=(nworld,), dtype=wp.vec3),
-      hi_next_alpha=wp.empty(shape=(nworld,), dtype=float),
-      mid=wp.empty(shape=(nworld,), dtype=wp.vec3),
-      mid_alpha=wp.empty(shape=(nworld,), dtype=float),
       cost_candidate=wp.empty(shape=(nworld, mjm.opt.ls_iterations), dtype=float),
     ),
     # TODO(team): skip allocation if integrator != RK4
@@ -1442,23 +1506,33 @@ def put_data(
     sap_cumulative_sum=wp.zeros((nworld, mjm.ngeom), dtype=int),
     sap_segment_index=arr(np.array([i * mjm.ngeom if i < nworld + 1 else 0 for i in range(2 * nworld)]).reshape((nworld, 2))),
     # collision driver
-    collision_pair=wp.empty(nconmax, dtype=wp.vec2i),
-    collision_hftri_index=wp.empty(nconmax, dtype=int),
-    collision_pairid=wp.empty(nconmax, dtype=int),
-    collision_worldid=wp.empty(nconmax, dtype=int),
+    collision_pair=wp.empty(naconmax, dtype=wp.vec2i),
+    collision_pairid=wp.empty(naconmax, dtype=int),
+    collision_worldid=wp.empty(naconmax, dtype=int),
     ncollision=wp.zeros(1, dtype=int),
     # narrowphase (EPA polytope)
-    epa_vert=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert1=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert2=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_vert_index1=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=int),
-    epa_vert_index2=wp.zeros(shape=(nconmax, 5 + MJ_CCD_ITERATIONS), dtype=int),
-    epa_face=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=wp.vec3i),
-    epa_pr=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=wp.vec3),
-    epa_norm2=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=float),
-    epa_index=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=int),
-    epa_map=wp.zeros(shape=(nconmax, 6 + 6 * MJ_CCD_ITERATIONS), dtype=int),
-    epa_horizon=wp.zeros(shape=(nconmax, 6 * MJ_CCD_ITERATIONS), dtype=int),
+    epa_vert=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert1=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert2=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_vert_index1=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=int),
+    epa_vert_index2=wp.zeros(shape=(naconmax, 5 + mjm.opt.ccd_iterations), dtype=int),
+    epa_face=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=wp.vec3i),
+    epa_pr=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=wp.vec3),
+    epa_norm2=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=float),
+    epa_index=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=int),
+    epa_map=wp.zeros(shape=(naconmax, 6 + types.MJ_MAX_EPAFACES * mjm.opt.ccd_iterations), dtype=int),
+    epa_horizon=wp.zeros(shape=(naconmax, 2 * types.MJ_MAX_EPAHORIZON), dtype=int),
+    multiccd_polygon=wp.zeros(shape=(naconmax, 2 * max_npolygon), dtype=wp.vec3),
+    multiccd_clipped=wp.zeros(shape=(naconmax, 2 * max_npolygon), dtype=wp.vec3),
+    multiccd_pnormal=wp.zeros(shape=(naconmax, max_npolygon), dtype=wp.vec3),
+    multiccd_pdist=wp.zeros(shape=(naconmax, max_npolygon), dtype=float),
+    multiccd_idx1=wp.zeros(shape=(naconmax, max_meshdegree), dtype=int),
+    multiccd_idx2=wp.zeros(shape=(naconmax, max_meshdegree), dtype=int),
+    multiccd_n1=wp.zeros(shape=(naconmax, max_meshdegree), dtype=wp.vec3),
+    multiccd_n2=wp.zeros(shape=(naconmax, max_meshdegree), dtype=wp.vec3),
+    multiccd_endvert=wp.zeros(shape=(naconmax, max_meshdegree), dtype=wp.vec3),
+    multiccd_face1=wp.zeros(shape=(naconmax, max_npolygon), dtype=wp.vec3),
+    multiccd_face2=wp.zeros(shape=(naconmax, max_npolygon), dtype=wp.vec3),
     # rne_postconstraint but also smooth
     cacc=tile(mjd.cacc, dtype=wp.spatial_vector),
     cfrc_int=tile(mjd.cfrc_int, dtype=wp.spatial_vector),
@@ -1514,11 +1588,11 @@ def get_data_into(
 
   result.solver_niter[0] = d.solver_niter.numpy()[0]
 
-  ncon = d.ncon.numpy()[0]
+  nacon = d.nacon.numpy()[0]
   nefc = d.nefc.numpy()[0]
 
-  if ncon != result.ncon or nefc != result.nefc:
-    mujoco._functions._realloc_con_efc(result, ncon=ncon, nefc=nefc)
+  if nacon != result.ncon or nefc != result.nefc:
+    mujoco._functions._realloc_con_efc(result, ncon=nacon, nefc=nefc)
 
   result.time = d.time.numpy()[0]
   result.energy = d.energy.numpy()[0]
@@ -1584,16 +1658,16 @@ def get_data_into(
   result.act = d.act.numpy()[0]
   result.act_dot = d.act_dot.numpy()[0]
 
-  result.contact.dist[:] = d.contact.dist.numpy()[:ncon]
-  result.contact.pos[:] = d.contact.pos.numpy()[:ncon]
-  result.contact.frame[:] = d.contact.frame.numpy()[:ncon].reshape((-1, 9))
-  result.contact.includemargin[:] = d.contact.includemargin.numpy()[:ncon]
-  result.contact.friction[:] = d.contact.friction.numpy()[:ncon]
-  result.contact.solref[:] = d.contact.solref.numpy()[:ncon]
-  result.contact.solreffriction[:] = d.contact.solreffriction.numpy()[:ncon]
-  result.contact.solimp[:] = d.contact.solimp.numpy()[:ncon]
-  result.contact.dim[:] = d.contact.dim.numpy()[:ncon]
-  result.contact.efc_address[:] = d.contact.efc_address.numpy()[:ncon, 0]
+  result.contact.dist[:] = d.contact.dist.numpy()[:nacon]
+  result.contact.pos[:] = d.contact.pos.numpy()[:nacon]
+  result.contact.frame[:] = d.contact.frame.numpy()[:nacon].reshape((-1, 9))
+  result.contact.includemargin[:] = d.contact.includemargin.numpy()[:nacon]
+  result.contact.friction[:] = d.contact.friction.numpy()[:nacon]
+  result.contact.solref[:] = d.contact.solref.numpy()[:nacon]
+  result.contact.solreffriction[:] = d.contact.solreffriction.numpy()[:nacon]
+  result.contact.solimp[:] = d.contact.solimp.numpy()[:nacon]
+  result.contact.dim[:] = d.contact.dim.numpy()[:nacon]
+  result.contact.efc_address[:] = d.contact.efc_address.numpy()[:nacon, 0]
 
   if mujoco.mj_isSparse(mjm):
     result.qM[:] = d.qM.numpy()[0, 0]
@@ -1651,3 +1725,554 @@ def get_data_into(
 
   # sensors
   result.sensordata[:] = d.sensordata.numpy()
+
+
+# TODO(thowell): shared @wp.func for _reset kernel?
+
+
+@wp.kernel
+def _reset_xfrc_applied_all(xfrc_applied_out: wp.array2d(dtype=wp.spatial_vector)):
+  worldid, bodyid, elemid = wp.tid()
+  xfrc_applied_out[worldid, bodyid][elemid] = 0.0
+
+
+@wp.kernel
+def _reset_xfrc_applied(reset_in: wp.array(dtype=bool), xfrc_applied_out: wp.array2d(dtype=wp.spatial_vector)):
+  worldid, bodyid, elemid = wp.tid()
+
+  if not reset_in[worldid]:
+    return
+
+  xfrc_applied_out[worldid, bodyid][elemid] = 0.0
+
+
+@wp.kernel
+def _reset_qM_all(qM_out: wp.array3d(dtype=float)):
+  worldid, elemid1, elemid2 = wp.tid()
+  qM_out[worldid, elemid1, elemid2] = 0.0
+
+
+@wp.kernel
+def _reset_qM(reset_in: wp.array(dtype=bool), qM_out: wp.array3d(dtype=float)):
+  worldid, elemid1, elemid2 = wp.tid()
+
+  if not reset_in[worldid]:
+    return
+
+  qM_out[worldid, elemid1, elemid2] = 0.0
+
+
+@wp.kernel
+def _reset_nworld_all(
+  # Model:
+  nq: int,
+  nv: int,
+  nu: int,
+  na: int,
+  neq: int,
+  nsensordata: int,
+  qpos0: wp.array2d(dtype=float),
+  eq_active0: wp.array(dtype=bool),
+  # Data in:
+  nworld_in: int,
+  # Data out:
+  solver_niter_out: wp.array(dtype=int),
+  nacon_out: wp.array(dtype=int),
+  ne_out: wp.array(dtype=int),
+  ne_connect_out: wp.array(dtype=int),
+  ne_weld_out: wp.array(dtype=int),
+  ne_jnt_out: wp.array(dtype=int),
+  ne_ten_out: wp.array(dtype=int),
+  nf_out: wp.array(dtype=int),
+  nl_out: wp.array(dtype=int),
+  nefc_out: wp.array(dtype=int),
+  nsolving_out: wp.array(dtype=int),
+  time_out: wp.array(dtype=float),
+  energy_out: wp.array(dtype=wp.vec2),
+  qpos_out: wp.array2d(dtype=float),
+  qvel_out: wp.array2d(dtype=float),
+  act_out: wp.array2d(dtype=float),
+  qacc_warmstart_out: wp.array2d(dtype=float),
+  ctrl_out: wp.array2d(dtype=float),
+  qfrc_applied_out: wp.array2d(dtype=float),
+  eq_active_out: wp.array2d(dtype=bool),
+  qacc_out: wp.array2d(dtype=float),
+  act_dot_out: wp.array2d(dtype=float),
+  sensordata_out: wp.array2d(dtype=float),
+):
+  worldid = wp.tid()
+
+  solver_niter_out[worldid] = 0
+  if worldid == 0:
+    nacon_out[0] = 0
+  ne_out[worldid] = 0
+  ne_connect_out[worldid] = 0
+  ne_weld_out[worldid] = 0
+  ne_jnt_out[worldid] = 0
+  ne_ten_out[worldid] = 0
+  nf_out[worldid] = 0
+  nl_out[worldid] = 0
+  nefc_out[worldid] = 0
+  if worldid == 0:
+    nsolving_out[0] = nworld_in
+  time_out[worldid] = 0.0
+  energy_out[worldid] = wp.vec2(0.0, 0.0)
+  for i in range(nq):
+    qpos_out[worldid, i] = qpos0[worldid, i]
+    if i < nv:
+      qvel_out[worldid, i] = 0.0
+      qacc_warmstart_out[worldid, i] = 0.0
+      qfrc_applied_out[worldid, i] = 0.0
+      qacc_out[worldid, i] = 0.0
+  for i in range(nu):
+    ctrl_out[worldid, i] = 0.0
+    if i < na:
+      act_out[worldid, i] = 0.0
+      act_dot_out[worldid, i] = 0.0
+  for i in range(neq):
+    eq_active_out[worldid, i] = eq_active0[i]
+  for i in range(nsensordata):
+    sensordata_out[worldid, i] = 0.0
+
+
+@wp.kernel
+def _reset_nworld(
+  # Model:
+  nq: int,
+  nv: int,
+  nu: int,
+  na: int,
+  neq: int,
+  nsensordata: int,
+  qpos0: wp.array2d(dtype=float),
+  eq_active0: wp.array(dtype=bool),
+  # Data in:
+  nworld_in: int,
+  # In:
+  reset_in: wp.array(dtype=bool),
+  # Data out:
+  solver_niter_out: wp.array(dtype=int),
+  nacon_out: wp.array(dtype=int),
+  ne_out: wp.array(dtype=int),
+  ne_connect_out: wp.array(dtype=int),
+  ne_weld_out: wp.array(dtype=int),
+  ne_jnt_out: wp.array(dtype=int),
+  ne_ten_out: wp.array(dtype=int),
+  nf_out: wp.array(dtype=int),
+  nl_out: wp.array(dtype=int),
+  nefc_out: wp.array(dtype=int),
+  nsolving_out: wp.array(dtype=int),
+  time_out: wp.array(dtype=float),
+  energy_out: wp.array(dtype=wp.vec2),
+  qpos_out: wp.array2d(dtype=float),
+  qvel_out: wp.array2d(dtype=float),
+  act_out: wp.array2d(dtype=float),
+  qacc_warmstart_out: wp.array2d(dtype=float),
+  ctrl_out: wp.array2d(dtype=float),
+  qfrc_applied_out: wp.array2d(dtype=float),
+  eq_active_out: wp.array2d(dtype=bool),
+  qacc_out: wp.array2d(dtype=float),
+  act_dot_out: wp.array2d(dtype=float),
+  sensordata_out: wp.array2d(dtype=float),
+):
+  worldid = wp.tid()
+
+  if not reset_in[worldid]:
+    return
+
+  solver_niter_out[worldid] = 0
+  if worldid == 0:
+    nacon_out[0] = 0
+  ne_out[worldid] = 0
+  ne_connect_out[worldid] = 0
+  ne_weld_out[worldid] = 0
+  ne_jnt_out[worldid] = 0
+  ne_ten_out[worldid] = 0
+  nf_out[worldid] = 0
+  nl_out[worldid] = 0
+  nefc_out[worldid] = 0
+  if worldid == 0:
+    nsolving_out[0] = nworld_in
+  time_out[worldid] = 0.0
+  energy_out[worldid] = wp.vec2(0.0, 0.0)
+  for i in range(nq):
+    qpos_out[worldid, i] = qpos0[worldid, i]
+    if i < nv:
+      qvel_out[worldid, i] = 0.0
+      qacc_warmstart_out[worldid, i] = 0.0
+      qfrc_applied_out[worldid, i] = 0.0
+      qacc_out[worldid, i] = 0.0
+  for i in range(nu):
+    ctrl_out[worldid, i] = 0.0
+    if i < na:
+      act_out[worldid, i] = 0.0
+      act_dot_out[worldid, i] = 0.0
+  for i in range(neq):
+    eq_active_out[worldid, i] = eq_active0[i]
+  for i in range(nsensordata):
+    sensordata_out[worldid, i] = 0.0
+
+
+@wp.kernel
+def _reset_mocap_all(
+  # Model:
+  body_mocapid: wp.array(dtype=int),
+  body_pos: wp.array2d(dtype=wp.vec3),
+  body_quat: wp.array2d(dtype=wp.quat),
+  # Data out:
+  mocap_pos_out: wp.array2d(dtype=wp.vec3),
+  mocap_quat_out: wp.array2d(dtype=wp.quat),
+):
+  worldid, bodyid = wp.tid()
+
+  mocapid = body_mocapid[bodyid]
+
+  if mocapid >= 0:
+    mocap_pos_out[worldid, mocapid] = body_pos[worldid, bodyid]
+    mocap_quat_out[worldid, mocapid] = body_quat[worldid, bodyid]
+
+
+@wp.kernel
+def _reset_mocap(
+  # Model:
+  body_mocapid: wp.array(dtype=int),
+  body_pos: wp.array2d(dtype=wp.vec3),
+  body_quat: wp.array2d(dtype=wp.quat),
+  # In:
+  reset_in: wp.array(dtype=bool),
+  # Data out:
+  mocap_pos_out: wp.array2d(dtype=wp.vec3),
+  mocap_quat_out: wp.array2d(dtype=wp.quat),
+):
+  worldid, bodyid = wp.tid()
+
+  if not reset_in[worldid]:
+    return
+
+  mocapid = body_mocapid[bodyid]
+
+  if mocapid >= 0:
+    mocap_pos_out[worldid, mocapid] = body_pos[worldid, bodyid]
+    mocap_quat_out[worldid, mocapid] = body_quat[worldid, bodyid]
+
+
+@wp.kernel
+def _reset_contact_all(
+  # Data in:
+  nacon_in: wp.array(dtype=int),
+  # In:
+  nefcaddress: int,
+  # Data out:
+  contact_dist_out: wp.array(dtype=float),
+  contact_pos_out: wp.array(dtype=wp.vec3),
+  contact_frame_out: wp.array(dtype=wp.mat33),
+  contact_includemargin_out: wp.array(dtype=float),
+  contact_friction_out: wp.array(dtype=types.vec5),
+  contact_solref_out: wp.array(dtype=wp.vec2),
+  contact_solreffriction_out: wp.array(dtype=wp.vec2),
+  contact_solimp_out: wp.array(dtype=types.vec5),
+  contact_dim_out: wp.array(dtype=int),
+  contact_geom_out: wp.array(dtype=wp.vec2i),
+  contact_efc_address_out: wp.array2d(dtype=int),
+  contact_worldid_out: wp.array(dtype=int),
+):
+  conid = wp.tid()
+
+  if conid >= nacon_in[0]:
+    return
+
+  contact_dist_out[conid] = 0.0
+  contact_pos_out[conid] = wp.vec3(0.0, 0.0, 0.0)
+  contact_frame_out[conid] = wp.mat33(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  contact_includemargin_out[conid] = 0.0
+  contact_friction_out[conid] = types.vec5(0.0, 0.0, 0.0, 0.0, 0.0)
+  contact_solref_out[conid] = wp.vec2(0.0, 0.0)
+  contact_solreffriction_out[conid] = wp.vec2(0.0, 0.0)
+  contact_solimp_out[conid] = types.vec5(0.0, 0.0, 0.0, 0.0, 0.0)
+  contact_dim_out[conid] = 0
+  contact_geom_out[conid] = wp.vec2i(0, 0)
+  for i in range(nefcaddress):
+    contact_efc_address_out[conid, i] = 0
+  contact_worldid_out[conid] = 0
+
+
+@wp.kernel
+def _reset_contact(
+  # Data in:
+  nacon_in: wp.array(dtype=int),
+  # In:
+  reset_in: wp.array(dtype=bool),
+  nefcaddress: int,
+  # Data out:
+  contact_dist_out: wp.array(dtype=float),
+  contact_pos_out: wp.array(dtype=wp.vec3),
+  contact_frame_out: wp.array(dtype=wp.mat33),
+  contact_includemargin_out: wp.array(dtype=float),
+  contact_friction_out: wp.array(dtype=types.vec5),
+  contact_solref_out: wp.array(dtype=wp.vec2),
+  contact_solreffriction_out: wp.array(dtype=wp.vec2),
+  contact_solimp_out: wp.array(dtype=types.vec5),
+  contact_dim_out: wp.array(dtype=int),
+  contact_geom_out: wp.array(dtype=wp.vec2i),
+  contact_efc_address_out: wp.array2d(dtype=int),
+  contact_worldid_out: wp.array(dtype=int),
+):
+  conid = wp.tid()
+
+  if conid >= nacon_in[0]:
+    return
+
+  worldid = contact_worldid_out[conid]
+  if worldid >= 0:
+    if not reset_in[worldid]:
+      return
+
+  contact_dist_out[conid] = 0.0
+  contact_pos_out[conid] = wp.vec3(0.0)
+  contact_frame_out[conid] = wp.mat33(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  contact_includemargin_out[conid] = 0.0
+  contact_friction_out[conid] = types.vec5(0.0, 0.0, 0.0, 0.0, 0.0)
+  contact_solref_out[conid] = wp.vec2(0.0, 0.0)
+  contact_solreffriction_out[conid] = wp.vec2(0.0, 0.0)
+  contact_solimp_out[conid] = types.vec5(0.0, 0.0, 0.0, 0.0, 0.0)
+  contact_dim_out[conid] = 0
+  contact_geom_out[conid] = wp.vec2i(0, 0)
+  for i in range(nefcaddress):
+    contact_efc_address_out[conid, i] = 0
+  contact_worldid_out[conid] = 0
+
+
+def reset_data(m: types.Model, d: types.Data, reset: Optional[wp.array] = None):
+  """Clear data, set defaults."""
+  if m.opt.is_sparse:
+    qM_dim = (1, m.nM)
+  else:
+    qM_dim = (m.nv, m.nv)
+
+  if reset is not None:
+    wp.launch(_reset_xfrc_applied, dim=(d.nworld, m.nbody, 6), inputs=[reset], outputs=[d.xfrc_applied])
+    wp.launch(_reset_qM, dim=(d.nworld, qM_dim[0], qM_dim[1]), inputs=[reset], outputs=[d.qM])
+
+    # set mocap_pos/quat = body_pos/quat for mocap bodies
+    wp.launch(
+      _reset_mocap,
+      dim=(d.nworld, m.nbody),
+      inputs=[m.body_mocapid, m.body_pos, m.body_quat, reset],
+      outputs=[d.mocap_pos, d.mocap_quat],
+    )
+
+    # clear contacts
+    wp.launch(
+      _reset_contact,
+      dim=d.naconmax,
+      inputs=[d.nacon, reset, d.contact.efc_address.shape[1]],
+      outputs=[
+        d.contact.dist,
+        d.contact.pos,
+        d.contact.frame,
+        d.contact.includemargin,
+        d.contact.friction,
+        d.contact.solref,
+        d.contact.solreffriction,
+        d.contact.solimp,
+        d.contact.dim,
+        d.contact.geom,
+        d.contact.efc_address,
+        d.contact.worldid,
+      ],
+    )
+
+    wp.launch(
+      _reset_nworld,
+      dim=d.nworld,
+      inputs=[m.nq, m.nv, m.nu, m.na, m.neq, m.nsensordata, m.qpos0, m.eq_active0, d.nworld, reset],
+      outputs=[
+        d.solver_niter,
+        d.nacon,
+        d.ne,
+        d.ne_connect,
+        d.ne_weld,
+        d.ne_jnt,
+        d.ne_ten,
+        d.nf,
+        d.nl,
+        d.nefc,
+        d.nsolving,
+        d.time,
+        d.energy,
+        d.qpos,
+        d.qvel,
+        d.act,
+        d.qacc_warmstart,
+        d.ctrl,
+        d.qfrc_applied,
+        d.eq_active,
+        d.qacc,
+        d.act_dot,
+        d.sensordata,
+      ],
+    )
+  else:
+    wp.launch(_reset_xfrc_applied_all, dim=(d.nworld, m.nbody, 6), outputs=[d.xfrc_applied])
+    wp.launch(_reset_qM_all, dim=(d.nworld, qM_dim[0], qM_dim[1]), outputs=[d.qM])
+    wp.launch(
+      _reset_mocap_all,
+      dim=(d.nworld, m.nbody),
+      inputs=[m.body_mocapid, m.body_pos, m.body_quat],
+      outputs=[d.mocap_pos, d.mocap_quat],
+    )
+    wp.launch(
+      _reset_contact_all,
+      dim=d.naconmax,
+      inputs=[d.nacon, d.contact.efc_address.shape[1]],
+      outputs=[
+        d.contact.dist,
+        d.contact.pos,
+        d.contact.frame,
+        d.contact.includemargin,
+        d.contact.friction,
+        d.contact.solref,
+        d.contact.solreffriction,
+        d.contact.solimp,
+        d.contact.dim,
+        d.contact.geom,
+        d.contact.efc_address,
+        d.contact.worldid,
+      ],
+    )
+    wp.launch(
+      _reset_nworld_all,
+      dim=d.nworld,
+      inputs=[m.nq, m.nv, m.nu, m.na, m.neq, m.nsensordata, m.qpos0, m.eq_active0, d.nworld],
+      outputs=[
+        d.solver_niter,
+        d.nacon,
+        d.ne,
+        d.ne_connect,
+        d.ne_weld,
+        d.ne_jnt,
+        d.ne_ten,
+        d.nf,
+        d.nl,
+        d.nefc,
+        d.nsolving,
+        d.time,
+        d.energy,
+        d.qpos,
+        d.qvel,
+        d.act,
+        d.qacc_warmstart,
+        d.ctrl,
+        d.qfrc_applied,
+        d.eq_active,
+        d.qacc,
+        d.act_dot,
+        d.sensordata,
+      ],
+    )
+
+
+def override_model(model: Union[types.Model, mujoco.MjModel], overrides: Union[dict[str, Any], Sequence[str]]):
+  """Overrides model parameters.
+
+  Overrides are of the format:
+    opt.iterations = 1
+    opt.ls_parallel = True
+    opt.cone = pyramidal
+    opt.disableflags = contact | spring
+  """
+
+  enum_fields = {
+    "opt.broadphase": types.BroadphaseType,
+    "opt.broadphase_filter": types.BroadphaseFilter,
+    "opt.cone": types.ConeType,
+    "opt.disableflags": types.DisableBit,
+    "opt.enableflags": types.EnableBit,
+    "opt.integrator": types.IntegratorType,
+    "opt.solver": types.SolverType,
+  }
+  mjw_only_fields = {"opt.broadphase", "opt.broadphase_filter", "opt.ls_parallel", "opt.graph_conditional"}
+  mj_only_fields = {"opt.jacobian"}
+
+  if not isinstance(overrides, dict):
+    overrides_dict = {}
+    for override in overrides:
+      if "=" not in override:
+        raise ValueError(f"Invalid override format: {override}")
+      k, v = override.split("=", 1)
+      overrides_dict[k.strip()] = v.strip()
+    overrides = overrides_dict
+
+  for key, val in overrides.items():
+    # skip overrides on MjModel for properties that are only on mjw.Model
+    if key in mjw_only_fields and isinstance(model, mujoco.MjModel):
+      continue
+    if key in mj_only_fields and isinstance(model, types.Model):
+      continue
+
+    obj, attrs = model, key.split(".")
+    for i, attr in enumerate(attrs):
+      if not hasattr(obj, attr):
+        raise ValueError(f"Unrecognized model field: {key}")
+      if i < len(attrs) - 1:
+        obj = getattr(obj, attr)
+        continue
+
+      typ = type(getattr(obj, attr))
+
+      if key in enum_fields and isinstance(val, str):
+        # special case: enum value
+        enum_members = val.split("|")
+        val = 0
+        for enum_member in enum_members:
+          enum_member = enum_member.strip().upper()
+          if enum_member not in enum_fields[key].__members__:
+            raise ValueError(f"Unrecognized enum value for {enum_fields[key].__name__}: {enum_member}")
+          val |= int(enum_fields[key][enum_member])
+      elif typ is bool and isinstance(val, str):
+        # special case: "true", "TRUE", "false", "FALSE" etc.
+        if val.upper() not in ("TRUE", "FALSE"):
+          raise ValueError(f"Unrecognized value for field: {key}")
+        val = val.upper() == "TRUE"
+      else:
+        val = typ(val)
+
+      setattr(obj, attr, val)
+
+
+def find_keys(model: mujoco.MjModel, keyname_prefix: str) -> list[int]:
+  """Finds keyframes that start with keyname_prefix."""
+  keys = []
+
+  for keyid in range(model.nkey):
+    name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_KEY, keyid)
+    if name.startswith(keyname_prefix):
+      keys.append(keyid)
+
+  return keys
+
+
+def make_trajectory(model: mujoco.MjModel, keys: list[int]) -> np.ndarray:
+  """Make a ctrl trajectory with linear interpolation."""
+  ctrls = []
+  prev_ctrl_key = np.zeros(model.nu, dtype=np.float64)
+  prev_time, time = 0.0, 0.0
+
+  for key in keys:
+    ctrl_key, ctrl_time = model.key_ctrl[key], model.key_time[key]
+    if not ctrls and ctrl_time != 0.0:
+      raise ValueError("first keyframe must have time 0.0")
+    elif ctrls and ctrl_time <= prev_time:
+      raise ValueError("keyframes must be in time order")
+
+    while time < ctrl_time:
+      frac = (time - prev_time) / (ctrl_time - prev_time)
+      ctrls.append(prev_ctrl_key * (1 - frac) + ctrl_key * frac)
+      time += model.opt.timestep
+
+    ctrls.append(ctrl_key)
+    time += model.opt.timestep
+    prev_ctrl_key = ctrl_key
+    prev_time = time
+
+  return np.array(ctrls)

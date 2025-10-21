@@ -724,19 +724,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimWind) {
       pxr::GfVec3d(1, 2, 3));
 }
 
-TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimApirate) {
-  auto stage = OpenStage(R"(
-    <mujoco model="test">
-      <option apirate="1.2"> </option>
-    </mujoco>
-  )");
-
-  ExpectAttributeEqual(
-      stage,
-      kPhysicsScenePrimPath.AppendProperty(MjcPhysicsTokens->mjcOptionApirate),
-      1.2);
-}
-
 TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimImpratio) {
   auto stage = OpenStage(R"(
     <mujoco model="test">
@@ -1052,7 +1039,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
           frictionloss="disable"
           limit="disable"
           contact="disable"
-          passive="disable"
+          spring="disable"
+          damper="disable"
           gravity="disable"
           clampctrl="disable"
           warmstart="disable"
@@ -1064,6 +1052,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
           nativeccd="disable"
           eulerdamp="disable"
           autoreset="disable"
+          island="disable"
         />
       </option>
     </mujoco>
@@ -1075,7 +1064,8 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
       MjcPhysicsTokens->mjcFlagFrictionloss,
       MjcPhysicsTokens->mjcFlagLimit,
       MjcPhysicsTokens->mjcFlagContact,
-      MjcPhysicsTokens->mjcFlagPassive,
+      MjcPhysicsTokens->mjcFlagSpring,
+      MjcPhysicsTokens->mjcFlagDamper,
       MjcPhysicsTokens->mjcFlagGravity,
       MjcPhysicsTokens->mjcFlagClampctrl,
       MjcPhysicsTokens->mjcFlagWarmstart,
@@ -1087,6 +1077,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
       MjcPhysicsTokens->mjcFlagNativeccd,
       MjcPhysicsTokens->mjcFlagEulerdamp,
       MjcPhysicsTokens->mjcFlagAutoreset,
+      MjcPhysicsTokens->mjcFlagIsland,
   };
   for (const auto& flag : kFlags) {
     ExpectAttributeEqual(stage, kPhysicsScenePrimPath.AppendProperty(flag),
@@ -1104,7 +1095,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimEnableFlags) {
           fwdinv="enable"
           invdiscrete="enable"
           multiccd="enable"
-          island="enable"
         />
       </option>
     </mujoco>
@@ -1117,7 +1107,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimEnableFlags) {
       MjcPhysicsTokens->mjcFlagFwdinv,
       MjcPhysicsTokens->mjcFlagInvdiscrete,
       MjcPhysicsTokens->mjcFlagMulticcd,
-      MjcPhysicsTokens->mjcFlagIsland,
   };
   // clang-format on
   for (const auto& flag : kFlags) {

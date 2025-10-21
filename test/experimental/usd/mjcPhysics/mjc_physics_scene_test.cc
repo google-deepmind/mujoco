@@ -104,7 +104,6 @@ TEST_F(MjcPhysicsSceneTest, TestDefaults) {
   // If this test is failing due to an update of defaults in Mujoco you need to
   // update mjcPhysics/schema.usda.
   EXPECT_REAL_USD_FALLBACK_EQ_MODEL_DEFAULT(Timestep, timestep);
-  EXPECT_REAL_USD_FALLBACK_EQ_MODEL_DEFAULT(ApiRate, apirate);
   EXPECT_REAL_USD_FALLBACK_EQ_MODEL_DEFAULT(ImpRatio, impratio);
 
   EXPECT_VEC3_USD_FALLBACK_EQ_MODEL_DEFAULT(Wind, wind);
@@ -148,8 +147,10 @@ TEST_F(MjcPhysicsSceneTest, TestDefaults) {
   EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(LimitFlag, mjDSBL_LIMIT);
   EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(ContactFlag,
                                                     mjDSBL_CONTACT);
-  EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(PassiveFlag,
-                                                    mjDSBL_PASSIVE);
+  EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(SpringFlag,
+                                                    mjDSBL_SPRING);
+  EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(DamperFlag,
+                                                    mjDSBL_DAMPER);
   EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(GravityFlag,
                                                     mjDSBL_GRAVITY);
   EXPECT_DISABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(ClampCtrlFlag,
@@ -180,7 +181,6 @@ TEST_F(MjcPhysicsSceneTest, TestDefaults) {
                                                    mjENBL_INVDISCRETE);
   EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(MultiCCDFlag,
                                                    mjENBL_MULTICCD);
-  EXPECT_ENABLE_FLAG_USD_FALLBACK_EQ_MODEL_DEFAULT(IslandFlag, mjENBL_ISLAND);
 
   mj_deleteModel(default_model);
   mj_deleteSpec(empty_spec);

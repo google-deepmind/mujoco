@@ -500,7 +500,6 @@ class ModelWriter {
              spec_->option.noslip_tolerance},
             {MjcPhysicsTokens->mjcOptionCcd_tolerance,
              spec_->option.ccd_tolerance},
-            {MjcPhysicsTokens->mjcOptionApirate, spec_->option.apirate},
             {MjcPhysicsTokens->mjcOptionImpratio, spec_->option.impratio},
             {MjcPhysicsTokens->mjcOptionDensity, spec_->option.density},
             {MjcPhysicsTokens->mjcOptionViscosity, spec_->option.viscosity},
@@ -643,7 +642,6 @@ class ModelWriter {
 
     const std::vector<std::pair<pxr::TfToken, int>> enable_flags = {
         {MjcPhysicsTokens->mjcFlagMulticcd, mjENBL_MULTICCD},
-        {MjcPhysicsTokens->mjcFlagIsland, mjENBL_ISLAND},
         {MjcPhysicsTokens->mjcFlagFwdinv, mjENBL_FWDINV},
         {MjcPhysicsTokens->mjcFlagEnergy, mjENBL_ENERGY},
         {MjcPhysicsTokens->mjcFlagOverride, mjENBL_OVERRIDE},
@@ -658,7 +656,8 @@ class ModelWriter {
         {MjcPhysicsTokens->mjcFlagFrictionloss, mjDSBL_FRICTIONLOSS},
         {MjcPhysicsTokens->mjcFlagLimit, mjDSBL_LIMIT},
         {MjcPhysicsTokens->mjcFlagContact, mjDSBL_CONTACT},
-        {MjcPhysicsTokens->mjcFlagPassive, mjDSBL_PASSIVE},
+        {MjcPhysicsTokens->mjcFlagSpring, mjDSBL_SPRING},
+        {MjcPhysicsTokens->mjcFlagDamper, mjDSBL_DAMPER},
         {MjcPhysicsTokens->mjcFlagGravity, mjDSBL_GRAVITY},
         {MjcPhysicsTokens->mjcFlagClampctrl, mjDSBL_CLAMPCTRL},
         {MjcPhysicsTokens->mjcFlagWarmstart, mjDSBL_WARMSTART},
@@ -669,7 +668,8 @@ class ModelWriter {
         {MjcPhysicsTokens->mjcFlagMidphase, mjDSBL_MIDPHASE},
         {MjcPhysicsTokens->mjcFlagEulerdamp, mjDSBL_EULERDAMP},
         {MjcPhysicsTokens->mjcFlagAutoreset, mjDSBL_AUTORESET},
-        {MjcPhysicsTokens->mjcFlagNativeccd, mjDSBL_NATIVECCD}};
+        {MjcPhysicsTokens->mjcFlagNativeccd, mjDSBL_NATIVECCD},
+        {MjcPhysicsTokens->mjcFlagIsland, mjDSBL_ISLAND}};
     for (const auto &[token, flag] : disable_flags) {
       create_flag_attr(token, flag, false);
     }

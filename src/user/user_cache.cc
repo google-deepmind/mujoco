@@ -41,9 +41,9 @@ mjCAsset mjCAsset::Copy(const mjCAsset& other) {
 // sets the total maximum size of the cache in bytes
 // low-priority cached assets will be dropped to make the new memory
 // requirement
-void mjCCache::SetMaxSize(std::size_t size) {
+void mjCCache::SetCapacity(std::size_t size) {
   std::lock_guard<std::mutex> lock(mutex_);
-  max_size_ = size;
+  capacity_ = size;
   Trim();
 }
 
@@ -64,21 +64,21 @@ const std::string* mjCCache::HasAsset(const std::string& id) {
 
 // inserts an asset into the cache, if asset is already in the cache, its data
 // is updated only if the timestamps disagree
-bool mjCCache::Insert(const std::string& modelname, const mjResource *resource,
+bool mjCCache::Insert(const std::string& modelname, const std::string& id, const mjResource *resource,
                       std::shared_ptr<const void> data, std::size_t size) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   // check if asset is too large to fit in the cache
-  if ((size_ + size > max_size_) &&
-      lookup_.find(resource->name) == lookup_.end()) {
+  if ((size_ + size > capacity_) &&
+      lookup_.find(id) == lookup_.end()) {
     return false;
   }
-  mjCAsset asset(modelname, resource, data, size);
-  auto [it, inserted] = lookup_.insert({resource->name, asset});
+  mjCAsset asset(modelname, id, resource, data, size);
+  auto [it, inserted] = lookup_.insert({id, asset});
   mjCAsset* asset_ptr = &(it->second);
 
   if (!inserted) {
-    if (size_ - asset_ptr->BytesCount() + size > max_size_) {
+    if (size_ - asset_ptr->BytesCount() + size > capacity_) {
       return false;
     }
     models_[modelname].insert(asset_ptr);  // add it for the model
@@ -104,9 +104,9 @@ bool mjCCache::Insert(const std::string& modelname, const mjResource *resource,
 
 // populate data from the cache into the given function, return true if data was
 // copied
-bool mjCCache::PopulateData(const mjResource* resource, mjCDataFunc fn) {
+bool mjCCache::PopulateData(const std::string& id, const mjResource* resource, mjCDataFunc fn) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = lookup_.find(resource->name);
+  auto it = lookup_.find(id);
   if (it == lookup_.end()) {
     return false;
   }
@@ -116,10 +116,10 @@ bool mjCCache::PopulateData(const mjResource* resource, mjCDataFunc fn) {
   }
 
   mjCAsset* asset = &(it->second);
-  asset->IncrementAccess();
 
   // update priority queue
   entries_.erase(asset);
+  asset->IncrementAccess();
   entries_.insert(asset);
 
   return asset->PopulateData(fn);
@@ -164,9 +164,9 @@ void mjCCache::Reset() {
 
 
 
-std::size_t mjCCache::MaxSize() const {
+std::size_t mjCCache::Capacity() const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return max_size_;
+  return capacity_;
 }
 
 
@@ -218,7 +218,7 @@ void mjCCache::Delete(mjCAsset* asset, const std::string& skip) {
 
 // trims out data to meet memory requirements
 void mjCCache::Trim() {
-  while (size_ > max_size_) {
+  while (size_ > capacity_) {
     Delete(*entries_.begin());
   }
 }

@@ -15,6 +15,7 @@
 """Tests for ray functions."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import jax
 from jax import numpy as jp
 import mujoco
@@ -33,7 +34,7 @@ def _assert_eq(a, b, name):
   np.testing.assert_allclose(a, b, err_msg=err_msg, atol=tol, rtol=tol)
 
 
-class RayTest(absltest.TestCase):
+class RayTest(parameterized.TestCase):
 
   def test_ray_nothing(self):
     """Tests that MJX ray returns -1 when nothing is hit."""
@@ -220,7 +221,11 @@ class RayTest(absltest.TestCase):
     _assert_eq(geomid, -1, 'geom_id')
     _assert_eq(dist, -1, 'dist')
 
-  def test_ray_bodyexclude(self):
+  @parameterized.named_parameters(
+      ('int', 0),
+      ('sequence', (0,)),
+  )
+  def test_ray_bodyexclude(self, bodyexclude):
     """Tests ray bodyexclude filter."""
     m = test_util.load_test_file('ray.xml')
     d = mujoco.MjData(m)
@@ -228,10 +233,10 @@ class RayTest(absltest.TestCase):
     mx, dx = mjx.put_model(m), mjx.put_data(m, d)
     ray_fn = jax.jit(mjx.ray, static_argnames=('bodyexclude',))
 
-    # nothing hit with bodyexclude = 0 (world body)
+    # The ray should hit the plane (geom 0, body 0), but body 0 is excluded.
     pnt, vec = jp.array([2, 1, 3.0]), jp.array([0.1, 0.2, -1.0])
     vec /= jp.linalg.norm(vec)
-    dist, geomid = ray_fn(mx, dx, pnt, vec, bodyexclude=0)
+    dist, geomid = ray_fn(mx, dx, pnt, vec, bodyexclude=bodyexclude)
     _assert_eq(geomid, -1, 'geom_id')
     _assert_eq(dist, -1, 'dist')
 

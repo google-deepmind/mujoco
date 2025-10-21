@@ -275,7 +275,6 @@ void mjv_makeScene(const mjModel* m, mjvScene* scn, int maxgeom) {
 }
 
 
-
 // free abstract scene
 void mjv_freeScene(mjvScene* scn) {
   // free buffers allocated by mjv_makeScene
@@ -306,12 +305,10 @@ void mjv_freeScene(mjvScene* scn) {
 }
 
 
-
 // set default scene
 void mjv_defaultScene(mjvScene* scn) {
   memset(scn, 0, sizeof(mjvScene));
 }
-
 
 
 // set default visualization options
@@ -339,7 +336,6 @@ void mjv_defaultOption(mjvOption* vopt) {
 }
 
 
-
 // set default camera
 void mjv_defaultCamera(mjvCamera* cam) {
   memset(cam, 0, sizeof(mjvCamera));
@@ -351,7 +347,6 @@ void mjv_defaultCamera(mjvCamera* cam) {
   cam->azimuth     = 90;
   cam->elevation   = -45;
 }
-
 
 
 // set default free camera
@@ -371,7 +366,6 @@ void mjv_defaultFreeCamera(const mjModel* m, mjvCamera* cam) {
 }
 
 
-
 // set default perturbation
 void mjv_defaultPerturb(mjvPerturb* pert) {
   memset(pert, 0, sizeof(mjvPerturb));
@@ -381,7 +375,6 @@ void mjv_defaultPerturb(mjvPerturb* pert) {
   pert->refquat[0] = 1;
   pert->scale = 1;
 }
-
 
 
 // predefined line colors
@@ -451,7 +444,6 @@ void mjv_defaultFigure(mjvFigure* fig) {
     }
   }
 }
-
 
 
 // compute rbound for mjvGeom

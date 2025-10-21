@@ -53,13 +53,13 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// Equivalent to MjcPhysicsCollisionAPI::Get(prim.GetStage(), prim.GetPath())
   /// for a \em valid \p prim, but will not immediately throw an error for
   /// an invalid \p prim
-  explicit MjcPhysicsCollisionAPI(const UsdPrim &prim = UsdPrim())
+  explicit MjcPhysicsCollisionAPI(const UsdPrim& prim = UsdPrim())
       : UsdAPISchemaBase(prim) {}
 
   /// Construct a MjcPhysicsCollisionAPI on the prim held by \p schemaObj .
   /// Should be preferred over MjcPhysicsCollisionAPI(schemaObj.GetPrim()),
   /// as it preserves SchemaBase state.
-  explicit MjcPhysicsCollisionAPI(const UsdSchemaBase &schemaObj)
+  explicit MjcPhysicsCollisionAPI(const UsdSchemaBase& schemaObj)
       : UsdAPISchemaBase(schemaObj) {}
 
   /// Destructor.
@@ -70,7 +70,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// class and all its ancestor classes.  Does not include attributes that
   /// may be authored by custom/extended methods of the schemas involved.
   MJCPHYSICS_API
-  static const TfTokenVector &GetSchemaAttributeNames(
+  static const TfTokenVector& GetSchemaAttributeNames(
       bool includeInherited = true);
 
   /// Return a MjcPhysicsCollisionAPI holding the prim adhering to this
@@ -83,8 +83,8 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// \endcode
   ///
   MJCPHYSICS_API
-  static MjcPhysicsCollisionAPI Get(const UsdStagePtr &stage,
-                                    const SdfPath &path);
+  static MjcPhysicsCollisionAPI Get(const UsdStagePtr& stage,
+                                    const SdfPath& path);
 
   /// Returns true if this <b>single-apply</b> API schema can be applied to
   /// the given \p prim. If this schema can not be a applied to the prim,
@@ -103,7 +103,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// \sa UsdPrim::RemoveAPI()
   ///
   MJCPHYSICS_API
-  static bool CanApply(const UsdPrim &prim, std::string *whyNot = nullptr);
+  static bool CanApply(const UsdPrim& prim, std::string* whyNot = nullptr);
 
   /// Applies this <b>single-apply</b> API schema to the given \p prim.
   /// This information is stored by adding "MjcCollisionAPI" to the
@@ -121,7 +121,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// \sa UsdPrim::RemoveAPI()
   ///
   MJCPHYSICS_API
-  static MjcPhysicsCollisionAPI Apply(const UsdPrim &prim);
+  static MjcPhysicsCollisionAPI Apply(const UsdPrim& prim);
 
  protected:
   /// Returns the kind of schema this class belongs to.
@@ -134,13 +134,13 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   // needs to invoke _GetStaticTfType.
   friend class UsdSchemaRegistry;
   MJCPHYSICS_API
-  static const TfType &_GetStaticTfType();
+  static const TfType& _GetStaticTfType();
 
   static bool _IsTypedSchema();
 
   // override SchemaBase virtuals.
   MJCPHYSICS_API
-  const TfType &_GetTfType() const override;
+  const TfType& _GetTfType() const override;
 
  public:
   // --------------------------------------------------------------------- //
@@ -163,7 +163,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateGroupAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateGroupAttr(VtValue const& defaultValue = VtValue(),
                                bool writeSparsely = false) const;
 
  public:
@@ -188,7 +188,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateShellInertiaAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateShellInertiaAttr(VtValue const& defaultValue = VtValue(),
                                       bool writeSparsely = false) const;
 
  public:
@@ -213,7 +213,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreatePriorityAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreatePriorityAttr(VtValue const& defaultValue = VtValue(),
                                   bool writeSparsely = false) const;
 
  public:
@@ -239,7 +239,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateConDimAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateConDimAttr(VtValue const& defaultValue = VtValue(),
                                 bool writeSparsely = false) const;
 
  public:
@@ -264,7 +264,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateSolMixAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateSolMixAttr(VtValue const& defaultValue = VtValue(),
                                 bool writeSparsely = false) const;
 
  public:
@@ -289,7 +289,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateSolRefAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateSolRefAttr(VtValue const& defaultValue = VtValue(),
                                 bool writeSparsely = false) const;
 
  public:
@@ -314,7 +314,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateSolImpAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateSolImpAttr(VtValue const& defaultValue = VtValue(),
                                 bool writeSparsely = false) const;
 
  public:
@@ -339,7 +339,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMarginAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMarginAttr(VtValue const& defaultValue = VtValue(),
                                 bool writeSparsely = false) const;
 
  public:
@@ -367,7 +367,7 @@ class MjcPhysicsCollisionAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateGapAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateGapAttr(VtValue const& defaultValue = VtValue(),
                              bool writeSparsely = false) const;
 
  public:

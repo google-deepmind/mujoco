@@ -1388,6 +1388,7 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
             // exclude files that fail the comparison test
             absl::StrContains(p.path().string(), "tactile") ||
             absl::StrContains(p.path().string(), "makemesh") ||
+            absl::StrContains(p.path().string(), "many_dependencies") ||
             absl::StrContains(p.path().string(), "usd") ||
             absl::StrContains(p.path().string(), "torus_maxhull") ||
             absl::StrContains(p.path().string(), "fitmesh_") ||
@@ -1416,6 +1417,8 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
         auto abs_path = p.path();
         mjSpec* stemp = mj_parseXMLString(SaveAndReadXml(s).c_str(), 0,
                                           error.data(), error.size());
+        ASSERT_THAT(stemp, NotNull())
+            << "Failed to load " << xml.c_str() << ": " << error.data();
         mjs_setString(stemp->modelfiledir,
                       abs_path.remove_filename().string().c_str());
         mjModel* mtemp = mj_compile(stemp, nullptr);

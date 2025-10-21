@@ -789,7 +789,7 @@ static inline int geomcmp(int* i, int* j, void* context) {
 }
 
 // define geomSort function for sorting geoms
-mjSORT(geomSort, int, geomcmp)
+mjSORT(geomSort, int, geomcmp);
 
 
 

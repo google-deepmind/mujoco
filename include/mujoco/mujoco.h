@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 336
+#define mjVERSION_HEADER 338
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -90,6 +90,22 @@ MJAPI int mj_deleteFileVFS(mjVFS* vfs, const char* filename);
 // Delete all files from VFS and deallocates VFS internal memory.
 MJAPI void mj_deleteVFS(mjVFS* vfs);
 
+//------------------------------------ Asset cache -------------------------------------------------
+
+// Get the current size of the asset cache in bytes.
+MJAPI size_t mj_getCacheSize(const mjCache* cache);
+
+// Get the capacity of the asset cache in bytes.
+MJAPI size_t mj_getCacheCapacity(const mjCache* cache);
+
+// Set the capacity of the asset cache in bytes (0 to disable); returns the new capacity.
+MJAPI size_t mj_setCacheCapacity(mjCache* cache, size_t size);
+
+// Get the internal asset cache used by the compiler.
+MJAPI mjCache* mj_getCache(void);
+
+// Clear the asset cache.
+MJAPI void mj_clearCache(mjCache* cache);
 
 //---------------------------------- Parse and compile ---------------------------------------------
 
@@ -135,6 +151,9 @@ MJAPI int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, 
 // Nullable: error
 MJAPI int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz);
 
+// Given MJCF filename, fills dependencies with a list of all other asset files it depends on.
+// The search is recursive, and the list includes the filename itself.
+MJAPI void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies);
 
 //---------------------------------- Main simulation -----------------------------------------------
 
@@ -166,6 +185,7 @@ MJAPI void mj_inverseSkip(const mjModel* m, mjData* d, int skipstage, int skipse
 MJAPI void mj_defaultLROpt(mjLROpt* opt);
 
 // Set solver parameters to default values.
+// Nullable: solref, solimp
 MJAPI void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp);
 
 // Set physics options to default values.
@@ -175,6 +195,7 @@ MJAPI void mj_defaultOption(mjOption* opt);
 MJAPI void mj_defaultVisual(mjVisual* vis);
 
 // Copy mjModel, allocate new if dest is NULL.
+// Nullable: dest
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 
 // Save model to binary MJB file or memory buffer; buffer has precedence when given.
@@ -273,7 +294,7 @@ MJAPI void mj_printFormattedModel(const mjModel* m, const char* filename, const 
 MJAPI void mj_printModel(const mjModel* m, const char* filename);
 
 // Print mjData to text file, specifying format.
-// float_format must be a valid printf-style format string for a single float value
+// float_format must be a valid printf-style format string for a single float value.
 MJAPI void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filename,
                                  const char* float_format);
 
@@ -290,6 +311,14 @@ MJAPI void mju_printMatSparse(const mjtNum* mat, int nr,
 // Print internal XML schema as plain text or HTML, with style-padding or &nbsp;.
 MJAPI int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
                          int flg_html, int flg_pad);
+
+// Print scene to text file.
+MJAPI void mj_printScene(const mjvScene* s, const char* filename);
+
+// Print scene to text file, specifying format.
+// float_format must be a valid printf-style format string for a single float value.
+MJAPI void mj_printFormattedScene(const mjvScene* s, const char* filename,
+                                  const char* float_format);
 
 
 //---------------------------------- Components ----------------------------------------------------
@@ -436,6 +465,10 @@ MJAPI int mj_stateSize(const mjModel* m, unsigned int sig);
 // Get state.
 MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
 
+// Extract a subset of components from a state previously obtained via mj_getState.
+MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
+                           mjtNum* dst, unsigned int dstsig);
+
 // Set state.
 MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 
@@ -512,7 +545,7 @@ MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum*
 // Multiply vector by (inertia matrix)^(1/2).
 MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
-// Add inertia matrix to destination matrix.
+// Add inertia matrix to destination matrix (lower triangle only).
 // Destination can be sparse or dense when all int* are NULL.
 // Nullable: rownnz, rowadr, colind
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst, int* rownnz, int* rowadr, int* colind);
@@ -617,7 +650,6 @@ MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtB
 // Nullable: vertid
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
                          const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
-
 
 //---------------------------------- Interaction ---------------------------------------------------
 
@@ -1285,7 +1317,7 @@ MJAPI const char* mju_warningText(int warning, size_t info);
 MJAPI int mju_isBad(mjtNum x);
 
 // Return 1 if all elements are 0.
-MJAPI int mju_isZero(mjtNum* vec, int n);
+MJAPI int mju_isZero(const mjtNum* vec, int n);
 
 // Standard normal random number generator (optional second number).
 MJAPI mjtNum mju_standardNormal(mjtNum* num2);
@@ -1646,6 +1678,17 @@ MJAPI mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
 // Return spec's next element; return NULL if element is last.
 MJAPI mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
 
+// Get wrapped element in tendon path.
+MJAPI mjsElement* mjs_getWrapTarget(mjsWrap* wrap);
+
+// Get wrapped element side site in tendon path if it has one, nullptr otherwise.
+MJAPI mjsSite* mjs_getWrapSideSite(mjsWrap* wrap);
+
+// Get divisor of mjsWrap wrapping a puller.
+MJAPI double mjs_getWrapDivisor(mjsWrap* wrap);
+
+// Get coefficient of mjsWrap wrapping a joint.
+MJAPI double mjs_getWrapCoef(mjsWrap* wrap);
 
 //---------------------------------- Attribute setters ---------------------------------------------
 
@@ -1697,6 +1740,12 @@ MJAPI const char* mjs_getString(const mjString* source);
 // Get double array contents and optionally its size.
 // Nullable: size
 MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
+
+// Get number of elements a tendon wraps.
+MJAPI int mjs_getWrapNum(const mjsTendon* tendonspec);
+
+// Get mjsWrap element at position i in the tendon path.
+MJAPI mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i);
 
 // Get plugin attributes.
 MJAPI const void* mjs_getPluginAttributes(const mjsPlugin* plugin);

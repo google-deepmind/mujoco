@@ -24,6 +24,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
 
+wp.set_module_options({"enable_backward": False})
+
 
 @wp.func
 def _ray_map(pos: wp.vec3, mat: wp.mat33, pnt: wp.vec3, vec: wp.vec3) -> Tuple[wp.vec3, wp.vec3]:
@@ -406,7 +408,7 @@ def _ray_hfield(
   id: int,
 ):
   # check geom type
-  if geom_type[id] != int(GeomType.HFIELD.value):
+  if geom_type[id] != GeomType.HFIELD:
     return wp.inf
 
   # hfield id and dimensions
@@ -534,7 +536,7 @@ def _ray_hfield(
 
 
 @wp.func
-def _ray_mesh(
+def ray_mesh(
   # Model:
   nmeshface: int,
   mesh_vertadr: wp.array(dtype=int),
@@ -606,17 +608,17 @@ def ray_geom(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, pnt: wp.vec3, vec: wp.v
   """Returns distance along ray to intersection with geom, or infinity if none."""
 
   # TODO(team): static loop unrolling to remove unnecessary branching
-  if geomtype == int(GeomType.PLANE.value):
+  if geomtype == GeomType.PLANE:
     return _ray_plane(pos, mat, size, pnt, vec)
-  elif geomtype == int(GeomType.SPHERE.value):
+  elif geomtype == GeomType.SPHERE:
     return _ray_sphere(pos, size[0] * size[0], pnt, vec)
-  elif geomtype == int(GeomType.CAPSULE.value):
+  elif geomtype == GeomType.CAPSULE:
     return _ray_capsule(pos, mat, size, pnt, vec)
-  elif geomtype == int(GeomType.ELLIPSOID.value):
+  elif geomtype == GeomType.ELLIPSOID:
     return _ray_ellipsoid(pos, mat, size, pnt, vec)
-  elif geomtype == int(GeomType.CYLINDER.value):
+  elif geomtype == GeomType.CYLINDER:
     return _ray_cylinder(pos, mat, size, pnt, vec)
-  elif geomtype == int(GeomType.BOX.value):
+  elif geomtype == GeomType.BOX:
     dist, _ = _ray_box(pos, mat, size, pnt, vec)
     return dist
   else:
@@ -673,8 +675,8 @@ def _ray_geom_mesh(
     mat = geom_xmat_in[worldid, geomid]
     type = geom_type[geomid]
 
-    if type == int(GeomType.MESH.value):
-      return _ray_mesh(
+    if type == GeomType.MESH:
+      return ray_mesh(
         nmeshface,
         mesh_vertadr,
         mesh_vert,
@@ -686,7 +688,7 @@ def _ray_geom_mesh(
         pnt,
         vec,
       )
-    elif type == int(GeomType.HFIELD.value):
+    elif type == GeomType.HFIELD:
       return _ray_hfield(
         geom_type,
         geom_dataid,

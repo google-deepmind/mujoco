@@ -715,7 +715,7 @@ void mjXWriter::OneEquality(XMLElement* elem, const mjCEquality* equality, mjCDe
 
 // write tendon
 void mjXWriter::OneTendon(XMLElement* elem, const mjCTendon* tendon, mjCDef* def) {
-  bool fixed = (tendon->GetWrap(0) && tendon->GetWrap(0)->type == mjWRAP_JOINT);
+  bool fixed = (tendon->GetWrap(0) && tendon->GetWrap(0)->Type() == mjWRAP_JOINT);
 
   // regular
   if (!writingdefaults) {
@@ -990,7 +990,6 @@ void mjXWriter::Option(XMLElement* root) {
 
   // option
   WriteAttr(section, "timestep", 1, &model->option.timestep, &opt.timestep);
-  WriteAttr(section, "apirate", 1, &model->option.apirate, &opt.apirate);
   WriteAttr(section, "impratio", 1, &model->option.impratio, &opt.impratio);
   WriteAttr(section, "tolerance", 1, &model->option.tolerance, &opt.tolerance);
   WriteAttr(section, "ls_tolerance", 1, &model->option.ls_tolerance, &opt.ls_tolerance);
@@ -1044,7 +1043,8 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("frictionloss",   mjDSBL_FRICTIONLOSS)
     WRITEDSBL("limit",          mjDSBL_LIMIT)
     WRITEDSBL("contact",        mjDSBL_CONTACT)
-    WRITEDSBL("passive",        mjDSBL_PASSIVE)
+    WRITEDSBL("spring",         mjDSBL_SPRING)
+    WRITEDSBL("damper",         mjDSBL_DAMPER)
     WRITEDSBL("gravity",        mjDSBL_GRAVITY)
     WRITEDSBL("clampctrl",      mjDSBL_CLAMPCTRL)
     WRITEDSBL("warmstart",      mjDSBL_WARMSTART)
@@ -1056,6 +1056,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEDSBL("eulerdamp",      mjDSBL_EULERDAMP)
     WRITEDSBL("autoreset",      mjDSBL_AUTORESET)
     WRITEDSBL("nativeccd",      mjDSBL_NATIVECCD)
+    WRITEDSBL("island",         mjDSBL_ISLAND)
 #undef WRITEDSBL
 
 #define WRITEENBL(NAME, MASK) \
@@ -1066,7 +1067,6 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEENBL("fwdinv",         mjENBL_FWDINV)
     WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
     WRITEENBL("multiccd",       mjENBL_MULTICCD)
-    WRITEENBL("island",         mjENBL_ISLAND)
 #undef WRITEENBL
   }
 
@@ -1886,14 +1886,14 @@ void mjXWriter::Tendon(XMLElement* root) {
       continue;
     }
     XMLElement* elem = InsertEnd(section,
-                                 tendon->GetWrap(0)->type == mjWRAP_JOINT ? "fixed" : "spatial");
+                                 tendon->GetWrap(0)->Type() == mjWRAP_JOINT ? "fixed" : "spatial");
     OneTendon(elem, tendon, model->def_map[tendon->classname]);
 
     // write wraps
     XMLElement* wrapelem;
     for (int j=0; j < tendon->NumWraps(); j++) {
       const mjCWrap* wrap = tendon->GetWrap(j);
-      switch (wrap->type) {
+      switch (wrap->Type()) {
         case mjWRAP_JOINT:
           wrapelem = InsertEnd(elem, "joint");
           WriteAttrTxt(wrapelem, "joint", wrap->obj->name);

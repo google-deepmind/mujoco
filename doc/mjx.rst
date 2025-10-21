@@ -36,7 +36,7 @@ Tutorial notebook
 The following IPython notebook demonstrates the use of MJX along with reinforcement learning to train humanoid and
 quadruped robots to locomote: |colab|.
 
-.. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |colab| image:: https://colab.research.google.com/assets/colab-badge.png
            :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb
 
 .. _MjxInstallation:

@@ -380,6 +380,9 @@ void PhysicsLoop(mj::Simulate& sim) {
             syncSim = d->time;
             sim.speed_changed = false;
 
+            // inject noise
+            sim.InjectNoise(sim.key);
+
             // run single step, let next iteration deal with timing
             mj_step(m, d);
             const char* message = Diverged(m->opt.disableflags, d);
@@ -409,7 +412,7 @@ void PhysicsLoop(mj::Simulate& sim) {
               }
 
               // inject noise
-              sim.InjectNoise();
+              sim.InjectNoise(sim.key);
 
               // call mj_step
               mj_step(m, d);

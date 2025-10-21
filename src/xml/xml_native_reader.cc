@@ -110,18 +110,18 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "inttotal", "interval", "tolrange"},
     {">"},
 
-    {"option", "*", "27",
-        "timestep", "apirate", "impratio", "tolerance", "ls_tolerance", "noslip_tolerance",
+    {"option", "*", "26",
+        "timestep", "impratio", "tolerance", "ls_tolerance", "noslip_tolerance",
         "ccd_tolerance", "gravity", "wind", "magnetic", "density", "viscosity",
         "o_margin", "o_solref", "o_solimp", "o_friction",
         "integrator", "cone", "jacobian",
         "solver", "iterations", "ls_iterations", "noslip_iterations", "ccd_iterations",
         "sdf_iterations", "sdf_initpoints", "actuatorgroupdisable"},
     {"<"},
-        {"flag", "?", "23", "constraint", "equality", "frictionloss", "limit", "contact",
-            "passive", "gravity", "clampctrl", "warmstart",
+        {"flag", "?", "24", "constraint", "equality", "frictionloss", "limit", "contact",
+            "spring", "damper", "gravity", "clampctrl", "warmstart",
             "filterparent", "actuation", "refsafe", "sensor", "midphase", "eulerdamp", "autoreset",
-            "override", "energy", "fwdinv", "invdiscrete", "multiccd", "island", "nativeccd"},
+            "nativeccd", "island", "override", "energy", "fwdinv", "invdiscrete", "multiccd"},
     {">"},
 
     {"size", "*", "14", "memory", "njmax", "nconmax", "nstack", "nuserdata", "nkey",
@@ -316,9 +316,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"<"},
             {"edge", "?", "5", "equality", "solref", "solimp", "stiffness", "damping"},
             {"elasticity", "?", "5", "young", "poisson", "damping", "thickness", "elastic2d"},
-            {"contact", "?", "14", "contype", "conaffinity", "condim", "priority",
+            {"contact", "?", "15", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide"},
+                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
             {"pin", "*", "4", "id", "range", "grid", "gridrange"},
             {"plugin", "*", "2", "plugin", "instance"},
             {"<"},
@@ -332,9 +332,9 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"flex", "*", "13", "name", "group", "dim", "radius", "material",
             "rgba", "flatskin", "body", "vertex", "element", "texcoord", "elemtexcoord", "node"},
         {"<"},
-            {"contact", "?", "14", "contype", "conaffinity", "condim", "priority",
+            {"contact", "?", "15", "contype", "conaffinity", "condim", "priority",
                 "friction", "solmix", "solref", "solimp", "margin", "gap",
-                "internal", "selfcollide", "activelayers", "vertcollide"},
+                "internal", "selfcollide", "activelayers", "vertcollide", "passive"},
             {"edge", "?", "2", "stiffness", "damping"},
             {"elasticity", "?", "5", "young", "poisson", "damping", "thickness", "elastic2d"},
         {">"},
@@ -859,7 +859,8 @@ const mjMap fcomp_map[mjNFCOMPTYPES] = {
 const mjMap fdof_map[mjNFCOMPDOFS] = {
   {"full",          mjFCOMPDOF_FULL},
   {"radial",        mjFCOMPDOF_RADIAL},
-  {"trilinear",     mjFCOMPDOF_TRILINEAR}
+  {"trilinear",     mjFCOMPDOF_TRILINEAR},
+  {"quadratic",     mjFCOMPDOF_QUADRATIC}
 };
 
 
@@ -1067,16 +1068,16 @@ void mjXReader::Compiler(XMLElement* section, mjSpec* s) {
     memcpy(s->compiler.eulerseq, text.c_str(), 3);
   }
   if (ReadAttrTxt(section, "assetdir", text)) {
-    mjs_setString(s->meshdir, text.c_str());
-    mjs_setString(s->texturedir, text.c_str());
+    mjs_setString(s->compiler.meshdir, text.c_str());
+    mjs_setString(s->compiler.texturedir, text.c_str());
   }
   // meshdir and texturedir take precedence over assetdir
   string meshdir, texturedir;
   if (ReadAttrTxt(section, "meshdir", meshdir)) {
-    mjs_setString(s->meshdir, meshdir.c_str());
+    mjs_setString(s->compiler.meshdir, meshdir.c_str());
   };
   if (ReadAttrTxt(section, "texturedir", texturedir)) {
-    mjs_setString(s->texturedir, texturedir.c_str());
+    mjs_setString(s->compiler.texturedir, texturedir.c_str());
   }
   if (MapValue(section, "discardvisual", &n, bool_map, 2)) {
     s->compiler.discardvisual = (n == 1);
@@ -1130,7 +1131,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
 
   // read options
   ReadAttr(section, "timestep", 1, &opt->timestep, text);
-  ReadAttr(section, "apirate", 1, &opt->apirate, text);
   ReadAttr(section, "impratio", 1, &opt->impratio, text);
   ReadAttr(section, "tolerance", 1, &opt->tolerance, text);
   ReadAttr(section, "ls_tolerance", 1, &opt->ls_tolerance, text);
@@ -1187,7 +1187,8 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("frictionloss", mjDSBL_FRICTIONLOSS)
     READDSBL("limit",        mjDSBL_LIMIT)
     READDSBL("contact",      mjDSBL_CONTACT)
-    READDSBL("passive",      mjDSBL_PASSIVE)
+    READDSBL("spring",       mjDSBL_SPRING)
+    READDSBL("damper",       mjDSBL_DAMPER)
     READDSBL("gravity",      mjDSBL_GRAVITY)
     READDSBL("clampctrl",    mjDSBL_CLAMPCTRL)
     READDSBL("warmstart",    mjDSBL_WARMSTART)
@@ -1199,6 +1200,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READDSBL("eulerdamp",    mjDSBL_EULERDAMP)
     READDSBL("autoreset",    mjDSBL_AUTORESET)
     READDSBL("nativeccd",    mjDSBL_NATIVECCD)
+    READDSBL("island",       mjDSBL_ISLAND)
 #undef READDSBL
 
 #define READENBL(NAME, MASK) \
@@ -1211,7 +1213,6 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("fwdinv",      mjENBL_FWDINV)
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
     READENBL("multiccd",    mjENBL_MULTICCD)
-    READENBL("island",      mjENBL_ISLAND)
 #undef READENBL
   }
 }
@@ -1401,7 +1402,9 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(flex->element, name.c_str());
+    if (mjs_setName(flex->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   if (ReadAttrTxt(elem, "material", material)) {
     mjs_setString(flex->material, material.c_str());
@@ -1459,6 +1462,9 @@ void mjXReader::OneFlex(XMLElement* elem, mjsFlex* flex) {
     if (MapValue(cont, "vertcollide", &flex->vertcollide, bool_map, 2)) {
       flex->vertcollide = (n == 1);
     }
+    if (MapValue(cont, "passive", &flex->passive, bool_map, 2)) {
+      flex->passive = (n == 1);
+    }
     ReadAttrInt(cont, "activelayers", &flex->activelayers);
   }
 
@@ -1492,7 +1498,9 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(mesh->element, name.c_str());
+    if (mjs_setName(mesh->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   if (ReadAttrTxt(elem, "content_type", content_type)) {
     *mesh->content_type = content_type;
@@ -1565,7 +1573,7 @@ void mjXReader::OneMesh(XMLElement* elem, mjsMesh* mesh, const mjVFS* vfs) {
       throw mjXError(elem, "builtin mesh cannot be used with user vertex data");
     }
     if (mjs_makeMesh(mesh, (mjtMeshBuiltin)n, params.data(), nparams)) {
-      throw mjXError(elem, mjs_getError(spec));
+      throw mjXError(elem, "%s", mjs_getError(spec));
     }
   }
 
@@ -1587,7 +1595,9 @@ void mjXReader::OneSkin(XMLElement* elem, mjsSkin* skin, const mjVFS* vfs) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(skin->element, name.c_str());
+    if (mjs_setName(skin->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   auto file = ReadAttrFile(elem, "file", vfs, AssetDir());
   if (file.has_value()) {
@@ -1677,7 +1687,9 @@ void mjXReader::OneMaterial(XMLElement* elem, mjsMaterial* material) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(material->element, name.c_str());
+    if (mjs_setName(material->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
 
   bool tex_attributes_found = false;
@@ -1726,7 +1738,9 @@ void mjXReader::OneJoint(XMLElement* elem, mjsJoint* joint) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(joint->element, name.c_str());
+    if (mjs_setName(joint->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   if (MapValue(elem, "type", &n, joint_map, joint_sz)) {
     joint->type = (mjtJoint)n;
@@ -1774,7 +1788,9 @@ void mjXReader::OneGeom(XMLElement* elem, mjsGeom* geom) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(geom->element, name.c_str());
+    if (mjs_setName(geom->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   if (MapValue(elem, "type", &n, geom_map, mjNGEOMTYPES)) {
     geom->type = (mjtGeom)n;
@@ -1846,7 +1862,9 @@ void mjXReader::OneSite(XMLElement* elem, mjsSite* site) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(site->element, name.c_str());
+    if (mjs_setName(site->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   if (MapValue(elem, "type", &n, geom_map, mjNGEOMTYPES)) {
     site->type = (mjtGeom)n;
@@ -1879,7 +1897,9 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* camera) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(camera->element, name.c_str());
+    if (mjs_setName(camera->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   if (ReadAttrTxt(elem, "target", targetbody)) {
     mjs_setString(camera->targetbody, targetbody.c_str());
@@ -1934,7 +1954,9 @@ void mjXReader::OneLight(XMLElement* elem, mjsLight* light) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(light->element, name.c_str());
+    if (mjs_setName(light->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   if (ReadAttrTxt(elem, "texture", texture)) {
     mjs_setString(light->texture, texture.c_str());
@@ -1995,7 +2017,9 @@ void mjXReader::OnePair(XMLElement* elem, mjsPair* pair) {
 
   // read other parameters
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(pair->element, name.c_str());
+    if (mjs_setName(pair->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   ReadAttrInt(elem, "condim", &pair->condim);
   ReadAttr(elem, "solref", mjNREF, pair->solref, text, false, false);
@@ -2023,7 +2047,9 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
   // regular only
   if (!readingdefaults) {
     if (ReadAttrTxt(elem, "name", name)) {
-      mjs_setName(equality->element, name.c_str());
+      if (mjs_setName(equality->element, name.c_str())) {
+        throw mjXError(elem, "%s", mjs_getError(spec));
+      }
     }
 
     switch (equality->type) {
@@ -2159,7 +2185,9 @@ void mjXReader::OneTendon(XMLElement* elem, mjsTendon* tendon) {
 
   // read attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(tendon->element, name.c_str());
+    if (mjs_setName(tendon->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   ReadAttrInt(elem, "group", &tendon->group);
   if (ReadAttrTxt(elem, "material", material)) {
@@ -2202,7 +2230,9 @@ void mjXReader::OneActuator(XMLElement* elem, mjsActuator* actuator) {
 
   // common attributes
   if (ReadAttrTxt(elem, "name", name)) {
-    mjs_setName(actuator->element, name.c_str());
+    if (mjs_setName(actuator->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
   }
   ReadAttrInt(elem, "group", &actuator->group);
   MapValue(elem, "ctrllimited", &actuator->ctrllimited, TFAuto_map, 3);
@@ -2693,6 +2723,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(elasticity, "damping", 1, &dflex.damping, text);
     ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
     MapValue(elasticity, "elastic2d", &dflex.elastic2d, elastic2d_map, 4);
+    if (fcomp.doftype == mjFCOMPDOF_QUADRATIC) {
+      throw mjXError(elasticity, "elasticity is not yet supported for quadratic flex");
+    }
   }
 
   // check errors
@@ -2719,6 +2752,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     MapValue(cont, "selfcollide", &dflex.selfcollide, flexself_map, 5);
     if (MapValue(cont, "vertcollide", &n, bool_map, 2)) {
       dflex.vertcollide = (n == 1);
+    }
+    if (MapValue(cont, "passive", &n, bool_map, 2)) {
+      dflex.passive = (n == 1);
     }
     ReadAttrInt(cont, "activelayers", &dflex.activelayers);
   }
@@ -2950,7 +2986,9 @@ void mjXReader::Custom(XMLElement* section) {
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
-      mjs_setName(numeric->element, elname.c_str());
+      if (mjs_setName(numeric->element, elname.c_str())) {
+        throw mjXError(elem, "%s", mjs_getError(spec));
+      }
       if (ReadAttrInt(elem, "size", &numeric->size)) {
         int sz = numeric->size < 500 ? numeric->size : 500;
         for (int i=0; i < sz; i++) {
@@ -2981,7 +3019,9 @@ void mjXReader::Custom(XMLElement* section) {
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
-      mjs_setName(text->element, elname.c_str());
+      if (mjs_setName(text->element, elname.c_str())) {
+        throw mjXError(elem, "%s", mjs_getError(spec));
+      }
       ReadAttrTxt(elem, "data", str, true);
       if (str.empty()) {
         throw mjXError(elem, "text field cannot be empty");
@@ -3001,7 +3041,9 @@ void mjXReader::Custom(XMLElement* section) {
 
       // read attributes
       ReadAttrTxt(elem, "name", elname, true);
-      mjs_setName(tuple->element, elname.c_str());
+      if (mjs_setName(tuple->element, elname.c_str())) {
+        throw mjXError(elem, "%s", mjs_getError(spec));
+      }
 
       // read objects and add
       XMLElement* obj = FirstChildElement(elem);
@@ -3217,7 +3259,9 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
         texture->colorspace = (mjtColorSpace)n;
       }
       if (ReadAttrTxt(elem, "name", texname)) {
-        mjs_setName(texture->element, texname.c_str());
+        if (mjs_setName(texture->element, texname.c_str())) {
+          throw mjXError(elem, "%s", mjs_getError(spec));
+        }
       }
       if (ReadAttrTxt(elem, "content_type", content_type)) {
         mjs_setString(texture->content_type, content_type.c_str());
@@ -3309,7 +3353,9 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
       // read attributes
       string name, content_type;
       if (ReadAttrTxt(elem, "name", name)) {
-        mjs_setName(hfield->element, name.c_str());
+        if (mjs_setName(hfield->element, name.c_str())) {
+          throw mjXError(elem, "%s", mjs_getError(spec));
+        }
       }
       if (ReadAttrTxt(elem, "content_type", content_type)) {
         mjs_setString(hfield->content_type, content_type.c_str());
@@ -3476,7 +3522,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       // read attributes
       string name;
       if (ReadAttrTxt(elem, "name", name)) {
-        mjs_setName(joint->element, name.c_str());
+        if (mjs_setName(joint->element, name.c_str())) {
+          throw mjXError(elem, "%s", mjs_getError(spec));
+        }
       }
       ReadAttrInt(elem, "group", &joint->group);
       MapValue(elem, "align", &joint->align, TFAuto_map, 3);
@@ -3548,7 +3596,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       // read attributes
       string name, childclass;
       if (ReadAttrTxt(elem, "name", name)) {
-        mjs_setName(pframe->element, name.c_str());
+        if (mjs_setName(pframe->element, name.c_str())) {
+          throw mjXError(elem, "%s", mjs_getError(spec));
+        }
       }
       if (ReadAttrTxt(elem, "childclass", childclass)) {
         mjs_setString(pframe->childclass, childclass.c_str());
@@ -3620,13 +3670,13 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
 
         // attach to parent
         if (!mjs_attach(body->element, pframe->element, /*prefix=*/"", suffix.c_str())) {
-          throw mjXError(elem, mjs_getError(spec));
+          throw mjXError(elem, "%s", mjs_getError(spec));
         }
       }
 
       // delete subtree
       if (mjs_delete(spec, subtree->element)) {
-        throw mjXError(elem, mjs_getError(spec));
+        throw mjXError(elem, "%s", mjs_getError(spec));
       }
     }
 
@@ -3649,7 +3699,9 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       // read attributes
       string name, childclass;
       if (ReadAttrTxt(elem, "name", name)) {
-        mjs_setName(child->element, name.c_str());
+        if (mjs_setName(child->element, name.c_str())) {
+          throw mjXError(elem, "%s", mjs_getError(spec));
+        }
       }
       if (ReadAttrTxt(elem, "childclass", childclass)) {
         mjs_setString(child->childclass, childclass.c_str());
@@ -3702,12 +3754,12 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
           child = child_body->element;
         }
         if (!mjs_attach(pframe->element, child, prefix.c_str(), "")) {
-          throw mjXError(elem, mjs_getError(spec));
+          throw mjXError(elem, "%s", mjs_getError(spec));
         }
       } else {
         // only set frame to existing body
         if (mjs_setFrame(child_body->element, pframe)) {
-          throw mjXError(elem, mjs_getError(spec));
+          throw mjXError(elem, "%s", mjs_getError(spec));
         }
       }
     }
@@ -3758,7 +3810,9 @@ void mjXReader::Contact(XMLElement* section) {
 
       // read name and body names
       if (ReadAttrTxt(elem, "name", exname)) {
-        mjs_setName(exclude->element, exname.c_str());
+        if (mjs_setName(exclude->element, exname.c_str())) {
+          throw mjXError(elem, "%s", mjs_getError(spec));
+        }
       }
       ReadAttrTxt(elem, "body1", exbody1, true);
       mjs_setString(exclude->bodyname1, exbody1.c_str());
@@ -3940,7 +3994,9 @@ void mjXReader::Sensor(XMLElement* section) {
 
     // read name, noise, userdata
     if (ReadAttrTxt(elem, "name", name)) {
-      mjs_setName(sensor->element, name.c_str());
+      if (mjs_setName(sensor->element, name.c_str())) {
+        throw mjXError(elem, "%s", mjs_getError(spec));
+      }
     }
     ReadAttr(elem, "cutoff", 1, &sensor->cutoff, text);
     ReadAttr(elem, "noise", 1, &sensor->noise, text);
@@ -4371,7 +4427,9 @@ void mjXReader::Keyframe(XMLElement* section) {
 
     // read name, time
     ReadAttrTxt(elem, "name", name);
-    mjs_setName(key->element, name.c_str());
+    if (mjs_setName(key->element, name.c_str())) {
+      throw mjXError(elem, "%s", mjs_getError(spec));
+    }
     ReadAttr(elem, "time", 1, &key->time, text);
 
     // read qpos

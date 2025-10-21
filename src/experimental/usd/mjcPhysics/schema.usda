@@ -111,15 +111,6 @@ class "MjcSceneAPI"
         doc = """Controls the timestep in seconds used by MuJoCo."""
     )
 
-    uniform double mjc:option:apirate = 100 (
-        customData = {
-            string apiName = "ApiRate"
-        }
-        displayName = "ApiRate"
-        doc = """Determines the rate (in Hz) at which an external API allows
-        the update function to be executed."""
-    )
-
     uniform double mjc:option:impratio = 1.0 (
         customData = {
             string apiName = "ImpRatio"
@@ -283,7 +274,7 @@ class "MjcSceneAPI"
         doc = """Tolerance threshold used for early termination of the Noslip solver."""
     )
 
-    uniform int mjc:option:ccd_iterations = 50 (
+    uniform int mjc:option:ccd_iterations = 35 (
         customData = {
             string apiName = "CCDIterations"
         }
@@ -366,12 +357,20 @@ class "MjcSceneAPI"
         doc = """Enables collision detection and all standard computations related to contact constraints."""
     )
 
-    uniform bool mjc:flag:passive = True (
+    uniform bool mjc:flag:spring = True (
         customData = {
-            string apiName = "PassiveFlag"
+            string apiName = "SpringFlag"
         }
-        displayName = "Passive Forces Toggle"
-        doc = """Enables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive forces."""
+        displayName = "Spring Forces Toggle"
+        doc = """Enables the simulation of joint and tendon springs."""
+    )
+
+    uniform bool mjc:flag:damper = True (
+        customData = {
+            string apiName = "DamperFlag"
+        }
+        displayName = "Damper Forces Toggle"
+        doc = """Enables the simulation of joint and tendon dampers."""
     )
 
     uniform bool mjc:flag:gravity = True (
@@ -502,7 +501,7 @@ class "MjcSceneAPI"
         doc = """Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."""
     )
 
-    uniform bool mjc:flag:island = False (
+    uniform bool mjc:flag:island = True (
         customData = {
             string apiName = "IslandFlag"
         }

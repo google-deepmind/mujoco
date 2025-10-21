@@ -51,6 +51,27 @@ typedef enum mjtState_ {          // state elements
 } mjtState;
 
 
+typedef enum mjtConstraint_ {     // type of constraint
+  mjCNSTR_EQUALITY    = 0,        // equality constraint
+  mjCNSTR_FRICTION_DOF,           // dof friction
+  mjCNSTR_FRICTION_TENDON,        // tendon friction
+  mjCNSTR_LIMIT_JOINT,            // joint limit
+  mjCNSTR_LIMIT_TENDON,           // tendon limit
+  mjCNSTR_CONTACT_FRICTIONLESS,   // frictionless contact
+  mjCNSTR_CONTACT_PYRAMIDAL,      // frictional contact, pyramidal friction cone
+  mjCNSTR_CONTACT_ELLIPTIC        // frictional contact, elliptic friction cone
+} mjtConstraint;
+
+
+typedef enum mjtConstraintState_ {  // constraint state
+  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
+  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
+  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
+  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
+  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
+} mjtConstraintState;
+
+
 typedef enum mjtWarning_ {   // warning types
   mjWARN_INERTIA      = 0,   // (near) singular inertia matrix
   mjWARN_CONTACTFULL,        // too many contacts in contact list
@@ -122,7 +143,7 @@ struct mjContact_ {                // result of collision detection functions
   int     vert[2];                 // vertex ids;  -1 for geom or flex element
 
   // flag set by mj_setContact or mj_instantiateContact
-  int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs
+  int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs, 4: passive
 
   // address computed by mj_instantiateContact
   int     efc_address;             // address in efc; -1: not included
@@ -167,14 +188,14 @@ struct mjData_ {
   int     nplugin;           // number of plugin instances
 
   // stack pointer
-  size_t  pstack;            // first available byte in stack
-  size_t  pbase;             // value of pstack when mj_markStack was last called
+  size_t  pstack;            // first available byte in stack (mutable)
+  size_t  pbase;             // value of pstack when mj_markStack was last called (mutable)
 
   // arena pointer
   size_t  parena;            // first available byte in arena
 
   // memory utilization statistics
-  mjtSize maxuse_stack;                       // maximum stack allocation in bytes
+  mjtSize maxuse_stack;                       // maximum stack allocation in bytes (mutable)
   mjtSize maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
   mjtSize maxuse_arena;                       // maximum arena allocation in bytes
   int     maxuse_con;                         // maximum number of contacts
@@ -187,7 +208,7 @@ struct mjData_ {
   mjtNum        solver_fwdinv[2];             // forward-inverse comparison: qfrc, efc
 
   // diagnostics
-  mjWarningStat warning[mjNWARNING];          // warning statistics
+  mjWarningStat warning[mjNWARNING];          // warning statistics (mutable)
   mjTimerStat   timer[mjNTIMER];              // timer statistics
 
   // variable sizes

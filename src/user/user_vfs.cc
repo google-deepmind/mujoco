@@ -219,7 +219,8 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   VFS* cvfs = GetVFSImpl(vfs);
 
   // make full name
-  FilePath fullname = FilePath(directory, filename);
+  const char* dir = directory != nullptr ? directory : "";
+  FilePath fullname = FilePath(dir, filename);
 
   // strip path
   FilePath newname = StripPath(filename);
@@ -250,7 +251,12 @@ int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer,
   if (!(file = cvfs->AddFile(FilePath(name), std::move(inbuffer), 0))) {
     return 2;  // AddFile failed, repeated name
   }
-  file->filedata.reserve(nbuffer);
+  try {
+    file->filedata.reserve(nbuffer);
+  } catch (...) {
+    cvfs->DeleteFile(file->filename);  // delete file on error
+    return -1;
+  }
   file->filestamp = vfs_memcpy(file->filedata, buffer, nbuffer);
   return 0;
 }

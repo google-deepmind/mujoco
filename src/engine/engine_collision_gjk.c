@@ -166,7 +166,6 @@ static int discreteGeoms(mjCCDObj* obj1, mjCCDObj* obj2) {
 }
 
 
-
 // GJK algorithm
 static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   int get_dist = status->dist_cutoff > 0;  // need to recover geom distances if not in contact
@@ -296,7 +295,6 @@ static void gjk(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 }
 
 
-
 // compute the support point in obj1 and obj2 for Minkowski difference
 static inline void support(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
                            const mjtNum dir[3], const mjtNum dir_neg[3]) {
@@ -327,7 +325,6 @@ static inline void support(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
 }
 
 
-
 // compute the support points in obj1 and obj2 for the kth approximation point
 static inline void gjkSupport(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
                               const mjtNum x_k[3], mjtNum x_norm) {
@@ -338,7 +335,6 @@ static inline void gjkSupport(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
   scl3(dir, dir_neg, -1);
   support(v, obj1, obj2, dir, dir_neg);
 }
-
 
 
 // compute support points in Minkowski difference, return index of new vertex in polytope
@@ -361,14 +357,12 @@ static int epaSupport(Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,
 }
 
 
-
 // compute the support point in the Minkowski difference for gjkIntersect (without normalization)
 static void gjkIntersectSupport(Vertex* v, mjCCDObj* obj1, mjCCDObj* obj2,
                                 const mjtNum dir[3]) {
   mjtNum dir_neg[3] = {-dir[0], -dir[1], -dir[2]};
   support(v, obj1, obj2, dir, dir_neg);
 }
-
 
 
 // compute the signed distance of a face along with the normal
@@ -385,7 +379,6 @@ static inline mjtNum signedDistance(mjtNum normal[3], const Vertex* v1, const Ve
   }
   return mjMAX_LIMIT;  // cannot recover normal (ignore face)
 }
-
 
 
 // return 1 if objects are in contact; 0 if not; -1 if inconclusive
@@ -447,7 +440,6 @@ static int gjkIntersect(mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
 }
 
 
-
 // linear combination of n 3D vectors
 static inline void lincomb(mjtNum res[3], const mjtNum* coef, int n, const mjtNum v1[3],
                            const mjtNum v2[3], const mjtNum v3[3], const mjtNum v4[3]) {
@@ -474,7 +466,6 @@ static inline void lincomb(mjtNum res[3], const mjtNum* coef, int n, const mjtNu
       break;
   }
 }
-
 
 
 // res = origin projected onto plane defined by v1, v2, v3
@@ -514,7 +505,6 @@ static int projectOriginPlane(mjtNum res[3], const mjtNum v1[3], const mjtNum v2
 }
 
 
-
 // res = origin projected onto line defined by v1, v2
 static inline void projectOriginLine(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3]) {
   // res = v2 - <v2, v2 - v1> / <v2 - v1, v2 - v1> * (v2 - v1)
@@ -527,14 +517,12 @@ static inline void projectOriginLine(mjtNum res[3], const mjtNum v1[3], const mj
 }
 
 
-
 // return 1 if both numbers are positive, -1 if both negative and 0 otherwise
 static inline int sameSign2(mjtNum a, mjtNum b) {
   if (a > 0 && b > 0) return 1;
   if (a < 0 && b < 0) return -1;
   return 0;
 }
-
 
 
 // subdistance algorithm for GJK that computes the barycentric coordinates of the point in a
@@ -562,7 +550,6 @@ static inline void subdistance(mjtNum lambda[4], int n, const Vertex simplex[4])
     break;
   }
 }
-
 
 
 static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3],
@@ -654,7 +641,6 @@ static void S3D(mjtNum lambda[4], const mjtNum s1[3], const mjtNum s2[3],
     }
   }
 }
-
 
 
 static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const mjtNum s3[3]) {
@@ -790,7 +776,6 @@ static void S2D(mjtNum lambda[3], const mjtNum s1[3], const mjtNum s2[3], const 
 }
 
 
-
 static void S1D(mjtNum lambda[2], const mjtNum s1[3], const mjtNum s2[3]) {
   // find projection of origin onto the 1-simplex:
   mjtNum p_o[3];
@@ -840,7 +825,6 @@ static inline void replaceSimplex3(Polytope* pt, mjCCDStatus* status, int v1, in
 }
 
 
-
 // return 1 if the origin and p3 are on the same side of the plane defined by p0, p1, p2
 static int sameSide(const mjtNum p0[3], const mjtNum p1[3],
                     const mjtNum p2[3], const mjtNum p3[3]) {
@@ -860,7 +844,6 @@ static int sameSide(const mjtNum p0[3], const mjtNum p1[3],
 }
 
 
-
 // return 1 if the origin is contained in the tetrahedron, 0 otherwise
 static int testTetra(const mjtNum p0[3], const mjtNum p1[3],
                      const mjtNum p2[3], const mjtNum p3[3]) {
@@ -869,7 +852,6 @@ static int testTetra(const mjtNum p0[3], const mjtNum p1[3],
       && sameSide(p2, p3, p0, p1)
       && sameSide(p3, p0, p1, p2);
 }
-
 
 
 // matrix for 120 degrees rotation around given axis
@@ -890,7 +872,6 @@ static void rotmat(mjtNum R[9], const mjtNum axis[3]) {
 }
 
 
-
 // return nonzero if the ray v1v2 intersects the triangle v3v4v5
 static inline int rayTriangle(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3],
                               const mjtNum v4[3], const mjtNum v5[3]) {
@@ -908,7 +889,6 @@ static inline int rayTriangle(const mjtNum v1[3], const mjtNum v2[3], const mjtN
   if (vol1 <= 0 && vol2 <= 0 && vol3 <= 0) return -1;
   return 0;
 }
-
 
 
 // create a polytope from a 1-simplex (returns 0 on success)
@@ -994,7 +974,6 @@ static int polytope2(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
 }
 
 
-
 // compute the affine coordinates of p on the triangle v1v2v3
 static void triAffineCoord(mjtNum lambda[3], const mjtNum v1[3], const mjtNum v2[3],
                            const mjtNum v3[3], const mjtNum p[3]) {
@@ -1040,7 +1019,6 @@ static void triAffineCoord(mjtNum lambda[3], const mjtNum v1[3], const mjtNum v2
 }
 
 
-
 // return true if point p and triangle v1v2v3 intersect
 static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNum v3[3],
                              const mjtNum p[3]) {
@@ -1056,7 +1034,6 @@ static int triPointIntersect(const mjtNum v1[3], const mjtNum v2[3], const mjtNu
   sub3(diff, pr, p);
   return norm3(diff) < mjMINVAL;
 }
-
 
 
 // create a polytope from a 2-simplex (returns 0 on success)
@@ -1138,7 +1115,6 @@ static int polytope3(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj
 }
 
 
-
 // create a polytope from a 3-simplex (returns 0 on success)
 static int polytope4(Polytope* pt, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   int v1 = insertVertex(pt, status->simplex + 0);
@@ -1196,12 +1172,10 @@ static void deleteFace(Polytope* pt, Face* face) {
 }
 
 
-
 // return max number of faces that can be stored in polytope
 static inline int maxFaces(Polytope* pt) {
   return pt->maxfaces - pt->nfaces;
 }
-
 
 
 // attach a face to the polytope with the given vertex indices; return squared distance to origin
@@ -1229,13 +1203,11 @@ static inline mjtNum attachFace(Polytope* pt, int v1, int v2, int v3,
 }
 
 
-
 // add an edge to the horizon
 static inline void addEdge(Polytope* pt, int index, int edge) {
   pt->horizon.edges[pt->horizon.nedges] = edge;
   pt->horizon.indices[pt->horizon.nedges++] = index;
 }
-
 
 
 // get edge index where vertex lies
@@ -1244,7 +1216,6 @@ static inline int getEdge(Face* face, int vertex) {
   if (face->verts[1] == vertex) return 1;
   return 2;
 }
-
 
 
 // recursive call to build horizon; return 1 if face is visible from w otherwise 0
@@ -1268,7 +1239,6 @@ static int horizonRec(Polytope* pt, Face* face, int e) {
     }
   return 0;
 }
-
 
 
 // create horizon given the face as starting point
@@ -1298,7 +1268,6 @@ static void horizon(Polytope* pt, Face* face) {
 }
 
 
-
 // recover witness points from EPA polytope
 static void epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3]) {
   // compute affine coordinates for witness points on plane defined by face
@@ -1324,7 +1293,6 @@ static void epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNu
   x2[1] = v1[1]*lambda[0] + v2[1]*lambda[1] + v3[1]*lambda[2];
   x2[2] = v1[2]*lambda[0] + v2[2]*lambda[1] + v3[2]*lambda[2];
 }
-
 
 
 // return a face of the expanded polytope that best approximates the pentration depth
@@ -1493,7 +1461,6 @@ static inline mjtNum area4(const mjtNum a[3], const mjtNum b[3],
 }
 
 
-
 // return pointer to next vertex in a polygon
 static inline mjtNum* next(mjtNum* polygon, int nvert, mjtNum* curr) {
   if (curr == polygon + 3*(nvert - 1)) {
@@ -1501,7 +1468,6 @@ static inline mjtNum* next(mjtNum* polygon, int nvert, mjtNum* curr) {
   }
   return curr + 3;
 }
-
 
 
 // prune a polygon to a maximum area convex quadrilateral
@@ -1551,7 +1517,6 @@ static inline void polygonQuad(mjtNum* res[4], mjtNum* polygon, int nvert) {
 }
 
 
-
 // find the normal of a plane perpendicular to the face (given by its normal n) and intersecting the
 // face edge (v1, v2)
 static mjtNum planeNormal(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3],
@@ -1565,13 +1530,11 @@ static mjtNum planeNormal(mjtNum res[3], const mjtNum v1[3], const mjtNum v2[3],
 }
 
 
-
 // find what side of a plane a point p lies
 static int halfspace(const mjtNum a[3], const mjtNum n[3], const mjtNum p[3]) {
   mjtNum diff[3] = {p[0] - a[0], p[1] - a[1], p[2] - a[2]};
   return dot3(diff, n) > -mjMINVAL;
 }
-
 
 
 // compute the intersection of a plane with a line segment (a, b)
@@ -1589,7 +1552,6 @@ static mjtNum planeIntersect(mjtNum res[3], const mjtNum pn[3], mjtNum pd,
   }
   return t;
 }
-
 
 
 // clip a polygon against another polygon
@@ -1707,7 +1669,6 @@ static void polygonClip(mjCCDStatus* status, const mjtNum* face1, int nface1,
 }
 
 
-
 // compute global coordinates of a local point (l1, l2, l3)
 static inline void globalcoord(mjtNum res[3], const mjtNum mat[9], const mjtNum pos[3],
                               mjtNum l1, mjtNum l2, mjtNum l3) {
@@ -1723,7 +1684,6 @@ static inline void globalcoord(mjtNum res[3], const mjtNum mat[9], const mjtNum 
 }
 
 
-
 // find up to n <= 2 common integers of two arrays, return n
 static int intersect(int res[2], const int* arr1, const int* arr2, int n, int m) {
   int count = 0;
@@ -1737,7 +1697,6 @@ static int intersect(int res[2], const int* arr1, const int* arr2, int n, int m)
   }
   return count;
 }
-
 
 
 // compute possible polygon normals of a mesh given up to 3 vertices
@@ -1810,7 +1769,6 @@ static int meshNormals(mjtNum* res, int resind[3], int dim, mjCCDObj* obj,
 }
 
 
-
 // compute normal directional vectors along possible edges given by up to two vertices
 static int meshEdgeNormals(mjtNum* res, mjtNum* endverts, int dim, mjCCDObj* obj,
                            const mjtNum v1[3], const mjtNum v2[3], int v1i, int v2i) {
@@ -1865,7 +1823,6 @@ static int meshEdgeNormals(mjtNum* res, mjtNum* endverts, int dim, mjCCDObj* obj
 }
 
 
-
 // try recovering box normal from collision normal
 static int boxNormals2(mjtNum res[9], int resind[3], const mjtNum mat[9], const mjtNum n[3]) {
   // list of box face normals
@@ -1890,7 +1847,6 @@ static int boxNormals2(mjtNum res[9], int resind[3], const mjtNum mat[9], const 
   }
   return 0;
 }
-
 
 
 // compute possible face normals of a box given up to 3 vertices
@@ -1945,7 +1901,6 @@ static int boxNormals(mjtNum res[9], int resind[3], int dim, mjCCDObj* obj,
   }
   return 0;
 }
-
 
 
 // compute possible edge normals for box for edge collisions
@@ -2038,7 +1993,6 @@ static int boxFace(mjtNum res[12], mjCCDObj* obj, int idx) {
 }
 
 
-
 // recover mesh polygon from its index, return number of edges
 static int meshFace(mjtNum* res, mjCCDObj* obj, int idx) {
   const mjModel* m = obj->model;
@@ -2063,7 +2017,6 @@ static int meshFace(mjtNum* res, mjCCDObj* obj, int idx) {
 }
 
 
-
 // find two normals that are facing each other within a tolerance, return 1 if found
 static inline int alignedFaces(int res[2], const mjtNum* v, int nv,
                                  const mjtNum* w, int nw) {
@@ -2078,7 +2031,6 @@ static inline int alignedFaces(int res[2], const mjtNum* v, int nv,
   }
   return 0;
 }
-
 
 
 // find two normals that are perpendicular to each other within a tolerance, return 1 if found
@@ -2113,7 +2065,6 @@ static inline int simplexDim(int* v1i, int* v2i, int* v3i, mjtNum** v1, mjtNum**
   }
   return 1;
 }
-
 
 
 // recover multiple contacts from EPA polytope
@@ -2242,7 +2193,6 @@ static void multicontact(Polytope* pt, Face* face, mjCCDStatus* status,
 
 
 
-
 // inflate a contact by margin
 static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) {
   mjtNum n[3];
@@ -2260,7 +2210,6 @@ static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) 
   }
   status->dist -= (margin1 + margin2);
 }
-
 
 
 // general convex collision detection

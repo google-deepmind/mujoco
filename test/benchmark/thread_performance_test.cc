@@ -32,8 +32,8 @@ void BM_StepHumanoid200(benchmark::State& state) {
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
 
-  model->opt.solver = mjSOL_CG;             // use CG solver
-  model->opt.enableflags |= mjENBL_ISLAND;  // enable islands
+  model->opt.solver = mjSOL_CG;               // use CG solver
+  model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjData* data = mj_makeData(model);
   mjThreadPool* threadpool = mju_threadPoolCreate(10);
@@ -69,8 +69,8 @@ void BM_Step22Humanoids(benchmark::State& state) {
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
-  model->opt.solver = mjSOL_CG;             // use CG solver
-  model->opt.enableflags |= mjENBL_ISLAND;  // enable islands
+  model->opt.solver = mjSOL_CG;               // use CG solver
+  model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjData* data = mj_makeData(model);
   mjThreadPool* threadpool = mju_threadPoolCreate(10);

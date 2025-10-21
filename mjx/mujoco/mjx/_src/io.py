@@ -493,7 +493,6 @@ def put_model(
     m: mujoco.MjModel,
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
-    _full_compat: bool = False,  # pylint: disable=invalid-name
 ) -> types.Model:
   """Puts mujoco.MjModel onto a device, resulting in mjx.Model.
 
@@ -501,26 +500,13 @@ def put_model(
     m: the model to put onto device
     device: which device to use - if unspecified picks the default device
     impl: implementation to use
-    _full_compat: put all MjModel fields onto device irrespective of MJX support
-      This is an experimental feature.  Avoid using it for now.
 
   Returns:
     an mjx.Model placed on device
 
   Raises:
     ValueError: if impl is not supported
-    DeprecationWarning: if _full_compat is True
   """
-
-  if _full_compat:
-    warnings.warn(
-        'mjx.put_model(..., _full_compat=True) is deprecated and will be'
-        ' removed in MuJoCo >=3.4.  Use mjx.put_model(..., impl=types.Impl.C)'
-        ' instead.',
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    impl = types.Impl.C
 
   impl, device = _resolve_impl_and_device(impl, device)
   if impl == types.Impl.JAX:
@@ -827,8 +813,8 @@ def _get_nested_attr(obj: Any, attr_name: str, split: str) -> Any:
 def _make_data_warp(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
-    nconmax: int = -1,
-    njmax: int = -1,
+    nconmax: Optional[int] = None,
+    njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the Warp implementation."""
   if not isinstance(m, mujoco.MjModel):
@@ -841,7 +827,7 @@ def _make_data_warp(
     raise RuntimeError('Warp is not installed.')
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, nconmax=nconmax, njmax=njmax)  # pylint: disable=undefined-variable
+    dw = mjwp.make_data(m, nworld=1, naconmax=nconmax, njmax=njmax)  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
@@ -876,7 +862,7 @@ def _make_data_warp(
     # TODO(robotics-simulation): remove this warmup compilation once warp
     # stops unloading modules during XLA graph capture for tile kernels.
     # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1)
+    dw = mjwp.make_data(m, nworld=1, naconmax=nconmax, njmax=njmax)
     mw = mjwp.put_model(m)
     _ = mjwp.step(mw, dw)
     # pylint: enable=undefined-variable
@@ -890,8 +876,8 @@ def make_data(
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
     _full_compat: bool = False,  # pylint: disable=invalid-name
-    nconmax: int = -1,
-    njmax: int = -1,
+    nconmax: Optional[int] = None,
+    njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data.
 
@@ -899,11 +885,12 @@ def make_data(
     m: the model to use
     device: which device to use - if unspecified picks the default device
     impl: implementation to use ('jax', 'warp')
-    _full_compat: put all fields onto device irrespective of MJX support This is
-      an experimental feature.  Avoid using it for now. If using this flag, also
-      use _full_compat for put_model.
-    nconmax: maximum number of contacts to allocate for warp
-    njmax: maximum number of constraints to allocate for warp
+    nconmax: maximum number of contacts to allocate for warp across all worlds
+      Since the number of worlds is **not** pre-defined in JAX, we use the
+      `nconmax` argument to set the upper bound for the number of contacts
+      across all worlds. In MuJoCo Warp, the analgous field is called
+      `naconmax`.
+    njmax: maximum number of constraints to allocate for warp across all worlds
 
   Returns:
     an initialized mjx.Data placed on device
@@ -911,17 +898,7 @@ def make_data(
   Raises:
     ValueError: if the model's impl does not match the make_data impl
     NotImplementedError: if the impl is not implemented yet
-    DeprecationWarning: if _full_compat is used
   """
-  if _full_compat:
-    warnings.warn(
-        'mjx.make_data(..., _full_compat=True) is deprecated.  Use'
-        ' mjx.make_data(..., impl=types.Impl.C) instead.',
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    impl = types.Impl.C
-
   impl, device = _resolve_impl_and_device(impl, device)
 
   if isinstance(m, types.Model) and m.impl != impl:
@@ -1227,7 +1204,6 @@ def put_data(
     impl: Optional[Union[str, types.Impl]] = None,
     nconmax: int = -1,
     njmax: int = -1,
-    _full_compat: bool = False,  # pylint: disable=invalid-name
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data.
 
@@ -1238,23 +1214,11 @@ def put_data(
     impl: implementation to use ('jax', 'warp')
     nconmax: maximum number of contacts to allocate for warp
     njmax: maximum number of constraints to allocate for warp
-    _full_compat: put all MjModel fields onto device irrespective of MJX support
-      This is an experimental feature.  Avoid using it for now. If using this
-      flag, also use _full_compat for put_model.
 
   Returns:
     an mjx.Data placed on device
   """
   del nconmax, njmax
-  if _full_compat:
-    warnings.warn(
-        'mjx.put_data(..., _full_compat=True) is deprecated.  Use'
-        ' mjx.put_data(..., impl=types.Impl.C) instead.',
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    impl = types.Impl.C
-
   impl, device = _resolve_impl_and_device(impl, device)
   if impl == types.Impl.JAX:
     return _put_data_jax(m, d, device)
@@ -1300,7 +1264,7 @@ def _get_data_into_warp(
         else d
     )
     result_i = result[i] if batched else result
-    ncon = d_i._impl.ncon[0]
+    ncon = d_i._impl.nacon[0]
     nefc = int(d_i._impl.nefc)
     # nj = int(d_i._impl.nj[0])
     nj = 0  # TODO(btaba): add nj back
@@ -1466,7 +1430,7 @@ def _get_data_into(
       if d.impl == types.Impl.JAX:
         if field.name == 'qM' and not support.is_sparse(m):
           value = value[dof_i, dof_j]
-        elif field.name == 'qLD' and not support.is_sparse(m):
+        elif field.name == 'qLD':
           value = np.zeros(m.nC)
         elif field.name == 'qLDiagInv' and not support.is_sparse(m):
           value = np.ones(m.nv)

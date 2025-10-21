@@ -27,6 +27,7 @@
 #include <filesystem>  // NOLINT(build/c++17)
 #include <functional>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -119,7 +120,7 @@ bool IsNullPose(const T pos[3], const T quat[4]) {
 // get body id from wrap object
 int GetBodyIdFromWrap(const mjCWrap* wrap) {
   if (!wrap || !wrap->obj) return -1;
-  switch (wrap->type) {
+  switch (wrap->Type()) {
     case mjWRAP_SITE:
       return static_cast<mjCSite*>(wrap->obj)->Body()->id;
     case mjWRAP_CYLINDER:
@@ -140,8 +141,8 @@ mjCModel::mjCModel() {
   elemtype = mjOBJ_MODEL;
   spec_comment_.clear();
   spec_modelfiledir_.clear();
-  spec_meshdir_.clear();
-  spec_texturedir_.clear();
+  meshdir_.clear();
+  texturedir_.clear();
   spec_modelname_ = "MuJoCo Model";
 
   //------------------------ auto-computed statistics
@@ -201,10 +202,12 @@ mjCModel& mjCModel::operator=(const mjCModel& other) {
     this->spec = other.spec;
     *static_cast<mjCModel_*>(this) = static_cast<const mjCModel_&>(other);
     *static_cast<mjSpec*>(this) = static_cast<const mjSpec&>(other);
+    PointToLocal();
 
     // copy attached specs first so that we can resolve references to them
-    for (const auto* s : other.specs_) {
-      specs_.push_back(mj_copySpec(s));
+    for (auto* s : other.specs_) {
+      specs_.push_back(s);
+      static_cast<mjCModel*>(s->element)->AddRef();
       compiler2spec_[&s->compiler] = specs_.back();
     }
 
@@ -476,14 +479,7 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
   }
 
   // resize keyframes in the parent model
-  if (!keys_.empty()) {
-    SaveDofOffsets(/*computesize=*/true);
-    ComputeReference();
-    for (auto* key : keys_) {
-      ResizeKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
-    }
-    nq = nv = na = nu = nmocap = 0;
-  }
+  ExpandAllKeyframes();
 
   // update pointers to local elements
   PointToLocal();
@@ -876,13 +872,11 @@ void mjCModel::PointToLocal() {
   spec.comment = &spec_comment_;
   spec.modelfiledir = &spec_modelfiledir_;
   spec.modelname = &spec_modelname_;
-  spec.meshdir = &spec_meshdir_;
-  spec.texturedir = &spec_texturedir_;
+  spec.compiler.meshdir = &meshdir_;
+  spec.compiler.texturedir = &texturedir_;
   comment = nullptr;
   modelfiledir = nullptr;
   modelname = nullptr;
-  meshdir = nullptr;
-  texturedir = nullptr;
 }
 
 
@@ -892,8 +886,6 @@ void mjCModel::CopyFromSpec() {
   comment_ = spec_comment_;
   modelfiledir_ = spec_modelfiledir_;
   modelname_ = spec_modelname_;
-  meshdir_ = spec_meshdir_;
-  texturedir_ = spec_texturedir_;
 }
 
 
@@ -2323,7 +2315,7 @@ void* LRfunc(void* arg) {
 void mjCModel::LengthRange(mjModel* m, mjData* data) {
   // save options and modify
   mjOption saveopt = m->opt;
-  m->opt.disableflags = mjDSBL_FRICTIONLOSS | mjDSBL_CONTACT | mjDSBL_PASSIVE |
+  m->opt.disableflags = mjDSBL_FRICTIONLOSS | mjDSBL_CONTACT | mjDSBL_SPRING | mjDSBL_DAMPER |
                         mjDSBL_GRAVITY | mjDSBL_ACTUATION;
   if (compiler.LRopt.timestep > 0) {
     m->opt.timestep = compiler.LRopt.timestep;
@@ -3321,6 +3313,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->flex_flatskin[i] = pfl->flatskin;
     m->flex_selfcollide[i] = pfl->selfcollide;
     m->flex_activelayers[i] = pfl->activelayers;
+    m->flex_passive[i] = pfl->passive;
     m->flex_bvhnum[i] = pfl->tree.Nbvh();
     m->flex_bvhadr[i] = pfl->tree.Nbvh() ? bvh_adr : -1;
 
@@ -3384,7 +3377,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
 
     // set interpolation type, only two types for now
-    m->flex_interp[i] = pfl->interpolated;
+    m->flex_interp[i] = pfl->order_;
 
     // convert edge pairs to int array, set edge rigid
     for (int k=0; k < pfl->nedge; k++) {
@@ -3613,10 +3606,10 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set wraps
     for (int j=0; j < (int)pte->path.size(); j++) {
-      m->wrap_type[adr+j] = pte->path[j]->type;
+      m->wrap_type[adr+j] = pte->path[j]->Type();
       m->wrap_objid[adr+j] = pte->path[j]->obj ? pte->path[j]->obj->id : -1;
       m->wrap_prm[adr+j] = (mjtNum)pte->path[j]->prm;
-      if (pte->path[j]->type == mjWRAP_SPHERE || pte->path[j]->type == mjWRAP_CYLINDER) {
+      if (pte->path[j]->Type() == mjWRAP_SPHERE || pte->path[j]->Type() == mjWRAP_CYLINDER) {
         m->wrap_prm[adr+j] = (mjtNum)pte->path[j]->sideid;
       }
     }
@@ -4542,26 +4535,41 @@ void mjCModel::ComputeReference() {
 
 
 
+// resize keyframes in the model
+void mjCModel::ExpandAllKeyframes() {
+  if (keys_.empty()) {
+    return;
+  }
+  SaveDofOffsets(/*computesize=*/true);
+  ComputeReference();
+  for (auto* key : keys_) {
+    ExpandKeyframe(key, qpos0.data(), body_pos0.data(), body_quat0.data());
+  }
+  nq = nv = na = nu = nmocap = 0;
+}
+
+
+
 // resizes a keyframe, filling in missing values
-void mjCModel::ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_,
+void mjCModel::ExpandKeyframe(mjCKey* key, const mjtNum* qpos0_,
                               const mjtNum* bpos, const mjtNum* bquat) {
-  if (!key->spec_qpos_.empty()) {
+  if (!key->spec_qpos_.empty() && nq > key->spec_qpos_.size()) {
     int nq0 = key->spec_qpos_.size();
     key->spec_qpos_.resize(nq);
     for (int i=nq0; i < nq; i++) {
       key->spec_qpos_[i] = (double)qpos0_[i];
     }
   }
-  if (!key->spec_qvel_.empty()) {
+  if (!key->spec_qvel_.empty() && nv > key->spec_qvel_.size()) {
     key->spec_qvel_.resize(nv);
   }
-  if (!key->spec_act_.empty()) {
+  if (!key->spec_act_.empty() && na > key->spec_act_.size()) {
     key->spec_act_.resize(na);
   }
-  if (!key->spec_ctrl_.empty()) {
+  if (!key->spec_ctrl_.empty() && nu > key->spec_ctrl_.size()) {
     key->spec_ctrl_.resize(nu);
   }
-  if (!key->spec_mpos_.empty()) {
+  if (!key->spec_mpos_.empty() && nmocap > key->spec_mpos_.size() / 3) {
     int nmocap0 = key->spec_mpos_.size() / 3;
     key->spec_mpos_.resize(3*nmocap);
     for (unsigned int j = 0; j < bodies_.size(); j++) {
@@ -4574,7 +4582,7 @@ void mjCModel::ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_,
       key->spec_mpos_[3*i+2] = (double)bpos[3*j+2];
     }
   }
-  if (!key->spec_mquat_.empty()) {
+  if (!key->spec_mquat_.empty() && nmocap > key->spec_mquat_.size() / 4) {
     int nmocap0 = key->spec_mquat_.size() / 4;
     key->spec_mquat_.resize(4*nmocap);
     for (unsigned int j = 0; j < bodies_.size(); j++) {
@@ -4691,6 +4699,9 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
     for (auto* obj : tuples_)    obj->NameSpace(this);
     for (auto* obj : plugins_)   obj->NameSpace(this);
   }
+  
+  // resize keyframes in case the spec was edited after the last attach
+  ExpandAllKeyframes();
 
   // create pending keyframes
   for (const auto& info : key_pending_) {
@@ -5012,78 +5023,98 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
 
 
 
-std::string mjCModel::PrintTree(const mjCBody* body, std::string indent) {
-  std::string tree;
-  tree += indent + "<body>\n";
-  indent += "  ";
+static void PrintIndent(std::stringstream& ss, int depth) {
+  // A static string of spaces, created only once during the program's lifetime.
+  static const std::string spaces(1024, ' ');
+
+  if (depth > 0) {
+    // Write 'depth * 2' spaces directly to the stringstream
+    // without creating any new std::string objects.
+    ss.write(spaces.c_str(), std::min((size_t)depth * 2, spaces.length()));
+  }
+}
+
+
+
+void mjCModel::PrintTree(std::stringstream& tree, const mjCBody* body, int depth) {
+  if (depth == 1024) {
+    throw mjCError(body, "depth limit exceeded in signature computation");
+  }
+  PrintIndent(tree, depth);
+  tree << "<body>\n";
   for (const auto& joint : body->joints) {
-    tree += indent + "<joint>" + std::to_string(joint->nq()) + "</joint>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<joint>" << std::to_string(joint->nq()) << "</joint>\n";
   }
   for (uint64_t i = 0; i < body->geoms.size(); ++i) {
-    tree += indent + "<geom/>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<geom/>\n";
   }
   for (uint64_t i = 0; i < body->sites.size(); ++i) {
-    tree += indent + "<site/>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<site/>\n";
   }
   for (uint64_t i = 0; i < body->cameras.size(); ++i) {
-    tree += indent + "<camera/>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<camera/>\n";
   }
   for (uint64_t i = 0; i < body->lights.size(); ++i) {
-    tree += indent + "<light/>\n";
+    PrintIndent(tree, depth + 1);
+    tree << "<light/>\n";
   }
   for (uint64_t i = 0; i < body->bodies.size(); ++i) {
-    tree += PrintTree(body->bodies[i], indent);
+    PrintTree(tree, body->bodies[i], depth + 1);
   }
-  indent.pop_back();
-  indent.pop_back();
-  tree += indent + "</body>\n";
-  return tree;
+  PrintIndent(tree, depth);
+  tree << "</body>\n";
 }
 
 
 
 uint64_t mjCModel::Signature() {
-  std::string tree = "\n" + PrintTree(bodies_[0]);
+  std::stringstream tree;
+  tree << "\n";
+  PrintTree(tree, bodies_[0]);
   for (unsigned int i = 0; i < flexes_.size(); ++i) {
-    tree += "<flex/>\n";
+    tree << "<flex/>\n";
   }
   for (unsigned int i = 0; i < meshes_.size(); ++i) {
-    tree += "<mesh/>\n";
+    tree << "<mesh/>\n";
   }
   for (unsigned int i = 0; i < skins_.size(); ++i) {
-    tree += "<skin/>\n";
+    tree << "<skin/>\n";
   }
   for (unsigned int i = 0; i < hfields_.size(); ++i) {
-    tree += "<heightfield/>\n";
+    tree << "<heightfield/>\n";
   }
   for (unsigned int i = 0; i < textures_.size(); ++i) {
-    tree += "<texture/>\n";
+    tree << "<texture/>\n";
   }
   for (unsigned int i = 0; i < materials_.size(); ++i) {
-    tree += "<material/>\n";
+    tree << "<material/>\n";
   }
   for (unsigned int i = 0; i < pairs_.size(); ++i) {
-    tree += "<pair/>\n";
+    tree << "<pair/>\n";
   }
   for (unsigned int i = 0; i < excludes_.size(); ++i) {
-    tree += "<exclude/>\n";
+    tree << "<exclude/>\n";
   }
   for (unsigned int i = 1; i < equalities_.size(); ++i) {
-    tree += "<equality/>\n";
+    tree << "<equality/>\n";
   }
   for (unsigned int i = 0; i < tendons_.size(); ++i) {
-    tree += "<tendon/>\n";
+    tree << "<tendon/>\n";
   }
   for (unsigned int i = 0; i < actuators_.size(); ++i) {
-    tree += "<actuator/>\n";
+    tree << "<actuator/>\n";
   }
   for (unsigned int i = 0; i < sensors_.size(); ++i) {
-    tree += "<sensor>" + std::to_string(sensors_[i]->spec.type) + "<sensor/>\n";
+    tree << "<sensor>" << std::to_string(sensors_[i]->spec.type) << "<sensor/>\n";
   }
   for (unsigned int i = 0; i < keys_.size(); ++i) {
-    tree += "<key/>\n";
+    tree << "<key/>\n";
   }
-  return mj_hashString(tree.c_str(), UINT64_MAX);
+  return mj_hashString(tree.str().c_str(), UINT64_MAX);
 }
 
 

@@ -151,6 +151,8 @@ typedef struct mjsCompiler_ {      // compiler options
   mjtByte saveinertial;            // save explicit inertial clause for all bodies to XML
   int alignfree;                   // align free joints with inertial frame
   mjLROpt LRopt;                   // options for lengthrange computation
+  mjString* meshdir;               // mesh and hfield directory
+  mjString* texturedir;            // texture directory
 } mjsCompiler;
 
 
@@ -161,8 +163,6 @@ typedef struct mjSpec_ {           // model specification
   // compiler data
   mjsCompiler compiler;            // compiler options
   mjtByte strippath;               // automatically strip paths from mesh files
-  mjString* meshdir;               // mesh and hfield directory
-  mjString* texturedir;            // texture directory
 
   // engine data
   mjOption option;                 // physics options
@@ -437,6 +437,7 @@ typedef struct mjsFlex_ {          // flex specification
   mjtByte flatskin;                // render flex skin with flat shading
   int selfcollide;                 // mode for flex self collision
   int vertcollide;                 // mode for vertex collision
+  int passive;                     // mode for passive collisions
   int activelayers;                // number of active element layers in 3D
   int group;                       // group for visualizatioh
   double edgestiffness;            // edge stiffness
@@ -478,6 +479,7 @@ typedef struct mjsMesh_ {          // mesh specification
   mjFloatVec* usernormal;          // user normal data
   mjFloatVec* usertexcoord;        // user texcoord data
   mjIntVec* userface;              // user vertex indices
+  mjIntVec* userfacenormal;        // user face normal indices
   mjIntVec* userfacetexcoord;      // user texcoord indices
   mjsPlugin plugin;                // sdf plugin
   mjString* material;              // name of material
@@ -650,6 +652,7 @@ typedef struct mjsTendon_ {        // tendon specification
 
 typedef struct mjsWrap_ {          // wrapping object specification
   mjsElement* element;             // element type
+  mjtWrap type;                    // wrap type
   mjString* info;                  // message appended to errors
 } mjsWrap;
 

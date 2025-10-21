@@ -85,6 +85,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
+    ('mjCache',
+     StructDecl(
+         name='mjCache',
+         declname='struct mjCache_',
+         fields=(
+             StructFieldDecl(
+                 name='impl_',
+                 type=PointerType(
+                     inner_type=ValueType(name='void'),
+                 ),
+                 doc='internal pointer to cache',
+             ),
+         ),
+     )),
     ('mjVFS',
      StructDecl(
          name='mjVFS',
@@ -108,11 +122,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='timestep',
                  type=ValueType(name='mjtNum'),
                  doc='timestep',
-             ),
-             StructFieldDecl(
-                 name='apirate',
-                 type=ValueType(name='mjtNum'),
-                 doc='update rate for remote API (Hz)',
              ),
              StructFieldDecl(
                  name='impratio',
@@ -2510,6 +2519,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flex_passive',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='passive collisions enabled',
+                 array_extent=('nflex',),
+             ),
+             StructFieldDecl(
                  name='flex_dim',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
@@ -4878,7 +4895,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='exclude',
                  type=ValueType(name='int'),
-                 doc='0: include, 1: in gap, 2: fused, 3: no dofs',
+                 doc='0: include, 1: in gap, 2: fused, 3: no dofs, 4: passive',
              ),
              StructFieldDecl(
                  name='efc_address',
@@ -4986,12 +5003,12 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='pstack',
                  type=ValueType(name='size_t'),
-                 doc='first available byte in stack',
+                 doc='first available byte in stack (mutable)',
              ),
              StructFieldDecl(
                  name='pbase',
                  type=ValueType(name='size_t'),
-                 doc='value of pstack when mj_markStack was last called',
+                 doc='value of pstack when mj_markStack was last called (mutable)',  # pylint: disable=line-too-long
              ),
              StructFieldDecl(
                  name='parena',
@@ -5001,7 +5018,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='maxuse_stack',
                  type=ValueType(name='mjtSize'),
-                 doc='maximum stack allocation in bytes',
+                 doc='maximum stack allocation in bytes (mutable)',
              ),
              StructFieldDecl(
                  name='maxuse_threadstack',
@@ -5064,7 +5081,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjWarningStat'),
                      extents=(8,),
                  ),
-                 doc='warning statistics',
+                 doc='warning statistics (mutable)',
              ),
              StructFieldDecl(
                  name='timer',
@@ -6676,6 +6693,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
          declname='struct mjvLight_',
          fields=(
              StructFieldDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+                 doc='light id, -1 for headlight',
+             ),
+             StructFieldDecl(
                  name='pos',
                  type=ArrayType(
                      inner_type=ValueType(name='float'),
@@ -7111,6 +7133,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(3,),
                  ),
                  doc='frame color',
+             ),
+             StructFieldDecl(
+                 name='status',
+                 type=ValueType(name='int'),
+                 doc='status; 0: ok, 1: geoms exhausted',
              ),
          ),
      )),
@@ -7901,6 +7928,20 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=ValueType(name='mjLROpt'),
                  doc='options for lengthrange computation',
              ),
+             StructFieldDecl(
+                 name='meshdir',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='mesh and hfield directory',
+             ),
+             StructFieldDecl(
+                 name='texturedir',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjString'),
+                 ),
+                 doc='texture directory',
+             ),
          ),
      )),
     ('mjSpec',
@@ -7931,20 +7972,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='strippath',
                  type=ValueType(name='mjtByte'),
                  doc='automatically strip paths from mesh files',
-             ),
-             StructFieldDecl(
-                 name='meshdir',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjString'),
-                 ),
-                 doc='mesh and hfield directory',
-             ),
-             StructFieldDecl(
-                 name='texturedir',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjString'),
-                 ),
-                 doc='texture directory',
              ),
              StructFieldDecl(
                  name='option',
@@ -9126,6 +9153,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='mode for vertex collision',
              ),
              StructFieldDecl(
+                 name='passive',
+                 type=ValueType(name='int'),
+                 doc='mode for passive collisions',
+             ),
+             StructFieldDecl(
                  name='activelayers',
                  type=ValueType(name='int'),
                  doc='number of active element layers in 3D',
@@ -9340,6 +9372,13 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjIntVec'),
                  ),
                  doc='user vertex indices',
+             ),
+             StructFieldDecl(
+                 name='userfacenormal',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjIntVec'),
+                 ),
+                 doc='user face normal indices',
              ),
              StructFieldDecl(
                  name='userfacetexcoord',
@@ -10102,6 +10141,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjsElement'),
                  ),
                  doc='element type',
+             ),
+             StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='mjtWrap'),
+                 doc='wrap type',
              ),
              StructFieldDecl(
                  name='info',

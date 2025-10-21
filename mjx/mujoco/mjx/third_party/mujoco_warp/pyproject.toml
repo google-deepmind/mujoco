@@ -1,0 +1,104 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name="mujoco-warp"
+version = "0.0.1"
+# TODO(team): create a distribution list
+authors = [
+    {name = "Newton Developers", email = "mujoco@deepmind.com"},
+]
+description = "MuJoCo Warp (MJWarp)"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = "Apache-2.0"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "absl-py",
+    "etils[epath]",
+    "mujoco>=3.3.6.dev802089588",
+    "numpy",
+    "warp-lang>=1.9.0.dev20250825",
+]
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
+explicit = true
+
+[[tool.uv.index]]
+name = "mujoco"
+url = "https://py.mujoco.org/"
+explicit = true
+
+[tool.uv.sources]
+warp-lang = {index = "nvidia"}
+mujoco = {index = "mujoco"}
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+    "pytest",
+    "pytest-xdist",
+    "ruff",
+    "pygls>=1.0.0,<2.0.0",
+    "lsprotocol>=2023.0.1,<2024.0.0",
+]
+# TODO(team): cpu and cuda JAX optional dependencies are temporary, remove after we land MJX:Warp
+cpu = [
+    "jax"
+]
+cuda = [
+    "jax[cuda12]"
+]
+
+[project.scripts]
+mjwarp-testspeed = "mujoco_warp.testspeed:main"
+mjwarp-viewer = "mujoco_warp.viewer:main"
+
+[project.urls]
+Homepage = "https://github.com/google-deepmind/mujoco_warp"
+Documentation = "https://mujoco.readthedocs.io"
+Repository = "https://github.com/google-deepmind/mujoco_warp"
+Changelog = "https://mujoco.readthedocs.io/en/stable/changelog.html"
+
+[tool.ruff]
+line-length = 128
+indent-width = 2
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = [
+    "I",  # isort
+    "W",  # pycodestyle
+]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+single-line-exclusions = ["typing"]
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 100
+max-line-length = 128
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 100
+
+[tool.setuptools]
+package-data = { "mujoco_warp" = ["test_data/**"] }
+
+[tool.setuptools.packages.find]
+include = ["mujoco_warp*"]

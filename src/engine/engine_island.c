@@ -22,9 +22,8 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
-#include "engine/engine_core_constraint.h"
-#include "engine/engine_io.h"
-#include "engine/engine_support.h"
+#include "engine/engine_core_util.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_sparse.h"
@@ -54,7 +53,6 @@ static void clearIsland(mjData* d, size_t parena) {
 }
 
 
-
 // allocate island arrays on arena, return 1 on success, 0 on failure
 static int arenaAllocIsland(const mjModel* m, mjData* d) {
 #undef MJ_M
@@ -82,7 +80,6 @@ static int arenaAllocIsland(const mjModel* m, mjData* d) {
 #define MJ_D(n) n
   return 1;
 }
-
 
 
 //-------------------------- flood-fill and graph construction  ------------------------------------
@@ -140,7 +137,6 @@ int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, cons
 }
 
 
-
 // return id of next tree in Jacobian row i that is different from tree, -1 if not found
 //   start search from *index
 //   write the index of the found tree to *index
@@ -187,7 +183,6 @@ static int treeNext(const mjModel* m, const mjData* d, int tree, int i, int *ind
 
   return tree_next;
 }
-
 
 
 // find first and possibly second nonegative tree ids in Jacobian row i
@@ -285,7 +280,6 @@ static int treeFirst(const mjModel* m, const mjData* d, int tree[2], int i) {
 }
 
 
-
 // add 0 edges, 1 self-edge or 2 flipped edges to array, increment treenedge
 //   return current number of edges
 static int addEdge(int* treenedge, int* edge, int nedge, int tree1, int tree2, int nedge_max) {
@@ -342,7 +336,6 @@ static int addEdge(int* treenedge, int* edge, int nedge, int tree1, int tree2, i
   treenedge[tree2]++;
   return nedge + 2;
 }
-
 
 
 // find tree-tree edges, increment treenedge counters, return total number of edges
@@ -402,7 +395,6 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
 }
 
 
-
 //-------------------------- main entry-point  -----------------------------------------------------
 
 // discover islands:
@@ -411,7 +403,7 @@ void mj_island(const mjModel* m, mjData* d) {
   int nv = m->nv, nefc = d->nefc, ntree=m->ntree;
 
   // no constraints: quick return
-  if (!mjENABLED(mjENBL_ISLAND) || !nefc) {
+  if (mjDISABLED(mjDSBL_ISLAND) || !nefc) {
     d->nisland = d->nidof = 0;
     return;
   }
@@ -454,7 +446,7 @@ void mj_island(const mjModel* m, mjData* d) {
     return;
   }
 
-  // count ni: total number of dofs in islands
+  // count nidof: total number of dofs in islands
   int nidof = 0;
   for (int i=0; i < nv; i++) {
     nidof += (tree_island[m->dof_treeid[i]] >= 0);

@@ -70,7 +70,7 @@
       tmp = src; src = dest; dest = tmp;                                                           \
     }                                                                                              \
     if (src != arr) memcpy(arr, src, n * sizeof(type));                                            \
-  }
+  } static inline void name(type* arr, type* buf, int n, void* context)
 
 
 // sub-macro that sifts down a node in a max heap to its correct position
@@ -106,6 +106,6 @@
     /* copy back and sort the result */                                                            \
     for (int j = 0; j < k; j++) arr[j] = buf[j];                                                   \
     _mjINSERTION_SORT(type, arr, 0, k, cmp, context);                                              \
-  }
+  } static inline void name(type* arr, type* buf, int n, int k, void* context)
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_SORT_H_

@@ -349,9 +349,91 @@ TEST_F(UtilMiscTest, MjuSparseLower2SymMapPartial) {
   EXPECT_THAT(AsVector(mat_res, res_nnz), ElementsAre(1, 2, 0, 2, 3, 0, 6));
 }
 
+TEST_F(UtilMiscTest, MjuIsZero) {
+  mjtNum vec[1] = {1};
+  EXPECT_EQ(mju_isZero(vec, 1), 0);
+  EXPECT_EQ(mju_isZero(vec, 0), 1);
+  vec[0] = 0;
+  EXPECT_EQ(mju_isZero(vec, 1), 1);
+  vec[0] = -0.0;
+  EXPECT_EQ(mju_isZero(vec, 1), 1);
+  EXPECT_EQ(mju_isZeroByte((const unsigned char*)vec, sizeof(mjtNum)), 0);
+}
+
+TEST_F(UtilMiscTest, MjuIsZeroByte) {
+  // Zero length array
+  EXPECT_TRUE(mju_isZeroByte(nullptr, 0));
+
+  // zero length array with non-null pointer
+  unsigned char vec0[1] = {0};
+  EXPECT_TRUE(mju_isZeroByte(vec0, sizeof(vec0)));
+
+  // one zero element array
+  unsigned char vec1[1] = {0};
+  EXPECT_TRUE(mju_isZeroByte(vec1, sizeof(vec1)));
+
+  // one non-zero element array
+  unsigned char vec2[2] = {1};
+  EXPECT_FALSE(mju_isZeroByte(vec2, sizeof(vec2)));
+
+  // Non-zero at start
+  unsigned char vec3[3] = {1, 0, 0};
+  EXPECT_FALSE(mju_isZeroByte(vec3, sizeof(vec3)));
+
+  // Non-zero at end
+  unsigned char vec4[3] = {0, 0, 1};
+  EXPECT_FALSE(mju_isZeroByte(vec4, sizeof(vec4)));
+
+  // Non-zero in middle
+  unsigned char vec5[3] = {0, 1, 0};
+  EXPECT_FALSE(mju_isZeroByte(vec5, sizeof(vec5)));
+}
+
 // --------------------------------- Interpolation -----------------------------
 
 using InterpolationTest = MujocoTest;
+
+TEST_F(InterpolationTest, mju_interpolate3D) {
+  // quadratic functions should be interpolated exactly if order = 2
+  auto quadratic_function_1 = [](mjtNum x, mjtNum y, mjtNum z) {
+    return x*x + y*y + z*z;
+  };
+  auto quadratic_function_2 = [](mjtNum x, mjtNum y, mjtNum z) {
+    return x*y*z + y*z*z + x*z*z;
+  };
+  auto quadratic_function_3 = [](mjtNum x, mjtNum y, mjtNum z) {
+    return x*y*z + y*z*z + x*z*z + y*y*z + x*x*z + x + y + z;
+  };
+  static constexpr int order = 2;
+  mjtNum coeff[3*(order+1)*(order+1)*(order+1)];
+  int index = 0;
+  for (int i = 0; i <= order; ++i) {
+    for (int j = 0; j <= order; ++j) {
+      for (int k = 0; k <= order; ++k) {
+        coeff[3*index+0] = quadratic_function_1(.5*i, .5*j, .5*k);
+        coeff[3*index+1] = quadratic_function_2(.5*i, .5*j, .5*k);
+        coeff[3*index+2] = quadratic_function_3(.5*i, .5*j, .5*k);
+        index++;
+      }
+    }
+  }
+  static constexpr int nsample = 5;
+  for (int i = 0; i < nsample; ++i) {
+    mjtNum sample[3];
+    mjtNum expected[3];
+    mjtNum res[3] = {0};
+    sample[0] = mju_Halton(i, 2);
+    sample[1] = mju_Halton(i, 3);
+    sample[2] = mju_Halton(i, 5);
+    expected[0] = quadratic_function_1(sample[0], sample[1], sample[2]);
+    expected[1] = quadratic_function_2(sample[0], sample[1], sample[2]);
+    expected[2] = quadratic_function_3(sample[0], sample[1], sample[2]);
+    mju_interpolate3D(res, sample, coeff, order);
+    EXPECT_NEAR(res[0], expected[0], 1e-10);
+    EXPECT_NEAR(res[1], expected[1], 1e-10);
+    EXPECT_NEAR(res[2], expected[2], 1e-10);
+  }
+}
 
 TEST_F(InterpolationTest, mju_defGradient) {
   int order = 1;

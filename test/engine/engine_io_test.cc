@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests for engine/engine_io.c.
+// Tests for engine/{engine_io.c and engine_memory.c}.
 
 #include "src/engine/engine_io.h"
+#include "src/engine/engine_memory.h"
 
 #include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
 #include <vector>
 

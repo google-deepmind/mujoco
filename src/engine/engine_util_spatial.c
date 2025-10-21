@@ -14,6 +14,8 @@
 
 #include "engine/engine_util_spatial.h"
 
+#include <math.h>
+
 #include <mujoco/mjmodel.h>
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -50,7 +52,6 @@ void mju_rotVecQuat(mjtNum res[3], const mjtNum vec[3], const mjtNum quat[4]) {
 }
 
 
-
 // negate quaternion
 void mju_negQuat(mjtNum res[4], const mjtNum quat[4]) {
   res[0] = quat[0];
@@ -58,7 +59,6 @@ void mju_negQuat(mjtNum res[4], const mjtNum quat[4]) {
   res[2] = -quat[2];
   res[3] = -quat[3];
 }
-
 
 
 // multiply quaternions
@@ -76,7 +76,6 @@ void mju_mulQuat(mjtNum res[4], const mjtNum qa[4], const mjtNum qb[4]) {
 }
 
 
-
 // multiply quaternion and axis
 void mju_mulQuatAxis(mjtNum res[4], const mjtNum quat[4], const mjtNum axis[3]) {
   mjtNum tmp[4] = {
@@ -90,7 +89,6 @@ void mju_mulQuatAxis(mjtNum res[4], const mjtNum quat[4], const mjtNum axis[3]) 
   res[2] = tmp[2];
   res[3] = tmp[3];
 }
-
 
 
 // convert axisAngle to quaternion
@@ -114,7 +112,6 @@ void mju_axisAngle2Quat(mjtNum res[4], const mjtNum axis[3], mjtNum angle) {
 }
 
 
-
 // convert quaternion (corresponding to orientation difference) to 3D velocity
 void mju_quat2Vel(mjtNum res[3], const mjtNum quat[4], mjtNum dt) {
   mjtNum axis[3] = {quat[1], quat[2], quat[3]};
@@ -131,7 +128,6 @@ void mju_quat2Vel(mjtNum res[3], const mjtNum quat[4], mjtNum dt) {
 }
 
 
-
 // Subtract quaternions, express as 3D velocity: qb*quat(res) = qa.
 void mju_subQuat(mjtNum res[3], const mjtNum qa[4], const mjtNum qb[4]) {
   // qdif = neg(qb)*qa
@@ -142,7 +138,6 @@ void mju_subQuat(mjtNum res[3], const mjtNum qa[4], const mjtNum qb[4]) {
   // convert to 3D velocity
   mju_quat2Vel(res, qdif, 1);
 }
-
 
 
 // convert quaternion to 3D rotation matrix
@@ -187,7 +182,6 @@ void mju_quat2Mat(mjtNum res[9], const mjtNum quat[4]) {
 }
 
 
-
 // convert 3D rotation matrix to quaternion
 void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]) {
   // q0 largest
@@ -226,7 +220,6 @@ void mju_mat2Quat(mjtNum quat[4], const mjtNum mat[9]) {
 }
 
 
-
 // time-derivative of quaternion, given 3D rotational velocity
 void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]) {
   res[0] = 0.5*(-vel[0]*quat[1] - vel[1]*quat[2] - vel[2]*quat[3]);
@@ -234,7 +227,6 @@ void mju_derivQuat(mjtNum res[4], const mjtNum quat[4], const mjtNum vel[3]) {
   res[2] = 0.5*(-vel[0]*quat[3] + vel[1]*quat[0] + vel[2]*quat[1]);
   res[3] = 0.5*( vel[0]*quat[2] - vel[1]*quat[1] + vel[2]*quat[0]);
 }
-
 
 
 // integrate quaternion given 3D angular velocity
@@ -248,7 +240,6 @@ void mju_quatIntegrate(mjtNum quat[4], const mjtNum vel[3], mjtNum scale) {
   mju_normalize4(quat);
   mju_mulQuat(quat, quat, qrot);
 }
-
 
 
 // compute quaternion performing rotation from z-axis to given vector
@@ -283,7 +274,6 @@ void mju_quatZ2Vec(mjtNum quat[4], const mjtNum vec[3]) {
   a = mju_atan2(a, mju_dot3(vn, z));
   mju_axisAngle2Quat(quat, axis, a);
 }
-
 
 
 // extract 3D rotation from an arbitrary 3x3 matrix
@@ -326,7 +316,6 @@ int mju_mat2Rot(mjtNum quat[4], const mjtNum mat[9]) {
 }
 
 
-
 //------------------------------ pose operations (quat, pos) ---------------------------------------
 
 // multiply two poses
@@ -343,7 +332,6 @@ void mju_mulPose(mjtNum posres[3], mjtNum quatres[4],
 }
 
 
-
 // negate pose
 void mju_negPose(mjtNum posres[3], mjtNum quatres[4], const mjtNum pos[3], const mjtNum quat[4]) {
   // qres = neg(quat)
@@ -355,14 +343,12 @@ void mju_negPose(mjtNum posres[3], mjtNum quatres[4], const mjtNum pos[3], const
 }
 
 
-
 // transform vector by pose
 void mju_trnVecPose(mjtNum res[3], const mjtNum pos[3], const mjtNum quat[4], const mjtNum vec[3]) {
   // res = quat*vec + pos
   mju_rotVecQuat(res, vec, quat);
   mju_addTo3(res, pos);
 }
-
 
 
 //------------------------------ spatial algebra ---------------------------------------------------
@@ -380,7 +366,6 @@ void mju_cross(mjtNum res[3], const mjtNum a[3], const mjtNum b[3]) {
 }
 
 
-
 // cross-product for motion vector
 void mju_crossMotion(mjtNum res[6], const mjtNum vel[6], const mjtNum v[6]) {
   res[0] = -vel[2]*v[1] + vel[1]*v[2];
@@ -396,7 +381,6 @@ void mju_crossMotion(mjtNum res[6], const mjtNum vel[6], const mjtNum v[6]) {
 }
 
 
-
 // cross-product for force vectors
 void mju_crossForce(mjtNum res[6], const mjtNum vel[6], const mjtNum f[6]) {
   res[0] = -vel[2]*f[1] + vel[1]*f[2];
@@ -410,7 +394,6 @@ void mju_crossForce(mjtNum res[6], const mjtNum vel[6], const mjtNum f[6]) {
   res[1] +=  vel[5]*f[3] - vel[3]*f[5];
   res[2] += -vel[4]*f[3] + vel[3]*f[4];
 }
-
 
 
 // express inertia in com-based frame
@@ -447,9 +430,8 @@ void mju_inertCom(mjtNum res[10], const mjtNum inert[3], const mjtNum mat[9],
 }
 
 
-
 // multiply 6D vector (rotation, translation) by 6D inertia matrix
-void mju_mulInertVec(mjtNum res[6], const mjtNum i[10], const mjtNum v[6]) {
+void mju_mulInertVec(mjtNum* restrict res, const mjtNum i[10], const mjtNum v[6]) {
   res[0] = i[0]*v[0] + i[3]*v[1] + i[4]*v[2] - i[8]*v[4] + i[7]*v[5];
   res[1] = i[3]*v[0] + i[1]*v[1] + i[5]*v[2] + i[8]*v[3] - i[6]*v[5];
   res[2] = i[4]*v[0] + i[5]*v[1] + i[2]*v[2] - i[7]*v[3] + i[6]*v[4];
@@ -457,7 +439,6 @@ void mju_mulInertVec(mjtNum res[6], const mjtNum i[10], const mjtNum v[6]) {
   res[4] = i[6]*v[2] - i[8]*v[0] + i[9]*v[4];
   res[5] = i[7]*v[0] - i[6]*v[1] + i[9]*v[5];
 }
-
 
 
 // express motion axis in com-based frame
@@ -476,7 +457,6 @@ void mju_dofCom(mjtNum res[6], const mjtNum axis[3], const mjtNum offset[3]) {
 }
 
 
-
 // multiply dof matrix (6-by-n, transposed) by vector (n-by-1)
 void mju_mulDofVec(mjtNum* res, const mjtNum* dof, const mjtNum* vec, int n) {
   if (n == 1) {
@@ -487,7 +467,6 @@ void mju_mulDofVec(mjtNum* res, const mjtNum* dof, const mjtNum* vec, int n) {
     mju_mulMatTVec(res, dof, vec, n, 6);
   }
 }
-
 
 
 // transform 6D motion or force vector between frames
@@ -524,7 +503,6 @@ void mju_transformSpatial(mjtNum res[6], const mjtNum vec[6], int flg_force,
 }
 
 
-
 // make 3D frame given X axis (normal) and possibly Y axis (tangent 1)
 void mju_makeFrame(mjtNum frame[9]) {
   mjtNum tmp[3];
@@ -553,7 +531,6 @@ void mju_makeFrame(mjtNum frame[9]) {
   // zaxis = cross(xaxis, yaxis)
   mju_cross(frame+6, frame, frame+3);
 }
-
 
 
 // convert sequence of Euler angles (radians) to quaternion

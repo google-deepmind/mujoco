@@ -28,7 +28,7 @@ namespace {
 
 using ::testing::DoubleNear;
 using ::testing::NotNull;
-using ::std::abs;
+using ::testing::Pointwise;
 using ::std::max;
 
 using SolverTest = MujocoTest;
@@ -83,10 +83,10 @@ TEST_F(SolverTest, IslandsEquivalent) {
         mj_getState(model, data_noisland, state, mjSTATE_INTEGRATION);
         mj_setState(model, data_island, state, mjSTATE_INTEGRATION);
 
-        model->opt.enableflags |= mjENBL_ISLAND;  // enable islands
+        model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
         mj_forward(model, data_island);
 
-        model->opt.enableflags &= ~mjENBL_ISLAND;  // disable islands
+        model->opt.disableflags |= mjDSBL_ISLAND;  // disable islands
         mj_forward(model, data_noisland);
 
         auto time = std::to_string(data_noisland->time);
@@ -113,43 +113,58 @@ TEST_F(SolverTest, IslandsEquivalent) {
   mj_deleteModel(model);
 }
 
-// compare accelerations produced by CG solver with and without islands
+// compare accelerations produced by CG/Newton solver with and without islands
 TEST_F(SolverTest, IslandsEquivalentForward) {
   const std::string xml_path = GetTestDataFilePath(kModelPath);
   char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
-  model->opt.solver = mjSOL_CG;                 // use CG solver
+  int nv = model->nv;
   model->opt.tolerance = 0;                     // set tolerance to 0
   model->opt.ls_tolerance = 0;                  // set ls_tolerance to 0
-
-  mjtNum rtol = 3e-6;
 
   mjData* data_island = mj_makeData(model);
   mjData* data_noisland = mj_makeData(model);
 
-  for (bool coldstart : {true, false}) {
-    mj_resetDataKeyframe(model, data_island, 0);
-    mj_resetDataKeyframe(model, data_noisland, 0);
+  for (bool warmstart : {false, true}) {
+    for (mjtJacobian jacobian : {mjJAC_DENSE, mjJAC_SPARSE}) {
+      for (mjtSolver solver : {mjSOL_CG, mjSOL_NEWTON}) {
+        for (mjtCone cone : {mjCONE_PYRAMIDAL, mjCONE_ELLIPTIC}) {
+          if (warmstart) {
+            model->opt.disableflags &= ~mjDSBL_WARMSTART;
+          } else {
+            model->opt.disableflags |= mjDSBL_WARMSTART;
+          }
+          model->opt.jacobian = jacobian;
+          model->opt.solver = solver;
+          model->opt.cone = cone;
 
-    if (coldstart) {
-      model->opt.disableflags |= mjDSBL_WARMSTART;
-    } else {
-      model->opt.disableflags &= ~mjDSBL_WARMSTART;
-    }
+          // disable islands, reset and step both datas to populate warmstart
+          model->opt.disableflags |= mjDSBL_ISLAND;
+          mj_resetDataKeyframe(model, data_island, 0);
+          mj_resetDataKeyframe(model, data_noisland, 0);
+          mj_step(model, data_island);
+          mj_step(model, data_noisland);
 
-    model->opt.enableflags &= ~mjENBL_ISLAND;  // disable islands
-    mj_forward(model, data_noisland);
+          // forward with islands disabled
+          mj_forward(model, data_noisland);
 
-    model->opt.enableflags |= mjENBL_ISLAND;   // enable islands
-    mj_forward(model, data_island);
-    for (int j = 0; j < model->nv; j++) {
-      mjtNum scale = 0.5 * max(2.0, abs(data_noisland->qacc[j]) +
-                                    abs(data_island->qacc[j]));
-      EXPECT_THAT(data_noisland->qacc[j],
-                  DoubleNear(data_island->qacc[j], scale * rtol))
-          << "dof: " << j << '\n'
-          << "rtol: " << scale * rtol;
+          // forward with islands enabled
+          model->opt.disableflags &= ~mjDSBL_ISLAND;   // enable islands
+          mj_forward(model, data_island);
+
+          mjtNum scale = 0.5 * (mju_norm(data_noisland->qacc, nv) +
+                                mju_norm(data_island->qacc, nv));
+          mjtNum tol = scale * (solver == mjSOL_CG ? 1e-6 : 1e-8);
+          EXPECT_THAT(AsVector(data_island->qacc, nv),
+                      Pointwise(DoubleNear(scale * tol),
+                                AsVector(data_noisland->qacc, nv)))
+              << "warmstart: " << warmstart << '\n'
+              << "jacobian: " << (jacobian ? "sparse" : "dense") << '\n'
+              << "solver: " << (solver == mjSOL_CG ? "CG" : "Newton") << '\n'
+              << "cone: " << (cone == 1 ? "elliptic" : "pyramidal");
+        }
+      }
     }
   }
 

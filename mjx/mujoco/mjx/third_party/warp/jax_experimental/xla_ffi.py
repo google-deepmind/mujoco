@@ -475,16 +475,25 @@ _xla_data_type_to_constructor = {
     XLA_FFI_DataType.C64: jnp.complex64,
     XLA_FFI_DataType.C128: jnp.complex128,
     # XLA_FFI_DataType.TOKEN
-    XLA_FFI_DataType.F8E5M2: jnp.float8_e5m2,
-    XLA_FFI_DataType.F8E3M4: jnp.float8_e3m4,
-    XLA_FFI_DataType.F8E4M3: jnp.float8_e4m3,
-    XLA_FFI_DataType.F8E4M3FN: jnp.float8_e4m3fn,
-    XLA_FFI_DataType.F8E4M3B11FNUZ: jnp.float8_e4m3b11fnuz,
-    XLA_FFI_DataType.F8E5M2FNUZ: jnp.float8_e5m2fnuz,
-    XLA_FFI_DataType.F8E4M3FNUZ: jnp.float8_e4m3fnuz,
     # XLA_FFI_DataType.F4E2M1FN: jnp.float4_e2m1fn.dtype,
     # XLA_FFI_DataType.F8E8M0FNU: jnp.float8_e8m0fnu.dtype,
 }
+
+# newer types not supported by older versions
+if hasattr(jnp, "float8_e5m2"):
+    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E5M2] = jnp.float8_e5m2
+if hasattr(jnp, "float8_e3m4"):
+    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E3M4] = jnp.float8_e3m4
+if hasattr(jnp, "float8_e4m3"):
+    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E4M3] = jnp.float8_e4m3
+if hasattr(jnp, "float8_e4m3fn"):
+    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E4M3FN] = jnp.float8_e4m3fn
+if hasattr(jnp, "float8_e4m3b11fnuz"):
+    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E4M3B11FNUZ] = jnp.float8_e4m3b11fnuz
+if hasattr(jnp, "float8_e5m2fnuz"):
+    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E5M2FNUZ] = jnp.float8_e5m2fnuz
+if hasattr(jnp, "float8_e4m3fnuz"):
+    _xla_data_type_to_constructor[XLA_FFI_DataType.F8E4M3FNUZ] = jnp.float8_e4m3fnuz
 
 
 ########################################################################

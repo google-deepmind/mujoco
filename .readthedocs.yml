@@ -3,16 +3,29 @@
 
 version: 2
 
+# TODO(robotics-simulation): pdf format fails to build on readthedocs
+# formats:
+#   - pdf
+
 build:
-  os: ubuntu-20.04
+  os: ubuntu-24.04
   tools:
-    python: "3.10"
+    python: "3.12"
+  jobs:
+    create_environment:
+      - asdf plugin add uv
+      - asdf install uv latest
+      - asdf global uv latest
+      - uv venv $READTHEDOCS_VIRTUALENV_PATH
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install -r doc/requirements.txt
+      # replace mujoco.mjx.third_party.mujoco_warp import paths with mujoco_warp
+      - |
+        find mjx/mujoco/mjx/third_party/mujoco_warp -type f -exec sed -i 's/mujoco\.mjx\.third_party\.mujoco_warp/mujoco_warp/g' {} \;
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install mjx/mujoco/mjx/third_party/mujoco_warp
+    install:
+      - "true"  # skip
 
 sphinx:
   builder: html
   configuration: doc/conf.py
   fail_on_warning: false
-
-python:
-  install:
-    - requirements: doc/requirements.txt

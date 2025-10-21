@@ -25,6 +25,12 @@ Add file to VFS. The directory argument is optional and can be NULL or empty. Re
 
 *Nullable:* ``directory``
 
+
+.. Assetcache:
+
+The asset cache is a mechanism for caching assets (e.g. textures, meshes, etc.) to avoid repeated slow recompilation.
+The following methods provide way to control the capacity of the cache or to disable it altogether.
+
 .. _Parseandcompile:
 
 The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and compiler, and either returns a pointer to
@@ -188,6 +194,12 @@ correspond to element fields of :ref:`mjtState`.
 
 Copy concatenated state components specified by ``sig`` from ``d`` into ``state``. The bits of the integer
 ``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
+
+.. _mj_extractState:
+
+Extract into ``dst`` the subset of components specified by ``dstsig`` from a state ``src`` previously obtained via
+:ref:`mj_getState` with components specified by ``srcsig``. Fails with :ref:`mju_error` if the bits set in ``dstsig``
+is not a subset of the bits set in ``srcsig``.
 
 .. _mj_setState:
 
