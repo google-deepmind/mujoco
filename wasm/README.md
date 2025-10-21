@@ -56,19 +56,18 @@ Once the C++ files are generated (note that, for convenience, we already provide
 
 ```sh
 # Run this inside the `wasm` folder
-WASM_DIR=$(pwd) && PROJECT_ROOT=$(dirname "$WASM_DIR") && \
-export PATH="${WASM_DIR}/node_modules/.bin:$PATH" && \
-emcmake cmake -S "$PROJECT_ROOT" -B "$PROJECT_ROOT/build" && \
-cmake --build "$PROJECT_ROOT/build" && \
-emcmake cmake -S "$WASM_DIR" -B "$WASM_DIR/build" && \
-cmake --build "$WASM_DIR/build"
+export PATH="./node_modules/.bin:$PATH" && \
+emcmake cmake -S .. -B ../build && \
+cmake --build ../build && \
+emcmake cmake -S . -B build && \
+cmake --build build
 ```
 
-The above command will generate the following folders (if you want to start from a clean slate you need to delete these):
+The above command will generate the following folders:
 
-- `$PROJECT_ROOT/build`: the result of compiling MuJoCo with Emscripten.
-- `$PROJECT_ROOT/wasm/build`: the result of compiling the MuJoCo bindings with Emscripten.
-- `$PROJECT_ROOT/wasm/dist`: the MuJoCo WebAssembly module. To use it, import the `.js` file.
+- `../build`: the result of compiling MuJoCo with Emscripten.
+- `../wasm/build`: the result of compiling the MuJoCo bindings with Emscripten.
+- `../wasm/dist`: the MuJoCo WebAssembly module. To use it, import the `.js` file.
 
 ### Example Application
 
@@ -94,34 +93,31 @@ If you choose to write your application in C++ and compile it using Emscripten, 
 
    ```sh
    # Run this inside the `wasm` folder
-   WASM_DIR=$(pwd) && \
-   export PATH="${WASM_DIR}/node_modules/.bin:$PATH" && \
-   emcmake cmake -S "$WASM_DIR/tests" -B "$WASM_DIR/tests/build" && \
-   cmake --build "$WASM_DIR/tests/build" && \
+   export PATH="./node_modules/.bin:$PATH" && \
+   emcmake cmake -S tests -B tests/build && \
+   cmake --build tests/build && \
    npm run test
    ```
 
 2. **Bindings generator tests.**
-   These are relevant when developing or extending the bindings. The enums test is special since it is auto-generated to cover all enums in the API.
+   These are relevant when developing or extending the bindings. The first line generates an `enums_test.py` file, this test is auto-generated to include all enums in the API. The second line finds and runs all `test_*.py` or `*_test.py` files found in the current directory recursively.
 
    ```sh
    # Run this inside the `wasm` folder
    PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py && \
-
-   # Runs files of the form test_*.py or *_test.py in the current directory recursively
    PYTHONPATH=../python/mujoco:./codegen python3 -m pytest
    ```
 
 ### Debugging
 
 We provide a “sandbox” app where you can quickly write code to run in your browser.
-Write your code in the [`main.ts`](tests/sandbox/main.ts) file and use the following command to execute it in your browser:
+Write your code in the [`main.ts`](tests/sandbox/main.ts) file and use the following command to execute it in your browser (inspect the page and then look at the console output):
 
 ```sh
 npm run dev:sandbox
 ```
 
-You can log to the console and use Chrome DevTools for debugging.
+You can add code to log to the console and use Chrome DevTools for debugging.
 It is possible to set up a debug workflow where stack traces and stepping through code across language boundaries work correctly.
 Our current method to do this only works internally at Google, but it should be possible to replicate the experience with open-source tooling — community suggestions are welcome!
 
