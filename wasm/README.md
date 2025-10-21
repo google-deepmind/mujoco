@@ -27,7 +27,7 @@ This package provides a high-level API that allows you to interact with the core
   These dependencies are expected to be located in the `wasm` folder. To install them, run:
 
   ```sh
-  # Run this inside the `wasm` folder
+  # Run this from the `wasm` folder
   npm install
   ```
 
@@ -48,14 +48,14 @@ This package provides a high-level API that allows you to interact with the core
 The following script uses MuJoCo’s Python introspect library to generate a C++ file containing the relevant Embind `EMSCRIPTEN_BINDINGS` block, which is used to bind C++ functions and classes to JavaScript. The script generates wrapper functions around MuJoCo’s C API that provide a place to add conveniences such as bounds checking.
 
 ```sh
-# Run this inside the `wasm` folder
+# Run this from the `wasm` folder
 PYTHONPATH=../python/mujoco:./codegen python3 codegen/update.py
 ```
 
 Once the C++ files are generated (note that, for convenience, we already provide the output of the above script in the [`generated`](codegen/generated) folder), the next step is to build the `.wasm`, `.js`, and `.d.ts` files from the C++ sources (which are the files you will use to call MuJoCo from JavaScript). Make sure you have set up npm and the Emscripten SDK prerequisites, then run the following in the same terminal session where the `emsdk` environment was sourced:
 
 ```sh
-# Run this inside the `wasm` folder
+# Run this from the `wasm` folder
 export PATH="./node_modules/.bin:$PATH" && \
 emcmake cmake -S .. -B ../build && \
 cmake --build ../build && \
@@ -66,8 +66,8 @@ cmake --build build
 The above command will generate the following folders:
 
 - `../build`: the result of compiling MuJoCo with Emscripten.
-- `../wasm/build`: the result of compiling the MuJoCo bindings with Emscripten.
-- `../wasm/dist`: the MuJoCo WebAssembly module. To use it, import the `.js` file.
+- `./build`: the result of compiling the MuJoCo bindings with Emscripten.
+- `./dist`: the MuJoCo WebAssembly module. To use it, import the `.js` file.
 
 ### Example Application
 
@@ -75,6 +75,7 @@ After generating the MuJoCo WASM module following the steps in the previous [sec
 We have provided a basic web application that uses Three.js to render a simple simulation. To run the demo app, use:
 
 ```sh
+# Run this from the `wasm` folder
 npm run dev:demo
 ```
 
@@ -92,7 +93,7 @@ If you choose to write your application in C++ and compile it using Emscripten, 
    There are also preliminary benchmarks for shared memory buffers. Run the following commands (the benchmark bindings code is compiled first):
 
    ```sh
-   # Run this inside the `wasm` folder
+   # Run this from the `wasm` folder
    export PATH="./node_modules/.bin:$PATH" && \
    emcmake cmake -S tests -B tests/build && \
    cmake --build tests/build && \
@@ -103,7 +104,7 @@ If you choose to write your application in C++ and compile it using Emscripten, 
    These are relevant when developing or extending the bindings. The first line generates an `enums_test.py` file, this test is auto-generated to include all enums in the API. The second line finds and runs all `test_*.py` or `*_test.py` files found in the current directory recursively.
 
    ```sh
-   # Run this inside the `wasm` folder
+   # Run this from the `wasm` folder
    PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py && \
    PYTHONPATH=../python/mujoco:./codegen python3 -m pytest
    ```
@@ -114,6 +115,7 @@ We provide a “sandbox” app where you can quickly write code to run in your b
 Write your code in the [`main.ts`](tests/sandbox/main.ts) file and use the following command to execute it in your browser (inspect the page and then look at the console output):
 
 ```sh
+# Run this from the `wasm` folder
 npm run dev:sandbox
 ```
 
