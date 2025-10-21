@@ -3,8 +3,9 @@
 
 version: 2
 
-formats:
-  - pdf
+# TODO(robotics-simulation): pdf format fails to build on readthedocs
+# formats:
+#   - pdf
 
 build:
   os: ubuntu-24.04
