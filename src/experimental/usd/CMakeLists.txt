@@ -181,6 +181,7 @@ target_sources(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
   mjcPhysics/meshCollisionAPI.cpp
   mjcPhysics/sceneAPI.cpp
   mjcPhysics/siteAPI.cpp
+  mjcPhysics/tendon.cpp
   mjcPhysics/tokens.cpp
 )
 set_target_properties(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PROPERTIES
