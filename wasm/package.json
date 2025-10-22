@@ -9,7 +9,7 @@
   },
   "scripts": {
 
-    "test": "node --loader ts-node/esm run-tests.mjs",
+    "test": "node --loader ts-node/esm tests/run-tests.mjs",
     "dev:sandbox": "vite --config tests/sandbox/vite.sandbox.config.ts",
     "build:sandbox": "vite build --config tests/sandbox/vite.sandbox.config.ts",
     "dev:demo": "vite --config demo_app/vite.demo.config.ts",
@@ -20,7 +20,6 @@
   "devDependencies": {
     "@types/jasmine": "^5.1.8",
     "@types/node": "^24.1.0",
-    "fast-glob": "^3.3.3",
     "jasmine": "^5.9.0",
     "three": "^0.178.0",
     "ts-node": "^10.9.2",
