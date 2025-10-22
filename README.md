@@ -131,8 +131,7 @@ These packages give users of various languages access to MuJoCo functionality:
     DeepMind's related environment stack, includes
     [PyMJCF](https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
     a module for procedural manipulation of MuJoCo models.
-- [JavaScript bindings](/wasm/README.md), these are inspired by community
-  bindings by [stillonearth](https://github.com/stillonearth) and [zalo](https://github.com/zalo).
+- [JavaScript bindings and WebAssembly support](/wasm/README.md) (inspired [stillonearth](https://github.com/stillonearth) and [zalo](https://github.com/zalo)'s community projects).
 - [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/stable/unity.html)
 
 #### Third-party bindings:
