@@ -1,0 +1,41 @@
+{
+  "name": "mujoco-js",
+  "version": "0.0.2",
+  "description": "The official MuJoCo WebAssembly module",
+
+  "main": "mujoco_wasm.js",
+  "types": "mujoco_wasm.d.ts",
+
+  "exports": {
+    ".": {
+      "types": "./mujoco_wasm.d.ts",
+      "import": "./mujoco_wasm.js",
+      "default": "./mujoco_wasm.js"
+    }
+  },
+
+  "files": [
+    "mujoco_wasm.js",
+    "mujoco_wasm.d.ts",
+    "mujoco_wasm.wasm",
+    "mujoco_wasm.wasm.map",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "./build.sh",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/google-deepmind/mujoco.git",
+    "directory": "wasm/package"
+  },
+  "keywords": [
+    "mujoco",
+    "physics",
+    "wasm",
+    "webassembly"
+  ],
+  "author": "Google DeepMind",
+  "license": "Apache-2.0"
+}
