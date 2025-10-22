@@ -1038,7 +1038,7 @@ void ParseMjcPhysicsTendon(mjSpec* spec,
                   prim.GetPath().GetAsString().c_str());
       return;
     }
-    mjs_setString(mj_tendon->info, ("Prim: " + wrap_target.GetAsString()).c_str());
+    mjs_setString(wrap->info, ("Prim: " + wrap_target.GetAsString()).c_str());
   }
 
   auto group_attr = tendon.GetGroupAttr();
