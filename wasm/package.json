@@ -8,11 +8,12 @@
     "test": "tests"
   },
   "scripts": {
+
     "test": "node --loader ts-node/esm run-tests.mjs",
-    "dev:sandbox": "vite --config vite.sandbox.config.ts",
-    "build:sandbox": "vite build --config vite.sandbox.config.ts",
-    "dev:demo": "vite --config vite.demo.config.ts",
-    "build:demo": "vite build --config vite.demo.config.ts"
+    "dev:sandbox": "vite --config tests/sandbox/vite.sandbox.config.ts",
+    "build:sandbox": "vite build --config tests/sandbox/vite.sandbox.config.ts",
+    "dev:demo": "vite --config demo_app/vite.demo.config.ts",
+    "build:demo": "vite build --config demo_app/vite.demo.config.ts"
   },
   "author": "",
   "license": "ISC",
