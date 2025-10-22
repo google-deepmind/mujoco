@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 #.rst:
 # FindOrFetch
 # ----------------------
@@ -56,85 +56,137 @@
 # https://cmake.org/cmake/help/latest/module/FetchContent.html#variables to
 # override this macro behaviour.
 
-if(COMMAND FindOrFetch)
-  return()
+if(NOT COMMAND FindOrFetch)
+  macro(FindOrFetch)
+    if(NOT FetchContent)
+      include(FetchContent)
+    endif()
+
+    # Parse arguments.
+    set(options EXCLUDE_FROM_ALL)
+    set(one_value_args
+        USE_SYSTEM_PACKAGE
+        PACKAGE_NAME
+        LIBRARY_NAME
+        GIT_REPO
+        GIT_TAG
+    )
+    set(multi_value_args PATCH_COMMAND TARGETS)
+    cmake_parse_arguments(
+      _ARGS
+      "${options}"
+      "${one_value_args}"
+      "${multi_value_args}"
+      ${ARGN}
+    )
+
+    # Check if all targets are found.
+    if(NOT _ARGS_TARGETS)
+      message(FATAL_ERROR "mujoco::FindOrFetch: TARGETS must be specified.")
+    endif()
+
+    set(targets_found TRUE)
+    message(CHECK_START
+            "mujoco::FindOrFetch: checking for targets in package `${_ARGS_PACKAGE_NAME}`"
+    )
+    foreach(target ${_ARGS_TARGETS})
+      if(NOT TARGET ${target})
+        message(CHECK_FAIL "target `${target}` not defined.")
+        set(targets_found FALSE)
+        break()
+      endif()
+    endforeach()
+
+    # If targets are not found, use `find_package` or `FetchContent...` to get it.
+    if(NOT targets_found)
+      if(${_ARGS_USE_SYSTEM_PACKAGE})
+        message(CHECK_START
+                "mujoco::FindOrFetch: finding `${_ARGS_PACKAGE_NAME}` in system packages..."
+        )
+        find_package(${_ARGS_PACKAGE_NAME} REQUIRED)
+        message(CHECK_PASS "found")
+      else()
+        message(CHECK_START
+                "mujoco::FindOrFetch: Using FetchContent to retrieve `${_ARGS_LIBRARY_NAME}`"
+        )
+        FetchContent_Declare(
+          ${_ARGS_LIBRARY_NAME}
+          GIT_REPOSITORY ${_ARGS_GIT_REPO}
+          GIT_TAG ${_ARGS_GIT_TAG}
+          GIT_SHALLOW FALSE
+          PATCH_COMMAND ${_ARGS_PATCH_COMMAND}
+          UPDATE_DISCONNECTED TRUE
+        )
+        if(${_ARGS_EXCLUDE_FROM_ALL})
+          FetchContent_GetProperties(${_ARGS_LIBRARY_NAME})
+          if(NOT ${${_ARGS_LIBRARY_NAME}_POPULATED})
+            FetchContent_Populate(${_ARGS_LIBRARY_NAME})
+            add_subdirectory(
+              ${${_ARGS_LIBRARY_NAME}_SOURCE_DIR} ${${_ARGS_LIBRARY_NAME}_BINARY_DIR}
+              EXCLUDE_FROM_ALL
+            )
+          endif()
+        else()
+          FetchContent_MakeAvailable(${_ARGS_LIBRARY_NAME})
+        endif()
+        message(CHECK_PASS "Done")
+      endif()
+    else()
+      message(CHECK_PASS "found")
+    endif()
+  endmacro()
 endif()
 
-macro(FindOrFetch)
-  if(NOT FetchContent)
-    include(FetchContent)
-  endif()
 
-  # Parse arguments.
-  set(options EXCLUDE_FROM_ALL)
-  set(one_value_args
-      USE_SYSTEM_PACKAGE
-      PACKAGE_NAME
-      LIBRARY_NAME
-      GIT_REPO
-      GIT_TAG
-  )
-  set(multi_value_args PATCH_COMMAND TARGETS)
-  cmake_parse_arguments(
-    _ARGS
-    "${options}"
-    "${one_value_args}"
-    "${multi_value_args}"
-    ${ARGN}
-  )
-
-  # Check if all targets are found.
-  if(NOT _ARGS_TARGETS)
-    message(FATAL_ERROR "mujoco::FindOrFetch: TARGETS must be specified.")
-  endif()
-
-  set(targets_found TRUE)
-  message(CHECK_START
-          "mujoco::FindOrFetch: checking for targets in package `${_ARGS_PACKAGE_NAME}`"
-  )
-  foreach(target ${_ARGS_TARGETS})
-    if(NOT TARGET ${target})
-      message(CHECK_FAIL "target `${target}` not defined.")
-      set(targets_found FALSE)
-      break()
+#.rst:
+# FetchPackage
+# ----------------------
+#
+# Fetches a package from a Git repository in order to satisfy dependencies.
+#
+#   FetchPackage([PACKAGE_NAME [name]]
+#               [GIT_REPO [repo]]
+#               [GIT_TAG [tag]]
+#               [PATCH_COMMAND [cmd] [args]]
+#              )
+#
+# The command has the following parameters:
+#
+# Arguments:
+#  - ``PACKAGE_NAME`` name of the package.
+#  - ``GIT_REPO`` git repository to fetch the library from.
+#  - ``GIT_TAG`` tag reference when fetching the library from the git repo.
+#  - ``PATCH_COMMAND`` Specifies a custom command to patch the sources after an
+#    update. See https://cmake.org/cmake/help/latest/module/ExternalProject.html#command:externalproject_add
+#    for details on the parameter.
+#  - ``TARGETS`` (optional) list of targets to be satisfied. If any of these
+#    targets are not currently defined, this macro will attempt to fetch the
+#    package. If not specified, the package name will be used as the target.
+#
+# Note: This is a wrapper around FindOrFetch that sets EXCLUDE_FROM_ALL and
+# USE_SYSTEM_PACKAGE to OFF.
+if(NOT COMMAND FetchPackage)
+  function(FetchPackage)
+    cmake_parse_arguments(
+      _ARGS
+      "EXCLUDE_FROM_ALL"
+      "PACKAGE_NAME;GIT_REPO;GIT_TAG"
+      "PATCH_COMMAND;TARGETS"
+      ${ARGN}
+    )
+    if(NOT _ARGS_TARGETS)
+      set(_ARGS_TARGETS ${_ARGS_PACKAGE_NAME})
     endif()
-  endforeach()
 
-  # If targets are not found, use `find_package` or `FetchContent...` to get it.
-  if(NOT targets_found)
-    if(${_ARGS_USE_SYSTEM_PACKAGE})
-      message(CHECK_START
-              "mujoco::FindOrFetch: finding `${_ARGS_PACKAGE_NAME}` in system packages..."
-      )
-      find_package(${_ARGS_PACKAGE_NAME} REQUIRED)
-      message(CHECK_PASS "found")
-    else()
-      message(CHECK_START
-              "mujoco::FindOrFetch: Using FetchContent to retrieve `${_ARGS_LIBRARY_NAME}`"
-      )
-      FetchContent_Declare(
-        ${_ARGS_LIBRARY_NAME}
-        GIT_REPOSITORY ${_ARGS_GIT_REPO}
-        GIT_TAG ${_ARGS_GIT_TAG}
-        GIT_SHALLOW FALSE
-        PATCH_COMMAND ${_ARGS_PATCH_COMMAND}
-        UPDATE_DISCONNECTED TRUE
-      )
-      if(${_ARGS_EXCLUDE_FROM_ALL})
-        FetchContent_GetProperties(${_ARGS_LIBRARY_NAME})
-        if(NOT ${${_ARGS_LIBRARY_NAME}_POPULATED})
-          FetchContent_Populate(${_ARGS_LIBRARY_NAME})
-          add_subdirectory(
-            ${${_ARGS_LIBRARY_NAME}_SOURCE_DIR} ${${_ARGS_LIBRARY_NAME}_BINARY_DIR}
-            EXCLUDE_FROM_ALL
-          )
-        endif()
-      else()
-        FetchContent_MakeAvailable(${_ARGS_LIBRARY_NAME})
-      endif()
-      message(CHECK_PASS "Done")
-    endif()
-  else()
-    message(CHECK_PASS "found")
-  endif()
-endmacro()
+    FindOrFetch(
+      PACKAGE_NAME ${_ARGS_PACKAGE_NAME}
+      LIBRARY_NAME ${_ARGS_PACKAGE_NAME}
+      GIT_REPO ${_ARGS_GIT_REPO}
+      GIT_TAG ${_ARGS_GIT_TAG}
+      PATCH_COMMAND ${_ARGS_PATCH_COMMAND}
+      TARGETS ${_ARGS_TARGETS}
+      USE_SYSTEM_PACKAGE OFF
+      EXCLUDE_FROM_ALL
+    )
+  endfunction()
+endif()
