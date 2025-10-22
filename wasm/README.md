@@ -56,7 +56,7 @@ Once the C++ files are generated (note that, for convenience, we already provide
 
 ```sh
 # Run this from the `wasm` folder
-export PATH="./node_modules/.bin:$PATH" && \
+export PATH="$(pwd)/node_modules/.bin:$PATH" && \
 emcmake cmake -S .. -B ../build && \
 cmake --build ../build && \
 emcmake cmake -S . -B build && \
@@ -93,7 +93,7 @@ If you choose to write your application in C++ and compile it using Emscripten, 
 
    ```sh
    # Run this from the `wasm` folder
-   export PATH="./node_modules/.bin:$PATH" && \
+   export PATH="$(pwd)/node_modules/.bin:$PATH" && \
    emcmake cmake -S tests -B tests/build && \
    cmake --build tests/build && \
    PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py && \
