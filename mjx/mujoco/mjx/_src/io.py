@@ -1496,3 +1496,171 @@ def get_data(
   get_data_into(result, m, d)
 
   return result
+
+
+_STATE_MAP = {
+    mujoco.mjtState.mjSTATE_TIME: 'time',
+    mujoco.mjtState.mjSTATE_QPOS: 'qpos',
+    mujoco.mjtState.mjSTATE_QVEL: 'qvel',
+    mujoco.mjtState.mjSTATE_ACT: 'act',
+    mujoco.mjtState.mjSTATE_WARMSTART: 'qacc_warmstart',
+    mujoco.mjtState.mjSTATE_CTRL: 'ctrl',
+    mujoco.mjtState.mjSTATE_QFRC_APPLIED: 'qfrc_applied',
+    mujoco.mjtState.mjSTATE_XFRC_APPLIED: 'xfrc_applied',
+    mujoco.mjtState.mjSTATE_EQ_ACTIVE: 'eq_active',
+    mujoco.mjtState.mjSTATE_MOCAP_POS: 'mocap_pos',
+    mujoco.mjtState.mjSTATE_MOCAP_QUAT: 'mocap_quat',
+    mujoco.mjtState.mjSTATE_USERDATA: 'userdata',
+    mujoco.mjtState.mjSTATE_PLUGIN: 'plugin_state',
+}
+
+
+def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
+  """Returns the size of a state component."""
+  if state_enum not in _STATE_MAP:
+    raise ValueError(f'Invalid state element {state_enum}')
+  name = _STATE_MAP[state_enum]
+  if name == 'time':
+    return 1
+  if name in (
+      'qpos',
+      'qvel',
+      'act',
+      'qacc_warmstart',
+      'ctrl',
+      'qfrc_applied',
+      'eq_active',
+      'mocap_pos',
+      'mocap_quat',
+      'userdata',
+      'plugin_state',
+  ):
+    val = getattr(
+        m,
+        {
+            'qpos': 'nq',
+            'qvel': 'nv',
+            'act': 'na',
+            'qacc_warmstart': 'nv',
+            'ctrl': 'nu',
+            'qfrc_applied': 'nv',
+            'eq_active': 'neq',
+            'mocap_pos': 'nmocap',
+            'mocap_quat': 'nmocap',
+            'userdata': 'nuserdata',
+            'plugin_state': 'npluginstate',
+        }[name],
+    )
+    if name == 'mocap_pos':
+      val *= 3
+    if name == 'mocap_quat':
+      val *= 4
+    return val
+  if name == 'xfrc_applied':
+    return 6 * m.nbody
+
+  raise NotImplementedError(f'state component {name} not implemented')
+
+
+def state_size(m: types.Model, spec: Union[int, mujoco.mjtState]) -> int:
+  """Returns the size of a state vector for a given spec.
+
+  Args:
+    m: model describing the simulation
+    spec: int bitmask or mjtState enum specifying which state components to
+      include
+
+  Returns:
+    size of the state vector
+  """
+  size = 0
+  spec_int = int(spec)
+  for i in range(mujoco.mjtState.mjNSTATE.value):
+    element = mujoco.mjtState(1 << i)
+    if element & spec_int:
+      size += _state_elem_size(m, element)
+  return size
+
+
+def get_state(
+    m: types.Model, d: types.Data, spec: Union[int, mujoco.mjtState]
+) -> jax.Array:
+  """Gets state from mjx.Data. This is equivalent to `mujoco.mj_getState`.
+
+  Args:
+    m: model describing the simulation
+    d: data for the simulation
+    spec: int bitmask or mjtState enum specifying which state components to
+      include
+
+  Returns:
+    a flat array of state values
+  """
+  spec_int = int(spec)
+  if spec_int >= (1 << mujoco.mjtState.mjNSTATE.value):
+    raise ValueError(f'Invalid state spec {spec}')
+
+  state = []
+  for i in range(mujoco.mjtState.mjNSTATE.value):
+    element = mujoco.mjtState(1 << i)
+    if element & spec_int:
+      if element not in _STATE_MAP:
+        raise ValueError(f'Invalid state element {element}')
+      name = _STATE_MAP[element]
+      value = getattr(d, name)
+      if element == mujoco.mjtState.mjSTATE_EQ_ACTIVE:
+        value = value.astype(jp.float32)
+      state.append(value.flatten())
+
+  return jp.concatenate(state) if state else jp.array([])
+
+
+def set_state(
+    m: types.Model,
+    d: types.Data,
+    state: jax.Array,
+    spec: Union[int, mujoco.mjtState],
+) -> types.Data:
+  """Sets state in mjx.Data. This is equivalent to `mujoco.mj_setState`.
+
+  Args:
+    m: model describing the simulation
+    d: data for the simulation
+    state: a flat array of state values
+    spec: int bitmask or mjtState enum specifying which state components to
+      include
+
+  Returns:
+    data with state set to provided values
+  """
+  spec_int = int(spec)
+  if spec_int >= (1 << mujoco.mjtState.mjNSTATE.value):
+    raise ValueError(f'Invalid state spec {spec}')
+
+  expected_size = state_size(m, spec)
+  if state.size != expected_size:
+    raise ValueError(
+        f'state has size {state.size} but expected {expected_size}'
+    )
+
+  updates = {}
+  offset = 0
+  for i in range(mujoco.mjtState.mjNSTATE.value):
+    element = mujoco.mjtState(1 << i)
+    if element & spec_int:
+      if element not in _STATE_MAP:
+        raise ValueError(f'Invalid state element {element}')
+      name = _STATE_MAP[element]
+      size = _state_elem_size(m, element)
+      value = state[offset : offset + size]
+      if name == 'time':
+        value = value[0]
+      else:
+        orig_shape = getattr(d, name).shape
+        value = value.reshape(orig_shape)
+      if element == mujoco.mjtState.mjSTATE_EQ_ACTIVE:
+        value = value.astype(bool)
+      updates[name] = value
+      offset += size
+
+  return d.replace(**updates)
