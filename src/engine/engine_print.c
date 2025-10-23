@@ -344,7 +344,7 @@ static void printVector(const char* str, const mjtNum* data, int n, FILE* fp,
 
 // print human readable memory size
 static const char* memorySize(size_t nbytes) {
-  static mjTHREADLOCAL char message[20];
+  static mjTHREADLOCAL char message[32];
   int k = 1024;
 
   if (nbytes < k) {
