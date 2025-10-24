@@ -49,9 +49,9 @@ void Physics::LoadModel(std::string model_file, const mjVFS* vfs) {
   vfs_ = vfs;
 }
 
-void Physics::ProcessPendingLoad() {
+bool Physics::ProcessPendingLoad() {
   if (!pending_load_.has_value()) {
-    return;
+    return model_ && data_;
   }
 
   Clear();
@@ -68,6 +68,8 @@ void Physics::ProcessPendingLoad() {
   on_model_loaded_(model_file);
 
   InitHistory();
+
+  return model_ && data_;
 }
 
 void Physics::Clear() {
