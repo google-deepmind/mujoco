@@ -109,7 +109,11 @@ if(NOT TARGET lodepng)
     add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
     target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
-    target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+    if(NOT EMSCRIPTEN)
+      target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+    else()
+      target_include_directories(lodepng PUBLIC  $<BUILD_INTERFACE:${lodepng_SOURCE_DIR}> $<INSTALL_INTERFACE:include>)
+    endif()
   endif()
 endif()
 
@@ -128,6 +132,10 @@ if(NOT TARGET marchingcubecpp)
 endif()
 
 set(QHULL_ENABLE_TESTING OFF)
+# Patch changes in https://github.com/qhull/qhull/pull/173.patch
+set(QHULL_PATCH_COMMAND
+  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/qhull-support-emscripten.patch
+)
 
 findorfetch(
   USE_SYSTEM_PACKAGE
@@ -143,6 +151,7 @@ findorfetch(
   TARGETS
   qhull
   EXCLUDE_FROM_ALL
+  PATCH_COMMAND ${QHULL_PATCH_COMMAND}
 )
 # MuJoCo includes a file from libqhull_r which is not exported by the qhull include directories.
 # Add it to the target.
@@ -222,6 +231,12 @@ endif()
 
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)
+
+# Patch changes in https://github.com/danfis/libccd/pull/83.patch
+set(CCD_PATCH_COMMAND
+  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/ccd-support-emscripten.patch
+)
+
 # update cmake_minimum_required version for compatibility with newer version of cmake
 if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
   set(CMAKE_POLICY_VERSION_MINIMUM ${MUJOCO_CMAKE_MIN_REQ})
@@ -241,6 +256,7 @@ findorfetch(
   TARGETS
   ccd
   EXCLUDE_FROM_ALL
+  PATCH_COMMAND ${CCD_PATCH_COMMAND}
 )
 if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
   unset(CMAKE_POLICY_VERSION_MINIMUM)
