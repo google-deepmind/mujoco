@@ -1045,7 +1045,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='nskintexvert',
                  type=ValueType(name='int'),
-                 doc='number of vertiex with texcoords in all skins',
+                 doc='number of vertices with texcoords in all skins',
              ),
              StructFieldDecl(
                  name='nskinface',
@@ -2867,7 +2867,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='are all verices in the same body',
+                 doc='are all vertices in the same body',
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
@@ -7766,7 +7766,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                      extents=(127,),
                  ),
-                 doc='chacarter widths: big',
+                 doc='character widths: big',
              ),
              StructFieldDecl(
                  name='charHeight',
