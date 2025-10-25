@@ -110,7 +110,7 @@ if(CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 else()
     set(MUJOCO_ENABLE_IPO_DEFAULT OFF)
 endif()
-option(MUJOCO_ENABLE_IPO, "Enable inter-procedural optimization (IPO)" ${MUJOCO_ENABLE_IPO_DEFAULT})
+option(MUJOCO_ENABLE_IPO "Enable inter-procedural optimization (IPO)" ${MUJOCO_ENABLE_IPO_DEFAULT})
 
 # IPO is disabled by default. If it's enabled here, it was explicitly enabled. MUJOCO_ENABLE_IPO should be used instead.
 if (CMAKE_INTERPROCEDURAL_OPTIMIZATION)
