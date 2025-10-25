@@ -46,12 +46,10 @@ option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bind
 option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
 
 # Enable inter-procedural optimizations by default on release builds.
-if(NOT DEFINED MUJOCO_ENABLE_IPO)
-    if(CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(MUJOCO_ENABLE_IPO_DEFAULT ON)
-    else()
-        set(MUJOCO_ENABLE_IPO_DEFAULT OFF)
-    endif()
+if(CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(MUJOCO_ENABLE_IPO_DEFAULT ON)
+else()
+    set(MUJOCO_ENABLE_IPO_DEFAULT OFF)
 endif()
 option(MUJOCO_ENABLE_IPO, "Enable inter-procedural optimization (IPO)" ${MUJOCO_ENABLE_IPO_DEFAULT})
 
