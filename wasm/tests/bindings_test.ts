@@ -1,88 +1,85 @@
-import "jasmine"
-// TODO: Find a replacement for this?
-// import { pit } from "google3/testing/web/jasmine/parameterize/parameterize"
-import {
-  MainModule,
-  MjContactVec,
-  MjData,
-  MjModel,
-} from "../dist/mujoco_wasm"
+import 'jasmine';
 
-import loadMujoco from "../dist/mujoco_wasm.js"
+import {MainModule, MjContact, MjContactVec, MjData, MjLROpt, MjModel,
+MjOption, MjsGeom, MjSolverStat, MjSpec, MjStatistic, MjTimerStat, MjvCamera,
+MjvFigure, MjvGeom, MjvGLCamera, MjvLight, MjvOption, MjvPerturb, MjvScene,
+MjWarningStat} from '../dist/mujoco_wasm.js';
+
+import loadMujoco from '../dist/mujoco_wasm.js'
+
+function assertExists<T>(value: T | null | undefined, message?: string):
+asserts value is T {
+  if (value === null || value === undefined) {
+    throw new Error(message ?? 'Expected value to be defined.');
+  }
+}
+
+
 
 // Corresponds to bindings_test.py:TEST_XML
 const TEST_XML = `
 <mujoco model="test">
- <compiler coordinate="local" angle="radian" eulerseq="xyz"/>
- <size nkey="2"/>
- <option timestep="0.002" gravity="0 0 -9.81"/>
- <visual>
-   <global fovy="50" />
-   <quality shadowsize="51" />
- </visual>
- <worldbody>
-   <geom name="myplane" type="plane" size="10 10 1" user="1 2 3"/>
-   <body name="mybox" pos="0 0 0.1">
-     <geom name="mybox" type="box" size="0.1 0.1 0.1" mass="0.25"/>
-     <freejoint name="myfree"/>
-   </body>
-   <body>
-     <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
-     <site pos="0 0 -1" name="mysite" type="sphere"/>
-     <joint name="myhinge" type="hinge" axis="0 1 0" damping="1"/>
-   </body>
-   <body>
-     <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
-     <joint name="myball" type="ball"/>
-   </body>
-   <body mocap="true" pos="42 0 42">
-     <geom type="sphere" size="0.1"/>
-   </body>
- </worldbody>
- <actuator>
-   <position name="myactuator" joint="myhinge"/>
- </actuator>
- <sensor>
-   <jointvel name="myjointvel" joint="myhinge"/>
-   <accelerometer name="myaccelerometer" site="mysite"/>
- </sensor>
+  <compiler coordinate="local" angle="radian" eulerseq="xyz"/>
+  <size nkey="2"/>
+  <option timestep="0.002" gravity="0 0 -9.81"/>
+  <visual>
+    <global fovy="50" />
+    <quality shadowsize="51" />
+  </visual>
+  <worldbody>
+    <geom name="myplane" type="plane" size="10 10 1" user="1 2 3"/>
+    <body name="mybox" pos="0 0 0.1">
+      <geom name="mybox" type="box" size="0.1 0.1 0.1" mass="0.25"/>
+      <freejoint name="myfree"/>
+    </body>
+    <body>
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <site pos="0 0 -1" name="mysite" type="sphere"/>
+      <joint name="myhinge" type="hinge" axis="0 1 0" damping="1"/>
+    </body>
+    <body>
+      <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+      <joint name="myball" type="ball"/>
+    </body>
+    <body mocap="true" pos="42 0 42">
+      <geom type="sphere" size="0.1"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <position name="myactuator" joint="myhinge"/>
+  </actuator>
+  <sensor>
+    <jointvel name="myjointvel" joint="myhinge"/>
+    <accelerometer name="myaccelerometer" site="mysite"/>
+  </sensor>
 </mujoco>
 `;
 
-type TypedArray =
-  | Int8Array
-  | Uint8Array
-  | Uint8ClampedArray
-  | Int16Array
-  | Uint16Array
-  | Int32Array
-  | Uint32Array
-  | Float32Array
-  | Float64Array
+type TypedArray =|Int8Array|Uint8Array|Uint8ClampedArray|Int16Array|Uint16Array|
+    Int32Array|Uint32Array|Float32Array|Float64Array;
 
 function norm(arr: number[]): number {
-  return Math.sqrt(arr.reduce((acc, val) => acc + val * val, 0))
+  return Math.sqrt(arr.reduce((acc, val) => acc + val * val, 0));
 }
 
 function expectArraysClose(arr1: TypedArray, arr2: TypedArray, precision = 1) {
-  expect(arr1.length).toEqual(arr2.length)
+  expect(arr1.length).toEqual(arr2.length);
   for (let i = 0; i < arr1.length; i++) {
-    expect(arr1[i]).toBeCloseTo(arr2[i], precision)
+    expect(arr1[i]).toBeCloseTo(arr2[i], precision);
   }
 }
 
 function expectArraysEqual(arr1: TypedArray, arr2: TypedArray) {
-  expect(arr1.length).toEqual(arr2.length)
+  expect(arr1.length).toEqual(arr2.length);
   for (let i = 0; i < arr1.length; i++) {
-    expect(arr1[i]).toEqual(arr2[i])
+    expect(arr1[i]).toEqual(arr2[i]);
   }
 }
 
 describe('MuJoCo WASM Bindings', () => {
   let mujoco: MainModule;
-  let model: MjModel | null = null;
-  let data: MjData | null = null;
-
+  let model: MjModel|null = null;
+  let data: MjData|null = null;
 
   beforeAll(async () => {
     mujoco = await loadMujoco();
@@ -108,6 +105,7 @@ describe('MuJoCo WASM Bindings', () => {
     const tempXmlFilename = '/tmp/model.xml';
 
     writeXMLFile(tempXmlFilename, TEST_XML);
+
     model = mujoco.MjModel!.loadFromXML(tempXmlFilename);
     if (!model) {
       unlinkXMLFile(tempXmlFilename);
@@ -115,6 +113,7 @@ describe('MuJoCo WASM Bindings', () => {
     }
 
     unlinkXMLFile(tempXmlFilename);
+
     data = new mujoco.MjData(model);
     if (!data) {
       throw new Error('Failed to create data from model');
@@ -125,7 +124,6 @@ describe('MuJoCo WASM Bindings', () => {
     model?.delete();
     data?.delete();
   });
-
 
   describe('Buffer API', () => {
     it('should construct from an element count', () => {
@@ -154,28 +152,27 @@ describe('MuJoCo WASM Bindings', () => {
     });
   });
 
-
   describe('mj_addM', () => {
-    let simpleModel: MjModel | null = null;
-    let simpleData: MjData | null = null;
+    let simpleModel: MjModel|null = null;
+    let simpleData: MjData|null = null;
     const tempXmlFilename = '/tmp/simple_model.xml';
     // A simpler model with nv=1 and nM=1 to avoid WASM binding bugs.
     const simpleXmlContent = `
 <mujoco>
- <worldbody>
-   <body name="box" pos="0 0 0.5">
-     <joint type="slide" axis="1 0 0"/>
-     <geom type="box" size="0.1 0.1 0.1" mass="1"/>
-   </body>
- </worldbody>
+  <worldbody>
+    <body name="box" pos="0 0 0.5">
+      <joint type="slide" axis="1 0 0"/>
+      <geom type="box" size="0.1 0.1 0.1" mass="1"/>
+    </body>
+  </worldbody>
 </mujoco>`;
 
     beforeEach(() => {
       writeXMLFile(tempXmlFilename, simpleXmlContent);
       simpleModel = mujoco.MjModel!.loadFromXML(tempXmlFilename);
-      expect(simpleModel).toBeDefined();
+      assertExists(simpleModel);
       simpleData = new mujoco.MjData(simpleModel);
-      expect(simpleData).toBeDefined();
+      assertExists(simpleData);
     });
 
     afterEach(() => {
@@ -190,8 +187,8 @@ describe('MuJoCo WASM Bindings', () => {
       try {
         mujoco.mj_forward(simpleModel!, simpleData!);
         mujoco.mj_addM(
-          simpleModel!, simpleData!, dstSparse, simpleModel!.M_rownnz,
-          simpleModel!.M_rowadr, simpleModel!.M_colind);
+            simpleModel!, simpleData!, dstSparse, simpleModel!.M_rownnz,
+            simpleModel!.M_rowadr, simpleModel!.M_colind);
 
         expect(dstSparse.GetView().length).toBe(1);
         expect(dstSparse.GetView()[0]).toBeCloseTo(1.0);
@@ -205,11 +202,11 @@ describe('MuJoCo WASM Bindings', () => {
       const dstSparse = new mujoco.DoubleBuffer(nM + 1);
       try {
         expect(
-          () => mujoco.mj_addM(
-            simpleModel!, simpleData!, dstSparse, simpleModel!.M_rownnz,
-            simpleModel!.M_rowadr, simpleModel!.M_colind))
-          .toThrowError(
-            'MuJoCo Error: [mj_addM] dst must have size 1, got 2');
+            () => mujoco.mj_addM(
+                simpleModel!, simpleData!, dstSparse, simpleModel!.M_rownnz,
+                simpleModel!.M_rowadr, simpleModel!.M_colind))
+            .toThrowError(
+                'MuJoCo Error: [mj_addM] dst must have size 1, got 2');
       } finally {
         dstSparse.delete();
       }
@@ -246,7 +243,7 @@ describe('MuJoCo WASM Bindings', () => {
         h.GetView()[i * (n + 1)] = 1;
       }
       const rank = mujoco.mju_boxQP(
-        res, r, null, h.GetView(), g.GetView(), null as any, null as any);
+          res, r, null, h.GetView(), g.GetView(), null as any, null as any);
       expect(rank).toBeGreaterThan(-1);
     } finally {
       res.delete();
@@ -261,78 +258,78 @@ describe('MuJoCo WASM Bindings', () => {
   it('should correctly compute constraint cost', () => {
     const xmlString = `
 <mujoco>
- <option>
-   <flag island="enable"/>
- </option>
+  <option>
+    <flag island="enable"/>
+  </option>
 
- <default>
-   <geom size=".1"/>
- </default>
+  <default>
+    <geom size=".1"/>
+  </default>
 
- <visual>
-   <headlight diffuse=".9 .9 .9"/>
- </visual>
+  <visual>
+    <headlight diffuse=".9 .9 .9"/>
+  </visual>
 
- <worldbody>
+  <worldbody>
 
-   <body>
-     <joint type="slide" axis="0 0 1" range="0 1" limited="true"/>
-     <geom/>
-   </body>
+    <body>
+      <joint type="slide" axis="0 0 1" range="0 1" limited="true"/>
+      <geom/>
+    </body>
 
-   <body pos=".25 0 0">
-     <joint type="slide" axis="1 0 0"/>
-     <geom/>
-   </body>
+    <body pos=".25 0 0">
+      <joint type="slide" axis="1 0 0"/>
+      <geom/>
+    </body>
 
-   <body pos="0 0 0.25">
-     <joint type="slide" axis="0 0 1"/>
-     <geom/>
-     <body pos="0 -.15 0">
-       <joint name="hinge1" axis="0 1 0"/>
-       <geom type="capsule" size="0.03" fromto="0 0 0 -.2 0 0"/>
-       <body pos="-.2 0 0">
-         <joint axis="0 1 0"/>
-         <geom type="capsule" size="0.03" fromto="0 0 0 -.2 0 0"/>
-       </body>
-     </body>
-   </body>
+    <body pos="0 0 0.25">
+      <joint type="slide" axis="0 0 1"/>
+      <geom/>
+      <body pos="0 -.15 0">
+        <joint name="hinge1" axis="0 1 0"/>
+        <geom type="capsule" size="0.03" fromto="0 0 0 -.2 0 0"/>
+        <body pos="-.2 0 0">
+          <joint axis="0 1 0"/>
+          <geom type="capsule" size="0.03" fromto="0 0 0 -.2 0 0"/>
+        </body>
+      </body>
+    </body>
 
-   <body pos=".5 0 0">
-     <joint type="slide" axis="0 0 1" frictionloss="15"/>
-     <geom type="box" size=".08 .08 .02" euler="0 10 0"/>
-   </body>
+    <body pos=".5 0 0">
+      <joint type="slide" axis="0 0 1" frictionloss="15"/>
+      <geom type="box" size=".08 .08 .02" euler="0 10 0"/>
+    </body>
 
-   <body pos="-.5 0 0">
-     <joint axis="0 1 0" frictionloss=".01"/>
-     <geom type="capsule" size="0.03" fromto="0 0 0 -.2 0 0"/>
-   </body>
+    <body pos="-.5 0 0">
+      <joint axis="0 1 0" frictionloss=".01"/>
+      <geom type="capsule" size="0.03" fromto="0 0 0 -.2 0 0"/>
+    </body>
 
-   <body pos="0 0 .5">
-     <joint name="hinge2" axis="0 1 0"/>
-     <geom type="box" size=".08 .02 .08"/>
-   </body>
+    <body pos="0 0 .5">
+      <joint name="hinge2" axis="0 1 0"/>
+      <geom type="box" size=".08 .02 .08"/>
+    </body>
 
-   <body pos=".5 0 .1">
-     <freejoint/>
-     <geom type="box" size=".03 .03 .03" pos="0.01 0.01 0.01"/>
-   </body>
+    <body pos=".5 0 .1">
+      <freejoint/>
+      <geom type="box" size=".03 .03 .03" pos="0.01 0.01 0.01"/>
+    </body>
 
-   <site name="0" pos="-.45 -.05 .35"/>
-   <body pos="-.5 0 .3" name="connect">
-     <freejoint/>
-     <geom type="box" size=".05 .05 .05"/>
-     <site name="1" pos=".05 -.05 .05"/>
-   </body>
- </worldbody>
+    <site name="0" pos="-.45 -.05 .35"/>
+    <body pos="-.5 0 .3" name="connect">
+      <freejoint/>
+      <geom type="box" size=".05 .05 .05"/>
+      <site name="1" pos=".05 -.05 .05"/>
+    </body>
+  </worldbody>
 
- <equality>
-   <joint joint1="hinge1" joint2="hinge2"/>
-   <connect body1="connect" body2="world" anchor="-.05 -.05 .05"/>
-   <connect site1="0" site2="1"/>
- </equality>
+  <equality>
+    <joint joint1="hinge1" joint2="hinge2"/>
+    <connect body1="connect" body2="world" anchor="-.05 -.05 .05"/>
+    <connect site1="0" site2="1"/>
+  </equality>
 </mujoco>
-   `;
+    `;
     const tempXmlFilename = '/tmp/model_c.xml';
     writeXMLFile(tempXmlFilename, xmlString);
     const model = mujoco.MjModel!.loadFromXML(tempXmlFilename);
@@ -353,7 +350,7 @@ describe('MuJoCo WASM Bindings', () => {
       mujoco.mju_subFrom(res, data!.efc_aref);
       const cost = mujoco.DoubleBuffer.FromArray([0]);
       mujoco.mj_constraintUpdate(
-        model!, data!, res.GetView(), cost, /*flg_coneHessian=*/ 1);
+          model!, data!, res.GetView(), cost, /*flg_coneHessian=*/ 1);
 
       expect(cost.GetView()[0]).toBeCloseTo(3355.837);
 
@@ -368,7 +365,7 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute body jacobian', () => {
     mujoco.mj_forward(model!, data!);
     const bodyId =
-      mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
+        mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
     const point = [0.1, 0.2, 0.3];
     const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
     const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
@@ -377,7 +374,7 @@ describe('MuJoCo WASM Bindings', () => {
       expect(norm(jacp.GetView())).toBeGreaterThan(0);
       expect(norm(jacr.GetView())).toBeGreaterThan(0);
       expect(() => mujoco.mj_jac(model!, data!, null, null, point, bodyId))
-        .not.toThrowError();
+          .not.toThrow();
     } finally {
       jacp.delete();
       jacr.delete();
@@ -387,7 +384,7 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute body frame jacobian', () => {
     mujoco.mj_forward(model!, data!);
     const bodyId =
-      mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
+        mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
     const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
     const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
     try {
@@ -395,7 +392,7 @@ describe('MuJoCo WASM Bindings', () => {
       expect(norm(jacp.GetView())).toBeGreaterThan(0);
       expect(norm(jacr.GetView())).toBeGreaterThan(0);
       expect(() => mujoco.mj_jacBody(model!, data!, null, null, bodyId))
-        .not.toThrowError();
+          .not.toThrow();
     } finally {
       jacp.delete();
       jacr.delete();
@@ -405,7 +402,7 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute body CoM jacobian', () => {
     mujoco.mj_forward(model!, data!);
     const bodyId =
-      mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
+        mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
     const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
     const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
     try {
@@ -413,7 +410,7 @@ describe('MuJoCo WASM Bindings', () => {
       expect(norm(jacp.GetView())).toBeGreaterThan(0);
       expect(norm(jacr.GetView())).toBeGreaterThan(0);
       expect(() => mujoco.mj_jacBodyCom(model!, data!, null, null, bodyId))
-        .not.toThrowError();
+          .not.toThrow();
     } finally {
       jacp.delete();
       jacr.delete();
@@ -423,7 +420,7 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute geom jacobian', () => {
     mujoco.mj_forward(model!, data!);
     const geomId =
-      mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'mybox');
+        mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'mybox');
     const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
     const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
     try {
@@ -431,7 +428,7 @@ describe('MuJoCo WASM Bindings', () => {
       expect(norm(jacp.GetView())).toBeGreaterThan(0);
       expect(norm(jacr.GetView())).toBeGreaterThan(0);
       expect(() => mujoco.mj_jacGeom(model!, data!, null, null, geomId))
-        .not.toThrowError();
+          .not.toThrow();
     } finally {
       jacp.delete();
       jacr.delete();
@@ -441,20 +438,20 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute point-axis jacobian', () => {
     mujoco.mj_forward(model!, data!);
     const bodyId =
-      mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
+        mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
     const point = [0.1, 0.2, 0.3];
     const axis = [0, 0, 1];
     const jacPoint = new mujoco.DoubleBuffer(3 * model!.nv);
     const jacAxis = new mujoco.DoubleBuffer(3 * model!.nv);
     try {
       mujoco.mj_jacPointAxis(
-        model!, data!, jacPoint, jacAxis, point, axis, bodyId);
+          model!, data!, jacPoint, jacAxis, point, axis, bodyId);
       expect(norm(jacPoint.GetView())).toBeGreaterThan(0);
       expect(norm(jacAxis.GetView())).toBeGreaterThan(0);
       expect(
-        () => mujoco.mj_jacPointAxis(
-          model!, data!, null, null, point, axis, bodyId))
-        .not.toThrowError();
+          () => mujoco.mj_jacPointAxis(
+              model!, data!, null, null, point, axis, bodyId))
+          .not.toThrow();
     } finally {
       jacPoint.delete();
       jacAxis.delete();
@@ -464,7 +461,7 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute jacobian time derivative', () => {
     mujoco.mj_forward(model!, data!);
     const bodyId =
-      mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
+        mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
     const point = [0.1, 0.2, 0.3];
     const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
     const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
@@ -473,7 +470,7 @@ describe('MuJoCo WASM Bindings', () => {
       expect(jacp.GetView().length).toBe(3 * model!.nv);
       expect(jacr.GetView().length).toBe(3 * model!.nv);
       expect(() => mujoco.mj_jacDot(model!, data!, null, null, point, bodyId))
-        .not.toThrowError();
+          .not.toThrow();
     } finally {
       jacp.delete();
       jacr.delete();
@@ -485,18 +482,17 @@ describe('MuJoCo WASM Bindings', () => {
     const torque = [.3, 1, .22];
     const point = [0, 0, 0];
     const bodyId =
-      mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
+        mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_BODY.value, 'mybox');
     const qfrcTarget = new mujoco.DoubleBuffer(model!.nv);
     try {
       mujoco.mj_forward(model!, data!);
       mujoco.mj_applyFT(
-        model!, data!, force, torque, point, bodyId, qfrcTarget);
+          model!, data!, force, torque, point, bodyId, qfrcTarget);
       expect(norm(qfrcTarget.GetView())).toBeGreaterThan(0);
-
 
       qfrcTarget.GetView().fill(0);
       mujoco.mj_applyFT(
-        model!, data!, null as any, null as any, point, bodyId, qfrcTarget);
+          model!, data!, null as any, null as any, point, bodyId, qfrcTarget);
       expect(norm(qfrcTarget.GetView())).toEqual(0);
     } finally {
       qfrcTarget.delete();
@@ -517,9 +513,9 @@ describe('MuJoCo WASM Bindings', () => {
       expect(norm(B.GetView())).toBeGreaterThan(0);
       expect(norm(C.GetView())).toBeGreaterThan(0);
       expect(
-        () => mujoco.mjd_transitionFD(
-          model!, data!, eps, flg_centered, null, null, null, null))
-        .not.toThrowError();
+          () => mujoco.mjd_transitionFD(
+              model!, data!, eps, flg_centered, null, null, null, null))
+          .not.toThrow();
     } finally {
       A.delete();
       B.delete();
@@ -604,10 +600,10 @@ describe('MuJoCo WASM Bindings', () => {
     const res = new mujoco.DoubleBuffer(c1 * c2);
     try {
       expect(
-        () => mujoco.mju_mulMatTMat(
-          res, mat1.GetView(), mat2.GetView(), r1, c1, c2))
-        .toThrowError(
-          'MuJoCo Error: [mju_mulMatTMat] mat2 must have size 6, got 5');
+          () => mujoco.mju_mulMatTMat(
+              res, mat1.GetView(), mat2.GetView(), r1, c1, c2))
+          .toThrowError(
+              'MuJoCo Error: [mju_mulMatTMat] mat2 must have size 6, got 5');
     } finally {
       mat1.delete();
       mat2.delete();
@@ -616,28 +612,28 @@ describe('MuJoCo WASM Bindings', () => {
   });
 
   it('should convert a dense matrix to sparse and return non-zero count',
-    () => {
-      const nr = 2;
-      const nc = 3;
-      const mat = [0.0, 1.0, 0.0, 2.0, 0.0, 3.0];
-      const rownnz = new mujoco.IntBuffer(nr);
-      const rowadr = new mujoco.IntBuffer(nr);
-      const colind = new mujoco.IntBuffer(nc);
-      const res = new mujoco.DoubleBuffer(nc);
-      try {
-        const nnz =
-          mujoco.mju_dense2sparse(res, mat, nr, nc, rownnz, rowadr, colind);
-        expectArraysEqual(res.GetView(), new Float64Array([1.0, 2.0, 3.0]));
-        expectArraysEqual(rownnz.GetView(), new Int32Array([1, 2]));
-        expectArraysEqual(rowadr.GetView(), new Int32Array([0, 1]));
-        expectArraysEqual(colind.GetView(), new Int32Array([1, 0, 2]));
-      } finally {
-        res.delete();
-        rownnz.delete();
-        rowadr.delete();
-        colind.delete();
-      }
-    });
+     () => {
+       const nr = 2;
+       const nc = 3;
+       const mat = [0.0, 1.0, 0.0, 2.0, 0.0, 3.0];
+       const rownnz = new mujoco.IntBuffer(nr);
+       const rowadr = new mujoco.IntBuffer(nr);
+       const colind = new mujoco.IntBuffer(nc);
+       const res = new mujoco.DoubleBuffer(nc);
+       try {
+         const nnz =
+             mujoco.mju_dense2sparse(res, mat, nr, nc, rownnz, rowadr, colind);
+         expectArraysEqual(res.GetView(), new Float64Array([1.0, 2.0, 3.0]));
+         expectArraysEqual(rownnz.GetView(), new Int32Array([1, 2]));
+         expectArraysEqual(rowadr.GetView(), new Int32Array([0, 1]));
+         expectArraysEqual(colind.GetView(), new Int32Array([1, 0, 2]));
+       } finally {
+         res.delete();
+         rownnz.delete();
+         rowadr.delete();
+         colind.delete();
+       }
+     });
 
   it('should convert a sparse matrix to a dense matrix', () => {
     const nr = 2;
@@ -660,101 +656,11 @@ describe('MuJoCo WASM Bindings', () => {
     expect(() => {
       mujoco.mju_eye(null as any);
     })
-      .toThrowError(
-        'MuJoCo Error: [mju_eye] Invalid argument. Expected a TypedArray or WasmBuffer, got null.');
+        .toThrowError(
+            'MuJoCo Error: [mju_eye] Invalid argument. Expected a TypedArray or WasmBuffer, got null.');
   });
 
-  // Corresponds to user_api_test.cc:TEST_F(MujocoTest, AttachSame)
-  // Not passing outside g3
-  // it('should attach a body to a frame', () => {
-  //   const XML = `<mujoco model="child">
-  //   <default>
-  //     <default class="cylinder">
-  //       <geom type="cylinder" size=".1 1 0"/>
-  //     </default>
-  //   </default>
 
-  //   <custom>
-  //     <numeric data="10" name="constant"/>
-  //   </custom>
-
-  //   <asset>
-  //     <texture name="texture" type="2d" builtin="checker" width="32" height="32"/>
-  //     <material name="material" texture="texture" texrepeat="1 1" texuniform="true"/>
-  //   </asset>
-
-  //   <worldbody>
-  //     <frame name="pframe">
-  //       <frame name="cframe">
-  //         <body name="body">
-  //           <joint type="hinge" name="hinge"/>
-  //           <geom class="cylinder" material="material"/>
-  //           <light mode="targetbody" target="targetbody"/>
-  //           <site name="site" material="material"/>
-  //           <body name="targetbody"/>
-  //           <body/>
-  //         </body>
-  //       </frame>
-  //     </frame>
-  //     <body name="ignore">
-  //       <geom size=".1"/>
-  //       <joint type="slide"/>
-  //     </body>
-  //     <frame name="frame" pos=".1 0 0" euler="0 90 0"/>
-  //   </worldbody>
-
-  //   <sensor>
-  //     <framepos name="sensor" objtype="body" objname="body"/>
-  //     <framepos name="ignore" objtype="body" objname="ignore"/>
-  //   </sensor>
-
-  //   <tendon>
-  //     <fixed name="fixed">
-  //       <joint joint="hinge" coef="2"/>
-  //     </fixed>
-  //   </tendon>
-
-  //   <actuator>
-  //     <position name="hinge" joint="hinge" timeconst=".01"/>
-  //     <position name="fixed" tendon="fixed" timeconst=".01"/>
-  //     <position name="site" site="site" timeconst=".01"/>
-  //   </actuator>
-
-  //   <contact>
-  //     <exclude body1="body" body2="targetbody"/>
-  //   </contact>
-
-  //   <keyframe>
-  //     <key name="two" time="2" qpos="2 22" act="1 2 3" ctrl="1 2 3"/>
-  //     <key name="three" time="3" qpos="3 33" act="4 5 6" ctrl="4 5 6"/>
-  //   </keyframe>
-  // </mujoco>`;
-
-  //   const spec = mujoco.parseXMLString(XML);
-  //   const frame = mujoco.mjs_findFrame(spec, 'frame');
-  //   const body = mujoco.mjs_findBody(spec, 'body');
-  //   try {
-  //     expect(frame).toBeDefined();
-  //     expect(body).toBeDefined();
-  //     expect(frame!.element).toBeDefined();
-  //     expect(body!.element).toBeDefined();
-  //     mujoco.mjs_setDeepCopy(spec, 1);
-  //     const attached =
-  //       mujoco.mjs_attach(frame!.element, body!.element, 'attached-', '-1');
-  //     expect(attached).toBeDefined;
-  //     const asBody = mujoco.mjs_asBody(attached!);
-  //     const foundBody = mujoco.mjs_findBody(spec, 'attached-body-1');
-  //     expect(asBody?.element.signature).toEqual(foundBody?.element.signature);
-  //     expect(mujoco.mjs_findSpec(spec, 'child')).toBeUndefined();
-  //     asBody?.delete();
-  //     foundBody?.delete();
-  //     attached?.delete();
-  //   } finally {
-  //     frame?.delete();
-  //     body?.delete();
-  //     spec?.delete();
-  //   }
-  // });
 
   it('should return undefined', () => {
     const spec = mujoco.parseXMLString(TEST_XML);
@@ -779,11 +685,11 @@ describe('MuJoCo WASM Bindings', () => {
       ['Cull Face', '1', '']
     ]);
     expect(mujoco.get_mjFRAMESTRING().length)
-      .toEqual(mujoco.mjtFrame.mjNFRAME.value);
+        .toEqual(mujoco.mjtFrame.mjNFRAME.value);
     expect(mujoco.get_mjVISSTRING().length)
-      .toEqual(mujoco.mjtVisFlag.mjNVISFLAG.value);
+        .toEqual(mujoco.mjtVisFlag.mjNVISFLAG.value);
     expect(mujoco.get_mjVISSTRING()[mujoco.mjtVisFlag.mjVIS_INERTIA.value])
-      .toEqual(['Inertia', '0', 'I']);
+        .toEqual(['Inertia', '0', 'I']);
   });
 
   it('should create a spec from XML', () => {
@@ -818,15 +724,15 @@ describe('MuJoCo WASM Bindings', () => {
   it('should get correct geom name', () => {
     const spec = mujoco.parseXMLString(TEST_XML);
     const geomEl =
-      mujoco.mjs_findElement(spec, mujoco.mjtObj.mjOBJ_GEOM, 'myplane');
+        mujoco.mjs_findElement(spec, mujoco.mjtObj.mjOBJ_GEOM, 'myplane');
     try {
-      expect(geomEl).toBeDefined();
-      const geom = mujoco.mjs_asGeom(geomEl!);
-      expect(geom).toBeDefined();
-      const geomName = mujoco.mjs_getName(geom!.element);
+      assertExists(geomEl);
+      const geom = mujoco.mjs_asGeom(geomEl);
+      assertExists(geom);
+      const geomName = mujoco.mjs_getName(geom.element);
       expect(geomName).toEqual('myplane');
-      mujoco.mjs_setName(geom!.element, 'myplane2');
-      expect(mujoco.mjs_getName(geom!.element)).toEqual('myplane2');
+      mujoco.mjs_setName(geom.element, 'myplane2');
+      expect(mujoco.mjs_getName(geom.element)).toEqual('myplane2');
     } finally {
       spec?.delete();
     }
@@ -835,13 +741,13 @@ describe('MuJoCo WASM Bindings', () => {
   it('should override geom userdata', () => {
     const spec = mujoco.parseXMLString(TEST_XML);
     const geomEl =
-      mujoco.mjs_findElement(spec, mujoco.mjtObj.mjOBJ_GEOM, 'myplane');
+        mujoco.mjs_findElement(spec, mujoco.mjtObj.mjOBJ_GEOM, 'myplane');
     try {
-      expect(geomEl).toBeDefined();
-      const geom = mujoco.mjs_asGeom(geomEl!);
-      expect(geom).toBeDefined();
-      geom!.userdata.set(0, 10);
-      expect(geom!.userdata.get(0)).toEqual(10);
+      assertExists(geomEl);
+      const geom = mujoco.mjs_asGeom(geomEl);
+      assertExists(geom);
+      geom.userdata.set(0, 10);
+      expect(geom.userdata.get(0)).toEqual(10);
     } finally {
       spec.delete();
     }
@@ -851,7 +757,7 @@ describe('MuJoCo WASM Bindings', () => {
     const newValues = new Float32Array([0.1, 0.2, 0.3, 0.4]);
     model!.geom_rgba.set(newValues);
     const expected = new Float32Array(
-      [0.1, 0.2, 0.3, 0.4, 0.5, 0.5, 0.5, 1, 0.5, 0.5, 0.5, 1]);
+        [0.1, 0.2, 0.3, 0.4, 0.5, 0.5, 0.5, 1, 0.5, 0.5, 0.5, 1]);
     expectArraysClose(model!.geom_rgba, expected);
   })
 
@@ -869,20 +775,20 @@ describe('MuJoCo WASM Bindings', () => {
   });
 
   it('should throw an error when mju_addToScl is called with incompatible sizes',
-    () => {
-      const res = mujoco.DoubleBuffer.FromArray([1, 2, 3]);
-      const vec = [4, 5];
-      const scale = 2;
-      try {
-        expect(() => {
-          mujoco.mju_addToScl(res, vec, scale);
-        })
-          .toThrowError(
-            'MuJoCo Error: [mju_addToScl] res and vec must have equal size, got 3 and 2');
-      } finally {
-        res.delete();
-      }
-    });
+     () => {
+       const res = mujoco.DoubleBuffer.FromArray([1, 2, 3]);
+       const vec = [4, 5];
+       const scale = 2;
+       try {
+         expect(() => {
+           mujoco.mju_addToScl(res, vec, scale);
+         })
+             .toThrowError(
+                 'MuJoCo Error: [mju_addToScl] res and vec must have equal size, got 3 and 2');
+       } finally {
+         res.delete();
+       }
+     });
 
   it('should sort an array with insertion sort', () => {
     const arr = mujoco.DoubleBuffer.FromArray([5, 2, 8, 1, 9]);
@@ -897,26 +803,26 @@ describe('MuJoCo WASM Bindings', () => {
 
   it('should find the attached spec', () => {
     const bXml = `
-   <mujoco>
-     <worldbody>
-       <body name="b" pos="0 0 0.1">
-         <geom rgba="0 .9 0 1" name="attached_geom_b" type="box" size="0.1 0.1 0.1" mass="0.25"/>
-         <freejoint name="bfree"/>
-       </body>
-     </worldbody>
-   </mujoco>
-   `;
+    <mujoco>
+      <worldbody>
+        <body name="b" pos="0 0 0.1">
+          <geom rgba="0 .9 0 1" name="attached_geom_b" type="box" size="0.1 0.1 0.1" mass="0.25"/>
+          <freejoint name="bfree"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    `;
     const xmlWithAttachedSpec = `
-   <mujoco>
-     <asset>
-       <model name="b" file="b.xml" />
-     </asset>
+    <mujoco>
+      <asset>
+        <model name="b" file="b.xml" />
+      </asset>
 
-     <worldbody>
-       <attach model="b" body="b" prefix="b" />
-     </worldbody>
-   </mujoco>
-   `;
+      <worldbody>
+        <attach model="b" body="b" prefix="b" />
+      </worldbody>
+    </mujoco>
+    `;
     const mainXmlFilename = 'main.xml';
     const bXmlFilename = 'b.xml';
     writeXMLFile(mainXmlFilename, xmlWithAttachedSpec);
@@ -925,11 +831,11 @@ describe('MuJoCo WASM Bindings', () => {
     const attachedSpec = mujoco.mjs_findSpec(spec, 'b');
 
     try {
-      expect(attachedSpec).toBeDefined();
+      assertExists(attachedSpec);
       const geomEl = mujoco.mjs_findElement(
-        attachedSpec!, mujoco.mjtObj.mjOBJ_GEOM, 'attached_geom_b');
-      expect(geomEl).toBeDefined();
-      const geom = mujoco.mjs_asGeom(geomEl!);
+          attachedSpec, mujoco.mjtObj.mjOBJ_GEOM, 'attached_geom_b');
+      assertExists(geomEl);
+      const geom = mujoco.mjs_asGeom(geomEl);
       expect(geom).toBeDefined();
       expect(mujoco.mjs_getName(geom!.element)).toEqual('attached_geom_b');
     } finally {
@@ -943,14 +849,14 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_load_xml_can_handle_name_clash
   it('should handle name clashes when loading XML with includes', () => {
     const xml1 = `
-     <mujoco>
-       <worldbody>
-         <geom name="plane" type="plane" size="1 1 1"/>
-         <include file="model_.xml"/>
-         <include file="model__.xml"/>
-       </worldbody>
-     </mujoco>
-   `;
+      <mujoco>
+        <worldbody>
+          <geom name="plane" type="plane" size="1 1 1"/>
+          <include file="model_.xml"/>
+          <include file="model__.xml"/>
+        </worldbody>
+      </mujoco>
+    `;
     const xml2 = `<mujoco><geom name="box" type="box" size="1 1 1"/></mujoco>`;
     const xml3 = `<mujoco><geom name="ball" type="sphere" size="1"/></mujoco>`;
 
@@ -967,11 +873,11 @@ describe('MuJoCo WASM Bindings', () => {
     try {
       expect(model).toBeDefined();
       expect(mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'plane'))
-        .toBe(0);
+          .toBe(0);
       expect(mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'box'))
-        .toBe(1);
+          .toBe(1);
       expect(mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'ball'))
-        .toBe(2);
+          .toBe(2);
     } finally {
       model?.delete();
       unlinkXMLFile(modelXmlFilename);
@@ -983,7 +889,7 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_can_read_array
   it('should read an array from the model', () => {
     const expected =
-      new Float64Array([0, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0, 0, 42, 0, 42]);
+        new Float64Array([0, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0, 0, 42, 0, 42]);
     const bodyPos = new Float64Array(model!.body_pos);
     expectArraysEqual(bodyPos, expected);
   });
@@ -1022,10 +928,10 @@ describe('MuJoCo WASM Bindings', () => {
     expectArraysEqual(gravityRef, new Float64Array([0.2, 0.2, 0.2]));
   });
 
-
   // Corresponds to bindings_test.py:test_mjmodel_can_read_and_write_stat
   it('should read and write MjStat', () => {
     expect(model!.stat.meanmass).not.toEqual(0);
+
     const statRef = model!.stat;
     model!.stat.meanmass = 1.2;
     expect(statRef.meanmass).toEqual(1.2);
@@ -1034,6 +940,7 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_mjmodel_can_read_and_write_vis
   it('should read and write MjVis', () => {
     expect(model!.vis.quality.shadowsize).toEqual(51);
+
     const visRef = model!.vis;
     model!.vis.quality.shadowsize = 100;
     expect(visRef.quality.shadowsize).toEqual(100);
@@ -1042,16 +949,15 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_mjmodel_can_access_names_directly
   it('should access names directly from the model', () => {
     const modelName = new TextDecoder().decode(
-      model!.names.slice(0, model!.names.indexOf(0)));
+        model!.names.slice(0, model!.names.indexOf(0)));
     expect(modelName).toEqual('test');
 
     const startGeomNameIndex = model!.name_geomadr[0];
     const endGeomNameIndex = model!.names.indexOf(0, startGeomNameIndex);
     const geomName = new TextDecoder().decode(
-      model!.names.slice(startGeomNameIndex, endGeomNameIndex));
+        model!.names.slice(startGeomNameIndex, endGeomNameIndex));
     expect(geomName).toEqual('myplane');
   });
-
 
   // Corresponds to bindings_test.py:test_mjmodel_names_doesnt_copy
   it('should not copy names when accessing them multiple times', () => {
@@ -1083,14 +989,13 @@ describe('MuJoCo WASM Bindings', () => {
     expectArraysEqual(opt2.gravity, new Float64Array([2, 2, 2]));
   });
 
-
   // Corresponds to bindings_test.py:test_mjdata_can_read_warning_array
   it('should read warning array from MjData', () => {
     expect(data!.warning.size()).toEqual(mujoco.mjtWarning.mjNWARNING.value);
     data!.qpos[0] = NaN;
     mujoco.mj_checkPos(model!, data!);
     expect(data!.warning.get(mujoco.mjtWarning.mjWARN_BADQPOS.value)!.number)
-      .toEqual(1);
+        .toEqual(1);
   });
 
   // Corresponds to bindings_test.py:test_mjcontact_can_copy
@@ -1105,7 +1010,6 @@ describe('MuJoCo WASM Bindings', () => {
     expectArraysClose(originalContact.pos, originalPos);
     originalContact.delete();
   });
-
 
   // Corresponds to bindings_test.py:test_mj_step
   it('should step the simulation forward', () => {
@@ -1131,13 +1035,13 @@ describe('MuJoCo WASM Bindings', () => {
     expect(data!.efc_type.length).toEqual(16);
 
     expectArraysClose(
-      contact.get(0)!.pos.slice(0, 2), new Float64Array([-0.1, -0.1]));
+        contact.get(0)!.pos.slice(0, 2), new Float64Array([-0.1, -0.1]));
     expectArraysClose(
-      contact.get(1)!.pos.slice(0, 2), new Float64Array([0.1, -0.1]));
+        contact.get(1)!.pos.slice(0, 2), new Float64Array([0.1, -0.1]));
     expectArraysClose(
-      contact.get(2)!.pos.slice(0, 2), new Float64Array([-0.1, 0.1]));
+        contact.get(2)!.pos.slice(0, 2), new Float64Array([-0.1, 0.1]));
     expectArraysClose(
-      contact.get(3)!.pos.slice(0, 2), new Float64Array([0.1, 0.1]));
+        contact.get(3)!.pos.slice(0, 2), new Float64Array([0.1, 0.1]));
 
     mujoco.mj_resetData(model!, data!);
     expect(data!.ncon).toEqual(0);
@@ -1189,34 +1093,6 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 
-  // Corresponds to bindings_test.py:test_mj_struct_equality
-  // pit('should check that', {
-  //   'MjOption': { cls: () => new mujoco.MjOption(), attr: 'tolerance' },
-  //   'MjWarningStat': { cls: () => new mujoco.MjWarningStat(), attr: 'number' },
-  //   'MjTimerStat': { cls: () => new mujoco.MjTimerStat(), attr: 'number' },
-  //   'MjSolverStat': { cls: () => new mujoco.MjSolverStat(), attr: 'neval' },
-  //   'MjContact': { cls: () => new mujoco.MjContact(), attr: 'dist' },
-  //   'MjStatistic': { cls: () => new mujoco.MjStatistic(), attr: 'extent' },
-  //   'MjLROpt': { cls: () => new mujoco.MjLROpt(), attr: 'maxforce' },
-  //   'MjvPerturb': { cls: () => new mujoco.MjvPerturb(), attr: 'select' },
-  //   'MjvCamera': { cls: () => new mujoco.MjvCamera(), attr: 'fixedcamid' },
-  // },
-  //   'is equal', ({ cls, attr }: { cls: () => any, attr: string }) => {
-  //     const struct1 = cls();
-  //     const struct2 = cls();
-  //     (struct1 as any)[attr] = 6;
-
-  //     expect((struct1 as any)[attr]).not.toEqual((struct2 as any)[attr]);
-
-  //     (struct2 as any)[attr] = 6;
-  //     expect((struct1 as any)[attr]).toEqual((struct2 as any)[attr]);
-
-  //     expect(struct1).not.toEqual(3);
-  //     expect(struct1).toBeDefined();
-  //     struct1.delete();
-  //     struct2.delete();
-  //   });
-
 
   // Corresponds to bindings_test.py:test_getsetstate
   it('should get and set the state', () => {
@@ -1226,8 +1102,8 @@ describe('MuJoCo WASM Bindings', () => {
     expect(() => {
       mujoco.mj_stateSize(model!, invalidSig);
     })
-      .toThrowError(
-        'MuJoCo Error: mj_stateSize: invalid state signature 8192 >= 2^mjNSTATE');
+        .toThrowError(
+            'MuJoCo Error: mj_stateSize: invalid state signature 8192 >= 2^mjNSTATE');
 
     const sig = mujoco.mjtState.mjSTATE_INTEGRATION.value;
     const size = mujoco.mj_stateSize(model!, sig);
@@ -1235,8 +1111,8 @@ describe('MuJoCo WASM Bindings', () => {
     expect(() => {
       mujoco.mj_getState(model!, data!, stateBadSize, sig);
     })
-      .toThrowError(
-        'MuJoCo Error: [mj_getState] state must have size 81, got 1');
+        .toThrowError(
+            'MuJoCo Error: [mj_getState] state must have size 81, got 1');
 
     const state0 = new mujoco.DoubleBuffer(size);
     mujoco.mj_getState(model!, data!, state0, sig);
@@ -1261,8 +1137,8 @@ describe('MuJoCo WASM Bindings', () => {
     expect(() => {
       mujoco.mj_setKeyframe(model!, data!, invalidKey);
     })
-      .toThrowError(
-        'MuJoCo Error: mj_setKeyframe: index must be smaller than 2 (keyframes allocated in model)');
+        .toThrowError(
+            'MuJoCo Error: mj_setKeyframe: index must be smaller than 2 (keyframes allocated in model)');
 
     const validKey = 1;
     const time = data!.time;
@@ -1311,7 +1187,7 @@ describe('MuJoCo WASM Bindings', () => {
   it('should compute site jacobian', () => {
     mujoco.mj_forward(model!, data!);
     const siteId =
-      mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_SITE.value, 'mysite');
+        mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_SITE.value, 'mysite');
     const jacp = new mujoco.DoubleBuffer(3 * model!.nv);
     const jacr = new mujoco.DoubleBuffer(3 * model!.nv);
 
@@ -1337,8 +1213,8 @@ describe('MuJoCo WASM Bindings', () => {
         expect(() => {
           mujoco.mj_jacSite(model!, data!, badJacp, null, siteId);
         })
-          .toThrowError(
-            'MuJoCo Error: [mj_jacSite] jacp must have size 30, got 18');
+            .toThrowError(
+                'MuJoCo Error: [mj_jacSite] jacp must have size 30, got 18');
       } finally {
         badJacp.delete();
       }
@@ -1348,8 +1224,8 @@ describe('MuJoCo WASM Bindings', () => {
         expect(() => {
           mujoco.mj_jacSite(model!, data!, null, badJacr, siteId);
         })
-          .toThrowError(
-            'MuJoCo Error: [mj_jacSite] jacr must have size 30, got 28');
+            .toThrowError(
+                'MuJoCo Error: [mj_jacSite] jacr must have size 30, got 28');
       } finally {
         badJacr.delete();
       }
@@ -1388,8 +1264,8 @@ describe('MuJoCo WASM Bindings', () => {
 
     mujoco.mj_forward(model!, data!);
     mujoco.mjv_updateScene(
-      model!, data!, new mujoco.MjvOption(), new mujoco.MjvPerturb(),
-      new mujoco.MjvCamera(), mujoco.mjtCatBit.mjCAT_ALL.value, scene);
+        model!, data!, new mujoco.MjvOption(), new mujoco.MjvPerturb(),
+        new mujoco.MjvCamera(), mujoco.mjtCatBit.mjCAT_ALL.value, scene);
     expect(scene.geoms.size()).toEqual(scene.ngeom);
     expect(scene.ngeom).toBeGreaterThan(0);
   });
@@ -1406,10 +1282,10 @@ describe('MuJoCo WASM Bindings', () => {
     const eps = 1e-6;
     const flg_centered = 0;
     expect(
-      () => mujoco.mjd_inverseFD(
-        model!, data!, eps, flg_centered, null, null, null, null, null,
-        null, null))
-      .not.toThrowError();
+        () => mujoco.mjd_inverseFD(
+            model!, data!, eps, flg_centered, null, null, null, null, null,
+            null, null))
+        .not.toThrow();
   });
 
   // Corresponds to bindings_test.py:test_inverse_fd
@@ -1431,8 +1307,8 @@ describe('MuJoCo WASM Bindings', () => {
 
     try {
       mujoco.mjd_inverseFD(
-        model!, data!, eps, flg_centered, dfDq, dfDv, dfDa, dsDq, dsDv, dsDa,
-        dmDq);
+          model!, data!, eps, flg_centered, dfDq, dfDv, dfDa, dsDq, dsDv, dsDa,
+          dmDq);
 
       expect(norm(dfDq.GetView())).toBeGreaterThan(eps);
       expect(norm(dfDv.GetView())).toBeGreaterThan(eps);
@@ -1459,8 +1335,8 @@ describe('MuJoCo WASM Bindings', () => {
       const dist = mujoco.mj_geomDistance(model!, data!, 0, 2, 200, fromto);
       expect(dist).toEqual(41.9);
       expectArraysClose(
-        fromto.GetView(),
-        new Float64Array([42.0, 0.0, 0.0, 42.0, 0.0, 41.9]));
+          fromto.GetView(),
+          new Float64Array([42.0, 0.0, 0.0, 42.0, 0.0, 41.9]));
     } finally {
       fromto.delete();
     }
@@ -1531,7 +1407,7 @@ describe('MuJoCo WASM Bindings', () => {
       4.0,
     ];
     const band =
-      new mujoco.DoubleBuffer(nBand * (nTotal - nDense) + nDense * nTotal);
+        new mujoco.DoubleBuffer(nBand * (nTotal - nDense) + nDense * nTotal);
     const vec = mujoco.DoubleBuffer.FromArray([2.0, 2.0, 3.0, 4.0]);
     const res = new mujoco.DoubleBuffer(4);
     try {
@@ -1543,13 +1419,13 @@ describe('MuJoCo WASM Bindings', () => {
       const dense2 = new mujoco.DoubleBuffer(nTotal * nTotal);
       const flgSym = 1;
       mujoco.mju_band2Dense(
-        dense2, band.GetView(), nTotal, nBand, nDense, flgSym);
+          dense2, band.GetView(), nTotal, nBand, nDense, flgSym);
       expectArraysEqual(new Float64Array(dense), dense2.GetView());
 
       const nVec = 1;
       mujoco.mju_bandMulMatVec(
-        res, band.GetView(), vec.GetView(), nTotal, nBand, nDense, nVec,
-        flgSym);
+          res, band.GetView(), vec.GetView(), nTotal, nBand, nDense, nVec,
+          flgSym);
 
       const expected = new Float64Array([2.4, 4.8, 10.2, 17.5]);
       expectArraysClose(res.GetView(), expected);
@@ -1558,7 +1434,7 @@ describe('MuJoCo WASM Bindings', () => {
       const diagMul = 0;
       mujoco.mju_cholFactorBand(band, nTotal, nBand, nDense, diagAdd, diagMul);
       mujoco.mju_cholSolveBand(
-        res, band.GetView(), vec.GetView(), nTotal, nBand, nDense);
+          res, band.GetView(), vec.GetView(), nTotal, nBand, nDense);
 
       const expectedSolved = new Float64Array([1.9111, 0.9111, 0.9111, 0.8333]);
       expectArraysClose(res.GetView(), expectedSolved);
@@ -1584,7 +1460,7 @@ describe('MuJoCo WASM Bindings', () => {
         h.GetView()[i * (n + 1)] = 1;
       }
       const rank = mujoco.mju_boxQP(
-        res, r, index, h.GetView(), g.GetView(), lower, upper);
+          res, r, index, h.GetView(), g.GetView(), lower, upper);
       expect(rank).toBeGreaterThan(-1);
     } finally {
       res.delete();
@@ -1671,7 +1547,7 @@ describe('MuJoCo WASM Bindings', () => {
     const colInd = new mujoco.IntBuffer(3);
     try {
       const status =
-        mujoco.mju_dense2sparse(res, mat, 2, 3, rowNnz, rowAdr, colInd);
+          mujoco.mju_dense2sparse(res, mat, 2, 3, rowNnz, rowAdr, colInd);
       expect(status).toEqual(0);
       expectArraysEqual(res.GetView(), new Float64Array([1.0, 2.0, 3.0]));
       expectArraysEqual(rowNnz.GetView(), new Int32Array([1, 2]));
@@ -1713,18 +1589,18 @@ describe('MuJoCo WASM Bindings', () => {
       expect(() => {
         mujoco.mju_euler2Quat(quat, euler, 'xy');
       })
-        .toThrowError(
-          'MuJoCo Error: mju_euler2Quat: seq must contain exactly 3 characters');
+          .toThrowError(
+              'MuJoCo Error: mju_euler2Quat: seq must contain exactly 3 characters');
       expect(() => {
         mujoco.mju_euler2Quat(quat, euler, 'xyzy');
       })
-        .toThrowError(
-          'MuJoCo Error: mju_euler2Quat: seq must contain exactly 3 characters');
+          .toThrowError(
+              'MuJoCo Error: mju_euler2Quat: seq must contain exactly 3 characters');
       expect(() => {
         mujoco.mju_euler2Quat(quat, euler, 'xYp');
       })
-        .toThrowError(
-          `MuJoCo Error: mju_euler2Quat: seq[2] is 'p', should be one of x, y, z, X, Y, Z`);
+          .toThrowError(
+              `MuJoCo Error: mju_euler2Quat: seq[2] is 'p', should be one of x, y, z, X, Y, Z`);
     } finally {
       quat.delete();
     }
@@ -1736,17 +1612,17 @@ describe('MuJoCo WASM Bindings', () => {
     writeXMLFile(texFilename, 'tex');
     const tempXmlFilename = '/tmp/with_texture.xml';
     const TEST_XML_TEXTURE = `
-     <mujoco>
-       <asset>
-         <texture name="tex" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2"
-           width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>
-         <material name="mat" reflectance="0.3" texture="tex" texrepeat="1 1" texuniform="true"/>
-       </asset>
-       <worldbody>
-         <geom type="plane" size="1 1 1" material="mat"/>
-       </worldbody>
-     </mujoco>
-   `;
+      <mujoco>
+        <asset>
+          <texture name="tex" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2"
+            width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>
+          <material name="mat" reflectance="0.3" texture="tex" texrepeat="1 1" texuniform="true"/>
+        </asset>
+        <worldbody>
+          <geom type="plane" size="1 1 1" material="mat"/>
+        </worldbody>
+      </mujoco>
+    `;
     writeXMLFile(tempXmlFilename, TEST_XML_TEXTURE);
 
     const model = mujoco.MjModel!.loadFromXML(tempXmlFilename);
@@ -1766,8 +1642,8 @@ describe('MuJoCo WASM Bindings', () => {
     const model2 = new mujoco.MjModel(model1);
 
     try {
-      expect(model1).toBeDefined();
-      expect(model2).toBeDefined();
+      assertExists(model1);
+      assertExists(model2);
       expect(model1).not.toBe(model2);
       expect(model1.opt.timestep).toEqual(model2.opt.timestep);
       expect(model1.stat.meanmass).toEqual(model2.stat.meanmass);
@@ -1784,8 +1660,8 @@ describe('MuJoCo WASM Bindings', () => {
     const data1 = new mujoco.MjData(model!);
     const data2 = new mujoco.MjData(model!, data1);
     try {
-      expect(data1).toBeDefined();
-      expect(data1).toBeDefined();
+      assertExists(data1);
+      assertExists(data2);
       expect(data1).not.toBe(data2);
       expectArraysEqual(data1.qpos, data2.qpos);
       expectArraysEqual(data1.qvel, data2.qvel);
@@ -1804,13 +1680,15 @@ describe('MuJoCo WASM Bindings', () => {
     const spec2 = new mujoco.MjSpec(spec1);
 
     try {
-      expect(spec1).toBeDefined();
-      expect(spec2).toBeDefined();
+      assertExists(spec1);
+      assertExists(spec2);
+
       expect(spec1).not.toBe(spec2);
+
       expect(spec1.modelname).toEqual(spec2.modelname);
       expect(spec1.option.timestep).toEqual(spec2.option.timestep);
       expect(spec1.visual.quality.shadowsize)
-        .toEqual(spec2.visual.quality.shadowsize);
+          .toEqual(spec2.visual.quality.shadowsize);
       expect(spec1.stat.meanmass).toEqual(spec2.stat.meanmass);
 
       spec1.modelname = 'modified';
@@ -1825,20 +1703,20 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to partial of user_api_test.cc:TEST_F(PluginTest, AttachPlugin)
   it('should correctly copy MjSpec instances when attaching plugins', () => {
     const xmlPlugin1 = `
-     <mujoco model="MuJoCo Model">
-       <worldbody>
-         <body name="body"/>
-       </worldbody>
-     </mujoco>`;
+      <mujoco model="MuJoCo Model">
+        <worldbody>
+          <body name="body"/>
+        </worldbody>
+      </mujoco>`;
 
     const spec1 = mujoco.parseXMLString(xmlPlugin1);
     const spec2 = new mujoco.MjSpec(spec1);
     const spec3 = new mujoco.MjSpec(spec1);
 
     try {
-      expect(spec1).toBeDefined();
-      expect(spec2).toBeDefined();
-      expect(spec3).toBeDefined();
+      assertExists(spec1);
+      assertExists(spec2);
+      assertExists(spec3);
 
       spec2.modelname = 'first_copy';
       spec3.modelname = 'second_copy';
@@ -1852,18 +1730,17 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 
-
   it('should save the model to an XML file', () => {
     const tempXmlFilename = '/tmp/saved_model.xml';
     const xml = `<mujoco model="MuJoCo Model">
- <compiler angle="radian"/>
- <asset>
-   <texture type="2d" colorspace="auto" name="tex" builtin="checker" mark="cross" rgb1="0.2 0.3 0.4" rgb2="0.1 0.15 0.2" markrgb="0.8 0.8 0.8" width="512" height="512"/>
-   <material name="mat" texture="tex" texuniform="true" reflectance="0.3"/>
- </asset>
- <worldbody>
-   <geom size="1 1 1" type="plane" material="mat"/>
- </worldbody>
+  <compiler angle="radian"/>
+  <asset>
+    <texture type="2d" colorspace="auto" name="tex" builtin="checker" mark="cross" rgb1="0.2 0.3 0.4" rgb2="0.1 0.15 0.2" markrgb="0.8 0.8 0.8" width="512" height="512"/>
+    <material name="mat" texture="tex" texuniform="true" reflectance="0.3"/>
+  </asset>
+  <worldbody>
+    <geom size="1 1 1" type="plane" material="mat"/>
+  </worldbody>
 </mujoco>`;
     writeXMLFile(tempXmlFilename, xml);
 
@@ -1871,10 +1748,10 @@ describe('MuJoCo WASM Bindings', () => {
     try {
       mujoco.mj_saveLastXML(tempXmlFilename, model!);
       const savedXmlContent =
-        (mujoco as any).FS.readFile(tempXmlFilename, { encoding: 'utf8' });
+          (mujoco as any).FS.readFile(tempXmlFilename, {encoding: 'utf8'});
       // Remove whitespaces from the saved XML content to avoid flakiness.
       expect(savedXmlContent.replace(/\s/g, ''))
-        .toEqual(xml.replace(/\s/g, ''));
+          .toEqual(xml.replace(/\s/g, ''));
     } finally {
       unlinkXMLFile(tempXmlFilename);
     }
@@ -1883,29 +1760,29 @@ describe('MuJoCo WASM Bindings', () => {
   it('can call mj_setLengthRange with actuators', () => {
     const tempXmlFilename = '/tmp/actuator_model.xml';
     const actuatorXml = `<mujoco model="actuator_test">
-     <worldbody>
-       <body>
-         <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
-         <joint name="hinge1" type="hinge" axis="0 1 0"/>
-       </body>
-     </worldbody>
-     <actuator>
-       <position name="myactuator" joint="hinge1"/>
-     </actuator>
-   </mujoco>`;
+      <worldbody>
+        <body>
+          <inertial pos="0 0 0" mass="1" diaginertia="1 1 1"/>
+          <joint name="hinge1" type="hinge" axis="0 1 0"/>
+        </body>
+      </worldbody>
+      <actuator>
+        <position name="myactuator" joint="hinge1"/>
+      </actuator>
+    </mujoco>`;
     writeXMLFile(tempXmlFilename, actuatorXml);
     const model = mujoco.MjModel.loadFromXML(tempXmlFilename);
-    expect(model).toBeDefined();
+    assertExists(model);
     const data = new mujoco.MjData(model);
-    expect(data).toBeDefined();
+    assertExists(data);
     const opt = new mujoco.MjLROpt();
 
     try {
       const result = mujoco.mj_setLengthRange(
-        model,
-        data,
-         /* index= */ 0,
-        opt,
+          model,
+          data,
+          /* index= */ 0,
+          opt,
       );
       expect(result).toBe(1);
     } finally {
@@ -1916,3 +1793,4 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 });
+
