@@ -104,6 +104,20 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang
   endif()
 endif()
 
+# Enable inter-procedural optimizations by default on release builds.
+if(CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(MUJOCO_ENABLE_IPO_DEFAULT ON)
+else()
+    set(MUJOCO_ENABLE_IPO_DEFAULT OFF)
+endif()
+option(MUJOCO_ENABLE_IPO, "Enable inter-procedural optimization (IPO)" ${MUJOCO_ENABLE_IPO_DEFAULT})
+
+# IPO is disabled by default. If it's enabled here, it was explicitly enabled. MUJOCO_ENABLE_IPO should be used instead.
+if (CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+  message(FATAL_ERROR "Setting CMAKE_INTERPROCEDURAL_OPTIMIZATION has no effect! Use MUJOCO_ENABLE_IPO.")
+endif()
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION, ${MUJOCO_ENABLE_IPO})
+
 include(MujocoHarden)
 set(EXTRA_COMPILE_OPTIONS ${EXTRA_COMPILE_OPTIONS} ${MUJOCO_HARDEN_COMPILE_OPTIONS})
 set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} ${MUJOCO_HARDEN_LINK_OPTIONS})

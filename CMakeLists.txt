@@ -45,20 +45,6 @@ option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
 option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
 option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
 
-# Enable inter-procedural optimizations by default on release builds.
-if(CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(MUJOCO_ENABLE_IPO_DEFAULT ON)
-else()
-    set(MUJOCO_ENABLE_IPO_DEFAULT OFF)
-endif()
-option(MUJOCO_ENABLE_IPO, "Enable inter-procedural optimization (IPO)" ${MUJOCO_ENABLE_IPO_DEFAULT})
-
-# IPO is disabled by default. If it's enabled here, it was explicitly enabled. MUJOCO_ENABLE_IPO should be used instead.
-if (CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-  message(WARNING "Setting CMAKE_INTERPROCEDURAL_OPTIMIZATION has no effect! Use MUJOCO_ENABLE_IPO.")
-endif()
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION, ${MUJOCO_ENABLE_IPO})
-
 # Option to provide a path to an existing USD build directory or to Houdini HFS directory.
 set(USD_DIR "" CACHE PATH "Path to an existing USD build directory.")
 set(HOUDINI_HFS_DIR "" CACHE PATH "Path to Houdini HFS directory to build USD plugins against.")
