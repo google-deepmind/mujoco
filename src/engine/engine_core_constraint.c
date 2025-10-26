@@ -172,7 +172,11 @@ static int mj_elemBodyWeight(const mjModel* m, const mjData* d, int f, int e, in
   }
 
   // normalize weights
-  mju_normalize(weight, dim+1);
+  mjtNum sum = mju_sum(weight, dim+1);
+  if (sum < mjMINVAL) {
+    mjERROR("element body weight sum < mjMINVAL");
+  }
+  mju_scl(weight, weight, 1.0/sum, dim+1);
   return dim+1;
 }
 

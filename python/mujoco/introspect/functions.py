@@ -2416,6 +2416,40 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Get state.',
      )),
+    ('mj_extractState',
+     FunctionDecl(
+         name='mj_extractState',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='src',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='srcsig',
+                 type=ValueType(name='unsigned int'),
+             ),
+             FunctionParameterDecl(
+                 name='dst',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dstsig',
+                 type=ValueType(name='unsigned int'),
+             ),
+         ),
+         doc='Extract a subset of components from a state previously obtained via mj_getState.',  # pylint: disable=line-too-long
+     )),
     ('mj_setState',
      FunctionDecl(
          name='mj_setState',
@@ -10437,6 +10471,66 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc="Return spec's next element; return NULL if element is last.",
      )),
+    ('mjs_getWrapTarget',
+     FunctionDecl(
+         name='mjs_getWrapTarget',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsElement'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='wrap',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsWrap'),
+                 ),
+             ),
+         ),
+         doc='Get wrapped element in tendon path.',
+     )),
+    ('mjs_getWrapSideSite',
+     FunctionDecl(
+         name='mjs_getWrapSideSite',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsSite'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='wrap',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsWrap'),
+                 ),
+             ),
+         ),
+         doc='Get wrapped element side site in tendon path if it has one, nullptr otherwise.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_getWrapDivisor',
+     FunctionDecl(
+         name='mjs_getWrapDivisor',
+         return_type=ValueType(name='double'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='wrap',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsWrap'),
+                 ),
+             ),
+         ),
+         doc='Get divisor of mjsWrap wrapping a puller.',
+     )),
+    ('mjs_getWrapCoef',
+     FunctionDecl(
+         name='mjs_getWrapCoef',
+         return_type=ValueType(name='double'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='wrap',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsWrap'),
+                 ),
+             ),
+         ),
+         doc='Get coefficient of mjsWrap wrapping a joint.',
+     )),
     ('mjs_setName',
      FunctionDecl(
          name='mjs_setName',
@@ -10759,6 +10853,40 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Get double array contents and optionally its size.',
+     )),
+    ('mjs_getWrapNum',
+     FunctionDecl(
+         name='mjs_getWrapNum',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='tendonspec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsTendon', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Get number of elements a tendon wraps.',
+     )),
+    ('mjs_getWrap',
+     FunctionDecl(
+         name='mjs_getWrap',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsWrap'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='tendonspec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsTendon', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='i',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Get mjsWrap element at position i in the tendon path.',
      )),
     ('mjs_getPluginAttributes',
      FunctionDecl(

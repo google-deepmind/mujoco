@@ -22,6 +22,7 @@
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
 #include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/tendon.h>
 #include <mujoco/mujoco.h>
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/usd/common.h>
@@ -168,6 +169,12 @@ ExtractedPrims ExtractPrims(pxr::UsdStageRefPtr stage) {
     if (prim.IsA<pxr::MjcPhysicsActuator>()) {
       root->actuators.push_back(prim_path);
       // Joints should not have children.
+      it.PruneChildren();
+    }
+
+    if (prim.IsA<pxr::MjcPhysicsTendon>()) {
+      root->tendons.push_back(prim_path);
+      // Tendons should not have children of interest.
       it.PruneChildren();
     }
 

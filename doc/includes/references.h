@@ -3118,6 +3118,8 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                          mjtNum cost[1], int flg_coneHessian);
 int mj_stateSize(const mjModel* m, unsigned int sig);
 void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
+void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
+                     mjtNum* dst, unsigned int dstsig);
 void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
@@ -3498,6 +3500,10 @@ mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse);
 mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse);
 mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
 mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
+mjsElement* mjs_getWrapTarget(mjsWrap* wrap);
+mjsSite* mjs_getWrapSideSite(mjsWrap* wrap);
+double mjs_getWrapDivisor(mjsWrap* wrap);
+double mjs_getWrapCoef(mjsWrap* wrap);
 int mjs_setName(mjsElement* element, const char* name);
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 void mjs_setString(mjString* dest, const char* text);
@@ -3513,6 +3519,8 @@ void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 mjString* mjs_getName(mjsElement* element);
 const char* mjs_getString(const mjString* source);
 const double* mjs_getDouble(const mjDoubleVec* source, int* size);
+int mjs_getWrapNum(const mjsTendon* tendonspec);
+mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i);
 const void* mjs_getPluginAttributes(const mjsPlugin* plugin);
 void mjs_setDefault(mjsElement* element, const mjsDefault* def);
 int mjs_setFrame(mjsElement* dest, mjsFrame* frame);

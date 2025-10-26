@@ -126,7 +126,7 @@ class "MjcSceneAPI" (
         displayName = "Discrete-Time Inverse Dynamics Toggle"
         doc = "Enables discrete-time inverse dynamics with mj_inverse for integrators other than RK4."
     )
-    uniform bool mjc:flag:island = 0 (
+    uniform bool mjc:flag:island = 1 (
         displayName = "Constraint Island Discovery Toggle"
         doc = "Enables the discovery of constraint islands."
     )
@@ -547,6 +547,113 @@ class "MjcMaterialAPI" (
     uniform double mjc:torsionalfriction = 0.005 (
         displayName = "Torsional Friction"
         doc = "Friction value acting around contact normal."
+    )
+}
+
+class MjcTendon "MjcTendon" (
+    doc = "Type describing fixed and spatial tendons."
+)
+{
+    uniform token mjc:actuatorfrclimited = "auto" (
+        allowedTokens = ["false", "true", "auto"]
+        displayName = "Actuator Force Limited"
+        doc = "This attribute specifies whether actuator forces acting on the tendon should be clamped. See Force limits for details. This attribute interacts with the actuatorfrcrange attribute. If this attribute is “false”, actuator force clamping is disabled. If it is “true”, actuator force clamping is enabled. If this attribute is “auto”, and autolimits is set in compiler, actuator force clamping will be enabled if actuatorfrcrange is defined."
+    )
+    uniform double mjc:actuatorfrcrange:max = 0 (
+        displayName = "Actuator Force Range Max"
+        doc = "Maximum range for clamping total actuator forces acting on this tendon. See Force limits for details. The compiler expects the upper bound to be nonnegative. Setting this attribute without specifying actuatorfrclimited is an error if compiler-autolimits is “false”."
+    )
+    uniform double mjc:actuatorfrcrange:min = 0 (
+        displayName = "Actuator Force Range Min"
+        doc = "Minimum range for clamping total actuator forces acting on this tendon. See Force limits for details. The compiler expects the lower bound to be nonpositive. Setting this attribute without specifying actuatorfrclimited is an error if compiler-autolimits is “false”."
+    )
+    uniform double mjc:armature = 0 (
+        displayName = "Armature"
+        doc = "Inertia associated with changes in tendon length."
+    )
+    uniform double mjc:damping = 0 (
+        displayName = "Damping"
+        doc = "Damping coefficient. A positive value generates a damping force (linear in velocity) acting along the tendon. Unlike joint damping which is integrated implicitly by the Euler method, tendon damping is not integrated implicitly, thus joint damping should be used if possible."
+    )
+    uniform double mjc:frictionloss = 0 (
+        displayName = "Friction Loss"
+        doc = "Friction loss caused by dry friction. To enable friction loss, set this attribute to a positive value."
+    )
+    uniform int mjc:group = 0 (
+        displayName = "Group"
+        doc = "Integer MuJoCo group to which the tendon belongs."
+    )
+    uniform token mjc:limited = "auto" (
+        allowedTokens = ["auto", "true", "false"]
+        displayName = "Limited"
+        doc = "If true, the tendon length is limited to the range specified by mjc:range:min/max."
+    )
+    uniform double mjc:margin = 0 (
+        displayName = "Margin"
+        doc = "The limit constraint becomes active when the absolute value of the difference between the tendon length and either limit of the specified range falls below this margin. Similar to contacts, the margin parameter is subtracted from the difference between the range limit and the tendon length. The resulting constraint distance is always negative when the constraint is active. This quantity is used to compute constraint impedance as a function of distance."
+    )
+    rel mjc:path (
+        doc = "For spatial tendons, this describes a list of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
+    )
+    uniform double[] mjc:path:coef = [] (
+        doc = "For fixed tendons passing through joints this represents a multiplicative factor on the position or angle of the targeted joint."
+    )
+    uniform double[] mjc:path:divisors = [] (
+        doc = "For spatial tendons, this represents an indexed array of divisors. A tendon path segments' length contribution to the overall tendon length is divided by its divisor."
+    )
+    uniform int[] mjc:path:segments = [] (
+        doc = "For spatial tendons, this holds the index of the segment each tendon path wrap point belongs to."
+    )
+    uniform double mjc:range:max = 0 (
+        displayName = "Range Max"
+        doc = "Maximum allowed tendon length. Setting this attribute without specifying limited is an error, unless autolimits is set in compiler."
+    )
+    uniform double mjc:range:min = 0 (
+        displayName = "Range Min"
+        doc = "Minimum allowed tendon length. Setting this attribute without specifying limited is an error, unless autolimits is set in compiler."
+    )
+    uniform color4f mjc:rgba = (0.5, 0.5, 0.5, 1) (
+        displayName = "RGBA"
+        doc = "Color and transparency of the tendon in MuJoCo."
+    )
+    rel mjc:sideSites (
+        doc = "For spatial tendons, a geom wrapped by the tendon may specify which side of the geom the tendon wraps around via a site prim. This is a list of sites that are used as side sites in mjc:path."
+    )
+    uniform int[] mjc:sideSites:indices = [] (
+        doc = "For spatial tendons, if mjc:sideSites has targets then index 'i' in this list represents the position in the relationship targets of mjc:sideSites that the geom at index 'i' in mjc:path uses as a side site. It is considered an authoring error to assign a side site to something other than a geom. Geoms that do not use a side site should use index value '-1'."
+    )
+    uniform double[] mjc:solimpfriction = [0.9, 0.95, 0.001, 0.5, 2] (
+        displayName = "Solver Impedance Friction"
+        doc = "Constraint solver parameters for simulating dry friction in the tendon."
+    )
+    uniform double[] mjc:solimplimit = [0.9, 0.95, 0.001, 0.5, 2] (
+        displayName = "Solver Impedance Limit"
+        doc = "Constraint solver parameters for simulating tendon limits."
+    )
+    uniform double[] mjc:solreffriction = [0.02, 1] (
+        displayName = "Solver Reference Friction"
+        doc = "Constraint solver parameters for simulating dry friction in the tendon."
+    )
+    uniform double[] mjc:solreflimit = [0.02, 1] (
+        displayName = "Solver Reference Limit"
+        doc = "Constraint solver parameters for simulating tendon limits."
+    )
+    uniform double[] mjc:springlength = [-1, -1] (
+        displayName = "Spring Length"
+        doc = "Spring resting position, can take either one or two values. If one value is given, it corresponds to the length of the tendon at rest. If it is -1, the tendon resting length is determined from the model reference configuration in mjModel.qpos0. Note that the default value of -1, which invokes the automatic length computation, was designed with spatial tendons in mind, which can only have nonegative length. In order to set the springlength of a fixed tendon to -1, use a nearby value like -0.99999. If two non-decreasing values are given, they define a dead-band range. If the tendon length is between the two values, the force is 0. If it is outside this range, the force behaves like a regular spring, with the rest-point corresponding to the nearest springlength value. A deadband can be used to define tendons whose limits are enforced by springs rather than constraints."
+    )
+    uniform double mjc:stiffness = 0 (
+        displayName = "Stiffness"
+        doc = "Stiffness coefficient. A positive value generates a spring force (linear in position) acting along the tendon."
+    )
+    uniform token mjc:type = "spatial" (
+        allowedTokens = ["spatial", "fixed"]
+        displayName = "Type"
+        doc = "Type of tendon, valid values are 'spatial' and 'fixed'."
+    )
+    uniform double mjc:width = 0.003 (
+        displayName = "Width"
+        doc = "Radius of the cross-section area of the spatial tendon, used for rendering in MuJoCo. Parts of the tendon that wrap around geom obstacles are rendered with reduced width."
     )
 }
 

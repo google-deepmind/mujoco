@@ -4109,9 +4109,12 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   }
 
   // set nnode
-  nnode = (int)nodebody_.size();
-  if (nnode && nnode != 8) {
-    throw mjCError(this, "number of nodes must be 2^dim, it is %d", "", nnode);
+  nnode = static_cast<int>(nodebody_.size());
+  if (nnode && !order_) {
+    order_ = std::pow(nnode, 1.0 / 3) - 1;
+    if (nnode != std::pow(order_ + 1, 3)) {
+      throw mjCError(this, "number of nodes must be %d^3 but it is %d", nullptr, order_, nnode);
+    }
   }
 
   // check elem vertex ids

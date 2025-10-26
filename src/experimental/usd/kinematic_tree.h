@@ -35,6 +35,7 @@ struct Node {
   std::vector<pxr::SdfPath> visual_gprims;
   std::vector<pxr::SdfPath> colliders;
   std::vector<pxr::SdfPath> sites;
+  std::vector<pxr::SdfPath> tendons;
   std::vector<pxr::SdfPath> keyframes;
   std::vector<std::unique_ptr<Node>> children;
 };

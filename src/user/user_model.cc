@@ -3377,7 +3377,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
 
     // set interpolation type, only two types for now
-    m->flex_interp[i] = pfl->interpolated;
+    m->flex_interp[i] = pfl->order_;
 
     // convert edge pairs to int array, set edge rigid
     for (int k=0; k < pfl->nedge; k++) {

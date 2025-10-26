@@ -465,6 +465,10 @@ MJAPI int mj_stateSize(const mjModel* m, unsigned int sig);
 // Get state.
 MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
 
+// Extract a subset of components from a state previously obtained via mj_getState.
+MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
+                           mjtNum* dst, unsigned int dstsig);
+
 // Set state.
 MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 
@@ -1674,6 +1678,17 @@ MJAPI mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
 // Return spec's next element; return NULL if element is last.
 MJAPI mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
 
+// Get wrapped element in tendon path.
+MJAPI mjsElement* mjs_getWrapTarget(mjsWrap* wrap);
+
+// Get wrapped element side site in tendon path if it has one, nullptr otherwise.
+MJAPI mjsSite* mjs_getWrapSideSite(mjsWrap* wrap);
+
+// Get divisor of mjsWrap wrapping a puller.
+MJAPI double mjs_getWrapDivisor(mjsWrap* wrap);
+
+// Get coefficient of mjsWrap wrapping a joint.
+MJAPI double mjs_getWrapCoef(mjsWrap* wrap);
 
 //---------------------------------- Attribute setters ---------------------------------------------
 
@@ -1725,6 +1740,12 @@ MJAPI const char* mjs_getString(const mjString* source);
 // Get double array contents and optionally its size.
 // Nullable: size
 MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
+
+// Get number of elements a tendon wraps.
+MJAPI int mjs_getWrapNum(const mjsTendon* tendonspec);
+
+// Get mjsWrap element at position i in the tendon path.
+MJAPI mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i);
 
 // Get plugin attributes.
 MJAPI const void* mjs_getPluginAttributes(const mjsPlugin* plugin);

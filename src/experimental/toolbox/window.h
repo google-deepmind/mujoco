@@ -30,11 +30,16 @@ namespace mujoco::toolbox {
 class Window {
  public:
   // Configures the window for the specified rendering backend.
-  enum Config {
+  enum RenderConfig {
     kClassicOpenGL,
     kFilamentVulkan,
     kFilamentOpenGL,
     kFilamentWebGL,
+  };
+
+  struct Config {
+    RenderConfig render_config = kClassicOpenGL;
+    bool enable_keyboard = true;
   };
 
   Window(std::string_view title, int width, int height, Config config,

@@ -16,21 +16,29 @@ XML schema
 The table below summarizes the XML elements and their attributes in MJCF. Note that all information in MJCF is entered
 through elements and attributes. Text content in elements is not used; if present, the parser ignores it.
 
-.. collapse:: Collapse schema table
-   :open:
 
-   The symbols in the second column of the table have the following meaning:
+.. only:: html
 
-   ====== ===================================================
-   **!**  required element, can appear only once
-   **?**  optional element, can appear only once
-   **\*** optional element, can appear many times
-   **R**  optional element, can appear many times recursively
-   ====== ===================================================
+   .. collapse:: Collapse schema table
+      :open:
 
-   .. cssclass:: schema-small
+      The symbols in the second column of the table have the following meaning:
 
-   .. include:: XMLschema.rst
+      ====== ===================================================
+      **!**  required element, can appear only once
+      **?**  optional element, can appear only once
+      **\*** optional element, can appear many times
+      **R**  optional element, can appear many times recursively
+      ====== ===================================================
+
+      .. cssclass:: schema-small
+
+      .. include:: XMLschema.rst
+
+.. only:: latex
+
+   .. note::
+      The XML schema table is only available in the HTML version of this documentation.
 
 
 .. _CType:

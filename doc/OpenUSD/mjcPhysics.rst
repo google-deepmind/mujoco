@@ -95,3 +95,13 @@ In MJCF this is the ``<keyframe>`` element and has a ``time`` attribute. In USD 
 
 The order of the values in the keyframes should map to the depth first ordered traversal of rigidbodies in the composed
 stage.
+
+MjcTendon
+^^^^^^^^^
+
+This type represents both fixed and spatial tendons.
+
+In MJCF this is the ``<tendon>`` element. The tendon path is represented by the ordered list of targets in the
+``mjc:path`` relationship attribute. In MJCF we can specify attributes such as ``sidesite`` and ``divisor`` on
+path targets; but in USD we cannot attach data to relationship attributes as elegantly, so these become indexed
+array attributes such as ``mjc:sideSites`` and ``mjs:path:divisors``.

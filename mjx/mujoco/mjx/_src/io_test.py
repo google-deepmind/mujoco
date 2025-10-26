@@ -1071,5 +1071,107 @@ class ResolveImplAndDeviceTest(parameterized.TestCase):
     self.assertEqual(device.platform, 'gpu')
 
 
+class StateIOTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      mujoco.mjtState.mjSTATE_TIME,
+      mujoco.mjtState.mjSTATE_QPOS,
+      mujoco.mjtState.mjSTATE_QVEL,
+      mujoco.mjtState.mjSTATE_ACT,
+      mujoco.mjtState.mjSTATE_WARMSTART,
+      mujoco.mjtState.mjSTATE_CTRL,
+      mujoco.mjtState.mjSTATE_QFRC_APPLIED,
+      mujoco.mjtState.mjSTATE_XFRC_APPLIED,
+      mujoco.mjtState.mjSTATE_EQ_ACTIVE,
+      mujoco.mjtState.mjSTATE_INTEGRATION,
+  )
+  def test_state_size(self, spec):
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    mx = mjx.put_model(m)
+    self.assertEqual(mjx.state_size(mx, spec), mujoco.mj_stateSize(m, spec))
+
+  def test_get_set_state(self):
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    # give the model a little kick to get some non-zero state
+    d.qvel = np.random.random(m.nv)
+    mujoco.mj_step(m, d)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+
+    # test full state
+    spec_full = mujoco.mjtState.mjSTATE_INTEGRATION
+    state = mjx.get_state(mx, dx, spec_full)
+    state_mj = np.empty(state.shape, dtype=np.float64)
+    mujoco.mj_getState(m, d, state_mj, int(spec_full))
+    np.testing.assert_allclose(state, state_mj, atol=1e-6)
+    dx2 = mjx.set_state(mx, mjx.make_data(m), state, spec_full)
+    np.testing.assert_allclose(dx.qpos, dx2.qpos)
+    np.testing.assert_allclose(dx.qvel, dx2.qvel)
+    np.testing.assert_allclose(dx.act, dx2.act)
+    np.testing.assert_allclose(dx.qacc_warmstart, dx2.qacc_warmstart)
+    np.testing.assert_allclose(dx.ctrl, dx2.ctrl)
+    np.testing.assert_allclose(dx.qfrc_applied, dx2.qfrc_applied)
+    np.testing.assert_allclose(dx.xfrc_applied, dx2.xfrc_applied)
+    np.testing.assert_allclose(dx.eq_active, dx2.eq_active)
+
+    # test single state
+    for spec in [
+        mujoco.mjtState.mjSTATE_TIME,
+        mujoco.mjtState.mjSTATE_QPOS,
+        mujoco.mjtState.mjSTATE_QVEL,
+        mujoco.mjtState.mjSTATE_ACT,
+        mujoco.mjtState.mjSTATE_WARMSTART,
+        mujoco.mjtState.mjSTATE_CTRL,
+        mujoco.mjtState.mjSTATE_QFRC_APPLIED,
+        mujoco.mjtState.mjSTATE_XFRC_APPLIED,
+        mujoco.mjtState.mjSTATE_EQ_ACTIVE,
+    ]:
+      state = mjx.get_state(mx, dx, spec)
+      state_mj = np.empty(state.shape, dtype=np.float64)
+      mujoco.mj_getState(m, d, state_mj, int(spec))
+      np.testing.assert_allclose(state, state_mj)
+      dx2 = mjx.set_state(mx, mjx.make_data(m), state, spec)
+      np.testing.assert_allclose(
+          getattr(dx, mjx_io._STATE_MAP[spec]),
+          getattr(dx2, mjx_io._STATE_MAP[spec]),
+      )
+
+    # test partial state
+    spec = (
+        mujoco.mjtState.mjSTATE_QPOS
+        | mujoco.mjtState.mjSTATE_QVEL
+    )
+    state = mjx.get_state(mx, dx, spec)
+    state_mj = np.empty(state.shape, dtype=np.float64)
+    mujoco.mj_getState(m, d, state_mj, int(spec))
+    np.testing.assert_allclose(state, state_mj)
+
+    # check that we only set qpos/qvel and other values are at init
+    dx_init = mjx.make_data(m)
+    dx2 = mjx.set_state(mx, dx_init, state, spec)
+    np.testing.assert_allclose(dx.qpos, dx2.qpos)
+    np.testing.assert_allclose(dx.qvel, dx2.qvel)
+    np.testing.assert_allclose(dx_init.time, dx2.time)
+    np.testing.assert_allclose(dx_init.act, dx2.act)
+
+  def test_jit(self):
+    m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    spec = mujoco.mjtState.mjSTATE_INTEGRATION
+
+    get_state_jit = jax.jit(mjx.get_state, static_argnames='spec')
+    state = get_state_jit(mx, dx, spec)
+    state_nojit = mjx.get_state(mx, dx, spec)
+    np.testing.assert_allclose(state, state_nojit)
+
+    set_state_jit = jax.jit(mjx.set_state, static_argnames='spec')
+    dx2 = set_state_jit(mx, dx, state, spec)
+    dx2_nojit = mjx.set_state(mx, dx, state, spec)
+    np.testing.assert_allclose(dx2.qpos, dx2_nojit.qpos)
+
+
 if __name__ == '__main__':
   absltest.main()

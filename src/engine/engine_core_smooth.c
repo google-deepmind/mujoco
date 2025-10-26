@@ -462,7 +462,7 @@ void mj_flex(const mjModel* m, mjData* d) {
 
     // trilinear interpolation
     else {
-      mjtNum nodexpos[mjMAXFLEXNODES];
+      mjtNum nodexpos[3*mjMAXFLEXNODES];
       if (m->flex_centered[f]) {
         for (int i=nstart; i < nend; i++) {
           mju_copy3(nodexpos + 3*(i-nstart), d->xpos + 3*m->flex_nodebodyid[i]);

@@ -83,19 +83,26 @@ Window::Window(std::string_view title, int width, int height, Config config,
 
   int window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
 
-  if (config == kFilamentVulkan) {
+  if (!config_.enable_keyboard) {
+    SDL_EventState(SDL_TEXTINPUT, SDL_DISABLE);
+    SDL_EventState(SDL_KEYDOWN, SDL_DISABLE);
+    SDL_EventState(SDL_KEYUP, SDL_DISABLE);
+  }
+
+  RenderConfig render_config = config_.render_config;
+  if (render_config == kFilamentVulkan) {
     window_flags |= SDL_WINDOW_VULKAN;
-  } else if (config == kFilamentWebGL) {
+  } else if (render_config == kFilamentWebGL) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-  } else if (config == kClassicOpenGL || config == kFilamentOpenGL) {
+  } else if (render_config == kClassicOpenGL || render_config == kFilamentOpenGL) {
     window_flags |= SDL_WINDOW_OPENGL;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
   } else {
-    mju_error("Unsupported window config: %d", config);
+    mju_error("Unsupported window config: %d", render_config);
   }
 
   sdl_window_ =
@@ -107,7 +114,7 @@ Window::Window(std::string_view title, int width, int height, Config config,
 
   InitImGui(sdl_window_, load_asset_fn);
 
-  if (config == kFilamentWebGL || config == kClassicOpenGL) {
+  if (render_config == kFilamentWebGL || render_config == kClassicOpenGL) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
     SDL_GL_MakeCurrent(sdl_window_, gl_context);
   }
@@ -174,7 +181,8 @@ void Window::EndFrame() {
 
 void Window::Present() {
   // Filament (with the exception of WebGL) handles the swapchain internally.
-  if (config_ != kFilamentVulkan && config_ != kFilamentOpenGL) {
+  if (config_.render_config != kFilamentVulkan
+     && config_.render_config != kFilamentOpenGL) {
     SDL_GL_SwapWindow(sdl_window_);
   }
 }
