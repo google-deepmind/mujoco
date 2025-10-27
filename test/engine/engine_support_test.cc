@@ -980,7 +980,7 @@ TEST_F(InertiaTest, FullM) {
   mj_deleteModel(m);
 }
 
-static constexpr char GeomDistanceTestingModel[] = R"(
+static constexpr char GeomDistanceTestingModel1[] = R"(
 <mujoco>
   <option>
     <flag nativeccd="enable"/>
@@ -999,10 +999,19 @@ static constexpr char GeomDistanceTestingModel[] = R"(
 </mujoco>
 )";
 
+static constexpr char GeomDistanceTestingModel2[] = R"(
+<mujoco>
+  <worldbody>
+    <geom type="sphere" size=".1"/>
+    <geom type="ellipsoid" size=".1 .1 .1" pos="0 0 1"/>
+  </worldbody>
+</mujoco>
+)";
+
 TEST_F(SupportTest, GeomDistance) {
   char error[1024];
   mjModel* model =
-      LoadModelFromString(GeomDistanceTestingModel, error, sizeof(error));
+      LoadModelFromString(GeomDistanceTestingModel1, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   mj_kinematics(model, data);
@@ -1042,15 +1051,41 @@ TEST_F(SupportTest, GeomDistance) {
   EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
               DoubleNear(0.7, eps));
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                vector<mjtNum>{0, 0, .8, 0, 0, .1}));
+                                vector<mjtNum>{0, 0, .1, 0, 0, .8}));
 
   // mesh-sphere (far distmax)
   distmax = 1.0;
   EXPECT_THAT(mj_geomDistance(model, data, 3, 1, distmax, fromto),
               DoubleNear(0.7, eps));
   EXPECT_THAT(fromto, Pointwise(DoubleNear(eps),
-                                vector<mjtNum>{0, 0, .8, 0, 0, .1}));
+                                vector<mjtNum>{0, 0, .1, 0, 0, .8}));
 
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SupportTest, GeomDistanceFromToFlipped) {
+  mjtNum distmax = 10.0;
+  char error[1024];
+  mjModel* model =
+      LoadModelFromString(GeomDistanceTestingModel2, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+  mj_kinematics(model, data);
+
+  mjtNum fromto01[6];
+  mjtNum fromto10[6];
+
+  for (int flag : {0, (int)mjDSBL_NATIVECCD}) {
+    model->opt.disableflags = flag;
+    mj_geomDistance(model, data, 0, 1, distmax, fromto01);
+    mj_geomDistance(model, data, 1, 0, distmax, fromto10);
+    mjtNum fromto10flipped[6] = {fromto10[3], fromto10[4], fromto10[5],
+                                 fromto10[0], fromto10[1], fromto10[2]};
+
+    EXPECT_THAT(AsVector(fromto10flipped, 6),
+                Pointwise(DoubleNear(1.0e-12), fromto01));
+  }
   mj_deleteData(data);
   mj_deleteModel(model);
 }

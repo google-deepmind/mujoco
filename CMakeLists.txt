@@ -41,9 +41,12 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
 option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
+option(MUJOCO_BUILD_STUDIO "Build studio library for MuJoCo" OFF)
 option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
 option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
 option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
+option(MUJOCO_USE_FILAMENT "Use filament rendering" OFF)
+option(MUJOCO_USE_FILAMENT_VULKAN "Use vulkan backend for filament rendering" OFF)
 
 # Option to provide a path to an existing USD build directory or to Houdini HFS directory.
 set(USD_DIR "" CACHE PATH "Path to an existing USD build directory.")
@@ -112,9 +115,20 @@ add_subdirectory(plugin/sdf)
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
-add_subdirectory(src/render)
 add_subdirectory(src/thread)
-add_subdirectory(src/ui)
+
+if(MUJOCO_USE_FILAMENT)
+  # Note that, by default, the "src/render" and "src/ui" code is added directly
+  # into the "mujoco" target. However, "mujoco::filament" is a separate,
+  # explicit target. Therefore, if you want to use MuJoCo with Filament, you
+  # will need to explicitly add the "mujoco::filament" target as a link
+  # dependency in your project.
+  add_subdirectory(src/experimental/filament)
+else()
+  add_subdirectory(src/render)
+  add_subdirectory(src/ui)
+endif()
+
 
 target_compile_definitions(mujoco PRIVATE _GNU_SOURCE CCD_STATIC_DEFINE MUJOCO_DLL_EXPORTS -DMC_IMPLEM_ENABLE)
 if(MUJOCO_ENABLE_AVX_INTRINSICS)
@@ -196,6 +210,11 @@ add_subdirectory(model)
 # TODO: Remove this order dependency.
 if(MUJOCO_BUILD_SIMULATE)
   add_subdirectory(simulate)
+endif()
+
+if(MUJOCO_BUILD_STUDIO)
+  add_subdirectory(src/experimental/toolbox)
+  add_subdirectory(src/experimental/studio)
 endif()
 
 if(MUJOCO_BUILD_EXAMPLES)
