@@ -1,14 +1,14 @@
-From 708206b28f34c0b1e495f9406888bd14d8a7e565 Mon Sep 17 00:00:00 2001
+From e4df7f24f4d5e91199237a405d23db841b9315a4 Mon Sep 17 00:00:00 2001
 From: MatiasManevi <manevimatias@gmail.com>
 Date: Wed, 8 Oct 2025 17:17:34 -0300
-Subject: [PATCH 1/2] Add library only if not emcc
+Subject: [PATCH] Add library and set target props  only if not emcc
 
 ---
- CMakeLists.txt | 3 ++-
- 1 file changed, 2 insertions(+), 1 deletion(-)
+ CMakeLists.txt | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 0423820..0075bc2 100644
+index 0423820..c5295c1 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -360,6 +360,7 @@ if (NOT DEFINED CMAKE_BUILD_WITH_INSTALL_RPATH)
@@ -28,21 +28,7 @@ index 0423820..0075bc2 100644
  # ---------------------------------------
  # Define static libraries qhullstatic (non-reentrant) and qhullstatic_r (reentrant)
  # ---------------------------------------
-
-From 2d32ef4911b0a8ed443f480e3b5960ae95cb429c Mon Sep 17 00:00:00 2001
-From: MatiasManevi <manevimatias@gmail.com>
-Date: Wed, 8 Oct 2025 17:34:56 -0300
-Subject: [PATCH 2/2] set target props if not emcc
-
----
- CMakeLists.txt | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 0075bc2..c5295c1 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -476,7 +476,7 @@ if(NOT ${BUILD_STATIC_LIBS})
+@@ -475,7 +476,7 @@ if(NOT ${BUILD_STATIC_LIBS})
      set_target_properties(${qhull_STATICR} PROPERTIES EXCLUDE_FROM_ALL TRUE)
      set_target_properties(${qhull_CPP} PROPERTIES EXCLUDE_FROM_ALL TRUE)
  endif()
