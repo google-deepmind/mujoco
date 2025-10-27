@@ -10,7 +10,7 @@ MuJoCo Warp (MJWarp)
     API <api.rst>
 
 MuJoCo Warp (MJWarp) is an implementation of MuJoCo written in `Warp <https://nvidia.github.io/warp/>`__ and optimized
-for `Nvidia <https://nvidia.com>`__ GPUs. MJWarp lives in the
+for `Nvidia <https://nvidia.com>`__ hardware and parallel simulation. MJWarp lives in the
 `google-deepmind/mujoco_warp <https://github.com/google-deepmind/mujoco_warp>`__ GitHub repository and is currently in
 beta.
 
@@ -63,6 +63,22 @@ These MJWarp variants mirror their MuJoCo counterparts but have a few key differ
 
 #. ``mjw.Model`` and ``mjw.Data`` contain Warp arrays that are copied onto device.
 #. Some fields are missing from ``mjw.Model`` and ``mjw.Data`` for features that are unsupported.
+
+``nworld``, ``nconmax``, and ``njmax``
+--------------------------------------
+MJWarp is optimized for parallel simulation. A batch of simulations can be specified with three parameters:
+
+- ``nworld``: Number of worlds to simulate.
+- ``nconmax``: Expected number of contacts per world. The maximum number of contacts for all worlds is
+  ``nconmax * nworld``.
+- ``njmax``: Maximum number of constraints per world.
+
+.. admonition:: Semantic difference for ``nconmax`` and ``njmax``.
+  :class: note
+
+  It is possible for the number of contacts per world to exceed ``nconmax`` if the total number of contacts for all
+  worlds does not exceed ``nworld x nconmax``. However, the number of constraints per world is strictly limited by
+  ``njmax``.
 
 Functions
 _________
