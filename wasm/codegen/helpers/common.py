@@ -3,7 +3,7 @@
 import os
 import pathlib
 
-from . import constants
+from helpers import constants
 
 Path = pathlib.Path
 

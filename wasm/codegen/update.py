@@ -5,7 +5,7 @@ about its internal structures and then uses a code generation framework to
 produce corresponding WASM bindings.
 """
 
-import binding_builder
+from helpers import binding_builder
 from helpers import common
 
 

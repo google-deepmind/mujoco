@@ -1,5 +1,5 @@
 import unittest
-import binding_builder
+from helpers import binding_builder
 
 ERROR_MESSAGE = """
 The file '{}' needs to be updated, please run:

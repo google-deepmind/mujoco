@@ -1,7 +1,7 @@
 // NOLINTBEGIN(whitespace/line_length)
 // NOLINTBEGIN(whitespace/semicolon)
 
-#include "codegen/generated/bindings.h"
+#include "bindings.h"
 
 #include <emscripten/bind.h>
 #include <emscripten/val.h>

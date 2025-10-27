@@ -22,7 +22,7 @@
 #include "mujoco/mjvisualize.h"
 #include "mujoco/mujoco.h"
 #include "engine/engine_util_errmem.h"
-#include "../../unpack.h"
+#include "unpack.h"
 
 namespace mujoco::wasm {
 
