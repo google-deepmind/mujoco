@@ -193,3 +193,41 @@ The following features are **not supported** in MJWarp:
      - ``All`` except ``SDF``
    * - :ref:`User parameters <CUser>`
      - ``All``
+
+Batched ``Model`` Fields
+========================
+
+To enable batched simulation with different model parameter values, many ``mjw.Model`` fields have a leading batch
+dimension. By default, the leading dimension is 1 (i.e., ``field.shape[0] == 1``) and the same value(s) will be applied
+to all worlds. It is possible to override one of these fields with a ``wp.array`` that has a leading dimension greater
+than one. This field will be indexed with a modulo operation of the world id and batch dimension:
+``field[worldid % field.shape[0]]``. Importantly, the field shape should be overridden prior to graph capture (i.e.,
+``wp.ScopedCapture``)
+
+.. code-block:: python
+
+   # override shape and values
+   m.dof_damping = wp.array([[0.1], [0.2]], dtype=float)  # nworld=2
+
+   with wp.ScopedCapture() as capture:
+     mjw.step(m, d)
+
+It is possible to override the field shape and set the field values after graph capture
+
+.. code-block:: python
+
+   # override shape
+   m.dof_damping = wp.empty((2, 1), dtype=float)
+
+   with wp.ScopedCapture() as capture:
+     mjw.step(m, d)
+
+   # set batched values
+   dof_damping_batch = wp.array([[0.1], [0.2]], dtype=float)  # nworld=2
+   wp.copy(m.dof_damping, dof_damping_batch)  # m.dof = dof_damping_batch will not work correctly
+
+.. admonition:: Heterogeneous worlds
+   :class: note
+
+   Heterogeneous worlds, for example: per-world meshes or number of degrees of freedom, are not currently available.
+
