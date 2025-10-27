@@ -669,7 +669,7 @@ struct mjModel_ {
   int nmeshpolymap;               // number of polygons in vertex map
   int nskin;                      // number of skins
   int nskinvert;                  // number of vertices in all skins
-  int nskintexvert;               // number of vertiex with texcoords in all skins
+  int nskintexvert;               // number of vertices with texcoords in all skins
   int nskinface;                  // number of triangular faces in all skins
   int nskinbone;                  // number of bones in all skins
   int nskinbonevert;              // number of vertices in all skin bones
@@ -949,7 +949,7 @@ struct mjModel_ {
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
   mjtByte*  flex_edgeequality;    // is edge equality constraint defined      (nflex x 1)
-  mjtByte*  flex_rigid;           // are all verices in the same body         (nflex x 1)
+  mjtByte*  flex_rigid;           // are all vertices in the same body         (nflex x 1)
   mjtByte*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
   mjtByte*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
   mjtByte*  flex_flatskin;        // render flex skin with flat shading       (nflex x 1)
