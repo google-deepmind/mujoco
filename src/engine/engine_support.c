@@ -486,10 +486,10 @@ mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, 
     return dist;
   }
 
-  // use nativecdd if flag is enabled
+  // use nativeccd if flag is enabled
   if (!mjDISABLED(mjDSBL_NATIVECCD)) {
     if (func == mjc_Convex || func == mjc_BoxBox) {
-      return mj_geomDistanceCCD(m, d, g1, g2, distmax, fromto);
+      return mj_geomDistanceCCD(m, d, geom1, geom2, distmax, fromto);
     }
   }
 
