@@ -6,6 +6,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -O3 -fexceptions")
 
 set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR})
 
+include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/../include)
 include_directories(${PROJECT_SOURCE_DIR}/../src)
 link_directories(${PROJECT_SOURCE_DIR}/../build/lib)

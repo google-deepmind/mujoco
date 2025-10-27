@@ -1,7 +1,7 @@
 // NOLINTBEGIN(whitespace/line_length)
 // NOLINTBEGIN(whitespace/semicolon)
 
-#include "bindings.h"
+#include "codegen/generated/bindings.h"
 
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
@@ -22,7 +22,7 @@
 #include "mujoco/mjvisualize.h"
 #include "mujoco/mujoco.h"
 #include "engine/engine_util_errmem.h"
-#include "../../unpack.h"
+#include "unpack.h"
 
 namespace mujoco::wasm {
 

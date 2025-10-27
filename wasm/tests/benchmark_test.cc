@@ -3,7 +3,7 @@
 #include <algorithm>
 
 #include "mujoco/mujoco.h"
-#include "../unpack.h"
+#include "unpack.h"
 
 namespace mujoco::wasm {
 using emscripten::val;
