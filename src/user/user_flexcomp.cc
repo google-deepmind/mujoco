@@ -441,8 +441,8 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
       continue;
     }
 
-    // pinned or trilinear: parent body
-    if (pinned[i] || doftype == mjFCOMPDOF_TRILINEAR) {
+    // pinned or trilinear or quadratic: parent body
+    if (pinned[i] || doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
       mjs_appendString(pf->vertbody, mjs_getName(body->element)->c_str());
 
       // add plugin
