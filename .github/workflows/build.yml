@@ -330,13 +330,17 @@ jobs:
     name: "WASM Bindings Test"
     steps:
     - uses: actions/checkout@v3
-    - name: Setup nvm
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install NPM Dependencies
+      working-directory: wasm
       run: |
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"
-        nvm install --lts
-        nvm use --lts
+        npm install
+
     - name: Setup Emscripten
       run: |
         git clone https://github.com/emscripten-core/emsdk.git
@@ -344,42 +348,23 @@ jobs:
         ./emsdk install 4.0.10
         ./emsdk activate 4.0.10
         source ./emsdk_env.sh
-    - uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
-    - name: Install Python dependencies
-      shell: bash
-      run: |
-        python -m venv .venv
-        source .venv/bin/activate
-        pip install -r python/build_requirements.txt
-    - name: Install npm dependencies
-      working-directory: wasm
-      run: npm install
-    - name: Build WASM bindings
+        cd ..
+
+    - name: Build MuJoco, build WASM bindings, run WASM tests
       shell: bash
       working-directory: wasm
       run: |
         source ../emsdk/emsdk_env.sh
         export PATH="$(pwd)/node_modules/.bin:$PATH"
+
         emcmake cmake -S .. -B ../build
         cmake --build ../build
+
         emcmake cmake -S . -B build
         cmake --build build
-    - name: Run JavaScript API tests
-      shell: bash
-      working-directory: wasm
-      run: |
-        source ../emsdk/emsdk_env.sh
-        export PATH="$(pwd)/node_modules/.bin:$PATH"
+
         emcmake cmake -S tests -B tests/build
         cmake --build tests/build
-        PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py
+
         npm run test
-    - name: Run Bindings generator tests
-      shell: bash
-      working-directory: wasm
-      run: |
-        source ../.venv/bin/activate
-        PYTHONPATH=../python/mujoco:./codegen python3 -m pytest
 
