@@ -1095,7 +1095,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
     self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path//cube2-child2.obj'], 'cube2_content')
 
     # Attach another spec to site (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
@@ -1115,7 +1115,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
     self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path//cube2-child2.obj'], 'cube2_content')
     self.assertEqual(parent.assets['path/child3-cube3.obj'], 'cube3_content')
 
     # Fail to attach to a site that does not exist.
@@ -1176,7 +1176,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
     self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['path/cube2-child.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path//cube2-child.obj'], 'cube2_content')
 
     # Attach another spec to frame (referenced by name) and compile again.
     child3 = mujoco.MjSpec()

@@ -465,7 +465,7 @@ PYBIND11_MODULE(_specs, m) {
           throw pybind11::value_error(
               "Only one of frame or site can be specified.");
         }
-        const char* p = prefix.has_value() ? prefix.value().c_str() : "";
+        const char* p = prefix.has_value() ? prefix.value().c_str() : "/";
         const char* s = suffix.has_value() ? suffix.value().c_str() : "";
         raw::MjsElement* attached_frame = nullptr;
         if (frame.has_value()) {
