@@ -231,3 +231,17 @@ It is possible to override the field shape and set the field values after graph 
 
    Heterogeneous worlds, for example: per-world meshes or number of degrees of freedom, are not currently available.
 
+Parallel Linesearch
+===================
+
+In addition to the constraint solver's iterative linesearch, MJWarp provides a parallel linesearch routine that
+evaluates a set of step sizes in parallel and selects the best one. The step sizes are spaced logarithmically from
+``Model.opt.ls_parallel_min_step`` to 1 and the number of step sizes to evaluate is set via ``Model.opt.ls_iterations``.
+
+To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeric field to the XML
+
+.. code-block:: xml
+
+   <custom>
+     <name="ls_parallel" numeric data="1"/>
+   </custom>
