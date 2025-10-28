@@ -39,7 +39,6 @@ enable_language(CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-# For Emscripten Disable native examples, tests, plugins and native rendering build
 if(NOT EMSCRIPTEN)
   option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
   option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
@@ -49,6 +48,10 @@ if(NOT EMSCRIPTEN)
   option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
   option(MUJOCO_USE_FILAMENT "Use filament rendering" OFF)
   option(MUJOCO_USE_FILAMENT_VULKAN "Use vulkan backend for filament rendering" OFF)
+endif()
+
+if(EMSCRIPTEN)
+  option(MUJOCO_BUILD_TESTS_WASM "Build tests for WASM bindings" ON)
 endif()
 
 # Option to provide a path to an existing USD build directory or to Houdini HFS directory.
@@ -138,6 +141,13 @@ if(MUJOCO_USE_FILAMENT AND NOT EMSCRIPTEN)
 elseif(NOT EMSCRIPTEN)
   add_subdirectory(src/render)
   add_subdirectory(src/ui)
+endif()
+
+if(EMSCRIPTEN)
+  add_subdirectory(wasm)
+  if(MUJOCO_BUILD_TESTS_WASM)
+    add_subdirectory(wasm/tests)
+  endif()
 endif()
 
 

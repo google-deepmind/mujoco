@@ -12,21 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/dist")
-
-project(mujoco_wasm)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/wasm/dist")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -O3 -fexceptions")
 
-set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR})
+set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/wasm)
 
-include_directories(${PROJECT_SOURCE_DIR})
-include_directories(${PROJECT_SOURCE_DIR}/../include)
-include_directories(${PROJECT_SOURCE_DIR}/../src)
+include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/src)
 
-# This option is useful when building with/without emscripten for CI
-option(MUJOCO_WASM_BUILD_DIR "Path to mujoco emscripten build" "\${PROJECT_SOURCE_DIR}/../build")
-link_directories(${CMAKE_ABSOLUTE_PATH}${MUJOCO_WASM_BUILD_DIR}/lib)
+link_directories(${CMAKE_BINARY_DIR}/lib)
 
 file(GLOB MUJOCO_WASM_FILES
     "codegen/generated/*.cc"
@@ -61,6 +56,6 @@ add_executable(mujoco_wasm ${MUJOCO_WASM_FILES})
 
 set_target_properties(mujoco_wasm PROPERTIES LINK_FLAGS "${EMCC_LINKER_FLAGS_STR}")
 
-target_link_libraries(mujoco_wasm mujoco::ccd mujoco::lodepng mujoco::mujoco mujoco::tinyxml2 mujoco::qhullstatic_r)
+target_link_libraries(mujoco_wasm ccd lodepng mujoco tinyxml2 qhullstatic_r)
 
 install(TARGETS mujoco_wasm DESTINATION ${DIVISIBLE_INSTALL_BIN_DIR})

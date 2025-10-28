@@ -93,19 +93,17 @@ following in the same terminal session where the `emsdk` environment was
 sourced:
 
 ```sh
-# Run this from the `wasm` folder
-export PATH="$(pwd)/node_modules/.bin:$PATH" && \
-emcmake cmake -S .. -B ../build && \
-cmake --build ../build && \
-emcmake cmake -S . -B build && \
+# Run this from the top-level mujoco directory
+npm install --prefix ./wasm && \
+export PATH="$(pwd)/wasm/node_modules/.bin:$PATH" && \
+emcmake cmake -B build && \
 cmake --build build
 ```
 
 The above command will generate the following folders:
 
-- `../build`: the result of compiling MuJoCo with Emscripten.
-- `./build`: the result of compiling the MuJoCo bindings with Emscripten.
-- `./dist`: the MuJoCo WebAssembly module. To use it, import the `.js` file.
+- `./build`: the result of compiling MuJoCo and the bindings with Emscripten.
+- `./wasm/dist`: the MuJoCo WebAssembly module. To use it, import the `.js` file.
 
 ### Example Application
 
@@ -144,12 +142,9 @@ application’s source file.
    ```sh
    # Run this from the `wasm` folder
    export PATH="$(pwd)/node_modules/.bin:$PATH" && \
-   emcmake cmake -S tests -B tests/build && \
-   cmake --build tests/build && \
    PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py && \
    npm run test
    ```
-
 2. **Bindings generator tests.**
    These are relevant when developing or extending the bindings. The second line
    finds and runs all `test_*.py` or `*_test.py` files found in the current

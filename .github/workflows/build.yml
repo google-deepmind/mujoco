@@ -198,19 +198,12 @@ jobs:
     - name: Build and Test WASM bindings
       if: ${{ runner.os == 'Linux' }}
       shell: bash
-      working-directory: wasm
       run: |
-        source ../emsdk/emsdk_env.sh
+        source emsdk/emsdk_env.sh
         export PATH="$(pwd)/node_modules/.bin:$PATH"
 
-        emcmake cmake -S .. -B ../build_wasm
-        cmake --build ../build_wasm
-
-        emcmake cmake -S . -B build -DMUJOCO_WASM_BUILD_DIR=../build_wasm
-        cmake --build build
-
-        emcmake cmake -S tests -B tests/build -DMUJOCO_WASM_BUILD_DIR=../build_wasm
-        cmake --build tests/build
+        emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
+        cmake --build build_wasm
 
         npm run test
 
