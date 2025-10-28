@@ -243,8 +243,6 @@ std::optional<Magnet> Magnet::Create(const mjModel* m,  mjData* d, int instance)
 Magnet::Magnet(MagnetConfig config, std::map<int, int> body_ids, int instance) :
   config_(std::move(config)),
   body_ids_(std::move(body_ids)) {
-    log_.open("/home/jplayang/Projects/Python/quadruped_nmpc/data/magnet_log_" + std::to_string(instance) + ".csv");
-    log_ << "time,body_id,fx,fy,fz,tx,ty,tz" << std::endl;
   }
 
 void Magnet::Compute(const mjModel* m, mjData* d, int instance) {
@@ -373,8 +371,6 @@ void Magnet::Compute(const mjModel* m, mjData* d, int instance) {
   // Visual
   forces_[instance] = {F[0], F[1], F[2]};
   torques_[instance] = {tau[0], tau[1], tau[2]};
-
-  log_ << d->time << "," << i << "," << F[0] << "," << F[1] << "," << F[2] << "," << tau[0] << "," << tau[1] << "," << tau[2] << std::endl;
 
   std::cout  << "Magnet plugin applied force: (" << F[0] << ", " << F[1] << ", " << F[2] << ") and torque: (" << tau[0] << ", " << tau[1] << ", " << tau[2] << ")" << std::endl;
 }
