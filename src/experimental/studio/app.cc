@@ -284,9 +284,9 @@ void App::HandleMouseEvents() {
 
   // Left double click.
   if (data && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-    toolbox::PickResult picked =
-        toolbox::Pick(mouse_x, mouse_y, window_.get(), renderer_.get(),
-                      physics_.get(), vis_options_);
+    toolbox::PickResult picked = toolbox::Pick(
+        model, data, &camera_, mouse_x, mouse_y, window_->GetAspectRatio(),
+        &renderer_->GetScene(), &vis_options_);
     if (picked.body >= 0) {
       perturb_.select = picked.body;
       perturb_.flexselect = picked.flex;
@@ -305,9 +305,9 @@ void App::HandleMouseEvents() {
 
   // Right double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
-    toolbox::PickResult picked =
-        toolbox::Pick(mouse_x, mouse_y, window_.get(), renderer_.get(),
-                      physics_.get(), vis_options_);
+    toolbox::PickResult picked = toolbox::Pick(
+        model, data, &camera_, mouse_x, mouse_y, window_->GetAspectRatio(),
+        &renderer_->GetScene(), &vis_options_);
     mju_copy3(camera_.lookat, picked.point);
     if (picked.body > 0 && io.KeyCtrl) {
       camera_.type = mjCAMERA_TRACKING;
@@ -457,11 +457,11 @@ void App::HandleKeyboardEvents() {
   // Camera shortcuts.
   if (model) {
     if (ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
-      ui_.camera_idx = toolbox::SetCamera(*model, camera_, 0);
+      ui_.camera_idx = toolbox::SetCamera(model, &camera_, 0);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftBracket)) {
-      ui_.camera_idx = toolbox::SetCamera(*model, camera_,ui_.camera_idx - 1);
+      ui_.camera_idx = toolbox::SetCamera(model, &camera_,ui_.camera_idx - 1);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
-      ui_.camera_idx = toolbox::SetCamera(*model, camera_, ui_.camera_idx + 1);
+      ui_.camera_idx = toolbox::SetCamera(model, &camera_, ui_.camera_idx + 1);
     }
   }
 
@@ -570,7 +570,7 @@ void App::SaveSettings() {
 
 void App::SetCamera(int idx) {
   if (Model()) {
-    ui_.camera_idx = ::mujoco::toolbox::SetCamera(*Model(), camera_, idx);
+    ui_.camera_idx = ::mujoco::toolbox::SetCamera(Model(), &camera_, idx);
   }
 }
 

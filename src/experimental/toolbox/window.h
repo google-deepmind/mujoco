@@ -68,10 +68,15 @@ class Window {
   // Sets the title of the window.
   void SetTitle(std::string_view title);
 
-  // Returns the current size of the window.
+  // Returns information related to the current size of the window.
   int GetWidth() const { return width_; }
   int GetHeight() const { return height_; }
   float GetScale() const { return scale_; }
+  float GetAspectRatio() const {
+    return height_ > 0
+               ? static_cast<float>(width_) / static_cast<float>(height_)
+               : 1.0f;
+  }
 
   // Returns the path to a file that was dropped on the window. Once called,
   // the value will be cleared until the next time a file is dropped.
