@@ -47,16 +47,6 @@ PickResult Pick(float x, float y, Window* window, Renderer* renderer,
 // available).
 int SetCamera(const mjModel& model, mjvCamera& camera, int request_idx);
 
-// Handles canonical mouse events.
-void HandleMouseEvents(Window* window, Renderer* renderer, Physics* physics,
-                       mjvPerturb& perturb, mjvOption& vis_options,
-                       mjvCamera& camera, int& camera_idx);
-
-// Handles canonical keyboard events.
-void HandleKeyboardEvents(Window* window, Renderer* renderer, Physics* physics,
-                          mjvPerturb& perturb, mjvOption& vis_options,
-                          mjvCamera& camera, int& camera_idx);
-
 }  // namespace mujoco::toolbox
 
 #endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_INTERACTION_H_
