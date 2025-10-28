@@ -2,8 +2,7 @@
 
 > [!CAUTION]
 > **These bindings are not yet ready for consumption. They have been added without
-> announcement to make it easier for us to develop the CI we need in order to be
-> reasonably confident that we are able to accept pull requests.**
+> announcement while we develop the CI we need to accept pull requests.**
 
 These are the canonical JavaScript and TypeScript bindings for the MuJoCo physics
 engine.
