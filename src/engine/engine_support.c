@@ -425,9 +425,18 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
 // accumulate xfrc_applied in qfrc
 void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc) {
-  for (int i=1; i < m->nbody; i++) {
-    if (!mju_isZero(d->xfrc_applied+6*i, 6)) {
-      mj_applyFT(m, d, d->xfrc_applied+6*i, d->xfrc_applied+6*i+3, d->xipos+3*i, i, qfrc);
+  int nbody = m->nbody;
+  const mjtNum *xfrc = d->xfrc_applied;
+
+  // quick return if identically zero (efficient memcmp implementation)
+  if (mju_isZeroByte((const unsigned char*)(xfrc+6), 6*(nbody-1)*sizeof(mjtNum))) {
+    return;
+  }
+
+  // some non-zero wrenches, apply them
+  for (int i=1; i < nbody; i++) {
+    if (!mju_isZero(xfrc+6*i, 6)) {
+      mj_applyFT(m, d, xfrc+6*i, xfrc+6*i+3, d->xipos+3*i, i, qfrc);
     }
   }
 }
