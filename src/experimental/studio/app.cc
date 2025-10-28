@@ -1701,7 +1701,7 @@ void App::RenderingGui() {
     SetCamera(ui_.camera_idx);
   }
   if (ImGui::Button("Copy Camera")) {
-    std::string camera_string = toolbox::CameraToString(&scene);
+    std::string camera_string = toolbox::CameraToString(Data(), &camera_);
     toolbox::MaybeSaveToClipboard(camera_string);
   }
 

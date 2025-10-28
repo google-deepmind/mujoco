@@ -29,6 +29,7 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
+#include "engine/engine_vis_visualize.h"
 #include "xml/xml_api.h"
 
 namespace mujoco::toolbox {
@@ -137,25 +138,15 @@ const void* GetValue(const mjModel* model, const mjData* data,
   return nullptr;  // Invalid field.
 }
 
-std::string CameraToString(const mjvScene* scene) {
-  const mjvGLCamera* cameras = scene->camera;
-  const float pos_x = (cameras[0].pos[0] + cameras[1].pos[0]) / 2;
-  const float pos_y = (cameras[0].pos[1] + cameras[1].pos[1]) / 2;
-  const float pos_z = (cameras[0].pos[2] + cameras[1].pos[2]) / 2;
-
-  mjtNum cam_forward[3];
-  mju_f2n(cam_forward, cameras[0].forward, 3);
-  mjtNum cam_up[3];
-  mju_f2n(cam_up, cameras[0].up, 3);
-  mjtNum cam_right[3];
-  mju_cross(cam_right, cam_forward, cam_up);
-
+std::string CameraToString(const mjData* data, const mjvCamera* camera) {
+  mjtNum pos[3], forward[3], up[3], right[3];
+  mjv_cameraFrame(pos, forward, up, right, data, camera);
   char str[500];
   std::snprintf(str, sizeof(str),
                 "<camera pos=\"%.3f %.3f %.3f\" xyaxes=\"%.3f %.3f %.3f %.3f "
                 "%.3f %.3f\"/>\n",
-                pos_x, pos_y, pos_z, cam_right[0], cam_right[1], cam_right[2],
-                cam_up[0], cam_up[1], cam_up[2]);
+                pos[0], pos[1], pos[2], right[0], right[1], right[2],
+                up[0], up[1], up[2]);
   return str;
 }
 

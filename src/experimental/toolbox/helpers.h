@@ -54,8 +54,8 @@ mjModel* LoadMujocoModel(const std::string& model_file, const mjVFS* vfs);
 const void* GetValue(const mjModel* model, const mjData* data,
                      const char* field, int index);
 
-// Returns an XML string representation of the scene cameras.
-std::string CameraToString(const mjvScene* scene);
+// Returns an XML string representation of the camera.
+std::string CameraToString(const mjData* data, const mjvCamera* camera);
 
 // Returns an XML string representation of current data keyframe.
 std::string KeyframeToString(const mjModel* model, const mjData* data,
