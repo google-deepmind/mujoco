@@ -1678,8 +1678,6 @@ void App::VisualizationGui() {
 }
 
 void App::RenderingGui() {
-  mjvScene& scene = renderer_->GetScene();
-
   // Generate a list of camera names dynamically.
   std::vector<const char*> camera_names;
   camera_names.push_back("Free");
@@ -1725,7 +1723,10 @@ void App::RenderingGui() {
     ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
 
     for (int i = 0; i < mjNRNDFLAG; ++i) {
-      Toggle(mjRNDSTRING[i][0], scene.flags[i]);
+      mjtByte flag = renderer_->GetFlag(static_cast<mjtRndFlag>(i));
+      Toggle(mjRNDSTRING[i][0], flag);
+      renderer_->SetFlag(static_cast<mjtRndFlag>(i), flag);
+
       if (i % 2 == 0 && i != mjNRNDFLAG - 1) {
         ImGui::SameLine();
       }
