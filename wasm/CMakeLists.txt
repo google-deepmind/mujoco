@@ -26,7 +26,7 @@ include_directories(${PROJECT_SOURCE_DIR}/../src)
 
 # This option is useful when building with/without emscripten for CI
 option(MUJOCO_WASM_BUILD_DIR "Path to mujoco emscripten build" "\${PROJECT_SOURCE_DIR}/../build")
-link_directories(${MUJOCO_WASM_BUILD_DIR}/lib)
+link_directories(${CMAKE_ABSOLUTE_PATH}${MUJOCO_WASM_BUILD_DIR}/lib)
 
 file(GLOB MUJOCO_WASM_FILES
     "codegen/generated/*.cc"
@@ -61,6 +61,6 @@ add_executable(mujoco_wasm ${MUJOCO_WASM_FILES})
 
 set_target_properties(mujoco_wasm PROPERTIES LINK_FLAGS "${EMCC_LINKER_FLAGS_STR}")
 
-target_link_libraries(mujoco_wasm ccd lodepng mujoco tinyxml2 qhullstatic_r)
+target_link_libraries(mujoco_wasm mujoco::ccd mujoco::lodepng mujoco::mujoco mujoco::tinyxml2 mujoco::qhullstatic_r)
 
 install(TARGETS mujoco_wasm DESTINATION ${DIVISIBLE_INSTALL_BIN_DIR})
