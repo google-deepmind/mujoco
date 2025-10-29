@@ -3301,6 +3301,7 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
           throw mjXError(elem, "gridlayout length must match gridsize");
         }
 
+        memset(texture->gridlayout, 0, sizeof(texture->gridlayout));
         memcpy(texture->gridlayout, text.data(), text.length());
       }
 
