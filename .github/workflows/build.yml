@@ -190,10 +190,8 @@ jobs:
       if: ${{ runner.os == 'Linux' }}
       run: |
         git clone https://github.com/emscripten-core/emsdk.git
-        cd emsdk
-        ./emsdk install 4.0.10
-        ./emsdk activate 4.0.10
-        cd ..
+        ./emsdk/emsdk install 4.0.10
+        ./emsdk/emsdk activate 4.0.10
 
     - name: Build and Test WASM bindings
       if: ${{ runner.os == 'Linux' }}
@@ -205,7 +203,7 @@ jobs:
         emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
         cmake --build build_wasm
 
-        npm run test
+        npm run test --prefix ./wasm
 
     - name: Configure MuJoCo
       run: >
