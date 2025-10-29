@@ -35,10 +35,9 @@ TypeScript.
   ```sh
   # Can be done anywhere but you must work in the shell where you source emsdk_env.sh
   git clone https://github.com/emscripten-core/emsdk.git
-  cd emsdk
-  ./emsdk install 4.0.10
-  ./emsdk activate 4.0.10
-  source ./emsdk_env.sh
+  ./emsdk/emsdk install 4.0.10
+  ./emsdk/emsdk activate 4.0.10
+  source ./emsdk/emsdk_env.sh
   ```
 
 - To easily run the JavaScript tests and the demo application, `node` and `npm`
