@@ -992,10 +992,12 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_mjdata_can_read_warning_array
   it('should read warning array from MjData', () => {
     expect(data!.warning.size()).toEqual(mujoco.mjtWarning.mjNWARNING.value);
+    console.log('Starting a test which is expected to print "simulation is unstable"');
     data!.qpos[0] = NaN;
     mujoco.mj_checkPos(model!, data!);
     expect(data!.warning.get(mujoco.mjtWarning.mjWARN_BADQPOS.value)!.number)
         .toEqual(1);
+    console.log('Completed test which is expected to print "simulation is unstable"');
   });
 
   // Corresponds to bindings_test.py:test_mjcontact_can_copy
