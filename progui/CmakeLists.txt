@@ -55,3 +55,5 @@ target_link_libraries(
 
 # Applies the previously set link options to the 'ProGUI' target.
 target_link_options(ProGUI PRIVATE ${MUJOCO_SAMPLE_LINK_OPTIONS})
+# Set ProGUI as the default startup project in Visual Studio
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ProGUI)
