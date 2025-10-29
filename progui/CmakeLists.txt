@@ -37,8 +37,14 @@ if(MUJOCO_HARDEN)
   endif()
 endif()
 
-# Defines an executable target named 'ProGUI' built from 'ProGUI.cc'.
-add_executable(ProGUI ProGUI.cc)
+# Defines an executable target named 'ProGUI' built from split sources.
+add_executable(ProGUI
+  main_progui.cc
+  progui_globals.cpp
+  progui_ui.cpp
+  progui_sim.cpp
+  progui_chain.cpp
+)
 
 # Applies the previously set compile options to the 'ProGUI' target.
 target_compile_options(ProGUI PUBLIC ${MUJOCO_SAMPLE_COMPILE_OPTIONS})
