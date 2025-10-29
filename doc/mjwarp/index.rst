@@ -115,7 +115,7 @@ Minimal example
    d = mjw.make_data(mjm, nworld=100)
 
    # initialize velocities
-   wp.copy(d.qvel, wp.array([[float(i) / 100, 0.0, 0.0, 0.0, 0.0, 0.0] for i in range(100)], dtype=float))
+   wp.copy(d.qvel, wp.array([[float(i) / 100, 0, 0, 0, 0, 0] for i in range(100)], dtype=float))
 
    # simulate physics
    mjw.step(m, d)
@@ -243,5 +243,5 @@ To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeri
 .. code-block:: xml
 
    <custom>
-     <name="ls_parallel" numeric data="1"/>
+     <numeric name="ls_parallel" data="1"/>
    </custom>
