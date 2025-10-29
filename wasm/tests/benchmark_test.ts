@@ -1,7 +1,7 @@
 import 'jasmine';
 
-import { MainModule, DoubleBuffer } from "./dist/mujoco_wasm_benchmark"
-import loadMujoco from "./dist/mujoco_wasm_benchmark.js"
+import { MainModule, DoubleBuffer } from "../dist/mujoco_wasm_benchmark"
+import loadMujoco from "../dist/mujoco_wasm_benchmark.js"
 
 
 describe('MuJoCo WASM Benchmark Tests', () => {
