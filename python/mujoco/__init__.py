@@ -137,25 +137,37 @@ def from_zip(file: Union[str, IO[bytes]]) -> _specs.MjSpec:
 
 
 class _MjBindModel:
+  """Wrapper for MjModel that allows binding multiple specs."""
+
   def __init__(self, elements: Sequence[Any]):
-    self.elements = elements
+    object.__setattr__(self, 'elements', elements)
 
   def __getattr__(self, key: str):
     items = []
     for e in self.elements:
       items.extend(getattr(e, key))
     return items
+
+  def __setattr__(self, key: str, value: Any):
+    raise AttributeError(f'Cannot set {key} on MjModel.')
 
 
 class _MjBindData:
+  """Wrapper for MjData that allows binding multiple specs."""
+
   def __init__(self, elements: Sequence[Any]):
-    self.elements = elements
+    object.__setattr__(self, 'elements', elements)
 
   def __getattr__(self, key: str):
     items = []
     for e in self.elements:
       items.extend(getattr(e, key))
     return items
+
+  def __setattr__(self, key: str, value: Any):
+    value_it = iter(value)
+    for element in self.elements:
+      setattr(element, key, next(value_it))
 
 
 def _bind_model(

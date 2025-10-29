@@ -1266,6 +1266,8 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(mj_model.bind(joints).qposadr, [7, 8])
     np.testing.assert_array_equal(mj_data.bind([]).qpos, [])
     np.testing.assert_array_equal(mj_model.bind([]).qposadr, [])
+    mj_data.bind(joints).qpos = np.array([1, 2])
+    np.testing.assert_array_equal(mj_data.bind(joints).qpos, [1, 2])
     with self.assertRaisesRegex(
         AttributeError, "object has no attribute 'invalid'"
     ):
