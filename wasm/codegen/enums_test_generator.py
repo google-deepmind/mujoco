@@ -4,9 +4,7 @@ import os
 import textwrap
 
 from introspect import enums as introspect_enums
-from codegen.helpers import common
-
-write_to_file = common.write_to_file
+from wasm.codegen.helpers import common
 
 
 def generate_typescript_enum_tests():
@@ -41,5 +39,5 @@ def generate_typescript_enum_tests():
 
 if __name__ == "__main__":
   ts_test_code = generate_typescript_enum_tests()
-  output_file = './tests/enums_test.ts'
-  write_to_file(output_file, ts_test_code)
+  output_file = 'wasm/tests/enums_test.ts'
+  common.write_to_file(output_file, ts_test_code)

@@ -5,8 +5,8 @@ from typing import List, Mapping, TypeAlias
 
 from introspect import ast_nodes
 
-from helpers import code_builder
-from helpers import function_utils
+from wasm.codegen.helpers import code_builder
+from wasm.codegen.helpers import function_utils
 
 FunctionDecl: TypeAlias = ast_nodes.FunctionDecl
 FunctionParameterDecl: TypeAlias = ast_nodes.FunctionParameterDecl

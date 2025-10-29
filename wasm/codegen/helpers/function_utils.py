@@ -4,9 +4,9 @@ from typing import List, Set, Tuple, cast
 
 from introspect import ast_nodes
 
-from helpers import code_builder
-from helpers import common
-from helpers import constants
+from wasm.codegen.helpers import code_builder
+from wasm.codegen.helpers import common
+from wasm.codegen.helpers import constants
 
 
 PRIMITIVE_TYPES = constants.PRIMITIVE_TYPES

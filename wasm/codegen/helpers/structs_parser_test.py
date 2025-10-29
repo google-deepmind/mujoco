@@ -1,8 +1,8 @@
 """Tests for structs_parser."""
 
 import unittest
-from helpers import structs_parser
-from helpers import structs_wrappers_data
+from wasm.codegen.helpers import structs_parser
+from wasm.codegen.helpers import structs_wrappers_data
 
 
 class StructsParserTest(unittest.TestCase):

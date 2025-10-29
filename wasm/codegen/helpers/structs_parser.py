@@ -6,11 +6,11 @@ from typing import Dict, List
 from introspect import ast_nodes
 from introspect import structs
 
-from helpers import common
-from helpers import constants
-from helpers import struct_constructor_code_builder
-from helpers import struct_field_handler
-from helpers import structs_wrappers_data
+from wasm.codegen.helpers import common
+from wasm.codegen.helpers import constants
+from wasm.codegen.helpers import struct_constructor_code_builder
+from wasm.codegen.helpers import struct_field_handler
+from wasm.codegen.helpers import structs_wrappers_data
 
 
 WrappedFieldData = structs_wrappers_data.WrappedFieldData

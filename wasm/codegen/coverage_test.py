@@ -17,12 +17,13 @@ handled during the code generation process.
 import re
 
 import unittest
+from pathlib import Path
 from introspect import functions as introspect_functions
 from introspect import structs as introspect_structs
 
-from helpers import common
-from helpers import constants
-from helpers import function_utils
+from wasm.codegen.helpers import common
+from wasm.codegen.helpers import constants
+from wasm.codegen.helpers import function_utils
 
 
 def _get_resource_content(file_path: str) -> str:
@@ -40,7 +41,7 @@ def _get_resource_content(file_path: str) -> str:
 
 def _get_bound_functions_from_cc() -> set[str]:
   """Reads bindings.cc and extracts the names of bound functions."""
-  content = _get_resource_content('./codegen/generated/bindings.cc')
+  content = _get_resource_content(Path(__file__).parent / 'generated/bindings.cc')
   if not content:
     return set()
 
@@ -53,7 +54,7 @@ def _get_bound_functions_from_cc() -> set[str]:
 
 def _get_bound_structs_from_cc() -> set[str]:
   """Reads bindings.cc and extracts the names of bound structs."""
-  content = _get_resource_content('./codegen/generated/bindings.cc')
+  content = _get_resource_content(Path(__file__).parent / 'generated/bindings.cc')
   if not content:
     return set()
 

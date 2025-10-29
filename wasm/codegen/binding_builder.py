@@ -3,12 +3,13 @@
 from introspect import enums as introspect_enums
 from introspect import functions as introspect_functions
 
-from generators import enums
-from generators import functions
-from generators import structs
-from helpers import common
-from helpers import constants as _constants
-from helpers import function_utils
+from wasm.codegen.generators import enums
+from wasm.codegen.generators import functions
+from wasm.codegen.generators import structs
+
+from wasm.codegen.helpers import common
+from wasm.codegen.helpers import constants as _constants
+from wasm.codegen.helpers import function_utils
 
 
 class BindingBuilder:

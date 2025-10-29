@@ -3,7 +3,7 @@
 import os
 import pathlib
 
-from helpers import constants
+from wasm.codegen.helpers import constants
 
 Path = pathlib.Path
 
@@ -31,8 +31,8 @@ def get_file_path(template_dir: str, output_dir: str,
     Returns:
         A tuple containing the template file path and the output file path.
     """
-    template_file = f"codegen/{template_dir}/{filename}"
-    output_file = f"codegen/{output_dir}/{filename}"
+    template_file = f"wasm/codegen/{template_dir}/{filename}"
+    output_file = f"wasm/codegen/{output_dir}/{filename}"
     return template_file, output_file
 
 
@@ -44,7 +44,8 @@ def write_to_file(filepath: str, content: str) -> None:
     if output_dir:
       os.makedirs(output_dir, exist_ok=True)
     with open(filepath, "w") as f:
-      f.write(content)
+      chars = f.write(content)
+      print(f"wrote {chars} characters to file '{filepath}'")
   except IOError as e:
     print(f"Error writing to output file: {filepath} - {e}")
 

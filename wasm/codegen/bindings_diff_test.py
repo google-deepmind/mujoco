@@ -1,24 +1,27 @@
 import unittest
-from helpers import binding_builder
+from pathlib import Path
+from wasm.codegen import binding_builder
 
 ERROR_MESSAGE = """
 The file '{}' needs to be updated, please run:
-PYTHONPATH=../python/mujoco:./codegen python codegen/update.py""".lstrip()
+update.py as described in wasm/README.md""".lstrip()
 
 
 class BindingsDiffTest(unittest.TestCase):
 
   def setUp(self):
     super().setUp()
-    with open('./codegen/generated/bindings.h', 'r') as f:
+
+    SCRIPT_DIR = Path(__file__).parent
+    with open(SCRIPT_DIR / 'generated/bindings.h', 'r') as f:
       self.generated_hdr = f.read()
-    with open('./codegen/generated/bindings.cc', 'r') as f:
+    with open(SCRIPT_DIR / 'generated/bindings.cc', 'r') as f:
       self.generated_src = f.read()
 
-    self.template_path_h = './codegen/templates/bindings.h'
-    self.template_path_cc = './codegen/templates/bindings.cc'
-    self.generated_path_h = './codegen/generated/bindings.h'
-    self.generated_path_cc = './codegen/generated/bindings.cc'
+    self.template_path_h = SCRIPT_DIR / 'templates/bindings.h'
+    self.template_path_cc = SCRIPT_DIR / 'templates/bindings.cc'
+    self.generated_path_h = SCRIPT_DIR / 'generated/bindings.h'
+    self.generated_path_cc = SCRIPT_DIR / 'generated/bindings.cc'
 
     self.builder = binding_builder.BindingBuilder(
         self.template_path_h,

@@ -5,10 +5,10 @@ from typing import List, cast
 from introspect import ast_nodes
 from introspect import structs as introspect_structs
 
-from helpers import code_builder
-from helpers import common
-from helpers import constants
-from helpers import structs_wrappers_data
+from wasm.codegen.helpers import code_builder
+from wasm.codegen.helpers import common
+from wasm.codegen.helpers import constants
+from wasm.codegen.helpers import structs_wrappers_data
 
 
 def _has_nested_wrapper_members(

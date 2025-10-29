@@ -3,10 +3,10 @@
 import math
 from typing import Tuple, Union, cast
 from introspect import ast_nodes
-from helpers import common
-from helpers import constants
-from helpers import struct_field_code_builder
-from helpers import structs_wrappers_data
+from wasm.codegen.helpers import common
+from wasm.codegen.helpers import constants
+from wasm.codegen.helpers import struct_field_code_builder
+from wasm.codegen.helpers import structs_wrappers_data
 
 AnonymousStructDecl = ast_nodes.AnonymousStructDecl
 ArrayType = ast_nodes.ArrayType

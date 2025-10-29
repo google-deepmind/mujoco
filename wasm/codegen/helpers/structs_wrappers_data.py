@@ -3,7 +3,7 @@
 import dataclasses
 from typing import Dict, List
 
-from helpers import common
+from wasm.codegen.helpers import common
 
 
 @dataclasses.dataclass

@@ -4,7 +4,7 @@ from typing import Mapping
 
 from introspect import ast_nodes
 
-from helpers import code_builder
+from wasm.codegen.helpers import code_builder
 
 
 class Generator:

@@ -1,8 +1,9 @@
 import unittest
 
+from wasm.codegen.generators import functions
+
 from introspect import ast_nodes
 
-from generators import functions
 
 
 class FunctionsGeneratorTest(unittest.TestCase):

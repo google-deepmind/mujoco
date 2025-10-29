@@ -1,7 +1,8 @@
 """Generator for the error handler."""
 
 import shutil
-from helpers import common
+
+from wasm.codegen.helpers import common
 
 
 # TODO(manevi): Delete this file and use the genrule to handle the file copying

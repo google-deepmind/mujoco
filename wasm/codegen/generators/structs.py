@@ -2,9 +2,9 @@
 
 from typing import Optional
 
-from helpers import constants
-from helpers import structs_parser
-from helpers import structs_wrappers_data
+from wasm.codegen.helpers import constants
+from wasm.codegen.helpers import structs_parser
+from wasm.codegen.helpers import structs_wrappers_data
 
 
 class Generator:

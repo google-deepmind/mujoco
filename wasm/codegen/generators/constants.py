@@ -1,6 +1,6 @@
 """Generator for the constants."""
 
-from helpers import common
+from wasm.codegen.helpers import common
 
 
 # TODO(manevi): Delete this file and use the genrule to handle the file copying

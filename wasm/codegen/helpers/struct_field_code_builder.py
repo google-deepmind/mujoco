@@ -1,7 +1,7 @@
 """Class to build the C++ code for a struct field wrapper."""
 
 from introspect import ast_nodes
-from helpers import code_builder
+from wasm.codegen.helpers import code_builder
 
 StructFieldDecl = ast_nodes.StructFieldDecl
 ValueType = ast_nodes.ValueType

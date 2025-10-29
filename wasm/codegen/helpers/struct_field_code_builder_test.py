@@ -1,7 +1,7 @@
 import unittest
 from introspect import ast_nodes
 
-from helpers import struct_field_code_builder
+from wasm.codegen.helpers import struct_field_code_builder
 
 StructFieldDecl = ast_nodes.StructFieldDecl
 ValueType = ast_nodes.ValueType

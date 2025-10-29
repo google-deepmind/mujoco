@@ -1,8 +1,9 @@
 import unittest
 
+from wasm.codegen.generators import enums
+
 from introspect import ast_nodes
 
-from generators import enums
 
 
 class EnumsGeneratorTest(unittest.TestCase):

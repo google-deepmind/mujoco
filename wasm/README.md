@@ -22,6 +22,10 @@ TypeScript.
 
 ## Prerequisites
 
+> [!NOTE]
+> Unless otherwise specified run all the commands in this README from the
+> top-level directory.
+
 - To compile the [`bindings.cc`](codegen/generated/bindings.cc) file, which
   generates the `.wasm` WebAssembly file, `.js` JavaScript import, and `.d.ts`
   TypeScript declaration file, you will need Emscripten SDK version `4.0.10`.
@@ -29,6 +33,7 @@ TypeScript.
   following:
 
   ```sh
+  # Can be done anywhere but you must work in the shell where you source emsdk_env.sh
   git clone https://github.com/emscripten-core/emsdk.git
   cd emsdk
   ./emsdk install 4.0.10
@@ -41,11 +46,11 @@ TypeScript.
   [nvm](https://github.com/nvm-sh/nvm). There are also various JavaScript
   dependencies needed for the tests, demo, and bindings build process. These
   dependencies are expected to be located in the `wasm` folder. To install
-  them, run:
+  them and ensure they can be found by later commands, run:
 
   ```sh
-  # Run this from the `wasm` folder
-  npm install
+  npm install --prefix ./wasm
+  export PATH="$(pwd)/wasm/node_modules/.bin:$PATH"
   ```
 
 - To modify the bindings, `python3` is required since the [`bindings.cc`](codegen/generated/bindings.cc)
@@ -54,10 +59,9 @@ TypeScript.
   with these dependencies as follows:
 
   ```sh
-  # Run this from the `wasm` folder
   python3 -m venv .venv
   source .venv/bin/activate
-  pip install -r ../python/build_requirements.txt
+  pip install -r python/build_requirements.txt
   ```
 
 > [!TIP]
@@ -80,8 +84,7 @@ functions around MuJoCo’s C API that provide a place to add conveniences such 
 bounds checking.
 
 ```sh
-# Run this from the `wasm` folder
-PYTHONPATH=../python/mujoco:./codegen python3 codegen/update.py
+PYTHONPATH=python/mujoco python3 -m wasm.codegen.update
 ```
 
 Once the C++ files are generated (note that, for convenience, we already provide
@@ -93,11 +96,7 @@ following in the same terminal session where the `emsdk` environment was
 sourced:
 
 ```sh
-# Run this from the top-level mujoco directory
-npm install --prefix ./wasm && \
-export PATH="$(pwd)/wasm/node_modules/.bin:$PATH" && \
-emcmake cmake -B build && \
-cmake --build build
+emcmake cmake -B build && cmake --build build
 ```
 
 The above command will generate the following folders:
@@ -113,8 +112,7 @@ using MuJoCo. We have provided a basic web application that uses Three.js to
 render a simple simulation. To run the demo app, use:
 
 ```sh
-# Run this from the `wasm` folder
-npm run dev:demo
+npm run dev:demo --prefix ./wasm
 ```
 
 You may prefer to write your entire app in C++ and compile it using Emscripten.
@@ -140,10 +138,7 @@ application’s source file.
    by a Python script. Run the tests using the following commands:
 
    ```sh
-   # Run this from the `wasm` folder
-   export PATH="$(pwd)/node_modules/.bin:$PATH" && \
-   PYTHONPATH=../python/mujoco:../wasm python3 tests/enums_test_generator.py && \
-   npm run test
+   PYTHONPATH=python/mujoco python3 -m wasm.codegen.enums_test_generator && npm run test --prefix ./wasm
    ```
 2. **Bindings generator tests.**
    These are relevant when developing or extending the bindings. The second line
@@ -151,8 +146,7 @@ application’s source file.
    directory recursively.
 
    ```sh
-   # Run this from the `wasm` folder
-   PYTHONPATH=../python/mujoco:./codegen python3 -m pytest
+   PYTHONPATH=python/mujoco python3 -m pytest
    ```
 
 ### Debugging
@@ -163,8 +157,7 @@ the following command to execute it in your browser (inspect the page and then
 look at the console output):
 
 ```sh
-# Run this from the `wasm` folder
-npm run dev:sandbox
+npm run dev:sandbox --prefix ./wasm
 ```
 
 You can add code to log to the console and use Chrome DevTools for debugging.

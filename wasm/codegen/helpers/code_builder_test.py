@@ -1,7 +1,7 @@
 """Tests for the code_builder module."""
 
 import unittest
-from helpers import code_builder
+from wasm.codegen.helpers import code_builder
 
 
 class CodeBuilderTest(unittest.TestCase):
