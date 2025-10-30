@@ -1,16 +1,95 @@
 #include "progui_globals.h"
+#include <cstdio>
 #include <cstring>
 #include <iostream>
+
+// helper to append a character to filename buffer
+static void AppendCharToFilename(char c)
+{
+    size_t len = std::strlen(g_ioFilename);
+    if (len +1 < sizeof(g_ioFilename))
+    {
+        g_ioFilename[len] = c;
+        g_ioFilename[len +1] = '\0';
+    }
+}
 
 void keyboard(GLFWwindow *window, int key, int scancode, int act, int mods)
 {
     if (mjui_event(&ui, &uistate, &con))
         return;
 
+    // simple filename capture mode for Save/Load
+    // g_fileIoMode:0 none,1 save,2 load
+    extern int g_fileIoMode;
+    if (g_fileIoMode !=0 && act == GLFW_PRESS)
+    {
+        if (key == GLFW_KEY_ESCAPE)
+        {
+            g_fileIoMode =0; // cancel
+            return;
+        }
+        if (key == GLFW_KEY_ENTER)
+        {
+            if (g_fileIoMode ==1)
+            {
+                SaveChainToFile(g_ioFilename);
+            }
+            else if (g_fileIoMode ==2)
+            {
+                LoadChainFromFile(g_ioFilename);
+            }
+            g_fileIoMode =0;
+            return;
+        }
+        if (key == GLFW_KEY_BACKSPACE)
+        {
+            size_t len = std::strlen(g_ioFilename);
+            if (len >0)
+                g_ioFilename[len -1] = '\0';
+            return;
+        }
+        // allow alnum and a few filename characters
+        if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z)
+        {
+            char c = (char)('a' + (key - GLFW_KEY_A));
+            if (mods & GLFW_MOD_SHIFT) c = (char)std::toupper(c);
+            AppendCharToFilename(c);
+            return;
+        }
+        if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
+        {
+            char c = (char)('0' + (key - GLFW_KEY_0));
+            AppendCharToFilename(c);
+            return;
+        }
+        if (key == GLFW_KEY_PERIOD) { AppendCharToFilename('.'); return; }
+        if (key == GLFW_KEY_MINUS) { AppendCharToFilename('-'); return; }
+#ifdef _WIN32
+        if (key == GLFW_KEY_BACKSLASH) { AppendCharToFilename('\\'); return; }
+#endif
+        if (key == GLFW_KEY_SLASH) { AppendCharToFilename('/'); return; }
+        if (key == GLFW_KEY_SPACE) { AppendCharToFilename(' '); return; }
+        // ignore others while in capture mode
+        return;
+    }
+
     if (act == GLFW_PRESS && key == GLFW_KEY_BACKSPACE)
     {
         mj_resetData(m, d);
         mj_forward(m, d);
+    }
+
+    // shortcuts for save/load
+    if ((mods & GLFW_MOD_CONTROL) && act == GLFW_PRESS && key == GLFW_KEY_S)
+    {
+        extern int g_fileIoMode; g_fileIoMode =1; // start capture for save
+        return;
+    }
+    if ((mods & GLFW_MOD_CONTROL) && act == GLFW_PRESS && key == GLFW_KEY_L)
+    {
+        extern int g_fileIoMode; g_fileIoMode =2; // start capture for load
+        return;
     }
 
     if (act == GLFW_PRESS && key == GLFW_KEY_P)
@@ -94,36 +173,6 @@ void keyboard(GLFWwindow *window, int key, int scancode, int act, int mods)
         spawnCube();
     }
 
-    if (act == GLFW_PRESS && key == GLFW_KEY_UP)
-    {
-        moveLastCubeY(+1);
-    }
-
-    if (act == GLFW_PRESS && key == GLFW_KEY_DOWN)
-    {
-        moveLastCubeY(-1);
-    }
-
-    if (act == GLFW_PRESS && key == GLFW_KEY_RIGHT)
-    {
-        moveLastCubeX(+1);
-    }
-
-    if (act == GLFW_PRESS && key == GLFW_KEY_LEFT)
-    {
-        moveLastCubeX(-1);
-    }
-
-    if (act == GLFW_PRESS && key == GLFW_KEY_W)
-    {
-        moveLastCubeZ(+1);
-    }
-
-    if (act == GLFW_PRESS && key == GLFW_KEY_S)
-    {
-        moveLastCubeZ(-1);
-    }
-
     if (act == GLFW_PRESS && key == GLFW_KEY_H)
     {
         DebugPrintProbeContacts();
@@ -138,7 +187,7 @@ void mouse_button(GLFWwindow *window, int button, int act, int mods)
 
     glfwGetCursorPos(window, &lastx, &lasty);
 
-    int fbw = 0, fbh = 0;
+    int fbw =0, fbh =0;
     glfwGetFramebufferSize(window, &fbw, &fbh);
 
     uistate.type = (act == GLFW_PRESS) ? mjEVENT_PRESS : mjEVENT_RELEASE;
@@ -151,66 +200,59 @@ void mouse_button(GLFWwindow *window, int button, int act, int mods)
                                                             : mjBUTTON_NONE;
     uistate.x = lastx;
     uistate.y = fbh - lasty;
-    uistate.shift = (mods & GLFW_MOD_SHIFT) ? 1 : 0;
-    uistate.control = (mods & GLFW_MOD_CONTROL) ? 1 : 0;
-    uistate.alt = (mods & GLFW_MOD_ALT) ? 1 : 0;
-    uistate.nrect = 1;
+    uistate.shift = (mods & GLFW_MOD_SHIFT) ?1 :0;
+    uistate.control = (mods & GLFW_MOD_CONTROL) ?1 :0;
+    uistate.alt = (mods & GLFW_MOD_ALT) ?1 :0;
+    uistate.nrect =1;
 
     int uiw = ui.width;
     if (uiw < g_uiWidth)
         uiw = g_uiWidth;
 
-    uistate.rect[0] = {fbw - uiw, 0, uiw, fbh};
-    ui.rectid = 0;
+    uistate.rect[0] = {fbw - uiw,0, uiw, fbh};
+    ui.rectid =0;
 
     if (mjuiItem *changed = mjui_event(&ui, &uistate, &con))
     {
         if (act == GLFW_PRESS)
         {
-            if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Spawn Cube (C)") == 0)
+            if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, kBtnSpawnCube) ==0)
             {
                 spawnCube();
             }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Start Physics (P)") == 0)
+            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, kBtnStartPhysics) ==0)
             {
                 SaveChainPrePhysicsState();
                 EnablePhysicsForAll();
             }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Reset Chain (R)") == 0)
+            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, kBtnResetChain) ==0)
             {
                 ResetChainToSavedState();
             }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Increase Gap (+)") == 0)
+            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, kBtnIncreaseGap) ==0)
             {
                 IncreaseGap();
             }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Decrease Gap (-)") == 0)
+            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, kBtnDecreaseGap) ==0)
             {
                 DecreaseGap();
             }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Move Last +Y (Up)") == 0)
+            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, kBtnSaveChain) ==0)
             {
-                moveLastCubeY(+1);
+                extern int g_fileIoMode; g_fileIoMode =1;
             }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Move Last -Y (Down)") == 0)
+            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, kBtnLoadChain) ==0)
             {
-                moveLastCubeY(-1);
+                extern int g_fileIoMode; g_fileIoMode =2;
             }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Move Last +X (Right)") == 0)
+            // new direct file actions using the edit field
+            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, kBtnSaveToFile) ==0)
             {
-                moveLastCubeX(+1);
+                SaveChainToFile(g_ioFilename);
             }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Move Last -X (Left)") == 0)
+            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, kBtnLoadFromFile) ==0)
             {
-                moveLastCubeX(-1);
-            }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Move Last +Z (W)") == 0)
-            {
-                moveLastCubeZ(+1);
-            }
-            else if (changed->type == mjITEM_BUTTON && std::strcmp(changed->name, "Move Last -Z (S)") == 0)
-            {
-                moveLastCubeZ(-1);
+                LoadChainFromFile(g_ioFilename);
             }
         }
         return;
@@ -230,7 +272,7 @@ void mouse_move(GLFWwindow *window, double xpos, double ypos)
     lastx = xpos;
     lasty = ypos;
 
-    int width = 0, height = 0;
+    int width =0, height =0;
     glfwGetWindowSize(window, &width, &height);
 
     bool mod_shift = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
@@ -252,5 +294,5 @@ void scroll(GLFWwindow *window, double xoffset, double yoffset)
     if (mjui_event(&ui, &uistate, &con))
         return;
 
-    mjv_moveCamera(m, mjMOUSE_ZOOM, 0, -0.05 * yoffset, &scn, &cam);
+    mjv_moveCamera(m, mjMOUSE_ZOOM,0, -0.05 * yoffset, &scn, &cam);
 }
