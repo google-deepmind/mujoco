@@ -193,18 +193,6 @@ jobs:
         ./emsdk/emsdk install 4.0.10
         ./emsdk/emsdk activate 4.0.10
 
-    - name: Build and Test WASM bindings
-      if: ${{ runner.os == 'Linux' }}
-      shell: bash
-      run: |
-        source emsdk/emsdk_env.sh
-        export PATH="$(pwd)/node_modules/.bin:$PATH"
-
-        emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
-        cmake --build build_wasm
-
-        npm run test --prefix ./wasm
-
     - name: Configure MuJoCo
       run: >
         mkdir build &&
@@ -320,6 +308,18 @@ jobs:
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pytest -v --pyargs mujoco
+
+    - name: Build and Test WASM bindings
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        source emsdk/emsdk_env.sh
+        export PATH="$(pwd)/node_modules/.bin:$PATH"
+
+        emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
+        cmake --build build_wasm
+
+        npm run test --prefix ./wasm
 
     - name: Package MJX
       if: ${{ runner.os != 'Windows' }}
