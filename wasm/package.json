@@ -1,7 +1,7 @@
 {
   "name": "mujoco_wasm",
   "version": "1.0.0",
-  "description": "# Code generation",
+  "description": "MuJoCo JavaScript Bindings",
   "directories": {
     "example": "examples",
     "lib": "lib",
@@ -14,16 +14,17 @@
     "dev:demo": "vite --config demo_app/vite.demo.config.ts",
     "build:demo": "vite build --config demo_app/vite.demo.config.ts"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Google DeepMind",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@types/jasmine": "^5.1.8",
     "@types/node": "^24.1.0",
     "jasmine": "^5.9.0",
     "three": "^0.178.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3",
+    "typescript": "5.8.2",
     "vite": "^7.0.6"
   },
   "type": "module"
 }
+
