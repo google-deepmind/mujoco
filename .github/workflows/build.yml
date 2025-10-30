@@ -184,7 +184,7 @@ jobs:
       if: ${{ runner.os == 'Linux' }}
       working-directory: wasm
       run: |
-        npm install
+        npm ci
 
     - name: Setup Emscripten
       if: ${{ runner.os == 'Linux' }}
