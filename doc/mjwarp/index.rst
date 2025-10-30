@@ -14,6 +14,17 @@ for `Nvidia <https://nvidia.com>`__ hardware and parallel simulation. MJWarp liv
 `google-deepmind/mujoco_warp <https://github.com/google-deepmind/mujoco_warp>`__ GitHub repository and is currently in
 beta.
 
+.. TODO: remove after release
+
+.. admonition:: Beta software
+   :class: attention
+
+   - MJWarp is beta software and is under active development.
+   - MJWarp developers will triage and respond to
+     `bug reports and feature requests <https://github.com/google-deepmind/mujoco_warp/issues>`__.
+   - MJWarp is mostly feature complete but requires performance optimization, documentation, and testing.
+   - The intended audience during Beta are physics engine enthusiasts and learning framework integrators.
+
 .. _MJW_install:
 
 Installation
