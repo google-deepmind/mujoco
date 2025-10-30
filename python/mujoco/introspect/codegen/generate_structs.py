@@ -39,6 +39,8 @@ ClangJsonNode = Mapping[str, Any]
 
 _ANONYMOUS_KEY_PATTERN = re.compile(r'\d+:\d+(?=\))')
 _EXCLUDED = (
+    'mjpDecoder',
+    'mjpDecoder_',
     'mjpPlugin',
     'mjpPlugin_',
     'mjpResourceProvider',

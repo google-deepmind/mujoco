@@ -24,7 +24,9 @@
 #include <cstring>
 #include <ctime>
 #include <string>
+#include <string_view>
 #include <vector>
+#include <mujoco/mujoco.h>
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
   #include <unistd.h>
@@ -262,3 +264,18 @@ int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
   // fallback to OS filesystem
   return FileModified(resource, timestamp);
 }
+
+mjSpec* mju_decodeResource(mjResource* resource, const char* content_type) {
+  const mjpDecoder* decoder = nullptr;
+  if (content_type) {
+    decoder = mjp_findDecoder(resource, content_type);
+  } else {
+    decoder = mjp_findDecoder(resource, mjuu_extToContentType(resource->name).c_str());
+  }
+  if (!decoder) {
+    mju_error("Could not find decoder for resource '%s'", resource->name);
+  }
+
+  return decoder->decode(resource);
+}
+

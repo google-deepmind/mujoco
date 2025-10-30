@@ -281,8 +281,8 @@ PYBIND11_MODULE(_specs, m) {
           spec = LoadSpecFileImpl(
               filename, files,
               [&error](const char* filename, const mjVFS* vfs) {
-                return InterceptMjErrors(mj_parseXML)(
-                    filename, vfs, error, sizeof(error));
+                return InterceptMjErrors(mj_parse)(
+                    filename, nullptr, vfs, error, sizeof(error));
               });
           if (!spec) {
             throw py::value_error(error);

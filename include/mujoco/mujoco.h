@@ -123,6 +123,11 @@ MJAPI mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, i
 // Nullable: vfs, error
 MJAPI mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);
 
+// Parse spec from a file.
+// Nullable: vfs, error
+MJAPI mjSpec* mj_parse(const char* filename, const char* content_type,
+                       const mjVFS* vfs, char* error, int error_sz);
+
 // Compile spec to model.
 // Nullable: vfs
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
@@ -1449,6 +1454,17 @@ MJAPI const mjpResourceProvider* mjp_getResourceProvider(const char* resource_na
 // If invalid slot number, return NULL.
 MJAPI const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 
+// Globally register a decoder. This function is thread-safe.
+// If an identical mjpDecoder is already registered, this function does nothing.
+// If a non-identical mjpDecoder with the same name is already registered, an mju_error is raised.
+MJAPI void mjp_registerDecoder(const mjpDecoder* decoder);
+
+// Set default resource decoder definition.
+MJAPI void mjp_defaultDecoder(mjpDecoder* decoder);
+
+// Return the resource provider with the prefix that matches against the resource name.
+// If no match, return NULL.
+MJAPI const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
 
 //---------------------------------- Threads -------------------------------------------------------
 

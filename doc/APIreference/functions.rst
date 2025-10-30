@@ -48,6 +48,17 @@ Parse spec from XML string.
 
 *Nullable:* ``vfs``, ``error``
 
+.. _mj_parse:
+
+`mj_parse <#mj_parse>`__
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_parse
+
+Parse spec from a file.
+
+*Nullable:* ``vfs``, ``error``
+
 .. _mj_compile:
 
 `mj_compile <#mj_compile>`__
@@ -2925,6 +2936,39 @@ If no match, return NULL.
 Look up a resource provider by slot number returned by mjp_registerResourceProvider.
 
 If invalid slot number, return NULL.
+
+.. _mjp_registerDecoder:
+
+`mjp_registerDecoder <#mjp_registerDecoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_registerDecoder
+
+Globally register a decoder. This function is thread-safe.
+
+If an identical mjpDecoder is already registered, this function does nothing.
+
+If a non-identical mjpDecoder with the same name is already registered, an mju_error is raised.
+
+.. _mjp_defaultDecoder:
+
+`mjp_defaultDecoder <#mjp_defaultDecoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_defaultDecoder
+
+Set default resource decoder definition.
+
+.. _mjp_findDecoder:
+
+`mjp_findDecoder <#mjp_findDecoder>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjp_findDecoder
+
+Return the resource provider with the prefix that matches against the resource name.
+
+If no match, return NULL.
 
 .. _Thread:
 
