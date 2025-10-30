@@ -14,6 +14,9 @@
 
 // Tests for ray casting.
 
+#include <cstring>
+#include <string>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
@@ -78,8 +81,9 @@ using ::testing::NotNull;
 using RayTest = MujocoTest;
 
 TEST_F(RayTest, NoExclusions) {
-  mjModel* model = LoadModelFromString(kRayCastingModel);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(kRayCastingModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   ASSERT_THAT(data, NotNull());
 
@@ -100,8 +104,9 @@ TEST_F(RayTest, NoExclusions) {
 }
 
 TEST_F(RayTest, Exclusions) {
-  mjModel* model = LoadModelFromString(kRayCastingModel);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(kRayCastingModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   ASSERT_THAT(data, NotNull());
 
@@ -142,8 +147,9 @@ TEST_F(RayTest, Exclusions) {
 }
 
 TEST_F(RayTest, ExcludeStatic) {
-  mjModel* model = LoadModelFromString(kRayCastingModel);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(kRayCastingModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   ASSERT_THAT(data, NotNull());
 
@@ -166,8 +172,9 @@ TEST_F(RayTest, ExcludeStatic) {
 // ------------------------------- mj_multiRay --------------------------------
 
 TEST_F(RayTest, MultiRayEqualsSingleRay) {
-  mjModel* m = LoadModelFromString(kRayCastingModel);
-  ASSERT_THAT(m, NotNull());
+  char error[1024];
+  mjModel* m = LoadModelFromString(kRayCastingModel, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
   mjData* d = mj_makeData(m);
   ASSERT_THAT(d, NotNull());
   mj_forward(m, d);
@@ -215,8 +222,9 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
 }
 
 TEST_F(RayTest, EdgeCases) {
-  mjModel* m = LoadModelFromString(kSingleGeomModel);
-  ASSERT_THAT(m, NotNull());
+  char error[1024];
+  mjModel* m = LoadModelFromString(kSingleGeomModel, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
   ASSERT_THAT(m->nbvh, 1);
   mjData* d = mj_makeData(m);
   ASSERT_THAT(d, NotNull());
@@ -398,8 +406,8 @@ TEST_F(RayTest, RayMeshPruning) {
   _rayMeshTest(m);
   mj_deleteModel(m);
 
-  m = LoadModelFromString(kCubeletModel);
-  ASSERT_THAT(m, NotNull());
+  m = LoadModelFromString(kCubeletModel, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
   _rayMeshTest(m);
   mj_deleteModel(m);
 }
@@ -440,7 +448,7 @@ TEST_F(RayTest, RayHfield) {
 
 
   char error[1024];
-  mjModel* model = LoadModelFromString(xml, error, sizeof(error), 0);
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 

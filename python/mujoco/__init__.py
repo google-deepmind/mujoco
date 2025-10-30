@@ -105,7 +105,7 @@ def to_zip(spec: _specs.MjSpec, file: Union[str, IO[bytes]]) -> None:
     file = open(file, 'wb')
   with zipfile.ZipFile(file, 'w') as zip_file:
     for filename, contents in files_to_zip.items():
-      zip_info = zipfile.ZipInfo(os.path.join(spec.modelname, filename))
+      zip_info = zipfile.ZipInfo(filename)
       zip_file.writestr(zip_info, contents)
 
 

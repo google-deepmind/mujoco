@@ -13,6 +13,8 @@
 # limitations under the License.
 # ==============================================================================
 """Tests for collision driver."""
+import os
+import tempfile
 
 from absl.testing import absltest
 import jax
@@ -32,14 +34,22 @@ except ImportError:
   collision_driver = None
   smooth = None
 
+_FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
+
 
 class CollisionTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
     if mjxw.WARP_INSTALLED:
-      wp.clear_kernel_cache()
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
     np.random.seed(0)
+
+  def tearDown(self):
+    super().tearDown()
+    if hasattr(self, 'tempdir'):
+      self.tempdir.cleanup()
 
   _SPHERE_SPHERE = """
     <mujoco>
@@ -58,10 +68,11 @@ class CollisionTest(absltest.TestCase):
 
   def test_collision_nested_vmap(self):
     """Tests collision with batched data."""
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = mujoco.MjModel.from_xml_string(self._SPHERE_SPHERE)
     d = mujoco.MjData(m)

@@ -23,8 +23,8 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
-#include "engine/engine_io.h"
-#include "engine/engine_support.h"
+#include "engine/engine_core_util.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -65,7 +65,6 @@ static void saveStats(const mjModel* m, mjData* d, int island, int iter,
 }
 
 
-
 // finalize dual solver: map to joint space
 // TODO: b/295296178 - add island support to Dual solvers
 static void dualFinish(const mjModel* m, mjData* d) {
@@ -76,7 +75,6 @@ static void dualFinish(const mjModel* m, mjData* d) {
   mj_solveM(m, d, d->qacc, d->qfrc_constraint, 1);
   mju_addTo(d->qacc, d->qacc_smooth, m->nv);
 }
-
 
 
 // compute 1/diag(AR)
@@ -112,7 +110,6 @@ static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res, int flg_su
     }
   }
 }
-
 
 
 // extract diagonal block from AR, clamp diag to 1e-10 if flg_subR
@@ -175,7 +172,6 @@ static void extractBlock(const mjModel* m, const mjData* d, mjtNum* Ac,
 }
 
 
-
 // compute residual for one block
 // TODO: b/295296178 - add island support to Dual solvers
 static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int dim, int flg_subR) {
@@ -206,7 +202,6 @@ static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int 
 }
 
 
-
 // compute cost change
 // TODO: b/295296178 - add island support to Dual solvers
 static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
@@ -231,7 +226,6 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
 
   return change;
 }
-
 
 
 // set efc_state to dual constraint state; return nactive
@@ -318,7 +312,6 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
 
   return nactive;
 }
-
 
 
 //---------------------------- PGS solver ----------------------------------------------------------
@@ -542,7 +535,6 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
 }
 
 
-
 //---------------------------- NoSlip solver -------------------------------------------------------
 
 // TODO: b/295296178 - add island support to Dual solvers
@@ -759,7 +751,6 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 }
 
 
-
 //------------------------- CG and Newton solver  --------------------------------------------------
 
 // CG context
@@ -773,6 +764,7 @@ struct _mjCGContext {
   int ne;                 // number of equalities
   int nf;                 // number of friction constraints
   int nefc;               // number of all constraints
+  int nJ;                 // number of nonzeros in Jacobian
 
   // contact array
   mjContact* contact;
@@ -806,12 +798,12 @@ struct _mjCGContext {
   const int* J_rowadr;
   const int* J_rowsuper;
   const int* J_colind;
-  const int* JT_rownnz;
-  const int* JT_rowadr;
-  const int* JT_rowsuper;
-  const int* JT_colind;
   const mjtNum* J;
-  const mjtNum* JT;
+  int* JT_rownnz;
+  int* JT_rowadr;
+  int* JT_rowsuper;
+  int* JT_colind;
+  mjtNum* JT;
 
   // common arrays (CGallocate)
   mjtNum* Jaref;          // Jac*qacc - aref                              (nefc x 1)
@@ -877,6 +869,7 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
     ctx->ne               = d->ne;
     ctx->nf               = d->nf;
     ctx->nefc             = d->nefc;
+    ctx->nJ               = d->nJ;
 
     // dof arrays
     ctx->qfrc_smooth      = d->qfrc_smooth;
@@ -885,9 +878,9 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
     ctx->qacc             = d->qacc;
 
     // inertia
-    ctx->M_rownnz         = d->M_rownnz;
-    ctx->M_rowadr         = d->M_rowadr;
-    ctx->M_colind         = d->M_colind;
+    ctx->M_rownnz         = m->M_rownnz;
+    ctx->M_rowadr         = m->M_rowadr;
+    ctx->M_colind         = m->M_colind;
     ctx->M                = d->M;
     ctx->qLD              = d->qLD;
     ctx->qLDiagInv        = d->qLDiagInv;
@@ -909,11 +902,6 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
       ctx->J_rowadr       = d->efc_J_rowadr;
       ctx->J_rowsuper     = d->efc_J_rowsuper;
       ctx->J_colind       = d->efc_J_colind;
-      ctx->JT_rownnz      = d->efc_JT_rownnz;
-      ctx->JT_rowadr      = d->efc_JT_rowadr;
-      ctx->JT_rowsuper    = d->efc_JT_rowsuper;
-      ctx->JT_colind      = d->efc_JT_colind;
-      ctx->JT             = d->efc_JT;
     }
   }
 
@@ -959,16 +947,12 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
       ctx->J_rowadr       = d->iefc_J_rowadr     + iefcadr;
       ctx->J_rowsuper     = d->iefc_J_rowsuper   + iefcadr;
       ctx->J_colind       = d->iefc_J_colind;
-      ctx->JT_rownnz      = d->iefc_JT_rownnz    + idofadr;
-      ctx->JT_rowadr      = d->iefc_JT_rowadr    + idofadr;
-      ctx->JT_rowsuper    = d->iefc_JT_rowsuper  + idofadr;
-      ctx->JT_colind      = d->iefc_JT_colind;
       ctx->J              = d->iefc_J;
-      ctx->JT             = d->iefc_JT;
+      ctx->nJ             = ctx->J_rowadr[ctx->nefc-1] + ctx->J_rownnz[ctx->nefc-1]
+                            - ctx->J_rowadr[0];
     }
   }
 }
-
 
 
 // allocate fixed-size arrays in mjCGContext
@@ -988,6 +972,19 @@ static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
   ctx->search = mjSTACKALLOC(d, nv, mjtNum);
   ctx->quad   = mjSTACKALLOC(d, nefc*3, mjtNum);
 
+  // sparse only, compute Jacobian transpose
+  if (ctx->is_sparse) {
+    ctx->JT_rownnz   = mjSTACKALLOC(d, nv, int);
+    ctx->JT_rowadr   = mjSTACKALLOC(d, nv, int);
+    ctx->JT_rowsuper = mjSTACKALLOC(d, nv, int);
+    ctx->JT_colind   = mjSTACKALLOC(d, d->nJ, int);
+    ctx->JT          = mjSTACKALLOC(d, d->nJ, mjtNum);
+    int offset       = ctx->J_rowadr[0];
+    mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
+                        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
+                        ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
+  }
+
   // Newton only, known-size arrays
   if (flg_Newton) {
     ctx->D = mjSTACKALLOC(d, nefc, mjtNum);
@@ -1004,7 +1001,6 @@ static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
     }
   }
 }
-
 
 
 // update efc_force, qfrc_constraint, cost-related
@@ -1044,7 +1040,6 @@ static void CGupdateConstraint(mjCGContext* ctx, int flg_HessianCone) {
 }
 
 
-
 // update grad, Mgrad
 static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
   int nv = ctx->nv;
@@ -1071,7 +1066,6 @@ static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
                ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
   }
 }
-
 
 
 // prepare quadratic polynomials and contact cone quantities
@@ -1148,7 +1142,6 @@ static void CGprepare(mjCGContext* ctx) {
     quad[2] *= 0.5;
   }
 }
-
 
 
 // linesearch evaluation point
@@ -1299,7 +1292,6 @@ static void CGeval(mjCGContext* ctx, mjCGPnt* p) {
 }
 
 
-
 // update bracket point given 3 candidate points
 static int updateBracket(mjCGContext* ctx,
                          mjCGPnt* p, const mjCGPnt candidates[3], mjCGPnt* pnext) {
@@ -1328,7 +1320,6 @@ static int updateBracket(mjCGContext* ctx,
 
   return flag;
 }
-
 
 
 // line search
@@ -1520,7 +1511,6 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
 }
 
 
-
 // allocate and compute Hessian given efc_state
 //  mj_{mark/free}Stack in caller function!
 static void MakeHessian(mjData* d, mjCGContext* ctx) {
@@ -1630,7 +1620,6 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
 }
 
 
-
 // forward declaration of HessianCone (readability)
 static void HessianCone(mjData* d, mjCGContext* ctx);
 
@@ -1707,7 +1696,6 @@ static void FactorizeHessian(mjData* d, mjCGContext* ctx, int flg_recompute) {
   // mark full update
   ctx->nupdate = nefc;
 }
-
 
 
 // elliptic case: Hcone = H + cone_contributions
@@ -1788,7 +1776,6 @@ static void HessianCone(mjData* d, mjCGContext* ctx) {
 }
 
 
-
 // incremental update to Hessian factor due to changes in efc_state
 static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate) {
   int rank, nv = ctx->nv, nefc = ctx->nefc;
@@ -1854,7 +1841,6 @@ static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate)
 
   mj_freeStack(d);
 }
-
 
 
 // driver
@@ -2018,12 +2004,10 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
 }
 
 
-
 // CG entry point
 void mj_solCG(const mjModel* m, mjData* d, int maxiter) {
   mj_solCGNewton(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/0);
 }
-
 
 
 // CG entry point (one island)
@@ -2032,12 +2016,10 @@ void mj_solCG_island(const mjModel* m, mjData* d, int island, int maxiter) {
 }
 
 
-
 // Newton entry point
 void mj_solNewton(const mjModel* m, mjData* d, int maxiter) {
   mj_solCGNewton(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/1);
 }
-
 
 
 // Newton entry point (one island)

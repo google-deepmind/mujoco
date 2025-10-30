@@ -51,7 +51,7 @@ MJAPI void mj_transmission(const mjModel* m, mjData* d);
 // composite rigid body inertia algorithm
 MJAPI void mj_crb(const mjModel* m, mjData* d);
 
-// add tendon armature to qM
+// add tendon armature to M
 MJAPI void mj_tendonArmature(const mjModel* m, mjData* d);
 
 // make inertia matrix

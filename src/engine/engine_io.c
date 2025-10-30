@@ -14,7 +14,7 @@
 
 #include "engine/engine_io.h"
 
-#include <inttypes.h>  // NOLINT required for PRIu64, PRIuPTR
+#include <inttypes.h>  // IWYU pragma: keep
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -22,18 +22,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
-#include "engine/engine_crossplatform.h"
+#include "engine/engine_init.h"
 #include "engine/engine_macro.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
-#include "thread/thread_pool.h"
 
 #ifdef ADDRESS_SANITIZER
   #include <sanitizer/asan_interface.h>
@@ -48,249 +47,10 @@
   #pragma warning (disable: 4305)  // disable MSVC warning: truncation from 'double' to 'float'
 #endif
 
-// add red zone padding when built with asan, to detect out-of-bound accesses
-#ifdef ADDRESS_SANITIZER
-  #define mjREDZONE 32
-#else
-  #define mjREDZONE 0
-#endif
-
 static const int MAX_ARRAY_SIZE = INT_MAX / 4;
 
-// compute a % b with a fast code path if the second argument is a power of 2
-static inline size_t fastmod(size_t a, size_t b) {
-  // (b & (b - 1)) == 0 implies that b is a power of 2
-  if (mjLIKELY((b & (b - 1)) == 0)) {
-    return a & (b - 1);
-  }
-  return a % b;
-}
 
-typedef struct {
-  size_t pbase;   // value of d->pbase immediately before mj_markStack
-  size_t pstack;  // value of d->pstack immediately before mj_markStack
-  void* pc;       // program counter of the call site of mj_markStack (only set when under asan)
-} mjStackFrame;
-
-//------------------------------ mjLROpt -----------------------------------------------------------
-
-// set default options for length range computation
-void mj_defaultLROpt(mjLROpt* opt) {
-  opt->mode           = mjLRMODE_MUSCLE;
-  opt->useexisting    = 1;
-  opt->uselimit       = 0;
-
-  opt->accel          = 20;
-  opt->maxforce       = 0;
-  opt->timeconst      = 1;
-  opt->timestep       = 0.01;
-  opt->inttotal       = 10;
-  opt->interval       = 2;
-  opt->tolrange       = 0.05;
-}
-
-
-
-//------------------------------- mjOption ---------------------------------------------------------
-
-// set default solver parameters
-void mj_defaultSolRefImp(mjtNum* solref, mjtNum* solimp) {
-  if (solref) {
-    solref[0] = 0.02;       // timeconst
-    solref[1] = 1;          // dampratio
-  }
-
-  if (solimp) {
-    solimp[0] = 0.9;        // dmin
-    solimp[1] = 0.95;       // dmax
-    solimp[2] = 0.001;      // width
-    solimp[3] = 0.5;        // midpoint
-    solimp[4] = 2;          // power
-  }
-}
-
-
-
-// set model options to default values
-void mj_defaultOption(mjOption* opt) {
-  // fill opt with zeros in case struct is padded
-  memset(opt, 0, sizeof(mjOption));
-
-  // timing parameters
-  opt->timestep           = 0.002;
-  opt->apirate            = 100;
-
-  // solver parameters
-  opt->impratio           = 1;
-  opt->tolerance          = 1e-8;
-  opt->ls_tolerance       = 0.01;
-  opt->noslip_tolerance   = 1e-6;
-  opt->ccd_tolerance      = 1e-6;
-
-  // physical constants
-  opt->gravity[0]         = 0;
-  opt->gravity[1]         = 0;
-  opt->gravity[2]         = -9.81;
-  opt->wind[0]            = 0;
-  opt->wind[1]            = 0;
-  opt->wind[2]            = 0;
-  opt->magnetic[0]        = 0;
-  opt->magnetic[1]        = -0.5;
-  opt->magnetic[2]        = 0;
-  opt->density            = 0;
-  opt->viscosity          = 0;
-
-  // solver overrides
-  opt->o_margin           = 0;
-  mj_defaultSolRefImp(opt->o_solref, opt->o_solimp);
-  opt->o_friction[0] = 1;
-  opt->o_friction[1] = 1;
-  opt->o_friction[2] = 0.005;
-  opt->o_friction[3] = 0.0001;
-  opt->o_friction[4] = 0.0001;
-
-  // discrete options
-  opt->integrator         = mjINT_EULER;
-  opt->cone               = mjCONE_PYRAMIDAL;
-  opt->jacobian           = mjJAC_AUTO;
-  opt->solver             = mjSOL_NEWTON;
-  opt->iterations         = 100;
-  opt->ls_iterations      = 50;
-  opt->noslip_iterations  = 0;
-  opt->ccd_iterations     = 50;
-  opt->disableflags       = 0;
-  opt->enableflags        = 0;
-  opt->disableactuator    = 0;
-
-  // sdf collisions
-  opt->sdf_initpoints     = 40;
-  opt->sdf_iterations     = 10;
-}
-
-
-
-//------------------------------- mjVisual ---------------------------------------------------------
-
-// set 4 floats
-static void setf4(float* rgba, float r, float g, float b, float a) {
-  rgba[0] = r;
-  rgba[1] = g;
-  rgba[2] = b;
-  rgba[3] = a;
-}
-
-
-// set visual options to default values
-void mj_defaultVisual(mjVisual* vis) {
-  // global
-  vis->global.cameraid            = -1;
-  vis->global.orthographic        = 0;
-  vis->global.fovy                = 45;
-  vis->global.ipd                 = 0.068;
-  vis->global.azimuth             = 90;
-  vis->global.elevation           = -45;
-  vis->global.linewidth           = 1.0;
-  vis->global.glow                = 0.3;
-  vis->global.offwidth            = 640;
-  vis->global.offheight           = 480;
-  vis->global.realtime            = 1.0;
-  vis->global.ellipsoidinertia    = 0;
-  vis->global.bvactive            = 1;
-
-  // rendering quality
-  vis->quality.shadowsize         = 4096;
-  vis->quality.offsamples         = 4;
-  vis->quality.numslices          = 28;
-  vis->quality.numstacks          = 16;
-  vis->quality.numquads           = 4;
-
-  // head light
-  vis->headlight.ambient[0]       = 0.1;
-  vis->headlight.ambient[1]       = 0.1;
-  vis->headlight.ambient[2]       = 0.1;
-  vis->headlight.diffuse[0]       = 0.4;
-  vis->headlight.diffuse[1]       = 0.4;
-  vis->headlight.diffuse[2]       = 0.4;
-  vis->headlight.specular[0]      = 0.5;
-  vis->headlight.specular[1]      = 0.5;
-  vis->headlight.specular[2]      = 0.5;
-  vis->headlight.active           = 1;
-
-  // map parameters
-  vis->map.stiffness              = 100;
-  vis->map.stiffnessrot           = 500;
-  vis->map.force                  = 0.005;
-  vis->map.torque                 = 0.1;
-  vis->map.alpha                  = 0.3;
-  vis->map.fogstart               = 3.0;
-  vis->map.fogend                 = 10.0;
-  vis->map.znear                  = 0.01;
-  vis->map.zfar                   = 50.0;
-  vis->map.haze                   = 0.3;
-  vis->map.shadowclip             = 1.0;
-  vis->map.shadowscale            = 0.6;
-  vis->map.actuatortendon         = 2.0;
-
-  // size parameters
-  vis->scale.forcewidth           = 0.1;
-  vis->scale.contactwidth         = 0.3;
-  vis->scale.contactheight        = 0.1;
-  vis->scale.connect              = 0.2;
-  vis->scale.com                  = 0.4;
-  vis->scale.camera               = 0.3;
-  vis->scale.light                = 0.3;
-  vis->scale.selectpoint          = 0.2;
-  vis->scale.jointlength          = 1.0;
-  vis->scale.jointwidth           = 0.1;
-  vis->scale.actuatorlength       = 0.7;
-  vis->scale.actuatorwidth        = 0.2;
-  vis->scale.framelength          = 1.0;
-  vis->scale.framewidth           = 0.1;
-  vis->scale.constraint           = 0.1;
-  vis->scale.slidercrank          = 0.2;
-  vis->scale.frustum             = 10.0;
-
-  // colors
-  setf4(vis->rgba.fog,              0., 0., 0., 1.);
-  setf4(vis->rgba.haze,             1., 1., 1., 1.);
-  setf4(vis->rgba.force,            1., .5, .5, 1.);
-  setf4(vis->rgba.inertia,          .8, .2, .2, .6);
-  setf4(vis->rgba.joint,            .2, .6, .8, 1.);
-  setf4(vis->rgba.actuator,         .2, .25, .2, 1);
-  setf4(vis->rgba.actuatornegative, .2, .6, .9, 1.);
-  setf4(vis->rgba.actuatorpositive, .9, .4, .2, 1.);
-  setf4(vis->rgba.com,              .9, .9, .9, 1.);
-  setf4(vis->rgba.camera,           .6, .9, .6, 1);
-  setf4(vis->rgba.light,            .6, .6, .9, 1.);
-  setf4(vis->rgba.selectpoint,      .9, .9, .1, 1.);
-  setf4(vis->rgba.connect,          .2, .2, .8, 1.);
-  setf4(vis->rgba.contactpoint,     .9, .6, .2, 1.);
-  setf4(vis->rgba.contactforce,     .7, .9, .9, 1.);
-  setf4(vis->rgba.contactfriction,  .9, .8, .4, 1.);
-  setf4(vis->rgba.contacttorque,    .9, .7, .9, 1.);
-  setf4(vis->rgba.contactgap,       .5, .8, .9, 1.);
-  setf4(vis->rgba.rangefinder,      1., 1., .1, 1.);
-  setf4(vis->rgba.constraint,       .9, .0, .0, 1.);
-  setf4(vis->rgba.slidercrank,      .5, .3, .8, 1.);
-  setf4(vis->rgba.crankbroken,      .9, .0, .0, 1.);
-  setf4(vis->rgba.frustum,          1., 1., .0, .2);
-  setf4(vis->rgba.bv,               0., 1., .0, .5);
-  setf4(vis->rgba.bvactive,         1., 0., .0, .5);
-}
-
-
-
-//------------------------------- mjStatistic ------------------------------------------------------
-
-// set statistics to default values; compute later in compiler
-void mj_defaultStatistic(mjStatistic* stat) {
-  mju_zero3(stat->center);
-  stat->extent = 2;
-  stat->meaninertia = 1;
-  stat->meanmass = 1;
-  stat->meansize = 0.2;
-}
-
+//----------------------------------- static utility functions -------------------------------------
 
 
 //----------------------------------- static utility functions -------------------------------------
@@ -319,7 +79,6 @@ static int getnint(void) {
 }
 
 
-
 // count buffer members in mjModel (mjtSize)
 static int getnbuffer(void) {
   int cnt = 0;
@@ -332,7 +91,6 @@ static int getnbuffer(void) {
 }
 
 
-
 // count pointers in mjModel
 static int getnptr(void) {
   int cnt = 0;
@@ -343,7 +101,6 @@ static int getnptr(void) {
 
   return cnt;
 }
-
 
 
 // write to memory buffer
@@ -364,7 +121,6 @@ static void bufwrite(const void* src, int num, int szbuf, void* buf, int* ptrbuf
 }
 
 
-
 // read from memory buffer
 static void bufread(void* dest, int num, int szbuf, const void* buf, int* ptrbuf) {
   // check pointers
@@ -383,14 +139,12 @@ static void bufread(void* dest, int num, int szbuf, const void* buf, int* ptrbuf
 }
 
 
-
 // number of bytes to be skipped to achieve 64-byte alignment
 static inline unsigned int SKIP(intptr_t offset) {
   const unsigned int align = 64;
   // compute skipped bytes
   return (align - (offset % align)) % align;
 }
-
 
 
 //----------------------------------- mjModel construction -----------------------------------------
@@ -422,7 +176,6 @@ static void mj_setPtrModel(mjModel* m) {
 }
 
 
-
 // increases buffer size without causing integer overflow, returns 0 if
 // operation would cause overflow
 // performs the following operations:
@@ -452,18 +205,17 @@ static int safeAddToBufferSize(intptr_t* offset, mjtSize* nbuffer,
 }
 
 
-
 // free model memory without destroying the struct
 static void freeModelBuffers(mjModel* m) {
   mju_free(m->buffer);
 }
 
 
-
 // allocate and initialize mjModel structure
 void mj_makeModel(mjModel** dest,
     int nq, int nv, int nu, int na, int nbody, int nbvh,
-    int nbvhstatic, int nbvhdynamic, int noct, int njnt, int ngeom, int nsite, int ncam,
+    int nbvhstatic, int nbvhdynamic, int noct, int njnt, int ntree,
+    int nM, int nB, int nC, int nD, int ngeom, int nsite, int ncam,
     int nlight, int nflex, int nflexnode, int nflexvert, int nflexedge, int nflexelem,
     int nflexelemdata, int nflexelemedge, int nflexshelldata, int nflexevpair, int nflextexcoord,
     int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface,
@@ -504,6 +256,11 @@ void mj_makeModel(mjModel** dest,
   m->nbvhdynamic = nbvhdynamic;
   m->noct = noct;
   m->njnt = njnt;
+  m->ntree = ntree;
+  m->nM = nM;
+  m->nB = nB;
+  m->nC = nC;
+  m->nD = nD;
   m->ngeom = ngeom;
   m->nsite = nsite;
   m->ncam = ncam;
@@ -619,7 +376,7 @@ void mj_makeModel(mjModel** dest,
   // clear, set pointers in buffer
   memset(m->buffer, 0, m->nbuffer);
 #ifdef MEMORY_SANITIZER
-  // Tell msan to treat the entire buffer as uninitialized
+  // tell msan to treat the entire buffer as uninitialized
   __msan_allocated_memory(m->buffer, m->nbuffer);
 #endif
   mj_setPtrModel(m);
@@ -636,28 +393,28 @@ void mj_makeModel(mjModel** dest,
 }
 
 
-
 // copy mjModel, if dest==NULL create new model
 mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
   // allocate new model if needed
   if (!dest) {
-    mj_makeModel(&dest,
-      src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
-      src->nbvhstatic, src->nbvhdynamic, src->noct, src->njnt, src->ngeom, src->nsite,
-      src->ncam, src->nlight, src->nflex, src->nflexnode, src->nflexvert, src->nflexedge,
-      src->nflexelem, src->nflexelemdata, src->nflexelemedge, src->nflexshelldata,
-      src->nflexevpair, src->nflextexcoord, src->nmesh, src->nmeshvert,
-      src->nmeshnormal, src->nmeshtexcoord, src->nmeshface, src->nmeshgraph,
-      src->nmeshpoly, src->nmeshpolyvert, src->nmeshpolymap,
-      src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
-      src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata,
-      src->ntex, src->ntexdata, src->nmat, src->npair, src->nexclude,
-      src->neq, src->ntendon, src->nwrap, src->nsensor, src->nnumeric,
-      src->nnumericdata, src->ntext, src->ntextdata, src->ntuple,
-      src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
-      src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site,
-      src->nuser_cam, src->nuser_tendon, src->nuser_actuator,
-      src->nuser_sensor, src->nnames, src->npaths);
+    mj_makeModel(
+        &dest, src->nq, src->nv, src->nu, src->na, src->nbody, src->nbvh,
+        src->nbvhstatic, src->nbvhdynamic, src->noct, src->njnt, src->ntree,
+        src->nM, src->nB, src->nC, src->nD, src->ngeom, src->nsite, src->ncam,
+        src->nlight, src->nflex, src->nflexnode, src->nflexvert, src->nflexedge,
+        src->nflexelem, src->nflexelemdata, src->nflexelemedge,
+        src->nflexshelldata, src->nflexevpair, src->nflextexcoord, src->nmesh,
+        src->nmeshvert, src->nmeshnormal, src->nmeshtexcoord, src->nmeshface,
+        src->nmeshgraph, src->nmeshpoly, src->nmeshpolyvert, src->nmeshpolymap,
+        src->nskin, src->nskinvert, src->nskintexvert, src->nskinface,
+        src->nskinbone, src->nskinbonevert, src->nhfield, src->nhfielddata,
+        src->ntex, src->ntexdata, src->nmat, src->npair, src->nexclude,
+        src->neq, src->ntendon, src->nwrap, src->nsensor, src->nnumeric,
+        src->nnumericdata, src->ntext, src->ntextdata, src->ntuple,
+        src->ntupledata, src->nkey, src->nmocap, src->nplugin, src->npluginattr,
+        src->nuser_body, src->nuser_jnt, src->nuser_geom, src->nuser_site,
+        src->nuser_cam, src->nuser_tendon, src->nuser_actuator,
+        src->nuser_sensor, src->nnames, src->npaths);
   }
   if (!dest) {
     mjERROR("failed to make mjModel. Invalid sizes.");
@@ -686,7 +443,6 @@ mjModel* mj_copyModel(mjModel* dest, const mjModel* src) {
 
   return dest;
 }
-
 
 
 // copy mjModel, skip large arrays not required for abstract visualization
@@ -718,7 +474,6 @@ void mjv_copyModel(mjModel* dest, const mjModel* src) {
   #undef XNV
   #define XNV X
 }
-
 
 
 // save model to binary file, or memory buffer of szbuf>0
@@ -838,7 +593,8 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz) {
                ints[42], ints[43], ints[44], ints[45], ints[46], ints[47], ints[48],
                ints[49], ints[50], ints[51], ints[52], ints[53], ints[54], ints[55],
                ints[56], ints[57], ints[58], ints[59], ints[60], ints[61], ints[62],
-               ints[63], ints[64], ints[65], ints[66], ints[67], ints[68], ints[69]);
+               ints[63], ints[64], ints[65], ints[66], ints[67], ints[68], ints[69],
+               ints[70], ints[71], ints[72], ints[73], ints[74]);
 
   // read mjModel mjtSize fields
   mjtSize sizes[8];
@@ -911,7 +667,6 @@ void mj_deleteModel(mjModel* m) {
 }
 
 
-
 // size of buffer needed to hold model
 int mj_sizeModel(const mjModel* m) {
   int size = (
@@ -931,23 +686,18 @@ int mj_sizeModel(const mjModel* m) {
 }
 
 
-
-
 //-------------------------- sparse system matrix construction -------------------------------------
 
 // construct sparse representation of dof-dof matrix
-static void makeDofDofSparse(const mjModel* m, mjData* d,
-                             int* rownnz, int* rowadr,  int* diag, int* colind,
-                             int reduced, int upper) {
-  int nv = m->nv;
-
+void mj_makeDofDofSparse(int nv, int nC, int nD, int nM,
+                         const int* dof_parentid, const int* dof_simplenum,
+                         int* rownnz, int* rowadr, int* diag, int* colind,
+                         int reduced, int upper,
+                         int* remaining) {
   // no dofs, nothing to do
   if (!nv) {
     return;
   }
-
-  mj_markStack(d);
-  int* remaining = mjSTACKALLOC(d, nv, int);
 
   // compute rownnz
   mju_zeroInt(rownnz, nv);
@@ -957,8 +707,8 @@ static void makeDofDofSparse(const mjModel* m, mjData* d,
     rownnz[i]++;
 
     // process below diagonal unless reduced and dof is simple
-    if (!(reduced && m->dof_simplenum[i])) {
-      while ((j = m->dof_parentid[j]) >= 0) {
+    if (!(reduced && dof_simplenum[i])) {
+      while ((j = dof_parentid[j]) >= 0) {
         // both reduced and non-reduced have lower triangle
         rownnz[i]++;
 
@@ -982,9 +732,9 @@ static void makeDofDofSparse(const mjModel* m, mjData* d,
     colind[rowadr[i] + remaining[i]] = i;
 
     // process below diagonal unless reduced and dof is simple
-    if (!(reduced && m->dof_simplenum[i])) {
+    if (!(reduced && dof_simplenum[i])) {
       int j = i;
-      while ((j = m->dof_parentid[j]) >= 0) {
+      while ((j = dof_parentid[j]) >= 0) {
         remaining[i]--;
         colind[rowadr[i] + remaining[i]] = j;
 
@@ -1005,7 +755,7 @@ static void makeDofDofSparse(const mjModel* m, mjData* d,
   }
 
   // check total nnz; SHOULD NOT OCCUR
-  int expected_nnz = upper ? m->nD : (reduced ? m->nC : m->nM);
+  int expected_nnz = upper ? nD : (reduced ? nC : nM);
   if (rowadr[nv - 1] + rownnz[nv - 1] != expected_nnz) {
     mjERROR("sum of rownnz different from expected");
   }
@@ -1024,116 +774,107 @@ static void makeDofDofSparse(const mjModel* m, mjData* d,
       diag[i] = j;
     }
   }
-
-  mj_freeStack(d);
 }
 
 // construct sparse representation of body-dof matrix
-static void makeBSparse(const mjModel* m, mjData* d) {
-  int nv = m->nv, nbody = m->nbody;
-  int* rownnz = d->B_rownnz;
-  int* rowadr = d->B_rowadr;
-  int* colind = d->B_colind;
-
+void mj_makeBSparse(int nv, int nbody, int nB,
+                    const int* body_dofnum, const int* body_parentid, const int* body_dofadr,
+                    int* B_rownnz, int* B_rowadr, int* B_colind,
+                    int* count) {
   // set rownnz to subtree dofs counts, including self
-  mju_zeroInt(rownnz, nbody);
+  mju_zeroInt(B_rownnz, nbody);
   for (int i = nbody - 1; i > 0; i--) {
-    rownnz[i] += m->body_dofnum[i];
-    rownnz[m->body_parentid[i]] += rownnz[i];
+    B_rownnz[i] += body_dofnum[i];
+    B_rownnz[body_parentid[i]] += B_rownnz[i];
   }
 
   // check if rownnz[0] != nv; SHOULD NOT OCCUR
-  if (rownnz[0] != nv) {
+  if (B_rownnz[0] != nv) {
     mjERROR("rownnz[0] different from nv");
   }
 
   // add dofs in ancestors bodies
   for (int i = 0; i < nbody; i++) {
-    int j = m->body_parentid[i];
+    int j = body_parentid[i];
     while (j > 0) {
-      rownnz[i] += m->body_dofnum[j];
-      j = m->body_parentid[j];
+      B_rownnz[i] += body_dofnum[j];
+      j = body_parentid[j];
     }
   }
 
   // compute rowadr
-  rowadr[0] = 0;
+  B_rowadr[0] = 0;
   for (int i = 1; i < nbody; i++) {
-    rowadr[i] = rowadr[i - 1] + rownnz[i - 1];
+    B_rowadr[i] = B_rowadr[i - 1] + B_rownnz[i - 1];
   }
 
   // check if total nnz != nB; SHOULD NOT OCCUR
-  if (m->nB != rowadr[nbody - 1] + rownnz[nbody - 1]) {
+  if (nB != B_rowadr[nbody - 1] + B_rownnz[nbody - 1]) {
     mjERROR("sum of rownnz different from nB");
   }
 
-  // allocate and clear incremental row counts
-  mj_markStack(d);
-  int* cnt = mjSTACKALLOC(d, nbody, int);
-  mju_zeroInt(cnt, nbody);
+  // clear incremental row counts
+  mju_zeroInt(count, nbody);
 
   // add subtree dofs to colind
   for (int i = nbody - 1; i > 0; i--) {
     // add this body's dofs to subtree
-    for (int n = 0; n < m->body_dofnum[i]; n++) {
-      colind[rowadr[i] + cnt[i]] = m->body_dofadr[i] + n;
-      cnt[i]++;
+    for (int n = 0; n < body_dofnum[i]; n++) {
+      B_colind[B_rowadr[i] + count[i]] = body_dofadr[i] + n;
+      count[i]++;
     }
 
     // add body subtree to parent
-    int par = m->body_parentid[i];
-    for (int n = 0; n < cnt[i]; n++) {
-      colind[rowadr[par] + cnt[par]] = colind[rowadr[i] + n];
-      cnt[par]++;
+    int par = body_parentid[i];
+    for (int n = 0; n < count[i]; n++) {
+      B_colind[B_rowadr[par] + count[par]] = B_colind[B_rowadr[i] + n];
+      count[par]++;
     }
   }
 
   // add all ancestor dofs
   for (int i = 0; i < nbody; i++) {
-    int par = m->body_parentid[i];
+    int par = body_parentid[i];
     while (par > 0) {
       // add ancestor body dofs
-      for (int n = 0; n < m->body_dofnum[par]; n++) {
-        colind[rowadr[i] + cnt[i]] = m->body_dofadr[par] + n;
-        cnt[i]++;
+      for (int n = 0; n < body_dofnum[par]; n++) {
+        B_colind[B_rowadr[i] + count[i]] = body_dofadr[par] + n;
+        count[i]++;
       }
 
       // advance to parent
-      par = m->body_parentid[par];
+      par = body_parentid[par];
     }
   }
 
   // process all bodies
   for (int i = 0; i < nbody; i++) {
     // make sure cnt = rownnz; SHOULD NOT OCCUR
-    if (rownnz[i] != cnt[i]) {
+    if (B_rownnz[i] != count[i]) {
       mjERROR("cnt different from rownnz");
     }
 
     // sort colind in each row
-    if (cnt[i] > 1) {
-      mju_insertionSortInt(colind + rowadr[i], cnt[i]);
+    if (count[i] > 1) {
+      mju_insertionSortInt(B_colind + B_rowadr[i], count[i]);
     }
   }
-
-  mj_freeStack(d);
 }
 
 
-
 // check D and B sparsity for consistency
-static void checkDBSparse(const mjModel* m, mjData* d) {
+static void checkDBSparse(const mjModel* m) {
   // process all dofs
   for (int j = 0; j < m->nv; j++) {
     // get body for this dof
     int i = m->dof_bodyid[j];
 
     // D[row j] and B[row i] should be identical
-    if (d->D_rownnz[j] != d->B_rownnz[i]) {
+    if (m->D_rownnz[j] != m->B_rownnz[i]) {
       mjERROR("rows have different nnz");
     }
-    for (int k = 0; k < d->D_rownnz[j]; k++) {
-      if (d->D_colind[d->D_rowadr[j] + k] != d->B_colind[d->B_rowadr[i] + k]) {
+    for (int k = 0; k < m->D_rownnz[j]; k++) {
+      if (m->D_colind[m->D_rowadr[j] + k] != m->B_colind[m->B_rowadr[i] + k]) {
         mjERROR("rows have different colind");
       }
     }
@@ -1141,41 +882,27 @@ static void checkDBSparse(const mjModel* m, mjData* d) {
 }
 
 
-
 // integer valued dst[D or C or M] = src[M (legacy)], handle different sparsity representations
-static void copyM2Sparse(const mjModel* m, mjData* d, int* dst, const int* src,
-                         int reduced, int upper) {
-  int nv = m->nv;
-  const int* rownnz = NULL;
-  const int* rowadr = NULL;
-  if (reduced && !upper) {
-    rownnz = d->M_rownnz;
-    rowadr = d->M_rowadr;
-  } else if (!reduced && upper) {
-    rownnz = d->D_rownnz;
-    rowadr = d->D_rowadr;
-  } else {
-    mjERROR("unsupported sparsity structure (reduced + upper)");
-  }
-
-  mj_markStack(d);
-
+static void copyM2Sparse(int nv,
+                         const int* dof_Madr, const int* dof_simplenum, const int* dof_parentid,
+                         const int* rownnz, const int* rowadr, const int* src,
+                         int* dst,
+                         int reduced, int upper, int* remaining) {
   // init remaining
-  int* remaining = mjSTACKALLOC(d, nv, int);
   mju_copyInt(remaining, rownnz, nv);
 
   // copy data
   for (int i = nv - 1; i >= 0; i--) {
     // init at diagonal
-    int adr = m->dof_Madr[i];
+    int adr = dof_Madr[i];
     remaining[i]--;
     dst[rowadr[i] + remaining[i]] = src[adr];
     adr++;
 
     // process below diagonal unless reduced and dof is simple
-    if (!(reduced && m->dof_simplenum[i])) {
+    if (!(reduced && dof_simplenum[i])) {
       int j = i;
-      while ((j = m->dof_parentid[j]) >= 0) {
+      while ((j = dof_parentid[j]) >= 0) {
         remaining[i]--;
         dst[rowadr[i] + remaining[i]] = src[adr];
 
@@ -1196,79 +923,34 @@ static void copyM2Sparse(const mjModel* m, mjData* d, int* dst, const int* src,
       mjERROR("unassigned index");
     }
   }
-
-  mj_freeStack(d);
 }
-
-
-
-// integer valued dst[M] = src[D lower]
-static void copyD2MSparse(const mjModel* m, const mjData* d, int* dst, const int* src) {
-  int nv = m->nv;
-
-  // copy data
-  for (int i = nv - 1; i >= 0; i--) {
-    // find diagonal in qDeriv
-    int j = 0;
-    while (d->D_colind[d->D_rowadr[i] + j] < i) {
-      j++;
-    }
-
-    // copy
-    int adr = m->dof_Madr[i];
-    while (j >= 0) {
-      dst[adr] = src[d->D_rowadr[i] + j];
-      adr++;
-      j--;
-    }
-  }
-}
-
 
 
 // construct index mappings between M <-> D, M -> C, M (legacy) -> M (CSR)
-static void makeDofDofmaps(const mjModel* m, mjData* d) {
-  int nM = m->nM, nC = m->nC, nD = m->nD;
-  mj_markStack(d);
+void mj_makeDofDofMaps(int nv, int nM, int nC, int nD,
+                       const int* dof_Madr, const int* dof_simplenum, const int* dof_parentid,
+                       const int* D_rownnz, const int* D_rowadr, const int* D_colind,
+                       const int* M_rownnz, const int* M_rowadr, const int* M_colind,
+                       int* mapM2D, int* mapD2M, int* mapM2M,
+                       int* M, int* scratch) {
+  // make mapM2D: M -> D (lower to symmetric)
+  mju_lower2SymMap(mapM2D, nv, D_rowadr, D_rownnz, D_colind, M_rowadr, M_rownnz, M_colind, scratch);
 
-  // make mapM2D
-  int* M = mjSTACKALLOC(d, nM, int);
+  // make mapD2M: D -> M (symmetric to lower)
+  mju_sparseMap(mapD2M, nv, M_rowadr, M_rownnz, M_colind, D_rowadr, D_rownnz, D_colind);
+
+  // make mapM2M
   for (int i=0; i < nM; i++) M[i] = i;
-  for (int i=0; i < nD; i++) d->mapM2D[i] = -1;
-  copyM2Sparse(m, d, d->mapM2D, M, /*reduced=*/0, /*upper=*/1);
-
-  // check that all indices are filled in
-  for (int i=0; i < nD; i++) {
-    if (d->mapM2D[i] < 0) {
-      mjERROR("unassigned index in mapM2D");
-    }
-  }
-
-  // make mapD2M
-  int* D = mjSTACKALLOC(d, nD, int);
-  for (int i=0; i < nD; i++) D[i] = i;
-  for (int i=0; i < nM; i++) d->mapD2M[i] = -1;
-  copyD2MSparse(m, d, d->mapD2M, D);
-
-  // check that all indices are filled in
-  for (int i=0; i < nM; i++) {
-    if (d->mapD2M[i] < 0) {
-      mjERROR("unassigned index in mapD2M");
-    }
-  }
-
-  // make mapM2C
-  for (int i=0; i < nC; i++) d->mapM2M[i] = -1;
-  copyM2Sparse(m, d, d->mapM2M, M, /*reduced=*/1, /*upper=*/0);
+  for (int i=0; i < nC; i++) mapM2M[i] = -1;
+  copyM2Sparse(nv, dof_Madr, dof_simplenum, dof_parentid, M_rownnz,
+               M_rowadr, M, mapM2M, /*reduced=*/1, /*upper=*/0, scratch);
 
   // check that all indices are filled in
   for (int i=0; i < nC; i++) {
-    if (d->mapM2M[i] < 0) {
-      mjERROR("unassigned index in mapM2C");
+    if (mapM2M[i] < 0) {
+      mjERROR("unassigned index in mapM2M");
     }
   }
-
-  mj_freeStack(d);
 }
 
 
@@ -1308,7 +990,6 @@ static void mj_setPtrData(const mjModel* m, mjData* d) {
 }
 
 
-
 // initialize plugins, copy into d (required for deletion)
 void mj_initPlugin(const mjModel* m, mjData* d) {
   d->nplugin = m->nplugin;
@@ -1323,7 +1004,6 @@ void mj_initPlugin(const mjModel* m, mjData* d) {
     }
   }
 }
-
 
 
 // free mjData memory without destroying the struct
@@ -1343,7 +1023,6 @@ static void freeDataBuffers(mjData* d) {
     mju_free(d->buffer);
     mju_free(d->arena);
 }
-
 
 
 // allocate and initialize raw mjData structure
@@ -1414,7 +1093,6 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
 }
 
 
-
 // allocate and initialize mjData structure
 mjData* mj_makeData(const mjModel* m) {
   mjData* d = NULL;
@@ -1425,7 +1103,6 @@ mjData* mj_makeData(const mjModel* m) {
   }
   return d;
 }
-
 
 
 // copy mjData, if dest==NULL create new data;
@@ -1574,330 +1251,6 @@ mjData* mjv_copyData(mjData* dest, const mjModel* m, const mjData* src) {
   return mj_copyDataVisual(dest, m, src, /*flg_all=*/0);
 }
 
-static void maybe_lock_alloc_mutex(mjData* d) {
-  if (d->threadpool != 0) {
-    mju_threadPoolLockAllocMutex((mjThreadPool*)d->threadpool);
-  }
-}
-
-static void maybe_unlock_alloc_mutex(mjData* d) {
-  if (d->threadpool != 0) {
-    mju_threadPoolUnlockAllocMutex((mjThreadPool*)d->threadpool);
-  }
-}
-
-
-
-static inline mjStackInfo get_stack_info_from_data(const mjData* d) {
-  mjStackInfo stack_info;
-  stack_info.bottom = (uintptr_t)d->arena + (uintptr_t)d->narena;
-  stack_info.top = stack_info.bottom - d->pstack;
-  stack_info.limit = (uintptr_t)d->arena + (uintptr_t)d->parena;
-  stack_info.stack_base = d->pbase;
-
-  return stack_info;
-}
-
-
-#ifdef ADDRESS_SANITIZER
-// get stack usage from red-zone (under ASAN)
-static size_t stack_usage_redzone(const mjStackInfo* stack_info) {
-  size_t usage = 0;
-
-  // actual stack usage (without red zone bytes) is stored in the red zone
-  if (stack_info->top != stack_info->bottom) {
-    char* prev_pstack_ptr = (char*)(stack_info->top);
-    size_t prev_misalign = (uintptr_t)prev_pstack_ptr % _Alignof(size_t);
-    size_t* prev_usage_ptr =
-      (size_t*)(prev_pstack_ptr +
-                (prev_misalign ? _Alignof(size_t) - prev_misalign : 0));
-    ASAN_UNPOISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
-    usage = *prev_usage_ptr;
-    ASAN_POISON_MEMORY_REGION(prev_usage_ptr, sizeof(size_t));
-  }
-
-  return usage;
-}
-#endif
-
-// allocate memory from the mjData arena
-void* mj_arenaAllocByte(mjData* d, size_t bytes, size_t alignment) {
-  maybe_lock_alloc_mutex(d);
-  size_t misalignment = fastmod(d->parena, alignment);
-  size_t padding = misalignment ? alignment - misalignment : 0;
-
-  // check size
-  size_t bytes_available = d->narena - d->pstack;
-  if (mjUNLIKELY(d->parena + padding + bytes > bytes_available)) {
-    maybe_unlock_alloc_mutex(d);
-    return NULL;
-  }
-
-  size_t stack_usage = d->pstack;
-
-  // under ASAN, get stack usage from red zone
-#ifdef ADDRESS_SANITIZER
-  mjStackInfo stack_info;
-  mjStackInfo* stack_info_ptr;
-  if (!d->threadpool) {
-    stack_info = get_stack_info_from_data(d);
-    stack_info_ptr = &stack_info;
-  } else {
-    size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-    stack_info_ptr = mju_getStackInfoForThread(d, thread_id);
-  }
-  stack_usage = stack_usage_redzone(stack_info_ptr);
-#endif
-
-  // allocate, update max, return pointer to buffer
-  void* result = (char*)d->arena + d->parena + padding;
-  d->parena += padding + bytes;
-  d->maxuse_arena = mjMAX(d->maxuse_arena, stack_usage + d->parena);
-
-#ifdef ADDRESS_SANITIZER
-  ASAN_UNPOISON_MEMORY_REGION(result, bytes);
-#endif
-
-#ifdef MEMORY_SANITIZER
-  __msan_allocated_memory(result, bytes);
-#endif
-
-  maybe_unlock_alloc_mutex(d);
-  return result;
-}
-
-
-// internal: allocate size bytes on the provided stack shard
-// declared inline so that modular arithmetic with specific alignments can be optimized out
-static inline void* stackallocinternal(mjData* d, mjStackInfo* stack_info, size_t size,
-    size_t alignment, const char* caller, int line) {
-  // return NULL if empty
-  if (mjUNLIKELY(!size)) {
-    return NULL;
-  }
-
-  // start of the memory to be allocated to the buffer
-  uintptr_t start_ptr = stack_info->top - (size + mjREDZONE);
-
-  // align the pointer
-  start_ptr -= fastmod(start_ptr, alignment);
-
-  // new top of the stack
-  uintptr_t new_top_ptr = start_ptr - mjREDZONE;
-
-  // exclude red zone from stack usage statistics
-  size_t current_alloc_usage = stack_info->top - new_top_ptr - 2 * mjREDZONE;
-  size_t usage = current_alloc_usage + (stack_info->bottom - stack_info->top);
-
-  // check size
-  size_t stack_available_bytes = stack_info->top - stack_info->limit;
-  size_t stack_required_bytes = stack_info->top - new_top_ptr;
-  if (mjUNLIKELY(stack_required_bytes > stack_available_bytes)) {
-    char info[1024];
-    if (caller) {
-      snprintf(info, sizeof(info), " at %s, line %d", caller, line);
-    } else {
-      info[0] = '\0';
-    }
-    mju_error(
-        "mj_stackAlloc: out of memory, stack overflow%s\n"
-        "  max = %" PRIuPTR ", available = %" PRIuPTR ", requested = %" PRIuPTR
-        "\n nefc = %d, ncon = %d",
-        info, stack_info->bottom - stack_info->limit, stack_available_bytes,
-        stack_required_bytes, d->nefc, d->ncon);
-  }
-
-#ifdef ADDRESS_SANITIZER
-  usage = current_alloc_usage + stack_usage_redzone(stack_info);
-
-  // store new stack usage in the red zone
-  size_t misalign = new_top_ptr % _Alignof(size_t);
-  size_t* usage_ptr =
-    (size_t*)(new_top_ptr + (misalign ? _Alignof(size_t) - misalign : 0));
-  ASAN_UNPOISON_MEMORY_REGION(usage_ptr, sizeof(size_t));
-  *usage_ptr = usage;
-  ASAN_POISON_MEMORY_REGION(usage_ptr, sizeof(size_t));
-
-  // unpoison the actual usable allocation
-  ASAN_UNPOISON_MEMORY_REGION((void*)start_ptr, size);
-#endif
-
-  // update max usage statistics
-  stack_info->top = new_top_ptr;
-  if (!d->threadpool) {
-    d->maxuse_stack = mjMAX(d->maxuse_stack, usage);
-    d->maxuse_arena = mjMAX(d->maxuse_arena, usage + d->parena);
-  } else {
-    size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-    d->maxuse_threadstack[thread_id] = mjMAX(d->maxuse_threadstack[thread_id], usage);
-  }
-
-  return (void*)start_ptr;
-}
-
-
-
-// internal: allocate size bytes in mjData
-// declared inline so that modular arithmetic with specific alignments can be optimized out
-static inline void* stackalloc(mjData* d, size_t size, size_t alignment,
-                               const char* caller, int line) {
-  // single threaded allocation
-  if (!d->threadpool) {
-    mjStackInfo stack_info = get_stack_info_from_data(d);
-    void* result = stackallocinternal(d, &stack_info, size, alignment, caller, line);
-    d->pstack = stack_info.bottom - stack_info.top;
-    return result;
-  }
-
-  // multi threaded allocation
-  size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-  mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
-  return stackallocinternal(d, stack_info, size, alignment, caller, line);
-}
-
-
-
-// mjStackInfo mark stack frame, inline so ASAN errors point to correct code unit
-#ifdef ADDRESS_SANITIZER
-__attribute__((always_inline))
-#endif
-static inline void markstackinternal(mjData* d, mjStackInfo* stack_info) {
-  size_t top_old = stack_info->top;
-  mjStackFrame* s =
-    (mjStackFrame*) stackallocinternal(d, stack_info, sizeof(mjStackFrame), _Alignof(mjStackFrame), NULL, 0);
-  s->pbase = stack_info->stack_base;
-  s->pstack = top_old;
-#ifdef ADDRESS_SANITIZER
-  // store the program counter to the caller so that we can compare against mj_freeStack later
-  s->pc = __sanitizer_return_address();
-#endif
-  stack_info->stack_base = (uintptr_t) s;
-}
-
-
-
-// mjData mark stack frame
-#ifndef ADDRESS_SANITIZER
-void mj_markStack(mjData* d)
-#else
-void mj__markStack(mjData* d)
-#endif
-{
-  if (!d->threadpool) {
-    mjStackInfo stack_info = get_stack_info_from_data(d);
-    markstackinternal(d, &stack_info);
-    d->pstack = stack_info.bottom - stack_info.top;
-    d->pbase = stack_info.stack_base;
-    return;
-  }
-
-  size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-  mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
-  markstackinternal(d, stack_info);
-}
-
-
-
-#ifdef ADDRESS_SANITIZER
-__attribute__((always_inline))
-#endif
-static inline void freestackinternal(mjStackInfo* stack_info) {
-  if (mjUNLIKELY(!stack_info->stack_base)) {
-    return;
-  }
-
-  mjStackFrame* s = (mjStackFrame*) stack_info->stack_base;
-#ifdef ADDRESS_SANITIZER
-  // raise an error if caller function name doesn't match the most recent caller of mj_markStack
-  if (!mj__comparePcFuncName(s->pc, __sanitizer_return_address())) {
-    mjERROR("mj_markStack %s has no corresponding mj_freeStack (detected %s)",
-            mj__getPcDebugInfo(s->pc),
-            mj__getPcDebugInfo(__sanitizer_return_address()));
-  }
-#endif
-
-  // restore pbase and pstack
-  stack_info->stack_base = s->pbase;
-  stack_info->top = s->pstack;
-
-  // if running under asan, poison the newly freed memory region
-#ifdef ADDRESS_SANITIZER
-  ASAN_POISON_MEMORY_REGION((char*)stack_info->limit, stack_info->top - stack_info->limit);
-#endif
-}
-
-
-
-// mjData free stack frame
-#ifndef ADDRESS_SANITIZER
-void mj_freeStack(mjData* d)
-#else
-void mj__freeStack(mjData* d)
-#endif
-{
-  if (!d->threadpool) {
-    mjStackInfo stack_info = get_stack_info_from_data(d);
-    freestackinternal(&stack_info);
-    d->pstack = stack_info.bottom - stack_info.top;
-    d->pbase = stack_info.stack_base;
-    return;
-  }
-
-  size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-  mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
-  freestackinternal(stack_info);
-}
-
-
-
-// returns the number of bytes available on the stack
-size_t mj_stackBytesAvailable(mjData* d) {
-  if (!d->threadpool) {
-    mjStackInfo stack_info = get_stack_info_from_data(d);
-    return stack_info.top - stack_info.limit;
-  } else {
-    size_t thread_id = mju_threadPoolCurrentWorkerId((mjThreadPool*)d->threadpool);
-    mjStackInfo* stack_info = mju_getStackInfoForThread(d, thread_id);
-    return stack_info->top - stack_info->limit;
-  }
-}
-
-
-
-// allocate bytes on the stack
-void* mj_stackAllocByte(mjData* d, size_t bytes, size_t alignment) {
-  return stackalloc(d, bytes, alignment, NULL, 0);
-}
-
-
-
-// allocate bytes on the stack, with caller information
-void* mj_stackAllocInfo(mjData* d, size_t bytes, size_t alignment,
-                        const char* caller, int line) {
-  return stackalloc(d, bytes, alignment, caller, line);
-}
-
-
-
-// allocate mjtNums on the stack
-mjtNum* mj_stackAllocNum(mjData* d, size_t size) {
-  if (mjUNLIKELY(size >= SIZE_MAX / sizeof(mjtNum))) {
-    mjERROR("requested size is too large (more than 2^64 bytes).");
-  }
-  return (mjtNum*) stackalloc(d, size * sizeof(mjtNum), _Alignof(mjtNum), NULL, 0);
-}
-
-
-
-// allocate ints on the stack
-int* mj_stackAllocInt(mjData* d, size_t size) {
-  if (mjUNLIKELY(size >= SIZE_MAX / sizeof(int))) {
-    mjERROR("requested size is too large (more than 2^64 bytes).");
-  }
-  return (int*) stackalloc(d, size * sizeof(int), _Alignof(int), NULL, 0);
-}
-
-
 
 // clear data, set defaults
 static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
@@ -1938,7 +1291,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // clear memory utilization stats
   d->maxuse_stack = 0;
-  mju_zeroSize(d->maxuse_threadstack, mjMAXTHREAD);
+  memset(d->maxuse_threadstack, 0, mjMAXTHREAD*sizeof(mjtSize));
   d->maxuse_arena = 0;
   d->maxuse_con = 0;
   d->maxuse_efc = 0;
@@ -1981,11 +1334,11 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 #endif
 
 #ifdef MEMORY_SANITIZER
-  // Tell msan to treat the entire buffer as uninitialized
+  // under MSAN, mark the entire buffer as uninitialized
   __msan_allocated_memory(d->buffer, d->nbuffer);
 #endif
 
-  // zero out arrays that are not affected by mj_forward
+  // zero out user-settable state and input arrays (MSAN: mark as initialized)
   mju_zero(d->qpos, m->nq);
   mju_zero(d->qvel, m->nv);
   mju_zero(d->act, m->na);
@@ -1993,11 +1346,10 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   for (int i=0; i < m->neq; i++) d->eq_active[i] = m->eq_active0[i];
   mju_zero(d->qfrc_applied, m->nv);
   mju_zero(d->xfrc_applied, 6*m->nbody);
-  mju_zero(d->qacc, m->nv);
+  mju_zero(d->qacc, m->nv);  // input to inverse dynamics
   mju_zero(d->qacc_warmstart, m->nv);
   mju_zero(d->act_dot, m->na);
   mju_zero(d->userdata, m->nuserdata);
-  mju_zero(d->sensordata, m->nsensordata);
   mju_zero(d->mocap_pos, 3*m->nmocap);
   mju_zero(d->mocap_quat, 4*m->nmocap);
 
@@ -2006,7 +1358,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 
   // copy qpos0 from model
   if (m->qpos0) {
-    memcpy(d->qpos, m->qpos0, m->nq*sizeof(mjtNum));
+    mju_copy(d->qpos, m->qpos0, m->nq);
   }
 
   // set mocap_pos/quat = body_pos/quat for mocap bodies
@@ -2025,22 +1377,8 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     }
   }
 
-  // construct sparse matrix representations
-  if (m->body_dofadr) {
-    // make D
-    makeDofDofSparse(m, d, d->D_rownnz, d->D_rowadr, d->D_diag, d->D_colind,
-                     /*reduced=*/0, /*upper=*/1);
-
-    // make B, check D and B
-    makeBSparse(m, d);
-    checkDBSparse(m, d);
-
-    // make C
-    makeDofDofSparse(m, d, d->M_rownnz, d->M_rowadr, NULL, d->M_colind, /*reduced=*/1, /*upper=*/0);
-
-    // make index mappings: mapM2D, mapD2M, mapM2C, mapM2M
-    makeDofDofmaps(m, d);
-  }
+  // check consistency of sparse matrix representations
+  checkDBSparse(m);
 
   // restore pluginstate and plugindata
   if (d->nplugin) {
@@ -2065,19 +1403,16 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
 }
 
 
-
 // clear data, set data->qpos = model->qpos0
 void mj_resetData(const mjModel* m, mjData* d) {
   _resetData(m, d, 0);
 }
 
 
-
 // clear data, set data->qpos = model->qpos0, fill with debug_value
 void mj_resetDataDebug(const mjModel* m, mjData* d, unsigned char debug_value) {
   _resetData(m, d, debug_value);
 }
-
 
 
 // Reset data. If 0 <= key < nkey, set fields from specified keyframe.
@@ -2097,7 +1432,6 @@ void mj_resetDataKeyframe(const mjModel* m, mjData* d, int key) {
 }
 
 
-
 // de-allocate mjData
 void mj_deleteData(mjData* d) {
   if (d) {
@@ -2105,7 +1439,6 @@ void mj_deleteData(mjData* d) {
     mju_free(d);
   }
 }
-
 
 
 // number of position and velocity coordinates for each joint type
@@ -2183,7 +1516,6 @@ static int sensorSize(mjtSensor sensor_type, int sensor_dim) {
 }
 
 
-
 // returns the number of objects of the given type
 //   -1: mjOBJ_UNKNOWN
 //   -2: invalid objtype
@@ -2248,7 +1580,6 @@ static int numObjects(const mjModel* m, mjtObj objtype) {
   }
   return -2;
 }
-
 
 
 // validate reference fields in a model; return null if valid, error message otherwise

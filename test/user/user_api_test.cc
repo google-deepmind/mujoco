@@ -751,6 +751,42 @@ TEST_F(PluginTest, RecompileComparePngCache) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(PluginTest, DisableCache) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <texture content_type="image/png" file="tex.png" type="2d"/>
+      <material name="material" texture="tex"/>
+    </asset>
+
+    <worldbody>
+      <geom type="plane" material="material" size="4 4 4"/>
+    </worldbody>
+  </mujoco>
+)";
+
+  mjCache* cache = mj_getCache();
+  std::size_t capacity = mj_getCacheCapacity(cache);
+  mj_setCacheCapacity(cache, 0);
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "tex.png", tex1, sizeof(tex1));
+
+  std::array<char, 1024> error;
+
+  // load model once
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size(), vfs.get());
+
+  EXPECT_EQ(mj_getCacheSize(cache), 0);
+  EXPECT_EQ(m->ntexdata, 18);  // w x h x rgb = 3 x 2 x 3
+
+  mj_setCacheCapacity(cache, capacity);
+
+  mj_deleteModel(m);
+  mj_deleteVFS(vfs.get());
+}
+
 // -------------------------------- test textures ------------------------------
 
 TEST_F(PluginTest, TextureFromBuffer) {
@@ -791,6 +827,59 @@ TEST_F(PluginTest, TextureFromBuffer) {
   EXPECT_STREQ(err.data(), "XML Error: no support for buffer textures.");
 
   mj_deleteModel(m);
+  mj_deleteSpec(spec);
+}
+
+TEST_F(MujocoTest, TestTextureFlip) {
+  mjSpec* spec = mj_makeSpec();
+  EXPECT_THAT(spec, NotNull());
+
+  std::vector<std::byte> texture_data = {std::byte{1}, std::byte{2},
+                                         std::byte{3}, std::byte{4}};
+  mjsTexture* texture = mjs_addTexture(spec);
+  mjs_setName(texture->element, "hflipped");
+  texture->type = mjTEXTURE_2D;
+  texture->width = 2;
+  texture->height = 2;
+  texture->nchannel = 1;
+  texture->hflip = true;
+  mjs_setBuffer(texture->data, texture_data.data(), texture_data.size());
+
+  texture_data = {std::byte{11}, std::byte{12}, std::byte{13}, std::byte{21},
+                  std::byte{22}, std::byte{23}, std::byte{31}, std::byte{32},
+                  std::byte{33}, std::byte{41}, std::byte{42}, std::byte{43}};
+
+  texture = mjs_addTexture(spec);
+  mjs_setName(texture->element, "vflipped");
+  texture->type = mjTEXTURE_2D;
+  texture->width = 2;
+  texture->height = 2;
+  texture->nchannel = 3;
+  texture->vflip = true;
+  mjs_setBuffer(texture->data, texture_data.data(), texture_data.size());
+
+  mjModel* model = mj_compile(spec, 0);
+  EXPECT_THAT(model, NotNull()) << mjs_getError(spec);
+
+  EXPECT_THAT(model->tex_data[0], 2);
+  EXPECT_THAT(model->tex_data[1], 1);
+  EXPECT_THAT(model->tex_data[2], 4);
+  EXPECT_THAT(model->tex_data[3], 3);
+
+  EXPECT_THAT(model->tex_data[4], 31);
+  EXPECT_THAT(model->tex_data[5], 32);
+  EXPECT_THAT(model->tex_data[6], 33);
+  EXPECT_THAT(model->tex_data[7], 41);
+  EXPECT_THAT(model->tex_data[8], 42);
+  EXPECT_THAT(model->tex_data[9], 43);
+  EXPECT_THAT(model->tex_data[10], 11);
+  EXPECT_THAT(model->tex_data[11], 12);
+  EXPECT_THAT(model->tex_data[12], 13);
+  EXPECT_THAT(model->tex_data[13], 21);
+  EXPECT_THAT(model->tex_data[14], 22);
+  EXPECT_THAT(model->tex_data[15], 23);
+
+  mj_deleteModel(model);
   mj_deleteSpec(spec);
 }
 
@@ -2631,7 +2720,7 @@ TEST_F(MujocoTest, DifferentOptionsInAttachedFrame) {
   mj_deleteModel(m_attached);
 }
 
-TEST_F(MujocoTest, CopyAttachedSpec) {
+TEST_F(MujocoTest, NotCopyAttachedSpec) {
   static constexpr char xml_parent[] = R"(
   <mujoco>
     <asset>
@@ -2675,7 +2764,7 @@ TEST_F(MujocoTest, CopyAttachedSpec) {
 
   mjSpec* child_copy = mjs_findSpec(copy, "child");
   EXPECT_THAT(child_copy, NotNull());
-  EXPECT_NE(child_copy, child);
+  EXPECT_EQ(child_copy, child);
 
   mj_deleteSpec(spec);
   mj_deleteSpec(copy);

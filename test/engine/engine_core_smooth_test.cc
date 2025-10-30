@@ -18,6 +18,7 @@
 #include "src/engine/engine_util_misc.h"
 #include "src/engine/engine_util_sparse.h"
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -61,8 +62,9 @@ TEST_F(CoreSmoothTest, MjDataWorldBodyValuesAreInitialized) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   mj_resetDataDebug(model, data, 'd');
   mj_forward(model, data);
@@ -98,8 +100,9 @@ TEST_F(CoreSmoothTest, MjKinematicsWorldXipos) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   mj_resetDataDebug(model, data, 'd');
@@ -141,8 +144,9 @@ TEST_F(CoreSmoothTest, FixedTendonSortedIndices) {
     </tendon>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   ASSERT_EQ(model->ntendon, 1);
   ASSERT_EQ(model->nwrap, 3);
 
@@ -183,7 +187,9 @@ TEST_F(CoreSmoothTest, TendonJdot) {
       } else {
         mj_resetData(m, d);
         while (d->time < 1) {
+          mjtNum time = d->time;
           mj_step(m, d);
+          ASSERT_GT(d->time, time) << "Divergence detected";
         }
       }
 
@@ -236,7 +242,7 @@ TEST_F(CoreSmoothTest, TendonArmature) {
 
     // put only CRB inertia in M2
     mj_crb(m, d);
-    mju_scatter(d->qM, d->M, d->mapM2M, m->nC);
+    mju_scatter(d->qM, d->M, m->mapM2M, m->nC);
     vector<mjtNum> M2(nv*nv);
     mj_fullM(m, M2.data(), d->qM);
 
@@ -303,7 +309,9 @@ TEST_F(CoreSmoothTest, TendonArmatureConservesEnergy) {
 
       double eps = std::max(energy_0, 1.0) * 1e-5;
       while (d->time < 1) {
+        mjtNum time = d->time;
         mj_step(m, d);
+        ASSERT_GT(d->time, time) << "Divergence detected";
         double energy_t = d->energy[0] + d->energy[1];
         EXPECT_THAT(energy_t, DoubleNear(energy_0, eps));
       }
@@ -332,7 +340,9 @@ TEST_F(CoreSmoothTest, TendonArmatureConservesMomentum) {
 
     double eps = 1e-5;
     while (d->time < 1) {
+      mjtNum time = d->time;
       mj_step(m, d);
+      ASSERT_GT(d->time, time) << "Divergence detected";
       vector<mjtNum> sdata_t = AsVector(d->sensordata, m->nsensordata);
       EXPECT_THAT(sdata_t, Pointwise(DoubleNear(eps), sdata_0));
     }
@@ -376,10 +386,14 @@ TEST_F(CoreSmoothTest, TendonInertiaEquivalent) {
     double eps = lpath == kTen_i0 ? 1e-6 : 1e-3;
 
     while (d->time < 1) {
+      mjtNum time = d->time;
       mj_step(m, d);
+      ASSERT_GT(d->time, time) << "Divergence detected";
       vector<mjtNum> xpos = AsVector(d->geom_xpos + 3*gid, 3);
 
+      time = d_e->time;
       mj_step(m_e, d_e);
+      ASSERT_GT(d_e->time, time) << "Divergence detected";
       vector<mjtNum> xpos_e = AsVector(d_e->geom_xpos + 3*gid_e, 3);
 
       EXPECT_THAT(xpos, Pointwise(DoubleNear(eps), xpos_e));
@@ -556,7 +570,9 @@ TEST_F(CoreSmoothTest, EqualityBodySite) {
 
   // simulate again, get sensordata
   while (data->time < 0.1) {
+    mjtNum time = data->time;
     mj_step(model, data);
+    ASSERT_GT(data->time, time) << "Divergence detected";
   }
 
   // compare
@@ -585,7 +601,9 @@ TEST_F(CoreSmoothTest, RefsiteBringsToPose) {
 
   // step for 5 seconds
   while (data->time < 10) {
+    mjtNum time = data->time;
     mj_step(model, data);
+    ASSERT_GT(data->time, time) << "Divergence detected";
   }
 
   // get site IDs
@@ -624,7 +642,9 @@ TEST_F(CoreSmoothTest, RefsiteConservesMomentum) {
   // simulate, assert that momentum is conserved
   mjtNum eps = 1e-9;
   while (data->time < 1) {
+    mjtNum time = data->time;
     mj_step(model, data);
+    ASSERT_GT(data->time, time) << "Divergence detected";
     for (int i=0; i < 6; i++) {
       EXPECT_LT(mju_abs(data->sensordata[i]), eps);
     }
@@ -649,7 +669,7 @@ TEST_F(CoreSmoothTest, FactorI) {
   int nv = model->nv;
   vector<mjtNum> Ldense(nv*nv, 0);
   mju_sparse2dense(Ldense.data(), data->qLD, nv, nv,
-                   data->M_rownnz, data->M_rowadr, data->M_colind);
+                   model->M_rownnz, model->M_rowadr, model->M_colind);
   for (int i=0; i < nv; i++) {
     // set diagonal to 1
     Ldense[i*nv+i] = 1;
@@ -658,7 +678,7 @@ TEST_F(CoreSmoothTest, FactorI) {
   // dense D matrix
   vector<mjtNum> Ddense(nv*nv);
   mju_sparse2dense(Ddense.data(), data->qLD, nv, nv,
-                   data->M_rownnz, data->M_rowadr, data->M_colind);
+                   model->M_rownnz, model->M_rowadr, model->M_colind);
   for (int i=0; i < nv; i++) {
     for (int j=0; j < nv; j++) {
       // zero everything except the diagonal
@@ -698,12 +718,12 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   // copy M into LD: Legacy format
   vector<mjtNum> LDlegacy(nM, 0);
-  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, nC);
+  mju_scatter(LDlegacy.data(), d->qLD, m->mapM2M, nC);
 
   // compare LD and LDs densified matrices
   vector<mjtNum> LDdense(nv*nv);
   mju_sparse2dense(LDdense.data(), d->qLD, nv, nv,
-                   d->M_rownnz, d->M_rowadr, d->M_colind);
+                   m->M_rownnz, m->M_rowadr, m->M_colind);
   vector<mjtNum> LDdense2(nv*nv);
   mj_fullM(m, LDdense2.data(), LDlegacy.data());
 
@@ -722,7 +742,7 @@ TEST_F(CoreSmoothTest, SolveLDs) {
 
   mj_solveLD_legacy(m, vec.data(), 1, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, 1,
-             d->M_rownnz, d->M_rowadr, d->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv; i++) {
@@ -746,7 +766,7 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   // copy LD into LDlegacy: Legacy format
   vector<mjtNum> LDlegacy(m->nM, 0);
-  mju_scatter(LDlegacy.data(), d->qLD, d->mapM2M, m->nC);
+  mju_scatter(LDlegacy.data(), d->qLD, m->mapM2M, m->nC);
 
   // compare n LD and LDs vector solve
   int n = 3;
@@ -757,7 +777,7 @@ TEST_F(CoreSmoothTest, SolveLDmultipleVectors) {
 
   mj_solveLD_legacy(m, vec.data(), n, LDlegacy.data(), d->qLDiagInv);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, d->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind);
 
   // expect vectors to match up to floating point precision
   for (int i=0; i < nv*n; i++) {
@@ -781,7 +801,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
   int nv = m->nv;
   vector<mjtNum> sqrtInvD(nv);
   for (int i=0; i < nv; i++) {
-    int diag = d->M_rowadr[i] + d->M_rownnz[i] - 1;
+    int diag = m->M_rowadr[i] + m->M_rownnz[i] - 1;
     sqrtInvD[i] = 1 / mju_sqrt(d->qLD[diag]);
   }
 
@@ -795,7 +815,7 @@ TEST_F(CoreSmoothTest, SolveM2) {
 
   mj_solveM2(m, d, res.data(), vec.data(), sqrtInvD.data(), n);
   mj_solveLD(vec2.data(), d->qLD, d->qLDiagInv, nv, n,
-             d->M_rownnz, d->M_rowadr, d->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind);
 
   // expect equality of dot(v, M^-1 * v) and dot(M^-1/2 * v, M^-1/2 * v)
   for (int i=0; i < n; i++) {
@@ -824,17 +844,17 @@ TEST_F(CoreSmoothTest, FactorIs) {
 
   // copy qLDlegacy into qLDexpected: CSR format
   vector<mjtNum> qLDexpected(nC);
-  mju_gather(qLDexpected.data(), qLDlegacy.data(), d->mapM2M, nC);
+  mju_gather(qLDexpected.data(), qLDlegacy.data(), m->mapM2M, nC);
 
   // copy qM into qLD: CSR format
   vector<mjtNum> qLD(nC);
-  mju_gather(qLD.data(), d->qM, d->mapM2M, nC);
+  mju_gather(qLD.data(), d->qM, m->mapM2M, nC);
 
   vector<mjtNum> qLDiagInvExpected(d->qLDiagInv, d->qLDiagInv + nv);
   vector<mjtNum> qLDiagInv(nv, 0);
 
   mj_factorI(qLD.data(), qLDiagInv.data(), nv,
-             d->M_rownnz, d->M_rowadr, d->M_colind);
+             m->M_rownnz, m->M_rowadr, m->M_colind);
 
   // expect outputs to match to floating point precision
   EXPECT_THAT(qLD, Pointwise(DoubleNear(1e-12), qLDexpected));

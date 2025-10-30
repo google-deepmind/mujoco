@@ -26,7 +26,7 @@ Tutorial notebook
 
 A MuJoCo tutorial using the Python bindings is available here: |mjcolab|
 
-.. |mjcolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |mjcolab| image:: https://colab.research.google.com/assets/colab-badge.png
              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/tutorial.ipynb
 
 .. _PyInstallation:
@@ -590,6 +590,8 @@ attaching. However, it is possible to override the default behavior by setting `
    worldframe_in_site = parent.attach(child, site=site, prefix='child-')
    worldframe_in_frame = parent.attach(child, frame=frame, prefix='child-')
 
+.. _PyEditConvenience:
+
 Convenience methods
 -------------------
 
@@ -641,6 +643,17 @@ The ``MjSpec`` object can be serialized with all of its assets using the functio
 can be either a path to a file or a file object. In order to load the spec from a zip file, use ``spec =
 MjSpec.from_zip(file)``, where ``file`` is a path to a zip file or a zip file object.
 
+Mesh creation
+^^^^^^^^^^^^^
+The :ref:`mjsMesh` object includes convenience methods for model creation with named attributes, corresponding to the
+:ref:`mesh/builtin<asset-mesh-builtin>` semantics. See `specs_test.py
+<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/specs_test.py>`__.
+
+.. code-block:: python
+
+   mesh = spec.add_mesh(name='prism')
+   mesh.make_cone(nedge=5, radius=1)
+
 .. _PyMJCF:
 
 Relationship to ``PyMJCF`` and ``bind``
@@ -691,26 +704,33 @@ Building from source
 
 1. Make sure you have CMake and a C++17 compiler installed.
 
-2. Download the `latest binary release <https://github.com/google-deepmind/mujoco/releases>`__
-   from GitHub. On macOS, the download corresponds to a DMG file which you can mount by
-   double-clicking or running ``hdiutil attach <dmg_file>``.
-
-3. Clone the entire ``mujoco`` repository from GitHub and ``cd`` into the python
-   directory:
+2. Clone the entire ``mujoco`` repository from GitHub.
 
    .. code-block:: shell
 
-      git clone https://github.com/google-deepmind/mujoco.git
+     git clone https://github.com/google-deepmind/mujoco.git
+
+3. Install MuJoCo. Either download the
+   `latest binary release <https://github.com/google-deepmind/mujoco/releases>`__
+   from GitHub (On macOS, the download corresponds to a DMG file which you can
+   mount by double-clicking or running ``hdiutil attach <dmg_file>``),
+   or *build* and *install* it from source as per the instructions in
+   :ref:`inBuild`.
+
+4. ``cd`` into the python directory of the cloned MuJoCo codebase:
+
+   .. code-block:: shell
+
       cd mujoco/python
 
-4. Create a virtual environment:
+5. Create a virtual environment:
 
    .. code-block:: shell
 
       python3 -m venv /tmp/mujoco
       source /tmp/mujoco/bin/activate
 
-5. Generate a `source distribution <https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist>`__
+6. Generate a `source distribution <https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist>`__
    tarball with the ``make_sdist.sh`` script.
 
    .. code-block:: shell
@@ -723,10 +743,13 @@ Building from source
    completion, the script will create a ``dist`` directory with a
    ``mujoco-x.y.z.tar.gz`` file (where ``x.y.z`` is the version number).
 
-6. Use the generated source distribution to build and install the bindings.
-   You'll need to specify the path to the MuJoCo library you downloaded earlier
-   in the ``MUJOCO_PATH`` environment variable, and the path to the MuJoCo
-   plugin directory in the ``MUJOCO_PLUGIN_PATH`` environment variable.
+7. Use the generated source distribution to build and install the bindings.
+   You'll need to specify the path to the MuJoCo library you downloaded
+   or built and installed earlier in the ``MUJOCO_PATH`` environment
+   variable, and the path to the MuJoCo plugin directory in the
+   ``MUJOCO_PLUGIN_PATH`` environment variable. You can point the
+   ``MUJOCO_PLUGIN_PATH`` environment variable to the ``plugin``
+   folder of the MuJoCo codebase you cloned.
 
    .. note::
       For macOS, the files need to be extracted from the DMG.
@@ -739,7 +762,7 @@ Building from source
 
       cd dist
       MUJOCO_PATH=/PATH/TO/MUJOCO \
-      MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO_PLUGIN \
+      MUJOCO_PLUGIN_PATH=/PATH/TO/MUJOCO/PLUGIN \
       pip install mujoco-x.y.z.tar.gz
 
 The Python bindings should now be installed! To check that they've been
@@ -773,7 +796,7 @@ values. The rollouts are run in parallel with an internally managed thread pool 
 thread) are passed as an argument. This notebook shows how to use ``rollout`` |rollout_colab|, along with some
 benchmarks e.g., the figure below.
 
-.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.png
                    :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb
 
 .. image:: images/python/rollout.png
@@ -845,7 +868,7 @@ This module contains optimization-related utilities.
 The ``minimize.least_squares()`` function implements a nonlinear Least Squares optimizer solving sequential
 Quadratic Programs with :ref:`mju_boxQP`. It is documented in the associated notebook: |lscolab|
 
-.. |lscolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |lscolab| image:: https://colab.research.google.com/assets/colab-badge.png
              :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
 
 .. _PyUSDexport:
@@ -1049,8 +1072,8 @@ non-exhaustive list of specific mujoco-py features:
 ``sim.get_state()``, ``sim.set_state(state)``, ``sim.get_flattened_state()``, ``sim.set_state_from_flattened(state)``
    The MuJoCo library’s computation is deterministic given a specific input, as explained in the :ref:`Programming
    section <Simulation>`. mujoco-py implements methods for getting and setting some of the relevant fields (and
-   similarly ``dm_control.Physics`` offers methods that correspond to the flattened case). ``mujoco`` do not offer such
-   abstraction, and the user is expected to get/set the values of the relevant fields explicitly.
+   similarly ``dm_control.Physics`` offers methods that correspond to the flattened case). This functionality is
+   described in the :ref:`state <geState>` section.
 
 ``sim.model.get_joint_qvel_addr(joint_name)``
    This is a convenience method in mujoco-py that returns a list of contiguous indices corresponding to this joint. The

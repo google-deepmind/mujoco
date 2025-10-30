@@ -26,6 +26,7 @@ from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import EqType
+from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
@@ -33,11 +34,17 @@ from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import TrnType
 from mujoco.mjx._src.types import WrapType
 # pylint: enable=g-importing-member
+import mujoco.mjx.warp as mjxw
 import numpy as np
 
 
 def kinematics(m: Model, d: Data) -> Data:
   """Converts position/velocity from generalized coordinates to maximal."""
+  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    from mujoco.mjx.warp import smooth as mjxw_smooth  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+    return mjxw_smooth.kinematics(m, d)
+
+
   def fn(carry, jnt_typs, jnt_pos, jnt_axis, qpos, qpos0, pos, quat):
     # calculate joint anchors, axes, body pos and quat in global frame
     # also normalize qpos while we're at it
@@ -844,6 +851,10 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
 
 def tendon(m: Model, d: Data) -> Data:
   """Computes tendon lengths and moments."""
+  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    from mujoco.mjx.warp import smooth as mjxw_smooth  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+    return mjxw_smooth.tendon(m, d)
+
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('tendon requires JAX backend implementation.')
 
@@ -900,7 +911,9 @@ def tendon(m: Model, d: Data) -> Data:
     dif = pnt1 - pnt0
     length = math.norm(dif)
     vec = jp.where(
-        length < mujoco.mjMINVAL, jp.array([1.0, 0.0, 0.0]), dif / length
+        length < mujoco.mjMINVAL,
+        jp.array([1.0, 0.0, 0.0]),
+        math.safe_div(dif, length),
     )
 
     jacp1, _ = support.jac(m, d, pnt0, body0)
@@ -1091,7 +1104,7 @@ def tendon(m: Model, d: Data) -> Data:
 
   # assemble length and moment
   ten_length = (
-      jp.zeros_like(d._impl.ten_length).at[tendon_id_jnt].set(length_jnt)
+      jp.zeros_like(d.ten_length).at[tendon_id_jnt].set(length_jnt)
   )
   ten_length = ten_length.at[tendon_id_site].add(length_site)
   ten_length = ten_length.at[tendon_id_geom].add(length_geom)
@@ -1161,7 +1174,7 @@ def tendon(m: Model, d: Data) -> Data:
   ).reshape((m.nwrap, 2))
 
   return d.tree_replace({
-      '_impl.ten_length': ten_length,
+      'ten_length': ten_length,
       '_impl.ten_J': ten_moment,
       '_impl.ten_wrapadr': jp.array(ten_wrapadr, dtype=int),
       '_impl.ten_wrapnum': jp.array(ten_wrapnum, dtype=int),
@@ -1263,7 +1276,7 @@ def transmission(m: Model, d: Data) -> Data:
       wrench = jp.concatenate((frame_xmat @ gear[:3], frame_xmat @ gear[3:]))
       moment = jac @ wrench
     elif trntype == TrnType.TENDON:
-      length = d._impl.ten_length[trnid[0]] * gear[:1]
+      length = d.ten_length[trnid[0]] * gear[:1]
       moment = d._impl.ten_J[trnid[0]] * gear[0]
     else:
       raise RuntimeError(f'unrecognized trntype: {TrnType(trntype)}')
@@ -1377,14 +1390,16 @@ def tendon_dot(m: Model, d: Data) -> jax.Array:
     dpnt = wpnt1 - wpnt0
     norm = math.norm(dpnt)
     dpnt = jp.where(
-        norm < mujoco.mjMINVAL, jp.array([1.0, 0.0, 0.0]), dpnt / norm
+        norm < mujoco.mjMINVAL,
+        jp.array([1.0, 0.0, 0.0]),
+        math.safe_div(dpnt, norm),
     )
 
     # dvel = d / dt(dpnt)
     dvel = wvel1 - wvel0
     dot = jp.dot(dpnt, dvel)
     dvel += dpnt * -dot
-    dvel = jp.where(norm > mujoco.mjMINVAL, dvel / norm, 0.0)
+    dvel = jp.where(norm > mujoco.mjMINVAL, math.safe_div(dvel, norm), 0.0)
 
     # get endpoint JacobianDots, subtract
     jacp1, _ = support.jac_dot(m, d, wpnt0, body0)

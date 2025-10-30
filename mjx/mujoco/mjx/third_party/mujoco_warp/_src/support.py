@@ -17,6 +17,7 @@ from typing import Tuple
 
 import warp as wp
 
+from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import Geom
 from mujoco.mjx.third_party.mujoco_warp._src.math import motion_cross
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConeType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
@@ -24,6 +25,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import TileSet
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec6
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel as nested_kernel
@@ -86,7 +88,7 @@ def mul_m_sparse_ij(
 def mul_m_dense(tile: TileSet):
   """Returns a matmul kernel for some tile size"""
 
-  @nested_kernel
+  @nested_kernel(module="unique", enable_backward=False)
   def kernel(
     # Data In:
     qM_in: wp.array3d(dtype=float),
@@ -168,45 +170,6 @@ def mul_m(
 
 
 @wp.kernel
-def xfrc_accumulate_kernel(
-  # Model:
-  nbody: int,
-  body_parentid: wp.array(dtype=int),
-  body_rootid: wp.array(dtype=int),
-  dof_bodyid: wp.array(dtype=int),
-  # Data in:
-  xfrc_applied_in: wp.array2d(dtype=wp.spatial_vector),
-  xipos_in: wp.array2d(dtype=wp.vec3),
-  subtree_com_in: wp.array2d(dtype=wp.vec3),
-  cdof_in: wp.array2d(dtype=wp.spatial_vector),
-  # Out:
-  out: wp.array2d(dtype=float),
-):
-  """Accumulate applied forces on the subtree of a dof."""
-  worldid, dofid = wp.tid()
-  cdof = cdof_in[worldid, dofid]
-  rotational_cdof = wp.spatial_top(cdof)
-  jac = wp.spatial_vector(cdof[3], cdof[4], cdof[5], cdof[0], cdof[1], cdof[2])
-
-  bodyid = dof_bodyid[dofid]
-  accumul = float(0.0)
-
-  for child in range(bodyid, nbody):
-    # any body that is in the subtree of dof_bodyid is part of the jacobian
-    parentid = child
-    while parentid != 0 and parentid != bodyid:
-      parentid = body_parentid[parentid]
-    if parentid == 0:
-      continue  # body is not part of the subtree
-    offset = xipos_in[worldid, child] - subtree_com_in[worldid, body_rootid[child]]
-    cross_term = wp.cross(rotational_cdof, offset)
-    xfrc_applied = xfrc_applied_in[worldid, child]
-    accumul += wp.dot(jac, xfrc_applied) + wp.dot(cross_term, wp.spatial_top(xfrc_applied))
-
-  out[worldid, dofid] += accumul
-
-
-@wp.kernel
 def _apply_ft(
   # Model:
   nbody: int,
@@ -232,6 +195,9 @@ def _apply_ft(
   accumul = float(0.0)
 
   for bodyid in range(dofbodyid, nbody):
+    ft_body = ft_in[worldid, bodyid]
+    if ft_body == wp.spatial_vector():
+      continue
     # any body that is in the subtree of dofbodyid is part of the jacobian
     parentid = bodyid
     while parentid != 0 and parentid != dofbodyid:
@@ -240,7 +206,6 @@ def _apply_ft(
       continue  # body is not part of the subtree
     offset = xipos_in[worldid, bodyid] - subtree_com_in[worldid, body_rootid[bodyid]]
     cross_term = wp.cross(rotational_cdof, offset)
-    ft_body = ft_in[worldid, bodyid]
     accumul += wp.dot(jac, ft_body) + wp.dot(cross_term, wp.spatial_top(ft_body))
 
   if flg_add:
@@ -298,7 +263,9 @@ def any_different(v0: wp.vec3, v1: wp.vec3) -> wp.bool:
 
 
 @wp.func
-def _decode_pyramid(pyramid: wp.array(dtype=float), efc_address: int, mu: vec5, condim: int) -> wp.spatial_vector:
+def _decode_pyramid(
+  njmax_in: int, pyramid: wp.array(dtype=float), efc_address: int, mu: vec5, condim: int
+) -> wp.spatial_vector:
   """Converts pyramid representation to contact force."""
   force = wp.spatial_vector()
 
@@ -308,8 +275,15 @@ def _decode_pyramid(pyramid: wp.array(dtype=float), efc_address: int, mu: vec5, 
 
   force[0] = float(0.0)
   for i in range(condim - 1):
-    dir1 = pyramid[2 * i + efc_address]
-    dir2 = pyramid[2 * i + efc_address + 1]
+    adr = 2 * i + efc_address
+    if adr < njmax_in:
+      dir1 = pyramid[adr]
+    else:
+      dir1 = 0.0
+    if adr + 1 < njmax_in:
+      dir2 = pyramid[adr + 1]
+    else:
+      dir2 = 0.0
     force[0] += dir1 + dir2
     force[i + 1] = (dir1 - dir2) * mu[i]
 
@@ -321,7 +295,8 @@ def contact_force_fn(
   # Model:
   opt_cone: int,
   # Data in:
-  ncon_in: wp.array(dtype=int),
+  njmax_in: int,
+  nacon_in: wp.array(dtype=int),
   contact_frame_in: wp.array(dtype=wp.mat33),
   contact_friction_in: wp.array(dtype=vec5),
   contact_dim_in: wp.array(dtype=int),
@@ -337,9 +312,10 @@ def contact_force_fn(
   condim = contact_dim_in[contact_id]
   efc_address = contact_efc_address_in[contact_id, 0]
 
-  if contact_id >= 0 and contact_id <= ncon_in[0] and efc_address >= 0:
-    if opt_cone == int(ConeType.PYRAMIDAL.value):
+  if contact_id >= 0 and contact_id <= nacon_in[0] and efc_address >= 0:
+    if opt_cone == ConeType.PYRAMIDAL:
       force = _decode_pyramid(
+        njmax_in,
         efc_force_in[worldid],
         efc_address,
         contact_friction_in[contact_id],
@@ -347,7 +323,8 @@ def contact_force_fn(
       )
     else:
       for i in range(condim):
-        force[i] = efc_force_in[worldid, contact_efc_address_in[contact_id, i]]
+        if contact_efc_address_in[contact_id, i] < njmax_in:
+          force[i] = efc_force_in[worldid, contact_efc_address_in[contact_id, i]]
 
   if to_world_frame:
     # Transform both top and bottom parts of spatial vector by the full contact frame matrix
@@ -363,7 +340,8 @@ def contact_force_kernel(
   # Model:
   opt_cone: int,
   # Data in:
-  ncon_in: wp.array(dtype=int),
+  njmax_in: int,
+  nacon_in: wp.array(dtype=int),
   contact_frame_in: wp.array(dtype=wp.mat33),
   contact_friction_in: wp.array(dtype=vec5),
   contact_dim_in: wp.array(dtype=int),
@@ -380,14 +358,15 @@ def contact_force_kernel(
 
   contactid = contact_ids[tid]
 
-  if contactid >= ncon_in[0]:
+  if contactid >= nacon_in[0]:
     return
 
   worldid = contact_worldid_in[contactid]
 
   out[tid] = contact_force_fn(
     opt_cone,
-    ncon_in,
+    njmax_in,
+    nacon_in,
     contact_frame_in,
     contact_friction_in,
     contact_dim_in,
@@ -421,7 +400,8 @@ def contact_force(
     dim=(contact_ids.size,),
     inputs=[
       m.opt.cone,
-      d.ncon,
+      d.njmax,
+      d.nacon,
       d.contact.frame,
       d.contact.friction,
       d.contact.dim,
@@ -533,7 +513,7 @@ def jac_dot(
   jnttype = jnt_type[dofjntid]
   jntdofadr = jnt_dofadr[dofjntid]
 
-  if (jnttype == int(JointType.BALL.value)) or ((jnttype == int(JointType.FREE.value)) and dofid >= jntdofadr + 3):
+  if (jnttype == JointType.BALL) or ((jnttype == JointType.FREE) and dofid >= jntdofadr + 3):
     # compute cdof_dot for quaternion (use current body cvel)
     cvel = cvel_in[worldid, dof_bodyid[dofid]]
     cdof_dot = motion_cross(cvel, cdof)

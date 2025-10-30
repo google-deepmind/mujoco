@@ -93,12 +93,12 @@ TEST_F(ThreadTest, IslandSingleAndMultiThreadedMatch) {
   mjModel* model =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
   model->opt.solver = mjSOL_CG;             // use CG solver
-  model->opt.enableflags |= mjENBL_ISLAND;  // enable islands
+  model->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjModel* model_threaded =
       mj_loadXML(model_path.c_str(), nullptr, error.data(), error.size());
   model_threaded->opt.solver = mjSOL_CG;             // use CG solver
-  model_threaded->opt.enableflags |= mjENBL_ISLAND;  // enable islands
+  model_threaded->opt.disableflags &= ~mjDSBL_ISLAND;  // enable islands
 
   mjData* data = mj_makeData(model);
   mjData* data_threaded = mj_makeData(model_threaded);

@@ -14,7 +14,9 @@
 
 // Tests for user/user_objects.cc.
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <memory>
@@ -732,7 +734,6 @@ TEST_F(MjCMeshTest, VolumeTooSmall) {
   EXPECT_THAT(model, testing::IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
   mj_deleteModel(model);
-
 }
 
 TEST_F(MjCMeshTest, VisualVolumeTooSmall) {
@@ -760,7 +761,6 @@ TEST_F(MjCMeshTest, VisualVolumeTooSmall) {
   EXPECT_THAT(model, testing::IsNull());
   EXPECT_THAT(error.data(), HasSubstr("mesh volume is too small"));
   mj_deleteModel(model);
-
 }
 
 TEST_F(MjCMeshTest, VisualVolumeSmallAllowedShell) {
@@ -1279,6 +1279,254 @@ TEST_F(MjCMeshTest, Octree) {
   mj_deleteModel(model);
 }
 
+namespace {
+bool AreAabbsAdjacent(const mjtNum* aabb1, const mjtNum* aabb2) {
+  const double kEps = 1e-6;
+  int touching_dims = 0;
+  int overlapping_dims = 0;
+
+  for (int dim = 0; dim < 3; ++dim) {
+    const mjtNum center1 = aabb1[dim];
+    const mjtNum half_size1 = aabb1[dim + 3];
+    const mjtNum center2 = aabb2[dim];
+    const mjtNum half_size2 = aabb2[dim + 3];
+    const mjtNum gap =
+        std::abs(center1 - center2) - (half_size1 + half_size2);
+    if (std::abs(gap) < kEps) {
+      touching_dims++;
+    } else if (gap < -kEps) {
+      overlapping_dims++;
+    }
+  }
+
+  return touching_dims == 1 && overlapping_dims == 2;
+}
+}  // namespace
+
+TEST_F(MjCMeshTest, OctreeIsBalanced) {
+  const std::string xml_path = GetTestDataFilePath(kTorusPath);
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
+  mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
+  geom->type = mjGEOM_SDF;
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_GT(model->mesh_octnum[0], 0);
+
+  const int octree_adr = model->mesh_octadr[0];
+  const int noct = model->mesh_octnum[0];
+
+  std::vector<int> leaves;
+  for (int i = 0; i < noct; ++i) {
+    bool is_leaf = true;
+    for (int j = 0; j < 8; ++j) {
+      if (model->oct_child[(octree_adr + i) * 8 + j] != -1) {
+        is_leaf = false;
+        break;
+      }
+    }
+    if (is_leaf) {
+      leaves.push_back(i);
+    }
+  }
+
+  int unbalanced_pairs = 0;
+  for (int i = 0; i < leaves.size(); ++i) {
+    for (int j = i + 1; j < leaves.size(); ++j) {
+      const int node1_idx = leaves[i];
+      const int node2_idx = leaves[j];
+      const mjtNum* aabb1 = &model->oct_aabb[(octree_adr + node1_idx) * 6];
+      const mjtNum* aabb2 = &model->oct_aabb[(octree_adr + node2_idx) * 6];
+
+      if (AreAabbsAdjacent(aabb1, aabb2)) {
+        const int level1 = model->oct_depth[octree_adr + node1_idx];
+        const int level2 = model->oct_depth[octree_adr + node2_idx];
+        if (std::abs(level1 - level2) > 1) {
+          if (unbalanced_pairs < 10) {
+            ADD_FAILURE()
+                << "Nodes " << node1_idx << " (level " << level1 << ") and "
+                << node2_idx << " (level " << level2 << ") are not balanced."
+                << "\nAABB1: center=(" << aabb1[0] << ", " << aabb1[1] << ", "
+                << aabb1[2] << "), half_size=(" << aabb1[3] << ", "
+                << aabb1[4] << ", " << aabb1[5] << ")"
+                << "\nAABB2: center=(" << aabb2[0] << ", " << aabb2[1] << ", "
+                << aabb2[2] << "), half_size=(" << aabb2[3] << ", "
+                << aabb2[4] << ", " << aabb2[5] << ")";
+          }
+          unbalanced_pairs++;
+        }
+      }
+    }
+  }
+
+  EXPECT_EQ(unbalanced_pairs, 0)
+      << "Found " << unbalanced_pairs << " unbalanced adjacent leaf pairs.";
+
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, OctreeHangingNodeInterpolation) {
+  const std::string xml_path = GetTestDataFilePath(kTorusPath);
+  std::array<char, 1024> error;
+  mjSpec* spec = mj_parseXML(xml_path.c_str(), 0, error.data(), error.size());
+  mjsGeom* geom = mjs_asGeom(mjs_firstElement(spec, mjOBJ_GEOM));
+  geom->type = mjGEOM_SDF;
+  mjModel* model = mj_compile(spec, 0);
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_GT(model->mesh_octnum[0], 0);
+  double kEps = 1e-6;
+
+  const int octree_adr = model->mesh_octadr[0];
+  const int noct = model->mesh_octnum[0];
+  const mjtNum* sdf = model->oct_coeff + octree_adr * 8;
+
+  // find all leaves in the octree
+  std::vector<int> leaves;
+  for (int i = 0; i < noct; ++i) {
+    bool is_leaf = true;
+    for (int j = 0; j < 8; ++j) {
+      if (model->oct_child[(octree_adr + i) * 8 + j] != -1) {
+        is_leaf = false;
+        break;
+      }
+    }
+    if (is_leaf) {
+      leaves.push_back(i);
+    }
+  }
+
+  // do a n^2 check of all pairs of leaves in the octree
+  // for each pair, check if they are adjacent and if so, check that all hanging
+  // nodes within the octree can be interpolated from their parent nodes
+  int hanging_nodes_checked = 0;
+  int interpolation_failures = 0;
+  for (int i = 0; i < leaves.size(); ++i) {
+    for (int j = i + 1; j < leaves.size(); ++j) {
+      const int node1_idx = leaves[i];
+      const int node2_idx = leaves[j];
+      const mjtNum* aabb1 = &model->oct_aabb[(octree_adr + node1_idx) * 6];
+      const mjtNum* aabb2 = &model->oct_aabb[(octree_adr + node2_idx) * 6];
+
+      if (AreAabbsAdjacent(aabb1, aabb2)) {
+        const int level1 = model->oct_depth[octree_adr + node1_idx];
+        const int level2 = model->oct_depth[octree_adr + node2_idx];
+
+        if (level1 == level2) {
+          continue;
+        }
+
+        // decide which node is finer and which is coarser
+        const int finer_node_idx = (level1 > level2) ? node1_idx : node2_idx;
+        const int coarser_node_idx =
+            (level1 > level2) ? node2_idx : node1_idx;
+        const mjtNum* coarser_aabb =
+            &model->oct_aabb[(octree_adr + coarser_node_idx) * 6];
+        const mjtNum* finer_aabb =
+            &model->oct_aabb[(octree_adr + finer_node_idx) * 6];
+
+        mjtNum coarser_corners[8][3];
+        for (int c = 0; c < 8; ++c) {
+          int sx = (c & 1) ? 1 : -1;
+          int sy = (c & 2) ? 1 : -1;
+          int sz = (c & 4) ? 1 : -1;
+          coarser_corners[c][0] = coarser_aabb[0] + sx * coarser_aabb[3];
+          coarser_corners[c][1] = coarser_aabb[1] + sy * coarser_aabb[4];
+          coarser_corners[c][2] = coarser_aabb[2] + sz * coarser_aabb[5];
+        }
+
+        // for all vertices in the finer node, check if they are hanging and
+        // can be interpolated
+        for (int v_idx = 0; v_idx < 8; ++v_idx) {
+          mjtNum v_pos[3];
+          int sx = (v_idx & 1) ? 1 : -1;
+          int sy = (v_idx & 2) ? 1 : -1;
+          int sz = (v_idx & 4) ? 1 : -1;
+          v_pos[0] = finer_aabb[0] + sx * finer_aabb[3];
+          v_pos[1] = finer_aabb[1] + sy * finer_aabb[4];
+          v_pos[2] = finer_aabb[2] + sz * finer_aabb[5];
+
+          // skip finer vertices that are also coarse corners
+          bool is_coarse_corner = false;
+          for (int c = 0; c < 8; ++c) {
+            if (mju_dist3(v_pos, coarser_corners[c]) < 1e-6) {
+              is_coarse_corner = true;
+              break;
+            }
+          }
+          if (is_coarse_corner) {
+            continue;
+          }
+
+          // skip vertices that are not on the boundary
+          mjtNum p_local[3];
+          bool outside = false;
+          for (int d = 0; d < 3; ++d) {
+            p_local[d] = (v_pos[d] - coarser_aabb[d]) / coarser_aabb[d + 3];
+            if (std::abs(p_local[d]) > 1.0 + kEps) {
+              outside = true;
+              break;
+            }
+          }
+          if (outside) {
+            continue;
+          }
+
+          // count the number of dimensions that are on the boundary
+          int num_dim = 0;
+          for (int d = 0; d < 3; ++d) {
+            if (std::abs(p_local[d] - 1.0) < kEps) {
+              num_dim++;
+            } else if (std::abs(p_local[d] + 1.0) < kEps) {
+              num_dim++;
+            }
+          }
+
+          double interpolated_sdf = 0;
+          const mjtNum* coarser_sdf = sdf + coarser_node_idx * 8;
+
+          // for edge or face nodes, try to interpolate the hanging nodes
+          if (num_dim == 1 || num_dim == 2) {
+            for (int k = 0; k < 8; ++k) {
+              int sx = (k & 1) ? 1 : -1;
+              int sy = (k & 2) ? 1 : -1;
+              int sz = (k & 4) ? 1 : -1;
+              double weight = (1 + p_local[0] * sx) / 2.0 *
+                              (1 + p_local[1] * sy) / 2.0 *
+                              (1 + p_local[2] * sz) / 2.0;
+              if (weight > kEps && num_dim == 1) {
+                ASSERT_NEAR(weight, 0.25, kEps);
+              } else if (weight > kEps && num_dim == 2) {
+                ASSERT_NEAR(weight, 0.5, kEps);
+              }
+              interpolated_sdf += weight * coarser_sdf[k];
+            }
+          } else {
+            continue;
+          }
+
+          // if the values do not match, log an error
+          const mjtNum* finer_sdf = sdf + finer_node_idx * 8;
+          if (std::abs(finer_sdf[v_idx] - interpolated_sdf) > kEps) {
+            if (interpolation_failures < 10) {
+              EXPECT_NEAR(finer_sdf[v_idx], interpolated_sdf, kEps);
+            }
+            interpolation_failures++;
+          }
+          hanging_nodes_checked++;
+        }
+      }
+    }
+  }
+  EXPECT_GT(hanging_nodes_checked, 0);
+  EXPECT_EQ(interpolation_failures, 0)
+      << "Found " << interpolation_failures
+      << " hanging node interpolation failures.";
+
+  mj_deleteSpec(spec);
+  mj_deleteModel(model);
+}
+
 TEST_F(MjCMeshTest, OctreeNotComputedForNonSDF) {
   const std::string xml_path = GetTestDataFilePath(kTorusPath);
   std::array<char, 1024> error;
@@ -1288,6 +1536,119 @@ TEST_F(MjCMeshTest, OctreeNotComputedForNonSDF) {
   mj_deleteModel(model);
 }
 
+double CubeSDF(double p[3], double b[3]) {
+  double q[3] = {std::abs(p[0]) - b[0],
+                 std::abs(p[1]) - b[1],
+                 std::abs(p[2]) - b[2]};
+  return std::sqrt(std::pow(std::max(q[0], 0.0), 2) +
+                   std::pow(std::max(q[1], 0.0), 2) +
+                   std::pow(std::max(q[2], 0.0), 2)) +
+         std::min(std::max(q[0], std::max(q[1], q[2])), 0.0);
+}
+
+TEST_F(MjCMeshTest, OctreeCube) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh" vertex="-1 -1 -1  1 -1 -1  -1 1 -1  1 1 -1
+                                -1 -1  1  1 -1  1  -1 1  1  1 1  1"/>
+    </asset>
+    <worldbody>
+      <geom mesh="mesh" type="sdf"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* m = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(m, NotNull()) << error.data();
+  EXPECT_EQ(m->noct, 63497);
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_forward(m, d);
+  mjSDF sdf;
+  int instance = 0;
+  mjtGeom geomtype = mjGEOM_SDF;
+  const mjpPlugin* sdf_ptr = NULL;
+  sdf.id = &instance;
+  sdf.type = mjSDFTYPE_SINGLE;
+  sdf.plugin = &sdf_ptr;
+  sdf.geomtype = &geomtype;
+  mjtNum pnt[3][3] = {{1, 1, 1}, {.5, .5, .5}, {.5, 0, 0}};
+  mjtNum size[3] = {1, 1, 1};
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(mjc_distance(m, d, &sdf, pnt[i]), CubeSDF(pnt[i], size), 1e-1)
+        << "i = " << i;
+  }
+  mj_deleteModel(m);
+  mj_deleteData(d);
+}
+
+TEST_F(MjCMeshTest, HemisphereSizes) {
+  static constexpr char xml[] = R"(
+  <mujoco model="makemesh">
+    <asset>
+      <mesh name="h0" builtin="hemisphere" params="0"/>
+      <mesh name="h1" builtin="hemisphere" params="1"/>
+      <mesh name="h2" builtin="hemisphere" params="2"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->mesh_vertnum[0], 2 * (0 + 1) * (0 + 2) + 2);
+  EXPECT_EQ(model->mesh_vertnum[1], 2 * (1 + 1) * (1 + 2) + 2);
+  EXPECT_EQ(model->mesh_vertnum[2], 2 * (2 + 1) * (2 + 2) + 2);
+  EXPECT_EQ(model->mesh_facenum[0], 4 * (0 + 1) * (0 + 2));
+  EXPECT_EQ(model->mesh_facenum[1], 4 * (1 + 1) * (1 + 2));
+  EXPECT_EQ(model->mesh_facenum[2], 4 * (2 + 1) * (2 + 2));
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, SphereSizes) {
+  static constexpr char xml[] = R"(
+  <mujoco model="makemesh">
+    <asset>
+      <mesh name="h0" builtin="sphere" params="0"/>
+      <mesh name="h1" builtin="sphere" params="1"/>
+      <mesh name="h2" builtin="sphere" params="2"/>
+    </asset>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->mesh_vertnum[0], 2 + 10 * std::pow(4, 0));
+  EXPECT_EQ(model->mesh_vertnum[1], 2 + 10 * std::pow(4, 1));
+  EXPECT_EQ(model->mesh_vertnum[2], 2 + 10 * std::pow(4, 2));
+  EXPECT_EQ(model->mesh_facenum[0], 20 * std::pow(4, 0));
+  EXPECT_EQ(model->mesh_facenum[1], 20 * std::pow(4, 1));
+  EXPECT_EQ(model->mesh_facenum[2], 20 * std::pow(4, 2));
+  mj_deleteModel(model);
+}
+
+TEST_F(MjCMeshTest, MeshMaterial) {
+  static constexpr char xml[] = R"(
+  <mujoco model="mesh_material">
+    <asset>
+      <mesh name="h0" builtin="sphere" params="0" material="m1"/>
+      <material name="m0" rgba="1 0 0 1"/>
+      <material name="m1" rgba="1 1 0 1"/>
+    </asset>
+
+    <worldbody>
+      <geom name="g0" type="mesh" mesh="h0"/>
+      <geom name="g1" type="mesh" mesh="h0" material="m0"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->geom_matid[0], 1);
+  EXPECT_EQ(model->geom_matid[1], 0);
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco

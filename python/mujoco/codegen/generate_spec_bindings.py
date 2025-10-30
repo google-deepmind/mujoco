@@ -52,6 +52,15 @@ SPECS = [
     ('mjsExclude',  'Spec', False, 'excludes',   'mjOBJ_EXCLUDE'),
     ('mjsPlugin',   'Spec', False, 'plugins',    'mjOBJ_PLUGIN'),
 ]
+SPECS_ADD = SPECS + [
+    ('mjsBody',     'Frame', True, 'bodies',     'mjOBJ_BODY'),
+    ('mjsSite',     'Frame', True, 'sites',      'mjOBJ_SITE'),
+    ('mjsGeom',     'Frame', True, 'geoms',      'mjOBJ_GEOM'),
+    ('mjsJoint',    'Frame', True, 'joints',     'mjOBJ_JOINT'),
+    ('mjsCamera',   'Frame', True, 'cameras',    'mjOBJ_CAMERA'),
+    ('mjsFrame',    'Frame', True, 'frames',     'mjOBJ_FRAME'),
+    ('mjsLight',    'Frame', True, 'lights',     'mjOBJ_LIGHT'),
+]
 # pylint: enable=bad-whitespace
 
 
@@ -301,7 +310,7 @@ def generate() -> None:
 
 def generate_add() -> None:
   """Generate add constructors with optional keyword arguments."""
-  for key, parent, default, listname, objtype in SPECS:
+  for key, parent, default, listname, objtype in SPECS_ADD:
 
     def _field(f: ast_nodes.StructFieldDecl):
       if f.type == ast_nodes.PointerType(
@@ -389,6 +398,22 @@ def generate_add() -> None:
           {'mjs' + parent}.def("add_{elemlower}", []({'raw::Mjs' + parent}& self,
             raw::MjsDefault* default_, py::kwargs kwargs) -> raw::{titlecase}* {{
             auto out = mjs_add{elem}(&self, default_);
+        """
+    elif parent == 'Frame':
+      if key == 'mjsFrame':
+        code = f"""
+          {'mjs' + parent}.def("add_{elemlower}", []({'raw::Mjs' + parent}& self,
+            raw::MjsFrame* parentframe_, py::kwargs kwargs) -> raw::{titlecase}* {{
+            raw::MjsBody* body = mjs_getParent(self.element);
+            auto out = mjs_add{elem}(body, &self);
+        """
+      else:
+        code = f"""
+          {'mjs' + parent}.def("add_{elemlower}", []({'raw::Mjs' + parent}& self,
+            raw::MjsDefault* default_, py::kwargs kwargs) -> raw::{titlecase}* {{
+            raw::MjsBody* body = mjs_getParent(self.element);
+            auto out = mjs_add{elem}(body, default_);
+            mjs_setFrame(out->element, &self);
         """
     else:
       raise NotImplementedError(f'{parent} parent is not implement.')

@@ -120,7 +120,7 @@ def plane_cylinder(plane: GeomInfo, cylinder: GeomInfo) -> Collision:
       # disk parallel to plane: pick x-axis of cylinder, scale by radius
       cylinder.mat[:, 0] * cylinder.size[0],
       # general configuration: normalize vector, scale by radius
-      vec / len_ * cylinder.size[0],
+      math.safe_div(vec, len_) * cylinder.size[0],
   )
 
   # project vector on normal

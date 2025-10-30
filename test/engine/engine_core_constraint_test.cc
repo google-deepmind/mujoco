@@ -24,6 +24,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_core_constraint.h"
+#include "src/engine/engine_core_util.h"
 #include "src/engine/engine_support.h"
 #include "src/engine/engine_util_misc.h"
 #include "test/fixture.h"
@@ -78,8 +79,9 @@ TEST_F(CoreConstraintTest, WeldRotJacobian) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, testing::NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, testing::NotNull()) << error;
   ASSERT_EQ(model->nq, 7);
   ASSERT_EQ(model->nv, 6);
   static const int nv = 6;  // for increased readability
@@ -172,8 +174,9 @@ TEST_F(CoreConstraintTest, RestPenetration) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, testing::NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, testing::NotNull()) << error;
   mjtNum gravity = -model->opt.gravity[2];
   mjtNum damping_ratio = 0.8;
   mjData* data = mj_makeData(model);
@@ -195,7 +198,9 @@ TEST_F(CoreConstraintTest, RestPenetration) {
       // simulate for 50 seconds
       mj_resetData(model, data);
       while (data->time < 50) {
+        mjtNum time = data->time;
         mj_step(model, data);
+        ASSERT_GT(data->time, time) << "Divergence detected";
       }
 
       mjtNum depth = -data->contact[0].dist;
@@ -261,7 +266,9 @@ TEST_F(CoreConstraintTest, EqualityBodySite) {
 
   // simulate, get diag(A)
   while (data->time < 0.1) {
+    mjtNum time = data->time;
     mj_step(model, data);
+    ASSERT_GT(data->time, time) << "Divergence detected";
   }
   int nefc_site = data->nefc;
   std::vector<mjtNum> dA = AsVector(data->efc_diagApprox, nefc_site);
@@ -274,7 +281,9 @@ TEST_F(CoreConstraintTest, EqualityBodySite) {
 
   // simulate again, get diag(A)
   while (data->time < 0.1) {
+    mjtNum time = data->time;
     mj_step(model, data);
+    ASSERT_GT(data->time, time) << "Divergence detected";
   }
 
   // compare
@@ -308,8 +317,12 @@ TEST_F(CoreConstraintTest, ConstraintUpdateImpl) {
       mj_resetData(model, d1);
       mj_resetData(model, d2);
       while (d1->time < 0.2) {
+        mjtNum time1 = d1->time;
+        mjtNum time2 = d2->time;
         mj_step(model, d1);
+        ASSERT_GT(d1->time, time1) << "Divergence detected";
         mj_step(model, d2);
+        ASSERT_GT(d2->time, time2) << "Divergence detected";
       }
       mj_forward(model, d1);
       mj_forward(model, d2);

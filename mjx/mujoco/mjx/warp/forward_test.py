@@ -15,7 +15,8 @@
 """Tests for forward functions."""
 
 import functools
-import logging
+import os
+import tempfile
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -35,14 +36,22 @@ try:
 except ImportError:
   forward = None
 
+_FORCE_TEST = os.environ.get('MJX_WARP_FORCE_TEST', '0') == '1'
+
 
 class ForwardTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
     if mjxw.WARP_INSTALLED:
-      wp.clear_kernel_cache()
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
     np.random.seed(0)
+
+  def tearDown(self):
+    super().tearDown()
+    if hasattr(self, 'tempdir'):
+      self.tempdir.cleanup()
 
   @parameterized.parameters(
       'pendula.xml',
@@ -50,10 +59,11 @@ class ForwardTest(parameterized.TestCase):
   )
   def test_jit_caching(self, xml):
     """Tests jit caching on the full step function."""
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     batch_size = 7
     m = test_util.load_test_file(xml)
@@ -63,34 +73,16 @@ class ForwardTest(parameterized.TestCase):
     dx_batch = jax.vmap(functools.partial(tu.make_data, m))(keys)
 
     step_fn = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))
+    dx_batch1 = step_fn(mx, dx_batch)
+    jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch1)
+    self.assertEqual(step_fn._cache_size(), 1)
 
-    was_logging_compiles = jax.config.jax_log_compiles
-    jax_logger = logging.getLogger('jax')
-    was_propagating = jax_logger.propagate
-    jax.config.update('jax_log_compiles', True)
-    jax_logger.propagate = False  # do not print to stdout for this test
-    with self.assertLogs('jax', level='INFO') as log:
-      dx_batch1 = step_fn(mx, dx_batch)
-      jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch1)
-
-      # Re-generate data and run step_fn again to test jit caching.
-      keys = jp.arange(batch_size, batch_size * 2)
-      dx_batch = jax.vmap(functools.partial(tu.make_data, m))(keys)
-      dx_batch2 = step_fn(mx, dx_batch)
-      jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch2)
-    jax.config.update('jax_log_compiles', was_logging_compiles)
-    jax_logger.propagate = was_propagating
-
-    compilation_logs = [
-        r for r in log.records if 'Compiling jit(step)' in r.getMessage()
-    ]
-    self.assertLen(
-        compilation_logs,
-        1,
-        msg=(
-            f'Expected 1 compilation, got {len(compilation_logs)} compilations.'
-        ),
-    )
+    # Re-generate data and run step_fn again to test jit caching.
+    keys = jp.arange(batch_size, batch_size * 2)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(keys)
+    dx_batch2 = step_fn(mx, dx_batch)
+    jax.tree_util.tree_map(lambda x: x.block_until_ready(), dx_batch2)
+    self.assertEqual(step_fn._cache_size(), 1)
 
   @parameterized.product(
       xml=(
@@ -100,10 +92,11 @@ class ForwardTest(parameterized.TestCase):
       batch_size=(1, 7),
   )
   def test_forward(self, xml: str, batch_size: int):
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = test_util.load_test_file(xml)
     m.opt.iterations = 10
@@ -149,7 +142,7 @@ class ForwardTest(parameterized.TestCase):
       if m.ncam:
         tu.assert_attr_eq(dx, d, 'cam_xpos')
         tu.assert_eq(dx.cam_xmat, d.cam_xmat.reshape((-1, 3, 3)), 'cam_xmat')
-      tu.assert_attr_eq(dx._impl, d, 'ten_length')
+      tu.assert_attr_eq(dx, d, 'ten_length')
       tu.assert_attr_eq(dx._impl, d, 'ten_J')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapadr')
       tu.assert_attr_eq(dx._impl, d, 'ten_wrapnum')
@@ -199,14 +192,6 @@ class ForwardTest(parameterized.TestCase):
       tu.assert_attr_eq(dx, d, 'qfrc_smooth')
       tu.assert_attr_eq(dx, d, 'qacc_smooth')
 
-      # solve
-      np.testing.assert_allclose(
-          dx.qacc_warmstart,
-          d.qacc_warmstart,
-          err_msg='qacc_warmstart',
-          rtol=1e-5,
-          atol=1.0,
-      )
       np.testing.assert_allclose(
           dx.qacc, d.qacc, err_msg='qacc', rtol=1e-5, atol=1.0
       )
@@ -217,8 +202,14 @@ class StepTest(parameterized.TestCase):
   def setUp(self):
     super().setUp()
     if mjxw.WARP_INSTALLED:
-      wp.clear_kernel_cache()
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
     np.random.seed(0)
+
+  def tearDown(self):
+    super().tearDown()
+    if hasattr(self, 'tempdir'):
+      self.tempdir.cleanup()
 
   @parameterized.product(
       xml=(
@@ -228,10 +219,11 @@ class StepTest(parameterized.TestCase):
       batch_size=(1, 7),
   )
   def test_step(self, xml: str, batch_size: int):
-    if not mjxw.WARP_INSTALLED:
-      self.skipTest('Warp not installed.')
-    if not io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
 
     m = test_util.load_test_file(xml)
     m.opt.iterations = 10
@@ -268,6 +260,34 @@ class StepTest(parameterized.TestCase):
       tu.assert_attr_eq(dx, d, 'mocap_pos')
       tu.assert_attr_eq(dx, d, 'mocap_quat')
       tu.assert_attr_eq(dx, d, 'sensordata')
+
+  def test_step_leading_dim_mismatch(self):
+    if not _FORCE_TEST:
+      if not mjxw.WARP_INSTALLED:
+        self.skipTest('Warp not installed.')
+      if not io.has_cuda_gpu_device():
+        self.skipTest('No CUDA GPU device available.')
+
+    xml = 'humanoid/humanoid.xml'
+    batch_size = 7
+
+    m = test_util.load_test_file(xml)
+    mx = mjx.put_model(m, impl='warp')
+
+    worldids = jp.arange(batch_size)
+    dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
+    dx_batch_orig = dx_batch
+
+    with self.assertRaises(ValueError):
+      dx_batch = dx_batch.replace(qpos=dx_batch.qpos[1:])
+      _ = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))(mx, dx_batch)
+
+    dx_batch = dx_batch_orig
+    with self.assertRaises(ValueError):
+      dx_batch = dx_batch.tree_replace(
+          {'_impl.contact__pos': dx_batch._impl.contact__pos[1:]}
+      )
+      _ = jax.jit(jax.vmap(forward.step, in_axes=(None, 0)))(mx, dx_batch)
 
 
 if __name__ == '__main__':

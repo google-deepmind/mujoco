@@ -15,7 +15,6 @@
 // Tests for engine/engine_island.c.
 
 #include <string>
-#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -30,6 +29,7 @@ namespace {
 
 using ::testing::DoubleNear;
 using ::testing::ElementsAre;
+using ::testing::NotNull;
 using ::testing::Pointwise;
 using IslandTest = MujocoTest;
 
@@ -185,7 +185,9 @@ static const char* const kAbacusPath =
 
 TEST_F(IslandTest, Abacus) {
   const std::string xml_path = GetTestDataFilePath(kAbacusPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
 
   // disable gravity
   model->opt.disableflags |= mjDSBL_GRAVITY;
@@ -292,7 +294,9 @@ static const char* const kTendonWrapPath =
 
 TEST_F(IslandTest, DenseSparse) {
   const std::string xml_path = GetTestDataFilePath(kTendonWrapPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data1 = mj_makeData(model);
   mjData* data2 = mj_makeData(model);
 
@@ -349,7 +353,9 @@ static const char* const kIlslandEfcPath =
 
 TEST_F(IslandTest, IslandEfc) {
   const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   while (data->time < 0.2) {
@@ -369,16 +375,18 @@ TEST_F(IslandTest, IslandEfc) {
 
 TEST_F(IslandTest, IslandFlex) {
   const std::string xml_path = GetTestDataFilePath("testdata/flex.xml");
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data1 = mj_makeData(model);
   mjData* data2 = mj_makeData(model);
 
-  model->opt.enableflags |= mjENBL_ISLAND;
+  model->opt.disableflags &= ~mjDSBL_ISLAND;
   while (data1->time < 0.2) {
     mj_step(model, data1);
   }
 
-  model->opt.enableflags &= ~mjENBL_ISLAND;
+  model->opt.disableflags |= mjDSBL_ISLAND;
   while (data2->time < 0.2) {
     mj_step(model, data2);
   }
@@ -396,7 +404,9 @@ static const char* const k2H100Path = "engine/testdata/island/2humanoid100.xml";
 TEST_F(IslandTest, IslandJacobian) {
   for (const char* local_path : {kIlslandEfcPath, k2H100Path}) {
     const std::string xml_path = GetTestDataFilePath(local_path);
-    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+    char error[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << error;
     int jac0 = m->opt.jacobian;
     mjData* d = mj_makeData(m);
 
@@ -457,27 +467,6 @@ TEST_F(IslandTest, IslandJacobian) {
               EXPECT_EQ(J_island[i * nv_island + j], J[efc * nv + dof]);
             }
           }
-
-          // === test JT (if sparse)
-
-          // get pointer to J_island, dense (nefc_island x nv_island) submatrix
-          if (jac == mjJAC_SPARSE) {
-            // dense copy of island in iJ (here used as scratch)
-            mju_sparse2dense(iJ, d->iefc_JT, nv_island, nefc_island,
-                             d->iefc_JT_rownnz + idof,
-                             d->iefc_JT_rowadr + idof,
-                             d->iefc_JT_colind);
-            J_island = iJ;
-
-            // sequential memory in J_island equals random access memory in J
-            for (int i=0; i < nv_island; i++) {
-              for (int j=0; j < nefc_island; j++) {
-                int dof = d->map_idof2dof[idof + i];
-                int efc = d->map_iefc2efc[iefc + j];
-                EXPECT_EQ(J_island[i * nefc_island + j], J[efc * nv + dof]);
-              }
-            }
-          }
         }
 
         mju_free(iJ);
@@ -496,7 +485,9 @@ TEST_F(IslandTest, IslandJacobian) {
 TEST_F(IslandTest, IslandInertia) {
   for (const char* local_path : {kIlslandEfcPath, k2H100Path}) {
     const std::string xml_path = GetTestDataFilePath(local_path);
-    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+    char error[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << error;
     int nv = m->nv;
     mjData* d = mj_makeData(m);
     mjtNum* M = (mjtNum*)mju_malloc(sizeof(mjtNum) * nv * nv);
@@ -543,7 +534,9 @@ TEST_F(IslandTest, IslandInertia) {
 
 TEST_F(IslandTest, IslandEfcElliptic) {
   const std::string xml_path = GetTestDataFilePath(kIlslandEfcPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   model->opt.cone = mjCONE_ELLIPTIC;

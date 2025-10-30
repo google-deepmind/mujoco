@@ -448,14 +448,23 @@ static void BM_combineSparse(benchmark::State& state, CombineFuncPtr func) {
     }
   }
 
+  int* JT_rownnz   = mj_stackAllocInt(d, m->nv);
+  int* JT_rowadr   = mj_stackAllocInt(d, m->nv);
+  int* JT_rowsuper = mj_stackAllocInt(d, m->nv);
+  int* JT_colind   = mj_stackAllocInt(d, d->nJ);
+  mjtNum* JT       = mj_stackAllocNum(d, d->nJ);
+  mju_transposeSparse(JT, d->efc_J, d->nefc, m->nv,
+                      JT_rownnz, JT_rowadr, JT_colind, JT_rowsuper,
+                      d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+
   // compute H = J'*D*J, uncompressed layout
   mju_sqrMatTDUncompressedInit(rowadr, m->nv);
-  mju_sqrMatTDSparse(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv,
+  mju_sqrMatTDSparse(H, d->efc_J, JT, D, d->nefc, m->nv,
                      rownnz, rowadr, colind,
                      d->efc_J_rownnz, d->efc_J_rowadr,
                      d->efc_J_colind, d->efc_J_rowsuper,
-                     d->efc_JT_rownnz, d->efc_JT_rowadr,
-                     d->efc_JT_colind, d->efc_JT_rowsuper, d,
+                     JT_rownnz, JT_rowadr,
+                     JT_colind, JT_rowsuper, d,
                      diagind);
 
   // compute H = M + J'*D*J
@@ -578,7 +587,7 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
   // force use of sparse matrices, Newton solver, no islands
   m->opt.jacobian = mjJAC_SPARSE;
   m->opt.solver = mjSOL_NEWTON;
-  m->opt.enableflags &= ~mjENBL_ISLAND;
+  m->opt.disableflags |= mjDSBL_ISLAND;
 
   mjData* d = mj_makeData(m);
 
@@ -605,19 +614,28 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
     }
   }
 
+  int* JT_rownnz   = mj_stackAllocInt(d, m->nv);
+  int* JT_rowadr   = mj_stackAllocInt(d, m->nv);
+  int* JT_rowsuper = mj_stackAllocInt(d, m->nv);
+  int* JT_colind   = mj_stackAllocInt(d, d->nJ);
+  mjtNum* JT       = mj_stackAllocNum(d, d->nJ);
+  mju_transposeSparse(JT, d->efc_J, d->nefc, m->nv,
+                      JT_rownnz, JT_rowadr, JT_colind, JT_rowsuper,
+                      d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind);
+
   // time benchmark
   if (func) {
     mju_sqrMatTDSparseCount(rownnz, rowadr, m->nv,
       d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind,
-      d->efc_JT_rownnz, d->efc_JT_rowadr,
-      d->efc_JT_colind, nullptr, d, 1);
+      JT_rownnz, JT_rowadr,
+      JT_colind, nullptr, d, 1);
 
     for (auto s : state) {
       // compute H = J'*D*J, compressed layout
-      func(H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
+      func(H, d->efc_J, JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
          d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, NULL,
-         d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
-         d->efc_JT_rowsuper, d, diagind);
+         JT_rownnz, JT_rowadr, JT_colind,
+         JT_rowsuper, d, diagind);
     }
   } else {
     for (auto s : state) {
@@ -627,10 +645,10 @@ static void BM_sqrMatTDSparse(benchmark::State& state, SqrMatTDFuncPtr func) {
 
       // compute H = J'*D*J, uncompressed layout
       mju_sqrMatTDSparse_baseline(
-          H, d->efc_J, d->efc_JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
+          H, d->efc_J, JT, D, d->nefc, m->nv, rownnz, rowadr, colind,
           d->efc_J_rownnz, d->efc_J_rowadr, d->efc_J_colind, d->efc_J_rowsuper,
-          d->efc_JT_rownnz, d->efc_JT_rowadr, d->efc_JT_colind,
-          d->efc_JT_rowsuper, d, /*unused=*/nullptr);
+          JT_rownnz, JT_rowadr, JT_colind,
+          JT_rowsuper, d, /*unused=*/nullptr);
     }
   }
 

@@ -60,25 +60,38 @@ def _spring_damper(m: Model, d: Data) -> jax.Array:
     return jp.concatenate(qfrcs)
 
   # dof-level springs
-  qfrc = scan.flat(
-      m,
-      fn,
-      'jjqq',
-      'v',
-      m.jnt_type,
-      m.jnt_stiffness,
-      m.qpos_spring,
-      d.qpos,
-  )
+  qfrc = jp.zeros(m.nv)
+  if not m.opt.disableflags & DisableBit.SPRING:
+    qfrc = scan.flat(
+        m,
+        fn,
+        'jjqq',
+        'v',
+        m.jnt_type,
+        m.jnt_stiffness,
+        m.qpos_spring,
+        d.qpos,
+    )
 
   # dof-level dampers
-  qfrc -= m.dof_damping * d.qvel
+  if not m.opt.disableflags & DisableBit.DAMPER:
+    qfrc -= m.dof_damping * d.qvel
 
-  # tendon-level spring-dampers
-  below, above = m.tendon_lengthspring.T - d._impl.ten_length
-  frc_spring = jp.where(below > 0, m.tendon_stiffness * below, 0)
-  frc_spring = jp.where(above < 0, m.tendon_stiffness * above, frc_spring)
-  frc_damper = -m.tendon_damping * d._impl.ten_velocity
+  # tendon-level springs
+  if not m.opt.disableflags & DisableBit.SPRING:
+    below, above = m.tendon_lengthspring.T - d.ten_length
+    frc_spring = jp.where(below > 0, m.tendon_stiffness * below, 0)
+    frc_spring = jp.where(above < 0, m.tendon_stiffness * above, frc_spring)
+  else:
+    frc_spring = jp.zeros(m.ntendon)
+
+  # tendon-level dampers
+  frc_damper = (
+      -m.tendon_damping * d._impl.ten_velocity
+      if not m.opt.disableflags & DisableBit.DAMPER
+      else jp.zeros(m.ntendon)
+  )
+
   qfrc += d._impl.ten_J.T @ (frc_spring + frc_damper)
 
   return qfrc
@@ -123,7 +136,7 @@ def passive(m: Model, d: Data) -> Data:
   ):
     raise ValueError('passive requires JAX backend implementation.')
 
-  if m.opt.disableflags & DisableBit.PASSIVE:
+  if m.opt.disableflags & (DisableBit.SPRING | DisableBit.DAMPER):
     return d.replace(qfrc_passive=jp.zeros(m.nv), qfrc_gravcomp=jp.zeros(m.nv))
 
   qfrc_passive = _spring_damper(m, d)

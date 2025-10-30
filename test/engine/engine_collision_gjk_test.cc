@@ -16,12 +16,11 @@
 
 #include "src/engine/engine_collision_gjk.h"
 
-#include <array>
 #include <cstddef>
 #include <vector>
 
-#include <ccd/ccd.h>
-#include <ccd/vec3.h>
+#include <ccd/ccd.h>  // IWYU pragma: keep
+#include <ccd/vec3.h>  // IWYU pragma: keep
 
 #include "src/engine/engine_collision_convex.h"
 #include <mujoco/mujoco.h>
@@ -31,7 +30,7 @@
 #include <gtest/gtest.h>
 
 // uncomment to run tests with libccd
-//#define TEST_WITH_LIBCCD
+// #define TEST_WITH_LIBCCD
 
 namespace mujoco {
 namespace {
@@ -172,9 +171,9 @@ TEST_F(MjGjkTest, SphereSphereDist) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -200,9 +199,9 @@ TEST_F(MjGjkTest, SphereSphereDistCutoff) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -225,9 +224,9 @@ TEST_F(MjGjkTest, SphereSphereNoDist) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -254,9 +253,9 @@ TEST_F(MjGjkTest, SphereSphereIntersect) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -297,9 +296,9 @@ TEST_F(MjGjkTest, BoxBoxDepth) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -332,9 +331,9 @@ TEST_F(MjGjkTest, BoxBoxDepth2) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -384,9 +383,9 @@ TEST_F(MjGjkTest, BoxBoxDepth3) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -452,9 +451,9 @@ TEST_F(MjGjkTest, BoxBoxTouching) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -483,9 +482,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -523,9 +522,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD2) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -563,9 +562,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD3) {
     </worldbody>
 </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -610,9 +609,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD4) {
     </worldbody>
 </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -660,11 +659,11 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD4) {
   int ncons = Penetration(status, dist, dir, pos, model, data, g1, g2, 0, 1000);
 
   EXPECT_EQ(ncons, 8);
-  EXPECT_NEAR(dist, -0.00060425119242707459, kTolerance);
+    EXPECT_NEAR(dist, -0.00060425119242707459, kTolerance);
 
-  EXPECT_NEAR(dir[0], 0, kTolerance);
-  EXPECT_NEAR(dir[1], 0, kTolerance);
-  EXPECT_NEAR(dir[2], -1, kTolerance);
+    EXPECT_NEAR(dir[0], 0, kTolerance);
+    EXPECT_NEAR(dir[1], 0, kTolerance);
+    EXPECT_NEAR(dir[2], -1, kTolerance);
   mj_deleteData(data);
   mj_deleteModel(model);
 }
@@ -678,9 +677,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD5) {
     </worldbody>
 </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -747,9 +746,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD6) {
     </worldbody>
 </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -798,9 +797,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD7) {
     </worldbody>
 </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -862,9 +861,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD8) {
     </worldbody>
 </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -925,9 +924,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD9) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -989,9 +988,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD10) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1031,9 +1030,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD11) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1097,9 +1096,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD12) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1161,9 +1160,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD13) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1229,9 +1228,9 @@ TEST_F(MjGjkTest, BoxBoxMultiCCD14) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1314,9 +1313,9 @@ TEST_F(MjGjkTest, SmallBoxMesh) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1360,9 +1359,9 @@ TEST_F(MjGjkTest, BoxMesh) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1395,9 +1394,9 @@ TEST_F(MjGjkTest, BoxMesh2) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1430,9 +1429,9 @@ TEST_F(MjGjkTest, BoxMeshPrune) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1467,9 +1466,9 @@ TEST_F(MjGjkTest, MeshMesh) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1504,9 +1503,9 @@ TEST_F(MjGjkTest, MeshMeshPrune) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1544,9 +1543,9 @@ TEST_F(MjGjkTest, BoxEdge) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1585,9 +1584,9 @@ TEST_F(MjGjkTest, BoxEdge2) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1659,9 +1658,9 @@ TEST_F(MjGjkTest, BoxEdgeEdge) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1743,9 +1742,9 @@ TEST_F(MjGjkTest, MeshEdge) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1792,9 +1791,9 @@ TEST_F(MjGjkTest, MeshEdge2) {
   </mujoco>
   )";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1813,9 +1812,9 @@ TEST_F(MjGjkTest, MeshEdge2) {
 }
 
 TEST_F(MjGjkTest, EllipsoidEllipsoidPenetrating) {
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(kEllipoid, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(kEllipoid, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_resetDataKeyframe(model, data, 0);
@@ -1844,9 +1843,9 @@ TEST_F(MjGjkTest, EllipsoidEllipsoid) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1869,9 +1868,9 @@ TEST_F(MjGjkTest, BoxBox) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1899,9 +1898,9 @@ static constexpr char xml[] = R"(
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1942,9 +1941,9 @@ TEST_F(MjGjkTest, EllipsoidEllipsoidIntersect) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1972,9 +1971,9 @@ TEST_F(MjGjkTest, CapsuleCapsule) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -2007,9 +2006,9 @@ TEST_F(MjGjkTest, CylinderBoxMargin) {
     </worldbody>
   </mujoco>)";
 
-  std::array<char, 1000> error;
-  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error.data();
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);

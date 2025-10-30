@@ -43,7 +43,7 @@ int CompareSortable(const Sortable* a, const Sortable* b, void* context) {
 }
 
 // Instantiate the sort function.
-mjSORT(SortSortable, Sortable, CompareSortable)
+mjSORT(SortSortable, Sortable, CompareSortable);
 
 // Generate data for sorting benchmarks.
 std::vector<Sortable> GenerateData(int n, double unsorted_fraction) {

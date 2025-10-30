@@ -53,13 +53,13 @@ class MjcPhysicsImageableAPI : public UsdAPISchemaBase {
   /// Equivalent to MjcPhysicsImageableAPI::Get(prim.GetStage(), prim.GetPath())
   /// for a \em valid \p prim, but will not immediately throw an error for
   /// an invalid \p prim
-  explicit MjcPhysicsImageableAPI(const UsdPrim &prim = UsdPrim())
+  explicit MjcPhysicsImageableAPI(const UsdPrim& prim = UsdPrim())
       : UsdAPISchemaBase(prim) {}
 
   /// Construct a MjcPhysicsImageableAPI on the prim held by \p schemaObj .
   /// Should be preferred over MjcPhysicsImageableAPI(schemaObj.GetPrim()),
   /// as it preserves SchemaBase state.
-  explicit MjcPhysicsImageableAPI(const UsdSchemaBase &schemaObj)
+  explicit MjcPhysicsImageableAPI(const UsdSchemaBase& schemaObj)
       : UsdAPISchemaBase(schemaObj) {}
 
   /// Destructor.
@@ -70,7 +70,7 @@ class MjcPhysicsImageableAPI : public UsdAPISchemaBase {
   /// class and all its ancestor classes.  Does not include attributes that
   /// may be authored by custom/extended methods of the schemas involved.
   MJCPHYSICS_API
-  static const TfTokenVector &GetSchemaAttributeNames(
+  static const TfTokenVector& GetSchemaAttributeNames(
       bool includeInherited = true);
 
   /// Return a MjcPhysicsImageableAPI holding the prim adhering to this
@@ -83,8 +83,8 @@ class MjcPhysicsImageableAPI : public UsdAPISchemaBase {
   /// \endcode
   ///
   MJCPHYSICS_API
-  static MjcPhysicsImageableAPI Get(const UsdStagePtr &stage,
-                                    const SdfPath &path);
+  static MjcPhysicsImageableAPI Get(const UsdStagePtr& stage,
+                                    const SdfPath& path);
 
   /// Returns true if this <b>single-apply</b> API schema can be applied to
   /// the given \p prim. If this schema can not be a applied to the prim,
@@ -103,7 +103,7 @@ class MjcPhysicsImageableAPI : public UsdAPISchemaBase {
   /// \sa UsdPrim::RemoveAPI()
   ///
   MJCPHYSICS_API
-  static bool CanApply(const UsdPrim &prim, std::string *whyNot = nullptr);
+  static bool CanApply(const UsdPrim& prim, std::string* whyNot = nullptr);
 
   /// Applies this <b>single-apply</b> API schema to the given \p prim.
   /// This information is stored by adding "MjcImageableAPI" to the
@@ -121,7 +121,7 @@ class MjcPhysicsImageableAPI : public UsdAPISchemaBase {
   /// \sa UsdPrim::RemoveAPI()
   ///
   MJCPHYSICS_API
-  static MjcPhysicsImageableAPI Apply(const UsdPrim &prim);
+  static MjcPhysicsImageableAPI Apply(const UsdPrim& prim);
 
  protected:
   /// Returns the kind of schema this class belongs to.
@@ -134,13 +134,13 @@ class MjcPhysicsImageableAPI : public UsdAPISchemaBase {
   // needs to invoke _GetStaticTfType.
   friend class UsdSchemaRegistry;
   MJCPHYSICS_API
-  static const TfType &_GetStaticTfType();
+  static const TfType& _GetStaticTfType();
 
   static bool _IsTypedSchema();
 
   // override SchemaBase virtuals.
   MJCPHYSICS_API
-  const TfType &_GetTfType() const override;
+  const TfType& _GetTfType() const override;
 
  public:
   // --------------------------------------------------------------------- //
@@ -163,7 +163,7 @@ class MjcPhysicsImageableAPI : public UsdAPISchemaBase {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateGroupAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateGroupAttr(VtValue const& defaultValue = VtValue(),
                                bool writeSparsely = false) const;
 
  public:

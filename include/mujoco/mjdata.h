@@ -51,6 +51,27 @@ typedef enum mjtState_ {          // state elements
 } mjtState;
 
 
+typedef enum mjtConstraint_ {     // type of constraint
+  mjCNSTR_EQUALITY    = 0,        // equality constraint
+  mjCNSTR_FRICTION_DOF,           // dof friction
+  mjCNSTR_FRICTION_TENDON,        // tendon friction
+  mjCNSTR_LIMIT_JOINT,            // joint limit
+  mjCNSTR_LIMIT_TENDON,           // tendon limit
+  mjCNSTR_CONTACT_FRICTIONLESS,   // frictionless contact
+  mjCNSTR_CONTACT_PYRAMIDAL,      // frictional contact, pyramidal friction cone
+  mjCNSTR_CONTACT_ELLIPTIC        // frictional contact, elliptic friction cone
+} mjtConstraint;
+
+
+typedef enum mjtConstraintState_ {  // constraint state
+  mjCNSTRSTATE_SATISFIED = 0,       // constraint satisfied, zero cost (limit, contact)
+  mjCNSTRSTATE_QUADRATIC,           // quadratic cost (equality, friction, limit, contact)
+  mjCNSTRSTATE_LINEARNEG,           // linear cost, negative side (friction)
+  mjCNSTRSTATE_LINEARPOS,           // linear cost, positive side (friction)
+  mjCNSTRSTATE_CONE                 // squared distance to cone cost (elliptic contact)
+} mjtConstraintState;
+
+
 typedef enum mjtWarning_ {   // warning types
   mjWARN_INERTIA      = 0,   // (near) singular inertia matrix
   mjWARN_CONTACTFULL,        // too many contacts in contact list
@@ -122,7 +143,7 @@ struct mjContact_ {                // result of collision detection functions
   int     vert[2];                 // vertex ids;  -1 for geom or flex element
 
   // flag set by mj_setContact or mj_instantiateContact
-  int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs
+  int     exclude;                 // 0: include, 1: in gap, 2: fused, 3: no dofs, 4: passive
 
   // address computed by mj_instantiateContact
   int     efc_address;             // address in efc; -1: not included
@@ -167,14 +188,14 @@ struct mjData_ {
   int     nplugin;           // number of plugin instances
 
   // stack pointer
-  size_t  pstack;            // first available byte in stack
-  size_t  pbase;             // value of pstack when mj_markStack was last called
+  size_t  pstack;            // first available byte in stack (mutable)
+  size_t  pbase;             // value of pstack when mj_markStack was last called (mutable)
 
   // arena pointer
   size_t  parena;            // first available byte in arena
 
   // memory utilization statistics
-  mjtSize maxuse_stack;                       // maximum stack allocation in bytes
+  mjtSize maxuse_stack;                       // maximum stack allocation in bytes (mutable)
   mjtSize maxuse_threadstack[mjMAXTHREAD];    // maximum stack allocation per thread in bytes
   mjtSize maxuse_arena;                       // maximum arena allocation in bytes
   int     maxuse_con;                         // maximum number of contacts
@@ -187,7 +208,7 @@ struct mjData_ {
   mjtNum        solver_fwdinv[2];             // forward-inverse comparison: qfrc, efc
 
   // diagnostics
-  mjWarningStat warning[mjNWARNING];          // warning statistics
+  mjWarningStat warning[mjNWARNING];          // warning statistics (mutable)
   mjTimerStat   timer[mjNTIMER];              // timer statistics
 
   // variable sizes
@@ -276,6 +297,7 @@ struct mjData_ {
   int*    flexedge_J_colind; // column indices in sparse Jacobian                (nflexedge x nv)
   mjtNum* flexedge_J;        // flex edge Jacobian                               (nflexedge x nv)
   mjtNum* flexedge_length;   // flex edge lengths                                (nflexedge x 1)
+  mjtNum* bvh_aabb_dyn;      // global bounding box (center, size)               (nbvhdynamic x 6)
 
   // computed by mj_fwdPosition/mj_tendon
   int*    ten_wrapadr;       // start address of tendon's path                   (ntendon x 1)
@@ -304,8 +326,7 @@ struct mjData_ {
   mjtNum* qLD;               // L'*D*L factorization of M (sparse)               (nC x 1)
   mjtNum* qLDiagInv;         // 1/diag(D)                                        (nv x 1)
 
-  // computed by mj_collisionTree
-  mjtNum*  bvh_aabb_dyn;     // global bounding box (center, size)               (nbvhdynamic x 6)
+  // computed by mj_collision/mj_collideTree
   mjtByte* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
 
   //-------------------- POSITION, VELOCITY dependent
@@ -336,21 +357,6 @@ struct mjData_ {
   // computed by mj_Euler or mj_implicit
   mjtNum* qH;                // L'*D*L factorization of modified M               (nC x 1)
   mjtNum* qHDiagInv;         // 1/diag(D) of modified M                          (nv x 1)
-
-  // computed by mj_resetData
-  int*    B_rownnz;          // body-dof: non-zeros in each row                  (nbody x 1)
-  int*    B_rowadr;          // body-dof: address of each row in B_colind        (nbody x 1)
-  int*    B_colind;          // body-dof: column indices of non-zeros            (nB x 1)
-  int*    M_rownnz;          // reduced inertia: non-zeros in each row           (nv x 1)
-  int*    M_rowadr;          // reduced inertia: address of each row in M_colind (nv x 1)
-  int*    M_colind;          // reduced inertia: column indices of non-zeros     (nC x 1)
-  int*    mapM2M;            // index mapping from qM to M                       (nC x 1)
-  int*    D_rownnz;          // full inertia: non-zeros in each row              (nv x 1)
-  int*    D_rowadr;          // full inertia: address of each row in D_colind    (nv x 1)
-  int*    D_diag;            // full inertia: index of diagonal element          (nv x 1)
-  int*    D_colind;          // full inertia: column indices of non-zeros        (nD x 1)
-  int*    mapM2D;            // index mapping from qM to D                       (nD x 1)
-  int*    mapD2M;            // index mapping from D to qM                       (nM x 1)
 
   // computed by mj_implicit/mj_derivative
   mjtNum* qDeriv;            // d (passive + actuator - bias) / d qvel           (nD x 1)
@@ -392,12 +398,7 @@ struct mjData_ {
   int*    efc_J_rowadr;      // row start address in colind array                (nefc x 1)
   int*    efc_J_rowsuper;    // number of subsequent rows in supernode           (nefc x 1)
   int*    efc_J_colind;      // column indices in constraint Jacobian            (nJ x 1)
-  int*    efc_JT_rownnz;     // number of non-zeros in constraint Jacobian row T (nv x 1)
-  int*    efc_JT_rowadr;     // row start address in colind array              T (nv x 1)
-  int*    efc_JT_rowsuper;   // number of subsequent rows in supernode         T (nv x 1)
-  int*    efc_JT_colind;     // column indices in constraint Jacobian          T (nJ x 1)
   mjtNum* efc_J;             // constraint Jacobian                              (nJ x 1)
-  mjtNum* efc_JT;            // constraint Jacobian transposed                   (nJ x 1)
   mjtNum* efc_pos;           // constraint position (equality, contact)          (nefc x 1)
   mjtNum* efc_margin;        // inclusion margin (contact)                       (nefc x 1)
   mjtNum* efc_frictionloss;  // frictionloss (friction)                          (nefc x 1)
@@ -442,12 +443,7 @@ struct mjData_ {
   int*    iefc_J_rowadr;     // row start address in colind array                (nefc x 1)
   int*    iefc_J_rowsuper;   // number of subsequent rows in supernode           (nefc x 1)
   int*    iefc_J_colind;     // column indices in constraint Jacobian            (nJ x 1)
-  int*    iefc_JT_rownnz;    // number of non-zeros in constraint Jacobian row T (nidof x 1)
-  int*    iefc_JT_rowadr;    // row start address in colind array              T (nidof x 1)
-  int*    iefc_JT_rowsuper;  // number of subsequent rows in supernode         T (nidof x 1)
-  int*    iefc_JT_colind;    // column indices in constraint Jacobian          T (nJ x 1)
   mjtNum* iefc_J;            // constraint Jacobian                              (nJ x 1)
-  mjtNum* iefc_JT;           // constraint Jacobian transposed                   (nJ x 1)
   mjtNum* iefc_frictionloss; // frictionloss (friction)                          (nefc x 1)
   mjtNum* iefc_D;            // constraint mass                                  (nefc x 1)
   mjtNum* iefc_R;            // inverse constraint mass                          (nefc x 1)

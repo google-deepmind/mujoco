@@ -141,8 +141,10 @@ jobs:
       run: >
         sudo apt-get update && sudo apt-get install
         libgl1-mesa-dev
+        libwayland-dev
         libxinerama-dev
         libxcursor-dev
+        libxkbcommon-dev
         libxrandr-dev
         libxi-dev
         ninja-build

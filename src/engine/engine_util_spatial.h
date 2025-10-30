@@ -16,7 +16,7 @@
 #define MUJOCO_SRC_ENGINE_ENGINE_UTIL_SPATIAL_H_
 
 #include <mujoco/mjexport.h>
-#include <mujoco/mjmodel.h>
+#include <mujoco/mjtnum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -102,7 +102,7 @@ void mju_inertCom(mjtNum res[10], const mjtNum inert[3], const mjtNum mat[9],
 void mju_dofCom(mjtNum res[6], const mjtNum axis[3], const mjtNum offset[3]);
 
 // multiply 6D vector (rotation, translation) by 6D inertia matrix
-void mju_mulInertVec(mjtNum res[6], const mjtNum inert[10], const mjtNum vec[6]);
+MJAPI void mju_mulInertVec(mjtNum* res, const mjtNum inert[10], const mjtNum vec[6]);
 
 // multiply dof matrix by vector
 void mju_mulDofVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n);

@@ -26,8 +26,10 @@
 #include <optional>
 #include <set>
 #include <sstream>
+#include <stack>
 #include <string>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -104,8 +106,110 @@ FilePath ResolveFilePath(XMLElement* e, const FilePath& filename,
   return FilePath(path) + filename;
 }
 
-}  // namespace
+void AccumulateFiles(std::unordered_set<std::string> &files,
+                     tinyxml2::XMLElement *root, const FilePath &model_dir) {
+  std::optional<FilePath> asset_dir;
+  std::optional<FilePath> mesh_dir;
+  std::optional<FilePath> texture_dir;
+  std::set<std::string> include_and_model_files;
+  std::set<std::string> texture_files;
+  std::set<std::string> mesh_files;
+  std::set<std::string> hfield_files;
 
+  auto accumulate_files = [&](const std::set<std::string> &candidate_files,
+                              std::optional<FilePath> prefix) {
+    for (const auto &file : candidate_files) {
+      FilePath file_with_prefix = !prefix.has_value() ? FilePath(file) : prefix.value() + FilePath(file);
+      if (file_with_prefix.IsAbs()) {
+        files.insert(file_with_prefix.Str());
+      } else {
+        // Else insert dir_path / prefix / file.
+        auto full_path = model_dir + file_with_prefix;
+        files.insert(full_path.Str());
+      }
+    }
+  };
+
+  std::stack<tinyxml2::XMLElement *> elements;
+  elements.push(root);
+  while (!elements.empty()) {
+    tinyxml2::XMLElement *elem = elements.top();
+    elements.pop();
+
+    if (!std::strcmp(elem->Value(), "include") ||
+        !std::strcmp(elem->Value(), "model")) {
+      auto file_attr = mjXUtil::ReadAttrFile(elem, "file", nullptr);
+      if (file_attr.has_value()) {
+        include_and_model_files.insert(file_attr->Str());
+        // Neither of these elements should have children.
+        continue;
+      }
+    } else if (!std::strcmp(elem->Value(), "compiler")) {
+      auto assetdir_str = mjXUtil::ReadAttrStr(elem, "assetdir", false);
+      if (assetdir_str.has_value()) asset_dir = FilePath(assetdir_str.value());
+      auto meshdir_str = mjXUtil::ReadAttrStr(elem, "meshdir", false);
+      if (meshdir_str.has_value()) mesh_dir = FilePath(meshdir_str.value());
+      auto texturedir_str = mjXUtil::ReadAttrStr(elem, "texturedir", false);
+      if (texturedir_str.has_value()) texture_dir = FilePath(texturedir_str.value());
+
+      // compiler elements don't have children.
+      continue;
+    } else if (!std::strcmp(elem->Value(), "mesh") ||
+               !std::strcmp(elem->Value(), "flexcomp") ||
+               !std::strcmp(elem->Value(), "skin")) {
+      // mesh elements don't have children.
+      auto file_attr = mjXUtil::ReadAttrFile(elem, "file", nullptr);
+      if (file_attr.has_value()) {
+        mesh_files.insert(file_attr->Str());
+      }
+      continue;
+    } else if (!std::strcmp(elem->Value(), "hfield")) {
+      // hfield elements don't have children.
+      auto file_attr = mjXUtil::ReadAttrFile(elem, "file", nullptr);
+      if (file_attr.has_value()) {
+        hfield_files.insert(file_attr->Str());
+      }
+      continue;
+    } else if (!std::strcmp(elem->Value(), "texture")) {
+      static const char *attributes[] = {"file",     "fileright", "fileup",
+                                         "fileleft", "filedown",  "filefront",
+                                         "fileback"};
+      for (const auto &attribute : attributes) {
+        auto file_attr = mjXUtil::ReadAttrFile(elem, attribute, nullptr);
+        if (file_attr.has_value()) {
+          texture_files.insert(file_attr->Str());
+        }
+      }
+    }
+
+    tinyxml2::XMLElement *child = elem->FirstChildElement();
+    while (child) {
+      elements.push(child);
+      child = child->NextSiblingElement();
+    }
+  }
+
+  // TODO(shaves): When we have resource decoders implemented they should have a
+  // "get dependencies" function to call here. For non XML types we assume they
+  // have no dependencies here.
+
+  // First resolve all dependent XML files.
+  for (const auto &file : include_and_model_files) {
+    mjStringVec subdeps;
+    FilePath full_path = model_dir + FilePath(file);
+    mju_getXMLDependencies(full_path.Str().c_str(), &subdeps);
+    for (const auto &subdep : subdeps) {
+      files.insert(subdep);
+    }
+  }
+  // Then for each non MJCF resource file, add them to the set of files using their respective
+  // compiler prefixes (if they exist).
+  accumulate_files(texture_files,
+                   texture_dir.has_value() ? texture_dir : asset_dir);
+  accumulate_files(mesh_files, mesh_dir.has_value() ? mesh_dir : asset_dir);
+  accumulate_files(hfield_files, asset_dir);
+}
+}
 
 //---------------------------------- utility functions ---------------------------------------------
 
@@ -117,7 +221,38 @@ void mjCopyError(char* dst, const char* src, int maxlen) {
   }
 }
 
+void mju_getXMLDependencies(const char* filename, mjStringVec* dependencies) {
+  // load XML file or parse string
+  tinyxml2::XMLDocument doc;
+  doc.LoadFile(filename);
 
+  // error checking
+  if (doc.Error()) {
+    mju_error("Problem reading XML file '%s': %s", filename, doc.ErrorStr());
+  }
+
+  // get top-level element
+  tinyxml2::XMLElement *root = doc.RootElement();
+  if (!root) {
+    mju_error("XML root element not found");
+  }
+  std::unordered_set<std::string> files = {filename};
+
+  std::optional<FilePath> model_dir = std::nullopt;
+  mjResource *resource = mju_openResource("", filename, nullptr,
+                                          nullptr, 0);
+  if (resource != nullptr) {
+    const char* dir;
+    int ndir;
+    mju_getResourceDir(resource, &dir, &ndir);
+    model_dir = FilePath(std::string(dir, ndir));
+    mju_closeResource(resource);
+  }
+  // Get file references from include and model tags.
+  AccumulateFiles(files, root, model_dir.value());
+
+  *dependencies = {files.begin(), files.end()};
+}
 
 // error constructor
 mjXError::mjXError(const XMLElement* elem, const char* msg, const char* str, int pos) {

@@ -106,6 +106,18 @@ TEST_F(UserVfsTest, AddFileStripPath) {
   mj_deleteVFS(&vfs);
 }
 
+TEST_F(UserVfsTest, NullDirectory) {
+  mjVFS vfs;
+  mj_defaultVFS(&vfs);
+
+  const std::string file = "engine/testdata/actuation/activation.xml";
+  const std::string path = GetTestDataFilePath(file);
+  mj_addFileVFS(&vfs, nullptr, path.c_str());
+
+  EXPECT_TRUE(HasFile(&vfs, "activation.xml"));
+  mj_deleteVFS(&vfs);
+}
+
 TEST_F(UserVfsTest, AddFileRepeat) {
   mjVFS vfs;
   mj_defaultVFS(&vfs);

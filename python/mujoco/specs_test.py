@@ -318,6 +318,14 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(frameb1.pos, frameb0.pos)
     np.testing.assert_array_equal(frameb1.quat, frameb0.quat)
 
+    # Add frame in frame.
+    framec0 = frameb0.add_frame(name='framec', pos=[7, 8, 9], quat=[0, 0, 0, 1])
+    self.assertEqual(framec0.name, 'framec')
+    self.assertEqual(framec0.parent, frameb0.parent)
+    self.assertEqual(framec0.frame, frameb0)
+    np.testing.assert_array_equal(framec0.pos, [7, 8, 9])
+    np.testing.assert_array_equal(framec0.quat, [0, 0, 0, 1])
+
     # Add joint.
     joint = body.add_joint(type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0])
     self.assertEqual(joint.type, mujoco.mjtJoint.mjJNT_HINGE)
@@ -339,6 +347,12 @@ class SpecsTest(absltest.TestCase):
     # Add light.
     light = body.add_light(attenuation=[1, 2, 3])
     np.testing.assert_array_equal(light.attenuation, [1, 2, 3])
+
+    # Add light in a frame.
+    light_in_frame = framea0.add_light(cutoff=10)
+    self.assertEqual(light_in_frame.cutoff, 10)
+    self.assertEqual(light_in_frame.parent, framea0.parent)
+    self.assertEqual(light_in_frame.frame, framea0)
 
     # Invalid input for valid keyword argument.
     with self.assertRaises(ValueError) as cm:
@@ -486,12 +500,37 @@ class SpecsTest(absltest.TestCase):
 
   def test_make_mesh(self):
     spec = mujoco.MjSpec()
+
     mesh = spec.add_mesh(name='wedge')
-    mesh.make_wedge(resolution=[25, 25], radius=.1, fov=[90, 45], gamma=0)
+    mesh.make_wedge(resolution=[25, 25], fov=[90, 45], gamma=0)
+
+    mesh = spec.add_mesh(name='prism')
+    mesh.make_cone(nedge=5, radius=1)
+
+    mesh = spec.add_mesh(name='cone')
+    mesh.make_cone(nedge=6, radius=0)
+
+    mesh = spec.add_mesh(name='hemisphere')
+    mesh.make_hemisphere(resolution=4)
+
+    mesh = spec.add_mesh(name='sphere')
+    mesh.make_sphere(subdivision=2)
+
+    mesh = spec.add_mesh(name='supertorus')
+    mesh.make_supertorus(resolution=10, radius=0.5, s=1, t=1)
+
+    mesh = spec.add_mesh(name='supersphere')
+    mesh.make_supersphere(resolution=20, e=2, n=1)
+
     model = spec.compile()
-    self.assertEqual(model.nmesh, 1)
-    self.assertEqual(model.nmeshvert, 25 * 25)
-    np.testing.assert_array_equal(model.mesh_scale[0], [0.1, 0.1, 0.1])
+    self.assertEqual(model.nmesh, 7)
+    self.assertEqual(model.mesh_vertnum[0], 25 * 25)
+    self.assertEqual(model.mesh_vertnum[1], 10)
+    self.assertEqual(model.mesh_vertnum[2], 7)
+    self.assertEqual(model.mesh_vertnum[3], 2 * (4 + 1) * (4 + 2) + 2)
+    self.assertEqual(model.mesh_vertnum[4], 2 + 10 * 4**2)
+    self.assertEqual(model.mesh_vertnum[5], 100)
+    self.assertEqual(model.mesh_vertnum[6], 20 * (20 -1) + 2)
 
   def test_compile_errors_with_line_info(self):
     spec = mujoco.MjSpec()
@@ -1022,7 +1061,7 @@ class SpecsTest(absltest.TestCase):
 
   def test_attach_to_site(self):
     parent = mujoco.MjSpec()
-    parent.assets = {'cube.obj': 'cube_content'}
+    parent.assets = {'path/cube.obj': 'cube_content'}
     site = parent.worldbody.add_site(pos=[1, 2, 3], quat=[0, 0, 0, 1])
     site.name = 'site'
 
@@ -1038,13 +1077,13 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model1.nbody, 2)
     np.testing.assert_array_equal(model1.body_pos[1], [0, 1, 4])
     np.testing.assert_array_equal(model1.body_quat[1], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
 
     # Attach entire spec to site and compile again.
     child2 = mujoco.MjSpec()
-    child2.assets = {'cube2.obj': 'cube2_content'}
+    child2.assets = {'path/cube2.obj': 'cube2_content'}
     body2 = child2.worldbody.add_body(name='body')
-    self.assertIsNotNone(parent.attach(child2, site=site, prefix='child2-'))
+    self.assertIsNotNone(parent.attach(child2, site=site, suffix='-child2'))
     self.assertIsNotNone(child2.worldbody)
     self.assertEqual(child2.parent, parent)
     body2.pos = [-1, -1, -1]
@@ -1055,12 +1094,12 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_pos[2], [2, 3, 2])
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
 
     # Attach another spec to site (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
-    child3.assets = {'cube3.obj': 'cube3_content'}
+    child3.assets = {'path/cube3.obj': 'cube3_content'}
     body3 = child3.worldbody.add_body(name='body')
     self.assertIsNotNone(parent.attach(child3, site='site', prefix='child3-'))
     self.assertIsNotNone(child3.worldbody)
@@ -1075,9 +1114,9 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2.obj'], 'cube2_content')
-    self.assertEqual(parent.assets['cube3.obj'], 'cube3_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path/child3-cube3.obj'], 'cube3_content')
 
     # Fail to attach to a site that does not exist.
     child4 = mujoco.MjSpec()
@@ -1102,13 +1141,13 @@ class SpecsTest(absltest.TestCase):
 
   def test_attach_to_frame(self):
     parent = mujoco.MjSpec()
-    parent.assets = {'cube.obj': 'cube_content'}
+    parent.assets = {'path/cube.obj': 'cube_content'}
     frame = parent.worldbody.add_frame(pos=[1, 2, 3], quat=[0, 0, 0, 1])
     frame.name = 'frame'
 
     # Attach body to frame and compile.
     child1 = mujoco.MjSpec()
-    child1.assets = {'cube1.obj': 'cube1_content'}
+    child1.assets = {'path/cube1.obj': 'cube1_content'}
     body1 = child1.worldbody.add_body()
     self.assertIs(body1, frame.attach_body(body1, prefix='_'))
     self.assertIsNotNone(child1.worldbody)
@@ -1118,14 +1157,14 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(model1.nbody, 2)
     np.testing.assert_array_equal(model1.body_pos[1], [0, 1, 4])
     np.testing.assert_array_equal(model1.body_quat[1], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
 
     # Attach entire spec to frame and compile again.
     child2 = mujoco.MjSpec()
-    child2.assets = {'cube2.obj': 'cube2_content'}
+    child2.assets = {'path/cube2.obj': 'cube2_content'}
     body2 = child2.worldbody.add_body(name='body')
     body2.set_frame(child2.worldbody.add_frame(pos=[-1, -1, 1]))
-    self.assertIsNotNone(parent.attach(child2, frame=frame, prefix='child-'))
+    self.assertIsNotNone(parent.attach(child2, frame=frame, suffix='-child'))
     self.assertIsNotNone(child2.worldbody)
     self.assertEqual(child2.parent, parent)
     body2.pos = [-1, -1, -1]
@@ -1136,12 +1175,12 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_pos[2], [3, 4, 3])
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/cube2-child.obj'], 'cube2_content')
 
     # Attach another spec to frame (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
-    child3.assets = {'cube2.obj': 'new_cube2_content'}
+    child3.assets = {'path/cube2.obj': 'new_content'}
     body3 = child3.worldbody.add_body(name='body')
     body3.set_frame(child3.worldbody.add_frame(pos=[-1, -1, 1]))
     self.assertIsNotNone(parent.attach(child3, frame='frame', prefix='child3-'))
@@ -1157,8 +1196,8 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
-    self.assertEqual(parent.assets['cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['cube2.obj'], 'new_cube2_content')
+    self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
+    self.assertEqual(parent.assets['path/child3-cube2.obj'], 'new_content')
 
     # Fail to attach to a frame that does not exist.
     child4 = mujoco.MjSpec()
@@ -1403,22 +1442,6 @@ class SpecsTest(absltest.TestCase):
                 refname='cam',
             ),
         ),
-        dict(
-            expected_error='subtree1 must be a child of the world',
-            sensor_params=dict(
-                type=mujoco.mjtSensor.mjSENS_CONTACT,
-                objtype=mujoco.mjtObj.mjOBJ_XBODY,
-                objname='non_root',
-            ),
-        ),
-        dict(
-            expected_error='subtree2 must be a child of the world',
-            sensor_params=dict(
-                type=mujoco.mjtSensor.mjSENS_CONTACT,
-                reftype=mujoco.mjtObj.mjOBJ_XBODY,
-                refname='non_root',
-            ),
-        ),
     ]
 
     for params in test_cases:
@@ -1453,6 +1476,142 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(mj_model.sensor_dim[0], 4)
     self.assertEqual(mj_model.sensor_dim[1], 1)
 
+  def test_mesh_material(self):
+    spec = mujoco.MjSpec()
+
+    spec.add_material(name='red', rgba=(1, 0, 0, 1))
+    spec.add_material(name='green', rgba=(0, 1, 0, 1))
+
+    mesh = spec.add_mesh(name='sphere')
+    mesh.make_sphere(subdivision=1)
+    mesh.material = 'red'
+
+    geom = spec.worldbody.add_geom()
+    geom.type = mujoco.mjtGeom.mjGEOM_MESH
+    geom.meshname = 'sphere'
+
+    geom_2 = spec.worldbody.add_geom()
+    geom_2.type = mujoco.mjtGeom.mjGEOM_MESH
+    geom_2.meshname = 'sphere'
+    geom_2.material = 'green'
+
+    model = spec.compile()
+
+    self.assertEqual(model.geom_matid[0], 0)
+    self.assertEqual(model.geom_matid[1], 1)
+
+    mesh.material = 'green'
+    model = spec.compile()
+
+    self.assertEqual(model.geom_matid[0], 1)
+
+  def test_tendon_path(self):
+    spec = mujoco.MjSpec()
+
+    body = spec.worldbody.add_body(name='body')
+
+    body.add_geom(name='body_geom', pos=[0, 0, 0], size=[.1, 0, 0])
+    site1 = body.add_site(name='site1', pos=[0, 0, 0])
+    site2 = body.add_site(name='site2', pos=[0, 0, -1])
+    site3 = body.add_site(name='site3', pos=[0, 0, -4])
+    sidesite = body.add_site(name='sidesite', pos=[2, 0, -5])
+    site4 = body.add_site(name='site4', pos=[0, 1, -6])
+
+    sphere = spec.worldbody.add_geom(name='sphere', size=[.2, 0, 0], pos=[0, 0, -2])
+
+    cylinder = spec.worldbody.add_geom(
+        name='cylinder',
+        type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+        size=[0.1, 0.2, 0.3],
+        pos=[0, 0, -5]
+    )
+
+    joint1 = body.add_joint(
+        name='joint1', type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0]
+    )
+
+    body2 = spec.worldbody.add_body(name='body2', pos=[2, 0, 0])
+    body2.add_geom(name='body2_geom', pos=[0, 0, 0], size=[.1, 0, 0])
+    joint2 = body2.add_joint(
+        name='joint2', type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0]
+    )
+
+    spatial_tendon = spec.add_tendon()
+    fixed_tendon = spec.add_tendon()
+
+    wrap_site1 = spatial_tendon.wrap_site('site1')
+    wrap_site2 = spatial_tendon.wrap_site('site2')
+    wrap_pulley1 = spatial_tendon.wrap_pulley(2.0)
+    wrap_site3_1 = spatial_tendon.wrap_site('site3')
+    wrap_sphere = spatial_tendon.wrap_geom('sphere', '')
+    wrap_site4_1 = spatial_tendon.wrap_site('site4')
+    wrap_pulley2 = spatial_tendon.wrap_pulley(2.0)
+    wrap_site3_2 = spatial_tendon.wrap_site('site3')
+    wrap_cylinder = spatial_tendon.wrap_geom('cylinder', 'sidesite')
+    wrap_site4_2 = spatial_tendon.wrap_site('site4')
+
+    wrap_joint1 = fixed_tendon.wrap_joint('joint1', 1.0)
+    wrap_joint2 = fixed_tendon.wrap_joint('joint2', 2.0)
+
+    self.assertListEqual(
+        list(spatial_tendon.path),
+        [
+            wrap_site1,
+            wrap_site2,
+            wrap_pulley1,
+            wrap_site3_1,
+            wrap_sphere,
+            wrap_site4_1,
+            wrap_pulley2,
+            wrap_site3_2,
+            wrap_cylinder,
+            wrap_site4_2,
+        ],
+    )
+    self.assertListEqual(
+        [w.target for w in spatial_tendon.path],
+        [
+            site1,
+            site2,
+            None,  # Pulley wraps have no targets
+            site3,
+            sphere,
+            site4,
+            None,  # Pulley wraps have no targets
+            site3,
+            cylinder,
+            site4,
+        ],
+    )
+    self.assertEqual(spatial_tendon.path[8].sidesite, sidesite)
+    self.assertIsNone(spatial_tendon.path[7].sidesite)
+
+    self.assertListEqual(list(fixed_tendon.path), [wrap_joint1, wrap_joint2])
+    self.assertListEqual(
+        [w.target for w in fixed_tendon.path],
+        [joint1, joint2]
+    )
+
+    # Wrap type for geom is only set during compilation.
+    spec.compile()
+
+    self.assertEqual(wrap_site1.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site2.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site3_1.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site4_1.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site3_2.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site4_2.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_pulley1.type, mujoco.mjtWrap.mjWRAP_PULLEY)
+    self.assertEqual(wrap_pulley1.divisor, 2.0)
+    self.assertEqual(wrap_sphere.type, mujoco.mjtWrap.mjWRAP_SPHERE)
+    self.assertEqual(wrap_cylinder.type, mujoco.mjtWrap.mjWRAP_CYLINDER)
+    self.assertEqual(wrap_pulley2.type, mujoco.mjtWrap.mjWRAP_PULLEY)
+    self.assertEqual(wrap_pulley2.divisor, 2.0)
+
+    self.assertEqual(wrap_joint1.type, mujoco.mjtWrap.mjWRAP_JOINT)
+    self.assertEqual(wrap_joint1.coef, 1.0)
+    self.assertEqual(wrap_joint2.type, mujoco.mjtWrap.mjWRAP_JOINT)
+    self.assertEqual(wrap_joint2.coef, 2.0)
 
 if __name__ == '__main__':
   absltest.main()

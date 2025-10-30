@@ -4,18 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mujoco"
-version = "3.3.5"
+version = "3.3.8"
 authors = [
     {name = "Google DeepMind", email = "mujoco@deepmind.com"},
 ]
 description = "MuJoCo Physics Simulator"
 requires-python = ">=3.9"
-license = {text = "Apache License 2.0"}
+license = "Apache-2.0"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -35,9 +34,9 @@ dynamic = ["readme", "scripts"]
 
 [project.urls]
 Homepage = "https://github.com/google-deepmind/mujoco"
-Documentation = "https://mujoco.readthedocs.io/en/3.3.5"
+Documentation = "https://mujoco.readthedocs.io/en/3.3.8"
 Repository = "https://github.com/google-deepmind/mujoco"
-Changelog = "https://mujoco.readthedocs.io/en/3.3.5/changelog.html"
+Changelog = "https://mujoco.readthedocs.io/en/3.3.8/changelog.html"
 
 [tool.setuptools]
 include-package-data = false

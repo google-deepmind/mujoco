@@ -18,7 +18,6 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjexport.h>
 #include <mujoco/mjmodel.h>
-#include <mujoco/mjxmacro.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,12 +25,6 @@ extern "C" {
 
 
 //-------------------------- Jacobian-related ------------------------------------------------------
-
-// determine type of friction cone
-MJAPI int mj_isPyramidal(const mjModel* m);
-
-// determine type of constraint Jacobian
-MJAPI int mj_isSparse(const mjModel* m);
 
 // determine type of solver
 MJAPI int mj_isDual(const mjModel* m);
@@ -60,7 +53,6 @@ mjtNum mj_assignMargin(const mjModel* m, mjtNum source);
 // add contact to d->contact list; return 0 if success; 1 if buffer full
 MJAPI int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 
-
 //-------------------------- constraint instantiation ----------------------------------------------
 
 // equality constraints
@@ -72,8 +64,14 @@ void mj_instantiateFriction(const mjModel* m, mjData* d);
 // joint and tendon limits
 void mj_instantiateLimit(const mjModel* m, mjData* d);
 
-// frictionelss and frictional contacts
+// frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d);
+
+// compute Jacobian for contact, return number of DOFs affected
+int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int dim,
+                       mjtNum* jac, mjtNum* jacdif, mjtNum* jacdifp,
+                       mjtNum* jacdifr, mjtNum* jac1p, mjtNum* jac2p,
+                       mjtNum* jac1r, mjtNum* jac2r, int* chain);
 
 
 //------------------------ parameter computation/extraction ----------------------------------------

@@ -83,7 +83,9 @@ TEST_P(ParametrizedForwardTest, ActLimited) {
   </mujoco>
   )";
 
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   model->opt.integrator = GetParam().integrator;
@@ -144,7 +146,9 @@ TEST_F(ForwardTest, DamperDampens) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // move the joint
@@ -230,7 +234,9 @@ TEST_F(ImplicitIntegratorTest, EulerDampDisable) {
   </mujoco>
   )";
 
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // step once, call mj_forward, save qvel and qacc
@@ -250,7 +256,7 @@ TEST_F(ImplicitIntegratorTest, EulerDampDisable) {
   // expect finite-differenced qacc to match to high precision
   EXPECT_THAT(qacc_fd, Pointwise(DoubleNear(1e-14), qacc));
 
-  // reach the the same initial state
+  // reach the same initial state
   mj_resetData(model, data);
   mj_step(model, data);
 
@@ -287,7 +293,9 @@ TEST_F(ImplicitIntegratorTest, EulerDampLimit) {
   </mujoco>
   )";
 
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   mjtNum diff_norm_prev = -1;
@@ -327,7 +335,7 @@ TEST_F(ImplicitIntegratorTest, EulerDampLimit) {
 }
 
 // Euler and implicit should be equivalent if there is only joint damping
-TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
+TEST_F(ImplicitIntegratorTest, EulerImplicitEquivalent) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -343,7 +351,9 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
   </mujoco>
   )";
 
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // step 10 times with Euler, save copy of qpos as vector
@@ -371,7 +381,7 @@ TEST_F(ImplicitIntegratorTest, EulerImplicitEqivalent) {
 }
 
 // Joint and actuator damping should integrate identically under implicit
-TEST_F(ImplicitIntegratorTest, JointActuatorEqivalent) {
+TEST_F(ImplicitIntegratorTest, JointActuatorEquivalent) {
   const std::string xml_path = GetTestDataFilePath(kDampedActuatorsPath);
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
   mjData* data = mj_makeData(model);
@@ -384,7 +394,7 @@ TEST_F(ImplicitIntegratorTest, JointActuatorEqivalent) {
   EXPECT_GT(fabs(data->qpos[0]-data->qpos[2]), 1e-4);
   EXPECT_GT(fabs(data->qpos[1]-data->qpos[3]), 1e-4);
 
-  // reset, take 1000 steps with implicit
+  // reset, take 10 steps with implicit
   mj_resetData(model, data);
   model->opt.integrator = mjINT_IMPLICIT;
   for (int i=0; i < 10; i++) {
@@ -461,7 +471,9 @@ TEST_F(ForwardTest, ControlClamping) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // for the unclamped actuator, ctrl={1, 2} produce different accelerations
@@ -534,7 +546,9 @@ TEST_F(ForwardTest, MjcbControlDisabled) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // install global control callback
@@ -579,8 +593,9 @@ TEST_F(ForwardTest, gravcomp) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
 
   mjData* data = mj_makeData(model);
   while (data->time < 1) { mj_step(model, data); }
@@ -615,8 +630,9 @@ TEST_F(ForwardTest, eq_active) {
     </equality>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
 
   mjData* data = mj_makeData(model);
 
@@ -674,8 +690,9 @@ TEST_F(ForwardTest, NormalizeQuats) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
 
   mjData* data_u = mj_makeData(model);
 
@@ -764,8 +781,9 @@ TEST_F(ForwardTest, MocapQuats) {
     </sensor>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -828,7 +846,9 @@ TEST_F(ForwardTest, MjcbActDynSecondOrderExpectsActnum) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // install global dynamics callback
@@ -885,7 +905,9 @@ TEST_F(ActuatorTest, ExpectedAdhesionForce) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // iterate over cone type
@@ -1122,8 +1144,9 @@ TEST_F(FilterExactTest, ApproximatesContinuousTime) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   const mjtNum kSimulationTime = 1.0;
 
@@ -1182,8 +1205,9 @@ TEST_F(FilterExactTest, TimestepIndependent) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   const mjtNum kSimulationTime = 1.0;
 
@@ -1231,8 +1255,9 @@ TEST_F(FilterExactTest, ActEqualsCtrlWhenTauIsZero) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   data->ctrl[0] = 0.5;
   data->act[0] = 0.0;
@@ -1337,7 +1362,9 @@ TEST_F(ActuatorTest, DisableActuator) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   data->ctrl[0] = 1.0;
@@ -1375,7 +1402,9 @@ TEST_F(ActuatorTest, DisableActuatorOutOfRange) {
     </actuator>
   </mujoco>
   )";
-  mjModel* model = LoadModelFromString(xml);
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   data->ctrl[0] = 1.0;

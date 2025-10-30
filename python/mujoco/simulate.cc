@@ -198,7 +198,7 @@ class SimulateWrapper {
   }
 
   void SetImages(
-    const std::vector<std::tuple<mjrRect, pybind11::array&>> viewports_images
+    const std::vector<std::tuple<mjrRect, pybind11::array>> viewports_images
   ) {
     // TODO: replace with atomic wait when we migrate to C++20
     while (simulate_ && simulate_->newimagerequest.load() != 0) {

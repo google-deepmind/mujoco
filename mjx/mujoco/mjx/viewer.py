@@ -14,6 +14,7 @@
 # ==============================================================================
 """An example integration of MJX with the MuJoCo viewer."""
 
+import copy
 import logging
 import os
 
@@ -68,6 +69,13 @@ def _main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
+  # TODO(robotic-simulation): improved warp backend performance with MJX viewer
+  if _IMPL.value == 'warp':
+    logging.info(
+        'The native MuJoCo Warp viewer is currently recommended for best'
+        ' performance.',
+    )
+
   if _WP_KERNEL_CACHE_DIR.value:
     wp.config.kernel_cache_dir = _WP_KERNEL_CACHE_DIR.value
 
@@ -92,33 +100,54 @@ def _main(argv: Sequence[str]) -> None:
 
   print(f'Default backend: {jax.default_backend()}')
   step_fn = mjx.step
+
+  def set_model_fn(mx, gravity, tolerance, ls_tolerance, timestep):
+    return mx.tree_replace({
+        'opt.gravity': jp.array(gravity),
+        'opt.tolerance': jp.array(tolerance),
+        'opt.ls_tolerance': jp.array(ls_tolerance),
+        'opt.timestep': jp.array(timestep),
+    })
+
+  def set_data_fn(dx, ctrl, act, xfrc_applied, qpos, qvel, time_):
+    return dx.tree_replace({
+        'ctrl': jp.array(ctrl),
+        'act': jp.array(act),
+        'xfrc_applied': jp.array(xfrc_applied),
+        'qpos': jp.array(qpos),
+        'qvel': jp.array(qvel),
+        'time': jp.array(time_),
+    })
+
   if _JIT.value:
     print('JIT-compiling the model physics step...')
     start = time.time()
-    step_fn = jax.jit(step_fn).lower(mx, dx).compile()
+    step_fn = jax.jit(step_fn, donate_argnums=(1,), keep_unused=True).lower(mx, dx).compile()
     elapsed = time.time() - start
     print(f'Compilation took {elapsed}s.')
+    set_model_fn = (
+        jax.jit(set_model_fn, donate_argnums=(0,), keep_unused=True)
+        .lower(mx, m.opt.gravity, m.opt.tolerance, m.opt.ls_tolerance, m.opt.timestep)
+        .compile()
+    )
+    set_data_fn = (
+        jax.jit(set_data_fn, donate_argnums=(0,), keep_unused=True)
+        .lower(dx, d.ctrl, d.act, d.xfrc_applied, d.qpos, d.qvel, d.time)
+        .compile()
+    )
 
   viewer = mujoco.viewer.launch_passive(m, d, key_callback=key_callback)
   with viewer:
+    opt = copy.copy(m.opt)
     while True:
       start = time.time()
 
       # TODO(robotics-simulation): recompile when changing disable flags, etc.
-      dx = dx.replace(
-          ctrl=jp.array(d.ctrl),
-          act=jp.array(d.act),
-          xfrc_applied=jp.array(d.xfrc_applied),
-      )
-      dx = dx.replace(
-          qpos=jp.array(d.qpos), qvel=jp.array(d.qvel), time=jp.array(d.time)
-      )  # handle resets
-      mx = mx.tree_replace({
-          'opt.gravity': m.opt.gravity,
-          'opt.tolerance': m.opt.tolerance,
-          'opt.ls_tolerance': m.opt.ls_tolerance,
-          'opt.timestep': m.opt.timestep,
-      })
+      dx = set_data_fn(dx, d.ctrl, d.act, d.xfrc_applied, d.qpos, d.qvel, d.time)
+
+      if m.opt != opt:
+        opt = copy.copy(m.opt)
+        mx = set_model_fn(mx, m.opt.gravity, m.opt.tolerance, m.opt.ls_tolerance, m.opt.timestep)
 
       if _VIEWER_GLOBAL_STATE['running']:
         dx = step_fn(mx, dx)

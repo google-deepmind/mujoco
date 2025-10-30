@@ -18,7 +18,6 @@ from typing import Any
 import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src.collision_convex import convex_narrowphase
-from mujoco.mjx.third_party.mujoco_warp._src.collision_hfield import hfield_midphase
 from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import primitive_narrowphase
 from mujoco.mjx.third_party.mujoco_warp._src.collision_sdf import sdf_narrowphase
 from mujoco.mjx.third_party.mujoco_warp._src.math import upper_tri_index
@@ -29,35 +28,21 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
+from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
+from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel as nested_kernel
 
 wp.set_module_options({"enable_backward": False})
 
 
 @wp.kernel
-def _zero_collision_arrays(
-  # Data in:
-  nworld_in: int,
-  # In:
-  hfield_geom_pair_in: int,
+def _zero_nacon_ncollision(
   # Data out:
-  ncon_out: wp.array(dtype=int),
-  ncon_hfield_out: wp.array(dtype=int),  # kernel_analyzer: ignore
-  collision_hftri_index_out: wp.array(dtype=int),
+  nacon_out: wp.array(dtype=int),
   ncollision_out: wp.array(dtype=int),
 ):
-  tid = wp.tid()
-
-  if tid == 0:
-    # Zero the single collision counter
-    ncollision_out[0] = 0
-    ncon_out[0] = 0
-
-  if tid < hfield_geom_pair_in * nworld_in:
-    ncon_hfield_out[tid] = 0
-
-  # Zero collision pair indices
-  collision_hftri_index_out[tid] = 0
+  ncollision_out[0] = 0
+  nacon_out[0] = 0
 
 
 @wp.func
@@ -248,54 +233,57 @@ def _obb_filter(
   return True
 
 
-@wp.func
-def _broadphase_filter(
-  # Model:
-  opt_broadphase_filter: int,
-  geom_aabb: wp.array2d(dtype=wp.vec3),
-  geom_rbound: wp.array2d(dtype=float),
-  geom_margin: wp.array2d(dtype=float),
-  # Data in:
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
-  # In:
-  geom1: int,
-  geom2: int,
-  worldid: int,
-) -> bool:
-  # 1: plane
-  # 2: sphere
-  # 4: aabb
-  # 8: obb
+@cache_kernel
+def _broadphase_filter(opt_broadphase_filter: int):
+  @wp.func
+  def func(
+    # Model:
+    geom_aabb: wp.array2d(dtype=wp.vec3),
+    geom_rbound: wp.array2d(dtype=float),
+    geom_margin: wp.array2d(dtype=float),
+    # Data in:
+    geom_xpos_in: wp.array2d(dtype=wp.vec3),
+    geom_xmat_in: wp.array2d(dtype=wp.mat33),
+    # In:
+    geom1: int,
+    geom2: int,
+    worldid: int,
+  ) -> bool:
+    # 1: plane
+    # 2: sphere
+    # 4: aabb
+    # 8: obb
 
-  center1 = geom_aabb[geom1, 0]
-  center2 = geom_aabb[geom2, 0]
-  size1 = geom_aabb[geom1, 1]
-  size2 = geom_aabb[geom2, 1]
-  rbound1 = geom_rbound[worldid, geom1]
-  rbound2 = geom_rbound[worldid, geom2]
-  margin1 = geom_margin[worldid, geom1]
-  margin2 = geom_margin[worldid, geom2]
-  xpos1 = geom_xpos_in[worldid, geom1]
-  xpos2 = geom_xpos_in[worldid, geom2]
-  xmat1 = geom_xmat_in[worldid, geom1]
-  xmat2 = geom_xmat_in[worldid, geom2]
+    center1 = geom_aabb[geom1, 0]
+    center2 = geom_aabb[geom2, 0]
+    size1 = geom_aabb[geom1, 1]
+    size2 = geom_aabb[geom2, 1]
+    rbound1 = geom_rbound[worldid, geom1]
+    rbound2 = geom_rbound[worldid, geom2]
+    margin1 = geom_margin[worldid, geom1]
+    margin2 = geom_margin[worldid, geom2]
+    xpos1 = geom_xpos_in[worldid, geom1]
+    xpos2 = geom_xpos_in[worldid, geom2]
+    xmat1 = geom_xmat_in[worldid, geom1]
+    xmat2 = geom_xmat_in[worldid, geom2]
 
-  if rbound1 == 0.0 or rbound2 == 0.0:
-    if opt_broadphase_filter & int(BroadphaseFilter.PLANE.value):
-      return _plane_filter(rbound1, rbound2, margin1, margin2, xpos1, xpos2, xmat1, xmat2)
-  else:
-    if opt_broadphase_filter & int(BroadphaseFilter.SPHERE.value):
-      if not _sphere_filter(rbound1, rbound2, margin1, margin2, xpos1, xpos2):
-        return False
-    if opt_broadphase_filter & int(BroadphaseFilter.AABB.value):
-      if not _aabb_filter(center1, center2, size1, size2, margin1, margin2, xpos1, xpos2, xmat1, xmat2):
-        return False
-    if opt_broadphase_filter & int(BroadphaseFilter.OBB.value):
-      if not _obb_filter(center1, center2, size1, size2, margin1, margin2, xpos1, xpos2, xmat1, xmat2):
-        return False
+    if rbound1 == 0.0 or rbound2 == 0.0:
+      if wp.static(opt_broadphase_filter & BroadphaseFilter.PLANE):
+        return _plane_filter(rbound1, rbound2, margin1, margin2, xpos1, xpos2, xmat1, xmat2)
+    else:
+      if wp.static(opt_broadphase_filter & BroadphaseFilter.SPHERE):
+        if not _sphere_filter(rbound1, rbound2, margin1, margin2, xpos1, xpos2):
+          return False
+      if wp.static(opt_broadphase_filter & BroadphaseFilter.AABB):
+        if not _aabb_filter(center1, center2, size1, size2, margin1, margin2, xpos1, xpos2, xmat1, xmat2):
+          return False
+      if wp.static(opt_broadphase_filter & BroadphaseFilter.OBB):
+        if not _obb_filter(center1, center2, size1, size2, margin1, margin2, xpos1, xpos2, xmat1, xmat2):
+          return False
 
-  return True
+    return True
+
+  return func
 
 
 @wp.func
@@ -304,7 +292,7 @@ def _add_geom_pair(
   geom_type: wp.array(dtype=int),
   nxn_pairid: wp.array(dtype=int),
   # Data in:
-  nconmax_in: int,
+  naconmax_in: int,
   # In:
   geom1: int,
   geom2: int,
@@ -312,14 +300,13 @@ def _add_geom_pair(
   nxnid: int,
   # Data out:
   collision_pair_out: wp.array(dtype=wp.vec2i),
-  collision_hftri_index_out: wp.array(dtype=int),
   collision_pairid_out: wp.array(dtype=int),
   collision_worldid_out: wp.array(dtype=int),
   ncollision_out: wp.array(dtype=int),
 ):
   pairid = wp.atomic_add(ncollision_out, 0, 1)
 
-  if pairid >= nconmax_in:
+  if pairid >= naconmax_in:
     return
 
   type1 = geom_type[geom1]
@@ -333,12 +320,6 @@ def _add_geom_pair(
   collision_pair_out[pairid] = pair
   collision_pairid_out[pairid] = nxn_pairid[nxnid]
   collision_worldid_out[pairid] = worldid
-
-  # Writing -1 to collision_hftri_index_out[pairid] signals
-  # hfield_midphase to generate a collision pair for every
-  # potentially colliding triangle
-  if type1 == int(GeomType.HFIELD.value) or type2 == int(GeomType.HFIELD.value):
-    collision_hftri_index_out[pairid] = -1
 
 
 @wp.func
@@ -413,82 +394,79 @@ def _sap_range(
   sap_range_out[worldid, geomid] = limit - geomid
 
 
-@wp.kernel
-def _sap_broadphase(
-  # Model:
-  ngeom: int,
-  opt_broadphase_filter: int,
-  geom_type: wp.array(dtype=int),
-  geom_aabb: wp.array2d(dtype=wp.vec3),
-  geom_rbound: wp.array2d(dtype=float),
-  geom_margin: wp.array2d(dtype=float),
-  nxn_pairid: wp.array(dtype=int),
-  # Data in:
-  nworld_in: int,
-  nconmax_in: int,
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
-  sap_sort_index_in: wp.array2d(dtype=int),  # kernel_analyzer: ignore
-  sap_cumulative_sum_in: wp.array(dtype=int),  # kernel_analyzer: ignore
-  # In:
-  nsweep_in: int,
-  # Data out:
-  collision_pair_out: wp.array(dtype=wp.vec2i),
-  collision_hftri_index_out: wp.array(dtype=int),
-  collision_pairid_out: wp.array(dtype=int),
-  collision_worldid_out: wp.array(dtype=int),
-  ncollision_out: wp.array(dtype=int),
-):
-  worldgeomid = wp.tid()
+@cache_kernel
+def _sap_broadphase(broadphase_filter):
+  @nested_kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    ngeom: int,
+    geom_type: wp.array(dtype=int),
+    geom_aabb: wp.array2d(dtype=wp.vec3),
+    geom_rbound: wp.array2d(dtype=float),
+    geom_margin: wp.array2d(dtype=float),
+    nxn_pairid: wp.array(dtype=int),
+    # Data in:
+    nworld_in: int,
+    naconmax_in: int,
+    geom_xpos_in: wp.array2d(dtype=wp.vec3),
+    geom_xmat_in: wp.array2d(dtype=wp.mat33),
+    sap_sort_index_in: wp.array2d(dtype=int),  # kernel_analyzer: ignore
+    sap_cumulative_sum_in: wp.array(dtype=int),  # kernel_analyzer: ignore
+    # In:
+    nsweep_in: int,
+    # Data out:
+    collision_pair_out: wp.array(dtype=wp.vec2i),
+    collision_pairid_out: wp.array(dtype=int),
+    collision_worldid_out: wp.array(dtype=int),
+    ncollision_out: wp.array(dtype=int),
+  ):
+    worldgeomid = wp.tid()
 
-  nworldgeom = nworld_in * ngeom
-  nworkpackages = sap_cumulative_sum_in[nworldgeom - 1]
+    nworldgeom = nworld_in * ngeom
+    nworkpackages = sap_cumulative_sum_in[nworldgeom - 1]
 
-  while worldgeomid < nworkpackages:
-    # binary search to find current and next geom pair indices
-    i = _binary_search(sap_cumulative_sum_in, worldgeomid, 0, nworldgeom)
-    j = i + worldgeomid + 1
+    while worldgeomid < nworkpackages:
+      # binary search to find current and next geom pair indices
+      i = _binary_search(sap_cumulative_sum_in, worldgeomid, 0, nworldgeom)
+      j = i + worldgeomid + 1
 
-    if i > 0:
-      j -= sap_cumulative_sum_in[i - 1]
+      if i > 0:
+        j -= sap_cumulative_sum_in[i - 1]
 
-    worldid = i // ngeom
-    i = i % ngeom
-    j = j % ngeom
+      worldid = i // ngeom
+      i = i % ngeom
+      j = j % ngeom
 
-    # get geom indices and swap if necessary
-    geom1 = sap_sort_index_in[worldid, i]
-    geom2 = sap_sort_index_in[worldid, j]
+      # get geom indices and swap if necessary
+      geom1 = sap_sort_index_in[worldid, i]
+      geom2 = sap_sort_index_in[worldid, j]
 
-    # find linear index of (geom1, geom2) in upper triangular nxn_pairid
-    if geom2 < geom1:
-      idx = upper_tri_index(ngeom, geom2, geom1)
-    else:
-      idx = upper_tri_index(ngeom, geom1, geom2)
+      # find linear index of (geom1, geom2) in upper triangular nxn_pairid
+      if geom2 < geom1:
+        idx = upper_tri_index(ngeom, geom2, geom1)
+      else:
+        idx = upper_tri_index(ngeom, geom1, geom2)
 
-    if nxn_pairid[idx] < -1:
       worldgeomid += nsweep_in
-      continue
+      if nxn_pairid[idx] < -1:
+        continue
 
-    if _broadphase_filter(
-      opt_broadphase_filter, geom_aabb, geom_rbound, geom_margin, geom_xpos_in, geom_xmat_in, geom1, geom2, worldid
-    ):
-      _add_geom_pair(
-        geom_type,
-        nxn_pairid,
-        nconmax_in,
-        geom1,
-        geom2,
-        worldid,
-        idx,
-        collision_pair_out,
-        collision_hftri_index_out,
-        collision_pairid_out,
-        collision_worldid_out,
-        ncollision_out,
-      )
+      if broadphase_filter(geom_aabb, geom_rbound, geom_margin, geom_xpos_in, geom_xmat_in, geom1, geom2, worldid):
+        _add_geom_pair(
+          geom_type,
+          nxn_pairid,
+          naconmax_in,
+          geom1,
+          geom2,
+          worldid,
+          idx,
+          collision_pair_out,
+          collision_pairid_out,
+          collision_worldid_out,
+          ncollision_out,
+        )
 
-    worldgeomid += nsweep_in
+  return kernel
 
 
 def _segmented_sort(tile_size: int):
@@ -556,7 +534,7 @@ def sap_broadphase(m: Model, d: Data):
     ],
   )
 
-  if m.opt.broadphase == int(BroadphaseType.SAP_TILE):
+  if m.opt.broadphase == BroadphaseType.SAP_TILE:
     wp.launch_tiled(
       kernel=_segmented_sort(m.ngeom),
       dim=(d.nworld),
@@ -591,19 +569,19 @@ def sap_broadphase(m: Model, d: Data):
   # estimate number of overlap checks
   # assumes each geom has 5 other geoms (batched over all worlds)
   nsweep = 5 * nworldgeom
+  broadphase_filter = _broadphase_filter(m.opt.broadphase_filter)
   wp.launch(
-    kernel=_sap_broadphase,
+    kernel=_sap_broadphase(broadphase_filter),
     dim=nsweep,
     inputs=[
       m.ngeom,
-      m.opt.broadphase_filter,
       m.geom_type,
       m.geom_aabb,
       m.geom_rbound,
       m.geom_margin,
       m.nxn_pairid,
       d.nworld,
-      d.nconmax,
+      d.naconmax,
       d.geom_xpos,
       d.geom_xmat,
       d.sap_sort_index.reshape((-1, m.ngeom)),
@@ -612,7 +590,6 @@ def sap_broadphase(m: Model, d: Data):
     ],
     outputs=[
       d.collision_pair,
-      d.collision_hftri_index,
       d.collision_pairid,
       d.collision_worldid,
       d.ncollision,
@@ -620,50 +597,49 @@ def sap_broadphase(m: Model, d: Data):
   )
 
 
-@wp.kernel
-def _nxn_broadphase(
-  # Model:
-  opt_broadphase_filter: int,
-  geom_type: wp.array(dtype=int),
-  geom_aabb: wp.array2d(dtype=wp.vec3),
-  geom_rbound: wp.array2d(dtype=float),
-  geom_margin: wp.array2d(dtype=float),
-  nxn_geom_pair: wp.array(dtype=wp.vec2i),
-  nxn_pairid: wp.array(dtype=int),
-  # Data in:
-  nconmax_in: int,
-  geom_xpos_in: wp.array2d(dtype=wp.vec3),
-  geom_xmat_in: wp.array2d(dtype=wp.mat33),
-  # Data out:
-  collision_pair_out: wp.array(dtype=wp.vec2i),
-  collision_hftri_index_out: wp.array(dtype=int),
-  collision_pairid_out: wp.array(dtype=int),
-  collision_worldid_out: wp.array(dtype=int),
-  ncollision_out: wp.array(dtype=int),
-):
-  worldid, elementid = wp.tid()
-
-  geom = nxn_geom_pair[elementid]
-  geom1 = geom[0]
-  geom2 = geom[1]
-
-  if _broadphase_filter(
-    opt_broadphase_filter, geom_aabb, geom_rbound, geom_margin, geom_xpos_in, geom_xmat_in, geom1, geom2, worldid
+@cache_kernel
+def _nxn_broadphase(broadphase_filter):
+  @nested_kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Model:
+    geom_type: wp.array(dtype=int),
+    geom_aabb: wp.array2d(dtype=wp.vec3),
+    geom_rbound: wp.array2d(dtype=float),
+    geom_margin: wp.array2d(dtype=float),
+    nxn_geom_pair: wp.array(dtype=wp.vec2i),
+    nxn_pairid: wp.array(dtype=int),
+    # Data in:
+    naconmax_in: int,
+    geom_xpos_in: wp.array2d(dtype=wp.vec3),
+    geom_xmat_in: wp.array2d(dtype=wp.mat33),
+    # Data out:
+    collision_pair_out: wp.array(dtype=wp.vec2i),
+    collision_pairid_out: wp.array(dtype=int),
+    collision_worldid_out: wp.array(dtype=int),
+    ncollision_out: wp.array(dtype=int),
   ):
-    _add_geom_pair(
-      geom_type,
-      nxn_pairid,
-      nconmax_in,
-      geom1,
-      geom2,
-      worldid,
-      elementid,
-      collision_pair_out,
-      collision_hftri_index_out,
-      collision_pairid_out,
-      collision_worldid_out,
-      ncollision_out,
-    )
+    worldid, elementid = wp.tid()
+
+    geom = nxn_geom_pair[elementid]
+    geom1 = geom[0]
+    geom2 = geom[1]
+
+    if broadphase_filter(geom_aabb, geom_rbound, geom_margin, geom_xpos_in, geom_xmat_in, geom1, geom2, worldid):
+      _add_geom_pair(
+        geom_type,
+        nxn_pairid,
+        naconmax_in,
+        geom1,
+        geom2,
+        worldid,
+        elementid,
+        collision_pair_out,
+        collision_pairid_out,
+        collision_worldid_out,
+        ncollision_out,
+      )
+
+  return kernel
 
 
 @event_scope
@@ -681,24 +657,23 @@ def nxn_broadphase(m: Model, d: Data):
   `contype`/`conaffinity`, parent-child relationships, and explicit `<exclude>` tags.
   """
 
+  broadphase_filter = _broadphase_filter(m.opt.broadphase_filter)
   wp.launch(
-    _nxn_broadphase,
+    _nxn_broadphase(broadphase_filter),
     dim=(d.nworld, m.nxn_geom_pair_filtered.shape[0]),
     inputs=[
-      m.opt.broadphase_filter,
       m.geom_type,
       m.geom_aabb,
       m.geom_rbound,
       m.geom_margin,
       m.nxn_geom_pair_filtered,
       m.nxn_pairid_filtered,
-      d.nconmax,
+      d.naconmax,
       d.geom_xpos,
       d.geom_xmat,
     ],
     outputs=[
       d.collision_pair,
-      d.collision_hftri_index,
       d.collision_pairid,
       d.collision_worldid,
       d.ncollision,
@@ -707,10 +682,6 @@ def nxn_broadphase(m: Model, d: Data):
 
 
 def _narrowphase(m, d):
-  # Process heightfield collisions
-  if m.nhfield > 0:
-    hfield_midphase(m, d)
-
   # TODO(team): we should reject far-away contacts in the narrowphase instead of constraint
   #             partitioning because we can move some pressure of the atomics
   convex_narrowphase(m, d)
@@ -731,32 +702,21 @@ def collision(m: Model, d: Data):
   distance, position, and frame.
 
   The results are used to populate the `d.contact` array, and the total number of contacts
-  is stored in `d.ncon`.  If `d.ncon` is larger than `d.nconmax` then an overflow has
+  is stored in `d.nacon`.  If `d.nacon` is larger than `d.naconmax` then an overflow has
   occurred and the remaining contacts will be skipped.  If this happens, raise the `nconmax`
   parameter in `io.make_data` or `io.put_data`.
 
   This function will do nothing except zero out arrays if collision detection is disabled
-  via `m.opt.disableflags` or if `d.nconmax` is 0.
+  via `m.opt.disableflags` or if `d.nacon` is 0.
   """
 
-  # zero collision-related arrays
-  wp.launch(
-    _zero_collision_arrays,
-    dim=d.nconmax,
-    inputs=[
-      d.nworld,
-      d.ncon_hfield.shape[1],
-      d.ncon,
-      d.ncon_hfield.reshape(-1),
-      d.collision_hftri_index,
-      d.ncollision,
-    ],
-  )
+  # zero contact and collision counters
+  wp.launch(_zero_nacon_ncollision, dim=1, outputs=[d.nacon, d.ncollision])
 
-  if d.nconmax == 0 or m.opt.disableflags & (DisableBit.CONSTRAINT | DisableBit.CONTACT):
+  if d.naconmax == 0 or m.opt.disableflags & (DisableBit.CONSTRAINT | DisableBit.CONTACT):
     return
 
-  if m.opt.broadphase == int(BroadphaseType.NXN):
+  if m.opt.broadphase == BroadphaseType.NXN:
     nxn_broadphase(m, d)
   else:
     sap_broadphase(m, d)

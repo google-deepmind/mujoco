@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -84,6 +85,7 @@ class mjCModel_ : public mjsElement {
   int nv;              // number of degrees of freedom = dim(qvel)
   int nu;              // number of actuators/controls
   int na;              // number of activation variables
+  int ntree;           // number of trees
   int nbvh;            // number of total boundary volume hierarchies
   int nbvhstatic;      // number of static boundary volume hierarchies
   int nbvhdynamic;     // number of dynamic boundary volume hierarchies
@@ -147,8 +149,6 @@ class mjCModel_ : public mjsElement {
   std::string spec_comment_;
   std::string spec_modelfiledir_;
   std::string spec_modelname_;
-  std::string spec_meshdir_;
-  std::string spec_texturedir_;
 };
 
 // mjCModel contains everything needed to generate the low-level model.
@@ -329,7 +329,18 @@ class mjCModel : public mjCModel_, private mjSpec {
   // check for repeated names in list
   void CheckRepeat(mjtObj type);
 
+  // increment and decrement reference count
+  void AddRef() { ++refcount; }
+  int GetRef() const { return refcount; }
+  void Release() {
+    if (--refcount == 0) {
+      delete this;
+    }
+  }
+
  private:
+  int refcount = 1;
+
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
 
@@ -345,6 +356,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void IndexAssets(bool discard);       // convert asset names into indices
   void CheckEmptyNames();               // check empty names
   void SetSizes();                      // compute sizes
+  void ComputeSparseSizes();            // compute nM, nD, nB, nC
   void AutoSpringDamper(mjModel*);      // automatic stiffness and damping computation
   void LengthRange(mjModel*, mjData*);  // compute actuator lengthrange
   void CopyNames(mjModel*);             // copy names, compute name addresses
@@ -430,8 +442,8 @@ class mjCModel : public mjCModel_, private mjSpec {
   // convert pending keyframes info to actual keyframes
   void ResolveKeyframes(const mjModel* m);
 
-  // resize a keyframe, filling in missing values
-  void ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
+  // expand a keyframe, filling in missing values
+  void ExpandKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
 
   // compute qpos0
   void ComputeReference();
@@ -445,7 +457,7 @@ class mjCModel : public mjCModel_, private mjSpec {
                           const std::vector<T*>& list);
 
   // print the tree of a body
-  std::string PrintTree(const mjCBody* body, std::string indent = "");
+  void PrintTree(std::stringstream& tree, const mjCBody* body, int depth = 0);
 
   // generate a signature for the model
   uint64_t Signature();
@@ -460,6 +472,9 @@ class mjCModel : public mjCModel_, private mjSpec {
 
   // delete all plugins created by the subtree
   void DeleteSubtreePlugin(mjCBody* subtree);
+
+  // expand all keyframes in the model
+  void ExpandAllKeyframes();
 
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info

@@ -249,6 +249,7 @@ def benchmark_raw_jax_warp(
       warp_fn,
       num_outputs=11,
       output_dims=output_dims,
+      graph_mode=warp_ffi.GraphMode.JAX,
   )
 
   @jax.vmap
@@ -260,7 +261,6 @@ def benchmark_raw_jax_warp(
   dx = jax_jit(init)(key)
   d_ = mujoco.MjData(m)
   mw = mjwarp.put_model(m)
-  mw.opt.graph_conditional = False
   d = mjwarp.put_data(
       m, d_, nworld=nenv, nconmax=_NCONMAX.value, njmax=_NJMAX.value
   )
@@ -309,9 +309,6 @@ def benchmark_raw_warp(
     )
 
   mw = mjwarp.put_model(m)
-  # TODO(btaba): re-enable graph conditional once JAX supports it, for fair
-  # comparison.
-  mw.opt.graph_conditional = False
   dw = mjwarp.make_data(
       m, nworld=nenv, nconmax=_NCONMAX.value, njmax=_NJMAX.value
   )

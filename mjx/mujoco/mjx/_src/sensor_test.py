@@ -111,14 +111,14 @@ class SensorTest(parameterized.TestCase):
     datas = itertools.chain.from_iterable(
         itertools.combinations(field, i) for i in range(len(field) + 1)
     )
+    datas = list(datas)
 
     contact_sensors = ''
-    for num in [1, 2, 3, 4, 5]:
+    for num in [1, 2, 4, 5]:
       for data in datas:
         data = ' '.join(data)
         for reduce in ['mindist', 'maxforce']:
           for match in [
-              '',
               '',
               'geom1="plane"',
               'geom1="geom1"',
@@ -129,9 +129,7 @@ class SensorTest(parameterized.TestCase):
               'geom1="plane" geom2="geom1"',
               'geom1="geom1" geom2="plane"',
               'geom1="plane" geom2="sphere2"',
-              'geom1="sphere2" geom2="plane"',
               'geom1="geom1" geom2="sphere2"',
-              'geom1="sphere2" geom2="geom1"',
           ]:
             contact_sensors += (
                 f'<contact {match} num="{num}" data="{data}"'

@@ -1140,7 +1140,13 @@ std::vector<uint8_t> FileToMemory(const char* filename) {
     return {};
   }
 
-  std::vector<uint8_t> buffer(long_filesize);
+  std::vector<uint8_t> buffer;
+  try {
+    buffer.resize(long_filesize);
+  } catch (...) {
+    fclose(fp);
+    return {};
+  }
 
   // go back to start of file
   if (fseek(fp, 0, SEEK_SET) != 0) {

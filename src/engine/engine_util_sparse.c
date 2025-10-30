@@ -15,13 +15,12 @@
 #include "engine/engine_util_sparse.h"
 #include "engine/engine_util_sparse_avx.h"  // IWYU pragma: keep
 
-#include <string.h>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjtnum.h>
-#include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_misc.h"
 
@@ -59,7 +58,6 @@ void mju_dotSparseX3(mjtNum* res0, mjtNum* res1, mjtNum* res2,
 }
 
 
-
 // dot-product, both vectors are sparse
 mjtNum mju_dotSparse2(const mjtNum* vec1, const int* ind1, int nnz1,
                       const mjtNum* vec2, const int* ind2, int nnz2) {
@@ -90,7 +88,6 @@ mjtNum mju_dotSparse2(const mjtNum* vec1, const int* ind1, int nnz1,
 
   return res;
 }
-
 
 
 // convert matrix from dense to sparse
@@ -130,7 +127,6 @@ int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
 }
 
 
-
 // convert matrix from sparse to dense
 void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
                       const int* rownnz, const int* rowadr, const int* colind) {
@@ -146,7 +142,6 @@ void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
 }
 
 
-
 // multiply sparse matrix and dense vector:  res = mat * vec.
 void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                          int nr, const int* rownnz, const int* rowadr,
@@ -160,7 +155,6 @@ void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
   }
 #endif  // mjUSEAVX
 }
-
 
 
 // multiply transposed sparse matrix and dense vector:  res = mat' * vec.
@@ -222,7 +216,6 @@ void mju_addToSymSparse(mjtNum* res, const mjtNum* mat, int n,
 }
 
 
-
 // multiply symmetric matrix (only lower triangle represented) by vector:
 //  res = (mat + strict_upper(mat')) * vec
 void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
@@ -253,7 +246,6 @@ void mju_mulSymVecSparse(mjtNum* restrict res, const mjtNum* restrict mat,
 }
 
 
-
 // count the number of non-zeros in the sum of two sparse vectors
 int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_ind) {
   int a = 0, b = 0, c_nnz = 0;
@@ -278,7 +270,6 @@ int mju_combineSparseCount(int a_nnz, int b_nnz, const int* a_ind, const int* b_
   // union minus the intersection
   return a_nnz + b_nnz - c_nnz;
 }
-
 
 
 // incomplete combine sparse: dst = a*dst + b*src at common indices
@@ -326,7 +317,6 @@ void mju_combineSparseInc(mjtNum* dst, const mjtNum* src, int n, mjtNum a, mjtNu
     }
   }
 }
-
 
 
 // dst += scl*src, only at common non-zero indices
@@ -378,7 +368,6 @@ void mju_addToSclSparseInc(mjtNum* dst, const mjtNum* src,
     }
   }
 }
-
 
 
 // add to sparse matrix: dst = dst + scl*src, return nnz of result
@@ -448,7 +437,6 @@ int mju_addToSparseMat(mjtNum* dst, const mjtNum* src, int n, int nrow, mjtNum s
 }
 
 
-
 // add(merge) two chains
 int mju_addChains(int* res, int n, int NV1, int NV2,
                   const int* chain1, const int* chain2) {
@@ -498,7 +486,6 @@ int mju_addChains(int* res, int n, int NV1, int NV2,
 }
 
 
-
 // compress sparse matrix, remove elements with abs(value) <= minval, return total non-zeros
 int mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, int* colind,
                        mjtNum minval) {
@@ -530,17 +517,21 @@ int mju_compressSparse(mjtNum* mat, int nr, int nc, int* rownnz, int* rowadr, in
 }
 
 
-
 // transpose sparse matrix, optionally compute row supernodes
 void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
                          int* res_rownnz, int* res_rowadr, int* res_colind, int* res_rowsuper,
                          const int* rownnz, const int* rowadr, const int* colind) {
+  if (!nr || !nc) return;
+
   // clear number of non-zeros for each row of transposed
   mju_zeroInt(res_rownnz, nc);
 
+  // handle the case where the first row of mat is nonzero (offset wrt the base pointers)
+  int row_offset = rowadr[0];
+
   // count the number of non-zeros for each row of the transposed matrix
   for (int r = 0; r < nr; r++) {
-    int start = rowadr[r];
+    int start = rowadr[r] - row_offset;
     int end = start + rownnz[r];
     for (int j = start; j < end; j++) {
       res_rownnz[colind[j]]++;
@@ -564,7 +555,7 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
   // iterate through each row (column) of mat (res)
   for (int r = 0; r < nr; r++) {
     int c_prev = -1;
-    int start = rowadr[r];
+    int start = rowadr[r] - row_offset;
     int end = start + rownnz[r];
     for (int i = start; i < end; i++) {
       // swap rows with columns and increment res_rowadr
@@ -600,7 +591,6 @@ void mju_transposeSparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
     }
   }
 }
-
 
 
 // construct row supernodes
@@ -737,7 +727,6 @@ void mju_sqrMatTDUncompressedInit(int* res_rowadr, int nc) {
     res_rowadr[r] = r*nc;
   }
 }
-
 
 
 // max number of supernodes handled
@@ -1086,7 +1075,6 @@ void mju_sqrMatTDSparse_row(mjtNum* res, const mjtNum* mat, const mjtNum* matT,
 
   mj_freeStack(d);
 }
-
 
 
 // block-diagonalize a dense matrix

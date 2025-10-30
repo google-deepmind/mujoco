@@ -127,6 +127,17 @@ the required size. XML saving automatically compiles the spec before saving.
 
 Save spec to XML file, return 0 on success, -1 otherwise. XML saving requires that the spec first be compiled.
 
+.. _mju_getXMLDependencies:
+
+`mju_getXMLDependencies <#mju_getXMLDependencies>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mju_getXMLDependencies
+
+Given MJCF filename, fills dependencies with a list of all other asset files it depends on.
+
+The search is recursive, and the list includes the filename itself.
+
 .. _Mainsimulation:
 
 Main simulation
@@ -235,7 +246,7 @@ computations, and are documented in more detail below.
 
 .. mujoco-include:: mj_stateSize
 
-Returns the number of :ref:`mjtNum` |-| s required for a given state specification. The bits of the integer ``spec``
+Returns the number of :ref:`mjtNum` |-| s required for a given state signature. The bits of the integer ``sig``
 correspond to element fields of :ref:`mjtState`.
 
 .. _mj_getState:
@@ -245,8 +256,19 @@ correspond to element fields of :ref:`mjtState`.
 
 .. mujoco-include:: mj_getState
 
-Copy concatenated state components specified by ``spec`` from ``d`` into ``state``. The bits of the integer
-``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+Copy concatenated state components specified by ``sig`` from ``d`` into ``state``. The bits of the integer
+``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
+
+.. _mj_extractState:
+
+`mj_extractState <#mj_extractState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_extractState
+
+Extract into ``dst`` the subset of components specified by ``dstsig`` from a state ``src`` previously obtained via
+:ref:`mj_getState` with components specified by ``srcsig``. Fails with :ref:`mju_error` if the bits set in ``dstsig``
+is not a subset of the bits set in ``srcsig``.
 
 .. _mj_setState:
 
@@ -255,8 +277,8 @@ Copy concatenated state components specified by ``spec`` from ``d`` into ``state
 
 .. mujoco-include:: mj_setState
 
-Copy concatenated state components specified by ``spec`` from  ``state`` into ``d``. The bits of the integer
-``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+Copy concatenated state components specified by ``sig`` from  ``state`` into ``d``. The bits of the integer
+``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
 
 .. _mj_setKeyframe:
 
@@ -459,7 +481,13 @@ Get name of object with the specified :ref:`mjtObj` type and id, returns ``NULL`
 .. mujoco-include:: mj_fullM
 
 Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
-|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same size as ``mjData.qM``.
+|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same structure as ``mjData.qM``.
+
+The ``mjData`` members ``qM`` and ``M`` represent the same matrix in different formats; the former is unique to
+MuJoCo, the latter is standard Compressed Sparse Row (lower triangle only). The :math:`L^T D L` factor of the inertia
+matrix ``mjData.qLD`` uses the same CSR format as ``mjData.M``. See
+`engine_support_test <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_support_test.cc>`__ for
+pedagogical examples.
 
 .. _mj_mulM:
 
@@ -468,10 +496,7 @@ Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
 
 .. mujoco-include:: mj_mulM
 
-This function multiplies the joint-space inertia matrix stored in mjData.qM by a vector. qM has a custom sparse format
-that the user should not attempt to manipulate directly. Alternatively one can convert qM to a dense matrix with
-mj_fullM and then user regular matrix-vector multiplication, but this is slower because it no longer benefits from
-sparsity.
+This function multiplies the joint-space inertia matrix stored in ``mjData.M`` by a vector.
 
 .. _mj_mulM2:
 
@@ -489,7 +514,7 @@ Multiply vector by (inertia matrix)^(1/2).
 
 .. mujoco-include:: mj_addM
 
-Add inertia matrix to destination matrix.
+Add inertia matrix to destination matrix (lower triangle only).
 
 Destination can be sparse or dense when all int* are NULL.
 
@@ -1212,7 +1237,7 @@ Print model to text file.
 .. mujoco-include:: mj_printFormattedData
 
 Print mjData to text file, specifying format.
-float_format must be a valid printf-style format string for a single float value
+float_format must be a valid printf-style format string for a single float value.
 
 .. _mj_printData:
 
@@ -1250,6 +1275,25 @@ Print sparse matrix to screen.
 
 Print internal XML schema as plain text or HTML, with style-padding or ``&nbsp;``.
 
+.. _mj_printScene:
+
+`mj_printScene <#mj_printScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printScene
+
+Print scene to text file.
+
+.. _mj_printFormattedScene:
+
+`mj_printFormattedScene <#mj_printFormattedScene>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_printFormattedScene
+
+Print scene to text file, specifying format.
+float_format must be a valid printf-style format string for a single float value.
+
 .. _Virtualfilesystem:
 
 Virtual file system
@@ -1285,6 +1329,12 @@ Add file to VFS. The directory argument is optional and can be NULL or empty. Re
 2 on name collision, or -1 when an internal error occurs.
 
 *Nullable:* ``directory``
+
+
+.. Assetcache:
+
+The asset cache is a mechanism for caching assets (e.g. textures, meshes, etc.) to avoid repeated slow recompilation.
+The following methods provide way to control the capacity of the cache or to disable it altogether.
 
 .. _mj_addBufferVFS:
 
@@ -1339,6 +1389,8 @@ Set default options for length range computation.
 
 Set solver parameters to default values.
 
+*Nullable:* ``solref``, ``solimp``
+
 .. _mj_defaultOption:
 
 `mj_defaultOption <#mj_defaultOption>`__
@@ -1365,6 +1417,8 @@ Set visual options to default values.
 .. mujoco-include:: mj_copyModel
 
 Copy mjModel, allocate new if dest is NULL.
+
+*Nullable:* ``dest``
 
 .. _mj_saveModel:
 
@@ -4334,6 +4388,42 @@ Return spec's first element of selected type.
 
 Return spec's next element; return NULL if element is last.
 
+.. _mjs_getWrapTarget:
+
+`mjs_getWrapTarget <#mjs_getWrapTarget>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapTarget
+
+Get wrapped element in tendon path.
+
+.. _mjs_getWrapSideSite:
+
+`mjs_getWrapSideSite <#mjs_getWrapSideSite>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapSideSite
+
+Get wrapped element side site in tendon path if it has one, nullptr otherwise.
+
+.. _mjs_getWrapDivisor:
+
+`mjs_getWrapDivisor <#mjs_getWrapDivisor>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapDivisor
+
+Get divisor of mjsWrap wrapping a puller.
+
+.. _mjs_getWrapCoef:
+
+`mjs_getWrapCoef <#mjs_getWrapCoef>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapCoef
+
+Get coefficient of mjsWrap wrapping a joint.
+
 .. _AttributeSetters:
 
 Attribute setters
@@ -4478,6 +4568,24 @@ Get string contents.
 Get double array contents and optionally its size.
 
 *Nullable:* ``size``
+
+.. _mjs_getWrapNum:
+
+`mjs_getWrapNum <#mjs_getWrapNum>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrapNum
+
+Get number of elements a tendon wraps.
+
+.. _mjs_getWrap:
+
+`mjs_getWrap <#mjs_getWrap>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjs_getWrap
+
+Get mjsWrap element at position i in the tendon path.
 
 .. _mjs_getPluginAttributes:
 

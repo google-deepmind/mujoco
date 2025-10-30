@@ -17,10 +17,11 @@
 
 #include <stdbool.h>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <array>
+#include <deque>
 #include <functional>
-#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -49,9 +50,9 @@ class mjCSite;
 class mjCCamera;
 class mjCLight;
 class mjCHField;
-class mjCFlex;         // defined in user_mesh.h
-class mjCMesh;         // defined in user_mesh.h
-class mjCSkin;         // defined in user_mesh.h
+class mjCFlex;
+class mjCMesh;
+class mjCSkin;
 class mjCTexture;
 class mjCMaterial;
 class mjCPair;
@@ -215,15 +216,63 @@ class mjCBoundingVolumeHierarchy : public mjCBoundingVolumeHierarchy_ {
 
 //------------------------- class mjCOctree --------------------------------------------------------
 
+struct Point {
+  std::array<double, 3> p;
+
+  double& operator[](size_t i) { return p[i]; }
+  const double& operator[](size_t i) const { return p[i]; }
+
+  bool operator==(const Point& other) const {
+    constexpr double kEpsilon = 1e-9;
+    return std::abs(this->p[0] - other.p[0]) < kEpsilon &&
+           std::abs(this->p[1] - other.p[1]) < kEpsilon &&
+           std::abs(this->p[2] - other.p[2]) < kEpsilon;
+  }
+};
+
+namespace std {
+template <>
+struct hash<Point> {
+  size_t operator()(const Point& pt) const {
+    size_t h1 = hash<double>()(pt.p[0]);
+    size_t h2 = hash<double>()(pt.p[1]);
+    size_t h3 = hash<double>()(pt.p[2]);
+    // combine hashes
+    size_t seed = h1;
+    seed ^= h2 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= h3 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    return seed;
+  }
+};
+}  // namespace std
+
 typedef std::array<std::array<double, 3>, 3> Triangle;
+
+struct OctNode {
+  int level = 0;                       // level of the node
+  int parent_index = -1;               // index of the parent node
+  int child_slot = -1;                 // slot of the child node in the parent node
+  std::array<int, 8> child = {-1};     // children nodes
+  std::array<int, 8> vertid = {-1};    // vertex id's
+  std::array<double, 6> aamm = {0};    // bounding box
+  std::array<double, 8> coeff = {0};   // interpolation coefficients
+};
+
+struct OctreeTask {
+  std::vector<Triangle*> elements;
+  int lev;
+  int parent_index;
+  int child_slot;
+  int node_index;
+};
 
 struct mjCOctree_ {
   int nnode_ = 0;
-  std::vector<int> child_;           // children of each node     (nnode x 8)
-  std::vector<double> node_;         // bounding boxes            (nnode x 6)
-  std::vector<int> level_;           // levels of each node       (nnode x 1)
-  std::vector<double> coeff_;        // interpo coefficients      (nnode x 8)
-  std::vector<Triangle> face_;       // mesh faces                (nface x 3)
+  int nvert_ = 0;
+  std::vector<OctNode> node_;
+  std::vector<Triangle> face_;          // mesh faces                (nmeshface x 3)
+  std::vector<Point> vert_;             // octree vertices           (nvert x 3)
+  std::vector<std::vector<int>> hang_;  // hanging nodes status      (nvert x 1)
   double ipos_[3] = {0, 0, 0};
   double iquat_[4] = {1, 0, 0, 0};
 };
@@ -233,26 +282,38 @@ class mjCOctree : public mjCOctree_ {
   void CreateOctree(const double aamm[6]);
 
   int NumNodes() const { return nnode_; }
-  const std::vector<int>& Child() const { return child_; }
-  const std::vector<double>& Nodes() const { return node_; }
-  const std::vector<int>& Level() const { return level_; }
+  int NumVerts() const { return nvert_; }
+  void CopyLevel(int* level) const;
+  void CopyChild(int* child) const;
+  void CopyAabb(mjtNum* aabb) const;
+  void CopyCoeff(mjtNum* coeff) const;
+  const double* Vert(int i) const { return vert_[i].p.data(); }
+  const std::vector<int>& Hang(int i) const { return hang_[i]; }
+  int VertId(int n, int v) const { return node_[n].vertid[v]; }
+  const std::array<int, 8>& Children(int i) const { return node_[i].child; }
   void SetFace(const std::vector<double>& vert, const std::vector<int>& face);
   int Size() const {
-    return sizeof(int) * child_.size() + sizeof(double) * node_.size() +
-           sizeof(int) * level_.size() + sizeof(Triangle) * face_.size();
+    return sizeof(OctNode) * node_.size() + sizeof(Triangle) * face_.size() +
+           sizeof(Point) * vert_.size();
   }
   void Clear() {
-    child_.clear();
     node_.clear();
-    level_.clear();
     face_.clear();
   }
-  void AddCoeff(double coeff) { coeff_.push_back(coeff); }
-  const std::vector<double>& Coeff() const { return coeff_; }
+  void AddCoeff(int n, int v, double coeff) { node_[n].coeff[v] = coeff; }
 
  private:
   void Make(std::vector<Triangle>& elements);
-  int MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6], int lev = 0);
+  void MakeOctree(const std::vector<Triangle*>& elements, const double aamm[6],
+                  std::unordered_map<Point, int>& vert_map);
+  void TaskToNode(const OctreeTask& task, OctNode& node, std::unordered_map<Point, int>& vert_map);
+  void Subdivide(const OctreeTask& task, std::unordered_map<Point, int>& vert_map,
+                 std::deque<OctreeTask>* queue = nullptr,
+                 const std::vector<Triangle*>& colliding = {});
+  int FindNeighbor(int node_idx, int dir);
+  int FindCoarseNeighbor(int node_idx, int dir);
+  void BalanceOctree(std::unordered_map<Point, int>& vert_map);
+  void MarkHangingNodes();
 };
 
 
@@ -299,6 +360,9 @@ class mjCBase : public mjCBase_ {
 
   // Returns parent of this object
   virtual mjCBase* GetParent() const { return nullptr; }
+
+  // Returns the model of this object
+  mjsCompiler* FindCompiler(const mjsCompiler* compiler) const;
 
   // Copy assignment
   mjCBase& operator=(const mjCBase& other);
@@ -714,7 +778,7 @@ class mjCGeom : public mjCGeom_, private mjsGeom {
   const std::vector<double>& get_userdata() const { return userdata_; }
   const std::string& get_hfieldname() const { return spec_hfieldname_; }
   const std::string& get_meshname() const { return spec_meshname_; }
-  const std::string& get_material() const { return spec_material_; }
+  const std::string& get_material() const;
   void del_material() { spec_material_.clear(); }
 
  private:
@@ -961,6 +1025,8 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
 
   static constexpr int kNumEdges[3] = {1, 3, 6};  // number of edges per element indexed by dim
 
+  void SetOrder(int order) { order_ = order; }  // set interpolation order
+
  private:
   void Compile(const mjVFS* vfs);         // compiler
   void CreateBVH(void);                   // create flex BVH
@@ -968,6 +1034,8 @@ class mjCFlex: public mjCFlex_, private mjsFlex {
 
   std::vector<double> vert0_;             // vertex positions in [0, 1]^d in the bounding box
   std::vector<double> node0_;             // node Cartesian positions
+
+  int order_ = 0;                         // interpolation order
 };
 
 
@@ -990,6 +1058,7 @@ class mjCMesh_ : public mjCBase {
   std::vector<int> face_;                        // vertex indices
   std::vector<int> facenormal_;                  // normal indices
   std::vector<int> facetexcoord_;                // texcoord indices
+  std::string material_;                         // mesh fallback material
 
   std::string spec_content_type_;
   std::string spec_file_;
@@ -999,6 +1068,7 @@ class mjCMesh_ : public mjCBase {
   std::vector<int> spec_face_;
   std::vector<int> spec_facenormal_;
   std::vector<int> spec_facetexcoord_;
+  std::string spec_material_;
 
   // used by the compiler
   bool needreorient_;                            // needs reorientation
@@ -1031,7 +1101,6 @@ class mjCMesh_ : public mjCBase {
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
-  mujoco::user::FilePath meshdir_;
 };
 
 class mjCMesh: public mjCMesh_, private mjsMesh {
@@ -1051,9 +1120,14 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   void NameSpace(const mjCModel* m);
 
   // make a mesh of a predefined shape
+  void MakeHemisphere(int res, bool make_faces, bool make_cap);
+  void MakeSphere(int subdiv, bool make_faces);
+  void MakeTorus(int res, double radius);
+  void MakeSupertorus(int res, double radius, double s, double t);
+  void MakeSupersphere(int res, double e, double n);
   void MakeWedge(int resolution[2], double fov[2], double gamma);
   void MakeRect(int resolution[2]);
-  void MakePrism(int nedge);
+  void MakeCone(int nedge, double radius);
 
   // accessors
   const mjsPlugin& Plugin() const { return plugin; }
@@ -1073,6 +1147,8 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   const std::vector<int>& Face() const { return face_; }
   const std::vector<int>& UserFace() const { return spec_face_; }
   mjtMeshInertia Inertia() const { return spec.inertia; }
+  const std::string& Material() const { return material_; }
+
   // setters
   void SetNeedHull(bool needhull) { needhull_ = needhull; }
 
@@ -1114,7 +1190,7 @@ class mjCMesh: public mjCMesh_, private mjsMesh {
   double* GetQuatPtr();                             // get orientation
   double* GetInertiaBoxPtr();                       // get inertia box
   double GetVolumeRef() const;                      // get volume
-  void FitGeom(mjCGeom* geom, double* meshpos);     // approximate mesh with simple geom
+  void FitGeom(mjCGeom* geom, double center[3]);    // approximate mesh with simple geom
   bool HasTexcoord() const;                         // texcoord not null
   void DelTexcoord();                               // delete texcoord
   bool IsVisual(void) const { return visual_; }     // is geom visual
@@ -1240,7 +1316,6 @@ class mjCSkin_ : public mjCBase {
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
-  mujoco::user::FilePath meshdir_;
 };
 
 class mjCSkin: public mjCSkin_, private mjsSkin {
@@ -1296,7 +1371,6 @@ class mjCHField_ : public mjCBase {
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
-  mujoco::user::FilePath meshdir_;
 };
 
 class mjCHField : public mjCHField_, private mjsHField {
@@ -1325,6 +1399,7 @@ class mjCHField : public mjCHField_, private mjsHField {
  private:
   void Compile(const mjVFS* vfs);         // compiler
 
+  std::string GetCacheId(const mjResource* resource, const std::string& asset_type);
   void LoadCustom(mjResource* resource);  // load from custom format
   void LoadPNG(mjResource* resource);     // load from PNG format
 };
@@ -1347,7 +1422,6 @@ class mjCTexture_ : public mjCBase {
 
   // paths stored during model attachment
   mujoco::user::FilePath modelfiledir_;
-  mujoco::user::FilePath texturedir_;
 };
 
 class mjCTexture : public mjCTexture_, private mjsTexture {
@@ -1375,24 +1449,26 @@ class mjCTexture : public mjCTexture_, private mjsTexture {
  private:
   void Compile(const mjVFS* vfs);         // compiler
 
-  void Builtin2D(void);                   // make builtin 2D
-  void BuiltinCube(void);                 // make builtin cube
-  void Load2D(std::string filename, const mjVFS* vfs);          // load 2D from file
-  void LoadCubeSingle(std::string filename, const mjVFS* vfs);  // load cube from single file
-  void LoadCubeSeparate(const mjVFS* vfs);                      // load cube from separate files
+  // store texture into asset cache
+  std::string GetCacheId(const mjResource* resource, const std::string& asset_type);
+  void Builtin2D(void);                                 // make builtin 2D
+  void BuiltinCube(void);                               // make builtin cube
+  void Load2D(std::string filename, const mjVFS* vfs);  // load 2D from file
+  void LoadCubeSingle(std::string filename,
+                      const mjVFS* vfs);    // load cube from single file
+  void LoadCubeSeparate(const mjVFS* vfs);  // load cube from separate files
 
-  void LoadFlip(std::string filename, const mjVFS* vfs,         // load and flip
-                std::vector<unsigned char>& image,
-                unsigned int& w, unsigned int& h, bool& is_srgb);
+  void FlipIfNeeded(std::vector<std::byte>& image, unsigned int w, unsigned int h);
 
-  void LoadPNG(mjResource* resource,
-               std::vector<unsigned char>& image,
+  void LoadFlip(std::string filename, const mjVFS* vfs,  // load and flip
+                std::vector<std::byte>& image, unsigned int& w, unsigned int& h,
+                bool& is_srgb);
+
+  void LoadPNG(mjResource* resource, std::vector<std::byte>& image,
                unsigned int& w, unsigned int& h, bool& is_srgb);
-  void LoadKTX(mjResource* resource,
-               std::vector<unsigned char>& image,
+  void LoadKTX(mjResource* resource, std::vector<std::byte>& image,
                unsigned int& w, unsigned int& h, bool& is_srgb);
-  void LoadCustom(mjResource* resource,
-                  std::vector<unsigned char>& image,
+  void LoadCustom(mjResource* resource, std::vector<std::byte>& image,
                   unsigned int& w, unsigned int& h, bool& is_srgb);
 
   bool clear_data_;  // if true, data_ is empty and should be filled by Compile
@@ -1633,7 +1709,6 @@ class mjCTendon : public mjCTendon_, private mjsTendon {
 
 class mjCWrap_ : public mjCBase {
  public:
-  mjtWrap type;                   // wrap object type
   int sideid;                     // side site id; -1 if not applicable
   double prm;                     // parameter: divisor, coefficient
   std::string sidesite;           // name of side site
@@ -1647,9 +1722,11 @@ class mjCWrap : public mjCWrap_, private mjsWrap {
   mjsWrap spec;
   using mjCBase::info;
 
+  void CopyFromSpec();
   void PointToLocal();
   void ResolveReferences(const mjCModel* m);
   void NameSpace(const mjCModel* m);
+  mjtWrap Type() const { return spec.type; }
 
   mjCBase* obj;                   // wrap object pointer
 
@@ -1657,6 +1734,8 @@ class mjCWrap : public mjCWrap_, private mjsWrap {
   mjCWrap(mjCModel*, mjCTendon*);            // constructor
   mjCWrap(const mjCWrap& other);             // copy constructor
   mjCWrap& operator=(const mjCWrap& other);  // copy assignment
+
+  void Compile(void);              // compiler
 
   mjCTendon* tendon;              // tendon owning this wrap
 };

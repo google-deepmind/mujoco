@@ -334,6 +334,9 @@ def _advance(
   # advance time
   time = d.time + m.opt.timestep
 
+  # save qacc for next step warmstart
+  d = d.replace(qacc_warmstart=d.qacc)
+
   return d.replace(act=act, qpos=qpos, time=time)
 
 

@@ -21,6 +21,7 @@ import warp as wp
 
 from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
+from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import WrapType
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10
 
@@ -143,21 +144,21 @@ def wrap_circle(end: wp.vec4, side: wp.vec2, radius: float) -> Tuple[float, wp.v
 
   # construct the two solutions, compute goodness
   sol00 = wp.vec2(
-    (end[0] * sqrad + radius * end[1] * sqrt0) / sqlen0,
-    (end[1] * sqrad - radius * end[0] * sqrt0) / sqlen0,
+    math.safe_div(end[0] * sqrad + radius * end[1] * sqrt0, sqlen0),
+    math.safe_div(end[1] * sqrad - radius * end[0] * sqrt0, sqlen0),
   )
   sol01 = wp.vec2(
-    (end[2] * sqrad - radius * end[3] * sqrt1) / sqlen1,
-    (end[3] * sqrad + radius * end[2] * sqrt1) / sqlen1,
+    math.safe_div(end[2] * sqrad - radius * end[3] * sqrt1, sqlen1),
+    math.safe_div(end[3] * sqrad + radius * end[2] * sqrt1, sqlen1),
   )
 
   sol10 = wp.vec2(
-    (end[0] * sqrad - radius * end[1] * sqrt0) / sqlen0,
-    (end[1] * sqrad + radius * end[0] * sqrt0) / sqlen0,
+    math.safe_div(end[0] * sqrad - radius * end[1] * sqrt0, sqlen0),
+    math.safe_div(end[1] * sqrad + radius * end[0] * sqrt0, sqlen0),
   )
   sol11 = wp.vec2(
-    (end[2] * sqrad + radius * end[3] * sqrt1) / sqlen1,
-    (end[3] * sqrad - radius * end[2] * sqrt1) / sqlen1,
+    math.safe_div(end[2] * sqrad + radius * end[3] * sqrt1, sqlen1),
+    math.safe_div(end[3] * sqrad - radius * end[2] * sqrt1, sqlen1),
   )
 
   # goodness: close to sd, or shorter path
@@ -249,11 +250,11 @@ def wrap_inside(
   pnt *= radius
 
   # compute function parameters: asin(A * z) + asin(B * z) - 2 * asin(z) + G = 0
-  A = radius / len0
-  B = radius / len1
+  A = math.safe_div(radius, len0)
+  B = math.safe_div(radius, len1)
   sq_A = A * A
   sq_B = B * B
-  cosG = (len0 * len0 + len1 * len1 - dd) / (2.0 * len0 * len1)
+  cosG = math.safe_div(len0 * len0 + len1 * len1 - dd, 2.0 * len0 * len1)
   if cosG < -1.0 + MJ_MINVAL:
     return -1.0, pnt, pnt
   elif cosG > 1.0 - MJ_MINVAL:
@@ -285,7 +286,7 @@ def wrap_inside(
       return 0.0, pnt, pnt
 
     # new point
-    z1 = z - f / df
+    z1 = z - math.safe_div(f, df)
 
     # make sure we are moving to the left; SHOULD NOT OCCUR
     if z1 > z:
@@ -341,7 +342,7 @@ def wrap(
     length of circular wrap else -1.0 if no wrap, pair of 3D wrap points
   """
   # check object type
-  if geomtype != int(WrapType.SPHERE.value) and geomtype != int(WrapType.CYLINDER.value):
+  if geomtype != WrapType.SPHERE and geomtype != WrapType.CYLINDER:
     return wp.inf, wp.vec3(wp.inf), wp.vec3(wp.inf)
 
   # map sites to wrap object's local frame
@@ -354,7 +355,7 @@ def wrap(
     return -1.0, wp.vec3(wp.inf), wp.vec3(wp.inf)
 
   # construct 2D frame for circle wrap
-  if geomtype == int(WrapType.SPHERE.value):
+  if geomtype == WrapType.SPHERE:
     # 1st axis = p0
     axis0, _ = math.normalize_with_norm(p0)
 
@@ -431,12 +432,12 @@ def wrap(
   res1 = axis0 * pnt1[0] + axis1 * pnt1[1]
 
   # cylinder: correct along z
-  if geomtype == int(WrapType.CYLINDER.value):
+  if geomtype == WrapType.CYLINDER:
     # set vertical coordinates
     L0 = wp.sqrt((p0[0] - res0[0]) * (p0[0] - res0[0]) + (p0[1] - res0[1]) * (p0[1] - res0[1]))
     L1 = wp.sqrt((p1[0] - res1[0]) * (p1[0] - res1[0]) + (p1[1] - res1[1]) * (p1[1] - res1[1]))
-    res0[2] = p0[2] + (p1[2] - p0[2]) * L0 / (L0 + wlen + L1)
-    res1[2] = p0[2] + (p1[2] - p0[2]) * (L0 + wlen) / (L0 + wlen + L1)
+    res0[2] = p0[2] + (p1[2] - p0[2]) * math.safe_div(L0, L0 + wlen + L1)
+    res1[2] = p0[2] + (p1[2] - p0[2]) * math.safe_div(L0 + wlen, L0 + wlen + L1)
 
     # correct wlen for height
     height = wp.abs(res1[2] - res0[2])
@@ -601,3 +602,36 @@ def muscle_dynamics(control: float, activation: float, prm: vec10) -> float:
 
   # filter output
   return dctrl / wp.max(MJ_MINVAL, tau)
+
+
+@wp.func
+def inside_geom(pos: wp.vec3, mat: wp.mat33, size: wp.vec3, geomtype: int, point: wp.vec3) -> bool:
+  """Return True if point is inside primitive geom, False otherwise."""
+  # vector from geom to point
+  vec = point - pos
+
+  # quick return for spheres, frame rotation not required
+  if geomtype == GeomType.SPHERE:
+    return wp.dot(vec, vec) < size[0] * size[0]
+
+  # rotate into local frame
+  plocal = wp.transpose(mat) @ vec
+
+  # handle other geom types
+  if geomtype == GeomType.CAPSULE:
+    z = plocal[2]
+    z_clamped = wp.clamp(z, -size[1], size[1])
+    z_dif = z - z_clamped
+    z_dist_sq = z_dif * z_dif
+    return plocal[0] * plocal[0] + plocal[1] * plocal[1] + z_dist_sq < size[0] * size[0]
+  elif geomtype == GeomType.ELLIPSOID:
+    plocalsize = wp.cw_div(plocal, size)
+    return wp.dot(plocalsize, plocalsize) < 1.0
+  elif geomtype == GeomType.CYLINDER:
+    return (wp.abs(plocal[2]) < size[1]) and (plocal[0] * plocal[0] + plocal[1] * plocal[1] < size[0] * size[0])
+  elif geomtype == GeomType.BOX:
+    return wp.abs(plocal[0]) < size[0] and wp.abs(plocal[1]) < size[1] and wp.abs(plocal[2]) < size[2]
+  elif geomtype == GeomType.PLANE:
+    return plocal[2] < 0.0
+
+  return False

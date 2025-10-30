@@ -37,8 +37,8 @@ TF_REGISTRY_FUNCTION(TfType) {
 MjcPhysicsKeyframe::~MjcPhysicsKeyframe() {}
 
 /* static */
-MjcPhysicsKeyframe MjcPhysicsKeyframe::Get(const UsdStagePtr &stage,
-                                           const SdfPath &path) {
+MjcPhysicsKeyframe MjcPhysicsKeyframe::Get(const UsdStagePtr& stage,
+                                           const SdfPath& path) {
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
     return MjcPhysicsKeyframe();
@@ -47,8 +47,8 @@ MjcPhysicsKeyframe MjcPhysicsKeyframe::Get(const UsdStagePtr &stage,
 }
 
 /* static */
-MjcPhysicsKeyframe MjcPhysicsKeyframe::Define(const UsdStagePtr &stage,
-                                              const SdfPath &path) {
+MjcPhysicsKeyframe MjcPhysicsKeyframe::Define(const UsdStagePtr& stage,
+                                              const SdfPath& path) {
   static TfToken usdPrimTypeName("MjcKeyframe");
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
@@ -63,7 +63,7 @@ UsdSchemaKind MjcPhysicsKeyframe::_GetSchemaKind() const {
 }
 
 /* static */
-const TfType &MjcPhysicsKeyframe::_GetStaticTfType() {
+const TfType& MjcPhysicsKeyframe::_GetStaticTfType() {
   static TfType tfType = TfType::Find<MjcPhysicsKeyframe>();
   return tfType;
 }
@@ -75,7 +75,7 @@ bool MjcPhysicsKeyframe::_IsTypedSchema() {
 }
 
 /* virtual */
-const TfType &MjcPhysicsKeyframe::_GetTfType() const {
+const TfType& MjcPhysicsKeyframe::_GetTfType() const {
   return _GetStaticTfType();
 }
 
@@ -83,7 +83,7 @@ UsdAttribute MjcPhysicsKeyframe::GetMjcQposAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcQpos);
 }
 
-UsdAttribute MjcPhysicsKeyframe::CreateMjcQposAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsKeyframe::CreateMjcQposAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcQpos, SdfValueTypeNames->DoubleArray,
@@ -94,7 +94,7 @@ UsdAttribute MjcPhysicsKeyframe::GetMjcQvelAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcQvel);
 }
 
-UsdAttribute MjcPhysicsKeyframe::CreateMjcQvelAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsKeyframe::CreateMjcQvelAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcQvel, SdfValueTypeNames->DoubleArray,
@@ -105,7 +105,7 @@ UsdAttribute MjcPhysicsKeyframe::GetMjcActAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcAct);
 }
 
-UsdAttribute MjcPhysicsKeyframe::CreateMjcActAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsKeyframe::CreateMjcActAttr(VtValue const& defaultValue,
                                                   bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcAct, SdfValueTypeNames->DoubleArray,
@@ -116,7 +116,7 @@ UsdAttribute MjcPhysicsKeyframe::GetMjcCtrlAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcCtrl);
 }
 
-UsdAttribute MjcPhysicsKeyframe::CreateMjcCtrlAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsKeyframe::CreateMjcCtrlAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcCtrl, SdfValueTypeNames->DoubleArray,
@@ -127,7 +127,7 @@ UsdAttribute MjcPhysicsKeyframe::GetMjcMposAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcMpos);
 }
 
-UsdAttribute MjcPhysicsKeyframe::CreateMjcMposAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsKeyframe::CreateMjcMposAttr(VtValue const& defaultValue,
                                                    bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcMpos, SdfValueTypeNames->DoubleArray,
@@ -138,7 +138,7 @@ UsdAttribute MjcPhysicsKeyframe::GetMjcMquatAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcMquat);
 }
 
-UsdAttribute MjcPhysicsKeyframe::CreateMjcMquatAttr(VtValue const &defaultValue,
+UsdAttribute MjcPhysicsKeyframe::CreateMjcMquatAttr(VtValue const& defaultValue,
                                                     bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcMquat, SdfValueTypeNames->DoubleArray,
@@ -147,7 +147,7 @@ UsdAttribute MjcPhysicsKeyframe::CreateMjcMquatAttr(VtValue const &defaultValue,
 
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
-    const TfTokenVector &left, const TfTokenVector &right) {
+    const TfTokenVector& left, const TfTokenVector& right) {
   TfTokenVector result;
   result.reserve(left.size() + right.size());
   result.insert(result.end(), left.begin(), left.end());
@@ -157,7 +157,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 }  // namespace
 
 /*static*/
-const TfTokenVector &MjcPhysicsKeyframe::GetSchemaAttributeNames(
+const TfTokenVector& MjcPhysicsKeyframe::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcQpos, MjcPhysicsTokens->mjcQvel,

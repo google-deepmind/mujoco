@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -28,6 +30,7 @@
 #include <mujoco/experimental/usd/mjcPhysics/meshCollisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/sceneAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/tendon.h>
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
 #include <mujoco/experimental/usd/usd.h>
 #include <mujoco/experimental/usd/utils.h>
@@ -51,6 +54,7 @@
 #include <pxr/usd/usdGeom/cylinder.h>
 #include <pxr/usd/usdGeom/gprim.h>
 #include <pxr/usd/usdGeom/mesh.h>
+#include <pxr/usd/usdGeom/metrics.h>
 #include <pxr/usd/usdGeom/plane.h>
 #include <pxr/usd/usdGeom/primvar.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
@@ -383,20 +387,55 @@ mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom,
   return mesh;
 }
 
+void SetGravityAttributes(
+    mjSpec* spec, const pxr::UsdStageRefPtr stage,
+    std::optional<pxr::GfVec3f> gravity_direction = std::nullopt,
+    std::optional<float> gravity_magnitude = std::nullopt) {
+  // Parse gravity and gravity direction.
+  if (!gravity_direction.has_value()) {
+    TfToken up_axis = pxr::UsdGeomGetStageUpAxis(stage);
+    if (up_axis == pxr::UsdGeomTokens->y) {
+      gravity_direction = pxr::GfVec3f(0, -1, 0);
+    } else if (up_axis == pxr::UsdGeomTokens->z) {
+      gravity_direction = pxr::GfVec3f(0, 0, -1);
+    } else {
+      mju_error("Invalid stage up axis token %s", up_axis.GetString().c_str());
+    }
+  }
+
+  if (!gravity_magnitude.has_value()) {
+    gravity_magnitude = 9.81f / pxr::UsdGeomGetStageMetersPerUnit(stage);
+  }
+
+  pxr::GfVec3f gravity = gravity_direction.value() * gravity_magnitude.value();
+
+  spec->option.gravity[0] = gravity[0];
+  spec->option.gravity[1] = gravity[1];
+  spec->option.gravity[2] = gravity[2];
+}
+
 void ParseUsdPhysicsScene(mjSpec* spec,
                           const pxr::UsdPhysicsScene& physics_scene) {
+  std::optional<pxr::GfVec3f> gravity_direction = std::nullopt;
+  std::optional<float> gravity_magnitude = std::nullopt;
+  auto stage = physics_scene.GetPrim().GetStage();
+
   // Parse gravity and gravity direction.
-  pxr::GfVec3f gravity_direction;
-  physics_scene.GetGravityDirectionAttr().Get(&gravity_direction);
+  auto gravity_direction_attr = physics_scene.GetGravityDirectionAttr();
+  if (gravity_direction_attr.HasAuthoredValue()) {
+    pxr::GfVec3f authored_gravity_dir;
+    gravity_direction_attr.Get(&authored_gravity_dir);
+    gravity_direction = authored_gravity_dir;
+  }
 
-  float gravity_magnitude;
-  physics_scene.GetGravityMagnitudeAttr().Get(&gravity_magnitude);
+  auto gravity_magnitude_attr = physics_scene.GetGravityMagnitudeAttr();
+  if (gravity_magnitude_attr.HasAuthoredValue()) {
+    float authored_gravity_magnitude;
+    gravity_magnitude_attr.Get(&authored_gravity_magnitude);
+    gravity_magnitude = authored_gravity_magnitude;
+  }
 
-  gravity_direction *= gravity_magnitude;
-
-  spec->option.gravity[0] = gravity_direction[0];
-  spec->option.gravity[1] = gravity_direction[1];
-  spec->option.gravity[2] = gravity_direction[2];
+  SetGravityAttributes(spec, stage, gravity_direction, gravity_magnitude);
 
   // Early exit if theres no MjcPhysicsSceneAPI applied.
   if (!physics_scene.GetPrim().HasAPI<pxr::MjcPhysicsSceneAPI>()) {
@@ -407,10 +446,6 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   double timestep;
   mjc_physics_scene.GetTimestepAttr().Get(&timestep);
   spec->option.timestep = timestep;
-
-  double apirate;
-  mjc_physics_scene.GetApiRateAttr().Get(&apirate);
-  spec->option.apirate = apirate;
 
   double impratio;
   mjc_physics_scene.GetImpRatioAttr().Get(&impratio);
@@ -569,9 +604,13 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   mjc_physics_scene.GetContactFlagAttr().Get(&contact_flag);
   spec->option.disableflags |= (!contact_flag ? mjDSBL_CONTACT : 0);
 
-  bool passive_flag;
-  mjc_physics_scene.GetPassiveFlagAttr().Get(&passive_flag);
-  spec->option.disableflags |= (!passive_flag ? mjDSBL_PASSIVE : 0);
+  bool spring_flag;
+  mjc_physics_scene.GetSpringFlagAttr().Get(&spring_flag);
+  spec->option.disableflags |= (!spring_flag ? mjDSBL_SPRING : 0);
+
+  bool damper_flag;
+  mjc_physics_scene.GetDamperFlagAttr().Get(&damper_flag);
+  spec->option.disableflags |= (!damper_flag ? mjDSBL_DAMPER : 0);
 
   bool gravity_flag;
   mjc_physics_scene.GetGravityFlagAttr().Get(&gravity_flag);
@@ -617,6 +656,10 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   mjc_physics_scene.GetAutoResetFlagAttr().Get(&autoreset_flag);
   spec->option.disableflags |= (!autoreset_flag ? mjDSBL_AUTORESET : 0);
 
+  bool island_flag;
+  mjc_physics_scene.GetIslandFlagAttr().Get(&island_flag);
+  spec->option.disableflags |= (!island_flag ? mjDSBL_ISLAND : 0);
+
   bool override_flag;
   mjc_physics_scene.GetOverrideFlagAttr().Get(&override_flag);
   spec->option.enableflags |= (override_flag ? mjENBL_OVERRIDE : 0);
@@ -636,10 +679,6 @@ void ParseUsdPhysicsScene(mjSpec* spec,
   bool multiccd_flag;
   mjc_physics_scene.GetMultiCCDFlagAttr().Get(&multiccd_flag);
   spec->option.enableflags |= (multiccd_flag ? mjENBL_MULTICCD : 0);
-
-  bool island_flag;
-  mjc_physics_scene.GetIslandFlagAttr().Get(&island_flag);
-  spec->option.enableflags |= (island_flag ? mjENBL_ISLAND : 0);
 
   // Compiler attributes
   auto auto_limits_attr = mjc_physics_scene.GetAutoLimitsAttr();
@@ -879,6 +918,300 @@ void ParseMjcPhysicsMeshCollisionAPI(
   auto maxhullvert_attr = mesh_collision_api.GetMaxHullVertAttr();
   if (maxhullvert_attr.HasAuthoredValue()) {
     maxhullvert_attr.Get(&mesh->maxhullvert);
+  }
+}
+
+void ParseMjcPhysicsTendon(mjSpec* spec,
+                             const pxr::MjcPhysicsTendon& tendon) {
+  pxr::UsdPrim prim = tendon.GetPrim();
+  pxr::UsdStageRefPtr stage = prim.GetStage();
+  mjsTendon* mj_tendon = mjs_addTendon(spec, nullptr);
+  mjs_setName(mj_tendon->element, prim.GetPath().GetAsString().c_str());
+
+  pxr::TfToken type;
+  tendon.GetTypeAttr().Get(&type);
+
+  pxr::SdfPathVector wrap_targets;
+  tendon.GetMjcPathRel().GetTargets(&wrap_targets);
+
+  pxr::SdfPathVector side_site_paths;
+  tendon.GetMjcSideSitesRel().GetTargets(&side_site_paths);
+
+  pxr::VtIntArray side_site_indices;
+  tendon.GetMjcSideSitesIndicesAttr().Get(&side_site_indices);
+
+  pxr::VtIntArray segments;
+  tendon.GetMjcPathSegmentsAttr().Get(&segments);
+
+  pxr::VtDoubleArray divisors;
+  tendon.GetMjcPathDivisorsAttr().Get(&divisors);
+
+  pxr::VtDoubleArray coefs;
+  tendon.GetMjcPathCoefAttr().Get(&coefs);
+
+  if (type == MjcPhysicsTokens->spatial) {
+    // Check that for N targets we have 0 or N elements in segments.
+    if (!segments.empty() && segments.size() != wrap_targets.size()) {
+      mju_warning(
+          "Spatial tendon %s has %lu segments but %lu wrap targets, skipping.",
+          prim.GetPath().GetAsString().c_str(), segments.size(),
+          wrap_targets.size());
+      return;
+    }
+    // Check that if we have >1 segments that the user has specified how much each segment
+    // contributes to the total segment length.
+    if (!segments.empty() && divisors.empty()) {
+      mju_warning(
+          "Spatial tendon %s has >1 segments (%d) but does not specify divisors, skipping.",
+          prim.GetPath().GetAsString().c_str(), *std::max_element(segments.begin(), segments.end()) + 1);
+      return;
+    }
+    // Check that if we side site indices that we have N of them.
+    if (!side_site_indices.empty() && side_site_indices.size() != wrap_targets.size()) {
+      mju_warning(
+          "Spatial tendon %s has %lu sideSite indices but %lu wrap targets, skipping.",
+          prim.GetPath().GetAsString().c_str(), side_site_indices.size(), wrap_targets.size());
+      return;
+    }
+
+    if (!side_site_indices.empty() && side_site_paths.empty()) {
+      mju_warning(
+          "Spatial tendon %s has %lu sideSite indices but no side sites, skipping.",
+          prim.GetPath().GetAsString().c_str(), side_site_indices.size());
+      return;
+    }
+  } else {  // Fixed tendon.
+    // Check that for N targets we have 0 or N elements in coef:
+    if (!coefs.empty() && coefs.size() != wrap_targets.size()) {
+      mju_warning(
+          "Spatial tendon %s has %lu coefs but %lu wrap targets, skipping.",
+          prim.GetPath().GetAsString().c_str(), coefs.size(), wrap_targets.size());
+    }
+  }
+
+  int last_segment = 0;
+  for (int i = 0; i < wrap_targets.size(); ++i) {
+    auto wrap_target = wrap_targets[i];
+    auto wrap_prim = stage->GetPrimAtPath(wrap_target);
+    // Important to check site before Imageable here because some Imageable prims are sites.
+
+    if (!segments.empty()) {
+      int segment = segments[i];
+      if (segment >= divisors.size()) {
+        mju_warning("Tendon %s has at least %d segments but only %lu divisors, skipping.",
+                    prim.GetPath().GetAsString().c_str(), segment + 1, divisors.size());
+        return;
+      }
+
+      if (segment > last_segment) {
+        mjsWrap* pulley_wrap = mjs_wrapPulley(mj_tendon, divisors[segment]);
+        mjs_setString(pulley_wrap->info, ("Pulley between segments: " +
+                                        std::to_string(last_segment) + " and " +
+                                        std::to_string(segment)).c_str());
+      }
+      last_segment = segment;
+    }
+
+    mjsWrap* wrap = nullptr;
+    if (wrap_prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
+      wrap = mjs_wrapSite(mj_tendon, wrap_target.GetAsString().c_str());
+    } else if (wrap_prim.IsA<pxr::UsdPhysicsJoint>()) {
+      double coef = 1.0;
+      if (!coefs.empty()) {
+        coef = coefs[i];
+      }
+      wrap = mjs_wrapJoint(mj_tendon, wrap_target.GetAsString().c_str(), coef);
+    } else if (wrap_prim.IsA<pxr::UsdGeomImageable>()) {
+      std::string side_site_name = "";
+      if (!side_site_indices.empty()) {
+        int side_site_index = side_site_indices[i];
+        if (side_site_index >= side_site_paths.size()) {
+          mju_warning("Tendon %s has side site index %d but only %lu side sites, skipping.",
+                      prim.GetPath().GetAsString().c_str(), side_site_index, side_site_paths.size());
+          return;
+        }
+        side_site_name = side_site_paths[side_site_index].GetAsString();
+      }
+      wrap = mjs_wrapGeom(mj_tendon, wrap_target.GetAsString().c_str(), side_site_name.c_str());
+    } else {
+      mju_warning("Tendon %s has an invalid wrap target type, skipping.",
+                  prim.GetPath().GetAsString().c_str());
+      return;
+    }
+    mjs_setString(wrap->info, ("Prim: " + wrap_target.GetAsString()).c_str());
+  }
+
+  auto group_attr = tendon.GetGroupAttr();
+  if (group_attr.HasAuthoredValue()) {
+    group_attr.Get(&mj_tendon->group);
+  }
+
+  auto limited_attr = tendon.GetLimitedAttr();
+  if (limited_attr.HasAuthoredValue()) {
+    pxr::TfToken limited;
+    limited_attr.Get(&limited);
+    if (limited == MjcPhysicsTokens->true_) {
+      mj_tendon->limited = mjLIMITED_TRUE;
+    } else if (limited == MjcPhysicsTokens->false_) {
+      mj_tendon->limited = mjLIMITED_FALSE;
+    } else {
+      mj_tendon->limited = mjLIMITED_AUTO;
+    }
+  }
+
+  auto actuatorfrclimited_attr = tendon.GetActuatorFrcLimitedAttr();
+  if (actuatorfrclimited_attr.HasAuthoredValue()) {
+    pxr::TfToken actuatorfrclimited;
+    actuatorfrclimited_attr.Get(&actuatorfrclimited);
+    if (actuatorfrclimited == MjcPhysicsTokens->true_) {
+      mj_tendon->actfrclimited = mjLIMITED_TRUE;
+    } else if (actuatorfrclimited == MjcPhysicsTokens->false_) {
+      mj_tendon->actfrclimited = mjLIMITED_FALSE;
+    } else {
+      mj_tendon->actfrclimited = mjLIMITED_AUTO;
+    }
+  }
+
+  auto range_min_attr = tendon.GetRangeMinAttr();
+  if (range_min_attr.HasAuthoredValue()) {
+    range_min_attr.Get(&mj_tendon->range[0]);
+  }
+
+  auto range_max_attr = tendon.GetRangeMaxAttr();
+  if (range_max_attr.HasAuthoredValue()) {
+    range_max_attr.Get(&mj_tendon->range[1]);
+  }
+
+  auto actuatorfrcrange_min_attr = tendon.GetActuatorFrcRangeMinAttr();
+  if (actuatorfrcrange_min_attr.HasAuthoredValue()) {
+    actuatorfrcrange_min_attr.Get(&mj_tendon->actfrcrange[0]);
+  }
+
+  auto actuatorfrcrange_max_attr = tendon.GetActuatorFrcRangeMaxAttr();
+  if (actuatorfrcrange_max_attr.HasAuthoredValue()) {
+    actuatorfrcrange_max_attr.Get(&mj_tendon->actfrcrange[1]);
+  }
+
+  auto solreflimit_attr = tendon.GetSolRefLimitAttr();
+  if (solreflimit_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solreflimit;
+    solreflimit_attr.Get(&solreflimit);
+    if (solreflimit.size() == mjNREF) {
+      for (int i = 0; i < mjNREF; ++i) {
+        mj_tendon->solref_limit[i] = solreflimit[i];
+      }
+    } else {
+      mju_warning(
+          "solreflimit attribute for tendon %s has incorrect size %zu, "
+          "expected %d.",
+          prim.GetPath().GetAsString().c_str(), solreflimit.size(), mjNREF);
+    }
+  }
+
+  auto solimplimit_attr = tendon.GetSolImpLimitAttr();
+  if (solimplimit_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solimplimit;
+    solimplimit_attr.Get(&solimplimit);
+    if (solimplimit.size() == mjNIMP) {
+      for (int i = 0; i < mjNIMP; ++i) {
+        mj_tendon->solimp_limit[i] = solimplimit[i];
+      }
+    } else {
+      mju_warning(
+          "solimplimit attribute for tendon %s has incorrect size %zu, "
+          "expected %d.",
+          prim.GetPath().GetAsString().c_str(), solimplimit.size(), mjNIMP);
+    }
+  }
+
+  auto solreffriction_attr = tendon.GetSolRefFrictionAttr();
+  if (solreffriction_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solreffriction;
+    solreffriction_attr.Get(&solreffriction);
+    if (solreffriction.size() == mjNREF) {
+      for (int i = 0; i < mjNREF; ++i) {
+        mj_tendon->solref_friction[i] = solreffriction[i];
+      }
+    } else {
+      mju_warning(
+          "solreffriction attribute for tendon %s has incorrect size %zu, "
+          "expected %d.",
+          prim.GetPath().GetAsString().c_str(), solreffriction.size(), mjNREF);
+    }
+  }
+
+  auto solimpfriction_attr = tendon.GetSolImpFrictionAttr();
+  if (solimpfriction_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray solimpfriction;
+    solimpfriction_attr.Get(&solimpfriction);
+    if (solimpfriction.size() == mjNIMP) {
+      for (int i = 0; i < mjNIMP; ++i) {
+        mj_tendon->solimp_friction[i] = solimpfriction[i];
+      }
+    } else {
+      mju_warning(
+          "solimpfriction attribute for tendon %s has incorrect size %zu, "
+          "expected %d.",
+          prim.GetPath().GetAsString().c_str(), solimpfriction.size(), mjNIMP);
+    }
+  }
+
+  auto margin_attr = tendon.GetMarginAttr();
+  if (margin_attr.HasAuthoredValue()) {
+    margin_attr.Get(&mj_tendon->margin);
+  }
+
+  auto frictionloss_attr = tendon.GetFrictionLossAttr();
+  if (frictionloss_attr.HasAuthoredValue()) {
+    frictionloss_attr.Get(&mj_tendon->frictionloss);
+  }
+
+  auto width_attr = tendon.GetWidthAttr();
+  if (width_attr.HasAuthoredValue()) {
+    width_attr.Get(&mj_tendon->width);
+  }
+
+  auto rgba_attr = tendon.GetRgbaAttr();
+  if (rgba_attr.HasAuthoredValue()) {
+    pxr::GfVec4f rgba;
+    rgba_attr.Get(&rgba);
+    mj_tendon->rgba[0] = rgba[0];
+    mj_tendon->rgba[1] = rgba[1];
+    mj_tendon->rgba[2] = rgba[2];
+    mj_tendon->rgba[3] = rgba[3];
+  }
+
+  auto springlength_attr = tendon.GetSpringLengthAttr();
+  if (springlength_attr.HasAuthoredValue()) {
+    pxr::VtDoubleArray springlength;
+    springlength_attr.Get(&springlength);
+    if (springlength.size() == 1) {
+      mj_tendon->springlength[0] = springlength[0];
+      mj_tendon->springlength[1] = springlength[0];
+    } else if (springlength.size() == 2) {
+      mj_tendon->springlength[0] = springlength[0];
+      mj_tendon->springlength[1] = springlength[1];
+    } else {
+      mju_warning(
+          "springlength attribute for tendon %s has incorrect size %zu, "
+          "expected 1 or 2.",
+          prim.GetPath().GetAsString().c_str(), springlength.size());
+    }
+  }
+
+  auto stiffness_attr = tendon.GetStiffnessAttr();
+  if (stiffness_attr.HasAuthoredValue()) {
+    stiffness_attr.Get(&mj_tendon->stiffness);
+  }
+
+  auto damping_attr = tendon.GetDampingAttr();
+  if (damping_attr.HasAuthoredValue()) {
+    damping_attr.Get(&mj_tendon->damping);
+  }
+
+  auto armature_attr = tendon.GetArmatureAttr();
+  if (armature_attr.HasAuthoredValue()) {
+    armature_attr.Get(&mj_tendon->armature);
   }
 }
 
@@ -1343,14 +1676,19 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   if (bound_material) {
     pxr::SdfPath material_path = bound_material.GetPrim().GetPath();
     mjsMaterial* material = nullptr;
-    if (caches.parsed_materials.find(material_path) !=
-        caches.parsed_materials.end()) {
-      material = caches.parsed_materials[material_path];
+    if (auto iter = caches.parsed_materials.find(material_path);
+        iter != caches.parsed_materials.end()) {
+      material = iter->second;
     } else {
       material = ParseMaterial(spec, bound_material);
-      caches.parsed_materials[material_path] = material;
+      // ParseMaterial may return a nullptr if the material is not supported.
+      if (material) {
+        caches.parsed_materials[material_path] = material;
+      }
     }
-    mjs_setString(geom->material, mjs_getName(material->element)->c_str());
+    if (material) {
+      mjs_setString(geom->material, mjs_getName(material->element)->c_str());
+    }
   }
 
   if (gprim.HasAPI<pxr::MjcPhysicsImageableAPI>()) {
@@ -1396,6 +1734,21 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
           geom, pxr::UsdPhysicsMaterialAPI(bound_material_prim));
       ParseMjcPhysicsMaterialAPI(
           geom, pxr::MjcPhysicsMaterialAPI(bound_material_prim));
+    }
+    pxr::SdfPath material_path = bound_material_prim.GetPath();
+    mjsMaterial* material = nullptr;
+    if (auto iter = caches.parsed_materials.find(material_path);
+        iter != caches.parsed_materials.end()) {
+      material = iter->second;
+    } else {
+      material = ParseMaterial(spec, bound_material);
+      // ParseMaterial may return a nullptr if the material is not supported.
+      if (material) {
+        caches.parsed_materials[material_path] = material;
+      }
+    }
+    if (material) {
+      mjs_setString(geom->material, mjs_getName(material->element)->c_str());
     }
   }
 
@@ -1720,6 +2073,10 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
   if (!root->physics_scene.IsEmpty()) {
     mujoco::usd::ParseUsdPhysicsScene(
         spec, pxr::UsdPhysicsScene::Get(stage, root->physics_scene));
+  } else {
+    // If there is no physics scene we still need to infer the gravity vector
+    // from the stage up axis and units per meter metadata.
+    mujoco::usd::SetGravityAttributes(spec, stage);
   }
 
   if (!root->keyframes.empty()) {
@@ -1733,6 +2090,13 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
     for (const auto& actuator : root->actuators) {
       mujoco::usd::ParseMjcPhysicsActuator(
           spec, pxr::MjcPhysicsActuator::Get(stage, actuator));
+    }
+  }
+
+  if (!root->tendons.empty()) {
+    for (const auto& tendon : root->tendons) {
+      mujoco::usd::ParseMjcPhysicsTendon(
+          spec, pxr::MjcPhysicsTendon::Get(stage, tendon));
     }
   }
 
@@ -1750,4 +2114,3 @@ MJAPI mjSpec* mj_parseUSD(const char* identifier, const mjVFS* vfs, char* error,
   auto stage = pxr::UsdStage::Open(identifier);
   return mj_parseUSDStage(stage);
 }
-

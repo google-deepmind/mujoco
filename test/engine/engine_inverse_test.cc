@@ -18,6 +18,7 @@
 
 #include <string>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
@@ -26,6 +27,7 @@
 namespace mujoco {
 namespace {
 
+using ::testing::NotNull;
 using InverseTest = MujocoTest;
 
 const int kSteps = 70;
@@ -34,7 +36,9 @@ static const char* const kModelPath = "testdata/model.xml";
 // test standard continuous-time inverse dynamics
 TEST_F(InverseTest, ForwardInverseMatch) {
   const std::string xml_path = GetTestDataFilePath(kModelPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // simulate, call mj_forward
@@ -59,7 +63,9 @@ TEST_F(InverseTest, ForwardInverseMatch) {
 TEST_F(InverseTest, DiscreteInverseMatch) {
   // load and allocate
   const std::string xml_path = GetTestDataFilePath(kModelPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   int nv = model->nv;
   mjData* data = mj_makeData(model);
   int nstate = mj_stateSize(model, mjSTATE_INTEGRATION);

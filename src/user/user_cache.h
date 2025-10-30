@@ -39,9 +39,9 @@ typedef void (*mjCDeallocFunc)(const void*);
 class mjCAsset {
   friend class mjCCache;
  public:
-  mjCAsset(std::string modelname, const mjResource* resource,
+  mjCAsset(std::string modelname, std::string id, const mjResource* resource,
            std::shared_ptr<const void> data, std::size_t size) :
-             id_(resource->name), timestamp_(resource->timestamp),
+             id_(id), timestamp_(resource->timestamp),
              size_(size), data_(std::move(data)) {
     AddReference(modelname);
   }
@@ -117,7 +117,7 @@ struct mjCAssetCompare {
 // the class container for a thread-safe asset cache
 class mjCCache {
  public:
-  explicit mjCCache(std::size_t size)  :  max_size_(size) {}
+  explicit mjCCache(std::size_t size)  :  capacity_(size) {}
 
   // move only
   mjCCache(mjCCache&& other) = delete;
@@ -125,10 +125,10 @@ class mjCCache {
   mjCCache(const mjCCache& other) = delete;
   mjCCache& operator=(const mjCCache& other) = delete;
 
-  // sets the total maximum size of the cache in bytes
+  // sets the capacity of the cache in bytes
   // low-priority cached assets will be dropped to make the new memory
   // requirement
-  void SetMaxSize(std::size_t size);
+  void SetCapacity(std::size_t size);
 
   // returns the corresponding timestamp, if the given asset is stored in
   // the cache
@@ -136,11 +136,11 @@ class mjCCache {
 
   // inserts an asset into the cache, if asset is already in the cache, its data
   // is updated only if the timestamps disagree
-  bool Insert(const std::string& modelname, const mjResource *resource,
+  bool Insert(const std::string& modelname, const std::string& id, const mjResource *resource,
               std::shared_ptr<const void> data, std::size_t size);
 
   // populate data from the cache into the given function
-  bool PopulateData(const mjResource* resource, mjCDataFunc fn);
+  bool PopulateData(const std::string& id, const mjResource* resource, mjCDataFunc fn);
 
   // deletes the asset from the cache with the given id
   void DeleteAsset(const std::string& id);
@@ -156,7 +156,7 @@ class mjCCache {
   void Reset();
 
   // accessors
-  std::size_t MaxSize() const;
+  std::size_t Capacity() const;
   std::size_t Size() const;
 
  private:
@@ -170,7 +170,7 @@ class mjCCache {
   mutable std::mutex mutex_;
   std::size_t insert_num_ = 0;  // a running counter of assets being inserted
   std::size_t size_ = 0;        // current size of the cache in bytes
-  std::size_t max_size_ = 0;    // max size of the cache in bytes
+  std::size_t capacity_ = 0;    // capacity of the cache in bytes
 
   // internal constant look up table for assets
   std::unordered_map<std::string, mjCAsset> lookup_;

@@ -647,7 +647,7 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
     }
 
     // add islands if enabled
-    if (mjENABLED(mjENBL_ISLAND)) {
+    if (!mjDISABLED(mjDSBL_ISLAND) && d->nisland > 0) {
       mju::sprintf_arr(tmp, "\n%d", d->nisland);
       mju::strcat_arr(content, tmp);
       mju::strcat_arr(title, "\nIslands");
@@ -707,7 +707,6 @@ void MakePhysicsSection(mj::Simulate* sim) {
     {mjITEM_EDITNUM,   "Noslip Tol",    2, &(opt->noslip_tolerance),  "1 0 1"},
     {mjITEM_EDITINT,   "CCD Iter",      2, &(opt->ccd_iterations),    "1 0 1000"},
     {mjITEM_EDITNUM,   "CCD Tol",       2, &(opt->ccd_tolerance),     "1 0 1"},
-    {mjITEM_EDITNUM,   "API Rate",      2, &(opt->apirate),           "1 0 1000"},
     {mjITEM_EDITINT,   "SDF Iter",      2, &(opt->sdf_iterations),    "1 1 20"},
     {mjITEM_EDITINT,   "SDF Init",      2, &(opt->sdf_initpoints),    "1 1 100"},
     {mjITEM_SEPARATOR, "Physical Parameters", mjPRESERVE},
@@ -1922,8 +1921,8 @@ void Simulate::Sync(bool state_only) {
     return;
   }
 
-  bool update_profiler = this->profiler && (this->pause_update || this->run);
-  bool update_sensor = this->sensor && (this->pause_update || this->run);
+  bool update_profiler = this->profiler;
+  bool update_sensor = this->sensor;
 
   for (int i = 0; i < m_->njnt; ++i) {
     std::optional<std::pair<mjtNum, mjtNum>> range;
@@ -2917,7 +2916,7 @@ void Simulate::AddToHistory() {
 }
 
 // inject Brownian noise
-void Simulate::InjectNoise() {
+void Simulate::InjectNoise(int key) {
   // no noise, return
   if (ctrl_noise_std <= 0) {
     return;
@@ -2934,6 +2933,11 @@ void Simulate::InjectNoise() {
       top = m_->actuator_ctrlrange[2*i+1];
       midpoint =  0.5 * (top + bottom);  // target of exponential decay
       halfrange = 0.5 * (top - bottom);  // scales noise
+    }
+
+    // overwrite midpoint with keyframe, if given
+    if (key >= 0) {
+      midpoint = m_->key_ctrl[key*m_->nu+i];
     }
 
     // exponential convergence to midpoint at ctrl_noise_rate

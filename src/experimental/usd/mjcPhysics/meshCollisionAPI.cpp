@@ -32,7 +32,7 @@ MjcPhysicsMeshCollisionAPI::~MjcPhysicsMeshCollisionAPI() {}
 
 /* static */
 MjcPhysicsMeshCollisionAPI MjcPhysicsMeshCollisionAPI::Get(
-    const UsdStagePtr &stage, const SdfPath &path) {
+    const UsdStagePtr& stage, const SdfPath& path) {
   if (!stage) {
     TF_CODING_ERROR("Invalid stage");
     return MjcPhysicsMeshCollisionAPI();
@@ -46,14 +46,14 @@ UsdSchemaKind MjcPhysicsMeshCollisionAPI::_GetSchemaKind() const {
 }
 
 /* static */
-bool MjcPhysicsMeshCollisionAPI::CanApply(const UsdPrim &prim,
-                                          std::string *whyNot) {
+bool MjcPhysicsMeshCollisionAPI::CanApply(const UsdPrim& prim,
+                                          std::string* whyNot) {
   return prim.CanApplyAPI<MjcPhysicsMeshCollisionAPI>(whyNot);
 }
 
 /* static */
 MjcPhysicsMeshCollisionAPI MjcPhysicsMeshCollisionAPI::Apply(
-    const UsdPrim &prim) {
+    const UsdPrim& prim) {
   if (prim.ApplyAPI<MjcPhysicsMeshCollisionAPI>()) {
     return MjcPhysicsMeshCollisionAPI(prim);
   }
@@ -61,7 +61,7 @@ MjcPhysicsMeshCollisionAPI MjcPhysicsMeshCollisionAPI::Apply(
 }
 
 /* static */
-const TfType &MjcPhysicsMeshCollisionAPI::_GetStaticTfType() {
+const TfType& MjcPhysicsMeshCollisionAPI::_GetStaticTfType() {
   static TfType tfType = TfType::Find<MjcPhysicsMeshCollisionAPI>();
   return tfType;
 }
@@ -73,7 +73,7 @@ bool MjcPhysicsMeshCollisionAPI::_IsTypedSchema() {
 }
 
 /* virtual */
-const TfType &MjcPhysicsMeshCollisionAPI::_GetTfType() const {
+const TfType& MjcPhysicsMeshCollisionAPI::_GetTfType() const {
   return _GetStaticTfType();
 }
 
@@ -82,7 +82,7 @@ UsdAttribute MjcPhysicsMeshCollisionAPI::GetInertiaAttr() const {
 }
 
 UsdAttribute MjcPhysicsMeshCollisionAPI::CreateInertiaAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcInertia, SdfValueTypeNames->Token,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -93,7 +93,7 @@ UsdAttribute MjcPhysicsMeshCollisionAPI::GetMaxHullVertAttr() const {
 }
 
 UsdAttribute MjcPhysicsMeshCollisionAPI::CreateMaxHullVertAttr(
-    VtValue const &defaultValue, bool writeSparsely) const {
+    VtValue const& defaultValue, bool writeSparsely) const {
   return UsdSchemaBase::_CreateAttr(
       MjcPhysicsTokens->mjcMaxhullvert, SdfValueTypeNames->Int,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
@@ -101,7 +101,7 @@ UsdAttribute MjcPhysicsMeshCollisionAPI::CreateMaxHullVertAttr(
 
 namespace {
 static inline TfTokenVector _ConcatenateAttributeNames(
-    const TfTokenVector &left, const TfTokenVector &right) {
+    const TfTokenVector& left, const TfTokenVector& right) {
   TfTokenVector result;
   result.reserve(left.size() + right.size());
   result.insert(result.end(), left.begin(), left.end());
@@ -111,7 +111,7 @@ static inline TfTokenVector _ConcatenateAttributeNames(
 }  // namespace
 
 /*static*/
-const TfTokenVector &MjcPhysicsMeshCollisionAPI::GetSchemaAttributeNames(
+const TfTokenVector& MjcPhysicsMeshCollisionAPI::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcInertia,

@@ -24,6 +24,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath('../'))
 sys.path.append(os.path.abspath('ext'))
+sys.path.insert(0, os.path.abspath('../mjx/mujoco/mjx/third_party'))
 
 from sphinxcontrib import katex  # pylint: disable=g-import-not-at-top
 from sphinxcontrib import youtube  # pylint: disable=g-import-not-at-top,unused-import
@@ -42,6 +43,9 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
     'sphinxcontrib.bibtex',
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
@@ -53,6 +57,13 @@ extensions = [
     'sphinx_toolbox.sidebar_links',
     'mujoco_include',
 ]
+
+# MuJoCo Warp documentation
+napoleon_google_docstring = True
+autodoc_class_signature = 'separated'
+add_module_names = False
+toc_object_entries_show_parents = 'hide'
+default_role = 'literal'
 
 # GitHub-related options
 github_username = 'google-deepmind'
@@ -163,9 +174,11 @@ html_static_path = [
 ]
 html_css_files = [
     'theme_overrides.css',
+    'theme_overrides_mjwarp.css',
 ]
 html_js_files = [
     'linenumbers.js',
+    'onthispage_mjwarp.js',
 ]
 
 favicons = [
@@ -206,6 +219,9 @@ latex_macros = r"""
     \def \ari            {a_{{\rm ref},i}}
     \def \aui            {a_{0,i}}
     \def \aci            {a_{1,i}}
+    \def \nv             {n_{\scriptscriptstyle V}}
+    \def \nc             {n_{\scriptscriptstyle C}}
+    \def \nq             {n_{\scriptscriptstyle Q}}
 """
 
 # Translate LaTeX macros to KaTeX and add to options for HTML builder

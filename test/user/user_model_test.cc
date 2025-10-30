@@ -781,7 +781,7 @@ TEST_F(MujocoTest, Modeldir) {
   mjsMesh* mesh = mjs_addMesh(child, 0);
   mjsFrame* frame = mjs_addFrame(mjs_findBody(child, "world"), 0);
   mjsGeom* geom = mjs_addGeom(mjs_findBody(child, "world"), 0);
-  mjs_setString(child->meshdir, "meshdir");
+  mjs_setString(child->compiler.meshdir, "meshdir");
   mjs_setString(mesh->file, "cube.obj");
   mjs_setName(mesh->element, "cube");
   mjs_setString(geom->meshname, "cube");
@@ -791,7 +791,7 @@ TEST_F(MujocoTest, Modeldir) {
   // parent attaching the child
   mjSpec* spec = mj_makeSpec();
   mjs_setDeepCopy(spec, true);
-  mjs_setString(spec->meshdir, "asset");
+  mjs_setString(spec->compiler.meshdir, "asset");
   mjs_attach(mjs_findBody(spec, "world")->element, frame->element, "_", "");
   mjModel* model = mj_compile(spec, vfs.get());
   EXPECT_THAT(model, NotNull());

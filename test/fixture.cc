@@ -60,7 +60,7 @@ void default_mj_warning_handler(const char* msg) {
 }  // namespace
 
 MujocoErrorTestGuard::MujocoErrorTestGuard() {
-  absl::MutexLock lock(&handlers_mutex);
+  absl::MutexLock lock(handlers_mutex);
   if (++guard_count == 1) {
     mju_user_error = default_mj_error_handler;
     mju_user_warning = default_mj_warning_handler;
@@ -68,7 +68,7 @@ MujocoErrorTestGuard::MujocoErrorTestGuard() {
 }
 
 MujocoErrorTestGuard::~MujocoErrorTestGuard() {
-  absl::MutexLock lock(&handlers_mutex);
+  absl::MutexLock lock(handlers_mutex);
   if (--guard_count == 0) {
     mju_user_error = nullptr;
     mju_user_warning = nullptr;

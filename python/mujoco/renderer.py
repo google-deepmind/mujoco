@@ -33,6 +33,7 @@ class Renderer:
       height: int = 240,
       width: int = 320,
       max_geom: int = 10000,
+      font_scale: _enums.mjtFontScale = _enums.mjtFontScale.mjFONTSCALE_150,
   ) -> None:
     """Initializes a new `Renderer`.
 
@@ -43,6 +44,7 @@ class Renderer:
       max_geom: Optional integer specifying the maximum number of geoms that can
         be rendered in the same scene. If None this will be chosen automatically
         based on the estimated maximum number of renderable geoms in the model.
+      font_scale: Optional enum specifying the font scale for text.
 
     Raises:
       ValueError: If `camera_id` is outside the valid range, or if `width` or
@@ -84,9 +86,7 @@ the clause:
       self._gl_context = gl_context.GLContext(width, height)
     if self._gl_context:
       self._gl_context.make_current()
-    self._mjr_context = _render.MjrContext(
-        model, _enums.mjtFontScale.mjFONTSCALE_150.value
-    )
+    self._mjr_context = _render.MjrContext(model, font_scale.value)
     _render.mjr_setBuffer(
         _enums.mjtFramebuffer.mjFB_OFFSCREEN.value, self._mjr_context
     )
@@ -242,7 +242,10 @@ the clause:
     else:
       _render.mjr_readPixels(out, None, self._rect, self._mjr_context)
 
-    out[:] = np.flipud(out)
+    if self._gl_context:
+      # If using EGL, OSMesa, or GLFW, the output image is flipped vertically.
+      # No flip is needed for Filament.
+      out[:] = np.flipud(out)
 
     return out
 

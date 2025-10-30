@@ -55,13 +55,15 @@ def deriv_smooth_vel(m: Model, d: Data) -> Optional[jax.Array]:
     )
 
   # qDeriv += d qfrc_passive / d qvel
-  if not m.opt.disableflags & DisableBit.PASSIVE:
+  if not m.opt.disableflags & DisableBit.DAMPER:
     if qderiv is None:
       qderiv = -jp.diag(m.dof_damping)
     else:
       qderiv -= jp.diag(m.dof_damping)
     if m.ntendon:
       qderiv -= d._impl.ten_J.T @ jp.diag(m.tendon_damping) @ d._impl.ten_J
+
+  if not m.opt.disableflags & (DisableBit.DAMPER | DisableBit.SPRING):
     # TODO(robotics-simulation): fluid drag model
     if m.opt._impl.has_fluid_params:  # pytype: disable=attribute-error
       raise NotImplementedError('fluid drag not supported for implicitfast')

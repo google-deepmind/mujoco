@@ -15,7 +15,9 @@
 """Tests for io functions."""
 
 import os
+import tempfile
 from unittest import mock
+
 from absl.testing import absltest
 from absl.testing import parameterized
 import jax
@@ -31,6 +33,7 @@ from mujoco.mjx._src.types import JacobianType
 # pylint: enable=g-importing-member
 import mujoco.mjx.warp as mjxw
 from mujoco.mjx.warp import types as mjxw_types
+from mujoco.mjx.warp import warp as wp  # pylint: disable=g-importing-member
 import numpy as np
 
 
@@ -125,6 +128,12 @@ def _get_name_from_path(path: jax.tree_util.KeyPath) -> str:
 class ModelIOTest(parameterized.TestCase):
   """IO tests for mjx.Model."""
 
+  def setUp(self):
+    super().setUp()
+    if mjxw.WARP_INSTALLED:
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
+
   @parameterized.product(
       xml=(_MULTIPLE_CONVEX_OBJECTS, _MULTIPLE_CONSTRAINTS),
       impl=('jax', 'c', 'warp'),
@@ -164,7 +173,7 @@ class ModelIOTest(parameterized.TestCase):
       self.assertFalse(hasattr(mx, 'bvh_aabb'))
     elif impl == 'c':
       # Options specific to C are populated.
-      self.assertEqual(mx.opt._impl.apirate, m.opt.apirate)
+      self.assertEqual(mx.opt._impl.noslip_iterations, m.opt.noslip_iterations)
       # Fields private to C backend impl are populated.
       self.assertTrue(hasattr(mx._impl, 'bvh_aabb'))
     elif impl == 'warp':
@@ -311,10 +320,10 @@ class ModelIOTest(parameterized.TestCase):
 
     def check_ndim(path, x):
       k = _get_name_from_path(path)
-      if k not in mjxw_types.NDIM['Model']:
+      if k not in mjxw_types._NDIM['Model']:
         return
-      is_batched = mjxw_types.BATCH_DIM['Model'][k]
-      expected_ndim = mjxw_types.NDIM['Model'][k] - is_batched
+      is_batched = mjxw_types._BATCH_DIM['Model'][k]
+      expected_ndim = mjxw_types._NDIM['Model'][k] - is_batched
       if not hasattr(x, 'ndim'):
         return
       msg = f'Field {k} has ndim {x.ndim} but expected {expected_ndim}'
@@ -325,6 +334,12 @@ class ModelIOTest(parameterized.TestCase):
 
 class DataIOTest(parameterized.TestCase):
   """IO tests for mjx.Data."""
+
+  def setUp(self):
+    super().setUp()
+    if mjxw.WARP_INSTALLED:
+      self.tempdir = tempfile.TemporaryDirectory()
+      wp.config.kernel_cache_dir = self.tempdir.name
 
   @parameterized.parameters('jax', 'c')
   def test_make_data(self, impl: str):
@@ -478,7 +493,7 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(dx.site_xmat.reshape((1, 9)), d.site_xmat)
 
     # tendon data is correct
-    np.testing.assert_allclose(dx._impl.ten_length, d.ten_length)
+    np.testing.assert_allclose(dx.ten_length, d.ten_length)
     np.testing.assert_equal(dx._impl.ten_wrapadr, np.zeros((1,)))
     np.testing.assert_equal(dx._impl.ten_wrapnum, np.zeros((1,)))
     np.testing.assert_equal(dx._impl.wrap_obj, np.zeros((2, 2)))
@@ -745,10 +760,10 @@ class DataIOTest(parameterized.TestCase):
 
     def check_ndim(path, x):
       k = _get_name_from_path(path)
-      if k not in mjxw_types.NDIM['Data']:
+      if k not in mjxw_types._NDIM['Data']:
         return
-      is_batched = mjxw_types.BATCH_DIM['Data'][k]
-      expected_ndim = mjxw_types.NDIM['Data'][k] - is_batched
+      is_batched = mjxw_types._BATCH_DIM['Data'][k]
+      expected_ndim = mjxw_types._NDIM['Data'][k] - is_batched
       if not hasattr(x, 'ndim'):
         return
       msg = f'Field {k} has ndim {x.ndim} but expected {expected_ndim}'
@@ -771,35 +786,8 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(dx[0].qpos.shape, (m.nq,))
 
     if impl == 'warp':
-      self.assertEqual(dx._impl.contact__dist.shape, (dx._impl.nconmax,))
-      self.assertEqual(dx[0]._impl.contact__dist.shape, (dx._impl.nconmax,))
-
-
-class FullCompatTest(parameterized.TestCase):
-  """Tests for the _full_compat flag."""
-
-  def test_full_compat_deprecated(self):
-    """Tests that _full_compat is deprecated."""
-    xml = """
-      <mujoco>
-        <worldbody>
-          <body name="box">
-            <joint name="slide1" type="slide" axis="1 0 0" />
-            <geom type="box" size=".05 .05 .05" mass="1"/>
-          </body>
-        </worldbody>
-        <actuator>
-          <motor joint="slide1"/>
-        </actuator>
-      </mujoco>
-    """
-    m = mujoco.MjModel.from_xml_string(xml)
-    with self.assertWarns(DeprecationWarning):
-      out = mjx_io.put_model(m, _full_compat=True)
-      self.assertEqual(out.impl, Impl.C)
-    with self.assertWarns(DeprecationWarning):
-      out = mjx_io.make_data(m, _full_compat=True)
-      self.assertEqual(out.impl, Impl.C)
+      self.assertEqual(dx._impl.contact__dist.shape, (dx._impl.naconmax,))
+      self.assertEqual(dx[0]._impl.contact__dist.shape, (dx._impl.naconmax,))
 
 
 # Test cases for `_resolve_impl_and_device` where the device is

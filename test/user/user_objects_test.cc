@@ -68,8 +68,7 @@ TEST_F(VfsTest, HFieldPngWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -96,8 +95,7 @@ TEST_F(VfsTest, HFieldCustomWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -125,8 +123,7 @@ TEST_F(VfsTest, TexturePngWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -154,8 +151,7 @@ TEST_F(VfsTest, TextureCustomWithVFS) {
   // should fallback to OS filesystem
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -187,8 +183,7 @@ TEST_F(ContentTypeTest, HFieldPngWithContentType) {
   // should try loading the file
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -216,8 +211,7 @@ TEST_F(ContentTypeTest, HFieldCustomWithContentType) {
   // should try loading the file
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -273,8 +267,7 @@ TEST_F(ContentTypeTest, TexturePngWithContentType) {
   // should try loading the file
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -303,8 +296,7 @@ TEST_F(ContentTypeTest, TextureCustomWithContentType) {
   // should try loading the file
   mjModel* model = LoadModelFromString(xml, error, error_sz, vfs.get());
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error,
-              HasSubstr("Error opening file"));
+  EXPECT_THAT(error, HasSubstr("Error opening file"));
   mj_deleteVFS(vfs.get());
 }
 
@@ -369,7 +361,6 @@ TEST_F(ContentTypeTest, TextureLoadPng) {
   char error[1024];
   size_t error_sz = 1024;
 
-
   // load VFS on the heap
   auto vfs = std::make_unique<mjVFS>();
   mj_defaultVFS(vfs.get());
@@ -398,11 +389,11 @@ TEST_F(KeyframeTest, CheckValues) {
   EXPECT_EQ(model->key_qpos[1 * model->nq], 0.2);
   EXPECT_EQ(model->key_qvel[2 * model->nv], 0.3);
   EXPECT_EQ(model->key_act[3 * model->na], 0.4);
-  EXPECT_THAT(AsVector(model->key_ctrl + 4*model->nu, model->nu),
+  EXPECT_THAT(AsVector(model->key_ctrl + 4 * model->nu, model->nu),
               ElementsAre(0.5, 0.6));
-  EXPECT_THAT(AsVector(model->key_mpos + 3*model->nmocap*5, 3),
+  EXPECT_THAT(AsVector(model->key_mpos + 3 * model->nmocap * 5, 3),
               ElementsAre(.1, .2, .3));
-  EXPECT_THAT(AsVector(model->key_mquat + 4*model->nmocap*6, 4),
+  EXPECT_THAT(AsVector(model->key_mquat + 4 * model->nmocap * 6, 4),
               ElementsAre(.5, .5, .5, .5));
   mj_deleteModel(model);
 }
@@ -473,7 +464,7 @@ TEST_F(KeyframeTest, BadSize) {
   size_t error_sz = 1024;
   mjModel* model = LoadModelFromString(xml, error, error_sz);
   EXPECT_THAT(model, IsNull());
-  EXPECT_THAT(error, HasSubstr("invalid qpos size, expected length 0"));
+  EXPECT_THAT(error, HasSubstr("invalid qpos size, expected 0, got 1"));
 }
 
 // ------------- test relative frame sensor compilation-------------------------
@@ -607,9 +598,7 @@ TEST_F(RelativeFrameSensorParsingTest, BadObjRefName) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, IsNull());
-  EXPECT_THAT(
-      error.data(),
-      HasSubstr("unrecognized name 'alessio' of object"));
+  EXPECT_THAT(error.data(), HasSubstr("unrecognized name 'alessio' of object"));
   EXPECT_THAT(error.data(), HasSubstr("name 'tom'"));
   EXPECT_THAT(error.data(), HasSubstr("line 7"));
 }
@@ -663,9 +652,9 @@ TEST_F(MjCGeomTest, CapsuleInertiaZ) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
   // z-inertia of capsule should equal sphere + cylinder z-inertia.
   mjtNum sphere_cylinder_z_inertia =
-      model->body_inertia[3*kSphereBodyId + 2] +
-      model->body_inertia[3*kCylinderBodyId + 2];
-  mjtNum capsule_z_inertia = model->body_inertia[3*kCapsuleBodyId + 2];
+      model->body_inertia[3 * kSphereBodyId + 2] +
+      model->body_inertia[3 * kCylinderBodyId + 2];
+  mjtNum capsule_z_inertia = model->body_inertia[3 * kCapsuleBodyId + 2];
   EXPECT_DOUBLE_EQ(sphere_cylinder_z_inertia, capsule_z_inertia);
   mj_deleteModel(model);
 }
@@ -675,27 +664,27 @@ TEST_F(MjCGeomTest, CapsuleInertiaX) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
 
   // The CoM of a solid hemisphere is 3/8*radius away from from the disk.
-  mjtNum hs_com = model->geom_size[3*kCapsuleGeomId] * 3 / 8;
+  mjtNum hs_com = model->geom_size[3 * kCapsuleGeomId] * 3 / 8;
 
   // The mass of the two hemispherical end-caps is just the mass of the sphere.
   mjtNum sphere_mass = model->body_mass[1];
 
   // x-inertia of capsule should equal sphere + cylinder x-inertias, with
   // corrections from shifting the hemispheres using parallel axis theorem.
-  mjtNum sphere_cylinder_x_inertia = model->body_inertia[3*kSphereBodyId] +
-                                     model->body_inertia[3*kCylinderBodyId];
+  mjtNum sphere_cylinder_x_inertia = model->body_inertia[3 * kSphereBodyId] +
+                                     model->body_inertia[3 * kCylinderBodyId];
 
   // Parallel axis-theorem #1: translate the hemispheres in to the origin.
   mjtNum translate_in = hs_com;
-  sphere_cylinder_x_inertia -= sphere_mass * translate_in*translate_in;
+  sphere_cylinder_x_inertia -= sphere_mass * translate_in * translate_in;
 
   // Parallel axis-theorem #2: translate the hemispheres out to the end caps.
-  mjtNum cylinder_half_length = model->geom_size[3*kCapsuleGeomId + 1];
+  mjtNum cylinder_half_length = model->geom_size[3 * kCapsuleGeomId + 1];
   mjtNum translate_out = cylinder_half_length + hs_com;
-  sphere_cylinder_x_inertia += sphere_mass * translate_out*translate_out;
+  sphere_cylinder_x_inertia += sphere_mass * translate_out * translate_out;
 
   // Compare native capsule inertia and computed inertia.
-  mjtNum capsule_x_inertia = model->body_inertia[3*kCapsuleBodyId];
+  mjtNum capsule_x_inertia = model->body_inertia[3 * kCapsuleBodyId];
   EXPECT_DOUBLE_EQ(sphere_cylinder_x_inertia, capsule_x_inertia);
   mj_deleteModel(model);
 }
@@ -1199,14 +1188,15 @@ TEST_F(MjCJointTest, AlignFree) {
 
   // expect x-frames (sensors) to match to very high precision
   double eps = 1e-10;
-  EXPECT_THAT(AsVector(d->sensordata, m->nsensordata),
+  EXPECT_THAT(
+      AsVector(d->sensordata, m->nsensordata),
       Pointwise(DoubleNear(eps), AsVector(d_u->sensordata, m->nsensordata)));
 
   // no frame sensors for lights, test separately
   EXPECT_THAT(AsVector(d->light_xpos, 3),
-      Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
+              Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
   EXPECT_THAT(AsVector(d->light_xdir, 3),
-      Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
+              Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
 
   // reduce timestep to 0.1ms and use RK4, simulate for 1 second
   m->opt.timestep = m_u->opt.timestep = 1e-4;
@@ -1224,15 +1214,15 @@ TEST_F(MjCJointTest, AlignFree) {
   EXPECT_GT(mju_norm(dqpos, nq), 1.0);
   mj_freeStack(d);
 
-
   // expect x-frames to match to reasonable precision
   eps = 1e-5;
-  EXPECT_THAT(AsVector(d->sensordata, m->nsensordata),
+  EXPECT_THAT(
+      AsVector(d->sensordata, m->nsensordata),
       Pointwise(DoubleNear(eps), AsVector(d_u->sensordata, m->nsensordata)));
   EXPECT_THAT(AsVector(d->light_xpos, 3),
-      Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
+              Pointwise(DoubleNear(eps), AsVector(d_u->light_xpos, 3)));
   EXPECT_THAT(AsVector(d->light_xdir, 3),
-      Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
+              Pointwise(DoubleNear(eps), AsVector(d_u->light_xdir, 3)));
 
   mj_deleteData(d_u);
   mj_deleteData(d);
@@ -1247,8 +1237,7 @@ TEST_F(MjCJointTest, AlignFree) {
 using MjCHFieldTest = MujocoTest;
 
 TEST_F(MjCHFieldTest, PngMap) {
-  const string xml_path =
-      GetTestDataFilePath("user/testdata/hfield_png.xml");
+  const string xml_path = GetTestDataFilePath("user/testdata/hfield_png.xml");
   std::array<char, 1024> error;
   mjModel* model =
       mj_loadXML(xml_path.c_str(), nullptr, error.data(), error.size());
@@ -1569,7 +1558,7 @@ TEST_F(InheritrangeTest, WorksForDegrees) {
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
   ASSERT_THAT(model, NotNull()) << error.data();
-  EXPECT_DOUBLE_EQ(model->actuator_ctrlrange[0], mjPI/2);
+  EXPECT_DOUBLE_EQ(model->actuator_ctrlrange[0], mjPI / 2);
   EXPECT_DOUBLE_EQ(model->actuator_ctrlrange[1], mjPI);
 
   mj_deleteModel(model);
@@ -1938,7 +1927,7 @@ TEST_F(LimitedTest, JointLimited) {
   ASSERT_THAT(model, NotNull()) << err.data();
 
   // see `user/testdata/auto_limits.xml` for expected values
-  for (int i=0; i < model->njnt; i++) {
+  for (int i = 0; i < model->njnt; i++) {
     EXPECT_EQ(model->jnt_limited[i], (mjtByte)model->jnt_user[i])
         << i << " " << (int)model->jnt_limited[i] << " "
         << (int)model->jnt_user[i];
@@ -2402,7 +2391,8 @@ TEST_F(UserObjectsTest, BadConnect) {
   EXPECT_THAT(AsVector(m->eq_data, 6), ElementsAre(0, 0, 0, 0, 0, 0));
   mj_deleteModel(m);
 
-  char error_missing[] = "either both body1 and anchor must be defined,"
+  char error_missing[] =
+      "either both body1 and anchor must be defined,"
       " or both site1 and site2 must be defined\nElement 'connect', line 12";
 
   // bad model (missing anchor)
@@ -2411,7 +2401,8 @@ TEST_F(UserObjectsTest, BadConnect) {
   ASSERT_THAT(m, IsNull());
   EXPECT_THAT(error, HasSubstr(error_missing));
 
-  char error_mixed[] = "body and site semantics cannot be mixed"
+  char error_mixed[] =
+      "body and site semantics cannot be mixed"
       "\nElement 'connect', line 12";
 
   // bad model (mixing body and site)
@@ -2570,18 +2561,18 @@ TEST_F(UserObjectsTest, Inertial) {
   mjModel* m = LoadModelFromString(xml.c_str(), error, sizeof(error));
   ASSERT_THAT(m, NotNull()) << error;
   EXPECT_EQ(m->body_mass[1], 1);
-  EXPECT_THAT(AsVector(m->body_ipos+3, 3), ElementsAre(2, 3, 4));
-  EXPECT_THAT(AsVector(m->body_inertia+3, 3), ElementsAre(4, 5, 6));
+  EXPECT_THAT(AsVector(m->body_ipos + 3, 3), ElementsAre(2, 3, 4));
+  EXPECT_THAT(AsVector(m->body_inertia + 3, 3), ElementsAre(4, 5, 6));
 
   mjtNum quat[4];
   const mjtNum euler[3] = {3, 4, 5};
   mju_euler2Quat(quat, euler, "xyz");
-  EXPECT_THAT(AsVector(m->body_iquat+4, 4),
+  EXPECT_THAT(AsVector(m->body_iquat + 4, 4),
               Pointwise(DoubleNear(1e-8), AsVector(quat, 4)));
 
   EXPECT_EQ(m->body_mass[2], 2);
-  EXPECT_THAT(AsVector(m->body_ipos+6, 3), ElementsAre(1, 2, 3));
-  EXPECT_THAT(AsVector(m->body_inertia+6, 3), ElementsAre(4, 3, 2));
+  EXPECT_THAT(AsVector(m->body_ipos + 6, 3), ElementsAre(1, 2, 3));
+  EXPECT_THAT(AsVector(m->body_inertia + 6, 3), ElementsAre(4, 3, 2));
   mj_deleteModel(m);
 
   string bad_xml1 = R"(
@@ -2609,6 +2600,26 @@ TEST_F(UserObjectsTest, Inertial) {
   m = LoadModelFromString(bad_xml2.c_str(), error, sizeof(error));
   ASSERT_THAT(m, IsNull());
   EXPECT_THAT(error, HasSubstr("fullinertia and inertial orientation cannot"));
+}
+
+TEST_F(UserObjectsTest, ZeroMass) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body>
+        <body>
+          <geom mass="0" size="0.01"/>
+          <geom mass="0" size="0.01"/>
+        </body>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  EXPECT_THAT(model, NotNull()) << error;
+  mj_deleteModel(model);
 }
 
 }  // namespace

@@ -59,13 +59,13 @@ class MjcPhysicsActuator : public UsdTyped {
   /// Equivalent to MjcPhysicsActuator::Get(prim.GetStage(), prim.GetPath())
   /// for a \em valid \p prim, but will not immediately throw an error for
   /// an invalid \p prim
-  explicit MjcPhysicsActuator(const UsdPrim &prim = UsdPrim())
+  explicit MjcPhysicsActuator(const UsdPrim& prim = UsdPrim())
       : UsdTyped(prim) {}
 
   /// Construct a MjcPhysicsActuator on the prim held by \p schemaObj .
   /// Should be preferred over MjcPhysicsActuator(schemaObj.GetPrim()),
   /// as it preserves SchemaBase state.
-  explicit MjcPhysicsActuator(const UsdSchemaBase &schemaObj)
+  explicit MjcPhysicsActuator(const UsdSchemaBase& schemaObj)
       : UsdTyped(schemaObj) {}
 
   /// Destructor.
@@ -76,7 +76,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// class and all its ancestor classes.  Does not include attributes that
   /// may be authored by custom/extended methods of the schemas involved.
   MJCPHYSICS_API
-  static const TfTokenVector &GetSchemaAttributeNames(
+  static const TfTokenVector& GetSchemaAttributeNames(
       bool includeInherited = true);
 
   /// Return a MjcPhysicsActuator holding the prim adhering to this
@@ -89,7 +89,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// \endcode
   ///
   MJCPHYSICS_API
-  static MjcPhysicsActuator Get(const UsdStagePtr &stage, const SdfPath &path);
+  static MjcPhysicsActuator Get(const UsdStagePtr& stage, const SdfPath& path);
 
   /// Attempt to ensure a \a UsdPrim adhering to this schema at \p path
   /// is defined (according to UsdPrim::IsDefined()) on this stage.
@@ -114,8 +114,8 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the opinion at the current EditTarget.
   ///
   MJCPHYSICS_API
-  static MjcPhysicsActuator Define(const UsdStagePtr &stage,
-                                   const SdfPath &path);
+  static MjcPhysicsActuator Define(const UsdStagePtr& stage,
+                                   const SdfPath& path);
 
  protected:
   /// Returns the kind of schema this class belongs to.
@@ -128,13 +128,13 @@ class MjcPhysicsActuator : public UsdTyped {
   // needs to invoke _GetStaticTfType.
   friend class UsdSchemaRegistry;
   MJCPHYSICS_API
-  static const TfType &_GetStaticTfType();
+  static const TfType& _GetStaticTfType();
 
   static bool _IsTypedSchema();
 
   // override SchemaBase virtuals.
   MJCPHYSICS_API
-  const TfType &_GetTfType() const override;
+  const TfType& _GetTfType() const override;
 
  public:
   // --------------------------------------------------------------------- //
@@ -157,7 +157,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateGroupAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateGroupAttr(VtValue const& defaultValue = VtValue(),
                                bool writeSparsely = false) const;
 
  public:
@@ -187,7 +187,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcCtrlLimitedAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcCtrlLimitedAttr(VtValue const& defaultValue = VtValue(),
                                         bool writeSparsely = false) const;
 
  public:
@@ -217,7 +217,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateMjcForceLimitedAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -247,7 +247,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcActLimitedAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcActLimitedAttr(VtValue const& defaultValue = VtValue(),
                                        bool writeSparsely = false) const;
 
  public:
@@ -274,7 +274,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateMjcCtrlRangeMinAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -301,7 +301,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateMjcCtrlRangeMaxAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -328,7 +328,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateMjcForceRangeMinAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -355,7 +355,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateMjcForceRangeMaxAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -382,7 +382,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcActRangeMinAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcActRangeMinAttr(VtValue const& defaultValue = VtValue(),
                                         bool writeSparsely = false) const;
 
  public:
@@ -409,7 +409,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcActRangeMaxAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcActRangeMaxAttr(VtValue const& defaultValue = VtValue(),
                                         bool writeSparsely = false) const;
 
  public:
@@ -434,7 +434,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateMjcLengthRangeMinAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -459,7 +459,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateMjcLengthRangeMaxAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -490,7 +490,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcGearAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcGearAttr(VtValue const& defaultValue = VtValue(),
                                  bool writeSparsely = false) const;
 
  public:
@@ -516,7 +516,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcCrankLengthAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcCrankLengthAttr(VtValue const& defaultValue = VtValue(),
                                         bool writeSparsely = false) const;
 
  public:
@@ -543,7 +543,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateMjcJointInParentAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:
@@ -571,7 +571,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcActDimAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcActDimAttr(VtValue const& defaultValue = VtValue(),
                                    bool writeSparsely = false) const;
 
  public:
@@ -598,7 +598,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcDynTypeAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcDynTypeAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -624,7 +624,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcGainTypeAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcGainTypeAttr(VtValue const& defaultValue = VtValue(),
                                      bool writeSparsely = false) const;
 
  public:
@@ -650,7 +650,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcBiasTypeAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcBiasTypeAttr(VtValue const& defaultValue = VtValue(),
                                      bool writeSparsely = false) const;
 
  public:
@@ -679,7 +679,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcDynPrmAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcDynPrmAttr(VtValue const& defaultValue = VtValue(),
                                    bool writeSparsely = false) const;
 
  public:
@@ -707,7 +707,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcGainPrmAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcGainPrmAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -734,7 +734,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcBiasPrmAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcBiasPrmAttr(VtValue const& defaultValue = VtValue(),
                                     bool writeSparsely = false) const;
 
  public:
@@ -760,7 +760,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
-  UsdAttribute CreateMjcActEarlyAttr(VtValue const &defaultValue = VtValue(),
+  UsdAttribute CreateMjcActEarlyAttr(VtValue const& defaultValue = VtValue(),
                                      bool writeSparsely = false) const;
 
  public:
@@ -794,7 +794,7 @@ class MjcPhysicsActuator : public UsdTyped {
   /// the default for \p writeSparsely is \c false.
   MJCPHYSICS_API
   UsdAttribute CreateMjcInheritRangeAttr(
-      VtValue const &defaultValue = VtValue(),
+      VtValue const& defaultValue = VtValue(),
       bool writeSparsely = false) const;
 
  public:

@@ -27,7 +27,7 @@
       </geom>
     </body>
     <body>
-      <geom type="mesh" mesh="mug" euler="90 0 0" rgba="0 0 1 .2"/>
+      <geom type="sdf" mesh="mug" euler="90 0 0" rgba="0 0 1 .2"/>
     </body>
     <light pos="1 0 7" dir="0 0 -1" castshadow="false"/>
     <light pos="-1 0 7" dir="0 0 -1" castshadow="false"/>
