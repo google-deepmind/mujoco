@@ -11,37 +11,45 @@ static inline double CurrentGap()
  return g_gapRatio * boxEdge;
 }
 
-// Detect if the ghost probe hits an existing body and compute loop placement delta.
-// Returns true if obstructed (loop should be created). When obstructed, outDelta is set to (2*boxEdge + gap)
-// and outTargetBodyName is filled with the hit body name; otherwise outDelta is (boxEdge + gap).
-static bool LoopCreate(int spawnAxis, int spawnSign, double boxEdge, double gap, double &outDelta, std::string &outTargetBodyName)
+// Detect if the ghost probe hits an existing body. On hit, fill outTargetBodyName and return true.
+static bool LoopContactCheck(std::string &outTargetBodyName)
 {
- (void)spawnAxis;
- (void)spawnSign;
-
- outDelta = (boxEdge + gap);
  outTargetBodyName.clear();
-
  if (!g_lastBody || !g_probeRect)
  return false;
+
+ // ensure probe is active and collisions are up-to-date
+ if (g_probeRect->contype ==0 && g_probeRect->conaffinity ==0)
+ {
+ g_probeRect->contype =4;
+ g_probeRect->conaffinity =1;
+ }
+ mj_kinematics(m, d);
+ mj_collision(m, d);
 
  int hitBodyId = ProbeGetHitBodyId();
  if (hitBodyId <0)
  return false;
 
- const char *hitName = mj_id2name(m, mjOBJ_BODY, hitBodyId);
- // Place new block one box width plus two gaps away, so the new block and target have 'gap' clearance
- outDelta = (boxEdge +2.0 * gap);
- if (hitName)
- outTargetBodyName = hitName;
+ if (const char* hitName = mj_id2name(m, mjOBJ_BODY, hitBodyId))
+ {
+     outTargetBodyName = hitName;
+     std::cout << "LoopContactCheck: hit body " << hitBodyId << " name=" << outTargetBodyName << "\n";
+ }
+
  return true;
 }
 
 // Create the equality constraints to close a loop between the previous body/new body and the target body
-static void LoopCreate(int spawnAxis, int spawnSign, const std::string &newBodyName, const std::string &targetBodyName)
+static void LoopCreate(int spawnAxis, int spawnSign, const std::string &newBodyName,
+ const std::string &targetBodyName)
 {
  if (!spec || !g_lastBody || targetBodyName.empty())
  return;
+
+ auto equalityExists = [&](const std::string &name) -> bool {
+ return mjs_findElement(spec, mjOBJ_EQUALITY, name.c_str()) != nullptr;
+ };
 
  int axisIdx = spawnAxis;
  int sign = spawnSign;
@@ -56,9 +64,14 @@ static void LoopCreate(int spawnAxis, int spawnSign, const std::string &newBodyN
  tgt_anchor_to_prev[axisIdx] = -sign * kBoxHalf;
  tgt_anchor_to_new[axisIdx] = sign * kBoxHalf;
 
- if (!g_chain.empty())
+ // Construct names up-front to avoid duplicates across iterations
+ std::string prevName = g_chain.empty() ? std::string() : g_chain.back().name;
+ std::string ename1 = prevName + "__to__" + targetBodyName + "_connect";
+ std::string ename2 = newBodyName + "__to__" + targetBodyName + "_connect";
+
+ // Create prev-to-target equality if not already present
+ if (!prevName.empty() && !equalityExists(ename1))
  {
- const std::string &prevName = g_chain.back().name;
  if (mjsEquality *eq1 = mjs_addEquality(spec, nullptr))
  {
  eq1->type = mjEQ_CONNECT;
@@ -79,11 +92,13 @@ static void LoopCreate(int spawnAxis, int spawnSign, const std::string &newBodyN
  eq1->data[4] = tgt_anchor_to_prev[1];
  eq1->data[5] = tgt_anchor_to_prev[2];
 
- std::string ename1 = prevName + "__to__" + targetBodyName + "_connect";
  mjs_setName(eq1->element, ename1.c_str());
  }
  }
 
+ // Create new-to-target equality if not already present
+ if (!equalityExists(ename2))
+ {
  if (mjsEquality *eq2 = mjs_addEquality(spec, nullptr))
  {
  eq2->type = mjEQ_CONNECT;
@@ -104,8 +119,8 @@ static void LoopCreate(int spawnAxis, int spawnSign, const std::string &newBodyN
  eq2->data[4] = tgt_anchor_to_new[1];
  eq2->data[5] = tgt_anchor_to_new[2];
 
- std::string ename2 = newBodyName + "__to__" + targetBodyName + "_connect";
  mjs_setName(eq2->element, ename2.c_str());
+ }
  }
 }
 
@@ -299,20 +314,15 @@ void spawnCube()
     FaceToAxisSign(g_spawnFace, spawnAxis, spawnSign);
     // compute placement delta and detect if we are creating a loop
     double delta = (boxEdge + gap);
+    std::string outTarget;
+    obstructed = LoopContactCheck(outTarget);
+    if (obstructed)
     {
-        double outDelta = delta;
-        std::string outTarget;
-        obstructed = LoopCreate(spawnAxis, spawnSign, boxEdge, gap, outDelta, outTarget);
-        if (obstructed)
-        {
-            delta = outDelta;
-            targetBodyName = outTarget;
-        }
-        else
-        {
-            delta = outDelta; // remains (boxEdge + gap)
-        }
+        // set target and place new body farther so there is gap clearance when forming the loop
+        targetBodyName = outTarget;
+        delta = (2.0 * delta);
     }
+
     if (!g_lastBody)
     {
         body->pos[0] = 0;
@@ -331,9 +341,7 @@ void spawnCube()
     body->quat[2] = 0;
     body->quat[3] = 0;
 
-    // reduce body-level damping for less springy feel
-    body->damping[0] =0.01; // linDamping
-    body->damping[1] =0.02; // angDamping
+    // Note: mjsBody does not expose per-body damping; damping is set per-joint (see kHingeDamping)
 
     if (!g_lastBody)
     {
@@ -537,7 +545,7 @@ void spawnCube()
     if (obstructed && g_lastBody && !targetBodyName.empty())
     {
  // create equality constraints to close the loop between previous and target, and new and target
- LoopCreate(spawnAxis, spawnSign, bodyName, targetBodyName);
+        LoopCreate(spawnAxis, spawnSign, bodyName, targetBodyName);
     }
     g_lastBody = body;
     g_chain.push_back(ChainEntry{body, bodyName, -1, spawnAxis, spawnSign});
