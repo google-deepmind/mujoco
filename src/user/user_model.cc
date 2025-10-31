@@ -120,7 +120,7 @@ bool IsNullPose(const T pos[3], const T quat[4]) {
 // get body id from wrap object
 int GetBodyIdFromWrap(const mjCWrap* wrap) {
   if (!wrap || !wrap->obj) return -1;
-  switch (wrap->type) {
+  switch (wrap->Type()) {
     case mjWRAP_SITE:
       return static_cast<mjCSite*>(wrap->obj)->Body()->id;
     case mjWRAP_CYLINDER:
@@ -3377,7 +3377,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     }
 
     // set interpolation type, only two types for now
-    m->flex_interp[i] = pfl->interpolated;
+    m->flex_interp[i] = pfl->order_;
 
     // convert edge pairs to int array, set edge rigid
     for (int k=0; k < pfl->nedge; k++) {
@@ -3606,10 +3606,10 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // set wraps
     for (int j=0; j < (int)pte->path.size(); j++) {
-      m->wrap_type[adr+j] = pte->path[j]->type;
+      m->wrap_type[adr+j] = pte->path[j]->Type();
       m->wrap_objid[adr+j] = pte->path[j]->obj ? pte->path[j]->obj->id : -1;
       m->wrap_prm[adr+j] = (mjtNum)pte->path[j]->prm;
-      if (pte->path[j]->type == mjWRAP_SPHERE || pte->path[j]->type == mjWRAP_CYLINDER) {
+      if (pte->path[j]->Type() == mjWRAP_SPHERE || pte->path[j]->Type() == mjWRAP_CYLINDER) {
         m->wrap_prm[adr+j] = (mjtNum)pte->path[j]->sideid;
       }
     }

@@ -859,7 +859,8 @@ const mjMap fcomp_map[mjNFCOMPTYPES] = {
 const mjMap fdof_map[mjNFCOMPDOFS] = {
   {"full",          mjFCOMPDOF_FULL},
   {"radial",        mjFCOMPDOF_RADIAL},
-  {"trilinear",     mjFCOMPDOF_TRILINEAR}
+  {"trilinear",     mjFCOMPDOF_TRILINEAR},
+  {"quadratic",     mjFCOMPDOF_QUADRATIC}
 };
 
 
@@ -2722,6 +2723,9 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(elasticity, "damping", 1, &dflex.damping, text);
     ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
     MapValue(elasticity, "elastic2d", &dflex.elastic2d, elastic2d_map, 4);
+    if (fcomp.doftype == mjFCOMPDOF_QUADRATIC) {
+      throw mjXError(elasticity, "elasticity is not yet supported for quadratic flex");
+    }
   }
 
   // check errors
@@ -3400,25 +3404,24 @@ void mjXReader::Asset(XMLElement* section, const mjVFS* vfs) {
 
     // model sub-element
     else if (name == "model") {
-      string content_type;
-      if (!ReadAttrTxt(elem, "content_type", content_type)) {
-        content_type = "text/xml";
-      }
+      std::string content_type;
+      ReadAttrTxt(elem, "content_type", content_type);
 
       // parse the child
       mjSpec* child = nullptr;
       std::array<char, 1024> error;
       auto filename = modelfiledir_ + ReadAttrFile(elem, "file", vfs).value();
 
-      if (content_type == "text/xml") {
-        child = mj_parseXML(filename.c_str(), vfs, error.data(), error.size());
 #ifdef mjUSEUSD
-      } else if (content_type == "text/usd") {
+      if (content_type == "text/usd") {
         child = mj_parseUSD(filename.c_str(), vfs, error.data(), error.size());
-#endif  // mjUSEUSD
       } else {
-        throw mjXError(elem, "unsupported content_type: %s", content_type.c_str());
+#endif  // mjUSEUSD
+        child = mj_parse(filename.c_str(), content_type.c_str(), vfs,
+                               error.data(), error.size());
+#ifdef mjUSEUSD
       }
+#endif  // mjUSEUSD
 
       if (!child) {
         throw mjXError(elem, "could not parse model file with error: %s", error.data());

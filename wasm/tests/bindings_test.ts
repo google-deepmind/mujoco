@@ -1,3 +1,17 @@
+// Copyright 2025 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import 'jasmine';
 
 import {MainModule, MjContact, MjContactVec, MjData, MjLROpt, MjModel,
@@ -13,7 +27,6 @@ asserts value is T {
     throw new Error(message ?? 'Expected value to be defined.');
   }
 }
-
 
 
 // Corresponds to bindings_test.py:TEST_XML
@@ -660,8 +673,6 @@ describe('MuJoCo WASM Bindings', () => {
             'MuJoCo Error: [mju_eye] Invalid argument. Expected a TypedArray or WasmBuffer, got null.');
   });
 
-
-
   it('should return undefined', () => {
     const spec = mujoco.parseXMLString(TEST_XML);
     const body = mujoco.mjs_findBody(spec, 'some_name_that_doesnt_exist');
@@ -992,12 +1003,10 @@ describe('MuJoCo WASM Bindings', () => {
   // Corresponds to bindings_test.py:test_mjdata_can_read_warning_array
   it('should read warning array from MjData', () => {
     expect(data!.warning.size()).toEqual(mujoco.mjtWarning.mjNWARNING.value);
-    console.log('Starting a test which is expected to print "simulation is unstable"');
     data!.qpos[0] = NaN;
     mujoco.mj_checkPos(model!, data!);
     expect(data!.warning.get(mujoco.mjtWarning.mjWARN_BADQPOS.value)!.number)
         .toEqual(1);
-    console.log('Completed test which is expected to print "simulation is unstable"');
   });
 
   // Corresponds to bindings_test.py:test_mjcontact_can_copy
@@ -1094,7 +1103,6 @@ describe('MuJoCo WASM Bindings', () => {
       unlinkXMLFile(tempXmlFilename2);
     }
   });
-
 
   // Corresponds to bindings_test.py:test_getsetstate
   it('should get and set the state', () => {
@@ -1795,4 +1803,3 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 });
-

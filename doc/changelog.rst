@@ -10,6 +10,17 @@ General
 
 - Raise an error if there are name collisions also during parsing.
 - Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
+- Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
+  :ref:`mj_getState` to be extracted without having to be written back into ``mjData`` first.
+- Tendon paths can now be queried from Python via ``MjsTendon.path``, the returned object
+  is iterable and indexing it will give the ``MjsWrap`` at the given index in the path.
+- ``MjsWrap`` now exposes:
+
+  - ``type -> mujoco.mjtWrap``
+  - ``target -> MjsSite|MjsJoint|MjsGeom|None``
+  - ``sidesite -> MjsSite|None``
+  - ``coef -> real``
+  - ``divisor -> real``
 
 Version 3.3.7 (October 13, 2025)
 -----------------------------------
@@ -28,6 +39,9 @@ General
 
       **Migration:** Replace ``meshdir`` and ``texturedir`` with ``compiler.meshdir`` and ``compiler.texturedir``.
    2. Remove ``_full_compat`` from ``mjx.put_data`` and ``mjx.put_model``.
+   3. ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1. ``nconmax`` will be deprecated
+     in favor of ``naconmax`` in a future release.
+
 
 3. Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
    limit, are recolored by using the :ref:`constraint impedance<soParameters>` :math:`d` to mix the existing color with
@@ -319,7 +333,7 @@ Python bindings
 12. Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding
     :ref:`section<PyMJCF>` in the documentation.
 
-.. |mjspec_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |mjspec_colab| image:: https://colab.research.google.com/assets/colab-badge.png
                   :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb
 
 Version 3.3.0 (Feb 26, 2025)
@@ -403,7 +417,7 @@ Python bindings
     It is available here |rollout_colab|.
     |br| Contribution by :github:user:`aftersomemath`.
 
-.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.png
                    :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb
 
 Version 3.2.7 (Jan 14, 2025)
@@ -924,7 +938,7 @@ Python bindings
     Kinematics, is available here: |ls_colab|
     |br| The video on the right shows example clips from the tutorial.
 
-.. |ls_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |ls_colab| image:: https://colab.research.google.com/assets/colab-badge.png
               :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
 
 
@@ -1172,7 +1186,7 @@ New features
    - The MJX API is compatible with MuJoCo but is missing some features in this release.  See the outline of
      :ref:`MJX feature parity <MjxFeatureParity>` for more details.
 
-.. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |colab| image:: https://colab.research.google.com/assets/colab-badge.png
            :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb
 
 .. youtube:: QewlEqIZi1o
@@ -1833,7 +1847,7 @@ General
    notebook uses MuJoCo's native Python bindings, and includes a draft ``Renderer`` class, for easy rendering in Python.
    |br| Try it yourself:  |LQRopenincolab|
 
-   .. |LQRopenincolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+   .. |LQRopenincolab| image:: https://colab.research.google.com/assets/colab-badge.png
                        :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb
 
 #. Updates to humanoid model:

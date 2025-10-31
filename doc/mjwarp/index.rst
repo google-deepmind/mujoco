@@ -10,9 +10,20 @@ MuJoCo Warp (MJWarp)
     API <api.rst>
 
 MuJoCo Warp (MJWarp) is an implementation of MuJoCo written in `Warp <https://nvidia.github.io/warp/>`__ and optimized
-for `Nvidia <https://nvidia.com>`__ GPUs. MJWarp lives in the
+for `Nvidia <https://nvidia.com>`__ hardware and parallel simulation. MJWarp lives in the
 `google-deepmind/mujoco_warp <https://github.com/google-deepmind/mujoco_warp>`__ GitHub repository and is currently in
 beta.
+
+.. TODO: remove after release
+
+.. admonition:: Beta software
+   :class: attention
+
+   - MJWarp is beta software and is under active development.
+   - MJWarp developers will triage and respond to
+     `bug reports and feature requests <https://github.com/google-deepmind/mujoco_warp/issues>`__.
+   - MJWarp is mostly feature complete but requires performance optimization, documentation, and testing.
+   - The intended audience during Beta are physics engine enthusiasts and learning framework integrators.
 
 .. _MJW_install:
 
@@ -64,6 +75,22 @@ These MJWarp variants mirror their MuJoCo counterparts but have a few key differ
 #. ``mjw.Model`` and ``mjw.Data`` contain Warp arrays that are copied onto device.
 #. Some fields are missing from ``mjw.Model`` and ``mjw.Data`` for features that are unsupported.
 
+``nworld``, ``nconmax``, and ``njmax``
+--------------------------------------
+MJWarp is optimized for parallel simulation. A batch of simulations can be specified with three parameters:
+
+- ``nworld``: Number of worlds to simulate.
+- ``nconmax``: Expected number of contacts per world. The maximum number of contacts for all worlds is
+  ``nconmax * nworld``.
+- ``njmax``: Maximum number of constraints per world.
+
+.. admonition:: Semantic difference for ``nconmax`` and ``njmax``.
+  :class: note
+
+  It is possible for the number of contacts per world to exceed ``nconmax`` if the total number of contacts for all
+  worlds does not exceed ``nworld x nconmax``. However, the number of constraints per world is strictly limited by
+  ``njmax``.
+
 Functions
 _________
 
@@ -99,7 +126,7 @@ Minimal example
    d = mjw.make_data(mjm, nworld=100)
 
    # initialize velocities
-   wp.copy(d.qvel, wp.array([[float(i) / 100, 0.0, 0.0, 0.0, 0.0, 0.0] for i in range(100)], dtype=float))
+   wp.copy(d.qvel, wp.array([[float(i) / 100, 0, 0, 0, 0, 0] for i in range(100)], dtype=float))
 
    # simulate physics
    mjw.step(m, d)
@@ -177,3 +204,55 @@ The following features are **not supported** in MJWarp:
      - ``All`` except ``SDF``
    * - :ref:`User parameters <CUser>`
      - ``All``
+
+Batched ``Model`` Fields
+========================
+
+To enable batched simulation with different model parameter values, many ``mjw.Model`` fields have a leading batch
+dimension. By default, the leading dimension is 1 (i.e., ``field.shape[0] == 1``) and the same value(s) will be applied
+to all worlds. It is possible to override one of these fields with a ``wp.array`` that has a leading dimension greater
+than one. This field will be indexed with a modulo operation of the world id and batch dimension:
+``field[worldid % field.shape[0]]``. Importantly, the field shape should be overridden prior to graph capture (i.e.,
+``wp.ScopedCapture``)
+
+.. code-block:: python
+
+   # override shape and values
+   m.dof_damping = wp.array([[0.1], [0.2]], dtype=float)  # nworld=2
+
+   with wp.ScopedCapture() as capture:
+     mjw.step(m, d)
+
+It is possible to override the field shape and set the field values after graph capture
+
+.. code-block:: python
+
+   # override shape
+   m.dof_damping = wp.empty((2, 1), dtype=float)
+
+   with wp.ScopedCapture() as capture:
+     mjw.step(m, d)
+
+   # set batched values
+   dof_damping_batch = wp.array([[0.1], [0.2]], dtype=float)  # nworld=2
+   wp.copy(m.dof_damping, dof_damping_batch)  # m.dof = dof_damping_batch will not work correctly
+
+.. admonition:: Heterogeneous worlds
+   :class: note
+
+   Heterogeneous worlds, for example: per-world meshes or number of degrees of freedom, are not currently available.
+
+Parallel Linesearch
+===================
+
+In addition to the constraint solver's iterative linesearch, MJWarp provides a parallel linesearch routine that
+evaluates a set of step sizes in parallel and selects the best one. The step sizes are spaced logarithmically from
+``Model.opt.ls_parallel_min_step`` to 1 and the number of step sizes to evaluate is set via ``Model.opt.ls_iterations``.
+
+To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeric field to the XML
+
+.. code-block:: xml
+
+   <custom>
+     <numeric name="ls_parallel" data="1"/>
+   </custom>

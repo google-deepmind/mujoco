@@ -123,6 +123,11 @@ MJAPI mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, i
 // Nullable: vfs, error
 MJAPI mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);
 
+// Parse spec from a file.
+// Nullable: vfs, error
+MJAPI mjSpec* mj_parse(const char* filename, const char* content_type,
+                       const mjVFS* vfs, char* error, int error_sz);
+
 // Compile spec to model.
 // Nullable: vfs
 MJAPI mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
@@ -464,6 +469,10 @@ MJAPI int mj_stateSize(const mjModel* m, unsigned int sig);
 
 // Get state.
 MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
+
+// Extract a subset of components from a state previously obtained via mj_getState.
+MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
+                           mjtNum* dst, unsigned int dstsig);
 
 // Set state.
 MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
@@ -1445,6 +1454,17 @@ MJAPI const mjpResourceProvider* mjp_getResourceProvider(const char* resource_na
 // If invalid slot number, return NULL.
 MJAPI const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
 
+// Globally register a decoder. This function is thread-safe.
+// If an identical mjpDecoder is already registered, this function does nothing.
+// If a non-identical mjpDecoder with the same name is already registered, an mju_error is raised.
+MJAPI void mjp_registerDecoder(const mjpDecoder* decoder);
+
+// Set default resource decoder definition.
+MJAPI void mjp_defaultDecoder(mjpDecoder* decoder);
+
+// Return the resource provider with the prefix that matches against the resource name.
+// If no match, return NULL.
+MJAPI const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
 
 //---------------------------------- Threads -------------------------------------------------------
 
@@ -1674,6 +1694,17 @@ MJAPI mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
 // Return spec's next element; return NULL if element is last.
 MJAPI mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
 
+// Get wrapped element in tendon path.
+MJAPI mjsElement* mjs_getWrapTarget(mjsWrap* wrap);
+
+// Get wrapped element side site in tendon path if it has one, nullptr otherwise.
+MJAPI mjsSite* mjs_getWrapSideSite(mjsWrap* wrap);
+
+// Get divisor of mjsWrap wrapping a puller.
+MJAPI double mjs_getWrapDivisor(mjsWrap* wrap);
+
+// Get coefficient of mjsWrap wrapping a joint.
+MJAPI double mjs_getWrapCoef(mjsWrap* wrap);
 
 //---------------------------------- Attribute setters ---------------------------------------------
 
@@ -1725,6 +1756,12 @@ MJAPI const char* mjs_getString(const mjString* source);
 // Get double array contents and optionally its size.
 // Nullable: size
 MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
+
+// Get number of elements a tendon wraps.
+MJAPI int mjs_getWrapNum(const mjsTendon* tendonspec);
+
+// Get mjsWrap element at position i in the tendon path.
+MJAPI mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i);
 
 // Get plugin attributes.
 MJAPI const void* mjs_getPluginAttributes(const mjsPlugin* plugin);

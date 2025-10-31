@@ -441,8 +441,8 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
       continue;
     }
 
-    // pinned or trilinear: parent body
-    if (pinned[i] || doftype == mjFCOMPDOF_TRILINEAR) {
+    // pinned or trilinear or quadratic: parent body
+    if (pinned[i] || doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
       mjs_appendString(pf->vertbody, mjs_getName(body->element)->c_str());
 
       // add plugin
@@ -529,23 +529,28 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   }
 
   // create nodal mesh for trilinear interpolation
-  if (doftype == mjFCOMPDOF_TRILINEAR) {
-    std::vector<double> node(24, 0);
-    for (int i=0; i < 2; i++) {
-      for (int j=0; j < 2; j++) {
-        for (int k=0; k < 2; k++) {
-          if (pinned[i*4+j*2+k]) {
-            node[3*(i*4+j*2+k)+0] = i == 0 ? minmax[0] : minmax[3];
-            node[3*(i*4+j*2+k)+1] = j == 0 ? minmax[1] : minmax[4];
-            node[3*(i*4+j*2+k)+2] = k == 0 ? minmax[2] : minmax[5];
+  if (doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
+    int order = doftype == mjFCOMPDOF_TRILINEAR ? 1 : 2;
+    flex->SetOrder(order);
+    std::vector<double> node(3*(order+1)*(order+1)*(order+1), 0);
+    int idx = 0;
+    double step = 1.0 / (double)order;
+    for (int i=0; i <= order; i++) {
+      for (int j=0; j <= order; j++) {
+        for (int k=0; k <= order; k++) {
+          if (pinned[idx]) {
+            node[3*idx+0] = minmax[0] + i * step * (minmax[3] - minmax[0]);
+            node[3*idx+1] = minmax[1] + j * step * (minmax[4] - minmax[1]);
+            node[3*idx+2] = minmax[2] + k * step * (minmax[5] - minmax[2]);
             mjs_appendString(pf->nodebody, mjs_getName(body->element)->c_str());
+            idx++;
             continue;
           }
 
           mjsBody* pb = mjs_addBody(body, 0);
-          pb->pos[0] = i == 0 ? minmax[0] : minmax[3];
-          pb->pos[1] = j == 0 ? minmax[1] : minmax[4];
-          pb->pos[2] = k == 0 ? minmax[2] : minmax[5];
+          pb->pos[0] = minmax[0] + i * step * (minmax[3] - minmax[0]);
+          pb->pos[1] = minmax[1] + j * step * (minmax[4] - minmax[1]);
+          pb->pos[2] = minmax[2] + k * step * (minmax[5] - minmax[2]);
           mjuu_zerovec(pb->ipos, 3);
           pb->mass = mass / 8;
           pb->inertia[0] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
@@ -573,6 +578,8 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
           mju::sprintf_arr(txt, "%s_%d_%d_%d", name.c_str(), i, j, k);
           mjs_setName(pb->element, txt);
           mjs_appendString(pf->nodebody, mjs_getName(pb->element)->c_str());
+
+          idx++;
         }
       }
     }
@@ -582,7 +589,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
     }
   }
 
-  if (!centered || doftype == mjFCOMPDOF_TRILINEAR) {
+  if (!centered || doftype == mjFCOMPDOF_TRILINEAR || doftype == mjFCOMPDOF_QUADRATIC) {
     mjs_setDouble(pf->vert, point.data(), point.size());
   }
 

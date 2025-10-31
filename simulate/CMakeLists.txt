@@ -186,6 +186,13 @@ if(SIMULATE_BUILD_EXECUTABLE)
   endif()
 
   if (MUJOCO_WITH_USD)
+    # pxr/usd/tf/hashset.h might include deprecated headers so disable this check
+    # when compiling with USD enabled.
+    target_compile_options(
+         simulate
+         PRIVATE -Wno-deprecated
+    )
+
     target_link_libraries(
       simulate
       mujoco::usd::mjcf

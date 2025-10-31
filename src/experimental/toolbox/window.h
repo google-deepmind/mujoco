@@ -19,7 +19,7 @@
 #include <string_view>
 
 #include "experimental/toolbox/helpers.h"
-#include <SDL2/SDL_video.h>
+#include <SDL_video.h>
 
 namespace mujoco::toolbox {
 
@@ -30,11 +30,16 @@ namespace mujoco::toolbox {
 class Window {
  public:
   // Configures the window for the specified rendering backend.
-  enum Config {
+  enum RenderConfig {
     kClassicOpenGL,
     kFilamentVulkan,
     kFilamentOpenGL,
     kFilamentWebGL,
+  };
+
+  struct Config {
+    RenderConfig render_config = kClassicOpenGL;
+    bool enable_keyboard = true;
   };
 
   Window(std::string_view title, int width, int height, Config config,
@@ -63,10 +68,15 @@ class Window {
   // Sets the title of the window.
   void SetTitle(std::string_view title);
 
-  // Returns the current size of the window.
+  // Returns information related to the current size of the window.
   int GetWidth() const { return width_; }
   int GetHeight() const { return height_; }
   float GetScale() const { return scale_; }
+  float GetAspectRatio() const {
+    return height_ > 0
+               ? static_cast<float>(width_) / static_cast<float>(height_)
+               : 1.0f;
+  }
 
   // Returns the path to a file that was dropped on the window. Once called,
   // the value will be cleared until the next time a file is dropped.

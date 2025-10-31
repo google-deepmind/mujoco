@@ -211,6 +211,28 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int 
 }
 
 
+// extract a sub-state from a state
+void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
+                     mjtNum* dst, unsigned int dstsig) {
+  if ((srcsig & dstsig) != dstsig) {
+    mjERROR("dstsig is not a subset of srcsig");
+    return;
+  }
+
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & srcsig) {
+      int size = mj_stateElemSize(m, element);
+      if (element & dstsig) {
+        mju_copy(dst, src, size);
+        dst += size;
+      }
+      src += size;
+    }
+  }
+}
+
+
 // set state
 void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig) {
   if (sig >= (1<<mjNSTATE)) {
@@ -403,9 +425,18 @@ void mj_applyFT(const mjModel* m, mjData* d,
 
 // accumulate xfrc_applied in qfrc
 void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc) {
-  for (int i=1; i < m->nbody; i++) {
-    if (!mju_isZero(d->xfrc_applied+6*i, 6)) {
-      mj_applyFT(m, d, d->xfrc_applied+6*i, d->xfrc_applied+6*i+3, d->xipos+3*i, i, qfrc);
+  int nbody = m->nbody;
+  const mjtNum *xfrc = d->xfrc_applied;
+
+  // quick return if identically zero (efficient memcmp implementation)
+  if (mju_isZeroByte((const unsigned char*)(xfrc+6), 6*(nbody-1)*sizeof(mjtNum))) {
+    return;
+  }
+
+  // some non-zero wrenches, apply them
+  for (int i=1; i < nbody; i++) {
+    if (!mju_isZero(xfrc+6*i, 6)) {
+      mj_applyFT(m, d, xfrc+6*i, xfrc+6*i+3, d->xipos+3*i, i, qfrc);
     }
   }
 }
@@ -464,10 +495,10 @@ mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2, 
     return dist;
   }
 
-  // use nativecdd if flag is enabled
+  // use nativeccd if flag is enabled
   if (!mjDISABLED(mjDSBL_NATIVECCD)) {
     if (func == mjc_Convex || func == mjc_BoxBox) {
-      return mj_geomDistanceCCD(m, d, g1, g2, distmax, fromto);
+      return mj_geomDistanceCCD(m, d, geom1, geom2, distmax, fromto);
     }
   }
 

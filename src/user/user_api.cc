@@ -31,6 +31,7 @@
 #include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
+#include "user/user_resource.h"
 #include "user/user_util.h"
 
 namespace {
@@ -63,7 +64,24 @@ mjSpec* mj_copySpec(const mjSpec* s) {
   return &modelC->spec;
 }
 
+// parse file into spec
+mjSpec* mj_parse(const char* filename, const char* content_type,
+                 const mjVFS* vfs, char* error, int error_sz) {
+  // early exit for existing XML workflow
+  auto filepath = mujoco::user::FilePath(filename);
+  if (filepath.Ext() == ".xml" || (content_type && std::strcmp(content_type, "text/xml") == 0)) {
+    return mj_parseXML(filename, vfs, error, error_sz);
+  }
 
+  mjResource* resource = mju_openResource("", filename, vfs, error, error_sz);
+  if (!resource) {
+    mju_error("Could not load resource %s", filename);
+  }
+
+  mjSpec* spec = mju_decodeResource(resource, content_type);
+  mju_closeResource(resource);
+  return spec;
+}
 
 // compile model
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
@@ -1338,6 +1356,76 @@ mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element) {
 
 
 
+mjsElement* mjs_getWrapTarget(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  mjtObj type = mjOBJ_UNKNOWN;
+  switch (cwrap->Type()) {
+    case mjWRAP_SPHERE:
+    case mjWRAP_CYLINDER:
+      type = mjOBJ_GEOM;
+      break;
+    case mjWRAP_SITE:
+      type = mjOBJ_SITE;
+      break;
+    case mjWRAP_JOINT:
+      type = mjOBJ_JOINT;
+      break;
+    case mjWRAP_PULLEY:
+      // Pulleys have no target.
+      return nullptr;
+    default:
+      return nullptr;
+  }
+  mjSpec* spec = mjs_getSpec(wrap->element);
+  mjsElement* target = mjs_findElement(spec, type, cwrap->name.c_str());
+  return target;
+}
+
+
+
+mjsSite* mjs_getWrapSideSite(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  // only sphere and cylinder (geoms) have side sites
+  if ((cwrap->Type() != mjWRAP_SPHERE &&
+      cwrap->Type() != mjWRAP_CYLINDER) ||
+      cwrap->sidesite.empty()) {
+    return nullptr;
+  }
+
+  mjSpec* spec = mjs_getSpec(wrap->element);
+  mjsElement* site = mjs_findElement(spec, mjOBJ_SITE, cwrap->sidesite.c_str());
+  if (site == nullptr) {
+    mju_warning("Could not find side site %s for wrap %s in spec",
+                cwrap->sidesite.c_str(), cwrap->name.c_str());
+    return nullptr;
+  }
+  return mjs_asSite(site);
+}
+
+
+
+double mjs_getWrapDivisor(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  if (cwrap->Type() != mjWRAP_PULLEY) {
+    mju_warning("Querying divisor attribute of non-pulley wrap: %s", cwrap->name.c_str());
+    return 1.0;
+  }
+  return cwrap->prm;
+}
+
+
+
+double mjs_getWrapCoef(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  if (cwrap->Type() != mjWRAP_JOINT) {
+    mju_warning("Querying coef attribute of non-joint wrap: %s", cwrap->name.c_str());
+    return 1.0;
+  }
+  return cwrap->prm;
+}
+
+
+
 // return body given mjsElement
 mjsBody* mjs_asBody(mjsElement* element) {
   if (element && element->elemtype == mjOBJ_BODY) {
@@ -1712,7 +1800,18 @@ const double* mjs_getDouble(const mjDoubleVec* source, int* size) {
   return source->data();
 }
 
+int mjs_getWrapNum(const mjsTendon* tendonspec) {
+  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+  return tendon->NumWraps();
+}
 
+mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i) {
+  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+  if (i < 0 || i >= tendon->NumWraps()) {
+    mju_error("Wrap index out of range (0, %d)", tendon->NumWraps());
+  }
+  return &const_cast<mjCWrap*>(tendon->GetWrap(i))->spec;
+}
 
 // set plugin attributes
 void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes) {

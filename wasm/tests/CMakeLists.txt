@@ -20,7 +20,7 @@ set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/wasm)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
-include_directories(${PROJECT_SOURCE_DIR}/wasm)
+include_directories(${PROJECT_SOURCE_DIR})
 
 link_directories(${CMAKE_BINARY_DIR}/lib)
 

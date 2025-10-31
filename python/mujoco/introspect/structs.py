@@ -1045,7 +1045,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='nskintexvert',
                  type=ValueType(name='int'),
-                 doc='number of vertiex with texcoords in all skins',
+                 doc='number of vertices with texcoords in all skins',
              ),
              StructFieldDecl(
                  name='nskinface',
@@ -2867,7 +2867,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
                  ),
-                 doc='are all verices in the same body',
+                 doc='are all vertices in the same body',
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
@@ -6375,1451 +6375,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              ),
          ),
      )),
-    ('mjvPerturb',
-     StructDecl(
-         name='mjvPerturb',
-         declname='struct mjvPerturb_',
-         fields=(
-             StructFieldDecl(
-                 name='select',
-                 type=ValueType(name='int'),
-                 doc='selected body id; non-positive: none',
-             ),
-             StructFieldDecl(
-                 name='flexselect',
-                 type=ValueType(name='int'),
-                 doc='selected flex id; negative: none',
-             ),
-             StructFieldDecl(
-                 name='skinselect',
-                 type=ValueType(name='int'),
-                 doc='selected skin id; negative: none',
-             ),
-             StructFieldDecl(
-                 name='active',
-                 type=ValueType(name='int'),
-                 doc='perturbation bitmask (mjtPertBit)',
-             ),
-             StructFieldDecl(
-                 name='active2',
-                 type=ValueType(name='int'),
-                 doc='secondary perturbation bitmask (mjtPertBit)',
-             ),
-             StructFieldDecl(
-                 name='refpos',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(3,),
-                 ),
-                 doc='reference position for selected object',
-             ),
-             StructFieldDecl(
-                 name='refquat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(4,),
-                 ),
-                 doc='reference orientation for selected object',
-             ),
-             StructFieldDecl(
-                 name='refselpos',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(3,),
-                 ),
-                 doc='reference position for selection point',
-             ),
-             StructFieldDecl(
-                 name='localpos',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(3,),
-                 ),
-                 doc='selection point in object coordinates',
-             ),
-             StructFieldDecl(
-                 name='localmass',
-                 type=ValueType(name='mjtNum'),
-                 doc='spatial inertia at selection point',
-             ),
-             StructFieldDecl(
-                 name='scale',
-                 type=ValueType(name='mjtNum'),
-                 doc='relative mouse motion-to-space scaling (set by initPerturb)',  # pylint: disable=line-too-long
-             ),
-         ),
-     )),
-    ('mjvCamera',
-     StructDecl(
-         name='mjvCamera',
-         declname='struct mjvCamera_',
-         fields=(
-             StructFieldDecl(
-                 name='type',
-                 type=ValueType(name='int'),
-                 doc='camera type (mjtCamera)',
-             ),
-             StructFieldDecl(
-                 name='fixedcamid',
-                 type=ValueType(name='int'),
-                 doc='fixed camera id',
-             ),
-             StructFieldDecl(
-                 name='trackbodyid',
-                 type=ValueType(name='int'),
-                 doc='body id to track',
-             ),
-             StructFieldDecl(
-                 name='lookat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum'),
-                     extents=(3,),
-                 ),
-                 doc='lookat point',
-             ),
-             StructFieldDecl(
-                 name='distance',
-                 type=ValueType(name='mjtNum'),
-                 doc='distance to lookat point or tracked body',
-             ),
-             StructFieldDecl(
-                 name='azimuth',
-                 type=ValueType(name='mjtNum'),
-                 doc='camera azimuth (deg)',
-             ),
-             StructFieldDecl(
-                 name='elevation',
-                 type=ValueType(name='mjtNum'),
-                 doc='camera elevation (deg)',
-             ),
-             StructFieldDecl(
-                 name='orthographic',
-                 type=ValueType(name='int'),
-                 doc='0: perspective; 1: orthographic',
-             ),
-         ),
-     )),
-    ('mjvGLCamera',
-     StructDecl(
-         name='mjvGLCamera',
-         declname='struct mjvGLCamera_',
-         fields=(
-             StructFieldDecl(
-                 name='pos',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='position',
-             ),
-             StructFieldDecl(
-                 name='forward',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='forward direction',
-             ),
-             StructFieldDecl(
-                 name='up',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='up direction',
-             ),
-             StructFieldDecl(
-                 name='frustum_center',
-                 type=ValueType(name='float'),
-                 doc='hor. center (left,right set to match aspect)',
-             ),
-             StructFieldDecl(
-                 name='frustum_width',
-                 type=ValueType(name='float'),
-                 doc='width (not used for rendering)',
-             ),
-             StructFieldDecl(
-                 name='frustum_bottom',
-                 type=ValueType(name='float'),
-                 doc='bottom',
-             ),
-             StructFieldDecl(
-                 name='frustum_top',
-                 type=ValueType(name='float'),
-                 doc='top',
-             ),
-             StructFieldDecl(
-                 name='frustum_near',
-                 type=ValueType(name='float'),
-                 doc='near',
-             ),
-             StructFieldDecl(
-                 name='frustum_far',
-                 type=ValueType(name='float'),
-                 doc='far',
-             ),
-             StructFieldDecl(
-                 name='orthographic',
-                 type=ValueType(name='int'),
-                 doc='0: perspective; 1: orthographic',
-             ),
-         ),
-     )),
-    ('mjvGeom',
-     StructDecl(
-         name='mjvGeom',
-         declname='struct mjvGeom_',
-         fields=(
-             StructFieldDecl(
-                 name='type',
-                 type=ValueType(name='int'),
-                 doc='geom type (mjtGeom)',
-             ),
-             StructFieldDecl(
-                 name='dataid',
-                 type=ValueType(name='int'),
-                 doc='mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull)',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='objtype',
-                 type=ValueType(name='int'),
-                 doc='mujoco object type; mjOBJ_UNKNOWN for decor',
-             ),
-             StructFieldDecl(
-                 name='objid',
-                 type=ValueType(name='int'),
-                 doc='mujoco object id; -1 for decor',
-             ),
-             StructFieldDecl(
-                 name='category',
-                 type=ValueType(name='int'),
-                 doc='visual category',
-             ),
-             StructFieldDecl(
-                 name='matid',
-                 type=ValueType(name='int'),
-                 doc='material id; -1: no textured material',
-             ),
-             StructFieldDecl(
-                 name='texcoord',
-                 type=ValueType(name='int'),
-                 doc='mesh or flex geom has texture coordinates',
-             ),
-             StructFieldDecl(
-                 name='segid',
-                 type=ValueType(name='int'),
-                 doc='segmentation id; -1: not shown',
-             ),
-             StructFieldDecl(
-                 name='size',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='size parameters',
-             ),
-             StructFieldDecl(
-                 name='pos',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='Cartesian position',
-             ),
-             StructFieldDecl(
-                 name='mat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(9,),
-                 ),
-                 doc='Cartesian orientation',
-             ),
-             StructFieldDecl(
-                 name='rgba',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(4,),
-                 ),
-                 doc='color and transparency',
-             ),
-             StructFieldDecl(
-                 name='emission',
-                 type=ValueType(name='float'),
-                 doc='emission coef',
-             ),
-             StructFieldDecl(
-                 name='specular',
-                 type=ValueType(name='float'),
-                 doc='specular coef',
-             ),
-             StructFieldDecl(
-                 name='shininess',
-                 type=ValueType(name='float'),
-                 doc='shininess coef',
-             ),
-             StructFieldDecl(
-                 name='reflectance',
-                 type=ValueType(name='float'),
-                 doc='reflectance coef',
-             ),
-             StructFieldDecl(
-                 name='label',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(100,),
-                 ),
-                 doc='text label',
-             ),
-             StructFieldDecl(
-                 name='camdist',
-                 type=ValueType(name='float'),
-                 doc='distance to camera (used by sorter)',
-             ),
-             StructFieldDecl(
-                 name='modelrbound',
-                 type=ValueType(name='float'),
-                 doc='geom rbound from model, 0 if not model geom',
-             ),
-             StructFieldDecl(
-                 name='transparent',
-                 type=ValueType(name='mjtByte'),
-                 doc='treat geom as transparent',
-             ),
-         ),
-     )),
-    ('mjvLight',
-     StructDecl(
-         name='mjvLight',
-         declname='struct mjvLight_',
-         fields=(
-             StructFieldDecl(
-                 name='id',
-                 type=ValueType(name='int'),
-                 doc='light id, -1 for headlight',
-             ),
-             StructFieldDecl(
-                 name='pos',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='position rel. to body frame',
-             ),
-             StructFieldDecl(
-                 name='dir',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='direction rel. to body frame',
-             ),
-             StructFieldDecl(
-                 name='type',
-                 type=ValueType(name='int'),
-                 doc='type (mjtLightType)',
-             ),
-             StructFieldDecl(
-                 name='texid',
-                 type=ValueType(name='int'),
-                 doc='texture id for image lights',
-             ),
-             StructFieldDecl(
-                 name='attenuation',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='OpenGL attenuation (quadratic model)',
-             ),
-             StructFieldDecl(
-                 name='cutoff',
-                 type=ValueType(name='float'),
-                 doc='OpenGL cutoff',
-             ),
-             StructFieldDecl(
-                 name='exponent',
-                 type=ValueType(name='float'),
-                 doc='OpenGL exponent',
-             ),
-             StructFieldDecl(
-                 name='ambient',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='ambient rgb (alpha=1)',
-             ),
-             StructFieldDecl(
-                 name='diffuse',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='diffuse rgb (alpha=1)',
-             ),
-             StructFieldDecl(
-                 name='specular',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='specular rgb (alpha=1)',
-             ),
-             StructFieldDecl(
-                 name='headlight',
-                 type=ValueType(name='mjtByte'),
-                 doc='headlight',
-             ),
-             StructFieldDecl(
-                 name='castshadow',
-                 type=ValueType(name='mjtByte'),
-                 doc='does light cast shadows',
-             ),
-             StructFieldDecl(
-                 name='bulbradius',
-                 type=ValueType(name='float'),
-                 doc='bulb radius for soft shadows',
-             ),
-             StructFieldDecl(
-                 name='intensity',
-                 type=ValueType(name='float'),
-                 doc='intensity, in candelas',
-             ),
-             StructFieldDecl(
-                 name='range',
-                 type=ValueType(name='float'),
-                 doc='range of effectiveness',
-             ),
-         ),
-     )),
-    ('mjvOption',
-     StructDecl(
-         name='mjvOption',
-         declname='struct mjvOption_',
-         fields=(
-             StructFieldDecl(
-                 name='label',
-                 type=ValueType(name='int'),
-                 doc='what objects to label (mjtLabel)',
-             ),
-             StructFieldDecl(
-                 name='frame',
-                 type=ValueType(name='int'),
-                 doc='which frame to show (mjtFrame)',
-             ),
-             StructFieldDecl(
-                 name='geomgroup',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtByte'),
-                     extents=(6,),
-                 ),
-                 doc='geom visualization by group',
-             ),
-             StructFieldDecl(
-                 name='sitegroup',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtByte'),
-                     extents=(6,),
-                 ),
-                 doc='site visualization by group',
-             ),
-             StructFieldDecl(
-                 name='jointgroup',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtByte'),
-                     extents=(6,),
-                 ),
-                 doc='joint visualization by group',
-             ),
-             StructFieldDecl(
-                 name='tendongroup',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtByte'),
-                     extents=(6,),
-                 ),
-                 doc='tendon visualization by group',
-             ),
-             StructFieldDecl(
-                 name='actuatorgroup',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtByte'),
-                     extents=(6,),
-                 ),
-                 doc='actuator visualization by group',
-             ),
-             StructFieldDecl(
-                 name='flexgroup',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtByte'),
-                     extents=(6,),
-                 ),
-                 doc='flex visualization by group',
-             ),
-             StructFieldDecl(
-                 name='skingroup',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtByte'),
-                     extents=(6,),
-                 ),
-                 doc='skin visualization by group',
-             ),
-             StructFieldDecl(
-                 name='flags',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtByte'),
-                     extents=(31,),
-                 ),
-                 doc='visualization flags (indexed by mjtVisFlag)',
-             ),
-             StructFieldDecl(
-                 name='bvh_depth',
-                 type=ValueType(name='int'),
-                 doc='depth of the bounding volume hierarchy to be visualized',
-             ),
-             StructFieldDecl(
-                 name='flex_layer',
-                 type=ValueType(name='int'),
-                 doc='element layer to be visualized for 3D flex',
-             ),
-         ),
-     )),
-    ('mjvScene',
-     StructDecl(
-         name='mjvScene',
-         declname='struct mjvScene_',
-         fields=(
-             StructFieldDecl(
-                 name='maxgeom',
-                 type=ValueType(name='int'),
-                 doc='size of allocated geom buffer',
-             ),
-             StructFieldDecl(
-                 name='ngeom',
-                 type=ValueType(name='int'),
-                 doc='number of geoms currently in buffer',
-             ),
-             StructFieldDecl(
-                 name='geoms',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjvGeom'),
-                 ),
-                 doc='buffer for geoms (ngeom)',
-             ),
-             StructFieldDecl(
-                 name='geomorder',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='buffer for ordering geoms by distance to camera (ngeom)',
-             ),
-             StructFieldDecl(
-                 name='nflex',
-                 type=ValueType(name='int'),
-                 doc='number of flexes',
-             ),
-             StructFieldDecl(
-                 name='flexedgeadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='address of flex edges (nflex)',
-             ),
-             StructFieldDecl(
-                 name='flexedgenum',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of edges in flex (nflex)',
-             ),
-             StructFieldDecl(
-                 name='flexvertadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='address of flex vertices (nflex)',
-             ),
-             StructFieldDecl(
-                 name='flexvertnum',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of vertices in flex (nflex)',
-             ),
-             StructFieldDecl(
-                 name='flexfaceadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='address of flex faces (nflex)',
-             ),
-             StructFieldDecl(
-                 name='flexfacenum',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of flex faces allocated (nflex)',
-             ),
-             StructFieldDecl(
-                 name='flexfaceused',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of flex faces currently in use (nflex)',
-             ),
-             StructFieldDecl(
-                 name='flexedge',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='flex edge data (2*nflexedge)',
-             ),
-             StructFieldDecl(
-                 name='flexvert',
-                 type=PointerType(
-                     inner_type=ValueType(name='float'),
-                 ),
-                 doc='flex vertices (3*nflexvert)',
-             ),
-             StructFieldDecl(
-                 name='flexface',
-                 type=PointerType(
-                     inner_type=ValueType(name='float'),
-                 ),
-                 doc='flex faces vertices (9*sum(flexfacenum))',
-             ),
-             StructFieldDecl(
-                 name='flexnormal',
-                 type=PointerType(
-                     inner_type=ValueType(name='float'),
-                 ),
-                 doc='flex face normals (9*sum(flexfacenum))',
-             ),
-             StructFieldDecl(
-                 name='flextexcoord',
-                 type=PointerType(
-                     inner_type=ValueType(name='float'),
-                 ),
-                 doc='flex face texture coordinates (6*sum(flexfacenum))',
-             ),
-             StructFieldDecl(
-                 name='flexvertopt',
-                 type=ValueType(name='mjtByte'),
-                 doc='copy of mjVIS_FLEXVERT mjvOption flag',
-             ),
-             StructFieldDecl(
-                 name='flexedgeopt',
-                 type=ValueType(name='mjtByte'),
-                 doc='copy of mjVIS_FLEXEDGE mjvOption flag',
-             ),
-             StructFieldDecl(
-                 name='flexfaceopt',
-                 type=ValueType(name='mjtByte'),
-                 doc='copy of mjVIS_FLEXFACE mjvOption flag',
-             ),
-             StructFieldDecl(
-                 name='flexskinopt',
-                 type=ValueType(name='mjtByte'),
-                 doc='copy of mjVIS_FLEXSKIN mjvOption flag',
-             ),
-             StructFieldDecl(
-                 name='nskin',
-                 type=ValueType(name='int'),
-                 doc='number of skins',
-             ),
-             StructFieldDecl(
-                 name='skinfacenum',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of faces in skin (nskin)',
-             ),
-             StructFieldDecl(
-                 name='skinvertadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='address of skin vertices (nskin)',
-             ),
-             StructFieldDecl(
-                 name='skinvertnum',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of vertices in skin (nskin)',
-             ),
-             StructFieldDecl(
-                 name='skinvert',
-                 type=PointerType(
-                     inner_type=ValueType(name='float'),
-                 ),
-                 doc='skin vertex data (3*nskinvert)',
-             ),
-             StructFieldDecl(
-                 name='skinnormal',
-                 type=PointerType(
-                     inner_type=ValueType(name='float'),
-                 ),
-                 doc='skin normal data (3*nskinvert)',
-             ),
-             StructFieldDecl(
-                 name='nlight',
-                 type=ValueType(name='int'),
-                 doc='number of lights currently in buffer',
-             ),
-             StructFieldDecl(
-                 name='lights',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjvLight'),
-                     extents=(100,),
-                 ),
-                 doc='buffer for lights (nlight)',
-             ),
-             StructFieldDecl(
-                 name='camera',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjvGLCamera'),
-                     extents=(2,),
-                 ),
-                 doc='left and right camera',
-             ),
-             StructFieldDecl(
-                 name='enabletransform',
-                 type=ValueType(name='mjtByte'),
-                 doc='enable model transformation',
-             ),
-             StructFieldDecl(
-                 name='translate',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='model translation',
-             ),
-             StructFieldDecl(
-                 name='rotate',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(4,),
-                 ),
-                 doc='model quaternion rotation',
-             ),
-             StructFieldDecl(
-                 name='scale',
-                 type=ValueType(name='float'),
-                 doc='model scaling',
-             ),
-             StructFieldDecl(
-                 name='stereo',
-                 type=ValueType(name='int'),
-                 doc='stereoscopic rendering (mjtStereo)',
-             ),
-             StructFieldDecl(
-                 name='flags',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtByte'),
-                     extents=(10,),
-                 ),
-                 doc='rendering flags (indexed by mjtRndFlag)',
-             ),
-             StructFieldDecl(
-                 name='framewidth',
-                 type=ValueType(name='int'),
-                 doc='frame pixel width; 0: disable framing',
-             ),
-             StructFieldDecl(
-                 name='framergb',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='frame color',
-             ),
-             StructFieldDecl(
-                 name='status',
-                 type=ValueType(name='int'),
-                 doc='status; 0: ok, 1: geoms exhausted',
-             ),
-         ),
-     )),
-    ('mjvFigure',
-     StructDecl(
-         name='mjvFigure',
-         declname='struct mjvFigure_',
-         fields=(
-             StructFieldDecl(
-                 name='flg_legend',
-                 type=ValueType(name='int'),
-                 doc='show legend',
-             ),
-             StructFieldDecl(
-                 name='flg_ticklabel',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(2,),
-                 ),
-                 doc='show grid tick labels (x,y)',
-             ),
-             StructFieldDecl(
-                 name='flg_extend',
-                 type=ValueType(name='int'),
-                 doc='automatically extend axis ranges to fit data',
-             ),
-             StructFieldDecl(
-                 name='flg_barplot',
-                 type=ValueType(name='int'),
-                 doc='isolated line segments (i.e. GL_LINES)',
-             ),
-             StructFieldDecl(
-                 name='flg_selection',
-                 type=ValueType(name='int'),
-                 doc='vertical selection line',
-             ),
-             StructFieldDecl(
-                 name='flg_symmetric',
-                 type=ValueType(name='int'),
-                 doc='symmetric y-axis',
-             ),
-             StructFieldDecl(
-                 name='linewidth',
-                 type=ValueType(name='float'),
-                 doc='line width',
-             ),
-             StructFieldDecl(
-                 name='gridwidth',
-                 type=ValueType(name='float'),
-                 doc='grid line width',
-             ),
-             StructFieldDecl(
-                 name='gridsize',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(2,),
-                 ),
-                 doc='number of grid points in (x,y)',
-             ),
-             StructFieldDecl(
-                 name='gridrgb',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='grid line rgb',
-             ),
-             StructFieldDecl(
-                 name='figurergba',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(4,),
-                 ),
-                 doc='figure color and alpha',
-             ),
-             StructFieldDecl(
-                 name='panergba',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(4,),
-                 ),
-                 doc='pane color and alpha',
-             ),
-             StructFieldDecl(
-                 name='legendrgba',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(4,),
-                 ),
-                 doc='legend color and alpha',
-             ),
-             StructFieldDecl(
-                 name='textrgb',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(3,),
-                 ),
-                 doc='text color',
-             ),
-             StructFieldDecl(
-                 name='linergb',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(100, 3),
-                 ),
-                 doc='line colors',
-             ),
-             StructFieldDecl(
-                 name='range',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(2, 2),
-                 ),
-                 doc='axis ranges; (min>=max) automatic',
-             ),
-             StructFieldDecl(
-                 name='xformat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(20,),
-                 ),
-                 doc='x-tick label format for sprintf',
-             ),
-             StructFieldDecl(
-                 name='yformat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(20,),
-                 ),
-                 doc='y-tick label format for sprintf',
-             ),
-             StructFieldDecl(
-                 name='minwidth',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(20,),
-                 ),
-                 doc='string used to determine min y-tick width',
-             ),
-             StructFieldDecl(
-                 name='title',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(1000,),
-                 ),
-                 doc='figure title; subplots separated with 2+ spaces',
-             ),
-             StructFieldDecl(
-                 name='xlabel',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(100,),
-                 ),
-                 doc='x-axis label',
-             ),
-             StructFieldDecl(
-                 name='linename',
-                 type=ArrayType(
-                     inner_type=ValueType(name='char'),
-                     extents=(100, 100),
-                 ),
-                 doc='line names for legend',
-             ),
-             StructFieldDecl(
-                 name='legendoffset',
-                 type=ValueType(name='int'),
-                 doc='number of lines to offset legend',
-             ),
-             StructFieldDecl(
-                 name='subplot',
-                 type=ValueType(name='int'),
-                 doc='selected subplot (for title rendering)',
-             ),
-             StructFieldDecl(
-                 name='highlight',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(2,),
-                 ),
-                 doc='if point is in legend rect, highlight line',
-             ),
-             StructFieldDecl(
-                 name='highlightid',
-                 type=ValueType(name='int'),
-                 doc='if id>=0 and no point, highlight id',
-             ),
-             StructFieldDecl(
-                 name='selection',
-                 type=ValueType(name='float'),
-                 doc='selection line x-value',
-             ),
-             StructFieldDecl(
-                 name='linepnt',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(100,),
-                 ),
-                 doc='number of points in line; (0) disable',
-             ),
-             StructFieldDecl(
-                 name='linedata',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(100, 2002),
-                 ),
-                 doc='line data (x,y)',
-             ),
-             StructFieldDecl(
-                 name='xaxispixel',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(2,),
-                 ),
-                 doc='range of x-axis in pixels',
-             ),
-             StructFieldDecl(
-                 name='yaxispixel',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(2,),
-                 ),
-                 doc='range of y-axis in pixels',
-             ),
-             StructFieldDecl(
-                 name='xaxisdata',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(2,),
-                 ),
-                 doc='range of x-axis in data units',
-             ),
-             StructFieldDecl(
-                 name='yaxisdata',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(2,),
-                 ),
-                 doc='range of y-axis in data units',
-             ),
-         ),
-     )),
-    ('mjSDF',
-     StructDecl(
-         name='mjSDF',
-         declname='struct mjSDF_',
-         fields=(
-             StructFieldDecl(
-                 name='plugin',
-                 type=PointerType(
-                     inner_type=PointerType(
-                         inner_type=ValueType(name='mjpPlugin', is_const=True),
-                     ),
-                 ),
-                 doc='',
-             ),
-             StructFieldDecl(
-                 name='id',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='',
-             ),
-             StructFieldDecl(
-                 name='type',
-                 type=ValueType(name='mjtSDFType'),
-                 doc='',
-             ),
-             StructFieldDecl(
-                 name='relpos',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='',
-             ),
-             StructFieldDecl(
-                 name='relmat',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-                 doc='',
-             ),
-             StructFieldDecl(
-                 name='geomtype',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtGeom'),
-                 ),
-                 doc='',
-             ),
-         ),
-     )),
-    ('mjrRect',
-     StructDecl(
-         name='mjrRect',
-         declname='struct mjrRect_',
-         fields=(
-             StructFieldDecl(
-                 name='left',
-                 type=ValueType(name='int'),
-                 doc='left (usually 0)',
-             ),
-             StructFieldDecl(
-                 name='bottom',
-                 type=ValueType(name='int'),
-                 doc='bottom (usually 0)',
-             ),
-             StructFieldDecl(
-                 name='width',
-                 type=ValueType(name='int'),
-                 doc='width (usually buffer width)',
-             ),
-             StructFieldDecl(
-                 name='height',
-                 type=ValueType(name='int'),
-                 doc='height (usually buffer height)',
-             ),
-         ),
-     )),
-    ('mjrContext',
-     StructDecl(
-         name='mjrContext',
-         declname='struct mjrContext_',
-         fields=(
-             StructFieldDecl(
-                 name='lineWidth',
-                 type=ValueType(name='float'),
-                 doc='line width for wireframe rendering',
-             ),
-             StructFieldDecl(
-                 name='shadowClip',
-                 type=ValueType(name='float'),
-                 doc='clipping radius for directional lights',
-             ),
-             StructFieldDecl(
-                 name='shadowScale',
-                 type=ValueType(name='float'),
-                 doc='fraction of light cutoff for spot lights',
-             ),
-             StructFieldDecl(
-                 name='fogStart',
-                 type=ValueType(name='float'),
-                 doc='fog start = stat.extent * vis.map.fogstart',
-             ),
-             StructFieldDecl(
-                 name='fogEnd',
-                 type=ValueType(name='float'),
-                 doc='fog end = stat.extent * vis.map.fogend',
-             ),
-             StructFieldDecl(
-                 name='fogRGBA',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(4,),
-                 ),
-                 doc='fog rgba',
-             ),
-             StructFieldDecl(
-                 name='shadowSize',
-                 type=ValueType(name='int'),
-                 doc='size of shadow map texture',
-             ),
-             StructFieldDecl(
-                 name='offWidth',
-                 type=ValueType(name='int'),
-                 doc='width of offscreen buffer',
-             ),
-             StructFieldDecl(
-                 name='offHeight',
-                 type=ValueType(name='int'),
-                 doc='height of offscreen buffer',
-             ),
-             StructFieldDecl(
-                 name='offSamples',
-                 type=ValueType(name='int'),
-                 doc='number of offscreen buffer multisamples',
-             ),
-             StructFieldDecl(
-                 name='fontScale',
-                 type=ValueType(name='int'),
-                 doc='font scale',
-             ),
-             StructFieldDecl(
-                 name='auxWidth',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(10,),
-                 ),
-                 doc='auxiliary buffer width',
-             ),
-             StructFieldDecl(
-                 name='auxHeight',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(10,),
-                 ),
-                 doc='auxiliary buffer height',
-             ),
-             StructFieldDecl(
-                 name='auxSamples',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(10,),
-                 ),
-                 doc='auxiliary buffer multisamples',
-             ),
-             StructFieldDecl(
-                 name='offFBO',
-                 type=ValueType(name='unsigned int'),
-                 doc='offscreen framebuffer object',
-             ),
-             StructFieldDecl(
-                 name='offFBO_r',
-                 type=ValueType(name='unsigned int'),
-                 doc='offscreen framebuffer for resolving multisamples',
-             ),
-             StructFieldDecl(
-                 name='offColor',
-                 type=ValueType(name='unsigned int'),
-                 doc='offscreen color buffer',
-             ),
-             StructFieldDecl(
-                 name='offColor_r',
-                 type=ValueType(name='unsigned int'),
-                 doc='offscreen color buffer for resolving multisamples',
-             ),
-             StructFieldDecl(
-                 name='offDepthStencil',
-                 type=ValueType(name='unsigned int'),
-                 doc='offscreen depth and stencil buffer',
-             ),
-             StructFieldDecl(
-                 name='offDepthStencil_r',
-                 type=ValueType(name='unsigned int'),
-                 doc='offscreen depth and stencil buffer for multisamples',
-             ),
-             StructFieldDecl(
-                 name='shadowFBO',
-                 type=ValueType(name='unsigned int'),
-                 doc='shadow map framebuffer object',
-             ),
-             StructFieldDecl(
-                 name='shadowTex',
-                 type=ValueType(name='unsigned int'),
-                 doc='shadow map texture',
-             ),
-             StructFieldDecl(
-                 name='auxFBO',
-                 type=ArrayType(
-                     inner_type=ValueType(name='unsigned int'),
-                     extents=(10,),
-                 ),
-                 doc='auxiliary framebuffer object',
-             ),
-             StructFieldDecl(
-                 name='auxFBO_r',
-                 type=ArrayType(
-                     inner_type=ValueType(name='unsigned int'),
-                     extents=(10,),
-                 ),
-                 doc='auxiliary framebuffer object for resolving',
-             ),
-             StructFieldDecl(
-                 name='auxColor',
-                 type=ArrayType(
-                     inner_type=ValueType(name='unsigned int'),
-                     extents=(10,),
-                 ),
-                 doc='auxiliary color buffer',
-             ),
-             StructFieldDecl(
-                 name='auxColor_r',
-                 type=ArrayType(
-                     inner_type=ValueType(name='unsigned int'),
-                     extents=(10,),
-                 ),
-                 doc='auxiliary color buffer for resolving',
-             ),
-             StructFieldDecl(
-                 name='mat_texid',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(10000,),
-                 ),
-                 doc='material texture ids (-1: no texture)',
-             ),
-             StructFieldDecl(
-                 name='mat_texuniform',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(1000,),
-                 ),
-                 doc='uniform cube mapping',
-             ),
-             StructFieldDecl(
-                 name='mat_texrepeat',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(2000,),
-                 ),
-                 doc='texture repetition for 2d mapping',
-             ),
-             StructFieldDecl(
-                 name='ntexture',
-                 type=ValueType(name='int'),
-                 doc='number of allocated textures',
-             ),
-             StructFieldDecl(
-                 name='textureType',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(1000,),
-                 ),
-                 doc='type of texture (mjtTexture) (ntexture)',
-             ),
-             StructFieldDecl(
-                 name='texture',
-                 type=ArrayType(
-                     inner_type=ValueType(name='unsigned int'),
-                     extents=(1000,),
-                 ),
-                 doc='texture names',
-             ),
-             StructFieldDecl(
-                 name='basePlane',
-                 type=ValueType(name='unsigned int'),
-                 doc='all planes from model',
-             ),
-             StructFieldDecl(
-                 name='baseMesh',
-                 type=ValueType(name='unsigned int'),
-                 doc='all meshes from model',
-             ),
-             StructFieldDecl(
-                 name='baseHField',
-                 type=ValueType(name='unsigned int'),
-                 doc='all height fields from model',
-             ),
-             StructFieldDecl(
-                 name='baseBuiltin',
-                 type=ValueType(name='unsigned int'),
-                 doc='all builtin geoms, with quality from model',
-             ),
-             StructFieldDecl(
-                 name='baseFontNormal',
-                 type=ValueType(name='unsigned int'),
-                 doc='normal font',
-             ),
-             StructFieldDecl(
-                 name='baseFontShadow',
-                 type=ValueType(name='unsigned int'),
-                 doc='shadow font',
-             ),
-             StructFieldDecl(
-                 name='baseFontBig',
-                 type=ValueType(name='unsigned int'),
-                 doc='big font',
-             ),
-             StructFieldDecl(
-                 name='rangePlane',
-                 type=ValueType(name='int'),
-                 doc='all planes from model',
-             ),
-             StructFieldDecl(
-                 name='rangeMesh',
-                 type=ValueType(name='int'),
-                 doc='all meshes from model',
-             ),
-             StructFieldDecl(
-                 name='rangeHField',
-                 type=ValueType(name='int'),
-                 doc='all hfields from model',
-             ),
-             StructFieldDecl(
-                 name='rangeBuiltin',
-                 type=ValueType(name='int'),
-                 doc='all builtin geoms, with quality from model',
-             ),
-             StructFieldDecl(
-                 name='rangeFont',
-                 type=ValueType(name='int'),
-                 doc='all characters in font',
-             ),
-             StructFieldDecl(
-                 name='nskin',
-                 type=ValueType(name='int'),
-                 doc='number of skins',
-             ),
-             StructFieldDecl(
-                 name='skinvertVBO',
-                 type=PointerType(
-                     inner_type=ValueType(name='unsigned int'),
-                 ),
-                 doc='skin vertex position VBOs (nskin)',
-             ),
-             StructFieldDecl(
-                 name='skinnormalVBO',
-                 type=PointerType(
-                     inner_type=ValueType(name='unsigned int'),
-                 ),
-                 doc='skin vertex normal VBOs (nskin)',
-             ),
-             StructFieldDecl(
-                 name='skintexcoordVBO',
-                 type=PointerType(
-                     inner_type=ValueType(name='unsigned int'),
-                 ),
-                 doc='skin vertex texture coordinate VBOs (nskin)',
-             ),
-             StructFieldDecl(
-                 name='skinfaceVBO',
-                 type=PointerType(
-                     inner_type=ValueType(name='unsigned int'),
-                 ),
-                 doc='skin face index VBOs (nskin)',
-             ),
-             StructFieldDecl(
-                 name='charWidth',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(127,),
-                 ),
-                 doc='character widths: normal and shadow',
-             ),
-             StructFieldDecl(
-                 name='charWidthBig',
-                 type=ArrayType(
-                     inner_type=ValueType(name='int'),
-                     extents=(127,),
-                 ),
-                 doc='chacarter widths: big',
-             ),
-             StructFieldDecl(
-                 name='charHeight',
-                 type=ValueType(name='int'),
-                 doc='character heights: normal and shadow',
-             ),
-             StructFieldDecl(
-                 name='charHeightBig',
-                 type=ValueType(name='int'),
-                 doc='character heights: big',
-             ),
-             StructFieldDecl(
-                 name='glInitialized',
-                 type=ValueType(name='int'),
-                 doc='is OpenGL initialized',
-             ),
-             StructFieldDecl(
-                 name='windowAvailable',
-                 type=ValueType(name='int'),
-                 doc='is default/window framebuffer available',
-             ),
-             StructFieldDecl(
-                 name='windowSamples',
-                 type=ValueType(name='int'),
-                 doc='number of samples for default/window framebuffer',
-             ),
-             StructFieldDecl(
-                 name='windowStereo',
-                 type=ValueType(name='int'),
-                 doc='is stereo available for default/window framebuffer',
-             ),
-             StructFieldDecl(
-                 name='windowDoublebuffer',
-                 type=ValueType(name='int'),
-                 doc='is default/window framebuffer double buffered',
-             ),
-             StructFieldDecl(
-                 name='currentBuffer',
-                 type=ValueType(name='int'),
-                 doc='currently active framebuffer: mjFB_WINDOW or mjFB_OFFSCREEN',  # pylint: disable=line-too-long
-             ),
-             StructFieldDecl(
-                 name='readPixelFormat',
-                 type=ValueType(name='int'),
-                 doc='default color pixel format for mjr_readPixels',
-             ),
-             StructFieldDecl(
-                 name='readDepthMap',
-                 type=ValueType(name='int'),
-                 doc='depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR',
-             ),
-         ),
-     )),
     ('mjsElement',
      StructDecl(
          name='mjsElement',
@@ -10143,6 +8698,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='element type',
              ),
              StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='mjtWrap'),
+                 doc='wrap type',
+             ),
+             StructFieldDecl(
                  name='info',
                  type=PointerType(
                      inner_type=ValueType(name='mjString'),
@@ -10690,6 +9250,1451 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjsActuator'),
                  ),
                  doc='actuator defaults',
+             ),
+         ),
+     )),
+    ('mjvPerturb',
+     StructDecl(
+         name='mjvPerturb',
+         declname='struct mjvPerturb_',
+         fields=(
+             StructFieldDecl(
+                 name='select',
+                 type=ValueType(name='int'),
+                 doc='selected body id; non-positive: none',
+             ),
+             StructFieldDecl(
+                 name='flexselect',
+                 type=ValueType(name='int'),
+                 doc='selected flex id; negative: none',
+             ),
+             StructFieldDecl(
+                 name='skinselect',
+                 type=ValueType(name='int'),
+                 doc='selected skin id; negative: none',
+             ),
+             StructFieldDecl(
+                 name='active',
+                 type=ValueType(name='int'),
+                 doc='perturbation bitmask (mjtPertBit)',
+             ),
+             StructFieldDecl(
+                 name='active2',
+                 type=ValueType(name='int'),
+                 doc='secondary perturbation bitmask (mjtPertBit)',
+             ),
+             StructFieldDecl(
+                 name='refpos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 doc='reference position for selected object',
+             ),
+             StructFieldDecl(
+                 name='refquat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(4,),
+                 ),
+                 doc='reference orientation for selected object',
+             ),
+             StructFieldDecl(
+                 name='refselpos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 doc='reference position for selection point',
+             ),
+             StructFieldDecl(
+                 name='localpos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 doc='selection point in object coordinates',
+             ),
+             StructFieldDecl(
+                 name='localmass',
+                 type=ValueType(name='mjtNum'),
+                 doc='spatial inertia at selection point',
+             ),
+             StructFieldDecl(
+                 name='scale',
+                 type=ValueType(name='mjtNum'),
+                 doc='relative mouse motion-to-space scaling (set by initPerturb)',  # pylint: disable=line-too-long
+             ),
+         ),
+     )),
+    ('mjvCamera',
+     StructDecl(
+         name='mjvCamera',
+         declname='struct mjvCamera_',
+         fields=(
+             StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='int'),
+                 doc='camera type (mjtCamera)',
+             ),
+             StructFieldDecl(
+                 name='fixedcamid',
+                 type=ValueType(name='int'),
+                 doc='fixed camera id',
+             ),
+             StructFieldDecl(
+                 name='trackbodyid',
+                 type=ValueType(name='int'),
+                 doc='body id to track',
+             ),
+             StructFieldDecl(
+                 name='lookat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 doc='lookat point',
+             ),
+             StructFieldDecl(
+                 name='distance',
+                 type=ValueType(name='mjtNum'),
+                 doc='distance to lookat point or tracked body',
+             ),
+             StructFieldDecl(
+                 name='azimuth',
+                 type=ValueType(name='mjtNum'),
+                 doc='camera azimuth (deg)',
+             ),
+             StructFieldDecl(
+                 name='elevation',
+                 type=ValueType(name='mjtNum'),
+                 doc='camera elevation (deg)',
+             ),
+             StructFieldDecl(
+                 name='orthographic',
+                 type=ValueType(name='int'),
+                 doc='0: perspective; 1: orthographic',
+             ),
+         ),
+     )),
+    ('mjvGLCamera',
+     StructDecl(
+         name='mjvGLCamera',
+         declname='struct mjvGLCamera_',
+         fields=(
+             StructFieldDecl(
+                 name='pos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='position',
+             ),
+             StructFieldDecl(
+                 name='forward',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='forward direction',
+             ),
+             StructFieldDecl(
+                 name='up',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='up direction',
+             ),
+             StructFieldDecl(
+                 name='frustum_center',
+                 type=ValueType(name='float'),
+                 doc='hor. center (left,right set to match aspect)',
+             ),
+             StructFieldDecl(
+                 name='frustum_width',
+                 type=ValueType(name='float'),
+                 doc='width (not used for rendering)',
+             ),
+             StructFieldDecl(
+                 name='frustum_bottom',
+                 type=ValueType(name='float'),
+                 doc='bottom',
+             ),
+             StructFieldDecl(
+                 name='frustum_top',
+                 type=ValueType(name='float'),
+                 doc='top',
+             ),
+             StructFieldDecl(
+                 name='frustum_near',
+                 type=ValueType(name='float'),
+                 doc='near',
+             ),
+             StructFieldDecl(
+                 name='frustum_far',
+                 type=ValueType(name='float'),
+                 doc='far',
+             ),
+             StructFieldDecl(
+                 name='orthographic',
+                 type=ValueType(name='int'),
+                 doc='0: perspective; 1: orthographic',
+             ),
+         ),
+     )),
+    ('mjvGeom',
+     StructDecl(
+         name='mjvGeom',
+         declname='struct mjvGeom_',
+         fields=(
+             StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='int'),
+                 doc='geom type (mjtGeom)',
+             ),
+             StructFieldDecl(
+                 name='dataid',
+                 type=ValueType(name='int'),
+                 doc='mesh, hfield or plane id; -1: none; mesh: 2*id or 2*id+1 (hull)',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='objtype',
+                 type=ValueType(name='int'),
+                 doc='mujoco object type; mjOBJ_UNKNOWN for decor',
+             ),
+             StructFieldDecl(
+                 name='objid',
+                 type=ValueType(name='int'),
+                 doc='mujoco object id; -1 for decor',
+             ),
+             StructFieldDecl(
+                 name='category',
+                 type=ValueType(name='int'),
+                 doc='visual category',
+             ),
+             StructFieldDecl(
+                 name='matid',
+                 type=ValueType(name='int'),
+                 doc='material id; -1: no textured material',
+             ),
+             StructFieldDecl(
+                 name='texcoord',
+                 type=ValueType(name='int'),
+                 doc='mesh or flex geom has texture coordinates',
+             ),
+             StructFieldDecl(
+                 name='segid',
+                 type=ValueType(name='int'),
+                 doc='segmentation id; -1: not shown',
+             ),
+             StructFieldDecl(
+                 name='size',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='size parameters',
+             ),
+             StructFieldDecl(
+                 name='pos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='Cartesian position',
+             ),
+             StructFieldDecl(
+                 name='mat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(9,),
+                 ),
+                 doc='Cartesian orientation',
+             ),
+             StructFieldDecl(
+                 name='rgba',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(4,),
+                 ),
+                 doc='color and transparency',
+             ),
+             StructFieldDecl(
+                 name='emission',
+                 type=ValueType(name='float'),
+                 doc='emission coef',
+             ),
+             StructFieldDecl(
+                 name='specular',
+                 type=ValueType(name='float'),
+                 doc='specular coef',
+             ),
+             StructFieldDecl(
+                 name='shininess',
+                 type=ValueType(name='float'),
+                 doc='shininess coef',
+             ),
+             StructFieldDecl(
+                 name='reflectance',
+                 type=ValueType(name='float'),
+                 doc='reflectance coef',
+             ),
+             StructFieldDecl(
+                 name='label',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(100,),
+                 ),
+                 doc='text label',
+             ),
+             StructFieldDecl(
+                 name='camdist',
+                 type=ValueType(name='float'),
+                 doc='distance to camera (used by sorter)',
+             ),
+             StructFieldDecl(
+                 name='modelrbound',
+                 type=ValueType(name='float'),
+                 doc='geom rbound from model, 0 if not model geom',
+             ),
+             StructFieldDecl(
+                 name='transparent',
+                 type=ValueType(name='mjtByte'),
+                 doc='treat geom as transparent',
+             ),
+         ),
+     )),
+    ('mjvLight',
+     StructDecl(
+         name='mjvLight',
+         declname='struct mjvLight_',
+         fields=(
+             StructFieldDecl(
+                 name='id',
+                 type=ValueType(name='int'),
+                 doc='light id, -1 for headlight',
+             ),
+             StructFieldDecl(
+                 name='pos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='position rel. to body frame',
+             ),
+             StructFieldDecl(
+                 name='dir',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='direction rel. to body frame',
+             ),
+             StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='int'),
+                 doc='type (mjtLightType)',
+             ),
+             StructFieldDecl(
+                 name='texid',
+                 type=ValueType(name='int'),
+                 doc='texture id for image lights',
+             ),
+             StructFieldDecl(
+                 name='attenuation',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='OpenGL attenuation (quadratic model)',
+             ),
+             StructFieldDecl(
+                 name='cutoff',
+                 type=ValueType(name='float'),
+                 doc='OpenGL cutoff',
+             ),
+             StructFieldDecl(
+                 name='exponent',
+                 type=ValueType(name='float'),
+                 doc='OpenGL exponent',
+             ),
+             StructFieldDecl(
+                 name='ambient',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='ambient rgb (alpha=1)',
+             ),
+             StructFieldDecl(
+                 name='diffuse',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='diffuse rgb (alpha=1)',
+             ),
+             StructFieldDecl(
+                 name='specular',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='specular rgb (alpha=1)',
+             ),
+             StructFieldDecl(
+                 name='headlight',
+                 type=ValueType(name='mjtByte'),
+                 doc='headlight',
+             ),
+             StructFieldDecl(
+                 name='castshadow',
+                 type=ValueType(name='mjtByte'),
+                 doc='does light cast shadows',
+             ),
+             StructFieldDecl(
+                 name='bulbradius',
+                 type=ValueType(name='float'),
+                 doc='bulb radius for soft shadows',
+             ),
+             StructFieldDecl(
+                 name='intensity',
+                 type=ValueType(name='float'),
+                 doc='intensity, in candelas',
+             ),
+             StructFieldDecl(
+                 name='range',
+                 type=ValueType(name='float'),
+                 doc='range of effectiveness',
+             ),
+         ),
+     )),
+    ('mjvOption',
+     StructDecl(
+         name='mjvOption',
+         declname='struct mjvOption_',
+         fields=(
+             StructFieldDecl(
+                 name='label',
+                 type=ValueType(name='int'),
+                 doc='what objects to label (mjtLabel)',
+             ),
+             StructFieldDecl(
+                 name='frame',
+                 type=ValueType(name='int'),
+                 doc='which frame to show (mjtFrame)',
+             ),
+             StructFieldDecl(
+                 name='geomgroup',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtByte'),
+                     extents=(6,),
+                 ),
+                 doc='geom visualization by group',
+             ),
+             StructFieldDecl(
+                 name='sitegroup',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtByte'),
+                     extents=(6,),
+                 ),
+                 doc='site visualization by group',
+             ),
+             StructFieldDecl(
+                 name='jointgroup',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtByte'),
+                     extents=(6,),
+                 ),
+                 doc='joint visualization by group',
+             ),
+             StructFieldDecl(
+                 name='tendongroup',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtByte'),
+                     extents=(6,),
+                 ),
+                 doc='tendon visualization by group',
+             ),
+             StructFieldDecl(
+                 name='actuatorgroup',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtByte'),
+                     extents=(6,),
+                 ),
+                 doc='actuator visualization by group',
+             ),
+             StructFieldDecl(
+                 name='flexgroup',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtByte'),
+                     extents=(6,),
+                 ),
+                 doc='flex visualization by group',
+             ),
+             StructFieldDecl(
+                 name='skingroup',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtByte'),
+                     extents=(6,),
+                 ),
+                 doc='skin visualization by group',
+             ),
+             StructFieldDecl(
+                 name='flags',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtByte'),
+                     extents=(31,),
+                 ),
+                 doc='visualization flags (indexed by mjtVisFlag)',
+             ),
+             StructFieldDecl(
+                 name='bvh_depth',
+                 type=ValueType(name='int'),
+                 doc='depth of the bounding volume hierarchy to be visualized',
+             ),
+             StructFieldDecl(
+                 name='flex_layer',
+                 type=ValueType(name='int'),
+                 doc='element layer to be visualized for 3D flex',
+             ),
+         ),
+     )),
+    ('mjvScene',
+     StructDecl(
+         name='mjvScene',
+         declname='struct mjvScene_',
+         fields=(
+             StructFieldDecl(
+                 name='maxgeom',
+                 type=ValueType(name='int'),
+                 doc='size of allocated geom buffer',
+             ),
+             StructFieldDecl(
+                 name='ngeom',
+                 type=ValueType(name='int'),
+                 doc='number of geoms currently in buffer',
+             ),
+             StructFieldDecl(
+                 name='geoms',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvGeom'),
+                 ),
+                 doc='buffer for geoms (ngeom)',
+             ),
+             StructFieldDecl(
+                 name='geomorder',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='buffer for ordering geoms by distance to camera (ngeom)',
+             ),
+             StructFieldDecl(
+                 name='nflex',
+                 type=ValueType(name='int'),
+                 doc='number of flexes',
+             ),
+             StructFieldDecl(
+                 name='flexedgeadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of flex edges (nflex)',
+             ),
+             StructFieldDecl(
+                 name='flexedgenum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of edges in flex (nflex)',
+             ),
+             StructFieldDecl(
+                 name='flexvertadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of flex vertices (nflex)',
+             ),
+             StructFieldDecl(
+                 name='flexvertnum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of vertices in flex (nflex)',
+             ),
+             StructFieldDecl(
+                 name='flexfaceadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of flex faces (nflex)',
+             ),
+             StructFieldDecl(
+                 name='flexfacenum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of flex faces allocated (nflex)',
+             ),
+             StructFieldDecl(
+                 name='flexfaceused',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of flex faces currently in use (nflex)',
+             ),
+             StructFieldDecl(
+                 name='flexedge',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='flex edge data (2*nflexedge)',
+             ),
+             StructFieldDecl(
+                 name='flexvert',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='flex vertices (3*nflexvert)',
+             ),
+             StructFieldDecl(
+                 name='flexface',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='flex faces vertices (9*sum(flexfacenum))',
+             ),
+             StructFieldDecl(
+                 name='flexnormal',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='flex face normals (9*sum(flexfacenum))',
+             ),
+             StructFieldDecl(
+                 name='flextexcoord',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='flex face texture coordinates (6*sum(flexfacenum))',
+             ),
+             StructFieldDecl(
+                 name='flexvertopt',
+                 type=ValueType(name='mjtByte'),
+                 doc='copy of mjVIS_FLEXVERT mjvOption flag',
+             ),
+             StructFieldDecl(
+                 name='flexedgeopt',
+                 type=ValueType(name='mjtByte'),
+                 doc='copy of mjVIS_FLEXEDGE mjvOption flag',
+             ),
+             StructFieldDecl(
+                 name='flexfaceopt',
+                 type=ValueType(name='mjtByte'),
+                 doc='copy of mjVIS_FLEXFACE mjvOption flag',
+             ),
+             StructFieldDecl(
+                 name='flexskinopt',
+                 type=ValueType(name='mjtByte'),
+                 doc='copy of mjVIS_FLEXSKIN mjvOption flag',
+             ),
+             StructFieldDecl(
+                 name='nskin',
+                 type=ValueType(name='int'),
+                 doc='number of skins',
+             ),
+             StructFieldDecl(
+                 name='skinfacenum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of faces in skin (nskin)',
+             ),
+             StructFieldDecl(
+                 name='skinvertadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='address of skin vertices (nskin)',
+             ),
+             StructFieldDecl(
+                 name='skinvertnum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of vertices in skin (nskin)',
+             ),
+             StructFieldDecl(
+                 name='skinvert',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='skin vertex data (3*nskinvert)',
+             ),
+             StructFieldDecl(
+                 name='skinnormal',
+                 type=PointerType(
+                     inner_type=ValueType(name='float'),
+                 ),
+                 doc='skin normal data (3*nskinvert)',
+             ),
+             StructFieldDecl(
+                 name='nlight',
+                 type=ValueType(name='int'),
+                 doc='number of lights currently in buffer',
+             ),
+             StructFieldDecl(
+                 name='lights',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjvLight'),
+                     extents=(100,),
+                 ),
+                 doc='buffer for lights (nlight)',
+             ),
+             StructFieldDecl(
+                 name='camera',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjvGLCamera'),
+                     extents=(2,),
+                 ),
+                 doc='left and right camera',
+             ),
+             StructFieldDecl(
+                 name='enabletransform',
+                 type=ValueType(name='mjtByte'),
+                 doc='enable model transformation',
+             ),
+             StructFieldDecl(
+                 name='translate',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='model translation',
+             ),
+             StructFieldDecl(
+                 name='rotate',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(4,),
+                 ),
+                 doc='model quaternion rotation',
+             ),
+             StructFieldDecl(
+                 name='scale',
+                 type=ValueType(name='float'),
+                 doc='model scaling',
+             ),
+             StructFieldDecl(
+                 name='stereo',
+                 type=ValueType(name='int'),
+                 doc='stereoscopic rendering (mjtStereo)',
+             ),
+             StructFieldDecl(
+                 name='flags',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtByte'),
+                     extents=(10,),
+                 ),
+                 doc='rendering flags (indexed by mjtRndFlag)',
+             ),
+             StructFieldDecl(
+                 name='framewidth',
+                 type=ValueType(name='int'),
+                 doc='frame pixel width; 0: disable framing',
+             ),
+             StructFieldDecl(
+                 name='framergb',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='frame color',
+             ),
+             StructFieldDecl(
+                 name='status',
+                 type=ValueType(name='int'),
+                 doc='status; 0: ok, 1: geoms exhausted',
+             ),
+         ),
+     )),
+    ('mjvFigure',
+     StructDecl(
+         name='mjvFigure',
+         declname='struct mjvFigure_',
+         fields=(
+             StructFieldDecl(
+                 name='flg_legend',
+                 type=ValueType(name='int'),
+                 doc='show legend',
+             ),
+             StructFieldDecl(
+                 name='flg_ticklabel',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(2,),
+                 ),
+                 doc='show grid tick labels (x,y)',
+             ),
+             StructFieldDecl(
+                 name='flg_extend',
+                 type=ValueType(name='int'),
+                 doc='automatically extend axis ranges to fit data',
+             ),
+             StructFieldDecl(
+                 name='flg_barplot',
+                 type=ValueType(name='int'),
+                 doc='isolated line segments (i.e. GL_LINES)',
+             ),
+             StructFieldDecl(
+                 name='flg_selection',
+                 type=ValueType(name='int'),
+                 doc='vertical selection line',
+             ),
+             StructFieldDecl(
+                 name='flg_symmetric',
+                 type=ValueType(name='int'),
+                 doc='symmetric y-axis',
+             ),
+             StructFieldDecl(
+                 name='linewidth',
+                 type=ValueType(name='float'),
+                 doc='line width',
+             ),
+             StructFieldDecl(
+                 name='gridwidth',
+                 type=ValueType(name='float'),
+                 doc='grid line width',
+             ),
+             StructFieldDecl(
+                 name='gridsize',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(2,),
+                 ),
+                 doc='number of grid points in (x,y)',
+             ),
+             StructFieldDecl(
+                 name='gridrgb',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='grid line rgb',
+             ),
+             StructFieldDecl(
+                 name='figurergba',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(4,),
+                 ),
+                 doc='figure color and alpha',
+             ),
+             StructFieldDecl(
+                 name='panergba',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(4,),
+                 ),
+                 doc='pane color and alpha',
+             ),
+             StructFieldDecl(
+                 name='legendrgba',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(4,),
+                 ),
+                 doc='legend color and alpha',
+             ),
+             StructFieldDecl(
+                 name='textrgb',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(3,),
+                 ),
+                 doc='text color',
+             ),
+             StructFieldDecl(
+                 name='linergb',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(100, 3),
+                 ),
+                 doc='line colors',
+             ),
+             StructFieldDecl(
+                 name='range',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2, 2),
+                 ),
+                 doc='axis ranges; (min>=max) automatic',
+             ),
+             StructFieldDecl(
+                 name='xformat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(20,),
+                 ),
+                 doc='x-tick label format for sprintf',
+             ),
+             StructFieldDecl(
+                 name='yformat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(20,),
+                 ),
+                 doc='y-tick label format for sprintf',
+             ),
+             StructFieldDecl(
+                 name='minwidth',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(20,),
+                 ),
+                 doc='string used to determine min y-tick width',
+             ),
+             StructFieldDecl(
+                 name='title',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(1000,),
+                 ),
+                 doc='figure title; subplots separated with 2+ spaces',
+             ),
+             StructFieldDecl(
+                 name='xlabel',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(100,),
+                 ),
+                 doc='x-axis label',
+             ),
+             StructFieldDecl(
+                 name='linename',
+                 type=ArrayType(
+                     inner_type=ValueType(name='char'),
+                     extents=(100, 100),
+                 ),
+                 doc='line names for legend',
+             ),
+             StructFieldDecl(
+                 name='legendoffset',
+                 type=ValueType(name='int'),
+                 doc='number of lines to offset legend',
+             ),
+             StructFieldDecl(
+                 name='subplot',
+                 type=ValueType(name='int'),
+                 doc='selected subplot (for title rendering)',
+             ),
+             StructFieldDecl(
+                 name='highlight',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(2,),
+                 ),
+                 doc='if point is in legend rect, highlight line',
+             ),
+             StructFieldDecl(
+                 name='highlightid',
+                 type=ValueType(name='int'),
+                 doc='if id>=0 and no point, highlight id',
+             ),
+             StructFieldDecl(
+                 name='selection',
+                 type=ValueType(name='float'),
+                 doc='selection line x-value',
+             ),
+             StructFieldDecl(
+                 name='linepnt',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(100,),
+                 ),
+                 doc='number of points in line; (0) disable',
+             ),
+             StructFieldDecl(
+                 name='linedata',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(100, 2002),
+                 ),
+                 doc='line data (x,y)',
+             ),
+             StructFieldDecl(
+                 name='xaxispixel',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(2,),
+                 ),
+                 doc='range of x-axis in pixels',
+             ),
+             StructFieldDecl(
+                 name='yaxispixel',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(2,),
+                 ),
+                 doc='range of y-axis in pixels',
+             ),
+             StructFieldDecl(
+                 name='xaxisdata',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 doc='range of x-axis in data units',
+             ),
+             StructFieldDecl(
+                 name='yaxisdata',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 doc='range of y-axis in data units',
+             ),
+         ),
+     )),
+    ('mjSDF',
+     StructDecl(
+         name='mjSDF',
+         declname='struct mjSDF_',
+         fields=(
+             StructFieldDecl(
+                 name='plugin',
+                 type=PointerType(
+                     inner_type=PointerType(
+                         inner_type=ValueType(name='mjpPlugin', is_const=True),
+                     ),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='id',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='type',
+                 type=ValueType(name='mjtSDFType'),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='relpos',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='relmat',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='',
+             ),
+             StructFieldDecl(
+                 name='geomtype',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtGeom'),
+                 ),
+                 doc='',
+             ),
+         ),
+     )),
+    ('mjrRect',
+     StructDecl(
+         name='mjrRect',
+         declname='struct mjrRect_',
+         fields=(
+             StructFieldDecl(
+                 name='left',
+                 type=ValueType(name='int'),
+                 doc='left (usually 0)',
+             ),
+             StructFieldDecl(
+                 name='bottom',
+                 type=ValueType(name='int'),
+                 doc='bottom (usually 0)',
+             ),
+             StructFieldDecl(
+                 name='width',
+                 type=ValueType(name='int'),
+                 doc='width (usually buffer width)',
+             ),
+             StructFieldDecl(
+                 name='height',
+                 type=ValueType(name='int'),
+                 doc='height (usually buffer height)',
+             ),
+         ),
+     )),
+    ('mjrContext',
+     StructDecl(
+         name='mjrContext',
+         declname='struct mjrContext_',
+         fields=(
+             StructFieldDecl(
+                 name='lineWidth',
+                 type=ValueType(name='float'),
+                 doc='line width for wireframe rendering',
+             ),
+             StructFieldDecl(
+                 name='shadowClip',
+                 type=ValueType(name='float'),
+                 doc='clipping radius for directional lights',
+             ),
+             StructFieldDecl(
+                 name='shadowScale',
+                 type=ValueType(name='float'),
+                 doc='fraction of light cutoff for spot lights',
+             ),
+             StructFieldDecl(
+                 name='fogStart',
+                 type=ValueType(name='float'),
+                 doc='fog start = stat.extent * vis.map.fogstart',
+             ),
+             StructFieldDecl(
+                 name='fogEnd',
+                 type=ValueType(name='float'),
+                 doc='fog end = stat.extent * vis.map.fogend',
+             ),
+             StructFieldDecl(
+                 name='fogRGBA',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(4,),
+                 ),
+                 doc='fog rgba',
+             ),
+             StructFieldDecl(
+                 name='shadowSize',
+                 type=ValueType(name='int'),
+                 doc='size of shadow map texture',
+             ),
+             StructFieldDecl(
+                 name='offWidth',
+                 type=ValueType(name='int'),
+                 doc='width of offscreen buffer',
+             ),
+             StructFieldDecl(
+                 name='offHeight',
+                 type=ValueType(name='int'),
+                 doc='height of offscreen buffer',
+             ),
+             StructFieldDecl(
+                 name='offSamples',
+                 type=ValueType(name='int'),
+                 doc='number of offscreen buffer multisamples',
+             ),
+             StructFieldDecl(
+                 name='fontScale',
+                 type=ValueType(name='int'),
+                 doc='font scale',
+             ),
+             StructFieldDecl(
+                 name='auxWidth',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(10,),
+                 ),
+                 doc='auxiliary buffer width',
+             ),
+             StructFieldDecl(
+                 name='auxHeight',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(10,),
+                 ),
+                 doc='auxiliary buffer height',
+             ),
+             StructFieldDecl(
+                 name='auxSamples',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(10,),
+                 ),
+                 doc='auxiliary buffer multisamples',
+             ),
+             StructFieldDecl(
+                 name='offFBO',
+                 type=ValueType(name='unsigned int'),
+                 doc='offscreen framebuffer object',
+             ),
+             StructFieldDecl(
+                 name='offFBO_r',
+                 type=ValueType(name='unsigned int'),
+                 doc='offscreen framebuffer for resolving multisamples',
+             ),
+             StructFieldDecl(
+                 name='offColor',
+                 type=ValueType(name='unsigned int'),
+                 doc='offscreen color buffer',
+             ),
+             StructFieldDecl(
+                 name='offColor_r',
+                 type=ValueType(name='unsigned int'),
+                 doc='offscreen color buffer for resolving multisamples',
+             ),
+             StructFieldDecl(
+                 name='offDepthStencil',
+                 type=ValueType(name='unsigned int'),
+                 doc='offscreen depth and stencil buffer',
+             ),
+             StructFieldDecl(
+                 name='offDepthStencil_r',
+                 type=ValueType(name='unsigned int'),
+                 doc='offscreen depth and stencil buffer for multisamples',
+             ),
+             StructFieldDecl(
+                 name='shadowFBO',
+                 type=ValueType(name='unsigned int'),
+                 doc='shadow map framebuffer object',
+             ),
+             StructFieldDecl(
+                 name='shadowTex',
+                 type=ValueType(name='unsigned int'),
+                 doc='shadow map texture',
+             ),
+             StructFieldDecl(
+                 name='auxFBO',
+                 type=ArrayType(
+                     inner_type=ValueType(name='unsigned int'),
+                     extents=(10,),
+                 ),
+                 doc='auxiliary framebuffer object',
+             ),
+             StructFieldDecl(
+                 name='auxFBO_r',
+                 type=ArrayType(
+                     inner_type=ValueType(name='unsigned int'),
+                     extents=(10,),
+                 ),
+                 doc='auxiliary framebuffer object for resolving',
+             ),
+             StructFieldDecl(
+                 name='auxColor',
+                 type=ArrayType(
+                     inner_type=ValueType(name='unsigned int'),
+                     extents=(10,),
+                 ),
+                 doc='auxiliary color buffer',
+             ),
+             StructFieldDecl(
+                 name='auxColor_r',
+                 type=ArrayType(
+                     inner_type=ValueType(name='unsigned int'),
+                     extents=(10,),
+                 ),
+                 doc='auxiliary color buffer for resolving',
+             ),
+             StructFieldDecl(
+                 name='mat_texid',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(10000,),
+                 ),
+                 doc='material texture ids (-1: no texture)',
+             ),
+             StructFieldDecl(
+                 name='mat_texuniform',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(1000,),
+                 ),
+                 doc='uniform cube mapping',
+             ),
+             StructFieldDecl(
+                 name='mat_texrepeat',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2000,),
+                 ),
+                 doc='texture repetition for 2d mapping',
+             ),
+             StructFieldDecl(
+                 name='ntexture',
+                 type=ValueType(name='int'),
+                 doc='number of allocated textures',
+             ),
+             StructFieldDecl(
+                 name='textureType',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(1000,),
+                 ),
+                 doc='type of texture (mjtTexture) (ntexture)',
+             ),
+             StructFieldDecl(
+                 name='texture',
+                 type=ArrayType(
+                     inner_type=ValueType(name='unsigned int'),
+                     extents=(1000,),
+                 ),
+                 doc='texture names',
+             ),
+             StructFieldDecl(
+                 name='basePlane',
+                 type=ValueType(name='unsigned int'),
+                 doc='all planes from model',
+             ),
+             StructFieldDecl(
+                 name='baseMesh',
+                 type=ValueType(name='unsigned int'),
+                 doc='all meshes from model',
+             ),
+             StructFieldDecl(
+                 name='baseHField',
+                 type=ValueType(name='unsigned int'),
+                 doc='all height fields from model',
+             ),
+             StructFieldDecl(
+                 name='baseBuiltin',
+                 type=ValueType(name='unsigned int'),
+                 doc='all builtin geoms, with quality from model',
+             ),
+             StructFieldDecl(
+                 name='baseFontNormal',
+                 type=ValueType(name='unsigned int'),
+                 doc='normal font',
+             ),
+             StructFieldDecl(
+                 name='baseFontShadow',
+                 type=ValueType(name='unsigned int'),
+                 doc='shadow font',
+             ),
+             StructFieldDecl(
+                 name='baseFontBig',
+                 type=ValueType(name='unsigned int'),
+                 doc='big font',
+             ),
+             StructFieldDecl(
+                 name='rangePlane',
+                 type=ValueType(name='int'),
+                 doc='all planes from model',
+             ),
+             StructFieldDecl(
+                 name='rangeMesh',
+                 type=ValueType(name='int'),
+                 doc='all meshes from model',
+             ),
+             StructFieldDecl(
+                 name='rangeHField',
+                 type=ValueType(name='int'),
+                 doc='all hfields from model',
+             ),
+             StructFieldDecl(
+                 name='rangeBuiltin',
+                 type=ValueType(name='int'),
+                 doc='all builtin geoms, with quality from model',
+             ),
+             StructFieldDecl(
+                 name='rangeFont',
+                 type=ValueType(name='int'),
+                 doc='all characters in font',
+             ),
+             StructFieldDecl(
+                 name='nskin',
+                 type=ValueType(name='int'),
+                 doc='number of skins',
+             ),
+             StructFieldDecl(
+                 name='skinvertVBO',
+                 type=PointerType(
+                     inner_type=ValueType(name='unsigned int'),
+                 ),
+                 doc='skin vertex position VBOs (nskin)',
+             ),
+             StructFieldDecl(
+                 name='skinnormalVBO',
+                 type=PointerType(
+                     inner_type=ValueType(name='unsigned int'),
+                 ),
+                 doc='skin vertex normal VBOs (nskin)',
+             ),
+             StructFieldDecl(
+                 name='skintexcoordVBO',
+                 type=PointerType(
+                     inner_type=ValueType(name='unsigned int'),
+                 ),
+                 doc='skin vertex texture coordinate VBOs (nskin)',
+             ),
+             StructFieldDecl(
+                 name='skinfaceVBO',
+                 type=PointerType(
+                     inner_type=ValueType(name='unsigned int'),
+                 ),
+                 doc='skin face index VBOs (nskin)',
+             ),
+             StructFieldDecl(
+                 name='charWidth',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(127,),
+                 ),
+                 doc='character widths: normal and shadow',
+             ),
+             StructFieldDecl(
+                 name='charWidthBig',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(127,),
+                 ),
+                 doc='character widths: big',
+             ),
+             StructFieldDecl(
+                 name='charHeight',
+                 type=ValueType(name='int'),
+                 doc='character heights: normal and shadow',
+             ),
+             StructFieldDecl(
+                 name='charHeightBig',
+                 type=ValueType(name='int'),
+                 doc='character heights: big',
+             ),
+             StructFieldDecl(
+                 name='glInitialized',
+                 type=ValueType(name='int'),
+                 doc='is OpenGL initialized',
+             ),
+             StructFieldDecl(
+                 name='windowAvailable',
+                 type=ValueType(name='int'),
+                 doc='is default/window framebuffer available',
+             ),
+             StructFieldDecl(
+                 name='windowSamples',
+                 type=ValueType(name='int'),
+                 doc='number of samples for default/window framebuffer',
+             ),
+             StructFieldDecl(
+                 name='windowStereo',
+                 type=ValueType(name='int'),
+                 doc='is stereo available for default/window framebuffer',
+             ),
+             StructFieldDecl(
+                 name='windowDoublebuffer',
+                 type=ValueType(name='int'),
+                 doc='is default/window framebuffer double buffered',
+             ),
+             StructFieldDecl(
+                 name='currentBuffer',
+                 type=ValueType(name='int'),
+                 doc='currently active framebuffer: mjFB_WINDOW or mjFB_OFFSCREEN',  # pylint: disable=line-too-long
+             ),
+             StructFieldDecl(
+                 name='readPixelFormat',
+                 type=ValueType(name='int'),
+                 doc='default color pixel format for mjr_readPixels',
+             ),
+             StructFieldDecl(
+                 name='readDepthMap',
+                 type=ValueType(name='int'),
+                 doc='depth mapping: mjDEPTH_ZERONEAR or mjDEPTH_ZEROFAR',
              ),
          ),
      )),

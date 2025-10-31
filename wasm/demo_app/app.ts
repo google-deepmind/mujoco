@@ -1,3 +1,17 @@
+// Copyright 2025 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import loadMujoco from "../dist/mujoco_wasm.js"
@@ -6,20 +20,7 @@ declare function loadMujoco(): Promise<MainModule>;
 
 let mujoco: any;
 
-const boxXml = `
-    <mujoco model="Box falling">
-      <option viscosity="1"/>
-      <worldbody>
-        <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
-        <geom name="MyFloor" type="plane" size="1 1 0.1" rgba=".9 0 0 1"/>
-        <body pos="0 0 1" euler="45 45 0" name="MyBox">
-          <joint type="free"/>
-          <geom type="box" size=".1 .2 .3" rgba="0 .9 0 1"/>
-        </body>
-      </worldbody>
-    </mujoco>`;
-
-const particleXml = `
+const modelXml = `
 <mujoco model="Particle">
   <statistic extent="1.5" meansize=".05"/>
 
@@ -259,16 +260,11 @@ class App {
   initScene() {
     this.mjvScene = new mujoco.MjvScene(this.mjModel, this.maxGeoms);
 
-    // TODO(matijak): Read lights and maybe cameras from the scene
     const pointLight = new THREE.PointLight(0xffffff, .4);
     pointLight.position.set(0, 0, 2);
     pointLight.castShadow = true;
     pointLight.shadow.mapSize.set(2048, 2048);
     this.scene.add(pointLight);
-
-    // Enable this to visualize the point light as a sphere
-    // const lightHelper = new THREE.PointLightHelper(pointLight);
-    // this.scene.add(lightHelper);
 
     const ambientLight = new THREE.AmbientLight(0xffffff, .2);
     this.scene.add(ambientLight);
@@ -280,11 +276,6 @@ class App {
     spotLight.shadow.mapSize.set(2048, 2048);
     this.scene.add(spotLight);
     this.scene.add(spotLight.target);
-
-    // Enable this to visualize a grid
-    // const gridHelper = new THREE.GridHelper(200, 50);
-    // gridHelper.rotateX(-Math.PI / 2);
-    // this.scene.add(gridHelper);
   }
 
   clearScene() {
@@ -348,7 +339,6 @@ class App {
       geom = new THREE.SphereGeometry(1);
       geom.scale(mjvGeom.size[0], mjvGeom.size[1], mjvGeom.size[2]);
     } else {
-      // TODO(matijak): Support arrows for force visualization
       console.log('Unsupported geom type: ', mjvGeom.type);
       geom = new THREE.BufferGeometry();
     }
@@ -377,10 +367,8 @@ class App {
         this.mjModel, this.mjData, this.mjvOption, this.mjvPerturb,
         this.mjvCamera, mujoco.mjtCatBit.mjCAT_ALL.value, this.mjvScene);
 
-    // TODO(matijak): Is it possible to make geoms iterable in a for-of loop?
     const geoms = this.mjvScene.geoms;
     for (let i = 0; i < geoms.size(); i++) {
-      // TODO(matijak): Somehow disallow the gotcha where geoms[i] doesn't work?
       const mjvGeom = geoms.get(i);
 
       let mesh: THREE.Mesh;
@@ -391,7 +379,6 @@ class App {
         const [added, geom] = this.getBufferGeometry(mjvGeom);
 
         // Create material
-        // TODO(matija): Set textures here
         let material = new THREE.MeshPhongMaterial();
         material.color.setRGB(
             mjvGeom.rgba[0], mjvGeom.rgba[1], mjvGeom.rgba[2]);
@@ -447,10 +434,7 @@ class App {
 
 function setupWindowEvents() {
   // Add an event listener to clean up when the page is unloaded
-  // Note: you can test this by calling this manually via the Chrome console:
-  //
-  //     window.dispatchEvent(new Event('unload'))
-  //
+  // Tip: put "window.dispatchEvent(new Event('unload'))" in the console to test
   window.addEventListener('unload', () => {
     app.dispose();
 
@@ -467,10 +451,6 @@ function setupWindowEvents() {
       app.pauseButton();
     }
   });
-
-  // TODO(matijak): Refactor this to add keyboard shortcuts programmatically
-  // via wasm bindings (bind mjVISSTRING array from mujoco/include/mujoco.h as
-  // an embind constant)
   window.addEventListener('keydown', (event) => {
     if (event.key === 'c') {
       app.contactButton();
@@ -506,11 +486,7 @@ async function main() {
       contactButtonElement.onclick = () => app.contactButton();
     }
 
-    // TODO(matijak): Figure out how to load models from drag&drop, make sure
-    // it works for the following models:
-    // * mujoco/model/mug/mug.xml
-    // * mujoco/model/replicate/particle.xml
-    app.loadModel(particleXml);
+    app.loadModel(modelXml);
 
     app.run();
 

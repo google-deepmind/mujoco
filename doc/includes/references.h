@@ -988,7 +988,7 @@ struct mjModel_ {
   int nmeshpolymap;               // number of polygons in vertex map
   int nskin;                      // number of skins
   int nskinvert;                  // number of vertices in all skins
-  int nskintexvert;               // number of vertiex with texcoords in all skins
+  int nskintexvert;               // number of vertices with texcoords in all skins
   int nskinface;                  // number of triangular faces in all skins
   int nskinbone;                  // number of bones in all skins
   int nskinbonevert;              // number of vertices in all skin bones
@@ -1268,7 +1268,7 @@ struct mjModel_ {
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
   mjtByte*  flex_edgeequality;    // is edge equality constraint defined      (nflex x 1)
-  mjtByte*  flex_rigid;           // are all verices in the same body         (nflex x 1)
+  mjtByte*  flex_rigid;           // are all vertices in the same body         (nflex x 1)
   mjtByte*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
   mjtByte*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
   mjtByte*  flex_flatskin;        // render flex skin with flat shading       (nflex x 1)
@@ -1563,6 +1563,16 @@ struct mjpResourceProvider {
   void* data;                       // opaque data pointer (resource invariant)
 };
 typedef struct mjpResourceProvider mjpResourceProvider;
+struct mjpDecoder {
+  const char* content_type;
+  const char* extension;
+  // user-facing functions
+  mjfCanDecode can_decode;  // quickly check if this decoder can handle the resource
+  mjfDecode decode;         // main decoding function
+  // the caller takes ownership of the spec returned by decode and is responsible
+  // for cleaning it up
+};
+typedef struct mjpDecoder mjpDecoder;
 typedef enum mjtPluginCapabilityBit_ {
   mjPLUGIN_ACTUATOR = 1<<0,       // actuator forces
   mjPLUGIN_SENSOR   = 1<<1,       // sensor measurements
@@ -1748,7 +1758,7 @@ struct mjrContext_ {                // custom OpenGL context
 
   // character info
   int charWidth[127];               // character widths: normal and shadow
-  int charWidthBig[127];            // chacarter widths: big
+  int charWidthBig[127];            // character widths: big
   int charHeight;                   // character heights: normal and shadow
   int charHeightBig;                // character heights: big
 
@@ -2302,6 +2312,7 @@ typedef struct mjsTendon_ {        // tendon specification
 } mjsTendon;
 typedef struct mjsWrap_ {          // wrapping object specification
   mjsElement* element;             // element type
+  mjtWrap type;                    // wrap type
   mjString* info;                  // message appended to errors
 } mjsWrap;
 typedef struct mjsActuator_ {      // actuator specification
@@ -3013,6 +3024,8 @@ void mj_clearCache(mjCache* cache);
 mjModel* mj_loadXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int error_sz);
 mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz);
+mjSpec* mj_parse(const char* filename, const char* content_type,
+                 const mjVFS* vfs, char* error, int error_sz);
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs);
 int mj_copyBack(mjSpec* s, const mjModel* m);
 int mj_recompile(mjSpec* s, const mjVFS* vfs, mjModel* m, mjData* d);
@@ -3117,6 +3130,8 @@ void mj_constraintUpdate(const mjModel* m, mjData* d, const mjtNum* jar,
                          mjtNum cost[1], int flg_coneHessian);
 int mj_stateSize(const mjModel* m, unsigned int sig);
 void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
+void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
+                     mjtNum* dst, unsigned int dstsig);
 void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
@@ -3428,6 +3443,9 @@ int mjp_registerResourceProvider(const mjpResourceProvider* provider);
 int mjp_resourceProviderCount(void);
 const mjpResourceProvider* mjp_getResourceProvider(const char* resource_name);
 const mjpResourceProvider* mjp_getResourceProviderAtSlot(int slot);
+void mjp_registerDecoder(const mjpDecoder* decoder);
+void mjp_defaultDecoder(mjpDecoder* decoder);
+const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
 mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
 void mju_bindThreadPool(mjData* d, void* thread_pool);
 void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
@@ -3497,6 +3515,10 @@ mjsElement* mjs_firstChild(mjsBody* body, mjtObj type, int recurse);
 mjsElement* mjs_nextChild(mjsBody* body, mjsElement* child, int recurse);
 mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
 mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
+mjsElement* mjs_getWrapTarget(mjsWrap* wrap);
+mjsSite* mjs_getWrapSideSite(mjsWrap* wrap);
+double mjs_getWrapDivisor(mjsWrap* wrap);
+double mjs_getWrapCoef(mjsWrap* wrap);
 int mjs_setName(mjsElement* element, const char* name);
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 void mjs_setString(mjString* dest, const char* text);
@@ -3512,6 +3534,8 @@ void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 mjString* mjs_getName(mjsElement* element);
 const char* mjs_getString(const mjString* source);
 const double* mjs_getDouble(const mjDoubleVec* source, int* size);
+int mjs_getWrapNum(const mjsTendon* tendonspec);
+mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i);
 const void* mjs_getPluginAttributes(const mjsPlugin* plugin);
 void mjs_setDefault(mjsElement* element, const mjsDefault* def);
 int mjs_setFrame(mjsElement* dest, mjsFrame* frame);

@@ -15,9 +15,6 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_INTERACTION_H_
 #define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_INTERACTION_H_
 
-#include "experimental/toolbox/physics.h"
-#include "experimental/toolbox/renderer.h"
-#include "experimental/toolbox/window.h"
 #include <mujoco/mujoco.h>
 
 namespace mujoco::toolbox {
@@ -32,8 +29,9 @@ struct PickResult {
 };
 
 // Returns information about the object (if any) under the mouse cursor.
-PickResult Pick(float x, float y, Window* window, Renderer* renderer,
-                Physics* physics, const mjvOption& vis_options);
+PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera,
+                float x, float y, float aspect_ratio, const mjvScene* scene,
+                const mjvOption* vis_options);
 
 // Updates the camera according to the requested index using this convention:
 //
@@ -45,17 +43,7 @@ PickResult Pick(float x, float y, Window* window, Renderer* renderer,
 // convention. Note the returned index may differ from the request if the
 // request was invalid (index was out of range or tracking camera was not
 // available).
-int SetCamera(const mjModel& model, mjvCamera& camera, int request_idx);
-
-// Handles canonical mouse events.
-void HandleMouseEvents(Window* window, Renderer* renderer, Physics* physics,
-                       mjvPerturb& perturb, mjvOption& vis_options,
-                       mjvCamera& camera, int& camera_idx);
-
-// Handles canonical keyboard events.
-void HandleKeyboardEvents(Window* window, Renderer* renderer, Physics* physics,
-                          mjvPerturb& perturb, mjvOption& vis_options,
-                          mjvCamera& camera, int& camera_idx);
+int SetCamera(const mjModel* model, mjvCamera* camera, int request_idx);
 
 }  // namespace mujoco::toolbox
 

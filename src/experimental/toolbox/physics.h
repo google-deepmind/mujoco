@@ -93,8 +93,9 @@ class Physics {
   // Returns the error message from the simulation.
   std::string_view GetError() const { return error_; }
 
+  bool ProcessPendingLoad();
+
  private:
-  void ProcessPendingLoad();
   void InitHistory();
   void AddToHistory();
 

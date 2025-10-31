@@ -1,23 +1,35 @@
-"""Tests to ensure that all Mujoco functions and structs are correctly handled.
+# Copyright 2025 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+"""Tests to ensure that all Mujoco functions and structs are correctly handled.
 
 This file contains tests that verify:
 - All functions defined in Mujoco's introspect module are either bound in the
- generated bindings.cc file or explicitly excluded in constants.py.
+  generated bindings.cc file or explicitly excluded in constants.py.
 - All structs defined in Mujoco's introspect module are either bound in the
- generated bindings.cc file or explicitly skipped in SKIPPED_STRUCTS in
- constants.py.
-
+  generated bindings.cc file or explicitly skipped in SKIPPED_STRUCTS in
+  constants.py.
 
 These tests help maintain the integrity of the generated WASM bindings by
 ensuring that no functions or structs are accidentally missed or incorrectly
 handled during the code generation process.
 """
 
+from pathlib import Path
 import re
 
-import unittest
-from pathlib import Path
+from absl.testing import absltest
 from introspect import functions as introspect_functions
 from introspect import structs as introspect_structs
 
@@ -41,7 +53,9 @@ def _get_resource_content(file_path: str) -> str:
 
 def _get_bound_functions_from_cc() -> set[str]:
   """Reads bindings.cc and extracts the names of bound functions."""
-  content = _get_resource_content(Path(__file__).parent / 'generated/bindings.cc')
+  content = _get_resource_content(
+      Path(__file__).parent / 'generated/bindings.cc'
+  )
   if not content:
     return set()
 
@@ -54,7 +68,9 @@ def _get_bound_functions_from_cc() -> set[str]:
 
 def _get_bound_structs_from_cc() -> set[str]:
   """Reads bindings.cc and extracts the names of bound structs."""
-  content = _get_resource_content(Path(__file__).parent / 'generated/bindings.cc')
+  content = _get_resource_content(
+      Path(__file__).parent / 'generated/bindings.cc'
+  )
   if not content:
     return set()
 
@@ -65,7 +81,7 @@ def _get_bound_structs_from_cc() -> set[str]:
   return bound_structs
 
 
-class BindingCoverageTest(unittest.TestCase):
+class BindingCoverageTest(absltest.TestCase):
 
   def test_function_coverage(self):
     """Asserts that each function is either excluded or bound."""
@@ -79,21 +95,22 @@ class BindingCoverageTest(unittest.TestCase):
 
     missing_functions = []
     for func_name in all_functions:
-      if (func_name not in excluded_functions
-          and func_name not in bound_functions):
+      if (
+          func_name not in excluded_functions
+          and func_name not in bound_functions
+      ):
         missing_functions.append(func_name)
 
     if missing_functions:
       error_message = (
           f"""The following functions from functions.py are neither excluded in
-         constants.py nor bound in bindings.cc:
+          constants.py nor bound in bindings.cc:
 
+          {", ".join(sorted(missing_functions))}
 
-         {", ".join(sorted(missing_functions))}
-
-
-         Please either add them to a exclusion list in
-         constants.py or create a binding in bindings.cc.""")
+          Please either add them to a exclusion list in
+          constants.py or create a binding in bindings.cc."""
+      )
       self.fail(error_message)
 
   def test_struct_coverage(self):
@@ -109,26 +126,27 @@ class BindingCoverageTest(unittest.TestCase):
     }
     missing_structs = []
     for struct_name in all_structs:
-      if (struct_name not in skipped_structs
-          and struct_name not in bound_structs):
+      if (
+          struct_name not in skipped_structs
+          and struct_name not in bound_structs
+      ):
         missing_structs.append(struct_name)
     error_messages = []
 
     if missing_structs:
       error_messages.append(
           f"""The following structs are defined in structs.py but are neither
-           bound in bindings.cc nor listed in SKIPPED_STRUCTS:
+            bound in bindings.cc nor listed in SKIPPED_STRUCTS:
 
+            {", ".join(sorted(missing_structs))}
 
-           {", ".join(sorted(missing_structs))}
-
-
-           Please either add them to SKIPPED_STRUCTS or create its binding
-           in bindings.cc.""")
+            Please either add them to SKIPPED_STRUCTS or create its binding
+            in bindings.cc."""
+      )
 
     if error_messages:
       self.fail('\n\n'.join(error_messages))
 
 
 if __name__ == '__main__':
-  unittest.main()
+  absltest.main()

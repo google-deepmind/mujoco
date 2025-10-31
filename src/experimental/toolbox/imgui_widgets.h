@@ -21,8 +21,8 @@
 #include <type_traits>
 #include <unordered_map>
 
-#include <dear_imgui/imgui.h>
-#include <dear_imgui/imgui_internal.h>  // For ButtonEx and PressedOnClick
+#include <imgui.h>
+#include <imgui_internal.h>  // For ButtonEx and PressedOnClick
 #include <mujoco/mujoco.h>
 
 namespace mujoco::toolbox {

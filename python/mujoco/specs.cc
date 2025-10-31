@@ -281,8 +281,8 @@ PYBIND11_MODULE(_specs, m) {
           spec = LoadSpecFileImpl(
               filename, files,
               [&error](const char* filename, const mjVFS* vfs) {
-                return InterceptMjErrors(mj_parseXML)(
-                    filename, vfs, error, sizeof(error));
+                return InterceptMjErrors(mj_parse)(
+                    filename, nullptr, vfs, error, sizeof(error));
               });
           if (!spec) {
             throw py::value_error(error);
@@ -465,7 +465,7 @@ PYBIND11_MODULE(_specs, m) {
           throw pybind11::value_error(
               "Only one of frame or site can be specified.");
         }
-        const char* p = prefix.has_value() ? prefix.value().c_str() : "";
+        const char* p = prefix.has_value() ? prefix.value().c_str() : "/";
         const char* s = suffix.has_value() ? suffix.value().c_str() : "";
         raw::MjsElement* attached_frame = nullptr;
         if (frame.has_value()) {
@@ -1304,14 +1304,92 @@ PYBIND11_MODULE(_specs, m) {
       },
       py::arg("gain"));
 
-  // ============================= MJSTENDON ===================================
+  // ============================= MJSTENDONPATH ===============================
+  // helper struct for tendon path indexing
+  struct MjsTendonPath {
+    raw::MjsTendon* tendon;
+  };
+
+  py::class_<MjsTendonPath>(m, "MjsTendonPath")
+      .def("__getitem__",
+           [](MjsTendonPath& self, int i) -> const raw::MjsWrap* {
+             int num_wrap = mjs_getWrapNum(self.tendon);
+             if (i < 0 || i >= num_wrap) {
+               throw py::index_error("Index out of range.");
+             }
+             return mjs_getWrap(self.tendon, i);
+           },
+           py::return_value_policy::reference_internal)
+      .def("__len__", [](MjsTendonPath& self) {
+        return mjs_getWrapNum(self.tendon);
+      });
+
+  // ============================= MJSWRAP =====================================
+  mjsWrap.def_property_readonly(
+      "target",
+      [](raw::MjsWrap& self) -> py::object {
+        raw::MjsElement* target = mjs_getWrapTarget(&self);
+        if (!target) {
+          return py::none();
+        }
+        switch (target->elemtype) {
+          case mjOBJ_SITE:
+            return py::cast(mjs_asSite(target));
+          case mjOBJ_GEOM:
+            return py::cast(mjs_asGeom(target));
+          case mjOBJ_JOINT:
+            return py::cast(mjs_asJoint(target));
+          default:
+            throw pybind11::value_error("Unsupported wrap target type: " +
+                                        std::to_string(target->elemtype));
+        }
+        return py::none();
+      },
+      py::return_value_policy::reference_internal);
+
+  mjsWrap.def_property_readonly(
+      "sidesite",
+      [](raw::MjsWrap& self) -> raw::MjsSite* {
+        return mjs_getWrapSideSite(&self);
+      },
+      py::return_value_policy::reference_internal);
+
+  mjsWrap.def_property_readonly(
+      "divisor",
+      [](raw::MjsWrap& self) -> py::object {
+        if (self.type != mjWRAP_PULLEY) {
+          return py::none();
+        }
+        return py::cast(mjs_getWrapDivisor(&self));
+      },
+      py::return_value_policy::reference_internal);
+
+  mjsWrap.def_property_readonly(
+      "coef",
+      [](raw::MjsWrap& self) -> py::object {
+        if (self.type != mjWRAP_JOINT) {
+          return py::none();
+        }
+        return py::cast(mjs_getWrapCoef(&self));
+      },
+      py::return_value_policy::reference_internal);
+
+
   mjSpec.def("delete", [](MjSpec& self, raw::MjsTendon& obj) {
     mjs_delete(self.ptr, obj.element);
   });
+
+  // ============================= MJSTENDON ===================================
   mjsTendon.def(
       "default",
       [](raw::MjsTendon& self) -> raw::MjsDefault* {
         return mjs_getDefault(self.element);
+      },
+      py::return_value_policy::reference_internal);
+  mjsTendon.def_property_readonly(
+      "path",
+      [](raw::MjsTendon& self) {
+        return MjsTendonPath{&self};
       },
       py::return_value_policy::reference_internal);
   mjsTendon.def(

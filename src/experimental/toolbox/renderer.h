@@ -55,6 +55,10 @@ class Renderer {
   // Saves a screenshot of the simulation state into the given file.
   void SaveScreenshot(const std::string& filename, int width, int height);
 
+  // Rendering flags.
+  mjtByte GetFlag(mjtRndFlag flag) const { return scene_.flags[flag];}
+  void SetFlag(mjtRndFlag flag, mjtByte value) { scene_.flags[flag] = value; }
+
   // Returns the mjvScene used by the renderer.
   mjvScene& GetScene() { return scene_; }
 

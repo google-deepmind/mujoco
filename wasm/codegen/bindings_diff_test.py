@@ -1,5 +1,21 @@
-import unittest
+# Copyright 2025 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from pathlib import Path
+
+from absl.testing import absltest
+
 from wasm.codegen import binding_builder
 
 ERROR_MESSAGE = """
@@ -7,7 +23,7 @@ The file '{}' needs to be updated, please run:
 update.py as described in wasm/README.md""".lstrip()
 
 
-class BindingsDiffTest(unittest.TestCase):
+class BindingsDiffTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -17,7 +33,6 @@ class BindingsDiffTest(unittest.TestCase):
       self.generated_hdr = f.read()
     with open(SCRIPT_DIR / 'generated/bindings.cc', 'r') as f:
       self.generated_src = f.read()
-
     self.template_path_h = SCRIPT_DIR / 'templates/bindings.h'
     self.template_path_cc = SCRIPT_DIR / 'templates/bindings.cc'
     self.generated_path_h = SCRIPT_DIR / 'generated/bindings.h'
@@ -49,4 +64,4 @@ class BindingsDiffTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-  unittest.main()
+  absltest.main()

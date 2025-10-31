@@ -318,6 +318,14 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(frameb1.pos, frameb0.pos)
     np.testing.assert_array_equal(frameb1.quat, frameb0.quat)
 
+    # Add frame in frame.
+    framec0 = frameb0.add_frame(name='framec', pos=[7, 8, 9], quat=[0, 0, 0, 1])
+    self.assertEqual(framec0.name, 'framec')
+    self.assertEqual(framec0.parent, frameb0.parent)
+    self.assertEqual(framec0.frame, frameb0)
+    np.testing.assert_array_equal(framec0.pos, [7, 8, 9])
+    np.testing.assert_array_equal(framec0.quat, [0, 0, 0, 1])
+
     # Add joint.
     joint = body.add_joint(type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0])
     self.assertEqual(joint.type, mujoco.mjtJoint.mjJNT_HINGE)
@@ -339,6 +347,12 @@ class SpecsTest(absltest.TestCase):
     # Add light.
     light = body.add_light(attenuation=[1, 2, 3])
     np.testing.assert_array_equal(light.attenuation, [1, 2, 3])
+
+    # Add light in a frame.
+    light_in_frame = framea0.add_light(cutoff=10)
+    self.assertEqual(light_in_frame.cutoff, 10)
+    self.assertEqual(light_in_frame.parent, framea0.parent)
+    self.assertEqual(light_in_frame.frame, framea0)
 
     # Invalid input for valid keyword argument.
     with self.assertRaises(ValueError) as cm:
@@ -1081,7 +1095,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
     self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path//cube2-child2.obj'], 'cube2_content')
 
     # Attach another spec to site (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
@@ -1101,7 +1115,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model3.body_quat[2], [0, 0, 0, 1])
     np.testing.assert_array_equal(model3.body_quat[3], [0, 0, 0, 1])
     self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['path/cube2-child2.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path//cube2-child2.obj'], 'cube2_content')
     self.assertEqual(parent.assets['path/child3-cube3.obj'], 'cube3_content')
 
     # Fail to attach to a site that does not exist.
@@ -1162,7 +1176,7 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(model2.body_quat[1], [0, 0, 0, 1])
     np.testing.assert_array_equal(model2.body_quat[2], [0, 0, 0, 1])
     self.assertEqual(parent.assets['path/cube.obj'], 'cube_content')
-    self.assertEqual(parent.assets['path/cube2-child.obj'], 'cube2_content')
+    self.assertEqual(parent.assets['path//cube2-child.obj'], 'cube2_content')
 
     # Attach another spec to frame (referenced by name) and compile again.
     child3 = mujoco.MjSpec()
@@ -1252,6 +1266,8 @@ class SpecsTest(absltest.TestCase):
     np.testing.assert_array_equal(mj_model.bind(joints).qposadr, [7, 8])
     np.testing.assert_array_equal(mj_data.bind([]).qpos, [])
     np.testing.assert_array_equal(mj_model.bind([]).qposadr, [])
+    mj_data.bind(joints).qpos = np.array([1, 2])
+    np.testing.assert_array_equal(mj_data.bind(joints).qpos, [1, 2])
     with self.assertRaisesRegex(
         AttributeError, "object has no attribute 'invalid'"
     ):
@@ -1490,6 +1506,134 @@ class SpecsTest(absltest.TestCase):
     model = spec.compile()
 
     self.assertEqual(model.geom_matid[0], 1)
+
+  def test_tendon_path(self):
+    spec = mujoco.MjSpec()
+
+    body = spec.worldbody.add_body(name='body')
+
+    body.add_geom(name='body_geom', pos=[0, 0, 0], size=[.1, 0, 0])
+    site1 = body.add_site(name='site1', pos=[0, 0, 0])
+    site2 = body.add_site(name='site2', pos=[0, 0, -1])
+    site3 = body.add_site(name='site3', pos=[0, 0, -4])
+    sidesite = body.add_site(name='sidesite', pos=[2, 0, -5])
+    site4 = body.add_site(name='site4', pos=[0, 1, -6])
+
+    sphere = spec.worldbody.add_geom(name='sphere', size=[.2, 0, 0], pos=[0, 0, -2])
+
+    cylinder = spec.worldbody.add_geom(
+        name='cylinder',
+        type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+        size=[0.1, 0.2, 0.3],
+        pos=[0, 0, -5]
+    )
+
+    joint1 = body.add_joint(
+        name='joint1', type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0]
+    )
+
+    body2 = spec.worldbody.add_body(name='body2', pos=[2, 0, 0])
+    body2.add_geom(name='body2_geom', pos=[0, 0, 0], size=[.1, 0, 0])
+    joint2 = body2.add_joint(
+        name='joint2', type=mujoco.mjtJoint.mjJNT_HINGE, axis=[0, 1, 0]
+    )
+
+    spatial_tendon = spec.add_tendon()
+    fixed_tendon = spec.add_tendon()
+
+    wrap_site1 = spatial_tendon.wrap_site('site1')
+    wrap_site2 = spatial_tendon.wrap_site('site2')
+    wrap_pulley1 = spatial_tendon.wrap_pulley(2.0)
+    wrap_site3_1 = spatial_tendon.wrap_site('site3')
+    wrap_sphere = spatial_tendon.wrap_geom('sphere', '')
+    wrap_site4_1 = spatial_tendon.wrap_site('site4')
+    wrap_pulley2 = spatial_tendon.wrap_pulley(2.0)
+    wrap_site3_2 = spatial_tendon.wrap_site('site3')
+    wrap_cylinder = spatial_tendon.wrap_geom('cylinder', 'sidesite')
+    wrap_site4_2 = spatial_tendon.wrap_site('site4')
+
+    wrap_joint1 = fixed_tendon.wrap_joint('joint1', 1.0)
+    wrap_joint2 = fixed_tendon.wrap_joint('joint2', 2.0)
+
+    self.assertListEqual(
+        list(spatial_tendon.path),
+        [
+            wrap_site1,
+            wrap_site2,
+            wrap_pulley1,
+            wrap_site3_1,
+            wrap_sphere,
+            wrap_site4_1,
+            wrap_pulley2,
+            wrap_site3_2,
+            wrap_cylinder,
+            wrap_site4_2,
+        ],
+    )
+    self.assertListEqual(
+        [w.target for w in spatial_tendon.path],
+        [
+            site1,
+            site2,
+            None,  # Pulley wraps have no targets
+            site3,
+            sphere,
+            site4,
+            None,  # Pulley wraps have no targets
+            site3,
+            cylinder,
+            site4,
+        ],
+    )
+    self.assertEqual(spatial_tendon.path[8].sidesite, sidesite)
+    self.assertIsNone(spatial_tendon.path[7].sidesite)
+
+    self.assertListEqual(list(fixed_tendon.path), [wrap_joint1, wrap_joint2])
+    self.assertListEqual(
+        [w.target for w in fixed_tendon.path],
+        [joint1, joint2]
+    )
+
+    # Wrap type for geom is only set during compilation.
+    spec.compile()
+
+    self.assertEqual(wrap_site1.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site2.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site3_1.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site4_1.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site3_2.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_site4_2.type, mujoco.mjtWrap.mjWRAP_SITE)
+    self.assertEqual(wrap_pulley1.type, mujoco.mjtWrap.mjWRAP_PULLEY)
+    self.assertEqual(wrap_pulley1.divisor, 2.0)
+    self.assertEqual(wrap_sphere.type, mujoco.mjtWrap.mjWRAP_SPHERE)
+    self.assertEqual(wrap_cylinder.type, mujoco.mjtWrap.mjWRAP_CYLINDER)
+    self.assertEqual(wrap_pulley2.type, mujoco.mjtWrap.mjWRAP_PULLEY)
+    self.assertEqual(wrap_pulley2.divisor, 2.0)
+
+    self.assertEqual(wrap_joint1.type, mujoco.mjtWrap.mjWRAP_JOINT)
+    self.assertEqual(wrap_joint1.coef, 1.0)
+    self.assertEqual(wrap_joint2.type, mujoco.mjtWrap.mjWRAP_JOINT)
+    self.assertEqual(wrap_joint2.coef, 2.0)
+
+  def test_from_zip(self):
+    """Tests that the assets are correctly parsed from a zip file."""
+    model_path_root = (
+        epath.resource_path("mujoco") / "testdata" / "MJCF_Root.zip"
+    )
+    model_path_no_root = (
+        epath.resource_path("mujoco") / "testdata" / "MJCF_NoRoot.zip"
+    )
+    filenames = [model_path_root.as_posix(), model_path_no_root.as_posix()]
+
+    for filename in filenames:
+      with self.subTest(filename):
+        spec = mujoco.MjSpec.from_zip(filename)
+        spec.compile()
+        assets = spec.assets
+        xml_string = spec.to_xml()
+        string_spec = mujoco.MjSpec.from_string(xml_string, assets=assets)
+        string_spec.compile()
+        self.assertEqual(spec.to_xml(), string_spec.to_xml())
 
 if __name__ == '__main__':
   absltest.main()

@@ -22,7 +22,7 @@
 #include <string_view>
 #include <vector>
 
-#include "third_party/absl/flags/flag.h"
+#include <absl/flags/flag.h>
 #include "experimental/studio/app.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");
@@ -30,7 +30,8 @@ ABSL_FLAG(int, window_height, 700, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
 
 static std::vector<std::byte> LoadAsset(std::string_view path) {
-  std::ifstream file(std::string(path), std::ios::binary | std::ios::ate);
+  std::string fullpath = std::string("assets/") + std::string(path);
+  std::ifstream file(fullpath, std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
     return {};
   }

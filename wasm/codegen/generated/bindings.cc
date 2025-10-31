@@ -1,7 +1,21 @@
+// Copyright 2025 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // NOLINTBEGIN(whitespace/line_length)
 // NOLINTBEGIN(whitespace/semicolon)
 
-#include "bindings.h"
+#include "wasm/codegen/generated/bindings.h"
 
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
@@ -18,11 +32,11 @@
 #include <string>    // NOLINT
 #include <vector>
 
-#include "mujoco/mjmodel.h"
-#include "mujoco/mjvisualize.h"
-#include "mujoco/mujoco.h"
+#include <mujoco/mjmodel.h>
+#include <mujoco/mjvisualize.h>
+#include <mujoco/mujoco.h>
 #include "engine/engine_util_errmem.h"
-#include "unpack.h"
+#include "wasm/unpack.h"
 
 namespace mujoco::wasm {
 
@@ -484,6 +498,60 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
     .value("mjTIMER_COL_NARROW", mjTIMER_COL_NARROW)
     .value("mjNTIMER", mjNTIMER);
 
+  enum_<mjtGeomInertia>("mjtGeomInertia")
+    .value("mjINERTIA_VOLUME", mjINERTIA_VOLUME)
+    .value("mjINERTIA_SHELL", mjINERTIA_SHELL);
+
+  enum_<mjtMeshInertia>("mjtMeshInertia")
+    .value("mjMESH_INERTIA_CONVEX", mjMESH_INERTIA_CONVEX)
+    .value("mjMESH_INERTIA_EXACT", mjMESH_INERTIA_EXACT)
+    .value("mjMESH_INERTIA_LEGACY", mjMESH_INERTIA_LEGACY)
+    .value("mjMESH_INERTIA_SHELL", mjMESH_INERTIA_SHELL);
+
+  enum_<mjtMeshBuiltin>("mjtMeshBuiltin")
+    .value("mjMESH_BUILTIN_NONE", mjMESH_BUILTIN_NONE)
+    .value("mjMESH_BUILTIN_SPHERE", mjMESH_BUILTIN_SPHERE)
+    .value("mjMESH_BUILTIN_HEMISPHERE", mjMESH_BUILTIN_HEMISPHERE)
+    .value("mjMESH_BUILTIN_CONE", mjMESH_BUILTIN_CONE)
+    .value("mjMESH_BUILTIN_SUPERSPHERE", mjMESH_BUILTIN_SUPERSPHERE)
+    .value("mjMESH_BUILTIN_SUPERTORUS", mjMESH_BUILTIN_SUPERTORUS)
+    .value("mjMESH_BUILTIN_WEDGE", mjMESH_BUILTIN_WEDGE)
+    .value("mjMESH_BUILTIN_PLATE", mjMESH_BUILTIN_PLATE);
+
+  enum_<mjtBuiltin>("mjtBuiltin")
+    .value("mjBUILTIN_NONE", mjBUILTIN_NONE)
+    .value("mjBUILTIN_GRADIENT", mjBUILTIN_GRADIENT)
+    .value("mjBUILTIN_CHECKER", mjBUILTIN_CHECKER)
+    .value("mjBUILTIN_FLAT", mjBUILTIN_FLAT);
+
+  enum_<mjtMark>("mjtMark")
+    .value("mjMARK_NONE", mjMARK_NONE)
+    .value("mjMARK_EDGE", mjMARK_EDGE)
+    .value("mjMARK_CROSS", mjMARK_CROSS)
+    .value("mjMARK_RANDOM", mjMARK_RANDOM);
+
+  enum_<mjtLimited>("mjtLimited")
+    .value("mjLIMITED_FALSE", mjLIMITED_FALSE)
+    .value("mjLIMITED_TRUE", mjLIMITED_TRUE)
+    .value("mjLIMITED_AUTO", mjLIMITED_AUTO);
+
+  enum_<mjtAlignFree>("mjtAlignFree")
+    .value("mjALIGNFREE_FALSE", mjALIGNFREE_FALSE)
+    .value("mjALIGNFREE_TRUE", mjALIGNFREE_TRUE)
+    .value("mjALIGNFREE_AUTO", mjALIGNFREE_AUTO);
+
+  enum_<mjtInertiaFromGeom>("mjtInertiaFromGeom")
+    .value("mjINERTIAFROMGEOM_FALSE", mjINERTIAFROMGEOM_FALSE)
+    .value("mjINERTIAFROMGEOM_TRUE", mjINERTIAFROMGEOM_TRUE)
+    .value("mjINERTIAFROMGEOM_AUTO", mjINERTIAFROMGEOM_AUTO);
+
+  enum_<mjtOrientation>("mjtOrientation")
+    .value("mjORIENTATION_QUAT", mjORIENTATION_QUAT)
+    .value("mjORIENTATION_AXISANGLE", mjORIENTATION_AXISANGLE)
+    .value("mjORIENTATION_XYAXES", mjORIENTATION_XYAXES)
+    .value("mjORIENTATION_ZAXIS", mjORIENTATION_ZAXIS)
+    .value("mjORIENTATION_EULER", mjORIENTATION_EULER);
+
   enum_<mjtCatBit>("mjtCatBit")
     .value("mjCAT_STATIC", mjCAT_STATIC)
     .value("mjCAT_DYNAMIC", mjCAT_DYNAMIC)
@@ -629,60 +697,6 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
     .value("mjFONT_NORMAL", mjFONT_NORMAL)
     .value("mjFONT_SHADOW", mjFONT_SHADOW)
     .value("mjFONT_BIG", mjFONT_BIG);
-
-  enum_<mjtGeomInertia>("mjtGeomInertia")
-    .value("mjINERTIA_VOLUME", mjINERTIA_VOLUME)
-    .value("mjINERTIA_SHELL", mjINERTIA_SHELL);
-
-  enum_<mjtMeshInertia>("mjtMeshInertia")
-    .value("mjMESH_INERTIA_CONVEX", mjMESH_INERTIA_CONVEX)
-    .value("mjMESH_INERTIA_EXACT", mjMESH_INERTIA_EXACT)
-    .value("mjMESH_INERTIA_LEGACY", mjMESH_INERTIA_LEGACY)
-    .value("mjMESH_INERTIA_SHELL", mjMESH_INERTIA_SHELL);
-
-  enum_<mjtMeshBuiltin>("mjtMeshBuiltin")
-    .value("mjMESH_BUILTIN_NONE", mjMESH_BUILTIN_NONE)
-    .value("mjMESH_BUILTIN_SPHERE", mjMESH_BUILTIN_SPHERE)
-    .value("mjMESH_BUILTIN_HEMISPHERE", mjMESH_BUILTIN_HEMISPHERE)
-    .value("mjMESH_BUILTIN_CONE", mjMESH_BUILTIN_CONE)
-    .value("mjMESH_BUILTIN_SUPERSPHERE", mjMESH_BUILTIN_SUPERSPHERE)
-    .value("mjMESH_BUILTIN_SUPERTORUS", mjMESH_BUILTIN_SUPERTORUS)
-    .value("mjMESH_BUILTIN_WEDGE", mjMESH_BUILTIN_WEDGE)
-    .value("mjMESH_BUILTIN_PLATE", mjMESH_BUILTIN_PLATE);
-
-  enum_<mjtBuiltin>("mjtBuiltin")
-    .value("mjBUILTIN_NONE", mjBUILTIN_NONE)
-    .value("mjBUILTIN_GRADIENT", mjBUILTIN_GRADIENT)
-    .value("mjBUILTIN_CHECKER", mjBUILTIN_CHECKER)
-    .value("mjBUILTIN_FLAT", mjBUILTIN_FLAT);
-
-  enum_<mjtMark>("mjtMark")
-    .value("mjMARK_NONE", mjMARK_NONE)
-    .value("mjMARK_EDGE", mjMARK_EDGE)
-    .value("mjMARK_CROSS", mjMARK_CROSS)
-    .value("mjMARK_RANDOM", mjMARK_RANDOM);
-
-  enum_<mjtLimited>("mjtLimited")
-    .value("mjLIMITED_FALSE", mjLIMITED_FALSE)
-    .value("mjLIMITED_TRUE", mjLIMITED_TRUE)
-    .value("mjLIMITED_AUTO", mjLIMITED_AUTO);
-
-  enum_<mjtAlignFree>("mjtAlignFree")
-    .value("mjALIGNFREE_FALSE", mjALIGNFREE_FALSE)
-    .value("mjALIGNFREE_TRUE", mjALIGNFREE_TRUE)
-    .value("mjALIGNFREE_AUTO", mjALIGNFREE_AUTO);
-
-  enum_<mjtInertiaFromGeom>("mjtInertiaFromGeom")
-    .value("mjINERTIAFROMGEOM_FALSE", mjINERTIAFROMGEOM_FALSE)
-    .value("mjINERTIAFROMGEOM_TRUE", mjINERTIAFROMGEOM_TRUE)
-    .value("mjINERTIAFROMGEOM_AUTO", mjINERTIAFROMGEOM_AUTO);
-
-  enum_<mjtOrientation>("mjtOrientation")
-    .value("mjORIENTATION_QUAT", mjORIENTATION_QUAT)
-    .value("mjORIENTATION_AXISANGLE", mjORIENTATION_AXISANGLE)
-    .value("mjORIENTATION_XYAXES", mjORIENTATION_XYAXES)
-    .value("mjORIENTATION_ZAXIS", mjORIENTATION_ZAXIS)
-    .value("mjORIENTATION_EULER", mjORIENTATION_EULER);
 
   enum_<mjtButton>("mjtButton")
     .value("mjBUTTON_NONE", mjBUTTON_NONE)
@@ -3082,6 +3096,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
 
   emscripten::class_<MjsWrap>("MjsWrap")
       .property("element", &MjsWrap::element, reference())
+      .property("type", &MjsWrap::type, &MjsWrap::set_type, reference())
       .property("info", &MjsWrap::info, &MjsWrap::set_info, reference())
       ;
 
@@ -3555,6 +3570,13 @@ void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d)
 int mj_stateSize_wrapper(const MjModel& m, unsigned int sig)
 {
   return mj_stateSize(m.get(), sig);
+}
+
+void mj_extractState_wrapper(const MjModel& m, const NumberArray& src, unsigned int srcsig, const val& dst, unsigned int dstsig)
+{
+  UNPACK_ARRAY(mjtNum, src);
+  UNPACK_VALUE(mjtNum, dst);
+  mj_extractState(m.get(), src_.data(), srcsig, dst_.data(), dstsig);
 }
 
 void mj_setKeyframe_wrapper(MjModel& m, const MjData& d, int k)
@@ -4695,6 +4717,34 @@ std::optional<MjsElement> mjs_nextElement_wrapper(MjSpec& s, MjsElement& element
   return MjsElement(result);
 }
 
+std::optional<MjsElement> mjs_getWrapTarget_wrapper(MjsWrap& wrap)
+{
+  mjsElement* result = mjs_getWrapTarget(wrap.get());
+  if (result == nullptr) {
+    return std::nullopt;
+  }
+  return MjsElement(result);
+}
+
+std::optional<MjsSite> mjs_getWrapSideSite_wrapper(MjsWrap& wrap)
+{
+  mjsSite* result = mjs_getWrapSideSite(wrap.get());
+  if (result == nullptr) {
+    return std::nullopt;
+  }
+  return MjsSite(result);
+}
+
+double mjs_getWrapDivisor_wrapper(MjsWrap& wrap)
+{
+  return mjs_getWrapDivisor(wrap.get());
+}
+
+double mjs_getWrapCoef_wrapper(MjsWrap& wrap)
+{
+  return mjs_getWrapCoef(wrap.get());
+}
+
 int mjs_setName_wrapper(MjsElement& element, const String& name)
 {
   CHECK_VAL(name);
@@ -4704,6 +4754,20 @@ int mjs_setName_wrapper(MjsElement& element, const String& name)
 std::string mjs_getName_wrapper(MjsElement& element)
 {
   return *mjs_getName(element.get());
+}
+
+int mjs_getWrapNum_wrapper(const MjsTendon& tendonspec)
+{
+  return mjs_getWrapNum(tendonspec.get());
+}
+
+std::optional<MjsWrap> mjs_getWrap_wrapper(const MjsTendon& tendonspec, int i)
+{
+  mjsWrap* result = mjs_getWrap(tendonspec.get(), i);
+  if (result == nullptr) {
+    return std::nullopt;
+  }
+  return MjsWrap(result);
 }
 
 void mjs_setDefault_wrapper(MjsElement& element, const MjsDefault& def)
@@ -5890,6 +5954,7 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mj_projectConstraint", &mj_projectConstraint_wrapper);
   function("mj_referenceConstraint", &mj_referenceConstraint_wrapper);
   function("mj_stateSize", &mj_stateSize_wrapper);
+  function("mj_extractState", &mj_extractState_wrapper);
   function("mj_setKeyframe", &mj_setKeyframe_wrapper);
   function("mj_addContact", &mj_addContact_wrapper);
   function("mj_isPyramidal", &mj_isPyramidal_wrapper);
@@ -6043,8 +6108,14 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mjs_nextChild", &mjs_nextChild_wrapper);
   function("mjs_firstElement", &mjs_firstElement_wrapper);
   function("mjs_nextElement", &mjs_nextElement_wrapper);
+  function("mjs_getWrapTarget", &mjs_getWrapTarget_wrapper);
+  function("mjs_getWrapSideSite", &mjs_getWrapSideSite_wrapper);
+  function("mjs_getWrapDivisor", &mjs_getWrapDivisor_wrapper);
+  function("mjs_getWrapCoef", &mjs_getWrapCoef_wrapper);
   function("mjs_setName", &mjs_setName_wrapper);
   function("mjs_getName", &mjs_getName_wrapper);
+  function("mjs_getWrapNum", &mjs_getWrapNum_wrapper);
+  function("mjs_getWrap", &mjs_getWrap_wrapper);
   function("mjs_setDefault", &mjs_setDefault_wrapper);
   function("mjs_setFrame", &mjs_setFrame_wrapper);
   function("mjs_resolveOrientation", &mjs_resolveOrientation_wrapper);

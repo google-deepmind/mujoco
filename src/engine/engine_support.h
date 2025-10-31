@@ -41,6 +41,10 @@ MJAPI int mj_stateSize(const mjModel* m, unsigned int sig);
 // get state
 MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
 
+// extract a sub-state from a state
+MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
+                           mjtNum* dst, unsigned int dstsig);
+
 // set state
 MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 

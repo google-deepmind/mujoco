@@ -6622,6 +6622,9 @@ public static unsafe extern int mj_stateSize(mjModel_* m, uint sig);
 public static unsafe extern void mj_getState(mjModel_* m, mjData_* d, double* state, uint sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_extractState(mjModel_* m, double* src, uint srcsig, double* dst, uint dstsig);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* state, uint sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

@@ -21,7 +21,7 @@
 #include <string>
 #include <string_view>
 
-#include <dear_imgui/imgui.h>
+#include <imgui.h>
 #include <filament/ColorGrading.h>
 #include <filament/IndirectLight.h>
 #include <filament/LightManager.h>

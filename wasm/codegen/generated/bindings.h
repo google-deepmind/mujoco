@@ -1,6 +1,20 @@
+// Copyright 2025 DeepMind Technologies Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // NOLINTBEGIN(whitespace/line_length)
-#ifndef MUJOCO_WASM_STRUCTS_H_
-#define MUJOCO_WASM_STRUCTS_H_
+#ifndef MUJOCO_WASM_CODEGEN_GENERATED_BINDINGS_H_
+#define MUJOCO_WASM_CODEGEN_GENERATED_BINDINGS_H_
 #include <emscripten.h>
 #include <emscripten/bind.h>
 
@@ -8,7 +22,7 @@
 #include <cstdint>
 #include <memory>
 
-#include "mujoco/mujoco.h"
+#include <mujoco/mujoco.h>
 
 namespace mujoco::wasm {
 
@@ -2543,6 +2557,12 @@ struct MjsTuple {
 struct MjsWrap {
   explicit MjsWrap(mjsWrap *ptr);
   ~MjsWrap();
+  mjtWrap type() const {
+    return ptr_->type;
+  }
+  void set_type(mjtWrap value) {
+    ptr_->type = value;
+  }
   mjString info() const {
     return (ptr_ && ptr_->info) ? *(ptr_->info) : "";
   }
@@ -6688,5 +6708,5 @@ std::unique_ptr<MjsGeom> findGeom(MjSpec *spec, const std::string &name);
 
 }  // namespace mujoco::wasm
 
-#endif  // MUJOCO_WASM_STRUCTS_H_
+#endif  // MUJOCO_WASM_CODEGEN_GENERATED_BINDINGS_H_
 // NOLINTEND(whitespace/line_length)

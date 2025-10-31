@@ -1052,6 +1052,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
           nativeccd="disable"
           eulerdamp="disable"
           autoreset="disable"
+          island="disable"
         />
       </option>
     </mujoco>
@@ -1076,6 +1077,7 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimDisableFlags) {
       MjcPhysicsTokens->mjcFlagNativeccd,
       MjcPhysicsTokens->mjcFlagEulerdamp,
       MjcPhysicsTokens->mjcFlagAutoreset,
+      MjcPhysicsTokens->mjcFlagIsland,
   };
   for (const auto& flag : kFlags) {
     ExpectAttributeEqual(stage, kPhysicsScenePrimPath.AppendProperty(flag),
@@ -1093,7 +1095,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimEnableFlags) {
           fwdinv="enable"
           invdiscrete="enable"
           multiccd="enable"
-          island="enable"
         />
       </option>
     </mujoco>
@@ -1106,7 +1107,6 @@ TEST_F(MjcfSdfFileFormatPluginTest, TestPhysicsScenePrimEnableFlags) {
       MjcPhysicsTokens->mjcFlagFwdinv,
       MjcPhysicsTokens->mjcFlagInvdiscrete,
       MjcPhysicsTokens->mjcFlagMulticcd,
-      MjcPhysicsTokens->mjcFlagIsland,
   };
   // clang-format on
   for (const auto& flag : kFlags) {

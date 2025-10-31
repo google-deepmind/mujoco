@@ -301,6 +301,46 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Parse spec from XML string.',
      )),
+    ('mj_parse',
+     FunctionDecl(
+         name='mj_parse',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjSpec'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='filename',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='content_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vfs',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjVFS', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error',
+                 type=PointerType(
+                     inner_type=ValueType(name='char'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='error_sz',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Parse spec from a file.',
+     )),
     ('mj_compile',
      FunctionDecl(
          name='mj_compile',
@@ -2415,6 +2455,40 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Get state.',
+     )),
+    ('mj_extractState',
+     FunctionDecl(
+         name='mj_extractState',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='src',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='srcsig',
+                 type=ValueType(name='unsigned int'),
+             ),
+             FunctionParameterDecl(
+                 name='dst',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dstsig',
+                 type=ValueType(name='unsigned int'),
+             ),
+         ),
+         doc='Extract a subset of components from a state previously obtained via mj_getState.',  # pylint: disable=line-too-long
      )),
     ('mj_setState',
      FunctionDecl(
@@ -9062,6 +9136,56 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Look up a resource provider by slot number returned by mjp_registerResourceProvider. If invalid slot number, return NULL.',  # pylint: disable=line-too-long
      )),
+    ('mjp_registerDecoder',
+     FunctionDecl(
+         name='mjp_registerDecoder',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='decoder',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpDecoder', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Globally register a decoder. This function is thread-safe. If an identical mjpDecoder is already registered, this function does nothing. If a non-identical mjpDecoder with the same name is already registered, an mju_error is raised.',  # pylint: disable=line-too-long
+     )),
+    ('mjp_defaultDecoder',
+     FunctionDecl(
+         name='mjp_defaultDecoder',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='decoder',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjpDecoder'),
+                 ),
+             ),
+         ),
+         doc='Set default resource decoder definition.',
+     )),
+    ('mjp_findDecoder',
+     FunctionDecl(
+         name='mjp_findDecoder',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjpDecoder', is_const=True),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='resource',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjResource', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='content_type',
+                 type=PointerType(
+                     inner_type=ValueType(name='char', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Return the resource provider with the prefix that matches against the resource name. If no match, return NULL.',  # pylint: disable=line-too-long
+     )),
     ('mju_threadPoolCreate',
      FunctionDecl(
          name='mju_threadPoolCreate',
@@ -10437,6 +10561,66 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc="Return spec's next element; return NULL if element is last.",
      )),
+    ('mjs_getWrapTarget',
+     FunctionDecl(
+         name='mjs_getWrapTarget',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsElement'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='wrap',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsWrap'),
+                 ),
+             ),
+         ),
+         doc='Get wrapped element in tendon path.',
+     )),
+    ('mjs_getWrapSideSite',
+     FunctionDecl(
+         name='mjs_getWrapSideSite',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsSite'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='wrap',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsWrap'),
+                 ),
+             ),
+         ),
+         doc='Get wrapped element side site in tendon path if it has one, nullptr otherwise.',  # pylint: disable=line-too-long
+     )),
+    ('mjs_getWrapDivisor',
+     FunctionDecl(
+         name='mjs_getWrapDivisor',
+         return_type=ValueType(name='double'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='wrap',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsWrap'),
+                 ),
+             ),
+         ),
+         doc='Get divisor of mjsWrap wrapping a puller.',
+     )),
+    ('mjs_getWrapCoef',
+     FunctionDecl(
+         name='mjs_getWrapCoef',
+         return_type=ValueType(name='double'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='wrap',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsWrap'),
+                 ),
+             ),
+         ),
+         doc='Get coefficient of mjsWrap wrapping a joint.',
+     )),
     ('mjs_setName',
      FunctionDecl(
          name='mjs_setName',
@@ -10759,6 +10943,40 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Get double array contents and optionally its size.',
+     )),
+    ('mjs_getWrapNum',
+     FunctionDecl(
+         name='mjs_getWrapNum',
+         return_type=ValueType(name='int'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='tendonspec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsTendon', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Get number of elements a tendon wraps.',
+     )),
+    ('mjs_getWrap',
+     FunctionDecl(
+         name='mjs_getWrap',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjsWrap'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='tendonspec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjsTendon', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='i',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Get mjsWrap element at position i in the tendon path.',
      )),
     ('mjs_getPluginAttributes',
      FunctionDecl(

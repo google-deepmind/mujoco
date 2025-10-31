@@ -16,21 +16,29 @@ XML schema
 The table below summarizes the XML elements and their attributes in MJCF. Note that all information in MJCF is entered
 through elements and attributes. Text content in elements is not used; if present, the parser ignores it.
 
-.. collapse:: Collapse schema table
-   :open:
 
-   The symbols in the second column of the table have the following meaning:
+.. only:: html
 
-   ====== ===================================================
-   **!**  required element, can appear only once
-   **?**  optional element, can appear only once
-   **\*** optional element, can appear many times
-   **R**  optional element, can appear many times recursively
-   ====== ===================================================
+   .. collapse:: Collapse schema table
+      :open:
 
-   .. cssclass:: schema-small
+      The symbols in the second column of the table have the following meaning:
 
-   .. include:: XMLschema.rst
+      ====== ===================================================
+      **!**  required element, can appear only once
+      **?**  optional element, can appear only once
+      **\*** optional element, can appear many times
+      **R**  optional element, can appear many times recursively
+      ====== ===================================================
+
+      .. cssclass:: schema-small
+
+      .. include:: XMLschema.rst
+
+.. only:: latex
+
+   .. note::
+      The XML schema table is only available in the HTML version of this documentation.
 
 
 .. _CType:
@@ -1118,10 +1126,9 @@ the :ref:`geom <body-geom>` element below.
 MuJoCo works with triangulated meshes. They can be loaded from binary STL files, OBJ files or MSH files with custom
 format described below, or vertex and face data specified directly in the XML. Software such as MeshLab can be used to
 convert from other mesh formats to STL or OBJ. While any collection of triangles can be loaded as a mesh and rendered,
-collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. See also the convexhull
-attribute of the :ref:`compiler <compiler>` element which controls the automatic generation of convex hulls. The mesh
-appearance (including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing
-geom, similarly to height fields.
+collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. The mesh appearance
+(including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing geom,
+similarly to height fields.
 
 Meshes can have explicit texture coordinates instead of relying on the automated texture
 mapping mechanism. When provided, these explicit coordinates have priority. Note that texture coordinates can be
@@ -1163,10 +1170,9 @@ negative scaling values can be used to flip the mesh; this is a legitimate opera
 referencing geoms are ignored, similarly to height fields. We also provide a mechanism to translate and
 rotate the 3D coordinates, using the attributes :ref:`refpos<asset-mesh-refpos>` and :ref:`refquat<asset-mesh-refquat>`.
 
-A mesh can also be defined without faces (a point cloud essentially). In that case
-the convex hull is constructed automatically, even if the compiler attribute :at:`convexhull` is
-false. This makes it easy to construct simple shapes directly in the XML. For example, a pyramid can
-be created as follows:
+A mesh can also be defined without faces (a point cloud essentially). In that case the convex hull is constructed
+automatically.This makes it easy to construct simple shapes directly in the XML. For example, a pyramid can be created
+as follows:
 
 .. code-block:: xml
 

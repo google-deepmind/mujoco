@@ -813,7 +813,7 @@ def _get_nested_attr(obj: Any, attr_name: str, split: str) -> Any:
 def _make_data_warp(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
-    nconmax: Optional[int] = None,
+    naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the Warp implementation."""
@@ -827,7 +827,7 @@ def _make_data_warp(
     raise RuntimeError('Warp is not installed.')
 
   with wp.ScopedDevice('cpu'):  # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=nconmax, njmax=njmax)  # pylint: disable=undefined-variable
+    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)  # pylint: disable=undefined-variable
 
   fields = _make_data_public_fields(m)
   for k in fields:
@@ -862,7 +862,7 @@ def _make_data_warp(
     # TODO(robotics-simulation): remove this warmup compilation once warp
     # stops unloading modules during XLA graph capture for tile kernels.
     # pylint: disable=undefined-variable
-    dw = mjwp.make_data(m, nworld=1, naconmax=nconmax, njmax=njmax)
+    dw = mjwp.make_data(m, nworld=1, naconmax=naconmax, njmax=njmax)
     mw = mjwp.put_model(m)
     _ = mjwp.step(mw, dw)
     # pylint: enable=undefined-variable
@@ -877,6 +877,7 @@ def make_data(
     impl: Optional[Union[str, types.Impl]] = None,
     _full_compat: bool = False,  # pylint: disable=invalid-name
     nconmax: Optional[int] = None,
+    naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
 ) -> types.Data:
   """Allocate and initialize Data.
@@ -890,6 +891,10 @@ def make_data(
       `nconmax` argument to set the upper bound for the number of contacts
       across all worlds. In MuJoCo Warp, the analgous field is called
       `naconmax`.
+    naconmax: maximum number of contacts to allocate for warp across all worlds
+      Since the number of worlds is **not** pre-defined in JAX, we use the
+      `naconmax` argument to set the upper bound for the number of contacts
+      across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
     njmax: maximum number of constraints to allocate for warp across all worlds
 
   Returns:
@@ -898,7 +903,15 @@ def make_data(
   Raises:
     ValueError: if the model's impl does not match the make_data impl
     NotImplementedError: if the impl is not implemented yet
+    DeprecationWarning: if nconmax is used
   """
+  if nconmax is not None:
+    warnings.warn(
+        'nconmax will be deprecated in mujoco-mjx>=3.5. Use naconmax instead.',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
   impl, device = _resolve_impl_and_device(impl, device)
 
   if isinstance(m, types.Model) and m.impl != impl:
@@ -912,7 +925,8 @@ def make_data(
   elif impl == types.Impl.C:
     return _make_data_c(m, device)
   elif impl == types.Impl.WARP:
-    return _make_data_warp(m, device, nconmax, njmax)
+    naconmax = nconmax if naconmax is None else naconmax
+    return _make_data_warp(m, device, naconmax, njmax)
 
   raise NotImplementedError(
       f'make_data for implementation "{impl}" not implemented yet.'
@@ -1202,8 +1216,9 @@ def put_data(
     d: mujoco.MjData,
     device: Optional[jax.Device] = None,
     impl: Optional[Union[str, types.Impl]] = None,
-    nconmax: int = -1,
-    njmax: int = -1,
+    nconmax: Optional[int] = None,
+    naconmax: Optional[int] = None,
+    njmax: Optional[int] = None,
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data.
 
@@ -1213,12 +1228,24 @@ def put_data(
     device: which device to use - if unspecified picks the default device
     impl: implementation to use ('jax', 'warp')
     nconmax: maximum number of contacts to allocate for warp
+    naconmax: maximum number of contacts to allocate for warp across all worlds
+      Since the number of worlds is **not** pre-defined in JAX, we use the
+      `naconmax` argument to set the upper bound for the number of contacts
+      across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
     njmax: maximum number of constraints to allocate for warp
 
   Returns:
     an mjx.Data placed on device
+    DeprecationWarning: if nconmax is used
   """
-  del nconmax, njmax
+  del njmax
+  if nconmax is not None:
+    warnings.warn(
+        'nconmax will be deprecated in mujoco-mjx>=3.5. Use naconmax instead.',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
   impl, device = _resolve_impl_and_device(impl, device)
   if impl == types.Impl.JAX:
     return _put_data_jax(m, d, device)
@@ -1496,3 +1523,171 @@ def get_data(
   get_data_into(result, m, d)
 
   return result
+
+
+_STATE_MAP = {
+    mujoco.mjtState.mjSTATE_TIME: 'time',
+    mujoco.mjtState.mjSTATE_QPOS: 'qpos',
+    mujoco.mjtState.mjSTATE_QVEL: 'qvel',
+    mujoco.mjtState.mjSTATE_ACT: 'act',
+    mujoco.mjtState.mjSTATE_WARMSTART: 'qacc_warmstart',
+    mujoco.mjtState.mjSTATE_CTRL: 'ctrl',
+    mujoco.mjtState.mjSTATE_QFRC_APPLIED: 'qfrc_applied',
+    mujoco.mjtState.mjSTATE_XFRC_APPLIED: 'xfrc_applied',
+    mujoco.mjtState.mjSTATE_EQ_ACTIVE: 'eq_active',
+    mujoco.mjtState.mjSTATE_MOCAP_POS: 'mocap_pos',
+    mujoco.mjtState.mjSTATE_MOCAP_QUAT: 'mocap_quat',
+    mujoco.mjtState.mjSTATE_USERDATA: 'userdata',
+    mujoco.mjtState.mjSTATE_PLUGIN: 'plugin_state',
+}
+
+
+def _state_elem_size(m: types.Model, state_enum: mujoco.mjtState) -> int:
+  """Returns the size of a state component."""
+  if state_enum not in _STATE_MAP:
+    raise ValueError(f'Invalid state element {state_enum}')
+  name = _STATE_MAP[state_enum]
+  if name == 'time':
+    return 1
+  if name in (
+      'qpos',
+      'qvel',
+      'act',
+      'qacc_warmstart',
+      'ctrl',
+      'qfrc_applied',
+      'eq_active',
+      'mocap_pos',
+      'mocap_quat',
+      'userdata',
+      'plugin_state',
+  ):
+    val = getattr(
+        m,
+        {
+            'qpos': 'nq',
+            'qvel': 'nv',
+            'act': 'na',
+            'qacc_warmstart': 'nv',
+            'ctrl': 'nu',
+            'qfrc_applied': 'nv',
+            'eq_active': 'neq',
+            'mocap_pos': 'nmocap',
+            'mocap_quat': 'nmocap',
+            'userdata': 'nuserdata',
+            'plugin_state': 'npluginstate',
+        }[name],
+    )
+    if name == 'mocap_pos':
+      val *= 3
+    if name == 'mocap_quat':
+      val *= 4
+    return val
+  if name == 'xfrc_applied':
+    return 6 * m.nbody
+
+  raise NotImplementedError(f'state component {name} not implemented')
+
+
+def state_size(m: types.Model, spec: Union[int, mujoco.mjtState]) -> int:
+  """Returns the size of a state vector for a given spec.
+
+  Args:
+    m: model describing the simulation
+    spec: int bitmask or mjtState enum specifying which state components to
+      include
+
+  Returns:
+    size of the state vector
+  """
+  size = 0
+  spec_int = int(spec)
+  for i in range(mujoco.mjtState.mjNSTATE.value):
+    element = mujoco.mjtState(1 << i)
+    if element & spec_int:
+      size += _state_elem_size(m, element)
+  return size
+
+
+def get_state(
+    m: types.Model, d: types.Data, spec: Union[int, mujoco.mjtState]
+) -> jax.Array:
+  """Gets state from mjx.Data. This is equivalent to `mujoco.mj_getState`.
+
+  Args:
+    m: model describing the simulation
+    d: data for the simulation
+    spec: int bitmask or mjtState enum specifying which state components to
+      include
+
+  Returns:
+    a flat array of state values
+  """
+  spec_int = int(spec)
+  if spec_int >= (1 << mujoco.mjtState.mjNSTATE.value):
+    raise ValueError(f'Invalid state spec {spec}')
+
+  state = []
+  for i in range(mujoco.mjtState.mjNSTATE.value):
+    element = mujoco.mjtState(1 << i)
+    if element & spec_int:
+      if element not in _STATE_MAP:
+        raise ValueError(f'Invalid state element {element}')
+      name = _STATE_MAP[element]
+      value = getattr(d, name)
+      if element == mujoco.mjtState.mjSTATE_EQ_ACTIVE:
+        value = value.astype(jp.float32)
+      state.append(value.flatten())
+
+  return jp.concatenate(state) if state else jp.array([])
+
+
+def set_state(
+    m: types.Model,
+    d: types.Data,
+    state: jax.Array,
+    spec: Union[int, mujoco.mjtState],
+) -> types.Data:
+  """Sets state in mjx.Data. This is equivalent to `mujoco.mj_setState`.
+
+  Args:
+    m: model describing the simulation
+    d: data for the simulation
+    state: a flat array of state values
+    spec: int bitmask or mjtState enum specifying which state components to
+      include
+
+  Returns:
+    data with state set to provided values
+  """
+  spec_int = int(spec)
+  if spec_int >= (1 << mujoco.mjtState.mjNSTATE.value):
+    raise ValueError(f'Invalid state spec {spec}')
+
+  expected_size = state_size(m, spec)
+  if state.size != expected_size:
+    raise ValueError(
+        f'state has size {state.size} but expected {expected_size}'
+    )
+
+  updates = {}
+  offset = 0
+  for i in range(mujoco.mjtState.mjNSTATE.value):
+    element = mujoco.mjtState(1 << i)
+    if element & spec_int:
+      if element not in _STATE_MAP:
+        raise ValueError(f'Invalid state element {element}')
+      name = _STATE_MAP[element]
+      size = _state_elem_size(m, element)
+      value = state[offset : offset + size]
+      if name == 'time':
+        value = value[0]
+      else:
+        orig_shape = getattr(d, name).shape
+        value = value.reshape(orig_shape)
+      if element == mujoco.mjtState.mjSTATE_EQ_ACTIVE:
+        value = value.astype(bool)
+      updates[name] = value
+      offset += size
+
+  return d.replace(**updates)

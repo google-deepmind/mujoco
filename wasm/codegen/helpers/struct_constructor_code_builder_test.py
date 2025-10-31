@@ -1,4 +1,18 @@
-import unittest
+# Copyright 2025 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from absl.testing import absltest
 from introspect import ast_nodes
 from wasm.codegen.helpers import struct_constructor_code_builder
 from wasm.codegen.helpers import struct_field_handler
@@ -10,12 +24,13 @@ ArrayType = ast_nodes.ArrayType
 StructDecl = ast_nodes.StructDecl
 
 
-class StructConstructorCodeBuilderTest(unittest.TestCase):
+class StructConstructorCodeBuilderTest(absltest.TestCase):
 
   def test_constructor_code_with_default_function(self):
     self.assertEqual(
         struct_constructor_code_builder.build_struct_source(
-            "mjLROpt", "mj_defaultLROpt"),
+            "mjLROpt", "mj_defaultLROpt"
+        ),
         """
 MjLROpt::MjLROpt(mjLROpt *ptr) : ptr_(ptr) {}
 MjLROpt::MjLROpt() : ptr_(new mjLROpt) {
@@ -45,11 +60,14 @@ MjLROpt::~MjLROpt() {
   def test_constructor_code_with_fields_with_init(self):
     field_with_init = StructFieldDecl(
         name="element",
-        type=PointerType(inner_type=ValueType(name="mjsElement"), ),
+        type=PointerType(
+            inner_type=ValueType(name="mjsElement"),
+        ),
         doc="",
     )
     wrapped_field_data = struct_field_handler.StructFieldHandler(
-        field_with_init, "MjsTexture").generate()
+        field_with_init, "MjsTexture"
+    ).generate()
     self.assertEqual(
         struct_constructor_code_builder.build_struct_source(
             "mjsTexture",
@@ -65,7 +83,8 @@ MjsTexture::~MjsTexture() {}
   def test_constructor_code_with_shallow_copy(self):
     self.assertEqual(
         struct_constructor_code_builder.build_struct_source(
-            "mjvLight", use_shallow_copy=True),
+            "mjvLight", use_shallow_copy=True
+        ),
         """MjvLight::MjvLight(mjvLight *ptr) : ptr_(ptr) {}
 MjvLight::MjvLight() : ptr_(new mjvLight) {
   owned_ = true;
@@ -88,17 +107,18 @@ std::unique_ptr<MjvLight> MjvLight::copy() {
 }""".strip(),
     )
 
-  def test_build_struct_header_with_nested_wrappers(self):
-    self.assertEqual(
-        struct_constructor_code_builder.build_struct_header("mjData"),
-        "",
-    )
 
-  def test_build_struct_header_basic_struct(self):
-    self.assertEqual(
-        struct_constructor_code_builder.build_struct_header(
-            struct_name="mjLROpt", fields_with_init=[], wrapped_fields=[]),
-        """
+def test_build_struct_header_with_nested_wrappers(self):
+  self.assertEqual(
+      struct_constructor_code_builder.build_struct_header("mjData"),
+      "",
+  )
+
+
+def test_build_struct_header_basic_struct(self):
+  self.assertEqual(
+      struct_constructor_code_builder.build_struct_header("mjLROpt"),
+      """
 struct MjLROpt {
   MjLROpt();
   MjLROpt(const MjLROpt &);
@@ -113,8 +133,8 @@ struct MjLROpt {
   bool owned_ = false;
 };
 """.strip(),
-    )
+  )
 
 
 if __name__ == "__main__":
-  unittest.main()
+  absltest.main()

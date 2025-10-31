@@ -43,8 +43,8 @@ _FUNCTION = flags.DEFINE_string(
 _NSTEP = flags.DEFINE_integer('nstep', 1000, 'number of steps per rollout')
 _NENV = flags.DEFINE_integer('nenv', 8192, 'number of environments to simulate')
 _UNROLL = flags.DEFINE_integer('unroll', 4, 'number of steps to unroll')
-_NCONMAX = flags.DEFINE_integer('nconmax', 30_000, 'max contacts')
-_NJMAX = flags.DEFINE_integer('njmax', 80_000, 'max constraints')
+_NACONMAX = flags.DEFINE_integer('naconmax', 30_000, 'max contacts')
+_NJMAX = flags.DEFINE_integer('njmax', 10, 'max constraints')
 _WP_KERNEL_CACHE_DIR = flags.DEFINE_string(
     'wp_kernel_cache_dir',
     None,
