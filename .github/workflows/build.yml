@@ -136,6 +136,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
       run: >
@@ -148,12 +149,15 @@ jobs:
         libxrandr-dev
         libxi-dev
         ninja-build
+
     - name: Prepare macOS
       if: ${{ runner.os == 'macOS' }}
       run: brew install ninja
+
     - uses: actions/setup-python@v4
       with:
         python-version: "3.11"
+
     - name: Prepare Python
       shell: bash
       run: |
@@ -169,6 +173,26 @@ jobs:
         source venv/bin/activate
         python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
         python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
+
+    - name: Setup Node.js for WASM
+      if: ${{ runner.os == 'Linux' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install NPM Dependencies for WASM
+      if: ${{ runner.os == 'Linux' }}
+      working-directory: wasm
+      run: |
+        npm ci
+
+    - name: Setup Emscripten
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        git clone https://github.com/emscripten-core/emsdk.git
+        ./emsdk/emsdk install 4.0.10
+        ./emsdk/emsdk activate 4.0.10
+
     - name: Configure MuJoCo
       run: >
         mkdir build &&
@@ -179,9 +203,11 @@ jobs:
         -DCMAKE_INSTALL_PREFIX:STRING=${{ matrix.tmpdir }}/mujoco_install
         -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF
         ${{ matrix.cmake_args }}
+
     - name: Build MuJoCo
       working-directory: build
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+
     - name: Copy in the correct VC runtime DLLs (workaround for actions/runner-images#10004)
       if: ${{ runner.os == 'Windows' }}
       working-directory: build
@@ -192,12 +218,15 @@ jobs:
               -Path "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC\14.*" |
             Sort -Descending | Select-Object -First 1).FullName
           ) 'x64\Microsoft.VC143.CRT\*.dll') "bin\Release"
+
     - name: Test MuJoCo
       working-directory: build
       run: ctest -C Release --output-on-failure .
+
     - name: Install MuJoCo
       working-directory: build
       run: cmake --install .
+
     - name: Copy plugins (POSIX)
       if: ${{ runner.os != 'Windows' }}
       working-directory: build
@@ -206,6 +235,7 @@ jobs:
            cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libsensor.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp lib/libsdf_plugin.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+
     - name: Copy plugins (Windows)
       if: ${{ runner.os == 'Windows' }}
       working-directory: build
@@ -213,6 +243,7 @@ jobs:
            cp bin/Release/actuator.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp bin/Release/elasticity.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
            cp bin/Release/sensor.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+
     - name: Configure samples
       working-directory: sample
       run: >
@@ -223,9 +254,11 @@ jobs:
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
         -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
         ${{ matrix.cmake_args }}
+
     - name: Build samples
       working-directory: sample/build
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+
     - name: Configure simulate
       working-directory: simulate
       run: >
@@ -236,15 +269,18 @@ jobs:
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
         -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
         ${{ matrix.cmake_args }}
+
     - name: Build simulate
       working-directory: simulate/build
       run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+
     - name: Make Python sdist
       shell: bash
       working-directory: python
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         ./make_sdist.sh
+
     - name: Build Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
@@ -255,6 +291,7 @@ jobs:
         MUJOCO_PLUGIN_PATH="${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin"
         MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${{ matrix.cmake_args }}"
         pip wheel -v --no-deps mujoco-*.tar.gz
+
     - name: Install Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
@@ -262,6 +299,7 @@ jobs:
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pip install --no-index mujoco-*.whl
+
     - name: Test Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
@@ -270,6 +308,19 @@ jobs:
       run: >
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pytest -v --pyargs mujoco
+
+    - name: Build and Test WASM bindings
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        source emsdk/emsdk_env.sh
+        export PATH="$(pwd)/node_modules/.bin:$PATH"
+
+        emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
+        cmake --build build_wasm
+
+        npm run test --prefix ./wasm
+
     - name: Package MJX
       if: ${{ runner.os != 'Windows' }}
       shell: bash
@@ -277,6 +328,7 @@ jobs:
       run:
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         python -m build .
+
     - name: Install MJX
       if: ${{ runner.os != 'Windows' }}
       shell: bash
@@ -285,6 +337,7 @@ jobs:
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pip install --require-hashes -r requirements.txt &&
         pip install --no-index dist/mujoco_mjx-*.whl
+
     - name: Test MJX
       if: ${{ runner.os != 'Windows' }}
       shell: bash
@@ -292,6 +345,7 @@ jobs:
       run:
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         pytest -n auto -v -k 'not IntegrationTest' --pyargs mujoco.mjx
+
     - name: Notify team chat
       shell: bash
       env:
@@ -324,3 +378,4 @@ jobs:
         -X POST \
         -H "Content-Type: application/json" \
         --data-raw "${CHATMSG}"
+

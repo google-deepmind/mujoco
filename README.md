@@ -131,15 +131,11 @@ These packages give users of various languages access to MuJoCo functionality:
     DeepMind's related environment stack, includes
     [PyMJCF](https://github.com/google-deepmind/dm_control/blob/main/dm_control/mjcf/README.md),
     a module for procedural manipulation of MuJoCo models.
+- [JavaScript bindings and WebAssembly support](/wasm/README.md) (inspired [stillonearth](https://github.com/stillonearth) and [zalo](https://github.com/zalo)'s community projects).
 - [C# bindings and Unity plug-in](https://mujoco.readthedocs.io/en/stable/unity.html)
 
 #### Third-party bindings:
 
-- **WebAssembly**: [mujoco_wasm](https://github.com/zalo/mujoco_wasm) by [@zalo](https://github.com/zalo) with contributions by
-  [@kevinzakka](https://github.com/kevinzakka), based on the [emscripten build](https://github.com/stillonearth/MuJoCo-WASM) by
-  [@stillonearth](https://github.com/stillonearth).
-
-  :arrow_right: [Click here](https://zalo.github.io/mujoco_wasm/) for a live demo of MuJoCo running in your browser.
 - **MATLAB Simulink**: [Simulink Blockset for MuJoCo Simulator](https://github.com/mathworks-robotics/mujoco-simulink-blockset)
   by [Manoj Velmurugan](https://github.com/vmanoj1996).
 - **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
