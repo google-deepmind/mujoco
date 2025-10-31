@@ -1,0 +1,41 @@
+<mujoco model="thermaltest">
+  <extension>
+    <plugin plugin="mujoco.sensor.thermal">
+      <instance name="explicit_thermal">
+        <config key="C" value="42"/>
+        <config key="Rth" value="3.4"/>
+        <config key="TempCoeff" value="0.039"/>
+        <config key="RNorm" value="0.46"/>
+        <config key="Kt25" value="0.068"/>
+        <config key="Kt130" value="0.061"/>
+        <config key="G" value="3141.59"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <visual>
+      <headlight ambient=".7 .7 .7" diffuse=".2 .2 .2" specular="0.1 0.1 0.1"/>
+      <map znear="0.01"/>
+  </visual>
+
+  <custom>
+    <numeric name="ambient_temperature" data="298.15"/>
+  </custom>
+
+  <worldbody>
+    <body name="cylinder" pos="0 0 .1">
+      <joint name="linear" type="slide" axis="1 0 0"/>
+      <geom type="cylinder" size=".1 .5" mass="0.1"/>
+    </body>
+
+    <light pos="0 0 5"/>
+  </worldbody>
+
+  <actuator>
+    <motor name="test_actuator" joint="linear"/>
+  </actuator>
+  
+  <sensor>
+    <plugin name="thermal" instance="explicit_thermal" objtype="actuator" objname="test_actuator"/>
+  </sensor>
+</mujoco>
