@@ -131,10 +131,12 @@ dl.py.method .field-list > dd > dl > dd {
   content: "" !important;
 }
 
-/* CONFLICT FIX: Hide unwanted labels ("TYPE:", "Return type:"). */
+/* CONFLICT FIX: Hide unwanted labels ("TYPE:", "Return type:") and return value. */
 dl.py.attribute > dd > dl.field-list > dt,
-dl.py.function .field-list > dt:last-of-type,
-dl.py.method .field-list > dt:last-of-type {
+dl.py.function .field-list > dt[class*="return-type"],
+dl.py.method .field-list > dt[class*="return-type"],
+dl.py.function .field-list > dt[class*="return-type"] + dd,
+dl.py.method .field-list > dt[class*="return-type"] + dd {
     display: none !important;
 }
 
