@@ -186,8 +186,9 @@ using TendonTest = MujocoTest;
 TEST_F(TendonTest, SpringrangeDeadband) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/tendon_springlength.xml");
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   // initial state outside deadband: spring is active

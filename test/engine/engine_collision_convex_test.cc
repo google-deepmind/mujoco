@@ -59,8 +59,10 @@ TEST_F(MjcConvexTest, FramelessContactHfield) {
 
 TEST_F(MjcConvexTest, CylinderBox) {
   const std::string xml_path = GetTestDataFilePath(kCylinderBoxPath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  const std::size_t error_sz = 1024;
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, error_sz);
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // with multiCCD enabled, should find 5 contacts

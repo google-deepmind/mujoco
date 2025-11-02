@@ -693,7 +693,9 @@ static const char* const kDefaultModel = "testdata/model.xml";
 
 TEST_F(SupportTest, GetSetStateStepEqual) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // make distribution using seed
@@ -746,7 +748,9 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
 
 TEST_F(SupportTest, ExtractState) {
   const std::string xml_path = GetTestDataFilePath(kDefaultModel);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 
   // make distribution using seed

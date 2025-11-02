@@ -40,8 +40,9 @@ static const char* const kBad1FilePath =
 TEST_F(MjCollisionBoxTest, BadContacts) {
   for (const char* local_path : {kBad0FilePath, kBad1FilePath}) {
     const std::string xml_path = GetTestDataFilePath(local_path);
-    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-    ASSERT_THAT(model, NotNull());
+    char error[1024];
+    mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+    ASSERT_THAT(model, NotNull()) << error;
     mjData* data = mj_makeData(model);
     mj_forward(model, data);
 
@@ -141,8 +142,9 @@ static const char* const kDuplicateFilePath =
 
 TEST_F(MjCollisionBoxTest, DuplicateContacts) {
   const std::string xml_path = GetTestDataFilePath(kDuplicateFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
 
@@ -232,8 +234,9 @@ static const char* const kDeepFilePath =
 
 TEST_F(MjCollisionBoxTest, DeepPenetration) {
   const std::string xml_path = GetTestDataFilePath(kDeepFilePath);
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, 0, 0);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
 
