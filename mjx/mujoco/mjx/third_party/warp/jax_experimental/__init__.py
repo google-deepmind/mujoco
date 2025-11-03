@@ -13,17 +13,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# isort: skip_file
-
-from warp._src.jax_experimental.ffi import GraphMode as GraphMode
-from warp._src.jax_experimental.ffi import jax_kernel as jax_kernel
-from warp._src.jax_experimental.ffi import jax_callable as jax_callable
-from warp._src.jax_experimental.ffi import register_ffi_callback as register_ffi_callback
-
-from warp._src.jax_experimental.ffi import (
-    get_jax_callable_default_graph_cache_max as get_jax_callable_default_graph_cache_max,
-)
-from warp._src.jax_experimental.ffi import (
-    set_jax_callable_default_graph_cache_max as set_jax_callable_default_graph_cache_max,
-)
-from warp._src.jax_experimental.ffi import clear_jax_callable_graph_cache as clear_jax_callable_graph_cache
+from .custom_call import jax_kernel
