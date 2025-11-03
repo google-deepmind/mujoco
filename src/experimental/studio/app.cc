@@ -634,14 +634,15 @@ void App::UpdateProfilerData() {
   cpu_other_.erase(cpu_other_.begin());
   cpu_other_.push_back(other);
 
-  // Dimensions.
+  // Solver diagnostics.
   mjtNum sqrt_nnz = 0;
   int solver_niter = 0;
-  const int nisland = mjMAX(1, mjMIN(Data()->nisland, mjNISLAND));
-  for (int island = 0; island < nisland; island++) {
-    sqrt_nnz += mju_sqrt(Data()->solver_nnz[island]);
+  const int nisland = Data()->nefc ? mjMAX(1, mjMIN(Data()->nisland, mjNISLAND)) : 0;
+  for (int island=0; island < nisland; island++) {
+    sqrt_nnz += Data()->solver_nnz[island];
     solver_niter += Data()->solver_niter[island];
   }
+  sqrt_nnz = mju_sqrt(sqrt_nnz);
 
   dim_dof_.erase(dim_dof_.begin());
   dim_dof_.push_back(Model()->nv);
