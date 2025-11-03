@@ -40,8 +40,7 @@ using MjcConvexTest = MujocoTest;
 TEST_F(MjcConvexTest, FramelessContact) {
   const std::string xml_path = GetTestDataFilePath(kFramelessContactPath);
   char error[1024];
-  const std::size_t error_sz = 1024;
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, error_sz);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   // Loading used to fail with "engine error: xaxis of contact frame undefined".
   EXPECT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mj_deleteModel(model);
@@ -50,8 +49,7 @@ TEST_F(MjcConvexTest, FramelessContact) {
 TEST_F(MjcConvexTest, FramelessContactHfield) {
   const std::string xml_path = GetTestDataFilePath(kFramelessContactHfieldPath);
   char error[1024];
-  const std::size_t error_sz = 1024;
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, error_sz);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   // Loading used to fail with "engine error: xaxis of contact frame undefined".
   EXPECT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mj_deleteModel(model);
@@ -60,8 +58,7 @@ TEST_F(MjcConvexTest, FramelessContactHfield) {
 TEST_F(MjcConvexTest, CylinderBox) {
   const std::string xml_path = GetTestDataFilePath(kCylinderBoxPath);
   char error[1024];
-  const std::size_t error_sz = 1024;
-  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, error_sz);
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << "Failed to load model: " << error;
   mjData* data = mj_makeData(model);
 

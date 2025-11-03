@@ -175,7 +175,7 @@ static const char* const kArmatureEquivalencePath =
 // a gear ratio enforced by an equality
 TEST_F(ForwardTest, ArmatureEquivalence) {
   const std::string xml_path = GetTestDataFilePath(kArmatureEquivalencePath);
-  char error[1000];
+  char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
@@ -1107,7 +1107,7 @@ TEST_F(ActuatorTest, DampRatio) {
 TEST_F(ActuatorTest, DampRatioTendon) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/actuation/tendon_dampratio.xml");
-  char error[1000];
+  char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
@@ -1281,7 +1281,7 @@ using ActEarlyTest = MujocoTest;
 TEST_F(ActEarlyTest, RemovesOneStepDelay) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/actuation/actearly.xml");
-  char error[1000];
+  char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
 
@@ -1332,7 +1332,7 @@ TEST_F(ActEarlyTest, RemovesOneStepDelay) {
 TEST_F(ActEarlyTest, DoesntChangeStateInMjForward) {
   const std::string xml_path =
       GetTestDataFilePath("engine/testdata/actuation/actearly.xml");
-  char error[1000];
+  char error[1024];
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
 
