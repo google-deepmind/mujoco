@@ -10,9 +10,12 @@ MuJoCo Warp (MJWarp)
     API <api.rst>
 
 MuJoCo Warp (MJWarp) is an implementation of MuJoCo written in `Warp <https://nvidia.github.io/warp/>`__ and optimized
-for `Nvidia <https://nvidia.com>`__ hardware and parallel simulation. MJWarp lives in the
+for `NVIDIA <https://nvidia.com>`__ hardware and parallel simulation. MJWarp lives in the
 `google-deepmind/mujoco_warp <https://github.com/google-deepmind/mujoco_warp>`__ GitHub repository and is currently in
 beta.
+
+MJWarp is developed and maintained as a joint effort by `NVIDIA <https://nvidia.com>`__ and
+`Google DeepMind <https://deepmind.google/>`__.
 
 .. TODO: remove after release
 
@@ -31,7 +34,7 @@ Installation
 ============
 
 The beta version of MuJoCo Warp is installed from GitHub. Please note that the beta version of MuJoCo Warp does not
-support all versions of MuJoCo, Warp, CUDA, Nvidia drivers, etc.
+support all versions of MuJoCo, Warp, CUDA, NVIDIA drivers, etc.
 
 .. code-block:: shell
 
@@ -59,7 +62,7 @@ available directly from the top-level ``mjw`` module.
 
 Structs
 -------
-Before running MJWarp functions on an Nvidia GPU, structs must be copied onto the device via ``mjw.put_model`` and
+Before running MJWarp functions on an NVIDIA GPU, structs must be copied onto the device via ``mjw.put_model`` and
 ``mjw.make_data`` or ``mjw.put_data`` functions. Placing an :ref:`mjModel` on device yields an ``mjw.Model``. Placing
 an :ref:`mjData` on device yields an ``mjw.Data``:
 
@@ -92,7 +95,7 @@ MJWarp is optimized for parallel simulation. A batch of simulations can be speci
   ``njmax``.
 
 Functions
-_________
+---------
 
 MuJoCo functions are exposed as MJWarp functions of the same name, but following
 `PEP 8 <https://peps.python.org/pep-0008/>`__-compliant names. Most of the :ref:`main simulation <Mainsimulation>` and
