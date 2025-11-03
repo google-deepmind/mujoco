@@ -16,16 +16,16 @@
 #define MUJOCO_SRC_EXPERIMENTAL_USD_PLUGINS_MJCF_MUJOCO_TO_USD_H_
 
 #include <mujoco/mujoco.h>
-#include <pxr/usd/sdf/abstractData.h>
+#include <pxr/usd/sdf/declareHandles.h>
 
 namespace mujoco {
 namespace usd {
-// Given an mjSpec, write it to a SdfAbstractData.
+// Given an mjSpec, writes a USD representation of the data to the given layer.
 //
 // Args:
 //   spec: mjSpec built programmatically or via parsed XML.
-//   data: SdfAbstractDataRefPtr that will be written to.
-bool WriteSpecToData(mjSpec* spec, pxr::SdfAbstractDataRefPtr& data);
+//   layer: SdfLayerRefPtr that will be written to.
+bool WriteSpecToData(mjSpec* spec, pxr::SdfLayerRefPtr layer);
 }  // namespace usd
 }  // namespace mujoco
 
