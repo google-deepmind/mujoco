@@ -38,6 +38,7 @@ class Writer {
   void AddSink(PoseSinkFn sink_fn);
 
  private:
+  void WriteSpecsWithoutUSDOriginToLayer();
   void BuildMjUsdMapping();
 
   pxr::UsdStageRefPtr stage_;

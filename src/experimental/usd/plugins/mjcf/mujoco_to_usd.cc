@@ -23,6 +23,7 @@
 #include <vector>
 
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
+#include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
 #include "mjcf/utils.h"
@@ -150,13 +151,12 @@ using mujoco::usd::CreateClassSpec;
 using mujoco::usd::CreatePrimSpec;
 using mujoco::usd::CreateRelationshipSpec;
 using mujoco::usd::SetAttributeDefault;
-using mujoco::usd::SetAttributeMetadata;
 using mujoco::usd::SetAttributeTimeSample;
 using mujoco::usd::SetLayerMetadata;
 using mujoco::usd::SetPrimKind;
 using mujoco::usd::SetPrimPurpose;
 
-pxr::GfMatrix4d MujocoPosQuatToTransform(double *pos, double *quat) {
+pxr::GfMatrix4d MujocoPosQuatToTransform(mjtNum *pos, mjtNum *quat) {
   pxr::GfQuatd quaternion = pxr::GfQuatd::GetIdentity();
   quaternion.SetReal(quat[0]);
   quaternion.SetImaginary(quat[1], quat[2], quat[3]);
@@ -174,13 +174,25 @@ pxr::GfMatrix4d MujocoPosQuatToTransform(double *pos, double *quat) {
 
 class ModelWriter {
  public:
-  ModelWriter(mjSpec *spec, mjModel *model, pxr::SdfLayerRefPtr layer)
-      : spec_(spec), model_(model),  layer_(layer), class_path_("/Bad_Path") {
+  ModelWriter(mjSpec* spec, mjModel* model, pxr::SdfLayerRefPtr layer,
+              bool skip_elems_from_usd)
+      : spec_(spec),
+        model_(model),
+        layer_(layer),
+        skip_elems_from_usd_(skip_elems_from_usd),
+        class_path_("/Bad_Path") {
     body_paths_ = std::vector<pxr::SdfPath>(model->nbody);
     site_paths_ = std::vector<pxr::SdfPath>(model->nsite);
     joint_paths_ = std::vector<pxr::SdfPath>(model->njnt);
   }
   ~ModelWriter() { mj_deleteModel(model_); }
+
+  bool ShouldWrite(mjsElement* element) {
+    // If we've been told to skip over spec elements that originated from USD,
+    // check the user value and if it has a primpath then it came from decoding
+    // a USD stage into an MjSpec.
+    return !skip_elems_from_usd_ || mujoco::usd::GetUsdPrimPathUserValue(element).IsEmpty();
+  }
 
   void Write() {
     // Create top level class holder.
@@ -214,6 +226,7 @@ class ModelWriter {
   mjModel *model_;
   pxr::SdfLayerRefPtr layer_;
 
+  bool skip_elems_from_usd_ = false;
   // Path to top level class spec that all classes should be children of.
   pxr::SdfPath class_path_;
   // Mapping from Mujoco body id to SdfPath.
@@ -343,7 +356,6 @@ class ModelWriter {
     }
 
     auto existing_order =
-        prim_spec->GetField(pxr::UsdGeomTokens->xformOpOrder).UncheckedGet<pxr::VtArray<pxr::TfToken>>();
         prim_spec->GetField(pxr::UsdGeomTokens->xformOpOrder).Get<pxr::VtArray<pxr::TfToken>>();
 
     pxr::VtArray<pxr::TfToken> new_order(order.size() + existing_order.size());
@@ -746,7 +758,9 @@ class ModelWriter {
 
     mjsMesh *mesh = mjs_asMesh(mjs_firstElement(spec_, mjOBJ_MESH));
     while (mesh) {
-      WriteMesh(mesh, scope->GetPath());
+      if (ShouldWrite(mesh->element)) {
+        WriteMesh(mesh, scope->GetPath());
+      }
       mesh = mjs_asMesh(mjs_nextElement(spec_, mesh->element));
     }
   }
@@ -1161,10 +1175,12 @@ class ModelWriter {
     std::unordered_map<std::string, std::vector<mjsKey *>> keyframes_map;
     mjsKey *keyframe = mjs_asKey(mjs_firstElement(spec_, mjOBJ_KEY));
     while (keyframe) {
-      std::string keyframe_name = mjs_getName(keyframe->element)->empty()
-                                      ? kTokens->keyframe
-                                      : *mjs_getName(keyframe->element);
-      keyframes_map[keyframe_name].push_back(keyframe);
+      if (ShouldWrite(keyframe->element)) {
+        std::string keyframe_name = mjs_getName(keyframe->element)->empty()
+                                        ? kTokens->keyframe
+                                        : *mjs_getName(keyframe->element);
+        keyframes_map[keyframe_name].push_back(keyframe);
+      }
       keyframe = mjs_asKey(mjs_nextElement(spec_, keyframe->element));
     }
 
@@ -1338,7 +1354,9 @@ class ModelWriter {
     mjsActuator *actuator =
         mjs_asActuator(mjs_firstElement(spec_, mjOBJ_ACTUATOR));
     while (actuator) {
-      WriteActuator(actuator, scope->GetPath());
+      if (ShouldWrite(actuator->element)) {
+        WriteActuator(actuator, scope->GetPath());
+      }
       actuator = mjs_asActuator(mjs_nextElement(spec_, actuator->element));
     }
   }
@@ -1800,7 +1818,9 @@ class ModelWriter {
   void WriteSites(mjsBody *body) {
     mjsSite *site = mjs_asSite(mjs_firstChild(body, mjOBJ_SITE, false));
     while (site) {
-      WriteSite(site, body);
+      if (ShouldWrite(site->element)) {
+        WriteSite(site, body);
+      }
       site = mjs_asSite(mjs_nextChild(body, site->element, false));
     }
   }
@@ -1808,7 +1828,9 @@ class ModelWriter {
   void WriteGeoms(mjsBody *body) {
     mjsGeom *geom = mjs_asGeom(mjs_firstChild(body, mjOBJ_GEOM, false));
     while (geom) {
-      WriteGeom(geom, body);
+      if (ShouldWrite(geom->element)) {
+        WriteGeom(geom, body);
+      }
       geom = mjs_asGeom(mjs_nextChild(body, geom->element, false));
     }
   }
@@ -1824,7 +1846,9 @@ class ModelWriter {
       // WriteJoint properly handles the case where the parent is the worldbody.
       WriteJoint(nullptr, body);
     } else {
-      WriteJoint(joint, body);
+      if (ShouldWrite(joint->element)) {
+        WriteJoint(joint, body);
+      }
       if (mjs_asJoint(mjs_nextChild(body, joint->element, false))) {
         TF_WARN(
             "Multiple joints found for body %d. Only writing the first one.",
@@ -2153,7 +2177,9 @@ class ModelWriter {
   void WriteCameras(mjsBody *body) {
     mjsCamera *cam = mjs_asCamera(mjs_firstChild(body, mjOBJ_CAMERA, false));
     while (cam) {
-      WriteCamera(cam, body);
+      if (ShouldWrite(cam->element)) {
+        WriteCamera(cam, body);
+      }
       cam = mjs_asCamera(mjs_nextChild(body, cam->element, false));
     }
   }
@@ -2178,7 +2204,9 @@ class ModelWriter {
   void WriteLights(mjsBody *body) {
     mjsLight *light = mjs_asLight(mjs_firstChild(body, mjOBJ_LIGHT, false));
     while (light) {
-      WriteLight(light, body);
+      if (ShouldWrite(light->element)) {
+        WriteLight(light, body);
+      }
       light = mjs_asLight(mjs_nextChild(body, light->element, false));
     }
   }
@@ -2286,22 +2314,27 @@ class ModelWriter {
     body_spec->SetField(pxr::SdfFieldKeys->CustomData, customData);
 
     body_paths_[body_id] = body_spec->GetPath();
+    mujoco::usd::SetUsdPrimPathUserValue(body->element, body_spec->GetPath());
   }
 
   void WriteBodies() {
     mjsBody *body = mjs_asBody(mjs_firstElement(spec_, mjOBJ_BODY));
     while (body) {
-      // Only write a rigidbody if we are not the world body.
-      // We fall through since the world body might have static
-      // geom children.
-      if (mjs_getId(body->element) != kWorldIndex) {
-        WriteBody(body);
+      // If this body originally came from USD, don't try and write it
+      // again.
+      if (ShouldWrite(body->element)) {
+        // Only write a rigidbody if we are not the world body.
+        // We fall through since the world body might have static
+        // geom children.
+        if (mjs_getId(body->element) != kWorldIndex) {
+          WriteBody(body);
+        }
+        WriteSites(body);
+        WriteGeoms(body);
+        WriteJoints(body);
+        WriteCameras(body);
+        WriteLights(body);
       }
-      WriteSites(body);
-      WriteGeoms(body);
-      WriteJoints(body);
-      WriteCameras(body);
-      WriteLights(body);
       body = mjs_asBody(mjs_nextElement(spec_, body->element));
     }
   }
@@ -2323,14 +2356,14 @@ class ModelWriter {
 namespace mujoco {
 namespace usd {
 
-bool WriteSpecToData(mjSpec *spec, pxr::SdfLayerRefPtr layer) {
+bool WriteSpecToData(mjSpec *spec, pxr::SdfLayerRefPtr layer, bool skip_elems_from_usd) {
   mjModel *model = mj_compile(spec, nullptr);
   if (model == nullptr) {
     TF_ERROR(MujocoCompilationError, "%s", mjs_getError(spec));
     return false;
   }
 
-  ModelWriter(spec, model, layer).Write();
+  ModelWriter(spec, model, layer, skip_elems_from_usd).Write();
 
   return true;
 }

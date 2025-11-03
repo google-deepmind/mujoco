@@ -278,6 +278,8 @@ mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom,
   }
   mjsMesh* mesh = mjs_addMesh(spec, nullptr);
 
+  mujoco::usd::SetUsdPrimPathUserValue(mesh->element, prim.GetPath());
+
   geom->type = mjGEOM_MESH;
   pxr::UsdGeomMesh usd_mesh(prim);
   std::vector<float> uservert;
@@ -928,6 +930,8 @@ void ParseMjcPhysicsTendon(mjSpec* spec,
   mjsTendon* mj_tendon = mjs_addTendon(spec, nullptr);
   mjs_setName(mj_tendon->element, prim.GetPath().GetAsString().c_str());
 
+  mujoco::usd::SetUsdPrimPathUserValue(mj_tendon->element, prim.GetPath());
+
   pxr::TfToken type;
   tendon.GetTypeAttr().Get(&type);
 
@@ -1220,6 +1224,8 @@ void ParseMjcPhysicsActuator(mjSpec* spec,
   pxr::UsdPrim prim = tran.GetPrim();
   mjsActuator* mj_act = mjs_addActuator(spec, nullptr);
   mjs_setName(mj_act->element, prim.GetPath().GetAsString().c_str());
+
+  mujoco::usd::SetUsdPrimPathUserValue(mj_act->element, prim.GetPath());
 
   auto group_attr = tran.GetGroupAttr();
   if (group_attr.HasAuthoredValue()) {
@@ -1664,6 +1670,8 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   geom->contype = 0;
   geom->conaffinity = 0;
 
+  mujoco::usd::SetUsdPrimPathUserValue(geom->element, gprim.GetPath());
+
   ParseDisplayColorAndOpacity(gprim, geom);
   SetLocalPoseFromPrim(gprim, body_prim, geom, caches.xform_cache);
   if (!MaybeParseGeomPrimitive(gprim, geom, caches.xform_cache)) {
@@ -1718,6 +1726,8 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
   mjs_setName(geom->element, prim.GetPath().GetAsString().c_str());
   geom->contype = 1;
   geom->conaffinity = 1;
+
+  mujoco::usd::SetUsdPrimPathUserValue(geom->element, prim.GetPath());
 
   if (prim.HasAPI<pxr::MjcPhysicsCollisionAPI>()) {
     ParseMjcPhysicsCollisionAPI(geom, pxr::MjcPhysicsCollisionAPI(prim));
@@ -1798,6 +1808,8 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
   mjsJoint* mj_joint = mjs_addJoint(body, nullptr);
   mj_joint->type = type;
   mjs_setName(mj_joint->element, prim.GetPath().GetAsString().c_str());
+
+  mujoco::usd::SetUsdPrimPathUserValue(mj_joint->element, prim.GetPath());
 
   if (prim.IsA<pxr::UsdPhysicsRevoluteJoint>()) {
     pxr::UsdPhysicsRevoluteJoint revolute(prim);
@@ -1888,6 +1900,8 @@ void ParseMjcPhysicsSite(mjSpec* spec, const pxr::MjcPhysicsSiteAPI& site_api,
               site_api.GetPrim().GetPath().GetAsString().c_str());
   SetLocalPoseFromPrim(site_api.GetPrim(), parent_prim, site, xform_cache);
 
+  mujoco::usd::SetUsdPrimPathUserValue(site->element, prim.GetPath());
+
   auto group_attr = site_api.GetGroupAttr();
   if (group_attr.HasAuthoredValue()) {
     group_attr.Get(&site->group);
@@ -1933,6 +1947,9 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
   if (n_time_samples == 0) {
     // If no time samples, we create a single keyframe.
     mjsKey* key = mjs_addKey(spec);
+
+    mujoco::usd::SetUsdPrimPathUserValue(key->element, prim.GetPath());
+
     mjs_setName(key->element, prim.GetName().GetString().c_str());
     setKeyframeData(key, qpos_attr, &key->qpos);
     setKeyframeData(key, qvel_attr, &key->qvel);
@@ -1947,6 +1964,9 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
     int keyframe_id = 0;
     for (double time : times) {
       mjsKey* key = mjs_addKey(spec);
+
+      mujoco::usd::SetUsdPrimPathUserValue(key->element, prim.GetPath());
+
       std::string key_name =
           prim.GetName().GetString() + "_" + std::to_string(keyframe_id++);
       mjs_setName(key->element, key_name.c_str());
