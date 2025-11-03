@@ -206,8 +206,8 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
     }
 
     if (m->flex_interp[f]) {
-      mjtNum xpos[mjMAXFLEXNODES], displ[mjMAXFLEXNODES], vel[mjMAXFLEXNODES];
-      mjtNum frc[mjMAXFLEXNODES], dmp[mjMAXFLEXNODES];
+      mjtNum xpos[3*mjMAXFLEXNODES], displ[3*mjMAXFLEXNODES], vel[3*mjMAXFLEXNODES];
+      mjtNum frc[3*mjMAXFLEXNODES], dmp[3*mjMAXFLEXNODES];
       mjtNum com[3] = {0};
       mjtNum* xpos0 = m->flex_node0 + 3*m->flex_nodeadr[f];
       int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
@@ -242,7 +242,7 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       // compute the Jacobian at the center of mass
       mjtNum mat[9] = {0};
       mjtNum p[3] = {.5, .5, .5};
-      mju_defGradient(mat, p, xpos, 1);
+      mju_defGradient(mat, p, xpos, m->flex_interp[f]);
 
       // find rotation
       mjtNum quat[4] = {1, 0, 0, 0};

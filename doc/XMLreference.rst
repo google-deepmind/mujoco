@@ -3540,14 +3540,24 @@ saving the XML:
       :align: right
       :width: 240px
 
-   Trilinear flexes are much faster than the previous two options, and are the preferred choice if the expected
-   deformations can be captured by the reduced parametriation. For example, see the video on the right comparing `full
-   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
+   Trilinear and quadratic flexes are much faster than the previous two options, and are the preferred choice if the
+   expected deformations can be captured by the reduced parametriation. For example, see the video on the right
+   comparing `full <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
    <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper_trilinear.xml>`__ flexes for modeling
    deformable gripper pads.
 
    Note that the choice of dof parametrization affects the deformation modes of the flex but has no effect on the
    accuracy of the collision geometry, which always takes into account the high-resolution mesh of the flex.
+
+   **quadratic**
+     Three translational dofs per corner, edge, face, and volume of the bounding box of the flex, for a total of 81 dofs
+     for the entire flex, independent of the number of vertices. The positions of the vertices are updated using
+     quadratic interpolation over the bounding box. While this option requires more degrees of freedom than trilinear
+     flexes, it enables curved deformation modes, while the only modes achievable for trilinear flexes are
+     strech/compression and shear.
+
+   Note that a higher interpolation order generally requires a smaller time step for stability, although usually not as
+   large as with the "full" option and a fine mesh.
 
 .. _body-flexcomp-type:
 

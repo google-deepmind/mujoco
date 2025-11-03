@@ -535,6 +535,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
     std::vector<double> node(3*(order+1)*(order+1)*(order+1), 0);
     int idx = 0;
     double step = 1.0 / (double)order;
+    double massP2[3] = {1. / 6., 2. / 3., 1. / 6.};
     for (int i=0; i <= order; i++) {
       for (int j=0; j <= order; j++) {
         for (int k=0; k <= order; k++) {
@@ -552,7 +553,11 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
           pb->pos[1] = minmax[1] + j * step * (minmax[4] - minmax[1]);
           pb->pos[2] = minmax[2] + k * step * (minmax[5] - minmax[2]);
           mjuu_zerovec(pb->ipos, 3);
-          pb->mass = mass / 8;
+          if (doftype == mjFCOMPDOF_TRILINEAR) {
+            pb->mass = mass / 8;
+          } else {
+            pb->mass = mass * massP2[i] * massP2[j] * massP2[k];
+          }
           pb->inertia[0] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
           pb->inertia[1] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;
           pb->inertia[2] = pb->mass*(2.0*inertiabox*inertiabox)/3.0;

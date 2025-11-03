@@ -863,8 +863,8 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
   else {
     // get bodies and weights
     int nb = 0;
-    int bid[64];
-    mjtNum bweight[64];
+    int bid[729];  // 729 = 27*27
+    mjtNum bweight[729];
     for (int side=0; side < 2; side++) {
       int nw = 0;
       int vid[4];
@@ -1121,8 +1121,8 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
       tran = rot = 0;
       for (int side=0; side < 2; side++) {
         // get bodies and weights
-        int nb = 0, bid[32], vid[4], nw = 0;
-        mjtNum bweight[32], bw[4];
+        int nb = 0, bid[729], vid[4], nw = 0;
+        mjtNum bweight[729], bw[4];
 
         // geom
         if (con->geom[side] >= 0) {
@@ -1808,7 +1808,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     int NV = 0;
     if (nnz) {
       // get bodies
-      int nb = 0, bid[64];
+      int nb = 0, bid[729];
       for (int side=0; side < 2; side++) {
         int nw = 0;
         int vid[4];

@@ -13,26 +13,30 @@
      limitations under the License.
 -->
 
-<mujoco model="Quadratic">
+<mujoco model="Trilinear">
   <include file="scene.xml"/>
 
-  <option solver="CG" tolerance="1e-6" timestep=".001" integrator="implicitfast"/>
+  <option solver="CG" tolerance="1e-6" timestep=".0005" integrator="implicitfast"/>
 
-  <size memory="10M"/>
+  <size memory="100M"/>
 
   <visual>
     <map stiffness="100"/>
-    <rgba bv="0 0 0 0" bvactive="0 0 0 0"/>
   </visual>
 
   <worldbody>
-    <body mocap="true" pos="-.1 .05 0" zaxis=".5 0 1">
-      <geom type="capsule" size=".1 .1" group="1" condim="1"/>
+    <body>
+      <joint name="press" type="slide" axis="0 0 1" damping="500"/>
+      <geom type="box" size=".02 .2 .2" pos="0 0 .5"/>
     </body>
-    <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1" dim="3"
-              radius=".001" rgba="0 .7 .7 1" mass="5" name="softbody" dof="quadratic">
-      <elasticity young="1e4" poisson="0.1" damping="0.0001"/>
+    <flexcomp type="mesh" file="bunny.obj" pos="0 0 -.01" dim="2" euler="90 0 0"
+              radius=".002" rgba="0 .7 .7 1" mass=".05" name="softbody" dof="quadratic">
+      <elasticity young="1e3" poisson="0.1" damping="0.0001" elastic2d="stretch"/>
       <contact selfcollide="none" internal="false"/>
     </flexcomp>
   </worldbody>
+
+  <actuator>
+    <position name="press" joint="press" gear="-1 0 0 0 0 0" ctrlrange="-1 1" kp="1000"/>
+  </actuator>
 </mujoco>

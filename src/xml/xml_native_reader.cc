@@ -2723,9 +2723,6 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
     ReadAttr(elasticity, "damping", 1, &dflex.damping, text);
     ReadAttr(elasticity, "thickness", 1, &dflex.thickness, text);
     MapValue(elasticity, "elastic2d", &dflex.elastic2d, elastic2d_map, 4);
-    if (fcomp.doftype == mjFCOMPDOF_QUADRATIC) {
-      throw mjXError(elasticity, "elasticity is not yet supported for quadratic flex");
-    }
   }
 
   // check errors

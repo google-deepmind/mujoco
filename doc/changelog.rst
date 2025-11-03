@@ -8,6 +8,8 @@ Upcoming version (not yet released)
 General
 ^^^^^^^^^
 
+- Added "quadratic" option to :ref:`flexcomp/dof<body-flexcomp-dof>`. This type of fast :ref:`deformable<CDeformable>`
+  flex object is similar to the "trilinear" option, but it includes curved deformations.
 - Raise an error if there are name collisions also during parsing.
 - Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
 - Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
