@@ -134,8 +134,12 @@ struct MjContact {
   void set_efc_address(int value) {
     ptr_->efc_address = value;
   }
-  mjContact* get() const { return ptr_; }
-  void set(mjContact* ptr) { ptr_ = ptr; }
+  mjContact* get() const {
+    return ptr_;
+  }
+  void set(mjContact* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjContact* ptr_;
@@ -209,8 +213,12 @@ struct MjLROpt {
   void set_tolrange(mjtNum value) {
     ptr_->tolrange = value;
   }
-  mjLROpt* get() const { return ptr_; }
-  void set(mjLROpt* ptr) { ptr_ = ptr; }
+  mjLROpt* get() const {
+    return ptr_;
+  }
+  void set(mjLROpt* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjLROpt* ptr_;
@@ -374,8 +382,12 @@ struct MjOption {
   void set_sdf_iterations(int value) {
     ptr_->sdf_iterations = value;
   }
-  mjOption* get() const { return ptr_; }
-  void set(mjOption* ptr) { ptr_ = ptr; }
+  mjOption* get() const {
+    return ptr_;
+  }
+  void set(mjOption* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjOption* ptr_;
@@ -431,8 +443,12 @@ struct MjSolverStat {
   void set_nupdate(int value) {
     ptr_->nupdate = value;
   }
-  mjSolverStat* get() const { return ptr_; }
-  void set(mjSolverStat* ptr) { ptr_ = ptr; }
+  mjSolverStat* get() const {
+    return ptr_;
+  }
+  void set(mjSolverStat* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjSolverStat* ptr_;
@@ -473,8 +489,12 @@ struct MjStatistic {
   emscripten::val center() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->center));
   }
-  mjStatistic* get() const { return ptr_; }
-  void set(mjStatistic* ptr) { ptr_ = ptr; }
+  mjStatistic* get() const {
+    return ptr_;
+  }
+  void set(mjStatistic* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjStatistic* ptr_;
@@ -500,8 +520,12 @@ struct MjTimerStat {
   void set_number(int value) {
     ptr_->number = value;
   }
-  mjTimerStat* get() const { return ptr_; }
-  void set(mjTimerStat* ptr) { ptr_ = ptr; }
+  mjTimerStat* get() const {
+    return ptr_;
+  }
+  void set(mjTimerStat* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjTimerStat* ptr_;
@@ -515,8 +539,12 @@ struct MjVFS {
   explicit MjVFS(mjVFS *ptr);
   ~MjVFS();
   // TODO: Define primitive pointer field with complex extents manually for impl_
-  mjVFS* get() const { return ptr_; }
-  void set(mjVFS* ptr) { ptr_ = ptr; }
+  mjVFS* get() const {
+    return ptr_;
+  }
+  void set(mjVFS* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjVFS* ptr_;
@@ -542,8 +570,12 @@ struct MjWarningStat {
   void set_number(int value) {
     ptr_->number = value;
   }
-  mjWarningStat* get() const { return ptr_; }
-  void set(mjWarningStat* ptr) { ptr_ = ptr; }
+  mjWarningStat* get() const {
+    return ptr_;
+  }
+  void set(mjWarningStat* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjWarningStat* ptr_;
@@ -566,8 +598,12 @@ struct MjsElement {
   void set_signature(uint64_t value) {
     ptr_->signature = value;
   }
-  mjsElement* get() const { return ptr_; }
-  void set(mjsElement* ptr) { ptr_ = ptr; }
+  mjsElement* get() const {
+    return ptr_;
+  }
+  void set(mjsElement* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsElement* ptr_;
@@ -595,8 +631,12 @@ struct MjsOrientation {
   emscripten::val euler() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->euler));
   }
-  mjsOrientation* get() const { return ptr_; }
-  void set(mjsOrientation* ptr) { ptr_ = ptr; }
+  mjsOrientation* get() const {
+    return ptr_;
+  }
+  void set(mjsOrientation* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsOrientation* ptr_;
@@ -654,8 +694,12 @@ struct MjvCamera {
   void set_orthographic(int value) {
     ptr_->orthographic = value;
   }
-  mjvCamera* get() const { return ptr_; }
-  void set(mjvCamera* ptr) { ptr_ = ptr; }
+  mjvCamera* get() const {
+    return ptr_;
+  }
+  void set(mjvCamera* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjvCamera* ptr_;
@@ -801,8 +845,12 @@ struct MjvFigure {
   emscripten::val yaxisdata() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->yaxisdata));
   }
-  mjvFigure* get() const { return ptr_; }
-  void set(mjvFigure* ptr) { ptr_ = ptr; }
+  mjvFigure* get() const {
+    return ptr_;
+  }
+  void set(mjvFigure* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjvFigure* ptr_;
@@ -867,8 +915,12 @@ struct MjvGLCamera {
   void set_orthographic(int value) {
     ptr_->orthographic = value;
   }
-  mjvGLCamera* get() const { return ptr_; }
-  void set(mjvGLCamera* ptr) { ptr_ = ptr; }
+  mjvGLCamera* get() const {
+    return ptr_;
+  }
+  void set(mjvGLCamera* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjvGLCamera* ptr_;
@@ -987,8 +1039,12 @@ struct MjvGeom {
   void set_transparent(mjtByte value) {
     ptr_->transparent = value;
   }
-  mjvGeom* get() const { return ptr_; }
-  void set(mjvGeom* ptr) { ptr_ = ptr; }
+  mjvGeom* get() const {
+    return ptr_;
+  }
+  void set(mjvGeom* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjvGeom* ptr_;
@@ -1080,8 +1136,12 @@ struct MjvLight {
   void set_range(float value) {
     ptr_->range = value;
   }
-  mjvLight* get() const { return ptr_; }
-  void set(mjvLight* ptr) { ptr_ = ptr; }
+  mjvLight* get() const {
+    return ptr_;
+  }
+  void set(mjvLight* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjvLight* ptr_;
@@ -1143,8 +1203,12 @@ struct MjvOption {
   void set_flex_layer(int value) {
     ptr_->flex_layer = value;
   }
-  mjvOption* get() const { return ptr_; }
-  void set(mjvOption* ptr) { ptr_ = ptr; }
+  mjvOption* get() const {
+    return ptr_;
+  }
+  void set(mjvOption* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjvOption* ptr_;
@@ -1212,8 +1276,12 @@ struct MjvPerturb {
   void set_scale(mjtNum value) {
     ptr_->scale = value;
   }
-  mjvPerturb* get() const { return ptr_; }
-  void set(mjvPerturb* ptr) { ptr_ = ptr; }
+  mjvPerturb* get() const {
+    return ptr_;
+  }
+  void set(mjvPerturb* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjvPerturb* ptr_;
@@ -1323,8 +1391,12 @@ struct MjsCompiler {
       *(ptr_->texturedir) = value;
     }
   }
-  mjsCompiler* get() const { return ptr_; }
-  void set(mjsCompiler* ptr) { ptr_ = ptr; }
+  mjsCompiler* get() const {
+    return ptr_;
+  }
+  void set(mjsCompiler* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsCompiler* ptr_;
@@ -1387,8 +1459,12 @@ struct MjsEquality {
       *(ptr_->info) = value;
     }
   }
-  mjsEquality* get() const { return ptr_; }
-  void set(mjsEquality* ptr) { ptr_ = ptr; }
+  mjsEquality* get() const {
+    return ptr_;
+  }
+  void set(mjsEquality* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsEquality* ptr_;
@@ -1424,8 +1500,12 @@ struct MjsExclude {
       *(ptr_->info) = value;
     }
   }
-  mjsExclude* get() const { return ptr_; }
-  void set(mjsExclude* ptr) { ptr_ = ptr; }
+  mjsExclude* get() const {
+    return ptr_;
+  }
+  void set(mjsExclude* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsExclude* ptr_;
@@ -1624,8 +1704,12 @@ struct MjsFlex {
       *(ptr_->info) = value;
     }
   }
-  mjsFlex* get() const { return ptr_; }
-  void set(mjsFlex* ptr) { ptr_ = ptr; }
+  mjsFlex* get() const {
+    return ptr_;
+  }
+  void set(mjsFlex* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsFlex* ptr_;
@@ -1679,8 +1763,12 @@ struct MjsHField {
       *(ptr_->info) = value;
     }
   }
-  mjsHField* get() const { return ptr_; }
-  void set(mjsHField* ptr) { ptr_ = ptr; }
+  mjsHField* get() const {
+    return ptr_;
+  }
+  void set(mjsHField* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsHField* ptr_;
@@ -1808,8 +1896,12 @@ struct MjsJoint {
       *(ptr_->info) = value;
     }
   }
-  mjsJoint* get() const { return ptr_; }
-  void set(mjsJoint* ptr) { ptr_ = ptr; }
+  mjsJoint* get() const {
+    return ptr_;
+  }
+  void set(mjsJoint* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsJoint* ptr_;
@@ -1853,8 +1945,12 @@ struct MjsKey {
       *(ptr_->info) = value;
     }
   }
-  mjsKey* get() const { return ptr_; }
-  void set(mjsKey* ptr) { ptr_ = ptr; }
+  mjsKey* get() const {
+    return ptr_;
+  }
+  void set(mjsKey* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsKey* ptr_;
@@ -1962,8 +2058,12 @@ struct MjsLight {
       *(ptr_->info) = value;
     }
   }
-  mjsLight* get() const { return ptr_; }
-  void set(mjsLight* ptr) { ptr_ = ptr; }
+  mjsLight* get() const {
+    return ptr_;
+  }
+  void set(mjsLight* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsLight* ptr_;
@@ -2034,8 +2134,12 @@ struct MjsMaterial {
       *(ptr_->info) = value;
     }
   }
-  mjsMaterial* get() const { return ptr_; }
-  void set(mjsMaterial* ptr) { ptr_ = ptr; }
+  mjsMaterial* get() const {
+    return ptr_;
+  }
+  void set(mjsMaterial* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsMaterial* ptr_;
@@ -2064,8 +2168,12 @@ struct MjsNumeric {
       *(ptr_->info) = value;
     }
   }
-  mjsNumeric* get() const { return ptr_; }
-  void set(mjsNumeric* ptr) { ptr_ = ptr; }
+  mjsNumeric* get() const {
+    return ptr_;
+  }
+  void set(mjsNumeric* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsNumeric* ptr_;
@@ -2131,8 +2239,12 @@ struct MjsPair {
       *(ptr_->info) = value;
     }
   }
-  mjsPair* get() const { return ptr_; }
-  void set(mjsPair* ptr) { ptr_ = ptr; }
+  mjsPair* get() const {
+    return ptr_;
+  }
+  void set(mjsPair* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsPair* ptr_;
@@ -2174,8 +2286,12 @@ struct MjsPlugin {
       *(ptr_->info) = value;
     }
   }
-  mjsPlugin* get() const { return ptr_; }
-  void set(mjsPlugin* ptr) { ptr_ = ptr; }
+  mjsPlugin* get() const {
+    return ptr_;
+  }
+  void set(mjsPlugin* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsPlugin* ptr_;
@@ -2250,8 +2366,12 @@ struct MjsSkin {
       *(ptr_->info) = value;
     }
   }
-  mjsSkin* get() const { return ptr_; }
-  void set(mjsSkin* ptr) { ptr_ = ptr; }
+  mjsSkin* get() const {
+    return ptr_;
+  }
+  void set(mjsSkin* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsSkin* ptr_;
@@ -2360,8 +2480,12 @@ struct MjsTendon {
       *(ptr_->info) = value;
     }
   }
-  mjsTendon* get() const { return ptr_; }
-  void set(mjsTendon* ptr) { ptr_ = ptr; }
+  mjsTendon* get() const {
+    return ptr_;
+  }
+  void set(mjsTendon* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsTendon* ptr_;
@@ -2389,8 +2513,12 @@ struct MjsText {
       *(ptr_->info) = value;
     }
   }
-  mjsText* get() const { return ptr_; }
-  void set(mjsText* ptr) { ptr_ = ptr; }
+  mjsText* get() const {
+    return ptr_;
+  }
+  void set(mjsText* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsText* ptr_;
@@ -2507,8 +2635,12 @@ struct MjsTexture {
       *(ptr_->info) = value;
     }
   }
-  mjsTexture* get() const { return ptr_; }
-  void set(mjsTexture* ptr) { ptr_ = ptr; }
+  mjsTexture* get() const {
+    return ptr_;
+  }
+  void set(mjsTexture* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsTexture* ptr_;
@@ -2537,8 +2669,12 @@ struct MjsTuple {
       *(ptr_->info) = value;
     }
   }
-  mjsTuple* get() const { return ptr_; }
-  void set(mjsTuple* ptr) { ptr_ = ptr; }
+  mjsTuple* get() const {
+    return ptr_;
+  }
+  void set(mjsTuple* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsTuple* ptr_;
@@ -2564,8 +2700,12 @@ struct MjsWrap {
       *(ptr_->info) = value;
     }
   }
-  mjsWrap* get() const { return ptr_; }
-  void set(mjsWrap* ptr) { ptr_ = ptr; }
+  mjsWrap* get() const {
+    return ptr_;
+  }
+  void set(mjsWrap* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsWrap* ptr_;
@@ -2647,8 +2787,12 @@ struct MjsCamera {
       *(ptr_->info) = value;
     }
   }
-  mjsCamera* get() const { return ptr_; }
-  void set(mjsCamera* ptr) { ptr_ = ptr; }
+  mjsCamera* get() const {
+    return ptr_;
+  }
+  void set(mjsCamera* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsCamera* ptr_;
@@ -2683,8 +2827,12 @@ struct MjsFrame {
       *(ptr_->info) = value;
     }
   }
-  mjsFrame* get() const { return ptr_; }
-  void set(mjsFrame* ptr) { ptr_ = ptr; }
+  mjsFrame* get() const {
+    return ptr_;
+  }
+  void set(mjsFrame* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsFrame* ptr_;
@@ -2743,8 +2891,12 @@ struct MjsSite {
       *(ptr_->info) = value;
     }
   }
-  mjsSite* get() const { return ptr_; }
-  void set(mjsSite* ptr) { ptr_ = ptr; }
+  mjsSite* get() const {
+    return ptr_;
+  }
+  void set(mjsSite* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsSite* ptr_;
@@ -2888,8 +3040,12 @@ struct MjsActuator {
       *(ptr_->info) = value;
     }
   }
-  mjsActuator* get() const { return ptr_; }
-  void set(mjsActuator* ptr) { ptr_ = ptr; }
+  mjsActuator* get() const {
+    return ptr_;
+  }
+  void set(mjsActuator* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsActuator* ptr_;
@@ -2963,8 +3119,12 @@ struct MjsBody {
       *(ptr_->info) = value;
     }
   }
-  mjsBody* get() const { return ptr_; }
-  void set(mjsBody* ptr) { ptr_ = ptr; }
+  mjsBody* get() const {
+    return ptr_;
+  }
+  void set(mjsBody* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsBody* ptr_;
@@ -3125,8 +3285,12 @@ struct MjsGeom {
       *(ptr_->info) = value;
     }
   }
-  mjsGeom* get() const { return ptr_; }
-  void set(mjsGeom* ptr) { ptr_ = ptr; }
+  mjsGeom* get() const {
+    return ptr_;
+  }
+  void set(mjsGeom* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsGeom* ptr_;
@@ -3223,8 +3387,12 @@ struct MjsMesh {
       *(ptr_->info) = value;
     }
   }
-  mjsMesh* get() const { return ptr_; }
-  void set(mjsMesh* ptr) { ptr_ = ptr; }
+  mjsMesh* get() const {
+    return ptr_;
+  }
+  void set(mjsMesh* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsMesh* ptr_;
@@ -3315,8 +3483,12 @@ struct MjsSensor {
       *(ptr_->info) = value;
     }
   }
-  mjsSensor* get() const { return ptr_; }
-  void set(mjsSensor* ptr) { ptr_ = ptr; }
+  mjsSensor* get() const {
+    return ptr_;
+  }
+  void set(mjsSensor* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsSensor* ptr_;
@@ -3329,8 +3501,12 @@ struct MjsSensor {
 struct MjsDefault {
   explicit MjsDefault(mjsDefault *ptr);
   ~MjsDefault();
-  mjsDefault* get() const { return ptr_; }
-  void set(mjsDefault* ptr) { ptr_ = ptr; }
+  mjsDefault* get() const {
+    return ptr_;
+  }
+  void set(mjsDefault* ptr) {
+    ptr_ = ptr;
+  }
 
  private:
   mjsDefault* ptr_;
@@ -9915,407 +10091,330 @@ EMSCRIPTEN_DECLARE_VAL_TYPE(String);
   }
 void error_wrapper(const String& msg) { mju_error("%s\n", msg.as<const std::string>().data()); }
 
-int mj_copyBack_wrapper(MjSpec& s, const MjModel& m)
-{
+int mj_copyBack_wrapper(MjSpec& s, const MjModel& m) {
   return mj_copyBack(s.get(), m.get());
 }
 
-void mj_step_wrapper(const MjModel& m, MjData& d)
-{
+void mj_step_wrapper(const MjModel& m, MjData& d) {
   mj_step(m.get(), d.get());
 }
 
-void mj_step1_wrapper(const MjModel& m, MjData& d)
-{
+void mj_step1_wrapper(const MjModel& m, MjData& d) {
   mj_step1(m.get(), d.get());
 }
 
-void mj_step2_wrapper(const MjModel& m, MjData& d)
-{
+void mj_step2_wrapper(const MjModel& m, MjData& d) {
   mj_step2(m.get(), d.get());
 }
 
-void mj_forward_wrapper(const MjModel& m, MjData& d)
-{
+void mj_forward_wrapper(const MjModel& m, MjData& d) {
   mj_forward(m.get(), d.get());
 }
 
-void mj_inverse_wrapper(const MjModel& m, MjData& d)
-{
+void mj_inverse_wrapper(const MjModel& m, MjData& d) {
   mj_inverse(m.get(), d.get());
 }
 
-void mj_forwardSkip_wrapper(const MjModel& m, MjData& d, int skipstage, int skipsensor)
-{
+void mj_forwardSkip_wrapper(const MjModel& m, MjData& d, int skipstage, int skipsensor) {
   mj_forwardSkip(m.get(), d.get(), skipstage, skipsensor);
 }
 
-void mj_inverseSkip_wrapper(const MjModel& m, MjData& d, int skipstage, int skipsensor)
-{
+void mj_inverseSkip_wrapper(const MjModel& m, MjData& d, int skipstage, int skipsensor) {
   mj_inverseSkip(m.get(), d.get(), skipstage, skipsensor);
 }
 
-void mj_defaultLROpt_wrapper(MjLROpt& opt)
-{
+void mj_defaultLROpt_wrapper(MjLROpt& opt) {
   mj_defaultLROpt(opt.get());
 }
 
-void mj_defaultSolRefImp_wrapper(const val& solref, const val& solimp)
-{
+void mj_defaultSolRefImp_wrapper(const val& solref, const val& solimp) {
   UNPACK_VALUE(mjtNum, solref);
   UNPACK_VALUE(mjtNum, solimp);
   mj_defaultSolRefImp(solref_.data(), solimp_.data());
 }
 
-void mj_defaultOption_wrapper(MjOption& opt)
-{
+void mj_defaultOption_wrapper(MjOption& opt) {
   mj_defaultOption(opt.get());
 }
 
-void mj_defaultVisual_wrapper(MjVisual& vis)
-{
+void mj_defaultVisual_wrapper(MjVisual& vis) {
   mj_defaultVisual(vis.get());
 }
 
-int mj_sizeModel_wrapper(const MjModel& m)
-{
+int mj_sizeModel_wrapper(const MjModel& m) {
   return mj_sizeModel(m.get());
 }
 
-void mj_resetData_wrapper(const MjModel& m, MjData& d)
-{
+void mj_resetData_wrapper(const MjModel& m, MjData& d) {
   mj_resetData(m.get(), d.get());
 }
 
-void mj_resetDataDebug_wrapper(const MjModel& m, MjData& d, unsigned char debug_value)
-{
+void mj_resetDataDebug_wrapper(const MjModel& m, MjData& d, unsigned char debug_value) {
   mj_resetDataDebug(m.get(), d.get(), debug_value);
 }
 
-void mj_resetDataKeyframe_wrapper(const MjModel& m, MjData& d, int key)
-{
+void mj_resetDataKeyframe_wrapper(const MjModel& m, MjData& d, int key) {
   mj_resetDataKeyframe(m.get(), d.get(), key);
 }
 
-void mj_setConst_wrapper(MjModel& m, MjData& d)
-{
+void mj_setConst_wrapper(MjModel& m, MjData& d) {
   mj_setConst(m.get(), d.get());
 }
 
-int mjs_activatePlugin_wrapper(MjSpec& s, const String& name)
-{
+int mjs_activatePlugin_wrapper(MjSpec& s, const String& name) {
   CHECK_VAL(name);
   return mjs_activatePlugin(s.get(), name.as<const std::string>().data());
 }
 
-int mjs_setDeepCopy_wrapper(MjSpec& s, int deepcopy)
-{
+int mjs_setDeepCopy_wrapper(MjSpec& s, int deepcopy) {
   return mjs_setDeepCopy(s.get(), deepcopy);
 }
 
-void mj_printFormattedModel_wrapper(const MjModel& m, const String& filename, const String& float_format)
-{
+void mj_printFormattedModel_wrapper(const MjModel& m, const String& filename, const String& float_format) {
   CHECK_VAL(filename);
   CHECK_VAL(float_format);
   mj_printFormattedModel(m.get(), filename.as<const std::string>().data(), float_format.as<const std::string>().data());
 }
 
-void mj_printModel_wrapper(const MjModel& m, const String& filename)
-{
+void mj_printModel_wrapper(const MjModel& m, const String& filename) {
   CHECK_VAL(filename);
   mj_printModel(m.get(), filename.as<const std::string>().data());
 }
 
-void mj_printFormattedData_wrapper(const MjModel& m, const MjData& d, const String& filename, const String& float_format)
-{
+void mj_printFormattedData_wrapper(const MjModel& m, const MjData& d, const String& filename, const String& float_format) {
   CHECK_VAL(filename);
   CHECK_VAL(float_format);
   mj_printFormattedData(m.get(), d.get(), filename.as<const std::string>().data(), float_format.as<const std::string>().data());
 }
 
-void mj_printData_wrapper(const MjModel& m, const MjData& d, const String& filename)
-{
+void mj_printData_wrapper(const MjModel& m, const MjData& d, const String& filename) {
   CHECK_VAL(filename);
   mj_printData(m.get(), d.get(), filename.as<const std::string>().data());
 }
 
-void mju_printMat_wrapper(const NumberArray& mat, int nr, int nc)
-{
+void mju_printMat_wrapper(const NumberArray& mat, int nr, int nc) {
   UNPACK_ARRAY(mjtNum, mat);
   mju_printMat(mat_.data(), nr, nc);
 }
 
-void mj_printScene_wrapper(const MjvScene& s, const String& filename)
-{
+void mj_printScene_wrapper(const MjvScene& s, const String& filename) {
   CHECK_VAL(filename);
   mj_printScene(s.get(), filename.as<const std::string>().data());
 }
 
-void mj_printFormattedScene_wrapper(const MjvScene& s, const String& filename, const String& float_format)
-{
+void mj_printFormattedScene_wrapper(const MjvScene& s, const String& filename, const String& float_format) {
   CHECK_VAL(filename);
   CHECK_VAL(float_format);
   mj_printFormattedScene(s.get(), filename.as<const std::string>().data(), float_format.as<const std::string>().data());
 }
 
-void mj_fwdPosition_wrapper(const MjModel& m, MjData& d)
-{
+void mj_fwdPosition_wrapper(const MjModel& m, MjData& d) {
   mj_fwdPosition(m.get(), d.get());
 }
 
-void mj_fwdVelocity_wrapper(const MjModel& m, MjData& d)
-{
+void mj_fwdVelocity_wrapper(const MjModel& m, MjData& d) {
   mj_fwdVelocity(m.get(), d.get());
 }
 
-void mj_fwdActuation_wrapper(const MjModel& m, MjData& d)
-{
+void mj_fwdActuation_wrapper(const MjModel& m, MjData& d) {
   mj_fwdActuation(m.get(), d.get());
 }
 
-void mj_fwdAcceleration_wrapper(const MjModel& m, MjData& d)
-{
+void mj_fwdAcceleration_wrapper(const MjModel& m, MjData& d) {
   mj_fwdAcceleration(m.get(), d.get());
 }
 
-void mj_fwdConstraint_wrapper(const MjModel& m, MjData& d)
-{
+void mj_fwdConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_fwdConstraint(m.get(), d.get());
 }
 
-void mj_Euler_wrapper(const MjModel& m, MjData& d)
-{
+void mj_Euler_wrapper(const MjModel& m, MjData& d) {
   mj_Euler(m.get(), d.get());
 }
 
-void mj_RungeKutta_wrapper(const MjModel& m, MjData& d, int N)
-{
+void mj_RungeKutta_wrapper(const MjModel& m, MjData& d, int N) {
   mj_RungeKutta(m.get(), d.get(), N);
 }
 
-void mj_implicit_wrapper(const MjModel& m, MjData& d)
-{
+void mj_implicit_wrapper(const MjModel& m, MjData& d) {
   mj_implicit(m.get(), d.get());
 }
 
-void mj_invPosition_wrapper(const MjModel& m, MjData& d)
-{
+void mj_invPosition_wrapper(const MjModel& m, MjData& d) {
   mj_invPosition(m.get(), d.get());
 }
 
-void mj_invVelocity_wrapper(const MjModel& m, MjData& d)
-{
+void mj_invVelocity_wrapper(const MjModel& m, MjData& d) {
   mj_invVelocity(m.get(), d.get());
 }
 
-void mj_invConstraint_wrapper(const MjModel& m, MjData& d)
-{
+void mj_invConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_invConstraint(m.get(), d.get());
 }
 
-void mj_compareFwdInv_wrapper(const MjModel& m, MjData& d)
-{
+void mj_compareFwdInv_wrapper(const MjModel& m, MjData& d) {
   mj_compareFwdInv(m.get(), d.get());
 }
 
-void mj_sensorPos_wrapper(const MjModel& m, MjData& d)
-{
+void mj_sensorPos_wrapper(const MjModel& m, MjData& d) {
   mj_sensorPos(m.get(), d.get());
 }
 
-void mj_sensorVel_wrapper(const MjModel& m, MjData& d)
-{
+void mj_sensorVel_wrapper(const MjModel& m, MjData& d) {
   mj_sensorVel(m.get(), d.get());
 }
 
-void mj_sensorAcc_wrapper(const MjModel& m, MjData& d)
-{
+void mj_sensorAcc_wrapper(const MjModel& m, MjData& d) {
   mj_sensorAcc(m.get(), d.get());
 }
 
-void mj_energyPos_wrapper(const MjModel& m, MjData& d)
-{
+void mj_energyPos_wrapper(const MjModel& m, MjData& d) {
   mj_energyPos(m.get(), d.get());
 }
 
-void mj_energyVel_wrapper(const MjModel& m, MjData& d)
-{
+void mj_energyVel_wrapper(const MjModel& m, MjData& d) {
   mj_energyVel(m.get(), d.get());
 }
 
-void mj_checkPos_wrapper(const MjModel& m, MjData& d)
-{
+void mj_checkPos_wrapper(const MjModel& m, MjData& d) {
   mj_checkPos(m.get(), d.get());
 }
 
-void mj_checkVel_wrapper(const MjModel& m, MjData& d)
-{
+void mj_checkVel_wrapper(const MjModel& m, MjData& d) {
   mj_checkVel(m.get(), d.get());
 }
 
-void mj_checkAcc_wrapper(const MjModel& m, MjData& d)
-{
+void mj_checkAcc_wrapper(const MjModel& m, MjData& d) {
   mj_checkAcc(m.get(), d.get());
 }
 
-void mj_kinematics_wrapper(const MjModel& m, MjData& d)
-{
+void mj_kinematics_wrapper(const MjModel& m, MjData& d) {
   mj_kinematics(m.get(), d.get());
 }
 
-void mj_comPos_wrapper(const MjModel& m, MjData& d)
-{
+void mj_comPos_wrapper(const MjModel& m, MjData& d) {
   mj_comPos(m.get(), d.get());
 }
 
-void mj_camlight_wrapper(const MjModel& m, MjData& d)
-{
+void mj_camlight_wrapper(const MjModel& m, MjData& d) {
   mj_camlight(m.get(), d.get());
 }
 
-void mj_flex_wrapper(const MjModel& m, MjData& d)
-{
+void mj_flex_wrapper(const MjModel& m, MjData& d) {
   mj_flex(m.get(), d.get());
 }
 
-void mj_tendon_wrapper(const MjModel& m, MjData& d)
-{
+void mj_tendon_wrapper(const MjModel& m, MjData& d) {
   mj_tendon(m.get(), d.get());
 }
 
-void mj_transmission_wrapper(const MjModel& m, MjData& d)
-{
+void mj_transmission_wrapper(const MjModel& m, MjData& d) {
   mj_transmission(m.get(), d.get());
 }
 
-void mj_crb_wrapper(const MjModel& m, MjData& d)
-{
+void mj_crb_wrapper(const MjModel& m, MjData& d) {
   mj_crb(m.get(), d.get());
 }
 
-void mj_makeM_wrapper(const MjModel& m, MjData& d)
-{
+void mj_makeM_wrapper(const MjModel& m, MjData& d) {
   mj_makeM(m.get(), d.get());
 }
 
-void mj_factorM_wrapper(const MjModel& m, MjData& d)
-{
+void mj_factorM_wrapper(const MjModel& m, MjData& d) {
   mj_factorM(m.get(), d.get());
 }
 
-void mj_comVel_wrapper(const MjModel& m, MjData& d)
-{
+void mj_comVel_wrapper(const MjModel& m, MjData& d) {
   mj_comVel(m.get(), d.get());
 }
 
-void mj_passive_wrapper(const MjModel& m, MjData& d)
-{
+void mj_passive_wrapper(const MjModel& m, MjData& d) {
   mj_passive(m.get(), d.get());
 }
 
-void mj_subtreeVel_wrapper(const MjModel& m, MjData& d)
-{
+void mj_subtreeVel_wrapper(const MjModel& m, MjData& d) {
   mj_subtreeVel(m.get(), d.get());
 }
 
-void mj_rnePostConstraint_wrapper(const MjModel& m, MjData& d)
-{
+void mj_rnePostConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_rnePostConstraint(m.get(), d.get());
 }
 
-void mj_collision_wrapper(const MjModel& m, MjData& d)
-{
+void mj_collision_wrapper(const MjModel& m, MjData& d) {
   mj_collision(m.get(), d.get());
 }
 
-void mj_makeConstraint_wrapper(const MjModel& m, MjData& d)
-{
+void mj_makeConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_makeConstraint(m.get(), d.get());
 }
 
-void mj_island_wrapper(const MjModel& m, MjData& d)
-{
+void mj_island_wrapper(const MjModel& m, MjData& d) {
   mj_island(m.get(), d.get());
 }
 
-void mj_projectConstraint_wrapper(const MjModel& m, MjData& d)
-{
+void mj_projectConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_projectConstraint(m.get(), d.get());
 }
 
-void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d)
-{
+void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_referenceConstraint(m.get(), d.get());
 }
 
-int mj_stateSize_wrapper(const MjModel& m, unsigned int sig)
-{
+int mj_stateSize_wrapper(const MjModel& m, unsigned int sig) {
   return mj_stateSize(m.get(), sig);
 }
 
-void mj_extractState_wrapper(const MjModel& m, const NumberArray& src, unsigned int srcsig, const val& dst, unsigned int dstsig)
-{
+void mj_extractState_wrapper(const MjModel& m, const NumberArray& src, unsigned int srcsig, const val& dst, unsigned int dstsig) {
   UNPACK_ARRAY(mjtNum, src);
   UNPACK_VALUE(mjtNum, dst);
   mj_extractState(m.get(), src_.data(), srcsig, dst_.data(), dstsig);
 }
 
-void mj_setKeyframe_wrapper(MjModel& m, const MjData& d, int k)
-{
+void mj_setKeyframe_wrapper(MjModel& m, const MjData& d, int k) {
   mj_setKeyframe(m.get(), d.get(), k);
 }
 
-int mj_addContact_wrapper(const MjModel& m, MjData& d, const MjContact& con)
-{
+int mj_addContact_wrapper(const MjModel& m, MjData& d, const MjContact& con) {
   return mj_addContact(m.get(), d.get(), con.get());
 }
 
-int mj_isPyramidal_wrapper(const MjModel& m)
-{
+int mj_isPyramidal_wrapper(const MjModel& m) {
   return mj_isPyramidal(m.get());
 }
 
-int mj_isSparse_wrapper(const MjModel& m)
-{
+int mj_isSparse_wrapper(const MjModel& m) {
   return mj_isSparse(m.get());
 }
 
-int mj_isDual_wrapper(const MjModel& m)
-{
+int mj_isDual_wrapper(const MjModel& m) {
   return mj_isDual(m.get());
 }
 
-int mj_name2id_wrapper(const MjModel& m, int type, const String& name)
-{
+int mj_name2id_wrapper(const MjModel& m, int type, const String& name) {
   CHECK_VAL(name);
   return mj_name2id(m.get(), type, name.as<const std::string>().data());
 }
 
-std::string mj_id2name_wrapper(const MjModel& m, int type, int id)
-{
+std::string mj_id2name_wrapper(const MjModel& m, int type, int id) {
   return std::string(mj_id2name(m.get(), type, id));
 }
 
-void mj_objectVelocity_wrapper(const MjModel& m, const MjData& d, int objtype, int objid, const val& res, int flg_local)
-{
+void mj_objectVelocity_wrapper(const MjModel& m, const MjData& d, int objtype, int objid, const val& res, int flg_local) {
   UNPACK_VALUE(mjtNum, res);
   mj_objectVelocity(m.get(), d.get(), objtype, objid, res_.data(), flg_local);
 }
 
-void mj_objectAcceleration_wrapper(const MjModel& m, const MjData& d, int objtype, int objid, const val& res, int flg_local)
-{
+void mj_objectAcceleration_wrapper(const MjModel& m, const MjData& d, int objtype, int objid, const val& res, int flg_local) {
   UNPACK_VALUE(mjtNum, res);
   mj_objectAcceleration(m.get(), d.get(), objtype, objid, res_.data(), flg_local);
 }
 
-void mj_contactForce_wrapper(const MjModel& m, const MjData& d, int id, const val& result)
-{
+void mj_contactForce_wrapper(const MjModel& m, const MjData& d, int id, const val& result) {
   UNPACK_VALUE(mjtNum, result);
   mj_contactForce(m.get(), d.get(), id, result_.data());
 }
 
-void mj_local2Global_wrapper(MjData& d, const val& xpos, const val& xmat, const NumberArray& pos, const NumberArray& quat, int body, mjtByte sameframe)
-{
+void mj_local2Global_wrapper(MjData& d, const val& xpos, const val& xmat, const NumberArray& pos, const NumberArray& quat, int body, mjtByte sameframe) {
   UNPACK_VALUE(mjtNum, xpos);
   UNPACK_VALUE(mjtNum, xmat);
   UNPACK_ARRAY(mjtNum, pos);
@@ -10323,23 +10422,19 @@ void mj_local2Global_wrapper(MjData& d, const val& xpos, const val& xmat, const 
   mj_local2Global(d.get(), xpos_.data(), xmat_.data(), pos_.data(), quat_.data(), body, sameframe);
 }
 
-mjtNum mj_getTotalmass_wrapper(const MjModel& m)
-{
+mjtNum mj_getTotalmass_wrapper(const MjModel& m) {
   return mj_getTotalmass(m.get());
 }
 
-void mj_setTotalmass_wrapper(MjModel& m, mjtNum newmass)
-{
+void mj_setTotalmass_wrapper(MjModel& m, mjtNum newmass) {
   mj_setTotalmass(m.get(), newmass);
 }
 
-std::string mj_versionString_wrapper()
-{
+std::string mj_versionString_wrapper() {
   return std::string(mj_versionString());
 }
 
-mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid)
-{
+mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_ARRAY(mjtByte, geomgroup);
@@ -10347,22 +10442,19 @@ mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt,
   return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data());
 }
 
-mjtNum mj_rayHfield_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec)
-{
+mjtNum mj_rayHfield_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   return mj_rayHfield(m.get(), d.get(), geomid, pnt_.data(), vec_.data());
 }
 
-mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec)
-{
+mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data());
 }
 
-mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const NumberArray& size, const NumberArray& pnt, const NumberArray& vec, int geomtype)
-{
+mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const NumberArray& size, const NumberArray& pnt, const NumberArray& vec, int geomtype) {
   UNPACK_ARRAY(mjtNum, pos);
   UNPACK_ARRAY(mjtNum, mat);
   UNPACK_ARRAY(mjtNum, size);
@@ -10371,16 +10463,14 @@ mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const
   return mju_rayGeom(pos_.data(), mat_.data(), size_.data(), pnt_.data(), vec_.data(), geomtype);
 }
 
-mjtNum mju_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid)
-{
+mjtNum mju_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_VALUE(int, vertid);
   return mju_rayFlex(m.get(), d.get(), flex_layer, flg_vert, flg_edge, flg_face, flg_skin, flexid, pnt_.data(), vec_.data(), vertid_.data());
 }
 
-mjtNum mju_raySkin_wrapper(int nface, int nvert, const NumberArray& face, const NumberArray& vert, const NumberArray& pnt, const NumberArray& vec, const val& vertid)
-{
+mjtNum mju_raySkin_wrapper(int nface, int nvert, const NumberArray& face, const NumberArray& vert, const NumberArray& pnt, const NumberArray& vec, const val& vertid) {
   UNPACK_ARRAY(int, face);
   UNPACK_ARRAY(float, vert);
   UNPACK_ARRAY(mjtNum, pnt);
@@ -10389,23 +10479,19 @@ mjtNum mju_raySkin_wrapper(int nface, int nvert, const NumberArray& face, const 
   return mju_raySkin(nface, nvert, face_.data(), vert_.data(), pnt_.data(), vec_.data(), vertid_.data());
 }
 
-void mjv_defaultCamera_wrapper(MjvCamera& cam)
-{
+void mjv_defaultCamera_wrapper(MjvCamera& cam) {
   mjv_defaultCamera(cam.get());
 }
 
-void mjv_defaultFreeCamera_wrapper(const MjModel& m, MjvCamera& cam)
-{
+void mjv_defaultFreeCamera_wrapper(const MjModel& m, MjvCamera& cam) {
   mjv_defaultFreeCamera(m.get(), cam.get());
 }
 
-void mjv_defaultPerturb_wrapper(MjvPerturb& pert)
-{
+void mjv_defaultPerturb_wrapper(MjvPerturb& pert) {
   mjv_defaultPerturb(pert.get());
 }
 
-void mjv_room2model_wrapper(const val& modelpos, const val& modelquat, const NumberArray& roompos, const NumberArray& roomquat, const MjvScene& scn)
-{
+void mjv_room2model_wrapper(const val& modelpos, const val& modelquat, const NumberArray& roompos, const NumberArray& roomquat, const MjvScene& scn) {
   UNPACK_VALUE(mjtNum, modelpos);
   UNPACK_VALUE(mjtNum, modelquat);
   UNPACK_ARRAY(mjtNum, roompos);
@@ -10413,8 +10499,7 @@ void mjv_room2model_wrapper(const val& modelpos, const val& modelquat, const Num
   mjv_room2model(modelpos_.data(), modelquat_.data(), roompos_.data(), roomquat_.data(), scn.get());
 }
 
-void mjv_model2room_wrapper(const val& roompos, const val& roomquat, const NumberArray& modelpos, const NumberArray& modelquat, const MjvScene& scn)
-{
+void mjv_model2room_wrapper(const val& roompos, const val& roomquat, const NumberArray& modelpos, const NumberArray& modelquat, const MjvScene& scn) {
   UNPACK_VALUE(mjtNum, roompos);
   UNPACK_VALUE(mjtNum, roomquat);
   UNPACK_ARRAY(mjtNum, modelpos);
@@ -10422,68 +10507,57 @@ void mjv_model2room_wrapper(const val& roompos, const val& roomquat, const Numbe
   mjv_model2room(roompos_.data(), roomquat_.data(), modelpos_.data(), modelquat_.data(), scn.get());
 }
 
-void mjv_cameraInModel_wrapper(const val& headpos, const val& forward, const val& up, const MjvScene& scn)
-{
+void mjv_cameraInModel_wrapper(const val& headpos, const val& forward, const val& up, const MjvScene& scn) {
   UNPACK_VALUE(mjtNum, headpos);
   UNPACK_VALUE(mjtNum, forward);
   UNPACK_VALUE(mjtNum, up);
   mjv_cameraInModel(headpos_.data(), forward_.data(), up_.data(), scn.get());
 }
 
-void mjv_cameraInRoom_wrapper(const val& headpos, const val& forward, const val& up, const MjvScene& scn)
-{
+void mjv_cameraInRoom_wrapper(const val& headpos, const val& forward, const val& up, const MjvScene& scn) {
   UNPACK_VALUE(mjtNum, headpos);
   UNPACK_VALUE(mjtNum, forward);
   UNPACK_VALUE(mjtNum, up);
   mjv_cameraInRoom(headpos_.data(), forward_.data(), up_.data(), scn.get());
 }
 
-mjtNum mjv_frustumHeight_wrapper(const MjvScene& scn)
-{
+mjtNum mjv_frustumHeight_wrapper(const MjvScene& scn) {
   return mjv_frustumHeight(scn.get());
 }
 
-void mjv_alignToCamera_wrapper(const val& res, const NumberArray& vec, const NumberArray& forward)
-{
+void mjv_alignToCamera_wrapper(const val& res, const NumberArray& vec, const NumberArray& forward) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_ARRAY(mjtNum, forward);
   mjv_alignToCamera(res_.data(), vec_.data(), forward_.data());
 }
 
-void mjv_moveCamera_wrapper(const MjModel& m, int action, mjtNum reldx, mjtNum reldy, const MjvScene& scn, MjvCamera& cam)
-{
+void mjv_moveCamera_wrapper(const MjModel& m, int action, mjtNum reldx, mjtNum reldy, const MjvScene& scn, MjvCamera& cam) {
   mjv_moveCamera(m.get(), action, reldx, reldy, scn.get(), cam.get());
 }
 
-void mjv_movePerturb_wrapper(const MjModel& m, const MjData& d, int action, mjtNum reldx, mjtNum reldy, const MjvScene& scn, MjvPerturb& pert)
-{
+void mjv_movePerturb_wrapper(const MjModel& m, const MjData& d, int action, mjtNum reldx, mjtNum reldy, const MjvScene& scn, MjvPerturb& pert) {
   mjv_movePerturb(m.get(), d.get(), action, reldx, reldy, scn.get(), pert.get());
 }
 
-void mjv_moveModel_wrapper(const MjModel& m, int action, mjtNum reldx, mjtNum reldy, const NumberArray& roomup, MjvScene& scn)
-{
+void mjv_moveModel_wrapper(const MjModel& m, int action, mjtNum reldx, mjtNum reldy, const NumberArray& roomup, MjvScene& scn) {
   UNPACK_ARRAY(mjtNum, roomup);
   mjv_moveModel(m.get(), action, reldx, reldy, roomup_.data(), scn.get());
 }
 
-void mjv_initPerturb_wrapper(const MjModel& m, MjData& d, const MjvScene& scn, MjvPerturb& pert)
-{
+void mjv_initPerturb_wrapper(const MjModel& m, MjData& d, const MjvScene& scn, MjvPerturb& pert) {
   mjv_initPerturb(m.get(), d.get(), scn.get(), pert.get());
 }
 
-void mjv_applyPerturbPose_wrapper(const MjModel& m, MjData& d, const MjvPerturb& pert, int flg_paused)
-{
+void mjv_applyPerturbPose_wrapper(const MjModel& m, MjData& d, const MjvPerturb& pert, int flg_paused) {
   mjv_applyPerturbPose(m.get(), d.get(), pert.get(), flg_paused);
 }
 
-void mjv_applyPerturbForce_wrapper(const MjModel& m, MjData& d, const MjvPerturb& pert)
-{
+void mjv_applyPerturbForce_wrapper(const MjModel& m, MjData& d, const MjvPerturb& pert) {
   mjv_applyPerturbForce(m.get(), d.get(), pert.get());
 }
 
-int mjv_select_wrapper(const MjModel& m, const MjData& d, const MjvOption& vopt, mjtNum aspectratio, mjtNum relx, mjtNum rely, const MjvScene& scn, const val& selpnt, const val& geomid, const val& flexid, const val& skinid)
-{
+int mjv_select_wrapper(const MjModel& m, const MjData& d, const MjvOption& vopt, mjtNum aspectratio, mjtNum relx, mjtNum rely, const MjvScene& scn, const val& selpnt, const val& geomid, const val& flexid, const val& skinid) {
   UNPACK_VALUE(mjtNum, selpnt);
   UNPACK_VALUE(int, geomid);
   UNPACK_VALUE(int, flexid);
@@ -10491,18 +10565,15 @@ int mjv_select_wrapper(const MjModel& m, const MjData& d, const MjvOption& vopt,
   return mjv_select(m.get(), d.get(), vopt.get(), aspectratio, relx, rely, scn.get(), selpnt_.data(), geomid_.data(), flexid_.data(), skinid_.data());
 }
 
-void mjv_defaultOption_wrapper(MjvOption& opt)
-{
+void mjv_defaultOption_wrapper(MjvOption& opt) {
   mjv_defaultOption(opt.get());
 }
 
-void mjv_defaultFigure_wrapper(MjvFigure& fig)
-{
+void mjv_defaultFigure_wrapper(MjvFigure& fig) {
   mjv_defaultFigure(fig.get());
 }
 
-void mjv_initGeom_wrapper(MjvGeom& geom, int type, const NumberArray& size, const NumberArray& pos, const NumberArray& mat, const NumberArray& rgba)
-{
+void mjv_initGeom_wrapper(MjvGeom& geom, int type, const NumberArray& size, const NumberArray& pos, const NumberArray& mat, const NumberArray& rgba) {
   UNPACK_ARRAY(mjtNum, size);
   UNPACK_ARRAY(mjtNum, pos);
   UNPACK_ARRAY(mjtNum, mat);
@@ -10510,197 +10581,167 @@ void mjv_initGeom_wrapper(MjvGeom& geom, int type, const NumberArray& size, cons
   mjv_initGeom(geom.get(), type, size_.data(), pos_.data(), mat_.data(), rgba_.data());
 }
 
-void mjv_connector_wrapper(MjvGeom& geom, int type, mjtNum width, const NumberArray& from, const NumberArray& to)
-{
+void mjv_connector_wrapper(MjvGeom& geom, int type, mjtNum width, const NumberArray& from, const NumberArray& to) {
   UNPACK_ARRAY(mjtNum, from);
   UNPACK_ARRAY(mjtNum, to);
   mjv_connector(geom.get(), type, width, from_.data(), to_.data());
 }
 
-void mjv_updateScene_wrapper(const MjModel& m, MjData& d, const MjvOption& opt, const MjvPerturb& pert, MjvCamera& cam, int catmask, MjvScene& scn)
-{
+void mjv_updateScene_wrapper(const MjModel& m, MjData& d, const MjvOption& opt, const MjvPerturb& pert, MjvCamera& cam, int catmask, MjvScene& scn) {
   mjv_updateScene(m.get(), d.get(), opt.get(), pert.get(), cam.get(), catmask, scn.get());
 }
 
-void mjv_addGeoms_wrapper(const MjModel& m, MjData& d, const MjvOption& opt, const MjvPerturb& pert, int catmask, MjvScene& scn)
-{
+void mjv_addGeoms_wrapper(const MjModel& m, MjData& d, const MjvOption& opt, const MjvPerturb& pert, int catmask, MjvScene& scn) {
   mjv_addGeoms(m.get(), d.get(), opt.get(), pert.get(), catmask, scn.get());
 }
 
-void mjv_makeLights_wrapper(const MjModel& m, const MjData& d, MjvScene& scn)
-{
+void mjv_makeLights_wrapper(const MjModel& m, const MjData& d, MjvScene& scn) {
   mjv_makeLights(m.get(), d.get(), scn.get());
 }
 
-void mjv_updateCamera_wrapper(const MjModel& m, const MjData& d, MjvCamera& cam, MjvScene& scn)
-{
+void mjv_updateCamera_wrapper(const MjModel& m, const MjData& d, MjvCamera& cam, MjvScene& scn) {
   mjv_updateCamera(m.get(), d.get(), cam.get(), scn.get());
 }
 
-void mjv_updateSkin_wrapper(const MjModel& m, const MjData& d, MjvScene& scn)
-{
+void mjv_updateSkin_wrapper(const MjModel& m, const MjData& d, MjvScene& scn) {
   mjv_updateSkin(m.get(), d.get(), scn.get());
 }
 
-void mju_writeLog_wrapper(const String& type, const String& msg)
-{
+void mju_writeLog_wrapper(const String& type, const String& msg) {
   CHECK_VAL(type);
   CHECK_VAL(msg);
   mju_writeLog(type.as<const std::string>().data(), msg.as<const std::string>().data());
 }
 
-std::string mjs_getError_wrapper(MjSpec& s)
-{
+std::string mjs_getError_wrapper(MjSpec& s) {
   return std::string(mjs_getError(s.get()));
 }
 
-int mjs_isWarning_wrapper(MjSpec& s)
-{
+int mjs_isWarning_wrapper(MjSpec& s) {
   return mjs_isWarning(s.get());
 }
 
-void mju_zero3_wrapper(const val& res)
-{
+void mju_zero3_wrapper(const val& res) {
   UNPACK_VALUE(mjtNum, res);
   mju_zero3(res_.data());
 }
 
-void mju_copy3_wrapper(const val& res, const NumberArray& data)
-{
+void mju_copy3_wrapper(const val& res, const NumberArray& data) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, data);
   mju_copy3(res_.data(), data_.data());
 }
 
-void mju_scl3_wrapper(const val& res, const NumberArray& vec, mjtNum scl)
-{
+void mju_scl3_wrapper(const val& res, const NumberArray& vec, mjtNum scl) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   mju_scl3(res_.data(), vec_.data(), scl);
 }
 
-void mju_add3_wrapper(const val& res, const NumberArray& vec1, const NumberArray& vec2)
-{
+void mju_add3_wrapper(const val& res, const NumberArray& vec1, const NumberArray& vec2) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec1);
   UNPACK_ARRAY(mjtNum, vec2);
   mju_add3(res_.data(), vec1_.data(), vec2_.data());
 }
 
-void mju_sub3_wrapper(const val& res, const NumberArray& vec1, const NumberArray& vec2)
-{
+void mju_sub3_wrapper(const val& res, const NumberArray& vec1, const NumberArray& vec2) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec1);
   UNPACK_ARRAY(mjtNum, vec2);
   mju_sub3(res_.data(), vec1_.data(), vec2_.data());
 }
 
-void mju_addTo3_wrapper(const val& res, const NumberArray& vec)
-{
+void mju_addTo3_wrapper(const val& res, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   mju_addTo3(res_.data(), vec_.data());
 }
 
-void mju_subFrom3_wrapper(const val& res, const NumberArray& vec)
-{
+void mju_subFrom3_wrapper(const val& res, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   mju_subFrom3(res_.data(), vec_.data());
 }
 
-void mju_addToScl3_wrapper(const val& res, const NumberArray& vec, mjtNum scl)
-{
+void mju_addToScl3_wrapper(const val& res, const NumberArray& vec, mjtNum scl) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   mju_addToScl3(res_.data(), vec_.data(), scl);
 }
 
-void mju_addScl3_wrapper(const val& res, const NumberArray& vec1, const NumberArray& vec2, mjtNum scl)
-{
+void mju_addScl3_wrapper(const val& res, const NumberArray& vec1, const NumberArray& vec2, mjtNum scl) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec1);
   UNPACK_ARRAY(mjtNum, vec2);
   mju_addScl3(res_.data(), vec1_.data(), vec2_.data(), scl);
 }
 
-mjtNum mju_normalize3_wrapper(const val& vec)
-{
+mjtNum mju_normalize3_wrapper(const val& vec) {
   UNPACK_VALUE(mjtNum, vec);
   return mju_normalize3(vec_.data());
 }
 
-mjtNum mju_norm3_wrapper(const NumberArray& vec)
-{
+mjtNum mju_norm3_wrapper(const NumberArray& vec) {
   UNPACK_ARRAY(mjtNum, vec);
   return mju_norm3(vec_.data());
 }
 
-mjtNum mju_dot3_wrapper(const NumberArray& vec1, const NumberArray& vec2)
-{
+mjtNum mju_dot3_wrapper(const NumberArray& vec1, const NumberArray& vec2) {
   UNPACK_ARRAY(mjtNum, vec1);
   UNPACK_ARRAY(mjtNum, vec2);
   return mju_dot3(vec1_.data(), vec2_.data());
 }
 
-mjtNum mju_dist3_wrapper(const NumberArray& pos1, const NumberArray& pos2)
-{
+mjtNum mju_dist3_wrapper(const NumberArray& pos1, const NumberArray& pos2) {
   UNPACK_ARRAY(mjtNum, pos1);
   UNPACK_ARRAY(mjtNum, pos2);
   return mju_dist3(pos1_.data(), pos2_.data());
 }
 
-void mju_mulMatVec3_wrapper(const val& res, const NumberArray& mat, const NumberArray& vec)
-{
+void mju_mulMatVec3_wrapper(const val& res, const NumberArray& mat, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, mat);
   UNPACK_ARRAY(mjtNum, vec);
   mju_mulMatVec3(res_.data(), mat_.data(), vec_.data());
 }
 
-void mju_mulMatTVec3_wrapper(const val& res, const NumberArray& mat, const NumberArray& vec)
-{
+void mju_mulMatTVec3_wrapper(const val& res, const NumberArray& mat, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, mat);
   UNPACK_ARRAY(mjtNum, vec);
   mju_mulMatTVec3(res_.data(), mat_.data(), vec_.data());
 }
 
-void mju_cross_wrapper(const val& res, const NumberArray& a, const NumberArray& b)
-{
+void mju_cross_wrapper(const val& res, const NumberArray& a, const NumberArray& b) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, a);
   UNPACK_ARRAY(mjtNum, b);
   mju_cross(res_.data(), a_.data(), b_.data());
 }
 
-void mju_zero4_wrapper(const val& res)
-{
+void mju_zero4_wrapper(const val& res) {
   UNPACK_VALUE(mjtNum, res);
   mju_zero4(res_.data());
 }
 
-void mju_unit4_wrapper(const val& res)
-{
+void mju_unit4_wrapper(const val& res) {
   UNPACK_VALUE(mjtNum, res);
   mju_unit4(res_.data());
 }
 
-void mju_copy4_wrapper(const val& res, const NumberArray& data)
-{
+void mju_copy4_wrapper(const val& res, const NumberArray& data) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, data);
   mju_copy4(res_.data(), data_.data());
 }
 
-mjtNum mju_normalize4_wrapper(const val& vec)
-{
+mjtNum mju_normalize4_wrapper(const val& vec) {
   UNPACK_VALUE(mjtNum, vec);
   return mju_normalize4(vec_.data());
 }
 
-void mju_transformSpatial_wrapper(const val& res, const NumberArray& vec, int flg_force, const NumberArray& newpos, const NumberArray& oldpos, const NumberArray& rotnew2old)
-{
+void mju_transformSpatial_wrapper(const val& res, const NumberArray& vec, int flg_force, const NumberArray& newpos, const NumberArray& oldpos, const NumberArray& rotnew2old) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_ARRAY(mjtNum, newpos);
@@ -10709,112 +10750,97 @@ void mju_transformSpatial_wrapper(const val& res, const NumberArray& vec, int fl
   mju_transformSpatial(res_.data(), vec_.data(), flg_force, newpos_.data(), oldpos_.data(), rotnew2old_.data());
 }
 
-void mju_rotVecQuat_wrapper(const val& res, const NumberArray& vec, const NumberArray& quat)
-{
+void mju_rotVecQuat_wrapper(const val& res, const NumberArray& vec, const NumberArray& quat) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_ARRAY(mjtNum, quat);
   mju_rotVecQuat(res_.data(), vec_.data(), quat_.data());
 }
 
-void mju_negQuat_wrapper(const val& res, const NumberArray& quat)
-{
+void mju_negQuat_wrapper(const val& res, const NumberArray& quat) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
   mju_negQuat(res_.data(), quat_.data());
 }
 
-void mju_mulQuat_wrapper(const val& res, const NumberArray& quat1, const NumberArray& quat2)
-{
+void mju_mulQuat_wrapper(const val& res, const NumberArray& quat1, const NumberArray& quat2) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat1);
   UNPACK_ARRAY(mjtNum, quat2);
   mju_mulQuat(res_.data(), quat1_.data(), quat2_.data());
 }
 
-void mju_mulQuatAxis_wrapper(const val& res, const NumberArray& quat, const NumberArray& axis)
-{
+void mju_mulQuatAxis_wrapper(const val& res, const NumberArray& quat, const NumberArray& axis) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, axis);
   mju_mulQuatAxis(res_.data(), quat_.data(), axis_.data());
 }
 
-void mju_axisAngle2Quat_wrapper(const val& res, const NumberArray& axis, mjtNum angle)
-{
+void mju_axisAngle2Quat_wrapper(const val& res, const NumberArray& axis, mjtNum angle) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, axis);
   mju_axisAngle2Quat(res_.data(), axis_.data(), angle);
 }
 
-void mju_quat2Vel_wrapper(const val& res, const NumberArray& quat, mjtNum dt)
-{
+void mju_quat2Vel_wrapper(const val& res, const NumberArray& quat, mjtNum dt) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
   mju_quat2Vel(res_.data(), quat_.data(), dt);
 }
 
-void mju_subQuat_wrapper(const val& res, const NumberArray& qa, const NumberArray& qb)
-{
+void mju_subQuat_wrapper(const val& res, const NumberArray& qa, const NumberArray& qb) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, qa);
   UNPACK_ARRAY(mjtNum, qb);
   mju_subQuat(res_.data(), qa_.data(), qb_.data());
 }
 
-void mju_quat2Mat_wrapper(const val& res, const NumberArray& quat)
-{
+void mju_quat2Mat_wrapper(const val& res, const NumberArray& quat) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
   mju_quat2Mat(res_.data(), quat_.data());
 }
 
-void mju_mat2Quat_wrapper(const val& quat, const NumberArray& mat)
-{
+void mju_mat2Quat_wrapper(const val& quat, const NumberArray& mat) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, mat);
   mju_mat2Quat(quat_.data(), mat_.data());
 }
 
-void mju_derivQuat_wrapper(const val& res, const NumberArray& quat, const NumberArray& vel)
-{
+void mju_derivQuat_wrapper(const val& res, const NumberArray& quat, const NumberArray& vel) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, vel);
   mju_derivQuat(res_.data(), quat_.data(), vel_.data());
 }
 
-void mju_quatIntegrate_wrapper(const val& quat, const NumberArray& vel, mjtNum scale)
-{
+void mju_quatIntegrate_wrapper(const val& quat, const NumberArray& vel, mjtNum scale) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, vel);
   mju_quatIntegrate(quat_.data(), vel_.data(), scale);
 }
 
-void mju_quatZ2Vec_wrapper(const val& quat, const NumberArray& vec)
-{
+void mju_quatZ2Vec_wrapper(const val& quat, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, vec);
   mju_quatZ2Vec(quat_.data(), vec_.data());
 }
 
-int mju_mat2Rot_wrapper(const val& quat, const NumberArray& mat)
-{
+int mju_mat2Rot_wrapper(const val& quat, const NumberArray& mat) {
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, mat);
   return mju_mat2Rot(quat_.data(), mat_.data());
 }
 
-void mju_euler2Quat_wrapper(const val& quat, const NumberArray& euler, const String& seq)
-{
+void mju_euler2Quat_wrapper(const val& quat, const NumberArray& euler, const String& seq) {
   CHECK_VAL(seq);
   UNPACK_VALUE(mjtNum, quat);
   UNPACK_ARRAY(mjtNum, euler);
   mju_euler2Quat(quat_.data(), euler_.data(), seq.as<const std::string>().data());
 }
 
-void mju_mulPose_wrapper(const val& posres, const val& quatres, const NumberArray& pos1, const NumberArray& quat1, const NumberArray& pos2, const NumberArray& quat2)
-{
+void mju_mulPose_wrapper(const val& posres, const val& quatres, const NumberArray& pos1, const NumberArray& quat1, const NumberArray& pos2, const NumberArray& quat2) {
   UNPACK_VALUE(mjtNum, posres);
   UNPACK_VALUE(mjtNum, quatres);
   UNPACK_ARRAY(mjtNum, pos1);
@@ -10824,8 +10850,7 @@ void mju_mulPose_wrapper(const val& posres, const val& quatres, const NumberArra
   mju_mulPose(posres_.data(), quatres_.data(), pos1_.data(), quat1_.data(), pos2_.data(), quat2_.data());
 }
 
-void mju_negPose_wrapper(const val& posres, const val& quatres, const NumberArray& pos, const NumberArray& quat)
-{
+void mju_negPose_wrapper(const val& posres, const val& quatres, const NumberArray& pos, const NumberArray& quat) {
   UNPACK_VALUE(mjtNum, posres);
   UNPACK_VALUE(mjtNum, quatres);
   UNPACK_ARRAY(mjtNum, pos);
@@ -10833,8 +10858,7 @@ void mju_negPose_wrapper(const val& posres, const val& quatres, const NumberArra
   mju_negPose(posres_.data(), quatres_.data(), pos_.data(), quat_.data());
 }
 
-void mju_trnVecPose_wrapper(const val& res, const NumberArray& pos, const NumberArray& quat, const NumberArray& vec)
-{
+void mju_trnVecPose_wrapper(const val& res, const NumberArray& pos, const NumberArray& quat, const NumberArray& vec) {
   UNPACK_VALUE(mjtNum, res);
   UNPACK_ARRAY(mjtNum, pos);
   UNPACK_ARRAY(mjtNum, quat);
@@ -10842,8 +10866,7 @@ void mju_trnVecPose_wrapper(const val& res, const NumberArray& pos, const Number
   mju_trnVecPose(res_.data(), pos_.data(), quat_.data(), vec_.data());
 }
 
-int mju_eig3_wrapper(const val& eigval, const val& eigvec, const val& quat, const NumberArray& mat)
-{
+int mju_eig3_wrapper(const val& eigval, const val& eigvec, const val& quat, const NumberArray& mat) {
   UNPACK_VALUE(mjtNum, eigval);
   UNPACK_VALUE(mjtNum, eigvec);
   UNPACK_VALUE(mjtNum, quat);
@@ -10851,55 +10874,46 @@ int mju_eig3_wrapper(const val& eigval, const val& eigvec, const val& quat, cons
   return mju_eig3(eigval_.data(), eigvec_.data(), quat_.data(), mat_.data());
 }
 
-mjtNum mju_muscleGain_wrapper(mjtNum len, mjtNum vel, const NumberArray& lengthrange, mjtNum acc0, const NumberArray& prm)
-{
+mjtNum mju_muscleGain_wrapper(mjtNum len, mjtNum vel, const NumberArray& lengthrange, mjtNum acc0, const NumberArray& prm) {
   UNPACK_ARRAY(mjtNum, lengthrange);
   UNPACK_ARRAY(mjtNum, prm);
   return mju_muscleGain(len, vel, lengthrange_.data(), acc0, prm_.data());
 }
 
-mjtNum mju_muscleBias_wrapper(mjtNum len, const NumberArray& lengthrange, mjtNum acc0, const NumberArray& prm)
-{
+mjtNum mju_muscleBias_wrapper(mjtNum len, const NumberArray& lengthrange, mjtNum acc0, const NumberArray& prm) {
   UNPACK_ARRAY(mjtNum, lengthrange);
   UNPACK_ARRAY(mjtNum, prm);
   return mju_muscleBias(len, lengthrange_.data(), acc0, prm_.data());
 }
 
-mjtNum mju_muscleDynamics_wrapper(mjtNum ctrl, mjtNum act, const NumberArray& prm)
-{
+mjtNum mju_muscleDynamics_wrapper(mjtNum ctrl, mjtNum act, const NumberArray& prm) {
   UNPACK_ARRAY(mjtNum, prm);
   return mju_muscleDynamics(ctrl, act, prm_.data());
 }
 
-std::string mju_type2Str_wrapper(int type)
-{
+std::string mju_type2Str_wrapper(int type) {
   return std::string(mju_type2Str(type));
 }
 
-int mju_str2Type_wrapper(const String& str)
-{
+int mju_str2Type_wrapper(const String& str) {
   CHECK_VAL(str);
   return mju_str2Type(str.as<const std::string>().data());
 }
 
-std::string mju_writeNumBytes_wrapper(size_t nbytes)
-{
+std::string mju_writeNumBytes_wrapper(size_t nbytes) {
   return std::string(mju_writeNumBytes(nbytes));
 }
 
-std::string mju_warningText_wrapper(int warning, size_t info)
-{
+std::string mju_warningText_wrapper(int warning, size_t info) {
   return std::string(mju_warningText(warning, info));
 }
 
-mjtNum mju_standardNormal_wrapper(const val& num2)
-{
+mjtNum mju_standardNormal_wrapper(const val& num2) {
   UNPACK_VALUE(mjtNum, num2);
   return mju_standardNormal(num2_.data());
 }
 
-void mjd_quatIntegrate_wrapper(const NumberArray& vel, mjtNum scale, const val& Dquat, const val& Dvel, const val& Dscale)
-{
+void mjd_quatIntegrate_wrapper(const NumberArray& vel, mjtNum scale, const val& Dquat, const val& Dvel, const val& Dscale) {
   UNPACK_ARRAY(mjtNum, vel);
   UNPACK_VALUE(mjtNum, Dquat);
   UNPACK_VALUE(mjtNum, Dvel);
@@ -10907,8 +10921,7 @@ void mjd_quatIntegrate_wrapper(const NumberArray& vel, mjtNum scale, const val& 
   mjd_quatIntegrate(vel_.data(), scale, Dquat_.data(), Dvel_.data(), Dscale_.data());
 }
 
-std::optional<MjsElement> mjs_attach_wrapper(MjsElement& parent, const MjsElement& child, const String& prefix, const String& suffix)
-{
+std::optional<MjsElement> mjs_attach_wrapper(MjsElement& parent, const MjsElement& child, const String& prefix, const String& suffix) {
   CHECK_VAL(prefix);
   CHECK_VAL(suffix);
   mjsElement* result = mjs_attach(parent.get(), child.get(), prefix.as<const std::string>().data(), suffix.as<const std::string>().data());
@@ -10918,8 +10931,7 @@ std::optional<MjsElement> mjs_attach_wrapper(MjsElement& parent, const MjsElemen
   return MjsElement(result);
 }
 
-std::optional<MjsBody> mjs_addBody_wrapper(MjsBody& body, const MjsDefault& def)
-{
+std::optional<MjsBody> mjs_addBody_wrapper(MjsBody& body, const MjsDefault& def) {
   mjsBody* result = mjs_addBody(body.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -10927,8 +10939,7 @@ std::optional<MjsBody> mjs_addBody_wrapper(MjsBody& body, const MjsDefault& def)
   return MjsBody(result);
 }
 
-std::optional<MjsSite> mjs_addSite_wrapper(MjsBody& body, const MjsDefault& def)
-{
+std::optional<MjsSite> mjs_addSite_wrapper(MjsBody& body, const MjsDefault& def) {
   mjsSite* result = mjs_addSite(body.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -10936,8 +10947,7 @@ std::optional<MjsSite> mjs_addSite_wrapper(MjsBody& body, const MjsDefault& def)
   return MjsSite(result);
 }
 
-std::optional<MjsJoint> mjs_addJoint_wrapper(MjsBody& body, const MjsDefault& def)
-{
+std::optional<MjsJoint> mjs_addJoint_wrapper(MjsBody& body, const MjsDefault& def) {
   mjsJoint* result = mjs_addJoint(body.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -10945,8 +10955,7 @@ std::optional<MjsJoint> mjs_addJoint_wrapper(MjsBody& body, const MjsDefault& de
   return MjsJoint(result);
 }
 
-std::optional<MjsJoint> mjs_addFreeJoint_wrapper(MjsBody& body)
-{
+std::optional<MjsJoint> mjs_addFreeJoint_wrapper(MjsBody& body) {
   mjsJoint* result = mjs_addFreeJoint(body.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -10954,8 +10963,7 @@ std::optional<MjsJoint> mjs_addFreeJoint_wrapper(MjsBody& body)
   return MjsJoint(result);
 }
 
-std::optional<MjsGeom> mjs_addGeom_wrapper(MjsBody& body, const MjsDefault& def)
-{
+std::optional<MjsGeom> mjs_addGeom_wrapper(MjsBody& body, const MjsDefault& def) {
   mjsGeom* result = mjs_addGeom(body.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -10963,8 +10971,7 @@ std::optional<MjsGeom> mjs_addGeom_wrapper(MjsBody& body, const MjsDefault& def)
   return MjsGeom(result);
 }
 
-std::optional<MjsCamera> mjs_addCamera_wrapper(MjsBody& body, const MjsDefault& def)
-{
+std::optional<MjsCamera> mjs_addCamera_wrapper(MjsBody& body, const MjsDefault& def) {
   mjsCamera* result = mjs_addCamera(body.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -10972,8 +10979,7 @@ std::optional<MjsCamera> mjs_addCamera_wrapper(MjsBody& body, const MjsDefault& 
   return MjsCamera(result);
 }
 
-std::optional<MjsLight> mjs_addLight_wrapper(MjsBody& body, const MjsDefault& def)
-{
+std::optional<MjsLight> mjs_addLight_wrapper(MjsBody& body, const MjsDefault& def) {
   mjsLight* result = mjs_addLight(body.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -10981,8 +10987,7 @@ std::optional<MjsLight> mjs_addLight_wrapper(MjsBody& body, const MjsDefault& de
   return MjsLight(result);
 }
 
-std::optional<MjsFrame> mjs_addFrame_wrapper(MjsBody& body, MjsFrame& parentframe)
-{
+std::optional<MjsFrame> mjs_addFrame_wrapper(MjsBody& body, MjsFrame& parentframe) {
   mjsFrame* result = mjs_addFrame(body.get(), parentframe.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -10990,13 +10995,11 @@ std::optional<MjsFrame> mjs_addFrame_wrapper(MjsBody& body, MjsFrame& parentfram
   return MjsFrame(result);
 }
 
-int mjs_delete_wrapper(MjSpec& spec, MjsElement& element)
-{
+int mjs_delete_wrapper(MjSpec& spec, MjsElement& element) {
   return mjs_delete(spec.get(), element.get());
 }
 
-std::optional<MjsActuator> mjs_addActuator_wrapper(MjSpec& s, const MjsDefault& def)
-{
+std::optional<MjsActuator> mjs_addActuator_wrapper(MjSpec& s, const MjsDefault& def) {
   mjsActuator* result = mjs_addActuator(s.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11004,8 +11007,7 @@ std::optional<MjsActuator> mjs_addActuator_wrapper(MjSpec& s, const MjsDefault& 
   return MjsActuator(result);
 }
 
-std::optional<MjsSensor> mjs_addSensor_wrapper(MjSpec& s)
-{
+std::optional<MjsSensor> mjs_addSensor_wrapper(MjSpec& s) {
   mjsSensor* result = mjs_addSensor(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11013,8 +11015,7 @@ std::optional<MjsSensor> mjs_addSensor_wrapper(MjSpec& s)
   return MjsSensor(result);
 }
 
-std::optional<MjsFlex> mjs_addFlex_wrapper(MjSpec& s)
-{
+std::optional<MjsFlex> mjs_addFlex_wrapper(MjSpec& s) {
   mjsFlex* result = mjs_addFlex(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11022,8 +11023,7 @@ std::optional<MjsFlex> mjs_addFlex_wrapper(MjSpec& s)
   return MjsFlex(result);
 }
 
-std::optional<MjsPair> mjs_addPair_wrapper(MjSpec& s, const MjsDefault& def)
-{
+std::optional<MjsPair> mjs_addPair_wrapper(MjSpec& s, const MjsDefault& def) {
   mjsPair* result = mjs_addPair(s.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11031,8 +11031,7 @@ std::optional<MjsPair> mjs_addPair_wrapper(MjSpec& s, const MjsDefault& def)
   return MjsPair(result);
 }
 
-std::optional<MjsExclude> mjs_addExclude_wrapper(MjSpec& s)
-{
+std::optional<MjsExclude> mjs_addExclude_wrapper(MjSpec& s) {
   mjsExclude* result = mjs_addExclude(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11040,8 +11039,7 @@ std::optional<MjsExclude> mjs_addExclude_wrapper(MjSpec& s)
   return MjsExclude(result);
 }
 
-std::optional<MjsEquality> mjs_addEquality_wrapper(MjSpec& s, const MjsDefault& def)
-{
+std::optional<MjsEquality> mjs_addEquality_wrapper(MjSpec& s, const MjsDefault& def) {
   mjsEquality* result = mjs_addEquality(s.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11049,8 +11047,7 @@ std::optional<MjsEquality> mjs_addEquality_wrapper(MjSpec& s, const MjsDefault& 
   return MjsEquality(result);
 }
 
-std::optional<MjsTendon> mjs_addTendon_wrapper(MjSpec& s, const MjsDefault& def)
-{
+std::optional<MjsTendon> mjs_addTendon_wrapper(MjSpec& s, const MjsDefault& def) {
   mjsTendon* result = mjs_addTendon(s.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11058,8 +11055,7 @@ std::optional<MjsTendon> mjs_addTendon_wrapper(MjSpec& s, const MjsDefault& def)
   return MjsTendon(result);
 }
 
-std::optional<MjsWrap> mjs_wrapSite_wrapper(MjsTendon& tendon, const String& name)
-{
+std::optional<MjsWrap> mjs_wrapSite_wrapper(MjsTendon& tendon, const String& name) {
   CHECK_VAL(name);
   mjsWrap* result = mjs_wrapSite(tendon.get(), name.as<const std::string>().data());
   if (result == nullptr) {
@@ -11068,8 +11064,7 @@ std::optional<MjsWrap> mjs_wrapSite_wrapper(MjsTendon& tendon, const String& nam
   return MjsWrap(result);
 }
 
-std::optional<MjsWrap> mjs_wrapGeom_wrapper(MjsTendon& tendon, const String& name, const String& sidesite)
-{
+std::optional<MjsWrap> mjs_wrapGeom_wrapper(MjsTendon& tendon, const String& name, const String& sidesite) {
   CHECK_VAL(name);
   CHECK_VAL(sidesite);
   mjsWrap* result = mjs_wrapGeom(tendon.get(), name.as<const std::string>().data(), sidesite.as<const std::string>().data());
@@ -11079,8 +11074,7 @@ std::optional<MjsWrap> mjs_wrapGeom_wrapper(MjsTendon& tendon, const String& nam
   return MjsWrap(result);
 }
 
-std::optional<MjsWrap> mjs_wrapJoint_wrapper(MjsTendon& tendon, const String& name, double coef)
-{
+std::optional<MjsWrap> mjs_wrapJoint_wrapper(MjsTendon& tendon, const String& name, double coef) {
   CHECK_VAL(name);
   mjsWrap* result = mjs_wrapJoint(tendon.get(), name.as<const std::string>().data(), coef);
   if (result == nullptr) {
@@ -11089,8 +11083,7 @@ std::optional<MjsWrap> mjs_wrapJoint_wrapper(MjsTendon& tendon, const String& na
   return MjsWrap(result);
 }
 
-std::optional<MjsWrap> mjs_wrapPulley_wrapper(MjsTendon& tendon, double divisor)
-{
+std::optional<MjsWrap> mjs_wrapPulley_wrapper(MjsTendon& tendon, double divisor) {
   mjsWrap* result = mjs_wrapPulley(tendon.get(), divisor);
   if (result == nullptr) {
     return std::nullopt;
@@ -11098,8 +11091,7 @@ std::optional<MjsWrap> mjs_wrapPulley_wrapper(MjsTendon& tendon, double divisor)
   return MjsWrap(result);
 }
 
-std::optional<MjsNumeric> mjs_addNumeric_wrapper(MjSpec& s)
-{
+std::optional<MjsNumeric> mjs_addNumeric_wrapper(MjSpec& s) {
   mjsNumeric* result = mjs_addNumeric(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11107,8 +11099,7 @@ std::optional<MjsNumeric> mjs_addNumeric_wrapper(MjSpec& s)
   return MjsNumeric(result);
 }
 
-std::optional<MjsText> mjs_addText_wrapper(MjSpec& s)
-{
+std::optional<MjsText> mjs_addText_wrapper(MjSpec& s) {
   mjsText* result = mjs_addText(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11116,8 +11107,7 @@ std::optional<MjsText> mjs_addText_wrapper(MjSpec& s)
   return MjsText(result);
 }
 
-std::optional<MjsTuple> mjs_addTuple_wrapper(MjSpec& s)
-{
+std::optional<MjsTuple> mjs_addTuple_wrapper(MjSpec& s) {
   mjsTuple* result = mjs_addTuple(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11125,8 +11115,7 @@ std::optional<MjsTuple> mjs_addTuple_wrapper(MjSpec& s)
   return MjsTuple(result);
 }
 
-std::optional<MjsKey> mjs_addKey_wrapper(MjSpec& s)
-{
+std::optional<MjsKey> mjs_addKey_wrapper(MjSpec& s) {
   mjsKey* result = mjs_addKey(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11134,8 +11123,7 @@ std::optional<MjsKey> mjs_addKey_wrapper(MjSpec& s)
   return MjsKey(result);
 }
 
-std::optional<MjsPlugin> mjs_addPlugin_wrapper(MjSpec& s)
-{
+std::optional<MjsPlugin> mjs_addPlugin_wrapper(MjSpec& s) {
   mjsPlugin* result = mjs_addPlugin(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11143,8 +11131,7 @@ std::optional<MjsPlugin> mjs_addPlugin_wrapper(MjSpec& s)
   return MjsPlugin(result);
 }
 
-std::optional<MjsDefault> mjs_addDefault_wrapper(MjSpec& s, const String& classname, const MjsDefault& parent)
-{
+std::optional<MjsDefault> mjs_addDefault_wrapper(MjSpec& s, const String& classname, const MjsDefault& parent) {
   CHECK_VAL(classname);
   mjsDefault* result = mjs_addDefault(s.get(), classname.as<const std::string>().data(), parent.get());
   if (result == nullptr) {
@@ -11153,56 +11140,47 @@ std::optional<MjsDefault> mjs_addDefault_wrapper(MjSpec& s, const String& classn
   return MjsDefault(result);
 }
 
-std::string mjs_setToMotor_wrapper(MjsActuator& actuator)
-{
+std::string mjs_setToMotor_wrapper(MjsActuator& actuator) {
   return std::string(mjs_setToMotor(actuator.get()));
 }
 
-std::string mjs_setToPosition_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& timeconst, double inheritrange)
-{
+std::string mjs_setToPosition_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& timeconst, double inheritrange) {
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
   UNPACK_VALUE(double, timeconst);
   return std::string(mjs_setToPosition(actuator.get(), kp, kv_.data(), dampratio_.data(), timeconst_.data(), inheritrange));
 }
 
-std::string mjs_setToIntVelocity_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& timeconst, double inheritrange)
-{
+std::string mjs_setToIntVelocity_wrapper(MjsActuator& actuator, double kp, const val& kv, const val& dampratio, const val& timeconst, double inheritrange) {
   UNPACK_VALUE(double, kv);
   UNPACK_VALUE(double, dampratio);
   UNPACK_VALUE(double, timeconst);
   return std::string(mjs_setToIntVelocity(actuator.get(), kp, kv_.data(), dampratio_.data(), timeconst_.data(), inheritrange));
 }
 
-std::string mjs_setToVelocity_wrapper(MjsActuator& actuator, double kv)
-{
+std::string mjs_setToVelocity_wrapper(MjsActuator& actuator, double kv) {
   return std::string(mjs_setToVelocity(actuator.get(), kv));
 }
 
-std::string mjs_setToDamper_wrapper(MjsActuator& actuator, double kv)
-{
+std::string mjs_setToDamper_wrapper(MjsActuator& actuator, double kv) {
   return std::string(mjs_setToDamper(actuator.get(), kv));
 }
 
-std::string mjs_setToCylinder_wrapper(MjsActuator& actuator, double timeconst, double bias, double area, double diameter)
-{
+std::string mjs_setToCylinder_wrapper(MjsActuator& actuator, double timeconst, double bias, double area, double diameter) {
   return std::string(mjs_setToCylinder(actuator.get(), timeconst, bias, area, diameter));
 }
 
-std::string mjs_setToMuscle_wrapper(MjsActuator& actuator, const val& timeconst, double tausmooth, const val& range, double force, double scale, double lmin, double lmax, double vmax, double fpmax, double fvmax)
-{
+std::string mjs_setToMuscle_wrapper(MjsActuator& actuator, const val& timeconst, double tausmooth, const val& range, double force, double scale, double lmin, double lmax, double vmax, double fpmax, double fvmax) {
   UNPACK_VALUE(double, timeconst);
   UNPACK_VALUE(double, range);
   return std::string(mjs_setToMuscle(actuator.get(), timeconst_.data(), tausmooth, range_.data(), force, scale, lmin, lmax, vmax, fpmax, fvmax));
 }
 
-std::string mjs_setToAdhesion_wrapper(MjsActuator& actuator, double gain)
-{
+std::string mjs_setToAdhesion_wrapper(MjsActuator& actuator, double gain) {
   return std::string(mjs_setToAdhesion(actuator.get(), gain));
 }
 
-std::optional<MjsMesh> mjs_addMesh_wrapper(MjSpec& s, const MjsDefault& def)
-{
+std::optional<MjsMesh> mjs_addMesh_wrapper(MjSpec& s, const MjsDefault& def) {
   mjsMesh* result = mjs_addMesh(s.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11210,8 +11188,7 @@ std::optional<MjsMesh> mjs_addMesh_wrapper(MjSpec& s, const MjsDefault& def)
   return MjsMesh(result);
 }
 
-std::optional<MjsHField> mjs_addHField_wrapper(MjSpec& s)
-{
+std::optional<MjsHField> mjs_addHField_wrapper(MjSpec& s) {
   mjsHField* result = mjs_addHField(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11219,8 +11196,7 @@ std::optional<MjsHField> mjs_addHField_wrapper(MjSpec& s)
   return MjsHField(result);
 }
 
-std::optional<MjsSkin> mjs_addSkin_wrapper(MjSpec& s)
-{
+std::optional<MjsSkin> mjs_addSkin_wrapper(MjSpec& s) {
   mjsSkin* result = mjs_addSkin(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11228,8 +11204,7 @@ std::optional<MjsSkin> mjs_addSkin_wrapper(MjSpec& s)
   return MjsSkin(result);
 }
 
-std::optional<MjsTexture> mjs_addTexture_wrapper(MjSpec& s)
-{
+std::optional<MjsTexture> mjs_addTexture_wrapper(MjSpec& s) {
   mjsTexture* result = mjs_addTexture(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11237,8 +11212,7 @@ std::optional<MjsTexture> mjs_addTexture_wrapper(MjSpec& s)
   return MjsTexture(result);
 }
 
-std::optional<MjsMaterial> mjs_addMaterial_wrapper(MjSpec& s, const MjsDefault& def)
-{
+std::optional<MjsMaterial> mjs_addMaterial_wrapper(MjSpec& s, const MjsDefault& def) {
   mjsMaterial* result = mjs_addMaterial(s.get(), def.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11246,14 +11220,12 @@ std::optional<MjsMaterial> mjs_addMaterial_wrapper(MjSpec& s, const MjsDefault& 
   return MjsMaterial(result);
 }
 
-int mjs_makeMesh_wrapper(MjsMesh& mesh, mjtMeshBuiltin builtin, const val& params, int nparams)
-{
+int mjs_makeMesh_wrapper(MjsMesh& mesh, mjtMeshBuiltin builtin, const val& params, int nparams) {
   UNPACK_VALUE(double, params);
   return mjs_makeMesh(mesh.get(), builtin, params_.data(), nparams);
 }
 
-std::optional<MjSpec> mjs_getSpec_wrapper(MjsElement& element)
-{
+std::optional<MjSpec> mjs_getSpec_wrapper(MjsElement& element) {
   mjSpec* result = mjs_getSpec(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11261,8 +11233,7 @@ std::optional<MjSpec> mjs_getSpec_wrapper(MjsElement& element)
   return MjSpec(result);
 }
 
-std::optional<MjSpec> mjs_findSpec_wrapper(MjSpec& spec, const String& name)
-{
+std::optional<MjSpec> mjs_findSpec_wrapper(MjSpec& spec, const String& name) {
   CHECK_VAL(name);
   mjSpec* result = mjs_findSpec(spec.get(), name.as<const std::string>().data());
   if (result == nullptr) {
@@ -11271,8 +11242,7 @@ std::optional<MjSpec> mjs_findSpec_wrapper(MjSpec& spec, const String& name)
   return MjSpec(result);
 }
 
-std::optional<MjsBody> mjs_findBody_wrapper(MjSpec& s, const String& name)
-{
+std::optional<MjsBody> mjs_findBody_wrapper(MjSpec& s, const String& name) {
   CHECK_VAL(name);
   mjsBody* result = mjs_findBody(s.get(), name.as<const std::string>().data());
   if (result == nullptr) {
@@ -11281,8 +11251,7 @@ std::optional<MjsBody> mjs_findBody_wrapper(MjSpec& s, const String& name)
   return MjsBody(result);
 }
 
-std::optional<MjsElement> mjs_findElement_wrapper(MjSpec& s, mjtObj type, const String& name)
-{
+std::optional<MjsElement> mjs_findElement_wrapper(MjSpec& s, mjtObj type, const String& name) {
   CHECK_VAL(name);
   mjsElement* result = mjs_findElement(s.get(), type, name.as<const std::string>().data());
   if (result == nullptr) {
@@ -11291,8 +11260,7 @@ std::optional<MjsElement> mjs_findElement_wrapper(MjSpec& s, mjtObj type, const 
   return MjsElement(result);
 }
 
-std::optional<MjsBody> mjs_findChild_wrapper(MjsBody& body, const String& name)
-{
+std::optional<MjsBody> mjs_findChild_wrapper(MjsBody& body, const String& name) {
   CHECK_VAL(name);
   mjsBody* result = mjs_findChild(body.get(), name.as<const std::string>().data());
   if (result == nullptr) {
@@ -11301,8 +11269,7 @@ std::optional<MjsBody> mjs_findChild_wrapper(MjsBody& body, const String& name)
   return MjsBody(result);
 }
 
-std::optional<MjsBody> mjs_getParent_wrapper(MjsElement& element)
-{
+std::optional<MjsBody> mjs_getParent_wrapper(MjsElement& element) {
   mjsBody* result = mjs_getParent(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11310,8 +11277,7 @@ std::optional<MjsBody> mjs_getParent_wrapper(MjsElement& element)
   return MjsBody(result);
 }
 
-std::optional<MjsFrame> mjs_getFrame_wrapper(MjsElement& element)
-{
+std::optional<MjsFrame> mjs_getFrame_wrapper(MjsElement& element) {
   mjsFrame* result = mjs_getFrame(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11319,8 +11285,7 @@ std::optional<MjsFrame> mjs_getFrame_wrapper(MjsElement& element)
   return MjsFrame(result);
 }
 
-std::optional<MjsFrame> mjs_findFrame_wrapper(MjSpec& s, const String& name)
-{
+std::optional<MjsFrame> mjs_findFrame_wrapper(MjSpec& s, const String& name) {
   CHECK_VAL(name);
   mjsFrame* result = mjs_findFrame(s.get(), name.as<const std::string>().data());
   if (result == nullptr) {
@@ -11329,8 +11294,7 @@ std::optional<MjsFrame> mjs_findFrame_wrapper(MjSpec& s, const String& name)
   return MjsFrame(result);
 }
 
-std::optional<MjsDefault> mjs_getDefault_wrapper(MjsElement& element)
-{
+std::optional<MjsDefault> mjs_getDefault_wrapper(MjsElement& element) {
   mjsDefault* result = mjs_getDefault(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11338,8 +11302,7 @@ std::optional<MjsDefault> mjs_getDefault_wrapper(MjsElement& element)
   return MjsDefault(result);
 }
 
-std::optional<MjsDefault> mjs_findDefault_wrapper(MjSpec& s, const String& classname)
-{
+std::optional<MjsDefault> mjs_findDefault_wrapper(MjSpec& s, const String& classname) {
   CHECK_VAL(classname);
   mjsDefault* result = mjs_findDefault(s.get(), classname.as<const std::string>().data());
   if (result == nullptr) {
@@ -11348,8 +11311,7 @@ std::optional<MjsDefault> mjs_findDefault_wrapper(MjSpec& s, const String& class
   return MjsDefault(result);
 }
 
-std::optional<MjsDefault> mjs_getSpecDefault_wrapper(MjSpec& s)
-{
+std::optional<MjsDefault> mjs_getSpecDefault_wrapper(MjSpec& s) {
   mjsDefault* result = mjs_getSpecDefault(s.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11357,13 +11319,11 @@ std::optional<MjsDefault> mjs_getSpecDefault_wrapper(MjSpec& s)
   return MjsDefault(result);
 }
 
-int mjs_getId_wrapper(MjsElement& element)
-{
+int mjs_getId_wrapper(MjsElement& element) {
   return mjs_getId(element.get());
 }
 
-std::optional<MjsElement> mjs_firstChild_wrapper(MjsBody& body, mjtObj type, int recurse)
-{
+std::optional<MjsElement> mjs_firstChild_wrapper(MjsBody& body, mjtObj type, int recurse) {
   mjsElement* result = mjs_firstChild(body.get(), type, recurse);
   if (result == nullptr) {
     return std::nullopt;
@@ -11371,8 +11331,7 @@ std::optional<MjsElement> mjs_firstChild_wrapper(MjsBody& body, mjtObj type, int
   return MjsElement(result);
 }
 
-std::optional<MjsElement> mjs_nextChild_wrapper(MjsBody& body, MjsElement& child, int recurse)
-{
+std::optional<MjsElement> mjs_nextChild_wrapper(MjsBody& body, MjsElement& child, int recurse) {
   mjsElement* result = mjs_nextChild(body.get(), child.get(), recurse);
   if (result == nullptr) {
     return std::nullopt;
@@ -11380,8 +11339,7 @@ std::optional<MjsElement> mjs_nextChild_wrapper(MjsBody& body, MjsElement& child
   return MjsElement(result);
 }
 
-std::optional<MjsElement> mjs_firstElement_wrapper(MjSpec& s, mjtObj type)
-{
+std::optional<MjsElement> mjs_firstElement_wrapper(MjSpec& s, mjtObj type) {
   mjsElement* result = mjs_firstElement(s.get(), type);
   if (result == nullptr) {
     return std::nullopt;
@@ -11389,8 +11347,7 @@ std::optional<MjsElement> mjs_firstElement_wrapper(MjSpec& s, mjtObj type)
   return MjsElement(result);
 }
 
-std::optional<MjsElement> mjs_nextElement_wrapper(MjSpec& s, MjsElement& element)
-{
+std::optional<MjsElement> mjs_nextElement_wrapper(MjSpec& s, MjsElement& element) {
   mjsElement* result = mjs_nextElement(s.get(), element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11398,8 +11355,7 @@ std::optional<MjsElement> mjs_nextElement_wrapper(MjSpec& s, MjsElement& element
   return MjsElement(result);
 }
 
-std::optional<MjsElement> mjs_getWrapTarget_wrapper(MjsWrap& wrap)
-{
+std::optional<MjsElement> mjs_getWrapTarget_wrapper(MjsWrap& wrap) {
   mjsElement* result = mjs_getWrapTarget(wrap.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11407,8 +11363,7 @@ std::optional<MjsElement> mjs_getWrapTarget_wrapper(MjsWrap& wrap)
   return MjsElement(result);
 }
 
-std::optional<MjsSite> mjs_getWrapSideSite_wrapper(MjsWrap& wrap)
-{
+std::optional<MjsSite> mjs_getWrapSideSite_wrapper(MjsWrap& wrap) {
   mjsSite* result = mjs_getWrapSideSite(wrap.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11416,34 +11371,28 @@ std::optional<MjsSite> mjs_getWrapSideSite_wrapper(MjsWrap& wrap)
   return MjsSite(result);
 }
 
-double mjs_getWrapDivisor_wrapper(MjsWrap& wrap)
-{
+double mjs_getWrapDivisor_wrapper(MjsWrap& wrap) {
   return mjs_getWrapDivisor(wrap.get());
 }
 
-double mjs_getWrapCoef_wrapper(MjsWrap& wrap)
-{
+double mjs_getWrapCoef_wrapper(MjsWrap& wrap) {
   return mjs_getWrapCoef(wrap.get());
 }
 
-int mjs_setName_wrapper(MjsElement& element, const String& name)
-{
+int mjs_setName_wrapper(MjsElement& element, const String& name) {
   CHECK_VAL(name);
   return mjs_setName(element.get(), name.as<const std::string>().data());
 }
 
-std::string mjs_getName_wrapper(MjsElement& element)
-{
+std::string mjs_getName_wrapper(MjsElement& element) {
   return *mjs_getName(element.get());
 }
 
-int mjs_getWrapNum_wrapper(const MjsTendon& tendonspec)
-{
+int mjs_getWrapNum_wrapper(const MjsTendon& tendonspec) {
   return mjs_getWrapNum(tendonspec.get());
 }
 
-std::optional<MjsWrap> mjs_getWrap_wrapper(const MjsTendon& tendonspec, int i)
-{
+std::optional<MjsWrap> mjs_getWrap_wrapper(const MjsTendon& tendonspec, int i) {
   mjsWrap* result = mjs_getWrap(tendonspec.get(), i);
   if (result == nullptr) {
     return std::nullopt;
@@ -11451,161 +11400,130 @@ std::optional<MjsWrap> mjs_getWrap_wrapper(const MjsTendon& tendonspec, int i)
   return MjsWrap(result);
 }
 
-void mjs_setDefault_wrapper(MjsElement& element, const MjsDefault& def)
-{
+void mjs_setDefault_wrapper(MjsElement& element, const MjsDefault& def) {
   mjs_setDefault(element.get(), def.get());
 }
 
-int mjs_setFrame_wrapper(MjsElement& dest, MjsFrame& frame)
-{
+int mjs_setFrame_wrapper(MjsElement& dest, MjsFrame& frame) {
   return mjs_setFrame(dest.get(), frame.get());
 }
 
-std::string mjs_resolveOrientation_wrapper(const val& quat, mjtByte degree, const String& sequence, const MjsOrientation& orientation)
-{
+std::string mjs_resolveOrientation_wrapper(const val& quat, mjtByte degree, const String& sequence, const MjsOrientation& orientation) {
   CHECK_VAL(sequence);
   UNPACK_VALUE(double, quat);
   return std::string(mjs_resolveOrientation(quat_.data(), degree, sequence.as<const std::string>().data(), orientation.get()));
 }
 
-void mjs_deleteUserValue_wrapper(MjsElement& element, const String& key)
-{
+void mjs_deleteUserValue_wrapper(MjsElement& element, const String& key) {
   CHECK_VAL(key);
   mjs_deleteUserValue(element.get(), key.as<const std::string>().data());
 }
 
-int mjs_sensorDim_wrapper(const MjsSensor& sensor)
-{
+int mjs_sensorDim_wrapper(const MjsSensor& sensor) {
   return mjs_sensorDim(sensor.get());
 }
 
-void mjs_defaultSpec_wrapper(MjSpec& spec)
-{
+void mjs_defaultSpec_wrapper(MjSpec& spec) {
   mjs_defaultSpec(spec.get());
 }
 
-void mjs_defaultOrientation_wrapper(MjsOrientation& orient)
-{
+void mjs_defaultOrientation_wrapper(MjsOrientation& orient) {
   mjs_defaultOrientation(orient.get());
 }
 
-void mjs_defaultBody_wrapper(MjsBody& body)
-{
+void mjs_defaultBody_wrapper(MjsBody& body) {
   mjs_defaultBody(body.get());
 }
 
-void mjs_defaultFrame_wrapper(MjsFrame& frame)
-{
+void mjs_defaultFrame_wrapper(MjsFrame& frame) {
   mjs_defaultFrame(frame.get());
 }
 
-void mjs_defaultJoint_wrapper(MjsJoint& joint)
-{
+void mjs_defaultJoint_wrapper(MjsJoint& joint) {
   mjs_defaultJoint(joint.get());
 }
 
-void mjs_defaultGeom_wrapper(MjsGeom& geom)
-{
+void mjs_defaultGeom_wrapper(MjsGeom& geom) {
   mjs_defaultGeom(geom.get());
 }
 
-void mjs_defaultSite_wrapper(MjsSite& site)
-{
+void mjs_defaultSite_wrapper(MjsSite& site) {
   mjs_defaultSite(site.get());
 }
 
-void mjs_defaultCamera_wrapper(MjsCamera& camera)
-{
+void mjs_defaultCamera_wrapper(MjsCamera& camera) {
   mjs_defaultCamera(camera.get());
 }
 
-void mjs_defaultLight_wrapper(MjsLight& light)
-{
+void mjs_defaultLight_wrapper(MjsLight& light) {
   mjs_defaultLight(light.get());
 }
 
-void mjs_defaultFlex_wrapper(MjsFlex& flex)
-{
+void mjs_defaultFlex_wrapper(MjsFlex& flex) {
   mjs_defaultFlex(flex.get());
 }
 
-void mjs_defaultMesh_wrapper(MjsMesh& mesh)
-{
+void mjs_defaultMesh_wrapper(MjsMesh& mesh) {
   mjs_defaultMesh(mesh.get());
 }
 
-void mjs_defaultHField_wrapper(MjsHField& hfield)
-{
+void mjs_defaultHField_wrapper(MjsHField& hfield) {
   mjs_defaultHField(hfield.get());
 }
 
-void mjs_defaultSkin_wrapper(MjsSkin& skin)
-{
+void mjs_defaultSkin_wrapper(MjsSkin& skin) {
   mjs_defaultSkin(skin.get());
 }
 
-void mjs_defaultTexture_wrapper(MjsTexture& texture)
-{
+void mjs_defaultTexture_wrapper(MjsTexture& texture) {
   mjs_defaultTexture(texture.get());
 }
 
-void mjs_defaultMaterial_wrapper(MjsMaterial& material)
-{
+void mjs_defaultMaterial_wrapper(MjsMaterial& material) {
   mjs_defaultMaterial(material.get());
 }
 
-void mjs_defaultPair_wrapper(MjsPair& pair)
-{
+void mjs_defaultPair_wrapper(MjsPair& pair) {
   mjs_defaultPair(pair.get());
 }
 
-void mjs_defaultEquality_wrapper(MjsEquality& equality)
-{
+void mjs_defaultEquality_wrapper(MjsEquality& equality) {
   mjs_defaultEquality(equality.get());
 }
 
-void mjs_defaultTendon_wrapper(MjsTendon& tendon)
-{
+void mjs_defaultTendon_wrapper(MjsTendon& tendon) {
   mjs_defaultTendon(tendon.get());
 }
 
-void mjs_defaultActuator_wrapper(MjsActuator& actuator)
-{
+void mjs_defaultActuator_wrapper(MjsActuator& actuator) {
   mjs_defaultActuator(actuator.get());
 }
 
-void mjs_defaultSensor_wrapper(MjsSensor& sensor)
-{
+void mjs_defaultSensor_wrapper(MjsSensor& sensor) {
   mjs_defaultSensor(sensor.get());
 }
 
-void mjs_defaultNumeric_wrapper(MjsNumeric& numeric)
-{
+void mjs_defaultNumeric_wrapper(MjsNumeric& numeric) {
   mjs_defaultNumeric(numeric.get());
 }
 
-void mjs_defaultText_wrapper(MjsText& text)
-{
+void mjs_defaultText_wrapper(MjsText& text) {
   mjs_defaultText(text.get());
 }
 
-void mjs_defaultTuple_wrapper(MjsTuple& tuple)
-{
+void mjs_defaultTuple_wrapper(MjsTuple& tuple) {
   mjs_defaultTuple(tuple.get());
 }
 
-void mjs_defaultKey_wrapper(MjsKey& key)
-{
+void mjs_defaultKey_wrapper(MjsKey& key) {
   mjs_defaultKey(key.get());
 }
 
-void mjs_defaultPlugin_wrapper(MjsPlugin& plugin)
-{
+void mjs_defaultPlugin_wrapper(MjsPlugin& plugin) {
   mjs_defaultPlugin(plugin.get());
 }
 
-std::optional<MjsBody> mjs_asBody_wrapper(MjsElement& element)
-{
+std::optional<MjsBody> mjs_asBody_wrapper(MjsElement& element) {
   mjsBody* result = mjs_asBody(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11613,8 +11531,7 @@ std::optional<MjsBody> mjs_asBody_wrapper(MjsElement& element)
   return MjsBody(result);
 }
 
-std::optional<MjsGeom> mjs_asGeom_wrapper(MjsElement& element)
-{
+std::optional<MjsGeom> mjs_asGeom_wrapper(MjsElement& element) {
   mjsGeom* result = mjs_asGeom(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11622,8 +11539,7 @@ std::optional<MjsGeom> mjs_asGeom_wrapper(MjsElement& element)
   return MjsGeom(result);
 }
 
-std::optional<MjsJoint> mjs_asJoint_wrapper(MjsElement& element)
-{
+std::optional<MjsJoint> mjs_asJoint_wrapper(MjsElement& element) {
   mjsJoint* result = mjs_asJoint(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11631,8 +11547,7 @@ std::optional<MjsJoint> mjs_asJoint_wrapper(MjsElement& element)
   return MjsJoint(result);
 }
 
-std::optional<MjsSite> mjs_asSite_wrapper(MjsElement& element)
-{
+std::optional<MjsSite> mjs_asSite_wrapper(MjsElement& element) {
   mjsSite* result = mjs_asSite(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11640,8 +11555,7 @@ std::optional<MjsSite> mjs_asSite_wrapper(MjsElement& element)
   return MjsSite(result);
 }
 
-std::optional<MjsCamera> mjs_asCamera_wrapper(MjsElement& element)
-{
+std::optional<MjsCamera> mjs_asCamera_wrapper(MjsElement& element) {
   mjsCamera* result = mjs_asCamera(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11649,8 +11563,7 @@ std::optional<MjsCamera> mjs_asCamera_wrapper(MjsElement& element)
   return MjsCamera(result);
 }
 
-std::optional<MjsLight> mjs_asLight_wrapper(MjsElement& element)
-{
+std::optional<MjsLight> mjs_asLight_wrapper(MjsElement& element) {
   mjsLight* result = mjs_asLight(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11658,8 +11571,7 @@ std::optional<MjsLight> mjs_asLight_wrapper(MjsElement& element)
   return MjsLight(result);
 }
 
-std::optional<MjsFrame> mjs_asFrame_wrapper(MjsElement& element)
-{
+std::optional<MjsFrame> mjs_asFrame_wrapper(MjsElement& element) {
   mjsFrame* result = mjs_asFrame(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11667,8 +11579,7 @@ std::optional<MjsFrame> mjs_asFrame_wrapper(MjsElement& element)
   return MjsFrame(result);
 }
 
-std::optional<MjsActuator> mjs_asActuator_wrapper(MjsElement& element)
-{
+std::optional<MjsActuator> mjs_asActuator_wrapper(MjsElement& element) {
   mjsActuator* result = mjs_asActuator(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11676,8 +11587,7 @@ std::optional<MjsActuator> mjs_asActuator_wrapper(MjsElement& element)
   return MjsActuator(result);
 }
 
-std::optional<MjsSensor> mjs_asSensor_wrapper(MjsElement& element)
-{
+std::optional<MjsSensor> mjs_asSensor_wrapper(MjsElement& element) {
   mjsSensor* result = mjs_asSensor(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11685,8 +11595,7 @@ std::optional<MjsSensor> mjs_asSensor_wrapper(MjsElement& element)
   return MjsSensor(result);
 }
 
-std::optional<MjsFlex> mjs_asFlex_wrapper(MjsElement& element)
-{
+std::optional<MjsFlex> mjs_asFlex_wrapper(MjsElement& element) {
   mjsFlex* result = mjs_asFlex(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11694,8 +11603,7 @@ std::optional<MjsFlex> mjs_asFlex_wrapper(MjsElement& element)
   return MjsFlex(result);
 }
 
-std::optional<MjsPair> mjs_asPair_wrapper(MjsElement& element)
-{
+std::optional<MjsPair> mjs_asPair_wrapper(MjsElement& element) {
   mjsPair* result = mjs_asPair(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11703,8 +11611,7 @@ std::optional<MjsPair> mjs_asPair_wrapper(MjsElement& element)
   return MjsPair(result);
 }
 
-std::optional<MjsEquality> mjs_asEquality_wrapper(MjsElement& element)
-{
+std::optional<MjsEquality> mjs_asEquality_wrapper(MjsElement& element) {
   mjsEquality* result = mjs_asEquality(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11712,8 +11619,7 @@ std::optional<MjsEquality> mjs_asEquality_wrapper(MjsElement& element)
   return MjsEquality(result);
 }
 
-std::optional<MjsExclude> mjs_asExclude_wrapper(MjsElement& element)
-{
+std::optional<MjsExclude> mjs_asExclude_wrapper(MjsElement& element) {
   mjsExclude* result = mjs_asExclude(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11721,8 +11627,7 @@ std::optional<MjsExclude> mjs_asExclude_wrapper(MjsElement& element)
   return MjsExclude(result);
 }
 
-std::optional<MjsTendon> mjs_asTendon_wrapper(MjsElement& element)
-{
+std::optional<MjsTendon> mjs_asTendon_wrapper(MjsElement& element) {
   mjsTendon* result = mjs_asTendon(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11730,8 +11635,7 @@ std::optional<MjsTendon> mjs_asTendon_wrapper(MjsElement& element)
   return MjsTendon(result);
 }
 
-std::optional<MjsNumeric> mjs_asNumeric_wrapper(MjsElement& element)
-{
+std::optional<MjsNumeric> mjs_asNumeric_wrapper(MjsElement& element) {
   mjsNumeric* result = mjs_asNumeric(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11739,8 +11643,7 @@ std::optional<MjsNumeric> mjs_asNumeric_wrapper(MjsElement& element)
   return MjsNumeric(result);
 }
 
-std::optional<MjsText> mjs_asText_wrapper(MjsElement& element)
-{
+std::optional<MjsText> mjs_asText_wrapper(MjsElement& element) {
   mjsText* result = mjs_asText(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11748,8 +11651,7 @@ std::optional<MjsText> mjs_asText_wrapper(MjsElement& element)
   return MjsText(result);
 }
 
-std::optional<MjsTuple> mjs_asTuple_wrapper(MjsElement& element)
-{
+std::optional<MjsTuple> mjs_asTuple_wrapper(MjsElement& element) {
   mjsTuple* result = mjs_asTuple(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11757,8 +11659,7 @@ std::optional<MjsTuple> mjs_asTuple_wrapper(MjsElement& element)
   return MjsTuple(result);
 }
 
-std::optional<MjsKey> mjs_asKey_wrapper(MjsElement& element)
-{
+std::optional<MjsKey> mjs_asKey_wrapper(MjsElement& element) {
   mjsKey* result = mjs_asKey(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11766,8 +11667,7 @@ std::optional<MjsKey> mjs_asKey_wrapper(MjsElement& element)
   return MjsKey(result);
 }
 
-std::optional<MjsMesh> mjs_asMesh_wrapper(MjsElement& element)
-{
+std::optional<MjsMesh> mjs_asMesh_wrapper(MjsElement& element) {
   mjsMesh* result = mjs_asMesh(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11775,8 +11675,7 @@ std::optional<MjsMesh> mjs_asMesh_wrapper(MjsElement& element)
   return MjsMesh(result);
 }
 
-std::optional<MjsHField> mjs_asHField_wrapper(MjsElement& element)
-{
+std::optional<MjsHField> mjs_asHField_wrapper(MjsElement& element) {
   mjsHField* result = mjs_asHField(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11784,8 +11683,7 @@ std::optional<MjsHField> mjs_asHField_wrapper(MjsElement& element)
   return MjsHField(result);
 }
 
-std::optional<MjsSkin> mjs_asSkin_wrapper(MjsElement& element)
-{
+std::optional<MjsSkin> mjs_asSkin_wrapper(MjsElement& element) {
   mjsSkin* result = mjs_asSkin(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11793,8 +11691,7 @@ std::optional<MjsSkin> mjs_asSkin_wrapper(MjsElement& element)
   return MjsSkin(result);
 }
 
-std::optional<MjsTexture> mjs_asTexture_wrapper(MjsElement& element)
-{
+std::optional<MjsTexture> mjs_asTexture_wrapper(MjsElement& element) {
   mjsTexture* result = mjs_asTexture(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11802,8 +11699,7 @@ std::optional<MjsTexture> mjs_asTexture_wrapper(MjsElement& element)
   return MjsTexture(result);
 }
 
-std::optional<MjsMaterial> mjs_asMaterial_wrapper(MjsElement& element)
-{
+std::optional<MjsMaterial> mjs_asMaterial_wrapper(MjsElement& element) {
   mjsMaterial* result = mjs_asMaterial(element.get());
   if (result == nullptr) {
     return std::nullopt;
@@ -11811,8 +11707,7 @@ std::optional<MjsMaterial> mjs_asMaterial_wrapper(MjsElement& element)
   return MjsMaterial(result);
 }
 
-std::optional<MjsPlugin> mjs_asPlugin_wrapper(MjsElement& element)
-{
+std::optional<MjsPlugin> mjs_asPlugin_wrapper(MjsElement& element) {
   mjsPlugin* result = mjs_asPlugin(element.get());
   if (result == nullptr) {
     return std::nullopt;

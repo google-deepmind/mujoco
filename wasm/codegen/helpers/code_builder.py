@@ -56,12 +56,16 @@ class CodeBuilder:
       line += " {" if line else "{"
       self._builder.line(line)
       self._builder._indent_level += 1
+      self._line_count_enter = len(self._builder._lines)
       return self._builder
 
     def __exit__(self, exc_type, exc_val, exc_tb):
       if self._builder._indent_level > 0:
         self._builder._indent_level -= 1
-      self._builder.line("}")
+      if self._line_count_enter == len(self._builder._lines):
+        self._builder._lines[-1] += "}"
+      else:
+        self._builder.line("}")
 
   def block(self, header_line="") -> IndentBlock:
     """Creates a block including braces and an optional header before the opening brace.
@@ -75,3 +79,21 @@ class CodeBuilder:
         An IndentBlock instance that manages the indentation.
     """
     return self.IndentBlock(self, header_line)
+
+  def function(self, signature="") -> IndentBlock:
+    """Creates a function."""
+    return self.block(signature)
+
+  def struct(self, name="") -> IndentBlock:
+    """Creates a struct."""
+    return self.block(f"struct {name}")
+
+  def private(self) -> None:
+    """Creates a private section."""
+    self.newline()
+    self.line("private:")
+
+  def public(self) -> None:
+    """Creates a public section."""
+    self.newline()
+    self.line("public:")

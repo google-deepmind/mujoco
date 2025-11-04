@@ -73,15 +73,14 @@ class WrappedStructData:
 
 
 def build_primitive_type_definition(field: ast_nodes.StructFieldDecl) -> str:
-  """Builds the C++ code for a primitive type field wrapper."""
+  """Builds the C++ getter/setter code for a primitive type field wrapper."""
   if not isinstance(field.type, ast_nodes.ValueType):
     raise ValueError(f"{field.type} must be ValueType.")
+
   builder = code_builder.CodeBuilder()
-  # build getter for primitive type field
-  with builder.block(f"{field.type.name} {field.name}() const"):
+  with builder.function(f"{field.type.name} {field.name}() const"):
     builder.line(f"return ptr_->{field.name};")
-  # build setter for primitive type field
-  with builder.block(f"void set_{field.name}({field.type.name} value)"):
+  with builder.function(f"void set_{field.name}({field.type.name} value)"):
     builder.line(f"ptr_->{field.name} = value;")
   return builder.to_string()
 
@@ -91,7 +90,7 @@ def build_memory_view_definition(
 ) -> str:
   """Builds the C++ code for a pointer type field wrapper."""
   builder = code_builder.CodeBuilder()
-  with builder.block(f"emscripten::val {field.name}() const"):
+  with builder.function(f"emscripten::val {field.name}() const"):
     builder.line(
         "return"
         f" emscripten::val(emscripten::typed_memory_view({array_size_str},"
@@ -101,13 +100,13 @@ def build_memory_view_definition(
 
 
 def build_string_field_definition(field: ast_nodes.StructFieldDecl) -> str:
-  """Builds the C++ code for a string type field wrapper."""
+  """Builds the C++ code getter/setter for a string type field wrapper."""
   builder = code_builder.CodeBuilder()
-  with builder.block(f"mjString {field.name}() const"):
+  with builder.function(f"mjString {field.name}() const"):
     builder.line(
         f'return (ptr_ && ptr_->{field.name}) ? *(ptr_->{field.name}) : "";'
     )
-  with builder.block(f"void set_{field.name}(const mjString& value)"):
+  with builder.function(f"void set_{field.name}(const mjString& value)"):
     with builder.block(f"if (ptr_ && ptr_->{field.name})"):
       builder.line(f"*(ptr_->{field.name}) = value;")
   return builder.to_string()
@@ -124,7 +123,7 @@ def build_mjvec_pointer_definition(
         f"*(reinterpret_cast<std::vector<uint8_t>*>(ptr_->{field.name}))"
     )
   builder = code_builder.CodeBuilder()
-  with builder.block(f"{vector_type} &{field.name}() const"):
+  with builder.function(f"{vector_type} &{field.name}() const"):
     builder.line(f"return {ptr_field_expr};")
   return builder.to_string()
 
@@ -453,40 +452,42 @@ def _build_struct_header_internal(
     is_mjs: bool = False,
 ):
   """Builds the C++ header file code for a struct."""
+  s = struct_name
+  w = common.uppercase_first_letter(s)
 
   shallow_copy = use_shallow_copy(wrapped_fields)
 
-  wrapper_name = common.uppercase_first_letter(struct_name)
   builder = code_builder.CodeBuilder()
-  with builder.block(f"struct {wrapper_name}"):
+  with builder.struct(f"{w}"):
     if not is_mjs:
-      builder.line(f"{wrapper_name}();")
-      builder.line(f"{wrapper_name}(const {wrapper_name} &);")
-      builder.line(f"{wrapper_name} &operator=(const {wrapper_name} &);")
+      builder.line(f"{w}();")
+      builder.line(f"{w}(const {w} &);")
+      builder.line(f"{w} &operator=(const {w} &);")
 
-    builder.line(f"explicit {wrapper_name}({struct_name} *ptr);")
-    builder.line(f"~{wrapper_name}();")
+    builder.line(f"explicit {w}({s} *ptr);")
+    builder.line(f"~{w}();")
 
     if shallow_copy:
-      builder.line(f"std::unique_ptr<{wrapper_name}> copy();")
+      builder.line(f"std::unique_ptr<{w}> copy();")
 
     for field in wrapped_fields:
       if field.definition and field not in fields_with_init:
         for line in field.definition.splitlines():
           builder.line(line)
 
-    builder.line(f"{struct_name}* get() const {{ return ptr_; }}")
-    builder.line(f"void set({struct_name}* ptr) {{ ptr_ = ptr; }}")
+    with builder.function(f"{s}* get() const"):
+      builder.line("return ptr_;")
 
-    builder.newline()
-    builder.line("private:")
-    builder.line(f"{struct_name}* ptr_;")
+    with builder.function(f"void set({s}* ptr)"):
+      builder.line("ptr_ = ptr;")
+
+    builder.private()
+    builder.line(f"{s}* ptr_;")
     if not is_mjs:
       builder.line("bool owned_ = false;")
 
     if is_mjs and fields_with_init:
-      builder.newline()
-      builder.line("public:")
+      builder.public()
       for field in fields_with_init:
         if field.definition:
           builder.line(f"{field.definition}")
@@ -580,9 +581,9 @@ def build_struct_source(
     wrapped_fields: List[WrappedFieldData],
 ):
   """Builds the C++ .cc file code for a struct."""
-  wrapper_name = common.uppercase_first_letter(struct_name)
-  is_mjs_struct = "Mjs" in wrapper_name
-  builder = code_builder.CodeBuilder()
+  s = struct_name
+  w = common.uppercase_first_letter(s)
+  is_mjs = "Mjs" in w
 
   fields_with_init = _find_fields_with_init(wrapped_fields)
   shallow_copy = use_shallow_copy(wrapped_fields)
@@ -593,65 +594,49 @@ def build_struct_source(
         field_with_init.initialization for field_with_init in fields_with_init
     )
 
+  builder = code_builder.CodeBuilder()
+
   # constructor passing native ptr
-  builder.line(
-      f"{wrapper_name}::{wrapper_name}({struct_name} *ptr) :"
-      f" ptr_(ptr){fields_init} {{}}"
-  )
+  with builder.function(f"{w}::{w}({s} *ptr) : ptr_(ptr){fields_init}"):
+    pass
 
   # constructor with default values
-  if not is_mjs_struct:
-    with builder.block(
-        f"{wrapper_name}::{wrapper_name}() : ptr_(new"
-        f" {struct_name}){fields_init}"
-    ):
+  if not is_mjs:
+    with builder.function(f"{w}::{w}() : ptr_(new {s}){fields_init}"):
       builder.line("owned_ = true;")
-      default_func = _default_function_statement(struct_name)
+      default_func = _default_function_statement(s)
       if default_func:
         builder.line(default_func)
 
-  if shallow_copy and not is_mjs_struct:
+  if shallow_copy and not is_mjs:
     # copy constructor
-    with builder.block(
-        f"{wrapper_name}::{wrapper_name}(const {wrapper_name} &other)"
-        + (f" : {wrapper_name}()" if not is_mjs_struct else "")
-    ):
+    with builder.function(f"{w}::{w}(const {w} &other) : {w}()"):
       builder.line("*ptr_ = *other.get();")
-      if fields_with_init:
-        for field_with_init in fields_with_init:
-          if field_with_init.ptr_copy_reset is not None:
-            builder.line(field_with_init.ptr_copy_reset)
+      for field_with_init in fields_with_init:
+        if field_with_init.ptr_copy_reset is not None:
+          builder.line(field_with_init.ptr_copy_reset)
 
     # assignment operator
-    with builder.block(
-        f"{wrapper_name}&"
-        f" {wrapper_name}::operator=(const"
-        f" {wrapper_name} &other)"
-    ):
+    with builder.function(f"{w}& {w}::operator=(const {w} &other)"):
       with builder.block("if (this == &other)"):
         builder.line("return *this;")
       builder.line("*ptr_ = *other.get();")
-      if fields_with_init:
-        for field_with_init in fields_with_init:
-          if field_with_init.ptr_copy_reset is not None:
-            builder.line(field_with_init.ptr_copy_reset)
+      for field_with_init in fields_with_init:
+        if field_with_init.ptr_copy_reset is not None:
+          builder.line(field_with_init.ptr_copy_reset)
       builder.line("return *this;")
 
   # destructor
-  if is_mjs_struct:
-    builder.line(f"{wrapper_name}::~{wrapper_name}() {{}}")
-  else:
-    with builder.block(f"{wrapper_name}::~{wrapper_name}()"):
+  with builder.function(f"{w}::~{w}()"):
+    if not is_mjs:
       with builder.block("if (owned_ && ptr_)"):
-        delete_ptr = _delete_ptr_statement(struct_name)
+        delete_ptr = _delete_ptr_statement(s)
         builder.line(delete_ptr)
 
   # copy function
   if shallow_copy:
-    with builder.block(
-        f"std::unique_ptr<{wrapper_name}> {wrapper_name}::copy()"
-    ):
-      builder.line(f"return std::make_unique<{wrapper_name}>(*this);")
+    with builder.function(f"std::unique_ptr<{w}> {w}::copy()"):
+      builder.line(f"return std::make_unique<{w}>(*this);")
 
   return builder.to_string()
 

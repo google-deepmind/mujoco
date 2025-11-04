@@ -190,8 +190,7 @@ class FunctionUtilsTest(absltest.TestCase):
     result = functions.generate_function_wrapper(func)
     self.assertEqual(
         result,
-        """int get_id_wrapper()
-{
+        """int get_id_wrapper() {
   return get_id();
 }""",
     )
@@ -218,8 +217,7 @@ class FunctionUtilsTest(absltest.TestCase):
     result = functions.generate_function_wrapper(func)
     self.assertEqual(
         result,
-        """int get_id_wrapper(const NumberArray& mat, int nr)
-{
+        """int get_id_wrapper(const NumberArray& mat, int nr) {
   UNPACK_ARRAY(mjtNum, mat);
   return get_id(mat_.data(), nr);
 }""",

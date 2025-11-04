@@ -114,17 +114,14 @@ def should_be_wrapped(func: ast_nodes.FunctionDecl) -> bool:
 def generate_function_wrapper(func: ast_nodes.FunctionDecl) -> str:
   """Generates C++ code for a wrapper function."""
 
-  builder = code_builder.CodeBuilder()
-  # Build function header
   params_unpack_statements = get_params_unpack_statements(func.parameters)
   wrapper_params_list = get_params_string(func.parameters)
   not_nullable_params = get_params_notnullable(func.parameters)
-  wrapper_params_str = ", ".join(wrapper_params_list)
+  wrapper_params = ", ".join(wrapper_params_list)
   ret_type = get_compatible_return_type(func)
-  builder.line(f"{ret_type} {func.name}_wrapper({wrapper_params_str})")
 
-  # Build function body
-  with builder.block():
+  builder = code_builder.CodeBuilder()
+  with builder.function(f"{ret_type} {func.name}_wrapper({wrapper_params})"):
     invoker_params_list = get_params_string_maybe_with_conversion(
         func.parameters
     )
@@ -136,6 +133,7 @@ def generate_function_wrapper(func: ast_nodes.FunctionDecl) -> str:
     for unpack_statement in params_unpack_statements:
       builder.line(unpack_statement)
     builder.line(f"{invoker_statement};")
+
   return builder.to_string()
 
 
