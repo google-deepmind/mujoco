@@ -420,7 +420,7 @@ MJDATA_SIZES = [
 ]
 
 # Dictionary where keys are the struct names and the values are lists of the
-# fields that are manually specified in the structs.h template file.
+# fields that are manually specified in the bindings.cc template file.
 MANUALLY_ADDED_FIELDS_FROM_TEMPLATE = {
     # go/keep-sorted start
     "MjData": ["solver", "timer", "warning", "contact"],

@@ -25,16 +25,11 @@ from wasm.codegen.helpers import common
 
 def generate_all_bindings():
   """Generates WASM bindings for MuJoCo."""
-  template_path_h, generated_path_h = common.get_file_path(
-      "templates", "generated", "bindings.h"
-  )
   template_path_cc, generated_path_cc = common.get_file_path(
       "templates", "generated", "bindings.cc"
   )
-  builder = binding_builder.BindingBuilder(
-      template_path_h, template_path_cc, generated_path_h, generated_path_cc
-  )
-  builder.set_enums().set_headers().set_structs().set_functions().build()
+  builder = binding_builder.BindingBuilder(template_path_cc, generated_path_cc)
+  builder.set_enums().set_structs().set_functions().build()
 
 
 if __name__ == "__main__":

@@ -31,15 +31,10 @@ class BindingBuilder:
 
   def __init__(
       self,
-      template_path_h: str,
       template_path_cc: str,
-      generated_path_h: str,
       generated_path_cc: str,
   ):
-    self.generated_path_h = generated_path_h
     self.generated_path_cc = generated_path_cc
-    with open(template_path_h, "r") as f:
-      self.content_h = f.readlines()
     with open(template_path_cc, "r") as f:
       self.content_cc = f.readlines()
 
@@ -63,20 +58,17 @@ class BindingBuilder:
     )
     return self
 
-  def set_headers(self):
-    """Generates and sets the struct definitions."""
-    struct_hdr_markers_and_content = self.structs_generator.generate_header()
-
-    for marker, content in struct_hdr_markers_and_content:
-      self.content_h = common.replace_lines_containing_marker(
-          self.content_h, marker, content
-      )
-
-    return self
-
   def set_structs(self):
     """Generates and sets the struct bindings."""
 
+    # Generate struct header bindings.
+    struct_hdr_markers_and_content = self.structs_generator.generate_header()
+    for marker, content in struct_hdr_markers_and_content:
+      self.content_cc = common.replace_lines_containing_marker(
+          self.content_cc, marker, content
+      )
+
+    # Generate struct source bindings.
     struct_src_markers_and_content = (
         self.structs_generator.generate_source()
     )
@@ -84,6 +76,7 @@ class BindingBuilder:
       self.content_cc = common.replace_lines_containing_marker(
           self.content_cc, marker, content
       )
+
     return self
 
   def set_functions(self):
@@ -105,11 +98,7 @@ class BindingBuilder:
 
   def build(self):
     """Writes the generated content to the output files."""
-    common.write_to_file(self.generated_path_h, "".join(self.content_h))
     common.write_to_file(self.generated_path_cc, "".join(self.content_cc))
-
-  def to_string_header(self) -> str:
-    return "".join(self.content_h)
 
   def to_string_source(self) -> str:
     return "".join(self.content_cc)

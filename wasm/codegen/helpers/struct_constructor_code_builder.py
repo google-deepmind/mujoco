@@ -77,7 +77,8 @@ def _build_struct_header_internal(
     builder.line("")
     builder.line("private:")
     builder.line(f"{struct_name}* ptr_;")
-    builder.line("bool owned_ = false;")
+    if not is_mjs:
+      builder.line("bool owned_ = false;")
 
     if is_mjs and fields_with_init:
       builder.line("")
