@@ -36,6 +36,10 @@ class CodeBuilder:
     else:
       self._lines.append("")
 
+  def newline(self) -> None:
+    """Adds a newline."""
+    self.line("")
+
   def to_string(self) -> str:
     """Returns the complete code string."""
     return "\n".join(self._lines)

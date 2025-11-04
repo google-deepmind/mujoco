@@ -27,20 +27,14 @@ from wasm.codegen.helpers import struct_field_handler
 from wasm.codegen.helpers import structs_wrappers_data
 
 
-WrappedFieldData = structs_wrappers_data.WrappedFieldData
-WrappedStructData = structs_wrappers_data.WrappedStructData
-StructFieldHandler = struct_field_handler.StructFieldHandler
-
-AnonymousStructDecl = ast_nodes.AnonymousStructDecl
-StructFieldDecl = ast_nodes.StructFieldDecl
 debug_print = common.debug_print
 
 introspect_structs = structs.STRUCTS
 
 
 def generate_wasm_bindings(
-    wrapped_structs: Dict[str, WrappedStructData],
-) -> Dict[str, WrappedStructData]:
+    wrapped_structs: Dict[str, structs_wrappers_data.WrappedStructData],
+) -> Dict[str, structs_wrappers_data.WrappedStructData]:
   """Generates WASM bindings for MuJoCo structs."""
 
   for struct_name, wrap_data in wrapped_structs.items():
@@ -49,7 +43,7 @@ def generate_wasm_bindings(
     elif struct_name in constants.ANONYMOUS_STRUCTS:
       anonymous_struct = _get_anonymous_struct_field(struct_name)
       if not anonymous_struct or not isinstance(
-          anonymous_struct.type, AnonymousStructDecl
+          anonymous_struct.type, ast_nodes.AnonymousStructDecl
       ):
         raise RuntimeError(f"Anonymous struct not found: {struct_name}")
       struct_fields = anonymous_struct.type.fields
@@ -58,9 +52,11 @@ def generate_wasm_bindings(
 
     debug_print(f"Wrapping struct: {struct_name}")
 
-    fields_with_init: List[WrappedFieldData] = []
+    fields_with_init: List[structs_wrappers_data.WrappedFieldData] = []
     for field in struct_fields:
-      field_gen = StructFieldHandler(field, wrap_data.wrap_name).generate()
+      field_gen = struct_field_handler.StructFieldHandler(
+          field, wrap_data.wrap_name
+      ).generate()
       # If the struct has at least one non-primitive or fixed size field
       # we avoid shallow copy to avoid uninitialized memory.
       if not field_gen.is_primitive_or_fixed_size:
@@ -90,7 +86,7 @@ def generate_wasm_bindings(
 
 def _get_anonymous_struct_field(
     anonymous_structs_key: str,
-) -> StructFieldDecl | None:
+) -> ast_nodes.StructFieldDecl | None:
   """Looks up the given key in the anonymous_structs dict and generates bindings for its fields."""
   info = constants.ANONYMOUS_STRUCTS[anonymous_structs_key]
   parent_decl = introspect_structs[info["parent"]]
@@ -101,7 +97,7 @@ def _get_anonymous_struct_field(
           if hasattr(f, "name")
           and f.name == info["field_name"]
           and hasattr(f, "type")
-          and isinstance(f.type, AnonymousStructDecl)
+          and isinstance(f.type, ast_nodes.AnonymousStructDecl)
       ),
       None,
   )

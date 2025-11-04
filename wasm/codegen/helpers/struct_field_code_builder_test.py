@@ -17,18 +17,13 @@ from introspect import ast_nodes
 
 from wasm.codegen.helpers import struct_field_code_builder
 
-StructFieldDecl = ast_nodes.StructFieldDecl
-ValueType = ast_nodes.ValueType
-PointerType = ast_nodes.PointerType
-ArrayType = ast_nodes.ArrayType
-
 
 class StructFieldCodeBuilderTest(absltest.TestCase):
 
   def test_primitive_type_definition(self):
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name="ngeom",
-        type=ValueType(name="int"),
+        type=ast_nodes.ValueType(name="int"),
         doc="number of geoms",
     )
     self.assertEqual(
@@ -44,10 +39,10 @@ void set_ngeom(int value) {
     )
 
   def test_memory_view_definition(self):
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name="geom_rgba",
-        type=PointerType(
-            inner_type=ValueType(name="float"),
+        type=ast_nodes.PointerType(
+            inner_type=ast_nodes.ValueType(name="float"),
         ),
         doc="rgba when material is omitted",
         array_extent=("ngeom", 4),
@@ -64,10 +59,10 @@ emscripten::val geom_rgba() const {
     )
 
   def test_string_field_definition(self):
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name="string_field",
-        type=PointerType(
-            inner_type=ValueType(name="mjString"),
+        type=ast_nodes.PointerType(
+            inner_type=ast_nodes.ValueType(name="mjString"),
         ),
         doc="rgba when material is omitted",
     )
@@ -86,10 +81,10 @@ void set_string_field(const mjString& value) {
     )
 
   def test_mjvec_pointer_definition(self):
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name="vector_field",
-        type=PointerType(
-            inner_type=ValueType(name="mjDoubleVec"),
+        type=ast_nodes.PointerType(
+            inner_type=ast_nodes.ValueType(name="mjDoubleVec"),
         ),
         doc="",
     )
@@ -104,10 +99,10 @@ mjDoubleVec &vector_field() const {
     )
 
   def test_mjbyte_vec_pointer_definition(self):
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name="vector_field",
-        type=PointerType(
-            inner_type=ValueType(name="mjByteVec"),
+        type=ast_nodes.PointerType(
+            inner_type=ast_nodes.ValueType(name="mjByteVec"),
         ),
         doc="",
     )
@@ -122,9 +117,9 @@ std::vector<uint8_t> &vector_field() const {
     )
 
   def test_simple_property_binding(self):
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name="ngeom",
-        type=ValueType(name="int"),
+        type=ast_nodes.ValueType(name="int"),
         doc="number of geoms",
     )
     self.assertEqual(
@@ -135,9 +130,9 @@ std::vector<uint8_t> &vector_field() const {
     )
 
   def test_simple_property_binding_with_setter(self):
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name="ngeom",
-        type=ValueType(name="int"),
+        type=ast_nodes.ValueType(name="int"),
         doc="",
     )
     self.assertEqual(
@@ -149,9 +144,9 @@ std::vector<uint8_t> &vector_field() const {
     )
 
   def test_simple_property_binding_with_return_value_policy_as_ref(self):
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name="ngeom",
-        type=ValueType(name="int"),
+        type=ast_nodes.ValueType(name="int"),
         doc="",
     )
     self.assertEqual(

@@ -17,12 +17,6 @@ from introspect import ast_nodes
 from wasm.codegen.helpers import struct_constructor_code_builder
 from wasm.codegen.helpers import struct_field_handler
 
-StructFieldDecl = ast_nodes.StructFieldDecl
-ValueType = ast_nodes.ValueType
-PointerType = ast_nodes.PointerType
-ArrayType = ast_nodes.ArrayType
-StructDecl = ast_nodes.StructDecl
-
 
 class StructConstructorCodeBuilderTest(absltest.TestCase):
 
@@ -58,10 +52,10 @@ MjLROpt::~MjLROpt() {
     )
 
   def test_constructor_code_with_fields_with_init(self):
-    field_with_init = StructFieldDecl(
+    field_with_init = ast_nodes.StructFieldDecl(
         name="element",
-        type=PointerType(
-            inner_type=ValueType(name="mjsElement"),
+        type=ast_nodes.PointerType(
+            inner_type=ast_nodes.ValueType(name="mjsElement"),
         ),
         doc="",
     )

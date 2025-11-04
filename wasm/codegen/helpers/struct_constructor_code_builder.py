@@ -74,14 +74,15 @@ def _build_struct_header_internal(
 
     builder.line(f"{struct_name}* get() const {{ return ptr_; }}")
     builder.line(f"void set({struct_name}* ptr) {{ ptr_ = ptr; }}")
-    builder.line("")
+
+    builder.newline()
     builder.line("private:")
     builder.line(f"{struct_name}* ptr_;")
     if not is_mjs:
       builder.line("bool owned_ = false;")
 
     if is_mjs and fields_with_init:
-      builder.line("")
+      builder.newline()
       builder.line("public:")
       for field in fields_with_init:
         if field.definition:

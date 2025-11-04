@@ -17,13 +17,10 @@
 from introspect import ast_nodes
 from wasm.codegen.helpers import code_builder
 
-StructFieldDecl = ast_nodes.StructFieldDecl
-ValueType = ast_nodes.ValueType
 
-
-def build_primitive_type_definition(field: StructFieldDecl) -> str:
+def build_primitive_type_definition(field: ast_nodes.StructFieldDecl) -> str:
   """Builds the C++ code for a primitive type field wrapper."""
-  if not isinstance(field.type, ValueType):
+  if not isinstance(field.type, ast_nodes.ValueType):
     raise ValueError(f"{field.type} must be ValueType.")
   builder = code_builder.CodeBuilder()
   # build getter for primitive type field
@@ -36,7 +33,7 @@ def build_primitive_type_definition(field: StructFieldDecl) -> str:
 
 
 def build_memory_view_definition(
-    field: StructFieldDecl, array_size_str: str, ptr_expr: str
+    field: ast_nodes.StructFieldDecl, array_size_str: str, ptr_expr: str
 ) -> str:
   """Builds the C++ code for a pointer type field wrapper."""
   builder = code_builder.CodeBuilder()
@@ -49,7 +46,7 @@ def build_memory_view_definition(
   return builder.to_string()
 
 
-def build_string_field_definition(field: StructFieldDecl) -> str:
+def build_string_field_definition(field: ast_nodes.StructFieldDecl) -> str:
   """Builds the C++ code for a string type field wrapper."""
   builder = code_builder.CodeBuilder()
   with builder.block(f"mjString {field.name}() const"):
@@ -63,7 +60,7 @@ def build_string_field_definition(field: StructFieldDecl) -> str:
 
 
 def build_mjvec_pointer_definition(
-    field: StructFieldDecl, vector_type: str
+    field: ast_nodes.StructFieldDecl, vector_type: str
 ) -> str:
   """Builds the C++ code for a mjVec type field wrapper."""
   ptr_field_expr = f"*(ptr_->{field.name})"
@@ -79,7 +76,7 @@ def build_mjvec_pointer_definition(
 
 
 def build_simple_property_binding(
-    field: StructFieldDecl,
+    field: ast_nodes.StructFieldDecl,
     struct_wrapper_name: str,
     add_setter: bool = False,
     add_return_value_policy_as_ref: bool = False,

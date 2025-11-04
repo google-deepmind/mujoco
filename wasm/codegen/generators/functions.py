@@ -15,26 +15,20 @@
 """Generates Embind bindings for MuJoCo functions."""
 
 import pathlib
-from typing import List, Mapping, TypeAlias
+from typing import List, Mapping
 
 from introspect import ast_nodes
 
 from wasm.codegen.helpers import code_builder
 from wasm.codegen.helpers import function_utils
 
-FunctionDecl: TypeAlias = ast_nodes.FunctionDecl
-FunctionParameterDecl: TypeAlias = ast_nodes.FunctionParameterDecl
-PointerType: TypeAlias = ast_nodes.PointerType
-ValueType: TypeAlias = ast_nodes.ValueType
-Path: TypeAlias = pathlib.Path
-
 
 class Generator:
   """Generates Embind bindings for MuJoCo functions."""
 
-  def __init__(self, functions: Mapping[str, FunctionDecl]):
-    self.direct_bind_functions: List[FunctionDecl] = []
-    self.wrapper_bind_functions: List[FunctionDecl] = []
+  def __init__(self, functions: Mapping[str, ast_nodes.FunctionDecl]):
+    self.direct_bind_functions: List[ast_nodes.FunctionDecl] = []
+    self.wrapper_bind_functions: List[ast_nodes.FunctionDecl] = []
 
     for func in functions.values():
       if function_utils.should_be_wrapped(func):
@@ -63,7 +57,7 @@ class Generator:
     return result
 
   def _generate_function_binding(
-      self, func: FunctionDecl, is_wrapper=False
+      self, func: ast_nodes.FunctionDecl, is_wrapper=False
   ) -> str:
     """Generates the Embind code for a single function."""
 

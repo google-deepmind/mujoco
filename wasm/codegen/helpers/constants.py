@@ -14,9 +14,10 @@
 
 """Constants used in the code generation process."""
 
+from typing import List, Set, Dict
 from introspect import structs as introspect_structs
 
-PRIMITIVE_TYPES = {
+PRIMITIVE_TYPES: Set[str] = {
     # go/keep-sorted start
     "char",
     "double",
@@ -36,7 +37,7 @@ PRIMITIVE_TYPES = {
     # go/keep-sorted end
 }
 
-_PLUGIN_FUNCTIONS = [
+_PLUGIN_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mj_getPluginConfig",
     "mj_loadAllPluginLibraries",
@@ -61,7 +62,7 @@ _PLUGIN_FUNCTIONS = [
 ]
 
 # Functions that are bound as class methods
-_CLASS_METHODS = [
+_CLASS_METHODS: List[str] = [
     # go/keep-sorted start
     "mj_compile",
     "mj_copyData",
@@ -83,12 +84,12 @@ _CLASS_METHODS = [
 ]
 
 # Omitted because not very useful
-_WRITABLE_ERROR = [
+_WRITABLE_ERROR: List[str] = [
     "mj_printSchema",
 ]
 
 # Omitted thread management functions
-_THREAD_FUNCTIONS = [
+_THREAD_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mju_bindThreadPool",
     "mju_defaultTask",
@@ -100,7 +101,7 @@ _THREAD_FUNCTIONS = [
 ]
 
 # Omitted asset cache functions
-_ASSET_CACHE_FUNCTIONS = [
+_ASSET_CACHE_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mj_clearCache",
     "mj_getCache",
@@ -111,7 +112,7 @@ _ASSET_CACHE_FUNCTIONS = [
 ]
 
 # Omitted Virtual Filesystem (VFS) functions
-_VFS_FUNCTIONS = [
+_VFS_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mj_addBufferVFS",
     "mj_addFileVFS",
@@ -122,7 +123,7 @@ _VFS_FUNCTIONS = [
 ]
 
 # Omitted irrelevant visual functions
-_VISUAL_FUNCTIONS = [
+_VISUAL_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mjv_averageCamera",
     "mjv_copyData",
@@ -133,7 +134,7 @@ _VISUAL_FUNCTIONS = [
     # go/keep-sorted end
 ]
 
-_MEMORY_FUNCTIONS = [
+_MEMORY_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mj_freeLastXML",
     "mj_freeStack",
@@ -159,7 +160,7 @@ _MEMORY_FUNCTIONS = [
     # go/keep-sorted end
 ]
 
-_GETTERS_AND_SETTERS = [
+_GETTERS_AND_SETTERS: List[str] = [
     # go/keep-sorted start
     "mjs_appendFloatVec",
     "mjs_appendIntVec",
@@ -180,14 +181,14 @@ _GETTERS_AND_SETTERS = [
     # go/keep-sorted end
 ]
 
-_UTILITY_FUNCTIONS = [
+_UTILITY_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mju_getXMLDependencies",
     # go/keep-sorted end
 ]
 
 # List of functions that should be skipped during the code generation process.
-SKIPPED_FUNCTIONS = (
+SKIPPED_FUNCTIONS: List[str] = (
     _CLASS_METHODS +
     _THREAD_FUNCTIONS +
     _MEMORY_FUNCTIONS +
@@ -203,7 +204,7 @@ SKIPPED_FUNCTIONS = (
 # Functions that require special wrappers to infer sizes and make additional
 # validation checks. These functions are not bound automatically but are
 # written by hand instead.
-BOUNDCHECK_FUNCS = [
+BOUNDCHECK_FUNCS: List[str] = [
     # go/keep-sorted start
     "mj_addM",
     "mj_angmomMat",
@@ -287,7 +288,7 @@ BOUNDCHECK_FUNCS = [
 ]
 
 # List of structs that should be skipped during the code generation process.
-SKIPPED_STRUCTS = [
+SKIPPED_STRUCTS: List[str] = [
     # go/keep-sorted start
     "mjCache",
     "mjSDF",
@@ -309,7 +310,7 @@ SKIPPED_STRUCTS = [
 # Anonymous structs are not defined as independent structs in the MuJoCo
 # codebase, but they are part of other structs. This dictionary is used to
 # handle them as if they were independent structs.
-ANONYMOUS_STRUCTS = {
+ANONYMOUS_STRUCTS: Dict[str, Dict[str, str]] = {
     # go/keep-sorted start
     "mjVisualGlobal": {"parent": "mjVisual", "field_name": "global"},
     "mjVisualHeadlight": {"parent": "mjVisual", "field_name": "headlight"},
@@ -322,14 +323,14 @@ ANONYMOUS_STRUCTS = {
 
 # This list is created by subtracting the skipped structs from the list of all
 # structs and adding the anonymous structs.
-STRUCTS_TO_BIND = list(
+STRUCTS_TO_BIND: List[str] = list(
     (set(introspect_structs.STRUCTS.keys()) - set(SKIPPED_STRUCTS)).union(
         ANONYMOUS_STRUCTS.keys()
     )
 )
 
 # List of structs that do not have a default constructor.
-NO_DEFAULT_CONSTRUCTORS = [
+NO_DEFAULT_CONSTRUCTORS: List[str] = [
     # go/keep-sorted start
     "mjContact",
     "mjSolverStat",
@@ -349,7 +350,7 @@ NO_DEFAULT_CONSTRUCTORS = [
 # List of `mjData` fields where the array size should be obtained from other
 # `mjData` members, instead of from `mjModel` members. This is typically the
 # case for fields that are dynamically allocated during the simulation.
-MJDATA_SIZES = [
+MJDATA_SIZES: List[str] = [
     # go/keep-sorted start
     "contact",
     "efc_AR",
@@ -421,7 +422,7 @@ MJDATA_SIZES = [
 
 # Dictionary where keys are the struct names and the values are lists of the
 # fields that are manually specified in the bindings.cc template file.
-MANUALLY_ADDED_FIELDS_FROM_TEMPLATE = {
+MANUALLY_ADDED_FIELDS_FROM_TEMPLATE: Dict[str, List[str]] = {
     # go/keep-sorted start
     "MjData": ["solver", "timer", "warning", "contact"],
     "MjSpec": ["option", "visual", "stat", "element", "compiler"],
@@ -456,7 +457,7 @@ MANUALLY_ADDED_FIELDS_FROM_TEMPLATE = {
 # When generating the code for these fields, a specific cast to `uint8_t*` is
 # required for embind. This dictionary is used to register those fields and
 # their sizes.
-BYTE_FIELDS = {
+BYTE_FIELDS: Dict[str, Dict[str, str]] = {
     "buffer": {"size": "nbuffer"},
     "arena": {"size": "narena"},
 }
@@ -464,12 +465,12 @@ BYTE_FIELDS = {
 # Boolean flag to enable debug prints during the struct wrapper and binding
 # generation process. When set to `True`, it will print additional information
 # about the steps being executed.
-STRUCT_DEBUG_MODE = False
+STRUCT_DEBUG_MODE: bool = False
 
 # These structs require specific function calls for creation and/or deletion,
 # or some of their fields need to be handled manually for now;
 # making their wrapper constructors/destructors non-trivial.
-HARDCODED_WRAPPER_STRUCTS = [
+HARDCODED_WRAPPER_STRUCTS: List[str] = [
     "MjData",
     "MjModel",
     "MjvScene",

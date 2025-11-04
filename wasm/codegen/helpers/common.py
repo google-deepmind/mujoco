@@ -19,13 +19,11 @@ import pathlib
 
 from wasm.codegen.helpers import constants
 
-Path = pathlib.Path
-
 
 def get_default_output_dir() -> str:
   """Gets the default output directory (sibling of 'generated' folder)."""
   # Get the directory of the current file (generator/base.py)
-  current_dir = Path(__file__).parent
+  current_dir = pathlib.Path(__file__).parent
   # Go up one level to the project root and then down to 'generated'
   default_output_dir = str(current_dir.parent / "generated")
   return default_output_dir

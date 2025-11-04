@@ -18,19 +18,13 @@ from introspect import ast_nodes
 from wasm.codegen.helpers import struct_field_handler
 
 
-StructFieldDecl = ast_nodes.StructFieldDecl
-ValueType = ast_nodes.ValueType
-PointerType = ast_nodes.PointerType
-ArrayType = ast_nodes.ArrayType
-
-
 class StructFieldHandlerTest(absltest.TestCase):
 
   def test_scalar_field(self):
     """Test that a scalar type field is handled correctly."""
-    field_scalar = StructFieldDecl(
+    field_scalar = ast_nodes.StructFieldDecl(
         name='ngeom',
-        type=ValueType(name='int'),
+        type=ast_nodes.ValueType(name='int'),
         doc='number of geoms',
     )
 
@@ -56,10 +50,10 @@ void set_ngeom(int value) {
 
   def test_pointer_type_field(self):
     """Test that a pointer type field is handled correctly."""
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name='geom_rgba',
-        type=PointerType(
-            inner_type=ValueType(name='float'),
+        type=ast_nodes.PointerType(
+            inner_type=ast_nodes.ValueType(name='float'),
         ),
         doc='rgba when material is omitted',
         array_extent=('ngeom', 4),
@@ -84,10 +78,10 @@ emscripten::val geom_rgba() const {
 
   def test_pointer_type_field_for_byte_type(self):
     """Test that a pointer type field for a byte type is handled correctly."""
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name='buffer',
-        type=PointerType(
-            inner_type=ValueType(name='void'),
+        type=ast_nodes.PointerType(
+            inner_type=ast_nodes.ValueType(name='void'),
         ),
         doc='main buffer; all pointers point in it (nbuffer bytes)',
     )
@@ -110,10 +104,10 @@ emscripten::val buffer() const {
 
   def test_pointer_type_field_for_mj_struct(self):
     """Test that a pointer type field for a mj struct is handled correctly."""
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name='element',
-        type=PointerType(
-            inner_type=ValueType(name='mjsElement'),
+        type=ast_nodes.PointerType(
+            inner_type=ast_nodes.ValueType(name='mjsElement'),
         ),
         doc='',
     )
@@ -133,10 +127,10 @@ emscripten::val buffer() const {
 
   def test_array_type_field(self):
     """Test that an array type field is handled correctly."""
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name='gravity',
-        type=ArrayType(
-            inner_type=ValueType(name='mjtNum'),
+        type=ast_nodes.ArrayType(
+            inner_type=ast_nodes.ValueType(name='mjtNum'),
             extents=(3,),
         ),
         doc='gravitational acceleration',
@@ -160,10 +154,10 @@ emscripten::val gravity() const {
 
   def test_array_field_with_multi_dimensional_array(self):
     """Test that multi-dimensional arrays are handled correctly."""
-    field = StructFieldDecl(
+    field = ast_nodes.StructFieldDecl(
         name='multi_dim_array',
-        type=ArrayType(
-            inner_type=ValueType(name='float'),
+        type=ast_nodes.ArrayType(
+            inner_type=ast_nodes.ValueType(name='float'),
             extents=(3, 4),
         ),
         doc='description',
