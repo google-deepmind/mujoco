@@ -4404,6 +4404,10 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
 
     // save error info
     errInfo = err;
+    if (warningtext[0]) {
+      mju::strcat_arr(errInfo.message, "\n");
+      mju::strcat_arr(errInfo.message, warningtext);
+    }
 
     // restore handler, return 0
     _mjPRIVATE__set_tls_error_fn(save_error);
