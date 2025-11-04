@@ -14,7 +14,7 @@
 
 """Constants used in the code generation process."""
 
-from typing import List, Set, Dict
+from typing import Dict, List, Set
 from introspect import structs as introspect_structs
 
 PRIMITIVE_TYPES: Set[str] = {
@@ -189,16 +189,16 @@ _UTILITY_FUNCTIONS: List[str] = [
 
 # List of functions that should be skipped during the code generation process.
 SKIPPED_FUNCTIONS: List[str] = (
-    _CLASS_METHODS +
-    _THREAD_FUNCTIONS +
-    _MEMORY_FUNCTIONS +
-    _PLUGIN_FUNCTIONS +
-    _GETTERS_AND_SETTERS +
-    _VISUAL_FUNCTIONS +
-    _ASSET_CACHE_FUNCTIONS +
-    _VFS_FUNCTIONS +
-    _WRITABLE_ERROR +
-    _UTILITY_FUNCTIONS
+    _CLASS_METHODS
+    + _THREAD_FUNCTIONS
+    + _MEMORY_FUNCTIONS
+    + _PLUGIN_FUNCTIONS
+    + _GETTERS_AND_SETTERS
+    + _VISUAL_FUNCTIONS
+    + _ASSET_CACHE_FUNCTIONS
+    + _VFS_FUNCTIONS
+    + _WRITABLE_ERROR
+    + _UTILITY_FUNCTIONS
 )
 
 # Functions that require special wrappers to infer sizes and make additional

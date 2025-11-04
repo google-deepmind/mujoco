@@ -23,17 +23,15 @@ from wasm.codegen.helpers import structs
 class Generator:
   """Generates C++ code for binding and wrapping MuJoCo structs."""
 
-  def __init__(self):
+  def generate(self) -> list[tuple[str, list[str]]]:
+    """Generates C++ header file for binding and wrapping MuJoCo structs."""
+
     # Traverse the introspect dictionary to get the field
     # wrapper/bindings statements set up for each struct
     self.structs_to_bind_data = structs.generate_wasm_bindings(
         constants.STRUCTS_TO_BIND
     )
 
-  def generate_header(
-      self
-  ) -> list[tuple[str, list[Optional[str]]]]:
-    """Generates C++ header file for binding and wrapping MuJoCo structs."""
     autogenned_struct_definitions = []
     markers_and_content = []
 
@@ -60,22 +58,18 @@ class Generator:
         "// {{ AUTOGENNED_STRUCT_DEFINITIONS }}",
         autogenned_struct_definitions,
     ))
-    return markers_and_content
 
-  def generate_source(self) -> list[tuple[str, list[str]]]:
-    """Generates C++ source file for binding and wrapping MuJoCo structs."""
-    constructors = [
-        (
-            f"// INSERT-GENERATED-{struct_data.wrap_name}-CONSTRUCTOR",
-            [struct_data.wrapped_source],
-        )
-        for _, struct_data in self.structs_to_bind_data.items()
-    ]
-    properties = [
-        (
-            f"// INSERT-GENERATED-{struct_data.wrap_name}-BINDINGS",
-            [l.binding for l in struct_data.wrapped_fields],
-        )
-        for _, struct_data in self.structs_to_bind_data.items()
-    ]
-    return constructors + properties
+    for _, struct_data in self.structs_to_bind_data.items():
+      # Bindings
+      markers_and_content.append((
+          f"// INSERT-GENERATED-{struct_data.wrap_name}-BINDINGS",
+          [l.binding for l in struct_data.wrapped_fields],
+      ))
+
+      # Special member functions
+      markers_and_content.append((
+          f"// INSERT-GENERATED-{struct_data.wrap_name}-CONSTRUCTOR",
+          [struct_data.wrapped_source],
+      ))
+
+    return markers_and_content

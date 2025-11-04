@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from absl.testing import absltest
-
 from introspect import ast_nodes
 
 from wasm.codegen.generators import enums
@@ -51,12 +50,13 @@ class EnumsGeneratorTest(absltest.TestCase):
     .value("ALPHA", ALPHA)
     .value("BETA", BETA);
 
-  enum_<EmptyEnum>("EmptyEnum");
-"""
+  enum_<EmptyEnum>("EmptyEnum");"""
 
-    actual_code = generator.generate()
+    markers_and_content = generator.generate()
+    actual_code = "\n\n".join(markers_and_content[0][1])
 
     self.assertEqual(actual_code, expected_code)
+
 
 class FunctionsGeneratorTest(absltest.TestCase):
 

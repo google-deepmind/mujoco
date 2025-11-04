@@ -635,9 +635,9 @@ def build_struct_source(
     with builder.function(f"std::unique_ptr<{w}> {w}::copy()"):
       builder.line(f"return std::make_unique<{w}>(*this);")
 
+  # C struct getter/setter
   with builder.function(f"{s}* {w}::get() const"):
     builder.line("return ptr_;")
-
   with builder.function(f"void {w}::set({s}* ptr)"):
     builder.line("ptr_ = ptr;")
 

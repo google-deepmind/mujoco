@@ -29,21 +29,16 @@ class BindingsDiffTest(absltest.TestCase):
     super().setUp()
 
     SCRIPT_DIR = Path(__file__).parent
-    with open(SCRIPT_DIR / 'generated/bindings.h', 'r') as f:
-      self.generated_hdr = f.read()
     with open(SCRIPT_DIR / 'generated/bindings.cc', 'r') as f:
       self.generated_src = f.read()
     self.template_path_cc = SCRIPT_DIR / 'templates/bindings.cc'
-    self.generated_path_cc = SCRIPT_DIR / 'generated/bindings.cc'
 
-    self.builder = binding_builder.BindingBuilder(
-        self.template_path_cc,
-        self.generated_path_cc,
-    )
+    self.builder = binding_builder.BindingBuilder(self.template_path_cc)
 
   def test_bindings_source(self):
-    generator_output = (self.builder.set_enums().set_structs().set_functions().
-                        to_string_source())
+    generator_output = (
+        self.builder.set_enums().set_structs().set_functions().to_string()
+    )
     self.assertEqual(
         generator_output,
         self.generated_src,

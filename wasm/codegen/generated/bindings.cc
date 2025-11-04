@@ -11846,6 +11846,7 @@ std::optional<MjsPlugin> mjs_asPlugin_wrapper(MjsElement& element) {
   return MjsPlugin(result);
 }
 
+
 void mju_printMatSparse_wrapper(const NumberArray& mat, const NumberArray& rownnz, const NumberArray& rowadr, const NumberArray& colind)
 {
   UNPACK_ARRAY(mjtNum, mat);
@@ -12877,6 +12878,7 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mjs_asTexture", &mjs_asTexture_wrapper);
   function("mjs_asMaterial", &mjs_asMaterial_wrapper);
   function("mjs_asPlugin", &mjs_asPlugin_wrapper);
+
   function("error", &error_wrapper);
   function("mju_printMatSparse", &mju_printMatSparse_wrapper);
   function("mj_solveM", &mj_solveM_wrapper);

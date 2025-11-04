@@ -28,8 +28,8 @@ def generate_all_bindings():
   template_path_cc, generated_path_cc = common.get_file_path(
       "templates", "generated", "bindings.cc"
   )
-  builder = binding_builder.BindingBuilder(template_path_cc, generated_path_cc)
-  builder.set_enums().set_structs().set_functions().build()
+  builder = binding_builder.BindingBuilder(template_path_cc)
+  builder.set_enums().set_structs().set_functions().build(generated_path_cc)
 
 
 if __name__ == "__main__":

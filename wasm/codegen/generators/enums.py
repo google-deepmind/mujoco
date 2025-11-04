@@ -14,7 +14,7 @@
 
 """Generates Embind bindings for MuJoCo enums."""
 
-from typing import Mapping
+from typing import Mapping, Optional
 
 from introspect import ast_nodes
 
@@ -38,10 +38,13 @@ class Generator:
     code += ";"
     return code
 
-  def generate(self) -> str:
+  def generate(self) -> list[tuple[str, list[str]]]:
     """Generates all Embind code for the provided enums."""
 
     code = []
     for enum in self.enums.values():
       code.append(self._generate_enum_binding(enum))
-    return "\n\n".join(code) + "\n"
+
+    content = "\n\n".join(code)
+    marker = "// {{ ENUM_BINDINGS }}"
+    return [(marker, [content])]

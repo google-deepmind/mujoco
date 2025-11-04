@@ -14,7 +14,7 @@
 
 """Generates Embind bindings for MuJoCo functions."""
 
-from typing import List, Mapping
+from typing import List, Mapping, Optional
 
 from introspect import ast_nodes
 
@@ -76,11 +76,14 @@ class Generator:
 
     return result
 
-  def generate(self) -> tuple[str, str]:
+  def generate(self) -> list[tuple[str, list[str]]]:
     """Generates the bindings file for all functions."""
 
     wrapper_functions = self._generate_wrappers()
     function_bindings = self._generate_direct_bindable_functions()
     function_bindings += self._generate_wrapper_bindable_functions()
 
-    return wrapper_functions, function_bindings
+    return [
+        ("// {{ WRAPPER_FUNCTIONS }}", [wrapper_functions]),
+        ("// {{ FUNCTION_BINDINGS }}", [function_bindings]),
+    ]

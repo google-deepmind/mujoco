@@ -14,13 +14,13 @@
 
 """Builds WASM bindings for MuJoCo."""
 
+from introspect import ast_nodes
 from introspect import enums as introspect_enums
 from introspect import functions as introspect_functions
 
 from wasm.codegen.generators import enums
 from wasm.codegen.generators import functions
 from wasm.codegen.generators import structs
-
 from wasm.codegen.helpers import common
 from wasm.codegen.helpers import constants as _constants
 from wasm.codegen.helpers import functions as function_utils
@@ -32,73 +32,45 @@ class BindingBuilder:
   def __init__(
       self,
       template_path_cc: str,
-      generated_path_cc: str,
   ):
-    self.generated_path_cc = generated_path_cc
     with open(template_path_cc, "r") as f:
       self.content_cc = f.readlines()
 
-    filtered_functions = {
-        name: func
-        for name, func in introspect_functions.FUNCTIONS.items()
-        if not function_utils.is_excluded_function_name(name)
-        and name not in _constants.BOUNDCHECK_FUNCS
-    }
-    self.enums_generator = enums.Generator(introspect_enums.ENUMS)
-    self.functions_generator = functions.Generator(filtered_functions)
-    self.structs_generator = structs.Generator()
+    self.markers_and_content = []
 
   def set_enums(self):
     """Generates and sets the enum bindings."""
-    enum_bindings = self.enums_generator.generate()
-    self.content_cc = common.replace_lines_containing_marker(
-        self.content_cc,
-        "// {{ ENUM_BINDINGS }}",
-        enum_bindings,
-    )
+    generator = enums.Generator(introspect_enums.ENUMS)
+    self.markers_and_content += generator.generate()
     return self
 
   def set_structs(self):
     """Generates and sets the struct bindings."""
-
-    # Generate struct header bindings.
-    struct_hdr_markers_and_content = self.structs_generator.generate_header()
-    for marker, content in struct_hdr_markers_and_content:
-      self.content_cc = common.replace_lines_containing_marker(
-          self.content_cc, marker, content
-      )
-
-    # Generate struct source bindings.
-    struct_src_markers_and_content = (
-        self.structs_generator.generate_source()
-    )
-    for marker, content in struct_src_markers_and_content:
-      self.content_cc = common.replace_lines_containing_marker(
-          self.content_cc, marker, content
-      )
-
+    generator = structs.Generator()
+    self.markers_and_content += generator.generate()
     return self
 
   def set_functions(self):
     """Generates and sets the function wrappers and bindings."""
-    wrapper_functions, function_bindings = (
-        self.functions_generator.generate()
-    )
-    self.content_cc = common.replace_lines_containing_marker(
-        self.content_cc,
-        "// {{ WRAPPER_FUNCTIONS }}",
-        wrapper_functions,
-    )
-    self.content_cc = common.replace_lines_containing_marker(
-        self.content_cc,
-        "// {{ FUNCTION_BINDINGS }}",
-        function_bindings,
-    )
+
+    functions_to_bind: dict[str, ast_nodes.FunctionDecl] = {}
+    for name, func in introspect_functions.FUNCTIONS.items():
+      if not function_utils.is_excluded_function_name(name):
+        if name not in _constants.BOUNDCHECK_FUNCS:
+          functions_to_bind[name] = func
+
+    generator = functions.Generator(functions_to_bind)
+    self.markers_and_content += generator.generate()
     return self
 
-  def build(self):
-    """Writes the generated content to the output files."""
-    common.write_to_file(self.generated_path_cc, "".join(self.content_cc))
-
-  def to_string_source(self) -> str:
+  def to_string(self) -> str:
+    for marker, content in self.markers_and_content:
+      self.content_cc = common.replace_lines_containing_marker(
+          self.content_cc, marker, content
+      )
     return "".join(self.content_cc)
+
+  def build(self, generated_path_cc: str):
+    """Writes the generated content to the output files."""
+
+    common.write_to_file(generated_path_cc, self.to_string())
