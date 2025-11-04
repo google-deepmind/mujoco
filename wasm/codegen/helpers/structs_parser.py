@@ -33,11 +33,14 @@ introspect_structs = structs.STRUCTS
 
 
 def generate_wasm_bindings(
-    wrapped_structs: Dict[str, structs_wrappers_data.WrappedStructData],
+    structs_to_bind: List[str],
 ) -> Dict[str, structs_wrappers_data.WrappedStructData]:
   """Generates WASM bindings for MuJoCo structs."""
 
-  for struct_name, wrap_data in wrapped_structs.items():
+  wrapped_structs: Dict[str, structs_wrappers_data.WrappedStructData] = {}
+  for struct_name in structs_to_bind:
+    wrapped_name = common.uppercase_first_letter(struct_name)
+
     if struct_name in introspect_structs:
       struct_fields = introspect_structs[struct_name].fields
     elif struct_name in constants.ANONYMOUS_STRUCTS:
@@ -52,35 +55,33 @@ def generate_wasm_bindings(
 
     debug_print(f"Wrapping struct: {struct_name}")
 
-    fields_with_init: List[structs_wrappers_data.WrappedFieldData] = []
+    wrapped_fields: List[structs_wrappers_data.WrappedFieldData] = []
     for field in struct_fields:
-      field_gen = struct_field_handler.StructFieldHandler(
-          field, wrap_data.wrap_name
+      wrapped_field = struct_field_handler.StructFieldHandler(
+          field, wrapped_name
       ).generate()
-      # If the struct has at least one non-primitive or fixed size field
-      # we avoid shallow copy to avoid uninitialized memory.
-      if not field_gen.is_primitive_or_fixed_size:
-        wrap_data.use_shallow_copy = False
-      if field_gen.initialization:
-        fields_with_init.append(field_gen)
-      wrap_data.wrapped_fields.append(field_gen)
+      wrapped_fields.append(wrapped_field)
 
-    wrap_data.wrapped_header = (
-        struct_constructor_code_builder.build_struct_header(
-            struct_name,
-            wrap_data.use_shallow_copy,
-            fields_with_init,
-            wrap_data.wrapped_fields,
-        )
+    wrapped_header = struct_constructor_code_builder.build_struct_header(
+        struct_name,
+        wrapped_fields,
     )
-    wrap_data.wrapped_source = (
-        struct_constructor_code_builder.build_struct_source(
-            struct_name,
-            get_default_func_name(struct_name),
-            fields_with_init,
-            wrap_data.use_shallow_copy,
-        )
+    wrapped_source = struct_constructor_code_builder.build_struct_source(
+        struct_name,
+        wrapped_fields,
     )
+    wrap_data = structs_wrappers_data.WrappedStructData(
+        wrap_name=wrapped_name,
+        wrapped_fields=wrapped_fields,
+        wrapped_header=wrapped_header,
+        wrapped_source=wrapped_source,
+        use_shallow_copy=struct_constructor_code_builder.use_shallow_copy(
+            wrapped_fields
+        ),
+    )
+
+    wrapped_structs[struct_name] = wrap_data
+
   return wrapped_structs
 
 
@@ -102,25 +103,6 @@ def _get_anonymous_struct_field(
       None,
   )
   return target_field
-
-
-def get_default_func_name(struct_name: str) -> str:
-  """Returns the default function name for the given struct."""
-  if (
-      struct_name in constants.ANONYMOUS_STRUCTS.keys()
-      or struct_name in constants.NO_DEFAULT_CONSTRUCTORS
-      or (
-          common.uppercase_first_letter(struct_name)
-          in constants.MANUALLY_ADDED_FIELDS_FROM_TEMPLATE.keys()
-      )
-  ):
-    return ""
-  elif struct_name.startswith("mjs"):
-    return f"mjs_default{struct_name.removeprefix('mjs')}"
-  elif struct_name.startswith("mjv"):
-    return f"mjv_default{struct_name.removeprefix('mjv')}"
-  else:
-    return f"mj_default{struct_name.removeprefix('mj')}"
 
 
 def _get_field_struct_type(field_type):

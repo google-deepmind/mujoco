@@ -25,9 +25,7 @@ from wasm.codegen.helpers import constants
 from wasm.codegen.helpers import structs_wrappers_data
 
 
-def _has_nested_wrapper_members(
-    struct_info: ast_nodes.StructDecl
-) -> bool:
+def _has_nested_wrapper_members(struct_info: ast_nodes.StructDecl) -> bool:
   """Checks if the struct contains other wrapped structs as direct members."""
   for field in struct_info.fields:
     struct_field = cast(ast_nodes.StructFieldDecl, field)
@@ -49,10 +47,12 @@ def _build_struct_header_internal(
     struct_name: str,
     wrapped_fields: List[structs_wrappers_data.WrappedFieldData],
     fields_with_init: List[structs_wrappers_data.WrappedFieldData],
-    use_shallow_copy: bool = False,
     is_mjs: bool = False,
 ):
   """Builds the C++ header file code for a struct."""
+
+  shallow_copy = use_shallow_copy(wrapped_fields)
+
   wrapper_name = common.uppercase_first_letter(struct_name)
   builder = code_builder.CodeBuilder()
   with builder.block(f"struct {wrapper_name}"):
@@ -64,7 +64,7 @@ def _build_struct_header_internal(
     builder.line(f"explicit {wrapper_name}({struct_name} *ptr);")
     builder.line(f"~{wrapper_name}();")
 
-    if use_shallow_copy:
+    if shallow_copy:
       builder.line(f"std::unique_ptr<{wrapper_name}> copy();")
 
     for field in wrapped_fields:
@@ -87,24 +87,62 @@ def _build_struct_header_internal(
       for field in fields_with_init:
         if field.definition:
           builder.line(f"{field.definition}")
-  return builder.to_string()+";"
+  return builder.to_string() + ";"
+
+
+def _get_default_func_name(struct_name: str) -> str:
+  """Returns the default function name for the given struct."""
+  if (
+      struct_name in constants.ANONYMOUS_STRUCTS.keys()
+      or struct_name in constants.NO_DEFAULT_CONSTRUCTORS
+      or (
+          common.uppercase_first_letter(struct_name)
+          in constants.MANUALLY_ADDED_FIELDS_FROM_TEMPLATE.keys()
+      )
+  ):
+    return ""
+  elif struct_name.startswith("mjs"):
+    return f"mjs_default{struct_name.removeprefix('mjs')}"
+  elif struct_name.startswith("mjv"):
+    return f"mjv_default{struct_name.removeprefix('mjv')}"
+  else:
+    return f"mj_default{struct_name.removeprefix('mj')}"
+
+
+def _find_fields_with_init(
+    wrapped_fields: List[structs_wrappers_data.WrappedFieldData],
+) -> List[structs_wrappers_data.WrappedFieldData]:
+  """Finds the fields with initialization in the wrapped fields list."""
+  fields_with_init = []
+  for field in wrapped_fields:
+    if field.initialization:
+      fields_with_init.append(field)
+  return fields_with_init
+
+
+def use_shallow_copy(
+    wrapped_fields: List[structs_wrappers_data.WrappedFieldData],
+) -> bool:
+  """Returns true if the struct fields can be shallow copied."""
+  for field in wrapped_fields:
+    if not field.is_primitive_or_fixed_size:
+      return False
+  return True
 
 
 def build_struct_header(
     struct_name: str,
-    use_shallow_copy: bool = False,
-    fields_with_init: List[structs_wrappers_data.WrappedFieldData] = [],
-    wrapped_fields: List[structs_wrappers_data.WrappedFieldData] = [],
+    wrapped_fields: List[structs_wrappers_data.WrappedFieldData],
 ):
   """Builds the C++ header file code for a struct."""
   struct_info = introspect_structs.STRUCTS.get(struct_name)
 
   if struct_name.startswith("mjs"):
+    fields_with_init = _find_fields_with_init(wrapped_fields)
     return _build_struct_header_internal(
         struct_name,
         wrapped_fields,
         fields_with_init,
-        use_shallow_copy,
         is_mjs=True,
     )
 
@@ -117,27 +155,28 @@ def build_struct_header(
       and not _has_nested_wrapper_members(struct_info)
   ):
     return _build_struct_header_internal(
-        struct_name, wrapped_fields, [], use_shallow_copy, is_mjs=False
+        struct_name, wrapped_fields, [], is_mjs=False
     )
   return ""
 
 
 def build_struct_source(
     struct_name: str,
-    mj_default_func: str | None = None,
-    fields_with_init: List[structs_wrappers_data.WrappedFieldData] = [],
-    use_shallow_copy: bool = False,
+    wrapped_fields: List[structs_wrappers_data.WrappedFieldData],
 ):
   """Builds the C++ .cc file code for a struct."""
   wrapper_name = common.uppercase_first_letter(struct_name)
   is_mjs_struct = "Mjs" in wrapper_name
   builder = code_builder.CodeBuilder()
 
+  fields_with_init = _find_fields_with_init(wrapped_fields)
+  shallow_copy = use_shallow_copy(wrapped_fields)
+  mj_default_func = _get_default_func_name(struct_name)
+
   fields_init = ""
   if fields_with_init:
     fields_init = "".join(
-        field_with_init.initialization
-        for field_with_init in fields_with_init
+        field_with_init.initialization for field_with_init in fields_with_init
     )
   # constructor passing native ptr
   builder.line(
@@ -154,10 +193,9 @@ def build_struct_source(
       if mj_default_func:
         builder.line(f"{mj_default_func}(ptr_);")
   # copy constructor
-  if use_shallow_copy and not is_mjs_struct:
+  if shallow_copy and not is_mjs_struct:
     with builder.block(
-        f"{wrapper_name}::{wrapper_name}(const"
-        f" {wrapper_name} &other)"
+        f"{wrapper_name}::{wrapper_name}(const {wrapper_name} &other)"
         + (f" : {wrapper_name}()" if not is_mjs_struct else "")
     ):
       builder.line("*ptr_ = *other.get();")
@@ -186,12 +224,9 @@ def build_struct_source(
     with builder.block(f"{wrapper_name}::~{wrapper_name}()"):
       builder.line("if (owned_ && ptr_) delete ptr_;")
   # copy function
-  if use_shallow_copy:
+  if shallow_copy:
     with builder.block(
-        f"std::unique_ptr<{wrapper_name}>"
-        f" {wrapper_name}::copy()"
+        f"std::unique_ptr<{wrapper_name}> {wrapper_name}::copy()"
     ):
-      builder.line(
-          f"return std::make_unique<{wrapper_name}>(*this);"
-      )
+      builder.line(f"return std::make_unique<{wrapper_name}>(*this);")
   return builder.to_string()

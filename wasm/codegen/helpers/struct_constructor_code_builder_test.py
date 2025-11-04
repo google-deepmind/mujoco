@@ -16,37 +16,49 @@ from absl.testing import absltest
 from introspect import ast_nodes
 from wasm.codegen.helpers import struct_constructor_code_builder
 from wasm.codegen.helpers import struct_field_handler
+from wasm.codegen.helpers import structs_parser
 
 
 class StructConstructorCodeBuilderTest(absltest.TestCase):
 
   def test_constructor_code_with_default_function(self):
+    wrapped_structs = structs_parser.generate_wasm_bindings(["mjLROpt"])
     self.assertEqual(
-        struct_constructor_code_builder.build_struct_source(
-            "mjLROpt", "mj_defaultLROpt"
-        ),
+        wrapped_structs["mjLROpt"].wrapped_source,
         """
 MjLROpt::MjLROpt(mjLROpt *ptr) : ptr_(ptr) {}
 MjLROpt::MjLROpt() : ptr_(new mjLROpt) {
   owned_ = true;
   mj_defaultLROpt(ptr_);
 }
+MjLROpt::MjLROpt(const MjLROpt &other) : MjLROpt() {
+  *ptr_ = *other.get();
+}
+MjLROpt& MjLROpt::operator=(const MjLROpt &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
 MjLROpt::~MjLROpt() {
   if (owned_ && ptr_) delete ptr_;
+}
+std::unique_ptr<MjLROpt> MjLROpt::copy() {
+  return std::make_unique<MjLROpt>(*this);
 }
 """.strip(),
     )
 
   def test_constructor_code_without_default_function(self):
+    wrapped_structs = structs_parser.generate_wasm_bindings(["mjsElement"])
     self.assertEqual(
-        struct_constructor_code_builder.build_struct_source("mjLROpt"),
+        wrapped_structs["mjsElement"].wrapped_source,
         """
-MjLROpt::MjLROpt(mjLROpt *ptr) : ptr_(ptr) {}
-MjLROpt::MjLROpt() : ptr_(new mjLROpt) {
-  owned_ = true;
-}
-MjLROpt::~MjLROpt() {
-  if (owned_ && ptr_) delete ptr_;
+MjsElement::MjsElement(mjsElement *ptr) : ptr_(ptr) {}
+MjsElement::~MjsElement() {}
+std::unique_ptr<MjsElement> MjsElement::copy() {
+  return std::make_unique<MjsElement>(*this);
 }
 """.strip(),
     )
@@ -65,7 +77,6 @@ MjLROpt::~MjLROpt() {
     self.assertEqual(
         struct_constructor_code_builder.build_struct_source(
             "mjsTexture",
-            "mjs_defaultTexture",
             [wrapped_field_data],
         ),
         """
@@ -76,9 +87,7 @@ MjsTexture::~MjsTexture() {}
 
   def test_constructor_code_with_shallow_copy(self):
     self.assertEqual(
-        struct_constructor_code_builder.build_struct_source(
-            "mjvLight", use_shallow_copy=True
-        ),
+        struct_constructor_code_builder.build_struct_source("mjvLight", []),
         """MjvLight::MjvLight(mjvLight *ptr) : ptr_(ptr) {}
 MjvLight::MjvLight() : ptr_(new mjvLight) {
   owned_ = true;
@@ -104,14 +113,14 @@ std::unique_ptr<MjvLight> MjvLight::copy() {
 
 def test_build_struct_header_with_nested_wrappers(self):
   self.assertEqual(
-      struct_constructor_code_builder.build_struct_header("mjData"),
+      struct_constructor_code_builder.build_struct_header("mjData", []),
       "",
   )
 
 
 def test_build_struct_header_basic_struct(self):
   self.assertEqual(
-      struct_constructor_code_builder.build_struct_header("mjLROpt"),
+      struct_constructor_code_builder.build_struct_header("mjLROpt", []),
       """
 struct MjLROpt {
   MjLROpt();

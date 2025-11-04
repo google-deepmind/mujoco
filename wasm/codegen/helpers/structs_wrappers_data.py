@@ -59,17 +59,3 @@ class WrappedStructData:
   # Whether to use shallow copy for this struct
   use_shallow_copy: bool = True
 
-
-def create_wrapped_structs_set_up_data(
-    struct_names: List[str],
-) -> Dict[str, WrappedStructData]:
-  """Creates a dictionary of WrappedStructData for the given struct names."""
-  return {
-      name: WrappedStructData(
-          wrap_name=common.uppercase_first_letter(name),
-          wrapped_fields=[],
-          wrapped_header="",
-          wrapped_source="",
-      )
-      for name in struct_names
-  }

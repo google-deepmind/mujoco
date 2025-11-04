@@ -25,15 +25,13 @@ class StructsParserTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.wrapped_structs = structs_parser.generate_wasm_bindings(
-        structs_wrappers_data.create_wrapped_structs_set_up_data([
-            "mjModel",
-            "mjData",
-            "mjVisualGlobal",
-            "mjVisualQuality",
-            "mjVisual",
-        ])
-    )
+    self.wrapped_structs = structs_parser.generate_wasm_bindings([
+        "mjModel",
+        "mjData",
+        "mjVisualGlobal",
+        "mjVisualQuality",
+        "mjVisual",
+    ])
 
   def test_sort_structs_by_dependency(self):
     mock_introspect_structs = {
@@ -83,27 +81,9 @@ class StructsParserTest(absltest.TestCase):
 
   def test_generate_wasm_bindings_with_error(self):
     with self.assertRaises(RuntimeError):
-      structs_parser.generate_wasm_bindings(
-          structs_wrappers_data.create_wrapped_structs_set_up_data(
-              ["mjFakeStruct"]
-          )
-      )
+      structs_parser.generate_wasm_bindings(["mjFakeStruct"])
     with self.assertRaises(RuntimeError):
-      structs_parser.generate_wasm_bindings(
-          structs_wrappers_data.create_wrapped_structs_set_up_data(
-              ["mjFakeAnonymousStruct"]
-          )
-      )
-
-  def test_get_default_func_name_mjv(self):
-    self.assertEqual(
-        structs_parser.get_default_func_name("mjvPerturb"), "mjv_defaultPerturb"
-    )
-
-  def test_get_default_func_name(self):
-    self.assertEqual(
-        structs_parser.get_default_func_name("mjOption"), "mj_defaultOption"
-    )
+      structs_parser.generate_wasm_bindings(["mjFakeAnonymousStruct"])
 
 
 if __name__ == "__main__":

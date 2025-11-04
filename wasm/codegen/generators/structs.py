@@ -18,23 +18,16 @@ from typing import Optional
 
 from wasm.codegen.helpers import constants
 from wasm.codegen.helpers import structs_parser
-from wasm.codegen.helpers import structs_wrappers_data
 
 
 class Generator:
   """Generates C++ code for binding and wrapping MuJoCo structs."""
 
   def __init__(self):
-    # Set up the correct input dict based on the structs we want to bind
-    # and already have a wrapper manually created in the template/bindings.cc
-    wrapped_structs = structs_wrappers_data.create_wrapped_structs_set_up_data(
-        constants.STRUCTS_TO_BIND
-    )
-
     # Traverse the introspect dictionary to get the field
     # wrapper/bindings statements set up for each struct
     self.structs_to_bind_data = structs_parser.generate_wasm_bindings(
-        wrapped_structs
+        constants.STRUCTS_TO_BIND
     )
 
   def generate_header(
