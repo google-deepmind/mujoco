@@ -7398,7 +7398,9 @@ MjLROpt& MjLROpt::operator=(const MjLROpt &other) {
   return *this;
 }
 MjLROpt::~MjLROpt() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjLROpt> MjLROpt::copy() {
   return std::make_unique<MjLROpt>(*this);
@@ -7421,7 +7423,9 @@ MjOption& MjOption::operator=(const MjOption &other) {
   return *this;
 }
 MjOption::~MjOption() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjOption> MjOption::copy() {
   return std::make_unique<MjOption>(*this);
@@ -7443,7 +7447,9 @@ MjStatistic& MjStatistic::operator=(const MjStatistic &other) {
   return *this;
 }
 MjStatistic::~MjStatistic() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjStatistic> MjStatistic::copy() {
   return std::make_unique<MjStatistic>(*this);
@@ -7465,7 +7471,9 @@ MjVisualGlobal& MjVisualGlobal::operator=(const MjVisualGlobal &other) {
   return *this;
 }
 MjVisualGlobal::~MjVisualGlobal() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjVisualGlobal> MjVisualGlobal::copy() {
   return std::make_unique<MjVisualGlobal>(*this);
@@ -7486,7 +7494,9 @@ MjVisualQuality& MjVisualQuality::operator=(const MjVisualQuality &other) {
   return *this;
 }
 MjVisualQuality::~MjVisualQuality() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjVisualQuality> MjVisualQuality::copy() {
   return std::make_unique<MjVisualQuality>(*this);
@@ -7507,7 +7517,9 @@ MjVisualHeadlight& MjVisualHeadlight::operator=(const MjVisualHeadlight &other) 
   return *this;
 }
 MjVisualHeadlight::~MjVisualHeadlight() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjVisualHeadlight> MjVisualHeadlight::copy() {
   return std::make_unique<MjVisualHeadlight>(*this);
@@ -7528,7 +7540,9 @@ MjVisualMap& MjVisualMap::operator=(const MjVisualMap &other) {
   return *this;
 }
 MjVisualMap::~MjVisualMap() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjVisualMap> MjVisualMap::copy() {
   return std::make_unique<MjVisualMap>(*this);
@@ -7549,7 +7563,9 @@ MjVisualScale& MjVisualScale::operator=(const MjVisualScale &other) {
   return *this;
 }
 MjVisualScale::~MjVisualScale() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjVisualScale> MjVisualScale::copy() {
   return std::make_unique<MjVisualScale>(*this);
@@ -7570,7 +7586,9 @@ MjVisualRgba& MjVisualRgba::operator=(const MjVisualRgba &other) {
   return *this;
 }
 MjVisualRgba::~MjVisualRgba() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjVisualRgba> MjVisualRgba::copy() {
   return std::make_unique<MjVisualRgba>(*this);
@@ -7604,7 +7622,9 @@ MjVisual& MjVisual::operator=(const MjVisual &other) {
   return *this;
 }
 MjVisual::~MjVisual() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjVisual> MjVisual::copy() {
   return std::make_unique<MjVisual>(*this);
@@ -7626,7 +7646,9 @@ MjSolverStat& MjSolverStat::operator=(const MjSolverStat &other) {
   return *this;
 }
 MjSolverStat::~MjSolverStat() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjSolverStat> MjSolverStat::copy() {
   return std::make_unique<MjSolverStat>(*this);
@@ -7648,7 +7670,9 @@ MjTimerStat& MjTimerStat::operator=(const MjTimerStat &other) {
   return *this;
 }
 MjTimerStat::~MjTimerStat() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjTimerStat> MjTimerStat::copy() {
   return std::make_unique<MjTimerStat>(*this);
@@ -7670,7 +7694,9 @@ MjWarningStat& MjWarningStat::operator=(const MjWarningStat &other) {
   return *this;
 }
 MjWarningStat::~MjWarningStat() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjWarningStat> MjWarningStat::copy() {
   return std::make_unique<MjWarningStat>(*this);
@@ -7692,7 +7718,9 @@ MjContact& MjContact::operator=(const MjContact &other) {
   return *this;
 }
 MjContact::~MjContact() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjContact> MjContact::copy() {
   return std::make_unique<MjContact>(*this);
@@ -7786,7 +7814,9 @@ MjvPerturb& MjvPerturb::operator=(const MjvPerturb &other) {
   return *this;
 }
 MjvPerturb::~MjvPerturb() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjvPerturb> MjvPerturb::copy() {
   return std::make_unique<MjvPerturb>(*this);
@@ -7809,7 +7839,9 @@ MjvCamera& MjvCamera::operator=(const MjvCamera &other) {
   return *this;
 }
 MjvCamera::~MjvCamera() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjvCamera> MjvCamera::copy() {
   return std::make_unique<MjvCamera>(*this);
@@ -7831,23 +7863,24 @@ MjvGLCamera& MjvGLCamera::operator=(const MjvGLCamera &other) {
   return *this;
 }
 MjvGLCamera::~MjvGLCamera() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjvGLCamera> MjvGLCamera::copy() {
   return std::make_unique<MjvGLCamera>(*this);
 }
 
 // =============== MjvGeom =============== //
-MjvGeom::MjvGeom(mjvGeom *ptr) { ptr_ = ptr; };
+MjvGeom::MjvGeom(mjvGeom *ptr) : ptr_(ptr) {}
 MjvGeom::MjvGeom() : ptr_(new mjvGeom) {
   owned_ = true;
   mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);
-};
+}
 MjvGeom::MjvGeom(const MjvGeom &other) : MjvGeom() {
   *ptr_ = *other.get();
 }
-MjvGeom &MjvGeom::operator=(
-    const MjvGeom &other) {
+MjvGeom& MjvGeom::operator=(const MjvGeom &other) {
   if (this == &other) {
     return *this;
   }
@@ -7855,7 +7888,9 @@ MjvGeom &MjvGeom::operator=(
   return *this;
 }
 MjvGeom::~MjvGeom() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjvGeom> MjvGeom::copy() {
   return std::make_unique<MjvGeom>(*this);
@@ -7877,7 +7912,9 @@ MjvLight& MjvLight::operator=(const MjvLight &other) {
   return *this;
 }
 MjvLight::~MjvLight() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjvLight> MjvLight::copy() {
   return std::make_unique<MjvLight>(*this);
@@ -7900,7 +7937,9 @@ MjvOption& MjvOption::operator=(const MjvOption &other) {
   return *this;
 }
 MjvOption::~MjvOption() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjvOption> MjvOption::copy() {
   return std::make_unique<MjvOption>(*this);
@@ -8010,7 +8049,9 @@ MjvFigure& MjvFigure::operator=(const MjvFigure &other) {
   return *this;
 }
 MjvFigure::~MjvFigure() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjvFigure> MjvFigure::copy() {
   return std::make_unique<MjvFigure>(*this);

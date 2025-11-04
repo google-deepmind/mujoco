@@ -563,28 +563,7 @@ std::vector<MjContact> MjData::contact() const {
 // INSERT-GENERATED-MjvGLCamera-CONSTRUCTOR
 
 // =============== MjvGeom =============== //
-MjvGeom::MjvGeom(mjvGeom *ptr) { ptr_ = ptr; };
-MjvGeom::MjvGeom() : ptr_(new mjvGeom) {
-  owned_ = true;
-  mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);
-};
-MjvGeom::MjvGeom(const MjvGeom &other) : MjvGeom() {
-  *ptr_ = *other.get();
-}
-MjvGeom &MjvGeom::operator=(
-    const MjvGeom &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-MjvGeom::~MjvGeom() {
-  if (owned_ && ptr_) delete ptr_;
-}
-std::unique_ptr<MjvGeom> MjvGeom::copy() {
-  return std::make_unique<MjvGeom>(*this);
-}
+// INSERT-GENERATED-MjvGeom-CONSTRUCTOR
 
 // =============== MjvLight =============== //
 // INSERT-GENERATED-MjvLight-CONSTRUCTOR
@@ -823,16 +802,7 @@ MjSpec::~MjSpec() {
 // INSERT-GENERATED-MjsPlugin-CONSTRUCTOR
 
 // =============== MjVFS =============== //
-MjVFS::MjVFS(mjVFS *ptr) : ptr_(ptr) {}
-MjVFS::MjVFS() : ptr_(new mjVFS) {
-  owned_ = true;
-  mj_defaultVFS(ptr_);
-}
-MjVFS::~MjVFS() {
-  if (owned_ && ptr_) {
-    mj_deleteVFS(ptr_);
-  }
-}
+// INSERT-GENERATED-MjVFS-CONSTRUCTOR
 
 // ======= FACTORY AND HELPER FUNCTIONS ========= //
 std::unique_ptr<MjModel> loadFromXML(std::string filename) {

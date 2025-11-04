@@ -493,7 +493,7 @@ def _build_struct_header_internal(
   return builder.to_string() + ";"
 
 
-def _get_default_func_name(struct_name: str) -> str:
+def _default_function_statement(struct_name: str) -> str:
   """Returns the default function name for the given struct."""
   if (
       struct_name in constants.ANONYMOUS_STRUCTS.keys()
@@ -505,11 +505,23 @@ def _get_default_func_name(struct_name: str) -> str:
   ):
     return ""
   elif struct_name.startswith("mjs"):
-    return f"mjs_default{struct_name.removeprefix('mjs')}"
+    return f"mjs_default{struct_name.removeprefix('mjs')}(ptr_);"
+  elif struct_name == "mjvGeom":
+    return (
+        "mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);"
+    )
   elif struct_name.startswith("mjv"):
-    return f"mjv_default{struct_name.removeprefix('mjv')}"
+    return f"mjv_default{struct_name.removeprefix('mjv')}(ptr_);"
   else:
-    return f"mj_default{struct_name.removeprefix('mj')}"
+    return f"mj_default{struct_name.removeprefix('mj')}(ptr_);"
+
+
+def _delete_ptr_statement(struct_name: str) -> str:
+  """Returns the delete function name for the given struct."""
+  if struct_name == "mjVFS":
+    return "mj_deleteVFS(ptr_);"
+  else:
+    return "delete ptr_;"
 
 
 def _find_fields_with_init(
@@ -574,18 +586,19 @@ def build_struct_source(
 
   fields_with_init = _find_fields_with_init(wrapped_fields)
   shallow_copy = use_shallow_copy(wrapped_fields)
-  mj_default_func = _get_default_func_name(struct_name)
 
   fields_init = ""
   if fields_with_init:
     fields_init = "".join(
         field_with_init.initialization for field_with_init in fields_with_init
     )
+
   # constructor passing native ptr
   builder.line(
       f"{wrapper_name}::{wrapper_name}({struct_name} *ptr) :"
       f" ptr_(ptr){fields_init} {{}}"
   )
+
   # constructor with default values
   if not is_mjs_struct:
     with builder.block(
@@ -593,10 +606,12 @@ def build_struct_source(
         f" {struct_name}){fields_init}"
     ):
       builder.line("owned_ = true;")
-      if mj_default_func:
-        builder.line(f"{mj_default_func}(ptr_);")
-  # copy constructor
+      default_func = _default_function_statement(struct_name)
+      if default_func:
+        builder.line(default_func)
+
   if shallow_copy and not is_mjs_struct:
+    # copy constructor
     with builder.block(
         f"{wrapper_name}::{wrapper_name}(const {wrapper_name} &other)"
         + (f" : {wrapper_name}()" if not is_mjs_struct else "")
@@ -606,6 +621,7 @@ def build_struct_source(
         for field_with_init in fields_with_init:
           if field_with_init.ptr_copy_reset is not None:
             builder.line(field_with_init.ptr_copy_reset)
+
     # assignment operator
     with builder.block(
         f"{wrapper_name}&"
@@ -620,18 +636,23 @@ def build_struct_source(
           if field_with_init.ptr_copy_reset is not None:
             builder.line(field_with_init.ptr_copy_reset)
       builder.line("return *this;")
+
   # destructor
   if is_mjs_struct:
     builder.line(f"{wrapper_name}::~{wrapper_name}() {{}}")
   else:
     with builder.block(f"{wrapper_name}::~{wrapper_name}()"):
-      builder.line("if (owned_ && ptr_) delete ptr_;")
+      with builder.block("if (owned_ && ptr_)"):
+        delete_ptr = _delete_ptr_statement(struct_name)
+        builder.line(delete_ptr)
+
   # copy function
   if shallow_copy:
     with builder.block(
         f"std::unique_ptr<{wrapper_name}> {wrapper_name}::copy()"
     ):
       builder.line(f"return std::make_unique<{wrapper_name}>(*this);")
+
   return builder.to_string()
 
 

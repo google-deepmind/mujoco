@@ -311,7 +311,9 @@ MjLROpt& MjLROpt::operator=(const MjLROpt &other) {
   return *this;
 }
 MjLROpt::~MjLROpt() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjLROpt> MjLROpt::copy() {
   return std::make_unique<MjLROpt>(*this);
@@ -372,7 +374,9 @@ MjvLight& MjvLight::operator=(const MjvLight &other) {
   return *this;
 }
 MjvLight::~MjvLight() {
-  if (owned_ && ptr_) delete ptr_;
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
 }
 std::unique_ptr<MjvLight> MjvLight::copy() {
   return std::make_unique<MjvLight>(*this);
