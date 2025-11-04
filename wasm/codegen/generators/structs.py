@@ -17,7 +17,7 @@
 from typing import Optional
 
 from wasm.codegen.helpers import constants
-from wasm.codegen.helpers import structs_parser
+from wasm.codegen.helpers import structs
 
 
 class Generator:
@@ -26,7 +26,7 @@ class Generator:
   def __init__(self):
     # Traverse the introspect dictionary to get the field
     # wrapper/bindings statements set up for each struct
-    self.structs_to_bind_data = structs_parser.generate_wasm_bindings(
+    self.structs_to_bind_data = structs.generate_wasm_bindings(
         constants.STRUCTS_TO_BIND
     )
 
@@ -38,7 +38,7 @@ class Generator:
     markers_and_content = []
 
     # Sort by struct name by dependency to ensure deterministic output order
-    sorted_struct_names = structs_parser.sort_structs_by_dependency(
+    sorted_struct_names = structs.sort_structs_by_dependency(
         constants.STRUCTS_TO_BIND
     )
 
