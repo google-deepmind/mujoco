@@ -23,7 +23,7 @@ from wasm.codegen.generators import structs
 
 from wasm.codegen.helpers import common
 from wasm.codegen.helpers import constants as _constants
-from wasm.codegen.helpers import function_utils
+from wasm.codegen.helpers import functions as function_utils
 
 
 class BindingBuilder:

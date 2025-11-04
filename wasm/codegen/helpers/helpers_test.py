@@ -20,7 +20,7 @@ from introspect import ast_nodes
 from wasm.codegen.helpers import code_builder
 from wasm.codegen.helpers import common
 from wasm.codegen.helpers import constants
-from wasm.codegen.helpers import function_utils
+from wasm.codegen.helpers import functions
 from wasm.codegen.helpers import structs
 
 
@@ -88,7 +88,7 @@ class FunctionUtilsTest(absltest.TestCase):
 
   def test_return_is_value_of_type(self):
     self.assertTrue(
-        function_utils.return_is_value_of_type(
+        functions.return_is_value_of_type(
             ast_nodes.FunctionDecl(
                 "func_i", ast_nodes.ValueType("int"), [], "doc"
             ),
@@ -96,7 +96,7 @@ class FunctionUtilsTest(absltest.TestCase):
         )
     )
     self.assertFalse(
-        function_utils.return_is_value_of_type(
+        functions.return_is_value_of_type(
             ast_nodes.FunctionDecl(
                 "func_s", ast_nodes.ValueType("MyStruct"), [], "doc"
             ),
@@ -106,18 +106,18 @@ class FunctionUtilsTest(absltest.TestCase):
 
   def test_return_is_pointer_to_struct(self):
     self.assertTrue(
-        function_utils.return_is_pointer_to_struct(self.func_ret_ptr_struct)
+        functions.return_is_pointer_to_struct(self.func_ret_ptr_struct)
     )
     self.assertFalse(
-        function_utils.return_is_pointer_to_struct(self.func_ret_ptr_int)
+        functions.return_is_pointer_to_struct(self.func_ret_ptr_int)
     )
 
   def test_return_is_pointer_to_primitive(self):
     self.assertTrue(
-        function_utils.return_is_pointer_to_primitive(self.func_ret_ptr_int)
+        functions.return_is_pointer_to_primitive(self.func_ret_ptr_int)
     )
     self.assertFalse(
-        function_utils.return_is_pointer_to_primitive(self.func_ret_ptr_struct)
+        functions.return_is_pointer_to_primitive(self.func_ret_ptr_struct)
     )
 
   def test_param_is_primitive_value(self):
@@ -128,8 +128,8 @@ class FunctionUtilsTest(absltest.TestCase):
         "arr_v", ast_nodes.ArrayType(ast_nodes.ValueType("int"), extents=(10,))
     )
 
-    self.assertTrue(function_utils.param_is_primitive_value(param_prim_val))
-    self.assertFalse(function_utils.param_is_primitive_value(param_arr))
+    self.assertTrue(functions.param_is_primitive_value(param_prim_val))
+    self.assertFalse(functions.param_is_primitive_value(param_arr))
 
   def test_param_is_pointer_to_primitive_value(self):
     param_ptr_to_prim = ast_nodes.FunctionParameterDecl(
@@ -142,13 +142,13 @@ class FunctionUtilsTest(absltest.TestCase):
         name="p_struct", type=ast_nodes.PointerType(inner_type=self.struct_type)
     )
     self.assertTrue(
-        function_utils.param_is_pointer_to_primitive_value(param_ptr_to_prim)
+        functions.param_is_pointer_to_primitive_value(param_ptr_to_prim)
     )
     self.assertTrue(
-        function_utils.param_is_pointer_to_primitive_value(param_arr_of_prim)
+        functions.param_is_pointer_to_primitive_value(param_arr_of_prim)
     )
     self.assertFalse(
-        function_utils.param_is_pointer_to_primitive_value(param_ptr_to_struct)
+        functions.param_is_pointer_to_primitive_value(param_ptr_to_struct)
     )
 
   def test_param_is_pointer_to_struct(self):
@@ -162,13 +162,13 @@ class FunctionUtilsTest(absltest.TestCase):
         "p_ptr", ast_nodes.PointerType(self.ptr_to_int)
     )
     self.assertTrue(
-        function_utils.param_is_pointer_to_struct(param_arr_of_struct)
+        functions.param_is_pointer_to_struct(param_arr_of_struct)
     )
     self.assertTrue(
-        function_utils.param_is_pointer_to_struct(param_ptr_to_struct)
+        functions.param_is_pointer_to_struct(param_ptr_to_struct)
     )
     self.assertFalse(
-        function_utils.param_is_pointer_to_struct(param_ptr_to_ptr)
+        functions.param_is_pointer_to_struct(param_ptr_to_ptr)
     )
 
   def test_should_be_wrapped_with_primitive_ptr_return(self):
@@ -178,7 +178,7 @@ class FunctionUtilsTest(absltest.TestCase):
         parameters=tuple(),
         doc="Returns int pointer",
     )
-    self.assertTrue(function_utils.should_be_wrapped(func))
+    self.assertTrue(functions.should_be_wrapped(func))
 
   def test_generate_function_wrapper_for_simple_func(self):
     func = ast_nodes.FunctionDecl(
@@ -187,7 +187,7 @@ class FunctionUtilsTest(absltest.TestCase):
         parameters=tuple(),
         doc="Returns an integer ID",
     )
-    result = function_utils.generate_function_wrapper(func)
+    result = functions.generate_function_wrapper(func)
     self.assertEqual(
         result,
         """int get_id_wrapper()
@@ -215,7 +215,7 @@ class FunctionUtilsTest(absltest.TestCase):
         parameters=parameters,
         doc="Returns an integer ID",
     )
-    result = function_utils.generate_function_wrapper(func)
+    result = functions.generate_function_wrapper(func)
     self.assertEqual(
         result,
         """int get_id_wrapper(const NumberArray& mat, int nr)
@@ -230,7 +230,7 @@ class FunctionUtilsTest(absltest.TestCase):
         name="my_struct",
         type=ast_nodes.PointerType(ast_nodes.ValueType("mystruct")),
     )
-    result = function_utils.get_params_string((param,))
+    result = functions.get_params_string((param,))
     self.assertEqual(result, ["Mystruct& my_struct"])
 
   def test_get_params_string_maybe_with_conversion_struct_ptr(self):
@@ -238,7 +238,7 @@ class FunctionUtilsTest(absltest.TestCase):
         name="s",
         type=ast_nodes.PointerType(ast_nodes.ValueType("customstruct")),
     )
-    result = function_utils.get_params_string_maybe_with_conversion((param,))
+    result = functions.get_params_string_maybe_with_conversion((param,))
     self.assertEqual(result, ["s.get()"])
 
   def test_get_compatible_return_call(self):
@@ -248,7 +248,7 @@ class FunctionUtilsTest(absltest.TestCase):
         parameters=tuple(),
         doc="does nothing",
     )
-    result = function_utils.get_compatible_return_call(func, "noop()")
+    result = functions.get_compatible_return_call(func, "noop()")
     self.assertEqual(result, "noop()")
 
   def test_get_compatible_return_type(self):
@@ -258,7 +258,7 @@ class FunctionUtilsTest(absltest.TestCase):
         parameters=tuple(),
         doc="returns name",
     )
-    result = function_utils.get_compatible_return_type(func)
+    result = functions.get_compatible_return_type(func)
     self.assertEqual(result.strip(), "std::string")
 
   def test_get_converted_struct_to_class(self):
@@ -268,23 +268,23 @@ class FunctionUtilsTest(absltest.TestCase):
         parameters=tuple(),
         doc="returns struct",
     )
-    result = function_utils.get_converted_struct_to_class(func, "get_struct()")
+    result = functions.get_converted_struct_to_class(func, "get_struct()")
     self.assertIn("mystruct* result = get_struct();", result)
     self.assertIn("return Mystruct(result)", result)
 
   def test_is_excluded_function_name(self):
-    self.assertTrue(function_utils.is_excluded_function_name("mjr_function"))
-    self.assertTrue(function_utils.is_excluded_function_name("mjui_function"))
-    self.assertTrue(function_utils.is_excluded_function_name("mju_malloc"))
-    self.assertTrue(function_utils.is_excluded_function_name("mj_makeData"))
+    self.assertTrue(functions.is_excluded_function_name("mjr_function"))
+    self.assertTrue(functions.is_excluded_function_name("mjui_function"))
+    self.assertTrue(functions.is_excluded_function_name("mju_malloc"))
+    self.assertTrue(functions.is_excluded_function_name("mj_makeData"))
     self.assertFalse(
-        function_utils.is_excluded_function_name("mjv_updateScene")
+        functions.is_excluded_function_name("mjv_updateScene")
     )
     self.assertFalse(
-        function_utils.is_excluded_function_name("mj_normalFunction")
+        functions.is_excluded_function_name("mj_normalFunction")
     )
     self.assertFalse(
-        function_utils.is_excluded_function_name("mju_someOtherFunction")
+        functions.is_excluded_function_name("mju_someOtherFunction")
     )
 
 

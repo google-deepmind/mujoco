@@ -35,7 +35,7 @@ from introspect import structs as introspect_structs
 
 from wasm.codegen.helpers import common
 from wasm.codegen.helpers import constants
-from wasm.codegen.helpers import function_utils
+from wasm.codegen.helpers import functions
 
 
 def _get_resource_content(file_path: str) -> str:
@@ -89,7 +89,7 @@ class BindingCoverageTest(absltest.TestCase):
     excluded_functions = {
         name
         for name in all_functions
-        if function_utils.is_excluded_function_name(name)
+        if functions.is_excluded_function_name(name)
     }
     bound_functions = _get_bound_functions_from_cc()
 

@@ -14,13 +14,12 @@
 
 """Generates Embind bindings for MuJoCo functions."""
 
-import pathlib
 from typing import List, Mapping
 
 from introspect import ast_nodes
 
 from wasm.codegen.helpers import code_builder
-from wasm.codegen.helpers import function_utils
+from wasm.codegen.helpers import functions as function_utils
 
 
 class Generator:
