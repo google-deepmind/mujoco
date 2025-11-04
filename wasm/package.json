@@ -8,7 +8,8 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node --loader ts-node/esm --trace-warnings tests/run-tests.mjs",
+    "test": "node --loader ts-node/esm --trace-warnings tests/run_tests.mjs",
+    "benchmark": "node --loader ts-node/esm --trace-warnings tests/run_benchmarks.mjs",
     "dev:sandbox": "vite --config tests/sandbox/vite.sandbox.config.ts",
     "build:sandbox": "vite build --config tests/sandbox/vite.sandbox.config.ts",
     "dev:demo": "vite --config demo_app/vite.demo.config.ts",

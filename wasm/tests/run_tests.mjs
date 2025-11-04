@@ -18,7 +18,7 @@ const jasmine = new Jasmine();
 
 jasmine.loadConfig({
   spec_dir: 'tests',
-  spec_files: ['**/*_test.ts'],
+  spec_files: ['**/*_test.ts', '!benchmark_test.ts'],
   jsLoader: 'import',
   random: false,
   stopSpecOnExpectationFailure: false,
