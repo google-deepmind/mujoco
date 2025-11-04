@@ -62,6 +62,15 @@ MJAPI void mj_loadPluginLibrary(const char* path);
 // scan a directory and load all dynamic libraries
 MJAPI void mj_loadAllPluginLibraries(const char* directory, mjfPluginLibraryLoadCallback callback);
 
+// registers a resource decoder
+MJAPI void mjp_registerDecoder(const mjpDecoder* decoder);
+
+// set default decoder definition
+MJAPI void mjp_defaultDecoder(mjpDecoder* decoder);
+
+// find a decoder that can process a given resource
+MJAPI const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
+
 // =================================================================================================
 // MuJoCo-internal functions beyond this point.
 // "Unsafe" suffix indicates that improper use of these functions may result in data races.

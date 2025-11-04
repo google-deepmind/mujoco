@@ -8,6 +8,8 @@ Upcoming version (not yet released)
 General
 ^^^^^^^^^
 
+- Added "quadratic" option to :ref:`flexcomp/dof<body-flexcomp-dof>`. This type of fast :ref:`deformable<CDeformable>`
+  flex object is similar to the "trilinear" option, but it includes curved deformations.
 - Raise an error if there are name collisions also during parsing.
 - Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
 - Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
@@ -39,6 +41,9 @@ General
 
       **Migration:** Replace ``meshdir`` and ``texturedir`` with ``compiler.meshdir`` and ``compiler.texturedir``.
    2. Remove ``_full_compat`` from ``mjx.put_data`` and ``mjx.put_model``.
+   3. ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1. ``nconmax`` will be deprecated
+     in favor of ``naconmax`` in a future release.
+
 
 3. Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
    limit, are recolored by using the :ref:`constraint impedance<soParameters>` :math:`d` to mix the existing color with

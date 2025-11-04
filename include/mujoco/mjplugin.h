@@ -17,6 +17,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjvisualize.h>
 
@@ -64,6 +65,25 @@ struct mjpResourceProvider {
 };
 typedef struct mjpResourceProvider mjpResourceProvider;
 
+//---------------------------------- Decoder -------------------------------------------------------
+
+// function pointer types
+// return an mjSpec representing the decoded resource.
+typedef mjSpec* (*mjfDecode)(const mjResource* resource);
+// return true if the given resource can be decoded.
+typedef int (*mjfCanDecode)(const mjResource* resource);
+
+// the struct defining the decoder plugin's interface
+struct mjpDecoder {
+  const char* content_type;
+  const char* extension;
+  // user-facing functions
+  mjfCanDecode can_decode;  // quickly check if this decoder can handle the resource
+  mjfDecode decode;         // main decoding function
+  // the caller takes ownership of the spec returned by decode and is responsible
+  // for cleaning it up
+};
+typedef struct mjpDecoder mjpDecoder;
 
 //---------------------------------- Plugins -------------------------------------------------------
 

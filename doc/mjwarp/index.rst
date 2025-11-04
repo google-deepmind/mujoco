@@ -10,9 +10,23 @@ MuJoCo Warp (MJWarp)
     API <api.rst>
 
 MuJoCo Warp (MJWarp) is an implementation of MuJoCo written in `Warp <https://nvidia.github.io/warp/>`__ and optimized
-for `Nvidia <https://nvidia.com>`__ hardware and parallel simulation. MJWarp lives in the
+for `NVIDIA <https://nvidia.com>`__ hardware and parallel simulation. MJWarp lives in the
 `google-deepmind/mujoco_warp <https://github.com/google-deepmind/mujoco_warp>`__ GitHub repository and is currently in
 beta.
+
+MJWarp is developed and maintained as a joint effort by `NVIDIA <https://nvidia.com>`__ and
+`Google DeepMind <https://deepmind.google/>`__.
+
+.. TODO: remove after release
+
+.. admonition:: Beta software
+   :class: attention
+
+   - MJWarp is beta software and is under active development.
+   - MJWarp developers will triage and respond to
+     `bug reports and feature requests <https://github.com/google-deepmind/mujoco_warp/issues>`__.
+   - MJWarp is mostly feature complete but requires performance optimization, documentation, and testing.
+   - The intended audience during Beta are physics engine enthusiasts and learning framework integrators.
 
 .. _MJW_install:
 
@@ -20,7 +34,7 @@ Installation
 ============
 
 The beta version of MuJoCo Warp is installed from GitHub. Please note that the beta version of MuJoCo Warp does not
-support all versions of MuJoCo, Warp, CUDA, Nvidia drivers, etc.
+support all versions of MuJoCo, Warp, CUDA, NVIDIA drivers, etc.
 
 .. code-block:: shell
 
@@ -48,7 +62,7 @@ available directly from the top-level ``mjw`` module.
 
 Structs
 -------
-Before running MJWarp functions on an Nvidia GPU, structs must be copied onto the device via ``mjw.put_model`` and
+Before running MJWarp functions on an NVIDIA GPU, structs must be copied onto the device via ``mjw.put_model`` and
 ``mjw.make_data`` or ``mjw.put_data`` functions. Placing an :ref:`mjModel` on device yields an ``mjw.Model``. Placing
 an :ref:`mjData` on device yields an ``mjw.Data``:
 
@@ -81,7 +95,7 @@ MJWarp is optimized for parallel simulation. A batch of simulations can be speci
   ``njmax``.
 
 Functions
-_________
+---------
 
 MuJoCo functions are exposed as MJWarp functions of the same name, but following
 `PEP 8 <https://peps.python.org/pep-0008/>`__-compliant names. Most of the :ref:`main simulation <Mainsimulation>` and
@@ -115,7 +129,7 @@ Minimal example
    d = mjw.make_data(mjm, nworld=100)
 
    # initialize velocities
-   wp.copy(d.qvel, wp.array([[float(i) / 100, 0.0, 0.0, 0.0, 0.0, 0.0] for i in range(100)], dtype=float))
+   wp.copy(d.qvel, wp.array([[float(i) / 100, 0, 0, 0, 0, 0] for i in range(100)], dtype=float))
 
    # simulate physics
    mjw.step(m, d)
@@ -231,3 +245,17 @@ It is possible to override the field shape and set the field values after graph 
 
    Heterogeneous worlds, for example: per-world meshes or number of degrees of freedom, are not currently available.
 
+Parallel Linesearch
+===================
+
+In addition to the constraint solver's iterative linesearch, MJWarp provides a parallel linesearch routine that
+evaluates a set of step sizes in parallel and selects the best one. The step sizes are spaced logarithmically from
+``Model.opt.ls_parallel_min_step`` to 1 and the number of step sizes to evaluate is set via ``Model.opt.ls_iterations``.
+
+To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeric field to the XML
+
+.. code-block:: xml
+
+   <custom>
+     <numeric name="ls_parallel" data="1"/>
+   </custom>

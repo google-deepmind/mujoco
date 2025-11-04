@@ -632,8 +632,11 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     self.assertEqual(self.data.efc_J.shape, (nj,))
     self.assertEqual(self.data.efc_KBIP.shape, (nefc, 4))
 
-    expected_error = 'insufficient arena memory available'
-    with self.assertRaisesWithLiteralMatch(mujoco.FatalError, expected_error):
+    expected_error = (
+        r'Insufficient arena memory, currently allocated memory=' +
+        r'"[0-9]+[A-Z]?". Increase using <size memory="X"/>.'
+    )
+    with self.assertRaisesRegex(mujoco.FatalError, expected_error):
       mujoco._functions._realloc_con_efc(self.data, 100000000, 100000000)
     self.assertEmpty(self.data.contact)
     self.assertEmpty(self.data.efc_id)

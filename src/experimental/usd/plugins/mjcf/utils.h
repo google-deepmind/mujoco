@@ -15,11 +15,11 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_USD_PLUGINS_MJCF_UTILS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_USD_PLUGINS_MJCF_UTILS_H_
 
-#include <type_traits>
-
 #include <pxr/base/tf/token.h>
 #include <pxr/imaging/hd/primTypeIndex.h>
-#include <pxr/usd/sdf/abstractData.h>
+#include <pxr/usd/sdf/attributeSpec.h>
+#include <pxr/usd/sdf/declareHandles.h>
+#include <pxr/usd/sdf/layer.h>
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/sdf/schema.h>
 #include <pxr/usd/sdf/types.h>
@@ -29,123 +29,97 @@ namespace mujoco {
 namespace usd {
 
 // Create a prim spec and append it as a child of parent_path.
-pxr::SdfPath CreatePrimSpec(
-    pxr::SdfAbstractDataRefPtr& data, const pxr::SdfPath& parent_path,
+pxr::SdfPrimSpecHandle CreatePrimSpec(
+    pxr::SdfLayerRefPtr layer, const pxr::SdfPath& parent_path,
     const pxr::TfToken& name, const pxr::TfToken& type = pxr::TfToken(),
     pxr::SdfSpecifier specifier = pxr::SdfSpecifier::SdfSpecifierDef);
 
 // Create an attribute spec and append it as a child of parent_path.
 // By default the attribute will be varying.
-pxr::SdfPath CreateAttributeSpec(
-    pxr::SdfAbstractDataRefPtr& data, const pxr::SdfPath& prim_path,
+pxr::SdfAttributeSpecHandle CreateAttributeSpec(
+    pxr::SdfLayerRefPtr layer, const pxr::SdfPrimSpecHandle& prim_spec,
     const pxr::TfToken& name, const pxr::SdfValueTypeName& type_name,
     pxr::SdfVariability variability = pxr::SdfVariabilityVarying);
 
 // Create a relationship spec and append it as a child of prim_path.
-pxr::SdfPath CreateRelationshipSpec(
-    pxr::SdfAbstractDataRefPtr& data, const pxr::SdfPath& prim_path,
+pxr::SdfRelationshipSpecHandle CreateRelationshipSpec(
+    pxr::SdfLayerRefPtr layer, const pxr::SdfPrimSpecHandle& prim_spec,
     const pxr::TfToken& relationship_name,
     const pxr::SdfPath& relationship_path,
     pxr::SdfVariability variability = pxr::SdfVariabilityVarying);
 
-pxr::SdfPath CreateClassSpec(pxr::SdfAbstractDataRefPtr& data,
+pxr::SdfPrimSpecHandle CreateClassSpec(pxr::SdfLayerRefPtr layer,
                              const pxr::SdfPath& prim_path,
                              const pxr::TfToken& class_name);
 
-void AddAttributeConnection(pxr::SdfAbstractDataRefPtr& data,
-                            const pxr::SdfPath& attribute_path,
-                            const pxr::SdfPath& target_attribute_path);
+void AddAttributeConnection(pxr::SdfLayerRefPtr layer,
+                            const pxr::SdfAttributeSpecHandle& attribute_spec,
+                            const pxr::SdfAttributeSpecHandle& target_attribute_spec);
 
-void AddPrimReference(pxr::SdfAbstractDataRefPtr& data,
-                      const pxr::SdfPath& prim_path,
+void AddPrimReference(pxr::SdfLayerRefPtr layer,
+                      const pxr::SdfPrimSpecHandle& prim_spec,
                       const pxr::SdfPath& referenced_prim_path);
 
-void AddPrimInherit(pxr::SdfAbstractDataRefPtr& data,
-                    const pxr::SdfPath& prim_path,
+void AddPrimInherit(pxr::SdfLayerRefPtr layer,
+                    const pxr::SdfPrimSpecHandle& prim_spec,
                     const pxr::SdfPath& class_path);
 
-void ApplyApiSchema(pxr::SdfAbstractDataRefPtr& data,
-                    const pxr::SdfPath& prim_path,
+void ApplyApiSchema(pxr::SdfLayerRefPtr layer,
+                    const pxr::SdfPrimSpecHandle& prim_spec,
                     const pxr::TfToken& schema_name);
 
-void SetPrimKind(pxr::SdfAbstractDataRefPtr& data,
-                 const pxr::SdfPath& prim_path, pxr::TfToken kind);
+void SetPrimKind(pxr::SdfLayerRefPtr layer,
+                 const pxr::SdfPrimSpecHandle& prim_spec, pxr::TfToken kind);
 
-void SetPrimPurpose(pxr::SdfAbstractDataRefPtr& data,
-                    const pxr::SdfPath& prim_path, pxr::TfToken purpose);
+void SetPrimPurpose(pxr::SdfLayerRefPtr layer,
+                    const pxr::SdfPrimSpecHandle& prim_spec, pxr::TfToken purpose);
 
 // Set the value specified by key on any field at field_path.
 template <typename T>
-void SetField(pxr::SdfAbstractDataRefPtr& data, const pxr::SdfPath& field_path,
+void SetField(pxr::SdfLayerRefPtr layer, const pxr::SdfPath& field_path,
               const pxr::TfToken key, T&& value) {
-  using Deduced = typename std::remove_reference_t<T>;
-  const auto typed_val = pxr::SdfAbstractDataConstTypedValue<Deduced>(&value);
-  const pxr::SdfAbstractDataConstValue& untyped_val = typed_val;
-
-  data->Set(field_path, key, untyped_val);
+  layer->SetField(field_path, key, value);
 }
 
 // Set the value specified by key on any field at field_path.
 template <typename T>
-void SetFieldTimeSample(pxr::SdfAbstractDataRefPtr& data,
+void SetFieldTimeSample(pxr::SdfLayerRefPtr layer,
                         const pxr::SdfPath& field_path, double time,
                         T&& value) {
-  using Deduced = typename std::remove_reference_t<T>;
-  const auto typed_val = pxr::SdfAbstractDataConstTypedValue<Deduced>(&value);
-  const pxr::SdfAbstractDataConstValue& untyped_val = typed_val;
-
-  pxr::VtValue vt_value;
-  untyped_val.GetValue(&vt_value);
-  // NOTE: SetTimeSample doesn't accept an SdfAbstractDataConstValue yet.
-  data->SetTimeSample(field_path, time, vt_value);
+  layer->SetTimeSample(field_path, time, value);
 }
+
 
 // Set the value specified by key on an attribute spec at attribute_path.
 template <typename T>
-void SetAttribute(pxr::SdfAbstractDataRefPtr& data,
-                  const pxr::SdfPath& attribute_path, const pxr::TfToken key,
-                  T&& value) {
-  SetField(data, attribute_path, key, value);
-}
-
-// Set the value specified by key on a prim spec at prim_path.
-template <typename T>
-void SetPrimMetadata(pxr::SdfAbstractDataRefPtr& data,
-                     const pxr::SdfPath& prim_path, const pxr::TfToken key,
-                     T&& value) {
-  SetAttribute(data, prim_path, key, value);
-}
-
-// Set the value specified by key on an attribute spec at attribute_path.
-template <typename T>
-void SetAttributeMetadata(pxr::SdfAbstractDataRefPtr& data,
+void SetAttributeMetadata(pxr::SdfLayerRefPtr layer,
                           const pxr::SdfPath& attribute_path,
                           const pxr::TfToken key, T&& value) {
-  SetAttribute(data, attribute_path, key, value);
+  SetAttribute(layer, attribute_path, key, value);
 }
 
 // Set the default value on an attribute spec at attribute_path.
 template <typename T>
-void SetAttributeDefault(pxr::SdfAbstractDataRefPtr& data,
-                         const pxr::SdfPath& attribute_path,
+void SetAttributeDefault(pxr::SdfLayerRefPtr layer,
+                         const pxr::SdfAttributeSpecHandle& attribute,
                          T&& default_value) {
-  SetAttribute(data, attribute_path, pxr::SdfFieldKeys->Default, default_value);
+  attribute->SetField(pxr::SdfFieldKeys->Default, default_value);
 }
 
 // Set the default value on an attribute spec at attribute_path.
 template <typename T>
-void SetAttributeTimeSample(pxr::SdfAbstractDataRefPtr& data,
-                         const pxr::SdfPath& attribute_path,
+void SetAttributeTimeSample(pxr::SdfLayerRefPtr layer,
+                         const pxr::SdfAttributeSpecHandle& attr_spec,
                          double time,
                          T&& default_value) {
-  SetFieldTimeSample(data, attribute_path, time, default_value);
+  layer->SetTimeSample(attr_spec->GetPath(), time, default_value);
 }
 
 // Set the value specified by key on the root layer.
 template <typename T>
-void SetLayerMetadata(pxr::SdfAbstractDataRefPtr& data, const pxr::TfToken& key,
+void SetLayerMetadata(pxr::SdfLayerRefPtr layer, const pxr::TfToken& key,
                       T&& value) {
-  SetAttribute(data, pxr::SdfPath::AbsoluteRootPath(), key, value);
+  layer->SetField(pxr::SdfPath::AbsoluteRootPath(), key, value);
 }
 
 }  // namespace usd

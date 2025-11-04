@@ -1126,10 +1126,9 @@ the :ref:`geom <body-geom>` element below.
 MuJoCo works with triangulated meshes. They can be loaded from binary STL files, OBJ files or MSH files with custom
 format described below, or vertex and face data specified directly in the XML. Software such as MeshLab can be used to
 convert from other mesh formats to STL or OBJ. While any collection of triangles can be loaded as a mesh and rendered,
-collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. See also the convexhull
-attribute of the :ref:`compiler <compiler>` element which controls the automatic generation of convex hulls. The mesh
-appearance (including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing
-geom, similarly to height fields.
+collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. The mesh appearance
+(including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing geom,
+similarly to height fields.
 
 Meshes can have explicit texture coordinates instead of relying on the automated texture
 mapping mechanism. When provided, these explicit coordinates have priority. Note that texture coordinates can be
@@ -1171,10 +1170,9 @@ negative scaling values can be used to flip the mesh; this is a legitimate opera
 referencing geoms are ignored, similarly to height fields. We also provide a mechanism to translate and
 rotate the 3D coordinates, using the attributes :ref:`refpos<asset-mesh-refpos>` and :ref:`refquat<asset-mesh-refquat>`.
 
-A mesh can also be defined without faces (a point cloud essentially). In that case
-the convex hull is constructed automatically, even if the compiler attribute :at:`convexhull` is
-false. This makes it easy to construct simple shapes directly in the XML. For example, a pyramid can
-be created as follows:
+A mesh can also be defined without faces (a point cloud essentially). In that case the convex hull is constructed
+automatically.This makes it easy to construct simple shapes directly in the XML. For example, a pyramid can be created
+as follows:
 
 .. code-block:: xml
 
@@ -3542,14 +3540,24 @@ saving the XML:
       :align: right
       :width: 240px
 
-   Trilinear flexes are much faster than the previous two options, and are the preferred choice if the expected
-   deformations can be captured by the reduced parametriation. For example, see the video on the right comparing `full
-   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
+   Trilinear and quadratic flexes are much faster than the previous two options, and are the preferred choice if the
+   expected deformations can be captured by the reduced parametriation. For example, see the video on the right
+   comparing `full <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
    <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper_trilinear.xml>`__ flexes for modeling
    deformable gripper pads.
 
    Note that the choice of dof parametrization affects the deformation modes of the flex but has no effect on the
    accuracy of the collision geometry, which always takes into account the high-resolution mesh of the flex.
+
+   **quadratic**
+     Three translational dofs per corner, edge, face, and volume of the bounding box of the flex, for a total of 81 dofs
+     for the entire flex, independent of the number of vertices. The positions of the vertices are updated using
+     quadratic interpolation over the bounding box. While this option requires more degrees of freedom than trilinear
+     flexes, it enables curved deformation modes, while the only modes achievable for trilinear flexes are
+     strech/compression and shear.
+
+   Note that a higher interpolation order generally requires a smaller time step for stability, although usually not as
+   large as with the "full" option and a fine mesh.
 
 .. _body-flexcomp-type:
 

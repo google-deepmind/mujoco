@@ -1390,6 +1390,7 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
     mjtNum xpos[mjMAXFLEXNODES];
     int nstart = m->flex_nodeadr[f];
     int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[f];
+    int nnode = m->flex_interp[f]+1;
     if (m->flex_centered[f]) {
       for (int i=0; i < m->flex_nodenum[f]; i++) {
         mju_copy3(xpos + 3*i, d->xpos + 3*bodyid[i]);
@@ -1400,34 +1401,39 @@ static void addFlexBvhGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
         mju_addTo3(xpos + 3*i, d->xpos + 3*bodyid[i]);
       }
     }
-    for (int i=0; i < 2; i++) {
-      for (int j=0; j < 2; j++) {
-        for (int k=0; k < 2; k++) {
-          if (i == 0) {
+    for (int i=0; i < nnode; i++) {
+      for (int j=0; j < nnode; j++) {
+        for (int k=0; k < nnode; k++) {
+          int nn = nnode*nnode;
+          int offset  = 3*(nn*(i+0) + nnode*(j+0) + k);
+          int offset1 = 3*(nn*(i+1) + nnode*(j+0) + k);
+          int offset2 = 3*(nn*(i+0) + nnode*(j+1) + k);
+          int offset3 = 3*(nn*(i+0) + nnode*(j+0) + (k+1));
+          if (i < nnode-1) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
             }
 
-            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*(i+1)+2*j+k));
+            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset1);
             releaseGeom(&thisgeom, scn);
           }
-          if (j == 0) {
+          if (j < nnode-1) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
             }
 
-            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*(j+1)+k));
+            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset2);
             releaseGeom(&thisgeom, scn);
           }
-          if (k == 0) {
+          if (k < nnode-1) {
             mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
             if (!thisgeom) {
               return;
             }
 
-            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+3*(4*i+2*j+k), xpos+3*(4*i+2*j+(k+1)));
+            mjv_connector(thisgeom, mjGEOM_LINE, 3, xpos+offset, xpos+offset3);
             releaseGeom(&thisgeom, scn);
           }
         }

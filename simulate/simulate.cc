@@ -299,7 +299,7 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   memset(sim->figcost.linepnt, 0, mjMAXLINE*sizeof(int));
 
   // number of islands that have diagnostics
-  int nisland = mjMAX(1, mjMIN(d->nisland, mjNISLAND));
+  int nisland = d->nefc ? mjMAX(1, mjMIN(d->nisland, mjNISLAND)) : 0;
 
   // iterate over islands
   for (int k=0; k < nisland; k++) {
@@ -403,9 +403,10 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   mjtNum sqrt_nnz = 0;
   int solver_niter = 0;
   for (int island=0; island < nisland; island++) {
-    sqrt_nnz += mju_sqrt(d->solver_nnz[island]);
+    sqrt_nnz += d->solver_nnz[island];
     solver_niter += d->solver_niter[island];
   }
+  sqrt_nnz = mju_sqrt(sqrt_nnz);
 
   // get sizes: nv, nbody, nefc, sqrt(nnz), ncont, iter
   float sdata[6] = {

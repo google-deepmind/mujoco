@@ -39,14 +39,20 @@ enable_language(CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
-option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
-option(MUJOCO_BUILD_STUDIO "Build studio library for MuJoCo" OFF)
-option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
-option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
-option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
-option(MUJOCO_USE_FILAMENT "Use filament rendering" OFF)
-option(MUJOCO_USE_FILAMENT_VULKAN "Use vulkan backend for filament rendering" OFF)
+if(NOT EMSCRIPTEN)
+  option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
+  option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
+  option(MUJOCO_BUILD_STUDIO "Build studio library for MuJoCo" OFF)
+  option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
+  option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
+  option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
+  option(MUJOCO_USE_FILAMENT "Use filament rendering" OFF)
+  option(MUJOCO_USE_FILAMENT_VULKAN "Use vulkan backend for filament rendering" OFF)
+endif()
+
+if(EMSCRIPTEN)
+  option(MUJOCO_BUILD_TESTS_WASM "Build tests for WASM bindings" ON)
+endif()
 
 # Option to provide a path to an existing USD build directory or to Houdini HFS directory.
 set(USD_DIR "" CACHE PATH "Path to an existing USD build directory.")
@@ -100,7 +106,13 @@ else()
   set(MUJOCO_RESOURCE_FILES "")
 endif()
 
-add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
+# Emscripten does not support SHARED libs
+if(NOT EMSCRIPTEN)
+  add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
+else()
+  add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
+endif()
+
 target_include_directories(
   mujoco
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -108,25 +120,34 @@ target_include_directories(
   PRIVATE src
 )
 
-add_subdirectory(plugin/elasticity)
-add_subdirectory(plugin/actuator)
-add_subdirectory(plugin/sensor)
-add_subdirectory(plugin/sdf)
+if(NOT EMSCRIPTEN)
+  add_subdirectory(plugin/elasticity)
+  add_subdirectory(plugin/actuator)
+  add_subdirectory(plugin/sensor)
+  add_subdirectory(plugin/sdf)
+endif()
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
 add_subdirectory(src/thread)
 
-if(MUJOCO_USE_FILAMENT)
+if(MUJOCO_USE_FILAMENT AND NOT EMSCRIPTEN)
   # Note that, by default, the "src/render" and "src/ui" code is added directly
   # into the "mujoco" target. However, "mujoco::filament" is a separate,
   # explicit target. Therefore, if you want to use MuJoCo with Filament, you
   # will need to explicitly add the "mujoco::filament" target as a link
   # dependency in your project.
   add_subdirectory(src/experimental/filament)
-else()
+elseif(NOT EMSCRIPTEN)
   add_subdirectory(src/render)
   add_subdirectory(src/ui)
+endif()
+
+if(EMSCRIPTEN)
+  add_subdirectory(wasm)
+  if(MUJOCO_BUILD_TESTS_WASM)
+    add_subdirectory(wasm/tests)
+  endif()
 endif()
 
 
@@ -235,9 +256,14 @@ if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
 endif()
 
 if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
+  set(MUJOCO_TARGETS mujoco)
+  if (EMSCRIPTEN)
+    list(APPEND MUJOCO_TARGETS lodepng)
+  endif()
+
   # Install the libraries.
   install(
-    TARGETS mujoco
+    TARGETS ${MUJOCO_TARGETS}
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT runtime
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT runtime

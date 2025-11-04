@@ -37,3 +37,8 @@ MUJOCO_LOG.TXT
 
 # Clang cache
 .cache/
+
+# JavaScript bindings build
+wasm/**/dist/
+**/node_modules/
+

@@ -13,12 +13,10 @@
      limitations under the License.
 -->
 
-<mujoco model="Trilinear">
+<mujoco model="Quadratic">
   <include file="scene.xml"/>
 
-  <option solver="CG" tolerance="1e-6" timestep=".001" integrator="implicitfast">
-    <flag gravity="disable"/>
-  </option>
+  <option solver="CG" tolerance="1e-6" timestep=".001" integrator="implicitfast"/>
 
   <size memory="10M"/>
 
@@ -33,6 +31,7 @@
     </body>
     <flexcomp type="grid" count="8 8 8" spacing=".07 .07 .07" pos="0 0 1" dim="3"
               radius=".001" rgba="0 .7 .7 1" mass="5" name="softbody" dof="quadratic">
+      <elasticity young="1e4" poisson="0.1" damping="0.0001"/>
       <contact selfcollide="none" internal="false"/>
     </flexcomp>
   </worldbody>

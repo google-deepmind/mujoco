@@ -281,8 +281,8 @@ PYBIND11_MODULE(_specs, m) {
           spec = LoadSpecFileImpl(
               filename, files,
               [&error](const char* filename, const mjVFS* vfs) {
-                return InterceptMjErrors(mj_parseXML)(
-                    filename, vfs, error, sizeof(error));
+                return InterceptMjErrors(mj_parse)(
+                    filename, nullptr, vfs, error, sizeof(error));
               });
           if (!spec) {
             throw py::value_error(error);
@@ -465,7 +465,7 @@ PYBIND11_MODULE(_specs, m) {
           throw pybind11::value_error(
               "Only one of frame or site can be specified.");
         }
-        const char* p = prefix.has_value() ? prefix.value().c_str() : "";
+        const char* p = prefix.has_value() ? prefix.value().c_str() : "/";
         const char* s = suffix.has_value() ? suffix.value().c_str() : "";
         raw::MjsElement* attached_frame = nullptr;
         if (frame.has_value()) {
