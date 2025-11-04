@@ -2,7 +2,7 @@
     .name = .lib_zmujoco,
     .fingerprint = 0xaba5f16825593fb1,
     .version = "0.0.1",
-    .minimum_zig_version = "0.15.0",
+    .minimum_zig_version = "0.15.1",
     .dependencies = .{
         .zglfw = .{
             .path = "third_party/zglfw",
