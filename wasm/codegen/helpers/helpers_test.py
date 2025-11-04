@@ -294,6 +294,11 @@ class StructConstructorCodeBuilderTest(absltest.TestCase):
         wrapped_structs["mjLROpt"].wrapped_source,
         """
 MjLROpt::MjLROpt(mjLROpt *ptr) : ptr_(ptr) {}
+MjLROpt::~MjLROpt() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjLROpt::MjLROpt() : ptr_(new mjLROpt) {
   owned_ = true;
   mj_defaultLROpt(ptr_);
@@ -308,13 +313,14 @@ MjLROpt& MjLROpt::operator=(const MjLROpt &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjLROpt::~MjLROpt() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjLROpt> MjLROpt::copy() {
   return std::make_unique<MjLROpt>(*this);
+}
+mjLROpt* MjLROpt::get() const {
+  return ptr_;
+}
+void MjLROpt::set(mjLROpt* ptr) {
+  ptr_ = ptr;
 }
 """.strip(),
     )
@@ -326,8 +332,11 @@ std::unique_ptr<MjLROpt> MjLROpt::copy() {
         """
 MjsElement::MjsElement(mjsElement *ptr) : ptr_(ptr) {}
 MjsElement::~MjsElement() {}
-std::unique_ptr<MjsElement> MjsElement::copy() {
-  return std::make_unique<MjsElement>(*this);
+mjsElement* MjsElement::get() const {
+  return ptr_;
+}
+void MjsElement::set(mjsElement* ptr) {
+  ptr_ = ptr;
 }
 """.strip(),
     )
@@ -351,6 +360,12 @@ std::unique_ptr<MjsElement> MjsElement::copy() {
         """
 MjsTexture::MjsTexture(mjsTexture *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsTexture::~MjsTexture() {}
+mjsTexture* MjsTexture::get() const {
+  return ptr_;
+}
+void MjsTexture::set(mjsTexture* ptr) {
+  ptr_ = ptr;
+}
 """.strip(),
     )
 
@@ -358,6 +373,11 @@ MjsTexture::~MjsTexture() {}
     self.assertEqual(
         structs.build_struct_source("mjvLight", []),
         """MjvLight::MjvLight(mjvLight *ptr) : ptr_(ptr) {}
+MjvLight::~MjvLight() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjvLight::MjvLight() : ptr_(new mjvLight) {
   owned_ = true;
 }
@@ -371,14 +391,16 @@ MjvLight& MjvLight::operator=(const MjvLight &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjvLight::~MjvLight() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjvLight> MjvLight::copy() {
   return std::make_unique<MjvLight>(*this);
-}""".strip(),
+}
+mjvLight* MjvLight::get() const {
+  return ptr_;
+}
+void MjvLight::set(mjvLight* ptr) {
+  ptr_ = ptr;
+}
+""".strip(),
     )
 
 

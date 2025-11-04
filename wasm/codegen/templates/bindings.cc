@@ -55,9 +55,9 @@ struct MjVisualGlobal {
   MjVisualGlobal &operator=(const MjVisualGlobal &);
   ~MjVisualGlobal();
   std::unique_ptr<MjVisualGlobal> copy();
+  mjVisualGlobal* get() const;
+  void set(mjVisualGlobal* ptr);
   // INSERT-GENERATED-MjVisualGlobal-DEFINITIONS
-  mjVisualGlobal* get() const { return ptr_; }
-  void set(mjVisualGlobal* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualGlobal* ptr_;
@@ -71,9 +71,9 @@ struct MjVisualQuality {
   MjVisualQuality &operator=(const MjVisualQuality &);
   ~MjVisualQuality();
   std::unique_ptr<MjVisualQuality> copy();
+  mjVisualQuality* get() const;
+  void set(mjVisualQuality* ptr);
   // INSERT-GENERATED-MjVisualQuality-DEFINITIONS
-  mjVisualQuality* get() const { return ptr_; }
-  void set(mjVisualQuality* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualQuality* ptr_;
@@ -87,9 +87,9 @@ struct MjVisualHeadlight {
   MjVisualHeadlight &operator=(const MjVisualHeadlight &);
   ~MjVisualHeadlight();
   std::unique_ptr<MjVisualHeadlight> copy();
+  mjVisualHeadlight* get() const;
+  void set(mjVisualHeadlight* ptr);
   // INSERT-GENERATED-MjVisualHeadlight-DEFINITIONS
-  mjVisualHeadlight* get() const { return ptr_; }
-  void set(mjVisualHeadlight* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualHeadlight* ptr_;
@@ -103,9 +103,9 @@ struct MjVisualMap {
   MjVisualMap &operator=(const MjVisualMap &);
   ~MjVisualMap();
   std::unique_ptr<MjVisualMap> copy();
+  mjVisualMap* get() const;
+  void set(mjVisualMap* ptr);
   // INSERT-GENERATED-MjVisualMap-DEFINITIONS
-  mjVisualMap* get() const { return ptr_; }
-  void set(mjVisualMap* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualMap* ptr_;
@@ -119,9 +119,9 @@ struct MjVisualScale {
   MjVisualScale &operator=(const MjVisualScale &);
   ~MjVisualScale();
   std::unique_ptr<MjVisualScale> copy();
+  mjVisualScale* get() const;
+  void set(mjVisualScale* ptr);
   // INSERT-GENERATED-MjVisualScale-DEFINITIONS
-  mjVisualScale* get() const { return ptr_; }
-  void set(mjVisualScale* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualScale* ptr_;
@@ -135,9 +135,9 @@ struct MjVisualRgba {
   MjVisualRgba &operator=(const MjVisualRgba &);
   ~MjVisualRgba();
   std::unique_ptr<MjVisualRgba> copy();
+  mjVisualRgba* get() const;
+  void set(mjVisualRgba* ptr);
   // INSERT-GENERATED-MjVisualRgba-DEFINITIONS
-  mjVisualRgba* get() const { return ptr_; }
-  void set(mjVisualRgba* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualRgba* ptr_;
@@ -151,9 +151,9 @@ struct MjVisual {
   MjVisual &operator=(const MjVisual &);
   ~MjVisual();
   std::unique_ptr<MjVisual> copy();
+  mjVisual* get() const;
+  void set(mjVisual* ptr);
   // INSERT-GENERATED-MjVisual-DEFINITIONS
-  mjVisual* get() const { return ptr_; }
-  void set(mjVisual* ptr) { ptr_ = ptr; }
 
  private:
   mjVisual* ptr_;
@@ -173,9 +173,9 @@ struct MjModel {
   explicit MjModel(const MjModel &other);
   ~MjModel();
   std::unique_ptr<MjModel> copy();
+  mjModel* get() const;
+  void set(mjModel* ptr);
   // INSERT-GENERATED-MjModel-DEFINITIONS
-  mjModel* get() const { return ptr_; }
-  void set(mjModel* ptr) { ptr_ = ptr; }
 
  private:
   mjModel* ptr_;
@@ -195,9 +195,9 @@ struct MjData {
   std::vector<MjWarningStat> InitWarningArray();
   std::vector<MjContact> contact() const;
   std::unique_ptr<MjData> copy();
+  mjData* get() const;
+  void set(mjData* ptr);
   // INSERT-GENERATED-MjData-DEFINITIONS
-  mjData* get() const { return ptr_; }
-  void set(mjData* ptr) { ptr_ = ptr; }
 
  private:
   mjData* ptr_;
@@ -218,6 +218,9 @@ struct MjvScene {
   int GetSumFlexFaces() const;
   std::vector<MjvLight> InitLightsArray();
   std::vector<MjvGLCamera> InitCameraArray();
+
+  mjvScene* get() const;
+  void set(mjvScene* ptr);
 
   std::vector<MjvGeom> geoms() const;
 
@@ -294,8 +297,6 @@ struct MjvScene {
         6 * MjvScene::GetSumFlexFaces(), ptr_->flextexcoord));
   }
   // INSERT-GENERATED-MjvScene-DEFINITIONS
-  mjvScene* get() const { return ptr_; }
-  void set(mjvScene* ptr) { ptr_ = ptr; }
 
  private:
   mjvScene* ptr_;
@@ -314,9 +315,9 @@ struct MjSpec {
   MjSpec &operator=(const MjSpec &);
   ~MjSpec();
   std::unique_ptr<MjSpec> copy();
+  mjSpec* get() const;
+  void set(mjSpec* ptr);
   // INSERT-GENERATED-MjSpec-DEFINITIONS
-  mjSpec* get() const { return ptr_; }
-  void set(mjSpec* ptr) { ptr_ = ptr; }
 
  private:
   mjSpec* ptr_;
@@ -495,6 +496,8 @@ MjModel::~MjModel() {
     mj_deleteModel(ptr_);
   }
 }
+mjModel* MjModel::get() const { return ptr_; }
+void MjModel::set(mjModel *ptr) { ptr_ = ptr; }
 
 // TODO(manevi): Consider passing `const MjModel& m` here, mj_makeData uses a const model.
 // =============== MjData =============== //
@@ -520,6 +523,9 @@ MjData::~MjData() {
     mj_deleteData(ptr_);
   }
 }
+mjData* MjData::get() const { return ptr_; }
+void MjData::set(mjData *ptr) { ptr_ = ptr; }
+
 std::vector<MjSolverStat> MjData::InitSolverArray() {
   std::vector<MjSolverStat> arr;
   arr.reserve(mjNSOLVER * mjNISLAND);
@@ -596,6 +602,9 @@ MjvScene::~MjvScene() {
     delete ptr_;
   }
 }
+
+mjvScene* MjvScene::get() const { return ptr_; }
+void MjvScene::set(mjvScene *ptr) { ptr_ = ptr; }
 
 // Taken from the python mujoco bindings code for MjvScene Wrapper
 int MjvScene::GetSumFlexFaces() const {
@@ -719,6 +728,9 @@ MjSpec::~MjSpec() {
     mj_deleteSpec(ptr_);
   }
 }
+
+mjSpec *MjSpec::get() const { return ptr_; }
+void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
 // =============== MjsOrientation =============== //
 // INSERT-GENERATED-MjsOrientation-CONSTRUCTOR
@@ -965,7 +977,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       ;
 
   emscripten::class_<MjsOrientation>("MjsOrientation")
-      .function("copy", &MjsOrientation::copy, take_ownership())
       // INSERT-GENERATED-MjsOrientation-BINDINGS
       ;
 

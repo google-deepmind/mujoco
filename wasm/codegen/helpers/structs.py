@@ -459,27 +459,24 @@ def _build_struct_header_internal(
 
   builder = code_builder.CodeBuilder()
   with builder.struct(f"{w}"):
-    if not is_mjs:
-      builder.line(f"{w}();")
-      builder.line(f"{w}(const {w} &);")
-      builder.line(f"{w} &operator=(const {w} &);")
-
     builder.line(f"explicit {w}({s} *ptr);")
     builder.line(f"~{w}();")
 
-    if shallow_copy:
+    if not is_mjs:
+      builder.line(f"{w}();")
+
+    if shallow_copy and not is_mjs:
+      builder.line(f"{w}(const {w} &);")
+      builder.line(f"{w} &operator=(const {w} &);")
       builder.line(f"std::unique_ptr<{w}> copy();")
+
+    builder.line(f"{s}* get() const;")
+    builder.line(f"void set({s}* ptr);")
 
     for field in wrapped_fields:
       if field.definition and field not in fields_with_init:
         for line in field.definition.splitlines():
           builder.line(line)
-
-    with builder.function(f"{s}* get() const"):
-      builder.line("return ptr_;")
-
-    with builder.function(f"void set({s}* ptr)"):
-      builder.line("ptr_ = ptr;")
 
     builder.private()
     builder.line(f"{s}* ptr_;")
@@ -491,6 +488,7 @@ def _build_struct_header_internal(
       for field in fields_with_init:
         if field.definition:
           builder.line(f"{field.definition}")
+
   return builder.to_string() + ";"
 
 
@@ -600,8 +598,15 @@ def build_struct_source(
   with builder.function(f"{w}::{w}({s} *ptr) : ptr_(ptr){fields_init}"):
     pass
 
-  # constructor with default values
+  # destructor
+  with builder.function(f"{w}::~{w}()"):
+    if not is_mjs:
+      with builder.block("if (owned_ && ptr_)"):
+        delete_ptr = _delete_ptr_statement(s)
+        builder.line(delete_ptr)
+
   if not is_mjs:
+    # default constructor
     with builder.function(f"{w}::{w}() : ptr_(new {s}){fields_init}"):
       builder.line("owned_ = true;")
       default_func = _default_function_statement(s)
@@ -626,17 +631,15 @@ def build_struct_source(
           builder.line(field_with_init.ptr_copy_reset)
       builder.line("return *this;")
 
-  # destructor
-  with builder.function(f"{w}::~{w}()"):
-    if not is_mjs:
-      with builder.block("if (owned_ && ptr_)"):
-        delete_ptr = _delete_ptr_statement(s)
-        builder.line(delete_ptr)
-
-  # copy function
-  if shallow_copy:
+    # explicit copy function
     with builder.function(f"std::unique_ptr<{w}> {w}::copy()"):
       builder.line(f"return std::make_unique<{w}>(*this);")
+
+  with builder.function(f"{s}* {w}::get() const"):
+    builder.line("return ptr_;")
+
+  with builder.function(f"void {w}::set({s}* ptr)"):
+    builder.line("ptr_ = ptr;")
 
   return builder.to_string()
 

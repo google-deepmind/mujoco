@@ -47,12 +47,14 @@ using mjVisualScale = decltype(::mjVisual::scale);
 using mjVisualRgba = decltype(::mjVisual::rgba);
 
 struct MjContact {
+  explicit MjContact(mjContact *ptr);
+  ~MjContact();
   MjContact();
   MjContact(const MjContact &);
   MjContact &operator=(const MjContact &);
-  explicit MjContact(mjContact *ptr);
-  ~MjContact();
   std::unique_ptr<MjContact> copy();
+  mjContact* get() const;
+  void set(mjContact* ptr);
   mjtNum dist() const {
     return ptr_->dist;
   }
@@ -134,12 +136,6 @@ struct MjContact {
   void set_efc_address(int value) {
     ptr_->efc_address = value;
   }
-  mjContact* get() const {
-    return ptr_;
-  }
-  void set(mjContact* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjContact* ptr_;
@@ -147,12 +143,14 @@ struct MjContact {
 };
 
 struct MjLROpt {
+  explicit MjLROpt(mjLROpt *ptr);
+  ~MjLROpt();
   MjLROpt();
   MjLROpt(const MjLROpt &);
   MjLROpt &operator=(const MjLROpt &);
-  explicit MjLROpt(mjLROpt *ptr);
-  ~MjLROpt();
   std::unique_ptr<MjLROpt> copy();
+  mjLROpt* get() const;
+  void set(mjLROpt* ptr);
   int mode() const {
     return ptr_->mode;
   }
@@ -213,12 +211,6 @@ struct MjLROpt {
   void set_tolrange(mjtNum value) {
     ptr_->tolrange = value;
   }
-  mjLROpt* get() const {
-    return ptr_;
-  }
-  void set(mjLROpt* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjLROpt* ptr_;
@@ -226,12 +218,14 @@ struct MjLROpt {
 };
 
 struct MjOption {
+  explicit MjOption(mjOption *ptr);
+  ~MjOption();
   MjOption();
   MjOption(const MjOption &);
   MjOption &operator=(const MjOption &);
-  explicit MjOption(mjOption *ptr);
-  ~MjOption();
   std::unique_ptr<MjOption> copy();
+  mjOption* get() const;
+  void set(mjOption* ptr);
   mjtNum timestep() const {
     return ptr_->timestep;
   }
@@ -382,12 +376,6 @@ struct MjOption {
   void set_sdf_iterations(int value) {
     ptr_->sdf_iterations = value;
   }
-  mjOption* get() const {
-    return ptr_;
-  }
-  void set(mjOption* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjOption* ptr_;
@@ -395,12 +383,14 @@ struct MjOption {
 };
 
 struct MjSolverStat {
+  explicit MjSolverStat(mjSolverStat *ptr);
+  ~MjSolverStat();
   MjSolverStat();
   MjSolverStat(const MjSolverStat &);
   MjSolverStat &operator=(const MjSolverStat &);
-  explicit MjSolverStat(mjSolverStat *ptr);
-  ~MjSolverStat();
   std::unique_ptr<MjSolverStat> copy();
+  mjSolverStat* get() const;
+  void set(mjSolverStat* ptr);
   mjtNum improvement() const {
     return ptr_->improvement;
   }
@@ -443,12 +433,6 @@ struct MjSolverStat {
   void set_nupdate(int value) {
     ptr_->nupdate = value;
   }
-  mjSolverStat* get() const {
-    return ptr_;
-  }
-  void set(mjSolverStat* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjSolverStat* ptr_;
@@ -456,12 +440,14 @@ struct MjSolverStat {
 };
 
 struct MjStatistic {
+  explicit MjStatistic(mjStatistic *ptr);
+  ~MjStatistic();
   MjStatistic();
   MjStatistic(const MjStatistic &);
   MjStatistic &operator=(const MjStatistic &);
-  explicit MjStatistic(mjStatistic *ptr);
-  ~MjStatistic();
   std::unique_ptr<MjStatistic> copy();
+  mjStatistic* get() const;
+  void set(mjStatistic* ptr);
   mjtNum meaninertia() const {
     return ptr_->meaninertia;
   }
@@ -489,12 +475,6 @@ struct MjStatistic {
   emscripten::val center() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->center));
   }
-  mjStatistic* get() const {
-    return ptr_;
-  }
-  void set(mjStatistic* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjStatistic* ptr_;
@@ -502,12 +482,14 @@ struct MjStatistic {
 };
 
 struct MjTimerStat {
+  explicit MjTimerStat(mjTimerStat *ptr);
+  ~MjTimerStat();
   MjTimerStat();
   MjTimerStat(const MjTimerStat &);
   MjTimerStat &operator=(const MjTimerStat &);
-  explicit MjTimerStat(mjTimerStat *ptr);
-  ~MjTimerStat();
   std::unique_ptr<MjTimerStat> copy();
+  mjTimerStat* get() const;
+  void set(mjTimerStat* ptr);
   mjtNum duration() const {
     return ptr_->duration;
   }
@@ -520,12 +502,6 @@ struct MjTimerStat {
   void set_number(int value) {
     ptr_->number = value;
   }
-  mjTimerStat* get() const {
-    return ptr_;
-  }
-  void set(mjTimerStat* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjTimerStat* ptr_;
@@ -533,18 +509,12 @@ struct MjTimerStat {
 };
 
 struct MjVFS {
-  MjVFS();
-  MjVFS(const MjVFS &);
-  MjVFS &operator=(const MjVFS &);
   explicit MjVFS(mjVFS *ptr);
   ~MjVFS();
+  MjVFS();
+  mjVFS* get() const;
+  void set(mjVFS* ptr);
   // TODO: Define primitive pointer field with complex extents manually for impl_
-  mjVFS* get() const {
-    return ptr_;
-  }
-  void set(mjVFS* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjVFS* ptr_;
@@ -552,12 +522,14 @@ struct MjVFS {
 };
 
 struct MjWarningStat {
+  explicit MjWarningStat(mjWarningStat *ptr);
+  ~MjWarningStat();
   MjWarningStat();
   MjWarningStat(const MjWarningStat &);
   MjWarningStat &operator=(const MjWarningStat &);
-  explicit MjWarningStat(mjWarningStat *ptr);
-  ~MjWarningStat();
   std::unique_ptr<MjWarningStat> copy();
+  mjWarningStat* get() const;
+  void set(mjWarningStat* ptr);
   int lastinfo() const {
     return ptr_->lastinfo;
   }
@@ -570,12 +542,6 @@ struct MjWarningStat {
   void set_number(int value) {
     ptr_->number = value;
   }
-  mjWarningStat* get() const {
-    return ptr_;
-  }
-  void set(mjWarningStat* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjWarningStat* ptr_;
@@ -585,7 +551,8 @@ struct MjWarningStat {
 struct MjsElement {
   explicit MjsElement(mjsElement *ptr);
   ~MjsElement();
-  std::unique_ptr<MjsElement> copy();
+  mjsElement* get() const;
+  void set(mjsElement* ptr);
   mjtObj elemtype() const {
     return ptr_->elemtype;
   }
@@ -598,12 +565,6 @@ struct MjsElement {
   void set_signature(uint64_t value) {
     ptr_->signature = value;
   }
-  mjsElement* get() const {
-    return ptr_;
-  }
-  void set(mjsElement* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsElement* ptr_;
@@ -612,7 +573,8 @@ struct MjsElement {
 struct MjsOrientation {
   explicit MjsOrientation(mjsOrientation *ptr);
   ~MjsOrientation();
-  std::unique_ptr<MjsOrientation> copy();
+  mjsOrientation* get() const;
+  void set(mjsOrientation* ptr);
   mjtOrientation type() const {
     return ptr_->type;
   }
@@ -631,24 +593,20 @@ struct MjsOrientation {
   emscripten::val euler() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->euler));
   }
-  mjsOrientation* get() const {
-    return ptr_;
-  }
-  void set(mjsOrientation* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsOrientation* ptr_;
 };
 
 struct MjvCamera {
+  explicit MjvCamera(mjvCamera *ptr);
+  ~MjvCamera();
   MjvCamera();
   MjvCamera(const MjvCamera &);
   MjvCamera &operator=(const MjvCamera &);
-  explicit MjvCamera(mjvCamera *ptr);
-  ~MjvCamera();
   std::unique_ptr<MjvCamera> copy();
+  mjvCamera* get() const;
+  void set(mjvCamera* ptr);
   int type() const {
     return ptr_->type;
   }
@@ -694,12 +652,6 @@ struct MjvCamera {
   void set_orthographic(int value) {
     ptr_->orthographic = value;
   }
-  mjvCamera* get() const {
-    return ptr_;
-  }
-  void set(mjvCamera* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjvCamera* ptr_;
@@ -707,12 +659,14 @@ struct MjvCamera {
 };
 
 struct MjvFigure {
+  explicit MjvFigure(mjvFigure *ptr);
+  ~MjvFigure();
   MjvFigure();
   MjvFigure(const MjvFigure &);
   MjvFigure &operator=(const MjvFigure &);
-  explicit MjvFigure(mjvFigure *ptr);
-  ~MjvFigure();
   std::unique_ptr<MjvFigure> copy();
+  mjvFigure* get() const;
+  void set(mjvFigure* ptr);
   int flg_legend() const {
     return ptr_->flg_legend;
   }
@@ -845,12 +799,6 @@ struct MjvFigure {
   emscripten::val yaxisdata() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->yaxisdata));
   }
-  mjvFigure* get() const {
-    return ptr_;
-  }
-  void set(mjvFigure* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjvFigure* ptr_;
@@ -858,12 +806,14 @@ struct MjvFigure {
 };
 
 struct MjvGLCamera {
+  explicit MjvGLCamera(mjvGLCamera *ptr);
+  ~MjvGLCamera();
   MjvGLCamera();
   MjvGLCamera(const MjvGLCamera &);
   MjvGLCamera &operator=(const MjvGLCamera &);
-  explicit MjvGLCamera(mjvGLCamera *ptr);
-  ~MjvGLCamera();
   std::unique_ptr<MjvGLCamera> copy();
+  mjvGLCamera* get() const;
+  void set(mjvGLCamera* ptr);
   emscripten::val pos() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->pos));
   }
@@ -915,12 +865,6 @@ struct MjvGLCamera {
   void set_orthographic(int value) {
     ptr_->orthographic = value;
   }
-  mjvGLCamera* get() const {
-    return ptr_;
-  }
-  void set(mjvGLCamera* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjvGLCamera* ptr_;
@@ -928,12 +872,14 @@ struct MjvGLCamera {
 };
 
 struct MjvGeom {
+  explicit MjvGeom(mjvGeom *ptr);
+  ~MjvGeom();
   MjvGeom();
   MjvGeom(const MjvGeom &);
   MjvGeom &operator=(const MjvGeom &);
-  explicit MjvGeom(mjvGeom *ptr);
-  ~MjvGeom();
   std::unique_ptr<MjvGeom> copy();
+  mjvGeom* get() const;
+  void set(mjvGeom* ptr);
   int type() const {
     return ptr_->type;
   }
@@ -1039,12 +985,6 @@ struct MjvGeom {
   void set_transparent(mjtByte value) {
     ptr_->transparent = value;
   }
-  mjvGeom* get() const {
-    return ptr_;
-  }
-  void set(mjvGeom* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjvGeom* ptr_;
@@ -1052,12 +992,14 @@ struct MjvGeom {
 };
 
 struct MjvLight {
+  explicit MjvLight(mjvLight *ptr);
+  ~MjvLight();
   MjvLight();
   MjvLight(const MjvLight &);
   MjvLight &operator=(const MjvLight &);
-  explicit MjvLight(mjvLight *ptr);
-  ~MjvLight();
   std::unique_ptr<MjvLight> copy();
+  mjvLight* get() const;
+  void set(mjvLight* ptr);
   int id() const {
     return ptr_->id;
   }
@@ -1136,12 +1078,6 @@ struct MjvLight {
   void set_range(float value) {
     ptr_->range = value;
   }
-  mjvLight* get() const {
-    return ptr_;
-  }
-  void set(mjvLight* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjvLight* ptr_;
@@ -1149,12 +1085,14 @@ struct MjvLight {
 };
 
 struct MjvOption {
+  explicit MjvOption(mjvOption *ptr);
+  ~MjvOption();
   MjvOption();
   MjvOption(const MjvOption &);
   MjvOption &operator=(const MjvOption &);
-  explicit MjvOption(mjvOption *ptr);
-  ~MjvOption();
   std::unique_ptr<MjvOption> copy();
+  mjvOption* get() const;
+  void set(mjvOption* ptr);
   int label() const {
     return ptr_->label;
   }
@@ -1203,12 +1141,6 @@ struct MjvOption {
   void set_flex_layer(int value) {
     ptr_->flex_layer = value;
   }
-  mjvOption* get() const {
-    return ptr_;
-  }
-  void set(mjvOption* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjvOption* ptr_;
@@ -1216,12 +1148,14 @@ struct MjvOption {
 };
 
 struct MjvPerturb {
+  explicit MjvPerturb(mjvPerturb *ptr);
+  ~MjvPerturb();
   MjvPerturb();
   MjvPerturb(const MjvPerturb &);
   MjvPerturb &operator=(const MjvPerturb &);
-  explicit MjvPerturb(mjvPerturb *ptr);
-  ~MjvPerturb();
   std::unique_ptr<MjvPerturb> copy();
+  mjvPerturb* get() const;
+  void set(mjvPerturb* ptr);
   int select() const {
     return ptr_->select;
   }
@@ -1276,12 +1210,6 @@ struct MjvPerturb {
   void set_scale(mjtNum value) {
     ptr_->scale = value;
   }
-  mjvPerturb* get() const {
-    return ptr_;
-  }
-  void set(mjvPerturb* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjvPerturb* ptr_;
@@ -1291,6 +1219,8 @@ struct MjvPerturb {
 struct MjsCompiler {
   explicit MjsCompiler(mjsCompiler *ptr);
   ~MjsCompiler();
+  mjsCompiler* get() const;
+  void set(mjsCompiler* ptr);
   mjtByte autolimits() const {
     return ptr_->autolimits;
   }
@@ -1391,12 +1321,6 @@ struct MjsCompiler {
       *(ptr_->texturedir) = value;
     }
   }
-  mjsCompiler* get() const {
-    return ptr_;
-  }
-  void set(mjsCompiler* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsCompiler* ptr_;
@@ -1408,6 +1332,8 @@ struct MjsCompiler {
 struct MjsEquality {
   explicit MjsEquality(mjsEquality *ptr);
   ~MjsEquality();
+  mjsEquality* get() const;
+  void set(mjsEquality* ptr);
   mjtEq type() const {
     return ptr_->type;
   }
@@ -1459,12 +1385,6 @@ struct MjsEquality {
       *(ptr_->info) = value;
     }
   }
-  mjsEquality* get() const {
-    return ptr_;
-  }
-  void set(mjsEquality* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsEquality* ptr_;
@@ -1476,6 +1396,8 @@ struct MjsEquality {
 struct MjsExclude {
   explicit MjsExclude(mjsExclude *ptr);
   ~MjsExclude();
+  mjsExclude* get() const;
+  void set(mjsExclude* ptr);
   mjString bodyname1() const {
     return (ptr_ && ptr_->bodyname1) ? *(ptr_->bodyname1) : "";
   }
@@ -1500,12 +1422,6 @@ struct MjsExclude {
       *(ptr_->info) = value;
     }
   }
-  mjsExclude* get() const {
-    return ptr_;
-  }
-  void set(mjsExclude* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsExclude* ptr_;
@@ -1517,6 +1433,8 @@ struct MjsExclude {
 struct MjsFlex {
   explicit MjsFlex(mjsFlex *ptr);
   ~MjsFlex();
+  mjsFlex* get() const;
+  void set(mjsFlex* ptr);
   int contype() const {
     return ptr_->contype;
   }
@@ -1704,12 +1622,6 @@ struct MjsFlex {
       *(ptr_->info) = value;
     }
   }
-  mjsFlex* get() const {
-    return ptr_;
-  }
-  void set(mjsFlex* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsFlex* ptr_;
@@ -1721,6 +1633,8 @@ struct MjsFlex {
 struct MjsHField {
   explicit MjsHField(mjsHField *ptr);
   ~MjsHField();
+  mjsHField* get() const;
+  void set(mjsHField* ptr);
   mjString content_type() const {
     return (ptr_ && ptr_->content_type) ? *(ptr_->content_type) : "";
   }
@@ -1763,12 +1677,6 @@ struct MjsHField {
       *(ptr_->info) = value;
     }
   }
-  mjsHField* get() const {
-    return ptr_;
-  }
-  void set(mjsHField* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsHField* ptr_;
@@ -1780,6 +1688,8 @@ struct MjsHField {
 struct MjsJoint {
   explicit MjsJoint(mjsJoint *ptr);
   ~MjsJoint();
+  mjsJoint* get() const;
+  void set(mjsJoint* ptr);
   mjtJoint type() const {
     return ptr_->type;
   }
@@ -1896,12 +1806,6 @@ struct MjsJoint {
       *(ptr_->info) = value;
     }
   }
-  mjsJoint* get() const {
-    return ptr_;
-  }
-  void set(mjsJoint* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsJoint* ptr_;
@@ -1913,6 +1817,8 @@ struct MjsJoint {
 struct MjsKey {
   explicit MjsKey(mjsKey *ptr);
   ~MjsKey();
+  mjsKey* get() const;
+  void set(mjsKey* ptr);
   double time() const {
     return ptr_->time;
   }
@@ -1945,12 +1851,6 @@ struct MjsKey {
       *(ptr_->info) = value;
     }
   }
-  mjsKey* get() const {
-    return ptr_;
-  }
-  void set(mjsKey* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsKey* ptr_;
@@ -1962,6 +1862,8 @@ struct MjsKey {
 struct MjsLight {
   explicit MjsLight(mjsLight *ptr);
   ~MjsLight();
+  mjsLight* get() const;
+  void set(mjsLight* ptr);
   emscripten::val pos() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->pos));
   }
@@ -2058,12 +1960,6 @@ struct MjsLight {
       *(ptr_->info) = value;
     }
   }
-  mjsLight* get() const {
-    return ptr_;
-  }
-  void set(mjsLight* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsLight* ptr_;
@@ -2075,6 +1971,8 @@ struct MjsLight {
 struct MjsMaterial {
   explicit MjsMaterial(mjsMaterial *ptr);
   ~MjsMaterial();
+  mjsMaterial* get() const;
+  void set(mjsMaterial* ptr);
   mjStringVec &textures() const {
     return *(ptr_->textures);
   }
@@ -2134,12 +2032,6 @@ struct MjsMaterial {
       *(ptr_->info) = value;
     }
   }
-  mjsMaterial* get() const {
-    return ptr_;
-  }
-  void set(mjsMaterial* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsMaterial* ptr_;
@@ -2151,6 +2043,8 @@ struct MjsMaterial {
 struct MjsNumeric {
   explicit MjsNumeric(mjsNumeric *ptr);
   ~MjsNumeric();
+  mjsNumeric* get() const;
+  void set(mjsNumeric* ptr);
   mjDoubleVec &data() const {
     return *(ptr_->data);
   }
@@ -2168,12 +2062,6 @@ struct MjsNumeric {
       *(ptr_->info) = value;
     }
   }
-  mjsNumeric* get() const {
-    return ptr_;
-  }
-  void set(mjsNumeric* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsNumeric* ptr_;
@@ -2185,6 +2073,8 @@ struct MjsNumeric {
 struct MjsPair {
   explicit MjsPair(mjsPair *ptr);
   ~MjsPair();
+  mjsPair* get() const;
+  void set(mjsPair* ptr);
   mjString geomname1() const {
     return (ptr_ && ptr_->geomname1) ? *(ptr_->geomname1) : "";
   }
@@ -2239,12 +2129,6 @@ struct MjsPair {
       *(ptr_->info) = value;
     }
   }
-  mjsPair* get() const {
-    return ptr_;
-  }
-  void set(mjsPair* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsPair* ptr_;
@@ -2256,6 +2140,8 @@ struct MjsPair {
 struct MjsPlugin {
   explicit MjsPlugin(mjsPlugin *ptr);
   ~MjsPlugin();
+  mjsPlugin* get() const;
+  void set(mjsPlugin* ptr);
   mjString name() const {
     return (ptr_ && ptr_->name) ? *(ptr_->name) : "";
   }
@@ -2286,12 +2172,6 @@ struct MjsPlugin {
       *(ptr_->info) = value;
     }
   }
-  mjsPlugin* get() const {
-    return ptr_;
-  }
-  void set(mjsPlugin* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsPlugin* ptr_;
@@ -2303,6 +2183,8 @@ struct MjsPlugin {
 struct MjsSkin {
   explicit MjsSkin(mjsSkin *ptr);
   ~MjsSkin();
+  mjsSkin* get() const;
+  void set(mjsSkin* ptr);
   mjString file() const {
     return (ptr_ && ptr_->file) ? *(ptr_->file) : "";
   }
@@ -2366,12 +2248,6 @@ struct MjsSkin {
       *(ptr_->info) = value;
     }
   }
-  mjsSkin* get() const {
-    return ptr_;
-  }
-  void set(mjsSkin* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsSkin* ptr_;
@@ -2383,6 +2259,8 @@ struct MjsSkin {
 struct MjsTendon {
   explicit MjsTendon(mjsTendon *ptr);
   ~MjsTendon();
+  mjsTendon* get() const;
+  void set(mjsTendon* ptr);
   double stiffness() const {
     return ptr_->stiffness;
   }
@@ -2480,12 +2358,6 @@ struct MjsTendon {
       *(ptr_->info) = value;
     }
   }
-  mjsTendon* get() const {
-    return ptr_;
-  }
-  void set(mjsTendon* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsTendon* ptr_;
@@ -2497,6 +2369,8 @@ struct MjsTendon {
 struct MjsText {
   explicit MjsText(mjsText *ptr);
   ~MjsText();
+  mjsText* get() const;
+  void set(mjsText* ptr);
   mjString data() const {
     return (ptr_ && ptr_->data) ? *(ptr_->data) : "";
   }
@@ -2513,12 +2387,6 @@ struct MjsText {
       *(ptr_->info) = value;
     }
   }
-  mjsText* get() const {
-    return ptr_;
-  }
-  void set(mjsText* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsText* ptr_;
@@ -2530,6 +2398,8 @@ struct MjsText {
 struct MjsTexture {
   explicit MjsTexture(mjsTexture *ptr);
   ~MjsTexture();
+  mjsTexture* get() const;
+  void set(mjsTexture* ptr);
   mjtTexture type() const {
     return ptr_->type;
   }
@@ -2635,12 +2505,6 @@ struct MjsTexture {
       *(ptr_->info) = value;
     }
   }
-  mjsTexture* get() const {
-    return ptr_;
-  }
-  void set(mjsTexture* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsTexture* ptr_;
@@ -2652,6 +2516,8 @@ struct MjsTexture {
 struct MjsTuple {
   explicit MjsTuple(mjsTuple *ptr);
   ~MjsTuple();
+  mjsTuple* get() const;
+  void set(mjsTuple* ptr);
   mjIntVec &objtype() const {
     return *(ptr_->objtype);
   }
@@ -2669,12 +2535,6 @@ struct MjsTuple {
       *(ptr_->info) = value;
     }
   }
-  mjsTuple* get() const {
-    return ptr_;
-  }
-  void set(mjsTuple* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsTuple* ptr_;
@@ -2686,6 +2546,8 @@ struct MjsTuple {
 struct MjsWrap {
   explicit MjsWrap(mjsWrap *ptr);
   ~MjsWrap();
+  mjsWrap* get() const;
+  void set(mjsWrap* ptr);
   mjtWrap type() const {
     return ptr_->type;
   }
@@ -2700,12 +2562,6 @@ struct MjsWrap {
       *(ptr_->info) = value;
     }
   }
-  mjsWrap* get() const {
-    return ptr_;
-  }
-  void set(mjsWrap* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsWrap* ptr_;
@@ -2717,6 +2573,8 @@ struct MjsWrap {
 struct MjsCamera {
   explicit MjsCamera(mjsCamera *ptr);
   ~MjsCamera();
+  mjsCamera* get() const;
+  void set(mjsCamera* ptr);
   emscripten::val pos() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->pos));
   }
@@ -2787,12 +2645,6 @@ struct MjsCamera {
       *(ptr_->info) = value;
     }
   }
-  mjsCamera* get() const {
-    return ptr_;
-  }
-  void set(mjsCamera* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsCamera* ptr_;
@@ -2805,6 +2657,8 @@ struct MjsCamera {
 struct MjsFrame {
   explicit MjsFrame(mjsFrame *ptr);
   ~MjsFrame();
+  mjsFrame* get() const;
+  void set(mjsFrame* ptr);
   mjString childclass() const {
     return (ptr_ && ptr_->childclass) ? *(ptr_->childclass) : "";
   }
@@ -2827,12 +2681,6 @@ struct MjsFrame {
       *(ptr_->info) = value;
     }
   }
-  mjsFrame* get() const {
-    return ptr_;
-  }
-  void set(mjsFrame* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsFrame* ptr_;
@@ -2845,6 +2693,8 @@ struct MjsFrame {
 struct MjsSite {
   explicit MjsSite(mjsSite *ptr);
   ~MjsSite();
+  mjsSite* get() const;
+  void set(mjsSite* ptr);
   emscripten::val pos() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->pos));
   }
@@ -2891,12 +2741,6 @@ struct MjsSite {
       *(ptr_->info) = value;
     }
   }
-  mjsSite* get() const {
-    return ptr_;
-  }
-  void set(mjsSite* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsSite* ptr_;
@@ -2909,6 +2753,8 @@ struct MjsSite {
 struct MjsActuator {
   explicit MjsActuator(mjsActuator *ptr);
   ~MjsActuator();
+  mjsActuator* get() const;
+  void set(mjsActuator* ptr);
   mjtGain gaintype() const {
     return ptr_->gaintype;
   }
@@ -3040,12 +2886,6 @@ struct MjsActuator {
       *(ptr_->info) = value;
     }
   }
-  mjsActuator* get() const {
-    return ptr_;
-  }
-  void set(mjsActuator* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsActuator* ptr_;
@@ -3058,6 +2898,8 @@ struct MjsActuator {
 struct MjsBody {
   explicit MjsBody(mjsBody *ptr);
   ~MjsBody();
+  mjsBody* get() const;
+  void set(mjsBody* ptr);
   mjString childclass() const {
     return (ptr_ && ptr_->childclass) ? *(ptr_->childclass) : "";
   }
@@ -3119,12 +2961,6 @@ struct MjsBody {
       *(ptr_->info) = value;
     }
   }
-  mjsBody* get() const {
-    return ptr_;
-  }
-  void set(mjsBody* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsBody* ptr_;
@@ -3139,6 +2975,8 @@ struct MjsBody {
 struct MjsGeom {
   explicit MjsGeom(mjsGeom *ptr);
   ~MjsGeom();
+  mjsGeom* get() const;
+  void set(mjsGeom* ptr);
   mjtGeom type() const {
     return ptr_->type;
   }
@@ -3285,12 +3123,6 @@ struct MjsGeom {
       *(ptr_->info) = value;
     }
   }
-  mjsGeom* get() const {
-    return ptr_;
-  }
-  void set(mjsGeom* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsGeom* ptr_;
@@ -3304,6 +3136,8 @@ struct MjsGeom {
 struct MjsMesh {
   explicit MjsMesh(mjsMesh *ptr);
   ~MjsMesh();
+  mjsMesh* get() const;
+  void set(mjsMesh* ptr);
   mjString content_type() const {
     return (ptr_ && ptr_->content_type) ? *(ptr_->content_type) : "";
   }
@@ -3387,12 +3221,6 @@ struct MjsMesh {
       *(ptr_->info) = value;
     }
   }
-  mjsMesh* get() const {
-    return ptr_;
-  }
-  void set(mjsMesh* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsMesh* ptr_;
@@ -3405,6 +3233,8 @@ struct MjsMesh {
 struct MjsSensor {
   explicit MjsSensor(mjsSensor *ptr);
   ~MjsSensor();
+  mjsSensor* get() const;
+  void set(mjsSensor* ptr);
   mjtSensor type() const {
     return ptr_->type;
   }
@@ -3483,12 +3313,6 @@ struct MjsSensor {
       *(ptr_->info) = value;
     }
   }
-  mjsSensor* get() const {
-    return ptr_;
-  }
-  void set(mjsSensor* ptr) {
-    ptr_ = ptr;
-  }
 
  private:
   mjsSensor* ptr_;
@@ -3501,12 +3325,8 @@ struct MjsSensor {
 struct MjsDefault {
   explicit MjsDefault(mjsDefault *ptr);
   ~MjsDefault();
-  mjsDefault* get() const {
-    return ptr_;
-  }
-  void set(mjsDefault* ptr) {
-    ptr_ = ptr;
-  }
+  mjsDefault* get() const;
+  void set(mjsDefault* ptr);
 
  private:
   mjsDefault* ptr_;
@@ -3535,6 +3355,8 @@ struct MjVisualGlobal {
   MjVisualGlobal &operator=(const MjVisualGlobal &);
   ~MjVisualGlobal();
   std::unique_ptr<MjVisualGlobal> copy();
+  mjVisualGlobal* get() const;
+  void set(mjVisualGlobal* ptr);
   int cameraid() const {
     return ptr_->cameraid;
   }
@@ -3613,8 +3435,6 @@ struct MjVisualGlobal {
   void set_bvactive(int value) {
     ptr_->bvactive = value;
   }
-  mjVisualGlobal* get() const { return ptr_; }
-  void set(mjVisualGlobal* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualGlobal* ptr_;
@@ -3628,6 +3448,8 @@ struct MjVisualQuality {
   MjVisualQuality &operator=(const MjVisualQuality &);
   ~MjVisualQuality();
   std::unique_ptr<MjVisualQuality> copy();
+  mjVisualQuality* get() const;
+  void set(mjVisualQuality* ptr);
   int shadowsize() const {
     return ptr_->shadowsize;
   }
@@ -3658,8 +3480,6 @@ struct MjVisualQuality {
   void set_numquads(int value) {
     ptr_->numquads = value;
   }
-  mjVisualQuality* get() const { return ptr_; }
-  void set(mjVisualQuality* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualQuality* ptr_;
@@ -3673,6 +3493,8 @@ struct MjVisualHeadlight {
   MjVisualHeadlight &operator=(const MjVisualHeadlight &);
   ~MjVisualHeadlight();
   std::unique_ptr<MjVisualHeadlight> copy();
+  mjVisualHeadlight* get() const;
+  void set(mjVisualHeadlight* ptr);
   emscripten::val ambient() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->ambient));
   }
@@ -3688,8 +3510,6 @@ struct MjVisualHeadlight {
   void set_active(int value) {
     ptr_->active = value;
   }
-  mjVisualHeadlight* get() const { return ptr_; }
-  void set(mjVisualHeadlight* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualHeadlight* ptr_;
@@ -3703,6 +3523,8 @@ struct MjVisualMap {
   MjVisualMap &operator=(const MjVisualMap &);
   ~MjVisualMap();
   std::unique_ptr<MjVisualMap> copy();
+  mjVisualMap* get() const;
+  void set(mjVisualMap* ptr);
   float stiffness() const {
     return ptr_->stiffness;
   }
@@ -3781,8 +3603,6 @@ struct MjVisualMap {
   void set_actuatortendon(float value) {
     ptr_->actuatortendon = value;
   }
-  mjVisualMap* get() const { return ptr_; }
-  void set(mjVisualMap* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualMap* ptr_;
@@ -3796,6 +3616,8 @@ struct MjVisualScale {
   MjVisualScale &operator=(const MjVisualScale &);
   ~MjVisualScale();
   std::unique_ptr<MjVisualScale> copy();
+  mjVisualScale* get() const;
+  void set(mjVisualScale* ptr);
   float forcewidth() const {
     return ptr_->forcewidth;
   }
@@ -3898,8 +3720,6 @@ struct MjVisualScale {
   void set_frustum(float value) {
     ptr_->frustum = value;
   }
-  mjVisualScale* get() const { return ptr_; }
-  void set(mjVisualScale* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualScale* ptr_;
@@ -3913,6 +3733,8 @@ struct MjVisualRgba {
   MjVisualRgba &operator=(const MjVisualRgba &);
   ~MjVisualRgba();
   std::unique_ptr<MjVisualRgba> copy();
+  mjVisualRgba* get() const;
+  void set(mjVisualRgba* ptr);
   emscripten::val fog() const {
     return emscripten::val(emscripten::typed_memory_view(4, ptr_->fog));
   }
@@ -3988,8 +3810,6 @@ struct MjVisualRgba {
   emscripten::val bvactive() const {
     return emscripten::val(emscripten::typed_memory_view(4, ptr_->bvactive));
   }
-  mjVisualRgba* get() const { return ptr_; }
-  void set(mjVisualRgba* ptr) { ptr_ = ptr; }
 
  private:
   mjVisualRgba* ptr_;
@@ -4003,8 +3823,8 @@ struct MjVisual {
   MjVisual &operator=(const MjVisual &);
   ~MjVisual();
   std::unique_ptr<MjVisual> copy();
-  mjVisual* get() const { return ptr_; }
-  void set(mjVisual* ptr) { ptr_ = ptr; }
+  mjVisual* get() const;
+  void set(mjVisual* ptr);
 
  private:
   mjVisual* ptr_;
@@ -4024,6 +3844,8 @@ struct MjModel {
   explicit MjModel(const MjModel &other);
   ~MjModel();
   std::unique_ptr<MjModel> copy();
+  mjModel* get() const;
+  void set(mjModel* ptr);
   int nq() const {
     return ptr_->nq;
   }
@@ -5836,8 +5658,6 @@ struct MjModel {
   void set_signature(uint64_t value) {
     ptr_->signature = value;
   }
-  mjModel* get() const { return ptr_; }
-  void set(mjModel* ptr) { ptr_ = ptr; }
 
  private:
   mjModel* ptr_;
@@ -5857,6 +5677,8 @@ struct MjData {
   std::vector<MjWarningStat> InitWarningArray();
   std::vector<MjContact> contact() const;
   std::unique_ptr<MjData> copy();
+  mjData* get() const;
+  void set(mjData* ptr);
   mjtSize narena() const {
     return ptr_->narena;
   }
@@ -6461,8 +6283,6 @@ struct MjData {
   void set_signature(uint64_t value) {
     ptr_->signature = value;
   }
-  mjData* get() const { return ptr_; }
-  void set(mjData* ptr) { ptr_ = ptr; }
 
  private:
   mjData* ptr_;
@@ -6483,6 +6303,9 @@ struct MjvScene {
   int GetSumFlexFaces() const;
   std::vector<MjvLight> InitLightsArray();
   std::vector<MjvGLCamera> InitCameraArray();
+
+  mjvScene* get() const;
+  void set(mjvScene* ptr);
 
   std::vector<MjvGeom> geoms() const;
 
@@ -6675,8 +6498,6 @@ struct MjvScene {
   void set_status(int value) {
     ptr_->status = value;
   }
-  mjvScene* get() const { return ptr_; }
-  void set(mjvScene* ptr) { ptr_ = ptr; }
 
  private:
   mjvScene* ptr_;
@@ -6695,6 +6516,8 @@ struct MjSpec {
   MjSpec &operator=(const MjSpec &);
   ~MjSpec();
   std::unique_ptr<MjSpec> copy();
+  mjSpec* get() const;
+  void set(mjSpec* ptr);
   // complex pointer field is defined manually. element
   mjString modelname() const {
     return (ptr_ && ptr_->modelname) ? *(ptr_->modelname) : "";
@@ -6826,8 +6649,6 @@ struct MjSpec {
   void set_hasImplicitPluginElem(mjtByte value) {
     ptr_->hasImplicitPluginElem = value;
   }
-  mjSpec* get() const { return ptr_; }
-  void set(mjSpec* ptr) { ptr_ = ptr; }
 
  private:
   mjSpec* ptr_;
@@ -7559,6 +7380,11 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
 // STRUCTS
 // =============== MjLROpt =============== //
 MjLROpt::MjLROpt(mjLROpt *ptr) : ptr_(ptr) {}
+MjLROpt::~MjLROpt() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjLROpt::MjLROpt() : ptr_(new mjLROpt) {
   owned_ = true;
   mj_defaultLROpt(ptr_);
@@ -7573,17 +7399,23 @@ MjLROpt& MjLROpt::operator=(const MjLROpt &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjLROpt::~MjLROpt() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjLROpt> MjLROpt::copy() {
   return std::make_unique<MjLROpt>(*this);
+}
+mjLROpt* MjLROpt::get() const {
+  return ptr_;
+}
+void MjLROpt::set(mjLROpt* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjOption =============== //
 MjOption::MjOption(mjOption *ptr) : ptr_(ptr) {}
+MjOption::~MjOption() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjOption::MjOption() : ptr_(new mjOption) {
   owned_ = true;
   mj_defaultOption(ptr_);
@@ -7598,17 +7430,23 @@ MjOption& MjOption::operator=(const MjOption &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjOption::~MjOption() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjOption> MjOption::copy() {
   return std::make_unique<MjOption>(*this);
+}
+mjOption* MjOption::get() const {
+  return ptr_;
+}
+void MjOption::set(mjOption* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjStatistic =============== //
 MjStatistic::MjStatistic(mjStatistic *ptr) : ptr_(ptr) {}
+MjStatistic::~MjStatistic() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjStatistic::MjStatistic() : ptr_(new mjStatistic) {
   owned_ = true;
 }
@@ -7622,17 +7460,23 @@ MjStatistic& MjStatistic::operator=(const MjStatistic &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjStatistic::~MjStatistic() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjStatistic> MjStatistic::copy() {
   return std::make_unique<MjStatistic>(*this);
+}
+mjStatistic* MjStatistic::get() const {
+  return ptr_;
+}
+void MjStatistic::set(mjStatistic* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjVisual... =============== //
 MjVisualGlobal::MjVisualGlobal(mjVisualGlobal *ptr) : ptr_(ptr) {}
+MjVisualGlobal::~MjVisualGlobal() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjVisualGlobal::MjVisualGlobal() : ptr_(new mjVisualGlobal) {
   owned_ = true;
 }
@@ -7646,16 +7490,22 @@ MjVisualGlobal& MjVisualGlobal::operator=(const MjVisualGlobal &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjVisualGlobal::~MjVisualGlobal() {
+std::unique_ptr<MjVisualGlobal> MjVisualGlobal::copy() {
+  return std::make_unique<MjVisualGlobal>(*this);
+}
+mjVisualGlobal* MjVisualGlobal::get() const {
+  return ptr_;
+}
+void MjVisualGlobal::set(mjVisualGlobal* ptr) {
+  ptr_ = ptr;
+}
+
+MjVisualQuality::MjVisualQuality(mjVisualQuality *ptr) : ptr_(ptr) {}
+MjVisualQuality::~MjVisualQuality() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-std::unique_ptr<MjVisualGlobal> MjVisualGlobal::copy() {
-  return std::make_unique<MjVisualGlobal>(*this);
-}
-
-MjVisualQuality::MjVisualQuality(mjVisualQuality *ptr) : ptr_(ptr) {}
 MjVisualQuality::MjVisualQuality() : ptr_(new mjVisualQuality) {
   owned_ = true;
 }
@@ -7669,16 +7519,22 @@ MjVisualQuality& MjVisualQuality::operator=(const MjVisualQuality &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjVisualQuality::~MjVisualQuality() {
+std::unique_ptr<MjVisualQuality> MjVisualQuality::copy() {
+  return std::make_unique<MjVisualQuality>(*this);
+}
+mjVisualQuality* MjVisualQuality::get() const {
+  return ptr_;
+}
+void MjVisualQuality::set(mjVisualQuality* ptr) {
+  ptr_ = ptr;
+}
+
+MjVisualHeadlight::MjVisualHeadlight(mjVisualHeadlight *ptr) : ptr_(ptr) {}
+MjVisualHeadlight::~MjVisualHeadlight() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-std::unique_ptr<MjVisualQuality> MjVisualQuality::copy() {
-  return std::make_unique<MjVisualQuality>(*this);
-}
-
-MjVisualHeadlight::MjVisualHeadlight(mjVisualHeadlight *ptr) : ptr_(ptr) {}
 MjVisualHeadlight::MjVisualHeadlight() : ptr_(new mjVisualHeadlight) {
   owned_ = true;
 }
@@ -7692,16 +7548,22 @@ MjVisualHeadlight& MjVisualHeadlight::operator=(const MjVisualHeadlight &other) 
   *ptr_ = *other.get();
   return *this;
 }
-MjVisualHeadlight::~MjVisualHeadlight() {
+std::unique_ptr<MjVisualHeadlight> MjVisualHeadlight::copy() {
+  return std::make_unique<MjVisualHeadlight>(*this);
+}
+mjVisualHeadlight* MjVisualHeadlight::get() const {
+  return ptr_;
+}
+void MjVisualHeadlight::set(mjVisualHeadlight* ptr) {
+  ptr_ = ptr;
+}
+
+MjVisualMap::MjVisualMap(mjVisualMap *ptr) : ptr_(ptr) {}
+MjVisualMap::~MjVisualMap() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-std::unique_ptr<MjVisualHeadlight> MjVisualHeadlight::copy() {
-  return std::make_unique<MjVisualHeadlight>(*this);
-}
-
-MjVisualMap::MjVisualMap(mjVisualMap *ptr) : ptr_(ptr) {}
 MjVisualMap::MjVisualMap() : ptr_(new mjVisualMap) {
   owned_ = true;
 }
@@ -7715,16 +7577,22 @@ MjVisualMap& MjVisualMap::operator=(const MjVisualMap &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjVisualMap::~MjVisualMap() {
+std::unique_ptr<MjVisualMap> MjVisualMap::copy() {
+  return std::make_unique<MjVisualMap>(*this);
+}
+mjVisualMap* MjVisualMap::get() const {
+  return ptr_;
+}
+void MjVisualMap::set(mjVisualMap* ptr) {
+  ptr_ = ptr;
+}
+
+MjVisualScale::MjVisualScale(mjVisualScale *ptr) : ptr_(ptr) {}
+MjVisualScale::~MjVisualScale() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-std::unique_ptr<MjVisualMap> MjVisualMap::copy() {
-  return std::make_unique<MjVisualMap>(*this);
-}
-
-MjVisualScale::MjVisualScale(mjVisualScale *ptr) : ptr_(ptr) {}
 MjVisualScale::MjVisualScale() : ptr_(new mjVisualScale) {
   owned_ = true;
 }
@@ -7738,16 +7606,22 @@ MjVisualScale& MjVisualScale::operator=(const MjVisualScale &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjVisualScale::~MjVisualScale() {
+std::unique_ptr<MjVisualScale> MjVisualScale::copy() {
+  return std::make_unique<MjVisualScale>(*this);
+}
+mjVisualScale* MjVisualScale::get() const {
+  return ptr_;
+}
+void MjVisualScale::set(mjVisualScale* ptr) {
+  ptr_ = ptr;
+}
+
+MjVisualRgba::MjVisualRgba(mjVisualRgba *ptr) : ptr_(ptr) {}
+MjVisualRgba::~MjVisualRgba() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-std::unique_ptr<MjVisualScale> MjVisualScale::copy() {
-  return std::make_unique<MjVisualScale>(*this);
-}
-
-MjVisualRgba::MjVisualRgba(mjVisualRgba *ptr) : ptr_(ptr) {}
 MjVisualRgba::MjVisualRgba() : ptr_(new mjVisualRgba) {
   owned_ = true;
 }
@@ -7761,16 +7635,22 @@ MjVisualRgba& MjVisualRgba::operator=(const MjVisualRgba &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjVisualRgba::~MjVisualRgba() {
+std::unique_ptr<MjVisualRgba> MjVisualRgba::copy() {
+  return std::make_unique<MjVisualRgba>(*this);
+}
+mjVisualRgba* MjVisualRgba::get() const {
+  return ptr_;
+}
+void MjVisualRgba::set(mjVisualRgba* ptr) {
+  ptr_ = ptr;
+}
+
+MjVisual::MjVisual(mjVisual *ptr) : ptr_(ptr), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {}
+MjVisual::~MjVisual() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-std::unique_ptr<MjVisualRgba> MjVisualRgba::copy() {
-  return std::make_unique<MjVisualRgba>(*this);
-}
-
-MjVisual::MjVisual(mjVisual *ptr) : ptr_(ptr), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {}
 MjVisual::MjVisual() : ptr_(new mjVisual), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {
   owned_ = true;
   mj_defaultVisual(ptr_);
@@ -7797,17 +7677,23 @@ MjVisual& MjVisual::operator=(const MjVisual &other) {
   rgba.set(&ptr_->rgba);
   return *this;
 }
-MjVisual::~MjVisual() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjVisual> MjVisual::copy() {
   return std::make_unique<MjVisual>(*this);
+}
+mjVisual* MjVisual::get() const {
+  return ptr_;
+}
+void MjVisual::set(mjVisual* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjSolverStat =============== //
 MjSolverStat::MjSolverStat(mjSolverStat *ptr) : ptr_(ptr) {}
+MjSolverStat::~MjSolverStat() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjSolverStat::MjSolverStat() : ptr_(new mjSolverStat) {
   owned_ = true;
 }
@@ -7821,17 +7707,23 @@ MjSolverStat& MjSolverStat::operator=(const MjSolverStat &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjSolverStat::~MjSolverStat() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjSolverStat> MjSolverStat::copy() {
   return std::make_unique<MjSolverStat>(*this);
+}
+mjSolverStat* MjSolverStat::get() const {
+  return ptr_;
+}
+void MjSolverStat::set(mjSolverStat* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjTimerStat =============== //
 MjTimerStat::MjTimerStat(mjTimerStat *ptr) : ptr_(ptr) {}
+MjTimerStat::~MjTimerStat() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjTimerStat::MjTimerStat() : ptr_(new mjTimerStat) {
   owned_ = true;
 }
@@ -7845,17 +7737,23 @@ MjTimerStat& MjTimerStat::operator=(const MjTimerStat &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjTimerStat::~MjTimerStat() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjTimerStat> MjTimerStat::copy() {
   return std::make_unique<MjTimerStat>(*this);
+}
+mjTimerStat* MjTimerStat::get() const {
+  return ptr_;
+}
+void MjTimerStat::set(mjTimerStat* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjWarningStat =============== //
 MjWarningStat::MjWarningStat(mjWarningStat *ptr) : ptr_(ptr) {}
+MjWarningStat::~MjWarningStat() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjWarningStat::MjWarningStat() : ptr_(new mjWarningStat) {
   owned_ = true;
 }
@@ -7869,17 +7767,23 @@ MjWarningStat& MjWarningStat::operator=(const MjWarningStat &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjWarningStat::~MjWarningStat() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjWarningStat> MjWarningStat::copy() {
   return std::make_unique<MjWarningStat>(*this);
+}
+mjWarningStat* MjWarningStat::get() const {
+  return ptr_;
+}
+void MjWarningStat::set(mjWarningStat* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjContact =============== //
 MjContact::MjContact(mjContact *ptr) : ptr_(ptr) {}
+MjContact::~MjContact() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjContact::MjContact() : ptr_(new mjContact) {
   owned_ = true;
 }
@@ -7893,13 +7797,14 @@ MjContact& MjContact::operator=(const MjContact &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjContact::~MjContact() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjContact> MjContact::copy() {
   return std::make_unique<MjContact>(*this);
+}
+mjContact* MjContact::get() const {
+  return ptr_;
+}
+void MjContact::set(mjContact* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjModel =============== //
@@ -7915,6 +7820,8 @@ MjModel::~MjModel() {
     mj_deleteModel(ptr_);
   }
 }
+mjModel* MjModel::get() const { return ptr_; }
+void MjModel::set(mjModel *ptr) { ptr_ = ptr; }
 
 // TODO(manevi): Consider passing `const MjModel& m` here, mj_makeData uses a const model.
 // =============== MjData =============== //
@@ -7940,6 +7847,9 @@ MjData::~MjData() {
     mj_deleteData(ptr_);
   }
 }
+mjData* MjData::get() const { return ptr_; }
+void MjData::set(mjData *ptr) { ptr_ = ptr; }
+
 std::vector<MjSolverStat> MjData::InitSolverArray() {
   std::vector<MjSolverStat> arr;
   arr.reserve(mjNSOLVER * mjNISLAND);
@@ -7975,6 +7885,11 @@ std::vector<MjContact> MjData::contact() const {
 }
 // =============== MjvPerturb =============== //
 MjvPerturb::MjvPerturb(mjvPerturb *ptr) : ptr_(ptr) {}
+MjvPerturb::~MjvPerturb() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjvPerturb::MjvPerturb() : ptr_(new mjvPerturb) {
   owned_ = true;
   mjv_defaultPerturb(ptr_);
@@ -7989,17 +7904,23 @@ MjvPerturb& MjvPerturb::operator=(const MjvPerturb &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjvPerturb::~MjvPerturb() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjvPerturb> MjvPerturb::copy() {
   return std::make_unique<MjvPerturb>(*this);
+}
+mjvPerturb* MjvPerturb::get() const {
+  return ptr_;
+}
+void MjvPerturb::set(mjvPerturb* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjvCamera =============== //
 MjvCamera::MjvCamera(mjvCamera *ptr) : ptr_(ptr) {}
+MjvCamera::~MjvCamera() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjvCamera::MjvCamera() : ptr_(new mjvCamera) {
   owned_ = true;
   mjv_defaultCamera(ptr_);
@@ -8014,17 +7935,23 @@ MjvCamera& MjvCamera::operator=(const MjvCamera &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjvCamera::~MjvCamera() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjvCamera> MjvCamera::copy() {
   return std::make_unique<MjvCamera>(*this);
+}
+mjvCamera* MjvCamera::get() const {
+  return ptr_;
+}
+void MjvCamera::set(mjvCamera* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjvGLCamera =============== //
 MjvGLCamera::MjvGLCamera(mjvGLCamera *ptr) : ptr_(ptr) {}
+MjvGLCamera::~MjvGLCamera() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjvGLCamera::MjvGLCamera() : ptr_(new mjvGLCamera) {
   owned_ = true;
 }
@@ -8038,17 +7965,23 @@ MjvGLCamera& MjvGLCamera::operator=(const MjvGLCamera &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjvGLCamera::~MjvGLCamera() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjvGLCamera> MjvGLCamera::copy() {
   return std::make_unique<MjvGLCamera>(*this);
+}
+mjvGLCamera* MjvGLCamera::get() const {
+  return ptr_;
+}
+void MjvGLCamera::set(mjvGLCamera* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjvGeom =============== //
 MjvGeom::MjvGeom(mjvGeom *ptr) : ptr_(ptr) {}
+MjvGeom::~MjvGeom() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjvGeom::MjvGeom() : ptr_(new mjvGeom) {
   owned_ = true;
   mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);
@@ -8063,17 +7996,23 @@ MjvGeom& MjvGeom::operator=(const MjvGeom &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjvGeom::~MjvGeom() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjvGeom> MjvGeom::copy() {
   return std::make_unique<MjvGeom>(*this);
+}
+mjvGeom* MjvGeom::get() const {
+  return ptr_;
+}
+void MjvGeom::set(mjvGeom* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjvLight =============== //
 MjvLight::MjvLight(mjvLight *ptr) : ptr_(ptr) {}
+MjvLight::~MjvLight() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjvLight::MjvLight() : ptr_(new mjvLight) {
   owned_ = true;
 }
@@ -8087,17 +8026,23 @@ MjvLight& MjvLight::operator=(const MjvLight &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjvLight::~MjvLight() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjvLight> MjvLight::copy() {
   return std::make_unique<MjvLight>(*this);
+}
+mjvLight* MjvLight::get() const {
+  return ptr_;
+}
+void MjvLight::set(mjvLight* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjvOption =============== //
 MjvOption::MjvOption(mjvOption *ptr) : ptr_(ptr) {}
+MjvOption::~MjvOption() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjvOption::MjvOption() : ptr_(new mjvOption) {
   owned_ = true;
   mjv_defaultOption(ptr_);
@@ -8112,13 +8057,14 @@ MjvOption& MjvOption::operator=(const MjvOption &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjvOption::~MjvOption() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjvOption> MjvOption::copy() {
   return std::make_unique<MjvOption>(*this);
+}
+mjvOption* MjvOption::get() const {
+  return ptr_;
+}
+void MjvOption::set(mjvOption* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjvScene =============== //
@@ -8146,6 +8092,9 @@ MjvScene::~MjvScene() {
     delete ptr_;
   }
 }
+
+mjvScene* MjvScene::get() const { return ptr_; }
+void MjvScene::set(mjvScene *ptr) { ptr_ = ptr; }
 
 // Taken from the python mujoco bindings code for MjvScene Wrapper
 int MjvScene::GetSumFlexFaces() const {
@@ -8210,6 +8159,11 @@ std::vector<MjvGeom> MjvScene::geoms() const {
 
 // =============== MjvFigure =============== //
 MjvFigure::MjvFigure(mjvFigure *ptr) : ptr_(ptr) {}
+MjvFigure::~MjvFigure() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
 MjvFigure::MjvFigure() : ptr_(new mjvFigure) {
   owned_ = true;
   mjv_defaultFigure(ptr_);
@@ -8224,25 +8178,35 @@ MjvFigure& MjvFigure::operator=(const MjvFigure &other) {
   *ptr_ = *other.get();
   return *this;
 }
-MjvFigure::~MjvFigure() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
 std::unique_ptr<MjvFigure> MjvFigure::copy() {
   return std::make_unique<MjvFigure>(*this);
+}
+mjvFigure* MjvFigure::get() const {
+  return ptr_;
+}
+void MjvFigure::set(mjvFigure* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjsElement =============== //
 MjsElement::MjsElement(mjsElement *ptr) : ptr_(ptr) {}
 MjsElement::~MjsElement() {}
-std::unique_ptr<MjsElement> MjsElement::copy() {
-  return std::make_unique<MjsElement>(*this);
+mjsElement* MjsElement::get() const {
+  return ptr_;
+}
+void MjsElement::set(mjsElement* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjsCompiler =============== //
 MjsCompiler::MjsCompiler(mjsCompiler *ptr) : ptr_(ptr), LRopt(&ptr_->LRopt) {}
 MjsCompiler::~MjsCompiler() {}
+mjsCompiler* MjsCompiler::get() const {
+  return ptr_;
+}
+void MjsCompiler::set(mjsCompiler* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjSpec =============== //
 MjSpec::MjSpec()
@@ -8297,127 +8261,295 @@ MjSpec::~MjSpec() {
   }
 }
 
+mjSpec *MjSpec::get() const { return ptr_; }
+void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
+
 // =============== MjsOrientation =============== //
 MjsOrientation::MjsOrientation(mjsOrientation *ptr) : ptr_(ptr) {}
 MjsOrientation::~MjsOrientation() {}
-std::unique_ptr<MjsOrientation> MjsOrientation::copy() {
-  return std::make_unique<MjsOrientation>(*this);
+mjsOrientation* MjsOrientation::get() const {
+  return ptr_;
+}
+void MjsOrientation::set(mjsOrientation* ptr) {
+  ptr_ = ptr;
 }
 
 // =============== MjsBody =============== //
 MjsBody::MjsBody(mjsBody *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt), ialt(&ptr_->ialt), plugin(&ptr_->plugin) {}
 MjsBody::~MjsBody() {}
+mjsBody* MjsBody::get() const {
+  return ptr_;
+}
+void MjsBody::set(mjsBody* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsGeom =============== //
 MjsGeom::MjsGeom(mjsGeom *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt), plugin(&ptr_->plugin) {}
 MjsGeom::~MjsGeom() {}
+mjsGeom* MjsGeom::get() const {
+  return ptr_;
+}
+void MjsGeom::set(mjsGeom* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsFrame =============== //
 MjsFrame::MjsFrame(mjsFrame *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
 MjsFrame::~MjsFrame() {}
+mjsFrame* MjsFrame::get() const {
+  return ptr_;
+}
+void MjsFrame::set(mjsFrame* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsJoint =============== //
 MjsJoint::MjsJoint(mjsJoint *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsJoint::~MjsJoint() {}
+mjsJoint* MjsJoint::get() const {
+  return ptr_;
+}
+void MjsJoint::set(mjsJoint* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsSite =============== //
 MjsSite::MjsSite(mjsSite *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
 MjsSite::~MjsSite() {}
+mjsSite* MjsSite::get() const {
+  return ptr_;
+}
+void MjsSite::set(mjsSite* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsCamera =============== //
 MjsCamera::MjsCamera(mjsCamera *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
 MjsCamera::~MjsCamera() {}
+mjsCamera* MjsCamera::get() const {
+  return ptr_;
+}
+void MjsCamera::set(mjsCamera* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsLight =============== //
 MjsLight::MjsLight(mjsLight *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsLight::~MjsLight() {}
+mjsLight* MjsLight::get() const {
+  return ptr_;
+}
+void MjsLight::set(mjsLight* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsFlex =============== //
 MjsFlex::MjsFlex(mjsFlex *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsFlex::~MjsFlex() {}
+mjsFlex* MjsFlex::get() const {
+  return ptr_;
+}
+void MjsFlex::set(mjsFlex* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsMesh =============== //
 MjsMesh::MjsMesh(mjsMesh *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
 MjsMesh::~MjsMesh() {}
+mjsMesh* MjsMesh::get() const {
+  return ptr_;
+}
+void MjsMesh::set(mjsMesh* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsHField =============== //
 MjsHField::MjsHField(mjsHField *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsHField::~MjsHField() {}
+mjsHField* MjsHField::get() const {
+  return ptr_;
+}
+void MjsHField::set(mjsHField* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsSkin =============== //
 MjsSkin::MjsSkin(mjsSkin *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsSkin::~MjsSkin() {}
+mjsSkin* MjsSkin::get() const {
+  return ptr_;
+}
+void MjsSkin::set(mjsSkin* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsTexture =============== //
 MjsTexture::MjsTexture(mjsTexture *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsTexture::~MjsTexture() {}
+mjsTexture* MjsTexture::get() const {
+  return ptr_;
+}
+void MjsTexture::set(mjsTexture* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsMaterial =============== //
 MjsMaterial::MjsMaterial(mjsMaterial *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsMaterial::~MjsMaterial() {}
+mjsMaterial* MjsMaterial::get() const {
+  return ptr_;
+}
+void MjsMaterial::set(mjsMaterial* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsPair =============== //
 MjsPair::MjsPair(mjsPair *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsPair::~MjsPair() {}
+mjsPair* MjsPair::get() const {
+  return ptr_;
+}
+void MjsPair::set(mjsPair* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsExclude =============== //
 MjsExclude::MjsExclude(mjsExclude *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsExclude::~MjsExclude() {}
+mjsExclude* MjsExclude::get() const {
+  return ptr_;
+}
+void MjsExclude::set(mjsExclude* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsEquality =============== //
 MjsEquality::MjsEquality(mjsEquality *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsEquality::~MjsEquality() {}
+mjsEquality* MjsEquality::get() const {
+  return ptr_;
+}
+void MjsEquality::set(mjsEquality* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsTendon =============== //
 MjsTendon::MjsTendon(mjsTendon *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsTendon::~MjsTendon() {}
+mjsTendon* MjsTendon::get() const {
+  return ptr_;
+}
+void MjsTendon::set(mjsTendon* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsWrap =============== //
 MjsWrap::MjsWrap(mjsWrap *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsWrap::~MjsWrap() {}
+mjsWrap* MjsWrap::get() const {
+  return ptr_;
+}
+void MjsWrap::set(mjsWrap* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsActuator =============== //
 MjsActuator::MjsActuator(mjsActuator *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
 MjsActuator::~MjsActuator() {}
+mjsActuator* MjsActuator::get() const {
+  return ptr_;
+}
+void MjsActuator::set(mjsActuator* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsSensor =============== //
 MjsSensor::MjsSensor(mjsSensor *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
 MjsSensor::~MjsSensor() {}
+mjsSensor* MjsSensor::get() const {
+  return ptr_;
+}
+void MjsSensor::set(mjsSensor* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsNumeric =============== //
 MjsNumeric::MjsNumeric(mjsNumeric *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsNumeric::~MjsNumeric() {}
+mjsNumeric* MjsNumeric::get() const {
+  return ptr_;
+}
+void MjsNumeric::set(mjsNumeric* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsText =============== //
 MjsText::MjsText(mjsText *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsText::~MjsText() {}
+mjsText* MjsText::get() const {
+  return ptr_;
+}
+void MjsText::set(mjsText* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsTuple =============== //
 MjsTuple::MjsTuple(mjsTuple *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsTuple::~MjsTuple() {}
+mjsTuple* MjsTuple::get() const {
+  return ptr_;
+}
+void MjsTuple::set(mjsTuple* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsKey =============== //
 MjsKey::MjsKey(mjsKey *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsKey::~MjsKey() {}
+mjsKey* MjsKey::get() const {
+  return ptr_;
+}
+void MjsKey::set(mjsKey* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsDefault =============== //
 MjsDefault::MjsDefault(mjsDefault *ptr) : ptr_(ptr), element(ptr_->element), joint(ptr_->joint), geom(ptr_->geom), site(ptr_->site), camera(ptr_->camera), light(ptr_->light), flex(ptr_->flex), mesh(ptr_->mesh), material(ptr_->material), pair(ptr_->pair), equality(ptr_->equality), tendon(ptr_->tendon), actuator(ptr_->actuator) {}
 MjsDefault::~MjsDefault() {}
+mjsDefault* MjsDefault::get() const {
+  return ptr_;
+}
+void MjsDefault::set(mjsDefault* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjsPlugin =============== //
 MjsPlugin::MjsPlugin(mjsPlugin *ptr) : ptr_(ptr), element(ptr_->element) {}
 MjsPlugin::~MjsPlugin() {}
+mjsPlugin* MjsPlugin::get() const {
+  return ptr_;
+}
+void MjsPlugin::set(mjsPlugin* ptr) {
+  ptr_ = ptr;
+}
 
 // =============== MjVFS =============== //
 MjVFS::MjVFS(mjVFS *ptr) : ptr_(ptr) {}
-MjVFS::MjVFS() : ptr_(new mjVFS) {
-  owned_ = true;
-  mj_defaultVFS(ptr_);
-}
 MjVFS::~MjVFS() {
   if (owned_ && ptr_) {
     mj_deleteVFS(ptr_);
   }
+}
+MjVFS::MjVFS() : ptr_(new mjVFS) {
+  owned_ = true;
+  mj_defaultVFS(ptr_);
+}
+mjVFS* MjVFS::get() const {
+  return ptr_;
+}
+void MjVFS::set(mjVFS* ptr) {
+  ptr_ = ptr;
 }
 
 // ======= FACTORY AND HELPER FUNCTIONS ========= //
@@ -9606,7 +9738,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       ;
 
   emscripten::class_<MjsOrientation>("MjsOrientation")
-      .function("copy", &MjsOrientation::copy, take_ownership())
       .property("type", &MjsOrientation::type, &MjsOrientation::set_type, reference())
       .property("axisangle", &MjsOrientation::axisangle)
       .property("xyaxes", &MjsOrientation::xyaxes)
