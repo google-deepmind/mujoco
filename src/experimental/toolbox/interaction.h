@@ -21,7 +21,8 @@ namespace mujoco::toolbox {
 
 // The result of a pick operation.
 struct PickResult {
-  mjtNum point[3];  // World coordinates
+  mjtNum point[3] = {0, 0, 0};  // World coordinates
+  mjtNum dist = -1;  // Distance from the camera.
   int body = -1;
   int geom = -1;
   int flex = -1;
@@ -30,7 +31,7 @@ struct PickResult {
 
 // Returns information about the object (if any) under the mouse cursor.
 PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera,
-                float x, float y, float aspect_ratio, const mjvScene* scene,
+                float x, float y, float aspect_ratio,
                 const mjvOption* vis_options);
 
 // Updates the camera according to the requested index using this convention:
@@ -43,7 +44,18 @@ PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera,
 // convention. Note the returned index may differ from the request if the
 // request was invalid (index was out of range or tracking camera was not
 // available).
-int SetCamera(const mjModel* model, mjvCamera* camera, int request_idx);
+int SetCamera(const mjModel* m, mjvCamera* camera, int request_idx);
+
+// Moves the camera according to the mouse action and relative displacement.
+void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam,
+                mjtMouse action, mjtNum reldx, mjtNum reldy);
+
+void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
+                 mjvPerturb* pert, mjtPertBit active);
+
+void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
+                 mjvPerturb* pert, mjtMouse action, mjtNum reldx,
+                 mjtNum reldy);
 
 }  // namespace mujoco::toolbox
 

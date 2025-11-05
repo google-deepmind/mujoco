@@ -58,15 +58,14 @@ namespace mujoco::studio {
 
 static constexpr toolbox::Window::Config kWindowConfig = {
 #if defined(USE_FILAMENT_VULKAN)
-  .render_config = toolbox::Window::RenderConfig::kFilamentVulkan,
+    .render_config = toolbox::Window::RenderConfig::kFilamentVulkan,
 #elif defined(USE_FILAMENT_OPENGL)
-  .render_config = toolbox::Window::RenderConfig::kFilamentOpenGL,
+    .render_config = toolbox::Window::RenderConfig::kFilamentOpenGL,
 #elif defined(USE_CLASSIC_OPENGL)
-  .render_config = toolbox::Window::RenderConfig::kClassicOpenGL,
+    .render_config = toolbox::Window::RenderConfig::kClassicOpenGL,
 #endif
-  .enable_keyboard = true,
+    .enable_keyboard = true,
 };
-
 
 static void ToggleFlag(mjtByte& flag) { flag = flag ? 0 : 1; }
 
@@ -233,10 +232,6 @@ void App::HandleMouseEvents() {
     return;
   }
 
-  mjModel* model = physics_->GetModel();
-  mjData* data = physics_->GetData();
-  mjvScene& scene = renderer_->GetScene();
-
   // Normalize mouse positions and movement to display size.
   const float mouse_x = io.MousePos.x / io.DisplaySize.x;
   const float mouse_y = io.MousePos.y / io.DisplaySize.y;
@@ -258,35 +253,36 @@ void App::HandleMouseEvents() {
   }
 
   // Mouse scroll.
-  if (model && mouse_scroll != 0.0f) {
-    mjv_moveCamera(model, mjMOUSE_ZOOM, 0, mouse_scroll, &scene, &camera_);
+  if (Model() && mouse_scroll != 0.0f) {
+    toolbox::MoveCamera(Model(), Data(), &camera_, mjMOUSE_ZOOM, 0,
+                        mouse_scroll);
   }
 
   // Mouse drag.
-  if (model && data && action != mjMOUSE_NONE &&
+  if (Model() && Data() && action != mjMOUSE_NONE &&
       (mouse_dx != 0.0f || mouse_dy != 0.0f)) {
     // If ctrl is pressed, move the perturbation, otherwise move the camera_.
     if (io.KeyCtrl) {
       if (perturb_.select > 0) {
-        const int active =
+        const mjtPertBit active =
             action == mjMOUSE_MOVE_V ? mjPERT_TRANSLATE : mjPERT_ROTATE;
         if (active != perturb_.active) {
-          mjv_initPerturb(model, data, &scene, &perturb_);
-          perturb_.active = active;
+          toolbox::InitPerturb(Model(), Data(), &camera_, &perturb_, active);
         }
-        mjv_movePerturb(model, data, action, mouse_dx, mouse_dy, &scene,
-                        &perturb_);
+        toolbox::MovePerturb(Model(), Data(), &camera_, &perturb_, action,
+                             mouse_dx, mouse_dy);
       }
     } else {
-      mjv_moveCamera(model, action, mouse_dx, mouse_dy, &scene, &camera_);
+      toolbox::MoveCamera(Model(), Data(), &camera_, action, mouse_dx,
+                          mouse_dy);
     }
   }
 
   // Left double click.
-  if (data && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-    toolbox::PickResult picked = toolbox::Pick(
-        model, data, &camera_, mouse_x, mouse_y, window_->GetAspectRatio(),
-        &renderer_->GetScene(), &vis_options_);
+  if (Data() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+    toolbox::PickResult picked =
+        toolbox::Pick(Model(), Data(), &camera_, mouse_x, mouse_y,
+                      window_->GetAspectRatio(), &vis_options_);
     if (picked.body >= 0) {
       perturb_.select = picked.body;
       perturb_.flexselect = picked.flex;
@@ -294,8 +290,9 @@ void App::HandleMouseEvents() {
 
       // Compute the local position of the selected object in the world.
       mjtNum tmp[3];
-      mju_sub3(tmp, picked.point, data->xpos + 3 * picked.body);
-      mju_mulMatTVec(perturb_.localpos, data->xmat + 9 * picked.body, tmp, 3, 3);
+      mju_sub3(tmp, picked.point, Data()->xpos + 3 * picked.body);
+      mju_mulMatTVec(perturb_.localpos, Data()->xmat + 9 * picked.body, tmp, 3,
+                     3);
     } else {
       perturb_.select = 0;
       perturb_.flexselect = -1;
@@ -305,9 +302,9 @@ void App::HandleMouseEvents() {
 
   // Right double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
-    toolbox::PickResult picked = toolbox::Pick(
-        model, data, &camera_, mouse_x, mouse_y, window_->GetAspectRatio(),
-        &renderer_->GetScene(), &vis_options_);
+    toolbox::PickResult picked =
+        toolbox::Pick(Model(), Data(), &camera_, mouse_x, mouse_y,
+                      window_->GetAspectRatio(), &vis_options_);
     mju_copy3(camera_.lookat, picked.point);
     if (picked.body > 0 && io.KeyCtrl) {
       camera_.type = mjCAMERA_TRACKING;
@@ -422,28 +419,28 @@ void App::HandleKeyboardEvents() {
 
   // Camera wasd controls.
   if (!ui_.classic_ui) {
-    mjvScene& scene = renderer_->GetScene();
-    mjModel* model = Model();
+    const mjModel* model = Model();
+    const mjData* data = Data();
 
     // Move (dolly) forward/backward using W and S keys.
     if (ImGui::IsKeyDown(ImGuiKey_W)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_H_REL, 0, 0.01, &scene, &camera_);
+      toolbox::MoveCamera(model, data, &camera_, mjMOUSE_MOVE_H_REL, 0, 0.01);
     } else if (ImGui::IsKeyDown(ImGuiKey_S)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_H_REL, 0, -0.01, &scene, &camera_);
+      toolbox::MoveCamera(model, data, &camera_, mjMOUSE_MOVE_H_REL, 0, -0.01);
     }
 
     // Strafe (truck) left/right using A dna D keys.
     if (ImGui::IsKeyDown(ImGuiKey_A)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_H_REL, -0.01, 0, &scene, &camera_);
+      toolbox::MoveCamera(model, data, &camera_, mjMOUSE_MOVE_H_REL, -0.01, 0);
     } else if (ImGui::IsKeyDown(ImGuiKey_D)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_H_REL, 0.01, 0, &scene, &camera_);
+      toolbox::MoveCamera(model, data, &camera_, mjMOUSE_MOVE_H_REL, 0.01, 0);
     }
 
     // Move (pedestal) up/down using Q and E keys.
     if (ImGui::IsKeyDown(ImGuiKey_Q)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_V_REL, 0, 0.01, &scene, &camera_);
+      toolbox::MoveCamera(model, data, &camera_, mjMOUSE_MOVE_V_REL, 0, 0.01);
     } else if (ImGui::IsKeyDown(ImGuiKey_E)) {
-      mjv_moveCamera(model, mjMOUSE_MOVE_V_REL, 0, -0.01, &scene, &camera_);
+      toolbox::MoveCamera(model, data, &camera_, mjMOUSE_MOVE_V_REL, 0, -0.01);
     }
   }
 
@@ -459,7 +456,7 @@ void App::HandleKeyboardEvents() {
     if (ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
       ui_.camera_idx = toolbox::SetCamera(model, &camera_, 0);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftBracket)) {
-      ui_.camera_idx = toolbox::SetCamera(model, &camera_,ui_.camera_idx - 1);
+      ui_.camera_idx = toolbox::SetCamera(model, &camera_, ui_.camera_idx - 1);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
       ui_.camera_idx = toolbox::SetCamera(model, &camera_, ui_.camera_idx + 1);
     }
