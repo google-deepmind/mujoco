@@ -24,6 +24,11 @@ General
   - ``coef -> real``
   - ``divisor -> real``
 
+MJX
+^^^
+
+- ``warp-lang`` optional dependency is updated to 1.10.0. ``pmap`` now works with MuJoCo Warp from MJX.
+
 Version 3.3.7 (October 13, 2025)
 -----------------------------------
 

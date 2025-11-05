@@ -30,7 +30,7 @@ from mujoco.mjx.warp import forward as wp_forward
 from mujoco.mjx.warp import smooth as wp_smooth
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 import warp as wp
-from mujoco.mjx.third_party.warp.jax_experimental import ffi as warp_ffi
+from mujoco.mjx.third_party.warp._src.jax_experimental import ffi as warp_ffi
 
 _MODELFILE = flags.DEFINE_string(
     'modelfile',

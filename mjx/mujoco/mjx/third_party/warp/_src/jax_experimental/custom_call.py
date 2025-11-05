@@ -16,10 +16,12 @@
 import ctypes
 
 import warp as wp
-from warp.context import type_str
-from warp.jax import get_jax_device
-from warp.types import array_t, launch_bounds_t, strides_from_shape
-from warp.utils import warn
+from warp._src.context import type_str
+from warp._src.jax import get_jax_device
+from warp._src.types import array_t, launch_bounds_t, strides_from_shape
+from warp._src.utils import warn
+
+_wp_module_name_ = "warp.jax_experimental.custom_call"
 
 _jax_warp_p = None
 
@@ -65,7 +67,8 @@ def jax_kernel(kernel, launch_dims=None, quiet=False):
         warn(
             "This version of jax_kernel() is deprecated and will not be supported with newer JAX versions. "
             "Please use the newer FFI version instead (warp.jax_experimental.ffi.jax_kernel). "
-            "In Warp release 1.10, the FFI version will become the default implementation of jax_kernel().",
+            "As of Warp release 1.10, the FFI version is the default implementation of jax_kernel(). "
+            "Pass quiet=True to disable this warning.",
             DeprecationWarning,
         )
 
@@ -130,7 +133,7 @@ def _warp_custom_callback(stream, buffers, opaque, opaque_len):
     assert hooks.forward, "Failed to find kernel entry point"
 
     # Launch the kernel.
-    wp.context.runtime.core.wp_cuda_launch_kernel(
+    wp._src.context.runtime.core.wp_cuda_launch_kernel(
         device.context, hooks.forward, bounds.size, 0, 256, hooks.forward_smem_bytes, kernel_params, stream
     )
 
@@ -142,7 +145,7 @@ def _create_jax_warp_primitive():
     from jax._src.interpreters import batching
     from jax.interpreters import mlir
     from jax.interpreters.mlir import ir
-    from jax.google.hlo_helpers import custom_call
+    from jaxlib.hlo_helpers import custom_call
 
     global _jax_warp_p
     global _cc_callback

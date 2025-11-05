@@ -25,7 +25,7 @@ from jax import numpy as jp
 from mujoco.mjx.warp import types as mjx_warp_types
 import numpy as np
 import warp as wp
-from mujoco.mjx.third_party.warp.jax_experimental import ffi
+from mujoco.mjx.third_party.warp._src.jax_experimental import ffi
 
 
 def flatten_signature(signature: inspect.Signature, args: Tuple[Any, ...]):

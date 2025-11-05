@@ -21,6 +21,8 @@ import numpy as np
 
 import warp as wp
 
+_wp_module_name_ = "warp.jax_experimental.xla_ffi"
+
 #######################################################################
 # ctypes structures and enums for XLA's FFI API:
 # https://github.com/openxla/xla/blob/a1a5e62fbffa3a3b6c409d72607456cf5b353a22/xla/ffi/api/c_api.h
@@ -379,6 +381,24 @@ class XLA_FFI_Stream_Get_Args(ctypes.Structure):
 XLA_FFI_Stream_Get = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.POINTER(XLA_FFI_Stream_Get_Args))
 
 
+# struct XLA_FFI_DeviceOrdinal_Get {
+#   size_t struct_size;
+#   XLA_FFI_Extension_Base* extension_start;
+#   XLA_FFI_ExecutionContext* ctx;
+#   int32_t device_ordinal;  // out
+# };
+class XLA_FFI_DeviceOrdinal_Get_Args(ctypes.Structure):
+    _fields_ = (
+        ("struct_size", ctypes.c_size_t),
+        ("extension_start", ctypes.POINTER(XLA_FFI_Extension_Base)),
+        ("ctx", ctypes.c_void_p),  # XLA_FFI_ExecutionContext*
+        ("device_ordinal", ctypes.c_int32),
+    )  # // out
+
+
+XLA_FFI_DeviceOrdinal_Get = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.POINTER(XLA_FFI_DeviceOrdinal_Get_Args))
+
+
 # struct XLA_FFI_Api {
 #   size_t struct_size;
 #   XLA_FFI_Extension_Base* extension_start;
@@ -402,6 +422,8 @@ XLA_FFI_Stream_Get = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.POINTER(XLA_FFI_St
 #   _XLA_FFI_API_STRUCT_FIELD(XLA_FFI_Future_Create);
 #   _XLA_FFI_API_STRUCT_FIELD(XLA_FFI_Future_SetAvailable);
 #   _XLA_FFI_API_STRUCT_FIELD(XLA_FFI_Future_SetError);
+#   _XLA_FFI_API_STRUCT_FIELD(XLA_FFI_RunId_Get);
+#   _XLA_FFI_API_STRUCT_FIELD(XLA_FFI_DeviceOrdinal_Get);
 # };
 class XLA_FFI_Api(ctypes.Structure):
     _fields_ = (
@@ -425,6 +447,9 @@ class XLA_FFI_Api(ctypes.Structure):
         ("XLA_FFI_Future_Create", ctypes.c_void_p),  # XLA_FFI_Future_Create
         ("XLA_FFI_Future_SetAvailable", ctypes.c_void_p),  # XLA_FFI_Future_SetAvailable
         ("XLA_FFI_Future_SetError", ctypes.c_void_p),  # XLA_FFI_Future_SetError
+        # TODO(chaserileyroberts): Make this return the correct value and not a c_void_p.
+        ("XLA_FFI_RunId_Get", ctypes.c_void_p),  # XLA_FFI_RunId_Get
+        ("XLA_FFI_DeviceOrdinal_Get", XLA_FFI_DeviceOrdinal_Get),  # XLA_FFI_DeviceOrdinal_Get
     )
 
 
@@ -568,6 +593,15 @@ def get_stream_from_callframe(call_frame):
     api.contents.XLA_FFI_Stream_Get(get_stream_args)
     # TODO check result
     return get_stream_args.stream
+
+
+def get_device_ordinal_from_callframe(call_frame):
+    api = call_frame.api
+    get_device_args = XLA_FFI_DeviceOrdinal_Get_Args(
+        ctypes.sizeof(XLA_FFI_DeviceOrdinal_Get_Args), ctypes.POINTER(XLA_FFI_Extension_Base)(), call_frame.ctx, 0
+    )
+    api.contents.XLA_FFI_DeviceOrdinal_Get(get_device_args)
+    return get_device_args.device_ordinal
 
 
 _dtype_from_ffi = {
