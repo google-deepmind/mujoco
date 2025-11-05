@@ -57,7 +57,9 @@ namespace mujoco::studio {
 // - async physics
 
 static constexpr toolbox::Window::Config kWindowConfig = {
-#if defined(USE_FILAMENT_VULKAN)
+#ifdef EMSCRIPTEN
+    .render_config = toolbox::Window::RenderConfig::kFilamentWebGL,
+#elif defined(USE_FILAMENT_VULKAN)
     .render_config = toolbox::Window::RenderConfig::kFilamentVulkan,
 #elif defined(USE_FILAMENT_OPENGL)
     .render_config = toolbox::Window::RenderConfig::kFilamentOpenGL,
@@ -163,10 +165,11 @@ void App::OnModelLoaded(std::string_view model_file) {
   tmp_ = UiTempState();
   mjv_defaultOption(&vis_options_);
   ClearProfilerData();
-  if (model_file.empty()) {
-    window_->SetTitle("MuJoCo Studio");
-  } else {
+  if (!model_file.empty() &&
+      (model_file.ends_with(".xml") || model_file.ends_with(".mjb"))) {
     window_->SetTitle("MuJoCo Studio : " + std::string(model_file));
+  } else {
+    window_->SetTitle("MuJoCo Studio");
   }
 }
 
