@@ -111,7 +111,7 @@ General
       compensation, fluid forces, forces computed by the :ref:`mjcb_passive` callback, and forces computed by
       :ref:`plugins <exPlugin>` when passed the :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
 
-     **Migration:** Set both flags to recover the behavior of the previous flag.
+      **Migration:** Set both flags to recover the behavior of the previous flag.
 
 
 .. admonition:: Breaking ABI changes
