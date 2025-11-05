@@ -521,6 +521,474 @@ struct MjVFS {
   bool owned_ = false;
 };
 
+struct MjVisualGlobal {
+  explicit MjVisualGlobal(mjVisualGlobal *ptr);
+  ~MjVisualGlobal();
+  MjVisualGlobal();
+  MjVisualGlobal(const MjVisualGlobal &);
+  MjVisualGlobal &operator=(const MjVisualGlobal &);
+  std::unique_ptr<MjVisualGlobal> copy();
+  mjVisualGlobal* get() const;
+  void set(mjVisualGlobal* ptr);
+  int cameraid() const {
+    return ptr_->cameraid;
+  }
+  void set_cameraid(int value) {
+    ptr_->cameraid = value;
+  }
+  int orthographic() const {
+    return ptr_->orthographic;
+  }
+  void set_orthographic(int value) {
+    ptr_->orthographic = value;
+  }
+  float fovy() const {
+    return ptr_->fovy;
+  }
+  void set_fovy(float value) {
+    ptr_->fovy = value;
+  }
+  float ipd() const {
+    return ptr_->ipd;
+  }
+  void set_ipd(float value) {
+    ptr_->ipd = value;
+  }
+  float azimuth() const {
+    return ptr_->azimuth;
+  }
+  void set_azimuth(float value) {
+    ptr_->azimuth = value;
+  }
+  float elevation() const {
+    return ptr_->elevation;
+  }
+  void set_elevation(float value) {
+    ptr_->elevation = value;
+  }
+  float linewidth() const {
+    return ptr_->linewidth;
+  }
+  void set_linewidth(float value) {
+    ptr_->linewidth = value;
+  }
+  float glow() const {
+    return ptr_->glow;
+  }
+  void set_glow(float value) {
+    ptr_->glow = value;
+  }
+  float realtime() const {
+    return ptr_->realtime;
+  }
+  void set_realtime(float value) {
+    ptr_->realtime = value;
+  }
+  int offwidth() const {
+    return ptr_->offwidth;
+  }
+  void set_offwidth(int value) {
+    ptr_->offwidth = value;
+  }
+  int offheight() const {
+    return ptr_->offheight;
+  }
+  void set_offheight(int value) {
+    ptr_->offheight = value;
+  }
+  int ellipsoidinertia() const {
+    return ptr_->ellipsoidinertia;
+  }
+  void set_ellipsoidinertia(int value) {
+    ptr_->ellipsoidinertia = value;
+  }
+  int bvactive() const {
+    return ptr_->bvactive;
+  }
+  void set_bvactive(int value) {
+    ptr_->bvactive = value;
+  }
+
+ private:
+  mjVisualGlobal* ptr_;
+  bool owned_ = false;
+};
+
+struct MjVisualHeadlight {
+  explicit MjVisualHeadlight(mjVisualHeadlight *ptr);
+  ~MjVisualHeadlight();
+  MjVisualHeadlight();
+  MjVisualHeadlight(const MjVisualHeadlight &);
+  MjVisualHeadlight &operator=(const MjVisualHeadlight &);
+  std::unique_ptr<MjVisualHeadlight> copy();
+  mjVisualHeadlight* get() const;
+  void set(mjVisualHeadlight* ptr);
+  emscripten::val ambient() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->ambient));
+  }
+  emscripten::val diffuse() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->diffuse));
+  }
+  emscripten::val specular() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->specular));
+  }
+  int active() const {
+    return ptr_->active;
+  }
+  void set_active(int value) {
+    ptr_->active = value;
+  }
+
+ private:
+  mjVisualHeadlight* ptr_;
+  bool owned_ = false;
+};
+
+struct MjVisualMap {
+  explicit MjVisualMap(mjVisualMap *ptr);
+  ~MjVisualMap();
+  MjVisualMap();
+  MjVisualMap(const MjVisualMap &);
+  MjVisualMap &operator=(const MjVisualMap &);
+  std::unique_ptr<MjVisualMap> copy();
+  mjVisualMap* get() const;
+  void set(mjVisualMap* ptr);
+  float stiffness() const {
+    return ptr_->stiffness;
+  }
+  void set_stiffness(float value) {
+    ptr_->stiffness = value;
+  }
+  float stiffnessrot() const {
+    return ptr_->stiffnessrot;
+  }
+  void set_stiffnessrot(float value) {
+    ptr_->stiffnessrot = value;
+  }
+  float force() const {
+    return ptr_->force;
+  }
+  void set_force(float value) {
+    ptr_->force = value;
+  }
+  float torque() const {
+    return ptr_->torque;
+  }
+  void set_torque(float value) {
+    ptr_->torque = value;
+  }
+  float alpha() const {
+    return ptr_->alpha;
+  }
+  void set_alpha(float value) {
+    ptr_->alpha = value;
+  }
+  float fogstart() const {
+    return ptr_->fogstart;
+  }
+  void set_fogstart(float value) {
+    ptr_->fogstart = value;
+  }
+  float fogend() const {
+    return ptr_->fogend;
+  }
+  void set_fogend(float value) {
+    ptr_->fogend = value;
+  }
+  float znear() const {
+    return ptr_->znear;
+  }
+  void set_znear(float value) {
+    ptr_->znear = value;
+  }
+  float zfar() const {
+    return ptr_->zfar;
+  }
+  void set_zfar(float value) {
+    ptr_->zfar = value;
+  }
+  float haze() const {
+    return ptr_->haze;
+  }
+  void set_haze(float value) {
+    ptr_->haze = value;
+  }
+  float shadowclip() const {
+    return ptr_->shadowclip;
+  }
+  void set_shadowclip(float value) {
+    ptr_->shadowclip = value;
+  }
+  float shadowscale() const {
+    return ptr_->shadowscale;
+  }
+  void set_shadowscale(float value) {
+    ptr_->shadowscale = value;
+  }
+  float actuatortendon() const {
+    return ptr_->actuatortendon;
+  }
+  void set_actuatortendon(float value) {
+    ptr_->actuatortendon = value;
+  }
+
+ private:
+  mjVisualMap* ptr_;
+  bool owned_ = false;
+};
+
+struct MjVisualQuality {
+  explicit MjVisualQuality(mjVisualQuality *ptr);
+  ~MjVisualQuality();
+  MjVisualQuality();
+  MjVisualQuality(const MjVisualQuality &);
+  MjVisualQuality &operator=(const MjVisualQuality &);
+  std::unique_ptr<MjVisualQuality> copy();
+  mjVisualQuality* get() const;
+  void set(mjVisualQuality* ptr);
+  int shadowsize() const {
+    return ptr_->shadowsize;
+  }
+  void set_shadowsize(int value) {
+    ptr_->shadowsize = value;
+  }
+  int offsamples() const {
+    return ptr_->offsamples;
+  }
+  void set_offsamples(int value) {
+    ptr_->offsamples = value;
+  }
+  int numslices() const {
+    return ptr_->numslices;
+  }
+  void set_numslices(int value) {
+    ptr_->numslices = value;
+  }
+  int numstacks() const {
+    return ptr_->numstacks;
+  }
+  void set_numstacks(int value) {
+    ptr_->numstacks = value;
+  }
+  int numquads() const {
+    return ptr_->numquads;
+  }
+  void set_numquads(int value) {
+    ptr_->numquads = value;
+  }
+
+ private:
+  mjVisualQuality* ptr_;
+  bool owned_ = false;
+};
+
+struct MjVisualRgba {
+  explicit MjVisualRgba(mjVisualRgba *ptr);
+  ~MjVisualRgba();
+  MjVisualRgba();
+  MjVisualRgba(const MjVisualRgba &);
+  MjVisualRgba &operator=(const MjVisualRgba &);
+  std::unique_ptr<MjVisualRgba> copy();
+  mjVisualRgba* get() const;
+  void set(mjVisualRgba* ptr);
+  emscripten::val fog() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->fog));
+  }
+  emscripten::val haze() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->haze));
+  }
+  emscripten::val force() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->force));
+  }
+  emscripten::val inertia() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->inertia));
+  }
+  emscripten::val joint() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->joint));
+  }
+  emscripten::val actuator() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->actuator));
+  }
+  emscripten::val actuatornegative() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->actuatornegative));
+  }
+  emscripten::val actuatorpositive() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->actuatorpositive));
+  }
+  emscripten::val com() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->com));
+  }
+  emscripten::val camera() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->camera));
+  }
+  emscripten::val light() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->light));
+  }
+  emscripten::val selectpoint() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->selectpoint));
+  }
+  emscripten::val connect() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->connect));
+  }
+  emscripten::val contactpoint() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contactpoint));
+  }
+  emscripten::val contactforce() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contactforce));
+  }
+  emscripten::val contactfriction() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contactfriction));
+  }
+  emscripten::val contacttorque() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contacttorque));
+  }
+  emscripten::val contactgap() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contactgap));
+  }
+  emscripten::val rangefinder() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->rangefinder));
+  }
+  emscripten::val constraint() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->constraint));
+  }
+  emscripten::val slidercrank() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->slidercrank));
+  }
+  emscripten::val crankbroken() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->crankbroken));
+  }
+  emscripten::val frustum() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->frustum));
+  }
+  emscripten::val bv() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->bv));
+  }
+  emscripten::val bvactive() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->bvactive));
+  }
+
+ private:
+  mjVisualRgba* ptr_;
+  bool owned_ = false;
+};
+
+struct MjVisualScale {
+  explicit MjVisualScale(mjVisualScale *ptr);
+  ~MjVisualScale();
+  MjVisualScale();
+  MjVisualScale(const MjVisualScale &);
+  MjVisualScale &operator=(const MjVisualScale &);
+  std::unique_ptr<MjVisualScale> copy();
+  mjVisualScale* get() const;
+  void set(mjVisualScale* ptr);
+  float forcewidth() const {
+    return ptr_->forcewidth;
+  }
+  void set_forcewidth(float value) {
+    ptr_->forcewidth = value;
+  }
+  float contactwidth() const {
+    return ptr_->contactwidth;
+  }
+  void set_contactwidth(float value) {
+    ptr_->contactwidth = value;
+  }
+  float contactheight() const {
+    return ptr_->contactheight;
+  }
+  void set_contactheight(float value) {
+    ptr_->contactheight = value;
+  }
+  float connect() const {
+    return ptr_->connect;
+  }
+  void set_connect(float value) {
+    ptr_->connect = value;
+  }
+  float com() const {
+    return ptr_->com;
+  }
+  void set_com(float value) {
+    ptr_->com = value;
+  }
+  float camera() const {
+    return ptr_->camera;
+  }
+  void set_camera(float value) {
+    ptr_->camera = value;
+  }
+  float light() const {
+    return ptr_->light;
+  }
+  void set_light(float value) {
+    ptr_->light = value;
+  }
+  float selectpoint() const {
+    return ptr_->selectpoint;
+  }
+  void set_selectpoint(float value) {
+    ptr_->selectpoint = value;
+  }
+  float jointlength() const {
+    return ptr_->jointlength;
+  }
+  void set_jointlength(float value) {
+    ptr_->jointlength = value;
+  }
+  float jointwidth() const {
+    return ptr_->jointwidth;
+  }
+  void set_jointwidth(float value) {
+    ptr_->jointwidth = value;
+  }
+  float actuatorlength() const {
+    return ptr_->actuatorlength;
+  }
+  void set_actuatorlength(float value) {
+    ptr_->actuatorlength = value;
+  }
+  float actuatorwidth() const {
+    return ptr_->actuatorwidth;
+  }
+  void set_actuatorwidth(float value) {
+    ptr_->actuatorwidth = value;
+  }
+  float framelength() const {
+    return ptr_->framelength;
+  }
+  void set_framelength(float value) {
+    ptr_->framelength = value;
+  }
+  float framewidth() const {
+    return ptr_->framewidth;
+  }
+  void set_framewidth(float value) {
+    ptr_->framewidth = value;
+  }
+  float constraint() const {
+    return ptr_->constraint;
+  }
+  void set_constraint(float value) {
+    ptr_->constraint = value;
+  }
+  float slidercrank() const {
+    return ptr_->slidercrank;
+  }
+  void set_slidercrank(float value) {
+    ptr_->slidercrank = value;
+  }
+  float frustum() const {
+    return ptr_->frustum;
+  }
+  void set_frustum(float value) {
+    ptr_->frustum = value;
+  }
+
+ private:
+  mjVisualScale* ptr_;
+  bool owned_ = false;
+};
+
 struct MjWarningStat {
   explicit MjWarningStat(mjWarningStat *ptr);
   ~MjWarningStat();
@@ -3347,474 +3815,6 @@ struct MjsDefault {
   MjsActuator actuator;
 };
 
-
-struct MjVisualGlobal {
-  MjVisualGlobal();
-  explicit MjVisualGlobal(mjVisualGlobal *ptr);
-  MjVisualGlobal(const MjVisualGlobal &);
-  MjVisualGlobal &operator=(const MjVisualGlobal &);
-  ~MjVisualGlobal();
-  std::unique_ptr<MjVisualGlobal> copy();
-  mjVisualGlobal* get() const;
-  void set(mjVisualGlobal* ptr);
-  int cameraid() const {
-    return ptr_->cameraid;
-  }
-  void set_cameraid(int value) {
-    ptr_->cameraid = value;
-  }
-  int orthographic() const {
-    return ptr_->orthographic;
-  }
-  void set_orthographic(int value) {
-    ptr_->orthographic = value;
-  }
-  float fovy() const {
-    return ptr_->fovy;
-  }
-  void set_fovy(float value) {
-    ptr_->fovy = value;
-  }
-  float ipd() const {
-    return ptr_->ipd;
-  }
-  void set_ipd(float value) {
-    ptr_->ipd = value;
-  }
-  float azimuth() const {
-    return ptr_->azimuth;
-  }
-  void set_azimuth(float value) {
-    ptr_->azimuth = value;
-  }
-  float elevation() const {
-    return ptr_->elevation;
-  }
-  void set_elevation(float value) {
-    ptr_->elevation = value;
-  }
-  float linewidth() const {
-    return ptr_->linewidth;
-  }
-  void set_linewidth(float value) {
-    ptr_->linewidth = value;
-  }
-  float glow() const {
-    return ptr_->glow;
-  }
-  void set_glow(float value) {
-    ptr_->glow = value;
-  }
-  float realtime() const {
-    return ptr_->realtime;
-  }
-  void set_realtime(float value) {
-    ptr_->realtime = value;
-  }
-  int offwidth() const {
-    return ptr_->offwidth;
-  }
-  void set_offwidth(int value) {
-    ptr_->offwidth = value;
-  }
-  int offheight() const {
-    return ptr_->offheight;
-  }
-  void set_offheight(int value) {
-    ptr_->offheight = value;
-  }
-  int ellipsoidinertia() const {
-    return ptr_->ellipsoidinertia;
-  }
-  void set_ellipsoidinertia(int value) {
-    ptr_->ellipsoidinertia = value;
-  }
-  int bvactive() const {
-    return ptr_->bvactive;
-  }
-  void set_bvactive(int value) {
-    ptr_->bvactive = value;
-  }
-
- private:
-  mjVisualGlobal* ptr_;
-  bool owned_ = false;
-};
-
-struct MjVisualQuality {
-  MjVisualQuality();
-  explicit MjVisualQuality(mjVisualQuality *ptr);
-  MjVisualQuality(const MjVisualQuality &);
-  MjVisualQuality &operator=(const MjVisualQuality &);
-  ~MjVisualQuality();
-  std::unique_ptr<MjVisualQuality> copy();
-  mjVisualQuality* get() const;
-  void set(mjVisualQuality* ptr);
-  int shadowsize() const {
-    return ptr_->shadowsize;
-  }
-  void set_shadowsize(int value) {
-    ptr_->shadowsize = value;
-  }
-  int offsamples() const {
-    return ptr_->offsamples;
-  }
-  void set_offsamples(int value) {
-    ptr_->offsamples = value;
-  }
-  int numslices() const {
-    return ptr_->numslices;
-  }
-  void set_numslices(int value) {
-    ptr_->numslices = value;
-  }
-  int numstacks() const {
-    return ptr_->numstacks;
-  }
-  void set_numstacks(int value) {
-    ptr_->numstacks = value;
-  }
-  int numquads() const {
-    return ptr_->numquads;
-  }
-  void set_numquads(int value) {
-    ptr_->numquads = value;
-  }
-
- private:
-  mjVisualQuality* ptr_;
-  bool owned_ = false;
-};
-
-struct MjVisualHeadlight {
-  MjVisualHeadlight();
-  explicit MjVisualHeadlight(mjVisualHeadlight *ptr);
-  MjVisualHeadlight(const MjVisualHeadlight &);
-  MjVisualHeadlight &operator=(const MjVisualHeadlight &);
-  ~MjVisualHeadlight();
-  std::unique_ptr<MjVisualHeadlight> copy();
-  mjVisualHeadlight* get() const;
-  void set(mjVisualHeadlight* ptr);
-  emscripten::val ambient() const {
-    return emscripten::val(emscripten::typed_memory_view(3, ptr_->ambient));
-  }
-  emscripten::val diffuse() const {
-    return emscripten::val(emscripten::typed_memory_view(3, ptr_->diffuse));
-  }
-  emscripten::val specular() const {
-    return emscripten::val(emscripten::typed_memory_view(3, ptr_->specular));
-  }
-  int active() const {
-    return ptr_->active;
-  }
-  void set_active(int value) {
-    ptr_->active = value;
-  }
-
- private:
-  mjVisualHeadlight* ptr_;
-  bool owned_ = false;
-};
-
-struct MjVisualMap {
-  MjVisualMap();
-  explicit MjVisualMap(mjVisualMap *ptr);
-  MjVisualMap(const MjVisualMap &);
-  MjVisualMap &operator=(const MjVisualMap &);
-  ~MjVisualMap();
-  std::unique_ptr<MjVisualMap> copy();
-  mjVisualMap* get() const;
-  void set(mjVisualMap* ptr);
-  float stiffness() const {
-    return ptr_->stiffness;
-  }
-  void set_stiffness(float value) {
-    ptr_->stiffness = value;
-  }
-  float stiffnessrot() const {
-    return ptr_->stiffnessrot;
-  }
-  void set_stiffnessrot(float value) {
-    ptr_->stiffnessrot = value;
-  }
-  float force() const {
-    return ptr_->force;
-  }
-  void set_force(float value) {
-    ptr_->force = value;
-  }
-  float torque() const {
-    return ptr_->torque;
-  }
-  void set_torque(float value) {
-    ptr_->torque = value;
-  }
-  float alpha() const {
-    return ptr_->alpha;
-  }
-  void set_alpha(float value) {
-    ptr_->alpha = value;
-  }
-  float fogstart() const {
-    return ptr_->fogstart;
-  }
-  void set_fogstart(float value) {
-    ptr_->fogstart = value;
-  }
-  float fogend() const {
-    return ptr_->fogend;
-  }
-  void set_fogend(float value) {
-    ptr_->fogend = value;
-  }
-  float znear() const {
-    return ptr_->znear;
-  }
-  void set_znear(float value) {
-    ptr_->znear = value;
-  }
-  float zfar() const {
-    return ptr_->zfar;
-  }
-  void set_zfar(float value) {
-    ptr_->zfar = value;
-  }
-  float haze() const {
-    return ptr_->haze;
-  }
-  void set_haze(float value) {
-    ptr_->haze = value;
-  }
-  float shadowclip() const {
-    return ptr_->shadowclip;
-  }
-  void set_shadowclip(float value) {
-    ptr_->shadowclip = value;
-  }
-  float shadowscale() const {
-    return ptr_->shadowscale;
-  }
-  void set_shadowscale(float value) {
-    ptr_->shadowscale = value;
-  }
-  float actuatortendon() const {
-    return ptr_->actuatortendon;
-  }
-  void set_actuatortendon(float value) {
-    ptr_->actuatortendon = value;
-  }
-
- private:
-  mjVisualMap* ptr_;
-  bool owned_ = false;
-};
-
-struct MjVisualScale {
-  MjVisualScale();
-  explicit MjVisualScale(mjVisualScale *ptr);
-  MjVisualScale(const MjVisualScale &);
-  MjVisualScale &operator=(const MjVisualScale &);
-  ~MjVisualScale();
-  std::unique_ptr<MjVisualScale> copy();
-  mjVisualScale* get() const;
-  void set(mjVisualScale* ptr);
-  float forcewidth() const {
-    return ptr_->forcewidth;
-  }
-  void set_forcewidth(float value) {
-    ptr_->forcewidth = value;
-  }
-  float contactwidth() const {
-    return ptr_->contactwidth;
-  }
-  void set_contactwidth(float value) {
-    ptr_->contactwidth = value;
-  }
-  float contactheight() const {
-    return ptr_->contactheight;
-  }
-  void set_contactheight(float value) {
-    ptr_->contactheight = value;
-  }
-  float connect() const {
-    return ptr_->connect;
-  }
-  void set_connect(float value) {
-    ptr_->connect = value;
-  }
-  float com() const {
-    return ptr_->com;
-  }
-  void set_com(float value) {
-    ptr_->com = value;
-  }
-  float camera() const {
-    return ptr_->camera;
-  }
-  void set_camera(float value) {
-    ptr_->camera = value;
-  }
-  float light() const {
-    return ptr_->light;
-  }
-  void set_light(float value) {
-    ptr_->light = value;
-  }
-  float selectpoint() const {
-    return ptr_->selectpoint;
-  }
-  void set_selectpoint(float value) {
-    ptr_->selectpoint = value;
-  }
-  float jointlength() const {
-    return ptr_->jointlength;
-  }
-  void set_jointlength(float value) {
-    ptr_->jointlength = value;
-  }
-  float jointwidth() const {
-    return ptr_->jointwidth;
-  }
-  void set_jointwidth(float value) {
-    ptr_->jointwidth = value;
-  }
-  float actuatorlength() const {
-    return ptr_->actuatorlength;
-  }
-  void set_actuatorlength(float value) {
-    ptr_->actuatorlength = value;
-  }
-  float actuatorwidth() const {
-    return ptr_->actuatorwidth;
-  }
-  void set_actuatorwidth(float value) {
-    ptr_->actuatorwidth = value;
-  }
-  float framelength() const {
-    return ptr_->framelength;
-  }
-  void set_framelength(float value) {
-    ptr_->framelength = value;
-  }
-  float framewidth() const {
-    return ptr_->framewidth;
-  }
-  void set_framewidth(float value) {
-    ptr_->framewidth = value;
-  }
-  float constraint() const {
-    return ptr_->constraint;
-  }
-  void set_constraint(float value) {
-    ptr_->constraint = value;
-  }
-  float slidercrank() const {
-    return ptr_->slidercrank;
-  }
-  void set_slidercrank(float value) {
-    ptr_->slidercrank = value;
-  }
-  float frustum() const {
-    return ptr_->frustum;
-  }
-  void set_frustum(float value) {
-    ptr_->frustum = value;
-  }
-
- private:
-  mjVisualScale* ptr_;
-  bool owned_ = false;
-};
-
-struct MjVisualRgba {
-  MjVisualRgba();
-  explicit MjVisualRgba(mjVisualRgba *ptr);
-  MjVisualRgba(const MjVisualRgba &);
-  MjVisualRgba &operator=(const MjVisualRgba &);
-  ~MjVisualRgba();
-  std::unique_ptr<MjVisualRgba> copy();
-  mjVisualRgba* get() const;
-  void set(mjVisualRgba* ptr);
-  emscripten::val fog() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->fog));
-  }
-  emscripten::val haze() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->haze));
-  }
-  emscripten::val force() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->force));
-  }
-  emscripten::val inertia() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->inertia));
-  }
-  emscripten::val joint() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->joint));
-  }
-  emscripten::val actuator() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->actuator));
-  }
-  emscripten::val actuatornegative() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->actuatornegative));
-  }
-  emscripten::val actuatorpositive() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->actuatorpositive));
-  }
-  emscripten::val com() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->com));
-  }
-  emscripten::val camera() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->camera));
-  }
-  emscripten::val light() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->light));
-  }
-  emscripten::val selectpoint() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->selectpoint));
-  }
-  emscripten::val connect() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->connect));
-  }
-  emscripten::val contactpoint() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contactpoint));
-  }
-  emscripten::val contactforce() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contactforce));
-  }
-  emscripten::val contactfriction() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contactfriction));
-  }
-  emscripten::val contacttorque() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contacttorque));
-  }
-  emscripten::val contactgap() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->contactgap));
-  }
-  emscripten::val rangefinder() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->rangefinder));
-  }
-  emscripten::val constraint() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->constraint));
-  }
-  emscripten::val slidercrank() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->slidercrank));
-  }
-  emscripten::val crankbroken() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->crankbroken));
-  }
-  emscripten::val frustum() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->frustum));
-  }
-  emscripten::val bv() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->bv));
-  }
-  emscripten::val bvactive() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->bvactive));
-  }
-
- private:
-  mjVisualRgba* ptr_;
-  bool owned_ = false;
-};
 
 struct MjVisual {
   MjVisual();

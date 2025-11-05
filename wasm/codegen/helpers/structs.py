@@ -562,13 +562,17 @@ def build_struct_header(
         is_mjs=True,
     )
 
+  is_anonymous_struct = struct_name in constants.ANONYMOUS_STRUCTS.keys()
+  is_hardcoded_wrapper_struct = (
+      common.uppercase_first_letter(struct_name)
+      in constants.HARDCODED_WRAPPER_STRUCTS
+  )
+
   if (
-      (
-          common.uppercase_first_letter(struct_name)
-          not in constants.HARDCODED_WRAPPER_STRUCTS
-      )
+      not is_hardcoded_wrapper_struct
       and struct_info
       and not _has_nested_wrapper_members(struct_info)
+      or is_anonymous_struct
   ):
     return _build_struct_header_internal(
         struct_name, wrapped_fields, [], is_mjs=False

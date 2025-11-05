@@ -53,7 +53,7 @@ class Generator:
             ],
         ))
     markers_and_content.append((
-        "// {{ AUTOGENNED_STRUCT_DEFINITIONS }}",
+        "// {{ AUTOGENNED_STRUCTS_HEADER }}",
         autogenned_struct_definitions,
     ))
 
