@@ -35,22 +35,22 @@ class WrappedFieldData:
   """Data class for struct field definition and binding."""
 
   # Line for struct field binding
-  binding: str
+  binding: str = ""
 
   # Line for struct field definition
-  definition: str | None = None
+  definition: str = ""
 
   # Initialization code for fields that require it
-  initialization: str | None = None
+  initialization: str = ""
 
   # Statement to reset the inner pointer when copying the field
-  ptr_copy_reset: str | None = None
+  ptr_copy_reset: str = ""
 
   # Whether the field is a primitive or fixed size
   is_primitive_or_fixed_size: bool = False
 
   # Underlying type of the field
-  typename: str | None = None
+  typename: str = ""
 
 
 @dataclasses.dataclass
