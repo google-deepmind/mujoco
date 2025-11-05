@@ -3,7 +3,7 @@
 # The "official" binaries are built with Clang 13 on all platforms, and are linked against libc++
 # on Linux.
 #
-# We set CMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF here to reduce build time.
+# We set MUJOCO_ENABLE_IPO=OFF here to reduce build time.
 # It is highly recommended that this is set to ON for production builds.
 
 name: build
@@ -199,7 +199,7 @@ jobs:
         cd build &&
         cmake ..
         -DCMAKE_BUILD_TYPE:STRING=Release
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
+        -DMUJOCO_ENABLE_IPO:BOOL=OFF
         -DCMAKE_INSTALL_PREFIX:STRING=${{ matrix.tmpdir }}/mujoco_install
         -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF
         ${{ matrix.cmake_args }}
@@ -251,7 +251,7 @@ jobs:
         cd build &&
         cmake ..
         -DCMAKE_BUILD_TYPE:STRING=Release
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
+        -DMUJOCO_ENABLE_IPO:BOOL=OFF
         -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
         ${{ matrix.cmake_args }}
 
@@ -266,7 +266,7 @@ jobs:
         cd build &&
         cmake ..
         -DCMAKE_BUILD_TYPE:STRING=Release
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
+        -DMUJOCO_ENABLE_IPO:BOOL=OFF
         -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
         ${{ matrix.cmake_args }}
 
@@ -289,7 +289,7 @@ jobs:
         source ${{ matrix.tmpdir }}/venv/bin/activate &&
         MUJOCO_PATH="${{ matrix.tmpdir }}/mujoco_install"
         MUJOCO_PLUGIN_PATH="${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin"
-        MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${{ matrix.cmake_args }}"
+        MUJOCO_CMAKE_ARGS="-DMUJOCO_ENABLE_IPO:BOOL=OFF ${{ matrix.cmake_args }}"
         pip wheel -v --no-deps mujoco-*.tar.gz
 
     - name: Install Python bindings
