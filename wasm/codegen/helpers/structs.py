@@ -27,8 +27,6 @@ from wasm.codegen.helpers import common
 from wasm.codegen.helpers import constants
 
 
-debug_print = common.debug_print
-
 introspect_structs = structs.STRUCTS
 
 
@@ -269,9 +267,6 @@ class StructFieldHandler:
         inner_type_name.startswith("mj")
         and inner_type_name not in constants.PRIMITIVE_TYPES
     ):
-      debug_print(
-          f"\tcomplex pointer type: needs manual wrapper: {self.field.name}"
-      )
       # it's a pointer to a single struct,
       # like the `element` field in mjs structs
       # and the struct is not manually added
@@ -296,10 +291,6 @@ class StructFieldHandler:
             initialization=f", {self.field.name}(ptr_->{self.field.name})",
         )
       else:
-        debug_print(
-            "\tcomplex pointer type with array extent: needs manual wrapper:"
-            f" {self.field.name}"
-        )
         return self._get_manual_definition(comment_type="complex pointer field")
 
     return WrappedFieldData(
@@ -342,10 +333,8 @@ class StructFieldHandler:
       elif inner_type.name.startswith("mj") and not inner_type.name.startswith(
           "mjt"
       ):
-        debug_print(f"\tarray to vector wrapper needed: {self.field.name}")
         return self._get_manual_definition(comment_type="array field")
 
-    debug_print(f"\tNOT IMPLEMENTED ARRAY field: {self.field.name}")
     return WrappedFieldData(
         definition=(
             f"// TODO: NOT IMPLEMENTED ARRAY wrapper for {self.field.name}"
@@ -726,8 +715,6 @@ def generate_wasm_bindings(
       struct_fields = anonymous_struct.type.fields
     else:
       raise RuntimeError(f"Struct not found: {struct_name}")
-
-    debug_print(f"Wrapping struct: {struct_name}")
 
     wrapped_fields: List[WrappedFieldData] = []
     for field in struct_fields:

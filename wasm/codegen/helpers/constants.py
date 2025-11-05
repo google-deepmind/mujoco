@@ -462,11 +462,6 @@ BYTE_FIELDS: Dict[str, Dict[str, str]] = {
     "arena": {"size": "narena"},
 }
 
-# Boolean flag to enable debug prints during the struct wrapper and binding
-# generation process. When set to `True`, it will print additional information
-# about the steps being executed.
-STRUCT_DEBUG_MODE: bool = False
-
 # These structs require specific function calls for creation and/or deletion,
 # or some of their fields need to be handled manually for now;
 # making their wrapper constructors/destructors non-trivial.

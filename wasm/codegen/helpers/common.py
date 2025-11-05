@@ -78,12 +78,6 @@ def try_cast_to_scalar_type(value: str) -> int | float | str:
   return value
 
 
-def debug_print(msg: str):
-  """Prints a message to the console if STRUCT_DEBUG_MODE is enabled."""
-  if constants.STRUCT_DEBUG_MODE:
-    print(msg)
-
-
 def replace_lines_containing_marker(
     lines: list[str],
     marker_to_replace: str,
