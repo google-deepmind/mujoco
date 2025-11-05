@@ -46,6 +46,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
+    'sphinx.ext.extlinks',
     'sphinxcontrib.bibtex',
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
@@ -57,6 +58,15 @@ extensions = [
     'sphinx_toolbox.sidebar_links',
     'mujoco_include',
 ]
+
+# Links to GitHub issues and pull requests.
+extlinks = {
+    'issue': (
+        'https://github.com/google-deepmind/mujoco/issues/%s',
+        'issue #%s',
+    ),
+    'pr': ('https://github.com/google-deepmind/mujoco/pull/%s', 'PR #%s'),
+}
 
 # MuJoCo Warp documentation
 napoleon_google_docstring = True
