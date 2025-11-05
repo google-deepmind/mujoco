@@ -57,17 +57,23 @@ class Generator:
         autogenned_struct_definitions,
     ))
 
-    for _, struct_data in self.structs_to_bind_data.items():
-      # Bindings
+    autogenned_struct_source = []
+    for struct_name in sorted_struct_names:
+      struct_data = self.structs_to_bind_data[struct_name]
+      if struct_data.wrapped_source:
+        autogenned_struct_source.append(
+            struct_data.wrapped_source + "\n"
+        )
+
+      # Bindings with markers
       markers_and_content.append((
           f"// INSERT-GENERATED-{struct_data.wrap_name}-BINDINGS",
           [l.binding for l in struct_data.wrapped_fields],
       ))
 
-      # Special member functions
-      markers_and_content.append((
-          f"// INSERT-GENERATED-{struct_data.wrap_name}-CONSTRUCTOR",
-          [struct_data.wrapped_source],
-      ))
+    markers_and_content.append((
+        "// {{ AUTOGENNED_STRUCTS_SOURCE }}",
+        autogenned_struct_source,
+    ))
 
     return markers_and_content

@@ -592,6 +592,16 @@ def build_struct_source(
     wrapped_fields: List[WrappedFieldData],
 ):
   """Builds the C++ .cc file code for a struct."""
+  # These structs require specific function calls for creation and/or deletion
+  # which, for now, are hardcoded in the template file.
+  if struct_name in [
+      "mjData",
+      "mjModel",
+      "mjvScene",
+      "mjSpec",
+  ]:
+    return ""
+
   s = struct_name
   w = common.uppercase_first_letter(s)
   is_mjs = "Mjs" in w

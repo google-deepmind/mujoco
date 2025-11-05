@@ -447,41 +447,7 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
 }
 
 // STRUCTS
-// =============== MjLROpt =============== //
-// INSERT-GENERATED-MjLROpt-CONSTRUCTOR
-
-// =============== MjOption =============== //
-// INSERT-GENERATED-MjOption-CONSTRUCTOR
-
-// =============== MjStatistic =============== //
-// INSERT-GENERATED-MjStatistic-CONSTRUCTOR
-
-// =============== MjVisual... =============== //
-// INSERT-GENERATED-MjVisualGlobal-CONSTRUCTOR
-
-// INSERT-GENERATED-MjVisualQuality-CONSTRUCTOR
-
-// INSERT-GENERATED-MjVisualHeadlight-CONSTRUCTOR
-
-// INSERT-GENERATED-MjVisualMap-CONSTRUCTOR
-
-// INSERT-GENERATED-MjVisualScale-CONSTRUCTOR
-
-// INSERT-GENERATED-MjVisualRgba-CONSTRUCTOR
-
-// INSERT-GENERATED-MjVisual-CONSTRUCTOR
-
-// =============== MjSolverStat =============== //
-// INSERT-GENERATED-MjSolverStat-CONSTRUCTOR
-
-// =============== MjTimerStat =============== //
-// INSERT-GENERATED-MjTimerStat-CONSTRUCTOR
-
-// =============== MjWarningStat =============== //
-// INSERT-GENERATED-MjWarningStat-CONSTRUCTOR
-
-// =============== MjContact =============== //
-// INSERT-GENERATED-MjContact-CONSTRUCTOR
+// {{ AUTOGENNED_STRUCTS_SOURCE }}
 
 // =============== MjModel =============== //
 MjModel::MjModel(mjModel *m)
@@ -559,25 +525,7 @@ std::vector<MjContact> MjData::contact() const {
   }
   return contacts;
 }
-// =============== MjvPerturb =============== //
-// INSERT-GENERATED-MjvPerturb-CONSTRUCTOR
 
-// =============== MjvCamera =============== //
-// INSERT-GENERATED-MjvCamera-CONSTRUCTOR
-
-// =============== MjvGLCamera =============== //
-// INSERT-GENERATED-MjvGLCamera-CONSTRUCTOR
-
-// =============== MjvGeom =============== //
-// INSERT-GENERATED-MjvGeom-CONSTRUCTOR
-
-// =============== MjvLight =============== //
-// INSERT-GENERATED-MjvLight-CONSTRUCTOR
-
-// =============== MjvOption =============== //
-// INSERT-GENERATED-MjvOption-CONSTRUCTOR
-
-// =============== MjvScene =============== //
 MjvScene::MjvScene() {
   owned_ = true;
   ptr_ = new mjvScene;
@@ -667,16 +615,6 @@ std::vector<MjvGeom> MjvScene::geoms() const {
   return geoms;
 }
 
-// =============== MjvFigure =============== //
-// INSERT-GENERATED-MjvFigure-CONSTRUCTOR
-
-// =============== MjsElement =============== //
-// INSERT-GENERATED-MjsElement-CONSTRUCTOR
-
-// =============== MjsCompiler =============== //
-// INSERT-GENERATED-MjsCompiler-CONSTRUCTOR
-
-// =============== MjSpec =============== //
 MjSpec::MjSpec()
     : ptr_(mj_makeSpec()),
       option(&ptr_->option),
@@ -731,90 +669,6 @@ MjSpec::~MjSpec() {
 
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
-
-// =============== MjsOrientation =============== //
-// INSERT-GENERATED-MjsOrientation-CONSTRUCTOR
-
-// =============== MjsBody =============== //
-// INSERT-GENERATED-MjsBody-CONSTRUCTOR
-
-// =============== MjsGeom =============== //
-// INSERT-GENERATED-MjsGeom-CONSTRUCTOR
-
-// =============== MjsFrame =============== //
-// INSERT-GENERATED-MjsFrame-CONSTRUCTOR
-
-// =============== MjsJoint =============== //
-// INSERT-GENERATED-MjsJoint-CONSTRUCTOR
-
-// =============== MjsSite =============== //
-// INSERT-GENERATED-MjsSite-CONSTRUCTOR
-
-// =============== MjsCamera =============== //
-// INSERT-GENERATED-MjsCamera-CONSTRUCTOR
-
-// =============== MjsLight =============== //
-// INSERT-GENERATED-MjsLight-CONSTRUCTOR
-
-// =============== MjsFlex =============== //
-// INSERT-GENERATED-MjsFlex-CONSTRUCTOR
-
-// =============== MjsMesh =============== //
-// INSERT-GENERATED-MjsMesh-CONSTRUCTOR
-
-// =============== MjsHField =============== //
-// INSERT-GENERATED-MjsHField-CONSTRUCTOR
-
-// =============== MjsSkin =============== //
-// INSERT-GENERATED-MjsSkin-CONSTRUCTOR
-
-// =============== MjsTexture =============== //
-// INSERT-GENERATED-MjsTexture-CONSTRUCTOR
-
-// =============== MjsMaterial =============== //
-// INSERT-GENERATED-MjsMaterial-CONSTRUCTOR
-
-// =============== MjsPair =============== //
-// INSERT-GENERATED-MjsPair-CONSTRUCTOR
-
-// =============== MjsExclude =============== //
-// INSERT-GENERATED-MjsExclude-CONSTRUCTOR
-
-// =============== MjsEquality =============== //
-// INSERT-GENERATED-MjsEquality-CONSTRUCTOR
-
-// =============== MjsTendon =============== //
-// INSERT-GENERATED-MjsTendon-CONSTRUCTOR
-
-// =============== MjsWrap =============== //
-// INSERT-GENERATED-MjsWrap-CONSTRUCTOR
-
-// =============== MjsActuator =============== //
-// INSERT-GENERATED-MjsActuator-CONSTRUCTOR
-
-// =============== MjsSensor =============== //
-// INSERT-GENERATED-MjsSensor-CONSTRUCTOR
-
-// =============== MjsNumeric =============== //
-// INSERT-GENERATED-MjsNumeric-CONSTRUCTOR
-
-// =============== MjsText =============== //
-// INSERT-GENERATED-MjsText-CONSTRUCTOR
-
-// =============== MjsTuple =============== //
-// INSERT-GENERATED-MjsTuple-CONSTRUCTOR
-
-// =============== MjsKey =============== //
-// INSERT-GENERATED-MjsKey-CONSTRUCTOR
-
-// =============== MjsDefault =============== //
-// INSERT-GENERATED-MjsDefault-CONSTRUCTOR
-
-// =============== MjsPlugin =============== //
-// INSERT-GENERATED-MjsPlugin-CONSTRUCTOR
-
-// =============== MjVFS =============== //
-// INSERT-GENERATED-MjVFS-CONSTRUCTOR
 
 // ======= FACTORY AND HELPER FUNCTIONS ========= //
 std::unique_ptr<MjModel> loadFromXML(std::string filename) {

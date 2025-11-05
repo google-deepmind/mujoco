@@ -7378,7 +7378,35 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
 }
 
 // STRUCTS
-// =============== MjLROpt =============== //
+MjContact::MjContact(mjContact *ptr) : ptr_(ptr) {}
+MjContact::~MjContact() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjContact::MjContact() : ptr_(new mjContact) {
+  owned_ = true;
+}
+MjContact::MjContact(const MjContact &other) : MjContact() {
+  *ptr_ = *other.get();
+}
+MjContact& MjContact::operator=(const MjContact &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjContact> MjContact::copy() {
+  return std::make_unique<MjContact>(*this);
+}
+mjContact* MjContact::get() const {
+  return ptr_;
+}
+void MjContact::set(mjContact* ptr) {
+  ptr_ = ptr;
+}
+
 MjLROpt::MjLROpt(mjLROpt *ptr) : ptr_(ptr) {}
 MjLROpt::~MjLROpt() {
   if (owned_ && ptr_) {
@@ -7409,7 +7437,6 @@ void MjLROpt::set(mjLROpt* ptr) {
   ptr_ = ptr;
 }
 
-// =============== MjOption =============== //
 MjOption::MjOption(mjOption *ptr) : ptr_(ptr) {}
 MjOption::~MjOption() {
   if (owned_ && ptr_) {
@@ -7440,7 +7467,35 @@ void MjOption::set(mjOption* ptr) {
   ptr_ = ptr;
 }
 
-// =============== MjStatistic =============== //
+MjSolverStat::MjSolverStat(mjSolverStat *ptr) : ptr_(ptr) {}
+MjSolverStat::~MjSolverStat() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjSolverStat::MjSolverStat() : ptr_(new mjSolverStat) {
+  owned_ = true;
+}
+MjSolverStat::MjSolverStat(const MjSolverStat &other) : MjSolverStat() {
+  *ptr_ = *other.get();
+}
+MjSolverStat& MjSolverStat::operator=(const MjSolverStat &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjSolverStat> MjSolverStat::copy() {
+  return std::make_unique<MjSolverStat>(*this);
+}
+mjSolverStat* MjSolverStat::get() const {
+  return ptr_;
+}
+void MjSolverStat::set(mjSolverStat* ptr) {
+  ptr_ = ptr;
+}
+
 MjStatistic::MjStatistic(mjStatistic *ptr) : ptr_(ptr) {}
 MjStatistic::~MjStatistic() {
   if (owned_ && ptr_) {
@@ -7470,7 +7525,94 @@ void MjStatistic::set(mjStatistic* ptr) {
   ptr_ = ptr;
 }
 
-// =============== MjVisual... =============== //
+MjTimerStat::MjTimerStat(mjTimerStat *ptr) : ptr_(ptr) {}
+MjTimerStat::~MjTimerStat() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjTimerStat::MjTimerStat() : ptr_(new mjTimerStat) {
+  owned_ = true;
+}
+MjTimerStat::MjTimerStat(const MjTimerStat &other) : MjTimerStat() {
+  *ptr_ = *other.get();
+}
+MjTimerStat& MjTimerStat::operator=(const MjTimerStat &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjTimerStat> MjTimerStat::copy() {
+  return std::make_unique<MjTimerStat>(*this);
+}
+mjTimerStat* MjTimerStat::get() const {
+  return ptr_;
+}
+void MjTimerStat::set(mjTimerStat* ptr) {
+  ptr_ = ptr;
+}
+
+MjVFS::MjVFS(mjVFS *ptr) : ptr_(ptr) {}
+MjVFS::~MjVFS() {
+  if (owned_ && ptr_) {
+    mj_deleteVFS(ptr_);
+  }
+}
+MjVFS::MjVFS() : ptr_(new mjVFS) {
+  owned_ = true;
+  mj_defaultVFS(ptr_);
+}
+mjVFS* MjVFS::get() const {
+  return ptr_;
+}
+void MjVFS::set(mjVFS* ptr) {
+  ptr_ = ptr;
+}
+
+MjVisual::MjVisual(mjVisual *ptr) : ptr_(ptr), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {}
+MjVisual::~MjVisual() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjVisual::MjVisual() : ptr_(new mjVisual), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {
+  owned_ = true;
+  mj_defaultVisual(ptr_);
+}
+MjVisual::MjVisual(const MjVisual &other) : MjVisual() {
+  *ptr_ = *other.get();
+  global.set(&ptr_->global);
+  quality.set(&ptr_->quality);
+  headlight.set(&ptr_->headlight);
+  map.set(&ptr_->map);
+  scale.set(&ptr_->scale);
+  rgba.set(&ptr_->rgba);
+}
+MjVisual& MjVisual::operator=(const MjVisual &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  global.set(&ptr_->global);
+  quality.set(&ptr_->quality);
+  headlight.set(&ptr_->headlight);
+  map.set(&ptr_->map);
+  scale.set(&ptr_->scale);
+  rgba.set(&ptr_->rgba);
+  return *this;
+}
+std::unique_ptr<MjVisual> MjVisual::copy() {
+  return std::make_unique<MjVisual>(*this);
+}
+mjVisual* MjVisual::get() const {
+  return ptr_;
+}
+void MjVisual::set(mjVisual* ptr) {
+  ptr_ = ptr;
+}
+
 MjVisualGlobal::MjVisualGlobal(mjVisualGlobal *ptr) : ptr_(ptr) {}
 MjVisualGlobal::~MjVisualGlobal() {
   if (owned_ && ptr_) {
@@ -7497,35 +7639,6 @@ mjVisualGlobal* MjVisualGlobal::get() const {
   return ptr_;
 }
 void MjVisualGlobal::set(mjVisualGlobal* ptr) {
-  ptr_ = ptr;
-}
-
-MjVisualQuality::MjVisualQuality(mjVisualQuality *ptr) : ptr_(ptr) {}
-MjVisualQuality::~MjVisualQuality() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjVisualQuality::MjVisualQuality() : ptr_(new mjVisualQuality) {
-  owned_ = true;
-}
-MjVisualQuality::MjVisualQuality(const MjVisualQuality &other) : MjVisualQuality() {
-  *ptr_ = *other.get();
-}
-MjVisualQuality& MjVisualQuality::operator=(const MjVisualQuality &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-std::unique_ptr<MjVisualQuality> MjVisualQuality::copy() {
-  return std::make_unique<MjVisualQuality>(*this);
-}
-mjVisualQuality* MjVisualQuality::get() const {
-  return ptr_;
-}
-void MjVisualQuality::set(mjVisualQuality* ptr) {
   ptr_ = ptr;
 }
 
@@ -7587,32 +7700,32 @@ void MjVisualMap::set(mjVisualMap* ptr) {
   ptr_ = ptr;
 }
 
-MjVisualScale::MjVisualScale(mjVisualScale *ptr) : ptr_(ptr) {}
-MjVisualScale::~MjVisualScale() {
+MjVisualQuality::MjVisualQuality(mjVisualQuality *ptr) : ptr_(ptr) {}
+MjVisualQuality::~MjVisualQuality() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-MjVisualScale::MjVisualScale() : ptr_(new mjVisualScale) {
+MjVisualQuality::MjVisualQuality() : ptr_(new mjVisualQuality) {
   owned_ = true;
 }
-MjVisualScale::MjVisualScale(const MjVisualScale &other) : MjVisualScale() {
+MjVisualQuality::MjVisualQuality(const MjVisualQuality &other) : MjVisualQuality() {
   *ptr_ = *other.get();
 }
-MjVisualScale& MjVisualScale::operator=(const MjVisualScale &other) {
+MjVisualQuality& MjVisualQuality::operator=(const MjVisualQuality &other) {
   if (this == &other) {
     return *this;
   }
   *ptr_ = *other.get();
   return *this;
 }
-std::unique_ptr<MjVisualScale> MjVisualScale::copy() {
-  return std::make_unique<MjVisualScale>(*this);
+std::unique_ptr<MjVisualQuality> MjVisualQuality::copy() {
+  return std::make_unique<MjVisualQuality>(*this);
 }
-mjVisualScale* MjVisualScale::get() const {
+mjVisualQuality* MjVisualQuality::get() const {
   return ptr_;
 }
-void MjVisualScale::set(mjVisualScale* ptr) {
+void MjVisualQuality::set(mjVisualQuality* ptr) {
   ptr_ = ptr;
 }
 
@@ -7645,109 +7758,35 @@ void MjVisualRgba::set(mjVisualRgba* ptr) {
   ptr_ = ptr;
 }
 
-MjVisual::MjVisual(mjVisual *ptr) : ptr_(ptr), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {}
-MjVisual::~MjVisual() {
+MjVisualScale::MjVisualScale(mjVisualScale *ptr) : ptr_(ptr) {}
+MjVisualScale::~MjVisualScale() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-MjVisual::MjVisual() : ptr_(new mjVisual), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {
-  owned_ = true;
-  mj_defaultVisual(ptr_);
-}
-MjVisual::MjVisual(const MjVisual &other) : MjVisual() {
-  *ptr_ = *other.get();
-  global.set(&ptr_->global);
-  quality.set(&ptr_->quality);
-  headlight.set(&ptr_->headlight);
-  map.set(&ptr_->map);
-  scale.set(&ptr_->scale);
-  rgba.set(&ptr_->rgba);
-}
-MjVisual& MjVisual::operator=(const MjVisual &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  global.set(&ptr_->global);
-  quality.set(&ptr_->quality);
-  headlight.set(&ptr_->headlight);
-  map.set(&ptr_->map);
-  scale.set(&ptr_->scale);
-  rgba.set(&ptr_->rgba);
-  return *this;
-}
-std::unique_ptr<MjVisual> MjVisual::copy() {
-  return std::make_unique<MjVisual>(*this);
-}
-mjVisual* MjVisual::get() const {
-  return ptr_;
-}
-void MjVisual::set(mjVisual* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjSolverStat =============== //
-MjSolverStat::MjSolverStat(mjSolverStat *ptr) : ptr_(ptr) {}
-MjSolverStat::~MjSolverStat() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjSolverStat::MjSolverStat() : ptr_(new mjSolverStat) {
+MjVisualScale::MjVisualScale() : ptr_(new mjVisualScale) {
   owned_ = true;
 }
-MjSolverStat::MjSolverStat(const MjSolverStat &other) : MjSolverStat() {
+MjVisualScale::MjVisualScale(const MjVisualScale &other) : MjVisualScale() {
   *ptr_ = *other.get();
 }
-MjSolverStat& MjSolverStat::operator=(const MjSolverStat &other) {
+MjVisualScale& MjVisualScale::operator=(const MjVisualScale &other) {
   if (this == &other) {
     return *this;
   }
   *ptr_ = *other.get();
   return *this;
 }
-std::unique_ptr<MjSolverStat> MjSolverStat::copy() {
-  return std::make_unique<MjSolverStat>(*this);
+std::unique_ptr<MjVisualScale> MjVisualScale::copy() {
+  return std::make_unique<MjVisualScale>(*this);
 }
-mjSolverStat* MjSolverStat::get() const {
+mjVisualScale* MjVisualScale::get() const {
   return ptr_;
 }
-void MjSolverStat::set(mjSolverStat* ptr) {
+void MjVisualScale::set(mjVisualScale* ptr) {
   ptr_ = ptr;
 }
 
-// =============== MjTimerStat =============== //
-MjTimerStat::MjTimerStat(mjTimerStat *ptr) : ptr_(ptr) {}
-MjTimerStat::~MjTimerStat() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjTimerStat::MjTimerStat() : ptr_(new mjTimerStat) {
-  owned_ = true;
-}
-MjTimerStat::MjTimerStat(const MjTimerStat &other) : MjTimerStat() {
-  *ptr_ = *other.get();
-}
-MjTimerStat& MjTimerStat::operator=(const MjTimerStat &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-std::unique_ptr<MjTimerStat> MjTimerStat::copy() {
-  return std::make_unique<MjTimerStat>(*this);
-}
-mjTimerStat* MjTimerStat::get() const {
-  return ptr_;
-}
-void MjTimerStat::set(mjTimerStat* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjWarningStat =============== //
 MjWarningStat::MjWarningStat(mjWarningStat *ptr) : ptr_(ptr) {}
 MjWarningStat::~MjWarningStat() {
   if (owned_ && ptr_) {
@@ -7777,35 +7816,475 @@ void MjWarningStat::set(mjWarningStat* ptr) {
   ptr_ = ptr;
 }
 
-// =============== MjContact =============== //
-MjContact::MjContact(mjContact *ptr) : ptr_(ptr) {}
-MjContact::~MjContact() {
+MjsElement::MjsElement(mjsElement *ptr) : ptr_(ptr) {}
+MjsElement::~MjsElement() {}
+mjsElement* MjsElement::get() const {
+  return ptr_;
+}
+void MjsElement::set(mjsElement* ptr) {
+  ptr_ = ptr;
+}
+
+MjsOrientation::MjsOrientation(mjsOrientation *ptr) : ptr_(ptr) {}
+MjsOrientation::~MjsOrientation() {}
+mjsOrientation* MjsOrientation::get() const {
+  return ptr_;
+}
+void MjsOrientation::set(mjsOrientation* ptr) {
+  ptr_ = ptr;
+}
+
+MjvCamera::MjvCamera(mjvCamera *ptr) : ptr_(ptr) {}
+MjvCamera::~MjvCamera() {
   if (owned_ && ptr_) {
     delete ptr_;
   }
 }
-MjContact::MjContact() : ptr_(new mjContact) {
+MjvCamera::MjvCamera() : ptr_(new mjvCamera) {
   owned_ = true;
+  mjv_defaultCamera(ptr_);
 }
-MjContact::MjContact(const MjContact &other) : MjContact() {
+MjvCamera::MjvCamera(const MjvCamera &other) : MjvCamera() {
   *ptr_ = *other.get();
 }
-MjContact& MjContact::operator=(const MjContact &other) {
+MjvCamera& MjvCamera::operator=(const MjvCamera &other) {
   if (this == &other) {
     return *this;
   }
   *ptr_ = *other.get();
   return *this;
 }
-std::unique_ptr<MjContact> MjContact::copy() {
-  return std::make_unique<MjContact>(*this);
+std::unique_ptr<MjvCamera> MjvCamera::copy() {
+  return std::make_unique<MjvCamera>(*this);
 }
-mjContact* MjContact::get() const {
+mjvCamera* MjvCamera::get() const {
   return ptr_;
 }
-void MjContact::set(mjContact* ptr) {
+void MjvCamera::set(mjvCamera* ptr) {
   ptr_ = ptr;
 }
+
+MjvFigure::MjvFigure(mjvFigure *ptr) : ptr_(ptr) {}
+MjvFigure::~MjvFigure() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjvFigure::MjvFigure() : ptr_(new mjvFigure) {
+  owned_ = true;
+  mjv_defaultFigure(ptr_);
+}
+MjvFigure::MjvFigure(const MjvFigure &other) : MjvFigure() {
+  *ptr_ = *other.get();
+}
+MjvFigure& MjvFigure::operator=(const MjvFigure &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjvFigure> MjvFigure::copy() {
+  return std::make_unique<MjvFigure>(*this);
+}
+mjvFigure* MjvFigure::get() const {
+  return ptr_;
+}
+void MjvFigure::set(mjvFigure* ptr) {
+  ptr_ = ptr;
+}
+
+MjvGLCamera::MjvGLCamera(mjvGLCamera *ptr) : ptr_(ptr) {}
+MjvGLCamera::~MjvGLCamera() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjvGLCamera::MjvGLCamera() : ptr_(new mjvGLCamera) {
+  owned_ = true;
+}
+MjvGLCamera::MjvGLCamera(const MjvGLCamera &other) : MjvGLCamera() {
+  *ptr_ = *other.get();
+}
+MjvGLCamera& MjvGLCamera::operator=(const MjvGLCamera &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjvGLCamera> MjvGLCamera::copy() {
+  return std::make_unique<MjvGLCamera>(*this);
+}
+mjvGLCamera* MjvGLCamera::get() const {
+  return ptr_;
+}
+void MjvGLCamera::set(mjvGLCamera* ptr) {
+  ptr_ = ptr;
+}
+
+MjvGeom::MjvGeom(mjvGeom *ptr) : ptr_(ptr) {}
+MjvGeom::~MjvGeom() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjvGeom::MjvGeom() : ptr_(new mjvGeom) {
+  owned_ = true;
+  mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);
+}
+MjvGeom::MjvGeom(const MjvGeom &other) : MjvGeom() {
+  *ptr_ = *other.get();
+}
+MjvGeom& MjvGeom::operator=(const MjvGeom &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjvGeom> MjvGeom::copy() {
+  return std::make_unique<MjvGeom>(*this);
+}
+mjvGeom* MjvGeom::get() const {
+  return ptr_;
+}
+void MjvGeom::set(mjvGeom* ptr) {
+  ptr_ = ptr;
+}
+
+MjvLight::MjvLight(mjvLight *ptr) : ptr_(ptr) {}
+MjvLight::~MjvLight() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjvLight::MjvLight() : ptr_(new mjvLight) {
+  owned_ = true;
+}
+MjvLight::MjvLight(const MjvLight &other) : MjvLight() {
+  *ptr_ = *other.get();
+}
+MjvLight& MjvLight::operator=(const MjvLight &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjvLight> MjvLight::copy() {
+  return std::make_unique<MjvLight>(*this);
+}
+mjvLight* MjvLight::get() const {
+  return ptr_;
+}
+void MjvLight::set(mjvLight* ptr) {
+  ptr_ = ptr;
+}
+
+MjvOption::MjvOption(mjvOption *ptr) : ptr_(ptr) {}
+MjvOption::~MjvOption() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjvOption::MjvOption() : ptr_(new mjvOption) {
+  owned_ = true;
+  mjv_defaultOption(ptr_);
+}
+MjvOption::MjvOption(const MjvOption &other) : MjvOption() {
+  *ptr_ = *other.get();
+}
+MjvOption& MjvOption::operator=(const MjvOption &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjvOption> MjvOption::copy() {
+  return std::make_unique<MjvOption>(*this);
+}
+mjvOption* MjvOption::get() const {
+  return ptr_;
+}
+void MjvOption::set(mjvOption* ptr) {
+  ptr_ = ptr;
+}
+
+MjvPerturb::MjvPerturb(mjvPerturb *ptr) : ptr_(ptr) {}
+MjvPerturb::~MjvPerturb() {
+  if (owned_ && ptr_) {
+    delete ptr_;
+  }
+}
+MjvPerturb::MjvPerturb() : ptr_(new mjvPerturb) {
+  owned_ = true;
+  mjv_defaultPerturb(ptr_);
+}
+MjvPerturb::MjvPerturb(const MjvPerturb &other) : MjvPerturb() {
+  *ptr_ = *other.get();
+}
+MjvPerturb& MjvPerturb::operator=(const MjvPerturb &other) {
+  if (this == &other) {
+    return *this;
+  }
+  *ptr_ = *other.get();
+  return *this;
+}
+std::unique_ptr<MjvPerturb> MjvPerturb::copy() {
+  return std::make_unique<MjvPerturb>(*this);
+}
+mjvPerturb* MjvPerturb::get() const {
+  return ptr_;
+}
+void MjvPerturb::set(mjvPerturb* ptr) {
+  ptr_ = ptr;
+}
+
+MjsCompiler::MjsCompiler(mjsCompiler *ptr) : ptr_(ptr), LRopt(&ptr_->LRopt) {}
+MjsCompiler::~MjsCompiler() {}
+mjsCompiler* MjsCompiler::get() const {
+  return ptr_;
+}
+void MjsCompiler::set(mjsCompiler* ptr) {
+  ptr_ = ptr;
+}
+
+MjsEquality::MjsEquality(mjsEquality *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsEquality::~MjsEquality() {}
+mjsEquality* MjsEquality::get() const {
+  return ptr_;
+}
+void MjsEquality::set(mjsEquality* ptr) {
+  ptr_ = ptr;
+}
+
+MjsExclude::MjsExclude(mjsExclude *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsExclude::~MjsExclude() {}
+mjsExclude* MjsExclude::get() const {
+  return ptr_;
+}
+void MjsExclude::set(mjsExclude* ptr) {
+  ptr_ = ptr;
+}
+
+MjsFlex::MjsFlex(mjsFlex *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsFlex::~MjsFlex() {}
+mjsFlex* MjsFlex::get() const {
+  return ptr_;
+}
+void MjsFlex::set(mjsFlex* ptr) {
+  ptr_ = ptr;
+}
+
+MjsHField::MjsHField(mjsHField *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsHField::~MjsHField() {}
+mjsHField* MjsHField::get() const {
+  return ptr_;
+}
+void MjsHField::set(mjsHField* ptr) {
+  ptr_ = ptr;
+}
+
+MjsJoint::MjsJoint(mjsJoint *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsJoint::~MjsJoint() {}
+mjsJoint* MjsJoint::get() const {
+  return ptr_;
+}
+void MjsJoint::set(mjsJoint* ptr) {
+  ptr_ = ptr;
+}
+
+MjsKey::MjsKey(mjsKey *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsKey::~MjsKey() {}
+mjsKey* MjsKey::get() const {
+  return ptr_;
+}
+void MjsKey::set(mjsKey* ptr) {
+  ptr_ = ptr;
+}
+
+MjsLight::MjsLight(mjsLight *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsLight::~MjsLight() {}
+mjsLight* MjsLight::get() const {
+  return ptr_;
+}
+void MjsLight::set(mjsLight* ptr) {
+  ptr_ = ptr;
+}
+
+MjsMaterial::MjsMaterial(mjsMaterial *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsMaterial::~MjsMaterial() {}
+mjsMaterial* MjsMaterial::get() const {
+  return ptr_;
+}
+void MjsMaterial::set(mjsMaterial* ptr) {
+  ptr_ = ptr;
+}
+
+MjsNumeric::MjsNumeric(mjsNumeric *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsNumeric::~MjsNumeric() {}
+mjsNumeric* MjsNumeric::get() const {
+  return ptr_;
+}
+void MjsNumeric::set(mjsNumeric* ptr) {
+  ptr_ = ptr;
+}
+
+MjsPair::MjsPair(mjsPair *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsPair::~MjsPair() {}
+mjsPair* MjsPair::get() const {
+  return ptr_;
+}
+void MjsPair::set(mjsPair* ptr) {
+  ptr_ = ptr;
+}
+
+MjsPlugin::MjsPlugin(mjsPlugin *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsPlugin::~MjsPlugin() {}
+mjsPlugin* MjsPlugin::get() const {
+  return ptr_;
+}
+void MjsPlugin::set(mjsPlugin* ptr) {
+  ptr_ = ptr;
+}
+
+MjsSkin::MjsSkin(mjsSkin *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsSkin::~MjsSkin() {}
+mjsSkin* MjsSkin::get() const {
+  return ptr_;
+}
+void MjsSkin::set(mjsSkin* ptr) {
+  ptr_ = ptr;
+}
+
+MjsTendon::MjsTendon(mjsTendon *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsTendon::~MjsTendon() {}
+mjsTendon* MjsTendon::get() const {
+  return ptr_;
+}
+void MjsTendon::set(mjsTendon* ptr) {
+  ptr_ = ptr;
+}
+
+MjsText::MjsText(mjsText *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsText::~MjsText() {}
+mjsText* MjsText::get() const {
+  return ptr_;
+}
+void MjsText::set(mjsText* ptr) {
+  ptr_ = ptr;
+}
+
+MjsTexture::MjsTexture(mjsTexture *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsTexture::~MjsTexture() {}
+mjsTexture* MjsTexture::get() const {
+  return ptr_;
+}
+void MjsTexture::set(mjsTexture* ptr) {
+  ptr_ = ptr;
+}
+
+MjsTuple::MjsTuple(mjsTuple *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsTuple::~MjsTuple() {}
+mjsTuple* MjsTuple::get() const {
+  return ptr_;
+}
+void MjsTuple::set(mjsTuple* ptr) {
+  ptr_ = ptr;
+}
+
+MjsWrap::MjsWrap(mjsWrap *ptr) : ptr_(ptr), element(ptr_->element) {}
+MjsWrap::~MjsWrap() {}
+mjsWrap* MjsWrap::get() const {
+  return ptr_;
+}
+void MjsWrap::set(mjsWrap* ptr) {
+  ptr_ = ptr;
+}
+
+MjsCamera::MjsCamera(mjsCamera *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
+MjsCamera::~MjsCamera() {}
+mjsCamera* MjsCamera::get() const {
+  return ptr_;
+}
+void MjsCamera::set(mjsCamera* ptr) {
+  ptr_ = ptr;
+}
+
+MjsFrame::MjsFrame(mjsFrame *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
+MjsFrame::~MjsFrame() {}
+mjsFrame* MjsFrame::get() const {
+  return ptr_;
+}
+void MjsFrame::set(mjsFrame* ptr) {
+  ptr_ = ptr;
+}
+
+MjsSite::MjsSite(mjsSite *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
+MjsSite::~MjsSite() {}
+mjsSite* MjsSite::get() const {
+  return ptr_;
+}
+void MjsSite::set(mjsSite* ptr) {
+  ptr_ = ptr;
+}
+
+MjsActuator::MjsActuator(mjsActuator *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
+MjsActuator::~MjsActuator() {}
+mjsActuator* MjsActuator::get() const {
+  return ptr_;
+}
+void MjsActuator::set(mjsActuator* ptr) {
+  ptr_ = ptr;
+}
+
+MjsBody::MjsBody(mjsBody *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt), ialt(&ptr_->ialt), plugin(&ptr_->plugin) {}
+MjsBody::~MjsBody() {}
+mjsBody* MjsBody::get() const {
+  return ptr_;
+}
+void MjsBody::set(mjsBody* ptr) {
+  ptr_ = ptr;
+}
+
+MjsGeom::MjsGeom(mjsGeom *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt), plugin(&ptr_->plugin) {}
+MjsGeom::~MjsGeom() {}
+mjsGeom* MjsGeom::get() const {
+  return ptr_;
+}
+void MjsGeom::set(mjsGeom* ptr) {
+  ptr_ = ptr;
+}
+
+MjsMesh::MjsMesh(mjsMesh *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
+MjsMesh::~MjsMesh() {}
+mjsMesh* MjsMesh::get() const {
+  return ptr_;
+}
+void MjsMesh::set(mjsMesh* ptr) {
+  ptr_ = ptr;
+}
+
+MjsSensor::MjsSensor(mjsSensor *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
+MjsSensor::~MjsSensor() {}
+mjsSensor* MjsSensor::get() const {
+  return ptr_;
+}
+void MjsSensor::set(mjsSensor* ptr) {
+  ptr_ = ptr;
+}
+
+MjsDefault::MjsDefault(mjsDefault *ptr) : ptr_(ptr), element(ptr_->element), joint(ptr_->joint), geom(ptr_->geom), site(ptr_->site), camera(ptr_->camera), light(ptr_->light), flex(ptr_->flex), mesh(ptr_->mesh), material(ptr_->material), pair(ptr_->pair), equality(ptr_->equality), tendon(ptr_->tendon), actuator(ptr_->actuator) {}
+MjsDefault::~MjsDefault() {}
+mjsDefault* MjsDefault::get() const {
+  return ptr_;
+}
+void MjsDefault::set(mjsDefault* ptr) {
+  ptr_ = ptr;
+}
+
 
 // =============== MjModel =============== //
 MjModel::MjModel(mjModel *m)
@@ -7883,191 +8362,7 @@ std::vector<MjContact> MjData::contact() const {
   }
   return contacts;
 }
-// =============== MjvPerturb =============== //
-MjvPerturb::MjvPerturb(mjvPerturb *ptr) : ptr_(ptr) {}
-MjvPerturb::~MjvPerturb() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjvPerturb::MjvPerturb() : ptr_(new mjvPerturb) {
-  owned_ = true;
-  mjv_defaultPerturb(ptr_);
-}
-MjvPerturb::MjvPerturb(const MjvPerturb &other) : MjvPerturb() {
-  *ptr_ = *other.get();
-}
-MjvPerturb& MjvPerturb::operator=(const MjvPerturb &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-std::unique_ptr<MjvPerturb> MjvPerturb::copy() {
-  return std::make_unique<MjvPerturb>(*this);
-}
-mjvPerturb* MjvPerturb::get() const {
-  return ptr_;
-}
-void MjvPerturb::set(mjvPerturb* ptr) {
-  ptr_ = ptr;
-}
 
-// =============== MjvCamera =============== //
-MjvCamera::MjvCamera(mjvCamera *ptr) : ptr_(ptr) {}
-MjvCamera::~MjvCamera() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjvCamera::MjvCamera() : ptr_(new mjvCamera) {
-  owned_ = true;
-  mjv_defaultCamera(ptr_);
-}
-MjvCamera::MjvCamera(const MjvCamera &other) : MjvCamera() {
-  *ptr_ = *other.get();
-}
-MjvCamera& MjvCamera::operator=(const MjvCamera &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-std::unique_ptr<MjvCamera> MjvCamera::copy() {
-  return std::make_unique<MjvCamera>(*this);
-}
-mjvCamera* MjvCamera::get() const {
-  return ptr_;
-}
-void MjvCamera::set(mjvCamera* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjvGLCamera =============== //
-MjvGLCamera::MjvGLCamera(mjvGLCamera *ptr) : ptr_(ptr) {}
-MjvGLCamera::~MjvGLCamera() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjvGLCamera::MjvGLCamera() : ptr_(new mjvGLCamera) {
-  owned_ = true;
-}
-MjvGLCamera::MjvGLCamera(const MjvGLCamera &other) : MjvGLCamera() {
-  *ptr_ = *other.get();
-}
-MjvGLCamera& MjvGLCamera::operator=(const MjvGLCamera &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-std::unique_ptr<MjvGLCamera> MjvGLCamera::copy() {
-  return std::make_unique<MjvGLCamera>(*this);
-}
-mjvGLCamera* MjvGLCamera::get() const {
-  return ptr_;
-}
-void MjvGLCamera::set(mjvGLCamera* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjvGeom =============== //
-MjvGeom::MjvGeom(mjvGeom *ptr) : ptr_(ptr) {}
-MjvGeom::~MjvGeom() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjvGeom::MjvGeom() : ptr_(new mjvGeom) {
-  owned_ = true;
-  mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);
-}
-MjvGeom::MjvGeom(const MjvGeom &other) : MjvGeom() {
-  *ptr_ = *other.get();
-}
-MjvGeom& MjvGeom::operator=(const MjvGeom &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-std::unique_ptr<MjvGeom> MjvGeom::copy() {
-  return std::make_unique<MjvGeom>(*this);
-}
-mjvGeom* MjvGeom::get() const {
-  return ptr_;
-}
-void MjvGeom::set(mjvGeom* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjvLight =============== //
-MjvLight::MjvLight(mjvLight *ptr) : ptr_(ptr) {}
-MjvLight::~MjvLight() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjvLight::MjvLight() : ptr_(new mjvLight) {
-  owned_ = true;
-}
-MjvLight::MjvLight(const MjvLight &other) : MjvLight() {
-  *ptr_ = *other.get();
-}
-MjvLight& MjvLight::operator=(const MjvLight &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-std::unique_ptr<MjvLight> MjvLight::copy() {
-  return std::make_unique<MjvLight>(*this);
-}
-mjvLight* MjvLight::get() const {
-  return ptr_;
-}
-void MjvLight::set(mjvLight* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjvOption =============== //
-MjvOption::MjvOption(mjvOption *ptr) : ptr_(ptr) {}
-MjvOption::~MjvOption() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjvOption::MjvOption() : ptr_(new mjvOption) {
-  owned_ = true;
-  mjv_defaultOption(ptr_);
-}
-MjvOption::MjvOption(const MjvOption &other) : MjvOption() {
-  *ptr_ = *other.get();
-}
-MjvOption& MjvOption::operator=(const MjvOption &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-std::unique_ptr<MjvOption> MjvOption::copy() {
-  return std::make_unique<MjvOption>(*this);
-}
-mjvOption* MjvOption::get() const {
-  return ptr_;
-}
-void MjvOption::set(mjvOption* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjvScene =============== //
 MjvScene::MjvScene() {
   owned_ = true;
   ptr_ = new mjvScene;
@@ -8157,58 +8452,6 @@ std::vector<MjvGeom> MjvScene::geoms() const {
   return geoms;
 }
 
-// =============== MjvFigure =============== //
-MjvFigure::MjvFigure(mjvFigure *ptr) : ptr_(ptr) {}
-MjvFigure::~MjvFigure() {
-  if (owned_ && ptr_) {
-    delete ptr_;
-  }
-}
-MjvFigure::MjvFigure() : ptr_(new mjvFigure) {
-  owned_ = true;
-  mjv_defaultFigure(ptr_);
-}
-MjvFigure::MjvFigure(const MjvFigure &other) : MjvFigure() {
-  *ptr_ = *other.get();
-}
-MjvFigure& MjvFigure::operator=(const MjvFigure &other) {
-  if (this == &other) {
-    return *this;
-  }
-  *ptr_ = *other.get();
-  return *this;
-}
-std::unique_ptr<MjvFigure> MjvFigure::copy() {
-  return std::make_unique<MjvFigure>(*this);
-}
-mjvFigure* MjvFigure::get() const {
-  return ptr_;
-}
-void MjvFigure::set(mjvFigure* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsElement =============== //
-MjsElement::MjsElement(mjsElement *ptr) : ptr_(ptr) {}
-MjsElement::~MjsElement() {}
-mjsElement* MjsElement::get() const {
-  return ptr_;
-}
-void MjsElement::set(mjsElement* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsCompiler =============== //
-MjsCompiler::MjsCompiler(mjsCompiler *ptr) : ptr_(ptr), LRopt(&ptr_->LRopt) {}
-MjsCompiler::~MjsCompiler() {}
-mjsCompiler* MjsCompiler::get() const {
-  return ptr_;
-}
-void MjsCompiler::set(mjsCompiler* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjSpec =============== //
 MjSpec::MjSpec()
     : ptr_(mj_makeSpec()),
       option(&ptr_->option),
@@ -8263,294 +8506,6 @@ MjSpec::~MjSpec() {
 
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
-
-// =============== MjsOrientation =============== //
-MjsOrientation::MjsOrientation(mjsOrientation *ptr) : ptr_(ptr) {}
-MjsOrientation::~MjsOrientation() {}
-mjsOrientation* MjsOrientation::get() const {
-  return ptr_;
-}
-void MjsOrientation::set(mjsOrientation* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsBody =============== //
-MjsBody::MjsBody(mjsBody *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt), ialt(&ptr_->ialt), plugin(&ptr_->plugin) {}
-MjsBody::~MjsBody() {}
-mjsBody* MjsBody::get() const {
-  return ptr_;
-}
-void MjsBody::set(mjsBody* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsGeom =============== //
-MjsGeom::MjsGeom(mjsGeom *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt), plugin(&ptr_->plugin) {}
-MjsGeom::~MjsGeom() {}
-mjsGeom* MjsGeom::get() const {
-  return ptr_;
-}
-void MjsGeom::set(mjsGeom* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsFrame =============== //
-MjsFrame::MjsFrame(mjsFrame *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
-MjsFrame::~MjsFrame() {}
-mjsFrame* MjsFrame::get() const {
-  return ptr_;
-}
-void MjsFrame::set(mjsFrame* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsJoint =============== //
-MjsJoint::MjsJoint(mjsJoint *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsJoint::~MjsJoint() {}
-mjsJoint* MjsJoint::get() const {
-  return ptr_;
-}
-void MjsJoint::set(mjsJoint* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsSite =============== //
-MjsSite::MjsSite(mjsSite *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
-MjsSite::~MjsSite() {}
-mjsSite* MjsSite::get() const {
-  return ptr_;
-}
-void MjsSite::set(mjsSite* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsCamera =============== //
-MjsCamera::MjsCamera(mjsCamera *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
-MjsCamera::~MjsCamera() {}
-mjsCamera* MjsCamera::get() const {
-  return ptr_;
-}
-void MjsCamera::set(mjsCamera* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsLight =============== //
-MjsLight::MjsLight(mjsLight *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsLight::~MjsLight() {}
-mjsLight* MjsLight::get() const {
-  return ptr_;
-}
-void MjsLight::set(mjsLight* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsFlex =============== //
-MjsFlex::MjsFlex(mjsFlex *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsFlex::~MjsFlex() {}
-mjsFlex* MjsFlex::get() const {
-  return ptr_;
-}
-void MjsFlex::set(mjsFlex* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsMesh =============== //
-MjsMesh::MjsMesh(mjsMesh *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
-MjsMesh::~MjsMesh() {}
-mjsMesh* MjsMesh::get() const {
-  return ptr_;
-}
-void MjsMesh::set(mjsMesh* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsHField =============== //
-MjsHField::MjsHField(mjsHField *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsHField::~MjsHField() {}
-mjsHField* MjsHField::get() const {
-  return ptr_;
-}
-void MjsHField::set(mjsHField* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsSkin =============== //
-MjsSkin::MjsSkin(mjsSkin *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsSkin::~MjsSkin() {}
-mjsSkin* MjsSkin::get() const {
-  return ptr_;
-}
-void MjsSkin::set(mjsSkin* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsTexture =============== //
-MjsTexture::MjsTexture(mjsTexture *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsTexture::~MjsTexture() {}
-mjsTexture* MjsTexture::get() const {
-  return ptr_;
-}
-void MjsTexture::set(mjsTexture* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsMaterial =============== //
-MjsMaterial::MjsMaterial(mjsMaterial *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsMaterial::~MjsMaterial() {}
-mjsMaterial* MjsMaterial::get() const {
-  return ptr_;
-}
-void MjsMaterial::set(mjsMaterial* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsPair =============== //
-MjsPair::MjsPair(mjsPair *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsPair::~MjsPair() {}
-mjsPair* MjsPair::get() const {
-  return ptr_;
-}
-void MjsPair::set(mjsPair* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsExclude =============== //
-MjsExclude::MjsExclude(mjsExclude *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsExclude::~MjsExclude() {}
-mjsExclude* MjsExclude::get() const {
-  return ptr_;
-}
-void MjsExclude::set(mjsExclude* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsEquality =============== //
-MjsEquality::MjsEquality(mjsEquality *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsEquality::~MjsEquality() {}
-mjsEquality* MjsEquality::get() const {
-  return ptr_;
-}
-void MjsEquality::set(mjsEquality* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsTendon =============== //
-MjsTendon::MjsTendon(mjsTendon *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsTendon::~MjsTendon() {}
-mjsTendon* MjsTendon::get() const {
-  return ptr_;
-}
-void MjsTendon::set(mjsTendon* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsWrap =============== //
-MjsWrap::MjsWrap(mjsWrap *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsWrap::~MjsWrap() {}
-mjsWrap* MjsWrap::get() const {
-  return ptr_;
-}
-void MjsWrap::set(mjsWrap* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsActuator =============== //
-MjsActuator::MjsActuator(mjsActuator *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
-MjsActuator::~MjsActuator() {}
-mjsActuator* MjsActuator::get() const {
-  return ptr_;
-}
-void MjsActuator::set(mjsActuator* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsSensor =============== //
-MjsSensor::MjsSensor(mjsSensor *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
-MjsSensor::~MjsSensor() {}
-mjsSensor* MjsSensor::get() const {
-  return ptr_;
-}
-void MjsSensor::set(mjsSensor* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsNumeric =============== //
-MjsNumeric::MjsNumeric(mjsNumeric *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsNumeric::~MjsNumeric() {}
-mjsNumeric* MjsNumeric::get() const {
-  return ptr_;
-}
-void MjsNumeric::set(mjsNumeric* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsText =============== //
-MjsText::MjsText(mjsText *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsText::~MjsText() {}
-mjsText* MjsText::get() const {
-  return ptr_;
-}
-void MjsText::set(mjsText* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsTuple =============== //
-MjsTuple::MjsTuple(mjsTuple *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsTuple::~MjsTuple() {}
-mjsTuple* MjsTuple::get() const {
-  return ptr_;
-}
-void MjsTuple::set(mjsTuple* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsKey =============== //
-MjsKey::MjsKey(mjsKey *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsKey::~MjsKey() {}
-mjsKey* MjsKey::get() const {
-  return ptr_;
-}
-void MjsKey::set(mjsKey* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsDefault =============== //
-MjsDefault::MjsDefault(mjsDefault *ptr) : ptr_(ptr), element(ptr_->element), joint(ptr_->joint), geom(ptr_->geom), site(ptr_->site), camera(ptr_->camera), light(ptr_->light), flex(ptr_->flex), mesh(ptr_->mesh), material(ptr_->material), pair(ptr_->pair), equality(ptr_->equality), tendon(ptr_->tendon), actuator(ptr_->actuator) {}
-MjsDefault::~MjsDefault() {}
-mjsDefault* MjsDefault::get() const {
-  return ptr_;
-}
-void MjsDefault::set(mjsDefault* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjsPlugin =============== //
-MjsPlugin::MjsPlugin(mjsPlugin *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsPlugin::~MjsPlugin() {}
-mjsPlugin* MjsPlugin::get() const {
-  return ptr_;
-}
-void MjsPlugin::set(mjsPlugin* ptr) {
-  ptr_ = ptr;
-}
-
-// =============== MjVFS =============== //
-MjVFS::MjVFS(mjVFS *ptr) : ptr_(ptr) {}
-MjVFS::~MjVFS() {
-  if (owned_ && ptr_) {
-    mj_deleteVFS(ptr_);
-  }
-}
-MjVFS::MjVFS() : ptr_(new mjVFS) {
-  owned_ = true;
-  mj_defaultVFS(ptr_);
-}
-mjVFS* MjVFS::get() const {
-  return ptr_;
-}
-void MjVFS::set(mjVFS* ptr) {
-  ptr_ = ptr;
-}
 
 // ======= FACTORY AND HELPER FUNCTIONS ========= //
 std::unique_ptr<MjModel> loadFromXML(std::string filename) {
