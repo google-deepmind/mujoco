@@ -78,13 +78,16 @@ These MJWarp variants mirror their MuJoCo counterparts but have a few key differ
 #. ``mjw.Model`` and ``mjw.Data`` contain Warp arrays that are copied onto device.
 #. Some fields are missing from ``mjw.Model`` and ``mjw.Data`` for features that are unsupported.
 
-``nworld``, ``nconmax``, and ``njmax``
---------------------------------------
+Batch sizes
+-----------
+
 MJWarp is optimized for parallel simulation. A batch of simulations can be specified with three parameters:
 
 - ``nworld``: Number of worlds to simulate.
 - ``nconmax``: Expected number of contacts per world. The maximum number of contacts for all worlds is
   ``nconmax * nworld``.
+- ``naconmax``: Alternative to ``nconmax``, maximum number of contacts over all worlds. If ``nconmax`` and ``naconmax``
+  are both set and ``nworld * nconmax != naconmax`` an error will be raised.
 - ``njmax``: Maximum number of constraints per world.
 
 .. admonition:: Semantic difference for ``nconmax`` and ``njmax``.
