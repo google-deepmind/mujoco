@@ -69,6 +69,9 @@ class WrappedStructData:
   # Struct source code
   wrapped_source: str
 
+  # Struct bindings code
+  bindings: str = ""
+
   # Whether to use shallow copy for this struct
   use_shallow_copy: bool = True
 
@@ -597,7 +600,7 @@ def build_struct_source(
 
   s = struct_name
   w = common.uppercase_first_letter(s)
-  is_mjs = "Mjs" in w
+  is_mjs = w.startswith("Mjs")
 
   fields_with_init = _find_fields_with_init(wrapped_fields)
   shallow_copy = use_shallow_copy(wrapped_fields)
@@ -657,6 +660,41 @@ def build_struct_source(
   with builder.function(f"void {w}::set({s}* ptr)"):
     builder.line("ptr_ = ptr;")
 
+  return builder.to_string()
+
+
+def _build_struct_bindings(
+    struct_name: str,
+    wrapped_fields: List[WrappedFieldData],
+):
+  """Builds the C++ bindings for a struct."""
+  # These structs require specific constructors
+  # which, for now, are hardcoded in the template file.
+  if struct_name in [
+      "mjData",
+      "mjModel",
+      "mjvScene",
+      "mjSpec",
+  ]:
+    return ""
+
+  w = common.uppercase_first_letter(struct_name)
+  spc = "    "
+  builder = code_builder.CodeBuilder()
+  builder.line(f"emscripten::class_<{w}>(\"{w}\")")
+
+  is_mjs = w.startswith("Mjs")
+  if not is_mjs:
+    builder.line(f"{spc}.constructor<>()")
+
+  shallow_copy = use_shallow_copy(wrapped_fields)
+  if shallow_copy and not is_mjs:
+    builder.line(f"{spc}.function(\"copy\", &{w}::copy, take_ownership())")
+
+  for field in wrapped_fields:
+    if field.binding:
+      builder.line(f"{spc}{field.binding}")
+  builder.line(f"{spc};")
   return builder.to_string()
 
 
@@ -733,12 +771,14 @@ def generate_wasm_bindings(
         struct_name,
         wrapped_fields,
     )
+    bindings = _build_struct_bindings(struct_name, wrapped_fields)
     wrap_data = WrappedStructData(
         wrap_name=wrapped_name,
         wrapped_fields=wrapped_fields,
         wrapped_header=wrapped_header,
         wrapped_source=wrapped_source,
         use_shallow_copy=use_shallow_copy(wrapped_fields),
+        bindings=bindings,
     )
 
     wrapped_structs[struct_name] = wrap_data

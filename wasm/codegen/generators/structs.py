@@ -58,22 +58,28 @@ class Generator:
     ))
 
     autogenned_struct_source = []
+    autogenned_struct_bindings = []
     for struct_name in sorted_struct_names:
       struct_data = self.structs_to_bind_data[struct_name]
       if struct_data.wrapped_source:
         autogenned_struct_source.append(
             struct_data.wrapped_source + "\n"
         )
-
-      # Bindings with markers
-      markers_and_content.append((
-          f"// INSERT-GENERATED-{struct_data.wrap_name}-BINDINGS",
-          [l.binding for l in struct_data.wrapped_fields],
-      ))
+      if struct_data.bindings:
+        autogenned_struct_bindings.append(struct_data.bindings)
+      else:
+        # Bindings with markers
+        markers_and_content.append((
+            f"// INSERT-GENERATED-{struct_data.wrap_name}-BINDINGS",
+            [l.binding for l in struct_data.wrapped_fields],
+        ))
 
     markers_and_content.append((
         "// {{ AUTOGENNED_STRUCTS_SOURCE }}",
         autogenned_struct_source,
     ))
-
+    markers_and_content.append((
+        "// {{ AUTOGENNED_STRUCTS_BINDINGS }}",
+        autogenned_struct_bindings,
+    ))
     return markers_and_content
