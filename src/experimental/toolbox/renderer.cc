@@ -49,16 +49,14 @@ void Renderer::Deinit() {
   initialized_ = false;
 }
 
-void Renderer::Sync(const mjModel* model, mjData* data,
-                    const mjvPerturb* perturb, mjvCamera* camera,
-                    const mjvOption* vis_option) {
-  mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
-                  &scene_);
-}
-
 void Renderer::Render(const mjModel* model, mjData* data,
                       const mjvPerturb* perturb, mjvCamera* camera,
                       const mjvOption* vis_option, int width, int height) {
+  if (initialized_) {
+    mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
+                    &scene_);
+  }
+
   mjrRect main_viewport = {0, 0, width, height};
   mjr_render(main_viewport, data ? &scene_ : nullptr, &render_context_);
 

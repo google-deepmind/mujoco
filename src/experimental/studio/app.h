@@ -49,9 +49,6 @@ class App {
   // Processes window events and advances the state of the simulation.
   bool Update();
 
-  // Syncs the state of the simulation with the renderer.
-  void Sync();
-
   // Builds the GUI. We do this after Sync() to ensure we have the latest data
   // for building the GUI.
   void BuildGui();

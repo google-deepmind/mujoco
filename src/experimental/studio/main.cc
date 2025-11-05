@@ -56,7 +56,6 @@ int main(int argc, char** argv, char** envp) {
   if (model_file.empty() && argc > 1 && argv[1][0] != '-') model_file = argv[1];
   app.LoadModel(model_file);
   while (app.Update()) {
-    app.Sync();
     app.BuildGui();
     app.Render();
   }

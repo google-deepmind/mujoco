@@ -42,10 +42,6 @@ class Renderer {
   // Initializes the renderer with the given mjModel.
   void Init(const mjModel* model);
 
-  // Updates the render scene with the current simulation state.
-  void Sync(const mjModel* model, mjData* data, const mjvPerturb* perturb,
-            mjvCamera* camera, const mjvOption* vis_option);
-
   // Renders the simulation state into the active window. Also renders the imgui
   // state, but that is obtained directly from the ImGui library.
   void Render(const mjModel* model, mjData* data, const mjvPerturb* perturb,
@@ -58,9 +54,6 @@ class Renderer {
   // Rendering flags.
   mjtByte GetFlag(mjtRndFlag flag) const { return scene_.flags[flag];}
   void SetFlag(mjtRndFlag flag, mjtByte value) { scene_.flags[flag] = value; }
-
-  // Returns the mjvScene used by the renderer.
-  mjvScene& GetScene() { return scene_; }
 
   // Returns the current, average frame rate.
   double GetFrameRate() const { return fps_; }

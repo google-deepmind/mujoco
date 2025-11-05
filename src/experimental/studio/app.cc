@@ -197,10 +197,6 @@ bool App::Update() {
   return status == toolbox::Window::Status::kRunning;
 }
 
-void App::Sync() {
-  renderer_->Sync(Model(), Data(), &perturb_, &camera_, &vis_options_);
-}
-
 void App::Render() {
   const float width = window_->GetWidth();
   const float height = window_->GetHeight();
