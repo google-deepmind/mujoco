@@ -14,8 +14,6 @@
 
 """Generates Embind bindings for MuJoCo structs."""
 
-from typing import Optional
-
 from wasm.codegen.helpers import constants
 from wasm.codegen.helpers import structs
 
@@ -37,7 +35,7 @@ class Generator:
 
     # Sort by struct name by dependency to ensure deterministic output order
     sorted_struct_names = structs.sort_structs_by_dependency(
-        constants.STRUCTS_TO_BIND
+        self.structs_to_bind_data
     )
 
     for struct_name in sorted_struct_names:

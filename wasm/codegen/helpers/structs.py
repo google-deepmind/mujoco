@@ -51,6 +51,9 @@ class WrappedFieldData:
   # Whether the field is a primitive or fixed size
   is_primitive_or_fixed_size: bool = False
 
+  # Underlying type of the field
+  typename: str | None = None
+
 
 @dataclasses.dataclass
 class WrappedStructData:
@@ -193,6 +196,7 @@ class StructFieldHandler:
     """Handles the generation of C++ definition and binding code for primitive fields."""
     return WrappedFieldData(
         definition=(build_primitive_type_definition(self.field)),
+        typename=_get_field_struct_type(self.field.type),
         binding=build_simple_property_binding(
             self.field,
             self.struct_wrapper_name,
@@ -235,6 +239,7 @@ class StructFieldHandler:
     elif inner_type_name == "mjString":
       return WrappedFieldData(
           definition=build_string_field_definition(self.field),
+          typename=_get_field_struct_type(self.field.type),
           binding=build_simple_property_binding(
               self.field,
               self.struct_wrapper_name,
@@ -247,6 +252,7 @@ class StructFieldHandler:
           definition=build_mjvec_pointer_definition(
               self.field, inner_type_name
           ),
+          typename=_get_field_struct_type(self.field.type),
           binding=build_simple_property_binding(
               self.field,
               self.struct_wrapper_name,
@@ -280,6 +286,7 @@ class StructFieldHandler:
         )
         return WrappedFieldData(
             definition=f"{wrapper_field_name} {self.field.name};",
+            typename=_get_field_struct_type(self.field.type),
             binding=build_simple_property_binding(
                 self.field,
                 self.struct_wrapper_name,
@@ -296,6 +303,7 @@ class StructFieldHandler:
         return self._get_manual_definition(comment_type="complex pointer field")
 
     return WrappedFieldData(
+        typename=_get_field_struct_type(self.field.type),
         definition=(
             build_memory_view_definition(
                 self.field, array_size_str, ptr_field_expr
@@ -327,6 +335,7 @@ class StructFieldHandler:
             definition=(
                 build_memory_view_definition(self.field, str(size), ptr_expr)
             ),
+            typename=_get_field_struct_type(self.field.type),
             binding=self.simple_property_binding,
             is_primitive_or_fixed_size=True,
         )
@@ -341,6 +350,7 @@ class StructFieldHandler:
         definition=(
             f"// TODO: NOT IMPLEMENTED ARRAY wrapper for {self.field.name}"
         ),
+        typename=_get_field_struct_type(self.field.type),
         binding=f"// TODO: NOT IMPLEMENTED ARRAY binding for {self.field.name}",
     )
 
@@ -359,6 +369,7 @@ class StructFieldHandler:
         definition = f"{wrapper_field_name} {self.field.name};"
       return WrappedFieldData(
           definition=definition,
+          typename=_get_field_struct_type(self.field.type),
           binding=build_simple_property_binding(
               self.field,
               self.struct_wrapper_name,
@@ -396,6 +407,7 @@ class StructFieldHandler:
               add_setter=False,
               add_return_value_policy_as_ref=True,
           ),
+          typename=_get_field_struct_type(self.field.type),
           initialization=f", {self.field.name}(&ptr_->{self.field.name})",
           ptr_copy_reset=f"{self.field.name}.set(&ptr_->{self.field.name});",
           is_primitive_or_fixed_size=True,
@@ -413,13 +425,14 @@ class StructFieldHandler:
     """Helper method to generate a comment as a definition for manually added fields."""
     if self.field.name in self.manually_added_fields:
       return WrappedFieldData(
+          typename=_get_field_struct_type(self.field.type),
           definition=(
               f"// {comment_type} is defined manually. {self.field.name}"
           ),
           binding=self.simple_property_binding,
       )
-
     return WrappedFieldData(
+        typename=_get_field_struct_type(self.field.type),
         definition=(
             f"// TODO: Define {comment_type} manually for {self.field.name}"
         ),
@@ -762,15 +775,20 @@ def _get_field_struct_type(field_type):
   return None
 
 
-def sort_structs_by_dependency(struct_names: List[str]) -> List[str]:
+def sort_structs_by_dependency(
+    struct_wrappers: dict[str, WrappedStructData],
+) -> List[str]:
   """Sorts structs based on their field dependencies using topological sort.
 
   Structs with no dependencies on other structs in the list come first.
-  If struct A has a field of type struct B, B must come before A in the
-  sorted list.
+  Struct A has a dependency on struct B if struct A has a field where the
+  underlying_type is B. Note that this definition is stricter than the C++
+  struct dependency criterion where forward declarations can be used to
+  eliminate dependencies A and B if A only has a pointer to B.
 
   Args:
-    struct_names: A list of struct names to sort.
+    struct_wrappers: A dictionary mapping struct names to their
+      WrappedStructData.
 
   Returns:
     A new list of struct names sorted by dependency.
@@ -780,20 +798,14 @@ def sort_structs_by_dependency(struct_names: List[str]) -> List[str]:
   """
   adj = collections.defaultdict(list)
   in_degree = collections.defaultdict(int)
+  struct_names = struct_wrappers.keys()
   struct_set = set(struct_names)
   sorted_struct_names = sorted(struct_names)
 
   for struct_name in sorted_struct_names:
-    if struct_name not in introspect_structs:
-      # Skip anonymous or other structs not in the main introspect map
-      continue
+    for field in struct_wrappers[struct_name].wrapped_fields:
 
-    struct_decl = introspect_structs[struct_name]
-    for field in struct_decl.fields:
-      if isinstance(field, ast_nodes.AnonymousStructDecl):
-        continue
-
-      field_type_name = _get_field_struct_type(field.type)
+      field_type_name = field.typename
       if (
           field_type_name
           and field_type_name != struct_name
