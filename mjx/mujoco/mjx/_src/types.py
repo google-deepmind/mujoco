@@ -819,7 +819,7 @@ class Model(PyTreeNode):
   tex_width: np.ndarray
   tex_nchannel: np.ndarray
   tex_adr: np.ndarray
-  tex_data: jax.Array
+  tex_data: np.ndarray
   mat_rgba: jax.Array
   mat_texid: np.ndarray
   pair_dim: np.ndarray
