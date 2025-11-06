@@ -2931,12 +2931,25 @@ void mjCModel::CopyTree(mjModel* m) {
     }
   }
 
-  // count bodies with gravity compensation, compute ngravcomp
-  int ngravcomp = 0;
-  for (int i=0; i < nbody; i++) {
-    ngravcomp += (m->body_gravcomp[i] > 0);
+  // initialize AUTO sleep policy for all trees
+  for (int i=0; i < m->ntree; i++) {
+    m->tree_sleep_policy[i] = mjSLEEP_AUTO;
   }
-  m->ngravcomp = ngravcomp;
+
+  // loop over bodies, check and set non-default sleep policy
+  for (int i=1; i < nbody; i++) {
+    mjCBody* pb = bodies_[i];
+
+    // validate and set non-default sleep policy
+    if (pb->sleep != mjSLEEP_AUTO) {
+      int treeid = m->body_treeid[i];
+      // non-default sleep policy only allowed for first body in a tree
+      if (treeid == -1 || treeid == m->body_treeid[i-1]) {
+        throw mjCError(pb, "sleep policy only allowed for movable root bodies");
+      }
+      m->tree_sleep_policy[treeid] = pb->sleep;
+    }
+  }
 
   // recompute nM and dof_Madr given m.dof_parentid, validate
   int nM_post = 0;

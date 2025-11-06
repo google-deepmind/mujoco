@@ -70,6 +70,7 @@ typedef enum mjtMeshInertia_ {      // type of mesh inertia
   mjMESH_INERTIA_SHELL              // shell mesh inertia
 } mjtMeshInertia;
 
+
 typedef enum mjtMeshBuiltin_ {      // type of built-in procedural mesh
   mjMESH_BUILTIN_NONE = 0,          // no built-in mesh
   mjMESH_BUILTIN_SPHERE,            // sphere
@@ -80,6 +81,7 @@ typedef enum mjtMeshBuiltin_ {      // type of built-in procedural mesh
   mjMESH_BUILTIN_WEDGE,             // wedge
   mjMESH_BUILTIN_PLATE,             // plate
 } mjtMeshBuiltin;
+
 
 typedef enum mjtBuiltin_ {         // type of built-in procedural texture
   mjBUILTIN_NONE = 0,              // no built-in texture
@@ -102,6 +104,7 @@ typedef enum mjtLimited_ {         // type of limit specification
   mjLIMITED_TRUE,                  // limited
   mjLIMITED_AUTO,                  // limited inferred from presence of range
 } mjtLimited;
+
 
 typedef enum mjtAlignFree_ {       // whether to align free joints with the inertial frame
   mjALIGNFREE_FALSE = 0,           // don't align
@@ -233,6 +236,7 @@ typedef struct mjsBody_ {          // body specification
   // other
   mjtByte mocap;                   // is this a mocap body
   double gravcomp;                 // gravity compensation
+  mjtSleepPolicy sleep;            // sleep policy
   mjDoubleVec* userdata;           // user data
   mjtByte explicitinertial;        // whether to save the body with explicit inertial clause
   mjsPlugin plugin;                // passive force plugin

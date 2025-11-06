@@ -110,18 +110,18 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
             "inttotal", "interval", "tolrange"},
     {">"},
 
-    {"option", "*", "26",
+    {"option", "*", "27",
         "timestep", "impratio", "tolerance", "ls_tolerance", "noslip_tolerance",
-        "ccd_tolerance", "gravity", "wind", "magnetic", "density", "viscosity",
+        "ccd_tolerance", "sleep_tolerance", "gravity", "wind", "magnetic", "density", "viscosity",
         "o_margin", "o_solref", "o_solimp", "o_friction",
         "integrator", "cone", "jacobian",
         "solver", "iterations", "ls_iterations", "noslip_iterations", "ccd_iterations",
         "sdf_iterations", "sdf_initpoints", "actuatorgroupdisable"},
     {"<"},
-        {"flag", "?", "24", "constraint", "equality", "frictionloss", "limit", "contact",
-            "spring", "damper", "gravity", "clampctrl", "warmstart",
-            "filterparent", "actuation", "refsafe", "sensor", "midphase", "eulerdamp", "autoreset",
-            "nativeccd", "island", "override", "energy", "fwdinv", "invdiscrete", "multiccd"},
+        {"flag", "?", "25", "constraint", "equality", "frictionloss", "limit", "contact",
+            "spring", "damper", "gravity", "clampctrl", "warmstart", "filterparent", "actuation",
+            "refsafe", "sensor", "midphase", "eulerdamp", "autoreset", "nativeccd", "island",
+            "override", "energy", "fwdinv", "invdiscrete", "multiccd", "sleep"},
     {">"},
 
     {"size", "*", "14", "memory", "njmax", "nconmax", "nstack", "nuserdata", "nkey",
@@ -257,8 +257,8 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"model", "*", "3", "name", "file", "content_type"},
     {">"},
 
-    {"body", "R", "11", "name", "childclass", "pos", "quat", "mocap",
-        "axisangle", "xyaxes", "zaxis", "euler", "gravcomp", "user"},
+    {"body", "R", "12", "name", "childclass", "pos", "quat", "mocap",
+        "axisangle", "xyaxes", "zaxis", "euler", "gravcomp", "sleep", "user"},
     {"<"},
         {"inertial", "?", "9", "pos", "quat", "mass", "diaginertia",
             "axisangle", "xyaxes", "zaxis", "euler", "fullinertia"},
@@ -553,6 +553,15 @@ const mjMap TFAuto_map[3] = {
   {"auto",    2}
 };
 
+
+// body sleep type
+const int bodysleep_sz = 4;
+const mjMap bodysleep_map[bodysleep_sz] = {
+  {"auto",          mjSLEEP_AUTO},
+  {"never",         mjSLEEP_NEVER},
+  {"allowed",       mjSLEEP_ALLOWED},
+  {"init",          mjSLEEP_INIT}
+};
 
 // joint type
 const int joint_sz = 4;
@@ -1136,6 +1145,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
   ReadAttr(section, "ls_tolerance", 1, &opt->ls_tolerance, text);
   ReadAttr(section, "noslip_tolerance", 1, &opt->noslip_tolerance, text);
   ReadAttr(section, "ccd_tolerance", 1, &opt->ccd_tolerance, text);
+  ReadAttr(section, "sleep_tolerance", 1, &opt->sleep_tolerance, text);
   ReadAttr(section, "gravity", 3, opt->gravity, text);
   ReadAttr(section, "wind", 3, opt->wind, text);
   ReadAttr(section, "magnetic", 3, opt->magnetic, text);
@@ -1213,6 +1223,7 @@ void mjXReader::Option(XMLElement* section, mjOption* opt) {
     READENBL("fwdinv",      mjENBL_FWDINV)
     READENBL("invdiscrete", mjENBL_INVDISCRETE)
     READENBL("multiccd",    mjENBL_MULTICCD)
+    READENBL("sleep",       mjENBL_SLEEP)
 #undef READENBL
   }
 }
@@ -3709,8 +3720,11 @@ void mjXReader::Body(XMLElement* section, mjsBody* body, mjsFrame* frame,
       }
       ReadAlternative(elem, child->alt);
 
-      // read gravcomp
+      // gravcomp, sleep policy
       ReadAttr(elem, "gravcomp", 1, &child->gravcomp, text);
+      if (MapValue(elem, "sleep", &n, bodysleep_map, bodysleep_sz)) {
+        child->sleep = (mjtSleepPolicy) n;
+      }
 
       // read userdata
       std::vector<double> userdata;

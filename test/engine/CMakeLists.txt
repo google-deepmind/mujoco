@@ -51,6 +51,10 @@ mujoco_test(engine_ray_test)
 
 mujoco_test(engine_sensor_test)
 
+mujoco_test(engine_setconst_test)
+
+mujoco_test(engine_sleep_test)
+
 mujoco_test(engine_solver_test)
 
 mujoco_test(engine_sort_test)

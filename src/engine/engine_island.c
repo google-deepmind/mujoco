@@ -400,7 +400,7 @@ static int findEdges(const mjModel* m, const mjData* d, int* treenedge, int* edg
 // discover islands:
 //   nisland, island_idofadr, dof_island, dof_islandnext, island_efcadr, efc_island, efc_islandnext
 void mj_island(const mjModel* m, mjData* d) {
-  int nv = m->nv, nefc = d->nefc, ntree=m->ntree;
+  int nv = m->nv, nefc = d->nefc, ntree = m->ntree, nJ = d->nJ;
 
   // no constraints: quick return
   if (mjDISABLED(mjDSBL_ISLAND) || !nefc) {
@@ -411,11 +411,11 @@ void mj_island(const mjModel* m, mjData* d) {
   mj_markStack(d);
 
   // allocate edge array, nJ is an upper bound
-  int* edge = mjSTACKALLOC(d, 2*d->nJ, int);
+  int* edge = mjSTACKALLOC(d, 2*nJ, int);
 
   // get tree-tree edges and rownnz counts from efc arrays
   int* rownnz = mjSTACKALLOC(d, ntree, int);  // number of edges per tree
-  int nedge = findEdges(m, d, rownnz, edge, d->nJ);
+  int nedge = findEdges(m, d, rownnz, edge, nJ);
 
   // compute starting address of tree's column indices while resetting rownnz
   int* rowadr = mjSTACKALLOC(d, ntree, int);
@@ -448,8 +448,10 @@ void mj_island(const mjModel* m, mjData* d) {
 
   // count nidof: total number of dofs in islands
   int nidof = 0;
-  for (int i=0; i < nv; i++) {
-    nidof += (tree_island[m->dof_treeid[i]] >= 0);
+  for (int i=0; i < ntree; i++) {
+    if (tree_island[i] >= 0) {
+      nidof += m->tree_dofnum[i];
+    }
   }
   d->nidof = nidof;
 
@@ -461,6 +463,44 @@ void mj_island(const mjModel* m, mjData* d) {
 
   // local copy
   int nisland = d->nisland;
+
+
+  // ------------------------------------- trees ---------------------------------------------------
+
+  // copy tree_island from stack to arena
+  mju_copyInt(d->tree_island, tree_island, ntree);
+
+  // compute island_ntree, number of trees per island
+  mju_zeroInt(d->island_ntree, nisland);
+  for (int i=0; i < ntree; i++) {
+    int island = tree_island[i];
+    if (island >= 0) {
+      d->island_ntree[island]++;
+    }
+  }
+
+  // compute island_itreeadr (cumsum of island_ntree)
+  d->island_itreeadr[0] = 0;
+  for (int i=1; i < nisland; i++) {
+    d->island_itreeadr[i] = d->island_itreeadr[i-1] + d->island_ntree[i-1];
+  }
+  int last_tree = d->island_itreeadr[nisland-1] + d->island_ntree[nisland-1];
+
+  // compute map_itree2tree
+  int* island_ntree2 = mjSTACKALLOC(d, nisland + 1, int);  // last elem counts unconstrained trees
+  mju_zeroInt(island_ntree2, nisland + 1);
+  for (int i=0; i < ntree; i++) {
+    int island = tree_island[i];
+    if (island >= 0) {
+      d->map_itree2tree[d->island_itreeadr[island] + island_ntree2[island]++] = i;
+    } else {
+      d->map_itree2tree[last_tree + island_ntree2[nisland]++] = i;
+    }
+  }
+
+  // SHOULD NOT OCCUR
+  if (!mju_compare(island_ntree2, d->island_ntree, nisland)) mjERROR("island_ntree miscount");
+  if (last_tree + island_ntree2[nisland] != ntree) mjERROR("miscount of unconstrained trees");
 
 
   // ------------------------------------- degrees of freedom --------------------------------------
@@ -499,7 +539,7 @@ void mj_island(const mjModel* m, mjData* d) {
     }
 
     d->map_dof2idof[dof] = idof;
-    d->map_idof2dof[idof] = dof;  // only the first ni elements of map_idof2dof are in some island
+    d->map_idof2dof[idof] = dof;  // only the first nidof elements of map_idof2dof are in some island
   }
 
   // SHOULD NOT OCCUR

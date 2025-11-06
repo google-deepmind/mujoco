@@ -665,6 +665,14 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   }
   if (m->nv) fprintf(fp, "\n");
 
+  // trees
+  object_class = &m->ntree;
+  for (int i=0; i < m->ntree; i++) {
+    fprintf(fp, "\nTREE %d:\n", i);
+    MJMODEL_POINTERS_TREE
+  }
+  if (m->ntree) fprintf(fp, "\n");
+
   // geoms
   object_class = &m->ngeom;
   for (int i=0; i < m->ngeom; i++) {
@@ -1227,6 +1235,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printArray2d("ACT_DOT", m->na, 1, d->act_dot, fp, float_format);
   printArray2d("USERDATA", m->nuserdata, 1, d->userdata, fp, float_format);
   printArray2d("SENSOR", m->nsensordata, 1, d->sensordata, fp, float_format);
+  printArray2dInt("TREE_ASLEEP", m->ntree, 1, d->tree_asleep, fp);
 
   printArray2d("XPOS", m->nbody, 3, d->xpos, fp, float_format);
   printArray2d("XQUAT", m->nbody, 4, d->xquat, fp, float_format);
@@ -1312,6 +1321,13 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     printArray2d("QHDIAGINV", m->nv, 1, d->qHDiagInv, fp, float_format);
   }
 
+  // computed sleep state
+  printArray2dInt("TREE_AWAKE", 1, m->ntree, d->tree_awake, fp);
+  printArray2dInt("BODY_AWAKE", 1, m->nbody, d->body_awake, fp);
+  printArray2dInt("BODY_AWAKE_IND", 1, d->nbody_awake, d->body_awake_ind, fp);
+  printArray2dInt("PARENT_AWAKE_IND", 1, d->nparent_awake, d->parent_awake_ind, fp);
+  printArray2dInt("DOF_AWAKE_IND", 1, d->nv_awake, d->dof_awake_ind, fp);
+
   // print qDeriv
   if (!mju_isZero(d->qDeriv, m->nD)) {
     printSparse("QDERIV", d->qDeriv, m->nv, m->D_rownnz, m->D_rowadr, m->D_colind,
@@ -1324,7 +1340,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   }
 
   // contact
-  fprintf(fp, "CONTACT\n");
+  if (d->ncon) fprintf(fp, "CONTACT\n");
   for (int i=0; i < d->ncon; i++) {
     fprintf(fp, "  %d:\n     dim           %d\n", i, d->contact[i].dim);
     int g1 = d->contact[i].geom[0];
@@ -1454,6 +1470,11 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
   printArray2d("CFRC_EXT", m->nbody, 6, d->cfrc_ext, fp, float_format);
 
   if (d->nisland) {
+    printArray2dInt("TREE_ISLAND", 1, m->ntree, d->tree_island, fp);
+    printArray2dInt("ISLAND_NTREE", 1, d->nisland, d->island_ntree, fp);
+    printArray2dInt("ISLAND_ITREEADR", 1, d->nisland, d->island_itreeadr, fp);
+    printArray2dInt("MAP_ITREE2TREE", 1, m->ntree, d->map_itree2tree, fp);
+
     fprintf(fp, NAME_FORMAT, "DOF_ISLAND");
     for (int i = 0; i < m->nv; i++) {
       fprintf(fp, " %d", d->dof_island[i]);

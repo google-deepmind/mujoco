@@ -30,6 +30,7 @@
 #define mjMAXCONPAIR    50        // maximum number of contacts per geom pair
 #define mjMAXTREEDEPTH  50        // maximum bounding volume hierarchy depth
 #define mjMAXFLEXNODES  27        // maximum number of flex nodes
+#define mjMINAWAKE      10        // minimum number of timesteps before sleeping
 
 
 //---------------------------------- sizes ---------------------------------------------------------
@@ -80,8 +81,9 @@ typedef enum mjtEnableBit_ {      // enable optional feature bitflags
   mjENBL_INVDISCRETE  = 1<<3,     // discrete-time inverse dynamics
                                   // experimental features:
   mjENBL_MULTICCD     = 1<<4,     // multi-point convex collision detection
+  mjENBL_SLEEP        = 1<<5,     // sleeping
 
-  mjNENABLE           = 5         // number of enable flags
+  mjNENABLE           = 6         // number of enable flags
 } mjtEnableBit;
 
 
@@ -132,7 +134,7 @@ typedef enum mjtCamLight_ {       // tracking mode for camera and light
 
 
 typedef enum mjtLightType_ {      // type of light
-  mjLIGHT_SPOT    = 0,            // spot
+  mjLIGHT_SPOT        = 0,        // spot
   mjLIGHT_DIRECTIONAL,            // directional
   mjLIGHT_POINT,                  // point
   mjLIGHT_IMAGE,                  // image-based
@@ -406,8 +408,18 @@ typedef enum mjtSameFrame_ {      // frame alignment of bodies with their childr
 } mjtSameFrame;
 
 
+typedef enum mjtSleepPolicy_ {    // per-tree sleep policy
+  mjSLEEP_AUTO        = 0,        // compiler chooses sleep policy
+  mjSLEEP_AUTO_NEVER,             // compiler sleep policy: never
+  mjSLEEP_AUTO_ALLOWED,           // compiler sleep policy: allowed
+  mjSLEEP_NEVER,                  // user sleep policy: never
+  mjSLEEP_ALLOWED,                // user sleep policy: allowed
+  mjSLEEP_INIT,                   // user sleep policy: initialized asleep
+} mjtSleepPolicy;
+
+
 typedef enum mjtLRMode_ {         // mode for actuator length range computation
-  mjLRMODE_NONE   = 0,            // do not process any actuators
+  mjLRMODE_NONE       = 0,        // do not process any actuators
   mjLRMODE_MUSCLE,                // process muscle actuators
   mjLRMODE_MUSCLEUSER,            // process muscle and user actuators
   mjLRMODE_ALL                    // process all actuators
@@ -415,7 +427,7 @@ typedef enum mjtLRMode_ {         // mode for actuator length range computation
 
 
 typedef enum mjtFlexSelf_ {       // mode for flex selfcollide
-  mjFLEXSELF_NONE   = 0,          // no self-collisions
+  mjFLEXSELF_NONE     = 0,        // no self-collisions
   mjFLEXSELF_NARROW,              // skip midphase, go directly to narrowphase
   mjFLEXSELF_BVH,                 // use BVH in midphase (if midphase enabled)
   mjFLEXSELF_SAP,                 // use SAP in midphase
@@ -424,7 +436,7 @@ typedef enum mjtFlexSelf_ {       // mode for flex selfcollide
 
 
 typedef enum mjtSDFType_ {        // signed distance function (SDF) type
-  mjSDFTYPE_SINGLE     = 0,       // single SDF
+  mjSDFTYPE_SINGLE    = 0,        // single SDF
   mjSDFTYPE_INTERSECTION,         // max(A, B)
   mjSDFTYPE_MIDSURFACE,           // A - B
   mjSDFTYPE_COLLISION,            // A + B + abs(max(A, B))
@@ -476,6 +488,9 @@ struct mjOption_ {                // physics options
   mjtNum ls_tolerance;            // CG/Newton linesearch tolerance
   mjtNum noslip_tolerance;        // noslip solver tolerance
   mjtNum ccd_tolerance;           // convex collision solver tolerance
+
+  // sleep settings
+  mjtNum sleep_tolerance;         // sleep velocity tolerance
 
   // physical constants
   mjtNum gravity[3];              // gravitational acceleration
@@ -810,6 +825,14 @@ struct mjModel_ {
   mjtNum*   dof_damping;          // damping coefficient                      (nv x 1)
   mjtNum*   dof_invweight0;       // diag. inverse inertia in qpos0           (nv x 1)
   mjtNum*   dof_M0;               // diag. inertia in qpos0                   (nv x 1)
+  mjtNum*   dof_length;           // linear: 1; angular: approx. length scale (nv x 1)
+
+  // trees
+  int*      tree_bodyadr;         // start addr of bodies                     (ntree x 1)
+  int*      tree_bodynum;         // number of bodies in tree                 (ntree x 1)
+  int*      tree_dofadr;          // start addr of dofs                       (ntree x 1)
+  int*      tree_dofnum;          // number of dofs in tree                   (ntree x 1)
+  int*      tree_sleep_policy;    // sleep policy (mjtSleepPolicy)            (ntree x 1)
 
   // geoms
   int*      geom_type;            // geometric type (mjtGeom)                 (ngeom x 1)
@@ -1077,6 +1100,8 @@ struct mjModel_ {
   int*      tendon_num;           // number of objects in tendon's path       (ntendon x 1)
   int*      tendon_matid;         // material id for rendering                (ntendon x 1)
   int*      tendon_group;         // group for visibility                     (ntendon x 1)
+  int*      tendon_treenum;       // number of trees along tendon's path      (ntendon x 1)
+  int*      tendon_treeid;        // first two trees along tendon's path      (ntendon x 2)
   mjtByte*  tendon_limited;       // does tendon have length limits           (ntendon x 1)
   mjtByte*  tendon_actfrclimited; // does tendon have actuator force limits   (ntendon x 1)
   mjtNum*   tendon_width;         // width for rendering                      (ntendon x 1)

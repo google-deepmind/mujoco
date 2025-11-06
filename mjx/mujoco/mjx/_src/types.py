@@ -499,6 +499,7 @@ class OptionC(PyTreeNode):
   has_fluid_params: bool
   noslip_tolerance: jax.Array
   ccd_tolerance: jax.Array
+  sleep_tolerance: jax.Array
   noslip_iterations: int
   ccd_iterations: int
   sdf_iterations: int
@@ -533,6 +534,7 @@ class ModelC(PyTreeNode):
   nbvh: jax.Array
   nbvhstatic: jax.Array
   nbvhdynamic: jax.Array
+  ntree: jax.Array
   nflex: jax.Array
   nflexvert: jax.Array
   nflexedge: jax.Array
@@ -542,7 +544,6 @@ class ModelC(PyTreeNode):
   nflexevpair: jax.Array
   nflextexcoord: jax.Array
   nplugin: jax.Array
-  ntree: jax.Array
   narena: jax.Array
   body_bvhadr: jax.Array
   body_bvhnum: jax.Array
@@ -552,6 +553,12 @@ class ModelC(PyTreeNode):
   oct_child: jax.Array
   oct_aabb: jax.Array
   oct_coeff: jax.Array
+  dof_length: jax.Array
+  tree_bodyadr: jax.Array
+  tree_bodynum: jax.Array
+  tree_dofadr: jax.Array
+  tree_dofnum: jax.Array
+  tree_sleep_policy: jax.Array
   geom_plugin: jax.Array
   light_bodyid: jax.Array
   light_targetbodyid: jax.Array
@@ -596,6 +603,17 @@ class ModelC(PyTreeNode):
   flex_centered: jax.Array
   flex_bvhadr: jax.Array
   flex_bvhnum: jax.Array
+  mesh_polynum: jax.Array
+  mesh_polyadr: jax.Array
+  mesh_polynormal: jax.Array
+  mesh_polyvertadr: jax.Array
+  mesh_polyvertnum: jax.Array
+  mesh_polyvert: jax.Array
+  mesh_polymapadr: jax.Array
+  mesh_polymapnum: jax.Array
+  mesh_polymap: jax.Array
+  tendon_treenum: jax.Array
+  tendon_treeid: jax.Array
   actuator_plugin: jax.Array
   sensor_plugin: jax.Array
   plugin: jax.Array
@@ -613,15 +631,6 @@ class ModelC(PyTreeNode):
   D_colind: jax.Array  # pylint:disable=invalid-name
   mapM2D: jax.Array  # pylint:disable=invalid-name
   mapD2M: jax.Array  # pylint:disable=invalid-name
-  mesh_polynum: jax.Array
-  mesh_polyadr: jax.Array
-  mesh_polynormal: jax.Array
-  mesh_polyvertadr: jax.Array
-  mesh_polyvertnum: jax.Array
-  mesh_polyvert: jax.Array
-  mesh_polymapadr: jax.Array
-  mesh_polymapnum: jax.Array
-  mesh_polymap: jax.Array
 
 
 class ModelJAX(PyTreeNode):
@@ -1000,17 +1009,19 @@ class DataC(PyTreeNode):
 
   # constant sizes:
   # TODO(stunya): make these sizes jax.Array?
+  ncon: int
   ne: int
   nf: int
   nl: int
   nefc: int
-  ncon: int
   # TODO(stunya): remove most of these fields
   solver_niter: jax.Array
-  cdof: jax.Array
-  cinert: jax.Array
+  tree_asleep: jax.Array
+  plugin_data: jax.Array
   light_xpos: jax.Array
   light_xdir: jax.Array
+  cdof: jax.Array
+  cinert: jax.Array
   flexvert_xpos: jax.Array
   flexelem_aabb: jax.Array
   flexedge_J_rownnz: jax.Array  # pylint:disable=invalid-name
@@ -1018,6 +1029,7 @@ class DataC(PyTreeNode):
   flexedge_J_colind: jax.Array  # pylint:disable=invalid-name
   flexedge_J: jax.Array  # pylint:disable=invalid-name
   flexedge_length: jax.Array
+  bvh_aabb_dyn: jax.Array
   ten_wrapadr: jax.Array
   ten_wrapnum: jax.Array
   ten_J_rownnz: jax.Array  # pylint:disable=invalid-name
@@ -1036,25 +1048,28 @@ class DataC(PyTreeNode):
   M: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
-  bvh_aabb_dyn: jax.Array
   bvh_active: jax.Array
+  tree_awake: jax.Array
+  body_awake: jax.Array
+  body_awake_ind: jax.Array
+  parent_awake_ind: jax.Array
+  dof_awake_ind: jax.Array
   # position, velocity dependent:
   flexedge_velocity: jax.Array
   ten_velocity: jax.Array
   actuator_velocity: jax.Array
   cdof_dot: jax.Array
-  plugin_data: jax.Array
+  qfrc_spring: jax.Array
+  qfrc_damper: jax.Array
+  subtree_linvel: jax.Array
+  subtree_angmom: jax.Array
   qH: jax.Array  # pylint:disable=invalid-name
   qHDiagInv: jax.Array  # pylint:disable=invalid-name
   qDeriv: jax.Array  # pylint:disable=invalid-name
   qLU: jax.Array  # pylint:disable=invalid-name
-  qfrc_spring: jax.Array
-  qfrc_damper: jax.Array
   cacc: jax.Array
   cfrc_int: jax.Array
   cfrc_ext: jax.Array
-  subtree_linvel: jax.Array
-  subtree_angmom: jax.Array
   # dynamically sized arrays which are made static for the frontend JAX API
   # TODO(stunya): remove these dynamic fields entirely
   contact: Contact
@@ -1064,6 +1079,8 @@ class DataC(PyTreeNode):
   efc_margin: jax.Array
   efc_frictionloss: jax.Array
   efc_D: jax.Array  # pylint:disable=invalid-name
+  tree_island: jax.Array
+  map_itree2tree: jax.Array
   efc_aref: jax.Array
   efc_force: jax.Array
 

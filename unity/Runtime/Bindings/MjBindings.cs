@@ -42,6 +42,7 @@ public const double mjMAXIMP = 0.9999;
 public const int mjMAXCONPAIR = 50;
 public const int mjMAXTREEDEPTH = 50;
 public const int mjMAXFLEXNODES = 27;
+public const int mjMINAWAKE = 10;
 public const int mjNEQDATA = 11;
 public const int mjNDYN = 10;
 public const int mjNGAIN = 10;
@@ -189,7 +190,8 @@ public enum mjtEnableBit : int{
   mjENBL_FWDINV = 4,
   mjENBL_INVDISCRETE = 8,
   mjENBL_MULTICCD = 16,
-  mjNENABLE = 5,
+  mjENBL_SLEEP = 32,
+  mjNENABLE = 6,
 }
 public enum mjtJoint : int{
   mjJNT_FREE = 0,
@@ -431,6 +433,14 @@ public enum mjtSameFrame : int{
   mjSAMEFRAME_INERTIA = 2,
   mjSAMEFRAME_BODYROT = 3,
   mjSAMEFRAME_INERTIAROT = 4,
+}
+public enum mjtSleepPolicy : int{
+  mjSLEEP_AUTO = 0,
+  mjSLEEP_AUTO_NEVER = 1,
+  mjSLEEP_AUTO_ALLOWED = 2,
+  mjSLEEP_NEVER = 3,
+  mjSLEEP_ALLOWED = 4,
+  mjSLEEP_INIT = 5,
 }
 public enum mjtLRMode : int{
   mjLRMODE_NONE = 0,
@@ -4903,6 +4913,10 @@ public unsafe struct mjData_ {
   public int nA;
   public int nisland;
   public int nidof;
+  public int ntree_awake;
+  public int nbody_awake;
+  public int nparent_awake;
+  public int nv_awake;
   public double time;
   public fixed double energy[2];
   public void* buffer;
@@ -4922,6 +4936,7 @@ public unsafe struct mjData_ {
   public double* act_dot;
   public double* userdata;
   public double* sensordata;
+  public int* tree_asleep;
   public int* plugin;
   public UIntPtr* plugin_data;
   public double* xpos;
@@ -4970,6 +4985,11 @@ public unsafe struct mjData_ {
   public double* qLD;
   public double* qLDiagInv;
   public byte* bvh_active;
+  public int* tree_awake;
+  public int* body_awake;
+  public int* body_awake_ind;
+  public int* parent_awake_ind;
+  public int* dof_awake_ind;
   public double* flexedge_velocity;
   public double* ten_velocity;
   public double* actuator_velocity;
@@ -5012,6 +5032,10 @@ public unsafe struct mjData_ {
   public double* efc_D;
   public double* efc_R;
   public int* tendon_efcadr;
+  public int* tree_island;
+  public int* island_ntree;
+  public int* island_itreeadr;
+  public int* map_itree2tree;
   public int* dof_island;
   public int* island_nv;
   public int* island_idofadr;
@@ -5094,6 +5118,7 @@ public unsafe struct mjOption_ {
   public double ls_tolerance;
   public double noslip_tolerance;
   public double ccd_tolerance;
+  public double sleep_tolerance;
   public fixed double gravity[3];
   public fixed double wind[3];
   public fixed double magnetic[3];
@@ -5399,6 +5424,12 @@ public unsafe struct mjModel_ {
   public double* dof_damping;
   public double* dof_invweight0;
   public double* dof_M0;
+  public double* dof_length;
+  public int* tree_bodyadr;
+  public int* tree_bodynum;
+  public int* tree_dofadr;
+  public int* tree_dofnum;
+  public int* tree_sleep_policy;
   public int* geom_type;
   public int* geom_contype;
   public int* geom_conaffinity;
@@ -5636,6 +5667,8 @@ public unsafe struct mjModel_ {
   public int* tendon_num;
   public int* tendon_matid;
   public int* tendon_group;
+  public int* tendon_treenum;
+  public int* tendon_treeid;
   public byte* tendon_limited;
   public byte* tendon_actfrclimited;
   public double* tendon_width;

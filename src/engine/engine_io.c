@@ -30,6 +30,7 @@
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -1361,6 +1362,16 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
     mju_copy(d->qpos, m->qpos0, m->nq);
   }
 
+  static int kAwake = -(1+mjMINAWAKE);  // tree_asleep value for fully awake tree
+
+  // set all trees to awake
+  for (int i=0; i < m->ntree; i++) {
+    d->tree_asleep[i] = kAwake;
+  }
+
+  // update sleep arrays and counters
+  mj_updateSleep(m, d);
+
   // set mocap_pos/quat = body_pos/quat for mocap bodies
   if (m->body_mocapid) {
     for (int i=0; i < m->nbody; i++) {
@@ -1606,6 +1617,8 @@ const char* mj_validateReferences(const mjModel* m) {
   X(dof_jntid,          nv,             njnt          , 0                      ) \
   X(dof_parentid,       nv,             nv            , 0                      ) \
   X(dof_Madr,           nv,             nM            , 0                      ) \
+  X(tree_bodyadr,       ntree,          nbody         , m->tree_bodynum        ) \
+  X(tree_dofadr,        ntree,          nv            , m->tree_dofnum         ) \
   X(geom_bodyid,        ngeom,          nbody         , 0                      ) \
   X(geom_matid,         ngeom,          nmat          , 0                      ) \
   X(site_bodyid,        nsite,          nbody         , 0                      ) \
@@ -1653,6 +1666,7 @@ const char* mj_validateReferences(const mjModel* m) {
   X(plugin_attradr,     nplugin,        npluginattr   , 0                      ) \
   X(tendon_adr,         ntendon,        nwrap         , m->tendon_num          ) \
   X(tendon_matid,       ntendon,        nmat          , 0                      ) \
+  X(tendon_treeid,      ntendon*2,      ntree         , 0                      ) \
   X(numeric_adr,        nnumeric,       nnumericdata  , m->numeric_size        ) \
   X(text_adr,           ntext,          ntextdata     , m->text_size           ) \
   X(tuple_adr,          ntuple,         ntupledata    , m->tuple_size          ) \

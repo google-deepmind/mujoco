@@ -8,6 +8,7 @@ Upcoming version (not yet released)
 General
 ^^^^^^^^^
 
+- Initial changes related to sleeping. Feature under development, documentation pending.
 - Added "quadratic" option to :ref:`flexcomp/dof<body-flexcomp-dof>`. This type of fast :ref:`deformable<CDeformable>`
   flex object is similar to the "trilinear" option, but it includes curved deformations.
 - Raise an error if there are name collisions also during parsing.

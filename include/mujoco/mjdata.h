@@ -24,42 +24,42 @@
 
 //---------------------------------- primitive types (mjt) -----------------------------------------
 
-typedef enum mjtState_ {          // state elements
-  mjSTATE_TIME          = 1<<0,   // time
-  mjSTATE_QPOS          = 1<<1,   // position
-  mjSTATE_QVEL          = 1<<2,   // velocity
-  mjSTATE_ACT           = 1<<3,   // actuator activation
-  mjSTATE_WARMSTART     = 1<<4,   // acceleration used for warmstart
-  mjSTATE_CTRL          = 1<<5,   // control
-  mjSTATE_QFRC_APPLIED  = 1<<6,   // applied generalized force
-  mjSTATE_XFRC_APPLIED  = 1<<7,   // applied Cartesian force/torque
-  mjSTATE_EQ_ACTIVE     = 1<<8,   // enable/disable constraints
-  mjSTATE_MOCAP_POS     = 1<<9,   // positions of mocap bodies
-  mjSTATE_MOCAP_QUAT    = 1<<10,  // orientations of mocap bodies
-  mjSTATE_USERDATA      = 1<<11,  // user data
-  mjSTATE_PLUGIN        = 1<<12,  // plugin state
+typedef enum mjtState_ {            // state elements
+  mjSTATE_TIME           = 1<<0,    // time
+  mjSTATE_QPOS           = 1<<1,    // position
+  mjSTATE_QVEL           = 1<<2,    // velocity
+  mjSTATE_ACT            = 1<<3,    // actuator activation
+  mjSTATE_WARMSTART      = 1<<4,    // acceleration used for warmstart
+  mjSTATE_CTRL           = 1<<5,    // control
+  mjSTATE_QFRC_APPLIED   = 1<<6,    // applied generalized force
+  mjSTATE_XFRC_APPLIED   = 1<<7,    // applied Cartesian force/torque
+  mjSTATE_EQ_ACTIVE      = 1<<8,    // enable/disable constraints
+  mjSTATE_MOCAP_POS      = 1<<9,    // positions of mocap bodies
+  mjSTATE_MOCAP_QUAT     = 1<<10,   // orientations of mocap bodies
+  mjSTATE_USERDATA       = 1<<11,   // user data
+  mjSTATE_PLUGIN         = 1<<12,   // plugin state
 
-  mjNSTATE              = 13,     // number of state elements
+  mjNSTATE               = 13,      // number of state elements
 
   // convenience values for commonly used state specifications
-  mjSTATE_PHYSICS       = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT,
-  mjSTATE_FULLPHYSICS   = mjSTATE_TIME | mjSTATE_PHYSICS | mjSTATE_PLUGIN,
-  mjSTATE_USER          = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
+  mjSTATE_PHYSICS        = mjSTATE_QPOS | mjSTATE_QVEL | mjSTATE_ACT,
+  mjSTATE_FULLPHYSICS    = mjSTATE_TIME | mjSTATE_PHYSICS | mjSTATE_PLUGIN,
+  mjSTATE_USER           = mjSTATE_CTRL | mjSTATE_QFRC_APPLIED | mjSTATE_XFRC_APPLIED |
                           mjSTATE_EQ_ACTIVE | mjSTATE_MOCAP_POS | mjSTATE_MOCAP_QUAT |
                           mjSTATE_USERDATA,
-  mjSTATE_INTEGRATION   = mjSTATE_FULLPHYSICS | mjSTATE_USER | mjSTATE_WARMSTART
+  mjSTATE_INTEGRATION    = mjSTATE_FULLPHYSICS | mjSTATE_USER | mjSTATE_WARMSTART
 } mjtState;
 
 
-typedef enum mjtConstraint_ {     // type of constraint
-  mjCNSTR_EQUALITY    = 0,        // equality constraint
-  mjCNSTR_FRICTION_DOF,           // dof friction
-  mjCNSTR_FRICTION_TENDON,        // tendon friction
-  mjCNSTR_LIMIT_JOINT,            // joint limit
-  mjCNSTR_LIMIT_TENDON,           // tendon limit
-  mjCNSTR_CONTACT_FRICTIONLESS,   // frictionless contact
-  mjCNSTR_CONTACT_PYRAMIDAL,      // frictional contact, pyramidal friction cone
-  mjCNSTR_CONTACT_ELLIPTIC        // frictional contact, elliptic friction cone
+typedef enum mjtConstraint_ {       // type of constraint
+  mjCNSTR_EQUALITY       = 0,       // equality constraint
+  mjCNSTR_FRICTION_DOF,             // dof friction
+  mjCNSTR_FRICTION_TENDON,          // tendon friction
+  mjCNSTR_LIMIT_JOINT,              // joint limit
+  mjCNSTR_LIMIT_TENDON,             // tendon limit
+  mjCNSTR_CONTACT_FRICTIONLESS,     // frictionless contact
+  mjCNSTR_CONTACT_PYRAMIDAL,        // frictional contact, pyramidal friction cone
+  mjCNSTR_CONTACT_ELLIPTIC          // frictional contact, elliptic friction cone
 } mjtConstraint;
 
 
@@ -72,46 +72,53 @@ typedef enum mjtConstraintState_ {  // constraint state
 } mjtConstraintState;
 
 
-typedef enum mjtWarning_ {   // warning types
-  mjWARN_INERTIA      = 0,   // (near) singular inertia matrix
-  mjWARN_CONTACTFULL,        // too many contacts in contact list
-  mjWARN_CNSTRFULL,          // too many constraints
-  mjWARN_VGEOMFULL,          // too many visual geoms
-  mjWARN_BADQPOS,            // bad number in qpos
-  mjWARN_BADQVEL,            // bad number in qvel
-  mjWARN_BADQACC,            // bad number in qacc
-  mjWARN_BADCTRL,            // bad number in ctrl
+typedef enum mjtWarning_ {          // warning types
+  mjWARN_INERTIA         = 0,       // (near) singular inertia matrix
+  mjWARN_CONTACTFULL,               // too many contacts in contact list
+  mjWARN_CNSTRFULL,                 // too many constraints
+  mjWARN_VGEOMFULL,                 // too many visual geoms
+  mjWARN_BADQPOS,                   // bad number in qpos
+  mjWARN_BADQVEL,                   // bad number in qvel
+  mjWARN_BADQACC,                   // bad number in qacc
+  mjWARN_BADCTRL,                   // bad number in ctrl
 
-  mjNWARNING                 // number of warnings
+  mjNWARNING                        // number of warnings
 } mjtWarning;
 
 
-typedef enum mjtTimer_ {     // internal timers
+typedef enum mjtTimer_ {            // internal timers
   // main api
-  mjTIMER_STEP        = 0,   // step
-  mjTIMER_FORWARD,           // forward
-  mjTIMER_INVERSE,           // inverse
+  mjTIMER_STEP           = 0,       // step
+  mjTIMER_FORWARD,                  // forward
+  mjTIMER_INVERSE,                  // inverse
 
   // breakdown of step/forward
-  mjTIMER_POSITION,          // fwdPosition
-  mjTIMER_VELOCITY,          // fwdVelocity
-  mjTIMER_ACTUATION,         // fwdActuation
-  mjTIMER_CONSTRAINT,        // fwdConstraint
-  mjTIMER_ADVANCE,           // mj_Euler, mj_implicit
+  mjTIMER_POSITION,                 // fwdPosition
+  mjTIMER_VELOCITY,                 // fwdVelocity
+  mjTIMER_ACTUATION,                // fwdActuation
+  mjTIMER_CONSTRAINT,               // fwdConstraint
+  mjTIMER_ADVANCE,                  // mj_Euler, mj_implicit
 
   // breakdown of fwdPosition
-  mjTIMER_POS_KINEMATICS,    // kinematics, com, tendon, transmission
-  mjTIMER_POS_INERTIA,       // inertia computations
-  mjTIMER_POS_COLLISION,     // collision detection
-  mjTIMER_POS_MAKE,          // make constraints
-  mjTIMER_POS_PROJECT,       // project constraints
+  mjTIMER_POS_KINEMATICS,           // kinematics, com, tendon, transmission
+  mjTIMER_POS_INERTIA,              // inertia computations
+  mjTIMER_POS_COLLISION,            // collision detection
+  mjTIMER_POS_MAKE,                 // make constraints
+  mjTIMER_POS_PROJECT,              // project constraints
 
   // breakdown of mj_collision
-  mjTIMER_COL_BROAD,         // broadphase
-  mjTIMER_COL_NARROW,        // narrowphase
+  mjTIMER_COL_BROAD,                // broadphase
+  mjTIMER_COL_NARROW,               // narrowphase
 
-  mjNTIMER                   // number of timers
+  mjNTIMER                          // number of timers
 } mjtTimer;
+
+
+typedef enum mjtSleepState_ {       // sleep state of an object
+  mjS_STATIC = -1,                  // object is static
+  mjS_ASLEEP = 0,                   // object is asleep
+  mjS_AWAKE  = 1                    // object is awake
+} mjtSleepState;
 
 
 //---------------------------------- mjContact -----------------------------------------------------
@@ -221,6 +228,10 @@ struct mjData_ {
   int     nA;                // number of non-zeros in constraint inverse inertia matrix
   int     nisland;           // number of detected constraint islands
   int     nidof;             // number of dofs in all islands
+  int     ntree_awake;       // number of awake trees
+  int     nbody_awake;       // number of awake dynamic and static bodies
+  int     nparent_awake;     // number of bodies with awake parents
+  int     nv_awake;          // number of awake dofs
 
   // global properties
   mjtNum  time;              // simulation time
@@ -260,6 +271,9 @@ struct mjData_ {
 
   // sensors
   mjtNum* sensordata;        // sensor data array                                (nsensordata x 1)
+
+  // sleep state
+  int*    tree_asleep;       // <0: awake; >=0: index cycle of sleeping trees    (ntree x 1)
 
   // plugins
   int*       plugin;         // copy of m->plugin, required for deletion         (nplugin x 1)
@@ -328,6 +342,13 @@ struct mjData_ {
 
   // computed by mj_collision/mj_collideTree
   mjtByte* bvh_active;       // was bounding volume checked for collision        (nbvh x 1)
+
+  // computed by mj_updateSleep
+  int*    tree_awake;        // is tree awake; 0: asleep; 1: awake               (ntree x 1)
+  int*    body_awake;        // body sleep state (mjtSleepState)                 (nbody x 1)
+  int*    body_awake_ind;    // indices of awake and static bodies               (nbody x 1)
+  int*    parent_awake_ind;  // indices of bodies with awake or static parents   (nbody x 1)
+  int*    dof_awake_ind;     // indices of awake dofs                            (nv x 1)
 
   //-------------------- POSITION, VELOCITY dependent
 
@@ -407,6 +428,12 @@ struct mjData_ {
   mjtNum* efc_D;             // constraint mass                                  (nefc x 1)
   mjtNum* efc_R;             // inverse constraint mass                          (nefc x 1)
   int*    tendon_efcadr;     // first efc address involving tendon; -1: none     (ntendon x 1)
+
+  // computed by mj_island (island tree structure)
+  int*    tree_island;       // island id of this tree; -1: none                 (ntree x 1)
+  int*    island_ntree;      // number of trees in this island                   (nisland x 1)
+  int*    island_itreeadr;   // island start address in itree vector             (nisland x 1)
+  int*    map_itree2tree;    // map from itree to tree                           (ntree x 1)
 
   // computed by mj_island (island dof structure)
   int*    dof_island;        // island id of this dof; -1: none                  (nv x 1)

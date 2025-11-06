@@ -149,6 +149,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='convex collision solver tolerance',
              ),
              StructFieldDecl(
+                 name='sleep_tolerance',
+                 type=ValueType(name='mjtNum'),
+                 doc='sleep velocity tolerance',
+             ),
+             StructFieldDecl(
                  name='gravity',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtNum'),
@@ -1845,6 +1850,54 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='diag. inertia in qpos0',
                  array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='dof_length',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='linear: 1; angular: approx. length scale',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
+                 name='tree_bodyadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='start addr of bodies',
+                 array_extent=('ntree',),
+             ),
+             StructFieldDecl(
+                 name='tree_bodynum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of bodies in tree',
+                 array_extent=('ntree',),
+             ),
+             StructFieldDecl(
+                 name='tree_dofadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='start addr of dofs',
+                 array_extent=('ntree',),
+             ),
+             StructFieldDecl(
+                 name='tree_dofnum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of dofs in tree',
+                 array_extent=('ntree',),
+             ),
+             StructFieldDecl(
+                 name='tree_sleep_policy',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='sleep policy (mjtSleepPolicy)',
+                 array_extent=('ntree',),
              ),
              StructFieldDecl(
                  name='geom_type',
@@ -3743,6 +3796,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ntendon',),
              ),
              StructFieldDecl(
+                 name='tendon_treenum',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc="number of trees along tendon's path",
+                 array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='tendon_treeid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc="first two trees along tendon's path",
+                 array_extent=('ntendon', 2),
+             ),
+             StructFieldDecl(
                  name='tendon_limited',
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte'),
@@ -5137,6 +5206,26 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of dofs in all islands',
              ),
              StructFieldDecl(
+                 name='ntree_awake',
+                 type=ValueType(name='int'),
+                 doc='number of awake trees',
+             ),
+             StructFieldDecl(
+                 name='nbody_awake',
+                 type=ValueType(name='int'),
+                 doc='number of awake dynamic and static bodies',
+             ),
+             StructFieldDecl(
+                 name='nparent_awake',
+                 type=ValueType(name='int'),
+                 doc='number of bodies with awake parents',
+             ),
+             StructFieldDecl(
+                 name='nv_awake',
+                 type=ValueType(name='int'),
+                 doc='number of awake dofs',
+             ),
+             StructFieldDecl(
                  name='time',
                  type=ValueType(name='mjtNum'),
                  doc='simulation time',
@@ -5282,6 +5371,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='sensor data array',
                  array_extent=('nsensordata',),
+             ),
+             StructFieldDecl(
+                 name='tree_asleep',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='<0: awake; >=0: index cycle of sleeping trees',
+                 array_extent=('ntree',),
              ),
              StructFieldDecl(
                  name='plugin',
@@ -5668,6 +5765,46 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nbvh',),
              ),
              StructFieldDecl(
+                 name='tree_awake',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='is tree awake; 0: asleep; 1: awake',
+                 array_extent=('ntree',),
+             ),
+             StructFieldDecl(
+                 name='body_awake',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='body sleep state (mjtSleepState)',
+                 array_extent=('nbody',),
+             ),
+             StructFieldDecl(
+                 name='body_awake_ind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='indices of awake and static bodies',
+                 array_extent=('nbody',),
+             ),
+             StructFieldDecl(
+                 name='parent_awake_ind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='indices of bodies with awake or static parents',
+                 array_extent=('nbody',),
+             ),
+             StructFieldDecl(
+                 name='dof_awake_ind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='indices of awake dofs',
+                 array_extent=('nv',),
+             ),
+             StructFieldDecl(
                  name='flexedge_velocity',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -6002,6 +6139,38 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='first efc address involving tendon; -1: none',
                  array_extent=('ntendon',),
+             ),
+             StructFieldDecl(
+                 name='tree_island',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='island id of this tree; -1: none',
+                 array_extent=('ntree',),
+             ),
+             StructFieldDecl(
+                 name='island_ntree',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of trees in this island',
+                 array_extent=('nisland',),
+             ),
+             StructFieldDecl(
+                 name='island_itreeadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='island start address in itree vector',
+                 array_extent=('nisland',),
+             ),
+             StructFieldDecl(
+                 name='map_itree2tree',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='map from itree to tree',
+                 array_extent=('ntree',),
              ),
              StructFieldDecl(
                  name='dof_island',
@@ -6814,6 +6983,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='gravcomp',
                  type=ValueType(name='double'),
                  doc='gravity compensation',
+             ),
+             StructFieldDecl(
+                 name='sleep',
+                 type=ValueType(name='mjtSleepPolicy'),
+                 doc='sleep policy',
              ),
              StructFieldDecl(
                  name='userdata',

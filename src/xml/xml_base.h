@@ -26,6 +26,7 @@
 
 // keyword maps (defined in implementation files)
 extern const int joint_sz;
+extern const int bodysleep_sz;
 extern const int camlight_sz;
 extern const int lighttype_sz;
 extern const int integrator_sz;
@@ -50,6 +51,7 @@ extern const mjMap bool_map[];
 extern const mjMap fluid_map[];
 extern const mjMap TFAuto_map[];
 extern const mjMap joint_map[];
+extern const mjMap bodysleep_map[];
 extern const mjMap geom_map[];
 extern const mjMap camlight_map[];
 extern const mjMap lighttype_map[];

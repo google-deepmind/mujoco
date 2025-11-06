@@ -79,7 +79,7 @@ TEST_F(CoreSmoothTest, MjDataWorldBodyValuesAreInitialized) {
         EXPECT_THAT(values, ElementsAre(1, 0, 0, 0)) << #name;                \
       } else if constexpr (EndsWith(#name, "mat")) {                          \
         EXPECT_THAT(values, ElementsAre(1, 0, 0, 0, 1, 0, 0, 0, 1)) << #name; \
-      } else {                                                                \
+      } else if constexpr (std::string_view(#type) == "mjtNum") {             \
         EXPECT_THAT(values, Each(Eq(0))) << #name;                            \
       }                                                                       \
     }

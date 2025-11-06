@@ -262,6 +262,12 @@ struct MjOption {
   void set_ccd_tolerance(mjtNum value) {
     ptr_->ccd_tolerance = value;
   }
+  mjtNum sleep_tolerance() const {
+    return ptr_->sleep_tolerance;
+  }
+  void set_sleep_tolerance(mjtNum value) {
+    ptr_->sleep_tolerance = value;
+  }
   emscripten::val gravity() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->gravity));
   }
@@ -3399,6 +3405,12 @@ struct MjsBody {
   void set_gravcomp(double value) {
     ptr_->gravcomp = value;
   }
+  mjtSleepPolicy sleep() const {
+    return ptr_->sleep;
+  }
+  void set_sleep(mjtSleepPolicy value) {
+    ptr_->sleep = value;
+  }
   mjDoubleVec &userdata() const {
     return *(ptr_->userdata);
   }
@@ -4562,6 +4574,24 @@ struct MjModel {
   emscripten::val dof_M0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nv, ptr_->dof_M0));
   }
+  emscripten::val dof_length() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nv, ptr_->dof_length));
+  }
+  emscripten::val tree_bodyadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntree, ptr_->tree_bodyadr));
+  }
+  emscripten::val tree_bodynum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntree, ptr_->tree_bodynum));
+  }
+  emscripten::val tree_dofadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntree, ptr_->tree_dofadr));
+  }
+  emscripten::val tree_dofnum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntree, ptr_->tree_dofnum));
+  }
+  emscripten::val tree_sleep_policy() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntree, ptr_->tree_sleep_policy));
+  }
   emscripten::val geom_type() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom, ptr_->geom_type));
   }
@@ -5273,6 +5303,12 @@ struct MjModel {
   emscripten::val tendon_group() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_group));
   }
+  emscripten::val tendon_treenum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_treenum));
+  }
+  emscripten::val tendon_treeid() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon * 2, ptr_->tendon_treeid));
+  }
   emscripten::val tendon_limited() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ntendon, ptr_->tendon_limited));
   }
@@ -5798,6 +5834,30 @@ struct MjData {
   void set_nidof(int value) {
     ptr_->nidof = value;
   }
+  int ntree_awake() const {
+    return ptr_->ntree_awake;
+  }
+  void set_ntree_awake(int value) {
+    ptr_->ntree_awake = value;
+  }
+  int nbody_awake() const {
+    return ptr_->nbody_awake;
+  }
+  void set_nbody_awake(int value) {
+    ptr_->nbody_awake = value;
+  }
+  int nparent_awake() const {
+    return ptr_->nparent_awake;
+  }
+  void set_nparent_awake(int value) {
+    ptr_->nparent_awake = value;
+  }
+  int nv_awake() const {
+    return ptr_->nv_awake;
+  }
+  void set_nv_awake(int value) {
+    ptr_->nv_awake = value;
+  }
   mjtNum time() const {
     return ptr_->time;
   }
@@ -5857,6 +5917,9 @@ struct MjData {
   }
   emscripten::val sensordata() const {
     return emscripten::val(emscripten::typed_memory_view(model->nsensordata, ptr_->sensordata));
+  }
+  emscripten::val tree_asleep() const {
+    return emscripten::val(emscripten::typed_memory_view(model->ntree, ptr_->tree_asleep));
   }
   emscripten::val plugin() const {
     return emscripten::val(emscripten::typed_memory_view(model->nplugin, ptr_->plugin));
@@ -6002,6 +6065,21 @@ struct MjData {
   emscripten::val bvh_active() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbvh, ptr_->bvh_active));
   }
+  emscripten::val tree_awake() const {
+    return emscripten::val(emscripten::typed_memory_view(model->ntree, ptr_->tree_awake));
+  }
+  emscripten::val body_awake() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nbody, ptr_->body_awake));
+  }
+  emscripten::val body_awake_ind() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nbody, ptr_->body_awake_ind));
+  }
+  emscripten::val parent_awake_ind() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nbody, ptr_->parent_awake_ind));
+  }
+  emscripten::val dof_awake_ind() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->dof_awake_ind));
+  }
   emscripten::val flexedge_velocity() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_velocity));
   }
@@ -6125,6 +6203,18 @@ struct MjData {
   }
   emscripten::val tendon_efcadr() const {
     return emscripten::val(emscripten::typed_memory_view(model->ntendon, ptr_->tendon_efcadr));
+  }
+  emscripten::val tree_island() const {
+    return emscripten::val(emscripten::typed_memory_view(model->ntree, ptr_->tree_island));
+  }
+  emscripten::val island_ntree() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_ntree));
+  }
+  emscripten::val island_itreeadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nisland, ptr_->island_itreeadr));
+  }
+  emscripten::val map_itree2tree() const {
+    return emscripten::val(emscripten::typed_memory_view(model->ntree, ptr_->map_itree2tree));
   }
   emscripten::val dof_island() const {
     return emscripten::val(emscripten::typed_memory_view(model->nv, ptr_->dof_island));
@@ -6792,6 +6882,7 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
     .value("mjENBL_FWDINV", mjENBL_FWDINV)
     .value("mjENBL_INVDISCRETE", mjENBL_INVDISCRETE)
     .value("mjENBL_MULTICCD", mjENBL_MULTICCD)
+    .value("mjENBL_SLEEP", mjENBL_SLEEP)
     .value("mjNENABLE", mjNENABLE);
 
   enum_<mjtJoint>("mjtJoint")
@@ -7035,6 +7126,14 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
     .value("mjSAMEFRAME_BODYROT", mjSAMEFRAME_BODYROT)
     .value("mjSAMEFRAME_INERTIAROT", mjSAMEFRAME_INERTIAROT);
 
+  enum_<mjtSleepPolicy>("mjtSleepPolicy")
+    .value("mjSLEEP_AUTO", mjSLEEP_AUTO)
+    .value("mjSLEEP_AUTO_NEVER", mjSLEEP_AUTO_NEVER)
+    .value("mjSLEEP_AUTO_ALLOWED", mjSLEEP_AUTO_ALLOWED)
+    .value("mjSLEEP_NEVER", mjSLEEP_NEVER)
+    .value("mjSLEEP_ALLOWED", mjSLEEP_ALLOWED)
+    .value("mjSLEEP_INIT", mjSLEEP_INIT);
+
   enum_<mjtLRMode>("mjtLRMode")
     .value("mjLRMODE_NONE", mjLRMODE_NONE)
     .value("mjLRMODE_MUSCLE", mjLRMODE_MUSCLE)
@@ -7124,6 +7223,11 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
     .value("mjTIMER_COL_BROAD", mjTIMER_COL_BROAD)
     .value("mjTIMER_COL_NARROW", mjTIMER_COL_NARROW)
     .value("mjNTIMER", mjNTIMER);
+
+  enum_<mjtSleepState>("mjtSleepState")
+    .value("mjS_STATIC", mjS_STATIC)
+    .value("mjS_ASLEEP", mjS_ASLEEP)
+    .value("mjS_AWAKE", mjS_AWAKE);
 
   enum_<mjtGeomInertia>("mjtGeomInertia")
     .value("mjINERTIA_VOLUME", mjINERTIA_VOLUME)
@@ -8547,6 +8651,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("ls_tolerance", &MjOption::ls_tolerance, &MjOption::set_ls_tolerance, reference())
     .property("noslip_tolerance", &MjOption::noslip_tolerance, &MjOption::set_noslip_tolerance, reference())
     .property("ccd_tolerance", &MjOption::ccd_tolerance, &MjOption::set_ccd_tolerance, reference())
+    .property("sleep_tolerance", &MjOption::sleep_tolerance, &MjOption::set_sleep_tolerance, reference())
     .property("gravity", &MjOption::gravity)
     .property("wind", &MjOption::wind)
     .property("magnetic", &MjOption::magnetic)
@@ -8870,6 +8975,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("nA", &MjData::nA, &MjData::set_nA, reference())
     .property("nisland", &MjData::nisland, &MjData::set_nisland, reference())
     .property("nidof", &MjData::nidof, &MjData::set_nidof, reference())
+    .property("ntree_awake", &MjData::ntree_awake, &MjData::set_ntree_awake, reference())
+    .property("nbody_awake", &MjData::nbody_awake, &MjData::set_nbody_awake, reference())
+    .property("nparent_awake", &MjData::nparent_awake, &MjData::set_nparent_awake, reference())
+    .property("nv_awake", &MjData::nv_awake, &MjData::set_nv_awake, reference())
     .property("time", &MjData::time, &MjData::set_time, reference())
     .property("energy", &MjData::energy)
     .property("buffer", &MjData::buffer)
@@ -8889,6 +8998,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("act_dot", &MjData::act_dot)
     .property("userdata", &MjData::userdata)
     .property("sensordata", &MjData::sensordata)
+    .property("tree_asleep", &MjData::tree_asleep)
     .property("plugin", &MjData::plugin)
     .property("plugin_data", &MjData::plugin_data)
     .property("xpos", &MjData::xpos)
@@ -8937,6 +9047,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("qLD", &MjData::qLD)
     .property("qLDiagInv", &MjData::qLDiagInv)
     .property("bvh_active", &MjData::bvh_active)
+    .property("tree_awake", &MjData::tree_awake)
+    .property("body_awake", &MjData::body_awake)
+    .property("body_awake_ind", &MjData::body_awake_ind)
+    .property("parent_awake_ind", &MjData::parent_awake_ind)
+    .property("dof_awake_ind", &MjData::dof_awake_ind)
     .property("flexedge_velocity", &MjData::flexedge_velocity)
     .property("ten_velocity", &MjData::ten_velocity)
     .property("actuator_velocity", &MjData::actuator_velocity)
@@ -8979,6 +9094,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("efc_D", &MjData::efc_D)
     .property("efc_R", &MjData::efc_R)
     .property("tendon_efcadr", &MjData::tendon_efcadr)
+    .property("tree_island", &MjData::tree_island)
+    .property("island_ntree", &MjData::island_ntree)
+    .property("island_itreeadr", &MjData::island_itreeadr)
+    .property("map_itree2tree", &MjData::map_itree2tree)
     .property("dof_island", &MjData::dof_island)
     .property("island_nv", &MjData::island_nv)
     .property("island_idofadr", &MjData::island_idofadr)
@@ -9207,6 +9326,12 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("dof_damping", &MjModel::dof_damping)
     .property("dof_invweight0", &MjModel::dof_invweight0)
     .property("dof_M0", &MjModel::dof_M0)
+    .property("dof_length", &MjModel::dof_length)
+    .property("tree_bodyadr", &MjModel::tree_bodyadr)
+    .property("tree_bodynum", &MjModel::tree_bodynum)
+    .property("tree_dofadr", &MjModel::tree_dofadr)
+    .property("tree_dofnum", &MjModel::tree_dofnum)
+    .property("tree_sleep_policy", &MjModel::tree_sleep_policy)
     .property("geom_type", &MjModel::geom_type)
     .property("geom_contype", &MjModel::geom_contype)
     .property("geom_conaffinity", &MjModel::geom_conaffinity)
@@ -9444,6 +9569,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("tendon_num", &MjModel::tendon_num)
     .property("tendon_matid", &MjModel::tendon_matid)
     .property("tendon_group", &MjModel::tendon_group)
+    .property("tendon_treenum", &MjModel::tendon_treenum)
+    .property("tendon_treeid", &MjModel::tendon_treeid)
     .property("tendon_limited", &MjModel::tendon_limited)
     .property("tendon_actfrclimited", &MjModel::tendon_actfrclimited)
     .property("tendon_width", &MjModel::tendon_width)
@@ -9947,6 +10074,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("fullinertia", &MjsBody::fullinertia)
     .property("mocap", &MjsBody::mocap, &MjsBody::set_mocap, reference())
     .property("gravcomp", &MjsBody::gravcomp, &MjsBody::set_gravcomp, reference())
+    .property("sleep", &MjsBody::sleep, &MjsBody::set_sleep, reference())
     .property("userdata", &MjsBody::userdata, reference())
     .property("explicitinertial", &MjsBody::explicitinertial, &MjsBody::set_explicitinertial, reference())
     .property("plugin", &MjsBody::plugin, reference())

@@ -995,6 +995,7 @@ void mjXWriter::Option(XMLElement* root) {
   WriteAttr(section, "ls_tolerance", 1, &model->option.ls_tolerance, &opt.ls_tolerance);
   WriteAttr(section, "noslip_tolerance", 1, &model->option.noslip_tolerance, &opt.noslip_tolerance);
   WriteAttr(section, "ccd_tolerance", 1, &model->option.ccd_tolerance, &opt.ccd_tolerance);
+  WriteAttr(section, "sleep_tolerance", 1, &model->option.sleep_tolerance, &opt.sleep_tolerance);
   WriteAttr(section, "gravity", 3, model->option.gravity, opt.gravity);
   WriteAttr(section, "wind", 3, model->option.wind, opt.wind);
   WriteAttr(section, "magnetic", 3, model->option.magnetic, opt.magnetic);
@@ -1067,6 +1068,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEENBL("fwdinv",         mjENBL_FWDINV)
     WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
     WRITEENBL("multiccd",       mjENBL_MULTICCD)
+    WRITEENBL("sleep",          mjENBL_SLEEP)
 #undef WRITEENBL
   }
 
@@ -1644,6 +1646,14 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     if (body->gravcomp) {
       WriteAttr(elem, "gravcomp", 1, &body->gravcomp);
     }
+
+    // sleep policy
+    if (body->sleep != mjSLEEP_AUTO &&
+        body->sleep != mjSLEEP_AUTO_NEVER &&
+        body->sleep != mjSLEEP_AUTO_ALLOWED) {
+      WriteAttrKey(elem, "sleep", bodysleep_map, bodysleep_sz, body->sleep);
+    }
+
     // userdata
     WriteVector(elem, "user", body->get_userdata());
 
