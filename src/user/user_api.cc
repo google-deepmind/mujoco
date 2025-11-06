@@ -74,8 +74,37 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
   }
 
   mjResource* resource = mju_openResource("", filename, vfs, error, error_sz);
+  // If we are unable to open the resource, we will create our own resource with
+  // just the filename. This allows decoders that rely on other systems to fetch
+  // their content to function without a custom resource provider.
+  // For example, USD may use identifiers to assets that are strictly in memory
+  // or that are fetched on a need-be basis via URI.
   if (!resource) {
-    mju_error("Could not load resource %s", filename);
+    resource = (mjResource*) mju_malloc(sizeof(mjResource));
+    if (resource == nullptr) {
+      if (error) {
+        strncpy(error, "could not allocate memory", error_sz);
+        error[error_sz - 1] = '\0';
+      }
+      return nullptr;
+    }
+
+    // clear out resource
+    memset(resource, 0, sizeof(mjResource));
+
+    // make space for filename
+    std::string fullname = filename;
+    std::size_t n = fullname.size();
+    resource->name = (char*) mju_malloc(sizeof(char) * (n + 1));
+    if (resource->name == nullptr) {
+      if (error) {
+        strncpy(error, "could not allocate memory", error_sz);
+        error[error_sz - 1] = '\0';
+      }
+      mju_closeResource(resource);
+      return nullptr;
+    }
+    memcpy(resource->name, fullname.c_str(), sizeof(char) * (n + 1));
   }
 
   mjSpec* spec = mju_decodeResource(resource, content_type);

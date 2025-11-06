@@ -78,49 +78,44 @@ TEST_F(DecoderPluginTest, CanDecode) {
     </worldbody>
   </mujoco>
   )";
-  char error[1024];
-
-  // create VFS with the XML model and a dummy mesh
-  mjVFS vfs;
-  mj_defaultVFS(&vfs);
-  mj_addBufferVFS(&vfs, "model.xml", xml, strlen(xml));
-  mj_addBufferVFS(&vfs, "dummy.fakeformat", "0 1 2", strlen("0 1 2"));
-  mj_addBufferVFS(&vfs, "dummy.alsoFakeFormat", "0 1 2", strlen("0 1 2"));
 
   // Check referencing a resource via XML invokes the decoder.
-  mjModel* model = mj_loadXML("model.xml", &vfs, error, sizeof(error));
+  char error[1024];
+  mjSpec* spec =
+      mj_parseXMLString(xml, nullptr, error, sizeof(error));
+  mjModel* model = mj_compile(spec, nullptr);
   ASSERT_THAT(model, testing::NotNull()) << error;
   EXPECT_EQ(model->nbody, 2);  // world + included body
   EXPECT_EQ(model->ngeom, 1);
   mj_deleteModel(model);
+  mj_deleteSpec(spec);
 
   // Check mj_parse with extension .fakeformat
-  mjSpec* spec =
-      mj_parse("dummy.fakeformat", nullptr, &vfs, error, sizeof(error));
-  model = mj_compile(spec, &vfs);
+  spec =
+      mj_parse("dummy.fakeformat", nullptr, nullptr, error, sizeof(error));
+  model = mj_compile(spec, nullptr);
   EXPECT_EQ(model->nbody, 2);  // world + included body
   EXPECT_EQ(model->ngeom, 1);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
 
   // Check mj_parse with extension .alsoFakeFormat
-  spec = mj_parse("dummy.alsoFakeFormat", nullptr, &vfs, error, sizeof(error));
-  model = mj_compile(spec, &vfs);
+  spec =
+      mj_parse("dummy.alsoFakeFormat", nullptr, nullptr, error, sizeof(error));
+  model = mj_compile(spec, nullptr);
   EXPECT_EQ(model->nbody, 2);  // world + included body
   EXPECT_EQ(model->ngeom, 1);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
 
   // Check mj_parse with content_type
-  spec = mj_parse("dummy.fakeformat", "model/fakeformat", &vfs, error,
+  spec = mj_parse("dummy.fakeformat", "model/fakeformat", nullptr, error,
                   sizeof(error));
-  model = mj_compile(spec, &vfs);
+  model = mj_compile(spec, nullptr);
   EXPECT_EQ(model->nbody, 2);  // world + included body
   EXPECT_EQ(model->ngeom, 1);
   mj_deleteModel(model);
   mj_deleteSpec(spec);
-
-  mj_deleteVFS(&vfs);
 }
 
 }  // namespace
