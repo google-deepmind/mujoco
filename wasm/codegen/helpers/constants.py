@@ -295,6 +295,7 @@ SKIPPED_STRUCTS: List[str] = [
     "mjTask",
     "mjThreadPool",
     "mjUI",
+    "mjVFS",
     "mjrContext",
     "mjrRect",
     "mjuiDef",
@@ -302,7 +303,7 @@ SKIPPED_STRUCTS: List[str] = [
     "mjuiSection",
     "mjuiState",
     "mjuiThemeColor",
-    "mjuiThemeSpacing",
+    "mjuiThemeSpacing"
     # go/keep-sorted end
 ]
 

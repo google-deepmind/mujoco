@@ -508,19 +508,6 @@ struct MjTimerStat {
   bool owned_ = false;
 };
 
-struct MjVFS {
-  explicit MjVFS(mjVFS *ptr);
-  ~MjVFS();
-  MjVFS();
-  mjVFS* get() const;
-  void set(mjVFS* ptr);
-  // TODO: Define primitive pointer field with complex extents manually for impl_
-
- private:
-  mjVFS* ptr_;
-  bool owned_ = false;
-};
-
 struct MjVisualGlobal {
   explicit MjVisualGlobal(mjVisualGlobal *ptr);
   ~MjVisualGlobal();
@@ -7554,23 +7541,6 @@ void MjTimerStat::set(mjTimerStat* ptr) {
   ptr_ = ptr;
 }
 
-MjVFS::MjVFS(mjVFS *ptr) : ptr_(ptr) {}
-MjVFS::~MjVFS() {
-  if (owned_ && ptr_) {
-    mj_deleteVFS(ptr_);
-  }
-}
-MjVFS::MjVFS() : ptr_(new mjVFS) {
-  owned_ = true;
-  mj_defaultVFS(ptr_);
-}
-mjVFS* MjVFS::get() const {
-  return ptr_;
-}
-void MjVFS::set(mjVFS* ptr) {
-  ptr_ = ptr;
-}
-
 MjVisual::MjVisual(mjVisual *ptr) : ptr_(ptr), global(&ptr_->global), quality(&ptr_->quality), headlight(&ptr_->headlight), map(&ptr_->map), scale(&ptr_->scale), rgba(&ptr_->rgba) {}
 MjVisual::~MjVisual() {
   if (owned_ && ptr_) {
@@ -9406,10 +9376,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       .function("copy", &MjTimerStat::copy, take_ownership())
       .property("duration", &MjTimerStat::duration, &MjTimerStat::set_duration, reference())
       .property("number", &MjTimerStat::number, &MjTimerStat::set_number, reference())
-      ;
-  emscripten::class_<MjVFS>("MjVFS")
-      .constructor<>()
-      // TODO: .property("impl_", &MjVFS::impl_)
       ;
   emscripten::class_<MjVisual>("MjVisual")
       .constructor<>()
