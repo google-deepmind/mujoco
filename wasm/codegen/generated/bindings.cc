@@ -4349,6 +4349,9 @@ struct MjModel {
   void set_nbuffer(mjtSize value) {
     ptr_->nbuffer = value;
   }
+  // opt field is handled manually in template file struct declaration
+  // vis field is handled manually in template file struct declaration
+  // stat field is handled manually in template file struct declaration
   emscripten::val buffer() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));
   }
@@ -5729,7 +5732,7 @@ struct MjData {
   void set_maxuse_efc(int value) {
     ptr_->maxuse_efc = value;
   }
-  // array field is defined manually. solver
+  // solver field is handled manually in template file struct declaration
   emscripten::val solver_niter() const {
     return emscripten::val(emscripten::typed_memory_view(20, ptr_->solver_niter));
   }
@@ -5739,8 +5742,8 @@ struct MjData {
   emscripten::val solver_fwdinv() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->solver_fwdinv));
   }
-  // array field is defined manually. warning
-  // array field is defined manually. timer
+  // warning field is handled manually in template file struct declaration
+  // timer field is handled manually in template file struct declaration
   int ncon() const {
     return ptr_->ncon;
   }
@@ -6077,7 +6080,7 @@ struct MjData {
   emscripten::val cfrc_ext() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbody * 6, ptr_->cfrc_ext));
   }
-  // complex pointer field is defined manually. contact
+  // contact field is handled manually in template file struct declaration
   emscripten::val efc_type() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nefc, ptr_->efc_type));
   }
@@ -6380,26 +6383,26 @@ struct MjvScene {
   void set_ngeom(int value) {
     ptr_->ngeom = value;
   }
-  // complex pointer field is defined manually. geoms
-  // primitive pointer field with complex extents is defined manually. geomorder
+  // geoms field is handled manually in template file struct declaration
+  // geomorder field is handled manually in template file struct declaration
   int nflex() const {
     return ptr_->nflex;
   }
   void set_nflex(int value) {
     ptr_->nflex = value;
   }
-  // primitive pointer field with complex extents is defined manually. flexedgeadr
-  // primitive pointer field with complex extents is defined manually. flexedgenum
-  // primitive pointer field with complex extents is defined manually. flexvertadr
-  // primitive pointer field with complex extents is defined manually. flexvertnum
-  // primitive pointer field with complex extents is defined manually. flexfaceadr
-  // primitive pointer field with complex extents is defined manually. flexfacenum
-  // primitive pointer field with complex extents is defined manually. flexfaceused
-  // primitive pointer field with complex extents is defined manually. flexedge
-  // primitive pointer field with complex extents is defined manually. flexvert
-  // primitive pointer field with complex extents is defined manually. flexface
-  // primitive pointer field with complex extents is defined manually. flexnormal
-  // primitive pointer field with complex extents is defined manually. flextexcoord
+  // flexedgeadr field is handled manually in template file struct declaration
+  // flexedgenum field is handled manually in template file struct declaration
+  // flexvertadr field is handled manually in template file struct declaration
+  // flexvertnum field is handled manually in template file struct declaration
+  // flexfaceadr field is handled manually in template file struct declaration
+  // flexfacenum field is handled manually in template file struct declaration
+  // flexfaceused field is handled manually in template file struct declaration
+  // flexedge field is handled manually in template file struct declaration
+  // flexvert field is handled manually in template file struct declaration
+  // flexface field is handled manually in template file struct declaration
+  // flexnormal field is handled manually in template file struct declaration
+  // flextexcoord field is handled manually in template file struct declaration
   mjtByte flexvertopt() const {
     return ptr_->flexvertopt;
   }
@@ -6430,19 +6433,19 @@ struct MjvScene {
   void set_nskin(int value) {
     ptr_->nskin = value;
   }
-  // primitive pointer field with complex extents is defined manually. skinfacenum
-  // primitive pointer field with complex extents is defined manually. skinvertadr
-  // primitive pointer field with complex extents is defined manually. skinvertnum
-  // primitive pointer field with complex extents is defined manually. skinvert
-  // primitive pointer field with complex extents is defined manually. skinnormal
+  // skinfacenum field is handled manually in template file struct declaration
+  // skinvertadr field is handled manually in template file struct declaration
+  // skinvertnum field is handled manually in template file struct declaration
+  // skinvert field is handled manually in template file struct declaration
+  // skinnormal field is handled manually in template file struct declaration
   int nlight() const {
     return ptr_->nlight;
   }
   void set_nlight(int value) {
     ptr_->nlight = value;
   }
-  // array field is defined manually. lights
-  // array field is defined manually. camera
+  // lights field is handled manually in template file struct declaration
+  // camera field is handled manually in template file struct declaration
   mjtByte enabletransform() const {
     return ptr_->enabletransform;
   }
@@ -6505,7 +6508,7 @@ struct MjSpec {
   std::unique_ptr<MjSpec> copy();
   mjSpec* get() const;
   void set(mjSpec* ptr);
-  // complex pointer field is defined manually. element
+  // element field is handled manually in template file struct declaration
   mjString modelname() const {
     return (ptr_ && ptr_->modelname) ? *(ptr_->modelname) : "";
   }
@@ -6514,16 +6517,16 @@ struct MjSpec {
       *(ptr_->modelname) = value;
     }
   }
-  // struct field is defined manually. compiler
+  // compiler field is handled manually in template file struct declaration
   mjtByte strippath() const {
     return ptr_->strippath;
   }
   void set_strippath(mjtByte value) {
     ptr_->strippath = value;
   }
-  // struct field is defined manually. option
-  // struct field is defined manually. visual
-  // struct field is defined manually. stat
+  // option field is handled manually in template file struct declaration
+  // visual field is handled manually in template file struct declaration
+  // stat field is handled manually in template file struct declaration
   mjtSize memory() const {
     return ptr_->memory;
   }

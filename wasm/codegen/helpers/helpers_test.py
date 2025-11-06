@@ -349,9 +349,9 @@ void MjsElement::set(mjsElement* ptr) {
         ),
         doc="",
     )
-    wrapped_field_data = structs.StructFieldHandler(
+    wrapped_field_data = structs._generate_field_data(
         field_with_init, "MjsTexture"
-    ).generate()
+    )
     self.assertEqual(
         structs.build_struct_source(
             "mjsTexture",
@@ -573,8 +573,7 @@ class StructFieldCodeBuilderTest(absltest.TestCase):
         type=ast_nodes.ValueType(name="int"),
         doc="number of geoms",
     )
-    self.assertEqual(
-        structs.build_primitive_type_definition(field),
+    self.assertEqual(structs._generate_field_data(field, "ngeom").definition,
         """
 int ngeom() const {
   return ptr_->ngeom;
@@ -595,9 +594,7 @@ void set_ngeom(int value) {
         array_extent=("ngeom", 4),
     )
     self.assertEqual(
-        structs.build_memory_view_definition(
-            field, "ptr_->ngeom * 4", "ptr_->geom_rgba"
-        ),
+        structs._generate_field_data(field, "geom_rgba").definition,
         """
 emscripten::val geom_rgba() const {
   return emscripten::val(emscripten::typed_memory_view(ptr_->ngeom * 4, ptr_->geom_rgba));
@@ -614,7 +611,7 @@ emscripten::val geom_rgba() const {
         doc="rgba when material is omitted",
     )
     self.assertEqual(
-        structs.build_string_field_definition(field),
+        structs._generate_field_data(field, "MjString").definition,
         """
 mjString string_field() const {
   return (ptr_ && ptr_->string_field) ? *(ptr_->string_field) : "";
@@ -636,7 +633,7 @@ void set_string_field(const mjString& value) {
         doc="",
     )
     self.assertEqual(
-        structs.build_mjvec_pointer_definition(field, "mjDoubleVec"),
+        structs._generate_field_data(field, "mjDoubleVec").definition,
         """
 mjDoubleVec &vector_field() const {
   return *(ptr_->vector_field);
@@ -652,7 +649,7 @@ mjDoubleVec &vector_field() const {
         doc="",
     )
     self.assertEqual(
-        structs.build_mjvec_pointer_definition(field, "mjByteVec"),
+        structs._generate_field_data(field, "mjByteVec").definition,
         """
 std::vector<uint8_t> &vector_field() const {
   return *(reinterpret_cast<std::vector<uint8_t>*>(ptr_->vector_field));
@@ -666,7 +663,7 @@ std::vector<uint8_t> &vector_field() const {
         doc="number of geoms",
     )
     self.assertEqual(
-        structs.build_simple_property_binding(field, "MjModel"),
+        structs._simple_property_binding(field, "MjModel"),
         '.property("ngeom", &MjModel::ngeom)',
     )
 
@@ -677,7 +674,7 @@ std::vector<uint8_t> &vector_field() const {
         doc="",
     )
     self.assertEqual(
-        structs.build_simple_property_binding(field, "MjModel", True),
+        structs._simple_property_binding(field, "MjModel", True),
         '.property("ngeom", &MjModel::ngeom, &MjModel::set_ngeom)',
     )
 
@@ -688,11 +685,11 @@ std::vector<uint8_t> &vector_field() const {
         doc="",
     )
     self.assertEqual(
-        structs.build_simple_property_binding(
+        structs._simple_property_binding(
             field,
             "MjModel",
-            add_setter=True,
-            add_return_value_policy_as_ref=True,
+            setter=True,
+            reference=True,
         ),
         '.property("ngeom", &MjModel::ngeom, &MjModel::set_ngeom, reference())',
     )
@@ -708,8 +705,7 @@ class StructFieldHandlerTest(absltest.TestCase):
         doc="number of geoms",
     )
 
-    field_handler_scalar = structs.StructFieldHandler(field_scalar, "MjModel")
-    wrapped_field_data = field_handler_scalar.generate()
+    wrapped_field_data = structs._generate_field_data(field_scalar, "MjModel")
     self.assertEqual(
         wrapped_field_data.definition,
         """
@@ -736,7 +732,7 @@ void set_ngeom(int value) {
         doc="rgba when material is omitted",
         array_extent=("ngeom", 4),
     )
-    wrapped_field_data = structs.StructFieldHandler(field, "MjModel").generate()
+    wrapped_field_data = structs._generate_field_data(field, "MjModel")
 
     self.assertEqual(
         wrapped_field_data.definition,
@@ -761,7 +757,7 @@ emscripten::val geom_rgba() const {
         ),
         doc="main buffer; all pointers point in it (nbuffer bytes)",
     )
-    wrapped_field_data = structs.StructFieldHandler(field, "MjData").generate()
+    wrapped_field_data = structs._generate_field_data(field, "MjData")
 
     self.assertEqual(
         wrapped_field_data.definition,
@@ -782,9 +778,7 @@ emscripten::val buffer() const {
         ),
         doc="",
     )
-    wrapped_field_data = structs.StructFieldHandler(
-        field, "MjsTexture"
-    ).generate()
+    wrapped_field_data = structs._generate_field_data(field, "MjsTexture")
     self.assertEqual(wrapped_field_data.definition, "MjsElement element;")
 
     self.assertEqual(
@@ -806,9 +800,7 @@ emscripten::val buffer() const {
         ),
         doc="gravitational acceleration",
     )
-    wrapped_field_data = structs.StructFieldHandler(
-        field, "MjOption"
-    ).generate()
+    wrapped_field_data = structs._generate_field_data(field, "MjOption")
 
     self.assertEqual(
         wrapped_field_data.definition,
@@ -833,7 +825,7 @@ emscripten::val gravity() const {
         ),
         doc="description",
     )
-    wrapped_field_data = structs.StructFieldHandler(field, "MjModel").generate()
+    wrapped_field_data = structs._generate_field_data(field, "MjModel")
     self.assertEqual(
         wrapped_field_data.definition,
         """

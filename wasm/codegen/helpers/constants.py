@@ -307,6 +307,17 @@ SKIPPED_STRUCTS: List[str] = [
     # go/keep-sorted end
 ]
 
+# These structs require specific function calls for creation and/or deletion,
+# or some of their fields need to be handled manually for now;
+# making their wrapper constructors/destructors non-trivial.
+MANUAL_STRUCTS: List[str] = [
+    "MjData",
+    "MjModel",
+    "MjvScene",
+    "MjSpec",
+    "MjVisual",
+]
+
 # Dictionary that maps anonymous structs to their parent struct and field name.
 # Anonymous structs are not defined as independent structs in the MuJoCo
 # codebase, but they are part of other structs. This dictionary is used to
@@ -325,9 +336,9 @@ ANONYMOUS_STRUCTS: Dict[str, Dict[str, str]] = {
 # This list is created by subtracting the skipped structs from the list of all
 # structs and adding the anonymous structs.
 STRUCTS_TO_BIND: List[str] = list(
-    (set(introspect_structs.STRUCTS.keys()) - set(SKIPPED_STRUCTS)).union(
-        ANONYMOUS_STRUCTS.keys()
-    )
+    set(introspect_structs.STRUCTS.keys())
+    .union(ANONYMOUS_STRUCTS.keys())
+    .difference(set(SKIPPED_STRUCTS))
 )
 
 # List of structs that do not have a default constructor.
@@ -421,37 +432,42 @@ MJDATA_SIZES: List[str] = [
     # go/keep-sorted end
 ]
 
-# Dictionary where keys are the struct names and the values are lists of the
-# fields that are manually specified in the bindings.cc template file.
-MANUALLY_ADDED_FIELDS_FROM_TEMPLATE: Dict[str, List[str]] = {
+# Fields that should be entirely omitted from the bindings.
+SKIPPED_FIELDS: Dict[str, List[str]] = {}
+
+# Fields handled manually in template file struct declaration.
+MANUAL_FIELDS: Dict[str, List[str]] = {
     # go/keep-sorted start
     "MjData": ["solver", "timer", "warning", "contact"],
+    "MjModel": ["opt", "vis", "stat"],
     "MjSpec": ["option", "visual", "stat", "element", "compiler"],
     "MjvScene": [
-        "model",
-        "lights",
+        # go/keep-sorted start
         "camera",
-        "geoms",
-        "geomorder",
+        "flexedge",
         "flexedgeadr",
         "flexedgenum",
-        "flexvertadr",
-        "flexvertnum",
+        "flexface",
         "flexfaceadr",
         "flexfacenum",
         "flexfaceused",
-        "flexedge",
-        "flexvert",
-        "skinfacenum",
-        "skinvertadr",
-        "skinvertnum",
-        "skinvert",
-        "skinnormal",
-        "flexface",
         "flexnormal",
         "flextexcoord",
+        "flexvert",
+        "flexvertadr",
+        "flexvertnum",
+        "geomorder",
+        "geoms",
+        "lights",
+        "model",
+        "skinfacenum",
+        "skinnormal",
+        "skinvert",
+        "skinvertadr",
+        "skinvertnum",
         # go/keep-sorted end
     ],
+    # go/keep-sorted end
 }
 
 # Dictionary that maps byte array fields to their corresponding size members.
@@ -462,14 +478,3 @@ BYTE_FIELDS: Dict[str, Dict[str, str]] = {
     "buffer": {"size": "nbuffer"},
     "arena": {"size": "narena"},
 }
-
-# These structs require specific function calls for creation and/or deletion,
-# or some of their fields need to be handled manually for now;
-# making their wrapper constructors/destructors non-trivial.
-HARDCODED_WRAPPER_STRUCTS: List[str] = [
-    "MjData",
-    "MjModel",
-    "MjvScene",
-    "MjSpec",
-    "MjVisual",
-]
