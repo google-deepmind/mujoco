@@ -597,26 +597,6 @@ std::unique_ptr<MjSpec> parseXMLString(const std::string &xml) {
 
 EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("parseXMLString", &parseXMLString, take_ownership());
-
-  emscripten::class_<MjModel>("MjModel")
-      .class_function("loadFromXML", &loadFromXML, take_ownership())
-      .constructor<const MjModel &>()
-      // INSERT-GENERATED-MjModel-BINDINGS
-      ;
-  emscripten::class_<MjData>("MjData")
-      .constructor<MjModel *>()
-      .constructor<const MjModel &, const MjData &>()
-      // INSERT-GENERATED-MjData-BINDINGS
-      ;
-  emscripten::class_<MjvScene>("MjvScene")
-      .constructor<>()
-      .constructor<MjModel *, int>()
-      // INSERT-GENERATED-MjvScene-BINDINGS
-      ;
-  emscripten::class_<MjSpec>("MjSpec")
-      .constructor<const MjSpec &>()
-      // INSERT-GENERATED-MjSpec-BINDINGS
-      ;
   // {{ AUTOGENNED_STRUCTS_BINDINGS }}
 
   // TODO: should be generated in future CLs -- //

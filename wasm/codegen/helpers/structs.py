@@ -668,33 +668,38 @@ def _build_struct_bindings(
     wrapped_fields: List[WrappedFieldData],
 ):
   """Builds the C++ bindings for a struct."""
-  # These structs require specific constructors
-  # which, for now, are hardcoded in the template file.
-  if struct_name in [
-      "mjData",
-      "mjModel",
-      "mjvScene",
-      "mjSpec",
-  ]:
-    return ""
-
   w = common.uppercase_first_letter(struct_name)
-  spc = "    "
   builder = code_builder.CodeBuilder()
-  builder.line(f"emscripten::class_<{w}>(\"{w}\")")
+  with builder.block(
+      header_line=f'emscripten::class_<{w}>("{w}")', braces=False
+  ):
+    if w == "MjData":
+      builder.line(".constructor<MjModel *>()")
+      builder.line(".constructor<const MjModel &, const MjData &>()")
+    elif w == "MjModel":
+      builder.line(
+          '.class_function("loadFromXML", &loadFromXML, take_ownership())'
+      )
+      builder.line(".constructor<const MjModel &>()")
+    elif w == "MjSpec":
+      builder.line(".constructor<const MjSpec &>()")
+    elif w == "MjvScene":
+      builder.line(".constructor<MjModel *, int>()")
 
-  is_mjs = w.startswith("Mjs")
-  if not is_mjs:
-    builder.line(f"{spc}.constructor<>()")
+    is_mjs = w.startswith("Mjs")
+    if not is_mjs and w not in ["MjData", "MjModel", "MjSpec"]:
+      builder.line(".constructor<>()")
 
-  shallow_copy = use_shallow_copy(wrapped_fields)
-  if shallow_copy and not is_mjs:
-    builder.line(f"{spc}.function(\"copy\", &{w}::copy, take_ownership())")
+    shallow_copy = use_shallow_copy(wrapped_fields)
+    if shallow_copy and not is_mjs:
+      builder.line(f'.function("copy", &{w}::copy, take_ownership())')
 
-  for field in wrapped_fields:
-    if field.binding:
-      builder.line(f"{spc}{field.binding}")
-  builder.line(f"{spc};")
+    for field in wrapped_fields[:-1]:
+      if field.binding:
+        builder.line(field.binding)
+    if wrapped_fields:
+      builder.line(f"{wrapped_fields[-1].binding};")
+
   return builder.to_string()
 
 

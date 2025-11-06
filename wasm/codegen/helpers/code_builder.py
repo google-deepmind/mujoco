@@ -47,13 +47,15 @@ class CodeBuilder:
   class IndentBlock:
     """Helper class to manage indentation within a `with` statement."""
 
-    def __init__(self, builder: "CodeBuilder", header_line=""):
+    def __init__(self, builder: "CodeBuilder", header_line="", braces=True):
       self._builder = builder
       self._header_line = header_line
+      self._braces = braces
 
     def __enter__(self):
       line = self._header_line
-      line += " {" if line else "{"
+      if self._braces:
+        line += " {" if line else "{"
       self._builder.line(line)
       self._builder._indent_level += 1
       self._line_count_enter = len(self._builder._lines)
@@ -65,20 +67,22 @@ class CodeBuilder:
       if self._line_count_enter == len(self._builder._lines):
         self._builder._lines[-1] += "}"
       else:
-        self._builder.line("}")
+        if self._braces:
+          self._builder.line("}")
 
-  def block(self, header_line="") -> IndentBlock:
+  def block(self, header_line="", braces=True) -> IndentBlock:
     """Creates a block including braces and an optional header before the opening brace.
 
     Use via a `with` statement.
 
     Args:
         header_line: Optional header line to add before the opening brace.
+        braces: Whether to include opening and closing braces.
 
     Returns:
         An IndentBlock instance that manages the indentation.
     """
-    return self.IndentBlock(self, header_line)
+    return self.IndentBlock(self, header_line, braces)
 
   def function(self, signature="") -> IndentBlock:
     """Creates a function."""
