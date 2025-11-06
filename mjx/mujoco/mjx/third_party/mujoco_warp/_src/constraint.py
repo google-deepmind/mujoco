@@ -19,6 +19,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import math
 from mujoco.mjx.third_party.mujoco_warp._src import support
 from mujoco.mjx.third_party.mujoco_warp._src import types
 from mujoco.mjx.third_party.mujoco_warp._src.types import ConstraintType
+from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec11
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
@@ -27,16 +28,16 @@ wp.set_module_options({"enable_backward": False})
 
 
 @wp.kernel
-def zero_constraint_counts(
+def _zero_constraint_counts(
   # Data out:
   ne_out: wp.array(dtype=int),
+  nf_out: wp.array(dtype=int),
+  nl_out: wp.array(dtype=int),
+  nefc_out: wp.array(dtype=int),
   ne_connect_out: wp.array(dtype=int),
   ne_weld_out: wp.array(dtype=int),
   ne_jnt_out: wp.array(dtype=int),
   ne_ten_out: wp.array(dtype=int),
-  nf_out: wp.array(dtype=int),
-  nl_out: wp.array(dtype=int),
-  nefc_out: wp.array(dtype=int),
 ):
   worldid = wp.tid()
 
@@ -141,7 +142,6 @@ def _efc_equality_connect(
   eq_data: wp.array2d(dtype=vec11),
   eq_connect_adr: wp.array(dtype=int),
   # Data in:
-  njmax_in: int,
   qvel_in: wp.array2d(dtype=float),
   eq_active_in: wp.array2d(dtype=bool),
   xpos_in: wp.array2d(dtype=wp.vec3),
@@ -149,10 +149,10 @@ def _efc_equality_connect(
   site_xpos_in: wp.array2d(dtype=wp.vec3),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  njmax_in: int,
   # In:
   refsafe_in: int,
   # Data out:
-  ne_connect_out: wp.array(dtype=int),
   nefc_out: wp.array(dtype=int),
   efc_type_out: wp.array2d(dtype=int),
   efc_id_out: wp.array2d(dtype=int),
@@ -163,9 +163,9 @@ def _efc_equality_connect(
   efc_vel_out: wp.array2d(dtype=float),
   efc_aref_out: wp.array2d(dtype=float),
   efc_frictionloss_out: wp.array2d(dtype=float),
+  ne_connect_out: wp.array(dtype=int),
 ):
   """Calculates constraint rows for connect equality constraints."""
-
   worldid, eqconnectid = wp.tid()
   eqid = eq_connect_adr[eqconnectid]
 
@@ -178,7 +178,7 @@ def _efc_equality_connect(
   if efcid + 3 >= njmax_in:
     return
 
-  data = eq_data[worldid, eqid]
+  data = eq_data[worldid % eq_data.shape[0], eqid]
   anchor1 = wp.vec3f(data[0], data[1], data[2])
   anchor2 = wp.vec3f(data[3], data[4], data[5])
 
@@ -231,18 +231,20 @@ def _efc_equality_connect(
     efc_J_out[worldid, efcid + 2, dofid] = j1mj2[2]
     Jqvel += j1mj2 * qvel_in[worldid, dofid]
 
-  invweight = body_invweight0[worldid, body1id][0] + body_invweight0[worldid, body2id][0]
+  body_invweight0_id = worldid % body_invweight0.shape[0]
+  invweight = body_invweight0[body_invweight0_id, body1id][0] + body_invweight0[body_invweight0_id, body2id][0]
   pos_imp = wp.length(pos)
 
-  solref = eq_solref[worldid, eqid]
-  solimp = eq_solimp[worldid, eqid]
+  solref = eq_solref[worldid % eq_solref.shape[0], eqid]
+  solimp = eq_solimp[worldid % eq_solimp.shape[0], eqid]
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
   for i in range(3):
     efcidi = efcid + i
 
     _update_efc_row(
       worldid,
-      opt_timestep[worldid],
+      timestep,
       refsafe_in,
       efcidi,
       pos[i],
@@ -282,14 +284,13 @@ def _efc_equality_joint(
   eq_data: wp.array2d(dtype=vec11),
   eq_jnt_adr: wp.array(dtype=int),
   # Data in:
-  njmax_in: int,
   qpos_in: wp.array2d(dtype=float),
   qvel_in: wp.array2d(dtype=float),
   eq_active_in: wp.array2d(dtype=bool),
+  njmax_in: int,
   # In:
   refsafe_in: int,
   # Data out:
-  ne_jnt_out: wp.array(dtype=int),
   nefc_out: wp.array(dtype=int),
   efc_type_out: wp.array2d(dtype=int),
   efc_id_out: wp.array2d(dtype=int),
@@ -300,6 +301,7 @@ def _efc_equality_joint(
   efc_vel_out: wp.array2d(dtype=float),
   efc_aref_out: wp.array2d(dtype=float),
   efc_frictionloss_out: wp.array2d(dtype=float),
+  ne_jnt_out: wp.array(dtype=int),
 ):
   worldid, eqjntid = wp.tid()
   eqid = eq_jnt_adr[eqjntid]
@@ -318,10 +320,12 @@ def _efc_equality_joint(
 
   jntid_1 = eq_obj1id[eqid]
   jntid_2 = eq_obj2id[eqid]
-  data = eq_data[worldid, eqid]
+  data = eq_data[worldid % eq_data.shape[0], eqid]
   dofadr1 = jnt_dofadr[jntid_1]
   qposadr1 = jnt_qposadr[jntid_1]
   efc_J_out[worldid, efcid, dofadr1] = 1.0
+  qpos0_id = worldid % qpos0.shape[0]
+  dof_invweight0_id = worldid % dof_invweight0.shape[0]
 
   if jntid_2 > -1:
     # Two joint constraint
@@ -333,28 +337,28 @@ def _efc_equality_joint(
     rhs = data[0] + dif * (data[1] + dif * (data[2] + dif * (data[3] + dif * data[4])))
     deriv_2 = data[1] + dif * (2.0 * data[2] + dif * (3.0 * data[3] + dif * 4.0 * data[4]))
 
-    pos = qpos_in[worldid, qposadr1] - qpos0[worldid, qposadr1] - rhs
+    pos = qpos_in[worldid, qposadr1] - qpos0[qpos0_id, qposadr1] - rhs
     Jqvel = qvel_in[worldid, dofadr1] - qvel_in[worldid, dofadr2] * deriv_2
-    invweight = dof_invweight0[worldid, dofadr1] + dof_invweight0[worldid, dofadr2]
+    invweight = dof_invweight0[dof_invweight0_id, dofadr1] + dof_invweight0[dof_invweight0_id, dofadr2]
 
     efc_J_out[worldid, efcid, dofadr2] = -deriv_2
   else:
     # Single joint constraint
-    pos = qpos_in[worldid, qposadr1] - qpos0[worldid, qposadr1] - data[0]
+    pos = qpos_in[worldid, qposadr1] - qpos0[qpos0_id, qposadr1] - data[0]
     Jqvel = qvel_in[worldid, dofadr1]
-    invweight = dof_invweight0[worldid, dofadr1]
+    invweight = dof_invweight0[dof_invweight0_id, dofadr1]
 
   # Update constraint parameters
   _update_efc_row(
     worldid,
-    opt_timestep[worldid],
+    opt_timestep[worldid % opt_timestep.shape[0]],
     refsafe_in,
     efcid,
     pos,
     pos,
     invweight,
-    eq_solref[worldid, eqid],
-    eq_solimp[worldid, eqid],
+    eq_solref[worldid % eq_solref.shape[0], eqid],
+    eq_solimp[worldid % eq_solimp.shape[0], eqid],
     0.0,
     Jqvel,
     0.0,
@@ -381,19 +385,18 @@ def _efc_equality_tendon(
   eq_solref: wp.array2d(dtype=wp.vec2),
   eq_solimp: wp.array2d(dtype=vec5),
   eq_data: wp.array2d(dtype=vec11),
-  eq_ten_adr: wp.array(dtype=int),
   tendon_length0: wp.array2d(dtype=float),
   tendon_invweight0: wp.array2d(dtype=float),
+  eq_ten_adr: wp.array(dtype=int),
   # Data in:
-  njmax_in: int,
   qvel_in: wp.array2d(dtype=float),
   eq_active_in: wp.array2d(dtype=bool),
-  ten_length_in: wp.array2d(dtype=float),
   ten_J_in: wp.array3d(dtype=float),
+  ten_length_in: wp.array2d(dtype=float),
+  njmax_in: int,
   # In:
   refsafe_in: int,
   # Data out:
-  ne_ten_out: wp.array(dtype=int),
   nefc_out: wp.array(dtype=int),
   efc_type_out: wp.array2d(dtype=int),
   efc_id_out: wp.array2d(dtype=int),
@@ -404,6 +407,7 @@ def _efc_equality_tendon(
   efc_vel_out: wp.array2d(dtype=float),
   efc_aref_out: wp.array2d(dtype=float),
   efc_frictionloss_out: wp.array2d(dtype=float),
+  ne_ten_out: wp.array(dtype=int),
 ):
   worldid, eqtenid = wp.tid()
   eqid = eq_ten_adr[eqtenid]
@@ -420,16 +424,18 @@ def _efc_equality_tendon(
   obj1id = eq_obj1id[eqid]
   obj2id = eq_obj2id[eqid]
 
-  data = eq_data[worldid, eqid]
-  solref = eq_solref[worldid, eqid]
-  solimp = eq_solimp[worldid, eqid]
-  pos1 = ten_length_in[worldid, obj1id] - tendon_length0[worldid, obj1id]
+  data = eq_data[worldid % eq_data.shape[0], eqid]
+  solref = eq_solref[worldid % eq_solref.shape[0], eqid]
+  solimp = eq_solimp[worldid % eq_solimp.shape[0], eqid]
+  tendon_length0_id = worldid % tendon_length0.shape[0]
+  tendon_invweight0_id = worldid % tendon_invweight0.shape[0]
+  pos1 = ten_length_in[worldid, obj1id] - tendon_length0[tendon_length0_id, obj1id]
   jac1 = ten_J_in[worldid, obj1id]
 
   if obj2id > -1:
-    invweight = tendon_invweight0[worldid, obj1id] + tendon_invweight0[worldid, obj2id]
+    invweight = tendon_invweight0[tendon_invweight0_id, obj1id] + tendon_invweight0[tendon_invweight0_id, obj2id]
 
-    pos2 = ten_length_in[worldid, obj2id] - tendon_length0[worldid, obj2id]
+    pos2 = ten_length_in[worldid, obj2id] - tendon_length0[tendon_length0_id, obj2id]
     jac2 = ten_J_in[worldid, obj2id]
 
     dif = pos2
@@ -440,7 +446,7 @@ def _efc_equality_tendon(
     pos = pos1 - (data[0] + data[1] * dif + data[2] * dif2 + data[3] * dif3 + data[4] * dif4)
     deriv = data[1] + 2.0 * data[2] * dif + 3.0 * data[3] * dif2 + 4.0 * data[4] * dif3
   else:
-    invweight = tendon_invweight0[worldid, obj1id]
+    invweight = tendon_invweight0[tendon_invweight0_id, obj1id]
     pos = pos1 - data[0]
     deriv = 0.0
 
@@ -455,7 +461,7 @@ def _efc_equality_tendon(
 
   _update_efc_row(
     worldid,
-    opt_timestep[worldid],
+    opt_timestep[worldid % opt_timestep.shape[0]],
     refsafe_in,
     efcid,
     pos,
@@ -484,13 +490,13 @@ def _efc_friction_dof(
   # Model:
   nv: int,
   opt_timestep: wp.array(dtype=float),
-  dof_invweight0: wp.array2d(dtype=float),
-  dof_frictionloss: wp.array2d(dtype=float),
-  dof_solimp: wp.array2d(dtype=vec5),
   dof_solref: wp.array2d(dtype=wp.vec2),
+  dof_solimp: wp.array2d(dtype=vec5),
+  dof_frictionloss: wp.array2d(dtype=float),
+  dof_invweight0: wp.array2d(dtype=float),
   # Data in:
-  njmax_in: int,
   qvel_in: wp.array2d(dtype=float),
+  njmax_in: int,
   # In:
   refsafe_in: int,
   # Data out:
@@ -508,7 +514,9 @@ def _efc_friction_dof(
 ):
   worldid, dofid = wp.tid()
 
-  if dof_frictionloss[worldid, dofid] <= 0.0:
+  dof_frictionloss_id = worldid % dof_frictionloss.shape[0]
+
+  if dof_frictionloss[dof_frictionloss_id, dofid] <= 0.0:
     return
 
   wp.atomic_add(nf_out, worldid, 1)
@@ -523,19 +531,22 @@ def _efc_friction_dof(
   efc_J_out[worldid, efcid, dofid] = 1.0
   Jqvel = qvel_in[worldid, dofid]
 
+  dof_invweight0_id = worldid % dof_invweight0.shape[0]
+  dof_solref_id = worldid % dof_solref.shape[0]
+  dof_solimp_id = worldid % dof_solimp.shape[0]
   _update_efc_row(
     worldid,
-    opt_timestep[worldid],
+    opt_timestep[worldid % opt_timestep.shape[0]],
     refsafe_in,
     efcid,
     0.0,
     0.0,
-    dof_invweight0[worldid, dofid],
-    dof_solref[worldid, dofid],
-    dof_solimp[worldid, dofid],
+    dof_invweight0[dof_invweight0_id, dofid],
+    dof_solref[dof_solref_id, dofid],
+    dof_solimp[dof_solimp_id, dofid],
     0.0,
     Jqvel,
-    dof_frictionloss[worldid, dofid],
+    dof_frictionloss[dof_frictionloss_id, dofid],
     ConstraintType.FRICTION_DOF,
     dofid,
     efc_type_out,
@@ -559,9 +570,9 @@ def _efc_friction_tendon(
   tendon_frictionloss: wp.array2d(dtype=float),
   tendon_invweight0: wp.array2d(dtype=float),
   # Data in:
-  njmax_in: int,
   qvel_in: wp.array2d(dtype=float),
   ten_J_in: wp.array3d(dtype=float),
+  njmax_in: int,
   # In:
   refsafe_in: int,
   # Data out:
@@ -579,7 +590,9 @@ def _efc_friction_tendon(
 ):
   worldid, tenid = wp.tid()
 
-  frictionloss = tendon_frictionloss[worldid, tenid]
+  tendon_frictionloss_id = worldid % tendon_frictionloss.shape[0]
+
+  frictionloss = tendon_frictionloss[tendon_frictionloss_id, tenid]
   if frictionloss <= 0.0:
     return
 
@@ -597,16 +610,19 @@ def _efc_friction_tendon(
     efc_J_out[worldid, efcid, i] = J
     Jqvel += J * qvel_in[worldid, i]
 
+  tendon_invweight0_id = worldid % tendon_invweight0.shape[0]
+  tendon_solref_fri_id = worldid % tendon_solref_fri.shape[0]
+  tendon_solimp_fri_id = worldid % tendon_solimp_fri.shape[0]
   _update_efc_row(
     worldid,
-    opt_timestep[worldid],
+    opt_timestep[worldid % opt_timestep.shape[0]],
     refsafe_in,
     efcid,
     0.0,
     0.0,
-    tendon_invweight0[worldid, tenid],
-    tendon_solref_fri[worldid, tenid],
-    tendon_solimp_fri[worldid, tenid],
+    tendon_invweight0[tendon_invweight0_id, tenid],
+    tendon_solref_fri[tendon_solref_fri_id, tenid],
+    tendon_solimp_fri[tendon_solimp_fri_id, tenid],
     0.0,
     Jqvel,
     frictionloss,
@@ -643,7 +659,6 @@ def _efc_equality_weld(
   eq_data: wp.array2d(dtype=vec11),
   eq_wld_adr: wp.array(dtype=int),
   # Data in:
-  njmax_in: int,
   qvel_in: wp.array2d(dtype=float),
   eq_active_in: wp.array2d(dtype=bool),
   xpos_in: wp.array2d(dtype=wp.vec3),
@@ -652,10 +667,10 @@ def _efc_equality_weld(
   site_xpos_in: wp.array2d(dtype=wp.vec3),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  njmax_in: int,
   # In:
   refsafe_in: int,
   # Data out:
-  ne_weld_out: wp.array(dtype=int),
   nefc_out: wp.array(dtype=int),
   efc_type_out: wp.array2d(dtype=int),
   efc_id_out: wp.array2d(dtype=int),
@@ -666,6 +681,7 @@ def _efc_equality_weld(
   efc_vel_out: wp.array2d(dtype=float),
   efc_aref_out: wp.array2d(dtype=float),
   efc_frictionloss_out: wp.array2d(dtype=float),
+  ne_weld_out: wp.array(dtype=int),
 ):
   worldid, eqweldid = wp.tid()
   eqid = eq_wld_adr[eqweldid]
@@ -684,7 +700,7 @@ def _efc_equality_weld(
   obj1id = eq_obj1id[eqid]
   obj2id = eq_obj2id[eqid]
 
-  data = eq_data[worldid, eqid]
+  data = eq_data[worldid % eq_data.shape[0], eqid]
   anchor1 = wp.vec3(data[0], data[1], data[2])
   anchor2 = wp.vec3(data[3], data[4], data[5])
   relpose = wp.quat(data[6], data[7], data[8], data[9])
@@ -697,8 +713,9 @@ def _efc_equality_weld(
     pos1 = site_xpos_in[worldid, obj1id]
     pos2 = site_xpos_in[worldid, obj2id]
 
-    quat = math.mul_quat(xquat_in[worldid, body1id], site_quat[worldid, obj1id])
-    quat1 = math.quat_inv(math.mul_quat(xquat_in[worldid, body2id], site_quat[worldid, obj2id]))
+    site_quat_id = worldid % site_quat.shape[0]
+    quat = math.mul_quat(xquat_in[worldid, body1id], site_quat[site_quat_id, obj1id])
+    quat1 = math.quat_inv(math.mul_quat(xquat_in[worldid, body2id], site_quat[site_quat_id, obj2id]))
 
   else:
     body1id = obj1id
@@ -757,14 +774,15 @@ def _efc_equality_weld(
   crotq = math.mul_quat(quat1, quat)  # copy axis components
   crot = wp.vec3(crotq[1], crotq[2], crotq[3]) * torquescale
 
-  invweight_t = body_invweight0[worldid, body1id][0] + body_invweight0[worldid, body2id][0]
+  body_invweight0_id = worldid % body_invweight0.shape[0]
+  invweight_t = body_invweight0[body_invweight0_id, body1id][0] + body_invweight0[body_invweight0_id, body2id][0]
 
   pos_imp = wp.sqrt(wp.length_sq(cpos) + wp.length_sq(crot))
 
-  solref = eq_solref[worldid, eqid]
-  solimp = eq_solimp[worldid, eqid]
+  solref = eq_solref[worldid % eq_solref.shape[0], eqid]
+  solimp = eq_solimp[worldid % eq_solimp.shape[0], eqid]
 
-  timestep = opt_timestep[worldid]
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
 
   for i in range(3):
     _update_efc_row(
@@ -792,7 +810,7 @@ def _efc_equality_weld(
       efc_frictionloss_out,
     )
 
-  invweight_r = body_invweight0[worldid, body1id][1] + body_invweight0[worldid, body2id][1]
+  invweight_r = body_invweight0[body_invweight0_id, body1id][1] + body_invweight0[body_invweight0_id, body2id][1]
 
   for i in range(3):
     _update_efc_row(
@@ -832,12 +850,12 @@ def _efc_limit_slide_hinge(
   jnt_solimp: wp.array2d(dtype=vec5),
   jnt_range: wp.array2d(dtype=wp.vec2),
   jnt_margin: wp.array2d(dtype=float),
-  jnt_limited_slide_hinge_adr: wp.array(dtype=int),
   dof_invweight0: wp.array2d(dtype=float),
+  jnt_limited_slide_hinge_adr: wp.array(dtype=int),
   # Data in:
-  njmax_in: int,
   qpos_in: wp.array2d(dtype=float),
   qvel_in: wp.array2d(dtype=float),
+  njmax_in: int,
   # In:
   refsafe_in: int,
   # Data out:
@@ -855,10 +873,12 @@ def _efc_limit_slide_hinge(
 ):
   worldid, jntlimitedid = wp.tid()
   jntid = jnt_limited_slide_hinge_adr[jntlimitedid]
-  jntrange = jnt_range[worldid, jntid]
+  jnt_range_id = worldid % jnt_range.shape[0]
+  jntrange = jnt_range[jnt_range_id, jntid]
 
   qpos = qpos_in[worldid, jnt_qposadr[jntid]]
-  jntmargin = jnt_margin[worldid, jntid]
+  jnt_margin_id = worldid % jnt_margin.shape[0]
+  jntmargin = jnt_margin[jnt_margin_id, jntid]
   dist_min, dist_max = qpos - jntrange[0], jntrange[1] - qpos
   pos = wp.min(dist_min, dist_max) - jntmargin
   active = pos < 0
@@ -879,16 +899,19 @@ def _efc_limit_slide_hinge(
     efc_J_out[worldid, efcid, dofadr] = J
     Jqvel = J * qvel_in[worldid, dofadr]
 
+    dof_invweight0_id = worldid % dof_invweight0.shape[0]
+    jnt_solref_id = worldid % jnt_solref.shape[0]
+    jnt_solimp_id = worldid % jnt_solimp.shape[0]
     _update_efc_row(
       worldid,
-      opt_timestep[worldid],
+      opt_timestep[worldid % opt_timestep.shape[0]],
       refsafe_in,
       efcid,
       pos,
       pos,
-      dof_invweight0[worldid, dofadr],
-      jnt_solref[worldid, jntid],
-      jnt_solimp[worldid, jntid],
+      dof_invweight0[dof_invweight0_id, dofadr],
+      jnt_solref[jnt_solref_id, jntid],
+      jnt_solimp[jnt_solimp_id, jntid],
       jntmargin,
       Jqvel,
       0.0,
@@ -916,12 +939,12 @@ def _efc_limit_ball(
   jnt_solimp: wp.array2d(dtype=vec5),
   jnt_range: wp.array2d(dtype=wp.vec2),
   jnt_margin: wp.array2d(dtype=float),
-  jnt_limited_ball_adr: wp.array(dtype=int),
   dof_invweight0: wp.array2d(dtype=float),
+  jnt_limited_ball_adr: wp.array(dtype=int),
   # Data in:
-  njmax_in: int,
   qpos_in: wp.array2d(dtype=float),
   qvel_in: wp.array2d(dtype=float),
+  njmax_in: int,
   # In:
   refsafe_in: int,
   # Data out:
@@ -945,9 +968,11 @@ def _efc_limit_ball(
   jnt_quat = wp.quat(qpos[qposadr + 0], qpos[qposadr + 1], qpos[qposadr + 2], qpos[qposadr + 3])
   jnt_quat = wp.normalize(jnt_quat)
   axis_angle = math.quat_to_vel(jnt_quat)
-  jntrange = jnt_range[worldid, jntid]
+  jnt_range_id = worldid % jnt_range.shape[0]
+  jntrange = jnt_range[jnt_range_id, jntid]
   axis, angle = math.normalize_with_norm(axis_angle)
-  jntmargin = jnt_margin[worldid, jntid]
+  jnt_margin_id = worldid % jnt_margin.shape[0]
+  jntmargin = jnt_margin[jnt_margin_id, jntid]
 
   pos = wp.max(jntrange[0], jntrange[1]) - angle - jntmargin
   active = pos < 0
@@ -972,16 +997,19 @@ def _efc_limit_ball(
     Jqvel -= axis[1] * qvel_in[worldid, dofadr + 1]
     Jqvel -= axis[2] * qvel_in[worldid, dofadr + 2]
 
+    dof_invweight0_id = worldid % dof_invweight0.shape[0]
+    jnt_solref_id = worldid % jnt_solref.shape[0]
+    jnt_solimp_id = worldid % jnt_solimp.shape[0]
     _update_efc_row(
       worldid,
-      opt_timestep[worldid],
+      opt_timestep[worldid % opt_timestep.shape[0]],
       refsafe_in,
       efcid,
       pos,
       pos,
-      dof_invweight0[worldid, dofadr],
-      jnt_solref[worldid, jntid],
-      jnt_solimp[worldid, jntid],
+      dof_invweight0[dof_invweight0_id, dofadr],
+      jnt_solref[jnt_solref_id, jntid],
+      jnt_solimp[jnt_solimp_id, jntid],
       jntmargin,
       Jqvel,
       0.0,
@@ -1006,19 +1034,19 @@ def _efc_limit_tendon(
   jnt_dofadr: wp.array(dtype=int),
   tendon_adr: wp.array(dtype=int),
   tendon_num: wp.array(dtype=int),
-  tendon_limited_adr: wp.array(dtype=int),
   tendon_solref_lim: wp.array2d(dtype=wp.vec2),
   tendon_solimp_lim: wp.array2d(dtype=vec5),
   tendon_range: wp.array2d(dtype=wp.vec2),
   tendon_margin: wp.array2d(dtype=float),
   tendon_invweight0: wp.array2d(dtype=float),
-  wrap_objid: wp.array(dtype=int),
   wrap_type: wp.array(dtype=int),
+  wrap_objid: wp.array(dtype=int),
+  tendon_limited_adr: wp.array(dtype=int),
   # Data in:
-  njmax_in: int,
   qvel_in: wp.array2d(dtype=float),
-  ten_length_in: wp.array2d(dtype=float),
   ten_J_in: wp.array3d(dtype=float),
+  ten_length_in: wp.array2d(dtype=float),
+  njmax_in: int,
   # In:
   refsafe_in: int,
   # Data out:
@@ -1037,10 +1065,12 @@ def _efc_limit_tendon(
   worldid, tenlimitedid = wp.tid()
   tenid = tendon_limited_adr[tenlimitedid]
 
-  tenrange = tendon_range[worldid, tenid]
+  tendon_range_id = worldid % tendon_range.shape[0]
+  tenrange = tendon_range[tendon_range_id, tenid]
   length = ten_length_in[worldid, tenid]
   dist_min, dist_max = length - tenrange[0], tenrange[1] - length
-  tenmargin = tendon_margin[worldid, tenid]
+  tendon_margin_id = worldid % tendon_margin.shape[0]
+  tenmargin = tendon_margin[tendon_margin_id, tenid]
   pos = wp.min(dist_min, dist_max) - tenmargin
   active = pos < 0
 
@@ -1071,16 +1101,19 @@ def _efc_limit_tendon(
         efc_J_out[worldid, efcid, i] = J
         Jqvel += J * qvel_in[worldid, i]
 
+    tendon_invweight0_id = worldid % tendon_invweight0.shape[0]
+    tendon_solref_lim_id = worldid % tendon_solref_lim.shape[0]
+    tendon_solimp_lim_id = worldid % tendon_solimp_lim.shape[0]
     _update_efc_row(
       worldid,
-      opt_timestep[worldid],
+      opt_timestep[worldid % opt_timestep.shape[0]],
       refsafe_in,
       efcid,
       pos,
       pos,
-      tendon_invweight0[worldid, tenid],
-      tendon_solref_lim[worldid, tenid],
-      tendon_solimp_lim[worldid, tenid],
+      tendon_invweight0[tendon_invweight0_id, tenid],
+      tendon_solref_lim[tendon_solref_lim_id, tenid],
+      tendon_solimp_lim[tendon_solimp_lim_id, tenid],
       tenmargin,
       Jqvel,
       0.0,
@@ -1109,11 +1142,11 @@ def _efc_contact_pyramidal(
   dof_bodyid: wp.array(dtype=int),
   geom_bodyid: wp.array(dtype=int),
   # Data in:
-  njmax_in: int,
-  nacon_in: wp.array(dtype=int),
   qvel_in: wp.array2d(dtype=float),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  njmax_in: int,
+  nacon_in: wp.array(dtype=int),
   # In:
   refsafe_in: int,
   dist_in: wp.array(dtype=float),
@@ -1126,6 +1159,7 @@ def _efc_contact_pyramidal(
   friction_in: wp.array(dtype=vec5),
   solref_in: wp.array(dtype=wp.vec2),
   solimp_in: wp.array(dtype=vec5),
+  type_in: wp.array(dtype=int),
   # Data out:
   nefc_out: wp.array(dtype=int),
   contact_efc_address_out: wp.array2d(dtype=int),
@@ -1142,6 +1176,9 @@ def _efc_contact_pyramidal(
   conid, dimid = wp.tid()
 
   if conid >= nacon_in[0]:
+    return
+
+  if not type_in[conid] & ContactType.CONSTRAINT:
     return
 
   condim = condim_in[conid]
@@ -1163,8 +1200,9 @@ def _efc_contact_pyramidal(
       contact_efc_address_out[conid, dimid] = -1
       return
 
-    timestep = opt_timestep[worldid]
-    impratio = opt_impratio[worldid]
+    opt_timestep_id = worldid % opt_timestep.shape[0]
+    timestep = opt_timestep[opt_timestep_id]
+    impratio = opt_impratio[opt_timestep_id]
     contact_efc_address_out[conid, dimid] = efcid
 
     geom = geom_in[conid]
@@ -1175,7 +1213,8 @@ def _efc_contact_pyramidal(
     frame = frame_in[conid]
 
     # pyramidal has common invweight across all edges
-    invweight = body_invweight0[worldid, body1][0] + body_invweight0[worldid, body2][0]
+    body_invweight0_id = worldid % body_invweight0.shape[0]
+    invweight = body_invweight0[body_invweight0_id, body1][0] + body_invweight0[body_invweight0_id, body2][0]
 
     if condim > 1:
       dimid2 = dimid / 2 + 1
@@ -1274,11 +1313,11 @@ def _efc_contact_elliptic(
   dof_bodyid: wp.array(dtype=int),
   geom_bodyid: wp.array(dtype=int),
   # Data in:
-  njmax_in: int,
-  nacon_in: wp.array(dtype=int),
   qvel_in: wp.array2d(dtype=float),
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   cdof_in: wp.array2d(dtype=wp.spatial_vector),
+  njmax_in: int,
+  nacon_in: wp.array(dtype=int),
   # In:
   refsafe_in: int,
   dist_in: wp.array(dtype=float),
@@ -1292,6 +1331,7 @@ def _efc_contact_elliptic(
   solref_in: wp.array(dtype=wp.vec2),
   solreffriction_in: wp.array(dtype=wp.vec2),
   solimp_in: wp.array(dtype=vec5),
+  type_in: wp.array(dtype=int),
   # Data out:
   nefc_out: wp.array(dtype=int),
   contact_efc_address_out: wp.array2d(dtype=int),
@@ -1308,6 +1348,9 @@ def _efc_contact_elliptic(
   conid, dimid = wp.tid()
 
   if conid >= nacon_in[0]:
+    return
+
+  if not type_in[conid] & ContactType.CONSTRAINT:
     return
 
   condim = condim_in[conid]
@@ -1327,8 +1370,9 @@ def _efc_contact_elliptic(
       contact_efc_address_out[conid, dimid] = -1
       return
 
-    timestep = opt_timestep[worldid]
-    impratio = opt_impratio[worldid]
+    opt_timestep_id = worldid % opt_timestep.shape[0]
+    timestep = opt_timestep[opt_timestep_id]
+    impratio = opt_impratio[opt_timestep_id]
     contact_efc_address_out[conid, dimid] = efcid
 
     geom = geom_in[conid]
@@ -1375,7 +1419,8 @@ def _efc_contact_elliptic(
       efc_J_out[worldid, efcid, i] = J
       Jqvel += J * qvel_in[worldid, i]
 
-    invweight = body_invweight0[worldid, body1][0] + body_invweight0[worldid, body2][0]
+    body_invweight0_id = worldid % body_invweight0.shape[0]
+    invweight = body_invweight0[body_invweight0_id, body1][0] + body_invweight0[body_invweight0_id, body2][0]
 
     ref = solref_in[conid]
     pos_aref = pos
@@ -1448,11 +1493,10 @@ def _num_equality(
 @event_scope
 def make_constraint(m: types.Model, d: types.Data):
   """Creates constraint jacobians and other supporting data."""
-
   wp.launch(
-    zero_constraint_counts,
+    _zero_constraint_counts,
     dim=d.nworld,
-    inputs=[d.ne, d.ne_connect, d.ne_weld, d.ne_jnt, d.ne_ten, d.nf, d.nl, d.nefc],
+    inputs=[d.ne, d.nf, d.nl, d.nefc, d.ne_connect, d.ne_weld, d.ne_jnt, d.ne_ten],
   )
 
   if not (m.opt.disableflags & types.DisableBit.CONSTRAINT):
@@ -1478,7 +1522,6 @@ def make_constraint(m: types.Model, d: types.Data):
           m.eq_solimp,
           m.eq_data,
           m.eq_connect_adr,
-          d.njmax,
           d.qvel,
           d.eq_active,
           d.xpos,
@@ -1486,10 +1529,10 @@ def make_constraint(m: types.Model, d: types.Data):
           d.site_xpos,
           d.subtree_com,
           d.cdof,
+          d.njmax,
           refsafe,
         ],
         outputs=[
-          d.ne_connect,
           d.nefc,
           d.efc.type,
           d.efc.id,
@@ -1500,6 +1543,7 @@ def make_constraint(m: types.Model, d: types.Data):
           d.efc.vel,
           d.efc.aref,
           d.efc.frictionloss,
+          d.ne_connect,
         ],
       )
       wp.launch(
@@ -1522,7 +1566,6 @@ def make_constraint(m: types.Model, d: types.Data):
           m.eq_solimp,
           m.eq_data,
           m.eq_wld_adr,
-          d.njmax,
           d.qvel,
           d.eq_active,
           d.xpos,
@@ -1531,10 +1574,10 @@ def make_constraint(m: types.Model, d: types.Data):
           d.site_xpos,
           d.subtree_com,
           d.cdof,
+          d.njmax,
           refsafe,
         ],
         outputs=[
-          d.ne_weld,
           d.nefc,
           d.efc.type,
           d.efc.id,
@@ -1545,6 +1588,7 @@ def make_constraint(m: types.Model, d: types.Data):
           d.efc.vel,
           d.efc.aref,
           d.efc.frictionloss,
+          d.ne_weld,
         ],
       )
       wp.launch(
@@ -1563,14 +1607,13 @@ def make_constraint(m: types.Model, d: types.Data):
           m.eq_solimp,
           m.eq_data,
           m.eq_jnt_adr,
-          d.njmax,
           d.qpos,
           d.qvel,
           d.eq_active,
+          d.njmax,
           refsafe,
         ],
         outputs=[
-          d.ne_jnt,
           d.nefc,
           d.efc.type,
           d.efc.id,
@@ -1581,6 +1624,7 @@ def make_constraint(m: types.Model, d: types.Data):
           d.efc.vel,
           d.efc.aref,
           d.efc.frictionloss,
+          d.ne_jnt,
         ],
       )
       wp.launch(
@@ -1594,18 +1638,17 @@ def make_constraint(m: types.Model, d: types.Data):
           m.eq_solref,
           m.eq_solimp,
           m.eq_data,
-          m.eq_ten_adr,
           m.tendon_length0,
           m.tendon_invweight0,
-          d.njmax,
+          m.eq_ten_adr,
           d.qvel,
           d.eq_active,
-          d.ten_length,
           d.ten_J,
+          d.ten_length,
+          d.njmax,
           refsafe,
         ],
         outputs=[
-          d.ne_ten,
           d.nefc,
           d.efc.type,
           d.efc.id,
@@ -1616,6 +1659,7 @@ def make_constraint(m: types.Model, d: types.Data):
           d.efc.vel,
           d.efc.aref,
           d.efc.frictionloss,
+          d.ne_ten,
         ],
       )
 
@@ -1633,12 +1677,12 @@ def make_constraint(m: types.Model, d: types.Data):
         inputs=[
           m.nv,
           m.opt.timestep,
-          m.dof_invweight0,
-          m.dof_frictionloss,
-          m.dof_solimp,
           m.dof_solref,
-          d.njmax,
+          m.dof_solimp,
+          m.dof_frictionloss,
+          m.dof_invweight0,
           d.qvel,
+          d.njmax,
           refsafe,
         ],
         outputs=[
@@ -1666,9 +1710,9 @@ def make_constraint(m: types.Model, d: types.Data):
           m.tendon_solimp_fri,
           m.tendon_frictionloss,
           m.tendon_invweight0,
-          d.njmax,
           d.qvel,
           d.ten_J,
+          d.njmax,
           refsafe,
         ],
         outputs=[
@@ -1700,11 +1744,11 @@ def make_constraint(m: types.Model, d: types.Data):
           m.jnt_solimp,
           m.jnt_range,
           m.jnt_margin,
-          m.jnt_limited_ball_adr,
           m.dof_invweight0,
-          d.njmax,
+          m.jnt_limited_ball_adr,
           d.qpos,
           d.qvel,
+          d.njmax,
           refsafe,
         ],
         outputs=[
@@ -1734,11 +1778,11 @@ def make_constraint(m: types.Model, d: types.Data):
           m.jnt_solimp,
           m.jnt_range,
           m.jnt_margin,
-          m.jnt_limited_slide_hinge_adr,
           m.dof_invweight0,
-          d.njmax,
+          m.jnt_limited_slide_hinge_adr,
           d.qpos,
           d.qvel,
+          d.njmax,
           refsafe,
         ],
         outputs=[
@@ -1765,18 +1809,18 @@ def make_constraint(m: types.Model, d: types.Data):
           m.jnt_dofadr,
           m.tendon_adr,
           m.tendon_num,
-          m.tendon_limited_adr,
           m.tendon_solref_lim,
           m.tendon_solimp_lim,
           m.tendon_range,
           m.tendon_margin,
           m.tendon_invweight0,
-          m.wrap_objid,
           m.wrap_type,
-          d.njmax,
+          m.wrap_objid,
+          m.tendon_limited_adr,
           d.qvel,
-          d.ten_length,
           d.ten_J,
+          d.ten_length,
+          d.njmax,
           refsafe,
         ],
         outputs=[
@@ -1809,11 +1853,11 @@ def make_constraint(m: types.Model, d: types.Data):
             m.body_invweight0,
             m.dof_bodyid,
             m.geom_bodyid,
-            d.njmax,
-            d.nacon,
             d.qvel,
             d.subtree_com,
             d.cdof,
+            d.njmax,
+            d.nacon,
             refsafe,
             d.contact.dist,
             d.contact.dim,
@@ -1825,6 +1869,7 @@ def make_constraint(m: types.Model, d: types.Data):
             d.contact.friction,
             d.contact.solref,
             d.contact.solimp,
+            d.contact.type,
           ],
           outputs=[
             d.nefc,
@@ -1853,11 +1898,11 @@ def make_constraint(m: types.Model, d: types.Data):
             m.body_invweight0,
             m.dof_bodyid,
             m.geom_bodyid,
-            d.njmax,
-            d.nacon,
             d.qvel,
             d.subtree_com,
             d.cdof,
+            d.njmax,
+            d.nacon,
             refsafe,
             d.contact.dist,
             d.contact.dim,
@@ -1870,6 +1915,7 @@ def make_constraint(m: types.Model, d: types.Data):
             d.contact.solref,
             d.contact.solreffriction,
             d.contact.solimp,
+            d.contact.type,
           ],
           outputs=[
             d.nefc,

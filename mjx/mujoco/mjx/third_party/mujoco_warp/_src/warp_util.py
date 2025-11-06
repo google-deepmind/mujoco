@@ -19,7 +19,6 @@ from typing import Callable, Optional
 
 import warp as wp
 from warp.context import Module
-from warp.context import assert_conditional_graph_support
 from warp.context import get_module
 
 _STACK = None
@@ -130,8 +129,8 @@ def kernel(
   enable_backward: Optional[bool] = None,
   module: Optional[Module] = None,
 ):
-  """
-  Decorator to register a Warp kernel from a Python function.
+  """Decorator to register a Warp kernel from a Python function.
+
   The function must be defined with type annotations for all arguments.
   The function must not return anything.
 
@@ -220,9 +219,9 @@ def cache_kernel(func):
   return wrapper
 
 
-def conditional_graph_supported():
-  try:
-    assert_conditional_graph_support()
-  except Exception:
-    return False
-  return True
+def check_toolkit_driver():
+  if wp.context.runtime is None:
+    wp.context.init()
+  if wp.get_device().is_cuda:
+    if wp.context.runtime.toolkit_version < (12, 4) or wp.context.runtime.driver_version < (12, 4):
+      RuntimeError("Minimum supported CUDA version: 12.4.")

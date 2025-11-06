@@ -24,7 +24,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MAXVAL
 def hfield_filter(
   # Model:
   geom_dataid: wp.array(dtype=int),
-  geom_aabb: wp.array2d(dtype=wp.vec3),
+  geom_aabb: wp.array3d(dtype=wp.vec3),
   geom_rbound: wp.array2d(dtype=float),
   geom_margin: wp.array2d(dtype=float),
   hfield_size: wp.array(dtype=wp.vec4),
@@ -43,17 +43,20 @@ def hfield_filter(
   # height field info
   hfdataid = geom_dataid[g1]
   size1 = hfield_size[hfdataid]
+
+  # geom info
+  rbound_id = worldid % geom_rbound.shape[0]
+  margin_id = worldid % geom_margin.shape[0]
+
   pos1 = geom_xpos_in[worldid, g1]
   mat1 = geom_xmat_in[worldid, g1]
   mat1T = wp.transpose(mat1)
-
-  # geom info
   pos2 = geom_xpos_in[worldid, g2]
   pos = mat1T @ (pos2 - pos1)
-  r2 = geom_rbound[worldid, g2]
+  r2 = geom_rbound[rbound_id, g2]
 
   # TODO(team): margin?
-  margin = wp.max(geom_margin[worldid, g1], geom_margin[worldid, g2])
+  margin = wp.max(geom_margin[margin_id, g1], geom_margin[margin_id, g2])
 
   # box-sphere test: horizontal plane
   for i in range(2):
@@ -78,8 +81,9 @@ def hfield_filter(
   ymin = MJ_MAXVAL
   zmin = MJ_MAXVAL
 
-  center2 = geom_aabb[g2, 0]
-  size2 = geom_aabb[g2, 1]
+  aabb_id = worldid % geom_aabb.shape[0]
+  center2 = geom_aabb[aabb_id, g2, 0]
+  size2 = geom_aabb[aabb_id, g2, 1]
 
   pos += mat1T @ center2
 

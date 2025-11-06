@@ -45,6 +45,8 @@ from mujoco.mjx.third_party.mujoco_warp._src.io import override_model
 
 
 class EngineOptions(enum.IntEnum):
+  """Engine option."""
+
   WARP = 0
   C = 1
 
@@ -142,15 +144,16 @@ def _main(argv: Sequence[str]) -> None:
       broadphase, filter = mjw.BroadphaseType(m.opt.broadphase).name, mjw.BroadphaseFilter(m.opt.broadphase_filter).name
       solver, cone = mjw.SolverType(m.opt.solver).name, mjw.ConeType(m.opt.cone).name
       integrator = mjw.IntegratorType(m.opt.integrator).name
-      iterations, ls_iterations, ls_parallel = m.opt.iterations, m.opt.ls_iterations, m.opt.ls_parallel
+      iterations, ls_iterations = m.opt.iterations, m.opt.ls_iterations
+      ls_str = f"{'parallel' if m.opt.ls_parallel else 'iterative'} linesearch iterations: {ls_iterations}"
       print(
         f"  nbody: {m.nbody} nv: {m.nv} ngeom: {m.ngeom} nu: {m.nu} is_sparse: {m.opt.is_sparse}\n"
         f"  broadphase: {broadphase} broadphase_filter: {filter}\n"
-        f"  solver: {solver} cone: {cone} iterations: {iterations} ls_iterations: {ls_iterations} ls_parallel: {ls_parallel}\n"
+        f"  solver: {solver} cone: {cone} iterations: {iterations} {ls_str}\n"
         f"  integrator: {integrator} graph_conditional: {m.opt.graph_conditional}"
       )
       d = mjw.put_data(mjm, mjd, nconmax=_NCONMAX.value, njmax=_NJMAX.value)
-      print(f"Data\n  nworld: {d.nworld} nconmax: {d.nconmax} njmax: {d.njmax}\n")
+      print(f"Data\n  nworld: {d.nworld} nconmax: {d.naconmax / d.nworld} njmax: {d.njmax}\n")
       graph = _compile_step(m, d)
       print(f"MuJoCo Warp simulating with dt = {m.opt.timestep.numpy()[0]:.3f}...")
 

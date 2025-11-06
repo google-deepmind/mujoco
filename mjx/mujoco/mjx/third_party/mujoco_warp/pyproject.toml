@@ -28,9 +28,9 @@ requires-python = ">=3.9"
 dependencies = [
     "absl-py",
     "etils[epath]",
-    "mujoco>=3.3.6.dev802089588",
+    "mujoco>=3.3.7",
     "numpy",
-    "warp-lang>=1.9.0.dev20250825",
+    "warp-lang>=1.9.1",
 ]
 
 [[tool.uv.index]]
@@ -49,6 +49,7 @@ mujoco = {index = "mujoco"}
 
 [project.optional-dependencies]
 dev = [
+    "asv",
     "pre-commit",
     "pytest",
     "pytest-xdist",
@@ -81,8 +82,15 @@ extend-exclude = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = [
+    "D",  # pydocstyle conventions and style
     "I",  # isort
     "W",  # pycodestyle
+    "F401",  # unused imports
+]
+
+ignore = [
+    "D100",  # missing docstring public module
+    "D103",  # missing docstring public function
 ]
 
 [tool.ruff.lint.isort]
@@ -92,6 +100,13 @@ single-line-exclusions = ["typing"]
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 100
 max-line-length = 128
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["D"]
+"contrib/*" = ["D"]
 
 [tool.ruff.format]
 docstring-code-format = true

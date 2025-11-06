@@ -29,11 +29,10 @@ def create_blocked_cholesky_func(block_size: int):
     # Out:
     L: wp.array(dtype=float, ndim=2),
   ):
-    """
-    Computes the Cholesky factorization of a symmetric positive definite matrix A in blocks.
+    """Computes the Cholesky factorization of a symmetric positive definite matrix A in blocks.
+
     It returns a lower-triangular matrix L such that A = L L^T.
     """
-
     num_threads_per_block = wp.block_dim()
 
     # Round up active_matrix_size to next multiple of block_size
@@ -120,11 +119,11 @@ def create_blocked_cholesky_solve_func(block_size: int):
     # Out:
     x: wp.array(dtype=float, ndim=2),
   ):
-    """
-    Solves A x = b given the Cholesky factor L (A = L L^T) using
-    blocked forward and backward substitution.
-    """
+    """Block Cholesky factorization and solve.
 
+    Solves A x = b given the Cholesky factor L (A = L L^T) using blocked forward and backward
+    substitution.
+    """
     num_threads_per_block = wp.block_dim()
 
     # Round up active_matrix_size to next multiple of block_size

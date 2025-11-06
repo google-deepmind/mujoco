@@ -96,7 +96,6 @@ def inert_vec(i: types.vec10, v: wp.spatial_vector) -> wp.spatial_vector:
 @wp.func
 def motion_cross(u: wp.spatial_vector, v: wp.spatial_vector) -> wp.spatial_vector:
   """Cross product of two motions."""
-
   u0 = wp.vec3(u[0], u[1], u[2])
   u1 = wp.vec3(u[3], u[4], u[5])
   v0 = wp.vec3(v[0], v[1], v[2])
@@ -111,7 +110,6 @@ def motion_cross(u: wp.spatial_vector, v: wp.spatial_vector) -> wp.spatial_vecto
 @wp.func
 def motion_cross_force(v: wp.spatial_vector, f: wp.spatial_vector) -> wp.spatial_vector:
   """Cross product of a motion and a force."""
-
   v0 = wp.vec3(v[0], v[1], v[2])
   v1 = wp.vec3(v[3], v[4], v[5])
   f0 = wp.vec3(f[0], f[1], f[2])
@@ -249,7 +247,6 @@ def closest_segment_point_and_dist(a: wp.vec3, b: wp.vec3, pt: wp.vec3) -> Tuple
 @wp.func
 def closest_segment_to_segment_points(a0: wp.vec3, a1: wp.vec3, b0: wp.vec3, b1: wp.vec3) -> Tuple[wp.vec3, wp.vec3]:
   """Returns closest points between two line segments."""
-
   dir_a, len_a = normalize_with_norm(a1 - a0)
   dir_b, len_b = normalize_with_norm(b1 - b0)
 

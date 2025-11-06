@@ -754,7 +754,7 @@ class Model(PyTreeNode):
   geom_solref: jax.Array
   geom_solimp: jax.Array
   geom_size: jax.Array
-  geom_aabb: np.ndarray
+  geom_aabb: jax.Array
   geom_rbound: jax.Array
   geom_pos: jax.Array
   geom_quat: jax.Array

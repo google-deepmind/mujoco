@@ -45,28 +45,46 @@ def _sum(stack1, stack2):
 @wp.kernel
 def ctrl_noise(
   # Model:
+  opt_timestep: wp.array(dtype=float),
   actuator_ctrllimited: wp.array(dtype=bool),
   actuator_ctrlrange: wp.array2d(dtype=wp.vec2),
+  # Data in:
+  ctrl_in: wp.array2d(dtype=float),
   # In:
   ctrl_center: wp.array1d(dtype=float),
   step: int,
-  ctrlnoise: float,
+  ctrlnoisestd: float,
+  ctrlnoiserate: float,
   # Data out:
   ctrl_out: wp.array2d(dtype=float),
 ):
   worldid, actid = wp.tid()
 
-  center = 0.0
-  radius = 1.0
+  # convert rate and scale to discrete time (Ornstein-Uhlenbeck)
+  rate = wp.exp(-opt_timestep[0] / ctrlnoiserate)
+  scale = ctrlnoisestd * wp.sqrt(1.0 - rate * rate)
+
+  midpoint = 0.0
+  halfrange = 1.0
   ctrlrange = actuator_ctrlrange[0, actid]
+  is_limited = actuator_ctrllimited[actid]
+  if is_limited:
+    midpoint = 0.5 * (ctrlrange[1] + ctrlrange[0])
+    halfrange = 0.5 * (ctrlrange[1] - ctrlrange[0])
   if ctrl_center.shape[0] > 0:
-    center = ctrl_center[actid]
-  elif actuator_ctrllimited[actid]:
-    center = (ctrlrange[1] + ctrlrange[0]) / 2.0
-    radius = (ctrlrange[1] - ctrlrange[0]) / 2.0
-  radius *= ctrlnoise
-  noise = 2.0 * halton((step + 1) * (worldid + 1), actid + 2) - 1.0
-  ctrl_out[worldid, actid] = center + radius * noise
+    midpoint = ctrl_center[actid]
+
+  # exponential convergence to midpoint at ctrlnoiserate
+  ctrl = rate * ctrl_in[worldid, actid] + (1.0 - rate) * midpoint
+
+  # add noise
+  ctrl += scale * halfrange * (2.0 * halton((step + 1) * (worldid + 1), actid + 2) - 1.0)
+
+  # clip to range if limited
+  if is_limited:
+    ctrl = wp.clamp(ctrl, ctrlrange[0], ctrlrange[1])
+
+  ctrl_out[worldid, actid] = ctrl
 
 
 def benchmark(
@@ -82,28 +100,24 @@ def benchmark(
   """Benchmark a function of Model and Data.
 
   Args:
-    fn (Callable[[Model, Data], None]): Function to benchmark.
-    m (Model): The model containing kinematic and dynamic information (device).
-    d (Data): The data object containing the current state and output information (device).
-    nstep (int): Number of timesteps.
-    ctrls (list, optional): control sequence to apply during benchmarking.
-                            Default is None.
-    event_trace (bool, optional): If True, time routines decorated with @event_scope.
-                                  Default is False.
-    measure_alloc (bool, optional): If True, record number of contacts and constraints.
-                                    Default is False.
-    measure_solver_niter (bool, False): If True, record the number of solver iterations.
-                                        Default is False.
-  Returns:
-    float: Time to JIT fn.
-    float: Total time to run the benchmark.
-    dict: Trace.
-    list: Number of contacts.
-    list: Number of constraints.
-    list: Number of solver iterations.
-    int: Number of converged worlds.
-  """
+    fn: Function to benchmark.
+    m: The model containing kinematic and dynamic information (device).
+    d: The data object containing the current state and output information (device).
+    nstep: Number of timesteps.
+    ctrls: Control sequence to apply during benchmarking.
+    event_trace: If True, time routines decorated with @event_scope.
+    measure_alloc: If True, record number of contacts and constraints.
+    measure_solver_niter: If True, record the number of solver iterations.
 
+  Returns:
+    - Time to JIT fn.
+    - Total time to run the benchmark.
+    - Trace.
+    - Number of contacts.
+    - Number of constraints.
+    - Number of solver iterations.
+    - Number of converged worlds.
+  """
   trace = {}
   nacon, nefc, solver_niter = [], [], []
   center = wp.array([], dtype=wp.float32)
@@ -126,7 +140,7 @@ def benchmark(
         wp.launch(
           ctrl_noise,
           dim=(d.nworld, m.nu),
-          inputs=[m.actuator_ctrllimited, m.actuator_ctrlrange, center, i, 0.01],
+          inputs=[m.opt.timestep, m.actuator_ctrllimited, m.actuator_ctrlrange, d.ctrl, center, i, 0.01, 0.1],
           outputs=[d.ctrl],
         )
         wp.synchronize()
