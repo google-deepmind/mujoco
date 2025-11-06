@@ -54,17 +54,19 @@ Test the Installation
 
 .. _MJW_Usage:
 
-Basic usage
+Basic Usage
 ===========
 
 Once installed, the package can be imported via ``import mujoco_warp as mjw``. Structs, functions, and enums are
-available directly from the top-level ``mjw`` module.
+available directly from the top-level :mod:`mjw <mujoco_warp>` module.
 
 Structs
 -------
-Before running MJWarp functions on an NVIDIA GPU, structs must be copied onto the device via ``mjw.put_model`` and
-``mjw.make_data`` or ``mjw.put_data`` functions. Placing an :ref:`mjModel` on device yields an ``mjw.Model``. Placing
-an :ref:`mjData` on device yields an ``mjw.Data``:
+Before running MJWarp functions on an NVIDIA GPU, structs must be copied onto the device via
+:func:`mjw.put_model <mujoco_warp.put_model>` and :func:`mjw.make_data <mujoco_warp.make_data>` or
+:func:`mjw.put_data <mujoco_warp.put_data>` functions. Placing an :ref:`mjModel` on device yields an
+:class:`mjw.Model <mujoco_warp.Model>`. Placing an :ref:`mjData` on device yields an
+:class:`mjw.Data <mujoco_warp.Data>`.
 
 .. code-block:: python
 
@@ -75,35 +77,37 @@ an :ref:`mjData` on device yields an ``mjw.Data``:
 
 These MJWarp variants mirror their MuJoCo counterparts but have a few key differences:
 
-#. ``mjw.Model`` and ``mjw.Data`` contain Warp arrays that are copied onto device.
-#. Some fields are missing from ``mjw.Model`` and ``mjw.Data`` for features that are unsupported.
+#. :class:`mjw.Model <mujoco_warp.Model>` and :class:`mjw.Data <mujoco_warp.Data>` contain Warp arrays that are copied
+   onto device.
+#. Some fields are missing from :class:`mjw.Model <mujoco_warp.Model>` and :class:`mjw.Data <mujoco_warp.Data>` for
+   features that are unsupported.
 
 Batch sizes
 -----------
 
 MJWarp is optimized for parallel simulation. A batch of simulations can be specified with three parameters:
 
-- ``nworld``: Number of worlds to simulate.
-- ``nconmax``: Expected number of contacts per world. The maximum number of contacts for all worlds is
+- :attr:`nworld <mujoco_warp.Data.nworld>`: Number of worlds to simulate.
+- _`nconmax`: Expected number of contacts per world. The maximum number of contacts for all worlds is
   ``nconmax * nworld``.
-- ``naconmax``: Alternative to ``nconmax``, maximum number of contacts over all worlds. If ``nconmax`` and ``naconmax``
-  are both set and ``nworld * nconmax != naconmax`` an error will be raised.
-- ``njmax``: Maximum number of constraints per world.
+- _`naconmax`: Alternative to `nconmax`_, maximum number of contacts over all worlds. If `nconmax`_ and `naconmax`_ are
+  both set and ``nworld * nconmax != naconmax`` an error will be raised.
+- _`njmax`: Maximum number of constraints per world.
 
-.. admonition:: Semantic difference for ``nconmax`` and ``njmax``.
+.. admonition:: Semantic difference for `nconmax`_ and `njmax`_.
   :class: note
 
-  It is possible for the number of contacts per world to exceed ``nconmax`` if the total number of contacts for all
+  It is possible for the number of contacts per world to exceed `nconmax`_ if the total number of contacts for all
   worlds does not exceed ``nworld x nconmax``. However, the number of constraints per world is strictly limited by
-  ``njmax``.
+  `njmax`_.
 
 Functions
 ---------
 
 MuJoCo functions are exposed as MJWarp functions of the same name, but following
 `PEP 8 <https://peps.python.org/pep-0008/>`__-compliant names. Most of the :ref:`main simulation <Mainsimulation>` and
-some of the :ref:`sub-components <Subcomponents>` for forward simulation are available from the top-level ``mjw``
-module.
+some of the :ref:`sub-components <Subcomponents>` for forward simulation are available from the top-level
+:mod:`mjw <mujoco_warp>` module.
 
 Minimal example
 ---------------
@@ -139,27 +143,9 @@ Minimal example
 
    print(f'qpos:\n{d.qpos.numpy()}')
 
-A call to ``mjw.step`` is comprised of a collection of kernel launches. Warp will launch these kernels individually if
-this function is called directly. To improve performance, especially if the function will be called multiple times, it
-is recommended to capture the operations that comprise the function as a CUDA graph
+.. _mjwCLI:
 
-.. code-block:: python
-
-  with wp.ScopedCapture() as capture:
-    mjw.step(m, d)
-
-The graph can then be launched or re-launched
-
-.. code-block:: python
-
-  wp.capture_launch(capture.graph)
-
-and will typically be significantly faster compared to calling ``mjw.step`` directly. Please see the
-`Warp Graph API reference <https://nvidia.github.io/warp/modules/runtime.html#graph-api-reference>`__ for details.
-
-.. _MJW_Cli:
-
-Helpful Command Line Scripts
+Helpful command line scripts
 ----------------------------
 
 Benchmark an environment with testspeed
@@ -211,20 +197,121 @@ The following features are **not supported** in MJWarp:
    * - :ref:`User parameters <CUser>`
      - ``All``
 
-Batched ``Model`` Fields
-========================
+.. _mjwPerf:
 
-To enable batched simulation with different model parameter values, many ``mjw.Model`` fields have a leading batch
-dimension. By default, the leading dimension is 1 (i.e., ``field.shape[0] == 1``) and the same value(s) will be applied
-to all worlds. It is possible to override one of these fields with a ``wp.array`` that has a leading dimension greater
-than one. This field will be indexed with a modulo operation of the world id and batch dimension:
-``field[worldid % field.shape[0]]``. Importantly, the field shape should be overridden prior to graph capture (i.e.,
-``wp.ScopedCapture``)
+Performance Tuning
+==================
+
+The following are considerations for optimizing the performance of MJWarp.
+
+.. _mjwGC:
+
+Graph capture
+-------------
+
+MJWarp functions, for example :func:`mjw.step <mujoco_warp.step>`, often comprise a collection of kernel launches. Warp
+will launch these kernels individually if the function is called directly. To improve performance, especially if the
+function will be called multiple times, it is recommended to capture the operations that comprise the function as a CUDA
+graph
+
+.. code-block:: python
+
+  with wp.ScopedCapture() as capture:
+    mjw.step(m, d)
+
+The graph can then be launched or re-launched
+
+.. code-block:: python
+
+  wp.capture_launch(capture.graph)
+
+and will typically be significantly faster compared to calling the function directly. Please see the
+`Warp Graph API reference <https://nvidia.github.io/warp/modules/runtime.html#graph-api-reference>`__ for details.
+
+Batch sizes
+-----------
+
+The maximum numbers of contacts and constraints, `nconmax`_ / `naconmax`_ and `njmax`_ respectively, are specified when
+creating :class:`mjw.Data <mujoco_warp.Data>` with :func:`mjw.make_data <mujoco_warp.make_data>` or
+:func:`mjw.put_data <mujoco_warp.put_data>`. Memory and computation scales with the values of these parameters. For best
+performance, the values of these parameters should be set as small as possible while ensuring the simulation does not
+exceed these limits.
+
+It is expected that good values for these limits will be environment specific. In practice, selecting good values
+typically involves trial-and-error. :func:`mjwarp-testspeed <mujoco_warp.testspeed>` with the flag `--measure_alloc` for
+printing the number of contacts and constraints at each simulation step and interacting with the simulation via
+:func:`mjwarp-viewer <mujoco_warp.viewer>` and checking for overflow errors can both be useful techniques for
+iteratively testing values for these parameters.
+
+Solver iterations
+-----------------
+
+MuJoCo's default solver settings for the maximum numbers of :ref:`solver iterations<option-iterations>` and
+:ref:`linesearch iterations<option-ls_iterations>` are expected to provide reasonable performance. Reducing MJWarp's
+settings :attr:`Option.iterations <mujoco_warp.Option.iterations>` and/or
+:attr:`Optiona.ls_iterations <mujoco_warp.Option.ls_iterations>` limits may improve performance and should be secondary
+considerations after tuning `nconmax`_ / `naconmax`_ and `njmax`_.
+
+Reducing these limits too much may prevent the constraint solver from converging and can lead to inaccurate or unstable
+simulation.
+
+.. admonition:: Impact on Performance: MJX (JAX) and MJWarp
+  :class: note
+
+  In :ref:`MJX<mjx>` these solver parameters are key for controlling simulation performance. With MJWarp, in contrast,
+  once all worlds have converged the solver can early exit and avoid unnecessary computation. As a result, the values
+  of these settings have comparatively less impact on performance.
+
+Contact sensor matching
+-----------------------
+
+Scenes that include :ref:`contact sensors<sensor-contact>` have a parameter that specifies the maximum number of matched
+contacts per sensor :attr:`Option.contact_sensor_max_match <mujoco_warp.Option.contact_sensor_max_match>`. For best
+performance, the value of this parameter should be as small as possible while ensuring the simulation does not exceed
+the limit. Matched contacts that exceed this limit will be ignored.
+
+Similar to the maximum numbers of contacts and constraints, a good value for this setting is expected to be environment
+specific. :func:`mjwarp-testspeed <mujoco_warp.testspeed>` and :func:`mjwarp-viewer <mujoco_warp.viewer>` may be useful
+for tuning the value of this parameter.
+
+Parallel linesearch
+-------------------
+
+In addition to the constraint solver's iterative linesearch, MJWarp provides a parallel linesearch routine that
+evaluates a set of step sizes in parallel and selects the best one. The step sizes are spaced logarithmically from
+:attr:`Model.opt.ls_parallel_min_step <mujoco_warp.Option.ls_parallel_min_step>` to 1 and the number of step sizes to
+evaluate is set via :attr:`Model.opt.ls_iterations <mujoco_warp.Option.ls_iterations>`.
+
+In some cases the parallel routine may provide improved performance compared to the constraint solver's default
+iterative linesearch.
+
+To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeric field to the XML
+
+.. code-block:: xml
+
+   <custom>
+     <numeric name="ls_parallel" data="1"/>
+   </custom>
+
+.. admonition:: Experimental feature
+  :class: note
+
+  The parallel linesearch is currently an experimental feature.
+
+Batched :class:`Model <mujoco_warp.Model>` Fields
+=================================================
+
+To enable batched simulation with different model parameter values, many :class:`mjw.Model <mujoco_warp.Model>` fields
+have a leading batch dimension. By default, the leading dimension is 1 (i.e., ``field.shape[0] == 1``) and the same
+value(s) will be applied to all worlds. It is possible to override one of these fields with a ``wp.array`` that has a
+leading dimension greater than one. This field will be indexed with a modulo operation of the world id and batch
+dimension: ``field[worldid % field.shape[0]]``. Importantly, the field shape should be overridden prior to
+:ref:`graph capture <mjwGC>` (i.e., ``wp.ScopedCapture``)
 
 .. code-block:: python
 
    # override shape and values
-   m.dof_damping = wp.array([[0.1], [0.2]], dtype=float)  # nworld=2
+   m.dof_damping = wp.array([[0.1], [0.2]], dtype=float)
 
    with wp.ScopedCapture() as capture:
      mjw.step(m, d)
@@ -240,25 +327,10 @@ It is possible to override the field shape and set the field values after graph 
      mjw.step(m, d)
 
    # set batched values
-   dof_damping_batch = wp.array([[0.1], [0.2]], dtype=float)  # nworld=2
-   wp.copy(m.dof_damping, dof_damping_batch)  # m.dof = dof_damping_batch will not work correctly
+   dof_damping_batch = wp.array([[0.1], [0.2]], dtype=float)
+   wp.copy(m.dof_damping, dof_damping_batch)  # m.dof = dof_damping_batch will not update the captured graph
 
 .. admonition:: Heterogeneous worlds
    :class: note
 
    Heterogeneous worlds, for example: per-world meshes or number of degrees of freedom, are not currently available.
-
-Parallel Linesearch
-===================
-
-In addition to the constraint solver's iterative linesearch, MJWarp provides a parallel linesearch routine that
-evaluates a set of step sizes in parallel and selects the best one. The step sizes are spaced logarithmically from
-``Model.opt.ls_parallel_min_step`` to 1 and the number of step sizes to evaluate is set via ``Model.opt.ls_iterations``.
-
-To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeric field to the XML
-
-.. code-block:: xml
-
-   <custom>
-     <numeric name="ls_parallel" data="1"/>
-   </custom>
