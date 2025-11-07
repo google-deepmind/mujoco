@@ -299,7 +299,10 @@ void SceneView::PrepareLights() {
     params.castshadow = 0;
     params.intensity = 0;
     auto light_obj = std::make_unique<Light>(object_mgr_, params);
+#ifndef __EMSCRIPTEN__
+    // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
     light_obj->AddToScene(scene_);
+#endif
     lights_.emplace_back(std::move(light_obj));
   }
 
