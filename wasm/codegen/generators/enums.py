@@ -14,11 +14,11 @@
 
 """Generates Embind bindings for MuJoCo enums."""
 
-from typing import Mapping, Optional
+from typing import Mapping
 
 from introspect import ast_nodes
 
-from wasm.codegen.helpers import code_builder
+from wasm.codegen.generators import code_builder
 
 
 class Generator:

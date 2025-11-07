@@ -18,7 +18,7 @@ import textwrap
 
 from introspect import enums as introspect_enums
 
-from wasm.codegen.helpers import common
+from wasm.codegen.generators import common
 
 
 def generate_typescript_enum_tests():

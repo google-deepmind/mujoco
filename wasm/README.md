@@ -148,7 +148,7 @@ bounds checking and nice error reporting.
    > run the following command to re-create the test:
    >
    > ```sh
-   > PYTHONPATH=python/mujoco python3 -m wasm.codegen.enums_test_generator
+   > PYTHONPATH=python/mujoco python3 -m wasm.codegen.tests.enums_test_generator
    > ```
 
 2. **JavaScript API benchmark tests.**

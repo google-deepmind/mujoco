@@ -33,9 +33,9 @@ from absl.testing import absltest
 from introspect import functions as introspect_functions
 from introspect import structs as introspect_structs
 
-from wasm.codegen.helpers import common
-from wasm.codegen.helpers import constants
-from wasm.codegen.helpers import functions
+from wasm.codegen.generators import common
+from wasm.codegen.generators import constants
+from wasm.codegen.generators import functions
 
 
 def _get_resource_content(file_path: str) -> str:
