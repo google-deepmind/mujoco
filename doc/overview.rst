@@ -422,12 +422,19 @@ Kinematic tree
 ~~~~~~~~~~~~~~
 
 MuJoCo simulates the dynamics of a collection of rigid bodies whose motion is usually constrained. The system state is
-represented in joint coordinates and the bodies are explicitly organized into kinematic trees. Each body except for the
-top-level "world" body has a unique parent. Kinematic loops are not allowed; if loop joints are needed they should be
-modeled with equality constraints. Thus the backbone of a MuJoCo model is one or several kinematic trees formed by
-nested body definitions; an isolated floating body counts as a tree. Several other elements listed below are defined
-within a body and belong to that body. This is in contrast with the stand-alone elements listed later which cannot be
-associated with a single body.
+represented in joint coordinates and the bodies are explicitly organized into kinematic trees. The tree structure is
+given by ``mjModel.body_parentid``, an integer array of length ``nbody >= 1``. The top-level "world" body always exists
+(with id ``0``) and is its own parent, thus ``body_parentid[0] == 0`` and ``body_parentid[i] < i`` for all other ``i``.
+Note that the world body and other static (joint-less) child bodies form a unique "static tree" with no associated
+degrees of freedom. Below this top-level static tree, multiple kinematic trees can be attached, see :ref:`Tree
+<ElemTree>` below.
+
+Kinematic loops are not allowed; if loop joints are needed they should be modeled with equality constraints. Thus the
+backbone of a MuJoCo model is one or several kinematic trees formed by nested body definitions; an isolated floating
+body counts as a tree. Several other elements listed below are defined within a body and belong to that body. This is in
+contrast with the stand-alone elements listed later which cannot be associated with a single body.
+
+.. _ElemBody:
 
 Body
 ^^^^
@@ -438,6 +445,9 @@ position other elements relative to it, and an inertial frame centered at the bo
 its principal axes of inertia. The body inertia matrix is therefore diagonal in this frame. At each time step MuJoCo
 computes the forward kinematics recursively, yielding all body positions and orientations in global Cartesian
 coordinates. This provides the basis for all subsequent computations.
+The number of bodies is given by ``mjModel.nbody``.
+
+.. _ElemJoint:
 
 Joint
 ^^^^^
@@ -448,7 +458,7 @@ over-complete Cartesian coordinates, where joints remove DOFs instead of adding 
 ball, slide, hinge, and a "free joint" which creates floating bodies. A single body can have multiple joints. In this
 way composite joints are created automatically, without having to define dummy bodies. The orientation components of
 ball and free joints are represented as unit quaternions, and all computations in MuJoCo respect the properties of
-quaternions.
+quaternions. The number of joints is given by ``mjModel.njnt``.
 
 Joint reference
 '''''''''''''''
@@ -475,6 +485,8 @@ spring reference pose is saved in ``mjModel.qpos_spring``. For slide and hinge j
 specified with the attribute springref. For ball and free joints, the spring reference corresponds to the initial
 model configuration.
 
+.. _ElemDof:
+
 DOF
 ^^^
 
@@ -485,7 +497,27 @@ system, while the joint velocities are coordinates over the tangent space to thi
 DOFs have velocity-related properties such as friction loss, damping, armature inertia. All generalized forces acting
 on the system are expressed in the space of DOFs. In contrast, joints have position-related properties such as limits
 and spring stiffness. DOFs are not specified directly by the user. Instead they are created by the compiler given the
-joints.
+joints. The number of DOFs is given by ``mjModel.nv``.
+
+.. _ElemTree:
+
+Tree
+^^^^
+
+As explained :ref:`above <Kinematic>`, moving bodies are organized into kinematic trees. A kinematic tree or "tree" is
+*a movable body and all of its descendants*. Thus the world and other static bodies are in the global tree structure but
+not associated with any *tree*. Because the global tree structure uses a depth-first organization, all bodies, joints
+and DOFs belonging to a single tree are always sequential. Note that unlike bodies which (if static) are not associated
+with any tree, joints and DOFs are always associated with a tree. Both :ref:`island discovery <soIsland>` and
+:ref:`island sleeping <Sleeping>` operate on the level of trees.
+
+The number of trees is given by ``mjModel.ntree``. For example, a model containing three free bodies and the `standard
+humanoid <https://github.com/google-deepmind/mujoco/blob/main/model/humanoid/humanoid.xml>`__ has ``ntree = 4``. Note
+that while trees are indeed subtrees of the global tree (whose root is the world), this should not be confused with the
+specific term ``subtree``, which is reserved for per-body partial trees, thus ``mjModel.body_subtreemass`` gives the
+total mass of the partial tree under each body, for all bodies.
+
+.. _ElemGeom:
 
 Geom
 ^^^^
@@ -497,6 +529,9 @@ subsequent computation of contact forces, geoms are used for rendering, as well 
 and inertias when the latter are omitted. MuJoCo supports several primitive geometric shapes: plane, sphere, capsule,
 ellipsoid, cylinder, box. A geom can also be a mesh or a height field; this is done by referencing the corresponding
 asset. Geoms have a number of material properties that affect the simulation and visualization.
+The number of geoms is given by ``mjModel.ngeom``.
+
+.. _ElemSite:
 
 Site
 ^^^^
@@ -504,6 +539,9 @@ Site
 Sites are essentially light geoms. They represent locations of interest within the body frame. Sites do not
 participate in collision detection or automated computation of inertial properties, however they can be used to
 specify the spatial properties of other objects like sensors, tendon routing, and slider-crank endpoints.
+The number of sites is given by ``mjModel.nsite``.
+
+.. _ElemCamera:
 
 Camera
 ^^^^^^
@@ -515,6 +553,9 @@ orientation, the user can adjust the vertical field of view and the inter-pupila
 as well as create oblique projections needed for stereoscopic virtual environments. When modeling real cameras with
 imperfect optics, it is possible to specify separate focal lengths for the horizontal and vertical directions and a
 non-centered principal point.
+The number of cameras is given by ``mjModel.ncam``.
+
+.. _ElemLight:
 
 Light
 ^^^^^
@@ -527,6 +568,7 @@ used with caution. Documenting the lighting model in detail is beyond the scope 
 documentation <http://www.glprogramming.com/red/chapter05.html>`__ instead. Note that in addition to lights defined
 by the user in the kinematic tree, there is a default headlight that moves with the camera. Its properties are
 adjusted through the mjVisual options.
+The number of lights is given by ``mjModel.nlight``.
 
 .. _Standalone:
 
@@ -535,6 +577,8 @@ Stand-alone
 
 Here we describe the model elements which do not belong to an individual body, and therefore are described outside the
 kinematic tree.
+
+.. _ElemTendon:
 
 Tendon
 ^^^^^^
@@ -549,6 +593,8 @@ other, the user can also specify the preferred side. If there are multiple wrapp
 must be separated by sites, so as to avoid the need for an iterative solver. Spatial tendons can also be split into
 multiple branches using pulleys.
 
+.. _ElemActuator:
+
 Actuator
 ^^^^^^^^
 
@@ -560,6 +606,8 @@ activation dynamics can be used to model internal activation states of pneumatic
 biological muscles; using such actuators makes the overall system dynamics 3rd-order. The force generation mechanism
 determines how the scalar control signal provided as input to the actuator is mapped into a scalar force, which is in
 turn mapped into a generalized force by the moment arms inferred from the transmission.
+
+.. _ElemSensor:
 
 Sensor
 ^^^^^^
@@ -574,6 +622,8 @@ other quantity of interest in the sensor data array. MuJoCo also has off-screen 
 straightforward to simulate both color and depth camera sensors. This is not included in the standard sensor model
 and instead has to be done programmatically, as illustrated in the code sample :ref:`simulate.cc <saSimulate>`.
 
+.. _ElemEquality:
+
 Equality
 ^^^^^^^^
 
@@ -584,11 +634,12 @@ available equality constraint types are: connect two bodies at a point (creating
 tree); weld two bodies together; fix the position of a joint or tendon; couple the positions of two joints or two
 tendons via a cubic polynomial; constrain the edges of a flex (i.e. deformable mesh) to their initial lengths.
 
+.. _ElemFlex:
 
 Flex
 ^^^^
 
-Flexes were added in MuJoCo 3.0. They represent deformable meshes that can be 1, 2 or 3 dimensional (thus their elements
+Flexes represent deformable meshes that can be 1, 2 or 3 dimensional (thus their elements
 are capsules, triangles or tetrahedra). Unlike geoms which are static shapes attached rigidly to a single body, the
 elements of a flex are deformable: they are constructed by connecting multiple bodies, thus the body positions and
 orientations determine the shape of the flex elements at runtime. These deformable elements support collisions and

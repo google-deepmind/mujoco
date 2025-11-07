@@ -106,7 +106,7 @@ The default (and recommended) way to control the system is to implement a contro
 
 .. code-block:: C
 
-   // simple controller applying damping to each dof
+   // simple controller applying damping to each DOF
    void mycontroller(const mjModel* m, mjData* d) {
      if (m->nu == m->nv)
        mju_scl(d->ctrl, d->qvel, -0.1, m->nv);
@@ -922,6 +922,176 @@ normal axis (which is the X axis of the contact frame by our convention) is in p
 is in [3-5] and the Z axis is in [6-8]. The reason for this arrangement is because we can have frictionless contacts
 where only the normal axis is used, so it makes sense to have its coordinates in the first 3 positions of
 ``mjContact.frame``.
+
+.. _siSleep:
+
+Sleeping islands
+~~~~~~~~~~~~~~~~
+
+Sleeping islands are described in broad strokes in the :ref:`Computation chapter <Sleeping>`. Here we focus on
+implementation details.
+
+The high level sleep state of :ref:`trees<ElemTree>` is described by ``mjData.tree_asleep`` (though see caveat below). A
+negative value means a tree is awake, non-negative means asleep. Maximally awake trees are given the value - |-| (1 |-|
++ |-| :ref:`mjMINAWAKE<glNumeric>`), and for every timestep where their velocity falls below the sleep :ref:`tolerance
+<option-sleep_tolerance>`, this integer is incremented, up to -1, which means "ready to sleep". If all trees in an
+island are ready to sleep, they are put to sleep during state advancement and their associated values in ``tree_asleep``
+are set to a (non-negative) index cycle: the "sleeping island". If any tree in the island is woken, all are woken.
+
+Sleep policy
+^^^^^^^^^^^^
+
+The ability of a kinematic tree to sleep is governed by a policy determined at model compile time. The compiler
+automatically determines the :ref:`policy<mjtSleepPolicy>` to be either "allowed" or "never", though these can be
+overridden using the :ref:`body/sleep <body-sleep>` attribute (see documentation therein). There is also a special
+"init" sleep policy, see next section.
+
+Sleeping
+^^^^^^^^
+
+Sleeping can happen in one of two ways:
+
+**Automatic:**
+  The velocity threshold described above is w.r.t. the infinity norm (largest absolute value) of all velocities
+  associated with an island. Before taking this norm, velocities are scaled elementwise by ``mjModel.dof_length``
+  because rotational and translational velocities have different units. The length of a translational DOF is 1; the
+  length of a rotational DOF corresponds to the mean length of its associated geometry. Thus :ref:`sleep_tolerance
+  <option-sleep_tolerance>` has units of [length/time].
+
+  When an island is put to sleep, its associated velocities are set to 0. Therefore, on any timestep where
+  islands are put to sleep, all velocity-dependent quantities must be recomputed before the sleep state is propagated
+  using a call to :ref:`mj_forwardSkip`.
+
+  If any tree in the island has the "never" sleep policy, the entire island cannot sleep.
+
+**Initialized asleep:**
+  By setting the :ref:`body/sleep<body-sleep>` attribute of a tree root to "init", it is marked as "initialized asleep"
+  and put to sleep during :ref:`mjData` initialization. This is useful for large models where waiting for many trees to
+  fall asleep can be expensive.
+
+  Since trees which share contacts or are otherwise in the same island must sleep together, if some trees in an island
+  are initialized as sleeping, all of them must be marked as such. `This model
+  <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sleep/init_island_fail.xml>`__ contains an
+  example XML that will produce a compilation error because this condition is not met. Finally, note that the
+  initialized-asleep feature is only available for the default configuration (and not keyframes, see discussion below).
+
+Waking
+^^^^^^
+
+Waking happens at the beginning of the timestep, either during :ref:`mj_kinematics` or soon thereafter during the
+:ref:`position stage <piStages>` of the simulation pipeline. A sleeping island is woken up according to the following
+criteria:
+
+- Its associated configuration ``qpos`` is changed by the user, for example when repositioning the
+  configuration interactively when the simulation is paused.
+- Its associated velocity ``qvel``  or applied forces ``qfrc_applied`` or ``xfrc_applied`` are set by the user to
+  a non-zero value, for example when perturbing the model interactively during simulation.
+  Note that the check is performed by bytewise comparison to 0, so setting an associated element to
+  the floating point value ``-0.0`` will wake the island but have no other side-effects.
+- It comes into contact with an awake tree. Waking due to contact leads to collision detection being run *twice*, but
+  only on the timestep when it occurs. This is required in order to detect contacts inside the island and between the
+  island and the world, which were skipped in the first run when it was deemed asleep.
+- It is connected to an awake tree by an active equality constraint or limited tendon.
+- It is connected by an equality constraint to a sleeping tree in a different island. For this to occur, the equality
+  must have been disabled when both trees were put to sleep.
+
+The automatic wake criteria listed above are designed so that sleeping islands behave as if they were awake, but this
+is not always the case. For example, if free bodies on the floor are put to sleep and then gravity is reversed, they
+will remain sleeping in place until woken for another reason. The most extreme example of non-physicality are islands
+which are initialized asleep. These can be placed in mid-air or in deep collisions, but will not move until woken.
+
+Notes
+^^^^^
+
+.. admonition:: New feature
+   :class: warning
+
+   Sleeping is a new feature (Nov 2025) that is subject to change and may have latent bugs.
+
+**Sleeping actuators**
+  As explained in the :ref:`body/sleep <body-sleep>` documentation, trees with actuators are by default not allowed to
+  sleep, but this can be overridden by the user. The reason sleeping is not allowed by default is that once an actuator
+  is marked as asleep, the computation required to wake it is no longer performed. Even if it were performed (i.e. if
+  actuation forces were always computed for all actuators, regardless of their sleep state), this computation happens in
+  acceleration/force stage, by which time it is already too late to wake a tree, since waking must happen in the
+  position stage. Therefore, if a tree with actuators is allowed to sleep, waking must be done manually by touching the
+  associated velocities or forces, as described above.
+
+**Sleeping sensors**
+  The computation of sensor values are skipped if the objects associated with it are asleep or static, so the last
+  valid computed values remain untouched. This is straightforward for most sensors, but :ref:`contact<sensor-contact>`
+  sensors are an exception. Because contact sensors report contacts that occurred in the current timestep, and
+  sleeping implies that some contacts are not computed, skipping the sensor computation is not always possible.
+  For example, consider a scene with free bodies on the floor, some of which may be asleep. A sensor which reports
+  information from contacts of body A (with anything else), will keep reporting the same thing when the body goes to
+  sleep. However a sensor that reports all world contacts will report something different when some bodies go to sleep.
+
+**Provisional choices**
+  Some implementation choices are provisional and subject to change.
+
+  A concrete example is the decision to hard-code the value of :ref:`mjMINAWAKE<glNumeric>` instead of exposing it to
+  the user as a runtime option. This was done for two reasons. First, in our experiments, we've found that changing this
+  value is equivalent to changing the :ref:`sleep_tolerance<option-sleep_tolerance>`, which is the more useful knob.
+  Second, one could argue for a time-to-sleep semantic that is in units of time rather than an integer number of
+  timesteps. Until there is clear evidence that one or both of these reasons are invalid, we've opted for a simple
+  numeric constant.
+
+**Static bodies**
+  Besides the main optimization of allowing kinematic trees to sleep, the sleep feature also includes another, related
+  optimization: the skipping of computation related to static bodies. This can be valuable if, for example,
+  the world body or its static children contain a large number of geoms, whose poses will be computed only once.
+
+  This leads to a subtle (if unlikely) "gotcha". Although it is allowed to enable sleeping during simulation, sleeping
+  must be enabled either at initialization time or after at least one :ref:`mj_step`. To wit:
+
+  .. code-block:: C
+
+     // this is OK:
+     mjData* d = mj_makeData(m);            // sleeping is enabled at init time
+     mj_step(m, d);
+     ...
+
+     // this is also OK:
+     mjData* d = mj_makeData(m);            // sleeping is disabled at init time
+     mj_step(m, d);
+     ...
+     m->opt.enableflags |= mjENABLE_SLEEP;  // enable sleeping after at least one step
+     mj_step(m, d);
+
+     // this is an error:
+     mjData* d = mj_makeData(m);            // sleeping is disabled at init time
+     m->opt.enableflags |= mjENABLE_SLEEP;  // enable sleeping
+     mj_step(m, d);                         // undefined behavior, static elements not computed
+
+
+**Violated assumptions**
+  Sleeping breaks several assumptions that are baked into the core of MuJoCo (and continue to hold if sleeping is
+  disabled).
+
+  *Pipeline stages*: It is usually guaranteed that no velocity-related quantities will be read before the end of the
+  position stage and that no force-related quantities will be read before the end of velocity stage. This assumption,
+  which lies at the heart of the :ref:`mj_step1`/:ref:`mj_step2` split, is violated by the reading of ``qvel``,
+  ``qfrc_applied`` and ``xfrc_applied`` in :ref:`mj_kinematics`.
+
+  *Compact state*: While the sleep state is notionally given by ``mjData.tree_asleep``, this is a mirage. Once an island
+  is asleep, the entire subset of position and velocity-dependent quantities in mjData associated with it becomes
+  a pre-computed latent state that is "waiting for the island to wake up". For this reason, the only way to fully save
+  and restore the state of a simulation with sleeping elements is to :ref:`copy<mj_copyData>` the entire mjData
+  structure. This is also the reason why sleep initialization is only available for the default configuration and not
+  for keyframes. Note that saving and loading the state using the :ref:`standard tools<geState>` remains a valid
+  operation, merely that sleeping islands will be implicitly woken up.
+
+
+**RK4 integrator**
+  The RK4 integrator is not currently supported, due to the subtleties of waking inside the sub-steps.
+
+**Latent bugs**
+  Sleeping is a new feature (Nov 2025) and may have latent bugs. These bugs may generally come in two varieties:
+
+  - Quantities which could be skipped are instead recomputed. The only observable effect of such a bug would be that
+    the simulation is slower than it could be. This type of bug can only be diagnosed with detailed profiling.
+  - Actual bugs. Hopefully these will lead to informative runtime errors, please report any to the development team.
+
 
 .. _siCoordinate:
 

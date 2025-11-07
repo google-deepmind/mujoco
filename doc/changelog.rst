@@ -6,9 +6,14 @@ Upcoming version (not yet released)
 -----------------------------------
 
 General
-^^^^^^^^^
+^^^^^^^
 
-- Initial changes related to sleeping. Feature under development, documentation pending.
+.. youtube:: vct493lGQ8Q
+   :align: right
+   :width: 35%
+
+- Introduced a major new feature: :ref:`sleeping islands<Sleeping>`. Preliminary release for early testing, see
+  documentation for details.
 - Added "quadratic" option to :ref:`flexcomp/dof<body-flexcomp-dof>`. This type of fast :ref:`deformable<CDeformable>`
   flex object is similar to the "trilinear" option, but it includes curved deformations.
 - Raise an error if there are name collisions also during parsing.

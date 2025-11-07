@@ -463,7 +463,7 @@ adjust it properly through the XML.
 .. _option-sleep_tolerance:
 
 :at:`sleep_tolerance`: :at-val:`real, "1e-4"`
-   Velocity tolerance below which sleeping is possible. Feature under development, documentation pending.
+   Velocity tolerance below which :ref:`sleeping<Sleeping>` is allowed.
 
 .. _option-sdf_iterations:
 
@@ -674,7 +674,16 @@ from its default.
 .. _option-flag-sleep:
 
 :at:`sleep`: :at-val:`[disable, enable], "disable"`
-   This flag enables sleeping. Feature under development, documentation pending.
+   This flag enables :ref:`sleeping<Sleeping>`. Disabling this flag when some trees are sleeping will wake them.
+
+   .. admonition:: flag value at initialization time
+      :class: attention
+
+      Unlike any other :ref:`flag<option-flag>`, the :at:`sleep` flag has an effect during :ref:`mjData`
+      **initialization** (:ref:`mj_makeData` or :ref:`mj_resetData`). First, it must be set at initialization time in
+      order for the :ref:`sleep-init<body-sleep>` policy to take effect. Second, it must be set in order for static
+      quantities to be computed. See :ref:`implementation notes<siSleep>` for more details.
+
 
 .. _compiler:
 
@@ -2072,7 +2081,31 @@ defined. Its body name is automatically defined as "world".
 .. _body-sleep:
 
 :at:`sleep`: :at-val:`[auto, never, allowed, init], "auto"`
-   Sleep policy for the tree under this body. Feature under development, documentation pending.
+   :ref:`Sleep<Sleeping>` policy for the tree under this body. This attribute is only supported by moving bodies which
+   are the root of a kinematic :ref:`tree<ElemTree>`. For the default :at-val:`auto`, the compiler will set the sleep
+   policy as follows:
+
+   - A tree which is affected by actuators is not allowed to sleep (overridable).
+   - Trees which are connected by tendons which have non-zero stiffness and damping are not allowed to sleep
+     (overridable).
+   - Trees which are connected by tendons which connect more than two trees are not allowed to sleep (not overridable).
+   - :ref:`flexes<ElemFlex>` are not allowed to sleep (not overridable).
+   - All other trees are allowed to sleep (overridable).
+
+   The policies :at-val:`never` and :at-val:`allowed` constitute user overrides of the automatic compiler policy.
+
+   The :at-val:`init` sleep policy can only be specified by the user and means "initialize this tree as asleep". This
+   policy is implemented in :ref:`mj_resetData` and :ref:`mj_makeData` and only applies to the default configuration. If
+   a :ref:`keyframe<keyframe>` changes the configuration of (or assigns nonzero velocity to) a sleeping tree, it will be
+   woken up. This policy is useful for very large models where waiting for the automatic sleeping mechanism to kick in
+   can be expensive. Trees initialized as sleeping can be placed in unstable configurations like deep penetration or in
+   mid-air, but will only move when woken up. Also note that this policy can fail. For example if a tree marked as
+   sleep="init" is in contact with a tree not marked as such (i.e., they are in the same :ref:`island<soIsland>`) then
+   it is impossible to put the tree to sleep; such `models
+   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sleep/init_island_fail.xml>`__ will lead to
+   a compilation error.
+
+   See :ref:`implementation notes<siSleep>` for more details.
 
 .. _body-user:
 
