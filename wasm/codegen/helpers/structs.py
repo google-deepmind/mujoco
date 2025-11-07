@@ -73,9 +73,6 @@ class WrappedStructData:
   # Struct bindings code
   bindings: str = ""
 
-  # Whether to use shallow copy for this struct
-  use_shallow_copy: bool = True
-
 
 def _simple_property_binding(
     field: ast_nodes.StructFieldDecl,
@@ -147,7 +144,7 @@ def _generate_field_data(
 
     anonymous_struct_name = ""
     for name, value in constants.ANONYMOUS_STRUCTS.items():
-      if (value["parent"] == s and value["field_name"] == f.name):
+      if value["parent"] == s and value["field_name"] == f.name:
         anonymous_struct_name = name
         break
 
@@ -249,7 +246,7 @@ def _generate_field_data(
       return WrappedFieldData(
           definition=builder.to_string(),
           typename=_get_field_struct_type(f.type),
-          binding=_simple_property_binding(f, w, setter=False, reference=True)
+          binding=_simple_property_binding(f, w, setter=False, reference=True),
       )
 
     if (
@@ -293,18 +290,11 @@ def _generate_field_data(
 def _has_nested_wrapper_members(struct_info: ast_nodes.StructDecl) -> bool:
   """Checks if the struct contains other wrapped structs as direct members."""
   for field in struct_info.fields:
-    struct_field = cast(ast_nodes.StructFieldDecl, field)
-    if isinstance(struct_field.type, ast_nodes.ValueType):
-      if struct_field.type.name in constants.STRUCTS_TO_BIND:
-        return True
-    if isinstance(struct_field.type, ast_nodes.ArrayType):
-      if isinstance(struct_field.type.inner_type, ast_nodes.ValueType):
-        if struct_field.type.inner_type.name in constants.STRUCTS_TO_BIND:
-          return True
-    if isinstance(struct_field.type, ast_nodes.PointerType):
-      if isinstance(struct_field.type.inner_type, ast_nodes.ValueType):
-        if struct_field.type.inner_type.name in constants.STRUCTS_TO_BIND:
-          return True
+    member_type = cast(ast_nodes.StructFieldDecl, field).type
+    if isinstance(member_type, (ast_nodes.ArrayType, ast_nodes.PointerType)):
+      member_type = member_type.inner_type
+    if isinstance(member_type, ast_nodes.ValueType):
+      return member_type.name in constants.STRUCTS_TO_BIND
   return False
 
 
@@ -357,29 +347,29 @@ def _build_struct_header_internal(
 
 def _default_function_statement(struct_name: str) -> str:
   """Returns the default function name for the given struct."""
-  if (
-      struct_name in constants.ANONYMOUS_STRUCTS.keys()
-      or struct_name in constants.NO_DEFAULT_CONSTRUCTORS
-  ):
+  if struct_name == "mjvGeom":
+    f = "mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);"
+    return f
+  elif struct_name in constants.ANONYMOUS_STRUCTS.keys():
+    return ""
+  elif struct_name in constants.NO_DEFAULT_CONSTRUCTORS:
     return ""
   elif struct_name.startswith("mjs"):
     return f"mjs_default{struct_name.removeprefix('mjs')}(ptr_);"
-  elif struct_name == "mjvGeom":
-    return (
-        "mjv_initGeom(ptr_, mjGEOM_NONE, nullptr, nullptr, nullptr, nullptr);"
-    )
   elif struct_name.startswith("mjv"):
     return f"mjv_default{struct_name.removeprefix('mjv')}(ptr_);"
-  else:
+  elif struct_name.startswith("mj"):
     return f"mj_default{struct_name.removeprefix('mj')}(ptr_);"
+
+  return ""
 
 
 def _delete_ptr_statement(struct_name: str) -> str:
   """Returns the delete function name for the given struct."""
   if struct_name == "mjVFS":
     return "mj_deleteVFS(ptr_);"
-  else:
-    return "delete ptr_;"
+
+  return "delete ptr_;"
 
 
 def _find_fields_with_init(
@@ -421,8 +411,7 @@ def build_struct_header(
 
   is_anonymous_struct = struct_name in constants.ANONYMOUS_STRUCTS.keys()
   is_hardcoded_wrapper_struct = (
-      common.uppercase_first_letter(struct_name)
-      in constants.MANUAL_STRUCTS
+      common.uppercase_first_letter(struct_name) in constants.MANUAL_STRUCTS
   )
 
   if (
@@ -603,44 +592,34 @@ def generate_wasm_bindings(
 
   wrapped_structs: Dict[str, WrappedStructData] = {}
   for struct_name in structs_to_bind:
-    wrapped_name = common.uppercase_first_letter(struct_name)
+    s = struct_name
+    w = common.uppercase_first_letter(s)
 
-    if struct_name in introspect_structs:
-      struct_fields = introspect_structs[struct_name].fields
-    elif struct_name in constants.ANONYMOUS_STRUCTS:
-      anonymous_struct = _get_anonymous_struct_field(struct_name)
+    if s in introspect_structs:
+      struct_fields = introspect_structs[s].fields
+    elif s in constants.ANONYMOUS_STRUCTS:
+      anonymous_struct = _get_anonymous_struct_field(s)
       if not anonymous_struct or not isinstance(
           anonymous_struct.type, ast_nodes.AnonymousStructDecl
       ):
-        raise RuntimeError(f"Anonymous struct not found: {struct_name}")
+        raise RuntimeError(f"Anonymous struct not found: {s}")
       struct_fields = anonymous_struct.type.fields
     else:
-      raise RuntimeError(f"Struct not found: {struct_name}")
+      raise RuntimeError(f"Struct not found: {s}")
 
     wrapped_fields: List[WrappedFieldData] = []
     for field in struct_fields:
-      wrapped_field = _generate_field_data(field, wrapped_name)
-      wrapped_fields.append(wrapped_field)
+      wrapped_fields.append(_generate_field_data(field, w))
 
-    wrapped_header = build_struct_header(
-        struct_name,
-        wrapped_fields,
-    )
-    wrapped_source = build_struct_source(
-        struct_name,
-        wrapped_fields,
-    )
-    bindings = _build_struct_bindings(struct_name, wrapped_fields)
     wrap_data = WrappedStructData(
-        wrap_name=wrapped_name,
+        wrap_name=w,
         wrapped_fields=wrapped_fields,
-        wrapped_header=wrapped_header,
-        wrapped_source=wrapped_source,
-        use_shallow_copy=use_shallow_copy(wrapped_fields),
-        bindings=bindings,
+        wrapped_header=build_struct_header(s, wrapped_fields),
+        wrapped_source=build_struct_source(s, wrapped_fields),
+        bindings=_build_struct_bindings(s, wrapped_fields),
     )
 
-    wrapped_structs[struct_name] = wrap_data
+    wrapped_structs[s] = wrap_data
 
   return wrapped_structs
 
