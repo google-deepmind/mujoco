@@ -94,9 +94,6 @@ struct MjData {
   MjData(MjModel *m);
   explicit MjData(const MjModel &, const MjData &);
   ~MjData();
-  std::vector<MjSolverStat> InitSolverArray();
-  std::vector<MjTimerStat> InitTimerArray();
-  std::vector<MjWarningStat> InitWarningArray();
   std::vector<MjContact> contact() const;
   std::unique_ptr<MjData> copy();
   mjData* get() const;
@@ -120,8 +117,6 @@ struct MjvScene {
   ~MjvScene();
   std::unique_ptr<MjvScene> copy();
   int GetSumFlexFaces() const;
-  std::vector<MjvLight> InitLightsArray();
-  std::vector<MjvGLCamera> InitCameraArray();
 
   mjvScene* get() const;
   void set(mjvScene* ptr);
@@ -352,6 +347,15 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
 
 // STRUCTS
 // {{ AUTOGENNED_STRUCTS_SOURCE }}
+template <typename WrapperType, typename ArrayType, typename SizeType>
+std::vector<WrapperType> InitWrapperArray(ArrayType* array, SizeType size) {
+  std::vector<WrapperType> result;
+  result.reserve(size);
+  for (int i = 0; i < size; ++i) {
+    result.emplace_back(&array[i]);
+  }
+  return result;
+}
 
 // =============== MjModel =============== //
 MjModel::MjModel(mjModel *m)
@@ -375,17 +379,17 @@ MjData::MjData(MjModel *m) {
   model = m->get();
   ptr_ = mj_makeData(model);
   if (ptr_) {
-    solver = InitSolverArray();
-    timer = InitTimerArray();
-    warning = InitWarningArray();
+    solver = InitWrapperArray<MjSolverStat>(get()->solver, mjNSOLVER * mjNISLAND);
+    timer = InitWrapperArray<MjTimerStat>(get()->timer, mjNTIMER);
+    warning = InitWrapperArray<MjWarningStat>(get()->warning, mjNWARNING);
   }
 }
 MjData::MjData(const MjModel &model, const MjData &other)
     : ptr_(mj_copyData(nullptr, model.get(), other.get())), model(model.get()) {
   if (ptr_) {
-    solver = InitSolverArray();
-    timer = InitTimerArray();
-    warning = InitWarningArray();
+    solver = InitWrapperArray<MjSolverStat>(get()->solver, mjNSOLVER * mjNISLAND);
+    timer = InitWrapperArray<MjTimerStat>(get()->timer, mjNTIMER);
+    warning = InitWrapperArray<MjWarningStat>(get()->warning, mjNWARNING);
   }
 }
 MjData::~MjData() {
@@ -396,38 +400,8 @@ MjData::~MjData() {
 mjData* MjData::get() const { return ptr_; }
 void MjData::set(mjData *ptr) { ptr_ = ptr; }
 
-std::vector<MjSolverStat> MjData::InitSolverArray() {
-  std::vector<MjSolverStat> arr;
-  arr.reserve(mjNSOLVER * mjNISLAND);
-  for (int i = 0; i < mjNSOLVER * mjNISLAND; i++) {
-    arr.emplace_back(&get()->solver[i]);
-  }
-  return arr;
-}
-std::vector<MjTimerStat> MjData::InitTimerArray() {
-  std::vector<MjTimerStat> arr;
-  arr.reserve(mjNTIMER);
-  for (int i = 0; i < mjNTIMER; i++) {
-    arr.emplace_back(&get()->timer[i]);
-  }
-  return arr;
-}
-std::vector<MjWarningStat>
-MjData::InitWarningArray() {
-  std::vector<MjWarningStat> arr;
-  arr.reserve(mjNWARNING);
-  for (int i = 0; i < mjNWARNING; i++) {
-    arr.emplace_back(&get()->warning[i]);
-  }
-  return arr;
-}
 std::vector<MjContact> MjData::contact() const {
-  std::vector<MjContact> contacts;
-  contacts.reserve(get()->ncon);
-  for (int i = 0; i < get()->ncon; ++i) {
-    contacts.emplace_back(&get()->contact[i]);
-  }
-  return contacts;
+  return InitWrapperArray<MjContact>(get()->contact, get()->ncon);
 }
 
 MjvScene::MjvScene() {
@@ -435,8 +409,8 @@ MjvScene::MjvScene() {
   ptr_ = new mjvScene;
   mjv_defaultScene(ptr_);
   mjv_makeScene(nullptr, ptr_, 0);
-  lights = InitLightsArray();
-  camera = InitCameraArray();
+  lights = InitWrapperArray<MjvLight>(ptr_->lights, mjMAXLIGHT);
+  camera = InitWrapperArray<MjvGLCamera>(ptr_->camera, 2);
 };
 
 MjvScene::MjvScene(MjModel *m, int maxgeom) {
@@ -445,8 +419,8 @@ MjvScene::MjvScene(MjModel *m, int maxgeom) {
   ptr_ = new mjvScene;
   mjv_defaultScene(ptr_);
   mjv_makeScene(model, ptr_, maxgeom);
-  lights = InitLightsArray();
-  camera = InitCameraArray();
+  lights = InitWrapperArray<MjvLight>(ptr_->lights, mjMAXLIGHT);
+  camera = InitWrapperArray<MjvGLCamera>(ptr_->camera, 2);
 };
 MjvScene::~MjvScene() {
   if (owned_ && ptr_) {
@@ -492,31 +466,8 @@ int MjvScene::GetSumFlexFaces() const {
   return nflexface;
 }
 
-std::vector<MjvLight> MjvScene::InitLightsArray() {
-  std::vector<MjvLight> arr;
-  arr.reserve(mjMAXLIGHT);
-  for (int i = 0; i < mjMAXLIGHT; i++) {
-    arr.emplace_back(&ptr_->lights[i]);
-  }
-  return arr;
-}
-
-std::vector<MjvGLCamera> MjvScene::InitCameraArray() {
-  std::vector<MjvGLCamera> arr;
-  arr.reserve(2);
-  for (int i = 0; i < 2; i++) {
-    arr.emplace_back(&ptr_->camera[i]);
-  }
-  return arr;
-}
-
 std::vector<MjvGeom> MjvScene::geoms() const {
-  std::vector<MjvGeom> geoms;
-  geoms.reserve(ptr_->ngeom);
-  for (int i = 0; i < ptr_->ngeom; ++i) {
-    geoms.emplace_back(&ptr_->geoms[i]);
-  }
-  return geoms;
+  return InitWrapperArray<MjvGeom>(ptr_->geoms, ptr_->ngeom);
 }
 
 MjSpec::MjSpec()
