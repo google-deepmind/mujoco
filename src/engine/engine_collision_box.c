@@ -965,7 +965,7 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
 
   for (i = 0; i < n; i++)
   {
-    con[i].dist = points[i][2];
+    con[i].dist = 2 * points[i][2];
     points[i][2] += hz;
 
     mju_mulMatVec3(tmp2, r, points[i]);

@@ -20,10 +20,10 @@
 #include <gtest/gtest.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mujoco.h>
-#include "test/fixture.h"
+#include "src/engine/engine_collision_convex.h"
 #include "src/engine/engine_collision_primitive.h"
 #include "src/engine/engine_util_misc.h"
-
+#include "test/fixture.h"
 
 namespace mujoco {
 namespace {
@@ -273,6 +273,34 @@ TEST_F(MjCollisionBoxTest, BoxSphere) {
   mj_deleteModel(model);
 }
 
+
+TEST_F(MjCollisionBoxTest, BoxBoxContactDistance) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="box" size="1 1 1"/>
+      <geom type="box" size="1 1 1" pos="0 0 1.5"/>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  mjData* data = mj_makeData(model);
+  mj_kinematics(model, data);
+  mjContact contact[9];
+
+  for (mjfCollision collision : {mjc_BoxBox, mjc_Convex}) {
+    int n = collision(model, data, contact, 0, 1, 0.0);
+    for (int i = 0; i < n; i++) {
+      EXPECT_NEAR(contact[i].dist, -0.5, 1.0e-8);
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
 
 }  // namespace
 }  // namespace mujoco

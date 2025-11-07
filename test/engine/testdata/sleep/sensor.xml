@@ -29,7 +29,6 @@
   </worldbody>
 
   <sensor>
-    <contact reduce="maxforce" data="force"/>
     <contact geom1="1" geom2="2"/>
     <contact geom1="1" geom2="2" reduce="maxforce" data="force"/>
     <contact geom1="1" geom2="floor"/>

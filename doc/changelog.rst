@@ -43,6 +43,11 @@ MJX
      We will be migrating users to a Warp-based batch renderer.
 
 
+Bug fixes
+^^^^^^^^^
+
+- Fixed a bug in the box-box distance computation. Reported by :github:user:`nvtw`.
+
 Version 3.3.7 (October 13, 2025)
 -----------------------------------
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mujoco_test(engine_collision_box_test)
+mujoco_test(engine_collision_box_test ADDITIONAL_LINK_LIBRARIES ccd)
 
 mujoco_test(engine_collision_convex_test)
 
