@@ -641,10 +641,14 @@ void App::UpdateProfilerData() {
   sqrt_nnz = mju_sqrt(sqrt_nnz);
 
   dim_dof_.erase(dim_dof_.begin());
-  dim_dof_.push_back(Model()->nv);
+  int nv = (Model()->opt.enableflags & mjENBL_SLEEP) ? Data()->nv_awake
+                                                     : Model()->nv;
+  dim_dof_.push_back(nv);
 
   dim_body_.erase(dim_body_.begin());
-  dim_body_.push_back(Model()->nbody);
+  int nbody = (Model()->opt.enableflags & mjENBL_SLEEP) ? Data()->nbody_awake
+                                                        : Model()->nbody;
+  dim_body_.push_back(nbody);
 
   dim_constraint_.erase(dim_constraint_.begin());
   dim_constraint_.push_back(Data()->nefc);
@@ -1719,6 +1723,7 @@ void App::PhysicsGui() {
     ImGui_Input("Noslip Tol", &opt.noslip_tolerance, {0, 1, 0.01, 0.1, w});
     ImGui_Input("CCD Iter", &opt.ccd_iterations, {0, 1000, 1, 100, w});
     ImGui_Input("CCD Tol", &opt.ccd_tolerance, {0, 1, 0.01, 0.1, w});
+    ImGui_Input("Sleep Tol", &opt.sleep_tolerance, {0, 1, 0.01, 0.1, w});
     ImGui_Input("SDF Iter", &opt.sdf_iterations, {1, 20, 1, 10, w});
     ImGui_Input("SDF Init", &opt.sdf_initpoints, {1, 100, 1, 10, w});
     ImGui::TreePop();

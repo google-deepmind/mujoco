@@ -80,7 +80,7 @@ static void printArr(FILE* fp, const char* name, const float* data, int n, const
 
 // print 2D array of mjtNum into file
 static void printArray2d(const char* str, int nr, int nc, const mjtNum* data, FILE* fp,
-                       const char* float_format) {
+                         const char* float_format) {
   if (!data) {
     return;
   }

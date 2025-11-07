@@ -21,6 +21,7 @@
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_passive.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -521,12 +522,16 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
 
 // derivative of cvel, cdof_dot w.r.t qvel
 static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot) {
-  int nv = m->nv, nbody = m->nbody;
+  int nv = m->nv, nM = m->nM;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
   int* Badr = m->B_rowadr, * Dadr = m->D_rowadr;
   mjtNum mat[36], matT[36];   // 6x6 matrices
 
   // forward pass over bodies: accumulate Dcvel, set Dcdofdot
-  for (int i = 1; i < nbody; i++) {
+  for (int b=1; b < nbody; b++) {
+    int i = sleep_filter ? d->body_awake_ind[b] : b;
+
     // Dcvel = Dcvel_parent
     copyFromParent(m, d, Dcvel, i);
 
@@ -534,7 +539,7 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
     int doflast = m->body_dofadr[i] + m->body_dofnum[i];
     for (int j = m->body_dofadr[i]; j < doflast; j++) {
       // number of dof ancestors of dof j
-      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
+      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : nM) - (m->dof_Madr[j] + 1);
 
       // Dcvel += D(cdof * qvel),  Dcdofdot = D(cvel x cdof)
       switch ((mjtJoint) m->jnt_type[m->dof_jntid[j]]) {
@@ -589,7 +594,13 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
 
 // subtract d qfrc_bias / d qvel from qDeriv
 static void mjd_rne_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv, nbody = m->nbody;
+  int nM = m->nM;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+  int nparent = sleep_filter ? d->nparent_awake : m->nbody;
+  int mnv = m->nv;
+  int nv = sleep_filter ? d->nv_awake : mnv;
+
   const int* Badr = m->B_rowadr;
   const int* Dadr = m->D_rowadr;
   const int* Bnnz = m->B_rownnz;
@@ -601,19 +612,37 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   mjtNum* Dcvel = mjSTACKALLOC(d, 6*m->nB, mjtNum);
   mjtNum* Dcacc = mjSTACKALLOC(d, 6*m->nB, mjtNum);
   mjtNum* Dcfrcbody = mjSTACKALLOC(d, 6*m->nB, mjtNum);
-  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* row = mjSTACKALLOC(d, m->nv, mjtNum);
 
   // clear
-  mju_zero(Dcdofdot, 6*m->nD);
-  mju_zero(Dcvel, 6*m->nB);
-  mju_zero(Dcacc, 6*m->nB);
-  mju_zero(Dcfrcbody, 6*m->nB);
+  if (!sleep_filter) {
+    mju_zero(Dcdofdot,  6*m->nD);
+    mju_zero(Dcvel,     6*m->nB);
+    mju_zero(Dcacc,     6*m->nB);
+    mju_zero(Dcfrcbody, 6*m->nB);
+  } else {
+    for (int i = 0; i < nv; i++) {
+      int dof = d->dof_awake_ind[i];
+      mju_zero(Dcdofdot + 6*m->D_rowadr[dof], 6*m->D_rownnz[dof]);
+    }
+
+    for (int i = 0; i < nbody; i++) {
+      int body = d->body_awake_ind[i];
+      int adr = 6*m->B_rowadr[body];
+      int nnz = 6*m->B_rownnz[body];
+      mju_zero(Dcvel     + adr, nnz);
+      mju_zero(Dcacc     + adr, nnz);
+      mju_zero(Dcfrcbody + adr, nnz);
+    }
+  }
 
   // compute Dcvel and Dcdofdot
   mjd_comVel_vel(m, d, Dcvel, Dcdofdot);
 
   // forward pass over bodies: accumulate Dcacc, set Dcfrcbody
-  for (int i=1; i < nbody; i++) {
+  for (int b=1; b < nbody; b++) {
+    int i = sleep_filter ? d->body_awake_ind[b] : b;
+
     // Dcacc = Dcacc_parent
     copyFromParent(m, d, Dcacc, i);
 
@@ -621,7 +650,7 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
     int doflast = m->body_dofadr[i] + m->body_dofnum[i];
     for (int j=m->body_dofadr[i]; j < doflast; j++) {
       // number of dof ancestors of dof j
-      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
+      int Jadr = (j < mnv - 1 ? m->dof_Madr[j + 1] : nM) - (m->dof_Madr[j] + 1);
 
       // Dcacc += cdofdot * (D qvel)
       mju_addTo(Dcacc + 6*(Badr[i] + Jadr), d->cdof_dot + 6*j, 6);
@@ -655,12 +684,15 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   mju_zero(Dcfrcbody, 6*Bnnz[0]);
 
   // backward pass over bodies: accumulate Dcfrcbody
-  for (int i=m->nbody-1; i > 0; i--) {
+  for (int b=nparent-1; b > 0; b--) {
+    int i = sleep_filter ? d->parent_awake_ind[b] : b;
     addToParent(m, d, Dcfrcbody, i);
   }
 
   // process all dofs, update qDeriv
-  for (int j=0; j < nv; j++) {
+  for (int v=0; v < nv; v++) {
+    int j = sleep_filter ? d->dof_awake_ind[v] : v;
+
     // get body index
     int i = m->dof_bodyid[j];
 
@@ -797,6 +829,7 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
   int nu = m->nu;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
   // disabled: nothing to add
   if (mjDISABLED(mjDSBL_ACTUATION)) {
@@ -807,6 +840,11 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
   for (int i=0; i < nu; i++) {
     // skip if disabled
     if (mj_actuatorDisabled(m, i)) {
+      continue;
+    }
+
+    // skip if sleeping
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
       continue;
     }
 
@@ -1401,10 +1439,14 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
     return;
   }
 
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+
   // fluid drag model, either body-level (inertia box) or geom-level (ellipsoid)
   if (m->opt.viscosity > 0 || m->opt.density > 0) {
-    int nbody = m->nbody;
-    for (int i=1; i < nbody; i++) {
+    for (int b=0; b < nbody; b++) {
+      int i = sleep_filter ? d->body_awake_ind[b] : b;
+
       if (m->body_mass[i] < mjMINVAL) {
         continue;
       }
@@ -1430,7 +1472,9 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
 
   // dof damping
   int nv = m->nv;
-  for (int i=0; i < nv; i++) {
+  int nv_awake = sleep_filter ? d->nv_awake : nv;
+  for (int j = 0; j < nv_awake; j++) {
+    int i = sleep_filter ? d->dof_awake_ind[j] : j;
     d->qDeriv[m->D_rowadr[i] + m->D_diag[i]] -= m->dof_damping[i];
   }
 
@@ -1464,6 +1508,15 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
   // tendon damping
   int ntendon = m->ntendon;
   for (int i=0; i < ntendon; i++) {
+    // skip tendon in one or two sleeping trees
+    if (sleep_filter) {
+      int treenum = m->tendon_treenum[i];
+      int id1 = m->tendon_treeid[2*i];
+      if (treenum == 1 && !d->tree_awake[id1]) continue;
+      int id2 = m->tendon_treeid[2*i+1];
+      if (treenum == 2 && !d->tree_awake[id1] && !d->tree_awake[id2]) continue;
+    }
+
     mjtNum B = -m->tendon_damping[i];
 
     if (!B) {
@@ -1485,8 +1538,14 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
 // analytical derivative of smooth forces w.r.t velocities:
 //   d->qDeriv = d (qfrc_actuator + qfrc_passive - [qfrc_bias]) / d qvel
 void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nv_awake < m->nv;
+
   // clear qDeriv
-  mju_zero(d->qDeriv, m->nD);
+  if (!sleep_filter) {
+    mju_zero(d->qDeriv, m->nD);
+  } else {
+    mju_zeroSparse(d->qDeriv, m->D_rownnz, m->D_rowadr, d->dof_awake_ind, d->nv_awake);
+  }
 
   // qDeriv += d qfrc_actuator / d qvel
   mjd_actuator_vel(m, d);

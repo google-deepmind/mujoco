@@ -142,6 +142,25 @@ void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc,
 }
 
 
+// res[row, :] = mat[row, :]
+void mju_copySparse(mjtNum* res, const mjtNum* mat, const int* rownnz, const int* rowadr,
+                    const int* row, int nrow) {
+  for (int i=0; i < nrow; i++) {
+    int r = row[i];
+    mju_copy(res + rowadr[r], mat + rowadr[r], rownnz[r]);
+  }
+}
+
+
+// res[row, :] = 0
+void mju_zeroSparse(mjtNum* res, const int* rownnz, const int* rowadr, const int* row, int nrow) {
+  for (int i=0; i < nrow; i++) {
+    int r = row[i];
+    mju_zero(res + rowadr[r], rownnz[r]);
+  }
+}
+
+
 // multiply sparse matrix and dense vector:  res = mat * vec.
 void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                          int nr, const int* rownnz, const int* rowadr,

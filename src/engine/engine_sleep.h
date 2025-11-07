@@ -24,10 +24,37 @@ extern "C" {
 #endif
 
 // compute sleeping arrays from tree_asleep, if flg_staticawake is set, treat static bodies as awake
-MJAPI void mj_updateSleepInit(const mjModel* m, mjData* d, int flg_staticawake);
+void mj_updateSleepInit(const mjModel* m, mjData* d, int flg_staticawake);
 
 // compute {ntree,nbody,nv}_awake, {tree,body}_awake, {body,dof}_awake_ind from tree_asleep
 MJAPI void mj_updateSleep(const mjModel* m, mjData* d);
+
+// return the first tree in the sleep cycle that starts at i, -1 if error
+int mj_sleepCycle(const int* tree_asleep, int ntree, int i);
+
+// return the first tree in the sleep cycle that starts at i, -1 if error
+int mj_sleepCycle(const int* tree_asleep, int ntree, int i);
+
+// wake tree i and its related island cycle, return number of woke trees
+MJAPI int mj_wakeTree(int* tree_asleep, int ntree, int i, int wakeval);
+
+// wake trees with nonzero velocity or external forces, return number of woke trees
+int mj_wake(const mjModel* m, mjData* d);
+
+// wake sleeping trees that touch awake trees, return number of woke trees
+int mj_wakeCollision(const mjModel* m, mjData* d);
+
+// wake sleeping trees with a constrained tendon to a waking tree, return number of woke trees
+int mj_wakeTendon(const mjModel* m, mjData* d);
+
+// wake sleeping trees with an equality to a waking tree, return number of woke trees
+int mj_wakeEquality(const mjModel* m, mjData* d);
+
+// put trees to sleep according to tolerance, return number of slept trees
+int mj_sleep(const mjModel* m, mjData* d);
+
+// return sleep state of object i
+mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int i);
 
 #ifdef __cplusplus
 }

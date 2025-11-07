@@ -41,6 +41,13 @@ MJAPI int mju_dense2sparse(mjtNum* res, const mjtNum* mat, int nr, int nc,
 MJAPI void mju_sparse2dense(mjtNum* res, const mjtNum* mat, int nr, int nc, const int* rownnz,
                             const int* rowadr, const int* colind);
 
+// res[row, :] = mat[row, :]
+void mju_copySparse(mjtNum* res, const mjtNum* mat, const int* rownnz, const int* rowadr,
+                    const int* row, int nrow);
+
+// res[row, :] = 0
+void mju_zeroSparse(mjtNum* res, const int* rownnz, const int* rowadr, const int* row, int nrow);
+
 // multiply sparse matrix and dense vector:  res = mat * vec
 MJAPI void mju_mulMatVecSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
                                int nr, const int* rownnz, const int* rowadr,

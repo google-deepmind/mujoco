@@ -726,6 +726,8 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 }
 
 
+//-------------------------- spatial frame utilities -----------------------------------------------
+
 // compute object 6D velocity in object-centered frame, world/local orientation
 void mj_objectVelocity(const mjModel* m, const mjData* d,
                        int objtype, int objid, mjtNum res[6], int flg_local) {
@@ -894,6 +896,8 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
 }
 
 
+//-------------------------- miscellaneous utilities -----------------------------------------------
+
 // extract 6D force:torque for one contact, in contact frame
 void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]) {
   mjContact* con;
@@ -912,6 +916,26 @@ void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]
       mju_copy(result, d->efc_force + con->efc_address, con->dim);
     }
   }
+}
+
+
+// count the number of length limit violations for tendon i (0, 1 or 2)
+int tendonLimit(const mjModel* m, const mjtNum* ten_length, int i) {
+  if (!m->tendon_limited[i]) {
+    return 0;
+  }
+
+  int nl = 0;
+  mjtNum value = ten_length[i];
+  mjtNum margin = m->tendon_margin[i];
+
+  // tendon limits can be bilateral, check both sides
+  for (int side = -1; side <= 1; side += 2) {
+    mjtNum dist = side * (m->tendon_range[2 * i + (side + 1) / 2] - value);
+    if (dist < margin) nl++;
+  }
+
+  return nl;
 }
 
 

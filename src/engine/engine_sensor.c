@@ -28,6 +28,7 @@
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_ray.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_sort.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
@@ -394,9 +395,17 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
     return;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+
   // process sensors matching stage
   for (int i=0; i < nsensor; i++) {
     mjtSensor type = (mjtSensor) m->sensor_type[i];
+
+    // skip sleeping sensor
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_SENSOR, i) == mjS_ASLEEP) {
+      continue;
+    }
 
     // skip sensor plugins -- these are handled after builtin sensor types
     if (type == mjSENS_PLUGIN) {
@@ -698,11 +707,19 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
     return;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+
   // process sensors matching stage
   int subtreeVel = 0;
   for (int i=0; i < m->nsensor; i++) {
     // skip sensor plugins -- these are handled after builtin sensor types
     if (m->sensor_type[i] == mjSENS_PLUGIN) {
+      continue;
+    }
+
+    // skip sleeping sensor
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_SENSOR, i) == mjS_ASLEEP) {
       continue;
     }
 
@@ -883,9 +900,17 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
     return;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+
   // process sensors matching stage
   int rnePost = 0;
   for (int i=0; i < m->nsensor; i++) {
+    // skip sleeping sensor
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_SENSOR, i) == mjS_ASLEEP) {
+      continue;
+    }
+
     // skip sensor plugins -- these are handled after builtin sensor types
     if (m->sensor_type[i] == mjSENS_PLUGIN) {
       continue;
@@ -1412,35 +1437,47 @@ void mj_energyPos(const mjModel* m, mjData* d) {
     }
   }
 
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+
   // add joint-level springs
   if (!mjDISABLED(mjDSBL_SPRING)) {
-    for (int i=0; i < m->njnt; i++) {
-      stiffness = m->jnt_stiffness[i];
-      padr = m->jnt_qposadr[i];
+    int nbody = m->nbody;
+    for (int b=1; b < nbody; b++) {
+      if (sleep_filter && d->body_awake[b] != mjS_AWAKE) continue;
 
-      switch ((mjtJoint) m->jnt_type[i]) {
-      case mjJNT_FREE:
-        mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
-        d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
+      int jnt_start = m->body_jntadr[b];
+      int jnt_end = jnt_start + m->body_jntnum[b];
+      for (int j=jnt_start; j < jnt_end; j++) {
+        stiffness = m->jnt_stiffness[j];
+        if (stiffness == 0) {
+          continue;
+        }
+        padr = m->jnt_qposadr[j];
 
-        // continue with rotations
-        padr += 3;
-        mjFALLTHROUGH;
+        switch ((mjtJoint) m->jnt_type[j]) {
+        case mjJNT_FREE:
+          mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+          d->energy[0] += 0.5 * stiffness * mju_dot3(dif, dif);
 
-      case mjJNT_BALL:
-        // convert quaternion difference into angular "velocity"
-        mju_copy4(quat, d->qpos+padr);
-        mju_normalize4(quat);
-        mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
-        d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
-        break;
+          // continue with rotations
+          padr += 3;
+          mjFALLTHROUGH;
 
-      case mjJNT_SLIDE:
-      case mjJNT_HINGE:
-        d->energy[0] += 0.5*stiffness*
-                        (d->qpos[padr] - m->qpos_spring[padr])*
-                        (d->qpos[padr] - m->qpos_spring[padr]);
-        break;
+        case mjJNT_BALL:
+          // convert quaternion difference into angular "velocity"
+          mju_copy4(quat, d->qpos+padr);
+          mju_normalize4(quat);
+          mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
+          d->energy[0] += 0.5 * stiffness * mju_dot3(dif, dif);
+          break;
+
+        case mjJNT_SLIDE:
+        case mjJNT_HINGE:
+          d->energy[0] += 0.5 * stiffness *
+                          (d->qpos[padr] - m->qpos_spring[padr]) *
+                          (d->qpos[padr] - m->qpos_spring[padr]);
+          break;
+        }
       }
     }
   }
@@ -1448,6 +1485,11 @@ void mj_energyPos(const mjModel* m, mjData* d) {
   // add tendon-level springs
   if (!mjDISABLED(mjDSBL_SPRING)) {
     for (int i=0; i < m->ntendon; i++) {
+    // skip sleeping or static tendon
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) != mjS_AWAKE) {
+      continue;
+    }
+
       stiffness = m->tendon_stiffness[i];
       mjtNum length = d->ten_length[i];
       mjtNum displacement = 0;

@@ -70,6 +70,9 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  const mjMo
 int mjv_catenary(const mjtNum x0[3], const mjtNum x1[3], const mjtNum gravity[3], mjtNum length,
                  mjtNum* catenary, int ncatenary);
 
+// convert HSV to RGB
+void hsv2rgb(float *RGB, float H, float S, float V);
+
 #ifdef __cplusplus
 }
 #endif

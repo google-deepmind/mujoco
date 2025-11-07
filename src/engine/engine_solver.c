@@ -1063,7 +1063,7 @@ static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
   else {
     mju_copy(ctx->Mgrad, ctx->grad, nv);
     mj_solveLD(ctx->Mgrad, ctx->qLD, ctx->qLDiagInv, nv, 1,
-               ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
+               ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind, NULL);
   }
 }
 

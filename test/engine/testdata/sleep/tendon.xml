@@ -1,0 +1,33 @@
+<mujoco>
+  <custom>
+    <numeric name="duration" data="2.0"/>
+  </custom>
+
+  <option>
+    <flag sleep="enable"/>
+  </option>
+
+  <worldbody>
+    <light pos="0 -1 4"/>
+    <geom type="plane" size="1.5 1.5 .01" rgba=".5 .5 .5 .5"/>
+
+    <body pos=".3 0 1" sleep="init">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .1"/>
+      <site name="1" pos="-.1 -.1 -.1" size=".01" rgba="1 0 0 1"/>
+    </body>
+
+    <body pos="-.3 0 1" euler="10 20 30">
+      <freejoint/>
+      <geom type="box" size=".1 .1 .1"/>
+      <site name="2" pos=".1 -.1 .1" size=".01" rgba="1 0 0 1"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <spatial range="0 .6" width="0.01">
+      <site site="1"/>
+      <site site="2"/>
+    </spatial>
+  </tendon>
+</mujoco>

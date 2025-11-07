@@ -408,10 +408,12 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   }
   sqrt_nnz = mju_sqrt(sqrt_nnz);
 
-  // get sizes: nv, nbody, nefc, sqrt(nnz), ncont, iter
+  // get sizes: nv, nbody, nefc, sqrt(nnz), ncon, iter
+  int nv = mjENABLED(mjENBL_SLEEP) ? d->nv_awake : m->nv;
+  int nbody = mjENABLED(mjENBL_SLEEP) ? d->nbody_awake : m->nbody;
   float sdata[6] = {
-    static_cast<float>(m->nv),
-    static_cast<float>(m->nbody),
+    static_cast<float>(nv),
+    static_cast<float>(nbody),
     static_cast<float>(d->nefc),
     static_cast<float>(sqrt_nnz),
     static_cast<float>(d->ncon),
@@ -708,6 +710,7 @@ void MakePhysicsSection(mj::Simulate* sim) {
     {mjITEM_EDITNUM,   "Noslip Tol",    2, &(opt->noslip_tolerance),  "1 0 1"},
     {mjITEM_EDITINT,   "CCD Iter",      2, &(opt->ccd_iterations),    "1 0 1000"},
     {mjITEM_EDITNUM,   "CCD Tol",       2, &(opt->ccd_tolerance),     "1 0 1"},
+    {mjITEM_EDITNUM,   "Sleep Tol",     2, &(opt->sleep_tolerance),   "1 0 1"},
     {mjITEM_EDITINT,   "SDF Iter",      2, &(opt->sdf_iterations),    "1 1 20"},
     {mjITEM_EDITINT,   "SDF Init",      2, &(opt->sdf_initpoints),    "1 1 100"},
     {mjITEM_SEPARATOR, "Physical Parameters", mjPRESERVE},

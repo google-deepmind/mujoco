@@ -273,6 +273,14 @@ void mju_zero(mjtNum* res, int n) {
 }
 
 
+// res = 0, at given indices
+void mju_zeroInd(mjtNum* res, int n, const int* ind) {
+  for (int i = 0; i < n; i++) {
+    res[ind[i]] = 0;
+  }
+}
+
+
 // res = val
 void mju_fill(mjtNum* res, mjtNum val, int n) {
   for (int i=0; i < n; i++) {
@@ -284,6 +292,14 @@ void mju_fill(mjtNum* res, mjtNum val, int n) {
 // res = vec
 void mju_copy(mjtNum* res, const mjtNum* vec, int n) {
   memcpy(res, vec, n*sizeof(mjtNum));
+}
+
+
+// res = vec, at given indices
+void mju_copyInd(mjtNum* res, const mjtNum* vec, const int* ind, int n) {
+  for (int i = 0; i < n; i++) {
+    res[ind[i]] = vec[ind[i]];
+  }
 }
 
 
@@ -397,6 +413,15 @@ void mju_add(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
 }
 
 
+// res = vec1 + vec2, at selected indices
+void mju_addInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n) {
+  for (int i = 0; i < n; i++) {
+    int j = ind[i];
+    res[j] = vec1[j] + vec2[j];
+  }
+}
+
+
 // res = vec1 - vec2
 void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
   int i = 0;
@@ -439,6 +464,15 @@ void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n) {
 }
 
 
+// res = vec1 - vec2, at selected indices
+void mju_subInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n) {
+  for (int i = 0; i < n; i++) {
+    int j = ind[i];
+    res[j] = vec1[j] - vec2[j];
+  }
+}
+
+
 // res += vec
 void mju_addTo(mjtNum* res, const mjtNum* vec, int n) {
   int i = 0;
@@ -478,6 +512,15 @@ void mju_addTo(mjtNum* res, const mjtNum* vec, int n) {
     res[i] += vec[i];
   }
 #endif
+}
+
+
+// res += vec, at selected indices
+void mju_addToInd(mjtNum* res, const mjtNum* vec, const int* ind, int n) {
+  for (int i = 0; i < n; i++) {
+    int j = ind[i];
+    res[j] += vec[j];
+  }
 }
 
 
@@ -567,6 +610,18 @@ void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n) {
   }
 #endif
 }
+
+
+
+// res += vec*scl, at given indices
+void mju_addToSclInd(mjtNum* res, const mjtNum* vec, const int* ind, mjtNum scl, int n) {
+  for (int i=0; i < n; i++) {
+    int k = ind[i];
+    res[k] += vec[k]*scl;
+  }
+}
+
+
 
 // res = vec1 + vec2*scl
 void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n) {
@@ -706,6 +761,20 @@ mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n) {
   return res;
 }
 
+
+
+// vector dot-product, at given indices
+mjtNum mju_dotInd(const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n) {
+  mjtNum res = 0;
+  for (int i = 0; i < n; i++) {
+    int k = ind[i];
+    res += vec1[k] * vec2[k];
+  }
+  return res;
+}
+
+
+
 //------------------------------ matrix-vector operations ------------------------------------------
 
 // multiply matrix and vector
@@ -767,6 +836,14 @@ void mju_eye(mjtNum* mat, int n) {
   mju_zero(mat, n*n);
   for (int i=0; i < n; i++) {
     mat[i*(n + 1)] = 1;
+  }
+}
+
+
+// res[ind, :] = mat[ind, :]
+void mju_copyRows(mjtNum* res, const mjtNum* mat, const int* ind, int n, int nc) {
+  for (int i = 0; i < n; i++) {
+    mju_copy(res + nc*ind[i], mat + nc*ind[i], nc);
   }
 }
 

@@ -26,6 +26,7 @@
 #include "engine/engine_core_util.h"
 #include "engine/engine_core_smooth.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -377,6 +378,9 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
     return;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+
   mj_markStack(d);
 
   // allocate space
@@ -392,7 +396,13 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
   // find active equality constraints
   for (int i=0; i < m->neq; i++) {
+    // skip inactive
     if (!d->eq_active[i]) {
+      continue;
+    }
+
+    // skip sleeping
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_EQUALITY, i) == mjS_ASLEEP) {
       continue;
     }
 
@@ -649,6 +659,9 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
     return;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+
   mj_markStack(d);
 
   // allocate Jacobian
@@ -656,21 +669,30 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
 
   // find frictional dofs
   for (int i=0; i < nv; i++) {
-    if (m->dof_frictionloss[i] > 0) {
-      // prepare Jacobian: sparse or dense
-      if (issparse) {
-        jac[0] = 1;
-      } else {
-        mju_zero(jac, nv);
-        jac[i] = 1;
-      }
-
-      // add constraint
-      mj_addConstraint(m, d, jac, 0, 0, m->dof_frictionloss[i],
-                       1, mjCNSTR_FRICTION_DOF, i,
-                       issparse ? 1 : 0,
-                       issparse ? &i : NULL);
+    // no friction loss: skip
+    if (!m->dof_frictionloss[i]) {
+      continue;
     }
+
+    // sleeping tree: skip
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_DOF, i) == mjS_ASLEEP) {
+      continue;
+    }
+
+    // prepare Jacobian: sparse or dense
+    if (issparse) {
+      jac[0] = 1;
+    } else {
+      mju_zero(jac, nv);
+      jac[i] = 1;
+    }
+
+    // add constraint
+    mj_addConstraint(m, d, jac, 0, 0, m->dof_frictionloss[i],
+                      1, mjCNSTR_FRICTION_DOF, i,
+                      issparse ? 1 : 0,
+                      issparse ? &i : NULL);
+
   }
 
   // find frictional tendons
@@ -696,7 +718,7 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
 
 // joint and tendon limits
 void mj_instantiateLimit(const mjModel* m, mjData* d) {
-  int side, nv = m->nv, issparse = mj_isSparse(m);
+  int nv = m->nv, issparse = mj_isSparse(m);
   mjtNum margin, value, dist, angleAxis[3];
   mjtNum *jac;
 
@@ -705,6 +727,9 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
     return;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+
   mj_markStack(d);
 
   // allocate Jacobian
@@ -712,82 +737,90 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
 
   // find joint limits
   for (int i=0; i < m->njnt; i++) {
-    if (m->jnt_limited[i]) {
-      // get margin
-      margin = m->jnt_margin[i];
+    // no limit: skip
+    if (!m->jnt_limited[i]) {
+      continue;
+    }
 
-      // HINGE or SLIDE joint
-      if (m->jnt_type[i] == mjJNT_SLIDE || m->jnt_type[i] == mjJNT_HINGE) {
-        // get joint value
-        value = d->qpos[m->jnt_qposadr[i]];
+    // sleeping tree: skip
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_JOINT, i) == mjS_ASLEEP) {
+      continue;
+    }
 
-        // process lower and upper limits
-        for (side=-1; side <= 1; side+=2) {
-          // compute distance (negative: penetration)
-          dist = side * (m->jnt_range[2*i+(side+1)/2] - value);
+    // get margin
+    margin = m->jnt_margin[i];
 
-          // detect joint limit
-          if (dist < margin) {
-            // prepare Jacobian: sparse or dense
-            if (issparse) {
-              jac[0] = -(mjtNum)side;
-            } else {
-              mju_zero(jac, nv);
-              jac[m->jnt_dofadr[i]] = -(mjtNum)side;
-            }
+    // HINGE or SLIDE joint
+    if (m->jnt_type[i] == mjJNT_SLIDE || m->jnt_type[i] == mjJNT_HINGE) {
+      // get joint value
+      value = d->qpos[m->jnt_qposadr[i]];
 
-            // add constraint
-            mj_addConstraint(m, d, jac, &dist, &margin, 0,
-                             1, mjCNSTR_LIMIT_JOINT, i,
-                             issparse ? 1 : 0,
-                             issparse ? m->jnt_dofadr+i : NULL);
-          }
-        }
-      }
-
-      // BALL joint
-      else if (m->jnt_type[i] == mjJNT_BALL) {
-        // convert joint quaternion to axis-angle
-        int adr = m->jnt_qposadr[i];
-        mjtNum quat[4] = {d->qpos[adr], d->qpos[adr+1], d->qpos[adr+2], d->qpos[adr+3]};
-        mju_normalize4(quat);
-        mju_quat2Vel(angleAxis, quat, 1);
-
-        // get rotation angle, normalize
-        value = mju_normalize3(angleAxis);
-
-        // compute distance, using max of range (negative: penetration)
-        dist = mju_max(m->jnt_range[2*i], m->jnt_range[2*i+1]) - value;
+      // process lower and upper limits
+      for (int side=-1; side <= 1; side+=2) {
+        // compute distance (negative: penetration)
+        dist = side * (m->jnt_range[2*i+(side+1)/2] - value);
 
         // detect joint limit
         if (dist < margin) {
-          // sparse
+          // prepare Jacobian: sparse or dense
           if (issparse) {
-            // prepare dof index array
-            int chain[3] = {
-              m->jnt_dofadr[i],
-              m->jnt_dofadr[i] + 1,
-              m->jnt_dofadr[i] + 2
-            };
-
-            // prepare Jacobian
-            mju_scl3(jac, angleAxis, -1);
-
-            // add constraint
-            mj_addConstraint(m, d, jac, &dist, &margin, 0,
-                             1, mjCNSTR_LIMIT_JOINT, i, 3, chain);
-          }
-
-          // dense
-          else {
-            // prepare Jacobian
+            jac[0] = -(mjtNum)side;
+          } else {
             mju_zero(jac, nv);
-            mju_scl3(jac + m->jnt_dofadr[i], angleAxis, -1);
-
-            // add constraint
-            mj_addConstraint(m, d, jac, &dist, &margin, 0,
-                             1, mjCNSTR_LIMIT_JOINT, i, 0, 0);
+            jac[m->jnt_dofadr[i]] = -(mjtNum)side;
           }
+
+          // add constraint
+          mj_addConstraint(m, d, jac, &dist, &margin, 0,
+                           1, mjCNSTR_LIMIT_JOINT, i,
+                           issparse ? 1 : 0,
+                           issparse ? m->jnt_dofadr+i : NULL);
+        }
+      }
+    }
+
+    // BALL joint
+    else if (m->jnt_type[i] == mjJNT_BALL) {
+      // convert joint quaternion to axis-angle
+      int adr = m->jnt_qposadr[i];
+      mjtNum quat[4] = {d->qpos[adr], d->qpos[adr+1], d->qpos[adr+2], d->qpos[adr+3]};
+      mju_normalize4(quat);
+      mju_quat2Vel(angleAxis, quat, 1);
+
+      // get rotation angle, normalize
+      value = mju_normalize3(angleAxis);
+
+      // compute distance, using max of range (negative: penetration)
+      dist = mju_max(m->jnt_range[2*i], m->jnt_range[2*i+1]) - value;
+
+      // detect joint limit
+      if (dist < margin) {
+        // sparse
+        if (issparse) {
+          // prepare dof index array
+          int chain[3] = {
+            m->jnt_dofadr[i] + 0,
+            m->jnt_dofadr[i] + 1,
+            m->jnt_dofadr[i] + 2
+          };
+
+          // prepare Jacobian
+          mju_scl3(jac, angleAxis, -1);
+
+          // add constraint
+          mj_addConstraint(m, d, jac, &dist, &margin, 0,
+                           1, mjCNSTR_LIMIT_JOINT, i, 3, chain);
+        }
+
+        // dense
+        else {
+          // prepare Jacobian
+          mju_zero(jac, nv);
+          mju_scl3(jac + m->jnt_dofadr[i], angleAxis, -1);
+
+          // add constraint
+          mj_addConstraint(m, d, jac, &dist, &margin, 0,
+                           1, mjCNSTR_LIMIT_JOINT, i, 0, 0);
         }
       }
     }
@@ -801,7 +834,7 @@ void mj_instantiateLimit(const mjModel* m, mjData* d) {
       margin = m->tendon_margin[i];
 
       // process lower and upper limits
-      for (side=-1; side <= 1; side+=2) {
+      for (int side=-1; side <= 1; side+=2) {
         // compute distance (negative: penetration)
         dist = side * (m->tendon_range[2*i+(side+1)/2] - value);
 
@@ -912,6 +945,7 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
     return mj_jacSum(m, d, chain, nb, bid, bweight, con->pos, jacdif, dim > 3);
   }
 }
+
 
 // frictionless and frictional contacts
 void mj_instantiateContact(const mjModel* m, mjData* d) {
@@ -1560,6 +1594,9 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
     return 0;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+
   mj_markStack(d);
 
   if (nnz) {
@@ -1569,110 +1606,118 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
 
   // find active equality constraints
   for (int i=0; i < neq; i++) {
-    if (d->eq_active[i]) {
-      id[0] = m->eq_obj1id[i];
-      id[1] = m->eq_obj2id[i];
-      size = 0;
-      NV = 0;
-      NV2 = 0;
+    // skip inactive
+    if (!d->eq_active[i]) {
+      continue;
+    }
 
-      // process according to type
-      switch ((mjtEq) m->eq_type[i]) {
-      case mjEQ_CONNECT:
-        size = 3;
-        if (!nnz) {
-          break;
-        }
+    // skip sleeping
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_EQUALITY, i) == mjS_ASLEEP) {
+      continue;
+    }
 
-        // get body ids if using site semantics
-        if (m->eq_objtype[i] == mjOBJ_SITE) {
-          id[0] = m->site_bodyid[id[0]];
-          id[1] = m->site_bodyid[id[1]];
-        }
+    id[0] = m->eq_obj1id[i];
+    id[1] = m->eq_obj2id[i];
+    size = 0;
+    NV = 0;
+    NV2 = 0;
 
-        NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
+    // process according to type
+    switch ((mjtEq) m->eq_type[i]) {
+    case mjEQ_CONNECT:
+      size = 3;
+      if (!nnz) {
         break;
-
-      case mjEQ_WELD:
-        size = 6;
-        if (!nnz) {
-          break;
-        }
-
-        // get body ids if using site semantics
-        if (m->eq_objtype[i] == mjOBJ_SITE) {
-          id[0] = m->site_bodyid[id[0]];
-          id[1] = m->site_bodyid[id[1]];
-        }
-
-        NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
-        break;
-
-      case mjEQ_JOINT:
-      case mjEQ_TENDON:
-        size = 1;
-        if (!nnz) {
-          break;
-        }
-
-        for (int j=0; j < 1+(id[1] >= 0); j++) {
-          if (m->eq_type[i] == mjEQ_JOINT) {
-            if (!j) {
-              NV = 1;
-              chain[0] = m->jnt_dofadr[id[j]];
-            } else {
-              NV2 = 1;
-              chain2[0] = m->jnt_dofadr[id[j]];
-            }
-          } else {
-            if (!j) {
-              NV = d->ten_J_rownnz[id[j]];
-              mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
-            } else {
-              NV2 = d->ten_J_rownnz[id[j]];
-              mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
-            }
-          }
-        }
-
-        if (id[1] >= 0) {
-          NV = mju_combineSparseCount(NV, NV2, chain, chain2);
-        }
-        break;
-
-      case mjEQ_FLEX:
-        flex_edgeadr = m->flex_edgeadr[id[0]];
-        flex_edgenum = m->flex_edgenum[id[0]];
-
-        // init with all edges, subract rigid later
-        size = flex_edgenum;
-
-        // process edges of this flex
-        for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
-          // rigid: reduce size and skip
-          if (m->flexedge_rigid[e]) {
-            size--;
-            continue;
-          }
-
-          // accumulate NV if needed
-          if (nnz) {
-            int b1 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e]];
-            int b2 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e+1]];
-            NV += mj_jacDifPairCount(m, chain, b1, b2, issparse);
-          }
-        }
-        break;
-
-      default:
-        // might occur in case of the now-removed distance equality constraint
-        mjERROR("unknown constraint type type %d", m->eq_type[i]);    // SHOULD NOT OCCUR
       }
 
-      // accumulate counts; flex NV already accumulated
-      ne += mj_addConstraintCount(m, size, NV);
-      nnze += (m->eq_type[i] == mjEQ_FLEX) ? NV : size*NV;
+      // get body ids if using site semantics
+      if (m->eq_objtype[i] == mjOBJ_SITE) {
+        id[0] = m->site_bodyid[id[0]];
+        id[1] = m->site_bodyid[id[1]];
+      }
+
+      NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
+      break;
+
+    case mjEQ_WELD:
+      size = 6;
+      if (!nnz) {
+        break;
+      }
+
+      // get body ids if using site semantics
+      if (m->eq_objtype[i] == mjOBJ_SITE) {
+        id[0] = m->site_bodyid[id[0]];
+        id[1] = m->site_bodyid[id[1]];
+      }
+
+      NV = mj_jacDifPairCount(m, chain, id[1], id[0], issparse);
+      break;
+
+    case mjEQ_JOINT:
+    case mjEQ_TENDON:
+      size = 1;
+      if (!nnz) {
+        break;
+      }
+
+      for (int j=0; j < 1+(id[1] >= 0); j++) {
+        if (m->eq_type[i] == mjEQ_JOINT) {
+          if (!j) {
+            NV = 1;
+            chain[0] = m->jnt_dofadr[id[j]];
+          } else {
+            NV2 = 1;
+            chain2[0] = m->jnt_dofadr[id[j]];
+          }
+        } else {
+          if (!j) {
+            NV = d->ten_J_rownnz[id[j]];
+            mju_copyInt(chain, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV);
+          } else {
+            NV2 = d->ten_J_rownnz[id[j]];
+            mju_copyInt(chain2, d->ten_J_colind+d->ten_J_rowadr[id[j]], NV2);
+          }
+        }
+      }
+
+      if (id[1] >= 0) {
+        NV = mju_combineSparseCount(NV, NV2, chain, chain2);
+      }
+      break;
+
+    case mjEQ_FLEX:
+      flex_edgeadr = m->flex_edgeadr[id[0]];
+      flex_edgenum = m->flex_edgenum[id[0]];
+
+      // init with all edges, subract rigid later
+      size = flex_edgenum;
+
+      // process edges of this flex
+      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+        // rigid: reduce size and skip
+        if (m->flexedge_rigid[e]) {
+          size--;
+          continue;
+        }
+
+        // accumulate NV if needed
+        if (nnz) {
+          int b1 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e]];
+          int b2 = m->flex_vertbodyid[m->flex_vertadr[id[0]] + m->flex_edge[2*e+1]];
+          NV += mj_jacDifPairCount(m, chain, b1, b2, issparse);
+        }
+      }
+      break;
+
+    default:
+      // might occur in case of the now-removed distance equality constraint
+      mjERROR("unknown constraint type type %d", m->eq_type[i]);    // SHOULD NOT OCCUR
     }
+
+    // accumulate counts; flex NV already accumulated
+    ne += mj_addConstraintCount(m, size, NV);
+    nnze += (m->eq_type[i] == mjEQ_FLEX) ? NV : size*NV;
   }
 
   if (nnz) {
@@ -1693,11 +1738,22 @@ static int mj_nf(const mjModel* m, const mjData* d, int *nnz) {
     return 0;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+
   for (int i=0; i < nv; i++) {
-    if (m->dof_frictionloss[i] > 0) {
-      nf += mj_addConstraintCount(m, 1, 1);
-      if (nnz) *nnz += 1;
+    // no friction loss: skip
+    if (!m->dof_frictionloss[i]) {
+      continue;
     }
+
+    // sleeping tree: skip
+    if (sleep_filter && !d->tree_awake[m->dof_treeid[i]]) {
+      continue;
+    }
+
+    nf += mj_addConstraintCount(m, 1, 1);
+    if (nnz) *nnz += 1;
   }
 
   for (int i=0; i < ntendon; i++) {
@@ -1723,15 +1779,22 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
     return 0;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
   for (int i=0; i < m->njnt; i++) {
     if (!m->jnt_limited[i]) {
       continue;
     }
 
+    // sleeping tree: skip
+    if (sleep_filter && !d->tree_awake[m->dof_treeid[m->jnt_dofadr[i]]]) {
+      continue;
+    }
+
     margin = m->jnt_margin[i];
 
-    // slider and hinge joint limits can be bilateral, check both sides
+    // SLIDE and HINGE joint limits can be bilateral, check both sides
     if (m->jnt_type[i] == mjJNT_SLIDE || m->jnt_type[i] == mjJNT_HINGE) {
       value = d->qpos[m->jnt_qposadr[i]];
       for (side=-1; side <= 1; side+=2) {
@@ -1742,6 +1805,8 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
         }
       }
     }
+
+    // BALL joint limits are always unilateral
     else if (m->jnt_type[i] == mjJNT_BALL) {
       mjtNum angleAxis[3];
       int adr = m->jnt_qposadr[i];
@@ -1757,19 +1822,12 @@ static int mj_nl(const mjModel* m, const mjData* d, int *nnz) {
     }
   }
 
+  // tendon limits
   for (int i=0; i < ntendon; i++) {
-    if (m->tendon_limited[i]) {
-      value = d->ten_length[i];
-      margin = m->tendon_margin[i];
-
-      // tendon limits can be bilateral, check both sides
-      for (side=-1; side <= 1; side+=2) {
-        dist = side * (m->tendon_range[2*i+(side+1)/2] - value);
-        if (dist < margin) {
-          nl += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
-          if (nnz) *nnz += d->ten_J_rownnz[i];
-        }
-      }
+    int count = tendonLimit(m, d->ten_length, i);
+    for (int j = 0; j < count; j++) {
+      nl += mj_addConstraintCount(m, 1, d->ten_J_rownnz[i]);
+      if (nnz) *nnz += d->ten_J_rownnz[i];
     }
   }
 
@@ -1785,6 +1843,9 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
   if (mjDISABLED(mjDSBL_CONTACT) || !ncon) {
     return 0;
   }
+
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
   mj_markStack(d);
   int *chain = mjSTACKALLOC(d, m->nv, int);
@@ -1802,6 +1863,21 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
     // skip if excluded
     if (con->exclude) {
       continue;
+    }
+
+    // check for contact with sleeping tree; SHOULD NOT OCCUR
+    if (sleep_filter) {
+      int g1 = con->geom[0];
+      int g2 = con->geom[1];
+      if (g1 >= 0 && g2 >= 0) {
+        int b1 = m->body_weldid[m->geom_bodyid[g1]];
+        int b2 = m->body_weldid[m->geom_bodyid[g2]];
+        int asleep1 = d->body_awake[b1] == mjS_ASLEEP;
+        int asleep2 = d->body_awake[b2] == mjS_ASLEEP;
+        if (asleep1 || asleep2) {
+          mjERROR("contact %d involves sleeping geom %d", i, asleep1 ? g1 : g2);
+        }
+      }
     }
 
     // compute NV only if nnz requested
@@ -1908,8 +1984,7 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
     d->tendon_efcadr[i] = -1;
   }
 
-  // reset nefc for the instantiation functions,
-  // and instantiate all elements of Jacobian
+  // reset nefc for the instantiation functions, instantiate all elements of Jacobian
   d->nefc = 0;
   mj_instantiateEquality(m, d);
   mj_instantiateFriction(m, d);

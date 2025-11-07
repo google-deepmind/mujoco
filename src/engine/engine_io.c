@@ -26,6 +26,8 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include <mujoco/mjxmacro.h>
+#include "engine/engine_core_smooth.h"
+#include "engine/engine_forward.h"
 #include "engine/engine_init.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
@@ -1087,6 +1089,11 @@ void mj_makeRawData(mjData** dest, const mjModel* m) {
   // clear nplugin (overwritten by _initPlugin)
   d->nplugin = 0;
 
+  // set awake array sizes to default (all awake)
+  d->ntree_awake = m->ntree;
+  d->nbody_awake = d->nparent_awake = m->nbody;
+  d->nv_awake = m->nv;
+
   // copy pointer if allocated here
   if (allocate) {
     *dest = d;
@@ -1367,6 +1374,68 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   // set all trees to awake
   for (int i=0; i < m->ntree; i++) {
     d->tree_asleep[i] = kAwake;
+  }
+
+  // sleep enabled: handle static bodies and trees marked as mjSLEEP_INIT
+  if (mjENABLED(mjENBL_SLEEP)) {
+    // count trees initialized as asleep
+    int num_asleep_init = 0;
+    for (int i=0; i < m->ntree; i++) {
+      num_asleep_init += (m->tree_sleep_policy[i] == mjSLEEP_INIT);
+    }
+
+    // update sleep arrays, treat static bodies as awake
+    mj_updateSleepInit(m, d, /*flg_staticawake*/ 1);
+
+    // partial mj_fwdPosition, functions that update STATIC values
+    if (!num_asleep_init) {
+      mj_kinematics(m, d);
+      mj_comPos(m, d);
+      mj_camlight(m, d);
+      mj_tendon(m, d);
+    }
+
+    // if any trees initialized as sleeping call entire mj_forward, put them to sleep
+    else {
+      mj_forward(m, d);
+
+      // mark asleep-init trees as ready to sleep
+      for (int i=0; i < m->ntree; i++) {
+        int init = m->tree_sleep_policy[i] == mjSLEEP_INIT;
+        d->tree_asleep[i] = init ? -1 : kAwake;
+      }
+
+      int nslept = mj_sleep(m, d);
+
+      // raise error if any failed to sleep
+      if (nslept != num_asleep_init) {
+        // find root body of the first tree that could not be slept
+        int root = -1;
+        for (int i=0; i < m->ntree; i++) {
+          if (m->tree_sleep_policy[i] == mjSLEEP_INIT && d->tree_asleep[i] < 0) {
+            root = m->tree_bodyadr[i];
+            break;
+          }
+        }
+
+        // free all memory held by d just before aborting
+        mj_deleteData(d);
+
+        // raise error and abort
+        const char* hasname = mj_id2name(m, mjOBJ_BODY, root);
+        const char* name = hasname ? hasname : "";
+        mjERROR("%d trees were marked as sleep='init' but only %d could be slept.\n"
+                "Body '%s' (id=%d) is the root of the first tree that could not be slept.",
+                num_asleep_init, nslept, name, root);
+      }
+
+      // clear arrays to avoid MSAN errors upon mid-step wake
+      mju_zero(d->qacc_smooth, m->nv);
+      mju_zero(d->qfrc_smooth, m->nv);
+
+      // clear arena
+      mj_clearEfc(d);
+    }
   }
 
   // update sleep arrays and counters

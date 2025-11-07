@@ -561,37 +561,48 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
 }
 
 
-// integrate qpos with given qvel
-void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt) {
-  // loop over joints
-  for (int j=0; j < m->njnt; j++) {
-    // get addresses in qpos and qvel
-    int padr = m->jnt_qposadr[j];
-    int vadr = m->jnt_dofadr[j];
+// integrate qpos with given qvel for given body indices
+void mj_integratePosInd(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt,
+                        const int* index, int nbody) {
+  for (int b=1; b < nbody; b++) {
+    int k = index ? index[b] : b;
+    int start = m->body_jntadr[k];
+    int end = start + m->body_jntnum[k];
+    for (int j=start; j < end; j++) {
+      // get addresses in qpos and qvel
+      int padr = m->jnt_qposadr[j];
+      int vadr = m->jnt_dofadr[j];
 
-    switch ((mjtJoint) m->jnt_type[j]) {
-    case mjJNT_FREE:
-      // position update
-      for (int i=0; i < 3; i++) {
-        qpos[padr+i] += dt * qvel[vadr+i];
+      switch ((mjtJoint) m->jnt_type[j]) {
+      case mjJNT_FREE:
+        // position update
+        for (int i=0; i < 3; i++) {
+          qpos[padr+i] += dt * qvel[vadr+i];
+        }
+        padr += 3;
+        vadr += 3;
+
+        // continue with rotation update
+        mjFALLTHROUGH;
+
+      case mjJNT_BALL:
+        // quaternion update
+        mju_quatIntegrate(qpos+padr, qvel+vadr, dt);
+        break;
+
+      case mjJNT_HINGE:
+      case mjJNT_SLIDE:
+        // scalar update: same for rotation and translation
+        qpos[padr] += dt * qvel[vadr];
       }
-      padr += 3;
-      vadr += 3;
-
-      // continue with rotation update
-      mjFALLTHROUGH;
-
-    case mjJNT_BALL:
-      // quaternion update
-      mju_quatIntegrate(qpos+padr, qvel+vadr, dt);
-      break;
-
-    case mjJNT_HINGE:
-    case mjJNT_SLIDE:
-      // scalar update: same for rotation and translation
-      qpos[padr] += dt * qvel[vadr];
     }
   }
+}
+
+
+// integrate qpos with given qvel
+void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt) {
+  mj_integratePosInd(m, qpos, qvel, dt, NULL, m->nbody);
 }
 
 

@@ -59,7 +59,7 @@ static void BM_factorI(benchmark::State& state, bool legacy, bool coil) {
       } else {
         mju_copy(d->qLD, M, m->nC);
         mj_factorI(d->qLD, d->qLDiagInv, m->nv,
-                   m->M_rownnz, m->M_rowadr, m->M_colind);
+                   m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
       }
     }
   }

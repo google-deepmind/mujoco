@@ -156,11 +156,22 @@ static int mj_filterSphere(const mjModel* m, mjData* d, int g1, int g2, mjtNum m
 }
 
 
-// filter body pair: 1- discard, 0- proceed
-static int filterBodyPair(int weldbody1, int weldparent1, int weldbody2,
-                          int weldparent2, int dsbl_filterparent) {
+// filter body pair; 1: discard, 0: proceed
+static int filterBodyPair(int weldbody1, int weldparent1, int asleep1,
+                          int weldbody2, int weldparent2, int asleep2,
+                          int dsbl_filterparent) {
   // same weldbody check
   if (weldbody1 == weldbody2) {
+    return 1;
+  }
+
+  // both asleep check
+  if (asleep1 && asleep2) {
+    return 1;
+  }
+
+  // asleep and static check
+  if ((asleep1 && !weldbody2) || (asleep2 && !weldbody1)) {
     return 1;
   }
 
@@ -1126,6 +1137,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
   int npair = 0, nbody = m->nbody, ngeom = m->ngeom;
   int nvert = m->nflexvert, nflex = m->nflex, nbodyflex = m->nbody + m->nflex;
   int dsbl_filterparent = mjDISABLED(mjDSBL_FILTERPARENT);
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < nbody;
   mjtNum cov[9], cen[3], eigval[3], frame[9], quat[4];
 
   // init with pairs involving always-colliding bodies
@@ -1138,7 +1150,7 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
     // b1 is world body with geoms, or world-welded body with plane
     if ((b1 == 0 && m->body_geomnum[b1] > 0) ||
         (m->body_weldid[b1] == 0 && hasPlane(m, b1))) {
-      // add b1:body pairs that are not welded together
+      // add b1:b2 pairs that are not welded together
       for (int b2=0; b2 < nbody; b2++) {
         // cannot collide
         if (!canCollide(m, b2)) {
@@ -1148,7 +1160,8 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
         // welded together
         int weld2 = m->body_weldid[b2];
         int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
-        if (filterBodyPair(0, 0, weld2, parent_weld2, dsbl_filterparent)) {
+        int asleep2 = sleep_filter ? d->body_awake[b2] == mjS_ASLEEP : 0;
+        if (filterBodyPair(0, 0, 1, weld2, parent_weld2, asleep2, dsbl_filterparent)) {
           continue;
         }
 
@@ -1230,14 +1243,17 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
       int bf1 = bfid[sappair[i] >> 16];
       int bf2 = bfid[sappair[i] & 0xFFFF];
 
-      // body pair: prune based on weld filter
+      // body pair: prune based on sleep filter and weld filter
       if (bf1 < nbody && bf2 < nbody) {
+        int asleep1 = sleep_filter ? d->body_awake[bf1] == mjS_ASLEEP : 0;
+        int asleep2 = sleep_filter ? d->body_awake[bf2] == mjS_ASLEEP : 0;
         int weld1 = m->body_weldid[bf1];
         int weld2 = m->body_weldid[bf2];
         int parent_weld1 = m->body_weldid[m->body_parentid[weld1]];
         int parent_weld2 = m->body_weldid[m->body_parentid[weld2]];
 
-        if (filterBodyPair(weld1, parent_weld1, weld2, parent_weld2,
+        if (filterBodyPair(weld1, parent_weld1, asleep1,
+                           weld2, parent_weld2, asleep2,
                            dsbl_filterparent)) {
           continue;
         }
@@ -1421,6 +1437,15 @@ void mj_collideGeoms(const mjModel* m, mjData* d, int g1, int g2) {
   if (ipair >= 0) {
     g1 = m->pair_geom1[ipair];
     g2 = m->pair_geom2[ipair];
+
+    // sleep filtering for explicit pairs
+    if (mjENABLED(mjENBL_SLEEP)) {
+      int b1 = m->geom_bodyid[g1];
+      int b2 = m->geom_bodyid[g2];
+      if (d->body_awake[b1] != mjS_AWAKE && d->body_awake[b2] != mjS_AWAKE) {
+        return;
+      }
+    }
   }
 
   // order geoms by type

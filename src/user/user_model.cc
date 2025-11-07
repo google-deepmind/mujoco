@@ -4935,6 +4935,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // create data
   int disableflags = m->opt.disableflags;
   m->opt.disableflags |= mjDSBL_CONTACT;
+  int enableflags = m->opt.enableflags;
+  m->opt.enableflags &= ~mjENBL_SLEEP;
   mj_makeRawData(&d, m);
   if (!d) {
     // m will be deleted by the catch statement in mjCModel::Compile()
@@ -4980,18 +4982,39 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // delete partial mjData (no plugins), make a complete one
   mj_deleteData(d);
   d = nullptr;
+
+  // if sleep was enabled, check for trees initialized as sleeping
+  bool asleep_init = false;
+  if (enableflags & mjENBL_SLEEP) {
+    for (int i=0; i < m->ntree; i++) {
+      if (m->tree_sleep_policy[i] == mjSLEEP_INIT) {
+        asleep_init = true;
+        break;
+      }
+    }
+  }
+
+  // if any trees initialized as sleeping, restore flags before mj_makeData
+  if (asleep_init) {
+    m->opt.disableflags = disableflags;
+    m->opt.enableflags = enableflags;
+  }
+
   d = mj_makeData(m);
   if (!d) {
     // m will be deleted by the catch statement in mjCModel::Compile()
     throw mjCError(0, "could not create mjData");
   }
 
-  // test forward simulation
-  mj_step(m, d);
+  // test forward simulation unless asleep_init is true (potentially expensive)
+  if (!asleep_init) {
+    mj_step(m, d);
+  }
 
-  // delete data
+  // delete data, restore flags
   mj_deleteData(d);
   m->opt.disableflags = disableflags;
+  m->opt.enableflags = enableflags;
   d = nullptr;
 
   // pass warning back

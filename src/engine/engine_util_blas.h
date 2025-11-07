@@ -141,11 +141,17 @@ MJAPI mjtNum mju_normalize4(mjtNum vec[4]);
 // res = 0
 MJAPI void mju_zero(mjtNum* res, int n);
 
+// res = 0, at given indices
+void mju_zeroInd(mjtNum* res, int n, const int* ind);
+
 // res = val
 MJAPI void mju_fill(mjtNum* res, mjtNum val, int n);
 
 // res = vec
 MJAPI void mju_copy(mjtNum* res, const mjtNum* vec, int n);
+
+// res = vec, at given indices
+void mju_copyInd(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
 // sum(vec)
 MJAPI mjtNum mju_sum(const mjtNum* vec, int n);
@@ -159,17 +165,29 @@ MJAPI void mju_scl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n);
 // res = vec1 + vec2
 MJAPI void mju_add(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n);
 
+// res = vec1 + vec2, at given indices
+void mju_addInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n);
+
 // res = vec1 - vec2
 MJAPI void mju_sub(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, int n);
 
+// res = vec1 - vec2, at selected indices
+void mju_subInd(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n);
+
 // res += vec
 MJAPI void mju_addTo(mjtNum* res, const mjtNum* vec, int n);
+
+// res += vec, at selected indices
+void mju_addToInd(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
 // res -= vec
 MJAPI void mju_subFrom(mjtNum* res, const mjtNum* vec, int n);
 
 // res += vec*scl
 MJAPI void mju_addToScl(mjtNum* res, const mjtNum* vec, mjtNum scl, int n);
+
+// res += vec*scl, at given indices
+void mju_addToSclInd(mjtNum* res, const mjtNum* vec, const int* ind, mjtNum scl, int n);
 
 // res = vec1 + vec2*scl
 MJAPI void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl, int n);
@@ -183,16 +201,16 @@ MJAPI mjtNum mju_norm(const mjtNum* res, int n);
 // vector dot-product
 MJAPI mjtNum mju_dot(const mjtNum* vec1, const mjtNum* vec2, int n);
 
+// vector dot-product, at given indices
+mjtNum mju_dotInd(const mjtNum* vec1, const mjtNum* vec2, const int* ind, int n);
 
 //------------------------------ matrix-vector operations ------------------------------------------
 
 // multiply matrix and vector
-MJAPI void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                         int nr, int nc);
+MJAPI void mju_mulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc);
 
 // multiply transposed matrix and vector
-MJAPI void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
-                          int nr, int nc);
+MJAPI void mju_mulMatTVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int nr, int nc);
 
 // multiply square matrix with vectors on both sides: return vec1'*mat*vec2
 MJAPI mjtNum mju_mulVecMatVec(const mjtNum* vec1, const mjtNum* mat, const mjtNum* vec2, int n);
@@ -208,6 +226,9 @@ MJAPI void mju_symmetrize(mjtNum* res, const mjtNum* mat, int n);
 
 // identity matrix
 MJAPI void mju_eye(mjtNum* mat, int n);
+
+// copy selected rows:  res[ind, :] = mat[ind, :]
+void mju_copyRows(mjtNum* res, const mjtNum* mat, const int* ind, int n, int nc);
 
 //------------------------------ matrix-matrix operations ------------------------------------------
 

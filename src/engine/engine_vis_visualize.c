@@ -28,6 +28,7 @@
 #include "engine/engine_memory.h"
 #include "engine/engine_name.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -72,7 +73,7 @@ static void makeLabel(const mjModel* m, mjtObj type, int id, char* label) {
 
 
 // convert HSV to RGB
-static void hsv2rgb(float *RGB, float H, float S, float V) {
+void hsv2rgb(float *RGB, float H, float S, float V) {
   float R, G, B;
 
   if (S <= 0) {
@@ -105,14 +106,32 @@ static void hsv2rgb(float *RGB, float H, float S, float V) {
 }
 
 
-static const float kIslandSaturation  = 0.8;
-static const float kIslandValue       = 0.7;
-
 // assign pseudo-random rgba to constraint island using Halton sequence
-static void islandColor(float rgba[4], int h) {
-  float hue = mju_Halton(h + 1, 2);
-  float saturation =  h >= 0 ? kIslandSaturation : 0;
-  hsv2rgb(rgba, hue, saturation, kIslandValue);
+static void islandColor(float rgba[4], int h, int awake) {
+  // default to gray R = G = B = 0.7;
+  float hue        = 1.0f;
+  float saturation = 0.0f;
+  float value      = 0.7f;
+
+  // island index given, use Halton sequence to generate pseudo-random color
+  if (h >= 0) {
+    // hue in [0, 1]
+    hue = mju_Halton(h + 1, 7);
+
+    // saturation in [0.5, 1.0]
+    saturation = .5 + .5*mju_Halton(h + 1, 3);
+
+    // value in [0.6, 1.0]
+    value = .6 + .4*mju_Halton(h + 1, 5);
+  }
+
+  // if asleep, decrease saturation and value
+  if (!awake) {
+    value      *= 0.6;
+    saturation *= 0.7;
+  }
+
+  hsv2rgb(rgba, hue, saturation, value);
   rgba[3] = 1;
 }
 
@@ -572,7 +591,7 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
       if (vopt->flags[mjVIS_ISLAND] && efc_adr >= 0) {
         // set hue using island's first dof
         int h = d->nisland > 0 ? d->island_dofadr[d->efc_island[efc_adr]] : -1;
-        islandColor(thisgeom->rgba, h);
+        islandColor(thisgeom->rgba, h, /*awake*/1);
       }
 
       // otherwise regular colors (different for included and excluded contacts)
@@ -593,8 +612,7 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             const char* geomname = mj_id2name(m, mjOBJ_GEOM, con->geom[k]);
             if (geomname) {
               mjSNPRINTF(contactlabel[k], "%s", geomname);
-            }
-            else {
+            } else {
               mjSNPRINTF(contactlabel[k], "g%d", con->geom[k]);
             }
           }
@@ -605,16 +623,14 @@ static void addContactGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, 
             if (flexname) {
               if (con->elem[k] >= 0) {
                 mjSNPRINTF(contactlabel[k], "%s.e%d", flexname, con->elem[k]);
-              }
-              else {
+              } else {
                 mjSNPRINTF(contactlabel[k], "%s.v%d", flexname, con->vert[k]);
               }
             }
             else {
               if (con->elem[k] >= 0) {
                 mjSNPRINTF(contactlabel[k], "f%d.e%d", con->flex[k], con->elem[k]);
-              }
-              else {
+              } else {
                 mjSNPRINTF(contactlabel[k], "f%d.v%d", con->flex[k], con->vert[k]);
               }
             }
@@ -865,9 +881,19 @@ static void addGeomGeoms(const mjModel* m, mjData* d, const mjvOption* vopt,
         thisgeom->matid = -1;
 
         // set hue using first island dof, -1 if no island
-        int island = d->nisland ? d->dof_island[m->body_dofadr[weld_id]] : -1;
+        int dof = m->body_dofadr[weld_id];
+        int island = d->nisland ? d->dof_island[dof] : -1;
         int h = island >= 0 ? d->island_dofadr[island] : -1;
-        islandColor(thisgeom->rgba, h);
+        int awake = d->body_awake[m->geom_bodyid[i]];
+
+        // if sleep is enabled, color by first tree dof
+        if (h == -1 && mjENABLED(mjENBL_SLEEP)) {
+          int tree = m->dof_treeid[dof];
+          if (!awake) tree = mj_sleepCycle(d->tree_asleep, m->ntree, tree);
+          h = m->tree_dofadr[tree];
+        }
+
+        islandColor(thisgeom->rgba, h, awake);
       }
     }
 
@@ -1102,13 +1128,13 @@ static void addSpatialTendonGeoms(const mjModel* m, mjData* d, const mjvOption* 
             // strip material
             thisgeom->matid = -1;
 
-            // set hue with first island dof, if constrained
-            int h = -1;
-            if (d->nisland && d->tendon_efcadr[i] >= 0) {
-              h = d->island_dofadr[d->efc_island[d->tendon_efcadr[i]]];
+              // set hue with first island dof, if constrained
+              int h = -1;
+              if (d->nisland && d->tendon_efcadr[i] >= 0) {
+                h = d->island_dofadr[d->efc_island[d->tendon_efcadr[i]]];
+              }
+              islandColor(thisgeom->rgba, h, 1);
             }
-            islandColor(thisgeom->rgba, h);
-          }
 
           // vopt->label: only the first segment
           if (vopt->label == mjLABEL_TENDON && j == d->ten_wrapadr[i]) {
