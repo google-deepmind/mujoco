@@ -92,6 +92,7 @@ class EnableBit(enum.IntFlag):
   # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND
   # required by the C implementation only, ignored otherwise: MULTICCD
   MULTICCD = mujoco.mjtEnableBit.mjENBL_MULTICCD
+  SLEEP = mujoco.mjtEnableBit.mjENBL_SLEEP
 
 
 class JointType(enum.IntEnum):
