@@ -14,7 +14,7 @@
 
 """Generates Embind bindings for MuJoCo functions."""
 
-from typing import List, Mapping, Optional
+from typing import List, Mapping
 
 from introspect import ast_nodes
 

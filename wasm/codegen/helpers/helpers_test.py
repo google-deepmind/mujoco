@@ -64,11 +64,6 @@ class CommonUtilsTest(absltest.TestCase):
         common.uppercase_first_letter(" leading space"), " leading space"
     )
 
-  def test_try_cast_to_scalar_type(self):
-    self.assertEqual(common.try_cast_to_scalar_type("123"), 123)
-    self.assertEqual(common.try_cast_to_scalar_type("123.456"), 123.456)
-    self.assertEqual(common.try_cast_to_scalar_type("abc"), "abc")
-
 
 class FunctionUtilsTest(absltest.TestCase):
 

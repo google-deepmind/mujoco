@@ -15,36 +15,6 @@
 """Utility functions for code generation."""
 
 import os
-import pathlib
-
-from wasm.codegen.helpers import constants
-
-
-def get_default_output_dir() -> str:
-  """Gets the default output directory (sibling of 'generated' folder)."""
-  # Get the directory of the current file (generator/base.py)
-  current_dir = pathlib.Path(__file__).parent
-  # Go up one level to the project root and then down to 'generated'
-  default_output_dir = str(current_dir.parent / "generated")
-  return default_output_dir
-
-
-def get_file_path(
-    template_dir: str, output_dir: str, filename: str
-) -> tuple[str, str]:
-  """Constructs the template and output file paths.
-
-  Args:
-      template_dir: The directory containing the template files.
-      output_dir: The directory where the generated files will be saved.
-      filename: The name of the file.
-
-  Returns:
-      A tuple containing the template file path and the output file path.
-  """
-  template_file = f"wasm/codegen/{template_dir}/{filename}"
-  output_file = f"wasm/codegen/{output_dir}/{filename}"
-  return template_file, output_file
 
 
 def write_to_file(filepath: str, content: str) -> None:
@@ -71,53 +41,26 @@ def uppercase_first_letter(input_string: str) -> str:
   return input_string[:1].upper() + input_string[1:]
 
 
-def try_cast_to_scalar_type(value: str) -> int | float | str:
-  """Tries to cast a string to an integer, then a float, otherwise returns the original string."""
-  for type_ in [int, float]:
-    try:
-      return type_(value)
-    except ValueError:
-      continue
-  return value
-
-
 def replace_lines_containing_marker(
     lines: list[str],
-    marker_to_replace: str,
-    replacement_content: str | list[str],
+    marker: str,
+    content: list[str],
 ) -> list[str]:
   """Replaces lines containing a specific marker with new content."""
-
-  new_lines = []
-  replaced = False
-  for line in lines:
-    if not replaced and marker_to_replace in line:
-      indentation = _get_indentation(line)
-      if isinstance(replacement_content, str):
-        new_lines.append(indentation + replacement_content)
-      elif isinstance(replacement_content, list):
-        for content_line in replacement_content:
-          if not content_line.strip():
-            continue
-          indented_line = (
-              indentation
-              + content_line.replace("\n", "\n" + indentation)
-              + "\n"
+  for i, line in enumerate(lines):
+    if marker in line:
+      indent = line[: len(line) - len(line.lstrip(" "))]
+      replacement_lines = []
+      for text in content:
+        if text.strip():
+          # Prepend indent to ensure the first replacement line matches the
+          # indentation of the marker and also ensure that text containing
+          # newlines is also indented correctly.
+          # TODO(matijak): This is working around an upstream problem, we should
+          # make it a precondition that content elements do not contain newlines
+          # and fix callers to ensure that.
+          replacement_lines.append(
+              indent + text.replace("\n", f"\n{indent}") + "\n"
           )
-          new_lines.append(indented_line)
-      replaced = True
-    else:
-      new_lines.append(line)
-  return new_lines
-
-
-def _get_indentation(line: str) -> str:
-  """Returns the indentation of the given line as a string of spaces."""
-
-  indentation = ""
-  for char in line:
-    if char == " ":
-      indentation += " "
-    else:
-      break
-  return indentation
+      return lines[:i] + replacement_lines + lines[i + 1 :]
+  return lines

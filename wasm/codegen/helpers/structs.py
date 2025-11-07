@@ -187,12 +187,6 @@ def _generate_field_data(
           binding=_simple_property_binding(f, w),
           is_primitive_or_fixed_size=True,
       )
-    else:
-      return WrappedFieldData(
-          definition=f"// TODO: NOT IMPLEMENTED ARRAY wrapper for {f.name}",
-          typename=_get_field_struct_type(f.type),
-          binding=f"// TODO: NOT IMPLEMENTED ARRAY binding for {f.name}",
-      )
 
   elif isinstance(f.type, ast_nodes.PointerType):
 
@@ -280,10 +274,12 @@ def _generate_field_data(
         binding=_simple_property_binding(f, w),
     )
 
+  # SHOULD NOT OCCUR
+  print("Error: field {f.name} not properly handled")
   return WrappedFieldData(
-      definition=f"// TODO: UNDEFINED definition for {f.name}",
+      definition=f"// Error: field {f.name} not properly handled.",
       typename=_get_field_struct_type(f.type),
-      binding=f"// TODO: UNDEFINED binding for {f.name}",
+      binding=f"// Error: field {f.name} not properly handled.",
   )
 
 
@@ -512,6 +508,8 @@ def _build_struct_bindings(
 ):
   """Builds the C++ bindings for a struct."""
   w = common.uppercase_first_letter(struct_name)
+  is_mjs = w.startswith("Mjs")
+
   builder = code_builder.CodeBuilder()
   with builder.block(
       header_line=f'emscripten::class_<{w}>("{w}")', braces=False
@@ -528,9 +526,8 @@ def _build_struct_bindings(
       builder.line(".constructor<const MjSpec &>()")
     elif w == "MjvScene":
       builder.line(".constructor<MjModel *, int>()")
-
-    is_mjs = w.startswith("Mjs")
-    if not is_mjs and w not in ["MjData", "MjModel", "MjSpec"]:
+      builder.line(".constructor<>()")
+    elif not is_mjs:
       builder.line(".constructor<>()")
 
     shallow_copy = use_shallow_copy(wrapped_fields)

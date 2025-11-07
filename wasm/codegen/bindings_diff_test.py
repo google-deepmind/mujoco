@@ -16,7 +16,7 @@ from pathlib import Path
 
 from absl.testing import absltest
 
-from wasm.codegen import binding_builder
+from wasm.codegen import update
 
 ERROR_MESSAGE = """
 The file '{}' needs to be updated, please run:
@@ -25,17 +25,14 @@ update.py as described in wasm/README.md""".lstrip()
 
 class BindingsDiffTest(absltest.TestCase):
 
-  def setUp(self):
-    super().setUp()
-
+  def test_bindings_source(self):
     SCRIPT_DIR = Path(__file__).parent
     with open(SCRIPT_DIR / 'generated/bindings.cc', 'r') as f:
       self.generated_src = f.read()
     self.template_path_cc = SCRIPT_DIR / 'templates/bindings.cc'
 
-    self.builder = binding_builder.BindingBuilder(self.template_path_cc)
+    self.builder = update.BindingBuilder(self.template_path_cc)
 
-  def test_bindings_source(self):
     generator_output = (
         self.builder.set_enums().set_structs().set_functions().to_string()
     )
