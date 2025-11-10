@@ -59,6 +59,8 @@ extensions = [
     'mujoco_include',
 ]
 
+napoleon_custom_sections = [('warp only fields', 'attributes')]
+
 # Links to GitHub issues and pull requests.
 extlinks = {
     'issue': (
