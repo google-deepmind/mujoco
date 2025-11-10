@@ -637,7 +637,6 @@ class Option:
     run_collision_detection: if False, skips collision detection and allows user-populated
       contacts during the physics step (as opposed to DisableBit.CONTACT which explicitly
       zeros out the contacts at each step)
-    legacy_gjk: run legacy gjk algorithm
     contact_sensor_maxmatch: max number of contacts considered by contact sensor matching criteria
                              contacts matched after this value is exceded will be ignored
   """
@@ -671,7 +670,6 @@ class Option:
   broadphase_filter: int
   graph_conditional: bool
   run_collision_detection: bool
-  legacy_gjk: bool
   contact_sensor_maxmatch: int
 
 

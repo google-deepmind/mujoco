@@ -589,7 +589,6 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
       sdf_initpoints=mjm.opt.sdf_initpoints,
       sdf_iterations=mjm.opt.sdf_iterations,
       run_collision_detection=True,
-      legacy_gjk=False,
       contact_sensor_maxmatch=64,
     ),
     stat=types.Statistic(
@@ -975,7 +974,7 @@ def put_model(mjm: mujoco.MjModel) -> types.Model:
   return m
 
 
-def _get_padded_sizes(nv: int, njmax: int, nworld: int, is_sparse: bool, tile_size: int):
+def _get_padded_sizes(nv: int, njmax: int, is_sparse: bool, tile_size: int):
   # if dense - we just pad to the next multiple of 4 for nv, to get the fast load path.
   #            we pad to the next multiple of tile_size for njmax to avoid out of bounds accesses.
   # if sparse - we pad to the next multiple of tile_size for njmax, and nv.
@@ -1006,7 +1005,7 @@ def make_data(
     mjm: The model containing kinematic and dynamic information (host).
     nworld: Number of worlds.
     nconmax: Number of contacts to allocate per world. Contacts exist in large
-             heterogenous arrays: one world may have more than nconmax contacts.
+             heterogeneous arrays: one world may have more than nconmax contacts.
     njmax: Number of constraints to allocate per world. Constraint arrays are
            batched by world: no world may have more than njmax constraints.
     naconmax: Number of contacts to allocate for all worlds. Overrides nconmax.
@@ -1047,7 +1046,7 @@ def make_data(
   else:
     tile_size = types.TILE_SIZE_JTDAJ_DENSE
 
-  njmax_padded, nv_padded = _get_padded_sizes(mjm.nv, njmax, nworld, mujoco.mj_isSparse(mjm), tile_size)
+  njmax_padded, nv_padded = _get_padded_sizes(mjm.nv, njmax, mujoco.mj_isSparse(mjm), tile_size)
 
   # static geoms (attached to the world) have their poses calculated once during make_data instead
   # of during each physics step.  this speeds up scenes with many static geoms (e.g. terrains)
@@ -1319,7 +1318,7 @@ def put_data(
   else:
     tile_size = types.TILE_SIZE_JTDAJ_DENSE
 
-  njmax_padded, nv_padded = _get_padded_sizes(mjm.nv, njmax, nworld, mujoco.mj_isSparse(mjm), tile_size)
+  njmax_padded, nv_padded = _get_padded_sizes(mjm.nv, njmax, mujoco.mj_isSparse(mjm), tile_size)
 
   efc_type_fill = np.zeros((nworld, njmax))
   efc_id_fill = np.zeros((nworld, njmax))
@@ -1542,8 +1541,8 @@ def get_data_into(
   nl = d.nl.numpy()[0]
 
   # efc indexing
-  # mujoco expects contigious efc ordering for contacts
-  # this ordering is not guarenteed with mujoco warp, we enforce order here
+  # mujoco expects contiguous efc ordering for contacts
+  # this ordering is not guaranteed with mujoco warp, we enforce order here
   if nacon > 0:
     efc_idx_efl = np.arange(ne + nf + nl)
 

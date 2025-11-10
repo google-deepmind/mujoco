@@ -344,7 +344,6 @@ def _forward_shim(
     opt__impratio: wp.array(dtype=float),
     opt__is_sparse: bool,
     opt__iterations: int,
-    opt__legacy_gjk: bool,
     opt__ls_iterations: int,
     opt__ls_parallel: bool,
     opt__ls_parallel_min_step: float,
@@ -714,7 +713,6 @@ def _forward_shim(
   _m.opt.impratio = opt__impratio
   _m.opt.is_sparse = opt__is_sparse
   _m.opt.iterations = opt__iterations
-  _m.opt.legacy_gjk = opt__legacy_gjk
   _m.opt.ls_iterations = opt__ls_iterations
   _m.opt.ls_parallel = opt__ls_parallel
   _m.opt.ls_parallel_min_step = opt__ls_parallel_min_step
@@ -1519,7 +1517,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.opt.impratio,
       m.opt._impl.is_sparse,
       m.opt.iterations,
-      m.opt._impl.legacy_gjk,
       m.opt.ls_iterations,
       m.opt._impl.ls_parallel,
       m.opt._impl.ls_parallel_min_step,
@@ -2138,7 +2135,6 @@ def _step_shim(
     opt__integrator: int,
     opt__is_sparse: bool,
     opt__iterations: int,
-    opt__legacy_gjk: bool,
     opt__ls_iterations: int,
     opt__ls_parallel: bool,
     opt__ls_parallel_min_step: float,
@@ -2510,7 +2506,6 @@ def _step_shim(
   _m.opt.integrator = opt__integrator
   _m.opt.is_sparse = opt__is_sparse
   _m.opt.iterations = opt__iterations
-  _m.opt.legacy_gjk = opt__legacy_gjk
   _m.opt.ls_iterations = opt__ls_iterations
   _m.opt.ls_parallel = opt__ls_parallel
   _m.opt.ls_parallel_min_step = opt__ls_parallel_min_step
@@ -3317,7 +3312,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.opt.integrator,
       m.opt._impl.is_sparse,
       m.opt.iterations,
-      m.opt._impl.legacy_gjk,
       m.opt.ls_iterations,
       m.opt._impl.ls_parallel,
       m.opt._impl.ls_parallel_min_step,

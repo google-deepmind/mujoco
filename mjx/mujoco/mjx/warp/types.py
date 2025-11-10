@@ -94,7 +94,6 @@ class OptionWarp(PyTreeNode):
   graph_conditional: bool
   has_fluid: bool
   is_sparse: bool
-  legacy_gjk: bool
   ls_parallel: bool
   ls_parallel_min_step: float
   run_collision_detection: bool
@@ -765,7 +764,6 @@ _NDIM = {
         'opt__integrator': 0,
         'opt__is_sparse': 0,
         'opt__iterations': 0,
-        'opt__legacy_gjk': 0,
         'opt__ls_iterations': 0,
         'opt__ls_parallel': 0,
         'opt__ls_parallel_min_step': 0,
@@ -885,7 +883,6 @@ _NDIM = {
         'integrator': 0,
         'is_sparse': 0,
         'iterations': 0,
-        'legacy_gjk': 0,
         'ls_iterations': 0,
         'ls_parallel': 0,
         'ls_parallel_min_step': 0,
@@ -1305,7 +1302,6 @@ _BATCH_DIM = {
         'opt__integrator': False,
         'opt__is_sparse': False,
         'opt__iterations': False,
-        'opt__legacy_gjk': False,
         'opt__ls_iterations': False,
         'opt__ls_parallel': False,
         'opt__ls_parallel_min_step': False,
@@ -1425,7 +1421,6 @@ _BATCH_DIM = {
         'integrator': False,
         'is_sparse': False,
         'iterations': False,
-        'legacy_gjk': False,
         'ls_iterations': False,
         'ls_parallel': False,
         'ls_parallel_min_step': False,

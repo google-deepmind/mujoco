@@ -803,8 +803,8 @@ def box_box(
       if i != n:
         points[n] = points[i]
 
-      points[n, 2] *= 0.5
       depth[n] = points[n, 2]
+      points[n, 2] *= 0.5
       n += 1
 
     # Set up contact frame

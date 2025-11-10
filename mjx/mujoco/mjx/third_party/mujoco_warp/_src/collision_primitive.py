@@ -79,12 +79,11 @@ class Geom:
 
 
 @wp.func
-def geom(
-  # kernel_analyzer: off
+def geom_collision_pair(
   # Model:
-  geom_type: int,
-  geom_dataid: int,
-  geom_size: wp.vec3,
+  geom_type: wp.array(dtype=int),
+  geom_dataid: wp.array(dtype=int),
+  geom_size: wp.array2d(dtype=wp.vec3),
   mesh_vertadr: wp.array(dtype=int),
   mesh_vertnum: wp.array(dtype=int),
   mesh_graphadr: wp.array(dtype=int),
@@ -100,44 +99,73 @@ def geom(
   mesh_polymapnum: wp.array(dtype=int),
   mesh_polymap: wp.array(dtype=int),
   # Data in:
-  geom_xpos_in: wp.vec3,
-  geom_xmat_in: wp.mat33,
-  # kernel_analyzer: on
-) -> Geom:
-  geom = Geom()
-  geom.pos = geom_xpos_in
-  geom.rot = geom_xmat_in
-  geom.size = geom_size
-  geom.normal = wp.vec3(geom_xmat_in[0, 2], geom_xmat_in[1, 2], geom_xmat_in[2, 2])  # plane
+  geom_xpos_in: wp.array2d(dtype=wp.vec3),
+  geom_xmat_in: wp.array2d(dtype=wp.mat33),
+  # In:
+  geoms: wp.vec2i,
+  worldid: int,
+) -> Tuple[Geom, Geom]:
+  geom1 = Geom()
+  geom2 = Geom()
 
-  if geom_type == GeomType.MESH:
-    if geom_dataid >= 0:
-      geom.vertadr = mesh_vertadr[geom_dataid]
-      geom.vertnum = mesh_vertnum[geom_dataid]
-      geom.graphadr = mesh_graphadr[geom_dataid]
-      geom.mesh_polynum = mesh_polynum[geom_dataid]
-      geom.mesh_polyadr = mesh_polyadr[geom_dataid]
-    else:
-      geom.vertadr = -1
-      geom.vertnum = -1
-      geom.graphadr = -1
-      geom.mesh_polynum = -1
-      geom.mesh_polyadr = -1
+  g1 = geoms[0]
+  g2 = geoms[1]
+  geom_type1 = geom_type[g1]
+  geom_type2 = geom_type[g2]
 
-    geom.vert = mesh_vert
-    geom.graph = mesh_graph
-    geom.mesh_polynormal = mesh_polynormal
-    geom.mesh_polyvertadr = mesh_polyvertadr
-    geom.mesh_polyvertnum = mesh_polyvertnum
-    geom.mesh_polyvert = mesh_polyvert
-    geom.mesh_polymapadr = mesh_polymapadr
-    geom.mesh_polymapnum = mesh_polymapnum
-    geom.mesh_polymap = mesh_polymap
+  geom1.pos = geom_xpos_in[worldid, g1]
+  geom1.rot = geom_xmat_in[worldid, g1]
+  geom1.size = geom_size[worldid % geom_size.shape[0], g1]
+  geom1.normal = wp.vec3(geom1.rot[0, 2], geom1.rot[1, 2], geom1.rot[2, 2])  # plane
 
-  geom.index = -1
-  geom.margin = 0.0
+  geom2.pos = geom_xpos_in[worldid, g2]
+  geom2.rot = geom_xmat_in[worldid, g2]
+  geom2.size = geom_size[worldid % geom_size.shape[0], g2]
+  geom2.normal = wp.vec3(geom2.rot[0, 2], geom2.rot[1, 2], geom2.rot[2, 2])  # plane
 
-  return geom
+  if geom_type1 == GeomType.MESH:
+    dataid = geom_dataid[g1]
+    geom1.vertadr = wp.where(dataid >= 0, mesh_vertadr[dataid], -1)
+    geom1.vertnum = wp.where(dataid >= 0, mesh_vertnum[dataid], -1)
+    geom1.graphadr = wp.where(dataid >= 0, mesh_graphadr[dataid], -1)
+    geom1.mesh_polynum = wp.where(dataid >= 0, mesh_polynum[dataid], -1)
+    geom1.mesh_polyadr = wp.where(dataid >= 0, mesh_polyadr[dataid], -1)
+
+    geom1.vert = mesh_vert
+    geom1.graph = mesh_graph
+    geom1.mesh_polynormal = mesh_polynormal
+    geom1.mesh_polyvertadr = mesh_polyvertadr
+    geom1.mesh_polyvertnum = mesh_polyvertnum
+    geom1.mesh_polyvert = mesh_polyvert
+    geom1.mesh_polymapadr = mesh_polymapadr
+    geom1.mesh_polymapnum = mesh_polymapnum
+    geom1.mesh_polymap = mesh_polymap
+
+  if geom_type2 == GeomType.MESH:
+    dataid = geom_dataid[g2]
+    geom2.vertadr = wp.where(dataid >= 0, mesh_vertadr[dataid], -1)
+    geom2.vertnum = wp.where(dataid >= 0, mesh_vertnum[dataid], -1)
+    geom2.graphadr = wp.where(dataid >= 0, mesh_graphadr[dataid], -1)
+    geom2.mesh_polynum = wp.where(dataid >= 0, mesh_polynum[dataid], -1)
+    geom2.mesh_polyadr = wp.where(dataid >= 0, mesh_polyadr[dataid], -1)
+
+    geom2.vert = mesh_vert
+    geom2.graph = mesh_graph
+    geom2.mesh_polynormal = mesh_polynormal
+    geom2.mesh_polyvertadr = mesh_polyvertadr
+    geom2.mesh_polyvertnum = mesh_polyvertnum
+    geom2.mesh_polyvert = mesh_polyvert
+    geom2.mesh_polymapadr = mesh_polymapadr
+    geom2.mesh_polymapnum = mesh_polymapnum
+    geom2.mesh_polymap = mesh_polymap
+
+  geom1.index = -1
+  geom1.margin = 0.0
+
+  geom2.index = -1
+  geom2.margin = 0.0
+
+  return geom1, geom2
 
 
 @wp.func
@@ -1575,11 +1603,6 @@ def _create_narrowphase_kernel(primitive_collisions_types, primitive_collisions_
     mesh_polymapadr: wp.array(dtype=int),
     mesh_polymapnum: wp.array(dtype=int),
     mesh_polymap: wp.array(dtype=int),
-    hfield_size: wp.array(dtype=wp.vec4),
-    hfield_nrow: wp.array(dtype=int),
-    hfield_ncol: wp.array(dtype=int),
-    hfield_adr: wp.array(dtype=int),
-    hfield_data: wp.array(dtype=float),
     pair_dim: wp.array(dtype=int),
     pair_solref: wp.array2d(dtype=wp.vec2),
     pair_solreffriction: wp.array2d(dtype=wp.vec2),
@@ -1617,12 +1640,6 @@ def _create_narrowphase_kernel(primitive_collisions_types, primitive_collisions_
       return
 
     geoms = collision_pair_in[tid]
-    g1 = geoms[0]
-    g2 = geoms[1]
-
-    type1 = geom_type[g1]
-    type2 = geom_type[g2]
-
     worldid = collision_worldid_in[tid]
 
     _, margin, gap, condim, friction, solref, solreffriction, solimp = contact_params(
@@ -1647,12 +1664,10 @@ def _create_narrowphase_kernel(primitive_collisions_types, primitive_collisions_
       worldid,
     )
 
-    geom1_dataid = geom_dataid[g1]
-
-    geom1 = geom(
-      type1,
-      geom1_dataid,
-      geom_size[worldid % geom_size.shape[0], g1],
+    geom1, geom2 = geom_collision_pair(
+      geom_type,
+      geom_dataid,
+      geom_size,
       mesh_vertadr,
       mesh_vertnum,
       mesh_graphadr,
@@ -1667,37 +1682,17 @@ def _create_narrowphase_kernel(primitive_collisions_types, primitive_collisions_
       mesh_polymapadr,
       mesh_polymapnum,
       mesh_polymap,
-      geom_xpos_in[worldid, g1],
-      geom_xmat_in[worldid, g1],
-    )
-
-    geom2_dataid = geom_dataid[g2]
-    geom2 = geom(
-      type2,
-      geom2_dataid,
-      geom_size[worldid % geom_size.shape[0], g2],
-      mesh_vertadr,
-      mesh_vertnum,
-      mesh_graphadr,
-      mesh_vert,
-      mesh_graph,
-      mesh_polynum,
-      mesh_polyadr,
-      mesh_polynormal,
-      mesh_polyvertadr,
-      mesh_polyvertnum,
-      mesh_polyvert,
-      mesh_polymapadr,
-      mesh_polymapnum,
-      mesh_polymap,
-      geom_xpos_in[worldid, g2],
-      geom_xmat_in[worldid, g2],
+      geom_xpos_in,
+      geom_xmat_in,
+      geoms,
+      worldid,
     )
 
     for i in range(wp.static(len(primitive_collisions_func))):
       collision_type1 = wp.static(primitive_collisions_types[i][0])
       collision_type2 = wp.static(primitive_collisions_types[i][1])
-
+      type1 = geom_type[geoms[0]]
+      type2 = geom_type[geoms[1]]
       if collision_type1 == type1 and collision_type2 == type2:
         wp.static(primitive_collisions_func[i])(
           naconmax_in,
@@ -1792,11 +1787,6 @@ def primitive_narrowphase(m: Model, d: Data):
       m.mesh_polymapadr,
       m.mesh_polymapnum,
       m.mesh_polymap,
-      m.hfield_size,
-      m.hfield_nrow,
-      m.hfield_ncol,
-      m.hfield_adr,
-      m.hfield_data,
       m.pair_dim,
       m.pair_solref,
       m.pair_solreffriction,

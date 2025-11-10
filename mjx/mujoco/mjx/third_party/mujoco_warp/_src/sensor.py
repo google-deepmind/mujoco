@@ -455,7 +455,6 @@ def _clock(time_in: wp.array(dtype=float), worldid: int) -> float:
 @wp.kernel
 def _sensor_pos(
   # Model:
-  ngeom: int,
   opt_magnetic: wp.array(dtype=wp.vec3),
   body_geomnum: wp.array(dtype=int),
   body_geomadr: wp.array(dtype=int),
@@ -504,14 +503,6 @@ def _sensor_pos(
   subtree_com_in: wp.array2d(dtype=wp.vec3),
   ten_length_in: wp.array2d(dtype=float),
   actuator_length_in: wp.array2d(dtype=float),
-  contact_dist_in: wp.array(dtype=float),
-  contact_pos_in: wp.array(dtype=wp.vec3),
-  contact_frame_in: wp.array(dtype=wp.mat33),
-  contact_geom_in: wp.array(dtype=wp.vec2i),
-  contact_worldid_in: wp.array(dtype=int),
-  contact_type_in: wp.array(dtype=int),
-  nacon_in: wp.array(dtype=int),
-  collision_pairid_in: wp.array(dtype=wp.vec2i),
   # In:
   rangefinder_dist_in: wp.array2d(dtype=float),
   sensor_collision_in: wp.array4d(dtype=float),
@@ -826,7 +817,6 @@ def sensor_pos(m: Model, d: Data):
     _sensor_pos,
     dim=(d.nworld, m.sensor_pos_adr.size),
     inputs=[
-      m.ngeom,
       m.opt.magnetic,
       m.body_geomnum,
       m.body_geomadr,
@@ -874,14 +864,6 @@ def sensor_pos(m: Model, d: Data):
       d.subtree_com,
       d.ten_length,
       d.actuator_length,
-      d.contact.dist,
-      d.contact.pos,
-      d.contact.frame,
-      d.contact.geom,
-      d.contact.worldid,
-      d.contact.type,
-      d.nacon,
-      d.collision_pairid,
       rangefinder_dist,
       sensor_collision,
     ],
@@ -2793,7 +2775,7 @@ def _energy_pos_passive_tendon(
 
 def energy_pos(m: Model, d: Data):
   """Position-dependent energy (potential)."""
-  wp.launch(_energy_pos_zero, dim=(d.nworld,), outputs=[d.energy])
+  wp.launch(_energy_pos_zero, dim=d.nworld, outputs=[d.energy])
 
   # init potential energy: -sum_i(body_i.mass * dot(gravity, body_i.pos))
   if not m.opt.disableflags & DisableBit.GRAVITY:
@@ -2868,7 +2850,7 @@ def energy_vel(m: Model, d: Data):
 
   wp.launch_tiled(
     _energy_vel_kinetic(m.nv),
-    dim=(d.nworld,),
+    dim=d.nworld,
     inputs=[d.qvel, d.efc.mv],
     outputs=[d.energy],
     block_dim=m.block_dim.energy_vel_kinetic,

@@ -46,14 +46,6 @@ from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel as nested_k
 
 wp.set_module_options({"enable_backward": False})
 
-# RK4 tableau
-_RK4_A = [
-  [0.5, 0.0, 0.0],
-  [0.0, 0.5, 0.0],
-  [0.0, 0.0, 1.0],
-]
-_RK4_B = [1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]
-
 
 @wp.kernel
 def _next_position(
@@ -105,12 +97,7 @@ def _next_position(
     qpos_next[qpos_adr + 6] = qpos_quat_new[3]
 
   elif jnttype == JointType.BALL:
-    qpos_quat = wp.quat(
-      qpos[qpos_adr + 0],
-      qpos[qpos_adr + 1],
-      qpos[qpos_adr + 2],
-      qpos[qpos_adr + 3],
-    )
+    qpos_quat = wp.quat(qpos[qpos_adr + 0], qpos[qpos_adr + 1], qpos[qpos_adr + 2], qpos[qpos_adr + 3])
     qvel_ang = wp.vec3(qvel[dof_adr], qvel[dof_adr + 1], qvel[dof_adr + 2]) * qvel_scale_in
 
     qpos_quat_new = math.quat_integrate(qpos_quat, qvel_ang, timestep)
@@ -242,79 +229,45 @@ def _advance(m: Model, d: Data, qacc: wp.array, qvel: Optional[wp.array] = None)
   # TODO(team): can we assume static timesteps?
 
   # advance activations
-  if m.na:
-    wp.launch(
-      _next_activation,
-      dim=(d.nworld, m.na),
-      inputs=[
-        m.opt.timestep,
-        m.actuator_dyntype,
-        m.actuator_actlimited,
-        m.actuator_dynprm,
-        m.actuator_actrange,
-        d.act,
-        d.act_dot,
-        1.0,
-        True,
-      ],
-      outputs=[
-        d.act,
-      ],
-    )
+  wp.launch(
+    _next_activation,
+    dim=(d.nworld, m.na),
+    inputs=[
+      m.opt.timestep,
+      m.actuator_dyntype,
+      m.actuator_actlimited,
+      m.actuator_dynprm,
+      m.actuator_actrange,
+      d.act,
+      d.act_dot,
+      1.0,
+      True,
+    ],
+    outputs=[d.act],
+  )
 
   wp.launch(
     _next_velocity,
     dim=(d.nworld, m.nv),
-    inputs=[
-      m.opt.timestep,
-      d.qvel,
-      qacc,
-      1.0,
-    ],
-    outputs=[
-      d.qvel,
-    ],
+    inputs=[m.opt.timestep, d.qvel, qacc, 1.0],
+    outputs=[d.qvel],
   )
 
   # advance positions with qvel if given, d.qvel otherwise (semi-implicit)
-  if qvel is not None:
-    qvel_in = qvel
-  else:
-    qvel_in = d.qvel
+  qvel_in = qvel or d.qvel
 
   wp.launch(
     _next_position,
     dim=(d.nworld, m.njnt),
-    inputs=[
-      m.opt.timestep,
-      m.jnt_type,
-      m.jnt_qposadr,
-      m.jnt_dofadr,
-      d.qpos,
-      qvel_in,
-      1.0,
-    ],
-    outputs=[
-      d.qpos,
-    ],
+    inputs=[m.opt.timestep, m.jnt_type, m.jnt_qposadr, m.jnt_dofadr, d.qpos, qvel_in, 1.0],
+    outputs=[d.qpos],
   )
 
   wp.launch(
     _next_time,
-    dim=(d.nworld,),
-    inputs=[
-      m.opt.timestep,
-      d.nefc,
-      d.time,
-      d.nworld,
-      d.naconmax,
-      d.njmax,
-      d.nacon,
-      d.ncollision,
-    ],
-    outputs=[
-      d.time,
-    ],
+    dim=d.nworld,
+    inputs=[m.opt.timestep, d.nefc, d.time, d.nworld, d.naconmax, d.njmax, d.nacon, d.ncollision],
+    outputs=[d.time],
   )
 
   wp.copy(d.qacc_warmstart, d.qacc)
@@ -491,6 +444,10 @@ def _rk_accumulate(
 @event_scope
 def rungekutta4(m: Model, d: Data):
   """Runge-Kutta explicit order 4 integrator."""
+  # RK4 tableau
+  A = [0.5, 0.5, 1.0]  # diagonal only
+  B = [1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]
+
   qpos_t0 = wp.clone(d.qpos)
   qvel_t0 = wp.clone(d.qvel)
   qvel_rk = wp.zeros((d.nworld, m.nv), dtype=float)
@@ -503,12 +460,10 @@ def rungekutta4(m: Model, d: Data):
     act_t0 = None
     act_dot_rk = None
 
-  A, B = _RK4_A, _RK4_B
-
   _rk_accumulate(m, d, B[0], qvel_rk, qacc_rk, act_dot_rk)
 
   for i in range(3):
-    a, b = float(A[i][i]), B[i + 1]
+    a, b = float(A[i]), B[i + 1]
     _rk_perturb_state(m, d, a, qpos_t0, qvel_t0, act_t0)
     forward(m, d)
     _rk_accumulate(m, d, b, qvel_rk, qacc_rk, act_dot_rk)
@@ -565,8 +520,8 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
   smooth.transmission(m, d)
 
 
-@cache_kernel
-def _create_actuator_velocity_kernel(NV: int):
+# TODO(team): sparse actuator_moment version
+def _actuator_velocity(m: Model, d: Data):
   @nested_kernel(module="unique", enable_backward=False)
   def actuator_velocity(
     # Data in:
@@ -576,36 +531,22 @@ def _create_actuator_velocity_kernel(NV: int):
     actuator_velocity_out: wp.array2d(dtype=float),
   ):
     worldid, actid = wp.tid()
-    moment_tile = wp.tile_load(actuator_moment_in[worldid, actid], shape=NV)
-    qvel_tile = wp.tile_load(qvel_in[worldid], shape=NV)
+    moment_tile = wp.tile_load(actuator_moment_in[worldid, actid], shape=wp.static(m.nv))
+    qvel_tile = wp.tile_load(qvel_in[worldid], shape=wp.static(m.nv))
     moment_qvel_tile = wp.tile_map(wp.mul, moment_tile, qvel_tile)
     actuator_velocity_tile = wp.tile_reduce(wp.add, moment_qvel_tile)
     actuator_velocity_out[worldid, actid] = actuator_velocity_tile[0]
 
-  return actuator_velocity
-
-
-# TODO(team): sparse actuator_moment version
-def _actuator_velocity(m: Model, d: Data):
-  NV = m.nv
-
   wp.launch_tiled(
-    _create_actuator_velocity_kernel(NV),
+    actuator_velocity,
     dim=(d.nworld, m.nu),
-    inputs=[
-      d.qvel,
-      d.actuator_moment,
-    ],
-    outputs=[
-      d.actuator_velocity,
-    ],
+    inputs=[d.qvel, d.actuator_moment],
+    outputs=[d.actuator_velocity],
     block_dim=m.block_dim.actuator_velocity,
   )
 
 
 def _tendon_velocity(m: Model, d: Data):
-  NV = m.nv
-
   @nested_kernel(module="unique", enable_backward=False)
   def tendon_velocity(
     # Data in:
@@ -615,8 +556,8 @@ def _tendon_velocity(m: Model, d: Data):
     ten_velocity_out: wp.array2d(dtype=float),
   ):
     worldid, tenid = wp.tid()
-    ten_J_tile = wp.tile_load(ten_J_in[worldid, tenid], shape=NV)
-    qvel_tile = wp.tile_load(qvel_in[worldid], shape=NV)
+    ten_J_tile = wp.tile_load(ten_J_in[worldid, tenid], shape=wp.static(m.nv))
+    qvel_tile = wp.tile_load(qvel_in[worldid], shape=wp.static(m.nv))
     ten_J_qvel_tile = wp.tile_map(wp.mul, ten_J_tile, qvel_tile)
     ten_velocity_tile = wp.tile_reduce(wp.add, ten_J_qvel_tile)
     ten_velocity_out[worldid, tenid] = ten_velocity_tile[0]
@@ -624,13 +565,8 @@ def _tendon_velocity(m: Model, d: Data):
   wp.launch_tiled(
     tendon_velocity,
     dim=(d.nworld, m.ntendon),
-    inputs=[
-      d.qvel,
-      d.ten_J,
-    ],
-    outputs=[
-      d.ten_velocity,
-    ],
+    inputs=[d.qvel, d.ten_J],
+    outputs=[d.ten_velocity],
     block_dim=m.block_dim.tendon_velocity,
   )
 
@@ -715,16 +651,14 @@ def _actuator_force(
     act_dot_out[worldid, act_last] = act_dot
 
     if actuator_actearly[uid]:
-      opt_timestep_id = worldid % opt_timestep.shape[0]
-      actuator_actrange_id = worldid % actuator_actrange.shape[0]
       if dyntype == DynType.INTEGRATOR or dyntype == DynType.NONE:
         act = act_in[worldid, act_last]
 
       ctrl_act = _next_act(
-        opt_timestep[opt_timestep_id],
+        opt_timestep[worldid % opt_timestep.shape[0]],
         dyntype,
         dynprm,
-        actuator_actrange[actuator_actrange_id, uid],
+        actuator_actrange[worldid % actuator_actrange.shape[0], uid],
         act,
         act_dot,
         1.0,
@@ -763,8 +697,6 @@ def _actuator_force(
     bias = util_misc.muscle_bias(length, lengthrange, acc0, biasprm)
 
   force = gain * ctrl_act + bias
-
-  # TODO(team): tendon total force clamping
 
   if actuator_forcelimited[uid]:
     forcerange = actuator_forcerange[worldid % actuator_forcerange.shape[0], uid]
@@ -958,15 +890,8 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
   wp.launch(
     _qfrc_smooth,
     dim=(d.nworld, m.nv),
-    inputs=[
-      d.qfrc_applied,
-      d.qfrc_bias,
-      d.qfrc_passive,
-      d.qfrc_actuator,
-    ],
-    outputs=[
-      d.qfrc_smooth,
-    ],
+    inputs=[d.qfrc_applied, d.qfrc_bias, d.qfrc_passive, d.qfrc_actuator],
+    outputs=[d.qfrc_smooth],
   )
   xfrc_accumulate(m, d, d.qfrc_smooth)
 
@@ -974,15 +899,6 @@ def fwd_acceleration(m: Model, d: Data, factorize: bool = False):
     smooth.factor_solve_i(m, d, d.qM, d.qLD, d.qLDiagInv, d.qacc_smooth, d.qfrc_smooth)
   else:
     smooth.solve_m(m, d, d.qacc_smooth, d.qfrc_smooth)
-
-
-@wp.kernel
-def _zero_energy(
-  # Data out:
-  energy_out: wp.array(dtype=wp.vec2),
-):
-  tid = wp.tid()
-  energy_out[tid] = wp.vec2(0.0, 0.0)
 
 
 @event_scope
@@ -997,11 +913,7 @@ def forward(m: Model, d: Data):
     if m.sensor_e_potential == 0:  # not computed by sensor
       sensor.energy_pos(m, d)
   else:
-    wp.launch(
-      _zero_energy,
-      dim=d.nworld,
-      inputs=[d.energy],
-    )
+    d.energy.zero_()
 
   fwd_velocity(m, d)
   sensor.sensor_vel(m, d)
@@ -1048,7 +960,7 @@ def step1(m: Model, d: Data):
     if m.sensor_e_potential == 0:  # not computed by sensor
       sensor.energy_pos(m, d)
   else:
-    wp.launch(_zero_energy, dim=d.nworld, inputs=[d.energy])
+    d.energy.zero_()
 
   fwd_velocity(m, d)
   sensor.sensor_vel(m, d)
