@@ -20,7 +20,7 @@ MJWarp is developed and maintained as a joint effort by `NVIDIA <https://nvidia.
 .. TODO: remove after release
 
 .. admonition:: Beta software
-   :class: attention
+   :class: warning
 
    - MJWarp is beta software and is under active development.
    - MJWarp developers will triage and respond to
