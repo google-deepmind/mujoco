@@ -468,7 +468,9 @@ void App::HandleKeyboardEvents() {
   }
 
   // Visualization shortcuts.
-  if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
+  if (ImGui_IsChordJustPressed(ImGuiKey_F3)) {
+    ui_.profiler = !ui_.profiler;
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
     vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
     vis_options_.label = (vis_options_.label + 1) % mjNLABEL;
