@@ -37,8 +37,10 @@ class WrappedFieldData:
   # Line for struct field definition
   definition: str = ""
 
-  # Initialization code for fields that require it
-  initialization: str = ""
+  # Used for constructor fields that are class types and need to be initialized
+  # with a pointer to the corresponding member in the native struct
+  # (e.g., ", alt(&ptr_->alt)").
+  ptr_initialization: str = ""
 
   # Statement to reset the inner pointer when copying the field
   ptr_copy_reset: str = ""
@@ -132,7 +134,7 @@ def _generate_field_data(
         definition=f"{common.uppercase_first_letter(f.type.name)} {f.name};",
         typename=_get_field_struct_type(f.type),
         binding=_simple_property_binding(f, w, setter=False, reference=True),
-        initialization=f", {f.name}(&ptr_->{f.name})",
+        ptr_initialization=f", {f.name}(&ptr_->{f.name})",
         ptr_copy_reset=f"{f.name}.set(&ptr_->{f.name});",
         is_primitive_or_fixed_size=True,
     )
@@ -149,7 +151,7 @@ def _generate_field_data(
       return WrappedFieldData(
           binding=_simple_property_binding(f, w, setter=False, reference=True),
           typename=_get_field_struct_type(f.type),
-          initialization=f", {f.name}(&ptr_->{f.name})",
+          ptr_initialization=f", {f.name}(&ptr_->{f.name})",
           ptr_copy_reset=f"{f.name}.set(&ptr_->{f.name});",
           is_primitive_or_fixed_size=True,
       )
@@ -254,7 +256,7 @@ def _generate_field_data(
           definition=f"{wrapper_field_name} {f.name};",
           typename=_get_field_struct_type(f.type),
           binding=_simple_property_binding(f, w, setter=False, reference=True),
-          initialization=f", {f.name}(ptr_->{f.name})",
+          ptr_initialization=f", {f.name}(ptr_->{f.name})",
       )
 
     builder = code_builder.CodeBuilder()
@@ -278,64 +280,6 @@ def _generate_field_data(
       typename=_get_field_struct_type(f.type),
       binding=f"// Error: field {f.name} not properly handled.",
   )
-
-
-def _has_nested_wrapper_members(struct_info: ast_nodes.StructDecl) -> bool:
-  """Checks if the struct contains other wrapped structs as direct members."""
-  for field in struct_info.fields:
-    member_type = cast(ast_nodes.StructFieldDecl, field).type
-    if isinstance(member_type, (ast_nodes.ArrayType, ast_nodes.PointerType)):
-      member_type = member_type.inner_type
-    if isinstance(member_type, ast_nodes.ValueType):
-      return member_type.name in constants.STRUCTS_TO_BIND
-  return False
-
-
-def _build_struct_header_internal(
-    struct_name: str,
-    wrapped_fields: List[WrappedFieldData],
-    fields_with_init: List[WrappedFieldData],
-    is_mjs: bool = False,
-):
-  """Builds the C++ header file code for a struct."""
-  s = struct_name
-  w = common.uppercase_first_letter(s)
-
-  shallow_copy = use_shallow_copy(wrapped_fields)
-
-  builder = code_builder.CodeBuilder()
-  with builder.struct(f"{w}"):
-    builder.line(f"explicit {w}({s} *ptr);")
-    builder.line(f"~{w}();")
-
-    if not is_mjs:
-      builder.line(f"{w}();")
-
-    if shallow_copy and not is_mjs:
-      builder.line(f"{w}(const {w} &);")
-      builder.line(f"{w} &operator=(const {w} &);")
-      builder.line(f"std::unique_ptr<{w}> copy();")
-
-    builder.line(f"{s}* get() const;")
-    builder.line(f"void set({s}* ptr);")
-
-    for field in wrapped_fields:
-      if field.definition and field not in fields_with_init:
-        for line in field.definition.splitlines():
-          builder.line(line)
-
-    builder.private()
-    builder.line(f"{s}* ptr_;")
-    if not is_mjs:
-      builder.line("bool owned_ = false;")
-
-    if is_mjs and fields_with_init:
-      builder.public()
-      for field in fields_with_init:
-        if field.definition:
-          builder.line(f"{field.definition}")
-
-  return builder.to_string() + ";"
 
 
 def _default_function_statement(struct_name: str) -> str:
@@ -365,15 +309,15 @@ def _delete_ptr_statement(struct_name: str) -> str:
   return "delete ptr_;"
 
 
-def _find_fields_with_init(
+def _find_member_inits(
     wrapped_fields: List[WrappedFieldData],
 ) -> List[WrappedFieldData]:
-  """Finds the fields with initialization in the wrapped fields list."""
-  fields_with_init = []
+  """Finds the fields with ptr_initialization in the wrapped fields list."""
+  member_inits = []
   for field in wrapped_fields:
-    if field.initialization:
-      fields_with_init.append(field)
-  return fields_with_init
+    if field.ptr_initialization:
+      member_inits.append(field)
+  return member_inits
 
 
 def use_shallow_copy(
@@ -391,32 +335,55 @@ def build_struct_header(
     wrapped_fields: List[WrappedFieldData],
 ):
   """Builds the C++ header file code for a struct."""
-  struct_info = introspect_structs.STRUCTS.get(struct_name)
+  s = struct_name
+  w = common.uppercase_first_letter(s)
 
-  if struct_name.startswith("mjs"):
-    fields_with_init = _find_fields_with_init(wrapped_fields)
-    return _build_struct_header_internal(
-        struct_name,
-        wrapped_fields,
-        fields_with_init,
-        is_mjs=True,
-    )
-
-  is_anonymous_struct = struct_name in constants.ANONYMOUS_STRUCTS.keys()
-  is_hardcoded_wrapper_struct = (
-      common.uppercase_first_letter(struct_name) in constants.MANUAL_STRUCTS
-  )
+  if w in constants.MANUAL_STRUCTS:
+    return ""
 
   if (
-      not is_hardcoded_wrapper_struct
-      and struct_info
-      and not _has_nested_wrapper_members(struct_info)
-      or is_anonymous_struct
+      s not in constants.ANONYMOUS_STRUCTS and
+      s not in introspect_structs.STRUCTS
   ):
-    return _build_struct_header_internal(
-        struct_name, wrapped_fields, [], is_mjs=False
-    )
-  return ""
+    raise RuntimeError(f"Struct {s} not found in introspect structs")
+
+  is_mjs = w.startswith("Mjs")
+  member_inits = _find_member_inits(wrapped_fields)
+  shallow_copy = use_shallow_copy(wrapped_fields)
+  builder = code_builder.CodeBuilder()
+
+  with builder.struct(f"{w}"):
+    builder.line(f"explicit {w}({s} *ptr);")
+    builder.line(f"~{w}();")
+
+    if not is_mjs:
+      builder.line(f"{w}();")
+
+    if shallow_copy and not is_mjs:
+      builder.line(f"{w}(const {w} &);")
+      builder.line(f"{w} &operator=(const {w} &);")
+      builder.line(f"std::unique_ptr<{w}> copy();")
+
+    builder.line(f"{s}* get() const;")
+    builder.line(f"void set({s}* ptr);")
+
+    for field in wrapped_fields:
+      if field.definition and field not in member_inits:
+        for line in field.definition.splitlines():
+          builder.line(line)
+
+    builder.private()
+    builder.line(f"{s}* ptr_;")
+    if not is_mjs:
+      builder.line("bool owned_ = false;")
+
+    if member_inits:
+      builder.public()
+      for f in member_inits:
+        if f.definition:
+          builder.line(f"{f.definition}")
+
+  return builder.to_string() + ";"
 
 
 def build_struct_source(
@@ -438,13 +405,13 @@ def build_struct_source(
   w = common.uppercase_first_letter(s)
   is_mjs = w.startswith("Mjs")
 
-  fields_with_init = _find_fields_with_init(wrapped_fields)
+  member_inits = _find_member_inits(wrapped_fields)
   shallow_copy = use_shallow_copy(wrapped_fields)
 
   fields_init = ""
-  if fields_with_init:
+  if member_inits:
     fields_init = "".join(
-        field_with_init.initialization for field_with_init in fields_with_init
+        mjs_field.ptr_initialization for mjs_field in member_inits
     )
 
   builder = code_builder.CodeBuilder()
@@ -472,18 +439,18 @@ def build_struct_source(
     # copy constructor
     with builder.function(f"{w}::{w}(const {w} &other) : {w}()"):
       builder.line("*ptr_ = *other.get();")
-      for field_with_init in fields_with_init:
-        if field_with_init.ptr_copy_reset is not None:
-          builder.line(field_with_init.ptr_copy_reset)
+      for f in member_inits:
+        if f.ptr_copy_reset is not None:
+          builder.line(f.ptr_copy_reset)
 
     # assignment operator
     with builder.function(f"{w}& {w}::operator=(const {w} &other)"):
       with builder.block("if (this == &other)"):
         builder.line("return *this;")
       builder.line("*ptr_ = *other.get();")
-      for field_with_init in fields_with_init:
-        if field_with_init.ptr_copy_reset is not None:
-          builder.line(field_with_init.ptr_copy_reset)
+      for f in member_inits:
+        if f.ptr_copy_reset is not None:
+          builder.line(f.ptr_copy_reset)
       builder.line("return *this;")
 
     # explicit copy function

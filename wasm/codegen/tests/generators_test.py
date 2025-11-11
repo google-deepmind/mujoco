@@ -782,7 +782,7 @@ emscripten::val buffer() const {
         '.property("element", &MjsTexture::element, reference())',
     )
     self.assertEqual(
-        wrapped_field_data.initialization,
+        wrapped_field_data.ptr_initialization,
         ", element(ptr_->element)",
     )
 
