@@ -60,10 +60,17 @@ bool Physics::ProcessPendingLoad() {
   pending_load_.reset();
 
   model_ = LoadMujocoModel(model_file, vfs_);
-  if (!model_) mju_error("Error loading model");
+  if (!model_) {
+    error_ = "Error loading model!";
+    paused_ = true;
+    model_ = LoadMujocoModel("", vfs_);
+  }
 
   data_ = mj_makeData(model_);
-  if (!data_) mju_error("Error making data.");
+  if (!data_) {
+    error_ = "Error making data!";
+    paused_ = true;
+  }
 
   on_model_loaded_(model_file);
 
