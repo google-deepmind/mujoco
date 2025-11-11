@@ -6791,7 +6791,7 @@ val get_mjFRAMESTRING() { return MakeValArray(mjFRAMESTRING); }
 val get_mjVISSTRING() { return MakeValArray3(mjVISSTRING); }
 val get_mjRNDSTRING() { return MakeValArray3(mjRNDSTRING); }
 
-EMSCRIPTEN_BINDINGS(constants) {
+EMSCRIPTEN_BINDINGS(mujoco_constants) {
   // from mjmodel.h
   constant("mjPI", mjPI);
   constant("mjMAXVAL", mjMAXVAL);
@@ -8541,8 +8541,7 @@ std::unique_ptr<MjSpec> parseXMLString(const std::string &xml) {
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
 }
 
-EMSCRIPTEN_BINDINGS(mujoco_bindings) {
-  function("parseXMLString", &parseXMLString, take_ownership());
+EMSCRIPTEN_BINDINGS(mujoco_structs) {
   emscripten::class_<MjContact>("MjContact")
     .constructor<>()
     .function("copy", &MjContact::copy, take_ownership())
@@ -12780,6 +12779,7 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mjs_asMaterial", &mjs_asMaterial_wrapper);
   function("mjs_asPlugin", &mjs_asPlugin_wrapper);
 
+  function("parseXMLString", &parseXMLString, take_ownership());
   function("error", &error_wrapper);
   function("mju_printMatSparse", &mju_printMatSparse_wrapper);
   function("mj_solveM", &mj_solveM_wrapper);

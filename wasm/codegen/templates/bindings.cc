@@ -284,7 +284,7 @@ val get_mjFRAMESTRING() { return MakeValArray(mjFRAMESTRING); }
 val get_mjVISSTRING() { return MakeValArray3(mjVISSTRING); }
 val get_mjRNDSTRING() { return MakeValArray3(mjRNDSTRING); }
 
-EMSCRIPTEN_BINDINGS(constants) {
+EMSCRIPTEN_BINDINGS(mujoco_constants) {
   // from mjmodel.h
   constant("mjPI", mjPI);
   constant("mjMAXVAL", mjMAXVAL);
@@ -531,8 +531,7 @@ std::unique_ptr<MjSpec> parseXMLString(const std::string &xml) {
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
 }
 
-EMSCRIPTEN_BINDINGS(mujoco_bindings) {
-  function("parseXMLString", &parseXMLString, take_ownership());
+EMSCRIPTEN_BINDINGS(mujoco_structs) {
   // {{ AUTOGENNED_STRUCTS_BINDINGS }}
 
   // TODO: should be generated in future CLs -- //
@@ -1302,6 +1301,7 @@ void mjd_subQuat_wrapper(const NumberArray& qa, const NumberArray& qb, const val
 
 EMSCRIPTEN_BINDINGS(mujoco_functions) {
 // {{ FUNCTION_BINDINGS }}
+  function("parseXMLString", &parseXMLString, take_ownership());
   function("error", &error_wrapper);
   function("mju_printMatSparse", &mju_printMatSparse_wrapper);
   function("mj_solveM", &mj_solveM_wrapper);
