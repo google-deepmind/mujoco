@@ -1300,87 +1300,9 @@ void mjd_subQuat_wrapper(const NumberArray& qa, const NumberArray& qb, const val
 }
 
 EMSCRIPTEN_BINDINGS(mujoco_functions) {
-// {{ FUNCTION_BINDINGS }}
   function("parseXMLString", &parseXMLString, take_ownership());
   function("error", &error_wrapper);
-  function("mju_printMatSparse", &mju_printMatSparse_wrapper);
-  function("mj_solveM", &mj_solveM_wrapper);
-  function("mj_solveM2", &mj_solveM2_wrapper);
-  function("mj_rne", &mj_rne_wrapper);
-  function("mj_saveLastXML", &mj_saveLastXML_wrapper);
-  function("mj_setLengthRange", &mj_setLengthRange_wrapper);
-  function("mj_constraintUpdate", &mj_constraintUpdate_wrapper);
-  function("mj_getState", &mj_getState_wrapper);
-  function("mj_setState", &mj_setState_wrapper);
-  function("mj_mulJacVec", &mj_mulJacVec_wrapper);
-  function("mj_mulJacTVec", &mj_mulJacTVec_wrapper);
-  function("mj_jac", &mj_jac_wrapper);
-  function("mj_jacBody", &mj_jacBody_wrapper);
-  function("mj_jacBodyCom", &mj_jacBodyCom_wrapper);
-  function("mj_jacSubtreeCom", &mj_jacSubtreeCom_wrapper);
-  function("mj_jacGeom", &mj_jacGeom_wrapper);
-  function("mj_jacSite", &mj_jacSite_wrapper);
-  function("mj_jacPointAxis", &mj_jacPointAxis_wrapper);
-  function("mj_jacDot", &mj_jacDot_wrapper);
-  function("mj_angmomMat", &mj_angmomMat_wrapper);
-  function("mj_fullM", &mj_fullM_wrapper);
-  function("mj_mulM", &mj_mulM_wrapper);
-  function("mj_mulM2", &mj_mulM2_wrapper);
-  function("mj_addM", &mj_addM_wrapper);
-  function("mj_applyFT", &mj_applyFT_wrapper);
-  function("mj_geomDistance", &mj_geomDistance_wrapper);
-  function("mj_differentiatePos", &mj_differentiatePos_wrapper);
-  function("mj_integratePos", &mj_integratePos_wrapper);
-  function("mj_normalizeQuat", &mj_normalizeQuat_wrapper);
-  function("mj_multiRay", &mj_multiRay_wrapper);
-  function("mju_zero", &mju_zero_wrapper);
-  function("mju_fill", &mju_fill_wrapper);
-  function("mju_copy", &mju_copy_wrapper);
-  function("mju_sum", &mju_sum_wrapper);
-  function("mju_L1", &mju_L1_wrapper);
-  function("mju_scl", &mju_scl_wrapper);
-  function("mju_add", &mju_add_wrapper);
-  function("mju_sub", &mju_sub_wrapper);
-  function("mju_addTo", &mju_addTo_wrapper);
-  function("mju_subFrom", &mju_subFrom_wrapper);
-  function("mju_addToScl", &mju_addToScl_wrapper);
-  function("mju_addScl", &mju_addScl_wrapper);
-  function("mju_normalize", &mju_normalize_wrapper);
-  function("mju_norm", &mju_norm_wrapper);
-  function("mju_dot", &mju_dot_wrapper);
-  function("mju_mulMatVec", &mju_mulMatVec_wrapper);
-  function("mju_mulMatTVec", &mju_mulMatTVec_wrapper);
-  function("mju_mulVecMatVec", &mju_mulVecMatVec_wrapper);
-  function("mju_transpose", &mju_transpose_wrapper);
-  function("mju_symmetrize", &mju_symmetrize_wrapper);
-  function("mju_eye", &mju_eye_wrapper);
-  function("mju_mulMatMat", &mju_mulMatMat_wrapper);
-  function("mju_mulMatMatT", &mju_mulMatMatT_wrapper);
-  function("mju_mulMatTMat", &mju_mulMatTMat_wrapper);
-  function("mju_sqrMatTD", &mju_sqrMatTD_wrapper);
-  function("mju_dense2sparse", &mju_dense2sparse_wrapper);
-  function("mju_sparse2dense", &mju_sparse2dense_wrapper);
-  function("mju_cholFactor", &mju_cholFactor_wrapper);
-  function("mju_cholSolve", &mju_cholSolve_wrapper);
-  function("mju_cholUpdate", &mju_cholUpdate_wrapper);
-  function("mju_cholFactorBand", &mju_cholFactorBand_wrapper);
-  function("mju_cholSolveBand", &mju_cholSolveBand_wrapper);
-  function("mju_band2Dense", &mju_band2Dense_wrapper);
-  function("mju_dense2Band", &mju_dense2Band_wrapper);
-  function("mju_bandMulMatVec", &mju_bandMulMatVec_wrapper);
-  function("mju_boxQP", &mju_boxQP_wrapper);
-  function("mju_encodePyramid", &mju_encodePyramid_wrapper);
-  function("mju_decodePyramid", &mju_decodePyramid_wrapper);
-  function("mju_isZero", &mju_isZero_wrapper);
-  function("mju_f2n", &mju_f2n_wrapper);
-  function("mju_n2f", &mju_n2f_wrapper);
-  function("mju_d2n", &mju_d2n_wrapper);
-  function("mju_n2d", &mju_n2d_wrapper);
-  function("mju_insertionSort", &mju_insertionSort_wrapper);
-  function("mju_insertionSortInt", &mju_insertionSortInt_wrapper);
-  function("mjd_transitionFD", &mjd_transitionFD_wrapper);
-  function("mjd_inverseFD", &mjd_inverseFD_wrapper);
-  function("mjd_subQuat", &mjd_subQuat_wrapper);
+  // {{ FUNCTION_BINDINGS }}
   class_<WasmBuffer<float>>("FloatBuffer")
       .constructor<int>()
       .class_function("FromArray", &WasmBuffer<float>::FromArray)

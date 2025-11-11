@@ -366,18 +366,18 @@ class Generator:
 
     code = []
     for func in self.wrapper_bind_functions:
-      wrapper_code = generate_function_wrapper(func)
-      code.append(wrapper_code)
+      if func.name not in constants.BOUNDCHECK_FUNCS:
+        wrapper_code = generate_function_wrapper(func)
+        code.append(wrapper_code)
 
     return "\n\n".join(code)
 
-  def _generate_direct_bindable_functions(self) -> str:
+  def _generate_direct_bindable_functions(self) -> list[str]:
     """Generates Embind bindings for all directly bindable functions."""
 
-    result = ""
+    result = []
     for func in self.direct_bind_functions:
-      result += code_builder.INDENT
-      result += self._generate_function_binding(func)
+      result.append(self._generate_function_binding(func))
 
     return result
 
@@ -390,15 +390,14 @@ class Generator:
     if is_wrapper:
       cpp_func += "_wrapper"
 
-    return f'function("{js_name}", &{cpp_func});\n'
+    return f'function("{js_name}", &{cpp_func});'
 
-  def _generate_wrapper_bindable_functions(self) -> str:
+  def _generate_wrapper_bindable_functions(self) -> list[str]:
     """Generates Embind bindings for all functions that need wrappers."""
 
-    result = ""
+    result = []
     for func in self.wrapper_bind_functions:
-      result += code_builder.INDENT
-      result += self._generate_function_binding(func, True)
+      result.append(self._generate_function_binding(func, True))
 
     return result
 
@@ -411,5 +410,5 @@ class Generator:
 
     return [
         ("// {{ WRAPPER_FUNCTIONS }}", [wrapper_functions]),
-        ("// {{ FUNCTION_BINDINGS }}", [function_bindings]),
+        ("// {{ FUNCTION_BINDINGS }}", ["\n".join(function_bindings)]),
     ]

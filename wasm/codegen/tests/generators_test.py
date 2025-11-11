@@ -933,7 +933,7 @@ class FunctionsGeneratorTest(absltest.TestCase):
     )
     self.assertEqual(
         self.generator._generate_function_binding(func_simple_void),
-        'function("do_nothing", &do_nothing);\n',
+        'function("do_nothing", &do_nothing);',
     )
 
   def test_generate_direct_bindable_functions_simple_filter(self):
@@ -957,8 +957,8 @@ class FunctionsGeneratorTest(absltest.TestCase):
     })
 
     generated_code = self.generator._generate_direct_bindable_functions()
-    self.assertIn('function("direct_bind", &direct_bind);\n', generated_code)
-    self.assertNotIn('function("needs_wrap", &needs_wrap);\n', generated_code)
+    self.assertIn('function("direct_bind", &direct_bind);', generated_code)
+    self.assertNotIn('function("needs_wrap", &needs_wrap);', generated_code)
 
 
 if __name__ == "__main__":

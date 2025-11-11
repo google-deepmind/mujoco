@@ -17,7 +17,6 @@ from introspect import enums as introspect_enums
 from introspect import functions as introspect_functions
 
 from wasm.codegen.generators import common
-from wasm.codegen.generators import constants
 from wasm.codegen.generators import enums
 from wasm.codegen.generators import functions
 from wasm.codegen.generators import structs
@@ -53,8 +52,7 @@ class BindingBuilder:
     functions_to_bind: dict[str, ast_nodes.FunctionDecl] = {}
     for name, func in introspect_functions.FUNCTIONS.items():
       if not functions.is_excluded_function_name(name):
-        if name not in constants.BOUNDCHECK_FUNCS:
-          functions_to_bind[name] = func
+        functions_to_bind[name] = func
 
     generator = functions.Generator(functions_to_bind)
     self.markers_and_content += generator.generate()
