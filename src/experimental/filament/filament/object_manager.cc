@@ -354,11 +354,6 @@ filament::IndirectLight* ObjectManager::LoadFallbackIndirectLight(
   filament::math::float3 spherical_harmonics[9];
   filament::Texture* tex =
       CreateKtxTexture(engine_, asset.payload, asset.size, spherical_harmonics);
-  // TODO: Revisit this to make it this work in WebGL
-  #ifndef __EMSCRIPTEN__
-  tex->generateMipmaps(*engine_);
-  #endif
-
   return CreateIndirectLight(tex, &spherical_harmonics, intensity);
 }
 
