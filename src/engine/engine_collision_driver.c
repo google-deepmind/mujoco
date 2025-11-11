@@ -855,7 +855,12 @@ void mj_collideTree(const mjModel* m, mjData* d, int bf1, int bf2,
 //----------------------------- broad-phase collision detection ------------------------------------
 
 // make AAMM (xmin[3], xmax[3]) for one bodyflex
-static void makeAAMM(const mjModel* m, mjData* d, mjtNum* aamm, int bf, const mjtNum* frame) {
+static void makeAAMM(const mjModel* m, mjData* d,
+                     mjtNum* x_min, mjtNum* y_min, mjtNum* z_min,
+                     mjtNum* x_max, mjtNum* y_max, mjtNum* z_max,
+                     int bf, const mjtNum* frame) {
+  mjtNum aamm[6];
+
   // body
   if (bf < m->nbody) {
     int body = bf;
@@ -921,6 +926,14 @@ static void makeAAMM(const mjModel* m, mjData* d, mjtNum* aamm, int bf, const mj
     aamm[4] += bound;
     aamm[5] += bound;
   }
+
+  // assign outputs
+  *x_min = aamm[0];
+  *y_min = aamm[1];
+  *z_min = aamm[2];
+  *x_max = aamm[3];
+  *y_max = aamm[4];
+  *z_max = aamm[5];
 }
 
 
@@ -1007,25 +1020,29 @@ static inline int SAPcmp(mjtSAP* obj1, mjtSAP* obj2, void* context) {
 mjSORT(SAPsort, mjtSAP, SAPcmp);
 
 
-// given list of axis-aligned bounding boxes in AAMM (xmin[3], xmax[3]) format,
+// given list of axis-aligned bounding boxes in AAMM (min[3], max[3]) format,
 // return list of pairs (i, j) in format (i<<16 + j) that can collide,
-// using sweep-and-prune along specified axis (0-2).
-static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis, int* pair, int maxpair) {
+// using sweep-and-prune along specified x axis (0, 1 or 2).
+static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis_x, int* pair, int maxpair) {
   // check inputs
-  if (n >= 0x10000 || axis < 0 || axis > 2 || maxpair < 1) {
+  if (n >= 0x10000 || axis_x < 0 || axis_x > 2 || maxpair < 1) {
     return -1;
   }
 
   // allocate sort buffer
-  mjtSAP* sortbuf = mjSTACKALLOC(d, 2*n, mjtSAP);
-  mjtSAP* activebuf = mjSTACKALLOC(d, 2*n, mjtSAP);
+  mjtSAP* sortbuf = mjSTACKALLOC(d, 2*n, mjtSAP);    // sorted min and max values projected onto x axis
+  mjtSAP* activebuf = mjSTACKALLOC(d, 2*n, mjtSAP);  // list of all AAMMs currently intersecting the sweep plane
+
+  // get AAMM pointers for primary "x" axis
+  const mjtNum* x_min = aamm + n*(axis_x + 0);
+  const mjtNum* x_max = aamm + n*(axis_x + 3);
 
   // init sortbuf with specified axis
   for (int i=0; i < n; i++) {
     sortbuf[2*i].id_ismax = i;
-    sortbuf[2*i].value = (float)aamm[6*i+axis];
+    sortbuf[2*i].value = (float)x_min[i];
     sortbuf[2*i+1].id_ismax = i + 0x10000;
-    sortbuf[2*i+1].value = (float)aamm[6*i+3+axis];
+    sortbuf[2*i+1].value = (float)x_max[i];
   }
 
   // sort along specified axis
@@ -1033,17 +1050,23 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis, int* pair, int
   SAPsort(sortbuf, buf, 2*n, NULL);
 
   // define the other two axes
-  int axisA, axisB;
-  if (axis == 0) {
-    axisA = 1;
-    axisB = 2;
-  } else if (axis == 1) {
-    axisA = 0;
-    axisB = 2;
+  int axis_y, axis_z;
+  if (axis_x == 0) {
+    axis_y = 1;
+    axis_z = 2;
+  } else if (axis_x == 1) {
+    axis_y = 0;
+    axis_z = 2;
   } else {
-    axisA = 0;
-    axisB = 1;
+    axis_y = 0;
+    axis_z = 1;
   }
+
+  // get AAMM pointers to secondary "y, z" axes
+  const mjtNum* y_min = aamm + n*(axis_y + 0);
+  const mjtNum* y_max = aamm + n*(axis_y + 3);
+  const mjtNum* z_min = aamm + n*(axis_z + 0);
+  const mjtNum* z_max = aamm + n*(axis_z + 3);
 
   // sweep and prune
   int cnt = 0;    // size of active list
@@ -1058,10 +1081,10 @@ static int mj_SAP(mjData* d, const mjtNum* aamm, int n, int axis, int* pair, int
         int id2 = sortbuf[i].id_ismax;
 
         // use the other two axes to prune if possible
-        if (aamm[6*id1+axisA] > aamm[6*id2+axisA+3] ||
-            aamm[6*id1+axisB] > aamm[6*id2+axisB+3] ||
-            aamm[6*id2+axisA] > aamm[6*id1+axisA+3] ||
-            aamm[6*id2+axisB] > aamm[6*id1+axisB+3]) {
+        if (y_min[id1] > y_max[id2] ||
+            y_min[id2] > y_max[id1] ||
+            z_min[id1] > z_max[id2] ||
+            z_min[id2] > z_max[id1]) {
           continue;
         }
 
@@ -1227,7 +1250,13 @@ int mj_broadphase(const mjModel* m, mjData* d, int* bfpair, int maxpair) {
     // allocate and construct AAMMs for collidable only
     mjtNum* aamm = mjSTACKALLOC(d, 6*ncollide, mjtNum);
     for (int i=0; i < ncollide; i++) {
-      makeAAMM(m, d, aamm+6*i, bfid[i], frame);
+      // aamm is column-major (grouped per-axis rather than per-box for better cache locality)
+      makeAAMM(m, d, aamm + 0*ncollide + i,
+                     aamm + 1*ncollide + i,
+                     aamm + 2*ncollide + i,
+                     aamm + 3*ncollide + i,
+                     aamm + 4*ncollide + i,
+                     aamm + 5*ncollide + i, bfid[i], frame);
     }
 
     // call SAP
@@ -1805,8 +1834,14 @@ void mj_collideFlexSAP(const mjModel* m, mjData* d, int f) {
   mjtNum* aamm = mjSTACKALLOC(d, 6*nactive, mjtNum);
   const mjtNum* elemaabb = d->flexelem_aabb + 6*m->flex_elemadr[f];
   for (int i=0; i < nactive; i++) {
-    mju_sub3(aamm+6*i+0, elemaabb+6*elid[i], elemaabb+6*elid[i]+3);
-    mju_add3(aamm+6*i+3, elemaabb+6*elid[i], elemaabb+6*elid[i]+3);
+    const mjtNum* center = elemaabb+6*elid[i];
+    const mjtNum* radius = elemaabb+6*elid[i]+3;
+    aamm[nactive*0 + i] = center[0] - radius[0];
+    aamm[nactive*1 + i] = center[1] - radius[1];
+    aamm[nactive*2 + i] = center[2] - radius[2];
+    aamm[nactive*3 + i] = center[0] + radius[0];
+    aamm[nactive*4 + i] = center[1] + radius[1];
+    aamm[nactive*5 + i] = center[2] + radius[2];
   }
 
   // select largest axis from flex bvh
