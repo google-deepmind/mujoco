@@ -119,6 +119,7 @@ App::App(int width, int height, std::string ini_path,
     : ini_path_(std::move(ini_path)), load_asset_fn_(load_asset_fn) {
   window_ = std::make_unique<toolbox::Window>("MuJoCo Studio", width, height,
                                               kWindowConfig, load_asset_fn);
+  ImPlot::CreateContext();
 
   auto make_context_fn = [&](const mjModel* m, mjrContext* con) {
 #if defined(USE_CLASSIC_OPENGL)

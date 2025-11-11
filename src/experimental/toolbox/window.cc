@@ -26,7 +26,6 @@
 #include <SDL_video.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <imgui.h>
-#include <implot.h>
 #include "experimental/toolbox/helpers.h"
 #include <mujoco/mujoco.h>
 
@@ -39,7 +38,6 @@ namespace mujoco::toolbox {
 
 static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn) {
   ImGui::CreateContext();
-  ImPlot::CreateContext();
 
   ImGuiIO& io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
