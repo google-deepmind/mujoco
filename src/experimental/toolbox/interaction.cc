@@ -599,7 +599,6 @@ int SetCamera(const mjModel* m, mjvCamera* camera, int request_idx) {
       camera->fixedcamid = -1;
     } else {
       camera->type = mjCAMERA_FREE;
-      camera_idx = 0;
     }
   } else {
     camera->type = mjCAMERA_FIXED;
