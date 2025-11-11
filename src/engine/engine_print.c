@@ -349,12 +349,8 @@ static const char* memorySize(size_t nbytes) {
 
   if (nbytes < k) {
     snprintf(message, sizeof(message), "%5zu bytes", nbytes);
-  } else if (nbytes < k*k) {
-    snprintf(message, sizeof(message), "%5.1f KB", (double)nbytes / k);
-  } else if (nbytes < k*k*k) {
-    snprintf(message, sizeof(message), "%5.1f MB", (double)nbytes / (k*k));
   } else {
-    snprintf(message, sizeof(message), "%5.1f GB", (double)nbytes / (k*k*k));
+    snprintf(message, sizeof(message), "%7.0f KB", (double)nbytes / (k));
   }
 
   return message;
@@ -364,13 +360,20 @@ static const char* memorySize(size_t nbytes) {
 // return memory footprint of all significant mesh-related arrays
 static size_t sizeMesh(const mjModel* m) {
   size_t nbytes = 0;
-  nbytes += sizeof(float) * 3*m->nmeshvert;        // mesh_vert
-  nbytes += sizeof(float) * 3*m->nmeshnormal;      // mesh_normal
-  nbytes += sizeof(float) * 2*m->nmeshtexcoord;    // mesh_texcoord
-  nbytes += sizeof(int)   * 3*m->nmeshface;        // mesh_face
-  nbytes += sizeof(int)   * 3*m->nmeshface;        // mesh_facenormal
-  nbytes += sizeof(int)   * 3*m->nmeshface;        // mesh_facetexcoord
-  nbytes += sizeof(int)   * m->nmeshgraph;         // mesh_graph
+  nbytes += sizeof(float)  * 3*m->nmeshvert;      // mesh_vert
+  nbytes += sizeof(float)  * 3*m->nmeshnormal;    // mesh_normal
+  nbytes += sizeof(float)  * 2*m->nmeshtexcoord;  // mesh_texcoord
+  nbytes += sizeof(int)    * 3*m->nmeshface;      // mesh_face
+  nbytes += sizeof(int)    * 3*m->nmeshface;      // mesh_facenormal
+  nbytes += sizeof(int)    * 3*m->nmeshface;      // mesh_facetexcoord
+  nbytes += sizeof(int)    * m->nmeshgraph;       // mesh_graph
+  nbytes += sizeof(mjtNum) * 3*m->nmeshpoly;      // mesh_polynormal
+  nbytes += sizeof(int)    * m->nmeshpoly;        // mesh_polyvertadr
+  nbytes += sizeof(int)    * m->nmeshpoly;        // mesh_polyvertnum
+  nbytes += sizeof(int)    * m->nmeshpolyvert;    // mesh_polyvert
+  nbytes += sizeof(int)    * m->nmeshvert;        // mesh_polymapadr
+  nbytes += sizeof(int)    * m->nmeshvert;        // mesh_polymapnum
+  nbytes += sizeof(int)    * m->nmeshpolymap;     // mesh_polymap
   return nbytes;
 }
 
@@ -388,6 +391,21 @@ static size_t sizeSkin(const mjModel* m) {
   nbytes += sizeof(int)   * m->nskinbone;          // skin_bonebodyid
   nbytes += sizeof(int)   * m->nskinbonevert;      // skin_bonevertid
   nbytes += sizeof(float) * m->nskinbonevert;      // skin_bonevertweight
+  return nbytes;
+}
+
+
+// return memory footprint of all BVH-related arrays
+static size_t sizeBVH(const mjModel* m) {
+  size_t nbytes = 0;
+  nbytes += sizeof(int)    * m->nbvh;               // bvh_depth
+  nbytes += sizeof(int)    * 2*m->nbvh;             // bvh_child
+  nbytes += sizeof(int)    * m->nbvh;               // bvh_nodeid
+  nbytes += sizeof(mjtNum) * 6*m->nbvhstatic;       // bvh_aabb
+  nbytes += sizeof(int)    * m->noct;               // oct_depth
+  nbytes += sizeof(int)    * 8*m->noct;             // oct_child
+  nbytes += sizeof(mjtNum) * 6*m->noct;             // oct_aabb
+  nbytes += sizeof(mjtNum) * 8*m->noct;             // oct_coeff
   return nbytes;
 }
 
@@ -504,16 +522,18 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
 
   // memory footprint
   fprintf(fp, "MEMORY\n");
-  fprintf(fp, "  total         %s\n", memorySize(mj_sizeModel(m)));
-  if (m->nmesh) {
-    fprintf(fp, "  meshes        %s\n", memorySize(sizeMesh(m)));
-  }
-  if (m->ntex) {
-    fprintf(fp, "  textures      %s\n", memorySize(m->ntexdata));
-  }
-  if (m->nskin) {
-    fprintf(fp, "  skins         %s\n", memorySize(sizeSkin(m)));
-  }
+  size_t sz_total = mj_sizeModel(m);
+  size_t sz_mesh = m->nmesh ? sizeMesh(m) : 0;
+  size_t sz_bvh = (m->nbvh || m->noct) ? sizeBVH(m) : 0;
+  size_t sz_tex = m->ntex ? m->ntexdata : 0;
+  size_t sz_skin = m->nskin ? sizeSkin(m) : 0;
+  size_t sz_other = sz_total - sz_mesh - sz_bvh - sz_tex - sz_skin;
+  fprintf(fp, "  total       %s\n", memorySize(sz_total));
+  if (sz_mesh)  fprintf(fp, "  meshes      %s\n", memorySize(sz_mesh));
+  if (sz_bvh)   fprintf(fp, "  bvhs        %s\n", memorySize(sz_bvh));
+  if (sz_tex)   fprintf(fp, "  textures    %s\n", memorySize(sz_tex));
+  if (sz_skin)  fprintf(fp, "  skins       %s\n", memorySize(sz_skin));
+  if (sz_other) fprintf(fp, "  other       %s\n", memorySize(sz_other));
   fprintf(fp, "\n");
 
 
@@ -1109,11 +1129,11 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
 #endif
 
   fprintf(fp, "MEMORY\n");
-  fprintf(fp, "  total           %s\n",   memorySize(sizeof(mjData) + d->nbuffer + d->narena));
-  fprintf(fp, "  struct          %s\n",   memorySize(sizeof(mjData)));
-  fprintf(fp, "  buffer          %s\n",   memorySize(d->nbuffer));
+  fprintf(fp, "  total         %s\n",   memorySize(sizeof(mjData) + d->nbuffer + d->narena));
+  fprintf(fp, "  struct        %s\n",   memorySize(sizeof(mjData)));
+  fprintf(fp, "  buffer        %s\n",   memorySize(d->nbuffer));
   double arena_percent = 100 * d->maxuse_arena/(double)(d->narena);
-  fprintf(fp, "  arena           %s, used %.1f%%\n\n", memorySize(d->narena), arena_percent);
+  fprintf(fp, "  arena         %s, used %.1f%%\n\n", memorySize(d->narena), arena_percent);
 
   // ---------------------------------- print mjData fields
 
