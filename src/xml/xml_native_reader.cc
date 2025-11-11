@@ -485,7 +485,7 @@ const char* MJCF[nMJCF][mjXATTRNUM] = {
         {"distance", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
         {"normal", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
         {"fromto", "*", "8", "name", "geom1", "geom2", "body1", "body2", "cutoff", "noise", "user"},
-        {"contact", "*", "12", "name", "geom1", "geom2", "body1", "body2", "subtree1", "subtree2", "site",
+        {"contact", "*", "14", "name", "geom1", "geom2", "body1", "body2", "subtree1", "subtree2", "site",
             "num", "data", "reduce", "cutoff", "noise", "user"},
         {"e_potential", "*", "4", "name", "cutoff", "noise", "user"},
         {"e_kinetic", "*", "4", "name", "cutoff", "noise", "user"},
