@@ -147,6 +147,12 @@ def _generate_field_data(
         anonymous_struct_name = name
         break
 
+    if not anonymous_struct_name:
+      raise RuntimeError(
+          f"Anonymous struct for field {f.name} in {w} not found in"
+          " ANONYMOUS_STRUCTS."
+      )
+
     if anonymous_struct_name in constants.STRUCTS_TO_BIND:
       return WrappedFieldData(
           binding=_simple_property_binding(f, w, setter=False, reference=True),
