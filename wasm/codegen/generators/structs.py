@@ -360,9 +360,9 @@ def build_struct_header(
 
   with builder.struct(f"{w}"):
     builder.line(f"explicit {w}({s} *ptr);")
-    builder.line(f"~{w}();")
 
     if not is_mjs:
+      builder.line(f"~{w}();")
       builder.line(f"{w}();")
 
     if shallow_copy and not is_mjs:
@@ -427,8 +427,8 @@ def build_struct_source(
     pass
 
   # destructor
-  with builder.function(f"{w}::~{w}()"):
-    if not is_mjs:
+  if not is_mjs:
+    with builder.function(f"{w}::~{w}()"):
       with builder.block("if (owned_ && ptr_)"):
         delete_ptr = _delete_ptr_statement(s)
         builder.line(delete_ptr)

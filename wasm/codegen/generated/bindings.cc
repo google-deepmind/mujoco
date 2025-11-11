@@ -1011,7 +1011,6 @@ struct MjWarningStat {
 
 struct MjsElement {
   explicit MjsElement(mjsElement *ptr);
-  ~MjsElement();
   mjsElement* get() const;
   void set(mjsElement* ptr);
   mjtObj elemtype() const {
@@ -1033,7 +1032,6 @@ struct MjsElement {
 
 struct MjsOrientation {
   explicit MjsOrientation(mjsOrientation *ptr);
-  ~MjsOrientation();
   mjsOrientation* get() const;
   void set(mjsOrientation* ptr);
   mjtOrientation type() const {
@@ -1679,7 +1677,6 @@ struct MjvPerturb {
 
 struct MjsCompiler {
   explicit MjsCompiler(mjsCompiler *ptr);
-  ~MjsCompiler();
   mjsCompiler* get() const;
   void set(mjsCompiler* ptr);
   mjtByte autolimits() const {
@@ -1792,7 +1789,6 @@ struct MjsCompiler {
 
 struct MjsEquality {
   explicit MjsEquality(mjsEquality *ptr);
-  ~MjsEquality();
   mjsEquality* get() const;
   void set(mjsEquality* ptr);
   mjtEq type() const {
@@ -1856,7 +1852,6 @@ struct MjsEquality {
 
 struct MjsExclude {
   explicit MjsExclude(mjsExclude *ptr);
-  ~MjsExclude();
   mjsExclude* get() const;
   void set(mjsExclude* ptr);
   mjString bodyname1() const {
@@ -1893,7 +1888,6 @@ struct MjsExclude {
 
 struct MjsFlex {
   explicit MjsFlex(mjsFlex *ptr);
-  ~MjsFlex();
   mjsFlex* get() const;
   void set(mjsFlex* ptr);
   int contype() const {
@@ -2093,7 +2087,6 @@ struct MjsFlex {
 
 struct MjsHField {
   explicit MjsHField(mjsHField *ptr);
-  ~MjsHField();
   mjsHField* get() const;
   void set(mjsHField* ptr);
   mjString content_type() const {
@@ -2148,7 +2141,6 @@ struct MjsHField {
 
 struct MjsJoint {
   explicit MjsJoint(mjsJoint *ptr);
-  ~MjsJoint();
   mjsJoint* get() const;
   void set(mjsJoint* ptr);
   mjtJoint type() const {
@@ -2277,7 +2269,6 @@ struct MjsJoint {
 
 struct MjsKey {
   explicit MjsKey(mjsKey *ptr);
-  ~MjsKey();
   mjsKey* get() const;
   void set(mjsKey* ptr);
   double time() const {
@@ -2322,7 +2313,6 @@ struct MjsKey {
 
 struct MjsLight {
   explicit MjsLight(mjsLight *ptr);
-  ~MjsLight();
   mjsLight* get() const;
   void set(mjsLight* ptr);
   emscripten::val pos() const {
@@ -2431,7 +2421,6 @@ struct MjsLight {
 
 struct MjsMaterial {
   explicit MjsMaterial(mjsMaterial *ptr);
-  ~MjsMaterial();
   mjsMaterial* get() const;
   void set(mjsMaterial* ptr);
   mjStringVec &textures() const {
@@ -2503,7 +2492,6 @@ struct MjsMaterial {
 
 struct MjsNumeric {
   explicit MjsNumeric(mjsNumeric *ptr);
-  ~MjsNumeric();
   mjsNumeric* get() const;
   void set(mjsNumeric* ptr);
   mjDoubleVec &data() const {
@@ -2533,7 +2521,6 @@ struct MjsNumeric {
 
 struct MjsPair {
   explicit MjsPair(mjsPair *ptr);
-  ~MjsPair();
   mjsPair* get() const;
   void set(mjsPair* ptr);
   mjString geomname1() const {
@@ -2600,7 +2587,6 @@ struct MjsPair {
 
 struct MjsPlugin {
   explicit MjsPlugin(mjsPlugin *ptr);
-  ~MjsPlugin();
   mjsPlugin* get() const;
   void set(mjsPlugin* ptr);
   mjString name() const {
@@ -2643,7 +2629,6 @@ struct MjsPlugin {
 
 struct MjsSkin {
   explicit MjsSkin(mjsSkin *ptr);
-  ~MjsSkin();
   mjsSkin* get() const;
   void set(mjsSkin* ptr);
   mjString file() const {
@@ -2719,7 +2704,6 @@ struct MjsSkin {
 
 struct MjsTendon {
   explicit MjsTendon(mjsTendon *ptr);
-  ~MjsTendon();
   mjsTendon* get() const;
   void set(mjsTendon* ptr);
   double stiffness() const {
@@ -2829,7 +2813,6 @@ struct MjsTendon {
 
 struct MjsText {
   explicit MjsText(mjsText *ptr);
-  ~MjsText();
   mjsText* get() const;
   void set(mjsText* ptr);
   mjString data() const {
@@ -2858,7 +2841,6 @@ struct MjsText {
 
 struct MjsTexture {
   explicit MjsTexture(mjsTexture *ptr);
-  ~MjsTexture();
   mjsTexture* get() const;
   void set(mjsTexture* ptr);
   mjtTexture type() const {
@@ -2976,7 +2958,6 @@ struct MjsTexture {
 
 struct MjsTuple {
   explicit MjsTuple(mjsTuple *ptr);
-  ~MjsTuple();
   mjsTuple* get() const;
   void set(mjsTuple* ptr);
   mjIntVec &objtype() const {
@@ -3006,7 +2987,6 @@ struct MjsTuple {
 
 struct MjsWrap {
   explicit MjsWrap(mjsWrap *ptr);
-  ~MjsWrap();
   mjsWrap* get() const;
   void set(mjsWrap* ptr);
   mjtWrap type() const {
@@ -3033,7 +3013,6 @@ struct MjsWrap {
 
 struct MjsCamera {
   explicit MjsCamera(mjsCamera *ptr);
-  ~MjsCamera();
   mjsCamera* get() const;
   void set(mjsCamera* ptr);
   emscripten::val pos() const {
@@ -3117,7 +3096,6 @@ struct MjsCamera {
 
 struct MjsFrame {
   explicit MjsFrame(mjsFrame *ptr);
-  ~MjsFrame();
   mjsFrame* get() const;
   void set(mjsFrame* ptr);
   mjString childclass() const {
@@ -3153,7 +3131,6 @@ struct MjsFrame {
 
 struct MjsSite {
   explicit MjsSite(mjsSite *ptr);
-  ~MjsSite();
   mjsSite* get() const;
   void set(mjsSite* ptr);
   emscripten::val pos() const {
@@ -3213,7 +3190,6 @@ struct MjsSite {
 
 struct MjsActuator {
   explicit MjsActuator(mjsActuator *ptr);
-  ~MjsActuator();
   mjsActuator* get() const;
   void set(mjsActuator* ptr);
   mjtGain gaintype() const {
@@ -3358,7 +3334,6 @@ struct MjsActuator {
 
 struct MjsBody {
   explicit MjsBody(mjsBody *ptr);
-  ~MjsBody();
   mjsBody* get() const;
   void set(mjsBody* ptr);
   mjString childclass() const {
@@ -3441,7 +3416,6 @@ struct MjsBody {
 
 struct MjsGeom {
   explicit MjsGeom(mjsGeom *ptr);
-  ~MjsGeom();
   mjsGeom* get() const;
   void set(mjsGeom* ptr);
   mjtGeom type() const {
@@ -3602,7 +3576,6 @@ struct MjsGeom {
 
 struct MjsMesh {
   explicit MjsMesh(mjsMesh *ptr);
-  ~MjsMesh();
   mjsMesh* get() const;
   void set(mjsMesh* ptr);
   mjString content_type() const {
@@ -3699,7 +3672,6 @@ struct MjsMesh {
 
 struct MjsSensor {
   explicit MjsSensor(mjsSensor *ptr);
-  ~MjsSensor();
   mjsSensor* get() const;
   void set(mjsSensor* ptr);
   mjtSensor type() const {
@@ -3791,7 +3763,6 @@ struct MjsSensor {
 
 struct MjsDefault {
   explicit MjsDefault(mjsDefault *ptr);
-  ~MjsDefault();
   mjsDefault* get() const;
   void set(mjsDefault* ptr);
 
@@ -7874,7 +7845,6 @@ void MjWarningStat::set(mjWarningStat* ptr) {
 }
 
 MjsElement::MjsElement(mjsElement *ptr) : ptr_(ptr) {}
-MjsElement::~MjsElement() {}
 mjsElement* MjsElement::get() const {
   return ptr_;
 }
@@ -7883,7 +7853,6 @@ void MjsElement::set(mjsElement* ptr) {
 }
 
 MjsOrientation::MjsOrientation(mjsOrientation *ptr) : ptr_(ptr) {}
-MjsOrientation::~MjsOrientation() {}
 mjsOrientation* MjsOrientation::get() const {
   return ptr_;
 }
@@ -8100,7 +8069,6 @@ void MjvPerturb::set(mjvPerturb* ptr) {
 }
 
 MjsCompiler::MjsCompiler(mjsCompiler *ptr) : ptr_(ptr), LRopt(&ptr_->LRopt) {}
-MjsCompiler::~MjsCompiler() {}
 mjsCompiler* MjsCompiler::get() const {
   return ptr_;
 }
@@ -8109,7 +8077,6 @@ void MjsCompiler::set(mjsCompiler* ptr) {
 }
 
 MjsEquality::MjsEquality(mjsEquality *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsEquality::~MjsEquality() {}
 mjsEquality* MjsEquality::get() const {
   return ptr_;
 }
@@ -8118,7 +8085,6 @@ void MjsEquality::set(mjsEquality* ptr) {
 }
 
 MjsExclude::MjsExclude(mjsExclude *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsExclude::~MjsExclude() {}
 mjsExclude* MjsExclude::get() const {
   return ptr_;
 }
@@ -8127,7 +8093,6 @@ void MjsExclude::set(mjsExclude* ptr) {
 }
 
 MjsFlex::MjsFlex(mjsFlex *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsFlex::~MjsFlex() {}
 mjsFlex* MjsFlex::get() const {
   return ptr_;
 }
@@ -8136,7 +8101,6 @@ void MjsFlex::set(mjsFlex* ptr) {
 }
 
 MjsHField::MjsHField(mjsHField *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsHField::~MjsHField() {}
 mjsHField* MjsHField::get() const {
   return ptr_;
 }
@@ -8145,7 +8109,6 @@ void MjsHField::set(mjsHField* ptr) {
 }
 
 MjsJoint::MjsJoint(mjsJoint *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsJoint::~MjsJoint() {}
 mjsJoint* MjsJoint::get() const {
   return ptr_;
 }
@@ -8154,7 +8117,6 @@ void MjsJoint::set(mjsJoint* ptr) {
 }
 
 MjsKey::MjsKey(mjsKey *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsKey::~MjsKey() {}
 mjsKey* MjsKey::get() const {
   return ptr_;
 }
@@ -8163,7 +8125,6 @@ void MjsKey::set(mjsKey* ptr) {
 }
 
 MjsLight::MjsLight(mjsLight *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsLight::~MjsLight() {}
 mjsLight* MjsLight::get() const {
   return ptr_;
 }
@@ -8172,7 +8133,6 @@ void MjsLight::set(mjsLight* ptr) {
 }
 
 MjsMaterial::MjsMaterial(mjsMaterial *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsMaterial::~MjsMaterial() {}
 mjsMaterial* MjsMaterial::get() const {
   return ptr_;
 }
@@ -8181,7 +8141,6 @@ void MjsMaterial::set(mjsMaterial* ptr) {
 }
 
 MjsNumeric::MjsNumeric(mjsNumeric *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsNumeric::~MjsNumeric() {}
 mjsNumeric* MjsNumeric::get() const {
   return ptr_;
 }
@@ -8190,7 +8149,6 @@ void MjsNumeric::set(mjsNumeric* ptr) {
 }
 
 MjsPair::MjsPair(mjsPair *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsPair::~MjsPair() {}
 mjsPair* MjsPair::get() const {
   return ptr_;
 }
@@ -8199,7 +8157,6 @@ void MjsPair::set(mjsPair* ptr) {
 }
 
 MjsPlugin::MjsPlugin(mjsPlugin *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsPlugin::~MjsPlugin() {}
 mjsPlugin* MjsPlugin::get() const {
   return ptr_;
 }
@@ -8208,7 +8165,6 @@ void MjsPlugin::set(mjsPlugin* ptr) {
 }
 
 MjsSkin::MjsSkin(mjsSkin *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsSkin::~MjsSkin() {}
 mjsSkin* MjsSkin::get() const {
   return ptr_;
 }
@@ -8217,7 +8173,6 @@ void MjsSkin::set(mjsSkin* ptr) {
 }
 
 MjsTendon::MjsTendon(mjsTendon *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsTendon::~MjsTendon() {}
 mjsTendon* MjsTendon::get() const {
   return ptr_;
 }
@@ -8226,7 +8181,6 @@ void MjsTendon::set(mjsTendon* ptr) {
 }
 
 MjsText::MjsText(mjsText *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsText::~MjsText() {}
 mjsText* MjsText::get() const {
   return ptr_;
 }
@@ -8235,7 +8189,6 @@ void MjsText::set(mjsText* ptr) {
 }
 
 MjsTexture::MjsTexture(mjsTexture *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsTexture::~MjsTexture() {}
 mjsTexture* MjsTexture::get() const {
   return ptr_;
 }
@@ -8244,7 +8197,6 @@ void MjsTexture::set(mjsTexture* ptr) {
 }
 
 MjsTuple::MjsTuple(mjsTuple *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsTuple::~MjsTuple() {}
 mjsTuple* MjsTuple::get() const {
   return ptr_;
 }
@@ -8253,7 +8205,6 @@ void MjsTuple::set(mjsTuple* ptr) {
 }
 
 MjsWrap::MjsWrap(mjsWrap *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsWrap::~MjsWrap() {}
 mjsWrap* MjsWrap::get() const {
   return ptr_;
 }
@@ -8262,7 +8213,6 @@ void MjsWrap::set(mjsWrap* ptr) {
 }
 
 MjsCamera::MjsCamera(mjsCamera *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
-MjsCamera::~MjsCamera() {}
 mjsCamera* MjsCamera::get() const {
   return ptr_;
 }
@@ -8271,7 +8221,6 @@ void MjsCamera::set(mjsCamera* ptr) {
 }
 
 MjsFrame::MjsFrame(mjsFrame *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
-MjsFrame::~MjsFrame() {}
 mjsFrame* MjsFrame::get() const {
   return ptr_;
 }
@@ -8280,7 +8229,6 @@ void MjsFrame::set(mjsFrame* ptr) {
 }
 
 MjsSite::MjsSite(mjsSite *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt) {}
-MjsSite::~MjsSite() {}
 mjsSite* MjsSite::get() const {
   return ptr_;
 }
@@ -8289,7 +8237,6 @@ void MjsSite::set(mjsSite* ptr) {
 }
 
 MjsActuator::MjsActuator(mjsActuator *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
-MjsActuator::~MjsActuator() {}
 mjsActuator* MjsActuator::get() const {
   return ptr_;
 }
@@ -8298,7 +8245,6 @@ void MjsActuator::set(mjsActuator* ptr) {
 }
 
 MjsBody::MjsBody(mjsBody *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt), ialt(&ptr_->ialt), plugin(&ptr_->plugin) {}
-MjsBody::~MjsBody() {}
 mjsBody* MjsBody::get() const {
   return ptr_;
 }
@@ -8307,7 +8253,6 @@ void MjsBody::set(mjsBody* ptr) {
 }
 
 MjsGeom::MjsGeom(mjsGeom *ptr) : ptr_(ptr), element(ptr_->element), alt(&ptr_->alt), plugin(&ptr_->plugin) {}
-MjsGeom::~MjsGeom() {}
 mjsGeom* MjsGeom::get() const {
   return ptr_;
 }
@@ -8316,7 +8261,6 @@ void MjsGeom::set(mjsGeom* ptr) {
 }
 
 MjsMesh::MjsMesh(mjsMesh *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
-MjsMesh::~MjsMesh() {}
 mjsMesh* MjsMesh::get() const {
   return ptr_;
 }
@@ -8325,7 +8269,6 @@ void MjsMesh::set(mjsMesh* ptr) {
 }
 
 MjsSensor::MjsSensor(mjsSensor *ptr) : ptr_(ptr), element(ptr_->element), plugin(&ptr_->plugin) {}
-MjsSensor::~MjsSensor() {}
 mjsSensor* MjsSensor::get() const {
   return ptr_;
 }
@@ -8334,7 +8277,6 @@ void MjsSensor::set(mjsSensor* ptr) {
 }
 
 MjsDefault::MjsDefault(mjsDefault *ptr) : ptr_(ptr), element(ptr_->element), joint(ptr_->joint), geom(ptr_->geom), site(ptr_->site), camera(ptr_->camera), light(ptr_->light), flex(ptr_->flex), mesh(ptr_->mesh), material(ptr_->material), pair(ptr_->pair), equality(ptr_->equality), tendon(ptr_->tendon), actuator(ptr_->actuator) {}
-MjsDefault::~MjsDefault() {}
 mjsDefault* MjsDefault::get() const {
   return ptr_;
 }

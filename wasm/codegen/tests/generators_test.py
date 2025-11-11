@@ -327,7 +327,6 @@ void MjLROpt::set(mjLROpt* ptr) {
         wrapped_structs["mjsElement"].wrapped_source,
         """
 MjsElement::MjsElement(mjsElement *ptr) : ptr_(ptr) {}
-MjsElement::~MjsElement() {}
 mjsElement* MjsElement::get() const {
   return ptr_;
 }
@@ -355,7 +354,6 @@ void MjsElement::set(mjsElement* ptr) {
         ),
         """
 MjsTexture::MjsTexture(mjsTexture *ptr) : ptr_(ptr), element(ptr_->element) {}
-MjsTexture::~MjsTexture() {}
 mjsTexture* MjsTexture::get() const {
   return ptr_;
 }
