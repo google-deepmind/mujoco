@@ -1018,13 +1018,24 @@ Notes
   associated velocities or forces, as described above.
 
 **Sleeping sensors**
-  The computation of sensor values are skipped if the objects associated with it are asleep or static, so the last
-  valid computed values remain untouched. This is straightforward for most sensors, but :ref:`contact<sensor-contact>`
-  sensors are an exception. Because contact sensors report contacts that occurred in the current timestep, and
-  sleeping implies that some contacts are not computed, skipping the sensor computation is not always possible.
-  For example, consider a scene with free bodies on the floor, some of which may be asleep. A sensor which reports
-  information from contacts of body A (with anything else), will keep reporting the same thing when the body goes to
-  sleep. However a sensor that reports all world contacts will report something different when some bodies go to sleep.
+  For most sensors, we can skip the computation of their values when their associated objects are asleep, reporting the
+  value that was computed when those objects were last awake. Some sensors are always awake, but disabling sleep will
+  not affect their computed values:
+
+  - :ref:`rangefinder<sensor-rangefinder>` sensors are always awake; the sleep state of the site they are attached to
+    is not relevant to the reported value.
+  - :ref:`clock<sensor-clock>` sensors are always awake (no associated object).
+  - :ref:`user<sensor-user>` and :ref:`plugin<sensor-plugin>` sensors are always awake.
+
+  Some sensors are always awake, yet disabling sleep may affect their computed value. These are sensors that explicitly
+  depend on the presence of contacts, yet the contacts that were present when they were last awake are not sufficient
+  to determine their current value:
+
+  - :ref:`contact<sensor-contact>` sensors that have no object specifier (match all contacts).
+  - :ref:`contact<sensor-contact>` sensors whose only object specifier is static.
+  - :ref:`contact<sensor-contact>` sensors that use the :at:`site` attribute.
+  - :ref:`force<sensor-force>` or :ref:`torque<sensor-torque>` sensors attached to a static body (e.g., a weight sensor
+    on the floor).
 
 **Provisional choices**
   Some implementation choices are provisional and subject to change.

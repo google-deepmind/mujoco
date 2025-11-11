@@ -657,59 +657,52 @@ static mjtSleepState mj_equalitySleepState(const mjModel* m, const mjData* d, in
 }
 
 
-// return sleep state of sensor i
+// return sleep state of sensor i (AWAKE or ASLEEP, never STATIC)
 static mjtSleepState mj_sensorSleepState(const mjModel* m, const mjData* d, int i) {
   mjtSensor type = m->sensor_type[i];
   mjtObj objtype = m->sensor_objtype[i];
-  int objid      = m->sensor_objid[i];
   mjtObj reftype = m->sensor_reftype[i];
-  int refid      = m->sensor_refid[i];
-
-  // get sleep state of the primary and reference objects
-  mjtSleepState s_obj = mj_sleepState(m, d, objtype, objid);
-  mjtSleepState s_ref = mj_sleepState(m, d, reftype, refid);
 
   // special handling for specific sensor types
   switch (type) {
 
-  // USER and PLUGIN sensors are always awake
+  // USER and PLUGIN sensors: always awake
   case mjSENS_USER:
   case mjSENS_PLUGIN:
     return mjS_AWAKE;
 
-  // sensors that use sites to define a volume are always awake
-  case mjSENS_INSIDESITE:
-  case mjSENS_TOUCH:
-    return mjS_AWAKE;
-
-  // contact sensors
+  // contact sensors with site specifiers: always awake
   case mjSENS_CONTACT:
     // site used to define a volume: always awake
     if (objtype == mjOBJ_SITE || reftype == mjOBJ_SITE) {
       return mjS_AWAKE;
     }
-
-    // for contact sensors UNKNOWN means undefined, so the AWAKE returned by mj_sleepState is wrong
-
-    // if both are UNKNOWN (all contacts), return ASLEEP iff everything is alseep
-    if (objtype == mjOBJ_UNKNOWN && reftype == mjOBJ_UNKNOWN) {
-      return d->ntree_awake == 0 ? mjS_ASLEEP : mjS_AWAKE;
-    }
-
-    // if only one is UNKNOWN, return state of other object
-    if (objtype == mjOBJ_UNKNOWN) {
-      return s_ref;
-    } else if (reftype == mjOBJ_UNKNOWN) {
-      return s_obj;
-    }
     break;
 
-  // sensors whose value depends on objects other than the two they are attached to are always awake
+  // rangefinder output does not depend on sleep state: always awake
   case mjSENS_RANGEFINDER:
     return mjS_AWAKE;
 
   default:
     break;
+  }
+
+  // get sleep state of the primary and reference objects
+  mjtSleepState s_obj = mj_sleepState(m, d, objtype, m->sensor_objid[i]);
+  mjtSleepState s_ref = mj_sleepState(m, d, reftype, m->sensor_refid[i]);
+
+  // special handling for UNKNOWN objects
+
+  // if both are UNKNOWN, return AWAKE
+  if (objtype == mjOBJ_UNKNOWN && reftype == mjOBJ_UNKNOWN) {
+    return mjS_AWAKE;
+  }
+
+  // if one is UNKNOWN, return the other's sleep state (if STATIC, return AWAKE)
+  if (objtype == mjOBJ_UNKNOWN) {
+    return s_ref == mjS_ASLEEP ? mjS_ASLEEP : mjS_AWAKE;
+  } else if (reftype == mjOBJ_UNKNOWN) {
+    return s_obj == mjS_ASLEEP ? mjS_ASLEEP : mjS_AWAKE;
   }
 
   // if either object is awake, return AWAKE
@@ -757,6 +750,9 @@ mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int 
 
   // always awake
   case mjOBJ_FLEX:
+    return mjS_AWAKE;
+
+  // undefined sleep state, return AWAKE
   case mjOBJ_UNKNOWN:
     return mjS_AWAKE;
 

@@ -54,7 +54,7 @@ int mj_wakeEquality(const mjModel* m, mjData* d);
 int mj_sleep(const mjModel* m, mjData* d);
 
 // return sleep state of object i
-mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int i);
+MJAPI mjtSleepState mj_sleepState(const mjModel* m, const mjData* d, mjtObj type, int i);
 
 #ifdef __cplusplus
 }

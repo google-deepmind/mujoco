@@ -15,6 +15,7 @@
 // Tests for engine/engine_sleep.c.
 
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -32,6 +33,7 @@ using ::testing::IsNull;
 using ::testing::HasSubstr;
 using ::testing::NotNull;
 using ::std::string;
+using ::std::vector;
 
 using SleepTest = MujocoTest;
 
@@ -375,6 +377,9 @@ TEST_F(SleepTest, SleepingUnaffectedByWaking) {
 
     const int kCompare = 10;  // number of comparisons per rollout
 
+    // for some sensors, the comparison is expected to fail (at least once)
+    vector<bool> sensor_mismatch(m->nsensor, false);
+
     // TODO: b/457674312 - Add support for RK4.
     for (mjtIntegrator integrator :
          {mjINT_EULER, mjINT_IMPLICITFAST, mjINT_IMPLICIT}) {
@@ -464,8 +469,15 @@ TEST_F(SleepTest, SleepingUnaffectedByWaking) {
           int adr = m->sensor_adr[i];
           auto data1 = AsVector(d_sleep->sensordata + adr, dim);
           auto data2 = AsVector(d_nosleep->sensordata + adr, dim);
-          EXPECT_EQ(data1, data2)
-              << " sensor " << i << " at time " << d_sleep->time;
+          if (m->nuser_sensor == 1 && m->sensor_user[i] == 1) {
+            // user=1 means sensor value cannot be determined at sleep time
+            sensor_mismatch[i] = sensor_mismatch[i] || (data1 != data2);
+            EXPECT_EQ(mj_sleepState(m, d_sleep, mjOBJ_SENSOR, i), mjS_AWAKE);
+          } else {
+            // otherwise expect perfect match
+            EXPECT_EQ(data1, data2)
+                << " sensor " << i << " at time " << d_sleep->time;
+          }
         }
 
         // ==== compare arrays for awake dofs only ====
@@ -477,6 +489,13 @@ TEST_F(SleepTest, SleepingUnaffectedByWaking) {
               << " qacc_smooth[" << i << "] at time " << d_sleep->time;
           EXPECT_EQ(d_sleep->qacc[i], d_nosleep->qacc[i])
               << " qacc[" << i << "] at time " << d_sleep->time;
+        }
+      }
+
+      for (int i = 0; i < m->nsensor; i++) {
+        if (m->nuser_sensor == 1 && m->sensor_user[i] == 1) {
+            EXPECT_TRUE(sensor_mismatch[i])
+                << "contact sensor " << i << " comparison was expected to fail";
         }
       }
 
