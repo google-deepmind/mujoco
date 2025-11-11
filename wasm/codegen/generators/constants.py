@@ -37,7 +37,7 @@ PRIMITIVE_TYPES: Set[str] = {
     # go/keep-sorted end
 }
 
-_PLUGIN_FUNCTIONS: List[str] = [
+_SKIPPED_PLUGIN_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mj_getPluginConfig",
     "mj_loadAllPluginLibraries",
@@ -62,7 +62,7 @@ _PLUGIN_FUNCTIONS: List[str] = [
 ]
 
 # Functions that are bound as class methods
-_CLASS_METHODS: List[str] = [
+_SKIPPED_CLASS_METHODS: List[str] = [
     # go/keep-sorted start
     "mj_compile",
     "mj_copyData",
@@ -84,12 +84,12 @@ _CLASS_METHODS: List[str] = [
 ]
 
 # Omitted because not very useful
-_WRITABLE_ERROR: List[str] = [
+_SKIPPED_WRITABLE_ERROR: List[str] = [
     "mj_printSchema",
 ]
 
 # Omitted thread management functions
-_THREAD_FUNCTIONS: List[str] = [
+_SKIPPED_THREAD_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mju_bindThreadPool",
     "mju_defaultTask",
@@ -101,7 +101,7 @@ _THREAD_FUNCTIONS: List[str] = [
 ]
 
 # Omitted asset cache functions
-_ASSET_CACHE_FUNCTIONS: List[str] = [
+_SKIPPED_ASSET_CACHE_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mj_clearCache",
     "mj_getCache",
@@ -112,7 +112,7 @@ _ASSET_CACHE_FUNCTIONS: List[str] = [
 ]
 
 # Omitted Virtual Filesystem (VFS) functions
-_VFS_FUNCTIONS: List[str] = [
+_SKIPPED_VFS_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mj_addBufferVFS",
     "mj_addFileVFS",
@@ -123,7 +123,7 @@ _VFS_FUNCTIONS: List[str] = [
 ]
 
 # Omitted irrelevant visual functions
-_VISUAL_FUNCTIONS: List[str] = [
+_SKIPPED_VISUAL_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mjv_averageCamera",
     "mjv_copyData",
@@ -134,7 +134,7 @@ _VISUAL_FUNCTIONS: List[str] = [
     # go/keep-sorted end
 ]
 
-_MEMORY_FUNCTIONS: List[str] = [
+_SKIPPED_MEMORY_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mj_freeLastXML",
     "mj_freeStack",
@@ -160,7 +160,7 @@ _MEMORY_FUNCTIONS: List[str] = [
     # go/keep-sorted end
 ]
 
-_GETTERS_AND_SETTERS: List[str] = [
+_SKIPPED_GETTERS_AND_SETTERS: List[str] = [
     # go/keep-sorted start
     "mjs_appendFloatVec",
     "mjs_appendIntVec",
@@ -181,7 +181,7 @@ _GETTERS_AND_SETTERS: List[str] = [
     # go/keep-sorted end
 ]
 
-_UTILITY_FUNCTIONS: List[str] = [
+_SKIPPED_UTILITY_FUNCTIONS: List[str] = [
     # go/keep-sorted start
     "mju_getXMLDependencies",
     # go/keep-sorted end
@@ -189,16 +189,16 @@ _UTILITY_FUNCTIONS: List[str] = [
 
 # List of functions that should be skipped during the code generation process.
 SKIPPED_FUNCTIONS: List[str] = (
-    _CLASS_METHODS
-    + _THREAD_FUNCTIONS
-    + _MEMORY_FUNCTIONS
-    + _PLUGIN_FUNCTIONS
-    + _GETTERS_AND_SETTERS
-    + _VISUAL_FUNCTIONS
-    + _ASSET_CACHE_FUNCTIONS
-    + _VFS_FUNCTIONS
-    + _WRITABLE_ERROR
-    + _UTILITY_FUNCTIONS
+    _SKIPPED_CLASS_METHODS
+    + _SKIPPED_THREAD_FUNCTIONS
+    + _SKIPPED_MEMORY_FUNCTIONS
+    + _SKIPPED_PLUGIN_FUNCTIONS
+    + _SKIPPED_GETTERS_AND_SETTERS
+    + _SKIPPED_VISUAL_FUNCTIONS
+    + _SKIPPED_ASSET_CACHE_FUNCTIONS
+    + _SKIPPED_VFS_FUNCTIONS
+    + _SKIPPED_WRITABLE_ERROR
+    + _SKIPPED_UTILITY_FUNCTIONS
 )
 
 # Functions that require special wrappers to infer sizes and make additional
