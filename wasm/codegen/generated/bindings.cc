@@ -6737,21 +6737,6 @@ struct MjSpec {
   MjsElement element;
 };
 
-// TODO: Refactor, Structs Manually added so functions.cc compile -- //
-struct MjpResourceProvider {
-  MjpResourceProvider(mjpResourceProvider *ptr_) { ptr = ptr_; };
-  ~MjpResourceProvider() {}
-  mjpResourceProvider *get() const { return ptr; }
-  mjpResourceProvider *ptr;
-};
-
-struct MjpPlugin {
-  MjpPlugin(mjpPlugin *ptr_) { ptr = ptr_; };
-  ~MjpPlugin() {}
-  mjpPlugin *get() const { return ptr; }
-  mjpPlugin *ptr;
-};
-
 using emscripten::enum_;
 using emscripten::class_;
 using emscripten::function;
