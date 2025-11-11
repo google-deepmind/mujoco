@@ -783,7 +783,7 @@ emscripten::val buffer() const {
     )
     self.assertEqual(
         wrapped_field_data.ptr_initialization,
-        ", element(ptr_->element)",
+        "element(ptr_->element)",
     )
 
   def test_array_type_field(self):

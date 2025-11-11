@@ -39,7 +39,7 @@ class WrappedFieldData:
 
   # Used for constructor fields that are class types and need to be initialized
   # with a pointer to the corresponding member in the native struct
-  # (e.g., ", alt(&ptr_->alt)").
+  # (e.g., "alt(&ptr_->alt)").
   ptr_initialization: str = ""
 
   # Statement to reset the inner pointer when copying the field
@@ -134,7 +134,7 @@ def _generate_field_data(
         definition=f"{common.uppercase_first_letter(f.type.name)} {f.name};",
         typename=_get_field_struct_type(f.type),
         binding=_simple_property_binding(f, w, setter=False, reference=True),
-        ptr_initialization=f", {f.name}(&ptr_->{f.name})",
+        ptr_initialization=f"{f.name}(&ptr_->{f.name})",
         ptr_copy_reset=f"{f.name}.set(&ptr_->{f.name});",
         is_primitive_or_fixed_size=True,
     )
@@ -151,7 +151,7 @@ def _generate_field_data(
       return WrappedFieldData(
           binding=_simple_property_binding(f, w, setter=False, reference=True),
           typename=_get_field_struct_type(f.type),
-          ptr_initialization=f", {f.name}(&ptr_->{f.name})",
+          ptr_initialization=f"{f.name}(&ptr_->{f.name})",
           ptr_copy_reset=f"{f.name}.set(&ptr_->{f.name});",
           is_primitive_or_fixed_size=True,
       )
@@ -256,7 +256,7 @@ def _generate_field_data(
           definition=f"{wrapper_field_name} {f.name};",
           typename=_get_field_struct_type(f.type),
           binding=_simple_property_binding(f, w, setter=False, reference=True),
-          ptr_initialization=f", {f.name}(ptr_->{f.name})",
+          ptr_initialization=f"{f.name}(ptr_->{f.name})",
       )
 
     builder = code_builder.CodeBuilder()
@@ -410,7 +410,7 @@ def build_struct_source(
 
   fields_init = ""
   if member_inits:
-    fields_init = "".join(
+    fields_init = ", " + ", ".join(
         mjs_field.ptr_initialization for mjs_field in member_inits
     )
 
