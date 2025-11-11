@@ -300,6 +300,7 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
     textures.metallic = object_mgr->GetTexture(geom.matid, mjTEXROLE_METALLIC);
     textures.roughness = object_mgr->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
     textures.occlusion = object_mgr->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
+    material_.UpdateTextures(textures);
   }
 
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
@@ -354,10 +355,6 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
         material_.SetNormalMaterialType(ObjectManager::kPhong2d);
       }
     }
-  }
-
-  if (geom.matid >= 0) {
-    material_.UpdateTextures(textures);
   }
 
   Material::Params params;
