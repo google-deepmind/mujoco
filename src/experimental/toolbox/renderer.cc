@@ -29,24 +29,21 @@ Renderer::Renderer(MakeContextFn make_context_fn)
 Renderer::~Renderer() { Deinit(); }
 
 void Renderer::Init(const mjModel* model) {
-  if (initialized_) {
-    Deinit();
+  Deinit();
+  if (model) {
+    make_context_fn_(model, &render_context_);
+    mjv_defaultScene(&scene_);
+    mjv_makeScene(model, &scene_, 2000);
+    initialized_ = true;
   }
-
-  if (model == nullptr) {
-    return;
-  }
-
-  make_context_fn_(model, &render_context_);
-  mjv_defaultScene(&scene_);
-  mjv_makeScene(model, &scene_, 2000);
-  initialized_ = true;
 }
 
 void Renderer::Deinit() {
-  mjv_freeScene(&scene_);
-  mjr_freeContext(&render_context_);
-  initialized_ = false;
+  if (initialized_) {
+    mjv_freeScene(&scene_);
+    mjr_freeContext(&render_context_);
+    initialized_ = false;
+  }
 }
 
 void Renderer::Render(const mjModel* model, mjData* data,
