@@ -602,7 +602,7 @@ def _make_data_jax(
     device: Optional[jax.Device] = None,
 ) -> types.Data:
   """Allocate and initialize Data for the JAX implementation."""
-  dim = collision_driver.make_condim(m)
+  dim = collision_driver.make_condim(m, impl=types.Impl.JAX)
   efc_type = constraint.make_efc_type(m, dim)
   ne, nf, nl, nc = constraint.counts(efc_type)
   ncon, nefc = dim.size, ne + nf + nl + nc
@@ -692,7 +692,7 @@ def _make_data_c(
   # TODO(stunya): The C implementation should not use static dimensions, and
   # the backend implementation details should be kept hidden from JAX
   # altogether.
-  dim = collision_driver.make_condim(m)
+  dim = collision_driver.make_condim(m, impl=types.Impl.C)
   efc_type = constraint.make_efc_type(m, dim)
   efc_address = constraint.make_efc_address(m, dim, efc_type)
   ne, nf, nl, nc = constraint.counts(efc_type)
@@ -994,7 +994,7 @@ def _put_data_jax(
     m: mujoco.MjModel, d: mujoco.MjData, device: Optional[jax.Device] = None
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
-  dim = collision_driver.make_condim(m)
+  dim = collision_driver.make_condim(m, impl=types.Impl.JAX)
   efc_type = constraint.make_efc_type(m, dim)
   efc_address = constraint.make_efc_address(m, dim, efc_type)
   ne, nf, nl, nc = constraint.counts(efc_type)
@@ -1121,7 +1121,7 @@ def _put_data_c(
   """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
   # TODO(stunya): ncon, nefc should potentially be jax.Array, and contact/efc
   # should not be materialized in JAX.
-  dim = collision_driver.make_condim(m)
+  dim = collision_driver.make_condim(m, impl=types.Impl.C)
   efc_type = constraint.make_efc_type(m, dim)
   efc_address = constraint.make_efc_address(m, dim, efc_type)
   ne, nf, nl, nc = constraint.counts(efc_type)

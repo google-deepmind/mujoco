@@ -331,6 +331,33 @@ class ModelIOTest(parameterized.TestCase):
 
     _ = jax.tree.map_with_path(check_ndim, mx)
 
+  @parameterized.parameters('c', 'jax')
+  def test_unsupported_contact_types(self, impl):
+    """Tests that unsupported contact types raise an error."""
+    m = mujoco.MjModel.from_xml_string("""
+      <mujoco>
+        <asset>
+          <mesh name="box" vertex="-1 -1 -1 1 -1 -1 1 1 -1 1 1 1 1 -1 1 -1 1 -1 -1 1 1 -1 -1 1" scale="1 1 .1"/>
+        </asset>
+        <worldbody>
+        <body name="meshbox">
+          <freejoint/>
+          <geom type="mesh" mesh="box" pos="0 0 -.15" euler="3 7 30"/>
+        </body>
+        <body name="cylinder">
+          <freejoint/>
+          <geom type="cylinder" size="1.0 0.1"/>
+        </body>
+        </worldbody>
+      </mujoco>
+    """)
+
+    if impl == 'jax':
+      with self.assertRaises(ValueError):
+        mjx.make_data(m, impl=impl)
+    if impl == 'c':
+      mjx.make_data(m, impl=impl)
+
 
 class DataIOTest(parameterized.TestCase):
   """IO tests for mjx.Data."""
