@@ -174,20 +174,20 @@ jobs:
         python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
         python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
 
-    - name: Setup Node.js for WASM
-      if: ${{ runner.os == 'Linux' }}
+    - name: Setup Node.js for WASM bindings
+      if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
-    - name: Install NPM Dependencies for WASM
-      if: ${{ runner.os == 'Linux' }}
+    - name: Install NPM Dependencies for WASM bindings
+      if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
       working-directory: wasm
       run: |
         npm ci
 
-    - name: Setup Emscripten
-      if: ${{ runner.os == 'Linux' }}
+    - name: Setup Emscripten for WASM bindings
+      if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
       run: |
         git clone https://github.com/emscripten-core/emsdk.git
         ./emsdk/emsdk install 4.0.10
@@ -310,7 +310,7 @@ jobs:
         pytest -v --pyargs mujoco
 
     - name: Build and Test WASM bindings
-      if: ${{ runner.os == 'Linux' }}
+      if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
       shell: bash
       run: |
         source emsdk/emsdk_env.sh
@@ -356,7 +356,7 @@ jobs:
         CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         CHATMSG_JOB_ID: ${{ matrix.label }}
       if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
-      run: |
+      run: &notify_team_chat |
         CHATMSG="$(cat <<-'EOF' | python3
         import json
         import os
@@ -379,3 +379,68 @@ jobs:
         -H "Content-Type: application/json" \
         --data-raw "${CHATMSG}"
 
+  # This job is used to quickly determine if the WASM build is broken,
+  # by only testing it on a single platform.
+  wasm:
+    name: "ubuntu-24.04-clang-18-wasm"
+    runs-on: ubuntu-24.04
+    env:
+      label: "ubuntu-24.04-clang-18-wasm"
+      cmake_args: >-
+        -G Ninja
+        -DCMAKE_C_COMPILER:STRING=clang-18
+        -DCMAKE_CXX_COMPILER:STRING=clang++-18
+        -DMUJOCO_HARDEN:BOOL=ON
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Prepare Linux
+      run: >
+        sudo apt-get update && sudo apt-get install
+        libgl1-mesa-dev
+        libwayland-dev
+        libxinerama-dev
+        libxcursor-dev
+        libxkbcommon-dev
+        libxrandr-dev
+        libxi-dev
+        ninja-build
+
+    - name: Setup Node.js for WASM bindings
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install NPM Dependencies for WASM bindings
+      working-directory: wasm
+      run: |
+        npm ci
+
+    - name: Setup Emscripten for WASM bindings
+      run: |
+        git clone https://github.com/emscripten-core/emsdk.git
+        ./emsdk/emsdk install 4.0.10
+        ./emsdk/emsdk activate 4.0.10
+
+    - name: Build and Test WASM bindings
+      shell: bash
+      run: |
+        source emsdk/emsdk_env.sh
+        export PATH="$(pwd)/node_modules/.bin:$PATH"
+
+        emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF $cmake_args
+        cmake --build build_wasm
+
+        npm run test --prefix ./wasm
+
+    - name: Notify team chat
+      shell: bash
+      env:
+        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
+        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        CHATMSG_JOB_ID: ${{ env.label }}
+      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
+      run: *notify_team_chat
