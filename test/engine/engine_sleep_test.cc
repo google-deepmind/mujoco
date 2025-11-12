@@ -222,6 +222,7 @@ TEST_F(SleepTest, BadWakeTree) {
 }
 
 static const char* const kStaticModel = "engine/testdata/sleep/static.xml";
+static const char* const kMocapcModel = "engine/testdata/sleep/mocap.xml";
 static const char* const kSmoothModel = "engine/testdata/sleep/smooth.xml";
 static const char* const kInitModel = "engine/testdata/sleep/init.xml";
 static const char* const kInitIslandModel =
@@ -234,8 +235,8 @@ static const char* const kSensorModel = "engine/testdata/sleep/sensor.xml";
 // roll out some models with sleeping enabled, valuable under ASAN and MSAN
 TEST_F(SleepTest, KickTires) {
   for (const char* path :
-       {kStaticModel, kInitModel, kInitIslandModel, kSensorModel, kTendonModel,
-        kContactModel, kPairModel, kSmoothModel}) {
+       {kStaticModel, kMocapcModel, kInitModel, kInitIslandModel, kSensorModel,
+        kTendonModel, kContactModel, kPairModel, kSmoothModel}) {
     const std::string xml_path = GetTestDataFilePath(path);
     char error[1024];
     mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
@@ -368,8 +369,9 @@ TEST_F(SleepTest, WakingUnaffectedBySleeping) {
 // unchanged for all trees and frc/acc-dependent arrays to be the same for awake
 // trees.
 TEST_F(SleepTest, SleepingUnaffectedByWaking) {
-  for (const char* path : {kInitModel, kInitIslandModel, kTendonModel,
-                           kContactModel, kSensorModel, kSmoothModel}) {
+  for (const char* path :
+       {kInitModel, kMocapcModel, kInitIslandModel, kTendonModel, kContactModel,
+        kSensorModel, kSmoothModel}) {
     const std::string xml_path = GetTestDataFilePath(path);
     char error[1024];
     mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));

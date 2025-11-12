@@ -37,6 +37,7 @@ void mj_updateSleepInit(const mjModel* m, mjData* d, int flg_staticawake) {
   const int* tree_asleep   = d->tree_asleep;  // sleep state source of truth
   const int* body_treeid   = m->body_treeid;
   const int* body_parentid = m->body_parentid;
+  const int* body_rootid   = m->body_rootid;
   const int* body_mocapid  = m->body_mocapid;
   const int* dof_bodyid    = m->dof_bodyid;
 
@@ -61,7 +62,7 @@ void mj_updateSleepInit(const mjModel* m, mjData* d, int flg_staticawake) {
   for (int i=0; i < nbody; i++) {
     // static body
     if (body_treeid[i] < 0) {
-      if (body_mocapid[i] >= 0) {
+      if (body_mocapid[body_rootid[i]] >= 0) {
         // mocap body are always awake
         body_awake[i] = mjS_AWAKE;
       } else {
