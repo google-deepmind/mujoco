@@ -1,0 +1,57 @@
+<mujoco model="depth_capture_test">
+  <compiler autolimits="true"/>
+
+  <extension>
+    <plugin plugin="mujoco.rays.depth_capture"/>
+  </extension>
+
+  <visual>
+    <headlight ambient=".7 .7 .7" diffuse=".2 .2 .2" specular="0.1 0.1 0.1"/>
+    <map znear="0.01"/>
+  </visual>
+
+  <statistic center="0 0 1" extent="3"/>
+
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1"/>
+    <geom name="floor" pos="0 0 0" type="plane" size="5 5 .1" rgba=".8 .8 .8 1"/>
+
+    <!-- Add some objects to detect -->
+    <body name="box1" pos="0 0 0.5">
+      <geom type="box" size="0.2 0.2 0.2" rgba=".8 .2 .2 1"/>
+    </body>
+
+    <body name="sphere1" pos="1 0 0.3">
+      <geom type="sphere" size="0.3" rgba=".2 .8 .2 1"/>
+    </body>
+
+    <body name="cylinder1" pos="-1 1 0.4">
+      <geom type="cylinder" size="0.15 0.4" rgba=".2 .2 .8 1"/>
+    </body>
+
+    <!-- Robot body with depth sensor -->
+    <body name="robot" pos="0 -2 1">
+      <joint name="x" type="slide" axis="1 0 0" damping="1"/>
+      <joint name="y" type="slide" axis="0 1 0" damping="1"/>
+      <joint name="z" type="slide" axis="0 0 1" damping="1"/>
+      <joint name="rx" axis="1 0 0" springdamper="0.2 1"/>
+      <joint name="ry" axis="0 1 0" springdamper="0.2 1"/>
+
+      <geom type="box" size=".1 .1 .1" mass="1.0" rgba=".3 .3 .3 .8"/>
+
+      <!-- Site for the depth sensor, pointing forward (toward +Y) -->
+      <site name="depth_sensor" pos="0 0.15 0" euler="0 0 0"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <!-- Depth capture sensor attached to the site -->
+    <plugin name="depth" plugin="mujoco.rays.depth_capture" objtype="site" objname="depth_sensor">
+      <config key="ncol" value="10"/>
+      <config key="nrow" value="10"/>
+      <config key="fov_x" value="60"/>
+      <config key="fov_y" value="60"/>
+      <config key="max_distance" value="10"/>
+    </plugin>
+  </sensor>
+</mujoco>
