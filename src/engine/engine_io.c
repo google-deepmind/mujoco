@@ -671,8 +671,8 @@ void mj_deleteModel(mjModel* m) {
 
 
 // size of buffer needed to hold model
-int mj_sizeModel(const mjModel* m) {
-  int size = (
+mjtSize mj_sizeModel(const mjModel* m) {
+  mjtSize size = (
     sizeof(int)*(NHEADER+getnint())
     + sizeof(mjtSize)*getnbuffer()
     + sizeof(mjOption)

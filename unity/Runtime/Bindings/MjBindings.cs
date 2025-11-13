@@ -6448,7 +6448,7 @@ public static unsafe extern mjModel_* mj_loadModel([MarshalAs(UnmanagedType.LPSt
 public static unsafe extern void mj_deleteModel(mjModel_* m);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_sizeModel(mjModel_* m);
+public static unsafe extern UInt64 mj_sizeModel(mjModel_* m);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern mjData_* mj_makeData(mjModel_* m);

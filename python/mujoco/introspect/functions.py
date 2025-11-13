@@ -856,7 +856,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_sizeModel',
      FunctionDecl(
          name='mj_sizeModel',
-         return_type=ValueType(name='int'),
+         return_type=ValueType(name='mjtSize'),
          parameters=(
              FunctionParameterDecl(
                  name='m',

@@ -29,6 +29,7 @@ General
   - ``sidesite -> MjsSite|None``
   - ``coef -> real``
   - ``divisor -> real``
+- Non-breaking API change: :ref:`mj_sizeModel` now returns an :ref:`mjtSize` rather than an ``int``.
 
 MJX
 ^^^

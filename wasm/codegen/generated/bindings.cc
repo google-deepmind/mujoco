@@ -10114,7 +10114,7 @@ void mj_defaultVisual_wrapper(MjVisual& vis) {
   mj_defaultVisual(vis.get());
 }
 
-int mj_sizeModel_wrapper(const MjModel& m) {
+mjtSize mj_sizeModel_wrapper(const MjModel& m) {
   return mj_sizeModel(m.get());
 }
 

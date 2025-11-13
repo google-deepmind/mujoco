@@ -216,7 +216,7 @@ MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
 MJAPI void mj_deleteModel(mjModel* m);
 
 // Return size of buffer needed to hold model.
-MJAPI int mj_sizeModel(const mjModel* m);
+MJAPI mjtSize mj_sizeModel(const mjModel* m);
 
 // Allocate mjData corresponding to given model.
 // If the model buffer is unallocated the initial configuration will not be set.
