@@ -403,6 +403,8 @@ filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
         break;
     }
   }
+
+  return nullptr;
 }
 
 filament::IndexBuffer* CreateIndexBuffer(filament::Engine* engine,
