@@ -1,10 +1,5 @@
 # MuJoCo JavaScript Bindings
 
-> [!CAUTION]
-> **These bindings are not yet ready for general use. They have been added
-> without announcement while we develop the CI we need to accept pull
-> requests.**
-
 These are the canonical JavaScript and TypeScript bindings for the MuJoCo
 physics engine.
 
@@ -19,7 +14,9 @@ TypeScript.
 > _These bindings are still a WIP. For details, see the [Future Work](#future-work)
 > section. Also note that development has primarily taken place on Linux using
 > Google Chrome. If you're working on a different OS or browser, you may
-> encounter some rough edges._
+> encounter some rough edges. We have successfully tested the bindings on MacOS
+> in CI but as of November 13th 2025 Windows in untested (the instructions here
+> have worked on one Windows 11 machine but have failed on other machines)._
 
 ## Prerequisites
 
@@ -140,16 +137,6 @@ bounds checking and nice error reporting.
    ```sh
    npm run test --prefix ./wasm
    ```
-
-   > [!NOTE]
-   > The above command runs the [`enums_tests.ts`](tests/enums_tests.ts) file
-   > which checks that all the enums in the API are bound. This test is
-   > auto-generated so if you add/edit an enum to MuJoCo then you will need to
-   > run the following command to re-create the test:
-   >
-   > ```sh
-   > PYTHONPATH=python/mujoco python3 -m wasm.codegen.tests.enums_test_generator
-   > ```
 
 2. **JavaScript API benchmark tests.**
    The current benchmark tests check JavaScript/C++ shared memory buffers
