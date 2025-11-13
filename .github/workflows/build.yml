@@ -139,16 +139,7 @@ jobs:
 
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
-      run: >
-        sudo apt-get update && sudo apt-get install
-        libgl1-mesa-dev
-        libwayland-dev
-        libxinerama-dev
-        libxcursor-dev
-        libxkbcommon-dev
-        libxrandr-dev
-        libxi-dev
-        ninja-build
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
 
     - name: Prepare macOS
       if: ${{ runner.os == 'macOS' }}
@@ -160,19 +151,9 @@ jobs:
 
     - name: Prepare Python
       shell: bash
-      run: |
-        repo="${PWD}"
-        cd ${{ matrix.tmpdir }}
-        python -m venv venv
-        if [[ $RUNNER_OS == "Windows" ]]; then
-        mkdir venv/bin
-        fixpath="$(s="$(cat venv/Scripts/activate | grep VIRTUAL_ENV=)"; echo "${s:13:-1}")"
-        sed -i "s#$(printf "%q" "${fixpath}")#$(cygpath "${fixpath}")#g" venv/Scripts/activate
-        ln -s ../Scripts/activate venv/bin/activate
-        fi
-        source venv/bin/activate
-        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements.txt"
-        python -m pip install --upgrade --require-hashes -r "${repo}/python/build_requirements_usd.txt"
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ./.github/workflows/build_steps.sh prepare_python
 
     - name: Setup Node.js for WASM bindings
       if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
@@ -182,31 +163,23 @@ jobs:
 
     - name: Install NPM Dependencies for WASM bindings
       if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
-      working-directory: wasm
-      run: |
-        npm ci
+      run: bash ./.github/workflows/build_steps.sh npm_ci
 
     - name: Setup Emscripten for WASM bindings
       if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
-      run: |
-        git clone https://github.com/emscripten-core/emsdk.git
-        ./emsdk/emsdk install 4.0.10
-        ./emsdk/emsdk activate 4.0.10
+      run: bash ./.github/workflows/build_steps.sh setup_emsdk
 
     - name: Configure MuJoCo
-      run: >
-        mkdir build &&
-        cd build &&
-        cmake ..
-        -DCMAKE_BUILD_TYPE:STRING=Release
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
-        -DCMAKE_INSTALL_PREFIX:STRING=${{ matrix.tmpdir }}/mujoco_install
-        -DMUJOCO_BUILD_EXAMPLES:BOOL=OFF
-        ${{ matrix.cmake_args }}
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ./.github/workflows/build_steps.sh configure_mujoco
 
     - name: Build MuJoCo
       working-directory: build
-      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+      env:
+        CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+      run: bash ../.github/workflows/build_steps.sh build_mujoco
 
     - name: Copy in the correct VC runtime DLLs (workaround for actions/runner-images#10004)
       if: ${{ runner.os == 'Windows' }}
@@ -221,39 +194,32 @@ jobs:
 
     - name: Test MuJoCo
       working-directory: build
-      run: ctest -C Release --output-on-failure .
+      run: bash ../.github/workflows/build_steps.sh test_mujoco
 
     - name: Install MuJoCo
       working-directory: build
-      run: cmake --install .
+      run: bash ../.github/workflows/build_steps.sh install_mujoco
 
     - name: Copy plugins (POSIX)
       if: ${{ runner.os != 'Windows' }}
       working-directory: build
-      run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libactuator.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libelasticity.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libsensor.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp lib/libsdf_plugin.* ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../.github/workflows/build_steps.sh copy_plugins_posix
 
     - name: Copy plugins (Windows)
       if: ${{ runner.os == 'Windows' }}
       working-directory: build
-      run: mkdir -p ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp bin/Release/actuator.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp bin/Release/elasticity.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin &&
-           cp bin/Release/sensor.dll ${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../.github/workflows/build_steps.sh copy_plugins_window
 
     - name: Configure samples
       working-directory: sample
-      run: >
-        mkdir build &&
-        cd build &&
-        cmake ..
-        -DCMAKE_BUILD_TYPE:STRING=Release
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
-        -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
-        ${{ matrix.cmake_args }}
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ../.github/workflows/build_steps.sh configure_samples
 
     - name: Build samples
       working-directory: sample/build
@@ -261,90 +227,77 @@ jobs:
 
     - name: Configure simulate
       working-directory: simulate
-      run: >
-        mkdir build &&
-        cd build &&
-        cmake ..
-        -DCMAKE_BUILD_TYPE:STRING=Release
-        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
-        -Dmujoco_ROOT:STRING=${{ matrix.tmpdir }}/mujoco_install
-        ${{ matrix.cmake_args }}
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ../.github/workflows/build_steps.sh configure_simulate
 
     - name: Build simulate
       working-directory: simulate/build
-      run: cmake --build . --config=Release ${{ matrix.cmake_build_args }}
+      env:
+        CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
+      run: bash ../../.github/workflows/build_steps.sh build_simulate
 
     - name: Make Python sdist
       shell: bash
       working-directory: python
-      run: >
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        ./make_sdist.sh
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../.github/workflows/build_steps.sh make_python_sdist
 
     - name: Build Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
       working-directory: python/dist
-      run: >
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        MUJOCO_PATH="${{ matrix.tmpdir }}/mujoco_install"
-        MUJOCO_PLUGIN_PATH="${{ matrix.tmpdir }}/mujoco_install/mujoco_plugin"
-        MUJOCO_CMAKE_ARGS="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF ${{ matrix.cmake_args }}"
-        pip wheel -v --no-deps mujoco-*.tar.gz
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ../../.github/workflows/build_steps.sh build_python_bindings
 
     - name: Install Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
       working-directory: python/dist
-      run: >
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pip install --no-index mujoco-*.whl
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../../.github/workflows/build_steps.sh install_python_bindings
 
     - name: Test Python bindings
       if: ${{ runner.os != 'Windows' }}
       shell: bash
       env:
         MUJOCO_GL: disable
-      run: >
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pytest -v --pyargs mujoco
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ./.github/workflows/build_steps.sh test_python_bindings
 
     - name: Build and Test WASM bindings
       if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
       shell: bash
-      run: |
-        source emsdk/emsdk_env.sh
-        export PATH="$(pwd)/node_modules/.bin:$PATH"
-
-        emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF
-        cmake --build build_wasm
-
-        npm run test --prefix ./wasm
+      run: bash ./.github/workflows/build_steps.sh build_test_wasm
 
     - name: Package MJX
       if: ${{ runner.os != 'Windows' }}
       shell: bash
       working-directory: mjx
-      run:
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        python -m build .
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../.github/workflows/build_steps.sh package_mjx
 
     - name: Install MJX
       if: ${{ runner.os != 'Windows' }}
       shell: bash
       working-directory: mjx
-      run:
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pip install --require-hashes -r requirements.txt &&
-        pip install --no-index dist/mujoco_mjx-*.whl
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../.github/workflows/build_steps.sh install_mjx
 
     - name: Test MJX
       if: ${{ runner.os != 'Windows' }}
       shell: bash
       working-directory: mjx
-      run:
-        source ${{ matrix.tmpdir }}/venv/bin/activate &&
-        pytest -n auto -v -k 'not IntegrationTest' --pyargs mujoco.mjx
+      env:
+        TMPDIR: ${{ matrix.tmpdir }}
+      run: bash ../.github/workflows/build_steps.sh test_mjx
 
     - name: Notify team chat
       shell: bash
@@ -356,28 +309,7 @@ jobs:
         CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         CHATMSG_JOB_ID: ${{ matrix.label }}
       if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
-      run: &notify_team_chat |
-        CHATMSG="$(cat <<-'EOF' | python3
-        import json
-        import os
-        env = lambda x: os.getenv(x, '')
-        data = dict(
-            result=env('JOB_URL'),
-            job=env('CHATMSG_JOB_ID'),
-            commit=env('GITHUB_SHA')[:6],
-            name=env('CHATMSG_AUTHOR_NAME').replace('```', ''),
-            email=env('CHATMSG_AUTHOR_EMAIL'),
-            msg=env('CHATMSG_COMMIT_MESSAGE').replace('```', '')
-        )
-        text = '<{result}|*FAILURE*>: job `{job}` commit `{commit}`\n```Author: {name} <{email}>\n\n{msg}```'.format(**data)
-        print(json.dumps({'text' : text}))
-        EOF
-        )" &&
-
-        curl "$GCHAT_API_URL&threadKey=$GITHUB_SHA&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD" \
-        -X POST \
-        -H "Content-Type: application/json" \
-        --data-raw "${CHATMSG}"
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
 
   # This job is used to quickly determine if the WASM build is broken,
   # by only testing it on a single platform.
@@ -395,16 +327,7 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Prepare Linux
-      run: >
-        sudo apt-get update && sudo apt-get install
-        libgl1-mesa-dev
-        libwayland-dev
-        libxinerama-dev
-        libxcursor-dev
-        libxkbcommon-dev
-        libxrandr-dev
-        libxi-dev
-        ninja-build
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
 
     - name: Setup Node.js for WASM bindings
       uses: actions/setup-node@v4
@@ -412,26 +335,16 @@ jobs:
         node-version: '20'
 
     - name: Install NPM Dependencies for WASM bindings
-      working-directory: wasm
-      run: |
-        npm ci
+      run: bash ./.github/workflows/build_steps.sh npm_ci
 
     - name: Setup Emscripten for WASM bindings
-      run: |
-        git clone https://github.com/emscripten-core/emsdk.git
-        ./emsdk/emsdk install 4.0.10
-        ./emsdk/emsdk activate 4.0.10
+      run: bash ./.github/workflows/build_steps.sh setup_emsdk
 
     - name: Build and Test WASM bindings
       shell: bash
-      run: |
-        source emsdk/emsdk_env.sh
-        export PATH="$(pwd)/node_modules/.bin:$PATH"
-
-        emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF $cmake_args
-        cmake --build build_wasm
-
-        npm run test --prefix ./wasm
+      env:
+        CMAKE_ARGS: ${{ env.cmake_args }}
+      run: bash ./.github/workflows/build_steps.sh build_test_wasm
 
     - name: Notify team chat
       shell: bash
@@ -443,4 +356,4 @@ jobs:
         CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         CHATMSG_JOB_ID: ${{ env.label }}
       if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
-      run: *notify_team_chat
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
