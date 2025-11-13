@@ -398,37 +398,38 @@ static void mjc_hillclimbSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
   int* vert_globalid = m->mesh_graph + graphadr + 2 + numvert;
   int* edge_localid = m->mesh_graph + graphadr + 2 + 2*numvert;
   float* verts = m->mesh_vert + 3*m->mesh_vertadr[m->geom_dataid[g]];
+  const mjtNum* pos = d->geom_xpos + 3*g;
   const mjtNum* mat = d->geom_xmat + 9*g;
-  const mjtNum* pos = d->geom_xpos+3*g;
 
   // rotate dir to geom local frame
   mjtNum local_dir[3];
   mulMatTVec3(local_dir, mat, dir);
 
-  // hillclimb until no change
   mjtNum max = -FLT_MAX;
-  int prev = -1, imax = obj->meshindex < 0 ? 0 : obj->meshindex;
-  do {
+  int prev = -1;
+  int imax = obj->meshindex >= 0 ? obj->meshindex : 0;
+
+  // hillclimb until no change
+  while (imax != prev) {
     prev = imax;
-    for (int i = vert_edgeadr[imax]; edge_localid[i] >= 0; i++) {
-      int idx = 3*vert_globalid[edge_localid[i]];
-      mjtNum vdot = dot3f(local_dir, verts + idx);
+    int subidx;
+    for (int i = vert_edgeadr[imax]; (subidx = edge_localid[i]) >= 0; i++) {
+      mjtNum vdot = dot3f(local_dir, verts + 3*vert_globalid[subidx]);
       if (vdot > max) {
         max = vdot;
-        imax = edge_localid[i];  // update maximum vertex index
+        imax = subidx;  // update maximum vertex index
       }
     }
-  } while (imax != prev);
+  }
 
   // record vertex index of maximum (local id)
   obj->meshindex = imax;
 
   // get resulting support vertex
-  imax = 3*vert_globalid[imax];
-  obj->vertindex = imax / 3;
-  local_dir[0] = (mjtNum)verts[imax + 0];
-  local_dir[1] = (mjtNum)verts[imax + 1];
-  local_dir[2] = (mjtNum)verts[imax + 2];
+  obj->vertindex = imax = vert_globalid[imax];
+  local_dir[0] = (mjtNum)verts[3*imax + 0];
+  local_dir[1] = (mjtNum)verts[3*imax + 1];
+  local_dir[2] = (mjtNum)verts[3*imax + 2];
 
   // transform result to global frame
   localToGlobal(res, mat, local_dir, pos);
