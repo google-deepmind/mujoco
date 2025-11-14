@@ -6886,6 +6886,12 @@ public static unsafe extern void mjv_updateCamera(mjModel_* m, mjData_* d, mjvCa
 public static unsafe extern void mjv_updateSkin(mjModel_* m, mjData_* d, mjvScene_* scn);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_cameraFrame(double* headpos, double* forward, double* up, double* right, mjData_* d, mjvCamera_* cam);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mjv_cameraFrustum(float* zver, float* zhor, float* zclip, mjModel_* m, mjvCamera_* cam);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mjr_defaultContext(mjrContext_* con);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

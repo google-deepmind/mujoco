@@ -10580,6 +10580,21 @@ void mjv_updateSkin_wrapper(const MjModel& m, const MjData& d, MjvScene& scn) {
   mjv_updateSkin(m.get(), d.get(), scn.get());
 }
 
+void mjv_cameraFrame_wrapper(const val& headpos, const val& forward, const val& up, const val& right, const MjData& d, const MjvCamera& cam) {
+  UNPACK_VALUE(mjtNum, headpos);
+  UNPACK_VALUE(mjtNum, forward);
+  UNPACK_VALUE(mjtNum, up);
+  UNPACK_VALUE(mjtNum, right);
+  mjv_cameraFrame(headpos_.data(), forward_.data(), up_.data(), right_.data(), d.get(), cam.get());
+}
+
+void mjv_cameraFrustum_wrapper(const val& zver, const val& zhor, const val& zclip, const MjModel& m, const MjvCamera& cam) {
+  UNPACK_VALUE(float, zver);
+  UNPACK_VALUE(float, zhor);
+  UNPACK_VALUE(float, zclip);
+  mjv_cameraFrustum(zver_.data(), zhor_.data(), zclip_.data(), m.get(), cam.get());
+}
+
 void mju_writeLog_wrapper(const String& type, const String& msg) {
   CHECK_VAL(type);
   CHECK_VAL(msg);
@@ -12582,6 +12597,8 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mjv_makeLights", &mjv_makeLights_wrapper);
   function("mjv_updateCamera", &mjv_updateCamera_wrapper);
   function("mjv_updateSkin", &mjv_updateSkin_wrapper);
+  function("mjv_cameraFrame", &mjv_cameraFrame_wrapper);
+  function("mjv_cameraFrustum", &mjv_cameraFrustum_wrapper);
   function("mju_writeLog", &mju_writeLog_wrapper);
   function("mjs_getError", &mjs_getError_wrapper);
   function("mjs_isWarning", &mjs_isWarning_wrapper);

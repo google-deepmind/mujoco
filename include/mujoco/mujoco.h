@@ -772,6 +772,16 @@ MJAPI void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, m
 // Update skins.
 MJAPI void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn);
 
+// Compute camera position and forward, up, and right vectors.
+// Nullable: headpos, forward, up, right
+MJAPI void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum right[3],
+                           const mjData* d, const mjvCamera* cam);
+
+// Compute camera frustum: vertical, horizontal, and clip planes.
+// Nullable: zver, zhor, zclip
+MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  const mjModel* m,
+                             const mjvCamera* cam);
+
 
 //---------------------------------- OpenGL rendering ----------------------------------------------
 

@@ -3290,6 +3290,10 @@ void mjv_addGeoms(const mjModel* m, mjData* d, const mjvOption* opt,
 void mjv_makeLights(const mjModel* m, const mjData* d, mjvScene* scn);
 void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScene* scn);
 void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn);
+void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum right[3],
+                     const mjData* d, const mjvCamera* cam);
+void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  const mjModel* m,
+                       const mjvCamera* cam);
 void mjr_defaultContext(mjrContext* con);
 void mjr_makeContext(const mjModel* m, mjrContext* con, int fontscale);
 void mjr_changeFont(int fontscale, mjrContext* con);

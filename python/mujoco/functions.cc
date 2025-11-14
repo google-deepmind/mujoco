@@ -740,6 +740,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_makeLights>(pymodule);
   Def<traits::mjv_updateCamera>(pymodule);
   Def<traits::mjv_updateSkin>(pymodule);
+  Def<traits::mjv_cameraFrame>(pymodule);
+  Def<traits::mjv_cameraFrustum>(pymodule);
 
   // UI framework
   // Skipped: entire section (can add this if there's demand)

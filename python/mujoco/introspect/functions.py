@@ -4929,6 +4929,102 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Update skins.',
      )),
+    ('mjv_cameraFrame',
+     FunctionDecl(
+         name='mjv_cameraFrame',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='headpos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='forward',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='up',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='right',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='cam',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvCamera', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Compute camera position and forward, up, and right vectors.',
+     )),
+    ('mjv_cameraFrustum',
+     FunctionDecl(
+         name='mjv_cameraFrustum',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='zver',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='zhor',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='zclip',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='cam',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvCamera', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Compute camera frustum: vertical, horizontal, and clip planes.',
+     )),
     ('mjr_defaultContext',
      FunctionDecl(
          name='mjr_defaultContext',

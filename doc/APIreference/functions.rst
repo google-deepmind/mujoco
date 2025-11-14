@@ -2340,6 +2340,28 @@ Update camera.
 
 Update skins.
 
+.. _mjv_cameraFrame:
+
+`mjv_cameraFrame <#mjv_cameraFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_cameraFrame
+
+Compute camera position and forward, up, and right vectors.
+
+*Nullable:* ``headpos``, ``forward``, ``up``, ``right``
+
+.. _mjv_cameraFrustum:
+
+`mjv_cameraFrustum <#mjv_cameraFrustum>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_cameraFrustum
+
+Compute camera frustum: vertical, horizontal, and clip planes.
+
+*Nullable:* ``zver``, ``zhor``, ``zclip``
+
 .. _OpenGLrendering:
 
 OpenGL rendering
