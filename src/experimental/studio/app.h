@@ -92,18 +92,22 @@ class App {
   // TODO(matijak): Combine this with UiState and identify the list of transient
   // variables with a comment
   struct UiTempState {
-    // bool paused = false;  // Application starts with the simulation running.
     bool help = false;
     bool info = false;
     bool modal_open = false;
     bool load_popup = false;
+    std::string last_load_file;
     bool save_xml_popup = false;
+    std::string last_save_xml_file;
     bool save_mjb_popup = false;
+    std::string last_save_mjb_file;
     bool save_screenshot_popup = false;
+    std::string last_save_screenshot_file;
     bool print_model_popup = false;
+    std::string last_print_model_file;
     bool print_data_popup = false;
+    std::string last_print_data_file;
     bool should_exit = false;
-    // bool should_reload = false;
     bool style_editor = false;
     bool imgui_demo = false;
     bool perturb_active = false;

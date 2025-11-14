@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -166,12 +167,27 @@ void App::OnModelLoaded(std::string_view model_file) {
   tmp_ = UiTempState();
   mjv_defaultOption(&vis_options_);
   ClearProfilerData();
+
+  std::string base_path = "/";
+  std::string model_name = "model";
+
   if (!model_file.empty() &&
       (model_file.ends_with(".xml") || model_file.ends_with(".mjb"))) {
     window_->SetTitle("MuJoCo Studio : " + std::string(model_file));
+    tmp_.last_load_file = std::string(model_file_);
+    std::filesystem::path path(model_file_);
+    base_path = std::string(path.parent_path()) + "/";
+    model_name = std::string(path.stem());
   } else {
     window_->SetTitle("MuJoCo Studio");
+    tmp_.last_load_file = base_path;
   }
+
+  tmp_.last_save_mjb_file = base_path + model_name + "_saved.mjb";
+  tmp_.last_save_xml_file = base_path + model_name + "_saved.xml";
+  tmp_.last_print_model_file = base_path + model_name + "_MJMODEL.TXT";
+  tmp_.last_print_data_file = base_path + model_name + "_MJDATA.TXT";
+  tmp_.last_save_screenshot_file = base_path + "screenshot.webp";
 }
 
 bool App::Update() {
@@ -1177,43 +1193,52 @@ void App::FileDialogGui() {
   if (tmp_.load_popup) {
     ImGui::OpenPopup("LoadModel");
     tmp_.load_popup = false;
-    tmp_.filename[0] = 0;
+    fprintf(stderr, "last_load_file: %s\n", tmp_.last_load_file.c_str());
+    strncpy(tmp_.filename, tmp_.last_load_file.c_str(), tmp_.last_load_file.size());
+    tmp_.filename[tmp_.last_load_file.size()] = 0;
   }
   if (tmp_.save_xml_popup) {
     ImGui::OpenPopup("SaveXML");
     tmp_.save_xml_popup = false;
-    tmp_.filename[0] = 0;
+    strncpy(tmp_.filename, tmp_.last_save_xml_file.c_str(), tmp_.last_save_xml_file.size());
+    tmp_.filename[tmp_.last_save_xml_file.size()] = 0;
   }
   if (tmp_.save_mjb_popup) {
     ImGui::OpenPopup("SaveMJB");
     tmp_.save_mjb_popup = false;
-    tmp_.filename[0] = 0;
+    strncpy(tmp_.filename, tmp_.last_save_mjb_file.c_str(), tmp_.last_save_mjb_file.size());
+    tmp_.filename[tmp_.last_save_mjb_file.size()] = 0;
   }
   if (tmp_.save_screenshot_popup) {
     ImGui::OpenPopup("SaveWebp");
     tmp_.save_screenshot_popup = false;
-    tmp_.filename[0] = 0;
+    strncpy(tmp_.filename, tmp_.last_save_screenshot_file.c_str(),
+            tmp_.last_save_screenshot_file.size());
+    tmp_.filename[tmp_.last_save_screenshot_file.size()] = 0;
   }
   if (tmp_.print_model_popup) {
     ImGui::OpenPopup("PrintModel");
     tmp_.print_model_popup = false;
-    tmp_.filename[0] = 0;
+    strncpy(tmp_.filename, tmp_.last_print_model_file.c_str(), tmp_.last_print_model_file.size());
+    tmp_.filename[tmp_.last_print_model_file.size()] = 0;
   }
   if (tmp_.print_data_popup) {
     ImGui::OpenPopup("PrintData");
     tmp_.print_data_popup = false;
-    tmp_.filename[0] = 0;
+    strncpy(tmp_.filename, tmp_.last_print_data_file.c_str(), tmp_.last_print_data_file.size());
+    tmp_.filename[tmp_.last_print_data_file.size()] = 0;
   }
 
   tmp_.modal_open =
-      ImGui::IsPopupOpen("SaveXML") || ImGui::IsPopupOpen("SaveMJB") ||
-      ImGui::IsPopupOpen("SaveWebp") || ImGui::IsPopupOpen("PrintModel") ||
-      ImGui::IsPopupOpen("PrintData");
+      ImGui::IsPopupOpen("LoadModel") || ImGui::IsPopupOpen("SaveXML") ||
+      ImGui::IsPopupOpen("SaveMJB") || ImGui::IsPopupOpen("SaveWebp") ||
+      ImGui::IsPopupOpen("PrintModel") || ImGui::IsPopupOpen("PrintData");
 
   if (ImGui::BeginPopupModal("LoadModel", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
+                            ImGuiWindowFlags_AlwaysAutoResize)) {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       LoadModel(tmp_.filename);
+      tmp_.last_load_file = tmp_.filename;
     }
     ImGui::EndPopup();
   }
@@ -1222,6 +1247,7 @@ void App::FileDialogGui() {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       char err[1000] = "";
       mj_saveLastXML(tmp_.filename, Model(), err, 1000);
+      tmp_.last_save_xml_file = tmp_.filename;
     }
     ImGui::EndPopup();
   }
@@ -1229,6 +1255,7 @@ void App::FileDialogGui() {
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       mj_saveModel(Model(), tmp_.filename, nullptr, 0);
+      tmp_.last_save_mjb_file = tmp_.filename;
     }
     ImGui::EndPopup();
   }
@@ -1237,6 +1264,7 @@ void App::FileDialogGui() {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       renderer_->SaveScreenshot(tmp_.filename, window_->GetWidth(),
                                 window_->GetHeight());
+      tmp_.last_save_screenshot_file = tmp_.filename;
     }
     ImGui::EndPopup();
   }
@@ -1244,6 +1272,7 @@ void App::FileDialogGui() {
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       mj_printModel(Model(), tmp_.filename);
+      tmp_.last_print_model_file = tmp_.filename;
     }
     ImGui::EndPopup();
   }
@@ -1251,6 +1280,7 @@ void App::FileDialogGui() {
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       mj_printData(Model(), Data(), tmp_.filename);
+      tmp_.last_print_data_file = tmp_.filename;
     }
     ImGui::EndPopup();
   }
