@@ -187,6 +187,16 @@ _SKIPPED_UTILITY_FUNCTIONS: List[str] = [
     # go/keep-sorted end
 ]
 
+# Functions that require special wrappers.
+# These functions are not bound automatically but are written by hand instead.
+MANUAL_WRAPPER_FUNCTIONS: List[str] = [
+    # go/keep-sorted start
+    "mj_saveLastXML",
+    "mj_setLengthRange",
+    "mju_error",
+    # go/keep-sorted end
+]
+
 # List of functions that should be skipped during the code generation process.
 SKIPPED_FUNCTIONS: List[str] = (
     _SKIPPED_CLASS_METHODS
@@ -200,92 +210,6 @@ SKIPPED_FUNCTIONS: List[str] = (
     + _SKIPPED_WRITABLE_ERROR
     + _SKIPPED_UTILITY_FUNCTIONS
 )
-
-# Functions that require special wrappers to infer sizes and make additional
-# validation checks. These functions are not bound automatically but are
-# written by hand instead.
-BOUNDCHECK_FUNCS: List[str] = [
-    # go/keep-sorted start
-    "mj_addM",
-    "mj_angmomMat",
-    "mj_applyFT",
-    "mj_constraintUpdate",
-    "mj_differentiatePos",
-    "mj_fullM",
-    "mj_geomDistance",
-    "mj_getState",
-    "mj_integratePos",
-    "mj_jac",
-    "mj_jacBody",
-    "mj_jacBodyCom",
-    "mj_jacDot",
-    "mj_jacGeom",
-    "mj_jacPointAxis",
-    "mj_jacSite",
-    "mj_jacSubtreeCom",
-    "mj_mulJacTVec",
-    "mj_mulJacVec",
-    "mj_mulM",
-    "mj_mulM2",
-    "mj_multiRay",
-    "mj_normalizeQuat",
-    "mj_rne",
-    "mj_saveLastXML",
-    "mj_setLengthRange",
-    "mj_setState",
-    "mj_solveM",
-    "mj_solveM2",
-    "mjd_inverseFD",
-    "mjd_subQuat",
-    "mjd_transitionFD",
-    "mju_L1",
-    "mju_add",
-    "mju_addScl",
-    "mju_addTo",
-    "mju_addToScl",
-    "mju_band2Dense",
-    "mju_bandMulMatVec",
-    "mju_boxQP",
-    "mju_cholFactor",
-    "mju_cholFactorBand",
-    "mju_cholSolve",
-    "mju_cholSolveBand",
-    "mju_cholUpdate",
-    "mju_copy",
-    "mju_d2n",
-    "mju_decodePyramid",
-    "mju_dense2Band",
-    "mju_dense2sparse",
-    "mju_dot",
-    "mju_encodePyramid",
-    "mju_eye",
-    "mju_f2n",
-    "mju_fill",
-    "mju_insertionSort",
-    "mju_insertionSortInt",
-    "mju_isZero",
-    "mju_mulMatMat",
-    "mju_mulMatMatT",
-    "mju_mulMatTMat",
-    "mju_mulMatTVec",
-    "mju_mulMatVec",
-    "mju_mulVecMatVec",
-    "mju_n2d",
-    "mju_n2f",
-    "mju_norm",
-    "mju_normalize",
-    "mju_printMatSparse",
-    "mju_scl",
-    "mju_sparse2dense",
-    "mju_sqrMatTD",
-    "mju_sub",
-    "mju_subFrom",
-    "mju_sum",
-    "mju_symmetrize",
-    "mju_transpose",
-    "mju_zero",
-    # go/keep-sorted end
-]
 
 # List of structs that should be skipped during the code generation process.
 SKIPPED_STRUCTS: List[str] = [
@@ -480,3 +404,320 @@ BYTE_FIELDS: Dict[str, Dict[str, str]] = {
     "buffer": {"size": "nbuffer"},
     "arena": {"size": "narena"},
 }
+
+# pyformat: disable
+# Dictionary mapping function names to their boundcheck code.
+FUNCTION_BOUNDS_CHECKS: Dict[str, str] = {
+    "mj_solveM": """
+  CHECK_SIZES(x, y);
+  CHECK_DIVISIBLE(x, m.nv());
+  int n = x_div.quot;
+    """.strip(),
+    "mj_solveM2": """
+  CHECK_SIZES(x, y);
+  CHECK_SIZE(sqrtInvD, m.nv());
+  CHECK_DIVISIBLE(x, m.nv());
+  int n = x_div.quot;
+    """.strip(),
+    "mju_add": """
+  CHECK_SIZES(res, vec1);
+  CHECK_SIZES(res, vec2);
+  int n = res_.size();
+    """.strip(),
+    "mju_addScl": """
+  CHECK_SIZES(res, vec1);
+  CHECK_SIZES(res, vec2);
+  int n = res_.size();
+    """.strip(),
+    "mju_addTo": """
+  CHECK_SIZES(res, vec);
+  int n = res_.size();
+    """.strip(),
+    "mju_addToScl": """
+  CHECK_SIZES(res, vec);
+  int n = res_.size();
+    """.strip(),
+    "mju_boxQP": """
+  CHECK_SIZES(lower, res);
+  CHECK_SIZES(upper, res);
+  CHECK_SIZES(index, res);
+  CHECK_SIZE(R, res_.size() * (res_.size() + 7))
+  CHECK_PERFECT_SQUARE(H);
+  CHECK_SIZES(g, res);
+  int n = res_.size();
+    """.strip(),
+    "mju_cholFactor": """
+  CHECK_PERFECT_SQUARE(mat);
+  int n = mat_sqrt;
+    """.strip(),
+    "mju_cholSolve": """
+  CHECK_PERFECT_SQUARE(mat);
+  CHECK_SIZE(res, mat_sqrt);
+  CHECK_SIZE(vec, mat_sqrt);
+  int n = mat_sqrt;
+    """.strip(),
+    "mju_cholUpdate": """
+  CHECK_PERFECT_SQUARE(mat);
+  CHECK_SIZE(x, mat_sqrt);
+  int n = mat_sqrt;
+    """.strip(),
+    "mju_copy": """
+  CHECK_SIZES(res, vec);
+  int n = res_.size();
+    """.strip(),
+    "mju_d2n": """
+  CHECK_SIZES(res, vec);
+  int n = res_.size();
+    """.strip(),
+    "mju_decodePyramid": """
+  CHECK_SIZE(pyramid, 2 * mu_.size());
+  CHECK_SIZE(force, mu_.size() + 1);
+  int dim = mu_.size();
+    """.strip(),
+    "mju_dot": """
+  CHECK_SIZES(vec1, vec2);
+  int n = vec1_.size();
+    """.strip(),
+    "mju_encodePyramid": """
+  CHECK_SIZE(pyramid, 2 * mu_.size());
+  CHECK_SIZE(force, mu_.size() + 1);
+  int dim = mu_.size();
+    """.strip(),
+    "mju_eye": """
+  CHECK_PERFECT_SQUARE(mat);
+  int n = mat_sqrt;
+    """.strip(),
+    "mju_f2n": """
+  CHECK_SIZES(res, vec);
+  int n = res_.size();
+    """.strip(),
+    "mju_mulVecMatVec": """
+  CHECK_SIZES(vec1, vec2);
+  CHECK_SIZE(mat, vec1_.size() * vec2_.size());
+  int n = vec1_.size();
+    """.strip(),
+    "mju_n2d": """
+  CHECK_SIZES(res, vec);
+  int n = res_.size();
+    """.strip(),
+    "mju_n2f": """
+  CHECK_SIZES(res, vec);
+  int n = res_.size();
+    """.strip(),
+    "mju_printMatSparse": """
+  CHECK_SIZES(rownnz, rowadr);
+  int nr = rowadr_.size();
+    """.strip(),
+    "mju_scl": """
+  CHECK_SIZES(res, vec);
+  int n = res_.size();
+    """.strip(),
+    "mju_sub": """
+  CHECK_SIZES(res, vec1);
+  CHECK_SIZES(res, vec2);
+  int n = res_.size();
+    """.strip(),
+    "mju_subFrom": """
+  CHECK_SIZES(res, vec);
+  int n = res_.size();
+    """.strip(),
+    "mju_insertionSort": "int n = list_.size();",
+    "mju_insertionSortInt": "int n = list_.size();",
+    "mju_fill": "int n = res_.size();",
+    "mju_dense2sparse": """
+  CHECK_SIZE(mat, nr * nc);
+  CHECK_SIZE(rownnz, nr);
+  CHECK_SIZE(rowadr, nr);
+  CHECK_SIZE(colind, res_.size());
+  int nnz = res_.size();
+    """.strip(),
+    "mj_addM": """
+  CHECK_SIZE(rownnz, m.nv());
+  CHECK_SIZE(rowadr, m.nv());
+  CHECK_SIZE(colind, m.nM());
+  CHECK_SIZE(dst, m.nM());
+    """.strip(),
+    "mj_angmomMat": """
+  CHECK_SIZE(mat, m.nv() * 3);
+    """.strip(),
+    "mj_applyFT": """
+  CHECK_SIZE(qfrc_target, m.nv());
+  CHECK_SIZE(force, 3);
+  CHECK_SIZE(torque, 3);
+  CHECK_SIZE(point, 3);
+    """.strip(),
+    "mj_constraintUpdate": """
+  CHECK_SIZE(cost, 1);
+  CHECK_SIZE(jar, d.nefc());
+    """.strip(),
+    "mj_differentiatePos": """
+  CHECK_SIZE(qvel, m.nv());
+  CHECK_SIZE(qpos1, m.nq());
+  CHECK_SIZE(qpos2, m.nq());
+    """.strip(),
+    "mj_fullM": """
+  CHECK_SIZE(M, m.nM());
+  CHECK_SIZE(dst, m.nv() * m.nv());
+    """.strip(),
+    "mj_geomDistance": """
+  CHECK_SIZE(fromto, 6);
+    """.strip(),
+    "mj_getState": """
+  CHECK_SIZE(state, mj_stateSize(m.get(), sig));
+    """.strip(),
+    "mj_integratePos": """
+  CHECK_SIZE(qpos, m.nq());
+  CHECK_SIZE(qvel, m.nv());
+    """.strip(),
+    "mj_jac": """
+  CHECK_SIZE(point, 3);
+  CHECK_SIZE(jacp, m.nv() * 3);
+  CHECK_SIZE(jacr, m.nv() * 3);
+    """.strip(),
+    "mj_jacBody": """
+  CHECK_SIZE(jacp, m.nv() * 3);
+  CHECK_SIZE(jacr, m.nv() * 3);
+    """.strip(),
+    "mj_jacBodyCom": """
+  CHECK_SIZE(jacp, m.nv() * 3);
+  CHECK_SIZE(jacr, m.nv() * 3);
+    """.strip(),
+    "mj_jacDot": """
+  CHECK_SIZE(point, 3);
+  CHECK_SIZE(jacp, m.nv() * 3);
+  CHECK_SIZE(jacr, m.nv() * 3);
+    """.strip(),
+    "mj_jacGeom": """
+  CHECK_SIZE(jacp, m.nv() * 3);
+  CHECK_SIZE(jacr, m.nv() * 3);
+    """.strip(),
+    "mj_jacPointAxis": """
+  CHECK_SIZE(point, 3);
+  CHECK_SIZE(axis, 3);
+  CHECK_SIZE(jacPoint, m.nv() * 3);
+  CHECK_SIZE(jacAxis, m.nv() * 3);
+    """.strip(),
+    "mj_jacSite": """
+  CHECK_SIZE(jacp, m.nv() * 3);
+  CHECK_SIZE(jacr, m.nv() * 3);
+    """.strip(),
+    "mj_jacSubtreeCom": """
+  CHECK_SIZE(jacp, m.nv() * 3);
+    """.strip(),
+    "mj_mulJacTVec": """
+  CHECK_SIZE(res, m.nv());
+  CHECK_SIZE(vec, d.nefc());
+    """.strip(),
+    "mj_mulJacVec": """
+  CHECK_SIZE(res, d.nefc());
+  CHECK_SIZE(vec, m.nv());
+    """.strip(),
+    "mj_mulM": """
+  CHECK_SIZE(res, m.nv());
+  CHECK_SIZE(vec, m.nv());
+    """.strip(),
+    "mj_mulM2": """
+  CHECK_SIZE(res, m.nv());
+  CHECK_SIZE(vec, m.nv());
+    """.strip(),
+    "mj_multiRay": """
+  CHECK_SIZE(dist, nray);
+  CHECK_SIZE(geomid, nray);
+  CHECK_SIZE(vec, 3 * nray);
+    """.strip(),
+    "mj_normalizeQuat": """
+  CHECK_SIZE(qpos, m.nq());
+    """.strip(),
+    "mj_rne": """
+  CHECK_SIZE(result, m.nv());
+    """.strip(),
+    "mj_setState": """
+  CHECK_SIZE(state, mj_stateSize(m.get(), sig));
+    """.strip(),
+    "mjd_inverseFD": """
+  CHECK_SIZE(DfDq, m.nv() * m.nv());
+  CHECK_SIZE(DfDv, m.nv() * m.nv());
+  CHECK_SIZE(DfDa, m.nv() * m.nv());
+  CHECK_SIZE(DsDq, m.nv() * m.nsensordata());
+  CHECK_SIZE(DsDv, m.nv() * m.nsensordata());
+  CHECK_SIZE(DsDa, m.nv() * m.nsensordata());
+  CHECK_SIZE(DmDq, m.nv() * m.nM());
+    """.strip(),
+    "mjd_subQuat": """
+  CHECK_SIZE(qa, 4);
+  CHECK_SIZE(qb, 4);
+  CHECK_SIZE(Da, 9);
+  CHECK_SIZE(Db, 9);
+    """.strip(),
+    "mjd_transitionFD": """
+  CHECK_SIZE(A, (2 * m.nv() + m.na()) * (2 * m.nv() + m.na()));
+  CHECK_SIZE(B, (2 * m.nv() + m.na()) * m.nu());
+  CHECK_SIZE(C, m.nsensordata() * (2 * m.nv() + m.na()));
+  CHECK_SIZE(D, m.nsensordata() * m.nu());
+    """.strip(),
+    "mju_band2Dense": """
+  CHECK_SIZE(mat, (ntotal - ndense) * nband + ndense * ntotal);
+  CHECK_SIZE(res, ntotal * ntotal);
+    """.strip(),
+    "mju_bandMulMatVec": """
+  CHECK_SIZE(mat, (ntotal - ndense) * nband + ndense * ntotal);
+  CHECK_SIZE(res, ntotal * nvec);
+  CHECK_SIZE(vec, ntotal * nvec);
+    """.strip(),
+    "mju_cholFactorBand": """
+  CHECK_SIZE(mat, (ntotal - ndense) * nband + ndense * ntotal);
+    """.strip(),
+    "mju_cholSolveBand": """
+  CHECK_SIZE(mat, (ntotal - ndense) * nband + ndense * ntotal);
+  CHECK_SIZE(res, ntotal);
+  CHECK_SIZE(vec, ntotal);
+    """.strip(),
+    "mju_dense2Band": """
+  CHECK_SIZE(mat, ntotal * ntotal);
+  CHECK_SIZE(res, (ntotal - ndense) * nband + ndense * ntotal);
+    """.strip(),
+    "mju_mulMatMat": """
+  CHECK_SIZE(res, r1 * c2);
+  CHECK_SIZE(mat1, r1 * c1);
+  CHECK_SIZE(mat2, c1 * c2);
+    """.strip(),
+    "mju_mulMatMatT": """
+  CHECK_SIZE(res, r1 * r2);
+  CHECK_SIZE(mat1, r1 * c1);
+  CHECK_SIZE(mat2, r2 * c1);
+    """.strip(),
+    "mju_mulMatTMat": """
+  CHECK_SIZE(res, c1 * c2);
+  CHECK_SIZE(mat1, r1 * c1);
+  CHECK_SIZE(mat2, r1 * c2);
+    """.strip(),
+    "mju_mulMatTVec": """
+  CHECK_SIZE(mat, nr * nc);
+  CHECK_SIZE(res, nc);
+  CHECK_SIZE(vec, nr);
+    """.strip(),
+    "mju_mulMatVec": """
+  CHECK_SIZE(mat, nr * nc);
+  CHECK_SIZE(res, nr);
+  CHECK_SIZE(vec, nc);
+    """.strip(),
+    "mju_sparse2dense": """
+  CHECK_SIZE(res, nr * nc);
+  CHECK_SIZE(rownnz, nr);
+  CHECK_SIZE(rowadr, nr);
+    """.strip(),
+    "mju_sqrMatTD": """
+  CHECK_SIZE(mat, nr * nc);
+  CHECK_SIZE(res, nc * nc);
+  CHECK_SIZE(diag, nr);
+    """.strip(),
+    "mju_symmetrize": """
+  CHECK_SIZE(mat, n * n);
+  CHECK_SIZE(res, n * n);
+    """.strip(),
+    "mju_transpose": """
+  CHECK_SIZE(mat, nr * nc);
+  CHECK_SIZE(res, nr * nc);
+    """.strip(),
+}
+# pyformat: enable

@@ -224,8 +224,8 @@ class FunctionUtilsTest(absltest.TestCase):
         name="my_struct",
         type=ast_nodes.PointerType(ast_nodes.ValueType("mystruct")),
     )
-    result = functions.get_params_string((param,))
-    self.assertEqual(result, ["Mystruct& my_struct"])
+    result = functions.get_param_string(param)
+    self.assertEqual(result, "Mystruct& my_struct")
 
   def test_get_params_string_maybe_with_conversion_struct_ptr(self):
     param = ast_nodes.FunctionParameterDecl(

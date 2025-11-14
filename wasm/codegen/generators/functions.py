@@ -114,129 +114,131 @@ def should_be_wrapped(func: ast_nodes.FunctionDecl) -> bool:
 def generate_function_wrapper(func: ast_nodes.FunctionDecl) -> str:
   """Generates C++ code for a wrapper function."""
 
-  params_unpack_statements = get_params_unpack_statements(func.parameters)
-  wrapper_params_list = get_params_string(func.parameters)
-  not_nullable_params = get_params_notnullable(func.parameters)
-  wrapper_params = ", ".join(wrapper_params_list)
+  bound_check_code = constants.FUNCTION_BOUNDS_CHECKS.get(func.name, "")
+  wrapper_parameters = [
+      p for p in func.parameters if f"{p.name} = " not in bound_check_code
+  ]
+  wrapper_params = ", ".join([get_param_string(p) for p in wrapper_parameters])
   ret_type = get_compatible_return_type(func)
-
   builder = code_builder.CodeBuilder()
   with builder.function(f"{ret_type} {func.name}_wrapper({wrapper_params})"):
-    invoker_params_list = get_params_string_maybe_with_conversion(
+
+    for p in wrapper_parameters:
+      if c_notnullable := get_param_notnullable(p):
+        builder.line(f"CHECK_VAL({c_notnullable});")
+
+    for p in wrapper_parameters:
+      if c_unpack := get_param_unpack_statement(p):
+        builder.line(c_unpack)
+
+    if bound_check_code:
+      builder.line(bound_check_code)
+
+    c_params_list = get_params_string_maybe_with_conversion(
         func.parameters
     )
-    invoker_params_str = ", ".join(invoker_params_list)
-    invoker_call = f"{func.name}({invoker_params_str})"
-    invoker_statement = get_compatible_return_call(func, invoker_call)
-    for p in not_nullable_params:
-      builder.line(f"CHECK_VAL({p});")
-    for unpack_statement in params_unpack_statements:
-      builder.line(unpack_statement)
-    builder.line(f"{invoker_statement};")
+    c_params_str = ", ".join(c_params_list)
+    c_call = f"{func.name}({c_params_str})"
+    c_statement = get_compatible_return_call(func, c_call)
+    builder.line(f"{c_statement};")
 
   return builder.to_string()
 
 
-def get_params_notnullable(
-    ast_params: Tuple[ast_nodes.FunctionParameterDecl, ...],
-) -> List[str]:
+def get_param_notnullable(
+    p: ast_nodes.FunctionParameterDecl,
+) -> str:
   """Generates list of param names for checking if they aren't null/undefined."""
 
-  not_nullable_params = []
-  for p in ast_params:
-    if (
-        isinstance(p.type, (ast_nodes.PointerType, ast_nodes.ArrayType))
-        and isinstance(p.type.inner_type, ast_nodes.ValueType)
-        # We only check for char because others are checked in the unpacker
-        # and we don't want to check twice.
-        and p.type.inner_type.name == "char"
-        and not p.nullable
-    ):
-      not_nullable_params.append(p.name)
-  return not_nullable_params
+  if (
+      isinstance(p.type, (ast_nodes.PointerType, ast_nodes.ArrayType))
+      and isinstance(p.type.inner_type, ast_nodes.ValueType)
+      # We only check for char because others are checked in the unpacker
+      # and we don't want to check twice.
+      and p.type.inner_type.name == "char"
+      and not p.nullable
+  ):
+    return p.name
+  return ""
 
 
-def get_params_unpack_statements(
-    ast_params: Tuple[ast_nodes.FunctionParameterDecl, ...],
-) -> List[str]:
+def get_param_unpack_statement(
+    p: ast_nodes.FunctionParameterDecl,
+) -> str | None:
   """Generates C++ statements to unpack JS values for pointer/array parameters."""
 
-  params_unpack_statements = []
-  for p in ast_params:
-    if (
-        isinstance(p.type, (ast_nodes.PointerType, ast_nodes.ArrayType))
-        and isinstance(p.type.inner_type, ast_nodes.ValueType)
-        and p.type.inner_type.name in PRIMITIVE_TYPES
-    ):
-      if p.type.inner_type.name == "char":
-        # param is Javascript string
-        continue
-
-      if p.type.inner_type.is_const:
-        # param is Javascript number[]
-        params_unpack_statements.append(
-            f"UNPACK_ARRAY({p.type.inner_type.name}, {p.name});"
-        )
+  if (
+      isinstance(p.type, (ast_nodes.PointerType, ast_nodes.ArrayType))
+      and isinstance(p.type.inner_type, ast_nodes.ValueType)
+      and p.type.inner_type.name in PRIMITIVE_TYPES
+  ):
+    if p.type.inner_type.name == "char":
+      # param is Javascript string
+      return ""
+    if p.type.inner_type.is_const:
+      # param is Javascript number[]
+      if p.nullable:
+        return f"UNPACK_NULLABLE_ARRAY({p.type.inner_type.name}, {p.name});"
       else:
-        # param is TypedArray or a WasmBuffer
-        params_unpack_statements.append(
-            f"UNPACK_VALUE({p.type.inner_type.name}, {p.name});"
-        )
-  return params_unpack_statements
+        return f"UNPACK_ARRAY({p.type.inner_type.name}, {p.name});"
+    else:
+      # param is TypedArray or a WasmBuffer
+      if p.nullable:
+        return f"UNPACK_NULLABLE_VALUE({p.type.inner_type.name}, {p.name});"
+      else:
+        return f"UNPACK_VALUE({p.type.inner_type.name}, {p.name});"
+  return None
 
 
-def get_params_string(
-    parameters: Tuple[ast_nodes.FunctionParameterDecl, ...]
-) -> List[str]:
+def get_param_string(
+    p: ast_nodes.FunctionParameterDecl
+) -> str:
   """Generates a list of C++ parameter declarations as strings."""
 
-  result = []
-  for p in parameters:
-    if (
-        isinstance(p.type, ast_nodes.PointerType)
-        and isinstance(p.type.inner_type, ast_nodes.ValueType)
-        and p.type.inner_type.name not in PRIMITIVE_TYPES
-    ):
-      # Pointer to struct parameters
-      const_qualifier = "const " if p.type.inner_type.is_const else ""
-      result.append(
-          f"{const_qualifier}{uppercase_first_letter(p.type.inner_type.name)}&"
-          f" {p.name}"
-      )
-    elif (
-        isinstance(p.type, ast_nodes.ValueType)
-        and p.type.name in PRIMITIVE_TYPES
-    ):
-      # Primitive value parameters
-      const_qualifier = "const " if p.type.is_const else ""
-      result.append(f"{const_qualifier}{p.type} {p.name}")
-    elif (
-        isinstance(p.type, (ast_nodes.PointerType, ast_nodes.ArrayType))
-        and isinstance(p.type.inner_type, ast_nodes.ValueType)
-        and p.type.inner_type.name in PRIMITIVE_TYPES
-    ):
-      # Pointer to primitive value parameters or arrays
-      if p.type.inner_type.name == "char":
-        if p.nullable:
-          result.append(f"const NullableString& {p.name}")
-        else:
-          result.append(f"const String& {p.name}")
-      elif (
-          p.type.inner_type.name
-          in ["int", "float", "double", "mjtNum", "mjtByte"]
-          and p.type.inner_type.is_const
-      ):
-        result.append(f"const NumberArray& {p.name}")
+  if (
+      isinstance(p.type, ast_nodes.PointerType)
+      and isinstance(p.type.inner_type, ast_nodes.ValueType)
+      and p.type.inner_type.name not in PRIMITIVE_TYPES
+  ):
+    # Pointer to struct parameters
+    const_qualifier = "const " if p.type.inner_type.is_const else ""
+    return (
+        f"{const_qualifier}{uppercase_first_letter(p.type.inner_type.name)}&"
+        f" {p.name}"
+    )
+  elif (
+      isinstance(p.type, ast_nodes.ValueType)
+      and p.type.name in PRIMITIVE_TYPES
+  ):
+    # Primitive value parameters
+    const_qualifier = "const " if p.type.is_const else ""
+    return f"{const_qualifier}{p.type} {p.name}"
+  elif (
+      isinstance(p.type, (ast_nodes.PointerType, ast_nodes.ArrayType))
+      and isinstance(p.type.inner_type, ast_nodes.ValueType)
+      and p.type.inner_type.name in PRIMITIVE_TYPES
+  ):
+    # Pointer to primitive value parameters or arrays
+    if p.type.inner_type.name == "char":
+      if p.nullable:
+        return f"const NullableString& {p.name}"
       else:
-        result.append(f"const val& {p.name}")
+        return f"const String& {p.name}"
+    elif (
+        p.type.inner_type.name
+        in ["int", "float", "double", "mjtNum", "mjtByte"]
+        and p.type.inner_type.is_const
+    ):
+      return f"const NumberArray& {p.name}"
     else:
-      # This case should ideally not be reached if AST is well-formed
-      # and types are categorized by the helper booleans correctly.
-      raise TypeError(
-          "Unable to generate param string. Unhandled parameter type:"
-          f" {p.type} for param '{p.name}'"
-      )
-  return result
+      return f"const val& {p.name}"
+  else:
+    # This case should ideally not be reached if AST is well-formed
+    # and types are categorized by the helper booleans correctly.
+    raise TypeError(
+        "Unable to generate param string. Unhandled parameter type:"
+        f" {p.type} for param '{p.name}'"
+    )
 
 
 def get_params_string_maybe_with_conversion(
@@ -366,7 +368,7 @@ class Generator:
 
     code = []
     for func in self.wrapper_bind_functions:
-      if func.name not in constants.BOUNDCHECK_FUNCS:
+      if func.name not in constants.MANUAL_WRAPPER_FUNCTIONS:
         wrapper_code = generate_function_wrapper(func)
         code.append(wrapper_code)
 
