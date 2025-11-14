@@ -31,6 +31,7 @@ Renderer::~Renderer() { Deinit(); }
 void Renderer::Init(const mjModel* model) {
   Deinit();
   if (model) {
+    mjr_defaultContext(&render_context_);
     make_context_fn_(model, &render_context_);
     mjv_defaultScene(&scene_);
     mjv_makeScene(model, &scene_, 2000);
