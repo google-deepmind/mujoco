@@ -222,7 +222,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
       // disk is added to the base of the cone. This disk is rotated such that
       // its normal points outwards.
       entity_transform *= mat4::scaling(float3{1, 1, kArrowScale});
-      entity_transform *= mat4::translation(float3{0, 0, kArrowScale});
+      entity_transform *= mat4::translation(float3{0, 0, size.z});
       if (j == kArrow0Cone) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
         entity_transform *=
@@ -240,7 +240,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
       // An arrow1 is a tube with a cone at the end and a disk cap at the other
       // end.
       entity_transform *= mat4::scaling(float3{1, 1, kArrowScale});
-      entity_transform *= mat4::translation(float3{0, 0, kArrowScale});
+      entity_transform *= mat4::translation(float3{0, 0, size.z});
       if (j == kArrow1Cone) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
       } else if (j == kArrow1BottomDisk) {
@@ -251,7 +251,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
       // An arrow2 is a tube with a cone at both ends.  Like the standard arrow,
       // an extra disk is added to the base of each cone.
       entity_transform *= mat4::scaling(float3{1, 1, kArrowScale});
-      entity_transform *= mat4::translation(float3{0, 0, kArrowScale});
+      entity_transform *= mat4::translation(float3{0, 0, size.z});
       if (j == kArrow2TopCone) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
         entity_transform *=
