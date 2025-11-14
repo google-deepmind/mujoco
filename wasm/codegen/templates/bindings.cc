@@ -105,13 +105,7 @@ std::vector<WrapperType> InitWrapperArray(ArrayType* array, SizeType size) {
   return result;
 }
 
-// Create the types for anonymous structs
-using mjVisualGlobal = decltype(::mjVisual::global);
-using mjVisualQuality = decltype(::mjVisual::quality);
-using mjVisualHeadlight = decltype(::mjVisual::headlight);
-using mjVisualMap = decltype(::mjVisual::map);
-using mjVisualScale = decltype(::mjVisual::scale);
-using mjVisualRgba = decltype(::mjVisual::rgba);
+// {{ ANONYMOUS_STRUCT_TYPEDEFS }}
 
 // {{ AUTOGENNED_STRUCTS_HEADER }}
 

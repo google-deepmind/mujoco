@@ -699,6 +699,17 @@ class Generator:
     autogenned_struct_definitions = []
     markers_and_content = []
 
+    typedefs = []
+    for type_name in sorted(constants.ANONYMOUS_STRUCTS):
+      s = constants.ANONYMOUS_STRUCTS[type_name]
+      typedefs.append(
+          f"using {type_name} = decltype(::{s['parent']}::{s['field_name']});"
+      )
+    markers_and_content.append((
+        "// {{ ANONYMOUS_STRUCT_TYPEDEFS }}",
+        typedefs,
+    ))
+
     # Sort by struct name by dependency to ensure deterministic output order
     sorted_struct_names = sort_structs_by_dependency(self.structs_to_bind_data)
 
