@@ -145,8 +145,8 @@ Minimal example
 
 .. _mjwCLI:
 
-Helpful command line scripts
-----------------------------
+Command line scripts
+--------------------
 
 Benchmark an environment with testspeed
 
