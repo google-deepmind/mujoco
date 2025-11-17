@@ -22,6 +22,7 @@
 #include <mujoco/mjtnum.h>
 #include <mujoco/mjmodel.h>
 #include "engine/engine_collision_convex.h"
+#include "engine/engine_macro.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 
@@ -2216,11 +2217,11 @@ static inline void inflate(mjCCDStatus* status, mjtNum margin1, mjtNum margin2) 
 mjtNum mjc_ccd(const mjCCDConfig* config, mjCCDStatus* status, mjCCDObj* obj1, mjCCDObj* obj2) {
   // pre-allocate static memory for low iterations
   void* buffer = NULL;
-  static _Thread_local Vertex vert_data[5 + mjMAX_EPA_ITERATIONS];
-  static _Thread_local Face face_data[6 * mjMAX_EPA_ITERATIONS];
-  static _Thread_local Face* map_data[6 * mjMAX_EPA_ITERATIONS];
-  static _Thread_local int index_data[6 + mjMAX_EPA_ITERATIONS];
-  static _Thread_local int edge_data[6 + mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL Vertex vert_data[5 + mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL Face face_data[6 * mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL Face* map_data[6 * mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL int index_data[6 + mjMAX_EPA_ITERATIONS];
+  static mjTHREADLOCAL int edge_data[6 + mjMAX_EPA_ITERATIONS];
 
   // setup
   obj1->center(status->x1, obj1);
