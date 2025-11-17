@@ -1143,6 +1143,8 @@ Intersect multiple rays emanating from a single point.
 
 Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
 
+*Nullable:* ``geomgroup``
+
 .. _mj_ray:
 
 `mj_ray <#mj_ray>`__
@@ -1161,7 +1163,7 @@ If flg_static is 0, static geoms will be excluded.
 
 bodyexclude=-1 can be used to indicate that all bodies are included.
 
-*Nullable:* ``geomid``
+*Nullable:* ``geomgroup``, ``geomid``
 
 .. _mj_rayHfield:
 

@@ -3685,8 +3685,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='vec',
-                 type=PointerType(
+                 type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(
@@ -3694,6 +3695,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte', is_const=True),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='flg_static',
@@ -3762,6 +3764,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte', is_const=True),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='flg_static',
@@ -3948,14 +3951,16 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='pnt',
-                 type=PointerType(
+                 type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(
                  name='vec',
-                 type=PointerType(
+                 type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(

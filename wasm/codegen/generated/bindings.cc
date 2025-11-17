@@ -10631,7 +10631,7 @@ std::string mj_versionString_wrapper() {
 void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& dist, int nray, mjtNum cutoff) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  UNPACK_ARRAY(mjtByte, geomgroup);
+  UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
   UNPACK_VALUE(int, geomid);
   UNPACK_VALUE(mjtNum, dist);
   CHECK_SIZE(dist, nray);
@@ -10643,7 +10643,7 @@ void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, co
 mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  UNPACK_ARRAY(mjtByte, geomgroup);
+  UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
   UNPACK_NULLABLE_VALUE(int, geomid);
   return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data());
 }

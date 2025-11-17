@@ -340,7 +340,7 @@ If flg_static is 0, static geoms will be excluded.
 
 bodyexclude=-1 can be used to indicate that all bodies are included.
 
-*Nullable:* ``geomid``
+*Nullable:* ``geomgroup``, ``geomid``
 
 .. _Interaction:
 

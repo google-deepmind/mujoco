@@ -619,14 +619,15 @@ MJAPI const char* mj_versionString(void);
 
 // Intersect multiple rays emanating from a single point.
 // Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
-MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+// Nullable: geomgroup
+MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                        const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
 
 // Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude.
 // Return distance (x) to nearest surface, or -1 if no intersection and output geomid.
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.
-// Nullable: geomid
+// Nullable: geomgroup, geomid
 MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                     int geomid[1]);
@@ -648,7 +649,7 @@ MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum 
 // Nullable: vertid
 MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
                          mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
-                         const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
+                         const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
 
 // Intersect ray with skin, return nearest distance or -1 if no intersection,
 // and also output nearest vertex id.

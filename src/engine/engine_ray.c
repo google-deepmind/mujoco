@@ -35,8 +35,9 @@
 //---------------------------- utility functions ---------------------------------------------------
 
 // map ray to local geom frame
-static void ray_map(const mjtNum* pos, const mjtNum* mat, const mjtNum* pnt, const mjtNum* vec,
-                    mjtNum* lpnt, mjtNum* lvec) {
+static void ray_map(const mjtNum pos[3], const mjtNum mat[9],
+                    const mjtNum pnt[3], const mjtNum vec[3],
+                    mjtNum lpnt[3], mjtNum lvec[3]) {
   const mjtNum dif[3] = {pnt[0]-pos[0], pnt[1]-pos[1], pnt[2]-pos[2]};
 
   // lpnt = mat' * dif
@@ -98,35 +99,38 @@ static int ray_eliminate(const mjModel* m, const mjData* d, int geomid,
 }
 
 
-// compute solution from quadratic:  a*x^2 + 2*b*x + c = 0
-static mjtNum ray_quad(mjtNum a, mjtNum b, mjtNum c, mjtNum* x) {
-  // compute determinant and check
+// compute both real solutions of a*x^2 + 2*b*x + c = 0, return smallest non-negative solution if any
+static mjtNum ray_quad(mjtNum a, mjtNum b, mjtNum c, mjtNum x[2]) {
+  // compute determinant
   mjtNum det = b*b - a*c;
-  if (det < mjMINVAL) {
+
+  // return if real finite solutions don't exist
+  if (det < 0 || a < mjMINVAL) {
     x[0] = -1;
     x[1] = -1;
     return -1;
   }
-  det = mju_sqrt(det);
 
-  // compute the two solutions
+  // compute the two solutions, x[0] <= x[1] is guaranteed
+  det = mju_sqrt(det);
   x[0] = (-b-det)/a;
   x[1] = (-b+det)/a;
 
-  // finalize result
+  // return smallest non-negative solution
   if (x[0] >= 0) {
     return x[0];
   } else if (x[1] >= 0) {
     return x[1];
-  } else {
-    return -1;
   }
+
+  // both solutions are negative
+  return -1;
 }
 
 
 // intersect ray with triangle
-mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec,
-                    const mjtNum* b0, const mjtNum* b1) {
+mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
+                    const mjtNum b0[3], const mjtNum b1[3]) {
   // dif = v[i] - lpnt
   mjtNum dif[3][3];
   for (int i=0; i < 3; i++) {
@@ -159,7 +163,7 @@ mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec,
   if (mju_abs(det) < mjMINVAL) {
     return -1;
   }
-  mjtNum t0 = (A[3]*b[0] - A[1]*b[1]) / det;
+  mjtNum t0 = ( A[3]*b[0] - A[1]*b[1]) / det;
   mjtNum t1 = (-A[2]*b[0] + A[0]*b[1]) / det;
 
   // check if outside
@@ -184,8 +188,8 @@ mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec,
 //---------------------------- geom-specific intersection functions --------------------------------
 
 // plane
-static mjtNum ray_plane(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
-                        const mjtNum* pnt, const mjtNum* vec) {
+static mjtNum ray_plane(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                        const mjtNum pnt[3], const mjtNum vec[3]) {
   // map to local frame
   mjtNum lpnt[3], lvec[3];
   ray_map(pos, mat, pnt, vec, lpnt, lvec);
@@ -214,8 +218,8 @@ static mjtNum ray_plane(const mjtNum* pos, const mjtNum* mat, const mjtNum* size
 
 
 // sphere
-static mjtNum ray_sphere(const mjtNum* pos, const mjtNum* mat, mjtNum dist_sqr,
-                         const mjtNum* pnt, const mjtNum* vec) {
+static mjtNum ray_sphere(const mjtNum pos[3], const mjtNum mat[9], mjtNum dist_sqr,
+                         const mjtNum pnt[3], const mjtNum vec[3]) {
   // (x*vec+pnt-pos)'*(x*vec+pnt-pos) = size[0]*size[0]
   mjtNum dif[3] = {pnt[0]-pos[0], pnt[1]-pos[1], pnt[2]-pos[2]};
   mjtNum a = vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2];
@@ -295,8 +299,8 @@ static mjtNum ray_capsule(const mjtNum* pos, const mjtNum* mat, const mjtNum* si
 
 
 // ellipsoid
-static mjtNum ray_ellipsoid(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
-                            const mjtNum* pnt, const mjtNum* vec) {
+static mjtNum ray_ellipsoid(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                            const mjtNum pnt[3], const mjtNum vec[3]) {
   // map to local frame
   mjtNum lpnt[3], lvec[3];
   ray_map(pos, mat, pnt, vec, lpnt, lvec);
@@ -316,8 +320,8 @@ static mjtNum ray_ellipsoid(const mjtNum* pos, const mjtNum* mat, const mjtNum* 
 
 
 // cylinder
-static mjtNum ray_cylinder(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
-                           const mjtNum* pnt, const mjtNum* vec) {
+static mjtNum ray_cylinder(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                           const mjtNum pnt[3], const mjtNum vec[3]) {
   // bounding sphere test
   mjtNum ssz = size[0]*size[0] + size[1]*size[1];
   if (ray_sphere(pos, NULL, ssz, pnt, vec) < 0) {
@@ -375,14 +379,10 @@ static mjtNum ray_cylinder(const mjtNum* pos, const mjtNum* mat, const mjtNum* s
 
 
 // box
-static mjtNum ray_box(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
-                      const mjtNum* pnt, const mjtNum* vec, mjtNum* all) {
+static mjtNum ray_box(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                      const mjtNum pnt[3], const mjtNum vec[3], mjtNum all[6]) {
   // clear all
-  if (all) {
-    for (int i=0; i < 6; i++) {
-      all[i] = -1;
-    }
-  }
+  if (all) all[0] = all[1] = all[2] = all[3] = all[4] = all[5] = -1;
 
   // bounding sphere test
   mjtNum ssz = size[0]*size[0] + size[1]*size[1] + size[2]*size[2];
@@ -441,7 +441,7 @@ static mjtNum ray_box(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
 
 // intersect ray with hfield
 mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
-                    const mjtNum* pnt, const mjtNum* vec) {
+                    const mjtNum pnt[3], const mjtNum vec[3]) {
   // check geom type
   if (m->geom_type[id] != mjGEOM_HFIELD) {
     mjERROR("geom with hfield type expected");
@@ -589,7 +589,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
 // ray vs axis-aligned bounding box using slab method
 // see Ericson, Real-time Collision Detection section 5.3.3.
 int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
-                const mjtNum xmat[9], const mjtNum* pnt, const mjtNum* vec) {
+                const mjtNum xmat[9], const mjtNum pnt[3], const mjtNum vec[3]) {
   mjtNum tmin = 0.0, tmax = INFINITY;
 
   // compute min and max
@@ -615,8 +615,8 @@ int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
 }
 
 // ray vs tree intersection
-mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
-                   const mjtNum* vec) {
+mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3],
+                   const mjtNum vec[3]) {
   int mark_active = m->vis.global.bvactive;
   const int meshid = m->geom_dataid[id];
   const int bvhadr = m->mesh_bvhadr[meshid];
@@ -722,7 +722,7 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum* pnt,
 
 // intersect ray with signed distance field
 mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
-               const mjtNum* pnt, const mjtNum* vec) {
+               const mjtNum pnt[3], const mjtNum vec[3]) {
   mjtNum distance_total = 0;
   mjtNum p[3];
   mjtNum kMinDist = 1e-7;
@@ -782,7 +782,7 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
 
 // intersect ray with mesh
 mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
-                  const mjtNum* pnt, const mjtNum* vec) {
+                  const mjtNum pnt[3], const mjtNum vec[3]) {
   // check geom type
   if (m->geom_type[id] != mjGEOM_MESH) {
     mjERROR("geom with mesh type expected");
@@ -798,8 +798,8 @@ mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
 
 
 // intersect ray with pure geom, no meshes or hfields
-mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
-                   const mjtNum* pnt, const mjtNum* vec, int geomtype) {
+mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                   const mjtNum pnt[3], const mjtNum vec[3], int geomtype) {
   switch ((mjtGeom) geomtype) {
   case mjGEOM_PLANE:
     return ray_plane(pos, mat, size, pnt, vec);
@@ -829,7 +829,7 @@ mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
 // intersect ray with flex, return nearest vertex id
 mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
                    mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
-                   const mjtNum* pnt, const mjtNum* vec, int vertid[1]) {
+                   const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]) {
   int dim = m->flex_dim[flexid];
 
   // compute bounding box
@@ -1005,7 +1005,7 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
 
 // intersect ray with skin, return nearest vertex id
 mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
-                   const mjtNum* pnt, const mjtNum* vec, int vertid[1]) {
+                   const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]) {
   // compute bounding box
   mjtNum box[3][2] = {{0, 0}, {0, 0}, {0, 0}};
   for (int i=0; i < nvert; i++) {
@@ -1121,7 +1121,7 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
-mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum* vec,
+mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
               const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude, int geomid[1]) {
   mjtNum dist, newdist;
 
@@ -1166,7 +1166,7 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum
 
 // Initializes spherical bounding angles (geom_ba) and flag vector for a given source
 void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
-                         const mjtNum* ray_xmat, const mjtByte* geomgroup, mjtByte flg_static,
+                         const mjtNum ray_xmat[9], const mjtByte* geomgroup, mjtByte flg_static,
                          int bodyexclude, mjtNum cutoff, mjtNum* geom_ba, int* geom_eliminate) {
   if (ray_xmat) {
     mjERROR("ray_xmat is currently unused, should be NULL");
@@ -1324,7 +1324,7 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 
 
 // Performs multiple ray intersections with the precomputes bv and flags
-void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, int nray, mjtNum cutoff) {
   mj_markStack(d);
