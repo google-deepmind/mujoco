@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <map>
 #include <memory>
+#include <numbers>
 #include <optional>
 #include <string>
 #include <vector>
@@ -1837,8 +1838,8 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
         mj_joint->range[0] = lower;
         mj_joint->range[1] = upper;
       } else {
-        mj_joint->range[0] = lower * M_PI / 180.0;
-        mj_joint->range[1] = upper * M_PI / 180.0;
+        mj_joint->range[0] = lower * std::numbers::pi / 180.0;
+        mj_joint->range[1] = upper * std::numbers::pi / 180.0;
       }
     }
   } else if (prim.IsA<pxr::UsdPhysicsPrismaticJoint>()) {
@@ -2129,7 +2130,7 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
   return spec;
 }
 
-MJAPI mjSpec* mj_parseUSD(const char* identifier, const mjVFS* vfs, char* error,
+mjSpec* mj_parseUSD(const char* identifier, const mjVFS* vfs, char* error,
                           int error_sz) {
   auto stage = pxr::UsdStage::Open(identifier);
   return mj_parseUSDStage(stage);

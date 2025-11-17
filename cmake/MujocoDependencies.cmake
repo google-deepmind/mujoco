@@ -276,7 +276,7 @@ if(WIN32)
   endif()
 endif()
 
-if(MUJOCO_BUILD_TESTS)
+if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
   set(ABSL_PROPAGATE_CXX_STD ON)
 
   # This specific version of Abseil does not have the following variable. We need to work with BUILD_TESTING
@@ -307,6 +307,9 @@ if(MUJOCO_BUILD_TESTS)
       ${BUILD_TESTING_OLD}
       CACHE BOOL "Build tests." FORCE
   )
+endif()
+
+if(MUJOCO_BUILD_TESTS)
 
   # Avoid linking errors on Windows by dynamically linking to the C runtime.
   set(gtest_force_shared_crt

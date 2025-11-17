@@ -141,9 +141,10 @@ bool GuiView::PrepareRenderable() {
       }
       std::memcpy(dst, cmds->IdxBuffer.Data, size);
     };
-    const mujoco::FilamentBuffers& buffer = buffers_.emplace_back(
-        CreateIndexBuffer<uint16_t>(engine_, cmds->IdxBuffer.Size, ifill),
-        CreateVertexBuffer<GuiVertex>(engine_, cmds->VtxBuffer.Size, vfill));
+    buffers_.push_back(
+        {CreateIndexBuffer<uint16_t>(engine_, cmds->IdxBuffer.Size, ifill),
+         CreateVertexBuffer<GuiVertex>(engine_, cmds->VtxBuffer.Size, vfill)});
+    const mujoco::FilamentBuffers& buffer = buffers_.back();
 
     int index_offset = 0;
     for (const ImDrawCmd& command : cmds->CmdBuffer) {
@@ -164,7 +165,7 @@ bool GuiView::PrepareRenderable() {
         clip_height = height;
       }
 
-      mjrRect clip_rect(clip_left, clip_bottom, clip_width, clip_height);
+      mjrRect clip_rect{clip_left, clip_bottom, clip_width, clip_height};
       builder.material(drawable_index, GetMaterialInstance(clip_rect));
       builder.geometry(drawable_index, kTriangles, buffer.vertex_buffer,
                       buffer.index_buffer, index_offset,

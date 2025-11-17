@@ -14,6 +14,8 @@
 
 #include "experimental/filament/filament/light.h"
 
+#include <numbers>
+
 #include <filament/Engine.h>
 #include <filament/LightManager.h>
 #include <filament/Scene.h>
@@ -55,9 +57,10 @@ Light::Light(ObjectManager* object_mgr, const Params& params)
   builder.castShadows(params.castshadow);
   if (type == filament::LightManager::Type::FOCUSED_SPOT) {
     if (params.headlight) {
-      builder.spotLightCone(0, M_PI / 2.0f);
+      builder.spotLightCone(0, std::numbers::pi / 2.0f);
     } else {
-      builder.spotLightCone(0, params.spot_cone_angle * M_PI / 180.0f);
+      builder.spotLightCone(0,
+                            params.spot_cone_angle * std::numbers::pi / 180.0f);
     }
   }
   if (type != filament::LightManager::Type::DIRECTIONAL) {

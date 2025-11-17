@@ -176,8 +176,8 @@ void App::OnModelLoaded(std::string_view model_file) {
     window_->SetTitle("MuJoCo Studio : " + std::string(model_file));
     tmp_.last_load_file = std::string(model_file_);
     std::filesystem::path path(model_file_);
-    base_path = std::string(path.parent_path()) + "/";
-    model_name = std::string(path.stem());
+    base_path = path.parent_path().string() + "/";
+    model_name = path.stem().string();
   } else {
     window_->SetTitle("MuJoCo Studio");
     tmp_.last_load_file = base_path;

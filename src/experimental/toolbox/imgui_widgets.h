@@ -171,6 +171,10 @@ struct ImGuiOpts {
   const char* format = std::is_floating_point_v<T> ? "%.3g" : "%d";
 };
 
+// This is a workaround to fix compilation on gcc <= 12 and clang <= 16
+template <typename T>
+struct dependent_false : std::false_type {};
+
 // A compile-time wrapper around ImGui::InputScalarN. This is useful because
 // MuJoCo uses an `mjtNum` type which is an alias for float or double.
 //
@@ -207,7 +211,7 @@ bool ImGui_InputN(const char* name, T* value, int num, ImGuiOpts<T> opts = {}) {
     res = ImGui::InputScalarN(name, ImGuiDataType_Double, value, num, pstep,
                               pstep_fast, format);
   } else {
-    static_assert(false, "Unsupported type");
+    static_assert(dependent_false<T>::value, "Unsupported type");
   }
 
   if (opts.min.has_value()) {

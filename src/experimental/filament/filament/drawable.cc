@@ -16,6 +16,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 #include <utility>
 
 #include <filament/Material.h>
@@ -201,7 +202,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
       } else if (j == kCylinderBottomDisk) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
       }
     } else if (geom.type == mjGEOM_CAPSULE) {
       // Capsules are a tube with two domes at the ends. We apply an inverse
@@ -213,7 +214,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
         entity_transform *= mat4::scaling(float3{1, 1, xz_size / size.z});
       } else if (j == kCapsuleBottomDome) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
         entity_transform *= mat4::scaling(float3{1, 1, xz_size / size.z});
       }
     } else if (geom.type == mjGEOM_ARROW) {
@@ -229,12 +230,12 @@ void Drawable::SetTransform(const mjvGeom& geom) {
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow0ConeDisk) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow0BottomDisk) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
       }
     } else if (geom.type == mjGEOM_ARROW1) {
       // An arrow1 is a tube with a cone at the end and a disk cap at the other
@@ -245,7 +246,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
       } else if (j == kArrow1BottomDisk) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
       }
     } else if (geom.type == mjGEOM_ARROW2) {
       // An arrow2 is a tube with a cone at both ends.  Like the standard arrow,
@@ -258,12 +259,12 @@ void Drawable::SetTransform(const mjvGeom& geom) {
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow2BottomCone) {
         entity_transform *= mat4::translation(float3{0, 0, -size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow2TopConeDisk) {
         entity_transform *= mat4::translation(float3{0, 0, size.z});
-        entity_transform *= mat4::rotation(M_PI, float3{1, 0, 0});
+        entity_transform *= mat4::rotation(std::numbers::pi, float3{1, 0, 0});
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       } else if (j == kArrow2BottomConeDisk) {
