@@ -6,6 +6,10 @@
 # We set CMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF here to reduce build time.
 # It is highly recommended that this is set to ON for production builds.
 
+# TODO(matijak): Consider switching Windows to Ninja builds only, this configures slightly faster
+# and brings Windows in line with other OSes. Also we wouldn't need to specify the --config option
+# in the build step because Ninja doesn't support multiple configurations (unlike MSBuild).
+
 name: build
 
 on:
@@ -161,10 +165,12 @@ jobs:
       with:
         node-version: '20'
 
+    # Exclude platforms covered by the `wasm` job.
     - name: Install NPM Dependencies for WASM bindings
       if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
       run: bash ./.github/workflows/build_steps.sh npm_ci
 
+    # Exclude platforms covered by the `wasm` job.
     - name: Setup Emscripten for WASM bindings
       if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
       run: bash ./.github/workflows/build_steps.sh setup_emsdk
@@ -238,6 +244,28 @@ jobs:
         CMAKE_BUILD_ARGS: ${{ matrix.cmake_build_args }}
       run: bash ../../.github/workflows/build_steps.sh build_simulate
 
+    # Exclude platforms covered by the `studio` job.
+    # Exclude macos-15-x86_64 because we don't have a way maintain/develop the build locally.
+    - name: Configure Studio
+      if: ${{ matrix.label != 'windows-2025' &&
+              matrix.label != 'macos-15-arm64' &&
+              matrix.label != 'macos-15-x86_64' }}
+      env:
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ./.github/workflows/build_steps.sh configure_studio
+
+    # Exclude platforms covered by the `studio` job.
+    # Exclude macos-15-x86_64 because we don't have a way maintain/develop the build locally.
+    # TODO(haroonq): Fix Filament compilation for GCC<=12?
+    - name: Build Studio
+      if: ${{ matrix.label != 'windows-2025' &&
+              matrix.label != 'macos-15-arm64' &&
+              matrix.label != 'macos-15-x86_64' &&
+              matrix.label != 'ubuntu-22.04-gcc-10' &&
+              matrix.label != 'ubuntu-22.04-gcc-11' &&
+              matrix.label != 'ubuntu-22.04-gcc-12' }}
+      run: bash ./.github/workflows/build_steps.sh build_studio
+
     - name: Make Python sdist
       shell: bash
       working-directory: python
@@ -270,6 +298,7 @@ jobs:
         TMPDIR: ${{ matrix.tmpdir }}
       run: bash ./.github/workflows/build_steps.sh test_python_bindings
 
+    # Exclude platforms covered by the `wasm` job.
     - name: Build and Test WASM bindings
       if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
       shell: bash
@@ -311,8 +340,75 @@ jobs:
       if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
       run: bash ./.github/workflows/build_steps.sh notify_team_chat
 
-  # This job is used to quickly determine if the WASM build is broken,
-  # by only testing it on a single platform.
+  # This job quickly determines if MuJoCo Studio is broken.
+  studio:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            label: "ubuntu-24.04-clang-18-studio"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_C_COMPILER:STRING=clang-18
+              -DCMAKE_CXX_COMPILER:STRING=clang++-18
+              -DMUJOCO_HARDEN:BOOL=ON
+          - os: windows-2025
+            label: "windows-2025-ninja-studio"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_SYSTEM_VERSION=10.0.26100.0
+          - os: macos-15
+            label: "macos-15-arm64-studio"
+            cmake_args: >-
+              -G Ninja
+              -DCMAKE_CXX_FLAGS="-Wno-error=deprecated-declarations"
+              -DMUJOCO_HARDEN:BOOL=ON
+
+    name: "${{ matrix.label }}"
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Prepare Windows (setup MSVC)
+      if: ${{ runner.os == 'Windows' }}
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Prepare Linux
+      if: ${{ runner.os == 'Linux' }}
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
+
+    - name: Configure Studio with legacy OpenGL rendering
+      env:
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ./.github/workflows/build_steps.sh configure_studio_legacy_opengl
+
+    - name: Build Studio with legacy OpenGL rendering
+      run: bash ./.github/workflows/build_steps.sh build_studio
+
+    - name: Configure Studio with Filament rendering
+      env:
+        CMAKE_ARGS: ${{ matrix.cmake_args }}
+      run: bash ./.github/workflows/build_steps.sh configure_studio
+
+    - name: Build Studio with Filament rendering
+      run: bash ./.github/workflows/build_steps.sh build_studio
+
+    - name: Notify team chat
+      shell: bash
+      env:
+        GCHAT_API_URL: ${{ secrets.GCHAT_API }}
+        JOB_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        CHATMSG_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+        CHATMSG_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+        CHATMSG_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        CHATMSG_JOB_ID: ${{ matrix.label }}
+      if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
+      run: bash ./.github/workflows/build_steps.sh notify_team_chat
+
+
+  # This job quickly determines if WASM bindings are broken.
   wasm:
     name: "ubuntu-24.04-clang-18-wasm"
     runs-on: ubuntu-24.04
@@ -326,25 +422,23 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Prepare Linux
-      run: bash ./.github/workflows/build_steps.sh prepare_linux
-
     - name: Setup Node.js for WASM bindings
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
-    - name: Install NPM Dependencies for WASM bindings
-      run: bash ./.github/workflows/build_steps.sh npm_ci
+    - name: Prepare Linux
+      if: ${{ runner.os == 'Linux' }}
+      run: bash ./.github/workflows/build_steps.sh prepare_linux
 
-    - name: Setup Emscripten for WASM bindings
-      run: bash ./.github/workflows/build_steps.sh setup_emsdk
-
-    - name: Build and Test WASM bindings
-      shell: bash
+    # For convenience run multiple build_steps functions in a single step.
+    - name: Prepare, Build and Test WASM bindings
       env:
         CMAKE_ARGS: ${{ env.cmake_args }}
-      run: bash ./.github/workflows/build_steps.sh build_test_wasm
+      run: |
+        bash ./.github/workflows/build_steps.sh npm_ci
+        bash ./.github/workflows/build_steps.sh setup_emsdk
+        bash ./.github/workflows/build_steps.sh build_test_wasm
 
     - name: Notify team chat
       shell: bash

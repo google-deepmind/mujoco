@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# TODO(matijak): Make all cmake commands run from the top-level directory, and
+# consider making the builds parallel.
+
 
 prepare_linux() {
     echo "Preparing Linux..."
@@ -142,6 +145,49 @@ build_simulate() {
 }
 
 
+_configure_studio() {
+    # Invoke cmake will all options OFF assuming that the caller will enable
+    # needed options by running `export _CONFIGURE_STUDIO_CMAKE_ARGS=...` first
+    cmake -B build \
+        -DCMAKE_BUILD_TYPE:STRING=Release \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF \
+        -DUSE_STATIC_LIBCXX=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DMUJOCO_BUILD_EXAMPLES=OFF \
+        -DMUJOCO_BUILD_SIMULATE=OFF \
+        -DMUJOCO_BUILD_STUDIO=OFF \
+        -DMUJOCO_BUILD_TESTS=OFF \
+        -DMUJOCO_TEST_PYTHON_UTIL=OFF \
+        -DMUJOCO_WITH_USD=OFF \
+        -DMUJOCO_USE_FILAMENT=OFF \
+        -DMUJOCO_USE_FILAMENT_VULKAN=OFF \
+        ${_CONFIGURE_STUDIO_CMAKE_ARGS}
+}
+
+
+configure_studio_legacy_opengl() {
+    echo "Configuring Studio (legacy OpenGL)..."
+    export _CONFIGURE_STUDIO_CMAKE_ARGS="-DMUJOCO_BUILD_STUDIO=ON ${CMAKE_ARGS}"
+    _configure_studio
+    echo "Configuring Studio (legacy OpenGL)... DONE"
+}
+
+
+configure_studio() {
+    echo "Configuring Studio..."
+    export _CONFIGURE_STUDIO_CMAKE_ARGS="-DMUJOCO_BUILD_STUDIO=ON -DMUJOCO_USE_FILAMENT=ON ${CMAKE_ARGS}"
+    _configure_studio
+    echo "Configuring Studio... DONE"
+}
+
+
+build_studio() {
+    echo "Building Studio..."
+    cmake --build build --config=Release --target mujoco_studio --parallel
+    echo "Building Studio... DONE"
+}
+
+
 make_python_sdist() {
     echo "Making Python sdist..."
     source ${TMPDIR}/venv/bin/activate &&
@@ -244,7 +290,6 @@ if [[ ! " ${VALID_FUNCTIONS[*]} " =~ " ${1} " ]]; then
     echo "Usage: $0 {$(IFS='|'; echo "${VALID_FUNCTIONS[*]}")}, got '$1'"
     exit 1
 fi
-
 
 # Set options to print the commands being run, and cause the script to exit with
 # an error code if any command fails. Note we do this just before executing
