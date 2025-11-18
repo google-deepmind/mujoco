@@ -2986,7 +2986,7 @@ struct MjsTexture {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->gridsize));
   }
   emscripten::val gridlayout() const {
-    return emscripten::val(emscripten::typed_memory_view(13, ptr_->gridlayout));
+    return emscripten::val(emscripten::typed_memory_view(12, ptr_->gridlayout));
   }
   mjStringVec &cubefiles() const {
     return *(ptr_->cubefiles);

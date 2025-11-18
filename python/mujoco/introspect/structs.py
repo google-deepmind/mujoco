@@ -8408,7 +8408,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='gridlayout',
                  type=ArrayType(
                      inner_type=ValueType(name='char'),
-                     extents=(13,),
+                     extents=(12,),
                  ),
                  doc='row-major: L,R,F,B,U,D for faces; . for unused',
              ),
