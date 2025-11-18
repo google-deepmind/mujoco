@@ -184,7 +184,7 @@ static int mj_elemBodyWeight(const mjModel* m, const mjData* d, int f, int e, in
 
 // compute body weights for a given contact vertex, return #bodies
 static int mj_vertBodyWeight(const mjModel* m, const mjData* d, int f, int v,
-                             const mjtNum point[3], int* body, mjtNum* weight, mjtNum bw) {
+                             int* body, mjtNum* weight, mjtNum bw) {
   mjtNum* coord = m->flex_vert0 + 3*v;
   int nstart = m->flex_nodeadr[f];
   int nend = m->flex_nodeadr[f] + m->flex_nodenum[f];
@@ -935,8 +935,7 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
           bweight[nb] = bw[k];
           nb++;
         } else {
-          nb += mj_vertBodyWeight(m, d, con->flex[side], vid[k],
-                                  con->pos, bid+nb, bweight+nb, bw[k]);
+          nb += mj_vertBodyWeight(m, d, con->flex[side], vid[k], bid+nb, bweight+nb, bw[k]);
         }
       }
     }
@@ -1185,8 +1184,7 @@ void mj_diagApprox(const mjModel* m, mjData* d) {
             bweight[k] = bw[k];
             nb++;
           } else {
-            nb = mj_vertBodyWeight(m, d, con->flex[side], vid[k],
-                                   con->pos, bid, bweight, bw[k]);
+            nb = mj_vertBodyWeight(m, d, con->flex[side], vid[k], bid, bweight, bw[k]);
           }
         }
 
@@ -1915,8 +1913,7 @@ static int mj_nc(const mjModel* m, mjData* d, int* nnz) {
             bid[nb] = m->flex_vertbodyid[vid[k]];
             nb++;
           } else {
-            nb += mj_vertBodyWeight(m, d, con->flex[side], vid[k],
-                                    con->pos, bid+nb, NULL, 0);
+            nb += mj_vertBodyWeight(m, d, con->flex[side], vid[k], bid + nb, NULL, 0);
           }
         }
       }
