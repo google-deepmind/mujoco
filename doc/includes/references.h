@@ -2265,7 +2265,7 @@ typedef struct mjsTexture_ {       // texture specification
   mjString* content_type;          // content type of file
   mjString* file;                  // png file to load; use for all sides of cube
   int gridsize[2];                 // size of grid for composite file; (1,1)-repeat
-  char gridlayout[13];             // row-major: L,R,F,B,U,D for faces; . for unused
+  char gridlayout[12];             // row-major: L,R,F,B,U,D for faces; . for unused
 
   // method 3: separate files
   mjStringVec* cubefiles;          // different file for each side of the cube
