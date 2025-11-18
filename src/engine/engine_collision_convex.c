@@ -1342,9 +1342,11 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   mju_copy(mat2, savemat2, 9);
   mju_copy3(pos2, savepos2);
 
-  // fix contact normals
-  for (int i=0; i < cnt; i++) {
-    mjc_fixNormal(m, d, con+i, g1, g2);
+  if (mjDISABLED(mjDSBL_NATIVECCD)) {
+    // fix contact normals
+    for (int i=0; i < cnt; i++) {
+      mjc_fixNormal(m, d, con+i, g1, g2);
+    }
   }
 
   return cnt;
