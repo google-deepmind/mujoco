@@ -56,6 +56,9 @@ endif()
 
 include(third_party_deps/dear_imgui)
 include(third_party_deps/implot)
+include(third_party_deps/opensans)
+include(third_party_deps/font_awesome)
+
 target_link_libraries(${MUJOCO_STUDIO_TARGET_NAME}
     PRIVATE
         ${MUJOCO_STUDIO_RENDER_DEPS}
@@ -68,20 +71,36 @@ target_link_libraries(${MUJOCO_STUDIO_TARGET_NAME}
         mujoco::toolbox
 )
 
+file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)
+
+add_custom_command(
+    TARGET ${MUJOCO_STUDIO_TARGET_NAME}
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+        -E copy
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/opensans-src/fonts/ttf/OpenSans-Regular.ttf
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+    COMMENT "Copying OpenSans-Regular.ttf assets to build directory"
+)
+add_custom_command(
+    TARGET ${MUJOCO_STUDIO_TARGET_NAME}
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+        -E copy
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../_deps/font_awesome-src/fonts/fontawesome-webfont.ttf
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+    COMMENT "Copying fontawesome-webfont.ttf to build directory"
+)
+
 # Filament backend requires additional files to be copied into an "assets" folder.
 if(MUJOCO_USE_FILAMENT)
-    if(WIN32)
-        # Copy to work around lack of symlink permissions on Windows.
-        set(COPY_COMMAND copy_directory)
-    else()
-        set(COPY_COMMAND create_symlink)
-    endif()
     add_custom_command(
         TARGET ${MUJOCO_STUDIO_TARGET_NAME}
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E ${COPY_COMMAND}
-            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/experimental/filament/assets
-            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+        COMMAND ${CMAKE_COMMAND}
+            -E copy_directory
+                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/../src/experimental/filament/assets
+                ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
         COMMENT "Copying Filament assets to build directory"
     )
 endif()

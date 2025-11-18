@@ -45,6 +45,27 @@ static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn) {
   ImGui::StyleColorsDark();
   ImGui_ImplSDL2_InitForOther(window);
 
+#ifndef __EMSCRIPTEN__
+  // TODO: Get font loading working for wasm.
+  ImFontConfig main_cfg;
+  main_cfg.OversampleH = 8;
+  main_cfg.OversampleV = 4;
+  main_cfg.GlyphExtraSpacing.x = 0.3f;
+
+  auto main_font = load_asset_fn("OpenSans-Regular.ttf");
+  io.Fonts->AddFontFromMemoryTTF(main_font.data(), main_font.size(), 18.f,
+                                 &main_cfg);
+
+  ImFontConfig icon_cfg;
+  icon_cfg.OversampleH = 3;
+  icon_cfg.OversampleV = 3;
+  icon_cfg.MergeMode = true;
+  icon_cfg.GlyphMinAdvanceX = 14.0f;
+  auto icon_font = load_asset_fn("fontawesome-webfont.ttf");
+  constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
+  io.Fonts->AddFontFromMemoryTTF(icon_font.data(), icon_font.size(), 14.f,
+                                &icon_cfg, icon_ranges);
+#endif
   io.Fonts->Build();
 }
 
