@@ -64,7 +64,7 @@ GuiView::GuiView(filament::Engine* engine, ObjectManager* object_mgr)
 GuiView::~GuiView() {
   ResetRenderable();
   for (auto& instance : instances_) {
-    engine_->destroy(instance.second);
+    engine_->destroy(instance);
   }
   engine_->destroyCameraComponent(camera_->getEntity());
   engine_->destroy(view_);
@@ -166,7 +166,8 @@ bool GuiView::PrepareRenderable() {
       }
 
       mjrRect clip_rect{clip_left, clip_bottom, clip_width, clip_height};
-      builder.material(drawable_index, GetMaterialInstance(clip_rect));
+      builder.material(drawable_index,
+                       GetMaterialInstance(drawable_index, clip_rect));
       builder.geometry(drawable_index, kTriangles, buffer.vertex_buffer,
                       buffer.index_buffer, index_offset,
                       command.ElemCount);
@@ -184,26 +185,17 @@ bool GuiView::PrepareRenderable() {
   return true;
 }
 
-// Maps a rect into a 64-bit key to assist with lookup.
-static uint64_t MakeRectKey(mjrRect rect) {
-  return static_cast<uint64_t>(rect.left & 0xff) << 24 |
-         static_cast<uint64_t>(rect.bottom & 0xff) << 16 |
-         static_cast<uint64_t>(rect.width & 0xff) << 8 |
-         static_cast<uint64_t>(rect.height & 0xff);
-}
-
-filament::MaterialInstance* GuiView::GetMaterialInstance(mjrRect rect) {
-  const uint64_t key = MakeRectKey(rect);
-  auto iter = instances_.find(key);
-  if (iter != instances_.end()) {
-    return iter->second;
+filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
+                                                         mjrRect rect) {
+  while (index >= instances_.size()) {
+    filament::TextureSampler sampler;
+    filament::MaterialInstance* instance = material_->createInstance();
+    instance->setParameter("glyph", object_mgr_->GetFont(0), sampler);
+    instances_.push_back(instance);
   }
 
-  auto instance = material_->createInstance();
+  filament::MaterialInstance* instance = instances_[index];
   instance->setScissor(rect.left, rect.bottom, rect.width, rect.height);
-  filament::TextureSampler sampler;
-  instance->setParameter("glyph", object_mgr_->GetFont(0), sampler);
-  instances_[key] = instance;
   return instance;
 }
 

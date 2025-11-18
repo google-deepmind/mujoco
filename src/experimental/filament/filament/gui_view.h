@@ -49,7 +49,7 @@ class GuiView {
  private:
   // Returns the filament::MaterialInstance configured to draw into the given
   // scissor rect.
-  filament::MaterialInstance* GetMaterialInstance(mjrRect rect);
+  filament::MaterialInstance* GetMaterialInstance(int index, mjrRect rect);
 
   // Clears the filament::Scene of the UX renderable and releases all buffers.
   void ResetRenderable();
@@ -62,7 +62,7 @@ class GuiView {
   filament::Material* material_ = nullptr;
   utils::Entity renderable_;
   std::vector<FilamentBuffers> buffers_;
-  std::unordered_map<uint64_t, filament::MaterialInstance*> instances_;
+  std::vector<filament::MaterialInstance*> instances_;
 };
 
 // Draws text at the given screen coordinates in clip space (i.e. [-1,-1,-1] to
