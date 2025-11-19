@@ -54,9 +54,14 @@ MJAPI mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
                         const mjtNum pnt[3], const mjtNum vec[3]);
 
-// intersect ray with pure geom, no meshes or hfields
+// intersect ray with primitive geom, no meshes or hfields
 MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
                          const mjtNum pnt[3], const mjtNum vec[3], int geomtype);
+
+// intersect ray with primitive geom, no meshes or hfields, compute normal if given
+MJAPI mjtNum mju_rayGeomNormal(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                               const mjtNum pnt[3], const mjtNum vec[3], int geomtype,
+                               mjtNum normal[3]);
 
 // intersect ray with flex, return nearest vertex id
 MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,

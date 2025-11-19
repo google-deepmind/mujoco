@@ -185,11 +185,15 @@ mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
   return (-mju_dot3(dif[2], nrm) / denom);
 }
 
+
 //---------------------------- geom-specific intersection functions --------------------------------
 
 // plane
 static mjtNum ray_plane(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
-                        const mjtNum pnt[3], const mjtNum vec[3]) {
+                        const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]) {
+  // clear normal if given
+  if (normal) mju_zero3(normal);
+
   // map to local frame
   mjtNum lpnt[3], lvec[3];
   ray_map(pos, mat, pnt, vec, lpnt, lvec);
@@ -210,6 +214,11 @@ static mjtNum ray_plane(const mjtNum pos[3], const mjtNum mat[9], const mjtNum s
   // accept only within rendered rectangle
   if ((size[0] <= 0 || mju_abs(p0) <= size[0]) &&
       (size[1] <= 0 || mju_abs(p1) <= size[1])) {
+    if (normal) {
+      normal[0] = mat[2];
+      normal[1] = mat[5];
+      normal[2] = mat[8];
+    }
     return x;
   } else {
     return -1;
@@ -219,7 +228,7 @@ static mjtNum ray_plane(const mjtNum pos[3], const mjtNum mat[9], const mjtNum s
 
 // sphere
 static mjtNum ray_sphere(const mjtNum pos[3], const mjtNum mat[9], mjtNum dist_sqr,
-                         const mjtNum pnt[3], const mjtNum vec[3]) {
+                         const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]) {
   // (x*vec+pnt-pos)'*(x*vec+pnt-pos) = size[0]*size[0]
   mjtNum dif[3] = {pnt[0]-pos[0], pnt[1]-pos[1], pnt[2]-pos[2]};
   mjtNum a = vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2];
@@ -228,16 +237,32 @@ static mjtNum ray_sphere(const mjtNum pos[3], const mjtNum mat[9], mjtNum dist_s
 
   // solve a*x^2 + 2*b*x + c = 0
   mjtNum xx[2];
-  return ray_quad(a, b, c, xx);
+  mjtNum x = ray_quad(a, b, c, xx);
+
+  // compute normal if required
+  if (normal) {
+    if (x < 0) {
+      mju_zero3(normal);
+    } else {
+      // normal at surface intersection s (global frame)
+      mjtNum s[3];
+      mju_addScl3(s, pnt, vec, x);
+      mju_sub3(normal, s, pos);
+      mju_normalize3(normal);
+    }
+  }
+
+  return x;
 }
 
 
 // capsule
-static mjtNum ray_capsule(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
-                          const mjtNum* pnt, const mjtNum* vec) {
+static mjtNum ray_capsule(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                          const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]) {
   // bounding sphere test
   mjtNum ssz = size[0] + size[1];
-  if (ray_sphere(pos, NULL, ssz*ssz, pnt, vec) < 0) {
+  if (ray_sphere(pos, NULL, ssz * ssz, pnt, vec, NULL) < 0) {
+    if (normal) mju_zero3(normal);
     return -1;
   }
 
@@ -247,6 +272,7 @@ static mjtNum ray_capsule(const mjtNum* pos, const mjtNum* mat, const mjtNum* si
 
   // init solution
   mjtNum x = -1, sol, xx[2];
+  int type;  // -1: bottom, 0: cylinder, 1: top
 
   // cylinder round side: (x*lvec+lpnt)'*(x*lvec+lpnt) = size[0]*size[0]
   mjtNum a = lvec[0]*lvec[0] + lvec[1]*lvec[1];
@@ -260,6 +286,7 @@ static mjtNum ray_capsule(const mjtNum* pos, const mjtNum* mat, const mjtNum* si
   if (sol >= 0 && mju_abs(lpnt[2]+sol*lvec[2]) <= size[1]) {
     if (x < 0 || sol < x) {
       x = sol;
+      type = 0;
     }
   }
 
@@ -275,6 +302,7 @@ static mjtNum ray_capsule(const mjtNum* pos, const mjtNum* mat, const mjtNum* si
     if (xx[i] >= 0 && lpnt[2]+xx[i]*lvec[2] >= size[1]) {
       if (x < 0 || xx[i] < x) {
         x = xx[i];
+        type = 1;
       }
     }
   }
@@ -290,7 +318,23 @@ static mjtNum ray_capsule(const mjtNum* pos, const mjtNum* mat, const mjtNum* si
     if (xx[i] >= 0 && lpnt[2]+xx[i]*lvec[2] <= -size[1]) {
       if (x < 0 || xx[i] < x) {
         x = xx[i];
+        type = -1;
       }
+    }
+  }
+
+  // compute normal if required
+  if (normal) {
+    if (x < 0) {
+      mju_zero3(normal);
+    } else {
+      normal[0] = lpnt[0] + lvec[0] * x;
+      normal[1] = lpnt[1] + lvec[1] * x;
+      normal[2] = (type == 0) ? 0 : lpnt[2] + lvec[2] * x - size[1] * type;
+
+      // normalize, rotate into global frame
+      mju_normalize3(normal);
+      mju_mulMatVec3(normal, mat, normal);
     }
   }
 
@@ -300,7 +344,7 @@ static mjtNum ray_capsule(const mjtNum* pos, const mjtNum* mat, const mjtNum* si
 
 // ellipsoid
 static mjtNum ray_ellipsoid(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
-                            const mjtNum pnt[3], const mjtNum vec[3]) {
+                            const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]) {
   // map to local frame
   mjtNum lpnt[3], lvec[3];
   ray_map(pos, mat, pnt, vec, lpnt, lvec);
@@ -315,16 +359,39 @@ static mjtNum ray_ellipsoid(const mjtNum pos[3], const mjtNum mat[9], const mjtN
 
   // solve a*x^2 + 2*b*x + c = 0
   mjtNum xx[2];
-  return ray_quad(a, b, c, xx);
+  mjtNum x = ray_quad(a, b, c, xx);
+
+  // compute normal if required
+  if (normal) {
+    if (x < 0) {
+      mju_zero3(normal);
+    } else {
+      // surface intersection (local frame)
+      mjtNum l[3];
+      mju_addScl3(l, lpnt, lvec, x);
+
+      // gradient of ellipsoid function
+      normal[0] = s[0] * l[0];
+      normal[1] = s[1] * l[1];
+      normal[2] = s[2] * l[2];
+
+      // normalize, rotate into global frame
+      mju_normalize3(normal);
+      mju_mulMatVec3(normal, mat, normal);
+    }
+  }
+
+  return x;
 }
 
 
 // cylinder
 static mjtNum ray_cylinder(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
-                           const mjtNum pnt[3], const mjtNum vec[3]) {
+                           const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]) {
   // bounding sphere test
   mjtNum ssz = size[0]*size[0] + size[1]*size[1];
-  if (ray_sphere(pos, NULL, ssz, pnt, vec) < 0) {
+  if (ray_sphere(pos, NULL, ssz, pnt, vec, NULL) < 0) {
+    if (normal) mju_zero3(normal);
     return -1;
   }
 
@@ -334,6 +401,7 @@ static mjtNum ray_cylinder(const mjtNum pos[3], const mjtNum mat[9], const mjtNu
 
   // init solution
   mjtNum x = -1, sol;
+  int type = 0;  // -1: bottom, 0: round, 1: top
 
   // flat sides
   int side;
@@ -352,13 +420,14 @@ static mjtNum ray_cylinder(const mjtNum pos[3], const mjtNum mat[9], const mjtNu
         if (p0*p0 + p1*p1 <= size[0]*size[0]) {
           if (x < 0 || sol < x) {
             x = sol;
+            type = side;
           }
         }
       }
     }
   }
 
-  // (x*lvec+lpnt)'*(x*lvec+lpnt) = size[0]*size[0]
+  // round side: (x*lvec+lpnt)'*(x*lvec+lpnt) = size[0]*size[0]
   mjtNum a = lvec[0]*lvec[0] + lvec[1]*lvec[1];
   mjtNum b = lvec[0]*lpnt[0] + lvec[1]*lpnt[1];
   mjtNum c = lpnt[0]*lpnt[0] + lpnt[1]*lpnt[1] - size[0]*size[0];
@@ -371,6 +440,33 @@ static mjtNum ray_cylinder(const mjtNum pos[3], const mjtNum mat[9], const mjtNu
   if (sol >= 0 && mju_abs(lpnt[2]+sol*lvec[2]) <= size[1]) {
     if (x < 0 || sol < x) {
       x = sol;
+      type = 0;
+    }
+  }
+
+  // compute normal if required
+  if (normal) {
+    if (x < 0) {
+      mju_zero3(normal);
+    } else {
+      // round side
+      if (type == 0) {
+        // normal at surface intersection (local frame)
+        normal[0] = lpnt[0] + lvec[0] * x;
+        normal[1] = lpnt[1] + lvec[1] * x;
+        normal[2] = 0;
+        mju_normalize3(normal);
+      }
+
+      // flat sides
+      else {
+        normal[0] = 0;
+        normal[1] = 0;
+        normal[2] = type;
+      }
+
+      // rotate into global frame
+      mju_mulMatVec3(normal, mat, normal);
     }
   }
 
@@ -380,13 +476,14 @@ static mjtNum ray_cylinder(const mjtNum pos[3], const mjtNum mat[9], const mjtNu
 
 // box
 static mjtNum ray_box(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
-                      const mjtNum pnt[3], const mjtNum vec[3], mjtNum all[6]) {
-  // clear all
+                      const mjtNum pnt[3], const mjtNum vec[3], mjtNum all[6], mjtNum normal[3]) {
+  // clear outputs
   if (all) all[0] = all[1] = all[2] = all[3] = all[4] = all[5] = -1;
+  if (normal) mju_zero3(normal);
 
   // bounding sphere test
   mjtNum ssz = size[0]*size[0] + size[1]*size[1] + size[2]*size[2];
-  if (ray_sphere(pos, NULL, ssz, pnt, vec) < 0) {
+  if (ray_sphere(pos, NULL, ssz, pnt, vec, NULL) < 0) {
     return -1;
   }
 
@@ -403,6 +500,7 @@ static mjtNum ray_box(const mjtNum pos[3], const mjtNum mat[9], const mjtNum siz
 
   // init solution
   mjtNum x = -1, sol;
+  int face_side, face_axis = -1;
 
   // loop over axes with non-zero vec
   for (int i=0; i < 3; i++) {
@@ -423,6 +521,8 @@ static mjtNum ray_box(const mjtNum pos[3], const mjtNum mat[9], const mjtNum siz
             // update
             if (x < 0 || sol < x) {
               x = sol;
+              face_axis = i;
+              face_side = side;
             }
 
             // save in all
@@ -433,6 +533,13 @@ static mjtNum ray_box(const mjtNum pos[3], const mjtNum mat[9], const mjtNum siz
         }
       }
     }
+  }
+
+  // compute normal if required
+  if (normal && x >= 0) {
+    mjtNum n_local[3] = {0, 0, 0};
+    n_local[face_axis] = face_side;
+    mju_mulMatVec3(normal, mat, n_local);
   }
 
   return x;
@@ -471,11 +578,11 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
   };
 
   // init: intersection with base box
-  mjtNum x = ray_box(base_pos, d->geom_xmat+9*id, base_size, pnt, vec, NULL);
+  mjtNum x = ray_box(base_pos, d->geom_xmat+9*id, base_size, pnt, vec, NULL, NULL);
 
   // check top box: done if no intersection
   mjtNum all[6];
-  mjtNum top_intersect = ray_box(top_pos, d->geom_xmat+9*id, top_size, pnt, vec, all);
+  mjtNum top_intersect = ray_box(top_pos, d->geom_xmat+9*id, top_size, pnt, vec, all, NULL);
   if (top_intersect < 0) {
     return x;
   }
@@ -728,7 +835,7 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   mjtNum kMinDist = 1e-7;
 
   // exclude using bounding box
-  if (ray_box(d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g, pnt, vec, NULL) < 0) {
+  if (ray_box(d->geom_xpos+3*g, d->geom_xmat+9*g, m->geom_size+3*g, pnt, vec, NULL, NULL) < 0) {
     return -1;
   }
 
@@ -789,35 +896,34 @@ mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
   }
 
   // bounding box test
-  if (ray_box(d->geom_xpos+3*id, d->geom_xmat+9*id, m->geom_size+3*id, pnt, vec, NULL) < 0) {
+  if (ray_box(d->geom_xpos+3*id, d->geom_xmat+9*id, m->geom_size+3*id, pnt, vec, NULL, NULL) < 0) {
     return -1;
   }
 
   return mju_rayTree(m, d, id, pnt, vec);
 }
 
-
-// intersect ray with pure geom, no meshes or hfields
-mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
-                   const mjtNum pnt[3], const mjtNum vec[3], int geomtype) {
+// intersect ray and find normal with primitive geom, no meshes or hfields, compute normal if given
+mjtNum mju_rayGeomNormal(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                         const mjtNum pnt[3], const mjtNum vec[3], int geomtype, mjtNum normal[3]) {
   switch ((mjtGeom) geomtype) {
   case mjGEOM_PLANE:
-    return ray_plane(pos, mat, size, pnt, vec);
+    return ray_plane(pos, mat, size, pnt, vec, normal);
 
   case mjGEOM_SPHERE:
-    return ray_sphere(pos, mat, size[0]*size[0], pnt, vec);
+    return ray_sphere(pos, mat, size[0] * size[0], pnt, vec, normal);
 
   case mjGEOM_CAPSULE:
-    return ray_capsule(pos, mat, size, pnt, vec);
+    return ray_capsule(pos, mat, size, pnt, vec, normal);
 
   case mjGEOM_ELLIPSOID:
-    return ray_ellipsoid(pos, mat, size, pnt, vec);
+    return ray_ellipsoid(pos, mat, size, pnt, vec, normal);
 
   case mjGEOM_CYLINDER:
-    return ray_cylinder(pos, mat, size, pnt, vec);
+    return ray_cylinder(pos, mat, size, pnt, vec, normal);
 
   case mjGEOM_BOX:
-    return ray_box(pos, mat, size, pnt, vec, NULL);
+    return ray_box(pos, mat, size, pnt, vec, NULL, normal);
 
   default:
     mjERROR("unexpected geom type %d", geomtype);
@@ -825,6 +931,11 @@ mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3
   }
 }
 
+// intersect ray with primitive geom, no meshes or hfields
+mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                   const mjtNum pnt[3], const mjtNum vec[3], int geomtype) {
+  return mju_rayGeomNormal(pos, mat, size, pnt, vec, geomtype, NULL);
+}
 
 // intersect ray with flex, return nearest vertex id
 mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
@@ -864,7 +975,7 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
   }
 
   // apply bounding-box filter
-  if (ray_box(pos, mat, size, pnt, vec, NULL) < 0) {
+  if (ray_box(pos, mat, size, pnt, vec, NULL, NULL) < 0) {
     return -1;
   }
 
@@ -1030,7 +1141,7 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
   }
 
   // apply bounding-box filter
-  if (ray_box(pos, mat, size, pnt, vec, NULL) < 0) {
+  if (ray_box(pos, mat, size, pnt, vec, NULL, NULL) < 0) {
     return -1;
   }
 
@@ -1276,7 +1387,7 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
       mjtNum* size = pos + 3;
       mjtNum ssz = size[0]*size[0] + size[1]*size[1] + size[2]*size[2];
       mju_add3(center, pos, d->xipos+3*b);
-      if (ray_sphere(center, NULL, ssz, pnt, vec) < 0) {
+      if (ray_sphere(center, NULL, ssz, pnt, vec, NULL) < 0) {
         continue;
       }
     }

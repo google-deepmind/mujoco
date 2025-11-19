@@ -76,8 +76,12 @@ static constexpr char kCubeletModel[] = R"(
 </mujoco>
 )";
 
+using ::std::string;
+using ::testing::AnyOf;
 using ::testing::DoubleNear;
+using ::testing::ElementsAre;
 using ::testing::NotNull;
+using ::testing::Pointwise;
 using RayTest = MujocoTest;
 
 TEST_F(RayTest, NoExclusions) {
@@ -397,8 +401,8 @@ void _rayMeshTest(const mjModel* m) {
 }
 
 TEST_F(RayTest, RayMeshPruning) {
-  char error[1024] = {0};
-  const std::string xml_path =
+  char error[1024];
+  const string xml_path =
       GetTestDataFilePath("engine/testdata/ray/stanford_bunny.xml");
 
   mjModel* m = mj_loadXML(xml_path.c_str(), NULL, error, sizeof(error));
@@ -462,6 +466,115 @@ TEST_F(RayTest, RayHfield) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+static const char* const kPlaneModel = "engine/testdata/ray/plane.xml";
+static const char* const kSphereModel = "engine/testdata/ray/sphere.xml";
+static const char* const kCapsuleModel = "engine/testdata/ray/capsule.xml";
+static const char* const kEllipsoidModel = "engine/testdata/ray/ellipsoid.xml";
+static const char* const kCylinderModel = "engine/testdata/ray/cylinder.xml";
+static const char* const kBoxModel = "engine/testdata/ray/box.xml";
+
+TEST_F(RayTest, GeomNormal) {
+  for (const char* path : {kPlaneModel, kSphereModel, kCapsuleModel,
+                           kEllipsoidModel, kCylinderModel, kBoxModel}) {
+    const std::string xml_path = GetTestDataFilePath(path);
+    char error[1024];
+    mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
+    ASSERT_THAT(m, NotNull()) << error;
+
+    // exactly one geom and one site in each model
+    ASSERT_EQ(m->ngeom, 1) << path;
+    ASSERT_EQ(m->nsite, 1) << path;
+
+    mjData* d = mj_makeData(m);
+
+    // test parameters
+    mjtNum kDuration = 2.0;  // length of rollout (seconds)
+    int kCompare = 100;      // number of tests per rollout
+    int compare_every = kDuration / (m->opt.timestep * kCompare);
+
+    // roll out and compare analytic normal with fin-diff approximation
+    int ntest = 0;  // tests performed
+    int nstep = 0;  // steps elapsed
+    while (d->time < kDuration) {
+      mj_step(m, d);
+      nstep++;
+
+      // skip until this is timestep we should test on
+      if (nstep % compare_every != 1) {
+        continue;
+      }
+
+      // geom info
+      const mjtNum* pos = d->geom_xpos;
+      const mjtNum* mat = d->geom_xmat;
+      const mjtNum* size = m->geom_size;
+      int type = m->geom_type[0];
+
+      // site info
+      const mjtNum* pnt = d->site_xpos;
+      const mjtNum vec[3] = {d->site_xmat[2], d->site_xmat[5], d->site_xmat[8]};
+
+      // compute ray length and normal
+      mjtNum normal[3];
+      mjtNum r = mju_rayGeomNormal(pos, mat, size, pnt, vec, type, normal);
+
+      // compare with sensor
+      EXPECT_EQ(r, d->sensordata[0]) << path << ", time " << d->time;
+
+      // if no intersection, skip
+      if (r < 0) {
+        EXPECT_THAT(normal, ElementsAre(0, 0, 0));
+        continue;
+      }
+
+      // compute surface intersection point s
+      mjtNum s[3];
+      mju_addScl3(s, pnt, vec, r);
+
+      // compute intersection points ds, nudged by eps in x,y site frame
+      mjtNum eps = 1e-6;
+      mjtNum ds[2][3];
+      for (int i = 0; i < 2; ++i) {
+        mjtNum nudge[3] = {d->site_xmat[0 + i],
+                           d->site_xmat[3 + i],
+                           d->site_xmat[6 + i]};
+        mjtNum dpnt[3];
+        mju_addScl3(dpnt, pnt, nudge, eps);
+        mjtNum dr = mju_rayGeomNormal(pos, mat, size, dpnt, vec, type, nullptr);
+        mju_addScl3(ds[i], dpnt, vec, dr);
+      }
+
+      // compute in-plane tangents and expected normal
+      mjtNum t0[3], t1[3], expected[3];
+      mju_sub3(t0, ds[0], s);
+      mju_sub3(t1, ds[1], s);
+      mju_cross(expected, t1, t0);
+
+      // normalize expected normal, skip if degenerate
+      mjtNum norm = mju_normalize3(expected);
+      if (norm < mjMINVAL) continue;
+
+      // flipped expected normal, should match either expected or -expected
+      mjtNum expected_neg[3] = {-expected[0], -expected[1], -expected[2]};
+
+      // compare analytic with fin-diff approximation
+      EXPECT_THAT(normal, AnyOf(
+          Pointwise(DoubleNear(10*eps), expected),
+          Pointwise(DoubleNear(10*eps), expected_neg)
+      )) << path << ", time " << d->time;
+
+      // increment count
+      ntest++;
+    }
+
+    // at least 10 tests should have been performed
+    EXPECT_GT(ntest, 10);
+
+    mj_deleteData(d);
+    mj_deleteModel(m);
+  }
 }
 
 }  // namespace
