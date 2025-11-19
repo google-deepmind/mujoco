@@ -183,10 +183,11 @@ replicating 200 times, suffixes will be ``000, 001, ...`` etc). All referencing 
 and namespaced appropriately. Detailed examples of models using replicate can be found in the
 `model/replicate/ <https://github.com/google-deepmind/mujoco/tree/main/model/replicate>`__ directory.
 
-There is a caveat concerning :ref:`keyframes<keyframe>` when using replicate. Since :ref:`mjs_attach` is used to
+There are some caveats concerning :ref:`keyframes<keyframe>` when using replicate. Since :ref:`mjs_attach` is used to
 self-attach multiple times the enclosed kinematic tree, if this tree contains further :ref:`attach<body-attach>`
 elements, keyframes will not be replicated nor namespaced by :ref:`replicate<replicate>`, but they will be attached and
-namespaced once by the innermost call of :ref:`mjs_attach`. See the limitations discussed in :ref:`attach<body-attach>`.
+namespaced once by the innermost call of :ref:`mjs_attach`. See the limitations discussed in
+:ref:`attachment<meAttachment>`.
 
 .. _replicate-count:
 
@@ -3918,25 +3919,16 @@ Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The :el:`attach` element is used to insert a sub-tree of bodies from another model into this model's kinematic tree.
-Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from
-one file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model
-must first be defined as an :ref:`asset<asset-model>`. When creating an attachment, the top body of the attached subtree
-is specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are
-also copied into the top-level model. Additionally, any elements referenced from within the attached subtree (e.g.
-defaults and assets) will be copied in to the top-level model. :el:`attach` is a :ref:`meta-element`, so upon saving
-all attachments will appear in the saved XML file.
-
-.. admonition:: Known issues
-   :class: note
-
-   The following known limitations exist, to be addressed in a future release:
-
-   - An entire model cannot be attached (i.e. including all elements, referenced or not).
-   - All assets from the child model will be copied in, whether they are referenced or not.
-   - Circular references are not checked for and will lead to infinite loops.
-   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
-     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
-     lost.
+Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from one
+file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model must
+first be defined as an :ref:`asset<asset-model>`. When creating an attachment, the top body of the attached subtree is
+specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are also copied into
+the top-level model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets)
+will be copied in to the top-level model. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will
+appear in the saved XML file. Note that this element is a subset of the functionality of the procedural
+:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. In addition,
+when the :el:`attach` element is used, it is not possible to attach an entire model (i.e. including all elements,
+referenced or not).
 
 .. _body-attach-model:
 
