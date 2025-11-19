@@ -101,6 +101,13 @@ MJWarp is optimized for parallel simulation. A batch of simulations can be speci
   worlds does not exceed ``nworld x nconmax``. However, the number of constraints per world is strictly limited by
   `njmax`_.
 
+.. admonition:: XML parsing
+  :class: note
+
+  Values for `nconmax`_ and `njmax`_ are not parsed from :ref:`size/nconmax <size-nconmax>` and
+  :ref:`size/njmax <size-njmax>` (these parameters are deprecated). Values for these parameters must be provided to
+  :func:`mjw.make_data <mujoco_warp.make_data>` or :func:`mjw.put_data <mujoco_warp.put_data>`.
+
 Functions
 ---------
 
