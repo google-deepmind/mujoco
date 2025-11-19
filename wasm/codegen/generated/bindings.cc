@@ -105,6 +105,674 @@ std::vector<WrapperType> InitWrapperArray(ArrayType* array, SizeType size) {
   return result;
 }
 
+val get_mjDISABLESTRING() { return MakeValArray(mjDISABLESTRING); }
+val get_mjENABLESTRING() { return MakeValArray(mjENABLESTRING); }
+val get_mjTIMERSTRING() { return MakeValArray(mjTIMERSTRING); }
+val get_mjLABELSTRING() { return MakeValArray(mjLABELSTRING); }
+val get_mjFRAMESTRING() { return MakeValArray(mjFRAMESTRING); }
+val get_mjVISSTRING() { return MakeValArray3(mjVISSTRING); }
+val get_mjRNDSTRING() { return MakeValArray3(mjRNDSTRING); }
+
+EMSCRIPTEN_BINDINGS(mujoco_constants) {
+  // from mjmodel.h
+  constant("mjPI", mjPI);
+  constant("mjMAXVAL", mjMAXVAL);
+  constant("mjMINMU", mjMINMU);
+  constant("mjMINIMP", mjMINIMP);
+  constant("mjMAXIMP", mjMAXIMP);
+  constant("mjMAXCONPAIR", mjMAXCONPAIR);
+  constant("mjNEQDATA", mjNEQDATA);
+  constant("mjNDYN", mjNDYN);
+  constant("mjNGAIN", mjNGAIN);
+  constant("mjNBIAS", mjNBIAS);
+  constant("mjNREF", mjNREF);
+  constant("mjNIMP", mjNIMP);
+  constant("mjNSOLVER", mjNSOLVER);
+
+  // from mjvisualize.h
+  constant("mjNGROUP", mjNGROUP);
+  constant("mjMAXLIGHT", mjMAXLIGHT);
+  constant("mjMAXOVERLAY", mjMAXOVERLAY);
+  constant("mjMAXLINE", mjMAXLINE);
+  constant("mjMAXLINEPNT", mjMAXLINEPNT);
+  constant("mjMAXPLANEGRID", mjMAXPLANEGRID);
+
+  // from mujoco.h
+  constant("mjVERSION_HEADER", mjVERSION_HEADER);
+
+  // from mjtnum.h
+  constant("mjMINVAL", mjMINVAL);
+
+  // emscripten::constant() is designed for simple, compile-time literal values
+  // (like numbers or a single string literal), complex values need to be
+  // bound as functions.
+  emscripten::function("get_mjDISABLESTRING", &get_mjDISABLESTRING);
+  emscripten::function("get_mjENABLESTRING", &get_mjENABLESTRING);
+  emscripten::function("get_mjTIMERSTRING", &get_mjTIMERSTRING);
+  emscripten::function("get_mjLABELSTRING", &get_mjLABELSTRING);
+  emscripten::function("get_mjFRAMESTRING", &get_mjFRAMESTRING);
+  emscripten::function("get_mjVISSTRING", &get_mjVISSTRING);
+  emscripten::function("get_mjRNDSTRING", &get_mjRNDSTRING);
+}
+
+EMSCRIPTEN_BINDINGS(mujoco_enums) {
+  enum_<mjtDisableBit>("mjtDisableBit")
+    .value("mjDSBL_CONSTRAINT", mjDSBL_CONSTRAINT)
+    .value("mjDSBL_EQUALITY", mjDSBL_EQUALITY)
+    .value("mjDSBL_FRICTIONLOSS", mjDSBL_FRICTIONLOSS)
+    .value("mjDSBL_LIMIT", mjDSBL_LIMIT)
+    .value("mjDSBL_CONTACT", mjDSBL_CONTACT)
+    .value("mjDSBL_SPRING", mjDSBL_SPRING)
+    .value("mjDSBL_DAMPER", mjDSBL_DAMPER)
+    .value("mjDSBL_GRAVITY", mjDSBL_GRAVITY)
+    .value("mjDSBL_CLAMPCTRL", mjDSBL_CLAMPCTRL)
+    .value("mjDSBL_WARMSTART", mjDSBL_WARMSTART)
+    .value("mjDSBL_FILTERPARENT", mjDSBL_FILTERPARENT)
+    .value("mjDSBL_ACTUATION", mjDSBL_ACTUATION)
+    .value("mjDSBL_REFSAFE", mjDSBL_REFSAFE)
+    .value("mjDSBL_SENSOR", mjDSBL_SENSOR)
+    .value("mjDSBL_MIDPHASE", mjDSBL_MIDPHASE)
+    .value("mjDSBL_EULERDAMP", mjDSBL_EULERDAMP)
+    .value("mjDSBL_AUTORESET", mjDSBL_AUTORESET)
+    .value("mjDSBL_NATIVECCD", mjDSBL_NATIVECCD)
+    .value("mjDSBL_ISLAND", mjDSBL_ISLAND)
+    .value("mjNDISABLE", mjNDISABLE);
+
+  enum_<mjtEnableBit>("mjtEnableBit")
+    .value("mjENBL_OVERRIDE", mjENBL_OVERRIDE)
+    .value("mjENBL_ENERGY", mjENBL_ENERGY)
+    .value("mjENBL_FWDINV", mjENBL_FWDINV)
+    .value("mjENBL_INVDISCRETE", mjENBL_INVDISCRETE)
+    .value("mjENBL_MULTICCD", mjENBL_MULTICCD)
+    .value("mjENBL_SLEEP", mjENBL_SLEEP)
+    .value("mjNENABLE", mjNENABLE);
+
+  enum_<mjtJoint>("mjtJoint")
+    .value("mjJNT_FREE", mjJNT_FREE)
+    .value("mjJNT_BALL", mjJNT_BALL)
+    .value("mjJNT_SLIDE", mjJNT_SLIDE)
+    .value("mjJNT_HINGE", mjJNT_HINGE);
+
+  enum_<mjtGeom>("mjtGeom")
+    .value("mjGEOM_PLANE", mjGEOM_PLANE)
+    .value("mjGEOM_HFIELD", mjGEOM_HFIELD)
+    .value("mjGEOM_SPHERE", mjGEOM_SPHERE)
+    .value("mjGEOM_CAPSULE", mjGEOM_CAPSULE)
+    .value("mjGEOM_ELLIPSOID", mjGEOM_ELLIPSOID)
+    .value("mjGEOM_CYLINDER", mjGEOM_CYLINDER)
+    .value("mjGEOM_BOX", mjGEOM_BOX)
+    .value("mjGEOM_MESH", mjGEOM_MESH)
+    .value("mjGEOM_SDF", mjGEOM_SDF)
+    .value("mjNGEOMTYPES", mjNGEOMTYPES)
+    .value("mjGEOM_ARROW", mjGEOM_ARROW)
+    .value("mjGEOM_ARROW1", mjGEOM_ARROW1)
+    .value("mjGEOM_ARROW2", mjGEOM_ARROW2)
+    .value("mjGEOM_LINE", mjGEOM_LINE)
+    .value("mjGEOM_LINEBOX", mjGEOM_LINEBOX)
+    .value("mjGEOM_FLEX", mjGEOM_FLEX)
+    .value("mjGEOM_SKIN", mjGEOM_SKIN)
+    .value("mjGEOM_LABEL", mjGEOM_LABEL)
+    .value("mjGEOM_TRIANGLE", mjGEOM_TRIANGLE)
+    .value("mjGEOM_NONE", mjGEOM_NONE);
+
+  enum_<mjtCamLight>("mjtCamLight")
+    .value("mjCAMLIGHT_FIXED", mjCAMLIGHT_FIXED)
+    .value("mjCAMLIGHT_TRACK", mjCAMLIGHT_TRACK)
+    .value("mjCAMLIGHT_TRACKCOM", mjCAMLIGHT_TRACKCOM)
+    .value("mjCAMLIGHT_TARGETBODY", mjCAMLIGHT_TARGETBODY)
+    .value("mjCAMLIGHT_TARGETBODYCOM", mjCAMLIGHT_TARGETBODYCOM);
+
+  enum_<mjtLightType>("mjtLightType")
+    .value("mjLIGHT_SPOT", mjLIGHT_SPOT)
+    .value("mjLIGHT_DIRECTIONAL", mjLIGHT_DIRECTIONAL)
+    .value("mjLIGHT_POINT", mjLIGHT_POINT)
+    .value("mjLIGHT_IMAGE", mjLIGHT_IMAGE);
+
+  enum_<mjtTexture>("mjtTexture")
+    .value("mjTEXTURE_2D", mjTEXTURE_2D)
+    .value("mjTEXTURE_CUBE", mjTEXTURE_CUBE)
+    .value("mjTEXTURE_SKYBOX", mjTEXTURE_SKYBOX);
+
+  enum_<mjtTextureRole>("mjtTextureRole")
+    .value("mjTEXROLE_USER", mjTEXROLE_USER)
+    .value("mjTEXROLE_RGB", mjTEXROLE_RGB)
+    .value("mjTEXROLE_OCCLUSION", mjTEXROLE_OCCLUSION)
+    .value("mjTEXROLE_ROUGHNESS", mjTEXROLE_ROUGHNESS)
+    .value("mjTEXROLE_METALLIC", mjTEXROLE_METALLIC)
+    .value("mjTEXROLE_NORMAL", mjTEXROLE_NORMAL)
+    .value("mjTEXROLE_OPACITY", mjTEXROLE_OPACITY)
+    .value("mjTEXROLE_EMISSIVE", mjTEXROLE_EMISSIVE)
+    .value("mjTEXROLE_RGBA", mjTEXROLE_RGBA)
+    .value("mjTEXROLE_ORM", mjTEXROLE_ORM)
+    .value("mjNTEXROLE", mjNTEXROLE);
+
+  enum_<mjtColorSpace>("mjtColorSpace")
+    .value("mjCOLORSPACE_AUTO", mjCOLORSPACE_AUTO)
+    .value("mjCOLORSPACE_LINEAR", mjCOLORSPACE_LINEAR)
+    .value("mjCOLORSPACE_SRGB", mjCOLORSPACE_SRGB);
+
+  enum_<mjtIntegrator>("mjtIntegrator")
+    .value("mjINT_EULER", mjINT_EULER)
+    .value("mjINT_RK4", mjINT_RK4)
+    .value("mjINT_IMPLICIT", mjINT_IMPLICIT)
+    .value("mjINT_IMPLICITFAST", mjINT_IMPLICITFAST);
+
+  enum_<mjtCone>("mjtCone")
+    .value("mjCONE_PYRAMIDAL", mjCONE_PYRAMIDAL)
+    .value("mjCONE_ELLIPTIC", mjCONE_ELLIPTIC);
+
+  enum_<mjtJacobian>("mjtJacobian")
+    .value("mjJAC_DENSE", mjJAC_DENSE)
+    .value("mjJAC_SPARSE", mjJAC_SPARSE)
+    .value("mjJAC_AUTO", mjJAC_AUTO);
+
+  enum_<mjtSolver>("mjtSolver")
+    .value("mjSOL_PGS", mjSOL_PGS)
+    .value("mjSOL_CG", mjSOL_CG)
+    .value("mjSOL_NEWTON", mjSOL_NEWTON);
+
+  enum_<mjtEq>("mjtEq")
+    .value("mjEQ_CONNECT", mjEQ_CONNECT)
+    .value("mjEQ_WELD", mjEQ_WELD)
+    .value("mjEQ_JOINT", mjEQ_JOINT)
+    .value("mjEQ_TENDON", mjEQ_TENDON)
+    .value("mjEQ_FLEX", mjEQ_FLEX)
+    .value("mjEQ_DISTANCE", mjEQ_DISTANCE);
+
+  enum_<mjtWrap>("mjtWrap")
+    .value("mjWRAP_NONE", mjWRAP_NONE)
+    .value("mjWRAP_JOINT", mjWRAP_JOINT)
+    .value("mjWRAP_PULLEY", mjWRAP_PULLEY)
+    .value("mjWRAP_SITE", mjWRAP_SITE)
+    .value("mjWRAP_SPHERE", mjWRAP_SPHERE)
+    .value("mjWRAP_CYLINDER", mjWRAP_CYLINDER);
+
+  enum_<mjtTrn>("mjtTrn")
+    .value("mjTRN_JOINT", mjTRN_JOINT)
+    .value("mjTRN_JOINTINPARENT", mjTRN_JOINTINPARENT)
+    .value("mjTRN_SLIDERCRANK", mjTRN_SLIDERCRANK)
+    .value("mjTRN_TENDON", mjTRN_TENDON)
+    .value("mjTRN_SITE", mjTRN_SITE)
+    .value("mjTRN_BODY", mjTRN_BODY)
+    .value("mjTRN_UNDEFINED", mjTRN_UNDEFINED);
+
+  enum_<mjtDyn>("mjtDyn")
+    .value("mjDYN_NONE", mjDYN_NONE)
+    .value("mjDYN_INTEGRATOR", mjDYN_INTEGRATOR)
+    .value("mjDYN_FILTER", mjDYN_FILTER)
+    .value("mjDYN_FILTEREXACT", mjDYN_FILTEREXACT)
+    .value("mjDYN_MUSCLE", mjDYN_MUSCLE)
+    .value("mjDYN_USER", mjDYN_USER);
+
+  enum_<mjtGain>("mjtGain")
+    .value("mjGAIN_FIXED", mjGAIN_FIXED)
+    .value("mjGAIN_AFFINE", mjGAIN_AFFINE)
+    .value("mjGAIN_MUSCLE", mjGAIN_MUSCLE)
+    .value("mjGAIN_USER", mjGAIN_USER);
+
+  enum_<mjtBias>("mjtBias")
+    .value("mjBIAS_NONE", mjBIAS_NONE)
+    .value("mjBIAS_AFFINE", mjBIAS_AFFINE)
+    .value("mjBIAS_MUSCLE", mjBIAS_MUSCLE)
+    .value("mjBIAS_USER", mjBIAS_USER);
+
+  enum_<mjtObj>("mjtObj")
+    .value("mjOBJ_UNKNOWN", mjOBJ_UNKNOWN)
+    .value("mjOBJ_BODY", mjOBJ_BODY)
+    .value("mjOBJ_XBODY", mjOBJ_XBODY)
+    .value("mjOBJ_JOINT", mjOBJ_JOINT)
+    .value("mjOBJ_DOF", mjOBJ_DOF)
+    .value("mjOBJ_GEOM", mjOBJ_GEOM)
+    .value("mjOBJ_SITE", mjOBJ_SITE)
+    .value("mjOBJ_CAMERA", mjOBJ_CAMERA)
+    .value("mjOBJ_LIGHT", mjOBJ_LIGHT)
+    .value("mjOBJ_FLEX", mjOBJ_FLEX)
+    .value("mjOBJ_MESH", mjOBJ_MESH)
+    .value("mjOBJ_SKIN", mjOBJ_SKIN)
+    .value("mjOBJ_HFIELD", mjOBJ_HFIELD)
+    .value("mjOBJ_TEXTURE", mjOBJ_TEXTURE)
+    .value("mjOBJ_MATERIAL", mjOBJ_MATERIAL)
+    .value("mjOBJ_PAIR", mjOBJ_PAIR)
+    .value("mjOBJ_EXCLUDE", mjOBJ_EXCLUDE)
+    .value("mjOBJ_EQUALITY", mjOBJ_EQUALITY)
+    .value("mjOBJ_TENDON", mjOBJ_TENDON)
+    .value("mjOBJ_ACTUATOR", mjOBJ_ACTUATOR)
+    .value("mjOBJ_SENSOR", mjOBJ_SENSOR)
+    .value("mjOBJ_NUMERIC", mjOBJ_NUMERIC)
+    .value("mjOBJ_TEXT", mjOBJ_TEXT)
+    .value("mjOBJ_TUPLE", mjOBJ_TUPLE)
+    .value("mjOBJ_KEY", mjOBJ_KEY)
+    .value("mjOBJ_PLUGIN", mjOBJ_PLUGIN)
+    .value("mjNOBJECT", mjNOBJECT)
+    .value("mjOBJ_FRAME", mjOBJ_FRAME)
+    .value("mjOBJ_DEFAULT", mjOBJ_DEFAULT)
+    .value("mjOBJ_MODEL", mjOBJ_MODEL);
+
+  enum_<mjtSensor>("mjtSensor")
+    .value("mjSENS_TOUCH", mjSENS_TOUCH)
+    .value("mjSENS_ACCELEROMETER", mjSENS_ACCELEROMETER)
+    .value("mjSENS_VELOCIMETER", mjSENS_VELOCIMETER)
+    .value("mjSENS_GYRO", mjSENS_GYRO)
+    .value("mjSENS_FORCE", mjSENS_FORCE)
+    .value("mjSENS_TORQUE", mjSENS_TORQUE)
+    .value("mjSENS_MAGNETOMETER", mjSENS_MAGNETOMETER)
+    .value("mjSENS_RANGEFINDER", mjSENS_RANGEFINDER)
+    .value("mjSENS_CAMPROJECTION", mjSENS_CAMPROJECTION)
+    .value("mjSENS_JOINTPOS", mjSENS_JOINTPOS)
+    .value("mjSENS_JOINTVEL", mjSENS_JOINTVEL)
+    .value("mjSENS_TENDONPOS", mjSENS_TENDONPOS)
+    .value("mjSENS_TENDONVEL", mjSENS_TENDONVEL)
+    .value("mjSENS_ACTUATORPOS", mjSENS_ACTUATORPOS)
+    .value("mjSENS_ACTUATORVEL", mjSENS_ACTUATORVEL)
+    .value("mjSENS_ACTUATORFRC", mjSENS_ACTUATORFRC)
+    .value("mjSENS_JOINTACTFRC", mjSENS_JOINTACTFRC)
+    .value("mjSENS_TENDONACTFRC", mjSENS_TENDONACTFRC)
+    .value("mjSENS_BALLQUAT", mjSENS_BALLQUAT)
+    .value("mjSENS_BALLANGVEL", mjSENS_BALLANGVEL)
+    .value("mjSENS_JOINTLIMITPOS", mjSENS_JOINTLIMITPOS)
+    .value("mjSENS_JOINTLIMITVEL", mjSENS_JOINTLIMITVEL)
+    .value("mjSENS_JOINTLIMITFRC", mjSENS_JOINTLIMITFRC)
+    .value("mjSENS_TENDONLIMITPOS", mjSENS_TENDONLIMITPOS)
+    .value("mjSENS_TENDONLIMITVEL", mjSENS_TENDONLIMITVEL)
+    .value("mjSENS_TENDONLIMITFRC", mjSENS_TENDONLIMITFRC)
+    .value("mjSENS_FRAMEPOS", mjSENS_FRAMEPOS)
+    .value("mjSENS_FRAMEQUAT", mjSENS_FRAMEQUAT)
+    .value("mjSENS_FRAMEXAXIS", mjSENS_FRAMEXAXIS)
+    .value("mjSENS_FRAMEYAXIS", mjSENS_FRAMEYAXIS)
+    .value("mjSENS_FRAMEZAXIS", mjSENS_FRAMEZAXIS)
+    .value("mjSENS_FRAMELINVEL", mjSENS_FRAMELINVEL)
+    .value("mjSENS_FRAMEANGVEL", mjSENS_FRAMEANGVEL)
+    .value("mjSENS_FRAMELINACC", mjSENS_FRAMELINACC)
+    .value("mjSENS_FRAMEANGACC", mjSENS_FRAMEANGACC)
+    .value("mjSENS_SUBTREECOM", mjSENS_SUBTREECOM)
+    .value("mjSENS_SUBTREELINVEL", mjSENS_SUBTREELINVEL)
+    .value("mjSENS_SUBTREEANGMOM", mjSENS_SUBTREEANGMOM)
+    .value("mjSENS_INSIDESITE", mjSENS_INSIDESITE)
+    .value("mjSENS_GEOMDIST", mjSENS_GEOMDIST)
+    .value("mjSENS_GEOMNORMAL", mjSENS_GEOMNORMAL)
+    .value("mjSENS_GEOMFROMTO", mjSENS_GEOMFROMTO)
+    .value("mjSENS_CONTACT", mjSENS_CONTACT)
+    .value("mjSENS_E_POTENTIAL", mjSENS_E_POTENTIAL)
+    .value("mjSENS_E_KINETIC", mjSENS_E_KINETIC)
+    .value("mjSENS_CLOCK", mjSENS_CLOCK)
+    .value("mjSENS_TACTILE", mjSENS_TACTILE)
+    .value("mjSENS_PLUGIN", mjSENS_PLUGIN)
+    .value("mjSENS_USER", mjSENS_USER);
+
+  enum_<mjtStage>("mjtStage")
+    .value("mjSTAGE_NONE", mjSTAGE_NONE)
+    .value("mjSTAGE_POS", mjSTAGE_POS)
+    .value("mjSTAGE_VEL", mjSTAGE_VEL)
+    .value("mjSTAGE_ACC", mjSTAGE_ACC);
+
+  enum_<mjtDataType>("mjtDataType")
+    .value("mjDATATYPE_REAL", mjDATATYPE_REAL)
+    .value("mjDATATYPE_POSITIVE", mjDATATYPE_POSITIVE)
+    .value("mjDATATYPE_AXIS", mjDATATYPE_AXIS)
+    .value("mjDATATYPE_QUATERNION", mjDATATYPE_QUATERNION);
+
+  enum_<mjtConDataField>("mjtConDataField")
+    .value("mjCONDATA_FOUND", mjCONDATA_FOUND)
+    .value("mjCONDATA_FORCE", mjCONDATA_FORCE)
+    .value("mjCONDATA_TORQUE", mjCONDATA_TORQUE)
+    .value("mjCONDATA_DIST", mjCONDATA_DIST)
+    .value("mjCONDATA_POS", mjCONDATA_POS)
+    .value("mjCONDATA_NORMAL", mjCONDATA_NORMAL)
+    .value("mjCONDATA_TANGENT", mjCONDATA_TANGENT)
+    .value("mjNCONDATA", mjNCONDATA);
+
+  enum_<mjtSameFrame>("mjtSameFrame")
+    .value("mjSAMEFRAME_NONE", mjSAMEFRAME_NONE)
+    .value("mjSAMEFRAME_BODY", mjSAMEFRAME_BODY)
+    .value("mjSAMEFRAME_INERTIA", mjSAMEFRAME_INERTIA)
+    .value("mjSAMEFRAME_BODYROT", mjSAMEFRAME_BODYROT)
+    .value("mjSAMEFRAME_INERTIAROT", mjSAMEFRAME_INERTIAROT);
+
+  enum_<mjtSleepPolicy>("mjtSleepPolicy")
+    .value("mjSLEEP_AUTO", mjSLEEP_AUTO)
+    .value("mjSLEEP_AUTO_NEVER", mjSLEEP_AUTO_NEVER)
+    .value("mjSLEEP_AUTO_ALLOWED", mjSLEEP_AUTO_ALLOWED)
+    .value("mjSLEEP_NEVER", mjSLEEP_NEVER)
+    .value("mjSLEEP_ALLOWED", mjSLEEP_ALLOWED)
+    .value("mjSLEEP_INIT", mjSLEEP_INIT);
+
+  enum_<mjtLRMode>("mjtLRMode")
+    .value("mjLRMODE_NONE", mjLRMODE_NONE)
+    .value("mjLRMODE_MUSCLE", mjLRMODE_MUSCLE)
+    .value("mjLRMODE_MUSCLEUSER", mjLRMODE_MUSCLEUSER)
+    .value("mjLRMODE_ALL", mjLRMODE_ALL);
+
+  enum_<mjtFlexSelf>("mjtFlexSelf")
+    .value("mjFLEXSELF_NONE", mjFLEXSELF_NONE)
+    .value("mjFLEXSELF_NARROW", mjFLEXSELF_NARROW)
+    .value("mjFLEXSELF_BVH", mjFLEXSELF_BVH)
+    .value("mjFLEXSELF_SAP", mjFLEXSELF_SAP)
+    .value("mjFLEXSELF_AUTO", mjFLEXSELF_AUTO);
+
+  enum_<mjtSDFType>("mjtSDFType")
+    .value("mjSDFTYPE_SINGLE", mjSDFTYPE_SINGLE)
+    .value("mjSDFTYPE_INTERSECTION", mjSDFTYPE_INTERSECTION)
+    .value("mjSDFTYPE_MIDSURFACE", mjSDFTYPE_MIDSURFACE)
+    .value("mjSDFTYPE_COLLISION", mjSDFTYPE_COLLISION);
+
+  enum_<mjtTaskStatus>("mjtTaskStatus")
+    .value("mjTASK_NEW", mjTASK_NEW)
+    .value("mjTASK_QUEUED", mjTASK_QUEUED)
+    .value("mjTASK_COMPLETED", mjTASK_COMPLETED);
+
+  enum_<mjtState>("mjtState")
+    .value("mjSTATE_TIME", mjSTATE_TIME)
+    .value("mjSTATE_QPOS", mjSTATE_QPOS)
+    .value("mjSTATE_QVEL", mjSTATE_QVEL)
+    .value("mjSTATE_ACT", mjSTATE_ACT)
+    .value("mjSTATE_WARMSTART", mjSTATE_WARMSTART)
+    .value("mjSTATE_CTRL", mjSTATE_CTRL)
+    .value("mjSTATE_QFRC_APPLIED", mjSTATE_QFRC_APPLIED)
+    .value("mjSTATE_XFRC_APPLIED", mjSTATE_XFRC_APPLIED)
+    .value("mjSTATE_EQ_ACTIVE", mjSTATE_EQ_ACTIVE)
+    .value("mjSTATE_MOCAP_POS", mjSTATE_MOCAP_POS)
+    .value("mjSTATE_MOCAP_QUAT", mjSTATE_MOCAP_QUAT)
+    .value("mjSTATE_USERDATA", mjSTATE_USERDATA)
+    .value("mjSTATE_PLUGIN", mjSTATE_PLUGIN)
+    .value("mjNSTATE", mjNSTATE)
+    .value("mjSTATE_PHYSICS", mjSTATE_PHYSICS)
+    .value("mjSTATE_FULLPHYSICS", mjSTATE_FULLPHYSICS)
+    .value("mjSTATE_USER", mjSTATE_USER)
+    .value("mjSTATE_INTEGRATION", mjSTATE_INTEGRATION);
+
+  enum_<mjtConstraint>("mjtConstraint")
+    .value("mjCNSTR_EQUALITY", mjCNSTR_EQUALITY)
+    .value("mjCNSTR_FRICTION_DOF", mjCNSTR_FRICTION_DOF)
+    .value("mjCNSTR_FRICTION_TENDON", mjCNSTR_FRICTION_TENDON)
+    .value("mjCNSTR_LIMIT_JOINT", mjCNSTR_LIMIT_JOINT)
+    .value("mjCNSTR_LIMIT_TENDON", mjCNSTR_LIMIT_TENDON)
+    .value("mjCNSTR_CONTACT_FRICTIONLESS", mjCNSTR_CONTACT_FRICTIONLESS)
+    .value("mjCNSTR_CONTACT_PYRAMIDAL", mjCNSTR_CONTACT_PYRAMIDAL)
+    .value("mjCNSTR_CONTACT_ELLIPTIC", mjCNSTR_CONTACT_ELLIPTIC);
+
+  enum_<mjtConstraintState>("mjtConstraintState")
+    .value("mjCNSTRSTATE_SATISFIED", mjCNSTRSTATE_SATISFIED)
+    .value("mjCNSTRSTATE_QUADRATIC", mjCNSTRSTATE_QUADRATIC)
+    .value("mjCNSTRSTATE_LINEARNEG", mjCNSTRSTATE_LINEARNEG)
+    .value("mjCNSTRSTATE_LINEARPOS", mjCNSTRSTATE_LINEARPOS)
+    .value("mjCNSTRSTATE_CONE", mjCNSTRSTATE_CONE);
+
+  enum_<mjtWarning>("mjtWarning")
+    .value("mjWARN_INERTIA", mjWARN_INERTIA)
+    .value("mjWARN_CONTACTFULL", mjWARN_CONTACTFULL)
+    .value("mjWARN_CNSTRFULL", mjWARN_CNSTRFULL)
+    .value("mjWARN_VGEOMFULL", mjWARN_VGEOMFULL)
+    .value("mjWARN_BADQPOS", mjWARN_BADQPOS)
+    .value("mjWARN_BADQVEL", mjWARN_BADQVEL)
+    .value("mjWARN_BADQACC", mjWARN_BADQACC)
+    .value("mjWARN_BADCTRL", mjWARN_BADCTRL)
+    .value("mjNWARNING", mjNWARNING);
+
+  enum_<mjtTimer>("mjtTimer")
+    .value("mjTIMER_STEP", mjTIMER_STEP)
+    .value("mjTIMER_FORWARD", mjTIMER_FORWARD)
+    .value("mjTIMER_INVERSE", mjTIMER_INVERSE)
+    .value("mjTIMER_POSITION", mjTIMER_POSITION)
+    .value("mjTIMER_VELOCITY", mjTIMER_VELOCITY)
+    .value("mjTIMER_ACTUATION", mjTIMER_ACTUATION)
+    .value("mjTIMER_CONSTRAINT", mjTIMER_CONSTRAINT)
+    .value("mjTIMER_ADVANCE", mjTIMER_ADVANCE)
+    .value("mjTIMER_POS_KINEMATICS", mjTIMER_POS_KINEMATICS)
+    .value("mjTIMER_POS_INERTIA", mjTIMER_POS_INERTIA)
+    .value("mjTIMER_POS_COLLISION", mjTIMER_POS_COLLISION)
+    .value("mjTIMER_POS_MAKE", mjTIMER_POS_MAKE)
+    .value("mjTIMER_POS_PROJECT", mjTIMER_POS_PROJECT)
+    .value("mjTIMER_COL_BROAD", mjTIMER_COL_BROAD)
+    .value("mjTIMER_COL_NARROW", mjTIMER_COL_NARROW)
+    .value("mjNTIMER", mjNTIMER);
+
+  enum_<mjtSleepState>("mjtSleepState")
+    .value("mjS_STATIC", mjS_STATIC)
+    .value("mjS_ASLEEP", mjS_ASLEEP)
+    .value("mjS_AWAKE", mjS_AWAKE);
+
+  enum_<mjtGeomInertia>("mjtGeomInertia")
+    .value("mjINERTIA_VOLUME", mjINERTIA_VOLUME)
+    .value("mjINERTIA_SHELL", mjINERTIA_SHELL);
+
+  enum_<mjtMeshInertia>("mjtMeshInertia")
+    .value("mjMESH_INERTIA_CONVEX", mjMESH_INERTIA_CONVEX)
+    .value("mjMESH_INERTIA_EXACT", mjMESH_INERTIA_EXACT)
+    .value("mjMESH_INERTIA_LEGACY", mjMESH_INERTIA_LEGACY)
+    .value("mjMESH_INERTIA_SHELL", mjMESH_INERTIA_SHELL);
+
+  enum_<mjtMeshBuiltin>("mjtMeshBuiltin")
+    .value("mjMESH_BUILTIN_NONE", mjMESH_BUILTIN_NONE)
+    .value("mjMESH_BUILTIN_SPHERE", mjMESH_BUILTIN_SPHERE)
+    .value("mjMESH_BUILTIN_HEMISPHERE", mjMESH_BUILTIN_HEMISPHERE)
+    .value("mjMESH_BUILTIN_CONE", mjMESH_BUILTIN_CONE)
+    .value("mjMESH_BUILTIN_SUPERSPHERE", mjMESH_BUILTIN_SUPERSPHERE)
+    .value("mjMESH_BUILTIN_SUPERTORUS", mjMESH_BUILTIN_SUPERTORUS)
+    .value("mjMESH_BUILTIN_WEDGE", mjMESH_BUILTIN_WEDGE)
+    .value("mjMESH_BUILTIN_PLATE", mjMESH_BUILTIN_PLATE);
+
+  enum_<mjtBuiltin>("mjtBuiltin")
+    .value("mjBUILTIN_NONE", mjBUILTIN_NONE)
+    .value("mjBUILTIN_GRADIENT", mjBUILTIN_GRADIENT)
+    .value("mjBUILTIN_CHECKER", mjBUILTIN_CHECKER)
+    .value("mjBUILTIN_FLAT", mjBUILTIN_FLAT);
+
+  enum_<mjtMark>("mjtMark")
+    .value("mjMARK_NONE", mjMARK_NONE)
+    .value("mjMARK_EDGE", mjMARK_EDGE)
+    .value("mjMARK_CROSS", mjMARK_CROSS)
+    .value("mjMARK_RANDOM", mjMARK_RANDOM);
+
+  enum_<mjtLimited>("mjtLimited")
+    .value("mjLIMITED_FALSE", mjLIMITED_FALSE)
+    .value("mjLIMITED_TRUE", mjLIMITED_TRUE)
+    .value("mjLIMITED_AUTO", mjLIMITED_AUTO);
+
+  enum_<mjtAlignFree>("mjtAlignFree")
+    .value("mjALIGNFREE_FALSE", mjALIGNFREE_FALSE)
+    .value("mjALIGNFREE_TRUE", mjALIGNFREE_TRUE)
+    .value("mjALIGNFREE_AUTO", mjALIGNFREE_AUTO);
+
+  enum_<mjtInertiaFromGeom>("mjtInertiaFromGeom")
+    .value("mjINERTIAFROMGEOM_FALSE", mjINERTIAFROMGEOM_FALSE)
+    .value("mjINERTIAFROMGEOM_TRUE", mjINERTIAFROMGEOM_TRUE)
+    .value("mjINERTIAFROMGEOM_AUTO", mjINERTIAFROMGEOM_AUTO);
+
+  enum_<mjtOrientation>("mjtOrientation")
+    .value("mjORIENTATION_QUAT", mjORIENTATION_QUAT)
+    .value("mjORIENTATION_AXISANGLE", mjORIENTATION_AXISANGLE)
+    .value("mjORIENTATION_XYAXES", mjORIENTATION_XYAXES)
+    .value("mjORIENTATION_ZAXIS", mjORIENTATION_ZAXIS)
+    .value("mjORIENTATION_EULER", mjORIENTATION_EULER);
+
+  enum_<mjtCatBit>("mjtCatBit")
+    .value("mjCAT_STATIC", mjCAT_STATIC)
+    .value("mjCAT_DYNAMIC", mjCAT_DYNAMIC)
+    .value("mjCAT_DECOR", mjCAT_DECOR)
+    .value("mjCAT_ALL", mjCAT_ALL);
+
+  enum_<mjtMouse>("mjtMouse")
+    .value("mjMOUSE_NONE", mjMOUSE_NONE)
+    .value("mjMOUSE_ROTATE_V", mjMOUSE_ROTATE_V)
+    .value("mjMOUSE_ROTATE_H", mjMOUSE_ROTATE_H)
+    .value("mjMOUSE_MOVE_V", mjMOUSE_MOVE_V)
+    .value("mjMOUSE_MOVE_H", mjMOUSE_MOVE_H)
+    .value("mjMOUSE_ZOOM", mjMOUSE_ZOOM)
+    .value("mjMOUSE_MOVE_V_REL", mjMOUSE_MOVE_V_REL)
+    .value("mjMOUSE_MOVE_H_REL", mjMOUSE_MOVE_H_REL);
+
+  enum_<mjtPertBit>("mjtPertBit")
+    .value("mjPERT_TRANSLATE", mjPERT_TRANSLATE)
+    .value("mjPERT_ROTATE", mjPERT_ROTATE);
+
+  enum_<mjtCamera>("mjtCamera")
+    .value("mjCAMERA_FREE", mjCAMERA_FREE)
+    .value("mjCAMERA_TRACKING", mjCAMERA_TRACKING)
+    .value("mjCAMERA_FIXED", mjCAMERA_FIXED)
+    .value("mjCAMERA_USER", mjCAMERA_USER);
+
+  enum_<mjtLabel>("mjtLabel")
+    .value("mjLABEL_NONE", mjLABEL_NONE)
+    .value("mjLABEL_BODY", mjLABEL_BODY)
+    .value("mjLABEL_JOINT", mjLABEL_JOINT)
+    .value("mjLABEL_GEOM", mjLABEL_GEOM)
+    .value("mjLABEL_SITE", mjLABEL_SITE)
+    .value("mjLABEL_CAMERA", mjLABEL_CAMERA)
+    .value("mjLABEL_LIGHT", mjLABEL_LIGHT)
+    .value("mjLABEL_TENDON", mjLABEL_TENDON)
+    .value("mjLABEL_ACTUATOR", mjLABEL_ACTUATOR)
+    .value("mjLABEL_CONSTRAINT", mjLABEL_CONSTRAINT)
+    .value("mjLABEL_FLEX", mjLABEL_FLEX)
+    .value("mjLABEL_SKIN", mjLABEL_SKIN)
+    .value("mjLABEL_SELECTION", mjLABEL_SELECTION)
+    .value("mjLABEL_SELPNT", mjLABEL_SELPNT)
+    .value("mjLABEL_CONTACTPOINT", mjLABEL_CONTACTPOINT)
+    .value("mjLABEL_CONTACTFORCE", mjLABEL_CONTACTFORCE)
+    .value("mjLABEL_ISLAND", mjLABEL_ISLAND)
+    .value("mjNLABEL", mjNLABEL);
+
+  enum_<mjtFrame>("mjtFrame")
+    .value("mjFRAME_NONE", mjFRAME_NONE)
+    .value("mjFRAME_BODY", mjFRAME_BODY)
+    .value("mjFRAME_GEOM", mjFRAME_GEOM)
+    .value("mjFRAME_SITE", mjFRAME_SITE)
+    .value("mjFRAME_CAMERA", mjFRAME_CAMERA)
+    .value("mjFRAME_LIGHT", mjFRAME_LIGHT)
+    .value("mjFRAME_CONTACT", mjFRAME_CONTACT)
+    .value("mjFRAME_WORLD", mjFRAME_WORLD)
+    .value("mjNFRAME", mjNFRAME);
+
+  enum_<mjtVisFlag>("mjtVisFlag")
+    .value("mjVIS_CONVEXHULL", mjVIS_CONVEXHULL)
+    .value("mjVIS_TEXTURE", mjVIS_TEXTURE)
+    .value("mjVIS_JOINT", mjVIS_JOINT)
+    .value("mjVIS_CAMERA", mjVIS_CAMERA)
+    .value("mjVIS_ACTUATOR", mjVIS_ACTUATOR)
+    .value("mjVIS_ACTIVATION", mjVIS_ACTIVATION)
+    .value("mjVIS_LIGHT", mjVIS_LIGHT)
+    .value("mjVIS_TENDON", mjVIS_TENDON)
+    .value("mjVIS_RANGEFINDER", mjVIS_RANGEFINDER)
+    .value("mjVIS_CONSTRAINT", mjVIS_CONSTRAINT)
+    .value("mjVIS_INERTIA", mjVIS_INERTIA)
+    .value("mjVIS_SCLINERTIA", mjVIS_SCLINERTIA)
+    .value("mjVIS_PERTFORCE", mjVIS_PERTFORCE)
+    .value("mjVIS_PERTOBJ", mjVIS_PERTOBJ)
+    .value("mjVIS_CONTACTPOINT", mjVIS_CONTACTPOINT)
+    .value("mjVIS_ISLAND", mjVIS_ISLAND)
+    .value("mjVIS_CONTACTFORCE", mjVIS_CONTACTFORCE)
+    .value("mjVIS_CONTACTSPLIT", mjVIS_CONTACTSPLIT)
+    .value("mjVIS_TRANSPARENT", mjVIS_TRANSPARENT)
+    .value("mjVIS_AUTOCONNECT", mjVIS_AUTOCONNECT)
+    .value("mjVIS_COM", mjVIS_COM)
+    .value("mjVIS_SELECT", mjVIS_SELECT)
+    .value("mjVIS_STATIC", mjVIS_STATIC)
+    .value("mjVIS_SKIN", mjVIS_SKIN)
+    .value("mjVIS_FLEXVERT", mjVIS_FLEXVERT)
+    .value("mjVIS_FLEXEDGE", mjVIS_FLEXEDGE)
+    .value("mjVIS_FLEXFACE", mjVIS_FLEXFACE)
+    .value("mjVIS_FLEXSKIN", mjVIS_FLEXSKIN)
+    .value("mjVIS_BODYBVH", mjVIS_BODYBVH)
+    .value("mjVIS_MESHBVH", mjVIS_MESHBVH)
+    .value("mjVIS_SDFITER", mjVIS_SDFITER)
+    .value("mjNVISFLAG", mjNVISFLAG);
+
+  enum_<mjtRndFlag>("mjtRndFlag")
+    .value("mjRND_SHADOW", mjRND_SHADOW)
+    .value("mjRND_WIREFRAME", mjRND_WIREFRAME)
+    .value("mjRND_REFLECTION", mjRND_REFLECTION)
+    .value("mjRND_ADDITIVE", mjRND_ADDITIVE)
+    .value("mjRND_SKYBOX", mjRND_SKYBOX)
+    .value("mjRND_FOG", mjRND_FOG)
+    .value("mjRND_HAZE", mjRND_HAZE)
+    .value("mjRND_SEGMENT", mjRND_SEGMENT)
+    .value("mjRND_IDCOLOR", mjRND_IDCOLOR)
+    .value("mjRND_CULL_FACE", mjRND_CULL_FACE)
+    .value("mjNRNDFLAG", mjNRNDFLAG);
+
+  enum_<mjtStereo>("mjtStereo")
+    .value("mjSTEREO_NONE", mjSTEREO_NONE)
+    .value("mjSTEREO_QUADBUFFERED", mjSTEREO_QUADBUFFERED)
+    .value("mjSTEREO_SIDEBYSIDE", mjSTEREO_SIDEBYSIDE);
+
+  enum_<mjtPluginCapabilityBit>("mjtPluginCapabilityBit")
+    .value("mjPLUGIN_ACTUATOR", mjPLUGIN_ACTUATOR)
+    .value("mjPLUGIN_SENSOR", mjPLUGIN_SENSOR)
+    .value("mjPLUGIN_PASSIVE", mjPLUGIN_PASSIVE)
+    .value("mjPLUGIN_SDF", mjPLUGIN_SDF);
+
+  enum_<mjtGridPos>("mjtGridPos")
+    .value("mjGRID_TOPLEFT", mjGRID_TOPLEFT)
+    .value("mjGRID_TOPRIGHT", mjGRID_TOPRIGHT)
+    .value("mjGRID_BOTTOMLEFT", mjGRID_BOTTOMLEFT)
+    .value("mjGRID_BOTTOMRIGHT", mjGRID_BOTTOMRIGHT)
+    .value("mjGRID_TOP", mjGRID_TOP)
+    .value("mjGRID_BOTTOM", mjGRID_BOTTOM)
+    .value("mjGRID_LEFT", mjGRID_LEFT)
+    .value("mjGRID_RIGHT", mjGRID_RIGHT);
+
+  enum_<mjtFramebuffer>("mjtFramebuffer")
+    .value("mjFB_WINDOW", mjFB_WINDOW)
+    .value("mjFB_OFFSCREEN", mjFB_OFFSCREEN);
+
+  enum_<mjtDepthMap>("mjtDepthMap")
+    .value("mjDEPTH_ZERONEAR", mjDEPTH_ZERONEAR)
+    .value("mjDEPTH_ZEROFAR", mjDEPTH_ZEROFAR);
+
+  enum_<mjtFontScale>("mjtFontScale")
+    .value("mjFONTSCALE_50", mjFONTSCALE_50)
+    .value("mjFONTSCALE_100", mjFONTSCALE_100)
+    .value("mjFONTSCALE_150", mjFONTSCALE_150)
+    .value("mjFONTSCALE_200", mjFONTSCALE_200)
+    .value("mjFONTSCALE_250", mjFONTSCALE_250)
+    .value("mjFONTSCALE_300", mjFONTSCALE_300);
+
+  enum_<mjtFont>("mjtFont")
+    .value("mjFONT_NORMAL", mjFONT_NORMAL)
+    .value("mjFONT_SHADOW", mjFONT_SHADOW)
+    .value("mjFONT_BIG", mjFONT_BIG);
+
+  enum_<mjtButton>("mjtButton")
+    .value("mjBUTTON_NONE", mjBUTTON_NONE)
+    .value("mjBUTTON_LEFT", mjBUTTON_LEFT)
+    .value("mjBUTTON_RIGHT", mjBUTTON_RIGHT)
+    .value("mjBUTTON_MIDDLE", mjBUTTON_MIDDLE);
+
+  enum_<mjtEvent>("mjtEvent")
+    .value("mjEVENT_NONE", mjEVENT_NONE)
+    .value("mjEVENT_MOVE", mjEVENT_MOVE)
+    .value("mjEVENT_PRESS", mjEVENT_PRESS)
+    .value("mjEVENT_RELEASE", mjEVENT_RELEASE)
+    .value("mjEVENT_SCROLL", mjEVENT_SCROLL)
+    .value("mjEVENT_KEY", mjEVENT_KEY)
+    .value("mjEVENT_RESIZE", mjEVENT_RESIZE)
+    .value("mjEVENT_REDRAW", mjEVENT_REDRAW)
+    .value("mjEVENT_FILESDROP", mjEVENT_FILESDROP);
+
+  enum_<mjtItem>("mjtItem")
+    .value("mjITEM_END", mjITEM_END)
+    .value("mjITEM_SECTION", mjITEM_SECTION)
+    .value("mjITEM_SEPARATOR", mjITEM_SEPARATOR)
+    .value("mjITEM_STATIC", mjITEM_STATIC)
+    .value("mjITEM_BUTTON", mjITEM_BUTTON)
+    .value("mjITEM_CHECKINT", mjITEM_CHECKINT)
+    .value("mjITEM_CHECKBYTE", mjITEM_CHECKBYTE)
+    .value("mjITEM_RADIO", mjITEM_RADIO)
+    .value("mjITEM_RADIOLINE", mjITEM_RADIOLINE)
+    .value("mjITEM_SELECT", mjITEM_SELECT)
+    .value("mjITEM_SLIDERINT", mjITEM_SLIDERINT)
+    .value("mjITEM_SLIDERNUM", mjITEM_SLIDERNUM)
+    .value("mjITEM_EDITINT", mjITEM_EDITINT)
+    .value("mjITEM_EDITNUM", mjITEM_EDITNUM)
+    .value("mjITEM_EDITFLOAT", mjITEM_EDITFLOAT)
+    .value("mjITEM_EDITTXT", mjITEM_EDITTXT)
+    .value("mjNITEM", mjNITEM);
+
+  enum_<mjtSection>("mjtSection")
+    .value("mjSECT_CLOSED", mjSECT_CLOSED)
+    .value("mjSECT_OPEN", mjSECT_OPEN)
+    .value("mjSECT_FIXED", mjSECT_FIXED);
+}
+
 using mjVisualGlobal = decltype(::mjVisual::global);
 using mjVisualHeadlight = decltype(::mjVisual::headlight);
 using mjVisualMap = decltype(::mjVisual::map);
@@ -6550,886 +7218,6 @@ struct MjsDefault {
 };
 
 
-struct MjvScene {
-  MjvScene();
-  MjvScene(MjModel *m, int maxgeom);
-  ~MjvScene();
-  std::unique_ptr<MjvScene> copy();
-  int GetSumFlexFaces() const;
-
-  mjvScene* get() const;
-  void set(mjvScene* ptr);
-
-  std::vector<MjvGeom> geoms() const;
-
-  emscripten::val geomorder() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->ngeom, ptr_->geomorder));
-  }
-  emscripten::val flexedgeadr() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexedgeadr));
-  }
-  emscripten::val flexedgenum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexedgenum));
-  }
-  emscripten::val flexvertadr() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexvertadr));
-  }
-  emscripten::val flexvertnum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexvertnum));
-  }
-  emscripten::val flexfaceadr() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfaceadr));
-  }
-  emscripten::val flexfacenum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfacenum));
-  }
-  emscripten::val flexfaceused() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfaceused));
-  }
-  emscripten::val flexedge() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(2 * model->nflexedge, ptr_->flexedge));
-  }
-  emscripten::val flexvert() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(3 * model->nflexvert, ptr_->flexvert));
-  }
-  emscripten::val skinfacenum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nskin, ptr_->skinfacenum));
-  }
-  emscripten::val skinvertadr() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nskin, ptr_->skinvertadr));
-  }
-  emscripten::val skinvertnum() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(ptr_->nskin, ptr_->skinvertnum));
-  }
-  emscripten::val skinvert() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(3 * model->nskinvert, ptr_->skinvert));
-  }
-  emscripten::val skinnormal() const {
-    return emscripten::val(
-        emscripten::typed_memory_view(3 * model->nskinvert, ptr_->skinnormal));
-  }
-  emscripten::val flexface() const {
-    return emscripten::val(emscripten::typed_memory_view(
-        9 * MjvScene::GetSumFlexFaces(), ptr_->flexface));
-  }
-  emscripten::val flexnormal() const {
-    return emscripten::val(emscripten::typed_memory_view(
-        9 * MjvScene::GetSumFlexFaces(), ptr_->flexnormal));
-  }
-  emscripten::val flextexcoord() const {
-    return emscripten::val(emscripten::typed_memory_view(
-        6 * MjvScene::GetSumFlexFaces(), ptr_->flextexcoord));
-  }
-  int maxgeom() const {
-    return ptr_->maxgeom;
-  }
-  void set_maxgeom(int value) {
-    ptr_->maxgeom = value;
-  }
-  int ngeom() const {
-    return ptr_->ngeom;
-  }
-  void set_ngeom(int value) {
-    ptr_->ngeom = value;
-  }
-  // geoms field is handled manually in template file struct declaration
-  // geomorder field is handled manually in template file struct declaration
-  int nflex() const {
-    return ptr_->nflex;
-  }
-  void set_nflex(int value) {
-    ptr_->nflex = value;
-  }
-  // flexedgeadr field is handled manually in template file struct declaration
-  // flexedgenum field is handled manually in template file struct declaration
-  // flexvertadr field is handled manually in template file struct declaration
-  // flexvertnum field is handled manually in template file struct declaration
-  // flexfaceadr field is handled manually in template file struct declaration
-  // flexfacenum field is handled manually in template file struct declaration
-  // flexfaceused field is handled manually in template file struct declaration
-  // flexedge field is handled manually in template file struct declaration
-  // flexvert field is handled manually in template file struct declaration
-  // flexface field is handled manually in template file struct declaration
-  // flexnormal field is handled manually in template file struct declaration
-  // flextexcoord field is handled manually in template file struct declaration
-  mjtByte flexvertopt() const {
-    return ptr_->flexvertopt;
-  }
-  void set_flexvertopt(mjtByte value) {
-    ptr_->flexvertopt = value;
-  }
-  mjtByte flexedgeopt() const {
-    return ptr_->flexedgeopt;
-  }
-  void set_flexedgeopt(mjtByte value) {
-    ptr_->flexedgeopt = value;
-  }
-  mjtByte flexfaceopt() const {
-    return ptr_->flexfaceopt;
-  }
-  void set_flexfaceopt(mjtByte value) {
-    ptr_->flexfaceopt = value;
-  }
-  mjtByte flexskinopt() const {
-    return ptr_->flexskinopt;
-  }
-  void set_flexskinopt(mjtByte value) {
-    ptr_->flexskinopt = value;
-  }
-  int nskin() const {
-    return ptr_->nskin;
-  }
-  void set_nskin(int value) {
-    ptr_->nskin = value;
-  }
-  // skinfacenum field is handled manually in template file struct declaration
-  // skinvertadr field is handled manually in template file struct declaration
-  // skinvertnum field is handled manually in template file struct declaration
-  // skinvert field is handled manually in template file struct declaration
-  // skinnormal field is handled manually in template file struct declaration
-  int nlight() const {
-    return ptr_->nlight;
-  }
-  void set_nlight(int value) {
-    ptr_->nlight = value;
-  }
-  // lights field is handled manually in template file struct declaration
-  // camera field is handled manually in template file struct declaration
-  mjtByte enabletransform() const {
-    return ptr_->enabletransform;
-  }
-  void set_enabletransform(mjtByte value) {
-    ptr_->enabletransform = value;
-  }
-  emscripten::val translate() const {
-    return emscripten::val(emscripten::typed_memory_view(3, ptr_->translate));
-  }
-  emscripten::val rotate() const {
-    return emscripten::val(emscripten::typed_memory_view(4, ptr_->rotate));
-  }
-  float scale() const {
-    return ptr_->scale;
-  }
-  void set_scale(float value) {
-    ptr_->scale = value;
-  }
-  int stereo() const {
-    return ptr_->stereo;
-  }
-  void set_stereo(int value) {
-    ptr_->stereo = value;
-  }
-  emscripten::val flags() const {
-    return emscripten::val(emscripten::typed_memory_view(10, ptr_->flags));
-  }
-  int framewidth() const {
-    return ptr_->framewidth;
-  }
-  void set_framewidth(int value) {
-    ptr_->framewidth = value;
-  }
-  emscripten::val framergb() const {
-    return emscripten::val(emscripten::typed_memory_view(3, ptr_->framergb));
-  }
-  int status() const {
-    return ptr_->status;
-  }
-  void set_status(int value) {
-    ptr_->status = value;
-  }
-
- private:
-  mjvScene* ptr_;
-  bool owned_ = false;
-
- public:
-  mjModel *model;
-  std::vector<MjvLight> lights;
-  std::vector<MjvGLCamera> camera;
-};
-
-val get_mjDISABLESTRING() { return MakeValArray(mjDISABLESTRING); }
-val get_mjENABLESTRING() { return MakeValArray(mjENABLESTRING); }
-val get_mjTIMERSTRING() { return MakeValArray(mjTIMERSTRING); }
-val get_mjLABELSTRING() { return MakeValArray(mjLABELSTRING); }
-val get_mjFRAMESTRING() { return MakeValArray(mjFRAMESTRING); }
-val get_mjVISSTRING() { return MakeValArray3(mjVISSTRING); }
-val get_mjRNDSTRING() { return MakeValArray3(mjRNDSTRING); }
-
-EMSCRIPTEN_BINDINGS(mujoco_constants) {
-  // from mjmodel.h
-  constant("mjPI", mjPI);
-  constant("mjMAXVAL", mjMAXVAL);
-  constant("mjMINMU", mjMINMU);
-  constant("mjMINIMP", mjMINIMP);
-  constant("mjMAXIMP", mjMAXIMP);
-  constant("mjMAXCONPAIR", mjMAXCONPAIR);
-  constant("mjNEQDATA", mjNEQDATA);
-  constant("mjNDYN", mjNDYN);
-  constant("mjNGAIN", mjNGAIN);
-  constant("mjNBIAS", mjNBIAS);
-  constant("mjNREF", mjNREF);
-  constant("mjNIMP", mjNIMP);
-  constant("mjNSOLVER", mjNSOLVER);
-
-  // from mjvisualize.h
-  constant("mjNGROUP", mjNGROUP);
-  constant("mjMAXLIGHT", mjMAXLIGHT);
-  constant("mjMAXOVERLAY", mjMAXOVERLAY);
-  constant("mjMAXLINE", mjMAXLINE);
-  constant("mjMAXLINEPNT", mjMAXLINEPNT);
-  constant("mjMAXPLANEGRID", mjMAXPLANEGRID);
-
-  // from mujoco.h
-  constant("mjVERSION_HEADER", mjVERSION_HEADER);
-
-  // from mjtnum.h
-  constant("mjMINVAL", mjMINVAL);
-
-  // emscripten::constant() is designed for simple, compile-time literal values
-  // (like numbers or a single string literal), complex values need to be
-  // bound as functions.
-  emscripten::function("get_mjDISABLESTRING", &get_mjDISABLESTRING);
-  emscripten::function("get_mjENABLESTRING", &get_mjENABLESTRING);
-  emscripten::function("get_mjTIMERSTRING", &get_mjTIMERSTRING);
-  emscripten::function("get_mjLABELSTRING", &get_mjLABELSTRING);
-  emscripten::function("get_mjFRAMESTRING", &get_mjFRAMESTRING);
-  emscripten::function("get_mjVISSTRING", &get_mjVISSTRING);
-  emscripten::function("get_mjRNDSTRING", &get_mjRNDSTRING);
-}
-
-EMSCRIPTEN_BINDINGS(mujoco_enums) {
-  enum_<mjtDisableBit>("mjtDisableBit")
-    .value("mjDSBL_CONSTRAINT", mjDSBL_CONSTRAINT)
-    .value("mjDSBL_EQUALITY", mjDSBL_EQUALITY)
-    .value("mjDSBL_FRICTIONLOSS", mjDSBL_FRICTIONLOSS)
-    .value("mjDSBL_LIMIT", mjDSBL_LIMIT)
-    .value("mjDSBL_CONTACT", mjDSBL_CONTACT)
-    .value("mjDSBL_SPRING", mjDSBL_SPRING)
-    .value("mjDSBL_DAMPER", mjDSBL_DAMPER)
-    .value("mjDSBL_GRAVITY", mjDSBL_GRAVITY)
-    .value("mjDSBL_CLAMPCTRL", mjDSBL_CLAMPCTRL)
-    .value("mjDSBL_WARMSTART", mjDSBL_WARMSTART)
-    .value("mjDSBL_FILTERPARENT", mjDSBL_FILTERPARENT)
-    .value("mjDSBL_ACTUATION", mjDSBL_ACTUATION)
-    .value("mjDSBL_REFSAFE", mjDSBL_REFSAFE)
-    .value("mjDSBL_SENSOR", mjDSBL_SENSOR)
-    .value("mjDSBL_MIDPHASE", mjDSBL_MIDPHASE)
-    .value("mjDSBL_EULERDAMP", mjDSBL_EULERDAMP)
-    .value("mjDSBL_AUTORESET", mjDSBL_AUTORESET)
-    .value("mjDSBL_NATIVECCD", mjDSBL_NATIVECCD)
-    .value("mjDSBL_ISLAND", mjDSBL_ISLAND)
-    .value("mjNDISABLE", mjNDISABLE);
-
-  enum_<mjtEnableBit>("mjtEnableBit")
-    .value("mjENBL_OVERRIDE", mjENBL_OVERRIDE)
-    .value("mjENBL_ENERGY", mjENBL_ENERGY)
-    .value("mjENBL_FWDINV", mjENBL_FWDINV)
-    .value("mjENBL_INVDISCRETE", mjENBL_INVDISCRETE)
-    .value("mjENBL_MULTICCD", mjENBL_MULTICCD)
-    .value("mjENBL_SLEEP", mjENBL_SLEEP)
-    .value("mjNENABLE", mjNENABLE);
-
-  enum_<mjtJoint>("mjtJoint")
-    .value("mjJNT_FREE", mjJNT_FREE)
-    .value("mjJNT_BALL", mjJNT_BALL)
-    .value("mjJNT_SLIDE", mjJNT_SLIDE)
-    .value("mjJNT_HINGE", mjJNT_HINGE);
-
-  enum_<mjtGeom>("mjtGeom")
-    .value("mjGEOM_PLANE", mjGEOM_PLANE)
-    .value("mjGEOM_HFIELD", mjGEOM_HFIELD)
-    .value("mjGEOM_SPHERE", mjGEOM_SPHERE)
-    .value("mjGEOM_CAPSULE", mjGEOM_CAPSULE)
-    .value("mjGEOM_ELLIPSOID", mjGEOM_ELLIPSOID)
-    .value("mjGEOM_CYLINDER", mjGEOM_CYLINDER)
-    .value("mjGEOM_BOX", mjGEOM_BOX)
-    .value("mjGEOM_MESH", mjGEOM_MESH)
-    .value("mjGEOM_SDF", mjGEOM_SDF)
-    .value("mjNGEOMTYPES", mjNGEOMTYPES)
-    .value("mjGEOM_ARROW", mjGEOM_ARROW)
-    .value("mjGEOM_ARROW1", mjGEOM_ARROW1)
-    .value("mjGEOM_ARROW2", mjGEOM_ARROW2)
-    .value("mjGEOM_LINE", mjGEOM_LINE)
-    .value("mjGEOM_LINEBOX", mjGEOM_LINEBOX)
-    .value("mjGEOM_FLEX", mjGEOM_FLEX)
-    .value("mjGEOM_SKIN", mjGEOM_SKIN)
-    .value("mjGEOM_LABEL", mjGEOM_LABEL)
-    .value("mjGEOM_TRIANGLE", mjGEOM_TRIANGLE)
-    .value("mjGEOM_NONE", mjGEOM_NONE);
-
-  enum_<mjtCamLight>("mjtCamLight")
-    .value("mjCAMLIGHT_FIXED", mjCAMLIGHT_FIXED)
-    .value("mjCAMLIGHT_TRACK", mjCAMLIGHT_TRACK)
-    .value("mjCAMLIGHT_TRACKCOM", mjCAMLIGHT_TRACKCOM)
-    .value("mjCAMLIGHT_TARGETBODY", mjCAMLIGHT_TARGETBODY)
-    .value("mjCAMLIGHT_TARGETBODYCOM", mjCAMLIGHT_TARGETBODYCOM);
-
-  enum_<mjtLightType>("mjtLightType")
-    .value("mjLIGHT_SPOT", mjLIGHT_SPOT)
-    .value("mjLIGHT_DIRECTIONAL", mjLIGHT_DIRECTIONAL)
-    .value("mjLIGHT_POINT", mjLIGHT_POINT)
-    .value("mjLIGHT_IMAGE", mjLIGHT_IMAGE);
-
-  enum_<mjtTexture>("mjtTexture")
-    .value("mjTEXTURE_2D", mjTEXTURE_2D)
-    .value("mjTEXTURE_CUBE", mjTEXTURE_CUBE)
-    .value("mjTEXTURE_SKYBOX", mjTEXTURE_SKYBOX);
-
-  enum_<mjtTextureRole>("mjtTextureRole")
-    .value("mjTEXROLE_USER", mjTEXROLE_USER)
-    .value("mjTEXROLE_RGB", mjTEXROLE_RGB)
-    .value("mjTEXROLE_OCCLUSION", mjTEXROLE_OCCLUSION)
-    .value("mjTEXROLE_ROUGHNESS", mjTEXROLE_ROUGHNESS)
-    .value("mjTEXROLE_METALLIC", mjTEXROLE_METALLIC)
-    .value("mjTEXROLE_NORMAL", mjTEXROLE_NORMAL)
-    .value("mjTEXROLE_OPACITY", mjTEXROLE_OPACITY)
-    .value("mjTEXROLE_EMISSIVE", mjTEXROLE_EMISSIVE)
-    .value("mjTEXROLE_RGBA", mjTEXROLE_RGBA)
-    .value("mjTEXROLE_ORM", mjTEXROLE_ORM)
-    .value("mjNTEXROLE", mjNTEXROLE);
-
-  enum_<mjtColorSpace>("mjtColorSpace")
-    .value("mjCOLORSPACE_AUTO", mjCOLORSPACE_AUTO)
-    .value("mjCOLORSPACE_LINEAR", mjCOLORSPACE_LINEAR)
-    .value("mjCOLORSPACE_SRGB", mjCOLORSPACE_SRGB);
-
-  enum_<mjtIntegrator>("mjtIntegrator")
-    .value("mjINT_EULER", mjINT_EULER)
-    .value("mjINT_RK4", mjINT_RK4)
-    .value("mjINT_IMPLICIT", mjINT_IMPLICIT)
-    .value("mjINT_IMPLICITFAST", mjINT_IMPLICITFAST);
-
-  enum_<mjtCone>("mjtCone")
-    .value("mjCONE_PYRAMIDAL", mjCONE_PYRAMIDAL)
-    .value("mjCONE_ELLIPTIC", mjCONE_ELLIPTIC);
-
-  enum_<mjtJacobian>("mjtJacobian")
-    .value("mjJAC_DENSE", mjJAC_DENSE)
-    .value("mjJAC_SPARSE", mjJAC_SPARSE)
-    .value("mjJAC_AUTO", mjJAC_AUTO);
-
-  enum_<mjtSolver>("mjtSolver")
-    .value("mjSOL_PGS", mjSOL_PGS)
-    .value("mjSOL_CG", mjSOL_CG)
-    .value("mjSOL_NEWTON", mjSOL_NEWTON);
-
-  enum_<mjtEq>("mjtEq")
-    .value("mjEQ_CONNECT", mjEQ_CONNECT)
-    .value("mjEQ_WELD", mjEQ_WELD)
-    .value("mjEQ_JOINT", mjEQ_JOINT)
-    .value("mjEQ_TENDON", mjEQ_TENDON)
-    .value("mjEQ_FLEX", mjEQ_FLEX)
-    .value("mjEQ_DISTANCE", mjEQ_DISTANCE);
-
-  enum_<mjtWrap>("mjtWrap")
-    .value("mjWRAP_NONE", mjWRAP_NONE)
-    .value("mjWRAP_JOINT", mjWRAP_JOINT)
-    .value("mjWRAP_PULLEY", mjWRAP_PULLEY)
-    .value("mjWRAP_SITE", mjWRAP_SITE)
-    .value("mjWRAP_SPHERE", mjWRAP_SPHERE)
-    .value("mjWRAP_CYLINDER", mjWRAP_CYLINDER);
-
-  enum_<mjtTrn>("mjtTrn")
-    .value("mjTRN_JOINT", mjTRN_JOINT)
-    .value("mjTRN_JOINTINPARENT", mjTRN_JOINTINPARENT)
-    .value("mjTRN_SLIDERCRANK", mjTRN_SLIDERCRANK)
-    .value("mjTRN_TENDON", mjTRN_TENDON)
-    .value("mjTRN_SITE", mjTRN_SITE)
-    .value("mjTRN_BODY", mjTRN_BODY)
-    .value("mjTRN_UNDEFINED", mjTRN_UNDEFINED);
-
-  enum_<mjtDyn>("mjtDyn")
-    .value("mjDYN_NONE", mjDYN_NONE)
-    .value("mjDYN_INTEGRATOR", mjDYN_INTEGRATOR)
-    .value("mjDYN_FILTER", mjDYN_FILTER)
-    .value("mjDYN_FILTEREXACT", mjDYN_FILTEREXACT)
-    .value("mjDYN_MUSCLE", mjDYN_MUSCLE)
-    .value("mjDYN_USER", mjDYN_USER);
-
-  enum_<mjtGain>("mjtGain")
-    .value("mjGAIN_FIXED", mjGAIN_FIXED)
-    .value("mjGAIN_AFFINE", mjGAIN_AFFINE)
-    .value("mjGAIN_MUSCLE", mjGAIN_MUSCLE)
-    .value("mjGAIN_USER", mjGAIN_USER);
-
-  enum_<mjtBias>("mjtBias")
-    .value("mjBIAS_NONE", mjBIAS_NONE)
-    .value("mjBIAS_AFFINE", mjBIAS_AFFINE)
-    .value("mjBIAS_MUSCLE", mjBIAS_MUSCLE)
-    .value("mjBIAS_USER", mjBIAS_USER);
-
-  enum_<mjtObj>("mjtObj")
-    .value("mjOBJ_UNKNOWN", mjOBJ_UNKNOWN)
-    .value("mjOBJ_BODY", mjOBJ_BODY)
-    .value("mjOBJ_XBODY", mjOBJ_XBODY)
-    .value("mjOBJ_JOINT", mjOBJ_JOINT)
-    .value("mjOBJ_DOF", mjOBJ_DOF)
-    .value("mjOBJ_GEOM", mjOBJ_GEOM)
-    .value("mjOBJ_SITE", mjOBJ_SITE)
-    .value("mjOBJ_CAMERA", mjOBJ_CAMERA)
-    .value("mjOBJ_LIGHT", mjOBJ_LIGHT)
-    .value("mjOBJ_FLEX", mjOBJ_FLEX)
-    .value("mjOBJ_MESH", mjOBJ_MESH)
-    .value("mjOBJ_SKIN", mjOBJ_SKIN)
-    .value("mjOBJ_HFIELD", mjOBJ_HFIELD)
-    .value("mjOBJ_TEXTURE", mjOBJ_TEXTURE)
-    .value("mjOBJ_MATERIAL", mjOBJ_MATERIAL)
-    .value("mjOBJ_PAIR", mjOBJ_PAIR)
-    .value("mjOBJ_EXCLUDE", mjOBJ_EXCLUDE)
-    .value("mjOBJ_EQUALITY", mjOBJ_EQUALITY)
-    .value("mjOBJ_TENDON", mjOBJ_TENDON)
-    .value("mjOBJ_ACTUATOR", mjOBJ_ACTUATOR)
-    .value("mjOBJ_SENSOR", mjOBJ_SENSOR)
-    .value("mjOBJ_NUMERIC", mjOBJ_NUMERIC)
-    .value("mjOBJ_TEXT", mjOBJ_TEXT)
-    .value("mjOBJ_TUPLE", mjOBJ_TUPLE)
-    .value("mjOBJ_KEY", mjOBJ_KEY)
-    .value("mjOBJ_PLUGIN", mjOBJ_PLUGIN)
-    .value("mjNOBJECT", mjNOBJECT)
-    .value("mjOBJ_FRAME", mjOBJ_FRAME)
-    .value("mjOBJ_DEFAULT", mjOBJ_DEFAULT)
-    .value("mjOBJ_MODEL", mjOBJ_MODEL);
-
-  enum_<mjtSensor>("mjtSensor")
-    .value("mjSENS_TOUCH", mjSENS_TOUCH)
-    .value("mjSENS_ACCELEROMETER", mjSENS_ACCELEROMETER)
-    .value("mjSENS_VELOCIMETER", mjSENS_VELOCIMETER)
-    .value("mjSENS_GYRO", mjSENS_GYRO)
-    .value("mjSENS_FORCE", mjSENS_FORCE)
-    .value("mjSENS_TORQUE", mjSENS_TORQUE)
-    .value("mjSENS_MAGNETOMETER", mjSENS_MAGNETOMETER)
-    .value("mjSENS_RANGEFINDER", mjSENS_RANGEFINDER)
-    .value("mjSENS_CAMPROJECTION", mjSENS_CAMPROJECTION)
-    .value("mjSENS_JOINTPOS", mjSENS_JOINTPOS)
-    .value("mjSENS_JOINTVEL", mjSENS_JOINTVEL)
-    .value("mjSENS_TENDONPOS", mjSENS_TENDONPOS)
-    .value("mjSENS_TENDONVEL", mjSENS_TENDONVEL)
-    .value("mjSENS_ACTUATORPOS", mjSENS_ACTUATORPOS)
-    .value("mjSENS_ACTUATORVEL", mjSENS_ACTUATORVEL)
-    .value("mjSENS_ACTUATORFRC", mjSENS_ACTUATORFRC)
-    .value("mjSENS_JOINTACTFRC", mjSENS_JOINTACTFRC)
-    .value("mjSENS_TENDONACTFRC", mjSENS_TENDONACTFRC)
-    .value("mjSENS_BALLQUAT", mjSENS_BALLQUAT)
-    .value("mjSENS_BALLANGVEL", mjSENS_BALLANGVEL)
-    .value("mjSENS_JOINTLIMITPOS", mjSENS_JOINTLIMITPOS)
-    .value("mjSENS_JOINTLIMITVEL", mjSENS_JOINTLIMITVEL)
-    .value("mjSENS_JOINTLIMITFRC", mjSENS_JOINTLIMITFRC)
-    .value("mjSENS_TENDONLIMITPOS", mjSENS_TENDONLIMITPOS)
-    .value("mjSENS_TENDONLIMITVEL", mjSENS_TENDONLIMITVEL)
-    .value("mjSENS_TENDONLIMITFRC", mjSENS_TENDONLIMITFRC)
-    .value("mjSENS_FRAMEPOS", mjSENS_FRAMEPOS)
-    .value("mjSENS_FRAMEQUAT", mjSENS_FRAMEQUAT)
-    .value("mjSENS_FRAMEXAXIS", mjSENS_FRAMEXAXIS)
-    .value("mjSENS_FRAMEYAXIS", mjSENS_FRAMEYAXIS)
-    .value("mjSENS_FRAMEZAXIS", mjSENS_FRAMEZAXIS)
-    .value("mjSENS_FRAMELINVEL", mjSENS_FRAMELINVEL)
-    .value("mjSENS_FRAMEANGVEL", mjSENS_FRAMEANGVEL)
-    .value("mjSENS_FRAMELINACC", mjSENS_FRAMELINACC)
-    .value("mjSENS_FRAMEANGACC", mjSENS_FRAMEANGACC)
-    .value("mjSENS_SUBTREECOM", mjSENS_SUBTREECOM)
-    .value("mjSENS_SUBTREELINVEL", mjSENS_SUBTREELINVEL)
-    .value("mjSENS_SUBTREEANGMOM", mjSENS_SUBTREEANGMOM)
-    .value("mjSENS_INSIDESITE", mjSENS_INSIDESITE)
-    .value("mjSENS_GEOMDIST", mjSENS_GEOMDIST)
-    .value("mjSENS_GEOMNORMAL", mjSENS_GEOMNORMAL)
-    .value("mjSENS_GEOMFROMTO", mjSENS_GEOMFROMTO)
-    .value("mjSENS_CONTACT", mjSENS_CONTACT)
-    .value("mjSENS_E_POTENTIAL", mjSENS_E_POTENTIAL)
-    .value("mjSENS_E_KINETIC", mjSENS_E_KINETIC)
-    .value("mjSENS_CLOCK", mjSENS_CLOCK)
-    .value("mjSENS_TACTILE", mjSENS_TACTILE)
-    .value("mjSENS_PLUGIN", mjSENS_PLUGIN)
-    .value("mjSENS_USER", mjSENS_USER);
-
-  enum_<mjtStage>("mjtStage")
-    .value("mjSTAGE_NONE", mjSTAGE_NONE)
-    .value("mjSTAGE_POS", mjSTAGE_POS)
-    .value("mjSTAGE_VEL", mjSTAGE_VEL)
-    .value("mjSTAGE_ACC", mjSTAGE_ACC);
-
-  enum_<mjtDataType>("mjtDataType")
-    .value("mjDATATYPE_REAL", mjDATATYPE_REAL)
-    .value("mjDATATYPE_POSITIVE", mjDATATYPE_POSITIVE)
-    .value("mjDATATYPE_AXIS", mjDATATYPE_AXIS)
-    .value("mjDATATYPE_QUATERNION", mjDATATYPE_QUATERNION);
-
-  enum_<mjtConDataField>("mjtConDataField")
-    .value("mjCONDATA_FOUND", mjCONDATA_FOUND)
-    .value("mjCONDATA_FORCE", mjCONDATA_FORCE)
-    .value("mjCONDATA_TORQUE", mjCONDATA_TORQUE)
-    .value("mjCONDATA_DIST", mjCONDATA_DIST)
-    .value("mjCONDATA_POS", mjCONDATA_POS)
-    .value("mjCONDATA_NORMAL", mjCONDATA_NORMAL)
-    .value("mjCONDATA_TANGENT", mjCONDATA_TANGENT)
-    .value("mjNCONDATA", mjNCONDATA);
-
-  enum_<mjtSameFrame>("mjtSameFrame")
-    .value("mjSAMEFRAME_NONE", mjSAMEFRAME_NONE)
-    .value("mjSAMEFRAME_BODY", mjSAMEFRAME_BODY)
-    .value("mjSAMEFRAME_INERTIA", mjSAMEFRAME_INERTIA)
-    .value("mjSAMEFRAME_BODYROT", mjSAMEFRAME_BODYROT)
-    .value("mjSAMEFRAME_INERTIAROT", mjSAMEFRAME_INERTIAROT);
-
-  enum_<mjtSleepPolicy>("mjtSleepPolicy")
-    .value("mjSLEEP_AUTO", mjSLEEP_AUTO)
-    .value("mjSLEEP_AUTO_NEVER", mjSLEEP_AUTO_NEVER)
-    .value("mjSLEEP_AUTO_ALLOWED", mjSLEEP_AUTO_ALLOWED)
-    .value("mjSLEEP_NEVER", mjSLEEP_NEVER)
-    .value("mjSLEEP_ALLOWED", mjSLEEP_ALLOWED)
-    .value("mjSLEEP_INIT", mjSLEEP_INIT);
-
-  enum_<mjtLRMode>("mjtLRMode")
-    .value("mjLRMODE_NONE", mjLRMODE_NONE)
-    .value("mjLRMODE_MUSCLE", mjLRMODE_MUSCLE)
-    .value("mjLRMODE_MUSCLEUSER", mjLRMODE_MUSCLEUSER)
-    .value("mjLRMODE_ALL", mjLRMODE_ALL);
-
-  enum_<mjtFlexSelf>("mjtFlexSelf")
-    .value("mjFLEXSELF_NONE", mjFLEXSELF_NONE)
-    .value("mjFLEXSELF_NARROW", mjFLEXSELF_NARROW)
-    .value("mjFLEXSELF_BVH", mjFLEXSELF_BVH)
-    .value("mjFLEXSELF_SAP", mjFLEXSELF_SAP)
-    .value("mjFLEXSELF_AUTO", mjFLEXSELF_AUTO);
-
-  enum_<mjtSDFType>("mjtSDFType")
-    .value("mjSDFTYPE_SINGLE", mjSDFTYPE_SINGLE)
-    .value("mjSDFTYPE_INTERSECTION", mjSDFTYPE_INTERSECTION)
-    .value("mjSDFTYPE_MIDSURFACE", mjSDFTYPE_MIDSURFACE)
-    .value("mjSDFTYPE_COLLISION", mjSDFTYPE_COLLISION);
-
-  enum_<mjtTaskStatus>("mjtTaskStatus")
-    .value("mjTASK_NEW", mjTASK_NEW)
-    .value("mjTASK_QUEUED", mjTASK_QUEUED)
-    .value("mjTASK_COMPLETED", mjTASK_COMPLETED);
-
-  enum_<mjtState>("mjtState")
-    .value("mjSTATE_TIME", mjSTATE_TIME)
-    .value("mjSTATE_QPOS", mjSTATE_QPOS)
-    .value("mjSTATE_QVEL", mjSTATE_QVEL)
-    .value("mjSTATE_ACT", mjSTATE_ACT)
-    .value("mjSTATE_WARMSTART", mjSTATE_WARMSTART)
-    .value("mjSTATE_CTRL", mjSTATE_CTRL)
-    .value("mjSTATE_QFRC_APPLIED", mjSTATE_QFRC_APPLIED)
-    .value("mjSTATE_XFRC_APPLIED", mjSTATE_XFRC_APPLIED)
-    .value("mjSTATE_EQ_ACTIVE", mjSTATE_EQ_ACTIVE)
-    .value("mjSTATE_MOCAP_POS", mjSTATE_MOCAP_POS)
-    .value("mjSTATE_MOCAP_QUAT", mjSTATE_MOCAP_QUAT)
-    .value("mjSTATE_USERDATA", mjSTATE_USERDATA)
-    .value("mjSTATE_PLUGIN", mjSTATE_PLUGIN)
-    .value("mjNSTATE", mjNSTATE)
-    .value("mjSTATE_PHYSICS", mjSTATE_PHYSICS)
-    .value("mjSTATE_FULLPHYSICS", mjSTATE_FULLPHYSICS)
-    .value("mjSTATE_USER", mjSTATE_USER)
-    .value("mjSTATE_INTEGRATION", mjSTATE_INTEGRATION);
-
-  enum_<mjtConstraint>("mjtConstraint")
-    .value("mjCNSTR_EQUALITY", mjCNSTR_EQUALITY)
-    .value("mjCNSTR_FRICTION_DOF", mjCNSTR_FRICTION_DOF)
-    .value("mjCNSTR_FRICTION_TENDON", mjCNSTR_FRICTION_TENDON)
-    .value("mjCNSTR_LIMIT_JOINT", mjCNSTR_LIMIT_JOINT)
-    .value("mjCNSTR_LIMIT_TENDON", mjCNSTR_LIMIT_TENDON)
-    .value("mjCNSTR_CONTACT_FRICTIONLESS", mjCNSTR_CONTACT_FRICTIONLESS)
-    .value("mjCNSTR_CONTACT_PYRAMIDAL", mjCNSTR_CONTACT_PYRAMIDAL)
-    .value("mjCNSTR_CONTACT_ELLIPTIC", mjCNSTR_CONTACT_ELLIPTIC);
-
-  enum_<mjtConstraintState>("mjtConstraintState")
-    .value("mjCNSTRSTATE_SATISFIED", mjCNSTRSTATE_SATISFIED)
-    .value("mjCNSTRSTATE_QUADRATIC", mjCNSTRSTATE_QUADRATIC)
-    .value("mjCNSTRSTATE_LINEARNEG", mjCNSTRSTATE_LINEARNEG)
-    .value("mjCNSTRSTATE_LINEARPOS", mjCNSTRSTATE_LINEARPOS)
-    .value("mjCNSTRSTATE_CONE", mjCNSTRSTATE_CONE);
-
-  enum_<mjtWarning>("mjtWarning")
-    .value("mjWARN_INERTIA", mjWARN_INERTIA)
-    .value("mjWARN_CONTACTFULL", mjWARN_CONTACTFULL)
-    .value("mjWARN_CNSTRFULL", mjWARN_CNSTRFULL)
-    .value("mjWARN_VGEOMFULL", mjWARN_VGEOMFULL)
-    .value("mjWARN_BADQPOS", mjWARN_BADQPOS)
-    .value("mjWARN_BADQVEL", mjWARN_BADQVEL)
-    .value("mjWARN_BADQACC", mjWARN_BADQACC)
-    .value("mjWARN_BADCTRL", mjWARN_BADCTRL)
-    .value("mjNWARNING", mjNWARNING);
-
-  enum_<mjtTimer>("mjtTimer")
-    .value("mjTIMER_STEP", mjTIMER_STEP)
-    .value("mjTIMER_FORWARD", mjTIMER_FORWARD)
-    .value("mjTIMER_INVERSE", mjTIMER_INVERSE)
-    .value("mjTIMER_POSITION", mjTIMER_POSITION)
-    .value("mjTIMER_VELOCITY", mjTIMER_VELOCITY)
-    .value("mjTIMER_ACTUATION", mjTIMER_ACTUATION)
-    .value("mjTIMER_CONSTRAINT", mjTIMER_CONSTRAINT)
-    .value("mjTIMER_ADVANCE", mjTIMER_ADVANCE)
-    .value("mjTIMER_POS_KINEMATICS", mjTIMER_POS_KINEMATICS)
-    .value("mjTIMER_POS_INERTIA", mjTIMER_POS_INERTIA)
-    .value("mjTIMER_POS_COLLISION", mjTIMER_POS_COLLISION)
-    .value("mjTIMER_POS_MAKE", mjTIMER_POS_MAKE)
-    .value("mjTIMER_POS_PROJECT", mjTIMER_POS_PROJECT)
-    .value("mjTIMER_COL_BROAD", mjTIMER_COL_BROAD)
-    .value("mjTIMER_COL_NARROW", mjTIMER_COL_NARROW)
-    .value("mjNTIMER", mjNTIMER);
-
-  enum_<mjtSleepState>("mjtSleepState")
-    .value("mjS_STATIC", mjS_STATIC)
-    .value("mjS_ASLEEP", mjS_ASLEEP)
-    .value("mjS_AWAKE", mjS_AWAKE);
-
-  enum_<mjtGeomInertia>("mjtGeomInertia")
-    .value("mjINERTIA_VOLUME", mjINERTIA_VOLUME)
-    .value("mjINERTIA_SHELL", mjINERTIA_SHELL);
-
-  enum_<mjtMeshInertia>("mjtMeshInertia")
-    .value("mjMESH_INERTIA_CONVEX", mjMESH_INERTIA_CONVEX)
-    .value("mjMESH_INERTIA_EXACT", mjMESH_INERTIA_EXACT)
-    .value("mjMESH_INERTIA_LEGACY", mjMESH_INERTIA_LEGACY)
-    .value("mjMESH_INERTIA_SHELL", mjMESH_INERTIA_SHELL);
-
-  enum_<mjtMeshBuiltin>("mjtMeshBuiltin")
-    .value("mjMESH_BUILTIN_NONE", mjMESH_BUILTIN_NONE)
-    .value("mjMESH_BUILTIN_SPHERE", mjMESH_BUILTIN_SPHERE)
-    .value("mjMESH_BUILTIN_HEMISPHERE", mjMESH_BUILTIN_HEMISPHERE)
-    .value("mjMESH_BUILTIN_CONE", mjMESH_BUILTIN_CONE)
-    .value("mjMESH_BUILTIN_SUPERSPHERE", mjMESH_BUILTIN_SUPERSPHERE)
-    .value("mjMESH_BUILTIN_SUPERTORUS", mjMESH_BUILTIN_SUPERTORUS)
-    .value("mjMESH_BUILTIN_WEDGE", mjMESH_BUILTIN_WEDGE)
-    .value("mjMESH_BUILTIN_PLATE", mjMESH_BUILTIN_PLATE);
-
-  enum_<mjtBuiltin>("mjtBuiltin")
-    .value("mjBUILTIN_NONE", mjBUILTIN_NONE)
-    .value("mjBUILTIN_GRADIENT", mjBUILTIN_GRADIENT)
-    .value("mjBUILTIN_CHECKER", mjBUILTIN_CHECKER)
-    .value("mjBUILTIN_FLAT", mjBUILTIN_FLAT);
-
-  enum_<mjtMark>("mjtMark")
-    .value("mjMARK_NONE", mjMARK_NONE)
-    .value("mjMARK_EDGE", mjMARK_EDGE)
-    .value("mjMARK_CROSS", mjMARK_CROSS)
-    .value("mjMARK_RANDOM", mjMARK_RANDOM);
-
-  enum_<mjtLimited>("mjtLimited")
-    .value("mjLIMITED_FALSE", mjLIMITED_FALSE)
-    .value("mjLIMITED_TRUE", mjLIMITED_TRUE)
-    .value("mjLIMITED_AUTO", mjLIMITED_AUTO);
-
-  enum_<mjtAlignFree>("mjtAlignFree")
-    .value("mjALIGNFREE_FALSE", mjALIGNFREE_FALSE)
-    .value("mjALIGNFREE_TRUE", mjALIGNFREE_TRUE)
-    .value("mjALIGNFREE_AUTO", mjALIGNFREE_AUTO);
-
-  enum_<mjtInertiaFromGeom>("mjtInertiaFromGeom")
-    .value("mjINERTIAFROMGEOM_FALSE", mjINERTIAFROMGEOM_FALSE)
-    .value("mjINERTIAFROMGEOM_TRUE", mjINERTIAFROMGEOM_TRUE)
-    .value("mjINERTIAFROMGEOM_AUTO", mjINERTIAFROMGEOM_AUTO);
-
-  enum_<mjtOrientation>("mjtOrientation")
-    .value("mjORIENTATION_QUAT", mjORIENTATION_QUAT)
-    .value("mjORIENTATION_AXISANGLE", mjORIENTATION_AXISANGLE)
-    .value("mjORIENTATION_XYAXES", mjORIENTATION_XYAXES)
-    .value("mjORIENTATION_ZAXIS", mjORIENTATION_ZAXIS)
-    .value("mjORIENTATION_EULER", mjORIENTATION_EULER);
-
-  enum_<mjtCatBit>("mjtCatBit")
-    .value("mjCAT_STATIC", mjCAT_STATIC)
-    .value("mjCAT_DYNAMIC", mjCAT_DYNAMIC)
-    .value("mjCAT_DECOR", mjCAT_DECOR)
-    .value("mjCAT_ALL", mjCAT_ALL);
-
-  enum_<mjtMouse>("mjtMouse")
-    .value("mjMOUSE_NONE", mjMOUSE_NONE)
-    .value("mjMOUSE_ROTATE_V", mjMOUSE_ROTATE_V)
-    .value("mjMOUSE_ROTATE_H", mjMOUSE_ROTATE_H)
-    .value("mjMOUSE_MOVE_V", mjMOUSE_MOVE_V)
-    .value("mjMOUSE_MOVE_H", mjMOUSE_MOVE_H)
-    .value("mjMOUSE_ZOOM", mjMOUSE_ZOOM)
-    .value("mjMOUSE_MOVE_V_REL", mjMOUSE_MOVE_V_REL)
-    .value("mjMOUSE_MOVE_H_REL", mjMOUSE_MOVE_H_REL);
-
-  enum_<mjtPertBit>("mjtPertBit")
-    .value("mjPERT_TRANSLATE", mjPERT_TRANSLATE)
-    .value("mjPERT_ROTATE", mjPERT_ROTATE);
-
-  enum_<mjtCamera>("mjtCamera")
-    .value("mjCAMERA_FREE", mjCAMERA_FREE)
-    .value("mjCAMERA_TRACKING", mjCAMERA_TRACKING)
-    .value("mjCAMERA_FIXED", mjCAMERA_FIXED)
-    .value("mjCAMERA_USER", mjCAMERA_USER);
-
-  enum_<mjtLabel>("mjtLabel")
-    .value("mjLABEL_NONE", mjLABEL_NONE)
-    .value("mjLABEL_BODY", mjLABEL_BODY)
-    .value("mjLABEL_JOINT", mjLABEL_JOINT)
-    .value("mjLABEL_GEOM", mjLABEL_GEOM)
-    .value("mjLABEL_SITE", mjLABEL_SITE)
-    .value("mjLABEL_CAMERA", mjLABEL_CAMERA)
-    .value("mjLABEL_LIGHT", mjLABEL_LIGHT)
-    .value("mjLABEL_TENDON", mjLABEL_TENDON)
-    .value("mjLABEL_ACTUATOR", mjLABEL_ACTUATOR)
-    .value("mjLABEL_CONSTRAINT", mjLABEL_CONSTRAINT)
-    .value("mjLABEL_FLEX", mjLABEL_FLEX)
-    .value("mjLABEL_SKIN", mjLABEL_SKIN)
-    .value("mjLABEL_SELECTION", mjLABEL_SELECTION)
-    .value("mjLABEL_SELPNT", mjLABEL_SELPNT)
-    .value("mjLABEL_CONTACTPOINT", mjLABEL_CONTACTPOINT)
-    .value("mjLABEL_CONTACTFORCE", mjLABEL_CONTACTFORCE)
-    .value("mjLABEL_ISLAND", mjLABEL_ISLAND)
-    .value("mjNLABEL", mjNLABEL);
-
-  enum_<mjtFrame>("mjtFrame")
-    .value("mjFRAME_NONE", mjFRAME_NONE)
-    .value("mjFRAME_BODY", mjFRAME_BODY)
-    .value("mjFRAME_GEOM", mjFRAME_GEOM)
-    .value("mjFRAME_SITE", mjFRAME_SITE)
-    .value("mjFRAME_CAMERA", mjFRAME_CAMERA)
-    .value("mjFRAME_LIGHT", mjFRAME_LIGHT)
-    .value("mjFRAME_CONTACT", mjFRAME_CONTACT)
-    .value("mjFRAME_WORLD", mjFRAME_WORLD)
-    .value("mjNFRAME", mjNFRAME);
-
-  enum_<mjtVisFlag>("mjtVisFlag")
-    .value("mjVIS_CONVEXHULL", mjVIS_CONVEXHULL)
-    .value("mjVIS_TEXTURE", mjVIS_TEXTURE)
-    .value("mjVIS_JOINT", mjVIS_JOINT)
-    .value("mjVIS_CAMERA", mjVIS_CAMERA)
-    .value("mjVIS_ACTUATOR", mjVIS_ACTUATOR)
-    .value("mjVIS_ACTIVATION", mjVIS_ACTIVATION)
-    .value("mjVIS_LIGHT", mjVIS_LIGHT)
-    .value("mjVIS_TENDON", mjVIS_TENDON)
-    .value("mjVIS_RANGEFINDER", mjVIS_RANGEFINDER)
-    .value("mjVIS_CONSTRAINT", mjVIS_CONSTRAINT)
-    .value("mjVIS_INERTIA", mjVIS_INERTIA)
-    .value("mjVIS_SCLINERTIA", mjVIS_SCLINERTIA)
-    .value("mjVIS_PERTFORCE", mjVIS_PERTFORCE)
-    .value("mjVIS_PERTOBJ", mjVIS_PERTOBJ)
-    .value("mjVIS_CONTACTPOINT", mjVIS_CONTACTPOINT)
-    .value("mjVIS_ISLAND", mjVIS_ISLAND)
-    .value("mjVIS_CONTACTFORCE", mjVIS_CONTACTFORCE)
-    .value("mjVIS_CONTACTSPLIT", mjVIS_CONTACTSPLIT)
-    .value("mjVIS_TRANSPARENT", mjVIS_TRANSPARENT)
-    .value("mjVIS_AUTOCONNECT", mjVIS_AUTOCONNECT)
-    .value("mjVIS_COM", mjVIS_COM)
-    .value("mjVIS_SELECT", mjVIS_SELECT)
-    .value("mjVIS_STATIC", mjVIS_STATIC)
-    .value("mjVIS_SKIN", mjVIS_SKIN)
-    .value("mjVIS_FLEXVERT", mjVIS_FLEXVERT)
-    .value("mjVIS_FLEXEDGE", mjVIS_FLEXEDGE)
-    .value("mjVIS_FLEXFACE", mjVIS_FLEXFACE)
-    .value("mjVIS_FLEXSKIN", mjVIS_FLEXSKIN)
-    .value("mjVIS_BODYBVH", mjVIS_BODYBVH)
-    .value("mjVIS_MESHBVH", mjVIS_MESHBVH)
-    .value("mjVIS_SDFITER", mjVIS_SDFITER)
-    .value("mjNVISFLAG", mjNVISFLAG);
-
-  enum_<mjtRndFlag>("mjtRndFlag")
-    .value("mjRND_SHADOW", mjRND_SHADOW)
-    .value("mjRND_WIREFRAME", mjRND_WIREFRAME)
-    .value("mjRND_REFLECTION", mjRND_REFLECTION)
-    .value("mjRND_ADDITIVE", mjRND_ADDITIVE)
-    .value("mjRND_SKYBOX", mjRND_SKYBOX)
-    .value("mjRND_FOG", mjRND_FOG)
-    .value("mjRND_HAZE", mjRND_HAZE)
-    .value("mjRND_SEGMENT", mjRND_SEGMENT)
-    .value("mjRND_IDCOLOR", mjRND_IDCOLOR)
-    .value("mjRND_CULL_FACE", mjRND_CULL_FACE)
-    .value("mjNRNDFLAG", mjNRNDFLAG);
-
-  enum_<mjtStereo>("mjtStereo")
-    .value("mjSTEREO_NONE", mjSTEREO_NONE)
-    .value("mjSTEREO_QUADBUFFERED", mjSTEREO_QUADBUFFERED)
-    .value("mjSTEREO_SIDEBYSIDE", mjSTEREO_SIDEBYSIDE);
-
-  enum_<mjtPluginCapabilityBit>("mjtPluginCapabilityBit")
-    .value("mjPLUGIN_ACTUATOR", mjPLUGIN_ACTUATOR)
-    .value("mjPLUGIN_SENSOR", mjPLUGIN_SENSOR)
-    .value("mjPLUGIN_PASSIVE", mjPLUGIN_PASSIVE)
-    .value("mjPLUGIN_SDF", mjPLUGIN_SDF);
-
-  enum_<mjtGridPos>("mjtGridPos")
-    .value("mjGRID_TOPLEFT", mjGRID_TOPLEFT)
-    .value("mjGRID_TOPRIGHT", mjGRID_TOPRIGHT)
-    .value("mjGRID_BOTTOMLEFT", mjGRID_BOTTOMLEFT)
-    .value("mjGRID_BOTTOMRIGHT", mjGRID_BOTTOMRIGHT)
-    .value("mjGRID_TOP", mjGRID_TOP)
-    .value("mjGRID_BOTTOM", mjGRID_BOTTOM)
-    .value("mjGRID_LEFT", mjGRID_LEFT)
-    .value("mjGRID_RIGHT", mjGRID_RIGHT);
-
-  enum_<mjtFramebuffer>("mjtFramebuffer")
-    .value("mjFB_WINDOW", mjFB_WINDOW)
-    .value("mjFB_OFFSCREEN", mjFB_OFFSCREEN);
-
-  enum_<mjtDepthMap>("mjtDepthMap")
-    .value("mjDEPTH_ZERONEAR", mjDEPTH_ZERONEAR)
-    .value("mjDEPTH_ZEROFAR", mjDEPTH_ZEROFAR);
-
-  enum_<mjtFontScale>("mjtFontScale")
-    .value("mjFONTSCALE_50", mjFONTSCALE_50)
-    .value("mjFONTSCALE_100", mjFONTSCALE_100)
-    .value("mjFONTSCALE_150", mjFONTSCALE_150)
-    .value("mjFONTSCALE_200", mjFONTSCALE_200)
-    .value("mjFONTSCALE_250", mjFONTSCALE_250)
-    .value("mjFONTSCALE_300", mjFONTSCALE_300);
-
-  enum_<mjtFont>("mjtFont")
-    .value("mjFONT_NORMAL", mjFONT_NORMAL)
-    .value("mjFONT_SHADOW", mjFONT_SHADOW)
-    .value("mjFONT_BIG", mjFONT_BIG);
-
-  enum_<mjtButton>("mjtButton")
-    .value("mjBUTTON_NONE", mjBUTTON_NONE)
-    .value("mjBUTTON_LEFT", mjBUTTON_LEFT)
-    .value("mjBUTTON_RIGHT", mjBUTTON_RIGHT)
-    .value("mjBUTTON_MIDDLE", mjBUTTON_MIDDLE);
-
-  enum_<mjtEvent>("mjtEvent")
-    .value("mjEVENT_NONE", mjEVENT_NONE)
-    .value("mjEVENT_MOVE", mjEVENT_MOVE)
-    .value("mjEVENT_PRESS", mjEVENT_PRESS)
-    .value("mjEVENT_RELEASE", mjEVENT_RELEASE)
-    .value("mjEVENT_SCROLL", mjEVENT_SCROLL)
-    .value("mjEVENT_KEY", mjEVENT_KEY)
-    .value("mjEVENT_RESIZE", mjEVENT_RESIZE)
-    .value("mjEVENT_REDRAW", mjEVENT_REDRAW)
-    .value("mjEVENT_FILESDROP", mjEVENT_FILESDROP);
-
-  enum_<mjtItem>("mjtItem")
-    .value("mjITEM_END", mjITEM_END)
-    .value("mjITEM_SECTION", mjITEM_SECTION)
-    .value("mjITEM_SEPARATOR", mjITEM_SEPARATOR)
-    .value("mjITEM_STATIC", mjITEM_STATIC)
-    .value("mjITEM_BUTTON", mjITEM_BUTTON)
-    .value("mjITEM_CHECKINT", mjITEM_CHECKINT)
-    .value("mjITEM_CHECKBYTE", mjITEM_CHECKBYTE)
-    .value("mjITEM_RADIO", mjITEM_RADIO)
-    .value("mjITEM_RADIOLINE", mjITEM_RADIOLINE)
-    .value("mjITEM_SELECT", mjITEM_SELECT)
-    .value("mjITEM_SLIDERINT", mjITEM_SLIDERINT)
-    .value("mjITEM_SLIDERNUM", mjITEM_SLIDERNUM)
-    .value("mjITEM_EDITINT", mjITEM_EDITINT)
-    .value("mjITEM_EDITNUM", mjITEM_EDITNUM)
-    .value("mjITEM_EDITFLOAT", mjITEM_EDITFLOAT)
-    .value("mjITEM_EDITTXT", mjITEM_EDITTXT)
-    .value("mjNITEM", mjNITEM);
-
-  enum_<mjtSection>("mjtSection")
-    .value("mjSECT_CLOSED", mjSECT_CLOSED)
-    .value("mjSECT_OPEN", mjSECT_OPEN)
-    .value("mjSECT_FIXED", mjSECT_FIXED);
-}
-
 MjContact::MjContact(mjContact *ptr) : ptr_(ptr) {}
 MjContact::~MjContact() {
   if (owned_ && ptr_) {
@@ -8292,6 +8080,218 @@ void MjsDefault::set(mjsDefault* ptr) {
 }
 
 
+struct MjvScene {
+  MjvScene();
+  MjvScene(MjModel *m, int maxgeom);
+  ~MjvScene();
+  std::unique_ptr<MjvScene> copy();
+  int GetSumFlexFaces() const;
+
+  mjvScene* get() const;
+  void set(mjvScene* ptr);
+
+  std::vector<MjvGeom> geoms() const;
+
+  emscripten::val geomorder() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->ngeom, ptr_->geomorder));
+  }
+  emscripten::val flexedgeadr() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexedgeadr));
+  }
+  emscripten::val flexedgenum() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexedgenum));
+  }
+  emscripten::val flexvertadr() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexvertadr));
+  }
+  emscripten::val flexvertnum() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexvertnum));
+  }
+  emscripten::val flexfaceadr() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfaceadr));
+  }
+  emscripten::val flexfacenum() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfacenum));
+  }
+  emscripten::val flexfaceused() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nflex, ptr_->flexfaceused));
+  }
+  emscripten::val flexedge() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(2 * model->nflexedge, ptr_->flexedge));
+  }
+  emscripten::val flexvert() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(3 * model->nflexvert, ptr_->flexvert));
+  }
+  emscripten::val skinfacenum() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nskin, ptr_->skinfacenum));
+  }
+  emscripten::val skinvertadr() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nskin, ptr_->skinvertadr));
+  }
+  emscripten::val skinvertnum() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(ptr_->nskin, ptr_->skinvertnum));
+  }
+  emscripten::val skinvert() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(3 * model->nskinvert, ptr_->skinvert));
+  }
+  emscripten::val skinnormal() const {
+    return emscripten::val(
+        emscripten::typed_memory_view(3 * model->nskinvert, ptr_->skinnormal));
+  }
+  emscripten::val flexface() const {
+    return emscripten::val(emscripten::typed_memory_view(
+        9 * MjvScene::GetSumFlexFaces(), ptr_->flexface));
+  }
+  emscripten::val flexnormal() const {
+    return emscripten::val(emscripten::typed_memory_view(
+        9 * MjvScene::GetSumFlexFaces(), ptr_->flexnormal));
+  }
+  emscripten::val flextexcoord() const {
+    return emscripten::val(emscripten::typed_memory_view(
+        6 * MjvScene::GetSumFlexFaces(), ptr_->flextexcoord));
+  }
+  int maxgeom() const {
+    return ptr_->maxgeom;
+  }
+  void set_maxgeom(int value) {
+    ptr_->maxgeom = value;
+  }
+  int ngeom() const {
+    return ptr_->ngeom;
+  }
+  void set_ngeom(int value) {
+    ptr_->ngeom = value;
+  }
+  // geoms field is handled manually in template file struct declaration
+  // geomorder field is handled manually in template file struct declaration
+  int nflex() const {
+    return ptr_->nflex;
+  }
+  void set_nflex(int value) {
+    ptr_->nflex = value;
+  }
+  // flexedgeadr field is handled manually in template file struct declaration
+  // flexedgenum field is handled manually in template file struct declaration
+  // flexvertadr field is handled manually in template file struct declaration
+  // flexvertnum field is handled manually in template file struct declaration
+  // flexfaceadr field is handled manually in template file struct declaration
+  // flexfacenum field is handled manually in template file struct declaration
+  // flexfaceused field is handled manually in template file struct declaration
+  // flexedge field is handled manually in template file struct declaration
+  // flexvert field is handled manually in template file struct declaration
+  // flexface field is handled manually in template file struct declaration
+  // flexnormal field is handled manually in template file struct declaration
+  // flextexcoord field is handled manually in template file struct declaration
+  mjtByte flexvertopt() const {
+    return ptr_->flexvertopt;
+  }
+  void set_flexvertopt(mjtByte value) {
+    ptr_->flexvertopt = value;
+  }
+  mjtByte flexedgeopt() const {
+    return ptr_->flexedgeopt;
+  }
+  void set_flexedgeopt(mjtByte value) {
+    ptr_->flexedgeopt = value;
+  }
+  mjtByte flexfaceopt() const {
+    return ptr_->flexfaceopt;
+  }
+  void set_flexfaceopt(mjtByte value) {
+    ptr_->flexfaceopt = value;
+  }
+  mjtByte flexskinopt() const {
+    return ptr_->flexskinopt;
+  }
+  void set_flexskinopt(mjtByte value) {
+    ptr_->flexskinopt = value;
+  }
+  int nskin() const {
+    return ptr_->nskin;
+  }
+  void set_nskin(int value) {
+    ptr_->nskin = value;
+  }
+  // skinfacenum field is handled manually in template file struct declaration
+  // skinvertadr field is handled manually in template file struct declaration
+  // skinvertnum field is handled manually in template file struct declaration
+  // skinvert field is handled manually in template file struct declaration
+  // skinnormal field is handled manually in template file struct declaration
+  int nlight() const {
+    return ptr_->nlight;
+  }
+  void set_nlight(int value) {
+    ptr_->nlight = value;
+  }
+  // lights field is handled manually in template file struct declaration
+  // camera field is handled manually in template file struct declaration
+  mjtByte enabletransform() const {
+    return ptr_->enabletransform;
+  }
+  void set_enabletransform(mjtByte value) {
+    ptr_->enabletransform = value;
+  }
+  emscripten::val translate() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->translate));
+  }
+  emscripten::val rotate() const {
+    return emscripten::val(emscripten::typed_memory_view(4, ptr_->rotate));
+  }
+  float scale() const {
+    return ptr_->scale;
+  }
+  void set_scale(float value) {
+    ptr_->scale = value;
+  }
+  int stereo() const {
+    return ptr_->stereo;
+  }
+  void set_stereo(int value) {
+    ptr_->stereo = value;
+  }
+  emscripten::val flags() const {
+    return emscripten::val(emscripten::typed_memory_view(10, ptr_->flags));
+  }
+  int framewidth() const {
+    return ptr_->framewidth;
+  }
+  void set_framewidth(int value) {
+    ptr_->framewidth = value;
+  }
+  emscripten::val framergb() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->framergb));
+  }
+  int status() const {
+    return ptr_->status;
+  }
+  void set_status(int value) {
+    ptr_->status = value;
+  }
+
+ private:
+  mjvScene* ptr_;
+  bool owned_ = false;
+
+ public:
+  mjModel *model;
+  std::vector<MjvLight> lights;
+  std::vector<MjvGLCamera> camera;
+};
+
 // =============== MjModel =============== //
 MjModel::MjModel(mjModel *ptr)
     : ptr_(ptr), opt(&ptr->opt), vis(&ptr->vis), stat(&ptr->stat) {}
@@ -8461,7 +8461,7 @@ mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
 // ======= FACTORY AND HELPER FUNCTIONS ========= //
-std::unique_ptr<MjModel> loadFromXML(std::string filename) {
+std::unique_ptr<MjModel> loadFromXML_wrapper(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
   if (!model) {
@@ -8471,7 +8471,7 @@ std::unique_ptr<MjModel> loadFromXML(std::string filename) {
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
 
-std::unique_ptr<MjSpec> parseXMLString(const std::string &xml) {
+std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   char error[1000];
   mjSpec *ptr = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
   if (!ptr) {
@@ -8479,6 +8479,27 @@ std::unique_ptr<MjSpec> parseXMLString(const std::string &xml) {
     return nullptr;
   }
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
+}
+
+void error_wrapper(const String& msg) { mju_error("%s\n", msg.as<const std::string>().data()); }
+
+int mj_saveLastXML_wrapper(const String& filename, const MjModel& m) {
+  CHECK_VAL(filename);
+  std::array<char, 1024> error;
+  int result = mj_saveLastXML(filename.as<const std::string>().data(), m.get(), error.data(), error.size());
+  if (!result) {
+    mju_error("%s", error.data());
+  }
+  return result;
+}
+
+int mj_setLengthRange_wrapper(const MjModel& m, const MjData& d, int index, const MjLROpt& opt) {
+  std::array<char, 1024> error;
+  int result = mj_setLengthRange(m.get(), d.get(), index, opt.get(), error.data(), error.size());
+  if (!result) {
+    mju_error("%s", error.data());
+  }
+  return result;
 }
 
 EMSCRIPTEN_BINDINGS(mujoco_structs) {
@@ -9151,7 +9172,7 @@ EMSCRIPTEN_BINDINGS(mujoco_structs) {
     .property("framergb", &MjvScene::framergb)
     .property("status", &MjvScene::status, &MjvScene::set_status, reference());
   emscripten::class_<MjModel>("MjModel")
-    .class_function("loadFromXML", &loadFromXML, take_ownership())
+    .class_function("loadFromXML", &loadFromXML_wrapper, take_ownership())
     .constructor<const MjModel &>()
     .property("nq", &MjModel::nq, &MjModel::set_nq, reference())
     .property("nv", &MjModel::nv, &MjModel::set_nv, reference())
@@ -12350,29 +12371,8 @@ std::optional<MjsPlugin> mjs_asPlugin_wrapper(MjsElement& element) {
   return MjsPlugin(result);
 }
 
-void error_wrapper(const String& msg) { mju_error("%s\n", msg.as<const std::string>().data()); }
-
-int mj_saveLastXML_wrapper(const String& filename, const MjModel& m) {
-  CHECK_VAL(filename);
-  std::array<char, 1024> error;
-  int result = mj_saveLastXML(filename.as<const std::string>().data(), m.get(), error.data(), error.size());
-  if (!result) {
-    mju_error("%s", error.data());
-  }
-  return result;
-}
-
-int mj_setLengthRange_wrapper(const MjModel& m, const MjData& d, int index, const MjLROpt& opt) {
-  std::array<char, 1024> error;
-  int result = mj_setLengthRange(m.get(), d.get(), index, opt.get(), error.data(), error.size());
-  if (!result) {
-    mju_error("%s", error.data());
-  }
-  return result;
-}
-
 EMSCRIPTEN_BINDINGS(mujoco_functions) {
-  function("parseXMLString", &parseXMLString, take_ownership());
+  function("parseXMLString", &parseXMLString_wrapper, take_ownership());
   function("error", &error_wrapper);
   function("mj_resetCallbacks", &mj_resetCallbacks);
   function("mj_version", &mj_version);

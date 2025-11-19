@@ -523,7 +523,8 @@ def _build_struct_bindings(
       builder.line(".constructor<const MjModel &, const MjData &>()")
     elif w == "MjModel":
       builder.line(
-          '.class_function("loadFromXML", &loadFromXML, take_ownership())'
+          '.class_function("loadFromXML", &loadFromXML_wrapper,'
+          " take_ownership())"
       )
       builder.line(".constructor<const MjModel &>()")
     elif w == "MjSpec":
