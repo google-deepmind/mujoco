@@ -29,7 +29,11 @@ General
   - ``sidesite -> MjsSite|None``
   - ``coef -> real``
   - ``divisor -> real``
-- Non-breaking API change: :ref:`mj_sizeModel` now returns an :ref:`mjtSize` rather than an ``int``.
+
+- Non-breaking ABI changes:
+
+  - :ref:`mjtSize` is now defined as ``int64_t`` rather than ``uint64_t`` to avoid future type-promotion bugs.
+  - :ref:`mj_sizeModel` now returns an :ref:`mjtSize` rather than an ``int``.
 
 MJX
 ^^^

@@ -100,7 +100,7 @@ Size type used to represent buffer sizes.
 
 .. code-block:: C
 
-   typedef uint64_t mjtSize;
+   typedef int64_t mjtSize;
 
 
 .. _tyEnums:

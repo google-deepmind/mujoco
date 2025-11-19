@@ -14,6 +14,7 @@
 
 #include "engine/engine_print.h"
 
+#include <inttypes.h>  // IWYU pragma: keep
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -41,7 +42,7 @@
 #define FLOAT_FORMAT "% -9.2g"
 #define FLOAT_FORMAT_MAX_LEN 20
 #define INT_FORMAT " %d"
-#define SIZE_T_FORMAT " %zu"
+#define SIZE_FORMAT " %" PRId64
 #define NAME_FORMAT "%-21s"
 
 
@@ -543,7 +544,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   if (m->name) {                                  \
     const char* format = _Generic(                \
         m->name,                                  \
-        size_t : SIZE_T_FORMAT,                   \
+        mjtSize : SIZE_FORMAT,                    \
         default : INT_FORMAT);                    \
     fprintf(fp, NAME_FORMAT, "  " #name);         \
     fprintf(fp, format, m->name);                 \
@@ -1146,7 +1147,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     const char* format = _Generic(                                            \
         d->name,                                                              \
         int : INT_FORMAT,                                                     \
-        size_t : SIZE_T_FORMAT,                                               \
+        mjtSize : SIZE_FORMAT,                                                \
         default : NULL);                                                      \
     if (format) {                                                             \
       fprintf(fp, "  ");                                                      \
