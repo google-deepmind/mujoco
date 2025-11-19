@@ -28,6 +28,7 @@
 #include "experimental/toolbox/helpers.h"
 #include "experimental/toolbox/physics.h"
 #include "experimental/toolbox/renderer.h"
+#include "experimental/toolbox/sim_profiler.h"
 #include "experimental/toolbox/window.h"
 
 namespace mujoco::studio {
@@ -141,9 +142,6 @@ class App {
   void HandleMouseEvents();
   void HandleKeyboardEvents();
 
-  void ClearProfilerData();
-  void UpdateProfilerData();
-
   void BuildGuiWithWindows();
   void BuildGuiWithSections();
 
@@ -174,22 +172,11 @@ class App {
   std::unique_ptr<toolbox::Physics> physics_;
   toolbox::LoadAssetFn load_asset_fn_;
 
+  toolbox::SimProfiler profiler_;
+
   mjvCamera camera_;
   mjvPerturb perturb_;
   mjvOption vis_options_;
-
-  // profiler data
-  std::vector<float> cpu_total_;
-  std::vector<float> cpu_collision_;
-  std::vector<float> cpu_prepare_;
-  std::vector<float> cpu_solve_;
-  std::vector<float> cpu_other_;
-  std::vector<float> dim_dof_;
-  std::vector<float> dim_body_;
-  std::vector<float> dim_constraint_;
-  std::vector<float> dim_sqrt_nnz_;
-  std::vector<float> dim_contact_;
-  std::vector<float> dim_iteration_;
 
   UiState ui_;
   UiTempState tmp_;

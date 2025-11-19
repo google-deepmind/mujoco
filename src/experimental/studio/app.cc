@@ -54,8 +54,6 @@ namespace mujoco::studio {
 // - sensor graph
 // - convergence profiler
 // - solver iteration profiler
-// - "passive" mode
-// - async physics
 
 static constexpr toolbox::Window::Config kWindowConfig = {
 #ifdef EMSCRIPTEN
@@ -150,7 +148,7 @@ App::App(int width, int height, std::string ini_path,
   mjv_defaultOption(&vis_options_);
 
   LoadSettings();
-  ClearProfilerData();
+  profiler_.Clear();
 
 #ifdef USE_CLASSIC_OPENGL
   ImGui_ImplOpenGL3_Init();
@@ -166,7 +164,7 @@ void App::OnModelLoaded(std::string_view model_file) {
   renderer_->Init(Model());
   tmp_ = UiTempState();
   mjv_defaultOption(&vis_options_);
-  ClearProfilerData();
+  profiler_.Clear();
 
   std::string base_path = "/";
   std::string model_name = "model";
@@ -210,7 +208,7 @@ bool App::Update() {
   // simulation itself will only update if it is not paused.
   if (!tmp_.modal_open) {
     if (physics_->Update(&perturb_)) {
-      UpdateProfilerData();
+      profiler_.Update(Model(), Data());
     }
   }
 
@@ -589,99 +587,6 @@ void App::SetCamera(int idx) {
   }
 }
 
-void App::ClearProfilerData() {
-  constexpr int kProfilerMaxFrames = 200;
-  cpu_total_.clear();
-  cpu_collision_.clear();
-  cpu_prepare_.clear();
-  cpu_solve_.clear();
-  cpu_other_.clear();
-  dim_dof_.clear();
-  dim_body_.clear();
-  dim_constraint_.clear();
-  dim_sqrt_nnz_.clear();
-  dim_contact_.clear();
-  dim_iteration_.clear();
-
-  cpu_total_.resize(kProfilerMaxFrames, 0);
-  cpu_collision_.resize(kProfilerMaxFrames, 0);
-  cpu_prepare_.resize(kProfilerMaxFrames, 0);
-  cpu_solve_.resize(kProfilerMaxFrames, 0);
-  cpu_other_.resize(kProfilerMaxFrames, 0);
-  dim_dof_.resize(kProfilerMaxFrames, 0);
-  dim_body_.resize(kProfilerMaxFrames, 0);
-  dim_constraint_.resize(kProfilerMaxFrames, 0);
-  dim_sqrt_nnz_.resize(kProfilerMaxFrames, 0);
-  dim_contact_.resize(kProfilerMaxFrames, 0);
-  dim_iteration_.resize(kProfilerMaxFrames, 0);
-}
-
-void App::UpdateProfilerData() {
-  // CPU timers.
-  mjtNum total = Data()->timer[mjTIMER_STEP].duration;
-  mjtNum number = static_cast<mjtNum>(Data()->timer[mjTIMER_STEP].number);
-  if (number == 0.0) {
-    total = Data()->timer[mjTIMER_FORWARD].duration;
-    number = static_cast<mjtNum>(Data()->timer[mjTIMER_FORWARD].number);
-  }
-  if (number == 0.0) {
-    // This can happen if the simulation is paused.
-    return;
-  }
-
-  cpu_total_.erase(cpu_total_.begin());
-  cpu_total_.push_back(total / number);
-
-  mjtNum collision = Data()->timer[mjTIMER_POS_COLLISION].duration / number;
-  cpu_collision_.erase(cpu_collision_.begin());
-  cpu_collision_.push_back(collision);
-
-  mjtNum prepare = (Data()->timer[mjTIMER_POS_MAKE].duration / number) +
-                   (Data()->timer[mjTIMER_POS_PROJECT].duration / number);
-  cpu_prepare_.erase(cpu_prepare_.begin());
-  cpu_prepare_.push_back(prepare);
-
-  mjtNum solve = Data()->timer[mjTIMER_CONSTRAINT].duration / number;
-  cpu_solve_.erase(cpu_solve_.begin());
-  cpu_solve_.push_back(solve);
-
-  mjtNum other = total - collision - prepare - solve;
-  cpu_other_.erase(cpu_other_.begin());
-  cpu_other_.push_back(other);
-
-  // Solver diagnostics.
-  mjtNum sqrt_nnz = 0;
-  int solver_niter = 0;
-  const int nisland = Data()->nefc ? mjMAX(1, mjMIN(Data()->nisland, mjNISLAND)) : 0;
-  for (int island=0; island < nisland; island++) {
-    sqrt_nnz += Data()->solver_nnz[island];
-    solver_niter += Data()->solver_niter[island];
-  }
-  sqrt_nnz = mju_sqrt(sqrt_nnz);
-
-  dim_dof_.erase(dim_dof_.begin());
-  int nv = (Model()->opt.enableflags & mjENBL_SLEEP) ? Data()->nv_awake
-                                                     : Model()->nv;
-  dim_dof_.push_back(nv);
-
-  dim_body_.erase(dim_body_.begin());
-  int nbody = (Model()->opt.enableflags & mjENBL_SLEEP) ? Data()->nbody_awake
-                                                        : Model()->nbody;
-  dim_body_.push_back(nbody);
-
-  dim_constraint_.erase(dim_constraint_.begin());
-  dim_constraint_.push_back(Data()->nefc);
-
-  dim_sqrt_nnz_.erase(dim_sqrt_nnz_.begin());
-  dim_sqrt_nnz_.push_back(sqrt_nnz);
-
-  dim_contact_.erase(dim_contact_.begin());
-  dim_contact_.push_back(Data()->ncon);
-
-  dim_iteration_.erase(dim_iteration_.begin());
-  dim_iteration_.push_back(static_cast<float>(solver_niter) / nisland);
-}
-
 void App::BuildGuiWithWindows() {
   if (!tmp_.show_ui_lhs) {
     return;
@@ -749,7 +654,7 @@ void App::BuildGuiWithWindows() {
   }
   if (ui_.profiler) {
     if (ImGui::Begin("Profiler", &ui_.profiler)) {
-      ProfilerGui();
+      profiler_.Gui();
     }
     ImGui::End();
   }
@@ -838,7 +743,7 @@ void App::BuildGuiWithSections() {
       Section("Joints", section_flags, [this] { JointsGui(); });
       Section("Controls", section_flags, [this] { ControlsGui(); });
       Section("Sensor", section_flags, [this] { SensorGui(); });
-      Section("Profiler", section_flags, [this] { ProfilerGui(); });
+      Section("Profiler", section_flags, [this] { profiler_.Gui(); });
       Section("State", section_flags, [this] { StateGui(); }, .5f);
 
       // Cache the size and position of the window before we end it
@@ -1156,7 +1061,7 @@ void App::MainMenuGui() {
           }
           if (ImGui::MenuItem("Profiler", "", ui_.profiler)) {
             ToggleWindow(ui_.profiler);
-            ClearProfilerData();
+            profiler_.Clear();
           }
           if (ImGui::MenuItem("Sensor", "", ui_.sensor)) {
             ToggleWindow(ui_.sensor);
@@ -1599,51 +1504,6 @@ void App::StateGui() {
   }
 }
 
-void App::ProfilerGui() {
-  const int plot_flags = 0;
-
-  if (ImPlot::BeginPlot("CPU Time", ImVec2(-1, 0), plot_flags)) {
-    ImPlot::SetupAxis(ImAxis_X1, "frame", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxis(ImAxis_Y1, "msec", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.2f");
-    ImPlot::SetupLegend(ImPlotLocation_NorthEast);
-    ImPlot::SetupFinish();
-
-    ImPlot::PlotLine("total", cpu_total_.data(), cpu_total_.size(), 1,
-                     -(int)cpu_total_.size());
-    ImPlot::PlotLine("prepare", cpu_prepare_.data(), cpu_prepare_.size(), 1,
-                     -(int)cpu_prepare_.size());
-    ImPlot::PlotLine("solve", cpu_solve_.data(), cpu_solve_.size(), 1,
-                     -(int)cpu_solve_.size());
-    ImPlot::PlotLine("collision", cpu_collision_.data(), cpu_collision_.size(),
-                     1, -(int)cpu_collision_.size());
-    ImPlot::PlotLine("other", cpu_other_.data(), cpu_other_.size(), 1,
-                     -(int)cpu_other_.size());
-    ImPlot::EndPlot();
-  }
-
-  if (ImPlot::BeginPlot("Dimensions", ImVec2(-1, 0), plot_flags)) {
-    ImPlot::SetupAxis(ImAxis_X1, "frame", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxis(ImAxis_Y1, "count", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
-    ImPlot::SetupLegend(ImPlotLocation_NorthEast);
-    ImPlot::SetupFinish();
-
-    ImPlot::PlotLine("dof", dim_dof_.data(), dim_dof_.size(), 1,
-                     -(int)dim_dof_.size());
-    ImPlot::PlotLine("body", dim_body_.data(), dim_body_.size(), 1,
-                     -(int)dim_body_.size());
-    ImPlot::PlotLine("constraint", dim_constraint_.data(),
-                     dim_constraint_.size(), 1, -(int)dim_constraint_.size());
-    ImPlot::PlotLine("sqrt(nnz)", dim_sqrt_nnz_.data(), dim_sqrt_nnz_.size(), 1,
-                     -(int)dim_sqrt_nnz_.size());
-    ImPlot::PlotLine("contact", dim_contact_.data(), dim_contact_.size(), 1,
-                     -(int)dim_contact_.size());
-    ImPlot::PlotLine("iteration", dim_iteration_.data(), dim_iteration_.size(),
-                     1, -(int)dim_iteration_.size());
-    ImPlot::EndPlot();
-  }
-}
 
 void App::InfoGui() {
   const int num_islands = std::clamp(Data()->nisland, 1, mjNISLAND);

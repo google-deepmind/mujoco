@@ -30,6 +30,8 @@ target_sources(${MUJOCO_TOOLBOX_TARGET_NAME}
         physics.h
         renderer.cc
         renderer.h
+        sim_profiler.cc
+        sim_profiler.h
         step_control.cc
         step_control.h
         window.cc

@@ -53,7 +53,7 @@ static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn) {
   main_cfg.GlyphExtraSpacing.x = 0.3f;
 
   auto main_font = load_asset_fn("OpenSans-Regular.ttf");
-  io.Fonts->AddFontFromMemoryTTF(main_font.data(), main_font.size(), 18.f,
+  io.Fonts->AddFontFromMemoryTTF(main_font.data(), main_font.size(), 20.f,
                                  &main_cfg);
 
   ImFontConfig icon_cfg;
