@@ -82,40 +82,6 @@ class FunctionUtilsTest(absltest.TestCase):
         "doc",
     )
 
-  def test_return_is_value_of_type(self):
-    self.assertTrue(
-        functions.return_is_value_of_type(
-            ast_nodes.FunctionDecl(
-                "func_i", ast_nodes.ValueType("int"), [], "doc"
-            ),
-            constants.PRIMITIVE_TYPES,
-        )
-    )
-    self.assertFalse(
-        functions.return_is_value_of_type(
-            ast_nodes.FunctionDecl(
-                "func_s", ast_nodes.ValueType("MyStruct"), [], "doc"
-            ),
-            constants.PRIMITIVE_TYPES,
-        )
-    )
-
-  def test_return_is_pointer_to_struct(self):
-    self.assertTrue(
-        functions.return_is_pointer_to_struct(self.func_ret_ptr_struct)
-    )
-    self.assertFalse(
-        functions.return_is_pointer_to_struct(self.func_ret_ptr_int)
-    )
-
-  def test_return_is_pointer_to_primitive(self):
-    self.assertTrue(
-        functions.return_is_pointer_to_primitive(self.func_ret_ptr_int)
-    )
-    self.assertFalse(
-        functions.return_is_pointer_to_primitive(self.func_ret_ptr_struct)
-    )
-
   def test_param_is_primitive_value(self):
     param_prim_val = ast_nodes.FunctionParameterDecl(
         "prim_v", ast_nodes.ValueType("int")
@@ -126,46 +92,6 @@ class FunctionUtilsTest(absltest.TestCase):
 
     self.assertTrue(functions.param_is_primitive_value(param_prim_val))
     self.assertFalse(functions.param_is_primitive_value(param_arr))
-
-  def test_param_is_pointer_to_primitive_value(self):
-    param_ptr_to_prim = ast_nodes.FunctionParameterDecl(
-        "p_prim", self.ptr_to_int
-    )
-    param_arr_of_prim = ast_nodes.FunctionParameterDecl(
-        "a_prim", ast_nodes.ArrayType(ast_nodes.ValueType("int"), extents=(10,))
-    )
-    param_ptr_to_struct = ast_nodes.FunctionParameterDecl(
-        name="p_struct", type=ast_nodes.PointerType(inner_type=self.struct_type)
-    )
-    self.assertTrue(
-        functions.param_is_pointer_to_primitive_value(param_ptr_to_prim)
-    )
-    self.assertTrue(
-        functions.param_is_pointer_to_primitive_value(param_arr_of_prim)
-    )
-    self.assertFalse(
-        functions.param_is_pointer_to_primitive_value(param_ptr_to_struct)
-    )
-
-  def test_param_is_pointer_to_struct(self):
-    param_arr_of_struct = ast_nodes.FunctionParameterDecl(
-        "a_struct", ast_nodes.ArrayType(self.struct_type, extents=(5,))
-    )
-    param_ptr_to_struct = ast_nodes.FunctionParameterDecl(
-        "p_struct", ast_nodes.PointerType(self.struct_type)
-    )
-    param_ptr_to_ptr = ast_nodes.FunctionParameterDecl(
-        "p_ptr", ast_nodes.PointerType(self.ptr_to_int)
-    )
-    self.assertTrue(
-        functions.param_is_pointer_to_struct(param_arr_of_struct)
-    )
-    self.assertTrue(
-        functions.param_is_pointer_to_struct(param_ptr_to_struct)
-    )
-    self.assertFalse(
-        functions.param_is_pointer_to_struct(param_ptr_to_ptr)
-    )
 
   def test_should_be_wrapped_with_primitive_ptr_return(self):
     func = ast_nodes.FunctionDecl(
