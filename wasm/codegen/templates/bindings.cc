@@ -109,72 +109,9 @@ std::vector<WrapperType> InitWrapperArray(ArrayType* array, SizeType size) {
 
 // {{ AUTOGENNED_STRUCTS_HEADER }}
 
-struct MjVisual {
-  MjVisual();
-  explicit MjVisual(mjVisual *ptr_);
-  MjVisual(const MjVisual &);
-  MjVisual &operator=(const MjVisual &);
-  ~MjVisual();
-  std::unique_ptr<MjVisual> copy();
-  mjVisual* get() const;
-  void set(mjVisual* ptr);
-  // INSERT-GENERATED-MjVisual-DEFINITIONS
-
- private:
-  mjVisual* ptr_;
-  bool owned_ = false;
-
- public:
-  MjVisualGlobal global;
-  MjVisualQuality quality;
-  MjVisualHeadlight headlight;
-  MjVisualMap map;
-  MjVisualScale scale;
-  MjVisualRgba rgba;
-};
-
-struct MjModel {
-  explicit MjModel(mjModel *m);
-  explicit MjModel(const MjModel &other);
-  ~MjModel();
-  std::unique_ptr<MjModel> copy();
-  mjModel* get() const;
-  void set(mjModel* ptr);
-  // INSERT-GENERATED-MjModel-DEFINITIONS
-
- private:
-  mjModel* ptr_;
-
- public:
-  MjOption opt;
-  MjStatistic stat;
-  MjVisual vis;
-};
-
-struct MjData {
-  MjData(MjModel *m);
-  explicit MjData(const MjModel &, const MjData &);
-  ~MjData();
-  std::vector<MjContact> contact() const;
-  std::unique_ptr<MjData> copy();
-  mjData* get() const;
-  void set(mjData* ptr);
-  // INSERT-GENERATED-MjData-DEFINITIONS
-
- private:
-  mjData* ptr_;
-
- public:
-  mjModel *model;
-  std::vector<MjSolverStat> solver;
-  std::vector<MjTimerStat> timer;
-  std::vector<MjWarningStat> warning;
-};
-
 struct MjvScene {
   MjvScene();
   MjvScene(MjModel *m, int maxgeom);
-  // MjvScene(const MjvScene &);
   ~MjvScene();
   std::unique_ptr<MjvScene> copy();
   int GetSumFlexFaces() const;
@@ -268,29 +205,6 @@ struct MjvScene {
   std::vector<MjvGLCamera> camera;
 };
 
-struct MjSpec {
-  MjSpec();
-  explicit MjSpec(mjSpec *ptr);
-  MjSpec(const MjSpec &);
-  MjSpec &operator=(const MjSpec &);
-  ~MjSpec();
-  std::unique_ptr<MjSpec> copy();
-  mjSpec* get() const;
-  void set(mjSpec* ptr);
-  // INSERT-GENERATED-MjSpec-DEFINITIONS
-
- private:
-  mjSpec* ptr_;
-  bool owned_ = false;
-
- public:
-  MjOption option;
-  MjVisual visual;
-  MjStatistic stat;
-  MjsCompiler compiler;
-  MjsElement element;
-};
-
 val get_mjDISABLESTRING() { return MakeValArray(mjDISABLESTRING); }
 val get_mjENABLESTRING() { return MakeValArray(mjENABLESTRING); }
 val get_mjTIMERSTRING() { return MakeValArray(mjTIMERSTRING); }
@@ -348,13 +262,13 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
 // {{ AUTOGENNED_STRUCTS_SOURCE }}
 
 // =============== MjModel =============== //
-MjModel::MjModel(mjModel *m)
-    : ptr_(m), opt(&m->opt), stat(&m->stat), vis(&m->vis) {}
+MjModel::MjModel(mjModel *ptr)
+    : ptr_(ptr), opt(&ptr->opt), vis(&ptr->vis), stat(&ptr->stat) {}
 MjModel::MjModel(const MjModel &other)
     : ptr_(mj_copyModel(nullptr, other.get())),
       opt(&ptr_->opt),
-      stat(&ptr_->stat),
-      vis(&ptr_->vis) {}
+      vis(&ptr_->vis),
+      stat(&ptr_->stat) {}
 MjModel::~MjModel() {
   if (ptr_) {
     mj_deleteModel(ptr_);
@@ -462,30 +376,30 @@ std::vector<MjvGeom> MjvScene::geoms() const {
 
 MjSpec::MjSpec()
     : ptr_(mj_makeSpec()),
+      element(ptr_->element),
+      compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat),
-      compiler(&ptr_->compiler),
-      element(ptr_->element) {
+      stat(&ptr_->stat) {
   owned_ = true;
   mjs_defaultSpec(ptr_);
 };
 
 MjSpec::MjSpec(mjSpec *ptr)
     : ptr_(ptr),
+      element(ptr_->element),
+      compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat),
-      compiler(&ptr_->compiler),
-      element(ptr_->element) {}
+      stat(&ptr_->stat) {}
 
 MjSpec::MjSpec(const MjSpec &other)
     : ptr_(mj_copySpec(other.get())),
+      element(ptr_->element),
+      compiler(&ptr_->compiler),
       option(&ptr_->option),
       visual(&ptr_->visual),
-      stat(&ptr_->stat),
-      compiler(&ptr_->compiler),
-      element(ptr_->element) {
+      stat(&ptr_->stat) {
   owned_ = true;
 }
 

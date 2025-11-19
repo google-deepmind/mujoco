@@ -235,11 +235,7 @@ SKIPPED_STRUCTS: List[str] = [
 # or some of their fields need to be handled manually for now;
 # making their wrapper constructors/destructors non-trivial.
 MANUAL_STRUCTS: List[str] = [
-    "MjData",
-    "MjModel",
     "MjvScene",
-    "MjSpec",
-    "MjVisual",
 ]
 
 # Dictionary that maps anonymous structs to their parent struct and field name.
@@ -364,9 +360,7 @@ SKIPPED_FIELDS: Dict[str, List[str]] = {}
 # Fields handled manually in template file struct declaration.
 MANUAL_FIELDS: Dict[str, List[str]] = {
     # go/keep-sorted start
-    "MjData": ["solver", "timer", "warning", "contact"],
-    "MjModel": ["opt", "vis", "stat"],
-    "MjSpec": ["option", "visual", "stat", "element", "compiler"],
+    "MjData": ["contact"],
     "MjvScene": [
         # go/keep-sorted start
         "camera",

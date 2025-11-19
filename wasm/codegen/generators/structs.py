@@ -129,7 +129,6 @@ def _generate_field_data(
     )
 
   elif isinstance(f.type, ast_nodes.ValueType) and f.type.name.startswith("mj"):
-
     return WrappedFieldData(
         definition=f"{common.uppercase_first_letter(f.type.name)} {f.name};",
         typename=_get_field_struct_type(f.type),
@@ -156,7 +155,10 @@ def _generate_field_data(
     if anonymous_struct_name in constants.STRUCTS_TO_BIND:
       return WrappedFieldData(
           binding=_simple_property_binding(f, w, setter=False, reference=True),
-          typename=_get_field_struct_type(f.type),
+          typename=anonymous_struct_name,
+          definition=(
+              f"{common.uppercase_first_letter(anonymous_struct_name)} {f.name};"
+          ),
           ptr_initialization=f"{f.name}(&ptr_->{f.name})",
           ptr_copy_reset=f"{f.name}.set(&ptr_->{f.name});",
           is_primitive_or_fixed_size=True,
@@ -166,7 +168,11 @@ def _generate_field_data(
 
     inner_type = f.type.inner_type
     size = math.prod(f.type.extents)
-
+    inner_type_name = (
+        f.type.inner_type.name
+        if isinstance(f.type.inner_type, ast_nodes.ValueType)
+        else ""
+    )
     if (
         isinstance(inner_type, ast_nodes.ValueType)
         and inner_type.name in constants.PRIMITIVE_TYPES
@@ -192,9 +198,18 @@ def _generate_field_data(
           binding=_simple_property_binding(f, w),
           is_primitive_or_fixed_size=True,
       )
+    elif inner_type_name.startswith("mj"):
+      return WrappedFieldData(
+          definition=(
+              f"std::vector<{common.uppercase_first_letter(inner_type_name)}>"
+              f" {f.name};"
+          ),
+          ptr_initialization=f"{f.name}(&ptr_->{f.name})",
+          typename=_get_field_struct_type(f.type),
+          binding=_simple_property_binding(f, w, reference=True),
+      )
 
   elif isinstance(f.type, ast_nodes.PointerType):
-
     inner_type_name = (
         f.type.inner_type.name
         if isinstance(f.type.inner_type, ast_nodes.ValueType)
@@ -279,13 +294,7 @@ def _generate_field_data(
         binding=_simple_property_binding(f, w),
     )
 
-  # SHOULD NOT OCCUR
-  print("Error: field {f.name} not properly handled")
-  return WrappedFieldData(
-      definition=f"// Error: field {f.name} not properly handled.",
-      typename=_get_field_struct_type(f.type),
-      binding=f"// Error: field {f.name} not properly handled.",
-  )
+  raise RuntimeError(f"Field {f.name} from struct {w} not properly handled")
 
 
 def _default_function_statement(struct_name: str) -> str:
@@ -353,41 +362,66 @@ def build_struct_header(
   ):
     raise RuntimeError(f"Struct {s} not found in introspect structs")
 
-  is_mjs = w.startswith("Mjs")
+  not_mjs = not w.startswith("Mjs")
   member_inits = _find_member_inits(wrapped_fields)
-  shallow_copy = use_shallow_copy(wrapped_fields)
+  shallow_copy = not_mjs and use_shallow_copy(wrapped_fields)
   builder = code_builder.CodeBuilder()
 
   with builder.struct(f"{w}"):
-    builder.line(f"explicit {w}({s} *ptr);")
-
-    if not is_mjs:
+    # destructor
+    if not_mjs:
       builder.line(f"~{w}();")
+
+    # default constructor
+    if not_mjs and w not in ["MjData", "MjModel"]:
       builder.line(f"{w}();")
 
-    if shallow_copy and not is_mjs:
+    # constructor passing native ptr
+    if w != "MjData":
+      builder.line(f"explicit {w}({s} *ptr);")
+    else:
+      # special handling for MjData
+      builder.line("MjData(MjModel *m);")
+      builder.line("explicit MjData(const MjModel &, const MjData &);")
+      builder.line("std::vector<MjContact> contact() const;")
+
+    # copy constructor
+    if shallow_copy or w in ["MjSpec", "MjModel"]:
       builder.line(f"{w}(const {w} &);")
+
+    # assignment operator
+    if shallow_copy or w == "MjSpec":
       builder.line(f"{w} &operator=(const {w} &);")
+
+    # explicit copy function
+    if shallow_copy or w in ["MjSpec", "MjData", "MjModel"]:
       builder.line(f"std::unique_ptr<{w}> copy();")
 
+    # C struct getter/setter
     builder.line(f"{s}* get() const;")
     builder.line(f"void set({s}* ptr);")
 
+    # field declarations
     for field in wrapped_fields:
       if field.definition and field not in member_inits:
         for line in field.definition.splitlines():
           builder.line(line)
 
+    # define private struct members
     builder.private()
     builder.line(f"{s}* ptr_;")
-    if not is_mjs:
+    if not_mjs and w not in ["MjData", "MjModel"]:
       builder.line("bool owned_ = false;")
 
+    # define public struct members
     if member_inits:
       builder.public()
       for f in member_inits:
         if f.definition:
           builder.line(f"{f.definition}")
+
+      if w == "MjData":
+        builder.line("mjModel *model;")
 
   return builder.to_string() + ";"
 
@@ -649,6 +683,9 @@ def sort_structs_by_dependency(
   sorted_struct_names = sorted(struct_names)
 
   for struct_name in sorted_struct_names:
+    if struct_name == "mjData":
+      adj["mjModel"].append("mjData")
+      in_degree["mjData"] += 1
     for field in struct_wrappers[struct_name].wrapped_fields:
 
       field_type_name = field.typename
