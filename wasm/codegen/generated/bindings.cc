@@ -771,6 +771,7 @@ EMSCRIPTEN_BINDINGS(mujoco_enums) {
     .value("mjSECT_CLOSED", mjSECT_CLOSED)
     .value("mjSECT_OPEN", mjSECT_OPEN)
     .value("mjSECT_FIXED", mjSECT_FIXED);
+
 }
 
 using mjVisualGlobal = decltype(::mjVisual::global);

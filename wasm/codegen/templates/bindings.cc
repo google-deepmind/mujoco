@@ -155,9 +155,7 @@ EMSCRIPTEN_BINDINGS(mujoco_constants) {
   emscripten::function("get_mjRNDSTRING", &get_mjRNDSTRING);
 }
 
-EMSCRIPTEN_BINDINGS(mujoco_enums) {
 // {{ ENUM_BINDINGS }}
-}
 
 // {{ ANONYMOUS_STRUCT_TYPEDEFS }}
 
