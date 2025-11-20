@@ -38,31 +38,6 @@
 #include <pxr/usd/usd/stage.h>
 #endif
 
-
-// leak sanitizer support: default to no-op
-#define MJ_LSAN_IGNORE(ptr) ((void)(ptr))
-
-// on Linux with GCC/Clang and LSAN available
-#if (defined(__GNUC__) || defined(__clang__)) && !defined(__APPLE__) && !defined(_WIN32)
-#ifdef __has_include
-#if __has_include(<sanitizer/lsan_interface.h>)
-
-// define weak lsan_ignore_object symbol
-#include <sanitizer/lsan_interface.h>
-extern "C" void __lsan_ignore_object(const void*) __attribute__((weak));
-namespace {
-inline void lsan_ignore(const void* ptr) { if (__lsan_ignore_object) __lsan_ignore_object(ptr); }
-}  // namespace
-
-// redefine MJ_LSAN_IGNORE to use lsan_ignore
-#undef MJ_LSAN_IGNORE
-#define MJ_LSAN_IGNORE(ptr) lsan_ignore(ptr)
-
-#endif  // LSAN API available
-#endif  // __has_include
-#endif  // Linux with GCC/Clang
-
-
 //---------------------------------- Globals -------------------------------------------------------
 
 namespace {
@@ -76,12 +51,6 @@ class GlobalModel {
   // writes XML to string
   std::optional<std::string> ToXML(const mjModel* m, char* error,
                                       int error_sz);
-
-  // mark this GlobalModel and its allocations as intentional (not leaks)
-  void AnnotateLSan() {
-    MJ_LSAN_IGNORE(this);
-    MJ_LSAN_IGNORE(mutex_);
-  }
 
  private:
   // using raw pointers as GlobalModel needs to be trivially destructible
@@ -109,24 +78,12 @@ void GlobalModel::Set(mjSpec* spec) {
     mj_deleteSpec(spec_);
   }
   spec_ = spec;
-
-  // mark the spec as an intentional long-lived allocation
-  if (spec_) {
-    MJ_LSAN_IGNORE(spec_);
-  }
 }
 
 
 // returns a single instance of the global model
 GlobalModel& GetGlobalModel() {
   static GlobalModel global_model;
-
-  // mark the GlobalModel singleton and its mutex as intentional allocations
-  static bool lsan_annotated = false;
-  if (!lsan_annotated) {
-    global_model.AnnotateLSan();
-    lsan_annotated = true;
-  }
 
   // global variables must be trivially destructible
   static_assert(std::is_trivially_destructible_v<decltype(global_model)>);
