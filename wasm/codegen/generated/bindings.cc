@@ -12374,18 +12374,6 @@ std::optional<MjsPlugin> mjs_asPlugin_wrapper(MjsElement& element) {
 EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("parseXMLString", &parseXMLString_wrapper, take_ownership());
   function("error", &error_wrapper);
-  function("mj_resetCallbacks", &mj_resetCallbacks);
-  function("mj_version", &mj_version);
-  function("mju_bandDiag", &mju_bandDiag);
-  function("mju_springDamper", &mju_springDamper);
-  function("mju_min", &mju_min);
-  function("mju_max", &mju_max);
-  function("mju_clip", &mju_clip);
-  function("mju_sign", &mju_sign);
-  function("mju_round", &mju_round);
-  function("mju_isBad", &mju_isBad);
-  function("mju_Halton", &mju_Halton);
-  function("mju_sigmoid", &mju_sigmoid);
   function("mj_copyBack", &mj_copyBack_wrapper);
   function("mj_saveLastXML", &mj_saveLastXML_wrapper);
   function("mj_step", &mj_step_wrapper);
@@ -12403,6 +12391,7 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mj_resetData", &mj_resetData_wrapper);
   function("mj_resetDataDebug", &mj_resetDataDebug_wrapper);
   function("mj_resetDataKeyframe", &mj_resetDataKeyframe_wrapper);
+  function("mj_resetCallbacks", &mj_resetCallbacks);
   function("mj_setConst", &mj_setConst_wrapper);
   function("mj_setLengthRange", &mj_setLengthRange_wrapper);
   function("mjs_activatePlugin", &mjs_activatePlugin_wrapper);
@@ -12494,6 +12483,7 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mj_local2Global", &mj_local2Global_wrapper);
   function("mj_getTotalmass", &mj_getTotalmass_wrapper);
   function("mj_setTotalmass", &mj_setTotalmass_wrapper);
+  function("mj_version", &mj_version);
   function("mj_versionString", &mj_versionString_wrapper);
   function("mj_multiRay", &mj_multiRay_wrapper);
   function("mj_ray", &mj_ray_wrapper);
@@ -12605,6 +12595,7 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mju_band2Dense", &mju_band2Dense_wrapper);
   function("mju_dense2Band", &mju_dense2Band_wrapper);
   function("mju_bandMulMatVec", &mju_bandMulMatVec_wrapper);
+  function("mju_bandDiag", &mju_bandDiag);
   function("mju_eig3", &mju_eig3_wrapper);
   function("mju_boxQP", &mju_boxQP_wrapper);
   function("mju_muscleGain", &mju_muscleGain_wrapper);
@@ -12612,10 +12603,17 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mju_muscleDynamics", &mju_muscleDynamics_wrapper);
   function("mju_encodePyramid", &mju_encodePyramid_wrapper);
   function("mju_decodePyramid", &mju_decodePyramid_wrapper);
+  function("mju_springDamper", &mju_springDamper);
+  function("mju_min", &mju_min);
+  function("mju_max", &mju_max);
+  function("mju_clip", &mju_clip);
+  function("mju_sign", &mju_sign);
+  function("mju_round", &mju_round);
   function("mju_type2Str", &mju_type2Str_wrapper);
   function("mju_str2Type", &mju_str2Type_wrapper);
   function("mju_writeNumBytes", &mju_writeNumBytes_wrapper);
   function("mju_warningText", &mju_warningText_wrapper);
+  function("mju_isBad", &mju_isBad);
   function("mju_isZero", &mju_isZero_wrapper);
   function("mju_standardNormal", &mju_standardNormal_wrapper);
   function("mju_f2n", &mju_f2n_wrapper);
@@ -12624,6 +12622,8 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mju_n2d", &mju_n2d_wrapper);
   function("mju_insertionSort", &mju_insertionSort_wrapper);
   function("mju_insertionSortInt", &mju_insertionSortInt_wrapper);
+  function("mju_Halton", &mju_Halton);
+  function("mju_sigmoid", &mju_sigmoid);
   function("mjd_transitionFD", &mjd_transitionFD_wrapper);
   function("mjd_inverseFD", &mjd_inverseFD_wrapper);
   function("mjd_subQuat", &mjd_subQuat_wrapper);

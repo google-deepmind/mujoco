@@ -157,17 +157,17 @@ class FunctionUtilsTest(absltest.TestCase):
         type=ast_nodes.PointerType(ast_nodes.ValueType("customstruct")),
     )
     result = functions.get_params_string_maybe_with_conversion((param,))
-    self.assertEqual(result, ["s.get()"])
+    self.assertEqual(result, "s.get()")
 
-  def test_get_compatible_return_call(self):
+  def test_get_compatible_return_code(self):
     func = ast_nodes.FunctionDecl(
         name="noop",
         return_type=ast_nodes.ValueType("void"),
         parameters=tuple(),
         doc="does nothing",
     )
-    result = functions.get_compatible_return_call(func, "noop()")
-    self.assertEqual(result, "noop()")
+    result = functions.get_compatible_return_code(func)
+    self.assertEqual(result, "noop();")
 
   def test_get_compatible_return_type(self):
     func = ast_nodes.FunctionDecl(
@@ -179,14 +179,14 @@ class FunctionUtilsTest(absltest.TestCase):
     result = functions.get_compatible_return_type(func)
     self.assertEqual(result.strip(), "std::string")
 
-  def test_get_converted_struct_to_class(self):
+  def test_get_optional_return_code(self):
     func = ast_nodes.FunctionDecl(
         name="get_struct",
         return_type=ast_nodes.PointerType(ast_nodes.ValueType("mystruct")),
         parameters=tuple(),
         doc="returns struct",
     )
-    result = functions.get_converted_struct_to_class(func, "get_struct()")
+    result = functions.get_optional_return_code(func, "get_struct()")
     self.assertIn("mystruct* result = get_struct();", result)
     self.assertIn("return Mystruct(result)", result)
 
@@ -834,50 +834,6 @@ class EnumsGeneratorTest(absltest.TestCase):
     actual_code = "\n\n".join(markers_and_content[0][1])
 
     self.assertEqual(actual_code, expected_code)
-
-
-class FunctionsGeneratorTest(absltest.TestCase):
-
-  def setUp(self):
-    super().setUp()
-    self.generator = functions.Generator({})
-    self.int_type = ast_nodes.ValueType(name="int")
-
-  def test_generate_function_binding_simple_case(self):
-    func_simple_void = ast_nodes.FunctionDecl(
-        name="do_nothing",
-        return_type=ast_nodes.ValueType(name="void"),
-        parameters=tuple(),
-        doc="doc",
-    )
-    self.assertEqual(
-        self.generator._generate_function_binding(func_simple_void),
-        'function("do_nothing", &do_nothing);',
-    )
-
-  def test_generate_direct_bindable_functions_simple_filter(self):
-    direct_bind = ast_nodes.FunctionDecl(
-        name="direct_bind",
-        return_type=self.int_type,
-        parameters=(
-            ast_nodes.FunctionParameterDecl(name="val", type=self.int_type),
-        ),
-        doc="doc",
-    )
-    needs_wrap = ast_nodes.FunctionDecl(
-        name="needs_wrap",
-        return_type=ast_nodes.PointerType(inner_type=self.int_type),
-        parameters=tuple(),
-        doc="doc",
-    )
-    self.generator = functions.Generator({
-        "direct1": direct_bind,
-        "wrapped1": needs_wrap,
-    })
-
-    generated_code = self.generator._generate_direct_bindable_functions()
-    self.assertIn('function("direct_bind", &direct_bind);', generated_code)
-    self.assertNotIn('function("needs_wrap", &needs_wrap);', generated_code)
 
 
 if __name__ == "__main__":
