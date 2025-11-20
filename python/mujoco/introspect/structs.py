@@ -1328,7 +1328,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='id of root above body',
+                 doc='ancestor that is direct child of world',
                  array_extent=('nbody',),
              ),
              StructFieldDecl(
@@ -1336,7 +1336,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='id of body that this body is welded to',
+                 doc='top ancestor with no dofs to this body',
                  array_extent=('nbody',),
              ),
              StructFieldDecl(
