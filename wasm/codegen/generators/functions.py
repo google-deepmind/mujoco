@@ -60,9 +60,8 @@ def get_const_qualifier(func: ast_nodes.FunctionDecl) -> str:
 
 def should_be_wrapped(func: ast_nodes.FunctionDecl) -> bool:
   """Checks if a MuJoCo function needs a wrapper function."""
-  return (
-      get_pointer_return_inner_value_type(func) is not None
-      or any(get_inner_value_type(param) for param in func.parameters)
+  return get_pointer_return_inner_value_type(func) is not None or any(
+      get_inner_value_type(param) for param in func.parameters
   )
 
 
@@ -89,9 +88,7 @@ def generate_function_wrapper(func: ast_nodes.FunctionDecl) -> str:
     if bound_check_code:
       builder.line(bound_check_code)
 
-    c_params_list = get_params_string_maybe_with_conversion(
-        func.parameters
-    )
+    c_params_list = get_params_string_maybe_with_conversion(func.parameters)
     c_params_str = ", ".join(c_params_list)
     c_call = f"{func.name}({c_params_str})"
     c_statement = get_compatible_return_call(func, c_call)
@@ -146,9 +143,7 @@ def get_param_unpack_statement(
       return f"UNPACK_VALUE({inner_type.name}, {p.name});"
 
 
-def get_param_string(
-    p: ast_nodes.FunctionParameterDecl
-) -> str:
+def get_param_string(p: ast_nodes.FunctionParameterDecl) -> str:
   """Generates a list of C++ parameter declarations as strings."""
 
   if (
@@ -159,7 +154,7 @@ def get_param_string(
     # Pointer to struct parameters
     const_qualifier = "const " if p.type.inner_type.is_const else ""
     return (
-        f"{const_qualifier}{common.uppercase_first_letter(p.type.inner_type.name)}&"
+        f"{const_qualifier}{common.capitalize(p.type.inner_type.name)}&"
         f" {p.name}"
     )
   elif (
@@ -258,7 +253,7 @@ def get_compatible_return_type(func: ast_nodes.FunctionDecl) -> str:
       return "std::string"
     if inner_type.name not in constants.PRIMITIVE_TYPES:
       const_qualifier = get_const_qualifier(func)
-      return f"""{const_qualifier}std::optional<{common.uppercase_first_letter(inner_type.name)}>"""
+      return f"""{const_qualifier}std::optional<{common.capitalize(inner_type.name)}>"""
   if (
       isinstance(func.return_type, ast_nodes.ValueType)
       and func.return_type.name in constants.PRIMITIVE_TYPES
@@ -275,7 +270,7 @@ def get_converted_struct_to_class(
   const_qualifier = get_const_qualifier(func)
   return_type = cast(ast_nodes.PointerType, func.return_type)
   struct_name = cast(ast_nodes.ValueType, return_type.inner_type).name
-  class_constructor = common.uppercase_first_letter(struct_name)
+  class_constructor = common.capitalize(struct_name)
   return_str = f"{class_constructor}(result)"
   return f"""{const_qualifier}{struct_name}* result = {invoker};
   if (result == nullptr) {{

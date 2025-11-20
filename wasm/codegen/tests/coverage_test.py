@@ -117,11 +117,11 @@ class BindingCoverageTest(absltest.TestCase):
     """Asserts that each struct is either not bound or bound in structs.cc."""
     bound_structs = _get_bound_structs_from_cc()
     all_structs = {
-        common.uppercase_first_letter(struct_name)
+        common.capitalize(struct_name)
         for struct_name in introspect_structs.STRUCTS.keys()
     }
     skipped_structs = {
-        common.uppercase_first_letter(struct_name)
+        common.capitalize(struct_name)
         for struct_name in constants.SKIPPED_STRUCTS
     }
     missing_structs = []

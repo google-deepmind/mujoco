@@ -93,7 +93,7 @@ def _generate_field_data(
   """Generates the C++ definition and binding code for the struct field."""
   f = field
   w = struct_wrapper_name
-  s = common.lowercase_first_letter(w)
+  s = common.decapitalize(w)
 
   if f.name in constants.MANUAL_FIELDS.get(w, []):
     # Note: Manually handled MjModel fields are special cased so that a
@@ -130,7 +130,7 @@ def _generate_field_data(
 
   elif isinstance(f.type, ast_nodes.ValueType) and f.type.name.startswith("mj"):
     return WrappedFieldData(
-        definition=f"{common.uppercase_first_letter(f.type.name)} {f.name};",
+        definition=f"{common.capitalize(f.type.name)} {f.name};",
         typename=_get_field_struct_type(f.type),
         binding=_simple_property_binding(f, w, setter=False, reference=True),
         ptr_initialization=f"{f.name}(&ptr_->{f.name})",
@@ -156,9 +156,7 @@ def _generate_field_data(
       return WrappedFieldData(
           binding=_simple_property_binding(f, w, setter=False, reference=True),
           typename=anonymous_struct_name,
-          definition=(
-              f"{common.uppercase_first_letter(anonymous_struct_name)} {f.name};"
-          ),
+          definition=f"{common.capitalize(anonymous_struct_name)} {f.name};",
           ptr_initialization=f"{f.name}(&ptr_->{f.name})",
           ptr_copy_reset=f"{f.name}.set(&ptr_->{f.name});",
           is_primitive_or_fixed_size=True,
@@ -201,8 +199,7 @@ def _generate_field_data(
     elif inner_type_name.startswith("mj"):
       return WrappedFieldData(
           definition=(
-              f"std::vector<{common.uppercase_first_letter(inner_type_name)}>"
-              f" {f.name};"
+              f"std::vector<{common.capitalize(inner_type_name)}> {f.name};"
           ),
           ptr_initialization=f"{f.name}(&ptr_->{f.name})",
           typename=_get_field_struct_type(f.type),
@@ -270,7 +267,7 @@ def _generate_field_data(
         and w not in constants.MANUAL_FIELDS.keys()
     ):
       ptr_field = cast(ast_nodes.PointerType, f.type)
-      wrapper_field_name = common.uppercase_first_letter(
+      wrapper_field_name = common.capitalize(
           cast(ast_nodes.ValueType, ptr_field.inner_type).name
       )
       return WrappedFieldData(
@@ -351,14 +348,14 @@ def build_struct_header(
 ):
   """Builds the C++ header file code for a struct."""
   s = struct_name
-  w = common.uppercase_first_letter(s)
+  w = common.capitalize(s)
 
   if w in constants.MANUAL_STRUCTS:
     return ""
 
   if (
-      s not in constants.ANONYMOUS_STRUCTS and
-      s not in introspect_structs.STRUCTS
+      s not in constants.ANONYMOUS_STRUCTS
+      and s not in introspect_structs.STRUCTS
   ):
     raise RuntimeError(f"Struct {s} not found in introspect structs")
 
@@ -442,7 +439,7 @@ def build_struct_source(
     return ""
 
   s = struct_name
-  w = common.uppercase_first_letter(s)
+  w = common.capitalize(s)
   is_mjs = w.startswith("Mjs")
 
   member_inits = _find_member_inits(wrapped_fields)
@@ -511,7 +508,7 @@ def _build_struct_bindings(
     wrapped_fields: List[WrappedFieldData],
 ):
   """Builds the C++ bindings for a struct."""
-  w = common.uppercase_first_letter(struct_name)
+  w = common.capitalize(struct_name)
   is_mjs = w.startswith("Mjs")
 
   builder = code_builder.CodeBuilder()
@@ -595,7 +592,7 @@ def generate_wasm_bindings(
   wrapped_structs: Dict[str, WrappedStructData] = {}
   for struct_name in structs_to_bind:
     s = struct_name
-    w = common.uppercase_first_letter(s)
+    w = common.capitalize(s)
 
     if s in introspect_structs.STRUCTS:
       struct_fields = introspect_structs.STRUCTS[s].fields

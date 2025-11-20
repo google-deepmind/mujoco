@@ -56,14 +56,12 @@ class CodeBuilderTest(absltest.TestCase):
 
 class CommonUtilsTest(absltest.TestCase):
 
-  def test_uppercase_first_letter(self):
-    self.assertEqual(common.uppercase_first_letter(""), "")
-    self.assertEqual(common.uppercase_first_letter("hello"), "Hello")
-    self.assertEqual(common.uppercase_first_letter("1st place"), "1st place")
-    self.assertEqual(common.uppercase_first_letter("!wow"), "!wow")
-    self.assertEqual(
-        common.uppercase_first_letter(" leading space"), " leading space"
-    )
+  def test_capitalize(self):
+    self.assertEqual(common.capitalize(""), "")
+    self.assertEqual(common.capitalize("hello"), "Hello")
+    self.assertEqual(common.capitalize("1st place"), "1st place")
+    self.assertEqual(common.capitalize("!wow"), "!wow")
+    self.assertEqual(common.capitalize(" leading space"), " leading space")
 
 
 class FunctionUtilsTest(absltest.TestCase):
@@ -197,12 +195,8 @@ class FunctionUtilsTest(absltest.TestCase):
     self.assertTrue(functions.is_excluded_function_name("mjui_function"))
     self.assertTrue(functions.is_excluded_function_name("mju_malloc"))
     self.assertTrue(functions.is_excluded_function_name("mj_makeData"))
-    self.assertFalse(
-        functions.is_excluded_function_name("mjv_updateScene")
-    )
-    self.assertFalse(
-        functions.is_excluded_function_name("mj_normalFunction")
-    )
+    self.assertFalse(functions.is_excluded_function_name("mjv_updateScene"))
+    self.assertFalse(functions.is_excluded_function_name("mj_normalFunction"))
     self.assertFalse(
         functions.is_excluded_function_name("mju_someOtherFunction")
     )
@@ -493,7 +487,8 @@ class StructFieldCodeBuilderTest(absltest.TestCase):
         type=ast_nodes.ValueType(name="int"),
         doc="number of geoms",
     )
-    self.assertEqual(structs._generate_field_data(field, "ngeom").definition,
+    self.assertEqual(
+        structs._generate_field_data(field, "ngeom").definition,
         """
 int ngeom() const {
   return ptr_->ngeom;

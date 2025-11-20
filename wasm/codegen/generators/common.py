@@ -31,12 +31,12 @@ def write_to_file(filepath: str, content: str) -> None:
     print(f"Error writing to output file: {filepath} - {e}")
 
 
-def lowercase_first_letter(input_string: str) -> str:
+def decapitalize(input_string: str) -> str:
   """Lowercases the first letter of a string."""
   return input_string[:1].lower() + input_string[1:]
 
 
-def uppercase_first_letter(input_string: str) -> str:
+def capitalize(input_string: str) -> str:
   """Uppercases the first letter of a string."""
   return input_string[:1].upper() + input_string[1:]
 
