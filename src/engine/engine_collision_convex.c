@@ -31,6 +31,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_util_spatial.h"
 
+#define mjMINVAL2 (mjMINVAL * mjMINVAL)
 
 // allocate callback for EPA in nativeccd
 static void* ccd_allocate(void* data, size_t nbytes) {
@@ -188,16 +189,13 @@ void mjc_lineSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   const mjtNum* pos = d->geom_xpos + i;
   mjtNum length = m->geom_size[i+1];
 
-  // rotate dir to geom local frame
-  mjtNum local_dir[3], tmp[3];
-  mulMatTVec3(local_dir, mat, dir);
-
-  tmp[0] = 0;
-  tmp[1] = 0;
-  tmp[2] = (local_dir[2] >= 0 ? length : -length);
+  mjtNum dot = mat[2]*dir[0] + mat[5]*dir[1] + mat[8]*dir[2];
+  mjtNum scl = dot >= 0 ? length : -length;
 
   // transform result to global frame
-  localToGlobal(res, mat, tmp, pos);
+  res[0] = mat[2]*scl + pos[0];
+  res[1] = mat[5]*scl + pos[1];
+  res[2] = mat[8]*scl + pos[2];
 }
 
 
@@ -214,19 +212,19 @@ static void mjc_capsuleSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]
   mjtNum length = m->geom_size[i+1];
 
   // rotate dir to geom local frame
-  mjtNum local_dir[3], tmp[3];
+  mjtNum local_dir[3], local_supp[3];
   mulMatTVec3(local_dir, mat, dir);
 
   // start with sphere
-  tmp[0] = local_dir[0] * radius;
-  tmp[1] = local_dir[1] * radius;
-  tmp[2] = local_dir[2] * radius;
+  local_supp[0] = local_dir[0] * radius;
+  local_supp[1] = local_dir[1] * radius;
+  local_supp[2] = local_dir[2] * radius;
 
   // add cylinder contribution
-  tmp[2] += (local_dir[2] >= 0 ? length : -length);
+  local_supp[2] += (local_dir[2] >= 0 ? length : -length);
 
   // transform result to global frame
-  localToGlobal(res, mat, tmp, pos);
+  localToGlobal(res, mat, local_supp, pos);
 }
 
 
@@ -242,30 +240,32 @@ static void mjc_ellipsoidSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[
   const mjtNum* size = m->geom_size + i;
 
   // rotate dir to geom local frame
-  mjtNum local_dir[3], tmp[3];
+  mjtNum local_dir[3], local_supp[3];
   mulMatTVec3(local_dir, mat, dir);
 
   // find support point on unit sphere: scale dir by ellipsoid sizes
-  tmp[0] = local_dir[0] * size[0];
-  tmp[1] = local_dir[1] * size[1];
-  tmp[2] = local_dir[2] * size[2];
+  local_supp[0] = local_dir[0] * size[0];
+  local_supp[1] = local_dir[1] * size[1];
+  local_supp[2] = local_dir[2] * size[2];
 
-  mjtNum norm = mju_sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1] + tmp[2]*tmp[2]);
+  mjtNum norm2 = local_supp[0]*local_supp[0] + local_supp[1]*local_supp[1] + local_supp[2]*local_supp[2];
 
-  // try normalizing and transform to ellipsoid
-  if (norm < mjMINVAL) {
-    tmp[0] = size[0];
-    tmp[1] = 0;
-    tmp[2] = 0;
-  } else {
-    mjtNum norm_inv = 1/norm;
-    tmp[0] *= norm_inv * size[0];
-    tmp[1] *= norm_inv * size[1];
-    tmp[2] *= norm_inv * size[2];
+  // too small to normalize
+  if (norm2 < mjMINVAL2) {
+    res[0] = mat[0]*size[0] + pos[0];
+    res[1] = mat[3]*size[0] + pos[1];
+    res[2] = mat[6]*size[0] + pos[2];
+    return;
   }
 
+  // normalize and transform to ellipsoid
+  mjtNum norm_inv = 1/mju_sqrt(norm2);
+  local_supp[0] *= norm_inv * size[0];
+  local_supp[1] *= norm_inv * size[1];
+  local_supp[2] *= norm_inv * size[2];
+
   // transform result to global frame
-  localToGlobal(res, mat, tmp, pos);
+  localToGlobal(res, mat, local_supp, pos);
 }
 
 
@@ -281,23 +281,19 @@ static void mjc_cylinderSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3
   const mjtNum* size = m->geom_size + i;
 
   // rotate dir to geom local frame
-  mjtNum local_dir[3], tmp[3];
+  mjtNum local_dir[3], local_supp[3];
   mulMatTVec3(local_dir, mat, dir);
 
-  mjtNum n = local_dir[0]*local_dir[0] + local_dir[1]*local_dir[1];
-  if (n > mjMINVAL*mjMINVAL) {
-    n = size[0] / mju_sqrt(n);
-    tmp[0] = local_dir[0] * n;
-    tmp[1] = local_dir[1] * n;
-  } else {
-    tmp[0] = tmp[1] = 0;
-  }
+  mjtNum n2 = local_dir[0]*local_dir[0] + local_dir[1]*local_dir[1];
+  mjtNum scl = n2 >= mjMINVAL2 ? size[0] / mju_sqrt(n2) : 0;
+  local_supp[0] = scl * local_dir[0];
+  local_supp[1] = scl * local_dir[1];
 
   // set result in Z direction
-  tmp[2] = local_dir[2] >= 0 ? size[1] : -size[1];
+  local_supp[2] = local_dir[2] >= 0 ? size[1] : -size[1];
 
   // transform result to global frame
-  localToGlobal(res, mat, tmp, pos);
+  localToGlobal(res, mat, local_supp, pos);
 }
 
 
@@ -313,22 +309,21 @@ static void mjc_boxSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   const mjtNum* size = m->geom_size + i;
 
   // rotate dir to geom local frame
-  mjtNum local_dir[3], tmp[3];
+  mjtNum local_dir[3], local_supp[3];
   mulMatTVec3(local_dir, mat, dir);
 
   // find support point in local frame
-  tmp[0] = (local_dir[0] >= 0 ? 1 : -1) * size[0];
-  tmp[1] = (local_dir[1] >= 0 ? 1 : -1) * size[1];
-  tmp[2] = (local_dir[2] >= 0 ? 1 : -1) * size[2];
+  local_supp[0] = local_dir[0] >= 0 ? size[0] : -size[0];
+  local_supp[1] = local_dir[1] >= 0 ? size[1] : -size[1];
+  local_supp[2] = local_dir[2] >= 0 ? size[2] : -size[2];
 
   // mark the index of the corner of the box for fast lookup
-  obj->vertindex = 0;
-  if (tmp[0] > 0) obj->vertindex |= 1;
-  if (tmp[1] > 0) obj->vertindex |= 2;
-  if (tmp[2] > 0) obj->vertindex |= 4;
+  obj->vertindex  = (local_supp[0] > 0) ? 1 : 0;
+  obj->vertindex |= (local_supp[1] > 0) ? 2 : 0;
+  obj->vertindex |= (local_supp[2] > 0) ? 4 : 0;
 
   // transform support point to global frame
-  localToGlobal(res, mat, tmp, pos);
+  localToGlobal(res, mat, local_supp, pos);
 }
 
 
