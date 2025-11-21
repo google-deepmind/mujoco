@@ -1752,7 +1752,7 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
             continue;
           }
 
-          // run MPR, save contact
+          // run ccd, save contact
           if (mjc_penetration(m, &obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0) {
             if (!ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
               // fill in contact data, transform to global coordinates
