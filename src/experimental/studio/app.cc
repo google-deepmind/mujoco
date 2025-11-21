@@ -142,11 +142,12 @@ static constexpr const char* kFrameNames[] = {
 
 // logarithmically spaced real-time slow-down coefficients (percent)
 // clang-format off
-static constexpr std::array<float, 31> kPercentRealTime = {
-  100.0,  80.0,  66.00,  50.0,  40.0,  33.00,  25.00,  20.0,  16.00,  13.00,
-   10.0,   8.0,   6.60,   5.0,   4.0,   3.30,   2.50,   2.0,   1.60,   1.30,
-    1.0,    .8,    .66,    .5,    .4,    .33,    .25,    .2,    .16,    .13,
-     .1};
+static constexpr std::array<const char*, 31> kPercentRealTime = {
+"100.0 ", " 80.0 ", " 66.0 ", " 50.0 ", " 40.0 ", " 33.0 ", " 25.0 ", " 20.0 ", " 16.0 ", " 13.0 ",
+" 10.0 ", "  8.0 ", "  6.6 ", "  5.0 ", "  4.0 ", "  3.3 ", "  2.5 ", "  2.0 ", "  1.6 ", "  1.3 ",
+"  1.0 ", "  0.8 ", "  0.7 ", "  0.5 ", "  0.4 ", "  0.33", "  0.25", "  0.2 ", "  0.16", "  0.13",
+"  0.1 ",
+};
 // clang-format on
 
 using toolbox::ImGui_FileDialog;
@@ -618,7 +619,7 @@ void App::SetSpeedIndex(int idx) {
   }
 
   tmp_.speed_index = std::clamp<int>(idx, 0, kPercentRealTime.size() - 1);
-  float speed = kPercentRealTime[tmp_.speed_index];
+  float speed = std::stof(kPercentRealTime[tmp_.speed_index]);
   physics_->GetStepControl().SetSpeed(speed);
 }
 
@@ -1236,10 +1237,10 @@ void App::StatusBarGui() {
     ImGui::SetItemTooltip("%s", "Playback Speed");
 
     ImGui::SameLine();
-    const std::vector<const char*> speeds = GetSpeedNames();
     ImGui::SetNextItemWidth(70);
     int speed_index = tmp_.speed_index;
-    if (ImGui::Combo("##Speed", &speed_index, speeds.data(), speeds.size())) {
+    if (ImGui::Combo("##Speed", &speed_index, kPercentRealTime.data(),
+                     kPercentRealTime.size())) {
       SetSpeedIndex(speed_index);
     }
 
@@ -2088,23 +2089,6 @@ std::vector<const char*> App::GetCameraNames() {
   std::vector<const char*> names;
   names.reserve(tmp_.camera_names.size());
   for (const auto& name : tmp_.camera_names) {
-    names.push_back(name.c_str());
-  }
-  return names;
-}
-
-std::vector<const char*> App::GetSpeedNames() {
-  if (tmp_.speed_names.empty()) {
-    const int n = kPercentRealTime.size();
-    tmp_.speed_names.reserve(n);
-    for (int i = 0; i < n; i++) {
-      tmp_.speed_names.push_back(std::to_string(kPercentRealTime[i]));
-    }
-  }
-
-  std::vector<const char*> names;
-  names.reserve(tmp_.speed_names.size());
-  for (const auto& name : tmp_.speed_names) {
     names.push_back(name.c_str());
   }
   return names;

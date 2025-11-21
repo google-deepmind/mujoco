@@ -169,7 +169,6 @@ class App {
 
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
-  std::vector<const char*> GetSpeedNames();
 
   std::string ini_path_;
   std::string model_file_;
