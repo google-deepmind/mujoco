@@ -42,7 +42,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec10f
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel as nested_kernel
+from mujoco.mjx.third_party.mujoco_warp._src.warp_util import nested_kernel
 
 wp.set_module_options({"enable_backward": False})
 
@@ -521,7 +521,8 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
 
 
 # TODO(team): sparse actuator_moment version
-def _actuator_velocity(m: Model, d: Data):
+@cache_kernel
+def _actuator_velocity(nv: int):
   @nested_kernel(module="unique", enable_backward=False)
   def actuator_velocity(
     # Data in:
@@ -531,22 +532,17 @@ def _actuator_velocity(m: Model, d: Data):
     actuator_velocity_out: wp.array2d(dtype=float),
   ):
     worldid, actid = wp.tid()
-    moment_tile = wp.tile_load(actuator_moment_in[worldid, actid], shape=wp.static(m.nv))
-    qvel_tile = wp.tile_load(qvel_in[worldid], shape=wp.static(m.nv))
+    moment_tile = wp.tile_load(actuator_moment_in[worldid, actid], shape=wp.static(nv))
+    qvel_tile = wp.tile_load(qvel_in[worldid], shape=wp.static(nv))
     moment_qvel_tile = wp.tile_map(wp.mul, moment_tile, qvel_tile)
     actuator_velocity_tile = wp.tile_reduce(wp.add, moment_qvel_tile)
     actuator_velocity_out[worldid, actid] = actuator_velocity_tile[0]
 
-  wp.launch_tiled(
-    actuator_velocity,
-    dim=(d.nworld, m.nu),
-    inputs=[d.qvel, d.actuator_moment],
-    outputs=[d.actuator_velocity],
-    block_dim=m.block_dim.actuator_velocity,
-  )
+  return actuator_velocity
 
 
-def _tendon_velocity(m: Model, d: Data):
+@cache_kernel
+def _tendon_velocity(nv: int):
   @nested_kernel(module="unique", enable_backward=False)
   def tendon_velocity(
     # Data in:
@@ -556,29 +552,34 @@ def _tendon_velocity(m: Model, d: Data):
     ten_velocity_out: wp.array2d(dtype=float),
   ):
     worldid, tenid = wp.tid()
-    ten_J_tile = wp.tile_load(ten_J_in[worldid, tenid], shape=wp.static(m.nv))
-    qvel_tile = wp.tile_load(qvel_in[worldid], shape=wp.static(m.nv))
+    ten_J_tile = wp.tile_load(ten_J_in[worldid, tenid], shape=wp.static(nv))
+    qvel_tile = wp.tile_load(qvel_in[worldid], shape=wp.static(nv))
     ten_J_qvel_tile = wp.tile_map(wp.mul, ten_J_tile, qvel_tile)
     ten_velocity_tile = wp.tile_reduce(wp.add, ten_J_qvel_tile)
     ten_velocity_out[worldid, tenid] = ten_velocity_tile[0]
 
-  wp.launch_tiled(
-    tendon_velocity,
-    dim=(d.nworld, m.ntendon),
-    inputs=[d.qvel, d.ten_J],
-    outputs=[d.ten_velocity],
-    block_dim=m.block_dim.tendon_velocity,
-  )
+  return tendon_velocity
 
 
 @event_scope
 def fwd_velocity(m: Model, d: Data):
   """Velocity-dependent computations."""
-  _actuator_velocity(m, d)
+  wp.launch_tiled(
+    _actuator_velocity(m.nv),
+    dim=(d.nworld, m.nu),
+    inputs=[d.qvel, d.actuator_moment],
+    outputs=[d.actuator_velocity],
+    block_dim=m.block_dim.actuator_velocity,
+  )
 
-  if m.ntendon > 0:
-    # TODO(team): sparse version
-    _tendon_velocity(m, d)
+  # TODO(team): sparse version
+  wp.launch_tiled(
+    _tendon_velocity(m.nv),
+    dim=(d.nworld, m.ntendon),
+    inputs=[d.qvel, d.ten_J],
+    outputs=[d.ten_velocity],
+    block_dim=m.block_dim.tendon_velocity,
+  )
 
   smooth.com_vel(m, d)
   passive.passive(m, d)

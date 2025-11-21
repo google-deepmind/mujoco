@@ -20,6 +20,8 @@ import warp as wp
 from mujoco.mjx.third_party.mujoco_warp._src.collision_primitive import Geom
 from mujoco.mjx.third_party.mujoco_warp._src.types import MJ_MINVAL
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
+from mujoco.mjx.third_party.mujoco_warp._src.types import mat43
+from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
 
 # TODO(team): improve compile time to enable backward pass
 wp.set_module_options({"enable_backward": False})
@@ -31,13 +33,6 @@ MJ_MINVAL2 = MJ_MINVAL * MJ_MINVAL
 # TODO(kbayes): write out formulas to derive these constants
 FACE_TOL = 0.99999872
 EDGE_TOL = 0.00159999931
-
-mat43 = wp.types.matrix(shape=(4, 3), dtype=float)
-mat63 = wp.types.matrix(shape=(6, 3), dtype=float)
-
-# box-box currently supports up to 8 contacts
-MULTI_CONTACT_COUNT = 8
-mat3c = wp.types.matrix(shape=(MULTI_CONTACT_COUNT, 3), dtype=float)
 
 
 @wp.struct
@@ -155,30 +150,25 @@ def _support(geom: Geom, geomtype: int, dir: wp.vec3) -> SupportPoint:
       vert_edgeadr = geom.graphadr + 2
       vert_globalid = geom.graphadr + 2 + numvert
       edge_localid = geom.graphadr + 2 + 2 * numvert
-      # hillclimb until no change
       prev = int(-1)
-      imax = int(0)
-      if geom.index > -1:
-        imax = geom.index
-        sp.cached_index = geom.index
+      imax = wp.where(geom.index > -1, geom.index, 0)
 
-      while True:
-        prev = int(imax)
-        i = int(geom.graph[vert_edgeadr + imax])
-        while geom.graph[edge_localid + i] >= 0:
-          subidx = geom.graph[edge_localid + i]
+      # hillclimb until no change
+      while imax != prev:
+        prev = imax
+        i = geom.graph[vert_edgeadr + imax]
+        subidx = geom.graph[edge_localid + i]
+        while subidx >= 0:
           idx = geom.graph[vert_globalid + subidx]
           dist = wp.dot(local_dir, geom.vert[geom.vertadr + idx])
-          if dist > max_dist:
-            max_dist = dist
-            imax = int(subidx)
-          i += int(1)
-        if imax == prev:
-          break
+          imax = wp.where(dist > max_dist, subidx, imax)
+          max_dist = wp.where(dist > max_dist, dist, max_dist)
+          i += 1
+          subidx = geom.graph[edge_localid + i]
+
       sp.cached_index = imax
-      imax = geom.graph[vert_globalid + imax]
-      sp.vertex_index = imax
-      sp.point = geom.vert[geom.vertadr + imax]
+      sp.vertex_index = geom.graph[vert_globalid + imax]
+      sp.point = geom.vert[geom.vertadr + sp.vertex_index]
 
     sp.point = geom.rot @ sp.point + geom.pos
   elif geomtype == GeomType.HFIELD:
@@ -1813,9 +1803,9 @@ def _polygon_clip(
   # Out:
   polygon_out: wp.array(dtype=wp.vec3),
   clipped_out: wp.array(dtype=wp.vec3),
-) -> Tuple[int, mat3c, mat3c]:
-  witness1 = mat3c()
-  witness2 = mat3c()
+) -> Tuple[int, mat43, mat43]:
+  witness1 = mat43()
+  witness2 = mat43()
 
   # clipping face needs to be at least a triangle
   if nface1 < 3:
@@ -1930,9 +1920,9 @@ def multicontact(
   geom2: Geom,
   geomtype1: int,
   geomtype2: int,
-) -> Tuple[int, mat3c, mat3c]:
-  witness1 = mat3c()
-  witness2 = mat3c()
+) -> Tuple[int, mat43, mat43]:
+  witness1 = mat43()
+  witness2 = mat43()
   witness1[0] = x1
   witness2[0] = x2
 

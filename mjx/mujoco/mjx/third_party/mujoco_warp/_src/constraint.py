@@ -1843,7 +1843,7 @@ def make_constraint(m: types.Model, d: types.Data):
       if m.opt.cone == types.ConeType.PYRAMIDAL:
         wp.launch(
           _efc_contact_pyramidal,
-          dim=(d.naconmax, 2 * (m.condim_max - 1) if m.condim_max > 1 else 1),
+          dim=(d.naconmax, m.nmaxpyramid),
           inputs=[
             m.nv,
             m.opt.timestep,
@@ -1888,7 +1888,7 @@ def make_constraint(m: types.Model, d: types.Data):
       elif m.opt.cone == types.ConeType.ELLIPTIC:
         wp.launch(
           _efc_contact_elliptic,
-          dim=(d.naconmax, m.condim_max),
+          dim=(d.naconmax, m.nmaxcondim),
           inputs=[
             m.nv,
             m.opt.timestep,

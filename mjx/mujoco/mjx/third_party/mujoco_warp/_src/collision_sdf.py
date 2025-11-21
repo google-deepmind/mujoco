@@ -26,7 +26,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
-from mujoco.mjx.third_party.mujoco_warp._src.types import vec8f
+from mujoco.mjx.third_party.mujoco_warp._src.types import vec8
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec8i
 from mujoco.mjx.third_party.mujoco_warp._src.util_misc import halton
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
@@ -54,7 +54,7 @@ class VolumeData:
   half_size: wp.vec3
   oct_aabb: wp.array2d(dtype=wp.vec3)
   oct_child: wp.array(dtype=vec8i)
-  oct_coeff: wp.array(dtype=vec8f)
+  oct_coeff: wp.array(dtype=vec8)
   valid: bool = False
 
 
@@ -79,7 +79,7 @@ def get_sdf_params(
   # Model:
   oct_child: wp.array(dtype=vec8i),
   oct_aabb: wp.array2d(dtype=wp.vec3),
-  oct_coeff: wp.array(dtype=vec8f),
+  oct_coeff: wp.array(dtype=vec8),
   plugin: wp.array(dtype=int),
   plugin_attr: wp.array(dtype=wp.vec3f),
   # In:
@@ -225,12 +225,12 @@ def user_sdf_grad(p: wp.vec3, attr: wp.vec3, sdf_type: int) -> wp.vec3:
 @wp.func
 def find_oct(
   oct_child: wp.array(dtype=vec8i), oct_aabb: wp.array2d(dtype=wp.vec3), p: wp.vec3, grad: bool
-) -> Tuple[int, Tuple[vec8f, vec8f, vec8f]]:
+) -> Tuple[int, Tuple[vec8, vec8, vec8]]:
   stack = int(0)
   niter = int(100)
-  rx = vec8f(0.0)
-  ry = vec8f(0.0)
-  rz = vec8f(0.0)
+  rx = vec8(0.0)
+  ry = vec8(0.0)
+  rz = vec8(0.0)
   eps = 1e-6
 
   while niter > 0:
@@ -621,7 +621,7 @@ def _sdf_narrowphase(
   nmeshface: int,
   oct_child: wp.array(dtype=vec8i),
   oct_aabb: wp.array2d(dtype=wp.vec3),
-  oct_coeff: wp.array(dtype=vec8f),
+  oct_coeff: wp.array(dtype=vec8),
   geom_type: wp.array(dtype=int),
   geom_condim: wp.array(dtype=int),
   geom_dataid: wp.array(dtype=int),

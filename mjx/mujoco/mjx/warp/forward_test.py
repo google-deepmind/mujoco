@@ -155,7 +155,8 @@ class ForwardTest(parameterized.TestCase):
         mujoco.mj_fullM(m, qm, d.qM)
       else:
         qm = d.qM
-      tu.assert_eq(qm, dx._impl.qM, 'qM')
+      # mjwarp adds padding to qM
+      tu.assert_eq(qm, dx._impl.qM[: m.nv, : m.nv], 'qM')
       # qLD is fused in a cholesky factorize and solve, and not written to.
 
       tu.assert_contact_eq(d, dx, worldid=i)

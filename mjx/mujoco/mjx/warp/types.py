@@ -105,14 +105,11 @@ class ModelWarp(PyTreeNode):
   M_colind: np.ndarray
   M_rowadr: np.ndarray
   M_rownnz: np.ndarray
-  actuator_moment_tiles_nu: Tuple[TileSet, ...]
-  actuator_moment_tiles_nv: Tuple[TileSet, ...]
   actuator_trntype_body_adr: np.ndarray
   block_dim: BlockDim
   body_fluid_ellipsoid: np.ndarray
   body_tree: Tuple[np.ndarray, ...]
   collision_sensor_adr: np.ndarray
-  condim_max: int
   dof_tri_col: np.ndarray
   dof_tri_row: np.ndarray
   eq_connect_adr: np.ndarray
@@ -158,9 +155,14 @@ class ModelWarp(PyTreeNode):
   nflexedge: int
   nflexelem: int
   nflexelemdata: int
+  nflexelemedge: int
   nflexvert: int
+  nmaxcondim: int
   nmaxmeshdeg: int
   nmaxpolygon: int
+  nmaxpyramid: int
+  noct: int
+  nplugin: int
   nrangefinder: int
   nsensorcollision: int
   nsensorcontact: int
@@ -522,8 +524,6 @@ _NDIM = {
         'actuator_gaintype': 1,
         'actuator_gear': 3,
         'actuator_lengthrange': 2,
-        'actuator_moment_tiles_nu': -1,
-        'actuator_moment_tiles_nv': -1,
         'actuator_trnid': 2,
         'actuator_trntype': 1,
         'actuator_trntype_body_adr': 1,
@@ -577,7 +577,6 @@ _NDIM = {
         'cam_sensorsize': 2,
         'cam_targetbodyid': 1,
         'collision_sensor_adr': 1,
-        'condim_max': 0,
         'dof_Madr': 1,
         'dof_armature': 2,
         'dof_bodyid': 1,
@@ -603,7 +602,7 @@ _NDIM = {
         'eq_type': 1,
         'eq_wld_adr': 1,
         'exclude_signature': 1,
-        'flex_bending': 1,
+        'flex_bending': 2,
         'flex_damping': 1,
         'flex_dim': 1,
         'flex_edge': 2,
@@ -612,7 +611,7 @@ _NDIM = {
         'flex_elem': 1,
         'flex_elemedge': 1,
         'flex_elemedgeadr': 1,
-        'flex_stiffness': 1,
+        'flex_stiffness': 2,
         'flex_vertadr': 1,
         'flex_vertbodyid': 1,
         'flex_vertnum': 1,
@@ -677,7 +676,7 @@ _NDIM = {
         'light_type': 2,
         'mapM2M': 1,
         'mat_rgba': 3,
-        'mat_texid': 3,
+        'mat_texid': 2,
         'mat_texrepeat': 3,
         'mesh_face': 2,
         'mesh_faceadr': 1,
@@ -711,6 +710,7 @@ _NDIM = {
         'nflexedge': 0,
         'nflexelem': 0,
         'nflexelemdata': 0,
+        'nflexelemedge': 0,
         'nflexvert': 0,
         'ngeom': 0,
         'ngravcomp': 0,
@@ -719,16 +719,22 @@ _NDIM = {
         'njnt': 0,
         'nlight': 0,
         'nmat': 0,
+        'nmaxcondim': 0,
         'nmaxmeshdeg': 0,
         'nmaxpolygon': 0,
+        'nmaxpyramid': 0,
+        'nmesh': 0,
         'nmeshface': 0,
         'nmeshgraph': 0,
+        'nmeshnormal': 0,
         'nmeshpoly': 0,
         'nmeshpolymap': 0,
         'nmeshpolyvert': 0,
         'nmeshvert': 0,
         'nmocap': 0,
+        'noct': 0,
         'npair': 0,
+        'nplugin': 0,
         'nq': 0,
         'nrangefinder': 0,
         'nsensor': 0,
@@ -748,8 +754,6 @@ _NDIM = {
         'oct_aabb': 3,
         'oct_child': 2,
         'oct_coeff': 2,
-        'opt__broadphase': 0,
-        'opt__broadphase_filter': 0,
         'opt__ccd_iterations': 0,
         'opt__ccd_tolerance': 1,
         'opt__cone': 0,
@@ -867,8 +871,6 @@ _NDIM = {
         'wrap_type': 1,
     },
     'Option': {
-        'broadphase': 0,
-        'broadphase_filter': 0,
         'ccd_iterations': 0,
         'ccd_tolerance': 1,
         'cone': 0,
@@ -1060,8 +1062,6 @@ _BATCH_DIM = {
         'actuator_gaintype': False,
         'actuator_gear': True,
         'actuator_lengthrange': False,
-        'actuator_moment_tiles_nu': False,
-        'actuator_moment_tiles_nv': False,
         'actuator_trnid': False,
         'actuator_trntype': False,
         'actuator_trntype_body_adr': False,
@@ -1115,7 +1115,6 @@ _BATCH_DIM = {
         'cam_sensorsize': False,
         'cam_targetbodyid': False,
         'collision_sensor_adr': False,
-        'condim_max': False,
         'dof_Madr': False,
         'dof_armature': True,
         'dof_bodyid': False,
@@ -1215,7 +1214,7 @@ _BATCH_DIM = {
         'light_type': True,
         'mapM2M': False,
         'mat_rgba': True,
-        'mat_texid': True,
+        'mat_texid': False,
         'mat_texrepeat': True,
         'mesh_face': False,
         'mesh_faceadr': False,
@@ -1249,6 +1248,7 @@ _BATCH_DIM = {
         'nflexedge': False,
         'nflexelem': False,
         'nflexelemdata': False,
+        'nflexelemedge': False,
         'nflexvert': False,
         'ngeom': False,
         'ngravcomp': False,
@@ -1257,16 +1257,22 @@ _BATCH_DIM = {
         'njnt': False,
         'nlight': False,
         'nmat': False,
+        'nmaxcondim': False,
         'nmaxmeshdeg': False,
         'nmaxpolygon': False,
+        'nmaxpyramid': False,
+        'nmesh': False,
         'nmeshface': False,
         'nmeshgraph': False,
+        'nmeshnormal': False,
         'nmeshpoly': False,
         'nmeshpolymap': False,
         'nmeshpolyvert': False,
         'nmeshvert': False,
         'nmocap': False,
+        'noct': False,
         'npair': False,
+        'nplugin': False,
         'nq': False,
         'nrangefinder': False,
         'nsensor': False,
@@ -1286,8 +1292,6 @@ _BATCH_DIM = {
         'oct_aabb': False,
         'oct_child': False,
         'oct_coeff': False,
-        'opt__broadphase': False,
-        'opt__broadphase_filter': False,
         'opt__ccd_iterations': False,
         'opt__ccd_tolerance': True,
         'opt__cone': False,
@@ -1405,8 +1409,6 @@ _BATCH_DIM = {
         'wrap_type': False,
     },
     'Option': {
-        'broadphase': False,
-        'broadphase_filter': False,
         'ccd_iterations': False,
         'ccd_tolerance': True,
         'cone': False,

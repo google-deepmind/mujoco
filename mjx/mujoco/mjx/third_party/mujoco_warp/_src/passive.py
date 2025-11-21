@@ -561,7 +561,7 @@ def _flex_elasticity(
   flex_elem: wp.array(dtype=int),
   flex_elemedge: wp.array(dtype=int),
   flexedge_length0: wp.array(dtype=float),
-  flex_stiffness: wp.array(dtype=float),
+  flex_stiffness: wp.array2d(dtype=float),
   flex_damping: wp.array(dtype=float),
   # Data in:
   flexvert_xpos_in: wp.array2d(dtype=wp.vec3),
@@ -612,8 +612,8 @@ def _flex_elasticity(
   id = int(0)
   for ed1 in range(nedge):
     for ed2 in range(ed1, nedge):
-      metric[ed1, ed2] = flex_stiffness[21 * elemid + id]
-      metric[ed2, ed1] = flex_stiffness[21 * elemid + id]
+      metric[ed1, ed2] = flex_stiffness[elemid, id]
+      metric[ed2, ed1] = flex_stiffness[elemid, id]
       id += 1
 
   force = wp.mat(0.0, shape=(6, 3))
@@ -640,7 +640,7 @@ def _flex_bending(
   flex_vertbodyid: wp.array(dtype=int),
   flex_edge: wp.array(dtype=wp.vec2i),
   flex_edgeflap: wp.array(dtype=wp.vec2i),
-  flex_bending: wp.array(dtype=float),
+  flex_bending: wp.array2d(dtype=float),
   # Data in:
   flexvert_xpos_in: wp.array2d(dtype=wp.vec3),
   # Data out:
@@ -664,7 +664,7 @@ def _flex_bending(
     return
 
   frc = wp.mat(0.0, shape=(4, 3))
-  if flex_bending[17 * edgeid + 16]:
+  if flex_bending[edgeid, 16]:
     v0 = flexvert_xpos_in[worldid, v[0]]
     v1 = flexvert_xpos_in[worldid, v[1]]
     v2 = flexvert_xpos_in[worldid, v[2]]
@@ -678,8 +678,8 @@ def _flex_bending(
   for i in range(nvert):
     for x in range(3):
       for j in range(nvert):
-        force[i, x] -= flex_bending[17 * edgeid + 4 * i + j] * flexvert_xpos_in[worldid, v[j]][x]
-    force[i, x] -= flex_bending[17 * edgeid + 16] * frc[i, x]
+        force[i, x] -= flex_bending[edgeid, 4 * i + j] * flexvert_xpos_in[worldid, v[j]][x]
+    force[i, x] -= flex_bending[edgeid, 16] * frc[i, x]
 
   for i in range(nvert):
     bodyid = flex_vertbodyid[flex_vertadr[f] + v[i]]

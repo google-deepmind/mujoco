@@ -38,19 +38,14 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import ContactType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import GeomType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Model
+from mujoco.mjx.third_party.mujoco_warp._src.types import mat43
+from mujoco.mjx.third_party.mujoco_warp._src.types import mat63
 from mujoco.mjx.third_party.mujoco_warp._src.types import vec5
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import cache_kernel
 from mujoco.mjx.third_party.mujoco_warp._src.warp_util import event_scope
-from mujoco.mjx.third_party.mujoco_warp._src.warp_util import kernel as nested_kernel
+from mujoco.mjx.third_party.mujoco_warp._src.warp_util import nested_kernel
 
 wp.set_module_options({"enable_backward": False})
-
-
-class mat43f(wp.types.matrix(shape=(4, 3), dtype=wp.float32)):
-  pass
-
-
-mat63 = wp.types.matrix(shape=(6, 3), dtype=float)
 
 
 @wp.struct
@@ -169,7 +164,7 @@ def geom_collision_pair(
 
 
 @wp.func
-def plane_convex(plane_normal: wp.vec3, plane_pos: wp.vec3, convex: Geom) -> Tuple[wp.vec4, mat43f, wp.vec3]:
+def plane_convex(plane_normal: wp.vec3, plane_pos: wp.vec3, convex: Geom) -> Tuple[wp.vec4, mat43, wp.vec3]:
   """Core contact geometry calculation for plane-convex collision.
 
   Args:
@@ -185,7 +180,7 @@ def plane_convex(plane_normal: wp.vec3, plane_pos: wp.vec3, convex: Geom) -> Tup
   _HUGE_VAL = 1e6
 
   contact_dist = wp.vec4(wp.inf)
-  contact_pos = mat43f()
+  contact_pos = mat43()
   contact_count = int(0)
 
   # get points in the convex frame

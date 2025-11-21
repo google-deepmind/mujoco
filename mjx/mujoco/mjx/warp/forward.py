@@ -106,7 +106,6 @@ def _forward_shim(
     cam_sensorsize: wp.array(dtype=wp.vec2),
     cam_targetbodyid: wp.array(dtype=int),
     collision_sensor_adr: wp.array(dtype=int),
-    condim_max: int,
     dof_Madr: wp.array(dtype=int),
     dof_armature: wp.array2d(dtype=float),
     dof_bodyid: wp.array(dtype=int),
@@ -129,7 +128,7 @@ def _forward_shim(
     eq_solref: wp.array2d(dtype=wp.vec2),
     eq_ten_adr: wp.array(dtype=int),
     eq_wld_adr: wp.array(dtype=int),
-    flex_bending: wp.array(dtype=float),
+    flex_bending: wp.array2d(dtype=float),
     flex_damping: wp.array(dtype=float),
     flex_dim: wp.array(dtype=int),
     flex_edge: wp.array(dtype=wp.vec2i),
@@ -138,7 +137,7 @@ def _forward_shim(
     flex_elem: wp.array(dtype=int),
     flex_elemedge: wp.array(dtype=int),
     flex_elemedgeadr: wp.array(dtype=int),
-    flex_stiffness: wp.array(dtype=float),
+    flex_stiffness: wp.array2d(dtype=float),
     flex_vertadr: wp.array(dtype=int),
     flex_vertbodyid: wp.array(dtype=int),
     flexedge_length0: wp.array(dtype=float),
@@ -229,8 +228,10 @@ def _forward_shim(
     ngravcomp: int,
     njnt: int,
     nlight: int,
+    nmaxcondim: int,
     nmaxmeshdeg: int,
     nmaxpolygon: int,
+    nmaxpyramid: int,
     nmeshface: int,
     nmocap: int,
     nrangefinder: int,
@@ -247,7 +248,7 @@ def _forward_shim(
     nxn_pairid_filtered: wp.array(dtype=wp.vec2i),
     oct_aabb: wp.array2d(dtype=wp.vec3),
     oct_child: wp.array(dtype=mjwp_types.vec8i),
-    oct_coeff: wp.array(dtype=mjwp_types.vec8f),
+    oct_coeff: wp.array(dtype=mjwp_types.vec8),
     pair_dim: wp.array(dtype=int),
     pair_friction: wp.array2d(dtype=mjwp_types.vec5),
     pair_gap: wp.array2d(dtype=float),
@@ -556,7 +557,6 @@ def _forward_shim(
   _m.cam_sensorsize = cam_sensorsize
   _m.cam_targetbodyid = cam_targetbodyid
   _m.collision_sensor_adr = collision_sensor_adr
-  _m.condim_max = condim_max
   _m.dof_Madr = dof_Madr
   _m.dof_armature = dof_armature
   _m.dof_bodyid = dof_bodyid
@@ -679,8 +679,10 @@ def _forward_shim(
   _m.ngravcomp = ngravcomp
   _m.njnt = njnt
   _m.nlight = nlight
+  _m.nmaxcondim = nmaxcondim
   _m.nmaxmeshdeg = nmaxmeshdeg
   _m.nmaxpolygon = nmaxpolygon
+  _m.nmaxpyramid = nmaxpyramid
   _m.nmeshface = nmeshface
   _m.nmocap = nmocap
   _m.nrangefinder = nrangefinder
@@ -1279,7 +1281,6 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.cam_sensorsize,
       m.cam_targetbodyid,
       m._impl.collision_sensor_adr,
-      m._impl.condim_max,
       m.dof_Madr,
       m.dof_armature,
       m.dof_bodyid,
@@ -1402,8 +1403,10 @@ def _forward_jax_impl(m: types.Model, d: types.Data):
       m.ngravcomp,
       m.njnt,
       m.nlight,
+      m._impl.nmaxcondim,
       m._impl.nmaxmeshdeg,
       m._impl.nmaxpolygon,
+      m._impl.nmaxpyramid,
       m.nmeshface,
       m.nmocap,
       m._impl.nrangefinder,
@@ -1895,7 +1898,6 @@ def _step_shim(
     cam_sensorsize: wp.array(dtype=wp.vec2),
     cam_targetbodyid: wp.array(dtype=int),
     collision_sensor_adr: wp.array(dtype=int),
-    condim_max: int,
     dof_Madr: wp.array(dtype=int),
     dof_armature: wp.array2d(dtype=float),
     dof_bodyid: wp.array(dtype=int),
@@ -1918,7 +1920,7 @@ def _step_shim(
     eq_solref: wp.array2d(dtype=wp.vec2),
     eq_ten_adr: wp.array(dtype=int),
     eq_wld_adr: wp.array(dtype=int),
-    flex_bending: wp.array(dtype=float),
+    flex_bending: wp.array2d(dtype=float),
     flex_damping: wp.array(dtype=float),
     flex_dim: wp.array(dtype=int),
     flex_edge: wp.array(dtype=wp.vec2i),
@@ -1927,7 +1929,7 @@ def _step_shim(
     flex_elem: wp.array(dtype=int),
     flex_elemedge: wp.array(dtype=int),
     flex_elemedgeadr: wp.array(dtype=int),
-    flex_stiffness: wp.array(dtype=float),
+    flex_stiffness: wp.array2d(dtype=float),
     flex_vertadr: wp.array(dtype=int),
     flex_vertbodyid: wp.array(dtype=int),
     flexedge_length0: wp.array(dtype=float),
@@ -2019,8 +2021,10 @@ def _step_shim(
     ngravcomp: int,
     njnt: int,
     nlight: int,
+    nmaxcondim: int,
     nmaxmeshdeg: int,
     nmaxpolygon: int,
+    nmaxpyramid: int,
     nmeshface: int,
     nmocap: int,
     nrangefinder: int,
@@ -2037,7 +2041,7 @@ def _step_shim(
     nxn_pairid_filtered: wp.array(dtype=wp.vec2i),
     oct_aabb: wp.array2d(dtype=wp.vec3),
     oct_child: wp.array(dtype=mjwp_types.vec8i),
-    oct_coeff: wp.array(dtype=mjwp_types.vec8f),
+    oct_coeff: wp.array(dtype=mjwp_types.vec8),
     pair_dim: wp.array(dtype=int),
     pair_friction: wp.array2d(dtype=mjwp_types.vec5),
     pair_gap: wp.array2d(dtype=float),
@@ -2347,7 +2351,6 @@ def _step_shim(
   _m.cam_sensorsize = cam_sensorsize
   _m.cam_targetbodyid = cam_targetbodyid
   _m.collision_sensor_adr = collision_sensor_adr
-  _m.condim_max = condim_max
   _m.dof_Madr = dof_Madr
   _m.dof_armature = dof_armature
   _m.dof_bodyid = dof_bodyid
@@ -2471,8 +2474,10 @@ def _step_shim(
   _m.ngravcomp = ngravcomp
   _m.njnt = njnt
   _m.nlight = nlight
+  _m.nmaxcondim = nmaxcondim
   _m.nmaxmeshdeg = nmaxmeshdeg
   _m.nmaxpolygon = nmaxpolygon
+  _m.nmaxpyramid = nmaxpyramid
   _m.nmeshface = nmeshface
   _m.nmocap = nmocap
   _m.nrangefinder = nrangefinder
@@ -3072,7 +3077,6 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.cam_sensorsize,
       m.cam_targetbodyid,
       m._impl.collision_sensor_adr,
-      m._impl.condim_max,
       m.dof_Madr,
       m.dof_armature,
       m.dof_bodyid,
@@ -3196,8 +3200,10 @@ def _step_jax_impl(m: types.Model, d: types.Data):
       m.ngravcomp,
       m.njnt,
       m.nlight,
+      m._impl.nmaxcondim,
       m._impl.nmaxmeshdeg,
       m._impl.nmaxpolygon,
+      m._impl.nmaxpyramid,
       m.nmeshface,
       m.nmocap,
       m._impl.nrangefinder,

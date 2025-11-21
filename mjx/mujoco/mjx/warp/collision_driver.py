@@ -94,7 +94,7 @@ def _collision_shim(
     nxn_pairid_filtered: wp.array(dtype=wp.vec2i),
     oct_aabb: wp.array2d(dtype=wp.vec3),
     oct_child: wp.array(dtype=mjwp_types.vec8i),
-    oct_coeff: wp.array(dtype=mjwp_types.vec8f),
+    oct_coeff: wp.array(dtype=mjwp_types.vec8),
     pair_dim: wp.array(dtype=int),
     pair_friction: wp.array2d(dtype=mjwp_types.vec5),
     pair_gap: wp.array2d(dtype=float),
