@@ -34,21 +34,44 @@ PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera,
                 float x, float y, float aspect_ratio,
                 const mjvOption* vis_options);
 
-// Updates the camera according to the requested index using this convention:
+// Indices for cameras that are not defined in the model.
+static constexpr int kTumbleCameraIdx = -3;
+static constexpr int kFreeCameraIdx = -2;
+static constexpr int kTrackingCameraIdx = -1;
+
+// Updates the camera according to the requested index.
 //
-//  0  : selects the free camera (not defined in the model)
-//  1  : selects the tracking camera (also not defined in the model)
-//  2+ : selects a camera in the model; e.g. index 2 => model.cam[0];
-//
-// The function returns the index of the used camera following the same
-// convention. Note the returned index may differ from the request if the
-// request was invalid (index was out of range or tracking camera was not
-// available).
+// The function returns the new index of the camera which may differ from the
+// request if the request was invalid (e.g. request was out of range).
 int SetCamera(const mjModel* m, mjvCamera* camera, int request_idx);
 
-// Moves the camera according to the mouse action and relative displacement.
+// Camera motions are either relative to a target or the camera itself.
+//
+// We use the following camera nomenclature:
+//   - Truck: moves the camera left/right along a horizontal plane.
+//   - Pedestal: moves the camera up/down along a vertical plane.
+//   - Dolly: moves the camera forward/backward along a horizontal plane.
+//   - Pan: turns the camera left/right.
+//   - Tilt: turns the camera upwards/downwards.
+//   - Zoom: moves the camera closer to or away from the target. This is
+//           different from dolly in that the movement is relative to the
+//           target. (It's also not actually a camera zoom, which is an
+//           action of lens of the camera, rather than the camera itself.)
+//   - Orbit: moves the camera around the target.
+//   - Planer: creates a horizontal or vertical plane based on the cameras
+//             position and orientation, then moves the camera along that plane.
+enum class CameraMotion {
+  ZOOM,
+  ORBIT,
+  TRUCK_PEDESTAL,
+  TRUCK_DOLLY,
+  PAN_TILT,
+  PLANAR_MOVE_H,
+  PLANAR_MOVE_V,
+};
+
 void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam,
-                mjtMouse action, mjtNum reldx, mjtNum reldy);
+                CameraMotion motion, mjtNum dx, mjtNum dy);
 
 void InitPerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
                  mjvPerturb* pert, mjtPertBit active);

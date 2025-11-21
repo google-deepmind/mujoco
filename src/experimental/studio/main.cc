@@ -26,7 +26,7 @@
 #include "experimental/studio/app.h"
 
 ABSL_FLAG(int, window_width, 1400, "Window width");
-ABSL_FLAG(int, window_height, 700, "Window height");
+ABSL_FLAG(int, window_height, 720, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
 
 static std::vector<std::byte> LoadAsset(std::string_view path) {

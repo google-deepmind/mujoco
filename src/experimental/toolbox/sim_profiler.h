@@ -33,7 +33,8 @@ class SimProfiler {
   void Update(const mjModel* model, const mjData* data);
 
   // Displays the profiling data using ImPlot.
-  void Gui();
+  void CpuTimeGraph();
+  void DimensionsGraph();
 
  private:
   std::vector<float> cpu_total_;

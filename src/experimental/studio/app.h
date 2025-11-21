@@ -24,8 +24,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include <imgui.h>
 #include <mujoco/mujoco.h>
 #include "experimental/toolbox/helpers.h"
+#include "experimental/toolbox/interaction.h"
 #include "experimental/toolbox/physics.h"
 #include "experimental/toolbox/renderer.h"
 #include "experimental/toolbox/sim_profiler.h"
@@ -61,28 +63,19 @@ class App {
   static int LoadAssetCallback(const char* path, void* user_data,
                                unsigned char** out, std::uint64_t* out_size);
 
+  enum Style {
+    kLight,
+    kDark,
+  };
+
   // UI state that is persisted across application runs
   struct UiState {
-    bool classic_ui = true;
-
     char watch_field[1000] = "qpos";
     int watch_index = 0;
-    int camera_idx = 0;
+    int camera_idx = toolbox::kTumbleCameraIdx;
     int key_idx = 0;
     int scrub_idx = 0;
-    bool dark_mode = true;
-
-    // UI visibility.
-    bool simulation = false;
-    bool physics = false;
-    bool rendering = false;
-    bool watch = false;
-    bool visualization = false;
-    bool groups = false;
-    bool joints = false;
-    bool controls = false;
-    bool profiler = false;
-    bool sensor = false;
+    Style style = kLight;
 
     using Dict = std::unordered_map<std::string, std::string>;
     Dict ToDict() const;
@@ -90,13 +83,40 @@ class App {
   };
 
   // UI state that is transient and only needed while the application runs
-  // TODO(matijak): Combine this with UiState and identify the list of transient
-  // variables with a comment
   struct UiTempState {
+    bool should_exit = false;
+
+    // Windows.
     bool help = false;
     bool info = false;
+    bool chart_cpu_time = false;
+    bool chart_dimensions = false;
+    bool chart_counts = false;
+    bool chart_convergence = false;
+    bool settings_panel = true;
+    bool inspector_panel = true;
+    bool style_editor = false;
+    bool imgui_demo = false;
+    bool implot_demo = false;
     bool modal_open = false;
     bool load_popup = false;
+
+    // Controls.
+    bool perturb_active = false;
+    int speed_index = 0;
+    float cam_speed = 0.0f;
+
+    // Cached data.
+    float expected_label_width = 0;
+    std::vector<std::string> camera_names;
+    std::vector<std::string> speed_names;
+
+    // State.
+    int state_sig = 0;
+    std::vector<mjtNum> state;
+
+    // File dialogs.
+    char filename[1000] = "";
     std::string last_load_file;
     bool save_xml_popup = false;
     std::string last_save_xml_file;
@@ -108,26 +128,6 @@ class App {
     std::string last_print_model_file;
     bool print_data_popup = false;
     std::string last_print_data_file;
-    bool should_exit = false;
-    bool style_editor = false;
-    bool imgui_demo = false;
-    bool perturb_active = false;
-
-    int speed_index = 0;
-
-    // Visibility, position and size of the left and right UI panels
-    bool show_ui_lhs = true;
-    bool show_ui_rhs = true;
-    float pos_ui_lhs[2];
-    float pos_ui_rhs[2];
-    float size_ui_lhs[2];
-    float size_ui_rhs[2];
-
-    // Data for StateGui
-    int state_sig = 0;
-    std::vector<mjtNum> state;
-
-    char filename[1000] = "";
   };
 
   void OnModelLoaded(std::string_view model_file);
@@ -135,34 +135,41 @@ class App {
   void LoadSettings();
   void SaveSettings();
 
-  void SetCamera(int idx);
-
-  void ChangeSpeed(int delta);
+  void SetSpeedIndex(int idx);
 
   void HandleMouseEvents();
   void HandleKeyboardEvents();
+  void MoveCamera(toolbox::CameraMotion motion, mjtNum reldx, mjtNum reldy);
 
-  void BuildGuiWithWindows();
-  void BuildGuiWithSections();
+  void SetupStyle(Style style);
+  ImVec4 ConfigureDockingLayout();
+  void MainMenuGui();
+  void ToolBarGui();
+  void SettingsGui();
+  void InspectorGui();
+  void StatusBarGui();
 
   void InfoGui();
   void HelpGui();
-  void MainMenuGui();
   void FileDialogGui();
-  void SimulationGui();
+  void PlaybackGui();
   void PhysicsGui();
+  void NoiseGui();
   void RenderingGui();
   void VisualizationGui();
   void GroupsGui();
   void WatchGui();
   void SensorGui();
-  void ProfilerGui();
   void StateGui();
   void JointsGui();
   void ControlsGui();
 
   mjModel* Model() { return physics_->GetModel(); };
   mjData* Data() { return physics_->GetData(); };
+
+  float GetExpectedLabelWidth();
+  std::vector<const char*> GetCameraNames();
+  std::vector<const char*> GetSpeedNames();
 
   std::string ini_path_;
   std::string model_file_;

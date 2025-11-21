@@ -213,7 +213,7 @@ void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
 }
 
 void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam,
-                mjtMouse action, mjtNum reldx, mjtNum reldy) {
+                CameraMotion motion, mjtNum dx, mjtNum dy) {
   if (cam->type == mjCAMERA_FIXED) {
     return;
   }
@@ -221,15 +221,51 @@ void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam,
   mjtNum headpos[3], forward[3], up[3], right[3];
   mjtNum vec[3], dif[3], scl;
 
-  switch (action) {
-    case mjMOUSE_ROTATE_V:
-    case mjMOUSE_ROTATE_H:
-      cam->azimuth -= reldx * 180.0;
-      cam->elevation -= reldy * 180.0;
+  switch (motion) {
+    case CameraMotion::ZOOM:
+      // Zoom the camera towards the target by adjusting its distance to the
+      // target.
+      cam->distance -= mju_log(1 + cam->distance / m->stat.extent / 3) * dy *
+                       9 * m->stat.extent;
       break;
 
-    case mjMOUSE_MOVE_V:
-    case mjMOUSE_MOVE_H:
+    case CameraMotion::ORBIT:
+      cam->azimuth -= dx * 180.0;
+      cam->elevation -= dy * 180.0;
+      break;
+
+    case CameraMotion::TRUCK_PEDESTAL:
+    case CameraMotion::TRUCK_DOLLY:
+      if (cam->type == mjCAMERA_TRACKING) {
+        return;
+      }
+
+      mjv_cameraFrame(headpos, forward, up, nullptr, d, cam);
+      mju_cross(right, forward, up);
+
+      // y movement: either dolly (forward/back) or pedestal (up/down)
+      mju_addToScl3(cam->lookat,
+                    (motion == CameraMotion::TRUCK_PEDESTAL) ? up : forward, dy);
+
+      // x movement: camera truck (left/right)
+      mju_addToScl3(cam->lookat, right, dx);
+
+      break;
+
+    case CameraMotion::PAN_TILT:
+      if (cam->type == mjCAMERA_TRACKING) {
+        return;
+      }
+
+      mjv_cameraFrame(headpos, forward, nullptr, nullptr, d, cam);
+      cam->azimuth -= dx * 180.0;
+      cam->elevation -= dy * 180.0;
+      mjv_cameraFrame(nullptr, forward, nullptr, nullptr, d, cam);
+      mju_addScl3(cam->lookat, headpos, forward, cam->distance);
+      break;
+
+    case CameraMotion::PLANAR_MOVE_V:
+    case CameraMotion::PLANAR_MOVE_H:
       // do not move lookat point of tracking camera
       if (cam->type == mjCAMERA_TRACKING) {
         return;
@@ -237,7 +273,10 @@ void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam,
 
       // get camera info and align
       mjv_cameraFrame(headpos, forward, nullptr, nullptr, d, cam);
-      AlignToCamera(vec, action, reldx, reldy, forward);
+      AlignToCamera(vec,
+                    (motion == CameraMotion::PLANAR_MOVE_V) ? mjMOUSE_MOVE_V
+                                                            : mjMOUSE_MOVE_H,
+                    dx, dy, forward);
 
       // compute scaling: rendered lookat displacement = mouse displacement
       mju_sub3(dif, cam->lookat, headpos);
@@ -246,34 +285,6 @@ void MoveCamera(const mjModel* m, const mjData* d, mjvCamera* cam,
       // move lookat point in opposite direction
       mju_addToScl3(cam->lookat, vec, -scl);
       break;
-
-    case mjMOUSE_ZOOM:
-      cam->distance -= mju_log(1 + cam->distance / m->stat.extent / 3) * reldy *
-                       9 * m->stat.extent;
-      break;
-
-    case mjMOUSE_MOVE_V_REL:
-    case mjMOUSE_MOVE_H_REL:
-      // do not move lookat point of tracking camera
-      if (cam->type == mjCAMERA_TRACKING) {
-        return;
-      }
-
-      mjv_cameraFrame(headpos, forward, up, nullptr, d, cam);
-      mju_cross(right, forward, up);
-
-      // y-axis movement moves forward/backward (ie. camera dolly) on horizontal
-      // plane or up/down (ie. camera pedestal) on vertical plane
-      mju_addToScl3(cam->lookat, (action == mjMOUSE_MOVE_V_REL) ? up : forward,
-                    reldy);
-
-      // x-axis movement strafes left/right (ie. camera truck)
-      mju_addToScl3(cam->lookat, right, reldx);
-
-      break;
-
-    default:
-      mjERROR("unexpected action %d", action);
   }
 
   // clamp camera parameters
@@ -589,20 +600,26 @@ PickResult Pick(const mjModel* m, const mjData* d, const mjvCamera* camera,
 }
 
 int SetCamera(const mjModel* m, mjvCamera* camera, int request_idx) {
-  // 0 = free, 1 = tracking, 2+ = fixed
-  int camera_idx = std::clamp(request_idx, 0, std::max(m->ncam + 1, 0));
-  if (camera_idx == 0) {
+  const int ncam = m ? m->ncam : 0;
+  const int camera_idx = std::clamp(request_idx, kTumbleCameraIdx, ncam - 1);
+
+  if (camera_idx == kTumbleCameraIdx) {
     camera->type = mjCAMERA_FREE;
-  } else if (camera_idx == 1) {
+    camera->fixedcamid = -1;
+  } else if (camera_idx == kFreeCameraIdx) {
+    camera->type = mjCAMERA_FREE;
+    camera->distance = 2.0f;
+    camera->fixedcamid = -1;
+  } else if (camera_idx == kTrackingCameraIdx) {
     if (camera->trackbodyid >= 0) {
       camera->type = mjCAMERA_TRACKING;
-      camera->fixedcamid = -1;
     } else {
       camera->type = mjCAMERA_FREE;
     }
+    camera->fixedcamid = -1;
   } else {
     camera->type = mjCAMERA_FIXED;
-    camera->fixedcamid = camera_idx - 2;
+    camera->fixedcamid = camera_idx;
   }
 
   return camera_idx;

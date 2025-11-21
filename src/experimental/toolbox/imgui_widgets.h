@@ -15,8 +15,8 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_IMGUI_WIDGETS_H_
 #define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_IMGUI_WIDGETS_H_
 
-#include <cstring>
 #include <optional>
+#include <utility>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -37,6 +37,53 @@ void AppendIniSection(std::string& ini, const std::string& section,
 KeyValues ReadIniSection(const std::string& contents,
                          const std::string& section);
 
+// Helper class for setting ImGui style options; automatically resets the
+// styles when going out of scope.
+struct ScopedStyle {
+  ScopedStyle() = default;
+  ~ScopedStyle() {
+    Reset();
+  }
+
+  ScopedStyle(const ScopedStyle&) = delete;
+  ScopedStyle& operator=(const ScopedStyle&) = delete;
+  ScopedStyle(ScopedStyle&& other) { Swap(other); }
+  ScopedStyle& operator=(ScopedStyle&& other) { Swap(other); return *this; }
+
+  void Swap(ScopedStyle& other) {
+    std::swap(num_colors, other.num_colors);
+    std::swap(num_vars, other.num_vars);
+  }
+
+  ScopedStyle& Color(ImGuiCol col, ImColor color) {
+    ImGui::PushStyleColor(col, (ImU32)color);
+    ++num_colors;
+    return *this;
+  }
+
+  ScopedStyle& Var(ImGuiStyleVar var, float value) {
+    ImGui::PushStyleVar(var, value);
+    ++num_vars;
+    return *this;
+  }
+
+  ScopedStyle& Var(ImGuiStyleVar var, const ImVec2& value) {
+    ImGui::PushStyleVar(var, value);
+    ++num_vars;
+    return *this;
+  }
+
+  void Reset() {
+    ImGui::PopStyleVar(num_vars);
+    ImGui::PopStyleColor(num_colors);
+    num_colors = 0;
+    num_vars = 0;
+  }
+
+  int num_colors = 0;
+  int num_vars = 0;
+};
+
 // ImGui file dialog.
 bool ImGui_FileDialog(char* buf, int len);
 
@@ -54,108 +101,46 @@ bool ImGui_Checkbox(const char* name, T& value) {
   return res;
 }
 
-enum class ToggleKind {
-  // Solid when ON and transparent when OFF.
-  kButton,
-
-  // Slider which is right when ON and left when OFF.
-  kSlider,
-};
-
 template <typename T>
-bool Toggle(const char* label, T& boolean,
-            ToggleKind kind = ToggleKind::kButton, bool set_width = true) {
+bool ImGui_ButtonToggle(const char* label, T* boolean,
+                        const ImVec2& size = ImVec2(0, 0)) {
   static_assert(std::is_integral_v<T>, "Toggle only supports integral types.");
 
-  // Compute this width once and cache it. Only used when set_width is true.
-  static int toggle_width = []() {
-    int longest = 0;
-    const char* longest_label = "";
-    for (int i = 0; i < mjNVISFLAG; ++i) {
-      int length = static_cast<int>(strlen(mjVISSTRING[i][0]));
-      if (length > longest) {
-        longest_label = mjVISSTRING[i][0];
-        longest = length;
-      }
-    }
-    return ImGui::CalcTextSize(longest_label).x + 5;
-  }();
-
-  ImGui::PushID(label);
-  bool changed = false;
-  switch (kind) {
-    case ToggleKind::kButton: {
-      bool b = (boolean != 0);
-      bool transparent = !b;
-
-      // NOTE(matijak): Its nice to have the button trigger on click but this
-      // requires using the currently internal PressedOnClick flag and ButtonEx
-      // function. It looks like this API has been stable for a long time, but
-      // in case it changes in a way which breaks and is annoying to maintain we
-      // can revert to the else clause and remove the imgui_internal.h include.
-      // Note that the else clause overrides different style colors since the UI
-      // is more intuitive with different settings.
-      if constexpr (true) {
-        ImColor button = ImGui::GetStyle().Colors[ImGuiCol_Button];
-        if (transparent) button.Value.w = 0.0f;
-        ImGui::PushStyleColor(ImGuiCol_Button, (ImU32)button);
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImU32)button);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImU32)button);
-
-        // Button width is set via an explicit size parameter, not via the
-        // SetNextItemWidth function.
-        ImVec2 size = set_width ? ImVec2(toggle_width, 0) : ImVec2(0, 0);
-        changed = ImGui::ButtonEx(label, size, ImGuiButtonFlags_PressedOnClick);
-
-        if (changed) {
-          b = !b;
-        }
-        boolean = b;
-
-        ImGui::PopStyleColor(3);
-      } else {
-        if (transparent) {
-          ImColor button = ImGui::GetStyle().Colors[ImGuiCol_Button];
-          button.Value.w = 0.0f;
-          ImGui::PushStyleColor(ImGuiCol_Button, (ImU32)button);
-        }
-
-        // Button width is set via an explicit size parameter, not via the
-        // SetNextItemWidth function.
-        ImVec2 size = set_width ? ImVec2(toggle_width, 0) : ImVec2(0, 0);
-        changed = ImGui::Button(label, size);
-
-        if (changed) {
-          b = !b;
-        }
-        boolean = b;
-
-        if (transparent) {
-          ImGui::PopStyleColor(1);
-        }
-      }
-    } break;
-
-    case ToggleKind::kSlider: {
-      int i = (int)boolean;
-      const char* labels[2] = {label, label};
-      const ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-      if (set_width) ImGui::SetNextItemWidth(toggle_width);
-      changed = ImGui::SliderInt("", &i, 0, 1, labels[i], flags);
-      boolean = (i != 0);
-    } break;
+  ScopedStyle style;
+  if (!(*boolean)) {
+    ImColor button = ImGui::GetStyle().Colors[ImGuiCol_Button];
+    button.Value.w = 0.0f;
+    style.Color(ImGuiCol_Button, button);
   }
-  ImGui::PopID();
+
+  if (ImGui::Button(label, size)) {
+    *boolean = !(*boolean);
+    return true;
+  }
+  return false;
+}
+
+template <typename T>
+bool ImGui_SwitchToggle(const char* label, T* boolean,
+                        const ImVec2& size = ImVec2(0, 0)) {
+  static_assert(std::is_integral_v<T>, "Toggle only supports integral types.");
+
+  int i = static_cast<int>(*boolean);
+  const ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+  if (size.x > 0) {
+    ImGui::SetNextItemWidth(size.x);
+  }
+  const bool changed = ImGui::SliderInt(label, &i, 0, 1, label, flags);
+  *boolean = (i != 0);
   return changed;
 }
 
-inline bool ToggleBit(const char* label, int& flags, int flags_value,
-                      ToggleKind kind = ToggleKind::kButton,
-                      bool set_width = true) {
-  bool boolean = flags & flags_value;
-  bool changed = Toggle(label, boolean, kind, set_width);
+inline bool ImGui_BitToggle(const char* label, int* flags, int flags_value,
+                            const ImVec2& size = ImVec2(0, 0)) {
+  bool boolean = (*flags) & flags_value;
+  const bool changed = ImGui_ButtonToggle(label, &boolean, size);
   if (changed) {
-    flags = boolean ? (flags | flags_value) : (flags & ~flags_value);
+    *flags = boolean ? ((*flags) | flags_value) : ((*flags) & ~flags_value);
   }
   return changed;
 }
