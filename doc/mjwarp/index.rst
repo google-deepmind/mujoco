@@ -347,6 +347,32 @@ It is possible to override the field shape and set the field values after graph 
 Frequently Asked Questions
 ==========================
 
+Learning frameworks
+-------------------
+
+**Does MJWarp work with JAX?**
+
+Yes. MJWarp is interoperable with `JAX <https://jax.readthedocs.io/>`__. Please see the
+`Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#jax>`__ documentation for details.
+
+Additionally, :ref:`MJX <mjx>` provides a JAX API for a subset of MJWarp's :ref:`API <api.rst>`. The backend is
+specified with ``impl='warp'``.
+
+**Does MJWarp work with PyTorch?**
+
+Yes. MJWarp is interoperable with `PyTorch <https://pytorch.org>`__. Please see the
+`Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#pytorch>`__ documentation for
+details.
+
+**How to train policies with MJWarp physics?**
+
+For examples that train policies with MJWarp physics, please see:
+
+- `Isaac Lab <https://github.com/isaac-sim/IsaacLab/tree/feature/newton>`__: Train via
+  `Newton API <https://github.com/newton-physics/newton>`__.
+- `mjlab <https://github.com/mujocolab/mjlab>`__: Train directly with MJWarp using PyTorch.
+- `MuJoCo Playground <https://github.com/google-deepmind/mujoco_playground>`__: Train via :ref:`MJX API <mjx>`.
+
 Orientation representation
 --------------------------
 
