@@ -21,26 +21,22 @@ from introspect import ast_nodes
 from wasm.codegen.generators import code_builder
 
 
-class Generator:
-  """Generates Embind code for MuJoCo enums."""
+def generate(
+    enums: Mapping[str, ast_nodes.EnumDecl],
+) -> list[tuple[str, list[str]]]:
+  """Generates all Embind code for the provided enums."""
 
-  def __init__(self, enums: Mapping[str, ast_nodes.EnumDecl]):
-    self.enums = enums
+  builder = code_builder.CodeBuilder()
+  with builder.block('EMSCRIPTEN_BINDINGS(mujoco_enums)'):
+    for e in enums.values():
+      if e.values:  # Skip empty enums.
+        with builder.block(f'enum_<{e.name}>("{e.name}")', braces=False):
+          names = list(e.values.keys())
+          for name in names[:-1]:
+            builder.line(f'.value("{name}", {name})')
+          builder.line(f'.value("{names[-1]}", {names[-1]});')
+        builder.newline()
 
-  def generate(self) -> list[tuple[str, list[str]]]:
-    """Generates all Embind code for the provided enums."""
-
-    builder = code_builder.CodeBuilder()
-    with builder.block('EMSCRIPTEN_BINDINGS(mujoco_enums)'):
-      for e in self.enums.values():
-        if e.values:  # Skip empty enums.
-          with builder.block(f'enum_<{e.name}>("{e.name}")', braces=False):
-            names = list(e.values.keys())
-            for name in names[:-1]:
-              builder.line(f'.value("{name}", {name})')
-            builder.line(f'.value("{names[-1]}", {names[-1]});')
-          builder.newline()
-
-    content = builder.to_string()
-    marker = '// {{ ENUM_BINDINGS }}'
-    return [(marker, [content])]
+  content = builder.to_string()
+  marker = '// {{ ENUM_BINDINGS }}'
+  return [(marker, [content])]

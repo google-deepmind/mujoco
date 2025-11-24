@@ -19,7 +19,6 @@ from introspect import ast_nodes
 
 from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
-from wasm.codegen.generators import constants
 from wasm.codegen.generators import enums
 from wasm.codegen.generators import functions
 from wasm.codegen.generators import structs
@@ -801,7 +800,20 @@ class EnumsGeneratorTest(absltest.TestCase):
 
   def test_generate_enum_bindings(self):
 
-    generator = enums.Generator({
+    expected_code = """
+EMSCRIPTEN_BINDINGS(mujoco_enums) {
+  enum_<TestEnum>("TestEnum")
+    .value("FIRST_VAL", FIRST_VAL)
+    .value("SECOND_VAL", SECOND_VAL)
+    .value("THIRD_VAL", THIRD_VAL);
+
+  enum_<AnotherEnum>("AnotherEnum")
+    .value("ALPHA", ALPHA)
+    .value("BETA", BETA);
+
+}""".strip()
+
+    markers_and_content = enums.generate({
         "TestEnum": ast_nodes.EnumDecl(
             name="TestEnum",
             declname="enum TestEnum_",
@@ -818,21 +830,6 @@ class EnumsGeneratorTest(absltest.TestCase):
             values={},
         ),
     })
-
-    expected_code = """
-EMSCRIPTEN_BINDINGS(mujoco_enums) {
-  enum_<TestEnum>("TestEnum")
-    .value("FIRST_VAL", FIRST_VAL)
-    .value("SECOND_VAL", SECOND_VAL)
-    .value("THIRD_VAL", THIRD_VAL);
-
-  enum_<AnotherEnum>("AnotherEnum")
-    .value("ALPHA", ALPHA)
-    .value("BETA", BETA);
-
-}""".strip()
-
-    markers_and_content = generator.generate()
     actual_code = "\n\n".join(markers_and_content[0][1])
 
     self.assertEqual(actual_code, expected_code)

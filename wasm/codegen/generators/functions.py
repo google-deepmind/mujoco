@@ -14,7 +14,7 @@
 
 """Helper functions for processing and generating bindings for MuJoCo functions."""
 
-from typing import List, Mapping, Set, Tuple, cast
+from typing import Mapping, Tuple, cast
 
 from introspect import ast_nodes
 
@@ -288,30 +288,24 @@ def is_excluded_function_name(func_name: str) -> bool:
   )
 
 
-class Generator:
+def generate(
+    functions: Mapping[str, ast_nodes.FunctionDecl],
+) -> list[tuple[str, list[str]]]:
   """Generates Embind bindings for MuJoCo functions."""
+  wrapper_functions = []
+  for func in functions.values():
+    if should_be_wrapped(func):
+      if func.name not in constants.MANUAL_WRAPPER_FUNCTIONS:
+        wrapper_functions.append(generate_function_wrapper(func))
+  wrapper_content = "\n\n".join(wrapper_functions)
 
-  def __init__(self, functions: Mapping[str, ast_nodes.FunctionDecl]):
-    self.functions = functions
+  function_bindings = []
+  for func in functions.values():
+    suffix = "_wrapper" if should_be_wrapped(func) else ""
+    function_bindings.append(f'function("{func.name}", &{func.name}{suffix});')
+  bindings_content = "\n".join(function_bindings)
 
-  def generate(self) -> list[tuple[str, list[str]]]:
-    """Generates the bindings file for all functions."""
-
-    function_wrappers = []
-    for func in self.functions.values():
-      if should_be_wrapped(func):
-        if func.name not in constants.MANUAL_WRAPPER_FUNCTIONS:
-          function_wrappers.append(generate_function_wrapper(func))
-
-    function_bindings = []
-    for func in self.functions.values():
-      js_name = func.name
-      cpp_func = func.name
-      if should_be_wrapped(func):
-        cpp_func += "_wrapper"
-      function_bindings.append(f'function("{js_name}", &{cpp_func});')
-
-    return [
-        ("// {{ WRAPPER_FUNCTIONS }}", ["\n\n".join(function_wrappers)]),
-        ("// {{ FUNCTION_BINDINGS }}", ["\n".join(function_bindings)]),
-    ]
+  return [
+      ("// {{ WRAPPER_FUNCTIONS }}", [wrapper_content]),
+      ("// {{ FUNCTION_BINDINGS }}", [bindings_content]),
+  ]

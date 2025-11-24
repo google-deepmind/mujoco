@@ -719,66 +719,61 @@ def sort_structs_by_dependency(
     )
 
 
-class Generator:
-  """Generates C++ code for binding and wrapping MuJoCo structs."""
+def generate(struct_to_bind: List[str]) -> list[tuple[str, list[str]]]:
+  """Generates C++ header file for binding and wrapping MuJoCo structs."""
 
-  def generate(self) -> list[tuple[str, list[str]]]:
-    """Generates C++ header file for binding and wrapping MuJoCo structs."""
+  # Traverse the introspect dictionary to get the field
+  # wrapper/bindings statements set up for each struct
+  structs_to_bind_data = generate_wasm_bindings(struct_to_bind)
 
-    # Traverse the introspect dictionary to get the field
-    # wrapper/bindings statements set up for each struct
-    self.structs_to_bind_data = generate_wasm_bindings(
-        constants.STRUCTS_TO_BIND
+  autogenned_struct_definitions = []
+  markers_and_content = []
+
+  typedefs = []
+  for type_name in sorted(constants.ANONYMOUS_STRUCTS):
+    s = constants.ANONYMOUS_STRUCTS[type_name]
+    typedefs.append(
+        f"using {type_name} = decltype(::{s['parent']}::{s['field_name']});"
     )
+  markers_and_content.append((
+      "// {{ ANONYMOUS_STRUCT_TYPEDEFS }}",
+      typedefs,
+  ))
 
-    autogenned_struct_definitions = []
-    markers_and_content = []
+  # Sort by struct name by dependency to ensure deterministic output order
+  sorted_struct_names = sort_structs_by_dependency(structs_to_bind_data)
 
-    typedefs = []
-    for type_name in sorted(constants.ANONYMOUS_STRUCTS):
-      s = constants.ANONYMOUS_STRUCTS[type_name]
-      typedefs.append(
-          f"using {type_name} = decltype(::{s['parent']}::{s['field_name']});"
-      )
-    markers_and_content.append((
-        "// {{ ANONYMOUS_STRUCT_TYPEDEFS }}",
-        typedefs,
-    ))
+  for struct_name in sorted_struct_names:
+    struct_data = structs_to_bind_data[struct_name]
+    if struct_data.wrapped_header:
+      autogenned_struct_definitions.append(struct_data.wrapped_header + "\n")
+    else:
+      markers_and_content.append((
+          f"// INSERT-GENERATED-{struct_data.wrap_name}-DEFINITIONS",
+          [
+              l.definition if l.definition else ""
+              for l in struct_data.wrapped_fields
+          ],
+      ))
+  markers_and_content.append((
+      "// {{ AUTOGENNED_STRUCTS_HEADER }}",
+      autogenned_struct_definitions,
+  ))
 
-    # Sort by struct name by dependency to ensure deterministic output order
-    sorted_struct_names = sort_structs_by_dependency(self.structs_to_bind_data)
+  autogenned_struct_source = []
+  autogenned_struct_bindings = []
+  for struct_name in sorted_struct_names:
+    struct_data = structs_to_bind_data[struct_name]
+    if struct_data.wrapped_source:
+      autogenned_struct_source.append(struct_data.wrapped_source + "\n")
+    autogenned_struct_bindings.append(struct_data.bindings)
 
-    for struct_name in sorted_struct_names:
-      struct_data = self.structs_to_bind_data[struct_name]
-      if struct_data.wrapped_header:
-        autogenned_struct_definitions.append(struct_data.wrapped_header + "\n")
-      else:
-        markers_and_content.append((
-            f"// INSERT-GENERATED-{struct_data.wrap_name}-DEFINITIONS",
-            [
-                l.definition if l.definition else ""
-                for l in struct_data.wrapped_fields
-            ],
-        ))
-    markers_and_content.append((
-        "// {{ AUTOGENNED_STRUCTS_HEADER }}",
-        autogenned_struct_definitions,
-    ))
-
-    autogenned_struct_source = []
-    autogenned_struct_bindings = []
-    for struct_name in sorted_struct_names:
-      struct_data = self.structs_to_bind_data[struct_name]
-      if struct_data.wrapped_source:
-        autogenned_struct_source.append(struct_data.wrapped_source + "\n")
-      autogenned_struct_bindings.append(struct_data.bindings)
-
-    markers_and_content.append((
-        "// {{ AUTOGENNED_STRUCTS_SOURCE }}",
-        autogenned_struct_source,
-    ))
-    markers_and_content.append((
-        "// {{ AUTOGENNED_STRUCTS_BINDINGS }}",
-        autogenned_struct_bindings,
-    ))
-    return markers_and_content
+  markers_and_content.append((
+      "// {{ AUTOGENNED_STRUCTS_SOURCE }}",
+      autogenned_struct_source,
+  ))
+  markers_and_content.append((
+      "// {{ AUTOGENNED_STRUCTS_BINDINGS }}",
+      autogenned_struct_bindings,
+  ))
+  return markers_and_content
