@@ -373,6 +373,16 @@ For examples that train policies with MJWarp physics, please see:
 - `mjlab <https://github.com/mujocolab/mjlab>`__: Train directly with MJWarp using PyTorch.
 - `MuJoCo Playground <https://github.com/google-deepmind/mujoco_playground>`__: Train via :ref:`MJX API <mjx>`.
 
+Features
+--------
+
+**Is MJWarp differentiable?**
+
+No. MJWarp is not currently differentiable via
+Warp's `automatic differentiation <https://nvidia.github.io/warp/modules/differentiability.html#differentiability>`__
+functionality. Updates from the team related to enabling automatic differentiation for MJWarp are tracked in this
+`GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/500>`__.
+
 Orientation representation
 --------------------------
 
