@@ -516,34 +516,7 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   register_type<NumberArray>("number[]");
   register_type<String>("string");
   register_vector<uint8_t>("mjByteVec");
-  register_optional<MjsElement>();
-  register_optional<MjsBody>();
-  register_optional<MjsSite>();
-  register_optional<MjsJoint>();
-  register_optional<MjsGeom>();
-  register_optional<MjsCamera>();
-  register_optional<MjsLight>();
-  register_optional<MjsFrame>();
-  register_optional<MjsActuator>();
-  register_optional<MjsSensor>();
-  register_optional<MjsFlex>();
-  register_optional<MjsPair>();
-  register_optional<MjsExclude>();
-  register_optional<MjsEquality>();
-  register_optional<MjsTendon>();
-  register_optional<MjsWrap>();
-  register_optional<MjsNumeric>();
-  register_optional<MjsText>();
-  register_optional<MjsTuple>();
-  register_optional<MjsKey>();
-  register_optional<MjsPlugin>();
-  register_optional<MjsDefault>();
-  register_optional<MjsMesh>();
-  register_optional<MjsHField>();
-  register_optional<MjsSkin>();
-  register_optional<MjsTexture>();
-  register_optional<MjsMaterial>();
-  register_optional<MjSpec>();
+  // {{ OPTIONAL_STRUCT_BINDINGS }}
 }
 
 }  // namespace mujoco::wasm

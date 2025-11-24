@@ -776,4 +776,17 @@ def generate(struct_to_bind: List[str]) -> list[tuple[str, list[str]]]:
       "// {{ AUTOGENNED_STRUCTS_BINDINGS }}",
       autogenned_struct_bindings,
   ))
+
+  # Generate optional bindings
+  optional_bindings = []
+  for s_name in sorted(struct_to_bind):
+    w_name = common.capitalize(s_name)
+    if w_name.startswith("Mjs") or w_name == "MjSpec":
+      optional_bindings.append(f"register_optional<{w_name}>();")
+
+  markers_and_content.append((
+      "// {{ OPTIONAL_STRUCT_BINDINGS }}",
+      optional_bindings,
+  ))
+
   return markers_and_content
