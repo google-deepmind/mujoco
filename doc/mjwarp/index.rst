@@ -341,3 +341,25 @@ It is possible to override the field shape and set the field values after graph 
    :class: note
 
    Heterogeneous worlds, for example: per-world meshes or number of degrees of freedom, are not currently available.
+
+.. _mjwFAQ:
+
+Frequently Asked Questions
+==========================
+
+Orientation representation
+--------------------------
+
+**How are orientations represented?**
+
+Orientations are represented as unit quaternions and follow :ref:`MuJoCo's convention <floating-objects>`:
+``w, x, y, z`` or ``scalar, vector``.
+
+.. admonition:: ``wp.quaternion``
+  :class: note
+
+  MJWarp utilizes Warp's `built-in type <https://nvidia.github.io/warp/modules/functions.html#warp.quaternion>`__
+  ``wp.quaternion``. Importantly however, MJWarp does not utilize Warp's ``x, y, z, w`` quaternion convention or
+  operations and instead implements quaternion routines that follow MuJoCo's conventions. Please see
+  `math.py <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/math.py>`__ for the
+  implementations.
