@@ -26,10 +26,10 @@ target_sources(${MUJOCO_TOOLBOX_TARGET_NAME}
         imgui_widgets.h
         interaction.cc
         interaction.h
-        physics.cc
-        physics.h
         renderer.cc
         renderer.h
+        sim_history.cc
+        sim_history.h
         sim_profiler.cc
         sim_profiler.h
         step_control.cc
