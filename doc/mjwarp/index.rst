@@ -383,6 +383,32 @@ Warp's `automatic differentiation <https://nvidia.github.io/warp/modules/differe
 functionality. Updates from the team related to enabling automatic differentiation for MJWarp are tracked in this
 `GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/500>`__.
 
+**Does MJWarp work with multiple GPUs?**
+
+Yes. Warp's ``wp.ScopedDevice`` enables multi-GPU computation
+
+.. code-block:: python
+
+   # create a graph for each device
+   graph = {}
+   for device in wp.get_cuda_devices():
+     with wp.ScopedDevice(device):
+       m = mjw.put_model(mjm)
+       d = mjw.make_data(mjm)
+       with wp.ScopedCapture(device) as capture:
+         mjw.step(m, d)
+       graph[device] = capture.graph
+
+   # launch a graph on each device
+   for device in wp.get_cuda_devices():
+     wp.capture_launch(graph[device])
+
+Please see the
+`Warp documentation <https://nvidia.github.io/modules/devices.html#example-using-wp-scopeddevice-with-multiple-gpus>`__
+for details and
+`mjlab distributed training <https://github.com/mujocolab/mjlab/tree/main/docs/api/distributed_training.md>`__ for a
+reinforcement learning example.
+
 Orientation representation
 --------------------------
 
