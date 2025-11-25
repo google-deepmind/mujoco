@@ -21,6 +21,7 @@ build:
       # replace mujoco.mjx.third_party.mujoco_warp import paths with mujoco_warp
       - |
         find mjx/mujoco/mjx/third_party/mujoco_warp -type f -exec sed -i 's/mujoco\.mjx\.third_party\.mujoco_warp/mujoco_warp/g' {} \;
+      - python doc/mjwarp/update_types.py mjx/mujoco/mjx/third_party/mujoco_warp/_src/types.py
       - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv pip install mjx/mujoco/mjx/third_party/mujoco_warp
     install:
       - "true"  # skip
