@@ -74,7 +74,6 @@ class App {
     int watch_index = 0;
     int camera_idx = toolbox::kTumbleCameraIdx;
     int key_idx = 0;
-    int scrub_idx = 0;
     Style style = kLight;
 
     using Dict = std::unordered_map<std::string, std::string>;

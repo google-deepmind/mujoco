@@ -446,14 +446,14 @@ void App::HandleKeyboardEvents() {
     SetSpeedIndex(tmp_.speed_index - 1);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftArrow)) {
     if (physics_->GetStepControl().IsPaused()) {
-      physics_->LoadHistory(ui_.scrub_idx - 1);
+      physics_->LoadHistory(physics_->GetHistoryIndex() - 1);
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_RightArrow)) {
     if (physics_->GetStepControl().IsPaused()) {
-      if (ui_.scrub_idx == 0) {
+      if (physics_->GetHistoryIndex() == 0) {
         physics_->GetStepControl().RequestSingleStep();
       } else {
-        physics_->LoadHistory(ui_.scrub_idx + 1);
+        physics_->LoadHistory(physics_->GetHistoryIndex() + 1);
       }
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Space)) {
@@ -1258,43 +1258,40 @@ void App::StatusBarGui() {
     ImGui::Text("%s", " |");
 
     // Frame scrubber.
-    const int max_history =
-        std::min<int>(physics_->GetStepCount(), physics_->GetHistorySize());
     toolbox::ScopedStyle style;
 
     style.Var(ImGuiStyleVar_FrameBorderSize, 0);
     style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
     ImGui::SameLine();
     if (ImGui::Button(ICON_PREV_FRAME)) {
-      ui_.scrub_idx = std::max(-max_history, ui_.scrub_idx - 1);
-      physics_->LoadHistory(ui_.scrub_idx);
+      physics_->LoadHistory(physics_->GetHistoryIndex() - 1);
     }
     ImGui::SetItemTooltip("%s", "Previous Frame");
 
     style.Reset();
     ImGui::SameLine();
     ImGui::SetNextItemWidth(450);
-    if (ImGui::SliderInt("##ScrubIndex", &ui_.scrub_idx, -max_history, 0)) {
-      physics_->LoadHistory(ui_.scrub_idx);
+    int index = physics_->GetHistoryIndex();
+    int history_size = physics_->GetSimHistory().Size();
+    if (ImGui::SliderInt("##ScrubIndex", &index, 1 - history_size, 0)) {
+      physics_->LoadHistory(index);
     }
 
     style.Var(ImGuiStyleVar_FrameBorderSize, 0);
     style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
     ImGui::SameLine();
     if (ImGui::Button(ICON_NEXT_FRAME)) {
-      if (ui_.scrub_idx == 0) {
+      if (physics_->GetHistoryIndex() == 0) {
         physics_->GetStepControl().RequestSingleStep();
       } else {
-        ui_.scrub_idx = std::min(0, ui_.scrub_idx + 1);
-        physics_->LoadHistory(ui_.scrub_idx);
+        physics_->LoadHistory(physics_->GetHistoryIndex() + 1);
       }
     }
     ImGui::SetItemTooltip("%s", "Next Frame");
 
     ImGui::SameLine();
     if (ImGui::Button(ICON_CURR_FRAME)) {
-      ui_.scrub_idx = 0;
-      physics_->LoadHistory(ui_.scrub_idx);
+      physics_->LoadHistory(0);
     }
     ImGui::SetItemTooltip("%s", "Current Frame");
 

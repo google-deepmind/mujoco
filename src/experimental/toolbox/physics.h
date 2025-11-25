@@ -19,9 +19,9 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include <mujoco/mujoco.h>
+#include "experimental/toolbox/sim_history.h"
 #include "experimental/toolbox/step_control.h"
 
 namespace mujoco::toolbox {
@@ -38,15 +38,12 @@ class Physics {
   Physics(const Physics&) = delete;
   Physics& operator=(const Physics&) = delete;
 
-  // Access the step controller
   StepControl& GetStepControl() { return step_control_; }
+  SimHistory& GetSimHistory() { return sim_history_; }
 
   // Loads a model from the given path. An empty string will load an empty
   // scene.
   void LoadModel(std::string model_file, const mjVFS* vfs = nullptr);
-
-  // Clears the simulation, clearing all loaded state.
-  void Clear();
 
   // Resets the simulation using mj_resetData
   void Reset();
@@ -57,17 +54,9 @@ class Physics {
   // Sets the state of the simulation.
   bool UpdateState(mjtNum* state, unsigned int state_sig);
 
-  // Returns the number of steps the simulation has taken.
-  int GetStepCount() const { return steps_; }
-
-  // Returns the number of states in the history buffer.
-  int GetHistorySize() const { return history_.size(); }
-
-  // Loads a state from the history buffer at the given offset into the current
-  // physics state.
-  //
-  // Calling this function will automatically pause the simulation.
-  int LoadHistory(int offset);
+  // Loads a state from the history buffer at the given offset in the past.
+  void LoadHistory(int offset);
+  int GetHistoryIndex() const;
 
   // Returns the MuJoCo data structures owned by this Simulation object.
   mjModel* GetModel() { return model_; }
@@ -79,23 +68,21 @@ class Physics {
   bool ProcessPendingLoad();
 
  private:
-  void InitHistory();
-  void AddToHistory();
+  // Clears the simulation, clearing all loaded state.
+  void Clear();
 
   mjModel* model_ = nullptr;
   mjData* data_ = nullptr;
-  std::vector<std::vector<mjtNum>> history_;
-  int history_cursor_ = 0;
 
   OnModelLoadedFn on_model_loaded_;
 
-  int steps_ = 0;
   std::optional<std::string> pending_load_;
   const mjVFS* vfs_;
 
   std::string error_;
 
   StepControl step_control_;
+  SimHistory sim_history_;
 };
 
 }  // namespace mujoco::toolbox

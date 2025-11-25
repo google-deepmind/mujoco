@@ -14,14 +14,12 @@
 
 #include "experimental/toolbox/physics.h"
 
-#include <algorithm>
 #include <chrono>
-#include <climits>
 #include <functional>
 #include <ratio>
+#include <span>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "experimental/toolbox/helpers.h"
 #include "experimental/toolbox/step_control.h"
@@ -55,6 +53,8 @@ bool Physics::ProcessPendingLoad() {
 
   Clear();
 
+  step_control_.SetSpeed(100.f);
+
   std::string model_file = std::move(pending_load_.value());
   pending_load_.reset();
 
@@ -73,7 +73,8 @@ bool Physics::ProcessPendingLoad() {
 
   on_model_loaded_(model_file);
 
-  InitHistory();
+  const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
+  sim_history_.Init(state_size);
 
   return model_ && data_;
 }
@@ -84,12 +85,6 @@ void Physics::Clear() {
     data_ = nullptr;
     mj_deleteModel(model_);
     model_ = nullptr;
-
-    history_.clear();
-    history_cursor_ = 0;
-    steps_ = 0;
-    step_control_.SetSpeed(100.f);
-
     error_ = "";
   }
 }
@@ -98,7 +93,6 @@ void Physics::Reset() {
   mj_resetData(model_, data_);
   mj_forward(model_, data_);
   error_ = "";
-  history_cursor_ = 0;
 }
 
 bool Physics::Update() {
@@ -117,7 +111,12 @@ bool Physics::Update() {
 
   StepControl::Status status = step_control_.Advance(model_, data_);
   if (status == StepControl::Status::kOk) {
-    AddToHistory();
+    std::span<mjtNum> state = sim_history_.AddToHistory();
+    if (!state.empty()) {
+      mj_getState(model_, data_, state.data(), mjSTATE_INTEGRATION);
+    }
+    // If we are adding to the history we didn't have a divergence error
+    error_ = "";
   } else if (status == StepControl::Status::kPaused) {
     // do nothing
   } else if (status == StepControl::Status::kAutoReset) {
@@ -143,59 +142,20 @@ bool Physics::UpdateState(mjtNum* state, unsigned int state_sig) {
   return true;
 }
 
-void Physics::InitHistory() {
-  const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
+void Physics::LoadHistory(int offset) {
+  std::span<mjtNum> state = sim_history_.SetIndex(offset);
+  if (!state.empty()) {
+    // Pause simulation when entering history mode.
+    step_control_.Pause();
 
-  // History buffer will be smaller of 2000 states or 100 MB.
-  constexpr int kMaxBytes = 1e8;
-  constexpr int kMaxHistory = 2000;
-  const int state_bytes = state_size * sizeof(mjtNum);
-  const int history_length = std::min(INT_MAX / state_bytes, kMaxHistory);
-  const int history_bytes = std::min(state_bytes * history_length, kMaxBytes);
-  const int num_history = history_bytes / state_bytes;
-
-  history_.resize(num_history);
-  for (std::vector<mjtNum>& state : history_) {
-    state.resize(state_size, 0);
-  }
-  history_cursor_ = 0;
-}
-
-void Physics::AddToHistory() {
-  if (!history_.empty()) {
-    mjtNum* state = history_[history_cursor_].data();
-    mj_getState(model_, data_, state, mjSTATE_INTEGRATION);
-    history_cursor_ = (history_cursor_ + 1) % history_.size();
-    steps_++;
-
-    // If we are adding to the history we didn't have a divergence error
-    error_ = "";
+    // Load the state into the data buffer.
+    mj_setState(model_, data_, state.data(), mjSTATE_INTEGRATION);
+    mj_forward(model_, data_);
   }
 }
 
-int Physics::LoadHistory(int offset) {
-  // No history to load.
-  if (steps_ == 0) {
-    return 0;
-  }
-
-  // Pause simulation when entering history mode.
-  step_control_.Pause();
-
-  // Ensure the offset is within a valid range. It's a negative value since
-  // we will be going backwards from the "latest" frame.
-  const int max_history = std::min<int>(steps_, history_.size());
-  offset = std::clamp(offset, -max_history + 1, 0);
-
-  // Determine the index in the history buffer that corresponds to the frame
-  // index.
-  const int idx = (history_cursor_ + offset - 1) % history_.size();
-  const mjtNum* state = history_[idx].data();
-
-  // Load the state into the data buffer.
-  mj_setState(model_, data_, state, mjSTATE_INTEGRATION);
-  mj_forward(model_, data_);
-  return offset;
+int Physics::GetHistoryIndex() const {
+  return sim_history_.GetIndex();
 }
 
 }  // namespace mujoco::toolbox
