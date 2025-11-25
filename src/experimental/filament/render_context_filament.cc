@@ -137,8 +137,8 @@ void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
   g_filament_context->ReadPixels(viewport, rgb, depth);
 }
 
-void mjr_uploadFont(unsigned char* pixels, int width, int height, int bpp,
-                          int id, const mjrContext* con) {
+void mjr_uploadFont(const unsigned char* pixels, int width, int height, int bpp,
+                    int id, const mjrContext* con) {
   CheckFilamentContext();
   if (bpp != 4) {
     mju_error("Only 4bpp fonts are supported, got %d", bpp);
