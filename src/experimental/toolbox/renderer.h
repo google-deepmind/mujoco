@@ -58,6 +58,9 @@ class Renderer {
   // Returns the current, average frame rate.
   double GetFrameRate() const { return fps_; }
 
+  // Returns the render context.
+  const mjrContext& GetContext() const { return render_context_; }
+
  private:
   using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
