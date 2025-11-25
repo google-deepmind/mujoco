@@ -734,23 +734,19 @@ def generate(struct_to_bind: List[str]) -> list[tuple[str, list[str]]]:
     typedefs.append(
         f"using {type_name} = decltype(::{s['parent']}::{s['field_name']});"
     )
-  markers_and_content.append((
-      "// {{ ANONYMOUS_STRUCT_TYPEDEFS }}",
-      typedefs,
-  ))
 
   # Sort by struct name by dependency to ensure deterministic output order
   dependency_sorted_struct_names = sort_structs_by_dependency(
       structs_to_bind_data
   )
 
-  autogenned_struct_definitions = []
-  for struct_name in dependency_sorted_struct_names:
-    struct_data = structs_to_bind_data[struct_name]
+  structs_header = []
+  for s in dependency_sorted_struct_names:
+    struct_data = structs_to_bind_data[s]
     if struct_data.wrapped_header:
-      autogenned_struct_definitions.append(struct_data.wrapped_header + "\n")
+      structs_header.append(struct_data.wrapped_header + "\n")
     else:
-      definitions = []
+      definitions: list[str] = []
       for f in sorted(struct_data.wrapped_fields, key=lambda f: f.definition):
         if f.definition:
           definitions.append(f.definition)
@@ -758,42 +754,29 @@ def generate(struct_to_bind: List[str]) -> list[tuple[str, list[str]]]:
           f"// INSERT-GENERATED-{struct_data.wrap_name}-DEFINITIONS",
           definitions,
       ))
-  markers_and_content.append((
-      "// {{ AUTOGENNED_STRUCTS_HEADER }}",
-      autogenned_struct_definitions,
-  ))
 
-  autogenned_struct_source = []
-  for struct_name in dependency_sorted_struct_names:
-    struct_data = structs_to_bind_data[struct_name]
+  structs_source = []
+  for s in dependency_sorted_struct_names:
+    struct_data = structs_to_bind_data[s]
     if struct_data.wrapped_source:
-      autogenned_struct_source.append(struct_data.wrapped_source + "\n")
+      structs_source.append(struct_data.wrapped_source + "\n")
 
-  autogenned_struct_bindings = []
+  struct_bindings = []
   alphabetically_sorted_struct_names = sorted(structs_to_bind_data.keys())
-  for struct_name in alphabetically_sorted_struct_names:
-    struct_data = structs_to_bind_data[struct_name]
-    autogenned_struct_bindings.append(struct_data.bindings)
+  for s in alphabetically_sorted_struct_names:
+    struct_data = structs_to_bind_data[s]
+    struct_bindings.append(struct_data.bindings)
+  for s in sorted(struct_to_bind):
+    w = common.capitalize(s)
+    if w.startswith("Mjs") or w == "MjSpec":
+      struct_bindings.append(f"emscripten::register_optional<{w}>();")
 
-  markers_and_content.append((
-      "// {{ AUTOGENNED_STRUCTS_SOURCE }}",
-      autogenned_struct_source,
-  ))
-  markers_and_content.append((
-      "// {{ AUTOGENNED_STRUCTS_BINDINGS }}",
-      autogenned_struct_bindings,
-  ))
-
-  # Generate optional bindings
-  optional_bindings = []
-  for s_name in sorted(struct_to_bind):
-    w_name = common.capitalize(s_name)
-    if w_name.startswith("Mjs") or w_name == "MjSpec":
-      optional_bindings.append(f"register_optional<{w_name}>();")
-
-  markers_and_content.append((
-      "// {{ OPTIONAL_STRUCT_BINDINGS }}",
-      optional_bindings,
-  ))
+  # Combine all the markers and content into a single list
+  markers_and_content += [
+      ("// {{ ANONYMOUS_STRUCT_TYPEDEFS }}", typedefs),
+      ("// {{ STRUCTS_HEADER }}", structs_header),
+      ("// {{ STRUCTS_SOURCE }}", structs_source),
+      ("// {{ STRUCTS_BINDINGS }}", struct_bindings),
+  ]
 
   return markers_and_content
