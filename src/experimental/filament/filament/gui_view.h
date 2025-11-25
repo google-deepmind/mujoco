@@ -49,7 +49,8 @@ class GuiView {
  private:
   // Returns the filament::MaterialInstance configured to draw into the given
   // scissor rect.
-  filament::MaterialInstance* GetMaterialInstance(int index, mjrRect rect);
+  filament::MaterialInstance* GetMaterialInstance(int index, mjrRect rect,
+                                                  intptr_t texture_id);
 
   // Clears the filament::Scene of the UX renderable and releases all buffers.
   void ResetRenderable();

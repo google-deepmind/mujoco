@@ -165,9 +165,10 @@ bool GuiView::PrepareRenderable() {
         clip_height = height;
       }
 
+      const intptr_t tex_id = reinterpret_cast<intptr_t>(command.GetTexID());
       mjrRect clip_rect{clip_left, clip_bottom, clip_width, clip_height};
       builder.material(drawable_index,
-                       GetMaterialInstance(drawable_index, clip_rect));
+                       GetMaterialInstance(drawable_index, clip_rect, tex_id));
       builder.geometry(drawable_index, kTriangles, buffer.vertex_buffer,
                       buffer.index_buffer, index_offset,
                       command.ElemCount);
@@ -186,11 +187,14 @@ bool GuiView::PrepareRenderable() {
 }
 
 filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
-                                                         mjrRect rect) {
+                                                         mjrRect rect,
+                                                         intptr_t texture_id) {
   while (index >= instances_.size()) {
+    const filament::Texture* texture = object_mgr_->GetFont(texture_id);
+
     filament::TextureSampler sampler;
     filament::MaterialInstance* instance = material_->createInstance();
-    instance->setParameter("glyph", object_mgr_->GetFont(0), sampler);
+    instance->setParameter("glyph", texture, sampler);
     instances_.push_back(instance);
   }
 
