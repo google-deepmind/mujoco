@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <chrono>
 #include <climits>
-#include <cstring>
 #include <functional>
 #include <ratio>
 #include <string>
@@ -62,14 +61,14 @@ bool Physics::ProcessPendingLoad() {
   model_ = LoadMujocoModel(model_file, vfs_);
   if (!model_) {
     error_ = "Error loading model!";
-    paused_ = true;
+    step_control_.Pause();
     model_ = LoadMujocoModel("", vfs_);
   }
 
   data_ = mj_makeData(model_);
   if (!data_) {
     error_ = "Error making data!";
-    paused_ = true;
+    step_control_.Pause();
   }
 
   on_model_loaded_(model_file);
@@ -89,7 +88,7 @@ void Physics::Clear() {
     history_.clear();
     history_cursor_ = 0;
     steps_ = 0;
-    GetStepControl().SetSpeed(100.f);
+    step_control_.SetSpeed(100.f);
 
     error_ = "";
   }
@@ -102,7 +101,7 @@ void Physics::Reset() {
   history_cursor_ = 0;
 }
 
-bool Physics::Update(const mjvPerturb* perturb) {
+bool Physics::Update() {
   ProcessPendingLoad();
 
   if (!model_ || !data_) {
@@ -116,42 +115,17 @@ bool Physics::Update(const mjvPerturb* perturb) {
     }
   }
 
-  if (!IsPaused()) {
-    mju_zero(data_->xfrc_applied, 6 * model_->nbody);
-    mjv_applyPerturbPose(model_, data_, perturb, 0);
-    mjv_applyPerturbForce(model_, data_, perturb);
-  } else {
-    mjv_applyPerturbPose(model_, data_, perturb, 1);
-  }
-
-  if (IsPaused() && !single_step_) {
-    // run mj_forward, to update rendering and joint sliders
-    mj_forward(model_, data_);
-    if (pause_update_) {
-      mju_copy(data_->qacc_warmstart, data_->qacc, model_->nv);
-    }
-
-    // When unpaused make sure we sync to immediately and step once. Without
-    // this we could step many times before rendering resulting in a noticeable
-    // delay before the simulation restarts (especially for large slowdowns)
-    GetStepControl().ForceSync();
-  } else {
-    if (single_step_) {
-      GetStepControl().ForceSync();
-      single_step_ = false;
-    }
-
-    StepControl::Status status = GetStepControl().Advance(model_, data_);
-    if (status == StepControl::Status::kOk) {
-      AddToHistory();
-    } else if (status == StepControl::Status::kAutoReset) {
-      Reset();
-    } else if (status == StepControl::Status::kDiverged) {
-      for (mjtWarning w : StepControl::kDivergedWarnings) {
-        if (data_->warning[w].number > 0) {
-          paused_ = true;
-          error_ = mju_warningText(w, data_->warning[w].lastinfo);
-        }
+  StepControl::Status status = step_control_.Advance(model_, data_);
+  if (status == StepControl::Status::kOk) {
+    AddToHistory();
+  } else if (status == StepControl::Status::kPaused) {
+    // do nothing
+  } else if (status == StepControl::Status::kAutoReset) {
+    Reset();
+  } else if (status == StepControl::Status::kDiverged) {
+    for (mjtWarning w : StepControl::kDivergedWarnings) {
+      if (data_->warning[w].number > 0) {
+        error_ = mju_warningText(w, data_->warning[w].lastinfo);
       }
     }
   }
@@ -168,10 +142,6 @@ bool Physics::UpdateState(mjtNum* state, unsigned int state_sig) {
   mj_forward(model_, data_);
   return true;
 }
-
-void Physics::TogglePause() { paused_ = !paused_; }
-
-void Physics::RequestSingleStep() { single_step_ = true; }
 
 void Physics::InitHistory() {
   const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
@@ -210,7 +180,7 @@ int Physics::LoadHistory(int offset) {
   }
 
   // Pause simulation when entering history mode.
-  paused_ = true;
+  step_control_.Pause();
 
   // Ensure the offset is within a valid range. It's a negative value since
   // we will be going backwards from the "latest" frame.

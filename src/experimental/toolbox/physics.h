@@ -21,7 +21,6 @@
 #include <string_view>
 #include <vector>
 
-
 #include <mujoco/mujoco.h>
 #include "experimental/toolbox/step_control.h"
 
@@ -53,23 +52,10 @@ class Physics {
   void Reset();
 
   // Advances the state of the simulation.
-  bool Update(const mjvPerturb* perturb);
+  bool Update();
 
   // Sets the state of the simulation.
   bool UpdateState(mjtNum* state, unsigned int state_sig);
-
-  // Renders the state of the simulation.
-  void Render();
-
-  // Returns true if the simulation is paused.
-  bool IsPaused() { return paused_; }
-
-  // Pauses/unpauses the simulation.
-  void TogglePause();
-
-  // If the simulation is paused, will perform a single step on the next
-  // Update() call.
-  void RequestSingleStep();
 
   // Returns the number of steps the simulation has taken.
   int GetStepCount() const { return steps_; }
@@ -82,9 +68,6 @@ class Physics {
   //
   // Calling this function will automatically pause the simulation.
   int LoadHistory(int offset);
-
-  // Selects the parent of the currently selected perturb object.
-  void SelectParentPerturb();
 
   // Returns the MuJoCo data structures owned by this Simulation object.
   mjModel* GetModel() { return model_; }
@@ -106,13 +89,6 @@ class Physics {
 
   OnModelLoadedFn on_model_loaded_;
 
-  // If true and paused, d->qacc_warmstart is set to d->qacc after mj_forward
-  // which has the effect of making the constraint solver eventually converge
-  // while the simulation is paused.
-  bool pause_update_ = false;
-
-  bool paused_ = false;
-  bool single_step_ = false;
   int steps_ = 0;
   std::optional<std::string> pending_load_;
   const mjVFS* vfs_;

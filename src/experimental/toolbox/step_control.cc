@@ -52,6 +52,24 @@ StepControl::Status StepControl::Advance(const mjModel* m, mjData* d) {
     return Status::kOk;
   }
 
+  if (paused_) {
+    // When we eventually unpause, we need to make sure we sync to immediately
+    // and step once. Without this we could step many times before rendering
+    // resulting in a noticeable delay before the simulation restarts
+    // (especially for large slowdowns).
+    force_sync_ = true;
+
+    if (!single_step_) {
+      // Run mj_forward to update rendering and joint sliders.
+      mj_forward(m, d);
+      if (pause_update_) {
+        mju_copy(d->qacc_warmstart, d->qacc, m->nv);
+      }
+      return Status::kPaused;
+    }
+    single_step_ = false;
+  }
+
   const Clock::time_point start_cpu = Clock::now();
   const double slowdown = 100. / std::clamp<double>(speed_, 0.001, 100.);
   double elapsed_cpu = Seconds(start_cpu - sync_cpu_).count();
@@ -119,8 +137,9 @@ StepControl::Status StepControl::Advance(const mjModel* m, mjData* d) {
 
     if (mjDISABLED(mjDSBL_AUTORESET)) {
       for (mjtWarning w : kDivergedWarnings) {
-        // Stop stepping if the simulation diverged.
         if (d->warning[w].number > 0) {
+          // Stop stepping if the simulation diverged.
+          paused_ = true;
           return Status::kDiverged;
         }
       }

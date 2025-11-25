@@ -252,7 +252,16 @@ bool App::Update() {
   // Only update the simulation if a popup window is not open. Note that the
   // simulation itself will only update if it is not paused.
   if (!tmp_.modal_open) {
-    if (physics_->Update(&perturb_)) {
+    // Apply any active perturbations.
+    if (!physics_->GetStepControl().IsPaused() && Model() && Data()) {
+      mju_zero(Data()->xfrc_applied, 6 * Model()->nbody);
+      mjv_applyPerturbPose(Model(), Data(), &perturb_, 0);
+      mjv_applyPerturbForce(Model(), Data(), &perturb_);
+    } else {
+      mjv_applyPerturbPose(Model(), Data(), &perturb_, 1);
+    }
+
+    if (physics_->Update()) {
       profiler_.Update(Model(), Data());
     }
   }
@@ -436,19 +445,19 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal)) {
     SetSpeedIndex(tmp_.speed_index - 1);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftArrow)) {
-    if (physics_->IsPaused()) {
+    if (physics_->GetStepControl().IsPaused()) {
       physics_->LoadHistory(ui_.scrub_idx - 1);
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_RightArrow)) {
-    if (physics_->IsPaused()) {
+    if (physics_->GetStepControl().IsPaused()) {
       if (ui_.scrub_idx == 0) {
-        physics_->RequestSingleStep();
+        physics_->GetStepControl().RequestSingleStep();
       } else {
         physics_->LoadHistory(ui_.scrub_idx + 1);
       }
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Space)) {
-    physics_->TogglePause();
+    physics_->GetStepControl().TogglePause();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
     physics_->Reset();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
@@ -1054,7 +1063,8 @@ void App::InfoGui() {
   }
   solver_err = mju_log10(mju_max(mjMINVAL, solver_err));
 
-  auto type = physics_->IsPaused() ? mjTIMER_FORWARD : mjTIMER_STEP;
+  auto type =
+      physics_->GetStepControl().IsPaused() ? mjTIMER_FORWARD : mjTIMER_STEP;
   auto cpu =
       Data()->timer[type].duration / mjMAX(1, Data()->timer[type].number);
   auto mempct = 100 * Data()->maxuse_arena / (double)(Data()->narena);
@@ -1110,9 +1120,9 @@ void App::ToolBarGui() {
     ImGui::TableNextColumn();
 
     // Play/pause button.
-    const bool paused = physics_->IsPaused();
+    const bool paused = physics_->GetStepControl().IsPaused();
     if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, ImVec2(144, 32))) {
-      physics_->TogglePause();
+      physics_->GetStepControl().TogglePause();
     }
     ImGui::SetItemTooltip("%s", paused ? "Play" : "Pause");
 
@@ -1209,7 +1219,7 @@ void App::StatusBarGui() {
       ImGui::Text("Not loaded");
     } else if (Model() == nullptr) {
       ImGui::Text("Not loaded");
-    } else if (physics_->IsPaused()) {
+    } else if (physics_->GetStepControl().IsPaused()) {
       ImGui::Text("Paused");
     } else {
       const float desired_realtime = physics_->GetStepControl().GetSpeed();
@@ -1273,7 +1283,7 @@ void App::StatusBarGui() {
     ImGui::SameLine();
     if (ImGui::Button(ICON_NEXT_FRAME)) {
       if (ui_.scrub_idx == 0) {
-        physics_->RequestSingleStep();
+        physics_->GetStepControl().RequestSingleStep();
       } else {
         ui_.scrub_idx = std::min(0, ui_.scrub_idx + 1);
         physics_->LoadHistory(ui_.scrub_idx);
@@ -1326,8 +1336,9 @@ void App::MainMenuGui() {
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Simulation")) {
-      if (ImGui::MenuItem("Pause", "Space", physics_->IsPaused())) {
-        physics_->TogglePause();
+      if (ImGui::MenuItem("Pause", "Space",
+                          physics_->GetStepControl().IsPaused())) {
+        physics_->GetStepControl().TogglePause();
       }
       if (ImGui::MenuItem("Reset", "Backspace")) {
         physics_->Reset();
