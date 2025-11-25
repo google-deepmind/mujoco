@@ -91,7 +91,7 @@ MJWarp is optimized for parallel simulation. A batch of simulations can be speci
 - _`nconmax`: Expected number of contacts per world. The maximum number of contacts for all worlds is
   ``nconmax * nworld``.
 - _`naconmax`: Alternative to `nconmax`_, maximum number of contacts over all worlds. If `nconmax`_ and `naconmax`_ are
-  both set and ``nworld * nconmax != naconmax`` an error will be raised.
+  both set then `nconmax`_ is ignored.
 - _`njmax`: Maximum number of constraints per world.
 
 .. admonition:: Semantic difference for `nconmax`_ and `njmax`_.
