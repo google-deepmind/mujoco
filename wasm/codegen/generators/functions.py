@@ -14,7 +14,7 @@
 
 """Helper functions for processing and generating bindings for MuJoCo functions."""
 
-from typing import Mapping, Tuple, cast
+from typing import List, Tuple, cast
 
 from introspect import ast_nodes
 
@@ -289,18 +289,18 @@ def is_excluded_function_name(func_name: str) -> bool:
 
 
 def generate(
-    functions: Mapping[str, ast_nodes.FunctionDecl],
+    functions: List[ast_nodes.FunctionDecl],
 ) -> list[tuple[str, list[str]]]:
   """Generates Embind bindings for MuJoCo functions."""
   wrapper_functions = []
-  for func in functions.values():
+  for func in sorted(functions, key=lambda f: f.name):
     if should_be_wrapped(func):
       if func.name not in constants.MANUAL_WRAPPER_FUNCTIONS:
         wrapper_functions.append(generate_function_wrapper(func))
   wrapper_content = "\n\n".join(wrapper_functions)
 
   function_bindings = []
-  for func in functions.values():
+  for func in sorted(functions, key=lambda f: f.name):
     suffix = "_wrapper" if should_be_wrapped(func) else ""
     function_bindings.append(f'function("{func.name}", &{func.name}{suffix});')
   bindings_content = "\n".join(function_bindings)

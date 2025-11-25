@@ -536,6 +536,7 @@ def _build_struct_bindings(
     if shallow_copy and not is_mjs:
       builder.line(f'.function("copy", &{w}::copy, take_ownership())')
 
+    wrapped_fields.sort(key=lambda field: field.binding)
     for field in wrapped_fields[:-1]:
       if field.binding:
         builder.line(field.binding)
@@ -726,9 +727,7 @@ def generate(struct_to_bind: List[str]) -> list[tuple[str, list[str]]]:
   # wrapper/bindings statements set up for each struct
   structs_to_bind_data = generate_wasm_bindings(struct_to_bind)
 
-  autogenned_struct_definitions = []
   markers_and_content = []
-
   typedefs = []
   for type_name in sorted(constants.ANONYMOUS_STRUCTS):
     s = constants.ANONYMOUS_STRUCTS[type_name]
@@ -741,19 +740,23 @@ def generate(struct_to_bind: List[str]) -> list[tuple[str, list[str]]]:
   ))
 
   # Sort by struct name by dependency to ensure deterministic output order
-  sorted_struct_names = sort_structs_by_dependency(structs_to_bind_data)
+  dependency_sorted_struct_names = sort_structs_by_dependency(
+      structs_to_bind_data
+  )
 
-  for struct_name in sorted_struct_names:
+  autogenned_struct_definitions = []
+  for struct_name in dependency_sorted_struct_names:
     struct_data = structs_to_bind_data[struct_name]
     if struct_data.wrapped_header:
       autogenned_struct_definitions.append(struct_data.wrapped_header + "\n")
     else:
+      definitions = []
+      for f in sorted(struct_data.wrapped_fields, key=lambda f: f.definition):
+        if f.definition:
+          definitions.append(f.definition)
       markers_and_content.append((
           f"// INSERT-GENERATED-{struct_data.wrap_name}-DEFINITIONS",
-          [
-              l.definition if l.definition else ""
-              for l in struct_data.wrapped_fields
-          ],
+          definitions,
       ))
   markers_and_content.append((
       "// {{ AUTOGENNED_STRUCTS_HEADER }}",
@@ -761,11 +764,15 @@ def generate(struct_to_bind: List[str]) -> list[tuple[str, list[str]]]:
   ))
 
   autogenned_struct_source = []
-  autogenned_struct_bindings = []
-  for struct_name in sorted_struct_names:
+  for struct_name in dependency_sorted_struct_names:
     struct_data = structs_to_bind_data[struct_name]
     if struct_data.wrapped_source:
       autogenned_struct_source.append(struct_data.wrapped_source + "\n")
+
+  autogenned_struct_bindings = []
+  alphabetically_sorted_struct_names = sorted(structs_to_bind_data.keys())
+  for struct_name in alphabetically_sorted_struct_names:
+    struct_data = structs_to_bind_data[struct_name]
     autogenned_struct_bindings.append(struct_data.bindings)
 
   markers_and_content.append((

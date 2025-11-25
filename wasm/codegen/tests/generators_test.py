@@ -802,34 +802,34 @@ class EnumsGeneratorTest(absltest.TestCase):
 
     expected_code = """
 EMSCRIPTEN_BINDINGS(mujoco_enums) {
+  enum_<AnotherEnum>("AnotherEnum")
+    .value("ALPHA", ALPHA)
+    .value("BETA", BETA);
+
   enum_<TestEnum>("TestEnum")
     .value("FIRST_VAL", FIRST_VAL)
     .value("SECOND_VAL", SECOND_VAL)
     .value("THIRD_VAL", THIRD_VAL);
 
-  enum_<AnotherEnum>("AnotherEnum")
-    .value("ALPHA", ALPHA)
-    .value("BETA", BETA);
-
 }""".strip()
 
-    markers_and_content = enums.generate({
-        "TestEnum": ast_nodes.EnumDecl(
+    markers_and_content = enums.generate([
+        ast_nodes.EnumDecl(
             name="TestEnum",
             declname="enum TestEnum_",
             values={"FIRST_VAL": 0, "SECOND_VAL": 1, "THIRD_VAL": 2},
         ),
-        "AnotherEnum": ast_nodes.EnumDecl(
+        ast_nodes.EnumDecl(
             name="AnotherEnum",
             declname="enum AnotherEnum_",
             values={"ALPHA": 100, "BETA": 200},
         ),
-        "EmptyEnum": ast_nodes.EnumDecl(
+        ast_nodes.EnumDecl(
             name="EmptyEnum",
             declname="enum EmptyEnum_",
             values={},
         ),
-    })
+    ])
     actual_code = "\n\n".join(markers_and_content[0][1])
 
     self.assertEqual(actual_code, expected_code)

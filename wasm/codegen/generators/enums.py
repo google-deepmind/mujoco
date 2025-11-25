@@ -14,7 +14,7 @@
 
 """Generates Embind bindings for MuJoCo enums."""
 
-from typing import Mapping
+from typing import List
 
 from introspect import ast_nodes
 
@@ -22,13 +22,13 @@ from wasm.codegen.generators import code_builder
 
 
 def generate(
-    enums: Mapping[str, ast_nodes.EnumDecl],
+    enums: List[ast_nodes.EnumDecl],
 ) -> list[tuple[str, list[str]]]:
   """Generates all Embind code for the provided enums."""
 
   builder = code_builder.CodeBuilder()
   with builder.block('EMSCRIPTEN_BINDINGS(mujoco_enums)'):
-    for e in enums.values():
+    for e in sorted(enums, key=lambda e: e.name):
       if e.values:  # Skip empty enums.
         with builder.block(f'enum_<{e.name}>("{e.name}")', braces=False):
           names = list(e.values.keys())

@@ -37,7 +37,9 @@ class BindingBuilder:
 
   def set_enums(self):
     """Generates and sets the enum bindings."""
-    self.markers_and_content += enums.generate(introspect_enums.ENUMS)
+    self.markers_and_content += enums.generate(
+        list(introspect_enums.ENUMS.values())
+    )
     return self
 
   def set_structs(self):
@@ -48,10 +50,10 @@ class BindingBuilder:
   def set_functions(self):
     """Generates and sets the function wrappers and bindings."""
 
-    functions_to_bind: dict[str, ast_nodes.FunctionDecl] = {}
+    functions_to_bind = []
     for name, func in introspect_functions.FUNCTIONS.items():
       if not functions.is_excluded_function_name(name):
-        functions_to_bind[name] = func
+        functions_to_bind.append(func)
 
     self.markers_and_content += functions.generate(functions_to_bind)
     return self
