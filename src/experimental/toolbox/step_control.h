@@ -28,6 +28,8 @@ using Clock = std::chrono::steady_clock;
 // State and logic for physics synchronization and stepping.
 class StepControl {
  public:
+  StepControl();
+
   enum class Status {
     kOk,
 

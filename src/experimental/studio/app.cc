@@ -26,6 +26,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -38,8 +39,8 @@
 #include "experimental/toolbox/helpers.h"
 #include "experimental/toolbox/imgui_widgets.h"
 #include "experimental/toolbox/interaction.h"
-#include "experimental/toolbox/physics.h"
 #include "experimental/toolbox/renderer.h"
+#include "experimental/toolbox/step_control.h"
 #include "experimental/toolbox/window.h"
 
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
@@ -186,9 +187,6 @@ App::App(int width, int height, std::string ini_path,
   };
   renderer_ = std::make_unique<toolbox::Renderer>(make_context_fn);
 
-  physics_ = std::make_unique<toolbox::Physics>(
-      [this](std::string_view model_file) { this->OnModelLoaded(model_file); });
-
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
@@ -201,14 +199,52 @@ App::App(int width, int height, std::string ini_path,
 }
 
 void App::LoadModel(std::string model_file) {
-  model_file_ = std::move(model_file);
-  physics_->LoadModel(model_file_);
+  pending_load_ = std::move(model_file);
+}
+
+void App::ProcessPendingLoad() {
+  if (!pending_load_.has_value()) {
+    return;
+  }
+
+  if (model_) {
+    mj_deleteData(data_);
+    data_ = nullptr;
+    mj_deleteModel(model_);
+    model_ = nullptr;
+    error_ = "";
+
+    step_control_.SetSpeed(100.f);
+  }
+
+  std::string model_file = std::move(pending_load_.value());
+  pending_load_.reset();
+
+  model_ = toolbox::LoadMujocoModel(model_file, nullptr);
+  if (!model_) {
+    error_ = "Error loading model!";
+    step_control_.Pause();
+    model_ = toolbox::LoadMujocoModel("", nullptr);
+  }
+
+  data_ = mj_makeData(model_);
+  if (!data_) {
+    error_ = "Error making data!";
+    step_control_.Pause();
+  }
+
+  OnModelLoaded(model_file);
 }
 
 void App::OnModelLoaded(std::string_view model_file) {
-  renderer_->Init(Model());
+  model_file_ = std::move(model_file);
+
+  renderer_->Init(model_);
   tmp_ = UiTempState();
   mjv_defaultOption(&vis_options_);
+
+  const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
+  history_.Init(state_size);
   profiler_.Clear();
 
   std::string base_path = "/";
@@ -233,6 +269,68 @@ void App::OnModelLoaded(std::string_view model_file) {
   tmp_.last_save_screenshot_file = base_path + "screenshot.webp";
 }
 
+void App::ResetPhysics() {
+  mj_resetData(model_, data_);
+  mj_forward(model_, data_);
+  error_ = "";
+}
+
+void App::UpdatePhysics() {
+  ProcessPendingLoad();
+  if (!model_ || !data_) {
+    return;
+  }
+
+  if (!step_control_.IsPaused()) {
+    mju_zero(data_->xfrc_applied, 6 * model_->nbody);
+    mjv_applyPerturbPose(model_, data_, &perturb_, 0);
+    mjv_applyPerturbForce(model_, data_, &perturb_);
+  } else {
+    mjv_applyPerturbPose(model_, data_, &perturb_, 1);
+  }
+
+  if (data_) {
+    for (int i = 0; i < mjNTIMER; i++) {
+      data_->timer[i].duration = 0;
+      data_->timer[i].number = 0;
+    }
+  }
+
+  toolbox::StepControl::Status status = step_control_.Advance(model_, data_);
+  if (status == toolbox::StepControl::Status::kPaused) {
+    // do nothing
+  } else if (status == toolbox::StepControl::Status::kOk) {
+    std::span<mjtNum> state = history_.AddToHistory();
+    if (!state.empty()) {
+      mj_getState(model_, data_, state.data(), mjSTATE_INTEGRATION);
+    }
+    // If we are adding to the history we didn't have a divergence error
+    error_ = "";
+  } else if (status == toolbox::StepControl::Status::kAutoReset) {
+    ResetPhysics();
+  } else if (status == toolbox::StepControl::Status::kDiverged) {
+    for (mjtWarning w : toolbox::StepControl::kDivergedWarnings) {
+      if (data_->warning[w].number > 0) {
+        error_ = mju_warningText(w, data_->warning[w].lastinfo);
+      }
+    }
+  }
+
+  profiler_.Update(model_, data_);
+}
+
+void App::LoadHistory(int offset) {
+  std::span<mjtNum> state = history_.SetIndex(offset);
+  if (!state.empty()) {
+    // Pause simulation when entering history mode.
+    step_control_.Pause();
+
+    // Load the state into the data buffer.
+    mj_setState(model_, data_, state.data(), mjSTATE_INTEGRATION);
+    mj_forward(model_, data_);
+  }
+}
+
 bool App::Update() {
   const toolbox::Window::Status status = window_->NewFrame();
 
@@ -252,18 +350,7 @@ bool App::Update() {
   // Only update the simulation if a popup window is not open. Note that the
   // simulation itself will only update if it is not paused.
   if (!tmp_.modal_open) {
-    // Apply any active perturbations.
-    if (!physics_->GetStepControl().IsPaused() && Model() && Data()) {
-      mju_zero(Data()->xfrc_applied, 6 * Model()->nbody);
-      mjv_applyPerturbPose(Model(), Data(), &perturb_, 0);
-      mjv_applyPerturbForce(Model(), Data(), &perturb_);
-    } else {
-      mjv_applyPerturbPose(Model(), Data(), &perturb_, 1);
-    }
-
-    if (physics_->Update()) {
-      profiler_.Update(Model(), Data());
-    }
+    UpdatePhysics();
   }
 
   return status == toolbox::Window::Status::kRunning;
@@ -274,7 +361,7 @@ void App::Render() {
   const float height = window_->GetHeight();
   const float scale = window_->GetScale();
 
-  renderer_->Render(Model(), Data(), &perturb_, &camera_, &vis_options_,
+  renderer_->Render(model_, data_, &perturb_, &camera_, &vis_options_,
                     width * scale, height * scale);
 
 #ifdef USE_CLASSIC_OPENGL
@@ -286,10 +373,10 @@ void App::Render() {
   window_->EndFrame();
   window_->Present();
 
-  if (Data()) {
+  if (data_) {
     for (int i = 0; i < mjNTIMER; i++) {
-      Data()->timer[i].duration = 0;
-      Data()->timer[i].number = 0;
+      data_->timer[i].duration = 0;
+      data_->timer[i].number = 0;
     }
   }
 }
@@ -300,7 +387,7 @@ void App::HandleMouseEvents() {
     return;
   }
 
-  if (!Model() || !Data()) {
+  if (!model_ || !data_) {
     return;
   }
 
@@ -335,9 +422,9 @@ void App::HandleMouseEvents() {
       const mjtPertBit active =
           action == mjMOUSE_MOVE_V ? mjPERT_TRANSLATE : mjPERT_ROTATE;
       if (active != perturb_.active) {
-        toolbox::InitPerturb(Model(), Data(), &camera_, &perturb_, active);
+        toolbox::InitPerturb(model_, data_, &camera_, &perturb_, active);
       }
-      toolbox::MovePerturb(Model(), Data(), &camera_, &perturb_, action,
+      toolbox::MovePerturb(model_, data_, &camera_, &perturb_, action,
                            mouse_dx, mouse_dy);
     }
   }
@@ -372,7 +459,7 @@ void App::HandleMouseEvents() {
   // Left double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
     toolbox::PickResult picked =
-        toolbox::Pick(Model(), Data(), &camera_, mouse_x, mouse_y,
+        toolbox::Pick(model_, data_, &camera_, mouse_x, mouse_y,
                       window_->GetAspectRatio(), &vis_options_);
     if (picked.body >= 0) {
       perturb_.select = picked.body;
@@ -381,8 +468,8 @@ void App::HandleMouseEvents() {
 
       // Compute the local position of the selected object in the world.
       mjtNum tmp[3];
-      mju_sub3(tmp, picked.point, Data()->xpos + 3 * picked.body);
-      mju_mulMatTVec(perturb_.localpos, Data()->xmat + 9 * picked.body, tmp, 3,
+      mju_sub3(tmp, picked.point, data_->xpos + 3 * picked.body);
+      mju_mulMatTVec(perturb_.localpos, data_->xmat + 9 * picked.body, tmp, 3,
                      3);
     } else {
       perturb_.select = 0;
@@ -394,7 +481,7 @@ void App::HandleMouseEvents() {
   // Right double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
     toolbox::PickResult picked =
-        toolbox::Pick(Model(), Data(), &camera_, mouse_x, mouse_y,
+        toolbox::Pick(model_, data_, &camera_, mouse_x, mouse_y,
                       window_->GetAspectRatio(), &vis_options_);
     mju_copy3(camera_.lookat, picked.point);
     if (picked.body > 0 && io.KeyCtrl) {
@@ -428,14 +515,14 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_P | ImGuiMod_Ctrl)) {
     ShowPopup(tmp_.save_screenshot_popup);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_C | ImGuiMod_Ctrl)) {
-    std::string keyframe = toolbox::KeyframeToString(Model(), Data(), false);
+    std::string keyframe = toolbox::KeyframeToString(model_, data_, false);
     toolbox::MaybeSaveToClipboard(keyframe);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_R | ImGuiMod_Ctrl)) {
     LoadModel(model_file_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Q | ImGuiMod_Ctrl)) {
     tmp_.should_exit = true;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_A | ImGuiMod_Ctrl)) {
-    mjv_defaultFreeCamera(Model(), &camera_);
+    mjv_defaultFreeCamera(model_, &camera_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab | ImGuiMod_Shift)) {
     tmp_.inspector_panel = !tmp_.inspector_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
@@ -445,23 +532,23 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal)) {
     SetSpeedIndex(tmp_.speed_index - 1);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftArrow)) {
-    if (physics_->GetStepControl().IsPaused()) {
-      physics_->LoadHistory(physics_->GetHistoryIndex() - 1);
+    if (step_control_.IsPaused()) {
+      LoadHistory(history_.GetIndex() - 1);
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_RightArrow)) {
-    if (physics_->GetStepControl().IsPaused()) {
-      if (physics_->GetHistoryIndex() == 0) {
-        physics_->GetStepControl().RequestSingleStep();
+    if (step_control_.IsPaused()) {
+      if (history_.GetIndex() == 0) {
+        step_control_.RequestSingleStep();
       } else {
-        physics_->LoadHistory(physics_->GetHistoryIndex() + 1);
+        LoadHistory(history_.GetIndex() + 1);
       }
     }
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Space)) {
-    physics_->GetStepControl().TogglePause();
+    step_control_.TogglePause();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Backspace)) {
-    physics_->Reset();
+    ResetPhysics();
   } else if (ImGui_IsChordJustPressed(ImGuiKey_PageUp)) {
-    SelectParentPerturb(Model(), perturb_);
+    SelectParentPerturb(model_, perturb_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
@@ -550,13 +637,13 @@ void App::HandleKeyboardEvents() {
     ToggleFlag(vis_options_.geomgroup[4]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_5)) {
     ToggleFlag(vis_options_.geomgroup[5]);
-  } else if (Model()) {
+  } else if (model_) {
     if (ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
-      ui_.camera_idx = toolbox::SetCamera(Model(), &camera_, toolbox::kTumbleCameraIdx);
+      ui_.camera_idx = toolbox::SetCamera(model_, &camera_, toolbox::kTumbleCameraIdx);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftBracket)) {
-      ui_.camera_idx = toolbox::SetCamera(Model(), &camera_, ui_.camera_idx - 1);
+      ui_.camera_idx = toolbox::SetCamera(model_, &camera_, ui_.camera_idx - 1);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
-      ui_.camera_idx = toolbox::SetCamera(Model(), &camera_, ui_.camera_idx + 1);
+      ui_.camera_idx = toolbox::SetCamera(model_, &camera_, ui_.camera_idx + 1);
     }
 
     // WASD camera controls for free camera.
@@ -629,11 +716,11 @@ void App::SetSpeedIndex(int idx) {
 
   tmp_.speed_index = std::clamp<int>(idx, 0, kPercentRealTime.size() - 1);
   float speed = std::stof(kPercentRealTime[tmp_.speed_index]);
-  physics_->GetStepControl().SetSpeed(speed);
+  step_control_.SetSpeed(speed);
 }
 
 void App::MoveCamera(toolbox::CameraMotion motion, mjtNum reldx, mjtNum reldy) {
-  toolbox::MoveCamera(Model(), Data(), &camera_, motion, reldx, reldy);
+  toolbox::MoveCamera(model_, data_, &camera_, motion, reldx, reldy);
 }
 
 void App::BuildGui() {
@@ -1042,18 +1129,18 @@ void App::HelpGui() {
 }
 
 void App::InfoGui() {
-  const int num_islands = std::clamp(Data()->nisland, 1, mjNISLAND);
+  const int num_islands = std::clamp(data_->nisland, 1, mjNISLAND);
 
   // compute solver error (maximum over islands)
   mjtNum solver_err = 0;
   int solver_iter = 0;
   for (int i = 0; i < num_islands; i++) {
-    solver_iter += Data()->solver_niter[i];
+    solver_iter += data_->solver_niter[i];
 
     mjtNum solerr_i = 0;
-    if (Data()->solver_niter[i]) {
-      const int ind = mjMIN(Data()->solver_niter[i], mjNSOLVER) - 1;
-      const mjSolverStat* stat = Data()->solver + i * mjNSOLVER + ind;
+    if (data_->solver_niter[i]) {
+      const int ind = mjMIN(data_->solver_niter[i], mjNSOLVER) - 1;
+      const mjSolverStat* stat = data_->solver + i * mjNSOLVER + ind;
       solerr_i = mju_min(stat->improvement, stat->gradient);
       if (solerr_i == 0) {
         solerr_i = mju_max(stat->improvement, stat->gradient);
@@ -1063,12 +1150,10 @@ void App::InfoGui() {
   }
   solver_err = mju_log10(mju_max(mjMINVAL, solver_err));
 
-  auto type =
-      physics_->GetStepControl().IsPaused() ? mjTIMER_FORWARD : mjTIMER_STEP;
-  auto cpu =
-      Data()->timer[type].duration / mjMAX(1, Data()->timer[type].number);
-  auto mempct = 100 * Data()->maxuse_arena / (double)(Data()->narena);
-  auto memlimit = mju_writeNumBytes(Data()->narena);
+  auto type = step_control_.IsPaused() ? mjTIMER_FORWARD : mjTIMER_STEP;
+  auto cpu = data_->timer[type].duration / mjMAX(1, data_->timer[type].number);
+  auto mempct = 100 * data_->maxuse_arena / (double)(data_->narena);
+  auto memlimit = mju_writeNumBytes(data_->narena);
 
   ImGui::Columns(2);
   ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.4f);
@@ -1080,33 +1165,33 @@ void App::InfoGui() {
   ImGui::Text("Solver");
   ImGui::Text("FPS");
   ImGui::Text("Memory");
-  if (Model()->opt.enableflags & mjENBL_ENERGY) {
+  if (model_->opt.enableflags & mjENBL_ENERGY) {
     ImGui::Text("Energy");
   }
-  if (Model()->opt.enableflags & mjENBL_FWDINV) {
+  if (model_->opt.enableflags & mjENBL_FWDINV) {
     ImGui::Text("FwdInv");
   }
-  if (!(Model()->opt.disableflags & mjDSBL_ISLAND)) {
+  if (!(model_->opt.disableflags & mjDSBL_ISLAND)) {
     ImGui::Text("Islands");
   }
 
   ImGui::NextColumn();
-  ImGui::Text("%-9.3f", Data()->time);
-  ImGui::Text("%d (%d con)", Data()->nefc, Data()->ncon);
+  ImGui::Text("%-9.3f", data_->time);
+  ImGui::Text("%d (%d con)", data_->nefc, data_->ncon);
   ImGui::Text("%.3f", cpu);
   ImGui::Text("%.1f (%d it)", solver_err, solver_iter);
   ImGui::Text("%0.1f", renderer_->GetFrameRate());
   ImGui::Text("%.1f%% of %s", mempct, memlimit);
-  if (Model()->opt.enableflags & mjENBL_ENERGY) {
-    ImGui::Text("%.3f", Data()->energy[0] + Data()->energy[1]);
+  if (model_->opt.enableflags & mjENBL_ENERGY) {
+    ImGui::Text("%.3f", data_->energy[0] + data_->energy[1]);
   }
-  if (Model()->opt.enableflags & mjENBL_FWDINV) {
+  if (model_->opt.enableflags & mjENBL_FWDINV) {
     ImGui::Text("%.1f %.1f",
-                mju_log10(mju_max(mjMINVAL, Data()->solver_fwdinv[0])),
-                mju_log10(mju_max(mjMINVAL, Data()->solver_fwdinv[1])));
+                mju_log10(mju_max(mjMINVAL, data_->solver_fwdinv[0])),
+                mju_log10(mju_max(mjMINVAL, data_->solver_fwdinv[1])));
   }
-  if (!(Model()->opt.disableflags & mjDSBL_ISLAND)) {
-    ImGui::Text("%d", Data()->nisland);
+  if (!(model_->opt.disableflags & mjDSBL_ISLAND)) {
+    ImGui::Text("%d", data_->nisland);
   }
   ImGui::Columns();
 }
@@ -1120,16 +1205,16 @@ void App::ToolBarGui() {
     ImGui::TableNextColumn();
 
     // Play/pause button.
-    const bool paused = physics_->GetStepControl().IsPaused();
+    const bool paused = step_control_.IsPaused();
     if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, ImVec2(144, 32))) {
-      physics_->GetStepControl().TogglePause();
+      step_control_.TogglePause();
     }
     ImGui::SetItemTooltip("%s", paused ? "Play" : "Pause");
 
     // Reset/Reload/Unload.
     ImGui::SameLine();
     if (ImGui::Button(ICON_RESET_MODEL, ImVec2(48, 32))) {
-      physics_->Reset();
+      ResetPhysics();
     }
     ImGui::SetItemTooltip("%s", "Reset");
 
@@ -1155,11 +1240,11 @@ void App::ToolBarGui() {
     int camera_idx = ui_.camera_idx - toolbox::kTumbleCameraIdx;
     if (ImGui::Combo("##Camera", &camera_idx, cameras.data(), cameras.size())) {
       ui_.camera_idx = ::mujoco::toolbox::SetCamera(
-          Model(), &camera_, camera_idx + toolbox::kTumbleCameraIdx);
+          model_, &camera_, camera_idx + toolbox::kTumbleCameraIdx);
     }
     ImGui::SameLine();
     if (ImGui::Button(ICON_COPY_CAMERA)) {
-      std::string camera_string = toolbox::CameraToString(Data(), &camera_);
+      std::string camera_string = toolbox::CameraToString(data_, &camera_);
       toolbox::MaybeSaveToClipboard(camera_string);
     }
     ImGui::SetItemTooltip("%s", "Copy Camera");
@@ -1217,13 +1302,13 @@ void App::StatusBarGui() {
 
     if (model_file_.empty()) {
       ImGui::Text("Not loaded");
-    } else if (Model() == nullptr) {
+    } else if (model_ == nullptr) {
       ImGui::Text("Not loaded");
-    } else if (physics_->GetStepControl().IsPaused()) {
+    } else if (step_control_.IsPaused()) {
       ImGui::Text("Paused");
     } else {
-      const float desired_realtime = physics_->GetStepControl().GetSpeed();
-      const float measured_realtime = physics_->GetStepControl().GetSpeedMeasured();
+      const float desired_realtime = step_control_.GetSpeed();
+      const float measured_realtime = step_control_.GetSpeedMeasured();
       const float realtime_offset = mju_abs(measured_realtime - desired_realtime);
       const bool misaligned = realtime_offset > 0.1 * desired_realtime;
       if (misaligned) {
@@ -1233,9 +1318,9 @@ void App::StatusBarGui() {
       }
     }
 
-    if (!physics_->GetError().empty()) {
+    if (!error_.empty()) {
       ImGui::SameLine();
-      ImGui::Text(" | Error: %s", std::string(physics_->GetError()).c_str());
+      ImGui::Text(" | Error: %s", error_.c_str());
     }
 
     ImGui::TableNextColumn();
@@ -1264,34 +1349,33 @@ void App::StatusBarGui() {
     style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
     ImGui::SameLine();
     if (ImGui::Button(ICON_PREV_FRAME)) {
-      physics_->LoadHistory(physics_->GetHistoryIndex() - 1);
+      LoadHistory(history_.GetIndex() - 1);
     }
     ImGui::SetItemTooltip("%s", "Previous Frame");
 
     style.Reset();
     ImGui::SameLine();
     ImGui::SetNextItemWidth(450);
-    int index = physics_->GetHistoryIndex();
-    int history_size = physics_->GetSimHistory().Size();
-    if (ImGui::SliderInt("##ScrubIndex", &index, 1 - history_size, 0)) {
-      physics_->LoadHistory(index);
+    int index = history_.GetIndex();
+    if (ImGui::SliderInt("##ScrubIndex", &index, 1 - history_.Size(), 0)) {
+      LoadHistory(index);
     }
 
     style.Var(ImGuiStyleVar_FrameBorderSize, 0);
     style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
     ImGui::SameLine();
     if (ImGui::Button(ICON_NEXT_FRAME)) {
-      if (physics_->GetHistoryIndex() == 0) {
-        physics_->GetStepControl().RequestSingleStep();
+      if (history_.GetIndex() == 0) {
+        step_control_.RequestSingleStep();
       } else {
-        physics_->LoadHistory(physics_->GetHistoryIndex() + 1);
+        LoadHistory(history_.GetIndex() + 1);
       }
     }
     ImGui::SetItemTooltip("%s", "Next Frame");
 
     ImGui::SameLine();
     if (ImGui::Button(ICON_CURR_FRAME)) {
-      physics_->LoadHistory(0);
+      LoadHistory(0);
     }
     ImGui::SetItemTooltip("%s", "Current Frame");
 
@@ -1333,12 +1417,11 @@ void App::MainMenuGui() {
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Simulation")) {
-      if (ImGui::MenuItem("Pause", "Space",
-                          physics_->GetStepControl().IsPaused())) {
-        physics_->GetStepControl().TogglePause();
+      if (ImGui::MenuItem("Pause", "Space", step_control_.IsPaused())) {
+        step_control_.TogglePause();
       }
       if (ImGui::MenuItem("Reset", "Backspace")) {
-        physics_->Reset();
+        ResetPhysics();
       }
       if (ImGui::MenuItem("Reload", "Ctrl+R")) {
         LoadModel(model_file_);
@@ -1346,17 +1429,17 @@ void App::MainMenuGui() {
       ImGui::Separator();
       if (ImGui::BeginMenu("Keyframes")) {
         ImGui::SetNextItemWidth(200);
-        ImGui::SliderInt("##Key", &ui_.key_idx, 0, Model()->nkey);
+        ImGui::SliderInt("##Key", &ui_.key_idx, 0, model_->nkey);
         if (ImGui::MenuItem("Load")) {
-          mj_resetDataKeyframe(Model(), Data(), ui_.key_idx);
-          mj_forward(Model(), Data());
+          mj_resetDataKeyframe(model_, data_, ui_.key_idx);
+          mj_forward(model_, data_);
         }
         if (ImGui::MenuItem("Save")) {
-          mj_setKeyframe(Model(), Data(), ui_.key_idx);
+          mj_setKeyframe(model_, data_, ui_.key_idx);
         }
         if (ImGui::MenuItem("Copy")) {
-          std::string keyframe = toolbox::KeyframeToString(Model(), Data(), false);
-          toolbox::MaybeSaveToClipboard(keyframe);
+          std::string str = toolbox::KeyframeToString(model_, data_, false);
+          toolbox::MaybeSaveToClipboard(str);
         }
         ImGui::EndMenu();
       }
@@ -1482,7 +1565,7 @@ void App::FileDialogGui() {
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       char err[1000] = "";
-      mj_saveLastXML(tmp_.filename, Model(), err, 1000);
+      mj_saveLastXML(tmp_.filename, model_, err, 1000);
       tmp_.last_save_xml_file = tmp_.filename;
     }
     ImGui::EndPopup();
@@ -1490,7 +1573,7 @@ void App::FileDialogGui() {
   if (ImGui::BeginPopupModal("SaveMJB", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      mj_saveModel(Model(), tmp_.filename, nullptr, 0);
+      mj_saveModel(model_, tmp_.filename, nullptr, 0);
       tmp_.last_save_mjb_file = tmp_.filename;
     }
     ImGui::EndPopup();
@@ -1507,7 +1590,7 @@ void App::FileDialogGui() {
   if (ImGui::BeginPopupModal("PrintModel", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      mj_printModel(Model(), tmp_.filename);
+      mj_printModel(model_, tmp_.filename);
       tmp_.last_print_model_file = tmp_.filename;
     }
     ImGui::EndPopup();
@@ -1515,7 +1598,7 @@ void App::FileDialogGui() {
   if (ImGui::BeginPopupModal("PrintData", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      mj_printData(Model(), Data(), tmp_.filename);
+      mj_printData(model_, data_, tmp_.filename);
       tmp_.last_print_data_file = tmp_.filename;
     }
     ImGui::EndPopup();
@@ -1593,7 +1676,7 @@ void App::StateGui() {
   }
 
   if (tmp_.state_sig != prev_state_sig) {
-    const int size = mj_stateSize(Model(), tmp_.state_sig);
+    const int size = mj_stateSize(model_, tmp_.state_sig);
     tmp_.state.resize(size);
   }
 
@@ -1607,7 +1690,7 @@ void App::StateGui() {
             : "Selected state components do not exist in the model.");
     ImGui::EndDisabled();
   } else {
-    mj_getState(Model(), Data(), tmp_.state.data(), tmp_.state_sig);
+    mj_getState(model_, data_, tmp_.state.data(), tmp_.state_sig);
     bool changed = false;
 
     if (ImGui::BeginTable(
@@ -1628,7 +1711,7 @@ void App::StateGui() {
         int global = 0;
         for (int i = 0; i < mjNSTATE; ++i) {
           if (tmp_.state_sig & (1 << i)) {
-            for (int local = 0; local < mj_stateSize(Model(), (1 << i));
+            for (int local = 0; local < mj_stateSize(model_, (1 << i));
                  ++local, ++global) {
               if (global < clipper.DisplayStart) {
                 continue;
@@ -1662,7 +1745,7 @@ void App::StateGui() {
     }
 
     if (changed) {
-      mj_setState(Model(), Data(), tmp_.state.data(), tmp_.state_sig);
+      mj_setState(model_, data_, tmp_.state.data(), tmp_.state_sig);
     }
   }
 
@@ -1673,7 +1756,7 @@ void App::WatchGui() {
   ImGui::InputText("Field", ui_.watch_field, sizeof(ui_.watch_field));
   ImGui::InputInt("Index", &ui_.watch_index);
   const mjtNum* value = static_cast<const mjtNum*>(
-      toolbox::GetValue(Model(), Data(), ui_.watch_field, ui_.watch_index));
+      toolbox::GetValue(model_, data_, ui_.watch_field, ui_.watch_index));
 
   toolbox::ScopedStyle style;
   style.Color(ImGuiCol_FrameBg, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
@@ -1698,7 +1781,7 @@ void App::PhysicsGui() {
   const int num_cols = std::clamp(
       static_cast<int>(std::floor(available_width / min_width)), 1, 6);
 
-  auto& opt = Model()->opt;
+  auto& opt = model_->opt;
 
   const char* opts0[] = {"Euler", "RK4", "implicit", "implicitfast"};
   ImGui::Combo("Integrator", &opt.integrator, opts0, IM_ARRAYSIZE(opts0));
@@ -1789,8 +1872,8 @@ void App::PhysicsGui() {
 }
 
 void App::VisualizationGui() {
-  auto& vis = Model()->vis;
-  auto& stat = Model()->stat;
+  auto& vis = model_->vis;
+  auto& stat = model_->stat;
 
   ImGui::SliderInt("Tree depth", &vis_options_.bvh_depth, 0, 20);
   ImGui::SliderInt("Flex layer", &vis_options_.flex_layer, 0, 10);
@@ -1809,7 +1892,7 @@ void App::VisualizationGui() {
     ImGui_Input("Azimuth", &vis.global.azimuth, {.format = "%0.2f"});
     ImGui_Input("Elevation", &vis.global.elevation, {.format = "%0.2f"});
     if (ImGui::Button("Align")) {
-      mjv_defaultFreeCamera(Model(), &camera_);
+      mjv_defaultFreeCamera(model_, &camera_);
     }
     ImGui::TreePop();
   }
@@ -1976,25 +2059,25 @@ void App::GroupsGui() {
 
 void App::NoiseGui() {
   float noise_scale, noise_rate;
-  physics_->GetStepControl().GetNoiseParameters(noise_scale, noise_rate);
+  step_control_.GetNoiseParameters(noise_scale, noise_rate);
   ImGui::SliderFloat("Scale", &noise_scale, 0, 1);
   ImGui::SliderFloat("Rate", &noise_rate, 0, 4);
-  physics_->GetStepControl().SetNoiseParameters(noise_scale, noise_rate);
+  step_control_.SetNoiseParameters(noise_scale, noise_rate);
 }
 
 void App::JointsGui() {
   char name[100];
-  for (int i = 0; i < Model()->njnt; ++i) {
-    if (Model()->jnt_type[i] != mjJNT_HINGE &&
-        Model()->jnt_type[i] != mjJNT_SLIDE) {
+  for (int i = 0; i < model_->njnt; ++i) {
+    if (model_->jnt_type[i] != mjJNT_HINGE &&
+        model_->jnt_type[i] != mjJNT_SLIDE) {
       continue;
     }
-    const int group = std::clamp(Model()->jnt_group[i], 0, mjNGROUP - 1);
+    const int group = std::clamp(model_->jnt_group[i], 0, mjNGROUP - 1);
     if (!vis_options_.jointgroup[group]) {
       continue;
     }
 
-    const char* jnt_name = Model()->names + Model()->name_jntadr[i];
+    const char* jnt_name = model_->names + model_->name_jntadr[i];
     if (*jnt_name) {
       std::snprintf(name, sizeof(name), "%s", jnt_name);
     } else {
@@ -2003,10 +2086,10 @@ void App::JointsGui() {
 
     double min = -1.0;
     double max = 1.0;
-    if (Model()->jnt_limited[i]) {
-      min = Model()->jnt_range[2 * i + 0];
-      max = Model()->jnt_range[2 * i + 1];
-    } else if (Model()->jnt_type[i] == mjJNT_SLIDE) {
+    if (model_->jnt_limited[i]) {
+      min = model_->jnt_range[2 * i + 0];
+      max = model_->jnt_range[2 * i + 1];
+    } else if (model_->jnt_type[i] == mjJNT_SLIDE) {
       min = -1.0;
       max = 1.0;
     } else {
@@ -2014,28 +2097,28 @@ void App::JointsGui() {
       max = 3.1416;
     }
 
-    const int data_adr = Model()->jnt_qposadr[i];
-    ImGui_Slider(name, &Data()->qpos[data_adr], min, max);
+    const int data_adr = model_->jnt_qposadr[i];
+    ImGui_Slider(name, &data_->qpos[data_adr], min, max);
   }
 }
 
 void App::ControlsGui() {
   if (ImGui::Button("Clear All")) {
-    mju_zero(Data()->ctrl, Model()->nu);
+    mju_zero(data_->ctrl, model_->nu);
   }
 
   char name[100];
-  for (int i = 0; i < Model()->nu; i++) {
-    int group = std::clamp(Model()->actuator_group[i], 0, mjNGROUP - 1);
+  for (int i = 0; i < model_->nu; i++) {
+    int group = std::clamp(model_->actuator_group[i], 0, mjNGROUP - 1);
     if (!vis_options_.actuatorgroup[group]) {
       continue;
     }
     if (group >= 0 && group <= 30 &&
-        Model()->opt.disableactuator & (1 << group)) {
+        model_->opt.disableactuator & (1 << group)) {
       continue;
     }
 
-    const char* ctrl_name = Model()->names + Model()->name_actuatoradr[i];
+    const char* ctrl_name = model_->names + model_->name_actuatoradr[i];
     if (*ctrl_name) {
       std::snprintf(name, sizeof(name), "%s", ctrl_name);
     } else {
@@ -2044,11 +2127,11 @@ void App::ControlsGui() {
 
     double min = -1.0;
     double max = 1.0;
-    if (!Model()->actuator_ctrllimited[i]) {
-      min = Model()->actuator_ctrlrange[2 * i + 0];
-      max = Model()->actuator_ctrlrange[2 * i + 1];
+    if (!model_->actuator_ctrllimited[i]) {
+      min = model_->actuator_ctrlrange[2 * i + 0];
+      max = model_->actuator_ctrlrange[2 * i + 1];
     }
-    ImGui_Slider(name, &Data()->ctrl[i], min, max);
+    ImGui_Slider(name, &data_->ctrl[i], min, max);
   }
 }
 
@@ -2074,16 +2157,15 @@ float App::GetExpectedLabelWidth() {
 }
 
 std::vector<const char*> App::GetCameraNames() {
-  const mjModel* model = Model();
   if (tmp_.camera_names.empty()) {
-    tmp_.camera_names.reserve(model->ncam + 3);
+    tmp_.camera_names.reserve(model_->ncam + 3);
 
     tmp_.camera_names.push_back("Tumble");
     tmp_.camera_names.push_back("Free");
     tmp_.camera_names.push_back("Tracking (-1)");
-    for (int i = 0; i < model->ncam; i++) {
-      if (model->names[model->name_camadr[i]]) {
-        tmp_.camera_names.push_back(model->names + model->name_camadr[i]);
+    for (int i = 0; i < model_->ncam; i++) {
+      if (model_->names[model_->name_camadr[i]]) {
+        tmp_.camera_names.push_back(model_->names + model_->name_camadr[i]);
       } else {
         tmp_.camera_names.push_back("Unnamed");
       }

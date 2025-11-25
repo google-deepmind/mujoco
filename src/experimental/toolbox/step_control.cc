@@ -16,9 +16,21 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <ratio>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::toolbox {
+
+static mjtNum Timer() {
+  using Clock = std::chrono::steady_clock;
+  using Milliseconds = std::chrono::duration<double, std::milli>;
+  static Clock::time_point start = Clock::now();
+  return Milliseconds(Clock::now() - start).count();
+}
+
+StepControl::StepControl() {
+  mjcb_time = Timer;
+}
 
 float StepControl::GetSpeedMeasured() const {
   return speed_measured_;

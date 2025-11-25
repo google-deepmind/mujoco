@@ -18,6 +18,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <ratio>
 #include <string>
 #include <string_view>
@@ -28,9 +29,10 @@
 #include <mujoco/mujoco.h>
 #include "experimental/toolbox/helpers.h"
 #include "experimental/toolbox/interaction.h"
-#include "experimental/toolbox/physics.h"
 #include "experimental/toolbox/renderer.h"
+#include "experimental/toolbox/sim_history.h"
 #include "experimental/toolbox/sim_profiler.h"
+#include "experimental/toolbox/step_control.h"
 #include "experimental/toolbox/window.h"
 
 namespace mujoco::studio {
@@ -130,9 +132,15 @@ class App {
   };
 
   void OnModelLoaded(std::string_view model_file);
+  void ProcessPendingLoad();
+
+  void ResetPhysics();
+  void UpdatePhysics();
 
   void LoadSettings();
   void SaveSettings();
+
+  void LoadHistory(int offset);
 
   void SetSpeedIndex(int idx);
 
@@ -163,21 +171,23 @@ class App {
   void JointsGui();
   void ControlsGui();
 
-  mjModel* Model() { return physics_->GetModel(); };
-  mjData* Data() { return physics_->GetData(); };
-
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
 
+  std::string error_;
   std::string ini_path_;
   std::string model_file_;
+  std::optional<std::string> pending_load_;
 
   std::unique_ptr<toolbox::Window> window_;
   std::unique_ptr<toolbox::Renderer> renderer_;
-  std::unique_ptr<toolbox::Physics> physics_;
   toolbox::LoadAssetFn load_asset_fn_;
-
+  toolbox::StepControl step_control_;
   toolbox::SimProfiler profiler_;
+  toolbox::SimHistory history_;
+
+  mjModel* model_ = nullptr;
+  mjData* data_ = nullptr;
 
   mjvCamera camera_;
   mjvPerturb perturb_;
