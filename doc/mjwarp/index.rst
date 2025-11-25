@@ -277,6 +277,15 @@ contacts per sensor :attr:`Option.contact_sensor_max_match <mujoco_warp.Option.c
 performance, the value of this parameter should be as small as possible while ensuring the simulation does not exceed
 the limit. Matched contacts that exceed this limit will be ignored.
 
+The value of this parameter can be set directly, for example ``model.opt.contact_sensor_maxmatch = 16``, or via an XML
+custom numeric field
+
+.. code-block:: xml
+
+   <custom>
+     <numeric name="contact_sensor_maxmatch" data="16"/>
+   </custom>
+
 Similar to the maximum numbers of contacts and constraints, a good value for this setting is expected to be environment
 specific. :func:`mjwarp-testspeed <mujoco_warp.testspeed>` and :func:`mjwarp-viewer <mujoco_warp.viewer>` may be useful
 for tuning the value of this parameter.
