@@ -344,7 +344,23 @@ int mjc_SphereCylinder(const mjModel* m, const mjData* d,
   // side collision: use sphere-sphere
   if (collide_side) {
     mju_addTo3(a_proj, pos2);
-    return mjraw_SphereSphere(con, margin, pos1, mat1, size1, a_proj, mat2, size2);
+    int ncon = mjraw_SphereSphere(con, margin, pos1, mat1, size1, a_proj, mat2, size2);
+    if (ncon) {
+      // align contact frame: 
+      //    z-axis = contact normal
+      //    y-axis = normal X cylinder axis
+      //    x-axis = y-axis X normal
+      // contact frame defined by z-axis and x-axis
+      mjtNum x_axis[3];
+      mjtNum y_axis[3];
+      mjtNum normal[3] = {con->frame[0], con->frame[1], con->frame[2]};
+      mju_cross(y_axis, normal, axis);  // y-axis = normal X cylinder z-axis
+      mju_normalize3(y_axis);
+      mju_cross(x_axis, y_axis, normal); // x-axis = y-axis X normal
+      mju_normalize3(x_axis);
+      mju_copy(con->frame + 3, x_axis, 3);  // copy x-axis into contact frame
+    }
+    return ncon;
   }
 
   // cap collision: use plane-sphere
