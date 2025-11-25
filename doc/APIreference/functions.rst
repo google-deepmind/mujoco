@@ -291,6 +291,15 @@ is not a subset of the bits set in ``srcsig``.
 Copy concatenated state components specified by ``sig`` from  ``state`` into ``d``. The bits of the integer
 ``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
 
+.. _mj_copyState:
+
+`mj_copyState <#mj_copyState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_copyState
+
+Copy state from src to dst.
+
 .. _mj_setKeyframe:
 
 `mj_setKeyframe <#mj_setKeyframe>`__

@@ -3181,6 +3181,7 @@ void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int 
 void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
                      mjtNum* dst, unsigned int dstsig);
 void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
+void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, unsigned int sig);
 void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 int mj_addContact(const mjModel* m, mjData* d, const mjContact* con);
 int mj_isPyramidal(const mjModel* m);

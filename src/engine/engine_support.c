@@ -265,6 +265,36 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int 
 }
 
 
+// copy state from src to dst
+void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, unsigned int sig) {
+  if (sig >= (1<<mjNSTATE)) {
+    mjERROR("invalid state signature %u >= 2^mjNSTATE", sig);
+  }
+
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & sig) {
+      int size = mj_stateElemSize(m, element);
+
+      // special handling of eq_active (mjtByte)
+      if (element == mjSTATE_EQ_ACTIVE) {
+        int neq = m->neq;
+        for (int j=0; j < neq; j++) {
+          dst->eq_active[j] = src->eq_active[j];
+        }
+      }
+
+      // regular state components (mjtNum)
+      else {
+        mjtNum* dst_ptr = mj_stateElemPtr(m, dst, element);
+        const mjtNum* src_ptr = mj_stateElemConstPtr(m, src, element);
+        mju_copy(dst_ptr, src_ptr, size);
+      }
+    }
+  }
+}
+
+
 // copy current state to the k-th model keyframe
 void mj_setKeyframe(mjModel* m, const mjData* d, int k) {
   // check keyframe index

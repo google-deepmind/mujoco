@@ -20,6 +20,7 @@ General
 - Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
 - Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
   :ref:`mj_getState` to be extracted without having to be written back into ``mjData`` first.
+- Added a new :ref:`mj_copyState` function that copies state components from one ``mjData`` to another.
 - Tendon paths can now be queried from Python via ``MjsTendon.path``, the returned object
   is iterable and indexing it will give the ``MjsWrap`` at the given index in the path.
 - ``MjsWrap`` now exposes:

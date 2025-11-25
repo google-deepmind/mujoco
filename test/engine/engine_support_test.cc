@@ -37,6 +37,7 @@ using ::testing::ContainsRegex;  // NOLINT
 using ::testing::DoubleNear;
 using ::testing::Eq;
 using ::testing::MatchesRegex;
+using ::testing::Ne;
 using ::testing::NotNull;
 using ::testing::Pointwise;
 
@@ -742,6 +743,51 @@ TEST_F(SupportTest, GetSetStateStepEqual) {
 
   mj_deleteData(data);
   mj_deleteModel(model);
+}
+
+TEST_F(SupportTest, CopyState) {
+  const std::string xml_path = GetTestDataFilePath(kDefaultModel);
+  mjModel* m = mj_loadXML(xml_path.c_str(), nullptr, nullptr, 0);
+
+  mjData* src = mj_makeData(m);
+  mjData* dst = mj_makeData(m);
+
+  // init both datas to default
+  mj_resetData(m, src);
+  mj_resetData(m, dst);
+
+  // modify d_src
+  src->time = 1.23;
+  for (int i=0; i < m->nq; ++i) src->qpos[i] = i*0.1;
+  for (int i=0; i < m->nv; ++i) src->qvel[i] = i*0.2;
+  for (int i=0; i < m->na; ++i) src->act[i] = i*0.3;
+  for (int i=0; i < m->nu; ++i) src->ctrl[i] = i*0.4;
+
+  for (int i=0; i < m->neq; ++i) src->eq_active[i] = 1 - m->eq_active0[i];
+
+  // check that states differ
+  EXPECT_NE(src->time, dst->time);
+  EXPECT_THAT(AsVector(src->qpos, m->nq), Ne(AsVector(dst->qpos, m->nq)));
+  EXPECT_THAT(AsVector(src->ctrl, m->nu), Ne(AsVector(dst->ctrl, m->nu)));
+
+  // copy state with signature
+  int signature = mjSTATE_FULLPHYSICS | mjSTATE_EQ_ACTIVE;
+  mj_copyState(m, src, dst, signature);
+
+  // check copied components
+  EXPECT_EQ(dst->time, src->time);
+  EXPECT_EQ(AsVector(dst->qpos, m->nq), AsVector(src->qpos, m->nq));
+  EXPECT_EQ(AsVector(dst->qvel, m->nv), AsVector(src->qvel, m->nv));
+  EXPECT_EQ(AsVector(dst->act, m->na), AsVector(src->act, m->na));
+  EXPECT_EQ(AsVector(dst->eq_active, m->neq), AsVector(src->eq_active, m->neq));
+
+  // check non-copied components (CTRL not in signature)
+  EXPECT_THAT(AsVector(dst->ctrl, m->nu), Ne(AsVector(src->ctrl, m->nu)));
+  EXPECT_EQ(AsVector(dst->ctrl, m->nu), vector<mjtNum>(m->nu, 0.0));
+
+  mj_deleteData(src);
+  mj_deleteData(dst);
+  mj_deleteModel(m);
 }
 
 TEST_F(SupportTest, ExtractState) {

@@ -350,6 +350,7 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
         return InterceptMjErrors(::mj_setState)(m, d, state.data(), sig);
       });
+  Def<traits::mj_copyState>(pymodule);
   Def<traits::mj_setKeyframe>(pymodule);
   Def<traits::mj_addContact>(pymodule);
   Def<traits::mj_isPyramidal>(pymodule);

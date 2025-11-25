@@ -10404,6 +10404,10 @@ void mj_setState_wrapper(const MjModel& m, MjData& d, const NumberArray& state, 
   mj_setState(m.get(), d.get(), state_.data(), sig);
 }
 
+void mj_copyState_wrapper(const MjModel& m, const MjData& src, MjData& dst, unsigned int sig) {
+  mj_copyState(m.get(), src.get(), dst.get(), sig);
+}
+
 void mj_setKeyframe_wrapper(MjModel& m, const MjData& d, int k) {
   mj_setKeyframe(m.get(), d.get(), k);
 }
@@ -12451,6 +12455,7 @@ EMSCRIPTEN_BINDINGS(mujoco_functions) {
   function("mj_getState", &mj_getState_wrapper);
   function("mj_extractState", &mj_extractState_wrapper);
   function("mj_setState", &mj_setState_wrapper);
+  function("mj_copyState", &mj_copyState_wrapper);
   function("mj_setKeyframe", &mj_setKeyframe_wrapper);
   function("mj_addContact", &mj_addContact_wrapper);
   function("mj_isPyramidal", &mj_isPyramidal_wrapper);
