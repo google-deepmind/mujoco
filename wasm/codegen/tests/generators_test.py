@@ -801,17 +801,14 @@ class EnumsGeneratorTest(absltest.TestCase):
   def test_generate_enum_bindings(self):
 
     expected_code = """
-EMSCRIPTEN_BINDINGS(mujoco_enums) {
-  enum_<AnotherEnum>("AnotherEnum")
-    .value("ALPHA", ALPHA)
-    .value("BETA", BETA);
-
-  enum_<TestEnum>("TestEnum")
-    .value("FIRST_VAL", FIRST_VAL)
-    .value("SECOND_VAL", SECOND_VAL)
-    .value("THIRD_VAL", THIRD_VAL);
-
-}""".strip()
+enum_<AnotherEnum>("AnotherEnum")
+  .value("ALPHA", ALPHA)
+  .value("BETA", BETA);
+enum_<TestEnum>("TestEnum")
+  .value("FIRST_VAL", FIRST_VAL)
+  .value("SECOND_VAL", SECOND_VAL)
+  .value("THIRD_VAL", THIRD_VAL);
+""".strip()
 
     markers_and_content = enums.generate([
         ast_nodes.EnumDecl(

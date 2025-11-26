@@ -108,49 +108,6 @@ val get_mjFRAMESTRING() { return MakeValArray(mjFRAMESTRING); }
 val get_mjVISSTRING() { return MakeValArray3(mjVISSTRING); }
 val get_mjRNDSTRING() { return MakeValArray3(mjRNDSTRING); }
 
-EMSCRIPTEN_BINDINGS(mujoco_constants) {
-  // from mjmodel.h
-  emscripten::constant("mjPI", mjPI);
-  emscripten::constant("mjMAXVAL", mjMAXVAL);
-  emscripten::constant("mjMINMU", mjMINMU);
-  emscripten::constant("mjMINIMP", mjMINIMP);
-  emscripten::constant("mjMAXIMP", mjMAXIMP);
-  emscripten::constant("mjMAXCONPAIR", mjMAXCONPAIR);
-  emscripten::constant("mjNEQDATA", mjNEQDATA);
-  emscripten::constant("mjNDYN", mjNDYN);
-  emscripten::constant("mjNGAIN", mjNGAIN);
-  emscripten::constant("mjNBIAS", mjNBIAS);
-  emscripten::constant("mjNREF", mjNREF);
-  emscripten::constant("mjNIMP", mjNIMP);
-  emscripten::constant("mjNSOLVER", mjNSOLVER);
-
-  // from mjvisualize.h
-  emscripten::constant("mjNGROUP", mjNGROUP);
-  emscripten::constant("mjMAXLIGHT", mjMAXLIGHT);
-  emscripten::constant("mjMAXOVERLAY", mjMAXOVERLAY);
-  emscripten::constant("mjMAXLINE", mjMAXLINE);
-  emscripten::constant("mjMAXLINEPNT", mjMAXLINEPNT);
-  emscripten::constant("mjMAXPLANEGRID", mjMAXPLANEGRID);
-
-  // from mujoco.h
-  emscripten::constant("mjVERSION_HEADER", mjVERSION_HEADER);
-
-  // from mjtnum.h
-  emscripten::constant("mjMINVAL", mjMINVAL);
-
-  // emscripten::constant() is designed for simple, compile-time literal values
-  // (like numbers or a single string literal), complex values need to be
-  // bound as functions.
-  emscripten::function("get_mjDISABLESTRING", &get_mjDISABLESTRING);
-  emscripten::function("get_mjENABLESTRING", &get_mjENABLESTRING);
-  emscripten::function("get_mjTIMERSTRING", &get_mjTIMERSTRING);
-  emscripten::function("get_mjLABELSTRING", &get_mjLABELSTRING);
-  emscripten::function("get_mjFRAMESTRING", &get_mjFRAMESTRING);
-  emscripten::function("get_mjVISSTRING", &get_mjVISSTRING);
-  emscripten::function("get_mjRNDSTRING", &get_mjRNDSTRING);
-}
-
-// {{ ENUM_BINDINGS }}
 
 // {{ ANONYMOUS_STRUCT_TYPEDEFS }}
 
@@ -254,48 +211,54 @@ struct MjvScene {
   std::vector<MjvGLCamera> camera;
 };
 
-// =============== MjModel =============== //
-MjModel::MjModel(mjModel *ptr)
+MjModel::MjModel(mjModel* ptr)
     : ptr_(ptr), opt(&ptr->opt), vis(&ptr->vis), stat(&ptr->stat) {}
-MjModel::MjModel(const MjModel &other)
+
+MjModel::MjModel(const MjModel& other)
     : ptr_(mj_copyModel(nullptr, other.get())),
       opt(&ptr_->opt),
       vis(&ptr_->vis),
       stat(&ptr_->stat) {}
+
 MjModel::~MjModel() {
   if (ptr_) {
     mj_deleteModel(ptr_);
   }
 }
-mjModel* MjModel::get() const { return ptr_; }
-void MjModel::set(mjModel *ptr) { ptr_ = ptr; }
 
-// TODO(manevi): Consider passing `const MjModel& m` here, mj_makeData uses a const model.
-// =============== MjData =============== //
-MjData::MjData(MjModel *m) {
+mjModel* MjModel::get() const { return ptr_; }
+
+void MjModel::set(mjModel* ptr) { ptr_ = ptr; }
+
+MjData::MjData(MjModel* m) {
   model = m->get();
   ptr_ = mj_makeData(model);
   if (ptr_) {
-    solver = InitWrapperArray<MjSolverStat>(get()->solver, mjNSOLVER * mjNISLAND);
+    solver =
+        InitWrapperArray<MjSolverStat>(get()->solver, mjNSOLVER * mjNISLAND);
     timer = InitWrapperArray<MjTimerStat>(get()->timer, mjNTIMER);
     warning = InitWrapperArray<MjWarningStat>(get()->warning, mjNWARNING);
   }
 }
-MjData::MjData(const MjModel &model, const MjData &other)
+
+MjData::MjData(const MjModel& model, const MjData& other)
     : ptr_(mj_copyData(nullptr, model.get(), other.get())), model(model.get()) {
   if (ptr_) {
-    solver = InitWrapperArray<MjSolverStat>(get()->solver, mjNSOLVER * mjNISLAND);
+    solver =
+        InitWrapperArray<MjSolverStat>(get()->solver, mjNSOLVER * mjNISLAND);
     timer = InitWrapperArray<MjTimerStat>(get()->timer, mjNTIMER);
     warning = InitWrapperArray<MjWarningStat>(get()->warning, mjNWARNING);
   }
 }
+
 MjData::~MjData() {
   if (ptr_) {
     mj_deleteData(ptr_);
   }
 }
 mjData* MjData::get() const { return ptr_; }
-void MjData::set(mjData *ptr) { ptr_ = ptr; }
+
+void MjData::set(mjData* ptr) { ptr_ = ptr; }
 
 std::vector<MjContact> MjData::contact() const {
   return InitWrapperArray<MjContact>(get()->contact, get()->ncon);
@@ -310,7 +273,7 @@ MjvScene::MjvScene() {
   camera = InitWrapperArray<MjvGLCamera>(ptr_->camera, 2);
 };
 
-MjvScene::MjvScene(MjModel *m, int maxgeom) {
+MjvScene::MjvScene(MjModel* m, int maxgeom) {
   owned_ = true;
   model = m->get();
   ptr_ = new mjvScene;
@@ -319,6 +282,7 @@ MjvScene::MjvScene(MjModel *m, int maxgeom) {
   lights = InitWrapperArray<MjvLight>(ptr_->lights, mjMAXLIGHT);
   camera = InitWrapperArray<MjvGLCamera>(ptr_->camera, 2);
 };
+
 MjvScene::~MjvScene() {
   if (owned_ && ptr_) {
     mjv_freeScene(ptr_);
@@ -327,7 +291,7 @@ MjvScene::~MjvScene() {
 }
 
 mjvScene* MjvScene::get() const { return ptr_; }
-void MjvScene::set(mjvScene *ptr) { ptr_ = ptr; }
+void MjvScene::set(mjvScene* ptr) { ptr_ = ptr; }
 
 // Taken from the python mujoco bindings code for MjvScene Wrapper
 int MjvScene::GetSumFlexFaces() const {
@@ -422,7 +386,6 @@ MjSpec::~MjSpec() {
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
-// ======= FACTORY AND HELPER FUNCTIONS ========= //
 std::unique_ptr<MjModel> loadFromXML_wrapper(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
@@ -464,10 +427,46 @@ int mj_setLengthRange_wrapper(const MjModel& m, const MjData& d, int index, cons
   return result;
 }
 
-EMSCRIPTEN_BINDINGS(mujoco_structs) {
+// {{ WRAPPER_FUNCTIONS }}
+
+EMSCRIPTEN_BINDINGS(mujoco_bindings) {
+  // {{ ENUM_BINDINGS }}
+
   // {{ STRUCTS_BINDINGS }}
 
-  // TODO: should be generated in future CLs -- //
+  // {{ FUNCTION_BINDINGS }}
+
+  function("parseXMLString", &parseXMLString_wrapper, take_ownership());
+  function("error", &error_wrapper);
+
+  emscripten::class_<WasmBuffer<float>>("FloatBuffer")
+      .constructor<int>()
+      .class_function("FromArray", &WasmBuffer<float>::FromArray)
+      .function("GetPointer", &WasmBuffer<float>::GetPointer)
+      .function("GetElementCount", &WasmBuffer<float>::GetElementCount)
+      .function("GetView", &WasmBuffer<float>::GetView);
+
+  emscripten::class_<WasmBuffer<double>>("DoubleBuffer")
+      .constructor<int>()
+      .class_function("FromArray", &WasmBuffer<double>::FromArray)
+      .function("GetPointer", &WasmBuffer<double>::GetPointer)
+      .function("GetElementCount", &WasmBuffer<double>::GetElementCount)
+      .function("GetView", &WasmBuffer<double>::GetView);
+
+  emscripten::class_<WasmBuffer<int>>("IntBuffer")
+      .constructor<int>()
+      .class_function("FromArray", &WasmBuffer<int>::FromArray)
+      .function("GetPointer", &WasmBuffer<int>::GetPointer)
+      .function("GetElementCount", &WasmBuffer<int>::GetElementCount)
+      .function("GetView", &WasmBuffer<int>::GetView);
+
+  emscripten::register_vector<std::string>("mjStringVec");
+  emscripten::register_vector<int>("mjIntVec");
+  emscripten::register_vector<mjIntVec>("mjIntVecVec");
+  emscripten::register_vector<float>("mjFloatVec");
+  emscripten::register_vector<mjFloatVec>("mjFloatVecVec");
+  emscripten::register_vector<double>("mjDoubleVec");
+  emscripten::register_vector<uint8_t>("mjByteVec");
   emscripten::register_vector<MjSolverStat>("MjSolverStatVec");
   emscripten::register_vector<MjTimerStat>("MjTimerStatVec");
   emscripten::register_vector<MjWarningStat>("MjWarningStatVec");
@@ -475,42 +474,41 @@ EMSCRIPTEN_BINDINGS(mujoco_structs) {
   emscripten::register_vector<MjvLight>("MjvLightVec");
   emscripten::register_vector<MjvGLCamera>("MjvGLCameraVec");
   emscripten::register_vector<MjvGeom>("MjvGeomVec");
-}
 
-// {{ WRAPPER_FUNCTIONS }}
-
-EMSCRIPTEN_BINDINGS(mujoco_functions) {
-  function("parseXMLString", &parseXMLString_wrapper, take_ownership());
-  function("error", &error_wrapper);
-  // {{ FUNCTION_BINDINGS }}
-  emscripten::class_<WasmBuffer<float>>("FloatBuffer")
-      .constructor<int>()
-      .class_function("FromArray", &WasmBuffer<float>::FromArray)
-      .function("GetPointer", &WasmBuffer<float>::GetPointer)
-      .function("GetElementCount", &WasmBuffer<float>::GetElementCount)
-      .function("GetView", &WasmBuffer<float>::GetView);
-  emscripten::class_<WasmBuffer<double>>("DoubleBuffer")
-      .constructor<int>()
-      .class_function("FromArray", &WasmBuffer<double>::FromArray)
-      .function("GetPointer", &WasmBuffer<double>::GetPointer)
-      .function("GetElementCount", &WasmBuffer<double>::GetElementCount)
-      .function("GetView", &WasmBuffer<double>::GetView);
-  emscripten::class_<WasmBuffer<int>>("IntBuffer")
-      .constructor<int>()
-      .class_function("FromArray", &WasmBuffer<int>::FromArray)
-      .function("GetPointer", &WasmBuffer<int>::GetPointer)
-      .function("GetElementCount", &WasmBuffer<int>::GetElementCount)
-      .function("GetView", &WasmBuffer<int>::GetView);
-  // register_type gives better type information (val is mapped to any by default)
-  emscripten::register_vector<std::string>("mjStringVec");
-  emscripten::register_vector<int>("mjIntVec");
-  emscripten::register_vector<mjIntVec>("mjIntVecVec");
-  emscripten::register_vector<float>("mjFloatVec");
-  emscripten::register_vector<mjFloatVec>("mjFloatVecVec");
-  emscripten::register_vector<double>("mjDoubleVec");
+  // register_type() improves type information (val is mapped to any by default)
   emscripten::register_type<NumberArray>("number[]");
   emscripten::register_type<String>("string");
-  emscripten::register_vector<uint8_t>("mjByteVec");
+
+  emscripten::constant("mjMAXCONPAIR", mjMAXCONPAIR);
+  emscripten::constant("mjMAXIMP", mjMAXIMP);
+  emscripten::constant("mjMAXLIGHT", mjMAXLIGHT);
+  emscripten::constant("mjMAXLINE", mjMAXLINE);
+  emscripten::constant("mjMAXLINEPNT", mjMAXLINEPNT);
+  emscripten::constant("mjMAXOVERLAY", mjMAXOVERLAY);
+  emscripten::constant("mjMAXPLANEGRID", mjMAXPLANEGRID);
+  emscripten::constant("mjMAXVAL", mjMAXVAL);
+  emscripten::constant("mjMINIMP", mjMINIMP);
+  emscripten::constant("mjMINMU", mjMINMU);
+  emscripten::constant("mjMINVAL", mjMINVAL);
+  emscripten::constant("mjNBIAS", mjNBIAS);
+  emscripten::constant("mjNDYN", mjNDYN);
+  emscripten::constant("mjNEQDATA", mjNEQDATA);
+  emscripten::constant("mjNGAIN", mjNGAIN);
+  emscripten::constant("mjNGROUP", mjNGROUP);
+  emscripten::constant("mjNIMP", mjNIMP);
+  emscripten::constant("mjNREF", mjNREF);
+  emscripten::constant("mjNSOLVER", mjNSOLVER);
+  emscripten::constant("mjPI", mjPI);
+  emscripten::constant("mjVERSION_HEADER", mjVERSION_HEADER);
+
+  // These complex constants are bound using function() rather than constant()
+  emscripten::function("get_mjDISABLESTRING", &get_mjDISABLESTRING);
+  emscripten::function("get_mjENABLESTRING", &get_mjENABLESTRING);
+  emscripten::function("get_mjFRAMESTRING", &get_mjFRAMESTRING);
+  emscripten::function("get_mjLABELSTRING", &get_mjLABELSTRING);
+  emscripten::function("get_mjRNDSTRING", &get_mjRNDSTRING);
+  emscripten::function("get_mjTIMERSTRING", &get_mjTIMERSTRING);
+  emscripten::function("get_mjVISSTRING", &get_mjVISSTRING);
 }
 
 }  // namespace mujoco::wasm

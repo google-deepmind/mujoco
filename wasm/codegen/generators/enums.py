@@ -27,15 +27,13 @@ def generate(
   """Generates all Embind code for the provided enums."""
 
   builder = code_builder.CodeBuilder()
-  with builder.block('EMSCRIPTEN_BINDINGS(mujoco_enums)'):
-    for e in sorted(enums, key=lambda e: e.name):
-      if e.values:  # Skip empty enums.
-        with builder.block(f'enum_<{e.name}>("{e.name}")', braces=False):
-          names = list(e.values.keys())
-          for name in names[:-1]:
-            builder.line(f'.value("{name}", {name})')
-          builder.line(f'.value("{names[-1]}", {names[-1]});')
-        builder.newline()
+  for e in sorted(enums, key=lambda e: e.name):
+    if e.values:  # Skip empty enums.
+      with builder.block(f'enum_<{e.name}>("{e.name}")', braces=False):
+        names = list(e.values.keys())
+        for name in names[:-1]:
+          builder.line(f'.value("{name}", {name})')
+        builder.line(f'.value("{names[-1]}", {names[-1]});')
 
   content = builder.to_string()
   marker = '// {{ ENUM_BINDINGS }}'
