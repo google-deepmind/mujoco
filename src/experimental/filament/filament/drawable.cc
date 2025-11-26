@@ -428,7 +428,7 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
       params.uv_scale.x = params.tex_repeat.x;
       params.uv_scale.y = params.tex_repeat.y;
 
-      if (geom.dataid >= 0) {
+      if (geom.dataid >= 0 && geom.type != mjGEOM_PLANE) {
         if (geom.size[0] > mjMINVAL) {
           params.uv_scale.x /= geom.size[0];
         }
@@ -453,8 +453,8 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
         }
       }
 
-      params.uv_scale.x = 2 * params.uv_scale.x;
-      params.uv_scale.y = 2 * params.uv_scale.y;
+      params.uv_scale.x = 0.5f * params.uv_scale.x;
+      params.uv_scale.y = 0.5f * params.uv_scale.y;
     } else {
       // For cube maps, if `tex_uniform` is true, then scale the texture so that
       // it covers a 1x1 area of world space rather than the area of the object.
