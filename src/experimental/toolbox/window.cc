@@ -36,10 +36,12 @@
 
 namespace mujoco::toolbox {
 
-static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn) {
+static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn,
+                      bool build_fonts) {
   ImGui::CreateContext();
 
   ImGuiIO& io = ImGui::GetIO();
+  io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   io.IniFilename = nullptr;
   ImGui::StyleColorsDark();
@@ -47,25 +49,24 @@ static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn) {
 
 #ifndef __EMSCRIPTEN__
   // TODO: Get font loading working for wasm.
+  // Note: fonts are stored statically because they aren't actually loaded
+  // until the fonts are built.
   ImFontConfig main_cfg;
-  main_cfg.OversampleH = 8;
-  main_cfg.OversampleV = 4;
-  main_cfg.GlyphExtraAdvanceX = 0.3f;
-  auto main_font = load_asset_fn("OpenSans-Regular.ttf");
+  static auto main_font = load_asset_fn("OpenSans-Regular.ttf");
   io.Fonts->AddFontFromMemoryTTF(main_font.data(), main_font.size(), 20.f,
                                  &main_cfg);
 
   ImFontConfig icon_cfg;
-  icon_cfg.OversampleH = 3;
-  icon_cfg.OversampleV = 3;
   icon_cfg.MergeMode = true;
-  icon_cfg.GlyphMinAdvanceX = 14.0f;
-  auto icon_font = load_asset_fn("fontawesome-webfont.ttf");
+  static auto icon_font = load_asset_fn("fontawesome-webfont.ttf");
   constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
   io.Fonts->AddFontFromMemoryTTF(icon_font.data(), icon_font.size(), 14.f,
                                 &icon_cfg, icon_ranges);
 #endif
-  io.Fonts->Build();
+
+  if (build_fonts) {
+    io.Fonts->Build();
+  }
 }
 
 Window::Window(std::string_view title, int width, int height, Config config,
@@ -109,7 +110,7 @@ Window::Window(std::string_view title, int width, int height, Config config,
     mju_error("Error creating window: %s", SDL_GetError());
   }
 
-  InitImGui(sdl_window_, load_asset_fn);
+  InitImGui(sdl_window_, load_asset_fn, (render_config != kClassicOpenGL));
 
   if (render_config == kFilamentWebGL || render_config == kClassicOpenGL) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
