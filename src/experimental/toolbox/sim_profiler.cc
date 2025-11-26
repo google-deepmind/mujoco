@@ -20,10 +20,6 @@
 
 namespace mujoco::toolbox {
 
-// TO DO:
-// - convergence profiler
-// - solver iteration profiler
-
 SimProfiler::SimProfiler() {
   Clear();
 }
