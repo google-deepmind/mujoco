@@ -5,6 +5,21 @@ application. The UI has been reimplemented using [Dear ImGui](https://github.com
 and the default renderer has been switched to Filament. The application is
 still WIP, see the [Future Work](#future-work) section for details.
 
+> [!CAUTION]
+> Studio is a work in progress, the current state of platform support summarized
+> in this table:
+>
+> | Renderer       | Linux X11 | Linux Wayland | MacOS | Windows |
+> | :------------- | :-------: | :-----------: | :---: | :-----: |
+> | Filament       |    ✅     |      ❌       |  ❌   |   ❌    |
+> | Classic OpenGL |    ✅     |      ❌       |  ❌   |   ✅    |
+>
+> Note that Studio currently [compiles](../../../.github/workflows/build.yml)
+> on all platforms but the crosses indicated crashes at runtime. We are actively
+> working to support all the above platforms very soon, if you beat us too it
+> contributions are very welcome! Note that your fixes may need to be applied in
+> the upstream [Filament](https://github.com/google/filament) repository.
+
 ## Usage
 
 Configure and build MuJoCo Studio by running this command from the top-level
@@ -14,8 +29,8 @@ directory. Then follow the printed instructions to run the executable.
 bash build.sh
 ```
 
-> [!NOTE] For now [`build.sh`](build.sh) script works on windows in a git bash
-> shell.
+> [!NOTE]
+> For now [`build.sh`](build.sh) script works on windows in a git bash shell.
 
 ## Development
 
@@ -43,12 +58,6 @@ the `-DMUJOCO_USE_FILAMENT_VULKAN=ON` option.
 
 Also note that you will need to run the application from the folder containing
 the executable so that the expected materials/assets can be found.
-
-> [!WARNING] Filament rendering currently supported on Linux. We are actively
-> working on bugs and build issues we've encountered on MacOS and Windows.
-> Contributions improving support on those platforms are very welcome, your
-> fixes may need to be applied in the upstream [Filament](https://github.com/google/filament)
-> GitHub repository.
 
 ## Known Bugs
 
