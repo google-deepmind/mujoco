@@ -60,6 +60,7 @@ class ObjectManager {
     kLine,
     kLineBox,
     kPlane,
+    kTriangle,
     kBox,
     kSphere,
     kCone,

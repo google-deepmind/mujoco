@@ -77,6 +77,7 @@ ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine,
   shapes_[kTube] = CreateTube(engine_, model_);
   shapes_[kPlane] = CreatePlane(engine_, model_);
   shapes_[kSphere] = CreateSphere(engine_, model_);
+  shapes_[kTriangle] = CreateTriangle(engine_, model_);
 
   auto LoadMaterial = [this](const char* filename) {
     Asset asset(filename, config_);

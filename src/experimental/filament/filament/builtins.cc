@@ -145,6 +145,42 @@ class PlaneBuilder {
   float4 orientation_;
 };
 
+class TriangleBuilder {
+ public:
+  using VertexType = VertexNoUv;
+  using IndexType = uint16_t;
+  static constexpr filament::RenderableManager::PrimitiveType kPrimitiveType =
+      filament::RenderableManager::PrimitiveType::TRIANGLES;
+
+  TriangleBuilder()
+      : orientation_(CalculateOrientation({0, 0, 1})) {}
+
+  std::size_t NumVertices() const {
+    return 3;
+  }
+
+  std::size_t NumIndices() const {
+    return 3;
+  }
+
+  void GenerateVertices(VertexType* ptr, size_t num) const {
+    ptr[0] = VertexType({0, 0, 0}, orientation_);
+    ptr[1] = VertexType({1, 0, 0}, orientation_);
+    ptr[2] = VertexType({0, 1, 0}, orientation_);
+  }
+
+  void GenerateIndices(IndexType* ptr, size_t num) const {
+    ptr[0] = 0;
+    ptr[1] = 1;
+    ptr[2] = 2;
+  }
+
+  filament::Box GetBounds() const { return {{-1, -1, -0.001}, {1, 1, 0.001}}; }
+
+ private:
+  float4 orientation_;
+};
+
 class LineBoxBuilder {
  public:
   using VertexType = VertexNoUv;
@@ -743,6 +779,10 @@ FilamentBuffers CreateLine(filament::Engine* engine, const mjModel* model) {
 FilamentBuffers CreatePlane(filament::Engine* engine, const mjModel* model) {
   const int num_quads = model->vis.quality.numquads;
   return CreateFromBuilder(engine, PlaneBuilder(num_quads));
+}
+
+FilamentBuffers CreateTriangle(filament::Engine* engine, const mjModel* model) {
+  return CreateFromBuilder(engine, TriangleBuilder());
 }
 
 FilamentBuffers CreateBox(filament::Engine* engine, const mjModel* model) {

@@ -111,6 +111,8 @@ Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
     AddShape(ObjectManager::kLine);
   } else if (geom.type == mjGEOM_LINEBOX) {
     AddShape(ObjectManager::kLineBox);
+  } else if (geom.type == mjGEOM_TRIANGLE) {
+    AddShape(ObjectManager::kTriangle);
   } else if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
     // Flex and skin geometries are dynamically updated every frame.
   } else {
