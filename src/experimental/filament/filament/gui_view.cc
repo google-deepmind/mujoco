@@ -165,7 +165,7 @@ bool GuiView::PrepareRenderable() {
         clip_height = height;
       }
 
-      const intptr_t tex_id = reinterpret_cast<intptr_t>(command.GetTexID());
+      const intptr_t tex_id = static_cast<intptr_t>(command.GetTexID());
       mjrRect clip_rect{clip_left, clip_bottom, clip_width, clip_height};
       builder.material(drawable_index,
                        GetMaterialInstance(drawable_index, clip_rect, tex_id));
