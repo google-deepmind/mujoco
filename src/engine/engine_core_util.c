@@ -686,7 +686,7 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 
     // orientation of the COM (inertial) frame of b-th body
     mjtNum ximat[9];
-    mju_copy(ximat, d->ximat+9*b, 9);
+    mju_copy9(ximat, d->ximat+9*b);
 
     // save the inertia matrix of b-th body
     mjtNum inertia[9] = {0};
@@ -885,11 +885,11 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
       break;
     case mjSAMEFRAME_BODY:
     case mjSAMEFRAME_BODYROT:
-      mju_copy(xmat, d->xmat+9*body, 9);
+      mju_copy9(xmat, d->xmat+9*body);
       break;
     case mjSAMEFRAME_INERTIA:
     case mjSAMEFRAME_INERTIAROT:
-      mju_copy(xmat, d->ximat+9*body, 9);
+      mju_copy9(xmat, d->ximat+9*body);
       break;
     }
   }

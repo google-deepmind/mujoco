@@ -578,7 +578,7 @@ static void set0(mjModel* m, mjData* d) {
     mju_sub3(m->cam_poscom0+3*i, d->cam_xpos+3*i, d->subtree_com+ (id1 >= 0 ? 3*id1 : 3*id));
 
     // copy mat
-    mju_copy(m->cam_mat0+9*i, d->cam_xmat+9*i, 9);
+    mju_copy9(m->cam_mat0+9*i, d->cam_xmat+9*i);
   }
 
   // light compos0, pos0, dir0

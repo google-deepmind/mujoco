@@ -377,7 +377,7 @@ void mj_camlight(const mjModel* m, mjData* d) {
     case mjCAMLIGHT_TRACK:
     case mjCAMLIGHT_TRACKCOM:
       // fixed global orientation
-      mju_copy(d->cam_xmat+9*i, m->cam_mat0+9*i, 9);
+      mju_copy9(d->cam_xmat+9*i, m->cam_mat0+9*i);
 
       // position: track camera body
       if (m->cam_mode[i] == mjCAMLIGHT_TRACK) {

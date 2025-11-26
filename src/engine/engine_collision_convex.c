@@ -750,6 +750,12 @@ void mjc_initCCDObj(mjCCDObj* obj, const mjModel* m, const mjData* d, int g, mjt
     case mjGEOM_HFIELD:
       obj->center = mjc_prism_center;
       obj->support = mjc_prism_support;
+
+      int hid = m->geom_dataid[g];
+      obj->hfield_nrow = m->hfield_nrow[hid];
+      obj->hfield_ncol = m->hfield_ncol[hid];
+      obj->size = m->hfield_size + 4*hid;
+      obj->hfield_data = m->hfield_data + m->hfield_adr[hid];
       break;
     default:
       obj->support = NULL;
@@ -1141,8 +1147,8 @@ static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
 }
 
 
-// add vertex to prism, count vertices
-static void addVert(int* nvert, mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
+// add vertex to prism
+static inline void addVert(mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
   // move old data
   mju_copy3(obj->prism[0], obj->prism[1]);
   mju_copy3(obj->prism[1], obj->prism[2]);
@@ -1153,125 +1159,140 @@ static void addVert(int* nvert, mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
   obj->prism[2][0] = obj->prism[5][0] = x;
   obj->prism[2][1] = obj->prism[5][1] = y;
   obj->prism[5][2] = z;
+}
 
-  // count
-  (*nvert)++;
+
+// add vertex to prism
+static inline void addPrismVert(mjCCDObj* obj, int r, int c, int i, mjtNum dx, mjtNum dy, mjtNum margin) {
+  // move old data
+  mju_copy3(obj->prism[0], obj->prism[1]);
+  mju_copy3(obj->prism[1], obj->prism[2]);
+  mju_copy3(obj->prism[3], obj->prism[4]);
+  mju_copy3(obj->prism[4], obj->prism[5]);
+
+  int dr = 1 - i;
+
+  // add new vertex at last position
+  obj->prism[2][0] = obj->prism[5][0] = dx*c - obj->size[0];
+  obj->prism[2][1] = obj->prism[5][1] = dy*(r + dr) - obj->size[1];
+  obj->prism[5][2] = obj->hfield_data[(r + dr)*obj->hfield_ncol + c]*obj->size[2];
+
+  // factor in margin
+  obj->prism[5][2] += margin;
 }
 
 
 // entry point for heightfield collisions
 int mjc_ConvexHField(const mjModel* m, const mjData* d,
                      mjContact* con, int g1, int g2, mjtNum margin) {
-  mjGETINFO_HFIELD
-  mjtNum mat[9], savemat2[9], savepos2[3], pos[3], vec[3], r2, dx, dy;
-  mjtNum xmin, xmax, ymin, ymax, zmin, zmax;
+  // hfield frame
+  const mjtNum* pos1 = d->geom_xpos + 3*g1;
+  const mjtNum* mat1 = d->geom_xmat + 9*g1;
+
+  // geom2 frame
+  mjtNum* pos2 = d->geom_xpos + 3*g2;
+  mjtNum* mat2 = d->geom_xmat + 9*g2;
+
+  // hfield data
   int hid = m->geom_dataid[g1];
   int nrow = m->hfield_nrow[hid];
   int ncol = m->hfield_ncol[hid];
-  int dr[2], cnt, rmin, rmax, cmin, cmax;
-  const float* data = m->hfield_data + m->hfield_adr[hid];
+  mjtNum size0 = m->hfield_size[4*hid + 0], size1 = m->hfield_size[4*hid + 1];
+  mjtNum size2 = m->hfield_size[4*hid + 2], size3 = m->hfield_size[4*hid + 3];
 
-  // ccd-related
+  // try early return using box-sphere test
+
+  // express geom2 pos in hfield frame
+  mjtNum pos[3] = {pos2[0] - pos1[0], pos2[1] - pos1[1], pos2[2] - pos1[2]};
+  mju_mulMatTVec3(pos, mat1, pos);
+
+  // sphere radius is geom2 rbound + margin
+  mjtNum radius = m->geom_rbound[g2] + margin;
+
+  // box-sphere test
+  if ((size0 < pos[0] - radius) || (-size0 > pos[0] + radius) ||
+      (size1 < pos[1] - radius) || (-size1 > pos[1] + radius) ||
+      (size2 < pos[2] - radius) || (-size3 > pos[2] + radius)) {
+    return 0;
+  }
+
+  // ccd set up
   mjCCDObj obj1, obj2;
   mjc_initCCDObj(&obj1, m, d, g1, 0);
   mjc_initCCDObj(&obj2, m, d, g2, 0);
 
-  ccd_vec3_t dirccd, vecccd;
-  ccd_real_t depth;
-  ccd_t ccd;
 
-  // point size1 to hfield size instead of geom1 size
-  size1 = m->hfield_size + 4*hid;
+  // try early return using AABB box-box test
 
-  //------------------------------------- frame alignment, box-sphere test
-
-  // express geom2 pos in heightfield frame
-  mju_sub3(vec, pos2, pos1);
-  mju_mulMatTVec(pos, mat1, vec, 3, 3);
-
-  // get geom2 rbound
-  r2 = m->geom_rbound[g2];
-
-  // box-sphere test: horizontal plane
-  for (int i=0; i < 2; i++) {
-    if ((size1[i] < pos[i]-r2-margin) || (-size1[i] > pos[i]+r2+margin)) {
-      return 0;
-    }
-  }
-
-  // box-sphere test in: vertical direction
-  if (size1[2] < pos[2]-r2-margin) {   // up
-    return 0;
-  }
-  if (-size1[3] > pos[2]+r2+margin) {  // down
-    return 0;
-  }
-
-  // express geom2 mat in heightfield frame
+  // express geom2 mat in hfield frame
+  mjtNum mat[9];
   mju_mulMatTMat3(mat, mat1, mat2);
 
-  //------------------------------------- AABB computation, box-box test
-
   // save mat2 and pos2, replace with relative frame
-  mju_copy(savemat2, mat2, 9);
+  mjtNum savemat2[9], savepos2[3];
+  mju_copy9(savemat2, mat2);
   mju_copy3(savepos2, pos2);
-  mju_copy(mat2, mat, 9);
+  mju_copy9(mat2, mat);
   mju_copy3(pos2, pos);
 
+  mjtNum dir[3] = {0, 0, 0}, res[3];
+
   // get support point in +X
-  ccdVec3Set(&dirccd, 1, 0, 0);
-  mjccd_support(&obj2, &dirccd, &vecccd);
-  xmax = vecccd.v[0];
+  dir[0] = 1;
+  obj2.support(res, &obj2, dir);
+  mjtNum xmax = res[0];
 
   // get support point in -X
-  ccdVec3Set(&dirccd, -1, 0, 0);
-  mjccd_support(&obj2, &dirccd, &vecccd);
-  xmin = vecccd.v[0];
+  dir[0] = -1;
+  obj2.support(res, &obj2, dir);
+  mjtNum xmin = res[0];
+
+  dir[0] = 0;
 
   // get support point in +Y
-  ccdVec3Set(&dirccd, 0, 1, 0);
-  mjccd_support(&obj2, &dirccd, &vecccd);
-  ymax = vecccd.v[1];
+  dir[1] = 1;
+  obj2.support(res, &obj2, dir);
+  mjtNum ymax = res[1];
 
   // get support point in -Y
-  ccdVec3Set(&dirccd, 0, -1, 0);
-  mjccd_support(&obj2, &dirccd, &vecccd);
-  ymin = vecccd.v[1];
+  dir[1] = -1;
+  obj2.support(res, &obj2, dir);
+  mjtNum ymin = res[1];
+
+  dir[1] = 0;
 
   // get support point in +Z
-  ccdVec3Set(&dirccd, 0, 0, 1);
-  mjccd_support(&obj2, &dirccd, &vecccd);
-  zmax = vecccd.v[2];
+  dir[2] = 1;
+  obj2.support(res, &obj2, dir);
+  mjtNum zmax = res[2];
 
   // get support point in -Z
-  ccdVec3Set(&dirccd, 0, 0, -1);
-  mjccd_support(&obj2, &dirccd, &vecccd);
-  zmin = vecccd.v[2];
+  dir[2] = -1;
+  obj2.support(res, &obj2, dir);
+  mjtNum zmin = res[2];
 
-  // box-box test
-  if ((xmin-margin > size1[0]) || (xmax+margin < -size1[0]) ||
-      (ymin-margin > size1[1]) || (ymax+margin < -size1[1]) ||
-      (zmin-margin > size1[2]) || (zmax+margin < -size1[3])) {
-    // restore mat2 and pos2
-    mju_copy(mat2, savemat2, 9);
+  // AABB box-box test
+  if ((xmin - margin > size0) || (xmax + margin < -size0) ||
+      (ymin - margin > size1) || (ymax + margin < -size1) ||
+      (zmin - margin > size2) || (zmax + margin < -size3)) {
+    mju_copy9(mat2, savemat2);
     mju_copy3(pos2, savepos2);
-
     return 0;
   }
 
   // compute sub-grid bounds
-  cmin = (int) mju_floor((xmin + size1[0]) / (2*size1[0]) * (ncol-1));
-  cmax = (int) mju_ceil ((xmax + size1[0]) / (2*size1[0]) * (ncol-1));
-  rmin = (int) mju_floor((ymin + size1[1]) / (2*size1[1]) * (nrow-1));
-  rmax = (int) mju_ceil ((ymax + size1[1]) / (2*size1[1]) * (nrow-1));
+  int cmin = (int) mju_floor((xmin + size0) / (2.0*size0) * (ncol-1));
+  int cmax = (int) mju_ceil ((xmax + size0) / (2.0*size0) * (ncol-1));
+  int rmin = (int) mju_floor((ymin + size1) / (2.0*size1) * (nrow-1));
+  int rmax = (int) mju_ceil ((ymax + size1) / (2.0*size1) * (nrow-1));
   cmin = mjMAX(0, cmin);
   cmax = mjMIN(ncol-1, cmax);
   rmin = mjMAX(0, rmin);
   rmax = mjMIN(nrow-1, rmax);
 
-  //------------------------------------- collision testing
+  // CCD collision testing
 
-  // init ccd structure
+  ccd_t ccd;
   mjc_initCCD(&ccd, m);
   ccd.first_dir = prism_firstdir;
   ccd.center1 = mjccd_prism_center;
@@ -1282,51 +1303,46 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   // geom margin needed for actual collision test
   obj2.margin = margin;
 
-  // compute real-valued grid step, and triangulation direction
-  dx = (2.0*size1[0]) / (ncol-1);
-  dy = (2.0*size1[1]) / (nrow-1);
-  dr[0] = 1;
-  dr[1] = 0;
+  // compute real-valued grid step
+  mjtNum dx = (2.0*size0) / (ncol-1);
+  mjtNum dy = (2.0*size1) / (nrow-1);
 
   // set zbottom value using base size
-  obj1.prism[0][2] = obj1.prism[1][2] = obj1.prism[2][2] = -size1[3];
+  obj1.prism[0][2] = obj1.prism[1][2] = obj1.prism[2][2] = -size3;
 
-  // process all prisms in sub-grid
-  cnt = 0;
+  // process all prisms in subgrid
+  int ncon = 0;
   for (int r=rmin; r < rmax; r++) {
-    int nvert = 0;
-    for (int c=cmin; c <= cmax; c++) {
+    addPrismVert(&obj1, r, cmin, 0, dx, dy, margin);
+    addPrismVert(&obj1, r, cmin, 1, dx, dy, margin);
+    for (int c=cmin + 1; c <= cmax; c++) {
       for (int i=0; i < 2; i++) {
         // send vertex to prism constructor
-        addVert(&nvert, &obj1, dx*c-size1[0], dy*(r+dr[i])-size1[1],
-                data[(r+dr[i])*ncol+c]*size1[2]+margin);
+        addPrismVert(&obj1, r, c, i, dx, dy, margin);
 
-        // check for enough vertices
-        if (nvert > 2) {
-          // prism height test
-          if (obj1.prism[3][2] < zmin && obj1.prism[4][2] < zmin
-              && obj1.prism[5][2] < zmin) {
-            continue;
-          }
+        // prism height test
+        if (obj1.prism[3][2] < zmin && obj1.prism[4][2] < zmin && obj1.prism[5][2] < zmin) {
+          continue;
+        }
 
-          // run penetration function, save contact
-          if (mjc_penetration(m, &obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0
-              && !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
-            // fill in contact data, transform to global coordinates
-            con[cnt].dist = -depth;
-            mju_mulMatVec3(con[cnt].frame, mat1, dirccd.v);
-            mju_mulMatVec3(con[cnt].pos, mat1, vecccd.v);
-            mju_addTo3(con[cnt].pos, pos1);
-            mju_zero3(con[cnt].frame+3);
+        // run penetration function, save contact
+        ccd_vec3_t dirccd, vecccd;
+        ccd_real_t depth;
+        if (mjc_penetration(m, &obj1, &obj2, &ccd, &depth, &dirccd, &vecccd) == 0
+            && !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
+          // fill in contact data, transform to global coordinates
+          con[ncon].dist = -depth;
+          mju_mulMatVec3(con[ncon].frame, mat1, dirccd.v);
+          mju_mulMatVec3(con[ncon].pos, mat1, vecccd.v);
+          mju_addTo3(con[ncon].pos, pos1);
+          mju_zero3(con[ncon].frame+3);
 
-            // count, stop if max number reached
-            cnt++;
-            if (cnt >= mjMAXCONPAIR) {
-              r = rmax+1;
-              c = cmax+1;
-              i = 3;
-              break;
-            }
+          // force out of all loops if max contacts reached
+          if (++ncon >= mjMAXCONPAIR) {
+            r = rmax+1;
+            c = cmax+1;
+            i = 3;
+            break;
           }
         }
       }
@@ -1334,17 +1350,17 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   }
 
   // restore mat2 and pos2
-  mju_copy(mat2, savemat2, 9);
+  mju_copy9(mat2, savemat2);
   mju_copy3(pos2, savepos2);
 
   if (mjDISABLED(mjDSBL_NATIVECCD)) {
     // fix contact normals
-    for (int i=0; i < cnt; i++) {
+    for (int i=0; i < ncon; i++) {
       mjc_fixNormal(m, d, con+i, g1, g2);
     }
   }
 
-  return cnt;
+  return ncon;
 }
 
 
@@ -1737,11 +1753,11 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
     for (int c=cmin; c <= cmax; c++) {
       for (int k=0; k < 2; k++) {
         // send vertex to prism constructor
-        addVert(&nvert, &obj1, dx*c-hsize[0], dy*(r+dr[k])-hsize[1],
+        addVert(&obj1, dx*c-hsize[0], dy*(r+dr[k])-hsize[1],
                 hdata[(r+dr[k])*ncol+c]*hsize[2]+margin);
 
         // check for enough vertices
-        if (nvert > 2) {
+        if (++nvert > 2) {
           // prism height test
           if (obj1.prism[3][2] < zmin && obj1.prism[4][2] < zmin && obj1.prism[5][2] < zmin) {
             continue;

@@ -1064,7 +1064,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
               int conid = match[j].id;
               mj_contactForce(m, d, conid, wrench + 6*j);
               mju_copy3(pos + 3*j, d->contact[conid].pos);
-              mju_copy(frame + 9*j, d->contact[conid].frame, 9);
+              mju_copy9(frame + 9*j, d->contact[conid].frame);
               if (match[j].flip) {
                 mju_scl(wrench + 6*j , wrench + 6*j, -1, 6);
               }
