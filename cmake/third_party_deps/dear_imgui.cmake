@@ -13,7 +13,7 @@
 # limitations under the License.
 
 set(MUJOCO_DEP_VERSION_dear_imgui
-    v1.90.9-docking
+    v1.92.4-docking
     CACHE STRING "Tag/version of `dear_imgui` to be fetched."
 )
 mark_as_advanced(MUJOCO_DEP_VERSION_dear_imgui)
