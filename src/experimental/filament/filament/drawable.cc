@@ -72,6 +72,10 @@ static constexpr int kArrow2BottomConeDisk = 4;
 Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
     : material_(object_mgr),
       renderables_(object_mgr->GetEngine()) {
+  if (geom.category == mjCAT_DECOR) {
+    renderables_.DisableShadows();
+  }
+
     switch ((mjtGeom)geom.type) {
     case mjGEOM_MESH:
       AddMesh(geom.dataid);
