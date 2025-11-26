@@ -16,9 +16,9 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_GUI_VIEW_H_
 
 #include <cstdint>
-#include <unordered_map>
 #include <vector>
 
+#include <imgui.h>
 #include <filament/Camera.h>
 #include <filament/Engine.h>
 #include <filament/Material.h>
@@ -47,6 +47,8 @@ class GuiView {
   filament::View* PrepareRenderView();
 
  private:
+  void ProcessTexture(ImTextureData* data);
+
   // Returns the filament::MaterialInstance configured to draw into the given
   // scissor rect.
   filament::MaterialInstance* GetMaterialInstance(int index, mjrRect rect,

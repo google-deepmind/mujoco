@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include <imgui.h>
@@ -50,15 +51,6 @@ GuiView::GuiView(filament::Engine* engine, ObjectManager* object_mgr)
   view_->setPostProcessingEnabled(false);
 
   material_ = object_mgr_->GetMaterial(ObjectManager::kUnlitUi);
-
-  // Upload the ImGui font as a texture that is sampled by the UX material.
-  int font_width = 0;
-  int font_height = 0;
-  int font_bpp = 0;
-  unsigned char* pixels = nullptr;
-  ImGuiIO& io = ImGui::GetIO();
-  io.Fonts->GetTexDataAsRGBA32(&pixels, &font_width, &font_height, &font_bpp);
-  object_mgr_->UploadFont(pixels, font_width, font_height, 0);
 }
 
 GuiView::~GuiView() {
@@ -86,6 +78,52 @@ void GuiView::ResetRenderable() {
     engine_->destroy(buffer.index_buffer);
   }
   buffers_.clear();
+}
+
+void GuiView::ProcessTexture(ImTextureData* data) {
+  filament::Engine* engine = object_mgr_->GetEngine();
+
+  if (data->Status == ImTextureStatus_OK) {
+    return;
+  } else if (data->Status == ImTextureStatus_WantCreate) {
+    if (data->Format != ImTextureFormat_RGBA32) {
+      mju_error("Unsupported texture format.");
+    }
+
+    filament::Texture* texture =
+        filament::Texture::Builder()
+            .width(data->Width)
+            .height(data->Height)
+            .levels(1)
+            .format(filament::Texture::InternalFormat::RGBA8)
+            .sampler(filament::Texture::Sampler::SAMPLER_2D)
+            .build(*engine);
+
+    const int size = data->Width * data->Height * 4;
+    filament::Texture::PixelBufferDescriptor pb(data->GetPixels(), size,
+                                                filament::Texture::Format::RGBA,
+                                                filament::Texture::Type::UBYTE);
+    texture->setImage(*engine, 0, std::move(pb));
+
+    data->SetTexID((ImTextureID)texture);
+    data->SetStatus(ImTextureStatus_OK);
+  } else if (data->Status == ImTextureStatus_WantUpdates) {
+    const int size = data->Width * data->Height * 4;
+    filament::Texture::PixelBufferDescriptor pb(data->GetPixels(), size,
+                                                filament::Texture::Format::RGBA,
+                                                filament::Texture::Type::UBYTE);
+    filament::Texture* texture = (filament::Texture*)data->TexID;
+    texture->setImage(*engine, 0, std::move(pb));
+    data->SetStatus(ImTextureStatus_OK);
+  } else if (data->Status == ImTextureStatus_WantDestroy &&
+             data->UnusedFrames > 0) {
+    filament::Texture* texture =
+        reinterpret_cast<filament::Texture*>(data->TexID);
+    engine->destroy(texture);
+
+    data->SetTexID(ImTextureID_Invalid);
+    data->SetStatus(ImTextureStatus_Destroyed);
+  }
 }
 
 bool GuiView::PrepareRenderable() {
@@ -125,6 +163,12 @@ bool GuiView::PrepareRenderable() {
   filament::RenderableManager::Builder builder(num_elements);
   builder.boundingBox({{-100, -100, -100}, {100, 100, 100}});
   builder.culling(false);
+
+  if (commands->Textures != nullptr) {
+    for (ImTextureData* tex : *commands->Textures) {
+      ProcessTexture(tex);
+    }
+  }
 
   int drawable_index = 0;
   for (int n = 0; n < commands->CmdListsCount; ++n) {
@@ -190,7 +234,7 @@ filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
                                                          mjrRect rect,
                                                          intptr_t texture_id) {
   while (index >= instances_.size()) {
-    const filament::Texture* texture = object_mgr_->GetFont(texture_id);
+    const auto* texture = reinterpret_cast<filament::Texture*>(texture_id);
 
     filament::TextureSampler sampler;
     filament::MaterialInstance* instance = material_->createInstance();
