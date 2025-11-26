@@ -296,19 +296,19 @@ void App::UpdatePhysics() {
     }
   }
 
+  bool stepped = false;
+
   toolbox::StepControl::Status status = step_control_.Advance(model_, data_);
   if (status == toolbox::StepControl::Status::kPaused) {
     // do nothing
   } else if (status == toolbox::StepControl::Status::kOk) {
-    std::span<mjtNum> state = history_.AddToHistory();
-    if (!state.empty()) {
-      mj_getState(model_, data_, state.data(), mjSTATE_INTEGRATION);
-    }
+    stepped = true;
     // If we are adding to the history we didn't have a divergence error
     error_ = "";
   } else if (status == toolbox::StepControl::Status::kAutoReset) {
     ResetPhysics();
   } else if (status == toolbox::StepControl::Status::kDiverged) {
+    stepped = true;
     for (mjtWarning w : toolbox::StepControl::kDivergedWarnings) {
       if (data_->warning[w].number > 0) {
         error_ = mju_warningText(w, data_->warning[w].lastinfo);
@@ -316,7 +316,13 @@ void App::UpdatePhysics() {
     }
   }
 
-  profiler_.Update(model_, data_);
+  if (stepped) {
+    profiler_.Update(model_, data_);
+    std::span<mjtNum> state = history_.AddToHistory();
+    if (!state.empty()) {
+      mj_getState(model_, data_, state.data(), mjSTATE_INTEGRATION);
+    }
+  }
 }
 
 void App::LoadHistory(int offset) {
@@ -558,13 +564,11 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
     vis_options_.label = (vis_options_.label + 1) % mjNLABEL;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F9)) {
-    tmp_.chart_counts = !tmp_.chart_counts;
+    tmp_.chart_solver = !tmp_.chart_solver;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F10)) {
-    tmp_.chart_convergence = !tmp_.chart_convergence;
+    tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
     tmp_.chart_dimensions = !tmp_.chart_dimensions;
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F12)) {
-    tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
   // } else if (ImGui_IsChordJustPressed(ImGuiKey_Backquote)) {
   //   ToggleFlag(vis_options_.flags[mjVIS_BODYBVH]);
   // } else if (ImGui_IsChordJustPressed(ImGuiKey_Quote)) {
@@ -782,20 +786,20 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (tmp_.chart_convergence) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Convergence", &tmp_.chart_convergence)) {
-      ImGui::Text("Coming soon!");
-    }
-    ImGui::End();
-  }
+  // if (tmp_.chart_convergence) {
+  //   ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
+  //   ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
+  //   if (ImGui::Begin("Convergence", &tmp_.chart_convergence)) {
+  //   }
+  //   ImGui::End();
+  // }
 
-  if (tmp_.chart_counts) {
+  if (tmp_.chart_solver) {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Counts", &tmp_.chart_counts)) {
-      ImGui::Text("Coming soon!");
+    if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
+      CountsGui();
+      ConvergenceGui();
     }
     ImGui::End();
   }
@@ -1468,17 +1472,14 @@ void App::MainMenuGui() {
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Charts")) {
-      if (ImGui::MenuItem("Counts", "F9")) {
-        tmp_.chart_counts = !tmp_.chart_counts;
+      if (ImGui::MenuItem("Solver", "F9")) {
+        tmp_.chart_solver = !tmp_.chart_solver;
       }
-      if (ImGui::MenuItem("Convergence", "F10")) {
-        tmp_.chart_convergence = !tmp_.chart_convergence;
+      if (ImGui::MenuItem("CPU Time", "F10")) {
+        tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
       }
       if (ImGui::MenuItem("Dimensions", "F11")) {
         tmp_.chart_dimensions = !tmp_.chart_dimensions;
-      }
-      if (ImGui::MenuItem("CPU Time", "F12")) {
-        tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
       }
       ImGui::EndMenu();
     }
@@ -2132,6 +2133,124 @@ void App::ControlsGui() {
       max = model_->actuator_ctrlrange[2 * i + 1];
     }
     ImGui_Slider(name, &data_->ctrl[i], min, max);
+  }
+}
+
+void App::ConvergenceGui() {
+  if (ImPlot::BeginPlot("Convergence (log 10)", ImVec2(-1, 0))) {
+    ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
+    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
+    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.1f");
+    ImPlot::SetupAxisLimits(ImAxis_Y1, -20, 5, ImPlotCond_Always);
+    ImPlot::SetupLegend(ImPlotLocation_NorthEast);
+    ImPlot::SetupFinish();
+
+    const int nisland = data_->nefc ? mjMAX(1, mjMIN(data_->nisland, mjNISLAND)) : 0;
+    for (int k = 0; k < nisland; k++) {
+      mjSolverStat* stats = data_->solver + k * mjNSOLVER;
+      const int npoints =
+          mjMIN(mjMIN(data_->solver_niter[k], mjNSOLVER), mjMAXLINEPNT);
+
+      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
+      ImPlot::PlotLineG("improvement", +[](int i, void* user_data) {
+        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
+        const float x = static_cast<float>(i);
+        const float y = mju_log10(mju_max(mjMINVAL, stats[i].improvement));
+        return ImPlotPoint{x, y};
+      }, stats, npoints);
+
+      if (model_->opt.solver == mjSOL_PGS) {
+        continue;
+      }
+
+      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
+      ImPlot::PlotLineG("gradient", +[](int i, void* user_data) {
+        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
+        const float x = static_cast<float>(i);
+        const float y = mju_log10(mju_max(mjMINVAL, stats[i].gradient));
+        return ImPlotPoint{x, y};
+      }, stats, npoints);
+
+      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
+      ImPlot::PlotLineG("lineslope", +[](int i, void* user_data) {
+        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
+        const float x = static_cast<float>(i);
+        const float y = mju_log10(mju_max(mjMINVAL, stats[i].lineslope));
+        return ImPlotPoint{x, y};
+      }, stats, npoints);
+    }
+
+    ImPlot::EndPlot();
+  }
+}
+
+void App::CountsGui() {
+  if (ImPlot::BeginPlot("Counts", ImVec2(-1, 0))) {
+    ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
+    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
+    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
+    ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 80, ImPlotCond_Always);
+    ImPlot::SetupLegend(ImPlotLocation_NorthEast);
+    ImPlot::SetupFinish();
+
+    const int nisland = data_->nefc ? mjMAX(1, mjMIN(data_->nisland, mjNISLAND)) : 0;
+    for (int k = 0; k < nisland; k++) {
+      const int npoints =
+          mjMIN(mjMIN(data_->solver_niter[k], mjNSOLVER), mjMAXLINEPNT);
+
+      mjSolverStat* stats = data_->solver + k*mjNSOLVER;
+
+      int nefc = nisland == 1 ? data_->nefc : data_->island_nefc[k];
+
+      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
+      ImPlot::PlotLineG("total", +[](int i, void* user_data) {
+        const float x = static_cast<float>(i);
+        const float y = *(static_cast<int*>(user_data));
+        return ImPlotPoint{x, y};
+      }, &nefc, npoints);
+
+      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
+      ImPlot::PlotLineG("active", +[](int i, void* user_data) {
+        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
+        const float x = static_cast<float>(i);
+        const float y = stats[i].nactive;
+        return ImPlotPoint{x, y};
+      }, stats, npoints);
+
+      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
+      ImPlot::PlotLineG("changed", +[](int i, void* user_data) {
+        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
+        const float x = static_cast<float>(i);
+        const float y = stats[i].nchange;
+        return ImPlotPoint{x, y};
+      }, stats, npoints);
+
+      if (model_->opt.solver == mjSOL_PGS) {
+        continue;
+      }
+
+      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
+      ImPlot::PlotLineG("evals", +[](int i, void* user_data) {
+        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
+        const float x = static_cast<float>(i);
+        const float y = stats[i].neval;
+        return ImPlotPoint{x, y};
+      }, stats, npoints);
+
+      if (model_->opt.solver == mjSOL_CG) {
+        continue;
+      }
+
+      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
+      ImPlot::PlotLineG("updates", +[](int i, void* user_data) {
+        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
+        const float x = static_cast<float>(i);
+        const float y = stats[i].nupdate;
+        return ImPlotPoint{x, y};
+      }, stats, npoints);
+    }
+
+    ImPlot::EndPlot();
   }
 }
 

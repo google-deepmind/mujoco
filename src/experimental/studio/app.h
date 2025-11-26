@@ -92,8 +92,7 @@ class App {
     bool info = false;
     bool chart_cpu_time = false;
     bool chart_dimensions = false;
-    bool chart_counts = false;
-    bool chart_convergence = false;
+    bool chart_solver = false;
     bool settings_panel = true;
     bool inspector_panel = true;
     bool style_editor = false;
@@ -170,6 +169,8 @@ class App {
   void StateGui();
   void JointsGui();
   void ControlsGui();
+  void ConvergenceGui();
+  void CountsGui();
 
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
