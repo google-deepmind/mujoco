@@ -2991,7 +2991,7 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 .. _body-camera-focalpixel:
 
 :at:`focalpixel`: :at-val:`int(2), "0 0"`
-   Focal length of the camera in pixel units. If both :at:`focal`: and :at:`focalpixel`: are specified, the former is
+   Focal length of the camera in pixel units. If both :at:`focal` and :at:`focalpixel` are specified, the former is
    ignored.
 
 .. _body-camera-principal:
@@ -3004,7 +3004,7 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 
 :at:`principalpixel`: :at-val:`real(2), "0 0"`
    Offset of the principal point of the camera with respect to the camera center in pixel units. If both
-   :at:`principal`: and :at:`principalpixel`: are specified, the former is ignored.
+   :at:`principal` and :at:`principalpixel` are specified, the former is ignored.
 
 .. _body-camera-sensorsize:
 
