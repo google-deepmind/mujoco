@@ -72,51 +72,74 @@ static constexpr int kArrow2BottomConeDisk = 4;
 Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
     : material_(object_mgr),
       renderables_(object_mgr->GetEngine()) {
-  if (geom.type == mjGEOM_MESH) {
-    AddMesh(geom.dataid);
-  } else if (geom.type == mjGEOM_HFIELD) {
-    AddHeightField(geom.dataid);
-  } else if (geom.type == mjGEOM_PLANE) {
-    AddShape(ObjectManager::kPlane);
-  } else if (geom.type == mjGEOM_SPHERE) {
-    AddShape(ObjectManager::kSphere);
-  } else if (geom.type == mjGEOM_ELLIPSOID) {
-    AddShape(ObjectManager::kSphere);
-  } else if (geom.type == mjGEOM_BOX) {
-    AddShape(ObjectManager::kBox);
-  } else if (geom.type == mjGEOM_CAPSULE) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kDome);
-    AddShape(ObjectManager::kDome);
-  } else if (geom.type == mjGEOM_CYLINDER) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kDisk);
-    AddShape(ObjectManager::kDisk);
-  } else if (geom.type == mjGEOM_ARROW) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kCone);
-    AddShape(ObjectManager::kDisk);
-  } else if (geom.type == mjGEOM_ARROW1) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kCone);
-    AddShape(ObjectManager::kDisk);
-    AddShape(ObjectManager::kDisk);
-  } else if (geom.type == mjGEOM_ARROW2) {
-    AddShape(ObjectManager::kTube);
-    AddShape(ObjectManager::kCone);
-    AddShape(ObjectManager::kCone);
-    AddShape(ObjectManager::kDisk);
-    AddShape(ObjectManager::kDisk);
-  } else if (geom.type == mjGEOM_LINE) {
-    AddShape(ObjectManager::kLine);
-  } else if (geom.type == mjGEOM_LINEBOX) {
-    AddShape(ObjectManager::kLineBox);
-  } else if (geom.type == mjGEOM_TRIANGLE) {
-    AddShape(ObjectManager::kTriangle);
-  } else if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
-    // Flex and skin geometries are dynamically updated every frame.
-  } else {
-    mju_warning("Unsupported geom type: %d", geom.type);
+    switch ((mjtGeom)geom.type) {
+    case mjGEOM_MESH:
+      AddMesh(geom.dataid);
+      break;
+    case mjGEOM_HFIELD:
+      AddHeightField(geom.dataid);
+      break;
+    case mjGEOM_PLANE:
+      AddShape(ObjectManager::kPlane);
+      break;
+    case mjGEOM_SPHERE:
+      AddShape(ObjectManager::kSphere);
+      break;
+    case mjGEOM_ELLIPSOID:
+      AddShape(ObjectManager::kSphere);
+      break;
+    case mjGEOM_BOX:
+      AddShape(ObjectManager::kBox);
+      break;
+    case mjGEOM_CAPSULE:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kDome);
+      AddShape(ObjectManager::kDome);
+      break;
+    case mjGEOM_CYLINDER:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kDisk);
+      AddShape(ObjectManager::kDisk);
+      break;
+    case mjGEOM_ARROW:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kCone);
+      AddShape(ObjectManager::kDisk);
+      break;
+    case mjGEOM_ARROW1:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kCone);
+      AddShape(ObjectManager::kDisk);
+      AddShape(ObjectManager::kDisk);
+      break;
+    case mjGEOM_ARROW2:
+      AddShape(ObjectManager::kTube);
+      AddShape(ObjectManager::kCone);
+      AddShape(ObjectManager::kCone);
+      AddShape(ObjectManager::kDisk);
+      AddShape(ObjectManager::kDisk);
+      break;
+    case mjGEOM_LINE:
+      AddShape(ObjectManager::kLine);
+      break;
+    case mjGEOM_LINEBOX:
+      AddShape(ObjectManager::kLineBox);
+      break;
+    case mjGEOM_TRIANGLE:
+      AddShape(ObjectManager::kTriangle);
+      break;
+    case mjGEOM_FLEX:
+    case mjGEOM_SKIN:
+      // Flex and skin geometries are dynamically updated every frame.
+      break;
+    case mjGEOM_NONE:
+    case mjGEOM_LABEL:
+      // Do nothing .
+      break;
+    case mjGEOM_SDF:
+    case mjNGEOMTYPES:
+      mju_warning("Unsupported geom type: %d", geom.type);
+      break;
   }
 }
 
