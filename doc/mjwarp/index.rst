@@ -256,7 +256,7 @@ Solver iterations
 MuJoCo's default solver settings for the maximum numbers of :ref:`solver iterations<option-iterations>` and
 :ref:`linesearch iterations<option-ls_iterations>` are expected to provide reasonable performance. Reducing MJWarp's
 settings :attr:`Option.iterations <mujoco_warp.Option.iterations>` and/or
-:attr:`Optiona.ls_iterations <mujoco_warp.Option.ls_iterations>` limits may improve performance and should be secondary
+:attr:`Option.ls_iterations <mujoco_warp.Option.ls_iterations>` limits may improve performance and should be secondary
 considerations after tuning `nconmax`_ / `naconmax`_ and `njmax`_.
 
 Reducing these limits too much may prevent the constraint solver from converging and can lead to inaccurate or unstable
@@ -417,9 +417,6 @@ Please see the
 for details and
 `mjlab distributed training <https://github.com/mujocolab/mjlab/tree/main/docs/api/distributed_training.md>`__ for a
 reinforcement learning example.
-
-Orientation representation
---------------------------
 
 **How are orientations represented?**
 
