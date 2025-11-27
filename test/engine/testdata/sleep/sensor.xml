@@ -46,12 +46,12 @@
     <contact subtree1="1" geom2="floor"/>
     <contact subtree1="1"/>
     <contact subtree1="1" reduce="maxforce" data="force"/>
-    <insidesite site="inside" objtype="body" objname="3"/>
+    <insidesite name="insidesite" site="inside" objtype="body" objname="3"/>
     <framelinvel objtype="body" objname="3"/>
     <framelinvel objtype="body" objname="3" reftype="body" refname="2"/>
-    <gyro site="2"/>
-    <touch site="2"/>
-    <clock/>
+    <gyro name="gyro" site="2"/>
+    <touch name="touch" site="2"/>
+    <clock name="clock"/>
     <rangefinder site="rf"/>
     <force site="force_dynamic"/>
 
