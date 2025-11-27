@@ -1607,6 +1607,65 @@ void App::FileDialogGui() {
 }
 
 void App::SensorGui() {
+  ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1f, 0.1f));
+  if (ImPlot::BeginPlot("Sensors", ImVec2(-1, 0),
+                        ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
+    ImPlot::SetupLegend(ImPlotLocation_NorthEast, ImPlotLegendFlags_None);
+
+    ImPlot::SetupAxis(ImAxis_X1, "sensor",
+                      ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoLabel);
+    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 5, ImPlotCond_Once);
+
+    ImPlot::SetupAxis(ImAxis_Y1, "value",
+                      ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoLabel);
+    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.1f");
+    ImPlot::SetupAxisLimits(ImAxis_Y1, -100, 100, ImPlotCond_Once);
+    ImPlot::SetupFinish();
+
+    // The values to be plotted.
+    std::vector<ImPlotPoint> sensor_values;
+
+    // The x-value of the bar to be plotted. Multiple bars will belong to the
+    // same sensor (i.e. the sensor_dim), but each group of bars will be appear
+    // in sequence along the x-axis.
+    float x_value = 0.f;
+
+    // The index of the sensor being plotted, based on sensor_type.
+    int sensor_index = 0;
+
+    // Function that plots the current group of sensor bars.
+    auto plot_lines =
+        [](int sensor_idx, const ImPlotPoint* values, int count) {
+          constexpr float bar_weight = 5.0f;
+          ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, bar_weight);
+          std::string sensor_label = "Sensor " + std::to_string(sensor_idx);
+          ImPlot::PlotLine(sensor_label.c_str(), &values->x, &values->y, count,
+                           ImPlotLineFlags_Segments, 0, 2 * sizeof(double));
+        };
+
+    for (int n = 0; n < model_->nsensor; n++) {
+      if (n > 0 && model_->sensor_type[n] != model_->sensor_type[n - 1]) {
+        plot_lines(sensor_index, sensor_values.data(), sensor_values.size());
+        sensor_values.clear();
+        ++sensor_index;
+      }
+
+      const int adr = model_->sensor_adr[n];
+      const int dim = model_->sensor_dim[n];
+      const mjtNum cutoff =
+          (model_->sensor_cutoff[n] > 0 ? model_->sensor_cutoff[n] : 1);
+      for (int i = 0; i < dim; ++i) {
+        sensor_values.push_back({x_value, 0});
+        sensor_values.push_back({x_value, data_->sensordata[adr + i] / cutoff});
+        x_value += 1.f;
+      }
+    }
+
+    // Ensure the last group of sensors is plotted.
+    plot_lines(sensor_index, sensor_values.data(), sensor_values.size());
+    ImPlot::EndPlot();
+  }
+  ImPlot::PopStyleVar();
 }
 
 void App::StateGui() {
