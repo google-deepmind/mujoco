@@ -199,7 +199,7 @@ struct MjvScene {
     return emscripten::val(emscripten::typed_memory_view(
         6 * MjvScene::GetSumFlexFaces(), ptr_->flextexcoord));
   }
-  // INSERT-GENERATED-MjvScene-DEFINITIONS
+  // INSERT-GENERATED-MjvScene-DECLARATION
 
  private:
   mjvScene* ptr_;
