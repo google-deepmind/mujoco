@@ -61,6 +61,7 @@ mjtNum boxProjection(mjtNum point[3], const mjtNum box[6]) {
   return mju_sqrt(dist_sqr);
 }
 
+
 // find the octree leaf containing the point p, return the index of the leaf and
 // populate the weights of the interpolated function (if w is not null) and of
 // its gradient (if dw is not null) using the vertices as degrees of freedom for
@@ -156,6 +157,7 @@ mjtNum oct_distance(const mjModel* m, const mjtNum p[3], int meshid) {
   return boxDist > 0 ? sdf + boxDist : sdf;
 }
 
+
 // gradient of sdf
 void oct_gradient(const mjModel* m, mjtNum grad[3], const mjtNum point[3], int meshid) {
   mju_zero3(grad);
@@ -222,8 +224,10 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
   switch (type) {
   case mjGEOM_PLANE:
     return x[2];
+
   case mjGEOM_SPHERE:
     return mju_norm3(x) - size[0];
+
   case mjGEOM_BOX:
     // compute shortest distance to box surface if outside, otherwise
     // intersect with a unit gradient that linearly rotates from radial to the face normals
@@ -242,11 +246,13 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
     t[1] = -a[1] / mju_abs(b[1]);
     t[2] = -a[2] / mju_abs(b[2]);
     return -mju_min(t[0], mju_min(t[1], t[2])) * mju_norm3(b);
+
   case mjGEOM_CAPSULE:
     a[0] = x[0];
     a[1] = x[1];
     a[2] = x[2] - mju_clip(x[2], -size[1], size[1]);
     return mju_norm3(a) - size[0];
+
   case mjGEOM_ELLIPSOID:
     a[0] = x[0] / size[0];
     a[1] = x[1] / size[1];
@@ -257,18 +263,21 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
     mjtNum k0 = mju_norm3(a);
     mjtNum k1 = mju_norm3(b);
     return k0 * (k0 - 1.0) / k1;
+
   case mjGEOM_CYLINDER:
     a[0] = mju_sqrt(x[0]*x[0]+x[1]*x[1]) - size[0];
     a[1] = mju_abs(x[2]) - size[1];
     b[0] = mju_max(a[0], 0);
     b[1] = mju_max(a[1], 0);
     return mju_min(mju_max(a[0], a[1]), 0) + mju_norm(b, 2);
+
   case mjGEOM_SDF:
     if (p) {
       return p->sdf_distance(x, d, i);
     } else {
       return oct_distance(m, x, i);
     }
+
   case mjGEOM_MESH:
     if (m->mesh_octnum[i]) {
       return oct_distance(m, x, i);
@@ -284,11 +293,13 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
       }
       return dist;
     }
+
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
     return 0;
   }
 }
+
 
 static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
                          const mjpPlugin* p, int i, const mjtNum x[3],
@@ -302,6 +313,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     mju_zero3(gradient);
     gradient[2] = 1;
     break;
+
   case mjGEOM_SPHERE:
     mju_copy3(gradient, x);
     c = mju_norm3(x);
@@ -309,6 +321,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     gradient[1] *= 1. / c;
     gradient[2] *= 1. / c;
     break;
+
   case mjGEOM_BOX:
     mju_zero3(gradient);
     a[0] = mju_abs(x[0]) - size[0];
@@ -328,6 +341,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
       gradient[2] = a[2] > 0 ? b[2] / c * x[2] / mju_abs(x[2]) : 0;
     }
     break;
+
   case mjGEOM_CAPSULE:
     a[0] = x[0];
     a[1] = x[1];
@@ -337,6 +351,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     gradient[1] = a[1] / c;
     gradient[2] = a[2] / c;
     break;
+
   case mjGEOM_ELLIPSOID:
     a[0] = x[0] / size[0];
     a[1] = x[1] / size[1];
@@ -359,6 +374,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
     gradient[2] = gk0[2]*df_dk0 - gk1[2]*df_dk1;
     mju_normalize3(gradient);
     break;
+
   case mjGEOM_CYLINDER:
     c = mju_sqrt(x[0]*x[0]+x[1]*x[1]);
     e = mju_abs(x[2]);
@@ -381,6 +397,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
       gradient[2] = grada[2] * b[1] / bnorm;
     }
     break;
+
   case mjGEOM_SDF:
     if (p) {
       p->sdf_gradient(gradient, x, d, i);
@@ -388,6 +405,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
       oct_gradient(m, gradient, x, i);
     }
     break;
+
   case mjGEOM_MESH:
     if (m->mesh_octnum[i]) {
       oct_gradient(m, gradient, x, i);
@@ -402,10 +420,12 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
       gradient[2] = dist > r ? 1 : -1;
     }
     break;
+
   default:
     mjERROR("sdf collisions not available for geom type %d", type);
   }
 }
+
 
 //---------------------------- helper functions -------------------------------------------
 
@@ -416,27 +436,32 @@ mjtNum mjc_distance(const mjModel* m, const mjData* d, const mjSDF* s, const mjt
   switch (s->type) {
   case mjSDFTYPE_SINGLE:
     return geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
+
   case mjSDFTYPE_INTERSECTION:
     mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
     return mju_max(geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]),
                    geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]));
+
   case mjSDFTYPE_MIDSURFACE:
     mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
     return geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]) -
            geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
+
   case mjSDFTYPE_COLLISION:
     mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
     mjtNum A = geomDistance(m, d, s->plugin[0], s->id[0], x, s->geomtype[0]);
     mjtNum B = geomDistance(m, d, s->plugin[1], s->id[1], y, s->geomtype[1]);
     return A + B + mju_abs(mju_max(A, B));
+
   default:
     mjERROR("SDF type not available");
     return 0;
   }
 }
+
 
 // gradient of sdf
 void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
@@ -456,6 +481,7 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
       mju_mulMatTVec3(gradient, s->relmat, gradient);
     }
     break;
+
   case mjSDFTYPE_MIDSURFACE:
     mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
@@ -467,6 +493,7 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
     mju_sub3(gradient, grad1, grad2);
     mju_normalize3(gradient);
     break;
+
   case mjSDFTYPE_COLLISION:
     mju_mulMatVec3(y, s->relmat, x);
     mju_addTo3(y, s->relpos);
@@ -480,6 +507,7 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
     gradient[2] = grad1[2] + grad2[2];
     mju_addToScl3(gradient, A > B ? grad1 : grad2, mju_max(A, B) > 0 ? 1 : -1);
     break;
+
   case mjSDFTYPE_SINGLE:
     geomGradient(gradient, m, d, s->plugin[0], s->id[0], point[0], s->geomtype[0]);
     break;
@@ -487,6 +515,7 @@ void mjc_gradient(const mjModel* m, const mjData* d, const mjSDF* s,
     mjERROR("SDF type not available");
   }
 }
+
 
 // get sdf from geom id
 const mjpPlugin* mjc_getSDF(const mjModel* m, int id) {
@@ -501,6 +530,7 @@ const mjpPlugin* mjc_getSDF(const mjModel* m, int id) {
   return sdf;
 }
 
+
 // map (pos12, mat12) as (xpos2, xmat2)^-1 \circ (xpos1, xmat1)
 static void mapPose(const mjtNum xpos1[3], const mjtNum xquat1[4],
                     const mjtNum xpos2[3], const mjtNum xquat2[4],
@@ -510,6 +540,7 @@ static void mapPose(const mjtNum xpos1[3], const mjtNum xquat1[4],
   mju_mulPose(pos12, quat12, negpos, negquat, xpos1, xquat1);
   mju_quat2Mat(mat12, quat12);
 }
+
 
 //---------------------------- narrow phase -----------------------------------------------
 
@@ -522,6 +553,7 @@ static int isknown(const mjtNum* points, const mjtNum x[3], int cnt) {
   }
   return 0;
 }
+
 
 // adds candidate point to result
 static int addContact(mjtNum* points, mjContact* con, const mjtNum x[3],
@@ -551,6 +583,7 @@ static int addContact(mjtNum* points, mjContact* con, const mjtNum x[3],
 
   return cnt+1;
 }
+
 
 // finds minimum using gradient descent
 static mjtNum stepGradient(mjtNum x[3], const mjModel* m, const mjSDF* s,
@@ -609,10 +642,12 @@ int mjc_HFieldSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int
   return 0;
 }
 
+
 // collision between a mesh and a signed distance field
 int mjc_MeshSDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
   return mjc_SDF(m, d, con, g1, g2, margin);
 }
+
 
 // collision between two SDFs
 int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, mjtNum margin) {
@@ -751,4 +786,3 @@ int mjc_SDF(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2, m
 
   return cnt;
 }
-
