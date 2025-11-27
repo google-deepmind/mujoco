@@ -440,10 +440,10 @@ void App::HandleMouseEvents() {
     }
   }
 
-  // Mouse scroll zooms the mouse. Free cameras don't have the concept of
-  // zooming, so we ignore the scroll in those cases.
+  // Mouse scroll zooms the camera towards/away from the lookat point.
+  // Ignored by user-centered free cameras which don't have a lookat point.
   if (mouse_scroll != 0.0f && ui_.camera_idx != toolbox::kFreeCameraIdx) {
-    MoveCamera(toolbox::CameraMotion::ZOOM, 0, mouse_scroll);
+    MoveCamera(toolbox::CameraMotion::ZOOM, 0, -mouse_scroll);
   }
 
   // Left double click.
