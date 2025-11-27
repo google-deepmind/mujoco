@@ -119,7 +119,7 @@ describe('MuJoCo WASM Bindings', () => {
 
     writeXMLFile(tempXmlFilename, TEST_XML);
 
-    model = mujoco.MjModel!.loadFromXML(tempXmlFilename);
+    model = mujoco.MjModel!.mj_loadXML(tempXmlFilename);
     if (!model) {
       unlinkXMLFile(tempXmlFilename);
       throw new Error('Failed to load model from XML');
@@ -182,7 +182,7 @@ describe('MuJoCo WASM Bindings', () => {
 
     beforeEach(() => {
       writeXMLFile(tempXmlFilename, simpleXmlContent);
-      simpleModel = mujoco.MjModel!.loadFromXML(tempXmlFilename);
+      simpleModel = mujoco.MjModel!.mj_loadXML(tempXmlFilename);
       assertExists(simpleModel);
       simpleData = new mujoco.MjData(simpleModel);
       assertExists(simpleData);
@@ -345,7 +345,7 @@ describe('MuJoCo WASM Bindings', () => {
     `;
     const tempXmlFilename = '/tmp/model_c.xml';
     writeXMLFile(tempXmlFilename, xmlString);
-    const model = mujoco.MjModel!.loadFromXML(tempXmlFilename);
+    const model = mujoco.MjModel!.mj_loadXML(tempXmlFilename);
     expect(model).not.toBeNull();
     const data = new mujoco.MjData(model!);
     expect(data).not.toBeNull();
@@ -879,7 +879,7 @@ describe('MuJoCo WASM Bindings', () => {
     writeXMLFile(model1XmlFilename, xml2);
     writeXMLFile(model2XmlFilename, xml3);
 
-    const model = mujoco.MjModel!.loadFromXML(modelXmlFilename);
+    const model = mujoco.MjModel!.mj_loadXML(modelXmlFilename);
 
     try {
       expect(model).toBeDefined();
@@ -1078,7 +1078,7 @@ describe('MuJoCo WASM Bindings', () => {
   it('should check MjContactVec equality', () => {
     const tempXmlFilename2 = '/tmp/model2.xml';
     writeXMLFile(tempXmlFilename2, TEST_XML);
-    const model2 = mujoco.MjModel!.loadFromXML(tempXmlFilename2);
+    const model2 = mujoco.MjModel!.mj_loadXML(tempXmlFilename2);
     const data2 = new mujoco.MjData(model2);
     try {
       mujoco.mj_forward(model!, data!);
@@ -1635,7 +1635,7 @@ describe('MuJoCo WASM Bindings', () => {
     `;
     writeXMLFile(tempXmlFilename, TEST_XML_TEXTURE);
 
-    const model = mujoco.MjModel!.loadFromXML(tempXmlFilename);
+    const model = mujoco.MjModel!.mj_loadXML(tempXmlFilename);
     try {
       expect(model).toBeDefined();
       expect(model!.tex_height).toEqual(new Int32Array([512]));
@@ -1754,7 +1754,7 @@ describe('MuJoCo WASM Bindings', () => {
 </mujoco>`;
     writeXMLFile(tempXmlFilename, xml);
 
-    const model = mujoco.MjModel!.loadFromXML(tempXmlFilename);
+    const model = mujoco.MjModel!.mj_loadXML(tempXmlFilename);
     try {
       mujoco.mj_saveLastXML(tempXmlFilename, model!);
       const savedXmlContent =
@@ -1781,7 +1781,7 @@ describe('MuJoCo WASM Bindings', () => {
       </actuator>
     </mujoco>`;
     writeXMLFile(tempXmlFilename, actuatorXml);
-    const model = mujoco.MjModel.loadFromXML(tempXmlFilename);
+    const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
     assertExists(model);
     const data = new mujoco.MjData(model);
     assertExists(data);

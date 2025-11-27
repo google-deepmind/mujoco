@@ -14,33 +14,13 @@
 
 """Helper functions for processing and generating bindings for MuJoCo functions."""
 
-from typing import List, Tuple, cast
+from typing import Tuple, cast
 
 from introspect import ast_nodes
 
 from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
 from wasm.codegen.generators import constants
-
-
-def get_inner_value_type(
-    param: ast_nodes.FunctionParameterDecl,
-) -> ast_nodes.ValueType | None:
-  if not isinstance(param.type, (ast_nodes.PointerType, ast_nodes.ArrayType)):
-    return None
-  if not isinstance(param.type.inner_type, ast_nodes.ValueType):
-    return None
-  return param.type.inner_type
-
-
-def get_pointer_return_inner_value_type(
-    func: ast_nodes.FunctionDecl,
-) -> ast_nodes.ValueType | None:
-  if not isinstance(func.return_type, ast_nodes.PointerType):
-    return None
-  if not isinstance(func.return_type.inner_type, ast_nodes.ValueType):
-    return None
-  return func.return_type.inner_type
 
 
 def param_is_primitive_value(param: ast_nodes.FunctionParameterDecl) -> bool:
@@ -52,20 +32,10 @@ def param_is_primitive_value(param: ast_nodes.FunctionParameterDecl) -> bool:
 
 def get_const_qualifier(func: ast_nodes.FunctionDecl) -> str:
   """Returns the const qualifier of func's return type."""
-  inner_type = get_pointer_return_inner_value_type(func)
+  inner_type = common.get_pointer_return_inner_value_type(func)
   if inner_type and inner_type.is_const:
     return "const "
   return ""
-
-
-def should_be_wrapped(func: ast_nodes.FunctionDecl) -> bool:
-  """Checks if a MuJoCo function needs a wrapper function."""
-  if get_pointer_return_inner_value_type(func):
-    return True
-  for param in func.parameters:
-    if get_inner_value_type(param):
-      return True
-  return False
 
 
 def generate_function_wrapper(func: ast_nodes.FunctionDecl) -> str:
@@ -78,7 +48,8 @@ def generate_function_wrapper(func: ast_nodes.FunctionDecl) -> str:
   wrapper_params = ", ".join([get_param_string(p) for p in wrapper_parameters])
   ret_type = get_compatible_return_type(func)
   builder = code_builder.CodeBuilder()
-  with builder.function(f"{ret_type} {func.name}_wrapper({wrapper_params})"):
+  w = common.wrapped_function_name(func)
+  with builder.function(f"{ret_type} {w}({wrapper_params})"):
 
     for p in wrapper_parameters:
       if c_notnullable := get_param_notnullable(p):
@@ -119,7 +90,7 @@ def get_param_unpack_statement(
 ) -> str:
   """Generates C++ statements to unpack JS values for pointer/array parameters."""
 
-  inner_type = get_inner_value_type(p)
+  inner_type = common.get_inner_value_type(p)
   if not inner_type:
     return ""
 
@@ -199,7 +170,7 @@ def get_params_string_maybe_with_conversion(
 
   native_params = []
   for p in ast_params:
-    if inner_type := get_inner_value_type(p):
+    if inner_type := common.get_inner_value_type(p):
       if inner_type.name in constants.PRIMITIVE_TYPES:
         if inner_type.name == "char":
           const_qualifier = "const " if inner_type.is_const else ""
@@ -231,7 +202,7 @@ def get_compatible_return_code(func: ast_nodes.FunctionDecl) -> str:
     if func.return_type.name in constants.PRIMITIVE_TYPES:
       return f"return {c_call};"
 
-  if inner_type := get_pointer_return_inner_value_type(func):
+  if inner_type := common.get_pointer_return_inner_value_type(func):
     if inner_type.name == "char":
       return f"return std::string({c_call});"
     elif inner_type.name == "mjString":
@@ -248,7 +219,7 @@ def get_compatible_return_code(func: ast_nodes.FunctionDecl) -> str:
 def get_compatible_return_type(func: ast_nodes.FunctionDecl) -> str:
   """Creates embind compatible return type."""
 
-  if inner_type := get_pointer_return_inner_value_type(func):
+  if inner_type := common.get_pointer_return_inner_value_type(func):
     if inner_type.name in ["char", "mjString"]:
       return "std::string"
     if inner_type.name not in constants.PRIMITIVE_TYPES:
@@ -275,7 +246,7 @@ def get_optional_return_code(
   builder.line(f"{const_qualifier}{struct_name}* result = {c_call};")
   with builder.block("if (result == nullptr)"):
     builder.line("return std::nullopt;")
-  builder.line(f"return {common.capitalize(struct_name)}(result);")
+  builder.line(f"return {common.wrapped_struct_name(struct_name)}(result);")
 
   return builder.to_string()
 
@@ -289,20 +260,20 @@ def is_excluded_function_name(func_name: str) -> bool:
 
 
 def generate(
-    functions: List[ast_nodes.FunctionDecl],
+    functions: list[ast_nodes.FunctionDecl],
 ) -> list[tuple[str, list[str]]]:
   """Generates Embind bindings for MuJoCo functions."""
   wrapper_functions = []
   for func in sorted(functions, key=lambda f: f.name):
-    if should_be_wrapped(func):
+    if common.should_be_wrapped(func):
       if func.name not in constants.MANUAL_WRAPPER_FUNCTIONS:
         wrapper_functions.append(generate_function_wrapper(func))
   wrapper_content = "\n\n".join(wrapper_functions)
 
   function_bindings = []
   for func in sorted(functions, key=lambda f: f.name):
-    suffix = "_wrapper" if should_be_wrapped(func) else ""
-    function_bindings.append(f'function("{func.name}", &{func.name}{suffix});')
+    w = common.wrapped_function_name(func)
+    function_bindings.append(f'function("{func.name}", &{w});')
   bindings_content = "\n".join(function_bindings)
 
   return [

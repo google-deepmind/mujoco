@@ -21,6 +21,7 @@ from typing import Tuple, Union, cast
 
 from introspect import ast_nodes
 from introspect import structs as introspect_structs
+from introspect import functions as introspect_functions
 
 from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
@@ -123,7 +124,9 @@ def _generate_field_data(
     return WrappedFieldData(
         binding=_get_property_binding(f, w, setter=False, reference=True),
         typename=anonymous_struct_name,
-        declaration=f"{common.capitalize(anonymous_struct_name)} {f.name};",
+        declaration=(
+            f"{common.wrapped_struct_name(anonymous_struct_name)} {f.name};"
+        ),
         ptr_initialization=f"{f.name}(&ptr_->{f.name})",
         ptr_copy_reset=f"{f.name}.set(&ptr_->{f.name});",
         is_primitive_or_fixed_size=True,
@@ -320,7 +323,7 @@ def build_struct_header(
 ):
   """Builds the C++ header file code for a struct."""
   s = struct_name
-  w = common.capitalize(s)
+  w = common.wrapped_struct_name(s)
 
   if (
       s not in constants.ANONYMOUS_STRUCTS
@@ -398,7 +401,7 @@ def build_struct_source(
 ):
   """Builds the C++ .cc file code for a struct."""
   s = struct_name
-  w = common.capitalize(s)
+  w = common.wrapped_struct_name(s)
   is_mjs = w.startswith("Mjs")
 
   member_inits = _find_member_inits(wrapped_fields)
@@ -467,7 +470,7 @@ def _build_struct_bindings(
     wrapped_fields: list[WrappedFieldData],
 ):
   """Builds the C++ bindings for a struct."""
-  w = common.capitalize(struct_name)
+  w = common.wrapped_struct_name(struct_name)
   is_mjs = w.startswith("Mjs")
 
   builder = code_builder.CodeBuilder()
@@ -478,10 +481,10 @@ def _build_struct_bindings(
       builder.line(".constructor<MjModel *>()")
       builder.line(".constructor<const MjModel &, const MjData &>()")
     elif w == "MjModel":
-      builder.line(
-          '.class_function("loadFromXML", &loadFromXML_wrapper,'
-          " take_ownership())"
+      w = common.wrapped_function_name(
+          introspect_functions.FUNCTIONS["mj_loadXML"]
       )
+      builder.line(f'.class_function("mj_loadXML", &{w}, take_ownership())')
       builder.line(".constructor<const MjModel &>()")
     elif w == "MjSpec":
       builder.line(".constructor<const MjSpec &>()")
@@ -572,7 +575,7 @@ def _get_field_struct_type(
 ) -> str | None:
   """Extracts the base struct name if the field type is a struct or pointer to a struct."""
   s = struct_name
-  w = common.capitalize(s)
+  w = common.wrapped_struct_name(s)
   if isinstance(field.type, ast_nodes.AnonymousStructDecl):
     anonymous_struct_name = ""
     for name, value in constants.ANONYMOUS_STRUCTS.items():
@@ -692,7 +695,7 @@ def generate(struct_to_bind: list[str]) -> list[tuple[str, list[str]]]:
     fields: list[WrappedFieldData] = []
     introspect_fields = get_introspect_struct_fields(s)
     for field in introspect_fields:
-      fields.append(_generate_field_data(field, common.capitalize(s)))
+      fields.append(_generate_field_data(field, common.wrapped_struct_name(s)))
     wrapped_structs_with_fields[s] = fields
 
   dependency_sorted_struct_names = sort_structs_by_dependency(
@@ -723,13 +726,13 @@ def generate(struct_to_bind: list[str]) -> list[tuple[str, list[str]]]:
     bindings.append(_build_struct_bindings(s, fields))
 
   for s in alphabetically_sorted_struct_names:
-    w = common.capitalize(s)
+    w = common.wrapped_struct_name(s)
     if w.startswith("Mjs") or w == "MjSpec":
       bindings.append(f"emscripten::register_optional<{w}>();")
 
   manual_struct_field_declarations = []
   for s in dependency_sorted_struct_names:
-    w = common.capitalize(s)
+    w = common.wrapped_struct_name(s)
     fields = wrapped_structs_with_fields[s]
     if s in constants.MANUAL_STRUCTS_HEADERS:
       decls: list[str] = []

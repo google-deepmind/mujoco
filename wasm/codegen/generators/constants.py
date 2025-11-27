@@ -14,7 +14,7 @@
 
 """Constants used in the code generation process."""
 
-from typing import Dict, List, Set
+from typing import Dict, Set
 from introspect import structs as introspect_structs
 
 PRIMITIVE_TYPES: Set[str] = {
@@ -263,7 +263,7 @@ ANONYMOUS_STRUCTS: Dict[str, Dict[str, str]] = {
 
 # This list is created by subtracting the skipped structs from the list of all
 # structs and adding the anonymous structs.
-STRUCTS_TO_BIND: List[str] = list(
+STRUCTS_TO_BIND: list[str] = list(
     set(introspect_structs.STRUCTS.keys())
     .union(ANONYMOUS_STRUCTS.keys())
     .difference(set(SKIPPED_STRUCTS))
@@ -363,10 +363,10 @@ MJDATA_SIZES = (
 )
 
 # Fields that should be entirely omitted from the bindings.
-SKIPPED_FIELDS: Dict[str, List[str]] = {}
+SKIPPED_FIELDS: Dict[str, list[str]] = {}
 
 # Fields handled manually in template file struct declaration.
-MANUAL_FIELDS: Dict[str, List[str]] = {
+MANUAL_FIELDS: Dict[str, list[str]] = {
     # go/keep-sorted start
     "MjData": ["contact"],
     "MjvScene": [

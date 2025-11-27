@@ -97,48 +97,75 @@ class FunctionUtilsTest(absltest.TestCase):
         parameters=tuple(),
         doc="Returns int pointer",
     )
-    self.assertTrue(functions.should_be_wrapped(func))
+    self.assertTrue(common.should_be_wrapped(func))
 
   def test_generate_function_wrapper_for_simple_func(self):
     func = ast_nodes.FunctionDecl(
-        name="get_id",
-        return_type=ast_nodes.ValueType("int"),
-        parameters=tuple(),
-        doc="Returns an integer ID",
+        name="mj_defaultLROpt",
+        return_type=ast_nodes.ValueType("void"),
+        parameters=(
+            ast_nodes.FunctionParameterDecl(
+                name="opt",
+                type=ast_nodes.PointerType(
+                    inner_type=ast_nodes.ValueType("mjLROpt"),
+                ),
+            ),
+        ),
+        doc="Set default options for length range computation.",
     )
     result = functions.generate_function_wrapper(func)
     self.assertEqual(
         result,
-        """int get_id_wrapper() {
-  return get_id();
+        """void mj_defaultLROpt_wrapper(MjLROpt& opt) {
+  mj_defaultLROpt(opt.get());
 }""",
     )
 
   def test_generate_function_wrapper_checking_param(self):
-    parameters = (
-        ast_nodes.FunctionParameterDecl(
-            name="mat",
-            type=ast_nodes.PointerType(
-                inner_type=ast_nodes.ValueType(name="mjtNum", is_const=True),
+    func = ast_nodes.FunctionDecl(
+        name="mj_extractState",
+        return_type=ast_nodes.ValueType(name="void"),
+        parameters=(
+            ast_nodes.FunctionParameterDecl(
+                name="m",
+                type=ast_nodes.PointerType(
+                    inner_type=ast_nodes.ValueType(
+                        name="mjModel", is_const=True
+                    ),
+                ),
+            ),
+            ast_nodes.FunctionParameterDecl(
+                name="src",
+                type=ast_nodes.PointerType(
+                    inner_type=ast_nodes.ValueType(
+                        name="mjtNum", is_const=True
+                    ),
+                ),
+            ),
+            ast_nodes.FunctionParameterDecl(
+                name="srcsig",
+                type=ast_nodes.ValueType(name="unsigned int"),
+            ),
+            ast_nodes.FunctionParameterDecl(
+                name="dst",
+                type=ast_nodes.PointerType(
+                    inner_type=ast_nodes.ValueType(name="mjtNum"),
+                ),
+            ),
+            ast_nodes.FunctionParameterDecl(
+                name="dstsig",
+                type=ast_nodes.ValueType(name="unsigned int"),
             ),
         ),
-        ast_nodes.FunctionParameterDecl(
-            name="nr",
-            type=ast_nodes.ValueType(name="int"),
-        ),
-    )
-    func = ast_nodes.FunctionDecl(
-        name="get_id",
-        return_type=ast_nodes.ValueType("int"),
-        parameters=parameters,
-        doc="Returns an integer ID",
+        doc="Extract a subset of components from a state previously obtained via mj_getState.",  # pylint: disable=line-too-long
     )
     result = functions.generate_function_wrapper(func)
     self.assertEqual(
         result,
-        """int get_id_wrapper(const NumberArray& mat, int nr) {
-  UNPACK_ARRAY(mjtNum, mat);
-  return get_id(mat_.data(), nr);
+        """void mj_extractState_wrapper(const MjModel& m, const NumberArray& src, unsigned int srcsig, const val& dst, unsigned int dstsig) {
+  UNPACK_ARRAY(mjtNum, src);
+  UNPACK_VALUE(mjtNum, dst);
+  mj_extractState(m.get(), src_.data(), srcsig, dst_.data(), dstsig);
 }""",
     )
 

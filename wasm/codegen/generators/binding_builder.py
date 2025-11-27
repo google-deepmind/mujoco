@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from introspect import ast_nodes
 from introspect import enums as introspect_enums
 from introspect import functions as introspect_functions
 

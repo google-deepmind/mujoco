@@ -15,6 +15,7 @@
 """Utility functions for code generation."""
 
 import os
+from introspect import ast_nodes
 
 
 def write_to_file(filepath: str, content: str) -> None:
@@ -64,3 +65,52 @@ def replace_lines_containing_marker(
           )
       return lines[:i] + replacement_lines + lines[i + 1 :]
   return lines
+
+
+def get_pointer_return_inner_value_type(
+    func: ast_nodes.FunctionDecl,
+) -> ast_nodes.ValueType | None:
+  if not isinstance(func.return_type, ast_nodes.PointerType):
+    return None
+  if not isinstance(func.return_type.inner_type, ast_nodes.ValueType):
+    return None
+  return func.return_type.inner_type
+
+
+def get_inner_value_type(
+    param: ast_nodes.FunctionParameterDecl,
+) -> ast_nodes.ValueType | None:
+  if not isinstance(param.type, (ast_nodes.PointerType, ast_nodes.ArrayType)):
+    return None
+  if not isinstance(param.type.inner_type, ast_nodes.ValueType):
+    return None
+  return param.type.inner_type
+
+
+def should_be_wrapped(func: ast_nodes.FunctionDecl) -> bool:
+  """Checks if a MuJoCo function needs a wrapper function."""
+  if get_pointer_return_inner_value_type(func):
+    return True
+  for param in func.parameters:
+    if get_inner_value_type(param):
+      return True
+  return False
+
+
+def wrapped_struct_name(c_struct_name: str) -> str:
+  """Returns the name of the struct wrapping the given C struct."""
+  return capitalize(c_struct_name)
+
+
+def wrapped_function_name(func: ast_nodes.FunctionDecl) -> str:
+  """Returns the name of the function wrapping the given C function.
+
+  Hard-coded wrappers in the template need changing if the implementation of the
+  wrapped name is changed
+
+  Args:
+    func: The FunctionDecl of function to wrap.
+  """
+  if should_be_wrapped(func):
+    return f"{func.name}_wrapper"
+  return func.name

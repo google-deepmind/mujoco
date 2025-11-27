@@ -7803,7 +7803,7 @@ MjSpec::~MjSpec() {
 mjSpec *MjSpec::get() const { return ptr_; }
 void MjSpec::set(mjSpec *ptr) { ptr_ = ptr; }
 
-std::unique_ptr<MjModel> loadFromXML_wrapper(std::string filename) {
+std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
   if (!model) {
@@ -10940,7 +10940,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("useexisting", &MjLROpt::useexisting, &MjLROpt::set_useexisting, reference())
     .property("uselimit", &MjLROpt::uselimit, &MjLROpt::set_uselimit, reference());
   emscripten::class_<MjModel>("MjModel")
-    .class_function("loadFromXML", &loadFromXML_wrapper, take_ownership())
+    .class_function("mj_loadXML", &mj_loadXML_wrapper, take_ownership())
     .constructor<const MjModel &>()
     .property("B_colind", &MjModel::B_colind)
     .property("B_rowadr", &MjModel::B_rowadr)

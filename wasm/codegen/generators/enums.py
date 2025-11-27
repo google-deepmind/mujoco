@@ -14,15 +14,13 @@
 
 """Generates Embind bindings for MuJoCo enums."""
 
-from typing import List
-
 from introspect import ast_nodes
 
 from wasm.codegen.generators import code_builder
 
 
 def generate(
-    enums: List[ast_nodes.EnumDecl],
+    enums: list[ast_nodes.EnumDecl],
 ) -> list[tuple[str, list[str]]]:
   """Generates all Embind code for the provided enums."""
 
