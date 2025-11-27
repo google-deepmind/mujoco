@@ -20,6 +20,8 @@ add_library(${MUJOCO_TOOLBOX_TARGET_NAME} STATIC)
 
 target_sources(${MUJOCO_TOOLBOX_TARGET_NAME}
     PUBLIC
+        gui.cc
+        gui.h
         helpers.cc
         helpers.h
         imgui_widgets.cc

@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -24,7 +23,6 @@
 #include <cstring>
 #include <filesystem>
 #include <functional>
-#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -36,6 +34,7 @@
 #include <imgui_internal.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
+#include "experimental/toolbox/gui.h"
 #include "experimental/toolbox/helpers.h"
 #include "experimental/toolbox/imgui_widgets.h"
 #include "experimental/toolbox/interaction.h"
@@ -86,12 +85,6 @@ static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
   }
 }
 
-static ImVec2 GetFlexElementSize(int num_cols) {
-  const float width = (ImGui::GetContentRegionAvail().x / num_cols) -
-                      ImGui::GetStyle().FramePadding.x * 2;
-  return ImVec2(width, 0);
-}
-
 // FontAwesome icon codes.
 static constexpr const char* ICON_FA_PLAY = "\xef\x81\x8b";
 static constexpr const char* ICON_FA_PAUSE = "\xef\x81\x8c";
@@ -127,7 +120,7 @@ static constexpr const char* ICON_SPEED = ICON_FA_TACHOMETER;
 
 static constexpr int kToolsBarHeight = 48;
 static constexpr int kStatusBarHeight = 32;
-static constexpr float kSettingsRelWidth = 0.22f;
+static constexpr float kOptionsRelWidth = 0.22f;
 static constexpr float kInspectorRelWidth = 0.18f;
 static constexpr float kInfoRelHeight = 0.3f;
 
@@ -150,15 +143,6 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 "  0.1 ",
 };
 // clang-format on
-
-using toolbox::ImGui_FileDialog;
-using toolbox::ImGui_Input;
-using toolbox::ImGui_InputN;
-using toolbox::ImGui_IsChordJustPressed;
-using toolbox::ImGui_Slider;
-using toolbox::ImGui_ButtonToggle;
-using toolbox::ImGui_SwitchToggle;
-using toolbox::ImGui_BitToggle;
 
 App::App(int width, int height, std::string ini_path,
          const toolbox::LoadAssetFn& load_asset_fn)
@@ -501,6 +485,7 @@ void App::HandleMouseEvents() {
 }
 
 void App::HandleKeyboardEvents() {
+  using toolbox::ImGui_IsChordJustPressed;
   if (ImGui::GetIO().WantCaptureKeyboard) {
     return;
   }
@@ -532,7 +517,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab | ImGuiMod_Shift)) {
     tmp_.inspector_panel = !tmp_.inspector_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Tab)) {
-    tmp_.settings_panel = !tmp_.settings_panel;
+    tmp_.options_panel = !tmp_.options_panel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Minus)) {
     SetSpeedIndex(tmp_.speed_index + 1);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Equal)) {
@@ -754,16 +739,16 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (tmp_.settings_panel) {
-    if (ImGui::Begin("Settings", &tmp_.settings_panel)) {
-      SettingsGui();
+  if (tmp_.options_panel) {
+    if (ImGui::Begin("Options", &tmp_.options_panel)) {
+      ModelOptionsGui();
     }
     ImGui::End();
   }
 
   if (tmp_.inspector_panel) {
     if (ImGui::Begin("Inspector", &tmp_.inspector_panel)) {
-      InspectorGui();
+      DataInspectorGui();
     }
     ImGui::End();
   }
@@ -786,20 +771,12 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  // if (tmp_.chart_convergence) {
-  //   ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-  //   ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-  //   if (ImGui::Begin("Convergence", &tmp_.chart_convergence)) {
-  //   }
-  //   ImGui::End();
-  // }
-
   if (tmp_.chart_solver) {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      CountsGui();
-      ConvergenceGui();
+      toolbox::CountsGui(model_, data_);
+      toolbox::ConvergenceGui(model_, data_);
     }
     ImGui::End();
   }
@@ -820,7 +797,8 @@ void App::BuildGui() {
     toolbox::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
     if (ImGui::Begin("Info", &tmp_.info)) {
-      InfoGui();
+      toolbox::InfoGui(model_, data_, step_control_.IsPaused(),
+                       renderer_->GetFrameRate());
     }
     ImGui::End();
   }
@@ -906,9 +884,9 @@ ImVec4 App::ConfigureDockingLayout() {
     // Slice up the main dock space.
     ImGuiID main = root;
 
-    ImGuiID settings = 0;
-    ImGui::DockBuilderSplitNode(main, ImGuiDir_Left, kSettingsRelWidth,
-                                &settings, &main);
+    ImGuiID options = 0;
+    ImGui::DockBuilderSplitNode(main, ImGuiDir_Left, kOptionsRelWidth,
+                                &options, &main);
 
     ImGuiID inspector = 0;
     ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, kInspectorRelWidth,
@@ -919,7 +897,7 @@ ImVec4 App::ConfigureDockingLayout() {
                                 &info, &inspector);
 
     ImGui::DockBuilderDockWindow("Dockspace", main);
-    ImGui::DockBuilderDockWindow("Settings", settings);
+    ImGui::DockBuilderDockWindow("Options", options);
     ImGui::DockBuilderDockWindow("Inspector", inspector);
     ImGui::DockBuilderDockWindow("Info", info);
     ImGui::DockBuilderFinish(root);
@@ -969,7 +947,7 @@ ImVec4 App::ConfigureDockingLayout() {
   ImGui::Begin("StatusBar", nullptr, kFixedFlags);
   ImGui::End();
 
-  const int settings_width = dockspace_size.x * kSettingsRelWidth;
+  const int settings_width = dockspace_size.x * kOptionsRelWidth;
   const int inspector_width = dockspace_size.x * kInspectorRelWidth;
   const float workspace_x = dockspace_pos.x + settings_width;
   const float workspace_y = dockspace_pos.y;
@@ -978,53 +956,61 @@ ImVec4 App::ConfigureDockingLayout() {
   return ImVec4(workspace_x, workspace_y, workspace_w, workspace_h);
 }
 
-void App::SettingsGui() {
-  ImGuiTreeNodeFlags flags =
+void App::ModelOptionsGui() {
+  const float min_width = GetExpectedLabelWidth();
+  const ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   if (ImGui::TreeNodeEx("Physics Settings", flags)) {
-    PhysicsGui();
+    toolbox::PhysicsGui(model_, min_width);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Rendering Settings", flags)) {
-    RenderingGui();
+    toolbox::RenderingGui(model_,  &vis_options_, renderer_->GetRenderFlags(), min_width);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Visibility Groups", flags)) {
-    GroupsGui();
+    toolbox::GroupsGui(model_,  &vis_options_, min_width);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Visualization", flags)) {
-    VisualizationGui();
+    toolbox::VisualizationGui(model_, &vis_options_, &camera_, min_width);
     ImGui::TreePop();
   }
 }
 
-void App::InspectorGui() {
-  ImGuiTreeNodeFlags flags =
+void App::DataInspectorGui() {
+  const float min_width = GetExpectedLabelWidth();
+  const ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
+
   if (ImGui::TreeNodeEx("Noise", flags)) {
-    NoiseGui();
+    float noise_scale = 0;
+    float noise_rate = 0;
+    step_control_.GetNoiseParameters(noise_scale, noise_rate);
+    toolbox::NoiseGui(model_, data_, noise_scale, noise_rate);
+    step_control_.SetNoiseParameters(noise_scale, noise_rate);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Joints", flags)) {
-    JointsGui();
+    toolbox::JointsGui(model_, data_, &vis_options_);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Controls", flags)) {
-    ControlsGui();
+    toolbox::ControlsGui(model_, data_, &vis_options_);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Sensor", flags)) {
-    SensorGui();
+    toolbox::SensorGui(model_, data_);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Watch", flags)) {
-    WatchGui();
+    toolbox::WatchGui(model_, data_, ui_.watch_field, sizeof(ui_.watch_field),
+                      ui_.watch_index);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("State", flags)) {
-    StateGui();
+    toolbox::StateGui(model_, data_, tmp_.state, tmp_.state_sig, min_width);
     ImGui::TreePop();
   }
 }
@@ -1129,74 +1115,6 @@ void App::HelpGui() {
   ImGui::Text("X");
   ImGui::Text("T");
 
-  ImGui::Columns();
-}
-
-void App::InfoGui() {
-  const int num_islands = std::clamp(data_->nisland, 1, mjNISLAND);
-
-  // compute solver error (maximum over islands)
-  mjtNum solver_err = 0;
-  int solver_iter = 0;
-  for (int i = 0; i < num_islands; i++) {
-    solver_iter += data_->solver_niter[i];
-
-    mjtNum solerr_i = 0;
-    if (data_->solver_niter[i]) {
-      const int ind = mjMIN(data_->solver_niter[i], mjNSOLVER) - 1;
-      const mjSolverStat* stat = data_->solver + i * mjNSOLVER + ind;
-      solerr_i = mju_min(stat->improvement, stat->gradient);
-      if (solerr_i == 0) {
-        solerr_i = mju_max(stat->improvement, stat->gradient);
-      }
-    }
-    solver_err = mju_max(solver_err, solerr_i);
-  }
-  solver_err = mju_log10(mju_max(mjMINVAL, solver_err));
-
-  auto type = step_control_.IsPaused() ? mjTIMER_FORWARD : mjTIMER_STEP;
-  auto cpu = data_->timer[type].duration / mjMAX(1, data_->timer[type].number);
-  auto mempct = 100 * data_->maxuse_arena / (double)(data_->narena);
-  auto memlimit = mju_writeNumBytes(data_->narena);
-
-  ImGui::Columns(2);
-  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.4f);
-  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.6f);
-
-  ImGui::Text("Time");
-  ImGui::Text("Size");
-  ImGui::Text("CPU");
-  ImGui::Text("Solver");
-  ImGui::Text("FPS");
-  ImGui::Text("Memory");
-  if (model_->opt.enableflags & mjENBL_ENERGY) {
-    ImGui::Text("Energy");
-  }
-  if (model_->opt.enableflags & mjENBL_FWDINV) {
-    ImGui::Text("FwdInv");
-  }
-  if (!(model_->opt.disableflags & mjDSBL_ISLAND)) {
-    ImGui::Text("Islands");
-  }
-
-  ImGui::NextColumn();
-  ImGui::Text("%-9.3f", data_->time);
-  ImGui::Text("%d (%d con)", data_->nefc, data_->ncon);
-  ImGui::Text("%.3f", cpu);
-  ImGui::Text("%.1f (%d it)", solver_err, solver_iter);
-  ImGui::Text("%0.1f", renderer_->GetFrameRate());
-  ImGui::Text("%.1f%% of %s", mempct, memlimit);
-  if (model_->opt.enableflags & mjENBL_ENERGY) {
-    ImGui::Text("%.3f", data_->energy[0] + data_->energy[1]);
-  }
-  if (model_->opt.enableflags & mjENBL_FWDINV) {
-    ImGui::Text("%.1f %.1f",
-                mju_log10(mju_max(mjMINVAL, data_->solver_fwdinv[0])),
-                mju_log10(mju_max(mjMINVAL, data_->solver_fwdinv[1])));
-  }
-  if (!(model_->opt.disableflags & mjDSBL_ISLAND)) {
-    ImGui::Text("%d", data_->nisland);
-  }
   ImGui::Columns();
 }
 
@@ -1461,8 +1379,8 @@ void App::MainMenuGui() {
       ImGui::Separator();
 
       if (ImGui::MenuItem(
-              tmp_.settings_panel ? "Hide Settings" : "Show Left UI", "Tab")) {
-        tmp_.settings_panel = !tmp_.settings_panel;
+              tmp_.options_panel ? "Hide Options" : "Show Left UI", "Tab")) {
+        tmp_.options_panel = !tmp_.options_panel;
       }
       if (ImGui::MenuItem(
               tmp_.inspector_panel ? "Hide Inspector" : "Show Right UI",
@@ -1556,7 +1474,7 @@ void App::FileDialogGui() {
 
   if (ImGui::BeginPopupModal("LoadModel", NULL,
                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       LoadModel(tmp_.filename);
       tmp_.last_load_file = tmp_.filename;
     }
@@ -1564,7 +1482,7 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("SaveXML", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       char err[1000] = "";
       mj_saveLastXML(tmp_.filename, model_, err, 1000);
       tmp_.last_save_xml_file = tmp_.filename;
@@ -1573,7 +1491,7 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("SaveMJB", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       mj_saveModel(model_, tmp_.filename, nullptr, 0);
       tmp_.last_save_mjb_file = tmp_.filename;
     }
@@ -1581,7 +1499,7 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("SaveWebp", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       renderer_->SaveScreenshot(tmp_.filename, window_->GetWidth(),
                                 window_->GetHeight());
       tmp_.last_save_screenshot_file = tmp_.filename;
@@ -1590,7 +1508,7 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("PrintModel", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       mj_printModel(model_, tmp_.filename);
       tmp_.last_print_model_file = tmp_.filename;
     }
@@ -1598,718 +1516,11 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("PrintData", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       mj_printData(model_, data_, tmp_.filename);
       tmp_.last_print_data_file = tmp_.filename;
     }
     ImGui::EndPopup();
-  }
-}
-
-void App::SensorGui() {
-  ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0.1f, 0.1f));
-  if (ImPlot::BeginPlot("Sensors", ImVec2(-1, 0),
-                        ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
-    ImPlot::SetupLegend(ImPlotLocation_NorthEast, ImPlotLegendFlags_None);
-
-    ImPlot::SetupAxis(ImAxis_X1, "sensor",
-                      ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoLabel);
-    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 5, ImPlotCond_Once);
-
-    ImPlot::SetupAxis(ImAxis_Y1, "value",
-                      ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoLabel);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.1f");
-    ImPlot::SetupAxisLimits(ImAxis_Y1, -100, 100, ImPlotCond_Once);
-    ImPlot::SetupFinish();
-
-    // The values to be plotted.
-    std::vector<ImPlotPoint> sensor_values;
-
-    // The x-value of the bar to be plotted. Multiple bars will belong to the
-    // same sensor (i.e. the sensor_dim), but each group of bars will be appear
-    // in sequence along the x-axis.
-    float x_value = 0.f;
-
-    // The index of the sensor being plotted, based on sensor_type.
-    int sensor_index = 0;
-
-    // Function that plots the current group of sensor bars.
-    auto plot_lines =
-        [](int sensor_idx, const ImPlotPoint* values, int count) {
-          constexpr float bar_weight = 5.0f;
-          ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, bar_weight);
-          std::string sensor_label = "Sensor " + std::to_string(sensor_idx);
-          ImPlot::PlotLine(sensor_label.c_str(), &values->x, &values->y, count,
-                           ImPlotLineFlags_Segments, 0, 2 * sizeof(double));
-        };
-
-    for (int n = 0; n < model_->nsensor; n++) {
-      if (n > 0 && model_->sensor_type[n] != model_->sensor_type[n - 1]) {
-        plot_lines(sensor_index, sensor_values.data(), sensor_values.size());
-        sensor_values.clear();
-        ++sensor_index;
-      }
-
-      const int adr = model_->sensor_adr[n];
-      const int dim = model_->sensor_dim[n];
-      const mjtNum cutoff =
-          (model_->sensor_cutoff[n] > 0 ? model_->sensor_cutoff[n] : 1);
-      for (int i = 0; i < dim; ++i) {
-        sensor_values.push_back({x_value, 0});
-        sensor_values.push_back({x_value, data_->sensordata[adr + i] / cutoff});
-        x_value += 1.f;
-      }
-    }
-
-    // Ensure the last group of sensors is plotted.
-    plot_lines(sensor_index, sensor_values.data(), sensor_values.size());
-    ImPlot::EndPlot();
-  }
-  ImPlot::PopStyleVar();
-}
-
-void App::StateGui() {
-  const float min_width = GetExpectedLabelWidth();
-  const float available_width =
-      ImGui::GetContentRegionAvail().x - ImGui::GetTreeNodeToLabelSpacing();
-  const int num_cols = std::clamp(
-      static_cast<int>(std::floor(available_width / min_width)), 1, 4);
-  const ImVec2 size = GetFlexElementSize(num_cols);
-
-  ImGui::Unindent(0.5f * ImGui::GetTreeNodeToLabelSpacing());
-  // State component names and tooltips.
-  static constexpr const char* name_and_tooltip[][2] = {
-      {"TIME", "Time"},
-      {"QPOS", "Position"},
-      {"QVEL", "Velocity"},
-      {"ACT", "Actuator activation"},
-      {"WARMSTART", "Acceleration used for warmstart"},
-      {"CTRL", "Control"},
-      {"QFRC_APPLIED", "Applied generalized force"},
-      {"XFRC_APPLIED", "Applied Cartesian force/torque"},
-      {"EQ_ACTIVE", "Enable/disable constraints"},
-      {"MOCAP_POS", "Positions of mocap bodies"},
-      {"MOCAP_QUAT", "Orientations of mocap bodies"},
-      {"USERDATA", "User data"},
-      {"PLUGIN", "Plugin state"},
-  };
-
-  int prev_state_sig = tmp_.state_sig;
-
-  // State component checkboxes.
-  if (ImGui::BeginTable("##StateSignature", num_cols)) {
-    for (int i = 0; i < mjNSTATE; ++i) {
-      ImGui::TableNextColumn();
-      bool checked = tmp_.state_sig & (1 << i);
-      ImGui::Checkbox(name_and_tooltip[i][0], &checked);
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("%s", name_and_tooltip[i][1]);
-      }
-      tmp_.state_sig =
-          checked ? (tmp_.state_sig | (1 << i)) : (tmp_.state_sig & ~(1 << i));
-    }
-    ImGui::EndTable();
-  }
-
-  // Buttons to select commonly used state signatures.
-  if (ImGui::BeginTable("##CommonSignatures", num_cols)) {
-    ImGui::TableNextColumn();
-    if (ImGui::Button("Physics", size)) {
-      tmp_.state_sig =
-          (tmp_.state_sig == mjSTATE_PHYSICS) ? 0 : mjSTATE_PHYSICS;
-    }
-    ImGui::TableNextColumn();
-    if (ImGui::Button("Full Physics", size)) {
-      tmp_.state_sig =
-          (tmp_.state_sig == mjSTATE_FULLPHYSICS) ? 0 : mjSTATE_FULLPHYSICS;
-    }
-    ImGui::TableNextColumn();
-    if (ImGui::Button("User", size)) {
-      tmp_.state_sig = (tmp_.state_sig == mjSTATE_USER) ? 0 : mjSTATE_USER;
-    }
-    ImGui::TableNextColumn();
-    if (ImGui::Button("Integration", size)) {
-      tmp_.state_sig =
-          (tmp_.state_sig == mjSTATE_INTEGRATION) ? 0 : mjSTATE_INTEGRATION;
-    }
-    ImGui::EndTable();
-  }
-
-  if (tmp_.state_sig != prev_state_sig) {
-    const int size = mj_stateSize(model_, tmp_.state_sig);
-    tmp_.state.resize(size);
-  }
-
-  if (tmp_.state.empty()) {
-    // The state size is 0, let the user know why.
-    ImGui::Separator();
-    ImGui::BeginDisabled();
-    ImGui::TextWrapped(
-        tmp_.state_sig == 0
-            ? "No state components are selected."
-            : "Selected state components do not exist in the model.");
-    ImGui::EndDisabled();
-  } else {
-    mj_getState(model_, data_, tmp_.state.data(), tmp_.state_sig);
-    bool changed = false;
-
-    if (ImGui::BeginTable(
-            "State", 3,
-            ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter |
-                ImGuiTableFlags_BordersV | ImGuiTableFlags_Resizable |
-                ImGuiTableFlags_ScrollY,
-            ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 20))) {
-      ImGui::TableSetupColumn("Index");
-      ImGui::TableSetupColumn("Name");
-      ImGui::TableSetupColumn("Value");
-      ImGui::TableSetupScrollFreeze(0, 1);
-      ImGui::TableHeadersRow();
-
-      ImGuiListClipper clipper;
-      clipper.Begin(tmp_.state.size());
-      while (clipper.Step()) {
-        int global = 0;
-        for (int i = 0; i < mjNSTATE; ++i) {
-          if (tmp_.state_sig & (1 << i)) {
-            for (int local = 0; local < mj_stateSize(model_, (1 << i));
-                 ++local, ++global) {
-              if (global < clipper.DisplayStart) {
-                continue;
-              }
-              if (global >= clipper.DisplayEnd) {
-                break;
-              }
-              ImGui::TableNextRow();
-
-              ImGui::TableNextColumn();
-              ImGui::Text("%d", global);
-
-              ImGui::TableNextColumn();
-              ImGui::Text("%s[%d]", name_and_tooltip[i][0], local);
-
-              ImGui::TableNextColumn();
-              float value = tmp_.state[global];
-              ImGui::PushItemWidth(-std::numeric_limits<float>::min());
-              ImGui::PushID(global);
-              if (ImGui::DragFloat("##value", &value, 0.01f, 0, 0, "%.3f")) {
-                changed = true;
-              }
-              ImGui::PopID();
-              ImGui::PopItemWidth();
-              tmp_.state[global] = value;
-            }
-          }
-        }
-      }
-      ImGui::EndTable();
-    }
-
-    if (changed) {
-      mj_setState(model_, data_, tmp_.state.data(), tmp_.state_sig);
-    }
-  }
-
-  ImGui::Indent(0.5f * ImGui::GetTreeNodeToLabelSpacing());
-}
-
-void App::WatchGui() {
-  ImGui::InputText("Field", ui_.watch_field, sizeof(ui_.watch_field));
-  ImGui::InputInt("Index", &ui_.watch_index);
-  const mjtNum* value = static_cast<const mjtNum*>(
-      toolbox::GetValue(model_, data_, ui_.watch_field, ui_.watch_index));
-
-  toolbox::ScopedStyle style;
-  style.Color(ImGuiCol_FrameBg, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
-
-  if (value) {
-    char buf[100];
-    int size = std::snprintf(buf, sizeof(buf), "%0.3f", *value);
-    ImGui::InputText("Value", buf, size, ImGuiInputTextFlags_ReadOnly);
-  } else {
-    ImGui::BeginDisabled();
-    style.Color(ImGuiCol_Text, ImColor(255, 0, 0, 255));
-    char buf[] = "Invalid field/index!";
-    ImGui::InputText("Value", buf, sizeof(buf), ImGuiInputTextFlags_ReadOnly);
-    ImGui::EndDisabled();
-  }
-}
-
-void App::PhysicsGui() {
-  const float min_width = GetExpectedLabelWidth();
-  const float available_width =
-      ImGui::GetContentRegionAvail().x - ImGui::GetTreeNodeToLabelSpacing();
-  const int num_cols = std::clamp(
-      static_cast<int>(std::floor(available_width / min_width)), 1, 6);
-
-  auto& opt = model_->opt;
-
-  const char* opts0[] = {"Euler", "RK4", "implicit", "implicitfast"};
-  ImGui::Combo("Integrator", &opt.integrator, opts0, IM_ARRAYSIZE(opts0));
-
-  const char* opts1[] = {"Pyramidal", "Elliptic"};
-  ImGui::Combo("Cone", &opt.cone, opts1, IM_ARRAYSIZE(opts1));
-
-  const char* opts2[] = {"Dense", "Sparse", "Auto"};
-  ImGui::Combo("Jacobian", &opt.jacobian, opts2, IM_ARRAYSIZE(opts2));
-
-  const char* opts3[] = {"PGS", "CG", "Newton"};
-  ImGui::Combo("Solver", &opt.solver, opts3, IM_ARRAYSIZE(opts3));
-
-  if (ImGui::TreeNodeEx("Disable Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    if (ImGui::BeginTable("##DisableFlagsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < mjNDISABLE; ++i) {
-        ImGui::TableNextColumn();
-        ImGui_BitToggle(mjDISABLESTRING[i], &opt.disableflags, 1 << i, size);
-      }
-      ImGui::EndTable();
-    }
-    ImGui::TreePop();
-  }
-
-  if (ImGui::TreeNodeEx("Enable Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    if (ImGui::BeginTable("##EnableFlagsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < mjNENABLE; ++i) {
-        ImGui::TableNextColumn();
-        ImGui_BitToggle(mjENABLESTRING[i], &opt.enableflags, 1 << i, size);
-      }
-      ImGui::EndTable();
-    }
-    ImGui::TreePop();
-  }
-
-  if (ImGui::TreeNodeEx("Actuator Group Disable")) {
-    if (ImGui::BeginTable("##EnableFlagsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < 6; ++i) {
-        char label[64];
-        std::snprintf(label, sizeof(label), "Act Group %d", i);
-        ImGui::TableNextColumn();
-        ImGui_BitToggle(label, &opt.disableactuator, 1 << i, size);
-      }
-      ImGui::EndTable();
-    }
-    ImGui::TreePop();
-  };
-
-  if (ImGui::TreeNodeEx("Algorithmic Parameters")) {
-    float w = ImGui::GetWindowWidth() * .6f;
-    ImGui_Input("Timestep", &opt.timestep, {0, 1, 0.01, 0.1, w});
-    ImGui_Input("Iterations", &opt.iterations, {0, 1000, 1, 10, w});
-    ImGui_Input("Tolerance", &opt.tolerance, {0, 1, 1e-7, 1e-6, w});
-    ImGui_Input("LS Iter", &opt.ls_iterations, {0, 100, 1, 0.1, w});
-    ImGui_Input("LS Tol", &opt.ls_tolerance, {0, 0.1, 0.01, 0.1, w});
-    ImGui_Input("Noslip Iter", &opt.noslip_iterations, {0, 1000, 1, 100, w});
-    ImGui_Input("Noslip Tol", &opt.noslip_tolerance, {0, 1, 0.01, 0.1, w});
-    ImGui_Input("CCD Iter", &opt.ccd_iterations, {0, 1000, 1, 100, w});
-    ImGui_Input("CCD Tol", &opt.ccd_tolerance, {0, 1, 0.01, 0.1, w});
-    ImGui_Input("Sleep Tol", &opt.sleep_tolerance, {0, 1, 0.01, 0.1, w});
-    ImGui_Input("SDF Iter", &opt.sdf_iterations, {1, 20, 1, 10, w});
-    ImGui_Input("SDF Init", &opt.sdf_initpoints, {1, 100, 1, 10, w});
-    ImGui::TreePop();
-  }
-
-  if (ImGui::TreeNodeEx("Physical Parameters")) {
-    float w = ImGui::GetWindowWidth() * .6f;
-    ImGui_InputN("Gravity", opt.gravity, 3, {.width = w});
-    ImGui_InputN("Wind", opt.wind, 3, {.width = w});
-    ImGui_InputN("Magnetic", opt.magnetic, 3, {.width = w});
-    ImGui_Input("Density", &opt.density, {.min = .1, .max = 1, .width = w});
-    ImGui_Input("Viscosity", &opt.viscosity, {.min = .1, .max = 1, .width = w});
-    ImGui_Input("Imp Ratio", &opt.impratio, {.min = .1, .max = 1, .width = w});
-    ImGui::TreePop();
-  };
-
-  if (ImGui::TreeNodeEx("Contact Override")) {
-    float w = ImGui::GetWindowWidth() * .6f;
-    ImGui_Input("Margin", &opt.o_margin, {.min = 0.1, .max = 1, .width = w});
-    ImGui_InputN("Sol Imp", opt.o_solimp, 5, {.width = w, .format = "%0.1f"});
-    ImGui_InputN("Sol Ref", opt.o_solref, 2, {.width = w, .format = "%0.1f"});
-    ImGui_InputN("Friction", opt.o_friction, 5, {.width = w, .format = "%.1f"});
-    ImGui::TreePop();
-  }
-}
-
-void App::VisualizationGui() {
-  auto& vis = model_->vis;
-  auto& stat = model_->stat;
-
-  ImGui::SliderInt("Tree depth", &vis_options_.bvh_depth, 0, 20);
-  ImGui::SliderInt("Flex layer", &vis_options_.flex_layer, 0, 10);
-
-  if (ImGui::TreeNodeEx("Headlight")) {
-    ImGui_SwitchToggle("Active", &vis.headlight.active);
-    ImGui::ColorEdit3("Ambient", vis.headlight.ambient);
-    ImGui::ColorEdit3("Diffuse", vis.headlight.diffuse);
-    ImGui::ColorEdit3("Specular", vis.headlight.specular);
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Free Camera")) {
-    ImGui_SwitchToggle("Orthographic", &vis.global.orthographic);
-    ImGui_Input("FOV", &vis.global.fovy, {.format = "%0.2f"});
-    ImGui_InputN("Center", stat.center, 3, {.format = "%0.2f"});
-    ImGui_Input("Azimuth", &vis.global.azimuth, {.format = "%0.2f"});
-    ImGui_Input("Elevation", &vis.global.elevation, {.format = "%0.2f"});
-    if (ImGui::Button("Align")) {
-      mjv_defaultFreeCamera(model_, &camera_);
-    }
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Global")) {
-    ImGui_Input("Extent", &stat.extent);
-    const char* opts[] = {"Box", "Ellipsoid"};
-    ImGui::SliderInt("Inertia", &vis.global.ellipsoidinertia, 0, 1,
-                     opts[vis.global.ellipsoidinertia]);
-    ImGui_ButtonToggle("BVH active", &vis.global.bvactive);
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Mapping")) {
-    ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.3f);
-    ImGui_Input("Stiffness", &vis.map.stiffness);
-    ImGui_Input("Rot stiffness", &vis.map.stiffnessrot);
-    ImGui_Input("Force", &vis.map.force);
-    ImGui_Input("Torque", &vis.map.torque);
-    ImGui_Input("Alpha", &vis.map.alpha);
-    ImGui_Input("Fog start", &vis.map.fogstart);
-    ImGui_Input("Fog end", &vis.map.fogend);
-    ImGui_Input("Z near", &vis.map.znear);
-    ImGui_Input("Z far", &vis.map.zfar);
-    ImGui_Input("Haze", &vis.map.haze);
-    ImGui_Input("Shadow clip", &vis.map.shadowclip);
-    ImGui_Input("Shadow scale", &vis.map.shadowscale);
-    ImGui::PopItemWidth();
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Scale")) {
-    ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.3f);
-    ImGui_Input("All (meansize)", &stat.meansize, {.format = "%0.3f"});
-    ImGui_Input("Force width", &vis.scale.forcewidth);
-    ImGui_Input("Contact width", &vis.scale.contactwidth);
-    ImGui_Input("Contact height", &vis.scale.contactheight);
-    ImGui_Input("Connect", &vis.scale.connect);
-    ImGui_Input("Com", &vis.scale.com);
-    ImGui_Input("Camera", &vis.scale.camera);
-    ImGui_Input("Light", &vis.scale.light);
-    ImGui_Input("Select point", &vis.scale.selectpoint);
-    ImGui_Input("Joint length", &vis.scale.jointlength);
-    ImGui_Input("Joint width", &vis.scale.jointwidth);
-    ImGui_Input("Actuator length", &vis.scale.actuatorlength);
-    ImGui_Input("Actuator width", &vis.scale.actuatorwidth);
-    ImGui_Input("Frame length", &vis.scale.framelength);
-    ImGui_Input("Frame width", &vis.scale.framewidth);
-    ImGui_Input("Constraint", &vis.scale.constraint);
-    ImGui_Input("Slider-crank", &vis.scale.slidercrank);
-    ImGui::PopItemWidth();
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Colors")) {
-    ImGui::ColorEdit4("Fog", vis.rgba.fog);
-    ImGui::ColorEdit4("Haze", vis.rgba.haze);
-    ImGui::ColorEdit4("Force", vis.rgba.force);
-    ImGui::ColorEdit4("Inertia", vis.rgba.inertia);
-    ImGui::ColorEdit4("Joint", vis.rgba.joint);
-    ImGui::ColorEdit4("Actuator", vis.rgba.actuator);
-    ImGui::ColorEdit4("Act. Negative", vis.rgba.actuatornegative);
-    ImGui::ColorEdit4("Act. Positive", vis.rgba.actuatorpositive);
-    ImGui::ColorEdit4("Center of Mass", vis.rgba.com);
-    ImGui::ColorEdit4("Camera", vis.rgba.camera);
-    ImGui::ColorEdit4("Light", vis.rgba.light);
-    ImGui::ColorEdit4("Select Point", vis.rgba.selectpoint);
-    ImGui::ColorEdit4("Auto Connect", vis.rgba.connect);
-    ImGui::ColorEdit4("Contact Point", vis.rgba.contactpoint);
-    ImGui::ColorEdit4("Contact Force", vis.rgba.contactforce);
-    ImGui::ColorEdit4("Contact Friction", vis.rgba.contactfriction);
-    ImGui::ColorEdit4("Contact Torque", vis.rgba.contacttorque);
-    ImGui::ColorEdit4("Contact Gap", vis.rgba.contactgap);
-    ImGui::ColorEdit4("Range Finder", vis.rgba.rangefinder);
-    ImGui::ColorEdit4("Constraint", vis.rgba.constraint);
-    ImGui::ColorEdit4("Slider Crank", vis.rgba.slidercrank);
-    ImGui::ColorEdit4("Crank Broken", vis.rgba.crankbroken);
-    ImGui::ColorEdit4("Frustum", vis.rgba.frustum);
-    ImGui::ColorEdit4("Bounding Vol.", vis.rgba.bv);
-    ImGui::ColorEdit4("BV Active", vis.rgba.bvactive);
-    ImGui::TreePop();
-  }
-}
-
-void App::RenderingGui() {
-  const float min_width = GetExpectedLabelWidth();
-  const float available_width =
-      ImGui::GetContentRegionAvail().x - ImGui::GetTreeNodeToLabelSpacing();
-  const int num_cols = std::clamp(
-      static_cast<int>(std::floor(available_width / min_width)), 1, 6);
-
-  if (ImGui::TreeNodeEx("Model Elements", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
-    if (ImGui::BeginTable("##ModelElementsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < mjNVISFLAG; ++i) {
-        ImGui::TableNextColumn();
-        ImGui_ButtonToggle(mjVISSTRING[i][0], &vis_options_.flags[i], size);
-      }
-      ImGui::EndTable();
-    }
-
-    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-    ImGui::TreePop();
-  }
-
-  if (ImGui::TreeNodeEx("Render Flags", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
-    if (ImGui::BeginTable("##RenderFlagsTable", num_cols)) {
-      const ImVec2 size = GetFlexElementSize(num_cols);
-      for (int i = 0; i < mjNRNDFLAG; ++i) {
-        ImGui::TableNextColumn();
-        mjtByte flag = renderer_->GetFlag(static_cast<mjtRndFlag>(i));
-        ImGui_ButtonToggle(mjRNDSTRING[i][0], &flag, size);
-        renderer_->SetFlag(static_cast<mjtRndFlag>(i), flag);
-      }
-      ImGui::EndTable();
-    }
-
-    ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-    ImGui::TreePop();
-  }
-}
-
-void App::GroupsGui() {
-  const float min_width = GetExpectedLabelWidth();
-  const float available_width = ImGui::GetContentRegionAvail().x;
-  // We limit the number of columns to 1, 2, 3, or 6 depending on how much
-  // space the window has available.
-  int num_cols = std::clamp(
-      static_cast<int>(std::floor(available_width / min_width)), 1, 6);
-  if (num_cols == 4 || num_cols == 5) {
-    num_cols = 3;
-  }
-
-  auto GroupGui = [&](const char* name, mjtByte* group) {
-    if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen)) {
-      ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-
-      char label[64];
-      std::snprintf(label, sizeof(label), "##%s", name);
-      if (ImGui::BeginTable(label, num_cols)) {
-        const ImVec2 size = GetFlexElementSize(num_cols);
-        for (int i = 0; i < 6; ++i) {
-          ImGui::TableNextColumn();
-          std::snprintf(label, sizeof(label), "%s %d", name, i);
-          ImGui_ButtonToggle(label, &group[i], size);
-        }
-
-        ImGui::EndTable();
-      }
-
-      ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing() / 2);
-      ImGui::TreePop();
-    }
-  };
-
-  GroupGui("Geoms", vis_options_.geomgroup);
-  GroupGui("Sites", vis_options_.sitegroup);
-  GroupGui("Joints", vis_options_.jointgroup);
-  GroupGui("Tendons", vis_options_.tendongroup);
-  GroupGui("Actuators", vis_options_.actuatorgroup);
-  GroupGui("Flexes", vis_options_.flexgroup);
-  GroupGui("Skins", vis_options_.skingroup);
-}
-
-void App::NoiseGui() {
-  float noise_scale, noise_rate;
-  step_control_.GetNoiseParameters(noise_scale, noise_rate);
-  ImGui::SliderFloat("Scale", &noise_scale, 0, 1);
-  ImGui::SliderFloat("Rate", &noise_rate, 0, 4);
-  step_control_.SetNoiseParameters(noise_scale, noise_rate);
-}
-
-void App::JointsGui() {
-  char name[100];
-  for (int i = 0; i < model_->njnt; ++i) {
-    if (model_->jnt_type[i] != mjJNT_HINGE &&
-        model_->jnt_type[i] != mjJNT_SLIDE) {
-      continue;
-    }
-    const int group = std::clamp(model_->jnt_group[i], 0, mjNGROUP - 1);
-    if (!vis_options_.jointgroup[group]) {
-      continue;
-    }
-
-    const char* jnt_name = model_->names + model_->name_jntadr[i];
-    if (*jnt_name) {
-      std::snprintf(name, sizeof(name), "%s", jnt_name);
-    } else {
-      std::snprintf(name, sizeof(name), "joint %d", i);
-    }
-
-    double min = -1.0;
-    double max = 1.0;
-    if (model_->jnt_limited[i]) {
-      min = model_->jnt_range[2 * i + 0];
-      max = model_->jnt_range[2 * i + 1];
-    } else if (model_->jnt_type[i] == mjJNT_SLIDE) {
-      min = -1.0;
-      max = 1.0;
-    } else {
-      min = -3.1416;
-      max = 3.1416;
-    }
-
-    const int data_adr = model_->jnt_qposadr[i];
-    ImGui_Slider(name, &data_->qpos[data_adr], min, max);
-  }
-}
-
-void App::ControlsGui() {
-  if (ImGui::Button("Clear All")) {
-    mju_zero(data_->ctrl, model_->nu);
-  }
-
-  char name[100];
-  for (int i = 0; i < model_->nu; i++) {
-    int group = std::clamp(model_->actuator_group[i], 0, mjNGROUP - 1);
-    if (!vis_options_.actuatorgroup[group]) {
-      continue;
-    }
-    if (group >= 0 && group <= 30 &&
-        model_->opt.disableactuator & (1 << group)) {
-      continue;
-    }
-
-    const char* ctrl_name = model_->names + model_->name_actuatoradr[i];
-    if (*ctrl_name) {
-      std::snprintf(name, sizeof(name), "%s", ctrl_name);
-    } else {
-      std::snprintf(name, sizeof(name), "control %d", i);
-    }
-
-    double min = -1.0;
-    double max = 1.0;
-    if (!model_->actuator_ctrllimited[i]) {
-      min = model_->actuator_ctrlrange[2 * i + 0];
-      max = model_->actuator_ctrlrange[2 * i + 1];
-    }
-    ImGui_Slider(name, &data_->ctrl[i], min, max);
-  }
-}
-
-void App::ConvergenceGui() {
-  if (ImPlot::BeginPlot("Convergence (log 10)", ImVec2(-1, 0))) {
-    ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.1f");
-    ImPlot::SetupAxisLimits(ImAxis_Y1, -20, 5, ImPlotCond_Always);
-    ImPlot::SetupLegend(ImPlotLocation_NorthEast);
-    ImPlot::SetupFinish();
-
-    const int nisland = data_->nefc ? mjMAX(1, mjMIN(data_->nisland, mjNISLAND)) : 0;
-    for (int k = 0; k < nisland; k++) {
-      mjSolverStat* stats = data_->solver + k * mjNSOLVER;
-      const int npoints =
-          mjMIN(mjMIN(data_->solver_niter[k], mjNSOLVER), mjMAXLINEPNT);
-
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
-      ImPlot::PlotLineG("improvement", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = mju_log10(mju_max(mjMINVAL, stats[i].improvement));
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
-
-      if (model_->opt.solver == mjSOL_PGS) {
-        continue;
-      }
-
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
-      ImPlot::PlotLineG("gradient", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = mju_log10(mju_max(mjMINVAL, stats[i].gradient));
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
-
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
-      ImPlot::PlotLineG("lineslope", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = mju_log10(mju_max(mjMINVAL, stats[i].lineslope));
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
-    }
-
-    ImPlot::EndPlot();
-  }
-}
-
-void App::CountsGui() {
-  if (ImPlot::BeginPlot("Counts", ImVec2(-1, 0))) {
-    ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
-    ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
-    ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
-    ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 80, ImPlotCond_Always);
-    ImPlot::SetupLegend(ImPlotLocation_NorthEast);
-    ImPlot::SetupFinish();
-
-    const int nisland = data_->nefc ? mjMAX(1, mjMIN(data_->nisland, mjNISLAND)) : 0;
-    for (int k = 0; k < nisland; k++) {
-      const int npoints =
-          mjMIN(mjMIN(data_->solver_niter[k], mjNSOLVER), mjMAXLINEPNT);
-
-      mjSolverStat* stats = data_->solver + k*mjNSOLVER;
-
-      int nefc = nisland == 1 ? data_->nefc : data_->island_nefc[k];
-
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
-      ImPlot::PlotLineG("total", +[](int i, void* user_data) {
-        const float x = static_cast<float>(i);
-        const float y = *(static_cast<int*>(user_data));
-        return ImPlotPoint{x, y};
-      }, &nefc, npoints);
-
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
-      ImPlot::PlotLineG("active", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = stats[i].nactive;
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
-
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
-      ImPlot::PlotLineG("changed", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = stats[i].nchange;
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
-
-      if (model_->opt.solver == mjSOL_PGS) {
-        continue;
-      }
-
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
-      ImPlot::PlotLineG("evals", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = stats[i].neval;
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
-
-      if (model_->opt.solver == mjSOL_CG) {
-        continue;
-      }
-
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
-      ImPlot::PlotLineG("updates", +[](int i, void* user_data) {
-        const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
-        const float x = static_cast<float>(i);
-        const float y = stats[i].nupdate;
-        return ImPlotPoint{x, y};
-      }, stats, npoints);
-    }
-
-    ImPlot::EndPlot();
   }
 }
 

@@ -52,8 +52,7 @@ class Renderer {
   void SaveScreenshot(const std::string& filename, int width, int height);
 
   // Rendering flags.
-  mjtByte GetFlag(mjtRndFlag flag) const { return scene_.flags[flag];}
-  void SetFlag(mjtRndFlag flag, mjtByte value) { scene_.flags[flag] = value; }
+  mjtByte* GetRenderFlags() { return scene_.flags; }
 
   // Returns the current, average frame rate.
   double GetFrameRate() const { return fps_; }

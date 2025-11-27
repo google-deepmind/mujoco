@@ -93,7 +93,7 @@ class App {
     bool chart_cpu_time = false;
     bool chart_dimensions = false;
     bool chart_solver = false;
-    bool settings_panel = true;
+    bool options_panel = true;
     bool inspector_panel = true;
     bool style_editor = false;
     bool imgui_demo = false;
@@ -149,28 +149,14 @@ class App {
 
   void SetupStyle(Style style);
   ImVec4 ConfigureDockingLayout();
+
   void MainMenuGui();
   void ToolBarGui();
-  void SettingsGui();
-  void InspectorGui();
   void StatusBarGui();
-
-  void InfoGui();
   void HelpGui();
   void FileDialogGui();
-  void PlaybackGui();
-  void PhysicsGui();
-  void NoiseGui();
-  void RenderingGui();
-  void VisualizationGui();
-  void GroupsGui();
-  void WatchGui();
-  void SensorGui();
-  void StateGui();
-  void JointsGui();
-  void ControlsGui();
-  void ConvergenceGui();
-  void CountsGui();
+  void ModelOptionsGui();
+  void DataInspectorGui();
 
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
