@@ -1549,8 +1549,8 @@ std::vector<const char*> App::GetCameraNames() {
   if (tmp_.camera_names.empty()) {
     tmp_.camera_names.reserve(model_->ncam + 3);
 
-    tmp_.camera_names.push_back("Tumble");
-    tmp_.camera_names.push_back("Free");
+    tmp_.camera_names.push_back("Free: tumble");
+    tmp_.camera_names.push_back("Free: wasd");
     tmp_.camera_names.push_back("Tracking (-1)");
     for (int i = 0; i < model_->ncam; i++) {
       if (model_->names[model_->name_camadr[i]]) {
