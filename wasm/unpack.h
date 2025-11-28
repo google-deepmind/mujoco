@@ -52,12 +52,23 @@ class WasmBuffer {
  public:
   // Creates a buffer with the given element count
   explicit WasmBuffer(int element_count = 0) {
-    bytes_.resize(element_count * sizeof(T));
+    Resize(element_count);
   }
 
   // Creates a buffer by copying data from a (typed) array
   static WasmBuffer<T> FromArray(const emscripten::val& array) {
     return WasmBuffer<T>(array);
+  }
+
+  // Resizes the buffer to the given element count.
+  // If element count is zero the memory is released.
+  void Resize(int element_count) {
+    if (element_count == 0) {
+      std::vector<std::byte> empty;
+      bytes_.swap(empty);
+    } else {
+      bytes_.resize(element_count * sizeof(T));
+    }
   }
 
   // Returns the pointer to the data in the buffer
@@ -66,7 +77,8 @@ class WasmBuffer {
   // Returns the number of elements in the buffer
   int GetElementCount() { return bytes_.size() / sizeof(T); }
 
-  // Returns a TypedArray view of the buffer
+  // Returns a TypedArray view of the buffer.
+  // Do not cache this value, bytes_.data() is invalidated on Resize!
   emscripten::val GetView() {
     return emscripten::val(emscripten::typed_memory_view(
         bytes_.size() / sizeof(T), reinterpret_cast<const T*>(bytes_.data())));
