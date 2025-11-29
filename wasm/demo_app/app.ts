@@ -208,7 +208,7 @@ class App {
     // Write xml as a file so that mujoco can find it
     (mujoco as any).FS.writeFile('/working/model.xml', xmlContent);
 
-    this.mjModel = mujoco.MjModel.loadFromXML('/working/model.xml');
+    this.mjModel = mujoco.MjModel.mj_loadXML('/working/model.xml');
     if (!app.mjModel) {
       throw new Error('Failed to load model');
     }
