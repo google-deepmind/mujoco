@@ -29,8 +29,8 @@ MJAPI void mju_multiRayPrepare(const mjModel* m, const mjData* d,
                                int bodyexclude, mjtNum cutoff, mjtNum* geom_ba,
                                int* geom_eliminate);
 
-// Intersect multiple rays emanating from a single source
-// Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
+// intersect multiple rays emanating from a single source
+// similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
 MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                        const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
@@ -48,11 +48,15 @@ MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
 
 // intersect ray with triangle
 MJAPI mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
-                          const mjtNum b0[3], const mjtNum b1[3]);
+                          const mjtNum b0[3], const mjtNum b1[3], mjtNum normal[3]);
 
 // intersect ray with mesh
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
                         const mjtNum pnt[3], const mjtNum vec[3]);
+
+// intersect ray with mesh, compute normal if given
+MJAPI mjtNum mj_rayMeshNormal(const mjModel* m, const mjData* d, int geomid,
+                              const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
 
 // intersect ray with primitive geom, no meshes or hfields
 MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],

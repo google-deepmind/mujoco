@@ -350,7 +350,7 @@ mjtNum _rayMesh(const mjModel* m, const mjData* d, int geomid,
     }
 
     // solve
-    sol = ray_triangle(v, lpnt, lvec, b0, b1);
+    sol = ray_triangle(v, lpnt, lvec, b0, b1, nullptr);
 
     // update
     if (sol >= 0 && (x < 0 || sol < x)) {
@@ -474,10 +474,12 @@ static const char* const kCapsuleModel = "engine/testdata/ray/capsule.xml";
 static const char* const kEllipsoidModel = "engine/testdata/ray/ellipsoid.xml";
 static const char* const kCylinderModel = "engine/testdata/ray/cylinder.xml";
 static const char* const kBoxModel = "engine/testdata/ray/box.xml";
+static const char* const kMeshModel = "engine/testdata/ray/mesh.xml";
 
 TEST_F(RayTest, GeomNormal) {
-  for (const char* path : {kPlaneModel, kSphereModel, kCapsuleModel,
-                           kEllipsoidModel, kCylinderModel, kBoxModel}) {
+  for (const char* path :
+       {kPlaneModel, kSphereModel, kCapsuleModel, kEllipsoidModel,
+        kCylinderModel, kBoxModel, kMeshModel}) {
     const std::string xml_path = GetTestDataFilePath(path);
     char error[1024];
     mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
@@ -517,8 +519,14 @@ TEST_F(RayTest, GeomNormal) {
       const mjtNum vec[3] = {d->site_xmat[2], d->site_xmat[5], d->site_xmat[8]};
 
       // compute ray length and normal
-      mjtNum normal[3];
-      mjtNum r = mju_rayGeomNormal(pos, mat, size, pnt, vec, type, normal);
+      mjtNum r, normal[3];
+      switch (type) {
+        case mjGEOM_MESH:
+          r = mj_rayMeshNormal(m, d, 0, pnt, vec, normal);
+          break;
+        default:
+          r = mju_rayGeomNormal(pos, mat, size, pnt, vec, type, normal);
+      }
 
       // compare with sensor
       EXPECT_EQ(r, d->sensordata[0]) << path << ", time " << d->time;
@@ -540,9 +548,15 @@ TEST_F(RayTest, GeomNormal) {
         mjtNum nudge[3] = {d->site_xmat[0 + i],
                            d->site_xmat[3 + i],
                            d->site_xmat[6 + i]};
-        mjtNum dpnt[3];
+        mjtNum dr, dpnt[3];
         mju_addScl3(dpnt, pnt, nudge, eps);
-        mjtNum dr = mju_rayGeomNormal(pos, mat, size, dpnt, vec, type, nullptr);
+        switch (type) {
+          case mjGEOM_MESH:
+            dr = mj_rayMeshNormal(m, d, 0, dpnt, vec, nullptr);
+            break;
+          default:
+            dr = mju_rayGeomNormal(pos, mat, size, dpnt, vec, type, nullptr);
+        }
         mju_addScl3(ds[i], dpnt, vec, dr);
       }
 

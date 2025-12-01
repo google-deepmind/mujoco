@@ -130,7 +130,10 @@ static mjtNum ray_quad(mjtNum a, mjtNum b, mjtNum c, mjtNum x[2]) {
 
 // intersect ray with triangle
 mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
-                    const mjtNum b0[3], const mjtNum b1[3]) {
+                    const mjtNum b0[3], const mjtNum b1[3], mjtNum normal[3]) {
+  // clear normal if given
+  if (normal) mju_zero3(normal);
+
   // dif = v[i] - lpnt
   mjtNum dif[3][3];
   for (int i=0; i < 3; i++) {
@@ -182,9 +185,17 @@ mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
     return -1;
   }
 
-  return (-mju_dot3(dif[2], nrm) / denom);
-}
+  // compute distance
+  mjtNum x = -mju_dot3(dif[2], nrm) / denom;
 
+  // compute normal if given
+  if (normal) {
+    mju_normalize3(nrm);
+    mju_copy3(normal, nrm);
+  }
+
+  return x;
+}
 
 //---------------------------- geom-specific intersection functions --------------------------------
 
@@ -639,7 +650,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]},
         {dx*(c+1)-size[0], dy*(r+0)-size[1], data[(r+0)*ncol+(c+1)]*size[2]}
       };
-      mjtNum sol = ray_triangle(va, lpnt, lvec, b0, b1);
+      mjtNum sol = ray_triangle(va, lpnt, lvec, b0, b1, NULL);
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
       }
@@ -650,7 +661,7 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]},
         {dx*(c+0)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+0)]*size[2]}
       };
-      sol = ray_triangle(vb, lpnt, lvec, b0, b1);
+      sol = ray_triangle(vb, lpnt, lvec, b0, b1, NULL);
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
       }
@@ -721,9 +732,13 @@ int mju_raySlab(const mjtNum aabb[6], const mjtNum xpos[3],
   return tmin < tmax;
 }
 
+
 // ray vs tree intersection
 mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3],
-                   const mjtNum vec[3]) {
+                   const mjtNum vec[3], mjtNum normal[3]) {
+  // clear normal if given
+  if (normal) mju_zero3(normal);
+
   int mark_active = m->vis.global.bvactive;
   const int meshid = m->geom_dataid[id];
   const int bvhadr = m->mesh_bvhadr[meshid];
@@ -761,6 +776,7 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
 
   // init solution
   mjtNum x = -1, sol;
+  mjtNum normal_local[3];
 
   while (nstack) {
     // pop from stack
@@ -794,14 +810,13 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
       }
 
       // solve
-      sol = ray_triangle(v, lpnt, lvec, b0, b1);
+      sol = ray_triangle(v, lpnt, lvec, b0, b1, normal ? normal_local : NULL);
 
       // update
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
-        if (mark_active) {
-          d->bvh_active[node + bvhadr] = 1;
-        }
+        if (normal) mju_copy3(normal, normal_local);
+        if (mark_active) d->bvh_active[node + bvhadr] = 1;
       }
       continue;
     }
@@ -821,6 +836,11 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
         nstack++;
       }
     }
+  }
+
+  // rotate normal to global frame
+  if (normal && x >= 0) {
+    mju_mulMatVec3(normal, d->geom_xmat+9*id, normal);
   }
 
   return x;
@@ -886,10 +906,12 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   return -1;
 }
 
+// intersect ray with mesh, compute normal if given
+mjtNum mj_rayMeshNormal(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3],
+                        const mjtNum vec[3], mjtNum normal[3]) {
+  // clear normal if given
+  if (normal) mju_zero3(normal);
 
-// intersect ray with mesh
-mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
-                  const mjtNum pnt[3], const mjtNum vec[3]) {
   // check geom type
   if (m->geom_type[id] != mjGEOM_MESH) {
     mjERROR("geom with mesh type expected");
@@ -900,7 +922,13 @@ mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id,
     return -1;
   }
 
-  return mju_rayTree(m, d, id, pnt, vec);
+  return mju_rayTree(m, d, id, pnt, vec, normal);
+}
+
+// intersect ray with mesh
+mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3],
+                  const mjtNum vec[3]) {
+  return mj_rayMeshNormal(m, d, id, pnt, vec, NULL);
 }
 
 // intersect ray and find normal with primitive geom, no meshes or hfields, compute normal if given
@@ -930,6 +958,7 @@ mjtNum mju_rayGeomNormal(const mjtNum pos[3], const mjtNum mat[9], const mjtNum 
     return -1;
   }
 }
+
 
 // intersect ray with primitive geom, no meshes or hfields
 mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
@@ -1075,14 +1104,14 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
       int vid[4][3] = {{0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}};
 
       // process triangles of this element
-      for (int i=0; i < (dim == 2?1:4); i++) {
+      for (int i = 0; i < (dim == 2 ? 1 : 4); i++) {
         // copy vertices into triangle representation
         mjtNum v[3][3];
         for (int j=0; j < 3; j++)
           mju_copy3(v[j], vptr[i][j]);
 
         // intersect ray with triangle
-        mjtNum sol = ray_triangle(v, pnt, vec, b0, b1);
+        mjtNum sol = ray_triangle(v, pnt, vec, b0, b1, NULL);
 
         // update
         if (sol >= 0 && (x < 0 || sol < x)) {
@@ -1179,7 +1208,7 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
     }
 
     // solve
-    mjtNum sol = ray_triangle(v, pnt, vec, b0, b1);
+    mjtNum sol = ray_triangle(v, pnt, vec, b0, b1, NULL);
 
     // update
     if (sol >= 0 && (x < 0 || sol < x)) {
@@ -1434,7 +1463,7 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 }
 
 
-// Performs multiple ray intersections with the precomputes bv and flags
+// performs multiple ray intersections with the precomputed bv and flags
 void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, int nray, mjtNum cutoff) {
