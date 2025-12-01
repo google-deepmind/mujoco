@@ -27,7 +27,7 @@ namespace mujoco {
 
 Renderables::Renderables(filament::Engine* engine) : engine_(engine) {}
 
-Renderables::~Renderables() {
+Renderables::~Renderables() noexcept {
   while (!entities_.empty()) {
     RemoveLast();
   }
