@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/toolbox/window.h"
+#include "experimental/platform/window.h"
 
 #include <string>
 #include <string_view>
@@ -26,7 +26,7 @@
 #include <SDL_video.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <imgui.h>
-#include "experimental/toolbox/helpers.h"
+#include "experimental/platform/helpers.h"
 #include <mujoco/mujoco.h>
 
 // Because X11/Xlib.h defines Status.
@@ -34,7 +34,7 @@
 #undef Status
 #endif
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn,
                       bool build_fonts) {
@@ -185,4 +185,4 @@ void Window::Present() {
   }
 }
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform

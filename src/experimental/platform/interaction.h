@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_INTERACTION_H_
-#define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_INTERACTION_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_INTERACTION_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_INTERACTION_H_
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 // The result of a pick operation.
 struct PickResult {
@@ -80,6 +80,6 @@ void MovePerturb(const mjModel* m, const mjData* d, const mjvCamera* cam,
                  mjvPerturb* pert, mjtMouse action, mjtNum reldx,
                  mjtNum reldy);
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_INTERACTION_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_INTERACTION_H_

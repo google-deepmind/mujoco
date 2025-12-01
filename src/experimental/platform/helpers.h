@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Standalone functions used by Simulate.
-#ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_HELPERS_H_
-#define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_HELPERS_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HELPERS_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HELPERS_H_
 
 #include <cstddef>
 #include <functional>
@@ -25,7 +25,7 @@
 #include <mujoco/mjrender.h>
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 // Function signature for loading assets from a given path.
 using LoadAssetFn = std::function<std::vector<std::byte>(std::string_view)>;
@@ -61,6 +61,6 @@ std::string CameraToString(const mjData* data, const mjvCamera* camera);
 std::string KeyframeToString(const mjModel* model, const mjData* data,
                              bool full_precision = false);
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_HELPERS_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_HELPERS_H_

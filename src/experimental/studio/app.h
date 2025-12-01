@@ -27,13 +27,13 @@
 
 #include <imgui.h>
 #include <mujoco/mujoco.h>
-#include "experimental/toolbox/helpers.h"
-#include "experimental/toolbox/interaction.h"
-#include "experimental/toolbox/renderer.h"
-#include "experimental/toolbox/sim_history.h"
-#include "experimental/toolbox/sim_profiler.h"
-#include "experimental/toolbox/step_control.h"
-#include "experimental/toolbox/window.h"
+#include "experimental/platform/helpers.h"
+#include "experimental/platform/interaction.h"
+#include "experimental/platform/renderer.h"
+#include "experimental/platform/sim_history.h"
+#include "experimental/platform/sim_profiler.h"
+#include "experimental/platform/step_control.h"
+#include "experimental/platform/window.h"
 
 namespace mujoco::studio {
 
@@ -46,7 +46,7 @@ class App {
   using Milliseconds = std::chrono::duration<double, std::milli>;
 
   App(int width, int height, std::string ini_path,
-      const toolbox::LoadAssetFn& load_asset_fn);
+      const platform::LoadAssetFn& load_asset_fn);
 
   // Loads a model into the simulation.
   void LoadModel(std::string model_file);
@@ -74,7 +74,7 @@ class App {
   struct UiState {
     char watch_field[1000] = "qpos";
     int watch_index = 0;
-    int camera_idx = toolbox::kTumbleCameraIdx;
+    int camera_idx = platform::kTumbleCameraIdx;
     int key_idx = 0;
     Style style = kLight;
 
@@ -145,7 +145,7 @@ class App {
 
   void HandleMouseEvents();
   void HandleKeyboardEvents();
-  void MoveCamera(toolbox::CameraMotion motion, mjtNum reldx, mjtNum reldy);
+  void MoveCamera(platform::CameraMotion motion, mjtNum reldx, mjtNum reldy);
 
   void SetupStyle(Style style);
   ImVec4 ConfigureDockingLayout();
@@ -166,12 +166,12 @@ class App {
   std::string model_file_;
   std::optional<std::string> pending_load_;
 
-  std::unique_ptr<toolbox::Window> window_;
-  std::unique_ptr<toolbox::Renderer> renderer_;
-  toolbox::LoadAssetFn load_asset_fn_;
-  toolbox::StepControl step_control_;
-  toolbox::SimProfiler profiler_;
-  toolbox::SimHistory history_;
+  std::unique_ptr<platform::Window> window_;
+  std::unique_ptr<platform::Renderer> renderer_;
+  platform::LoadAssetFn load_asset_fn_;
+  platform::StepControl step_control_;
+  platform::SimProfiler profiler_;
+  platform::SimHistory history_;
 
   mjModel* model_ = nullptr;
   mjData* data_ = nullptr;

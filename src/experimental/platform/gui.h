@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_GUI_H_
-#define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_GUI_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GUI_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GUI_H_
 
 // A collection of functions for building ImGui panels for common MuJoCo
 // visualization and manipulation UX. These functions are primarily used by
@@ -27,7 +27,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 // UX for controlling the physics simulation parameters (e.g. integrator,
 // solver, etc.) in mjModel.
@@ -83,6 +83,6 @@ void CountsGui(const mjModel* model, mjData* data);
 // FPS needs to be tracked by the caller and passed here to be displayed.
 void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps);
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_GUI_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_GUI_H_

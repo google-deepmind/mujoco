@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_STEP_CONTROL_H_
-#define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_STEP_CONTROL_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_STEP_CONTROL_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_STEP_CONTROL_H_
 
 #include <chrono>
 #include <string>
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 using Seconds = std::chrono::duration<double>;
 using Clock = std::chrono::steady_clock;
@@ -117,6 +117,6 @@ class StepControl {
   bool pause_update_ = false;
 };
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_STEP_CONTROL_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_STEP_CONTROL_H_

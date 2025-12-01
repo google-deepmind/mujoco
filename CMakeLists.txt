@@ -234,7 +234,7 @@ if(MUJOCO_BUILD_SIMULATE)
 endif()
 
 if(MUJOCO_BUILD_STUDIO)
-  add_subdirectory(src/experimental/toolbox)
+  add_subdirectory(src/experimental/platform)
   add_subdirectory(src/experimental/studio)
 endif()
 

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/toolbox/sim_profiler.h"
+#include "experimental/platform/sim_profiler.h"
 
 #include <mujoco/mujoco.h>
 #include <imgui.h>
 #include <implot.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 SimProfiler::SimProfiler() {
   Clear();
@@ -164,4 +164,4 @@ void SimProfiler::DimensionsGraph() {
   }
 }
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform

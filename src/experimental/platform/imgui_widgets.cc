@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/toolbox/imgui_widgets.h"
+#include "experimental/platform/imgui_widgets.h"
 
 #include <sstream>
 #include <string>
@@ -21,7 +21,7 @@
 #include <imgui.h>
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 void AppendIniSection(std::string& ini, const std::string& section,
                       const KeyValues& key_values) {
@@ -93,4 +93,4 @@ void MaybeSaveToClipboard(const std::string& contents) {
   }
 }
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform

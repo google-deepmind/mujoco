@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/toolbox/interaction.h"
+#include "experimental/platform/interaction.h"
 
 #include <algorithm>
 #include <cmath>
@@ -23,7 +23,7 @@
 #include "engine/engine_util_misc.h"
 #include "engine/engine_vis_visualize.h"
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 static mjtNum CalculateMovementScale(const mjModel* m, const mjvCamera* cam) {
   float zclip[2] = {0, 0}, zver[2] = {0, 0};
@@ -624,4 +624,4 @@ int SetCamera(const mjModel* m, mjvCamera* camera, int request_idx) {
 
   return camera_idx;
 }
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform

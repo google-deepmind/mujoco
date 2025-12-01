@@ -72,7 +72,7 @@ target_link_libraries(${MUJOCO_STUDIO_TARGET_NAME}
         dear_imgui_SDL2
         implot
         mujoco::mujoco
-        mujoco::toolbox
+        mujoco::platform
 )
 
 file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets)

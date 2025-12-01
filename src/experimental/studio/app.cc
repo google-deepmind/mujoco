@@ -34,13 +34,13 @@
 #include <imgui_internal.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "experimental/toolbox/gui.h"
-#include "experimental/toolbox/helpers.h"
-#include "experimental/toolbox/imgui_widgets.h"
-#include "experimental/toolbox/interaction.h"
-#include "experimental/toolbox/renderer.h"
-#include "experimental/toolbox/step_control.h"
-#include "experimental/toolbox/window.h"
+#include "experimental/platform/gui.h"
+#include "experimental/platform/helpers.h"
+#include "experimental/platform/imgui_widgets.h"
+#include "experimental/platform/interaction.h"
+#include "experimental/platform/renderer.h"
+#include "experimental/platform/step_control.h"
+#include "experimental/platform/window.h"
 
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "experimental/filament/render_context_filament.h"
@@ -52,15 +52,15 @@
 
 namespace mujoco::studio {
 
-static constexpr toolbox::Window::Config kWindowConfig = {
+static constexpr platform::Window::Config kWindowConfig = {
 #ifdef EMSCRIPTEN
-    .render_config = toolbox::Window::RenderConfig::kFilamentWebGL,
+    .render_config = platform::Window::RenderConfig::kFilamentWebGL,
 #elif defined(USE_FILAMENT_VULKAN)
-    .render_config = toolbox::Window::RenderConfig::kFilamentVulkan,
+    .render_config = platform::Window::RenderConfig::kFilamentVulkan,
 #elif defined(USE_FILAMENT_OPENGL)
-    .render_config = toolbox::Window::RenderConfig::kFilamentOpenGL,
+    .render_config = platform::Window::RenderConfig::kFilamentOpenGL,
 #elif defined(USE_CLASSIC_OPENGL)
-    .render_config = toolbox::Window::RenderConfig::kClassicOpenGL,
+    .render_config = platform::Window::RenderConfig::kClassicOpenGL,
 #endif
     .enable_keyboard = true,
 };
@@ -145,9 +145,9 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 // clang-format on
 
 App::App(int width, int height, std::string ini_path,
-         const toolbox::LoadAssetFn& load_asset_fn)
+         const platform::LoadAssetFn& load_asset_fn)
     : ini_path_(std::move(ini_path)), load_asset_fn_(load_asset_fn) {
-  window_ = std::make_unique<toolbox::Window>("MuJoCo Studio", width, height,
+  window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
                                               kWindowConfig, load_asset_fn);
   ImPlot::CreateContext();
 
@@ -169,7 +169,7 @@ App::App(int width, int height, std::string ini_path,
     mjr_makeFilamentContext(m, con, &render_config);
 #endif
   };
-  renderer_ = std::make_unique<toolbox::Renderer>(make_context_fn);
+  renderer_ = std::make_unique<platform::Renderer>(make_context_fn);
 
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
@@ -204,11 +204,11 @@ void App::ProcessPendingLoad() {
   std::string model_file = std::move(pending_load_.value());
   pending_load_.reset();
 
-  model_ = toolbox::LoadMujocoModel(model_file, nullptr);
+  model_ = platform::LoadMujocoModel(model_file, nullptr);
   if (!model_) {
     error_ = "Error loading model!";
     step_control_.Pause();
-    model_ = toolbox::LoadMujocoModel("", nullptr);
+    model_ = platform::LoadMujocoModel("", nullptr);
   }
 
   data_ = mj_makeData(model_);
@@ -282,18 +282,18 @@ void App::UpdatePhysics() {
 
   bool stepped = false;
 
-  toolbox::StepControl::Status status = step_control_.Advance(model_, data_);
-  if (status == toolbox::StepControl::Status::kPaused) {
+  platform::StepControl::Status status = step_control_.Advance(model_, data_);
+  if (status == platform::StepControl::Status::kPaused) {
     // do nothing
-  } else if (status == toolbox::StepControl::Status::kOk) {
+  } else if (status == platform::StepControl::Status::kOk) {
     stepped = true;
     // If we are adding to the history we didn't have a divergence error
     error_ = "";
-  } else if (status == toolbox::StepControl::Status::kAutoReset) {
+  } else if (status == platform::StepControl::Status::kAutoReset) {
     ResetPhysics();
-  } else if (status == toolbox::StepControl::Status::kDiverged) {
+  } else if (status == platform::StepControl::Status::kDiverged) {
     stepped = true;
-    for (mjtWarning w : toolbox::StepControl::kDivergedWarnings) {
+    for (mjtWarning w : platform::StepControl::kDivergedWarnings) {
       if (data_->warning[w].number > 0) {
         error_ = mju_warningText(w, data_->warning[w].lastinfo);
       }
@@ -322,7 +322,7 @@ void App::LoadHistory(int offset) {
 }
 
 bool App::Update() {
-  const toolbox::Window::Status status = window_->NewFrame();
+  const platform::Window::Status status = window_->NewFrame();
 
 #ifdef USE_CLASSIC_OPENGL
   ImGui_ImplOpenGL3_NewFrame();
@@ -343,7 +343,7 @@ bool App::Update() {
     UpdatePhysics();
   }
 
-  return status == toolbox::Window::Status::kRunning;
+  return status == platform::Window::Status::kRunning;
 }
 
 void App::Render() {
@@ -412,44 +412,44 @@ void App::HandleMouseEvents() {
       const mjtPertBit active =
           action == mjMOUSE_MOVE_V ? mjPERT_TRANSLATE : mjPERT_ROTATE;
       if (active != perturb_.active) {
-        toolbox::InitPerturb(model_, data_, &camera_, &perturb_, active);
+        platform::InitPerturb(model_, data_, &camera_, &perturb_, active);
       }
-      toolbox::MovePerturb(model_, data_, &camera_, &perturb_, action,
+      platform::MovePerturb(model_, data_, &camera_, &perturb_, action,
                            mouse_dx, mouse_dy);
     }
   }
   // Handle camera movement actions.
   else if (is_mouse_dragging) {
-    if (ui_.camera_idx == toolbox::kFreeCameraIdx) {
+    if (ui_.camera_idx == platform::kFreeCameraIdx) {
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        MoveCamera(toolbox::CameraMotion::PAN_TILT, mouse_dx, mouse_dy);
+        MoveCamera(platform::CameraMotion::PAN_TILT, mouse_dx, mouse_dy);
       }
     } else {
       if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        MoveCamera(toolbox::CameraMotion::ORBIT, mouse_dx, mouse_dy);
+        MoveCamera(platform::CameraMotion::ORBIT, mouse_dx, mouse_dy);
       } else if (ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-        MoveCamera(toolbox::CameraMotion::ZOOM, mouse_dx, mouse_dy);
+        MoveCamera(platform::CameraMotion::ZOOM, mouse_dx, mouse_dy);
       }
     }
 
     // Right mouse movement is relative to the horizontal and vertical planes.
     if (ImGui::IsMouseDown(ImGuiMouseButton_Right) && io.KeyShift) {
-      MoveCamera(toolbox::CameraMotion::PLANAR_MOVE_H, mouse_dx, mouse_dy);
+      MoveCamera(platform::CameraMotion::PLANAR_MOVE_H, mouse_dx, mouse_dy);
     } else if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-      MoveCamera(toolbox::CameraMotion::PLANAR_MOVE_V, mouse_dx, mouse_dy);
+      MoveCamera(platform::CameraMotion::PLANAR_MOVE_V, mouse_dx, mouse_dy);
     }
   }
 
   // Mouse scroll zooms the camera towards/away from the lookat point.
   // Ignored by user-centered free cameras which don't have a lookat point.
-  if (mouse_scroll != 0.0f && ui_.camera_idx != toolbox::kFreeCameraIdx) {
-    MoveCamera(toolbox::CameraMotion::ZOOM, 0, -mouse_scroll);
+  if (mouse_scroll != 0.0f && ui_.camera_idx != platform::kFreeCameraIdx) {
+    MoveCamera(platform::CameraMotion::ZOOM, 0, -mouse_scroll);
   }
 
   // Left double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-    toolbox::PickResult picked =
-        toolbox::Pick(model_, data_, &camera_, mouse_x, mouse_y,
+    platform::PickResult picked =
+        platform::Pick(model_, data_, &camera_, mouse_x, mouse_y,
                       window_->GetAspectRatio(), &vis_options_);
     if (picked.body >= 0) {
       perturb_.select = picked.body;
@@ -470,8 +470,8 @@ void App::HandleMouseEvents() {
 
   // Right double click.
   if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
-    toolbox::PickResult picked =
-        toolbox::Pick(model_, data_, &camera_, mouse_x, mouse_y,
+    platform::PickResult picked =
+        platform::Pick(model_, data_, &camera_, mouse_x, mouse_y,
                       window_->GetAspectRatio(), &vis_options_);
     mju_copy3(camera_.lookat, picked.point);
     if (picked.body > 0 && io.KeyCtrl) {
@@ -479,13 +479,13 @@ void App::HandleMouseEvents() {
       camera_.type = mjCAMERA_TRACKING;
       camera_.trackbodyid = picked.body;
       camera_.fixedcamid = -1;
-      ui_.camera_idx = toolbox::kTrackingCameraIdx;
+      ui_.camera_idx = platform::kTrackingCameraIdx;
     }
   }
 }
 
 void App::HandleKeyboardEvents() {
-  using toolbox::ImGui_IsChordJustPressed;
+  using platform::ImGui_IsChordJustPressed;
   if (ImGui::GetIO().WantCaptureKeyboard) {
     return;
   }
@@ -506,8 +506,8 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_P | ImGuiMod_Ctrl)) {
     ShowPopup(tmp_.save_screenshot_popup);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_C | ImGuiMod_Ctrl)) {
-    std::string keyframe = toolbox::KeyframeToString(model_, data_, false);
-    toolbox::MaybeSaveToClipboard(keyframe);
+    std::string keyframe = platform::KeyframeToString(model_, data_, false);
+    platform::MaybeSaveToClipboard(keyframe);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_R | ImGuiMod_Ctrl)) {
     LoadModel(model_file_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Q | ImGuiMod_Ctrl)) {
@@ -628,41 +628,41 @@ void App::HandleKeyboardEvents() {
     ToggleFlag(vis_options_.geomgroup[5]);
   } else if (model_) {
     if (ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
-      ui_.camera_idx = toolbox::SetCamera(model_, &camera_, toolbox::kTumbleCameraIdx);
+      ui_.camera_idx = platform::SetCamera(model_, &camera_, platform::kTumbleCameraIdx);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_LeftBracket)) {
-      ui_.camera_idx = toolbox::SetCamera(model_, &camera_, ui_.camera_idx - 1);
+      ui_.camera_idx = platform::SetCamera(model_, &camera_, ui_.camera_idx - 1);
     } else if (ImGui_IsChordJustPressed(ImGuiKey_RightBracket)) {
-      ui_.camera_idx = toolbox::SetCamera(model_, &camera_, ui_.camera_idx + 1);
+      ui_.camera_idx = platform::SetCamera(model_, &camera_, ui_.camera_idx + 1);
     }
 
     // WASD camera controls for free camera.
-    if (ui_.camera_idx == toolbox::kFreeCameraIdx) {
+    if (ui_.camera_idx == platform::kFreeCameraIdx) {
       bool moved = false;
 
       // Move (dolly) forward/backward using W and S keys.
       if (ImGui::IsKeyDown(ImGuiKey_W)) {
-        MoveCamera(toolbox::CameraMotion::TRUCK_DOLLY, 0, tmp_.cam_speed);
+        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, tmp_.cam_speed);
         moved = true;
       } else if (ImGui::IsKeyDown(ImGuiKey_S)) {
-        MoveCamera(toolbox::CameraMotion::TRUCK_DOLLY, 0, -tmp_.cam_speed);
+        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, 0, -tmp_.cam_speed);
         moved = true;
       }
 
       // Strafe (truck) left/right using A and D keys.
       if (ImGui::IsKeyDown(ImGuiKey_A)) {
-        MoveCamera(toolbox::CameraMotion::TRUCK_DOLLY, -tmp_.cam_speed, 0);
+        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, -tmp_.cam_speed, 0);
         moved = true;
       } else if (ImGui::IsKeyDown(ImGuiKey_D)) {
-        MoveCamera(toolbox::CameraMotion::TRUCK_DOLLY, tmp_.cam_speed, 0);
+        MoveCamera(platform::CameraMotion::TRUCK_DOLLY, tmp_.cam_speed, 0);
         moved = true;
       }
 
       // Move (pedestal) up/down using Q and E keys.
       if (ImGui::IsKeyDown(ImGuiKey_Q)) {
-        MoveCamera(toolbox::CameraMotion::TRUCK_PEDESTAL, 0, tmp_.cam_speed);
+        MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, tmp_.cam_speed);
         moved = true;
       } else if (ImGui::IsKeyDown(ImGuiKey_E)) {
-        MoveCamera(toolbox::CameraMotion::TRUCK_PEDESTAL, 0, -tmp_.cam_speed);
+        MoveCamera(platform::CameraMotion::TRUCK_PEDESTAL, 0, -tmp_.cam_speed);
         moved = true;
       }
 
@@ -682,9 +682,9 @@ void App::HandleKeyboardEvents() {
 
 void App::LoadSettings() {
   if (!ini_path_.empty()) {
-    std::string settings = toolbox::LoadText(ini_path_);
+    std::string settings = platform::LoadText(ini_path_);
     if (!settings.empty()) {
-      ui_.FromDict(toolbox::ReadIniSection(settings, "[Simulate][Data]"));
+      ui_.FromDict(platform::ReadIniSection(settings, "[Simulate][Data]"));
       ImGui::LoadIniSettingsFromMemory(settings.data(), settings.size());
     }
   }
@@ -693,8 +693,8 @@ void App::LoadSettings() {
 void App::SaveSettings() {
   if (!ini_path_.empty()) {
     std::string settings = ImGui::SaveIniSettingsToMemory();
-    toolbox::AppendIniSection(settings, "[Simulate][Data]", ui_.ToDict());
-    toolbox::SaveText(settings, ini_path_);
+    platform::AppendIniSection(settings, "[Simulate][Data]", ui_.ToDict());
+    platform::SaveText(settings, ini_path_);
   }
 }
 
@@ -708,8 +708,8 @@ void App::SetSpeedIndex(int idx) {
   step_control_.SetSpeed(speed);
 }
 
-void App::MoveCamera(toolbox::CameraMotion motion, mjtNum reldx, mjtNum reldy) {
-  toolbox::MoveCamera(model_, data_, &camera_, motion, reldx, reldy);
+void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx, mjtNum reldy) {
+  platform::MoveCamera(model_, data_, &camera_, motion, reldx, reldy);
 }
 
 void App::BuildGui() {
@@ -729,7 +729,7 @@ void App::BuildGui() {
   ImGui::End();
 
   {
-    toolbox::ScopedStyle style;
+    platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_CellPadding, ImVec2(0, 0));
     style.Var(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
     style.Var(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
@@ -775,14 +775,14 @@ void App::BuildGui() {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Solver", &tmp_.chart_solver)) {
-      toolbox::CountsGui(model_, data_);
-      toolbox::ConvergenceGui(model_, data_);
+      platform::CountsGui(model_, data_);
+      platform::ConvergenceGui(model_, data_);
     }
     ImGui::End();
   }
 
   if (tmp_.help) {
-    toolbox::ScopedStyle style;
+    platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
     ImGui::SetNextWindowPos(ImVec2(workspace_rect.x, workspace_rect.y),
                             ImGuiCond_FirstUseEver);
@@ -794,10 +794,10 @@ void App::BuildGui() {
   }
 
   if (tmp_.info) {
-    toolbox::ScopedStyle style;
+    platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
     if (ImGui::Begin("Info", &tmp_.info)) {
-      toolbox::InfoGui(model_, data_, step_control_.IsPaused(),
+      platform::InfoGui(model_, data_, step_control_.IsPaused(),
                        renderer_->GetFrameRate());
     }
     ImGui::End();
@@ -915,7 +915,7 @@ ImVec4 App::ConfigureDockingLayout() {
       ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBringToFrontOnFocus |
       ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
 
-  toolbox::ScopedStyle style;
+  platform::ScopedStyle style;
   style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
   style.Var(ImGuiStyleVar_WindowBorderSize, 0.0f);
   style.Var(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -962,19 +962,19 @@ void App::ModelOptionsGui() {
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
 
   if (ImGui::TreeNodeEx("Physics Settings", flags)) {
-    toolbox::PhysicsGui(model_, min_width);
+    platform::PhysicsGui(model_, min_width);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Rendering Settings", flags)) {
-    toolbox::RenderingGui(model_,  &vis_options_, renderer_->GetRenderFlags(), min_width);
+    platform::RenderingGui(model_,  &vis_options_, renderer_->GetRenderFlags(), min_width);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Visibility Groups", flags)) {
-    toolbox::GroupsGui(model_,  &vis_options_, min_width);
+    platform::GroupsGui(model_,  &vis_options_, min_width);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Visualization", flags)) {
-    toolbox::VisualizationGui(model_, &vis_options_, &camera_, min_width);
+    platform::VisualizationGui(model_, &vis_options_, &camera_, min_width);
     ImGui::TreePop();
   }
 }
@@ -988,29 +988,29 @@ void App::DataInspectorGui() {
     float noise_scale = 0;
     float noise_rate = 0;
     step_control_.GetNoiseParameters(noise_scale, noise_rate);
-    toolbox::NoiseGui(model_, data_, noise_scale, noise_rate);
+    platform::NoiseGui(model_, data_, noise_scale, noise_rate);
     step_control_.SetNoiseParameters(noise_scale, noise_rate);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Joints", flags)) {
-    toolbox::JointsGui(model_, data_, &vis_options_);
+    platform::JointsGui(model_, data_, &vis_options_);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Controls", flags)) {
-    toolbox::ControlsGui(model_, data_, &vis_options_);
+    platform::ControlsGui(model_, data_, &vis_options_);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Sensor", flags)) {
-    toolbox::SensorGui(model_, data_);
+    platform::SensorGui(model_, data_);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("Watch", flags)) {
-    toolbox::WatchGui(model_, data_, ui_.watch_field, sizeof(ui_.watch_field),
+    platform::WatchGui(model_, data_, ui_.watch_field, sizeof(ui_.watch_field),
                       ui_.watch_index);
     ImGui::TreePop();
   }
   if (ImGui::TreeNodeEx("State", flags)) {
-    toolbox::StateGui(model_, data_, tmp_.state, tmp_.state_sig, min_width);
+    platform::StateGui(model_, data_, tmp_.state, tmp_.state_sig, min_width);
     ImGui::TreePop();
   }
 }
@@ -1159,15 +1159,15 @@ void App::ToolBarGui() {
     ImGui::SameLine();
     std::vector<const char*> cameras = GetCameraNames();
     ImGui::SetNextItemWidth(GetExpectedLabelWidth());
-    int camera_idx = ui_.camera_idx - toolbox::kTumbleCameraIdx;
+    int camera_idx = ui_.camera_idx - platform::kTumbleCameraIdx;
     if (ImGui::Combo("##Camera", &camera_idx, cameras.data(), cameras.size())) {
-      ui_.camera_idx = ::mujoco::toolbox::SetCamera(
-          model_, &camera_, camera_idx + toolbox::kTumbleCameraIdx);
+      ui_.camera_idx = ::mujoco::platform::SetCamera(
+          model_, &camera_, camera_idx + platform::kTumbleCameraIdx);
     }
     ImGui::SameLine();
     if (ImGui::Button(ICON_COPY_CAMERA)) {
-      std::string camera_string = toolbox::CameraToString(data_, &camera_);
-      toolbox::MaybeSaveToClipboard(camera_string);
+      std::string camera_string = platform::CameraToString(data_, &camera_);
+      platform::MaybeSaveToClipboard(camera_string);
     }
     ImGui::SetItemTooltip("%s", "Copy Camera");
 
@@ -1265,7 +1265,7 @@ void App::StatusBarGui() {
     ImGui::Text("%s", " |");
 
     // Frame scrubber.
-    toolbox::ScopedStyle style;
+    platform::ScopedStyle style;
 
     style.Var(ImGuiStyleVar_FrameBorderSize, 0);
     style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_WindowBg]);
@@ -1360,8 +1360,8 @@ void App::MainMenuGui() {
           mj_setKeyframe(model_, data_, ui_.key_idx);
         }
         if (ImGui::MenuItem("Copy")) {
-          std::string str = toolbox::KeyframeToString(model_, data_, false);
-          toolbox::MaybeSaveToClipboard(str);
+          std::string str = platform::KeyframeToString(model_, data_, false);
+          platform::MaybeSaveToClipboard(str);
         }
         ImGui::EndMenu();
       }
@@ -1373,7 +1373,7 @@ void App::MainMenuGui() {
         SaveSettings();
       }
       if (ImGui::MenuItem("Reset Config")) {
-        toolbox::SaveText("\n\n", ini_path_);
+        platform::SaveText("\n\n", ini_path_);
         LoadSettings();
       }
       ImGui::Separator();
@@ -1474,7 +1474,7 @@ void App::FileDialogGui() {
 
   if (ImGui::BeginPopupModal("LoadModel", NULL,
                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       LoadModel(tmp_.filename);
       tmp_.last_load_file = tmp_.filename;
     }
@@ -1482,7 +1482,7 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("SaveXML", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       char err[1000] = "";
       mj_saveLastXML(tmp_.filename, model_, err, 1000);
       tmp_.last_save_xml_file = tmp_.filename;
@@ -1491,7 +1491,7 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("SaveMJB", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       mj_saveModel(model_, tmp_.filename, nullptr, 0);
       tmp_.last_save_mjb_file = tmp_.filename;
     }
@@ -1499,7 +1499,7 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("SaveWebp", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       renderer_->SaveScreenshot(tmp_.filename, window_->GetWidth(),
                                 window_->GetHeight());
       tmp_.last_save_screenshot_file = tmp_.filename;
@@ -1508,7 +1508,7 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("PrintModel", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       mj_printModel(model_, tmp_.filename);
       tmp_.last_print_model_file = tmp_.filename;
     }
@@ -1516,7 +1516,7 @@ void App::FileDialogGui() {
   }
   if (ImGui::BeginPopupModal("PrintData", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (toolbox::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
+    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
       mj_printData(model_, data_, tmp_.filename);
       tmp_.last_print_data_file = tmp_.filename;
     }

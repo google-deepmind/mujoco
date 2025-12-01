@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/toolbox/step_control.h"
+#include "experimental/platform/step_control.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <ratio>
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 static mjtNum Timer() {
   using Clock = std::chrono::steady_clock;
@@ -206,4 +206,4 @@ void StepControl::InjectNoise(const mjModel* m, mjData* d) {
   }
 }
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform

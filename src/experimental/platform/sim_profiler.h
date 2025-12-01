@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_SIM_PROFILER_H_
-#define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_SIM_PROFILER_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_SIM_PROFILER_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_SIM_PROFILER_H_
 
 #include <vector>
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 // Collects and displays profiling data for MuJoCo simulations.
 class SimProfiler {
@@ -50,6 +50,6 @@ class SimProfiler {
   std::vector<float> dim_iteration_;
 };
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_SIM_PROFILER_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_SIM_PROFILER_H_

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_RENDERER_H_
-#define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_RENDERER_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_H_
 
 #include <chrono>
 #include <cstdint>
@@ -22,7 +22,7 @@
 
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 // Renders the mujoco simulation and the imgui state into the active window
 // using the filament rendering backend.
@@ -76,6 +76,6 @@ class Renderer {
   double fps_ = 0;
 };
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_RENDERER_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_H_

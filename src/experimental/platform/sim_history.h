@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_SIM_HISTORY_H_
-#define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_SIM_HISTORY_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_SIM_HISTORY_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_SIM_HISTORY_H_
 
 #include <span>
 #include <vector>
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 // A historical buffer of simulation data.
 class SimHistory {
@@ -89,6 +89,6 @@ class SimHistory {
   int size_ = 0;
 };
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_SIM_HISTORY_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_SIM_HISTORY_H_

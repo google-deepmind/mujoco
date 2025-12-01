@@ -14,11 +14,11 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-set(MUJOCO_TOOLBOX_TARGET_NAME mujoco_toolbox)
+set(MUJOCO_PLATFORM_TARGET_NAME mujoco_platform)
 
-add_library(${MUJOCO_TOOLBOX_TARGET_NAME} STATIC)
+add_library(${MUJOCO_PLATFORM_TARGET_NAME} STATIC)
 
-target_sources(${MUJOCO_TOOLBOX_TARGET_NAME}
+target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
         gui.cc
         gui.h
@@ -39,7 +39,7 @@ target_sources(${MUJOCO_TOOLBOX_TARGET_NAME}
         window.cc
         window.h
 )
-target_include_directories(${MUJOCO_TOOLBOX_TARGET_NAME}
+target_include_directories(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/src
@@ -50,11 +50,11 @@ include(third_party_deps/implot)
 include(third_party_deps/sdl2)
 include(third_party_deps/libwebp)
 
-target_link_libraries(${MUJOCO_TOOLBOX_TARGET_NAME}
+target_link_libraries(${MUJOCO_PLATFORM_TARGET_NAME}
     dear_imgui
     implot
     webp
     SDL2::SDL2-static
 )
 
-add_library(mujoco::toolbox ALIAS ${MUJOCO_TOOLBOX_TARGET_NAME})
+add_library(mujoco::platform ALIAS ${MUJOCO_PLATFORM_TARGET_NAME})

@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_WINDOW_H_
-#define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_WINDOW_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_WINDOW_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_WINDOW_H_
 
 #include <string>
 #include <string_view>
 
-#include "experimental/toolbox/helpers.h"
+#include "experimental/platform/helpers.h"
 #include <SDL_video.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 // Platform-independent window abstraction using SDL2.
 //
@@ -96,6 +96,6 @@ class Window {
   std::string drop_file_;
 };
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_WINDOW_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_WINDOW_H_

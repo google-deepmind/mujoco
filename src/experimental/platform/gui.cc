@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/toolbox/gui.h"
+#include "experimental/platform/gui.h"
 
 #include <algorithm>
 #include <cmath>
@@ -24,10 +24,10 @@
 #include <imgui.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
-#include "experimental/toolbox/helpers.h"
-#include "experimental/toolbox/imgui_widgets.h"
+#include "experimental/platform/helpers.h"
+#include "experimental/platform/imgui_widgets.h"
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 static ImVec2 GetFlexElementSize(int num_cols) {
   const float width = (ImGui::GetContentRegionAvail().x / num_cols) -
@@ -804,4 +804,4 @@ void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps) {
   ImGui::Columns();
 }
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform

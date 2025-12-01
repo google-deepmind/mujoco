@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/toolbox/sim_history.h"
+#include "experimental/platform/sim_history.h"
 
 #include <algorithm>
 #include <climits>
 #include <span>
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 void SimHistory::Init(int state_size, int max_history, int max_bytes) {
   // History buffer will be smaller of number of states and total memory.
@@ -74,4 +74,4 @@ std::span<mjtNum> SimHistory::SetIndex(int offset) {
   return history_[actual_index];
 }
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform

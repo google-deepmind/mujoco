@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_IMGUI_WIDGETS_H_
-#define MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_IMGUI_WIDGETS_H_
+#ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IMGUI_WIDGETS_H_
+#define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IMGUI_WIDGETS_H_
 
 #include <optional>
 #include <utility>
@@ -25,7 +25,7 @@
 #include <imgui_internal.h>  // For ButtonEx and PressedOnClick
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 using KeyValues = std::unordered_map<std::string, std::string>;
 
@@ -223,6 +223,6 @@ inline bool ImGui_IsChordJustPressed(ImGuiKeyChord chord) {
 // Saves the given contents to the clipboard if the clipboard is available.
 void MaybeSaveToClipboard(const std::string& contents);
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_TOOLBOX_IMGUI_WIDGETS_H_
+#endif  // MUJOCO_SRC_EXPERIMENTAL_PLATFORM_IMGUI_WIDGETS_H_

@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/toolbox/renderer.h"
+#include "experimental/platform/renderer.h"
 
 #include <chrono>
 #include <string>
 
-#include "experimental/toolbox/helpers.h"
+#include "experimental/platform/helpers.h"
 #include <mujoco/mujoco.h>
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 Renderer::Renderer(MakeContextFn make_context_fn)
     : make_context_fn_(make_context_fn) {
@@ -75,4 +75,4 @@ void Renderer::SaveScreenshot(const std::string& filename, int width,
   SaveScreenshotToWebp(width, height, &render_context_, filename);
 }
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform

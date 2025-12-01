@@ -209,6 +209,5 @@ welcome!
    We aim to provide an example application that can be easily modified and
    embedded into a paper project page (see [this example](https://kzakka.com/robopianist/)).
    This could be achieved by extending the Three.js example or by compiling the
-   MuJoCo toolbox C++ code using the Emscripten toolchain. Community suggestions
-   and contributions are welcome!
-
+   MuJoCo platform C++ code using the Emscripten toolchain. Community
+   suggestions and contributions are welcome!

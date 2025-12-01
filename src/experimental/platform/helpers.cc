@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/toolbox/helpers.h"
+#include "experimental/platform/helpers.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -32,7 +32,7 @@
 #include "engine/engine_vis_visualize.h"
 #include "xml/xml_api.h"
 
-namespace mujoco::toolbox {
+namespace mujoco::platform {
 
 mjModel* LoadMujocoModel(const std::string& model_file, const mjVFS* vfs) {
   mjModel* model = nullptr;
@@ -219,4 +219,4 @@ std::string KeyframeToString(const mjModel* model, const mjData* data,
   return str;
 }
 
-}  // namespace mujoco::toolbox
+}  // namespace mujoco::platform
