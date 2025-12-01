@@ -553,47 +553,131 @@ or termination of the iterative solver.
 
 .. _siChange:
 
-Model changes
-~~~~~~~~~~~~~
+mjModel changes
+~~~~~~~~~~~~~~~
 
-.. admonition:: Model editing framework
+.. admonition:: Procedural Model editing with :ref:`mjSpec`
    :class: tip
 
-   The discussion below regarding mjModel changes at runtime was written before the 3.2.0 introduction of the
-   :doc:`Model Editing<modeledit>` framework. It is still valid, but the new framework is the safe and recommended way
-   to modify models.
+   The discussion below regarding :ref:`mjModel` modifications was written before the introduction of procedural
+   :doc:`Model Editing<modeledit>`. It is still valid, but the new framework is the safe and recommended way to modify
+   models. The main reason to modify an :ref:`mjModel` at runtime rather than modifying the :ref:`mjSpec` and compiling
+   again is *speed*. However it can be unsafe to make some changes, either in the sense that segfaults are possible, or
+   that the physics will change unexpectedly.
 
-The MuJoCo model contained in mjModel is supposed to represent constant physical properties of the system, and in
-theory should not change after compilation. Of course in practice things are not that simple. It is often desirable to
-change the physics options in ``mjModel.opt``, so as to experiment with different aspects of the physics or to create
-custom computations. Indeed these options are designed in such a way that the user can make arbitrary changes to them
-between time steps.
+The general rule is that real-valued parameters are safe to change, while structural integer parameters are not because
+that may result in incorrect sizes or indexing. This rule does not hold universally, and below we describe the
+exceptions.
 
-The general rule is that real-valued parameters are safe to change, while structural integer parameters are not
-because that may result in incorrect sizes or indexing. This rule does not hold universally though. Some real-valued
-parameters such as inertias are expected to obey certain properties. On the other hand, some structural parameters
-such as object types may be possible to change, but that depends on whether any sizes or indexes depend on them.
-Arrays of type mjtByte can be changed safely, since they are binary indicators that enable and disable certain
-features. The only exception here is ``mjModel.tex_data`` which is texture data represented as mjtByte.
+Exceptions to the general rule that **integer** types are **not safe to change**:
 
-When changing mjModel fields that corresponds to resources uploaded to the GPU, the user must also call the
-corresponding upload function: ``mjr_uploadTexture``, ``mjr_uploadMesh``, ``mjr_uploadHField``. Otherwise the data used
-for simulation and for rendering will no longer be consistent.
+.. list-table::
+   :widths: 1 1 4
+   :header-rows: 1
+   :class: schema-small
 
-A related consideration has to do with changing real-valued fields of mjModel that have been used by the compiler to
-compute other real-valued fields: if we make a change, we want it to propagate. That is what the function
-:ref:`mj_setConst` does: it updates all derived fields of mjModel. These are fields whose names end with "0",
-corresponding to precomputed quantities when the model is in the reference configuration ``mjModel.qpos0``.
+   * - Field
+     - Modifiability
+     - Notes
+   * - ``XXX_limited`` |br| ``XXX_group`` |br| ``XXX_matid`` |br| ``XXX_texid``
+     - Safe
+     -
+   * - ``XXX_sameframe``
+     - Unsafe
+     - This flag tells the engine to skip a parent/child frame transformation. It is safe to change from nonzero to
+       zero, but not vice versa.
+   * - ``geom_contype`` |br| ``geom_conaffinity``
+     - Unsafe
+     - This is a possible to do safely if ``body_contype`` and ``body_conaffinity`` of the parent body are updated to be
+       the bitwise OR over all child geoms.
+   * - ``geom_condim`` |br| ``geom_priority``
+     - Safe
+     -
+   * - ``cam_resolution``
+     - Safe
+     -
+   * - ``light_castshadow`` |br| ``light_active``
+     - Safe
+     -
+   * - ``flex_contype`` |br|  ``flex_conaffinity`` |br|  ``flex_condim`` |br|  ``flex_priority``
+     - Safe
+     -
+   * - ``tex_data``
+     - Safe
+     - Must call :ref:`mjr_uploadTexture` to update the values in GPU memory.
 
-Finally, if changes are made to mjModel at runtime, it may be desirable to save them back to the XML. The function
-:ref:`mj_saveLastXML` does that in a limited sense: it copies all real-valued parameters from mjModel back to the
-internal :ref:`mjSpec`, and then saves it as XML. This does not cover all possible changes that the user could have
-made. The only way to guarantee that all changes are saved is to save the model as a binary MJB file with the function
-:ref:`mj_saveModel`, or even better, make the changes directly in the XML. Unfortunately there are situations where
-changes need to be made programmatically, as in system identification for example, and this can only be done with the
-compiled model. So in summary, we have reasonable but not perfect mechanisms for saving model changes. The reason for
-this lack of perfection is that we are working with a compiled model, so this is like changing a binary executable and
-asking a "decompiler" to make corresponding changes to the C code -- it is just not possible in general.
+When considering exceptions to the rule that real-valued parameters are safe to change, we need to note the function
+:ref:`mj_setConst`, which constitutes the last step of the compilation process. This function propagates changes from
+some fields to other fields, allowing changes that would otherwise be unsafe.
+
+Exceptions to the general rule that **real-valued** types **are safe to change**:
+
+.. list-table::
+   :widths: 1 1 4
+   :header-rows: 1
+   :class: schema-small
+
+   * - Field
+     - Modifiability
+     - Notes
+   * - ``qpos0`` |br| ``qpos_spring``
+     - Safe with :ref:`mj_setConst`.
+     -
+   * - ``body_mass`` |br| ``body_inertia`` |br| ``body_ipos`` |br| ``body_iquat``
+     - Safe with :ref:`mj_setConst`.
+     - Note that mass and inertia are usually scaled together, since inertia is :math:`\sum m r^2`. Scaling them
+       separately is legitimate, but implies a changing of the spatial mass distribution. Also note that diagonal
+       inertias must obey the triangle inequality.
+   * - ``body_pos`` |br| ``body_quat``
+     - Safe with :ref:`mj_setConst`.
+     - Unsafe for static bodies, invalidates the midphase collision structures (BVH).
+   * - ``body_gravcomp``
+     - Safe.
+     - If the number of bodies with gravity compensation is changed from zero to non-zero,
+       :ref:`mj_setConst` must be called.
+   * - ``dof_armature``
+     - Safe with :ref:`mj_setConst`.
+     -
+   * - ``geom_pos`` |br| ``geom_quat`` |br| ``geom_size`` |br| ``geom_rbound`` |br| ``geom_aabb``
+     - Unsafe.
+     -
+   * - ``{site,cam,light}_`` |br| ``{pos,quat}``
+     - Mostly safe.
+     - For cameras and lights with tracking or targeting, :ref:`mj_setConst` is required.
+   * - ``tendon_stiffness`` |br| ``tendon_damping``
+     - Mostly safe.
+     - Affects whether kinematic trees are allowed to sleep. If changing from/to zero, :ref:`mj_setConst` is required.
+   * - ``actuator_gainprm`` |br| ``actuator_biasprm``
+     - Mostly safe.
+     - For position-like actuators using :ref:`dampratio<actuator-position-dampratio>`, :ref:`mj_setConst` is required.
+   * - ``eq_data``
+     - Safe with :ref:`mj_setConst`.
+     - For connect and weld constraints, offsets are computed if not provided.
+   * - ``hfield_size``
+     - Safe with :ref:`mj_setConst`.
+     -
+   * - ``hfield_data``
+     - Safe.
+     - Data range must be in [0, 1].
+       |br| :ref:`mjr_uploadHField` is required to update the values in GPU memory.
+   * -  ``mesh_scale`` |br| ``mesh_pos`` |br| ``mesh_quat``
+     - Not unsafe, but has no effect.
+     - ``mesh_pos`` and ``mesh_quat`` affect SDF sensors at runtime.
+   * - ``mesh_vert`` |br| ``mesh_normal`` |br| ``mesh_face`` |br| ``mesh_polynormal``
+     - Unsafe for colliding meshes.
+     - Safe for visual meshes, but requires :ref:`mjr_uploadMesh` to update the values in GPU memory.
+   * - ``bvh_aabb`` |br| ``oct_aabb`` |br| ``oct_coeff``
+     - Unsafe
+     -
+
+Finally, if changes are made to mjModel at runtime, it may be desirable to save them back to the XML. The functions
+:ref:`mj_saveLastXML` and :ref:`mj_copyBack` do that in a limited sense: they copy all real-valued parameters from
+:ref:`mjModel` back to the :ref:`mjSpec` (the global internal spec in the former case, the user's copy in the latter).
+This does not cover all possible changes that the user could have made. The only way to guarantee that all changes are
+saved is to save the model as a binary MJB file with the function :ref:`mj_saveModel`, or even better, make the changes
+directly in XML or :ref:`mjSpec`. So in summary, we have reasonable but not perfect mechanisms for saving model changes.
+The reason for this lack of perfection is that we are working with a compiled model, so this is like changing a binary
+executable and asking a "decompiler" to make corresponding changes to the C code -- it is just not possible in general.
 
 .. _siLayout:
 
