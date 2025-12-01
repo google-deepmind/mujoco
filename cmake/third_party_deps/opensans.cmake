@@ -24,8 +24,5 @@ fetchpackage(
     PACKAGE_NAME  opensans
     GIT_REPO      https://github.com/googlefonts/opensans.git
     GIT_TAG       ${MUJOCO_DEP_VERSION_opensans}
-    PATCH_COMMAND
-        "cp"
-        "${CMAKE_SOURCE_DIR}/cmake/third_party_deps/opensans/CMakeLists.txt"
-        "${FETCHCONTENT_BASE_DIR}/opensans-src/CMakeLists.txt"
+    CUSTOM_CMAKE  "${CMAKE_SOURCE_DIR}/cmake/third_party_deps/opensans/CMakeLists.txt"
 )

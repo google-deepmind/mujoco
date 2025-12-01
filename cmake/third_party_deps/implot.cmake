@@ -24,8 +24,5 @@ fetchpackage(
     PACKAGE_NAME  implot
     GIT_REPO      https://github.com/epezent/implot.git
     GIT_TAG       ${MUJOCO_DEP_VERSION_implot}
-    PATCH_COMMAND
-        "cp"
-        "${CMAKE_SOURCE_DIR}/cmake/third_party_deps/implot/CMakeLists.txt"
-        "${FETCHCONTENT_BASE_DIR}/implot-src/CMakeLists.txt"
+    CUSTOM_CMAKE  "${CMAKE_SOURCE_DIR}/cmake/third_party_deps/implot/CMakeLists.txt"
 )

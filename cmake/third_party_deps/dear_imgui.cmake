@@ -24,8 +24,5 @@ fetchpackage(
     PACKAGE_NAME  dear_imgui
     GIT_REPO      https://github.com/ocornut/imgui.git
     GIT_TAG       ${MUJOCO_DEP_VERSION_dear_imgui}
-    PATCH_COMMAND
-        "cp"
-        "${CMAKE_SOURCE_DIR}/cmake/third_party_deps/dear_imgui/CMakeLists.txt"
-        "${FETCHCONTENT_BASE_DIR}/dear_imgui-src/CMakeLists.txt"
+    CUSTOM_CMAKE  "${CMAKE_SOURCE_DIR}/cmake/third_party_deps/dear_imgui/CMakeLists.txt"
 )

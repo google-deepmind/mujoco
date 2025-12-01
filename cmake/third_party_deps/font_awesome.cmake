@@ -24,8 +24,5 @@ fetchpackage(
     PACKAGE_NAME  font_awesome
     GIT_REPO      https://github.com/FortAwesome/Font-Awesome.git
     GIT_TAG       ${MUJOCO_DEP_VERSION_font_awesome}
-    PATCH_COMMAND
-        "cp"
-        "${CMAKE_SOURCE_DIR}/cmake/third_party_deps/font_awesome/CMakeLists.txt"
-        "${FETCHCONTENT_BASE_DIR}/font_awesome-src/CMakeLists.txt"
+    CUSTOM_CMAKE  "${CMAKE_SOURCE_DIR}/cmake/third_party_deps/font_awesome/CMakeLists.txt"
 )
