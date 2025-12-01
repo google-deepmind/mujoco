@@ -52,6 +52,10 @@ if (WIN32)
         PRIVATE
         -D_USE_MATH_DEFINES
     )
+    set_target_properties(${MUJOCO_STUDIO_TARGET_NAME}
+        PROPERTIES
+            VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+    )
 endif()
 
 include(third_party_deps/dear_imgui)
