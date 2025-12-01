@@ -53,6 +53,7 @@ body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
 .small-centered td, .small-centered th {
   text-align: center !important;
   vertical-align: middle !important;
+  border: 2px solid var(--color-table-border) !important;
 }
 
 .sidebar-brand-text {

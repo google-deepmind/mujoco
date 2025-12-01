@@ -1738,8 +1738,8 @@ contains the high-level forward dynamics pipeline.
 
 Top level
 ^^^^^^^^^
-- The top-level function :ref:`mj_step` invokes the entire sequence of computations below.
-- :ref:`mj_forward` invokes only stages **2-22**, computing the continuous-time forward dynamics, ending with the
+- The top-level function :ref:`mj_step` invokes the entire sequence of stages below **1-26**.
+- :ref:`mj_forward` invokes only stages **2-23**, computing the continuous-time forward dynamics, ending with the
   acceleration ``mjData.qacc``.
 - :ref:`mj_step1` invokes stages **1-19** and :ref:`mj_step2` invokes stages **20-26**, breaking :ref:`mj_step` into two
   distinct phases. This allows the user to write controllers that depend on quantities derived from the positions and
@@ -1749,22 +1749,24 @@ Top level
 
 .. the table below was created and is editable in tablesgenerator.com
 
-.. table:: Breakdown of the forward dynamic pipeline
+Schematic breakdown of the forward dynamic pipeline:
+
+.. table::
    :class: small-centered no-stripes
 
-   +-------------------------+----------------------------------------------------------------------------------------------------------------------+
-   | top-level functions     |                                                    :ref:`mj_step`                                                    |
-   |                         +------------------------------------------------------------------------------------+---------------------------------+
-   |                         |                                   :ref:`mj_step1`                                  |         :ref:`mj_step2`         |
-   |                         +------------------------------------------------------------------------------------+-------------+-------+-----------+
-   |                         |                                      :ref:`mj_forward`                                           |       |           |
-   +-------------------------+---+----------------------------------------------+----+-----------------------+----+-------------+-------+-----------+
-   | component / description |   |             :ref:`mj_fwdPosition`            |    | :ref:`mj_fwdVelocity` |    | force / acc |       | integrate |
-   |                         +---+-------------------------+--------------------+----+-----------------------+----+-------------+-------+-----------+
-   |                         |   | :ref:`mj_fwdKinematics` | inertia, collision |    |                       |    |             |       |           |
-   +-------------------------+---+-------------------------+--------------------+----+-----------------------+----+-------------+-------+-----------+
-   | stage                   | 1 |         2,3,4,5         |    6,7,8,9,10,11   | 12 |   13,14,15,16,17,18   | 19 | 20,21,22,23 | 24,25 |     26    |
-   +-------------------------+---+-------------------------+--------------------+----+-----------------------+----+-------------+-------+-----------+
+   +-------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------+
+   | top-level functions     |                                                    :ref:`mj_step`                                                                               |
+   |                         +----------------------------------------------------------------------------------------------------------------+--------------------------------+
+   |                         |                                   :ref:`mj_step1`                                                              |          :ref:`mj_step2`       |
+   |                         +----------------------------------------------------------------------------------------------------------------+--------------+-------+---------+
+   |                         |                                      :ref:`mj_forward`                                                                        |       |         |
+   +=========================+===+=============================================================+====+====================================+====+==============+=======+=========+
+   | component / description |   |             :ref:`fwdPosition<mj_fwdPosition>`              |    | :ref:`fwdVelocity<mj_fwdVelocity>` |    |              |       |         |
+   |                         +---+----------------------------------------+--------------------+----+------------------------------------+----+--------------+-------+---------+
+   |                         |   | :ref:`fwdKinematics<mj_fwdKinematics>` | inertia, collision |    |                                    |    | acceleration |       | advance |
+   +-------------------------+---+----------------------------------------+--------------------+----+------------------------------------+----+--------------+-------+---------+
+   | stage                   | 1 |         2-5                            |         6-11       | 12 |         13-18                      | 19 |    20-23     | 24,25 |     26  |
+   +-------------------------+---+----------------------------------------+--------------------+----+------------------------------------+----+--------------+-------+---------+
 
 
 .. _piStages:
