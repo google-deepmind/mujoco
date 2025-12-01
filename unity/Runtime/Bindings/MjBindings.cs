@@ -6523,6 +6523,9 @@ public static unsafe extern void mj_printScene(mjvScene_* s, [MarshalAs(Unmanage
 public static unsafe extern void mj_printFormattedScene(mjvScene_* s, [MarshalAs(UnmanagedType.LPStr)]string filename, [MarshalAs(UnmanagedType.LPStr)]string float_format);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern void mj_fwdKinematics(mjModel_* m, mjData_* d);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_fwdPosition(mjModel_* m, mjData_* d);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]

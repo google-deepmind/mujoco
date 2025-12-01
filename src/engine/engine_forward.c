@@ -136,12 +136,8 @@ void* mj_collisionThreaded(void* args) {
   return NULL;
 }
 
-
-// position-dependent computations
-void mj_fwdPosition(const mjModel* m, mjData* d) {
-  TM_START1;
-
-  TM_START;
+// kinematics-related computations
+void mj_fwdKinematics(const mjModel* m, mjData* d) {
   mj_kinematics(m, d);
   mj_comPos(m, d);
   mj_camlight(m, d);
@@ -150,6 +146,14 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
   if (mj_wakeTendon(m, d)) {
     mj_updateSleep(m, d);
   }
+}
+
+// position-dependent computations
+void mj_fwdPosition(const mjModel* m, mjData* d) {
+  TM_START1;
+
+  TM_START;
+  mj_fwdKinematics(m, d);
 
   TM_END(mjTIMER_POS_KINEMATICS);
 

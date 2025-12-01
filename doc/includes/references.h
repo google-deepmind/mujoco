@@ -3132,6 +3132,7 @@ int mj_printSchema(const char* filename, char* buffer, int buffer_sz,
 void mj_printScene(const mjvScene* s, const char* filename);
 void mj_printFormattedScene(const mjvScene* s, const char* filename,
                             const char* float_format);
+void mj_fwdKinematics(const mjModel* m, mjData* d);
 void mj_fwdPosition(const mjModel* m, mjData* d);
 void mj_fwdVelocity(const mjModel* m, mjData* d);
 void mj_fwdActuation(const mjModel* m, mjData* d);

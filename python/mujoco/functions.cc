@@ -214,6 +214,7 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
 
   // Components
+  Def<traits::mj_fwdKinematics>(pymodule);
   Def<traits::mj_fwdPosition>(pymodule);
   Def<traits::mj_fwdVelocity>(pymodule);
   Def<traits::mj_fwdActuation>(pymodule);

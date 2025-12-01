@@ -715,6 +715,15 @@ Components
 These are components of the simulation pipeline, called internally from :ref:`mj_step`, :ref:`mj_forward` and
 :ref:`mj_inverse`. It is unlikely that the user will need to call them.
 
+.. _mj_fwdKinematics:
+
+`mj_fwdKinematics <#mj_fwdKinematics>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_fwdKinematics
+
+Run all kinematics-like computations (kinematics, comPos, camlight, flex, tendon).
+
 .. _mj_fwdPosition:
 
 `mj_fwdPosition <#mj_fwdPosition>`__

@@ -328,6 +328,9 @@ MJAPI void mj_printFormattedScene(const mjvScene* s, const char* filename,
 
 //---------------------------------- Components ----------------------------------------------------
 
+// Run all kinematics-like computations (kinematics, comPos, camlight, flex, tendon).
+MJAPI void mj_fwdKinematics(const mjModel* m, mjData* d);
+
 // Run position-dependent computations.
 MJAPI void mj_fwdPosition(const mjModel* m, mjData* d);
 

@@ -1741,11 +1741,31 @@ Top level
 - The top-level function :ref:`mj_step` invokes the entire sequence of computations below.
 - :ref:`mj_forward` invokes only stages **2-22**, computing the continuous-time forward dynamics, ending with the
   acceleration ``mjData.qacc``.
-- :ref:`mj_step1` invokes stages **1-18** and :ref:`mj_step2` invokes stages **19-25**, breaking :ref:`mj_step` into two
+- :ref:`mj_step1` invokes stages **1-19** and :ref:`mj_step2` invokes stages **20-26**, breaking :ref:`mj_step` into two
   distinct phases. This allows the user to write controllers that depend on quantities derived from the positions and
   velocities (but not forces, since those have not yet been computed). Note that the :ref:`mj_step1` → :ref:`mj_step2`
   pipeline does not support the Runge Kutta integrator.
 - :ref:`mj_fwdPosition` invokes stages **2-11**, the position-dependent part of the pipeline.
+
+.. the table below was created and is editable in tablesgenerator.com
+
+.. table:: Breakdown of the forward dynamic pipeline
+   :class: small-centered no-stripes
+
+   +-------------------------+----------------------------------------------------------------------------------------------------------------------+
+   | top-level functions     |                                                    :ref:`mj_step`                                                    |
+   |                         +------------------------------------------------------------------------------------+---------------------------------+
+   |                         |                                   :ref:`mj_step1`                                  |         :ref:`mj_step2`         |
+   |                         +------------------------------------------------------------------------------------+-------------+-------+-----------+
+   |                         |                                      :ref:`mj_forward`                                           |       |           |
+   +-------------------------+---+----------------------------------------------+----+-----------------------+----+-------------+-------+-----------+
+   | component / description |   |             :ref:`mj_fwdPosition`            |    | :ref:`mj_fwdVelocity` |    | force / acc |       | integrate |
+   |                         +---+-------------------------+--------------------+----+-----------------------+----+-------------+-------+-----------+
+   |                         |   | :ref:`mj_fwdKinematics` | inertia, collision |    |                       |    |             |       |           |
+   +-------------------------+---+-------------------------+--------------------+----+-----------------------+----+-------------+-------+-----------+
+   | stage                   | 1 |         2,3,4,5         |    6,7,8,9,10,11   | 12 |   13,14,15,16,17,18   | 19 | 20,21,22,23 | 24,25 |     26    |
+   +-------------------------+---+-------------------------+--------------------+----+-----------------------+----+-------------+-------+-----------+
+
 
 .. _piStages:
 
@@ -1796,24 +1816,28 @@ dependence structure of the pipeline, the actual dependence is on both ``qpos`` 
 17. Compute the reference constraint acceleration: :ref:`mj_referenceConstraint`
 18. Compute the vector of Coriolis, centrifugal and gravitational forces: :ref:`mj_rne`
 
+Control callback
+''''''''''''''''
+19. Invoke the user-defined control callback if defined: :ref:`mjcb_control`
+
 Force/acceleration
 ''''''''''''''''''
 The stages below compute quantities that depend on :ref:`user inputs<geInput>`. Due to the sequential nature
 of the pipeline, the actual dependence is on the entire :ref:`integration state<geIntegrationState>`.
 
-19. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
-20. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
+20. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
+21. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
     :ref:`mj_fwdAcceleration`
-21. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
+22. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
     constraint forces. This yields the vector ``mjData.qacc`` which is the main output of forward dynamics:
     :ref:`mj_fwdConstraint`
-22. Compute sensor data that depends on force and acceleration if enabled
+23. Compute sensor data that depends on force and acceleration if enabled
     (if required by sensors, call :ref:`mj_rnePostConstraint`): :ref:`mj_sensorAcc`
-23. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
+24. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
     automatically reset and the corresponding warning is raised: :ref:`mj_checkAcc`
-24. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
+25. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
     dynamics. This is an optional step, and is performed only when enabled: :ref:`mj_compareFwdInv`
-25. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
+26. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
     repeats the above sequence three more times, except for the optional computations which are performed only once:
     one of :ref:`mj_Euler`, :ref:`mj_RungeKutta`, :ref:`mj_implicit`
 

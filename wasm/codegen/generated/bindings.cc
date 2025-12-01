@@ -8021,6 +8021,10 @@ void mj_fwdConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_fwdConstraint(m.get(), d.get());
 }
 
+void mj_fwdKinematics_wrapper(const MjModel& m, MjData& d) {
+  mj_fwdKinematics(m.get(), d.get());
+}
+
 void mj_fwdPosition_wrapper(const MjModel& m, MjData& d) {
   mj_fwdPosition(m.get(), d.get());
 }
@@ -12325,6 +12329,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_fwdAcceleration", &mj_fwdAcceleration_wrapper);
   function("mj_fwdActuation", &mj_fwdActuation_wrapper);
   function("mj_fwdConstraint", &mj_fwdConstraint_wrapper);
+  function("mj_fwdKinematics", &mj_fwdKinematics_wrapper);
   function("mj_fwdPosition", &mj_fwdPosition_wrapper);
   function("mj_fwdVelocity", &mj_fwdVelocity_wrapper);
   function("mj_geomDistance", &mj_geomDistance_wrapper);

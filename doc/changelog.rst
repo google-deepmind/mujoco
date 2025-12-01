@@ -18,6 +18,8 @@ General
   flex object is similar to the "trilinear" option, but it includes curved deformations.
 - Raise an error if there are name collisions also during parsing.
 - Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
+- Added a new pipeline component function :ref:`mj_fwdKinematics` that combines all kinematics-like sub-components.
+  Relatedly, added a clarifying table at the top of the :ref:`Simulation Pipeline<Pipeline>` chapter.
 - Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
   :ref:`mj_getState` to be extracted without having to be written back into ``mjData`` first.
 - Added a new :ref:`mj_copyState` function that copies state components from one ``mjData`` to another.
