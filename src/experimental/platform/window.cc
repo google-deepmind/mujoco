@@ -34,6 +34,10 @@
 #undef Status
 #endif
 
+#if defined(__APPLE__)
+extern void* GetNativeWindowOsx(void* window);
+#endif
+
 namespace mujoco::platform {
 
 static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn,
@@ -117,11 +121,17 @@ Window::Window(std::string_view title, int width, int height, Config config,
     SDL_GL_MakeCurrent(sdl_window_, gl_context);
   }
 
-  #ifdef __linux__
-    SDL_SysWMinfo wmi;
-    SDL_VERSION(&wmi.version);
-    SDL_GetWindowWMInfo(sdl_window_, &wmi);
+  SDL_SysWMinfo wmi;
+  SDL_VERSION(&wmi.version);
+  SDL_GetWindowWMInfo(sdl_window_, &wmi);
+
+  #if defined(__linux__)
     native_window_ = reinterpret_cast<void*>(wmi.info.x11.window);
+  #elif defined(__WIN32__)
+    native_window_ = reinterpret_cast<void*>(wmi.info.win.window);
+  #elif defined(__APPLE__)
+    native_window_ =
+        GetNativeWindowOsx(reinterpret_cast<void*>(wmi.info.cocoa.window));
   #endif
 }
 

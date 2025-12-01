@@ -39,6 +39,15 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         window.cc
         window.h
 )
+
+if(APPLE)
+    set_source_files_properties(window_osx.mm PROPERTIES
+        COMPILE_FLAGS "-x objective-c++")
+    target_sources(${MUJOCO_PLATFORM_TARGET_NAME} PUBLIC
+        window_osx.mm
+    )
+endif()
+
 target_include_directories(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
