@@ -78,6 +78,8 @@ MJAPI void mjr_setBuffer(int framebuffer, mjrContext* con);
 MJAPI void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
                           const mjrContext* con);
 
+double mjr_getFrameRate(const mjrContext* con);
+
 #if defined(__cplusplus)
 }  // extern "C"
 #endif

@@ -33,6 +33,7 @@
 #include <filament/Texture.h>
 #include <filament/View.h>
 #include <math/vec4.h>
+#include <utils/FixedCapacityVector.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
@@ -310,4 +311,15 @@ void FilamentContext::UploadFont(const uint8_t* pixels, int width, int height,
                                  int id) {
   object_manager_->UploadFont(pixels, width, height, id);
 }
+
+double FilamentContext::GetFrameRate() const {
+  utils::FixedCapacityVector<filament::Renderer::FrameInfo> frame_info =
+      renderer_->getFrameInfoHistory(1);
+  if (frame_info.empty()) {
+    return 0;
+  }
+  const int64_t ns = frame_info[0].denoisedGpuFrameDuration;
+  return 1.0e9 / static_cast<double>(ns);
+}
+
 }  // namespace mujoco

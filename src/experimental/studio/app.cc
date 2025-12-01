@@ -16,6 +16,9 @@
 
 #include <algorithm>
 #include <array>
+#if defined(USE_CLASSIC_OPENGL)
+#include <chrono>
+#endif
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -369,6 +372,21 @@ void App::Render() {
       data_->timer[i].number = 0;
     }
   }
+
+#ifdef USE_CLASSIC_OPENGL
+  TimePoint now = std::chrono::steady_clock::now();
+  TimePoint::duration delta_time = now - last_fps_update_;
+  const double interval = std::chrono::duration<double>(delta_time).count();
+
+  ++frames_;
+  if (interval > 0.2) {  // only update FPS stat at most 5 times per second
+    last_fps_update_ = now;
+    fps_ = frames_ / interval;
+    frames_ = 0;
+  }
+#else
+  fps_ = mjr_getFrameRate(&renderer_->GetContext());
+#endif
 }
 
 void App::HandleMouseEvents() {
@@ -797,8 +815,7 @@ void App::BuildGui() {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
     if (ImGui::Begin("Info", &tmp_.info)) {
-      platform::InfoGui(model_, data_, step_control_.IsPaused(),
-                       renderer_->GetFrameRate());
+      platform::InfoGui(model_, data_, step_control_.IsPaused(), fps_);
     }
     ImGui::End();
   }

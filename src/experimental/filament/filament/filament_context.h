@@ -53,6 +53,8 @@ class FilamentContext {
 
   void UploadFont(const uint8_t* pixels, int width, int height, int id);
 
+  double GetFrameRate() const;
+
   FilamentContext(const FilamentContext&) = delete;
   FilamentContext& operator=(const FilamentContext&) = delete;
 

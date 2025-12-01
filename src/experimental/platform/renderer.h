@@ -54,15 +54,10 @@ class Renderer {
   // Rendering flags.
   mjtByte* GetRenderFlags() { return scene_.flags; }
 
-  // Returns the current, average frame rate.
-  double GetFrameRate() const { return fps_; }
-
   // Returns the render context.
   const mjrContext& GetContext() const { return render_context_; }
 
  private:
-  using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
-
   // Resets the renderer; no rendering will occur until Init() is called again.
   void Deinit();
 
@@ -70,10 +65,6 @@ class Renderer {
   mjrContext render_context_;
   mjvScene scene_;
   bool initialized_ = false;
-
-  int frames_ = 0;
-  TimePoint last_fps_update_;
-  double fps_ = 0;
 };
 
 }  // namespace mujoco::platform

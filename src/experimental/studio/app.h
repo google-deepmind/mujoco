@@ -182,6 +182,10 @@ class App {
 
   UiState ui_;
   UiTempState tmp_;
+
+  int frames_ = 0;
+  TimePoint last_fps_update_;
+  double fps_ = 0;
 };
 
 }  // namespace mujoco::studio

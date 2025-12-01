@@ -146,4 +146,9 @@ void mjr_uploadFont(const unsigned char* pixels, int width, int height, int bpp,
   g_filament_context->UploadFont(pixels, width, height, id);
 }
 
+double mjr_getFrameRate(const mjrContext* con) {
+  CheckFilamentContext();
+  return g_filament_context->GetFrameRate();
+}
+
 }  // extern "C"
