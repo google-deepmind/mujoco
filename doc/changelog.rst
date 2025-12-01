@@ -2,8 +2,8 @@
 Changelog
 =========
 
-Upcoming version (not yet released)
------------------------------------
+Version 3.4.0 (December 1, 2025)
+--------------------------------
 
 General
 ^^^^^^^
@@ -12,52 +12,52 @@ General
    :align: right
    :width: 35%
 
-- Introduced a major new feature: :ref:`sleeping islands<Sleeping>`. Preliminary release for early testing, see
-  documentation for details.
-- Added "quadratic" option to :ref:`flexcomp/dof<body-flexcomp-dof>`. This type of fast :ref:`deformable<CDeformable>`
-  flex object is similar to the "trilinear" option, but it includes curved deformations.
-- Raise an error if there are name collisions also during parsing.
-- Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
-- Added a new pipeline component function :ref:`mj_fwdKinematics` that combines all kinematics-like sub-components.
-  Relatedly, added a clarifying table at the top of the :ref:`Simulation Pipeline<Pipeline>` chapter.
-- Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
-  :ref:`mj_getState` to be extracted without having to be written back into ``mjData`` first.
-- Added a new :ref:`mj_copyState` function that copies state components from one ``mjData`` to another.
-- Tendon paths can now be queried from Python via ``MjsTendon.path``, the returned object
-  is iterable and indexing it will give the ``MjsWrap`` at the given index in the path.
-- ``MjsWrap`` now exposes:
+1. Introduced a major new feature: :ref:`sleeping islands<Sleeping>`. Preliminary release for early testing, see
+   documentation for details.
+2. Added "quadratic" option to :ref:`flexcomp/dof<body-flexcomp-dof>`. This type of fast :ref:`deformable<CDeformable>`
+   flex object is similar to the "trilinear" option, but it includes curved deformations.
+3. Raise an error if there are name collisions also during parsing.
+4. Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
+5. Added a new pipeline component function :ref:`mj_fwdKinematics` that combines all kinematics-like sub-components.
+   Relatedly, added a clarifying table at the top of the :ref:`Simulation Pipeline<Pipeline>` chapter.
+6. Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
+   :ref:`mj_getState` to be extracted without having to be written back into ``mjData`` first.
+7. Added a new :ref:`mj_copyState` function that copies state components from one ``mjData`` to another.
+8. Tendon paths can now be queried from Python via ``MjsTendon.path``, the returned object
+   is iterable and indexing it will give the ``MjsWrap`` at the given index in the path.
+9. ``MjsWrap`` now exposes:
 
-  - ``type -> mujoco.mjtWrap``
-  - ``target -> MjsSite|MjsJoint|MjsGeom|None``
-  - ``sidesite -> MjsSite|None``
-  - ``coef -> real``
-  - ``divisor -> real``
+   10. ``type -> mujoco.mjtWrap``
+   11. ``target -> MjsSite|MjsJoint|MjsGeom|None``
+   12. ``sidesite -> MjsSite|None``
+   13. ``coef -> real``
+   14. ``divisor -> real``
 
-- Non-breaking ABI changes:
+15. Non-breaking ABI changes:
 
-  - :ref:`mjtSize` is now defined as ``int64_t`` rather than ``uint64_t`` to avoid future type-promotion bugs.
-  - :ref:`mj_sizeModel` now returns an :ref:`mjtSize` rather than an ``int``.
+    16. :ref:`mjtSize` is now defined as ``int64_t`` rather than ``uint64_t`` to avoid future type-promotion bugs.
+    17. :ref:`mj_sizeModel` now returns an :ref:`mjtSize` rather than an ``int``.
 
 MJX
 ^^^
 
-- ``warp-lang`` optional dependency is updated to 1.10.0. ``pmap`` now works with MuJoCo Warp from MJX.
+18. ``warp-lang`` optional dependency is updated to 1.10.0. ``pmap`` now works with MuJoCo Warp from MJX.
 
 .. admonition:: Breaking ABI changes
    :class: attention
 
-   - ``mjx.Model.tex_data`` is now a numpy ndarray instead of a jax.Array, to avoid vmapping over this potentially
-     large array. This may break certain use-cases with Madrona MJX, but we are no longer supporting this codepath.
-     We will be migrating users to a Warp-based batch renderer.
+   19. ``mjx.Model.tex_data`` is now a numpy ndarray instead of a jax.Array, to avoid vmapping over this potentially
+        large array. This may break certain use-cases with Madrona MJX, but we are no longer supporting this codepath.
+        We will be migrating users to a Warp-based batch renderer.
 
 
 Bug fixes
 ^^^^^^^^^
 
-- Fixed a bug in the box-box distance computation. Reported by :github:user:`nvtw`.
+20. Fixed a bug in the box-box distance computation. Reported by :github:user:`nvtw`.
 
 Version 3.3.7 (October 13, 2025)
------------------------------------
+--------------------------------
 
 General
 ^^^^^^^
