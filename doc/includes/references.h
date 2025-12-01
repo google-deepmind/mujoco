@@ -3501,6 +3501,7 @@ void mjp_defaultDecoder(mjpDecoder* decoder);
 const mjpDecoder* mjp_findDecoder(const mjResource* resource, const char* content_type);
 mjThreadPool* mju_threadPoolCreate(size_t number_of_threads);
 void mju_bindThreadPool(mjData* d, void* thread_pool);
+void mju_threadPoolSetBusyWait(mjThreadPool* thread_pool, int busy_wait);
 void mju_threadPoolEnqueue(mjThreadPool* thread_pool, mjTask* task);
 void mju_threadPoolDestroy(mjThreadPool* thread_pool);
 void mju_defaultTask(mjTask* task);
