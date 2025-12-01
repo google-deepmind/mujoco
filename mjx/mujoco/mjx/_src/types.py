@@ -91,8 +91,9 @@ class EnableBit(enum.IntFlag):
   """
 
   INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
-  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND
+  # unsupported: OVERRIDE, FWDINV, ISLAND
   # required by the C implementation only, ignored otherwise: MULTICCD
+  # ENERGY: supported by C and warp implementation, unsupported by jax.
   ENERGY = mujoco.mjtEnableBit.mjENBL_ENERGY
   MULTICCD = mujoco.mjtEnableBit.mjENBL_MULTICCD
   SLEEP = mujoco.mjtEnableBit.mjENBL_SLEEP
