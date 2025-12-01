@@ -37,7 +37,7 @@ PRIMITIVE_TYPES: Set[str] = {
     # go/keep-sorted end
 }
 
-_SKIPPED_PLUGIN_FUNCTIONS = (
+_SKIPPED_PLUGIN_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_getPluginConfig",
     "mj_loadAllPluginLibraries",
@@ -62,7 +62,7 @@ _SKIPPED_PLUGIN_FUNCTIONS = (
 )
 
 # Functions that are bound as class methods
-_SKIPPED_CLASS_METHODS = (
+_SKIPPED_CLASS_METHODS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_compile",
     "mj_copyData",
@@ -84,12 +84,12 @@ _SKIPPED_CLASS_METHODS = (
 )
 
 # Omitted because not very useful
-_SKIPPED_WRITABLE_ERROR = (
+_SKIPPED_WRITABLE_ERROR: tuple[str, ...] = (
     "mj_printSchema",
 )
 
 # Omitted thread management functions
-_SKIPPED_THREAD_FUNCTIONS = (
+_SKIPPED_THREAD_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mju_bindThreadPool",
     "mju_defaultTask",
@@ -101,7 +101,7 @@ _SKIPPED_THREAD_FUNCTIONS = (
 )
 
 # Omitted asset cache functions
-_SKIPPED_ASSET_CACHE_FUNCTIONS = (
+_SKIPPED_ASSET_CACHE_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_clearCache",
     "mj_getCache",
@@ -112,7 +112,7 @@ _SKIPPED_ASSET_CACHE_FUNCTIONS = (
 )
 
 # Omitted Virtual Filesystem (VFS) functions
-_SKIPPED_VFS_FUNCTIONS = (
+_SKIPPED_VFS_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_addBufferVFS",
     "mj_addFileVFS",
@@ -123,7 +123,7 @@ _SKIPPED_VFS_FUNCTIONS = (
 )
 
 # Omitted irrelevant visual functions
-_SKIPPED_VISUAL_FUNCTIONS = (
+_SKIPPED_VISUAL_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjv_averageCamera",
     "mjv_copyData",
@@ -134,7 +134,7 @@ _SKIPPED_VISUAL_FUNCTIONS = (
     # go/keep-sorted end
 )
 
-_SKIPPED_MEMORY_FUNCTIONS = (
+_SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_freeLastXML",
     "mj_freeStack",
@@ -160,7 +160,7 @@ _SKIPPED_MEMORY_FUNCTIONS = (
     # go/keep-sorted end
 )
 
-_SKIPPED_GETTERS_AND_SETTERS = (
+_SKIPPED_GETTERS_AND_SETTERS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjs_appendFloatVec",
     "mjs_appendIntVec",
@@ -181,7 +181,7 @@ _SKIPPED_GETTERS_AND_SETTERS = (
     # go/keep-sorted end
 )
 
-_SKIPPED_UTILITY_FUNCTIONS = (
+_SKIPPED_UTILITY_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mju_getXMLDependencies",
     # go/keep-sorted end
@@ -189,7 +189,7 @@ _SKIPPED_UTILITY_FUNCTIONS = (
 
 # Functions that require special wrappers.
 # These functions are not bound automatically but are written by hand instead.
-MANUAL_WRAPPER_FUNCTIONS = (
+MANUAL_WRAPPER_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_saveLastXML",
     "mj_setLengthRange",
@@ -198,7 +198,7 @@ MANUAL_WRAPPER_FUNCTIONS = (
 )
 
 # List of functions that should be skipped during the code generation process.
-SKIPPED_FUNCTIONS = (
+SKIPPED_FUNCTIONS: tuple[str, ...] = (
     _SKIPPED_CLASS_METHODS
     + _SKIPPED_THREAD_FUNCTIONS
     + _SKIPPED_MEMORY_FUNCTIONS
@@ -212,7 +212,7 @@ SKIPPED_FUNCTIONS = (
 )
 
 # List of structs that should be skipped during the code generation process.
-SKIPPED_STRUCTS = (
+SKIPPED_STRUCTS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjCache",
     "mjSDF",
@@ -235,11 +235,11 @@ SKIPPED_STRUCTS = (
 # mjvScene is included here because buffer sizes need to be calculated based on
 # introspect doc strings, which was considered a brittle unreliable solution in
 # the past.
-MANUAL_STRUCTS_HEADERS = (
+MANUAL_STRUCTS_HEADERS: tuple[str, ...] = (
     "mjvScene",
 )
 # Structs for which source code generation is done manually.
-MANUAL_STRUCTS_SOURCES = (
+MANUAL_STRUCTS_SOURCES: tuple[str, ...] = (
     "mjData",
     "mjModel",
     "mjvScene",
@@ -270,7 +270,7 @@ STRUCTS_TO_BIND: list[str] = list(
 )
 
 # List of structs that do not have a default constructor.
-NO_DEFAULT_CONSTRUCTORS = (
+NO_DEFAULT_CONSTRUCTORS: tuple[str, ...] = (
     # go/keep-sorted start
     "mjContact",
     "mjSolverStat",
@@ -290,7 +290,7 @@ NO_DEFAULT_CONSTRUCTORS = (
 # List of `mjData` fields where the array size should be obtained from other
 # `mjData` members, instead of from `mjModel` members. This is typically the
 # case for fields that are dynamically allocated during the simulation.
-MJDATA_SIZES = (
+MJDATA_SIZES: tuple[str, ...] = (
     # go/keep-sorted start
     "contact",
     "efc_AR",
