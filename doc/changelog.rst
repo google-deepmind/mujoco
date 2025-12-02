@@ -27,34 +27,34 @@ General
    is iterable and indexing it will give the ``MjsWrap`` at the given index in the path.
 9. ``MjsWrap`` now exposes:
 
-   10. ``type -> mujoco.mjtWrap``
-   11. ``target -> MjsSite|MjsJoint|MjsGeom|None``
-   12. ``sidesite -> MjsSite|None``
-   13. ``coef -> real``
-   14. ``divisor -> real``
+   - ``type -> mujoco.mjtWrap``
+   - ``target -> MjsSite|MjsJoint|MjsGeom|None``
+   - ``sidesite -> MjsSite|None``
+   - ``coef -> real``
+   - ``divisor -> real``
 
-15. Non-breaking ABI changes:
+10. Non-breaking ABI changes:
 
-    16. :ref:`mjtSize` is now defined as ``int64_t`` rather than ``uint64_t`` to avoid future type-promotion bugs.
-    17. :ref:`mj_sizeModel` now returns an :ref:`mjtSize` rather than an ``int``.
+    - :ref:`mjtSize` is now defined as ``int64_t`` rather than ``uint64_t`` to avoid future type-promotion bugs.
+    - :ref:`mj_sizeModel` now returns an :ref:`mjtSize` rather than an ``int``.
 
 MJX
 ^^^
 
-18. ``warp-lang`` optional dependency is updated to 1.10.0. ``pmap`` now works with MuJoCo Warp from MJX.
+11. ``warp-lang`` optional dependency is updated to 1.10.0. ``pmap`` now works with MuJoCo Warp from MJX.
 
 .. admonition:: Breaking ABI changes
    :class: attention
 
-   19. ``mjx.Model.tex_data`` is now a numpy ndarray instead of a jax.Array, to avoid vmapping over this potentially
-        large array. This may break certain use-cases with Madrona MJX, but we are no longer supporting this codepath.
-        We will be migrating users to a Warp-based batch renderer.
+   - ``mjx.Model.tex_data`` is now a numpy ndarray instead of a jax.Array, to avoid vmapping over this potentially
+     large array. This may break certain use-cases with Madrona MJX, but we are no longer supporting this codepath.
+     We will be migrating users to a Warp-based batch renderer.
 
 
 Bug fixes
 ^^^^^^^^^
 
-20. Fixed a bug in the box-box distance computation. Reported by :github:user:`nvtw`.
+12. Fixed a bug in the box-box distance computation. Reported by :github:user:`nvtw`.
 
 Version 3.3.7 (October 13, 2025)
 --------------------------------
