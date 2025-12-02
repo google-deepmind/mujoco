@@ -364,7 +364,7 @@ Learning frameworks
 Yes. MJWarp is interoperable with `JAX <https://jax.readthedocs.io/>`__. Please see the
 `Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#jax>`__ documentation for details.
 
-Additionally, :ref:`MJX <mjx>` provides a JAX API for a subset of MJWarp's :ref:`API <api.rst>`. The backend is
+Additionally, :ref:`MJX <mjx>` provides a JAX API for a subset of MJWarp's :doc:`API <api>`. The backend is
 specified with ``impl='warp'``.
 
 **Does MJWarp work with PyTorch?**
@@ -420,7 +420,7 @@ reinforcement learning example.
 
 **How are orientations represented?**
 
-Orientations are represented as unit quaternions and follow :ref:`MuJoCo's convention <floating-objects>`:
+Orientations are represented as unit quaternions and follow :ref:`MuJoCo's conventions<siLayout>`:
 ``w, x, y, z`` or ``scalar, vector``.
 
 .. admonition:: ``wp.quaternion``
