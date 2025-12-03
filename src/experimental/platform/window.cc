@@ -133,6 +133,11 @@ Window::Window(std::string_view title, int width, int height, Config config,
     native_window_ =
         GetNativeWindowOsx(reinterpret_cast<void*>(wmi.info.cocoa.window));
   #endif
+
+  int drawable_width = width;
+  int drawable_height = height;
+  SDL_GL_GetDrawableSize(sdl_window_, &drawable_width, &drawable_height);
+  scale_ = (float)drawable_width / (float)width_;
 }
 
 Window::~Window() {
