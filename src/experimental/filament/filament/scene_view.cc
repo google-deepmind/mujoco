@@ -120,7 +120,7 @@ SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
 
   auto ao = views_[kNormalIndex]->getAmbientOcclusionOptions();
   ao.enabled = ReadElement(m, "filament.ao.enabled", true);
-  ao.bentNormals = ReadElement(m, "filament.ao.bent_normals", true);
+  ao.bentNormals = ReadElement(m, "filament.ao.bent_normals", false);
   ao.ssct.enabled = ReadElement(m, "filament.ao.ssct", ao.ssct.enabled);
   ao.quality = filament::QualityLevel::ULTRA;
   ao.lowPassFilter = filament::QualityLevel::ULTRA;
