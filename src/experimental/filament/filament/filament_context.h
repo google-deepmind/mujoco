@@ -51,8 +51,6 @@ class FilamentContext {
 
   void UploadHeightField(const mjModel* model, int id);
 
-  void UploadFont(const uint8_t* pixels, int width, int height, int id);
-
   double GetFrameRate() const;
 
   FilamentContext(const FilamentContext&) = delete;

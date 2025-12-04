@@ -314,11 +314,6 @@ void FilamentContext::UploadHeightField(const mjModel* model, int id) {
   object_manager_->UploadHeightField(model, id);
 }
 
-void FilamentContext::UploadFont(const uint8_t* pixels, int width, int height,
-                                 int id) {
-  object_manager_->UploadFont(pixels, width, height, id);
-}
-
 double FilamentContext::GetFrameRate() const {
   utils::FixedCapacityVector<filament::Renderer::FrameInfo> frame_info =
       renderer_->getFrameInfoHistory(1);

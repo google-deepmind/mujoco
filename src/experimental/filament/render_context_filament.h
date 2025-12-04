@@ -74,9 +74,6 @@ MJAPI void mjr_uploadMesh(const mjModel* m, const mjrContext* con, int meshid);
 
 MJAPI void mjr_uploadTexture(const mjModel* m, const mjrContext* con, int texid);
 
-void mjr_uploadFont(const unsigned char* pixels, int width, int height, int bpp,
-                    int id, const mjrContext* con);
-
 MJAPI void mjr_setBuffer(int framebuffer, mjrContext* con);
 
 MJAPI void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,

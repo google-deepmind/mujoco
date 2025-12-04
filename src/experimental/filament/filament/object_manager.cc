@@ -158,9 +158,6 @@ ObjectManager::~ObjectManager() {
   engine_->destroy(fallback_black_);
   engine_->destroy(fallback_normal_);
   engine_->destroy(fallback_orm_);
-  for (auto& iter : fonts_) {
-    engine_->destroy(iter.second);
-  }
 }
 
 void ObjectManager::UploadMesh(const mjModel* model, int id) {
@@ -244,14 +241,6 @@ void ObjectManager::UploadHeightField(const mjModel* model, int id) {
       CreateIndexBuffer(engine_, model, id, MeshType::kHeightField);
 }
 
-void ObjectManager::UploadFont(const uint8_t* pixels, int width, int height,
-                               int id) {
-  if (auto iter = fonts_.find(id); iter != fonts_.end()) {
-    engine_->destroy(iter->second);
-  }
-  fonts_[id] = Create2dTexture(engine_, width, height, 4, pixels, false);
-}
-
 filament::Material* ObjectManager::GetMaterial(MaterialType type) const {
   if (type < 0 || type >= kNumMaterials) {
     mju_error("Invalid material type: %d", type);
@@ -284,11 +273,6 @@ const FilamentBuffers* ObjectManager::GetShapeBuffer(ShapeType shape) const {
     mju_error("Invalid shape type: %d", shape);
   }
   return &shapes_[shape];
-}
-
-const filament::Texture* ObjectManager::GetFont(int font_id) const {
-  auto it = fonts_.find(font_id);
-  return it != fonts_.end() ? it->second : nullptr;
 }
 
 const filament::Texture* ObjectManager::GetTexture(int tex_id) const {
