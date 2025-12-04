@@ -34,7 +34,6 @@
 #include <vector>
 
 #include <imgui.h>
-#include <imgui_internal.h>
 #include <implot.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/gui.h"
@@ -121,12 +120,6 @@ static constexpr const char* ICON_PREV_FRAME = ICON_FA_CARET_LEFT;
 static constexpr const char* ICON_NEXT_FRAME = ICON_FA_CARET_RIGHT;
 static constexpr const char* ICON_CURR_FRAME = ICON_FA_FAST_FORWARD;
 static constexpr const char* ICON_SPEED = ICON_FA_TACHOMETER;
-
-static constexpr int kToolsBarHeight = 48;
-static constexpr int kStatusBarHeight = 32;
-static constexpr float kOptionsRelWidth = 0.22f;
-static constexpr float kInspectorRelWidth = 0.18f;
-static constexpr float kInfoRelHeight = 0.3f;
 
 // UI labels for mjtLabel.
 static constexpr const char* kLabelNames[] = {
@@ -758,8 +751,8 @@ void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx, mjtNum reldy) 
 }
 
 void App::BuildGui() {
-  SetupStyle(ui_.style);
-  const ImVec4 workspace_rect = ConfigureDockingLayout();
+  SetupTheme(ui_.theme);
+  const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
 
   // Place charts in bottom right corner of the workspace.
   const ImVec2 chart_size(250, 250);
@@ -890,114 +883,11 @@ void App::BuildGui() {
   }
 }
 
-void App::SetupStyle(Style style) {
-  if (tmp_.style_editor) {
-    return;
+void App::SetupTheme(platform::GuiTheme theme) {
+  if (!tmp_.style_editor) {
+    platform::SetupTheme(theme);
+    ui_.theme = theme;
   }
-
-  ImGuiStyle& s = ImGui::GetStyle();
-  if (style == kDark) {
-    ImGui::StyleColorsDark(&s);
-  } else {
-    ImGui::StyleColorsLight(&s);
-  }
-  s.FrameBorderSize = 1;
-  ui_.style = style;
-}
-
-ImVec4 App::ConfigureDockingLayout() {
-  ImGuiViewport* viewport = ImGui::GetMainViewport();
-
-  const ImVec2 dockspace_pos{
-      viewport->WorkPos.x,
-      viewport->WorkPos.y + kToolsBarHeight
-  };
-  const ImVec2 dockspace_size{
-      viewport->WorkSize.x,
-      viewport->WorkSize.y - kToolsBarHeight - kStatusBarHeight
-  };
-
-  ImGuiID root = ImGui::GetID("Root");
-  const bool first_time = (ImGui::DockBuilderGetNode(root) == nullptr);
-
-  if (first_time) {
-    ImGui::DockBuilderRemoveNode(root);
-    ImGui::DockBuilderAddNode(root, ImGuiDockNodeFlags_DockSpace);
-    ImGui::DockBuilderSetNodeSize(root, dockspace_size);
-
-    // Slice up the main dock space.
-    ImGuiID main = root;
-
-    ImGuiID options = 0;
-    ImGui::DockBuilderSplitNode(main, ImGuiDir_Left, kOptionsRelWidth,
-                                &options, &main);
-
-    ImGuiID inspector = 0;
-    ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, kInspectorRelWidth,
-                                &inspector, &main);
-
-    ImGuiID info = 0;
-    ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kInfoRelHeight,
-                                &info, &inspector);
-
-    ImGui::DockBuilderDockWindow("Dockspace", main);
-    ImGui::DockBuilderDockWindow("Options", options);
-    ImGui::DockBuilderDockWindow("Inspector", inspector);
-    ImGui::DockBuilderDockWindow("Info", info);
-    ImGui::DockBuilderFinish(root);
-  }
-
-  // Create a dummy window filling the entire workspace in which we can perform
-  // docking.
-  ImGui::SetNextWindowPos(dockspace_pos);
-  ImGui::SetNextWindowSize(dockspace_size);
-  ImGui::SetNextWindowViewport(viewport->ID);
-
-  const ImGuiWindowFlags kWorkspaceFlags =
-      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-      ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBringToFrontOnFocus |
-      ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
-
-  platform::ScopedStyle style;
-  style.Var(ImGuiStyleVar_WindowRounding, 0.0f);
-  style.Var(ImGuiStyleVar_WindowBorderSize, 0.0f);
-  style.Var(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-  ImGui::Begin("Dockspace", nullptr, kWorkspaceFlags);
-  style.Reset();
-
-  const ImGuiDockNodeFlags kDockSpaceFlags =
-      ImGuiDockNodeFlags_PassthruCentralNode |
-      ImGuiDockNodeFlags_NoDockingOverCentralNode |
-      ImGuiDockNodeFlags_AutoHideTabBar;
-  ImGui::DockSpace(root, ImVec2(0.0f, 0.0f), kDockSpaceFlags);
-  ImGui::End();
-
-  const ImGuiWindowFlags kFixedFlags = ImGuiWindowFlags_NoTitleBar |
-                                       ImGuiWindowFlags_NoMove |
-                                       ImGuiWindowFlags_NoResize |
-                                       ImGuiWindowFlags_NoScrollbar |
-                                       ImGuiWindowFlags_NoDocking;
-
-  // Toolbar is fixed at the top.
-  ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
-  ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kToolsBarHeight), ImGuiCond_Always);
-  ImGui::Begin("ToolBar", nullptr, kFixedFlags);
-  ImGui::End();
-
-  // StatusBar is fixed at the bottom.
-  ImGui::SetNextWindowPos(ImVec2(0, viewport->Size.y - kStatusBarHeight), ImGuiCond_Always);
-  ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kStatusBarHeight), ImGuiCond_Always);
-  ImGui::Begin("StatusBar", nullptr, kFixedFlags);
-  ImGui::End();
-
-  const int settings_width = dockspace_size.x * kOptionsRelWidth;
-  const int inspector_width = dockspace_size.x * kInspectorRelWidth;
-  const float workspace_x = dockspace_pos.x + settings_width;
-  const float workspace_y = dockspace_pos.y;
-  const float workspace_w = dockspace_size.x - settings_width - inspector_width;
-  const float workspace_h = dockspace_size.y;
-  return ImVec4(workspace_x, workspace_y, workspace_w, workspace_h);
 }
 
 void App::ModelOptionsGui() {
@@ -1246,11 +1136,13 @@ void App::ToolBarGui() {
 
     // Style selection.
     ImGui::SameLine();
-    if (ImGui::Button(ui_.style == kDark ? ICON_DARKMODE : ICON_LIGHTMODE)) {
-      if (ui_.style == kDark) {
-        SetupStyle(kLight);
+    if (ImGui::Button(ui_.theme == platform::GuiTheme::kDark
+                          ? ICON_DARKMODE
+                          : ICON_LIGHTMODE)) {
+      if (ui_.theme == platform::GuiTheme::kDark) {
+        SetupTheme(platform::GuiTheme::kLight);
       } else {
-        SetupStyle(kDark);
+        SetupTheme(platform::GuiTheme::kDark);
       }
     }
     ImGui::SetItemTooltip("%s", "Switch Style");

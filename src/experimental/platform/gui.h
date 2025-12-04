@@ -25,9 +25,36 @@
 
 #include <vector>
 
+#include <imgui.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
+
+// Standard default UX themes for MuJoCo applications.
+enum class GuiTheme {
+  kLight,
+  kDark,
+};
+
+// Updates the ImGui internal style state to match the requested theme.
+void SetupTheme(GuiTheme theme);
+
+// Configures the ImGui docking module to the standard layout used by Studio.
+// This includes the following named sections:
+//   "ToolBar": fixed size bar spanning the top of the window; for placing
+//       buttons and other controls that are always needed.
+//   "StatusBar": fixed size bar spanning the bottom of the window; for
+//       placing information and controls that are always needed.
+//   "Options": resizable section of the left; designed for GUI elements that
+//       are used to configure the simulation (e.g. PhysicsGui).
+//   "Inspector": resizable section of the right; designed for inspecting
+//       or manipulating mjData elements (e.g. ControlsGui).
+//   "Info": resizable section below the inspector; designed for displaying
+//       basic simulation information (e.g. InfoGui); hidden by default.
+//
+// Returns the size and position of the remaining workspace area which can then
+// be used to place additional elements (e.g. floating charts).
+ImVec4 ConfigureDockingLayout();
 
 // UX for controlling the physics simulation parameters (e.g. integrator,
 // solver, etc.) in mjModel.

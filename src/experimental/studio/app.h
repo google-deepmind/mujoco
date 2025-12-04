@@ -25,8 +25,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <imgui.h>
 #include <mujoco/mujoco.h>
+#include "experimental/platform/gui.h"
 #include "experimental/platform/helpers.h"
 #include "experimental/platform/interaction.h"
 #include "experimental/platform/renderer.h"
@@ -65,18 +65,13 @@ class App {
   static int LoadAssetCallback(const char* path, void* user_data,
                                unsigned char** out, std::uint64_t* out_size);
 
-  enum Style {
-    kLight,
-    kDark,
-  };
-
   // UI state that is persisted across application runs
   struct UiState {
     char watch_field[1000] = "qpos";
     int watch_index = 0;
     int camera_idx = platform::kTumbleCameraIdx;
     int key_idx = 0;
-    Style style = kLight;
+    platform::GuiTheme theme = platform::GuiTheme::kLight;
 
     using Dict = std::unordered_map<std::string, std::string>;
     Dict ToDict() const;
@@ -148,8 +143,7 @@ class App {
   void HandleKeyboardEvents();
   void MoveCamera(platform::CameraMotion motion, mjtNum reldx, mjtNum reldy);
 
-  void SetupStyle(Style style);
-  ImVec4 ConfigureDockingLayout();
+  void SetupTheme(platform::GuiTheme theme);
 
   void MainMenuGui();
   void ToolBarGui();
