@@ -102,7 +102,7 @@ class mjXReader : public mjXBase {
 };
 
 // MJCF schema
-#define nMJCF 241
+#define nMJCF 244
 extern std::vector<const char*> MJCF[nMJCF];
 
 #endif  // MUJOCO_SRC_XML_XML_NATIVE_READER_H_
