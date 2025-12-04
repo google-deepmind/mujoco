@@ -46,9 +46,6 @@ void SaveDepthToWebp(int width, int height, const float* data,
 void SaveScreenshotToWebp(int width, int height, mjrContext* con,
                           const std::string& filename);
 
-// Loads a MuJoCo model from the given file.
-mjModel* LoadMujocoModel(const std::string& model_file, const mjVFS* vfs);
-
 // Returns a pointer to the value of the given field in the given data.
 // Returns nullptr if the field is not found or the index is out of bounds.
 const void* GetValue(const mjModel* model, const mjData* data,

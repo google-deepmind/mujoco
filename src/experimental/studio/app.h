@@ -130,8 +130,9 @@ class App {
     std::string last_print_data_file;
   };
 
-  void OnModelLoaded(std::string_view model_file);
+  void ClearModel();
   void ProcessPendingLoad();
+  bool IsModelLoaded() const;
 
   void ResetPhysics();
   void UpdatePhysics();
@@ -173,6 +174,7 @@ class App {
   platform::SimProfiler profiler_;
   platform::SimHistory history_;
 
+  mjSpec* spec_ = nullptr;
   mjModel* model_ = nullptr;
   mjData* data_ = nullptr;
 

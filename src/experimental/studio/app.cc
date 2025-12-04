@@ -44,6 +44,7 @@
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
+#include "xml/xml_api.h"
 
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "experimental/filament/render_context_filament.h"
@@ -186,6 +187,25 @@ App::App(int width, int height, std::string ini_path,
 #endif
 }
 
+void App::ClearModel() {
+  if (model_) {
+    mj_deleteData(data_);
+    data_ = nullptr;
+    mj_deleteModel(model_);
+    model_ = nullptr;
+
+    if (spec_) {
+      mj_deleteSpec(spec_);
+      spec_ = nullptr;
+    }
+  }
+
+  step_control_.SetSpeed(100.f);
+  profiler_.Clear();
+  tmp_ = UiTempState();
+  error_ = "";
+}
+
 void App::LoadModel(std::string model_file) {
   pending_load_ = std::move(model_file);
 }
@@ -195,52 +215,56 @@ void App::ProcessPendingLoad() {
     return;
   }
 
-  if (model_) {
-    mj_deleteData(data_);
-    data_ = nullptr;
-    mj_deleteModel(model_);
-    model_ = nullptr;
-    error_ = "";
-
-    step_control_.SetSpeed(100.f);
-  }
-
-  std::string model_file = std::move(pending_load_.value());
+  // Note that a non-empty model_file_ implies that a model was successfully
+  // loaded.
+  model_file_ = std::move(pending_load_.value());
   pending_load_.reset();
 
-  model_ = platform::LoadMujocoModel(model_file, nullptr);
-  if (!model_) {
-    error_ = "Error loading model!";
-    step_control_.Pause();
-    model_ = platform::LoadMujocoModel("", nullptr);
+  // Delete the existing mjModel and mjData.
+  ClearModel();
+
+  // Try to load the requested mjModel.
+  char err[1000] = "";
+  if (model_file_.ends_with(".mjb")) {
+    model_ = mj_loadModel(model_file_.c_str(), 0);
+  } else if (model_file_.ends_with(".xml")) {
+    model_ = mj_loadXML(model_file_.c_str(), nullptr, err, sizeof(err));
+  } else {
+    error_ = "Unknown model file type; expected .mjb or .xml.";
+  }
+  if (err[0]) {
+    error_ = err;
+    fprintf(stderr, "Error loading model: %s\n", error_.c_str());
   }
 
+  // If no mjModel was loaded, load an empty mjModel.
+  if (model_file_.empty() || model_ == nullptr) {
+    spec_ = mj_makeSpec();
+    model_ = mj_compile(spec_, 0);
+    model_file_ = "";
+  }
+  if (!model_) {
+    mju_error("Error loading model: %s", error_.c_str());
+  }
+
+  // Create the mjData for the mjModel.
   data_ = mj_makeData(model_);
   if (!data_) {
-    error_ = "Error making data!";
-    step_control_.Pause();
+    mju_error("Error making data for model: %s", error_.c_str());
   }
 
-  OnModelLoaded(model_file);
-}
-
-void App::OnModelLoaded(std::string_view model_file) {
-  model_file_ = std::move(model_file);
-
+  // Reset/reinitialize everything that depends on the new mjModel.
   renderer_->Init(model_);
-  tmp_ = UiTempState();
-  mjv_defaultOption(&vis_options_);
-
   const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
   history_.Init(state_size);
-  profiler_.Clear();
 
+  // Update the window title and update the file paths for saving files related
+  // to the loaded model.
   std::string base_path = "/";
   std::string model_name = "model";
-
-  if (!model_file.empty() &&
-      (model_file.ends_with(".xml") || model_file.ends_with(".mjb"))) {
-    window_->SetTitle("MuJoCo Studio : " + std::string(model_file));
+  if (!model_file_.empty() &&
+      (model_file_.ends_with(".xml") || model_file_.ends_with(".mjb"))) {
+    window_->SetTitle("MuJoCo Studio : " + model_file_);
     tmp_.last_load_file = std::string(model_file_);
     std::filesystem::path path(model_file_);
     base_path = path.parent_path().string() + "/";
@@ -257,6 +281,8 @@ void App::OnModelLoaded(std::string_view model_file) {
   tmp_.last_save_screenshot_file = base_path + "screenshot.webp";
 }
 
+bool App::IsModelLoaded() const { return !model_file_.empty(); }
+
 void App::ResetPhysics() {
   mj_resetData(model_, data_);
   mj_forward(model_, data_);
@@ -265,7 +291,7 @@ void App::ResetPhysics() {
 
 void App::UpdatePhysics() {
   ProcessPendingLoad();
-  if (!model_ || !data_) {
+  if (!IsModelLoaded()) {
     return;
   }
 
@@ -512,7 +538,7 @@ void App::HandleKeyboardEvents() {
   constexpr auto ImGuiMode_CtrlShift = ImGuiMod_Ctrl | ImGuiMod_Shift;
 
   // Menu shortcuts.
-  if (ImGui_IsChordJustPressed(ImGuiKey_L | ImGuiMod_Ctrl)) {
+  if (ImGui_IsChordJustPressed(ImGuiKey_O | ImGuiMod_Ctrl)) {
     ShowPopup(tmp_.load_popup);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_S | ImGuiMode_CtrlShift)) {
     ShowPopup(tmp_.save_mjb_popup);
@@ -527,7 +553,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_C | ImGuiMod_Ctrl)) {
     std::string keyframe = platform::KeyframeToString(model_, data_, false);
     platform::MaybeSaveToClipboard(keyframe);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_R | ImGuiMod_Ctrl)) {
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_L | ImGuiMod_Ctrl)) {
     LoadModel(model_file_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Q | ImGuiMod_Ctrl)) {
     tmp_.should_exit = true;
@@ -822,7 +848,7 @@ void App::BuildGui() {
   }
 
   // Display a drag-and-drop message if no model is loaded.
-  if (model_file_.empty()) {
+  if (!IsModelLoaded()) {
     const char* text = "Load model file or drag-and-drop model file here.";
 
     const float width = window_->GetWidth();
@@ -1326,7 +1352,7 @@ void App::StatusBarGui() {
 void App::MainMenuGui() {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
-      if (ImGui::MenuItem("Load Model", "Ctrl+L")) {
+      if (ImGui::MenuItem("Open Model File", "Ctrl+O")) {
         ShowPopup(tmp_.load_popup);
       }
       ImGui::Separator();
@@ -1363,7 +1389,7 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Reset", "Backspace")) {
         ResetPhysics();
       }
-      if (ImGui::MenuItem("Reload", "Ctrl+R")) {
+      if (ImGui::MenuItem("Reload", "Ctrl+L")) {
         LoadModel(model_file_);
       }
       ImGui::Separator();
