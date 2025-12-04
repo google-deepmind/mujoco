@@ -58,6 +58,9 @@ GuiView::~GuiView() {
   for (auto& instance : instances_) {
     engine_->destroy(instance);
   }
+  for (auto& texture : textures_) {
+    engine_->destroy(texture.second);
+  }
   engine_->destroyCameraComponent(camera_->getEntity());
   engine_->destroy(view_);
   engine_->destroy(scene_);
@@ -80,47 +83,47 @@ void GuiView::ResetRenderable() {
   buffers_.clear();
 }
 
-void GuiView::ProcessTexture(ImTextureData* data) {
+void GuiView::CreateTexture(ImTextureData* data) {
   filament::Engine* engine = object_mgr_->GetEngine();
+  if (data->Format != ImTextureFormat_RGBA32) {
+    mju_error("Unsupported texture format.");
+  }
 
-  if (data->Status == ImTextureStatus_OK) {
-    return;
-  } else if (data->Status == ImTextureStatus_WantCreate) {
-    if (data->Format != ImTextureFormat_RGBA32) {
-      mju_error("Unsupported texture format.");
-    }
+  filament::Texture* texture =
+      filament::Texture::Builder()
+          .width(data->Width)
+          .height(data->Height)
+          .levels(1)
+          .format(filament::Texture::InternalFormat::RGBA8)
+          .sampler(filament::Texture::Sampler::SAMPLER_2D)
+          .build(*engine);
 
-    filament::Texture* texture =
-        filament::Texture::Builder()
-            .width(data->Width)
-            .height(data->Height)
-            .levels(1)
-            .format(filament::Texture::InternalFormat::RGBA8)
-            .sampler(filament::Texture::Sampler::SAMPLER_2D)
-            .build(*engine);
+  const uintptr_t tex_id = reinterpret_cast<uintptr_t>(texture);
+  textures_[tex_id] = texture;
+  data->SetTexID((ImTextureID)tex_id);
+  UpdateTexture(data);
+}
 
-    const int size = data->Width * data->Height * 4;
-    filament::Texture::PixelBufferDescriptor pb(data->GetPixels(), size,
-                                                filament::Texture::Format::RGBA,
-                                                filament::Texture::Type::UBYTE);
-    texture->setImage(*engine, 0, std::move(pb));
+void GuiView::UpdateTexture(ImTextureData* data) {
+  const int size = data->Width * data->Height * 4;
+  filament::Texture::PixelBufferDescriptor pb(data->GetPixels(), size,
+                                              filament::Texture::Format::RGBA,
+                                              filament::Texture::Type::UBYTE);
+  auto iter = textures_.find(data->TexID);
+  if (iter == textures_.end()) {
+    mju_error("Texture not found: %llu", data->TexID);
+  }
 
-    data->SetTexID((ImTextureID)texture);
-    data->SetStatus(ImTextureStatus_OK);
-  } else if (data->Status == ImTextureStatus_WantUpdates) {
-    const int size = data->Width * data->Height * 4;
-    filament::Texture::PixelBufferDescriptor pb(data->GetPixels(), size,
-                                                filament::Texture::Format::RGBA,
-                                                filament::Texture::Type::UBYTE);
-    filament::Texture* texture = (filament::Texture*)data->TexID;
-    texture->setImage(*engine, 0, std::move(pb));
-    data->SetStatus(ImTextureStatus_OK);
-  } else if (data->Status == ImTextureStatus_WantDestroy &&
-             data->UnusedFrames > 0) {
-    filament::Texture* texture =
-        reinterpret_cast<filament::Texture*>(data->TexID);
-    engine->destroy(texture);
+  filament::Texture* texture = iter->second;
+  texture->setImage(*object_mgr_->GetEngine(), 0, std::move(pb));
+  data->SetStatus(ImTextureStatus_OK);
+}
 
+void GuiView::DestroyTexture(ImTextureData* data) {
+  auto iter = textures_.find(data->TexID);
+  if (iter != textures_.end()) {
+    object_mgr_->GetEngine()->destroy(iter->second);
+    textures_.erase(data->TexID);
     data->SetTexID(ImTextureID_Invalid);
     data->SetStatus(ImTextureStatus_Destroyed);
   }
@@ -166,7 +169,26 @@ bool GuiView::PrepareRenderable() {
 
   if (commands->Textures != nullptr) {
     for (ImTextureData* tex : *commands->Textures) {
-      ProcessTexture(tex);
+      if (tex->Status == ImTextureStatus_OK) {
+        // ImGui's lifecycle is independent of the filament context lifecycle.
+        // As such, it is possible to destroy and create a new filament context
+        // while ImGui is still expecting the "OK" textures to work. In this
+        // case, we simply recreate the texture.
+        if (textures_.find(tex->TexID) == textures_.end()) {
+          CreateTexture(tex);
+        }
+      } else if (tex->Status == ImTextureStatus_WantCreate) {
+        CreateTexture(tex);
+      } else if (tex->Status == ImTextureStatus_WantUpdates) {
+        if (textures_.find(tex->TexID) == textures_.end()) {
+          CreateTexture(tex);
+        } else {
+          UpdateTexture(tex);
+        }
+      } else if (tex->Status == ImTextureStatus_WantDestroy &&
+                 tex->UnusedFrames > 0) {
+        DestroyTexture(tex);
+      }
     }
   }
 
@@ -209,10 +231,10 @@ bool GuiView::PrepareRenderable() {
         clip_height = height;
       }
 
-      const intptr_t tex_id = static_cast<intptr_t>(command.GetTexID());
       mjrRect clip_rect{clip_left, clip_bottom, clip_width, clip_height};
-      builder.material(drawable_index,
-                       GetMaterialInstance(drawable_index, clip_rect, tex_id));
+      builder.material(
+          drawable_index,
+          GetMaterialInstance(drawable_index, clip_rect, command.GetTexID()));
       builder.geometry(drawable_index, kTriangles, buffer.vertex_buffer,
                       buffer.index_buffer, index_offset,
                       command.ElemCount);
@@ -232,13 +254,16 @@ bool GuiView::PrepareRenderable() {
 
 filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
                                                          mjrRect rect,
-                                                         intptr_t texture_id) {
+                                                         uintptr_t texture_id) {
   while (index >= instances_.size()) {
-    const auto* texture = reinterpret_cast<filament::Texture*>(texture_id);
+    auto iter = textures_.find(texture_id);
+    if (iter == textures_.end()) {
+      mju_error("Texture not found: %lu", texture_id);
+    }
 
     filament::TextureSampler sampler;
     filament::MaterialInstance* instance = material_->createInstance();
-    instance->setParameter("glyph", texture, sampler);
+    instance->setParameter("glyph", iter->second, sampler);
     instances_.push_back(instance);
   }
 

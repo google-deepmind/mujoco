@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_FILAMENT_FILAMENT_GUI_VIEW_H_
 
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 #include <imgui.h>
@@ -47,12 +48,14 @@ class GuiView {
   filament::View* PrepareRenderView();
 
  private:
-  void ProcessTexture(ImTextureData* data);
+  void CreateTexture(ImTextureData* data);
+  void UpdateTexture(ImTextureData* data);
+  void DestroyTexture(ImTextureData* data);
 
   // Returns the filament::MaterialInstance configured to draw into the given
   // scissor rect.
   filament::MaterialInstance* GetMaterialInstance(int index, mjrRect rect,
-                                                  intptr_t texture_id);
+                                                  uintptr_t texture_id);
 
   // Clears the filament::Scene of the UX renderable and releases all buffers.
   void ResetRenderable();
@@ -66,6 +69,7 @@ class GuiView {
   utils::Entity renderable_;
   std::vector<FilamentBuffers> buffers_;
   std::vector<filament::MaterialInstance*> instances_;
+  std::unordered_map<uintptr_t, filament::Texture*> textures_;
 };
 
 // Draws text at the given screen coordinates in clip space (i.e. [-1,-1,-1] to
