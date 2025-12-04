@@ -75,6 +75,7 @@ class FilamentContext {
   filament::Texture* target_textures_[kNumRenderTargetTextureTypes] = {
       nullptr, nullptr, nullptr};
 
+  SceneView::DrawMode last_render_mode_ = SceneView::DrawMode::kNormal;
   bool render_to_texture_ = false;
   bool render_gui_ = false;
 

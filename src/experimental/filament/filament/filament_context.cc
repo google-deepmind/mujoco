@@ -151,13 +151,12 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
     render_gui_ = gui_view_->PrepareRenderable();
   }
 
-  // Render the frame if we're not rendering to a texture.s
+  last_render_mode_ = scene->flags[mjRND_SEGMENT]
+                                 ? SceneView::DrawMode::kSegmentation
+                                 : SceneView::DrawMode::kNormal;
+  // Render the frame if we're not rendering to a texture.
   if (!render_to_texture_) {
-    SceneView::DrawMode mode = scene->flags[mjRND_SEGMENT]
-                                   ? SceneView::DrawMode::kSegmentation
-                                   : SceneView::DrawMode::kNormal;
-
-    filament::View* view = scene_view_->PrepareRenderView(mode);
+    filament::View* view = scene_view_->PrepareRenderView(last_render_mode_);
 
     // Wait until previous frame is completed before requesting a new frame.
     engine_->flushAndWait();
@@ -260,7 +259,7 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
 
   if (rgb) {
     filament::View* view =
-        scene_view_->PrepareRenderView(SceneView::DrawMode::kNormal);
+        scene_view_->PrepareRenderView(last_render_mode_);
     if (renderer_->beginFrame(swap_chain_)) {
       // We need to disable msaa in order to render to texture.
       auto options = view->getMultiSampleAntiAliasingOptions();
@@ -269,14 +268,14 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
       });
       view->setRenderTarget(color_target_);
       renderer_->render(view);
+
+      const size_t num_bytes = viewport.width * viewport.height * 3;
+      ReadColorPixels(renderer_, color_target_, viewport, rgb, num_bytes);
+
       view->setRenderTarget(nullptr);
       view->setMultiSampleAntiAliasingOptions(options);
       renderer_->endFrame();
     }
-
-    engine_->flushAndWait();
-    const size_t num_bytes = viewport.width * viewport.height * 3;
-    ReadColorPixels(renderer_, color_target_, viewport, rgb, num_bytes);
   }
 
   if (depth) {
@@ -285,16 +284,17 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
     if (renderer_->beginFrame(swap_chain_)) {
       view->setRenderTarget(depth_target_);
       renderer_->render(view);
+
+      const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
+      ReadDepthPixels(renderer_, depth_target_, viewport, depth, num_bytes);
+
       view->setRenderTarget(nullptr);
       renderer_->endFrame();
     }
-
-    engine_->flushAndWait();
-    const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
-    ReadDepthPixels(renderer_, depth_target_, viewport, depth, num_bytes);
   }
 
   if (rgb || depth) {
+    // Wait for rendering and copy back to buffer to complete.
     engine_->flushAndWait();
   }
 }
