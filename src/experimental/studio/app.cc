@@ -164,6 +164,7 @@ App::App(int width, int height, std::string ini_path,
     render_config.load_asset = &App::LoadAssetCallback;
     render_config.load_asset_user_data = this;
     render_config.enable_gui = true;
+    render_config.use_distinct_segmentation_colors = true;
 #if defined(USE_FILAMENT_OPENGL)
     render_config.graphics_api = mjGFX_OPENGL;
 #elif defined(USE_FILAMENT_VULKAN)

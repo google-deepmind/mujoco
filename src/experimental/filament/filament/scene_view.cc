@@ -210,6 +210,11 @@ void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
   color_grading_options_ = opts;
 }
 
+void SceneView::SetUseDistinctSegmentationColors(
+    bool use_distinct_segmentation_colors) {
+  use_distinct_segmentation_colors_ = use_distinct_segmentation_colors;
+}
+
 void SceneView::SetEnvironmentLight(std::string_view filename,
                                     float intensity) {
   auto* ibl = object_mgr_->LoadFallbackIndirectLight(filename, intensity);
@@ -349,6 +354,8 @@ void SceneView::UpdateScene(const mjrContext* context, const mjvScene* scene) {
 
     auto drawable = std::make_unique<Drawable>(object_mgr_, *geom);
     drawable->AddToScene(scene_);
+    drawable->SetUseDistinctSegmentationColors(
+        use_distinct_segmentation_colors_);
     drawable->Update(object_mgr_->GetModel(), scene, *geom);
     drawables_.push_back(std::move(drawable));
   }

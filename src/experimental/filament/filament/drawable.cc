@@ -70,13 +70,12 @@ static constexpr int kArrow2TopConeDisk = 3;
 static constexpr int kArrow2BottomConeDisk = 4;
 
 Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
-    : material_(object_mgr),
-      renderables_(object_mgr->GetEngine()) {
+    : material_(object_mgr), renderables_(object_mgr->GetEngine()) {
   if (geom.category == mjCAT_DECOR) {
     renderables_.DisableShadows();
   }
 
-    switch ((mjtGeom)geom.type) {
+  switch ((mjtGeom)geom.type) {
     case mjGEOM_MESH:
       AddMesh(geom.dataid);
       break;
@@ -204,6 +203,11 @@ void Drawable::SetDrawMode(Material::DrawMode mode) {
   renderables_.SetMaterialInstance(material_.GetMaterialInstance(mode));
 }
 
+void Drawable::SetUseDistinctSegmentationColors(
+    bool use_distinct_segmentation_colors) {
+  use_distinct_segmentation_colors_ = use_distinct_segmentation_colors;
+}
+
 void Drawable::SetTransform(const mjvGeom& geom) {
   // Flex and skin geometries are in global space.
   if (geom.type == mjGEOM_FLEX || geom.type == mjGEOM_SKIN) {
@@ -328,8 +332,10 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
     textures.emissive = object_mgr->GetTexture(geom.matid, mjTEXROLE_EMISSIVE);
     textures.orm = object_mgr->GetTexture(geom.matid, mjTEXROLE_ORM);
     textures.metallic = object_mgr->GetTexture(geom.matid, mjTEXROLE_METALLIC);
-    textures.roughness = object_mgr->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
-    textures.occlusion = object_mgr->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
+    textures.roughness =
+        object_mgr->GetTexture(geom.matid, mjTEXROLE_ROUGHNESS);
+    textures.occlusion =
+        object_mgr->GetTexture(geom.matid, mjTEXROLE_OCCLUSION);
     material_.UpdateTextures(textures);
   }
 
@@ -351,8 +357,9 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
     }
 
     // Check to see if we're dealing with a mesh with texture coordinates.
-    // `data_id` is the id of the mesh in model (i.e. the geom has mesh geometry)
-    // and `mesh_texcoordadr` stores the address of the mesh uvs if it has them.
+    // `data_id` is the id of the mesh in model (i.e. the geom has mesh
+    // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if it
+    // has them.
     bool has_texcoords = false;
     if ((geom.type == mjGEOM_MESH || geom.type == mjGEOM_SDF) &&
         geom.dataid >= 0 && model->mesh_texcoordadr[geom.dataid / 2] >= 0) {
@@ -366,7 +373,7 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
         material_.SetNormalMaterialType(ObjectManager::kPhongColor);
       }
     } else if (textures.color->getTarget() ==
-              filament::Texture::Sampler::SAMPLER_CUBEMAP) {
+               filament::Texture::Sampler::SAMPLER_CUBEMAP) {
       if (geom.rgba[3] < 1.0f) {
         material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
       } else {
@@ -392,6 +399,7 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
   params.emissive = geom.emission;
   params.specular = geom.specular;
   params.glossiness = geom.shininess;
+  params.use_distinct_segmentation_colors = use_distinct_segmentation_colors_;
   if (geom.matid >= 0) {
     params.metallic = model->mat_metallic[geom.matid];
     params.roughness = model->mat_roughness[geom.matid];
@@ -400,14 +408,18 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
   }
 
   if (geom.segid >= 0) {
-    constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
-    constexpr double coef1 = 1.0 / phi1;
-    const double index = static_cast<double>(geom.segid);
-    const double sample = std::fmod(0.5 + coef1 * index, 1.0);
-    uint32_t segmentation_color = 0x01000000 * sample;
-    const uint8_t red = (segmentation_color >> 16) & 0xff;
+    uint32_t segmentation_color = geom.segid;
+    if (use_distinct_segmentation_colors_) {
+      constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
+      constexpr double coef1 = 1.0 / phi1;
+      const double index = static_cast<double>(geom.segid);
+      const double sample = std::fmod(0.5 + coef1 * index, 1.0);
+      segmentation_color = 0x01000000 * sample;
+    }
+
+    const uint8_t red = (segmentation_color >> 0) & 0xff;
     const uint8_t green = (segmentation_color >> 8) & 0xff;
-    const uint8_t blue = (segmentation_color >> 0) & 0xff;
+    const uint8_t blue = (segmentation_color >> 16) & 0xff;
     params.segmentation_color.x = static_cast<float>(red) / 255.0f;
     params.segmentation_color.y = static_cast<float>(green) / 255.0f;
     params.segmentation_color.z = static_cast<float>(blue) / 255.0f;
