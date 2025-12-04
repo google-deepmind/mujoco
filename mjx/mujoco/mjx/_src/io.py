@@ -77,7 +77,7 @@ def _resolve_device(
 ) -> jax.Device:
   """Resolves a device based on the implementation."""
   impl = types.Impl(impl)
-  if impl == types.Impl.JAX:
+  if impl in {types.Impl.JAX, types.Impl.WARP}:
     device_0 = jax.devices()[0]
     logging.debug('Picking default device: %s.', device_0)
     return device_0
@@ -86,18 +86,6 @@ def _resolve_device(
     cpu_0 = jax.devices('cpu')[0]
     logging.debug('Picking default device: %s', cpu_0)
     return cpu_0
-
-  if impl == types.Impl.WARP:
-    # WARP implementation requires a CUDA GPU.
-    cuda_gpus = [d for d in jax.devices('cuda')]
-    if not cuda_gpus:
-      raise AssertionError(
-          'No CUDA GPU devices found in'
-          f' jax.devices("cuda")={jax.devices("cuda")}.'
-      )
-
-    logging.debug('Picking default device: %s', cuda_gpus[0])
-    return cuda_gpus[0]
 
   raise ValueError(f'Unsupported implementation: {impl}')
 
@@ -113,11 +101,6 @@ def _check_impl_device_compatibility(
   impl = types.Impl(impl)
 
   if impl == types.Impl.WARP:
-    if not _is_cuda_gpu_device(device):
-      raise AssertionError(
-          'Warp implementation requires a CUDA GPU device, got '
-          f'{device}.'
-      )
     if not mjxw.WARP_INSTALLED:
       raise RuntimeError(
           'Warp is not installed. Cannot use Warp implementation of MJX.'
@@ -865,7 +848,7 @@ def _make_data_warp(
 
   data = jax.device_put(data, device=device)
 
-  with wp.ScopedDevice('cuda:0'):  # pylint: disable=undefined-variable
+  with wp.ScopedDevice(None):  # pylint: disable=undefined-variable
     # Warm-up the warp kernel cache.
     # TODO(robotics-simulation): remove this warmup compilation once warp
     # stops unloading modules during XLA graph capture for tile kernels.
