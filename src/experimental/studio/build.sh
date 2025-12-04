@@ -61,7 +61,7 @@ if [[ "$do_configure" == true ]]; then
         "-DCMAKE_BUILD_TYPE=${build_type}"
         "-DUSE_STATIC_LIBCXX=OFF"
         "-DBUILD_SHARED_LIB=OFF"
-        "-DMUJOCO_USE_FILAMENT=OFF"
+        "-DMUJOCO_USE_FILAMENT=ON"
         "-DMUJOCO_USE_FILAMENT_VULKAN=OFF"
         "-DMUJOCO_BUILD_EXAMPLES=OFF"
         "-DMUJOCO_BUILD_SIMULATE=OFF"
@@ -69,6 +69,12 @@ if [[ "$do_configure" == true ]]; then
         "-DMUJOCO_TEST_PYTHON_UTIL=OFF"
         "-DMUJOCO_WITH_USD=OFF"
         "-DMUJOCO_BUILD_STUDIO=ON"
+        "-DFILAMENT_SKIP_SAMPLES=ON"
+        # Several dependencies generate deprecated warnings on MacOS.
+        "-DCMAKE_CXX_FLAGS=\"-Wno-error=deprecated-declarations\""
+        # This flag defines _ITERATOR_DEBUG_LEVEL=0 which conflicts with debug
+        # builds.
+        "-DFILAMENT_SHORTEN_MSVC_COMPILATION=OFF"
     )
 
     # Add user-defined CMAKE_ARGS at the end so they override other settings.
