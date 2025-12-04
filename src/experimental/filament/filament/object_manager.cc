@@ -121,8 +121,8 @@ ObjectManager::ObjectManager(const mjModel* model, filament::Engine* engine,
   fallback_orm_ = Create2dTexture(engine_, 1, 1, 3, orm_data, false);
 
   fallback_textures_[mjTEXROLE_USER] = fallback_black_;
-  fallback_textures_[mjTEXROLE_RGB] = fallback_black_;
-  fallback_textures_[mjTEXROLE_OCCLUSION] = fallback_black_;
+  fallback_textures_[mjTEXROLE_RGB] = fallback_white_;
+  fallback_textures_[mjTEXROLE_OCCLUSION] = fallback_white_;
   fallback_textures_[mjTEXROLE_ROUGHNESS] = fallback_white_;
   fallback_textures_[mjTEXROLE_METALLIC] = fallback_black_;
   fallback_textures_[mjTEXROLE_NORMAL] = fallback_normal_;

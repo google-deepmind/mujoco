@@ -342,7 +342,9 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
   if (geom.type == mjGEOM_LINE || geom.type == mjGEOM_LINEBOX) {
     material_.SetNormalMaterialType(ObjectManager::kUnlitLine);
   } else {
+    bool material_assigned = false;
     if (geom.matid >= 0) {
+      material_assigned = true;
       if (textures.orm) {
         material_.SetNormalMaterialType(ObjectManager::kPbrPacked);
       } else if (textures.metallic) {
@@ -353,43 +355,47 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
         material_.SetNormalMaterialType(ObjectManager::kPbr);
       } else if (model->mat_roughness[geom.matid] >= 0) {
         material_.SetNormalMaterialType(ObjectManager::kPbr);
+      } else {
+        material_assigned = false;
       }
     }
 
-    // Check to see if we're dealing with a mesh with texture coordinates.
-    // `data_id` is the id of the mesh in model (i.e. the geom has mesh
-    // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if it
-    // has them.
-    bool has_texcoords = false;
-    if ((geom.type == mjGEOM_MESH || geom.type == mjGEOM_SDF) &&
-        geom.dataid >= 0 && model->mesh_texcoordadr[geom.dataid / 2] >= 0) {
-      has_texcoords = true;
-    }
+    if (!material_assigned) {
+      // Check to see if we're dealing with a mesh with texture coordinates.
+      // `data_id` is the id of the mesh in model (i.e. the geom has mesh
+      // geometry) and `mesh_texcoordadr` stores the address of the mesh uvs if
+      // it has them.
+      bool has_texcoords = false;
+      if ((geom.type == mjGEOM_MESH || geom.type == mjGEOM_SDF) &&
+          geom.dataid >= 0 && model->mesh_texcoordadr[geom.dataid / 2] >= 0) {
+        has_texcoords = true;
+      }
 
-    if (textures.color == nullptr) {
-      if (geom.rgba[3] < 1.0f) {
-        material_.SetNormalMaterialType(ObjectManager::kPhongColorFade);
+      if (textures.color == nullptr) {
+        if (geom.rgba[3] < 1.0f) {
+          material_.SetNormalMaterialType(ObjectManager::kPhongColorFade);
+        } else {
+          material_.SetNormalMaterialType(ObjectManager::kPhongColor);
+        }
+      } else if (textures.color->getTarget() ==
+                filament::Texture::Sampler::SAMPLER_CUBEMAP) {
+        if (geom.rgba[3] < 1.0f) {
+          material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
+        } else {
+          material_.SetNormalMaterialType(ObjectManager::kPhongCube);
+        }
+      } else if (has_texcoords) {
+        if (geom.rgba[3] < 1.0f) {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dUvFade);
+        } else {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dUv);
+        }
       } else {
-        material_.SetNormalMaterialType(ObjectManager::kPhongColor);
-      }
-    } else if (textures.color->getTarget() ==
-               filament::Texture::Sampler::SAMPLER_CUBEMAP) {
-      if (geom.rgba[3] < 1.0f) {
-        material_.SetNormalMaterialType(ObjectManager::kPhongCubeFade);
-      } else {
-        material_.SetNormalMaterialType(ObjectManager::kPhongCube);
-      }
-    } else if (has_texcoords) {
-      if (geom.rgba[3] < 1.0f) {
-        material_.SetNormalMaterialType(ObjectManager::kPhong2dUvFade);
-      } else {
-        material_.SetNormalMaterialType(ObjectManager::kPhong2dUv);
-      }
-    } else {
-      if (geom.rgba[3] < 1.0f) {
-        material_.SetNormalMaterialType(ObjectManager::kPhong2dFade);
-      } else {
-        material_.SetNormalMaterialType(ObjectManager::kPhong2d);
+        if (geom.rgba[3] < 1.0f) {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2dFade);
+        } else {
+          material_.SetNormalMaterialType(ObjectManager::kPhong2d);
+        }
       }
     }
   }
