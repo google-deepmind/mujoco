@@ -310,7 +310,9 @@ void SceneView::PrepareLights() {
   // dealing with a "classic renderer" scene. In this case, let's add a
   // default environment light and set the light intensity ourselves.
   if (total_light_intensity == 0.0f) {
-    constexpr float kHeadlightIntensityCandela = 10'000.f;
+    // Headlight is not required for Filament and often confusing, disable it by
+    // default.
+    constexpr float kHeadlightIntensityCandela = 0.f;
     constexpr float kTotalSceneLightIntensityCandela = 100'000.f;
     constexpr float kFallbackEnvironmentLightIntensityCandela = 10'000.f;
 
