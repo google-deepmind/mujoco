@@ -46,6 +46,7 @@ GuiView::GuiView(filament::Engine* engine, ObjectManager* object_mgr)
   scene_ = engine_->createScene();
   camera_ = engine_->createCamera(em.create());
   view_ = engine_->createView();
+  renderable_ = em.create();
   view_->setScene(scene_);
   view_->setCamera(camera_);
   view_->setPostProcessingEnabled(false);
@@ -54,7 +55,17 @@ GuiView::GuiView(filament::Engine* engine, ObjectManager* object_mgr)
 }
 
 GuiView::~GuiView() {
-  ResetRenderable();
+  if (num_elements_ > 0) {
+    scene_->remove(renderable_);
+    auto& rm = engine_->getRenderableManager();
+    rm.destroy(renderable_);
+  }
+  auto& em = utils::EntityManager::get();
+  em.destroy(renderable_);
+  for (auto& buffer : buffers_) {
+    engine_->destroy(buffer.vertex_buffer);
+    engine_->destroy(buffer.index_buffer);
+  }
   for (auto& instance : instances_) {
     engine_->destroy(instance);
   }
@@ -173,11 +184,10 @@ void GuiView::DestroyTexture(ImTextureData* data) {
 }
 
 bool GuiView::PrepareRenderable() {
-  ResetRenderable();
-
   // Prepare the imgui draw commands. We must call this function even if we do
   // not plan on rendering anything to ensure imgui state is updated.
   ImGui::Render();
+  auto& rm = engine_->getRenderableManager();
 
   ImGuiIO& io = ImGui::GetIO();
   const ImVec2& size = io.DisplaySize;
@@ -196,19 +206,6 @@ bool GuiView::PrepareRenderable() {
     }
     num_elements += cmds->CmdBuffer.size();
   }
-
-  if (size.x == 0 || size.y == 0 || num_elements == 0) {
-    return false;
-  }
-
-  view_->setViewport(
-      filament::Viewport(0.f, 0.f, size.x * scale.x, size.y * scale.y));
-  camera_->setProjection(filament::Camera::Projection::ORTHO, 0.0, size.x,
-                         size.y, 0.0, 0.0, 1.0);
-
-  filament::RenderableManager::Builder builder(num_elements);
-  builder.boundingBox({{-100, -100, -100}, {100, 100, 100}});
-  builder.culling(false);
 
   if (commands->Textures != nullptr) {
     for (ImTextureData* tex : *commands->Textures) {
@@ -234,6 +231,38 @@ bool GuiView::PrepareRenderable() {
       }
     }
   }
+
+  if (size.x == 0 || size.y == 0 || num_elements == 0) {
+    return false;
+  }
+
+  view_->setViewport(
+      filament::Viewport(0.f, 0.f, size.x * scale.x, size.y * scale.y));
+  camera_->setProjection(filament::Camera::Projection::ORTHO, 0.0, size.x,
+                         size.y, 0.0, 0.0, 1.0);
+
+  if (num_elements != num_elements_) {
+    if (num_elements_ > 0) {
+      scene_->remove(renderable_);
+      rm.destroy(renderable_);
+    }
+
+    num_elements_ = num_elements;
+
+    filament::RenderableManager::Builder builder(num_elements_);
+    builder.boundingBox({{-100, -100, -100}, {100, 100, 100}});
+    builder.culling(false);
+    builder.build(*engine_, renderable_);
+    scene_->addEntity(renderable_);
+  }
+
+  for (auto& buffer : buffers_) {
+    engine_->destroy(buffer.vertex_buffer);
+    engine_->destroy(buffer.index_buffer);
+  }
+  buffers_.clear();
+
+  auto ri = rm.getInstance(renderable_);
 
   int drawable_index = 0;
   for (int n = 0; n < commands->CmdListsCount; ++n) {
@@ -275,23 +304,17 @@ bool GuiView::PrepareRenderable() {
       }
 
       mjrRect clip_rect{clip_left, clip_bottom, clip_width, clip_height};
-      builder.material(
-          drawable_index,
+      rm.setMaterialInstanceAt(
+          ri, drawable_index,
           GetMaterialInstance(drawable_index, clip_rect, command.GetTexID()));
-      builder.geometry(drawable_index, kTriangles, buffer.vertex_buffer,
-                      buffer.index_buffer, index_offset,
-                      command.ElemCount);
-      builder.blendOrder(drawable_index, drawable_index);
+      rm.setGeometryAt(ri, drawable_index, kTriangles, buffer.vertex_buffer,
+                       buffer.index_buffer, index_offset, command.ElemCount);
+      rm.setBlendOrderAt(ri, drawable_index, drawable_index);
 
       index_offset += command.ElemCount;
       ++drawable_index;
     }
   }
-
-  auto& em = utils::EntityManager::get();
-  renderable_ = em.create();
-  builder.build(*engine_, renderable_);
-  scene_->addEntity(renderable_);
   return true;
 }
 

@@ -74,6 +74,7 @@ class GuiView {
   std::vector<FilamentBuffers> buffers_;
   std::vector<filament::MaterialInstance*> instances_;
   std::unordered_map<uintptr_t, filament::Texture*> textures_;
+  int num_elements_ = 0;
 };
 
 // Draws text at the given screen coordinates in clip space (i.e. [-1,-1,-1] to
