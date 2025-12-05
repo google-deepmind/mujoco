@@ -161,8 +161,10 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
   if (!render_to_texture_) {
     filament::View* view = scene_view_->PrepareRenderView(last_render_mode_);
 
+    #ifndef __EMSCRIPTEN__
     // Wait until previous frame is completed before requesting a new frame.
     engine_->flushAndWait();
+    #endif
 
     if (renderer_->beginFrame(swap_chain_)) {
       renderer_->render(view);
