@@ -418,6 +418,15 @@ for details and
 `mjlab distributed training <https://github.com/mujocolab/mjlab/tree/main/docs/api/distributed_training.md>`__ for a
 reinforcement learning example.
 
+**Is MJWarp on GPU deterministic?**
+
+No. There may be ordering or *small* numerical differences between results computed by different executions of the same
+code. This is characteristic of non-deterministic atomic operations on GPU. Set device to CPU with
+``wp.set_device("cpu")`` for deterministic results.
+
+Developments for deterministic results on GPU are tracked in this
+`GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/562>`__.
+
 **How are orientations represented?**
 
 Orientations are represented as unit quaternions and follow :ref:`MuJoCo's conventions<siLayout>`:
