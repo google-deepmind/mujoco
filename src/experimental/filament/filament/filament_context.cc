@@ -316,6 +316,15 @@ void FilamentContext::UploadHeightField(const mjModel* model, int id) {
   object_manager_->UploadHeightField(model, id);
 }
 
+uintptr_t FilamentContext::UploadGuiImage(uintptr_t tex_id,
+                                          const uint8_t* pixels, int width,
+                                          int height, int bpp) {
+  if (gui_view_) {
+    return gui_view_->UploadImage(tex_id, pixels, width, height, bpp);
+  }
+  return 0;
+}
+
 double FilamentContext::GetFrameRate() const {
   utils::FixedCapacityVector<filament::Renderer::FrameInfo> frame_info =
       renderer_->getFrameInfoHistory(1);

@@ -137,6 +137,13 @@ void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
   g_filament_context->ReadPixels(viewport, rgb, depth);
 }
 
+uintptr_t mjr_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
+                             int width, int height, int bpp,
+                             const mjrContext* con) {
+  CheckFilamentContext();
+  return g_filament_context->UploadGuiImage(tex_id, pixels, width, height, bpp);
+}
+
 double mjr_getFrameRate(const mjrContext* con) {
   CheckFilamentContext();
   return g_filament_context->GetFrameRate();

@@ -83,6 +83,49 @@ void GuiView::ResetRenderable() {
   buffers_.clear();
 }
 
+uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
+                               int width, int height, int bpp) {
+  if (bpp != 4) {
+    mju_error("Unsupported image bpp. Got %d, wanted 4", bpp);
+  }
+
+  filament::Engine* engine = object_mgr_->GetEngine();
+
+  filament::Texture* texture = nullptr;
+  if (tex_id == 0) {
+    texture = filament::Texture::Builder()
+                  .width(width)
+                  .height(height)
+                  .levels(1)
+                  .format(filament::Texture::InternalFormat::RGBA8)
+                  .sampler(filament::Texture::Sampler::SAMPLER_2D)
+                  .build(*engine);
+    tex_id = reinterpret_cast<uintptr_t>(texture);
+    textures_[tex_id] = texture;
+  } else {
+    auto iter = textures_.find(tex_id);
+    if (iter == textures_.end()) {
+      mju_error("Texture not found: %lu", tex_id);
+    }
+    texture = iter->second;
+  }
+
+  // Create a copy of the image to pass it to filament as we don't know the
+  // lifetime of the data.
+  const int num_bytes = width * height * bpp;
+  std::byte* bytes = new std::byte[num_bytes];
+  std::memcpy(bytes, pixels, num_bytes);
+  const auto callback = [](void* buffer, size_t size, void* user) {
+    auto* ptr = reinterpret_cast<std::byte*>(user);
+    delete[] ptr;
+  };
+  filament::Texture::PixelBufferDescriptor pb(
+      bytes, num_bytes, filament::Texture::Format::RGBA,
+      filament::Texture::Type::UBYTE, callback);
+  texture->setImage(*engine, 0, std::move(pb));
+  return tex_id;
+}
+
 void GuiView::CreateTexture(ImTextureData* data) {
   filament::Engine* engine = object_mgr_->GetEngine();
   if (data->Format != ImTextureFormat_RGBA32) {
@@ -256,18 +299,16 @@ filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
                                                          mjrRect rect,
                                                          uintptr_t texture_id) {
   while (index >= instances_.size()) {
-    auto iter = textures_.find(texture_id);
-    if (iter == textures_.end()) {
-      mju_error("Texture not found: %lu", texture_id);
-    }
+    instances_.push_back(material_->createInstance());
+  }
 
-    filament::TextureSampler sampler;
-    filament::MaterialInstance* instance = material_->createInstance();
-    instance->setParameter("glyph", iter->second, sampler);
-    instances_.push_back(instance);
+  auto iter = textures_.find(texture_id);
+  if (iter == textures_.end()) {
+    mju_error("Texture not found: %lu", texture_id);
   }
 
   filament::MaterialInstance* instance = instances_[index];
+  instance->setParameter("glyph", iter->second, filament::TextureSampler());
   instance->setScissor(rect.left, rect.bottom, rect.width, rect.height);
   return instance;
 }

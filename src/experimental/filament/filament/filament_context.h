@@ -51,6 +51,9 @@ class FilamentContext {
 
   void UploadHeightField(const mjModel* model, int id);
 
+  uintptr_t UploadGuiImage(uintptr_t tex_id, const uint8_t* pixels, int width,
+                           int height, int bpp);
+
   double GetFrameRate() const;
 
   FilamentContext(const FilamentContext&) = delete;

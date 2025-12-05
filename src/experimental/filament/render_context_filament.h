@@ -81,6 +81,10 @@ MJAPI void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
 
 double mjr_getFrameRate(const mjrContext* con);
 
+uintptr_t mjr_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
+                             int width, int height, int bpp,
+                             const mjrContext* con);
+
 #if defined(__cplusplus)
 }  // extern "C"
 #endif
