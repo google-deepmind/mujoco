@@ -154,7 +154,7 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
     throw mjXError(elem, "Include element cannot have children");
   }
 
-  // get filename
+  // get filename (may be relative)
   auto file_attr = mjXUtil::ReadAttrFile(elem, "file", vfs,
                                          reader.ModelFileDir(), true);
   if (!file_attr.has_value()) {
@@ -162,10 +162,14 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
   }
   FilePath filename = file_attr.value();
 
+  // Compute a canonical fullname (dir + filename) early and use it for checks/insertion.
+  // This prevents inconsistent checks where included is compared against one form but the inserted
+  // value is another (causing duplicates or missed duplicates and eventually double-prefixing).
+  FilePath fullname = dir + filename;
 
-  // block repeated include files
-  if (included.find(filename.Str()) != included.end()) {
-    throw mjXError(elem, "File '%s' already included", filename.c_str());
+  // block repeated include files using canonical fullname
+  if (included.find(fullname.Str()) != included.end()) {
+    throw mjXError(elem, "File '%s' already included", fullname.c_str());
   }
 
   // TODO: b/325905702 - We have a messy wrapper here to remain backwards
@@ -178,7 +182,6 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
   if (resource == nullptr) {
     // new behavior: try to load in relative directory
     if (!filename.IsAbs()) {
-      FilePath fullname = dir + filename;
       resource = mju_openResource(reader.ModelFileDir().c_str(),
                                   fullname.c_str(), vfs, error.data(), error.size());
     }
@@ -188,7 +191,8 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
     throw mjXError(elem, "%s", error.data());
   }
 
-  filename = dir + filename;
+  // Use the canonical fullname for further processing/storage so we keep a single form.
+  filename = fullname;
 
   const char* include_dir = nullptr;
   int ninclude_dir = 0;
@@ -220,7 +224,7 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
     throw mjXError(elem, "Include error: '%s'", err);
   }
 
-  // remember that file was included
+  // remember that file was included using canonical fullname
   included.insert(filename.Str());
 
   // get and check root element
@@ -347,7 +351,11 @@ mjSpec* ParseXML(const char* filename, const mjVFS* vfs,
   try {
     if (!strcasecmp(root->Value(), "mujoco")) {
       // find include elements, replace them with subtree from xml file
-      std::unordered_set<std::string> included = {filename};
+      // NOTE: canonicalize the initial included set entry so all entries
+      // use the same canonical form (FilePath(...).Str()).
+      std::unordered_set<std::string> included;
+      included.insert(FilePath(filename).Str());
+
       mjXReader parser;
       parser.SetModelFileDir(mjs_getString(spec->modelfiledir));
       IncludeXML(parser, root, FilePath(), vfs, included);
