@@ -34,7 +34,7 @@
 
 #include <mujoco/mjspec.h>
 #include "user/user_api.h"
-#include <TriangleMeshDistance/include/tmd/TriangleMeshDistance.h>
+#include <tmd/TriangleMeshDistance.h>
 
 #ifdef MUJOCO_TINYOBJLOADER_IMPL
 #define TINYOBJLOADER_IMPLEMENTATION
