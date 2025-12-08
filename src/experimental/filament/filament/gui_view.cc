@@ -96,9 +96,15 @@ void GuiView::ResetRenderable() {
 
 uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
                                int width, int height, int bpp) {
-  if (bpp != 4) {
-    mju_error("Unsupported image bpp. Got %d, wanted 4", bpp);
+  if (bpp != 4 && bpp != 3) {
+    mju_error("Unsupported image bpp. Got %d, wanted 3 or 4", bpp);
   }
+
+  const auto internal_format =
+      bpp == 4 ? filament::Texture::InternalFormat::RGBA8
+               : filament::Texture::InternalFormat::RGB8;
+  const auto texture_format = bpp == 4 ? filament::Texture::Format::RGBA
+                                       : filament::Texture::Format::RGB;
 
   filament::Engine* engine = object_mgr_->GetEngine();
 
@@ -108,10 +114,10 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
                   .width(width)
                   .height(height)
                   .levels(1)
-                  .format(filament::Texture::InternalFormat::RGBA8)
+                  .format(internal_format)
                   .sampler(filament::Texture::Sampler::SAMPLER_2D)
                   .build(*engine);
-    tex_id = reinterpret_cast<uintptr_t>(texture);
+    tex_id = textures_.size() + 1;
     textures_[tex_id] = texture;
   } else {
     auto iter = textures_.find(tex_id);
@@ -130,9 +136,9 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
     auto* ptr = reinterpret_cast<std::byte*>(user);
     delete[] ptr;
   };
-  filament::Texture::PixelBufferDescriptor pb(
-      bytes, num_bytes, filament::Texture::Format::RGBA,
-      filament::Texture::Type::UBYTE, callback);
+  filament::Texture::PixelBufferDescriptor pb(bytes, num_bytes, texture_format,
+                                              filament::Texture::Type::UBYTE,
+                                              callback);
   texture->setImage(*engine, 0, std::move(pb));
   return tex_id;
 }
@@ -152,7 +158,7 @@ void GuiView::CreateTexture(ImTextureData* data) {
           .sampler(filament::Texture::Sampler::SAMPLER_2D)
           .build(*engine);
 
-  const uintptr_t tex_id = reinterpret_cast<uintptr_t>(texture);
+  const uintptr_t tex_id = textures_.size() + 1;
   textures_[tex_id] = texture;
   data->SetTexID((ImTextureID)tex_id);
   UpdateTexture(data);
