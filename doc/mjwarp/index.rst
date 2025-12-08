@@ -440,3 +440,30 @@ Orientations are represented as unit quaternions and follow :ref:`MuJoCo's conve
   operations and instead implements quaternion routines that follow MuJoCo's conventions. Please see
   `math.py <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/math.py>`__ for the
   implementations.
+
+Compilation
+-----------
+
+**How can compilation time be improved?**
+
+Limit the number of unique colliders that require the general convex collision pipeline. These colliders are listed as
+``_CONVEX_COLLISION_PAIRS`` in
+`collision_convex.py <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/collision_convex.py>`__.
+Improvements to the compilation time for the pipeline are tracked in this
+`GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/813>`__.
+
+**Why are the physics not working as expected after upgrading MJWarp?**
+
+The Warp cache may be incompatible with the current code and should be cleared as part of the debugging process. This
+can be accomplished by deleting the directory ``~/.cache/warp`` or via Python
+
+.. code-block:: python
+
+   import warp as wp
+   wp.clear_kernel_cache()
+
+**Is it possible to compile MJWarp ahead of time instead of at runtime?**
+
+Yes. Please see Warp's
+`Ahead-of-Time Compilation Workflows <https://nvidia.github.io/warp/codegen.html#ahead-of-time-compilation-workflows>`__
+documentation for details.
