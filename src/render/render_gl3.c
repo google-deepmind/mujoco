@@ -448,6 +448,7 @@ static void renderGeom(const mjvGeom* geom, int mode, const float* headpos,
   case mjGEOM_TRIANGLE:                       // triangle
     glDisable(GL_CULL_FACE);
     glBegin(GL_TRIANGLES);
+    glNormal3f(0, 0, 1);
     glVertex3f(0, 0, 0);
     glVertex3f(size[0], 0, 0);
     glVertex3f(0, size[1], 0);
