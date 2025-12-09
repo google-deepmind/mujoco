@@ -476,11 +476,12 @@ static const char* const kCylinderModel = "engine/testdata/ray/cylinder.xml";
 static const char* const kBoxModel = "engine/testdata/ray/box.xml";
 static const char* const kMeshModel = "engine/testdata/ray/mesh.xml";
 static const char* const kSdfModel = "engine/testdata/ray/sdf.xml";
+static const char* const kHfieldModel = "engine/testdata/ray/hfield.xml";
 
 TEST_F(RayTest, GeomNormal) {
   for (const char* path :
        {kPlaneModel, kSphereModel, kCapsuleModel, kEllipsoidModel,
-        kCylinderModel, kBoxModel, kMeshModel, kSdfModel}) {
+        kCylinderModel, kBoxModel, kMeshModel, kSdfModel, kHfieldModel}) {
     const std::string xml_path = GetTestDataFilePath(path);
     char error[1024];
     mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
@@ -528,6 +529,9 @@ TEST_F(RayTest, GeomNormal) {
         case mjGEOM_SDF:
           r = mj_raySdfNormal(m, d, 0, pnt, vec, normal);
           break;
+        case mjGEOM_HFIELD:
+          r = mj_rayHfieldNormal(m, d, 0, pnt, vec, normal);
+          break;
         default:
           r = mju_rayGeomNormal(pos, mat, size, pnt, vec, type, normal);
       }
@@ -561,6 +565,9 @@ TEST_F(RayTest, GeomNormal) {
             break;
           case mjGEOM_SDF:
             dr = mj_raySdfNormal(m, d, 0, dpnt, vec, nullptr);
+            break;
+          case mjGEOM_HFIELD:
+            dr = mj_rayHfieldNormal(m, d, 0, dpnt, vec, nullptr);
             break;
           default:
             dr = mju_rayGeomNormal(pos, mat, size, dpnt, vec, type, nullptr);
