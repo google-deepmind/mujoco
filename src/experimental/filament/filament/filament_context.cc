@@ -145,7 +145,7 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
 
   // Draw the GUI. We do this after processing the scene in case there are any
   // label elements in the scene.
-  if (gui_view_) {
+  if (gui_view_ && !render_to_texture_) {
     DrawGui(scene_view_.get());
 
     // Prepare the filament Renderable that contains the GUI draw commands. We
