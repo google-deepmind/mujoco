@@ -82,7 +82,7 @@ using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::testing::NotNull;
 using ::testing::Pointwise;
-using RayTest = MujocoTest;
+using RayTest = PluginTest;
 
 TEST_F(RayTest, NoExclusions) {
   char error[1024];
@@ -475,11 +475,12 @@ static const char* const kEllipsoidModel = "engine/testdata/ray/ellipsoid.xml";
 static const char* const kCylinderModel = "engine/testdata/ray/cylinder.xml";
 static const char* const kBoxModel = "engine/testdata/ray/box.xml";
 static const char* const kMeshModel = "engine/testdata/ray/mesh.xml";
+static const char* const kSdfModel = "engine/testdata/ray/sdf.xml";
 
 TEST_F(RayTest, GeomNormal) {
   for (const char* path :
        {kPlaneModel, kSphereModel, kCapsuleModel, kEllipsoidModel,
-        kCylinderModel, kBoxModel, kMeshModel}) {
+        kCylinderModel, kBoxModel, kMeshModel, kSdfModel}) {
     const std::string xml_path = GetTestDataFilePath(path);
     char error[1024];
     mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
@@ -524,6 +525,9 @@ TEST_F(RayTest, GeomNormal) {
         case mjGEOM_MESH:
           r = mj_rayMeshNormal(m, d, 0, pnt, vec, normal);
           break;
+        case mjGEOM_SDF:
+          r = mj_raySdfNormal(m, d, 0, pnt, vec, normal);
+          break;
         default:
           r = mju_rayGeomNormal(pos, mat, size, pnt, vec, type, normal);
       }
@@ -533,7 +537,8 @@ TEST_F(RayTest, GeomNormal) {
 
       // if no intersection, skip
       if (r < 0) {
-        EXPECT_THAT(normal, ElementsAre(0, 0, 0));
+        EXPECT_THAT(normal, ElementsAre(0, 0, 0))
+            << path << ", time " << d->time;
         continue;
       }
 
@@ -553,6 +558,9 @@ TEST_F(RayTest, GeomNormal) {
         switch (type) {
           case mjGEOM_MESH:
             dr = mj_rayMeshNormal(m, d, 0, dpnt, vec, nullptr);
+            break;
+          case mjGEOM_SDF:
+            dr = mj_raySdfNormal(m, d, 0, dpnt, vec, nullptr);
             break;
           default:
             dr = mju_rayGeomNormal(pos, mat, size, dpnt, vec, type, nullptr);

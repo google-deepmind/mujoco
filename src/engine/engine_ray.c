@@ -846,10 +846,12 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
   return x;
 }
 
+// intersect ray with signed distance field, compute normal if given
+mjtNum mj_raySdfNormal(const mjModel* m, const mjData* d, int g,
+                       const mjtNum pnt[3], const mjtNum vec[3],
+                       mjtNum normal[3]) {
+  if (normal) mju_zero3(normal);
 
-// intersect ray with signed distance field
-mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
-               const mjtNum pnt[3], const mjtNum vec[3]) {
   mjtNum distance_total = 0;
   mjtNum p[3];
   mjtNum kMinDist = 1e-7;
@@ -887,9 +889,15 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   // ray marching, see e.g. https://en.wikipedia.org/wiki/Ray_marching
   for (int i=0; i < 40; i++) {
     mju_addScl3(p, lpnt, lvec, distance_total);
-    mjtNum distance = mjc_distance(m, d, &sdf, p);
+    mjtNum distance = mju_abs(mjc_distance(m, d, &sdf, p));
     distance_total += distance;
     if (mju_abs(distance) < kMinDist) {
+      if (normal) {
+        mju_addScl3(p, lpnt, lvec, distance_total);
+        mjc_gradient(m, d, &sdf, normal, p);
+        mju_normalize3(normal);
+        mju_mulMatVec3(normal, d->geom_xmat + 9*g, normal);
+      }
       return distance_total;
     }
     if (distance > 1e6) {
@@ -904,6 +912,12 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   }
 
   return -1;
+}
+
+// intersect ray with signed distance field
+static mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
+                      const mjtNum pnt[3], const mjtNum vec[3]) {
+  return mj_raySdfNormal(m, d, g, pnt, vec, NULL);
 }
 
 // intersect ray with mesh, compute normal if given

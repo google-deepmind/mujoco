@@ -58,6 +58,10 @@ MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
 MJAPI mjtNum mj_rayMeshNormal(const mjModel* m, const mjData* d, int geomid,
                               const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
 
+// intersect ray with signed distance field, compute normal if given
+MJAPI mjtNum mj_raySdfNormal(const mjModel* m, const mjData* d, int geomid,
+                             const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
+
 // intersect ray with primitive geom, no meshes or hfields
 MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
                          const mjtNum pnt[3], const mjtNum vec[3], int geomtype);
