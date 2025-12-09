@@ -510,31 +510,14 @@ TEST_F(RayTest, GeomNormal) {
         continue;
       }
 
-      // geom info
-      const mjtNum* pos = d->geom_xpos;
-      const mjtNum* mat = d->geom_xmat;
-      const mjtNum* size = m->geom_size;
-      int type = m->geom_type[0];
-
       // site info
       const mjtNum* pnt = d->site_xpos;
       const mjtNum vec[3] = {d->site_xmat[2], d->site_xmat[5], d->site_xmat[8]};
 
       // compute ray length and normal
       mjtNum r, normal[3];
-      switch (type) {
-        case mjGEOM_MESH:
-          r = mj_rayMeshNormal(m, d, 0, pnt, vec, normal);
-          break;
-        case mjGEOM_SDF:
-          r = mj_raySdfNormal(m, d, 0, pnt, vec, normal);
-          break;
-        case mjGEOM_HFIELD:
-          r = mj_rayHfieldNormal(m, d, 0, pnt, vec, normal);
-          break;
-        default:
-          r = mju_rayGeomNormal(pos, mat, size, pnt, vec, type, normal);
-      }
+      int geomid;
+      r = mj_rayNormal(m, d, pnt, vec, NULL, 1, -1, &geomid, normal);
 
       // compare with sensor
       EXPECT_EQ(r, d->sensordata[0]) << path << ", time " << d->time;
@@ -559,19 +542,7 @@ TEST_F(RayTest, GeomNormal) {
                            d->site_xmat[6 + i]};
         mjtNum dr, dpnt[3];
         mju_addScl3(dpnt, pnt, nudge, eps);
-        switch (type) {
-          case mjGEOM_MESH:
-            dr = mj_rayMeshNormal(m, d, 0, dpnt, vec, nullptr);
-            break;
-          case mjGEOM_SDF:
-            dr = mj_raySdfNormal(m, d, 0, dpnt, vec, nullptr);
-            break;
-          case mjGEOM_HFIELD:
-            dr = mj_rayHfieldNormal(m, d, 0, dpnt, vec, nullptr);
-            break;
-          default:
-            dr = mju_rayGeomNormal(pos, mat, size, dpnt, vec, type, nullptr);
-        }
+        dr = mj_rayNormal(m, d, dpnt, vec, NULL, 1, -1, nullptr, nullptr);
         mju_addScl3(ds[i], dpnt, vec, dr);
       }
 

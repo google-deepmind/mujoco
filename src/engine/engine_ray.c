@@ -197,6 +197,7 @@ mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
   return x;
 }
 
+
 //---------------------------- geom-specific intersection functions --------------------------------
 
 // plane
@@ -558,8 +559,8 @@ static mjtNum ray_box(const mjtNum pos[3], const mjtNum mat[9], const mjtNum siz
 
 
 // intersect ray with hfield, compute normal if given
-mjtNum mj_rayHfieldNormal(const mjModel* m, const mjData* d, int geomid,
-                          const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]) {
+static mjtNum mj_rayHfieldNormal(const mjModel* m, const mjData* d, int geomid,
+                                 const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]) {
   // clear normal if given
   if (normal) mju_zero3(normal);
 
@@ -736,6 +737,7 @@ mjtNum mj_rayHfieldNormal(const mjModel* m, const mjData* d, int geomid,
   return x;
 }
 
+
 // intersect ray with hfield
 mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                     const mjtNum pnt[3], const mjtNum vec[3]) {
@@ -885,10 +887,11 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
   return x;
 }
 
+
 // intersect ray with signed distance field, compute normal if given
-mjtNum mj_raySdfNormal(const mjModel* m, const mjData* d, int g,
-                       const mjtNum pnt[3], const mjtNum vec[3],
-                       mjtNum normal[3]) {
+static mjtNum mj_raySdfNormal(const mjModel* m, const mjData* d, int g,
+                              const mjtNum pnt[3], const mjtNum vec[3],
+                              mjtNum normal[3]) {
   if (normal) mju_zero3(normal);
 
   mjtNum distance_total = 0;
@@ -953,15 +956,17 @@ mjtNum mj_raySdfNormal(const mjModel* m, const mjData* d, int g,
   return -1;
 }
 
+
 // intersect ray with signed distance field
 static mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
                       const mjtNum pnt[3], const mjtNum vec[3]) {
   return mj_raySdfNormal(m, d, g, pnt, vec, NULL);
 }
 
+
 // intersect ray with mesh, compute normal if given
-mjtNum mj_rayMeshNormal(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3],
-                        const mjtNum vec[3], mjtNum normal[3]) {
+static mjtNum mj_rayMeshNormal(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3],
+                               const mjtNum vec[3], mjtNum normal[3]) {
   // clear normal if given
   if (normal) mju_zero3(normal);
 
@@ -978,15 +983,18 @@ mjtNum mj_rayMeshNormal(const mjModel* m, const mjData* d, int id, const mjtNum 
   return mju_rayTree(m, d, id, pnt, vec, normal);
 }
 
+
 // intersect ray with mesh
 mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3],
                   const mjtNum vec[3]) {
   return mj_rayMeshNormal(m, d, id, pnt, vec, NULL);
 }
 
+
 // intersect ray and find normal with primitive geom, no meshes or hfields, compute normal if given
 mjtNum mju_rayGeomNormal(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
-                         const mjtNum pnt[3], const mjtNum vec[3], int geomtype, mjtNum normal[3]) {
+                         const mjtNum pnt[3], const mjtNum vec[3], int geomtype,
+                         mjtNum normal[3]) {
   switch ((mjtGeom) geomtype) {
   case mjGEOM_PLANE:
     return ray_plane(pos, mat, size, pnt, vec, normal);
@@ -1018,6 +1026,7 @@ mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3
                    const mjtNum pnt[3], const mjtNum vec[3], int geomtype) {
   return mju_rayGeomNormal(pos, mat, size, pnt, vec, geomtype, NULL);
 }
+
 
 // intersect ray with flex, return nearest vertex id
 mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
@@ -1314,9 +1323,13 @@ static int point_in_box(const mjtNum aabb[6], const mjtNum xpos[3],
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
-mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
-              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude, int geomid[1]) {
+mjtNum mj_rayNormal(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+                    const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                    int geomid[1], mjtNum normal[3]) {
+  int ngeom = m->ngeom;
   mjtNum dist, newdist;
+  mjtNum normal_local[3];
+  mjtNum* p_normal = normal ? normal_local : NULL;
 
   // check vector length
   if (mju_norm3(vec) < mjMINVAL) {
@@ -1326,34 +1339,40 @@ mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtN
   // clear result
   dist = -1;
   if (geomid) *geomid = -1;
+  if (normal) mju_zero3(normal);
 
   // loop over geoms not eliminated by mask and bodyexclude
-  for (int i=0; i < m->ngeom; i++) {
+  for (int i=0; i < ngeom; i++) {
     if (!ray_eliminate(m, d, i, geomgroup, flg_static, bodyexclude)) {
-      // handle mesh and hfield separately
-      if (m->geom_type[i] == mjGEOM_MESH) {
-        newdist = mj_rayMesh(m, d, i, pnt, vec);
-      } else if (m->geom_type[i] == mjGEOM_HFIELD) {
-        newdist = mj_rayHfield(m, d, i, pnt, vec);
-      } else if (m->geom_type[i] == mjGEOM_SDF) {
-        newdist = ray_sdf(m, d, i, pnt, vec);
-      }
-
-      // otherwise general dispatch
-      else {
-        newdist = mju_rayGeom(d->geom_xpos+3*i, d->geom_xmat+9*i,
-                              m->geom_size+3*i, pnt, vec, m->geom_type[i]);
+      int type = m->geom_type[i];
+      if (type == mjGEOM_MESH) {
+        newdist = mj_rayMeshNormal(m, d, i, pnt, vec, p_normal);
+      } else if (type == mjGEOM_HFIELD) {
+        newdist = mj_rayHfieldNormal(m, d, i, pnt, vec, p_normal);
+      } else if (type == mjGEOM_SDF) {
+        newdist = mj_raySdfNormal(m, d, i, pnt, vec, p_normal);
+      } else {
+        newdist = mju_rayGeomNormal(d->geom_xpos+3*i, d->geom_xmat+9*i,
+                                    m->geom_size+3*i, pnt, vec, type, p_normal);
       }
 
       // update if closer intersection found
       if (newdist >= 0 && (newdist < dist || dist < 0)) {
         dist = newdist;
         if (geomid) *geomid = i;
+        if (normal) mju_copy3(normal, normal_local);
       }
     }
   }
 
   return dist;
+}
+
+
+// intersect ray
+mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+              const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude, int geomid[1]) {
+  return mj_rayNormal(m, d, pnt, vec, geomgroup, flg_static, bodyexclude, geomid, NULL);
 }
 
 

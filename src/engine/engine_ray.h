@@ -46,10 +46,6 @@ MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], cons
 MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
                           const mjtNum pnt[3], const mjtNum vec[3]);
 
-// intersect ray with hfield, compute normal if given
-MJAPI mjtNum mj_rayHfieldNormal(const mjModel* m, const mjData* d, int geomid,
-                                const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
-
 // intersect ray with triangle
 MJAPI mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
                           const mjtNum b0[3], const mjtNum b1[3], mjtNum normal[3]);
@@ -58,22 +54,14 @@ MJAPI mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
                         const mjtNum pnt[3], const mjtNum vec[3]);
 
-// intersect ray with mesh, compute normal if given
-MJAPI mjtNum mj_rayMeshNormal(const mjModel* m, const mjData* d, int geomid,
-                              const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
-
-// intersect ray with signed distance field, compute normal if given
-MJAPI mjtNum mj_raySdfNormal(const mjModel* m, const mjData* d, int geomid,
-                             const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
-
 // intersect ray with primitive geom, no meshes or hfields
 MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
                          const mjtNum pnt[3], const mjtNum vec[3], int geomtype);
 
-// intersect ray with primitive geom, no meshes or hfields, compute normal if given
-MJAPI mjtNum mju_rayGeomNormal(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
-                               const mjtNum pnt[3], const mjtNum vec[3], int geomtype,
-                               mjtNum normal[3]);
+// intersect ray with geom, compute normal if given
+MJAPI mjtNum mj_rayNormal(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+                          const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                          int geomid[1], mjtNum normal[3]);
 
 // intersect ray with flex, return nearest vertex id
 MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
