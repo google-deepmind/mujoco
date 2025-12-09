@@ -1036,6 +1036,29 @@ class SpecsTest(absltest.TestCase):
     texture.data = np.zeros((2, 2, 3), dtype=np.uint8).tobytes()
     spec.compile()
 
+  def test_read_texture(self):
+    spec = mujoco.MjSpec()
+    texture = spec.add_texture(name='texture', height=1, width=2, nchannel=3)
+    texture.data = bytes([1, 2, 3, 4, 5, 6])
+    read_bytes = bytes(texture.data)
+    self.assertEqual(read_bytes, bytes([1, 2, 3, 4, 5, 6]))
+
+  def test_modify_texture(self):
+    # Assign red, green and blue pixels, then make the first pixel yellow.
+    spec = mujoco.MjSpec()
+    texture = spec.add_texture(name='texture', height=1, width=3, nchannel=3)
+    texture.data = bytes([255, 0, 0, 0, 255, 0, 0, 0, 255])
+    texture.data[1] = 255
+    self.assertEqual(
+        bytes(texture.data), bytes([255, 255, 0, 0, 255, 0, 0, 0, 255])
+    )
+
+    # Assigning values outside the range [0, 255] should raise an error.
+    with self.assertRaises(ValueError):
+      texture.data[3] = 256
+    with self.assertRaises(ValueError):
+      texture.data[3] = -1
+
   def test_find_unnamed_asset(self):
     spec = mujoco.MjSpec()
     texture_file = spec.add_texture(file='file.png')
