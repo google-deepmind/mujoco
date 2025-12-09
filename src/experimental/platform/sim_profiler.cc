@@ -64,8 +64,9 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
     return;
   }
 
+  mjtNum avg_total = total / number;
   cpu_total_.erase(cpu_total_.begin());
-  cpu_total_.push_back(total / number);
+  cpu_total_.push_back(avg_total);
 
   mjtNum collision = data->timer[mjTIMER_POS_COLLISION].duration / number;
   cpu_collision_.erase(cpu_collision_.begin());
@@ -80,7 +81,7 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
   cpu_solve_.erase(cpu_solve_.begin());
   cpu_solve_.push_back(solve);
 
-  mjtNum other = total - collision - prepare - solve;
+  mjtNum other = avg_total - collision - prepare - solve;
   cpu_other_.erase(cpu_other_.begin());
   cpu_other_.push_back(other);
 
@@ -119,7 +120,8 @@ void SimProfiler::Update(const mjModel* model, const mjData* data) {
 
 
 void SimProfiler::CpuTimeGraph() {
-  if (ImPlot::BeginPlot("CPU Time", ImVec2(-1, 0))) {
+  if (ImPlot::BeginPlot("CPU Time", ImVec2(-1, 0), ImPlotFlags_NoMouseText)) {
+    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
     ImPlot::SetupAxis(ImAxis_X1, "frame", ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxis(ImAxis_Y1, "msec", ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.2f");
@@ -136,12 +138,14 @@ void SimProfiler::CpuTimeGraph() {
                      1, -(int)cpu_collision_.size());
     ImPlot::PlotLine("other", cpu_other_.data(), cpu_other_.size(), 1,
                      -(int)cpu_other_.size());
+    ImPlot::PopStyleVar();
     ImPlot::EndPlot();
   }
 }
 
 void SimProfiler::DimensionsGraph() {
-  if (ImPlot::BeginPlot("Dimensions", ImVec2(-1, 0))) {
+  if (ImPlot::BeginPlot("Dimensions", ImVec2(-1, 0), ImPlotFlags_NoMouseText)) {
+    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
     ImPlot::SetupAxis(ImAxis_X1, "frame", ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxis(ImAxis_Y1, "count", ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
@@ -160,6 +164,7 @@ void SimProfiler::DimensionsGraph() {
                      -(int)dim_contact_.size());
     ImPlot::PlotLine("iteration", dim_iteration_.data(), dim_iteration_.size(),
                      1, -(int)dim_iteration_.size());
+    ImPlot::PopStyleVar();
     ImPlot::EndPlot();
   }
 }

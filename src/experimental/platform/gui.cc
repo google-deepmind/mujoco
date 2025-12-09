@@ -737,7 +737,9 @@ void ControlsGui(const mjModel* model, const mjData* data,
 
 
 void ConvergenceGui(const mjModel* model, mjData* data) {
-  if (ImPlot::BeginPlot("Convergence (log 10)", ImVec2(-1, 0))) {
+  if (ImPlot::BeginPlot("Convergence (log 10)", ImVec2(-1, 0),
+                        ImPlotFlags_NoMouseText)) {
+    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
     ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.1f");
@@ -751,7 +753,6 @@ void ConvergenceGui(const mjModel* model, mjData* data) {
       const int npoints =
           mjMIN(mjMIN(data->solver_niter[k], mjNSOLVER), mjMAXLINEPNT);
 
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
       ImPlot::PlotLineG("improvement", +[](int i, void* user_data) {
         const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
         const float x = static_cast<float>(i);
@@ -763,7 +764,6 @@ void ConvergenceGui(const mjModel* model, mjData* data) {
         continue;
       }
 
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
       ImPlot::PlotLineG("gradient", +[](int i, void* user_data) {
         const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
         const float x = static_cast<float>(i);
@@ -771,7 +771,6 @@ void ConvergenceGui(const mjModel* model, mjData* data) {
         return ImPlotPoint{x, y};
       }, stats, npoints);
 
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
       ImPlot::PlotLineG("lineslope", +[](int i, void* user_data) {
         const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
         const float x = static_cast<float>(i);
@@ -780,12 +779,14 @@ void ConvergenceGui(const mjModel* model, mjData* data) {
       }, stats, npoints);
     }
 
+    ImPlot::PopStyleVar();
     ImPlot::EndPlot();
   }
 }
 
 void CountsGui(const mjModel* model, mjData* data) {
-  if (ImPlot::BeginPlot("Counts", ImVec2(-1, 0))) {
+  if (ImPlot::BeginPlot("Counts", ImVec2(-1, 0), ImPlotFlags_NoMouseText)) {
+    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
     ImPlot::SetupAxis(ImAxis_X1, "iteration", ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxisLimits(ImAxis_X1, 0, 20, ImPlotCond_Always);
     ImPlot::SetupAxisFormat(ImAxis_Y1, "%.0f");
@@ -802,14 +803,12 @@ void CountsGui(const mjModel* model, mjData* data) {
 
       int nefc = nisland == 1 ? data->nefc : data->island_nefc[k];
 
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
       ImPlot::PlotLineG("total", +[](int i, void* user_data) {
         const float x = static_cast<float>(i);
         const float y = *(static_cast<int*>(user_data));
         return ImPlotPoint{x, y};
       }, &nefc, npoints);
 
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
       ImPlot::PlotLineG("active", +[](int i, void* user_data) {
         const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
         const float x = static_cast<float>(i);
@@ -817,7 +816,6 @@ void CountsGui(const mjModel* model, mjData* data) {
         return ImPlotPoint{x, y};
       }, stats, npoints);
 
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
       ImPlot::PlotLineG("changed", +[](int i, void* user_data) {
         const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
         const float x = static_cast<float>(i);
@@ -829,7 +827,6 @@ void CountsGui(const mjModel* model, mjData* data) {
         continue;
       }
 
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
       ImPlot::PlotLineG("evals", +[](int i, void* user_data) {
         const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
         const float x = static_cast<float>(i);
@@ -841,7 +838,6 @@ void CountsGui(const mjModel* model, mjData* data) {
         continue;
       }
 
-      ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 3.0f);
       ImPlot::PlotLineG("updates", +[](int i, void* user_data) {
         const mjSolverStat* stats = static_cast<const mjSolverStat*>(user_data);
         const float x = static_cast<float>(i);
@@ -850,6 +846,7 @@ void CountsGui(const mjModel* model, mjData* data) {
       }, stats, npoints);
     }
 
+    ImPlot::PopStyleVar();
     ImPlot::EndPlot();
   }
 }
