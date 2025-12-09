@@ -44,8 +44,6 @@
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
-#include "xml/xml.h"
-#include "xml/xml_api.h"
 
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "experimental/filament/render_context_filament.h"
@@ -223,7 +221,7 @@ void App::ProcessPendingLoad() {
   if (model_file_.ends_with(".mjb")) {
     model_ = mj_loadModel(model_file_.c_str(), 0);
   } else if (model_file_.ends_with(".xml")) {
-    spec_ = ParseXML(model_file_.c_str(), nullptr, err, sizeof(err));
+    spec_ = mj_parseXML(model_file_.c_str(), nullptr, err, sizeof(err));
     if (spec_ && err[0] == 0) {
       model_ = mj_compile(spec_, nullptr);
     }
