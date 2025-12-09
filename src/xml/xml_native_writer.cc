@@ -1585,11 +1585,23 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttrTxt(elem, "content_type", hfield->content_type_);
       WriteAttrTxt(elem, "file", hfield->file_);
     } else {
-      WriteAttrInt(elem, "nrow", hfield->nrow);
-      WriteAttrInt(elem, "ncol", hfield->ncol);
+      int nrow = hfield->nrow;
+      int ncol = hfield->ncol;
+      WriteAttrInt(elem, "nrow", nrow);
+      WriteAttrInt(elem, "ncol", ncol);
       if (!hfield->get_userdata().empty()) {
+        // copy in reverse row order, so XML string is top-to-bottom
+        std::vector<float> flipped(nrow * ncol);
+        const std::vector<float>& userdata = hfield->get_userdata();
+        for (int i = 0; i < nrow; i++) {
+          int flip = nrow - 1 - i;
+          for (int j = 0; j < ncol; j++) {
+            flipped[i * ncol + j] = userdata[flip * ncol + j];
+          }
+        }
+
         string text;
-        Vector2String(text, hfield->get_userdata(), hfield->ncol);
+        Vector2String(text, flipped, ncol);
         WriteAttrTxt(elem, "elevation", text);
       }
     }

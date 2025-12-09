@@ -5318,11 +5318,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
       int ncol = m->hfield_ncol[i];
       float* userdata = phf->get_userdata().data();
       float* modeldata = m->hfield_data + m->hfield_adr[i];
-      // copy back in reverse row order
-      for (int j=0; j < nrow; j++) {
-        int flip = nrow-1-j;
-        mjuu_copyvec(userdata + flip*ncol, modeldata+j*ncol, ncol);
-      }
+      memcpy(userdata, modeldata, nrow*ncol*sizeof(float));
     }
   }
 

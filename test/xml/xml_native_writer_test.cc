@@ -38,10 +38,11 @@
 namespace mujoco {
 namespace {
 
+using ::testing::ElementsAre;
+using ::testing::FloatEq;
 using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::NotNull;
-using ::testing::FloatEq;
 
 using XMLWriterTest = PluginTest;
 
@@ -997,6 +998,10 @@ TEST_F(XMLWriterTest, WritesHfield) {
   ASSERT_THAT(model, NotNull());
   int size = model->hfield_nrow[0]*model->hfield_ncol[0];
   EXPECT_EQ(size, 6);
+
+  // check that the data is normalized and in row-major, bottom-to-top order
+  EXPECT_THAT(AsVector(model->hfield_data, 6),
+              ElementsAre(.8, 1, .4, .6, 0, .2));
 
   // save and read, compare data
   mjModel* mtemp = LoadModelFromString(SaveAndReadXml(model));
