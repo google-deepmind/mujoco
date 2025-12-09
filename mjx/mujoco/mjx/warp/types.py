@@ -217,12 +217,9 @@ class ModelWarp(PyTreeNode):
 
 class DataWarp(PyTreeNode):
   """Derived fields from Data."""
-  actuator_length: jax.Array
   actuator_moment: jax.Array
   actuator_velocity: jax.Array
   cacc: jax.Array
-  cdof: jax.Array
-  cdof_dot: jax.Array
   cfrc_ext: jax.Array
   cfrc_int: jax.Array
   cinert: jax.Array

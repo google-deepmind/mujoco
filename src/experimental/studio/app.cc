@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cfloat>
 #if defined(USE_CLASSIC_OPENGL)
 #include <chrono>
 #endif
@@ -43,7 +44,6 @@
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
-#include "xml/xml_api.h"
 
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "experimental/filament/render_context_filament.h"
@@ -221,7 +221,10 @@ void App::ProcessPendingLoad() {
   if (model_file_.ends_with(".mjb")) {
     model_ = mj_loadModel(model_file_.c_str(), 0);
   } else if (model_file_.ends_with(".xml")) {
-    model_ = mj_loadXML(model_file_.c_str(), nullptr, err, sizeof(err));
+    spec_ = mj_parseXML(model_file_.c_str(), nullptr, err, sizeof(err));
+    if (spec_ && err[0] == 0) {
+      model_ = mj_compile(spec_, nullptr);
+    }
   } else {
     error_ = "Unknown model file type; expected .mjb or .xml.";
   }
@@ -250,6 +253,18 @@ void App::ProcessPendingLoad() {
   renderer_->Init(model_);
   const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
   history_.Init(state_size);
+
+  // Initialize the speed based on the model's default real-time setting.
+  float min_error = FLT_MAX;
+  const float desired = mju_log(100 * model_->vis.global.realtime);
+  for (int i = 0; i < kPercentRealTime.size(); ++i) {
+    const float speed = std::stof(kPercentRealTime[i]);
+    const float error = mju_abs(mju_log(speed) - desired);
+    if (error < min_error) {
+      min_error = error;
+      SetSpeedIndex(i);
+    }
+  }
 
   // Update the window title and update the file paths for saving files related
   // to the loaded model.
@@ -530,6 +545,8 @@ void App::HandleKeyboardEvents() {
 
   constexpr auto ImGuiMode_CtrlShift = ImGuiMod_Ctrl | ImGuiMod_Shift;
 
+  bool is_freecam_wasd = ui_.camera_idx == platform::kFreeCameraIdx;
+
   // Menu shortcuts.
   if (ImGui_IsChordJustPressed(ImGuiKey_O | ImGuiMod_Ctrl)) {
     ShowPopup(tmp_.load_popup);
@@ -581,7 +598,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
-    ToggleWindow(tmp_.info);
+    ToggleWindow(tmp_.stats);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
     vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
@@ -592,54 +609,56 @@ void App::HandleKeyboardEvents() {
     tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
     tmp_.chart_dimensions = !tmp_.chart_dimensions;
-  // } else if (ImGui_IsChordJustPressed(ImGuiKey_Backquote)) {
-  //   ToggleFlag(vis_options_.flags[mjVIS_BODYBVH]);
-  // } else if (ImGui_IsChordJustPressed(ImGuiKey_Quote)) {
-  //   ToggleFlag(vis_options_.flags[mjVIS_SCLINERTIA]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Comma)) {
-    ToggleFlag(vis_options_.flags[mjVIS_ACTIVATION]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Backslash)) {
-    ToggleFlag(vis_options_.flags[mjVIS_MESHBVH]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Semicolon)) {
-    ToggleFlag(vis_options_.flags[mjVIS_SKIN]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_U)) {
-    ToggleFlag(vis_options_.flags[mjVIS_ACTUATOR]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_L)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CAMERA]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_M)) {
-    ToggleFlag(vis_options_.flags[mjVIS_COM]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CONTACTFORCE]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_C)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CONTACTPOINT]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_P)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CONTACTSPLIT]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
     ToggleFlag(vis_options_.flags[mjVIS_CONVEXHULL]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_N)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CONSTRAINT]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_I)) {
-    ToggleFlag(vis_options_.flags[mjVIS_ISLAND]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_X)) {
+    ToggleFlag(vis_options_.flags[mjVIS_TEXTURE]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_J)) {
     ToggleFlag(vis_options_.flags[mjVIS_JOINT]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_Q)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CAMERA]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_U)) {
+    ToggleFlag(vis_options_.flags[mjVIS_ACTUATOR]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Comma)) {
+    ToggleFlag(vis_options_.flags[mjVIS_ACTIVATION]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Z)) {
     ToggleFlag(vis_options_.flags[mjVIS_LIGHT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_V)) {
+    ToggleFlag(vis_options_.flags[mjVIS_TENDON]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Y)) {
+    ToggleFlag(vis_options_.flags[mjVIS_RANGEFINDER]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_E)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONSTRAINT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_I)) {
+    ToggleFlag(vis_options_.flags[mjVIS_INERTIA]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Apostrophe)) {
+    ToggleFlag(vis_options_.flags[mjVIS_SCLINERTIA]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_B)) {
     ToggleFlag(vis_options_.flags[mjVIS_PERTFORCE]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_O)) {
     ToggleFlag(vis_options_.flags[mjVIS_PERTOBJ]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Y)) {
-    ToggleFlag(vis_options_.flags[mjVIS_RANGEFINDER]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_V)) {
-    ToggleFlag(vis_options_.flags[mjVIS_TENDON]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_X)) {
-    ToggleFlag(vis_options_.flags[mjVIS_TEXTURE]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_C)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONTACTPOINT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_N)) {
+    ToggleFlag(vis_options_.flags[mjVIS_ISLAND]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONTACTFORCE]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_P)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONTACTSPLIT]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_T)) {
     ToggleFlag(vis_options_.flags[mjVIS_TRANSPARENT]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_K)) {
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_A)) {
     ToggleFlag(vis_options_.flags[mjVIS_AUTOCONNECT]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_G)) {
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_M)) {
+    ToggleFlag(vis_options_.flags[mjVIS_COM]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_D)) {
     ToggleFlag(vis_options_.flags[mjVIS_STATIC]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Semicolon)) {
+    ToggleFlag(vis_options_.flags[mjVIS_SKIN]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_GraveAccent)) {
+    ToggleFlag(vis_options_.flags[mjVIS_BODYBVH]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Backslash)) {
+    ToggleFlag(vis_options_.flags[mjVIS_MESHBVH]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_0 | ImGuiMod_Shift)) {
     ToggleFlag(vis_options_.sitegroup[0]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_1 | ImGuiMod_Shift)) {
@@ -674,7 +693,7 @@ void App::HandleKeyboardEvents() {
     }
 
     // WASD camera controls for free camera.
-    if (ui_.camera_idx == platform::kFreeCameraIdx) {
+    if (is_freecam_wasd) {
       bool moved = false;
 
       // Move (dolly) forward/backward using W and S keys.
@@ -789,6 +808,20 @@ void App::BuildGui() {
       DataInspectorGui();
     }
     ImGui::End();
+
+    bool explorer_is_open = false;
+    if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
+      explorer_is_open = true;
+      SpecExplorerGui();
+    }
+    ImGui::End();
+
+    if (explorer_is_open && tmp_.element != nullptr) {
+      if (ImGui::Begin("Properties")) {
+        PropertiesGui();
+      }
+      ImGui::End();
+    }
   }
 
   if (tmp_.chart_cpu_time) {
@@ -831,11 +864,11 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (tmp_.info) {
+  if (tmp_.stats) {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
-    if (ImGui::Begin("Info", &tmp_.info)) {
-      platform::InfoGui(model_, data_, step_control_.IsPaused(), fps_);
+    if (ImGui::Begin("Stats", &tmp_.stats)) {
+      platform::StatsGui(model_, data_, step_control_.IsPaused(), fps_);
     }
     ImGui::End();
   }
@@ -914,6 +947,11 @@ void App::ModelOptionsGui() {
 }
 
 void App::DataInspectorGui() {
+  if (data_ == nullptr) {
+    ImGui::Text("No mjData loaded.");
+    return;
+  }
+
   const float min_width = GetExpectedLabelWidth();
   const ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
@@ -949,6 +987,112 @@ void App::DataInspectorGui() {
   }
 }
 
+void DisplayElementTree(mjsElement* element) {
+  const mjString* name = mjs_getName(element);
+  if (name->empty()) {
+    ImGui::Text("(unnamed)");
+  } else {
+    ImGui::Text("%s", name->c_str());
+  }
+}
+
+void App::SpecExplorerGui() {
+  if (spec_ == nullptr) {
+    ImGui::Text("No mjSpec loaded.");
+    return;
+  }
+
+  const ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth;
+
+  auto display_group = [this](mjtObj type, const std::string& prefix) {
+    mjsElement* element = mjs_firstElement(spec_, type);
+    while (element) {
+      const int id = mjs_getId(element);
+
+      const mjString* name = mjs_getName(element);
+      std::string label = *name;
+      if (label.empty()) {
+        label = "(" + prefix + " " + std::to_string(id) + ")";
+      }
+
+      if (ImGui::Selectable(label.c_str(), false)) {
+        tmp_.element = element;
+        tmp_.element_id = id;
+      }
+
+      element = mjs_nextElement(spec_, element);
+    }
+  };
+
+
+  if (ImGui::TreeNodeEx("Bodies", flags)) {
+    // We don't use `display_group` here because we do additional selection
+    // logic tied to the `perturb_` field.
+    mjsElement* element = mjs_firstElement(spec_, mjOBJ_BODY);
+    while (element) {
+      const int id = mjs_getId(element);
+
+      const mjString* name = mjs_getName(element);
+      std::string label = *name;
+      if (label.empty()) {
+        label = "(Body " + std::to_string(id) + ")";
+      }
+
+      if (ImGui::Selectable(label.c_str(), (id == perturb_.select),
+                            ImGuiSelectableFlags_AllowDoubleClick)) {
+        tmp_.element = element;
+        tmp_.element_id = id;
+      }
+      if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        perturb_.select = id;
+      }
+
+      element = mjs_nextElement(spec_, element);
+    }
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("Joints", flags)) {
+    display_group(mjOBJ_JOINT, "Joint");
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("Sites", flags)) {
+    display_group(mjOBJ_SITE, "Site");
+    ImGui::TreePop();
+  }
+}
+
+void App::PropertiesGui() {
+  if (tmp_.element == nullptr) {
+    ImGui::Text("No element selected.");
+    return;
+  }
+
+  switch (tmp_.element->elemtype) {
+    case mjOBJ_BODY:
+      ImGui::Text("Body");
+      ImGui::Separator();
+      platform::BodyPropertiesGui(model_, data_, tmp_.element, tmp_.element_id);
+      break;
+    case mjOBJ_JOINT:
+      ImGui::Text("Joint");
+      ImGui::Separator();
+      platform::JointPropertiesGui(model_, data_, tmp_.element,
+                                   tmp_.element_id);
+      break;
+    case mjOBJ_SITE:
+      ImGui::Text("Site");
+      ImGui::Separator();
+      platform::SitePropertiesGui(model_, data_, tmp_.element,
+                                  tmp_.element_id);
+      break;
+    default:
+      // ignore other types
+      break;
+  }
+}
+
 void App::HelpGui() {
   ImGui::Columns(4);
   ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.35f);
@@ -957,7 +1101,7 @@ void App::HelpGui() {
   ImGui::SetColumnWidth(3, ImGui::GetWindowWidth() * 0.1f);
 
   ImGui::Text("Help");
-  ImGui::Text("Info");
+  ImGui::Text("Stats");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
   ImGui::Text("Free Camera");
@@ -1052,27 +1196,22 @@ void App::HelpGui() {
   ImGui::Columns();
 }
 
-
 void App::ToolBarGui() {
   if (ImGui::BeginTable("##ToolBarTable", 2)) {
+    platform::ScopedStyle style;
+
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 570);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 560);
 
     ImGui::TableNextColumn();
 
-    // Play/pause button.
-    const bool paused = step_control_.IsPaused();
-    if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, ImVec2(144, 32))) {
-      step_control_.TogglePause();
-    }
-    ImGui::SetItemTooltip("%s", paused ? "Play" : "Pause");
-
     // Reset/Reload/Unload.
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_RESET_MODEL, ImVec2(48, 32))) {
-      ResetPhysics();
+    style.Color(ImGuiCol_ButtonHovered, ImColor(220, 40, 40, 255));
+    if (ImGui::Button(ICON_UNLOAD_MODEL, ImVec2(48, 32))) {
+      LoadModel("");
     }
-    ImGui::SetItemTooltip("%s", "Reset");
+    ImGui::SetItemTooltip("%s", "Unload");
+    style.Reset();
 
     ImGui::SameLine();
     if (ImGui::Button(ICON_RELOAD_MODEL, ImVec2(48, 32))) {
@@ -1081,10 +1220,37 @@ void App::ToolBarGui() {
     ImGui::SetItemTooltip("%s", "Reload");
 
     ImGui::SameLine();
-    if (ImGui::Button(ICON_UNLOAD_MODEL, ImVec2(48, 32))) {
-      LoadModel("");
+    if (ImGui::Button(ICON_RESET_MODEL, ImVec2(48, 32))) {
+      ResetPhysics();
     }
-    ImGui::SetItemTooltip("%s", "Unload");
+    ImGui::SetItemTooltip("%s", "Reset");
+
+    // Play/pause button.
+    ImGui::SameLine();
+    const bool paused = step_control_.IsPaused();
+    style.Color(ImGuiCol_Button,
+                paused ? ImColor(250, 230, 10, 255) : ImColor(40, 180, 40, 255));
+    if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, ImVec2(120, 32))) {
+      step_control_.TogglePause();
+    }
+    ImGui::SetItemTooltip("%s", paused ? "Play" : "Pause");
+    style.Reset();
+
+    ImGui::SameLine();
+    ImGui::Text("%s", " |");
+
+    // Speed selection.
+    ImGui::SameLine();
+    ImGui::Text("%s", ICON_SPEED);
+    ImGui::SetItemTooltip("%s", "Playback Speed");
+
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(80);
+    int speed_index = tmp_.speed_index;
+    if (ImGui::Combo("##Speed", &speed_index, kPercentRealTime.data(),
+                     kPercentRealTime.size())) {
+      SetSpeedIndex(speed_index);
+    }
 
     // Camera selection.
     ImGui::TableNextColumn();
@@ -1154,7 +1320,7 @@ void App::ToolBarGui() {
 void App::StatusBarGui() {
   if (ImGui::BeginTable("##StatusBarTable", 2)) {
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 670);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 520);
 
     ImGui::TableNextColumn();
 
@@ -1182,22 +1348,6 @@ void App::StatusBarGui() {
     }
 
     ImGui::TableNextColumn();
-    ImGui::Text("%s", " |");
-
-    // Speed selection.
-    ImGui::SameLine();
-    ImGui::Text("%s", ICON_SPEED);
-    ImGui::SetItemTooltip("%s", "Playback Speed");
-
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(70);
-    int speed_index = tmp_.speed_index;
-    if (ImGui::Combo("##Speed", &speed_index, kPercentRealTime.data(),
-                     kPercentRealTime.size())) {
-      SetSpeedIndex(speed_index);
-    }
-
-    ImGui::SameLine();
     ImGui::Text("%s", " |");
 
     // Frame scrubber.
@@ -1341,8 +1491,8 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Help", "F1", tmp_.help)) {
         ToggleWindow(tmp_.help);
       }
-      if (ImGui::MenuItem("Info", "F2", tmp_.info)) {
-        ToggleWindow(tmp_.info);
+      if (ImGui::MenuItem("Stats", "F2", tmp_.stats)) {
+        ToggleWindow(tmp_.stats);
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Style Editor", "", tmp_.style_editor)) {

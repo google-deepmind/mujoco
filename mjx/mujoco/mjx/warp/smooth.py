@@ -42,7 +42,6 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _kinematics_shim(
     # Model
@@ -310,7 +309,6 @@ _e = mjwarp.Constraint(
     **{f.name: None for f in dataclasses.fields(mjwarp.Constraint) if f.init}
 )
 
-
 @ffi.format_args_for_warp
 def _tendon_shim(
     # Model
@@ -397,7 +395,7 @@ def _tendon_shim(
 
 def _tendon_jax_impl(m: types.Model, d: types.Data):
   output_dims = {
-      'cdof': d._impl.cdof.shape,
+      'cdof': d.cdof.shape,
       'geom_xmat': d.geom_xmat.shape,
       'geom_xpos': d.geom_xpos.shape,
       'qpos': d.qpos.shape,
@@ -455,7 +453,7 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       m._impl.wrap_pulley_scale,
       m._impl.wrap_site_pair_adr,
       m.wrap_type,
-      d._impl.cdof,
+      d.cdof,
       d.geom_xmat,
       d.geom_xpos,
       d.qpos,
@@ -469,7 +467,7 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       d._impl.wrap_xpos,
   )
   d = d.tree_replace({
-      '_impl.cdof': out[0],
+      'cdof': out[0],
       'geom_xmat': out[1],
       'geom_xpos': out[2],
       'qpos': out[3],

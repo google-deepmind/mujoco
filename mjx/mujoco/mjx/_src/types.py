@@ -1021,7 +1021,6 @@ class DataC(PyTreeNode):
   plugin_data: jax.Array
   light_xpos: jax.Array
   light_xdir: jax.Array
-  cdof: jax.Array
   cinert: jax.Array
   flexvert_xpos: jax.Array
   flexelem_aabb: jax.Array
@@ -1039,7 +1038,6 @@ class DataC(PyTreeNode):
   ten_J: jax.Array  # pylint:disable=invalid-name
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
-  actuator_length: jax.Array
   moment_rownnz: jax.Array  # pylint:disable=invalid-name
   moment_rowadr: jax.Array  # pylint:disable=invalid-name
   moment_colind: jax.Array  # pylint:disable=invalid-name
@@ -1059,7 +1057,7 @@ class DataC(PyTreeNode):
   flexedge_velocity: jax.Array
   ten_velocity: jax.Array
   actuator_velocity: jax.Array
-  cdof_dot: jax.Array
+
   qfrc_spring: jax.Array
   qfrc_damper: jax.Array
   subtree_linvel: jax.Array
@@ -1095,14 +1093,12 @@ class DataJAX(PyTreeNode):
   nefc: int
   ncon: int
   solver_niter: jax.Array
-  cdof: jax.Array
   cinert: jax.Array
   ten_wrapadr: jax.Array
   ten_wrapnum: jax.Array
   ten_J: jax.Array  # pylint:disable=invalid-name
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
-  actuator_length: jax.Array
   actuator_moment: jax.Array
   crb: jax.Array
   qM: jax.Array  # pylint:disable=invalid-name
@@ -1111,7 +1107,7 @@ class DataJAX(PyTreeNode):
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
   ten_velocity: jax.Array
   actuator_velocity: jax.Array
-  cdof_dot: jax.Array
+
   cacc: jax.Array
   cfrc_int: jax.Array
   cfrc_ext: jax.Array
@@ -1171,12 +1167,15 @@ class Data(PyTreeNode):
   cam_xmat: jax.Array
   subtree_com: jax.Array
   cvel: jax.Array
+  cdof: jax.Array
+  cdof_dot: jax.Array
   qfrc_bias: jax.Array
   qfrc_gravcomp: jax.Array
   qfrc_fluid: jax.Array
   qfrc_passive: jax.Array
   qfrc_actuator: jax.Array
   actuator_force: jax.Array
+  actuator_length: jax.Array
   qfrc_smooth: jax.Array
   qacc_smooth: jax.Array
   qfrc_constraint: jax.Array

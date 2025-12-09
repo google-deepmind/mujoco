@@ -402,10 +402,10 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d.geom_xpos.shape, (6, 3))
     self.assertEqual(d.geom_xmat.shape, (6, 3, 3))
     self.assertEqual(d.subtree_com.shape, (nbody, 3))
-    self.assertEqual(d._impl.cdof.shape, (nv, 6))
+    self.assertEqual(d.cdof.shape, (nv, 6))
     self.assertEqual(d._impl.cinert.shape, (nbody, 10))
     self.assertEqual(d._impl.crb.shape, (nbody, 10))
-    self.assertEqual(d._impl.actuator_length.shape, (1,))
+    self.assertEqual(d.actuator_length.shape, (1,))
     if impl == 'jax':
       self.assertEqual(d._impl.actuator_moment.shape, (1, nv))
     elif impl == 'c':
@@ -422,7 +422,7 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d._impl.efc_D.shape, (nefc,))
     self.assertEqual(d._impl.actuator_velocity.shape, (1,))
     self.assertEqual(d.cvel.shape, (nbody, 6))
-    self.assertEqual(d._impl.cdof_dot.shape, (nv, 6))
+    self.assertEqual(d.cdof_dot.shape, (nv, 6))
     self.assertEqual(d.qfrc_bias.shape, (nv,))
     self.assertEqual(d.qfrc_passive.shape, (nv,))
     self.assertEqual(d._impl.efc_aref.shape, (nefc,))
@@ -477,7 +477,7 @@ class DataIOTest(parameterized.TestCase):
     np.testing.assert_allclose(dx.qpos, d.qpos)
     np.testing.assert_allclose(dx.xpos, d.xpos)
     np.testing.assert_allclose(dx.cvel, d.cvel)
-    np.testing.assert_allclose(dx._impl.cdof_dot, d.cdof_dot)
+    np.testing.assert_allclose(dx.cdof_dot, d.cdof_dot)
 
     # check that there are no weak types
     self.assertFalse(

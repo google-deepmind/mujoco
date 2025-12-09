@@ -81,7 +81,7 @@ class SmoothTest(absltest.TestCase):
     dx = jax.jit(mjx.com_pos)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'subtree_com')
     _assert_attr_eq(d, dx._impl, 'cinert')
-    _assert_attr_eq(d, dx._impl, 'cdof')
+    _assert_attr_eq(d, dx, 'cdof')
     # camlight
     dx = jax.jit(mjx.camlight)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'cam_xpos')
@@ -100,7 +100,7 @@ class SmoothTest(absltest.TestCase):
     # com_vel
     dx = jax.jit(mjx.com_vel)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'cvel')
-    _assert_attr_eq(d, dx._impl, 'cdof_dot')
+    _assert_attr_eq(d, dx, 'cdof_dot')
     # rne
     dx = jax.jit(mjx.rne)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_bias')
@@ -125,7 +125,7 @@ class SmoothTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'ten_length')
     # transmission
     dx = jax.jit(mjx.transmission)(mx, dx)
-    _assert_attr_eq(d, dx._impl, 'actuator_length')
+    _assert_attr_eq(d, dx, 'actuator_length')
 
     # convert sparse actuator_moment to dense representation
     moment = np.zeros((m.nu, m.nv))
@@ -196,7 +196,7 @@ class SmoothTest(absltest.TestCase):
 
     mujoco.mj_transmission(m, d)
     dx = jax.jit(mjx.transmission)(mx, dx)
-    _assert_attr_eq(d, dx._impl, 'actuator_length')
+    _assert_attr_eq(d, dx, 'actuator_length')
 
     # convert sparse actuator_moment to dense representation
     moment = np.zeros((m.nu, m.nv))

@@ -1559,7 +1559,8 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 :at:`elevation`: :at-val:`real(nrow*ncol), optional`
    This attribute specifies the elevation data matrix. Values are automatically normalized to lie between 0 and 1 by
    first subtracting the minimum value and then dividing by the (maximum-minimum) difference, if not 0. If not provided,
-   values are set to 0.
+   values are set to 0. Note that the row order of data in :ref:`mjModel` and :ref:`mjsHField` is flipped w.r.t. the
+   order in XML i.e., it is bottom-to-top.
 
 .. _asset-hfield-size:
 

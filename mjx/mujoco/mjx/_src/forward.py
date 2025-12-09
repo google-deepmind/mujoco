@@ -182,7 +182,7 @@ def fwd_actuation(m: Model, d: Data) -> Data:
       m.actuator_gainprm,
       m.actuator_biastype,
       m.actuator_biasprm,
-      d._impl.actuator_length,
+      d.actuator_length,
       d._impl.actuator_velocity,
       ctrl_act,
       jp.array(m.actuator_lengthrange),

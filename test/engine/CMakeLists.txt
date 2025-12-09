@@ -47,7 +47,11 @@ mujoco_test(engine_passive_test)
 
 mujoco_test(engine_print_test)
 
-mujoco_test(engine_ray_test)
+mujoco_test(
+  engine_ray_test
+  PROPERTIES
+  ENVIRONMENT
+  "MUJOCO_PLUGIN_DIR=$<TARGET_FILE_DIR:sdf_plugin>")
 
 mujoco_test(engine_sensor_test)
 

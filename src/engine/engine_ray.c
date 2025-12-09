@@ -557,16 +557,19 @@ static mjtNum ray_box(const mjtNum pos[3], const mjtNum mat[9], const mjtNum siz
 }
 
 
-// intersect ray with hfield
-mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
-                    const mjtNum pnt[3], const mjtNum vec[3]) {
+// intersect ray with hfield, compute normal if given
+mjtNum mj_rayHfieldNormal(const mjModel* m, const mjData* d, int geomid,
+                          const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]) {
+  // clear normal if given
+  if (normal) mju_zero3(normal);
+
   // check geom type
-  if (m->geom_type[id] != mjGEOM_HFIELD) {
+  if (m->geom_type[geomid] != mjGEOM_HFIELD) {
     mjERROR("geom with hfield type expected");
   }
 
   // hfield id and dimensions
-  int hid = m->geom_dataid[id];
+  int hid = m->geom_dataid[geomid];
   int nrow = m->hfield_nrow[hid];
   int ncol = m->hfield_ncol[hid];
   const mjtNum* size = m->hfield_size + 4*hid;
@@ -574,33 +577,38 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
 
   // compute size and pos of base box
   mjtNum base_size[3] = {size[0], size[1], size[3]*0.5};
+  const mjtNum* xmat = d->geom_xmat + 9*geomid;
+  const mjtNum* xpos = d->geom_xpos + 3*geomid;
   mjtNum base_pos[3] = {
-    d->geom_xpos[3*id]   - d->geom_xmat[9*id+2]*size[3]*0.5,
-    d->geom_xpos[3*id+1] - d->geom_xmat[9*id+5]*size[3]*0.5,
-    d->geom_xpos[3*id+2] - d->geom_xmat[9*id+8]*size[3]*0.5
+    xpos[0] - xmat[2]*size[3]*0.5,
+    xpos[1] - xmat[5]*size[3]*0.5,
+    xpos[2] - xmat[8]*size[3]*0.5
   };
 
   // compute size and pos of top box
   mjtNum top_size[3] = {size[0], size[1], size[2]*0.5};
   mjtNum top_pos[3] = {
-    d->geom_xpos[3*id]   + d->geom_xmat[9*id+2]*size[2]*0.5,
-    d->geom_xpos[3*id+1] + d->geom_xmat[9*id+5]*size[2]*0.5,
-    d->geom_xpos[3*id+2] + d->geom_xmat[9*id+8]*size[2]*0.5
+    xpos[0] + xmat[2]*size[2]*0.5,
+    xpos[1] + xmat[5]*size[2]*0.5,
+    xpos[2] + xmat[8]*size[2]*0.5
   };
 
   // init: intersection with base box
-  mjtNum x = ray_box(base_pos, d->geom_xmat+9*id, base_size, pnt, vec, NULL, NULL);
+  mjtNum normal_base[3];
+  mjtNum x = ray_box(base_pos, xmat, base_size, pnt, vec,
+                     NULL, normal ? normal_base : NULL);
 
   // check top box: done if no intersection
   mjtNum all[6];
-  mjtNum top_intersect = ray_box(top_pos, d->geom_xmat+9*id, top_size, pnt, vec, all, NULL);
+  mjtNum top_intersect = ray_box(top_pos, xmat, top_size, pnt, vec, all, NULL);
   if (top_intersect < 0) {
+    if (normal && x >= 0) mju_copy3(normal, normal_base);
     return x;
   }
 
   // map to local frame
   mjtNum lpnt[3], lvec[3];
-  ray_map(d->geom_xpos+3*id, d->geom_xmat+9*id, pnt, vec, lpnt, lvec);
+  ray_map(xpos, xmat, pnt, vec, lpnt, lvec);
 
   // construct basis vectors of normal plane
   mjtNum b0[3] = {1, 1, 1}, b1[3];
@@ -641,18 +649,28 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
   int rmin = mjMAX(0,     (int)mju_floor(mjMIN(SY[0], SY[1]))-1);
   int rmax = mjMIN(nrow-1, (int)mju_ceil(mjMAX(SY[0], SY[1]))+1);
 
+  // local normal, initialize with base box normal (if any), in local frame
+  mjtNum normal_local[3] = {0, 0, 0};
+  if (normal && x >= 0) {
+    mju_mulMatTVec3(normal_local, xmat, normal_base);
+  }
+
   // check triangles within bounds
   for (int r=rmin; r < rmax; r++) {
     for (int c=cmin; c < cmax; c++) {
+      // triangle normal
+      mjtNum normal_tri[3];
+
       // first triangle
       mjtNum va[3][3] = {
         {dx*c-size[0], dy*r-size[1], data[r*ncol+c]*size[2]},
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]},
         {dx*(c+1)-size[0], dy*(r+0)-size[1], data[(r+0)*ncol+(c+1)]*size[2]}
       };
-      mjtNum sol = ray_triangle(va, lpnt, lvec, b0, b1, NULL);
+      mjtNum sol = ray_triangle(va, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
+        if (normal) mju_copy3(normal_local, normal_tri);
       }
 
       // second triangle
@@ -661,9 +679,10 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
         {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]},
         {dx*(c+0)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+0)]*size[2]}
       };
-      sol = ray_triangle(vb, lpnt, lvec, b0, b1, NULL);
+      sol = ray_triangle(vb, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
+        if (normal) mju_copy3(normal_local, normal_tri);
       }
     }
   }
@@ -696,11 +715,31 @@ mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int id,
       // check if point is below line segment
       if (z < z0*(y0+1-y) + z1*(y-y0)) {
         x = all[i];
+
+        // compute normal
+        if (normal) {
+          mju_zero3(normal_local);
+          if (i == 0) normal_local[0] = -1;
+          else if (i == 1) normal_local[0] = 1;
+          else if (i == 2) normal_local[1] = -1;
+          else if (i == 3) normal_local[1] = 1;
+        }
       }
     }
   }
 
+  // rotate normal to global frame
+  if (normal && x >= 0) {
+    mju_mulMatVec3(normal, xmat, normal_local);
+  }
+
   return x;
+}
+
+// intersect ray with hfield
+mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
+                    const mjtNum pnt[3], const mjtNum vec[3]) {
+  return mj_rayHfieldNormal(m, d, geomid, pnt, vec, NULL);
 }
 
 
@@ -846,10 +885,12 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
   return x;
 }
 
+// intersect ray with signed distance field, compute normal if given
+mjtNum mj_raySdfNormal(const mjModel* m, const mjData* d, int g,
+                       const mjtNum pnt[3], const mjtNum vec[3],
+                       mjtNum normal[3]) {
+  if (normal) mju_zero3(normal);
 
-// intersect ray with signed distance field
-mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
-               const mjtNum pnt[3], const mjtNum vec[3]) {
   mjtNum distance_total = 0;
   mjtNum p[3];
   mjtNum kMinDist = 1e-7;
@@ -887,9 +928,15 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   // ray marching, see e.g. https://en.wikipedia.org/wiki/Ray_marching
   for (int i=0; i < 40; i++) {
     mju_addScl3(p, lpnt, lvec, distance_total);
-    mjtNum distance = mjc_distance(m, d, &sdf, p);
+    mjtNum distance = mju_abs(mjc_distance(m, d, &sdf, p));
     distance_total += distance;
     if (mju_abs(distance) < kMinDist) {
+      if (normal) {
+        mju_addScl3(p, lpnt, lvec, distance_total);
+        mjc_gradient(m, d, &sdf, normal, p);
+        mju_normalize3(normal);
+        mju_mulMatVec3(normal, d->geom_xmat + 9*g, normal);
+      }
       return distance_total;
     }
     if (distance > 1e6) {
@@ -904,6 +951,12 @@ mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
   }
 
   return -1;
+}
+
+// intersect ray with signed distance field
+static mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
+                      const mjtNum pnt[3], const mjtNum vec[3]) {
+  return mj_raySdfNormal(m, d, g, pnt, vec, NULL);
 }
 
 // intersect ray with mesh, compute normal if given

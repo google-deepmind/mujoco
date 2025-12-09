@@ -212,7 +212,7 @@ def com_pos(m: Model, d: Data) -> Data:
       d.xanchor,
       d.xaxis,
   )
-  d = d.tree_replace({'_impl.cdof': cdof})
+  d = d.tree_replace({'cdof': cdof})
 
   return d
 
@@ -305,8 +305,8 @@ def crb(m: Model, d: Data) -> Data:
   d = d.tree_replace({'_impl.crb': crb_body})
 
   crb_dof = jp.take(crb_body, jp.array(m.dof_bodyid), axis=0)
-  crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d._impl.cdof)
-  qm = support.make_m(m, crb_cdof, d._impl.cdof, m.dof_armature)
+  crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d.cdof)
+  qm = support.make_m(m, crb_cdof, d.cdof, m.dof_armature)
   d = d.tree_replace({'_impl.qM': qm})
   return d
 
@@ -445,11 +445,11 @@ def com_vel(m: Model, d: Data) -> Data:
       'jvv',
       'bv',
       m.jnt_type,
-      d._impl.cdof,
+      d.cdof,
       d.qvel,
   )
 
-  d = d.tree_replace({'cvel': cvel, '_impl.cdof_dot': cdof_dot})
+  d = d.tree_replace({'cvel': cvel, 'cdof_dot': cdof_dot})
 
   return d
 
@@ -576,7 +576,7 @@ def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
     return cacc
 
   cacc = scan.body_tree(
-      m, cacc_fn, 'vvvv', 'b', d._impl.cdof_dot, d.qvel, d._impl.cdof, d.qacc
+      m, cacc_fn, 'vvvv', 'b', d.cdof_dot, d.qvel, d.cdof, d.qacc
   )
 
   def frc(cinert, cacc, cvel):
@@ -594,7 +594,7 @@ def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
     return cfrc
 
   cfrc = scan.body_tree(m, cfrc_fn, 'b', 'b', loc_cfrc, reverse=True)
-  qfrc_bias = jax.vmap(jp.dot)(d._impl.cdof, cfrc[jp.array(m.dof_bodyid)])
+  qfrc_bias = jax.vmap(jp.dot)(d.cdof, cfrc[jp.array(m.dof_bodyid)])
 
   d = d.replace(qfrc_bias=qfrc_bias)
 
@@ -806,8 +806,8 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
     )
 
     # cacc = cacc_parent + cdofdot * qvel + cdof * qacc
-    cacc_vel = d._impl.cdof_dot.T @ (mask * d.qvel)
-    cacc_acc = d._impl.cdof.T @ (mask * d.qacc)
+    cacc_vel = d.cdof_dot.T @ (mask * d.qvel)
+    cacc_acc = d.cdof.T @ (mask * d.qacc)
     cacc = cacc_parent + cacc_vel + cacc_acc
 
     # cfrc_body = cinert * cacc + cvel x (cinert * cvel)
@@ -1310,7 +1310,7 @@ def transmission(m: Model, d: Data) -> Data:
   moment = moment.reshape((m.nu, m.nv))
 
   d = d.tree_replace(
-      {'_impl.actuator_length': length, '_impl.actuator_moment': moment}
+      {'actuator_length': length, '_impl.actuator_moment': moment}
   )
   return d
 
