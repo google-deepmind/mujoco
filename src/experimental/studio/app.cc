@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cfloat>
 #if defined(USE_CLASSIC_OPENGL)
 #include <chrono>
 #endif
@@ -250,6 +251,18 @@ void App::ProcessPendingLoad() {
   renderer_->Init(model_);
   const int state_size = mj_stateSize(model_, mjSTATE_INTEGRATION);
   history_.Init(state_size);
+
+  // Initialize the speed based on the model's default real-time setting.
+  float min_error = FLT_MAX;
+  const float desired = mju_log(100 * model_->vis.global.realtime);
+  for (int i = 0; i < kPercentRealTime.size(); ++i) {
+    const float speed = std::stof(kPercentRealTime[i]);
+    const float error = mju_abs(mju_log(speed) - desired);
+    if (error < min_error) {
+      min_error = error;
+      SetSpeedIndex(i);
+    }
+  }
 
   // Update the window title and update the file paths for saving files related
   // to the loaded model.
@@ -1056,27 +1069,22 @@ void App::HelpGui() {
   ImGui::Columns();
 }
 
-
 void App::ToolBarGui() {
   if (ImGui::BeginTable("##ToolBarTable", 2)) {
+    platform::ScopedStyle style;
+
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 570);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 560);
 
     ImGui::TableNextColumn();
 
-    // Play/pause button.
-    const bool paused = step_control_.IsPaused();
-    if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, ImVec2(144, 32))) {
-      step_control_.TogglePause();
-    }
-    ImGui::SetItemTooltip("%s", paused ? "Play" : "Pause");
-
     // Reset/Reload/Unload.
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_RESET_MODEL, ImVec2(48, 32))) {
-      ResetPhysics();
+    style.Color(ImGuiCol_ButtonHovered, ImColor(220, 40, 40, 255));
+    if (ImGui::Button(ICON_UNLOAD_MODEL, ImVec2(48, 32))) {
+      LoadModel("");
     }
-    ImGui::SetItemTooltip("%s", "Reset");
+    ImGui::SetItemTooltip("%s", "Unload");
+    style.Reset();
 
     ImGui::SameLine();
     if (ImGui::Button(ICON_RELOAD_MODEL, ImVec2(48, 32))) {
@@ -1085,10 +1093,37 @@ void App::ToolBarGui() {
     ImGui::SetItemTooltip("%s", "Reload");
 
     ImGui::SameLine();
-    if (ImGui::Button(ICON_UNLOAD_MODEL, ImVec2(48, 32))) {
-      LoadModel("");
+    if (ImGui::Button(ICON_RESET_MODEL, ImVec2(48, 32))) {
+      ResetPhysics();
     }
-    ImGui::SetItemTooltip("%s", "Unload");
+    ImGui::SetItemTooltip("%s", "Reset");
+
+    // Play/pause button.
+    ImGui::SameLine();
+    const bool paused = step_control_.IsPaused();
+    style.Color(ImGuiCol_Button,
+                paused ? ImColor(250, 230, 10, 255) : ImColor(40, 180, 40, 255));
+    if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, ImVec2(120, 32))) {
+      step_control_.TogglePause();
+    }
+    ImGui::SetItemTooltip("%s", paused ? "Play" : "Pause");
+    style.Reset();
+
+    ImGui::SameLine();
+    ImGui::Text("%s", " |");
+
+    // Speed selection.
+    ImGui::SameLine();
+    ImGui::Text("%s", ICON_SPEED);
+    ImGui::SetItemTooltip("%s", "Playback Speed");
+
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(80);
+    int speed_index = tmp_.speed_index;
+    if (ImGui::Combo("##Speed", &speed_index, kPercentRealTime.data(),
+                     kPercentRealTime.size())) {
+      SetSpeedIndex(speed_index);
+    }
 
     // Camera selection.
     ImGui::TableNextColumn();
@@ -1158,7 +1193,7 @@ void App::ToolBarGui() {
 void App::StatusBarGui() {
   if (ImGui::BeginTable("##StatusBarTable", 2)) {
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 670);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 520);
 
     ImGui::TableNextColumn();
 
@@ -1186,22 +1221,6 @@ void App::StatusBarGui() {
     }
 
     ImGui::TableNextColumn();
-    ImGui::Text("%s", " |");
-
-    // Speed selection.
-    ImGui::SameLine();
-    ImGui::Text("%s", ICON_SPEED);
-    ImGui::SetItemTooltip("%s", "Playback Speed");
-
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(70);
-    int speed_index = tmp_.speed_index;
-    if (ImGui::Combo("##Speed", &speed_index, kPercentRealTime.data(),
-                     kPercentRealTime.size())) {
-      SetSpeedIndex(speed_index);
-    }
-
-    ImGui::SameLine();
     ImGui::Text("%s", " |");
 
     // Frame scrubber.
