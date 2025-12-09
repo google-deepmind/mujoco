@@ -55,6 +55,7 @@ class Renderer {
   mjtByte* GetRenderFlags() { return scene_.flags; }
 
   // Returns the render context.
+  mjrContext& GetContext() { return render_context_; }
   const mjrContext& GetContext() const { return render_context_; }
 
  private:
