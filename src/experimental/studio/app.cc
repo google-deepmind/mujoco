@@ -44,6 +44,7 @@
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
+#include "xml/xml.h"
 #include "xml/xml_api.h"
 
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
@@ -222,7 +223,10 @@ void App::ProcessPendingLoad() {
   if (model_file_.ends_with(".mjb")) {
     model_ = mj_loadModel(model_file_.c_str(), 0);
   } else if (model_file_.ends_with(".xml")) {
-    model_ = mj_loadXML(model_file_.c_str(), nullptr, err, sizeof(err));
+    spec_ = ParseXML(model_file_.c_str(), nullptr, err, sizeof(err));
+    if (spec_ && err[0] == 0) {
+      model_ = mj_compile(spec_, nullptr);
+    }
   } else {
     error_ = "Unknown model file type; expected .mjb or .xml.";
   }
@@ -596,7 +600,7 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F1)) {
     ToggleWindow(tmp_.help);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F2)) {
-    ToggleWindow(tmp_.info);
+    ToggleWindow(tmp_.stats);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F6)) {
     vis_options_.frame = (vis_options_.frame + 1) % mjNFRAME;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F7)) {
@@ -806,6 +810,20 @@ void App::BuildGui() {
       DataInspectorGui();
     }
     ImGui::End();
+
+    bool explorer_is_open = false;
+    if (ImGui::Begin("Explorer", &tmp_.inspector_panel)) {
+      explorer_is_open = true;
+      SpecExplorerGui();
+    }
+    ImGui::End();
+
+    if (explorer_is_open && tmp_.element != nullptr) {
+      if (ImGui::Begin("Properties")) {
+        PropertiesGui();
+      }
+      ImGui::End();
+    }
   }
 
   if (tmp_.chart_cpu_time) {
@@ -848,11 +866,11 @@ void App::BuildGui() {
     ImGui::End();
   }
 
-  if (tmp_.info) {
+  if (tmp_.stats) {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
-    if (ImGui::Begin("Info", &tmp_.info)) {
-      platform::InfoGui(model_, data_, step_control_.IsPaused(), fps_);
+    if (ImGui::Begin("Stats", &tmp_.stats)) {
+      platform::StatsGui(model_, data_, step_control_.IsPaused(), fps_);
     }
     ImGui::End();
   }
@@ -931,6 +949,11 @@ void App::ModelOptionsGui() {
 }
 
 void App::DataInspectorGui() {
+  if (data_ == nullptr) {
+    ImGui::Text("No mjData loaded.");
+    return;
+  }
+
   const float min_width = GetExpectedLabelWidth();
   const ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
@@ -966,6 +989,112 @@ void App::DataInspectorGui() {
   }
 }
 
+void DisplayElementTree(mjsElement* element) {
+  const mjString* name = mjs_getName(element);
+  if (name->empty()) {
+    ImGui::Text("(unnamed)");
+  } else {
+    ImGui::Text("%s", name->c_str());
+  }
+}
+
+void App::SpecExplorerGui() {
+  if (spec_ == nullptr) {
+    ImGui::Text("No mjSpec loaded.");
+    return;
+  }
+
+  const ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth;
+
+  auto display_group = [this](mjtObj type, const std::string& prefix) {
+    mjsElement* element = mjs_firstElement(spec_, type);
+    while (element) {
+      const int id = mjs_getId(element);
+
+      const mjString* name = mjs_getName(element);
+      std::string label = *name;
+      if (label.empty()) {
+        label = "(" + prefix + " " + std::to_string(id) + ")";
+      }
+
+      if (ImGui::Selectable(label.c_str(), false)) {
+        tmp_.element = element;
+        tmp_.element_id = id;
+      }
+
+      element = mjs_nextElement(spec_, element);
+    }
+  };
+
+
+  if (ImGui::TreeNodeEx("Bodies", flags)) {
+    // We don't use `display_group` here because we do additional selection
+    // logic tied to the `perturb_` field.
+    mjsElement* element = mjs_firstElement(spec_, mjOBJ_BODY);
+    while (element) {
+      const int id = mjs_getId(element);
+
+      const mjString* name = mjs_getName(element);
+      std::string label = *name;
+      if (label.empty()) {
+        label = "(Body " + std::to_string(id) + ")";
+      }
+
+      if (ImGui::Selectable(label.c_str(), (id == perturb_.select),
+                            ImGuiSelectableFlags_AllowDoubleClick)) {
+        tmp_.element = element;
+        tmp_.element_id = id;
+      }
+      if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        perturb_.select = id;
+      }
+
+      element = mjs_nextElement(spec_, element);
+    }
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("Joints", flags)) {
+    display_group(mjOBJ_JOINT, "Joint");
+    ImGui::TreePop();
+  }
+
+  if (ImGui::TreeNodeEx("Sites", flags)) {
+    display_group(mjOBJ_SITE, "Site");
+    ImGui::TreePop();
+  }
+}
+
+void App::PropertiesGui() {
+  if (tmp_.element == nullptr) {
+    ImGui::Text("No element selected.");
+    return;
+  }
+
+  switch (tmp_.element->elemtype) {
+    case mjOBJ_BODY:
+      ImGui::Text("Body");
+      ImGui::Separator();
+      platform::BodyPropertiesGui(model_, data_, tmp_.element, tmp_.element_id);
+      break;
+    case mjOBJ_JOINT:
+      ImGui::Text("Joint");
+      ImGui::Separator();
+      platform::JointPropertiesGui(model_, data_, tmp_.element,
+                                   tmp_.element_id);
+      break;
+    case mjOBJ_SITE:
+      ImGui::Text("Site");
+      ImGui::Separator();
+      platform::SitePropertiesGui(model_, data_, tmp_.element,
+                                  tmp_.element_id);
+      break;
+    default:
+      // ignore other types
+      break;
+  }
+}
+
 void App::HelpGui() {
   ImGui::Columns(4);
   ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.35f);
@@ -974,7 +1103,7 @@ void App::HelpGui() {
   ImGui::SetColumnWidth(3, ImGui::GetWindowWidth() * 0.1f);
 
   ImGui::Text("Help");
-  ImGui::Text("Info");
+  ImGui::Text("Stats");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
   ImGui::Text("Free Camera");
@@ -1364,8 +1493,8 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Help", "F1", tmp_.help)) {
         ToggleWindow(tmp_.help);
       }
-      if (ImGui::MenuItem("Info", "F2", tmp_.info)) {
-        ToggleWindow(tmp_.info);
+      if (ImGui::MenuItem("Stats", "F2", tmp_.stats)) {
+        ToggleWindow(tmp_.stats);
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Style Editor", "", tmp_.style_editor)) {

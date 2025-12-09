@@ -49,8 +49,13 @@ void SetupTheme(GuiTheme theme);
 //       are used to configure the simulation (e.g. PhysicsGui).
 //   "Inspector": resizable section of the right; designed for inspecting
 //       or manipulating mjData elements (e.g. ControlsGui).
-//   "Info": resizable section below the inspector; designed for displaying
-//       basic simulation information (e.g. InfoGui); hidden by default.
+//   "Explorer": secondary tab connected to the Inspector; designed for
+//       displaying the tree of mjSpec elements.
+//   "Stats": resizable section below the options; designed for displaying
+//       basic simulation statistics (e.g. StatsGui); hidden by default.
+//   "Properties": resizable section below the explorer; designed for displaying
+//       properties of mjSpec elements (e.g. BodyPropertiesGui); hidden by
+//       default.
 //
 // Returns the size and position of the remaining workspace area which can then
 // be used to place additional elements (e.g. floating charts).
@@ -108,7 +113,15 @@ void CountsGui(const mjModel* model, mjData* data);
 
 // UX for displaying basic simulation information. Note that the pause state and
 // FPS needs to be tracked by the caller and passed here to be displayed.
-void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps);
+void StatsGui(const mjModel* model, const mjData* data, bool paused, float fps);
+
+// UX for displaying properties of various mjSpec elements.
+void BodyPropertiesGui(const mjModel* model, const mjData* data,
+                       mjsElement* element, int id);
+void JointPropertiesGui(const mjModel* model, const mjData* data,
+                        mjsElement* element, int id);
+void SitePropertiesGui(const mjModel* model, const mjData* data,
+                       mjsElement* element, int id);
 
 }  // namespace mujoco::platform
 

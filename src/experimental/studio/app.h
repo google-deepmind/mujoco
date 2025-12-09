@@ -84,7 +84,7 @@ class App {
 
     // Windows.
     bool help = false;
-    bool info = false;
+    bool stats = false;
     bool chart_cpu_time = false;
     bool chart_dimensions = false;
     bool chart_solver = false;
@@ -105,6 +105,10 @@ class App {
     float expected_label_width = 0;
     std::vector<std::string> camera_names;
     std::vector<std::string> speed_names;
+
+    // Spec Properties.
+    mjsElement* element = nullptr;
+    int element_id = -1;
 
     // State.
     int state_sig = 0;
@@ -152,6 +156,8 @@ class App {
   void FileDialogGui();
   void ModelOptionsGui();
   void DataInspectorGui();
+  void SpecExplorerGui();
+  void PropertiesGui();
 
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();

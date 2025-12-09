@@ -33,8 +33,8 @@ namespace mujoco::platform {
 static constexpr int kToolsBarHeight = 48;
 static constexpr int kStatusBarHeight = 32;
 static constexpr float kOptionsRelWidth = 0.22f;
-static constexpr float kInspectorRelWidth = 0.18f;
-static constexpr float kInfoRelHeight = 0.3f;
+static constexpr float kInspectorRelWidth = 0.22f;
+static constexpr float kStatsRelHeight = 0.3f;
 
 static ImVec2 GetFlexElementSize(int num_cols) {
   const float width = (ImGui::GetContentRegionAvail().x / num_cols) -
@@ -83,14 +83,20 @@ ImVec4 ConfigureDockingLayout() {
     ImGui::DockBuilderSplitNode(main, ImGuiDir_Right, kInspectorRelWidth,
                                 &inspector, &main);
 
-    ImGuiID info = 0;
-    ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kInfoRelHeight,
-                                &info, &inspector);
+    ImGuiID stats = 0;
+    ImGui::DockBuilderSplitNode(options, ImGuiDir_Down, kStatsRelHeight,
+                                &stats, &options);
+
+    ImGuiID properties = 0;
+    ImGui::DockBuilderSplitNode(inspector, ImGuiDir_Down, kStatsRelHeight,
+                                &properties, &inspector);
 
     ImGui::DockBuilderDockWindow("Dockspace", main);
     ImGui::DockBuilderDockWindow("Options", options);
+    ImGui::DockBuilderDockWindow("Explorer", inspector);
     ImGui::DockBuilderDockWindow("Inspector", inspector);
-    ImGui::DockBuilderDockWindow("Info", info);
+    ImGui::DockBuilderDockWindow("Properties", properties);
+    ImGui::DockBuilderDockWindow("Stats", stats);
     ImGui::DockBuilderFinish(root);
   }
 
@@ -848,7 +854,8 @@ void CountsGui(const mjModel* model, mjData* data) {
   }
 }
 
-void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps) {
+void StatsGui(const mjModel* model, const mjData* data, bool paused,
+              float fps) {
   const int num_islands = std::clamp(data->nisland, 1, mjNISLAND);
 
   // compute solver error (maximum over islands)
@@ -914,6 +921,113 @@ void InfoGui(const mjModel* model, const mjData* data, bool paused, float fps) {
     ImGui::Text("%d", data->nisland);
   }
   ImGui::Columns();
+}
+
+void BodyPropertiesGui(const mjModel* model, const mjData* data,
+                       mjsElement* element, int id) {
+  const mjsBody* body = mjs_asBody(element);
+
+  ImGui::Columns(2);
+  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.4f);
+  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.6f);
+
+  std::string name = *mjs_getName(body->element);
+  if (name.empty()) {
+    name = "(Body " + std::to_string(id) + ")";
+  }
+
+  ImGui::Columns(2);
+  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.3f);
+  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.7f);
+
+  ImGui::Text("Name");
+  ImGui::Text("xpos[0]");
+  ImGui::Text("xpos[1]");
+  ImGui::Text("xpos[2]");
+  ImGui::Text("xquat[0]");
+  ImGui::Text("xquat[1]");
+  ImGui::Text("xquat[2]");
+  ImGui::Text("xquat[3]");
+  ImGui::Text("mass");
+
+  ImGui::NextColumn();
+  ImGui::Text("%s", name.c_str());
+  ImGui::Text("%f", data->xpos[3*id+0]);
+  ImGui::Text("%f", data->xpos[3*id+1]);
+  ImGui::Text("%f", data->xpos[3*id+2]);
+  ImGui::Text("%f", data->xquat[4*id+0]);
+  ImGui::Text("%f", data->xquat[4*id+1]);
+  ImGui::Text("%f", data->xquat[4*id+2]);
+  ImGui::Text("%f", data->xquat[4*id+3]);
+  ImGui::Text("%f", model->body_mass[id]);
+}
+
+void JointPropertiesGui(const mjModel* model, const mjData* data,
+                        mjsElement* element, int id) {
+  const mjsJoint* joint = mjs_asJoint(element);
+
+  ImGui::Columns(2);
+  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.4f);
+  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.6f);
+
+  std::string name = *mjs_getName(joint->element);
+  if (name.empty()) {
+    name = "(Joint " + std::to_string(id) + ")";
+  }
+
+  ImGui::Columns(2);
+  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.3f);
+  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.7f);
+  ImGui::Text("Name");
+
+  ImGui::NextColumn();
+  ImGui::Text("%s", name.c_str());
+}
+
+void SitePropertiesGui(const mjModel* model, const mjData* data,
+                      mjsElement* element, int id) {
+  const mjsSite* site = mjs_asSite(element);
+
+  ImGui::Columns(2);
+  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.4f);
+  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.6f);
+
+  std::string name = *mjs_getName(site->element);
+  if (name.empty()) {
+    name = "(Joint " + std::to_string(id) + ")";
+  }
+
+  ImGui::Columns(2);
+  ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.3f);
+  ImGui::SetColumnWidth(1, ImGui::GetWindowWidth() * 0.7f);
+  ImGui::Text("Name");
+  ImGui::Text("site_xpos[0]");
+  ImGui::Text("site_xpos[1]");
+  ImGui::Text("site_xpos[2]");
+  ImGui::Text("site_xmat[0]");
+  ImGui::Text("site_xmat[1]");
+  ImGui::Text("site_xmat[2]");
+  ImGui::Text("site_xmat[3]");
+  ImGui::Text("site_xmat[4]");
+  ImGui::Text("site_xmat[5]");
+  ImGui::Text("site_xmat[6]");
+  ImGui::Text("site_xmat[7]");
+  ImGui::Text("site_xmat[8]");
+
+  ImGui::NextColumn();
+  ImGui::Text("%s", name.c_str());
+  ImGui::Text("%f", data->site_xpos[3*id+0]);
+  ImGui::Text("%f", data->site_xpos[3*id+1]);
+  ImGui::Text("%f", data->site_xpos[3*id+2]);
+  ImGui::Text("%f", data->site_xmat[4*id+0]);
+  ImGui::Text("%f", data->site_xmat[4*id+1]);
+  ImGui::Text("%f", data->site_xmat[4*id+2]);
+  ImGui::Text("%f", data->site_xmat[4*id+3]);
+  ImGui::Text("%f", data->site_xmat[4*id+4]);
+  ImGui::Text("%f", data->site_xmat[4*id+5]);
+  ImGui::Text("%f", data->site_xmat[4*id+6]);
+  ImGui::Text("%f", data->site_xmat[4*id+7]);
+  ImGui::Text("%f", data->site_xmat[4*id+8]);
 }
 
 }  // namespace mujoco::platform
