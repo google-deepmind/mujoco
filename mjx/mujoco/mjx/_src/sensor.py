@@ -175,7 +175,7 @@ def sensor_pos(m: Model, d: Data) -> Data:
     elif sensor_type == SensorType.TENDONPOS:
       sensor = d.ten_length[objid]
     elif sensor_type == SensorType.ACTUATORPOS:
-      sensor = d._impl.actuator_length[objid]
+      sensor = d.actuator_length[objid]
     elif sensor_type == SensorType.BALLQUAT:
       jnt_qposadr = m.jnt_qposadr[objid, None] + np.arange(4)[None]
       quat = d.qpos[jnt_qposadr]

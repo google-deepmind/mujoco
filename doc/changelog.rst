@@ -2,6 +2,19 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+General
+^^^^^^^
+
+MJX
+^^^
+1. Added ``actuator_length``, ``cdof`` and ``cdof_dof`` fields to ``mjx.Data``.
+
+Bug fixes
+^^^^^^^^^
+
 Version 3.4.0 (December 5, 2025)
 --------------------------------
 

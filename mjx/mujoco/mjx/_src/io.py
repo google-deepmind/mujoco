@@ -552,6 +552,7 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'cam_xmat': (m.ncam, 3, 3, float_),
       'subtree_com': (m.nbody, 3, float_),
       'actuator_force': (m.nu, float_),
+      'actuator_length': (m.nu, float_),
       'qfrc_bias': (m.nv, float_),
       'qfrc_gravcomp': (m.nv, float_),
       'qfrc_fluid': (m.nv, float_),
@@ -562,6 +563,8 @@ def _make_data_public_fields(m: types.Model) -> Dict[str, Any]:
       'qfrc_constraint': (m.nv, float_),
       'qfrc_inverse': (m.nv, float_),
       'cvel': (m.nbody, 6, float_),
+      'cdof': (m.nv, 6, float_),
+      'cdof_dot': (m.nv, 6, float_),
       'ten_length': (m.ntendon, float_),
   }
   zero_fields = {
@@ -619,14 +622,12 @@ def _make_data_jax(
 
   zero_impl_fields = {
       'solver_niter': (int_,),
-      'cdof': (m.nv, 6, float_),
       'cinert': (m.nbody, 10, float_),
       'ten_wrapadr': (m.ntendon, np.int32),
       'ten_wrapnum': (m.ntendon, np.int32),
       'ten_J': (m.ntendon, m.nv, float_),
       'wrap_obj': (m.nwrap, 2, np.int32),
       'wrap_xpos': (m.nwrap, 6, float_),
-      'actuator_length': (m.nu, float_),
       'actuator_moment': (m.nu, m.nv, float_),
       'crb': (m.nbody, 10, float_),
       'qM': (m.nM, float_) if support.is_sparse(m) else (m.nv, m.nv, float_),
@@ -635,7 +636,6 @@ def _make_data_jax(
       'qLDiagInv': (m.nv, float_) if support.is_sparse(m) else (0, float_),
       'ten_velocity': (m.ntendon, float_),
       'actuator_velocity': (m.nu, float_),
-      'cdof_dot': (m.nv, 6, float_),
       'cacc': (m.nbody, 6, float_),
       'cfrc_int': (m.nbody, 6, float_),
       'cfrc_ext': (m.nbody, 6, float_),
@@ -713,7 +713,6 @@ def _make_data_c(
   nbvhdynamic = get(m, 'nbvhdynamic')
   zero_impl_fields = {
       'solver_niter': (int_,),
-      'cdof': (m.nv, 6, float_),
       'cinert': (m.nbody, 10, float_),
       'light_xpos': (m.nlight, 3, float_),
       'light_xdir': (m.nlight, 3, float_),
@@ -732,7 +731,6 @@ def _make_data_c(
       'ten_wrapnum': (m.ntendon, np.int32),
       'wrap_obj': (m.nwrap, 2, np.int32),
       'wrap_xpos': (m.nwrap, 6, float_),
-      'actuator_length': (m.nu, float_),
       'moment_rownnz': (m.nu, np.int32),
       'moment_rowadr': (m.nu, np.int32),
       'moment_colind': (m.nJmom, np.int32),
@@ -762,7 +760,6 @@ def _make_data_c(
       'qLU': (m.nD, float_),
       'qfrc_spring': (m.nv, float_),
       'qfrc_damper': (m.nv, float_),
-      'cdof_dot': (m.nv, 6, float_),
       'cacc': (m.nbody, 6, float_),
       'cfrc_int': (m.nbody, 6, float_),
       'cfrc_ext': (m.nbody, 6, float_),
