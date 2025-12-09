@@ -695,7 +695,7 @@ static void initLights(mjvScene* scn) {
     }
 
     else {
-      mju_error("Unsupported light type: %d", scn->lights[i].type);
+      // ignore unsupported light types: mjLIGHT_POINT, mjLIGHT_IMAGE
     }
   }
 
@@ -808,7 +808,7 @@ static void adjustLight(const mjvLight* thislight, int n) {
     mjr_setf4(temp, thislight->pos[0], thislight->pos[1], thislight->pos[2], 1);
     glLightfv(GL_LIGHT0+n, GL_POSITION, temp);
   } else {
-    mju_error("Unsupported light type: %d", thislight->type);
+    // ignore unsupported light types: mjLIGHT_POINT, mjLIGHT_IMAGE
   }
 }
 
@@ -1202,7 +1202,7 @@ void mjr_render(mjrRect viewport, mjvScene* scn, const mjrContext* con) {
             mjr_perspective(mju_min(2*thislight->cutoff*con->shadowScale, 160), 1,
                             cam.frustum_near, cam.frustum_far);
           } else {
-            mju_error("Unsupported light type: %d", thislight->type);
+            // ignore unsupported light types: mjLIGHT_POINT, mjLIGHT_IMAGE
           }
           glGetFloatv(GL_PROJECTION_MATRIX, lightProject);
 
