@@ -530,6 +530,8 @@ void App::HandleKeyboardEvents() {
 
   constexpr auto ImGuiMode_CtrlShift = ImGuiMod_Ctrl | ImGuiMod_Shift;
 
+  bool is_freecam_wasd = ui_.camera_idx == platform::kFreeCameraIdx;
+
   // Menu shortcuts.
   if (ImGui_IsChordJustPressed(ImGuiKey_O | ImGuiMod_Ctrl)) {
     ShowPopup(tmp_.load_popup);
@@ -592,54 +594,56 @@ void App::HandleKeyboardEvents() {
     tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
     tmp_.chart_dimensions = !tmp_.chart_dimensions;
-  // } else if (ImGui_IsChordJustPressed(ImGuiKey_Backquote)) {
-  //   ToggleFlag(vis_options_.flags[mjVIS_BODYBVH]);
-  // } else if (ImGui_IsChordJustPressed(ImGuiKey_Quote)) {
-  //   ToggleFlag(vis_options_.flags[mjVIS_SCLINERTIA]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Comma)) {
-    ToggleFlag(vis_options_.flags[mjVIS_ACTIVATION]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Backslash)) {
-    ToggleFlag(vis_options_.flags[mjVIS_MESHBVH]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Semicolon)) {
-    ToggleFlag(vis_options_.flags[mjVIS_SKIN]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_U)) {
-    ToggleFlag(vis_options_.flags[mjVIS_ACTUATOR]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_L)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CAMERA]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_M)) {
-    ToggleFlag(vis_options_.flags[mjVIS_COM]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_F)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CONTACTFORCE]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_C)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CONTACTPOINT]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_P)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CONTACTSPLIT]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
     ToggleFlag(vis_options_.flags[mjVIS_CONVEXHULL]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_N)) {
-    ToggleFlag(vis_options_.flags[mjVIS_CONSTRAINT]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_I)) {
-    ToggleFlag(vis_options_.flags[mjVIS_ISLAND]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_X)) {
+    ToggleFlag(vis_options_.flags[mjVIS_TEXTURE]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_J)) {
     ToggleFlag(vis_options_.flags[mjVIS_JOINT]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_Q)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CAMERA]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_U)) {
+    ToggleFlag(vis_options_.flags[mjVIS_ACTUATOR]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Comma)) {
+    ToggleFlag(vis_options_.flags[mjVIS_ACTIVATION]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Z)) {
     ToggleFlag(vis_options_.flags[mjVIS_LIGHT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_V)) {
+    ToggleFlag(vis_options_.flags[mjVIS_TENDON]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Y)) {
+    ToggleFlag(vis_options_.flags[mjVIS_RANGEFINDER]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_E)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONSTRAINT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_I)) {
+    ToggleFlag(vis_options_.flags[mjVIS_INERTIA]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Apostrophe)) {
+    ToggleFlag(vis_options_.flags[mjVIS_SCLINERTIA]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_B)) {
     ToggleFlag(vis_options_.flags[mjVIS_PERTFORCE]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_O)) {
     ToggleFlag(vis_options_.flags[mjVIS_PERTOBJ]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_Y)) {
-    ToggleFlag(vis_options_.flags[mjVIS_RANGEFINDER]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_V)) {
-    ToggleFlag(vis_options_.flags[mjVIS_TENDON]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_X)) {
-    ToggleFlag(vis_options_.flags[mjVIS_TEXTURE]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_C)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONTACTPOINT]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_N)) {
+    ToggleFlag(vis_options_.flags[mjVIS_ISLAND]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_F)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONTACTFORCE]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_P)) {
+    ToggleFlag(vis_options_.flags[mjVIS_CONTACTSPLIT]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_T)) {
     ToggleFlag(vis_options_.flags[mjVIS_TRANSPARENT]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_K)) {
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_A)) {
     ToggleFlag(vis_options_.flags[mjVIS_AUTOCONNECT]);
-  } else if (ImGui_IsChordJustPressed(ImGuiKey_G)) {
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_M)) {
+    ToggleFlag(vis_options_.flags[mjVIS_COM]);
+  } else if (!is_freecam_wasd && ImGui_IsChordJustPressed(ImGuiKey_D)) {
     ToggleFlag(vis_options_.flags[mjVIS_STATIC]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Semicolon)) {
+    ToggleFlag(vis_options_.flags[mjVIS_SKIN]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_GraveAccent)) {
+    ToggleFlag(vis_options_.flags[mjVIS_BODYBVH]);
+  } else if (ImGui_IsChordJustPressed(ImGuiKey_Backslash)) {
+    ToggleFlag(vis_options_.flags[mjVIS_MESHBVH]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_0 | ImGuiMod_Shift)) {
     ToggleFlag(vis_options_.sitegroup[0]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_1 | ImGuiMod_Shift)) {
@@ -674,7 +678,7 @@ void App::HandleKeyboardEvents() {
     }
 
     // WASD camera controls for free camera.
-    if (ui_.camera_idx == platform::kFreeCameraIdx) {
+    if (is_freecam_wasd) {
       bool moved = false;
 
       // Move (dolly) forward/backward using W and S keys.
