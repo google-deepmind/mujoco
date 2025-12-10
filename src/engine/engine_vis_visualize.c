@@ -196,9 +196,14 @@ void releaseGeom(mjvGeom** geom, mjvScene* scn) {
 }
 
 
-// make a triangle in thisgeom at coordinates v0, v1, v2 with a given color
-static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[3],
-                         const mjtNum v2[3], const float rgba[4]) {
+// add a triangle to the scene
+static void addTriangle(mjvScene* scn, const mjtNum v0[3], const mjtNum v1[3],
+                        const mjtNum v2[3], const float rgba[4],
+                        int objid, int category, int objtype) {
+  mjvGeom* thisgeom = acquireGeom(scn, objid, category, objtype);
+  if (!thisgeom) {
+    return;
+  }
   mjtNum e1[3] =  {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
   mjtNum e2[3] =  {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
   mjtNum normal[3];
@@ -208,6 +213,7 @@ static void makeTriangle(mjvGeom* thisgeom, const mjtNum v0[3], const mjtNum v1[
                     e1[1], e2[1], normal[1],
                     e1[2], e2[2], normal[2]};
   mjv_initGeom(thisgeom, mjGEOM_TRIANGLE, lengths, v0, xmat, rgba);
+  releaseGeom(&thisgeom, scn);
 }
 
 
@@ -279,6 +285,20 @@ void mjv_connector(mjvGeom* geom, int type, mjtNum width,
   mju_quatZ2Vec(quat, dif);
   mju_quat2Mat(mat, quat);
   mju_n2f(geom->mat, mat, 9);
+}
+
+
+// add a connector to the scene
+static void addConnector(mjvScene* scn, int type, mjtNum width,
+                         const mjtNum from[3], const mjtNum to[3],
+                         const float rgba[4], int objid, int category, int objtype) {
+  mjvGeom* thisgeom = acquireGeom(scn, objid, category, objtype);
+  if (!thisgeom) {
+    return;
+  }
+  mjv_connector(thisgeom, type, width, from, to);
+  if (rgba) f2f(thisgeom->rgba, rgba, 4);
+  releaseGeom(&thisgeom, scn);
 }
 
 
@@ -1595,11 +1615,6 @@ static void addTactileSensorGeoms(const mjModel* m, mjData* d, const mjvOption* 
       float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
       int* face = m->mesh_face + 3*m->mesh_faceadr[mesh_id];
       for (int i=0; i < m->mesh_facenum[mesh_id]; i++) {
-        mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
-        if (!thisgeom) {
-          return;
-        }
-
         // triangle in global frame
         mjtNum pos[3][3];
         for (int j = 0; j < 3; j++) {
@@ -1631,9 +1646,7 @@ static void addTactileSensorGeoms(const mjModel* m, mjData* d, const mjvOption* 
         }
 
         // draw triangles, one per side
-        makeTriangle(thisgeom, pos[0], pos[1], pos[2], rgba);
-        thisgeom->objid = id;
-        releaseGeom(&thisgeom, scn);
+        addTriangle(scn, pos[0], pos[1], pos[2], rgba, id, mjCAT_DECOR, mjOBJ_SENSOR);
       }
     }
   }
@@ -2270,44 +2283,16 @@ static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, m
 
       // triangulation and wireframe of the frustum
       for (int e=0; e < 4; e++) {
-        mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
-        if (!thisgeom) {
-          return;
-        }
-
-        makeTriangle(thisgeom, vnear[e], vfar[e], vnear[(e+1)%4], rgba);
-        releaseGeom(&thisgeom, scn);
-
-        thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
-        if (!thisgeom) {
-          return;
-        }
-        makeTriangle(thisgeom, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba);
-        releaseGeom(&thisgeom, scn);
-
-        thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
-        if (!thisgeom) {
-          return;
-        }
-        mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4]);
-        f2f(thisgeom->rgba, rgba, 4);
-        releaseGeom(&thisgeom, scn);
-
-        thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
-        if (!thisgeom) {
-          return;
-        }
-        mjv_connector(thisgeom, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4]);
-        f2f(thisgeom->rgba, rgba, 4);
-        releaseGeom(&thisgeom, scn);
-
-        thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_CAMERA);
-        if (!thisgeom) {
-          return;
-        }
-        mjv_connector(thisgeom, mjGEOM_LINE, 3, vnear[e], vfar[e]);
-        f2f(thisgeom->rgba, rgba, 4);
-        releaseGeom(&thisgeom, scn);
+        addTriangle(scn, vnear[e], vfar[e], vnear[(e+1)%4], rgba,
+                    i, mjCAT_DECOR, mjOBJ_CAMERA);
+        addTriangle(scn, vfar[e], vfar[(e+1)%4], vnear[(e+1)%4], rgba,
+                    i, mjCAT_DECOR, mjOBJ_CAMERA);
+        addConnector(scn, mjGEOM_LINE, 3, vnear[e], vnear[(e+1)%4], rgba,
+                     i, mjCAT_DECOR, mjOBJ_CAMERA);
+        addConnector(scn, mjGEOM_LINE, 3, vfar[e], vfar[(e+1)%4], rgba,
+                     i, mjCAT_DECOR, mjOBJ_CAMERA);
+        addConnector(scn, mjGEOM_LINE, 3, vnear[e], vfar[e], rgba,
+                     i, mjCAT_DECOR, mjOBJ_CAMERA);
       }
     }
 
@@ -2458,31 +2443,20 @@ static void addAutoConnectGeoms(const mjModel* m, mjData* d, const mjvOption* vo
     mjtNum* cur = d->xipos+3*i;
     if (m->body_jntnum[i]) {
       for (int j=m->body_jntadr[i]+m->body_jntnum[i]-1; j >= m->body_jntadr[i]; j--) {
-        mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
-        if (!thisgeom) {
-          return;
-        }
         mjtNum* nxt = d->xanchor+3*j;
 
         // construct geom
-        mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt);
-        f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
+        addConnector(scn, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, nxt,
+                     m->vis.rgba.connect, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
 
-        releaseGeom(&thisgeom, scn);
         cur = nxt;
       }
     }
 
     // connect first joint (or com) to parent com
-    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
-    if (!thisgeom) {
-      return;
-    }
-
     mjtNum* first = d->xipos+3*m->body_parentid[i];
-    mjv_connector(thisgeom, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, first);
-    f2f(thisgeom->rgba, m->vis.rgba.connect, 4);
-    releaseGeom(&thisgeom, scn);
+    addConnector(scn, mjGEOM_CAPSULE, scl * m->vis.scale.connect, cur, first,
+                 m->vis.rgba.connect, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
   }
 }
 
@@ -2505,18 +2479,12 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
       }
 
       // make ray
-      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
-      if (!thisgeom) {
-        return;
-      }
-
       mjtNum* from = d->site_xpos+3*sid;
       mjtNum to[3] = {from[0] + d->site_xmat[9*sid+2]*dst,
                       from[1] + d->site_xmat[9*sid+5]*dst,
                       from[2] + d->site_xmat[9*sid+8]*dst};
-      mjv_connector(thisgeom, mjGEOM_LINE, 3, from, to);
-      f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
-      releaseGeom(&thisgeom, scn);
+      addConnector(scn, mjGEOM_LINE, 3, from, to, m->vis.rgba.rangefinder,
+                   i, mjCAT_DECOR, mjOBJ_SENSOR);
     } else if (m->sensor_type[i] == mjSENS_GEOMFROMTO) {
       // sensor data
       mjtNum* fromto = d->sensordata + m->sensor_adr[i];
@@ -2527,14 +2495,8 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
       }
 
       // make ray
-      mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
-      if (!thisgeom) {
-        return;
-      }
-
-      mjv_connector(thisgeom, mjGEOM_LINE, 3, fromto, fromto+3);
-      f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
-      releaseGeom(&thisgeom, scn);
+      addConnector(scn, mjGEOM_LINE, 3, fromto, fromto+3, m->vis.rgba.rangefinder,
+                   i, mjCAT_DECOR, mjOBJ_SENSOR);
     }
   }
 }
@@ -2557,11 +2519,6 @@ static void addExternalPerturbGeoms(const mjModel* m, mjData* d, const mjvOption
       continue;
     }
 
-    mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
-    if (!thisgeom) {
-      return;
-    }
-
     mjtNum* from = d->xipos+3*i;
 
     // map force to spatial vector in world frame
@@ -2570,9 +2527,8 @@ static void addExternalPerturbGeoms(const mjModel* m, mjData* d, const mjvOption
     mjtNum to[3];
     mju_add3(to, from, vec);
 
-    mjv_connector(thisgeom, mjGEOM_ARROW, m->vis.scale.forcewidth * scl, from, to);
-    f2f(thisgeom->rgba, m->vis.rgba.force, 4);
-    releaseGeom(&thisgeom, scn);
+    addConnector(scn, mjGEOM_ARROW, m->vis.scale.forcewidth * scl, from, to,
+                 m->vis.rgba.force, i, mjCAT_DECOR, mjOBJ_UNKNOWN);
   }
 }
 
