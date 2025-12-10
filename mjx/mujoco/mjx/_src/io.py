@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
 
 import jax
+import jax.experimental
 from jax import numpy as jp
 from jax.extend import backend
 import mujoco
@@ -82,7 +83,7 @@ def _resolve_device(
     logging.debug('Picking default device: %s.', device_0)
     return device_0
 
-  if impl == types.Impl.C:
+  if impl == types.Impl.C or impl == types.Impl.CPP:
     cpu_0 = jax.devices('cpu')[0]
     logging.debug('Picking default device: %s', cpu_0)
     return cpu_0
@@ -124,7 +125,7 @@ def _check_impl_device_compatibility(
       )
 
   is_cpu_device = device.platform == 'cpu'
-  if impl == types.Impl.C:
+  if impl == types.Impl.C or impl == types.Impl.CPP:
     if not is_cpu_device:
       raise AssertionError(
           f'C implementation requires a CPU device, got {device}.'
@@ -489,6 +490,39 @@ def _put_model_warp(
   return _strip_weak_type(model)
 
 
+def _put_model_cpp(
+    m: mujoco.MjModel,
+    device: Optional[jax.Device] = None,
+) -> types.Model:
+  """Puts mujoco.MjModel onto a device, resulting in mjx.Model."""
+
+  mj_field_names = {f.name for f in types.Model.fields() if f.name != '_impl'}
+  fields = {f: getattr(m, f) for f in mj_field_names}
+  fields['cam_mat0'] = fields['cam_mat0'].reshape((-1, 3, 3))
+  fields['opt'] = _put_option(m.opt, impl=types.Impl.C)
+  fields['stat'] = _put_statistic(m.stat, impl=types.Impl.C)
+
+  # get the pointer address
+  # we use a 0-d array
+  addr = m._address  # pytype: disable=attribute-error
+  # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+  # set to True, we store the pointer as two 32-bit values. In the FFI call,
+  # we combine the two values into a single pointer value.
+  pointer_lo = jp.array(addr & 0xFFFFFFFF, dtype=jp.uint32)
+  pointer_hi = jp.array(addr >> 32, dtype=jp.uint32)
+  c_pointers_impl = types.ModelCPP(
+      pointer_lo=pointer_lo,
+      pointer_hi=pointer_hi,
+      _model=m,
+  )
+
+  model = types.Model(
+      **{k: copy.copy(v) for k, v in fields.items()}, _impl=c_pointers_impl
+  )
+  model = jax.device_put(model, device=device)
+  return _strip_weak_type(model)
+
+
 def put_model(
     m: mujoco.MjModel,
     device: Optional[jax.Device] = None,
@@ -515,6 +549,8 @@ def put_model(
     return _put_model_c(m, device)
   elif impl == types.Impl.WARP:
     return _put_model_warp(m, device)
+  elif impl == types.Impl.CPP:
+    return _put_model_cpp(m, device)
   else:
     raise ValueError(f'Unsupported implementation: {impl}')
 
@@ -612,7 +648,7 @@ def _make_data_jax(
   efc_address = constraint.make_efc_address(m, dim, efc_type)
 
   float_ = jp.zeros(1, float).dtype
-  int_ = jp.zeros(1, int).dtype
+  int_ = np.int32
   contact = _make_data_contact_jax(dim, efc_address)
 
   if m.opt.cone == types.ConeType.ELLIPTIC and np.any(contact.dim == 1):
@@ -1216,6 +1252,62 @@ def _put_data_c(
   return _strip_weak_type(data)
 
 
+def _put_data_cpp(
+    m: mujoco.MjModel,
+    d: mujoco.MjData,
+    device: Optional[jax.Device] = None,
+    dummy_arg_for_batching: Optional[jax.Array] = None,
+) -> types.Data:
+  """Puts mujoco.MjData onto a device, resulting in mjx.Data."""
+
+  data_list = []
+
+  def _copy_and_get_addr(unused_jax_array):
+    # We use the input to the callback as a dummy dependency to ensure
+    # io_callback runs for each element in the batch.
+    try:
+      new_d = mujoco.MjData(m)
+    except mujoco.FatalError as e:
+      raise ValueError('Failed to create new MjData') from e
+    mujoco.mj_copyState(m, d, new_d, int(mujoco.mjtState.mjSTATE_FULLPHYSICS))
+    mujoco.mj_forward(m, new_d)
+    data_list.append(new_d)
+    addr = new_d._address
+    # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+    # set to True, we store the pointer as two 32-bit values. In the FFI call,
+    # we combine the two values into a single pointer value.
+    return (
+        np.array(addr & 0xFFFFFFFF, dtype=np.uint32),
+        np.array(addr >> 32, dtype=np.uint32),
+    )
+
+  # Pass a dummy dependency to ensure io_callback runs across the batch.
+  pointer_lo, pointer_hi = jax.experimental.io_callback(
+      _copy_and_get_addr,
+      (
+          jax.ShapeDtypeStruct((), jp.uint32),
+          jax.ShapeDtypeStruct((), jp.uint32),
+      ),
+      dummy_arg_for_batching,
+  )
+
+  new_d = data_list[0]
+  fields = _put_data_public_fields(new_d)
+
+  c_pointers_impl = types.DataCPP(
+      pointer_lo=pointer_lo,
+      pointer_hi=pointer_hi,
+      _data=data_list,
+  )
+
+  data = types.Data(
+      _impl=c_pointers_impl,
+      **fields,
+  )
+  data = jax.device_put(data, device=device)
+  return _strip_weak_type(data)
+
+
 def put_data(
     m: mujoco.MjModel,
     d: mujoco.MjData,
@@ -1224,6 +1316,7 @@ def put_data(
     nconmax: Optional[int] = None,
     naconmax: Optional[int] = None,
     njmax: Optional[int] = None,
+    dummy_arg_for_batching: Optional[jax.Array] = None,
 ) -> types.Data:
   """Puts mujoco.MjData onto a device, resulting in mjx.Data.
 
@@ -1238,6 +1331,8 @@ def put_data(
       `naconmax` argument to set the upper bound for the number of contacts
       across all worlds, rather than the `nconmax` argument from MuJoCo Warp.
     njmax: maximum number of constraints to allocate for warp
+    dummy_arg_for_batching: dummy argument to use for batching in cpp
+      implementation
 
   Returns:
     an mjx.Data placed on device
@@ -1256,6 +1351,10 @@ def put_data(
     return _put_data_jax(m, d, device)
   elif impl == types.Impl.C:
     return _put_data_c(m, d, device)
+  elif impl == types.Impl.CPP:
+    return _put_data_cpp(
+        m, d, device, dummy_arg_for_batching=dummy_arg_for_batching
+    )
 
   # TODO(robotics-team): implement put_data_warp
 

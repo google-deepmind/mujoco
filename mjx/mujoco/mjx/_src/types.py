@@ -14,8 +14,9 @@
 # ==============================================================================
 """Base types used in MJX."""
 
+import dataclasses
 import enum
-from typing import Tuple, Union
+from typing import Any, Tuple, Union
 import warnings
 
 import jax
@@ -29,6 +30,7 @@ class Impl(enum.Enum):
   """Implementation to use."""
 
   C = 'c'
+  CPP = 'cpp'
   JAX = 'jax'
   WARP = 'warp'
 
@@ -529,6 +531,26 @@ class Option(PyTreeNode):
   _impl: Union[OptionJAX, OptionC, mjxw_types.OptionWarp]
 
 
+class ModelCPP(PyTreeNode):
+  """Minimal Model implementation holding only the pointer."""
+  # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+  # set to True, we store the pointer as two 32-bit values. In the FFI call,
+  # we combine the two values into a single pointer value.
+  pointer_lo: jax.Array
+  pointer_hi: jax.Array
+  _model: mujoco.MjModel
+
+
+class DataCPP(PyTreeNode):
+  """Minimal Data implementation holding only the pointer."""
+  # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+  # set to True, we store the pointer as two 32-bit values. In the FFI call,
+  # we combine the two values into a single pointer value.
+  pointer_lo: jax.Array
+  pointer_hi: jax.Array
+  _data: list[Any] = dataclasses.field(default_factory=list, repr=False)
+
+
 class ModelC(PyTreeNode):
   """CPU-specific model data."""
 
@@ -943,6 +965,7 @@ class Model(PyTreeNode):
   def impl(self) -> Impl:
     return {
         ModelC: Impl.C,
+        ModelCPP: Impl.CPP,
         ModelJAX: Impl.JAX,
         mjxw_types.ModelWarp: Impl.WARP,
     }[type(self._impl)]
@@ -1180,12 +1203,13 @@ class Data(PyTreeNode):
   qacc_smooth: jax.Array
   qfrc_constraint: jax.Array
   qfrc_inverse: jax.Array
-  _impl: Union[DataC, DataJAX, mjxw_types.DataWarp]
+  _impl: Union[DataC, DataCPP, DataJAX, mjxw_types.DataWarp]
 
   @property
   def impl(self) -> Impl:
     return {
         DataC: Impl.C,
+        DataCPP: Impl.CPP,
         DataJAX: Impl.JAX,
         mjxw_types.DataWarp: Impl.WARP,
     }[type(self._impl)]

@@ -103,6 +103,8 @@ def fwd_velocity(m: Model, d: Data) -> Data:
 @named_scope
 def fwd_actuation(m: Model, d: Data) -> Data:
   """Actuation-dependent computations."""
+  if not isinstance(d._impl, DataJAX):
+    raise ValueError('fwd_actuation requires JAX backend implementation.')
   if not m.nu or m.opt.disableflags & DisableBit.ACTUATION:
     return d.replace(
         act_dot=jp.zeros((m.na,)),

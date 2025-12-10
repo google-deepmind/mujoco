@@ -44,7 +44,6 @@ def kinematics(m: Model, d: Data) -> Data:
     from mujoco.mjx.warp import smooth as mjxw_smooth  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
     return mjxw_smooth.kinematics(m, d)
 
-
   def fn(carry, jnt_typs, jnt_pos, jnt_axis, qpos, qpos0, pos, quat):
     # calculate joint anchors, axes, body pos and quat in global frame
     # also normalize qpos while we're at it
@@ -140,6 +139,7 @@ def kinematics(m: Model, d: Data) -> Data:
 
 def com_pos(m: Model, d: Data) -> Data:
   """Maps inertias and motion dofs to global frame centered at subtree-CoM."""
+
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('com_pos requires JAX backend implementation.')
 
@@ -412,6 +412,7 @@ def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
 
 def com_vel(m: Model, d: Data) -> Data:
   """Computes cvel, cdof_dot."""
+
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('com_vel requires JAX backend implementation.')
 
