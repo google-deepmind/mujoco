@@ -41,7 +41,7 @@ extern void* GetNativeWindowOsx(void* window);
 namespace mujoco::platform {
 
 static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn,
-                      bool build_fonts) {
+                      bool load_fonts, bool build_fonts) {
   ImGui::CreateContext();
 
   ImGuiIO& io = ImGui::GetIO();
@@ -51,25 +51,24 @@ static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn,
   ImGui::StyleColorsDark();
   ImGui_ImplSDL2_InitForOther(window);
 
-#ifndef __EMSCRIPTEN__
-  // TODO: Get font loading working for wasm.
-  // Note: fonts are stored statically because they aren't actually loaded
-  // until the fonts are built.
-  ImFontConfig main_cfg;
-  static auto main_font = load_asset_fn("OpenSans-Regular.ttf");
-  io.Fonts->AddFontFromMemoryTTF(main_font.data(), main_font.size(), 20.f,
-                                 &main_cfg);
+  if (load_fonts) {
+    // Note: fonts are stored statically because they aren't actually loaded
+    // until the fonts are built.
+    ImFontConfig main_cfg;
+    static auto main_font = load_asset_fn("OpenSans-Regular.ttf");
+    io.Fonts->AddFontFromMemoryTTF(main_font.data(), main_font.size(), 20.f,
+                                  &main_cfg);
 
-  ImFontConfig icon_cfg;
-  icon_cfg.MergeMode = true;
-  static auto icon_font = load_asset_fn("fontawesome-webfont.ttf");
-  constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
-  io.Fonts->AddFontFromMemoryTTF(icon_font.data(), icon_font.size(), 14.f,
-                                &icon_cfg, icon_ranges);
-#endif
+    ImFontConfig icon_cfg;
+    icon_cfg.MergeMode = true;
+    static auto icon_font = load_asset_fn("fontawesome-webfont.ttf");
+    constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
+    io.Fonts->AddFontFromMemoryTTF(icon_font.data(), icon_font.size(), 14.f,
+                                  &icon_cfg, icon_ranges);
 
-  if (build_fonts) {
-    io.Fonts->Build();
+    if (build_fonts) {
+      io.Fonts->Build();
+    }
   }
 }
 
@@ -114,7 +113,8 @@ Window::Window(std::string_view title, int width, int height, Config config,
     mju_error("Error creating window: %s", SDL_GetError());
   }
 
-  InitImGui(sdl_window_, load_asset_fn, (render_config != kClassicOpenGL));
+  InitImGui(sdl_window_, load_asset_fn, config.load_fonts,
+            (render_config != kClassicOpenGL));
 
   if (render_config == kFilamentWebGL || render_config == kClassicOpenGL) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);

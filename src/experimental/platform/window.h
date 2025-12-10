@@ -40,6 +40,7 @@ class Window {
   struct Config {
     RenderConfig render_config = kClassicOpenGL;
     bool enable_keyboard = true;
+    bool load_fonts = true;
   };
 
   Window(std::string_view title, int width, int height, Config config,
