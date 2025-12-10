@@ -450,6 +450,11 @@ Orientations are represented as unit quaternions and follow :ref:`MuJoCo's conve
   `math.py <https://github.com/google-deepmind/mujoco_warp/blob/main/mujoco_warp/_src/math.py>`__ for the
   implementations.
 
+**Does MJWarp have a named access API / bind?**
+
+No. Updates for this feature are tracked in this
+`GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/884>`__.
+
 Compilation
 -----------
 
