@@ -403,6 +403,8 @@ filament::VertexBuffer* CreateVertexBuffer(filament::Engine* engine,
         break;
     }
   }
+
+  return nullptr;
 }
 
 filament::IndexBuffer* CreateIndexBuffer(filament::Engine* engine,
@@ -468,10 +470,6 @@ filament::Texture* CreateTexture(filament::Engine* engine, const mjModel* model,
           ? Create2dTexture(engine, width, height, num_channels, data, is_srgb)
           : CreateCubeTexture(engine, width, height, num_channels, data,
                               is_srgb);
-  // TODO: Revisit this to make it this work in WebGL
-  #ifndef __EMSCRIPTEN__
-  texture->generateMipmaps(*engine);
-  #endif
   return texture;
 }
 }  // namespace mujoco

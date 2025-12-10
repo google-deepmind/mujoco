@@ -21,6 +21,7 @@ from mujoco.mjx.third_party.mujoco_warp._src import sensor
 from mujoco.mjx.third_party.mujoco_warp._src import smooth
 from mujoco.mjx.third_party.mujoco_warp._src import solver
 from mujoco.mjx.third_party.mujoco_warp._src import support
+from mujoco.mjx.third_party.mujoco_warp._src.support import mul_m
 from mujoco.mjx.third_party.mujoco_warp._src.types import Data
 from mujoco.mjx.third_party.mujoco_warp._src.types import DisableBit
 from mujoco.mjx.third_party.mujoco_warp._src.types import EnableBit
@@ -41,8 +42,8 @@ def _qfrc_eulerdamp(
   qfrc_out: wp.array2d(dtype=float),
 ):
   worldid, dofid = wp.tid()
-  timestep = opt_timestep[worldid]
-  qfrc_out[worldid, dofid] += timestep * dof_damping[worldid, dofid] * qacc_in[worldid, dofid]
+  timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+  qfrc_out[worldid, dofid] += timestep * dof_damping[worldid % dof_damping.shape[0], dofid] * qacc_in[worldid, dofid]
 
 
 @wp.kernel
@@ -66,8 +67,15 @@ def _qfrc_inverse(
   qfrc_inverse_out[worldid, dofid] = qfrc_inverse
 
 
-def discrete_acc(m: Model, d: Data, qacc: wp.array2d(dtype=float), qfrc: wp.array2d(dtype=float)):
-  """Convert discrete-time qacc to continuous-time qacc."""
+def discrete_acc(m: Model, d: Data, qacc: wp.array2d(dtype=float)):
+  """Convert discrete-time qacc to continuous-time qacc.
+
+  Args:
+    m: The model containing kinematic and dynamic information.
+    d: The data object containing the current state and output arrays.
+    qacc: Acceleration.
+  """
+  qfrc = wp.empty((d.nworld, m.nv), dtype=float)
 
   if m.opt.integrator == IntegratorType.RK4:
     raise NotImplementedError("discrete inverse dynamics is not supported by RK4 integrator")
@@ -81,7 +89,7 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d(dtype=float), qfrc: wp.arra
     # set qfrc = (d.qM + m.opt.timestep * diag(m.dof_damping)) * d.qacc
 
     # d.qM @ d.qacc
-    support.mul_m(m, d, qfrc, d.qacc, d.inverse_mul_m_skip)
+    support.mul_m(m, d, qfrc, d.qacc)
 
     # qfrc += m.opt.timestep * m.dof_damping * d.qacc
     wp.launch(
@@ -91,7 +99,12 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d(dtype=float), qfrc: wp.arra
       outputs=[qfrc],
     )
   elif m.opt.integrator == IntegratorType.IMPLICITFAST:
-    derivative.deriv_smooth_vel(m, d, flg_forward=False)
+    if m.opt.is_sparse:
+      qDeriv = wp.empty((d.nworld, 1, m.nM), dtype=float)
+    else:
+      qDeriv = wp.empty((d.nworld, m.nv, m.nv), dtype=float)
+    derivative.deriv_smooth_vel(m, d, qDeriv)
+    mul_m(m, d, qfrc, d.qacc, M=qDeriv)
     smooth.factor_solve_i(m, d, d.qM, d.qLD, d.qLDiagInv, qacc, qfrc)
   else:
     raise NotImplementedError(f"integrator {m.opt.integrator} not implemented.")
@@ -102,7 +115,6 @@ def discrete_acc(m: Model, d: Data, qacc: wp.array2d(dtype=float), qfrc: wp.arra
 
 def inv_constraint(m: Model, d: Data):
   """Inverse constraint solver."""
-
   # no constraints
   if d.njmax == 0:
     d.qfrc_constraint.zero_()
@@ -122,15 +134,15 @@ def inverse(m: Model, d: Data):
   invdiscrete = m.opt.enableflags & EnableBit.INVDISCRETE
   if invdiscrete:
     # save discrete-time qacc and compute continuous-time qacc
-    wp.copy(d.qacc_discrete, d.qacc)
-    discrete_acc(m, d, d.qacc, d.qfrc_integration)
+    qacc_discrete = wp.clone(d.qacc)
+    discrete_acc(m, d, d.qacc)
 
   inv_constraint(m, d)
   smooth.rne(m, d)
   smooth.tendon_bias(m, d, d.qfrc_bias)
   sensor.sensor_acc(m, d)
 
-  support.mul_m(m, d, d.qfrc_inverse, d.qacc, d.inverse_mul_m_skip)
+  support.mul_m(m, d, d.qfrc_inverse, d.qacc)
 
   wp.launch(
     _qfrc_inverse,
@@ -146,4 +158,4 @@ def inverse(m: Model, d: Data):
 
   if invdiscrete:
     # restore discrete-time qacc
-    wp.copy(d.qacc, d.qacc_discrete)
+    wp.copy(d.qacc, qacc_discrete)

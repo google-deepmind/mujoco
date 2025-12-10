@@ -291,6 +291,15 @@ is not a subset of the bits set in ``srcsig``.
 Copy concatenated state components specified by ``sig`` from  ``state`` into ``d``. The bits of the integer
 ``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
 
+.. _mj_copyState:
+
+`mj_copyState <#mj_copyState>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_copyState
+
+Copy state from src to dst.
+
 .. _mj_setKeyframe:
 
 `mj_setKeyframe <#mj_setKeyframe>`__
@@ -705,6 +714,15 @@ Components
 
 These are components of the simulation pipeline, called internally from :ref:`mj_step`, :ref:`mj_forward` and
 :ref:`mj_inverse`. It is unlikely that the user will need to call them.
+
+.. _mj_fwdKinematics:
+
+`mj_fwdKinematics <#mj_fwdKinematics>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_fwdKinematics
+
+Run all kinematics-like computations (kinematics, comPos, camlight, flex, tendon).
 
 .. _mj_fwdPosition:
 
@@ -1143,6 +1161,8 @@ Intersect multiple rays emanating from a single point.
 
 Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
 
+*Nullable:* ``geomgroup``
+
 .. _mj_ray:
 
 `mj_ray <#mj_ray>`__
@@ -1161,7 +1181,7 @@ If flg_static is 0, static geoms will be excluded.
 
 bodyexclude=-1 can be used to indicate that all bodies are included.
 
-*Nullable:* ``geomid``
+*Nullable:* ``geomgroup``, ``geomid``
 
 .. _mj_rayHfield:
 
@@ -2339,6 +2359,28 @@ Update camera.
 .. mujoco-include:: mjv_updateSkin
 
 Update skins.
+
+.. _mjv_cameraFrame:
+
+`mjv_cameraFrame <#mjv_cameraFrame>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_cameraFrame
+
+Compute camera position and forward, up, and right vectors.
+
+*Nullable:* ``headpos``, ``forward``, ``up``, ``right``
+
+.. _mjv_cameraFrustum:
+
+`mjv_cameraFrustum <#mjv_cameraFrustum>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mjv_cameraFrustum
+
+Compute camera frustum: vertical, horizontal, and clip planes.
+
+*Nullable:* ``zver``, ``zhor``, ``zclip``
 
 .. _OpenGLrendering:
 

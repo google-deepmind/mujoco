@@ -65,7 +65,9 @@ from mujoco.mjx.third_party.mujoco_warp._src.smooth import tendon as tendon
 from mujoco.mjx.third_party.mujoco_warp._src.smooth import transmission as transmission
 from mujoco.mjx.third_party.mujoco_warp._src.solver import solve as solve
 from mujoco.mjx.third_party.mujoco_warp._src.support import contact_force as contact_force
+from mujoco.mjx.third_party.mujoco_warp._src.support import get_state as get_state
 from mujoco.mjx.third_party.mujoco_warp._src.support import mul_m as mul_m
+from mujoco.mjx.third_party.mujoco_warp._src.support import set_state as set_state
 from mujoco.mjx.third_party.mujoco_warp._src.support import xfrc_accumulate as xfrc_accumulate
 from mujoco.mjx.third_party.mujoco_warp._src.types import BiasType as BiasType
 from mujoco.mjx.third_party.mujoco_warp._src.types import BroadphaseFilter as BroadphaseFilter
@@ -82,5 +84,6 @@ from mujoco.mjx.third_party.mujoco_warp._src.types import IntegratorType as Inte
 from mujoco.mjx.third_party.mujoco_warp._src.types import JointType as JointType
 from mujoco.mjx.third_party.mujoco_warp._src.types import Option as Option
 from mujoco.mjx.third_party.mujoco_warp._src.types import SolverType as SolverType
+from mujoco.mjx.third_party.mujoco_warp._src.types import State as State
 from mujoco.mjx.third_party.mujoco_warp._src.types import Statistic as Statistic
 from mujoco.mjx.third_party.mujoco_warp._src.types import TrnType as TrnType

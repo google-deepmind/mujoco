@@ -149,9 +149,9 @@ def jac(
   mask = mask[jp.array(m.dof_bodyid)] > 0
 
   offset = point - d.subtree_com[jp.array(m.body_rootid)[body_id]]
-  jacp = jax.vmap(lambda a, b=offset: a[3:] + jp.cross(a[:3], b))(d._impl.cdof)  # pytype: disable=attribute-error
+  jacp = jax.vmap(lambda a, b=offset: a[3:] + jp.cross(a[:3], b))(d.cdof)  # pytype: disable=attribute-error
   jacp = jax.vmap(jp.multiply)(jacp, mask)
-  jacr = jax.vmap(jp.multiply)(d._impl.cdof[:, :3], mask)  # pytype: disable=attribute-error
+  jacr = jax.vmap(jp.multiply)(d.cdof[:, :3], mask)  # pytype: disable=attribute-error
 
   return jacp, jacr
 
@@ -169,8 +169,8 @@ def jac_dot(
   offset = point - d.subtree_com[jp.array(m.body_rootid)[body_id]]
   pvel_lin = d.cvel[body_id][3:] - jp.cross(offset, d.cvel[body_id][:3])
 
-  cdof = d._impl.cdof
-  cdof_dot = d._impl.cdof_dot
+  cdof = d.cdof
+  cdof_dot = d.cdof_dot
 
   # check for quaternion
   jnt_type = m.jnt_type[m.dof_jntid]

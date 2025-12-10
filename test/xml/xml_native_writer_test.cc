@@ -38,10 +38,11 @@
 namespace mujoco {
 namespace {
 
+using ::testing::ElementsAre;
+using ::testing::FloatEq;
 using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::NotNull;
-using ::testing::FloatEq;
 
 using XMLWriterTest = PluginTest;
 
@@ -998,6 +999,10 @@ TEST_F(XMLWriterTest, WritesHfield) {
   int size = model->hfield_nrow[0]*model->hfield_ncol[0];
   EXPECT_EQ(size, 6);
 
+  // check that the data is normalized and in row-major, bottom-to-top order
+  EXPECT_THAT(AsVector(model->hfield_data, 6),
+              ElementsAre(.8, 1, .4, .6, 0, .2));
+
   // save and read, compare data
   mjModel* mtemp = LoadModelFromString(SaveAndReadXml(model));
   ASSERT_THAT(mtemp, NotNull());
@@ -1378,25 +1383,27 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
       if (p.path().extension() == ext) {
         std::string xml = p.path().string();
 
-        // if file is meant to fail, skip it
-        if (absl::StrContains(p.path().string(), "malformed_") ||
-            // exclude files that are too slow to load
-            absl::StrContains(p.path().string(), "cow") ||
-            absl::StrContains(p.path().string(), "gmsh_") ||
-            absl::StrContains(p.path().string(), "shark_") ||
-            absl::StrContains(p.path().string(), "spheremesh") ||
-            // exclude files that fail the comparison test
-            absl::StrContains(p.path().string(), "tactile") ||
-            absl::StrContains(p.path().string(), "makemesh") ||
-            absl::StrContains(p.path().string(), "many_dependencies") ||
-            absl::StrContains(p.path().string(), "usd") ||
-            absl::StrContains(p.path().string(), "torus_maxhull") ||
-            absl::StrContains(p.path().string(), "fitmesh_") ||
-            absl::StrContains(p.path().string(), "lengthrange") ||
-            absl::StrContains(p.path().string(), "hfield_xml") ||
-            absl::StrContains(p.path().string(), "fromto_convex") ||
-            absl::StrContains(p.path().string(), "cube_skin") ||
-            absl::StrContains(p.path().string(), "cube_3x3x3")) {
+
+        if (  // if file is meant to fail, skip it
+              absl::StrContains(p.path().string(), "malformed_") ||
+              absl::StrContains(p.path().string(), "_fail") ||
+              // exclude files that are too slow to load
+              absl::StrContains(p.path().string(), "cow") ||
+              absl::StrContains(p.path().string(), "gmsh_") ||
+              absl::StrContains(p.path().string(), "shark_") ||
+              absl::StrContains(p.path().string(), "perf") ||
+              // exclude files that fail the comparison test
+              absl::StrContains(p.path().string(), "tactile") ||
+              absl::StrContains(p.path().string(), "makemesh") ||
+              absl::StrContains(p.path().string(), "many_dependencies") ||
+              absl::StrContains(p.path().string(), "usd") ||
+              absl::StrContains(p.path().string(), "torus_maxhull") ||
+              absl::StrContains(p.path().string(), "fitmesh_") ||
+              absl::StrContains(p.path().string(), "lengthrange") ||
+              absl::StrContains(p.path().string(), "hfield_xml") ||
+              absl::StrContains(p.path().string(), "fromto_convex") ||
+              absl::StrContains(p.path().string(), "cube_skin") ||
+              absl::StrContains(p.path().string(), "cube_3x3x3")) {
           continue;
         }
         // load model

@@ -124,6 +124,10 @@ describe('Enums', () => {
     expect(mujoco.mjtSameFrame).toBeDefined();
   });
 
+  it('mjtSleepPolicy should exist', () => {
+    expect(mujoco.mjtSleepPolicy).toBeDefined();
+  });
+
   it('mjtLRMode should exist', () => {
     expect(mujoco.mjtLRMode).toBeDefined();
   });
@@ -158,6 +162,46 @@ describe('Enums', () => {
 
   it('mjtTimer should exist', () => {
     expect(mujoco.mjtTimer).toBeDefined();
+  });
+
+  it('mjtSleepState should exist', () => {
+    expect(mujoco.mjtSleepState).toBeDefined();
+  });
+
+  it('mjtGeomInertia should exist', () => {
+    expect(mujoco.mjtGeomInertia).toBeDefined();
+  });
+
+  it('mjtMeshInertia should exist', () => {
+    expect(mujoco.mjtMeshInertia).toBeDefined();
+  });
+
+  it('mjtMeshBuiltin should exist', () => {
+    expect(mujoco.mjtMeshBuiltin).toBeDefined();
+  });
+
+  it('mjtBuiltin should exist', () => {
+    expect(mujoco.mjtBuiltin).toBeDefined();
+  });
+
+  it('mjtMark should exist', () => {
+    expect(mujoco.mjtMark).toBeDefined();
+  });
+
+  it('mjtLimited should exist', () => {
+    expect(mujoco.mjtLimited).toBeDefined();
+  });
+
+  it('mjtAlignFree should exist', () => {
+    expect(mujoco.mjtAlignFree).toBeDefined();
+  });
+
+  it('mjtInertiaFromGeom should exist', () => {
+    expect(mujoco.mjtInertiaFromGeom).toBeDefined();
+  });
+
+  it('mjtOrientation should exist', () => {
+    expect(mujoco.mjtOrientation).toBeDefined();
   });
 
   it('mjtCatBit should exist', () => {
@@ -218,42 +262,6 @@ describe('Enums', () => {
 
   it('mjtFont should exist', () => {
     expect(mujoco.mjtFont).toBeDefined();
-  });
-
-  it('mjtGeomInertia should exist', () => {
-    expect(mujoco.mjtGeomInertia).toBeDefined();
-  });
-
-  it('mjtMeshInertia should exist', () => {
-    expect(mujoco.mjtMeshInertia).toBeDefined();
-  });
-
-  it('mjtMeshBuiltin should exist', () => {
-    expect(mujoco.mjtMeshBuiltin).toBeDefined();
-  });
-
-  it('mjtBuiltin should exist', () => {
-    expect(mujoco.mjtBuiltin).toBeDefined();
-  });
-
-  it('mjtMark should exist', () => {
-    expect(mujoco.mjtMark).toBeDefined();
-  });
-
-  it('mjtLimited should exist', () => {
-    expect(mujoco.mjtLimited).toBeDefined();
-  });
-
-  it('mjtAlignFree should exist', () => {
-    expect(mujoco.mjtAlignFree).toBeDefined();
-  });
-
-  it('mjtInertiaFromGeom should exist', () => {
-    expect(mujoco.mjtInertiaFromGeom).toBeDefined();
-  });
-
-  it('mjtOrientation should exist', () => {
-    expect(mujoco.mjtOrientation).toBeDefined();
   });
 
   it('mjtButton should exist', () => {

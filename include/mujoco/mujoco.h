@@ -16,7 +16,7 @@
 #define MUJOCO_MUJOCO_H_
 
 // header version; should match the library version as returned by mj_version()
-#define mjVERSION_HEADER 338
+#define mjVERSION_HEADER 341
 
 // needed to define size_t, fabs and log10
 #include <stdlib.h>
@@ -216,7 +216,7 @@ MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
 MJAPI void mj_deleteModel(mjModel* m);
 
 // Return size of buffer needed to hold model.
-MJAPI int mj_sizeModel(const mjModel* m);
+MJAPI mjtSize mj_sizeModel(const mjModel* m);
 
 // Allocate mjData corresponding to given model.
 // If the model buffer is unallocated the initial configuration will not be set.
@@ -327,6 +327,9 @@ MJAPI void mj_printFormattedScene(const mjvScene* s, const char* filename,
 
 
 //---------------------------------- Components ----------------------------------------------------
+
+// Run all kinematics-like computations (kinematics, comPos, camlight, flex, tendon).
+MJAPI void mj_fwdKinematics(const mjModel* m, mjData* d);
 
 // Run position-dependent computations.
 MJAPI void mj_fwdPosition(const mjModel* m, mjData* d);
@@ -477,6 +480,9 @@ MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int src
 // Set state.
 MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 
+// Copy state from src to dst.
+MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, unsigned int sig);
+
 // Copy current state to the k-th model keyframe.
 MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 
@@ -619,14 +625,15 @@ MJAPI const char* mj_versionString(void);
 
 // Intersect multiple rays emanating from a single point.
 // Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
-MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+// Nullable: geomgroup
+MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                        const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
 
 // Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude.
 // Return distance (x) to nearest surface, or -1 if no intersection and output geomid.
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.
-// Nullable: geomid
+// Nullable: geomgroup, geomid
 MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                     int geomid[1]);
@@ -648,7 +655,7 @@ MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum 
 // Nullable: vertid
 MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
                          mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
-                         const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
+                         const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
 
 // Intersect ray with skin, return nearest distance or -1 if no intersection,
 // and also output nearest vertex id.
@@ -771,6 +778,16 @@ MJAPI void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, m
 
 // Update skins.
 MJAPI void mjv_updateSkin(const mjModel* m, const mjData* d, mjvScene* scn);
+
+// Compute camera position and forward, up, and right vectors.
+// Nullable: headpos, forward, up, right
+MJAPI void mjv_cameraFrame(mjtNum headpos[3], mjtNum forward[3], mjtNum up[3], mjtNum right[3],
+                           const mjData* d, const mjvCamera* cam);
+
+// Compute camera frustum: vertical, horizontal, and clip planes.
+// Nullable: zver, zhor, zclip
+MJAPI void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2],  const mjModel* m,
+                             const mjvCamera* cam);
 
 
 //---------------------------------- OpenGL rendering ----------------------------------------------

@@ -27,7 +27,7 @@ namespace mujoco {
 
 Renderables::Renderables(filament::Engine* engine) : engine_(engine) {}
 
-Renderables::~Renderables() {
+Renderables::~Renderables() noexcept {
   while (!entities_.empty()) {
     RemoveLast();
   }
@@ -103,7 +103,7 @@ utils::Entity Renderables::CreateEntity(const FilamentBuffers& buffers) {
   }
   builder.boundingBox(buffers.bounds)
       .culling(false)
-      .castShadows(true)
+      .castShadows(cast_shadows_)
       .receiveShadows(true)
       .layerMask(1, visible_ ? 1 : 0)
       .screenSpaceContactShadows(true);
@@ -195,6 +195,14 @@ void Renderables::Show() {
     }
     visible_ = true;
   }
+}
+
+void Renderables::DisableShadows() {
+  filament::RenderableManager& rm = engine_->getRenderableManager();
+  for (utils::Entity& entity : entities_) {
+    rm.setCastShadows(rm.getInstance(entity), false);
+  }
+  cast_shadows_ = false;
 }
 
 }  // namespace mujoco

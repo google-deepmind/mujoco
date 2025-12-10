@@ -78,14 +78,15 @@ MJAPI void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
 // address of diagonal element i in band-dense matrix representation
 MJAPI int mju_bandDiag(int i, int ntotal, int nband, int ndense);
 
-// sparse reverse-order LU factorization, no fill-in (assuming tree topology)
+// sparse reverse-order LU factorization, assume tree topology (only dofs in index, if given)
 //  LU = L + U; original = (U+I) * L; scratch is size n
 void mju_factorLUSparse(mjtNum *LU, int n, int* scratch,
-                        const int *rownnz, const int *rowadr, const int *colind);
+                        const int *rownnz, const int *rowadr, const int *colind, const int *index);
 
-// solve mat*res=vec given LU factorization of mat
+// solve mat*res=vec given LU factorization of mat (only dofs in index, if given)
 void mju_solveLUSparse(mjtNum *res, const mjtNum *LU, const mjtNum* vec, int n,
-                       const int *rownnz, const int *rowadr, const int* diag, const int *colind);
+                       const int *rownnz, const int *rowadr, const int* diag, const int *colind,
+                       const int *index);
 
 // eigenvalue decomposition of symmetric 3x3 matrix
 MJAPI int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum mat[9]);

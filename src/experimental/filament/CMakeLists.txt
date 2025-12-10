@@ -17,6 +17,7 @@ cmake_minimum_required(VERSION 3.16)
 set(MUJOCO_FILAMENT_TARGET_NAME mujoco_filament)
 
 add_library(${MUJOCO_FILAMENT_TARGET_NAME} STATIC)
+target_compile_definitions(${MUJOCO_FILAMENT_TARGET_NAME} PRIVATE MJ_STATIC)
 
 target_sources(${MUJOCO_FILAMENT_TARGET_NAME}
     PUBLIC

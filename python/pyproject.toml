@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mujoco"
-version = "3.3.8"
+version = "3.4.1"
 authors = [
     {name = "Google DeepMind", email = "mujoco@deepmind.com"},
 ]
@@ -34,9 +34,9 @@ dynamic = ["readme", "scripts"]
 
 [project.urls]
 Homepage = "https://github.com/google-deepmind/mujoco"
-Documentation = "https://mujoco.readthedocs.io/en/3.3.8"
+Documentation = "https://mujoco.readthedocs.io/en/3.4.1"
 Repository = "https://github.com/google-deepmind/mujoco"
-Changelog = "https://mujoco.readthedocs.io/en/3.3.8/changelog.html"
+Changelog = "https://mujoco.readthedocs.io/en/3.4.1/changelog.html"
 
 [tool.setuptools]
 include-package-data = false

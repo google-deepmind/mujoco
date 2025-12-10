@@ -34,6 +34,9 @@ from mujoco.mjx._src.types import OptionJAX
 
 def _spring_damper(m: Model, d: Data) -> jax.Array:
   """Applies joint level spring and damping forces."""
+  if not isinstance(d._impl, DataJAX) and not isinstance(m._impl, ModelJAX):
+    raise ValueError('_spring_damper requires JAX backend implementation.')
+  assert isinstance(d._impl, DataJAX) and isinstance(m._impl, ModelJAX)
 
   def fn(jnt_typs, stiffness, qpos_spring, qpos):
     qpos_i = 0

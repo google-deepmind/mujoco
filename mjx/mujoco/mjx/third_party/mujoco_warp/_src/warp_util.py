@@ -19,7 +19,6 @@ from typing import Callable, Optional
 
 import warp as wp
 from warp.context import Module
-from warp.context import assert_conditional_graph_support
 from warp.context import get_module
 
 _STACK = None
@@ -122,35 +121,35 @@ def event_scope(fn, name: str = ""):
   return wrapper
 
 
-# @kernel decorator to automatically set up modules based on nested
+# @nested_kernel decorator to automatically set up modules based on nested
 # function names
-def kernel(
+def nested_kernel(
   f: Optional[Callable] = None,
   *,
   enable_backward: Optional[bool] = None,
   module: Optional[Module] = None,
 ):
-  """
-  Decorator to register a Warp kernel from a Python function.
+  """Decorator to register a Warp kernel from a Python function.
+
   The function must be defined with type annotations for all arguments.
   The function must not return anything.
 
   Example::
 
-      @kernel
+      @nested_kernel
       def my_kernel(a: wp.array(dtype=float), b: wp.array(dtype=float)):
         tid = wp.tid()
         b[tid] = a[tid] + 1.0
 
 
-      @kernel(enable_backward=False)
+      @nested_kernel(enable_backward=False)
       def my_kernel_no_backward(a: wp.array(dtype=float, ndim=2), x: float):
         # the backward pass will not be generated
         i, j = wp.tid()
         a[i, j] = x
 
 
-      @kernel(module="unique")
+      @nested_kernel(module="unique")
       def my_kernel_unique_module(a: wp.array(dtype=float), b: wp.array(dtype=float)):
         # the kernel will be registered in new unique module created just for this
         # kernel and its dependent functions and structs
@@ -158,7 +157,7 @@ def kernel(
         b[tid] = a[tid] + 1.0
 
 
-      @kernel(enable_backward=False, module=None)
+      @neste_kernel(enable_backward=False, module=None)
       def my_kernel_with_args(a: wp.array(dtype=float), b: wp.array(dtype=float)):
         # can now use arguments even when module=None
         tid = wp.tid()
@@ -220,9 +219,9 @@ def cache_kernel(func):
   return wrapper
 
 
-def conditional_graph_supported():
-  try:
-    assert_conditional_graph_support()
-  except Exception:
-    return False
-  return True
+def check_toolkit_driver():
+  if wp.context.runtime is None:
+    wp.context.init()
+  if wp.get_device().is_cuda:
+    if wp.context.runtime.toolkit_version < (12, 4) or wp.context.runtime.driver_version < (12, 4):
+      RuntimeError("Minimum supported CUDA version: 12.4.")

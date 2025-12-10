@@ -73,9 +73,9 @@ static void BM_solve(benchmark::State& state, SolveType type) {
         case SolveType::kCsr:
           mju_copy(d->qLD, M, m->nC);
           mj_factorI(d->qLD, d->qLDiagInv, m->nv,
-                     m->M_rownnz, m->M_rowadr, m->M_colind);
+                     m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
           mj_solveLD(res, d->qLD, d->qLDiagInv, m->nv, 1,
-                     m->M_rownnz, m->M_rowadr, m->M_colind);
+                     m->M_rownnz, m->M_rowadr, m->M_colind, nullptr);
       }
     }
   }

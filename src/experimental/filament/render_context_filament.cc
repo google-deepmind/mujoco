@@ -132,18 +132,21 @@ void mjr_setBuffer(int framebuffer, mjrContext* con) {
 }
 
 void mjr_readPixels(unsigned char* rgb, float* depth, mjrRect viewport,
-                    const mjrContext* con) {
+                          const mjrContext* con) {
   CheckFilamentContext();
   g_filament_context->ReadPixels(viewport, rgb, depth);
 }
 
-void mjr_uploadFont(unsigned char* pixels, int width, int height, int bpp,
-                    int id, const mjrContext* con) {
+uintptr_t mjr_uploadGuiImage(uintptr_t tex_id, const unsigned char* pixels,
+                             int width, int height, int bpp,
+                             const mjrContext* con) {
   CheckFilamentContext();
-  if (bpp != 4) {
-    mju_error("Only 4bpp fonts are supported, got %d", bpp);
-  }
-  g_filament_context->UploadFont(pixels, width, height, id);
+  return g_filament_context->UploadGuiImage(tex_id, pixels, width, height, bpp);
+}
+
+double mjr_getFrameRate(const mjrContext* con) {
+  CheckFilamentContext();
+  return g_filament_context->GetFrameRate();
 }
 
 }  // extern "C"

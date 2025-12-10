@@ -76,7 +76,7 @@ mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
 MJAPI void mj_deleteModel(mjModel* m);
 
 // size of buffer needed to hold model
-MJAPI int mj_sizeModel(const mjModel* m);
+MJAPI mjtSize mj_sizeModel(const mjModel* m);
 
 // validate reference fields in a model; return null if valid, error message otherwise
 MJAPI const char* mj_validateReferences(const mjModel* m);

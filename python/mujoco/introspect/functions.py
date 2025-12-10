@@ -856,7 +856,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
     ('mj_sizeModel',
      FunctionDecl(
          name='mj_sizeModel',
-         return_type=ValueType(name='int'),
+         return_type=ValueType(name='mjtSize'),
          parameters=(
              FunctionParameterDecl(
                  name='m',
@@ -1497,6 +1497,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Print scene to text file, specifying format. float_format must be a valid printf-style format string for a single float value.',  # pylint: disable=line-too-long
+     )),
+    ('mj_fwdKinematics',
+     FunctionDecl(
+         name='mj_fwdKinematics',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+         ),
+         doc='Run all kinematics-like computations (kinematics, comPos, camlight, flex, tendon).',  # pylint: disable=line-too-long
      )),
     ('mj_fwdPosition',
      FunctionDecl(
@@ -2519,6 +2539,36 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Set state.',
+     )),
+    ('mj_copyState',
+     FunctionDecl(
+         name='mj_copyState',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='src',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='dst',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='sig',
+                 type=ValueType(name='unsigned int'),
+             ),
+         ),
+         doc='Copy state from src to dst.',
      )),
     ('mj_setKeyframe',
      FunctionDecl(
@@ -3685,8 +3735,9 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='vec',
-                 type=PointerType(
+                 type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(
@@ -3694,6 +3745,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte', is_const=True),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='flg_static',
@@ -3762,6 +3814,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  type=PointerType(
                      inner_type=ValueType(name='mjtByte', is_const=True),
                  ),
+                 nullable=True,
              ),
              FunctionParameterDecl(
                  name='flg_static',
@@ -3948,14 +4001,16 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='pnt',
-                 type=PointerType(
+                 type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(
                  name='vec',
-                 type=PointerType(
+                 type=ArrayType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(
@@ -4928,6 +4983,102 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
          ),
          doc='Update skins.',
+     )),
+    ('mjv_cameraFrame',
+     FunctionDecl(
+         name='mjv_cameraFrame',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='headpos',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='forward',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='up',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='right',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='cam',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvCamera', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Compute camera position and forward, up, and right vectors.',
+     )),
+    ('mjv_cameraFrustum',
+     FunctionDecl(
+         name='mjv_cameraFrustum',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='zver',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='zhor',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='zclip',
+                 type=ArrayType(
+                     inner_type=ValueType(name='float'),
+                     extents=(2,),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='cam',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjvCamera', is_const=True),
+                 ),
+             ),
+         ),
+         doc='Compute camera frustum: vertical, horizontal, and clip planes.',
      )),
     ('mjr_defaultContext',
      FunctionDecl(

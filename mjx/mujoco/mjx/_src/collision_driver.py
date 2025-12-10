@@ -74,11 +74,13 @@ from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import GeomType
+from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import OptionJAX
 # pylint: enable=g-importing-member
 import numpy as np
+
 
 # pair-wise collision functions
 _COLLISION_FUNC = {
@@ -111,6 +113,8 @@ _COLLISION_FUNC = {
     (GeomType.MESH, GeomType.MESH): convex_convex,
 }
 
+# Maximum constraint dimension for collision functions.
+_MAX_NCON = 8
 
 # geoms for which we ignore broadphase
 _GEOM_NO_BROADPHASE = {GeomType.HFIELD, GeomType.PLANE}
@@ -341,8 +345,13 @@ def _numeric(m: Union[Model, mujoco.MjModel], name: str) -> int:
   return int(m.numeric_data[id_]) if id_ >= 0 else -1
 
 
-def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
+def make_condim(
+    m: Union[Model, mujoco.MjModel], impl: Impl = Impl.JAX
+) -> np.ndarray:
   """Returns the dims of the contacts for a Model."""
+  if impl not in (Impl.JAX, Impl.C):
+    raise ValueError('make_condim only supports JAX and C backends.')
+
   if isinstance(m, mujoco.MjModel):
     sdf_initpoints = m.opt.sdf_initpoints
   elif isinstance(m.opt._impl, OptionJAX):
@@ -377,8 +386,16 @@ def make_condim(m: Union[Model, mujoco.MjModel]) -> np.ndarray:
     if k.types[1] == mujoco.mjtGeom.mjGEOM_SDF:
       ncon = sdf_initpoints
     else:
-      func = _COLLISION_FUNC[k.types]
-      ncon = func.ncon  # pytype: disable=attribute-error
+      func = _COLLISION_FUNC.get(k.types, None)
+      if func is not None:
+        ncon = func.ncon  # pytype: disable=attribute-error
+      elif impl == Impl.C:
+        ncon = _MAX_NCON
+      else:
+        raise ValueError(
+            f'Collision function not found for geom types {k.types[0]},',
+            f'{k.types[1]}'
+        )
     num_contacts = condim_counts.get(k.condim, 0) + ncon * v
     if max_contact_points > -1:
       num_contacts = min(max_contact_points, num_contacts)

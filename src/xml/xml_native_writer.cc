@@ -995,6 +995,7 @@ void mjXWriter::Option(XMLElement* root) {
   WriteAttr(section, "ls_tolerance", 1, &model->option.ls_tolerance, &opt.ls_tolerance);
   WriteAttr(section, "noslip_tolerance", 1, &model->option.noslip_tolerance, &opt.noslip_tolerance);
   WriteAttr(section, "ccd_tolerance", 1, &model->option.ccd_tolerance, &opt.ccd_tolerance);
+  WriteAttr(section, "sleep_tolerance", 1, &model->option.sleep_tolerance, &opt.sleep_tolerance);
   WriteAttr(section, "gravity", 3, model->option.gravity, opt.gravity);
   WriteAttr(section, "wind", 3, model->option.wind, opt.wind);
   WriteAttr(section, "magnetic", 3, model->option.magnetic, opt.magnetic);
@@ -1067,6 +1068,7 @@ void mjXWriter::Option(XMLElement* root) {
     WRITEENBL("fwdinv",         mjENBL_FWDINV)
     WRITEENBL("invdiscrete",    mjENBL_INVDISCRETE)
     WRITEENBL("multiccd",       mjENBL_MULTICCD)
+    WRITEENBL("sleep",          mjENBL_SLEEP)
 #undef WRITEENBL
   }
 
@@ -1583,11 +1585,23 @@ void mjXWriter::Asset(XMLElement* root) {
       WriteAttrTxt(elem, "content_type", hfield->content_type_);
       WriteAttrTxt(elem, "file", hfield->file_);
     } else {
-      WriteAttrInt(elem, "nrow", hfield->nrow);
-      WriteAttrInt(elem, "ncol", hfield->ncol);
+      int nrow = hfield->nrow;
+      int ncol = hfield->ncol;
+      WriteAttrInt(elem, "nrow", nrow);
+      WriteAttrInt(elem, "ncol", ncol);
       if (!hfield->get_userdata().empty()) {
+        // copy in reverse row order, so XML string is top-to-bottom
+        std::vector<float> flipped(nrow * ncol);
+        const std::vector<float>& userdata = hfield->get_userdata();
+        for (int i = 0; i < nrow; i++) {
+          int flip = nrow - 1 - i;
+          for (int j = 0; j < ncol; j++) {
+            flipped[i * ncol + j] = userdata[flip * ncol + j];
+          }
+        }
+
         string text;
-        Vector2String(text, hfield->get_userdata(), hfield->ncol);
+        Vector2String(text, flipped, ncol);
         WriteAttrTxt(elem, "elevation", text);
       }
     }
@@ -1644,6 +1658,14 @@ void mjXWriter::Body(XMLElement* elem, mjCBody* body, mjCFrame* frame, string_vi
     if (body->gravcomp) {
       WriteAttr(elem, "gravcomp", 1, &body->gravcomp);
     }
+
+    // sleep policy
+    if (body->sleep != mjSLEEP_AUTO &&
+        body->sleep != mjSLEEP_AUTO_NEVER &&
+        body->sleep != mjSLEEP_AUTO_ALLOWED) {
+      WriteAttrKey(elem, "sleep", bodysleep_map, bodysleep_sz, body->sleep);
+    }
+
     // userdata
     WriteVector(elem, "user", body->get_userdata());
 

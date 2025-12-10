@@ -120,7 +120,7 @@ SceneView::SceneView(filament::Engine* engine, ObjectManager* object_mgr)
 
   auto ao = views_[kNormalIndex]->getAmbientOcclusionOptions();
   ao.enabled = ReadElement(m, "filament.ao.enabled", true);
-  ao.bentNormals = ReadElement(m, "filament.ao.bent_normals", true);
+  ao.bentNormals = ReadElement(m, "filament.ao.bent_normals", false);
   ao.ssct.enabled = ReadElement(m, "filament.ao.ssct", ao.ssct.enabled);
   ao.quality = filament::QualityLevel::ULTRA;
   ao.lowPassFilter = filament::QualityLevel::ULTRA;
@@ -210,6 +210,11 @@ void SceneView::SetColorGradingOptions(const ColorGradingOptions& opts) {
   color_grading_options_ = opts;
 }
 
+void SceneView::SetUseDistinctSegmentationColors(
+    bool use_distinct_segmentation_colors) {
+  use_distinct_segmentation_colors_ = use_distinct_segmentation_colors;
+}
+
 void SceneView::SetEnvironmentLight(std::string_view filename,
                                     float intensity) {
   auto* ibl = object_mgr_->LoadFallbackIndirectLight(filename, intensity);
@@ -284,7 +289,10 @@ void SceneView::PrepareLights() {
         params.spot_cone_angle = model->light_cutoff[i];
       }
       auto light_obj = std::make_unique<Light>(object_mgr_, params);
+#ifndef __EMSCRIPTEN__
+      // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
       light_obj->AddToScene(scene_);
+#endif
       lights_.emplace_back(std::move(light_obj));
     }
   }
@@ -299,7 +307,10 @@ void SceneView::PrepareLights() {
     params.castshadow = 0;
     params.intensity = 0;
     auto light_obj = std::make_unique<Light>(object_mgr_, params);
+#ifndef __EMSCRIPTEN__
+    // TODO(b/458045799): Re-enable when lights work on glinux and chromebook.
     light_obj->AddToScene(scene_);
+#endif
     lights_.emplace_back(std::move(light_obj));
   }
 
@@ -307,15 +318,19 @@ void SceneView::PrepareLights() {
   // dealing with a "classic renderer" scene. In this case, let's add a
   // default environment light and set the light intensity ourselves.
   if (total_light_intensity == 0.0f) {
-    constexpr float kHeadlightIntensityCandela = 10'000.f;
+    // Headlight is not required for Filament and often confusing, disable it by
+    // default.
+    constexpr float kHeadlightIntensityCandela = 0.f;
     constexpr float kTotalSceneLightIntensityCandela = 100'000.f;
     constexpr float kFallbackEnvironmentLightIntensityCandela = 10'000.f;
 
     SetFallbackEnvironmentLight(kFallbackEnvironmentLightIntensityCandela);
     const float intensity = kTotalSceneLightIntensityCandela / lights_.size();
     for (auto& light : lights_) {
-      light->SetIntensity(light->IsHeadlight() ? kHeadlightIntensityCandela
-                                               : intensity);
+      if (light) {
+        light->SetIntensity(light->IsHeadlight() ? kHeadlightIntensityCandela
+                                                : intensity);
+      }
     }
   }
 }
@@ -344,6 +359,8 @@ void SceneView::UpdateScene(const mjrContext* context, const mjvScene* scene) {
 
     auto drawable = std::make_unique<Drawable>(object_mgr_, *geom);
     drawable->AddToScene(scene_);
+    drawable->SetUseDistinctSegmentationColors(
+        use_distinct_segmentation_colors_);
     drawable->Update(object_mgr_->GetModel(), scene, *geom);
     drawables_.push_back(std::move(drawable));
   }
@@ -366,9 +383,11 @@ void SceneView::UpdateScene(const mjrContext* context, const mjvScene* scene) {
       continue;
     } else if (scene_light.id < lights_.size() - 1) {
       std::unique_ptr<Light>& light = lights_[scene_light.id];
-      light->SetColor(ReadFloat3(scene_light.diffuse));
-      light->SetTransform(ReadFloat3(scene_light.pos),
-                          ReadFloat3(scene_light.dir));
+      if (light) {
+        light->SetColor(ReadFloat3(scene_light.diffuse));
+        light->SetTransform(ReadFloat3(scene_light.pos),
+                            ReadFloat3(scene_light.dir));
+      }
     } else {
       mju_error("Unexpected light id: %d", scene_light.id);
     }

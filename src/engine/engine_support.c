@@ -41,8 +41,8 @@
 
 //-------------------------- Constants -------------------------------------------------------------
 
- #define mjVERSION 338
-#define mjVERSIONSTRING "3.3.8"
+ #define mjVERSION 341
+#define mjVERSIONSTRING "3.4.1"
 
 // names of disable flags
 const char* mjDISABLESTRING[mjNDISABLE] = {
@@ -74,7 +74,8 @@ const char* mjENABLESTRING[mjNENABLE] = {
   "Energy",
   "Fwdinv",
   "InvDiscrete",
-  "MultiCCD"
+  "MultiCCD",
+  "Sleep"
 };
 
 
@@ -258,6 +259,36 @@ void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int 
         mjtNum* ptr = mj_stateElemPtr(m, d, element);
         mju_copy(ptr, state + adr, size);
         adr += size;
+      }
+    }
+  }
+}
+
+
+// copy state from src to dst
+void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, unsigned int sig) {
+  if (sig >= (1<<mjNSTATE)) {
+    mjERROR("invalid state signature %u >= 2^mjNSTATE", sig);
+  }
+
+  for (int i=0; i < mjNSTATE; i++) {
+    mjtState element = 1<<i;
+    if (element & sig) {
+      int size = mj_stateElemSize(m, element);
+
+      // special handling of eq_active (mjtByte)
+      if (element == mjSTATE_EQ_ACTIVE) {
+        int neq = m->neq;
+        for (int j=0; j < neq; j++) {
+          dst->eq_active[j] = src->eq_active[j];
+        }
+      }
+
+      // regular state components (mjtNum)
+      else {
+        mjtNum* dst_ptr = mj_stateElemPtr(m, dst, element);
+        const mjtNum* src_ptr = mj_stateElemConstPtr(m, src, element);
+        mju_copy(dst_ptr, src_ptr, size);
       }
     }
   }
@@ -560,37 +591,48 @@ void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
 }
 
 
-// integrate qpos with given qvel
-void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt) {
-  // loop over joints
-  for (int j=0; j < m->njnt; j++) {
-    // get addresses in qpos and qvel
-    int padr = m->jnt_qposadr[j];
-    int vadr = m->jnt_dofadr[j];
+// integrate qpos with given qvel for given body indices
+void mj_integratePosInd(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt,
+                        const int* index, int nbody) {
+  for (int b=1; b < nbody; b++) {
+    int k = index ? index[b] : b;
+    int start = m->body_jntadr[k];
+    int end = start + m->body_jntnum[k];
+    for (int j=start; j < end; j++) {
+      // get addresses in qpos and qvel
+      int padr = m->jnt_qposadr[j];
+      int vadr = m->jnt_dofadr[j];
 
-    switch ((mjtJoint) m->jnt_type[j]) {
-    case mjJNT_FREE:
-      // position update
-      for (int i=0; i < 3; i++) {
-        qpos[padr+i] += dt * qvel[vadr+i];
+      switch ((mjtJoint) m->jnt_type[j]) {
+      case mjJNT_FREE:
+        // position update
+        for (int i=0; i < 3; i++) {
+          qpos[padr+i] += dt * qvel[vadr+i];
+        }
+        padr += 3;
+        vadr += 3;
+
+        // continue with rotation update
+        mjFALLTHROUGH;
+
+      case mjJNT_BALL:
+        // quaternion update
+        mju_quatIntegrate(qpos+padr, qvel+vadr, dt);
+        break;
+
+      case mjJNT_HINGE:
+      case mjJNT_SLIDE:
+        // scalar update: same for rotation and translation
+        qpos[padr] += dt * qvel[vadr];
       }
-      padr += 3;
-      vadr += 3;
-
-      // continue with rotation update
-      mjFALLTHROUGH;
-
-    case mjJNT_BALL:
-      // quaternion update
-      mju_quatIntegrate(qpos+padr, qvel+vadr, dt);
-      break;
-
-    case mjJNT_HINGE:
-    case mjJNT_SLIDE:
-      // scalar update: same for rotation and translation
-      qpos[padr] += dt * qvel[vadr];
     }
   }
+}
+
+
+// integrate qpos with given qvel
+void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt) {
+  mj_integratePosInd(m, qpos, qvel, dt, NULL, m->nbody);
 }
 
 

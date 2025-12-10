@@ -48,6 +48,9 @@ MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int src
 // set state
 MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
 
+// copy state from src to dst
+MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, unsigned int sig);
+
 // copy current state to the k-th model keyframe
 MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
 
@@ -88,6 +91,10 @@ MJAPI mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int g
 // compute velocity by finite-differencing two positions
 MJAPI void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
                                const mjtNum* qpos1, const mjtNum* qpos2);
+
+// integrate qpos with given qvel for given body indices
+MJAPI void mj_integratePosInd(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt,
+                              const int* index, int nbody);
 
 // integrate position with given velocity
 MJAPI void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt);

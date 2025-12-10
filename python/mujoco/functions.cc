@@ -214,6 +214,7 @@ PYBIND11_MODULE(_functions, pymodule) {
       });
 
   // Components
+  Def<traits::mj_fwdKinematics>(pymodule);
   Def<traits::mj_fwdPosition>(pymodule);
   Def<traits::mj_fwdVelocity>(pymodule);
   Def<traits::mj_fwdActuation>(pymodule);
@@ -350,6 +351,7 @@ PYBIND11_MODULE(_functions, pymodule) {
         }
         return InterceptMjErrors(::mj_setState)(m, d, state.data(), sig);
       });
+  Def<traits::mj_copyState>(pymodule);
   Def<traits::mj_setKeyframe>(pymodule);
   Def<traits::mj_addContact>(pymodule);
   Def<traits::mj_isPyramidal>(pymodule);
@@ -740,6 +742,8 @@ PYBIND11_MODULE(_functions, pymodule) {
   Def<traits::mjv_makeLights>(pymodule);
   Def<traits::mjv_updateCamera>(pymodule);
   Def<traits::mjv_updateSkin>(pymodule);
+  Def<traits::mjv_cameraFrame>(pymodule);
+  Def<traits::mjv_cameraFrustum>(pymodule);
 
   // UI framework
   // Skipped: entire section (can add this if there's demand)

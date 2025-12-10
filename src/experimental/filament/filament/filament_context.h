@@ -51,7 +51,10 @@ class FilamentContext {
 
   void UploadHeightField(const mjModel* model, int id);
 
-  void UploadFont(const uint8_t* pixels, int width, int height, int id);
+  uintptr_t UploadGuiImage(uintptr_t tex_id, const uint8_t* pixels, int width,
+                           int height, int bpp);
+
+  double GetFrameRate() const;
 
   FilamentContext(const FilamentContext&) = delete;
   FilamentContext& operator=(const FilamentContext&) = delete;
@@ -73,6 +76,7 @@ class FilamentContext {
   filament::Texture* target_textures_[kNumRenderTargetTextureTypes] = {
       nullptr, nullptr, nullptr};
 
+  SceneView::DrawMode last_render_mode_ = SceneView::DrawMode::kNormal;
   bool render_to_texture_ = false;
   bool render_gui_ = false;
 

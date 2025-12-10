@@ -62,6 +62,9 @@ void mj_defaultOption(mjOption* opt) {
   opt->noslip_tolerance   = 1e-6;
   opt->ccd_tolerance      = 1e-6;
 
+  // sleep settings
+  opt->sleep_tolerance    = 1e-4;
+
   // physical constants
   opt->gravity[0]         = 0;
   opt->gravity[1]         = 0;

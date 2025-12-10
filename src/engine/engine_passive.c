@@ -25,6 +25,7 @@
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -58,63 +59,72 @@ static void inline GradSquaredLengths(mjtNum gradient[6][2][3],
 
 // spring and damper forces
 static void mj_springdamper(const mjModel* m, mjData* d) {
-  int nv = m->nv, njnt = m->njnt, ntendon = m->ntendon;
+  int nv = m->nv, ntendon = m->ntendon;
   int has_spring = !mjDISABLED(mjDSBL_SPRING);
   int has_damping = !mjDISABLED(mjDSBL_DAMPER);
   int issparse = mj_isSparse(m);
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
 
   // joint-level springs
   if (has_spring) {
-    for (int i=0; i < njnt; i++) {
-      mjtNum stiffness = m->jnt_stiffness[i];
+    for (int b=0; b < nbody; b++) {
+      int i = sleep_filter ? d->body_awake_ind[b] : b;
+      int jnt_start = m->body_jntadr[i];
+      int jnt_end = jnt_start + m->body_jntnum[i];
+      for (int j=jnt_start; j < jnt_end; j++) {
+        mjtNum stiffness = m->jnt_stiffness[j];
 
-      // disabled : nothing to do
-      if (stiffness == 0) {
-        continue;
-      }
-
-      int padr = m->jnt_qposadr[i];
-      int dadr = m->jnt_dofadr[i];
-
-      switch ((mjtJoint) m->jnt_type[i]) {
-      case mjJNT_FREE:
-        // apply force
-        d->qfrc_spring[dadr+0] = -stiffness*(d->qpos[padr+0] - m->qpos_spring[padr+0]);
-        d->qfrc_spring[dadr+1] = -stiffness*(d->qpos[padr+1] - m->qpos_spring[padr+1]);
-        d->qfrc_spring[dadr+2] = -stiffness*(d->qpos[padr+2] - m->qpos_spring[padr+2]);
-
-        // continue with rotations
-        dadr += 3;
-        padr += 3;
-        mjFALLTHROUGH;
-
-      case mjJNT_BALL:
-        {
-          // convert quaternion difference into angular "velocity"
-          mjtNum dif[3], quat[4];
-          mju_copy4(quat, d->qpos+padr);
-          mju_normalize4(quat);
-          mju_subQuat(dif, quat, m->qpos_spring + padr);
-
-          // apply torque
-          d->qfrc_spring[dadr+0] = -stiffness*dif[0];
-          d->qfrc_spring[dadr+1] = -stiffness*dif[1];
-          d->qfrc_spring[dadr+2] = -stiffness*dif[2];
+        // disabled : nothing to do
+        if (stiffness == 0) {
+          continue;
         }
-        break;
 
-      case mjJNT_SLIDE:
-      case mjJNT_HINGE:
-        // apply force or torque
-        d->qfrc_spring[dadr] = -stiffness*(d->qpos[padr] - m->qpos_spring[padr]);
-        break;
+        int padr = m->jnt_qposadr[j];
+        int dadr = m->jnt_dofadr[j];
+
+        switch ((mjtJoint) m->jnt_type[j]) {
+        case mjJNT_FREE:
+          // apply force
+          d->qfrc_spring[dadr+0] = -stiffness*(d->qpos[padr+0] - m->qpos_spring[padr+0]);
+          d->qfrc_spring[dadr+1] = -stiffness*(d->qpos[padr+1] - m->qpos_spring[padr+1]);
+          d->qfrc_spring[dadr+2] = -stiffness*(d->qpos[padr+2] - m->qpos_spring[padr+2]);
+
+          // continue with rotations
+          dadr += 3;
+          padr += 3;
+          mjFALLTHROUGH;
+
+        case mjJNT_BALL:
+          {
+            // convert quaternion difference into angular "velocity"
+            mjtNum dif[3], quat[4];
+            mju_copy4(quat, d->qpos+padr);
+            mju_normalize4(quat);
+            mju_subQuat(dif, quat, m->qpos_spring + padr);
+
+            // apply torque
+            d->qfrc_spring[dadr+0] = -stiffness*dif[0];
+            d->qfrc_spring[dadr+1] = -stiffness*dif[1];
+            d->qfrc_spring[dadr+2] = -stiffness*dif[2];
+          }
+          break;
+
+        case mjJNT_SLIDE:
+        case mjJNT_HINGE:
+          // apply force or torque
+          d->qfrc_spring[dadr] = -stiffness*(d->qpos[padr] - m->qpos_spring[padr]);
+          break;
+        }
       }
     }
   }
 
   // dof-level dampers
   if (has_damping) {
-    for (int i=0; i < m->nv; i++) {
+    int nv_awake = sleep_filter ? d->nv_awake : nv;
+    for (int j = 0; j < nv_awake; j++) {
+      int i = sleep_filter ? d->dof_awake_ind[j] : j;
       mjtNum damping = m->dof_damping[i];
       if (damping != 0) {
         d->qfrc_damper[i] = -damping*d->qvel[i];
@@ -419,6 +429,11 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
   // tendon-level spring-dampers
   for (int i=0; i < ntendon; i++) {
+    // skip sleeping or static tendon
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) != mjS_AWAKE) {
+      continue;
+    }
+
     mjtNum stiffness = m->tendon_stiffness[i] * has_spring;
     mjtNum damping = m->tendon_damping[i] * has_damping;
 
@@ -466,11 +481,14 @@ static int mj_gravcomp(const mjModel* m, mjData* d) {
     return 0;
   }
 
-  int nbody = m->nbody, has_gravcomp = 0;
+  int has_gravcomp = 0;
   mjtNum force[3], torque[3]={0};
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
 
   // apply per-body gravity compensation
-  for (int i=1; i < nbody; i++) {
+  for (int b=1; b < nbody; b++) {
+    int i = sleep_filter ? d->body_awake_ind[b] : b;
     if (m->body_gravcomp[i]) {
       has_gravcomp = 1;
       mju_scl3(force, m->opt.gravity, -(m->body_mass[i]*m->body_gravcomp[i]));
@@ -484,32 +502,37 @@ static int mj_gravcomp(const mjModel* m, mjData* d) {
 
 // fluid forces
 static int mj_fluid(const mjModel* m, mjData* d) {
-  int has_fluid = m->opt.viscosity > 0 || m->opt.density > 0;
+  // no fluid forces: early return
+  if (!m->opt.viscosity && !m->opt.density) {
+    return 0;
+  }
 
-  if (has_fluid) {
-    int nbody = m->nbody;
-    for (int i=1; i < nbody; i++) {
-      if (m->body_mass[i] < mjMINVAL) {
-        continue;
-      }
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
 
-      // if any child geom uses the ellipsoid model, inertia-box model is disabled for parent body
-      int use_ellipsoid_model = 0;
-      int geomnum = m->body_geomnum[i];
-      for (int j=0; j < geomnum && use_ellipsoid_model == 0; j++) {
-        const int geomid = m->body_geomadr[i] + j;
-        use_ellipsoid_model += (m->geom_fluid[mjNFLUID*geomid] > 0);
-      }
+  for (int b=0; b < nbody; b++) {
+    int i = sleep_filter ? d->body_awake_ind[b] : b;
 
-      if (use_ellipsoid_model) {
-        mj_ellipsoidFluidModel(m, d, i);
-      } else {
-        mj_inertiaBoxFluidModel(m, d, i);
-      }
+    if (m->body_mass[i] < mjMINVAL) {
+      continue;
+    }
+
+    // if any child geom uses the ellipsoid model, inertia-box model is disabled for parent body
+    int use_ellipsoid_model = 0;
+    int geomnum = m->body_geomnum[i];
+    for (int j=0; j < geomnum && use_ellipsoid_model == 0; j++) {
+      const int geomid = m->body_geomadr[i] + j;
+      use_ellipsoid_model += (m->geom_fluid[mjNFLUID*geomid] > 0);
+    }
+
+    if (use_ellipsoid_model) {
+      mj_ellipsoidFluidModel(m, d, i);
+    } else {
+      mj_inertiaBoxFluidModel(m, d, i);
     }
   }
 
-  return has_fluid;
+  return 1;
 }
 
 
@@ -597,14 +620,24 @@ int mj_contactPassive(const mjModel* m, mjData* d) {
 
 // all passive forces
 void mj_passive(const mjModel* m, mjData* d) {
-  int nv = m->nv;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nv_awake < m->nv;
+  int nv = sleep_filter ? d->nv_awake : m->nv;
+  const int* dof_awake_ind = sleep_filter ? d->dof_awake_ind : NULL;
 
-  // clear all passive force vectors
-  mju_zero(d->qfrc_spring,   nv);
-  mju_zero(d->qfrc_damper,   nv);
-  mju_zero(d->qfrc_gravcomp, nv);
-  mju_zero(d->qfrc_fluid,    nv);
-  mju_zero(d->qfrc_passive,  nv);
+  // clear passive force vectors for awake dofs
+  if (sleep_filter) {
+    mju_zeroInd(d->qfrc_spring,   nv, dof_awake_ind);
+    mju_zeroInd(d->qfrc_damper,   nv, dof_awake_ind);
+    mju_zeroInd(d->qfrc_gravcomp, nv, dof_awake_ind);
+    mju_zeroInd(d->qfrc_fluid,    nv, dof_awake_ind);
+    mju_zeroInd(d->qfrc_passive,  nv, dof_awake_ind);
+  } else {
+    mju_zero(d->qfrc_spring,   nv);
+    mju_zero(d->qfrc_damper,   nv);
+    mju_zero(d->qfrc_gravcomp, nv);
+    mju_zero(d->qfrc_fluid,    nv);
+    mju_zero(d->qfrc_passive,  nv);
+  }
 
   // both spring and damping disabled: skip all passive forces
   if (mjDISABLED(mjDSBL_SPRING) && mjDISABLED(mjDSBL_DAMPER)) {
@@ -624,39 +657,49 @@ void mj_passive(const mjModel* m, mjData* d) {
   mj_contactPassive(m, d);
 
   // add passive forces into qfrc_passive
-  mju_add(d->qfrc_passive, d->qfrc_spring, d->qfrc_damper, nv);
-  if (has_fluid) {
-    mju_addTo(d->qfrc_passive, d->qfrc_fluid, nv);
+  if (sleep_filter) {
+    mju_addInd(d->qfrc_passive, d->qfrc_spring, d->qfrc_damper, dof_awake_ind, nv);
+  } else {
+    mju_add(d->qfrc_passive, d->qfrc_spring, d->qfrc_damper, nv);
   }
+
+  if (has_fluid) {
+    if (sleep_filter) {
+      mju_addToInd(d->qfrc_passive, d->qfrc_fluid, dof_awake_ind, nv);
+    } else {
+      mju_addTo(d->qfrc_passive, d->qfrc_fluid, nv);
+    }
+  }
+
   if (has_gravcomp) {
-    int njnt = m->njnt;
-    for (int i=0; i < njnt; i++) {
-      // skip if gravcomp added via actuators
-      if (m->jnt_actgravcomp[i]) {
-        continue;
-      }
+    int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+    for (int b=0; b < nbody; b++) {
+      int i = sleep_filter ? d->body_awake_ind[b] : b;
 
-      // get number of dofs for this joint
-      int dofnum;
-      switch (m->jnt_type[i]) {
-      case mjJNT_HINGE:
-      case mjJNT_SLIDE:
-        dofnum = 1;
-        break;
+      // skip if no joints
+      int jntnum = m->body_jntnum[i];
+      if (!jntnum) continue;
 
-      case mjJNT_BALL:
-        dofnum = 3;
-        break;
+      // skip if no gravity compensation
+      if (!m->body_gravcomp[i]) continue;
 
-      case mjJNT_FREE:
-        dofnum = 6;
-        break;
-      }
+      int start = m->body_jntadr[i];
+      int end = start + jntnum;
+      for (int j=start; j < end; j++) {
+        // skip if gravity compensation added via actuators
+        if (m->jnt_actgravcomp[j]) {
+          continue;
+        }
 
-      // add gravcomp force
-      int dofadr = m->jnt_dofadr[i];
-      for (int j=0; j < dofnum; j++) {
-        d->qfrc_passive[dofadr+j] += d->qfrc_gravcomp[dofadr+j];
+        // get number of dofs for this joint
+        const int jnt_dofnum[4] = {6, 3, 1, 1};
+        int dofnum = jnt_dofnum[m->jnt_type[j]];
+
+        // add gravity compensation force
+        int dofadr = m->jnt_dofadr[j];
+        for (int k=0; k < dofnum; k++) {
+          d->qfrc_passive[dofadr+k] += d->qfrc_gravcomp[dofadr+k];
+        }
       }
     }
   }

@@ -25,6 +25,7 @@ from mujoco.mjx._src import support
 from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import EnableBit
+from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import IntegratorType
 from mujoco.mjx._src.types import Model
 
@@ -83,6 +84,7 @@ def inv_constraint(m: Model, d: Data) -> Data:
 
 def inverse(m: Model, d: Data) -> Data:
   """Inverse dynamics."""
+
   d = forward.fwd_position(m, d)
   d = sensor.sensor_pos(m, d)
   d = forward.fwd_velocity(m, d)

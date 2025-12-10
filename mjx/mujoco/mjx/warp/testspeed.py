@@ -30,7 +30,7 @@ from mujoco.mjx.warp import forward as wp_forward
 from mujoco.mjx.warp import smooth as wp_smooth
 import mujoco.mjx.third_party.mujoco_warp as mjwarp
 import warp as wp
-from mujoco.mjx.third_party.warp.jax_experimental import ffi as warp_ffi
+from mujoco.mjx.third_party.warp._src.jax_experimental import ffi as warp_ffi
 
 _MODELFILE = flags.DEFINE_string(
     'modelfile',
@@ -93,7 +93,7 @@ def benchmark(
   @jax.vmap
   def init(key):
     d = mjx.make_data(
-        m, impl=mx.impl, nconmax=_NCONMAX.value, njmax=_NJMAX.value
+        m, impl=mx.impl, naconmax=_NACONMAX.value, njmax=_NJMAX.value
     )
     return d
 
@@ -262,7 +262,7 @@ def benchmark_raw_jax_warp(
   d_ = mujoco.MjData(m)
   mw = mjwarp.put_model(m)
   d = mjwarp.put_data(
-      m, d_, nworld=nenv, nconmax=_NCONMAX.value, njmax=_NJMAX.value
+      m, d_, nworld=nenv, naconmax=_NACONMAX.value, njmax=_NJMAX.value
   )
 
   jax_unroll_fn = jax_jit(unroll)
@@ -310,7 +310,7 @@ def benchmark_raw_warp(
 
   mw = mjwarp.put_model(m)
   dw = mjwarp.make_data(
-      m, nworld=nenv, nconmax=_NCONMAX.value, njmax=_NJMAX.value
+      m, nworld=nenv, nconmax=_NACONMAX.value, njmax=_NJMAX.value
   )
 
   if function == 'kinematics':

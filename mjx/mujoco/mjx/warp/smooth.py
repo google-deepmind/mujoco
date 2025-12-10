@@ -51,10 +51,13 @@ def _kinematics_shim(
     body_iquat: wp.array2d(dtype=wp.quat),
     body_jntadr: wp.array(dtype=int),
     body_jntnum: wp.array(dtype=int),
+    body_mocapid: wp.array(dtype=int),
     body_parentid: wp.array(dtype=int),
     body_pos: wp.array2d(dtype=wp.vec3),
     body_quat: wp.array2d(dtype=wp.quat),
+    body_rootid: wp.array(dtype=int),
     body_tree: tuple[wp.array(dtype=int), ...],
+    body_weldid: wp.array(dtype=int),
     flex_edge: wp.array(dtype=wp.vec2i),
     flex_vertadr: wp.array(dtype=int),
     flex_vertbodyid: wp.array(dtype=int),
@@ -79,7 +82,6 @@ def _kinematics_shim(
     flexedge_length: wp.array2d(dtype=float),
     flexedge_velocity: wp.array2d(dtype=float),
     flexvert_xpos: wp.array2d(dtype=wp.vec3),
-    geom_skip: wp.array(dtype=bool),
     geom_xmat: wp.array2d(dtype=wp.mat33),
     geom_xpos: wp.array2d(dtype=wp.vec3),
     mocap_pos: wp.array2d(dtype=wp.vec3),
@@ -105,10 +107,13 @@ def _kinematics_shim(
   _m.body_iquat = body_iquat
   _m.body_jntadr = body_jntadr
   _m.body_jntnum = body_jntnum
+  _m.body_mocapid = body_mocapid
   _m.body_parentid = body_parentid
   _m.body_pos = body_pos
   _m.body_quat = body_quat
+  _m.body_rootid = body_rootid
   _m.body_tree = body_tree
+  _m.body_weldid = body_weldid
   _m.flex_edge = flex_edge
   _m.flex_vertadr = flex_vertadr
   _m.flex_vertbodyid = flex_vertbodyid
@@ -132,7 +137,6 @@ def _kinematics_shim(
   _d.flexedge_length = flexedge_length
   _d.flexedge_velocity = flexedge_velocity
   _d.flexvert_xpos = flexvert_xpos
-  _d.geom_skip = geom_skip
   _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
   _d.mocap_pos = mocap_pos
@@ -157,7 +161,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       'flexedge_length': d._impl.flexedge_length.shape,
       'flexedge_velocity': d._impl.flexedge_velocity.shape,
       'flexvert_xpos': d._impl.flexvert_xpos.shape,
-      'geom_skip': d._impl.geom_skip.shape,
       'geom_xmat': d.geom_xmat.shape,
       'geom_xpos': d.geom_xpos.shape,
       'mocap_pos': d.mocap_pos.shape,
@@ -176,14 +179,13 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _kinematics_shim,
-      num_outputs=19,
+      num_outputs=18,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames={
           'flexedge_length',
           'flexedge_velocity',
           'flexvert_xpos',
-          'geom_skip',
           'geom_xmat',
           'geom_xpos',
           'mocap_pos',
@@ -208,10 +210,13 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       m.body_iquat,
       m.body_jntadr,
       m.body_jntnum,
+      m.body_mocapid,
       m.body_parentid,
       m.body_pos,
       m.body_quat,
+      m.body_rootid,
       m._impl.body_tree,
+      m.body_weldid,
       m._impl.flex_edge,
       m._impl.flex_vertadr,
       m._impl.flex_vertbodyid,
@@ -235,7 +240,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       d._impl.flexedge_length,
       d._impl.flexedge_velocity,
       d._impl.flexvert_xpos,
-      d._impl.geom_skip,
       d.geom_xmat,
       d.geom_xpos,
       d.mocap_pos,
@@ -256,22 +260,21 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       '_impl.flexedge_length': out[0],
       '_impl.flexedge_velocity': out[1],
       '_impl.flexvert_xpos': out[2],
-      '_impl.geom_skip': out[3],
-      'geom_xmat': out[4],
-      'geom_xpos': out[5],
-      'mocap_pos': out[6],
-      'mocap_quat': out[7],
-      'qpos': out[8],
-      'qvel': out[9],
-      'site_xmat': out[10],
-      'site_xpos': out[11],
-      'xanchor': out[12],
-      'xaxis': out[13],
-      'ximat': out[14],
-      'xipos': out[15],
-      'xmat': out[16],
-      'xpos': out[17],
-      'xquat': out[18],
+      'geom_xmat': out[3],
+      'geom_xpos': out[4],
+      'mocap_pos': out[5],
+      'mocap_quat': out[6],
+      'qpos': out[7],
+      'qvel': out[8],
+      'site_xmat': out[9],
+      'site_xpos': out[10],
+      'xanchor': out[11],
+      'xaxis': out[12],
+      'ximat': out[13],
+      'xipos': out[14],
+      'xmat': out[15],
+      'xpos': out[16],
+      'xquat': out[17],
   })
   return d
 
@@ -319,6 +322,7 @@ def _tendon_shim(
     jnt_qposadr: wp.array(dtype=int),
     ntendon: int,
     nv: int,
+    nwrap: int,
     site_bodyid: wp.array(dtype=int),
     tendon_adr: wp.array(dtype=int),
     tendon_geom_adr: wp.array(dtype=int),
@@ -343,7 +347,6 @@ def _tendon_shim(
     ten_length: wp.array2d(dtype=float),
     ten_wrapadr: wp.array2d(dtype=int),
     ten_wrapnum: wp.array2d(dtype=int),
-    wrap_geom_xpos: wp.array2d(dtype=wp.spatial_vector),
     wrap_obj: wp.array2d(dtype=wp.vec2i),
     wrap_xpos: wp.array2d(dtype=wp.spatial_vector),
 ):
@@ -360,6 +363,7 @@ def _tendon_shim(
   _m.jnt_qposadr = jnt_qposadr
   _m.ntendon = ntendon
   _m.nv = nv
+  _m.nwrap = nwrap
   _m.site_bodyid = site_bodyid
   _m.tendon_adr = tendon_adr
   _m.tendon_geom_adr = tendon_geom_adr
@@ -383,7 +387,6 @@ def _tendon_shim(
   _d.ten_length = ten_length
   _d.ten_wrapadr = ten_wrapadr
   _d.ten_wrapnum = ten_wrapnum
-  _d.wrap_geom_xpos = wrap_geom_xpos
   _d.wrap_obj = wrap_obj
   _d.wrap_xpos = wrap_xpos
   _d.nworld = nworld
@@ -392,7 +395,7 @@ def _tendon_shim(
 
 def _tendon_jax_impl(m: types.Model, d: types.Data):
   output_dims = {
-      'cdof': d._impl.cdof.shape,
+      'cdof': d.cdof.shape,
       'geom_xmat': d.geom_xmat.shape,
       'geom_xpos': d.geom_xpos.shape,
       'qpos': d.qpos.shape,
@@ -402,13 +405,12 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       'ten_length': d.ten_length.shape,
       'ten_wrapadr': d._impl.ten_wrapadr.shape,
       'ten_wrapnum': d._impl.ten_wrapnum.shape,
-      'wrap_geom_xpos': d._impl.wrap_geom_xpos.shape,
       'wrap_obj': d._impl.wrap_obj.shape,
       'wrap_xpos': d._impl.wrap_xpos.shape,
   }
   jf = ffi.jax_callable_variadic_tuple(
       _tendon_shim,
-      num_outputs=13,
+      num_outputs=12,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames={
@@ -422,7 +424,6 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
           'ten_length',
           'ten_wrapadr',
           'ten_wrapnum',
-          'wrap_geom_xpos',
           'wrap_obj',
           'wrap_xpos',
       },
@@ -438,6 +439,7 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       m.jnt_qposadr,
       m.ntendon,
       m.nv,
+      m.nwrap,
       m.site_bodyid,
       m.tendon_adr,
       m._impl.tendon_geom_adr,
@@ -451,7 +453,7 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       m._impl.wrap_pulley_scale,
       m._impl.wrap_site_pair_adr,
       m.wrap_type,
-      d._impl.cdof,
+      d.cdof,
       d.geom_xmat,
       d.geom_xpos,
       d.qpos,
@@ -461,12 +463,11 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       d.ten_length,
       d._impl.ten_wrapadr,
       d._impl.ten_wrapnum,
-      d._impl.wrap_geom_xpos,
       d._impl.wrap_obj,
       d._impl.wrap_xpos,
   )
   d = d.tree_replace({
-      '_impl.cdof': out[0],
+      'cdof': out[0],
       'geom_xmat': out[1],
       'geom_xpos': out[2],
       'qpos': out[3],
@@ -476,9 +477,8 @@ def _tendon_jax_impl(m: types.Model, d: types.Data):
       'ten_length': out[7],
       '_impl.ten_wrapadr': out[8],
       '_impl.ten_wrapnum': out[9],
-      '_impl.wrap_geom_xpos': out[10],
-      '_impl.wrap_obj': out[11],
-      '_impl.wrap_xpos': out[12],
+      '_impl.wrap_obj': out[10],
+      '_impl.wrap_xpos': out[11],
   })
   return d
 

@@ -61,6 +61,9 @@ class Renderables {
   // Returns true if the entities are visible.
   bool IsVisible() const { return visible_; }
 
+  // Disables the renderables from casting shadows.
+  void DisableShadows();
+
   // Adds all managed entities to the given filament Scene.
   void AddToScene(filament::Scene* scene);
 
@@ -84,6 +87,7 @@ class Renderables {
   std::vector<utils::Entity> entities_;
   std::vector<std::optional<FilamentBuffers>> owned_buffers_;
   bool visible_ = true;
+  bool cast_shadows_ = true;
 };
 
 }  // namespace mujoco

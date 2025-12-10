@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+
 //---------------------------------- floating-point definition -------------------------------------
 
 // floating point data type and minval
@@ -30,15 +31,15 @@
 
 
 
-//-------------------------------------- byte definition -------------------------------------------
+//---------------------------------- byte definition -----------------------------------------------
 
 typedef unsigned char mjtByte;    // used for true/false
 
 
 
-//-------------------------------------- size definition -------------------------------------------
+//---------------------------------- size definition -----------------------------------------------
 
-typedef uint64_t mjtSize;         // used for buffer sizes
+typedef int64_t mjtSize;          // used for buffer sizes
 
 
 

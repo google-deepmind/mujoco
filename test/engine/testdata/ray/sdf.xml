@@ -1,0 +1,28 @@
+<mujoco>
+  <extension>
+    <plugin plugin="mujoco.sdf.torus">
+      <instance name="torus">
+        <config key="radius1" value="1"/>
+        <config key="radius2" value="0.3"/>
+      </instance>
+    </plugin>
+  </extension>
+
+  <asset>
+    <mesh name="torus">
+      <plugin instance="torus"/>
+    </mesh>
+  </asset>
+
+  <option sdf_iterations="10" sdf_initpoints="40"/>
+
+  <include file="ray_swing.xml"/>
+
+  <worldbody>
+    <body pos="-.5 .002 -.2" euler="90 0 -40" mocap="true">
+      <geom type="sdf" mesh="torus">
+        <plugin instance="torus"/>
+      </geom>
+    </body>
+  </worldbody>
+</mujoco>

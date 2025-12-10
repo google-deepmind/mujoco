@@ -12,25 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Generates WASM bindings for MuJoCo's API.
+"""Generates Javascript/TypeScript bindings for MuJoCo."""
 
-This script leverages MuJoCo's introspect dicts to gather information
-about its internal structures and then uses a code generation framework to
-produce corresponding WASM bindings.
-"""
-
-from wasm.codegen import binding_builder
-from wasm.codegen.helpers import common
-
-
-def generate_all_bindings():
-  """Generates WASM bindings for MuJoCo."""
-  template_path_cc, generated_path_cc = common.get_file_path(
-      "templates", "generated", "bindings.cc"
-  )
-  builder = binding_builder.BindingBuilder(template_path_cc)
-  builder.set_enums().set_structs().set_functions().build(generated_path_cc)
+from wasm.codegen.generators import binding_builder
 
 
 if __name__ == "__main__":
-  generate_all_bindings()
+  template_file = "wasm/codegen/templates/bindings.cc"
+  generated_file = "wasm/codegen/generated/bindings.cc"
+
+  builder = binding_builder.BindingBuilder(template_file)
+  builder.set_enums()
+  builder.set_structs()
+  builder.set_functions()
+
+  builder.build(generated_file)

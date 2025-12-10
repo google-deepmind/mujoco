@@ -126,7 +126,7 @@ referencing elements from outside the kinematic tree (e.g., actuators and sensor
 remove all associated elements from the model. The default behavior ("shallow copy") is to move the child into the
 parent while attaching, so subsequent changes to the child will also change the parent. Alternatively, the user can
 choose to make an entirely new copy during attach using :ref:`mjs_setDeepCopy`. This flag is temporarily set to true
-while parsing XMLs. It is possible to :ref:`attach a body to a frame<mjs_attach>`:
+while parsing XMLs. It is possible to :ref:`attach a body or an mjSpec to a frame<mjs_attach>`:
 
 .. code-block:: C
 
@@ -138,7 +138,7 @@ while parsing XMLs. It is possible to :ref:`attach a body to a frame<mjs_attach>
    mjsElement* body = mjs_addBody(mjs_findBody(child, "world"), NULL)->element;
    mjsBody* attached_body_1 = mjs_asBody(mjs_attach(frame, body, "attached-", "-1"));
 
-or :ref:`attach a body to a site<mjs_attach>`:
+or :ref:`attach a body or an mjSpec to a site<mjs_attach>`:
 
 .. code-block:: C
 
@@ -148,7 +148,7 @@ or :ref:`attach a body to a site<mjs_attach>`:
    mjsElement* body = mjs_addBody(mjs_findBody(child, "world"), NULL)->element;
    mjsBody* attached_body_2 = mjs_asBody(mjs_attach(site, body, "attached-", "-2"));
 
-or :ref:`attach a frame to a body<mjs_attach>`:
+or :ref:`attach a frame or an mjSpec to a body<mjs_attach>`:
 
 .. code-block:: C
 
@@ -164,6 +164,18 @@ interperted. Compiler flags are carried over during attachment, so the child mod
 flags, while the parent will be compiled using the parent flags.
 
 Note also that once a child is attached by reference to a parent, the child cannot be compiled on its own.
+
+.. admonition:: Known issues
+   :class: note
+
+   The following known limitations exist:
+
+   - All assets from the child model will be copied in, whether they are referenced or not, if the parent and the child
+     are not the same mjSpec.
+   - Circular references are not checked for and will lead to infinite loops.
+   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
+     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
+     lost.
 
 .. _meDefault:
 

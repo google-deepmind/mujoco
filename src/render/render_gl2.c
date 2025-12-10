@@ -879,11 +879,26 @@ void mjr_figure(mjrRect viewport, mjvFigure* fig, const mjrContext* con) {
       range[axis][1] += 0.5f*needed;
     }
 
-    // make y-range symmetric
-    if (fig->flg_symmetric) {
-      float ymax = mjMAX(fabsf(range[1][0]), fabsf(range[1][1]));
-      range[1][0] = -ymax;
-      range[1][1] = +ymax;
+    // special handling for Y-axis
+    if (axis == 1) {
+      // get current range
+      float y_min = range[1][0];
+      float y_max = range[1][1];
+      float diff = y_max - y_min;
+
+      // snap to nearest enclosing decimal bounds
+      if (diff > 0) {
+        float power = powf(10, floorf(log10f(diff)));
+        range[1][0] = floorf(y_min / power) * power;
+        range[1][1] = ceilf(y_max / power) * power;
+      }
+
+      // make range symmetric
+      if (fig->flg_symmetric) {
+        float y_sym = mjMAX(fabsf(range[1][0]), fabsf(range[1][1]));
+        range[1][0] = -y_sym;
+        range[1][1] = +y_sym;
+      }
     }
   }
 

@@ -106,7 +106,7 @@ The default (and recommended) way to control the system is to implement a contro
 
 .. code-block:: C
 
-   // simple controller applying damping to each dof
+   // simple controller applying damping to each DOF
    void mycontroller(const mjModel* m, mjData* d) {
      if (m->nu == m->nv)
        mju_scl(d->ctrl, d->qvel, -0.1, m->nv);
@@ -553,47 +553,131 @@ or termination of the iterative solver.
 
 .. _siChange:
 
-Model changes
-~~~~~~~~~~~~~
+mjModel changes
+~~~~~~~~~~~~~~~
 
-.. admonition:: Model editing framework
+.. admonition:: Procedural Model editing with :ref:`mjSpec`
    :class: tip
 
-   The discussion below regarding mjModel changes at runtime was written before the 3.2.0 introduction of the
-   :doc:`Model Editing<modeledit>` framework. It is still valid, but the new framework is the safe and recommended way
-   to modify models.
+   The discussion below regarding :ref:`mjModel` modifications was written before the introduction of procedural
+   :doc:`Model Editing<modeledit>`. It is still valid, but the new framework is the safe and recommended way to modify
+   models. The main reason to modify an :ref:`mjModel` at runtime rather than modifying the :ref:`mjSpec` and compiling
+   again is *speed*. However it can be unsafe to make some changes, either in the sense that segfaults are possible, or
+   that the physics will change unexpectedly.
 
-The MuJoCo model contained in mjModel is supposed to represent constant physical properties of the system, and in
-theory should not change after compilation. Of course in practice things are not that simple. It is often desirable to
-change the physics options in ``mjModel.opt``, so as to experiment with different aspects of the physics or to create
-custom computations. Indeed these options are designed in such a way that the user can make arbitrary changes to them
-between time steps.
+The general rule is that real-valued parameters are safe to change, while structural integer parameters are not because
+that may result in incorrect sizes or indexing. This rule does not hold universally, and below we describe the
+exceptions.
 
-The general rule is that real-valued parameters are safe to change, while structural integer parameters are not
-because that may result in incorrect sizes or indexing. This rule does not hold universally though. Some real-valued
-parameters such as inertias are expected to obey certain properties. On the other hand, some structural parameters
-such as object types may be possible to change, but that depends on whether any sizes or indexes depend on them.
-Arrays of type mjtByte can be changed safely, since they are binary indicators that enable and disable certain
-features. The only exception here is ``mjModel.tex_data`` which is texture data represented as mjtByte.
+Exceptions to the general rule that **integer** types are **not safe to change**:
 
-When changing mjModel fields that corresponds to resources uploaded to the GPU, the user must also call the
-corresponding upload function: ``mjr_uploadTexture``, ``mjr_uploadMesh``, ``mjr_uploadHField``. Otherwise the data used
-for simulation and for rendering will no longer be consistent.
+.. list-table::
+   :widths: 1 1 4
+   :header-rows: 1
+   :class: schema-small
 
-A related consideration has to do with changing real-valued fields of mjModel that have been used by the compiler to
-compute other real-valued fields: if we make a change, we want it to propagate. That is what the function
-:ref:`mj_setConst` does: it updates all derived fields of mjModel. These are fields whose names end with "0",
-corresponding to precomputed quantities when the model is in the reference configuration ``mjModel.qpos0``.
+   * - Field
+     - Modifiability
+     - Notes
+   * - ``XXX_limited`` |br| ``XXX_group`` |br| ``XXX_matid`` |br| ``XXX_texid``
+     - Safe
+     -
+   * - ``XXX_sameframe``
+     - Unsafe
+     - This flag tells the engine to skip a parent/child frame transformation. It is safe to change from nonzero to
+       zero, but not vice versa.
+   * - ``geom_contype`` |br| ``geom_conaffinity``
+     - Unsafe
+     - This is a possible to do safely if ``body_contype`` and ``body_conaffinity`` of the parent body are updated to be
+       the bitwise OR over all child geoms.
+   * - ``geom_condim`` |br| ``geom_priority``
+     - Safe
+     -
+   * - ``cam_resolution``
+     - Safe
+     -
+   * - ``light_castshadow`` |br| ``light_active``
+     - Safe
+     -
+   * - ``flex_contype`` |br|  ``flex_conaffinity`` |br|  ``flex_condim`` |br|  ``flex_priority``
+     - Safe
+     -
+   * - ``tex_data``
+     - Safe
+     - Must call :ref:`mjr_uploadTexture` to update the values in GPU memory.
 
-Finally, if changes are made to mjModel at runtime, it may be desirable to save them back to the XML. The function
-:ref:`mj_saveLastXML` does that in a limited sense: it copies all real-valued parameters from mjModel back to the
-internal :ref:`mjSpec`, and then saves it as XML. This does not cover all possible changes that the user could have
-made. The only way to guarantee that all changes are saved is to save the model as a binary MJB file with the function
-:ref:`mj_saveModel`, or even better, make the changes directly in the XML. Unfortunately there are situations where
-changes need to be made programmatically, as in system identification for example, and this can only be done with the
-compiled model. So in summary, we have reasonable but not perfect mechanisms for saving model changes. The reason for
-this lack of perfection is that we are working with a compiled model, so this is like changing a binary executable and
-asking a "decompiler" to make corresponding changes to the C code -- it is just not possible in general.
+When considering exceptions to the rule that real-valued parameters are safe to change, we need to note the function
+:ref:`mj_setConst`, which constitutes the last step of the compilation process. This function propagates changes from
+some fields to other fields, allowing changes that would otherwise be unsafe.
+
+Exceptions to the general rule that **real-valued** types **are safe to change**:
+
+.. list-table::
+   :widths: 1 1 4
+   :header-rows: 1
+   :class: schema-small
+
+   * - Field
+     - Modifiability
+     - Notes
+   * - ``qpos0`` |br| ``qpos_spring``
+     - Safe with :ref:`mj_setConst`.
+     -
+   * - ``body_mass`` |br| ``body_inertia`` |br| ``body_ipos`` |br| ``body_iquat``
+     - Safe with :ref:`mj_setConst`.
+     - Note that mass and inertia are usually scaled together, since inertia is :math:`\sum m r^2`. Scaling them
+       separately is legitimate, but implies a changing of the spatial mass distribution. Also note that diagonal
+       inertias must obey the triangle inequality.
+   * - ``body_pos`` |br| ``body_quat``
+     - Safe with :ref:`mj_setConst`.
+     - Unsafe for static bodies, invalidates the midphase collision structures (BVH).
+   * - ``body_gravcomp``
+     - Safe.
+     - If the number of bodies with gravity compensation is changed from zero to non-zero,
+       :ref:`mj_setConst` must be called.
+   * - ``dof_armature``
+     - Safe with :ref:`mj_setConst`.
+     -
+   * - ``geom_pos`` |br| ``geom_quat`` |br| ``geom_size`` |br| ``geom_rbound`` |br| ``geom_aabb``
+     - Unsafe.
+     -
+   * - ``{site,cam,light}_`` |br| ``{pos,quat}``
+     - Mostly safe.
+     - For cameras and lights with tracking or targeting, :ref:`mj_setConst` is required.
+   * - ``tendon_stiffness`` |br| ``tendon_damping``
+     - Mostly safe.
+     - Affects whether kinematic trees are allowed to sleep. If changing from/to zero, :ref:`mj_setConst` is required.
+   * - ``actuator_gainprm`` |br| ``actuator_biasprm``
+     - Mostly safe.
+     - For position-like actuators using :ref:`dampratio<actuator-position-dampratio>`, :ref:`mj_setConst` is required.
+   * - ``eq_data``
+     - Safe with :ref:`mj_setConst`.
+     - For connect and weld constraints, offsets are computed if not provided.
+   * - ``hfield_size``
+     - Safe with :ref:`mj_setConst`.
+     -
+   * - ``hfield_data``
+     - Safe.
+     - Data range must be in [0, 1].
+       |br| :ref:`mjr_uploadHField` is required to update the values in GPU memory.
+   * -  ``mesh_scale`` |br| ``mesh_pos`` |br| ``mesh_quat``
+     - Not unsafe, but has no effect.
+     - ``mesh_pos`` and ``mesh_quat`` affect SDF sensors at runtime.
+   * - ``mesh_vert`` |br| ``mesh_normal`` |br| ``mesh_face`` |br| ``mesh_polynormal``
+     - Unsafe for colliding meshes.
+     - Safe for visual meshes, but requires :ref:`mjr_uploadMesh` to update the values in GPU memory.
+   * - ``bvh_aabb`` |br| ``oct_aabb`` |br| ``oct_coeff``
+     - Unsafe
+     -
+
+Finally, if changes are made to mjModel at runtime, it may be desirable to save them back to the XML. The functions
+:ref:`mj_saveLastXML` and :ref:`mj_copyBack` do that in a limited sense: they copy all real-valued parameters from
+:ref:`mjModel` back to the :ref:`mjSpec` (the global internal spec in the former case, the user's copy in the latter).
+This does not cover all possible changes that the user could have made. The only way to guarantee that all changes are
+saved is to save the model as a binary MJB file with the function :ref:`mj_saveModel`, or even better, make the changes
+directly in XML or :ref:`mjSpec`. So in summary, we have reasonable but not perfect mechanisms for saving model changes.
+The reason for this lack of perfection is that we are working with a compiled model, so this is like changing a binary
+executable and asking a "decompiler" to make corresponding changes to the C code -- it is just not possible in general.
 
 .. _siLayout:
 
@@ -922,6 +1006,187 @@ normal axis (which is the X axis of the contact frame by our convention) is in p
 is in [3-5] and the Z axis is in [6-8]. The reason for this arrangement is because we can have frictionless contacts
 where only the normal axis is used, so it makes sense to have its coordinates in the first 3 positions of
 ``mjContact.frame``.
+
+.. _siSleep:
+
+Sleeping islands
+~~~~~~~~~~~~~~~~
+
+Sleeping islands are described in broad strokes in the :ref:`Computation chapter <Sleeping>`. Here we focus on
+implementation details.
+
+The high level sleep state of :ref:`trees<ElemTree>` is described by ``mjData.tree_asleep`` (though see caveat below). A
+negative value means a tree is awake, non-negative means asleep. Maximally awake trees are given the value - |-| (1 |-|
++ |-| :ref:`mjMINAWAKE<glNumeric>`), and for every timestep where their velocity falls below the sleep :ref:`tolerance
+<option-sleep_tolerance>`, this integer is incremented, up to -1, which means "ready to sleep". If all trees in an
+island are ready to sleep, they are put to sleep during state advancement and their associated values in ``tree_asleep``
+are set to a (non-negative) index cycle: the "sleeping island". If any tree in the island is woken, all are woken.
+
+Sleep policy
+^^^^^^^^^^^^
+
+The ability of a kinematic tree to sleep is governed by a policy determined at model compile time. The compiler
+automatically determines the :ref:`policy<mjtSleepPolicy>` to be either "allowed" or "never", though these can be
+overridden using the :ref:`body/sleep <body-sleep>` attribute (see documentation therein). There is also a special
+"init" sleep policy, see next section.
+
+Sleeping
+^^^^^^^^
+
+Sleeping can happen in one of two ways:
+
+**Automatic:**
+  The velocity threshold described above is w.r.t. the infinity norm (largest absolute value) of all velocities
+  associated with an island. Before taking this norm, velocities are scaled elementwise by ``mjModel.dof_length``
+  because rotational and translational velocities have different units. The length of a translational DOF is 1; the
+  length of a rotational DOF corresponds to the mean length of its associated geometry. Thus :ref:`sleep_tolerance
+  <option-sleep_tolerance>` has units of [length/time].
+
+  When an island is put to sleep, its associated velocities are set to 0. Therefore, on any timestep where
+  islands are put to sleep, all velocity-dependent quantities must be recomputed before the sleep state is propagated
+  using a call to :ref:`mj_forwardSkip`.
+
+  If any tree in the island has the "never" sleep policy, the entire island cannot sleep.
+
+**Initialized asleep:**
+  By setting the :ref:`body/sleep<body-sleep>` attribute of a tree root to "init", it is marked as "initialized asleep"
+  and put to sleep during :ref:`mjData` initialization. This is useful for large models where waiting for many trees to
+  fall asleep can be expensive.
+
+  Since trees which share contacts or are otherwise in the same island must sleep together, if some trees in an island
+  are initialized as sleeping, all of them must be marked as such. `This model
+  <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sleep/init_island_fail.xml>`__ contains an
+  example XML that will produce a compilation error because this condition is not met. Finally, note that the
+  initialized-asleep feature is only available for the default configuration (and not keyframes, see discussion below).
+
+Waking
+^^^^^^
+
+Waking happens at the beginning of the timestep, either during :ref:`mj_kinematics` or soon thereafter during the
+:ref:`position stage <piStages>` of the simulation pipeline. A sleeping island is woken up according to the following
+criteria:
+
+- Its associated configuration ``qpos`` is changed by the user, for example when repositioning the
+  configuration interactively when the simulation is paused.
+- Its associated velocity ``qvel``  or applied forces ``qfrc_applied`` or ``xfrc_applied`` are set by the user to
+  a non-zero value, for example when perturbing the model interactively during simulation.
+  Note that the check is performed by bytewise comparison to 0, so setting an associated element to
+  the floating point value ``-0.0`` will wake the island but have no other side-effects.
+- It comes into contact with an awake tree. Waking due to contact leads to collision detection being run *twice*, but
+  only on the timestep when it occurs. This is required in order to detect contacts inside the island and between the
+  island and the world, which were skipped in the first run when it was deemed asleep.
+- It is connected to an awake tree by an active equality constraint or limited tendon.
+- It is connected by an equality constraint to a sleeping tree in a different island. For this to occur, the equality
+  must have been disabled when both trees were put to sleep.
+
+The automatic wake criteria listed above are designed so that sleeping islands behave as if they were awake, but this
+is not always the case. For example, if free bodies on the floor are put to sleep and then gravity is reversed, they
+will remain sleeping in place until woken for another reason. The most extreme example of non-physicality are islands
+which are initialized asleep. These can be placed in mid-air or in deep collisions, but will not move until woken.
+
+Notes
+^^^^^
+
+.. admonition:: New feature
+   :class: warning
+
+   Sleeping is a new feature (Nov 2025) that is subject to change and may have latent bugs.
+
+**Sleeping actuators**
+  As explained in the :ref:`body/sleep <body-sleep>` documentation, trees with actuators are by default not allowed to
+  sleep, but this can be overridden by the user. The reason sleeping is not allowed by default is that once an actuator
+  is marked as asleep, the computation required to wake it is no longer performed. Even if it were performed (i.e. if
+  actuation forces were always computed for all actuators, regardless of their sleep state), this computation happens in
+  acceleration/force stage, by which time it is already too late to wake a tree, since waking must happen in the
+  position stage. Therefore, if a tree with actuators is allowed to sleep, waking must be done manually by touching the
+  associated velocities or forces, as described above.
+
+**Sleeping sensors**
+  For most sensors, we can skip the computation of their values when their associated objects are asleep, reporting the
+  value that was computed when those objects were last awake. Some sensors are always awake, but disabling sleep will
+  not affect their computed values:
+
+  - :ref:`rangefinder<sensor-rangefinder>` sensors are always awake; the sleep state of the site they are attached to
+    is not relevant to the reported value.
+  - :ref:`clock<sensor-clock>` sensors are always awake (no associated object).
+  - :ref:`user<sensor-user>` and :ref:`plugin<sensor-plugin>` sensors are always awake.
+
+  Some sensors are always awake, yet disabling sleep may affect their computed value. These are sensors that explicitly
+  depend on the presence of contacts, yet the contacts that were present when they were last awake are not sufficient
+  to determine their current value:
+
+  - :ref:`contact<sensor-contact>` sensors that have no object specifier (match all contacts).
+  - :ref:`contact<sensor-contact>` sensors whose only object specifier is static.
+  - :ref:`contact<sensor-contact>` sensors that use the :at:`site` attribute.
+  - :ref:`force<sensor-force>` or :ref:`torque<sensor-torque>` sensors attached to a static body (e.g., a weight sensor
+    on the floor).
+
+**Provisional choices**
+  Some implementation choices are provisional and subject to change.
+
+  A concrete example is the decision to hard-code the value of :ref:`mjMINAWAKE<glNumeric>` instead of exposing it to
+  the user as a runtime option. This was done for two reasons. First, in our experiments, we've found that changing this
+  value is equivalent to changing the :ref:`sleep_tolerance<option-sleep_tolerance>`, which is the more useful knob.
+  Second, one could argue for a time-to-sleep semantic that is in units of time rather than an integer number of
+  timesteps. Until there is clear evidence that one or both of these reasons are invalid, we've opted for a simple
+  numeric constant.
+
+**Static bodies**
+  Besides the main optimization of allowing kinematic trees to sleep, the sleep feature also includes another, related
+  optimization: the skipping of computation related to static bodies. This can be valuable if, for example,
+  the world body or its static children contain a large number of geoms, whose poses will be computed only once.
+
+  This leads to a subtle (if unlikely) "gotcha". Although it is allowed to enable sleeping during simulation, sleeping
+  must be enabled either at initialization time or after at least one :ref:`mj_step`. To wit:
+
+  .. code-block:: C
+
+     // this is OK:
+     mjData* d = mj_makeData(m);            // sleeping is enabled at init time
+     mj_step(m, d);
+     ...
+
+     // this is also OK:
+     mjData* d = mj_makeData(m);            // sleeping is disabled at init time
+     mj_step(m, d);
+     ...
+     m->opt.enableflags |= mjENABLE_SLEEP;  // enable sleeping after at least one step
+     mj_step(m, d);
+
+     // this is an error:
+     mjData* d = mj_makeData(m);            // sleeping is disabled at init time
+     m->opt.enableflags |= mjENABLE_SLEEP;  // enable sleeping
+     mj_step(m, d);                         // undefined behavior, static elements not computed
+
+
+**Violated assumptions**
+  Sleeping breaks several assumptions that are baked into the core of MuJoCo (and continue to hold if sleeping is
+  disabled).
+
+  *Pipeline stages*: It is usually guaranteed that no velocity-related quantities will be read before the end of the
+  position stage and that no force-related quantities will be read before the end of velocity stage. This assumption,
+  which lies at the heart of the :ref:`mj_step1`/:ref:`mj_step2` split, is violated by the reading of ``qvel``,
+  ``qfrc_applied`` and ``xfrc_applied`` in :ref:`mj_kinematics`.
+
+  *Compact state*: While the sleep state is notionally given by ``mjData.tree_asleep``, this is a mirage. Once an island
+  is asleep, the entire subset of position and velocity-dependent quantities in mjData associated with it becomes
+  a pre-computed latent state that is "waiting for the island to wake up". For this reason, the only way to fully save
+  and restore the state of a simulation with sleeping elements is to :ref:`copy<mj_copyData>` the entire mjData
+  structure. This is also the reason why sleep initialization is only available for the default configuration and not
+  for keyframes. Note that saving and loading the state using the :ref:`standard tools<geState>` remains a valid
+  operation, merely that sleeping islands will be implicitly woken up.
+
+
+**RK4 integrator**
+  The RK4 integrator is not currently supported, due to the subtleties of waking inside the sub-steps.
+
+**Latent bugs**
+  Sleeping is a new feature (Nov 2025) and may have latent bugs. These bugs may generally come in two varieties:
+
+  - Quantities which could be skipped are instead recomputed. The only observable effect of such a bug would be that
+    the simulation is slower than it could be. This type of bug can only be diagnosed with detailed profiling.
+  - Actual bugs. Hopefully these will lead to informative runtime errors, please report any to the development team.
+
 
 .. _siCoordinate:
 

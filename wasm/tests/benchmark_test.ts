@@ -59,7 +59,7 @@ describe('MuJoCo WASM Benchmark Tests', () => {
     }
 
     // Warmup JIT compiler to get stable results
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < 100; i++) {
       const sortedState = func(state);
       verifySorted(sortedState, kind);
     }

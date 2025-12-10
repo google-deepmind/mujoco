@@ -46,6 +46,7 @@ TEST_F(SolverTest, IslandsEquivalent) {
   model->opt.jacobian = mjJAC_SPARSE;           // use sparse
   model->opt.tolerance = 0;                     // set tolerance to 0
   model->opt.ls_tolerance = 0;                  // set ls_tolerance to 0
+  model->opt.ccd_tolerance = 0;                 // set ccd_tolerance to 0
 
   int nv = model->nv;
 
@@ -56,7 +57,7 @@ TEST_F(SolverTest, IslandsEquivalent) {
   mjData* data_noisland = mj_makeData(model);
 
   // Below are 3 tolerances associated with 3 different iteration counts,
-  // they are only moderately tight, 2x higher than x86-64 failure on Linux,
+  // they are only moderately tight, 10x higher than x86-64 failure on Linux,
   // i.e. in that case the test fails with rtol smaller than {5e-3, 5e-4, 5e-5}.
   // The point of this test is to show that CG convergence is actually not very
   // precise, simply changing whether islands are used changes the solution by
@@ -64,7 +65,7 @@ TEST_F(SolverTest, IslandsEquivalent) {
   // Increasing the iteration count higher than 60 does not improve convergence.
   constexpr int kNumTol = 3;
   mjtNum maxiter[kNumTol] = {30,   40,   60};
-  mjtNum rtol[kNumTol] =    {1e-2, 1e-3, 1e-4};
+  mjtNum rtol[kNumTol] =    {5e-2, 5e-3, 5e-4};
 
   for (int i = 0; i < kNumTol; ++i) {
     model->opt.iterations = maxiter[i];

@@ -43,7 +43,7 @@ async function main() {
 
   try {
     console.log('Hello world!: Loading model');
-    model = mujoco.MjModel.loadFromXML('/working/hello.xml');
+    model = mujoco.MjModel.mj_loadXML('/working/hello.xml');
     if (!model) {
       throw new Error('Failed to load model');
     }

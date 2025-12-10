@@ -49,14 +49,10 @@ class [[nodiscard]] mjXError {
 };
 
 
-// max number of attribute fields in schema (plus 3)
-#define mjXATTRNUM 36
-
-
 // Custom XML file validation
 class mjXSchema {
  public:
-  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow);
+  mjXSchema(std::vector<const char*> schema[], unsigned nrow);
 
   std::string GetError();                         // return error
   void Print(std::stringstream& str, int level) const;      // print schema

@@ -2931,12 +2931,25 @@ void mjCModel::CopyTree(mjModel* m) {
     }
   }
 
-  // count bodies with gravity compensation, compute ngravcomp
-  int ngravcomp = 0;
-  for (int i=0; i < nbody; i++) {
-    ngravcomp += (m->body_gravcomp[i] > 0);
+  // initialize AUTO sleep policy for all trees
+  for (int i=0; i < m->ntree; i++) {
+    m->tree_sleep_policy[i] = mjSLEEP_AUTO;
   }
-  m->ngravcomp = ngravcomp;
+
+  // loop over bodies, check and set non-default sleep policy
+  for (int i=1; i < nbody; i++) {
+    mjCBody* pb = bodies_[i];
+
+    // validate and set non-default sleep policy
+    if (pb->sleep != mjSLEEP_AUTO) {
+      int treeid = m->body_treeid[i];
+      // non-default sleep policy only allowed for first body in a tree
+      if (treeid == -1 || treeid == m->body_treeid[i-1]) {
+        throw mjCError(pb, "sleep policy only allowed for movable root bodies");
+      }
+      m->tree_sleep_policy[treeid] = pb->sleep;
+    }
+  }
 
   // recompute nM and dof_Madr given m.dof_parentid, validate
   int nM_post = 0;
@@ -4922,6 +4935,8 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // create data
   int disableflags = m->opt.disableflags;
   m->opt.disableflags |= mjDSBL_CONTACT;
+  int enableflags = m->opt.enableflags;
+  m->opt.enableflags &= ~mjENBL_SLEEP;
   mj_makeRawData(&d, m);
   if (!d) {
     // m will be deleted by the catch statement in mjCModel::Compile()
@@ -4967,18 +4982,39 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   // delete partial mjData (no plugins), make a complete one
   mj_deleteData(d);
   d = nullptr;
+
+  // if sleep was enabled, check for trees initialized as sleeping
+  bool asleep_init = false;
+  if (enableflags & mjENBL_SLEEP) {
+    for (int i=0; i < m->ntree; i++) {
+      if (m->tree_sleep_policy[i] == mjSLEEP_INIT) {
+        asleep_init = true;
+        break;
+      }
+    }
+  }
+
+  // if any trees initialized as sleeping, restore flags before mj_makeData
+  if (asleep_init) {
+    m->opt.disableflags = disableflags;
+    m->opt.enableflags = enableflags;
+  }
+
   d = mj_makeData(m);
   if (!d) {
     // m will be deleted by the catch statement in mjCModel::Compile()
     throw mjCError(0, "could not create mjData");
   }
 
-  // test forward simulation
-  mj_step(m, d);
+  // test forward simulation unless asleep_init is true (potentially expensive)
+  if (!asleep_init) {
+    mj_step(m, d);
+  }
 
-  // delete data
+  // delete data, restore flags
   mj_deleteData(d);
   m->opt.disableflags = disableflags;
+  m->opt.enableflags = enableflags;
   d = nullptr;
 
   // pass warning back
@@ -5282,11 +5318,7 @@ bool mjCModel::CopyBack(const mjModel* m) {
       int ncol = m->hfield_ncol[i];
       float* userdata = phf->get_userdata().data();
       float* modeldata = m->hfield_data + m->hfield_adr[i];
-      // copy back in reverse row order
-      for (int j=0; j < nrow; j++) {
-        int flip = nrow-1-j;
-        mjuu_copyvec(userdata + flip*ncol, modeldata+j*ncol, ncol);
-      }
+      memcpy(userdata, modeldata, nrow*ncol*sizeof(float));
     }
   }
 
