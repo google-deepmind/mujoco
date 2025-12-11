@@ -52,8 +52,8 @@ class GlobalModel {
   // Compatibility wrapper: old API without out_dir is preserved and forwards to the new overload.
   std::optional<std::string> ToXML(const mjModel* m, char* error, int error_sz);
 
-  // out_dir: optional. If non-null, temporarily set spec->modelfiledir to out_dir
-  // so the writer can emit asset paths relative to the output directory.
+  // out_dir: optional. If non-null, pass to WriteXML so it can emit asset paths
+  // relative to the output directory.
   std::optional<std::string> ToXML(const mjModel* m, const char* out_dir,
                                       char* error, int error_sz);
 
@@ -76,28 +76,8 @@ std::optional<std::string> GlobalModel::ToXML(const mjModel* m, const char* out_
     return std::nullopt;
   }
 
-  // If out_dir is provided, temporarily override spec->modelfiledir so
-  // the writer can compute relative paths against the output file location.
-  std::string old_modelfiledir;
-  bool changed_modelfiledir = false;
-  if (out_dir && out_dir[0] != '\0') {
-    // Save old value
-    const char* old = mjs_getString(spec_->modelfiledir);
-    if (old) old_modelfiledir = old;
-    else old_modelfiledir.clear();
-
-    // Set to requested out_dir
-    mjs_setString(spec_->modelfiledir, out_dir);
-    changed_modelfiledir = true;
-  }
-
-  // Call the writer (WriteXML relies on spec_->modelfiledir when emitting paths).
-  std::string result = WriteXML(m, spec_, error, error_sz);
-
-  // Restore old modelfiledir if we changed it
-  if (changed_modelfiledir) {
-    mjs_setString(spec_->modelfiledir, old_modelfiledir.empty() ? "" : old_modelfiledir.c_str());
-  }
+  // Delegate output-directory handling to WriteXML by passing out_dir through.
+  std::string result = WriteXML(m, spec_, out_dir, error, error_sz);
 
   if (result.empty()) {
     return std::nullopt;
@@ -246,8 +226,6 @@ void mj_freeLastXML(void) {
 
 
 
-
-
 // print internal XML schema as plain text or HTML, with style-padding or &nbsp;
 int mj_printSchema(const char* filename, char* buffer, int buffer_sz, int flg_html, int flg_pad) {
   // print to stringstream
@@ -316,7 +294,7 @@ mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int er
 // save spec to XML file, return 0 on success, -1 otherwise
 int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz) {
   // cast to mjSpec since WriteXML can in principle perform mj_copyBack (not here)
-  std::string result = WriteXML(NULL, (mjSpec*)s, error, error_sz);
+  std::string result = WriteXML(NULL, (mjSpec*)s, /*out_dir=*/nullptr, error, error_sz);
   if (result.empty()) {
     return -1;
   }
@@ -333,7 +311,7 @@ int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz)
 // save spec to XML string, return 0 on success, -1 on failure
 // if length of the output buffer is too small, returns the required size
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz) {
-  std::string result = WriteXML(NULL, (mjSpec*)s, error, error_sz);
+  std::string result = WriteXML(NULL, (mjSpec*)s, /*out_dir=*/nullptr, error, error_sz);
   if (result.empty()) {
     return -1;
   } else if (result.size() >= xml_sz) {

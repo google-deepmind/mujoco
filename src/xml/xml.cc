@@ -403,7 +403,8 @@ mjSpec* ParseSpecFromString(std::string_view xml, const mjVFS* vfs, char* error,
 }
 
 // Main writer function - calls mjXWrite
-std::string WriteXML(const mjModel* m, mjSpec* spec, char* error, int nerror) {
+// Now accepts out_dir which, if non-null, will be used as the basis for emitting relative asset paths.
+std::string WriteXML(const mjModel* m, mjSpec* spec, const char* out_dir, char* error, int nerror) {
   LocaleOverride locale_override;
 
   // check for empty model
@@ -412,12 +413,36 @@ std::string WriteXML(const mjModel* m, mjSpec* spec, char* error, int nerror) {
     return "";
   }
 
+  // If out_dir is provided, temporarily override spec->modelfiledir so
+  // the writer can compute relative paths against the output file location.
+  std::string old_modelfiledir;
+  bool changed_modelfiledir = false;
+  if (out_dir && out_dir[0] != '\0') {
+    const char* old = mjs_getString(spec->modelfiledir);
+    if (old) old_modelfiledir = old;
+    else old_modelfiledir.clear();
+
+    mjs_setString(spec->modelfiledir, out_dir);
+    changed_modelfiledir = true;
+  }
+
   mjXWriter writer;
   writer.SetModel(spec, m);
 
   try {
-    return writer.Write(error, nerror);
+    std::string result = writer.Write(error, nerror);
+
+    // Restore old modelfiledir if we changed it
+    if (changed_modelfiledir) {
+      mjs_setString(spec->modelfiledir, old_modelfiledir.empty() ? "" : old_modelfiledir.c_str());
+    }
+
+    return result;
   } catch (mjXError err) {
+    // Restore old modelfiledir before returning on error
+    if (changed_modelfiledir) {
+      mjs_setString(spec->modelfiledir, old_modelfiledir.empty() ? "" : old_modelfiledir.c_str());
+    }
     mjCopyError(error, err.message, nerror);
     return "";
   }
