@@ -56,7 +56,7 @@ namespace mju = ::mujoco::util;
 // When MuJoCo is being used as a plug-in for an application that respects the system locale
 // (e.g. Unity), the user's locale setting can affect the formatting of numbers into strings.
 // Specifically, a number of European locales (e.g. de_DE) uses commas to as decimal separators.
-// In order to ensure that XMLs are locale-inpendent, we temporarily switch to the "C" locale
+// In order to ensure that XMLs are locale-indendent, we temporarily switch to the "C" locale
 // when handling. Since the standard C `setlocale` is not thread-safe, we instead use
 // platform-specific extensions to override the locale only in the calling thread.
 // See also https://github.com/google-deepmind/mujoco/issues/131.
@@ -182,6 +182,7 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
   if (resource == nullptr) {
     // new behavior: try to load in relative directory
     if (!filename.IsAbs()) {
+      // use the precomputed canonical fullname (dir + filename)
       resource = mju_openResource(reader.ModelFileDir().c_str(),
                                   fullname.c_str(), vfs, error.data(), error.size());
     }
@@ -191,7 +192,7 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
     throw mjXError(elem, "%s", error.data());
   }
 
-  // Use the canonical fullname for further processing/storage so we keep a single form.
+  // Use canonical fullname for further processing/storage so we keep a single form.
   filename = fullname;
 
   const char* include_dir = nullptr;
