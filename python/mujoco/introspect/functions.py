@@ -839,6 +839,26 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          ),
          doc='Load model from binary MJB file. If vfs is not NULL, look up file in vfs before reading from disk.',  # pylint: disable=line-too-long
      )),
+    ('mj_loadModelBuffer',
+     FunctionDecl(
+         name='mj_loadModelBuffer',
+         return_type=PointerType(
+             inner_type=ValueType(name='mjModel'),
+         ),
+         parameters=(
+             FunctionParameterDecl(
+                 name='buffer',
+                 type=PointerType(
+                     inner_type=ValueType(name='void', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='buffer_sz',
+                 type=ValueType(name='int'),
+             ),
+         ),
+         doc='Load model from memory buffer.',
+     )),
     ('mj_deleteModel',
      FunctionDecl(
          name='mj_deleteModel',

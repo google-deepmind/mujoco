@@ -3096,6 +3096,7 @@ void mj_defaultVisual(mjVisual* vis);
 mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
 void mj_saveModel(const mjModel* m, const char* filename, void* buffer, int buffer_sz);
 mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
+mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
 void mj_deleteModel(mjModel* m);
 mjtSize mj_sizeModel(const mjModel* m);
 mjData* mj_makeData(const mjModel* m);

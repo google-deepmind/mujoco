@@ -139,6 +139,7 @@ _SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     "mj_freeLastXML",
     "mj_freeStack",
     "mj_loadModel",
+    "mj_loadModelBuffer",
     "mj_markStack",
     "mj_saveModel",
     "mj_stackAllocByte",

@@ -1475,6 +1475,15 @@ If vfs is not NULL, look up file in vfs before reading from disk.
 
 *Nullable:* ``vfs``
 
+.. _mj_loadModelBuffer:
+
+`mj_loadModelBuffer <#mj_loadModelBuffer>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_loadModelBuffer
+
+Load model from memory buffer.
+
 .. _mj_deleteModel:
 
 `mj_deleteModel <#mj_deleteModel>`__

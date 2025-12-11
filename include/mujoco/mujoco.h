@@ -212,6 +212,9 @@ MJAPI void mj_saveModel(const mjModel* m, const char* filename, void* buffer, in
 // Nullable: vfs
 MJAPI mjModel* mj_loadModel(const char* filename, const mjVFS* vfs);
 
+// Load model from memory buffer.
+MJAPI mjModel* mj_loadModelBuffer(const void* buffer, int buffer_sz);
+
 // Free memory allocation in model.
 MJAPI void mj_deleteModel(mjModel* m);
 

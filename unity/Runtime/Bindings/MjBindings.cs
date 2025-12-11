@@ -6445,6 +6445,9 @@ public static unsafe extern void mj_saveModel(mjModel_* m, [MarshalAs(UnmanagedT
 public static unsafe extern mjModel_* mj_loadModel([MarshalAs(UnmanagedType.LPStr)]string filename, void* vfs);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
+public static unsafe extern mjModel_* mj_loadModelBuffer(void* buffer, int buffer_sz);
+
+[DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_deleteModel(mjModel_* m);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
