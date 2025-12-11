@@ -199,45 +199,53 @@ void App::ClearModel() {
   error_ = "";
 }
 
-void App::LoadModel(std::string model_file) {
-  pending_load_ = std::move(model_file);
+void App::RequestModelLoad(std::string model_file) {
+  if (model_file.starts_with('[') || model_file.ends_with(']')) {
+    pending_load_ = "";
+  } else {
+    pending_load_ = std::move(model_file);
+  }
 }
 
-void App::ProcessPendingLoad() {
-  if (!pending_load_.has_value()) {
-    return;
-  }
-
-  // Note that a non-empty model_file_ implies that a model was successfully
-  // loaded.
-  model_file_ = std::move(pending_load_.value());
-  pending_load_.reset();
-
+void App::LoadModel(std::string data, ContentType type) {
   // Delete the existing mjModel and mjData.
   ClearModel();
 
-  // Try to load the requested mjModel.
   char err[1000] = "";
-  if (model_file_.ends_with(".mjb")) {
-    model_ = mj_loadModel(model_file_.c_str(), 0);
-  } else if (model_file_.ends_with(".xml")) {
-    spec_ = mj_parseXML(model_file_.c_str(), nullptr, err, sizeof(err));
+  if (type == ContentType::kFilepath) {
+    // Store the file path as the model name. Note that we use this model name
+    // to perform reload operations.
+    model_name_ = std::move(data);
+    if (model_name_.ends_with(".mjb")) {
+      model_ = mj_loadModel(model_name_.c_str(), 0);
+    } else if (model_name_.ends_with(".xml")) {
+      spec_ = mj_parseXML(model_name_.c_str(), nullptr, err, sizeof(err));
+      if (spec_ && err[0] == 0) {
+        model_ = mj_compile(spec_, nullptr);
+      }
+    } else {
+      error_ = "Unknown model file type; expected .mjb or .xml.";
+    }
+  } else if (type == ContentType::kModelXml) {
+    model_name_ = "[xml]";
+    spec_ = mj_parseXMLString(data.c_str(), nullptr, err, sizeof(err));
     if (spec_ && err[0] == 0) {
       model_ = mj_compile(spec_, nullptr);
     }
-  } else {
-    error_ = "Unknown model file type; expected .mjb or .xml.";
+  } else if (type == ContentType::kModelMjb) {
+    model_name_ = "[mjb]";
+    model_ = mj_loadModelBuffer(data.data(), data.size());
   }
+
   if (err[0]) {
     error_ = err;
-    fprintf(stderr, "Error loading model: %s\n", error_.c_str());
   }
 
   // If no mjModel was loaded, load an empty mjModel.
-  if (model_file_.empty() || model_ == nullptr) {
+  if (model_name_.empty() || model_ == nullptr) {
     spec_ = mj_makeSpec();
     model_ = mj_compile(spec_, 0);
-    model_file_ = "";
+    model_name_ = "";
   }
   if (!model_) {
     mju_error("Error loading model: %s", error_.c_str());
@@ -270,11 +278,11 @@ void App::ProcessPendingLoad() {
   // to the loaded model.
   std::string base_path = "/";
   std::string model_name = "model";
-  if (!model_file_.empty() &&
-      (model_file_.ends_with(".xml") || model_file_.ends_with(".mjb"))) {
-    window_->SetTitle("MuJoCo Studio : " + model_file_);
-    tmp_.last_load_file = std::string(model_file_);
-    std::filesystem::path path(model_file_);
+  if (!model_name_.empty() &&
+      (model_name_.ends_with(".xml") || model_name_.ends_with(".mjb"))) {
+    window_->SetTitle("MuJoCo Studio : " + model_name_);
+    tmp_.last_load_file = std::string(model_name_);
+    std::filesystem::path path(model_name_);
     base_path = path.parent_path().string() + "/";
     model_name = path.stem().string();
   } else {
@@ -289,7 +297,7 @@ void App::ProcessPendingLoad() {
   tmp_.last_save_screenshot_file = base_path + "screenshot.webp";
 }
 
-bool App::IsModelLoaded() const { return !model_file_.empty(); }
+bool App::IsModelLoaded() const { return !model_name_.empty(); }
 
 void App::ResetPhysics() {
   mj_resetData(model_, data_);
@@ -298,7 +306,11 @@ void App::ResetPhysics() {
 }
 
 void App::UpdatePhysics() {
-  ProcessPendingLoad();
+  if (pending_load_.has_value()) {
+    std::string model_file = std::move(pending_load_.value());
+    pending_load_.reset();
+    LoadModel(model_file, ContentType::kFilepath);
+  }
   if (!IsModelLoaded()) {
     return;
   }
@@ -372,7 +384,7 @@ bool App::Update() {
   // Check to see if a model was dropped on the window.
   const std::string drop_file = window_->GetDropFile();
   if (!drop_file.empty()) {
-    LoadModel(drop_file);
+    RequestModelLoad(drop_file);
   }
 
   // Only update the simulation if a popup window is not open. Note that the
@@ -564,7 +576,7 @@ void App::HandleKeyboardEvents() {
     std::string keyframe = platform::KeyframeToString(model_, data_, false);
     platform::MaybeSaveToClipboard(keyframe);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_L | ImGuiMod_Ctrl)) {
-    LoadModel(model_file_);
+    RequestModelLoad(model_name_);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_Q | ImGuiMod_Ctrl)) {
     tmp_.should_exit = true;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_A | ImGuiMod_Ctrl)) {
@@ -1208,14 +1220,14 @@ void App::ToolBarGui() {
     // Reset/Reload/Unload.
     style.Color(ImGuiCol_ButtonHovered, ImColor(220, 40, 40, 255));
     if (ImGui::Button(ICON_UNLOAD_MODEL, ImVec2(48, 32))) {
-      LoadModel("");
+      RequestModelLoad("");
     }
     ImGui::SetItemTooltip("%s", "Unload");
     style.Reset();
 
     ImGui::SameLine();
     if (ImGui::Button(ICON_RELOAD_MODEL, ImVec2(48, 32))) {
-      LoadModel(model_file_);
+      RequestModelLoad(model_name_);
     }
     ImGui::SetItemTooltip("%s", "Reload");
 
@@ -1324,7 +1336,7 @@ void App::StatusBarGui() {
 
     ImGui::TableNextColumn();
 
-    if (model_file_.empty()) {
+    if (!IsModelLoaded()) {
       ImGui::Text("Not loaded");
     } else if (model_ == nullptr) {
       ImGui::Text("Not loaded");
@@ -1416,7 +1428,7 @@ void App::MainMenuGui() {
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Unload", "Ctrl+U")) {
-        LoadModel("");
+        RequestModelLoad("");
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Quit", "Ctrl+Q")) {
@@ -1432,7 +1444,7 @@ void App::MainMenuGui() {
         ResetPhysics();
       }
       if (ImGui::MenuItem("Reload", "Ctrl+L")) {
-        LoadModel(model_file_);
+        RequestModelLoad(model_name_);
       }
       ImGui::Separator();
       if (ImGui::BeginMenu("Keyframes")) {
@@ -1561,7 +1573,7 @@ void App::FileDialogGui() {
   if (ImGui::BeginPopupModal("LoadModel", NULL,
                             ImGuiWindowFlags_AlwaysAutoResize)) {
     if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      LoadModel(tmp_.filename);
+      RequestModelLoad(tmp_.filename);
       tmp_.last_load_file = tmp_.filename;
     }
     ImGui::EndPopup();

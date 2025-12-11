@@ -56,7 +56,7 @@ int main(int argc, char** argv, char** envp) {
   // If the model file is not specified, try to load it from the first argument
   std::string model_file = absl::GetFlag(FLAGS_model_file);
   if (model_file.empty() && argc > 1 && argv[1][0] != '-') model_file = argv[1];
-  app.LoadModel(model_file);
+  app.LoadModel(model_file, mujoco::studio::App::ContentType::kFilepath);
   while (app.Update()) {
     app.BuildGui();
     app.Render();

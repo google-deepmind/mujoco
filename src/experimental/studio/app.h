@@ -48,8 +48,17 @@ class App {
   App(int width, int height, std::string ini_path,
       const platform::LoadAssetFn& load_asset_fn);
 
+  enum ContentType {
+    kFilepath,  // Path to a model file.
+    kModelXml,  // XML model string.
+    kModelMjb,  // Binary model payload.
+  };
+
   // Loads a model into the simulation.
-  void LoadModel(std::string model_file);
+  //
+  // Note: Do not call this function from within Update() (i.e. while drawing
+  // the UX). Call RequestModelLoad() instead.
+  void LoadModel(std::string data, ContentType type);
 
   // Processes window events and advances the state of the simulation.
   bool Update();
@@ -132,6 +141,7 @@ class App {
   void ClearModel();
   void ProcessPendingLoad();
   bool IsModelLoaded() const;
+  void RequestModelLoad(std::string model_file);
 
   void ResetPhysics();
   void UpdatePhysics();
@@ -164,7 +174,7 @@ class App {
 
   std::string error_;
   std::string ini_path_;
-  std::string model_file_;
+  std::string model_name_;
   std::optional<std::string> pending_load_;
 
   std::unique_ptr<platform::Window> window_;
