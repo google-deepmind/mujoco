@@ -49,6 +49,9 @@ class GlobalModel {
   void Set(mjSpec* spec = nullptr);
 
   // writes XML to string
+  // Compatibility wrapper: old API without out_dir is preserved and forwards to the new overload.
+  std::optional<std::string> ToXML(const mjModel* m, char* error, int error_sz);
+
   // out_dir: optional. If non-null, temporarily set spec->modelfiledir to out_dir
   // so the writer can emit asset paths relative to the output directory.
   std::optional<std::string> ToXML(const mjModel* m, const char* out_dir,
@@ -59,6 +62,11 @@ class GlobalModel {
   std::mutex* mutex_ = new std::mutex();
   mjSpec* spec_ = nullptr;
 };
+
+// Forwarding wrapper for backward compatibility.
+std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error, int error_sz) {
+  return ToXML(m, /*out_dir=*/nullptr, error, error_sz);
+}
 
 std::optional<std::string> GlobalModel::ToXML(const mjModel* m, const char* out_dir,
                                               char* error, int error_sz) {
@@ -231,6 +239,10 @@ int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int erro
 void mj_freeLastXML(void) {
   GetGlobalModel().Set();
 }
+
+
+
+
 
 
 
