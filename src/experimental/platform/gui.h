@@ -34,6 +34,7 @@ namespace mujoco::platform {
 enum class GuiTheme {
   kLight,
   kDark,
+  kClassic,
 };
 
 // Updates the ImGui internal style state to match the requested theme.

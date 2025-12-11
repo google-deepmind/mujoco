@@ -22,10 +22,31 @@
 #include <unordered_map>
 
 #include <imgui.h>
-#include <imgui_internal.h>  // For ButtonEx and PressedOnClick
+#include <imgui_internal.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
+
+// FontAwesome icon codes.
+static constexpr const char ICON_FA_ARROWS[] = u8"\uf047";
+static constexpr const char ICON_FA_CAMERA[] = u8"\uf03d";
+static constexpr const char ICON_FA_CARET_LEFT[] = u8"\uf0d9";
+static constexpr const char ICON_FA_CARET_RIGHT[] = u8"\uf0da";
+static constexpr const char ICON_FA_CHECK_SQUARE_O[] = u8"\uf05d";
+static constexpr const char ICON_FA_COMMENT[] = u8"\uf0e5";
+static constexpr const char ICON_FA_COPY[] = u8"\uf0c5";
+static constexpr const char ICON_FA_DIAMOND[] = u8"\uf219";
+static constexpr const char ICON_FA_EJECT[] = u8"\uf052";
+static constexpr const char ICON_FA_FAST_FORWARD[] = u8"\uf050";
+static constexpr const char ICON_FA_MOON[] = u8"\uf186";
+static constexpr const char ICON_FA_PAUSE[] = u8"\uf04c";
+static constexpr const char ICON_FA_PLAY[] = u8"\uf04b";
+static constexpr const char ICON_FA_REFRESH[] = u8"\uf021";
+static constexpr const char ICON_FA_SQUARE_O[] = u8"\uf1db";
+static constexpr const char ICON_FA_SUN[] = u8"\uf185";
+static constexpr const char ICON_FA_TACHOMETER[] = u8"\uf0e4";
+static constexpr const char ICON_FA_UNDO[] = u8"\uf0e2";
+
 
 using KeyValues = std::unordered_map<std::string, std::string>;
 
@@ -107,13 +128,15 @@ bool ImGui_ButtonToggle(const char* label, T* boolean,
   static_assert(std::is_integral_v<T>, "Toggle only supports integral types.");
 
   ScopedStyle style;
-  if (!(*boolean)) {
-    ImColor button = ImGui::GetStyle().Colors[ImGuiCol_Button];
-    button.Value.w = 0.0f;
-    style.Color(ImGuiCol_Button, button);
-  }
+  const int color = *boolean ? ImGuiCol_TabSelected : ImGuiCol_WindowBg;
+  style.Color(ImGuiCol_Button, ImGui::GetStyle().Colors[color]);
+  style.Var(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
 
-  if (ImGui::Button(label, size)) {
+  const std::string txt =
+      std::string(" ") +
+      std::string(*boolean ? ICON_FA_SQUARE_O : ICON_FA_CHECK_SQUARE_O) + "  " +
+      label;
+  if (ImGui::Button(txt.c_str(), size)) {
     *boolean = !(*boolean);
     return true;
   }
