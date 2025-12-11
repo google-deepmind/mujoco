@@ -89,7 +89,7 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
   filament::Renderer::ClearOptions opts;
   opts.clear = true;
   opts.discard = true;
-  opts.clearColor = {0.1, 0.1, 0.1, 1};
+  opts.clearColor = {0, 0, 0, 1};
   renderer_->setClearOptions(opts);
 
   // Copy parameters from model to context.
