@@ -1040,7 +1040,7 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec()
     texture = spec.add_texture(name='texture', height=1, width=2, nchannel=3)
     texture.data = bytes([1, 2, 3, 4, 5, 6])
-    read_bytes = bytes(texture.data)
+    read_bytes = texture.data
     self.assertEqual(read_bytes, bytes([1, 2, 3, 4, 5, 6]))
 
   def test_modify_texture(self):
@@ -1048,16 +1048,18 @@ class SpecsTest(absltest.TestCase):
     spec = mujoco.MjSpec()
     texture = spec.add_texture(name='texture', height=1, width=3, nchannel=3)
     texture.data = bytes([255, 0, 0, 0, 255, 0, 0, 0, 255])
-    texture.data[1] = 255
+    data_array = bytearray(texture.data)
+    data_array[1] = 255
+    texture.data = bytes(data_array)
     self.assertEqual(
-        bytes(texture.data), bytes([255, 255, 0, 0, 255, 0, 0, 0, 255])
+        texture.data, bytes([255, 255, 0, 0, 255, 0, 0, 0, 255])
     )
 
     # Assigning values outside the range [0, 255] should raise an error.
     with self.assertRaises(ValueError):
-      texture.data[3] = 256
+      data_array[0] = 256
     with self.assertRaises(ValueError):
-      texture.data[3] = -1
+      data_array[0] = -1
 
   def test_find_unnamed_asset(self):
     spec = mujoco.MjSpec()

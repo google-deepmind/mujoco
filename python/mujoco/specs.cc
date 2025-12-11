@@ -134,41 +134,6 @@ void DefineArray(py::module& m, const std::string& typestr) {
       }, py::keep_alive<0, 1>(), py::return_value_policy::reference_internal);
 };
 
-// Specialization for std::byte to convert to int for Python iteration
-template <>
-void DefineArray<std::byte>(py::module& m, const std::string& typestr) {
-  using Class = MjTypeVec<std::byte>;
-  py::class_<Class>(m, typestr.c_str())
-      .def(
-          py::init([](std::byte* data, int size) { return Class(data, size); }))
-      .def("__getitem__",
-           [](Class& v, int i) -> int {
-             if (i < 0 || i >= v.size) {
-               throw py::index_error("Index out of range.");
-             }
-             return static_cast<int>(v.ptr[i]);
-           })
-      .def("__setitem__",
-           [](Class& v, int i, int c) {
-             if (i < 0 || i >= v.size) {
-               throw py::index_error("Index out of range.");
-             }
-             if (c < 0 || c > 255) {
-               throw py::value_error("Value out of range [0, 255].");
-             }
-             v.ptr[i] = static_cast<std::byte>(c);
-           })
-      .def("__len__", [](Class& v) { return v.size; })
-      .def(
-          "__iter__",
-          [](Class& v) {
-            return py::make_iterator(
-                reinterpret_cast<unsigned char*>(v.ptr),
-                reinterpret_cast<unsigned char*>(v.ptr + v.size));
-          },
-          py::keep_alive<0, 1>(), py::return_value_policy::reference_internal);
-};
-
 py::list FindAllImpl(raw::MjsBody& body, mjtObj objtype, bool recursive) {
   py::list list;
   raw::MjsElement* el = mjs_firstChild(&body, objtype, recursive);

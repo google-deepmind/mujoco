@@ -656,10 +656,8 @@ The :ref:`mjsMesh` object includes convenience methods for model creation with n
 
 Texture editing
 ^^^^^^^^^^^^^^^
-The :ref:`mjsTexture` buffer option stores the texture bytes in the ``data`` attribute. This attribute is stored as
-bytes but its elements can be read and modified as ``int``\s via index access and read as Python's built-in ``bytes`` or
-``bytearray`` objects.  See `specs_test.py
-<https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/specs_test.py>`__.
+The :ref:`mjsTexture` buffer option stores the texture bytes in the ``data`` attribute. This attribute can be read and
+modified, for example:
 
 .. code-block:: python
 

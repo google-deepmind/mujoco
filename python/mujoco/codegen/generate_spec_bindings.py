@@ -226,17 +226,17 @@ def _ptr_binding_code(
     return f"""\
   {classname}.def_property(
     "{varname}",
-    []({rawclassname}& self) -> MjTypeVec<std::byte> {{
-        return MjTypeVec<std::byte>(self.{fullvarname}->data(),
-                                    self.{fullvarname}->size());
-      }},
-    []({rawclassname}& self, py::bytes& rhs) {{
-        self.{fullvarname}->clear();
-        self.{fullvarname}->reserve(py::len(rhs));
-        std::string_view rhs_view = py::cast<std::string_view>(rhs);
-        for (auto val : rhs_view) {{
-          self.{fullvarname}->push_back(static_cast<std::byte>(val));
-        }}
+    []({rawclassname}& self) -> py::bytes {{
+      return py::bytes(reinterpret_cast<const char*>(self.{fullvarname}->data()),
+                                                     self.{fullvarname}->size());
+    }},
+    []({rawclassname}& self, py::bytes rhs) {{
+      self.{fullvarname}->clear();
+      std::string_view rhs_view = py::cast<std::string_view>(rhs);
+      self.{fullvarname}->reserve(rhs_view.length());
+      for (char val : rhs_view) {{
+        self.{fullvarname}->push_back(static_cast<std::byte>(val));
+      }}
     }}, py::return_value_policy::move);"""
   elif vartype == 'mjStringVec':
     return f"""\
