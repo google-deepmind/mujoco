@@ -7935,7 +7935,7 @@ int mj_copyBack_wrapper(MjSpec& s, const MjModel& m) {
   return mj_copyBack(s.get(), m.get());
 }
 
-void mj_copyState_wrapper(const MjModel& m, const MjData& src, MjData& dst, unsigned int sig) {
+void mj_copyState_wrapper(const MjModel& m, const MjData& src, MjData& dst, int sig) {
   mj_copyState(m.get(), src.get(), dst.get(), sig);
 }
 
@@ -7979,7 +7979,7 @@ void mj_energyVel_wrapper(const MjModel& m, MjData& d) {
   mj_energyVel(m.get(), d.get());
 }
 
-void mj_extractState_wrapper(const MjModel& m, const NumberArray& src, unsigned int srcsig, const val& dst, unsigned int dstsig) {
+void mj_extractState_wrapper(const MjModel& m, const NumberArray& src, int srcsig, const val& dst, int dstsig) {
   UNPACK_ARRAY(mjtNum, src);
   UNPACK_VALUE(mjtNum, dst);
   mj_extractState(m.get(), src_.data(), srcsig, dst_.data(), dstsig);
@@ -8039,7 +8039,7 @@ mjtNum mj_geomDistance_wrapper(const MjModel& m, const MjData& d, int geom1, int
   return mj_geomDistance(m.get(), d.get(), geom1, geom2, distmax, fromto_.data());
 }
 
-void mj_getState_wrapper(const MjModel& m, const MjData& d, const val& state, unsigned int sig) {
+void mj_getState_wrapper(const MjModel& m, const MjData& d, const val& state, int sig) {
   UNPACK_VALUE(mjtNum, state);
   CHECK_SIZE(state, mj_stateSize(m.get(), sig));
   mj_getState(m.get(), d.get(), state_.data(), sig);
@@ -8363,7 +8363,7 @@ void mj_setKeyframe_wrapper(MjModel& m, const MjData& d, int k) {
   mj_setKeyframe(m.get(), d.get(), k);
 }
 
-void mj_setState_wrapper(const MjModel& m, MjData& d, const NumberArray& state, unsigned int sig) {
+void mj_setState_wrapper(const MjModel& m, MjData& d, const NumberArray& state, int sig) {
   UNPACK_ARRAY(mjtNum, state);
   CHECK_SIZE(state, mj_stateSize(m.get(), sig));
   mj_setState(m.get(), d.get(), state_.data(), sig);
@@ -8397,7 +8397,7 @@ void mj_solveM2_wrapper(const MjModel& m, MjData& d, const val& x, const NumberA
   mj_solveM2(m.get(), d.get(), x_.data(), y_.data(), sqrtInvD_.data(), n);
 }
 
-int mj_stateSize_wrapper(const MjModel& m, unsigned int sig) {
+int mj_stateSize_wrapper(const MjModel& m, int sig) {
   return mj_stateSize(m.get(), sig);
 }
 

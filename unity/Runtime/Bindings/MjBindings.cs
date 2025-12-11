@@ -6655,19 +6655,19 @@ public static unsafe extern void mj_referenceConstraint(mjModel_* m, mjData_* d)
 public static unsafe extern void mj_constraintUpdate(mjModel_* m, mjData_* d, double* jar, double* cost, int flg_coneHessian);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern int mj_stateSize(mjModel_* m, uint sig);
+public static unsafe extern int mj_stateSize(mjModel_* m, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_getState(mjModel_* m, mjData_* d, double* state, uint sig);
+public static unsafe extern void mj_getState(mjModel_* m, mjData_* d, double* state, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_extractState(mjModel_* m, double* src, uint srcsig, double* dst, uint dstsig);
+public static unsafe extern void mj_extractState(mjModel_* m, double* src, int srcsig, double* dst, int dstsig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* state, uint sig);
+public static unsafe extern void mj_setState(mjModel_* m, mjData_* d, double* state, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_copyState(mjModel_* m, mjData_* src, mjData_* dst, uint sig);
+public static unsafe extern void mj_copyState(mjModel_* m, mjData_* src, mjData_* dst, int sig);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern void mj_setKeyframe(mjModel_* m, mjData_* d, int k);

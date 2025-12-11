@@ -7,10 +7,15 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Non-breaking ABI changes:
+
+  - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from
+    ``unsigned int`` to ``int``. Before this change, invalid negative arguments passed to this function would result in
+    a silent implicit cast, now negativity will trigger an error.
 
 MJX
 ^^^
-1. Added ``actuator_length``, ``cdof`` and ``cdof_dof`` fields to ``mjx.Data``.
+- Added ``actuator_length``, ``cdof`` and ``cdof_dof`` fields to ``mjx.Data``.
 
 Bug fixes
 ^^^^^^^^^

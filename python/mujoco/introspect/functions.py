@@ -2461,7 +2461,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='sig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Return size of state signature.',
@@ -2491,7 +2491,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='sig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Get state.',
@@ -2515,7 +2515,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='srcsig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
              FunctionParameterDecl(
                  name='dst',
@@ -2525,7 +2525,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='dstsig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Extract a subset of components from a state previously obtained via mj_getState.',  # pylint: disable=line-too-long
@@ -2555,7 +2555,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='sig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Set state.',
@@ -2585,7 +2585,7 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='sig',
-                 type=ValueType(name='unsigned int'),
+                 type=ValueType(name='int'),
              ),
          ),
          doc='Copy state from src to dst.',

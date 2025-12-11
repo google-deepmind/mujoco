@@ -36,20 +36,20 @@ MJAPI extern const int mjCONDATA_SIZE[mjNCONDATA];  // TODO(tassa): expose in pu
 //-------------------------- get/set state ---------------------------------------------------------
 
 // return size of state signature
-MJAPI int mj_stateSize(const mjModel* m, unsigned int sig);
+MJAPI int mj_stateSize(const mjModel* m, int sig);
 
 // get state
-MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int sig);
+MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, int sig);
 
 // extract a sub-state from a state
-MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, unsigned int srcsig,
-                           mjtNum* dst, unsigned int dstsig);
+MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, int srcsig,
+                           mjtNum* dst, int dstsig);
 
 // set state
-MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int sig);
+MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig);
 
 // copy state from src to dst
-MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, unsigned int sig);
+MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig);
 
 // copy current state to the k-th model keyframe
 MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);

@@ -844,13 +844,21 @@ TEST_F(SupportTest, ExtractState) {
     std::strncpy(last_error_msg, msg, sizeof(last_error_msg));
     ++error_count;
   };
+
   auto* old_mju_user_error = mju_user_error;
   mju_user_error = error_handler;
+
   mj_extractState(model, nullptr, srcsig, nullptr, mjSTATE_QFRC_APPLIED);
-  mju_user_error = old_mju_user_error;
   EXPECT_EQ(error_count, 1);
   EXPECT_EQ(std::string_view(last_error_msg),
             "mj_extractState: dstsig is not a subset of srcsig");
+
+  mj_extractState(model, nullptr, -1, nullptr, mjSTATE_QFRC_APPLIED);
+  EXPECT_EQ(error_count, 2);
+  EXPECT_EQ(std::string_view(last_error_msg),
+            "mj_extractState: invalid srcsig -1 < 0");
+
+  mju_user_error = old_mju_user_error;
 
   mj_deleteData(data);
   mj_deleteModel(model);
