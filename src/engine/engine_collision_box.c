@@ -938,11 +938,10 @@ int mjc_BoxBox(const mjModel* M, const mjData* D, mjContact* con, int g1, int g2
   m = n;
   n = 0;
 
-  for (i = 0; i < m; i++)
-  {
+  for (i = 0; i < m; i++) {
     if (points[i][2] > margin)
       continue;
-    mji_copy3(points[n], points[i]);
+    if (n != i) mji_copy3(points[n], points[i]);
 
     depth[n] = points[n][2];
     points[n][2] *= 0.5;
@@ -1256,7 +1255,7 @@ edgeedge:
         if (c1 > margin2)
           continue;
 
-      mji_add3(points[n], points[n], tmp1);
+      mji_addTo3(points[n], tmp1);
       mju_scl3(points[n], points[n], 0.5);
 
       depth[n] = sqrt(c1) * (tmp1[2] < 0 ? -1 : 1);
