@@ -56,7 +56,7 @@
 namespace mujoco::studio {
 
 static constexpr platform::Window::Config kWindowConfig = {
-#ifdef EMSCRIPTEN
+#if defined(__EMSCRIPTEN__)
     .render_config = platform::Window::RenderConfig::kFilamentWebGL,
 #elif defined(USE_FILAMENT_VULKAN)
     .render_config = platform::Window::RenderConfig::kFilamentVulkan,
@@ -195,34 +195,36 @@ void App::LoadModel(std::string data, ContentType type) {
   // Delete the existing mjModel and mjData.
   ClearModel();
 
-  char err[1000] = "";
-  if (type == ContentType::kFilepath) {
-    // Store the file path as the model name. Note that we use this model name
-    // to perform reload operations.
-    model_name_ = std::move(data);
-    if (model_name_.ends_with(".mjb")) {
-      model_ = mj_loadModel(model_name_.c_str(), 0);
-    } else if (model_name_.ends_with(".xml")) {
-      spec_ = mj_parseXML(model_name_.c_str(), nullptr, err, sizeof(err));
+  if (!data.empty()) {
+    char err[1000] = "";
+    if (type == ContentType::kFilepath) {
+      // Store the file path as the model name. Note that we use this model name
+      // to perform reload operations.
+      model_name_ = std::move(data);
+      if (model_name_.ends_with(".mjb")) {
+        model_ = mj_loadModel(model_name_.c_str(), 0);
+      } else if (model_name_.ends_with(".xml")) {
+        spec_ = mj_parseXML(model_name_.c_str(), nullptr, err, sizeof(err));
+        if (spec_ && err[0] == 0) {
+          model_ = mj_compile(spec_, nullptr);
+        }
+      } else {
+        error_ = "Unknown model file type; expected .mjb or .xml.";
+      }
+    } else if (type == ContentType::kModelXml) {
+      model_name_ = "[xml]";
+      spec_ = mj_parseXMLString(data.c_str(), nullptr, err, sizeof(err));
       if (spec_ && err[0] == 0) {
         model_ = mj_compile(spec_, nullptr);
       }
-    } else {
-      error_ = "Unknown model file type; expected .mjb or .xml.";
+    } else if (type == ContentType::kModelMjb) {
+      model_name_ = "[mjb]";
+      model_ = mj_loadModelBuffer(data.data(), data.size());
     }
-  } else if (type == ContentType::kModelXml) {
-    model_name_ = "[xml]";
-    spec_ = mj_parseXMLString(data.c_str(), nullptr, err, sizeof(err));
-    if (spec_ && err[0] == 0) {
-      model_ = mj_compile(spec_, nullptr);
-    }
-  } else if (type == ContentType::kModelMjb) {
-    model_name_ = "[mjb]";
-    model_ = mj_loadModelBuffer(data.data(), data.size());
-  }
 
-  if (err[0]) {
-    error_ = err;
+    if (err[0]) {
+      error_ = err;
+    }
   }
 
   // If no mjModel was loaded, load an empty mjModel.
