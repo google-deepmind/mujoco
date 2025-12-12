@@ -742,7 +742,7 @@ void App::LoadSettings() {
   if (!ini_path_.empty()) {
     std::string settings = platform::LoadText(ini_path_);
     if (!settings.empty()) {
-      ui_.FromDict(platform::ReadIniSection(settings, "[Simulate][Data]"));
+      ui_.FromDict(platform::ReadIniSection(settings, "[Studio][UX]"));
       ImGui::LoadIniSettingsFromMemory(settings.data(), settings.size());
     }
   }
@@ -751,7 +751,7 @@ void App::LoadSettings() {
 void App::SaveSettings() {
   if (!ini_path_.empty()) {
     std::string settings = ImGui::SaveIniSettingsToMemory();
-    platform::AppendIniSection(settings, "[Simulate][Data]", ui_.ToDict());
+    platform::AppendIniSection(settings, "[Studio][UX]", ui_.ToDict());
     platform::SaveText(settings, ini_path_);
   }
 }
@@ -912,6 +912,10 @@ void App::BuildGui() {
   }
 
   ImGuiIO& io = ImGui::GetIO();
+  if (tmp_.first_frame) {
+    LoadSettings();
+    tmp_.first_frame = false;
+  }
   if (io.WantSaveIniSettings) {
     SaveSettings();
     io.WantSaveIniSettings = false;
@@ -922,6 +926,7 @@ void App::SetupTheme(platform::GuiTheme theme) {
   if (!tmp_.style_editor) {
     platform::SetupTheme(theme);
     ui_.theme = theme;
+    ImGui::GetIO().WantSaveIniSettings = true;
   }
 }
 
@@ -1747,11 +1752,13 @@ std::vector<const char*> App::GetCameraNames() {
 
 App::UiState::Dict App::UiState::ToDict() const {
   return {
+    {"theme", std::to_string(static_cast<int>(theme))},
   };
 }
 
 void App::UiState::FromDict(const Dict& dict) {
   *this = UiState();
+  theme = ReadIniValue(dict, "theme", theme);
 }
 
 int App::LoadAssetCallback(const char* path, void* user_data,

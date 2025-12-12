@@ -47,8 +47,11 @@ static constexpr const char ICON_FA_SUN[] = "\xEF\x86\x85";
 static constexpr const char ICON_FA_TACHOMETER[] = "\xEF\x83\xA4";
 static constexpr const char ICON_FA_UNDO[] = "\xEF\x83\xA2";
 
-
 using KeyValues = std::unordered_map<std::string, std::string>;
+
+// This is a workaround to fix compilation on gcc <= 12 and clang <= 16
+template <typename T>
+struct dependent_false : std::false_type {};
 
 // Appends key/value pairs to an Ini file.
 void AppendIniSection(std::string& ini, const std::string& section,
@@ -57,6 +60,27 @@ void AppendIniSection(std::string& ini, const std::string& section,
 // Reads key/value pairs from an Ini file section.
 KeyValues ReadIniSection(const std::string& contents,
                          const std::string& section);
+
+template <typename T>
+T ReadIniValue(const KeyValues& key_values, const std::string& key, T def) {
+  auto iter = key_values.find(key);
+  if (iter == key_values.end()) {
+    return def;
+  }
+  if constexpr (std::is_same_v<T, int>) {
+    return std::stoi(iter->second);
+  } else if constexpr (std::is_same_v<T, float>) {
+    return std::stof(iter->second);
+  } else if constexpr (std::is_same_v<T, double>) {
+    return std::stod(iter->second);
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    return iter->second;
+  } else if constexpr (std::is_enum_v<T>) {
+    return static_cast<T>(std::stoi(iter->second));
+  } else {
+    static_assert(dependent_false<T>::value, "Unsupported type");
+  }
+}
 
 // Helper class for setting ImGui style options; automatically resets the
 // styles when going out of scope.
@@ -178,10 +202,6 @@ struct ImGuiOpts {
   std::optional<float> width;
   const char* format = std::is_floating_point_v<T> ? "%.3g" : "%d";
 };
-
-// This is a workaround to fix compilation on gcc <= 12 and clang <= 16
-template <typename T>
-struct dependent_false : std::false_type {};
 
 // A compile-time wrapper around ImGui::InputScalarN. This is useful because
 // MuJoCo uses an `mjtNum` type which is an alias for float or double.
