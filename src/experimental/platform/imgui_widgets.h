@@ -28,24 +28,24 @@
 namespace mujoco::platform {
 
 // FontAwesome icon codes.
-static constexpr const char ICON_FA_ARROWS[] = u8"\uf047";
-static constexpr const char ICON_FA_CAMERA[] = u8"\uf03d";
-static constexpr const char ICON_FA_CARET_LEFT[] = u8"\uf0d9";
-static constexpr const char ICON_FA_CARET_RIGHT[] = u8"\uf0da";
-static constexpr const char ICON_FA_CHECK_SQUARE_O[] = u8"\uf05d";
-static constexpr const char ICON_FA_COMMENT[] = u8"\uf0e5";
-static constexpr const char ICON_FA_COPY[] = u8"\uf0c5";
-static constexpr const char ICON_FA_DIAMOND[] = u8"\uf219";
-static constexpr const char ICON_FA_EJECT[] = u8"\uf052";
-static constexpr const char ICON_FA_FAST_FORWARD[] = u8"\uf050";
-static constexpr const char ICON_FA_MOON[] = u8"\uf186";
-static constexpr const char ICON_FA_PAUSE[] = u8"\uf04c";
-static constexpr const char ICON_FA_PLAY[] = u8"\uf04b";
-static constexpr const char ICON_FA_REFRESH[] = u8"\uf021";
-static constexpr const char ICON_FA_SQUARE_O[] = u8"\uf1db";
-static constexpr const char ICON_FA_SUN[] = u8"\uf185";
-static constexpr const char ICON_FA_TACHOMETER[] = u8"\uf0e4";
-static constexpr const char ICON_FA_UNDO[] = u8"\uf0e2";
+static constexpr const char ICON_FA_ARROWS[] = "\xEF\x81\x87";
+static constexpr const char ICON_FA_CAMERA[] = "\xEF\x80\xBD";
+static constexpr const char ICON_FA_CARET_LEFT[] = "\xEF\x83\x99";
+static constexpr const char ICON_FA_CARET_RIGHT[] = "\xEF\x83\x9A";
+static constexpr const char ICON_FA_CHECK_SQUARE_O[] = "\xEF\x81\x9D";
+static constexpr const char ICON_FA_COMMENT[] = "\xEF\x83\xA5";
+static constexpr const char ICON_FA_COPY[] = "\xEF\x83\x85";
+static constexpr const char ICON_FA_DIAMOND[] = "\xEF\x88\x99";
+static constexpr const char ICON_FA_EJECT[] = "\xEF\x81\x92";
+static constexpr const char ICON_FA_FAST_FORWARD[] = "\xEF\x81\x90";
+static constexpr const char ICON_FA_MOON[] = "\xEF\x86\x86";
+static constexpr const char ICON_FA_PAUSE[] = "\xEF\x81\x8C";
+static constexpr const char ICON_FA_PLAY[] = "\xEF\x81\x8B";
+static constexpr const char ICON_FA_REFRESH[] = "\xEF\x80\xA1";
+static constexpr const char ICON_FA_SQUARE_O[] = "\xEF\x87\x9B";
+static constexpr const char ICON_FA_SUN[] = "\xEF\x86\x85";
+static constexpr const char ICON_FA_TACHOMETER[] = "\xEF\x83\xA4";
+static constexpr const char ICON_FA_UNDO[] = "\xEF\x83\xA2";
 
 
 using KeyValues = std::unordered_map<std::string, std::string>;
@@ -134,7 +134,7 @@ bool ImGui_ButtonToggle(const char* label, T* boolean,
 
   const std::string txt =
       std::string(" ") +
-      std::string(*boolean ? ICON_FA_SQUARE_O : ICON_FA_CHECK_SQUARE_O) + "  " +
+      std::string(*boolean ? ICON_FA_CHECK_SQUARE_O : ICON_FA_SQUARE_O) + "  " +
       label;
   if (ImGui::Button(txt.c_str(), size)) {
     *boolean = !(*boolean);
