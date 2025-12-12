@@ -1159,7 +1159,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
           mji_copy3(gearAxis, gear);
         } else {
-          mji_negQuat(quat, quat);
+          mju_negQuat(quat, quat);
           mji_rotVecQuat(gearAxis, gear, quat);
         }
 
