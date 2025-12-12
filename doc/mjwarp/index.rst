@@ -192,8 +192,6 @@ The following features are **not supported** in MJWarp:
 
    * - Category
      - Feature
-   * - :ref:`Equality <mjtEq>`
-     - ``FLEX``
    * - :ref:`Integrator <mjtIntegrator>`
      - ``IMPLICIT``, ``IMPLICITFAST`` not supported with fluid drag
    * - :ref:`Solver <mjtSolver>`
@@ -203,7 +201,7 @@ The following features are **not supported** in MJWarp:
    * - :ref:`Sensors <mjtSensor>`
      - ``GEOMDIST``, ``GEOMNORMAL``, ``GEOMFROMTO``
    * - Flex
-     - ``VERTCOLLIDE=false``, ``INTERNAL=true``, ``nflex > 1``
+     - ``VERTCOLLIDE=false``, ``INTERNAL=true``
    * - Jacobian format
      - ``SPARSE``
    * - Option
