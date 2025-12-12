@@ -46,6 +46,7 @@ set(MUJOCO_ENGINE_SRCS
     engine_inverse.h
     engine_init.c
     engine_init.h
+    engine_inline.h
     engine_island.c
     engine_island.h
     engine_io.c

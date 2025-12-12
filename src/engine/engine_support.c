@@ -26,6 +26,7 @@
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"

@@ -26,6 +26,7 @@
 #include "engine/engine_collision_gjk.h"
 #include "engine/engine_collision_primitive.h"
 #include "engine/engine_memory.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -99,17 +100,17 @@ void mjc_center(mjtNum res[3], const mjCCDObj *obj) {
 
   // return geom position
   if (g >= 0) {
-    mju_copy3(res, obj->data->geom_xpos + 3*g);
+    mji_copy3(res, obj->data->geom_xpos + 3*g);
   }
 
   // return flex element position
   else if (e >= 0) {
-    mju_copy3(res, obj->data->flexelem_aabb + 6*(obj->model->flex_elemadr[f]+e));
+    mji_copy3(res, obj->data->flexelem_aabb + 6*(obj->model->flex_elemadr[f]+e));
   }
 
   // return flex vertex position
   else {
-    mju_copy3(res, obj->data->flexvert_xpos + 3*(obj->model->flex_vertadr[f]+v));
+    mji_copy3(res, obj->data->flexvert_xpos + 3*(obj->model->flex_vertadr[f]+v));
   }
 }
 
@@ -119,7 +120,7 @@ static void mjc_prism_center(mjtNum res[3], const mjCCDObj* obj) {
   // compute mean
   mju_zero3(res);
   for (int i=0; i < 6; i++) {
-    mju_addTo3(res, obj->prism[i]);
+    mji_addTo3(res, obj->prism[i]);
   }
   mju_scl3(res, res, 1.0/6.0);
 }
@@ -157,9 +158,7 @@ static inline void localToGlobal(mjtNum res[3], const mjtNum mat[9], const mjtNu
 // point support function
 void mjc_pointSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
   const mjtNum* pos = obj->data->geom_xpos + 3*obj->geom;
-  res[0] = pos[0];
-  res[1] = pos[1];
-  res[2] = pos[2];
+  mji_copy3(res, pos);
 }
 
 
@@ -448,7 +447,7 @@ static void mjc_prism_support(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3])
   }
 
   // copy best point
-  mju_copy3(res, obj->prism[ibest]);
+  mji_copy3(res, obj->prism[ibest]);
 }
 
 
@@ -466,7 +465,7 @@ static void mjc_flexSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
     const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
 
     // find element vertex with largest projection along dir
-    mju_copy3(res, vert+3*edata[0]);
+    mji_copy3(res, vert+3*edata[0]);
     mjtNum best = mju_dot3(res, dir);
     for (int i=1; i <= dim; i++) {
       mjtNum dot = mju_dot3(vert+3*edata[i], dir);
@@ -474,19 +473,19 @@ static void mjc_flexSupport(mjtNum res[3], mjCCDObj* obj, const mjtNum dir[3]) {
       // better vertex found: assign
       if (dot > best) {
         best = dot;
-        mju_copy3(res, vert+3*edata[i]);
+        mji_copy3(res, vert+3*edata[i]);
       }
     }
 
     // add radius and margin/2
-    mju_addToScl3(res, dir, m->flex_radius[f] + 0.5*obj->margin);
+    mji_addToScl3(res, dir, m->flex_radius[f] + 0.5*obj->margin);
     return;
   }
 
   // flex vertex
   else {
     const mjtNum* vert = d->flexvert_xpos + 3*(m->flex_vertadr[f] + obj->vert);
-    mju_addScl3(res, vert, dir, m->flex_radius[f] + 0.5*obj->margin);
+    mji_addScl3(res, vert, dir, m->flex_radius[f] + 0.5*obj->margin);
     return;
   }
 }
@@ -512,7 +511,7 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
       const mjtNum* vert = d->flexvert_xpos + 3*m->flex_vertadr[f];
 
       // find element vertex with largest projection along dir
-      mju_copy3(res, vert+3*edata[0]);
+      mji_copy3(res, vert+3*edata[0]);
       mjtNum best = mju_dot3(res, dir);
       for (int i=1; i <= dim; i++) {
         mjtNum dot = mju_dot3(vert+3*edata[i], dir);
@@ -520,19 +519,19 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
         // better vertex found: assign
         if (dot > best) {
           best = dot;
-          mju_copy3(res, vert+3*edata[i]);
+          mji_copy3(res, vert+3*edata[i]);
         }
       }
 
       // add radius and margin/2
-      mju_addToScl3(res, dir, m->flex_radius[f] + 0.5*obj->margin);
+      mji_addToScl3(res, dir, m->flex_radius[f] + 0.5*obj->margin);
       return;
     }
 
     // flex vertex
     else {
       const mjtNum* vert = d->flexvert_xpos + 3*(m->flex_vertadr[f] + obj->vert);
-      mju_addScl3(res, vert, dir, m->flex_radius[f] + 0.5*obj->margin);
+      mji_addScl3(res, vert, dir, m->flex_radius[f] + 0.5*obj->margin);
       return;
     }
   }
@@ -551,12 +550,12 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
   // compute result according to geom type
   switch ((mjtGeom) obj->geom_type) {
   case mjGEOM_SPHERE:
-    mju_scl3(res, local_dir, size[0]);
+    mji_scl3(res, local_dir, size[0]);
     break;
 
   case mjGEOM_CAPSULE:
     // start with sphere
-    mju_scl3(res, local_dir, size[0]);
+    mji_scl3(res, local_dir, size[0]);
 
     // add cylinder contribution
     res[2] += mju_sign(local_dir[2]) * size[1];
@@ -695,7 +694,7 @@ void mjccd_support(const void *_obj, const ccd_vec3_t *_dir, ccd_vec3_t *vec) {
   mju_mulMatVec3(res, d->geom_xmat+9*g, res);
 
   // add geom position
-  mju_addTo3(res, d->geom_xpos+3*g);
+  mji_addTo3(res, d->geom_xpos+3*g);
 }
 
 
@@ -839,8 +838,8 @@ static int mjc_CCDIteration(const mjModel* m, const mjData* d, mjCCDObj* obj1, m
 
     // fill in contact data
     con->dist = margin-depth;
-    mju_copy3(con->frame, dir.v);
-    mju_copy3(con->pos, pos.v);
+    mji_copy3(con->frame, dir.v);
+    mji_copy3(con->pos, pos.v);
     mju_zero3(con->frame+3);
 
     // both geoms: fix contact frame normal
@@ -875,14 +874,14 @@ static void mju_rotateFrame(const mjtNum origin[3], const mjtNum rot[9],
   mju_copy(xmat, mat, 9);
 
   // vector to rotation origin: rel = origin - xpos
-  mju_sub3(rel, origin, xpos);
+  mji_sub3(rel, origin, xpos);
 
   // displacement of origin due to rotation: vec = rot*rel - rel
   mju_mulMatVec3(vec, rot, rel);
   mju_subFrom3(vec, rel);
 
   // correct xpos by subtracting displacement: xpos = xpos - vec
-  mju_subFrom3(xpos, vec);
+  mji_subFrom3(xpos, vec);
 }
 
 
@@ -942,14 +941,14 @@ int mjc_Convex(const mjModel* m, const mjData* d,
 
     // save positions and orientations of g1 and g2
     mjtNum xpos1[3], xmat1[9], xpos2[3], xmat2[9];
-    mju_copy3(xpos1, d->geom_xpos+3*g1);
-    mju_copy(xmat1, d->geom_xmat+9*g1, 9);
-    mju_copy3(xpos2, d->geom_xpos+3*g2);
-    mju_copy(xmat2, d->geom_xmat+9*g2, 9);
+    mji_copy3(xpos1, d->geom_xpos+3*g1);
+    mji_copy9(xmat1, d->geom_xmat+9*g1);
+    mji_copy3(xpos2, d->geom_xpos+3*g2);
+    mji_copy9(xmat2, d->geom_xmat+9*g2);
 
     // complete frame of initial contact
     mjtNum frame[9];
-    mju_copy(frame, con[0].frame, 9);
+    mji_copy9(frame, con[0].frame);
     mju_makeFrame(frame);
 
     // tolerance for determining if newly found contacts are distinct
@@ -967,7 +966,7 @@ int mjc_Convex(const mjModel* m, const mjData* d,
 
         // make rotation matrix rot
         mjtNum quat[4], rot[9];
-        mju_axisAngle2Quat(quat, axis, angle);
+        mji_axisAngle2Quat(quat, axis, angle);
         mju_quat2Mat(rot, quat);
 
         // rotate g1 around initial contact point
@@ -990,10 +989,10 @@ int mjc_Convex(const mjModel* m, const mjData* d,
         }
 
         // reset positions and orientations of g1 and g2
-        mju_copy3(d->geom_xpos+3*g1, xpos1);
-        mju_copy(d->geom_xmat+9*g1, xmat1, 9);
-        mju_copy3(d->geom_xpos+3*g2, xpos2);
-        mju_copy(d->geom_xmat+9*g2, xmat2, 9);
+        mji_copy3(d->geom_xpos+3*g1, xpos1);
+        mji_copy9(d->geom_xmat+9*g1, xmat1);
+        mji_copy3(d->geom_xpos+3*g2, xpos2);
+        mji_copy9(d->geom_xmat+9*g2, xmat2);
       }
     }
   }
@@ -1022,17 +1021,17 @@ static int addplanemesh(mjContact* con, const float vertex[3],
 
   // pnt-pos difference vector
   mjtNum dif[3];
-  mju_sub3(dif, pnt, pos1);
+  mji_sub3(dif, pnt, pos1);
 
   // set distance
   con->dist = mju_dot3(normal1, dif);
 
   // set position
-  mju_copy3(con->pos, pnt);
-  mju_addToScl3(con->pos, normal1, -0.5*con->dist);
+  mji_copy3(con->pos, pnt);
+  mji_addToScl3(con->pos, normal1, -0.5*con->dist);
 
   // set frame
-  mju_copy3(con->frame, normal1);
+  mji_copy3(con->frame, normal1);
   mju_zero3(con->frame+3);
 
   return 1;
@@ -1052,7 +1051,7 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   mjccd_support(&obj, &dir, &vec);
 
   // compute normal distance, return if too far
-  mju_sub3(dif, vec.v, pos1);
+  mji_sub3(dif, vec.v, pos1);
   dist = mju_dot3(normal, dif);
   if (dist > margin) {
     return 0;
@@ -1060,9 +1059,9 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
 
   // fill in contact data
   con->dist = dist;
-  mju_copy3(con->pos, vec.v);
-  mju_addToScl3(con->pos, normal, -0.5*dist);
-  mju_copy3(con->frame, normal);
+  mji_copy3(con->pos, vec.v);
+  mji_addToScl3(con->pos, normal, -0.5*dist);
+  mji_copy3(con->frame, normal);
   mju_zero3(con->frame+3);
 
   //--------------- add all/connected vertices below margin
@@ -1085,7 +1084,7 @@ int mjc_PlaneConvex(const mjModel* m, const mjData* d,
   mju_mulMatTVec3(locdir, d->geom_xmat+9*g, dir.v);
 
   // inclusion threshold along locdir, relative to geom2 center
-  mju_sub3(dif, pos2, pos1);
+  mji_sub3(dif, pos2, pos1);
   mjtNum threshold = mju_dot3(normal, dif) - margin;
 
   // no graph data: exhaustive search
@@ -1150,10 +1149,10 @@ static void prism_firstdir(const void* o1, const void* o2, ccd_vec3_t *vec) {
 // add vertex to prism
 static inline void addVert(mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
   // move old data
-  mju_copy3(obj->prism[0], obj->prism[1]);
-  mju_copy3(obj->prism[1], obj->prism[2]);
-  mju_copy3(obj->prism[3], obj->prism[4]);
-  mju_copy3(obj->prism[4], obj->prism[5]);
+  mji_copy3(obj->prism[0], obj->prism[1]);
+  mji_copy3(obj->prism[1], obj->prism[2]);
+  mji_copy3(obj->prism[3], obj->prism[4]);
+  mji_copy3(obj->prism[4], obj->prism[5]);
 
   // add new vertex at last position
   obj->prism[2][0] = obj->prism[5][0] = x;
@@ -1165,10 +1164,10 @@ static inline void addVert(mjCCDObj* obj, mjtNum x, mjtNum y, mjtNum z) {
 // add vertex to prism
 static inline void addPrismVert(mjCCDObj* obj, int r, int c, int i, mjtNum dx, mjtNum dy, mjtNum margin) {
   // move old data
-  mju_copy3(obj->prism[0], obj->prism[1]);
-  mju_copy3(obj->prism[1], obj->prism[2]);
-  mju_copy3(obj->prism[3], obj->prism[4]);
-  mju_copy3(obj->prism[4], obj->prism[5]);
+  mji_copy3(obj->prism[0], obj->prism[1]);
+  mji_copy3(obj->prism[1], obj->prism[2]);
+  mji_copy3(obj->prism[3], obj->prism[4]);
+  mji_copy3(obj->prism[4], obj->prism[5]);
 
   int dr = 1 - i;
 
@@ -1226,14 +1225,14 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
 
   // express geom2 mat in hfield frame
   mjtNum mat[9];
-  mju_mulMatTMat3(mat, mat1, mat2);
+  mji_mulMatTMat3(mat, mat1, mat2);
 
   // save mat2 and pos2, replace with relative frame
   mjtNum savemat2[9], savepos2[3];
-  mju_copy9(savemat2, mat2);
-  mju_copy3(savepos2, pos2);
-  mju_copy9(mat2, mat);
-  mju_copy3(pos2, pos);
+  mji_copy9(savemat2, mat2);
+  mji_copy3(savepos2, pos2);
+  mji_copy9(mat2, mat);
+  mji_copy3(pos2, pos);
 
   mjtNum dir[3] = {0, 0, 0}, res[3];
 
@@ -1275,8 +1274,8 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   if ((xmin - margin > size0) || (xmax + margin < -size0) ||
       (ymin - margin > size1) || (ymax + margin < -size1) ||
       (zmin - margin > size2) || (zmax + margin < -size3)) {
-    mju_copy9(mat2, savemat2);
-    mju_copy3(pos2, savepos2);
+    mji_copy9(mat2, savemat2);
+    mji_copy3(pos2, savepos2);
     return 0;
   }
 
@@ -1332,9 +1331,9 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
             && !ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
           // fill in contact data, transform to global coordinates
           con[ncon].dist = -depth;
-          mju_mulMatVec3(con[ncon].frame, mat1, dirccd.v);
-          mju_mulMatVec3(con[ncon].pos, mat1, vecccd.v);
-          mju_addTo3(con[ncon].pos, pos1);
+          mji_mulMatVec3(con[ncon].frame, mat1, dirccd.v);
+          mji_mulMatVec3(con[ncon].pos, mat1, vecccd.v);
+          mji_addTo3(con[ncon].pos, pos1);
           mju_zero3(con[ncon].frame+3);
 
           // force out of all loops if max contacts reached
@@ -1350,8 +1349,8 @@ int mjc_ConvexHField(const mjModel* m, const mjData* d,
   }
 
   // restore mat2 and pos2
-  mju_copy9(mat2, savemat2);
-  mju_copy3(pos2, savepos2);
+  mji_copy9(mat2, savemat2);
+  mji_copy3(pos2, savepos2);
 
   if (mjDISABLED(mjDSBL_NATIVECCD)) {
     // fix contact normals
@@ -1401,7 +1400,7 @@ static int mjc_ellipsoidInside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum 
 
     // new point on ellipsoid
     mjtNum pnt[3];
-    mju_addScl3(pnt, pos, nrm, x);
+    mji_addScl3(pnt, pos, nrm, x);
 
     // normal at new point
     mjtNum newnrm[3] = {pnt[0]*S2inv[0], pnt[1]*S2inv[1], pnt[2]*S2inv[2]};
@@ -1409,7 +1408,7 @@ static int mjc_ellipsoidInside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum 
 
     // save change and assign
     mjtNum change = mju_dist3(nrm, newnrm);
-    mju_copy3(nrm, newnrm);
+    mji_copy3(nrm, newnrm);
 
     // terminate if converged
     if (change < tolerance) {
@@ -1470,7 +1469,7 @@ static int mjc_ellipsoidOutside(mjtNum nrm[3], const mjtNum pos[3], const mjtNum
 }
 
 
-// entry point
+// fix normals if required
 void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, int g2) {
   mjtNum dst1, dst2;
 
@@ -1517,7 +1516,7 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
       // process according to type
       switch (type[i]) {
       case mjGEOM_SPHERE:
-        mju_copy3(nrm, pos);
+        mji_copy3(nrm, pos);
         processed[i] = 1;
         break;
 
@@ -1591,25 +1590,25 @@ void mjc_fixNormal(const mjModel* m, const mjData* d, mjContact* con, int g1, in
       // normalize and map normal to global frame
       if (processed[i]) {
         mju_normalize3(nrm);
-        mju_mulMatVec3(normal[i], mat, nrm);
+        mji_mulMatVec3(normal[i], mat, nrm);
       }
     }
   }
 
   // both processed: average
   if (processed[0] && processed[1]) {
-    mju_sub3(con->frame, normal[0], normal[1]);
+    mji_sub3(con->frame, normal[0], normal[1]);
     mju_normalize3(con->frame);
   }
 
   // first processed: copy
   else if (processed[0]) {
-    mju_copy3(con->frame, normal[0]);
+    mji_copy3(con->frame, normal[0]);
   }
 
   // second processed: copy reverse
   else if (processed[1]) {
-    mju_scl3(con->frame, normal[1], -1);
+    mji_scl3(con->frame, normal[1], -1);
   }
 
   // clear second frame axis if processed, just in case
@@ -1676,16 +1675,16 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
   // save elem vertices, transform to hfield frame
   mjtNum savevert[4][3];
   for (int i=0; i <= dim; i++) {
-    mju_copy3(savevert[i], evert[i]);
-    mju_sub3(vec, evert[i], hpos);
-    mju_mulMatTVec(evert[i], hmat, vec, 3, 3);
+    mji_copy3(savevert[i], evert[i]);
+    mji_sub3(vec, evert[i], hpos);
+    mji_mulMatTVec3(evert[i], hmat, vec);
   }
 
   // save elem center, transform to hfield frame
   mjtNum savecenter[3];
-  mju_copy3(savecenter, ecenter);
-  mju_sub3(vec, ecenter, hpos);
-  mju_mulMatTVec(ecenter, hmat, vec, 3, 3);
+  mji_copy3(savecenter, ecenter);
+  mji_sub3(vec, ecenter, hpos);
+  mji_mulMatTVec3(ecenter, hmat, vec);
 
   // compute elem bounding box (in hfield frame)
   xmin = xmax = evert[0][0];
@@ -1706,9 +1705,9 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
       (zmin-margin > hsize[2]) || (zmax+margin < -hsize[3])) {
     // restore vertices and center
     for (int i=0; i <= dim; i++) {
-      mju_copy3(evert[i], savevert[i]);
+      mji_copy3(evert[i], savevert[i]);
     }
-    mju_copy3(ecenter, savecenter);
+    mji_copy3(ecenter, savecenter);
 
     return 0;
   }
@@ -1768,9 +1767,9 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
             if (!ccdVec3Eq(&dirccd, ccd_vec3_origin)) {
               // fill in contact data, transform to global coordinates
               con[cnt].dist = -depth;
-              mju_mulMatVec3(con[cnt].frame, hmat, dirccd.v);
-              mju_mulMatVec3(con[cnt].pos, hmat, vecccd.v);
-              mju_addTo3(con[cnt].pos, hpos);
+              mji_mulMatVec3(con[cnt].frame, hmat, dirccd.v);
+              mji_mulMatVec3(con[cnt].pos, hmat, vecccd.v);
+              mji_addTo3(con[cnt].pos, hpos);
               mju_zero3(con[cnt].frame+3);
 
               // count, stop if max number reached
@@ -1790,9 +1789,9 @@ int mjc_HFieldElem(const mjModel* m, const mjData* d, mjContact* con,
 
   // restore elem vertices and center
   for (int i=0; i <= dim; i++) {
-    mju_copy3(evert[i], savevert[i]);
+    mji_copy3(evert[i], savevert[i]);
   }
-  mju_copy3(ecenter, savecenter);
+  mji_copy3(ecenter, savecenter);
 
   return cnt;
 }

@@ -19,6 +19,7 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
+#include "engine/engine_inline.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -751,8 +752,8 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
   for (iter=0; iter < 500; iter++) {
     // make quaternion matrix eigvec, compute D = eigvec'*mat*eigvec
     mju_quat2Mat(eigvec, quat);
-    mju_mulMatTMat3(tmp, eigvec, mat);
-    mju_mulMatMat3(D, tmp, eigvec);
+    mji_mulMatTMat3(tmp, eigvec, mat);
+    mji_mulMatMat3(D, tmp, eigvec);
 
     // assign eigenvalues
     eigval[0] = D[0];

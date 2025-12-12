@@ -23,6 +23,7 @@
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
+#include "engine/engine_inline.h"
 #include "engine/engine_macro.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_sleep.h"
@@ -67,13 +68,13 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
       int qadr = m->jnt_qposadr[jntadr];
 
       // copy pos and quat from qpos
-      mju_copy3(xpos, d->qpos+qadr);
-      mju_copy4(xquat, d->qpos+qadr+3);
+      mji_copy3(xpos, d->qpos+qadr);
+      mji_copy4(xquat, d->qpos+qadr+3);
       mju_normalize4(xquat);
 
       // assign xanchor and xaxis
-      mju_copy3(d->xanchor+3*jntadr, xpos);
-      mju_copy3(d->xaxis+3*jntadr, m->jnt_axis+3*jntadr);
+      mji_copy3(d->xanchor+3*jntadr, xpos);
+      mji_copy3(d->xaxis+3*jntadr, m->jnt_axis+3*jntadr);
     }
 
     // regular or no joint
@@ -84,7 +85,7 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
       mjtNum *bodypos, *bodyquat, quat[4];
       if (m->body_mocapid[i] >= 0) {
         bodypos = d->mocap_pos + 3*m->body_mocapid[i];
-        mju_copy4(quat, d->mocap_quat + 4*m->body_mocapid[i]);
+        mji_copy4(quat, d->mocap_quat + 4*m->body_mocapid[i]);
         mju_normalize4(quat);
         bodyquat = quat;
       } else {
@@ -94,13 +95,13 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
 
       // apply fixed translation and rotation relative to parent
       if (pid) {
-        mju_mulMatVec3(xpos, d->xmat+9*pid, bodypos);
-        mju_addTo3(xpos, d->xpos+3*pid);
-        mju_mulQuat(xquat, d->xquat+4*pid, bodyquat);
+        mji_mulMatVec3(xpos, d->xmat+9*pid, bodypos);
+        mji_addTo3(xpos, d->xpos+3*pid);
+        mji_mulQuat(xquat, d->xquat+4*pid, bodyquat);
       } else {
         // parent is the world
-        mju_copy3(xpos, bodypos);
-        mju_copy4(xquat, bodyquat);
+        mji_copy3(xpos, bodypos);
+        mji_copy4(xquat, bodyquat);
       }
 
       // accumulate joints, compute xpos and xquat for this body
@@ -112,16 +113,16 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
         mjtJoint jtype = m->jnt_type[jid];
 
         // compute axis in global frame; ball jnt_axis is (0,0,1), set by compiler
-        mju_rotVecQuat(xaxis, m->jnt_axis+3*jid, xquat);
+        mji_rotVecQuat(xaxis, m->jnt_axis+3*jid, xquat);
 
         // compute anchor in global frame
-        mju_rotVecQuat(xanchor, m->jnt_pos+3*jid, xquat);
-        mju_addTo3(xanchor, xpos);
+        mji_rotVecQuat(xanchor, m->jnt_pos+3*jid, xquat);
+        mji_addTo3(xanchor, xpos);
 
         // apply joint transformation
         switch (jtype) {
         case mjJNT_SLIDE:
-          mju_addToScl3(xpos, xaxis, d->qpos[qadr] - m->qpos0[qadr]);
+          mji_addToScl3(xpos, xaxis, d->qpos[qadr] - m->qpos0[qadr]);
           break;
 
         case mjJNT_BALL:
@@ -130,10 +131,10 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
             // compute local quaternion rotation
             mjtNum qloc[4];
             if (jtype == mjJNT_BALL) {
-              mju_copy4(qloc, d->qpos+qadr);
+              mji_copy4(qloc, d->qpos+qadr);
               mju_normalize4(qloc);
             } else {
-              mju_axisAngle2Quat(qloc, m->jnt_axis+3*jid, d->qpos[qadr] - m->qpos0[qadr]);
+              mji_axisAngle2Quat(qloc, m->jnt_axis+3*jid, d->qpos[qadr] - m->qpos0[qadr]);
             }
 
             // apply rotation
@@ -141,8 +142,8 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
 
             // correct for off-center rotation
             mjtNum vec[3];
-            mju_rotVecQuat(vec, m->jnt_pos+3*jid, xquat);
-            mju_sub3(xpos, xanchor, vec);
+            mji_rotVecQuat(vec, m->jnt_pos+3*jid, xquat);
+            mji_sub3(xpos, xanchor, vec);
           }
           break;
 
@@ -151,8 +152,8 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
         }
 
         // assign xanchor and xaxis
-        mju_copy3(d->xanchor+3*jid, xanchor);
-        mju_copy3(d->xaxis+3*jid, xaxis);
+        mji_copy3(d->xanchor+3*jid, xanchor);
+        mji_copy3(d->xaxis+3*jid, xaxis);
       }
     }
 
@@ -179,8 +180,8 @@ void mj_kinematics1(const mjModel* m, mjData* d) {
     }
 
     // assign xquat and xpos, construct xmat
-    mju_copy4(d->xquat+4*i, xquat);
-    mju_copy3(d->xpos+3*i, xpos);
+    mji_copy4(d->xquat+4*i, xquat);
+    mji_copy3(d->xpos+3*i, xpos);
     mju_quat2Mat(d->xmat+9*i, xquat);
   }
 }
@@ -251,7 +252,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
   for (int b=0; b < nbody; b++) {
     int i = sleep_filter ? d->body_awake_ind[b] : b;
 
-    mju_scl3(d->subtree_com+3*i, d->xipos+3*i, m->body_mass[i]);
+    mji_scl3(d->subtree_com+3*i, d->xipos+3*i, m->body_mass[i]);
   }
 
   // subtree_com: accumulate to parent in backward pass
@@ -263,10 +264,10 @@ void mj_comPos(const mjModel* m, mjData* d) {
     int parent = m->body_parentid[i];
     if (sleep_filter && d->body_awake[i] == mjS_ASLEEP) {
       mjtNum child_moment[3];
-      mju_scl3(child_moment, d->subtree_com+3*i, m->body_subtreemass[i]);
-      mju_addTo3(d->subtree_com+3*parent, child_moment);
+      mji_scl3(child_moment, d->subtree_com+3*i, m->body_subtreemass[i]);
+      mji_addTo3(d->subtree_com+3*parent, child_moment);
     } else {
-      mju_addTo3(d->subtree_com+3*parent, d->subtree_com+3*i);
+      mji_addTo3(d->subtree_com+3*parent, d->subtree_com+3*i);
     }
   }
 
@@ -275,9 +276,10 @@ void mj_comPos(const mjModel* m, mjData* d) {
     int i = sleep_filter ? d->body_awake_ind[b] : b;
 
     if (m->body_subtreemass[i] < mjMINVAL) {
-      mju_copy3(d->subtree_com+3*i, d->xipos+3*i);
+      mji_copy3(d->subtree_com+3*i, d->xipos+3*i);
     } else {
-      mju_scl3(d->subtree_com+3*i, d->subtree_com+3*i, 1.0/m->body_subtreemass[i]);
+      mju_scl3(d->subtree_com + 3 * i, d->subtree_com + 3 * i,
+               1.0 / m->body_subtreemass[i]);
     }
   }
 
@@ -289,7 +291,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
     int i = sleep_filter ? d->body_awake_ind[b] : b;
 
     mjtNum offset[3];
-    mju_sub3(offset, d->xipos+3*i, d->subtree_com+3*m->body_rootid[i]);
+    mji_sub3(offset, d->xipos+3*i, d->subtree_com+3*m->body_rootid[i]);
     mju_inertCom(d->cinert+10*i, m->body_inertia+3*i, d->ximat+9*i, offset, m->body_mass[i]);
   }
 
@@ -308,7 +310,7 @@ void mj_comPos(const mjModel* m, mjData* d) {
 
       // compute com-anchor vector
       mjtNum offset[3], axis[3];
-      mju_sub3(offset, d->subtree_com+3*m->body_rootid[i], d->xanchor+3*j);
+      mji_sub3(offset, d->subtree_com+3*m->body_rootid[i], d->xanchor+3*j);
 
       // create motion dof
       int skip = 0;
@@ -377,16 +379,16 @@ void mj_camlight(const mjModel* m, mjData* d) {
     case mjCAMLIGHT_TRACK:
     case mjCAMLIGHT_TRACKCOM:
       // fixed global orientation
-      mju_copy9(d->cam_xmat+9*i, m->cam_mat0+9*i);
+      mji_copy9(d->cam_xmat+9*i, m->cam_mat0+9*i);
 
       // position: track camera body
       if (m->cam_mode[i] == mjCAMLIGHT_TRACK) {
-        mju_add3(d->cam_xpos+3*i, d->xpos+3*id, m->cam_pos0+3*i);
+        mji_add3(d->cam_xpos+3*i, d->xpos+3*id, m->cam_pos0+3*i);
       }
 
       // position: track subtree com
       else {
-        mju_add3(d->cam_xpos+3*i, d->subtree_com+3*id, m->cam_poscom0+3*i);
+        mji_add3(d->cam_xpos+3*i, d->subtree_com+3*id, m->cam_poscom0+3*i);
       }
       break;
 
@@ -397,25 +399,25 @@ void mj_camlight(const mjModel* m, mjData* d) {
         mjtNum pos[3];
         // get position to look at
         if (m->cam_mode[i] == mjCAMLIGHT_TARGETBODY) {
-          mju_copy3(pos, d->xpos+3*id1);
+          mji_copy3(pos, d->xpos+3*id1);
         } else {
-          mju_copy3(pos, d->subtree_com+3*id1);
+          mji_copy3(pos, d->subtree_com+3*id1);
         }
 
         // zaxis = -desired camera direction, in global frame
         mjtNum matT[9];
-        mju_sub3(matT+6, d->cam_xpos+3*i, pos);
+        mji_sub3(matT+6, d->cam_xpos+3*i, pos);
         mju_normalize3(matT+6);
 
         // xaxis: orthogonal to zaxis and to (0,0,1)
         matT[3] = 0;
         matT[4] = 0;
         matT[5] = 1;
-        mju_cross(matT, matT+3, matT+6);
+        mji_cross(matT, matT+3, matT+6);
         mju_normalize3(matT);
 
         // yaxis: orthogonal to xaxis and zaxis
-        mju_cross(matT+3, matT+6, matT);
+        mji_cross(matT+3, matT+6, matT);
         mju_normalize3(matT+3);
 
         // set camera frame
@@ -439,7 +441,7 @@ void mj_camlight(const mjModel* m, mjData* d) {
 
     // default processing for fixed mode
     mj_local2Global(d, d->light_xpos+3*i, 0, m->light_pos+3*i, 0, id, 0);
-    mju_rotVecQuat(d->light_xdir+3*i, m->light_dir+3*i, d->xquat+4*id);
+    mji_rotVecQuat(d->light_xdir+3*i, m->light_dir+3*i, d->xquat+4*id);
 
     // adjust for mode
     switch ((mjtCamLight) m->light_mode[i]) {
@@ -448,16 +450,16 @@ void mj_camlight(const mjModel* m, mjData* d) {
     case mjCAMLIGHT_TRACK:
     case mjCAMLIGHT_TRACKCOM:
       // fixed global orientation
-      mju_copy3(d->light_xdir+3*i, m->light_dir0+3*i);
+      mji_copy3(d->light_xdir+3*i, m->light_dir0+3*i);
 
       // position: track light body
       if (m->light_mode[i] == mjCAMLIGHT_TRACK) {
-        mju_add3(d->light_xpos+3*i, d->xpos+3*id, m->light_pos0+3*i);
+        mji_add3(d->light_xpos+3*i, d->xpos+3*id, m->light_pos0+3*i);
       }
 
       // position: track subtree com
       else {
-        mju_add3(d->light_xpos+3*i, d->subtree_com+3*id, m->light_poscom0+3*i);
+        mji_add3(d->light_xpos+3*i, d->subtree_com+3*id, m->light_poscom0+3*i);
       }
       break;
 
@@ -468,13 +470,13 @@ void mj_camlight(const mjModel* m, mjData* d) {
         // get position to look at
         mjtNum lookat[3];
         if (m->light_mode[i] == mjCAMLIGHT_TARGETBODY) {
-          mju_copy3(lookat, d->xpos+3*id1);
+          mji_copy3(lookat, d->xpos+3*id1);
         } else {
-          mju_copy3(lookat, d->subtree_com+3*id1);
+          mji_copy3(lookat, d->subtree_com+3*id1);
         }
 
         // set dir
-        mju_sub3(d->light_xdir+3*i, lookat, d->light_xpos+3*i);
+        mji_sub3(d->light_xdir+3*i, lookat, d->light_xpos+3*i);
       }
     }
 
@@ -554,15 +556,15 @@ void mj_flex(const mjModel* m, mjData* d) {
       // centered: copy body position
       if (m->flex_centered[f]) {
         for (int i=vstart; i < vend; i++) {
-          mju_copy3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
+          mji_copy3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
         }
       }
 
       // non-centered: map from local to global
       else {
         for (int i=vstart; i < vend; i++) {
-          mju_mulMatVec3(d->flexvert_xpos+3*i, d->xmat+9*m->flex_vertbodyid[i], m->flex_vert+3*i);
-          mju_addTo3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
+          mji_mulMatVec3(d->flexvert_xpos+3*i, d->xmat+9*m->flex_vertbodyid[i], m->flex_vert+3*i);
+          mji_addTo3(d->flexvert_xpos+3*i, d->xpos+3*m->flex_vertbodyid[i]);
         }
       }
     }
@@ -572,13 +574,13 @@ void mj_flex(const mjModel* m, mjData* d) {
       mjtNum nodexpos[3*mjMAXFLEXNODES];
       if (m->flex_centered[f]) {
         for (int i=nstart; i < nend; i++) {
-          mju_copy3(nodexpos + 3*(i-nstart), d->xpos + 3*m->flex_nodebodyid[i]);
+          mji_copy3(nodexpos + 3*(i-nstart), d->xpos + 3*m->flex_nodebodyid[i]);
         }
       } else {
         for (int i=nstart; i < nend; i++) {
           int j = i - nstart;
-          mju_mulMatVec3(nodexpos + 3*j, d->xmat + 9*m->flex_nodebodyid[i], m->flex_node + 3*i);
-          mju_addTo3(nodexpos + 3*j, d->xpos + 3*m->flex_nodebodyid[i]);
+          mji_mulMatVec3(nodexpos + 3*j, d->xmat + 9*m->flex_nodebodyid[i], m->flex_node + 3*i);
+          mji_addTo3(nodexpos + 3*j, d->xpos + 3*m->flex_nodebodyid[i]);
         }
       }
 
@@ -606,8 +608,8 @@ void mj_flex(const mjModel* m, mjData* d) {
 
       // compute min and max along each global axis
       mjtNum xmin[3], xmax[3];
-      mju_copy3(xmin, vert+3*edata[0]);
-      mju_copy3(xmax, vert+3*edata[0]);
+      mji_copy3(xmin, vert+3*edata[0]);
+      mji_copy3(xmax, vert+3*edata[0]);
       for (int i=1; i <= dim; i++) {
         for (int j=0; j < 3; j++) {
           mjtNum value = vert[3*edata[i]+j];
@@ -637,8 +639,8 @@ void mj_flex(const mjModel* m, mjData* d) {
         // copy element aabbs to bhv leaf aabbs
         for (int i=flex_bvhadr; i < flex_bvhadr+flex_bvhnum; i++) {
           if (m->bvh_nodeid[i] >= 0) {
-            mju_copy(d->bvh_aabb_dyn + 6*(i - m->nbvhstatic),
-                     d->flexelem_aabb + 6*(m->flex_elemadr[f] + m->bvh_nodeid[i]), 6);
+            mji_copy6(d->bvh_aabb_dyn + 6*(i - m->nbvhstatic),
+                      d->flexelem_aabb + 6*(m->flex_elemadr[f] + m->bvh_nodeid[i]));
           }
         }
 
@@ -689,7 +691,7 @@ void mj_flex(const mjModel* m, mjData* d) {
 
       // vec = unit vector from v1 to v2, compute edge length
       mjtNum vec[3];
-      mju_sub3(vec, pos2, pos1);
+      mji_sub3(vec, pos2, pos1);
       d->flexedge_length[ebase+e] = mju_normalize3(vec);
 
       // skip Jacobian if not needed
@@ -851,7 +853,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
       mjtNum wlen = -1;
       int wrapid = -1;
       mjtNum wpnt[12];
-      mju_copy3(wpnt, d->site_xpos+3*id0);
+      mji_copy3(wpnt, d->site_xpos+3*id0);
       int wbody[4];
       wbody[0] = m->site_bodyid[id0];
 
@@ -878,11 +880,11 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
       // complete sequence, accumulate lengths
       if (wlen < 0) {
-        mju_copy3(wpnt+3, d->site_xpos+3*id1);
+        mji_copy3(wpnt+3, d->site_xpos+3*id1);
         wbody[1] = m->site_bodyid[id1];
         L[i] += mju_dist3(wpnt, wpnt+3) / divisor;
       } else {
-        mju_copy3(wpnt+9, d->site_xpos+3*id1);
+        mji_copy3(wpnt+9, d->site_xpos+3*id1);
         wbody[1] = wbody[2] = m->geom_bodyid[wrapid];
         wbody[3] = m->site_bodyid[id1];
         L[i] += (mju_dist3(wpnt, wpnt+3) + wlen + mju_dist3(wpnt+6, wpnt+9)) / divisor;
@@ -893,7 +895,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
         if (wbody[k] != wbody[k+1]) {
           // get 3D position difference, normalize
           mjtNum dif[3];
-          mju_sub3(dif, wpnt+3*k+3, wpnt+3*k);
+          mji_sub3(dif, wpnt+3*k+3, wpnt+3*k);
           mju_normalize3(dif);
 
           // sparse
@@ -934,7 +936,11 @@ void mj_tendon(const mjModel* m, mjData* d) {
       }
 
       // assign to wrap
-      mju_copy(d->wrap_xpos+wrapcount*3, wpnt, (wlen < 0 ? 3 : 9));
+      if (wlen < 0) {
+        mji_copy3(d->wrap_xpos+wrapcount*3, wpnt);
+      } else {
+        mji_copy9(d->wrap_xpos+wrapcount*3, wpnt);
+      }
       d->wrap_obj[wrapcount] = -1;
       if (wlen >= 0) {
         d->wrap_obj[wrapcount+1] = d->wrap_obj[wrapcount+2] = wrapid;
@@ -947,7 +953,7 @@ void mj_tendon(const mjModel* m, mjData* d) {
 
       // assign last site before pulley or tendon end
       if (j == tendon_num-1 || m->wrap_type[adr+j+1] == mjWRAP_PULLEY) {
-        mju_copy3(d->wrap_xpos+wrapcount*3, d->site_xpos+3*id1);
+        mji_copy3(d->wrap_xpos+wrapcount*3, d->site_xpos+3*id1);
         d->wrap_obj[wrapcount] = -1;
         d->ten_wrapnum[i]++;
         wrapcount++;
@@ -1009,7 +1015,7 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
 
     // init sequence; assume it starts with site
     mjtNum wpnt[6];
-    mju_copy3(wpnt, d->site_xpos+3*id0);
+    mji_copy3(wpnt, d->site_xpos+3*id0);
     mjtNum vel[6];
     mj_objectVelocity(m, d, mjOBJ_SITE, id0, vel, /*flg_local=*/0);
     mjtNum wvel[6] = {vel[3], vel[4], vel[5], 0, 0, 0};
@@ -1026,9 +1032,9 @@ void mj_tendonDot(const mjModel* m, mjData* d, int id, mjtNum* Jdot) {
 
     // complete sequence
     wbody[1] = m->site_bodyid[id1];
-    mju_copy3(wpnt+3, d->site_xpos+3*id1);
+    mji_copy3(wpnt+3, d->site_xpos+3*id1);
     mj_objectVelocity(m, d, mjOBJ_SITE, id1, vel, /*flg_local=*/0);
-    mju_copy3(wvel+3, vel+3);
+    mji_copy3(wvel+3, vel+3);
 
     // accumulate moments if consecutive points are in different bodies
     if (wbody[0] != wbody[1]) {
@@ -1144,17 +1150,17 @@ void mj_transmission(const mjModel* m, mjData* d) {
       else if (m->jnt_type[id] == mjJNT_BALL) {
         // axis: expmap representation of quaternion
         mjtNum axis[3], quat[4];
-        mju_copy4(quat, d->qpos+m->jnt_qposadr[id]);
+        mji_copy4(quat, d->qpos+m->jnt_qposadr[id]);
         mju_normalize4(quat);
-        mju_quat2Vel(axis, quat, 1);
+        mji_quat2Vel(axis, quat, 1);
 
         // gearAxis: rotate to parent frame if necessary
         mjtNum gearAxis[3];
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
-          mju_copy3(gearAxis, gear);
+          mji_copy3(gearAxis, gear);
         } else {
-          mju_negQuat(quat, quat);
-          mju_rotVecQuat(gearAxis, gear, quat);
+          mji_negQuat(quat, quat);
+          mji_rotVecQuat(gearAxis, gear, quat);
         }
 
         // length: axis*gearAxis
@@ -1170,7 +1176,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
         rownnz[i] = 3;
 
         // moment: gearAxis
-        mju_copy3(moment+adr, gearAxis);
+        mji_copy3(moment+adr, gearAxis);
       }
 
       // free joint: 6D wrench gear
@@ -1181,13 +1187,13 @@ void mj_transmission(const mjModel* m, mjData* d) {
         // gearAxis: rotate to world frame if necessary
         mjtNum gearAxis[3];
         if (m->actuator_trntype[i] == mjTRN_JOINT) {
-          mju_copy3(gearAxis, gear+3);
+          mji_copy3(gearAxis, gear+3);
         } else {
           mjtNum quat[4];
-          mju_copy4(quat, d->qpos+m->jnt_qposadr[id]+3);
+          mji_copy4(quat, d->qpos+m->jnt_qposadr[id]+3);
           mju_normalize4(quat);
           mju_negQuat(quat, quat);
-          mju_rotVecQuat(gearAxis, gear+3, quat);
+          mji_rotVecQuat(gearAxis, gear+3, quat);
         }
 
         // dof start address
@@ -1200,8 +1206,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
         rownnz[i] = 6;
 
         // moment: gear(tran), gearAxis
-        mju_copy3(moment+adr, gear);
-        mju_copy3(moment+adr+3, gearAxis);
+        mji_copy3(moment+adr, gear);
+        mji_copy3(moment+adr+3, gearAxis);
       }
       break;
 
@@ -1235,12 +1241,12 @@ void mj_transmission(const mjModel* m, mjData* d) {
         if (ok) {
           mju_scl3(dldv, axis, 1-av/sdet);
           mju_scl3(dlda, vec, 1/sdet);        // use dlda as temp
-          mju_addTo3(dldv, dlda);
+          mji_addTo3(dldv, dlda);
 
           mju_scl3(dlda, vec, 1-av/sdet);
         } else {
-          mju_copy3(dlda, vec);
-          mju_copy3(dldv, axis);
+          mji_copy3(dlda, vec);
+          mji_copy3(dldv, axis);
         }
 
         // get Jacobians of axis(jacA) and vec(jac)
@@ -1317,8 +1323,8 @@ void mj_transmission(const mjModel* m, mjData* d) {
       if (m->actuator_trnid[2*i+1] == -1) {
         // wrench: gear expressed in global frame
         mjtNum wrench[6];
-        mju_mulMatVec3(wrench, d->site_xmat+9*id, gear);      // translation
-        mju_mulMatVec3(wrench+3, d->site_xmat+9*id, gear+3);  // rotation
+        mji_mulMatVec3(wrench, d->site_xmat+9*id, gear);      // translation
+        mji_mulMatVec3(wrench+3, d->site_xmat+9*id, gear+3);  // rotation
 
         // moment: global Jacobian projected on wrench
         mju_mulMatTVec(moment+adr, jac, wrench, 3, nv);       // translation
@@ -1389,7 +1395,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
           // wrench: translational gear expressed in global frame
           mjtNum wrench[6];
-          mju_mulMatVec3(wrench, d->site_xmat+9*refid, gear);
+          mji_mulMatVec3(wrench, d->site_xmat+9*refid, gear);
 
           // moment: global Jacobian projected on wrench
           mju_mulMatTVec(moment+adr, jac, wrench, 3, nv);
@@ -1401,12 +1407,12 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
           // get site and refsite quats from parent bodies (avoiding mju_mat2Quat)
           mjtNum quat[4];
-          mju_mulQuat(quat, m->site_quat+4*id, d->xquat+4*m->site_bodyid[id]);
-          mju_mulQuat(refquat, m->site_quat+4*refid, d->xquat+4*m->site_bodyid[refid]);
+          mji_mulQuat(quat, m->site_quat+4*id, d->xquat+4*m->site_bodyid[id]);
+          mji_mulQuat(refquat, m->site_quat+4*refid, d->xquat+4*m->site_bodyid[refid]);
 
           // convert difference to expmap (axis-angle)
           mjtNum vec[3];
-          mju_subQuat(vec, quat, refquat);
+          mji_subQuat(vec, quat, refquat);
 
           // add length: dot product with gear
           length[i] += mju_dot3(vec, gear+3);
@@ -1428,7 +1434,7 @@ void mj_transmission(const mjModel* m, mjData* d) {
 
           // wrench: rotational gear expressed in global frame
           mjtNum wrench[6];
-          mju_mulMatVec3(wrench, d->site_xmat+9*refid, gear+3);
+          mji_mulMatVec3(wrench, d->site_xmat+9*refid, gear+3);
 
           // moment_tmp: global Jacobian projected on wrench, add to moment
           if (!moment_tmp) moment_tmp = mjSTACKALLOC(d, nv, mjtNum);
@@ -1711,7 +1717,7 @@ void mj_crb(const mjModel* m, mjData* d) {
     // sparse backward pass over ancestors
     for (int j=i; j >= 0; j = dof_parentid[j]) {
       // M(i,j) += cdof_j * (crb_body_i * cdof_i)
-      M[Madr_ij--] += mju_dot(cdof+6*j, buf, 6);
+      M[Madr_ij--] += mji_dot6(cdof+6*j, buf);
     }
   }
 }
@@ -2119,7 +2125,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
 
     // cvel = cvel_parent
     mjtNum cvel[6];
-    mju_copy(cvel, d->cvel+6*m->body_parentid[i], 6);
+    mji_copy6(cvel, d->cvel+6*m->body_parentid[i]);
 
     // cvel = cvel_parent + cdof * qvel,  cdofdot = cvel x cdof
     int dofnum = m->body_dofnum[i];
@@ -2144,9 +2150,9 @@ void mj_comVel(const mjModel* m, mjData* d) {
 
       case mjJNT_BALL:
         // compute all 3 cdofdots using parent velocity
-        mju_crossMotion(cdofdot+6*(j+0), cvel, d->cdof+6*(bda+j+0));
-        mju_crossMotion(cdofdot+6*(j+1), cvel, d->cdof+6*(bda+j+1));
-        mju_crossMotion(cdofdot+6*(j+2), cvel, d->cdof+6*(bda+j+2));
+        mji_crossMotion(cdofdot+6*(j+0), cvel, d->cdof+6*(bda+j+0));
+        mji_crossMotion(cdofdot+6*(j+1), cvel, d->cdof+6*(bda+j+1));
+        mji_crossMotion(cdofdot+6*(j+2), cvel, d->cdof+6*(bda+j+2));
 
         // update velocity
         mju_mulDofVec(tmp, d->cdof+6*(bda+j), d->qvel+bda+j, 3);
@@ -2160,7 +2166,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
         // in principle we should use the new velocity to compute cdofdot,
         // but it makes no difference because crossMotion(cdof, cdof) = 0,
         // and using the old velocity may be more accurate numerically
-        mju_crossMotion(cdofdot+6*j, cvel, d->cdof+6*(bda+j));
+        mji_crossMotion(cdofdot+6*j, cvel, d->cdof+6*(bda+j));
 
         // update velocity
         mju_mulDofVec(tmp, d->cdof+6*(bda+j), d->qvel+bda+j, 1);
@@ -2169,7 +2175,7 @@ void mj_comVel(const mjModel* m, mjData* d) {
     }
 
     // assign cvel, cdofdot
-    mju_copy(d->cvel+6*i, cvel, 6);
+    mji_copy6(d->cvel+6*i, cvel);
     mju_copy(d->cdof_dot+6*bda, cdofdot, 6*dofnum);
   }
 }
@@ -2199,7 +2205,7 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
     dv[0] *= m->body_inertia[3*i];
     dv[1] *= m->body_inertia[3*i+1];
     dv[2] *= m->body_inertia[3*i+2];
-    mju_mulMatVec3(d->subtree_angmom+3*i, d->ximat+9*i, dv);
+    mji_mulMatVec3(d->subtree_angmom+3*i, d->ximat+9*i, dv);
   }
 
   // subtree linear velocity
@@ -2208,7 +2214,7 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
 
     // non-world: add linear momentum to parent
     if (i) {
-      mju_addTo3(d->subtree_linvel+3*m->body_parentid[i], d->subtree_linvel+3*i);
+      mji_addTo3(d->subtree_linvel+3*m->body_parentid[i], d->subtree_linvel+3*i);
     }
 
     // convert linear momentum to linear velocity
@@ -2227,22 +2233,22 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
     mju_sub3(dx, d->xipos+3*i, d->subtree_com+3*i);
     mju_sub3(dv, body_vel+6*i+3, d->subtree_linvel+3*i);
     mju_scl3(dp, dv, m->body_mass[i]);
-    mju_cross(dL, dx, dp);
+    mji_cross(dL, dx, dp);
 
     // add to subtree i
-    mju_addTo3(d->subtree_angmom+3*i, dL);
+    mji_addTo3(d->subtree_angmom+3*i, dL);
 
     // add to parent
-    mju_addTo3(d->subtree_angmom+3*parent, d->subtree_angmom+3*i);
+    mji_addTo3(d->subtree_angmom+3*parent, d->subtree_angmom+3*i);
 
     // momentum wrt parent
     mju_sub3(dx, d->subtree_com+3*i, d->subtree_com+3*parent);
     mju_sub3(dv, d->subtree_linvel+3*i, d->subtree_linvel+3*parent);
     mju_scl3(dv, dv, m->body_subtreemass[i]);
-    mju_cross(dL, dx, dv);
+    mji_cross(dL, dx, dv);
 
     // add to parent
-    mju_addTo3(d->subtree_angmom+3*parent, dL);
+    mji_addTo3(d->subtree_angmom+3*parent, dL);
   }
 
   mj_freeStack(d);
@@ -2290,7 +2296,7 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
     mju_mulInertVec(loc_cfrc_body+6*i, d->cinert+10*i, loc_cacc+6*i);
     mju_mulInertVec(tmp, d->cinert+10*i, d->cvel+6*i);
     mjtNum tmp1[6];
-    mju_crossForce(tmp1, d->cvel+6*i, tmp);
+    mji_crossForce(tmp1, d->cvel+6*i, tmp);
     mju_addTo(loc_cfrc_body+6*i, tmp1, 6);
   }
 
@@ -2310,7 +2316,7 @@ void mj_rne(const mjModel* m, mjData* d, int flg_acc, mjtNum* result) {
   // result = cdof * cfrc_body
   for (int v=0; v < nv; v++) {
     int i = sleep_filter ? d->dof_awake_ind[v] : v;
-    result[i] = mju_dot(d->cdof+6*i, loc_cfrc_body+6*m->dof_bodyid[i], 6);
+    result[i] = mji_dot6(d->cdof+6*i, loc_cfrc_body+6*m->dof_bodyid[i]);
   }
 
   mj_freeStack(d);
@@ -2334,8 +2340,8 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   for (int i=1; i < nbody; i++) {
     if (!mju_isZero(d->xfrc_applied+6*i, 6)) {
       // rearrange as torque:force
-      mju_copy3(cfrc, d->xfrc_applied+6*i+3);
-      mju_copy3(cfrc+3, d->xfrc_applied+6*i);
+      mji_copy3(cfrc, d->xfrc_applied+6*i+3);
+      mji_copy3(cfrc+3, d->xfrc_applied+6*i);
 
       // map force from application point to com; both world-oriented
       mju_transformSpatial(cfrc_com, cfrc, 1, d->subtree_com+3*m->body_rootid[i], d->xipos+3*i, 0);
@@ -2403,9 +2409,9 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     case mjEQ_CONNECT:
     case mjEQ_WELD:
       // cfrc = world-oriented torque:force vector
-      mju_copy3(cfrc + 3, d->efc_force + i);
+      mji_copy3(cfrc + 3, d->efc_force + i);
       if (m->eq_type[id] == mjEQ_WELD) {
-        mju_copy3(cfrc, d->efc_force + i + 3);
+        mji_copy3(cfrc, d->efc_force + i + 3);
       } else {
         mju_zero3(cfrc);  // no torque from connect
       }
@@ -2490,7 +2496,7 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
     // cfrc_body = cinert * cacc + cvel x (cinert * cvel)
     mju_mulInertVec(cfrc_body, d->cinert+10*j, d->cacc+6*j);
     mju_mulInertVec(cfrc_corr, d->cinert+10*j, d->cvel+6*j);
-    mju_crossForce(cfrc, d->cvel+6*j, cfrc_corr);
+    mji_crossForce(cfrc, d->cvel+6*j, cfrc_corr);
     mju_addTo(cfrc_body, cfrc, 6);
 
     // set cfrc_int = cfrc_body - cfrc_ext

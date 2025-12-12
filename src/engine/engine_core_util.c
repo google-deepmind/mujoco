@@ -18,6 +18,7 @@
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
+#include "engine/engine_inline.h"
 #include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -214,7 +215,7 @@ void mj_jac(const mjModel* m, const mjData* d,
     // construct translation jacobian (correct for rotation)
     if (jacp) {
       mjtNum tmp[3];
-      mju_cross(tmp, cdof, offset);
+      mji_cross(tmp, cdof, offset);
       jacp[i+0*nv] = cdof[3] + tmp[0];
       jacp[i+1*nv] = cdof[4] + tmp[1];
       jacp[i+2*nv] = cdof[5] + tmp[2];
@@ -358,7 +359,7 @@ void mj_jacSparse(const mjModel* m, const mjData* d,
     // construct translation jacobian (correct for rotation)
     if (jacp) {
       mjtNum tmp[3];
-      mju_cross(tmp, cdof, offset);
+      mji_cross(tmp, cdof, offset);
 
       jacp[ci+0*NV] = cdof[3] + tmp[0];
       jacp[ci+1*NV] = cdof[4] + tmp[1];
@@ -410,7 +411,7 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
     // construct translation jacobian (correct for rotation)
     if (jacdifp) {
       mjtNum tmp[3];
-      mju_cross(tmp, cdof, offset);
+      mji_cross(tmp, cdof, offset);
 
       // plus sign
       if (flg_second) {
@@ -616,7 +617,7 @@ void mj_jacDot(const mjModel* m, const mjData* d,
   // backward pass over dof ancestor chain
   while (i >= 0) {
     mjtNum cdof_dot[6];
-    mju_copy(cdof_dot, d->cdof_dot+6*i, 6);
+    mji_copy6(cdof_dot, d->cdof_dot+6*i);
     mjtNum* cdof = d->cdof+6*i;
 
     // check for quaternion
@@ -626,7 +627,7 @@ void mj_jacDot(const mjModel* m, const mjData* d,
 
     // compute cdof_dot for quaternion (use current body cvel)
     if (is_quat) {
-      mju_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[i], cdof);
+      mji_crossMotion(cdof_dot, d->cvel+6*m->dof_bodyid[i], cdof);
     }
 
     // construct rotation jacobian
@@ -640,11 +641,11 @@ void mj_jacDot(const mjModel* m, const mjData* d,
     if (jacp) {
       // first correction term, account for varying cdof
       mjtNum tmp1[3];
-      mju_cross(tmp1, cdof_dot, offset);
+      mji_cross(tmp1, cdof_dot, offset);
 
       // second correction term, account for point translational velocity
       mjtNum tmp2[3];
-      mju_cross(tmp2, cdof, pvel + 3);
+      mji_cross(tmp2, cdof, pvel + 3);
 
       jacp[i+0*nv] += cdof_dot[3] + tmp1[0] + tmp2[0];
       jacp[i+1*nv] += cdof_dot[4] + tmp1[1] + tmp2[1];
@@ -686,7 +687,7 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 
     // orientation of the COM (inertial) frame of b-th body
     mjtNum ximat[9];
-    mju_copy9(ximat, d->ximat+9*b);
+    mji_copy9(ximat, d->ximat+9*b);
 
     // save the inertia matrix of b-th body
     mjtNum inertia[9] = {0};
@@ -696,13 +697,13 @@ void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body) {
 
     // term1 = body angular momentum about self COM in world frame
     mjtNum tmp1[9], tmp2[9];
-    mju_mulMatMat3(tmp1, ximat, inertia);          // tmp1  = ximat * inertia
+    mji_mulMatMat3(tmp1, ximat, inertia);          // tmp1  = ximat * inertia
     mju_mulMatMatT3(tmp2, tmp1, ximat);            // tmp2  = ximat * inertia * ximat^T
     mju_mulMatMat(term1, tmp2, jacr, 3, 3, nv);    // term1 = ximat * inertia * ximat^T * jacr
 
     // location of body COM w.r.t subtree COM
     mjtNum com[3];
-    mju_sub3(com, d->xipos+3*b, subtree_com);
+    mji_sub3(com, d->xipos+3*b, subtree_com);
 
     // skew symmetric matrix representing body_com vector
     mjtNum com_mat[9] = {0};
@@ -846,8 +847,8 @@ void mj_objectAcceleration(const mjModel* m, const mjData* d,
 
   // add Coriolis correction due to rotating frame:  acc_tran += vel_rot x vel_tran
   mjtNum correction[3];
-  mju_cross(correction, vel, vel+3);
-  mju_addTo3(res+3, correction);
+  mji_cross(correction, vel, vel+3);
+  mji_addTo3(res+3, correction);
 }
 
 
@@ -863,14 +864,14 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
     case mjSAMEFRAME_NONE:
     case mjSAMEFRAME_BODYROT:
     case mjSAMEFRAME_INERTIAROT:
-      mju_mulMatVec3(xpos, d->xmat+9*body, pos);
-      mju_addTo3(xpos, d->xpos+3*body);
+      mji_mulMatVec3(xpos, d->xmat+9*body, pos);
+      mji_addTo3(xpos, d->xpos+3*body);
       break;
     case mjSAMEFRAME_BODY:
-      mju_copy3(xpos, d->xpos+3*body);
+      mji_copy3(xpos, d->xpos+3*body);
       break;
     case mjSAMEFRAME_INERTIA:
-      mju_copy3(xpos, d->xipos+3*body);
+      mji_copy3(xpos, d->xipos+3*body);
       break;
     }
   }
@@ -880,16 +881,16 @@ void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
     mjtNum tmp[4];
     switch (sf) {
     case mjSAMEFRAME_NONE:
-      mju_mulQuat(tmp, d->xquat+4*body, quat);
+      mji_mulQuat(tmp, d->xquat+4*body, quat);
       mju_quat2Mat(xmat, tmp);
       break;
     case mjSAMEFRAME_BODY:
     case mjSAMEFRAME_BODYROT:
-      mju_copy9(xmat, d->xmat+9*body);
+      mji_copy9(xmat, d->xmat+9*body);
       break;
     case mjSAMEFRAME_INERTIA:
     case mjSAMEFRAME_INERTIAROT:
-      mju_copy9(xmat, d->ximat+9*body);
+      mji_copy9(xmat, d->ximat+9*body);
       break;
     }
   }
@@ -957,4 +958,3 @@ void mj_warning(mjData* d, int warning, int info) {
   // increase counter
   d->warning[warning].number++;
 }
-
