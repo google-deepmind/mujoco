@@ -165,7 +165,7 @@ int mjc_PlaneCylinder(const mjModel* m, const mjData* d,
     mjtNum vec1[3];
     mji_cross(vec1, vec, axis);
     mju_normalize3(vec1);
-    mji_scl3(vec1, vec1, size2[0] * mju_sqrt(3.0) / 2);
+    mju_scl3(vec1, vec1, size2[0] * mju_sqrt(3.0) / 2);
 
     // add point A
     con[cnt].dist = dist0 + prjaxis + prjvec1;
@@ -373,7 +373,7 @@ int mjc_SphereCylinder(const mjModel* m, const mjData* d,
   }
 
   // otherwise corner collision: use sphere-sphere
-  mji_scl3(p_proj, p_proj,
+  mju_scl3(p_proj, p_proj,
            size2[0] / mju_sqrt(p_proj_sqr));  // denominator cannot be 0
   mji_scl3(vec, axis, x > 0 ? height : -height);
   mji_addTo3(vec, p_proj);
