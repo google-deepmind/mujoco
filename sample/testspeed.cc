@@ -138,10 +138,10 @@ void simulate(int id, int nstep, mjtNum* ctrl) {
 int main(int argc, char** argv) {
 
   // print help if arguments are missing
-  if (argc < 2 || argc > 6) {
+  if (argc < 2 || argc > 7) {
     return finish(
       "\n"
-      "Usage:  testspeed modelfile [nstep nthread ctrlnoise npoolthread]\n"
+      "Usage:  testspeed modelfile [nstep nthread ctrlnoisestd ctrlnoiserate npoolthread]\n"
       "\n"
       "  argument      default     semantic\n"
       "  --------      -------     --------\n"
