@@ -1365,9 +1365,6 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
   // always attempt one Newton step
   p1.alpha = p0.alpha - p0.deriv[0]/p0.deriv[1];
   CGeval(ctx, &p1);
-  if (p0.cost < p1.cost) {
-    p1 = p0;
-  }
 
   // check for initial convergence
   if (mju_abs(p1.deriv[0]) < gtol) {
@@ -1418,7 +1415,8 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
    */
 
   // one-sided search
-  int p2update = 0;
+  p2 = p0;
+  int p2update = 1;
   while (p1.deriv[0]*dir <= -gtol && ctx->LSiter < ls_iterations) {
     // save current
     p2 = p1;
