@@ -73,7 +73,7 @@ class SmoothTest(parameterized.TestCase):
     _, key1, key2 = jax.random.split(rng, 3)
     mocap_pos = jax.random.normal(key1, (m.nmocap, 3))
     mocap_quat = jax.random.normal(key2, (m.nmocap, 4))
-    mocap_quat = math.normalize(mocap_quat)
+    mocap_quat = math.normalize(mocap_quat, axis=0)
     dx = dx.replace(qpos=qpos, mocap_pos=mocap_pos, mocap_quat=mocap_quat)
 
     dx = jax.jit(smooth.kinematics)(mx, dx)
@@ -81,7 +81,7 @@ class SmoothTest(parameterized.TestCase):
     d.qpos[:] = qpos
     d.mocap_pos[:] = mocap_pos
     d.mocap_quat[:] = mocap_quat
-    mujoco.mj_forward(m, d)
+    mujoco.mj_kinematics(m, d)
 
     tu.assert_attr_eq(d, dx, 'xanchor')
     tu.assert_attr_eq(d, dx, 'xaxis')
@@ -110,9 +110,9 @@ class SmoothTest(parameterized.TestCase):
 
     worldids = jp.arange(batch_size)
     dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
-    fields = ('xanchor', 'xaxis', 'xpos', 'xquat', 'xmat', 'xipos', 'ximat',
-              'geom_xpos', 'geom_xmat', 'site_xpos', 'site_xmat')  # fmt: skip
-    for f in fields:
+    # don't zero xmat, ximat, xquat, geom_xpos, or geom_xmat
+    # these fields are precomputed in make_data
+    for f in ('xanchor', 'xaxis', 'xpos', 'xipos', 'site_xpos', 'site_xmat'):
       dx_batch = dx_batch.replace(**{f: jp.zeros_like(getattr(dx_batch, f))})
 
     dx_batch = jax.jit(jax.vmap(smooth.kinematics, in_axes=(None, 0)))(
@@ -125,7 +125,7 @@ class SmoothTest(parameterized.TestCase):
       d.qpos[:] = dx.qpos
       d.mocap_pos[:] = dx.mocap_pos
       d.mocap_quat[:] = dx.mocap_quat
-      mujoco.mj_forward(m, d)
+      mujoco.mj_kinematics(m, d)
 
       tu.assert_attr_eq(d, dx, 'xanchor')
       tu.assert_attr_eq(d, dx, 'xaxis')
@@ -154,9 +154,9 @@ class SmoothTest(parameterized.TestCase):
 
     worldids = jp.arange(16).reshape((4, 4))
     dx_batch = jax.vmap(jax.vmap(functools.partial(tu.make_data, m)))(worldids)
-    fields = ('xanchor', 'xaxis', 'xpos', 'xquat', 'xmat', 'xipos', 'ximat',
-              'geom_xpos', 'geom_xmat', 'site_xpos', 'site_xmat')  # fmt: skip
-    for f in fields:
+    # don't zero xmat, ximat, xquat, geom_xpos, or geom_xmat
+    # these fields are precomputed in make_data
+    for f in ('xanchor', 'xaxis', 'xpos', 'xipos', 'site_xpos', 'site_xmat'):
       dx_batch = dx_batch.replace(**{f: jp.zeros_like(getattr(dx_batch, f))})
 
     dx_batch = jax.jit(
@@ -208,9 +208,9 @@ class SmoothTest(parameterized.TestCase):
 
     worldids = jp.arange(batch_size)
     dx_batch = jax.vmap(functools.partial(tu.make_data, m))(worldids)
-    fields = ('xanchor', 'xaxis', 'xpos', 'xquat', 'xmat', 'xipos', 'ximat',
-              'geom_xpos', 'geom_xmat', 'site_xpos', 'site_xmat')  # fmt: skip
-    for f in fields:
+    # don't zero xmat, ximat, xquat, geom_xpos, or geom_xmat
+    # these fields are precomputed in make_data
+    for f in ('xanchor', 'xaxis', 'xpos', 'xipos', 'site_xpos', 'site_xmat'):
       dx_batch = dx_batch.replace(**{f: jp.zeros_like(getattr(dx_batch, f))})
 
     dx_batch = jax.jit(jax.vmap(smooth.kinematics, in_axes=(None, 0)))(
@@ -224,7 +224,7 @@ class SmoothTest(parameterized.TestCase):
       d.mocap_pos[:] = dx.mocap_pos
       d.mocap_quat[:] = dx.mocap_quat
       m.geom_pos[:] = mx.geom_pos[i]
-      mujoco.mj_forward(m, d)
+      mujoco.mj_kinematics(m, d)
 
       tu.assert_attr_eq(d, dx, 'xanchor')
       tu.assert_attr_eq(d, dx, 'xaxis')

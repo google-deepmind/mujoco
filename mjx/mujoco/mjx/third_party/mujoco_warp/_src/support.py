@@ -116,10 +116,10 @@ def mul_m_dense(tile: TileSet, check_skip: bool):
         return
 
     dofid = adr[nodeid]
-    qM_tile = wp.tile_load(qM_in[worldid], shape=(TILE_SIZE, TILE_SIZE), offset=(dofid, dofid))
-    vec_tile = wp.tile_load(vec[worldid], shape=(TILE_SIZE, 1), offset=(dofid, 0))
+    qM_tile = wp.tile_load(qM_in[worldid], shape=(TILE_SIZE, TILE_SIZE), offset=(dofid, dofid), bounds_check=False)
+    vec_tile = wp.tile_load(vec[worldid], shape=(TILE_SIZE, 1), offset=(dofid, 0), bounds_check=False)
     res_tile = wp.tile_matmul(qM_tile, vec_tile)
-    wp.tile_store(res[worldid], res_tile, offset=(dofid, 0))
+    wp.tile_store(res[worldid], res_tile, offset=(dofid, 0), bounds_check=False)
 
   return _mul_m_dense
 

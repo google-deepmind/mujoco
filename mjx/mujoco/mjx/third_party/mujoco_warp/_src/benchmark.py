@@ -174,6 +174,7 @@ class BenchmarkSuite:
   batch_size = -1
   nconmax = -1
   njmax = -1
+  nstep = 1000
   param_names = ("function",)
   params = (
     "jit_duration",
@@ -239,7 +240,7 @@ class BenchmarkSuite:
     d = io.put_data(mjm, mjd, self.batch_size, self.nconmax, self.njmax)
     free_after = wp.get_device().free_memory
 
-    jit_duration, _, trace, _, _, solver_niter, _ = benchmark(forward.step, m, d, 1000, ctrls, True, False, True)
+    jit_duration, _, trace, _, _, solver_niter, _ = benchmark(forward.step, m, d, self.nstep, ctrls, True, False, True)
     metrics = {
       "jit_duration": jit_duration,
       "solver_niter_mean": np.mean(solver_niter),

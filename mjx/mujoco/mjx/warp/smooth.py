@@ -46,7 +46,6 @@ _e = mjwarp.Constraint(
 def _kinematics_shim(
     # Model
     nworld: int,
-    body_dofadr: wp.array(dtype=int),
     body_ipos: wp.array2d(dtype=wp.vec3),
     body_iquat: wp.array2d(dtype=wp.quat),
     body_jntadr: wp.array(dtype=int),
@@ -58,9 +57,6 @@ def _kinematics_shim(
     body_rootid: wp.array(dtype=int),
     body_tree: tuple[wp.array(dtype=int), ...],
     body_weldid: wp.array(dtype=int),
-    flex_edge: wp.array(dtype=wp.vec2i),
-    flex_vertadr: wp.array(dtype=int),
-    flex_vertbodyid: wp.array(dtype=int),
     geom_bodyid: wp.array(dtype=int),
     geom_pos: wp.array2d(dtype=wp.vec3),
     geom_quat: wp.array2d(dtype=wp.quat),
@@ -68,26 +64,18 @@ def _kinematics_shim(
     jnt_pos: wp.array2d(dtype=wp.vec3),
     jnt_qposadr: wp.array(dtype=int),
     jnt_type: wp.array(dtype=int),
-    mocap_bodyid: wp.array(dtype=int),
-    nflexedge: int,
-    nflexvert: int,
     ngeom: int,
-    nmocap: int,
     nsite: int,
     qpos0: wp.array2d(dtype=float),
     site_bodyid: wp.array(dtype=int),
     site_pos: wp.array2d(dtype=wp.vec3),
     site_quat: wp.array2d(dtype=wp.quat),
     # Data
-    flexedge_length: wp.array2d(dtype=float),
-    flexedge_velocity: wp.array2d(dtype=float),
-    flexvert_xpos: wp.array2d(dtype=wp.vec3),
     geom_xmat: wp.array2d(dtype=wp.mat33),
     geom_xpos: wp.array2d(dtype=wp.vec3),
     mocap_pos: wp.array2d(dtype=wp.vec3),
     mocap_quat: wp.array2d(dtype=wp.quat),
     qpos: wp.array2d(dtype=float),
-    qvel: wp.array2d(dtype=float),
     site_xmat: wp.array2d(dtype=wp.mat33),
     site_xpos: wp.array2d(dtype=wp.vec3),
     xanchor: wp.array2d(dtype=wp.vec3),
@@ -102,7 +90,6 @@ def _kinematics_shim(
   _m.opt = _o
   _d.efc = _e
   _d.contact = _c
-  _m.body_dofadr = body_dofadr
   _m.body_ipos = body_ipos
   _m.body_iquat = body_iquat
   _m.body_jntadr = body_jntadr
@@ -114,9 +101,6 @@ def _kinematics_shim(
   _m.body_rootid = body_rootid
   _m.body_tree = body_tree
   _m.body_weldid = body_weldid
-  _m.flex_edge = flex_edge
-  _m.flex_vertadr = flex_vertadr
-  _m.flex_vertbodyid = flex_vertbodyid
   _m.geom_bodyid = geom_bodyid
   _m.geom_pos = geom_pos
   _m.geom_quat = geom_quat
@@ -124,25 +108,17 @@ def _kinematics_shim(
   _m.jnt_pos = jnt_pos
   _m.jnt_qposadr = jnt_qposadr
   _m.jnt_type = jnt_type
-  _m.mocap_bodyid = mocap_bodyid
-  _m.nflexedge = nflexedge
-  _m.nflexvert = nflexvert
   _m.ngeom = ngeom
-  _m.nmocap = nmocap
   _m.nsite = nsite
   _m.qpos0 = qpos0
   _m.site_bodyid = site_bodyid
   _m.site_pos = site_pos
   _m.site_quat = site_quat
-  _d.flexedge_length = flexedge_length
-  _d.flexedge_velocity = flexedge_velocity
-  _d.flexvert_xpos = flexvert_xpos
   _d.geom_xmat = geom_xmat
   _d.geom_xpos = geom_xpos
   _d.mocap_pos = mocap_pos
   _d.mocap_quat = mocap_quat
   _d.qpos = qpos
-  _d.qvel = qvel
   _d.site_xmat = site_xmat
   _d.site_xpos = site_xpos
   _d.xanchor = xanchor
@@ -158,15 +134,11 @@ def _kinematics_shim(
 
 def _kinematics_jax_impl(m: types.Model, d: types.Data):
   output_dims = {
-      'flexedge_length': d._impl.flexedge_length.shape,
-      'flexedge_velocity': d._impl.flexedge_velocity.shape,
-      'flexvert_xpos': d._impl.flexvert_xpos.shape,
       'geom_xmat': d.geom_xmat.shape,
       'geom_xpos': d.geom_xpos.shape,
       'mocap_pos': d.mocap_pos.shape,
       'mocap_quat': d.mocap_quat.shape,
       'qpos': d.qpos.shape,
-      'qvel': d.qvel.shape,
       'site_xmat': d.site_xmat.shape,
       'site_xpos': d.site_xpos.shape,
       'xanchor': d.xanchor.shape,
@@ -179,19 +151,15 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
   }
   jf = ffi.jax_callable_variadic_tuple(
       _kinematics_shim,
-      num_outputs=18,
+      num_outputs=14,
       output_dims=output_dims,
       vmap_method=None,
       in_out_argnames={
-          'flexedge_length',
-          'flexedge_velocity',
-          'flexvert_xpos',
           'geom_xmat',
           'geom_xpos',
           'mocap_pos',
           'mocap_quat',
           'qpos',
-          'qvel',
           'site_xmat',
           'site_xpos',
           'xanchor',
@@ -205,7 +173,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
   )
   out = jf(
       d.qpos.shape[0],
-      m.body_dofadr,
       m.body_ipos,
       m.body_iquat,
       m.body_jntadr,
@@ -217,9 +184,6 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       m.body_rootid,
       m._impl.body_tree,
       m.body_weldid,
-      m._impl.flex_edge,
-      m._impl.flex_vertadr,
-      m._impl.flex_vertbodyid,
       m.geom_bodyid,
       m.geom_pos,
       m.geom_quat,
@@ -227,25 +191,17 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       m.jnt_pos,
       m.jnt_qposadr,
       m.jnt_type,
-      m._impl.mocap_bodyid,
-      m._impl.nflexedge,
-      m._impl.nflexvert,
       m.ngeom,
-      m.nmocap,
       m.nsite,
       m.qpos0,
       m.site_bodyid,
       m.site_pos,
       m.site_quat,
-      d._impl.flexedge_length,
-      d._impl.flexedge_velocity,
-      d._impl.flexvert_xpos,
       d.geom_xmat,
       d.geom_xpos,
       d.mocap_pos,
       d.mocap_quat,
       d.qpos,
-      d.qvel,
       d.site_xmat,
       d.site_xpos,
       d.xanchor,
@@ -257,24 +213,20 @@ def _kinematics_jax_impl(m: types.Model, d: types.Data):
       d.xquat,
   )
   d = d.tree_replace({
-      '_impl.flexedge_length': out[0],
-      '_impl.flexedge_velocity': out[1],
-      '_impl.flexvert_xpos': out[2],
-      'geom_xmat': out[3],
-      'geom_xpos': out[4],
-      'mocap_pos': out[5],
-      'mocap_quat': out[6],
-      'qpos': out[7],
-      'qvel': out[8],
-      'site_xmat': out[9],
-      'site_xpos': out[10],
-      'xanchor': out[11],
-      'xaxis': out[12],
-      'ximat': out[13],
-      'xipos': out[14],
-      'xmat': out[15],
-      'xpos': out[16],
-      'xquat': out[17],
+      'geom_xmat': out[0],
+      'geom_xpos': out[1],
+      'mocap_pos': out[2],
+      'mocap_quat': out[3],
+      'qpos': out[4],
+      'site_xmat': out[5],
+      'site_xpos': out[6],
+      'xanchor': out[7],
+      'xaxis': out[8],
+      'ximat': out[9],
+      'xipos': out[10],
+      'xmat': out[11],
+      'xpos': out[12],
+      'xquat': out[13],
   })
   return d
 

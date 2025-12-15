@@ -101,6 +101,7 @@ class ForwardTest(parameterized.TestCase):
     m = test_util.load_test_file(xml)
     m.opt.iterations = 10
     m.opt.ls_iterations = 10
+    m.opt.jacobian = mujoco.mjtJacobian.mjJAC_DENSE
     mx = mjx.put_model(m, impl='warp')
 
     d = mujoco.MjData(m)
@@ -150,11 +151,8 @@ class ForwardTest(parameterized.TestCase):
       tu.assert_attr_eq(dx._impl, d, 'wrap_obj')
       tu.assert_attr_eq(dx._impl, d, 'crb')
 
-      if not mx.opt._impl.is_sparse:
-        qm = np.zeros((m.nv, m.nv))
-        mujoco.mj_fullM(m, qm, d.qM)
-      else:
-        qm = d.qM
+      qm = np.zeros((m.nv, m.nv))
+      mujoco.mj_fullM(m, qm, d.qM)
       # mjwarp adds padding to qM
       tu.assert_eq(qm, dx._impl.qM[: m.nv, : m.nv], 'qM')
       # qLD is fused in a cholesky factorize and solve, and not written to.

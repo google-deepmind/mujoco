@@ -316,7 +316,7 @@ def plane_box(
   box_pos: wp.vec3,
   box_rot: wp.mat33,
   box_size: wp.vec3,
-) -> Tuple[wp.vec4, mat43f, wp.vec3]:
+) -> Tuple[vec8f, mat83f, wp.vec3]:
   """Core contact geometry calculation for plane-box collision.
 
   Args:
@@ -325,42 +325,36 @@ def plane_box(
     box_pos: Center position of the box.
     box_rot: Rotation matrix of the box.
     box_size: Half-extents of the box along each axis.
+    margin: Collision tolerance.
 
   Returns:
     - Vector of contact distances (wp.inf for unpopulated contacts).
     - Matrix of contact positions (one per row).
     - Contact normal vector.
   """
-  corner = wp.vec3()
   center_dist = wp.dot(box_pos - plane_pos, plane_normal)
 
-  dist = wp.vec4(wp.inf)
-  pos = mat43f()
+  dist = vec8f(wp.inf)
+  pos = mat83f()
 
   # test all corners, pick bottom 4
-  ncontact = int(0)
   for i in range(8):
     # get corner in local coordinates
-    corner.x = wp.where(i & 1, box_size.x, -box_size.x)
-    corner.y = wp.where(i & 2, box_size.y, -box_size.y)
-    corner.z = wp.where(i & 4, box_size.z, -box_size.z)
+    corner = wp.vec3(
+      wp.where(i & 1, box_size[0], -box_size[0]),
+      wp.where(i & 2, box_size[1], -box_size[1]),
+      wp.where(i & 4, box_size[2], -box_size[2]),
+    )
 
     # get corner in global coordinates relative to box center
     corner = box_rot * corner
 
-    # compute distance to plane, skip if too far or pointing up
+    # compute distance to plane
     ldist = wp.dot(plane_normal, corner)
-    if center_dist + ldist > 0 or ldist > 0:
-      continue
-
     cdist = center_dist + ldist
 
-    dist[ncontact] = cdist
-    pos[ncontact] = corner + box_pos - 0.5 * plane_normal * cdist
-    ncontact += 1
-
-    if ncontact >= 4:
-      break
+    dist[i] = cdist
+    pos[i] = corner + box_pos - 0.5 * plane_normal * cdist
 
   return dist, pos, plane_normal
 
@@ -586,8 +580,7 @@ def box_box(
     box2_pos: Center position of the second box.
     box2_rot: Rotation matrix of the second box.
     box2_size: Half-extents of the second box along each axis.
-    margin: Distance threshold for early contact generation (default: 0.0).
-            When positive, contacts are generated before boxes overlap.
+    margin: Collision tolerance.
 
   Returns:
     - Vector of contact distances (wp.inf for unpopulated contacts).
@@ -1111,10 +1104,8 @@ def capsule_box(
   halfaxis = axis * capsule_half_length  # halfaxis is the capsule direction
   axisdir = wp.int32(halfaxis[0] > 0.0) + 2 * wp.int32(halfaxis[1] > 0.0) + 4 * wp.int32(halfaxis[2] > 0.0)
 
-  bestdistmax = 2.0 * (capsule_radius + capsule_half_length + box_size[0] + box_size[1] + box_size[2])
-
   # keep track of closest point
-  bestdist = wp.float32(bestdistmax)
+  bestdist = wp.float32(1.0e32)
   bestsegmentpos = wp.float32(-12)
 
   # cltype: encoded collision configuration
@@ -1253,7 +1244,7 @@ def capsule_box(
 
   p = wp.vec2(pos.x, pos.y)
   dd = wp.vec2(halfaxis.x, halfaxis.y)
-  s = wp.vec2(box_size.x, box_size.y)
+  s = wp.vec2(box_size[0], box_size[1])
   secondpos = wp.float32(-4.0)
 
   uu = dd.x * s.y

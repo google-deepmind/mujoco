@@ -509,6 +509,7 @@ def fwd_position(m: Model, d: Data, factorize: bool = True):
   smooth.kinematics(m, d)
   smooth.com_pos(m, d)
   smooth.camlight(m, d)
+  smooth.flex(m, d)
   smooth.tendon(m, d)
   smooth.crb(m, d)
   smooth.tendon_armature(m, d)

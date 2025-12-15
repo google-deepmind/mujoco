@@ -56,6 +56,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.smooth import com_pos as com_pos
 from mujoco.mjx.third_party.mujoco_warp._src.smooth import com_vel as com_vel
 from mujoco.mjx.third_party.mujoco_warp._src.smooth import crb as crb
 from mujoco.mjx.third_party.mujoco_warp._src.smooth import factor_m as factor_m
+from mujoco.mjx.third_party.mujoco_warp._src.smooth import flex as flex
 from mujoco.mjx.third_party.mujoco_warp._src.smooth import kinematics as kinematics
 from mujoco.mjx.third_party.mujoco_warp._src.smooth import rne as rne
 from mujoco.mjx.third_party.mujoco_warp._src.smooth import rne_postconstraint as rne_postconstraint

@@ -62,6 +62,7 @@ class BlockDim:
   contact_sort: int
   energy_vel_kinetic: int
   euler_dense: int
+  linesearch_iterative: int
   mul_m_dense: int
   ray: int
   segmented_sort: int
@@ -69,6 +70,7 @@ class BlockDim:
   update_gradient_JTDAJ_dense: int
   update_gradient_JTDAJ_sparse: int
   update_gradient_cholesky: int
+  update_gradient_cholesky_blocked: int
 
   def tree_flatten(self):
     children = list((getattr(self, k) for k in self.__dataclass_fields__))
@@ -93,6 +95,7 @@ class OptionWarp(PyTreeNode):
   contact_sensor_maxmatch: int
   graph_conditional: bool
   has_fluid: bool
+  impratio_invsqrt: jax.Array
   is_sparse: bool
   ls_parallel: bool
   ls_parallel_min_step: float
@@ -113,6 +116,7 @@ class ModelWarp(PyTreeNode):
   dof_tri_col: np.ndarray
   dof_tri_row: np.ndarray
   eq_connect_adr: np.ndarray
+  eq_flex_adr: np.ndarray
   eq_jnt_adr: np.ndarray
   eq_ten_adr: np.ndarray
   eq_wld_adr: np.ndarray
@@ -122,13 +126,17 @@ class ModelWarp(PyTreeNode):
   flex_edge: np.ndarray
   flex_edgeadr: np.ndarray
   flex_edgeflap: np.ndarray
+  flex_edgenum: np.ndarray
   flex_elem: np.ndarray
+  flex_elemadr: np.ndarray
   flex_elemedge: np.ndarray
   flex_elemedgeadr: np.ndarray
+  flex_elemnum: np.ndarray
   flex_stiffness: np.ndarray
   flex_vertadr: np.ndarray
   flex_vertbodyid: np.ndarray
   flex_vertnum: np.ndarray
+  flexedge_invweight0: np.ndarray
   flexedge_length0: np.ndarray
   geom_pair_type_count: Tuple[int, ...]
   geom_plugin_index: np.ndarray
@@ -167,6 +175,7 @@ class ModelWarp(PyTreeNode):
   nsensorcollision: int
   nsensorcontact: int
   nsensortaxel: int
+  nv_pad: int
   nxn_geom_pair: np.ndarray
   nxn_geom_pair_filtered: np.ndarray
   nxn_pairid: np.ndarray
@@ -249,8 +258,6 @@ class DataWarp(PyTreeNode):
   efc__alpha: jax.Array
   efc__aref: jax.Array
   efc__beta: jax.Array
-  efc__cholesky_L_tmp: jax.Array
-  efc__cholesky_y_tmp: jax.Array
   efc__cost: jax.Array
   efc__done: jax.Array
   efc__force: jax.Array
@@ -258,7 +265,6 @@ class DataWarp(PyTreeNode):
   efc__gauss: jax.Array
   efc__grad: jax.Array
   efc__grad_dot: jax.Array
-  efc__h: jax.Array
   efc__id: jax.Array
   efc__jv: jax.Array
   efc__margin: jax.Array
@@ -275,6 +281,7 @@ class DataWarp(PyTreeNode):
   efc__type: jax.Array
   efc__vel: jax.Array
   energy: jax.Array
+  flexedge_J: jax.Array
   flexedge_length: jax.Array
   flexedge_velocity: jax.Array
   flexvert_xpos: jax.Array
@@ -285,6 +292,7 @@ class DataWarp(PyTreeNode):
   ncollision: jax.Array
   ne: jax.Array
   ne_connect: jax.Array
+  ne_flex: jax.Array
   ne_jnt: jax.Array
   ne_ten: jax.Array
   ne_weld: jax.Array
@@ -404,8 +412,6 @@ _NDIM = {
         'efc__alpha': 1,
         'efc__aref': 2,
         'efc__beta': 1,
-        'efc__cholesky_L_tmp': 3,
-        'efc__cholesky_y_tmp': 2,
         'efc__cost': 1,
         'efc__done': 1,
         'efc__force': 2,
@@ -413,7 +419,6 @@ _NDIM = {
         'efc__gauss': 1,
         'efc__grad': 2,
         'efc__grad_dot': 1,
-        'efc__h': 3,
         'efc__id': 2,
         'efc__jv': 2,
         'efc__margin': 2,
@@ -431,6 +436,7 @@ _NDIM = {
         'efc__vel': 2,
         'energy': 2,
         'eq_active': 2,
+        'flexedge_J': 3,
         'flexedge_length': 2,
         'flexedge_velocity': 2,
         'flexvert_xpos': 3,
@@ -445,6 +451,7 @@ _NDIM = {
         'ncollision': 1,
         'ne': 1,
         'ne_connect': 1,
+        'ne_flex': 1,
         'ne_jnt': 1,
         'ne_ten': 1,
         'ne_weld': 1,
@@ -531,6 +538,7 @@ _NDIM = {
         'block_dim__contact_sort': 0,
         'block_dim__energy_vel_kinetic': 0,
         'block_dim__euler_dense': 0,
+        'block_dim__linesearch_iterative': 0,
         'block_dim__mul_m_dense': 0,
         'block_dim__ray': 0,
         'block_dim__segmented_sort': 0,
@@ -538,6 +546,7 @@ _NDIM = {
         'block_dim__update_gradient_JTDAJ_dense': 0,
         'block_dim__update_gradient_JTDAJ_sparse': 0,
         'block_dim__update_gradient_cholesky': 0,
+        'block_dim__update_gradient_cholesky_blocked': 0,
         'body_conaffinity': 1,
         'body_contype': 1,
         'body_dofadr': 1,
@@ -589,6 +598,7 @@ _NDIM = {
         'eq_active0': 1,
         'eq_connect_adr': 1,
         'eq_data': 3,
+        'eq_flex_adr': 1,
         'eq_jnt_adr': 1,
         'eq_obj1id': 1,
         'eq_obj2id': 1,
@@ -605,13 +615,17 @@ _NDIM = {
         'flex_edge': 2,
         'flex_edgeadr': 1,
         'flex_edgeflap': 2,
+        'flex_edgenum': 1,
         'flex_elem': 1,
+        'flex_elemadr': 1,
         'flex_elemedge': 1,
         'flex_elemedgeadr': 1,
+        'flex_elemnum': 1,
         'flex_stiffness': 2,
         'flex_vertadr': 1,
         'flex_vertbodyid': 1,
         'flex_vertnum': 1,
+        'flexedge_invweight0': 1,
         'flexedge_length0': 1,
         'geom_aabb': 4,
         'geom_bodyid': 1,
@@ -743,6 +757,7 @@ _NDIM = {
         'ntendon': 0,
         'nu': 0,
         'nv': 0,
+        'nv_pad': 0,
         'nwrap': 0,
         'nxn_geom_pair': 2,
         'nxn_geom_pair_filtered': 2,
@@ -761,7 +776,7 @@ _NDIM = {
         'opt__graph_conditional': 0,
         'opt__gravity': 2,
         'opt__has_fluid': 0,
-        'opt__impratio': 1,
+        'opt__impratio_invsqrt': 1,
         'opt__integrator': 0,
         'opt__is_sparse': 0,
         'opt__iterations': 0,
@@ -878,7 +893,7 @@ _NDIM = {
         'graph_conditional': 0,
         'gravity': 2,
         'has_fluid': 0,
-        'impratio': 1,
+        'impratio_invsqrt': 1,
         'integrator': 0,
         'is_sparse': 0,
         'iterations': 0,
@@ -942,8 +957,6 @@ _BATCH_DIM = {
         'efc__alpha': True,
         'efc__aref': True,
         'efc__beta': True,
-        'efc__cholesky_L_tmp': True,
-        'efc__cholesky_y_tmp': True,
         'efc__cost': True,
         'efc__done': True,
         'efc__force': True,
@@ -951,7 +964,6 @@ _BATCH_DIM = {
         'efc__gauss': True,
         'efc__grad': True,
         'efc__grad_dot': True,
-        'efc__h': True,
         'efc__id': True,
         'efc__jv': True,
         'efc__margin': True,
@@ -969,6 +981,7 @@ _BATCH_DIM = {
         'efc__vel': True,
         'energy': True,
         'eq_active': True,
+        'flexedge_J': True,
         'flexedge_length': True,
         'flexedge_velocity': True,
         'flexvert_xpos': True,
@@ -983,6 +996,7 @@ _BATCH_DIM = {
         'ncollision': False,
         'ne': True,
         'ne_connect': True,
+        'ne_flex': True,
         'ne_jnt': True,
         'ne_ten': True,
         'ne_weld': True,
@@ -1069,6 +1083,7 @@ _BATCH_DIM = {
         'block_dim__contact_sort': False,
         'block_dim__energy_vel_kinetic': False,
         'block_dim__euler_dense': False,
+        'block_dim__linesearch_iterative': False,
         'block_dim__mul_m_dense': False,
         'block_dim__ray': False,
         'block_dim__segmented_sort': False,
@@ -1076,6 +1091,7 @@ _BATCH_DIM = {
         'block_dim__update_gradient_JTDAJ_dense': False,
         'block_dim__update_gradient_JTDAJ_sparse': False,
         'block_dim__update_gradient_cholesky': False,
+        'block_dim__update_gradient_cholesky_blocked': False,
         'body_conaffinity': False,
         'body_contype': False,
         'body_dofadr': False,
@@ -1127,6 +1143,7 @@ _BATCH_DIM = {
         'eq_active0': False,
         'eq_connect_adr': False,
         'eq_data': True,
+        'eq_flex_adr': False,
         'eq_jnt_adr': False,
         'eq_obj1id': False,
         'eq_obj2id': False,
@@ -1143,13 +1160,17 @@ _BATCH_DIM = {
         'flex_edge': False,
         'flex_edgeadr': False,
         'flex_edgeflap': False,
+        'flex_edgenum': False,
         'flex_elem': False,
+        'flex_elemadr': False,
         'flex_elemedge': False,
         'flex_elemedgeadr': False,
+        'flex_elemnum': False,
         'flex_stiffness': False,
         'flex_vertadr': False,
         'flex_vertbodyid': False,
         'flex_vertnum': False,
+        'flexedge_invweight0': False,
         'flexedge_length0': False,
         'geom_aabb': True,
         'geom_bodyid': False,
@@ -1281,6 +1302,7 @@ _BATCH_DIM = {
         'ntendon': False,
         'nu': False,
         'nv': False,
+        'nv_pad': False,
         'nwrap': False,
         'nxn_geom_pair': False,
         'nxn_geom_pair_filtered': False,
@@ -1299,7 +1321,7 @@ _BATCH_DIM = {
         'opt__graph_conditional': False,
         'opt__gravity': True,
         'opt__has_fluid': False,
-        'opt__impratio': True,
+        'opt__impratio_invsqrt': True,
         'opt__integrator': False,
         'opt__is_sparse': False,
         'opt__iterations': False,
@@ -1416,7 +1438,7 @@ _BATCH_DIM = {
         'graph_conditional': False,
         'gravity': True,
         'has_fluid': False,
-        'impratio': True,
+        'impratio_invsqrt': True,
         'integrator': False,
         'is_sparse': False,
         'iterations': False,

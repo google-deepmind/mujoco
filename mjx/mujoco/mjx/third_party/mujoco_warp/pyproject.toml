@@ -18,13 +18,12 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "absl-py",
     "etils[epath]",
@@ -35,7 +34,7 @@ dependencies = [
 
 [[tool.uv.index]]
 name = "nvidia"
-url = "https://pypi.nvidia.com"
+url = "https://pypi.nvidia.com/"
 explicit = true
 
 [[tool.uv.index]]
@@ -56,6 +55,8 @@ dev = [
     "ruff",
     "pygls>=1.0.0,<2.0.0",
     "lsprotocol>=2023.0.1,<2024.0.0",
+    "mujoco>=3.3.7.dev0",
+    "warp-lang>=1.9.1.dev0",
 ]
 # TODO(team): cpu and cuda JAX optional dependencies are temporary, remove after we land MJX:Warp
 cpu = [

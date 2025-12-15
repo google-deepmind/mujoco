@@ -41,27 +41,11 @@ wp.set_module_options({"enable_backward": False})
 
 
 @wp.kernel
-def _kinematics_root(
-  # Data out:
-  xpos_out: wp.array2d(dtype=wp.vec3),
-  xquat_out: wp.array2d(dtype=wp.quat),
-  xmat_out: wp.array2d(dtype=wp.mat33),
-  xipos_out: wp.array2d(dtype=wp.vec3),
-  ximat_out: wp.array2d(dtype=wp.mat33),
-):
-  worldid = wp.tid()
-  xpos_out[worldid, 0] = wp.vec3(0.0)
-  xquat_out[worldid, 0] = wp.quat(1.0, 0.0, 0.0, 0.0)
-  xipos_out[worldid, 0] = wp.vec3(0.0)
-  xmat_out[worldid, 0] = wp.identity(n=3, dtype=wp.float32)
-  ximat_out[worldid, 0] = wp.identity(n=3, dtype=wp.float32)
-
-
-@wp.kernel
 def _kinematics_level(
   # Model:
   qpos0: wp.array2d(dtype=float),
   body_parentid: wp.array(dtype=int),
+  body_mocapid: wp.array(dtype=int),
   body_jntnum: wp.array(dtype=int),
   body_jntadr: wp.array(dtype=int),
   body_pos: wp.array2d(dtype=wp.vec3),
@@ -74,6 +58,8 @@ def _kinematics_level(
   jnt_axis: wp.array2d(dtype=wp.vec3),
   # Data in:
   qpos_in: wp.array2d(dtype=float),
+  mocap_pos_in: wp.array2d(dtype=wp.vec3),
+  mocap_quat_in: wp.array2d(dtype=wp.quat),
   xpos_in: wp.array2d(dtype=wp.vec3),
   xquat_in: wp.array2d(dtype=wp.quat),
   xmat_in: wp.array2d(dtype=wp.mat33),
@@ -97,12 +83,12 @@ def _kinematics_level(
   body_quat_id = worldid % body_quat.shape[0]
   jnt_axis_id = worldid % jnt_axis.shape[0]
 
-  if jntnum == 0:
-    # no joints - apply fixed translation and rotation relative to parent
-    pid = body_parentid[bodyid]
-    xpos = (xmat_in[worldid, pid] * body_pos[body_pos_id, bodyid]) + xpos_in[worldid, pid]
-    xquat = math.mul_quat(xquat_in[worldid, pid], body_quat[body_quat_id, bodyid])
-  elif jntnum == 1 and jnt_type[jntadr] == JointType.FREE:
+  free_joint = False
+  if jntnum == 1:
+    jnt_type_ = jnt_type[jntadr]
+    free_joint = jnt_type_ == JointType.FREE
+
+  if free_joint:
     # free joint
     qadr = jnt_qposadr[jntadr]
     xpos = wp.vec3(qpos[qadr], qpos[qadr + 1], qpos[qadr + 2])
@@ -116,8 +102,19 @@ def _kinematics_level(
     qpos0_id = worldid % qpos0.shape[0]
     jnt_pos_id = worldid % jnt_pos.shape[0]
     pid = body_parentid[bodyid]
-    xpos = (xmat_in[worldid, pid] * body_pos[body_pos_id, bodyid]) + xpos_in[worldid, pid]
-    xquat = math.mul_quat(xquat_in[worldid, pid], body_quat[body_quat_id, bodyid])
+
+    # mocap bodies have world body as parent
+    mocapid = body_mocapid[bodyid]
+    if mocapid >= 0:
+      xpos = mocap_pos_in[worldid, mocapid]
+      xquat = mocap_quat_in[worldid, mocapid]
+    else:
+      xpos = body_pos[body_pos_id, bodyid]
+      xquat = body_quat[body_quat_id, bodyid]
+
+    if pid >= 0:
+      xpos = xmat_in[worldid, pid] @ xpos + xpos_in[worldid, pid]
+      xquat = math.mul_quat(xquat_in[worldid, pid], xquat)
 
     for _ in range(jntnum):
       qadr = jnt_qposadr[jntadr]
@@ -146,7 +143,8 @@ def _kinematics_level(
       jntadr += 1
 
   xpos_out[worldid, bodyid] = xpos
-  xquat_out[worldid, bodyid] = wp.normalize(xquat)
+  xquat = wp.normalize(xquat)
+  xquat_out[worldid, bodyid] = xquat
   xmat_out[worldid, bodyid] = math.quat_to_mat(xquat)
   xipos_out[worldid, bodyid] = xpos + math.rot_vec_quat(body_ipos[worldid % body_ipos.shape[0], bodyid], xquat)
   ximat_out[worldid, bodyid] = math.quat_to_mat(math.mul_quat(xquat, body_iquat[worldid % body_iquat.shape[0], bodyid]))
@@ -219,19 +217,33 @@ def _flex_vertices(
 @wp.kernel
 def _flex_edges(
   # Model:
+  nv: int,
+  nflex: int,
+  body_parentid: wp.array(dtype=int),
+  body_rootid: wp.array(dtype=int),
   body_dofadr: wp.array(dtype=int),
+  dof_bodyid: wp.array(dtype=int),
   flex_vertadr: wp.array(dtype=int),
+  flex_edgeadr: wp.array(dtype=int),
+  flex_edgenum: wp.array(dtype=int),
   flex_vertbodyid: wp.array(dtype=int),
   flex_edge: wp.array(dtype=wp.vec2i),
   # Data in:
   qvel_in: wp.array2d(dtype=float),
+  subtree_com_in: wp.array2d(dtype=wp.vec3),
+  cdof_in: wp.array2d(dtype=wp.spatial_vector),
   flexvert_xpos_in: wp.array2d(dtype=wp.vec3),
   # Data out:
+  flexedge_J_out: wp.array3d(dtype=float),
   flexedge_length_out: wp.array2d(dtype=float),
   flexedge_velocity_out: wp.array2d(dtype=float),
 ):
   worldid, edgeid = wp.tid()
-  f = 0  # TODO(quaglino): get f from edgeid
+  for i in range(nflex):
+    locid = edgeid - flex_edgeadr[i]
+    if locid >= 0 and locid < flex_edgenum[i]:
+      f = i
+      break
   vbase = flex_vertadr[f]
   v = flex_edge[edgeid]
   pos1 = flexvert_xpos_in[worldid, vbase + v[0]]
@@ -240,38 +252,20 @@ def _flex_edges(
   vecnorm = wp.length(vec)
   flexedge_length_out[worldid, edgeid] = vecnorm
   # TODO(quaglino): use Jacobian
-  i = body_dofadr[flex_vertbodyid[vbase + v[0]]]
-  j = body_dofadr[flex_vertbodyid[vbase + v[1]]]
+  b1 = flex_vertbodyid[vbase + v[0]]
+  b2 = flex_vertbodyid[vbase + v[1]]
+  i = body_dofadr[b1]
+  j = body_dofadr[b2]
   vel1 = wp.vec3(qvel_in[worldid, i], qvel_in[worldid, i + 1], qvel_in[worldid, i + 2])
   vel2 = wp.vec3(qvel_in[worldid, j], qvel_in[worldid, j + 1], qvel_in[worldid, j + 2])
-  flexedge_velocity_out[worldid, edgeid] = math.safe_div(wp.dot(vel2 - vel1, vec), vecnorm)
-
-
-@wp.kernel
-def _mocap(
-  # Model:
-  body_ipos: wp.array2d(dtype=wp.vec3),
-  body_iquat: wp.array2d(dtype=wp.quat),
-  mocap_bodyid: wp.array(dtype=int),
-  # Data in:
-  mocap_pos_in: wp.array2d(dtype=wp.vec3),
-  mocap_quat_in: wp.array2d(dtype=wp.quat),
-  # Data out:
-  xpos_out: wp.array2d(dtype=wp.vec3),
-  xquat_out: wp.array2d(dtype=wp.quat),
-  xmat_out: wp.array2d(dtype=wp.mat33),
-  xipos_out: wp.array2d(dtype=wp.vec3),
-  ximat_out: wp.array2d(dtype=wp.mat33),
-):
-  worldid, mocapid = wp.tid()
-  bodyid = mocap_bodyid[mocapid]
-  mocap_quat = wp.normalize(mocap_quat_in[worldid, mocapid])
-  xpos = mocap_pos_in[worldid, mocapid]
-  xpos_out[worldid, bodyid] = xpos
-  xquat_out[worldid, bodyid] = mocap_quat
-  xmat_out[worldid, bodyid] = math.quat_to_mat(mocap_quat)
-  xipos_out[worldid, bodyid] = xpos + math.rot_vec_quat(body_ipos[worldid % body_ipos.shape[0], bodyid], mocap_quat)
-  ximat_out[worldid, bodyid] = math.quat_to_mat(math.mul_quat(mocap_quat, body_iquat[worldid % body_iquat.shape[0], bodyid]))
+  edge = wp.normalize(vec)
+  flexedge_velocity_out[worldid, edgeid] = wp.dot(vel2 - vel1, edge)
+  # Edge jacobian
+  for k in range(nv):
+    jacp1, _ = support.jac(body_parentid, body_rootid, dof_bodyid, subtree_com_in, cdof_in, pos1, b1, k, worldid)
+    jacp2, _ = support.jac(body_parentid, body_rootid, dof_bodyid, subtree_com_in, cdof_in, pos2, b2, k, worldid)
+    jacdif = jacp2 - jacp1
+    flexedge_J_out[worldid, edgeid, k] = wp.dot(jacdif, edge)
 
 
 @event_scope
@@ -282,8 +276,6 @@ def kinematics(m: Model, d: Data):
   derived positions and orientations of geoms, sites, and flexible elements, based on the
   current joint positions and any attached mocap bodies.
   """
-  wp.launch(_kinematics_root, dim=(d.nworld), inputs=[], outputs=[d.xpos, d.xquat, d.xmat, d.xipos, d.ximat])
-
   for i in range(1, len(m.body_tree)):
     body_tree = m.body_tree[i]
     wp.launch(
@@ -292,6 +284,7 @@ def kinematics(m: Model, d: Data):
       inputs=[
         m.qpos0,
         m.body_parentid,
+        m.body_mocapid,
         m.body_jntnum,
         m.body_jntadr,
         m.body_pos,
@@ -303,6 +296,8 @@ def kinematics(m: Model, d: Data):
         m.jnt_pos,
         m.jnt_axis,
         d.qpos,
+        d.mocap_pos,
+        d.mocap_quat,
         d.xpos,
         d.xquat,
         d.xmat,
@@ -310,13 +305,6 @@ def kinematics(m: Model, d: Data):
       ],
       outputs=[d.xpos, d.xquat, d.xmat, d.xipos, d.ximat, d.xanchor, d.xaxis],
     )
-
-  wp.launch(
-    _mocap,
-    dim=(d.nworld, m.nmocap),
-    inputs=[m.body_ipos, m.body_iquat, m.mocap_bodyid, d.mocap_pos, d.mocap_quat],
-    outputs=[d.xpos, d.xquat, d.xmat, d.xipos, d.ximat],
-  )
 
   wp.launch(
     _geom_local_to_global,
@@ -332,12 +320,31 @@ def kinematics(m: Model, d: Data):
     outputs=[d.site_xpos, d.site_xmat],
   )
 
+
+@event_scope
+def flex(m: Model, d: Data):
   wp.launch(_flex_vertices, dim=(d.nworld, m.nflexvert), inputs=[m.flex_vertbodyid, d.xpos], outputs=[d.flexvert_xpos])
   wp.launch(
     _flex_edges,
     dim=(d.nworld, m.nflexedge),
-    inputs=[m.body_dofadr, m.flex_vertadr, m.flex_vertbodyid, m.flex_edge, d.qvel, d.flexvert_xpos],
-    outputs=[d.flexedge_length, d.flexedge_velocity],
+    inputs=[
+      m.nv,
+      m.nflex,
+      m.body_parentid,
+      m.body_rootid,
+      m.body_dofadr,
+      m.dof_bodyid,
+      m.flex_vertadr,
+      m.flex_edgeadr,
+      m.flex_edgenum,
+      m.flex_vertbodyid,
+      m.flex_edge,
+      d.qvel,
+      d.subtree_com,
+      d.cdof,
+      d.flexvert_xpos,
+    ],
+    outputs=[d.flexedge_J, d.flexedge_length, d.flexedge_velocity],
   )
 
 

@@ -58,8 +58,10 @@ class BlockDim:
   cholesky_factorize_solve: int = 32
   # solver
   update_gradient_cholesky: int = 64
+  update_gradient_cholesky_blocked: int = 32
   update_gradient_JTDAJ_sparse: int = 64
   update_gradient_JTDAJ_dense: int = 96
+  linesearch_iterative: int = 64
   # support
   mul_m_dense: int = 32
 
@@ -502,13 +504,15 @@ class EqType(enum.IntEnum):
     JOINT: couple the values of two scalar joints with cubic
     WELD: fix relative position and orientation of two bodies
     TENDON: couple the lengths of two tendons with cubic
+    FLEX: couple the edge lengths of a flex
   """
 
   CONNECT = mujoco.mjtEq.mjEQ_CONNECT
   WELD = mujoco.mjtEq.mjEQ_WELD
   JOINT = mujoco.mjtEq.mjEQ_JOINT
   TENDON = mujoco.mjtEq.mjEQ_TENDON
-  # unsupported: FLEX, DISTANCE
+  FLEX = mujoco.mjtEq.mjEQ_FLEX
+  # unsupported: DISTANCE
 
 
 class WrapType(enum.IntEnum):
@@ -638,7 +642,6 @@ class Option:
 
   Attributes:
     timestep: simulation timestep
-    impratio: ratio of friction-to-normal contact impedance
     tolerance: main solver tolerance
     ls_tolerance: CG/Newton linesearch tolerance
     ccd_tolerance: convex collision detection tolerance
@@ -659,6 +662,7 @@ class Option:
     sdf_iterations: max number of iterations for gradient descent
 
   warp only fields:
+    impratio_invsqrt: ratio of friction-to-normal contact impedance (stored as inverse square root)
     is_sparse: whether to use sparse representations
     ls_parallel: evaluate engine solver step sizes in parallel
     ls_parallel_min_step: minimum step size for solver linesearch
@@ -674,7 +678,6 @@ class Option:
   """
 
   timestep: array("*", float)
-  impratio: array("*", float)
   tolerance: array("*", float)
   ls_tolerance: array("*", float)
   ccd_tolerance: array("*", float)
@@ -694,6 +697,7 @@ class Option:
   sdf_initpoints: int
   sdf_iterations: int
   # warp only fields:
+  impratio_invsqrt: array("*", float)
   is_sparse: bool
   ls_parallel: bool
   ls_parallel_min_step: float
@@ -883,6 +887,9 @@ class Model:
     flex_vertadr: first vertex address                       (nflex,)
     flex_vertnum: number of vertices                         (nflex,)
     flex_edgeadr: first edge address                         (nflex,)
+    flex_edgenum: number of edges                            (nflex,)
+    flex_elemadr: first element address                      (nflex,)
+    flex_elemnum: number of elements                         (nflex,)
     flex_elemedgeadr: first element address                  (nflex,)
     flex_vertbodyid: vertex body ids                         (nflexvert,)
     flex_edge: edge vertex ids (2 per edge)                  (nflexedge, 2)
@@ -890,6 +897,7 @@ class Model:
     flex_elem: element vertex ids (dim+1 per elem)           (nflexelemdata,)
     flex_elemedge: element edge ids                          (nflexelemedge,)
     flexedge_length0: edge lengths in qpos0                  (nflexedge,)
+    flexedge_invweight0: inv. inertia for the edge           (nflexedge,)
     flex_stiffness: finite element stiffness matrix          (nflexelem, 21)
     flex_bending: bending stiffness                          (nflexedge, 17)
     flex_damping: Rayleigh's damping coefficient             (nflex,)
@@ -998,6 +1006,7 @@ class Model:
     mapM2M: index mapping from M (legacy) to M (CSR)         (nC)
 
   warp only fields:
+    nv_pad: number of degrees of freedom + padding
     nacttrnbody: number of actuators with body transmission
     nsensorcollision: number of unique collisions for
                       geom distance sensors
@@ -1031,6 +1040,7 @@ class Model:
     eq_wld_adr: eq_* addresses of type `WELD`
     eq_jnt_adr: eq_* addresses of type `JOINT`
     eq_ten_adr: eq_* addresses of type `TENDON`
+    eq_flex_adr: eq * addresses of type `FLEX
     tendon_jnt_adr: joint tendon address
     tendon_site_pair_adr: site pair tendon address
     tendon_geom_adr: geom tendon address
@@ -1225,6 +1235,9 @@ class Model:
   flex_vertadr: array("nflex", int)
   flex_vertnum: array("nflex", int)
   flex_edgeadr: array("nflex", int)
+  flex_edgenum: array("nflex", int)
+  flex_elemadr: array("nflex", int)
+  flex_elemnum: array("nflex", int)
   flex_elemedgeadr: array("nflex", int)
   flex_vertbodyid: array("nflexvert", int)
   flex_edge: array("nflexedge", wp.vec2i)
@@ -1232,6 +1245,7 @@ class Model:
   flex_elem: array("nflexelemdata", int)
   flex_elemedge: array("nflexelemedge", int)
   flexedge_length0: array("nflexedge", float)
+  flexedge_invweight0: array("nflexedge", float)
   flex_stiffness: array("nflexelem", 21, float)
   flex_bending: array("nflexedge", 17, float)
   flex_damping: array("nflex", float)
@@ -1339,6 +1353,7 @@ class Model:
   M_colind: array("nC", int)
   mapM2M: array("nC", int)
   # warp only fields:
+  nv_pad: int
   nacttrnbody: int
   nsensorcollision: int
   nsensortaxel: int
@@ -1367,6 +1382,7 @@ class Model:
   eq_wld_adr: wp.array(dtype=int)
   eq_jnt_adr: wp.array(dtype=int)
   eq_ten_adr: wp.array(dtype=int)
+  eq_flex_adr: wp.array(dtype=int)
   tendon_jnt_adr: wp.array(dtype=int)
   tendon_site_pair_adr: wp.array(dtype=int)
   tendon_geom_adr: wp.array(dtype=int)
@@ -1476,11 +1492,9 @@ class Constraint:
     force: constraint force in constraint space       (nworld, njmax)
     Jaref: Jac*qacc - aref                            (nworld, njmax)
     Ma: M*qacc                                        (nworld, nv)
-    grad: gradient of master cost                     (nworld, nv)
-    cholesky_L_tmp: temporary for Cholesky factor     (nworld, nv, nv)
-    cholesky_y_tmp: temporary for Cholesky solve      (nworld, nv
+    grad: gradient of master cost                     (nworld, nv_pad)
     grad_dot: dot(grad, grad)                         (nworld,)
-    Mgrad: M / grad                                   (nworld, nv)
+    Mgrad: M / grad                                   (nworld, nv_pad)
     search: linesearch vector                         (nworld, nv)
     search_dot: dot(search, search)                   (nworld,)
     gauss: Gauss Cost                                 (nworld,)
@@ -1491,7 +1505,6 @@ class Constraint:
     jv: efc_J @ search                                (nworld, njmax)
     quad: quadratic cost coefficients                 (nworld, njmax, 3)
     quad_gauss: quadratic cost Gauss coefficients     (nworld, 3)
-    h: Hessian                                        (nworld, nv_pad, nv_pad)
     alpha: line search step size                      (nworld,)
     prev_grad: previous grad                          (nworld, nv)
     prev_Mgrad: previous Mgrad                        (nworld, nv)
@@ -1511,11 +1524,9 @@ class Constraint:
   force: array("nworld", "njmax", float)
   Jaref: array("nworld", "njmax", float)
   Ma: array("nworld", "nv", float)
-  grad: array("nworld", "nv", float)
-  cholesky_L_tmp: array("nworld", "nv", "nv", float)
-  cholesky_y_tmp: array("nworld", "nv", float)
+  grad: array("nworld", "nv_pad", float)
   grad_dot: array("nworld", float)
-  Mgrad: array("nworld", "nv", float)
+  Mgrad: array("nworld", "nv_pad", float)
   search: array("nworld", "nv", float)
   search_dot: array("nworld", float)
   gauss: array("nworld", float)
@@ -1526,7 +1537,6 @@ class Constraint:
   jv: array("nworld", "njmax", float)
   quad: array("nworld", "njmax", wp.vec3)
   quad_gauss: array("nworld", wp.vec3)
-  h: array("nworld", "nv_pad", "nv_pad", float)
   alpha: array("nworld", float)
   prev_grad: array("nworld", "nv", float)
   prev_Mgrad: array("nworld", "nv", float)
@@ -1578,6 +1588,7 @@ class Data:
     cdof: com-based motion axis of each dof (rot:lin)           (nworld, nv, 6)
     cinert: com-based body inertia and mass                     (nworld, nbody, 10)
     flexvert_xpos: cartesian flex vertex positions              (nworld, nflexvert, 3)
+    flexedge_J: edge length Jacobian                            (nworld, nflexedge, nv)
     flexedge_length: flex edge lengths                          (nworld, nflexedge, 1)
     ten_wrapadr: start address of tendon's path                 (nworld, ntendon)
     ten_wrapnum: number of wrap points in path                  (nworld, ntendon)
@@ -1629,6 +1640,7 @@ class Data:
     ne_weld: number of equality weld constraints                (nworld,)
     ne_jnt: number of equality joint constraints                (nworld,)
     ne_ten: number of equality tendon constraints               (nworld,)
+    ne_flex: number of flex edge equality constraints           (nworld,)
     nsolving: number of unconverged worlds                      (1,)
     subtree_bodyvel: subtree body velocity (ang, vel)           (nworld, nbody, 6)
     collision_pair: collision pairs from broadphase             (naconmax, 2)
@@ -1676,6 +1688,7 @@ class Data:
   cdof: array("nworld", "nv", wp.spatial_vector)
   cinert: array("nworld", "nbody", vec10)
   flexvert_xpos: array("nworld", "nflexvert", wp.vec3)
+  flexedge_J: array("nworld", "nflexedge", "nv", float)
   flexedge_length: array("nworld", "nflexedge", float)
   ten_wrapadr: array("nworld", "ntendon", int)
   ten_wrapnum: array("nworld", "ntendon", int)
@@ -1723,6 +1736,7 @@ class Data:
   ne_weld: array("nworld", int)
   ne_jnt: array("nworld", int)
   ne_ten: array("nworld", int)
+  ne_flex: array("nworld", int)
   nsolving: array(1, int)
   subtree_bodyvel: array("nworld", "nbody", wp.spatial_vector)
 

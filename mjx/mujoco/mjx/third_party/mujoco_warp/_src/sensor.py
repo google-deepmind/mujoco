@@ -455,6 +455,7 @@ def _clock(time_in: wp.array(dtype=float), worldid: int) -> float:
 @wp.kernel
 def _sensor_pos(
   # Model:
+  ngeom: int,
   opt_magnetic: wp.array(dtype=wp.vec3),
   body_geomnum: wp.array(dtype=int),
   body_geomadr: wp.array(dtype=int),
@@ -481,10 +482,9 @@ def _sensor_pos(
   sensor_refid: wp.array(dtype=int),
   sensor_adr: wp.array(dtype=int),
   sensor_cutoff: wp.array(dtype=float),
+  nxn_pairid: wp.array(dtype=wp.vec2i),
   sensor_pos_adr: wp.array(dtype=int),
   rangefinder_sensor_adr: wp.array(dtype=int),
-  sensor_collision_start_adr: wp.array(dtype=int),
-  collision_sensor_adr: wp.array(dtype=int),
   # Data in:
   time_in: wp.array(dtype=float),
   energy_in: wp.array(dtype=wp.vec2),
@@ -605,12 +605,9 @@ def _sensor_pos(
     refid = sensor_refid[sensorid]
 
     # initialize
-    dist = float(1.0e32)
+    dist = float(sensor_cutoff[sensorid])
     pnts = vec6(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     flip = bool(False)
-
-    collision_sensorid = collision_sensor_adr[sensorid]
-    collision_start_adr = sensor_collision_start_adr[collision_sensorid]
 
     # check for flip direction
     if objtype == int(ObjType.BODY.value):
@@ -627,12 +624,20 @@ def _sensor_pos(
       id2 = refid
 
     for geom1 in range(n1):
+      geomid1 = id1 + geom1
       for geom2 in range(n2):
-        collisionid = collision_start_adr + geom1 * n2 + geom2
+        geomid2 = id2 + geom2
+
+        if geomid1 <= geomid2:
+          pairid = math.upper_tri_index(ngeom, geomid1, geomid2)
+        else:
+          pairid = math.upper_tri_index(ngeom, geomid2, geomid1)
+        collisionid = nxn_pairid[pairid][1]
+
         for i in range(8):
           dist_new = sensor_collision_in[worldid, collisionid, i, 0]
 
-          if dist_new <= dist:
+          if dist_new < dist:
             dist = dist_new
 
             if sensortype == SensorType.GEOMNORMAL or sensortype == SensorType.GEOMFROMTO:
@@ -645,14 +650,12 @@ def _sensor_pos(
                 sensor_collision_in[worldid, collisionid, i, 6],
               )
 
-              geomid1 = id1 + geom1
-              geomid2 = id2 + geom2
-
-              if geom_type[geomid2] < geom_type[geomid1]:
-                flip = True
-              elif geom_type[geomid1] == geom_type[geomid2]:
-                if geomid2 < geomid1:
-                  flip = True
+            if geom_type[geomid1] > geom_type[geomid2]:
+              flip = True
+            elif geom_type[geomid1] == geom_type[geomid2]:
+              flip = geomid1 > geomid2
+            else:
+              flip = False
     if sensortype == int(SensorType.GEOMDIST.value):
       _write_scalar(sensor_type, sensor_datatype, sensor_adr, sensor_cutoff, sensorid, dist, out)
     elif sensortype == int(SensorType.GEOMNORMAL.value):
@@ -704,6 +707,7 @@ def _sensor_pos(
 def _sensor_collision(
   # Model:
   ngeom: int,
+  nxn_pairid: wp.array(dtype=wp.vec2i),
   # Data in:
   contact_dist_in: wp.array(dtype=float),
   contact_pos_in: wp.array(dtype=wp.vec3),
@@ -713,7 +717,6 @@ def _sensor_collision(
   contact_type_in: wp.array(dtype=int),
   contact_geomcollisionid_in: wp.array(dtype=int),
   nacon_in: wp.array(dtype=int),
-  collision_pairid_in: wp.array(dtype=wp.vec2i),
   # Out:
   sensor_collision_out: wp.array4d(dtype=float),
 ):
@@ -732,7 +735,7 @@ def _sensor_collision(
     pairid = math.upper_tri_index(ngeom, geom[1], geom[0])
 
   worldid = contact_worldid_in[conid]
-  collisionid = collision_pairid_in[pairid][1]
+  collisionid = nxn_pairid[pairid][1]
   geomcollisionid = contact_geomcollisionid_in[conid]
 
   dist = contact_dist_in[conid]
@@ -800,6 +803,7 @@ def sensor_pos(m: Model, d: Data):
       dim=d.naconmax,
       inputs=[
         m.ngeom,
+        m.nxn_pairid,
         d.contact.dist,
         d.contact.pos,
         d.contact.frame,
@@ -808,7 +812,6 @@ def sensor_pos(m: Model, d: Data):
         d.contact.type,
         d.contact.geomcollisionid,
         d.nacon,
-        d.collision_pairid,
       ],
       outputs=[sensor_collision],
     )
@@ -817,6 +820,7 @@ def sensor_pos(m: Model, d: Data):
     _sensor_pos,
     dim=(d.nworld, m.sensor_pos_adr.size),
     inputs=[
+      m.ngeom,
       m.opt.magnetic,
       m.body_geomnum,
       m.body_geomadr,
@@ -843,10 +847,9 @@ def sensor_pos(m: Model, d: Data):
       m.sensor_refid,
       m.sensor_adr,
       m.sensor_cutoff,
+      m.nxn_pairid,
       m.sensor_pos_adr,
       m.rangefinder_sensor_adr,
-      m.sensor_collision_start_adr,
-      m.collision_sensor_adr,
       d.time,
       d.energy,
       d.qpos,

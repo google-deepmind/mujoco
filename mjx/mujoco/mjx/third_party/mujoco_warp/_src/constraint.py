@@ -38,6 +38,7 @@ def _zero_constraint_counts(
   ne_weld_out: wp.array(dtype=int),
   ne_jnt_out: wp.array(dtype=int),
   ne_ten_out: wp.array(dtype=int),
+  ne_flex_out: wp.array(dtype=int),
 ):
   worldid = wp.tid()
 
@@ -47,6 +48,7 @@ def _zero_constraint_counts(
   ne_weld_out[worldid] = 0
   ne_jnt_out[worldid] = 0
   ne_ten_out[worldid] = 0
+  ne_flex_out[worldid] = 0
   nf_out[worldid] = 0
   nl_out[worldid] = 0
   nefc_out[worldid] = 0
@@ -467,6 +469,81 @@ def _efc_equality_tendon(
     pos,
     pos,
     invweight,
+    solref,
+    solimp,
+    0.0,
+    Jqvel,
+    0.0,
+    ConstraintType.EQUALITY,
+    eqid,
+    efc_type_out,
+    efc_id_out,
+    efc_pos_out,
+    efc_margin_out,
+    efc_D_out,
+    efc_vel_out,
+    efc_aref_out,
+    efc_frictionloss_out,
+  )
+
+
+@wp.kernel
+def _efc_equality_flex(
+  # Model:
+  nv: int,
+  opt_timestep: wp.array(dtype=float),
+  flexedge_length0: wp.array(dtype=float),
+  flexedge_invweight0: wp.array(dtype=float),
+  eq_solref: wp.array2d(dtype=wp.vec2),
+  eq_solimp: wp.array2d(dtype=vec5),
+  eq_flex_adr: wp.array(dtype=int),
+  # Data in:
+  qvel_in: wp.array2d(dtype=float),
+  flexedge_J_in: wp.array3d(dtype=float),
+  flexedge_length_in: wp.array2d(dtype=float),
+  njmax_in: int,
+  # In:
+  refsafe_in: int,
+  # Data out:
+  nefc_out: wp.array(dtype=int),
+  efc_type_out: wp.array2d(dtype=int),
+  efc_id_out: wp.array2d(dtype=int),
+  efc_J_out: wp.array3d(dtype=float),
+  efc_pos_out: wp.array2d(dtype=float),
+  efc_margin_out: wp.array2d(dtype=float),
+  efc_D_out: wp.array2d(dtype=float),
+  efc_vel_out: wp.array2d(dtype=float),
+  efc_aref_out: wp.array2d(dtype=float),
+  efc_frictionloss_out: wp.array2d(dtype=float),
+  ne_flex_out: wp.array(dtype=int),
+):
+  worldid, eqflexid, edgeid = wp.tid()
+  eqid = eq_flex_adr[eqflexid]
+
+  wp.atomic_add(ne_flex_out, worldid, 1)
+  efcid = wp.atomic_add(nefc_out, worldid, 1)
+
+  if efcid >= njmax_in:
+    return
+
+  pos = flexedge_length_in[worldid, edgeid] - flexedge_length0[edgeid]
+  solref = eq_solref[worldid % eq_solref.shape[0], eqid]
+  solimp = eq_solimp[worldid % eq_solimp.shape[0], eqid]
+
+  Jqvel = float(0.0)
+  for i in range(nv):
+    J = flexedge_J_in[worldid, edgeid, i]
+    efc_J_out[worldid, efcid, i] = J
+    Jqvel += J * qvel_in[worldid, i]
+
+  _update_efc_row(
+    worldid,
+    opt_timestep[worldid % opt_timestep.shape[0]],
+    refsafe_in,
+    efcid,
+    pos,
+    pos,
+    flexedge_invweight0[edgeid],
     solref,
     solimp,
     0.0,
@@ -1135,7 +1212,7 @@ def _efc_contact_pyramidal(
   # Model:
   nv: int,
   opt_timestep: wp.array(dtype=float),
-  opt_impratio: wp.array(dtype=float),
+  opt_impratio_invsqrt: wp.array(dtype=float),
   body_parentid: wp.array(dtype=int),
   body_rootid: wp.array(dtype=int),
   body_invweight0: wp.array2d(dtype=wp.vec2),
@@ -1200,9 +1277,8 @@ def _efc_contact_pyramidal(
       contact_efc_address_out[conid, dimid] = -1
       return
 
-    opt_timestep_id = worldid % opt_timestep.shape[0]
-    timestep = opt_timestep[opt_timestep_id]
-    impratio = opt_impratio[opt_timestep_id]
+    timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+    impratio_invsqrt = opt_impratio_invsqrt[worldid % opt_impratio_invsqrt.shape[0]]
     contact_efc_address_out[conid, dimid] = efcid
 
     geom = geom_in[conid]
@@ -1223,7 +1299,7 @@ def _efc_contact_pyramidal(
       fri0 = friction[0]
       frii = friction[dimid2 - 1]
       invweight = invweight + fri0 * fri0 * invweight
-      invweight = invweight * 2.0 * fri0 * fri0 / impratio
+      invweight = invweight * 2.0 * fri0 * fri0 * impratio_invsqrt * impratio_invsqrt
 
     Jqvel = float(0.0)
     for i in range(nv):
@@ -1306,7 +1382,7 @@ def _efc_contact_elliptic(
   # Model:
   nv: int,
   opt_timestep: wp.array(dtype=float),
-  opt_impratio: wp.array(dtype=float),
+  opt_impratio_invsqrt: wp.array(dtype=float),
   body_parentid: wp.array(dtype=int),
   body_rootid: wp.array(dtype=int),
   body_invweight0: wp.array2d(dtype=wp.vec2),
@@ -1370,9 +1446,8 @@ def _efc_contact_elliptic(
       contact_efc_address_out[conid, dimid] = -1
       return
 
-    opt_timestep_id = worldid % opt_timestep.shape[0]
-    timestep = opt_timestep[opt_timestep_id]
-    impratio = opt_impratio[opt_timestep_id]
+    timestep = opt_timestep[worldid % opt_timestep.shape[0]]
+    impratio_invsqrt = opt_impratio_invsqrt[worldid % opt_impratio_invsqrt.shape[0]]
     contact_efc_address_out[conid, dimid] = efcid
 
     geom = geom_in[conid]
@@ -1432,8 +1507,7 @@ def _efc_contact_elliptic(
       if solreffriction[0] or solreffriction[1]:
         ref = solreffriction
 
-      # TODO(team): precompute 1 / impratio
-      invweight = invweight / impratio
+      invweight = invweight * impratio_invsqrt * impratio_invsqrt
       friction = friction_in[conid]
 
       if dimid > 1:
@@ -1482,11 +1556,12 @@ def _num_equality(
   ne_weld_in: wp.array(dtype=int),
   ne_jnt_in: wp.array(dtype=int),
   ne_ten_in: wp.array(dtype=int),
+  ne_flex_in: wp.array(dtype=int),
   # Data out:
   ne_out: wp.array(dtype=int),
 ):
   worldid = wp.tid()
-  ne = ne_connect_in[worldid] + ne_weld_in[worldid] + ne_jnt_in[worldid] + ne_ten_in[worldid]
+  ne = ne_connect_in[worldid] + ne_weld_in[worldid] + ne_jnt_in[worldid] + ne_ten_in[worldid] + ne_flex_in[worldid]
   ne_out[worldid] = ne
 
 
@@ -1496,7 +1571,7 @@ def make_constraint(m: types.Model, d: types.Data):
   wp.launch(
     _zero_constraint_counts,
     dim=d.nworld,
-    inputs=[d.ne, d.nf, d.nl, d.nefc, d.ne_connect, d.ne_weld, d.ne_jnt, d.ne_ten],
+    inputs=[d.ne, d.nf, d.nl, d.nefc, d.ne_connect, d.ne_weld, d.ne_jnt, d.ne_ten, d.ne_flex],
   )
 
   if not (m.opt.disableflags & types.DisableBit.CONSTRAINT):
@@ -1664,9 +1739,41 @@ def make_constraint(m: types.Model, d: types.Data):
       )
 
       wp.launch(
+        _efc_equality_flex,
+        dim=(d.nworld, m.eq_flex_adr.size, m.nflexedge),
+        inputs=[
+          m.nv,
+          m.opt.timestep,
+          m.flexedge_length0,
+          m.flexedge_invweight0,
+          m.eq_solref,
+          m.eq_solimp,
+          m.eq_flex_adr,
+          d.qvel,
+          d.flexedge_J,
+          d.flexedge_length,
+          d.njmax,
+          refsafe,
+        ],
+        outputs=[
+          d.nefc,
+          d.efc.type,
+          d.efc.id,
+          d.efc.J,
+          d.efc.pos,
+          d.efc.margin,
+          d.efc.D,
+          d.efc.vel,
+          d.efc.aref,
+          d.efc.frictionloss,
+          d.ne_flex,
+        ],
+      )
+
+      wp.launch(
         _num_equality,
         dim=d.nworld,
-        inputs=[d.ne_connect, d.ne_weld, d.ne_jnt, d.ne_ten],
+        inputs=[d.ne_connect, d.ne_weld, d.ne_jnt, d.ne_ten, d.ne_flex],
         outputs=[d.ne],
       )
 
@@ -1847,7 +1954,7 @@ def make_constraint(m: types.Model, d: types.Data):
           inputs=[
             m.nv,
             m.opt.timestep,
-            m.opt.impratio,
+            m.opt.impratio_invsqrt,
             m.body_parentid,
             m.body_rootid,
             m.body_invweight0,
@@ -1892,7 +1999,7 @@ def make_constraint(m: types.Model, d: types.Data):
           inputs=[
             m.nv,
             m.opt.timestep,
-            m.opt.impratio,
+            m.opt.impratio_invsqrt,
             m.body_parentid,
             m.body_rootid,
             m.body_invweight0,

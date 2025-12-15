@@ -1035,7 +1035,7 @@ def plane_box_wrapper(
   dist, pos, normal = plane_box(plane.normal, plane.pos, box.pos, box.rot, box.size)
   frame = make_frame(normal)
 
-  for i in range(4):
+  for i in range(8):
     write_contact(
       naconmax_in,
       i,
@@ -1562,16 +1562,9 @@ assert _check_primitive_collisions(), "_PRIMITIVE_COLLISIONS is in invalid order
 
 
 @cache_kernel
-def _create_narrowphase_kernel(primitive_collisions_types, primitive_collisions_func):
-  # AD: no unique here:
-  # * we expect this generator to be called only once per model, so no repeated compilation
-  # * module="unique" is generating problems because it uses the function name as the key
-  #   that in turn will cause multiple kernels to be generated with the same name
-  #   this is mostly problematic in cases like the UTs where we don't clear the kernel cache
-  #   between different tests.
-
-  @nested_kernel(enable_backward=False)
-  def _primitive_narrowphase(
+def _primitive_narrowphase(primitive_collisions_types, primitive_collisions_func):
+  @nested_kernel(module="unique", enable_backward=False)
+  def primitive_narrowphase(
     # Model:
     geom_type: wp.array(dtype=int),
     geom_condim: wp.array(dtype=int),
@@ -1719,20 +1712,11 @@ def _create_narrowphase_kernel(primitive_collisions_types, primitive_collisions_
           nacon_out,
         )
 
-  return _primitive_narrowphase
+  return primitive_narrowphase
 
 
-def _primitive_narrowphase_builder(m: Model):
-  _primitive_collisions_types = []
-  _primitive_collisions_func = []
-
-  for types, func in _PRIMITIVE_COLLISIONS.items():
-    idx = upper_trid_index(len(GeomType), types[0].value, types[1].value)
-    if m.geom_pair_type_count[idx] and types not in _primitive_collisions_types:
-      _primitive_collisions_types.append(types)
-      _primitive_collisions_func.append(func)
-
-  return _create_narrowphase_kernel(_primitive_collisions_types, _primitive_collisions_func)
+_PRIMITIVE_COLLISION_TYPES = []
+_PRIMITIVE_COLLISION_FUNC = []
 
 
 @event_scope
@@ -1751,10 +1735,17 @@ def primitive_narrowphase(m: Model, d: Data):
   the specific primitive collision types present in the model, avoiding
   unnecessary checks for non-existent collision pairs.
   """
-  # we need to figure out how to keep the overhead of this small - not launching anything
+  # TODO(team): keep the overhead of this small - not launching anything
   # for pair types without collisions, as well as updating the launch dimensions.
+
+  for types, func in _PRIMITIVE_COLLISIONS.items():
+    idx = upper_trid_index(len(GeomType), types[0].value, types[1].value)
+    if m.geom_pair_type_count[idx] and types not in _PRIMITIVE_COLLISION_TYPES:
+      _PRIMITIVE_COLLISION_TYPES.append(types)
+      _PRIMITIVE_COLLISION_FUNC.append(func)
+
   wp.launch(
-    _primitive_narrowphase_builder(m),
+    _primitive_narrowphase(_PRIMITIVE_COLLISION_TYPES, _PRIMITIVE_COLLISION_FUNC),
     dim=d.naconmax,
     inputs=[
       m.geom_type,

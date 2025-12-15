@@ -18,8 +18,8 @@ import inspect
 from typing import Callable, Optional
 
 import warp as wp
-from warp.context import Module
-from warp.context import get_module
+from warp._src.context import Module
+from warp._src.context import get_module
 
 _STACK = None
 
@@ -220,8 +220,8 @@ def cache_kernel(func):
 
 
 def check_toolkit_driver():
-  if wp.context.runtime is None:
-    wp.context.init()
+  if wp._src.context.runtime is None:
+    wp._src.context.init()
   if wp.get_device().is_cuda:
-    if wp.context.runtime.toolkit_version < (12, 4) or wp.context.runtime.driver_version < (12, 4):
+    if wp._src.context.runtime.toolkit_version < (12, 4) or wp._src.context.runtime.driver_version < (12, 4):
       RuntimeError("Minimum supported CUDA version: 12.4.")
