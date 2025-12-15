@@ -16,7 +16,6 @@ mujoco_test(mjcf_file_format_test ADDITIONAL_LINK_LIBRARIES
   usd
   tf
   usdGeom
-  usdImaging
   usdPhysics
   usdShade
   usd_test_utils
