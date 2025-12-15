@@ -453,6 +453,15 @@ Orientations are represented as unit quaternions and follow :ref:`MuJoCo's conve
 No. Updates for this feature are tracked in this
 `GitHub issue <https://github.com/google-deepmind/mujoco_warp/issues/884>`__.
 
+**Why are contacts reported when there are no collisions?**
+
+1 contact will be reported for each unique geom pair that contributes to any collision sensor, even if this geom pair is
+not in collision. Unlike MuJoCo or MJX where :ref:`collision sensors<collision-sensors>` make separate calls to
+collision routines while computing sensor data, MJWarp computes and stores the data for these sensors in contacts while
+running its main collision pipeline.
+
+:ref:`Contact sensors<sensor-contact>` will report the correct information for contacts affecting the physics.
+
 Compilation
 -----------
 
