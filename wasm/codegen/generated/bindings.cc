@@ -33,6 +33,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include <mujoco/mjspec.h>
 #include "engine/engine_util_errmem.h"
 #include "wasm/unpack.h"
 
@@ -7823,6 +7824,15 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
 }
 
+std::unique_ptr<MjModel> mj_compile_wrapper(const MjSpec& spec) {
+  mjSpec* spec_ptr = spec.get();
+  mjModel* model = mj_compile(spec_ptr, nullptr);
+  if (!model || mjs_isWarning(spec_ptr)) {
+    mju_error("%s", mjs_getError(spec_ptr));
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
 void error_wrapper(const String& msg) { mju_error("%s\n", msg.as<const std::string>().data()); }
 
 int mj_saveLastXML_wrapper(const String& filename, const MjModel& m) {
@@ -12308,6 +12318,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_comPos", &mj_comPos_wrapper);
   function("mj_comVel", &mj_comVel_wrapper);
   function("mj_compareFwdInv", &mj_compareFwdInv_wrapper);
+  function("mj_compile", &mj_compile_wrapper);
   function("mj_constraintUpdate", &mj_constraintUpdate_wrapper);
   function("mj_contactForce", &mj_contactForce_wrapper);
   function("mj_copyBack", &mj_copyBack_wrapper);

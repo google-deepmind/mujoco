@@ -1802,4 +1802,28 @@ describe('MuJoCo WASM Bindings', () => {
       unlinkXMLFile(tempXmlFilename);
     }
   });
+
+  it('should compile a spec from XML string', () => {
+    let spec = null;
+    let model = null;
+    try {
+      spec = mujoco.parseXMLString(TEST_XML);
+      expect(spec).not.toBeNull();
+
+      model = mujoco.mj_compile(spec);
+      expect(model).not.toBeNull();
+      expect(model.nq).toBeGreaterThan(0);
+
+      const jointId =
+          mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT.value, 'myhinge');
+      expect(jointId).toBeGreaterThanOrEqual(0);
+    } finally {
+      if (spec) {
+        spec.delete();
+      }
+      if (model) {
+        model.delete();
+      }
+    }
+  });
 });

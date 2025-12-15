@@ -33,6 +33,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include <mujoco/mjspec.h>
 #include "engine/engine_util_errmem.h"
 #include "wasm/unpack.h"
 
@@ -404,6 +405,15 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
     return nullptr;
   }
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
+}
+
+std::unique_ptr<MjModel> mj_compile_wrapper(const MjSpec& spec) {
+  mjSpec* spec_ptr = spec.get();
+  mjModel* model = mj_compile(spec_ptr, nullptr);
+  if (!model || mjs_isWarning(spec_ptr)) {
+    mju_error("%s", mjs_getError(spec_ptr));
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
 }
 
 void error_wrapper(const String& msg) { mju_error("%s\n", msg.as<const std::string>().data()); }
