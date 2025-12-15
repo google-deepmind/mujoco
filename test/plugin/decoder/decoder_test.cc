@@ -39,7 +39,7 @@ static mjSpec* MakeSimpleSpec() {
 }
 
 // Always returns a simple mjSpec, ignoring the resource.
-mjSpec* FakeDecode(const mjResource* resource) { return MakeSimpleSpec(); }
+mjSpec* FakeDecode(mjResource* resource) { return MakeSimpleSpec(); }
 
 // Can decode any resource that has a .fakeformat extension.
 int FakeCanDecode(const mjResource* resource) {

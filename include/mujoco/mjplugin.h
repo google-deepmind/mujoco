@@ -69,7 +69,7 @@ typedef struct mjpResourceProvider mjpResourceProvider;
 
 // function pointer types
 // return an mjSpec representing the decoded resource.
-typedef mjSpec* (*mjfDecode)(const mjResource* resource);
+typedef mjSpec* (*mjfDecode)(mjResource* resource);
 // return true if the given resource can be decoded.
 typedef int (*mjfCanDecode)(const mjResource* resource);
 
