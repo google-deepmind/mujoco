@@ -462,6 +462,12 @@ running its main collision pipeline.
 
 :ref:`Contact sensors<sensor-contact>` will report the correct information for contacts affecting the physics.
 
+**Why are Jacobians always dense?**
+
+Sparse Jacobians are not currently implemented and ``Data`` fields: ``ten_J``, ``actuator_moment``, ``flexedge_J``, and
+``efc.J`` are always represented as dense matrices. Support for sparse Jacobians is tracked in GitHub issue
+`#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__.
+
 Compilation
 -----------
 
