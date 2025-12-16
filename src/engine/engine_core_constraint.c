@@ -699,7 +699,6 @@ void mj_instantiateFriction(const mjModel* m, mjData* d) {
                       1, mjCNSTR_FRICTION_DOF, i,
                       issparse ? 1 : 0,
                       issparse ? &i : NULL);
-
   }
 
   // find frictional tendons
@@ -1705,7 +1704,7 @@ static int mj_ne(const mjModel* m, mjData* d, int* nnz) {
       flex_edgeadr = m->flex_edgeadr[id[0]];
       flex_edgenum = m->flex_edgenum[id[0]];
 
-      // init with all edges, subract rigid later
+      // init with all edges, subtract rigid later
       size = flex_edgenum;
 
       // process edges of this flex
@@ -2004,9 +2003,7 @@ void mj_makeConstraint(const mjModel* m, mjData* d) {
   }
 
   // clear tendon_efcadr
-  for (int i=0; i < m->ntendon; i++) {
-    d->tendon_efcadr[i] = -1;
-  }
+  mju_fillInt(d->tendon_efcadr, -1, m->ntendon);
 
   // reset nefc for the instantiation functions, instantiate all elements of Jacobian
   d->nefc = 0;
@@ -2108,9 +2105,7 @@ void mj_projectConstraint(const mjModel* m, mjData* d) {
 
     // markers for merged dofs, initialized to -1
     int* marker = mjSTACKALLOC(d, nv, int);
-    for (int i=0; i < nv; i++) {
-      marker[i] = -1;
-    }
+    mju_fillInt(marker, -1, nv);
 
     B_rowadr[0] = 0;
     for (int r=0; r < nefc; r++) {

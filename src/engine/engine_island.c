@@ -98,7 +98,7 @@ int mj_floodFill(int* island, int nr, const int* rownnz, const int* rowadr, cons
                  int* stack) {
   // initialize island count, set ids to -1
   int nisland = 0;
-  for (int i=0; i < nr; i++) island[i] = -1;
+  mju_fillInt(island, -1, nr);
 
   // iterate over vertices, discover islands
   for (int i=0; i < nr; i++) {

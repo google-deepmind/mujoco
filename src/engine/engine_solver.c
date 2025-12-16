@@ -239,9 +239,7 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
   int nactive = ne + nf;
 
   // equality
-  for (int i=0; i < ne; i++) {
-    state[i] = mjCNSTRSTATE_QUADRATIC;
-  }
+  mju_fillInt(state, mjCNSTRSTATE_QUADRATIC, ne);
 
   // friction
   for (int i=ne; i < ne+nf; i++) {
@@ -301,9 +299,7 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
       }
 
       // replicate state in all cone dimensions
-      for (int j=0; j < dim; j++) {
-        state[i+j] = result;
-      }
+      mju_fillInt(state+i, result, dim);
 
       // advance
       i += (dim-1);
