@@ -33,9 +33,8 @@ MJAPI int mju_cholUpdate(mjtNum* mat, mjtNum* x, int n, int flg_plus);
 
 // sparse reverse-order Cholesky decomposition: mat = L'*L; return 'rank'
 //  mat must be lower-triangular, have preallocated space for fill-in
-int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
-                         int* rownnz, const int* rowadr, int* colind,
-                         mjData* d);
+MJAPI int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
+                               int* rownnz, const int* rowadr, int* colind, mjData* d);
 
 // precount row non-zeros of reverse-Cholesky factor L, return total
 MJAPI int mju_cholFactorCount(int* L_rownnz, const int* rownnz, const int* rowadr,
@@ -47,9 +46,9 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
 // sparse reverse-order Cholesky rank-one update: L'*L +/i x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
-int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         const int* rownnz, const int* rowadr, const int* colind,
-                         int x_nnz, int* x_ind, mjData* d);
+MJAPI int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
+                               const int* rownnz, const int* rowadr, const int* colind,
+                               int x_nnz, int* x_ind, mjData* d);
 
 // band-dense Cholesky decomposition
 //  returns minimum value in the factorized diagonal, or 0 if rank-deficient
