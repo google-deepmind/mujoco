@@ -62,6 +62,9 @@ now run the precompiled code samples, for example:
      Windows:           simulate ..\model\humanoid\humanoid.xml
      Linux and macOS:   ./simulate ../model/humanoid/humanoid.xml
 
+Note that for macOS exclusively, the distribution is an `Application Bundle <https://developer.apple.com/go/?id=bundle-
+structure>`__. The ``simulate`` binary executable is located inside the bundle in ``MuJoCo.app/Contents/MacOS`` within the DMG disk image. Alternatively, you can double-click ``MuJoCo.app`` to launch the ``simulate`` GUI.
+
 The directory structure is shown below. Users can re-organize it if needed, as well as install the dynamic libraries in
 other directories and set the path accordingly. The only file created automatically is MUJOCO_LOG.TXT in the executable
 directory; it contains error and warning messages, and can be deleted at any time.
@@ -79,10 +82,8 @@ working development environment. We provide a cross-platform `CMake
 <https://github.com/google-deepmind/mujoco/blob/main/sample/CMakeLists.txt>`__ setup that can be used to build sample
 applications independently of the MuJoCo library itself.
 
-On macOS, the DMG disk image contains ``MuJoCo.app``, which you can double-click to launch the ``simulate`` GUI. You can
-also drag ``MuJoCo.app`` into the ``/Application`` on your system, as you would to install any other app. As well as the
-``MuJoCo.app`` `Application Bundle <https://developer.apple.com/go/?id=bundle-
-structure>`__, the DMG includes the ``mujoco.framework`` subdirectory containing the MuJoCo dynamic library and all of
+On MacOS, you can also drag ``MuJoCo.app`` into the ``/Application`` on your system, as you would to install any other app. As well as the
+``MuJoCo.app``, the DMG includes the ``mujoco.framework`` subdirectory containing the MuJoCo dynamic library and all of
 its public headers. If you are using Xcode, you can import it as a framework dependency on your project. (This also
 works for Swift projects without any modification). If you are building manually, you can use ``-F`` and
 ``-framework mujoco`` to specify the header search path and the library search path respectively.
