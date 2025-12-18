@@ -7523,7 +7523,7 @@ struct MjvScene {
   // skinvertadr field is handled manually in template file struct declaration
   // skinvertnum field is handled manually in template file struct declaration
   emscripten::val flags() const {
-    return emscripten::val(emscripten::typed_memory_view(10, ptr_->flags));
+    return emscripten::val(emscripten::typed_memory_view(11, ptr_->flags));
   }
   emscripten::val framergb() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->framergb));
@@ -10511,6 +10511,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjRND_SKYBOX", mjRND_SKYBOX)
     .value("mjRND_FOG", mjRND_FOG)
     .value("mjRND_HAZE", mjRND_HAZE)
+    .value("mjRND_DEPTH", mjRND_DEPTH)
     .value("mjRND_SEGMENT", mjRND_SEGMENT)
     .value("mjRND_IDCOLOR", mjRND_IDCOLOR)
     .value("mjRND_CULL_FACE", mjRND_CULL_FACE)

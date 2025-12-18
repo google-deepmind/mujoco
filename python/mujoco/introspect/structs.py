@@ -10169,7 +10169,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='flags',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtByte'),
-                     extents=(10,),
+                     extents=(11,),
                  ),
                  doc='rendering flags (indexed by mjtRndFlag)',
              ),

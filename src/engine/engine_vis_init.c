@@ -111,6 +111,7 @@ const char* mjRNDSTRING[mjNRNDFLAG][3] = {
   {"Skybox",      "1", "K"},
   {"Fog",         "0", "G"},
   {"Haze",        "1", "/"},
+  {"Depth",       "0", ""},
   {"Segment",     "0", ","},
   {"Id Color",    "0", ""},
   {"Cull Face",   "1", ""}
