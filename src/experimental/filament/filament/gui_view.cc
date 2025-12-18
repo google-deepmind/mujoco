@@ -125,6 +125,24 @@ uintptr_t GuiView::UploadImage(uintptr_t tex_id, const uint8_t* pixels,
       mju_error("Texture not found: %lu", tex_id);
     }
     texture = iter->second;
+
+    if (pixels == nullptr) {
+      // A nullptr implies that the user wants to destroy the texture.
+      engine->destroy(texture);
+      textures_.erase(tex_id);
+      return 0;
+    } else if (texture->getWidth() != width || texture->getHeight() != height) {
+      // Recreate the texture if the dimensions have changed.
+      engine->destroy(texture);
+      texture = filament::Texture::Builder()
+                    .width(width)
+                    .height(height)
+                    .levels(1)
+                    .format(internal_format)
+                    .sampler(filament::Texture::Sampler::SAMPLER_2D)
+                    .build(*engine);
+      textures_[tex_id] = texture;
+    }
   }
 
   // Create a copy of the image to pass it to filament as we don't know the
