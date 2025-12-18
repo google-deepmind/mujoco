@@ -161,7 +161,7 @@ void Drawable::Update(const mjModel* model, const mjvScene* scene,
   }
 
   SetTransform(geom);
-  UpdateMaterial(geom);
+  UpdateMaterial(geom, scene->flags[mjRND_IDCOLOR]);
 }
 
 void Drawable::AddMesh(int data_id) {
@@ -201,11 +201,6 @@ void Drawable::RemoveFromScene(filament::Scene* scene) {
 
 void Drawable::SetDrawMode(Material::DrawMode mode) {
   renderables_.SetMaterialInstance(material_.GetMaterialInstance(mode));
-}
-
-void Drawable::SetUseDistinctSegmentationColors(
-    bool use_distinct_segmentation_colors) {
-  use_distinct_segmentation_colors_ = use_distinct_segmentation_colors;
 }
 
 void Drawable::SetTransform(const mjvGeom& geom) {
@@ -321,7 +316,7 @@ void Drawable::SetTransform(const mjvGeom& geom) {
   }
 }
 
-void Drawable::UpdateMaterial(const mjvGeom& geom) {
+void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
   ObjectManager* object_mgr = material_.GetObjectManager();
   const mjModel* model = object_mgr->GetModel();
 
@@ -405,7 +400,6 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
   params.emissive = geom.emission;
   params.specular = geom.specular;
   params.glossiness = geom.shininess;
-  params.use_distinct_segmentation_colors = use_distinct_segmentation_colors_;
   if (geom.matid >= 0) {
     params.metallic = model->mat_metallic[geom.matid];
     params.roughness = model->mat_roughness[geom.matid];
@@ -414,8 +408,8 @@ void Drawable::UpdateMaterial(const mjvGeom& geom) {
   }
 
   if (geom.segid >= 0) {
-    uint32_t segmentation_color = geom.segid;
-    if (use_distinct_segmentation_colors_) {
+    uint32_t segmentation_color = geom.segid + 1;
+    if (!use_segid_color) {
       constexpr double phi1 = 1.61803398874989484820;  // Cached Phi(1).
       constexpr double coef1 = 1.0 / phi1;
       const double index = static_cast<double>(geom.segid);

@@ -51,10 +51,6 @@ struct mjrFilamentConfig {
 
   // Whether or not to enable GUI rendering.
   bool enable_gui;
-
-  // Whether to remap segmentation IDs to distinct colors for visual display.
-  // This is only really useful for visualization purposes in studio.
-  bool use_distinct_segmentation_colors;
 };
 
 void mjr_defaultFilamentConfig(mjrFilamentConfig* config);
