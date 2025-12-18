@@ -1253,6 +1253,8 @@ void ParseMjcPhysicsActuator(mjSpec* spec,
     mj_act->trntype = mjTRN_BODY;
   } else if (target_prim.HasAPI<pxr::MjcPhysicsSiteAPI>()) {
     mj_act->trntype = slider_crank ? mjTRN_SLIDERCRANK : mjTRN_SITE;
+  } else if (target_prim.IsA<pxr::MjcPhysicsTendon>()) {
+    mj_act->trntype = mjTRN_TENDON;
   } else {
     mju_warning("Actuator %s has an invalid target type, skipping.",
                 prim.GetPath().GetAsString().c_str());
