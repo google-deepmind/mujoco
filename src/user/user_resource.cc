@@ -265,7 +265,7 @@ int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
   return FileModified(resource, timestamp);
 }
 
-mjSpec* mju_decodeResource(mjResource* resource, const char* content_type) {
+mjSpec* mju_decodeResource(mjResource* resource, const char* content_type, const mjVFS* vfs) {
   const mjpDecoder* decoder = nullptr;
   if (content_type) {
     decoder = mjp_findDecoder(resource, content_type);
@@ -276,6 +276,6 @@ mjSpec* mju_decodeResource(mjResource* resource, const char* content_type) {
     mju_error("Could not find decoder for resource '%s'", resource->name);
   }
 
-  return decoder->decode(resource);
+  return decoder->decode(resource, vfs);
 }
 

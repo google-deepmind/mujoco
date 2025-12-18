@@ -107,7 +107,7 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
     memcpy(resource->name, fullname.c_str(), sizeof(char) * (n + 1));
   }
 
-  mjSpec* spec = mju_decodeResource(resource, content_type);
+  mjSpec* spec = mju_decodeResource(resource, content_type, vfs);
   mju_closeResource(resource);
   return spec;
 }

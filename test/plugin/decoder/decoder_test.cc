@@ -39,7 +39,9 @@ static mjSpec* MakeSimpleSpec() {
 }
 
 // Always returns a simple mjSpec, ignoring the resource.
-mjSpec* FakeDecode(mjResource* resource) { return MakeSimpleSpec(); }
+mjSpec* FakeDecode(mjResource* resource, const mjVFS* vfs) {
+  return MakeSimpleSpec();
+}
 
 // Can decode any resource that has a .fakeformat extension.
 int FakeCanDecode(const mjResource* resource) {
@@ -81,8 +83,7 @@ TEST_F(DecoderPluginTest, CanDecode) {
 
   // Check referencing a resource via XML invokes the decoder.
   char error[1024];
-  mjSpec* spec =
-      mj_parseXMLString(xml, nullptr, error, sizeof(error));
+  mjSpec* spec = mj_parseXMLString(xml, nullptr, error, sizeof(error));
   mjModel* model = mj_compile(spec, nullptr);
   ASSERT_THAT(model, testing::NotNull()) << error;
   EXPECT_EQ(model->nbody, 2);  // world + included body
@@ -91,8 +92,7 @@ TEST_F(DecoderPluginTest, CanDecode) {
   mj_deleteSpec(spec);
 
   // Check mj_parse with extension .fakeformat
-  spec =
-      mj_parse("dummy.fakeformat", nullptr, nullptr, error, sizeof(error));
+  spec = mj_parse("dummy.fakeformat", nullptr, nullptr, error, sizeof(error));
   model = mj_compile(spec, nullptr);
   EXPECT_EQ(model->nbody, 2);  // world + included body
   EXPECT_EQ(model->ngeom, 1);
