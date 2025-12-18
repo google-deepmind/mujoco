@@ -185,6 +185,8 @@ class App {
   platform::SimProfiler profiler_;
   platform::SimHistory history_;
 
+  std::vector<std::string> search_paths_;
+
   mjSpec* spec_ = nullptr;
   mjModel* model_ = nullptr;
   mjData* data_ = nullptr;

@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <ios>
 #include <iterator>
@@ -45,6 +46,47 @@ std::string LoadText(const std::string& filename) {
                        std::istreambuf_iterator<char>());
   file.close();
   return contents;
+}
+
+static std::string CheckPathForFile(const std::filesystem::path& path,
+                                    const std::string& filename) {
+  std::filesystem::path resolved = path / filename;
+  if (std::filesystem::exists(resolved)) {
+    return resolved.string();
+  }
+  resolved += ".xml";
+  if (std::filesystem::exists(resolved)) {
+    return resolved.string();
+  }
+  return "";
+}
+
+std::string ResolveFile(const std::string& filename,
+                        const std::vector<std::string>& search_paths) {
+  if (std::filesystem::exists(filename)) {
+    return filename;
+  }
+
+  std::string resolved;
+  for (const std::string& path : search_paths) {
+    if (!std::filesystem::exists(path) ||
+        !std::filesystem::is_directory(path)) {
+      continue;
+    }
+
+    resolved = CheckPathForFile(std::filesystem::path(path), filename);
+    if (!resolved.empty()) {
+      return resolved;
+    }
+
+    for (const auto& it : std::filesystem::recursive_directory_iterator(path)) {
+      resolved = CheckPathForFile(it.path(), filename);
+      if (!resolved.empty()) {
+        return resolved;
+      }
+    }
+  }
+  return "";
 }
 
 void SaveColorToWebp(int width, int height, const unsigned char* data,

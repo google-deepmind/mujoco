@@ -201,10 +201,12 @@ void App::LoadModel(std::string data, ContentType type) {
       // Store the file path as the model name. Note that we use this model name
       // to perform reload operations.
       model_name_ = std::move(data);
-      if (model_name_.ends_with(".mjb")) {
-        model_ = mj_loadModel(model_name_.c_str(), 0);
-      } else if (model_name_.ends_with(".xml")) {
-        spec_ = mj_parseXML(model_name_.c_str(), nullptr, err, sizeof(err));
+      const std::string resolved_file =
+        platform::ResolveFile(model_name_, search_paths_);
+    if (resolved_file.ends_with(".mjb")) {
+        model_ = mj_loadModel(resolved_file.c_str(), 0);
+      } else if (resolved_file.ends_with(".xml")) {
+        spec_ = mj_parseXML(resolved_file.c_str(), nullptr, err, sizeof(err));
         if (spec_ && err[0] == 0) {
           model_ = mj_compile(spec_, nullptr);
         }
