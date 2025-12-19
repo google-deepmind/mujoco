@@ -23,11 +23,9 @@
 #include <ios>
 #include <iterator>
 #include <string>
-#include <vector>
 
 #include "webp/encode.h"
 #include "webp/types.h"
-#include <mujoco/mjrender.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_vis_visualize.h"
@@ -89,43 +87,15 @@ std::string ResolveFile(const std::string& filename,
   return "";
 }
 
-void SaveColorToWebp(int width, int height, const unsigned char* data,
-                     const std::string& filename) {
+void SaveToWebp(int width, int height, const std::byte* data,
+                const std::string& filename) {
   uint8_t* webp = nullptr;
-  const size_t size =
-      WebPEncodeLosslessRGB(data, width, height, width * 3, &webp);
-
+  const size_t size = WebPEncodeLosslessRGB(
+      reinterpret_cast<const uint8_t*>(data), width, height, width * 3, &webp);
   std::ofstream file(filename, std::ios::binary);
   file.write(reinterpret_cast<const char*>(webp), size);
   file.close();
   WebPFree(webp);
-}
-
-void SaveDepthToWebp(int width, int height, const float* data,
-                     const std::string& filename) {
-  const int size = width * height;
-
-  // Turn the depth buffer into a greyscale color buffer.
-  std::vector<unsigned char> byte_buffer;
-  byte_buffer.reserve(size * 3);
-  for (int i = 0; i < size; ++i) {
-    auto byte = static_cast<int>(255.0 * data[i]);
-    byte_buffer.push_back(byte);
-    byte_buffer.push_back(byte);
-    byte_buffer.push_back(byte);
-  }
-  SaveColorToWebp(width, height, byte_buffer.data(), filename);
-}
-
-void SaveScreenshotToWebp(int width, int height, mjrContext* con,
-                          const std::string& filename) {
-  mjr_setBuffer(mjFB_OFFSCREEN, con);
-  auto rgb_buffer = std::vector<unsigned char>(3 * width * height);
-  auto depth_buffer = std::vector<float>(width * height, 1.0f);
-  mjrRect viewport = {0, 0, width, height};
-  mjr_readPixels(rgb_buffer.data(), depth_buffer.data(), viewport, con);
-  mjr_setBuffer(mjFB_WINDOW, con);
-  SaveColorToWebp(width, height, rgb_buffer.data(), filename);
 }
 
 const void* GetValue(const mjModel* model, const mjData* data,

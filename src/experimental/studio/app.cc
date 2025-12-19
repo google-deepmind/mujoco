@@ -1678,8 +1678,12 @@ void App::FileDialogGui() {
   if (ImGui::BeginPopupModal("SaveWebp", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      renderer_->SaveScreenshot(tmp_.filename, window_->GetWidth(),
-                                window_->GetHeight());
+      const int width = window_->GetWidth();
+      const int height = window_->GetHeight();
+      std::vector<std::byte> buffer(width * height * 3);
+      renderer_->RenderToTexture(model_, data_, &camera_, width, height,
+                                 buffer.data());
+      platform::SaveToWebp(width, height, buffer.data(), tmp_.filename);
       tmp_.last_save_screenshot_file = tmp_.filename;
     }
     ImGui::EndPopup();
