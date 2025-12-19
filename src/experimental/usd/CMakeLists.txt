@@ -102,7 +102,6 @@ function(configure_houdini_target target_name link_scope include_scope)
 endfunction()
 
 ## usdMjcf
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
 add_library(${MJCF_PLUGIN_TARGET_NAME} SHARED)
 target_sources(${MJCF_PLUGIN_TARGET_NAME} PRIVATE
@@ -167,40 +166,21 @@ target_compile_options(
 
 # Configure RPATH for macOS and UNIX.
 if(APPLE)
-    set(RPATH_LIST "@loader_path")
-    # Add OpenUSD lib to RPATH for macOS
-    if(DEFINED pxr_DIR AND EXISTS "${pxr_DIR}/lib")
-        list(APPEND RPATH_LIST "${pxr_DIR}/lib")
-    endif()
-    # Add MuJoCo lib to RPATH for macOS
-    if(DEFINED MUJOCO_INSTALL_DIR AND EXISTS "${MUJOCO_INSTALL_DIR}/lib")
-        list(APPEND RPATH_LIST "${MUJOCO_INSTALL_DIR}/lib")
-    endif()
+  set_target_properties($(MJCF_PLUGIN_TARGET_NAME) PROPERTIES
+    BUILD_RPATH "${USD_INSTALL_ROOT}"
+    INSTALL_RPATH "@loader_path")
 
-    string(JOIN ":" CMAKE_INSTALL_RPATH "${RPATH_LIST}") # macOS uses colon for RPATH separator
-    message(STATUS "Final CMAKE_INSTALL_RPATH: ${CMAKE_INSTALL_RPATH}")
+  set_target_properties($(MJC_PHYSICS_PLUGIN_TARGET_NAME) PROPERTIES
+    BUILD_RPATH "${USD_INSTALL_ROOT}"
+    INSTALL_RPATH "@loader_path")
 elseif(UNIX)
+  set_target_properties($(MJCF_PLUGIN_TARGET_NAME) PROPERTIES
+    BUILD_RPATH "${USD_INSTALL_ROOT}"
+    INSTALL_RPATH "$ORIGIN")
 
-    # For adjacent libs.
-    set(RPATH_LIST "\$ORIGIN")
-
-    # Add OpenUSD library directory
-    if(DEFINED pxr_DIR AND EXISTS "${pxr_DIR}/lib")
-        list(APPEND RPATH_LIST "${pxr_DIR}/lib")
-        message(STATUS "Adding OpenUSD lib to RPATH: ${pxr_DIR}/lib")
-    else()
-        message(WARNING "pxr_DIR is not defined or ${pxr_DIR}/lib does not exist. OpenUSD libraries might not be found via RPATH.")
-    endif()
-
-    # Add MuJoCo library directory
-    if(DEFINED MUJOCO_INSTALL_DIR AND EXISTS "${MUJOCO_INSTALL_DIR}/lib")
-        list(APPEND RPATH_LIST "${MUJOCO_INSTALL_DIR}/lib")
-    elseif(DEFINED MUJOCO_INSTALL_DIR AND EXISTS "${MUJOCO_INSTALL_DIR}/bin")
-        list(APPEND RPATH_LIST "${MUJOCO_INSTALL_DIR}/bin")
-    endif()
-
-    # Set the final RPATH for installation
-    string(JOIN ";" CMAKE_INSTALL_RPATH "${RPATH_LIST}")
+  set_target_properties($(MJC_PHYSICS_PLUGIN_TARGET_NAME) PROPERTIES
+    BUILD_RPATH "${USD_INSTALL_ROOT}"
+    INSTALL_RPATH "$ORIGIN")
 endif()
 
 target_link_libraries(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
