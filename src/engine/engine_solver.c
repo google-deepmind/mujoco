@@ -815,18 +815,24 @@ struct _mjCGContext {
   mjtNum* D;              // constraint inertia                           (nefc x 1)
   int* H_rowadr;          // Hessian row addresses                        (nv x 1)
   int* H_rownnz;          // Hessian row nonzeros                         (nv x 1)
-  int* H_lowernnz;        // Hessian lower triangle row nonzeros          (nv x 1)
+  int* HT_rownnz;         // Hessian transpose row nonzeros               (nv x 1)
+  int* HT_rowadr;         // Hessian transpose row addresses              (nv x 1)
   int* L_rownnz;          // Hessian factor row nonzeros                  (nv x 1)
   int* L_rowadr;          // Hessian factor row addresses                 (nv x 1)
+  int* LT_rownnz;         // Hessian factor transpose row nonzeros        (nv x 1)
+  int* LT_rowadr;         // Hessian factor transpose row addresses       (nv x 1)
   int* buf_ind;           // index buffer for sparse addition             (nv x 1)
   mjtNum* buf_val;        // value buffer for sparse addition             (nv x 1)
 
   // Newton arrays, computed-size (MakeHessian)
   int nH;                 // number of nonzeros in Hessian H
   int* H_colind;          // Hessian column indices                       (nH x 1)
+  int* HT_colind;         // Hessian transpose column indices             (nH x 1)
   mjtNum* H;              // Hessian                                      (nH x 1)
   int nL;                 // number of nonzeros in Cholesky factor L
   int* L_colind;          // Cholesky factor column indices               (nL x 1)
+  int* LT_colind;         // Cholesky factor transpose column indices     (nL x 1)
+  int* LT_map;            // CSC-to-CSR index mapping                     (nL x 1)
   mjtNum* L;              // Cholesky factor                              (nL x 1)
   mjtNum* Lcone;          // Cholesky factor with cone contributions      (nL x 1)
 
@@ -989,9 +995,12 @@ static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
     if (ctx->is_sparse) {
       ctx->H_rowadr   = mjSTACKALLOC(d, nv, int);
       ctx->H_rownnz   = mjSTACKALLOC(d, nv, int);
-      ctx->H_lowernnz = mjSTACKALLOC(d, nv, int);
+      ctx->HT_rownnz  = mjSTACKALLOC(d, nv, int);
+      ctx->HT_rowadr  = mjSTACKALLOC(d, nv, int);
       ctx->L_rownnz   = mjSTACKALLOC(d, nv, int);
       ctx->L_rowadr   = mjSTACKALLOC(d, nv, int);
+      ctx->LT_rownnz  = mjSTACKALLOC(d, nv, int);
+      ctx->LT_rowadr  = mjSTACKALLOC(d, nv, int);
       ctx->buf_val    = mjSTACKALLOC(d, nv, mjtNum);
       ctx->buf_ind    = mjSTACKALLOC(d, nv, int);
     }
@@ -1549,22 +1558,16 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
                        ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
                        ctx->buf_val, ctx->buf_ind);
 
-    // transiently compute H'; mju_cholFactorNNZ is memory-contiguous in upper triangle layout
-    mj_markStack(d);
-    int* HT_rownnz = mjSTACKALLOC(d, nv, int);
-    int* HT_rowadr = mjSTACKALLOC(d, nv, int);
-    int* HT_colind = mjSTACKALLOC(d, ctx->nH, int);
-    mju_transposeSparse(NULL, NULL, nv, nv,
-                        HT_rownnz, HT_rowadr, HT_colind, NULL,
+    // compute H' (upper triangle, required for symbolic Cholesky)
+    ctx->HT_colind = mjSTACKALLOC(d, ctx->nH, int);
+    mju_transposeSparse(NULL, NULL, nv, nv, ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind, NULL,
                         ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind);
 
     // count total and row non-zeros of reverse-Cholesky factors L and LT
-    int* LT_rownnz_temp = mjSTACKALLOC(d, nv, int);
-    int* LT_rowadr_temp = mjSTACKALLOC(d, nv, int);
     ctx->nL = mju_cholFactorSymbolic(NULL, ctx->L_rownnz, ctx->L_rowadr, NULL,
-                                     LT_rownnz_temp, LT_rowadr_temp, NULL,
-                                     HT_rownnz, HT_rowadr, HT_colind, nv, d);
-    mj_freeStack(d);
+                                     ctx->LT_rownnz, ctx->LT_rowadr, NULL,
+                                     ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind,
+                                     nv, d);
 
     // allocate L_colind, L, Lcone
     ctx->L_colind = mjSTACKALLOC(d, ctx->nL, int);
@@ -1573,25 +1576,15 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
       ctx->Lcone = mjSTACKALLOC(d, ctx->nL, mjtNum);
     }
 
-    // count nonzeros in rows of H lower triangle
-    for (int r = 0; r < nv; r++) {
-      const int* colind = ctx->H_colind + ctx->H_rowadr[r];
-      int rownnz = ctx->H_rownnz[r];
+    // allocate LT (CSC representation of L)
+    ctx->LT_colind = mjSTACKALLOC(d, ctx->nL, int);
+    ctx->LT_map = mjSTACKALLOC(d, ctx->nL, int);
 
-      // count nonzeros up to diagonal (inclusive) for row r
-      int nnz = 1;
-      while (nnz < rownnz && colind[nnz - 1] < r) {
-        nnz++;
-      }
-
-      // last row element is not the diagonal; SHOULD NOT OCCUR
-      if (colind[nnz - 1] != r) {
-        mjERROR("Newton solver Hessian has zero diagonal on row %d", r);
-      }
-
-      // save row nonzeros
-      ctx->H_lowernnz[r] = nnz;
-    }
+    // symbolic Cholesky: populate L_colind and LT structures
+    mju_cholFactorSymbolic(ctx->L_colind, ctx->L_rownnz, ctx->L_rowadr,
+                           ctx->LT_colind, ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_map,
+                           ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind,
+                           nv, d);
   }
 
   // dense
@@ -1643,26 +1636,16 @@ static void FactorizeHessian(mjData* d, mjCGContext* ctx, int flg_recompute) {
                          ctx->buf_val, ctx->buf_ind);
     }
 
-    // copy H lower-triangle into L, fill-in already accounted for
-    for (int r = 0; r < nv; r++) {
-      int nnz = ctx->H_lowernnz[r];
-      mju_copy(ctx->L + ctx->L_rowadr[r], ctx->H + ctx->H_rowadr[r], nnz);
-      mju_copyInt(ctx->L_colind + ctx->L_rowadr[r], ctx->H_colind + ctx->H_rowadr[r], nnz);
-      ctx->L_rownnz[r] = nnz;
-    }
-
-    // in-place sparse factorization: L = chol(H)
-    int rank = mju_cholFactorSparse(ctx->L, nv, mjMINVAL,
-                                    ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, d);
+    // numeric sparse factorization: L = chol(H) using pre-computed sparsity pattern
+    int rank = mju_cholFactorNumeric(
+        ctx->L, nv, mjMINVAL,
+        ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
+        ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map,
+        ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, d);
 
     // rank-deficient; SHOULD NOT OCCUR
     if (rank != nv) {
       mjERROR("rank-deficient sparse Hessian");
-    }
-
-    // pre-counted nL does not match post-factorization nL; SHOULD NOT OCCUR
-    if (ctx->nL !=  ctx->L_rowadr[nv-1] + ctx->L_rownnz[nv-1]) {
-      mjERROR("mismatch between pre-counted and post-factorization L nonzeros");
     }
   }
 
