@@ -19,8 +19,10 @@
 #include <vector>
 
 #include <benchmark/benchmark.h>
+#include <absl/base/attributes.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mujoco.h>
+#include "src/engine/engine_memory.h"
 #include "src/engine/engine_support.h"
 #include "src/engine/engine_util_solve.h"
 #include "src/engine/engine_util_sparse.h"
@@ -328,6 +330,188 @@ void BM_numeric_XL(benchmark::State& state) {
   BM_chol_numeric<Size::XL>(state);
 }
 BENCHMARK(BM_numeric_XL);
+
+// -------------------- rank-1 update/downdate benchmarks ----------------------
+
+constexpr int kNumUpdateVectors = 25;
+
+// old implementation using sparse merge
+int ABSL_ATTRIBUTE_NOINLINE mju_cholUpdateSparse_old(
+    mjtNum* mat, mjtNum* x, int n, int flg_plus, const int* rownnz,
+    const int* rowadr, const int* colind, int x_nnz, int* x_ind, mjData* d) {
+  mj_markStack(d);
+  int* buf_ind = mjSTACKALLOC(d, n, int);
+  mjtNum* sparse_buf = mjSTACKALLOC(d, n, mjtNum);
+
+  int rank = n, i = x_nnz - 1;
+  while (i >= 0) {
+    int nnz = rownnz[x_ind[i]], adr = rowadr[x_ind[i]];
+    mjtNum tmp = mat[adr + nnz - 1] * mat[adr + nnz - 1] +
+                 (flg_plus ? x[i] * x[i] : -x[i] * x[i]);
+    if (tmp < mjMINVAL) {
+      tmp = mjMINVAL;
+      rank--;
+    }
+    mjtNum r = mju_sqrt(tmp);
+    mjtNum c = r / mat[adr + nnz - 1];
+    mjtNum s = x[i] / mat[adr + nnz - 1];
+    mat[adr + nnz - 1] = r;
+    mju_combineSparseInc(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
+                         nnz - 1, i, colind + adr, x_ind);
+    int new_x_nnz = mju_combineSparse(x, mat + adr, c, -s, i, nnz - 1, x_ind,
+                                      colind + adr, sparse_buf, buf_ind);
+    i = i - 1 + (new_x_nnz - i);
+  }
+  mj_freeStack(d);
+  return rank;
+}
+
+// old update implementation benchmark
+template <Size S>
+static void BM_update_old(benchmark::State& state) {
+  mjModel* m = GetModel<S>();
+  mjData* d = mj_makeData(m);
+
+  HessianData hd;
+  hd.Setup(m, d);
+
+  int nv = hd.nv;
+
+  // factorize L using old method (we'll just keep updating this)
+  std::vector<mjtNum> L_work(hd.nL);
+  std::vector<int> L_colind_work(hd.nL);
+  std::vector<int> L_rownnz_work(hd.nv);
+  std::memcpy(L_work.data(), hd.L_init.data(), hd.nL * sizeof(mjtNum));
+  std::memcpy(L_colind_work.data(), hd.L_colind_init.data(),
+              hd.nL * sizeof(int));
+  std::memcpy(L_rownnz_work.data(), hd.L_rownnz_init.data(),
+              hd.nv * sizeof(int));
+  mju_cholFactorSparse(L_work.data(), nv, mjMINVAL, L_rownnz_work.data(),
+                       hd.L_rowadr.data(), L_colind_work.data(), d);
+
+  // prepare update vectors: pick kNumUpdateVectors rows from J (constraint
+  // rows) Each J row has DoF indices which is correct for updating L (nv x nv)
+  int nefc = d->nefc;
+  std::vector<std::vector<mjtNum>> update_vecs(kNumUpdateVectors);
+  std::vector<std::vector<int>> update_inds(kNumUpdateVectors);
+  for (int k = 0; k < kNumUpdateVectors; k++) {
+    int row = (k * 7) % nefc;
+    int nnz = d->efc_J_rownnz[row];
+    int adr = d->efc_J_rowadr[row];
+    update_vecs[k].resize(nnz);
+    update_inds[k].resize(nnz);
+    for (int i = 0; i < nnz; i++) {
+      update_vecs[k][i] = d->efc_J[adr + i] * 0.01;
+      update_inds[k][i] = d->efc_J_colind[adr + i];
+    }
+  }
+
+  // working copy of update vector (sized to nv since pattern can grow)
+  std::vector<mjtNum> x_work(nv);
+  std::vector<int> x_ind_work(nv);
+
+  int vec_idx = 0;
+  for (auto s : state) {
+    int nnz = update_inds[vec_idx].size();
+    std::memset(x_work.data(), 0, nv * sizeof(mjtNum));
+    std::memcpy(x_work.data(), update_vecs[vec_idx].data(),
+                nnz * sizeof(mjtNum));
+    std::memcpy(x_ind_work.data(), update_inds[vec_idx].data(),
+                nnz * sizeof(int));
+    mju_cholUpdateSparse_old(L_work.data(), x_work.data(), nv, 1,
+                             L_rownnz_work.data(), hd.L_rowadr.data(),
+                             L_colind_work.data(), nnz, x_ind_work.data(), d);
+    vec_idx = (vec_idx + 1) % kNumUpdateVectors;
+  }
+
+  mj_deleteData(d);
+  state.SetItemsProcessed(state.iterations());
+}
+
+// new update implementation benchmark
+template <Size S>
+static void BM_update_new(benchmark::State& state) {
+  mjModel* m = GetModel<S>();
+  mjData* d = mj_makeData(m);
+
+  HessianData hd;
+  hd.Setup(m, d);
+
+  int nv = hd.nv;
+
+  // factorize L using new method
+  std::vector<mjtNum> L_work(hd.nL);
+  std::vector<int> L_colind_work(hd.nL);
+  std::vector<int> LT_rownnz_work(nv);
+  std::vector<int> LT_rowadr_work(nv);
+  std::vector<int> LT_colind_work(hd.nL);
+  std::vector<int> LT_pos_work(hd.nL);
+
+  mju_cholFactorSymbolic(L_colind_work.data(), hd.L_rownnz.data(),
+                         hd.L_rowadr.data(), LT_colind_work.data(),
+                         LT_rownnz_work.data(), LT_rowadr_work.data(),
+                         LT_pos_work.data(), hd.HT_rownnz.data(),
+                         hd.HT_rowadr.data(), hd.HT_colind.data(), nv, d);
+  mju_cholFactorNumeric(
+      L_work.data(), nv, mjMINVAL, hd.L_rownnz.data(), hd.L_rowadr.data(),
+      L_colind_work.data(), LT_rownnz_work.data(), LT_rowadr_work.data(),
+      LT_colind_work.data(), LT_pos_work.data(), hd.H.data(),
+      hd.H_rownnz.data(), hd.H_rowadr.data(), hd.H_colind.data(), d);
+
+  // prepare update vectors: pick kNumUpdateVectors rows from J (constraint
+  // rows) Each J row has DoF indices which is correct for updating L (nv x nv)
+  int nefc = d->nefc;
+  std::vector<std::vector<mjtNum>> update_vecs(kNumUpdateVectors);
+  std::vector<std::vector<int>> update_inds(kNumUpdateVectors);
+  for (int k = 0; k < kNumUpdateVectors; k++) {
+    int row = (k * 7) % nefc;
+    int nnz = d->efc_J_rownnz[row];
+    int adr = d->efc_J_rowadr[row];
+    update_vecs[k].resize(nnz);
+    update_inds[k].resize(nnz);
+    for (int i = 0; i < nnz; i++) {
+      update_vecs[k][i] = d->efc_J[adr + i] * 0.01;
+      update_inds[k][i] = d->efc_J_colind[adr + i];
+    }
+  }
+
+  int vec_idx = 0;
+  for (auto s : state) {
+    int nnz = update_inds[vec_idx].size();
+    mju_cholUpdateSparse(L_work.data(), update_vecs[vec_idx].data(), nv, 1,
+                         hd.L_rownnz.data(), hd.L_rowadr.data(),
+                         L_colind_work.data(), nnz, update_inds[vec_idx].data(),
+                         d);
+    vec_idx = (vec_idx + 1) % kNumUpdateVectors;
+  }
+
+  mj_deleteData(d);
+  state.SetItemsProcessed(state.iterations());
+}
+
+void BM_update_old_L(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_update_old<Size::L>(state);
+}
+BENCHMARK(BM_update_old_L);
+
+void BM_update_new_L(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_update_new<Size::L>(state);
+}
+BENCHMARK(BM_update_new_L);
+
+void BM_update_old_XL(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_update_old<Size::XL>(state);
+}
+BENCHMARK(BM_update_old_XL);
+
+void BM_update_new_XL(benchmark::State& state) {
+  MujocoErrorTestGuard guard;
+  BM_update_new<Size::XL>(state);
+}
+BENCHMARK(BM_update_new_XL);
 
 }  // namespace
 }  // namespace mujoco

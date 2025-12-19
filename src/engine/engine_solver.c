@@ -1685,8 +1685,6 @@ static void HessianCone(mjData* d, mjCGContext* ctx) {
 
   // storage for L'*J
   mjtNum* LTJ = mjSTACKALLOC(d, 6*nv, mjtNum);
-  mjtNum* LTJ_row = mjSTACKALLOC(d, nv, mjtNum);
-  int* LTJ_ind = mjSTACKALLOC(d, nv, int);
 
   // add contributions
   for (int i=0; i < nefc; i++) {
@@ -1713,13 +1711,9 @@ static void HessianCone(mjData* d, mjCGContext* ctx) {
 
         // update
         for (int r=0; r < dim; r++) {
-          // copy data for this row
-          mju_copy(LTJ_row, LTJ+r*nnz, nnz);
-          mju_copyInt(LTJ_ind, ctx->J_colind+ctx->J_rowadr[i+r], nnz);
-
-          // update
-          mju_cholUpdateSparse(ctx->Lcone, LTJ_row, nv, 1,
-                               ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz, LTJ_ind, d);
+          mju_cholUpdateSparse(ctx->Lcone, LTJ+r*nnz, nv, 1,
+                               ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz,
+                               ctx->J_colind+ctx->J_rowadr[i+r], d);
         }
       }
 
@@ -1758,7 +1752,6 @@ static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate)
 
   // local space
   mjtNum* vec = mjSTACKALLOC(d, nv, mjtNum);
-  int* vec_ind = mjSTACKALLOC(d, nv, int);
 
   // clear update counter
   ctx->nupdate = 0;
@@ -1784,14 +1777,13 @@ static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate)
         // get nnz and adr of row i
         const int nnz = ctx->J_rownnz[i], adr = ctx->J_rowadr[i];
 
-        // scale vec, copy colind
+        // scale vec
         mju_scl(vec, ctx->J+adr, mju_sqrt(ctx->efc_D[i]), nnz);
-        mju_copyInt(vec_ind, ctx->J_colind+adr, nnz);
 
         // sparse update or downdate
         rank = mju_cholUpdateSparse(ctx->L, vec, nv, flag_update,
-                                    ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz, vec_ind,
-                                    d);
+                                    ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz,
+                                    ctx->J_colind+adr, d);
       } else {
         mju_scl(vec, ctx->J+i*nv, mju_sqrt(ctx->efc_D[i]), nv);
         rank = mju_cholUpdate(ctx->L, vec, nv, flag_update);

@@ -415,43 +415,62 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
 // sparse reverse-order Cholesky rank-one update: L'*L +/- x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
-int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         const int* rownnz, const int* rowadr, const int* colind,
-                         int x_nnz, int* x_ind,
+int mju_cholUpdateSparse(mjtNum* restrict mat, const mjtNum* restrict x, int n, int flg_plus,
+                         const int* restrict rownnz, const int* restrict rowadr,
+                         const int* restrict colind, int x_nnz, const int* restrict x_ind,
                          mjData* d) {
+  // early return if x is empty
+  if (x_nnz == 0) {
+    return n;
+  }
+
+  // get starting row: last non-zero entry in x
+  int start = x_ind[x_nnz - 1];
+
+  // allocate dense accumulator for x
   mj_markStack(d);
-  int* buf_ind = mjSTACKALLOC(d, n, int);
-  mjtNum* sparse_buf = mjSTACKALLOC(d, n, mjtNum);
+  mjtNum* restrict dense = mjSTACKALLOC(d, start + 1, mjtNum);
+  mju_zero(dense, start + 1);
 
-  // backpass over rows corresponding to non-zero x(r)
-  int rank = n, i = x_nnz - 1;
-  while (i >= 0) {
-    // get rownnz and rowadr for this row
-    int nnz = rownnz[x_ind[i]], adr = rowadr[x_ind[i]];
+  // scatter x into dense
+  mju_scatter(dense, x, x_ind, x_nnz);
 
-    // compute quantities
-    mjtNum tmp = mat[adr+nnz-1]*mat[adr+nnz-1] + (flg_plus ? x[i]*x[i] : -x[i]*x[i]);
+  // backpass over rows from start down to 0
+  int rank = n;
+  for (int row = start; row >= 0; row--) {
+    // skip if zero
+    if (dense[row] == 0) continue;
+
+    // get rownnz (excluding diagonal), rowadr
+    int nnz = rownnz[row] - 1;
+    int adr = rowadr[row];
+
+    // update diagonal, handle rank-deficient case
+    mjtNum diag = mat[adr + nnz];
+    mjtNum x_row = dense[row];
+    mjtNum tmp = diag*diag + (flg_plus ? x_row*x_row : -x_row*x_row);
     if (tmp < mjMINVAL) {
       tmp = mjMINVAL;
       rank--;
     }
     mjtNum r = mju_sqrt(tmp);
-    mjtNum c = r / mat[adr+nnz-1];
-    mjtNum s = x[i] / mat[adr+nnz-1];
+    mat[adr + nnz] = r;
 
-    // update diagonal
-    mat[adr+nnz-1] = r;
+    // compute Givens rotation parameters https://en.wikipedia.org/wiki/Givens_rotation
+    mjtNum c = diag / r;
+    mjtNum s = -x_row / r;
+    mjtNum s_signed = flg_plus ? -s : s;
 
-    // update row:  mat(r,1:r-1) = (mat(r,1:r-1) + s*x(1:r-1)) / c
-    mju_combineSparseInc(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
-                         nnz-1, i, colind + adr, x_ind);
+    // update row
+    for (int i = 0; i < nnz; i++) {
+      int j = colind[adr + i];
+      mjtNum dense_j = dense[j];
+      mjtNum mat_val = mat[adr + i];
 
-    // update x:  x(1:r-1) = c*x(1:r-1) - s*mat(r,1:r-1)
-    int new_x_nnz = mju_combineSparse(x, mat+adr, c, -s, i, nnz-1, x_ind,
-                                      colind+adr, sparse_buf, buf_ind);
-
-    // update i, correct for changing x
-    i = i - 1 + (new_x_nnz - i);
+      // update mat and dense using the Givens rotation
+      mat[adr + i] = c*mat_val + s_signed*dense_j;
+      dense[j]     = s*mat_val + c*dense_j;
+    }
   }
 
   mj_freeStack(d);
