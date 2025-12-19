@@ -1558,15 +1558,13 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
                         HT_rownnz, HT_rowadr, HT_colind, NULL,
                         ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind);
 
-    // count total and row non-zeros of reverse-Cholesky factor L
-    ctx->nL = mju_cholFactorCount(ctx->L_rownnz, HT_rownnz, HT_rowadr, HT_colind, nv, d);
+    // count total and row non-zeros of reverse-Cholesky factors L and LT
+    int* LT_rownnz_temp = mjSTACKALLOC(d, nv, int);
+    int* LT_rowadr_temp = mjSTACKALLOC(d, nv, int);
+    ctx->nL = mju_cholFactorSymbolic(NULL, ctx->L_rownnz, ctx->L_rowadr, NULL,
+                                     LT_rownnz_temp, LT_rowadr_temp, NULL,
+                                     HT_rownnz, HT_rowadr, HT_colind, nv, d);
     mj_freeStack(d);
-
-    // compute L row addresses: rowadr = cumsum(rownnz)
-    ctx->L_rowadr[0] = 0;
-    for (int r=1; r < nv; r++) {
-      ctx->L_rowadr[r] = ctx->L_rowadr[r-1] + ctx->L_rownnz[r-1];
-    }
 
     // allocate L_colind, L, Lcone
     ctx->L_colind = mjSTACKALLOC(d, ctx->nL, int);
