@@ -13,7 +13,7 @@
   </asset>
 
   <default>
-    <camera orthographic="true"/>
+    <camera projection="orthographic"/>
   </default>
 
   <worldbody>
@@ -26,9 +26,9 @@
     </body>
 
     <!-- box should pefectly fit within field-of-view -->
-    <camera name="fovy = 1" pos=".5 .5 2" orthographic="true" fovy="1"/>
+    <camera name="fovy = 1" pos=".5 .5 2" projection="orthographic" fovy="1"/>
 
     <!-- 2 floor squares should pefectly fit within field-of-view -->
-    <camera name="fovy = 2" pos="0 0 2" fovy="2"/>   <!-- inherits orthographic="true" from defaults -->
+    <camera name="fovy = 2" pos="0 0 2" fovy="2"/>   <!-- inherits projection="orthographic" from defaults -->
   </worldbody>
 </mujoco>

@@ -171,7 +171,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "type", "group", "pos", "quat", "material",
             "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "?", "orthographic", "fovy", "ipd", "resolution", "pos", "quat",
+        {"camera", "?", "projection", "fovy", "ipd", "resolution", "pos", "quat",
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "focal", "focalpixel",
             "principal", "principalpixel", "sensorsize", "user"},
         {"light", "?", "pos", "dir", "bulbradius", "intensity", "range",
@@ -285,7 +285,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"attach", "*", "model", "body", "prefix"},
         {"site", "*",  "name", "class", "type", "group", "pos", "quat",
             "material", "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "*", "name", "class", "orthographic", "fovy", "ipd", "resolution", "pos",
+        {"camera", "*", "name", "class", "projection", "fovy", "ipd", "resolution", "pos",
             "quat", "axisangle", "xyaxes", "zaxis", "euler", "mode", "target",
             "focal", "focalpixel", "principal", "principalpixel", "sensorsize", "user"},
         {"light", "*", "name", "class", "directional", "type", "castshadow", "active",
@@ -589,6 +589,13 @@ const mjMap geom_map[mjNGEOMTYPES] = {
   {"sdf",           mjGEOM_SDF}
 };
 
+
+// projection type
+const int projection_sz = 2;
+const mjMap projection_map[projection_sz] = {
+  {"perspective",   mjPROJ_PERSPECTIVE},
+  {"orthographic",  mjPROJ_ORTHOGRAPHIC}
+};
 
 // camlight type
 const int camlight_sz = 5;
@@ -1926,8 +1933,8 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* camera) {
   ReadAlternative(elem, camera->alt);
   ReadAttr(elem, "ipd", 1, &camera->ipd, text);
 
-  if (MapValue(elem, "orthographic", &n, bool_map, 2)) {
-    camera->orthographic = (n == 1);
+  if (MapValue(elem, "projection", &n, projection_map, 2)) {
+    camera->proj = (mjtProjection)n;
   }
 
   bool has_principal = ReadAttr(elem, "principalpixel", 2, camera->principal_pixel, text) ||

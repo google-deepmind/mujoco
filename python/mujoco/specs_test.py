@@ -295,8 +295,10 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(site.info, 'info')
 
     # Add camera.
-    cam = body.add_camera(orthographic=1, resolution=[10, 20])
-    self.assertEqual(cam.orthographic, 1)
+    cam = body.add_camera(
+        proj=mujoco.mjtProjection.mjPROJ_ORTHOGRAPHIC, resolution=[10, 20]
+    )
+    self.assertEqual(cam.proj, 1)
     np.testing.assert_array_equal(cam.resolution, [10, 20])
 
     # Add frame.

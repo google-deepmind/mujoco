@@ -522,7 +522,7 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
     if (cid < 0 || cid >= m->ncam) {
       mjERROR("fixed camera id is outside valid range");
     }
-    orthographic = m->cam_orthographic[cid];
+    orthographic = m->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
     fovy = m->cam_fovy[cid];
 
     // if positive sensorsize, get sensorsize and intrinsic
@@ -2763,7 +2763,7 @@ void mjv_updateCamera(const mjModel* m, const mjData* d, mjvCamera* cam, mjvScen
       mjERROR("fixed camera id is outside valid range");
     }
     ipd = m->cam_ipd[cid];
-    orthographic = m->cam_orthographic[cid];
+    orthographic = m->cam_projection[cid] == mjPROJ_ORTHOGRAPHIC;
     break;
 
   default:

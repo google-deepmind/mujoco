@@ -101,6 +101,15 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjGEOM_NONE', 1001),
          ]),
      )),
+    ('mjtProjection',
+     EnumDecl(
+         name='mjtProjection',
+         declname='enum mjtProjection_',
+         values=dict([
+             ('mjPROJ_PERSPECTIVE', 0),
+             ('mjPROJ_ORTHOGRAPHIC', 1),
+         ]),
+     )),
     ('mjtCamLight',
      EnumDecl(
          name='mjtCamLight',

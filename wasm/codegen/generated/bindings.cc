@@ -3129,11 +3129,11 @@ struct MjsCamera {
       *(ptr_->targetbody) = value;
     }
   }
-  int orthographic() const {
-    return ptr_->orthographic;
+  mjtProjection proj() const {
+    return ptr_->proj;
   }
-  void set_orthographic(int value) {
-    ptr_->orthographic = value;
+  void set_proj(mjtProjection value) {
+    ptr_->proj = value;
   }
   double fovy() const {
     return ptr_->fovy;
@@ -4162,8 +4162,8 @@ struct MjModel {
   emscripten::val cam_mat0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * 9, ptr_->cam_mat0));
   }
-  emscripten::val cam_orthographic() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_orthographic));
+  emscripten::val cam_projection() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_projection));
   }
   emscripten::val cam_fovy() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_fovy));
@@ -10503,6 +10503,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjPLUGIN_SENSOR", mjPLUGIN_SENSOR)
     .value("mjPLUGIN_PASSIVE", mjPLUGIN_PASSIVE)
     .value("mjPLUGIN_SDF", mjPLUGIN_SDF);
+  enum_<mjtProjection>("mjtProjection")
+    .value("mjPROJ_PERSPECTIVE", mjPROJ_PERSPECTIVE)
+    .value("mjPROJ_ORTHOGRAPHIC", mjPROJ_ORTHOGRAPHIC);
   enum_<mjtRndFlag>("mjtRndFlag")
     .value("mjRND_SHADOW", mjRND_SHADOW)
     .value("mjRND_WIREFRAME", mjRND_WIREFRAME)
@@ -11032,10 +11035,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("cam_ipd", &MjModel::cam_ipd)
     .property("cam_mat0", &MjModel::cam_mat0)
     .property("cam_mode", &MjModel::cam_mode)
-    .property("cam_orthographic", &MjModel::cam_orthographic)
     .property("cam_pos", &MjModel::cam_pos)
     .property("cam_pos0", &MjModel::cam_pos0)
     .property("cam_poscom0", &MjModel::cam_poscom0)
+    .property("cam_projection", &MjModel::cam_projection)
     .property("cam_quat", &MjModel::cam_quat)
     .property("cam_resolution", &MjModel::cam_resolution)
     .property("cam_sensorsize", &MjModel::cam_sensorsize)
@@ -11733,10 +11736,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("intrinsic", &MjsCamera::intrinsic)
     .property("ipd", &MjsCamera::ipd, &MjsCamera::set_ipd, reference())
     .property("mode", &MjsCamera::mode, &MjsCamera::set_mode, reference())
-    .property("orthographic", &MjsCamera::orthographic, &MjsCamera::set_orthographic, reference())
     .property("pos", &MjsCamera::pos)
     .property("principal_length", &MjsCamera::principal_length)
     .property("principal_pixel", &MjsCamera::principal_pixel)
+    .property("proj", &MjsCamera::proj, &MjsCamera::set_proj, reference())
     .property("quat", &MjsCamera::quat)
     .property("resolution", &MjsCamera::resolution)
     .property("sensor_size", &MjsCamera::sensor_size)

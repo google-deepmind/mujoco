@@ -2961,11 +2961,11 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    When the camera mode is "targetbody" or "targetbodycom", this attribute becomes required. It specifies which body
    should be targeted by the camera. In all other modes this attribute is ignored.
 
-.. _body-camera-orthographic:
+.. _body-camera-projection:
 
-:at:`orthographic`: :at-val:`[false, true], "false"`
-   Whether the camera uses a perspective projection (the default) or an orthographic projection. Setting this attribute
-   changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
+:at:`projection`: :at-val:`[perspective, orthographic], "perspective"`
+   Whether the camera uses a perspective (the default) or orthographic projection. Setting this
+   attribute to "orthographic" changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
 
 .. _body-camera-fovy:
 
@@ -8666,7 +8666,7 @@ if omitted.
 | This element sets the attributes of the dummy :ref:`site <body-site>` element of the defaults class.
 | All site attributes are available here except: name, class.
 
-.. _default-camera-orthographic:
+.. _default-camera-projection:
 
 .. _default-camera-fovy:
 

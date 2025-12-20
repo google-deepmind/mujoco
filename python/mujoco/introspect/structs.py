@@ -2244,11 +2244,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ncam', 9),
              ),
              StructFieldDecl(
-                 name='cam_orthographic',
+                 name='cam_projection',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='orthographic camera; 0: no, 1: yes',
+                 doc='projection type (mjtProjection)',
                  array_extent=('ncam',),
              ),
              StructFieldDecl(
@@ -7566,9 +7566,9 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='target body for tracking/targeting',
              ),
              StructFieldDecl(
-                 name='orthographic',
-                 type=ValueType(name='int'),
-                 doc='is camera orthographic',
+                 name='proj',
+                 type=ValueType(name='mjtProjection'),
+                 doc='camera projection type',
              ),
              StructFieldDecl(
                  name='fovy',

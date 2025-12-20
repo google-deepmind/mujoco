@@ -5,6 +5,17 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The ``mjModel.cam_orthographic`` field has been renamed to ``cam_projection``, with the semantic of a new enum type
+     :ref:`mjtProjection`. This will allow for more projection types in the future like fisheye cameras.
+     Relatedly, the ``camera/orthographic`` MJCF attribute for cameras has been renamed to
+     :ref:`camera/projection<body-camera-projection>` and now accepts the values ``orthographic`` and ``perspective``.
+
+     **Migration:** Replace ``orthographic = "false/true"`` with ``projection="perspective/orthographic"``,
+     respectively.
+
 General
 ^^^^^^^
 - Non-breaking ABI changes:
@@ -793,7 +804,7 @@ General
    :width: 240px
 
 8. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
-   :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
+   ``camera/orthographic`` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
 9. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
 10. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.

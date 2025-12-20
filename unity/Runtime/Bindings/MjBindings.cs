@@ -221,6 +221,10 @@ public enum mjtGeom : int{
   mjGEOM_TRIANGLE = 108,
   mjGEOM_NONE = 1001,
 }
+public enum mjtProjection : int{
+  mjPROJ_PERSPECTIVE = 0,
+  mjPROJ_ORTHOGRAPHIC = 1,
+}
 public enum mjtCamLight : int{
   mjCAMLIGHT_FIXED = 0,
   mjCAMLIGHT_TRACK = 1,
@@ -5474,7 +5478,7 @@ public unsafe struct mjModel_ {
   public double* cam_poscom0;
   public double* cam_pos0;
   public double* cam_mat0;
-  public int* cam_orthographic;
+  public int* cam_projection;
   public double* cam_fovy;
   public double* cam_ipd;
   public int* cam_resolution;
