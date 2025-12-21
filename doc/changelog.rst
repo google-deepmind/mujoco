@@ -29,6 +29,14 @@ MJX
 ^^^
 - Added ``actuator_length``, ``cdof`` and ``cdof_dof`` fields to ``mjx.Data``.
 
+
+Documentation
+^^^^^^^^^^^^^
+- General improvements to the :ref:`Programming/Simulation<Simulation>` chapter. Notably, the main discussion of
+  :ref:`state<siStateControl>` has been moved there, and the section on :ref:`mjModel changes<siChange>` has been
+  expanded.
+
+
 Bug fixes
 ^^^^^^^^^
 
@@ -1081,8 +1089,8 @@ Python bindings
 12. Improved the implementation of the :ref:`rollout<PyRollout>` module. Note the changes below are breaking, dependent
     code will require modification.
 
-    - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
-    - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
+    - Uses :ref:`mjSTATE_FULLPHYSICS<siFullPhysics>` as state spec, enabling divergence detection by inspecting time.
+    - Allows user-defined control spec for any combination of :ref:`user input<siInput>` fields as controls.
     - Outputs are no longer squeezed and always have dim=3.
 13. The ``sync`` function for the :ref:`passive viewer<PyViewerPassive>` can now pick up changes to rendering flags in
     ``user_scn``, as requested in :issue:`1190`.
