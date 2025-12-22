@@ -18,6 +18,8 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+- Camera frustum visualization is now triggered by setting :ref:`resolution<body-camera-resolution>` to values larger
+  than 1. Relatedly, frustum visualization also works for :ref:`orthographic<body-camera-projection>` cameras.
 - Non-breaking ABI changes:
 
   - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from

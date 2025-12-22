@@ -539,21 +539,13 @@ void mjv_cameraFrustum(float zver[2], float zhor[2], float zclip[2], const mjMod
   const float znear = m->vis.map.znear * m->stat.extent;
 
   if (orthographic) {
-    if (zver) {
-      zver[0] = zver[1] = fovy / 2;
-    }
-    if (zhor) {
-      zhor[0] = zhor[1] = 0.0f;
-    }
+    if (zver) zver[0] = zver[1] = fovy / 2;
+    if (zhor) zhor[0] = zhor[1] = 0.0f;
   } else if (intrinsic) {
     getFrustum(zver, zhor, znear, intrinsic, sensorsize);
   } else {
-    if (zver) {
-      zver[0] = zver[1] = znear * mju_tan(fovy * mjPI/360.0);
-    }
-    if (zhor) {
-      zhor[0] = zhor[1] = 0.0f;
-    }
+    if (zver) zver[0] = zver[1] = znear * mju_tan(fovy * mjPI/360.0);
+    if (zhor) zhor[0] = zhor[1] = 0.0f;
   }
 
   if (zclip) {
@@ -2232,8 +2224,8 @@ static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, m
     float cam_rgba[4];
     f2f(cam_rgba, m->vis.rgba.camera, 4);
 
-    // draw frustum if sensorsize is defined
-    if (m->cam_sensorsize[2*i+1] > 0) {
+    // draw frustum if resolution larger than (1, 1)
+    if (m->cam_resolution[2*i] > 1 || m->cam_resolution[2*i+1] > 1) {
       // when drawing frustum, make camera translucent
       cam_rgba[3] = 0.3;
 
@@ -2244,9 +2236,22 @@ static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, m
       mjtNum znear = m->vis.map.znear * m->stat.extent;
       mjtNum zfar = m->vis.scale.frustum * scl;
       float zver[2], zhor[2];
+      int orthographic = m->cam_projection[i] == mjPROJ_ORTHOGRAPHIC;
 
       // get frustum
-      getFrustum(zver, zhor, znear, m->cam_intrinsic + 4*i, m->cam_sensorsize + 2*i);
+      if (orthographic) {
+        float aspect = (float)m->cam_resolution[2*i] / m->cam_resolution[2*i+1];
+        zver[0] = zver[1] = m->cam_fovy[i] / 2;
+        zhor[0] = zhor[1] = m->cam_fovy[i] * aspect / 2;
+      } else if (m->cam_sensorsize[2*i] && m->cam_sensorsize[2*i+1]) {
+        // intrinsic-based perspective camera
+        getFrustum(zver, zhor, znear, m->cam_intrinsic+4*i, m->cam_sensorsize+2*i);
+      } else {
+        // fovy-based perspective camera
+        float aspect = (float)m->cam_resolution[2*i] / m->cam_resolution[2*i+1];
+        zver[0] = zver[1] = znear * mju_tan(m->cam_fovy[i] * mjPI / 360.0);
+        zhor[0] = zhor[1] = zver[0] * aspect;
+      }
 
       // frustum frame to convert from planes to vertex representation
       mjtNum* cam_xpos = d->cam_xpos+3*i;
@@ -2266,11 +2271,15 @@ static void addCameraGeoms(const mjModel* m, mjData* d, const mjvOption* vopt, m
       mju_addToScl3(vnear[2], y,  zver[1]);
       mju_addToScl3(vnear[3], y,  zver[1]);
 
-      // vertices of the far plane
-      zhor[0] *= zfar / znear;
-      zhor[1] *= zfar / znear;
-      zver[0] *= zfar / znear;
-      zver[1] *= zfar / znear;
+      // vertices of the far plane: scale for perspective, average(width, height) for orthographic
+      if (!orthographic) {
+        zhor[0] *= zfar / znear;
+        zhor[1] *= zfar / znear;
+        zver[0] *= zfar / znear;
+        zver[1] *= zfar / znear;
+      } else {
+        zfar = (zhor[0] + zver[0]) / 2;
+      }
       mju_addScl3(center, cam_xpos, z, -zfar);
       mju_addScl3(vfar[0], center, x, -zhor[0]);
       mju_addScl3(vfar[1], center, x,  zhor[1]);
