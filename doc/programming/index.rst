@@ -82,7 +82,7 @@ working development environment. We provide a cross-platform `CMake
 <https://github.com/google-deepmind/mujoco/blob/main/sample/CMakeLists.txt>`__ setup that can be used to build sample
 applications independently of the MuJoCo library itself.
 
-On MacOS, you can also drag ``MuJoCo.app`` into the ``/Application`` on your system, as you would to install any other app. As well as the
+On MacOS, you can also drag ``MuJoCo.app`` into the ``/Applications`` on your system, as you would to install any other app. As well as the
 ``MuJoCo.app``, the DMG includes the ``mujoco.framework`` subdirectory containing the MuJoCo dynamic library and all of
 its public headers. If you are using Xcode, you can import it as a framework dependency on your project. (This also
 works for Swift projects without any modification). If you are building manually, you can use ``-F`` and
