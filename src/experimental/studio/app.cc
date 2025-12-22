@@ -605,9 +605,9 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F9)) {
     tmp_.chart_solver = !tmp_.chart_solver;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F10)) {
-    tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
+    tmp_.chart_performance = !tmp_.chart_performance;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
-    tmp_.chart_dimensions = !tmp_.chart_dimensions;
+    tmp_.full_screen = !tmp_.full_screen;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
     ToggleFlag(vis_options_.flags[mjVIS_CONVEXHULL]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_X)) {
@@ -773,11 +773,15 @@ void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
 }
 
 void App::BuildGui() {
+  if (tmp_.full_screen) {
+    return;
+  }
+
   SetupTheme(ui_.theme);
   const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
 
   // Place charts in bottom right corner of the workspace.
-  const ImVec2 chart_size(250, 250);
+  const ImVec2 chart_size(250, 500);
   const ImVec2 chart_pos(workspace_rect.x + workspace_rect.z - chart_size.x,
                          workspace_rect.y + workspace_rect.w - chart_size.y);
 
@@ -827,19 +831,11 @@ void App::BuildGui() {
     }
   }
 
-  if (tmp_.chart_cpu_time) {
+  if (tmp_.chart_performance) {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Cpu Time", &tmp_.chart_cpu_time)) {
+    if (ImGui::Begin("Performance", &tmp_.chart_performance)) {
       profiler_.CpuTimeGraph();
-    }
-    ImGui::End();
-  }
-
-  if (tmp_.chart_dimensions) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Dimensions", &tmp_.chart_dimensions)) {
       profiler_.DimensionsGraph();
     }
     ImGui::End();
@@ -1145,10 +1141,14 @@ void App::HelpGui() {
   ImGui::Text("Stats");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
+  ImGui::Text("Solver Charts");
+  ImGui::Text("Perf. Charts");
+  ImGui::Text("Toggle Fullscreen");
   ImGui::Text("Free Camera");
   ImGui::Text("Toggle Pause");
   ImGui::Text("Reset Sim");
-  ImGui::Text("Show/Hide UI");
+  ImGui::Text("Toggle Left UI");
+  ImGui::Text("Toggle Right UI");
   ImGui::Text("Speed Up");
   ImGui::Text("Speed Down");
   ImGui::Text("Prev Camera");
@@ -1166,10 +1166,14 @@ void App::HelpGui() {
   ImGui::Text("F2");
   ImGui::Text("F6");
   ImGui::Text("F7");
+  ImGui::Text("F9");
+  ImGui::Text("F10");
+  ImGui::Text("F11");
   ImGui::Text("Esc");
   ImGui::Text("Spc");
   ImGui::Text("Bksp");
   ImGui::Text("Tab");
+  ImGui::Text("Sh+Tab");
   ImGui::Text("=");
   ImGui::Text("-");
   ImGui::Text("[");
@@ -1560,17 +1564,17 @@ void App::MainMenuGui() {
               "Shift+Tab")) {
         tmp_.inspector_panel = !tmp_.inspector_panel;
       }
+      if (ImGui::MenuItem("Full Screen", "F11")) {
+        tmp_.full_screen = !tmp_.full_screen;
+      }
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Charts")) {
       if (ImGui::MenuItem("Solver", "F9")) {
         tmp_.chart_solver = !tmp_.chart_solver;
       }
-      if (ImGui::MenuItem("CPU Time", "F10")) {
-        tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
-      }
-      if (ImGui::MenuItem("Dimensions", "F11")) {
-        tmp_.chart_dimensions = !tmp_.chart_dimensions;
+      if (ImGui::MenuItem("Performance", "F10")) {
+        tmp_.chart_performance = !tmp_.chart_performance;
       }
       ImGui::EndMenu();
     }
