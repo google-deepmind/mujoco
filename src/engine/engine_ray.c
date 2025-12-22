@@ -955,14 +955,6 @@ static mjtNum mj_raySdfNormal(const mjModel* m, const mjData* d, int g,
   return -1;
 }
 
-
-// intersect ray with signed distance field
-static mjtNum ray_sdf(const mjModel* m, const mjData* d, int g,
-                      const mjtNum pnt[3], const mjtNum vec[3]) {
-  return mj_raySdfNormal(m, d, g, pnt, vec, NULL);
-}
-
-
 // intersect ray with mesh, compute normal if given
 static mjtNum mj_rayMeshNormal(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3],
                                const mjtNum vec[3], mjtNum normal[3]) {
@@ -1488,14 +1480,18 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
 }
 
 
-// Performs single ray intersection
+// Performs single ray intersection, compute normal if given
 static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
-                            int* ray_eliminate, mjtNum* geom_ba, int geomid[1]) {
+                            int* ray_eliminate, mjtNum* geom_ba, int geomid[1],
+                            mjtNum normal[3]) {
   mjtNum dist, newdist;
+  mjtNum normal_local[3];
+  mjtNum* p_normal = normal ? normal_local : NULL;
 
   // clear result
   dist = -1;
   *geomid = -1;
+  if (normal) mju_zero3(normal);
 
   // get ray spherical coordinates
   mjtNum azimuth = longitude(vec);
@@ -1530,25 +1526,24 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
         }
       }
 
-      // handle mesh and hfield separately
-      if (m->geom_type[i] == mjGEOM_MESH) {
-        newdist = mj_rayMesh(m, d, i, pnt, vec);
-      } else if (m->geom_type[i] == mjGEOM_HFIELD) {
-        newdist = mj_rayHfield(m, d, i, pnt, vec);
-      } else if (m->geom_type[i] == mjGEOM_SDF) {
-        newdist = ray_sdf(m, d, i, pnt, vec);
-      }
-
-      // otherwise general dispatch
-      else {
-        newdist = mju_rayGeom(d->geom_xpos+3*i, d->geom_xmat+9*i,
-                              m->geom_size+3*i, pnt, vec, m->geom_type[i]);
+      // dispatch to type-specific ray function
+      int type = m->geom_type[i];
+      if (type == mjGEOM_MESH) {
+        newdist = mj_rayMeshNormal(m, d, i, pnt, vec, p_normal);
+      } else if (type == mjGEOM_HFIELD) {
+        newdist = mj_rayHfieldNormal(m, d, i, pnt, vec, p_normal);
+      } else if (type == mjGEOM_SDF) {
+        newdist = mj_raySdfNormal(m, d, i, pnt, vec, p_normal);
+      } else {
+        newdist = mju_rayGeomNormal(d->geom_xpos+3*i, d->geom_xmat+9*i,
+                                    m->geom_size+3*i, pnt, vec, type, p_normal);
       }
 
       // update if closer intersection found
       if (newdist >= 0 && (newdist < dist || dist < 0)) {
         dist = newdist;
         *geomid = i;
+        if (normal) mju_copy3(normal, normal_local);
       }
     }
   }
@@ -1557,10 +1552,10 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 }
 
 
-// performs multiple ray intersections with the precomputed bv and flags
-void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
-                 const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-                 int* geomid, mjtNum* dist, int nray, mjtNum cutoff) {
+// performs multiple ray intersections, compute normals if given
+void mj_multiRayNormal(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                       int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff) {
   mj_markStack(d);
 
   // allocate source
@@ -1576,9 +1571,20 @@ void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum*
     if (mju_dot3(vec+3*i, vec+3*i) < mjMINVAL) {
       dist[i] = -1;
     } else {
-      dist[i] = mju_singleRay(m, d, pnt, vec+3*i, geom_eliminate, geom_ba, geomid+i);
+      dist[i] = mju_singleRay(m, d, pnt, vec+3*i, geom_eliminate, geom_ba, geomid+i,
+                            normal ? normal+3*i : NULL);
     }
   }
 
   mj_freeStack(d);
 }
+
+
+// performs multiple ray intersections with the precomputed bv and flags
+void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+                 const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                 int* geomid, mjtNum* dist, int nray, mjtNum cutoff) {
+  mj_multiRayNormal(m, d, pnt, vec, geomgroup, flg_static, bodyexclude,
+                    geomid, dist, NULL, nray, cutoff);
+}
+

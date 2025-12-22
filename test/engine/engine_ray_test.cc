@@ -187,8 +187,8 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
   constexpr int N = 80;
   constexpr int M = 60;
   mjtNum vec[3*N*M];
-  mjtNum pnt[3] = {1, 2, 3};
-  mjtNum cone[4][3] = {{1, 1, -1}, {1, 1, 1}, {1, -1, -1}, {1, -1, 1}};
+  mjtNum pnt[3] = {-1, 0, 0};
+  mjtNum cone[4][3] = {{1, .2, -.2}, {1, .2, .2}, {1, -.2, -.2}, {1, -.2, .2}};
   memset(vec, 0, 3*N*M*sizeof(mjtNum));
 
   for (int i = 0; i < N; ++i) {
@@ -211,15 +211,75 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
   // compare results with single ray function
   mjtNum dist;
   int rgeomid;
-
+  int nhits = 0;
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < M; ++j) {
       int idx = i * M + j;
       dist = mj_ray(m, d, pnt, vec + 3 * idx, NULL, 1, -1, &rgeomid);
       EXPECT_FLOAT_EQ(dist, dist_multiray[idx]);
       EXPECT_EQ(rgeomid, rgeomid_multiray[idx]);
+      nhits += dist >= 0;
     }
   }
+  EXPECT_GT(nhits, 10);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(RayTest, MultiRayNormalEqualsSingleRayNormal) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kRayCastingModel, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_forward(m, d);
+
+  // create ray array
+  constexpr int N = 80;
+  constexpr int M = 60;
+  mjtNum vec[3*N*M];
+  mjtNum pnt[3] = {-1, 0, 0};
+  mjtNum cone[4][3] = {{1, .2, -.2}, {1, .2, .2}, {1, -.2, -.2}, {1, -.2, .2}};
+  memset(vec, 0, 3*N*M*sizeof(mjtNum));
+
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < M; ++j) {
+      for (int k = 0; k < 3; ++k) {
+        vec[3 * (i * M + j) + k] =           i * cone[0][k] / (N - 1) +
+                                             j * cone[1][1] / (M - 1) +
+                                   (N - i - 1) * cone[2][k] / (N - 1) +
+                                   (M - j - 1) * cone[3][k] / (M - 1);
+      }
+    }
+  }
+
+  // compute intersections with multiray normal function
+  mjtNum dist_multiray[N*M];
+  int rgeomid_multiray[N*M];
+  mjtNum normal_multiray[3*N*M];
+  mj_multiRayNormal(m, d, pnt, vec, NULL, 1, -1, rgeomid_multiray,
+                    dist_multiray, normal_multiray, N * M, mjMAXVAL);
+
+  // compare results with single ray normal function
+  mjtNum dist;
+  int rgeomid;
+  mjtNum normal[3];
+  int nhits = 0;
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < M; ++j) {
+      int idx = i * M + j;
+      dist = mj_rayNormal(m, d, pnt, vec + 3 * idx, NULL, 1, -1, &rgeomid,
+                          normal);
+      EXPECT_FLOAT_EQ(dist, dist_multiray[idx]);
+      EXPECT_EQ(rgeomid, rgeomid_multiray[idx]);
+      EXPECT_FLOAT_EQ(normal[0], normal_multiray[3*idx]);
+      EXPECT_FLOAT_EQ(normal[1], normal_multiray[3*idx + 1]);
+      EXPECT_FLOAT_EQ(normal[2], normal_multiray[3*idx + 2]);
+      nhits += dist >= 0;
+    }
+  }
+  EXPECT_GT(nhits, 10);
 
   mj_deleteData(d);
   mj_deleteModel(m);
