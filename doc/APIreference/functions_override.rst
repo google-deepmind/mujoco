@@ -329,16 +329,14 @@ rays from a single point.
 
 .. _mj_ray:
 
-Intersect ray ``(pnt+x*vec, x >= 0)`` with visible geoms, except geoms in bodyexclude.
+Intersect ray ``pnt+x*vec, x >= 0`` with geoms.
 
-Return geomid and distance (x) to nearest surface, or -1 if no intersection.
-
-geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=NULL to skip
-group exclusion.
-
-If flg_static is 0, static geoms will be excluded.
-
-bodyexclude=-1 can be used to indicate that all bodies are included.
+- Return distance ``x`` to nearest surface, or -1 if no intersection.
+- If ``geomid`` is not NULL, write the id of the intersected geom or -1 if not intersection.
+- Exclude geoms in body with id ``bodyexclude``, use -1 to include all bodies.
+- ``geomgroup`` is an array of length :ref:`mjNGROUP<glNumeric>`, where 1 means the group should be included. Pass
+  NULL to skip geom group exclusion.
+- If ``flg_static`` is 0, static geoms will be excluded.
 
 *Nullable:* ``geomgroup``, ``geomid``
 

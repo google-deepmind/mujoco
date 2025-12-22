@@ -1,0 +1,12 @@
+<mujoco>
+  <include file="ray_swing.xml"/>
+
+  <worldbody>
+    <!-- <body pos="-.5 .002 0" euler="10 50 -40" mocap="true"> -->
+      <flexcomp name="softbox" type="box" count="4 4 4" spacing=".2 .2 .2" scale="1 2 3"
+                radius=".01" dim="3" dof="radial">
+        <edge equality="true"/>
+      </flexcomp>
+    <!-- </body> -->
+  </worldbody>
+</mujoco>

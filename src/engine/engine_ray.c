@@ -890,8 +890,7 @@ mjtNum mju_rayTree(const mjModel* m, const mjData* d, int id, const mjtNum pnt[3
 
 // intersect ray with signed distance field, compute normal if given
 static mjtNum mj_raySdfNormal(const mjModel* m, const mjData* d, int g,
-                              const mjtNum pnt[3], const mjtNum vec[3],
-                              mjtNum normal[3]) {
+                              const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]) {
   if (normal) mju_zero3(normal);
 
   mjtNum distance_total = 0;
@@ -1028,11 +1027,15 @@ mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3
 }
 
 
-// intersect ray with flex, return nearest vertex id
-mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
-                   mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
-                   const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]) {
+// intersect ray with flex, return nearest vertex id, compute normal if given
+mjtNum mju_rayFlexNormal(const mjModel* m, const mjData* d, int flex_layer,
+                         mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
+                         mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                         const mjtNum vec[3], int vertid[1], mjtNum normal[3]) {
   int dim = m->flex_dim[flexid];
+
+  // clear normal if given
+  if (normal) mju_zero3(normal);
 
   // compute bounding box
   mjtNum box[3][2] = {{0, 0}, {0, 0}, {0, 0}};
@@ -1086,6 +1089,7 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
 
   // init solution
   mjtNum x = -1;
+  mjtNum normal_local[3];
 
   // check edges if rendered, or if skin
   if (flg_edge || (dim > 1 && flg_skin)) {
@@ -1106,22 +1110,25 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
       mju_quat2Mat(mat, quat);
 
       // intersect ray with capsule
-      mjtNum sol = mju_rayGeom(pos, mat, size, pnt, vec, mjGEOM_CAPSULE);
+      mjtNum sol = mju_rayGeomNormal(pos, mat, size, pnt, vec, mjGEOM_CAPSULE,
+                                     normal ? normal_local : NULL);
 
       // update
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
+        if (normal) mju_copy3(normal, normal_local);
 
         // construct intersection point
         mjtNum intersect[3];
         mju_addScl3(intersect, pnt, vec, sol);
 
         // find nearest vertex
-        if (mju_dist3(v1, intersect) < mju_dist3(v2, intersect)) {
-          *vertid = m->flex_edge[2*e];
-        }
-        else {
-          *vertid = m->flex_edge[2*e+1];
+        if (vertid) {
+          if (mju_dist3(v1, intersect) < mju_dist3(v2, intersect)) {
+            *vertid = m->flex_edge[2*e];
+          } else {
+            *vertid = m->flex_edge[2*e+1];
+          }
         }
       }
     }
@@ -1137,12 +1144,14 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
       size[0] = radius;
 
       // intersect ray with sphere
-      mjtNum sol = mju_rayGeom(vpos, NULL, size, pnt, vec, mjGEOM_SPHERE);
+      mjtNum sol = mju_rayGeomNormal(vpos, NULL, size, pnt, vec, mjGEOM_SPHERE,
+                                     normal ? normal_local : NULL);
 
       // update
       if (sol >= 0 && (x < 0 || sol < x)) {
         x = sol;
-        *vertid = v;
+        if (normal) mju_copy3(normal, normal_local);
+        if (vertid) *vertid = v;
       }
     }
   }
@@ -1173,11 +1182,12 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
           mju_copy3(v[j], vptr[i][j]);
 
         // intersect ray with triangle
-        mjtNum sol = ray_triangle(v, pnt, vec, b0, b1, NULL);
+        mjtNum sol = ray_triangle(v, pnt, vec, b0, b1, normal ? normal_local : NULL);
 
         // update
         if (sol >= 0 && (x < 0 || sol < x)) {
           x = sol;
+          if (normal) mju_copy3(normal, normal_local);
 
           // construct intersection point
           mjtNum intersect[3];
@@ -1189,12 +1199,14 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
             mju_dist3(v[1], intersect),
             mju_dist3(v[2], intersect)
           };
-          if (dist[0] <= dist[1] && dist[0] <= dist[2]) {
-            *vertid = edata[vid[i][0]];
-          } else if (dist[1] <= dist[2]){
-            *vertid = edata[vid[i][1]];
-          } else {
-            *vertid = edata[vid[i][2]];
+          if (vertid) {
+            if (dist[0] <= dist[1] && dist[0] <= dist[2]) {
+              *vertid = edata[vid[i][0]];
+            } else if (dist[1] <= dist[2]){
+              *vertid = edata[vid[i][1]];
+            } else {
+              *vertid = edata[vid[i][2]];
+            }
           }
         }
       }
@@ -1202,6 +1214,16 @@ mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte fl
   }
 
   return x;
+}
+
+
+// intersect ray with flex, return nearest vertex id
+mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
+                   mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
+                   mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                   const mjtNum vec[3], int vertid[1]) {
+  return mju_rayFlexNormal(m, d, flex_layer, flg_vert, flg_edge, flg_face,
+                           flg_skin, flexid, pnt, vec, vertid, NULL);
 }
 
 
@@ -1282,12 +1304,12 @@ mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
 
       // find nearest vertex
       mjtNum dist = mju_dist3(intersect, v[0]);
-      *vertid = face[3*i];
+      if (vertid) *vertid = face[3*i];
       for (int j=1; j < 3; j++) {
         mjtNum newdist = mju_dist3(intersect, v[j]);
         if (newdist < dist) {
           dist = newdist;
-          *vertid = face[3*i+j];
+          if (vertid) *vertid = face[3*i+j];
         }
       }
     }

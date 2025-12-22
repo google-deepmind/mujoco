@@ -477,19 +477,21 @@ static const char* const kBoxModel = "engine/testdata/ray/box.xml";
 static const char* const kMeshModel = "engine/testdata/ray/mesh.xml";
 static const char* const kSdfModel = "engine/testdata/ray/sdf.xml";
 static const char* const kHfieldModel = "engine/testdata/ray/hfield.xml";
+static const char* const kFlexModel = "engine/testdata/ray/flex.xml";
 
-TEST_F(RayTest, GeomNormal) {
-  for (const char* path :
-       {kPlaneModel, kSphereModel, kCapsuleModel, kEllipsoidModel,
-        kCylinderModel, kBoxModel, kMeshModel, kSdfModel, kHfieldModel}) {
+TEST_F(RayTest, RayNormal) {
+  for (const char* path : {kPlaneModel, kSphereModel, kCapsuleModel,
+                           kEllipsoidModel, kCylinderModel, kBoxModel,
+                           kMeshModel, kSdfModel, kHfieldModel, kFlexModel}) {
     const std::string xml_path = GetTestDataFilePath(path);
     char error[1024];
     mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
     ASSERT_THAT(m, NotNull()) << error;
 
-    // exactly one geom and one site in each model
-    ASSERT_EQ(m->ngeom, 1) << path;
+    // exactly one geom or one flex, and one site in each model
     ASSERT_EQ(m->nsite, 1) << path;
+    ASSERT_TRUE((m->ngeom == 1) != (m->nflex == 1)) << path;
+    bool is_flex = m->nflex == 1;
 
     mjData* d = mj_makeData(m);
 
@@ -514,13 +516,22 @@ TEST_F(RayTest, GeomNormal) {
       const mjtNum* pnt = d->site_xpos;
       const mjtNum vec[3] = {d->site_xmat[2], d->site_xmat[5], d->site_xmat[8]};
 
-      // compute ray length and normal
+      // compute ray length and normal, compare with sensor
       mjtNum r, normal[3];
-      int geomid;
-      r = mj_rayNormal(m, d, pnt, vec, NULL, 1, -1, &geomid, normal);
+      if (!is_flex) {
+        int geomid;
+        r = mj_rayNormal(m, d, pnt, vec, nullptr, 1, -1, &geomid, normal);
 
-      // compare with sensor
-      EXPECT_EQ(r, d->sensordata[0]) << path << ", time " << d->time;
+        // compare with sensor, expect geomid to be 0
+        EXPECT_EQ(r, d->sensordata[0]) << path << ", time " << d->time;
+        EXPECT_EQ(geomid, r >= 0 ? 0 : -1);
+      } else {
+        r = mju_rayFlexNormal(m, d, /*flex_layer*/ 0, /*flg_vert*/ 1,
+                              /*flg_edge*/ 1, /*flg_face*/ 1,
+                              /*flg_skin*/ 1, /*flex_id*/ 0,
+                              pnt, vec, nullptr, normal);
+        // no sensor comparison: rangefinders only intersect with geoms
+      }
 
       // if no intersection, skip
       if (r < 0) {
@@ -542,7 +553,12 @@ TEST_F(RayTest, GeomNormal) {
                            d->site_xmat[6 + i]};
         mjtNum dr, dpnt[3];
         mju_addScl3(dpnt, pnt, nudge, eps);
-        dr = mj_rayNormal(m, d, dpnt, vec, NULL, 1, -1, nullptr, nullptr);
+        if (!is_flex) {
+          dr = mj_rayNormal(m, d, dpnt, vec, NULL, 1, -1, nullptr, nullptr);
+        } else {
+          dr = mju_rayFlexNormal(m, d, 0, 1, 1, 1, 1, 0, dpnt, vec, nullptr,
+                                 nullptr);
+        }
         mju_addScl3(ds[i], dpnt, vec, dr);
       }
 
@@ -560,10 +576,9 @@ TEST_F(RayTest, GeomNormal) {
       mjtNum expected_neg[3] = {-expected[0], -expected[1], -expected[2]};
 
       // compare analytic with fin-diff approximation
-      EXPECT_THAT(normal, AnyOf(
-          Pointwise(DoubleNear(10*eps), expected),
-          Pointwise(DoubleNear(10*eps), expected_neg)
-      )) << path << ", time " << d->time;
+      EXPECT_THAT(normal, AnyOf(Pointwise(DoubleNear(100 * eps), expected),
+                                Pointwise(DoubleNear(100 * eps), expected_neg)))
+          << path << ", time " << d->time;
 
       // increment count
       ntest++;

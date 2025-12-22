@@ -63,6 +63,13 @@ MJAPI mjtNum mj_rayNormal(const mjModel* m, const mjData* d, const mjtNum pnt[3]
                           const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                           int geomid[1], mjtNum normal[3]);
 
+// intersect ray with flex, return nearest vertex id, compute normal if given
+MJAPI mjtNum mju_rayFlexNormal(const mjModel* m, const mjData* d,
+                               int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
+                               mjtByte flg_skin, int flexid,
+                               const mjtNum pnt[3], const mjtNum vec[3],
+                               int vertid[1], mjtNum normal[3]);
+
 // intersect ray with flex, return nearest vertex id
 MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
                          mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,

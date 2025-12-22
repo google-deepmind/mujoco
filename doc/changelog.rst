@@ -41,6 +41,8 @@ Documentation
 
 Bug fixes
 ^^^^^^^^^
+- The ``vertid`` argument of :ref:`mju_rayFlex` and :ref:`mju_raySkin` was marked as nullable but was not; it is now
+  nullable.
 
 Version 3.4.0 (December 5, 2025)
 --------------------------------
