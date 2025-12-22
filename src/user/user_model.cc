@@ -4412,7 +4412,9 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   } catch (mjCError err) {
     // deallocate everything allocated in Compile
     mj_deleteModel(model);
+    model = nullptr;
     mj_deleteData(data);
+    data = nullptr;
     Clear();
 
     // save error info

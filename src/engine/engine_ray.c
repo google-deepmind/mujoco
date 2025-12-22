@@ -1466,6 +1466,7 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
         AABB[3] = mju_max(AABB[3], elevation);
       }
 
+      // azimuth crosses discontinuity, fall back to no angular culling
       if (AABB[2]-AABB[0] > mjPI) {
         AABB[0] = -mjPI;
         AABB[1] = 0;
@@ -1473,8 +1474,12 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
         AABB[3] =  mjPI;
       }
 
-      if (AABB[3]-AABB[1] > mjPI) {  // SHOULD NOT OCCUR
-        mjERROR("discontinuity in azimuth angle");
+      // elevation overflow, fall back to no angular culling
+      if (AABB[3]-AABB[1] > mjPI) {
+        AABB[0] = -mjPI;
+        AABB[1] = 0;
+        AABB[2] =  mjPI;
+        AABB[3] =  mjPI;
       }
 
       mju_copy(geom_ba+4*g, AABB, 4);
@@ -1487,11 +1492,6 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
 static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                             int* ray_eliminate, mjtNum* geom_ba, int geomid[1]) {
   mjtNum dist, newdist;
-
-  // check vector length
-  if (mju_norm3(vec) < mjMINVAL) {
-    mjERROR("vector length is too small");
-  }
 
   // clear result
   dist = -1;
@@ -1558,7 +1558,7 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 
 
 // performs multiple ray intersections with the precomputed bv and flags
-void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, int nray, mjtNum cutoff) {
   mj_markStack(d);
@@ -1573,7 +1573,11 @@ void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum 
 
   // loop over rays
   for (int i=0; i < nray; i++) {
-    dist[i] = mju_singleRay(m, d, pnt, vec+3*i, geom_eliminate, geom_ba, geomid+i);
+    if (mju_dot3(vec+3*i, vec+3*i) < mjMINVAL) {
+      dist[i] = -1;
+    } else {
+      dist[i] = mju_singleRay(m, d, pnt, vec+3*i, geom_eliminate, geom_ba, geomid+i);
+    }
   }
 
   mj_freeStack(d);

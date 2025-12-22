@@ -31,7 +31,7 @@ MJAPI void mju_multiRayPrepare(const mjModel* m, const mjData* d,
 
 // intersect multiple rays emanating from a single source
 // similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
-MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                        const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
 
