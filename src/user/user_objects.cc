@@ -4116,15 +4116,23 @@ void mjCCamera::Compile(void) {
                    name.c_str(), id, fovy);
   }
 
-  // check that specs are not duplicated
-  if ((principal_length[0] && principal_pixel[0]) ||
-      (principal_length[1] && principal_pixel[1])) {
-    throw mjCError(this, "principal length duplicated in camera");
+  // check for advanced camera intrinsic parameters
+  bool has_intrinsic = focal_length[0]     || focal_length[1]     ||
+                       focal_pixel[0]      || focal_pixel[1]      ||
+                       principal_length[0] || principal_length[1] ||
+                       principal_pixel[0]  || principal_pixel[1];
+  bool has_sensorsize = sensor_size[0] > 0 && sensor_size[1] > 0;
+
+  // intrinsic params require sensorsize
+  if (has_intrinsic && !has_sensorsize) {
+    throw mjCError(this, "focal/principal require sensorsize in camera '%s' (id = %d)",
+                   name.c_str(), id);
   }
 
-  if ((focal_length[0] && focal_pixel[0]) ||
-      (focal_length[1] && focal_pixel[1])) {
-    throw mjCError(this, "focal length duplicated in camera");
+  // sensorsize requires resolution
+  if (has_sensorsize && (resolution[0] <= 0 || resolution[1] <= 0)) {
+    throw mjCError(this, "sensorsize requires positive resolution in camera '%s' (id = %d)",
+                   name.c_str(), id);
   }
 
   // compute number of pixels per unit length
@@ -4134,11 +4142,11 @@ void mjCCamera::Compile(void) {
       (float)resolution[1] / sensor_size[1],
     };
 
-    // defaults are zero, so only one term in each sum is nonzero
-    intrinsic[0] = focal_pixel[0] / pixel_density[0] + focal_length[0];
-    intrinsic[1] = focal_pixel[1] / pixel_density[1] + focal_length[1];
-    intrinsic[2] = principal_pixel[0] / pixel_density[0] + principal_length[0];
-    intrinsic[3] = principal_pixel[1] / pixel_density[1] + principal_length[1];
+    // pixel values override length values when both are specified
+    intrinsic[0] = focal_pixel[0] ? focal_pixel[0] / pixel_density[0] : focal_length[0];
+    intrinsic[1] = focal_pixel[1] ? focal_pixel[1] / pixel_density[1] : focal_length[1];
+    intrinsic[2] = principal_pixel[0] ? principal_pixel[0] / pixel_density[0] : principal_length[0];
+    intrinsic[3] = principal_pixel[1] ? principal_pixel[1] / pixel_density[1] : principal_length[1];
 
     // fovy with principal point at (0, 0)
     fovy = std::atan2(sensor_size[1]/2, intrinsic[1]) * 360.0 / mjPI;

@@ -2001,7 +2001,7 @@ TEST_F(XMLReaderTest, CameraPrincipalRequiresSensorsize) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'sensorsize'"));
+  EXPECT_THAT(error.data(), HasSubstr("focal/principal require sensorsize"));
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
@@ -2011,7 +2011,7 @@ TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
     <worldbody>
       <body>
         <geom size="1"/>
-        <camera sensorsize="1 1"/>
+        <camera sensorsize="1 1" resolution="0 0"/>
       </body>
     </worldbody>
   </mujoco>
@@ -2019,7 +2019,7 @@ TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'resolution'"));
+  EXPECT_THAT(error.data(), HasSubstr("requires positive resolution"));
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 

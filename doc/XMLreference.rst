@@ -2976,42 +2976,34 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    for most scenes and should likely be reduced. In either case, the horizontal field of view is computed automatically
    given the window size and the vertical field of view.
 
+.. _body-camera-sensorsize:
+
+:at:`sensorsize`: :at-val:`real(2), "0 0"`
+   Size of the camera sensor in length units. When specified, all intrinsic attributes become active and :at:`fovy`
+   is ignored. The field-of-view is then computed automatically from the focal length and sensor size. This
+   also enables frustum visualization when the :ref:`mjVIS_CAMERA<mjtVisFlag>` visualization flag is active.
+
+.. _body-camera-focal:
+.. _body-camera-focalpixel:
+
+:at:`focal` / :at:`focalpixel`: :at-val:`real(2), "0 0"`
+   Focal length in physical length units or in pixels, respectively. If both are specified, the pixel
+   value is used and the length value is ignored.
+
+.. _body-camera-principal:
+.. _body-camera-principalpixel:
+
+:at:`principal` / :at:`principalpixel`: :at-val:`real(2), "0 0"`
+   Offset of the principal point (optical axis intersection with the image plane) from the image center. If both are
+   specified, the pixel value is used. At zero offset, the rendered image is centered on the camera's negative Z axis,
+   as in a standard pinhole camera model.
+
 .. _body-camera-resolution:
 
 :at:`resolution`: :at-val:`int(2), "1 1"`
    Resolution of the camera in pixels [width height]. Note that these values are not used for rendering since those
    dimensions are determined by the size of the rendering context. This attribute serves as a convenient
    location to save the required resolution when creating a context.
-
-.. _body-camera-focal:
-
-:at:`focal`: :at-val:`real(2), "0 0"`
-   Focal length of the camera in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`.
-   See :ref:`CCamera` for details.
-
-.. _body-camera-focalpixel:
-
-:at:`focalpixel`: :at-val:`int(2), "0 0"`
-   Focal length of the camera in pixel units. If both :at:`focal` and :at:`focalpixel` are specified, the former is
-   ignored.
-
-.. _body-camera-principal:
-
-:at:`principal`: :at-val:`real(2), "0 0"`
-   Offset of the principal point of the camera with respect to the camera center in length units. It is mutually
-   exclusive with :ref:`fovy <body-camera-fovy>`.
-
-.. _body-camera-principalpixel:
-
-:at:`principalpixel`: :at-val:`real(2), "0 0"`
-   Offset of the principal point of the camera with respect to the camera center in pixel units. If both
-   :at:`principal` and :at:`principalpixel` are specified, the former is ignored.
-
-.. _body-camera-sensorsize:
-
-:at:`sensorsize`: :at-val:`real(2), "0 0"`
-   Size of the camera sensor in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`. If
-   specified, :ref:`resolution <body-camera-resolution>` and :ref:`focal <body-camera-focal>` are required.
 
 .. _body-camera-ipd:
 

@@ -1937,24 +1937,15 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* camera) {
     camera->proj = (mjtProjection)n;
   }
 
-  bool has_principal = ReadAttr(elem, "principalpixel", 2, camera->principal_pixel, text) ||
-                       ReadAttr(elem, "principal", 2, camera->principal_length, text);
-  bool has_focal = ReadAttr(elem, "focalpixel", 2, camera->focal_pixel, text) ||
-                   ReadAttr(elem, "focal", 2, camera->focal_length, text);
-  bool needs_sensorsize = has_principal || has_focal;
-  bool has_sensorsize = ReadAttr(elem, "sensorsize", 2, camera->sensor_size, text, needs_sensorsize);
-  bool has_fovy = ReadAttr(elem, "fovy", 1, &camera->fovy, text);
-  bool needs_resolution = has_focal || has_sensorsize;
-  ReadAttr(elem, "resolution", 2, camera->resolution, text, needs_resolution);
-
-  if (camera->resolution[0] < 0 || camera->resolution[1] < 0) {
-    throw mjXError(elem, "camera resolution cannot be negative");
-  }
-
-  if (has_fovy && has_sensorsize) {
-    throw mjXError(
-            elem,
-            "either 'fovy' or 'sensorsize' attribute can be specified, not both");
+  ReadAttr(elem, "principalpixel", 2, camera->principal_pixel, text);
+  ReadAttr(elem, "principal", 2, camera->principal_length, text);
+  ReadAttr(elem, "focalpixel", 2, camera->focal_pixel, text);
+  ReadAttr(elem, "focal", 2, camera->focal_length, text);
+  ReadAttr(elem, "resolution", 2, camera->resolution, text);
+  bool sensorsize = ReadAttr(elem, "sensorsize", 2, camera->sensor_size, text);
+  bool fovy = ReadAttr(elem, "fovy", 1, &camera->fovy, text);
+  if (fovy && sensorsize) {
+    throw mjXError(elem, "either 'fovy' or 'sensorsize' attribute can be specified, not both");
   }
 
   // read userdata
