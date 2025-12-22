@@ -1581,7 +1581,7 @@ void mj_multiRayNormal(const mjModel* m, mjData* d, const mjtNum pnt[3], const m
 
 
 // performs multiple ray intersections with the precomputed bv and flags
-void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                  const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                  int* geomid, mjtNum* dist, int nray, mjtNum cutoff) {
   mj_multiRayNormal(m, d, pnt, vec, geomgroup, flg_static, bodyexclude,
