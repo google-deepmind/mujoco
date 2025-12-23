@@ -1278,8 +1278,7 @@ int mjs_sensorDim(const mjsSensor* sensor) {
     if (sensor->objtype == mjOBJ_CAMERA) {
       const mjCCamera* camera = static_cast<const mjCCamera*>(
           static_cast<mjCSensor*>(sensor->element)->get_obj());
-      return static_cast<int>(camera->spec.resolution[0]) *
-             static_cast<int>(camera->spec.resolution[1]);
+      return camera->spec.resolution[0] * camera->spec.resolution[1];
     }
     return 1;  // site-attached: single ray
 

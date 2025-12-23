@@ -3135,6 +3135,9 @@ struct MjsCamera {
   void set_proj(mjtProjection value) {
     ptr_->proj = value;
   }
+  emscripten::val resolution() const {
+    return emscripten::val(emscripten::typed_memory_view(2, ptr_->resolution));
+  }
   double fovy() const {
     return ptr_->fovy;
   }
@@ -3152,9 +3155,6 @@ struct MjsCamera {
   }
   emscripten::val sensor_size() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->sensor_size));
-  }
-  emscripten::val resolution() const {
-    return emscripten::val(emscripten::typed_memory_view(2, ptr_->resolution));
   }
   emscripten::val focal_length() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->focal_length));

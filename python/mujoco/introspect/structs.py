@@ -7571,6 +7571,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='camera projection type',
              ),
              StructFieldDecl(
+                 name='resolution',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(2,),
+                 ),
+                 doc='resolution (pixel)',
+             ),
+             StructFieldDecl(
                  name='fovy',
                  type=ValueType(name='double'),
                  doc='y-field of view',
@@ -7578,7 +7586,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='ipd',
                  type=ValueType(name='double'),
-                 doc='inter-pupilary distance',
+                 doc='inter-pupillary distance',
              ),
              StructFieldDecl(
                  name='intrinsic',
@@ -7595,14 +7603,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(2,),
                  ),
                  doc='sensor size (length)',
-             ),
-             StructFieldDecl(
-                 name='resolution',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(2,),
-                 ),
-                 doc='resolution (pixel)',
              ),
              StructFieldDecl(
                  name='focal_length',
