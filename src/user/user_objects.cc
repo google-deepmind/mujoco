@@ -7313,7 +7313,6 @@ void mjCSensor::Compile(void) {
     case mjSENS_FORCE:
     case mjSENS_TORQUE:
     case mjSENS_MAGNETOMETER:
-    case mjSENS_RANGEFINDER:
     case mjSENS_CAMPROJECTION:
       // must be attached to site
       if (objtype != mjOBJ_SITE) {
@@ -7326,6 +7325,13 @@ void mjCSensor::Compile(void) {
         if (!camref->resolution[0] || !camref->resolution[1]) {
           throw mjCError(this, "camera projection sensor requires camera resolution");
         }
+      }
+      break;
+
+    case mjSENS_RANGEFINDER:
+      // must be attached to site or camera
+      if (objtype != mjOBJ_SITE && objtype != mjOBJ_CAMERA) {
+        throw mjCError(this, "sensor must be attached to site or camera");
       }
       break;
 

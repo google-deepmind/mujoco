@@ -435,11 +435,62 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_RANGEFINDER:                            // rangefinder
-        rvec[0] = d->site_xmat[9*objid+2];
-        rvec[1] = d->site_xmat[9*objid+5];
-        rvec[2] = d->site_xmat[9*objid+8];
-        d->sensordata[adr] = mj_ray(m, d, d->site_xpos+3*objid, rvec, NULL, 1,
-                                    m->site_bodyid[objid], NULL);
+        if (objtype == mjOBJ_SITE) {
+          rvec[0] = d->site_xmat[9*objid+2];
+          rvec[1] = d->site_xmat[9*objid+5];
+          rvec[2] = d->site_xmat[9*objid+8];
+          d->sensordata[adr] = mj_ray(m, d, d->site_xpos+3*objid, rvec, NULL, 1,
+                                      m->site_bodyid[objid], NULL);
+        } else {
+          // camera-attached rangefinder: depth image
+          const int width = m->cam_resolution[2*objid];
+          const int height = m->cam_resolution[2*objid+1];
+          const int bodyexclude = m->cam_bodyid[objid];
+          const mjtNum* cam_xpos = d->cam_xpos + 3*objid;
+          const mjtNum* cam_xmat = d->cam_xmat + 9*objid;
+          const int projection = m->cam_projection[objid];
+
+          // compute focal length in pixels using helper
+          mjtNum fx, fy, cx, cy, ortho_extent;
+          mju_camIntrinsics(m, objid, &fx, &fy, &cx, &cy, &ortho_extent);
+
+          if (projection == mjPROJ_PERSPECTIVE) {
+            // perspective: all rays share origin, different directions
+            const int npixel = width * height;
+            mj_markStack(d);
+            mjtNum* vec = mjSTACKALLOC(d, 3*npixel, mjtNum);
+            int* geomid = mjSTACKALLOC(d, npixel, int);
+
+            // compute ray directions using helper (normalized)
+            for (int row = 0; row < height; row++) {
+              for (int col = 0; col < width; col++) {
+                int idx = row*width + col;
+                mjtNum origin[3];
+                mju_camPixelRay(origin, vec + 3*idx, cam_xpos, cam_xmat,
+                                col, row, fx, fy, cx, cy, projection, ortho_extent);
+              }
+            }
+
+            // cast all rays
+            mj_multiRay(m, d, cam_xpos, vec, NULL, 1, bodyexclude,
+                        geomid, d->sensordata + adr, npixel, mjMAXVAL);
+
+            mj_freeStack(d);
+          } else {
+            // orthographic: parallel rays, different origins
+            for (int row = 0; row < height; row++) {
+              for (int col = 0; col < width; col++) {
+                int idx = row*width + col;
+                mjtNum origin[3], direction[3];
+                mju_camPixelRay(origin, direction, cam_xpos, cam_xmat,
+                                col, row, fx, fy, cx, cy, projection, ortho_extent);
+
+                d->sensordata[adr + idx] = mj_ray(m, d, origin, direction, NULL, 1,
+                                                  bodyexclude, NULL);
+              }
+            }
+          }
+        }
 
         break;
 

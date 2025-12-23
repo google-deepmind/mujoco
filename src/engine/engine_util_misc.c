@@ -417,6 +417,8 @@ mjtNum mju_wrap(mjtNum wpnt[6], const mjtNum x0[3], const mjtNum x1[3],
 }
 
 
+//------------------------------ misc geometry -----------------------------------------------------
+
 // all 3 semi-axes of a geom
 void mju_geomSemiAxes(mjtNum semiaxes[3], const mjtNum size[3], mjtGeom type) {
   switch (type) {
@@ -494,7 +496,42 @@ int mju_insideGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3
 }
 
 
-// ----------------------------- Flex interpolation ------------------------------------------------
+// compute ray origin and direction for pixel (col, row) in camera image
+// for perspective: origin is unchanged, direction is computed
+// for orthographic: direction is -Z in camera frame, origin is offset from camera center
+void mju_camPixelRay(mjtNum origin[3], mjtNum direction[3],
+                     const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
+                     int col, int row, mjtNum fx, mjtNum fy, mjtNum cx, mjtNum cy,
+                     int projection, mjtNum ortho_extent) {
+  // pixel center (row 0 = top of image)
+  mjtNum px = col + 0.5 - cx;
+  mjtNum py = row + 0.5 - cy;
+
+  if (projection == mjPROJ_PERSPECTIVE) {
+    // origin is camera position
+    mju_copy3(origin, cam_xpos);
+
+    // direction in camera frame: (x/fx, -y/fy, -1), then normalized
+    mjtNum dir_cam[3] = {px / fx, -py / fy, -1.0};
+    mju_mulMatVec3(direction, cam_xmat, dir_cam);
+    mju_normalize3(direction);
+  } else {
+    // orthographic: parallel rays, direction is -Z in camera frame
+    direction[0] = -cam_xmat[2];
+    direction[1] = -cam_xmat[5];
+    direction[2] = -cam_xmat[8];
+
+    // origin offset in camera frame (ortho_extent is full height, use half for each side)
+    mjtNum half_extent = ortho_extent / 2;
+    mjtNum offset_cam[3] = {px / fx * half_extent, -py / fy * half_extent, 0};
+    mjtNum offset_world[3];
+    mju_mulMatVec3(offset_world, cam_xmat, offset_cam);
+    mju_add3(origin, cam_xpos, offset_world);
+  }
+}
+
+
+// ----------------------------- flex interpolation ------------------------------------------------
 
 mjtNum static inline phi(mjtNum s, int i, int order) {
   if (order == 1) {

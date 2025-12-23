@@ -57,6 +57,13 @@ MJAPI void mju_geomSemiAxes(mjtNum semiaxes[3], const mjtNum size[3], mjtGeom ty
 int mju_insideGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3], mjtGeom type,
                    const mjtNum point[3]);
 
+// compute ray origin and direction for pixel (col, row) in camera image
+// directions are normalized so ray functions return actual 3D distance
+void mju_camPixelRay(mjtNum origin[3], mjtNum direction[3],
+                     const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
+                     int col, int row, mjtNum fx, mjtNum fy, mjtNum cx, mjtNum cy,
+                     int projection, mjtNum ortho_extent);
+
 // ----------------------------- Flex interpolation ------------------------------------------------
 
 // evaluate the deformation gradient at p using the nodal dof values

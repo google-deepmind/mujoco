@@ -6373,12 +6373,20 @@ site frame. The output is a 3D vector.
 :el-prefix:`sensor/` |-| **rangefinder** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a rangefinder. It measures the distance to the nearest geom surface, along the ray defined by the
-positive Z-axis of the sensor site. If the ray does not intersect any geom surface, the sensor output is -1. If the
-origin of the ray is inside a geom, the surface is still sensed (but not the inner volume). Geoms attached to the same
-body as the sensor site are excluded. Invisible geoms, defined as geoms whose rgba (or whose material rgba) has alpha=0,
-are also excluded. Note however that geoms made invisible in the visualizer by disabling their geom group are not
-excluded; this is because sensor calculations are independent of the visualizer.
+This element creates a rangefinder.
+
+- If associated with a :ref:`site<sensor-rangefinder-site>`, it measures the distance to the nearest geom surface, along
+  the ray defined by the positive Z-axis of the site.
+- If associated with a :ref:`camera<sensor-rangefinder-camera>`, it outputs one distance measurement for each pixel in
+  the camera image. Note that cameras face the :ref:`negative Z-axis<body-camera>` of their frame. The number of
+  measurements in this case is equal to product of the camera's width and height
+  :ref:`resolutions<body-camera-resolution>`.
+
+If a ray does not intersect any geom surface, the sensor output is -1. If the origin of the ray is inside a geom, the
+surface is still detected. Geoms attached to the same body as the sensor site/camera are excluded. Invisible geoms,
+defined as geoms whose rgba (or whose material rgba) has alpha=0, are also excluded. Note however that geoms made
+invisible in the visualizer by disabling their geom group are not excluded; this is because sensor calculations are
+independent of the visualizer.
 
 .. _sensor-rangefinder-name:
 
@@ -6393,8 +6401,13 @@ excluded; this is because sensor calculations are independent of the visualizer.
 
 .. _sensor-rangefinder-site:
 
-:at:`site`: :at-val:`string, required`
+:at:`site`: :at-val:`string, optional`
    The site where the sensor is attached.
+
+.. _sensor-rangefinder-camera:
+
+:at:`camera`: :at-val:`string, optional`
+   The camera where the sensor is attached.
 
 .. _sensor-camprojection:
 

@@ -1252,7 +1252,6 @@ void mjs_deleteUserValue(mjsElement* element, const char* key) {
 int mjs_sensorDim(const mjsSensor* sensor) {
   switch (sensor->type) {
   case mjSENS_TOUCH:
-  case mjSENS_RANGEFINDER:
   case mjSENS_JOINTPOS:
   case mjSENS_JOINTVEL:
   case mjSENS_TENDONPOS:
@@ -1274,6 +1273,15 @@ int mjs_sensorDim(const mjsSensor* sensor) {
   case mjSENS_E_KINETIC:
   case mjSENS_CLOCK:
     return 1;
+
+  case mjSENS_RANGEFINDER:
+    if (sensor->objtype == mjOBJ_CAMERA) {
+      const mjCCamera* camera = static_cast<const mjCCamera*>(
+          static_cast<mjCSensor*>(sensor->element)->get_obj());
+      return static_cast<int>(camera->spec.resolution[0]) *
+             static_cast<int>(camera->spec.resolution[1]);
+    }
+    return 1;  // site-attached: single ray
 
   case mjSENS_CAMPROJECTION:
     return 2;

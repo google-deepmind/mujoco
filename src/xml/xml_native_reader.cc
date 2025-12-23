@@ -454,7 +454,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"torque", "*", "name", "site", "cutoff", "noise", "user"},
         {"magnetometer", "*", "name", "site", "cutoff", "noise", "user"},
         {"camprojection", "*", "name", "site", "camera", "cutoff", "noise", "user"},
-        {"rangefinder", "*", "name", "site", "cutoff", "noise", "user"},
+        {"rangefinder", "*", "name", "site", "camera", "cutoff", "noise", "user"},
         {"jointpos", "*", "name", "joint", "cutoff", "noise", "user"},
         {"jointvel", "*", "name", "joint", "cutoff", "noise", "user"},
         {"tendonpos", "*", "name", "tendon", "cutoff", "noise", "user"},
@@ -4052,8 +4052,12 @@ void mjXReader::Sensor(XMLElement* section) {
       sensor->reftype = mjOBJ_CAMERA;
     } else if (type == "rangefinder") {
       sensor->type = mjSENS_RANGEFINDER;
-      sensor->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", objname, true);
+      bool use_site = ReadAttrTxt(elem, "site", objname, false);
+      bool use_camera = ReadAttrTxt(elem, "camera", objname, false);
+      if (use_site == use_camera) {
+        throw mjXError(elem, "rangefinder requires exactly one of 'site' or 'camera'");
+      }
+      sensor->objtype = use_site ? mjOBJ_SITE : mjOBJ_CAMERA;
     }
 
     // sensors related to scalar joints, tendons, actuators

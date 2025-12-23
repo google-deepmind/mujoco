@@ -1,0 +1,36 @@
+<mujoco model="rangefinder camera">
+  <visual>
+    <rgba frustum="1 1 0 0.1"/>
+  </visual>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+
+    <!-- ground plane -->
+    <geom type="plane" size="5 5 .1" rgba=".3 .4 .5 1"/>
+
+    <!-- scattered objects for rays to hit -->
+    <geom type="sphere" pos="0 0 .4" size=".4" rgba="1 .3 .3 1"/>
+    <geom type="box" pos="1 0.5 .35" size=".35 .35 .35" rgba=".3 1 .3 1"/>
+    <geom type="cylinder" pos="-0.8 0.6 .4" size=".4 .4" rgba=".3 .3 1 1"/>
+    <geom type="capsule" pos="0.5 -0.7 0" size=".25 .35" zaxis="1 0.5 0" rgba="1 1 .3 1"/>
+    <geom type="ellipsoid" pos="-0.5 -0.5 .2" size=".4 .3 .25" rgba="1 .3 1 1"/>
+
+    <!-- mocap body with perspective camera -->
+    <body pos="1 0 2" euler="0 20 0" mocap="true">
+      <geom type="box" pos="0 0 .3" size=".2 .2 .2"/>
+      <camera name="perspective" resolution="4 4" fovy="60"/>
+    </body>
+
+    <!-- mocap body with orthographic camera -->
+    <body pos="-1 0 2" euler="0 -20 0" mocap="true">
+      <geom type="box" pos="0 0 .3" size=".2 .2 .2"/>
+      <camera name="orthographic" resolution="4 4" fovy="1.5" projection="orthographic"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <rangefinder camera="perspective"/>
+    <rangefinder camera="orthographic"/>
+  </sensor>
+</mujoco>

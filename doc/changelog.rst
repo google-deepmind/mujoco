@@ -20,6 +20,8 @@ General
 ^^^^^^^
 - Camera frustum visualization is now triggered by setting :ref:`resolution<body-camera-resolution>` to values larger
   than 1. Relatedly, frustum visualization also works for :ref:`orthographic<body-camera-projection>` cameras.
+- Rangefinder sensors can now be attached to a camera using the :ref:`ragefinder/camera<sensor-rangefinder-camera>`
+  attribute. In this case, the sensor will cast multiple ray, one for each camera pixel.
 - Non-breaking ABI changes:
 
   - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from

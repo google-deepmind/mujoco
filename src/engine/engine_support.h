@@ -120,6 +120,12 @@ MJAPI const char* mj_versionString(void);
 // return total size of data fields in a contact sensor bitfield specification
 MJAPI int mju_condataSize(int dataSpec);
 
+// compute camera pixel parameters from model
+// outputs: fx, fy (focal length in pixels), cx, cy (principal point), ortho_extent
+void mju_camIntrinsics(const mjModel* m, int camid,
+                       mjtNum* fx, mjtNum* fy, mjtNum* cx, mjtNum* cy,
+                       mjtNum* ortho_extent);
+
 #ifdef __cplusplus
 }
 #endif

@@ -2029,7 +2029,11 @@ void mjXWriter::Sensor(XMLElement* root) {
         break;
       case mjSENS_RANGEFINDER:
         elem = InsertEnd(section, "rangefinder");
-        WriteAttrTxt(elem, "site", sensor->get_objname());
+        if (sensor->objtype == mjOBJ_SITE) {
+          WriteAttrTxt(elem, "site", sensor->get_objname());
+        } else {
+          WriteAttrTxt(elem, "camera", sensor->get_objname());
+        }
         break;
       case mjSENS_CAMPROJECTION:
         elem = InsertEnd(section, "camprojection");

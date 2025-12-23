@@ -2478,22 +2478,64 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
 
   for (int i=0; i < m->nsensor; i++) {
     if (m->sensor_type[i] == mjSENS_RANGEFINDER) {
-      // sensor data
-      mjtNum dst = d->sensordata[m->sensor_adr[i]];
-      int sid = m->sensor_objid[i];
+      int objid = m->sensor_objid[i];
+      int adr = m->sensor_adr[i];
 
-      // null output: nothing to render
-      if (dst < 0) {
-        continue;
+      // site-attached rangefinder
+      if (m->sensor_objtype[i] == mjOBJ_SITE) {
+        mjtNum dst = d->sensordata[adr];
+
+        // null output: nothing to render
+        if (dst < 0) {
+          continue;
+        }
+
+        // make ray
+        mjtNum* from = d->site_xpos+3*objid;
+        mjtNum to[3] = {from[0] + d->site_xmat[9*objid+2]*dst,
+                        from[1] + d->site_xmat[9*objid+5]*dst,
+                        from[2] + d->site_xmat[9*objid+8]*dst};
+        addConnector(scn, mjGEOM_LINE, 3, from, to, m->vis.rgba.rangefinder,
+                     i, mjCAT_DECOR, mjOBJ_SENSOR);
       }
 
-      // make ray
-      mjtNum* from = d->site_xpos+3*sid;
-      mjtNum to[3] = {from[0] + d->site_xmat[9*sid+2]*dst,
-                      from[1] + d->site_xmat[9*sid+5]*dst,
-                      from[2] + d->site_xmat[9*sid+8]*dst};
-      addConnector(scn, mjGEOM_LINE, 3, from, to, m->vis.rgba.rangefinder,
-                   i, mjCAT_DECOR, mjOBJ_SENSOR);
+      // camera-attached rangefinder
+      else if (m->sensor_objtype[i] == mjOBJ_CAMERA) {
+        const int width = m->cam_resolution[2*objid];
+        const int height = m->cam_resolution[2*objid+1];
+        const mjtNum* cam_xpos = d->cam_xpos + 3*objid;
+        const mjtNum* cam_xmat = d->cam_xmat + 9*objid;
+        const int projection = m->cam_projection[objid];
+
+        // compute focal length in pixels using helper
+        mjtNum fx, fy, cx, cy, ortho_extent;
+        mju_camIntrinsics(m, objid, &fx, &fy, &cx, &cy, &ortho_extent);
+
+        // draw ray for each pixel
+        for (int row = 0; row < height; row++) {
+          for (int col = 0; col < width; col++) {
+            int idx = row*width + col;
+            mjtNum dst = d->sensordata[adr + idx];
+
+            // null output: nothing to render
+            if (dst < 0) {
+              continue;
+            }
+
+            // compute ray origin and direction
+            mjtNum origin[3], direction[3];
+            mju_camPixelRay(origin, direction, cam_xpos, cam_xmat,
+                            col, row, fx, fy, cx, cy, projection, ortho_extent);
+
+            // compute endpoint
+            mjtNum to[3];
+            mju_addScl3(to, origin, direction, dst);
+
+            addConnector(scn, mjGEOM_LINE, 3, origin, to, m->vis.rgba.rangefinder,
+                         i, mjCAT_DECOR, mjOBJ_SENSOR);
+          }
+        }
+      }
     } else if (m->sensor_type[i] == mjSENS_GEOMFROMTO) {
       // sensor data
       mjtNum* fromto = d->sensordata + m->sensor_adr[i];

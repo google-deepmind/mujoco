@@ -67,7 +67,7 @@ static vector<mjtNum> GetSensor(const mjModel* model,
 
 using SensorTest = MujocoTest;
 
-// --------------------- test sensor disableflag  ------------------------------
+// --------------------- test sensor disable flag ------------------------------
 
 TEST_F(SensorTest, DisableSensors) {
   constexpr char xml[] = R"(
@@ -1047,6 +1047,96 @@ TEST_F(SensorTest, InsideSite) {
     expected[i] = 1.0;
     EXPECT_EQ(AsVector(data->sensordata, model->nsensordata), expected);
   }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, RangefinderCamera) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <geom type="plane" size="10 10 .1"/>
+      <body pos="0 0 2">
+        <camera name="persp" xyaxes="1 0 0 0 1 0" resolution="3 3" fovy="90"/>
+        <camera name="ortho" euler="0 45 0" resolution="3 3"
+          projection="orthographic" fovy="2"/>
+      </body>
+    </worldbody>
+
+    <sensor>
+      <rangefinder camera="persp"/>
+      <rangefinder camera="ortho"/>
+    </sensor>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  // sensordata dimension should be 3x3 + 3x3 = 18
+  EXPECT_EQ(model->nsensordata, 18);
+
+  mjData* data = mj_makeData(model);
+  mj_forward(model, data);
+
+  mjtNum tol = 1e-6;
+  mjtNum height = 2.0;
+  mjtNum fy = 1.5;
+  mjtNum offsets[3] = {-1.0, 0.0, 1.0};  // pixel center - principal point
+
+  // perspective camera: rays diverge, distance varies with angle
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 3; col++) {
+      int idx = row * 3 + col;
+      mjtNum dx = offsets[col] / fy;
+      mjtNum dy = offsets[row] / fy;
+      mjtNum expected = height * mju_sqrt(1 + dx*dx + dy*dy);
+      EXPECT_NEAR(data->sensordata[idx], expected, tol)
+          << "perspective pixel (" << row << ", " << col << ")";
+    }
+  }
+
+  // orthographic camera: tilted 45 degrees around Y axis
+  // rays are parallel at 45 degrees, distance depends on pixel x-offset
+  // for center pixel at (0,0,2): distance = 2 / cos(45) = 2*sqrt(2)
+  // for off-center pixels: x-offset shifts origin, affecting where ray hits z=0
+  mjtNum extent = 2.0;  // fovy for orthographic
+  mjtNum half_extent = extent / 2;
+  mjtNum fx = 1.5;  // width / 2 for 3x3 image
+  mjtNum cx = 1.5;  // principal point
+  mjtNum cos45 = mju_sqrt(0.5);
+  mjtNum sin45 = mju_sqrt(0.5);
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 3; col++) {
+      int idx = 9 + row * 3 + col;  // offset by first sensor's 9 values
+
+      // pixel offset in camera frame: matches mju_camPixelRay formula
+      mjtNum px_cam = (col + 0.5 - cx) / fx * half_extent;
+
+      // camera tilted 45° around Y: local +X maps to world (+cos45, 0, -sin45)
+      mjtNum origin_z = height - px_cam * sin45;
+
+      // ray hits z=0 plane: distance = origin_z / cos45
+      mjtNum expected = origin_z / cos45;
+      EXPECT_NEAR(data->sensordata[idx], expected, tol)
+          << "orthographic pixel (" << row << ", " << col << ")";
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+TEST_F(SensorTest, RFCamera) {
+  const string xml_path =
+      GetTestDataFilePath("engine/testdata/sensor/rfcamera.xml");
+  char error[1024];
+  mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+
+  mjData* data = mj_makeData(model);
+  mj_step(model, data);
 
   mj_deleteData(data);
   mj_deleteModel(model);
