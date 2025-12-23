@@ -1662,5 +1662,126 @@ class SpecsTest(absltest.TestCase):
         string_spec.compile()
         self.assertEqual(spec.to_xml(), string_spec.to_xml())
 
+  def test_rangefinder_sensor(self):
+    """Test rangefinder sensor with mjSpec, iterative model building."""
+    # Raydata field enum values for dataspec bitfield
+    rd = mujoco.mjtRayDataField
+    dist_val = int(rd.mjRAYDATA_DIST)
+    dir_val = int(rd.mjRAYDATA_DIR)
+    origin_val = int(rd.mjRAYDATA_ORIGIN)
+    point_val = int(rd.mjRAYDATA_POINT)
+    normal_val = int(rd.mjRAYDATA_NORMAL)
+    depth_val = int(rd.mjRAYDATA_DEPTH)
+
+    # Step 1: Create a rangefinder sensor attached to a site, no dataspec set.
+    # Note: site goes on a child body because rangefinder excludes the site's
+    # parent body from ray casting.
+    spec = mujoco.MjSpec()
+    sensor_body = spec.worldbody.add_body(name='sensor_body', pos=[0, 0, 1])
+    sensor_body.add_site(name='rf_site', zaxis=[0, 0, -1])
+    rf_sensor = spec.add_sensor(
+        name='rf',
+        type=mujoco.mjtSensor.mjSENS_RANGEFINDER,
+        objtype=mujoco.mjtObj.mjOBJ_SITE,
+        objname='rf_site',
+    )
+
+    # This should fail: data spec (intprm[0]) must be positive
+    with self.assertRaisesWithPredicateMatch(
+        ValueError,
+        lambda e: 'data spec (intprm[0]) must be positive' in str(e)
+    ):
+      spec.compile()
+
+    # Step 2: Set dataspec to just mjRAYDATA_DIST
+    rf_sensor.intprm[0] = 1 << dist_val
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # With no geometry, the ray should miss: dist = -1
+    self.assertEqual(model.nsensordata, 1)
+    self.assertEqual(data.bind(rf_sensor).data[0], -1)
+
+    # Step 3: Add all raydata fields and check no-hit values
+    all_fields = (
+        (1 << dist_val) | (1 << dir_val) | (1 << origin_val) |
+        (1 << point_val) | (1 << normal_val) | (1 << depth_val)
+    )
+    rf_sensor.intprm[0] = all_fields
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # Expected size: dist(1) + dir(3) + origin(3) + point(3) + normal(3) +
+    # depth(1) = 14
+    self.assertEqual(model.nsensordata, 14)
+
+    # No-hit values
+    sd = data.bind(rf_sensor).data
+    self.assertEqual(sd[0], -1)  # dist
+    np.testing.assert_allclose(sd[1:4], [0, 0, 0])  # dir
+    np.testing.assert_allclose(sd[4:7], [0, 0, 1])  # origin
+    np.testing.assert_allclose(sd[7:10], [0, 0, 0])  # point
+    np.testing.assert_allclose(sd[10:13], [0, 0, 0])  # normal
+    self.assertEqual(sd[13], -1)  # depth
+
+    # Step 4: Add a floor plane, now the ray should hit
+    spec.worldbody.add_geom(
+        name='floor',
+        type=mujoco.mjtGeom.mjGEOM_PLANE,
+        size=[10, 10, 0.1],
+    )
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # Ray starts at z=1 pointing down, hits floor at z=0
+    # For site sensor, depth = dist
+    sd = data.bind(rf_sensor).data
+    self.assertAlmostEqual(sd[0], 1.0, places=6)  # dist
+    np.testing.assert_allclose(sd[1:4], [0, 0, -1], atol=1e-10)  # dir
+    np.testing.assert_allclose(sd[4:7], [0, 0, 1], atol=1e-10)  # origin
+    np.testing.assert_allclose(sd[7:10], [0, 0, 0], atol=1e-10)  # point
+    np.testing.assert_allclose(sd[10:13], [0, 0, 1], atol=1e-10)  # normal
+    self.assertAlmostEqual(sd[13], 1.0, places=6)  # depth
+
+    # Step 5: Add a camera-based rangefinder sensor
+    # Camera also on child body so it doesn't exclude the floor
+    cam_body = spec.worldbody.add_body(name='cam_body', pos=[0, 0, 2])
+    cam_body.add_camera(
+        name='rf_cam',
+        xyaxes=[1, 0, 0, 0, 1, 0],  # z=[0,0,1], looks along -z (down)
+        resolution=[3, 3],
+        fovy=90,
+    )
+    cam_sensor = spec.add_sensor(
+        name='rf_cam_sensor',
+        type=mujoco.mjtSensor.mjSENS_RANGEFINDER,
+        objtype=mujoco.mjtObj.mjOBJ_CAMERA,
+        objname='rf_cam',
+        intprm=[(1 << dist_val) | (1 << depth_val), 0, 0],
+    )
+
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+
+    # Site sensor: 14 values, Camera sensor: (1+1)*9 = 18 values
+    self.assertEqual(model.nsensordata, 14 + 18)
+
+    # Check camera sensor data using bind
+    cam_sd = data.bind(cam_sensor).data
+    stride = 2  # dist + depth per pixel
+    center_pixel = 4  # center of 3x3 = row 1, col 1
+
+    # Center pixel: ray straight down from z=2 to z=0
+    self.assertAlmostEqual(cam_sd[center_pixel * stride], 2.0, places=6)
+    self.assertAlmostEqual(cam_sd[center_pixel * stride + 1], 2.0, places=6)
+
+    # Corner pixel: off-axis ray, dist > depth
+    self.assertGreater(cam_sd[0], cam_sd[1])  # dist > depth
+    self.assertAlmostEqual(cam_sd[1], 2.0, places=6)  # depth is still 2.0
+
 if __name__ == '__main__':
   absltest.main()

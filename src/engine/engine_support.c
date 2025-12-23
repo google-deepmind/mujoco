@@ -112,6 +112,16 @@ const int mjCONDATA_SIZE[mjNCONDATA] = {
 };
 
 
+// size of ray data fields
+const int mjRAYDATA_SIZE[mjNRAYDATA] = {
+  1,  // mjRAYDATA_DIST
+  3,  // mjRAYDATA_DIR
+  3,  // mjRAYDATA_ORIGIN
+  3,  // mjRAYDATA_POINT
+  3,  // mjRAYDATA_NORMAL
+  1   // mjRAYDATA_DEPTH
+};
+
 //-------------------------- get/set state ---------------------------------------------------------
 
 // return size of a single state element
@@ -739,6 +749,18 @@ int mju_condataSize(int dataspec) {
   for (int i=0; i < mjNCONDATA; i++) {
     if (dataspec & (1 << i)) {
       size += mjCONDATA_SIZE[i];
+    }
+  }
+  return size;
+}
+
+
+// return total size of data in a rangefinder sensor bitfield specification
+int mju_raydataSize(int dataspec) {
+  int size = 0;
+  for (int i=0; i < mjNRAYDATA; i++) {
+    if (dataspec & (1 << i)) {
+      size += mjRAYDATA_SIZE[i];
     }
   }
   return size;

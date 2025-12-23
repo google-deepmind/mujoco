@@ -1065,8 +1065,8 @@ TEST_F(SensorTest, RangefinderCamera) {
     </worldbody>
 
     <sensor>
-      <rangefinder camera="persp"/>
-      <rangefinder camera="ortho"/>
+      <rangefinder camera="persp" data="dist depth"/>
+      <rangefinder camera="ortho" data="dist dir origin point"/>
     </sensor>
   </mujoco>
   )";
@@ -1074,8 +1074,9 @@ TEST_F(SensorTest, RangefinderCamera) {
   mjModel* model = LoadModelFromString(xml, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
 
-  // sensordata dimension should be 3x3 + 3x3 = 18
-  EXPECT_EQ(model->nsensordata, 18);
+  // first sensor: data="dist depth" => (1+1)*9 = 18
+  // second sensor: data="dist dir origin point" => (1+3+3+3)*9 = 90
+  EXPECT_EQ(model->nsensordata, 108);
 
   mjData* data = mj_makeData(model);
   mj_forward(model, data);
@@ -1085,42 +1086,63 @@ TEST_F(SensorTest, RangefinderCamera) {
   mjtNum fy = 1.5;
   mjtNum offsets[3] = {-1.0, 0.0, 1.0};  // pixel center - principal point
 
-  // perspective camera: rays diverge, distance varies with angle
+  // test 1: perspective camera - rays diverge, distance varies with angle
+  int adr0 = model->sensor_adr[0];
+  constexpr int stride0 = 2;  // dist(1) + depth(1)
   for (int row = 0; row < 3; row++) {
     for (int col = 0; col < 3; col++) {
       int idx = row * 3 + col;
       mjtNum dx = offsets[col] / fy;
       mjtNum dy = offsets[row] / fy;
-      mjtNum expected = height * mju_sqrt(1 + dx*dx + dy*dy);
-      EXPECT_NEAR(data->sensordata[idx], expected, tol)
-          << "perspective pixel (" << row << ", " << col << ")";
+      mjtNum expected_dist = height * mju_sqrt(1 + dx*dx + dy*dy);
+      mjtNum dist = data->sensordata[adr0 + idx*stride0];
+      EXPECT_NEAR(dist, expected_dist, tol)
+          << "perspective dist pixel (" << row << ", " << col << ")";
+
+      // depth should equal camera height (2.0) for all pixels
+      mjtNum depth = data->sensordata[adr0 + idx*stride0 + 1];
+      EXPECT_NEAR(depth, height, tol)
+          << "perspective depth pixel (" << row << ", " << col << ")";
     }
   }
 
-  // orthographic camera: tilted 45 degrees around Y axis
-  // rays are parallel at 45 degrees, distance depends on pixel x-offset
-  // for center pixel at (0,0,2): distance = 2 / cos(45) = 2*sqrt(2)
-  // for off-center pixels: x-offset shifts origin, affecting where ray hits z=0
+  // test 2: orthographic camera distance - tilted 45 degrees around Y axis
   mjtNum extent = 2.0;  // fovy for orthographic
   mjtNum half_extent = extent / 2;
   mjtNum fx = 1.5;  // width / 2 for 3x3 image
   mjtNum cx = 1.5;  // principal point
   mjtNum cos45 = mju_sqrt(0.5);
   mjtNum sin45 = mju_sqrt(0.5);
+  int adr1 = model->sensor_adr[1];
+  constexpr int stride1 = 10;  // dist(1) + dir(3) + origin(3) + point(3)
   for (int row = 0; row < 3; row++) {
     for (int col = 0; col < 3; col++) {
-      int idx = 9 + row * 3 + col;  // offset by first sensor's 9 values
+      int idx = row * 3 + col;
 
       // pixel offset in camera frame: matches mju_camPixelRay formula
       mjtNum px_cam = (col + 0.5 - cx) / fx * half_extent;
 
-      // camera tilted 45° around Y: local +X maps to world (+cos45, 0, -sin45)
+      // camera tilted 45 around Y: local +X maps to world (+cos45, 0, -sin45)
       mjtNum origin_z = height - px_cam * sin45;
 
       // ray hits z=0 plane: distance = origin_z / cos45
-      mjtNum expected = origin_z / cos45;
-      EXPECT_NEAR(data->sensordata[idx], expected, tol)
-          << "orthographic pixel (" << row << ", " << col << ")";
+      mjtNum expected_dist = origin_z / cos45;
+      mjtNum dist = data->sensordata[adr1 + idx*stride1];
+      EXPECT_NEAR(dist, expected_dist, tol)
+          << "orthographic dist pixel (" << row << ", " << col << ")";
+
+      // verify point = origin + dir * dist
+      mjtNum* dir = data->sensordata + adr1 + idx*stride1 + 1;
+      mjtNum* origin = data->sensordata + adr1 + idx*stride1 + 4;
+      mjtNum* point = data->sensordata + adr1 + idx*stride1 + 7;
+      mjtNum expected_point[3];
+      mju_addScl3(expected_point, origin, dir, dist);
+      EXPECT_NEAR(point[0], expected_point[0], tol)
+          << "ortho point[0] pixel (" << row << ", " << col << ")";
+      EXPECT_NEAR(point[1], expected_point[1], tol)
+          << "ortho point[1] pixel (" << row << ", " << col << ")";
+      EXPECT_NEAR(point[2], expected_point[2], tol)
+          << "ortho point[2] pixel (" << row << ", " << col << ")";
     }
   }
 
@@ -1135,8 +1157,37 @@ TEST_F(SensorTest, RFCamera) {
   mjModel* model = mj_loadXML(xml_path.c_str(), nullptr, error, sizeof(error));
   ASSERT_THAT(model, NotNull()) << error;
 
+  // both sensors have data="dist point normal" => (1+3+3)*16 = 112
+  ASSERT_EQ(model->nsensor, 2);
+  EXPECT_EQ(model->sensor_dim[0], 112);
+  EXPECT_EQ(model->sensor_dim[1], 112);
+
   mjData* data = mj_makeData(model);
   mj_step(model, data);
+
+  // check both sensors: dist, point, normal
+  constexpr int stride = 7;  // dist(1) + point(3) + normal(3)
+  for (int s = 0; s < 2; s++) {
+    int adr = model->sensor_adr[s];
+    for (int i = 0; i < 16; i++) {
+      mjtNum dist = data->sensordata[adr + i*stride];
+      mjtNum* point = data->sensordata + adr + i*stride + 1;
+      mjtNum* normal = data->sensordata + adr + i*stride + 4;
+
+      EXPECT_TRUE(dist > 0 || dist == -1) << "sensor " << s << " pixel " << i;
+
+      if (dist > 0) {
+        EXPECT_GT(mju_norm3(point), 0.0) << "sensor " << s << " point " << i;
+        EXPECT_NEAR(mju_norm3(normal), 1.0, 1e-6)
+            << "sensor " << s << " normal " << i;
+      } else {
+        EXPECT_NEAR(mju_norm3(point), 0.0, 1e-6)
+            << "sensor " << s << " point " << i;
+        EXPECT_NEAR(mju_norm3(normal), 0.0, 1e-6)
+            << "sensor " << s << " normal " << i;
+      }
+    }
+  }
 
   mj_deleteData(data);
   mj_deleteModel(model);

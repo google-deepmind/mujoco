@@ -1274,14 +1274,6 @@ int mjs_sensorDim(const mjsSensor* sensor) {
   case mjSENS_CLOCK:
     return 1;
 
-  case mjSENS_RANGEFINDER:
-    if (sensor->objtype == mjOBJ_CAMERA) {
-      const mjCCamera* camera = static_cast<const mjCCamera*>(
-          static_cast<mjCSensor*>(sensor->element)->get_obj());
-      return camera->spec.resolution[0] * camera->spec.resolution[1];
-    }
-    return 1;  // site-attached: single ray
-
   case mjSENS_CAMPROJECTION:
     return 2;
 
@@ -1320,6 +1312,18 @@ int mjs_sensorDim(const mjsSensor* sensor) {
     return 3 * static_cast<const mjCMesh*>(
                    static_cast<mjCSensor*>(sensor->element)->get_obj())
                    ->nvert();
+
+  case mjSENS_RANGEFINDER:
+    {
+      int size = mju_raydataSize(sensor->intprm[0]);
+      int num_rays = 1;
+      if (sensor->objtype == mjOBJ_CAMERA) {
+        const mjCCamera* camera = static_cast<const mjCCamera*>(
+            static_cast<mjCSensor*>(sensor->element)->get_obj());
+        num_rays = camera->spec.resolution[0] * camera->spec.resolution[1];
+      }
+      return size * num_rays;
+    }
 
   case mjSENS_USER:
     return sensor->dim;

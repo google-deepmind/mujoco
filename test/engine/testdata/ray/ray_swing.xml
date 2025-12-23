@@ -1,6 +1,8 @@
 <mujoco>
+  <statistic meansize="0.15"/>
+
   <visual>
-    <global realtime=".25"/>
+    <global realtime=".25" elevation="-10"/>
   </visual>
 
   <default>
@@ -17,6 +19,6 @@
   </worldbody>
 
   <sensor>
-    <rangefinder site="rf"/>
+    <rangefinder site="rf" data="dist normal"/>
   </sensor>
 </mujoco>

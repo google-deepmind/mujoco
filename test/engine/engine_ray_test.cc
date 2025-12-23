@@ -343,10 +343,15 @@ TEST_F(RayTest, EdgeCases) {
   m->geom_aabb[0] = m->geom_aabb[1] = m->geom_aabb[2] = 0;
   m->geom_aabb[3] = m->geom_aabb[4] = m->geom_aabb[5] = 0;
   mju_multiRayPrepare(m, d, pnt4, NULL, NULL, 1, -1, mjMAXVAL, geom_ba, flags);
-  EXPECT_FLOAT_EQ(geom_ba[0], 0);
-  EXPECT_FLOAT_EQ(geom_ba[1], mjPI/2);
-  EXPECT_FLOAT_EQ(geom_ba[2], 0);
-  EXPECT_FLOAT_EQ(geom_ba[3], mjPI/2);
+  // margin = atan(max_half / dist) where max_half = max(aabb[3..5])
+  // For a zero-size AABB: max_half = 0, so margin = 0
+  mjtNum dist4 = mju_dist3(pnt4, d->geom_xpos);
+  mjtNum max_half4 = mju_max(m->geom_aabb[3], mju_max(m->geom_aabb[4], m->geom_aabb[5]));
+  mjtNum margin4 = mju_atan2(max_half4, dist4);
+  EXPECT_NEAR(geom_ba[0], 0 - margin4, 1e-6);
+  EXPECT_NEAR(geom_ba[1], mjPI/2 - margin4, 1e-6);
+  EXPECT_NEAR(geom_ba[2], 0 + margin4, 1e-6);
+  EXPECT_NEAR(geom_ba[3], mjPI/2 + margin4, 1e-6);
   mjtNum vec4[] = {1, 0, 0};
   mj_multiRay(m, d, pnt4, vec4, NULL, 1, -1, &rgeomid, &dist, 1, mjMAXVAL);
   EXPECT_FLOAT_EQ(dist, 0.9);

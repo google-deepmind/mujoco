@@ -454,7 +454,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"torque", "*", "name", "site", "cutoff", "noise", "user"},
         {"magnetometer", "*", "name", "site", "cutoff", "noise", "user"},
         {"camprojection", "*", "name", "site", "camera", "cutoff", "noise", "user"},
-        {"rangefinder", "*", "name", "site", "camera", "cutoff", "noise", "user"},
+        {"rangefinder", "*", "name", "site", "camera", "data", "cutoff", "noise", "user"},
         {"jointpos", "*", "name", "joint", "cutoff", "noise", "user"},
         {"jointvel", "*", "name", "joint", "cutoff", "noise", "user"},
         {"tendonpos", "*", "name", "tendon", "cutoff", "noise", "user"},
@@ -780,6 +780,17 @@ const mjMap condata_map[mjNCONDATA] = {
   {"pos",           mjCONDATA_POS},
   {"normal",        mjCONDATA_NORMAL},
   {"tangent",       mjCONDATA_TANGENT}
+};
+
+
+// rangefinder data type
+const mjMap raydata_map[mjNRAYDATA] = {
+  {"dist",          mjRAYDATA_DIST},
+  {"dir",           mjRAYDATA_DIR},
+  {"origin",        mjRAYDATA_ORIGIN},
+  {"point",         mjRAYDATA_POINT},
+  {"normal",        mjRAYDATA_NORMAL},
+  {"depth",         mjRAYDATA_DEPTH}
 };
 
 
@@ -4058,6 +4069,28 @@ void mjXReader::Sensor(XMLElement* section) {
         throw mjXError(elem, "rangefinder requires exactly one of 'site' or 'camera'");
       }
       sensor->objtype = use_site ? mjOBJ_SITE : mjOBJ_CAMERA;
+
+      // process data specification (intprm[0])
+      int dataspec = 1 << mjRAYDATA_DIST;
+      std::vector<int> raydata(mjNRAYDATA);
+      int nkeys = MapValues(elem, "data", raydata.data(), raydata_map, mjNRAYDATA);
+      if (nkeys) {
+        dataspec = 1 << raydata[0];
+
+        // check ordering while adding bits to dataspec
+        for (int i = 1; i < nkeys; ++i) {
+          if (raydata[i] <= raydata[i-1]) {
+            std::string correct_order;
+            for (int j = 0; j < mjNRAYDATA; ++j) {
+              correct_order += raydata_map[j].key;
+              if (j < mjNRAYDATA - 1) correct_order += ", ";
+            }
+            throw mjXError(elem, "data attributes must be in order: %s", correct_order.c_str());
+          }
+          dataspec |= 1 << raydata[i];
+        }
+      }
+      sensor->intprm[0] = dataspec;
     }
 
     // sensors related to scalar joints, tendons, actuators

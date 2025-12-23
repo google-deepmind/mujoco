@@ -662,11 +662,11 @@ static mjtNum mj_rayHfieldNormal(const mjModel* m, const mjData* d, int geomid,
       // triangle normal
       mjtNum normal_tri[3];
 
-      // first triangle
+      // first triangle: swap v1 and v2 for consistent CCW winding (normals point up)
       mjtNum va[3][3] = {
         {dx*c-size[0], dy*r-size[1], data[r*ncol+c]*size[2]},
-        {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]},
-        {dx*(c+1)-size[0], dy*(r+0)-size[1], data[(r+0)*ncol+(c+1)]*size[2]}
+        {dx*(c+1)-size[0], dy*(r+0)-size[1], data[(r+0)*ncol+(c+1)]*size[2]},
+        {dx*(c+1)-size[0], dy*(r+1)-size[1], data[(r+1)*ncol+(c+1)]*size[2]}
       };
       mjtNum sol = ray_triangle(va, lpnt, lvec, b0, b1, normal ? normal_tri : NULL);
       if (sol >= 0 && (x < 0 || sol < x)) {
@@ -1458,6 +1458,18 @@ void mju_multiRayPrepare(const mjModel* m, const mjData* d, const mjtNum pnt[3],
         AABB[3] = mju_max(AABB[3], elevation);
       }
 
+      // add distance-dependent angular margin to account for edge/face curvature
+      // margin = atan(max_half_size / dist) bounds the angular deviation of face centers
+      mjtNum max_half = mju_max(aabb[3], mju_max(aabb[4], aabb[5]));
+      mjtNum dist = mju_dist3(pnt, xpos);
+      if (dist > mjMINVAL) {
+        mjtNum margin = mju_atan2(max_half, dist);
+        AABB[0] -= margin;
+        AABB[1] -= margin;
+        AABB[2] += margin;
+        AABB[3] += margin;
+      }
+
       // azimuth crosses discontinuity, fall back to no angular culling
       if (AABB[2]-AABB[0] > mjPI) {
         AABB[0] = -mjPI;
@@ -1520,8 +1532,23 @@ static mjtNum mju_singleRay(const mjModel* m, mjData* d, const mjtNum pnt[3], co
 
       // exclude geom using bounding angles
       if (m->body_bvhadr[b] != -1) {
-        if (azimuth < (geom_ba+4*i)[0] || elevation < (geom_ba+4*i)[1] ||
-            azimuth > (geom_ba+4*i)[2] || elevation > (geom_ba+4*i)[3]) {
+        mjtNum az_min = (geom_ba+4*i)[0];
+        mjtNum az_max = (geom_ba+4*i)[2];
+        mjtNum el_min = (geom_ba+4*i)[1];
+        mjtNum el_max = (geom_ba+4*i)[3];
+
+        // check elevation
+        if (elevation < el_min || elevation > el_max) {
+          continue;
+        }
+
+        // check azimuth with wraparound
+        mjtNum az_center = (az_min + az_max) * 0.5;
+        mjtNum az_half_width = (az_max - az_min) * 0.5;
+        mjtNum az_diff = azimuth - az_center;
+        if (az_diff > mjPI) az_diff -= 2*mjPI;
+        else if (az_diff < -mjPI) az_diff += 2*mjPI;
+        if (mju_abs(az_diff) > az_half_width) {
           continue;
         }
       }

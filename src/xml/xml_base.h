@@ -76,6 +76,7 @@ extern const mjMap bias_map[];
 extern const mjMap stage_map[];
 extern const mjMap datatype_map[];
 extern const mjMap condata_map[];
+extern const mjMap raydata_map[];
 extern const mjMap reduce_map[];
 extern const mjMap meshtype_map[];
 extern const mjMap meshinertia_map[];

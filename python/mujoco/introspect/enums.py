@@ -416,6 +416,20 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjNCONDATA', 7),
          ]),
      )),
+    ('mjtRayDataField',
+     EnumDecl(
+         name='mjtRayDataField',
+         declname='enum mjtRayDataField_',
+         values=dict([
+             ('mjRAYDATA_DIST', 0),
+             ('mjRAYDATA_DIR', 1),
+             ('mjRAYDATA_ORIGIN', 2),
+             ('mjRAYDATA_POINT', 3),
+             ('mjRAYDATA_NORMAL', 4),
+             ('mjRAYDATA_DEPTH', 5),
+             ('mjNRAYDATA', 6),
+         ]),
+     )),
     ('mjtSameFrame',
      EnumDecl(
          name='mjtSameFrame',

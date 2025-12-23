@@ -431,6 +431,15 @@ public enum mjtConDataField : int{
   mjCONDATA_TANGENT = 6,
   mjNCONDATA = 7,
 }
+public enum mjtRayDataField : int{
+  mjRAYDATA_DIST = 0,
+  mjRAYDATA_DIR = 1,
+  mjRAYDATA_ORIGIN = 2,
+  mjRAYDATA_POINT = 3,
+  mjRAYDATA_NORMAL = 4,
+  mjRAYDATA_DEPTH = 5,
+  mjNRAYDATA = 6,
+}
 public enum mjtSameFrame : int{
   mjSAMEFRAME_NONE = 0,
   mjSAMEFRAME_BODY = 1,

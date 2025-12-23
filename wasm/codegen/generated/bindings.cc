@@ -10506,6 +10506,14 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   enum_<mjtProjection>("mjtProjection")
     .value("mjPROJ_PERSPECTIVE", mjPROJ_PERSPECTIVE)
     .value("mjPROJ_ORTHOGRAPHIC", mjPROJ_ORTHOGRAPHIC);
+  enum_<mjtRayDataField>("mjtRayDataField")
+    .value("mjRAYDATA_DIST", mjRAYDATA_DIST)
+    .value("mjRAYDATA_DIR", mjRAYDATA_DIR)
+    .value("mjRAYDATA_ORIGIN", mjRAYDATA_ORIGIN)
+    .value("mjRAYDATA_POINT", mjRAYDATA_POINT)
+    .value("mjRAYDATA_NORMAL", mjRAYDATA_NORMAL)
+    .value("mjRAYDATA_DEPTH", mjRAYDATA_DEPTH)
+    .value("mjNRAYDATA", mjNRAYDATA);
   enum_<mjtRndFlag>("mjtRndFlag")
     .value("mjRND_SHADOW", mjRND_SHADOW)
     .value("mjRND_WIREFRAME", mjRND_WIREFRAME)

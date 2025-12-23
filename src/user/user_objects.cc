@@ -7149,7 +7149,6 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
 mjtDataType sensorDatatype(mjtSensor type) {
   switch (type) {
   case mjSENS_TOUCH:
-  case mjSENS_RANGEFINDER:
   case mjSENS_INSIDESITE:
     return mjDATATYPE_POSITIVE;
 
@@ -7196,6 +7195,7 @@ mjtDataType sensorDatatype(mjtSensor type) {
   case mjSENS_SUBTREEANGMOM:
   case mjSENS_GEOMDIST:
   case mjSENS_GEOMFROMTO:
+  case mjSENS_RANGEFINDER:
   case mjSENS_CONTACT:
   case mjSENS_TACTILE:
   case mjSENS_E_POTENTIAL:
@@ -7329,9 +7329,26 @@ void mjCSensor::Compile(void) {
       break;
 
     case mjSENS_RANGEFINDER:
-      // must be attached to site or camera
-      if (objtype != mjOBJ_SITE && objtype != mjOBJ_CAMERA) {
-        throw mjCError(this, "sensor must be attached to site or camera");
+      {
+        // must be attached to site or camera
+        if (objtype != mjOBJ_SITE && objtype != mjOBJ_CAMERA) {
+          throw mjCError(this, "sensor must be attached to site or camera");
+        }
+
+        // check for dataspec correctness
+        int dataspec = intprm[0];
+        if (dataspec <= 0) {
+          throw mjCError(this, "data spec (intprm[0]) must be positive, got %d", nullptr, dataspec);
+        }
+        int mask = (1 << mjNRAYDATA) - 1;
+        if (!(dataspec & mask)) {
+          throw mjCError(this, "data spec intprm[0]=%d must have at least one bit set of the first "
+                         "mjNRAYDATA bits", nullptr, dataspec);
+        }
+        if (dataspec & ~mask) {
+          throw mjCError(this, "data spec intprm[0]=%d has bits set beyond the first "
+                         "mjNRAYDATA bits", nullptr, dataspec);
+        }
       }
       break;
 

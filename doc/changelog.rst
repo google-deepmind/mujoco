@@ -18,16 +18,24 @@ Upcoming version (not yet released)
 
 General
 ^^^^^^^
+
+.. image:: images/XMLreference/rfcamera.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
+
 - Camera frustum visualization is now triggered by setting :ref:`resolution<body-camera-resolution>` to values larger
   than 1. Relatedly, frustum visualization also works for :ref:`orthographic<body-camera-projection>` cameras.
 - Rangefinder sensors can now be attached to a camera using the :ref:`ragefinder/camera<sensor-rangefinder-camera>`
-  attribute. In this case, the sensor will cast multiple ray, one for each camera pixel.
+  attribute. In this case, the sensor will cast multiple ray, one for each pixel.
+- Rangefinder sensors can now now report various kinds of information besides ray distances, including surface normals.
+  See :ref:`rangefinder<sensor-rangefinder>` for details.
 - Non-breaking ABI changes:
 
   - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from
     ``unsigned int`` to ``int``. Before this change, invalid negative arguments passed to this function would result in
     a silent implicit cast, now negativity will trigger an error.
-  - Added a :ref:`depth<mjtRndFlag>` rendering flag
+  - Added a :ref:`depth<mjtRndFlag>` rendering flag.
 
 MJX
 ^^^

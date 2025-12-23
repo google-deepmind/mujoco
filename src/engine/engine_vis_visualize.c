@@ -2476,27 +2476,74 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
     return;
   }
 
+  const float scl = m->stat.meansize;
+  mjtNum framewidth = m->vis.scale.framewidth * scl;
+  mjtNum framelength = m->vis.scale.framelength * scl;
+
   for (int i=0; i < m->nsensor; i++) {
     if (m->sensor_type[i] == mjSENS_RANGEFINDER) {
       int objid = m->sensor_objid[i];
       int adr = m->sensor_adr[i];
 
+      // get dataspec and compute field offsets
+      int dataspec = m->sensor_intprm[i*mjNSENS];
+      int size = mju_raydataSize(dataspec);
+      int offset[mjNRAYDATA] = {0};
+      int increment = 0;
+      for (int j=0; j < mjNRAYDATA; j++) {
+        offset[j] = increment;
+        if (dataspec & (1 << j)) {
+          increment += mjRAYDATA_SIZE[j];
+        }
+      }
+
       // site-attached rangefinder
       if (m->sensor_objtype[i] == mjOBJ_SITE) {
-        mjtNum dst = d->sensordata[adr];
+        const mjtNum* ptr = d->sensordata + adr;
 
-        // null output: nothing to render
-        if (dst < 0) {
-          continue;
+        // get distance (if present)
+        mjtNum dist = -1;
+        if (dataspec & (1 << mjRAYDATA_DIST)) {
+          dist = ptr[offset[mjRAYDATA_DIST]];
         }
 
-        // make ray
-        mjtNum* from = d->site_xpos+3*objid;
-        mjtNum to[3] = {from[0] + d->site_xmat[9*objid+2]*dst,
-                        from[1] + d->site_xmat[9*objid+5]*dst,
-                        from[2] + d->site_xmat[9*objid+8]*dst};
-        addConnector(scn, mjGEOM_LINE, 3, from, to, m->vis.rgba.rangefinder,
-                     i, mjCAT_DECOR, mjOBJ_SENSOR);
+        // get point and draw line if dist is valid
+        mjtNum point[3] = {0};
+        if (dist >= 0) {
+          mjtNum* origin = d->site_xpos + 3*objid;
+          point[0] = origin[0] + d->site_xmat[9*objid+2]*dist;
+          point[1] = origin[1] + d->site_xmat[9*objid+5]*dist;
+          point[2] = origin[2] + d->site_xmat[9*objid+8]*dist;
+          addConnector(scn, mjGEOM_LINE, 3, origin, point, m->vis.rgba.rangefinder,
+                       i, mjCAT_DECOR, mjOBJ_SENSOR);
+        }
+
+        // draw point if present and non-zero
+        if (dataspec & (1 << mjRAYDATA_POINT)) {
+          const mjtNum* point_data = ptr + offset[mjRAYDATA_POINT];
+          if (point_data[0] || point_data[1] || point_data[2]) {
+            mju_copy3(point, point_data);
+            mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
+            if (thisgeom) {
+              thisgeom->type = mjGEOM_SPHERE;
+              thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = 1.5 * framewidth;
+              mju_n2f(thisgeom->pos, point, 3);
+              mju_n2f(thisgeom->mat, IDENTITY, 9);
+              f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
+              releaseGeom(&thisgeom, scn);
+            }
+          }
+        }
+
+        // draw normal if present and point is valid
+        int valid_point = dist >= 0 || point[0] || point[1] || point[2];
+        if (valid_point && (dataspec & (1 << mjRAYDATA_NORMAL))) {
+          const mjtNum* normal = ptr + offset[mjRAYDATA_NORMAL];
+          mjtNum to[3];
+          mju_addScl3(to, point, normal, 2*framelength);
+          addConnector(scn, mjGEOM_ARROW1, framewidth, point, to,
+                       m->vis.rgba.rangefinder, i, mjCAT_DECOR, mjOBJ_SENSOR);
+        }
       }
 
       // camera-attached rangefinder
@@ -2511,15 +2558,16 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
         mjtNum fx, fy, cx, cy, ortho_extent;
         mju_camIntrinsics(m, objid, &fx, &fy, &cx, &cy, &ortho_extent);
 
-        // draw ray for each pixel
+        // draw for each pixel
         for (int row = 0; row < height; row++) {
           for (int col = 0; col < width; col++) {
             int idx = row*width + col;
-            mjtNum dst = d->sensordata[adr + idx];
+            const mjtNum* ptr = d->sensordata + adr + idx*size;
 
-            // null output: nothing to render
-            if (dst < 0) {
-              continue;
+            // get distance (if present)
+            mjtNum dist = -1;
+            if (dataspec & (1 << mjRAYDATA_DIST)) {
+              dist = ptr[offset[mjRAYDATA_DIST]];
             }
 
             // compute ray origin and direction
@@ -2527,12 +2575,40 @@ static void addRangefinderGeoms(const mjModel* m, mjData* d, const mjvOption* vo
             mju_camPixelRay(origin, direction, cam_xpos, cam_xmat,
                             col, row, fx, fy, cx, cy, projection, ortho_extent);
 
-            // compute endpoint
-            mjtNum to[3];
-            mju_addScl3(to, origin, direction, dst);
+            // get point and draw line if dist is valid
+            mjtNum point[3] = {0};
+            if (dist >= 0) {
+              mju_addScl3(point, origin, direction, dist);
+              addConnector(scn, mjGEOM_LINE, 3, origin, point, m->vis.rgba.rangefinder,
+                           i, mjCAT_DECOR, mjOBJ_SENSOR);
+            }
 
-            addConnector(scn, mjGEOM_LINE, 3, origin, to, m->vis.rgba.rangefinder,
-                         i, mjCAT_DECOR, mjOBJ_SENSOR);
+            // draw point if present and non-zero
+            if (dataspec & (1 << mjRAYDATA_POINT)) {
+              const mjtNum* point_data = ptr + offset[mjRAYDATA_POINT];
+              if (point_data[0] || point_data[1] || point_data[2]) {
+                mju_copy3(point, point_data);
+                mjvGeom* thisgeom = acquireGeom(scn, i, mjCAT_DECOR, mjOBJ_SENSOR);
+                if (thisgeom) {
+                  thisgeom->type = mjGEOM_SPHERE;
+                  thisgeom->size[0] = thisgeom->size[1] = thisgeom->size[2] = 1.3 * framewidth;
+                  mju_n2f(thisgeom->pos, point, 3);
+                  mju_n2f(thisgeom->mat, IDENTITY, 9);
+                  f2f(thisgeom->rgba, m->vis.rgba.rangefinder, 4);
+                  releaseGeom(&thisgeom, scn);
+                }
+              }
+            }
+
+            // draw normal if present and point is valid
+            int valid_point = dist >= 0 || point[0] || point[1] || point[2];
+            if (valid_point && (dataspec & (1 << mjRAYDATA_NORMAL))) {
+              const mjtNum* normal = ptr + offset[mjRAYDATA_NORMAL];
+              mjtNum to[3];
+              mju_addScl3(to, point, normal, 2*framelength);
+              addConnector(scn, mjGEOM_ARROW1, framewidth, point, to,
+                           m->vis.rgba.rangefinder, i, mjCAT_DECOR, mjOBJ_SENSOR);
+            }
           }
         }
       }

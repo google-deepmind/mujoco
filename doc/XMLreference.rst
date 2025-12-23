@@ -6382,11 +6382,45 @@ This element creates a rangefinder.
   measurements in this case is equal to product of the camera's width and height
   :ref:`resolutions<body-camera-resolution>`.
 
+.. image:: images/XMLreference/rfcamera.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
+
 If a ray does not intersect any geom surface, the sensor output is -1. If the origin of the ray is inside a geom, the
 surface is still detected. Geoms attached to the same body as the sensor site/camera are excluded. Invisible geoms,
 defined as geoms whose rgba (or whose material rgba) has alpha=0, are also excluded. Note however that geoms made
 invisible in the visualizer by disabling their geom group are not excluded; this is because sensor calculations are
 independent of the visualizer.
+
+The image on the right (click to see the model being visualized) shows two rangefinder sensors attached to a perspective and
+an orthographic camera, with frustums visualized. Both cameras have 4x4 resolution, for 16 rays each. The rangefinder
+sensors report :at:`data` = :at-val:`"dist point normal"` (see below), so we can see the rays (lines), the intersection
+points (spheres) and the surface normals (arrows).
+
+.. _sensor-rangefinder-data:
+
+:at:`data`: :at-val:`[dist, dir, origin, point, normal, depth], "dist"`
+   By default, the rangefinder outputs a distance measurement, as described above. However, it is also possible to
+   specify a set of output data fields. The :at:`data` attribute can contain **multiple sequential data types**, as long
+   as the relative order---as listed above---is maintained. For example, :at:`data` = :at-val:`"dist point normal"` will
+   return 7 numbers per ray, while :at:`data` = :at-val:`"point origin"` is an error because :at-val:`origin` must come
+   before :at-val:`point`.
+
+   - :at-val:`dist` **real(1)**: The distance from the ray origin to the nearest geom surface, -1 if no surface was hit.
+     If this data type is included, rays will be visualized as lines.
+   - :at-val:`dir` **real(3)**: Normalized direction of the ray, or (0, 0, 0) if no surface was hit.
+   - :at-val:`origin` **real(3)**: The point from which the ray emanates (global frame). For sites and perspective
+     cameras, this is the site/camera xpos. However for orthographic cameras, ray origins are spatially distributed
+     along the image plane.
+   - :at-val:`point` **real(3)**: The point where the ray intersects the nearest geom surface in the global frame, or
+     (0, 0, 0) if no surface was hit. If this data type is included, intersection points will be visualized as spheres.
+   - :at-val:`normal`: **real(3)**: The geom surface normal at the point where the ray intersects it, in the global
+     frame, or (0, 0, 0) if no surface was hit. Note that normals always point towards the outside of the geom surface,
+     regardless of the ray origin. If this data type is included along with either :at-val:`dist` or :at-val:`point`,
+     normals will be visualized as arrows at the intersection points.
+   - :at-val:`depth`: **real(1)**: The distance of the hit point from the camera plane, -1 if no surface was hit. Note
+     that this depth sematic corresponds to depth images in the computer graphics sense.
 
 .. _sensor-rangefinder-name:
 
