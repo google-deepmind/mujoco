@@ -81,8 +81,7 @@ and macOS (universal). This is the recommended way to use the software.
 ### Building from source
 
 Users who wish to build MuJoCo from source should consult the [build from
-source] section of the documentation. However, note that the commit at
-the tip of the `main` branch may be unstable.
+source] section of the documentation. If you wish to build and develop on top of mujoco.h using zig you can run `zig run setup.zig` or manually add the dependencies / projects listed in the `CMakeLists.txt` and adapt the `build.zig` for the paths if necessary, after that run `zig build` . However, note that the commit at the tip of the `main` branch may be unstable.
 
 ### Python (>= 3.9)
 
@@ -141,6 +140,7 @@ These packages give users of various languages access to MuJoCo functionality:
 - **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
 - **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
 - **Julia**: [MuJoCo.jl](https://github.com/JamieMair/MuJoCo.jl)
+- **Zig**: [zmujoco](https://github.com/lab-key/zmujoco)
 
 ### Converters
 
