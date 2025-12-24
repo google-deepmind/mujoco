@@ -29,6 +29,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <utils/Entity.h>
+#include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/buffer_util.h"
 #include "experimental/filament/filament/geom_util.h"
@@ -42,10 +43,6 @@ using filament::math::float2;
 using filament::math::float3;
 using filament::math::float4;
 using filament::math::mat4;
-
-// Planes with a 0-size dimension should be infinitely large. However, we
-// don't support that directly so we use a large but finite size instead.
-static constexpr float kInfinitePlaneFakeSize = 1000.0f;
 
 // An arbitrary scale factor for arrows.
 static constexpr float kArrowScale = 1.f / 6.f;
@@ -68,6 +65,19 @@ static constexpr int kArrow2TopCone = 1;
 static constexpr int kArrow2BottomCone = 2;
 static constexpr int kArrow2TopConeDisk = 3;
 static constexpr int kArrow2BottomConeDisk = 4;
+
+// Returns the tile size for infinite plane texture alignment.
+// This is duplicated from engine_vis_visualize.c (re-center infinite plane)
+// to ensure UV scaling matches the re-centering increments.
+static float GetPlaneTileSize(const mjModel* model, int matid,
+                              float texrepeat) {
+  if (matid >= 0 && texrepeat > 0) {
+    return 2.0f / texrepeat;
+  } else {
+    const float zfar = model->vis.map.zfar * model->stat.extent;
+    return 2.1f * zfar / (mjMAXPLANEGRID - 2);
+  }
+}
 
 Drawable::Drawable(ObjectManager* object_mgr, const mjvGeom& geom)
     : material_(object_mgr), renderables_(object_mgr->GetEngine()) {
@@ -300,16 +310,20 @@ void Drawable::SetTransform(const mjvGeom& geom) {
         entity_transform *=
             mat4::scaling(float3{kArrowHeadSize, kArrowHeadSize, 1.0f});
       }
-    } else if (geom.type == mjGEOM_PLANE) {
-      // A plane with 0-size in any dimension is considered to be an infinite
-      // plane, but we don't really support that so just scale it so that its
-      // very large.
-      if (size.x == 0 && size.y == 0) {
-        size = float3(kInfinitePlaneFakeSize, kInfinitePlaneFakeSize, size.z);
-      }
     }
-
-    if (geom.type != mjGEOM_MESH && geom.type != mjGEOM_HFIELD) {
+    if (geom.type == mjGEOM_PLANE) {
+      const bool is_infinite = !(size.x > 0 && size.y > 0);
+      if (is_infinite) {
+        // Infinite planes are scaled to match the tile size used by
+        // re-centering in engine_vis_visualize.c.
+        const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
+        entity_transform *=
+            mat4::scaling(float3{plane_scale, plane_scale, 1.0f});
+      } else {
+        // Regular planes are scaled by geom.size.
+        entity_transform *= mat4::scaling(float3{size.x, size.y, 1.0f});
+      }
+    } else if (geom.type != mjGEOM_MESH && geom.type != mjGEOM_HFIELD) {
       entity_transform *= mat4::scaling(size);
     }
     tm.setTransform(tm.getInstance(entity), entity_transform);
@@ -456,13 +470,18 @@ void Drawable::UpdateMaterial(const mjvGeom& geom, bool use_segid_color) {
           params.uv_scale.y *= geom.size[1];
         }
       }
-      if (geom.type == mjGEOM_PLANE) {
-        if (geom.size[0] == 0) {
-          params.uv_scale.x = kInfinitePlaneFakeSize;
-        }
-        if (geom.size[1] == 0) {
-          params.uv_scale.y = kInfinitePlaneFakeSize;
-        }
+      const bool is_infinite_plane =
+          geom.type == mjGEOM_PLANE && (geom.size[0] <= 0 || geom.size[1] <= 0);
+      if (is_infinite_plane) {
+        // Infinite planes are scaled to match the tile size used by
+        // re-centering in engine_vis_visualize.c.
+        const float plane_scale = static_cast<float>(mjMAXPLANEGRID) / 2.0f;
+        const float tile_size_x =
+            GetPlaneTileSize(model, geom.matid, params.tex_repeat.x);
+        const float tile_size_y =
+            GetPlaneTileSize(model, geom.matid, params.tex_repeat.y);
+        params.uv_scale.x = 2.0f * plane_scale / tile_size_x;
+        params.uv_scale.y = 2.0f * plane_scale / tile_size_y;
       }
 
       params.uv_scale.x = 0.5f * params.uv_scale.x;
