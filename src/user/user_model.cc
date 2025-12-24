@@ -447,7 +447,20 @@ mjCModel& mjCModel::operator+=(const mjCModel& other) {
     // do not copy assets for self-attach
     // TODO: asset should be copied only when referenced
     CopyList(meshes_, other.meshes_);
+    int old_nskin = skins_.size();
     CopyList(skins_, other.skins_);
+    int new_nskin = skins_.size();
+
+    // Iterate ONLY over the newly added skins
+    for (int i = old_nskin; i < new_nskin; ++i) {
+      mjCSkin* skin = skins_[i];
+      for (std::string& bodyname : skin->bodyname_) {
+        if (!bodyname.empty()) {
+          bodyname = prefix + bodyname;
+        }
+      }
+    }
+
     CopyList(hfields_, other.hfields_);
     CopyList(textures_, other.textures_);
     CopyList(materials_, other.materials_);
@@ -1921,6 +1934,7 @@ void mjCModel::IndexAssets(bool discard) {
         throw mjCError(skin, "material '%s' not found in skin %d", skin->material_.c_str(), i);
       }
     }
+    skin->ResolveReferences(this);
   }
 
   // materials referenced in sites
