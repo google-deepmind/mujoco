@@ -242,3 +242,18 @@ katex_options = 'macros: {' + katex_macros + '}'
 
 # Add LaTeX macros for LATEX builder
 latex_elements = {'preamble': latex_macros}
+
+# -- Options for LaTeX/PDF output ---------------------------------------------
+
+# Use xelatex for better Unicode support (required for KaTeX symbols)
+latex_engine = 'xelatex'
+
+# Furo theme doesn't support LaTeX builds, use manual theme for PDF
+latex_theme = 'manual'
+
+# Configure PDF output
+latex_elements.update({
+    'papersize': 'letterpaper',
+    'pointsize': '10pt',
+    'extraclassoptions': 'openany,oneside',
+})
