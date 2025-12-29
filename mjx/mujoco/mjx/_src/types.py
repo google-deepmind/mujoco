@@ -1086,7 +1086,7 @@ class Model(PyTreeNode):
   def _get_element(
       self,
       key: Union[str, int],
-      obj_type: 'mujoco.mjtObj',
+      obj_type: mujoco._enums.mjtObj,
       view_class: type,
       type_name: str,
   ):
