@@ -16,7 +16,7 @@
 
 import dataclasses
 import enum
-from typing import Any, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 import warnings
 
 import jax
@@ -24,6 +24,97 @@ import mujoco
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
 from mujoco.mjx.warp import types as mjxw_types
 import numpy as np
+
+
+@dataclasses.dataclass
+class _NamedView:
+  """Base class for named element access views."""
+  id: int
+  name: str
+
+
+@dataclasses.dataclass
+class BodyView(_NamedView):
+  """View for accessing body elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class JointView(_NamedView):
+  """View for accessing joint elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class GeomView(_NamedView):
+  """View for accessing geom elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class SiteView(_NamedView):
+  """View for accessing site elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class CameraView(_NamedView):
+  """View for accessing camera elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class LightView(_NamedView):
+  """View for accessing light elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class MeshView(_NamedView):
+  """View for accessing mesh elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class ActuatorView(_NamedView):
+  """View for accessing actuator elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class SensorView(_NamedView):
+  """View for accessing sensor elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class TendonView(_NamedView):
+  """View for accessing tendon elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class EqualityView(_NamedView):
+  """View for accessing equality constraint elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class NumericView(_NamedView):
+  """View for accessing numeric elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class TupleView(_NamedView):
+  """View for accessing tuple elements by name."""
+  pass
+
+
+@dataclasses.dataclass
+class KeyView(_NamedView):
+  """View for accessing keyframe elements by name."""
+  pass
 
 
 class Impl(enum.Enum):
@@ -991,6 +1082,233 @@ class Model(PyTreeNode):
           f"'{type(self).__name__}' object has no attribute '{name}'"
       )
     return val
+
+  def _get_element(
+      self,
+      key: Union[str, int],
+      obj_type: 'mujoco.mjtObj',
+      view_class: type,
+      type_name: str,
+  ):
+    """Generic helper to get a model element by name or id.
+
+    Args:
+      key: element name (str) or id (int)
+      obj_type: mujoco object type enum
+      view_class: the view dataclass to return
+      type_name: human-readable name for error messages
+
+    Returns:
+      A view instance with the element's id and name
+    """
+    # Get count and name address array based on object type
+    obj_info = {
+        mujoco.mjtObj.mjOBJ_BODY: (self.nbody, self.name_bodyadr),
+        mujoco.mjtObj.mjOBJ_JOINT: (self.njnt, self.name_jntadr),
+        mujoco.mjtObj.mjOBJ_GEOM: (self.ngeom, self.name_geomadr),
+        mujoco.mjtObj.mjOBJ_SITE: (self.nsite, self.name_siteadr),
+        mujoco.mjtObj.mjOBJ_CAMERA: (self.ncam, self.name_camadr),
+        mujoco.mjtObj.mjOBJ_MESH: (self.nmesh, self.name_meshadr),
+        mujoco.mjtObj.mjOBJ_ACTUATOR: (self.nu, self.name_actuatoradr),
+        mujoco.mjtObj.mjOBJ_SENSOR: (self.nsensor, self.name_sensoradr),
+        mujoco.mjtObj.mjOBJ_TENDON: (self.ntendon, self.name_tendonadr),
+        mujoco.mjtObj.mjOBJ_EQUALITY: (self.neq, self.name_eqadr),
+        mujoco.mjtObj.mjOBJ_NUMERIC: (self.nnumeric, self.name_numericadr),
+        mujoco.mjtObj.mjOBJ_TUPLE: (self.ntuple, self.name_tupleadr),
+        mujoco.mjtObj.mjOBJ_KEY: (self.nkey, self.name_keyadr),
+    }
+    num, name_adr = obj_info[obj_type]
+
+    if isinstance(key, str):
+      # Find id by name (same logic as support.name2id)
+      for i in range(num):
+        obj_name = self.names[name_adr[i]:].split(b'\x00', 1)[0].decode('utf-8')
+        if obj_name == key:
+          return view_class(id=i, name=key)
+      raise KeyError(f"{type_name} '{key}' not found")
+    else:
+      # Access by id
+      if key < 0 or key >= num:
+        raise IndexError(f"{type_name} index {key} out of range [0, {num})")
+      obj_name = self.names[name_adr[key]:].split(b'\x00', 1)[0].decode('utf-8')
+      return view_class(id=key, name=obj_name)
+
+  def body(self, key: Union[str, int]) -> BodyView:
+    """Get a body element by name or id.
+
+    Args:
+      key: body name (str) or id (int)
+
+    Returns:
+      BodyView with the body's id and name
+    """
+    return self._get_element(key, mujoco.mjtObj.mjOBJ_BODY, BodyView, 'body')
+
+  def joint(self, key: Union[str, int]) -> JointView:
+    """Get a joint element by name or id.
+
+    Args:
+      key: joint name (str) or id (int)
+
+    Returns:
+      JointView with the joint's id and name
+    """
+    return self._get_element(key, mujoco.mjtObj.mjOBJ_JOINT, JointView, 'joint')
+
+  # Alias for joint
+  def jnt(self, key: Union[str, int]) -> JointView:
+    """Alias for joint()."""
+    return self.joint(key)
+
+  def geom(self, key: Union[str, int]) -> GeomView:
+    """Get a geom element by name or id.
+
+    Args:
+      key: geom name (str) or id (int)
+
+    Returns:
+      GeomView with the geom's id and name
+    """
+    return self._get_element(key, mujoco.mjtObj.mjOBJ_GEOM, GeomView, 'geom')
+
+  def site(self, key: Union[str, int]) -> SiteView:
+    """Get a site element by name or id.
+
+    Args:
+      key: site name (str) or id (int)
+
+    Returns:
+      SiteView with the site's id and name
+    """
+    return self._get_element(key, mujoco.mjtObj.mjOBJ_SITE, SiteView, 'site')
+
+  def camera(self, key: Union[str, int]) -> CameraView:
+    """Get a camera element by name or id.
+
+    Args:
+      key: camera name (str) or id (int)
+
+    Returns:
+      CameraView with the camera's id and name
+    """
+    return self._get_element(
+        key, mujoco.mjtObj.mjOBJ_CAMERA, CameraView, 'camera'
+    )
+
+  # Alias for camera
+  def cam(self, key: Union[str, int]) -> CameraView:
+    """Alias for camera()."""
+    return self.camera(key)
+
+  def mesh(self, key: Union[str, int]) -> MeshView:
+    """Get a mesh element by name or id.
+
+    Args:
+      key: mesh name (str) or id (int)
+
+    Returns:
+      MeshView with the mesh's id and name
+    """
+    return self._get_element(key, mujoco.mjtObj.mjOBJ_MESH, MeshView, 'mesh')
+
+  def actuator(self, key: Union[str, int]) -> ActuatorView:
+    """Get an actuator element by name or id.
+
+    Args:
+      key: actuator name (str) or id (int)
+
+    Returns:
+      ActuatorView with the actuator's id and name
+    """
+    return self._get_element(
+        key, mujoco.mjtObj.mjOBJ_ACTUATOR, ActuatorView, 'actuator'
+    )
+
+  def sensor(self, key: Union[str, int]) -> SensorView:
+    """Get a sensor element by name or id.
+
+    Args:
+      key: sensor name (str) or id (int)
+
+    Returns:
+      SensorView with the sensor's id and name
+    """
+    return self._get_element(
+        key, mujoco.mjtObj.mjOBJ_SENSOR, SensorView, 'sensor'
+    )
+
+  def tendon(self, key: Union[str, int]) -> TendonView:
+    """Get a tendon element by name or id.
+
+    Args:
+      key: tendon name (str) or id (int)
+
+    Returns:
+      TendonView with the tendon's id and name
+    """
+    return self._get_element(
+        key, mujoco.mjtObj.mjOBJ_TENDON, TendonView, 'tendon'
+    )
+
+  def equality(self, key: Union[str, int]) -> EqualityView:
+    """Get an equality constraint element by name or id.
+
+    Args:
+      key: equality name (str) or id (int)
+
+    Returns:
+      EqualityView with the equality's id and name
+    """
+    return self._get_element(
+        key, mujoco.mjtObj.mjOBJ_EQUALITY, EqualityView, 'equality'
+    )
+
+  # Alias for equality
+  def eq(self, key: Union[str, int]) -> EqualityView:
+    """Alias for equality()."""
+    return self.equality(key)
+
+  def numeric(self, key: Union[str, int]) -> NumericView:
+    """Get a numeric element by name or id.
+
+    Args:
+      key: numeric name (str) or id (int)
+
+    Returns:
+      NumericView with the numeric's id and name
+    """
+    return self._get_element(
+        key, mujoco.mjtObj.mjOBJ_NUMERIC, NumericView, 'numeric'
+    )
+
+  def tuple(self, key: Union[str, int]) -> TupleView:
+    """Get a tuple element by name or id.
+
+    Args:
+      key: tuple name (str) or id (int)
+
+    Returns:
+      TupleView with the tuple's id and name
+    """
+    return self._get_element(
+        key, mujoco.mjtObj.mjOBJ_TUPLE, TupleView, 'tuple'
+    )
+
+  def key(self, key: Union[str, int]) -> KeyView:
+    """Get a keyframe element by name or id.
+
+    Args:
+      key: keyframe name (str) or id (int)
+
+    Returns:
+      KeyView with the keyframe's id and name
+    """
+    return self._get_element(key, mujoco.mjtObj.mjOBJ_KEY, KeyView, 'key')
+
+  # Alias for key
+  def keyframe(self, key: Union[str, int]) -> KeyView:
+    """Alias for key()."""
+    return self.key(key)
 
 
 class Contact(PyTreeNode):
