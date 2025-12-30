@@ -142,7 +142,6 @@ App::App(int width, int height, std::string ini_path,
     render_config.load_asset = &App::LoadAssetCallback;
     render_config.load_asset_user_data = this;
     render_config.enable_gui = true;
-    render_config.use_distinct_segmentation_colors = true;
 #if defined(USE_FILAMENT_OPENGL)
     render_config.graphics_api = mjGFX_OPENGL;
 #elif defined(USE_FILAMENT_VULKAN)
@@ -201,10 +200,12 @@ void App::LoadModel(std::string data, ContentType type) {
       // Store the file path as the model name. Note that we use this model name
       // to perform reload operations.
       model_name_ = std::move(data);
-      if (model_name_.ends_with(".mjb")) {
-        model_ = mj_loadModel(model_name_.c_str(), 0);
-      } else if (model_name_.ends_with(".xml")) {
-        spec_ = mj_parseXML(model_name_.c_str(), nullptr, err, sizeof(err));
+      const std::string resolved_file =
+        platform::ResolveFile(model_name_, search_paths_);
+    if (resolved_file.ends_with(".mjb")) {
+        model_ = mj_loadModel(resolved_file.c_str(), 0);
+      } else if (resolved_file.ends_with(".xml")) {
+        spec_ = mj_parseXML(resolved_file.c_str(), nullptr, err, sizeof(err));
         if (spec_ && err[0] == 0) {
           model_ = mj_compile(spec_, nullptr);
         }
@@ -604,9 +605,9 @@ void App::HandleKeyboardEvents() {
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F9)) {
     tmp_.chart_solver = !tmp_.chart_solver;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F10)) {
-    tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
+    tmp_.chart_performance = !tmp_.chart_performance;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_F11)) {
-    tmp_.chart_dimensions = !tmp_.chart_dimensions;
+    tmp_.full_screen = !tmp_.full_screen;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_H)) {
     ToggleFlag(vis_options_.flags[mjVIS_CONVEXHULL]);
   } else if (ImGui_IsChordJustPressed(ImGuiKey_X)) {
@@ -772,11 +773,15 @@ void App::MoveCamera(platform::CameraMotion motion, mjtNum reldx,
 }
 
 void App::BuildGui() {
+  if (tmp_.full_screen) {
+    return;
+  }
+
   SetupTheme(ui_.theme);
   const ImVec4 workspace_rect = platform::ConfigureDockingLayout();
 
   // Place charts in bottom right corner of the workspace.
-  const ImVec2 chart_size(250, 250);
+  const ImVec2 chart_size(250, 500);
   const ImVec2 chart_pos(workspace_rect.x + workspace_rect.z - chart_size.x,
                          workspace_rect.y + workspace_rect.w - chart_size.y);
 
@@ -826,19 +831,11 @@ void App::BuildGui() {
     }
   }
 
-  if (tmp_.chart_cpu_time) {
+  if (tmp_.chart_performance) {
     ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Cpu Time", &tmp_.chart_cpu_time)) {
+    if (ImGui::Begin("Performance", &tmp_.chart_performance)) {
       profiler_.CpuTimeGraph();
-    }
-    ImGui::End();
-  }
-
-  if (tmp_.chart_dimensions) {
-    ImGui::SetNextWindowPos(chart_pos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(chart_size, ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Dimensions", &tmp_.chart_dimensions)) {
       profiler_.DimensionsGraph();
     }
     ImGui::End();
@@ -1144,10 +1141,14 @@ void App::HelpGui() {
   ImGui::Text("Stats");
   ImGui::Text("Cycle Frames");
   ImGui::Text("Cycle Labels");
+  ImGui::Text("Solver Charts");
+  ImGui::Text("Perf. Charts");
+  ImGui::Text("Toggle Fullscreen");
   ImGui::Text("Free Camera");
   ImGui::Text("Toggle Pause");
   ImGui::Text("Reset Sim");
-  ImGui::Text("Show/Hide UI");
+  ImGui::Text("Toggle Left UI");
+  ImGui::Text("Toggle Right UI");
   ImGui::Text("Speed Up");
   ImGui::Text("Speed Down");
   ImGui::Text("Prev Camera");
@@ -1165,10 +1166,14 @@ void App::HelpGui() {
   ImGui::Text("F2");
   ImGui::Text("F6");
   ImGui::Text("F7");
+  ImGui::Text("F9");
+  ImGui::Text("F10");
+  ImGui::Text("F11");
   ImGui::Text("Esc");
   ImGui::Text("Spc");
   ImGui::Text("Bksp");
   ImGui::Text("Tab");
+  ImGui::Text("Sh+Tab");
   ImGui::Text("=");
   ImGui::Text("-");
   ImGui::Text("[");
@@ -1559,17 +1564,17 @@ void App::MainMenuGui() {
               "Shift+Tab")) {
         tmp_.inspector_panel = !tmp_.inspector_panel;
       }
+      if (ImGui::MenuItem("Full Screen", "F11")) {
+        tmp_.full_screen = !tmp_.full_screen;
+      }
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Charts")) {
       if (ImGui::MenuItem("Solver", "F9")) {
         tmp_.chart_solver = !tmp_.chart_solver;
       }
-      if (ImGui::MenuItem("CPU Time", "F10")) {
-        tmp_.chart_cpu_time = !tmp_.chart_cpu_time;
-      }
-      if (ImGui::MenuItem("Dimensions", "F11")) {
-        tmp_.chart_dimensions = !tmp_.chart_dimensions;
+      if (ImGui::MenuItem("Performance", "F10")) {
+        tmp_.chart_performance = !tmp_.chart_performance;
       }
       ImGui::EndMenu();
     }
@@ -1677,8 +1682,12 @@ void App::FileDialogGui() {
   if (ImGui::BeginPopupModal("SaveWebp", NULL,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      renderer_->SaveScreenshot(tmp_.filename, window_->GetWidth(),
-                                window_->GetHeight());
+      const int width = window_->GetWidth();
+      const int height = window_->GetHeight();
+      std::vector<std::byte> buffer(width * height * 3);
+      renderer_->RenderToTexture(model_, data_, &camera_, width, height,
+                                 buffer.data());
+      platform::SaveToWebp(width, height, buffer.data(), tmp_.filename);
       tmp_.last_save_screenshot_file = tmp_.filename;
     }
     ImGui::EndPopup();

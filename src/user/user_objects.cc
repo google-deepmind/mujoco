@@ -4116,15 +4116,23 @@ void mjCCamera::Compile(void) {
                    name.c_str(), id, fovy);
   }
 
-  // check that specs are not duplicated
-  if ((principal_length[0] && principal_pixel[0]) ||
-      (principal_length[1] && principal_pixel[1])) {
-    throw mjCError(this, "principal length duplicated in camera");
+  // check for advanced camera intrinsic parameters
+  bool has_intrinsic = focal_length[0]     || focal_length[1]     ||
+                       focal_pixel[0]      || focal_pixel[1]      ||
+                       principal_length[0] || principal_length[1] ||
+                       principal_pixel[0]  || principal_pixel[1];
+  bool has_sensorsize = sensor_size[0] > 0 && sensor_size[1] > 0;
+
+  // intrinsic params require sensorsize
+  if (has_intrinsic && !has_sensorsize) {
+    throw mjCError(this, "focal/principal require sensorsize in camera '%s' (id = %d)",
+                   name.c_str(), id);
   }
 
-  if ((focal_length[0] && focal_pixel[0]) ||
-      (focal_length[1] && focal_pixel[1])) {
-    throw mjCError(this, "focal length duplicated in camera");
+  // sensorsize requires resolution
+  if (has_sensorsize && (resolution[0] <= 0 || resolution[1] <= 0)) {
+    throw mjCError(this, "sensorsize requires positive resolution in camera '%s' (id = %d)",
+                   name.c_str(), id);
   }
 
   // compute number of pixels per unit length
@@ -4134,11 +4142,11 @@ void mjCCamera::Compile(void) {
       (float)resolution[1] / sensor_size[1],
     };
 
-    // defaults are zero, so only one term in each sum is nonzero
-    intrinsic[0] = focal_pixel[0] / pixel_density[0] + focal_length[0];
-    intrinsic[1] = focal_pixel[1] / pixel_density[1] + focal_length[1];
-    intrinsic[2] = principal_pixel[0] / pixel_density[0] + principal_length[0];
-    intrinsic[3] = principal_pixel[1] / pixel_density[1] + principal_length[1];
+    // pixel values override length values when both are specified
+    intrinsic[0] = focal_pixel[0] ? focal_pixel[0] / pixel_density[0] : focal_length[0];
+    intrinsic[1] = focal_pixel[1] ? focal_pixel[1] / pixel_density[1] : focal_length[1];
+    intrinsic[2] = principal_pixel[0] ? principal_pixel[0] / pixel_density[0] : principal_length[0];
+    intrinsic[3] = principal_pixel[1] ? principal_pixel[1] / pixel_density[1] : principal_length[1];
 
     // fovy with principal point at (0, 0)
     fovy = std::atan2(sensor_size[1]/2, intrinsic[1]) * 360.0 / mjPI;
@@ -7141,7 +7149,6 @@ void mjCSensor::ResolveReferences(const mjCModel* m) {
 mjtDataType sensorDatatype(mjtSensor type) {
   switch (type) {
   case mjSENS_TOUCH:
-  case mjSENS_RANGEFINDER:
   case mjSENS_INSIDESITE:
     return mjDATATYPE_POSITIVE;
 
@@ -7188,6 +7195,7 @@ mjtDataType sensorDatatype(mjtSensor type) {
   case mjSENS_SUBTREEANGMOM:
   case mjSENS_GEOMDIST:
   case mjSENS_GEOMFROMTO:
+  case mjSENS_RANGEFINDER:
   case mjSENS_CONTACT:
   case mjSENS_TACTILE:
   case mjSENS_E_POTENTIAL:
@@ -7305,7 +7313,6 @@ void mjCSensor::Compile(void) {
     case mjSENS_FORCE:
     case mjSENS_TORQUE:
     case mjSENS_MAGNETOMETER:
-    case mjSENS_RANGEFINDER:
     case mjSENS_CAMPROJECTION:
       // must be attached to site
       if (objtype != mjOBJ_SITE) {
@@ -7317,6 +7324,30 @@ void mjCSensor::Compile(void) {
         mjCCamera* camref = (mjCCamera*)ref;
         if (!camref->resolution[0] || !camref->resolution[1]) {
           throw mjCError(this, "camera projection sensor requires camera resolution");
+        }
+      }
+      break;
+
+    case mjSENS_RANGEFINDER:
+      {
+        // must be attached to site or camera
+        if (objtype != mjOBJ_SITE && objtype != mjOBJ_CAMERA) {
+          throw mjCError(this, "sensor must be attached to site or camera");
+        }
+
+        // check for dataspec correctness
+        int dataspec = intprm[0];
+        if (dataspec <= 0) {
+          throw mjCError(this, "data spec (intprm[0]) must be positive, got %d", nullptr, dataspec);
+        }
+        int mask = (1 << mjNRAYDATA) - 1;
+        if (!(dataspec & mask)) {
+          throw mjCError(this, "data spec intprm[0]=%d must have at least one bit set of the first "
+                         "mjNRAYDATA bits", nullptr, dataspec);
+        }
+        if (dataspec & ~mask) {
+          throw mjCError(this, "data spec intprm[0]=%d has bits set beyond the first "
+                         "mjNRAYDATA bits", nullptr, dataspec);
         }
       }
       break;

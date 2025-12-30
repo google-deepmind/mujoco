@@ -22,7 +22,6 @@
 #include <string_view>
 #include <vector>
 
-#include <mujoco/mjrender.h>
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
@@ -34,17 +33,14 @@ using LoadAssetFn = std::function<std::vector<std::byte>(std::string_view)>;
 void SaveText(const std::string& contents, const std::string& filename);
 std::string LoadText(const std::string& filename);
 
-// Exports the given color buffer to a webp file.
-void SaveColorToWebp(int width, int height, const unsigned char* data,
-                     const std::string& filename);
+// Attempts to find a file with the given name by recursively searching the
+// given search paths.
+std::string ResolveFile(const std::string& filename,
+                        const std::vector<std::string>& search_paths);
 
-// Exports the given depth buffer to a webp file.
-void SaveDepthToWebp(int width, int height, const float* data,
-                     const std::string& filename);
-
-// Exports the current state of the mjrContext to a webp file.
-void SaveScreenshotToWebp(int width, int height, mjrContext* con,
-                          const std::string& filename);
+// Exports the given image (assumed to be RGB888) to a webp file.
+void SaveToWebp(int width, int height, const std::byte* data,
+                const std::string& filename);
 
 // Returns a pointer to the value of the given field in the given data.
 // Returns nullptr if the field is not found or the index is out of bounds.

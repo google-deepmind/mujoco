@@ -186,9 +186,9 @@ static void setFixed(mjModel* m, mjData* d) {
           m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
         }
       }
-      continue; // next actuator
+      continue;  // next actuator
     case mjTRN_UNDEFINED:
-      continue; // next actuator
+      continue;  // next actuator
     }
 
     // wake tree containing bodyid, if any
@@ -501,12 +501,8 @@ static void set0(mjModel* m, mjData* d) {
       m->actuator_acc0[i] = mju_norm(tmp, nv);
     }
   } else {
-    for (int i=0; i < m->ntendon; i++) {
-      m->tendon_invweight0[i] = 0;
-    }
-    for (int i=0; i < m->nu; i++) {
-      m->actuator_acc0[i] = 0;
-    }
+    mju_zero(m->tendon_invweight0, m->ntendon);
+    mju_zero(m->actuator_acc0, m->nu);
   }
 
   // compute missing eq_data for body constraints

@@ -107,7 +107,7 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
     memcpy(resource->name, fullname.c_str(), sizeof(char) * (n + 1));
   }
 
-  mjSpec* spec = mju_decodeResource(resource, content_type);
+  mjSpec* spec = mju_decodeResource(resource, content_type, vfs);
   mju_closeResource(resource);
   return spec;
 }
@@ -1252,7 +1252,6 @@ void mjs_deleteUserValue(mjsElement* element, const char* key) {
 int mjs_sensorDim(const mjsSensor* sensor) {
   switch (sensor->type) {
   case mjSENS_TOUCH:
-  case mjSENS_RANGEFINDER:
   case mjSENS_JOINTPOS:
   case mjSENS_JOINTVEL:
   case mjSENS_TENDONPOS:
@@ -1313,6 +1312,18 @@ int mjs_sensorDim(const mjsSensor* sensor) {
     return 3 * static_cast<const mjCMesh*>(
                    static_cast<mjCSensor*>(sensor->element)->get_obj())
                    ->nvert();
+
+  case mjSENS_RANGEFINDER:
+    {
+      int size = mju_raydataSize(sensor->intprm[0]);
+      int num_rays = 1;
+      if (sensor->objtype == mjOBJ_CAMERA) {
+        const mjCCamera* camera = static_cast<const mjCCamera*>(
+            static_cast<mjCSensor*>(sensor->element)->get_obj());
+        num_rays = camera->spec.resolution[0] * camera->spec.resolution[1];
+      }
+      return size * num_rays;
+    }
 
   case mjSENS_USER:
     return sensor->dim;

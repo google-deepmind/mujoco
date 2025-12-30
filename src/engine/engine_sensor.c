@@ -385,6 +385,61 @@ static void total_wrench(mjtNum force[3], mjtNum torque[3], const mjtNum point[3
 
 //-------------------------------- sensor ----------------------------------------------------------
 
+// fill one pixel's worth of rangefinder data, advance ptr
+static mjtNum* fill_raydata(mjtNum* ptr, int dataspec, mjtNum dist,
+                            const mjtNum origin[3], const mjtNum direction[3],
+                            const mjtNum normal[3], const mjtNum cam_xpos[3],
+                            const mjtNum cam_z[3]) {
+  int hit = (dist >= 0);
+
+  if (dataspec & (1 << mjRAYDATA_DIST)) {
+    *ptr++ = dist;
+  }
+  if (dataspec & (1 << mjRAYDATA_DIR)) {
+    if (hit) mju_copy3(ptr, direction);
+    else     mju_zero3(ptr);
+    ptr += 3;
+  }
+  if (dataspec & (1 << mjRAYDATA_ORIGIN)) {
+    mju_copy3(ptr, origin);
+    ptr += 3;
+  }
+
+  // compute point if needed for POINT or DEPTH fields
+  mjtNum point[3] = {0, 0, 0};
+  if ((dataspec & (1 << mjRAYDATA_POINT)) || (dataspec & (1 << mjRAYDATA_DEPTH))) {
+    if (hit) mju_addScl3(point, origin, direction, dist);
+  }
+
+  if (dataspec & (1 << mjRAYDATA_POINT)) {
+    mju_copy3(ptr, point);
+    ptr += 3;
+  }
+  if (dataspec & (1 << mjRAYDATA_NORMAL)) {
+    if (hit) mju_copy3(ptr, normal);
+    else     mju_zero3(ptr);
+    ptr += 3;
+  }
+  if (dataspec & (1 << mjRAYDATA_DEPTH)) {
+    if (hit) {
+      if (cam_z) {
+        // camera depth: project onto camera z-axis
+        mjtNum delta[3];
+        mju_sub3(delta, point, cam_xpos);
+        *ptr++ = -mju_dot3(delta, cam_z);
+      } else {
+        // site sensor: depth = dist
+        *ptr++ = dist;
+      }
+    } else {
+      *ptr++ = -1;
+    }
+  }
+
+  return ptr;
+}
+
+
 // position-dependent sensors
 void mj_sensorPos(const mjModel* m, mjData* d) {
   int ne = d->ne, nf = d->nf, nefc = d->nefc, nsensor = m->nsensor;
@@ -435,11 +490,102 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_RANGEFINDER:                            // rangefinder
-        rvec[0] = d->site_xmat[9*objid+2];
-        rvec[1] = d->site_xmat[9*objid+5];
-        rvec[2] = d->site_xmat[9*objid+8];
-        d->sensordata[adr] = mj_ray(m, d, d->site_xpos+3*objid, rvec, NULL, 1,
-                                    m->site_bodyid[objid], NULL);
+        {
+          // get dataspec
+          int dataspec = m->sensor_intprm[i*mjNSENS];
+          mjtNum* ptr = d->sensordata + adr;
+
+          if (objtype == mjOBJ_SITE) {
+            // site-attached rangefinder: single ray
+            rvec[0] = d->site_xmat[9*objid+2];
+            rvec[1] = d->site_xmat[9*objid+5];
+            rvec[2] = d->site_xmat[9*objid+8];
+            const mjtNum* origin = d->site_xpos + 3*objid;
+
+            int geomid;
+            mjtNum normal[3];
+            mjtNum* p_normal = (dataspec & (1 << mjRAYDATA_NORMAL)) ? normal : NULL;
+            mjtNum dist = mj_rayNormal(m, d, origin, rvec, NULL, 1,
+                                       m->site_bodyid[objid], &geomid, p_normal);
+
+            // for site sensor: pass NULL for cam_z so depth = dist
+            fill_raydata(ptr, dataspec, dist, origin, rvec, normal, NULL, NULL);
+
+          } else {
+            // camera-attached rangefinder: depth image
+            const int width = m->cam_resolution[2*objid];
+            const int height = m->cam_resolution[2*objid+1];
+            const int bodyexclude = m->cam_bodyid[objid];
+            const mjtNum* cam_xpos = d->cam_xpos + 3*objid;
+            const mjtNum* cam_xmat = d->cam_xmat + 9*objid;
+            const int projection = m->cam_projection[objid];
+
+            // camera z-axis (pointing into scene, negative of optical axis)
+            mjtNum cam_z[3] = {cam_xmat[2], cam_xmat[5], cam_xmat[8]};
+
+            // compute focal length in pixels using helper
+            mjtNum fx, fy, cx, cy, ortho_extent;
+            mju_camIntrinsics(m, objid, &fx, &fy, &cx, &cy, &ortho_extent);
+
+            if (projection == mjPROJ_PERSPECTIVE) {
+              // perspective: all rays share origin, different directions
+              const int npixel = width * height;
+              mj_markStack(d);
+              mjtNum* vec = mjSTACKALLOC(d, 3*npixel, mjtNum);
+              int* geomid = mjSTACKALLOC(d, npixel, int);
+              mjtNum* dist = mjSTACKALLOC(d, npixel, mjtNum);
+              mjtNum* normals = NULL;
+              if (dataspec & (1 << mjRAYDATA_NORMAL)) {
+                normals = mjSTACKALLOC(d, 3*npixel, mjtNum);
+              }
+
+              // compute ray directions using helper (normalized)
+              for (int row = 0; row < height; row++) {
+                for (int col = 0; col < width; col++) {
+                  int idx = row*width + col;
+                  mjtNum origin[3];
+                  mju_camPixelRay(origin, vec + 3*idx, cam_xpos, cam_xmat,
+                                  col, row, fx, fy, cx, cy, projection, ortho_extent);
+                }
+              }
+
+              // cast all rays with normals if needed
+              mj_multiRayNormal(m, d, cam_xpos, vec, NULL, 1, bodyexclude,
+                                geomid, dist, normals, npixel, mjMAXVAL);
+
+              // fill in output for each pixel
+              ptr = d->sensordata + adr;
+              for (int row = 0; row < height; row++) {
+                for (int col = 0; col < width; col++) {
+                  int idx = row*width + col;
+                  mjtNum* normal_ptr = normals ? normals + 3*idx : NULL;
+                  ptr = fill_raydata(ptr, dataspec, dist[idx], cam_xpos, vec + 3*idx,
+                                     normal_ptr, cam_xpos, cam_z);
+                }
+              }
+
+              mj_freeStack(d);
+            } else {
+              // orthographic: parallel rays, different origins
+              ptr = d->sensordata + adr;
+              for (int row = 0; row < height; row++) {
+                for (int col = 0; col < width; col++) {
+                  mjtNum origin[3], direction[3];
+                  mju_camPixelRay(origin, direction, cam_xpos, cam_xmat,
+                                  col, row, fx, fy, cx, cy, projection, ortho_extent);
+
+                  int geomid;
+                  mjtNum normal[3];
+                  mjtNum dist = mj_rayNormal(m, d, origin, direction, NULL, 1,
+                                             bodyexclude, &geomid, normal);
+
+                  ptr = fill_raydata(ptr, dataspec, dist, origin, direction,
+                                     normal, cam_xpos, cam_z);
+                }
+              }
+            }
+          }
+        }
 
         break;
 

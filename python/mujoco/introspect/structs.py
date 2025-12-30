@@ -2244,11 +2244,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ncam', 9),
              ),
              StructFieldDecl(
-                 name='cam_orthographic',
+                 name='cam_projection',
                  type=PointerType(
                      inner_type=ValueType(name='int'),
                  ),
-                 doc='orthographic camera; 0: no, 1: yes',
+                 doc='projection type (mjtProjection)',
                  array_extent=('ncam',),
              ),
              StructFieldDecl(
@@ -7566,9 +7566,17 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='target body for tracking/targeting',
              ),
              StructFieldDecl(
-                 name='orthographic',
-                 type=ValueType(name='int'),
-                 doc='is camera orthographic',
+                 name='proj',
+                 type=ValueType(name='mjtProjection'),
+                 doc='camera projection type',
+             ),
+             StructFieldDecl(
+                 name='resolution',
+                 type=ArrayType(
+                     inner_type=ValueType(name='int'),
+                     extents=(2,),
+                 ),
+                 doc='resolution (pixel)',
              ),
              StructFieldDecl(
                  name='fovy',
@@ -7578,7 +7586,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='ipd',
                  type=ValueType(name='double'),
-                 doc='inter-pupilary distance',
+                 doc='inter-pupillary distance',
              ),
              StructFieldDecl(
                  name='intrinsic',
@@ -7595,14 +7603,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(2,),
                  ),
                  doc='sensor size (length)',
-             ),
-             StructFieldDecl(
-                 name='resolution',
-                 type=ArrayType(
-                     inner_type=ValueType(name='float'),
-                     extents=(2,),
-                 ),
-                 doc='resolution (pixel)',
              ),
              StructFieldDecl(
                  name='focal_length',
@@ -10169,7 +10169,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='flags',
                  type=ArrayType(
                      inner_type=ValueType(name='mjtByte'),
-                     extents=(10,),
+                     extents=(11,),
                  ),
                  doc='rendering flags (indexed by mjtRndFlag)',
              ),

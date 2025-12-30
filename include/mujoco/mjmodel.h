@@ -124,6 +124,12 @@ typedef enum mjtGeom_ {           // type of geometric shape
 } mjtGeom;
 
 
+typedef enum mjtProjection_ {     // type of camera projection
+  mjPROJ_PERSPECTIVE  = 0,        // perspective
+  mjPROJ_ORTHOGRAPHIC             // orthographic
+} mjtProjection;
+
+
 typedef enum mjtCamLight_ {       // tracking mode for camera and light
   mjCAMLIGHT_FIXED    = 0,        // pos and rot fixed in body
   mjCAMLIGHT_TRACK,               // pos tracks body, rot fixed in global
@@ -290,7 +296,6 @@ typedef enum mjtObj_ {            // type of MujoCo object
   mjOBJ_FRAME         = 100,      // frame
   mjOBJ_DEFAULT,                  // default
   mjOBJ_MODEL                     // entire model
-
 } mjtObj;
 
 
@@ -303,7 +308,7 @@ typedef enum mjtSensor_ {         // type of sensor
   mjSENS_FORCE,                   // 3D force between site's body and its parent body
   mjSENS_TORQUE,                  // 3D torque between site's body and its parent body
   mjSENS_MAGNETOMETER,            // 3D magnetometer
-  mjSENS_RANGEFINDER,             // scalar distance to nearest geom or site along z-axis
+  mjSENS_RANGEFINDER,             // scalar distance to nearest geom along z-axis
   mjSENS_CAMPROJECTION,           // pixel coordinates of a site in the camera image
 
   // sensors related to scalar joints, tendons, actuators
@@ -395,8 +400,20 @@ typedef enum mjtConDataField_ {   // data fields returned by contact sensors
   mjCONDATA_NORMAL,               // contact frame normal
   mjCONDATA_TANGENT,              // contact frame first tangent
 
-  mjNCONDATA          = 7         // number of contact sensor data fields
+  mjNCONDATA                      // number of contact sensor data fields
 } mjtConDataField;
+
+
+typedef enum mjtRayDataField_ {   // data fields returned by rangefinder sensors
+  mjRAYDATA_DIST     = 0,         // distance from ray origin to nearest surface
+  mjRAYDATA_DIR,                  // normalized ray direction
+  mjRAYDATA_ORIGIN,               // ray origin
+  mjRAYDATA_POINT,                // point at which ray intersects nearest surface
+  mjRAYDATA_NORMAL,               // surface normal at intersection point
+  mjRAYDATA_DEPTH,                // depth along z-axis
+
+  mjNRAYDATA                      // number of rangefinder sensor data fields
+} mjtRayDataField;
 
 
 typedef enum mjtSameFrame_ {      // frame alignment of bodies with their children
@@ -882,7 +899,7 @@ struct mjModel_ {
   mjtNum*   cam_poscom0;          // global position rel. to sub-com in qpos0 (ncam x 3)
   mjtNum*   cam_pos0;             // global position rel. to body in qpos0    (ncam x 3)
   mjtNum*   cam_mat0;             // global orientation in qpos0              (ncam x 9)
-  int*      cam_orthographic;     // orthographic camera; 0: no, 1: yes       (ncam x 1)
+  int*      cam_projection;       // projection type (mjtProjection)          (ncam x 1)
   mjtNum*   cam_fovy;             // y field-of-view (ortho ? len : deg)      (ncam x 1)
   mjtNum*   cam_ipd;              // inter-pupilary distance                  (ncam x 1)
   int*      cam_resolution;       // resolution: pixels [width, height]       (ncam x 2)

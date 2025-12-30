@@ -48,7 +48,8 @@ MJAPI int mju_isModifiedResource(const mjResource* resource, const char* timesta
 
 // given a resource, find its decoder and return the decoded spec
 // the caller takes ownership of the spec and is responsible for cleaning it up
-MJAPI mjSpec* mju_decodeResource(mjResource* resource, const char* content_type);
+MJAPI mjSpec* mju_decodeResource(mjResource* resource, const char* content_type,
+                                 const mjVFS* vfs);
 
 #ifdef __cplusplus
 }

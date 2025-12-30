@@ -66,7 +66,6 @@
 #include <pxr/usd/usdPhysics/sphericalJoint.h>
 #include <pxr/usd/usdPhysics/tokens.h>
 #include <pxr/usd/usdShade/tokens.h>
-#include <pxr/usdImaging/usdImaging/tokens.h>
 
 namespace {
 
@@ -117,6 +116,9 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((sourceMesh, pxr::UsdGeomTokens->Mesh))
                          ((inputsNormal, "inputs:normal"))
                          ((joint, "Joint"))
+                         (UsdPrimvarReader_float2)
+                         (UsdUVTexture)
+                         (UsdPreviewSurface)
                         );
 
 // Using to satisfy TF_REGISTRY_FUNCTION macro below and avoid operating in PXR_NS.
@@ -775,7 +777,7 @@ class ModelWriter {
         layer_, uvmap_shader_spec, pxr::UsdShadeTokens->infoId,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
     SetAttributeDefault(layer_, uvmap_info_id_attr,
-                        pxr::UsdImagingTokens->UsdPrimvarReader_float2);
+                        kTokens->UsdPrimvarReader_float2);
 
     auto uvmap_varname_attr =
         CreateAttributeSpec(layer_, uvmap_shader_spec, kTokens->inputsVarname,
@@ -800,7 +802,7 @@ class ModelWriter {
         layer_, texture_shader_spec, pxr::UsdShadeTokens->infoId,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
     SetAttributeDefault(layer_, texture_info_id_attr,
-                        pxr::UsdImagingTokens->UsdUVTexture);
+                        kTokens->UsdUVTexture);
 
     auto texture_file_attr =
         CreateAttributeSpec(layer_, texture_shader_spec, kTokens->inputsFile,
@@ -899,7 +901,7 @@ class ModelWriter {
         layer_, preview_surface_shader_spec, pxr::UsdShadeTokens->infoId,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
     SetAttributeDefault(layer_, info_id_attr,
-                        pxr::UsdImagingTokens->UsdPreviewSurface);
+                        kTokens->UsdPreviewSurface);
 
     // Connect material's surface output to the preview surface's surface
     // output.

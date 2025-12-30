@@ -95,11 +95,11 @@ class App {
     // Windows.
     bool help = false;
     bool stats = false;
-    bool chart_cpu_time = false;
-    bool chart_dimensions = false;
     bool chart_solver = false;
+    bool chart_performance = false;
     bool options_panel = true;
     bool inspector_panel = true;
+    bool full_screen = false;
     bool style_editor = false;
     bool imgui_demo = false;
     bool implot_demo = false;
@@ -184,6 +184,8 @@ class App {
   platform::StepControl step_control_;
   platform::SimProfiler profiler_;
   platform::SimHistory history_;
+
+  std::vector<std::string> search_paths_;
 
   mjSpec* spec_ = nullptr;
   mjModel* model_ = nullptr;

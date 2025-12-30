@@ -2864,7 +2864,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->cam_targetbodyid[cid] = pc->targetbodyid;
       mjuu_copyvec(m->cam_pos+3*cid, pc->pos, 3);
       mjuu_copyvec(m->cam_quat+4*cid, pc->quat, 4);
-      m->cam_orthographic[cid] = pc->orthographic;
+      m->cam_projection[cid] = pc->proj;
       m->cam_fovy[cid] = (mjtNum)pc->fovy;
       m->cam_ipd[cid] = (mjtNum)pc->ipd;
       mjuu_copyvec(m->cam_resolution+2*cid, pc->resolution, 2);
@@ -4412,7 +4412,9 @@ mjModel* mjCModel::Compile(const mjVFS* vfs, mjModel** m) {
   } catch (mjCError err) {
     // deallocate everything allocated in Compile
     mj_deleteModel(model);
+    model = nullptr;
     mj_deleteData(data);
+    data = nullptr;
     Clear();
 
     // save error info

@@ -53,9 +53,6 @@ class Drawable {
   // beginFrame/endFrame.
   void SetDrawMode(Material::DrawMode mode);
 
-  // Updates whether to remap segmentation IDs to distinct colors when rendering
-  // segmentation. This is only really useful for visualization purposes.
-  void SetUseDistinctSegmentationColors(bool use_distinct_segmentation_colors);
 
  private:
   void AddMesh(int data_id);
@@ -66,11 +63,10 @@ class Drawable {
   void SetTransform(const mjvGeom& geom);
 
   // Updates the material parameters of the drawable for rendering.
-  void UpdateMaterial(const mjvGeom& geom);
+  void UpdateMaterial(const mjvGeom& geom, bool use_segid_color);
 
   Material material_;
   Renderables renderables_;
-  bool use_distinct_segmentation_colors_ = false;
 };
 
 }  // namespace mujoco

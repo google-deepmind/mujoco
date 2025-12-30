@@ -3755,9 +3755,8 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
              ),
              FunctionParameterDecl(
                  name='vec',
-                 type=ArrayType(
+                 type=PointerType(
                      inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(3,),
                  ),
              ),
              FunctionParameterDecl(

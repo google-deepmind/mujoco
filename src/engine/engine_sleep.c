@@ -244,7 +244,7 @@ int mj_wake(const mjModel* m, mjData* d) {
   if (!mjENABLED(mjENBL_SLEEP)) {
     // sleep disabled but some trees still asleep: wake all
     if (d->ntree_awake < ntree) {
-      for (int i=0; i < ntree; i++) d->tree_asleep[i] = kAwake;
+      mju_fillInt(d->tree_asleep, kAwake, ntree);
     }
     return ntree - d->ntree_awake;
   }

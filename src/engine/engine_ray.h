@@ -30,10 +30,17 @@ MJAPI void mju_multiRayPrepare(const mjModel* m, const mjData* d,
                                int* geom_eliminate);
 
 // intersect multiple rays emanating from a single source
-// similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
-MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
+// similar semantics to mj_ray, but vec is (nray x 3) and dist is (nray).
+MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                        const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                        int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
+
+// intersect multiple rays, compute normals if given
+// similar semantics to mj_rayNormal, but vec, normal and dist are arrays.
+MJAPI void mj_multiRayNormal(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+                             const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                             int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff);
+
 
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
@@ -62,6 +69,13 @@ MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum 
 MJAPI mjtNum mj_rayNormal(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                           const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
                           int geomid[1], mjtNum normal[3]);
+
+// intersect ray with flex, return nearest vertex id, compute normal if given
+MJAPI mjtNum mju_rayFlexNormal(const mjModel* m, const mjData* d,
+                               int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
+                               mjtByte flg_skin, int flexid,
+                               const mjtNum pnt[3], const mjtNum vec[3],
+                               int vertid[1], mjtNum normal[3]);
 
 // intersect ray with flex, return nearest vertex id
 MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,

@@ -692,8 +692,8 @@ describe('MuJoCo WASM Bindings', () => {
     expect(mujoco.get_mjRNDSTRING()).toEqual([
       ['Shadow', '1', 'S'], ['Wireframe', '0', 'W'], ['Reflection', '1', 'R'],
       ['Additive', '0', 'L'], ['Skybox', '1', 'K'], ['Fog', '0', 'G'],
-      ['Haze', '1', '/'], ['Segment', '0', ','], ['Id Color', '0', ''],
-      ['Cull Face', '1', '']
+      ['Haze', '1', '/'], ['Depth', '0', ''], ['Segment', '0', ','],
+      ['Id Color', '0', ''], ['Cull Face', '1', '']
     ]);
     expect(mujoco.get_mjFRAMESTRING().length)
         .toEqual(mujoco.mjtFrame.mjNFRAME.value);
@@ -1800,6 +1800,30 @@ describe('MuJoCo WASM Bindings', () => {
       model.delete();
       data.delete();
       unlinkXMLFile(tempXmlFilename);
+    }
+  });
+
+  it('should compile a spec from XML string', () => {
+    let spec = null;
+    let model = null;
+    try {
+      spec = mujoco.parseXMLString(TEST_XML);
+      expect(spec).not.toBeNull();
+
+      model = mujoco.mj_compile(spec);
+      expect(model).not.toBeNull();
+      expect(model.nq).toBeGreaterThan(0);
+
+      const jointId =
+          mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT.value, 'myhinge');
+      expect(jointId).toBeGreaterThanOrEqual(0);
+    } finally {
+      if (spec) {
+        spec.delete();
+      }
+      if (model) {
+        model.delete();
+      }
     }
   });
 });

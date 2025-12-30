@@ -678,16 +678,13 @@ void mju_addScl(mjtNum* res, const mjtNum* vec1, const mjtNum* vec2, mjtNum scl,
 
 // normalize vector, return length before normalization
 mjtNum mju_normalize(mjtNum* res, int n) {
-  mjtNum norm = (mjtNum)mju_sqrt(mju_dot(res, res, n));
-  mjtNum normInv;
+  mjtNum norm = mju_sqrt(mju_dot(res, res, n));
 
   if (norm < mjMINVAL) {
     res[0] = 1;
-    for (int i=1; i < n; i++) {
-      res[i] = 0;
-    }
+    mju_zero(res + 1, n - 1);
   } else {
-    normInv = 1/norm;
+    mjtNum normInv = 1 / norm;
     for (int i=0; i < n; i++) {
       res[i] *= normInv;
     }

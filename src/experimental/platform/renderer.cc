@@ -14,10 +14,8 @@
 
 #include "experimental/platform/renderer.h"
 
-#include <chrono>
-#include <string>
+#include <cstddef>
 
-#include "experimental/platform/helpers.h"
 #include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
@@ -50,18 +48,31 @@ void Renderer::Deinit() {
 void Renderer::Render(const mjModel* model, mjData* data,
                       const mjvPerturb* perturb, mjvCamera* camera,
                       const mjvOption* vis_option, int width, int height) {
-  if (initialized_) {
-    mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
-                    &scene_);
+  if (!initialized_) {
+    return;
   }
 
-  mjrRect main_viewport = {0, 0, width, height};
-  mjr_render(main_viewport, data ? &scene_ : nullptr, &render_context_);
+  mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
+                  &scene_);
+
+  const mjrRect viewport = {0, 0, width, height};
+  mjr_render(viewport, &scene_, &render_context_);
 }
 
-void Renderer::SaveScreenshot(const std::string& filename, int width,
-                              int height) {
-  SaveScreenshotToWebp(width, height, &render_context_, filename);
+void Renderer::RenderToTexture(const mjModel* model, mjData* data,
+                               mjvCamera* camera, int width, int height,
+                               std::byte* output) {
+  if (!initialized_) {
+    return;
+  }
+
+  const mjrRect viewport = {0, 0, width, height};
+
+  mjr_setBuffer(mjFB_OFFSCREEN, &render_context_);
+  mjv_updateCamera(model, data, camera, &scene_);
+  mjr_render(viewport, &scene_, &render_context_);
+  mjr_readPixels((unsigned char*)output, nullptr, viewport, &render_context_);
+  mjr_setBuffer(mjFB_WINDOW, &render_context_);
 }
 
 }  // namespace mujoco::platform

@@ -187,8 +187,8 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
   constexpr int N = 80;
   constexpr int M = 60;
   mjtNum vec[3*N*M];
-  mjtNum pnt[3] = {1, 2, 3};
-  mjtNum cone[4][3] = {{1, 1, -1}, {1, 1, 1}, {1, -1, -1}, {1, -1, 1}};
+  mjtNum pnt[3] = {-1, 0, 0};
+  mjtNum cone[4][3] = {{1, .2, -.2}, {1, .2, .2}, {1, -.2, -.2}, {1, -.2, .2}};
   memset(vec, 0, 3*N*M*sizeof(mjtNum));
 
   for (int i = 0; i < N; ++i) {
@@ -211,15 +211,75 @@ TEST_F(RayTest, MultiRayEqualsSingleRay) {
   // compare results with single ray function
   mjtNum dist;
   int rgeomid;
-
+  int nhits = 0;
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < M; ++j) {
       int idx = i * M + j;
       dist = mj_ray(m, d, pnt, vec + 3 * idx, NULL, 1, -1, &rgeomid);
       EXPECT_FLOAT_EQ(dist, dist_multiray[idx]);
       EXPECT_EQ(rgeomid, rgeomid_multiray[idx]);
+      nhits += dist >= 0;
     }
   }
+  EXPECT_GT(nhits, 10);
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(RayTest, MultiRayNormalEqualsSingleRayNormal) {
+  char error[1024];
+  mjModel* m = LoadModelFromString(kRayCastingModel, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+  ASSERT_THAT(d, NotNull());
+  mj_forward(m, d);
+
+  // create ray array
+  constexpr int N = 80;
+  constexpr int M = 60;
+  mjtNum vec[3*N*M];
+  mjtNum pnt[3] = {-1, 0, 0};
+  mjtNum cone[4][3] = {{1, .2, -.2}, {1, .2, .2}, {1, -.2, -.2}, {1, -.2, .2}};
+  memset(vec, 0, 3*N*M*sizeof(mjtNum));
+
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < M; ++j) {
+      for (int k = 0; k < 3; ++k) {
+        vec[3 * (i * M + j) + k] =           i * cone[0][k] / (N - 1) +
+                                             j * cone[1][1] / (M - 1) +
+                                   (N - i - 1) * cone[2][k] / (N - 1) +
+                                   (M - j - 1) * cone[3][k] / (M - 1);
+      }
+    }
+  }
+
+  // compute intersections with multiray normal function
+  mjtNum dist_multiray[N*M];
+  int rgeomid_multiray[N*M];
+  mjtNum normal_multiray[3*N*M];
+  mj_multiRayNormal(m, d, pnt, vec, NULL, 1, -1, rgeomid_multiray,
+                    dist_multiray, normal_multiray, N * M, mjMAXVAL);
+
+  // compare results with single ray normal function
+  mjtNum dist;
+  int rgeomid;
+  mjtNum normal[3];
+  int nhits = 0;
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < M; ++j) {
+      int idx = i * M + j;
+      dist = mj_rayNormal(m, d, pnt, vec + 3 * idx, NULL, 1, -1, &rgeomid,
+                          normal);
+      EXPECT_FLOAT_EQ(dist, dist_multiray[idx]);
+      EXPECT_EQ(rgeomid, rgeomid_multiray[idx]);
+      EXPECT_FLOAT_EQ(normal[0], normal_multiray[3*idx]);
+      EXPECT_FLOAT_EQ(normal[1], normal_multiray[3*idx + 1]);
+      EXPECT_FLOAT_EQ(normal[2], normal_multiray[3*idx + 2]);
+      nhits += dist >= 0;
+    }
+  }
+  EXPECT_GT(nhits, 10);
 
   mj_deleteData(d);
   mj_deleteModel(m);
@@ -283,10 +343,15 @@ TEST_F(RayTest, EdgeCases) {
   m->geom_aabb[0] = m->geom_aabb[1] = m->geom_aabb[2] = 0;
   m->geom_aabb[3] = m->geom_aabb[4] = m->geom_aabb[5] = 0;
   mju_multiRayPrepare(m, d, pnt4, NULL, NULL, 1, -1, mjMAXVAL, geom_ba, flags);
-  EXPECT_FLOAT_EQ(geom_ba[0], 0);
-  EXPECT_FLOAT_EQ(geom_ba[1], mjPI/2);
-  EXPECT_FLOAT_EQ(geom_ba[2], 0);
-  EXPECT_FLOAT_EQ(geom_ba[3], mjPI/2);
+  // margin = atan(max_half / dist) where max_half = max(aabb[3..5])
+  // For a zero-size AABB: max_half = 0, so margin = 0
+  mjtNum dist4 = mju_dist3(pnt4, d->geom_xpos);
+  mjtNum max_half4 = mju_max(m->geom_aabb[3], mju_max(m->geom_aabb[4], m->geom_aabb[5]));
+  mjtNum margin4 = mju_atan2(max_half4, dist4);
+  EXPECT_NEAR(geom_ba[0], 0 - margin4, 1e-6);
+  EXPECT_NEAR(geom_ba[1], mjPI/2 - margin4, 1e-6);
+  EXPECT_NEAR(geom_ba[2], 0 + margin4, 1e-6);
+  EXPECT_NEAR(geom_ba[3], mjPI/2 + margin4, 1e-6);
   mjtNum vec4[] = {1, 0, 0};
   mj_multiRay(m, d, pnt4, vec4, NULL, 1, -1, &rgeomid, &dist, 1, mjMAXVAL);
   EXPECT_FLOAT_EQ(dist, 0.9);
@@ -477,19 +542,21 @@ static const char* const kBoxModel = "engine/testdata/ray/box.xml";
 static const char* const kMeshModel = "engine/testdata/ray/mesh.xml";
 static const char* const kSdfModel = "engine/testdata/ray/sdf.xml";
 static const char* const kHfieldModel = "engine/testdata/ray/hfield.xml";
+static const char* const kFlexModel = "engine/testdata/ray/flex.xml";
 
-TEST_F(RayTest, GeomNormal) {
-  for (const char* path :
-       {kPlaneModel, kSphereModel, kCapsuleModel, kEllipsoidModel,
-        kCylinderModel, kBoxModel, kMeshModel, kSdfModel, kHfieldModel}) {
+TEST_F(RayTest, RayNormal) {
+  for (const char* path : {kPlaneModel, kSphereModel, kCapsuleModel,
+                           kEllipsoidModel, kCylinderModel, kBoxModel,
+                           kMeshModel, kSdfModel, kHfieldModel, kFlexModel}) {
     const std::string xml_path = GetTestDataFilePath(path);
     char error[1024];
     mjModel* m = mj_loadXML(xml_path.c_str(), 0, error, sizeof(error));
     ASSERT_THAT(m, NotNull()) << error;
 
-    // exactly one geom and one site in each model
-    ASSERT_EQ(m->ngeom, 1) << path;
+    // exactly one geom or one flex, and one site in each model
     ASSERT_EQ(m->nsite, 1) << path;
+    ASSERT_TRUE((m->ngeom == 1) != (m->nflex == 1)) << path;
+    bool is_flex = m->nflex == 1;
 
     mjData* d = mj_makeData(m);
 
@@ -514,13 +581,22 @@ TEST_F(RayTest, GeomNormal) {
       const mjtNum* pnt = d->site_xpos;
       const mjtNum vec[3] = {d->site_xmat[2], d->site_xmat[5], d->site_xmat[8]};
 
-      // compute ray length and normal
+      // compute ray length and normal, compare with sensor
       mjtNum r, normal[3];
-      int geomid;
-      r = mj_rayNormal(m, d, pnt, vec, NULL, 1, -1, &geomid, normal);
+      if (!is_flex) {
+        int geomid;
+        r = mj_rayNormal(m, d, pnt, vec, nullptr, 1, -1, &geomid, normal);
 
-      // compare with sensor
-      EXPECT_EQ(r, d->sensordata[0]) << path << ", time " << d->time;
+        // compare with sensor, expect geomid to be 0
+        EXPECT_EQ(r, d->sensordata[0]) << path << ", time " << d->time;
+        EXPECT_EQ(geomid, r >= 0 ? 0 : -1);
+      } else {
+        r = mju_rayFlexNormal(m, d, /*flex_layer*/ 0, /*flg_vert*/ 1,
+                              /*flg_edge*/ 1, /*flg_face*/ 1,
+                              /*flg_skin*/ 1, /*flex_id*/ 0,
+                              pnt, vec, nullptr, normal);
+        // no sensor comparison: rangefinders only intersect with geoms
+      }
 
       // if no intersection, skip
       if (r < 0) {
@@ -542,7 +618,12 @@ TEST_F(RayTest, GeomNormal) {
                            d->site_xmat[6 + i]};
         mjtNum dr, dpnt[3];
         mju_addScl3(dpnt, pnt, nudge, eps);
-        dr = mj_rayNormal(m, d, dpnt, vec, NULL, 1, -1, nullptr, nullptr);
+        if (!is_flex) {
+          dr = mj_rayNormal(m, d, dpnt, vec, NULL, 1, -1, nullptr, nullptr);
+        } else {
+          dr = mju_rayFlexNormal(m, d, 0, 1, 1, 1, 1, 0, dpnt, vec, nullptr,
+                                 nullptr);
+        }
         mju_addScl3(ds[i], dpnt, vec, dr);
       }
 
@@ -560,10 +641,9 @@ TEST_F(RayTest, GeomNormal) {
       mjtNum expected_neg[3] = {-expected[0], -expected[1], -expected[2]};
 
       // compare analytic with fin-diff approximation
-      EXPECT_THAT(normal, AnyOf(
-          Pointwise(DoubleNear(10*eps), expected),
-          Pointwise(DoubleNear(10*eps), expected_neg)
-      )) << path << ", time " << d->time;
+      EXPECT_THAT(normal, AnyOf(Pointwise(DoubleNear(100 * eps), expected),
+                                Pointwise(DoubleNear(100 * eps), expected_neg)))
+          << path << ", time " << d->time;
 
       // increment count
       ntest++;

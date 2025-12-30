@@ -573,7 +573,7 @@ void mjXWriter::OneCamera(XMLElement* elem, const mjCCamera* camera, mjCDef* def
   WriteAttr(elem, "ipd", 1, &camera->ipd, &def->Camera().ipd);
   WriteAttrKey(elem, "mode", camlight_map, camlight_sz, camera->mode, def->Camera().mode);
   WriteAttr(elem, "resolution", 2, camera->resolution, def->Camera().resolution);
-  WriteAttrKey(elem, "orthographic", bool_map, 2, camera->orthographic, def->Camera().orthographic);
+  WriteAttrKey(elem, "projection", projection_map, projection_sz, camera->proj, def->Camera().proj);
 
   // camera intrinsics if specified
   if (camera->sensor_size[0] > 0 && camera->sensor_size[1] > 0) {
@@ -2028,8 +2028,23 @@ void mjXWriter::Sensor(XMLElement* root) {
         WriteAttrTxt(elem, "site", sensor->get_objname());
         break;
       case mjSENS_RANGEFINDER:
-        elem = InsertEnd(section, "rangefinder");
-        WriteAttrTxt(elem, "site", sensor->get_objname());
+        {
+          elem = InsertEnd(section, "rangefinder");
+          if (sensor->objtype == mjOBJ_SITE) {
+            WriteAttrTxt(elem, "site", sensor->get_objname());
+          } else {
+            WriteAttrTxt(elem, "camera", sensor->get_objname());
+          }
+          int dataspec = sensor->intprm[0];
+          int data[mjNRAYDATA];
+          int ndata = 0;
+          for (int i=0; i < mjNRAYDATA; i++) {
+            if (dataspec & (1 << i)) {
+              data[ndata++] = i;
+            }
+          }
+          WriteAttrKeys(elem, "data", raydata_map, mjNRAYDATA, data, ndata, 0);
+        }
         break;
       case mjSENS_CAMPROJECTION:
         elem = InsertEnd(section, "camprojection");

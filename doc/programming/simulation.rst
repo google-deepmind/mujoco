@@ -8,20 +8,16 @@ Simulation
 Initialization
 ~~~~~~~~~~~~~~
 
-After the :ref:`version <inVersion>` check, the next step is to allocate and initialize the main data structures needed
-for simulation, namely mjModel and mjData. Additional initialization steps related to visualization and callbacks will
-be discussed later.
-
-mjModel and mjData should never be allocated directly by the user. Instead they are allocated and initialized by the
-corresponding API functions. These are very elaborate data structures, containing (arrays of) other structures,
-preallocated data arrays for all intermediate results, as well as an :ref:`internal stack <siStack>`. Our strategy is
-to allocate all necessary heap memory at the beginning of the simulation, and free it after the simulation is done, so
-that we never have to call the C memory allocation and deallocation functions during the simulation. This is done for
-speed, avoidance of memory fragmentation, future GPU portability, and ease of managing the state of the entire
-simulator during a reset. It also means however that the maximal variable-memory allocation given by the
-:at:`memory` attribute in the :ref:`size <size>` MJCF element, which affects the allocation of ``mjData``, must be
-set to a sufficiently large value. If this maximal size is exceeded during simulation, it is not increased
-dynamically, but instead an error is generated. See also :ref:`diagnostics <siDiagnostics>` below.
+:ref:`mjModel` and :ref:`mjData` should never be allocated directly by the user. Instead they are allocated and
+initialized by the corresponding API functions. These are very elaborate data structures, containing (arrays of) other
+structures, preallocated data arrays for all intermediate results, as well as an :ref:`internal stack <siStack>`. Our
+strategy is to allocate all necessary heap memory at the beginning of the simulation, and free it after the simulation
+is done, so that we never have to call the C memory allocation and deallocation functions during the simulation. This is
+done for speed, avoidance of memory fragmentation, future GPU portability, and ease of managing the state of the entire
+simulator during a reset. It also means however that the maximal variable-memory allocation given by the :at:`memory`
+attribute in the :ref:`size <size>` MJCF element, which affects the allocation of :ref:`mjData`, must be set to a
+sufficiently large value. If this maximal size is exceeded during simulation, it is not increased dynamically, but
+instead an error is generated. See also :ref:`diagnostics <siDiagnostics>` below.
 
 First we must call one of the functions that allocates and initializes mjModel and returns a pointer to it. The
 available options are
@@ -43,6 +39,9 @@ available options are
    // option 5: deep copy from existing mjModel
    mjModel* m = mj_copyModel(NULL, mexisting);
 
+   // option 6: compile model from mjSpec
+   mjModel* m = mj_compile(spec, vfs);
+
 All these functions return a NULL pointer if there is an error or warning. In the case of XML parsing and model
 compilation, a description of the error is returned in the string provided as argument. For the remaining functions, the
 low-level :ref:`mju_error` or :ref:`mju_warning` is called with the error/warning message; see :ref:`error handling
@@ -57,7 +56,7 @@ API Reference chapter.
 In addition to mjModel which holds the model description, we also need mjData which is the workspace where all
 computations are performed. Note that mjData is specific to a given mjModel. The API functions generally assume that
 users know what they are doing, and perform minimal argument checking. If the mjModel and mjData passed to any API
-function are incompatible (or NULL) the resulting behavior is unpredictable. mjData is created with
+function are incompatible (or NULL) the resulting behavior is undefined. mjData is created with
 
 .. code-block:: C
 
@@ -80,12 +79,7 @@ done, we can delete them with
 
 The code samples illustrate the complete initialization and termination sequence.
 
-MuJoCo simulations are deterministic with one exception: sensor noise can be generated when this feature is enabled.
-This is done by calling the C function rand() internally. To generate the same random number sequence, call srand()
-with a desired seed after the model is loaded and before the simulation starts. The model compiler calls srand(123)
-internally, so as to generate random dots for procedural textures. Therefore the noise sequence in the sensor data
-will change if the specification of procedural textures changes, and the user does not call srand() after model
-compilation.
+MuJoCo simulations are :ref:`deterministic <piReproducibility>`.
 
 .. _siSimulation:
 
@@ -102,7 +96,7 @@ function :ref:`mj_step` in a loop such as
      mj_step(m, d);
 
 This by itself will simulate the passive dynamics, because we have not provided any control signals or applied forces.
-The default (and recommended) way to control the system is to implement a control callback, for example
+The default way to control the system is to implement a control callback, for example
 
 .. code-block:: C
 
@@ -126,9 +120,7 @@ global control callback pointer :ref:`mjcb_control`:
    mjcb_control = mycontroller;
 
 Now if we call :ref:`mj_step`, our control callback will be executed whenever the control
-signal is needed by the simulation pipeline, and as a result we will end up simulating the controlled dynamics (except
-damping does not really do justice to the notion of control, and is better implemented as a passive joint property,
-but these are finer points).
+signal is needed by the simulation pipeline, and as a result we will end up simulating the controlled dynamics.
 
 Instead of relying on a control callback, we could set the control vector ``mjData.ctrl`` directly. Alternatively we
 could set applied forces as explained in :ref:`state and control <siStateControl>`. If we could compute these control-
@@ -144,7 +136,7 @@ control callback) would become
 
 Why would we not be able to compute the controls before ``mj_step`` is called? After all, isn't this what causality
 means? The answer is subtle but important, and has to do with the fact that we are simulating in discrete time. The top-
-level simulation function ``mj_step`` basically does two things: compute the :ref:`forward dynamics <siForward>` in
+level simulation function ``mj_step`` does two things: compute the :ref:`forward dynamics <siForward>` in
 continuous time, and then integrate over a time period specified by ``mjModel.opt.timestep``. Forward dynamics computes
 the acceleration ``mjData.qacc`` at time ``mjData.time``, given the :ref:`state and control <siStateControl>` at time
 ``mjData.time``. The numerical integrator then advances the state and time to ``mjData.time + mjModel.opt.timestep``.
@@ -153,7 +145,7 @@ controller can be a very complex function, depending on various features of the 
 computed by MuJoCo as intermediate results of the simulation. These may include contacts, Jacobians, passive forces.
 None of these quantities are available before ``mj_step`` is called (or rather, they are available but *outdated by one
 time step*). In contrast, when ``mj_step`` calls our control callback, it does so as late in the computation as possible
-- namely after all the intermediate results dependent on the state but not on the control have been computed.
+-- namely after all the intermediate results dependent on the state but not on the control have been computed.
 
 The same effect can be achieved without using a control callback. This is done by breaking ``mj_step`` in two parts:
 before the control is needed, and after the control is needed. The simulation loop now becomes
@@ -166,14 +158,14 @@ before the control is needed, and after the control is needed. The simulation lo
      mj_step2(m, d);
    }
 
-There is one complication however: this only works with Euler integration. The Runge-Kutta integrator (as well as other
-advanced integrators we plan to implement) need to evaluate the entire dynamics including the feedback control law
-multiple times per step, which can only be done using a control callback. But with Euler integration, the above
-separation of ``mj_step`` into :ref:`mj_step1` and :ref:`mj_step2` is sufficient to provide the control law with the
-intermediate results of the computation.
+There is one complication however: this only works with the single-step :ref:`integrators<geIntegration>` (Euler,
+implicit, implicitfast). The Runge-Kutta integrator needs to evaluate the entire dynamics including the feedback control
+law multiple times per step, which can only be done using a control callback. With the single-step integrators, the
+above separation of ``mj_step`` into :ref:`mj_step1` and :ref:`mj_step2` is sufficient to provide the control law with
+the intermediate results of the computation.
 
-To make the above discussion more clear, we provide the internal implementation of mj_step, mj_step1 and mj_step2,
-omitting some code that computes timing diagnostics. The main simulation function is
+To make the above discussion clearer, we provide the internal implementation of :ref:`mj_step`, :ref:`mj_step1` and
+:ref:`mj_step2`, omitting some code that computes timing diagnostics. The main simulation function is
 
 .. code-block:: C
 
@@ -184,15 +176,24 @@ omitting some code that computes timing diagnostics. The main simulation functio
      mj_forward(m, d);
      mj_checkAcc(m, d);
 
-     // compare forward and inverse solutions if enabled
-     if (mjENABLED(mjENBL_FWDINV))
-       mj_compareFwdInv(m, d);
-
      // use selected integrator
-     if (m->opt.integrator == mjINT_RK4)
-       mj_RungeKutta(m, d, 4);
-     else
+     switch ((mjtIntegrator) m->opt.integrator) {
+     case mjINT_EULER:
        mj_Euler(m, d);
+       break;
+
+     case mjINT_RK4:
+       mj_RungeKutta(m, d, 4);
+       break;
+
+     case mjINT_IMPLICIT:
+     case mjINT_IMPLICITFAST:
+       mj_implicit(m, d);
+       break;
+
+     default:
+       mjERROR("invalid integrator");
+     }
    }
 
 The checking functions reset the simulation automatically if any numerical values have become invalid or too large.
@@ -200,8 +201,8 @@ The control callback (if any) is called from within the forward dynamics functio
 
 Next we show the implementation of the two-part stepping approach, although the specifics will make sense only after
 we explain the :ref:`forward dynamics <siForward>` later. Note that the control callback is now called directly, since
-we have essentially unpacked the forward dynamics function. Note also that we always call the Euler integrator in
-mj_step2 regardless of the setting of ``mjModel.opt.integrator``.
+we have essentially unpacked the forward dynamics function. Note also that we always call a single-step integrator in
+:ref:`mj_step2`; if RK4 is selected, the integrator will default to Euler.
 
 .. code-block:: C
 
@@ -227,19 +228,17 @@ mj_step2 regardless of the setting of ``mjModel.opt.integrator``.
      mj_sensorAcc(m, d);
      mj_checkAcc(m, d);
 
-     // compare forward and inverse solutions if enabled
-     if (mjENABLED(mjENBL_FWDINV))
-       mj_compareFwdInv(m, d);
-
-     // integrate with Euler; ignore integrator option
-     mj_Euler(m, d);
+     // integrate with Euler or implicit; RK4 defaults to Euler
+     if (m->opt.integrator == mjINT_IMPLICIT || m->opt.integrator == mjINT_IMPLICITFAST)
+       mj_implicit(m, d);
+     else
+       mj_Euler(m, d);
    }
 
 .. _siStateControl:
 
 State and control
 ~~~~~~~~~~~~~~~~~
-
 MuJoCo has a well-defined state that is easy to set, reset and advance through time. This is closely related to the
 notion of state of a dynamical system. Dynamical systems are usually described in the general form
 
@@ -247,122 +246,201 @@ notion of state of a dynamical system. Dynamical systems are usually described i
 
      dx/dt = f(t, x, u)
 
-where ``t`` is the time, ``x`` is the state vector, ``u`` is the control vector, and ``f`` is the function that
-computes the time-derivative of the state. This is a continuous-time formulation, and indeed the physics model
-simulated by MuJoCo is defined in continuous time. Even though the numerical integrator operates in discrete time, the
-main part of the computation---namely the function :ref:`mj_forward`---corresponds to the
-continuous-time dynamics function ``f(t,x,u)`` above. Here we explain this correspondence.
+where ``t`` is the time, ``x`` is the state vector, ``u`` is the control vector, and ``f`` is the function that computes
+the time-derivative of the state. This is a continuous-time formulation, and indeed the physics model simulated by
+MuJoCo is defined in continuous time. Even though the numerical integrator operates in discrete time, the main part of
+the computation---namely the function :ref:`mj_forward`---corresponds to the continuous-time dynamics function
+``f(t,x,u)`` above. Below we explain this correspondence.
 
-The state vector in MuJoCo is:
+.. _siStateComponents:
 
-.. code-block:: Text
+State components
+^^^^^^^^^^^^^^^^
+The state is composed of distinct components, described in the :ref:`mjtState` bitfield enum, which enumerates both
+individual components and combinations of components. These are:
 
-     x = (mjData.time, mjData.qpos, mjData.qvel, mjData.act)
+.. _siPhysicsState:
 
-For a second-order dynamical system the state contains only position and velocity, however MuJoCo can also model
-actuators (such as cylinders and biological muscles) that have their own activation states assembled in the vector
-``mjData.act``. While the physics model is time-invariant, user-defined control laws may be time-varying; in particular
-control laws obtained from trajectory optimizers would normally be indexed by ``mjData.time``.
+Physics state
+"""""""""""""
+The *physics state* (:ref:`mjSTATE_PHYSICS<mjtState>`) contains the main quantities which are time-integrated during
+stepping. These are ``mjData.{qpos, qvel, act}``:
 
-The reason for the "official" caveat above is because user callbacks may store additional state variables that change
-over time and affect the callback outputs; indeed the field ``mjData.userdata`` exists mostly for that purpose. Other
-state-like quantities that are part of mjData and are treated as inputs by forward dynamics are ``mjData.mocap_pos`` and
-``mjData.mocap_quat``. These quantities are unusual in that they are meant to change at each time step (normally driven by a
-motion capture device), however this change is implemented by the user, while the simulator treats them as constants. In
-that sense they are no different from all the constants in mjModel, or the function callback pointers set by the user:
-such constants affect the computation, but are not part of the state vector of a dynamical system.
+Position: ``qpos``
+  The configuration in generalized coodinates, denoted in the :ref:`Numerical Integration<geIntegration>` section as
+  :math:`q`.
 
-The warm-start mechanism in the constraint solver effectively introduces another state variable. This mechanism uses
-the output of forward dynamics from the previous time step, namely the acceleration vector ``mjData.qacc``, to estimate
-the current constraint forces via inverse dynamics. This estimate then initializes the optimization algorithm in the
-solver. If this algorithm runs until convergence the warm-start will affect the speed of convergence but not the final
-solution (since the underlying optimization problem is convex and does not have local minima), but in practice the
-algorithm is often terminated early, and so the warm-start has some (usually very small) effect on the solution.
+Velocity: ``qvel``
+  The generalized velocities, denoted in the :ref:`Numerical Integration<geIntegration>` section as :math:`v`. In the
+  presence of quaternions (i.e., when free or ball joints are used), the position vector ``mjData.qpos`` has higher
+  dimensionality than the velocity vector ``mjData.qvel`` and so this is not a simple time-derivative in the sense of
+  scalars, but instead takes quaternion algebra into account.
 
-Next we turn to the controls and applied forces. The control vector in MuJoCo is
+Actuator activation: ``act``
+  For a second-order mechanical system, the state contains only position and velocity, but MuJoCo also models stateful
+  actuators (such as biological muscles) that have their own activation states assembled in ``mjData.act``, denoted
+  as :math:`w` in the :ref:`Numerical Integration<geIntegration>` section.
 
-.. code-block:: Text
+.. _siFullPhysics:
 
-     u = (mjData.ctrl, mjData.qfrc_applied, mjData.xfrc_applied)
+Full physics state
+""""""""""""""""""
+`t, x` above correspond to the *full physics state* (:ref:`mjSTATE_FULLPHYSICS<mjtState>`) -- everything which advances
+in time. It is the :ref:`Physics state<siPhysicsState>` and two additional components:
 
-These quantities specify control signals (``mjData.ctrl``) for the actuators defined in the model, or directly apply
-forces and torques specified in joint space (``mjData.qfrc_applied``) or in Cartesian space (``mjData.xfrc_applied``).
+Time: ``time``
+  While mechanics is time-invariant, user-defined control laws may be time-dependent; in particular control laws
+  obtained from trajectories are often time-indexed. The time ``t`` (``mjData.time``) is therefore a state component
+  with ``dt/dt == 1``.
 
-Finally, calling mj_forward which corresponds to the abstract dynamics function ``f(t,x,u)`` computes the
-time-derivative of the state vector. The corresponding fields of mjData are
+Plugin state: ``plugin_state``
+  ``mjData.plugin_state`` are states declared by :ref:`engine plugins<exPlugin>`. Please see the :ref:`exPluginState`
+  section for more details.
 
-::
+.. _siInput:
 
-     dx/dt = f(t,x,u) = (1, mjData.qvel, mjData.qacc, mjData.act_dot)
+User inputs
+"""""""""""
+These input fields (:ref:`mjSTATE_USER<mjtState>`) are set by the user and affect the physics simulation, but are
+untouched by the simulator. All input fields except for MoCap poses default to 0. A general property of all :ref:`User
+input<siInput>` arrays is that they are untouched by the library. Therefore, in the sense that a value written to this
+memory is persistent, they can also be considered stateful.
 
-In the presence of quaternions (i.e., when free or ball joints are used), the position vector ``mjData.qpos`` has higher
-dimensionality than the velocity vector ``mjData.qvel`` and so this is not a simple time-derivative in the sense of
-scalars, but instead takes quaternion algebra into account.
+The control vector ``u`` mostly corresponds to the array ``mjData.ctrl``, containing the actuation signal set by the
+user. "Mostly" because torques and wrenches can also be applied directly using ``mjData.qfrc_applied`` and
+``mjData.xfrc_applied``, respectively. The poses of mocap bodies, which are :ref:`user-controlled static
+bodies<CMocap>`, are also a user-input. The field ``mjData.userdata`` is a fixed-size memory block (allocated by setting
+:ref:`nuserdata<size-nuserdata>`) meant to serve the user for any purpose, and can be used to store various state-like
+and control-like quantities.
 
-To illustrate how the simulation state can be manipulated, suppose we have two mjData pointers src and dst
-corresponding to the same mjModel, and we want to copy the entire simulation state from one to the other (leaving out
-internal diagnostics which do not affect the simulation). This can be done as
+Control: ``ctrl``
+  Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
+  generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
+  produce forces. Note that while all actuators produce forces, the semantics of ``ctrl`` and ``act`` depend on the
+  specifc parameters of the :ref:`actuation model<geActuation>`.
+
+Auxiliary Controls: ``qfrc_applied`` and ``xfrc_applied``
+  | ``mjData.qfrc_applied`` are directly applied generalized forces.
+  | ``mjData.xfrc_applied`` are Cartesian wrenches applied to the CoM of individual bodies. This field is used for
+    example, by the :ref:`native viewer<saSimulate>` to apply mouse perturbations.
+  | Note that the effects of ``qfrc_applied`` and ``xfrc_applied`` can be recreated by appropriate actuator
+    definitions.
+
+MoCap poses: ``mocap_pos`` and ``mocap_quat``
+  ``mjData.mocap_pos`` and ``mjData.mocap_quat`` are special optional kinematic states :ref:`described here<CMocap>`,
+  which allow the user to set the positions and orientations of static bodies in real-time, for example when streaming
+  6D poses from a motion-capture device. The default values set by :ref:`mj_resetData` are the poses of the bodies at
+  the default configuration.
+
+Equality constraint toggle: ``eq_active``
+  ``mjData.eq_active`` is a byte-valued array that allows the user to toggle the state of equality constraints at
+  runtime. The initial value of this array is ``mjModel.eq_active0`` which can be set in XML using the
+  :ref:`active<equality-connect-active>` attribute of :ref:`equality constraints<coEquality>`.
+
+User data: ``userdata``
+  ``mjData.userdata`` acts as a user-defined memory space untouched by the engine. For example it can be used by
+  callbacks. This is described in more detail in the :ref:`Programming chapter<siSimulation>`.
+
+.. _siWarmstart:
+
+Warmstarts
+""""""""""
+
+Warmstart accelerations: ``qacc_warmstart``
+  ``mjData.qacc_warmstart`` are the previous step's accelerations used to warmstart the constraint solver.
+  Assuming that the current solution is not very different from the previous one, this can speed up simulation by
+  reducing the number of iterations required for convergence. When using a slowly-converging :ref:`constraint
+  solver<Solver>` like PGS, these can speed up simulation by reducing the number of iterations required for convergence.
+  Note however that the default Newton solver converges so quickly (usually 2-3 iterations), that warmstarts often have
+  a negligible effect on speed and can be :ref:`disabled<option-flag-warmstart>`.
+
+  Because our optimization problem is :ref:`strictly convex<Solver>` with a single global minimum, different solver
+  initialization have no perceptible effect on the solution, assuming that convergence was achieved. The effect becomes
+  significant if numerical convergence is not achieved, either due to slow convergence or if
+  :ref:`iterations<option-iterations>` or :ref:`tolerance<option-tolerance>` are capped, as is sometimes done in
+  :ref:`MJX<MjxPerformance>`.
+
+  The other case where warmstarts are critical is if perfect numerical reproducibility is required, when loading a
+  non-initial state (since the initial state is always cold-started). Note that even though their effect on physics is
+  negligible, many physical systems will accumulate small differences `exponentially
+  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__ when time-stepping, quickly leading to divergent trajectories for
+  different warmstarts. See :ref:`Reproducibility<piReproducibility>` for more details.
+
+.. _siIntegrationState:
+
+Integration state
+"""""""""""""""""
+The *integration state* (:ref:`mjSTATE_INTEGRATION<mjtState>`) is the union of all the above :ref:`mjData` fields and
+constitutes the entire set of inputs to the *forward dynamics*. The pipeline output of two :ref:`mjData` instances with
+the same integration state will be identical. In the case of *inverse dynamics*, ``mjData.qacc`` is also treated as an
+input variable. All other :ref:`mjData` fields are functions of the integration state.
+
+Note that the full integration state as given by :ref:`mjSTATE_INTEGRATION<mjtState>` is maximalist and includes fields
+which are often unused. If a small state size is desired, it might be sensible to avoid saving unused fields.
+In particular ``xfrc_applied`` can be quite large (``nbody x 6``) yet is often unused.
+
+.. _siSimulationState:
+
+Simulation state
+""""""""""""""""
+The *simulation state* is the entirety of the :ref:`mjData` struct and associated memory buffer. This state includes all
+derived quantities computed during dynamics computation. Because the :ref:`mjData` buffers are preallocated for the
+worst case, it is often significantly faster to recompute derived quantities from the :ref:`integration
+state<siIntegrationState>` rather than using :ref:`mj_copyData`. See :ref:`Notes on sleeping <siSleepNotes>` for caveats
+regarding the simulation state when sleeping is enabled.
+
+.. _siStateManipulation:
+
+State manipulation
+^^^^^^^^^^^^^^^^^^
+Manipulation of the state is facilitated by the :ref:`mjtState` bitfield enum, which enumerates the state components
+documented above. Combinations of the components, some of which are available in the enum itself, can be OR'ed together
+to form bitfield values, for example
 
 .. code-block:: C
 
-   // copy simulation state
-   dst->time = src->time;
-   mju_copy(dst->qpos, src->qpos, m->nq);
-   mju_copy(dst->qvel, src->qvel, m->nv);
-   mju_copy(dst->act,  src->act,  m->na);
+   int sig = mjSTATE_TIME | mjSTATE_QPOS | mjSTATE_CTRL;  // custom choice of state components
 
-   // copy mocap body pose and userdata
-   mju_copy(dst->mocap_pos,  src->mocap_pos,  3*m->nmocap);
-   mju_copy(dst->mocap_quat, src->mocap_quat, 4*m->nmocap);
-   mju_copy(dst->userdata,   src->userdata,   m->nuserdata);
-
-   // copy warm-start acceleration
-   mju_copy(dst->qacc_warmstart, src->qacc_warmstart, m->nv);
-
-Now, assuming the controls are also the same (see below) and that any installed callbacks are not relying on
-user-defined state variables that are different between src and dst, calling mj_forward(m, src) or mj_step(m, src)
-yields the same result as calling mj_forward(m, dst) or mj_step(m, dst) respectively. Similarly, calling mj_inverse(m,
-src) yields the same result as calling mj_inverse(m, dst). More on :ref:`inverse dynamics <siInverse>` later.
-
-The entire mjData can also be copied with the function :ref:`mj_copyData`. This involves
-less code but is much slower. Indeed using the above code to copy the state and then calling mj_forward to recompute
-everything can sometimes be faster than copying mjData. This is because the preallocated buffers in mjData are large
-enough to hold the intermediate results in the worst case where all possible constraints are active, but in practice
-only a small fraction of constraints tend to be active simultaneously.
-
-To illustrate how the control vector can be manipulated, suppose we want to clear all controls and applied forces
-before calling mj_step, so as to make sure we are simulating the passive dynamics (assuming no control callback of
-course). This can be done as
+The functions using these bitfields are :ref:`mj_getState`, :ref:`mj_setState`, :ref:`mj_copyState` and
+:ref:`mj_extractState`. For example after copying the :ref:`integration state<siIntegrationState>` from an :ref:`mjData`
+instance ``src`` into another instance ``dst``:
 
 .. code-block:: C
 
-   // clear controls and applied forces
-   mju_zero(dst->ctrl, m->nu);
-   mju_zero(dst->qfrc_applied, m->nv);
-   mju_zero(dst->xfrc_applied, 6*m->nbody);
+   mj_copyState(model, src, dst, mjSTATE_INTEGRATION);
 
-If the user has installed a control callback :ref:`mjcb_control` different from the default callback (which is a NULL
-pointer), the user callback would be expected to set some of the above fields to non-zero. Note that MuJoCo will not
-clear these controls/forces at the end of the time step. This is the responsibility of the user.
+stepping ``src`` or ``dst`` will produce identical results. States can be retrieved and set from a single
+:ref:`mjtNum` array:
+
+.. code-block:: C
+
+   int sig = mjSTATE_TIME | mjSTATE_QPOS | mjSTATE_CTRL;
+   int size = mj_stateSize(model, sig);
+   mjtNum* state = mju_malloc(size * sizeof(mjtNum));
+   mj_getState(model, src, state, sig);  // copy time, qpos and ctrl from src into state
+   mj_setState(model, dst, state, sig);  // copy time, qpos and ctrl from state into dst
+
+The entire mjData can also be copied with the function :ref:`mj_copyData` but is of course much slower than
+:ref:`mj_copyState`.
 
 Also relevant in this context is the function :ref:`mj_resetData`. It sets ``mjData.qpos`` equal to the model reference
 configuration ``mjModel.qpos0``, ``mjData.mocap_pos`` and ``mjData.mocap_quat`` equal to the corresponding fixed body
-poses from mjModel; and all other state and control variables to 0.
+poses from mjModel; and all other state and control variables to 0. When some trees are *initialized asleep*, this
+function does more work, see :ref:`sleeping <siSleepSleeping>` below.
 
 .. _siForward:
 
 Forward dynamics
 ~~~~~~~~~~~~~~~~
-
 The goal of forward dynamics is to compute the time-derivative of the state, namely the acceleration vector
-mjData.qacc and the activation time-derivative ``mjData.act_dot``. Along the way it computes everything else needed to
-simulate the dynamics, including active contacts and other constraints, joint-space inertia and its LTDL
-decomposition, constraint forces, sensor data and so on. All these intermediate results are available in mjData and
-can be used in custom computations. As illustrated in the :ref:`simulation loop <siSimulation>` section above, the
-main stepper function mj_step calls mj_forward to do most of the work, and then calls the numerical integrator to
-advance the simulation state to the next discrete point in time.
+``mjData.qacc`` and the activation time-derivative ``mjData.act_dot``. Along the way it computes everything else needed
+to simulate the dynamics, including active contacts and other constraints, joint-space inertia and its :math:`L^TDL`
+decomposition, constraint forces, sensor data and so on. All these intermediate results are available in :ref:`mjData`
+and can be used in custom computations. As illustrated in the :ref:`simulation loop <siSimulation>` section above, the
+main stepper function :ref:`mj_step` calls :ref:`mj_forward` to do most of the work, and then calls the numerical
+integrator to advance the simulation state to the next discrete point in time.
 
-The forward dynamics function mj_forward internally calls :ref:`mj_forwardSkip` with
+The forward dynamics function :ref:`mj_forward` internally calls :ref:`mj_forwardSkip` with
 skip arguments (mjSTAGE_NONE, 0), where the latter function is implemented as
 
 .. code-block:: C
@@ -396,9 +474,9 @@ skip arguments (mjSTAGE_NONE, 0), where the latter function is implemented as
        mj_sensorAcc(m, d);
    }
 
-Note that this is the same sequence of calls as in mj_step1 and mj_step2 above, except that checking of real values
-and computing features such as sensor and energy are omitted. The functions being called are components of the
-simulation pipeline. In turn they call sub-components.
+Note that this is the same sequence of calls as in :ref:`mj_step1` and :ref:`mj_step2` above, except that checking of
+real values and computing features such as sensor and energy are omitted. The functions being called are components of
+the simulation pipeline. In turn they call sub-components.
 
 The integer argument skipstage determines which parts of the computation will be skipped. The possible skip levels are
 
@@ -414,9 +492,9 @@ mjSTAGE_VEL
    stabilization.
 
 The intermediate result fields of mjData are organized into sections according to which part of the state is needed in
-order to compute them. Calling mj_forwardSkip with mjSTAGE_POS assumes that the fields in the first section (position
-dependent) have already been computed and does not recompute them. Similarly, mjSTAGE_VEL assumes that the fields in
-the first and second sections (position and velocity dependent) have already been computed.
+order to compute them. Calling :ref:`mj_forwardSkip` with mjSTAGE_POS assumes that the fields in the first section
+(position dependent) have already been computed and does not recompute them. Similarly, mjSTAGE_VEL assumes that the
+fields in the first and second sections (position and velocity dependent) have already been computed.
 
 When can we use the above machinery and skip some of the computations? In a regular simulation this is not possible.
 However, MuJoCo is designed not only for simulation but also for more advanced applications such as model-based
@@ -455,12 +533,12 @@ to full convergence, we would have
      mjData.qfrc_inverse = mjData.qfrc_applied + Jacobian'*mjData.xfrc_applied + mjData.qfrc_actuator
 
 where ``mjData.qfrc_actuator`` is the joint-space force produced by the actuators and the Jacobian is the mapping from
-joint to Cartesian space. When the "fwdinv" flag in ``mjModel.opt.enableflags`` is set, the above identity is used to
-monitor the quality of the forward dynamics solution. In particular, the two components of ``mjData.solver_fwdinv`` are
-set to the L2 norm of the difference between the forward and inverse solutions, in terms of joint forces and
-constraint forces respectively.
+joint to Cartesian space. When the :ref:`fwdinv<option-flag-fwdinv>` flag in ``mjModel.opt.enableflags`` is set, the
+above identity is used to monitor the quality of the forward dynamics solution. In particular, the two components of
+``mjData.solver_fwdinv`` are set to the L2 norm of the difference between the forward and inverse solutions, in terms of
+joint forces and constraint forces respectively.
 
-Similar to forward dynamics, ``mj_inverse`` internally calls :ref:`mj_inverseSkip` with skip arguments
+Similar to forward dynamics, :ref:`mj_inverse` internally calls :ref:`mj_inverseSkip` with skip arguments
 ``(mjSTAGE_NONE, 0)``. The skip mechanism is the same as in forward dynamics, and can be used to speed up structured
 sampling. The result ``mjData.qfrc_inverse`` is obtained by using the Recursive Newton-Euler algorithm to compute the
 net force acting on the system, and then subtracting from it all internal forces.
@@ -697,8 +775,6 @@ associated with Fortran. There is no particular reason to choose one over the ot
 essential to keep it in mind at all times. All MuJoCo utility functions that operate on matrices, such as
 :ref:`mju_mulMatMat`, :ref:`mju_mulMatVec` etc. assume this matrix layout. For vectors there is of course no
 difference between row-major and column-major formats.
-
-.. TODO(tassa): update this section when qM is migrated to CSR.
 
 When possible, MuJoCo exploits sparsity. This can make all the difference between O(N) and O(N^3) scaling. The inertia
 matrix ``mjData.qM`` and its LTDL factorization ``mjData.qLD`` are always represented as sparse. ``qM`` uses a custom
@@ -1022,6 +1098,8 @@ negative value means a tree is awake, non-negative means asleep. Maximally awake
 island are ready to sleep, they are put to sleep during state advancement and their associated values in ``tree_asleep``
 are set to a (non-negative) index cycle: the "sleeping island". If any tree in the island is woken, all are woken.
 
+.. _siSleepPolicy:
+
 Sleep policy
 ^^^^^^^^^^^^
 
@@ -1029,6 +1107,8 @@ The ability of a kinematic tree to sleep is governed by a policy determined at m
 automatically determines the :ref:`policy<mjtSleepPolicy>` to be either "allowed" or "never", though these can be
 overridden using the :ref:`body/sleep <body-sleep>` attribute (see documentation therein). There is also a special
 "init" sleep policy, see next section.
+
+.. _siSleepSleeping:
 
 Sleeping
 ^^^^^^^^
@@ -1059,6 +1139,8 @@ Sleeping can happen in one of two ways:
   example XML that will produce a compilation error because this condition is not met. Finally, note that the
   initialized-asleep feature is only available for the default configuration (and not keyframes, see discussion below).
 
+.. _siSleepWaking:
+
 Waking
 ^^^^^^
 
@@ -1083,6 +1165,8 @@ The automatic wake criteria listed above are designed so that sleeping islands b
 is not always the case. For example, if free bodies on the floor are put to sleep and then gravity is reversed, they
 will remain sleeping in place until woken for another reason. The most extreme example of non-physicality are islands
 which are initialized asleep. These can be placed in mid-air or in deep collisions, but will not move until woken.
+
+.. _siSleepNotes:
 
 Notes
 ^^^^^

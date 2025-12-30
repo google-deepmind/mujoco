@@ -89,7 +89,7 @@ Copy real-valued arrays from model to spec, returns 1 on success.
 Recompile spec to model, preserving the state. Like :ref:`mj_compile`, this function compiles an :ref:`mjSpec` to an
 :ref:`mjModel`, with two differences. First, rather than returning an entirely new model, it will
 reallocate existing :ref:`mjModel` and :ref:`mjData` instances in-place. Second, it will preserve the
-:ref:`integration state<geIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
+:ref:`integration state<siIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
 newly added or removed degrees of freedom. This allows the user to continue simulation with the same model and data
 struct pointers while editing the model programmatically.
 
@@ -1170,16 +1170,14 @@ Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
 
 .. mujoco-include:: mj_ray
 
-Intersect ray ``(pnt+x*vec, x >= 0)`` with visible geoms, except geoms in bodyexclude.
+Intersect ray ``pnt+x*vec, x >= 0`` with geoms.
 
-Return geomid and distance (x) to nearest surface, or -1 if no intersection.
-
-geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=NULL to skip
-group exclusion.
-
-If flg_static is 0, static geoms will be excluded.
-
-bodyexclude=-1 can be used to indicate that all bodies are included.
+- Return distance ``x`` to nearest surface, or -1 if no intersection.
+- If ``geomid`` is not NULL, write the id of the intersected geom or -1 if not intersection.
+- Exclude geoms in body with id ``bodyexclude``, use -1 to include all bodies.
+- ``geomgroup`` is an array of length :ref:`mjNGROUP<glNumeric>`, where 1 means the group should be included. Pass
+  NULL to skip geom group exclusion.
+- If ``flg_static`` is 0, static geoms will be excluded.
 
 *Nullable:* ``geomgroup``, ``geomid``
 
@@ -2753,7 +2751,7 @@ outputs of derivative functions are the trailing rather than leading arguments.
 
 Compute finite-differenced discrete-time transition matrices.
 
-Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
+Letting :math:`x, u` denote the current :ref:`state<siPhysicsState>` and :ref:`control<siInput>`
 vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
 values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`
 :ref:`mjd_transitionFD` computes the four associated Jacobians using finite-differencing.
@@ -2804,7 +2802,7 @@ These matrices and their dimensions are:
 
 Finite differenced continuous-time inverse-dynamics Jacobians.
 
-Letting :math:`x, a` denote the current :ref:`state<gePhysicsState>` and acceleration vectors in an mjData instance, and
+Letting :math:`x, a` denote the current :ref:`state<siPhysicsState>` and acceleration vectors in an mjData instance, and
 letting :math:`f, s` denote the forces computed by the inverse dynamics (``qfrc_inverse``), the function
 :ref:`mj_inverse` computes :math:`(x,a) \rightarrow (f,s)`. :ref:`mjd_inverseFD` computes seven associated Jacobians
 using finite-differencing. These matrices and their dimensions are:

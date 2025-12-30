@@ -187,21 +187,52 @@ int mju_cholFactorSparse(mjtNum* mat, int n, mjtNum mindiag,
   return rank;
 }
 
-
-// precount row non-zeros of reverse-Cholesky factor L, return total non-zeros
-//  based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
-//  reads pattern from upper triangle
-int mju_cholFactorCount(int* L_rownnz, const int* rownnz, const int* rowadr, const int* colind,
-                        int n, mjData* d) {
+// symbolic reverse-Cholesky: compute both L (CSR) and LT (CSC) structures
+//   if L_colind is NULL, perform counting logic (fill rownnz/rowadr arrays and return total nnz)
+//   if L_colind is not NULL, assume rownnz/rowadr are precomputed and fill colind/map arrays
+//   reads pattern from upper triangle
+//   based on ldl_symbolic from 'Algorithm 8xx: a concise sparse Cholesky factorization package'
+int mju_cholFactorSymbolic(int* restrict L_colind, int* restrict L_rownnz, int* restrict L_rowadr,
+                           int* restrict LT_colind, int* restrict LT_rownnz,
+                           int* restrict LT_rowadr, int* restrict LT_map,
+                           const int* rownnz, const int* rowadr, const int* colind, int n,
+                           mjData* d) {
   mj_markStack(d);
-  int* parent = mjSTACKALLOC(d, n, int);
-  int* flag = mjSTACKALLOC(d, n, int);
+  int* restrict parent = mjSTACKALLOC(d, n, int);
+  int* restrict flag = mjSTACKALLOC(d, n, int);
+  int* restrict cursor = NULL;
+  int* LT_write = NULL;
+
+  // filling phase: initialize write positions
+  if (L_colind) {
+    cursor = mjSTACKALLOC(d, n, int);
+    LT_write = mjSTACKALLOC(d, n, int);
+    for (int r = 0; r < n; r++) {
+      cursor[r] = L_rowadr[r] + L_rownnz[r] - 2;  // end of row r (before diagonal)
+      LT_write[r] = LT_rowadr[r];                 // start of LT row r
+    }
+  }
 
   // loop over rows in reverse order
   for (int r = n - 1; r >= 0; r--) {
     parent[r] = -1;
     flag[r] = r;
-    L_rownnz[r] = 1;  // start with 1 for diagonal
+
+    // counting phase: start with 1 for diagonal
+    if (!L_colind) {
+      L_rownnz[r] = 1;
+      LT_rownnz[r] = 1;
+    }
+
+    // filling phase: write diagonals
+    else {
+      int diag_idx = L_rowadr[r] + L_rownnz[r] - 1;
+      L_colind[diag_idx] = r;
+      int write_idx = LT_write[r];
+      LT_colind[write_idx] = r;
+      LT_map[write_idx] = diag_idx;
+      LT_write[r]++;
+    }
 
     // loop over non-zero columns of upper triangle
     int start = rowadr[r];
@@ -221,8 +252,23 @@ int mju_cholFactorCount(int* L_rownnz, const int* rownnz, const int* rowadr, con
           parent[i] = r;
         }
 
-        // increment non-zeros, flag row i, advance to parent
-        L_rownnz[i]++;
+        // counting phase: increment non-zeros
+        if (!L_colind) {
+          L_rownnz[i]++;
+          LT_rownnz[r]++;
+        }
+
+        // filling phase: write L[i, r] and LT[r, i]
+        else {
+          int L_idx = cursor[i];
+          cursor[i]--;
+          L_colind[L_idx] = r;
+          LT_colind[LT_write[r]] = i;
+          LT_map[LT_write[r]] = L_idx;
+          LT_write[r]++;
+        }
+
+        // flag row i, advance to parent
         flag[i] = r;
         i = parent[i];
       }
@@ -231,15 +277,98 @@ int mju_cholFactorCount(int* L_rownnz, const int* rownnz, const int* rowadr, con
 
   mj_freeStack(d);
 
-  // sum up all row non-zeros
+  // counting phase: compute row addresses, add up total non-zeros
   int nnz = 0;
-  for (int r = 0; r < n; r++) {
-    nnz += L_rownnz[r];
+  if (!L_colind) {
+    nnz = L_rownnz[0];
+    L_rowadr[0] = 0;
+    LT_rowadr[0] = 0;
+    for (int r = 1; r < n; r++) {
+      L_rowadr[r] = L_rowadr[r - 1] + L_rownnz[r - 1];
+      LT_rowadr[r] = LT_rowadr[r - 1] + LT_rownnz[r - 1];
+      nnz += L_rownnz[r];
+    }
   }
 
   return nnz;
 }
 
+// numeric reverse-Cholesky: compute L values given fixed sparsity pattern, returns rank
+//  L_colind must already contain the correct sparsity pattern (from mju_cholFactorSymbolic)
+//  LT_map[k] gives index in L for LT_colind[k]
+int mju_cholFactorNumeric(mjtNum* restrict L, int n, mjtNum mindiag,
+                          const int* L_rownnz, const int* L_rowadr, const int* L_colind,
+                          const int* LT_rownnz, const int* LT_rowadr, const int* LT_colind,
+                          const int* LT_map, const mjtNum* H,
+                          const int* H_rownnz, const int* H_rowadr, const int* H_colind,
+                          mjData* d) {
+  int rank = n;
+
+  // single-row dense accumulator
+  mj_markStack(d);
+  mjtNum* restrict dense = mjSTACKALLOC(d, n, mjtNum);
+  mju_zero(dense, n);
+
+  // backpass over rows
+  for (int r = n - 1; r >= 0; r--) {
+    // scatter H[r, 0:r] into dense
+    mju_scatter(dense, H + H_rowadr[r], H_colind + H_rowadr[r], H_rownnz[r]);
+
+    // accumulate updates from rows c > r where L[c,r] != 0
+    // use CSC transpose: LT column r contains rows that have column r
+    // start from k=1 to skip the diagonal entry (LT_colind[LT_adr] = r)
+    int LT_adr = LT_rowadr[r];
+    int LT_nnz = LT_rownnz[r];
+    for (int k = 1; k < LT_nnz; k++) {
+      int c = LT_colind[LT_adr + k];  // row c has L[c,r] != 0, c > r guaranteed
+
+      // get L[c,r] index directly from LT_map
+      int L_cr_idx = LT_map[LT_adr + k];
+      mjtNum L_cr = L[L_cr_idx];
+
+      // get row c info
+      int c_adr = L_rowadr[c];
+
+      // dense[j] -= L[c,r] * L[c,j] for all j <= r in L[c]
+      // L_cr_idx - c_adr gives the position of r in row c
+      int num_cols = L_cr_idx - c_adr + 1;
+      const int* colptr = L_colind + c_adr;
+      const mjtNum* Lptr = L + c_adr;
+      for (int i = 0; i < num_cols; i++) {
+        dense[colptr[i]] -= L_cr * Lptr[i];
+      }
+    }
+
+    // factor row r diagonal, handle rank-deficient case
+    mjtNum diag = dense[r];
+    if (diag < mindiag) {
+      diag = mindiag;
+      rank--;
+    }
+
+    // scale off-diagonals
+    mjtNum L_rr = mju_sqrt(diag);
+    mjtNum L_rr_inv = 1.0 / L_rr;
+    int L_adr = L_rowadr[r];
+    int L_nnz = L_rownnz[r];
+    const int* colptr = L_colind + L_adr;
+    mjtNum* Lptr = L + L_adr;
+    for (int i = 0; i < L_nnz - 1; i++) {
+      Lptr[i] = dense[colptr[i]] * L_rr_inv;
+    }
+
+    // store diagonal
+    L[L_adr + L_nnz - 1] = L_rr;
+
+    // clear dense workspace
+    for (int i = 0; i < L_nnz; i++) {
+      dense[colptr[i]] = 0;
+    }
+  }
+
+  mj_freeStack(d);
+  return rank;
+}
 
 // sparse reverse-order Cholesky solve
 void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int n,
@@ -286,43 +415,62 @@ void mju_cholSolveSparse(mjtNum* res, const mjtNum* mat, const mjtNum* vec, int 
 
 // sparse reverse-order Cholesky rank-one update: L'*L +/- x*x'; return rank
 //  x is sparse, change in sparsity pattern of mat is not allowed
-int mju_cholUpdateSparse(mjtNum* mat, mjtNum* x, int n, int flg_plus,
-                         const int* rownnz, const int* rowadr, const int* colind,
-                         int x_nnz, int* x_ind,
+int mju_cholUpdateSparse(mjtNum* restrict mat, const mjtNum* restrict x, int n, int flg_plus,
+                         const int* restrict rownnz, const int* restrict rowadr,
+                         const int* restrict colind, int x_nnz, const int* restrict x_ind,
                          mjData* d) {
+  // early return if x is empty
+  if (x_nnz == 0) {
+    return n;
+  }
+
+  // get starting row: last non-zero entry in x
+  int start = x_ind[x_nnz - 1];
+
+  // allocate dense accumulator for x
   mj_markStack(d);
-  int* buf_ind = mjSTACKALLOC(d, n, int);
-  mjtNum* sparse_buf = mjSTACKALLOC(d, n, mjtNum);
+  mjtNum* restrict dense = mjSTACKALLOC(d, start + 1, mjtNum);
+  mju_zero(dense, start + 1);
 
-  // backpass over rows corresponding to non-zero x(r)
-  int rank = n, i = x_nnz - 1;
-  while (i >= 0) {
-    // get rownnz and rowadr for this row
-    int nnz = rownnz[x_ind[i]], adr = rowadr[x_ind[i]];
+  // scatter x into dense
+  mju_scatter(dense, x, x_ind, x_nnz);
 
-    // compute quantities
-    mjtNum tmp = mat[adr+nnz-1]*mat[adr+nnz-1] + (flg_plus ? x[i]*x[i] : -x[i]*x[i]);
+  // backpass over rows from start down to 0
+  int rank = n;
+  for (int row = start; row >= 0; row--) {
+    // skip if zero
+    if (dense[row] == 0) continue;
+
+    // get rownnz (excluding diagonal), rowadr
+    int nnz = rownnz[row] - 1;
+    int adr = rowadr[row];
+
+    // update diagonal, handle rank-deficient case
+    mjtNum diag = mat[adr + nnz];
+    mjtNum x_row = dense[row];
+    mjtNum tmp = diag*diag + (flg_plus ? x_row*x_row : -x_row*x_row);
     if (tmp < mjMINVAL) {
       tmp = mjMINVAL;
       rank--;
     }
     mjtNum r = mju_sqrt(tmp);
-    mjtNum c = r / mat[adr+nnz-1];
-    mjtNum s = x[i] / mat[adr+nnz-1];
+    mat[adr + nnz] = r;
 
-    // update diagonal
-    mat[adr+nnz-1] = r;
+    // compute Givens rotation parameters https://en.wikipedia.org/wiki/Givens_rotation
+    mjtNum c = diag / r;
+    mjtNum s = -x_row / r;
+    mjtNum s_signed = flg_plus ? -s : s;
 
-    // update row:  mat(r,1:r-1) = (mat(r,1:r-1) + s*x(1:r-1)) / c
-    mju_combineSparseInc(mat + adr, x, n, 1 / c, (flg_plus ? s / c : -s / c),
-                         nnz-1, i, colind + adr, x_ind);
+    // update row
+    for (int i = 0; i < nnz; i++) {
+      int j = colind[adr + i];
+      mjtNum dense_j = dense[j];
+      mjtNum mat_val = mat[adr + i];
 
-    // update x:  x(1:r-1) = c*x(1:r-1) - s*mat(r,1:r-1)
-    int new_x_nnz = mju_combineSparse(x, mat+adr, c, -s, i, nnz-1, x_ind,
-                                      colind+adr, sparse_buf, buf_ind);
-
-    // update i, correct for changing x
-    i = i - 1 + (new_x_nnz - i);
+      // update mat and dense using the Givens rotation
+      mat[adr + i] = c*mat_val + s_signed*dense_j;
+      dense[j]     = s*mat_val + c*dense_j;
+    }
   }
 
   mj_freeStack(d);
@@ -528,7 +676,7 @@ void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int n
   mju_zero(res, ntotal*ntotal);
 
   // sparse part
-  for(int i=0; i < nsparse; i++) {
+  for (int i=0; i < nsparse; i++) {
     // number of non-zeros left of (i,i)
     int width = mjMIN(i, nband-1);
 
@@ -537,13 +685,13 @@ void mju_band2Dense(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int n
   }
 
   // dense part
-  for(int i=nsparse; i < ntotal; i++) {
+  for (int i=nsparse; i < ntotal; i++) {
     mju_copy(res + i*ntotal, mat + nsparse*nband + (i-nsparse)*ntotal, i+1);
   }
 
   // make symmetric
   if (flg_sym) {
-    for(int i=0; i < ntotal; i++) {
+    for (int i=0; i < ntotal; i++) {
       for (int j=i+1; j < ntotal; j++) {
         res[i*ntotal + j] = res[j*ntotal + i];
       }
@@ -557,7 +705,7 @@ void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int n
   int nsparse = ntotal-ndense;
 
   // sparse part
-  for(int i=0; i < nsparse; i++) {
+  for (int i=0; i < nsparse; i++) {
     // number of non-zeros left of (i,i)
     int width = mjMIN(i, nband-1);
 
@@ -566,7 +714,7 @@ void mju_dense2Band(mjtNum* res, const mjtNum* mat, int ntotal, int nband, int n
   }
 
   // dense part
-  for(int i=nsparse; i < ntotal; i++) {
+  for (int i=nsparse; i < ntotal; i++) {
     mju_copy(res + nsparse*nband + (i-nsparse)*ntotal, mat + i*ntotal, i+1);
   }
 }
@@ -578,13 +726,13 @@ void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
   int nsparse = ntotal-ndense;
 
   // handle multiple vectors
-  for(int j=0; j < nvec; j++ ) {
+  for (int j=0; j < nvec; j++) {
     // precompute pointer to corresponding vector in vec and res
     const mjtNum* vec_j = vec + ntotal*j;
     mjtNum* res_j = res + ntotal*j;
 
     // sparse part
-    for(int i=0; i < nsparse; i++) {
+    for (int i=0; i < nsparse; i++) {
       int width = mjMIN(i+1, nband);
       int adr = i*nband + nband - width;
       int offset = mjMAX(0, i-nband+1);
@@ -596,7 +744,7 @@ void mju_bandMulMatVec(mjtNum* res, const mjtNum* mat, const mjtNum* vec,
     }
 
     // dense part
-    for(int i=nsparse; i < ntotal; i++) {
+    for (int i=nsparse; i < ntotal; i++) {
       int adr = nsparse*nband + (i-nsparse)*ntotal;
       res_j[i] = mju_dot(mat+adr, vec_j, i+1);
       if (flg_sym) {
@@ -808,7 +956,7 @@ int mju_eig3(mjtNum eigval[3], mjtNum eigvec[9], mjtNum quat[4], const mjtNum ma
     mju_normalize4(quat);
   }
 
-  // sort eigenvalues in decreasing order (bubblesort: 0, 1, 0)
+  // sort eigenvalues in decreasing order (bubble sort: 0, 1, 0)
   for (int j=0; j < 3; j++) {
     int j1 = j%2;       // lead index
 

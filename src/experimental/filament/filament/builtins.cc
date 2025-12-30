@@ -25,6 +25,7 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
 #include "experimental/filament/filament/buffer_util.h"
 #include "experimental/filament/filament/vertex_util.h"
@@ -777,8 +778,7 @@ FilamentBuffers CreateLine(filament::Engine* engine, const mjModel* model) {
 }
 
 FilamentBuffers CreatePlane(filament::Engine* engine, const mjModel* model) {
-  const int num_quads = model->vis.quality.numquads;
-  return CreateFromBuilder(engine, PlaneBuilder(num_quads));
+  return CreateFromBuilder(engine, PlaneBuilder(mjMAXPLANEGRID));
 }
 
 FilamentBuffers CreateTriangle(filament::Engine* engine, const mjModel* model) {

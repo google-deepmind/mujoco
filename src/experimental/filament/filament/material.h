@@ -60,7 +60,6 @@ class Material {
     float roughness = -1.0f;
     float emissive = -1.0f;
     bool tex_uniform = false;
-    bool use_distinct_segmentation_colors = false;
   };
 
   Material(ObjectManager* object_mgr);

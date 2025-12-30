@@ -141,6 +141,7 @@ These packages give users of various languages access to MuJoCo functionality:
 - **Swift**: [swift-mujoco](https://github.com/liuliu/swift-mujoco)
 - **Java**: [mujoco-java](https://github.com/CommonWealthRobotics/mujoco-java)
 - **Julia**: [MuJoCo.jl](https://github.com/JamieMair/MuJoCo.jl)
+- **Rust**: [MuJoCo-rs](https://github.com/davidhozic/mujoco-rs)
 
 ### Converters
 

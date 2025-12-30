@@ -2961,11 +2961,11 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    When the camera mode is "targetbody" or "targetbodycom", this attribute becomes required. It specifies which body
    should be targeted by the camera. In all other modes this attribute is ignored.
 
-.. _body-camera-orthographic:
+.. _body-camera-projection:
 
-:at:`orthographic`: :at-val:`[false, true], "false"`
-   Whether the camera uses a perspective projection (the default) or an orthographic projection. Setting this attribute
-   changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
+:at:`projection`: :at-val:`[perspective, orthographic], "perspective"`
+   Whether the camera uses a perspective (the default) or orthographic projection. Setting this
+   attribute to "orthographic" changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
 
 .. _body-camera-fovy:
 
@@ -2981,37 +2981,29 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 :at:`resolution`: :at-val:`int(2), "1 1"`
    Resolution of the camera in pixels [width height]. Note that these values are not used for rendering since those
    dimensions are determined by the size of the rendering context. This attribute serves as a convenient
-   location to save the required resolution when creating a context.
-
-.. _body-camera-focal:
-
-:at:`focal`: :at-val:`real(2), "0 0"`
-   Focal length of the camera in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`.
-   See :ref:`CCamera` for details.
-
-.. _body-camera-focalpixel:
-
-:at:`focalpixel`: :at-val:`int(2), "0 0"`
-   Focal length of the camera in pixel units. If both :at:`focal` and :at:`focalpixel` are specified, the former is
-   ignored.
-
-.. _body-camera-principal:
-
-:at:`principal`: :at-val:`real(2), "0 0"`
-   Offset of the principal point of the camera with respect to the camera center in length units. It is mutually
-   exclusive with :ref:`fovy <body-camera-fovy>`.
-
-.. _body-camera-principalpixel:
-
-:at:`principalpixel`: :at-val:`real(2), "0 0"`
-   Offset of the principal point of the camera with respect to the camera center in pixel units. If both
-   :at:`principal` and :at:`principalpixel` are specified, the former is ignored.
+   location to save the required resolution. Setting either value larger than 1
+   enables frustum visualization when the :ref:`mjVIS_CAMERA<mjtVisFlag>` visualization flag is active.
 
 .. _body-camera-sensorsize:
 
 :at:`sensorsize`: :at-val:`real(2), "0 0"`
-   Size of the camera sensor in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`. If
-   specified, :ref:`resolution <body-camera-resolution>` and :ref:`focal <body-camera-focal>` are required.
+   Size of the camera sensor in length units. When specified, all intrinsic attributes become active and :at:`fovy`
+   is ignored. The field-of-view is then computed automatically from the focal length and sensor size.
+
+.. _body-camera-focal:
+.. _body-camera-focalpixel:
+
+:at:`focal` / :at:`focalpixel`: :at-val:`real(2), "0 0"`
+   Focal length in physical length units or in pixels, respectively. If both are specified, the pixel
+   value is used and the length value is ignored.
+
+.. _body-camera-principal:
+.. _body-camera-principalpixel:
+
+:at:`principal` / :at:`principalpixel`: :at-val:`real(2), "0 0"`
+   Offset of the principal point (optical axis intersection with the image plane) from the image center. If both are
+   specified, the pixel value is used. At zero offset, the rendered image is centered on the camera's negative Z axis,
+   as in a standard pinhole camera model.
 
 .. _body-camera-ipd:
 
@@ -6381,12 +6373,54 @@ site frame. The output is a 3D vector.
 :el-prefix:`sensor/` |-| **rangefinder** (*)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a rangefinder. It measures the distance to the nearest geom surface, along the ray defined by the
-positive Z-axis of the sensor site. If the ray does not intersect any geom surface, the sensor output is -1. If the
-origin of the ray is inside a geom, the surface is still sensed (but not the inner volume). Geoms attached to the same
-body as the sensor site are excluded. Invisible geoms, defined as geoms whose rgba (or whose material rgba) has alpha=0,
-are also excluded. Note however that geoms made invisible in the visualizer by disabling their geom group are not
-excluded; this is because sensor calculations are independent of the visualizer.
+This element creates a rangefinder.
+
+- If associated with a :ref:`site<sensor-rangefinder-site>`, it measures the distance to the nearest geom surface, along
+  the ray defined by the positive Z-axis of the site.
+- If associated with a :ref:`camera<sensor-rangefinder-camera>`, it outputs one distance measurement for each pixel in
+  the camera image. Note that cameras face the :ref:`negative Z-axis<body-camera>` of their frame. The number of
+  measurements in this case is equal to product of the camera's width and height
+  :ref:`resolutions<body-camera-resolution>`.
+
+.. image:: images/XMLreference/rfcamera.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
+
+If a ray does not intersect any geom surface, the sensor output is -1. If the origin of the ray is inside a geom, the
+surface is still detected. Geoms attached to the same body as the sensor site/camera are excluded. Invisible geoms,
+defined as geoms whose rgba (or whose material rgba) has alpha=0, are also excluded. Note however that geoms made
+invisible in the visualizer by disabling their geom group are not excluded; this is because sensor calculations are
+independent of the visualizer.
+
+The image on the right (click to see the model being visualized) shows two rangefinder sensors attached to a perspective and
+an orthographic camera, with frustums visualized. Both cameras have 4x4 resolution, for 16 rays each. The rangefinder
+sensors report :at:`data` = :at-val:`"dist point normal"` (see below), so we can see the rays (lines), the intersection
+points (spheres) and the surface normals (arrows).
+
+.. _sensor-rangefinder-data:
+
+:at:`data`: :at-val:`[dist, dir, origin, point, normal, depth], "dist"`
+   By default, the rangefinder outputs a distance measurement, as described above. However, it is also possible to
+   specify a set of output data fields. The :at:`data` attribute can contain **multiple sequential data types**, as long
+   as the relative order---as listed above---is maintained. For example, :at:`data` = :at-val:`"dist point normal"` will
+   return 7 numbers per ray, while :at:`data` = :at-val:`"point origin"` is an error because :at-val:`origin` must come
+   before :at-val:`point`.
+
+   - :at-val:`dist` **real(1)**: The distance from the ray origin to the nearest geom surface, -1 if no surface was hit.
+     If this data type is included, rays will be visualized as lines.
+   - :at-val:`dir` **real(3)**: Normalized direction of the ray, or (0, 0, 0) if no surface was hit.
+   - :at-val:`origin` **real(3)**: The point from which the ray emanates (global frame). For sites and perspective
+     cameras, this is the site/camera xpos. However for orthographic cameras, ray origins are spatially distributed
+     along the image plane.
+   - :at-val:`point` **real(3)**: The point where the ray intersects the nearest geom surface in the global frame, or
+     (0, 0, 0) if no surface was hit. If this data type is included, intersection points will be visualized as spheres.
+   - :at-val:`normal`: **real(3)**: The geom surface normal at the point where the ray intersects it, in the global
+     frame, or (0, 0, 0) if no surface was hit. Note that normals always point towards the outside of the geom surface,
+     regardless of the ray origin. If this data type is included along with either :at-val:`dist` or :at-val:`point`,
+     normals will be visualized as arrows at the intersection points.
+   - :at-val:`depth`: **real(1)**: The distance of the hit point from the camera plane, -1 if no surface was hit. Note
+     that this depth sematic corresponds to depth images in the computer graphics sense.
 
 .. _sensor-rangefinder-name:
 
@@ -6401,8 +6435,13 @@ excluded; this is because sensor calculations are independent of the visualizer.
 
 .. _sensor-rangefinder-site:
 
-:at:`site`: :at-val:`string, required`
+:at:`site`: :at-val:`string, optional`
    The site where the sensor is attached.
+
+.. _sensor-rangefinder-camera:
+
+:at:`camera`: :at-val:`string, optional`
+   The camera where the sensor is attached.
 
 .. _sensor-camprojection:
 
@@ -8666,7 +8705,7 @@ if omitted.
 | This element sets the attributes of the dummy :ref:`site <body-site>` element of the defaults class.
 | All site attributes are available here except: name, class.
 
-.. _default-camera-orthographic:
+.. _default-camera-projection:
 
 .. _default-camera-fovy:
 

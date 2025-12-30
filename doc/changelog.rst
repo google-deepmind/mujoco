@@ -5,20 +5,54 @@ Changelog
 Upcoming version (not yet released)
 -----------------------------------
 
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - The ``mjModel.cam_orthographic`` field has been renamed to ``cam_projection``, with the semantic of a new enum type
+     :ref:`mjtProjection`. This will allow for more projection types in the future like fisheye cameras.
+     Relatedly, the ``camera/orthographic`` MJCF attribute for cameras has been renamed to
+     :ref:`camera/projection<body-camera-projection>` and now accepts the values ``orthographic`` and ``perspective``.
+
+     **Migration:** Replace ``orthographic = "false/true"`` with ``projection="perspective/orthographic"``,
+     respectively.
+
 General
 ^^^^^^^
+
+.. image:: images/XMLreference/rfcamera.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
+
+- Camera frustum visualization is now triggered by setting :ref:`resolution<body-camera-resolution>` to values larger
+  than 1. Relatedly, frustum visualization also works for :ref:`orthographic<body-camera-projection>` cameras.
+- Rangefinder sensors can now be attached to a camera using the :ref:`ragefinder/camera<sensor-rangefinder-camera>`
+  attribute. In this case, the sensor will cast multiple ray, one for each pixel.
+- Rangefinder sensors can now now report various kinds of information besides ray distances, including surface normals.
+  See :ref:`rangefinder<sensor-rangefinder>` for details.
 - Non-breaking ABI changes:
 
   - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from
     ``unsigned int`` to ``int``. Before this change, invalid negative arguments passed to this function would result in
     a silent implicit cast, now negativity will trigger an error.
+  - Added a :ref:`depth<mjtRndFlag>` rendering flag.
 
 MJX
 ^^^
 - Added ``actuator_length``, ``cdof`` and ``cdof_dof`` fields to ``mjx.Data``.
 
+
+Documentation
+^^^^^^^^^^^^^
+- General improvements to the :ref:`Programming/Simulation<Simulation>` chapter. Notably, the main discussion of
+  :ref:`state<siStateControl>` has been moved there, and the section on :ref:`mjModel changes<siChange>` has been
+  expanded.
+
+
 Bug fixes
 ^^^^^^^^^
+- The ``vertid`` argument of :ref:`mju_rayFlex` and :ref:`mju_raySkin` was marked as nullable but was not; it is now
+  nullable.
 
 Version 3.4.0 (December 5, 2025)
 --------------------------------
@@ -792,7 +826,7 @@ General
    :width: 240px
 
 8. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
-   :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
+   ``camera/orthographic`` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
 9. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
 10. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
@@ -1069,8 +1103,8 @@ Python bindings
 12. Improved the implementation of the :ref:`rollout<PyRollout>` module. Note the changes below are breaking, dependent
     code will require modification.
 
-    - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
-    - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
+    - Uses :ref:`mjSTATE_FULLPHYSICS<siFullPhysics>` as state spec, enabling divergence detection by inspecting time.
+    - Allows user-defined control spec for any combination of :ref:`user input<siInput>` fields as controls.
     - Outputs are no longer squeezed and always have dim=3.
 13. The ``sync`` function for the :ref:`passive viewer<PyViewerPassive>` can now pick up changes to rendering flags in
     ``user_scn``, as requested in :issue:`1190`.

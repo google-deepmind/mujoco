@@ -115,10 +115,7 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
     }
   }
 
-  scene_view_ = std::make_unique<SceneView>(
-      engine_, object_manager_.get());
-  scene_view_->SetUseDistinctSegmentationColors(
-      config_.use_distinct_segmentation_colors);
+  scene_view_ = std::make_unique<SceneView>(engine_, object_manager_.get());
   if (config_.enable_gui) {
     gui_view_ = std::make_unique<GuiView>(engine_, object_manager_.get());
   }
@@ -154,9 +151,13 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
     render_gui_ = gui_view_->PrepareRenderable();
   }
 
-  last_render_mode_ = scene->flags[mjRND_SEGMENT]
-                                 ? SceneView::DrawMode::kSegmentation
-                                 : SceneView::DrawMode::kNormal;
+  last_render_mode_ = SceneView::DrawMode::kNormal;
+  if (scene->flags[mjRND_SEGMENT]) {
+    last_render_mode_ = SceneView::DrawMode::kSegmentation;
+  } else if (scene->flags[mjRND_DEPTH]) {
+    last_render_mode_ = SceneView::DrawMode::kDepth;
+  }
+
   // Render the frame if we're not rendering to a texture.
   if (!render_to_texture_) {
     filament::View* view = scene_view_->PrepareRenderView(last_render_mode_);

@@ -16,7 +16,6 @@
 #define MUJOCO_SRC_EXPERIMENTAL_USD_PLUGINS_MJCF_UTILS_H_
 
 #include <pxr/base/tf/token.h>
-#include <pxr/imaging/hd/primTypeIndex.h>
 #include <pxr/usd/sdf/attributeSpec.h>
 #include <pxr/usd/sdf/declareHandles.h>
 #include <pxr/usd/sdf/layer.h>

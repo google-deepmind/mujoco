@@ -15,10 +15,8 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_H_
 
-#include <chrono>
-#include <cstdint>
+#include <cstddef>
 #include <functional>
-#include <string>
 
 #include <mujoco/mujoco.h>
 
@@ -48,8 +46,10 @@ class Renderer {
               mjvCamera* camera, const mjvOption* vis_option, int width,
               int height);
 
-  // Saves a screenshot of the simulation state into the given file.
-  void SaveScreenshot(const std::string& filename, int width, int height);
+  // Populates the given output buffer with RGB888 pixel data. The size of the
+  // output buffer must be at least width * height * 3.
+  void RenderToTexture(const mjModel* model, mjData* data, mjvCamera* camera,
+                       int width, int height, std::byte* output);
 
   // Rendering flags.
   mjtByte* GetRenderFlags() { return scene_.flags; }

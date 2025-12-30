@@ -18,15 +18,14 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <ios>
 #include <iterator>
 #include <string>
-#include <vector>
 
 #include "webp/encode.h"
 #include "webp/types.h"
-#include <mujoco/mjrender.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "engine/engine_vis_visualize.h"
@@ -47,43 +46,56 @@ std::string LoadText(const std::string& filename) {
   return contents;
 }
 
-void SaveColorToWebp(int width, int height, const unsigned char* data,
-                     const std::string& filename) {
-  uint8_t* webp = nullptr;
-  const size_t size =
-      WebPEncodeLosslessRGB(data, width, height, width * 3, &webp);
+static std::string CheckPathForFile(const std::filesystem::path& path,
+                                    const std::string& filename) {
+  std::filesystem::path resolved = path / filename;
+  if (std::filesystem::exists(resolved)) {
+    return resolved.string();
+  }
+  resolved += ".xml";
+  if (std::filesystem::exists(resolved)) {
+    return resolved.string();
+  }
+  return "";
+}
 
+std::string ResolveFile(const std::string& filename,
+                        const std::vector<std::string>& search_paths) {
+  if (std::filesystem::exists(filename)) {
+    return filename;
+  }
+
+  std::string resolved;
+  for (const std::string& path : search_paths) {
+    if (!std::filesystem::exists(path) ||
+        !std::filesystem::is_directory(path)) {
+      continue;
+    }
+
+    resolved = CheckPathForFile(std::filesystem::path(path), filename);
+    if (!resolved.empty()) {
+      return resolved;
+    }
+
+    for (const auto& it : std::filesystem::recursive_directory_iterator(path)) {
+      resolved = CheckPathForFile(it.path(), filename);
+      if (!resolved.empty()) {
+        return resolved;
+      }
+    }
+  }
+  return "";
+}
+
+void SaveToWebp(int width, int height, const std::byte* data,
+                const std::string& filename) {
+  uint8_t* webp = nullptr;
+  const size_t size = WebPEncodeLosslessRGB(
+      reinterpret_cast<const uint8_t*>(data), width, height, width * 3, &webp);
   std::ofstream file(filename, std::ios::binary);
   file.write(reinterpret_cast<const char*>(webp), size);
   file.close();
   WebPFree(webp);
-}
-
-void SaveDepthToWebp(int width, int height, const float* data,
-                     const std::string& filename) {
-  const int size = width * height;
-
-  // Turn the depth buffer into a greyscale color buffer.
-  std::vector<unsigned char> byte_buffer;
-  byte_buffer.reserve(size * 3);
-  for (int i = 0; i < size; ++i) {
-    auto byte = static_cast<int>(255.0 * data[i]);
-    byte_buffer.push_back(byte);
-    byte_buffer.push_back(byte);
-    byte_buffer.push_back(byte);
-  }
-  SaveColorToWebp(width, height, byte_buffer.data(), filename);
-}
-
-void SaveScreenshotToWebp(int width, int height, mjrContext* con,
-                          const std::string& filename) {
-  mjr_setBuffer(mjFB_OFFSCREEN, con);
-  auto rgb_buffer = std::vector<unsigned char>(3 * width * height);
-  auto depth_buffer = std::vector<float>(width * height, 1.0f);
-  mjrRect viewport = {0, 0, width, height};
-  mjr_readPixels(rgb_buffer.data(), depth_buffer.data(), viewport, con);
-  mjr_setBuffer(mjFB_WINDOW, con);
-  SaveColorToWebp(width, height, rgb_buffer.data(), filename);
 }
 
 const void* GetValue(const mjModel* model, const mjData* data,

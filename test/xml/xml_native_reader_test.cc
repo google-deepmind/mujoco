@@ -2001,7 +2001,7 @@ TEST_F(XMLReaderTest, CameraPrincipalRequiresSensorsize) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'sensorsize'"));
+  EXPECT_THAT(error.data(), HasSubstr("focal/principal require sensorsize"));
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
@@ -2011,7 +2011,7 @@ TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
     <worldbody>
       <body>
         <geom size="1"/>
-        <camera sensorsize="1 1"/>
+        <camera sensorsize="1 1" resolution="0 0"/>
       </body>
     </worldbody>
   </mujoco>
@@ -2019,7 +2019,7 @@ TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'resolution'"));
+  EXPECT_THAT(error.data(), HasSubstr("requires positive resolution"));
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
@@ -2274,11 +2274,11 @@ TEST_F(XMLReaderTest, Orthographic) {
     </visual>
 
     <default>
-      <camera orthographic="true"/>
+      <camera projection="orthographic"/>
     </default>
 
     <worldbody>
-      <camera name="fovy=1" pos=".5 .5 2" orthographic="true" fovy="1"/>
+      <camera name="fovy=1" pos=".5 .5 2" projection="orthographic" fovy="1"/>
       <camera name="fovy=2" pos="0 0 2" fovy="2"/>
     </worldbody>
   </mujoco>
@@ -2288,8 +2288,8 @@ TEST_F(XMLReaderTest, Orthographic) {
   EXPECT_THAT(model, NotNull()) << error.data();
 
   EXPECT_EQ(model->vis.global.orthographic, 1);
-  EXPECT_EQ(model->cam_orthographic[0], 1);
-  EXPECT_EQ(model->cam_orthographic[1], 1);
+  EXPECT_EQ(model->cam_projection[0], mjPROJ_ORTHOGRAPHIC);
+  EXPECT_EQ(model->cam_projection[1], mjPROJ_ORTHOGRAPHIC);
   EXPECT_EQ(model->cam_fovy[0], 1);
   EXPECT_EQ(model->cam_fovy[1], 2);
 

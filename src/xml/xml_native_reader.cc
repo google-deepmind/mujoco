@@ -171,7 +171,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "type", "group", "pos", "quat", "material",
             "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "?", "orthographic", "fovy", "ipd", "resolution", "pos", "quat",
+        {"camera", "?", "projection", "fovy", "ipd", "resolution", "pos", "quat",
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "focal", "focalpixel",
             "principal", "principalpixel", "sensorsize", "user"},
         {"light", "?", "pos", "dir", "bulbradius", "intensity", "range",
@@ -285,7 +285,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"attach", "*", "model", "body", "prefix"},
         {"site", "*",  "name", "class", "type", "group", "pos", "quat",
             "material", "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "*", "name", "class", "orthographic", "fovy", "ipd", "resolution", "pos",
+        {"camera", "*", "name", "class", "projection", "fovy", "ipd", "resolution", "pos",
             "quat", "axisangle", "xyaxes", "zaxis", "euler", "mode", "target",
             "focal", "focalpixel", "principal", "principalpixel", "sensorsize", "user"},
         {"light", "*", "name", "class", "directional", "type", "castshadow", "active",
@@ -454,7 +454,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"torque", "*", "name", "site", "cutoff", "noise", "user"},
         {"magnetometer", "*", "name", "site", "cutoff", "noise", "user"},
         {"camprojection", "*", "name", "site", "camera", "cutoff", "noise", "user"},
-        {"rangefinder", "*", "name", "site", "cutoff", "noise", "user"},
+        {"rangefinder", "*", "name", "site", "camera", "data", "cutoff", "noise", "user"},
         {"jointpos", "*", "name", "joint", "cutoff", "noise", "user"},
         {"jointvel", "*", "name", "joint", "cutoff", "noise", "user"},
         {"tendonpos", "*", "name", "tendon", "cutoff", "noise", "user"},
@@ -589,6 +589,13 @@ const mjMap geom_map[mjNGEOMTYPES] = {
   {"sdf",           mjGEOM_SDF}
 };
 
+
+// projection type
+const int projection_sz = 2;
+const mjMap projection_map[projection_sz] = {
+  {"perspective",   mjPROJ_PERSPECTIVE},
+  {"orthographic",  mjPROJ_ORTHOGRAPHIC}
+};
 
 // camlight type
 const int camlight_sz = 5;
@@ -773,6 +780,17 @@ const mjMap condata_map[mjNCONDATA] = {
   {"pos",           mjCONDATA_POS},
   {"normal",        mjCONDATA_NORMAL},
   {"tangent",       mjCONDATA_TANGENT}
+};
+
+
+// rangefinder data type
+const mjMap raydata_map[mjNRAYDATA] = {
+  {"dist",          mjRAYDATA_DIST},
+  {"dir",           mjRAYDATA_DIR},
+  {"origin",        mjRAYDATA_ORIGIN},
+  {"point",         mjRAYDATA_POINT},
+  {"normal",        mjRAYDATA_NORMAL},
+  {"depth",         mjRAYDATA_DEPTH}
 };
 
 
@@ -1926,28 +1944,19 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* camera) {
   ReadAlternative(elem, camera->alt);
   ReadAttr(elem, "ipd", 1, &camera->ipd, text);
 
-  if (MapValue(elem, "orthographic", &n, bool_map, 2)) {
-    camera->orthographic = (n == 1);
+  if (MapValue(elem, "projection", &n, projection_map, 2)) {
+    camera->proj = (mjtProjection)n;
   }
 
-  bool has_principal = ReadAttr(elem, "principalpixel", 2, camera->principal_pixel, text) ||
-                       ReadAttr(elem, "principal", 2, camera->principal_length, text);
-  bool has_focal = ReadAttr(elem, "focalpixel", 2, camera->focal_pixel, text) ||
-                   ReadAttr(elem, "focal", 2, camera->focal_length, text);
-  bool needs_sensorsize = has_principal || has_focal;
-  bool has_sensorsize = ReadAttr(elem, "sensorsize", 2, camera->sensor_size, text, needs_sensorsize);
-  bool has_fovy = ReadAttr(elem, "fovy", 1, &camera->fovy, text);
-  bool needs_resolution = has_focal || has_sensorsize;
-  ReadAttr(elem, "resolution", 2, camera->resolution, text, needs_resolution);
-
-  if (camera->resolution[0] < 0 || camera->resolution[1] < 0) {
-    throw mjXError(elem, "camera resolution cannot be negative");
-  }
-
-  if (has_fovy && has_sensorsize) {
-    throw mjXError(
-            elem,
-            "either 'fovy' or 'sensorsize' attribute can be specified, not both");
+  ReadAttr(elem, "principalpixel", 2, camera->principal_pixel, text);
+  ReadAttr(elem, "principal", 2, camera->principal_length, text);
+  ReadAttr(elem, "focalpixel", 2, camera->focal_pixel, text);
+  ReadAttr(elem, "focal", 2, camera->focal_length, text);
+  ReadAttr(elem, "resolution", 2, camera->resolution, text);
+  bool sensorsize = ReadAttr(elem, "sensorsize", 2, camera->sensor_size, text);
+  bool fovy = ReadAttr(elem, "fovy", 1, &camera->fovy, text);
+  if (fovy && sensorsize) {
+    throw mjXError(elem, "either 'fovy' or 'sensorsize' attribute can be specified, not both");
   }
 
   // read userdata
@@ -4054,8 +4063,34 @@ void mjXReader::Sensor(XMLElement* section) {
       sensor->reftype = mjOBJ_CAMERA;
     } else if (type == "rangefinder") {
       sensor->type = mjSENS_RANGEFINDER;
-      sensor->objtype = mjOBJ_SITE;
-      ReadAttrTxt(elem, "site", objname, true);
+      bool use_site = ReadAttrTxt(elem, "site", objname, false);
+      bool use_camera = ReadAttrTxt(elem, "camera", objname, false);
+      if (use_site == use_camera) {
+        throw mjXError(elem, "rangefinder requires exactly one of 'site' or 'camera'");
+      }
+      sensor->objtype = use_site ? mjOBJ_SITE : mjOBJ_CAMERA;
+
+      // process data specification (intprm[0])
+      int dataspec = 1 << mjRAYDATA_DIST;
+      std::vector<int> raydata(mjNRAYDATA);
+      int nkeys = MapValues(elem, "data", raydata.data(), raydata_map, mjNRAYDATA);
+      if (nkeys) {
+        dataspec = 1 << raydata[0];
+
+        // check ordering while adding bits to dataspec
+        for (int i = 1; i < nkeys; ++i) {
+          if (raydata[i] <= raydata[i-1]) {
+            std::string correct_order;
+            for (int j = 0; j < mjNRAYDATA; ++j) {
+              correct_order += raydata_map[j].key;
+              if (j < mjNRAYDATA - 1) correct_order += ", ";
+            }
+            throw mjXError(elem, "data attributes must be in order: %s", correct_order.c_str());
+          }
+          dataspec |= 1 << raydata[i];
+        }
+      }
+      sensor->intprm[0] = dataspec;
     }
 
     // sensors related to scalar joints, tendons, actuators

@@ -302,7 +302,7 @@
     X   ( mjtNum,  cam_poscom0,           ncam,          3                    ) \
     X   ( mjtNum,  cam_pos0,              ncam,          3                    ) \
     X   ( mjtNum,  cam_mat0,              ncam,          9                    ) \
-    X   ( int,     cam_orthographic,      ncam,          1                    ) \
+    X   ( int,     cam_projection,        ncam,          1                    ) \
     X   ( mjtNum,  cam_fovy,              ncam,          1                    ) \
     X   ( mjtNum,  cam_ipd,               ncam,          1                    ) \
     X   ( int,     cam_resolution,        ncam,          2                    ) \

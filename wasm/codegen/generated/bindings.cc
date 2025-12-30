@@ -33,6 +33,7 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
+#include <mujoco/mjspec.h>
 #include "engine/engine_util_errmem.h"
 #include "wasm/unpack.h"
 
@@ -3128,11 +3129,14 @@ struct MjsCamera {
       *(ptr_->targetbody) = value;
     }
   }
-  int orthographic() const {
-    return ptr_->orthographic;
+  mjtProjection proj() const {
+    return ptr_->proj;
   }
-  void set_orthographic(int value) {
-    ptr_->orthographic = value;
+  void set_proj(mjtProjection value) {
+    ptr_->proj = value;
+  }
+  emscripten::val resolution() const {
+    return emscripten::val(emscripten::typed_memory_view(2, ptr_->resolution));
   }
   double fovy() const {
     return ptr_->fovy;
@@ -3151,9 +3155,6 @@ struct MjsCamera {
   }
   emscripten::val sensor_size() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->sensor_size));
-  }
-  emscripten::val resolution() const {
-    return emscripten::val(emscripten::typed_memory_view(2, ptr_->resolution));
   }
   emscripten::val focal_length() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->focal_length));
@@ -4161,8 +4162,8 @@ struct MjModel {
   emscripten::val cam_mat0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * 9, ptr_->cam_mat0));
   }
-  emscripten::val cam_orthographic() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_orthographic));
+  emscripten::val cam_projection() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_projection));
   }
   emscripten::val cam_fovy() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_fovy));
@@ -7522,7 +7523,7 @@ struct MjvScene {
   // skinvertadr field is handled manually in template file struct declaration
   // skinvertnum field is handled manually in template file struct declaration
   emscripten::val flags() const {
-    return emscripten::val(emscripten::typed_memory_view(10, ptr_->flags));
+    return emscripten::val(emscripten::typed_memory_view(11, ptr_->flags));
   }
   emscripten::val framergb() const {
     return emscripten::val(emscripten::typed_memory_view(3, ptr_->framergb));
@@ -7821,6 +7822,15 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
     return nullptr;
   }
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
+}
+
+std::unique_ptr<MjModel> mj_compile_wrapper(const MjSpec& spec) {
+  mjSpec* spec_ptr = spec.get();
+  mjModel* model = mj_compile(spec_ptr, nullptr);
+  if (!model || mjs_isWarning(spec_ptr)) {
+    mju_error("%s", mjs_getError(spec_ptr));
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
 }
 
 void error_wrapper(const String& msg) { mju_error("%s\n", msg.as<const std::string>().data()); }
@@ -10493,6 +10503,17 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjPLUGIN_SENSOR", mjPLUGIN_SENSOR)
     .value("mjPLUGIN_PASSIVE", mjPLUGIN_PASSIVE)
     .value("mjPLUGIN_SDF", mjPLUGIN_SDF);
+  enum_<mjtProjection>("mjtProjection")
+    .value("mjPROJ_PERSPECTIVE", mjPROJ_PERSPECTIVE)
+    .value("mjPROJ_ORTHOGRAPHIC", mjPROJ_ORTHOGRAPHIC);
+  enum_<mjtRayDataField>("mjtRayDataField")
+    .value("mjRAYDATA_DIST", mjRAYDATA_DIST)
+    .value("mjRAYDATA_DIR", mjRAYDATA_DIR)
+    .value("mjRAYDATA_ORIGIN", mjRAYDATA_ORIGIN)
+    .value("mjRAYDATA_POINT", mjRAYDATA_POINT)
+    .value("mjRAYDATA_NORMAL", mjRAYDATA_NORMAL)
+    .value("mjRAYDATA_DEPTH", mjRAYDATA_DEPTH)
+    .value("mjNRAYDATA", mjNRAYDATA);
   enum_<mjtRndFlag>("mjtRndFlag")
     .value("mjRND_SHADOW", mjRND_SHADOW)
     .value("mjRND_WIREFRAME", mjRND_WIREFRAME)
@@ -10501,6 +10522,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjRND_SKYBOX", mjRND_SKYBOX)
     .value("mjRND_FOG", mjRND_FOG)
     .value("mjRND_HAZE", mjRND_HAZE)
+    .value("mjRND_DEPTH", mjRND_DEPTH)
     .value("mjRND_SEGMENT", mjRND_SEGMENT)
     .value("mjRND_IDCOLOR", mjRND_IDCOLOR)
     .value("mjRND_CULL_FACE", mjRND_CULL_FACE)
@@ -11021,10 +11043,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("cam_ipd", &MjModel::cam_ipd)
     .property("cam_mat0", &MjModel::cam_mat0)
     .property("cam_mode", &MjModel::cam_mode)
-    .property("cam_orthographic", &MjModel::cam_orthographic)
     .property("cam_pos", &MjModel::cam_pos)
     .property("cam_pos0", &MjModel::cam_pos0)
     .property("cam_poscom0", &MjModel::cam_poscom0)
+    .property("cam_projection", &MjModel::cam_projection)
     .property("cam_quat", &MjModel::cam_quat)
     .property("cam_resolution", &MjModel::cam_resolution)
     .property("cam_sensorsize", &MjModel::cam_sensorsize)
@@ -11722,10 +11744,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("intrinsic", &MjsCamera::intrinsic)
     .property("ipd", &MjsCamera::ipd, &MjsCamera::set_ipd, reference())
     .property("mode", &MjsCamera::mode, &MjsCamera::set_mode, reference())
-    .property("orthographic", &MjsCamera::orthographic, &MjsCamera::set_orthographic, reference())
     .property("pos", &MjsCamera::pos)
     .property("principal_length", &MjsCamera::principal_length)
     .property("principal_pixel", &MjsCamera::principal_pixel)
+    .property("proj", &MjsCamera::proj, &MjsCamera::set_proj, reference())
     .property("quat", &MjsCamera::quat)
     .property("resolution", &MjsCamera::resolution)
     .property("sensor_size", &MjsCamera::sensor_size)
@@ -12308,6 +12330,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_comPos", &mj_comPos_wrapper);
   function("mj_comVel", &mj_comVel_wrapper);
   function("mj_compareFwdInv", &mj_compareFwdInv_wrapper);
+  function("mj_compile", &mj_compile_wrapper);
   function("mj_constraintUpdate", &mj_constraintUpdate_wrapper);
   function("mj_contactForce", &mj_contactForce_wrapper);
   function("mj_copyBack", &mj_copyBack_wrapper);

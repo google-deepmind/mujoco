@@ -944,7 +944,7 @@ void mj_makeDofDofMaps(int nv, int nM, int nC, int nD,
 
   // make mapM2M
   for (int i=0; i < nM; i++) M[i] = i;
-  for (int i=0; i < nC; i++) mapM2M[i] = -1;
+  mju_fillInt(mapM2M, -1, nC);
   copyM2Sparse(nv, dof_Madr, dof_simplenum, dof_parentid, M_rownnz,
                M_rowadr, M, mapM2M, /*reduced=*/1, /*upper=*/0, scratch);
 
@@ -1372,9 +1372,7 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   static int kAwake = -(1+mjMINAWAKE);  // tree_asleep value for fully awake tree
 
   // set all trees to awake
-  for (int i=0; i < m->ntree; i++) {
-    d->tree_asleep[i] = kAwake;
-  }
+  mju_fillInt(d->tree_asleep, kAwake, m->ntree);
 
   // sleep enabled: handle static bodies and trees marked as mjSLEEP_INIT
   if (mjENABLED(mjENBL_SLEEP)) {

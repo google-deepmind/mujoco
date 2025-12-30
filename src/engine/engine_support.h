@@ -31,6 +31,7 @@ MJAPI extern const char* mjTIMERSTRING[mjNTIMER];
 
 // arrays
 MJAPI extern const int mjCONDATA_SIZE[mjNCONDATA];  // TODO(tassa): expose in public header?
+extern const int mjRAYDATA_SIZE[mjNRAYDATA];
 
 
 //-------------------------- get/set state ---------------------------------------------------------
@@ -119,6 +120,15 @@ MJAPI const char* mj_versionString(void);
 
 // return total size of data fields in a contact sensor bitfield specification
 MJAPI int mju_condataSize(int dataSpec);
+
+// return total size of data fields in a rangefinder sensor bitfield specification
+int mju_raydataSize(int dataspec);
+
+// compute camera pixel parameters from model
+// outputs: fx, fy (focal length in pixels), cx, cy (principal point), ortho_extent
+void mju_camIntrinsics(const mjModel* m, int camid,
+                       mjtNum* fx, mjtNum* fy, mjtNum* cx, mjtNum* cy,
+                       mjtNum* ortho_extent);
 
 #ifdef __cplusplus
 }
