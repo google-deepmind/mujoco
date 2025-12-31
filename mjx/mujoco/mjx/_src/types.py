@@ -977,8 +977,8 @@ class Model(PyTreeNode):
       return object.__getattribute__(self, 'value')
 
     try:
-      impl_instsance = object.__getattribute__(self, '_impl')
-      val = getattr(impl_instsance, name)
+      impl_instance = object.__getattribute__(self, '_impl')
+      val = getattr(impl_instance, name)
       warnings.warn(
           f'Accessing `{name}` directly from `Model` is deprecated. '
           f'Access it via `model._impl.{name}` instead.',
@@ -1216,8 +1216,8 @@ class Data(PyTreeNode):
 
   def __getattr__(self, name: str):
     try:
-      impl_instsance = object.__getattribute__(self, '_impl')
-      val = getattr(impl_instsance, name)
+      impl_instance = object.__getattribute__(self, '_impl')
+      val = getattr(impl_instance, name)
       warnings.warn(
           f'Accessing `{name}` directly from `Data` is deprecated. '
           f'Access it via `data._impl.{name}` instead.',
