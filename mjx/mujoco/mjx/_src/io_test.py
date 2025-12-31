@@ -142,8 +142,6 @@ class ModelIOTest(parameterized.TestCase):
   def test_put_model(self, xml, impl):
     if impl == 'warp' and not mjxw.WARP_INSTALLED:
       self.skipTest('Warp not installed.')
-    if impl == 'warp' and not mjx_io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
 
     m = mujoco.MjModel.from_xml_string(xml)
     mx = mjx.put_model(m, impl=impl)
@@ -315,8 +313,6 @@ class ModelIOTest(parameterized.TestCase):
     """Tests that put_model produces expected shapes for MuJoCo Warp."""
     if not mjxw.WARP_INSTALLED:
       self.skipTest('Warp not installed.')
-    if not mjx_io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device available.')
 
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
     mx = mjx.put_model(m, impl='warp')
@@ -465,8 +461,6 @@ class DataIOTest(parameterized.TestCase):
   def test_make_data_warp(self):
     if not mjxw.WARP_INSTALLED:
       self.skipTest('Warp is not installed.')
-    if not mjx_io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device.')
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
     d = mjx.make_data(m, impl='warp', nconmax=9, njmax=23)
     self.assertEqual(d._impl.contact__dist.shape[0], 9)
@@ -790,8 +784,6 @@ class DataIOTest(parameterized.TestCase):
     """Tests that make_data produces expected shapes for MuJoCo Warp."""
     if not mjxw.WARP_INSTALLED:
       self.skipTest('Warp is not installed.')
-    if not mjx_io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device.')
 
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
     dx = mjx.make_data(m, impl='warp')
@@ -814,8 +806,6 @@ class DataIOTest(parameterized.TestCase):
     """Tests that slice on Data works as expected."""
     if impl == 'warp' and not mjxw.WARP_INSTALLED:
       self.skipTest('Warp is not installed.')
-    if impl == 'warp' and not mjx_io.has_cuda_gpu_device():
-      self.skipTest('No CUDA GPU device.')
 
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
     dx = jax.vmap(lambda x: mjx.make_data(m, impl=impl))(jp.arange(10))
