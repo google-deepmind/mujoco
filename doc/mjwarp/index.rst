@@ -330,8 +330,14 @@ To enable batched simulation with different model parameter values, many :class:
 have a leading batch dimension. By default, the leading dimension is 1 (i.e., ``field.shape[0] == 1``) and the same
 value(s) will be applied to all worlds. It is possible to override one of these fields with a ``wp.array`` that has a
 leading dimension greater than one. This field will be indexed with a modulo operation of the world id and batch
-dimension: ``field[worldid % field.shape[0]]``. Importantly, the field shape should be overridden prior to
-:ref:`graph capture <mjwGC>` (i.e., ``wp.ScopedCapture``)
+dimension: ``field[worldid % field.shape[0]]``.
+
+.. admonition:: Graph capture
+  :class: warning
+
+  The field array should be overridden prior to
+  :ref:`graph capture <mjwGC>` (i.e., ``wp.ScopedCapture``)
+  since the update will not be applied to an existing graph.
 
 .. code-block:: python
 
