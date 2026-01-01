@@ -321,6 +321,8 @@ To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeri
 
   The parallel linesearch is currently an experimental feature.
 
+.. _mjwBatch:
+
 Batched :class:`Model <mujoco_warp.Model>` Fields
 =================================================
 
@@ -467,6 +469,16 @@ running its main collision pipeline.
 Sparse Jacobians are not currently implemented and ``Data`` fields: ``ten_J``, ``actuator_moment``, ``flexedge_J``, and
 ``efc.J`` are always represented as dense matrices. Support for sparse Jacobians is tracked in GitHub issue
 `#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__.
+
+**Why do some arrays have different shapes compared to mjModel or mjData?**
+
+By default for batched simulation, many :class:`mjw.Data <mujoco_warp.Data>` fields having a leading batch dimension of
+size ``Data.nworld``. Some :class:`mjw.Model <mujoco_warp.Model>` fields having a leading batch dimension with size
+``1``, indicating that this
+:ref:`field can be overridden with an array of batched parameters for domain randomization <mjwBatch>`.
+
+Additionally, certain fields including ``Model.qM``, ``Data.efc.J``, and ``Data.efc.D`` are padded to enable fast
+loading on GPU.
 
 Compilation
 -----------
