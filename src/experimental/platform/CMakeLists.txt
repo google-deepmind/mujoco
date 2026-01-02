@@ -30,7 +30,7 @@ endif()
 
 add_library(${MUJOCO_PLATFORM_TARGET_NAME} STATIC)
 
-target_compile_definitions(${MUJOCO_STUDIO_TARGET_NAME}
+target_compile_definitions(${MUJOCO_PLATFORM_TARGET_NAME}
     PUBLIC
         -D${MUJOCO_PLATFORM_RENDER_CONFIG}
 )
