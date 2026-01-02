@@ -14,14 +14,34 @@
 
 #include "experimental/platform/renderer.h"
 
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <vector>
+
 #include <cstddef>
 
 #include <mujoco/mujoco.h>
+#include "experimental/platform/helpers.h"
+
+#if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
+#include "experimental/filament/render_context_filament.h"
+#elif defined(USE_CLASSIC_OPENGL)
+#include <imgui.h>
+#include <backends/imgui_impl_opengl3.h>
+#else
+#error No rendering mode defined.
+#endif
 
 namespace mujoco::platform {
 
-Renderer::Renderer(MakeContextFn make_context_fn)
-    : make_context_fn_(make_context_fn) {
+Renderer::Renderer(void* native_window, const LoadAssetFn& load_asset_fn)
+    : load_asset_fn_(load_asset_fn), native_window_(native_window) {
+#ifdef USE_CLASSIC_OPENGL
+  ImGui_ImplOpenGL3_Init();
+#endif
 }
 
 Renderer::~Renderer() { Deinit(); }
@@ -30,7 +50,24 @@ void Renderer::Init(const mjModel* model) {
   Deinit();
   if (model) {
     mjr_defaultContext(&render_context_);
-    make_context_fn_(model, &render_context_);
+
+#if defined(USE_CLASSIC_OPENGL)
+    mjr_makeContext(model, &render_context_, mjFONTSCALE_150);
+#else
+    mjrFilamentConfig render_config;
+    mjr_defaultFilamentConfig(&render_config);
+    render_config.native_window = native_window_;
+    render_config.load_asset = &Renderer::LoadAssetCallback;
+    render_config.load_asset_user_data = this;
+    render_config.enable_gui = true;
+#if defined(USE_FILAMENT_OPENGL)
+    render_config.graphics_api = mjGFX_OPENGL;
+#elif defined(USE_FILAMENT_VULKAN)
+    render_config.graphics_api = mjGFX_VULKAN;
+#endif
+    mjr_makeFilamentContext(model, &render_context_, &render_config);
+#endif
+
     mjv_defaultScene(&scene_);
     mjv_makeScene(model, &scene_, 2000);
     initialized_ = true;
@@ -52,17 +89,43 @@ void Renderer::Render(const mjModel* model, mjData* data,
     return;
   }
 
-  mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
-                  &scene_);
+  if (last_update_time_ == data->time) {
+    mjv_updateCamera(model, data, camera, &scene_);
+  } else {
+    mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
+                    &scene_);
+    last_update_time_ = data->time;
+  }
 
   const mjrRect viewport = {0, 0, width, height};
   mjr_render(viewport, &scene_, &render_context_);
+
+#ifdef USE_CLASSIC_OPENGL
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui::Render();
+  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+#endif
+
+#ifdef USE_CLASSIC_OPENGL
+  TimePoint now = std::chrono::steady_clock::now();
+  TimePoint::duration delta_time = now - last_fps_update_;
+  const double interval = std::chrono::duration<double>(delta_time).count();
+
+  ++frames_;
+  if (interval > 0.2) {  // only update FPS stat at most 5 times per second
+    last_fps_update_ = now;
+    fps_ = frames_ / interval;
+    frames_ = 0;
+  }
+#else
+  fps_ = mjr_getFrameRate(&render_context_);
+#endif
 }
 
 void Renderer::RenderToTexture(const mjModel* model, mjData* data,
                                mjvCamera* camera, int width, int height,
                                std::byte* output) {
-  if (!initialized_) {
+  if (!initialized_ || last_update_time_ == -1) {
     return;
   }
 
@@ -75,4 +138,25 @@ void Renderer::RenderToTexture(const mjModel* model, mjData* data,
   mjr_setBuffer(mjFB_WINDOW, &render_context_);
 }
 
+double Renderer::GetFps() { return fps_; }
+
+int Renderer::LoadAssetCallback(const char* path, void* user_data,
+                                unsigned char** out, std::uint64_t* out_size) {
+  Renderer* renderer = static_cast<Renderer*>(user_data);
+  std::vector<std::byte> bytes = (renderer->load_asset_fn_)(path);
+  if (bytes.empty()) {
+    *out_size = 0;
+    return 0;  // Empty file
+  }
+
+  *out_size = bytes.size();
+  *out = reinterpret_cast<unsigned char*>(malloc(*out_size));
+  if (*out == nullptr) {
+    mju_error("Failed to allocate memory for file %s", path);
+    return -1;
+  }
+
+  std::memcpy(*out, bytes.data(), *out_size);
+  return 0;
+}
 }  // namespace mujoco::platform

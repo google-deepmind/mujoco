@@ -17,16 +17,11 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
-#if defined(USE_CLASSIC_OPENGL)
-#include <chrono>
-#endif
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <functional>
 #include <memory>
 #include <span>
 #include <string>
@@ -45,14 +40,6 @@
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
 
-#if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
-#include "experimental/filament/render_context_filament.h"
-#elif defined(USE_CLASSIC_OPENGL)
-#include <backends/imgui_impl_opengl3.h>
-#else
-#error No rendering mode defined.
-#endif
-
 namespace mujoco::studio {
 
 static constexpr platform::Window::Config kWindowConfig = {
@@ -65,7 +52,6 @@ static constexpr platform::Window::Config kWindowConfig = {
 #elif defined(USE_CLASSIC_OPENGL)
     .render_config = platform::Window::RenderConfig::kClassicOpenGL,
 #endif
-    .enable_keyboard = true,
 };
 
 static void ToggleFlag(mjtByte& flag) { flag = flag ? 0 : 1; }
@@ -130,37 +116,15 @@ App::App(int width, int height, std::string ini_path,
     : ini_path_(std::move(ini_path)), load_asset_fn_(load_asset_fn) {
   window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
                                                kWindowConfig, load_asset_fn);
+  renderer_ = std::make_unique<platform::Renderer>(
+      window_->GetNativeWindowHandle(), load_asset_fn);
+
   ImPlot::CreateContext();
-
-  auto make_context_fn = [&](const mjModel* m, mjrContext* con) {
-#if defined(USE_CLASSIC_OPENGL)
-    mjr_makeContext(m, con, mjFONTSCALE_150);
-#else
-    mjrFilamentConfig render_config;
-    mjr_defaultFilamentConfig(&render_config);
-    render_config.native_window = window_->GetNativeWindowHandle();
-    render_config.load_asset = &App::LoadAssetCallback;
-    render_config.load_asset_user_data = this;
-    render_config.enable_gui = true;
-#if defined(USE_FILAMENT_OPENGL)
-    render_config.graphics_api = mjGFX_OPENGL;
-#elif defined(USE_FILAMENT_VULKAN)
-    render_config.graphics_api = mjGFX_VULKAN;
-#endif
-    mjr_makeFilamentContext(m, con, &render_config);
-#endif
-  };
-  renderer_ = std::make_unique<platform::Renderer>(make_context_fn);
-
   mjv_defaultPerturb(&perturb_);
   mjv_defaultCamera(&camera_);
   mjv_defaultOption(&vis_options_);
 
   profiler_.Clear();
-
-#ifdef USE_CLASSIC_OPENGL
-  ImGui_ImplOpenGL3_Init();
-#endif
 }
 
 void App::ClearModel() {
@@ -361,10 +325,6 @@ void App::LoadHistory(int offset) {
 bool App::Update() {
   const platform::Window::Status status = window_->NewFrame();
 
-#ifdef USE_CLASSIC_OPENGL
-  ImGui_ImplOpenGL3_NewFrame();
-#endif
-
   HandleMouseEvents();
   HandleKeyboardEvents();
 
@@ -391,12 +351,6 @@ void App::Render() {
   renderer_->Render(model_, data_, &perturb_, &camera_, &vis_options_,
                     width * scale, height * scale);
 
-#ifdef USE_CLASSIC_OPENGL
-  ImGui::Render();
-  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-#endif
-
-  // This call to EndFrame() is only needed if render_config.enable_gui is false
   window_->EndFrame();
   window_->Present();
 
@@ -406,21 +360,6 @@ void App::Render() {
       data_->timer[i].number = 0;
     }
   }
-
-#ifdef USE_CLASSIC_OPENGL
-  TimePoint now = std::chrono::steady_clock::now();
-  TimePoint::duration delta_time = now - last_fps_update_;
-  const double interval = std::chrono::duration<double>(delta_time).count();
-
-  ++frames_;
-  if (interval > 0.2) {  // only update FPS stat at most 5 times per second
-    last_fps_update_ = now;
-    fps_ = frames_ / interval;
-    frames_ = 0;
-  }
-#else
-  fps_ = mjr_getFrameRate(&renderer_->GetContext());
-#endif
 }
 
 void App::HandleMouseEvents() {
@@ -867,7 +806,8 @@ void App::BuildGui() {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
     if (ImGui::Begin("Stats", &tmp_.stats)) {
-      platform::StatsGui(model_, data_, step_control_.IsPaused(), fps_);
+      const float fps = renderer_->GetFps();
+      platform::StatsGui(model_, data_, step_control_.IsPaused(), fps);
     }
     ImGui::End();
   }
@@ -1761,7 +1701,7 @@ std::vector<const char*> App::GetCameraNames() {
 
 App::UiState::Dict App::UiState::ToDict() const {
   return {
-    {"theme", std::to_string(static_cast<int>(theme))},
+      {"theme", std::to_string(static_cast<int>(theme))},
   };
 }
 
@@ -1769,25 +1709,4 @@ void App::UiState::FromDict(const Dict& dict) {
   *this = UiState();
   theme = ReadIniValue(dict, "theme", theme);
 }
-
-int App::LoadAssetCallback(const char* path, void* user_data,
-                           unsigned char** out, std::uint64_t* out_size) {
-  App* app = static_cast<App*>(user_data);
-  std::vector<std::byte> bytes = (app->load_asset_fn_)(path);
-  if (bytes.empty()) {
-    *out_size = 0;
-    return 0;  // Empty file
-  }
-
-  *out_size = bytes.size();
-  *out = reinterpret_cast<unsigned char*>(malloc(*out_size));
-  if (*out == nullptr) {
-    mju_error("Failed to allocate memory for file %s", path);
-    return -1;
-  }
-
-  std::memcpy(*out, bytes.data(), *out_size);
-  return 0;
-}
-
 }  // namespace mujoco::studio

@@ -15,10 +15,13 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_H_
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_RENDERER_H_
 
+#include <chrono>
 #include <cstddef>
-#include <functional>
+#include <cstdint>
+#include <ratio>
 
 #include <mujoco/mujoco.h>
+#include "experimental/platform/helpers.h"
 
 namespace mujoco::platform {
 
@@ -26,12 +29,12 @@ namespace mujoco::platform {
 // using the filament rendering backend.
 class Renderer {
  public:
-  // Function that creates a mjrContext for the given model. We use a function
-  // to allow different mjrContext implementations to be created without
-  // requiring a direct dependency on them.
-  using MakeContextFn = std::function<void(const mjModel* m, mjrContext* con)>;
+  using Clock = std::chrono::steady_clock;
+  using TimePoint = std::chrono::time_point<Clock>;
+  using Seconds = std::chrono::duration<double>;
+  using Milliseconds = std::chrono::duration<double, std::milli>;
 
-  explicit Renderer(MakeContextFn make_context_fn);
+  Renderer(void* native_window, const LoadAssetFn& load_asset_fn);
   ~Renderer();
 
   Renderer(const Renderer&) = delete;
@@ -54,18 +57,25 @@ class Renderer {
   // Rendering flags.
   mjtByte* GetRenderFlags() { return scene_.flags; }
 
-  // Returns the render context.
-  mjrContext& GetContext() { return render_context_; }
-  const mjrContext& GetContext() const { return render_context_; }
+  // Returns the current frame rate.
+  double GetFps();
 
  private:
   // Resets the renderer; no rendering will occur until Init() is called again.
   void Deinit();
 
-  MakeContextFn make_context_fn_;
+  static int LoadAssetCallback(const char* path, void* user_data,
+                               unsigned char** out, std::uint64_t* out_size);
+
+  LoadAssetFn load_asset_fn_;
+  void* native_window_ = nullptr;
   mjrContext render_context_;
   mjvScene scene_;
   bool initialized_ = false;
+  mjtNum last_update_time_ = -1;
+  int frames_ = 0;
+  TimePoint last_fps_update_;
+  double fps_ = 0;
 };
 
 }  // namespace mujoco::platform

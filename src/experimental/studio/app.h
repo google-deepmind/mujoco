@@ -15,13 +15,9 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 
-#include <chrono>
-#include <cstdint>
 #include <memory>
 #include <optional>
-#include <ratio>
 #include <string>
-#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -40,11 +36,6 @@ namespace mujoco::studio {
 // Owns, updates, and renders a MuJoCo simulation.
 class App {
  public:
-  using Clock = std::chrono::steady_clock;
-  using TimePoint = std::chrono::time_point<Clock>;
-  using Seconds = std::chrono::duration<double>;
-  using Milliseconds = std::chrono::duration<double, std::milli>;
-
   App(int width, int height, std::string ini_path,
       const platform::LoadAssetFn& load_asset_fn);
 
@@ -71,9 +62,6 @@ class App {
   void Render();
 
  private:
-  static int LoadAssetCallback(const char* path, void* user_data,
-                               unsigned char** out, std::uint64_t* out_size);
-
   // UI state that is persisted across application runs
   struct UiState {
     char watch_field[1000] = "qpos";
@@ -197,10 +185,6 @@ class App {
 
   UiState ui_;
   UiTempState tmp_;
-
-  int frames_ = 0;
-  TimePoint last_fps_update_;
-  double fps_ = 0;
 };
 
 }  // namespace mujoco::studio
