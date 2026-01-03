@@ -352,8 +352,8 @@ It is possible to override the field shape and set the field values after graph 
      mjw.step(m, d)
 
    # set batched values
-   dof_damping_batch = wp.array([[0.1], [0.2]], dtype=float)
-   wp.copy(m.dof_damping, dof_damping_batch)  # m.dof = dof_damping_batch will not update the captured graph
+   dof_damping = wp.array([[0.1], [0.2]], dtype=float)
+   wp.copy(m.dof_damping, dof_damping)  # m.dof = dof_damping will not update the captured graph
 
 .. admonition:: Heterogeneous worlds
    :class: note
