@@ -355,6 +355,17 @@ It is possible to override the field shape and set the field values after graph 
    dof_damping = wp.array([[0.1], [0.2]], dtype=float)
    wp.copy(m.dof_damping, dof_damping)  # m.dof = dof_damping will not update the captured graph
 
+Modifying fields
+----------------
+
+The recommended workflow for modifying an :ref:`mjModel` field is to first modify the corresponding :ref:`mjSpec` and
+then compile to create a new :ref:`mjModel` with the updated field. However, compilation currently requires a host call.
+
+Certain fields are safe to modify directly without compilation, enabling on-device updates. Please see
+:ref:`mjModel changes<sichange>` for details about specific fields. Additionally,
+`GitHub issue 893 <https://github.com/google-deepmind/mujoco_warp/issues/893>`__ tracks adding on-device updates for a
+subset of fields.
+
 .. admonition:: Heterogeneous worlds
    :class: note
 
