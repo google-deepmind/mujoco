@@ -49,8 +49,13 @@ class GlobalModel {
   void Set(mjSpec* spec = nullptr);
 
   // writes XML to string
-  std::optional<std::string> ToXML(const mjModel* m, char* error,
-                                      int error_sz);
+  // Compatibility wrapper: old API without out_dir is preserved and forwards to the new overload.
+  std::optional<std::string> ToXML(const mjModel* m, char* error, int error_sz);
+
+  // out_dir: optional. If non-null, pass to WriteXML so it can emit asset paths
+  // relative to the output directory.
+  std::optional<std::string> ToXML(const mjModel* m, const char* out_dir,
+                                      char* error, int error_sz);
 
  private:
   // using raw pointers as GlobalModel needs to be trivially destructible
@@ -58,14 +63,22 @@ class GlobalModel {
   mjSpec* spec_ = nullptr;
 };
 
-std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
-                                              int error_sz) {
+// Forwarding wrapper for backward compatibility.
+std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error, int error_sz) {
+  return ToXML(m, /*out_dir=*/nullptr, error, error_sz);
+}
+
+std::optional<std::string> GlobalModel::ToXML(const mjModel* m, const char* out_dir,
+                                              char* error, int error_sz) {
   std::lock_guard<std::mutex> lock(*mutex_);
   if (!spec_) {
     mjCopyError(error, "No XML model loaded", error_sz);
     return std::nullopt;
   }
-  std::string result = WriteXML(m, spec_, error, error_sz);
+
+  // Delegate output-directory handling to WriteXML by passing out_dir through.
+  std::string result = WriteXML(m, spec_, out_dir, error, error_sz);
+
   if (result.empty()) {
     return std::nullopt;
   }
@@ -160,6 +173,16 @@ mjModel* mj_loadUSD(const char* filename, const mjVFS* vfs, char* error, int err
 }
 #endif
 
+// helper: compute dirname of path (returns empty string if no dir component)
+static std::string DirnameOfPath(const char* path) {
+  if (!path) return std::string();
+  std::string s(path);
+  // find last slash or backslash
+  size_t pos = s.find_last_of("/\\");
+  if (pos == std::string::npos) return std::string();
+  return s.substr(0, pos);
+}
+
 // update XML data structures with info from low-level model, save as MJCF
 //  returns 1 if successful, 0 otherwise
 //  error can be NULL; otherwise assumed to have size error_sz
@@ -173,7 +196,12 @@ int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int erro
     }
   }
 
-  auto result = GetGlobalModel().ToXML(m, error, error_sz);
+  // compute output directory (if any) so writer can emit relative paths w.r.t. it
+  std::string out_dir = DirnameOfPath(filename ? filename : "");
+  const char* out_dir_ptr = nullptr;
+  if (!out_dir.empty()) out_dir_ptr = out_dir.c_str();
+
+  auto result = GetGlobalModel().ToXML(m, out_dir_ptr, error, error_sz);
   if (result.has_value()) {
     fprintf(fp, "%s", result->c_str());
   }
@@ -191,6 +219,9 @@ int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int erro
 void mj_freeLastXML(void) {
   GetGlobalModel().Set();
 }
+
+
+
 
 
 
@@ -253,7 +284,7 @@ mjSpec* mj_parseXML(const char* filename, const mjVFS* vfs, char* error, int err
 
 
 
-// parse spec from string
+ // parse spec from string
 mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int error_sz) {
   return ParseSpecFromString(xml, vfs, error, error_sz);
 }
@@ -263,7 +294,7 @@ mjSpec* mj_parseXMLString(const char* xml, const mjVFS* vfs, char* error, int er
 // save spec to XML file, return 0 on success, -1 otherwise
 int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz) {
   // cast to mjSpec since WriteXML can in principle perform mj_copyBack (not here)
-  std::string result = WriteXML(NULL, (mjSpec*)s, error, error_sz);
+  std::string result = WriteXML(NULL, (mjSpec*)s, /*out_dir=*/nullptr, error, error_sz);
   if (result.empty()) {
     return -1;
   }
@@ -280,7 +311,7 @@ int mj_saveXML(const mjSpec* s, const char* filename, char* error, int error_sz)
 // save spec to XML string, return 0 on success, -1 on failure
 // if length of the output buffer is too small, returns the required size
 int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int error_sz) {
-  std::string result = WriteXML(NULL, (mjSpec*)s, error, error_sz);
+  std::string result = WriteXML(NULL, (mjSpec*)s, /*out_dir=*/nullptr, error, error_sz);
   if (result.empty()) {
     return -1;
   } else if (result.size() >= xml_sz) {

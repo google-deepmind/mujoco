@@ -56,7 +56,7 @@ namespace mju = ::mujoco::util;
 // When MuJoCo is being used as a plug-in for an application that respects the system locale
 // (e.g. Unity), the user's locale setting can affect the formatting of numbers into strings.
 // Specifically, a number of European locales (e.g. de_DE) uses commas to as decimal separators.
-// In order to ensure that XMLs are locale-inpendent, we temporarily switch to the "C" locale
+// In order to ensure that XMLs are locale-indendent, we temporarily switch to the "C" locale
 // when handling. Since the standard C `setlocale` is not thread-safe, we instead use
 // platform-specific extensions to override the locale only in the calling thread.
 // See also https://github.com/google-deepmind/mujoco/issues/131.
@@ -154,7 +154,7 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
     throw mjXError(elem, "Include element cannot have children");
   }
 
-  // get filename
+  // get filename (may be relative)
   auto file_attr = mjXUtil::ReadAttrFile(elem, "file", vfs,
                                          reader.ModelFileDir(), true);
   if (!file_attr.has_value()) {
@@ -162,10 +162,14 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
   }
   FilePath filename = file_attr.value();
 
+  // Compute a canonical fullname (dir + filename) early and use it for checks/insertion.
+  // This prevents inconsistent checks where included is compared against one form but the inserted
+  // value is another (causing duplicates or missed duplicates and eventually double-prefixing).
+  FilePath fullname = dir + filename;
 
-  // block repeated include files
-  if (included.find(filename.Str()) != included.end()) {
-    throw mjXError(elem, "File '%s' already included", filename.c_str());
+  // block repeated include files using canonical fullname
+  if (included.find(fullname.Str()) != included.end()) {
+    throw mjXError(elem, "File '%s' already included", fullname.c_str());
   }
 
   // TODO: b/325905702 - We have a messy wrapper here to remain backwards
@@ -178,7 +182,7 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
   if (resource == nullptr) {
     // new behavior: try to load in relative directory
     if (!filename.IsAbs()) {
-      FilePath fullname = dir + filename;
+      // use the precomputed canonical fullname (dir + filename)
       resource = mju_openResource(reader.ModelFileDir().c_str(),
                                   fullname.c_str(), vfs, error.data(), error.size());
     }
@@ -188,7 +192,8 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
     throw mjXError(elem, "%s", error.data());
   }
 
-  filename = dir + filename;
+  // Use canonical fullname for further processing/storage so we keep a single form.
+  filename = fullname;
 
   const char* include_dir = nullptr;
   int ninclude_dir = 0;
@@ -220,7 +225,7 @@ void IncludeXML(mjXReader& reader, XMLElement* elem,
     throw mjXError(elem, "Include error: '%s'", err);
   }
 
-  // remember that file was included
+  // remember that file was included using canonical fullname
   included.insert(filename.Str());
 
   // get and check root element
@@ -347,7 +352,11 @@ mjSpec* ParseXML(const char* filename, const mjVFS* vfs,
   try {
     if (!strcasecmp(root->Value(), "mujoco")) {
       // find include elements, replace them with subtree from xml file
-      std::unordered_set<std::string> included = {filename};
+      // NOTE: canonicalize the initial included set entry so all entries
+      // use the same canonical form (FilePath(...).Str()).
+      std::unordered_set<std::string> included;
+      included.insert(FilePath(filename).Str());
+
       mjXReader parser;
       parser.SetModelFileDir(mjs_getString(spec->modelfiledir));
       IncludeXML(parser, root, FilePath(), vfs, included);
@@ -394,7 +403,8 @@ mjSpec* ParseSpecFromString(std::string_view xml, const mjVFS* vfs, char* error,
 }
 
 // Main writer function - calls mjXWrite
-std::string WriteXML(const mjModel* m, mjSpec* spec, char* error, int nerror) {
+// Now accepts out_dir which, if non-null, will be used as the basis for emitting relative asset paths.
+std::string WriteXML(const mjModel* m, mjSpec* spec, const char* out_dir, char* error, int nerror) {
   LocaleOverride locale_override;
 
   // check for empty model
@@ -403,12 +413,36 @@ std::string WriteXML(const mjModel* m, mjSpec* spec, char* error, int nerror) {
     return "";
   }
 
+  // If out_dir is provided, temporarily override spec->modelfiledir so
+  // the writer can compute relative paths against the output file location.
+  std::string old_modelfiledir;
+  bool changed_modelfiledir = false;
+  if (out_dir && out_dir[0] != '\0') {
+    const char* old = mjs_getString(spec->modelfiledir);
+    if (old) old_modelfiledir = old;
+    else old_modelfiledir.clear();
+
+    mjs_setString(spec->modelfiledir, out_dir);
+    changed_modelfiledir = true;
+  }
+
   mjXWriter writer;
   writer.SetModel(spec, m);
 
   try {
-    return writer.Write(error, nerror);
+    std::string result = writer.Write(error, nerror);
+
+    // Restore old modelfiledir if we changed it
+    if (changed_modelfiledir) {
+      mjs_setString(spec->modelfiledir, old_modelfiledir.empty() ? "" : old_modelfiledir.c_str());
+    }
+
+    return result;
   } catch (mjXError err) {
+    // Restore old modelfiledir before returning on error
+    if (changed_modelfiledir) {
+      mjs_setString(spec->modelfiledir, old_modelfiledir.empty() ? "" : old_modelfiledir.c_str());
+    }
     mjCopyError(error, err.message, nerror);
     return "";
   }
