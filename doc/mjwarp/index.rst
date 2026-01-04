@@ -359,7 +359,8 @@ Modifying fields
 ----------------
 
 The recommended workflow for modifying an :ref:`mjModel` field is to first modify the corresponding :ref:`mjSpec` and
-then compile to create a new :ref:`mjModel` with the updated field. However, compilation currently requires a host call.
+then compile to create a new :ref:`mjModel` with the updated field. However, compilation currently requires a host call:
+1 call per new field instance, i.e., ``nworld`` host calls for ``nworld`` instances.
 
 Certain fields are safe to modify directly without compilation, enabling on-device updates. Please see
 :ref:`mjModel changes<sichange>` for details about specific fields. Additionally,
