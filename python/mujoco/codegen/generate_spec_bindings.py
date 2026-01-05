@@ -505,7 +505,9 @@ def generate_add() -> None:
 
     docstring = f'Add {elemlower} to spec.\n\n      Args:\n'
     for i, name in enumerate(names):
-      docstring += f'{'\n' if i > 0 else ''}        {name}: {types[i]}'
+      if i > 0:
+        docstring += '\n'
+      docstring += f'        {name}: {types[i]}'
 
     # functions arguments
     args = ', '.join(cpp_args)
