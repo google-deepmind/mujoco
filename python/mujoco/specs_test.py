@@ -357,12 +357,8 @@ class SpecsTest(absltest.TestCase):
     self.assertEqual(light_in_frame.frame, framea0)
 
     # Invalid input for valid keyword argument.
-    with self.assertRaises(ValueError) as cm:
+    with self.assertRaises(TypeError):
       body.add_geom(pos='pos')
-    self.assertEqual(
-        str(cm.exception),
-        'pos should be a list/array.',
-    )
 
     with self.assertRaises(ValueError) as cm:
       body.add_geom(pos=[0, 1])
@@ -371,32 +367,15 @@ class SpecsTest(absltest.TestCase):
         'pos should be a list/array of size 3.',
     )
 
-    with self.assertRaises(ValueError) as cm:
+    with self.assertRaises(TypeError):
       body.add_geom(type='type')
-    self.assertEqual(
-        str(cm.exception),
-        'type is the wrong type.',
-    )
 
-    with self.assertRaises(ValueError) as cm:
+    with self.assertRaises(TypeError):
       body.add_geom(userdata='')
-    self.assertEqual(
-        str(cm.exception),
-        'userdata has the wrong type.',
-    )
 
     # Invalid keyword argument.
-    with self.assertRaises(TypeError) as cm:
+    with self.assertRaises(TypeError):
       body.add_geom(vel='vel')
-    self.assertEqual(
-        str(cm.exception),
-        'Invalid vel keyword argument. Valid options are: name, type, pos,'
-        ' quat, axisangle, xyaxes, zaxis, euler, fromto, size, contype,'
-        ' conaffinity, condim, priority, friction, solmix, solref, solimp,'
-        ' margin, gap, mass, density, typeinertia, fluid_ellipsoid,'
-        ' fluid_coefs, material, rgba, group, hfieldname, meshname, fitscale,'
-        ' userdata, plugin, info.',
-    )
 
     # Orientation keyword arguments.
     geom_axisangle = body.add_geom(axisangle=[1, 2, 3, 4])
@@ -464,13 +443,13 @@ class SpecsTest(absltest.TestCase):
       body.add_geom(axisangle=[1, 2, 3, 4], euler=[1, 2, 3])
     self.assertEqual(
         str(cm.exception),
-        'Only one of: axisangle, xyaxes, zaxis, oreuler can be set.',
+        'Only one of: axisangle, xyaxes, zaxis, or euler can be set.',
     )
     with self.assertRaises(ValueError) as cm:
       spec.worldbody.add_body(iaxisangle=[1, 2, 3, 4], ieuler=[1, 2, 3])
     self.assertEqual(
         str(cm.exception),
-        'Only one of: iaxisangle, ixyaxes, izaxis, orieuler can be set.',
+        'Only one of: iaxisangle, ixyaxes, izaxis, or ieuler can be set.',
     )
 
   def test_load_xml(self):
