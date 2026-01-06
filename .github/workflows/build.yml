@@ -25,7 +25,6 @@ on:
 jobs:
   mujoco:
     strategy:
-      fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
@@ -343,7 +342,6 @@ jobs:
   # This job quickly determines if MuJoCo Studio is broken.
   studio:
     strategy:
-      fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
