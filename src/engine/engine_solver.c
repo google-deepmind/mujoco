@@ -747,10 +747,10 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 }
 
 
-//------------------------- CG and Newton solver  --------------------------------------------------
+//------------------------- Primal solvers ---------------------------------------------------------
 
-// CG context
-struct _mjCGContext {
+// Primal context
+typedef struct {
   int is_sparse;          // 1: sparse, 0: dense
   int is_elliptic;        // 1: elliptic, 0: pyramidal
   int island;             // current island index, -1 if monolithic
@@ -801,7 +801,7 @@ struct _mjCGContext {
   int* JT_colind;
   mjtNum* JT;
 
-  // common arrays (CGallocate)
+  // common arrays (PrimalAllocate)
   mjtNum* Jaref;          // Jac*qacc - aref                              (nefc x 1)
   mjtNum* Jv;             // Jac*search                                   (nefc x 1)
   mjtNum* Ma;             // M*qacc                                       (nv x 1)
@@ -811,7 +811,7 @@ struct _mjCGContext {
   mjtNum* search;         // linesearch vector                            (nv x 1)
   mjtNum* quad;           // quadratic polynomials for constraint costs   (nefc x 3)
 
-  // Newton arrays, known-size (CGallocate)
+  // Newton arrays, known-size (PrimalAllocate)
   mjtNum* D;              // constraint inertia                           (nefc x 1)
   int* H_rowadr;          // Hessian row addresses                        (nv x 1)
   int* H_rownnz;          // Hessian row nonzeros                         (nv x 1)
@@ -848,15 +848,13 @@ struct _mjCGContext {
   int LSiter;             // number of linesearch iterations
   int LSresult;           // linesearch result
   mjtNum LSslope;         // linesearch slope at solution
-};
-typedef struct _mjCGContext mjCGContext;
+} mjPrimalContext;
 
 
-
-// set sizes and pointers to mjData arrays in mjCGContext
-static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int island) {
+// set sizes and pointers to mjData arrays in mjPrimalContext
+static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* ctx, int island) {
   // clear everything
-  memset(ctx, 0, sizeof(mjCGContext));
+  memset(ctx, 0, sizeof(mjPrimalContext));
 
   // globals
   ctx->is_sparse = mj_isSparse(m);
@@ -957,9 +955,9 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
 }
 
 
-// allocate fixed-size arrays in mjCGContext
+// allocate fixed-size arrays in mjPrimalContext
 //  mj_{mark/free}Stack in calling function!
-static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
+static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
   // local sizes
   int nv = ctx->nv;
   int nefc = ctx->nefc;
@@ -1009,7 +1007,7 @@ static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
 
 
 // update efc_force, qfrc_constraint, cost-related
-static void CGupdateConstraint(mjCGContext* ctx, int flg_HessianCone) {
+static void PrimalUpdateConstraint(mjPrimalContext* ctx, int flg_HessianCone) {
   int nefc = ctx->nefc, nv = ctx->nv;
 
   // update constraints
@@ -1046,7 +1044,7 @@ static void CGupdateConstraint(mjCGContext* ctx, int flg_HessianCone) {
 
 
 // update grad, Mgrad
-static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
+static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
   int nv = ctx->nv;
 
   // grad = M*qacc - qfrc_smooth - qfrc_constraint
@@ -1074,12 +1072,12 @@ static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
 
 
 // prepare quadratic polynomials and contact cone quantities
-static void CGprepare(mjCGContext* ctx) {
+static void PrimalPrepare(mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
   const mjtNum* v = ctx->search;
 
   // Gauss: alpha^2*0.5*v'*M*v + alpha*v'*(Ma-qfrc_smooth) + 0.5*(a-qacc_smooth)'*(Ma-qfrc_smooth)
-  //  quadGauss[0] already computed in CGupdateConstraint
+  //  quadGauss[0] already computed in PrimalUpdateConstraint
   ctx->quadGauss[1] = mju_dot(v, ctx->Ma, nv) - mju_dot(ctx->qfrc_smooth, v, nv);
   ctx->quadGauss[2] = 0.5*mju_dot(v, ctx->Mv, nv);
 
@@ -1150,17 +1148,16 @@ static void CGprepare(mjCGContext* ctx) {
 
 
 // linesearch evaluation point
-struct _mjCGPnt {
+struct _mjPrimalPnt {
   mjtNum alpha;
   mjtNum cost;
   mjtNum deriv[2];
 };
-typedef struct _mjCGPnt mjCGPnt;
-
+typedef struct _mjPrimalPnt mjPrimalPnt;
 
 
 // evaluate linesearch cost, return first and second derivatives
-static void CGeval(mjCGContext* ctx, mjCGPnt* p) {
+static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
   int ne = ctx->ne, nf = ctx->nf, nefc = ctx->nefc;
 
   // clear result
@@ -1298,8 +1295,8 @@ static void CGeval(mjCGContext* ctx, mjCGPnt* p) {
 
 
 // update bracket point given 3 candidate points
-static int updateBracket(mjCGContext* ctx,
-                         mjCGPnt* p, const mjCGPnt candidates[3], mjCGPnt* pnext) {
+static int updateBracket(mjPrimalContext* ctx,
+                         mjPrimalPnt* p, const mjPrimalPnt candidates[3], mjPrimalPnt* pnext) {
   int flag = 0;
   for (int i=0; i < 3; i++) {
     // negative deriv
@@ -1320,7 +1317,7 @@ static int updateBracket(mjCGContext* ctx,
   // compute next point if updated
   if (flag) {
     pnext->alpha = p->alpha - p->deriv[0]/p->deriv[1];
-    CGeval(ctx, pnext);
+    PrimalEval(ctx, pnext);
   }
 
   return flag;
@@ -1328,9 +1325,9 @@ static int updateBracket(mjCGContext* ctx,
 
 
 // line search
-static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations) {
+static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_iterations) {
   int nv = ctx->nv, nefc = ctx->nefc;
-  mjCGPnt p0, p1, p2, pmid, p1next, p2next;
+  mjPrimalPnt p0, p1, p2, pmid, p1next, p2next;
 
   // clear results
   ctx->LSiter = 0;
@@ -1361,15 +1358,15 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
   }
 
   // prepare quadratics and cones
-  CGprepare(ctx);
+  PrimalPrepare(ctx);
 
   // init at alpha = 0, save
   p0.alpha = 0;
-  CGeval(ctx, &p0);
+  PrimalEval(ctx, &p0);
 
   // always attempt one Newton step
   p1.alpha = p0.alpha - p0.deriv[0]/p0.deriv[1];
-  CGeval(ctx, &p1);
+  PrimalEval(ctx, &p1);
 
   // check for initial convergence
   if (mju_abs(p1.deriv[0]) < gtol) {
@@ -1429,7 +1426,7 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
 
     // move to Newton point w.r.t current
     p1.alpha -= p1.deriv[0]/p1.deriv[1];
-    CGeval(ctx, &p1);
+    PrimalEval(ctx, &p1);
 
     // check for convergence
     if (mju_abs(p1.deriv[0]) < gtol) {
@@ -1455,16 +1452,16 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
   // compute next-points for bracket
   p2next = p1;
   p1next.alpha = p1.alpha - p1.deriv[0]/p1.deriv[1];
-  CGeval(ctx, &p1next);
+  PrimalEval(ctx, &p1next);
 
   // bracketed search
   while (ctx->LSiter < ls_iterations) {
     // evaluate at midpoint
     pmid.alpha = 0.5*(p1.alpha + p2.alpha);
-    CGeval(ctx, &pmid);
+    PrimalEval(ctx, &pmid);
 
     // make list of candidates
-    mjCGPnt candidates[3] = {p1next, p2next, pmid};
+    mjPrimalPnt candidates[3] = {p1next, p2next, pmid};
 
     // check candidates for convergence
     mjtNum bestcost = 0;
@@ -1516,7 +1513,7 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
 
 // allocate and compute Hessian given efc_state
 //  mj_{mark/free}Stack in caller function!
-static void MakeHessian(mjData* d, mjCGContext* ctx) {
+static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
 
   // compute constraint inertia
@@ -1605,11 +1602,11 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
 }
 
 
-// forward declaration of HessianCone (readability)
-static void HessianCone(mjData* d, mjCGContext* ctx);
+// forward declaration of HessianCone (for readability)
+static void HessianCone(mjData* d, mjPrimalContext* ctx);
 
 // factorize Hessian: L = chol(H), maybe (re)compute H given efc_state
-static void FactorizeHessian(mjData* d, mjCGContext* ctx, int flg_recompute) {
+static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute) {
   int nv = ctx->nv, nefc = ctx->nefc;
 
   // maybe compute constraint inertia
@@ -1674,7 +1671,7 @@ static void FactorizeHessian(mjData* d, mjCGContext* ctx, int flg_recompute) {
 
 
 // elliptic case: Hcone = H + cone_contributions
-static void HessianCone(mjData* d, mjCGContext* ctx) {
+static void HessianCone(mjData* d, mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
   mjtNum local[36];
 
@@ -1746,7 +1743,7 @@ static void HessianCone(mjData* d, mjCGContext* ctx) {
 
 
 // incremental update to Hessian factor due to changes in efc_state
-static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate) {
+static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldstate) {
   int rank, nv = ctx->nv, nefc = ctx->nefc;
   mj_markStack(d);
 
@@ -1811,16 +1808,16 @@ static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate)
 
 
 // driver
-static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter, int flg_Newton) {
+static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, int flg_Newton) {
   int iter = 0;
   mjtNum alpha, beta;
   mjtNum *gradold = NULL, *Mgradold = NULL, *Mgraddif = NULL;
-  mjCGContext ctx;
+  mjPrimalContext ctx;
   mj_markStack(d);
 
   // make context
-  CGpointers(m, d, &ctx, island);
-  CGallocate(d, &ctx, flg_Newton);
+  PrimalPointers(m, d, &ctx, island);
+  PrimalAllocate(d, &ctx, flg_Newton);
 
   // local copies
   int nv   = ctx.nv;
@@ -1849,13 +1846,13 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
   mju_subFrom(ctx.Jaref, ctx.efc_aref, nefc);
 
   // first update
-  CGupdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
+  PrimalUpdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
   if (flg_Newton) {
     // compute and factorize Hessian
     MakeHessian(d, &ctx);
     FactorizeHessian(d, &ctx, /*flg_recompute=*/0);
   }
-  CGupdateGradient(&ctx, flg_Newton);
+  PrimalUpdateGradient(&ctx, flg_Newton);
 
   // start both with preconditioned gradient
   mju_scl(ctx.search, ctx.Mgrad, -1, nv);
@@ -1877,7 +1874,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
   // main loop
   while (iter < maxiter) {
     // perform linesearch
-    alpha = CGsearch(&ctx, m->opt.tolerance * m->opt.ls_tolerance, m->opt.ls_iterations);
+    alpha = PrimalSearch(&ctx, m->opt.tolerance * m->opt.ls_tolerance, m->opt.ls_iterations);
 
     // no improvement: done
     if (alpha == 0) {
@@ -1898,11 +1895,11 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
     mjtNum oldcost = ctx.cost;
 
     // update
-    CGupdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
+    PrimalUpdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
     if (flg_Newton) {
       HessianIncremental(d, &ctx, oldstate);
     }
-    CGupdateGradient(&ctx, flg_Newton);
+    PrimalUpdateGradient(&ctx, flg_Newton);
 
     // count state changes
     int nchange = 0;
@@ -1973,23 +1970,23 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
 
 // CG entry point
 void mj_solCG(const mjModel* m, mjData* d, int maxiter) {
-  mj_solCGNewton(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/0);
+  mj_solPrimal(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/0);
 }
 
 
 // CG entry point (one island)
 void mj_solCG_island(const mjModel* m, mjData* d, int island, int maxiter) {
-  mj_solCGNewton(m, d, island, maxiter, /*flg_Newton=*/0);
+  mj_solPrimal(m, d, island, maxiter, /*flg_Newton=*/0);
 }
 
 
 // Newton entry point
 void mj_solNewton(const mjModel* m, mjData* d, int maxiter) {
-  mj_solCGNewton(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/1);
+  mj_solPrimal(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/1);
 }
 
 
 // Newton entry point (one island)
 void mj_solNewton_island(const mjModel* m, mjData* d, int island, int maxiter) {
-  mj_solCGNewton(m, d, island, maxiter, /*flg_Newton=*/1);
+  mj_solPrimal(m, d, island, maxiter, /*flg_Newton=*/1);
 }
