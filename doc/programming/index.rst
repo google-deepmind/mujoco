@@ -117,7 +117,7 @@ target directory.
 **Notes:**
 
 - When building on Windows, use Visual Studio 2019 or later and make sure Windows SDK version 10.0.22000 or later is
-  installed (see :github:issue:`862` for more details).
+  installed (see :issue:`862` for more details).
 - To optimize runtime performance build with ``-DCMAKE_BUILD_TYPE=Release``
 
 .. tip::

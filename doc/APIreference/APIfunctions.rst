@@ -9,6 +9,9 @@
 Functions
 =========
 
+.. tip::
+   Clicking on a function name below will take you to the source implementation in the GitHub repository.
+
 The main header `mujoco.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mujoco.h>`_ exposes a
 large number of functions. However the functions that most users are likely to need are a small fraction.
 

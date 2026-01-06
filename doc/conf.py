@@ -51,6 +51,7 @@ extensions = [
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
     'sphinx_copybutton',
+    'sphinx_design',
     'sphinx_favicon',
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',

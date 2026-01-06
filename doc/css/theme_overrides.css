@@ -227,6 +227,7 @@ table.mjcf-attributes {
   border-style: none;
   margin-left: 0;
   margin-right: 0;
+  margin-bottom: 0.2em;
   width: 100%;
   box-shadow: none;
 }
@@ -307,4 +308,50 @@ dt .at {
 
 details summary {
   font-weight: 600;
+}
+
+/* Compact schema dropdowns */
+.schema-small details.sd-dropdown {
+  margin-bottom: 0.15em !important;
+  margin-top: 0 !important;
+}
+
+.schema-small .sd-card-header {
+  padding: 0.25em 0.5em !important;
+}
+
+.schema-small .sd-card-body {
+  padding: 0.25em 0.5em !important;
+}
+
+.schema-small .sd-summary-text {
+  font-size: 0.9em;
+  margin: 0 !important;
+}
+
+/* Prevent visited link color change in schema - use brand color */
+.schema-small a:visited {
+  color: var(--color-brand-primary) !important;
+}
+
+/* Hierarchy visualization - left border for all dropdowns including top-level */
+.schema-small .sd-dropdown,
+.schema-small > .sd-dropdown,
+.schema-small details.sd-dropdown {
+  border-left: 2px solid #5671cf;
+}
+
+/* Dark mode - slightly brighter blue for visibility */
+body[data-theme="dark"] .schema-small .sd-dropdown,
+body[data-theme="dark"] .schema-small > .sd-dropdown,
+body[data-theme="dark"] .schema-small details.sd-dropdown {
+  border-left-color: #7b93e8;
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] .schema-small .sd-dropdown,
+  body[data-theme="auto"] .schema-small > .sd-dropdown,
+  body[data-theme="auto"] .schema-small details.sd-dropdown {
+    border-left-color: #7b93e8;
+  }
 }

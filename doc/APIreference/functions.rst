@@ -1076,7 +1076,7 @@ This function is triggered automatically if the following sensors are present in
 It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "acc".
 
 The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
-the effect of spatial tendons, see :github:issue:`832`.
+the effect of spatial tendons, see :issue:`832`.
 
 .. _mj_collision:
 
