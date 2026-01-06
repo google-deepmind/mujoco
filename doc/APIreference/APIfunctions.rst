@@ -28,6 +28,7 @@ API function can be classified as:
    - :ref:`Ray casting<Raycollisions>`.
    - :ref:`Printing<Printing>` of various quantities.
    - :ref:`Virtual file system<Virtualfilesystem>`, used to load assets from memory.
+   - :ref:`Asset cache<Assetcache>`, used to speed up model compilation.
    - :ref:`Initialization<Initialization>` of data structures.
    - :ref:`Error and memory<Errorandmemory>`.
    - :ref:`Miscellaneous<Miscellaneous>` functions.

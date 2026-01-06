@@ -22,21 +22,25 @@
 
 #include <mujoco/mujoco.h>
 
+
 // help
 static constexpr char helpstring[] =
   "\n Usage:  compile infile outfile\n"
   "   infile can be in mjcf, urdf, mjb format\n"
   "   outfile can be in mjcf, mjb, txt format, or empty\n\n"
-  "   if infile is mjcf, compilation will be timed twice to measure the impact of caching\n\n"
+  "   if infile is mjcf and outfile is empty, compilation will be "
+     "timed twice to measure the impact of caching\n\n"
   " Example: compile model.xml [model.mjb]\n";
 
+
 // timer (seconds)
-mjtNum gettm(void) {
+double gettm(void) {
   using Clock = std::chrono::steady_clock;
-  using Seconds = std::chrono::duration<mjtNum>;
+  using Seconds = std::chrono::duration<double>;
   static const Clock::time_point tm_start = Clock::now();
   return Seconds(Clock::now() - tm_start).count();
 }
+
 
 // deallocate and print message
 int finish(const char* msg = 0, int exitcode = EXIT_SUCCESS, mjModel* m = 0) {
@@ -99,7 +103,6 @@ int filetype(const char* filename) {
 }
 
 
-
 // main function
 int main(int argc, char** argv) {
 
@@ -117,8 +120,8 @@ int main(int argc, char** argv) {
   int type2 = argc==2 ? typeNONE : filetype(argv[2]);
 
   // check types
-  if (type1==typeUNKNOWN || type1==typeTXT ||
-      type2==typeUNKNOWN || (type1==typeMJB && type2==typeXML)) {
+  if (type1 == typeUNKNOWN || type1 == typeTXT ||
+      type2 == typeUNKNOWN || (type1 == typeMJB && type2 == typeXML)) {
     return finish("Illegal combination of file formats", EXIT_FAILURE);
   }
 
@@ -140,7 +143,7 @@ int main(int argc, char** argv) {
     double starttime = gettm();
     m = mj_loadXML(argv[1], 0, error, 1000);
     first = gettm() - starttime;
-    if (m) {
+    if (m && type2 == typeNONE) {
       mj_deleteModel(m);
       starttime = gettm();
       m = mj_loadXML(argv[1], 0, error, 1000);
@@ -152,7 +155,7 @@ int main(int argc, char** argv) {
 
   // check error
   if (!m) {
-    if (type1==typeXML) {
+    if (type1 == typeXML) {
       return finish(error, EXIT_FAILURE);
     } else {
       return finish("Could not load model", EXIT_FAILURE);
@@ -160,19 +163,19 @@ int main(int argc, char** argv) {
   }
 
   // save model
-  if (type2==typeXML) {
+  if (type2 == typeXML) {
     if (!mj_saveLastXML(argv[2], m, error, 1000)) {
       return finish(error, EXIT_FAILURE, m);
     }
-  } else if (type2==typeMJB) {
+  } else if (type2 == typeMJB) {
     mj_saveModel(m, argv[2], 0, 0);
-  } else if (type2==typeTXT) {
+  } else if (type2 == typeTXT) {
     mj_printModel(m, argv[2]);
   }
 
   // finalize
   char msg[1000];
-  if (first) {
+  if (first && type2 == typeNONE) {
     snprintf(msg, sizeof(msg), "Done.\n"
              "First compile: %.4gs\n"
              "Second compile: %.4gs",
