@@ -618,8 +618,7 @@ def gjk(
         return result
     elif cutoff < FLOAT_MAX:
       vs = wp.dot(x_k, simplex[n])
-      vv = wp.dot(x_k, x_k)
-      if wp.dot(x_k, simplex[n]) > 0 and (vs * vs / vv) >= cutoff2:
+      if wp.dot(x_k, simplex[n]) > 0 and (vs * vs / xnorm) >= cutoff2:
         result = GJKResult()
         result.dim = 0
         result.dist = FLOAT_MAX
@@ -906,22 +905,34 @@ def _epa_witness(
   if geomtype1 == GeomType.HFIELD and (i1 != i2 or i1 != i3):
     # TODO(kbayes): Fix case where geom2 is near bottom of height field or "extreme" prism heights
     n = geom1.rot[:, 2]
-    a = geom1.hfprism[3]
-    b = geom1.hfprism[4]
-    c = geom1.hfprism[5]
-    x2 = wp.normalize(x2)
+
+    # height field prism vertices in global frame
+    a = geom1.pos + geom1.rot @ geom1.hfprism[3]
+    b = geom1.pos + geom1.rot @ geom1.hfprism[4]
+    c = geom1.pos + geom1.rot @ geom1.hfprism[5]
 
     # TODO(kbayes): Support cases where geom2 is larger than the height field
-    sp = _support(geom2, geomtype2, x2)
-    x2 = sp.point
+    if geomtype2 == GeomType.CAPSULE or geomtype2 == GeomType.SPHERE:
+      radius = geom2.size[0]
+      margin = geom2.margin
+      geom2.margin = 0.0
+      geom2.size = wp.vec3(0.0, geom2.size[1], geom2.size[2])
+      sp = _support(geom2, geomtype2, x2)
+      x2 = sp.point - (0.5 * margin + radius) * n
+      geom2.size[0] = radius
+      geom2.margin = margin
+    else:
+      x2 = wp.normalize(x2)
+      sp = _support(geom2, geomtype2, x2)
+      x2 = sp.point
 
     coordinates2 = _tri_affine_coord(a, b, c, x2)
     if coordinates2[0] > 0 and coordinates2[1] > 0 and coordinates2[2] > 0:
-      x1 = coordinates[0] * a + coordinates[1] * b + coordinates[2] * c
+      x1 = coordinates2[0] * a + coordinates2[1] * b + coordinates2[2] * c
     else:
       p = c
-      p = wp.where(coordinates[1] > 0, b, p)
-      p = wp.where(coordinates[0] > 0, a, p)
+      p = wp.where(coordinates2[1] > 0, b, p)
+      p = wp.where(coordinates2[0] > 0, a, p)
       x1 = x2 - wp.dot(x2 - p, n) * n
     return x1, x2, -wp.norm_l2(x1 - x2)
 
@@ -1256,13 +1267,14 @@ def _epa(
     # compute support point w from the closest face's normal
     lower = wp.sqrt(lower2)
     wi = pt.nvert
-    i1, i2 = _epa_support(pt, wi, geom1, geom2, geomtype1, geomtype2, pt.face_pr[idx] / lower)
+    face_pr_normalized = pt.face_pr[idx] / lower
+    i1, i2 = _epa_support(pt, wi, geom1, geom2, geomtype1, geomtype2, face_pr_normalized)
     geom1.index = i1
     geom2.index = i2
     pt.nvert += 1
 
     # upper bound for kth iteration
-    upper_k = wp.dot(pt.face_pr[idx], pt.vert[wi]) / lower
+    upper_k = wp.dot(face_pr_normalized, pt.vert[wi])
     if upper_k < upper:
       upper = upper_k
       upper2 = upper * upper
@@ -2162,7 +2174,40 @@ def multicontact(
 
 
 @wp.func
-def _inflate(dist: float, x1: wp.vec3, x2: wp.vec3, margin1: float, margin2: float) -> Tuple[float, wp.vec3, wp.vec3]:
+def _inflate(
+  result: GJKResult, geom1: Geom, geom2: Geom, geomtype1: int, geomtype2: int, margin1: float, margin2: float
+) -> Tuple[float, wp.vec3, wp.vec3]:
+  dist = result.dist
+  x1 = result.x1
+  x2 = result.x2
+
+  if geomtype1 == GeomType.HFIELD:
+    v = result.simplex_index1[0]
+    is_side = bool(False)
+    for i in range(result.dim):
+      if result.simplex_index1[i] != v:
+        is_side = True
+        break
+
+    if is_side:
+      n = geom1.rot[:, 2]
+      sp = _support(geom2, geomtype2, x2)
+      x2 = sp.point - margin2 * n
+
+      a = geom1.hfprism[3]
+      b = geom1.hfprism[4]
+      c = geom1.hfprism[5]
+      coordinates = _tri_affine_coord(a, b, c, x2)
+      if coordinates[0] > 0 and coordinates[1] > 0 and coordinates[2] > 0:
+        x1 = coordinates[0] * a + coordinates[1] * b + coordinates[2] * c
+      else:
+        p = c
+        p = wp.where(coordinates[1] > 0, b, p)
+        p = wp.where(coordinates[0] > 0, a, p)
+        x1 = x2 - wp.dot(x2 - p, n) * n
+      dist = -wp.norm_l2(x1 - x2)
+      return dist, x1, x2
+
   n = wp.normalize(x2 - x1)
   if margin1 > 0.0:
     x1 += margin1 * n
@@ -2213,8 +2258,7 @@ def ccd(
     geom1.margin = 0.0
     geom1.size = wp.vec3(0.0, geom1.size[1], geom1.size[2])
 
-  # TODO(kbayes): support gjk margin trick with height fields
-  if geomtype1 != GeomType.HFIELD and (geomtype2 == GeomType.SPHERE or geomtype2 == GeomType.CAPSULE):
+  if geomtype2 == GeomType.SPHERE or geomtype2 == GeomType.CAPSULE:
     size2 = geom2.size[0]
     full_margin2 = size2 + 0.5 * geom2.margin
     geom2.margin = 0.0
@@ -2229,7 +2273,7 @@ def ccd(
     if result.dist > tolerance:
       if result.dist == FLOAT_MAX:
         return result.dist, 1, result.x1, result.x2, -1
-      dist, x1, x2 = _inflate(result.dist, result.x1, result.x2, full_margin1, full_margin2)
+      dist, x1, x2 = _inflate(result, geom1, geom2, geomtype1, geomtype2, full_margin1, full_margin2)
       return dist, 1, x1, x2, -1
 
     # deep penetration, reset initial conditions and rerun GJK + EPA

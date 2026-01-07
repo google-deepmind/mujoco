@@ -33,7 +33,7 @@ def create_blocked_cholesky_func(block_size: int):
     It returns a lower-triangular matrix L such that A = L L^T.
     """
     # TODO(team): remove conditional after mjwarp relies on >= 1.11
-    bleeding_edge_warp = wp.static(wp.__version__ >= "1.11")
+    bleeding_edge_warp = wp.static(tuple(map(int, wp.__version__.split(".")[:2])) >= (1, 11))
 
     # Process the matrix in blocks along its leading dimension.
     for k in range(0, matrix_size, block_size):
@@ -92,7 +92,7 @@ def create_blocked_cholesky_solve_func(block_size: int, matrix_size_static: int)
     substitution.
     """
     # TODO(team): remove conditional after mjwarp relies on >= 1.11
-    bleeding_edge_warp = wp.static(wp.__version__ >= "1.11")
+    bleeding_edge_warp = wp.static(tuple(map(int, wp.__version__.split(".")[:2])) >= (1, 11))
     rhs_tile = wp.tile_load(b, shape=(matrix_size_static, 1), offset=(0, 0), storage="shared", bounds_check=False)
 
     # Forward substitution: solve L y = b

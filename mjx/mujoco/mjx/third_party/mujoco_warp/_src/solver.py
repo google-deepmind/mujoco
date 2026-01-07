@@ -738,33 +738,52 @@ def linesearch_jv_fused(nv: int, dofs_per_thread: int):
   return kernel
 
 
-@wp.kernel
-def linesearch_prepare_gauss(
-  # Model:
-  nv: int,
-  # Data in:
-  qfrc_smooth_in: wp.array2d(dtype=float),
-  efc_Ma_in: wp.array2d(dtype=float),
-  efc_search_in: wp.array2d(dtype=float),
-  efc_gauss_in: wp.array(dtype=float),
-  efc_mv_in: wp.array2d(dtype=float),
-  efc_done_in: wp.array(dtype=bool),
-  # Data out:
-  efc_quad_gauss_out: wp.array(dtype=wp.vec3),
-):
-  worldid = wp.tid()
-  if efc_done_in[worldid]:
-    return
+@cache_kernel
+def linesearch_prepare_gauss(nv: int, dofs_per_thread: int):
+  @nested_kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Data in:
+    qfrc_smooth_in: wp.array2d(dtype=float),
+    efc_Ma_in: wp.array2d(dtype=float),
+    efc_search_in: wp.array2d(dtype=float),
+    efc_gauss_in: wp.array(dtype=float),
+    efc_mv_in: wp.array2d(dtype=float),
+    efc_done_in: wp.array(dtype=bool),
+    # Data out:
+    efc_quad_gauss_out: wp.array(dtype=wp.vec3),
+  ):
+    worldid, dofstart = wp.tid()
 
-  quad_gauss_0 = efc_gauss_in[worldid]
-  quad_gauss_1 = float(0.0)
-  quad_gauss_2 = float(0.0)
-  for i in range(nv):
-    search = efc_search_in[worldid, i]
-    quad_gauss_1 += search * (efc_Ma_in[worldid, i] - qfrc_smooth_in[worldid, i])
-    quad_gauss_2 += 0.5 * search * efc_mv_in[worldid, i]
+    if efc_done_in[worldid]:
+      return
 
-  efc_quad_gauss_out[worldid] = wp.vec3(quad_gauss_0, quad_gauss_1, quad_gauss_2)
+    quad_gauss_1 = float(0.0)
+    quad_gauss_2 = float(0.0)
+
+    if wp.static(dofs_per_thread >= nv):
+      for i in range(wp.static(nv)):
+        search = efc_search_in[worldid, i]
+        quad_gauss_1 += search * (efc_Ma_in[worldid, i] - qfrc_smooth_in[worldid, i])
+        quad_gauss_2 += 0.5 * search * efc_mv_in[worldid, i]
+
+      quad_gauss_0 = efc_gauss_in[worldid]
+      efc_quad_gauss_out[worldid] = wp.vec3(quad_gauss_0, quad_gauss_1, quad_gauss_2)
+
+    else:
+      for i in range(wp.static(dofs_per_thread)):
+        ii = dofstart * wp.static(dofs_per_thread) + i
+        if ii < nv:
+          search = efc_search_in[worldid, ii]
+          quad_gauss_1 += search * (efc_Ma_in[worldid, ii] - qfrc_smooth_in[worldid, ii])
+          quad_gauss_2 += 0.5 * search * efc_mv_in[worldid, ii]
+
+      if dofstart == 0:
+        quad_gauss_0 = efc_gauss_in[worldid]
+        wp.atomic_add(efc_quad_gauss_out, worldid, wp.vec3(quad_gauss_0, quad_gauss_1, quad_gauss_2))
+      else:
+        wp.atomic_add(efc_quad_gauss_out, worldid, wp.vec3(0.0, quad_gauss_1, quad_gauss_2))
+
+  return kernel
 
 
 @wp.kernel
@@ -939,10 +958,13 @@ def _linesearch(m: types.Model, d: types.Data, cost: wp.array2d(dtype=float)):
 
   # prepare quadratics
   # quad_gauss = [gauss, search.T @ Ma - search.T @ qfrc_smooth, 0.5 * search.T @ mv]
+  if threads_per_efc > 1:
+    d.efc.quad_gauss.zero_()
+
   wp.launch(
-    linesearch_prepare_gauss,
-    dim=(d.nworld),
-    inputs=[m.nv, d.qfrc_smooth, d.efc.Ma, d.efc.search, d.efc.gauss, d.efc.mv, d.efc.done],
+    linesearch_prepare_gauss(m.nv, dofs_per_thread),
+    dim=(d.nworld, threads_per_efc),
+    inputs=[d.qfrc_smooth, d.efc.Ma, d.efc.search, d.efc.gauss, d.efc.mv, d.efc.done],
     outputs=[d.efc.quad_gauss],
   )
 
@@ -1002,28 +1024,42 @@ def solve_init_efc(
   efc_search_dot_out[worldid] = 0.0
 
 
-@wp.kernel
-def solve_init_jaref(
-  # Model:
-  nv: int,
-  # Data in:
-  nefc_in: wp.array(dtype=int),
-  qacc_in: wp.array2d(dtype=float),
-  efc_J_in: wp.array3d(dtype=float),
-  efc_aref_in: wp.array2d(dtype=float),
-  # Data out:
-  efc_Jaref_out: wp.array2d(dtype=float),
-):
-  worldid, efcid = wp.tid()
+@cache_kernel
+def solve_init_jaref(nv: int, dofs_per_thread: int):
+  @nested_kernel(module="unique", enable_backward=False)
+  def kernel(
+    # Data in:
+    nefc_in: wp.array(dtype=int),
+    qacc_in: wp.array2d(dtype=float),
+    efc_J_in: wp.array3d(dtype=float),
+    efc_aref_in: wp.array2d(dtype=float),
+    # Data out:
+    efc_Jaref_out: wp.array2d(dtype=float),
+  ):
+    worldid, efcid, dofstart = wp.tid()
 
-  if efcid >= nefc_in[worldid]:
-    return
+    if efcid >= nefc_in[worldid]:
+      return
 
-  jaref = float(0.0)
-  for i in range(nv):
-    jaref += efc_J_in[worldid, efcid, i] * qacc_in[worldid, i]
+    jaref = float(0.0)
 
-  efc_Jaref_out[worldid, efcid] = jaref - efc_aref_in[worldid, efcid]
+    if wp.static(dofs_per_thread >= nv):
+      for i in range(wp.static(min(dofs_per_thread, nv))):
+        jaref += efc_J_in[worldid, efcid, i] * qacc_in[worldid, i]
+      efc_Jaref_out[worldid, efcid] = jaref - efc_aref_in[worldid, efcid]
+
+    else:
+      for i in range(wp.static(dofs_per_thread)):
+        ii = dofstart * wp.static(dofs_per_thread) + i
+        if ii < nv:
+          jaref += efc_J_in[worldid, efcid, ii] * qacc_in[worldid, ii]
+
+      if dofstart == 0:
+        wp.atomic_add(efc_Jaref_out, worldid, efcid, jaref - efc_aref_in[worldid, efcid])
+      else:
+        wp.atomic_add(efc_Jaref_out, worldid, efcid, jaref)
+
+  return kernel
 
 
 @wp.kernel
@@ -2043,10 +2079,24 @@ def create_context(
   )
 
   # jaref = d.efc_J @ d.qacc - d.efc_aref
+
+  # if we are only using 1 thread, it makes sense to do more dofs as we can also skip the
+  # init kernel. For more than 1 thread, dofs_per_thread is lower for better load balancing.
+
+  if m.nv > 50:
+    dofs_per_thread = 20
+  else:
+    dofs_per_thread = 50
+
+  threads_per_efc = ceil(m.nv / dofs_per_thread)
+  # we need to clear the jaref array if we're doing atomic adds.
+  if threads_per_efc > 1:
+    d.efc.Jaref.zero_()
+
   wp.launch(
-    solve_init_jaref,
-    dim=(d.nworld, d.njmax),
-    inputs=[m.nv, d.nefc, d.qacc, d.efc.J, d.efc.aref],
+    solve_init_jaref(m.nv, dofs_per_thread),
+    dim=(d.nworld, d.njmax, threads_per_efc),
+    inputs=[d.nefc, d.qacc, d.efc.J, d.efc.aref],
     outputs=[d.efc.Jaref],
   )
 

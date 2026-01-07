@@ -535,11 +535,11 @@ def contact_params(
       max_geom_friction = wp.max(geom_friction[friction_id, g1], geom_friction[friction_id, g2])
 
     friction = vec5(
-      wp.max(MJ_MINMU, max_geom_friction[0]),
-      wp.max(MJ_MINMU, max_geom_friction[0]),
-      wp.max(MJ_MINMU, max_geom_friction[1]),
-      wp.max(MJ_MINMU, max_geom_friction[2]),
-      wp.max(MJ_MINMU, max_geom_friction[2]),
+      max_geom_friction[0],
+      max_geom_friction[0],
+      max_geom_friction[1],
+      max_geom_friction[2],
+      max_geom_friction[2],
     )
 
     if geom_solref[solref_id, g1][0] > 0.0 and geom_solref[solref_id, g2][0] > 0.0:
@@ -552,6 +552,14 @@ def contact_params(
     # geom priority is ignored
     margin = wp.max(geom_margin[margin_id, g1], geom_margin[margin_id, g2])
     gap = wp.max(geom_gap[gap_id, g1], geom_gap[gap_id, g2])
+
+  friction = vec5(
+    wp.max(MJ_MINMU, friction[0]),
+    wp.max(MJ_MINMU, friction[1]),
+    wp.max(MJ_MINMU, friction[2]),
+    wp.max(MJ_MINMU, friction[3]),
+    wp.max(MJ_MINMU, friction[4]),
+  )
 
   return geoms, margin, gap, condim, friction, solref, solreffriction, solimp
 

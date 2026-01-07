@@ -46,6 +46,7 @@ from mujoco.mjx.third_party.mujoco_warp._src.io import put_model as put_model
 from mujoco.mjx.third_party.mujoco_warp._src.io import reset_data as reset_data
 from mujoco.mjx.third_party.mujoco_warp._src.passive import passive as passive
 from mujoco.mjx.third_party.mujoco_warp._src.ray import ray as ray
+from mujoco.mjx.third_party.mujoco_warp._src.ray import rays as rays
 from mujoco.mjx.third_party.mujoco_warp._src.sensor import energy_pos as energy_pos
 from mujoco.mjx.third_party.mujoco_warp._src.sensor import energy_vel as energy_vel
 from mujoco.mjx.third_party.mujoco_warp._src.sensor import sensor_acc as sensor_acc

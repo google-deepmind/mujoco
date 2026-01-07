@@ -367,7 +367,7 @@ def sdf(type: int, p: wp.vec3, attr: wp.vec3, sdf_type: int, volume_data: Volume
   elif type == GeomType.MESH and mesh_data.valid:
     mesh_data.pnt = p
     mesh_data.vec = -wp.normalize(p)
-    dist = ray_mesh(
+    dist, normal = ray_mesh(
       mesh_data.nmeshface,
       mesh_data.mesh_vertadr,
       mesh_data.mesh_faceadr,
@@ -380,7 +380,7 @@ def sdf(type: int, p: wp.vec3, attr: wp.vec3, sdf_type: int, volume_data: Volume
       mesh_data.vec,
     )
     if dist > wp.norm_l2(p):
-      return -ray_mesh(
+      dist, normal = ray_mesh(
         mesh_data.nmeshface,
         mesh_data.mesh_vertadr,
         mesh_data.mesh_faceadr,
@@ -392,6 +392,7 @@ def sdf(type: int, p: wp.vec3, attr: wp.vec3, sdf_type: int, volume_data: Volume
         mesh_data.pnt,
         -mesh_data.vec,
       )
+      return -dist
     return dist
   elif type == GeomType.SDF:
     if sdf_type == -1:
@@ -416,7 +417,7 @@ def sdf_grad(type: int, p: wp.vec3, attr: wp.vec3, sdf_type: int, volume_data: V
   elif type == GeomType.MESH and mesh_data.valid:
     mesh_data.pnt = p
     mesh_data.vec = -wp.normalize(p)
-    dist = ray_mesh(
+    dist, normal = ray_mesh(
       mesh_data.nmeshface,
       mesh_data.mesh_vertadr,
       mesh_data.mesh_faceadr,
