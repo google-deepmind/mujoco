@@ -36,8 +36,7 @@ namespace mujoco::studio {
 // Owns, updates, and renders a MuJoCo simulation.
 class App {
  public:
-  App(int width, int height, std::string ini_path,
-      const platform::LoadAssetFn& load_asset_fn);
+  App(int width, int height, std::string ini_path);
 
   enum ContentType {
     kFilepath,  // Path to a model file.
@@ -168,7 +167,6 @@ class App {
 
   std::unique_ptr<platform::Window> window_;
   std::unique_ptr<platform::Renderer> renderer_;
-  platform::LoadAssetFn load_asset_fn_;
   platform::StepControl step_control_;
   platform::SimProfiler profiler_;
   platform::SimHistory history_;

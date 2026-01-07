@@ -17,11 +17,9 @@
 
 #include <chrono>
 #include <cstddef>
-#include <cstdint>
 #include <ratio>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/helpers.h"
 
 namespace mujoco::platform {
 
@@ -34,7 +32,7 @@ class Renderer {
   using Seconds = std::chrono::duration<double>;
   using Milliseconds = std::chrono::duration<double, std::milli>;
 
-  Renderer(void* native_window, const LoadAssetFn& load_asset_fn);
+  explicit Renderer(void* native_window);
   ~Renderer();
 
   Renderer(const Renderer&) = delete;
@@ -64,10 +62,6 @@ class Renderer {
   // Resets the renderer; no rendering will occur until Init() is called again.
   void Deinit();
 
-  static int LoadAssetCallback(const char* path, void* user_data,
-                               unsigned char** out, std::uint64_t* out_size);
-
-  LoadAssetFn load_asset_fn_;
   void* native_window_ = nullptr;
   mjrContext render_context_;
   mjvScene scene_;

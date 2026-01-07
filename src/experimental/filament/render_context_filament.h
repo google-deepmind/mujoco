@@ -33,16 +33,6 @@ typedef enum mjtGraphicsApi_ {  // backend graphics API to use
 } mjtGraphicsApi;
 
 struct mjrFilamentConfig {
-  // "Loads" an asset, returning its contents in `out` and size in `out_size`.
-  // Returns 0 on success and non-zero to indicate an error. The caller must
-  // free `out`.
-  typedef int (*load_asset_fn)(const char* path, void* user_data,
-                              unsigned char** out, uint64_t* out_size);
-
-  // Used to load filament assets (e.g. materials, image-based lights, etc.).
-  load_asset_fn load_asset;
-  void* load_asset_user_data;
-
   // The native window handle into which we can render directly.
   void* native_window;
 

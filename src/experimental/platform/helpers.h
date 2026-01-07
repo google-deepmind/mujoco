@@ -26,9 +26,6 @@
 
 namespace mujoco::platform {
 
-// Function signature for loading assets from a given path.
-using LoadAssetFn = std::function<std::vector<std::byte>(std::string_view)>;
-
 // Save/load for simple ascii files.
 void SaveText(const std::string& contents, const std::string& filename);
 std::string LoadText(const std::string& filename);

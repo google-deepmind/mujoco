@@ -26,8 +26,8 @@
 #include <SDL_video.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <imgui.h>
-#include "experimental/platform/helpers.h"
 #include <mujoco/mujoco.h>
+#include "user/user_resource.h"
 
 // Because X11/Xlib.h defines Status.
 #ifdef Status
@@ -40,8 +40,7 @@ extern void* GetNativeWindowOsx(void* window);
 
 namespace mujoco::platform {
 
-static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn,
-                      bool load_fonts, bool build_fonts) {
+static void InitImGui(SDL_Window* window, bool load_fonts, bool build_fonts) {
   ImGui::CreateContext();
 
   ImGuiIO& io = ImGui::GetIO();
@@ -52,28 +51,36 @@ static void InitImGui(SDL_Window* window, const LoadAssetFn& load_asset_fn,
   ImGui_ImplSDL2_InitForOther(window);
 
   if (load_fonts) {
-    // Note: fonts are stored statically because they aren't actually loaded
-    // until the fonts are built.
+    mjResource* font = nullptr;
+    int size = 0;
+    void* data = nullptr;
+
     ImFontConfig main_cfg;
-    static auto main_font = load_asset_fn("OpenSans-Regular.ttf");
-    io.Fonts->AddFontFromMemoryTTF(main_font.data(), main_font.size(), 20.f,
-                                  &main_cfg);
+    main_cfg.FontDataOwnedByAtlas = false;
+    font =
+        mju_openResource("", "font:OpenSans-Regular.ttf", nullptr, nullptr, 0);
+    size = mju_readResource(font, const_cast<const void**>(&data));
+    io.Fonts->AddFontFromMemoryTTF(data, size, 20.f, &main_cfg);
 
     ImFontConfig icon_cfg;
+    icon_cfg.FontDataOwnedByAtlas = false;
     icon_cfg.MergeMode = true;
-    static auto icon_font = load_asset_fn("fontawesome-webfont.ttf");
+    font = mju_openResource("", "font:fontawesome-webfont.ttf", nullptr,
+                            nullptr, 0);
+    size = mju_readResource(font, const_cast<const void**>(&data));
     constexpr ImWchar icon_ranges[] = {0xf000, 0xf3ff, 0x000};
-    io.Fonts->AddFontFromMemoryTTF(icon_font.data(), icon_font.size(), 14.f,
-                                  &icon_cfg, icon_ranges);
+    io.Fonts->AddFontFromMemoryTTF(data, size, 14.f, &icon_cfg, icon_ranges);
 
     if (build_fonts) {
       io.Fonts->Build();
     }
+
+    // Note: we purposefully do not "close" the font resources as ImGui may
+    // need them again to resize fonts.
   }
 }
 
-Window::Window(std::string_view title, int width, int height, Config config,
-               const LoadAssetFn& load_asset_fn)
+Window::Window(std::string_view title, int width, int height, Config config)
     : width_(width), height_(height), config_(config) {
   SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "1");
   SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
@@ -113,8 +120,7 @@ Window::Window(std::string_view title, int width, int height, Config config,
     mju_error("Error creating window: %s", SDL_GetError());
   }
 
-  InitImGui(sdl_window_, load_asset_fn, config.load_fonts,
-            (render_config != kClassicOpenGL));
+  InitImGui(sdl_window_, config.load_fonts, (render_config != kClassicOpenGL));
 
   if (render_config == kFilamentWebGL || render_config == kClassicOpenGL) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);

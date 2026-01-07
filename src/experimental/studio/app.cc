@@ -111,13 +111,12 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 };
 // clang-format on
 
-App::App(int width, int height, std::string ini_path,
-         const platform::LoadAssetFn& load_asset_fn)
-    : ini_path_(std::move(ini_path)), load_asset_fn_(load_asset_fn) {
+App::App(int width, int height, std::string ini_path)
+    : ini_path_(std::move(ini_path)) {
   window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
-                                               kWindowConfig, load_asset_fn);
-  renderer_ = std::make_unique<platform::Renderer>(
-      window_->GetNativeWindowHandle(), load_asset_fn);
+                                               kWindowConfig);
+  renderer_ =
+      std::make_unique<platform::Renderer>(window_->GetNativeWindowHandle());
 
   ImPlot::CreateContext();
   mjv_defaultPerturb(&perturb_);

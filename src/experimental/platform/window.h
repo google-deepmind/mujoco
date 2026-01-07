@@ -43,8 +43,7 @@ class Window {
     bool load_fonts = true;
   };
 
-  Window(std::string_view title, int width, int height, Config config,
-         const LoadAssetFn& load_asset_fn);
+  Window(std::string_view title, int width, int height, Config config);
   ~Window();
 
   Window(const Window&) = delete;

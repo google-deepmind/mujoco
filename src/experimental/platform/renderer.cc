@@ -14,17 +14,9 @@
 
 #include "experimental/platform/renderer.h"
 
-#include <chrono>
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <vector>
-
 #include <cstddef>
 
 #include <mujoco/mujoco.h>
-#include "experimental/platform/helpers.h"
 
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "experimental/filament/render_context_filament.h"
@@ -37,8 +29,7 @@
 
 namespace mujoco::platform {
 
-Renderer::Renderer(void* native_window, const LoadAssetFn& load_asset_fn)
-    : load_asset_fn_(load_asset_fn), native_window_(native_window) {
+Renderer::Renderer(void* native_window) : native_window_(native_window) {
 #ifdef USE_CLASSIC_OPENGL
   ImGui_ImplOpenGL3_Init();
 #endif
@@ -57,8 +48,6 @@ void Renderer::Init(const mjModel* model) {
     mjrFilamentConfig render_config;
     mjr_defaultFilamentConfig(&render_config);
     render_config.native_window = native_window_;
-    render_config.load_asset = &Renderer::LoadAssetCallback;
-    render_config.load_asset_user_data = this;
     render_config.enable_gui = true;
 #if defined(USE_FILAMENT_OPENGL)
     render_config.graphics_api = mjGFX_OPENGL;
@@ -140,23 +129,4 @@ void Renderer::RenderToTexture(const mjModel* model, mjData* data,
 
 double Renderer::GetFps() { return fps_; }
 
-int Renderer::LoadAssetCallback(const char* path, void* user_data,
-                                unsigned char** out, std::uint64_t* out_size) {
-  Renderer* renderer = static_cast<Renderer*>(user_data);
-  std::vector<std::byte> bytes = (renderer->load_asset_fn_)(path);
-  if (bytes.empty()) {
-    *out_size = 0;
-    return 0;  // Empty file
-  }
-
-  *out_size = bytes.size();
-  *out = reinterpret_cast<unsigned char*>(malloc(*out_size));
-  if (*out == nullptr) {
-    mju_error("Failed to allocate memory for file %s", path);
-    return -1;
-  }
-
-  std::memcpy(*out, bytes.data(), *out_size);
-  return 0;
-}
 }  // namespace mujoco::platform
