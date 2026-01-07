@@ -78,13 +78,8 @@ void Renderer::Render(const mjModel* model, mjData* data,
     return;
   }
 
-  if (last_update_time_ == data->time) {
-    mjv_updateCamera(model, data, camera, &scene_);
-  } else {
-    mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
-                    &scene_);
-    last_update_time_ = data->time;
-  }
+  mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
+                  &scene_);
 
   const mjrRect viewport = {0, 0, width, height};
   mjr_render(viewport, &scene_, &render_context_);
