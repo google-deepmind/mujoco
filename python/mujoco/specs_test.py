@@ -1323,7 +1323,7 @@ class SpecsTest(absltest.TestCase):
   def test_actuator_shortname(self):
     spec = mujoco.MjSpec()
     actuator = spec.add_actuator(
-        gainprm=np.zeros((10, 1)),
+        gainprm=np.zeros((10,)),
         dyntype=mujoco.mjtDyn.mjDYN_FILTER,
         gaintype=mujoco.mjtGain.mjGAIN_AFFINE,
         biastype=mujoco.mjtBias.mjBIAS_AFFINE,
