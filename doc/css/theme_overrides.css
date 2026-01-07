@@ -38,12 +38,12 @@ body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
   }
 }
 
-.schema-small {
-  font-size: 93%;
-}
-
 .caption-small {
   font-size: 85%;
+}
+
+.table-small {
+  font-size: 93%;
 }
 
 .small-centered {
@@ -310,16 +310,23 @@ details summary {
   font-weight: 600;
 }
 
-/* Compact schema dropdowns */
+/* ==========================================================================
+   Schema display styling (.schema-small)
+   Used in: XMLreference.rst (dropdowns + grids)
+   ========================================================================== */
+
+/* Base: smaller font for compact display */
+.schema-small {
+  font-size: 93%;
+}
+
+/* Dropdown styling: compact margins and padding */
 .schema-small details.sd-dropdown {
   margin-bottom: 0.15em !important;
   margin-top: 0 !important;
 }
 
-.schema-small .sd-card-header {
-  padding: 0.25em 0.5em !important;
-}
-
+.schema-small .sd-card-header,
 .schema-small .sd-card-body {
   padding: 0.25em 0.5em !important;
 }
@@ -329,19 +336,13 @@ details summary {
   margin: 0 !important;
 }
 
-/* Prevent visited link color change in schema - use brand color */
-.schema-small a:visited {
-  color: var(--color-brand-primary) !important;
-}
-
-/* Hierarchy visualization - left border for all dropdowns including top-level */
+/* Dropdown hierarchy: left border visualization */
 .schema-small .sd-dropdown,
 .schema-small > .sd-dropdown,
 .schema-small details.sd-dropdown {
   border-left: 2px solid #5671cf;
 }
 
-/* Dark mode - slightly brighter blue for visibility */
 body[data-theme="dark"] .schema-small .sd-dropdown,
 body[data-theme="dark"] .schema-small > .sd-dropdown,
 body[data-theme="dark"] .schema-small details.sd-dropdown {
@@ -354,4 +355,32 @@ body[data-theme="dark"] .schema-small details.sd-dropdown {
   body[data-theme="auto"] .schema-small details.sd-dropdown {
     border-left-color: #7b93e8;
   }
+}
+
+/* Link styling: prevent visited color change */
+.schema-small a:visited {
+  color: var(--color-brand-primary) !important;
+}
+
+/* Grid styling: compact rows for attribute lists */
+.schema-small .sd-row {
+  row-gap: 0 !important;
+  --sd-gutter-x: 0.5rem !important;
+  --sd-gutter-y: 0 !important;
+}
+
+.schema-small .sd-col,
+.schema-small [class*="sd-col-"] {
+  padding-top: 0 !important;
+  padding-bottom: 0.1em !important;
+}
+
+.schema-small .sd-container-fluid {
+  padding: 0 !important;
+}
+
+/* Remove paragraph margin inside grid items */
+.schema-small .sd-container-fluid .sd-col p,
+.admonition .sd-container-fluid .sd-col p {
+  margin-bottom: 0 !important;
 }

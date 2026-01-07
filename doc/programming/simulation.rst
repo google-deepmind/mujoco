@@ -652,7 +652,7 @@ Exceptions to the general rule that **integer** types are **not safe to change**
 .. list-table::
    :widths: 1 1 4
    :header-rows: 1
-   :class: schema-small
+   :class: table-small
 
    * - Field
      - Modifiability
@@ -693,7 +693,7 @@ Exceptions to the general rule that **real-valued** types **are safe to change**
 .. list-table::
    :widths: 1 1 4
    :header-rows: 1
-   :class: schema-small
+   :class: table-small
 
    * - Field
      - Modifiability
