@@ -226,6 +226,8 @@ endif()
 if(MUJOCO_WITH_USD)
   include(third_party_deps/openusd)
 
+  target_compile_definitions(mujoco PUBLIC mjUSEUSD)
+
   get_filename_component(USD_INSTALL_ROOT "${pxr_DIR}/lib" ABSOLUTE)
   install(
     DIRECTORY ${USD_INSTALL_ROOT}/

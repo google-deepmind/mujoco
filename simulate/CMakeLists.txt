@@ -185,7 +185,7 @@ if(SIMULATE_BUILD_EXECUTABLE)
     target_link_libraries(simulate "-framework CoreVideo")
   endif()
 
-  if (BUILD_WITH_USD)
+  if (MUJOCO_WITH_USD)
     # pxr/usd/tf/hashset.h might include deprecated headers so disable this check
     # when compiling with USD enabled.
     target_compile_options(
@@ -193,10 +193,6 @@ if(SIMULATE_BUILD_EXECUTABLE)
          PRIVATE -Wno-deprecated
     )
 
-    target_link_libraries(
-      simulate
-      mujoco::usd::mjcf
-    )
   endif()
 
   target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
@@ -265,7 +261,7 @@ if(SIMULATE_BUILD_EXECUTABLE)
       MUJOCO_ENABLE_RPATH
     )
 
-    if (BUILD_WITH_USD)
+    if (MUJOCO_WITH_USD)
       # pxr/usd/tf/hashset.h might include deprecated headers so disable this check
       # when compiling with USD enabled.
       target_compile_options(
