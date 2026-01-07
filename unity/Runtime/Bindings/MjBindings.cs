@@ -440,6 +440,14 @@ public enum mjtRayDataField : int{
   mjRAYDATA_DEPTH = 5,
   mjNRAYDATA = 6,
 }
+public enum mjtCamOutBit : int{
+  mjCAMOUT_RGB = 1,
+  mjCAMOUT_DEPTH = 2,
+  mjCAMOUT_DIST = 4,
+  mjCAMOUT_NORMAL = 8,
+  mjCAMOUT_SEG = 16,
+  mjNCAMOUT = 5,
+}
 public enum mjtSameFrame : int{
   mjSAMEFRAME_NONE = 0,
   mjSAMEFRAME_BODY = 1,
@@ -5491,6 +5499,7 @@ public unsafe struct mjModel_ {
   public double* cam_fovy;
   public double* cam_ipd;
   public int* cam_resolution;
+  public int* cam_output;
   public float* cam_sensorsize;
   public float* cam_intrinsic;
   public double* cam_user;

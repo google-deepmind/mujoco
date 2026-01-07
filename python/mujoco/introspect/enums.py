@@ -430,6 +430,19 @@ ENUMS: Mapping[str, EnumDecl] = dict([
              ('mjNRAYDATA', 6),
          ]),
      )),
+    ('mjtCamOutBit',
+     EnumDecl(
+         name='mjtCamOutBit',
+         declname='enum mjtCamOutBit_',
+         values=dict([
+             ('mjCAMOUT_RGB', 1),
+             ('mjCAMOUT_DEPTH', 2),
+             ('mjCAMOUT_DIST', 4),
+             ('mjCAMOUT_NORMAL', 8),
+             ('mjCAMOUT_SEG', 16),
+             ('mjNCAMOUT', 5),
+         ]),
+     )),
     ('mjtSameFrame',
      EnumDecl(
          name='mjtSameFrame',

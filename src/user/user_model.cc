@@ -2868,6 +2868,7 @@ void mjCModel::CopyTree(mjModel* m) {
       m->cam_fovy[cid] = (mjtNum)pc->fovy;
       m->cam_ipd[cid] = (mjtNum)pc->ipd;
       mjuu_copyvec(m->cam_resolution+2*cid, pc->resolution, 2);
+      m->cam_output[cid] = pc->output;
       mjuu_copyvec(m->cam_sensorsize+2*cid, pc->sensor_size, 2);
       mjuu_copyvec(m->cam_intrinsic+4*cid, pc->intrinsic, 4);
       mjuu_copyvec(m->cam_user+nuser_cam*cid, pc->get_userdata().data(), nuser_cam);

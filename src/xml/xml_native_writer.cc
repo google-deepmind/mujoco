@@ -573,6 +573,19 @@ void mjXWriter::OneCamera(XMLElement* elem, const mjCCamera* camera, mjCDef* def
   WriteAttr(elem, "ipd", 1, &camera->ipd, &def->Camera().ipd);
   WriteAttrKey(elem, "mode", camlight_map, camlight_sz, camera->mode, def->Camera().mode);
   WriteAttr(elem, "resolution", 2, camera->resolution, def->Camera().resolution);
+
+  // write output attribute if different from default
+  if (camera->output != def->Camera().output) {
+    int data[mjNCAMOUT];
+    int ndata = 0;
+    for (int i = 0; i < mjNCAMOUT; i++) {
+      if (camera->output & camout_map[i].value) {
+        data[ndata++] = camout_map[i].value;
+      }
+    }
+    WriteAttrKeys(elem, "output", camout_map, camout_sz, data, ndata, 0);
+  }
+
   WriteAttrKey(elem, "projection", projection_map, projection_sz, camera->proj, def->Camera().proj);
 
   // camera intrinsics if specified

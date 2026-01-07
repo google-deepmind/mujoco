@@ -171,7 +171,7 @@ std::vector<const char*> MJCF[nMJCF] = {
             "hfield", "mesh", "fitscale", "rgba", "fluidshape", "fluidcoef", "user"},
         {"site", "?", "type", "group", "pos", "quat", "material",
             "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "?", "projection", "fovy", "ipd", "resolution", "pos", "quat",
+        {"camera", "?", "projection", "fovy", "ipd", "resolution", "output", "pos", "quat",
             "axisangle", "xyaxes", "zaxis", "euler", "mode", "focal", "focalpixel",
             "principal", "principalpixel", "sensorsize", "user"},
         {"light", "?", "pos", "dir", "bulbradius", "intensity", "range",
@@ -285,7 +285,7 @@ std::vector<const char*> MJCF[nMJCF] = {
         {"attach", "*", "model", "body", "prefix"},
         {"site", "*",  "name", "class", "type", "group", "pos", "quat",
             "material", "size", "fromto", "axisangle", "xyaxes", "zaxis", "euler", "rgba", "user"},
-        {"camera", "*", "name", "class", "projection", "fovy", "ipd", "resolution", "pos",
+        {"camera", "*", "name", "class", "projection", "fovy", "ipd", "resolution", "output", "pos",
             "quat", "axisangle", "xyaxes", "zaxis", "euler", "mode", "target",
             "focal", "focalpixel", "principal", "principalpixel", "sensorsize", "user"},
         {"light", "*", "name", "class", "directional", "type", "castshadow", "active",
@@ -793,6 +793,13 @@ const mjMap raydata_map[mjNRAYDATA] = {
   {"depth",         mjRAYDATA_DEPTH}
 };
 
+// camera output type
+const int camout_sz = mjNCAMOUT;
+const mjMap camout_map[mjNCAMOUT] = {{"rgb", mjCAMOUT_RGB},
+                                     {"depth", mjCAMOUT_DEPTH},
+                                     {"distance", mjCAMOUT_DIST},
+                                     {"normal", mjCAMOUT_NORMAL},
+                                     {"segmentation", mjCAMOUT_SEG}};
 
 // contact reduction type
 const int reduce_sz = 4;
@@ -1953,6 +1960,17 @@ void mjXReader::OneCamera(XMLElement* elem, mjsCamera* camera) {
   ReadAttr(elem, "focalpixel", 2, camera->focal_pixel, text);
   ReadAttr(elem, "focal", 2, camera->focal_length, text);
   ReadAttr(elem, "resolution", 2, camera->resolution, text);
+
+  // read output attribute as space-separated bitflags
+  std::vector<int> outvals(mjNCAMOUT);
+  int nout = MapValues(elem, "output", outvals.data(), camout_map, mjNCAMOUT);
+  if (nout) {
+    camera->output = 0;
+    for (int i = 0; i < nout; ++i) {
+      camera->output |= outvals[i];
+    }
+  }
+
   bool sensorsize = ReadAttr(elem, "sensorsize", 2, camera->sensor_size, text);
   bool fovy = ReadAttr(elem, "fovy", 1, &camera->fovy, text);
   if (fovy && sensorsize) {

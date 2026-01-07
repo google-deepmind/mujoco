@@ -1046,6 +1046,9 @@
                :ref:`resolution<body-camera-resolution>`
 
             .. grid-item::
+               :ref:`output<body-camera-output>`
+
+            .. grid-item::
                :ref:`pos<body-camera-pos>`
 
             .. grid-item::
@@ -4704,6 +4707,9 @@
 
             .. grid-item::
                :ref:`resolution<default-camera-resolution>`
+
+            .. grid-item::
+               :ref:`output<default-camera-output>`
 
             .. grid-item::
                :ref:`pos<default-camera-pos>`

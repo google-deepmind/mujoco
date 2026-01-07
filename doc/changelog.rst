@@ -30,6 +30,8 @@ General
   attribute. In this case, the sensor will cast multiple ray, one for each pixel.
 - Rangefinder sensors can now now report various kinds of information besides ray distances, including surface normals.
   See :ref:`rangefinder<sensor-rangefinder>` for details.
+- Cameras now have an :ref:`output<body-camera-output>` attribute, parsed into the ``mjModel.cam_output`` bitfield.
+  Unused by the renderer, it serves as a convenient location to store a camera's supported output types.
 - Non-breaking ABI changes:
 
   - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from

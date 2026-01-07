@@ -375,6 +375,7 @@ typedef struct mjsCamera_ {        // camera specification
   // intrinsics
   mjtProjection proj;              // camera projection type
   int resolution[2];               // resolution (pixel)
+  int output;                      // bit flags for output type
   double fovy;                     // y-field of view
   double ipd;                      // inter-pupillary distance
   float intrinsic[4];              // camera intrinsics (length)

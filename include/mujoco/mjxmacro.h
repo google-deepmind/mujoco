@@ -306,6 +306,7 @@
     X   ( mjtNum,  cam_fovy,              ncam,          1                    ) \
     X   ( mjtNum,  cam_ipd,               ncam,          1                    ) \
     X   ( int,     cam_resolution,        ncam,          2                    ) \
+    X   ( int,     cam_output,            ncam,          1                    ) \
     X   ( float,   cam_sensorsize,        ncam,          2                    ) \
     X   ( float,   cam_intrinsic,         ncam,          4                    ) \
     X   ( mjtNum,  cam_user,              ncam,          MJ_M(nuser_cam)      )

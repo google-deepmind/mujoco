@@ -3138,6 +3138,12 @@ struct MjsCamera {
   emscripten::val resolution() const {
     return emscripten::val(emscripten::typed_memory_view(2, ptr_->resolution));
   }
+  int output() const {
+    return ptr_->output;
+  }
+  void set_output(int value) {
+    ptr_->output = value;
+  }
   double fovy() const {
     return ptr_->fovy;
   }
@@ -4173,6 +4179,9 @@ struct MjModel {
   }
   emscripten::val cam_resolution() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * 2, ptr_->cam_resolution));
+  }
+  emscripten::val cam_output() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->ncam, ptr_->cam_output));
   }
   emscripten::val cam_sensorsize() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->ncam * 2, ptr_->cam_sensorsize));
@@ -10191,6 +10200,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjCAMLIGHT_TRACKCOM", mjCAMLIGHT_TRACKCOM)
     .value("mjCAMLIGHT_TARGETBODY", mjCAMLIGHT_TARGETBODY)
     .value("mjCAMLIGHT_TARGETBODYCOM", mjCAMLIGHT_TARGETBODYCOM);
+  enum_<mjtCamOutBit>("mjtCamOutBit")
+    .value("mjCAMOUT_RGB", mjCAMOUT_RGB)
+    .value("mjCAMOUT_DEPTH", mjCAMOUT_DEPTH)
+    .value("mjCAMOUT_DIST", mjCAMOUT_DIST)
+    .value("mjCAMOUT_NORMAL", mjCAMOUT_NORMAL)
+    .value("mjCAMOUT_SEG", mjCAMOUT_SEG)
+    .value("mjNCAMOUT", mjNCAMOUT);
   enum_<mjtCamera>("mjtCamera")
     .value("mjCAMERA_FREE", mjCAMERA_FREE)
     .value("mjCAMERA_TRACKING", mjCAMERA_TRACKING)
@@ -11043,6 +11059,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("cam_ipd", &MjModel::cam_ipd)
     .property("cam_mat0", &MjModel::cam_mat0)
     .property("cam_mode", &MjModel::cam_mode)
+    .property("cam_output", &MjModel::cam_output)
     .property("cam_pos", &MjModel::cam_pos)
     .property("cam_pos0", &MjModel::cam_pos0)
     .property("cam_poscom0", &MjModel::cam_poscom0)
@@ -11744,6 +11761,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("intrinsic", &MjsCamera::intrinsic)
     .property("ipd", &MjsCamera::ipd, &MjsCamera::set_ipd, reference())
     .property("mode", &MjsCamera::mode, &MjsCamera::set_mode, reference())
+    .property("output", &MjsCamera::output, &MjsCamera::set_output, reference())
     .property("pos", &MjsCamera::pos)
     .property("principal_length", &MjsCamera::principal_length)
     .property("principal_pixel", &MjsCamera::principal_pixel)

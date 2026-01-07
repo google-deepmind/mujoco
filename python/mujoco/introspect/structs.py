@@ -2276,6 +2276,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('ncam', 2),
              ),
              StructFieldDecl(
+                 name='cam_output',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='output types (mjtCamOut bit flags)',
+                 array_extent=('ncam',),
+             ),
+             StructFieldDecl(
                  name='cam_sensorsize',
                  type=PointerType(
                      inner_type=ValueType(name='float'),
@@ -7577,6 +7585,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      extents=(2,),
                  ),
                  doc='resolution (pixel)',
+             ),
+             StructFieldDecl(
+                 name='output',
+                 type=ValueType(name='int'),
+                 doc='bit flags for output type',
              ),
              StructFieldDecl(
                  name='fovy',

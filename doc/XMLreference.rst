@@ -2988,6 +2988,20 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    location to save the required resolution. Setting either value larger than 1
    enables frustum visualization when the :ref:`mjVIS_CAMERA<mjtVisFlag>` visualization flag is active.
 
+.. _body-camera-output:
+
+:at:`output`: :at-val:`[rgb, depth, distance, normal, segmentation], "rgb"`
+   Types of output images supported by the camera.
+
+   - :at-val:`rgb`: RGB image.
+   - :at-val:`depth`: Depth image (distance from camera plane).
+   - :at-val:`distance`: Distance image (distance from camera origin).
+   - :at-val:`normal`: Surface normal image.
+   - :at-val:`segmentation`: Segmentation image.
+
+   This attribute is not used for rendering, but serves as a convenient location to save the output types supported by
+   the camera. The :at:`output` attribute can contain multiple types, e.g. :at-val:`"rgb normal"`.
+
 .. _body-camera-sensorsize:
 
 :at:`sensorsize`: :at-val:`real(2), "0 0"`
@@ -8714,6 +8728,8 @@ if omitted.
 .. _default-camera-fovy:
 
 .. _default-camera-resolution:
+
+.. _default-camera-output:
 
 .. _default-camera-ipd:
 
