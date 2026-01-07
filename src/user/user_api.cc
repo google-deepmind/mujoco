@@ -1922,12 +1922,15 @@ void mj_clearCache(mjCache* cache) {
 
 // get the internal asset cache used by the compiler
 mjCache* mj_getCache() {
-  static mjCache cache_cwrapper = {0};
-  // mjCCache is not trivially destructible and so the global cache needs to
-  // allocated on the heap
-  if constexpr (kGlobalCacheSize != 0) {
-    static mjCCache* cache = new(std::nothrow) mjCCache(kGlobalCacheSize);
-    cache_cwrapper.impl_ = cache->Capacity() > 0 ? cache : nullptr;
-  }
+  static mjCache cache_cwrapper = []() {
+    mjCache c = {0};
+    // mjCCache is not trivially destructible and so the global cache needs to
+    // allocated on the heap
+    if constexpr (kGlobalCacheSize != 0) {
+      static mjCCache* cache = new (std::nothrow) mjCCache(kGlobalCacheSize);
+      c.impl_ = cache->Capacity() > 0 ? cache : nullptr;
+    }
+    return c;
+  }();
   return &cache_cwrapper;
 }
