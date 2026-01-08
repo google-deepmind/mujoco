@@ -506,6 +506,21 @@ friction values may be sensitive to differences in floating point representation
 
 If you encounter unexpected results, including NaNs, please open a GitHub issue.
 
+**Why is inertia matrix qM sparsity not consistent with MuJoCo / MJX?**
+
+.. admonition:: ``mjtJacobian`` semantics
+   :class: note
+
+   - MuJoCo's inertia matrix is always sparse and :ref:`mjtJacobian` affects constraint Jacobians and related quantities
+   - MJWarp's (and MJX's) constraint Jacobian is always dense and :ref:`mjtJacobian` is repurposed to affect the inertia
+     matrix that can be represented as dense or sparse
+
+The automatic sparsity threshold utilized by MJWarp for ``AUTO`` is optimized for GPU and set to ``nv > 32``,
+unlike MuJoCo and MJX which use ``nv >= 60``. Dense ``DENSE`` and sparse ``SPARSE`` settings are consistent with MuJoCo
+and MJX.
+
+This feature is likely to change in the future.
+
 Compilation
 -----------
 
