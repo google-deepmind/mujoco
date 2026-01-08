@@ -285,7 +285,7 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
   mjtNum xx = mju_dot3(s, s);
   mjtNum x = mju_sqrt(xx);
 
-  // 4 coefficients: a=cos(x), b=sin(x)/x, c=(1-cos(x))/x^2, d=(x-sin(x))/x^3}
+  // 4 coefficients: a=cos(x), b=sin(x)/x, c=(1-cos(x))/x^2, d=(x-sin(x))/x^3
   mjtNum a = mju_cos(x);
   mjtNum b, c, d;
 
