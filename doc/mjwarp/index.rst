@@ -37,6 +37,62 @@ The MJWarp basics are covered in a
 `tutorial
 notebook <https://colab.research.google.com/github/google-deepmind/mujoco_warp/blob/main/notebooks/tutorial.ipynb>`__.
 
+When To Use MJWarp?
+===================
+
+.. TODO(robotics-simulation): batch renderer
+
+High throughput
+---------------
+
+The MuJoCo ecosystem offers multiple options for batched simulation.
+
+- :ref:`mujoco.rollout <PyRollout>`: Python API for multi-threaded calls to :ref:`mj_step` on CPU. High throughput
+  can be achieved with hardware that has fast cores and large thread counts, but overall performance of applications
+  requiring frequent host<>device transfers (e.g., reinforcement learning with simulation on CPU and learning on GPU)
+  may be bottlenecked by transfer overhead.
+- **mjx.step**: `jax.vmap` and `jax.pmap` enable multi-threaded and multi-device simulation with JAX on CPUs, GPUs, or
+  TPUs.
+- :func:`mujoco_warp.step <mujoco_warp.step>`: Python API for multi-threaded and multi-device simulation with CUDA via
+  Warp on NVIDIA GPUs. Improved scaling for contact-rich scenes compared to the MJX JAX implementation.
+
+.. TODO(robotics-simulation): add link to mjx.step
+.. TODO(robotics-simulation): add step/time comparison plot
+
+Low latency
+-----------
+
+MJWarp is optimized for throughput: the total number of simulation steps per unit time whereas MuJoCo is optimized for
+latency: time for one simulation step. It is expected that a simulation step with MJWarp will be less performant
+than a step with MuJoCo for the same simulation.
+
+As a result, MJWarp is well suited for applications where large numbers of
+samples are required, like reinforcement learning, while MuJoCo is likely more useful for real-time applications like
+online control (e.g., model predictive control) or interactive graphical interfaces (e.g., simulation-based
+teleoperation).
+
+Complex scenes
+--------------
+
+MJWarp scales better than MJX for scenes with many geoms or degrees of freedom, but not as well as MuJoCo. There may be
+significant performance degradation in MJWarp for scenes beyond 60 DoFs. Supporting these larger scenes is a high
+priority and progress is tracked in GitHub issues for: sparse Jacobians
+`#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__, block Cholesky factorization and solve
+`#320 <https://github.com/google-deepmind/mujoco_warp/issues/320>`__, constraint islands
+`#886 <https://github.com/google-deepmind/mujoco_warp/issues/886>`__, and sleeping islands
+`#887 <https://github.com/google-deepmind/mujoco_warp/issues/887>`__.
+
+.. TODO(robotic-simulation): add graph for ngeom and nv scaling
+
+Differentiability
+-----------------
+
+The dynamics API in MJX is automatically differentiable via JAX. We are considering whether to support this in MJWarp
+via Warp - if this feature is important to you, please chime in on this issue
+`here <https://github.com/google-deepmind/mujoco_warp/issues/500>`__.
+
+.. TODO(robotics-simulation): Newton multi-physics
+
 .. _MJW_install:
 
 Installation
@@ -391,7 +447,7 @@ Learning frameworks
 Yes. MJWarp is interoperable with `JAX <https://jax.readthedocs.io/>`__. Please see the
 `Warp Interoperability <https://nvidia.github.io/warp/modules/interoperability.html#jax>`__ documentation for details.
 
-Additionally, :ref:`MJX <mjx>` provides a JAX API for a subset of MJWarp's :doc:`API <api>`. The backend is
+Additionally, :ref:`MJX <mjx>` provides a JAX API for a subset of MJWarp's :doc:`API <api>`. The implementation is
 specified with ``impl='warp'``.
 
 **Does MJWarp work with PyTorch?**
@@ -411,6 +467,8 @@ For examples that train policies with MJWarp physics, please see:
 
 Features
 --------
+
+.. _mjwDiff:
 
 **Is MJWarp differentiable?**
 
