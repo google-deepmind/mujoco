@@ -498,6 +498,14 @@ size ``Data.nworld``. Some :class:`mjw.Model <mujoco_warp.Model>` fields having 
 Additionally, certain fields including ``Model.qM``, ``Data.efc.J``, and ``Data.efc.D`` are padded to enable fast
 loading on GPU.
 
+**Why are numerical results from MJWarp and MuJoCo different?**
+
+MJWarp utilizes `float <https://nvidia.github.io/warp/modules/functions.html#warp.float32>`__s in contrast to MuJoCo's
+default double representation for :ref:`mjtNum`. Solver settings, including iterations, collision detection, and small
+friction values may be sensitive to differences in floating point representation.
+
+If you encounter unexpected results, including NaNs, please open a GitHub issue.
+
 Compilation
 -----------
 
