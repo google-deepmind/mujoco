@@ -113,10 +113,10 @@ raw::MjModel* MjSpec::Compile() {
     }
   }
   auto m = mj_compile(ptr, &vfs);
+  mj_deleteVFS(&vfs);
   if (!m || mjs_isWarning(ptr)) {
     throw py::value_error(mjs_getError(ptr));
   }
-  mj_deleteVFS(&vfs);
   return m;
 }
 
