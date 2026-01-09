@@ -89,7 +89,12 @@ MjSpec::~MjSpec() { mj_deleteSpec(ptr); }
 
 raw::MjModel* MjSpec::Compile() {
   if (assets.empty()) {
-    auto m = mj_compile(ptr, 0);
+    raw::MjModel* m;
+    {
+      // Release GIL before calling mj_compile which may spawn threads
+      py::gil_scoped_release no_gil;
+      m = mj_compile(ptr, 0);
+    }
     if (!m || mjs_isWarning(ptr)) {
       throw py::value_error(mjs_getError(ptr));
     }
@@ -112,7 +117,13 @@ raw::MjModel* MjSpec::Compile() {
       }
     }
   }
-  auto m = mj_compile(ptr, &vfs);
+
+  raw::MjModel* m;
+  {
+    // Release GIL before calling mj_compile which may spawn threads
+    py::gil_scoped_release no_gil;
+    m = mj_compile(ptr, &vfs);
+  }
   mj_deleteVFS(&vfs);
   if (!m || mjs_isWarning(ptr)) {
     throw py::value_error(mjs_getError(ptr));
