@@ -243,6 +243,7 @@ if(MUJOCO_WITH_USD)
   endif()
 
   add_subdirectory(src/experimental/usd)
+  add_subdirectory(plugin/usd_decoder)
 endif()
 
 if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)

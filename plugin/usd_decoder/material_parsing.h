@@ -12,16 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MUJOCO_SRC_EXPERIMENTAL_USD_MATERIAL_PARSING_H_
-#define MUJOCO_SRC_EXPERIMENTAL_USD_MATERIAL_PARSING_H_
+#ifndef MUJOCO_PLUGIN_USD_DECODER_MATERIAL_PARSING_H_
+#define MUJOCO_PLUGIN_USD_DECODER_MATERIAL_PARSING_H_
 
 #include <pxr/usd/usdShade/material.h>
 #include <mujoco/mujoco.h>
 
-namespace mujoco {
-namespace usd {
 mjsMaterial* ParseMaterial(mjSpec* spec, const pxr::UsdShadeMaterial &material);
-}  // namespace usd
-}  // namespace mujoco
 
-#endif  // MUJOCO_SRC_EXPERIMENTAL_USD_MATERIAL_PARSING_H_
+#endif  // MUJOCO_PLUGIN_USD_DECODER_MATERIAL_PARSING_H_

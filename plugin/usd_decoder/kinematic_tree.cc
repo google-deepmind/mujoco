@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/usd/kinematic_tree.h"
+#include "kinematic_tree.h"
 
 #include <map>
 #include <memory>
@@ -33,9 +33,6 @@
 #include <pxr/usd/usdPhysics/joint.h>
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 #include <pxr/usd/usdPhysics/scene.h>
-
-namespace mujoco {
-namespace usd {
 
 bool GetJointBodies(const pxr::UsdPhysicsJoint& joint, pxr::SdfPath* from,
                     pxr::SdfPath* to) {
@@ -274,6 +271,3 @@ std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
   }
   return world_root;
 }
-
-}  // namespace usd
-}  // namespace mujoco

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # --- Global Configuration ---
+
 # Plugin target names (used for library and plugInfo.json)
 set(MJCF_PLUGIN_TARGET_NAME usdMjcf)
 set(MJC_PHYSICS_PLUGIN_TARGET_NAME mjcPhysics)
@@ -147,12 +148,7 @@ target_include_directories(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PUBLIC
 ## ----- mujoco USD utils -----
 
 target_sources(mujoco PRIVATE
-  kinematic_tree.cc
-  kinematic_tree.h
   layer_sink.cc
-  material_parsing.cc
-  material_parsing.h
-  usd_to_mjspec.cc
   utils.cc
   writer.cc
 )

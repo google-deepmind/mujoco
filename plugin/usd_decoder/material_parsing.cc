@@ -12,17 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "experimental/usd/material_parsing.h"
+#include "material_parsing.h"
 
-#include <cstddef>
-#include <cstdint>
 #include <cstdio>
-#include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 
-#include "lodepng.h"
 #include <mujoco/mujoco.h>
 #include <pxr/base/gf/vec3f.h>
 #include <pxr/base/gf/vec4f.h>
@@ -38,9 +33,6 @@
 #include <pxr/usd/usdShade/shader.h>
 #include <pxr/usd/usdShade/types.h>
 #include <pxr/usd/usdShade/udimUtils.h>
-
-namespace mujoco {
-namespace usd {
 
 // Using to satisfy TF_DEFINE_PRIVATE_TOKENS macro below and avoid operating in
 // PXR_NS.
@@ -146,53 +138,16 @@ ResolvedShaderInput<T> ReadUsdUVTexture(mjSpec* spec,
   }
 
   auto extension = resolver.GetExtension(resolved_texture_path);
-  if (extension != "png") {
-    mju_error("MuJoCo USD Parsing only supports PNG textures: %s",
-              resolved_texture_path.c_str());
-    return out;
-  }
 
   FILE* fp = fopen(resolved_texture_path.c_str(), "r");
-  if (fp) {
-    mjs_setString(texture->content_type, "image/png");
-    mjs_setString(texture->file, resolved_texture_path.c_str());
-    out.sampler = texture;
+  if (fp == nullptr) {
+    mju_error(
+        "USD decoder only supports assets that are available on the file "
+        "system");
     return out;
   }
-
-  std::shared_ptr<pxr::ArAsset> texture_asset =
-      resolver.OpenAsset(pxr::ArResolvedPath(resolved_texture_path));
-
-  size_t texture_size = texture_asset->GetSize();
-
-  uint32_t width, height;
-  std::vector<unsigned char> image;
-  lodepng::State state;
-  if (nchannels == 3) {
-    state.info_raw.colortype = LCT_RGB;
-  } else if (nchannels == 1) {
-    state.info_raw.colortype = LCT_GREY;
-  } else {
-    mju_error("MuJoCo USD Parsing only supports 1 or 3 channel textures.");
-    return out;
-  }
-
-  unsigned error = lodepng::decode(
-      image, width, height, state,
-      reinterpret_cast<const unsigned char*>(texture_asset->GetBuffer().get()),
-      texture_size);
-
-  // check for errors
-  if (error) {
-    mju_error("LodePNG error %u: %s", error, lodepng_error_text(error));
-    return out;
-  }
-
-  texture->width = width;
-  texture->height = height;
   texture->nchannel = nchannels;
-  mjs_setBuffer(texture->data, image.data(), image.size());
-
+  mjs_setString(texture->file, resolved_texture_path.c_str());
   out.sampler = texture;
   return out;
 }
@@ -311,5 +266,3 @@ mjsMaterial* ParseMaterial(mjSpec* spec,
 
   return mj_mat;
 }
-}  // namespace usd
-}  // namespace mujoco

@@ -25,9 +25,6 @@
 #include <string>
 #include <thread>
 
-#if defined(mjUSEUSD)
-#include <mujoco/experimental/usd/usd.h>
-#endif
 #include <mujoco/mujoco.h>
 #include "glfw_adapter.h"
 #include "simulate.h"
@@ -241,22 +238,26 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
     if (!mnew) {
       mju::strcpy_arr(loadError, "could not load binary model");
     }
-#if defined(mjUSEUSD)
-  } else if (extension == ".usda" || extension == ".usd" ||
-             extension == ".usdc" || extension == ".usdz" ) {
-    mnew = mj_loadUSD(filename, nullptr, loadError, kErrorLength);
-#endif
-  } else {
+  } else if (extension == ".xml") {
     mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
-
-    // remove trailing newline character from loadError
-    if (loadError[0]) {
-      int error_length = mju::strlen_arr(loadError);
-      if (loadError[error_length-1] == '\n') {
-        loadError[error_length-1] = '\0';
-      }
+  } else {
+    mjSpec* spec = mj_parse(filename, nullptr, nullptr, loadError, kErrorLength);
+    if (!spec) {
+      mju::strcpy_arr(loadError, "could not parse model");
+    } else {
+      mnew = mj_compile(spec, nullptr);
+      mj_deleteSpec(spec);
     }
   }
+
+  // remove trailing newline character from loadError
+  if (loadError[0]) {
+    int error_length = mju::strlen_arr(loadError);
+    if (loadError[error_length-1] == '\n') {
+      loadError[error_length-1] = '\0';
+    }
+  }
+
   auto load_interval = mj::Simulate::Clock::now() - load_start;
   double load_seconds = Seconds(load_interval).count();
 
@@ -515,11 +516,6 @@ int main(int argc, char** argv) {
 
   // scan for libraries in the plugin directory to load additional plugins
   scanPluginLibraries();
-
-#if defined(mjUSEUSD)
-  // If USD is used, print the version.
-  std::printf("OpenUSD version v%d.%02d\n", PXR_MINOR_VERSION, PXR_PATCH_VERSION);
-#endif
 
   mjvCamera cam;
   mjv_defaultCamera(&cam);

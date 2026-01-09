@@ -20,6 +20,7 @@
 #include <numbers>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
@@ -33,11 +34,9 @@
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/tendon.h>
 #include <mujoco/experimental/usd/mjcPhysics/tokens.h>
-#include <mujoco/experimental/usd/usd.h>
-#include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mujoco.h>
-#include "experimental/usd/kinematic_tree.h"
-#include "experimental/usd/material_parsing.h"
+#include "kinematic_tree.h"
+#include "material_parsing.h"
 #include <pxr/base/gf/declare.h>
 #include <pxr/base/gf/matrix4d.h>
 #include <pxr/base/gf/rotation.h>
@@ -74,9 +73,6 @@
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
 
-namespace mujoco {
-namespace usd {
-
 using pxr::MjcPhysicsTokens;
 using pxr::TfToken;
 
@@ -86,6 +82,26 @@ struct UsdCaches {
   pxr::UsdShadeMaterialBindingAPI::CollectionQueryCache collection_query_cache;
   std::map<pxr::SdfPath, mjsMaterial*> parsed_materials;
 };
+
+constexpr const char* kUsdPrimPathKey = "usd_primpath";
+
+void SetUsdPrimPathUserValue(mjsElement* element,
+                             const pxr::SdfPath& prim_path) {
+  // The value is a pointer to a newly allocated SdfPath, which will be deleted
+  // when the mjsElement is deleted.
+  const pxr::SdfPath* usd_primpath = new pxr::SdfPath(prim_path);
+  mjs_setUserValueWithCleanup(
+      element, kUsdPrimPathKey, usd_primpath,
+      [](const void* data) { delete static_cast<const pxr::SdfPath*>(data); });
+}
+
+pxr::SdfPath GetUsdPrimPathUserValue(mjsElement* element) {
+  const void* user_data = mjs_getUserValue(element, kUsdPrimPathKey);
+  if (user_data) {
+    return *static_cast<const pxr::SdfPath*>(user_data);
+  }
+  return pxr::SdfPath();
+}
 
 void SetDoubleArrFromGfVec3d(double* to, const pxr::GfVec3d& from) {
   to[0] = from[0];
@@ -279,7 +295,7 @@ mjsMesh* ParseUsdMesh(mjSpec* spec, const pxr::UsdPrim& prim, mjsGeom* geom,
   }
   mjsMesh* mesh = mjs_addMesh(spec, nullptr);
 
-  mujoco::usd::SetUsdPrimPathUserValue(mesh->element, prim.GetPath());
+  SetUsdPrimPathUserValue(mesh->element, prim.GetPath());
 
   geom->type = mjGEOM_MESH;
   pxr::UsdGeomMesh usd_mesh(prim);
@@ -924,14 +940,13 @@ void ParseMjcPhysicsMeshCollisionAPI(
   }
 }
 
-void ParseMjcPhysicsTendon(mjSpec* spec,
-                             const pxr::MjcPhysicsTendon& tendon) {
+void ParseMjcPhysicsTendon(mjSpec* spec, const pxr::MjcPhysicsTendon& tendon) {
   pxr::UsdPrim prim = tendon.GetPrim();
   pxr::UsdStageRefPtr stage = prim.GetStage();
   mjsTendon* mj_tendon = mjs_addTendon(spec, nullptr);
   mjs_setName(mj_tendon->element, prim.GetPath().GetAsString().c_str());
 
-  mujoco::usd::SetUsdPrimPathUserValue(mj_tendon->element, prim.GetPath());
+  SetUsdPrimPathUserValue(mj_tendon->element, prim.GetPath());
 
   pxr::TfToken type;
   tendon.GetTypeAttr().Get(&type);
@@ -963,25 +978,31 @@ void ParseMjcPhysicsTendon(mjSpec* spec,
           wrap_targets.size());
       return;
     }
-    // Check that if we have >1 segments that the user has specified how much each segment
-    // contributes to the total segment length.
+    // Check that if we have >1 segments that the user has specified how much
+    // each segment contributes to the total segment length.
     if (!segments.empty() && divisors.empty()) {
       mju_warning(
-          "Spatial tendon %s has >1 segments (%d) but does not specify divisors, skipping.",
-          prim.GetPath().GetAsString().c_str(), *std::max_element(segments.begin(), segments.end()) + 1);
+          "Spatial tendon %s has >1 segments (%d) but does not specify "
+          "divisors, skipping.",
+          prim.GetPath().GetAsString().c_str(),
+          *std::max_element(segments.begin(), segments.end()) + 1);
       return;
     }
     // Check that if we side site indices that we have N of them.
-    if (!side_site_indices.empty() && side_site_indices.size() != wrap_targets.size()) {
+    if (!side_site_indices.empty() &&
+        side_site_indices.size() != wrap_targets.size()) {
       mju_warning(
-          "Spatial tendon %s has %lu sideSite indices but %lu wrap targets, skipping.",
-          prim.GetPath().GetAsString().c_str(), side_site_indices.size(), wrap_targets.size());
+          "Spatial tendon %s has %lu sideSite indices but %lu wrap targets, "
+          "skipping.",
+          prim.GetPath().GetAsString().c_str(), side_site_indices.size(),
+          wrap_targets.size());
       return;
     }
 
     if (!side_site_indices.empty() && side_site_paths.empty()) {
       mju_warning(
-          "Spatial tendon %s has %lu sideSite indices but no side sites, skipping.",
+          "Spatial tendon %s has %lu sideSite indices but no side sites, "
+          "skipping.",
           prim.GetPath().GetAsString().c_str(), side_site_indices.size());
       return;
     }
@@ -990,7 +1011,8 @@ void ParseMjcPhysicsTendon(mjSpec* spec,
     if (!coefs.empty() && coefs.size() != wrap_targets.size()) {
       mju_warning(
           "Spatial tendon %s has %lu coefs but %lu wrap targets, skipping.",
-          prim.GetPath().GetAsString().c_str(), coefs.size(), wrap_targets.size());
+          prim.GetPath().GetAsString().c_str(), coefs.size(),
+          wrap_targets.size());
     }
   }
 
@@ -998,21 +1020,25 @@ void ParseMjcPhysicsTendon(mjSpec* spec,
   for (int i = 0; i < wrap_targets.size(); ++i) {
     auto wrap_target = wrap_targets[i];
     auto wrap_prim = stage->GetPrimAtPath(wrap_target);
-    // Important to check site before Imageable here because some Imageable prims are sites.
+    // Important to check site before Imageable here because some Imageable
+    // prims are sites.
 
     if (!segments.empty()) {
       int segment = segments[i];
       if (segment >= divisors.size()) {
-        mju_warning("Tendon %s has at least %d segments but only %lu divisors, skipping.",
-                    prim.GetPath().GetAsString().c_str(), segment + 1, divisors.size());
+        mju_warning(
+            "Tendon %s has at least %d segments but only %lu divisors, "
+            "skipping.",
+            prim.GetPath().GetAsString().c_str(), segment + 1, divisors.size());
         return;
       }
 
       if (segment > last_segment) {
         mjsWrap* pulley_wrap = mjs_wrapPulley(mj_tendon, divisors[segment]);
         mjs_setString(pulley_wrap->info, ("Pulley between segments: " +
-                                        std::to_string(last_segment) + " and " +
-                                        std::to_string(segment)).c_str());
+                                          std::to_string(last_segment) +
+                                          " and " + std::to_string(segment))
+                                             .c_str());
       }
       last_segment = segment;
     }
@@ -1031,13 +1057,17 @@ void ParseMjcPhysicsTendon(mjSpec* spec,
       if (!side_site_indices.empty()) {
         int side_site_index = side_site_indices[i];
         if (side_site_index >= side_site_paths.size()) {
-          mju_warning("Tendon %s has side site index %d but only %lu side sites, skipping.",
-                      prim.GetPath().GetAsString().c_str(), side_site_index, side_site_paths.size());
+          mju_warning(
+              "Tendon %s has side site index %d but only %lu side sites, "
+              "skipping.",
+              prim.GetPath().GetAsString().c_str(), side_site_index,
+              side_site_paths.size());
           return;
         }
         side_site_name = side_site_paths[side_site_index].GetAsString();
       }
-      wrap = mjs_wrapGeom(mj_tendon, wrap_target.GetAsString().c_str(), side_site_name.c_str());
+      wrap = mjs_wrapGeom(mj_tendon, wrap_target.GetAsString().c_str(),
+                          side_site_name.c_str());
     } else {
       mju_warning("Tendon %s has an invalid wrap target type, skipping.",
                   prim.GetPath().GetAsString().c_str());
@@ -1226,7 +1256,7 @@ void ParseMjcPhysicsActuator(mjSpec* spec,
   mjsActuator* mj_act = mjs_addActuator(spec, nullptr);
   mjs_setName(mj_act->element, prim.GetPath().GetAsString().c_str());
 
-  mujoco::usd::SetUsdPrimPathUserValue(mj_act->element, prim.GetPath());
+  SetUsdPrimPathUserValue(mj_act->element, prim.GetPath());
 
   auto group_attr = tran.GetGroupAttr();
   if (group_attr.HasAuthoredValue()) {
@@ -1671,7 +1701,7 @@ void ParseUsdGeomGprim(mjSpec* spec, const pxr::UsdPrim& gprim,
   geom->contype = 0;
   geom->conaffinity = 0;
 
-  mujoco::usd::SetUsdPrimPathUserValue(geom->element, gprim.GetPath());
+  SetUsdPrimPathUserValue(geom->element, gprim.GetPath());
 
   ParseDisplayColorAndOpacity(gprim, geom);
   SetLocalPoseFromPrim(gprim, body_prim, geom, caches.xform_cache);
@@ -1728,7 +1758,7 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
   geom->contype = 1;
   geom->conaffinity = 1;
 
-  mujoco::usd::SetUsdPrimPathUserValue(geom->element, prim.GetPath());
+  SetUsdPrimPathUserValue(geom->element, prim.GetPath());
 
   if (prim.HasAPI<pxr::MjcPhysicsCollisionAPI>()) {
     ParseMjcPhysicsCollisionAPI(geom, pxr::MjcPhysicsCollisionAPI(prim));
@@ -1810,7 +1840,7 @@ void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
   mj_joint->type = type;
   mjs_setName(mj_joint->element, prim.GetPath().GetAsString().c_str());
 
-  mujoco::usd::SetUsdPrimPathUserValue(mj_joint->element, prim.GetPath());
+  SetUsdPrimPathUserValue(mj_joint->element, prim.GetPath());
 
   if (prim.IsA<pxr::UsdPhysicsRevoluteJoint>()) {
     pxr::UsdPhysicsRevoluteJoint revolute(prim);
@@ -1901,7 +1931,7 @@ void ParseMjcPhysicsSite(mjSpec* spec, const pxr::MjcPhysicsSiteAPI& site_api,
               site_api.GetPrim().GetPath().GetAsString().c_str());
   SetLocalPoseFromPrim(site_api.GetPrim(), parent_prim, site, xform_cache);
 
-  mujoco::usd::SetUsdPrimPathUserValue(site->element, prim.GetPath());
+  SetUsdPrimPathUserValue(site->element, prim.GetPath());
 
   auto group_attr = site_api.GetGroupAttr();
   if (group_attr.HasAuthoredValue()) {
@@ -1949,7 +1979,7 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
     // If no time samples, we create a single keyframe.
     mjsKey* key = mjs_addKey(spec);
 
-    mujoco::usd::SetUsdPrimPathUserValue(key->element, prim.GetPath());
+    SetUsdPrimPathUserValue(key->element, prim.GetPath());
 
     mjs_setName(key->element, prim.GetName().GetString().c_str());
     setKeyframeData(key, qpos_attr, &key->qpos);
@@ -1966,7 +1996,7 @@ void ParseMjcPhysicsKeyframe(mjSpec* spec,
     for (double time : times) {
       mjsKey* key = mjs_addKey(spec);
 
-      mujoco::usd::SetUsdPrimPathUserValue(key->element, prim.GetPath());
+      SetUsdPrimPathUserValue(key->element, prim.GetPath());
 
       std::string key_name =
           prim.GetName().GetString() + "_" + std::to_string(keyframe_id++);
@@ -1995,7 +2025,12 @@ mjsBody* ParseUsdPhysicsRigidbody(
     ParseUsdPhysicsMassAPIForBody(body, pxr::UsdPhysicsMassAPI(prim));
   }
 
-  mujoco::usd::SetUsdPrimPathUserValue(body->element, prim.GetPath());
+  // The value is a pointer to a newly allocated SdfPath, which will be deleted
+  // when the mjsElement is deleted.
+  const pxr::SdfPath* usd_primpath = new pxr::SdfPath(prim.GetPath());
+  mjs_setUserValueWithCleanup(
+      body->element, kUsdPrimPathKey, usd_primpath,
+      [](const void* data) { delete static_cast<const pxr::SdfPath*>(data); });
 
   return body;
 }
@@ -2080,49 +2115,45 @@ void PopulateSpecFromTree(pxr::UsdStageRefPtr stage, mjSpec* spec,
                          child_node.get(), caches);
   }
 }
-}  // namespace usd
-}  // namespace mujoco
 
-mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
+mjSpec* ParseStage(const pxr::UsdStageRefPtr stage) {
   mjSpec* spec = mj_makeSpec();
 
-  std::unique_ptr<mujoco::usd::Node> root =
-      mujoco::usd::BuildKinematicTree(stage);
+  std::unique_ptr<Node> root = BuildKinematicTree(stage);
 
   // First parse the physics scene and other root elements such as keyframes
   // and actuators.
   if (!root->physics_scene.IsEmpty()) {
-    mujoco::usd::ParseUsdPhysicsScene(
-        spec, pxr::UsdPhysicsScene::Get(stage, root->physics_scene));
+    ParseUsdPhysicsScene(spec,
+                         pxr::UsdPhysicsScene::Get(stage, root->physics_scene));
   } else {
     // If there is no physics scene we still need to infer the gravity vector
     // from the stage up axis and units per meter metadata.
-    mujoco::usd::SetGravityAttributes(spec, stage);
+    SetGravityAttributes(spec, stage);
   }
 
   if (!root->keyframes.empty()) {
     for (const auto& keyframe : root->keyframes) {
-      mujoco::usd::ParseMjcPhysicsKeyframe(
-          spec, pxr::MjcPhysicsKeyframe::Get(stage, keyframe));
+      ParseMjcPhysicsKeyframe(spec,
+                              pxr::MjcPhysicsKeyframe::Get(stage, keyframe));
     }
   }
 
   if (!root->actuators.empty()) {
     for (const auto& actuator : root->actuators) {
-      mujoco::usd::ParseMjcPhysicsActuator(
-          spec, pxr::MjcPhysicsActuator::Get(stage, actuator));
+      ParseMjcPhysicsActuator(spec,
+                              pxr::MjcPhysicsActuator::Get(stage, actuator));
     }
   }
 
   if (!root->tendons.empty()) {
     for (const auto& tendon : root->tendons) {
-      mujoco::usd::ParseMjcPhysicsTendon(
-          spec, pxr::MjcPhysicsTendon::Get(stage, tendon));
+      ParseMjcPhysicsTendon(spec, pxr::MjcPhysicsTendon::Get(stage, tendon));
     }
   }
 
   // Set of caches to use for all queries when parsing.
-  mujoco::usd::UsdCaches caches;
+  UsdCaches caches;
   // Then populate the kinematic tree.
   PopulateSpecFromTree(stage, spec, /*parent_mj_body=*/nullptr,
                        /*parent_node=*/nullptr, root.get(), caches);
@@ -2130,8 +2161,27 @@ mjSpec* mj_parseUSDStage(const pxr::UsdStageRefPtr stage) {
   return spec;
 }
 
-mjSpec* mj_parseUSD(const char* identifier, const mjVFS* vfs, char* error,
-                          int error_sz) {
-  auto stage = pxr::UsdStage::Open(identifier);
-  return mj_parseUSDStage(stage);
+namespace {
+// load 2D
+mjSpec* Decode(mjResource* resource, const mjVFS* vfs) {
+  auto stage = pxr::UsdStage::Open(resource->name);
+  return ParseStage(stage);
+}
+
+int CanDecode(const mjResource* resource) {
+  std::string_view name(resource->name);
+  return name.ends_with(".usd") || name.ends_with(".usda") ||
+         name.ends_with(".usdc") || name.ends_with(".usdz");
+}
+}  // namespace
+
+// clang-format off
+mjPLUGIN_LIB_INIT {
+  mjpDecoder decoder;
+  mjp_defaultDecoder(&decoder);
+  decoder.content_type = "model/usd";
+  decoder.extension = ".usd|.usda|.usdc|.usdz";
+  decoder.decode = Decode;
+  decoder.can_decode = CanDecode;
+  mjp_registerDecoder(&decoder);
 }

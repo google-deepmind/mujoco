@@ -39,6 +39,13 @@ General
     a silent implicit cast, now negativity will trigger an error.
   - Added a :ref:`depth<mjtRndFlag>` rendering flag.
 
+- :doc:`OpenUSD <OpenUSD/index>`:
+
+  - Parsing has been moved out of experimental into a mjpDecoder plugin. (documentation pending)
+  - OpenUSD can now be built with the `third_party_deps/openusd` <https://github.com/google-deepmind/mujoco/tree/main/cmake/third_party_deps/openusd> CMake utility project.
+  - ``USD_DIR`` is no longer used by the MuJoCo CMake project, instead use ``pxr_DIR`` if you have a pre-built USD library.
+  - Users no longer have to set ``PXR_PLUGINPATH_NAME`` environment variable, MuJoCo should load USD plugins automatically.
+
 MJX
 ^^^
 - Added ``actuator_length``, ``cdof`` and ``cdof_dof`` fields to ``mjx.Data``.
