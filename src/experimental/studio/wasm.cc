@@ -72,6 +72,8 @@ void Init() {
   const std::string ini_path = "";
 
   mjpResourceProvider resource_provider;
+  mjp_defaultResourceProvider(&resource_provider);
+
   resource_provider.open = [](mjResource* resource) {
     AssetRegistry& r = AssetRegistry::Instance();
     return static_cast<int>(r.Get(resource->name).size());

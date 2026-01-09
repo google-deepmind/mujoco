@@ -75,6 +75,8 @@ int main(int argc, char** argv, char** envp) {
   const std::string ini_path = std::string(home ? home : ".") + "/.mujoco.ini";
 
   mjpResourceProvider resource_provider;
+  mjp_defaultResourceProvider(&resource_provider);
+
   resource_provider.open = [](mjResource* resource) {
     const std::string resolved_path = Resolve(resource->name);
     FileResource* f = new FileResource(resolved_path);
