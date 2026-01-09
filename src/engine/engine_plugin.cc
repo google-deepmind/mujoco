@@ -297,14 +297,24 @@ std::string_view GlobalTable<mjpDecoder>::ObjectKey(const mjpDecoder& decoder) {
 // return true if two resource providers are identical
 template <>
 bool GlobalTable<mjpDecoder>::ObjectEqual(const mjpDecoder& d1, const mjpDecoder& d2) {
-  // check if two resource providers are identical
-  if (!(CaseInsensitiveEqual(d1.content_type, d2.content_type) &&
-        CaseInsensitiveEqual(d1.extension, d2.extension) &&
-        d1.decode == d2.decode &&
-        d1.can_decode == d2.can_decode)) {
-    return false;
+  // check content_type
+  bool content_type_match = false;
+  if (d1.content_type && d2.content_type) {
+    content_type_match = CaseInsensitiveEqual(d1.content_type, d2.content_type);
+  } else {
+    content_type_match = (d1.content_type == d2.content_type);
   }
-  return true;
+
+  // check extension
+  bool extension_match = false;
+  if (d1.extension && d2.extension) {
+    extension_match = CaseInsensitiveEqual(d1.extension, d2.extension);
+  } else {
+    extension_match = (d1.extension == d2.extension);
+  }
+
+  return content_type_match && extension_match && d1.decode == d2.decode &&
+         d1.can_decode == d2.can_decode;
 }
 
 template <>
