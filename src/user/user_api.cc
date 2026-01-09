@@ -67,10 +67,22 @@ mjSpec* mj_copySpec(const mjSpec* s) {
 // parse file into spec
 mjSpec* mj_parse(const char* filename, const char* content_type,
                  const mjVFS* vfs, char* error, int error_sz) {
+  mjVFS local_vfs;
+  mujoco::user::Cleanup cleanup;
+
   // early exit for existing XML workflow
   auto filepath = mujoco::user::FilePath(filename);
   if (filepath.Ext() == ".xml" || (content_type && std::strcmp(content_type, "text/xml") == 0)) {
     return mj_parseXML(filename, vfs, error, error_sz);
+  }
+
+  // If no VFS is provided, we'll create our own temporary one for the duration
+  // of this function.
+  if (vfs == nullptr) {
+    mj_defaultVFS(&local_vfs);
+    cleanup += [&local_vfs](){ mj_deleteVFS(&local_vfs); };
+
+    vfs = &local_vfs;
   }
 
   mjResource* resource = mju_openResource("", filename, vfs, error, error_sz);
@@ -79,8 +91,12 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
   // their content to function without a custom resource provider.
   // For example, USD may use identifiers to assets that are strictly in memory
   // or that are fetched on a need-be basis via URI.
-  if (!resource) {
+  if (resource) {
+    cleanup += [resource](){ mju_closeResource(resource); };
+  } else {
     resource = (mjResource*) mju_malloc(sizeof(mjResource));
+    cleanup += [resource](){ if (resource) mju_free(resource); };
+
     if (resource == nullptr) {
       if (error) {
         strncpy(error, "could not allocate memory", error_sz);
@@ -96,20 +112,19 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
     std::string fullname = filename;
     std::size_t n = fullname.size();
     resource->name = (char*) mju_malloc(sizeof(char) * (n + 1));
+    cleanup += [resource](){ if (resource) mju_free(resource->name); };
+
     if (resource->name == nullptr) {
       if (error) {
         strncpy(error, "could not allocate memory", error_sz);
         error[error_sz - 1] = '\0';
       }
-      mju_closeResource(resource);
       return nullptr;
     }
     memcpy(resource->name, fullname.c_str(), sizeof(char) * (n + 1));
   }
 
-  mjSpec* spec = mju_decodeResource(resource, content_type, vfs);
-  mju_closeResource(resource);
-  return spec;
+  return mju_decodeResource(resource, content_type, vfs);
 }
 
 // compile model
