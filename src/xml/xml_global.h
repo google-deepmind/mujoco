@@ -20,7 +20,7 @@
 
 #include <mujoco/mujoco.h>
 
-void SetGlobalXmlSpec(mjSpec* spec = nullptr);
+MJAPI void SetGlobalXmlSpec(mjSpec* spec = nullptr);
 
 std::string GetGlobalXmlSpec(const mjModel* m, char* error, int error_sz);
 
