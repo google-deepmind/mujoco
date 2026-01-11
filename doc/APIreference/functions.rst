@@ -18,7 +18,7 @@ The model and all files referenced in it can be loaded from disk or from a VFS w
 
 .. mujoco-include:: mj_loadXML
 
-Parse XML file in MJCF or URDF format, compile it, return low-level model.
+Parse XML file in MJCF or URDF format, compile it; return low-level model.
 
 If vfs is not NULL, look up files in vfs before reading from disk.
 
@@ -77,7 +77,7 @@ If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read 
 
 .. mujoco-include:: mj_copyBack
 
-Copy real-valued arrays from model to spec, returns 1 on success.
+Copy real-valued arrays from model to spec; return 1 on success.
 
 .. _mj_recompile:
 
@@ -1188,7 +1188,7 @@ Intersect ray ``pnt+x*vec, x >= 0`` with geoms.
 
 .. mujoco-include:: mj_rayHfield
 
-Intersect ray with hfield, return nearest distance or -1 if no intersection.
+Intersect ray with hfield; return nearest distance or -1 if no intersection.
 
 .. _mj_rayMesh:
 
@@ -1197,7 +1197,7 @@ Intersect ray with hfield, return nearest distance or -1 if no intersection.
 
 .. mujoco-include:: mj_rayMesh
 
-Intersect ray with mesh, return nearest distance or -1 if no intersection.
+Intersect ray with mesh; return nearest distance or -1 if no intersection.
 
 .. _mju_rayGeom:
 
@@ -1206,7 +1206,7 @@ Intersect ray with mesh, return nearest distance or -1 if no intersection.
 
 .. mujoco-include:: mju_rayGeom
 
-Intersect ray with pure geom, return nearest distance or -1 if no intersection.
+Intersect ray with pure geom; return nearest distance or -1 if no intersection.
 
 .. _mju_rayFlex:
 
@@ -1215,7 +1215,7 @@ Intersect ray with pure geom, return nearest distance or -1 if no intersection.
 
 .. mujoco-include:: mju_rayFlex
 
-Intersect ray with flex, return nearest distance or -1 if no intersection,
+Intersect ray with flex; return nearest distance or -1 if no intersection,
 and also output nearest vertex id.
 
 *Nullable:* ``vertid``
@@ -1227,7 +1227,7 @@ and also output nearest vertex id.
 
 .. mujoco-include:: mju_raySkin
 
-Intersect ray with skin, return nearest distance or -1 if no intersection,
+Intersect ray with skin; return nearest distance or -1 if no intersection,
 and also output nearest vertex id.
 
 *Nullable:* ``vertid``
@@ -1366,7 +1366,7 @@ Add file to VFS. The directory argument is optional and can be NULL or empty. Re
 
 .. mujoco-include:: mj_addBufferVFS
 
-Add file to VFS from buffer, return 0: success, 2: repeated name, -1: failed to load.
+Add file to VFS from buffer; return 0: success, 2: repeated name, -1: failed to load.
 
 .. _mj_deleteFileVFS:
 
@@ -1375,7 +1375,7 @@ Add file to VFS from buffer, return 0: success, 2: repeated name, -1: failed to 
 
 .. mujoco-include:: mj_deleteFileVFS
 
-Delete file from VFS, return 0: success, -1: not found in VFS.
+Delete file from VFS; return 0: success, -1: not found in VFS.
 
 .. _mj_deleteVFS:
 
@@ -1419,7 +1419,7 @@ Get the capacity of the asset cache in bytes.
 
 .. mujoco-include:: mj_setCacheCapacity
 
-Set the capacity of the asset cache in bytes (0 to disable); returns the new capacity.
+Set the capacity of the asset cache in bytes (0 to disable); return the new capacity.
 
 .. _mj_getCache:
 
@@ -1724,7 +1724,7 @@ Free memory allocation in mjSpec.
 
 .. mujoco-include:: mjs_activatePlugin
 
-Activate plugin. Returns 0 on success.
+Activate plugin; return 0 on success.
 
 .. _mjs_setDeepCopy:
 
@@ -1733,7 +1733,7 @@ Activate plugin. Returns 0 on success.
 
 .. mujoco-include:: mjs_setDeepCopy
 
-Turn deep copy on or off attach. Returns 0 on success.
+Turn deep copy on or off attach; return 0 on success.
 
 .. _Errorandmemory:
 
@@ -1914,7 +1914,7 @@ Convert pyramid representation to contact force.
 
 .. mujoco-include:: mju_springDamper
 
-Integrate spring-damper analytically, return pos(dt).
+Integrate spring-damper analytically; return pos(dt).
 
 .. _mju_min:
 
@@ -2999,8 +2999,9 @@ Set default resource provider definition.
 .. mujoco-include:: mjp_registerResourceProvider
 
 Globally register a resource provider in a thread-safe manner. The provider must have a prefix
-that is not a sub-prefix or super-prefix of any current registered providers.  This function
-returns a slot number > 0 on success.
+that is not a sub-prefix or super-prefix of any current registered providers.
+
+Return a slot number >= 0 on success, -1 on failure.
 
 .. _mjp_resourceProviderCount:
 
@@ -3334,7 +3335,7 @@ Set res = vec1 + vec2*scl.
 
 .. mujoco-include:: mju_normalize3
 
-Normalize vector, return length before normalization.
+Normalize vector; return length before normalization.
 
 .. _mju_norm3:
 
@@ -3424,7 +3425,7 @@ Set res = vec.
 
 .. mujoco-include:: mju_normalize4
 
-Normalize vector, return length before normalization.
+Normalize vector; return length before normalization.
 
 .. _mju_zero:
 
@@ -3541,7 +3542,7 @@ Set res = vec1 + vec2*scl.
 
 .. mujoco-include:: mju_normalize
 
-Normalize vector, return length before normalization.
+Normalize vector; return length before normalization.
 
 .. _mju_norm:
 
@@ -3586,7 +3587,7 @@ Multiply transposed matrix and vector: res = mat' * vec.
 
 .. mujoco-include:: mju_mulVecMatVec
 
-Multiply square matrix with vectors on both sides: returns vec1' * mat * vec2.
+Multiply square matrix with vectors on both sides: return vec1' * mat * vec2.
 
 .. _mju_transpose:
 
@@ -3675,7 +3676,7 @@ Sparse math
 .. mujoco-include:: mju_dense2sparse
 
 Convert matrix from dense to sparse.
- nnz is size of res and colind, return 1 if too small, 0 otherwise.
+ nnz is size of res and colind; return 1 if too small, 0 otherwise.
 
 .. _mju_sparse2dense:
 
@@ -3808,7 +3809,7 @@ Construct quaternion performing rotation from z-axis to given vector.
 
 Extract 3D rotation from an arbitrary 3x3 matrix by refining the input quaternion.
 
-Returns the number of iterations required to converge
+Return the number of iterations required to converge.
 
 .. _mju_euler2Quat:
 
@@ -4050,7 +4051,7 @@ Attachment
 
 .. mujoco-include:: mjs_attach
 
-Attach child to a parent, return the attached element if success or NULL otherwise.
+Attach child to a parent; return the attached element if success or NULL otherwise.
 
 .. _AddTreeElements:
 
@@ -4063,7 +4064,7 @@ Tree elements
 
 .. mujoco-include:: mjs_addBody
 
-Add child body to body, return child.
+Add child body to body; return child.
 
 *Nullable:* ``def``
 
@@ -4074,7 +4075,7 @@ Add child body to body, return child.
 
 .. mujoco-include:: mjs_addSite
 
-Add site to body, return site spec.
+Add site to body; return site spec.
 
 *Nullable:* ``def``
 
@@ -4147,7 +4148,7 @@ Add frame to body.
 
 .. mujoco-include:: mjs_delete
 
-Remove object corresponding to the given element, return 0 on success.
+Remove object corresponding to the given element; return 0 on success.
 
 .. _AddNonTreeElements:
 
@@ -4575,7 +4576,7 @@ Attribute setters
 
 .. mujoco-include:: mjs_setName
 
-Set element's name, return 0 on success.
+Set element's name; return 0 on success.
 
 .. _mjs_setBuffer:
 
@@ -4756,7 +4757,7 @@ Set element's default.
 
 .. mujoco-include:: mjs_setFrame
 
-Set element's enclosing frame, return 0 on success.
+Set element's enclosing frame; return 0 on success.
 
 .. _mjs_resolveOrientation:
 
@@ -4765,7 +4766,7 @@ Set element's enclosing frame, return 0 on success.
 
 .. mujoco-include:: mjs_resolveOrientation
 
-Resolve alternative orientations to quat, return error if any.
+Resolve alternative orientations to quat; return error if any.
 
 .. _mjs_bodyToFrame:
 
