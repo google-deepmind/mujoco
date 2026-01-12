@@ -1574,6 +1574,144 @@ callbacks. This can be used to incorporate a general-purpose "triangle soup" col
 do not recommend such an approach. Pre-processing the geometry and representing it as a union of convex geoms takes some
 work, but it pays off at runtime and yields both faster and more stable simulation.
 
+.. _coPairwise:
+
+Pair-wise colliders
+^^^^^^^^^^^^^^^^^^^
+
+The table below provides information about the colliders used for different geom pairs. The second row in each cell
+lists the maximum number of contacts generated, possibly with ``multiccd`` enabled. For example, ``Mesh`` / ``Mesh``
+will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
+
+.. list-table::
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: auto
+   :class: table-pairwise
+
+   * -
+     - Sphere
+     - Capsule
+     - Ellipsoid
+     - Cylinder
+     - Box
+     - Mesh
+     - SDF
+   * - Plane
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **4**
+     - | primitive
+       | **3**
+     - | primitive
+       | **1**
+   * - HField
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Sphere
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Capsule
+     -
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**, **4**
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**, **4**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Ellipsoid
+     -
+     -
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Cylinder
+     -
+     -
+     -
+     - | CCD
+       | **1**, **4**
+     - | CCD
+       | **1**, **4**
+     - | CCD
+       | **1**, **4**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Box
+     -
+     -
+     -
+     -
+     - | primitive
+       | **8**
+     - | CCD
+       | **1**, **4**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Mesh
+     -
+     -
+     -
+     -
+     -
+     - | CCD
+       | **1**, **4**
+     - | MeshSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - SDF
+     -
+     -
+     -
+     -
+     -
+     -
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+
 .. _Sleeping:
 
 Sleeping islands
