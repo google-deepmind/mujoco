@@ -376,8 +376,18 @@ static void set0(mjModel* m, mjData* d) {
       }
 
       // average diagonal and assign
-      m->body_invweight0[2*i] = (A[0] + A[7] + A[14])/3;
-      m->body_invweight0[2*i+1] = (A[21] + A[28] + A[35])/3;
+      mjtNum tran = (A[0] + A[7] + A[14])/3;
+      mjtNum rot = (A[21] + A[28] + A[35])/3;
+
+      // if one is zero, use the other to prevent degenerate constraints
+      if (tran < mjMINVAL && rot > mjMINVAL) {
+        tran = rot;  // use rotation as fallback for translation
+      } else if (rot < mjMINVAL && tran > mjMINVAL) {
+        rot = tran;  // use translation as fallback for rotation
+      }
+
+      m->body_invweight0[2*i] = tran;
+      m->body_invweight0[2*i+1] = rot;
     }
   }
 
