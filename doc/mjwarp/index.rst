@@ -579,6 +579,23 @@ and MJX.
 
 This feature is likely to change in the future.
 
+**How to fix simulation runtime warnings?**
+
+Warnings are provided when memory requirements exceed existing allocations during simulation:
+
+- `nconmax`_ / `njmax`_: The maximum number of contacts / constraints has been exceeded. Increase the value of the
+  setting by updating the relevant argument to :func:`mjw.make_data <mujoco_warp.make_data>` or
+  :func:`mjw.put_data <mujoco_warp.put_data>`.
+- ``mjw.Option.ccd_iterations``: The convex collision detection algorithm has exceeded the maximum number of iterations.
+  Increase the value of this setting in the XML / :ref:`mjSpec` / :ref:`mjModel`. Importantly, this change must be made
+  to the :ref:`mjModel` instance that is provided to :func:`mjw.put_model <mujoco_warp.put_model>` and
+  :func:`mjw.make_data <mujoco_warp.make_data>` / :func:`mjw.put_data <mujoco_warp.put_data>`.
+
+- ``mjw.Option.contact_sensor_maxmatch``: The maximum number of contact matches for a
+  :ref:`contact sensor<sensor-contact>`'s matching criteria has been exceeded. Increase the value of this MJWarp-only
+  setting `m.opt.contact_sensor_maxmatch`. Alternatively, refactor the contact sensor matching criteria, for example if
+  the 2 geoms of interest are known, specify ``geom1`` and ``geom2``.
+
 Compilation
 -----------
 
