@@ -371,7 +371,7 @@ class DataIOTest(parameterized.TestCase):
       self.tempdir = tempfile.TemporaryDirectory()
       wp.config.kernel_cache_dir = self.tempdir.name
 
-  @parameterized.parameters('jax', 'c')
+  @parameterized.parameters('jax', 'c', 'cpp')
   def test_make_data(self, impl: str):
     """Test that make_data returns the correct shapes."""
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONVEX_OBJECTS)
@@ -384,7 +384,7 @@ class DataIOTest(parameterized.TestCase):
     nv = 19
     nefc = 185
 
-    self.assertEqual(d._impl.nefc, nefc)
+    # Check public Data fields that exist for all impls
     self.assertEqual(d.qpos.shape, (nq,))
     self.assertEqual(d.qvel.shape, (nv,))
     self.assertEqual(d.act.shape, (0,))
@@ -406,17 +406,20 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d.geom_xmat.shape, (6, 3, 3))
     self.assertEqual(d.subtree_com.shape, (nbody, 3))
     self.assertEqual(d.cdof.shape, (nv, 6))
+    self.assertEqual(d.actuator_length.shape, (1,))
+
+    if impl == 'cpp':
+      self.assertTrue(hasattr(d._impl, 'pointer_lo'))
+      self.assertTrue(hasattr(d._impl, 'pointer_hi'))
+      return  # cpp does not populate other _impl fields
+
+    self.assertEqual(d._impl.nefc, nefc)
     self.assertEqual(d._impl.cinert.shape, (nbody, 10))
     self.assertEqual(d._impl.crb.shape, (nbody, 10))
-    self.assertEqual(d.actuator_length.shape, (1,))
     if impl == 'jax':
       self.assertEqual(d._impl.actuator_moment.shape, (1, nv))
     elif impl == 'c':
       self.assertEqual(d._impl.actuator_moment.shape, (m.nJmom,))
-    elif impl == 'cpp':
-      self.assertTrue(hasattr(d._impl, 'pointer_lo'))
-      self.assertTrue(hasattr(d._impl, 'pointer_hi'))
-      return  # cpp does not populate other fields in _impl
     self.assertEqual(d._impl.contact.dist.shape, (ncon,))
     self.assertEqual(d._impl.contact.pos.shape, (ncon, 3))
     self.assertEqual(d._impl.contact.frame.shape, (ncon, 3, 3))
@@ -472,7 +475,7 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(d._impl.contact__dist.shape[0], 9)
     self.assertEqual(d._impl.efc__pos.shape[0], 23)
 
-  @parameterized.parameters('jax', 'c')
+  @parameterized.parameters('jax', 'c', 'cpp')
   def test_put_data(self, impl: str):
     """Test that put_data puts the correct data for dense and sparse."""
     m = mujoco.MjModel.from_xml_string(_MULTIPLE_CONSTRAINTS)
@@ -699,7 +702,7 @@ class DataIOTest(parameterized.TestCase):
     self.assertEqual(ds[0].ncon, 1)
     self.assertEqual(ds[1].ncon, 0)
 
-  @parameterized.parameters('jax', 'c')
+  @parameterized.parameters('jax', 'c', 'cpp')
   def test_get_data_into(self, impl):
     """Test that get_data_into correctly populates an MjData."""
 
@@ -809,7 +812,7 @@ class DataIOTest(parameterized.TestCase):
 
     _ = jax.tree.map_with_path(check_ndim, dx)
 
-  @parameterized.parameters('jax', 'warp')
+  @parameterized.parameters('jax', 'warp', 'cpp')
   def test_data_slice(self, impl):
     """Tests that slice on Data works as expected."""
     if impl == 'warp' and not mjxw.WARP_INSTALLED:

@@ -912,6 +912,44 @@ def _make_data_warp(
   return data
 
 
+def _make_data_cpp(
+    m: Union[types.Model, mujoco.MjModel],
+    device: Optional[jax.Device] = None,
+) -> types.Data:
+  """Allocate and initialize Data for the CPP implementation."""
+  if isinstance(m, mujoco.MjModel):
+    mj_model = m
+  else:
+    # Get the underlying MjModel from the types.Model
+    m_impl = m._impl  # pylint: disable=protected-access
+    if not isinstance(m_impl, types.ModelCPP):
+      raise ValueError(f'Expected ModelCPP impl, got {type(m_impl)}')
+    mj_model = m_impl._model  # pylint: disable=protected-access
+
+  # Create the raw MuJoCo data
+  mj_data = mujoco.MjData(mj_model)
+
+  # Get the pointer address
+  addr = mj_data._address  # pytype: disable=attribute-error
+  pointer_lo = jp.array(addr & 0xFFFFFFFF, dtype=jp.uint32)
+  pointer_hi = jp.array(addr >> 32, dtype=jp.uint32)
+
+  fields = _put_data_public_fields(mj_data)
+
+  c_pointers_impl = types.DataCPP(
+      pointer_lo=pointer_lo,
+      pointer_hi=pointer_hi,
+      _data=[mj_data],
+  )
+
+  data = types.Data(
+      _impl=c_pointers_impl,
+      **fields,
+  )
+  data = jax.device_put(data, device=device)
+  return _strip_weak_type(data)
+
+
 def make_data(
     m: Union[types.Model, mujoco.MjModel],
     device: Optional[jax.Device] = None,
@@ -965,6 +1003,8 @@ def make_data(
     return _make_data_jax(m, device)
   elif impl == types.Impl.C:
     return _make_data_c(m, device)
+  elif impl == types.Impl.CPP:
+    return _make_data_cpp(m, device)
   elif impl == types.Impl.WARP:
     naconmax = nconmax if naconmax is None else naconmax
     return _make_data_warp(m, device, naconmax, njmax)
@@ -1265,12 +1305,8 @@ def _put_data_cpp(
   def _copy_and_get_addr(unused_jax_array):
     # We use the input to the callback as a dummy dependency to ensure
     # io_callback runs for each element in the batch.
-    try:
-      new_d = mujoco.MjData(m)
-    except mujoco.FatalError as e:
-      raise ValueError('Failed to create new MjData') from e
-    mujoco.mj_copyState(m, d, new_d, int(mujoco.mjtState.mjSTATE_FULLPHYSICS))
-    mujoco.mj_forward(m, new_d)
+    new_d = mujoco.MjData(m)
+    mujoco.mj_copyData(new_d, m, d)
     data_list.append(new_d)
     addr = new_d._address
     # To ensure that we retain the full pointer even if jax.config.enable_x64 is
@@ -1586,6 +1622,58 @@ def _get_data_into(
     mujoco.mj_factorM(m, result_i)
 
 
+def _get_data_into_cpp(
+    result: Union[mujoco.MjData, List[mujoco.MjData]],
+    m: mujoco.MjModel,
+    d: types.Data,
+):
+  """Gets mjx.Data from CPP impl into an existing mujoco.MjData or list.
+
+  For the CPP implementation, the mjx.Data wraps underlying mujoco.MjData
+  objects that are stored in DataCPP._data. This function simply copies the
+  data from those underlying MjData objects to the result using mj_copyData.
+  """
+
+  batched = isinstance(result, list)
+  d = jax.device_get(d)
+  batch_size = d.qpos.shape[0] if batched else 1
+
+  d_impl = d._impl  # pylint: disable=protected-access
+  if not isinstance(d_impl, types.DataCPP):
+    raise ValueError(f'Expected DataCPP impl, got {type(d_impl)}')
+
+  mj_data_list = d_impl._data  # pylint: disable=protected-access
+
+  if batch_size > len(mj_data_list):
+    raise ValueError(
+        f'Batch size {batch_size} exceeds number of underlying MjData objects '
+        f'({len(mj_data_list)}). Cannot copy data.'
+    )
+
+  # Verify that the underlying MjData state matches the mjx.Data state
+  # Ideally we'd use mj_getState and get_state here but that requires an
+  # mjx.Model which we don't have access to in this function.
+  fields_to_check = ['qpos', 'qvel', 'act', 'mocap_pos', 'mocap_quat']
+  for i in range(batch_size):
+    d_i = jax.tree_util.tree_map(lambda x, i=i: x[i], d) if batched else d
+    src_data = mj_data_list[i]
+
+    for field in fields_to_check:
+      mj_value = getattr(src_data, field)
+      mjx_value = np.asarray(getattr(d_i, field))
+      if not np.allclose(mj_value, mjx_value):
+        raise ValueError(
+            f'State mismatch at batch index {i}, field {field}: underlying '
+            'MjData does not match mjx.Data. The mjx.Data may have been '
+            'modified without updating the underlying MjData.'
+        )
+
+  for i in range(batch_size):
+    result_i = result[i] if batched else result
+    src_data = mj_data_list[i]
+    mujoco.mj_copyData(result_i, m, src_data)
+
+
 def get_data_into(
     result: Union[mujoco.MjData, List[mujoco.MjData]],
     m: mujoco.MjModel,
@@ -1603,6 +1691,9 @@ def get_data_into(
   if d.impl in (types.Impl.JAX, types.Impl.C):
     # TODO(stunya): Split out _get_data_into once codepaths diverge enough.
     return _get_data_into(result, m, d)
+
+  if d.impl == types.Impl.CPP:
+    return _get_data_into_cpp(result, m, d)
 
   if d.impl == types.Impl.WARP:
     return _get_data_into_warp(result, m, d)
