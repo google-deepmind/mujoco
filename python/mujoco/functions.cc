@@ -159,7 +159,11 @@ PYBIND11_MODULE(_functions, pymodule) {
   // Skipped: mj_deleteModel (have MjModel.__del__)
   Def<traits::mj_sizeModel>(pymodule);
   // Skipped: mj_makeData (have MjData.__init__)
-  // Skipped: mj_copyData (have MjData.__copy__, memory managed by MjData)
+  DEF_WITH_OMITTED_PY_ARGS(traits::mj_copyData)(
+      pymodule,
+      [](raw::MjData* dest, const raw::MjModel* m, const raw::MjData* src) {
+        InterceptMjErrors(::mj_copyData)(dest, m, src);
+      });
   Def<traits::mj_resetData>(pymodule);
   Def<traits::mj_resetDataDebug>(pymodule);
   Def<traits::mj_resetDataKeyframe>(pymodule);

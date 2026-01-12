@@ -495,6 +495,15 @@ class MuJoCoBindingsTest(parameterized.TestCase):
     mujoco.mj_forward(self.model, data_copy)
     self.assertEqual(data_copy.ncon, 4)
 
+    # Test copying into existing data.
+    data_copy.qpos[1] = 1.234
+    data_copy.geom_xpos[2] = 5.678
+    self.assertFalse(np.array_equal(self.data.qpos, data_copy.qpos))
+    self.assertFalse(np.array_equal(self.data.geom_xpos, data_copy.geom_xpos))
+    mujoco.mj_copyData(self.data, self.model, data_copy)
+    np.testing.assert_array_equal(self.data.qpos, data_copy.qpos)
+    np.testing.assert_array_equal(self.data.geom_xpos, data_copy.geom_xpos)
+
   def test_mjdata_can_read_warning_array(self):
     warnings = self.data.warning
     self.assertLen(warnings, mujoco.mjtWarning.mjNWARNING)
