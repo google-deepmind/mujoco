@@ -544,7 +544,7 @@ from its default.
 
 .. _option-flag-damper:
 
-:at:`damping`: :at-val:`[disable, enable], "enable"`
+:at:`damper`: :at-val:`[disable, enable], "enable"`
    This flag disables passive joint and tendon dampers. If passive :ref:`spring <option-flag-spring>` forces are also
    disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by the
    :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
