@@ -58,6 +58,7 @@ mujoco = [
     "testdata/*.msh",
     "testdata/*.usda",
     "testdata/*.zip",
+    "testdata/*.urdf",
 ]
 
 [project.optional-dependencies]

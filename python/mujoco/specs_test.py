@@ -479,6 +479,14 @@ class SpecsTest(absltest.TestCase):
     # Check that the state is the same.
     np.testing.assert_array_equal(state1, state2)
 
+  def test_parses_urdf(self):
+    file_path = epath.resource_path("mujoco") / "testdata" / "model.urdf"
+    filename = file_path.as_posix()
+
+    # Load from file.
+    spec1 = mujoco.MjSpec.from_file(filename)
+    self.assertIsNotNone(spec1)
+
   def test_make_mesh(self):
     spec = mujoco.MjSpec()
 

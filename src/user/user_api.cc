@@ -72,7 +72,9 @@ mjSpec* mj_parse(const char* filename, const char* content_type,
 
   // early exit for existing XML workflow
   auto filepath = mujoco::user::FilePath(filename);
-  if (filepath.Ext() == ".xml" || (content_type && std::strcmp(content_type, "text/xml") == 0)) {
+  if (filepath.Ext() == ".xml" ||
+      filepath.Ext() == ".urdf" ||
+      (content_type && std::strcmp(content_type, "text/xml") == 0)) {
     return mj_parseXML(filename, vfs, error, error_sz);
   }
 
