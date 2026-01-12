@@ -94,12 +94,6 @@ void FileClose(mjResource* resource) {
   if (spec) delete spec;
 }
 
-// OS filesystem getdir callback
-void FileGetDir(mjResource* resource, const char** dir, int* ndir) {
-  *dir = resource->name;
-  *ndir = mjuu_dirnamelen(resource->name);
-}
-
 // OS filesystem modified callback
 int FileModified(const mjResource* resource, const char*timestamp) {
   if (mju_isValidBase64(timestamp) != sizeof(time_t)) {
@@ -234,16 +228,22 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
   *dir = nullptr;
   *ndir = 0;
 
-  if (resource == nullptr) {
-    return;
-  }
+  if (resource && resource->name) {
+    // ensure prefix is included even if there is no separator in the
+    // resource name
+    int prefix_len = 0;
+    const mjpResourceProvider* provider = resource->provider;
+    if (provider && provider->prefix) {
+      prefix_len = strlen(provider->prefix) + 1;
+    }
 
-  const mjpResourceProvider* provider = resource->provider;
-  if (provider) {
-    if (provider->getdir) provider->getdir(resource, dir, ndir);
-  } else {
-    // fallback to OS filesystem
-    FileGetDir(resource, dir, ndir);
+    *dir = resource->name;
+    *ndir = prefix_len;
+    for (int i = prefix_len; resource->name[i]; ++i) {
+      if (resource->name[i] == '/' || resource->name[i] == '\\') {
+        *ndir = i + 1;
+      }
+    }
   }
 }
 
@@ -278,4 +278,3 @@ mjSpec* mju_decodeResource(mjResource* resource, const char* content_type, const
 
   return decoder->decode(resource, vfs);
 }
-

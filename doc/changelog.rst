@@ -16,6 +16,9 @@ Upcoming version (not yet released)
      **Migration:** Replace ``orthographic = "false/true"`` with ``projection="perspective/orthographic"``,
      respectively.
 
+   - Removed ``getdir`` from the ``mjpResourceProvider`` struct. All Resource Providers now use the same shared
+     implementation.
+
 General
 ^^^^^^^
 

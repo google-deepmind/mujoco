@@ -178,12 +178,6 @@ int Read(mjResource* resource, const void** buffer) {
 void Close(mjResource* resource) {
 }
 
-// getdir callback for the VFS resource provider
-void GetDir(mjResource* resource, const char** dir, int* ndir) {
-  *dir = (resource) ? resource->name : nullptr;
-  *ndir = (resource) ? mjuu_dirnamelen(resource->name) : 0;
-}
-
 // modified callback for the VFS resource provider
 // return > 0 if modified and 0 if unmodified
 int Modified(const mjResource* resource, const char* timestamp) {
@@ -279,6 +273,6 @@ void mj_deleteVFS(mjVFS* vfs) {
 
 const mjpResourceProvider* GetVfsResourceProvider() {
   static mjpResourceProvider provider
-    = { nullptr, &Open, &Read, &Close, &GetDir, &Modified, nullptr };
+    = { nullptr, &Open, &Read, &Close, &Modified, nullptr };
   return &provider;
 }

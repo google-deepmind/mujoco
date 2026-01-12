@@ -1628,7 +1628,6 @@ struct mjpResourceProvider {
   mjfOpenResource open;             // opening callback
   mjfReadResource read;             // reading callback
   mjfCloseResource close;           // closing callback
-  mjfGetResourceDir getdir;         // get directory callback (optional)
   mjfResourceModified modified;     // resource modified callback (optional)
   void* data;                       // opaque data pointer (resource invariant)
 };

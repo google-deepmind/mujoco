@@ -42,10 +42,6 @@ typedef int (*mjfReadResource)(mjResource* resource, const void** buffer);
 // callback for closing a resource (responsible for freeing any allocated memory)
 typedef void (*mjfCloseResource)(mjResource* resource);
 
-// callback for returning the directory of a resource
-// sets dir to directory string with ndir being size of directory string
-typedef void (*mjfGetResourceDir)(mjResource* resource, const char** dir, int* ndir);
-
 // callback for checking if the current resource was modified from the time
 // specified by the timestamp
 // returns 0 if the resource's timestamp matches the provided timestamp
@@ -59,7 +55,6 @@ struct mjpResourceProvider {
   mjfOpenResource open;             // opening callback
   mjfReadResource read;             // reading callback
   mjfCloseResource close;           // closing callback
-  mjfGetResourceDir getdir;         // get directory callback (optional)
   mjfResourceModified modified;     // resource modified callback (optional)
   void* data;                       // opaque data pointer (resource invariant)
 };

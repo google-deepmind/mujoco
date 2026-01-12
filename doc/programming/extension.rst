@@ -449,7 +449,6 @@ Next we create the resource provider and register it with MuJoCo:
      .open = str_open_callback,
      .read = str_read_callback,
      .close = str_close_callback,
-     .getdir = NULL
    };
 
    // return positive number on success

@@ -313,21 +313,6 @@ MockFilesystem::MockFilesystem(std::string unit_test_name) {
     return (int) fs->GetFile(filename, (const unsigned char**) buffer);
   };
 
-  resourceProvider.getdir = +[](mjResource* resource, const char** dir,
-                                int* ndir) {
-    MockFilesystem *fs = static_cast<MockFilesystem*>(resource->provider->data);
-    *dir = resource->name;
-
-    // find last directory path separator
-    int length = fs->Prefix().size() + 1;
-    for (int i = length; resource->name[i]; ++i) {
-     if (resource->name[i] == '/' || resource->name[i] == '\\') {
-        length = i + 1;
-      }
-    }
-    *ndir = length;
-  };
-
   resourceProvider.close = +[](mjResource* resource) {};
   mjp_registerResourceProvider(&resourceProvider);
 }

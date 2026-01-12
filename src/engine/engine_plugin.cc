@@ -252,7 +252,6 @@ bool GlobalTable<mjpResourceProvider>::ObjectEqual(const mjpResourceProvider& p1
           p1.open == p2.open &&
           p1.read == p2.read &&
           p1.close == p2.close &&
-          p1.getdir == p2.getdir &&
           p1.modified == p2.modified &&
           p1.data == p2.data);
 }
