@@ -627,10 +627,10 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
         // add constraint: sparse or dense
         if (issparse) {
-          mj_addConstraint(m, d, d->flexedge_J+d->flexedge_J_rowadr[e], cpos, 0, 0,
+          mj_addConstraint(m, d, d->flexedge_J+m->flexedge_J_rowadr[e], cpos, 0, 0,
                             1, mjCNSTR_EQUALITY, i,
-                            d->flexedge_J_rownnz[e],
-                            d->flexedge_J_colind+d->flexedge_J_rowadr[e]);
+                            m->flexedge_J_rownnz[e],
+                            m->flexedge_J_colind+m->flexedge_J_rowadr[e]);
         } else {
           mj_addConstraint(m, d, d->flexedge_J+e*nv, cpos, 0, 0,
                             1, mjCNSTR_EQUALITY, i,

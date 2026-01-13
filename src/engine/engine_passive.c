@@ -414,9 +414,9 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
 
       // transform to joint torque, add to qfrc_{spring, damper}: dense or sparse
       if (issparse) {
-        int end = d->flexedge_J_rowadr[e] + d->flexedge_J_rownnz[e];
-        for (int j=d->flexedge_J_rowadr[e]; j < end; j++) {
-          int colind = d->flexedge_J_colind[j];
+        int end = m->flexedge_J_rowadr[e] + m->flexedge_J_rownnz[e];
+        for (int j=m->flexedge_J_rowadr[e]; j < end; j++) {
+          int colind = m->flexedge_J_colind[j];
           mjtNum J = d->flexedge_J[j];
           d->qfrc_spring[colind] += J * frc_spring;
           d->qfrc_damper[colind] += J * frc_damper;

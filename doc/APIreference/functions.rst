@@ -1150,19 +1150,6 @@ after  :ref:`mj_kinematics`, or functions that call it (e.g. :ref:`mj_fwdPositio
 intersect with all geoms types, are :ref:`mj_ray` which casts a single ray, and :ref:`mj_multiRay` which casts multiple
 rays from a single point.
 
-.. _mj_multiRay:
-
-`mj_multiRay <#mj_multiRay>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. mujoco-include:: mj_multiRay
-
-Intersect multiple rays emanating from a single point.
-
-Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
-
-*Nullable:* ``geomgroup``
-
 .. _mj_ray:
 
 `mj_ray <#mj_ray>`__
@@ -1174,12 +1161,29 @@ Intersect ray ``pnt+x*vec, x >= 0`` with geoms.
 
 - Return distance ``x`` to nearest surface, or -1 if no intersection.
 - If ``geomid`` is not NULL, write the id of the intersected geom or -1 if not intersection.
+- If ``normal`` is not NULL, write the surface normal at the intersection point. The normal always points **out of the
+  geometry**, regardless of the ray's direction (i.e., including rays hitting the surface from the inside).
 - Exclude geoms in body with id ``bodyexclude``, use -1 to include all bodies.
 - ``geomgroup`` is an array of length :ref:`mjNGROUP<glNumeric>`, where 1 means the group should be included. Pass
   NULL to skip geom group exclusion.
 - If ``flg_static`` is 0, static geoms will be excluded.
 
-*Nullable:* ``geomgroup``, ``geomid``
+*Nullable:* ``geomgroup``, ``geomid``, ``normal``
+
+.. _mj_multiRay:
+
+`mj_multiRay <#mj_multiRay>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_multiRay
+
+Intersect multiple rays emanating from a single point, compute normals if given.
+
+Similar semantics to mj_ray, but vec, normal and dist are arrays.
+
+Geoms further than cutoff are ignored.
+
+*Nullable:* ``geomgroup``, ``geomid``, ``normal``
 
 .. _mj_rayHfield:
 
@@ -1190,6 +1194,8 @@ Intersect ray ``pnt+x*vec, x >= 0`` with geoms.
 
 Intersect ray with hfield; return nearest distance or -1 if no intersection.
 
+*Nullable:* ``normal``
+
 .. _mj_rayMesh:
 
 `mj_rayMesh <#mj_rayMesh>`__
@@ -1198,6 +1204,8 @@ Intersect ray with hfield; return nearest distance or -1 if no intersection.
 .. mujoco-include:: mj_rayMesh
 
 Intersect ray with mesh; return nearest distance or -1 if no intersection.
+
+*Nullable:* ``normal``
 
 .. _mju_rayGeom:
 
@@ -1208,17 +1216,19 @@ Intersect ray with mesh; return nearest distance or -1 if no intersection.
 
 Intersect ray with pure geom; return nearest distance or -1 if no intersection.
 
-.. _mju_rayFlex:
+*Nullable:* ``normal``
 
-`mju_rayFlex <#mju_rayFlex>`__
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _mj_rayFlex:
 
-.. mujoco-include:: mju_rayFlex
+`mj_rayFlex <#mj_rayFlex>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_rayFlex
 
 Intersect ray with flex; return nearest distance or -1 if no intersection,
-and also output nearest vertex id.
+and also output nearest vertex id and surface normal.
 
-*Nullable:* ``vertid``
+*Nullable:* ``vertid``, ``normal``
 
 .. _mju_raySkin:
 

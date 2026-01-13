@@ -2972,6 +2972,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flexedge_J_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in Jacobian row',
+                 array_extent=('nflexedge',),
+             ),
+             StructFieldDecl(
+                 name='flexedge_J_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in colind array',
+                 array_extent=('nflexedge',),
+             ),
+             StructFieldDecl(
+                 name='flexedge_J_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in sparse Jacobian',
+                 array_extent=('nflexedge', 'nv'),
+             ),
+             StructFieldDecl(
                  name='flex_rgba',
                  type=PointerType(
                      inner_type=ValueType(name='float'),
@@ -5563,30 +5587,6 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='flex element bounding boxes (center, size)',
                  array_extent=('nflexelem', 6),
-             ),
-             StructFieldDecl(
-                 name='flexedge_J_rownnz',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='number of non-zeros in Jacobian row',
-                 array_extent=('nflexedge',),
-             ),
-             StructFieldDecl(
-                 name='flexedge_J_rowadr',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='row start address in colind array',
-                 array_extent=('nflexedge',),
-             ),
-             StructFieldDecl(
-                 name='flexedge_J_colind',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-                 doc='column indices in sparse Jacobian',
-                 array_extent=('nflexedge', 'nv'),
              ),
              StructFieldDecl(
                  name='flexedge_J',

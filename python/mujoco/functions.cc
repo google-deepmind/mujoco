@@ -30,6 +30,7 @@
 #include "private.h"
 #include "raw.h"
 #include "structs.h"
+#include "util/func_wrap.h"
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -677,33 +678,106 @@ PYBIND11_MODULE(_functions, pymodule) {
          std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
              geomgroup,
          mjtByte flg_static, int bodyexclude, Eigen::Ref<EigenVectorI> geomid,
-         Eigen::Ref<EigenVectorX> dist, int nray, mjtNum cutoff) {
+         Eigen::Ref<EigenVectorX> dist,
+         std::optional<Eigen::Ref<EigenVectorX>> normal,
+         int nray, mjtNum cutoff) {
         if (dist.size() != nray || geomid.size() != nray) {
           throw py::type_error("dist and geomid should be of size nray");
         }
         if (vec.size() != 3 * nray) {
           throw py::type_error("vec should be of size 3*nray");
         }
+        if (normal.has_value() && normal->size() != 3 * nray) {
+          throw py::type_error("normal should be of size 3*nray");
+        }
         InterceptMjErrors(::mj_multiRay)(
             m, d, &(*pnt)[0], vec.data(),
             geomgroup.has_value() ? geomgroup->data() : nullptr, flg_static,
-            bodyexclude, geomid.data(), dist.data(), nray, cutoff);
+            bodyexclude, geomid.data(), dist.data(),
+            normal.has_value() ? normal->data() : nullptr, nray, cutoff);
       });
-  Def<traits::mj_ray>(
-      pymodule,
-      [](const raw::MjModel* m, const raw::MjData* d, const mjtNum(*pnt)[3],
-         const mjtNum(*vec)[3],
-         std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
-             geomgroup,
-         mjtByte flg_static, int bodyexclude, int(*geomid)[1]) {
-        return mj_ray(m, d, &(*pnt)[0], &(*vec)[0],
-                      geomgroup.has_value() ? geomgroup->data() : nullptr,
-                      flg_static, bodyexclude, &(*geomid)[0]);
-      });
-  Def<traits::mj_rayHfield>(pymodule);
-  Def<traits::mj_rayMesh>(pymodule);
-  Def<traits::mju_rayGeom>(pymodule);
-  Def<traits::mju_rayFlex>(pymodule);
+  pymodule.def(
+      "mj_ray",
+      util::UnwrapArgs(
+          [](const raw::MjModel* m, const raw::MjData* d, const mjtNum(*pnt)[3],
+             const mjtNum(*vec)[3],
+             std::optional<Eigen::Ref<const Eigen::Vector<mjtByte, mjNGROUP>>>
+                 geomgroup,
+             mjtByte flg_static, int bodyexclude,
+             std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> geomid,
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mj_ray(m, d, &(*pnt)[0], &(*vec)[0],
+                          geomgroup.has_value() ? geomgroup->data() : nullptr,
+                          flg_static, bodyexclude,
+                          geomid.has_value() ? geomid->data() : nullptr,
+                          normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("m"), py::arg("d"), py::arg("pnt"), py::arg("vec"),
+      py::arg("geomgroup"), py::arg("flg_static"), py::arg("bodyexclude"),
+      py::arg("geomid"), py::arg("normal") = std::nullopt,
+      py::doc(traits::mj_ray::doc),
+      py::call_guard<py::gil_scoped_release>());
+  pymodule.def(
+      "mj_rayHfield",
+      util::UnwrapArgs(
+          [](const raw::MjModel* m, const raw::MjData* d, int geomid,
+             const mjtNum(*pnt)[3], const mjtNum(*vec)[3],
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mj_rayHfield(m, d, geomid, &(*pnt)[0], &(*vec)[0],
+                                normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("m"), py::arg("d"), py::arg("geomid"), py::arg("pnt"),
+      py::arg("vec"), py::arg("normal") = std::nullopt,
+      py::doc(traits::mj_rayHfield::doc),
+      py::call_guard<py::gil_scoped_release>());
+  pymodule.def(
+      "mj_rayMesh",
+      util::UnwrapArgs(
+          [](const raw::MjModel* m, const raw::MjData* d, int geomid,
+             const mjtNum(*pnt)[3], const mjtNum(*vec)[3],
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mj_rayMesh(m, d, geomid, &(*pnt)[0], &(*vec)[0],
+                              normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("m"), py::arg("d"), py::arg("geomid"), py::arg("pnt"),
+      py::arg("vec"), py::arg("normal") = std::nullopt,
+      py::doc(traits::mj_rayMesh::doc),
+      py::call_guard<py::gil_scoped_release>());
+  pymodule.def(
+      "mju_rayGeom",
+      util::UnwrapArgs(
+          [](const mjtNum(*pos)[3], const mjtNum(*mat)[9],
+             const mjtNum(*size)[3], const mjtNum(*pnt)[3],
+             const mjtNum(*vec)[3], int geomtype,
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mju_rayGeom(&(*pos)[0], &(*mat)[0], &(*size)[0], &(*pnt)[0],
+                               &(*vec)[0], geomtype,
+                               normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("pos"), py::arg("mat"), py::arg("size"), py::arg("pnt"),
+      py::arg("vec"), py::arg("geomtype"), py::arg("normal") = std::nullopt,
+      py::doc(traits::mju_rayGeom::doc),
+      py::call_guard<py::gil_scoped_release>());
+  pymodule.def(
+      "mj_rayFlex",
+      util::UnwrapArgs(
+          [](const raw::MjModel* m, const raw::MjData* d, int flex_layer,
+             mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
+             mjtByte flg_skin, int flexid, const mjtNum(*pnt)[3],
+             const mjtNum(*vec)[3],
+             std::optional<Eigen::Ref<Eigen::Vector<int, 1>>> vertid,
+             std::optional<Eigen::Ref<Eigen::Vector<mjtNum, 3>>> normal) {
+            return mj_rayFlex(m, d, flex_layer, flg_vert, flg_edge, flg_face,
+                              flg_skin, flexid, &(*pnt)[0], &(*vec)[0],
+                              vertid.has_value() ? vertid->data() : nullptr,
+                              normal.has_value() ? normal->data() : nullptr);
+          }),
+      py::arg("m"), py::arg("d"), py::arg("flex_layer"), py::arg("flg_vert"),
+      py::arg("flg_edge"), py::arg("flg_face"), py::arg("flg_skin"),
+      py::arg("flexid"), py::arg("pnt"), py::arg("vec"),
+      py::arg("vertid") = std::nullopt, py::arg("normal") = std::nullopt,
+      py::doc(traits::mj_rayFlex::doc),
+      py::call_guard<py::gil_scoped_release>());
   Def<traits::mju_raySkin>(pymodule);
 
   // Interaction

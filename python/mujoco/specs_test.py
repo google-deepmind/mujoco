@@ -1002,22 +1002,43 @@ class SpecsTest(absltest.TestCase):
     material.textures[texture_index] = 'texture_name'
     self.assertEqual(material.textures[texture_index], 'texture_name')
 
-    # Assign a complete list
-    material.textures = ['', 'new_name', '', '', '']
+    # Assign a complete list (must be mjNTEXROLE = 10 elements)
+    material.textures = ['', 'new_name', '', '', '', '', '', '', '', '']
     self.assertEqual(material.textures[texture_index], 'new_name')
 
     # textures is iterable
     self.assertEqual('new_name', ''.join(material.textures))
 
-    # supports `len`
-    self.assertLen(material.textures, 5)
+    # supports `len` - should always be mjNTEXROLE (10)
+    self.assertLen(material.textures, mujoco.mjtTextureRole.mjNTEXROLE)
 
     # field checks for out-of-bound access on read and on write
     with self.assertRaises(IndexError):
-      material.textures[5] = 'x'
+      material.textures[10] = 'x'
 
     with self.assertRaises(IndexError):
       material.textures[-1] = 'x'
+
+  def test_textures(self):
+    """Tests that partial texture list assignment raises ValueError."""
+
+    spec = mujoco.MjSpec()
+    material = spec.add_material(name='mat')
+    texture = spec.add_texture(
+        name='tex', builtin=mujoco.mjtBuiltin.mjBUILTIN_FLAT, width=2, height=2
+    )
+
+    # Should raise ValueError for incorrect size (only 1 element instead of 10)
+    with self.assertRaises(ValueError) as cm:
+      material.textures = ['tex']
+    self.assertIn('must have exactly 10 elements', str(cm.exception))
+    self.assertIn('got 1', str(cm.exception))
+
+    # Should succeed with correct size (mjNTEXROLE = 10)
+    material.textures = ['tex', '', '', '', '', '', '', '', '', '']
+    spec.worldbody.add_geom(size=[0.1, 0.1, 0.1], material='mat')
+    model = spec.compile()
+    self.assertIsNotNone(model)
 
   def test_assign_texture(self):
     spec = mujoco.MjSpec()

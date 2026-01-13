@@ -31,9 +31,9 @@
 #include <vector>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include <mujoco/mjspec.h>
 #include "engine/engine_util_errmem.h"
 #include "wasm/unpack.h"
 
@@ -4441,6 +4441,15 @@ struct MjModel {
   emscripten::val flex_bvhnum() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_bvhnum));
   }
+  emscripten::val flexedge_J_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge, ptr_->flexedge_J_rownnz));
+  }
+  emscripten::val flexedge_J_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge, ptr_->flexedge_J_rowadr));
+  }
+  emscripten::val flexedge_J_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * ptr_->nv, ptr_->flexedge_J_colind));
+  }
   emscripten::val flex_rgba() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 4, ptr_->flex_rgba));
   }
@@ -6152,15 +6161,6 @@ struct MjData {
   emscripten::val flexelem_aabb() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexelem * 6, ptr_->flexelem_aabb));
   }
-  emscripten::val flexedge_J_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_J_rownnz));
-  }
-  emscripten::val flexedge_J_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_J_rowadr));
-  }
-  emscripten::val flexedge_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge * model->nv, ptr_->flexedge_J_colind));
-  }
   emscripten::val flexedge_J() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexedge * model->nv, ptr_->flexedge_J));
   }
@@ -7638,6 +7638,27 @@ struct MjvScene {
   std::vector<MjvGLCamera> camera;
 };
 
+struct MjVFS {
+  MjVFS() : ptr_(new mjVFS) { mj_defaultVFS(ptr_); }
+  ~MjVFS() {
+    mj_deleteVFS(ptr_);
+  }
+  void AddBuffer(const std::string& name, const emscripten::val& buffer) {
+    std::vector<uint8_t> vec = emscripten::vecFromJSArray<uint8_t>(buffer);
+    int result = mj_addBufferVFS(ptr_, name.c_str(), vec.data(), vec.size());
+    if (result != 0) {
+      mju_error("Could not add buffer to VFS: %d", result);
+    }
+  }
+  void DeleteFile(const std::string& filename) {
+    mj_deleteFileVFS(ptr_, filename.c_str());
+  }
+  mjVFS* get() const { return ptr_; }
+
+ private:
+  mjVFS* ptr_;
+};
+
 MjModel::MjModel(mjModel* ptr)
     : ptr_(ptr), opt(&ptr->opt), vis(&ptr->vis), stat(&ptr->stat) {}
 
@@ -7833,9 +7854,19 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
 }
 
-std::unique_ptr<MjModel> mj_compile_wrapper(const MjSpec& spec) {
+std::unique_ptr<MjModel> mj_compile_wrapper_1(const MjSpec& spec) {
   mjSpec* spec_ptr = spec.get();
   mjModel* model = mj_compile(spec_ptr, nullptr);
+  if (!model || mjs_isWarning(spec_ptr)) {
+    mju_error("%s", mjs_getError(spec_ptr));
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> mj_compile_wrapper_2(const MjSpec& spec, const MjVFS& vfs) {
+  mjSpec* spec_ptr = spec.get();
+  mjVFS* vfs_ptr = vfs.get();
+  mjModel* model = mj_compile(spec_ptr, vfs_ptr);
   if (!model || mjs_isWarning(spec_ptr)) {
     mju_error("%s", mjs_getError(spec_ptr));
   }
@@ -8242,16 +8273,17 @@ void mj_mulM2_wrapper(const MjModel& m, const MjData& d, const val& res, const N
   mj_mulM2(m.get(), d.get(), res_.data(), vec_.data());
 }
 
-void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& dist, int nray, mjtNum cutoff) {
+void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& dist, const val& normal, int nray, mjtNum cutoff) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
-  UNPACK_VALUE(int, geomid);
+  UNPACK_NULLABLE_VALUE(int, geomid);
   UNPACK_VALUE(mjtNum, dist);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
   CHECK_SIZE(dist, nray);
   CHECK_SIZE(geomid, nray);
   CHECK_SIZE(vec, 3 * nray);
-  mj_multiRay(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), dist_.data(), nray, cutoff);
+  mj_multiRay(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), dist_.data(), normal_.data(), nray, cutoff);
 }
 
 int mj_name2id_wrapper(const MjModel& m, int type, const String& name) {
@@ -8316,24 +8348,35 @@ void mj_projectConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_projectConstraint(m.get(), d.get());
 }
 
-mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid) {
+mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
   UNPACK_NULLABLE_VALUE(int, geomid);
-  return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data());
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), normal_.data());
 }
 
-mjtNum mj_rayHfield_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec) {
+mjtNum mj_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  return mj_rayHfield(m.get(), d.get(), geomid, pnt_.data(), vec_.data());
+  UNPACK_NULLABLE_VALUE(int, vertid);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_rayFlex(m.get(), d.get(), flex_layer, flg_vert, flg_edge, flg_face, flg_skin, flexid, pnt_.data(), vec_.data(), vertid_.data(), normal_.data());
 }
 
-mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec) {
+mjtNum mj_rayHfield_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data());
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_rayHfield(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
+}
+
+mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec, const val& normal) {
+  UNPACK_ARRAY(mjtNum, pnt);
+  UNPACK_ARRAY(mjtNum, vec);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
 }
 
 void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d) {
@@ -9839,20 +9882,14 @@ void mju_quatZ2Vec_wrapper(const val& quat, const NumberArray& vec) {
   mju_quatZ2Vec(quat_.data(), vec_.data());
 }
 
-mjtNum mju_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid) {
-  UNPACK_ARRAY(mjtNum, pnt);
-  UNPACK_ARRAY(mjtNum, vec);
-  UNPACK_NULLABLE_VALUE(int, vertid);
-  return mju_rayFlex(m.get(), d.get(), flex_layer, flg_vert, flg_edge, flg_face, flg_skin, flexid, pnt_.data(), vec_.data(), vertid_.data());
-}
-
-mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const NumberArray& size, const NumberArray& pnt, const NumberArray& vec, int geomtype) {
+mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const NumberArray& size, const NumberArray& pnt, const NumberArray& vec, int geomtype, const val& normal) {
   UNPACK_ARRAY(mjtNum, pos);
   UNPACK_ARRAY(mjtNum, mat);
   UNPACK_ARRAY(mjtNum, size);
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  return mju_rayGeom(pos_.data(), mat_.data(), size_.data(), pnt_.data(), vec_.data(), geomtype);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mju_rayGeom(pos_.data(), mat_.data(), size_.data(), pnt_.data(), vec_.data(), geomtype, normal_.data());
 }
 
 mjtNum mju_raySkin_wrapper(int nface, int nvert, const NumberArray& face, const NumberArray& vert, const NumberArray& pnt, const NumberArray& vec, const val& vertid) {
@@ -10826,9 +10863,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("energy", &MjData::energy)
     .property("eq_active", &MjData::eq_active)
     .property("flexedge_J", &MjData::flexedge_J)
-    .property("flexedge_J_colind", &MjData::flexedge_J_colind)
-    .property("flexedge_J_rowadr", &MjData::flexedge_J_rowadr)
-    .property("flexedge_J_rownnz", &MjData::flexedge_J_rownnz)
     .property("flexedge_length", &MjData::flexedge_length)
     .property("flexedge_velocity", &MjData::flexedge_velocity)
     .property("flexelem_aabb", &MjData::flexelem_aabb)
@@ -11153,6 +11187,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_vertadr", &MjModel::flex_vertadr)
     .property("flex_vertbodyid", &MjModel::flex_vertbodyid)
     .property("flex_vertnum", &MjModel::flex_vertnum)
+    .property("flexedge_J_colind", &MjModel::flexedge_J_colind)
+    .property("flexedge_J_rowadr", &MjModel::flexedge_J_rowadr)
+    .property("flexedge_J_rownnz", &MjModel::flexedge_J_rownnz)
     .property("flexedge_invweight0", &MjModel::flexedge_invweight0)
     .property("flexedge_length0", &MjModel::flexedge_length0)
     .property("flexedge_rigid", &MjModel::flexedge_rigid)
@@ -12334,6 +12371,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::register_optional<MjsTuple>();
   emscripten::register_optional<MjsWrap>();
 
+  emscripten::class_<MjVFS>("MjVFS")
+      .constructor<>()
+      .function("addBuffer", &MjVFS::AddBuffer)
+      .function("deleteFile", &MjVFS::DeleteFile);
+
   function("mj_Euler", &mj_Euler_wrapper);
   function("mj_RungeKutta", &mj_RungeKutta_wrapper);
   function("mj_addContact", &mj_addContact_wrapper);
@@ -12348,7 +12390,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_comPos", &mj_comPos_wrapper);
   function("mj_comVel", &mj_comVel_wrapper);
   function("mj_compareFwdInv", &mj_compareFwdInv_wrapper);
-  function("mj_compile", &mj_compile_wrapper);
   function("mj_constraintUpdate", &mj_constraintUpdate_wrapper);
   function("mj_contactForce", &mj_contactForce_wrapper);
   function("mj_copyBack", &mj_copyBack_wrapper);
@@ -12418,6 +12459,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_printScene", &mj_printScene_wrapper);
   function("mj_projectConstraint", &mj_projectConstraint_wrapper);
   function("mj_ray", &mj_ray_wrapper);
+  function("mj_rayFlex", &mj_rayFlex_wrapper);
   function("mj_rayHfield", &mj_rayHfield_wrapper);
   function("mj_rayMesh", &mj_rayMesh_wrapper);
   function("mj_referenceConstraint", &mj_referenceConstraint_wrapper);
@@ -12427,13 +12469,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_resetDataKeyframe", &mj_resetDataKeyframe_wrapper);
   function("mj_rne", &mj_rne_wrapper);
   function("mj_rnePostConstraint", &mj_rnePostConstraint_wrapper);
-  function("mj_saveLastXML", &mj_saveLastXML_wrapper);
   function("mj_sensorAcc", &mj_sensorAcc_wrapper);
   function("mj_sensorPos", &mj_sensorPos_wrapper);
   function("mj_sensorVel", &mj_sensorVel_wrapper);
   function("mj_setConst", &mj_setConst_wrapper);
   function("mj_setKeyframe", &mj_setKeyframe_wrapper);
-  function("mj_setLengthRange", &mj_setLengthRange_wrapper);
   function("mj_setState", &mj_setState_wrapper);
   function("mj_setTotalmass", &mj_setTotalmass_wrapper);
   function("mj_sizeModel", &mj_sizeModel_wrapper);
@@ -12651,7 +12691,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_quat2Vel", &mju_quat2Vel_wrapper);
   function("mju_quatIntegrate", &mju_quatIntegrate_wrapper);
   function("mju_quatZ2Vec", &mju_quatZ2Vec_wrapper);
-  function("mju_rayFlex", &mju_rayFlex_wrapper);
   function("mju_rayGeom", &mju_rayGeom_wrapper);
   function("mju_raySkin", &mju_raySkin_wrapper);
   function("mju_rotVecQuat", &mju_rotVecQuat_wrapper);
@@ -12710,9 +12749,14 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjv_updateCamera", &mjv_updateCamera_wrapper);
   function("mjv_updateScene", &mjv_updateScene_wrapper);
   function("mjv_updateSkin", &mjv_updateSkin_wrapper);
-
   function("parseXMLString", &parseXMLString_wrapper, take_ownership());
   function("error", &error_wrapper);
+  function("mj_saveLastXML", &mj_saveLastXML_wrapper);
+  function("mj_setLengthRange", &mj_setLengthRange_wrapper);
+  // mj_compile is bound using two overloads to handle the optional MjVFS argument,
+  // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
+  function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));
+  function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&, const MjVFS&)>(&mj_compile_wrapper_2));
 
   emscripten::class_<WasmBuffer<float>>("FloatBuffer")
       .constructor<int>()

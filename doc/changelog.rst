@@ -8,6 +8,17 @@ Upcoming version (not yet released)
 .. admonition:: Breaking API changes
    :class: attention
 
+   - Ray-cast functions now optionally compute the surface normal at the ray intersection. This is a breaking change due
+     to the addition of the ``mjtNum normal[3]`` argument. The modified functions are :ref:`mj_ray`, :ref:`mj_multiRay`,
+     :ref:`mju_rayGeom`, :ref:`mj_rayFlex`, :ref:`mj_rayHfield` and :ref:`mj_rayMesh`.
+
+     **Migration:** In C/C++, pass ``NULL`` to the ``normal`` argument (last argument for all functions except
+     :ref:`mj_multiRay`). Note that in the Python bindings, if the new ``normal`` argument is last, it defaults to
+     ``None``, so no changes are required.
+
+   - ``mju_rayFlex`` has been renamed to :ref:`mj_rayFlex` for consistency with other functions that take
+     ``mjModel*`` and ``mjData*`` arguments.
+
    - The ``mjModel.cam_orthographic`` field has been renamed to ``cam_projection``, with the semantic of a new enum type
      :ref:`mjtProjection`. This will allow for more projection types in the future like fisheye cameras.
      Relatedly, the ``camera/orthographic`` MJCF attribute for cameras has been renamed to
@@ -65,7 +76,10 @@ Documentation
 
 Bug fixes
 ^^^^^^^^^
-- The ``vertid`` argument of :ref:`mju_rayFlex` and :ref:`mju_raySkin` was marked as nullable but was not; it is now
+- Multi threaded mesh processing, enabled by the :ref:`usethread<compiler-usethread>` compiler flag (on by default), was
+  in fact disabled by the flag. Fixing this bug speeds up compilation of mesh-heavy models by (up to) the number of
+  available cores.
+- The ``vertid`` argument of :ref:`mj_rayFlex` and :ref:`mju_raySkin` was marked as nullable but was not; it is now
   nullable.
 
 Version 3.4.0 (December 5, 2025)

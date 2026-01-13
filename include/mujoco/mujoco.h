@@ -626,39 +626,45 @@ MJAPI const char* mj_versionString(void);
 
 //---------------------------------- Ray casting ---------------------------------------------------
 
-// Intersect multiple rays emanating from a single point.
-// Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
-// Nullable: geomgroup
-MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
-                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-                       int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
-
 // Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude.
-// Return distance (x) to nearest surface, or -1 if no intersection and output geomid.
+// Return distance (x) to nearest surface, or -1 if no intersection.
 // geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.
-// Nullable: geomgroup, geomid
+// Nullable: geomgroup, geomid, normal
 MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-                    int geomid[1]);
+                    int geomid[1], mjtNum normal[3]);
+
+// Intersect multiple rays emanating from a single point, compute normals if given.
+// Similar semantics to mj_ray, but vec, normal and dist are arrays.
+// Geoms further than cutoff are ignored.
+// Nullable: geomgroup, geomid, normal
+MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
+                       const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
+                       int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff);
 
 // Intersect ray with hfield; return nearest distance or -1 if no intersection.
+// Nullable: normal
 MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
-                          const mjtNum pnt[3], const mjtNum vec[3]);
+                          const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
 
 // Intersect ray with mesh; return nearest distance or -1 if no intersection.
+// Nullable: normal
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
-                        const mjtNum pnt[3], const mjtNum vec[3]);
+                        const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
 
 // Intersect ray with pure geom; return nearest distance or -1 if no intersection.
+// Nullable: normal
 MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
-                         const mjtNum pnt[3], const mjtNum vec[3], int geomtype);
+                         const mjtNum pnt[3], const mjtNum vec[3], int geomtype,
+                         mjtNum normal[3]);
 
 // Intersect ray with flex; return nearest distance or -1 if no intersection,
-// and also output nearest vertex id.
-// Nullable: vertid
-MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
-                         mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
-                         const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
+// and also output nearest vertex id and surface normal.
+// Nullable: vertid, normal
+MJAPI mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
+                        mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
+                        mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                        const mjtNum vec[3], int vertid[1], mjtNum normal[3]);
 
 // Intersect ray with skin; return nearest distance or -1 if no intersection,
 // and also output nearest vertex id.

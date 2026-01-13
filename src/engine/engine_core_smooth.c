@@ -536,7 +536,7 @@ void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
 // compute flex-related quantities
 void mj_flex(const mjModel* m, mjData* d) {
   int nv = m->nv, issparse = mj_isSparse(m);
-  int* rowadr = d->flexedge_J_rowadr, *rownnz = d->flexedge_J_rownnz;
+  int* rowadr = m->flexedge_J_rowadr, *rownnz = m->flexedge_J_rownnz;
   mjtNum* J = d->flexedge_J;
 
   // skip if no flexes
@@ -720,7 +720,7 @@ void mj_flex(const mjModel* m, mjData* d) {
 
         // copy sparsity info
         rownnz[ebase+e] = NV;
-        mju_copyInt(d->flexedge_J_colind + rowadr[ebase+e], chain, NV);
+        mju_copyInt(m->flexedge_J_colind + rowadr[ebase+e], chain, NV);
       }
 
       // dense edge Jacobian
