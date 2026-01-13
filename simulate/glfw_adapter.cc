@@ -198,6 +198,8 @@ void GlfwAdapter::ToggleFullscreen() {
     Glfw().glfwSetWindowMonitor(window_, Glfw().glfwGetPrimaryMonitor(), 0,
                                 0, vidmode_.width, vidmode_.height,
                                 vidmode_.refreshRate);
+
+    
   }
 
   int width, height;
