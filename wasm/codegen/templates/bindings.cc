@@ -31,9 +31,9 @@
 #include <vector>
 
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjvisualize.h>
 #include <mujoco/mujoco.h>
-#include <mujoco/mjspec.h>
 #include "engine/engine_util_errmem.h"
 #include "wasm/unpack.h"
 
@@ -210,6 +210,27 @@ struct MjvScene {
   mjModel *model;
   std::vector<MjvLight> lights;
   std::vector<MjvGLCamera> camera;
+};
+
+struct MjVFS {
+  MjVFS() : ptr_(new mjVFS) { mj_defaultVFS(ptr_); }
+  ~MjVFS() {
+    mj_deleteVFS(ptr_);
+  }
+  void AddBuffer(const std::string& name, const emscripten::val& buffer) {
+    std::vector<uint8_t> vec = emscripten::vecFromJSArray<uint8_t>(buffer);
+    int result = mj_addBufferVFS(ptr_, name.c_str(), vec.data(), vec.size());
+    if (result != 0) {
+      mju_error("Could not add buffer to VFS: %d", result);
+    }
+  }
+  void DeleteFile(const std::string& filename) {
+    mj_deleteFileVFS(ptr_, filename.c_str());
+  }
+  mjVFS* get() const { return ptr_; }
+
+ private:
+  mjVFS* ptr_;
 };
 
 MjModel::MjModel(mjModel* ptr)
@@ -407,9 +428,19 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
 }
 
-std::unique_ptr<MjModel> mj_compile_wrapper(const MjSpec& spec) {
+std::unique_ptr<MjModel> mj_compile_wrapper_1(const MjSpec& spec) {
   mjSpec* spec_ptr = spec.get();
   mjModel* model = mj_compile(spec_ptr, nullptr);
+  if (!model || mjs_isWarning(spec_ptr)) {
+    mju_error("%s", mjs_getError(spec_ptr));
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
+std::unique_ptr<MjModel> mj_compile_wrapper_2(const MjSpec& spec, const MjVFS& vfs) {
+  mjSpec* spec_ptr = spec.get();
+  mjVFS* vfs_ptr = vfs.get();
+  mjModel* model = mj_compile(spec_ptr, vfs_ptr);
   if (!model || mjs_isWarning(spec_ptr)) {
     mju_error("%s", mjs_getError(spec_ptr));
   }
@@ -444,10 +475,20 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
 
   // {{ STRUCTS_BINDINGS }}
 
-  // {{ FUNCTION_BINDINGS }}
+  emscripten::class_<MjVFS>("MjVFS")
+      .constructor<>()
+      .function("addBuffer", &MjVFS::AddBuffer)
+      .function("deleteFile", &MjVFS::DeleteFile);
 
+  // {{ FUNCTION_BINDINGS }}
   function("parseXMLString", &parseXMLString_wrapper, take_ownership());
   function("error", &error_wrapper);
+  function("mj_saveLastXML", &mj_saveLastXML_wrapper);
+  function("mj_setLengthRange", &mj_setLengthRange_wrapper);
+  // mj_compile is bound using two overloads to handle the optional MjVFS argument,
+  // as using std::optional<MjVFS> caused memory errors due to missing copy/move constructors.
+  function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&)>(&mj_compile_wrapper_1));
+  function("mj_compile", emscripten::select_overload<std::unique_ptr<MjModel>(const MjSpec&, const MjVFS&)>(&mj_compile_wrapper_2));
 
   emscripten::class_<WasmBuffer<float>>("FloatBuffer")
       .constructor<int>()

@@ -272,8 +272,9 @@ def generate(
 
   function_bindings = []
   for func in sorted(functions, key=lambda f: f.name):
-    w = common.wrapped_function_name(func)
-    function_bindings.append(f'function("{func.name}", &{w});')
+    if func.name not in constants.MANUAL_WRAPPER_FUNCTIONS:
+      w = common.wrapped_function_name(func)
+      function_bindings.append(f'function("{func.name}", &{w});')
   bindings_content = "\n".join(function_bindings)
 
   return [

@@ -17,7 +17,7 @@ import 'jasmine';
 import {MainModule, MjContact, MjContactVec, MjData, MjLROpt, MjModel,
 MjOption, MjsGeom, MjSolverStat, MjSpec, MjStatistic, MjTimerStat, MjvCamera,
 MjvFigure, MjvGeom, MjvGLCamera, MjvLight, MjvOption, MjvPerturb, MjvScene,
-MjWarningStat} from '../dist/mujoco_wasm.js';
+MjWarningStat, MjVFS} from '../dist/mujoco_wasm.js';
 
 import loadMujoco from '../dist/mujoco_wasm.js'
 
@@ -1803,7 +1803,7 @@ describe('MuJoCo WASM Bindings', () => {
     }
   });
 
-  it('should compile a spec from XML string', () => {
+  it('should compile a spec from XML string with no assets', () => {
     let spec = null;
     let model = null;
     try {
@@ -1824,6 +1824,52 @@ describe('MuJoCo WASM Bindings', () => {
       if (model) {
         model.delete();
       }
+    }
+  });
+
+  it('should compile a spec from XML with .obj asset', () => {
+    const xml = `
+    <mujoco>
+      <asset>
+        <mesh file="cube.obj"/>
+      </asset>
+      <worldbody>
+        <geom type="mesh" mesh="cube"/>
+      </worldbody>
+    </mujoco>`;
+
+    const cube1 = `
+    v -1 -1  1
+    v  1 -1  1
+    v -1  1  1
+    v  1  1  1
+    v -1  1 -1
+    v  1  1 -1
+    v -1 -1 -1
+    v  1 -1 -1`;
+
+    let spec: MjSpec|null = null;
+    let model: MjModel|null = null;
+    let vfs: MjVFS|null = null;
+    try {
+      spec = mujoco.parseXMLString(xml);
+      assertExists(spec);
+
+      vfs = new mujoco.MjVFS();
+      vfs.addBuffer('cube.obj', new TextEncoder().encode(cube1));
+      assertExists(vfs);
+
+      model = mujoco.mj_compile(spec, vfs);
+      assertExists(model);
+      expect(model.nmesh).toBe(1);
+
+      const meshId =
+          mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MESH.value, 'cube');
+      expect(meshId).toBeGreaterThanOrEqual(0);
+    } finally {
+      spec?.delete();
+      vfs?.delete();
+      model?.delete();
     }
   });
 });
