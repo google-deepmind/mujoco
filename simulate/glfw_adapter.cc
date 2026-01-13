@@ -183,25 +183,26 @@ void GlfwAdapter::SwapBuffers() {
 }
 
 void GlfwAdapter::ToggleFullscreen() {
-  // currently full screen: switch to windowed
   if (Glfw().glfwGetWindowMonitor(window_)) {
-    // restore window from saved data
     Glfw().glfwSetWindowMonitor(window_, nullptr, window_pos_.first, window_pos_.second,
                                 window_size_.first, window_size_.second, 0);
-  }
-
-  // currently windowed: switch to full screen
-  else {
-    // save window data
+  } else {
     Glfw().glfwGetWindowPos(window_, &window_pos_.first, &window_pos_.second);
     Glfw().glfwGetWindowSize(window_, &window_size_.first,
                              &window_size_.second);
 
-    // switch
+    if (auto* mode = Glfw().glfwGetVideoMode(Glfw().glfwGetPrimaryMonitor())) {
+      vidmode_ = *mode;
+    }
+
     Glfw().glfwSetWindowMonitor(window_, Glfw().glfwGetPrimaryMonitor(), 0,
                                 0, vidmode_.width, vidmode_.height,
                                 vidmode_.refreshRate);
   }
+
+  int width, height;
+  Glfw().glfwGetWindowSize(window_, &width, &height);
+  OnWindowResize(width, height);
 }
 
 bool GlfwAdapter::IsLeftMouseButtonPressed() const {
