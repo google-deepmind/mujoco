@@ -65,6 +65,9 @@ Documentation
 
 Bug fixes
 ^^^^^^^^^
+- Multi threaded mesh processing, enabled by the :ref:`usethread<compiler-usethread>` compiler flag (on by default), was
+  in fact disabled by the flag. Fixing this bug speeds up compilation of mesh-heavy models by (up to) the number of
+  available cores.
 - The ``vertid`` argument of :ref:`mju_rayFlex` and :ref:`mju_raySkin` was marked as nullable but was not; it is now
   nullable.
 
