@@ -6807,22 +6807,22 @@ public static unsafe extern int mj_version();
 public static unsafe extern string mj_versionString();
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern void mj_multiRay(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* dist, int nray, double cutoff);
+public static unsafe extern double mj_ray(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mj_ray(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid);
+public static unsafe extern void mj_multiRay(mjModel_* m, mjData_* d, double* pnt, double* vec, byte* geomgroup, byte flg_static, int bodyexclude, int* geomid, double* dist, double* normal, int nray, double cutoff);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mj_rayHfield(mjModel_* m, mjData_* d, int geomid, double* pnt, double* vec);
+public static unsafe extern double mj_rayHfield(mjModel_* m, mjData_* d, int geomid, double* pnt, double* vec, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mj_rayMesh(mjModel_* m, mjData_* d, int geomid, double* pnt, double* vec);
+public static unsafe extern double mj_rayMesh(mjModel_* m, mjData_* d, int geomid, double* pnt, double* vec, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_rayGeom(double* pos, double* mat, double* size, double* pnt, double* vec, int geomtype);
+public static unsafe extern double mju_rayGeom(double* pos, double* mat, double* size, double* pnt, double* vec, int geomtype, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
-public static unsafe extern double mju_rayFlex(mjModel_* m, mjData_* d, int flex_layer, byte flg_vert, byte flg_edge, byte flg_face, byte flg_skin, int flexid, double* pnt, double* vec, int* vertid);
+public static unsafe extern double mj_rayFlex(mjModel_* m, mjData_* d, int flex_layer, byte flg_vert, byte flg_edge, byte flg_face, byte flg_skin, int flexid, double* pnt, double* vec, int* vertid, double* normal);
 
 [DllImport("mujoco", CallingConvention = CallingConvention.Cdecl)]
 public static unsafe extern double mju_raySkin(int nface, int nvert, int* face, float* vert, double* pnt, double* vec, int* vertid);

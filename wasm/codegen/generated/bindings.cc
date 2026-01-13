@@ -8273,16 +8273,17 @@ void mj_mulM2_wrapper(const MjModel& m, const MjData& d, const val& res, const N
   mj_mulM2(m.get(), d.get(), res_.data(), vec_.data());
 }
 
-void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& dist, int nray, mjtNum cutoff) {
+void mj_multiRay_wrapper(const MjModel& m, MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& dist, const val& normal, int nray, mjtNum cutoff) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
-  UNPACK_VALUE(int, geomid);
+  UNPACK_NULLABLE_VALUE(int, geomid);
   UNPACK_VALUE(mjtNum, dist);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
   CHECK_SIZE(dist, nray);
   CHECK_SIZE(geomid, nray);
   CHECK_SIZE(vec, 3 * nray);
-  mj_multiRay(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), dist_.data(), nray, cutoff);
+  mj_multiRay(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), dist_.data(), normal_.data(), nray, cutoff);
 }
 
 int mj_name2id_wrapper(const MjModel& m, int type, const String& name) {
@@ -8347,24 +8348,35 @@ void mj_projectConstraint_wrapper(const MjModel& m, MjData& d) {
   mj_projectConstraint(m.get(), d.get());
 }
 
-mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid) {
+mjtNum mj_ray_wrapper(const MjModel& m, const MjData& d, const NumberArray& pnt, const NumberArray& vec, const NumberArray& geomgroup, mjtByte flg_static, int bodyexclude, const val& geomid, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
   UNPACK_NULLABLE_ARRAY(mjtByte, geomgroup);
   UNPACK_NULLABLE_VALUE(int, geomid);
-  return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data());
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_ray(m.get(), d.get(), pnt_.data(), vec_.data(), geomgroup_.data(), flg_static, bodyexclude, geomid_.data(), normal_.data());
 }
 
-mjtNum mj_rayHfield_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec) {
+mjtNum mj_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  return mj_rayHfield(m.get(), d.get(), geomid, pnt_.data(), vec_.data());
+  UNPACK_NULLABLE_VALUE(int, vertid);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_rayFlex(m.get(), d.get(), flex_layer, flg_vert, flg_edge, flg_face, flg_skin, flexid, pnt_.data(), vec_.data(), vertid_.data(), normal_.data());
 }
 
-mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec) {
+mjtNum mj_rayHfield_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec, const val& normal) {
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data());
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_rayHfield(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
+}
+
+mjtNum mj_rayMesh_wrapper(const MjModel& m, const MjData& d, int geomid, const NumberArray& pnt, const NumberArray& vec, const val& normal) {
+  UNPACK_ARRAY(mjtNum, pnt);
+  UNPACK_ARRAY(mjtNum, vec);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mj_rayMesh(m.get(), d.get(), geomid, pnt_.data(), vec_.data(), normal_.data());
 }
 
 void mj_referenceConstraint_wrapper(const MjModel& m, MjData& d) {
@@ -9870,20 +9882,14 @@ void mju_quatZ2Vec_wrapper(const val& quat, const NumberArray& vec) {
   mju_quatZ2Vec(quat_.data(), vec_.data());
 }
 
-mjtNum mju_rayFlex_wrapper(const MjModel& m, const MjData& d, int flex_layer, mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid, const NumberArray& pnt, const NumberArray& vec, const val& vertid) {
-  UNPACK_ARRAY(mjtNum, pnt);
-  UNPACK_ARRAY(mjtNum, vec);
-  UNPACK_NULLABLE_VALUE(int, vertid);
-  return mju_rayFlex(m.get(), d.get(), flex_layer, flg_vert, flg_edge, flg_face, flg_skin, flexid, pnt_.data(), vec_.data(), vertid_.data());
-}
-
-mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const NumberArray& size, const NumberArray& pnt, const NumberArray& vec, int geomtype) {
+mjtNum mju_rayGeom_wrapper(const NumberArray& pos, const NumberArray& mat, const NumberArray& size, const NumberArray& pnt, const NumberArray& vec, int geomtype, const val& normal) {
   UNPACK_ARRAY(mjtNum, pos);
   UNPACK_ARRAY(mjtNum, mat);
   UNPACK_ARRAY(mjtNum, size);
   UNPACK_ARRAY(mjtNum, pnt);
   UNPACK_ARRAY(mjtNum, vec);
-  return mju_rayGeom(pos_.data(), mat_.data(), size_.data(), pnt_.data(), vec_.data(), geomtype);
+  UNPACK_NULLABLE_VALUE(mjtNum, normal);
+  return mju_rayGeom(pos_.data(), mat_.data(), size_.data(), pnt_.data(), vec_.data(), geomtype, normal_.data());
 }
 
 mjtNum mju_raySkin_wrapper(int nface, int nvert, const NumberArray& face, const NumberArray& vert, const NumberArray& pnt, const NumberArray& vec, const val& vertid) {
@@ -12453,6 +12459,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mj_printScene", &mj_printScene_wrapper);
   function("mj_projectConstraint", &mj_projectConstraint_wrapper);
   function("mj_ray", &mj_ray_wrapper);
+  function("mj_rayFlex", &mj_rayFlex_wrapper);
   function("mj_rayHfield", &mj_rayHfield_wrapper);
   function("mj_rayMesh", &mj_rayMesh_wrapper);
   function("mj_referenceConstraint", &mj_referenceConstraint_wrapper);
@@ -12684,7 +12691,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mju_quat2Vel", &mju_quat2Vel_wrapper);
   function("mju_quatIntegrate", &mju_quatIntegrate_wrapper);
   function("mju_quatZ2Vec", &mju_quatZ2Vec_wrapper);
-  function("mju_rayFlex", &mju_rayFlex_wrapper);
   function("mju_rayGeom", &mju_rayGeom_wrapper);
   function("mju_raySkin", &mju_raySkin_wrapper);
   function("mju_rotVecQuat", &mju_rotVecQuat_wrapper);

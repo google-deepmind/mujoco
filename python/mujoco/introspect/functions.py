@@ -3729,74 +3729,6 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
          parameters=(),
          doc='Return the current version of MuJoCo as a null-terminated string.',  # pylint: disable=line-too-long
      )),
-    ('mj_multiRay',
-     FunctionDecl(
-         name='mj_multiRay',
-         return_type=ValueType(name='void'),
-         parameters=(
-             FunctionParameterDecl(
-                 name='m',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjModel', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='d',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjData'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='pnt',
-                 type=ArrayType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                     extents=(3,),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='vec',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum', is_const=True),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='geomgroup',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtByte', is_const=True),
-                 ),
-                 nullable=True,
-             ),
-             FunctionParameterDecl(
-                 name='flg_static',
-                 type=ValueType(name='mjtByte'),
-             ),
-             FunctionParameterDecl(
-                 name='bodyexclude',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
-                 name='geomid',
-                 type=PointerType(
-                     inner_type=ValueType(name='int'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='dist',
-                 type=PointerType(
-                     inner_type=ValueType(name='mjtNum'),
-                 ),
-             ),
-             FunctionParameterDecl(
-                 name='nray',
-                 type=ValueType(name='int'),
-             ),
-             FunctionParameterDecl(
-                 name='cutoff',
-                 type=ValueType(name='mjtNum'),
-             ),
-         ),
-         doc='Intersect multiple rays emanating from a single point. Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.',  # pylint: disable=line-too-long
-     )),
     ('mj_ray',
      FunctionDecl(
          name='mj_ray',
@@ -3851,8 +3783,92 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
                  nullable=True,
              ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
          ),
-         doc='Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude. Return distance (x) to nearest surface, or -1 if no intersection and output geomid. geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.',  # pylint: disable=line-too-long
+         doc='Intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms in bodyexclude. Return distance (x) to nearest surface, or -1 if no intersection. geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion.',  # pylint: disable=line-too-long
+     )),
+    ('mj_multiRay',
+     FunctionDecl(
+         name='mj_multiRay',
+         return_type=ValueType(name='void'),
+         parameters=(
+             FunctionParameterDecl(
+                 name='m',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjModel', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='d',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjData'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='pnt',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                     extents=(3,),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='vec',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum', is_const=True),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='geomgroup',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtByte', is_const=True),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='flg_static',
+                 type=ValueType(name='mjtByte'),
+             ),
+             FunctionParameterDecl(
+                 name='bodyexclude',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='geomid',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='dist',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+             ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 nullable=True,
+             ),
+             FunctionParameterDecl(
+                 name='nray',
+                 type=ValueType(name='int'),
+             ),
+             FunctionParameterDecl(
+                 name='cutoff',
+                 type=ValueType(name='mjtNum'),
+             ),
+         ),
+         doc='Intersect multiple rays emanating from a single point, compute normals if given. Similar semantics to mj_ray, but vec, normal and dist are arrays. Geoms further than cutoff are ignored.',  # pylint: disable=line-too-long
      )),
     ('mj_rayHfield',
      FunctionDecl(
@@ -3888,6 +3904,14 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='mjtNum', is_const=True),
                      extents=(3,),
                  ),
+             ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
              ),
          ),
          doc='Intersect ray with hfield; return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
@@ -3926,6 +3950,14 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                      inner_type=ValueType(name='mjtNum', is_const=True),
                      extents=(3,),
                  ),
+             ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
              ),
          ),
          doc='Intersect ray with mesh; return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
@@ -3974,12 +4006,20 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  name='geomtype',
                  type=ValueType(name='int'),
              ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
          ),
          doc='Intersect ray with pure geom; return nearest distance or -1 if no intersection.',  # pylint: disable=line-too-long
      )),
-    ('mju_rayFlex',
+    ('mj_rayFlex',
      FunctionDecl(
-         name='mju_rayFlex',
+         name='mj_rayFlex',
          return_type=ValueType(name='mjtNum'),
          parameters=(
              FunctionParameterDecl(
@@ -4040,8 +4080,16 @@ FUNCTIONS: Mapping[str, FunctionDecl] = dict([
                  ),
                  nullable=True,
              ),
+             FunctionParameterDecl(
+                 name='normal',
+                 type=ArrayType(
+                     inner_type=ValueType(name='mjtNum'),
+                     extents=(3,),
+                 ),
+                 nullable=True,
+             ),
          ),
-         doc='Intersect ray with flex; return nearest distance or -1 if no intersection, and also output nearest vertex id.',  # pylint: disable=line-too-long
+         doc='Intersect ray with flex; return nearest distance or -1 if no intersection, and also output nearest vertex id and surface normal.',  # pylint: disable=line-too-long
      )),
     ('mju_raySkin',
      FunctionDecl(
