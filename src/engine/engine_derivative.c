@@ -1498,7 +1498,7 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
       // add sparse or dense
       if (mj_isSparse(m)) {
         addJTBJSparse(m, d, d->flexedge_J, &B, 1, e,
-                      d->flexedge_J_rownnz, d->flexedge_J_rowadr, d->flexedge_J_colind);
+                      m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind);
       } else {
         addJTBJ(m, d, d->flexedge_J+e*nv, &B, 1);
       }

@@ -4441,6 +4441,15 @@ struct MjModel {
   emscripten::val flex_bvhnum() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_bvhnum));
   }
+  emscripten::val flexedge_J_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge, ptr_->flexedge_J_rownnz));
+  }
+  emscripten::val flexedge_J_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge, ptr_->flexedge_J_rowadr));
+  }
+  emscripten::val flexedge_J_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * ptr_->nv, ptr_->flexedge_J_colind));
+  }
   emscripten::val flex_rgba() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 4, ptr_->flex_rgba));
   }
@@ -6151,15 +6160,6 @@ struct MjData {
   }
   emscripten::val flexelem_aabb() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexelem * 6, ptr_->flexelem_aabb));
-  }
-  emscripten::val flexedge_J_rownnz() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_J_rownnz));
-  }
-  emscripten::val flexedge_J_rowadr() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_J_rowadr));
-  }
-  emscripten::val flexedge_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge * model->nv, ptr_->flexedge_J_colind));
   }
   emscripten::val flexedge_J() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexedge * model->nv, ptr_->flexedge_J));
@@ -10826,9 +10826,6 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("energy", &MjData::energy)
     .property("eq_active", &MjData::eq_active)
     .property("flexedge_J", &MjData::flexedge_J)
-    .property("flexedge_J_colind", &MjData::flexedge_J_colind)
-    .property("flexedge_J_rowadr", &MjData::flexedge_J_rowadr)
-    .property("flexedge_J_rownnz", &MjData::flexedge_J_rownnz)
     .property("flexedge_length", &MjData::flexedge_length)
     .property("flexedge_velocity", &MjData::flexedge_velocity)
     .property("flexelem_aabb", &MjData::flexelem_aabb)
@@ -11153,6 +11150,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_vertadr", &MjModel::flex_vertadr)
     .property("flex_vertbodyid", &MjModel::flex_vertbodyid)
     .property("flex_vertnum", &MjModel::flex_vertnum)
+    .property("flexedge_J_colind", &MjModel::flexedge_J_colind)
+    .property("flexedge_J_rowadr", &MjModel::flexedge_J_rowadr)
+    .property("flexedge_J_rownnz", &MjModel::flexedge_J_rownnz)
     .property("flexedge_invweight0", &MjModel::flexedge_invweight0)
     .property("flexedge_length0", &MjModel::flexedge_length0)
     .property("flexedge_rigid", &MjModel::flexedge_rigid)

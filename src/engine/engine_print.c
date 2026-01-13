@@ -1284,12 +1284,10 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
     printArray2d("FLEXEDGE_J", m->nflexedge, m->nv, d->flexedge_J, fp, float_format);
   } else {
     mj_printSparsity("FLEXEDGE_J: flex edge connectivity", m->nflexedge, m->nv,
-                     d->flexedge_J_rowadr, NULL, d->flexedge_J_rownnz, NULL, d->flexedge_J_colind,
+                     m->flexedge_J_rowadr, NULL, m->flexedge_J_rownnz, NULL, m->flexedge_J_colind,
                      fp);
-    printArray2dInt("FLEXEDGE_J_ROWNNZ", m->nflexedge, 1, d->flexedge_J_rownnz, fp);
-    printArray2dInt("FLEXEDGE_J_ROWADR", m->nflexedge, 1, d->flexedge_J_rowadr, fp);
-    printSparse("FLEXEDGE_J", d->flexedge_J, m->nflexedge, d->flexedge_J_rownnz,
-                              d->flexedge_J_rowadr, d->flexedge_J_colind, fp, float_format);
+    printSparse("FLEXEDGE_J", d->flexedge_J, m->nflexedge, m->flexedge_J_rownnz,
+                              m->flexedge_J_rowadr, m->flexedge_J_colind, fp, float_format);
   }
   printArray2d("FLEXEDGE_LENGTH", m->nflexedge, 1, d->flexedge_length, fp, float_format);
 

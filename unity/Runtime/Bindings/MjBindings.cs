@@ -4981,9 +4981,6 @@ public unsafe struct mjData_ {
   public double* cinert;
   public double* flexvert_xpos;
   public double* flexelem_aabb;
-  public int* flexedge_J_rownnz;
-  public int* flexedge_J_rowadr;
-  public int* flexedge_J_colind;
   public double* flexedge_J;
   public double* flexedge_length;
   public double* bvh_aabb_dyn;
@@ -5586,6 +5583,9 @@ public unsafe struct mjModel_ {
   public byte* flex_flatskin;
   public int* flex_bvhadr;
   public int* flex_bvhnum;
+  public int* flexedge_J_rownnz;
+  public int* flexedge_J_rowadr;
+  public int* flexedge_J_colind;
   public float* flex_rgba;
   public float* flex_texcoord;
   public int* mesh_vertadr;

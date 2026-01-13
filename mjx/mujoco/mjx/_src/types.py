@@ -626,6 +626,9 @@ class ModelC(PyTreeNode):
   flex_centered: jax.Array
   flex_bvhadr: jax.Array
   flex_bvhnum: jax.Array
+  flexedge_J_rownnz: jax.Array
+  flexedge_J_rowadr: jax.Array
+  flexedge_J_colind: jax.Array
   mesh_polynum: jax.Array
   mesh_polyadr: jax.Array
   mesh_polynormal: jax.Array
@@ -1047,9 +1050,6 @@ class DataC(PyTreeNode):
   cinert: jax.Array
   flexvert_xpos: jax.Array
   flexelem_aabb: jax.Array
-  flexedge_J_rownnz: jax.Array  # pylint:disable=invalid-name
-  flexedge_J_rowadr: jax.Array  # pylint:disable=invalid-name
-  flexedge_J_colind: jax.Array  # pylint:disable=invalid-name
   flexedge_J: jax.Array  # pylint:disable=invalid-name
   flexedge_length: jax.Array
   bvh_aabb_dyn: jax.Array
