@@ -153,9 +153,9 @@ static void mixcolor(float rgba[4], const float ref[4], int flg1, int flg2) {
 }
 
 
-// a body is static if it is welded to the world and is not a mocap body
+// a body is static if it is welded to the world and is not a mocap body or descendant thereof
 static int bodycategory(const mjModel* m, int bodyid) {
-  if (m->body_weldid[bodyid] == 0 && m->body_mocapid[bodyid] == -1) {
+  if (m->body_weldid[bodyid] == 0 && m->body_mocapid[m->body_rootid[bodyid]] == -1) {
     return mjCAT_STATIC;
   } else {
     return mjCAT_DYNAMIC;
