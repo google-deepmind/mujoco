@@ -90,6 +90,7 @@ int main(int argc, char** argv, char** envp) {
   };
   resource_provider.close = [](mjResource* resource) {
     delete static_cast<FileResource*>(resource->data);
+    resource->data = nullptr;
   };
 
   resource_provider.prefix = "font";
