@@ -184,16 +184,16 @@ mathematical notation.
      - inertia in joint space
      - ``mjData.qM``
    * - :math:`J(q)`
-     - :math:`\nq \times \nv`
+     - :math:`\nc \times \nv`
      - constraint
        Jacobian
      - ``mjData.efc_J``
    * - :math:`r(q)`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint residual
      - ``mjData.efc_pos``
    * - :math:`f(q, v,\tau)`
-     - :math:`\nq`
+     - :math:`\nc`
      - constraint force
      - ``mjData.efc_force``
 
