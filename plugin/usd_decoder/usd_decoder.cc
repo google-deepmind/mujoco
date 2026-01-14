@@ -954,6 +954,12 @@ void ParseMjcPhysicsTendon(mjSpec* spec, const pxr::MjcPhysicsTendon& tendon) {
   pxr::SdfPathVector wrap_targets;
   tendon.GetMjcPathRel().GetTargets(&wrap_targets);
 
+  pxr::VtIntArray wrap_path_indices;
+  tendon.GetMjcPathIndicesAttr().Get(&wrap_path_indices);
+
+  auto n_targets = wrap_path_indices.empty() ? wrap_targets.size()
+                                             : wrap_path_indices.size();
+
   pxr::SdfPathVector side_site_paths;
   tendon.GetMjcSideSitesRel().GetTargets(&side_site_paths);
 
@@ -971,11 +977,11 @@ void ParseMjcPhysicsTendon(mjSpec* spec, const pxr::MjcPhysicsTendon& tendon) {
 
   if (type == MjcPhysicsTokens->spatial) {
     // Check that for N targets we have 0 or N elements in segments.
-    if (!segments.empty() && segments.size() != wrap_targets.size()) {
+    if (!segments.empty() && segments.size() != n_targets) {
       mju_warning(
           "Spatial tendon %s has %lu segments but %lu wrap targets, skipping.",
           prim.GetPath().GetAsString().c_str(), segments.size(),
-          wrap_targets.size());
+          n_targets);
       return;
     }
     // Check that if we have >1 segments that the user has specified how much
@@ -990,12 +996,12 @@ void ParseMjcPhysicsTendon(mjSpec* spec, const pxr::MjcPhysicsTendon& tendon) {
     }
     // Check that if we side site indices that we have N of them.
     if (!side_site_indices.empty() &&
-        side_site_indices.size() != wrap_targets.size()) {
+        side_site_indices.size() != n_targets) {
       mju_warning(
           "Spatial tendon %s has %lu sideSite indices but %lu wrap targets, "
           "skipping.",
           prim.GetPath().GetAsString().c_str(), side_site_indices.size(),
-          wrap_targets.size());
+          n_targets);
       return;
     }
 
@@ -1008,17 +1014,18 @@ void ParseMjcPhysicsTendon(mjSpec* spec, const pxr::MjcPhysicsTendon& tendon) {
     }
   } else {  // Fixed tendon.
     // Check that for N targets we have 0 or N elements in coef:
-    if (!coefs.empty() && coefs.size() != wrap_targets.size()) {
+    if (!coefs.empty() && coefs.size() != n_targets) {
       mju_warning(
           "Spatial tendon %s has %lu coefs but %lu wrap targets, skipping.",
           prim.GetPath().GetAsString().c_str(), coefs.size(),
-          wrap_targets.size());
+          n_targets);
     }
   }
 
   int last_segment = 0;
-  for (int i = 0; i < wrap_targets.size(); ++i) {
-    auto wrap_target = wrap_targets[i];
+  for (int i = 0; i < n_targets; ++i) {
+    auto index = wrap_path_indices.empty() ? i : wrap_path_indices[i];
+    auto wrap_target = wrap_targets[index];
     auto wrap_prim = stage->GetPrimAtPath(wrap_target);
     // Important to check site before Imageable here because some Imageable
     // prims are sites.

@@ -160,6 +160,31 @@ class MjcPhysicsTendon : public UsdTyped {
 
  public:
   // --------------------------------------------------------------------- //
+  // MJCPATHINDICES
+  // --------------------------------------------------------------------- //
+  /// This list represents the order in which the tendon wraps the sites in
+  /// mjc:path.
+  ///
+  /// | ||
+  /// | -- | -- |
+  /// | Declaration | `uniform int[] mjc:path:indices = []` |
+  /// | C++ Type | VtArray<int> |
+  /// | \ref Usd_Datatypes "Usd Type" | SdfValueTypeNames->IntArray |
+  /// | \ref SdfVariability "Variability" | SdfVariabilityUniform |
+  MJCPHYSICS_API
+  UsdAttribute GetMjcPathIndicesAttr() const;
+
+  /// See GetMjcPathIndicesAttr(), and also
+  /// \ref Usd_Create_Or_Get_Property for when to use Get vs Create.
+  /// If specified, author \p defaultValue as the attribute's default,
+  /// sparsely (when it makes sense to do so) if \p writeSparsely is \c true -
+  /// the default for \p writeSparsely is \c false.
+  MJCPHYSICS_API
+  UsdAttribute CreateMjcPathIndicesAttr(VtValue const& defaultValue = VtValue(),
+                                        bool writeSparsely = false) const;
+
+ public:
+  // --------------------------------------------------------------------- //
   // MJCSIDESITESINDICES
   // --------------------------------------------------------------------- //
   /// For spatial tendons, if mjc:sideSites has targets then index 'i' in this
@@ -771,8 +796,8 @@ class MjcPhysicsTendon : public UsdTyped {
   // --------------------------------------------------------------------- //
   // MJCPATH
   // --------------------------------------------------------------------- //
-  /// For spatial tendons, this describes a list of sites and geoms the tendon
-  /// wraps. For fixed tendons, this is instead a list of joints.
+  /// For spatial tendons, this describes a list of unique of sites and geoms
+  /// the tendon wraps. For fixed tendons, this is instead a list of joints.
   ///
   MJCPHYSICS_API
   UsdRelationship GetMjcPathRel() const;

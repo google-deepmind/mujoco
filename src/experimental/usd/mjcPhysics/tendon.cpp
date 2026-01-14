@@ -90,6 +90,17 @@ UsdAttribute MjcPhysicsTendon::CreateTypeAttr(VtValue const& defaultValue,
       /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
 }
 
+UsdAttribute MjcPhysicsTendon::GetMjcPathIndicesAttr() const {
+  return GetPrim().GetAttribute(MjcPhysicsTokens->mjcPathIndices);
+}
+
+UsdAttribute MjcPhysicsTendon::CreateMjcPathIndicesAttr(
+    VtValue const& defaultValue, bool writeSparsely) const {
+  return UsdSchemaBase::_CreateAttr(
+      MjcPhysicsTokens->mjcPathIndices, SdfValueTypeNames->IntArray,
+      /* custom = */ false, SdfVariabilityUniform, defaultValue, writeSparsely);
+}
+
 UsdAttribute MjcPhysicsTendon::GetMjcSideSitesIndicesAttr() const {
   return GetPrim().GetAttribute(MjcPhysicsTokens->mjcSideSitesIndices);
 }
@@ -377,6 +388,7 @@ const TfTokenVector& MjcPhysicsTendon::GetSchemaAttributeNames(
     bool includeInherited) {
   static TfTokenVector localNames = {
       MjcPhysicsTokens->mjcType,
+      MjcPhysicsTokens->mjcPathIndices,
       MjcPhysicsTokens->mjcSideSitesIndices,
       MjcPhysicsTokens->mjcPathSegments,
       MjcPhysicsTokens->mjcPathDivisors,

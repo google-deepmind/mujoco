@@ -572,6 +572,10 @@ struct MjcPhysicsTokensType {
   ///
   /// MjcPhysicsTendon
   const TfToken mjcPathDivisors;
+  /// \brief "mjc:path:indices"
+  ///
+  /// MjcPhysicsTendon
+  const TfToken mjcPathIndices;
   /// \brief "mjc:path:segments"
   ///
   /// MjcPhysicsTendon

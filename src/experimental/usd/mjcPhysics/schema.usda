@@ -1077,11 +1077,15 @@ class MjcTendon "MjcTendon"
     )
 
     rel mjc:path (
-      doc = "For spatial tendons, this describes a list of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
+      doc = "For spatial tendons, this describes a list of unique of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
     )
 
     rel mjc:sideSites (
       doc = "For spatial tendons, a geom wrapped by the tendon may specify which side of the geom the tendon wraps around via a site prim. This is a list of sites that are used as side sites in mjc:path."
+    )
+
+    uniform int[] mjc:path:indices = [] (
+      doc = "This list represents the order in which the tendon wraps the sites in mjc:path."
     )
 
     uniform int[] mjc:sideSites:indices = [] (

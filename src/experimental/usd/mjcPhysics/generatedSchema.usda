@@ -593,13 +593,16 @@ class MjcTendon "MjcTendon" (
         doc = "The limit constraint becomes active when the absolute value of the difference between the tendon length and either limit of the specified range falls below this margin. Similar to contacts, the margin parameter is subtracted from the difference between the range limit and the tendon length. The resulting constraint distance is always negative when the constraint is active. This quantity is used to compute constraint impedance as a function of distance."
     )
     rel mjc:path (
-        doc = "For spatial tendons, this describes a list of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
+        doc = "For spatial tendons, this describes a list of unique of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
     )
     uniform double[] mjc:path:coef = [] (
         doc = "For fixed tendons passing through joints this represents a multiplicative factor on the position or angle of the targeted joint."
     )
     uniform double[] mjc:path:divisors = [] (
         doc = "For spatial tendons, this represents an indexed array of divisors. A tendon path segments' length contribution to the overall tendon length is divided by its divisor."
+    )
+    uniform int[] mjc:path:indices = [] (
+        doc = "This list represents the order in which the tendon wraps the sites in mjc:path."
     )
     uniform int[] mjc:path:segments = [] (
         doc = "For spatial tendons, this holds the index of the segment each tendon path wrap point belongs to."
