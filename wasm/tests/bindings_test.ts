@@ -75,14 +75,14 @@ function norm(arr: number[]): number {
   return Math.sqrt(arr.reduce((acc, val) => acc + val * val, 0));
 }
 
-function expectArraysClose(arr1: TypedArray, arr2: TypedArray, precision = 1) {
+function expectArraysClose(arr1: any, arr2: TypedArray, precision = 1) {
   expect(arr1.length).toEqual(arr2.length);
   for (let i = 0; i < arr1.length; i++) {
     expect(arr1[i]).toBeCloseTo(arr2[i], precision);
   }
 }
 
-function expectArraysEqual(arr1: TypedArray, arr2: TypedArray) {
+function expectArraysEqual(arr1: any, arr2: TypedArray) {
   expect(arr1.length).toEqual(arr2.length);
   for (let i = 0; i < arr1.length; i++) {
     expect(arr1[i]).toEqual(arr2[i]);
@@ -1871,5 +1871,273 @@ describe('MuJoCo WASM Bindings', () => {
       vfs?.delete();
       model?.delete();
     }
+  });
+
+  describe('MjModel named access', () => {
+    // Corresponds to
+    // bindings_test.py:test_named_indexing_invalid_names_in_model
+    it('should throw an error for invalid geom names in model', () => {
+      expect(() => {
+        model!.geom('badgeom');
+      }).toThrowError('MuJoCo Error: Invalid name, MjModel.geom not found');
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_geom_size
+    it('should correctly access geom size using named indexing', () => {
+      const boxId =
+          mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'mybox');
+      assertExists(boxId);
+
+      // Check that named indexing returns the same object as id indexing.
+      expect(model!.geom('mybox')).toEqual(model!.geom(boxId));
+      expect(model!.geom('mybox')!.size).toEqual(model!.geom(boxId)!.size);
+      expect(model!.geom('mybox')!.size.length).toEqual(3);
+
+      // Test that the indexer is returning a view into the underlying struct.
+      const sizeFromIndexer = model!.geom('mybox')!.size;
+      const originalGeomSize = new Float64Array(model!.geom_size);
+
+      model!.geom_size.set([7, 11, 13], boxId * 3);
+      expectArraysEqual(sizeFromIndexer, new Float64Array([7, 11, 13]));
+
+      model!.geom('mybox')!.size.set([5, 3, 2]);
+      expectArraysEqual(
+          model!.geom_size.slice(boxId * 3, boxId * 3 + 3),
+          new Float64Array([5, 3, 2]));
+    });
+
+    // Corresponds to bindings_test.py:test_named_indexing_geom_quat
+    it('should correctly access geom quat using named indexing', () => {
+      const boxId =
+          mujoco.mj_name2id(model!, mujoco.mjtObj.mjOBJ_GEOM.value, 'mybox');
+      assertExists(boxId);
+
+      // Check that named indexing returns the same object as id indexing.
+      expect(model!.geom('mybox')).toEqual(model!.geom(boxId));
+      expect(model!.geom('mybox')!.quat).toEqual(model!.geom(boxId)!.quat);
+      expect(model!.geom('mybox')!.quat.length).toEqual(4);
+
+      // Test that the indexer is returning a view into the underlying struct.
+      const quatFromIndexer = model!.geom('mybox')!.quat;
+
+      model!.geom_quat.set([5, 10, 15, 20], boxId * 4);
+      expectArraysEqual(quatFromIndexer, new Float64Array([5, 10, 15, 20]));
+
+      model!.geom('mybox')!.quat.set([12, 9, 6, 3]);
+      expectArraysEqual(
+          model!.geom_quat.slice(boxId * 4, boxId * 4 + 4),
+          new Float64Array([12, 9, 6, 3]));
+    });
+
+    it('should support named access for Joints', () => {
+      const xml = `<mujoco model="Box falling">
+      <option viscosity="1"/>
+      <worldbody>
+        <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
+        <geom name="MyFloor" type="plane" size="1 1 0.1" rgba=".9 0 0 1" user="5 4 3 2 1"/>
+        <geom name="MyWall" type="plane" size="0.1 1 0.1" rgba="0 1 0 1" user="5 4 3"/>
+        <body pos="0 0 1" name="MyBox">
+          <joint type="free" name="root"/>
+          <geom name="MyBoxGeom" type="box" size=".1 .2 .3" rgba="0 .9 0 1"/>
+          <body pos=".1 0 0" name="MyHingeBody">
+            <joint frictionloss="0.4" type="hinge" name="hinge" axis="0 1 0"/>
+            <geom type="capsule" size=".05 .05" rgba="0 0 .9 1"/>
+          </body>
+        </body>
+      </worldbody>
+    </mujoco>`;
+      const tempXmlFilename = '/tmp/jnt.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const j0 = model.jnt('root');
+        expect(j0.id).toBe(0);
+        expect(j0.name).toBe('root');
+        expect(j0.type).toBe(mujoco.mjtJoint.mjJNT_FREE.value);
+        expect(j0.qposadr).toBe(0);
+        expect(j0.dofadr).toBe(0);
+        expect(j0.axis).toEqual(new Float64Array([0, 0, 1]));
+        expect(j0.type).toEqual(mujoco.mjtJoint.mjJNT_FREE.value);
+
+        const j0qposStart = model.jnt_qposadr[j0.id];
+        const j0qposEnd =
+            (j0.id < model.njnt - 1) ? model.jnt_qposadr[j0.id + 1] : model.nq;
+        const expectedJ0qpos = model.qpos0.slice(j0qposStart, j0qposEnd);
+        expectArraysEqual(
+            expectedJ0qpos, new Float64Array([0, 0, 1, 1, 0, 0, 0]));
+        expectArraysEqual(j0.qpos0, expectedJ0qpos);
+
+        const j0dofStart = model.jnt_dofadr[j0.id];
+        const j0dofEnd =
+            (j0.id < model.njnt - 1) ? model.jnt_dofadr[j0.id + 1] : model.nv;
+        const expectedJ0dof = model.dof_bodyid.slice(j0dofStart, j0dofEnd);
+        expectArraysEqual(expectedJ0dof, new Int32Array([1, 1, 1, 1, 1, 1]));
+        expectArraysEqual(j0.bodyid, expectedJ0dof);
+
+
+        const j1 = model.jnt('hinge');
+        expect(j1.id).toBe(1);
+        expect(j1.name).toBe('hinge');
+        expect(j1.type).toBe(mujoco.mjtJoint.mjJNT_HINGE.value);
+        expect(j1.qposadr).toBe(7);
+        expect(j1.dofadr).toBe(6);
+        expect(j1.axis).toEqual(new Float64Array([0, 1, 0]));
+        expect(j1.frictionloss).toEqual(new Float64Array([0.4]));
+
+        const j1qposStart = model.jnt_qposadr[j1.id];
+        const j1qposEnd =
+            (j1.id < model.njnt - 1) ? model.jnt_qposadr[j1.id + 1] : model.nq;
+        const expectedJ1qpos = model.qpos0.slice(j1qposStart, j1qposEnd);
+        expectArraysEqual(expectedJ1qpos, new Float64Array([0]));
+        expectArraysEqual(j1.qpos0, expectedJ1qpos);
+
+        const j1dofStart = model.jnt_dofadr[j1.id];
+        const j1dofEnd =
+            (j1.id < model.njnt - 1) ? model.jnt_dofadr[j1.id + 1] : model.nv;
+        const expectedJ1dof = model.dof_bodyid.slice(j1dofStart, j1dofEnd);
+        expectArraysEqual(expectedJ1dof, new Int32Array([2]));
+        expectArraysEqual(j1.bodyid, new Int32Array([2]));
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    it('should support named access for HFields', () => {
+      const xml = `<mujoco model="test_hfield">
+        <asset>
+          <hfield name="hf" nrow="2" ncol="3" size="1 2 0.1 0.2"/>
+        </asset>
+        <worldbody>
+          <geom type="hfield" hfield="hf"/>
+        </worldbody>
+      </mujoco>`;
+      const tempXmlFilename = '/tmp/hf.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const hf = model.hfield('hf');
+        expect(hf.id).toBe(0);
+        expect(hf.name).toBe('hf');
+        expect(hf.nrow).toBe(2);
+        expect(hf.ncol).toBe(3);
+        expectArraysClose(hf.size, new Float64Array([1, 2, 0.1, 0.2]));
+        const expectedDataLength =
+            model.hfield_nrow[hf.id] * model.hfield_ncol[hf.id];
+        expect(expectedDataLength).toBe(6);
+        expect(hf.data.length).toBe(expectedDataLength);
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    it('should support named access for Numeric', () => {
+      const xml = `<mujoco>
+        <custom>
+          <numeric name="n1" data="1 2 3"/>
+          <numeric name="n2" data="4 5 6 7"/>
+        </custom>
+      </mujoco>`;
+      const tempXmlFilename = '/tmp/num.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const n1 = model.numeric('n1');
+        const expectedN1data = model.numeric_data.slice(
+            model.numeric_adr[n1.id],
+            model.numeric_adr[n1.id] + model.numeric_size[n1.id]);
+        expect(n1.id).toBe(0);
+        expect(n1.name).toBe('n1');
+        expect(n1.size).toBe(3);
+        expect(expectedN1data).toEqual(new Float64Array([1, 2, 3]));
+        expectArraysClose(n1.data, expectedN1data);
+
+        const n2 = model.numeric('n2');
+        const expectedN2data = model.numeric_data.slice(
+            model.numeric_adr[n2.id],
+            model.numeric_adr[n2.id] + model.numeric_size[n2.id]);
+        expect(n2.id).toBe(1);
+        expect(n2.name).toBe('n2');
+        expect(n2.size).toBe(4);
+        expect(expectedN2data).toEqual(new Float64Array([4, 5, 6, 7]));
+        expectArraysClose(n2.data, expectedN2data);
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    it('should support named access for Texture', () => {
+      const xml = `<mujoco>
+        <asset>
+          <texture name="t1" type="2d" builtin="checker" width="10"
+          height="12"/>
+        </asset>
+      </mujoco>`;
+      const tempXmlFilename = '/tmp/tex.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const t1 = model.tex('t1');
+        const expectedData = model.tex_data.slice(
+            model.tex_adr[t1.id],
+            model.tex_adr[t1.id] +
+                model.tex_height[t1.id] * model.tex_width[t1.id] *
+                    model.tex_nchannel[t1.id]);
+
+        expect(t1.id).toBe(0);
+        expect(t1.name).toBe('t1');
+        expect(t1.type).toBe(mujoco.mjtTexture.mjTEXTURE_2D.value);
+        expect(t1.width).toBe(10);
+        expect(t1.height).toBe(12);
+        expect(t1.nchannel).toBe(3);
+        expect(t1.data.length).toBe(t1.width * t1.height * t1.nchannel);
+        expectArraysClose(t1.data, expectedData);
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
+
+    it('should support named access for Tuple', () => {
+      const xml = `<mujoco>
+        <worldbody>
+          <geom name="g1" type="sphere" size=".1"/>
+          <geom name="g2" type="box" size=".1 .1 .1"/>
+        </worldbody>
+        <custom>
+          <tuple name="tup1">
+            <element objtype="geom" objname="g1" prm="0.1"/>
+            <element objtype="geom" objname="g2" prm="0.2"/>
+          </tuple>
+        </custom>
+      </mujoco>`;
+      const tempXmlFilename = '/tmp/tup.xml';
+      writeXMLFile(tempXmlFilename, xml);
+      const model = mujoco.MjModel.mj_loadXML(tempXmlFilename);
+      try {
+        assertExists(model);
+        const t1 = model.tuple('tup1');
+        const expectedObjtype = model.tuple_objtype.slice(
+            model.tuple_adr[t1.id],
+            model.tuple_adr[t1.id] + model.tuple_size[t1.id]);
+        expect(t1.id).toBe(0);
+        expect(t1.name).toBe('tup1');
+        expect(t1.size).toBe(2);
+        expectArraysEqual(
+            expectedObjtype, new Int32Array([
+              mujoco.mjtObj.mjOBJ_GEOM.value, mujoco.mjtObj.mjOBJ_GEOM.value
+            ]));
+        expectArraysEqual(t1.objtype, expectedObjtype);
+      } finally {
+        model?.delete();
+        unlinkXMLFile(tempXmlFilename);
+      }
+    });
   });
 });

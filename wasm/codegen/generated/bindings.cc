@@ -28,6 +28,7 @@
 #include <memory>
 #include <optional>  // NOLINT
 #include <string>    // NOLINT
+#include <string_view>
 #include <vector>
 
 #include <mujoco/mjmodel.h>
@@ -36,6 +37,7 @@
 #include <mujoco/mujoco.h>
 #include "engine/engine_util_errmem.h"
 #include "wasm/unpack.h"
+#include "python/mujoco/indexer_xmacro.h"
 
 namespace mujoco::wasm {
 
@@ -45,8 +47,38 @@ using emscripten::val;
 using emscripten::return_value_policy::reference;
 using emscripten::return_value_policy::take_ownership;
 
+EMSCRIPTEN_DECLARE_VAL_TYPE(NumberOrString);
 EMSCRIPTEN_DECLARE_VAL_TYPE(NumberArray);
 EMSCRIPTEN_DECLARE_VAL_TYPE(String);
+
+// Macro to define accessors for different MuJoCo object types within mjModel.
+// Each line calls X_ACCESSOR with the following arguments:
+// 1.  NAME: The object type name in uppercase (e.g., ACTUATOR).
+// 2.  Name: The object type name in CamelCase (e.g., Actuator).
+// 3.  OBJTYPE: The corresponding mjOBJ_* enum value (e.g., mjOBJ_ACTUATOR).
+// 4.  field: The name of the array field in mjModel (e.g., actuator).
+// 5.  nfield: The name of the count field in mjModel (e.g., nu).
+#define MJMODEL_ACCESSORS                                              \
+  X_ACCESSOR( ACTUATOR, Actuator, mjOBJ_ACTUATOR, actuator, nu       ) \
+  X_ACCESSOR( BODY,     Body,     mjOBJ_BODY,     body,     nbody    ) \
+  X_ACCESSOR( CAMERA,   Camera,   mjOBJ_CAMERA,   cam,      ncam     ) \
+  X_ACCESSOR( EQUALITY, Equality, mjOBJ_EQUALITY, eq,       neq      ) \
+  X_ACCESSOR( EXCLUDE,  Exclude,  mjOBJ_EXCLUDE,  exclude,  nexclude ) \
+  X_ACCESSOR( GEOM,     Geom,     mjOBJ_GEOM,     geom,     ngeom    ) \
+  X_ACCESSOR( HFIELD,   Hfield,   mjOBJ_HFIELD,   hfield,   nhfield  ) \
+  X_ACCESSOR( JOINT,    Joint,    mjOBJ_JOINT,    jnt,      njnt     ) \
+  X_ACCESSOR( LIGHT,    Light,    mjOBJ_LIGHT,    light,    nlight   ) \
+  X_ACCESSOR( MATERIAL, Material, mjOBJ_MATERIAL, mat,      nmat     ) \
+  X_ACCESSOR( MESH,     Mesh,     mjOBJ_MESH,     mesh,     nmesh    ) \
+  X_ACCESSOR( NUMERIC,  Numeric,  mjOBJ_NUMERIC,  numeric,  nnumeric ) \
+  X_ACCESSOR( PAIR,     Pair,     mjOBJ_PAIR,     pair,     npair    ) \
+  X_ACCESSOR( SENSOR,   Sensor,   mjOBJ_SENSOR,   sensor,   nsensor  ) \
+  X_ACCESSOR( SITE,     Site,     mjOBJ_SITE,     site,     nsite    ) \
+  X_ACCESSOR( SKIN,     Skin,     mjOBJ_SKIN,     skin,     nskin    ) \
+  X_ACCESSOR( TENDON,   Tendon,   mjOBJ_TENDON,   tendon,   ntendon  ) \
+  X_ACCESSOR( TEXTURE,  Texture,  mjOBJ_TEXTURE,  tex,      ntex     ) \
+  X_ACCESSOR( TUPLE,    Tuple,    mjOBJ_TUPLE,    tuple,    ntuple   ) \
+  X_ACCESSOR( KEYFRAME, Keyframe, mjOBJ_KEY,      key,      nkey     )
 
 // Raises an error if the given val is null or undefined.
 // A macro is used so that the error contains the name of the variable.
@@ -116,6 +148,84 @@ using mjVisualMap = decltype(::mjVisual::map);
 using mjVisualQuality = decltype(::mjVisual::quality);
 using mjVisualRgba = decltype(::mjVisual::rgba);
 using mjVisualScale = decltype(::mjVisual::scale);
+
+#undef MJ_M
+#define MJ_M(n) model_->n
+// The X macro expands to a member function within an MjModel...Accessor struct.
+// This function returns an emscripten::val, typically a typed memory view,
+// providing access to array data within the underlying mjModel. The size and
+// offset of the memory view are determined by the arguments:
+// - type: The C++ type of the array elements (e.g., mjtNum, int).
+// - prefix: The prefix of the field name in mjModel (e.g., jnt_, geom_).
+// - var: The name of the field being accessed (e.g., qposadr, size).
+// - dim0: Used to determine special indexing logic for dynamically sized arrays
+//         like joints (nq, nv), hfields, textures, numerics, and tuples.
+// - dim1: The fixed dimension of the array if not dynamically sized. If "1",
+//         a single element is returned. Otherwise, it's used as the stride
+//         for the typed memory view.
+#define X(type, prefix, var, dim0, dim1)                                          \
+  auto var() const {                                                               \
+    if constexpr (std::string_view(#dim0) == "nq") {                             \
+      int start = model_->jnt_qposadr[id_];                                      \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_qposadr[id_ + 1] : model_->nq; \
+      return emscripten::val(emscripten::typed_memory_view(end - start, model_->prefix##var + start)); \
+    } else if constexpr (std::string_view(#dim0) == "nv") {                      \
+      int start = model_->jnt_dofadr[id_];                                       \
+      int end = (id_ < model_->njnt - 1) ? model_->jnt_dofadr[id_ + 1] : model_->nv; \
+      return emscripten::val(emscripten::typed_memory_view(end - start, model_->prefix##var + start)); \
+    } else if constexpr (std::string_view(#dim0) == "nhfielddata") {             \
+      int start = model_->hfield_adr[id_];                                       \
+      int count = model_->hfield_nrow[id_] * model_->hfield_ncol[id_];            \
+      return emscripten::val(emscripten::typed_memory_view(count, model_->hfield_data + start)); \
+    } else if constexpr (std::string_view(#dim0) == "ntexdata") {                \
+      int start = model_->tex_adr[id_];                                          \
+      int count = model_->tex_height[id_] * model_->tex_width[id_] * model_->tex_nchannel[id_]; \
+      return emscripten::val(emscripten::typed_memory_view(count, model_->tex_data + start)); \
+    } else if constexpr (std::string_view(#dim0) == "nnumericdata") {            \
+      int start = model_->numeric_adr[id_];                                      \
+      int count = model_->numeric_size[id_];                                     \
+      return emscripten::val(emscripten::typed_memory_view(count, model_->numeric_data + start)); \
+    } else if constexpr (std::string_view(#dim0) == "ntupledata") {              \
+      int start = model_->tuple_adr[id_];                                        \
+      int count = model_->tuple_size[id_];                                       \
+      return emscripten::val(emscripten::typed_memory_view(count, model_->prefix##var + start)); \
+    } else {                                                                     \
+      if constexpr (std::string_view(#dim1) == "1") {                           \
+        return model_->prefix##var[id_];                                         \
+      } else {                                                                   \
+        return emscripten::val(                                                  \
+            emscripten::typed_memory_view(dim1, model_->prefix##var + id_ * dim1)); \
+      }                                                                          \
+    }                                                                            \
+  }
+
+// Expands to a struct definition for each object type in MJMODEL_ACCESSORS.
+// Each struct, named `MjModel{Name}Accessor`, provides:
+// - A constructor taking an `mjModel*` and an integer `id`.
+// - An `id()` method to get the object's index.
+// - A `name()` method to get the object's name using `mj_id2name`.
+// - Member functions generated by the `MJMODEL_##NAME` macro, which in turn
+//   uses the `X` macro to define accessors for fields within `mjModel`.
+#define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                                         \
+  struct MjModel##Name##Accessor {                                     \
+    MjModel##Name##Accessor(mjModel* model, int id) : model_(model), id_(id) {} \
+                                                                       \
+    int id() const { return id_; }                                      \
+    std::string name() const {                                         \
+      return mj_id2name(model_, OBJTYPE, id_);                     \
+    }                                                                  \
+                                                                       \
+    MJMODEL_##NAME                                                     \
+                                                                       \
+   private:                                                            \
+    mjModel* model_;                                                   \
+    int id_;                                                           \
+  };
+MJMODEL_ACCESSORS
+#undef X_ACCESSOR
+
+#undef X
+#undef MJ_M
 
 struct MjContact {
   ~MjContact();
@@ -5143,6 +5253,29 @@ struct MjModel {
   void set_signature(uint64_t value) {
     ptr_->signature = value;
   }
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)               \
+    MjModel##Name##Accessor accessor_name(const NumberOrString& val) const {   \
+      if (val.isString()) {                                                    \
+        int id = mj_name2id(ptr_, OBJTYPE, val.as<std::string>().c_str());     \
+        if (id == -1) {                                                        \
+          mju_error("Invalid name, MjModel." #accessor_name " not found");     \
+        }                                                                      \
+        return MjModel##Name##Accessor(ptr_, id);                              \
+      } else if (val.isNumber()) {                                             \
+        int id = val.as<int>();                                                \
+        if (id < 0 || id >= ptr_->nfield) {                                    \
+          mju_error_i("Invalid id %d for MjModel." #accessor_name, id);        \
+        }                                                                      \
+        return MjModel##Name##Accessor(ptr_, id);                              \
+      } else {                                                                 \
+        mju_error(#accessor_name "() argument must be a string or number");    \
+        return MjModel##Name##Accessor(nullptr, 0);                            \
+      }                                                                        \
+    }
+
+    MJMODEL_ACCESSORS
+  #undef X_ACCESSOR
 
  private:
   mjModel* ptr_;
@@ -10784,6 +10917,20 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjWRAP_SPHERE", mjWRAP_SPHERE)
     .value("mjWRAP_CYLINDER", mjWRAP_CYLINDER);
 
+  // Bindings for the MjModel accessor classes.
+  #define X(type, prefix, var, dim0, dim1) .property(#var, &Accessor::var)
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field, nfield)                     \
+    {                                                                        \
+      using Accessor = MjModel##Name##Accessor;                              \
+      emscripten::class_<Accessor>("MjModel" #Name "Accessor")               \
+          .property("id", &Accessor::id)                                     \
+          .property("name", &Accessor::name)                                 \
+          MJMODEL_##NAME;                                                    \
+    }
+    MJMODEL_ACCESSORS
+  #undef X
+  #undef X_ACCESSOR
+
   emscripten::class_<MjContact>("MjContact")
     .constructor<>()
     .function("copy", &MjContact::copy, take_ownership())
@@ -11018,6 +11165,11 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::class_<MjModel>("MjModel")
     .class_function("mj_loadXML", &mj_loadXML_wrapper, take_ownership())
     .constructor<const MjModel &>()
+    // Binds the functions on MjModel that return accessors.
+    #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \
+      .function(#field_name, &MjModel::field_name)
+      MJMODEL_ACCESSORS
+    #undef X_ACCESSOR
     .property("B_colind", &MjModel::B_colind)
     .property("B_rowadr", &MjModel::B_rowadr)
     .property("B_rownnz", &MjModel::B_rownnz)
@@ -12795,6 +12947,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::register_vector<MjvGeom>("MjvGeomVec");
 
   // register_type() improves type information (val is mapped to any by default)
+  // NumberOrString is used in functions returning accessors, allowing users to
+  // get an accessor by name (string) or id (number).
+  emscripten::register_type<NumberOrString>("number|string");
   emscripten::register_type<NumberArray>("number[]");
   emscripten::register_type<String>("string");
 
