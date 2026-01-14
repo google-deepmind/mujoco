@@ -70,6 +70,7 @@ class FilamentContext {
   const mjModel* model_ = nullptr;
   filament::Engine* engine_ = nullptr;
   filament::SwapChain* swap_chain_ = nullptr;
+  filament::SwapChain* offscreen_swap_chain_ = nullptr;
   filament::Renderer* renderer_ = nullptr;
   filament::RenderTarget* color_target_ = nullptr;
   filament::RenderTarget* depth_target_ = nullptr;
