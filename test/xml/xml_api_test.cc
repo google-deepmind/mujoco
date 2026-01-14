@@ -126,7 +126,7 @@ TEST_F(LoadXmlTest, InvalidFileFails) {
   std::array<char, 1000> error;
   mjSpec* spec = mj_parseXML("invalid", nullptr, error.data(), error.size());
   EXPECT_THAT(spec, IsNull()) << "Expected model loading to fail.";
-  EXPECT_THAT(error.data(), HasSubstr("Error opening file"));
+  EXPECT_THAT(error.data(), HasSubstr("No such file or directory"));
 }
 
 TEST_F(MujocoTest, SaveXmlShortString) {
