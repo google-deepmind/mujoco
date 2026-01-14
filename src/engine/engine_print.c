@@ -1280,15 +1280,11 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
 
   printArray2d("FLEXVERT_XPOS", m->nflexvert, 3, d->flexvert_xpos, fp, float_format);
   printArray2d("FLEXELEM_AABB", m->nflexelem, 6, d->flexelem_aabb, fp, float_format);
-  if (!mj_isSparse(m)) {
-    printArray2d("FLEXEDGE_J", m->nflexedge, m->nv, d->flexedge_J, fp, float_format);
-  } else {
-    mj_printSparsity("FLEXEDGE_J: flex edge connectivity", m->nflexedge, m->nv,
-                     m->flexedge_J_rowadr, NULL, m->flexedge_J_rownnz, NULL, m->flexedge_J_colind,
-                     fp);
-    printSparse("FLEXEDGE_J", d->flexedge_J, m->nflexedge, m->flexedge_J_rownnz,
-                              m->flexedge_J_rowadr, m->flexedge_J_colind, fp, float_format);
-  }
+  mj_printSparsity("FLEXEDGE_J: flex edge connectivity", m->nflexedge, m->nv,
+                    m->flexedge_J_rowadr, NULL, m->flexedge_J_rownnz, NULL, m->flexedge_J_colind,
+                    fp);
+  printSparse("FLEXEDGE_J", d->flexedge_J, m->nflexedge, m->flexedge_J_rownnz,
+                            m->flexedge_J_rowadr, m->flexedge_J_colind, fp, float_format);
   printArray2d("FLEXEDGE_LENGTH", m->nflexedge, 1, d->flexedge_length, fp, float_format);
 
   printArray2d("TEN_LENGTH", m->ntendon, 1, d->ten_length, fp, float_format);

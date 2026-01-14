@@ -412,18 +412,13 @@ static void mj_springdamper(const mjModel* m, mjData* d) {
       mjtNum frc_spring = stiffness * (m->flexedge_length0[e] - d->flexedge_length[e]);
       mjtNum frc_damper = -damping * d->flexedge_velocity[e];
 
-      // transform to joint torque, add to qfrc_{spring, damper}: dense or sparse
-      if (issparse) {
-        int end = m->flexedge_J_rowadr[e] + m->flexedge_J_rownnz[e];
-        for (int j=m->flexedge_J_rowadr[e]; j < end; j++) {
-          int colind = m->flexedge_J_colind[j];
-          mjtNum J = d->flexedge_J[j];
-          d->qfrc_spring[colind] += J * frc_spring;
-          d->qfrc_damper[colind] += J * frc_damper;
-        }
-      } else {
-        if (frc_spring) mju_addToScl(d->qfrc_spring, d->flexedge_J+e*nv, frc_spring, nv);
-        if (frc_damper) mju_addToScl(d->qfrc_damper, d->flexedge_J+e*nv, frc_damper, nv);
+      // transform to joint torque, add to qfrc_{spring, damper}: always sparse
+      int end = m->flexedge_J_rowadr[e] + m->flexedge_J_rownnz[e];
+      for (int j=m->flexedge_J_rowadr[e]; j < end; j++) {
+        int colind = m->flexedge_J_colind[j];
+        mjtNum J = d->flexedge_J[j];
+        d->qfrc_spring[colind] += J * frc_spring;
+        d->qfrc_damper[colind] += J * frc_damper;
       }
     }
   }

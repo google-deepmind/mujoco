@@ -218,13 +218,9 @@ void mj_fwdPosition(const mjModel* m, mjData* d) {
 void mj_fwdVelocity(const mjModel* m, mjData* d) {
   TM_START;
 
-  // flexedge velocity: dense or sparse
-  if (mj_isSparse(m)) {
-    mju_mulMatVecSparse(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge,
-                        m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind, NULL);
-  } else {
-    mju_mulMatVec(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge, m->nv);
-  }
+  // flexedge velocity: always sparse
+  mju_mulMatVecSparse(d->flexedge_velocity, d->flexedge_J, d->qvel, m->nflexedge,
+                      m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind, NULL);
 
   // tendon velocity: dense or sparse
   if (mj_isSparse(m)) {

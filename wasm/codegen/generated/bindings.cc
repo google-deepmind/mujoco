@@ -3579,6 +3579,12 @@ struct MjModel {
   void set_nflextexcoord(int value) {
     ptr_->nflextexcoord = value;
   }
+  int nJfe() const {
+    return ptr_->nJfe;
+  }
+  void set_nJfe(int value) {
+    ptr_->nJfe = value;
+  }
   int nmesh() const {
     return ptr_->nmesh;
   }
@@ -4558,7 +4564,7 @@ struct MjModel {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge, ptr_->flexedge_J_rowadr));
   }
   emscripten::val flexedge_J_colind() const {
-    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * ptr_->nv, ptr_->flexedge_J_colind));
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nJfe, ptr_->flexedge_J_colind));
   }
   emscripten::val flex_rgba() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 4, ptr_->flex_rgba));
@@ -6295,7 +6301,7 @@ struct MjData {
     return emscripten::val(emscripten::typed_memory_view(model->nflexelem * 6, ptr_->flexelem_aabb));
   }
   emscripten::val flexedge_J() const {
-    return emscripten::val(emscripten::typed_memory_view(model->nflexedge * model->nv, ptr_->flexedge_J));
+    return emscripten::val(emscripten::typed_memory_view(model->nJfe, ptr_->flexedge_J));
   }
   emscripten::val flexedge_length() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_length));
@@ -11470,6 +11476,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("nB", &MjModel::nB, &MjModel::set_nB, reference())
     .property("nC", &MjModel::nC, &MjModel::set_nC, reference())
     .property("nD", &MjModel::nD, &MjModel::set_nD, reference())
+    .property("nJfe", &MjModel::nJfe, &MjModel::set_nJfe, reference())
     .property("nJmom", &MjModel::nJmom, &MjModel::set_nJmom, reference())
     .property("nM", &MjModel::nM, &MjModel::set_nM, reference())
     .property("na", &MjModel::na, &MjModel::set_na, reference())

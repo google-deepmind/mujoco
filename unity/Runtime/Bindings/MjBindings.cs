@@ -5313,6 +5313,7 @@ public unsafe struct mjModel_ {
   public int nflexshelldata;
   public int nflexevpair;
   public int nflextexcoord;
+  public int nJfe;
   public int nmesh;
   public int nmeshvert;
   public int nmeshnormal;

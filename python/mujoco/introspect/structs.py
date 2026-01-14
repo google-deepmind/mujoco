@@ -993,6 +993,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of vertices with texture coordinates',
              ),
              StructFieldDecl(
+                 name='nJfe',
+                 type=ValueType(name='int'),
+                 doc='number of non-zeros in sparse flexedge Jacobian matrix',
+             ),
+             StructFieldDecl(
                  name='nmesh',
                  type=ValueType(name='int'),
                  doc='number of meshes',
@@ -2993,7 +2998,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='int'),
                  ),
                  doc='column indices in sparse Jacobian',
-                 array_extent=('nflexedge', 'nv'),
+                 array_extent=('nJfe',),
              ),
              StructFieldDecl(
                  name='flex_rgba',
@@ -5594,7 +5599,7 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                      inner_type=ValueType(name='mjtNum'),
                  ),
                  doc='flex edge Jacobian',
-                 array_extent=('nflexedge', 'nv'),
+                 array_extent=('nJfe',),
              ),
              StructFieldDecl(
                  name='flexedge_length',

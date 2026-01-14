@@ -754,7 +754,7 @@ def _make_data_c(
       'light_xdir': (m.nlight, 3, float_),
       'flexvert_xpos': (nflexvert, 3, float_),
       'flexelem_aabb': (nflexelem, 6, float_),
-      'flexedge_J': (nflexedge, m.nv, float_),
+      'flexedge_J': (m.nJfe, float_),
       'flexedge_length': (nflexedge, float_),
       'ten_J_rownnz': (m.ntendon, np.int32),
       'ten_J_rowadr': (m.ntendon, np.int32),

@@ -96,6 +96,7 @@
     X( nflexshelldata )     \
     X( nflexevpair )        \
     X( nflextexcoord )      \
+    X( nJfe )               \
     X( nmesh )              \
     X( nmeshvert )          \
     X( nmeshnormal )        \
@@ -399,7 +400,7 @@
     X   ( int,     flex_bvhnum,           nflex,         1                    ) \
     X   ( int,     flexedge_J_rownnz,     nflexedge,     1                    ) \
     X   ( int,     flexedge_J_rowadr,     nflexedge,     1                    ) \
-    X   ( int,     flexedge_J_colind,     nflexedge,     MJ_M(nv)             ) \
+    X   ( int,     flexedge_J_colind,     nJfe,          1                    ) \
     X   ( float,   flex_rgba,             nflex,         4                    ) \
     X   ( float,   flex_texcoord,         nflextexcoord, 2                    )
 
@@ -733,7 +734,7 @@
     X   ( mjtNum,    cinert,            nbody,       10          ) \
     X   ( mjtNum,    flexvert_xpos,     nflexvert,   3           ) \
     X   ( mjtNum,    flexelem_aabb,     nflexelem,   6           ) \
-    X   ( mjtNum,    flexedge_J,        nflexedge,   MJ_M(nv)    ) \
+    X   ( mjtNum,    flexedge_J,        nJfe,        1           ) \
     X   ( mjtNum,    flexedge_length,   nflexedge,   1           ) \
     X   ( mjtNum,    bvh_aabb_dyn,      nbvhdynamic, 6           ) \
     X   ( int,       ten_wrapadr,       ntendon,     1           ) \

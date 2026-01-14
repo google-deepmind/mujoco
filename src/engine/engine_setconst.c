@@ -468,14 +468,10 @@ static void set0(mjModel* m, mjData* d) {
         // handle general edge
         else {
           // make dense vector into tmp
-          if (mj_isSparse(m)) {
-            mju_zero(tmp, nv);
-            int end = m->flexedge_J_rowadr[i] + m->flexedge_J_rownnz[i];
-            for (int j=m->flexedge_J_rowadr[i]; j < end; j++) {
-              tmp[m->flexedge_J_colind[j]] = d->flexedge_J[j];
-            }
-          } else {
-            mju_copy(tmp, d->flexedge_J+i*nv, nv);
+          mju_zero(tmp, nv);
+          int end = m->flexedge_J_rowadr[i] + m->flexedge_J_rownnz[i];
+          for (int j=m->flexedge_J_rowadr[i]; j < end; j++) {
+            tmp[m->flexedge_J_colind[j]] = d->flexedge_J[j];
           }
 
           // solve into tmp+nv

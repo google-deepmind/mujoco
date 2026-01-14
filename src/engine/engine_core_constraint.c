@@ -447,7 +447,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
 
       // compute Jacobian difference (opposite of contact: 0 - 1)
       NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
-                          jac[1], jac[0], jacdif, NULL, NULL, NULL);
+                          jac[1], jac[0], jacdif, NULL, NULL, NULL, issparse);
 
       // copy difference into jac[0]
       mju_copy(jac[0], jacdif, 3*NV);
@@ -483,7 +483,7 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
       // compute error Jacobian (opposite of contact: 0 - 1)
       NV = mj_jacDifPair(m, d, chain, body_id[1], body_id[0], pos[1], pos[0],
                           jac[1], jac[0], jacdif,
-                          jac[1]+3*nv, jac[0]+3*nv, jacdif+3*nv);
+                          jac[1]+3*nv, jac[0]+3*nv, jacdif+3*nv, issparse);
 
       // copy difference into jac[0], compress translation:rotation if sparse
       mju_copy(jac[0], jacdif, 3*NV);
@@ -628,13 +628,17 @@ void mj_instantiateEquality(const mjModel* m, mjData* d) {
         // add constraint: sparse or dense
         if (issparse) {
           mj_addConstraint(m, d, d->flexedge_J+m->flexedge_J_rowadr[e], cpos, 0, 0,
-                            1, mjCNSTR_EQUALITY, i,
-                            m->flexedge_J_rownnz[e],
-                            m->flexedge_J_colind+m->flexedge_J_rowadr[e]);
+                           1, mjCNSTR_EQUALITY, i,
+                           m->flexedge_J_rownnz[e],
+                           m->flexedge_J_colind+m->flexedge_J_rowadr[e]);
         } else {
-          mj_addConstraint(m, d, d->flexedge_J+e*nv, cpos, 0, 0,
-                            1, mjCNSTR_EQUALITY, i,
-                            0, NULL);
+          mju_zero(jac[0], nv);  // reuse first row of jac[0]
+          int rowadr = m->flexedge_J_rowadr[e];
+          int rownnz = m->flexedge_J_rownnz[e];
+          for (int k=0; k<rownnz; k++) {
+            jac[0][m->flexedge_J_colind[rowadr+k]] = d->flexedge_J[rowadr+k];
+          }
+          mj_addConstraint(m, d, jac[0], cpos, 0, 0, 1, mjCNSTR_EQUALITY, i, 0, NULL);
         }
       }
       break;
@@ -891,10 +895,10 @@ int mj_contactJacobian(const mjModel* m, mjData* d, const mjContact* con, int di
     // compute Jacobian differences
     if (dim > 3) {
       return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
-                           jac1p, jac2p, jacdifp, jac1r, jac2r, jacdifr);
+                           jac1p, jac2p, jacdifp, jac1r, jac2r, jacdifr, mj_isSparse(m));
     } else {
       return mj_jacDifPair(m, d, chain, bid[0], bid[1], con->pos, con->pos,
-                           jac1p, jac2p, jacdifp, NULL, NULL, NULL);
+                           jac1p, jac2p, jacdifp, NULL, NULL, NULL, mj_isSparse(m));
     }
   }
 

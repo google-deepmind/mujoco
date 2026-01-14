@@ -34,6 +34,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <unordered_set>
 
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmacro.h>
@@ -1153,6 +1154,7 @@ void mjCModel::Clear() {
   nflexshelldata = 0;
   nflexevpair = 0;
   nflextexcoord = 0;
+  nJfe = 0;
   nmeshvert = 0;
   nmeshnormal = 0;
   nmeshtexcoord = 0;
@@ -2141,6 +2143,29 @@ void mjCModel::SetSizes() {
     nflexshelldata += (int)flexes_[i]->shell.size();
     nflexevpair += (int)flexes_[i]->evpair.size()/2;
     nflextexcoord += (flexes_[i]->HasTexcoord() ? flexes_[i]->get_texcoord().size()/2 : 0);
+    if (flexes_[i]->interpolated || flexes_[i]->rigid) {
+      continue;
+    }
+
+    // count number of non-zero elements in the edge Jacobian matrix
+    for (const auto& edge : flexes_[i]->edge) {
+      mjCBody* b1 = bodies_[flexes_[i]->vertbodyid[edge.first]];
+      mjCBody* b2 = bodies_[flexes_[i]->vertbodyid[edge.second]];
+      std::unordered_set<mjCBody*> bodies_in_jac;
+      while (b1 || b2) {
+        if (b1) {
+          bodies_in_jac.insert(b1);
+          b1 = b1->parent;
+        }
+        if (b2) {
+          bodies_in_jac.insert(b2);
+          b2 = b2->parent;
+        }
+      }
+      for (mjCBody* b : bodies_in_jac) {
+        nJfe += b->dofnum;
+      }
+    }
   }
 
   // mesh counts
@@ -4831,7 +4856,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   mj_makeModel(&m,
                nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
                nD, ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
-               nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord,
+               nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord, nJfe,
                nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,
                nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert, nskinface, nskinbone,
                nskinbonevert, nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,

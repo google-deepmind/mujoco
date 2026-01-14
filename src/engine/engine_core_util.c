@@ -438,9 +438,8 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
 int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
                   int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
                   mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
-                  mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr) {
+                  mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr, int issparse) {
   int issimple = (m->body_simple[b1] && m->body_simple[b2]);
-  int issparse = mj_isSparse(m);
   int NV = m->nv;
 
   // skip if no DOFs

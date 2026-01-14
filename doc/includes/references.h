@@ -272,7 +272,7 @@ struct mjData_ {
   // computed by mj_fwdPosition/mj_flex
   mjtNum* flexvert_xpos;     // Cartesian flex vertex positions                  (nflexvert x 3)
   mjtNum* flexelem_aabb;     // flex element bounding boxes (center, size)       (nflexelem x 6)
-  mjtNum* flexedge_J;        // flex edge Jacobian                               (nflexedge x nv)
+  mjtNum* flexedge_J;        // flex edge Jacobian                               (nJfe x 1)
   mjtNum* flexedge_length;   // flex edge lengths                                (nflexedge x 1)
   mjtNum* bvh_aabb_dyn;      // global bounding box (center, size)               (nbvhdynamic x 6)
 
@@ -1033,6 +1033,7 @@ struct mjModel_ {
   int nflexshelldata;             // number of shell fragment vertex ids in all flexes
   int nflexevpair;                // number of element-vertex pairs in all flexes
   int nflextexcoord;              // number of vertices with texture coordinates
+  int nJfe;                       // number of non-zeros in sparse flexedge Jacobian matrix
   int nmesh;                      // number of meshes
   int nmeshvert;                  // number of vertices in all meshes
   int nmeshnormal;                // number of normals in all meshes
@@ -1341,7 +1342,7 @@ struct mjModel_ {
   int*      flex_bvhnum;          // number of bounding volumes               (nflex x 1)
   int*      flexedge_J_rownnz;    // number of non-zeros in Jacobian row      (nflexedge x 1)
   int*      flexedge_J_rowadr;    // row start address in colind array        (nflexedge x 1)
-  int*      flexedge_J_colind;    // column indices in sparse Jacobian        (nflexedge x nv)
+  int*      flexedge_J_colind;    // column indices in sparse Jacobian        (nJfe x 1)
   float*    flex_rgba;            // rgba when material is omitted            (nflex x 4)
   float*    flex_texcoord;        // vertex texture coordinates               (nflextexcoord x 2)
 
