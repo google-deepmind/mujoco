@@ -12,9 +12,8 @@ Upcoming version (not yet released)
      to the addition of the ``mjtNum normal[3]`` argument. The modified functions are :ref:`mj_ray`, :ref:`mj_multiRay`,
      :ref:`mju_rayGeom`, :ref:`mj_rayFlex`, :ref:`mj_rayHfield` and :ref:`mj_rayMesh`.
 
-     **Migration:** In C/C++, pass ``NULL`` to the ``normal`` argument (last argument for all functions except
-     :ref:`mj_multiRay`). Note that in the Python bindings, if the new ``normal`` argument is last, it defaults to
-     ``None``, so no changes are required.
+     **Migration:** In C/C++, pass ``NULL`` to the ``normal`` argument. In Python, in all functions except
+     :ref:`mj_multiRay`, it defaults to ``None``, so no action is required.
 
    - ``mju_rayFlex`` has been renamed to :ref:`mj_rayFlex` for consistency with other functions that take
      ``mjModel*`` and ``mjData*`` arguments.
