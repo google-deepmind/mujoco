@@ -286,10 +286,10 @@ static mjtNum geomDistance(const mjModel* m, const mjData* d, const mjpPlugin* p
       mju_addTo3(a, d->geom_xpos + 3 * i);
       mjtNum dir[3] = {-a[0], -a[1], -a[2]};
       mjtNum r = mju_norm3(dir);
-      mjtNum dist = mj_rayMesh(m, d, i, a, dir);
+      mjtNum dist = mj_rayMesh(m, d, i, a, dir, NULL);
       if (dist > r) {
         mju_scl3(dir, dir, -1);
-        return -mj_rayMesh(m, d, i, a, dir);
+        return -mj_rayMesh(m, d, i, a, dir, NULL);
       }
       return dist;
     }
@@ -414,7 +414,7 @@ static void geomGradient(mjtNum gradient[3], const mjModel* m, const mjData* d,
       mju_addTo3(a, d->geom_xpos+3*i);
       mjtNum dir[3] = {-a[0], -a[1], -a[2]};
       mjtNum r = mju_norm3(dir);
-      mjtNum dist = mj_rayMesh(m, d, i, a, dir);
+      mjtNum dist = mj_rayMesh(m, d, i, a, dir, NULL);
       gradient[0] = dist > r ? 1 : -1;
       gradient[1] = dist > r ? 1 : -1;
       gradient[2] = dist > r ? 1 : -1;

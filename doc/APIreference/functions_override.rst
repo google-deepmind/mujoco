@@ -332,12 +332,14 @@ Intersect ray ``pnt+x*vec, x >= 0`` with geoms.
 
 - Return distance ``x`` to nearest surface, or -1 if no intersection.
 - If ``geomid`` is not NULL, write the id of the intersected geom or -1 if not intersection.
+- If ``normal`` is not NULL, write the surface normal at the intersection point. The normal always points **out of the
+  geometry**, regardless of the ray's direction (i.e., including rays hitting the surface from the inside).
 - Exclude geoms in body with id ``bodyexclude``, use -1 to include all bodies.
 - ``geomgroup`` is an array of length :ref:`mjNGROUP<glNumeric>`, where 1 means the group should be included. Pass
   NULL to skip geom group exclusion.
 - If ``flg_static`` is 0, static geoms will be excluded.
 
-*Nullable:* ``geomgroup``, ``geomid``
+*Nullable:* ``geomgroup``, ``geomid``, ``normal``
 
 .. _Interaction:
 

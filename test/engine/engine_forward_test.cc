@@ -810,6 +810,43 @@ TEST_F(ForwardTest, MocapQuats) {
   mj_deleteModel(model);
 }
 
+// model with degenerate translational inertia
+TEST_F(ForwardTest, DegenerateInertia) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <option integrator="implicitfast" cone="elliptic">
+      <flag gravity="disable"/>
+    </option>
+    <worldbody>
+      <body name="1" pos="0.05 0.3 0">
+        <joint name="1" axis="0 1 0"/>
+        <geom type="capsule" size="0.1 0.5"/>
+      </body>
+      <body name="2">
+        <joint name="2" axis="1 0 0" stiffness="1" springref="90"/>
+        <geom type="capsule" size="0.1 0.5"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  for (int i = 0; i < 1000; i++) {
+    mj_step(model, data);
+    EXPECT_EQ(data->warning[mjWARN_BADQACC].number, 0)
+        << "divergence at timestep " << i;
+    if (data->warning[mjWARN_BADQACC].number != 0) {
+      break;
+    }
+  }
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
 // user defined 2nd-order activation dynamics: frequency-controlled oscillator
 //  note that scalar mjcb_act_dyn callbacks are expected to return act_dot, but
 //  since we have a vector output we write into act_dot directly

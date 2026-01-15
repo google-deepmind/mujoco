@@ -133,7 +133,7 @@ TEST_F(CoreConstraintTest, WeldRotJacobian) {
 
   // rotational Jacobian difference
   mj_jacDifPair(model, data, NULL, 2, 1, point, point,
-                NULL, NULL, NULL, jac0, jac1, jacdif);
+                NULL, NULL, NULL, jac0, jac1, jacdif, mj_isSparse(model));
 
   // formula: 0.5 * neg(quat2) * (jac1-jac2) * quat1
   mjtNum axis[3], quat3[4], quat4[4];
