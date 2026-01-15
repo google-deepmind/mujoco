@@ -28,6 +28,7 @@ struct Node {
   pxr::SdfPath body_path;
   pxr::SdfPath physics_scene;
   std::vector<pxr::SdfPath> actuators;
+  std::vector<pxr::SdfPath> constraints;
   std::vector<pxr::SdfPath> joints;
   std::vector<pxr::SdfPath> visual_gprims;
   std::vector<pxr::SdfPath> colliders;

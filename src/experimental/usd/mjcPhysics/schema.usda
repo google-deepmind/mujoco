@@ -1057,6 +1057,55 @@ class "MjcMaterialAPI"
     )
 }
 
+class "MjcEqualityAPI" (
+    customData = {
+        string className = "EqualityAPI"
+    }
+    doc = """Base API for equality constraints."""
+
+    inherits = </APISchemaBase>
+)
+{
+    rel mjc:target (
+      doc = "Secondary target of the equality constraint."
+    )
+
+    uniform double[] mjc:solref = [0.02, 1.0] (
+        customData = {
+            string apiName = "SolRef"
+        }
+        displayName = "SolRef"
+        doc = """Constraint solver parameter for equality constraint simulation."""
+    )
+
+    uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2.0] (
+        customData = {
+            string apiName = "SolImp"
+        }
+        displayName = "SolImp"
+        doc = """Constraint solver parameter for equality constraint simulation."""
+    )
+}
+
+class "MjcEqualityWeldAPI" (
+    customData = {
+        string className = "EqualityWeldAPI"
+    }
+    doc = """API providing extension attributes to represent equality/weld constraints."""
+
+    prepend apiSchemas = ["MjcEqualityAPI"]
+    inherits = </APISchemaBase>
+)
+{
+    uniform float mjc:torqueScale = 1.0 (
+        customData = {
+            string apiName = "TorqueScale"
+        }
+        displayName = "Torque Scale"
+        doc = """A constant that scales the angular residual (angular constraint violation). Notionally in units of torque/force = length. Intuitively this coefficient defines how much the weld “cares” about rotational displacements vs. translational displacements."""
+    )
+}
+
 class MjcTendon "MjcTendon"
 (
     customData = {

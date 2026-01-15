@@ -127,6 +127,8 @@ add_library(${MJC_PHYSICS_PLUGIN_TARGET_NAME} SHARED)
 target_sources(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PRIVATE
   mjcPhysics/actuator.cpp
   mjcPhysics/collisionAPI.cpp
+  mjcPhysics/equalityAPI.cpp
+  mjcPhysics/equalityWeldAPI.cpp
   mjcPhysics/imageableAPI.cpp
   mjcPhysics/jointAPI.cpp
   mjcPhysics/keyframe.cpp
@@ -162,19 +164,19 @@ target_compile_options(
 
 # Configure RPATH for macOS and UNIX.
 if(APPLE)
-  set_target_properties($(MJCF_PLUGIN_TARGET_NAME) PROPERTIES
+  set_target_properties(${MJCF_PLUGIN_TARGET_NAME} PROPERTIES
     BUILD_RPATH "${USD_INSTALL_ROOT}"
     INSTALL_RPATH "@loader_path")
 
-  set_target_properties($(MJC_PHYSICS_PLUGIN_TARGET_NAME) PROPERTIES
+  set_target_properties(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PROPERTIES
     BUILD_RPATH "${USD_INSTALL_ROOT}"
     INSTALL_RPATH "@loader_path")
 elseif(UNIX)
-  set_target_properties($(MJCF_PLUGIN_TARGET_NAME) PROPERTIES
+  set_target_properties(${MJCF_PLUGIN_TARGET_NAME} PROPERTIES
     BUILD_RPATH "${USD_INSTALL_ROOT}"
     INSTALL_RPATH "$ORIGIN")
 
-  set_target_properties($(MJC_PHYSICS_PLUGIN_TARGET_NAME) PROPERTIES
+  set_target_properties(${MJC_PHYSICS_PLUGIN_TARGET_NAME} PROPERTIES
     BUILD_RPATH "${USD_INSTALL_ROOT}"
     INSTALL_RPATH "$ORIGIN")
 endif()
