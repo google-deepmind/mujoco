@@ -45,6 +45,8 @@ target_sources(${MUJOCO_PLATFORM_TARGET_NAME}
         imgui_widgets.h
         interaction.cc
         interaction.h
+        picture_gui.h
+        picture_gui.cc
         renderer.cc
         renderer.h
         sim_history.cc

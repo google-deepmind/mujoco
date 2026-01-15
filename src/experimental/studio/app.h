@@ -25,6 +25,7 @@
 #include "experimental/platform/gui.h"
 #include "experimental/platform/helpers.h"
 #include "experimental/platform/interaction.h"
+#include "experimental/platform/picture_gui.h"
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/sim_history.h"
 #include "experimental/platform/sim_profiler.h"
@@ -84,6 +85,7 @@ class App {
     bool stats = false;
     bool chart_solver = false;
     bool chart_performance = false;
+    bool picture_in_picture = false;
     bool options_panel = true;
     bool inspector_panel = true;
     bool full_screen = false;
@@ -110,6 +112,9 @@ class App {
     // State.
     int state_sig = 0;
     std::vector<mjtNum> state;
+
+    // Picture-in-Picture.
+    std::vector<platform::PipState> pips;
 
     // File dialogs.
     char filename[1000] = "";

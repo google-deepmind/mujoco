@@ -109,7 +109,7 @@ void Renderer::Render(const mjModel* model, mjData* data,
 void Renderer::RenderToTexture(const mjModel* model, mjData* data,
                                mjvCamera* camera, int width, int height,
                                std::byte* output) {
-  if (!initialized_ || last_update_time_ == -1) {
+  if (!initialized_) {
     return;
   }
 
@@ -120,6 +120,17 @@ void Renderer::RenderToTexture(const mjModel* model, mjData* data,
   mjr_render(viewport, &scene_, &render_context_);
   mjr_readPixels((unsigned char*)output, nullptr, viewport, &render_context_);
   mjr_setBuffer(mjFB_WINDOW, &render_context_);
+}
+
+int Renderer::UploadImage(int texture_id, const std::byte* pixels, int width,
+                          int height, int bpp) {
+#if defined(USE_CLASSIC_OPENGL)
+  return 0;
+#else
+  return mjr_uploadGuiImage(texture_id,
+                            reinterpret_cast<const unsigned char*>(pixels),
+                            width, height, bpp, &render_context_);
+#endif
 }
 
 double Renderer::GetFps() { return fps_; }

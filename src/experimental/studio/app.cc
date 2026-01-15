@@ -36,6 +36,7 @@
 #include "experimental/platform/helpers.h"
 #include "experimental/platform/imgui_widgets.h"
 #include "experimental/platform/interaction.h"
+#include "experimental/platform/picture_gui.h"
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
@@ -788,6 +789,13 @@ void App::BuildGui() {
     ImGui::End();
   }
 
+  if (tmp_.picture_in_picture) {
+    if (ImGui::Begin("Picture-in-Picture", &tmp_.picture_in_picture)) {
+      PipGui(model_, data_, window_.get(), renderer_.get(), &tmp_.pips);
+    }
+    ImGui::End();
+  }
+
   if (tmp_.help) {
     platform::ScopedStyle style;
     style.Var(ImGuiStyleVar_Alpha, 0.6f);
@@ -1258,7 +1266,7 @@ void App::ToolBarGui() {
     if (ImGui::BeginCombo("##Camera", cameras[camera_idx], combo_flags)) {
       for (int n = 0; n < cameras.size(); n++) {
         if (ImGui::Selectable(cameras[n], (camera_idx == n))) {
-          ui_.camera_idx = ::mujoco::platform::SetCamera(
+          ui_.camera_idx = platform::SetCamera(
               model_, &camera_, camera_idx + platform::kTumbleCameraIdx);
         }
       }
@@ -1504,6 +1512,11 @@ void App::MainMenuGui() {
       }
       if (ImGui::MenuItem("Full Screen", "F11")) {
         tmp_.full_screen = !tmp_.full_screen;
+      }
+      ImGui::Separator();
+
+      if (ImGui::MenuItem("Picture-in-Picture")) {
+        tmp_.picture_in_picture = !tmp_.picture_in_picture;
       }
       ImGui::EndMenu();
     }
