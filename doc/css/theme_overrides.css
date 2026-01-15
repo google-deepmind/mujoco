@@ -50,7 +50,12 @@ body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
   font-size: 93%;
 }
 
-.small-centered td, .small-centered th {
+.table-pairwise {
+  font-size: 85%;
+}
+
+.small-centered td, .small-centered th,
+.table-pairwise td, .table-pairwise th {
   text-align: center !important;
   vertical-align: middle !important;
   border: 2px solid var(--color-table-border) !important;

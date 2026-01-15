@@ -828,7 +828,7 @@ has any effect. The settings here are global and apply to the entire model.
 
 :at:`usethread`: :at-val:`[false, true], "true"`
    If this attribute is "true", the model compiler will run in multi-threaded mode. Currently multi-threading is used
-   for computing the length ranges of actuators and for parallel loading of meshes.
+   for computing the length ranges of actuators and for parallel loading and processing of meshes.
 
 .. _compiler-fusestatic:
 

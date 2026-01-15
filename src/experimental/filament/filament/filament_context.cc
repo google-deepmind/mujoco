@@ -69,6 +69,9 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
       mju_error("Unsupported graphics API: %d", config_.graphics_api);
   }
 
+  const int width = model_->vis.global.offwidth;
+  const int height = model_->vis.global.offheight;
+
   engine_ = filament::Engine::create(backend);
   renderer_ = engine_->createRenderer();
   #ifdef __EMSCRIPTEN__
@@ -77,12 +80,11 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
   if (config_.native_window) {
     swap_chain_ = engine_->createSwapChain(config_.native_window);
   } else {
-    const int width = model_->vis.global.offwidth;
-    const int height = model_->vis.global.offheight;
     swap_chain_ = engine_->createSwapChain(width, height);
   }
   #endif
 
+  offscreen_swap_chain_ = engine_->createSwapChain(width, height);
   object_manager_ = std::make_unique<ObjectManager>(model, engine_, config);
 
   // Set clear options.
@@ -128,6 +130,7 @@ FilamentContext::~FilamentContext() {
   object_manager_.reset();
   engine_->destroy(renderer_);
   engine_->destroy(swap_chain_);
+  engine_->destroy(offscreen_swap_chain_);
   filament::Engine::destroy(engine_);
 }
 
@@ -266,7 +269,7 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   if (rgb) {
     filament::View* view =
         scene_view_->PrepareRenderView(last_render_mode_);
-    if (renderer_->beginFrame(swap_chain_)) {
+    if (renderer_->beginFrame(offscreen_swap_chain_)) {
       // We need to disable msaa in order to render to texture.
       auto options = view->getMultiSampleAntiAliasingOptions();
       view->setMultiSampleAntiAliasingOptions({
@@ -287,7 +290,7 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   if (depth) {
     filament::View* view =
         scene_view_->PrepareRenderView(SceneView::DrawMode::kDepth);
-    if (renderer_->beginFrame(swap_chain_)) {
+    if (renderer_->beginFrame(offscreen_swap_chain_)) {
       view->setRenderTarget(depth_target_);
       renderer_->render(view);
 

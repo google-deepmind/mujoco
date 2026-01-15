@@ -33,7 +33,8 @@ ABSL_FLAG(int, window_height, 720, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
 
 std::string Resolve(std::string_view path) {
-  return std::string("assets/") + std::string(path);
+  std::string_view subpath = path.substr(path.find(':') + 1);
+  return std::string("assets/") + std::string(subpath);
 }
 
 class FileResource {
@@ -89,6 +90,7 @@ int main(int argc, char** argv, char** envp) {
   };
   resource_provider.close = [](mjResource* resource) {
     delete static_cast<FileResource*>(resource->data);
+    resource->data = nullptr;
   };
 
   resource_provider.prefix = "font";

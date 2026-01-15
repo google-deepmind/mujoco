@@ -239,6 +239,30 @@ def _ptr_binding_code(
       }}
     }}, py::return_value_policy::move);"""
   elif vartype == 'mjStringVec':
+    # Special case for material.textures: must be exactly mjNTEXROLE size
+    if classname == 'mjsMaterial' and varname == 'textures':
+      return f"""\
+  {classname}.def_property(
+    "{varname}",
+    []({rawclassname}& self) -> MjTypeVec<std::string> {{
+        return MjTypeVec<std::string>(self.{fullvarname}->data(),
+                                      self.{fullvarname}->size());
+      }},
+    []({rawclassname}& self, py::object rhs) {{
+        if (py::len(rhs) != mjNTEXROLE) {{
+          throw pybind11::value_error(
+              "material.textures must have exactly " + std::to_string(mjNTEXROLE) +
+              " elements, got " + std::to_string(py::len(rhs)) + ". " +
+              "Assign a list of " + std::to_string(mjNTEXROLE) + " texture names " +
+              "(use empty strings '' for unused slots).");
+        }}
+        self.{fullvarname}->clear();
+        self.{fullvarname}->reserve(mjNTEXROLE);
+        for (auto val : rhs) {{
+          self.{fullvarname}->push_back(py::cast<std::string>(val));
+      }}
+    }}, py::return_value_policy::move);"""
+    # Default case for other mjStringVec properties
     return f"""\
   {classname}.def_property(
     "{varname}",

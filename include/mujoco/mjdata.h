@@ -328,6 +328,11 @@ struct mjData_ {
   mjtNum *flexedge_J;     // flex edge Jacobian (nflexedge x nv)
   mjtNum *flexedge_length; // flex edge lengths (nflexedge x 1)
   mjtNum *bvh_aabb_dyn; // global bounding box (center, size) (nbvhdynamic x 6)
+  mjtNum* flexvert_xpos;     // Cartesian flex vertex positions                  (nflexvert x 3)
+  mjtNum* flexelem_aabb;     // flex element bounding boxes (center, size)       (nflexelem x 6)
+  mjtNum* flexedge_J;        // flex edge Jacobian                               (nJfe x 1)
+  mjtNum* flexedge_length;   // flex edge lengths                                (nflexedge x 1)
+  mjtNum* bvh_aabb_dyn;      // global bounding box (center, size)               (nbvhdynamic x 6)
 
   // computed by mj_fwdPosition/mj_tendon
   int *ten_wrapadr; // start address of tendon's path                   (ntendon

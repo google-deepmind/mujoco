@@ -212,6 +212,16 @@ std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
       return nullptr;
     }
 
+    // If we encounter a joint that does not participate in articulation, we
+    // should treat it as a constraint instead.
+    // For example, a weld constraint is represented by a fixed joint.
+    bool excluded_from_articulation;
+    joint.GetExcludeFromArticulationAttr().Get(&excluded_from_articulation);
+    if (excluded_from_articulation) {
+      extraction.nodes[to_idx]->constraints.push_back(joint.GetPath());
+      continue;
+    }
+
     children[from_idx][to_idx] = true;
     parent_joints[to_idx].push_back(joint.GetPath());
     // Now that we know all the bodies, we can assign joints to respective

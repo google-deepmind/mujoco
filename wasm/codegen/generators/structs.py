@@ -20,8 +20,8 @@ import math
 from typing import Tuple, Union, cast
 
 from introspect import ast_nodes
-from introspect import structs as introspect_structs
 from introspect import functions as introspect_functions
+from introspect import structs as introspect_structs
 
 from wasm.codegen.generators import code_builder
 from wasm.codegen.generators import common
@@ -376,6 +376,33 @@ def build_struct_header(
         for line in field.declaration.splitlines():
           builder.line(line)
 
+    # accessors declarations
+    if w == "MjModel":
+      builder.line("""
+  // Generates functions to return accessor classes.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, accessor_name, nfield)               \\
+    MjModel##Name##Accessor accessor_name(const NumberOrString& val) const {   \\
+      if (val.isString()) {                                                    \\
+        int id = mj_name2id(ptr_, OBJTYPE, val.as<std::string>().c_str());     \\
+        if (id == -1) {                                                        \\
+          mju_error("Invalid name, MjModel." #accessor_name " not found");     \\
+        }                                                                      \\
+        return MjModel##Name##Accessor(ptr_, id);                              \\
+      } else if (val.isNumber()) {                                             \\
+        int id = val.as<int>();                                                \\
+        if (id < 0 || id >= ptr_->nfield) {                                    \\
+          mju_error_i("Invalid id %d for MjModel." #accessor_name, id);        \\
+        }                                                                      \\
+        return MjModel##Name##Accessor(ptr_, id);                              \\
+      } else {                                                                 \\
+        mju_error(#accessor_name "() argument must be a string or number");    \\
+        return MjModel##Name##Accessor(nullptr, 0);                            \\
+      }                                                                        \\
+    }
+
+    MJMODEL_ACCESSORS
+  #undef X_ACCESSOR""".lstrip())
+
     # define private struct members
     builder.private()
     builder.line(f"{s}* ptr_;")
@@ -481,11 +508,17 @@ def _build_struct_bindings(
       builder.line(".constructor<MjModel *>()")
       builder.line(".constructor<const MjModel &, const MjData &>()")
     elif w == "MjModel":
-      w = common.wrapped_function_name(
+      fn = common.wrapped_function_name(
           introspect_functions.FUNCTIONS["mj_loadXML"]
       )
-      builder.line(f'.class_function("mj_loadXML", &{w}, take_ownership())')
+      builder.line(f'.class_function("mj_loadXML", &{fn}, take_ownership())')
       builder.line(".constructor<const MjModel &>()")
+      builder.line("""
+  // Binds the functions on MjModel that return accessors.
+  #define X_ACCESSOR(NAME, Name, OBJTYPE, field_name, nfield) \\
+    .function(#field_name, &MjModel::field_name)
+    MJMODEL_ACCESSORS
+  #undef X_ACCESSOR""".lstrip())
     elif w == "MjSpec":
       builder.line(".constructor<const MjSpec &>()")
     elif w == "MjvScene":

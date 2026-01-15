@@ -622,3 +622,15 @@ can be accomplished by deleting the directory ``~/.cache/warp`` or via Python
 Yes. Please see Warp's
 `Ahead-of-Time Compilation Workflows <https://nvidia.github.io/warp/codegen.html#ahead-of-time-compilation-workflows>`__
 documentation for details.
+
+Differences from MuJoCo
+=======================
+
+This section notes differences between MJWarp and MuJoCo.
+
+Warmstart
+---------
+
+If warmstarts are not :ref:`disabled <option-flag-warmstart>`, the MJWarp solver warmstart always initializes the
+acceleration with ``qacc_warmstart``. In contrast, MuJoCo performs a comparison between ``qacc_smooth`` and
+``qacc_warmstart`` to determine which one is utilized for the initialization.

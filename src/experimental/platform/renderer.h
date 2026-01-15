@@ -52,6 +52,13 @@ class Renderer {
   void RenderToTexture(const mjModel* model, mjData* data, mjvCamera* camera,
                        int width, int height, std::byte* output);
 
+  // Uploads an image to the backend for GUI rendering, returning the texture
+  // ID for the texture. The ID can be used in subsequent calls to update the
+  // texture data. A nullptr pixels argument will free the texture if it exists.
+  // A texture ID of 0 will create a new texture.
+  int UploadImage(int texture_id, const std::byte* pixels, int width,
+                  int height, int bpp);
+
   // Rendering flags.
   mjtByte* GetRenderFlags() { return scene_.flags; }
 

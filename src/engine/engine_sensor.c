@@ -505,8 +505,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
             int geomid;
             mjtNum normal[3];
             mjtNum* p_normal = (dataspec & (1 << mjRAYDATA_NORMAL)) ? normal : NULL;
-            mjtNum dist = mj_rayNormal(m, d, origin, rvec, NULL, 1,
-                                       m->site_bodyid[objid], &geomid, p_normal);
+            mjtNum dist = mj_ray(m, d, origin, rvec, NULL, 1,
+                                 m->site_bodyid[objid], &geomid, p_normal);
 
             // for site sensor: pass NULL for cam_z so depth = dist
             fill_raydata(ptr, dataspec, dist, origin, rvec, normal, NULL, NULL);
@@ -550,8 +550,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
               }
 
               // cast all rays with normals if needed
-              mj_multiRayNormal(m, d, cam_xpos, vec, NULL, 1, bodyexclude,
-                                geomid, dist, normals, npixel, mjMAXVAL);
+              mj_multiRay(m, d, cam_xpos, vec, NULL, 1, bodyexclude,
+                          geomid, dist, normals, npixel, mjMAXVAL);
 
               // fill in output for each pixel
               ptr = d->sensordata + adr;
@@ -576,8 +576,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 
                   int geomid;
                   mjtNum normal[3];
-                  mjtNum dist = mj_rayNormal(m, d, origin, direction, NULL, 1,
-                                             bodyexclude, &geomid, normal);
+                  mjtNum dist = mj_ray(m, d, origin, direction, NULL, 1,
+                                       bodyexclude, &geomid, normal);
 
                   ptr = fill_raydata(ptr, dataspec, dist, origin, direction,
                                      normal, cam_xpos, cam_z);
@@ -1123,7 +1123,7 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
             // add if ray-zone intersection (always true when con->pos inside zone)
             if (mju_rayGeom(d->site_xpos+3*objid, d->site_xmat+9*objid,
                             m->site_size+3*objid, con->pos, conray,
-                            m->site_type[objid]) >= 0) {
+                            m->site_type[objid], NULL) >= 0) {
               d->sensordata[adr] += conforce[0];
             }
           }

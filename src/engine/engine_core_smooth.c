@@ -546,6 +546,9 @@ void mj_flex(const mjModel *m, mjData *d) {
   int nv = m->nv, issparse = mj_isSparse(m);
   int *rowadr = d->flexedge_J_rowadr, *rownnz = d->flexedge_J_rownnz;
   mjtNum *J = d->flexedge_J;
+void mj_flex(const mjModel* m, mjData* d) {
+  int nv = m->nv;
+  int* rowadr = m->flexedge_J_rowadr, *rownnz = m->flexedge_J_rownnz;
 
   // skip if no flexes
   if (!m->nflex) {
@@ -684,6 +687,14 @@ void mj_flex(const mjModel *m, mjData *d) {
   } else {
     mju_zero(J, m->nflexedge * nv);
   }
+  mjtNum* jac1 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jac2 = mjSTACKALLOC(d, 3*nv, mjtNum);
+  mjtNum* jacdif = mjSTACKALLOC(d, 3*nv, mjtNum);
+  int* chain = mjSTACKALLOC(d, nv, int);
+
+  // clear Jacobian
+  mju_zeroInt(rowadr, m->nflexedge);
+  mju_zeroInt(rownnz, m->nflexedge);
 
   // compute lengths and Jacobians of edges
   for (int f = 0; f < m->nflex; f++) {
@@ -751,6 +762,26 @@ void mj_flex(const mjModel *m, mjData *d) {
         // apply chain rule to compute edge Jacobian
         mju_mulMatTVec(J + (ebase + e) * nv, jacdif, vec, 3, nv);
       }
+      // set rowadr
+      if (ebase+e > 0) {
+        rowadr[ebase+e] = rowadr[ebase+e-1] + rownnz[ebase+e-1];
+      }
+
+      // get endpoint Jacobians, subtract
+      int NV = mj_jacDifPair(m, d, chain, b1, b2, pos1, pos2,
+                              jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
+
+      // no dofs: skip
+      if (!NV) {
+        continue;
+      }
+
+      // apply chain rule to compute edge Jacobian
+      mju_mulMatTVec(d->flexedge_J + rowadr[ebase+e], jacdif, vec, 3, NV);
+
+      // copy sparsity info
+      rownnz[ebase+e] = NV;
+      mju_copyInt(m->flexedge_J_colind + rowadr[ebase+e], chain, NV);
     }
   }
 
@@ -938,6 +969,9 @@ void mj_tendon(const mjModel *m, mjData *d) {
             int NV = mj_jacDifPair(m, d, chain, wbody[k], wbody[k + 1],
                                    wpnt + 3 * k, wpnt + 3 * k + 3, jac1, jac2,
                                    jacdif, NULL, NULL, NULL);
+            int NV = mj_jacDifPair(m, d, chain,
+                                   wbody[k], wbody[k+1], wpnt+3*k, wpnt+3*k+3,
+                                   jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
 
             // no dofs: skip
             if (!NV) {
@@ -1566,7 +1600,7 @@ void mj_transmission(const mjModel *m, mjData *d) {
 
             // get Jacobian difference
             int NV = mj_jacDifPair(m, d, chain, b1, b2, con->pos, con->pos,
-                                   jac1p, jac2p, jacdifp, NULL, NULL, NULL);
+                                   jac1p, jac2p, jacdifp, NULL, NULL, NULL, issparse);
 
             // project Jacobian along the normal of the contact frame
             mju_mulMatMat(jac, con->frame, jacdifp, 1, 3, NV);

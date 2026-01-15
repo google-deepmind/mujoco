@@ -89,7 +89,7 @@ void mj_jacSparseSimple(const mjModel* m, const mjData* d,
 MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
                         int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
                         mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
-                        mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr);
+                        mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr, int issparse);
 
 // dense or sparse weighted sum of multiple body Jacobians at same point
 int mj_jacSum(const mjModel* m, mjData* d, int* chain,

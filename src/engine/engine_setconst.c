@@ -376,8 +376,18 @@ static void set0(mjModel* m, mjData* d) {
       }
 
       // average diagonal and assign
-      m->body_invweight0[2*i] = (A[0] + A[7] + A[14])/3;
-      m->body_invweight0[2*i+1] = (A[21] + A[28] + A[35])/3;
+      mjtNum tran = (A[0] + A[7] + A[14])/3;
+      mjtNum rot = (A[21] + A[28] + A[35])/3;
+
+      // if one is zero, use the other to prevent degenerate constraints
+      if (tran < mjMINVAL && rot > mjMINVAL) {
+        tran = rot;  // use rotation as fallback for translation
+      } else if (rot < mjMINVAL && tran > mjMINVAL) {
+        rot = tran;  // use translation as fallback for rotation
+      }
+
+      m->body_invweight0[2*i] = tran;
+      m->body_invweight0[2*i+1] = rot;
     }
   }
 
@@ -458,14 +468,10 @@ static void set0(mjModel* m, mjData* d) {
         // handle general edge
         else {
           // make dense vector into tmp
-          if (mj_isSparse(m)) {
-            mju_zero(tmp, nv);
-            int end = d->flexedge_J_rowadr[i] + d->flexedge_J_rownnz[i];
-            for (int j=d->flexedge_J_rowadr[i]; j < end; j++) {
-              tmp[d->flexedge_J_colind[j]] = d->flexedge_J[j];
-            }
-          } else {
-            mju_copy(tmp, d->flexedge_J+i*nv, nv);
+          mju_zero(tmp, nv);
+          int end = m->flexedge_J_rowadr[i] + m->flexedge_J_rownnz[i];
+          for (int j=m->flexedge_J_rowadr[i]; j < end; j++) {
+            tmp[m->flexedge_J_colind[j]] = d->flexedge_J[j];
           }
 
           // solve into tmp+nv

@@ -99,6 +99,7 @@ class mjCModel_ : public mjsElement {
   int nflexshelldata;  // number of shell fragment vertex ids in all flexes
   int nflexevpair;     // number of element-vertex pairs in all flexes
   int nflextexcoord;   // number of vertex texture coordinates in all flexes
+  int nJfe;            // number of non-zeros in sparse flex constraint Jacobian
   int nmeshvert;       // number of vertices in all meshes
   int nmeshnormal;     // number of normals in all meshes
   int nmeshtexcoord;   // number of texture coordinates in all meshes
