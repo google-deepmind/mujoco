@@ -1195,8 +1195,13 @@ void App::ToolBarGui() {
     const ImColor yellow(250, 230, 10, 255);
     const int combo_flags = ImGuiComboFlags_NoArrowButton;
 
+    const float scale = ImGui::GetWindowDpiScale();
+    const float right_width = 500.f * scale;
+    const ImVec2 button_size(48.f * scale, 32.f * scale);
+    const ImVec2 play_button_size(120.f * scale, 32.f * scale);
+
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 520);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, right_width);
 
     ImGui::TableNextColumn();
     ImGui::Text("%s", " ");
@@ -1204,7 +1209,7 @@ void App::ToolBarGui() {
     // Unload button.
     ImGui::SameLine();
     style.Color(ImGuiCol_ButtonHovered, red);
-    if (ImGui::Button(ICON_UNLOAD_MODEL, ImVec2(48, 32))) {
+    if (ImGui::Button(ICON_UNLOAD_MODEL, button_size)) {
       RequestModelLoad("");
     }
     ImGui::SetItemTooltip("%s", "Unload");
@@ -1212,14 +1217,14 @@ void App::ToolBarGui() {
 
     // Reload button.
     ImGui::SameLine();
-    if (ImGui::Button(ICON_RELOAD_MODEL, ImVec2(48, 32))) {
+    if (ImGui::Button(ICON_RELOAD_MODEL, button_size)) {
       RequestModelLoad(model_name_);
     }
     ImGui::SetItemTooltip("%s", "Reload");
 
     // Reset button.
     ImGui::SameLine();
-    if (ImGui::Button(ICON_RESET_MODEL, ImVec2(48, 32))) {
+    if (ImGui::Button(ICON_RESET_MODEL, button_size)) {
       ResetPhysics();
     }
     ImGui::SetItemTooltip("%s", "Reset");
@@ -1228,7 +1233,7 @@ void App::ToolBarGui() {
     ImGui::SameLine();
     const bool paused = step_control_.IsPaused();
     style.Color(ImGuiCol_Button, paused ? yellow : green);
-    if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, ImVec2(120, 32))) {
+    if (ImGui::Button(paused ? ICON_PLAY : ICON_PAUSE, play_button_size)) {
       step_control_.TogglePause();
     }
     ImGui::SetItemTooltip("%s", paused ? "Play" : "Pause");
@@ -1243,7 +1248,7 @@ void App::ToolBarGui() {
     ImGui::SetItemTooltip("%s", "Playback Speed");
 
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(50);
+    ImGui::SetNextItemWidth(50.0f * scale);
     if (ImGui::BeginCombo("##Speed", kPercentRealTime[tmp_.speed_index],
                           combo_flags)) {
       for (int n = 0; n < kPercentRealTime.size(); n++) {

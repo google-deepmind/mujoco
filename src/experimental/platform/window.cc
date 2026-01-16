@@ -40,15 +40,22 @@ extern void* GetNativeWindowOsx(void* window);
 
 namespace mujoco::platform {
 
-static void InitImGui(SDL_Window* window, bool load_fonts, bool build_fonts) {
+static void InitImGui(SDL_Window* window, float content_scale, bool load_fonts,
+                      bool build_fonts) {
   ImGui::CreateContext();
 
   ImGuiIO& io = ImGui::GetIO();
   io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   io.IniFilename = nullptr;
+  io.ConfigDpiScaleFonts = true;
+  io.ConfigDpiScaleViewports = true;
   ImGui::StyleColorsDark();
   ImGui_ImplSDL2_InitForOther(window);
+
+  ImGuiStyle& style = ImGui::GetStyle();
+  style.ScaleAllSizes(content_scale);
+  style.FontScaleDpi = content_scale;
 
   if (load_fonts) {
     mjResource* font = nullptr;
@@ -113,14 +120,16 @@ Window::Window(std::string_view title, int width, int height, Config config)
     mju_error("Unsupported window config: %d", render_config);
   }
 
-  sdl_window_ =
-      SDL_CreateWindow(title.data(), SDL_WINDOWPOS_UNDEFINED,
-                       SDL_WINDOWPOS_UNDEFINED, width, height, window_flags);
+  const float content_scale = ImGui_ImplSDL2_GetContentScaleForDisplay(0);
+  sdl_window_ = SDL_CreateWindow(title.data(), SDL_WINDOWPOS_UNDEFINED,
+                                 SDL_WINDOWPOS_UNDEFINED, width * content_scale,
+                                 height * content_scale, window_flags);
   if (!sdl_window_) {
     mju_error("Error creating window: %s", SDL_GetError());
   }
 
-  InitImGui(sdl_window_, config.load_fonts, (render_config != kClassicOpenGL));
+  InitImGui(sdl_window_, content_scale, config.load_fonts,
+            (render_config != kClassicOpenGL));
 
   if (render_config == kFilamentWebGL || render_config == kClassicOpenGL) {
     SDL_GLContext gl_context = SDL_GL_CreateContext(sdl_window_);
