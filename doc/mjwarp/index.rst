@@ -220,7 +220,7 @@ Minimal example
 Command line scripts
 --------------------
 
-Benchmark an environment with testspeed
+Benchmark an environment with _`testspeed`
 
 .. code-block:: shell
 
@@ -378,6 +378,40 @@ To enable this routine set ``Model.opt.ls_parallel=True`` or add a custom numeri
   The parallel linesearch is currently an experimental feature.
 
 .. _mjwBatch:
+
+
+Memory
+------
+
+Simulation throughput is often limited by memory requirements for large numbers of worlds. Considerations for optimizing
+memory utilization include:
+
+- CCD colliders require more memory than primitive colliders, see MuJoCo's :ref:`pair-wise colliders table <coPairwise>`
+  for information about colliders.
+- :ref:`multiccd <option-flag-multiccd>` requires more memory than CCD.
+- CCD memory requirements scale linearly with :ref:`Option.ccd_iterations <option-ccd-iterations>`.
+- A scene with at least one mesh geom and using :ref:`multiccd <option-flag-multiccd>` will have memory requirements
+  that scale linearly with the maximum number of vertices per face and with the maximum number of edges per vertex,
+  computed over all meshes.
+
+`testspeed`_ provides the flag ``--memory`` for reporting a simulation's total memory utilization and information about
+:class:`mjw.Model <mujoco_warp.Model>` and :class:`mjw.Data <mujoco_warp.Data>` fields that require significant memory.
+Memory allocated inline, including for CCD and the constraint solver, can also be significant and is reported as
+``Other memory``.
+
+.. admonition:: Maximum number of contacts per collider
+  :class: note
+
+  Some MJWarp colliders have a different maximum number of contacts compared to MuJoCo:
+
+  - ``PLANE<>MESH``: 4 versus 3
+  - ``HFieldCCD``: 4 versus ``mjMAXCONPAIR``
+
+.. admonition:: Sparsity
+  :class: note
+
+  Sparse Jacobians can enable significant memory savings. Updates for this feature are tracked in GitHub issue
+  `#88 <https://github.com/google-deepmind/mujoco_warp/issues/88>`__.
 
 Batched :class:`Model <mujoco_warp.Model>` Fields
 =================================================
