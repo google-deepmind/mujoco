@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="mujoco-warp"
-version = "0.0.1"
+version = "0.0.2"
 # TODO(team): create a distribution list
 authors = [
     {name = "Newton Developers", email = "mujoco@deepmind.com"},
@@ -27,9 +27,9 @@ requires-python = ">=3.10"
 dependencies = [
     "absl-py",
     "etils[epath]",
-    "mujoco>=3.3.7",
+    "mujoco>=3.4.0",
     "numpy",
-    "warp-lang>=1.9.1",
+    "warp-lang>=1.11.0",
 ]
 
 [[tool.uv.index]]
@@ -48,7 +48,6 @@ mujoco = {index = "mujoco"}
 
 [project.optional-dependencies]
 dev = [
-    "asv",
     "pre-commit",
     "pytest",
     "pytest-xdist",
@@ -56,7 +55,7 @@ dev = [
     "pygls>=1.0.0,<2.0.0",
     "lsprotocol>=2023.0.1,<2024.0.0",
     "mujoco>=3.3.7.dev0",
-    "warp-lang>=1.9.1.dev0",
+    "warp-lang>=1.11.0.dev0",
 ]
 # TODO(team): cpu and cuda JAX optional dependencies are temporary, remove after we land MJX:Warp
 cpu = [
@@ -112,6 +111,10 @@ convention = "google"
 [tool.ruff.format]
 docstring-code-format = true
 docstring-code-line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["mujoco_warp"]
+norecursedirs = ["benchmarks", "contrib"]
 
 [tool.setuptools]
 package-data = { "mujoco_warp" = ["test_data/**"] }
