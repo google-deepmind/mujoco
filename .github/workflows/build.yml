@@ -452,6 +452,11 @@ jobs:
       if: ${{ failure() && github.event_name == 'push' && env.GCHAT_API_URL != '' }}
       run: bash ./.github/workflows/build_steps.sh notify_team_chat
 
+    - name: Stage WASM artifacts for publishing
+      run: |
+        cp build_wasm/bin/mujoco.js ./wasm/package/
+        cp build_wasm/bin/mujoco.wasm ./wasm/package/
+
     - name: Publish package to NPM
       working-directory: ./wasm/package
       run: npm publish --ignore-scripts
