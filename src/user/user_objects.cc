@@ -2598,7 +2598,28 @@ void mjCBody::Compile(void) {
 }
 
 
+// skin attach issue fix---------
+void mjCSkin::ResolveReferences(const mjCModel* m) {
+  // Resize the bodyid list to match the bodyname list
+  bodyid.resize(bodyname_.size());
 
+  for (int i = 0; i < bodyname_.size(); ++i) {
+    if (!bodyname_[i].empty()) {
+      // Find the body object using the (now prefixed) name
+      mjCBody* b = (mjCBody*)m->FindObject(mjOBJ_BODY, bodyname_[i]);
+      if (b) {
+        // Success! Store the numerical ID.
+        bodyid[i] = b->id;
+      } else {
+        // This is the error we are fixing!
+        throw mjCError(this, "unknown body '%s' in skin", bodyname_[i].c_str());
+      }
+    } else {
+      // This bone doesn't reference a body.
+      bodyid[i] = -1;
+    }
+  }
+}
 //------------------ class mjCFrame implementation -------------------------------------------------
 
 // initialize frame
