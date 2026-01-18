@@ -911,16 +911,29 @@ def tendon(m: Model, d: Data) -> Data:
   def _length_moment(pnt0, pnt1, body0, body1):
     dif = pnt1 - pnt0
     length = math.norm(dif)
+    
+    # More robust check: if length is too small, return zero moment
+    is_degenerate = length < mujoco.mjMINVAL
+    
     vec = jp.where(
-        length < mujoco.mjMINVAL,
+        is_degenerate,
         jp.array([1.0, 0.0, 0.0]),
-        math.safe_div(dif, length),
+        dif / jp.maximum(length, mujoco.mjMINVAL),  # Clamp denominator
     )
 
     jacp1, _ = support.jac(m, d, pnt0, body0)
     jacp2, _ = support.jac(m, d, pnt1, body1)
     jacdif = jacp2 - jacp1
-    moment = jp.where(body0 != body1, jacdif @ vec, jp.zeros(m.nv))
+    
+    # Zero out moment if length is degenerate OR same body
+    moment = jp.where(
+        jp.logical_or(is_degenerate, body0 == body1),
+        jp.zeros(m.nv),
+        jacdif @ vec
+    )
+    
+    # Conservative NaN guard: sanitize any NaNs that slip through
+    moment = jp.where(jp.isnan(moment), jp.zeros(m.nv), moment)
 
     return length, moment
 
