@@ -15,7 +15,7 @@
 
 <mujoco model="Poncho">
   <include file="mannequin.xml"/>
-  <option timestep="0.01" integrator="implicitfast" viscosity=".3" solver="CG" tolerance="1e-6">
+  <option timestep="0.005" integrator="implicitfast" viscosity=".3" solver="CG" tolerance="1e-6">
     <flag energy="enable"/>
   </option>
 

@@ -26,17 +26,24 @@ from mujoco.mjx._src.types import Data
 from mujoco.mjx._src.types import DataJAX
 from mujoco.mjx._src.types import DisableBit
 from mujoco.mjx._src.types import EqType
+from mujoco.mjx._src.types import Impl
 from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
+from mujoco.mjx._src.types import ObjType
 from mujoco.mjx._src.types import TrnType
 from mujoco.mjx._src.types import WrapType
 # pylint: enable=g-importing-member
+import mujoco.mjx.warp as mjxw
 import numpy as np
 
 
 def kinematics(m: Model, d: Data) -> Data:
   """Converts position/velocity from generalized coordinates to maximal."""
+  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    from mujoco.mjx.warp import smooth as mjxw_smooth  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+    return mjxw_smooth.kinematics(m, d)
+
   def fn(carry, jnt_typs, jnt_pos, jnt_axis, qpos, qpos0, pos, quat):
     # calculate joint anchors, axes, body pos and quat in global frame
     # also normalize qpos while we're at it
@@ -132,6 +139,7 @@ def kinematics(m: Model, d: Data) -> Data:
 
 def com_pos(m: Model, d: Data) -> Data:
   """Maps inertias and motion dofs to global frame centered at subtree-CoM."""
+
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('com_pos requires JAX backend implementation.')
 
@@ -204,7 +212,7 @@ def com_pos(m: Model, d: Data) -> Data:
       d.xanchor,
       d.xaxis,
   )
-  d = d.tree_replace({'_impl.cdof': cdof})
+  d = d.tree_replace({'cdof': cdof})
 
   return d
 
@@ -297,8 +305,8 @@ def crb(m: Model, d: Data) -> Data:
   d = d.tree_replace({'_impl.crb': crb_body})
 
   crb_dof = jp.take(crb_body, jp.array(m.dof_bodyid), axis=0)
-  crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d._impl.cdof)
-  qm = support.make_m(m, crb_cdof, d._impl.cdof, m.dof_armature)
+  crb_cdof = jax.vmap(math.inert_mul)(crb_dof, d.cdof)
+  qm = support.make_m(m, crb_cdof, d.cdof, m.dof_armature)
   d = d.tree_replace({'_impl.qM': qm})
   return d
 
@@ -404,6 +412,7 @@ def solve_m(m: Model, d: Data, x: jax.Array) -> jax.Array:
 
 def com_vel(m: Model, d: Data) -> Data:
   """Computes cvel, cdof_dot."""
+
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('com_vel requires JAX backend implementation.')
 
@@ -437,11 +446,11 @@ def com_vel(m: Model, d: Data) -> Data:
       'jvv',
       'bv',
       m.jnt_type,
-      d._impl.cdof,
+      d.cdof,
       d.qvel,
   )
 
-  d = d.tree_replace({'cvel': cvel, '_impl.cdof_dot': cdof_dot})
+  d = d.tree_replace({'cvel': cvel, 'cdof_dot': cdof_dot})
 
   return d
 
@@ -568,7 +577,7 @@ def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
     return cacc
 
   cacc = scan.body_tree(
-      m, cacc_fn, 'vvvv', 'b', d._impl.cdof_dot, d.qvel, d._impl.cdof, d.qacc
+      m, cacc_fn, 'vvvv', 'b', d.cdof_dot, d.qvel, d.cdof, d.qacc
   )
 
   def frc(cinert, cacc, cvel):
@@ -586,7 +595,7 @@ def rne(m: Model, d: Data, flg_acc: bool = False) -> Data:
     return cfrc
 
   cfrc = scan.body_tree(m, cfrc_fn, 'b', 'b', loc_cfrc, reverse=True)
-  qfrc_bias = jax.vmap(jp.dot)(d._impl.cdof, cfrc[jp.array(m.dof_bodyid)])
+  qfrc_bias = jax.vmap(jp.dot)(d.cdof, cfrc[jp.array(m.dof_bodyid)])
 
   d = d.replace(qfrc_bias=qfrc_bias)
 
@@ -659,11 +668,126 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
         cfrc_contact.reshape((-1, 6))
     )
 
-  # TODO(taylorhowell): connect and weld constraints
-  if np.any(m.eq_type == EqType.CONNECT):
-    raise NotImplementedError('Connect constraints are not implemented.')
-  if np.any(m.eq_type == EqType.WELD):
-    raise NotImplementedError('Weld constraints are not implemented.')
+  # cfrc_ext += connect, weld
+  cfrc_ext_equality = []
+  cfrc_ext_equality_adr = []
+
+  connect_id = m.eq_type == EqType.CONNECT
+  nconnect = connect_id.sum()
+
+  if nconnect:
+    cfrc_connect_force = d._impl.efc_force[: 3 * nconnect].reshape(
+        (nconnect, 3)
+    )
+
+    is_site = m.eq_objtype == ObjType.SITE
+    body1id = np.copy(m.eq_obj1id)
+    body2id = np.copy(m.eq_obj2id)
+    pos1 = m.eq_data[:, :3]
+    pos2 = m.eq_data[:, 3:6]
+
+    if m.nsite:
+      body1id[is_site] = m.site_bodyid[m.eq_obj1id[is_site]]
+      body2id[is_site] = m.site_bodyid[m.eq_obj2id[is_site]]
+      pos1 = jp.where(is_site[:, None], m.site_pos[m.eq_obj1id], pos1)
+      pos2 = jp.where(is_site[:, None], m.site_pos[m.eq_obj2id], pos2)
+
+    # body 1
+    k1_connect = body1id[connect_id]
+    k1_connect_mask = k1_connect != 0
+    offset1_connect = pos1[connect_id]
+
+    pos1_connect = jax.vmap(lambda pnt, mat, vec: mat @ pnt + vec)(
+        offset1_connect, d.xmat[k1_connect], d.xpos[k1_connect]
+    )
+    subtree_com1_connect = d.subtree_com[jp.array(m.body_rootid)[k1_connect]]
+    cfrc_com1_connect = jax.vmap(
+        lambda dif, frc, mask: mask * jp.concatenate([-jp.cross(dif, frc), frc])
+    )(subtree_com1_connect - pos1_connect, cfrc_connect_force, k1_connect_mask)
+
+    # body 2
+    k2_connect = body2id[connect_id]
+    k2_connect_mask = -1 * (k2_connect != 0)
+    offset2_connect = pos2[connect_id]
+
+    pos2_connect = jax.vmap(lambda pnt, mat, vec: mat @ pnt + vec)(
+        offset2_connect, d.xmat[k2_connect], d.xpos[k2_connect]
+    )
+    subtree_com2_connect = d.subtree_com[jp.array(m.body_rootid)[k2_connect]]
+    cfrc_com2_connect = jax.vmap(
+        lambda dif, frc, mask: mask * jp.concatenate([-jp.cross(dif, frc), frc])
+    )(subtree_com2_connect - pos2_connect, cfrc_connect_force, k2_connect_mask)
+
+    cfrc_ext_equality.append(jp.vstack([cfrc_com1_connect, cfrc_com2_connect]))
+    cfrc_ext_equality_adr.append(jp.concatenate([k1_connect, k2_connect]))
+
+  weld_id = m.eq_type == EqType.WELD
+  nweld = weld_id.sum()
+
+  if nweld:
+    cfrc_weld = d._impl.efc_force[
+        3 * nconnect : 3 * nconnect + 6 * nweld
+    ].reshape((nweld, 6))
+    cfrc_weld_force = cfrc_weld[:, :3]
+    cfrc_weld_torque = cfrc_weld[:, 3:]
+
+    is_site = m.eq_objtype == ObjType.SITE
+    body1id = np.copy(m.eq_obj1id)
+    body2id = np.copy(m.eq_obj2id)
+    pos1 = m.eq_data[:, 3:6]
+    pos2 = m.eq_data[:, :3]
+
+    if m.nsite:
+      body1id[is_site] = m.site_bodyid[m.eq_obj1id[is_site]]
+      body2id[is_site] = m.site_bodyid[m.eq_obj2id[is_site]]
+      pos1 = jp.where(is_site[:, None], m.site_pos[m.eq_obj1id], pos1)
+      pos2 = jp.where(is_site[:, None], m.site_pos[m.eq_obj2id], pos2)
+
+    # body 1
+    k1_weld = body1id[weld_id]
+    k1_weld_mask = k1_weld != 0
+    offset1_weld = pos1[weld_id]
+
+    pos1_weld = jax.vmap(lambda pnt, mat, vec: mat @ pnt + vec)(
+        offset1_weld, d.xmat[k1_weld], d.xpos[k1_weld]
+    )
+    subtree_com1_weld = d.subtree_com[jp.array(m.body_rootid)[k1_weld]]
+    cfrc_com1_weld = jax.vmap(
+        lambda dif, frc, trq, mask: mask
+        * jp.concatenate([trq - jp.cross(dif, frc), frc])
+    )(
+        subtree_com1_weld - pos1_weld,
+        cfrc_weld_force,
+        cfrc_weld_torque,
+        k1_weld_mask,
+    )
+
+    # body 2
+    k2_weld = body2id[weld_id]
+    k2_weld_mask = -1 * (k2_weld != 0)
+    offset2_weld = pos2[weld_id]
+
+    pos2_weld = jax.vmap(lambda pnt, mat, vec: mat @ pnt + vec)(
+        offset2_weld, d.xmat[k2_weld], d.xpos[k2_weld]
+    )
+    subtree_com2_weld = d.subtree_com[jp.array(m.body_rootid)[k2_weld]]
+    cfrc_com2_weld = jax.vmap(
+        lambda dif, frc, trq, mask: mask
+        * jp.concatenate([trq - jp.cross(dif, frc), frc])
+    )(
+        subtree_com2_weld - pos2_weld,
+        cfrc_weld_force,
+        cfrc_weld_torque,
+        k2_weld_mask,
+    )
+
+    cfrc_ext_equality.append(jp.vstack([cfrc_com1_weld, cfrc_com2_weld]))
+    cfrc_ext_equality_adr.append(jp.concatenate([k1_weld, k2_weld]))
+
+  if nconnect or nweld:
+    cfrc_ext = cfrc_ext.at[jp.concatenate(cfrc_ext_equality_adr)].add(
+        jp.vstack(cfrc_ext_equality)
+    )
 
   # forward pass over bodies: compute cacc, cfrc_int
   def _forward(carry, cfrc_ext, cinert, cvel, body_dofadr, body_dofnum):
@@ -683,8 +807,8 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
     )
 
     # cacc = cacc_parent + cdofdot * qvel + cdof * qacc
-    cacc_vel = d._impl.cdof_dot.T @ (mask * d.qvel)
-    cacc_acc = d._impl.cdof.T @ (mask * d.qacc)
+    cacc_vel = d.cdof_dot.T @ (mask * d.qvel)
+    cacc_acc = d.cdof.T @ (mask * d.qacc)
     cacc = cacc_parent + cacc_vel + cacc_acc
 
     # cfrc_body = cinert * cacc + cvel x (cinert * cvel)
@@ -728,6 +852,10 @@ def rne_postconstraint(m: Model, d: Data) -> Data:
 
 def tendon(m: Model, d: Data) -> Data:
   """Computes tendon lengths and moments."""
+  if m.impl == Impl.WARP and d.impl == Impl.WARP and mjxw.WARP_INSTALLED:
+    from mujoco.mjx.warp import smooth as mjxw_smooth  # pylint: disable=g-import-not-at-top  # pytype: disable=import-error
+    return mjxw_smooth.tendon(m, d)
+
   if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
     raise ValueError('tendon requires JAX backend implementation.')
 
@@ -784,7 +912,9 @@ def tendon(m: Model, d: Data) -> Data:
     dif = pnt1 - pnt0
     length = math.norm(dif)
     vec = jp.where(
-        length < mujoco.mjMINVAL, jp.array([1.0, 0.0, 0.0]), dif / length
+        length < mujoco.mjMINVAL,
+        jp.array([1.0, 0.0, 0.0]),
+        math.safe_div(dif, length),
     )
 
     jacp1, _ = support.jac(m, d, pnt0, body0)
@@ -975,7 +1105,7 @@ def tendon(m: Model, d: Data) -> Data:
 
   # assemble length and moment
   ten_length = (
-      jp.zeros_like(d._impl.ten_length).at[tendon_id_jnt].set(length_jnt)
+      jp.zeros_like(d.ten_length).at[tendon_id_jnt].set(length_jnt)
   )
   ten_length = ten_length.at[tendon_id_site].add(length_site)
   ten_length = ten_length.at[tendon_id_geom].add(length_geom)
@@ -1045,7 +1175,7 @@ def tendon(m: Model, d: Data) -> Data:
   ).reshape((m.nwrap, 2))
 
   return d.tree_replace({
-      '_impl.ten_length': ten_length,
+      'ten_length': ten_length,
       '_impl.ten_J': ten_moment,
       '_impl.ten_wrapadr': jp.array(ten_wrapadr, dtype=int),
       '_impl.ten_wrapnum': jp.array(ten_wrapnum, dtype=int),
@@ -1147,7 +1277,7 @@ def transmission(m: Model, d: Data) -> Data:
       wrench = jp.concatenate((frame_xmat @ gear[:3], frame_xmat @ gear[3:]))
       moment = jac @ wrench
     elif trntype == TrnType.TENDON:
-      length = d._impl.ten_length[trnid[0]] * gear[:1]
+      length = d.ten_length[trnid[0]] * gear[:1]
       moment = d._impl.ten_J[trnid[0]] * gear[0]
     else:
       raise RuntimeError(f'unrecognized trntype: {TrnType(trntype)}')
@@ -1181,7 +1311,7 @@ def transmission(m: Model, d: Data) -> Data:
   moment = moment.reshape((m.nu, m.nv))
 
   d = d.tree_replace(
-      {'_impl.actuator_length': length, '_impl.actuator_moment': moment}
+      {'actuator_length': length, '_impl.actuator_moment': moment}
   )
   return d
 
@@ -1261,14 +1391,16 @@ def tendon_dot(m: Model, d: Data) -> jax.Array:
     dpnt = wpnt1 - wpnt0
     norm = math.norm(dpnt)
     dpnt = jp.where(
-        norm < mujoco.mjMINVAL, jp.array([1.0, 0.0, 0.0]), dpnt / norm
+        norm < mujoco.mjMINVAL,
+        jp.array([1.0, 0.0, 0.0]),
+        math.safe_div(dpnt, norm),
     )
 
     # dvel = d / dt(dpnt)
     dvel = wvel1 - wvel0
     dot = jp.dot(dpnt, dvel)
     dvel += dpnt * -dot
-    dvel = jp.where(norm > mujoco.mjMINVAL, dvel / norm, 0.0)
+    dvel = jp.where(norm > mujoco.mjMINVAL, math.safe_div(dvel, norm), 0.0)
 
     # get endpoint JacobianDots, subtract
     jacp1, _ = support.jac_dot(m, d, wpnt0, body0)

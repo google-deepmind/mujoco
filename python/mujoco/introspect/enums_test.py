@@ -43,7 +43,7 @@ class EnumsTest(absltest.TestCase):
                                           ('mjENBL_FWDINV', 1<<2),
                                           ('mjENBL_INVDISCRETE', 1<<3),
                                           ('mjENBL_MULTICCD', 1<<4),
-                                          ('mjENBL_ISLAND', 1<<5),
+                                          ('mjENBL_SLEEP', 1<<5),
                                           ('mjNENABLE', 6)))
 
   # values mostly increment by one with occasional overrides

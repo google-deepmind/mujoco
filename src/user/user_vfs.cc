@@ -178,12 +178,6 @@ int Read(mjResource* resource, const void** buffer) {
 void Close(mjResource* resource) {
 }
 
-// getdir callback for the VFS resource provider
-void GetDir(mjResource* resource, const char** dir, int* ndir) {
-  *dir = (resource) ? resource->name : nullptr;
-  *ndir = (resource) ? mjuu_dirnamelen(resource->name) : 0;
-}
-
 // modified callback for the VFS resource provider
 // return > 0 if modified and 0 if unmodified
 int Modified(const mjResource* resource, const char* timestamp) {
@@ -219,7 +213,8 @@ int mj_addFileVFS(mjVFS* vfs, const char* directory, const char* filename) {
   VFS* cvfs = GetVFSImpl(vfs);
 
   // make full name
-  FilePath fullname = FilePath(directory, filename);
+  const char* dir = directory != nullptr ? directory : "";
+  FilePath fullname = FilePath(dir, filename);
 
   // strip path
   FilePath newname = StripPath(filename);
@@ -250,7 +245,12 @@ int mj_addBufferVFS(mjVFS* vfs, const char* name, const void* buffer,
   if (!(file = cvfs->AddFile(FilePath(name), std::move(inbuffer), 0))) {
     return 2;  // AddFile failed, repeated name
   }
-  file->filedata.reserve(nbuffer);
+  try {
+    file->filedata.reserve(nbuffer);
+  } catch (...) {
+    cvfs->DeleteFile(file->filename);  // delete file on error
+    return -1;
+  }
   file->filestamp = vfs_memcpy(file->filedata, buffer, nbuffer);
   return 0;
 }
@@ -273,6 +273,6 @@ void mj_deleteVFS(mjVFS* vfs) {
 
 const mjpResourceProvider* GetVfsResourceProvider() {
   static mjpResourceProvider provider
-    = { nullptr, &Open, &Read, &Close, &GetDir, &Modified, nullptr };
+    = { nullptr, &Open, &Read, &Close, &Modified, nullptr };
   return &provider;
 }

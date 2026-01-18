@@ -17,16 +17,18 @@
 #include "src/engine/engine_util_solve.h"
 
 #include <cstddef>
+#include <iomanip>
 #include <iostream>
 #include <random>
-#include <iomanip>
 #include <string>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mujoco/mujoco.h>
 #include "src/engine/engine_util_blas.h"
 #include "src/engine/engine_util_misc.h"
+#include "src/engine/engine_util_sparse.h"
 #include "test/fixture.h"
 
 namespace mujoco {
@@ -37,6 +39,7 @@ using ::testing::Pointwise;
 using ::testing::DoubleNear;
 using ::testing::ElementsAre;
 using ::std::string;
+using ::std::vector;
 using ::std::setw;
 using QCQP2Test = MujocoTest;
 
@@ -254,7 +257,7 @@ TEST_F(BoxQPTest, BoundedQP) {
                               maxiter, mingrad, backtrack,
                               minstep, armijo, log, logsz);
 
-  // EXPECT_TRUE(false) << log;  // uncomment to print `log` to error log
+  // ADD_FAILURE() << log;  // uncomment to print `log` to error log
 
   // check solution
   EXPECT_GT(nfree, -1);
@@ -651,73 +654,381 @@ TEST_F(BandMatrixTest, Solve) {
 
 using EngineUtilSolveTest = MujocoTest;
 
-TEST_F(EngineUtilSolveTest, MjuCholFactorNNZ) {
+TEST_F(EngineUtilSolveTest, MjuCholFactorSymbolic) {
   mjModel* model = LoadModelFromString("<mujoco/>");
   mjData* d = mj_makeData(model);
 
-  int nA = 2;
-  mjtNum matA[4] = {1, 0,
-                    0, 1};
-  mjtNum sparseA[4];
-  int rownnzA[2];
-  int rowadrA[2];
-  int colindA[4];
-  int rownnzA_factor[2];
-  mju_dense2sparse(sparseA, matA, nA, nA, rownnzA, rowadrA, colindA, 4);
-  int nnzA = mju_cholFactorCount(rownnzA_factor,
-                                 rownnzA, rowadrA, colindA, nA, d);
+  // Test matrix (upper triangular, representing symmetric matrix):
+  //   [10  1  2  3]
+  //   [ 0 10  0  0]
+  //   [ 0  0 10  1]
+  //   [ 0  0  0 10]
+  //
+  // mju_cholFactorSymbolic reads entries where col >= row
 
-  EXPECT_EQ(nnzA, 2);
-  EXPECT_THAT(AsVector(rownnzA_factor, 2), ElementsAre(1, 1));
+  int n = 4;
+  mjtNum H[16] = {10, 1, 2, 3, 0, 10, 0, 0, 0, 0, 10, 1, 0, 0, 0, 10};
 
-  int nB = 3;
-  mjtNum matB[9] = {10, 1, 0,
-                    0, 10, 1,
-                    0, 0, 10};
-  mjtNum sparseB[9];
-  int rownnzB[3];
-  int rowadrB[3];
-  int colindB[9];
-  int rownnzB_factor[3];
-  mju_dense2sparse(sparseB, matB, nB, nB, rownnzB, rowadrB, colindB, 9);
-  int nnzB = mju_cholFactorCount(rownnzB_factor,
-                                 rownnzB, rowadrB, colindB, nB, d);
+  // convert to sparse
+  mjtNum sparseH[16];
+  int H_rownnz[4], H_rowadr[4], H_colind[16];
+  mju_dense2sparse(sparseH, H, n, n, H_rownnz, H_rowadr, H_colind, 16);
 
-  EXPECT_EQ(nnzB, 5);
-  EXPECT_THAT(AsVector(rownnzB_factor, 3), ElementsAre(1, 2, 2));
+  // phase 1: counting
+  int L_rownnz[4], L_rowadr[4];
+  int LT_rownnz[4], LT_rowadr[4];
+  int nnz = mju_cholFactorSymbolic(nullptr, L_rownnz, L_rowadr, nullptr,
+                                   LT_rownnz, LT_rowadr, nullptr, H_rownnz,
+                                   H_rowadr, H_colind, n, d);
 
-  int nC = 3;
-  mjtNum matC[9] = {10, 1, 0,
-                    0, 10, 0,
-                    0, 0, 10};
-  mjtNum sparseC[9];
-  int rownnzC[3];
-  int rowadrC[3];
-  int colindC[9];
-  int rownnzC_factor[3];
-  mju_dense2sparse(sparseC, matC, nC, nC, rownnzC, rowadrC, colindC, 9);
-  int nnzC = mju_cholFactorCount(rownnzC_factor,
-                                 rownnzC, rowadrC, colindC, nC, d);
+  // verify counting phase outputs
+  EXPECT_EQ(nnz, 8);
+  // L (CSR) structure for reverse Cholesky (rows filled in reverse order)
+  EXPECT_THAT(AsVector(L_rownnz, 4), ElementsAre(1, 2, 2, 3));
+  EXPECT_THAT(AsVector(L_rowadr, 4), ElementsAre(0, 1, 3, 5));
+  // LT (CSC) structure: transpose of L
+  EXPECT_THAT(AsVector(LT_rownnz, 4), ElementsAre(4, 1, 2, 1));
+  EXPECT_THAT(AsVector(LT_rowadr, 4), ElementsAre(0, 4, 5, 7));
 
-  EXPECT_EQ(nnzC, 4);
-  EXPECT_THAT(AsVector(rownnzC_factor, 3), ElementsAre(1, 2, 1));
+  // phase 2: filling
+  int L_colind[8], LT_colind[8], LT_pos[8];
+  mju_cholFactorSymbolic(L_colind, L_rownnz, L_rowadr, LT_colind, LT_rownnz,
+                         LT_rowadr, LT_pos, H_rownnz, H_rowadr, H_colind, n, d);
 
-  int nD = 4;
-  mjtNum matD[16] = {10, 1, 2, 3,
-                     0, 10, 0, 0,
-                     0, 0, 10, 1,
-                     0, 0, 0, 10};
-  mjtNum sparseD[16];
-  int rownnzD[4];
-  int rowadrD[4];
-  int colindD[16];
-  int rownnzD_factor[4];
-  mju_dense2sparse(sparseD, matD, nD, nD, rownnzD, rowadrD, colindD, 16);
-  int nnzD = mju_cholFactorCount(rownnzD_factor,
-                                 rownnzD, rowadrD, colindD, nD, d);
+  // verify L_colind
+  EXPECT_THAT(AsVector(L_colind, 8), ElementsAre(0, 0, 1, 0, 2, 0, 2, 3));
+  // Explanation (reverse Cholesky builds from bottom to top):
+  //   Row 0 (1 entry): diagonal 0
+  //   Row 1 (2 entries): col 0, then diagonal 1
+  //   Row 2 (2 entries): col 0, then diagonal 2
+  //   Row 3 (3 entries): col 0, col 2, then diagonal 3
 
-  EXPECT_EQ(nnzD, 8);
-  EXPECT_THAT(AsVector(rownnzD_factor, 4), ElementsAre(1, 2, 2, 3));
+  // verify LT_colind: transpose of L
+  EXPECT_THAT(AsVector(LT_colind, 8), ElementsAre(0, 1, 2, 3, 1, 2, 3, 3));
+  // Explanation:
+  //   Column 0 (4 entries): rows 0, 1, 2, 3 (all have L[row, 0] != 0)
+  //   Column 1 (1 entry): row 1
+  //   Column 2 (2 entries): rows 2, 3
+  //   Column 3 (1 entry): row 3
+
+  // verify LT_pos: for each entry in LT, should point to correct position in L
+  for (int c = 0; c < n; c++) {
+    int adr = LT_rowadr[c];
+    for (int k = 0; k < LT_rownnz[c]; k++) {
+      int L_idx = LT_pos[adr + k];
+      EXPECT_EQ(L_colind[L_idx], c)
+          << "LT_pos mismatch at column " << c << ", entry " << k;
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(model);
+}
+
+// Test for mju_cholUpdate: rank-one Cholesky update L*L' +/- x*x'
+// Verifies that after applying the update, reconstructing H = L*L' produces
+// the expected result H_original +/- x*x'.
+TEST_F(EngineUtilSolveTest, MjuCholUpdate) {
+  std::mt19937_64 rng;
+  rng.seed(42);
+  std::normal_distribution<double> dist(0, 1);
+
+  for (int n : {4, 6, 8}) {
+    vector<mjtNum> H(n * n);
+    vector<mjtNum> H_expected(n * n);
+    vector<mjtNum> L_dense(n * n);
+    vector<mjtNum> sqrtH(n * n);
+    vector<mjtNum> x(n);
+    vector<mjtNum> x_copy(n);
+    vector<mjtNum> H_reconstructed(n * n);
+
+    for (int flg_plus : {0, 1}) {
+      // generate random lower-triangular matrix for sqrtH
+      mju_zero(sqrtH.data(), n * n);
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j <= i; j++) {
+          sqrtH[n * i + j] = dist(rng);
+        }
+        sqrtH[n * i + i] = mju_abs(sqrtH[n * i + i]) + n;
+      }
+
+      // create SPD matrix H = sqrtH * sqrtH' (forward-order Cholesky: L*L')
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+          mjtNum sum = 0;
+          for (int k = 0; k <= mju_min(i, j); k++) {
+            sum += sqrtH[n * i + k] * sqrtH[n * j + k];
+          }
+          H[n * i + j] = sum;
+        }
+      }
+
+      // generate random update vector x
+      for (int i = 0; i < n; i++) {
+        x[i] = dist(rng) * 0.5;
+      }
+
+      // compute expected result: H_expected = H +/- x*x'
+      mju_copy(H_expected.data(), H.data(), n * n);
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+          if (flg_plus) {
+            H_expected[i * n + j] += x[i] * x[j];
+          } else {
+            H_expected[i * n + j] -= x[i] * x[j];
+          }
+        }
+      }
+
+      // test using dense Cholesky (forward-order: L*L')
+      mju_copy(L_dense.data(), H.data(), n * n);
+
+      // dense factorization
+      int rank_factor = mju_cholFactor(L_dense.data(), n, 0);
+      EXPECT_EQ(rank_factor, n) << "Initial factorization failed";
+
+      // make copy of x for update (it's modified in-place)
+      mju_copy(x_copy.data(), x.data(), n);
+
+      // apply dense rank-one update
+      int rank_update =
+          mju_cholUpdate(L_dense.data(), x_copy.data(), n, flg_plus);
+      EXPECT_EQ(rank_update, n)
+          << "Dense update rank loss for n=" << n << ", flg_plus=" << flg_plus;
+
+      // zero out upper triangle (Cholesky only uses lower triangle)
+      for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+          L_dense[i * n + j] = 0;
+        }
+      }
+
+      // reconstruct H from L*L' and compare to expected
+      mju_mulMatMatT(H_reconstructed.data(), L_dense.data(), L_dense.data(), n,
+                     n, n);
+
+      // compare
+      mjtNum eps = 1e-8;
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+          EXPECT_NEAR(H_reconstructed[i * n + j], H_expected[i * n + j], eps)
+              << "Dense mismatch at (" << i << "," << j << ") for n=" << n
+              << ", flg_plus=" << flg_plus;
+        }
+      }
+    }
+  }
+}
+
+// Test for mju_cholUpdateSparse: sparse rank-one Cholesky update L'*L +/- x*x'
+// Uses sparse reverse Cholesky factorization and sparse rank-one update.
+TEST_F(EngineUtilSolveTest, MjuCholUpdateSparse) {
+  mjModel* model = LoadModelFromString("<mujoco/>");
+  mjData* d = mj_makeData(model);
+
+  std::mt19937_64 rng;
+  rng.seed(123);
+  std::normal_distribution<double> dist(0, 1);
+
+  for (int n : {4, 6, 8}) {
+    int max_nnz = n * (n + 1) / 2;
+
+    vector<mjtNum> H(n * n);
+    vector<mjtNum> H_lower(n * n);
+    vector<mjtNum> H_expected(n * n);
+    vector<mjtNum> sqrtH(n * n);
+    vector<mjtNum> L_sparse(max_nnz);
+    vector<int> rownnz(n);
+    vector<int> rowadr(n);
+    vector<int> colind(max_nnz);
+    vector<mjtNum> x(n);
+    vector<mjtNum> x_sparse(n);
+    vector<int> x_ind(n);
+    vector<mjtNum> L_sparse_dense(n * n);
+    vector<mjtNum> H_sparse_reconstructed(n * n);
+
+    for (int flg_plus : {0, 1}) {
+      // generate random lower-triangular matrix for sqrtH
+      mju_zero(sqrtH.data(), n * n);
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j <= i; j++) {
+          sqrtH[n * i + j] = dist(rng);
+        }
+        sqrtH[n * i + i] = mju_abs(sqrtH[n * i + i]) + n;
+      }
+
+      // create SPD matrix H = sqrtH * sqrtH' (forward-order: L*L')
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+          mjtNum sum = 0;
+          for (int k = 0; k <= mju_min(i, j); k++) {
+            sum += sqrtH[n * i + k] * sqrtH[n * j + k];
+          }
+          H[n * i + j] = sum;
+        }
+      }
+
+      // generate random update vector x
+      for (int i = 0; i < n; i++) {
+        x[i] = dist(rng) * 0.5;
+      }
+
+      // compute expected result: H_expected = H +/- x*x'
+      mju_copy(H_expected.data(), H.data(), n * n);
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+          if (flg_plus) {
+            H_expected[i * n + j] += x[i] * x[j];
+          } else {
+            H_expected[i * n + j] -= x[i] * x[j];
+          }
+        }
+      }
+
+      // copy H to H_lower and zero upper triangle (sparse expects lower only)
+      mju_copy(H_lower.data(), H.data(), n * n);
+      for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+          H_lower[i * n + j] = 0;
+        }
+      }
+
+      // convert lower-triangular H to sparse format
+      mju_dense2sparse(L_sparse.data(), H_lower.data(), n, n, rownnz.data(),
+                       rowadr.data(), colind.data(), max_nnz);
+
+      // prepare sparse update vector (all elements, fully dense)
+      int x_nnz = n;
+      mju_copy(x_sparse.data(), x.data(), n);
+      for (int i = 0; i < n; i++) {
+        x_ind[i] = i;
+      }
+
+      // sparse Cholesky factorization (reverse-order: L'*L)
+      mju_cholFactorSparse(L_sparse.data(), n, 0, rownnz.data(), rowadr.data(),
+                           colind.data(), d);
+
+      // apply sparse rank-one update
+      int rank_sparse = mju_cholUpdateSparse(
+          L_sparse.data(), x_sparse.data(), n, flg_plus, rownnz.data(),
+          rowadr.data(), colind.data(), x_nnz, x_ind.data(), d);
+      EXPECT_EQ(rank_sparse, n)
+          << "Sparse update rank loss for n=" << n << ", flg_plus=" << flg_plus;
+
+      // reconstruct H from L'*L and compare to expected
+      mju_sparse2dense(L_sparse_dense.data(), L_sparse.data(), n, n,
+                       rownnz.data(), rowadr.data(), colind.data());
+      mju_mulMatTMat(H_sparse_reconstructed.data(), L_sparse_dense.data(),
+                     L_sparse_dense.data(), n, n, n);
+
+      // compare
+      mjtNum eps = 1e-8;
+      for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+          EXPECT_NEAR(H_sparse_reconstructed[i * n + j], H_expected[i * n + j],
+                      eps)
+              << "Sparse mismatch at (" << i << "," << j << ") for n=" << n
+              << ", flg_plus=" << flg_plus;
+        }
+      }
+    }
+  }
+
+  mj_deleteData(d);
+  mj_deleteModel(model);
+}
+
+// Test that mju_cholFactorSymbolic + mju_cholFactorNumeric produces identical
+// results to the reference implementation mju_cholFactorSparse
+TEST_F(EngineUtilSolveTest, CholFactorSymbolicNumeric) {
+  mjModel* model = LoadModelFromString("<mujoco/>");
+  mjData* d = mj_makeData(model);
+
+  // test matrix with fill-in: upper triangle structure
+  int n = 4;
+  mjtNum H[16] = {10, 1, 2, 3, 1, 10, 0, 0, 2, 0, 10, 1, 3, 0, 1, 10};
+
+  // convert to sparse (lower triangle only)
+  mjtNum sparseH[16];
+  int H_rownnz[4], H_rowadr[4], H_colind[16];
+  mju_dense2sparse(sparseH, H, n, n, H_rownnz, H_rowadr, H_colind, 16);
+
+  // transpose for upper triangle (needed by cholFactorSymbolic)
+  int HT_rownnz[4], HT_rowadr[4], HT_colind[16];
+  mju_transposeSparse(nullptr, nullptr, n, n, HT_rownnz, HT_rowadr, HT_colind,
+                      nullptr, H_rownnz, H_rowadr, H_colind);
+
+  // count fill-in (also computes LT structure)
+  int L_rownnz[4], L_rowadr[4];
+  int LT_rownnz[4], LT_rowadr[4];
+  int nnz = mju_cholFactorSymbolic(nullptr, L_rownnz, L_rowadr, nullptr,
+                                   LT_rownnz, LT_rowadr, nullptr, HT_rownnz,
+                                   HT_rowadr, HT_colind, n, d);
+
+  // filling phase: compute L_colind, LT_colind, and LT_pos
+  int L_colind[16], LT_colind[16], LT_pos[16];
+  mju_cholFactorSymbolic(L_colind, L_rownnz, L_rowadr, LT_colind, LT_rownnz,
+                         LT_rowadr, LT_pos, HT_rownnz, HT_rowadr, HT_colind, n,
+                         d);
+
+  // verify LT structure matches what we'd get from a separate transpose
+  int LT_rownnz_ref[4], LT_rowadr_ref[4], LT_colind_ref[16];
+  mju_transposeSparse(nullptr, nullptr, n, n, LT_rownnz_ref, LT_rowadr_ref,
+                      LT_colind_ref, nullptr, L_rownnz, L_rowadr, L_colind);
+
+  // LT structure should match
+  EXPECT_THAT(AsVector(LT_rownnz, 4),
+              ElementsAre(LT_rownnz_ref[0], LT_rownnz_ref[1], LT_rownnz_ref[2],
+                          LT_rownnz_ref[3]));
+  EXPECT_THAT(AsVector(LT_rowadr, 4),
+              ElementsAre(LT_rowadr_ref[0], LT_rowadr_ref[1], LT_rowadr_ref[2],
+                          LT_rowadr_ref[3]));
+
+  // verify LT_colind and LT_pos match
+  for (int r = 0; r < n; r++) {
+    int adr = LT_rowadr[r];
+    for (int k = 0; k < LT_rownnz[r]; k++) {
+      int L_idx = LT_pos[adr + k];  // index in L array
+      // verify L_colind at this position is indeed r
+      EXPECT_EQ(L_colind[L_idx], r)
+          << "LT_pos mismatch at LT[" << r << ", " << k << "]";
+    }
+  }
+
+  // numeric factorization using new function
+  mjtNum L_new[16];
+  int rank_new = mju_cholFactorNumeric(
+      L_new, n, 1e-10, L_rownnz, L_rowadr, L_colind, LT_rownnz, LT_rowadr,
+      LT_colind, LT_pos, sparseH, H_rownnz, H_rowadr, H_colind, d);
+
+  // reference implementation: copy sparse H into L_ref, then factor in-place
+  mjtNum L_ref[16];
+  int L_ref_rownnz[4], L_ref_colind[16];
+  for (int r = 0; r < n; r++) {
+    int nnz_r = H_rownnz[r];
+    // count lower triangle elements for this row
+    int lower_nnz = 0;
+    for (int i = 0; i < nnz_r; i++) {
+      if (H_colind[H_rowadr[r] + i] <= r) {
+        L_ref[L_rowadr[r] + lower_nnz] = sparseH[H_rowadr[r] + i];
+        L_ref_colind[L_rowadr[r] + lower_nnz] = H_colind[H_rowadr[r] + i];
+        lower_nnz++;
+      }
+    }
+    L_ref_rownnz[r] = lower_nnz;
+  }
+  int rank_ref = mju_cholFactorSparse(L_ref, n, 1e-10, L_ref_rownnz, L_rowadr,
+                                      L_ref_colind, d);
+
+  // compare results
+  EXPECT_EQ(rank_new, rank_ref);
+  EXPECT_EQ(rank_new, n);
+
+  // compare L values
+  mjtNum eps = 1e-10;
+  for (int i = 0; i < nnz; i++) {
+    EXPECT_NEAR(L_new[i], L_ref[i], eps) << "mismatch at index " << i;
+  }
 
   mj_deleteData(d);
   mj_deleteModel(model);

@@ -44,6 +44,7 @@ typedef enum _mjtDof {
   mjFCOMPDOF_FULL = 0,
   mjFCOMPDOF_RADIAL,
   mjFCOMPDOF_TRILINEAR,
+  mjFCOMPDOF_QUADRATIC,
 
   mjNFCOMPDOFS
 } mjtDof;
@@ -55,10 +56,10 @@ class mjCFlexcomp {
   bool Make(mjsBody* body, char* error, int error_sz);
 
   bool MakeGrid(char* error, int error_sz);
-  bool MakeBox(char* error, int error_sz);
+  bool MakeBox(char* error, int error_sz, int dim, bool open = true);
   bool MakeSquare(char* error, int error_sz);
-  bool MakeMesh(mjCModel* model, char* error, int error_sz);
-  bool MakeGMSH(mjCModel* model, char* error, int error_sz);
+  bool MakeMesh(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz);
+  bool MakeGMSH(mjCModel* model, mjsCompiler* compiler, char* error, int error_sz);
   void LoadGMSH(mjCModel* model, mjResource* resource);
   void LoadGMSH41(char* buffer, int binary, int nodeend, int nodebegin,
                   int elemend, int elembegin);

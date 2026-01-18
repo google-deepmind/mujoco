@@ -151,68 +151,68 @@ mathematical notation.
      - Size
      - Description
      - MuJoCo field
-   * - :math:`n_Q`
+   * - :math:`\nq`
      -
      - number of position coordinates
      - ``mjModel.nq``
-   * - :math:`n_V`
+   * - :math:`\nv`
      -
      - number of degrees of freedom
      - ``mjModel.nv``
-   * - :math:`n_C`
+   * - :math:`\nc`
      -
      - number of active constraints
      - ``mjData.nefc``
    * - :math:`q`
-     - :math:`n_Q`
+     - :math:`\nq`
      - joint position
      - ``mjData.qpos``
    * - :math:`v`
-     - :math:`n_V`
+     - :math:`\nv`
      - joint velocity
      - ``mjData.qvel``
    * - :math:`\tau`
-     - :math:`n_V`
+     - :math:`\nv`
      - applied force: passive, actuation, external
      - ``mjData.qfrc_passive`` + ``mjData.qfrc_actuator`` + ``mjData.qfrc_applied``
    * - :math:`c(q, v)`
-     - :math:`n_V`
+     - :math:`\nv`
      - bias force: Coriolis, centrifugal, gravitational
      - ``mjData.qfrc_bias``
    * - :math:`M(q)`
-     - :math:`n_V \times n_V`
+     - :math:`\nv \times \nv`
      - inertia in joint space
      - ``mjData.qM``
    * - :math:`J(q)`
-     - :math:`n_C \times n_V`
+     - :math:`\nc \times \nv`
      - constraint
        Jacobian
      - ``mjData.efc_J``
    * - :math:`r(q)`
-     - :math:`n_C`
+     - :math:`\nc`
      - constraint residual
      - ``mjData.efc_pos``
    * - :math:`f(q, v,\tau)`
-     - :math:`n_C`
+     - :math:`\nc`
      - constraint force
      - ``mjData.efc_force``
 
 All model elements are enumerated at compile time and assembled into the above system-level vectors and matrices. In our
-earlier arm model :ref:`example <Examples>` the model has :math:`n_V = 13` degrees of freedom: 3 for the ball joint, one
+earlier arm model :ref:`example <Examples>` the model has :math:`\nv = 13` degrees of freedom: 3 for the ball joint, one
 for each of the 4 hinge joints, and 6 for the free-floating object. They appear in the same order in all system-level
-vectors and matrices whose dimensionality is :math:`n_V`. The data corresponding to a given model element can be
+vectors and matrices whose dimensionality is :math:`\nv`. The data corresponding to a given model element can be
 recovered via indexing operations as illustrated in the :ref:`Clarifications` section in the Overview chapter. Vectors
-and matrices with dimensionality :math:`n_C` are somewhat different because the active :ref:`constraints <Constraint>`
+and matrices with dimensionality :math:`\nq` are somewhat different because the active :ref:`constraints <Constraint>`
 change at runtime. In that case there is still a fixed enumeration order (corresponding to the order in which the model
 elements appear in ``mjModel``) but any inactive constraints are omitted.
 
-The number of position coordinates :math:`n_Q` is larger than the number of degrees of freedom :math:`n_V` whenever
+The number of position coordinates :math:`\nq` is larger than the number of degrees of freedom :math:`\nv` whenever
 quaternions are used to represent 3D orientations. This occurs when the model contains ball joints or free joints (i.e.,
 in most models). In that case :math:`\dot{q}` does not equal :math:`v`, at least not in the usual sense. Instead one has
 to consider the group of rigid body orientations :math:`SO(3)` - which has the geometry of a unit sphere in 4D space.
 Velocities live in the 3D tangent space to this sphere. This is taken into account by all internal computations. For
 custom computations, MuJoCo provides the function :ref:`mj_differentiatePos` which "subtracts" two position vectors with
-dimensionality :math:`n_Q` and returns a velocity vector with dimensionality :math:`n_V`. A number of quaternion-related
+dimensionality :math:`\nq` and returns a velocity vector with dimensionality :math:`\nv`. A number of quaternion-related
 utility functions are also provided.
 
 MuJoCo computes both forward and inverse dynamics in continuous time. Forward dynamics are then integrated over the
@@ -279,7 +279,7 @@ Transmission
 ^^^^^^^^^^^^
 
 Each actuator has a scalar length :math:`l_i(q)` defined by the type of transmission and its parameters. The gradient
-:math:`\nabla l_i` is an :math:`n_V`-dimensional vector of moment arms. It determines the mapping from scalar
+:math:`\nabla l_i` is an :math:`\nv`-dimensional vector of moment arms. It determines the mapping from scalar
 actuator force to joint force. The transmission properties are determined by the MuJoCo object to which the actuator
 is attached; the possible attachment object types are :at:`joint`, :at:`tendon`, :at:`jointinparent`,
 :at:`slider-crank`, :at:`site`, and :at:`body`.
@@ -599,126 +599,29 @@ Fast implicit-in-velocity (``implicitfast``)
      ``implicitfast`` yet conserves energy well under ``RK4``. Note that under ``implicit``, this model doesn't diverge
      but rather loses energy.
 
+
+.. Leave links below to sections that were previously here and have moved to the simulation chapter.
+.. _gePhysicsState:
+.. _geFullPhysics:
+.. _geInput:
+.. _geWarmstart:
+.. _geIntegrationState:
+.. _geSimulationState:
+
 .. _geState:
 
 The State
 ~~~~~~~~~
 
-To complete our description of the general framework we will now discuss the notion of *state*. MuJoCo has a compact,
-well-defined internal state which, together with the :ref:`deterministic computational pipeline<piReproducibility>`,
-means that operations like resetting the state and computing dynamics derivatives are also well-defined.
+To complete our description of the general framework we will quickly discuss the notion of *state*. MuJoCo has a
+compact, well-defined internal state which, together with the :ref:`deterministic pipeline<piReproducibility>`, means
+that operations like (re)setting the state and computing dynamics derivatives are also well-defined.
 
 The state is entirely encapsulated in the :ref:`mjData` struct and consists of several components. The components are
-enumerated in :ref:`mjtState` as bit flags, along with several common combinations, corresponding to the groupings
-below. Concatenated state vectors can be conveniently read from and written into :ref:`mjData` using :ref:`mj_getState`
-and :ref:`mj_setState`, respectively.
+enumerated in :ref:`mjtState` as bit flags. Concatenated state vectors can be conveniently read from and written into
+:ref:`mjData` using :ref:`mj_getState` and :ref:`mj_setState`, respectively.
 
-.. _gePhysicsState:
-
-Physics state
-^^^^^^^^^^^^^
-The *physics state* (:ref:`mjSTATE_PHYSICS<mjtState>`) contains the main quantities which are time-integrated during
-stepping. These are ``mjData.{qpos, qvel, act}``:
-
-Position: ``qpos``
-  The configuration in generalized coodinates, denoted above as :math:`q`.
-
-Velocity: ``qvel``
-  The generalized velocities, denoted above as :math:`v`.
-
-Actuator activation: ``act``
-  ``mjData.act`` contains the internal states of stateful actuators, denoted above as :math:`w`.
-
-.. _geFullPhysics:
-
-Full physics state
-^^^^^^^^^^^^^^^^^^
-
-The *full physics state* (:ref:`mjSTATE_FULLPHYSICS<mjtState>`) contains the physics state and two additional
-components:
-
-Time: ``time``
-  The simulation time is given by the scalar ``mjData.time``. Since physics is time-invariant, it is
-  excluded from the *physics state*; exceptions include time-dependent user callbacks and plugins (e.g., an open-loop
-  controller), in which case time should be included.
-
-Plugin state: ``plugin_state``
-  ``mjData.plugin_state`` are states declared by :ref:`engine plugins<exPlugin>`. Please see the :ref:`exPluginState`
-  section for more details.
-
-.. _geInput:
-
-User inputs
-^^^^^^^^^^^
-
-These input fields (:ref:`mjSTATE_USER<mjtState>`) are set by the user and affect the physics simulation, but are
-untouched by the simulator. All input fields except for MoCap poses default to 0.
-
-Control: ``ctrl``
-  Controls are defined by the :ref:`actuator<actuator>` section of the XML. ``mjData.ctrl`` values either produce
-  generalized forces directly (stateless actuators), or affect the actuator activations in ``mjData.act``, which then
-  produce forces.
-
-Auxiliary Controls: ``qfrc_applied`` and ``xfrc_applied``
-  | ``mjData.qfrc_applied`` are directly applied generalized forces.
-  | ``mjData.xfrc_applied`` are Cartesian wrenches applied to the CoM of individual bodies. This field is used for
-    example, by the :ref:`native viewer<saSimulate>` to apply mouse perturbations.
-  | Note that the effects of ``qfrc_applied`` and ``xfrc_applied`` can usually be recreated by appropriate actuator
-    definitions.
-
-MoCap poses: ``mocap_pos`` and ``mocap_quat``
-  ``mjData.mocap_pos`` and ``mjData.mocap_quat`` are special optional kinematic states :ref:`described here<CMocap>`,
-  which allow the user to set the positions and orientations of static bodies in real-time, for example when streaming
-  6D poses from a motion-capture device. The default values set by :ref:`mj_resetData` are the poses of the bodies at
-  the default configuration.
-
-Equality constraint toggle: ``eq_active``
-  ``mjData.eq_active`` is a byte-valued array that allows the user to toggle the state of equality constraints at
-  runtime. The initial value of this array is ``mjModel.eq_active0`` which can be set in XML using the
-  :ref:`active<equality-connect-active>` attribute of :ref:`equality constraints<coEquality>`.
-
-User data: ``userdata``
-  ``mjData.userdata`` acts as a user-defined memory space untouched by the engine. For example it can be used by
-  callbacks. This is described in more detail in the :ref:`Programming chapter<siSimulation>`.
-
-.. _geWarmstart:
-
-Warmstart acceleration
-^^^^^^^^^^^^^^^^^^^^^^
-
-``qacc_warmstart``
-  ``mjData.qacc_warmstart`` are accelerations used to warmstart the constraint solver, saved from the previous step.
-  When using a slowly-converging :ref:`constraint solver<Solver>` like PGS, these can speed up simulation by reducing
-  the number of iterations required for convergence. Note however that the default Newton solver converges so quickly
-  (usually 2-3 iterations), that warmstarts often have no effect on speed and can be disabled.
-
-  Different warmstarts have no perceptible effect on the dynamics but should be saved if perfect numerical
-  reproducibility is required when loading a non-initial state. Note that even though their effect on physics is
-  negligible, many physical systems will accumulate small differences  `exponentially
-  <https://en.wikipedia.org/wiki/Lyapunov_exponent>`__ when time-stepping, quickly leading to divergent trajectories
-  for different warmstarts.
-
-.. _geIntegrationState:
-
-Integration state
-^^^^^^^^^^^^^^^^^
-
-The *integration state* (:ref:`mjSTATE_INTEGRATION<mjtState>`) is the union of all the above :ref:`mjData` fields and
-constitutes the entire set of inputs to the *forward dynamics*. In the case of *inverse dynamics*, ``mjData.qacc`` is
-also treated as an input variable. All other :ref:`mjData` fields are functions of the integration state.
-
-Note that the full integration state as given by :ref:`mjSTATE_INTEGRATION<mjtState>` is maximalist and includes fields
-which are often unused. If a small state size is desired, it might be sensible to avoid saving unused fields.
-In particular ``xfrc_applied`` can be quite large (``6 x nbody``) yet is often unused.
-
-.. _geSimulationState:
-
-Simulation state: ``mjData``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The *simulation state* is the entirety of the :ref:`mjData` struct and associated memory buffer. This state includes
-all derived quantities computed during dynamics computation. Because the :ref:`mjData` buffers are preallocated for the
-worst case, it is often significantly faster to recompute derived quantities from the *integration state* rather than
-using :ref:`mj_copyData`.
+More detail can be found in the :ref:`State and Control<siStateControl>` section in the Simulation chapter.
 
 .. _Constraint:
 
@@ -727,8 +630,8 @@ Constraint model
 
 MuJoCo has a very flexible constraint model, which is nevertheless handled in a uniform way by the
 :ref:`solver <Solver>` described later. Here we explain what the individual constraints are conceptually, and how they
-are laid out in the system-level vector and matrices with dimensionality :math:`n_C`. Each conceptual constraint can
-contribute one or more scalar constraints towards the total count :math:`n_C`, and each scalar constraint has a
+are laid out in the system-level vector and matrices with dimensionality :math:`\nq`. Each conceptual constraint can
+contribute one or more scalar constraints towards the total count :math:`\nq`, and each scalar constraint has a
 corresponding row in the constraint Jacobian :math:`J`. Active constraints are ordered by type in the order in which the
 types are described below, and then by model element within each type. The types are: equality, friction loss, limit,
 contact. Limits are handled as frictionless contacts by the solver and are not treated as a separate type internally. We
@@ -742,10 +645,10 @@ Equality
 MuJoCo can model equality constraints in the general form :math:`r(q) = 0` where :math:`r` can be any differentiable
 scalar or vector function of the position vector :math:`q`. It has the semantics of a residual. The solver can actually
 work with non-holonomic constraints as well, but we do not yet have such constraint types defined. Each equality
-constraint contributes :math:`\dim(r)` elements to the total constraint count :math:`n_C`. The corresponding block in
+constraint contributes :math:`\dim(r)` elements to the total constraint count :math:`\nq`. The corresponding block in
 :math:`J` is simply the Jacobian of the residual, namely :math:`\partial r / \partial q`. Note that due to the
-properties of quaternions, differentiation with respect to :math:`q` produces vectors of size :math:`n_V` rather than
-:math:`n_Q`.
+properties of quaternions, differentiation with respect to :math:`q` produces vectors of size :math:`\nv` rather than
+:math:`\nq`.
 
 Among other applications, equality constraints can be used to create "loop joints", i.e., joints that cannot be modeled
 via the kinematic tree. Gaming engines represent all joints in this way. The same can be done in MuJoCo but is not
@@ -999,7 +902,7 @@ vectors correspond to the edges of a pyramid. Each vector combines a normal forc
 force or a frictional torque component. The scaling by the friction coefficients ensures that all basis vectors lie
 within the elliptic friction cone we are approximating. The same holds for any convex combination of these vectors.
 
-Finally we specify how the contact Jacobian is computed. First we construct the :math:`6`-by-:math:`n_V` matrix
+Finally we specify how the contact Jacobian is computed. First we construct the :math:`6`-by-:math:`\nv` matrix
 :math:`S` which maps joint velocities :math:`v` to spatial velocities :math:`S v` expressed in the contact frame. This
 is done by considering the contact point as belonging to one or the other geom, computing its spatial Jacobian, and
 subtracting these two Jacobians to obtain :math:`S`. The convention we use is that the contact force acts from the first
@@ -1046,34 +949,34 @@ We will use the following notation beyond the notation introduced earlier:
      - Size
      - Description
    * - :math:`z`
-     - :math:`n_C`
+     - :math:`\nq`
      - constraint deformations
    * - :math:`\omega`
-     - :math:`n_C`
+     - :math:`\nq`
      - velocity of constraint deformations
    * - :math:`k`
-     - :math:`n_C`
+     - :math:`\nq`
      - virtual constraint stiffness
    * - :math:`b`
-     - :math:`n_C`
+     - :math:`\nq`
      - virtual constraint damping
    * - :math:`d`
-     - :math:`n_C`
+     - :math:`\nq`
      - constraint impedance
    * - :math:`A(q)`
-     - :math:`n_C \times n_C`
+     - :math:`\nq \times \nq`
      - inverse inertia in constraint space
    * - :math:`R(q)`
-     - :math:`n_C \times n_C`
+     - :math:`\nq \times \nq`
      - diagonal regularizer in constraint space
    * - :math:`\ar`
-     - :math:`n_C`
+     - :math:`\nq`
      - reference acceleration in constraint space
    * - :math:`\au(q, v, \tau)`
-     - :math:`n_C`
+     - :math:`\nq`
      - unconstrained acceleration in constraint space
    * - :math:`\ac(q, v, \dot{v})`
-     - :math:`n_C`
+     - :math:`\nq`
      - constrained acceleration in constraint space
    * - :math:`\mathcal{K}(q)`
      -
@@ -1362,14 +1265,47 @@ representations of the constraint Jacobian and related matrices.
    axes. The right panel illustrates our solution to this problem. We still update one contact at a time, but within a
    contact we update along non-orthogonal axes adapted to the constraint surface, as follows. First, we optimize the
    quadratic cost along the ray from the tip of the cone through the current solution. Then we slice the cone with a
-   hyperplane passing through the current solution and orthogonal to the contact normal. This yields an ellipsoid -which
-   can be up to 5-dimensional given our contact model. Now we optimize the quadratic cost within this ellipsoid. This is
-   an instance of quadratically constrained quadratic programming (QCQP). Since there is only one scalar constraint
+   hyperplane passing through the current solution and orthogonal to the contact normal. This yields an ellipsoid which
+   can be up to 5-dimensional, given our contact model. Now we optimize the quadratic cost within this ellipsoid. This
+   is an instance of quadratically constrained quadratic programming (QCQP). Since there is only one scalar constraint
    (however nonlinear it may be), the dual is a scalar optimization problem over the unknown Lagrange multiplier. We
    solve this problem with Newton's method applied until convergence -- which in practice takes less than 10 iterations,
    and involves small matrices. Overall this algorithm has similar behavior to PGS for pyramidal cones, but it can
    handle elliptic cones without approximating them. It does more work per contact, however the contact dimensionality
    is smaller, and these two factors roughly balance each other.
+
+.. _soIsland:
+
+Constraint islands
+~~~~~~~~~~~~~~~~~~
+
+.. image:: ../images/computation/island.svg
+   :width: 58%
+   :align: right
+
+Consider the abstract graph defined by degrees of freedom (:ref:`DOFs<ElemDof>`) and constraints. A vertex is all the
+DOFs in a single kinematic :ref:`tree<ElemTree>`; an edge is a constraint (a contact, equality or tendon limit) between
+two bodies belonging to different trees. A *constraint island* is a disjoint sub-graph which can be solved for
+independently, because constraint forces cannot propagate between islands. Constraint island discovery and construction
+("islanding") involves finding these disjoint subgraphs and reordering both the DOFs and constraints to make them
+memory-contiguous. This amounts to a block-diagonalization of the constraint Jacobian :math:`J`, as illustrated in the
+figure. On the left is the monolithic Jacobian of size :math:`\nc \times \nv`, where we use the :ref:`corresponding
+<Framework>` size names from MuJoCo's data structures ``mjData.nefc`` and ``mjModel.nv``. On the right is the
+block-diagonalized Jacobian with 3 islands that can be solved independently. Note that islanding also identifies
+unconstrained DOFs, so ``mjData.nidof``, the total number of DOFs in all islands, might be smaller than ``mjModel.nv``.
+While islanding is not free (see implementation in `engine_island.c
+<https://github.com/google-deepmind/mujoco/blob/main/src/engine/engine_island.c>`__), it is worth the effort:
+
+- Different islands require different numbers of iterations to converge, and a monolithic solve would run for the
+  number required by the slowest island.
+- Unconstrained DOFs are completely untouched by the solver, which otherwise needs to discover that they are unaffected.
+- Solving separate islands can be multi-threaded.
+
+.. admonition:: Known issues
+   :class: note
+
+   Islanding is not yet supported by the PGS solver.
+
 
 .. _soParameters:
 
@@ -1395,7 +1331,7 @@ Thus the constrained acceleration interpolates between the unconstrained and the
 in the limit :math:`R \to 0` we have a hard constraint and :math:`\ac = \ar`, while in the limit :math:`R \to \infty` we
 have have an infinitely soft constraint (i.e., no constraint) and :math:`\ac = \au`. It is then natural to introduce a
 model parameter which directly controls the interpolation. We call this parameter *impedance* and denote it :math:`d`.
-It is a vector with dimensionality :math:`n_C` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
+It is a vector with dimensionality :math:`\nq` satisfying :math:`0<d<1` element-wise. Once it is specified, we compute
 the diagonal elements of the regularizer as
 
 .. math::
@@ -1603,9 +1539,6 @@ native pipeline
 
 .. _coDistance:
 
-Geom distance
-^^^^^^^^^^^^^
-
 .. image:: ../images/computation/ccd_light.gif
    :width: 25%
    :align: right
@@ -1616,28 +1549,216 @@ Geom distance
    :align: right
    :class: only-dark
 
+Geom distance
+^^^^^^^^^^^^^
+
 The narrow-phase collision functions described :ref:`above<coChecking>` drive the :ref:`mj_geomDistance` function and
 associated :ref:`collision-sensors`. Due to the limitations of MPR, the legacy pipeline will return incorrect values
 (top) except at very small distances relative to the geom sizes, and is discouraged for this use case. In
 contrast, the GJK-based native pipeline (bottom), computes the correct values at all distances.
 
+.. _coDecomposition:
+
 Convex decomposition
 ^^^^^^^^^^^^^^^^^^^^
 
 In order to model a non-convex object other than a height field, the user must decompose it into a union of convex geoms
-(which can be primitive shapes or meshes) and attach them to the same body. A height-field is essentially a shape that
-is automatically-decomposed into prisms
+(which can be primitive shapes or meshes) and attach them to the same body. The other exception to this rule (besides
+height fields) are :ref:`Signed Distance Functions<exSDF>` (see documentation therein), which in certain cases (e.g.,
+`analytic SDFs <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md#gear>`__) can be efficient, but
+have other requirements and limitations.
 
-Open mesh-decomposition tools like the
-`CoACD library <https://github.com/SarahWeiii/CoACD>`__ can be used outside MuJoCo to automate this process. Finally,
-all built-in collision functions can be replaced with custom callbacks. This can be used to incorporate a
-general-purpose "triangle soup" collision detector for example. However we do not recommend such an approach.
-Pre-processing the geometry and representing it as a union of convex geoms takes some work, but it pays off at runtime
-and yields both faster and more stable simulation.
+Open source mesh-decomposition tools like the `CoACD library <https://github.com/SarahWeiii/CoACD>`__ can be used
+outside MuJoCo to automate this process. Finally, all built-in collision functions can be replaced with custom
+callbacks. This can be used to incorporate a general-purpose "triangle soup" collision detector for example. However we
+do not recommend such an approach. Pre-processing the geometry and representing it as a union of convex geoms takes some
+work, but it pays off at runtime and yields both faster and more stable simulation.
 
-The exception to this rule are :ref:`SDF plugins<exSDF>` (see documentation therein), which in
-`certain cases <https://github.com/google-deepmind/mujoco/blob/main/plugin/sdf/README.md#gear>`__ can be efficient,
-but have other requirements and limitations.
+.. _coPairwise:
+
+Pair-wise colliders
+^^^^^^^^^^^^^^^^^^^
+
+The table below provides information about the colliders used for different geom pairs. The second row in each cell
+lists the maximum number of contacts generated, possibly with ``multiccd`` enabled. For example, ``Mesh`` / ``Mesh``
+will generate up to 1 contact or with ``multiccd`` up to 4 contacts.
+
+.. list-table::
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: auto
+   :class: table-pairwise
+
+   * -
+     - Sphere
+     - Capsule
+     - Ellipsoid
+     - Cylinder
+     - Box
+     - Mesh
+     - SDF
+   * - Plane
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **1**
+     - | primitive
+       | **2**
+     - | primitive
+       | **4**
+     - | primitive
+       | **3**
+     - | primitive
+       | **1**
+   * - HField
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldCCD
+       | :ref:`mjMAXCONPAIR <glNumeric>`
+     - | HFieldSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Sphere
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | primitive
+       | **1**
+     - | primitive
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Capsule
+     -
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**, **4**
+     - | primitive
+       | **2**
+     - | CCD
+       | **1**, **4**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Ellipsoid
+     -
+     -
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | CCD
+       | **1**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Cylinder
+     -
+     -
+     -
+     - | CCD
+       | **1**, **4**
+     - | CCD
+       | **1**, **4**
+     - | CCD
+       | **1**, **4**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Box
+     -
+     -
+     -
+     -
+     - | primitive
+       | **8**
+     - | CCD
+       | **1**, **4**
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - Mesh
+     -
+     -
+     -
+     -
+     -
+     - | CCD
+       | **1**, **4**
+     - | MeshSDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+   * - SDF
+     -
+     -
+     -
+     -
+     -
+     -
+     - | SDF
+       | :ref:`sdf_initpoints <option-sdf_initpoints>`
+
+.. _Sleeping:
+
+Sleeping islands
+----------------
+
+Sleeping is a performance optimization whereby movable elements of the simulation that are detected to be stationary are
+temporarily removed from the pipeline ("put to sleep"). This optimization is most useful when the model contains a large
+number of passive objects. The smallest unit which can be asleep or awake is a :ref:`kinematic tree<ElemTree>`, however
+trees are always put to sleep together with other trees to which they are connected by constraints, hence the term
+"sleeping :ref:`islands<soIsland>`".
+
+.. youtube:: vct493lGQ8Q
+   :align: right
+   :width: 50%
+
+The video on the right demonstrates several aspects of sleeping. First we show the `dominos
+<https://github.com/google-deepmind/mujoco/blob/main/model/sleep/dominos.xml>`__ model, which simulates a traditional
+"chain reaction" of falling domino bricks. All bricks except one are in a stable equilibrium and quickly go to sleep,
+but the first brick, which is unstable, remains awake and starts falling. Every time a contact is made between awake and
+sleeping bricks, the latter are woken automatically. After stabilizing on the ground, piles of bricks are put to sleep
+again and their associated contacts disappear. This sequence is repeated with island visualization enabled, which
+recolors geoms according to the first DOF of their island, using darker colors if asleep. At the end of the subclip,
+sleeping is toggled off and on, demonstrating the speed gain afforded by sleeping (lower right). The second subclip
+shows a variant of the `100 humanoids
+<https://github.com/google-deepmind/mujoco/blob/main/model/sleep/100_humanoids.xml>`__ model, where all humanoids are
+*initialized asleep*. Trees initialized as sleeping can be in any configuration, including floating in mid-air, deep
+penetration, etc. One humanoid is manually woken by direct user perturbation and then dragged around to wake any other
+humanoid that it touches.
+
+While the smooth dynamics benefit from sleeping, the largest speedup is due to the reduced number of contacts. Sleeping
+islands behave like static bodies for the purpose of collision detection: all contacts within an island and between the
+island and static bodies are skipped. In the case of static piles of objects, the number of skipped contacts can be
+high, leading to substantial speed gains. Contacts between sleeping islands and awake trees are allowed, and indeed are
+the main automatic trigger for waking, though manual waking is also supported. Because waking happens in the
+:ref:`position stage <piStages>` of the pipeline it is effectively instantaneous, and the woken island will behave
+exactly as if it was awake all along.
+
+Sleeping is off by default and enabled using the :ref:`sleep<option-flag-sleep>` flag. A detailed description of the
+sleeping mechanism is provided in the :ref:`Simulation chapter<siSleep>` but here we provide a brief overview.
+
+Sleeping can occur in one of two ways:
+
+- **Automatic:** A tree whose maximum velocity in absolute value is less than the
+  :ref:`tolerance <option-sleep_tolerance>` for :ref:`mjMINAWAKE <glNumeric>` time steps is marked as "ready to sleep".
+  If all trees in an island are ready to sleep, they are put to sleep during state advancement.
+- **Initialized asleep:** By setting the :ref:`body/sleep<body-sleep>` attribute of a tree root to "init", it is
+  marked as "initialized-asleep" and put to sleep during :ref:`mjData` initialization.
 
 .. _Pipeline:
 
@@ -1658,14 +1779,36 @@ contains the high-level forward dynamics pipeline.
 
 Top level
 ^^^^^^^^^
-- The top-level function :ref:`mj_step` invokes the entire sequence of computations below.
-- :ref:`mj_forward` invokes only stages **2-22**, computing the continuous-time forward dynamics, ending with the
+- The top-level function :ref:`mj_step` invokes the entire sequence of stages below **1-26**.
+- :ref:`mj_forward` invokes only stages **2-23**, computing the continuous-time forward dynamics, ending with the
   acceleration ``mjData.qacc``.
-- :ref:`mj_step1` invokes stages **1-18** and :ref:`mj_step2` invokes stages **19-25**, breaking :ref:`mj_step` into two
+- :ref:`mj_step1` invokes stages **1-19** and :ref:`mj_step2` invokes stages **20-26**, breaking :ref:`mj_step` into two
   distinct phases. This allows the user to write controllers that depend on quantities derived from the positions and
   velocities (but not forces, since those have not yet been computed). Note that the :ref:`mj_step1` → :ref:`mj_step2`
   pipeline does not support the Runge Kutta integrator.
 - :ref:`mj_fwdPosition` invokes stages **2-11**, the position-dependent part of the pipeline.
+
+.. the table below was created and is editable in tablesgenerator.com
+
+Schematic breakdown of the forward dynamic pipeline:
+
+.. table::
+   :class: small-centered no-stripes
+
+   +-------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------+
+   | top-level functions     |                                                    :ref:`mj_step`                                                                               |
+   |                         +----------------------------------------------------------------------------------------------------------------+--------------------------------+
+   |                         |                                   :ref:`mj_step1`                                                              |          :ref:`mj_step2`       |
+   |                         +----------------------------------------------------------------------------------------------------------------+--------------+-------+---------+
+   |                         |                                      :ref:`mj_forward`                                                                        |       |         |
+   +=========================+===+=============================================================+====+====================================+====+==============+=======+=========+
+   | component / description |   |             :ref:`fwdPosition<mj_fwdPosition>`              |    | :ref:`fwdVelocity<mj_fwdVelocity>` |    |              |       |         |
+   |                         +---+----------------------------------------+--------------------+----+------------------------------------+----+--------------+-------+---------+
+   |                         |   | :ref:`fwdKinematics<mj_fwdKinematics>` | inertia, collision |    |                                    |    | acceleration |       | advance |
+   +-------------------------+---+----------------------------------------+--------------------+----+------------------------------------+----+--------------+-------+---------+
+   | stage                   | 1 |         2-5                            |         6-11       | 12 |         13-18                      | 19 |    20-23     | 24,25 |     26  |
+   +-------------------------+---+----------------------------------------+--------------------+----+------------------------------------+----+--------------+-------+---------+
+
 
 .. _piStages:
 
@@ -1695,7 +1838,8 @@ The stages below compute quantities that depend on the generalized positions ``m
 7. Compute the sparse factorization of the joint-space inertia matrix: :ref:`mj_factorM`
 8. Construct the list of active contacts. This includes both broad-phase and near-phase collision detection:
    :ref:`mj_collision`
-9. Construct the constraint Jacobian and compute the constraint residuals: :ref:`mj_makeConstraint`
+9. Construct the constraint Jacobian, compute the constraint residuals, construct islands: :ref:`mj_makeConstraint`,
+   ``mj_island`` (not yet exposed in the API)
 10. Compute the actuator lengths and moment arms: :ref:`mj_transmission`
 11. Compute the matrices and vectors needed by the constraint solvers: :ref:`mj_projectConstraint`
 12. Compute sensor data that only depends on position, and the potential energy if enabled: :ref:`mj_sensorPos`,
@@ -1715,24 +1859,28 @@ dependence structure of the pipeline, the actual dependence is on both ``qpos`` 
 17. Compute the reference constraint acceleration: :ref:`mj_referenceConstraint`
 18. Compute the vector of Coriolis, centrifugal and gravitational forces: :ref:`mj_rne`
 
+Control callback
+''''''''''''''''
+19. Invoke the user-defined control callback if defined: :ref:`mjcb_control`
+
 Force/acceleration
 ''''''''''''''''''
-The stages below compute quantities that depend on :ref:`user inputs<geInput>`. Due to the sequential nature
-of the pipeline, the actual dependence is on the entire :ref:`integration state<geIntegrationState>`.
+The stages below compute quantities that depend on :ref:`user inputs<siInput>`. Due to the sequential nature
+of the pipeline, the actual dependence is on the entire :ref:`integration state<siIntegrationState>`.
 
-19. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
-20. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
+20. Compute the actuator forces and activation dynamics if defined: :ref:`mj_fwdActuation`
+21. Compute the joint acceleration resulting from all forces except for the (still unknown) constraint forces:
     :ref:`mj_fwdAcceleration`
-21. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
+22. Compute the constraint forces with the selected solver, and update the joint acceleration so as to account for the
     constraint forces. This yields the vector ``mjData.qacc`` which is the main output of forward dynamics:
     :ref:`mj_fwdConstraint`
-22. Compute sensor data that depends on force and acceleration if enabled
+23. Compute sensor data that depends on force and acceleration if enabled
     (if required by sensors, call :ref:`mj_rnePostConstraint`): :ref:`mj_sensorAcc`
-23. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
+24. Check the acceleration for invalid or unacceptably large real values. If divergence is detected, the state is
     automatically reset and the corresponding warning is raised: :ref:`mj_checkAcc`
-24. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
+25. Compare the results of forward and inverse dynamics, so as to diagnose poor solver convergence in the forward
     dynamics. This is an optional step, and is performed only when enabled: :ref:`mj_compareFwdInv`
-25. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
+26. Advance the simulation state by one time step, using the selected integrator. Note that the Runge-Kutta integrator
     repeats the above sequence three more times, except for the optional computations which are performed only once:
     one of :ref:`mj_Euler`, :ref:`mj_RungeKutta`, :ref:`mj_implicit`
 
@@ -1764,8 +1912,8 @@ MuJoCo's simulation pipeline is entirely deterministic and reproducible -- if a 
 saved and reloaded and :ref:`mj_step` called again, the resulting next state will be identical. However, there are some
 important caveats:
 
-- Save all the required :ref:`integration state<geIntegrationState>` components. In particular :ref:`warmstart
-  accelerations<geWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
+- Save all the required :ref:`integration state<siIntegrationState>` components. In particular :ref:`warmstart
+  accelerations<siWarmstart>` have only a very small effect on the next state, but should be saved if bit-wise equality
   is required.
 - Any numerical difference between states, no matter how small, will become significant upon integration, especially for
   systems with contact. Contact events have high `Lyapunov exponents

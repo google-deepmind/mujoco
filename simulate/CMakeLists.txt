@@ -29,7 +29,7 @@ set(MUJOCO_DEP_VERSION_lodepng
 
 project(
   mujoco_simulate
-  VERSION 3.3.4
+  VERSION 3.4.1
   DESCRIPTION "MuJoCo simulate binaries"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -47,6 +47,7 @@ option(SIMULATE_GLFW_DYNAMIC_SYMBOLS "Whether to resolve GLFW symbols dynamicall
 # Check if we are building as standalone project.
 set(SIMULATE_STANDALONE OFF)
 set(_INSTALL_SIMULATE ON)
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(SIMULATE_STANDALONE ON)
   # If standalone, do not install the samples.
@@ -93,7 +94,7 @@ if(NOT TARGET lodepng)
     # This is not a CMake project.
     set(LODEPNG_SRCS ${lodepng_SOURCE_DIR}/lodepng.cpp)
     set(LODEPNG_HEADERS ${lodepng_SOURCE_DIR}/lodepng.h)
-    add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
+    add_library(lodepng OBJECT ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
     target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
     target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
@@ -114,7 +115,7 @@ if(APPLE)
   target_link_libraries(platform_ui_adapter PUBLIC "-framework CoreVideo")
 endif()
 target_include_directories(
-  platform_ui_adapter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  platform_ui_adapter PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                              $<TARGET_PROPERTY:glfw,INTERFACE_INCLUDE_DIRECTORIES>
 )
 target_link_libraries(platform_ui_adapter PUBLIC mujoco::mujoco)
@@ -123,23 +124,30 @@ if(SIMULATE_GLFW_DYNAMIC_SYMBOLS)
 endif()
 add_library(mujoco::platform_ui_adapter ALIAS platform_ui_adapter)
 
-add_library(libsimulate STATIC $<TARGET_OBJECTS:platform_ui_adapter>)
-set_target_properties(libsimulate PROPERTIES OUTPUT_NAME simulate)
-add_library(mujoco::libsimulate ALIAS libsimulate)
+add_library(libmujoco_simulate STATIC $<TARGET_OBJECTS:platform_ui_adapter> $<TARGET_OBJECTS:lodepng>)
+set_target_properties(libmujoco_simulate PROPERTIES OUTPUT_NAME simulate)
+add_library(mujoco::libmujoco_simulate ALIAS libmujoco_simulate)
+set_target_properties(libmujoco_simulate PROPERTIES PUBLIC_HEADER "simulate.h;platform_ui_adapter.h;glfw_adapter.h;glfw_dispatch.h;glfw_corevideo.h;array_safety.h")
+
 
 target_sources(
-  libsimulate
-  PUBLIC simulate.h
-  PRIVATE simulate.cc array_safety.h
+  libmujoco_simulate
+  PRIVATE simulate.cc
 )
-target_include_directories(libsimulate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
-target_link_libraries(libsimulate PUBLIC lodepng mujoco::platform_ui_adapter mujoco::mujoco)
-target_link_options(libsimulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
+target_include_directories(libmujoco_simulate
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/simulate>
+    PRIVATE
+        ${lodepng_SOURCE_DIR}
+)
+target_compile_options(libmujoco_simulate PRIVATE ${MUJOCO_SIMULATE_COMPILE_OPTIONS})
+target_link_libraries(libmujoco_simulate PUBLIC mujoco::mujoco)
+target_link_options(libmujoco_simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
 if(APPLE)
-  target_sources(libsimulate PRIVATE macos_gui.mm)
-  target_link_libraries(libsimulate PUBLIC "-framework Cocoa")
+  target_sources(libmujoco_simulate PRIVATE macos_gui.mm)
+  target_link_libraries(libmujoco_simulate PUBLIC "-framework Cocoa")
 endif()
 
 # Build simulate executable
@@ -167,12 +175,30 @@ if(SIMULATE_BUILD_EXECUTABLE)
 
   target_link_libraries(
     simulate
-    libsimulate
+    libmujoco_simulate
     mujoco::mujoco
     glfw
     Threads::Threads
-    lodepng
   )
+
+  if(APPLE)
+    target_link_libraries(simulate "-framework CoreVideo")
+  endif()
+
+  if (BUILD_WITH_USD)
+    # pxr/usd/tf/hashset.h might include deprecated headers so disable this check
+    # when compiling with USD enabled.
+    target_compile_options(
+         simulate
+         PRIVATE -Wno-deprecated
+    )
+
+    target_link_libraries(
+      simulate
+      mujoco::usd::mjcf
+      usd_decoder_plugin
+    )
+  endif()
 
   target_link_options(simulate PRIVATE ${MUJOCO_SIMULATE_LINK_OPTIONS})
 
@@ -240,15 +266,29 @@ if(SIMULATE_BUILD_EXECUTABLE)
       MUJOCO_ENABLE_RPATH
     )
 
-    install(
-      TARGETS simulate
-      EXPORT ${PROJECT_NAME}
-      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
-      LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-      ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
-      BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
-      PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT simulate
-    )
+    if (BUILD_WITH_USD)
+      # pxr/usd/tf/hashset.h might include deprecated headers so disable this check
+      # when compiling with USD enabled.
+      target_compile_options(
+         simulate
+         PRIVATE -Wno-deprecated
+      )
+
+      # Add support to RPATH for the samples.
+      target_add_rpath(
+        TARGETS
+        simulate
+        INSTALL_DIRECTORY
+        "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
+        LIB_DIRS
+        DEPENDS
+        MUJOCO_ENABLE_RPATH
+      )
+
+      # Do we need this?
+      #target_link_options(simulate PRIVATE -rpath=${pxr_DIR}/lib)
+
+    endif()
 
     if(NOT MUJOCO_SIMULATE_USE_SYSTEM_GLFW)
       # We downloaded GLFW. Depending if it is a static or shared LIBRARY we might
@@ -265,5 +305,26 @@ if(SIMULATE_BUILD_EXECUTABLE)
         )
       endif()
     endif()
+
+    install(
+      TARGETS simulate
+      EXPORT ${PROJECT_NAME}
+      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+      LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+      ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+      BUNDLE DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+      PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT simulate
+    )
+
+    # Specify public headers for libmujoco_simulate
+
+    install(
+    TARGETS libmujoco_simulate
+    EXPORT mujoco
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT simulate
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT simulate
+    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/simulate" COMPONENT simulate
+    )
   endif()
 endif()

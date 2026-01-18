@@ -29,100 +29,36 @@ MJAPI extern const char* mjDISABLESTRING[mjNDISABLE];
 MJAPI extern const char* mjENABLESTRING[mjNENABLE];
 MJAPI extern const char* mjTIMERSTRING[mjNTIMER];
 
+// arrays
+MJAPI extern const int mjCONDATA_SIZE[mjNCONDATA];  // TODO(tassa): expose in public header?
+extern const int mjRAYDATA_SIZE[mjNRAYDATA];
+
 
 //-------------------------- get/set state ---------------------------------------------------------
 
-// return size of state specification
-MJAPI int mj_stateSize(const mjModel* m, unsigned int spec);
+// return size of state signature
+MJAPI int mj_stateSize(const mjModel* m, int sig);
 
 // get state
-MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, unsigned int spec);
+MJAPI void mj_getState(const mjModel* m, const mjData* d, mjtNum* state, int sig);
+
+// extract a sub-state from a state
+MJAPI void mj_extractState(const mjModel* m, const mjtNum* src, int srcsig,
+                           mjtNum* dst, int dstsig);
 
 // set state
-MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, unsigned int spec);
+MJAPI void mj_setState(const mjModel* m, mjData* d, const mjtNum* state, int sig);
+
+// copy state from src to dst
+MJAPI void mj_copyState(const mjModel* m, const mjData* src, mjData* dst, int sig);
 
 // copy current state to the k-th model keyframe
 MJAPI void mj_setKeyframe(mjModel* m, const mjData* d, int k);
-
-//-------------------------- sparse chains ---------------------------------------------------------
-
-// merge dof chains for two bodies
-int mj_mergeChain(const mjModel* m, int* chain, int b1, int b2);
-
-// merge dof chains for two simple bodies
-int mj_mergeChainSimple(const mjModel* m, int* chain, int b1, int b2);
-
-// get body chain
-int mj_bodyChain(const mjModel* m, int body, int* chain);
-
-
-//-------------------------- Jacobians -------------------------------------------------------------
-
-// compute 3/6-by-nv Jacobian of global point attached to given body
-MJAPI void mj_jac(const mjModel* m, const mjData* d,
-                  mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body);
-
-// compute body frame Jacobian
-MJAPI void mj_jacBody(const mjModel* m, const mjData* d,
-                      mjtNum* jacp, mjtNum* jacr, int body);
-
-// compute body center-of-mass Jacobian
-MJAPI void mj_jacBodyCom(const mjModel* m, const mjData* d,
-                         mjtNum* jacp, mjtNum* jacr, int body);
-
-// compute subtree center-of-mass Jacobian
-MJAPI void mj_jacSubtreeCom(const mjModel* m, mjData* d, mjtNum* jacp, int body);
-
-// compute geom Jacobian
-MJAPI void mj_jacGeom(const mjModel* m, const mjData* d,
-                      mjtNum* jacp, mjtNum* jacr, int geom);
-
-// compute site Jacobian
-MJAPI void mj_jacSite(const mjModel* m, const mjData* d,
-                      mjtNum* jacp, mjtNum* jacr, int site);
-
-// compute translation Jacobian of point, and rotation Jacobian of axis
-MJAPI void mj_jacPointAxis(const mjModel* m, mjData* d,
-                           mjtNum* jacPoint, mjtNum* jacAxis,
-                           const mjtNum point[3], const mjtNum axis[3], int body);
-
-// compute 3/6-by-nv sparse Jacobian of global point attached to given body
-void mj_jacSparse(const mjModel* m, const mjData* d,
-                  mjtNum* jacp, mjtNum* jacr, const mjtNum* point, int body,
-                  int NV, const int* chain);
-
-// sparse Jacobian difference for simple body contacts
-void mj_jacSparseSimple(const mjModel* m, const mjData* d,
-                        mjtNum* jacdifp, mjtNum* jacdifr, const mjtNum* point,
-                        int body, int flg_second, int NV, int start);
-
-// dense or sparse Jacobian difference for two body points: pos2 - pos1, global
-MJAPI int mj_jacDifPair(const mjModel* m, const mjData* d, int* chain,
-                        int b1, int b2, const mjtNum pos1[3], const mjtNum pos2[3],
-                        mjtNum* jac1p, mjtNum* jac2p, mjtNum* jacdifp,
-                        mjtNum* jac1r, mjtNum* jac2r, mjtNum* jacdifr);
-
-// dense or sparse weighted sum of multiple body Jacobians at same point
-int mj_jacSum(const mjModel* m, mjData* d, int* chain,
-              int n, const int* body, const mjtNum* weight,
-              const mjtNum point[3], mjtNum* jac, int flg_rot);
-
-// compute 3/6-by-nv Jacobian time derivative of global point attached to given body
-MJAPI void mj_jacDot(const mjModel* m, const mjData* d,
-                     mjtNum* jacp, mjtNum* jacr, const mjtNum point[3], int body);
-
-// compute subtree angular momentum matrix
-MJAPI void mj_angmomMat(const mjModel* m, mjData* d, mjtNum* mat, int body);
-
 
 //-------------------------- inertia functions -----------------------------------------------------
 
 // convert sparse inertia matrix M into full matrix
 MJAPI void mj_fullM(const mjModel* m, mjtNum* dst, const mjtNum* M);
-
-// multiply vector by inertia matrix (implementation)
-MJAPI void mj_mulM_impl(mjtNum* res, const mjtNum* vec, int nv, const mjtNum* M,
-                        const int* Madr, const int* parentid, const int* simplenum);
 
 // multiply vector by inertia matrix
 MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
@@ -130,7 +66,7 @@ MJAPI void mj_mulM(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum*
 // multiply vector by (inertia matrix)^(1/2)
 MJAPI void mj_mulM2(const mjModel* m, const mjData* d, mjtNum* res, const mjtNum* vec);
 
-// add inertia matrix to destination matrix
+// add inertia matrix to destination matrix (lower triangle only)
 //  destination can be sparse or dense when all int* are NULL
 MJAPI void mj_addM(const mjModel* m, mjData* d, mjtNum* dst,
                    int* rownnz, int* rowadr, int* colind);
@@ -147,40 +83,25 @@ MJAPI void mj_applyFT(const mjModel* m, mjData* d,
 void mj_xfrcAccumulate(const mjModel* m, mjData* d, mjtNum* qfrc);
 
 
-//-------------------------- coordinate transformation ---------------------------------------------
-
-// compute object 6D velocity in object-centered frame, world/local orientation
-MJAPI void mj_objectVelocity(const mjModel* m, const mjData* d,
-                             int objtype, int objid, mjtNum res[6], int flg_local);
-
-// compute object 6D acceleration in object-centered frame, world/local orientation
-MJAPI void mj_objectAcceleration(const mjModel* m, const mjData* d,
-                                 int objtype, int objid, mjtNum res[6], int flg_local);
-
-
 //-------------------------- miscellaneous ---------------------------------------------------------
 
 // returns the smallest distance between two geoms
 MJAPI mjtNum mj_geomDistance(const mjModel* m, const mjData* d, int geom1, int geom2,
                              mjtNum distmax, mjtNum fromto[6]);
 
-// extract 6D force:torque for one contact, in contact frame
-MJAPI void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
-
 // compute velocity by finite-differencing two positions
 MJAPI void mj_differentiatePos(const mjModel* m, mjtNum* qvel, mjtNum dt,
                                const mjtNum* qpos1, const mjtNum* qpos2);
+
+// integrate qpos with given qvel for given body indices
+MJAPI void mj_integratePosInd(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt,
+                              const int* index, int nbody);
 
 // integrate position with given velocity
 MJAPI void mj_integratePos(const mjModel* m, mjtNum* qpos, const mjtNum* qvel, mjtNum dt);
 
 // normalize all quaternions in qpos-type vector
 MJAPI void mj_normalizeQuat(const mjModel* m, mjtNum* qpos);
-
-// map from body local to global Cartesian coordinates
-MJAPI void mj_local2Global(mjData* d, mjtNum xpos[3], mjtNum xmat[9],
-                           const mjtNum pos[3], const mjtNum quat[4],
-                           int body, mjtByte sameframe);
 
 // return 1 if actuator i is disabled, 0 otherwise
 MJAPI int mj_actuatorDisabled(const mjModel* m, int i);
@@ -191,14 +112,24 @@ MJAPI mjtNum mj_getTotalmass(const mjModel* m);
 // scale body masses and inertias to achieve specified total mass
 MJAPI void mj_setTotalmass(mjModel* m, mjtNum newmass);
 
-// high-level warning function: count warnings in mjData, print only the first time
-MJAPI void mj_warning(mjData* d, int warning, int info);
-
 // version number
 MJAPI int mj_version(void);
 
 // current version of MuJoCo as a null-terminated string
 MJAPI const char* mj_versionString(void);
+
+// return total size of data fields in a contact sensor bitfield specification
+MJAPI int mju_condataSize(int dataSpec);
+
+// return total size of data fields in a rangefinder sensor bitfield specification
+int mju_raydataSize(int dataspec);
+
+// compute camera pixel parameters from model
+// outputs: fx, fy (focal length in pixels), cx, cy (principal point), ortho_extent
+void mju_camIntrinsics(const mjModel* m, int camid,
+                       mjtNum* fx, mjtNum* fy, mjtNum* cx, mjtNum* cy,
+                       mjtNum* ortho_extent);
+
 #ifdef __cplusplus
 }
 #endif

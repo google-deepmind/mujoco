@@ -24,7 +24,9 @@
 #include <cstring>
 #include <ctime>
 #include <string>
+#include <string_view>
 #include <vector>
+#include <mujoco/mujoco.h>
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
   #include <unistd.h>
@@ -90,12 +92,6 @@ int FileRead(mjResource* resource, const void** buffer) {
 void FileClose(mjResource* resource) {
   FileSpec* spec = (FileSpec*) resource->data;
   if (spec) delete spec;
-}
-
-// OS filesystem getdir callback
-void FileGetDir(mjResource* resource, const char** dir, int* ndir) {
-  *dir = resource->name;
-  *ndir = mjuu_dirnamelen(resource->name);
 }
 
 // OS filesystem modified callback
@@ -232,16 +228,22 @@ void mju_getResourceDir(mjResource* resource, const char** dir, int* ndir) {
   *dir = nullptr;
   *ndir = 0;
 
-  if (resource == nullptr) {
-    return;
-  }
+  if (resource && resource->name) {
+    // ensure prefix is included even if there is no separator in the
+    // resource name
+    int prefix_len = 0;
+    const mjpResourceProvider* provider = resource->provider;
+    if (provider && provider->prefix) {
+      prefix_len = strlen(provider->prefix) + 1;
+    }
 
-  const mjpResourceProvider* provider = resource->provider;
-  if (provider) {
-    if (provider->getdir) provider->getdir(resource, dir, ndir);
-  } else {
-    // fallback to OS filesystem
-    FileGetDir(resource, dir, ndir);
+    *dir = resource->name;
+    *ndir = prefix_len;
+    for (int i = prefix_len; resource->name[i]; ++i) {
+      if (resource->name[i] == '/' || resource->name[i] == '\\') {
+        *ndir = i + 1;
+      }
+    }
   }
 }
 
@@ -261,4 +263,18 @@ int mju_isModifiedResource(const mjResource* resource, const char* timestamp) {
 
   // fallback to OS filesystem
   return FileModified(resource, timestamp);
+}
+
+mjSpec* mju_decodeResource(mjResource* resource, const char* content_type, const mjVFS* vfs) {
+  const mjpDecoder* decoder = nullptr;
+  if (content_type) {
+    decoder = mjp_findDecoder(resource, content_type);
+  } else {
+    decoder = mjp_findDecoder(resource, mjuu_extToContentType(resource->name).c_str());
+  }
+  if (!decoder) {
+    mju_error("Could not find decoder for resource '%s'", resource->name);
+  }
+
+  return decoder->decode(resource, vfs);
 }

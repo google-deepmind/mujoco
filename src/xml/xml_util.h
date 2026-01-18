@@ -24,10 +24,9 @@
 #include <vector>
 #include <sstream>
 
-#include "tinyxml2.h"
-
 #include <mujoco/mujoco.h>
 #include "user/user_util.h"
+#include "tinyxml2.h"
 
 // error string copy
 void mjCopyError(char* dst, const char* src, int maxlen);
@@ -50,14 +49,10 @@ class [[nodiscard]] mjXError {
 };
 
 
-// max number of attribute fields in schema (plus 3)
-#define mjXATTRNUM 36
-
-
 // Custom XML file validation
 class mjXSchema {
  public:
-  mjXSchema(const char* schema[][mjXATTRNUM], unsigned nrow);
+  mjXSchema(std::vector<const char*> schema[], unsigned nrow);
 
   std::string GetError();                         // return error
   void Print(std::stringstream& str, int level) const;      // print schema
@@ -184,6 +179,10 @@ class mjXUtil {
   static bool MapValue(tinyxml2::XMLElement* elem, const char* attr, int* data,
                        const mjMap* map, int mapSz, bool required = false);
 
+  // find attribute, translate unique space-separated keys to data, return number of keys found
+  static int MapValues(tinyxml2::XMLElement* elem, const char* attr, int* data,
+                       const mjMap* map, int mapSz, bool required = false);
+
   // write attribute- any type
   template<typename T>
   static void WriteAttr(tinyxml2::XMLElement* elem, std::string name, int n, const T* data,
@@ -204,6 +203,10 @@ class mjXUtil {
   // write attribute- keyword
   static void WriteAttrKey(tinyxml2::XMLElement* elem, std::string name,
                            const mjMap* map, int mapsz, int data, int def = -12345);
+
+  // write attribute- space-separated keywords
+  static void WriteAttrKeys(XMLElement* elem, std::string name, const mjMap* map,
+                            int mapsz, int* data, int ndata, int def = -12345);
 
  private:
   template<typename T>

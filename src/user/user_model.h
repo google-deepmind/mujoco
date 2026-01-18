@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -84,9 +85,11 @@ class mjCModel_ : public mjsElement {
   int nv;              // number of degrees of freedom = dim(qvel)
   int nu;              // number of actuators/controls
   int na;              // number of activation variables
+  int ntree;           // number of trees
   int nbvh;            // number of total boundary volume hierarchies
   int nbvhstatic;      // number of static boundary volume hierarchies
   int nbvhdynamic;     // number of dynamic boundary volume hierarchies
+  int noct;            // number of total octree cells
   int nflexnode;       // number of nodes in all flexes
   int nflexvert;       // number of vertices in all flexes
   int nflexedge;       // number of edges in all flexes
@@ -96,6 +99,7 @@ class mjCModel_ : public mjsElement {
   int nflexshelldata;  // number of shell fragment vertex ids in all flexes
   int nflexevpair;     // number of element-vertex pairs in all flexes
   int nflextexcoord;   // number of vertex texture coordinates in all flexes
+  int nJfe;            // number of non-zeros in sparse flex constraint Jacobian
   int nmeshvert;       // number of vertices in all meshes
   int nmeshnormal;     // number of normals in all meshes
   int nmeshtexcoord;   // number of texture coordinates in all meshes
@@ -146,8 +150,6 @@ class mjCModel_ : public mjsElement {
   std::string spec_comment_;
   std::string spec_modelfiledir_;
   std::string spec_modelname_;
-  std::string spec_meshdir_;
-  std::string spec_texturedir_;
 };
 
 // mjCModel contains everything needed to generate the low-level model.
@@ -227,13 +229,10 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T> void DeleteAll(std::vector<T*>& elements);
 
   // delete object from the corresponding list
-  void DeleteElement(mjsElement* el);
+  void operator-=(mjsElement* el);
 
   // delete default and all descendants
   void RemoveDefault(mjCDef* def);
-
-  // detach subtree from model
-  void Detach(mjCBody* subtree);
 
   // API for access to model elements (outside tree)
   int NumObjects(mjtObj type);              // number of objects in specified list
@@ -248,11 +247,14 @@ class mjCModel : public mjCModel_, private mjSpec {
   mjCDef* FindDefault(std::string name);                            // find defaults class name
   mjCDef* AddDefault(std::string name, mjCDef* parent = nullptr);   // add defaults class to array
   mjCBase* FindObject(mjtObj type, std::string name) const;         // find object given type and name
-  mjCBase* FindTexture(std::string_view name) const;                // find texture given name
   mjCBase* FindTree(mjCBody* body, mjtObj type, std::string name);  // find tree object given name
   mjSpec* FindSpec(std::string name) const;                         // find spec given name
   mjSpec* FindSpec(const mjsCompiler* compiler_);                   // find spec given mjsCompiler
   void ActivatePlugin(const mjpPlugin* plugin, int slot);           // activate plugin
+
+  // find asset given name checking both name and filename
+  template <class T>
+  mjCBase* FindAsset(std::string_view name, const std::vector<T*>& list) const;
 
   // accessors
   std::string get_meshdir() const { return meshdir_; }
@@ -325,7 +327,21 @@ class mjCModel : public mjCModel_, private mjSpec {
   // set attached flag
   void SetAttached(bool deepcopy) { attached_ |= !deepcopy; }
 
+  // check for repeated names in list
+  void CheckRepeat(mjtObj type);
+
+  // increment and decrement reference count
+  void AddRef() { ++refcount; }
+  int GetRef() const { return refcount; }
+  void Release() {
+    if (--refcount == 0) {
+      delete this;
+    }
+  }
+
  private:
+  int refcount = 1;
+
   // settings for each defaults class
   std::vector<mjCDef*> defaults_;
 
@@ -341,6 +357,7 @@ class mjCModel : public mjCModel_, private mjSpec {
   void IndexAssets(bool discard);       // convert asset names into indices
   void CheckEmptyNames();               // check empty names
   void SetSizes();                      // compute sizes
+  void ComputeSparseSizes();            // compute nM, nD, nB, nC
   void AutoSpringDamper(mjModel*);      // automatic stiffness and damping computation
   void LengthRange(mjModel*, mjData*);  // compute actuator lengthrange
   void CopyNames(mjModel*);             // copy names, compute name addresses
@@ -413,6 +430,10 @@ class mjCModel : public mjCModel_, private mjSpec {
   // populate objects ids
   void ProcessLists(bool checkrepeat = true);
 
+  // process list of objects
+  template <class T> void ProcessList_(mjListKeyMap& ids, std::vector<T*>& list,
+                                       mjtObj type, bool checkrepeat = true);
+
   // reset lists of kinematic tree
   void ResetTreeLists();
 
@@ -422,14 +443,11 @@ class mjCModel : public mjCModel_, private mjSpec {
   // convert pending keyframes info to actual keyframes
   void ResolveKeyframes(const mjModel* m);
 
-  // resize a keyframe, filling in missing values
-  void ResizeKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
+  // expand a keyframe, filling in missing values
+  void ExpandKeyframe(mjCKey* key, const mjtNum* qpos0_, const mjtNum* bpos, const mjtNum* bquat);
 
   // compute qpos0
   void ComputeReference();
-
-  // return true if all bodies have valid mass and inertia
-  bool CheckBodiesMassInertia(std::vector<mjCBody*> bodies);
 
   // return true if body has valid mass and inertia
   bool CheckBodyMassInertia(mjCBody* body);
@@ -440,7 +458,7 @@ class mjCModel : public mjCModel_, private mjSpec {
                           const std::vector<T*>& list);
 
   // print the tree of a body
-  std::string PrintTree(const mjCBody* body, std::string indent = "");
+  void PrintTree(std::stringstream& tree, const mjCBody* body, int depth = 0);
 
   // generate a signature for the model
   uint64_t Signature();
@@ -453,11 +471,18 @@ class mjCModel : public mjCModel_, private mjSpec {
   template <class T>
   void ResolveReferences(std::vector<T*>& list, mjCBody* body = nullptr);
 
+  // delete all plugins created by the subtree
+  void DeleteSubtreePlugin(mjCBody* subtree);
+
+  // expand all keyframes in the model
+  void ExpandAllKeyframes();
+
   mjListKeyMap ids;   // map from object names to ids
   mjCError errInfo;   // last error info
   std::vector<mjKeyInfo> key_pending_;  // attached keyframes
   bool deepcopy_;     // copy objects when attaching
   bool attached_ = false;  // true if model is attached to a parent model
   std::unordered_map<const mjsCompiler*, mjSpec*> compiler2spec_;  // map from compiler to spec
+  std::vector<mjCBase*> detached_;  // list of detached objects
 };
 #endif  // MUJOCO_SRC_USER_USER_MODEL_H_

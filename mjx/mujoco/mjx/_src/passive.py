@@ -34,6 +34,9 @@ from mujoco.mjx._src.types import OptionJAX
 
 def _spring_damper(m: Model, d: Data) -> jax.Array:
   """Applies joint level spring and damping forces."""
+  if not isinstance(d._impl, DataJAX) and not isinstance(m._impl, ModelJAX):
+    raise ValueError('_spring_damper requires JAX backend implementation.')
+  assert isinstance(d._impl, DataJAX) and isinstance(m._impl, ModelJAX)
 
   def fn(jnt_typs, stiffness, qpos_spring, qpos):
     qpos_i = 0
@@ -60,25 +63,38 @@ def _spring_damper(m: Model, d: Data) -> jax.Array:
     return jp.concatenate(qfrcs)
 
   # dof-level springs
-  qfrc = scan.flat(
-      m,
-      fn,
-      'jjqq',
-      'v',
-      m.jnt_type,
-      m.jnt_stiffness,
-      m.qpos_spring,
-      d.qpos,
-  )
+  qfrc = jp.zeros(m.nv)
+  if not m.opt.disableflags & DisableBit.SPRING:
+    qfrc = scan.flat(
+        m,
+        fn,
+        'jjqq',
+        'v',
+        m.jnt_type,
+        m.jnt_stiffness,
+        m.qpos_spring,
+        d.qpos,
+    )
 
   # dof-level dampers
-  qfrc -= m.dof_damping * d.qvel
+  if not m.opt.disableflags & DisableBit.DAMPER:
+    qfrc -= m.dof_damping * d.qvel
 
-  # tendon-level spring-dampers
-  below, above = m.tendon_lengthspring.T - d._impl.ten_length
-  frc_spring = jp.where(below > 0, m.tendon_stiffness * below, 0)
-  frc_spring = jp.where(above < 0, m.tendon_stiffness * above, frc_spring)
-  frc_damper = -m.tendon_damping * d._impl.ten_velocity
+  # tendon-level springs
+  if not m.opt.disableflags & DisableBit.SPRING:
+    below, above = m.tendon_lengthspring.T - d.ten_length
+    frc_spring = jp.where(below > 0, m.tendon_stiffness * below, 0)
+    frc_spring = jp.where(above < 0, m.tendon_stiffness * above, frc_spring)
+  else:
+    frc_spring = jp.zeros(m.ntendon)
+
+  # tendon-level dampers
+  frc_damper = (
+      -m.tendon_damping * d._impl.ten_velocity
+      if not m.opt.disableflags & DisableBit.DAMPER
+      else jp.zeros(m.ntendon)
+  )
+
   qfrc += d._impl.ten_J.T @ (frc_spring + frc_damper)
 
   return qfrc
@@ -116,10 +132,14 @@ def _fluid(m: Model, d: Data) -> jax.Array:
 
 def passive(m: Model, d: Data) -> Data:
   """Adds all passive forces."""
-  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+  if (
+      not isinstance(m._impl, ModelJAX)
+      or not isinstance(d._impl, DataJAX)
+      or not isinstance(m.opt._impl, OptionJAX)
+  ):
     raise ValueError('passive requires JAX backend implementation.')
 
-  if m.opt.disableflags & DisableBit.PASSIVE:
+  if m.opt.disableflags & (DisableBit.SPRING | DisableBit.DAMPER):
     return d.replace(qfrc_passive=jp.zeros(m.nv), qfrc_gravcomp=jp.zeros(m.nv))
 
   qfrc_passive = _spring_damper(m, d)
@@ -130,7 +150,7 @@ def passive(m: Model, d: Data) -> Data:
     # add gravcomp unless added via actuators
     qfrc_passive += qfrc_gravcomp * (1 - m.jnt_actgravcomp[m.dof_jntid])
 
-  if m.opt.has_fluid_params:  # pytype: disable=attribute-error
+  if m.opt._impl.has_fluid_params:  # pytype: disable=attribute-error
     qfrc_passive += _fluid(m, d)
 
   d = d.replace(qfrc_passive=qfrc_passive, qfrc_gravcomp=qfrc_gravcomp)
@@ -147,6 +167,11 @@ def _inertia_box_fluid_model(
     cvel: jax.Array,
 ) -> Tuple[jax.Array, jax.Array]:
   """Fluid forces based on inertia-box approximation."""
+  if not isinstance(m.opt._impl, OptionJAX):
+    raise ValueError(
+        '_inertia_box_fluid_model requires JAX backend implementation.'
+    )
+
   box = jp.repeat(inertia[None, :], 3, axis=0)
   box *= jp.ones((3, 3)) - 2 * jp.eye(3)
   box = 6.0 * jp.clip(jp.sum(box, axis=-1), a_min=1e-12)

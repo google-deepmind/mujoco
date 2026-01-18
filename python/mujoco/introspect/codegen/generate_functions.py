@@ -58,21 +58,43 @@ class MjFunctionVisitor:
         node['type']['qualType'])
     parameters = []
     comments = []
+    nullable_params = set()
+
+    for child in node['inner']:
+      child_kind = child.get('kind')
+      if child_kind == 'FullComment':
+        comments.append(self._make_comment(child))
+        nullable_params.update(self._find_nullable_params(child))
+    comment = ' '.join(comments).strip()
+
     for child in node['inner']:
       child_kind = child.get('kind')
       if child_kind == 'ParmVarDecl':
-        parameters.append(self._make_parameter(child))
-      if child_kind == 'FullComment':
-        comments.append(self._make_comment(child))
-    comment = ' '.join(comments).strip()
+        parameters.append(self._make_parameter(child, nullable_params))
+
     return ast_nodes.FunctionDecl(
         name=name, return_type=return_type, parameters=parameters, doc=comment)
 
+  def _find_nullable_params(self, node: ClangJsonNode) -> set[str]:
+    """Finds the names of parameters that are marked as nullable."""
+    nullable_params = set()
+    for child in node['inner']:
+      child_kind = child.get('kind')
+      if child_kind == 'ParagraphComment':
+        nullable_params.update(self._find_nullable_params(child))
+      if child_kind == 'TextComment':
+        if 'Nullable' in child['text']:
+          for param in child['text'].split(':')[1].split(','):
+            nullable_params.add(param.strip())
+    return nullable_params
+
   def _make_parameter(
-      self, node: ClangJsonNode) -> ast_nodes.FunctionParameterDecl:
+      self, node: ClangJsonNode, nullable_params: set[str]
+  ) -> ast_nodes.FunctionParameterDecl:
     """Makes a ParameterDecl from a Clang AST ParmVarDecl node."""
     name = node['name']
     type_name = node['type']['qualType']
+    nullable = name in nullable_params
 
     # For a pointer parameters, look up in the original header to see if
     # n array extent was declared there.
@@ -85,7 +107,10 @@ class MjFunctionVisitor:
       type_name = decl[:name_begin] + decl[name_end:]
 
     return ast_nodes.FunctionParameterDecl(
-        name=name, type=type_parsing.parse_type(type_name))
+        nullable=nullable,
+        name=name,
+        type=type_parsing.parse_type(type_name),
+    )
 
   def _make_comment(self, node: ClangJsonNode) -> str:
     """Makes a comment string from a Clang AST FullComment node."""
@@ -95,7 +120,11 @@ class MjFunctionVisitor:
     else:
       strings = []
       for child in node['inner']:
-        strings.append(self._make_comment(child))
+        comment = self._make_comment(child)
+        nullable_index = comment.find('Nullable:')
+        if nullable_index != -1:
+          comment = comment[:nullable_index]
+        strings.append(comment)
       return ''.join(strings)
 
   def visit(self, node: ClangJsonNode) -> None:

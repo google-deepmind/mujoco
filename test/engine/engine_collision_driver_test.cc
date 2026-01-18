@@ -14,8 +14,11 @@
 
 // Tests for engine/engine_collision_driver.c.
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gmock/gmock.h>
@@ -68,7 +71,9 @@ TEST_F(MjCollisionTest, AllCollisions) {
 }
 
 TEST_F(MjCollisionTest, EmptyModel) {
-  mjModel* model = LoadModelFromString("<mujoco/>");
+  char error[1024];
+  mjModel* model = LoadModelFromString("<mujoco/>", error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
 
   mj_fwdPosition(model, data);
@@ -117,8 +122,9 @@ TEST_F(MjCollisionTest, ContactCount) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
   mjData* d = mj_makeData(m);
   ASSERT_THAT(d, NotNull());
 
@@ -152,8 +158,9 @@ TEST_F(MjCollisionTest, FilterParent) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
   mjData* d = mj_makeData(m);
   ASSERT_THAT(d, NotNull());
 
@@ -186,8 +193,9 @@ TEST_F(MjCollisionTest, FilterParentDoesntAffectWorldBody) {
     </worldbody>
   </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
   mjData* d = mj_makeData(m);
   ASSERT_THAT(d, NotNull());
 
@@ -235,8 +243,9 @@ TEST_F(MjCollisionTest, PlaneInBody) {
     </worldbody>
     </mujoco>
   )";
-  mjModel* m = LoadModelFromString(xml);
-  ASSERT_THAT(m, NotNull());
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
   mjData* d = mj_makeData(m);
   ASSERT_THAT(d, NotNull());
   mj_step(m, d);

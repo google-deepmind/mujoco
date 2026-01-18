@@ -18,9 +18,12 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 const double mjEPS = 1E-14;     // minimum value in various calculations
@@ -72,6 +75,9 @@ double mjuu_L1(const double* a, const double* b, int n);
 //  if norm(vec)<mjEPS, return 0 and do not change vector
 double mjuu_normvec(double* vec, int n);
 float mjuu_normvec(float* vec, int n);
+
+// scale vector by scalar
+void mjuu_scalevec(double* res, const double* vec, double s, int n);
 
 // convert quaternion to rotation matrix
 void mjuu_quat2mat(double* res, const double* quat);
@@ -231,6 +237,15 @@ class FilePath {
 
   std::string path_;
 };
+
+// utility class for scoping resources to functions
+struct Cleanup {
+  using Fn = std::function<void()>;
+  ~Cleanup() { for (auto& f : cleanup) f(); }
+  void operator+=(Fn f) { cleanup.push_front(std::move(f)); }
+  std::deque<Fn> cleanup;
+};
+
 
 // read file into memory buffer
 std::vector<uint8_t> FileToMemory(const char* filename);

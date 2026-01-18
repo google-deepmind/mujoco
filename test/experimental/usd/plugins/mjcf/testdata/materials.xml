@@ -3,6 +3,10 @@
     <texture name="diffuse_tex" file="textures/cube.png" type="2d" />
     <texture name="normal_tex" file="textures/normal.png" type="2d" />
     <texture name="orm_tex" file="textures/orm.png" type="2d" />
+    <texture name="emissive_tex" file="textures/emissive.png" type="2d" />
+    <texture name="occlusion_tex" file="textures/occlusion.png" type="2d" />
+    <texture name="roughness_tex" file="textures/roughness.png" type="2d" />
+    <texture name="metallic_tex" file="textures/metallic.png" type="2d" />
     <material name="material_red" rgba="0.8 0 0 1" />
     <material name="material_texture" texture="diffuse_tex" />
     <material name="material_metallic" rgba="0.8 0 0 1" metallic="0.6"/>
@@ -10,6 +14,12 @@
       <layer texture="diffuse_tex" role="rgb"/>
       <layer texture="normal_tex" role="normal"/>
       <layer texture="orm_tex" role="orm"/>
+      <layer texture="emissive_tex" role="emissive"/>
+    </material>
+    <material name="material_pbr_separate">
+      <layer texture="occlusion_tex" role="occlusion"/>
+      <layer texture="roughness_tex" role="roughness"/>
+      <layer texture="metallic_tex" role="metallic"/>
     </material>
     2d texture="diffuse" normal="normal" />
     <mesh name="tetrahedron" vertex="0 0 0  1 0 0  0 1 0  0 0 1"/>

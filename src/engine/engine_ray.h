@@ -24,48 +24,51 @@ extern "C" {
 #endif
 
 MJAPI void mju_multiRayPrepare(const mjModel* m, const mjData* d,
-                               const mjtNum pnt[3], const mjtNum* ray_xmat,
+                               const mjtNum pnt[3], const mjtNum ray_xmat[9],
                                const mjtByte* geomgroup, mjtByte flg_static,
                                int bodyexclude, mjtNum cutoff, mjtNum* geom_ba,
                                int* geom_eliminate);
 
-// Intersect multiple rays emanating from a single source
-// Similar semantics to mj_ray, but vec is an array of (nray x 3) directions.
+// intersect multiple rays emanating from a single source, compute normals if given
+//  similar semantics to mj_ray, but vec, normal and dist are arrays
 MJAPI void mj_multiRay(const mjModel* m, mjData* d, const mjtNum pnt[3], const mjtNum* vec,
                        const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-                       int* geomid, mjtNum* dist, int nray, mjtNum cutoff);
+                       int* geomid, mjtNum* dist, mjtNum* normal, int nray, mjtNum cutoff);
+
 
 // intersect ray (pnt+x*vec, x>=0) with visible geoms, except geoms on bodyexclude
 //  return geomid and distance (x) to nearest surface, or -1 if no intersection
 //  geomgroup, flg_static are as in mjvOption; geomgroup==NULL skips group exclusion
-MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum* pnt, const mjtNum* vec,
+MJAPI mjtNum mj_ray(const mjModel* m, const mjData* d, const mjtNum pnt[3], const mjtNum vec[3],
                     const mjtByte* geomgroup, mjtByte flg_static, int bodyexclude,
-                    int geomid[1]);
+                    int geomid[1], mjtNum normal[3]);
 
-// intersect ray with hfield
+// intersect ray with hfield, compute normal if given
 MJAPI mjtNum mj_rayHfield(const mjModel* m, const mjData* d, int geomid,
-                          const mjtNum* pnt, const mjtNum* vec);
+                          const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
 
 // intersect ray with triangle
-MJAPI mjtNum ray_triangle(mjtNum v[][3], const mjtNum* lpnt, const mjtNum* lvec,
-                          const mjtNum* b0, const mjtNum* b1);
+MJAPI mjtNum ray_triangle(mjtNum v[][3], const mjtNum lpnt[3], const mjtNum lvec[3],
+                          const mjtNum b0[3], const mjtNum b1[3], mjtNum normal[3]);
 
-// intersect ray with mesh
+// intersect ray with mesh, compute normal if given
 MJAPI mjtNum mj_rayMesh(const mjModel* m, const mjData* d, int geomid,
-                        const mjtNum* pnt, const mjtNum* vec);
+                        const mjtNum pnt[3], const mjtNum vec[3], mjtNum normal[3]);
 
-// intersect ray with pure geom, no meshes or hfields
-MJAPI mjtNum mju_rayGeom(const mjtNum* pos, const mjtNum* mat, const mjtNum* size,
-                         const mjtNum* pnt, const mjtNum* vec, int geomtype);
+// intersect ray with primitive geom, no meshes or hfields, compute normal if given
+MJAPI mjtNum mju_rayGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3],
+                         const mjtNum pnt[3], const mjtNum vec[3], int geomtype,
+                         mjtNum normal[3]);
 
-// intersect ray with flex, return nearest vertex id
-MJAPI mjtNum mju_rayFlex(const mjModel* m, const mjData* d, int flex_layer, mjtByte flg_vert,
-                         mjtByte flg_edge, mjtByte flg_face, mjtByte flg_skin, int flexid,
-                         const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
+// intersect ray with flex, return nearest vertex id, compute normal if given
+MJAPI mjtNum mj_rayFlex(const mjModel* m, const mjData* d, int flex_layer,
+                        mjtByte flg_vert, mjtByte flg_edge, mjtByte flg_face,
+                        mjtByte flg_skin, int flexid, const mjtNum pnt[3],
+                        const mjtNum vec[3], int vertid[1], mjtNum normal[3]);
 
 // intersect ray with skin, return nearest vertex id
 MJAPI mjtNum mju_raySkin(int nface, int nvert, const int* face, const float* vert,
-                         const mjtNum* pnt, const mjtNum* vec, int vertid[1]);
+                         const mjtNum pnt[3], const mjtNum vec[3], int vertid[1]);
 
 #ifdef __cplusplus
 }

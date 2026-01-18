@@ -21,11 +21,15 @@
 #include <mujoco/mjplugin.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_callback.h"
+#include "engine/engine_collision_sdf.h"
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_plugin.h"
 #include "engine/engine_ray.h"
+#include "engine/engine_sleep.h"
+#include "engine/engine_sort.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -35,6 +39,26 @@
 
 
 //-------------------------------- utility ---------------------------------------------------------
+
+
+typedef struct {
+  mjtNum criterion;  // criterion for partial sort
+  int id;            // index in d->contact
+  int flip;          // 0: don't flip the normal, 1: flip the normal
+} ContactInfo;
+
+// define ContactSelect: find the k smallest elements of a ContactInfo array
+static int ContactInfoCompare(const ContactInfo* a, const ContactInfo* b, void* context) {
+  if (a->criterion < b->criterion) return -1;
+  if (a->criterion > b->criterion) return 1;
+
+  if (a->id < b->id) return -1;
+  if (a->id > b->id) return 1;
+
+  return 0;
+}
+mjPARTIAL_SORT(ContactSelect, ContactInfo, ContactInfoCompare);
+
 
 // apply cutoff after each stage
 static void apply_cutoff(const mjModel* m, mjData* d, mjtStage stage) {
@@ -68,7 +92,6 @@ static void apply_cutoff(const mjModel* m, mjData* d, mjtStage stage) {
 }
 
 
-
 // get xpos and xmat pointers to an object in mjData
 static void get_xpos_xmat(const mjData* d, mjtObj type, int id, int sensor_id,
                           mjtNum **xpos, mjtNum **xmat) {
@@ -97,6 +120,7 @@ static void get_xpos_xmat(const mjData* d, mjtObj type, int id, int sensor_id,
     mjERROR("invalid object type in sensor %d", sensor_id);
   }
 }
+
 
 // get global quaternion of an object in mjData
 static void get_xquat(const mjModel* m, const mjData* d, mjtObj type, int id, int sensor_id,
@@ -215,8 +239,206 @@ static void cam_project(mjtNum sensordata[2], const mjtNum target_xpos[3],
 }
 
 
+// check if a contact body/geom matches a sensor spec (type, id)
+static int checkMatch(const mjModel* m, int body, int geom, mjtObj type, int id) {
+  if (type == mjOBJ_UNKNOWN) return 1;
+  if (type == mjOBJ_SITE)    return 1;  // already passed site filter test
+  if (type == mjOBJ_GEOM)    return id == geom;
+  if (type == mjOBJ_BODY)    return id == body;
+  if (type == mjOBJ_XBODY) {
+    // traverse up the tree from body, return true if we land on id
+    while (body > id) {
+      body = m->body_parentid[body];
+    }
+    return body == id;
+  }
+
+  return 0;
+}
+
+//   0: no match
+//   1: match, use contact normal
+//  -1: match, flip contact normal
+static int matchContact(const mjModel* m, const mjData* d, int conid,
+                        mjtObj type1, int id1, mjtObj type2, int id2) {
+  // no criterion: quick match
+  if (type1 == mjOBJ_UNKNOWN && type2 == mjOBJ_UNKNOWN) {
+    return 1;
+  }
+
+  // site filter
+  if (type1 == mjOBJ_SITE) {
+    if (!mju_insideGeom(d->site_xpos + 3 * id1, d->site_xmat + 9 * id1,
+                        m->site_size + 3 * id1, m->site_type[id1], d->contact[conid].pos)) {
+      return 0;
+    }
+  }
+
+  // get geom, body ids
+  int geom1 = d->contact[conid].geom[0];
+  int geom2 = d->contact[conid].geom[1];
+  int body1 = geom1 >= 0 ? m->geom_bodyid[geom1] : -1;
+  int body2 = geom2 >= 0 ? m->geom_bodyid[geom2] : -1;
+
+  // check match of sensor objects with contact objects
+  int match11 = checkMatch(m, body1, geom1, type1, id1);
+  int match12 = checkMatch(m, body2, geom2, type1, id1);
+  int match21 = checkMatch(m, body1, geom1, type2, id2);
+  int match22 = checkMatch(m, body2, geom2, type2, id2);
+
+  // if a sensor object is specified, it must be involved in the contact
+  if (!match11 && !match12) return 0;
+  if (!match21 && !match22) return 0;
+
+  // determine direction
+  if (type1 != mjOBJ_UNKNOWN && type2 != mjOBJ_UNKNOWN) {
+    // both obj1 and obj2 specified: direction depends on order
+    int order_regular = match11 && match22;
+    int order_reverse = match12 && match21;
+    if (order_regular && !order_reverse) return 1;
+    if (order_reverse && !order_regular) return -1;
+    if (order_regular && order_reverse)  return 1;  // ambiguous, return 1
+  } else if (type1 != mjOBJ_UNKNOWN) {
+    // only obj1 specified: normal points away from obj1
+    return match11 ? 1 : -1;
+  } else if (type2 != mjOBJ_UNKNOWN) {
+    // only obj2 specified: normal points towards obj2
+    return match22 ? 1 : -1;
+  }
+
+  // should not occur, all conditions are covered above
+  return 0;
+}
+
+
+// fill in output data for contact sensor for all fields
+//   if flg_flip > 0, normal/tangent rotate 180 about frame[2]
+//   force/torque flip-z s.t. force is equal-and-opposite in new contact frame
+static void copySensorData(const mjModel* m, const mjData* d,
+                           mjtNum* data[mjNCONDATA], int id, int flg_flip, int nfound) {
+  // found flag
+  if (data[mjCONDATA_FOUND]) *data[mjCONDATA_FOUND] = nfound;
+
+  // contact force and torque
+  if (data[mjCONDATA_FORCE] || data[mjCONDATA_TORQUE]) {
+    mjtNum forcetorque[6];
+    mj_contactForce(m, d, id, forcetorque);
+    if (data[mjCONDATA_FORCE]) {
+      mju_copy3(data[mjCONDATA_FORCE], forcetorque);
+      if (flg_flip) data[mjCONDATA_FORCE][2] *= -1;
+    }
+    if (data[mjCONDATA_TORQUE]) {
+      mju_copy3(data[mjCONDATA_TORQUE], forcetorque+3);
+      if (flg_flip) data[mjCONDATA_TORQUE][2] *= -1;
+    }
+  }
+
+  // contact penetration distance
+  if (data[mjCONDATA_DIST]) {
+    *data[mjCONDATA_DIST] = d->contact[id].dist;
+  }
+
+  // contact position
+  if (data[mjCONDATA_POS]) {
+    mju_copy3(data[mjCONDATA_POS], d->contact[id].pos);
+  }
+
+  // contact normal
+  if (data[mjCONDATA_NORMAL]) {
+    mju_copy3(data[mjCONDATA_NORMAL], d->contact[id].frame);
+    if (flg_flip) mju_scl3(data[mjCONDATA_NORMAL], data[mjCONDATA_NORMAL], -1);
+  }
+
+  // contact first tangent
+  if (data[mjCONDATA_TANGENT]) {
+    mju_copy3(data[mjCONDATA_TANGENT], d->contact[id].frame+3);
+    if (flg_flip) mju_scl3(data[mjCONDATA_TANGENT], data[mjCONDATA_TANGENT], -1);
+  }
+}
+
+
+// compute total wrench about one point, in the global frame
+static void total_wrench(mjtNum force[3], mjtNum torque[3], const mjtNum point[3], int n,
+                        const mjtNum *wrench, const mjtNum *pos, const mjtNum *frame) {
+  mju_zero3(force);
+  mju_zero3(torque);
+
+  for (int j = 0; j < n; ++j) {
+    // rotate force, torque from contact frame to global frame
+    mjtNum force_j[3], torque_j[3];
+    mju_mulMatTVec3(force_j, frame + 9*j, wrench + 6*j);
+    mju_mulMatTVec3(torque_j, frame + 9*j, wrench + 6*j + 3);
+
+    // add to total force, torque
+    mju_addTo3(force, force_j);
+    mju_addTo3(torque, torque_j);
+
+    // add induced moment:  torque += (pos - point) x force
+    mjtNum diff[3];
+    mju_sub3(diff, pos + 3*j, point);
+    mjtNum induced_torque[3];
+    mju_cross(induced_torque, diff, force_j);
+    mju_addTo3(torque, induced_torque);
+  }
+}
+
 
 //-------------------------------- sensor ----------------------------------------------------------
+
+// fill one pixel's worth of rangefinder data, advance ptr
+static mjtNum* fill_raydata(mjtNum* ptr, int dataspec, mjtNum dist,
+                            const mjtNum origin[3], const mjtNum direction[3],
+                            const mjtNum normal[3], const mjtNum cam_xpos[3],
+                            const mjtNum cam_z[3]) {
+  int hit = (dist >= 0);
+
+  if (dataspec & (1 << mjRAYDATA_DIST)) {
+    *ptr++ = dist;
+  }
+  if (dataspec & (1 << mjRAYDATA_DIR)) {
+    if (hit) mju_copy3(ptr, direction);
+    else     mju_zero3(ptr);
+    ptr += 3;
+  }
+  if (dataspec & (1 << mjRAYDATA_ORIGIN)) {
+    mju_copy3(ptr, origin);
+    ptr += 3;
+  }
+
+  // compute point if needed for POINT or DEPTH fields
+  mjtNum point[3] = {0, 0, 0};
+  if ((dataspec & (1 << mjRAYDATA_POINT)) || (dataspec & (1 << mjRAYDATA_DEPTH))) {
+    if (hit) mju_addScl3(point, origin, direction, dist);
+  }
+
+  if (dataspec & (1 << mjRAYDATA_POINT)) {
+    mju_copy3(ptr, point);
+    ptr += 3;
+  }
+  if (dataspec & (1 << mjRAYDATA_NORMAL)) {
+    if (hit) mju_copy3(ptr, normal);
+    else     mju_zero3(ptr);
+    ptr += 3;
+  }
+  if (dataspec & (1 << mjRAYDATA_DEPTH)) {
+    if (hit) {
+      if (cam_z) {
+        // camera depth: project onto camera z-axis
+        mjtNum delta[3];
+        mju_sub3(delta, point, cam_xpos);
+        *ptr++ = -mju_dot3(delta, cam_z);
+      } else {
+        // site sensor: depth = dist
+        *ptr++ = dist;
+      }
+    } else {
+      *ptr++ = -1;
+    }
+  }
+
+  return ptr;
+}
+
 
 // position-dependent sensors
 void mj_sensorPos(const mjModel* m, mjData* d) {
@@ -228,9 +450,17 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
     return;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+
   // process sensors matching stage
   for (int i=0; i < nsensor; i++) {
     mjtSensor type = (mjtSensor) m->sensor_type[i];
+
+    // skip sleeping sensor
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_SENSOR, i) == mjS_ASLEEP) {
+      continue;
+    }
 
     // skip sensor plugins -- these are handled after builtin sensor types
     if (type == mjSENS_PLUGIN) {
@@ -260,11 +490,102 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_RANGEFINDER:                            // rangefinder
-        rvec[0] = d->site_xmat[9*objid+2];
-        rvec[1] = d->site_xmat[9*objid+5];
-        rvec[2] = d->site_xmat[9*objid+8];
-        d->sensordata[adr] = mj_ray(m, d, d->site_xpos+3*objid, rvec, NULL, 1,
-                                    m->site_bodyid[objid], NULL);
+        {
+          // get dataspec
+          int dataspec = m->sensor_intprm[i*mjNSENS];
+          mjtNum* ptr = d->sensordata + adr;
+
+          if (objtype == mjOBJ_SITE) {
+            // site-attached rangefinder: single ray
+            rvec[0] = d->site_xmat[9*objid+2];
+            rvec[1] = d->site_xmat[9*objid+5];
+            rvec[2] = d->site_xmat[9*objid+8];
+            const mjtNum* origin = d->site_xpos + 3*objid;
+
+            int geomid;
+            mjtNum normal[3];
+            mjtNum* p_normal = (dataspec & (1 << mjRAYDATA_NORMAL)) ? normal : NULL;
+            mjtNum dist = mj_ray(m, d, origin, rvec, NULL, 1,
+                                 m->site_bodyid[objid], &geomid, p_normal);
+
+            // for site sensor: pass NULL for cam_z so depth = dist
+            fill_raydata(ptr, dataspec, dist, origin, rvec, normal, NULL, NULL);
+
+          } else {
+            // camera-attached rangefinder: depth image
+            const int width = m->cam_resolution[2*objid];
+            const int height = m->cam_resolution[2*objid+1];
+            const int bodyexclude = m->cam_bodyid[objid];
+            const mjtNum* cam_xpos = d->cam_xpos + 3*objid;
+            const mjtNum* cam_xmat = d->cam_xmat + 9*objid;
+            const int projection = m->cam_projection[objid];
+
+            // camera z-axis (pointing into scene, negative of optical axis)
+            mjtNum cam_z[3] = {cam_xmat[2], cam_xmat[5], cam_xmat[8]};
+
+            // compute focal length in pixels using helper
+            mjtNum fx, fy, cx, cy, ortho_extent;
+            mju_camIntrinsics(m, objid, &fx, &fy, &cx, &cy, &ortho_extent);
+
+            if (projection == mjPROJ_PERSPECTIVE) {
+              // perspective: all rays share origin, different directions
+              const int npixel = width * height;
+              mj_markStack(d);
+              mjtNum* vec = mjSTACKALLOC(d, 3*npixel, mjtNum);
+              int* geomid = mjSTACKALLOC(d, npixel, int);
+              mjtNum* dist = mjSTACKALLOC(d, npixel, mjtNum);
+              mjtNum* normals = NULL;
+              if (dataspec & (1 << mjRAYDATA_NORMAL)) {
+                normals = mjSTACKALLOC(d, 3*npixel, mjtNum);
+              }
+
+              // compute ray directions using helper (normalized)
+              for (int row = 0; row < height; row++) {
+                for (int col = 0; col < width; col++) {
+                  int idx = row*width + col;
+                  mjtNum origin[3];
+                  mju_camPixelRay(origin, vec + 3*idx, cam_xpos, cam_xmat,
+                                  col, row, fx, fy, cx, cy, projection, ortho_extent);
+                }
+              }
+
+              // cast all rays with normals if needed
+              mj_multiRay(m, d, cam_xpos, vec, NULL, 1, bodyexclude,
+                          geomid, dist, normals, npixel, mjMAXVAL);
+
+              // fill in output for each pixel
+              ptr = d->sensordata + adr;
+              for (int row = 0; row < height; row++) {
+                for (int col = 0; col < width; col++) {
+                  int idx = row*width + col;
+                  mjtNum* normal_ptr = normals ? normals + 3*idx : NULL;
+                  ptr = fill_raydata(ptr, dataspec, dist[idx], cam_xpos, vec + 3*idx,
+                                     normal_ptr, cam_xpos, cam_z);
+                }
+              }
+
+              mj_freeStack(d);
+            } else {
+              // orthographic: parallel rays, different origins
+              ptr = d->sensordata + adr;
+              for (int row = 0; row < height; row++) {
+                for (int col = 0; col < width; col++) {
+                  mjtNum origin[3], direction[3];
+                  mju_camPixelRay(origin, direction, cam_xpos, cam_xmat,
+                                  col, row, fx, fy, cx, cy, projection, ortho_extent);
+
+                  int geomid;
+                  mjtNum normal[3];
+                  mjtNum dist = mj_ray(m, d, origin, direction, NULL, 1,
+                                       bodyexclude, &geomid, normal);
+
+                  ptr = fill_raydata(ptr, dataspec, dist, origin, direction,
+                                     normal, cam_xpos, cam_z);
+                }
+              }
+            }
+          }
+        }
 
         break;
 
@@ -365,15 +686,23 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         mju_copy3(d->sensordata+adr, d->subtree_com+3*objid);
         break;
 
+      case mjSENS_INSIDESITE:                             // insidesite
+        get_xpos_xmat(d, objtype, objid, i, &xpos, &xmat);
+        d->sensordata[adr] = mju_insideGeom(d->site_xpos + 3*refid,
+                                            d->site_xmat + 9*refid,
+                                            m->site_size + 3*refid,
+                                            m->site_type[refid],
+                                            xpos);
+        break;
+
       case mjSENS_GEOMDIST:                               // signed distance between two geoms
       case mjSENS_GEOMNORMAL:                             // normal direction between two geoms
       case mjSENS_GEOMFROMTO:                             // segment between two geoms
         {
-          // use cutoff for collision margin
-          mjtNum margin = m->sensor_cutoff[i];
+          mjtNum cutoff = m->sensor_cutoff[i];
 
           // initialize outputs
-          mjtNum dist = margin;    // collision distance
+          mjtNum dist = cutoff;    // collision distance
           mjtNum fromto[6] = {0};  // segment between geoms
 
           // get lists of geoms to collide
@@ -398,7 +727,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
           for (int geom1=id1; geom1 < id1+n1; geom1++) {
             for (int geom2=id2; geom2 < id2+n2; geom2++) {
               mjtNum fromto_new[6] = {0};
-              mjtNum dist_new = mj_geomDistance(m, d, geom1, geom2, margin, fromto_new);
+              mjtNum dist_new = mj_geomDistance(m, d, geom1, geom2, cutoff, fromto_new);
               if (dist_new < dist) {
                 dist = dist_new;
                 mju_copy(fromto, fromto_new, 6);
@@ -444,7 +773,7 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
                            m->sensor_objid[i+1]   == objid    &&
                            m->sensor_reftype[i+1] == reftype  &&
                            m->sensor_refid[i+1]   == refid    &&
-                           m->sensor_cutoff[i+1]  == margin;
+                           m->sensor_cutoff[i+1]  == cutoff;
 
             // if signature matches, increment external loop variable i
             if (write_sensor) {
@@ -473,6 +802,8 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_USER:                                   // user
+        // clear result, compute later
+        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
         nusersensor++;
         break;
 
@@ -511,7 +842,6 @@ void mj_sensorPos(const mjModel* m, mjData* d) {
 }
 
 
-
 // velocity-dependent sensors
 void mj_sensorVel(const mjModel* m, mjData* d) {
   int objtype, objid, reftype, refid, adr, nusersensor = 0;
@@ -523,11 +853,19 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
     return;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+
   // process sensors matching stage
   int subtreeVel = 0;
   for (int i=0; i < m->nsensor; i++) {
     // skip sensor plugins -- these are handled after builtin sensor types
     if (m->sensor_type[i] == mjSENS_PLUGIN) {
+      continue;
+    }
+
+    // skip sleeping sensor
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_SENSOR, i) == mjS_ASLEEP) {
       continue;
     }
 
@@ -649,6 +987,8 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_USER:                                   // user
+        // clear result, compute later
+        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
         nusersensor++;
         break;
 
@@ -694,22 +1034,29 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
 }
 
 
-
 // acceleration/force-dependent sensors
 void mj_sensorAcc(const mjModel* m, mjData* d) {
   int rootid, bodyid, objtype, objid, adr, nusersensor = 0;
   int ne = d->ne, nf = d->nf, nefc = d->nefc, nu = m->nu;
   mjtNum tmp[6], conforce[6], conray[3], frc;
-  mjContact* con;
+  const mjContact* con;
 
   // disabled sensors: return
   if (mjDISABLED(mjDSBL_SENSOR)) {
     return;
   }
 
+  // sleep filtering
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+
   // process sensors matching stage
   int rnePost = 0;
   for (int i=0; i < m->nsensor; i++) {
+    // skip sleeping sensor
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_SENSOR, i) == mjS_ASLEEP) {
+      continue;
+    }
+
     // skip sensor plugins -- these are handled after builtin sensor types
     if (m->sensor_type[i] == mjSENS_PLUGIN) {
       continue;
@@ -776,10 +1123,315 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
             // add if ray-zone intersection (always true when con->pos inside zone)
             if (mju_rayGeom(d->site_xpos+3*objid, d->site_xmat+9*objid,
                             m->site_size+3*objid, con->pos, conray,
-                            m->site_type[objid]) >= 0) {
+                            m->site_type[objid], NULL) >= 0) {
               d->sensordata[adr] += conforce[0];
             }
           }
+        }
+        break;
+
+      case mjSENS_CONTACT:                                // contact
+        {
+          // local reduce enum for readability
+          enum {
+            REDUCE_NONE     = 0,
+            REDUCE_MINDIST  = 1,
+            REDUCE_MAXFORCE = 2,
+            REDUCE_NETFORCE = 3,
+          };
+
+          // prepare sizes and indices
+          int dataspec = m->sensor_intprm[i*mjNSENS];
+          int size = mju_condataSize(dataspec);  // size of each slot
+          int dim = m->sensor_dim[i];            // total sensor array dimension
+          int num = dim / size;                  // number of slots
+          int reftype = m->sensor_reftype[i];
+          int refid = m->sensor_refid[i];
+          int reduce = m->sensor_intprm[i*mjNSENS+1];
+
+          // clear all outputs, prepare data pointers
+          mjtNum* ptr = d->sensordata + adr;
+          mju_zero(ptr, dim);
+          mjtNum* data[mjNCONDATA] = {NULL};
+          for (int j=0; j < mjNCONDATA; j++) {
+            if (dataspec & (1 << j)) {
+              data[j] = ptr;
+              ptr += mjCONDATA_SIZE[j];
+            }
+          }
+
+          // prepare for matching loop
+          int nmatch = 0;
+          mj_markStack(d);
+          ContactInfo *match = mjSTACKALLOC(d, d->ncon, ContactInfo);
+
+          // find matching contacts
+          for (int j=0; j < d->ncon; j++) {
+            // check match condition
+            int match_j = matchContact(m, d, j, objtype, objid, reftype, refid);
+            if (!match_j) {
+              continue;
+            }
+
+            // save id and flip flag
+            match[nmatch].id = j;
+            match[nmatch].flip = match_j < 0;
+
+            // save sorting criterion, if required
+            if (reduce == REDUCE_MINDIST) {
+              match[nmatch].criterion = d->contact[j].dist;
+            } else if (reduce == REDUCE_MAXFORCE) {
+              mjtNum forcetorque[6];
+              mj_contactForce(m, d, j, forcetorque);
+              match[nmatch].criterion = -mju_dot3(forcetorque, forcetorque);
+            }
+
+            // increment number of matching contacts
+            nmatch++;
+          }
+
+          // number of slots to be filled
+          int nslot = mjMIN(num, nmatch);
+
+          // partial sort to get bottom nslot contacts if sorted reduction
+          if (reduce == REDUCE_MINDIST || reduce == REDUCE_MAXFORCE) {
+            ContactInfo *heap = mjSTACKALLOC(d, nslot, ContactInfo);
+            ContactSelect(match, heap, nmatch, nslot, NULL);
+          }
+
+          // netforce reduction
+          else if (reduce == REDUCE_NETFORCE) {
+            mjtNum *wrench = mjSTACKALLOC(d, nmatch * 6, mjtNum);
+            mjtNum *pos = mjSTACKALLOC(d, nmatch * 3, mjtNum);
+            mjtNum *frame = mjSTACKALLOC(d, nmatch * 9, mjtNum);
+
+            // precompute wrenches, positions, and frames, maybe flip wrench
+            for (int j=0; j < nmatch; j++) {
+              int conid = match[j].id;
+              mj_contactForce(m, d, conid, wrench + 6*j);
+              mju_copy3(pos + 3*j, d->contact[conid].pos);
+              mju_copy9(frame + 9*j, d->contact[conid].frame);
+              if (match[j].flip) {
+                mju_scl(wrench + 6*j , wrench + 6*j, -1, 6);
+              }
+            }
+
+            // compute point: force-weighted centroid of contact positions
+            mjtNum point[3] = {0};
+            mjtNum total_force = 0;
+            for (int j=0; j < nmatch; j++) {
+              mjtNum weight = mju_norm3(wrench + 6*j);
+              mju_addToScl3(point, pos + 3*j, weight);
+              total_force += weight;
+            }
+            mju_scl3(point, point, 1.0 / mjMAX(total_force, mjMINVAL));
+
+            // compute total wrench about point, in the global frame
+            mjtNum force[3], torque[3];
+            total_wrench(force, torque, point, nmatch, wrench, pos, frame);
+
+            // write data to slot 0
+            if (data[mjCONDATA_FOUND])   *data[mjCONDATA_FOUND] = nmatch;
+            if (data[mjCONDATA_FORCE])   mju_copy3(data[mjCONDATA_FORCE], force);
+            if (data[mjCONDATA_TORQUE])  mju_copy3(data[mjCONDATA_TORQUE], torque);
+            if (data[mjCONDATA_DIST])    *data[mjCONDATA_DIST] = 0;
+            if (data[mjCONDATA_POS])     mju_copy3(data[mjCONDATA_POS], point);
+            if (data[mjCONDATA_NORMAL])  data[mjCONDATA_NORMAL][0] = 1;
+            if (data[mjCONDATA_TANGENT]) data[mjCONDATA_TANGENT][1] = 1;
+
+            // done with this sensor
+            mj_freeStack(d);
+            break;
+          }
+
+          // copy data into slots, increment pointers
+          for (int j=0; j < nslot; j++) {
+            copySensorData(m, d, data, match[j].id, match[j].flip, nmatch);
+            for (int k=0; k < mjNCONDATA; k++) {
+              if (data[k]) data[k] += size;
+            }
+          }
+
+          mj_freeStack(d);
+        }
+        break;
+
+      case mjSENS_TACTILE:                                // tactile
+        {
+          mj_markStack(d);
+
+          // get parent weld id
+          int mesh_id = m->sensor_objid[i];
+          int geom_id = m->sensor_refid[i];
+          int parent_body = m->geom_bodyid[geom_id];
+          int parent_weld = m->body_weldid[parent_body];
+          int nchannel = m->sensor_dim[i] / m->mesh_vertnum[mesh_id];
+
+          // clear sensordata and distance matrix
+          mjtNum* sensordata = d->sensordata + m->sensor_adr[i];
+          mju_zero(sensordata, m->sensor_dim[i]);
+
+          // count contacts and get contact geom ids
+          // TODO: use a more efficient C version of unordered_set
+          int* contact_geom_ids = mj_stackAllocInt(d, d->ncon);
+          int ncontact = 0;
+          for (int k = 0; k < d->ncon; k++) {
+            int body1 = m->body_weldid[m->geom_bodyid[d->contact[k].geom1]];
+            int body2 = m->body_weldid[m->geom_bodyid[d->contact[k].geom2]];
+            if (body1 == parent_weld) {
+              int add = 1;
+              for (int j = 0; j < ncontact; j++) {
+                if (contact_geom_ids[j] == d->contact[k].geom2) {
+                  add = 0;
+                  break;
+                }
+              }
+              if (add) {
+                contact_geom_ids[ncontact] = d->contact[k].geom2;
+                ncontact++;
+              }
+            }
+            if (body2 == parent_weld) {
+              int add = 1;
+              for (int j = 0; j < ncontact; j++) {
+                if (contact_geom_ids[j] == d->contact[k].geom1) {
+                  add = 0;
+                  break;
+                }
+              }
+              if (add) {
+                contact_geom_ids[ncontact] = d->contact[k].geom1;
+                ncontact++;
+              }
+            }
+          }
+
+          // no contacts, return
+          if (ncontact == 0) {
+            mj_freeStack(d);
+            break;
+          }
+
+          // all of the quadrature points are contact points
+          int ncon = m->mesh_vertnum[mesh_id];
+
+          // get site frame
+          mjtNum* geom_pos = d->geom_xpos + 3*geom_id;
+          mjtNum* geom_mat = d->geom_xmat + 9*geom_id;
+
+          // allocate contact forces and positions
+          mjtNum* forcesT = mj_stackAllocNum(d, ncon*3);
+          mju_zero(forcesT, ncon*3);
+
+          // iterate over colliding geoms
+          for (int g = 0; g < ncontact; g++) {
+            int geom = contact_geom_ids[g];
+            int body = m->geom_bodyid[geom];
+
+            // get sdf plugin of the geoms
+            int sdf_instance[2] = {-1, -1};
+            mjtGeom geomtype[2] = {mjGEOM_SDF, mjGEOM_SPHERE};
+            const mjpPlugin* sdf_ptr[2] = {NULL, NULL};
+            if (m->geom_type[geom] == mjGEOM_SDF) {
+              sdf_instance[0] = m->geom_plugin[geom];
+              sdf_ptr[0] = mjc_getSDF(m, geom);
+            } else if (m->geom_type[geom] == mjGEOM_MESH) {
+              sdf_instance[0] = m->geom_dataid[geom];
+              geomtype[0] = (mjtGeom)m->geom_type[geom];
+            } else {
+              sdf_instance[0] = geom;
+              geomtype[0] = (mjtGeom)m->geom_type[geom];
+            }
+
+            // skip mesh geoms not having an octree
+            if (geomtype[0] == mjGEOM_MESH &&
+                m->mesh_octadr[m->geom_dataid[geom]] == -1) {
+              continue;
+            }
+
+            // set SDF parameters
+            mjSDF geom_sdf;
+            geom_sdf.id = &sdf_instance[0];
+            geom_sdf.type = mjSDFTYPE_SINGLE;
+            geom_sdf.plugin = &sdf_ptr[0];
+            geom_sdf.geomtype = &geomtype[0];
+
+            // get forces in mesh coordinates
+            int node = 0;
+            float* mesh_vert = m->mesh_vert + 3*m->mesh_vertadr[mesh_id];
+            float* mesh_normal = m->mesh_normal + 3*m->mesh_normaladr[mesh_id];
+            for (int j = 0; j < ncon; j++) {
+              // position in site frame
+              mjtNum pos[3] = {mesh_vert[3 * j + 0], mesh_vert[3 * j + 1],
+                               mesh_vert[3 * j + 2]};
+
+              // position in global frame
+              mjtNum xpos[3];
+              mju_mulMatVec3(xpos, geom_mat, pos);
+              mju_addTo3(xpos, geom_pos);
+
+              // position in other geom frame
+              mjtNum lpos[3];
+              mju_sub3(tmp, xpos, d->geom_xpos + 3*geom);
+              mju_mulMatTVec3(lpos, d->geom_xmat + 9*geom, tmp);
+
+              // SDF plugins are in the original mesh frame
+              if (sdf_ptr[0] != NULL) {
+                mjtNum mesh_mat[9];
+                mju_quat2Mat(mesh_mat, m->mesh_quat + 4 * m->geom_dataid[geom]);
+                mju_mulMatVec3(lpos, mesh_mat, lpos);
+                mju_addTo3(lpos, m->mesh_pos + 3 * m->geom_dataid[geom]);
+              }
+
+              // compute distance
+              mjtNum depth = mju_min(mjc_distance(m, d, &geom_sdf, lpos), 0);
+              if (depth == 0) {
+                node++;
+                continue;
+              }
+
+              // get velocity in global frame
+              mjtNum vel_sensor[6], vel_other[6], vel_rel[3];
+              mju_transformSpatial(
+                  vel_sensor, d->cvel + 6 * parent_weld, 0, xpos,
+                  d->subtree_com + 3 * m->body_rootid[parent_weld], NULL);
+              mju_transformSpatial(
+                  vel_other, d->cvel + 6 * body, 0, d->geom_xpos + 3 * geom,
+                  d->subtree_com + 3 * m->body_rootid[body], NULL);
+              mju_sub3(vel_rel, vel_sensor+3, vel_other+3);
+
+              mjtNum normal[3] = {mesh_normal[9 * j + 0], mesh_normal[9 * j + 1],
+                                  mesh_normal[9 * j + 2]};
+              mjtNum tang1[3] = {mesh_normal[9 * j + 3], mesh_normal[9 * j + 4],
+                                 mesh_normal[9 * j + 5]};
+              mjtNum tang2[3] = {mesh_normal[9 * j + 6], mesh_normal[9 * j + 7],
+                                 mesh_normal[9 * j + 8]};
+
+              // get contact force/torque, rotate into node frame
+              mju_rotVecQuat(normal, normal, m->mesh_quat + 4 * mesh_id);
+              mju_rotVecQuat(tang1, tang1, m->mesh_quat + 4 * mesh_id);
+              mju_rotVecQuat(tang2, tang2, m->mesh_quat + 4 * mesh_id);
+              mjtNum force[3];
+              mjtNum kMaxDepth = 0.05;
+              mjtNum pressure = depth / mju_max(kMaxDepth - depth, mjMINVAL);
+              mju_scl3(force, normal, pressure);
+
+              // one row of mat^T * force
+              forcesT[0*ncon + node] = mju_dot3(force, normal);
+              forcesT[1*ncon + node] = mju_abs(mju_dot3(vel_rel, tang1));
+              forcesT[2*ncon + node] = mju_abs(mju_dot3(vel_rel, tang2));
+              node++;
+            }
+          }
+
+          // compute sensor output
+          for (int c = 0; c < nchannel; c++) {
+            if (!mju_isZero(forcesT + c*ncon, ncon)) {
+              mju_addTo(sensordata + c*ncon, forcesT + c*ncon, ncon);
+            }
+          }
+
+          mj_freeStack(d);
         }
         break;
 
@@ -869,6 +1521,8 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
         break;
 
       case mjSENS_USER:                                   // user
+        // clear result, compute later
+        mju_zero(d->sensordata + adr, m->sensor_dim[i]);
         nusersensor++;
         break;
 
@@ -914,7 +1568,6 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
 }
 
 
-
 //-------------------------------- energy ----------------------------------------------------------
 
 // position-dependent energy (potential)
@@ -930,42 +1583,59 @@ void mj_energyPos(const mjModel* m, mjData* d) {
     }
   }
 
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+
   // add joint-level springs
-  if (!mjDISABLED(mjDSBL_PASSIVE)) {
-    for (int i=0; i < m->njnt; i++) {
-      stiffness = m->jnt_stiffness[i];
-      padr = m->jnt_qposadr[i];
+  if (!mjDISABLED(mjDSBL_SPRING)) {
+    int nbody = m->nbody;
+    for (int b=1; b < nbody; b++) {
+      if (sleep_filter && d->body_awake[b] != mjS_AWAKE) continue;
 
-      switch ((mjtJoint) m->jnt_type[i]) {
-      case mjJNT_FREE:
-        mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
-        d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
+      int jnt_start = m->body_jntadr[b];
+      int jnt_end = jnt_start + m->body_jntnum[b];
+      for (int j=jnt_start; j < jnt_end; j++) {
+        stiffness = m->jnt_stiffness[j];
+        if (stiffness == 0) {
+          continue;
+        }
+        padr = m->jnt_qposadr[j];
 
-        // continue with rotations
-        padr += 3;
-        mjFALLTHROUGH;
+        switch ((mjtJoint) m->jnt_type[j]) {
+        case mjJNT_FREE:
+          mju_sub3(dif, d->qpos+padr, m->qpos_spring+padr);
+          d->energy[0] += 0.5 * stiffness * mju_dot3(dif, dif);
 
-      case mjJNT_BALL:
-        // convert quaternion difference into angular "velocity"
-        mju_copy4(quat, d->qpos+padr);
-        mju_normalize4(quat);
-        mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
-        d->energy[0] += 0.5*stiffness*mju_dot3(dif, dif);
-        break;
+          // continue with rotations
+          padr += 3;
+          mjFALLTHROUGH;
 
-      case mjJNT_SLIDE:
-      case mjJNT_HINGE:
-        d->energy[0] += 0.5*stiffness*
-                        (d->qpos[padr] - m->qpos_spring[padr])*
-                        (d->qpos[padr] - m->qpos_spring[padr]);
-        break;
+        case mjJNT_BALL:
+          // convert quaternion difference into angular "velocity"
+          mju_copy4(quat, d->qpos+padr);
+          mju_normalize4(quat);
+          mju_subQuat(dif, d->qpos + padr, m->qpos_spring + padr);
+          d->energy[0] += 0.5 * stiffness * mju_dot3(dif, dif);
+          break;
+
+        case mjJNT_SLIDE:
+        case mjJNT_HINGE:
+          d->energy[0] += 0.5 * stiffness *
+                          (d->qpos[padr] - m->qpos_spring[padr]) *
+                          (d->qpos[padr] - m->qpos_spring[padr]);
+          break;
+        }
       }
     }
   }
 
   // add tendon-level springs
-  if (!mjDISABLED(mjDSBL_PASSIVE)) {
+  if (!mjDISABLED(mjDSBL_SPRING)) {
     for (int i=0; i < m->ntendon; i++) {
+    // skip sleeping or static tendon
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_TENDON, i) != mjS_AWAKE) {
+      continue;
+    }
+
       stiffness = m->tendon_stiffness[i];
       mjtNum length = d->ten_length[i];
       mjtNum displacement = 0;
@@ -983,8 +1653,8 @@ void mj_energyPos(const mjModel* m, mjData* d) {
     }
   }
 
-  // add flex-level springs for dim=1 (dim>1 requires plugins)
-  if (!mjDISABLED(mjDSBL_PASSIVE)) {
+  // add flex-level springs for dim=1
+  if (!mjDISABLED(mjDSBL_SPRING)) {
     for (int i=0; i < m->nflex; i++) {
       stiffness = m->flex_edgestiffness[i];
       if (m->flex_rigid[i] || stiffness == 0 || m->flex_dim[i] > 1) {
@@ -1003,7 +1673,6 @@ void mj_energyPos(const mjModel* m, mjData* d) {
     }
   }
 }
-
 
 
 // velocity-dependent energy (kinetic)

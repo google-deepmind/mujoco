@@ -24,7 +24,7 @@
 #define mjMAXLIGHT      100       // maximum number of lights in a scene
 #define mjMAXOVERLAY    500       // maximum number of characters in overlay text
 #define mjMAXLINE       100       // maximum number of lines per plot
-#define mjMAXLINEPNT    1000      // maximum number points per line
+#define mjMAXLINEPNT    1001      // maximum number points per line
 #define mjMAXPLANEGRID  200       // maximum number of grid divisions for plane
 
 
@@ -45,7 +45,8 @@ typedef enum mjtMouse_ {          // mouse interaction mode
   mjMOUSE_MOVE_V,                 // move, vertical plane
   mjMOUSE_MOVE_H,                 // move, horizontal plane
   mjMOUSE_ZOOM,                   // zoom
-  mjMOUSE_SELECT                  // selection
+  mjMOUSE_MOVE_V_REL,             // move, vertical plane, relative to target
+  mjMOUSE_MOVE_H_REL,             // move, horizontal plane, relative to target
 } mjtMouse;
 
 
@@ -130,7 +131,6 @@ typedef enum mjtVisFlag_ {        // flags enabling model element visualization
   mjVIS_FLEXFACE,                 // flex element faces
   mjVIS_FLEXSKIN,                 // flex smooth skin (disables the rest)
   mjVIS_BODYBVH,                  // body bounding volume hierarchy
-  mjVIS_FLEXBVH,                  // flex bounding volume hierarchy
   mjVIS_MESHBVH,                  // mesh bounding volume hierarchy
   mjVIS_SDFITER,                  // iterations of SDF gradient descent
 
@@ -146,6 +146,7 @@ typedef enum mjtRndFlag_ {        // flags enabling rendering effects
   mjRND_SKYBOX,                   // skybox
   mjRND_FOG,                      // fog
   mjRND_HAZE,                     // haze
+  mjRND_DEPTH,                    // depth
   mjRND_SEGMENT,                  // segmentation with random color
   mjRND_IDCOLOR,                  // segmentation with segid+1 color
   mjRND_CULL_FACE,                // cull backward faces
@@ -259,6 +260,7 @@ typedef struct mjvGeom_ mjvGeom;
 //---------------------------------- mjvLight ------------------------------------------------------
 
 struct mjvLight_ {                // OpenGL light
+  int      id;                    // light id, -1 for headlight
   float    pos[3];                // position rel. to body frame
   float    dir[3];                // direction rel. to body frame
   int      type;                  // type (mjtLightType)
@@ -353,6 +355,7 @@ struct mjvScene_ {                // abstract scene passed to OpenGL renderer
   // framing
   int      framewidth;            // frame pixel width; 0: disable framing
   float    framergb[3];           // frame color
+  int      status;                // status; 0: ok, 1: geoms exhausted
 };
 typedef struct mjvScene_ mjvScene;
 

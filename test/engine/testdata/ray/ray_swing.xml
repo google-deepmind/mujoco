@@ -1,0 +1,24 @@
+<mujoco>
+  <statistic meansize="0.15"/>
+
+  <visual>
+    <global realtime=".25" elevation="-10"/>
+  </visual>
+
+  <default>
+    <geom rgba=".5 .5 .5 .5"/>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+    <body pos="1 0 0">
+      <joint axis="0 -1 0" armature="1" stiffness="10" damping="8" springref="200"/>
+      <inertial mass="1" diaginertia=".002 .002 .002" pos="0 0 1.1"/>
+      <site name="rf" type="cylinder" pos="-.1 0 1.1" zaxis="-1 .1 0" size=".02 .05"/>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <rangefinder site="rf" data="dist normal"/>
+  </sensor>
+</mujoco>

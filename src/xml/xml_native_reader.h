@@ -17,14 +17,14 @@
 
 #include <sstream>
 #include <string>
-
-#include "tinyxml2.h"
+#include <vector>
 
 #include <mujoco/mujoco.h>
 #include <mujoco/mjspec.h>
 #include "user/user_util.h"
 #include "xml/xml_base.h"
 #include "xml/xml_util.h"
+#include "tinyxml2.h"
 
 class mjXReader : public mjXBase {
  public:
@@ -43,9 +43,9 @@ class mjXReader : public mjXBase {
   void SetTextureDir(const std::string& texturedir);
 
   // XML sections embedded in all formats
-  static void Compiler(tinyxml2::XMLElement* section, mjSpec* spec);   // compiler section
-  static void Option(tinyxml2::XMLElement* section, mjOption* opt);    // option section
-  static void Size(tinyxml2::XMLElement* section, mjSpec* spec);       // size section
+  static void Compiler(tinyxml2::XMLElement* section, mjSpec* s);    // compiler section
+  static void Option(tinyxml2::XMLElement* section, mjOption* opt);  // option section
+  static void Size(tinyxml2::XMLElement* section, mjSpec* s);        // size section
 
  private:
   // XML section specific to MJCF
@@ -102,7 +102,7 @@ class mjXReader : public mjXBase {
 };
 
 // MJCF schema
-#define nMJCF 238
-extern const char* MJCF[nMJCF][mjXATTRNUM];
+#define nMJCF 244
+extern std::vector<const char*> MJCF[nMJCF];
 
 #endif  // MUJOCO_SRC_XML_XML_NATIVE_READER_H_

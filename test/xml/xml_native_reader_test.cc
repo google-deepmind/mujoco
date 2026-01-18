@@ -1529,7 +1529,7 @@ TEST_F(XMLReaderTest, ParseReplicateRepeatedName) {
   mjSpec* spec = mj_parseXMLString(xml, 0, error.data(), error.size());
   EXPECT_THAT(spec, IsNull()) << error.data();
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'b' in actuator"));
-  EXPECT_THAT(error.data(), HasSubstr("Element 'replicate'"));
+  EXPECT_THAT(error.data(), HasSubstr("Element 'position'"));
 }
 
 TEST_F(XMLReaderTest, RepeatedPrefix) {
@@ -1925,6 +1925,48 @@ TEST_F(XMLReaderTest, LookupCompilerOptionWithoutSpecCopy) {
   mj_deleteVFS(vfs.get());
 }
 
+TEST_F(XMLReaderTest, ResizeKeyframeAfterParsing) {
+  static constexpr char parent_xml[] = R"(
+  <mujoco>
+    <asset>
+      <model name="child" file="child.xml"/>
+    </asset>
+    <worldbody>
+      <attach model="child" body="world" prefix="child_"/>
+      <body name="body">
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+    <keyframe>
+      <key name="key" qpos="1"/>
+    </keyframe>
+  </mujoco>
+  )";
+
+  static constexpr char child_xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="body">
+        <joint name="joint"/>
+        <geom size="1"/>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+
+  auto vfs = std::make_unique<mjVFS>();
+  mj_defaultVFS(vfs.get());
+  mj_addBufferVFS(vfs.get(), "child.xml", child_xml, sizeof(child_xml));
+
+  std::array<char, 1024> error;
+  mjModel* m =
+      LoadModelFromString(parent_xml, error.data(), error.size(), vfs.get());
+  EXPECT_THAT(m, NotNull()) << error.data();
+  mj_deleteModel(m);
+  mj_deleteVFS(vfs.get());
+}
+
 // ----------------------- test camera parsing ---------------------------------
 
 TEST_F(XMLReaderTest, CameraInvalidFovyAndSensorsize) {
@@ -1959,7 +2001,7 @@ TEST_F(XMLReaderTest, CameraPrincipalRequiresSensorsize) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'sensorsize'"));
+  EXPECT_THAT(error.data(), HasSubstr("focal/principal require sensorsize"));
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
@@ -1969,7 +2011,7 @@ TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
     <worldbody>
       <body>
         <geom size="1"/>
-        <camera sensorsize="1 1"/>
+        <camera sensorsize="1 1" resolution="0 0"/>
       </body>
     </worldbody>
   </mujoco>
@@ -1977,7 +2019,7 @@ TEST_F(XMLReaderTest, CameraSensorsizeRequiresResolution) {
   std::array<char, 1024> error;
   mjModel* m = LoadModelFromString(xml, error.data(), error.size());
   EXPECT_THAT(m, IsNull());
-  EXPECT_THAT(error.data(), HasSubstr("attribute missing: 'resolution'"));
+  EXPECT_THAT(error.data(), HasSubstr("requires positive resolution"));
   EXPECT_THAT(error.data(), HasSubstr("line 6"));
 }
 
@@ -2020,6 +2062,100 @@ TEST_F(XMLReaderTest, ReadShellParameter) {
   ASSERT_THAT(model, NotNull());
   mj_deleteModel(model);
 }
+
+// ----------------------- test builtin mesh parsing ---------------------------
+
+TEST_F(XMLReaderTest, ReadWedgeMesh) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="wedge" builtin="wedge" params="25 25 180 90 0"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="wedge"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, BuiltinAndFile) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="wedge" builtin="wedge" vertex="0 0 0 1 0 0 0 1 0 0 1 0"
+            params="25 25 180 90 0"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="wedge"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(),
+              HasSubstr("builtin mesh cannot be used with user vertex data"));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, MakePlateNoParameters) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate" builtin="plate"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="plate" contype="0" conaffinity="0"/>
+    </worldbody>
+  </mujoco>)";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("required attribute missing: 'params'"));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, MakePlateTooFewParameters) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate" builtin="plate" params="1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="plate" contype="0" conaffinity="0"/>
+    </worldbody>
+  </mujoco>)";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(
+      error.data(),
+      HasSubstr("Plate builtin mesh type requires 2 parameters"));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, MakePlateInvalidParameters) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="plate" builtin="plate" params="-1 -1"/>
+    </asset>
+    <worldbody>
+      <geom type="mesh" mesh="plate" contype="0" conaffinity="0"/>
+    </worldbody>
+  </mujoco>)";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, IsNull());
+  EXPECT_THAT(error.data(), HasSubstr("resolutions must be positive"));
+  mj_deleteModel(model);
+}
+
+// ----------------------- test skin parsing --------------------------------
 
 TEST_F(XMLReaderTest, ReadsSkinGroups) {
   static constexpr char xml[] = R"(
@@ -2098,7 +2234,7 @@ TEST_F(XMLReaderTest, ReadsSkinGroups) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
   int flexid1 = mj_name2id(model, mjOBJ_FLEX, "B0");
   int flexid2 = mj_name2id(model, mjOBJ_FLEX, "B1");
   EXPECT_THAT(model->flex_group[flexid1], 2);
@@ -2138,11 +2274,11 @@ TEST_F(XMLReaderTest, Orthographic) {
     </visual>
 
     <default>
-      <camera orthographic="true"/>
+      <camera projection="orthographic"/>
     </default>
 
     <worldbody>
-      <camera name="fovy=1" pos=".5 .5 2" orthographic="true" fovy="1"/>
+      <camera name="fovy=1" pos=".5 .5 2" projection="orthographic" fovy="1"/>
       <camera name="fovy=2" pos="0 0 2" fovy="2"/>
     </worldbody>
   </mujoco>
@@ -2152,8 +2288,8 @@ TEST_F(XMLReaderTest, Orthographic) {
   EXPECT_THAT(model, NotNull()) << error.data();
 
   EXPECT_EQ(model->vis.global.orthographic, 1);
-  EXPECT_EQ(model->cam_orthographic[0], 1);
-  EXPECT_EQ(model->cam_orthographic[1], 1);
+  EXPECT_EQ(model->cam_projection[0], mjPROJ_ORTHOGRAPHIC);
+  EXPECT_EQ(model->cam_projection[1], mjPROJ_ORTHOGRAPHIC);
   EXPECT_EQ(model->cam_fovy[0], 1);
   EXPECT_EQ(model->cam_fovy[1], 2);
 
@@ -2748,7 +2884,7 @@ TEST_F(ActuatorParseTest, IntvelocityDefaultsPropagate) {
   )";
   std::array<char, 1024> error;
   mjModel* model = LoadModelFromString(xml, error.data(), error.size());
-  ASSERT_THAT(model, NotNull());
+  ASSERT_THAT(model, NotNull()) << error.data();
   EXPECT_DOUBLE_EQ(model->actuator_gainprm[0], 5);
   EXPECT_DOUBLE_EQ(model->actuator_gainprm[mjNGAIN], 1);
   EXPECT_DOUBLE_EQ(model->actuator_actrange[0 + 0], 0);
@@ -3105,6 +3241,52 @@ TEST_F(XMLReaderTest, LightRadius) {
   EXPECT_FLOAT_EQ(model->light_bulbradius[0], 0.02);
   EXPECT_FLOAT_EQ(model->light_bulbradius[1], 1);
   EXPECT_FLOAT_EQ(model->light_bulbradius[2], 2);
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, CameraOutput) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="default_cam"/>
+      <camera name="single_cam" output="depth"/>
+      <camera name="multi_cam" output="rgb normal segmentation"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->ncam, 3);
+  EXPECT_EQ(model->cam_output[0], mjCAMOUT_RGB);  // default
+  EXPECT_EQ(model->cam_output[1], mjCAMOUT_DEPTH);
+  EXPECT_EQ(model->cam_output[2],
+            mjCAMOUT_RGB | mjCAMOUT_NORMAL | mjCAMOUT_SEG);
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLReaderTest, CameraOutputDefault) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="multi">
+        <camera output="depth distance"/>
+      </default>
+    </default>
+    <worldbody>
+      <camera name="default_cam"/>
+      <camera name="class_cam" class="multi"/>
+      <camera name="override_cam" class="multi" output="normal"/>
+    </worldbody>
+  </mujoco>
+  )";
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+  EXPECT_EQ(model->ncam, 3);
+  EXPECT_EQ(model->cam_output[0], mjCAMOUT_RGB);  // main default
+  EXPECT_EQ(model->cam_output[1], mjCAMOUT_DEPTH | mjCAMOUT_DIST);
+  EXPECT_EQ(model->cam_output[2], mjCAMOUT_NORMAL);
   mj_deleteModel(model);
 }
 

@@ -89,7 +89,12 @@ MjSpec::~MjSpec() { mj_deleteSpec(ptr); }
 
 raw::MjModel* MjSpec::Compile() {
   if (assets.empty()) {
-    auto m = mj_compile(ptr, 0);
+    raw::MjModel* m;
+    {
+      // Release GIL before calling mj_compile which may spawn threads
+      py::gil_scoped_release no_gil;
+      m = mj_compile(ptr, 0);
+    }
     if (!m || mjs_isWarning(ptr)) {
       throw py::value_error(mjs_getError(ptr));
     }
@@ -98,8 +103,7 @@ raw::MjModel* MjSpec::Compile() {
   mjVFS vfs;
   mj_defaultVFS(&vfs);
   for (const auto& asset : assets) {
-    std::string buffer_name =
-        _impl::StripPath(py::cast<std::string>(asset.first).c_str());
+    std::string buffer_name = py::cast<std::string>(asset.first).c_str();
     std::string buffer = py::cast<std::string>(asset.second);
     const int vfs_error = InterceptMjErrors(mj_addBufferVFS)(
         &vfs, buffer_name.c_str(), buffer.c_str(), buffer.size());
@@ -113,11 +117,17 @@ raw::MjModel* MjSpec::Compile() {
       }
     }
   }
-  auto m = mj_compile(ptr, &vfs);
+
+  raw::MjModel* m;
+  {
+    // Release GIL before calling mj_compile which may spawn threads
+    py::gil_scoped_release no_gil;
+    m = mj_compile(ptr, &vfs);
+  }
+  mj_deleteVFS(&vfs);
   if (!m || mjs_isWarning(ptr)) {
     throw py::value_error(mjs_getError(ptr));
   }
-  mj_deleteVFS(&vfs);
   return m;
 }
 

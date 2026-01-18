@@ -33,7 +33,7 @@ test_model() {
           "$model" == */replicate/bunnies.xml ||
           "$model" == */replicate/leaves.xml ||
           "$model" == */replicate/particle.xml ||
-          "$model" == */engine/testdata/collision_convex/perf/*
+          "$model" == */perf/*
     ]]; then
       # these tests can take several minutes under ASAN
       return 0
@@ -76,7 +76,7 @@ for model_dir in ${MODEL_DIRS[@]}; do
       echo "Skipping $model" >&2
       continue
     fi
-    if [[ $(basename $model) == malformed* ]]; then
+    if [[ $(basename $model) == *_fail.xml ]]; then
       echo "Skipping $model" >&2
       continue
     fi

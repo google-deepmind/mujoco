@@ -51,12 +51,29 @@ MJAPI mjtNum mju_muscleDynamicsTimescale(mjtNum dctrl, mjtNum tau_act, mjtNum ta
 MJAPI mjtNum mju_muscleDynamics(mjtNum ctrl, mjtNum act, const mjtNum prm[3]);
 
 // all 3 semi-axes of a geom
-MJAPI void mju_geomSemiAxes(const mjModel* m, int geom_id, mjtNum semiaxes[3]);
+MJAPI void mju_geomSemiAxes(mjtNum semiaxes[3], const mjtNum size[3], mjtGeom type);
+
+// return 1 if point is inside a primitive geom, 0 otherwise
+int mju_insideGeom(const mjtNum pos[3], const mjtNum mat[9], const mjtNum size[3], mjtGeom type,
+                   const mjtNum point[3]);
+
+// compute ray origin and direction for pixel (col, row) in camera image
+// directions are normalized so ray functions return actual 3D distance
+void mju_camPixelRay(mjtNum origin[3], mjtNum direction[3],
+                     const mjtNum cam_xpos[3], const mjtNum cam_xmat[9],
+                     int col, int row, mjtNum fx, mjtNum fy, mjtNum cx, mjtNum cy,
+                     int projection, mjtNum ortho_extent);
 
 // ----------------------------- Flex interpolation ------------------------------------------------
 
 // evaluate the deformation gradient at p using the nodal dof values
 MJAPI void mju_defGradient(mjtNum res[9], const mjtNum p[3], const mjtNum* dof, int order);
+
+// evaluate the basis function at x for the i-th node
+MJAPI mjtNum mju_evalBasis(const mjtNum x[3], int i, int order);
+
+// interpolate a function at x with given interpolation coefficients and order n
+MJAPI void mju_interpolate3D(mjtNum res[3], const mjtNum x[3], const mjtNum* coeff, int order);
 
 // ----------------------------- Base64 -----------------------------------------------------------
 
@@ -129,17 +146,20 @@ MJAPI const char* mju_warningText(int warning, size_t info);
 // return 1 if nan or abs(x)>mjMAXVAL, 0 otherwise
 MJAPI int mju_isBad(mjtNum x);
 
-// return 1 if all elements are 0
-MJAPI int mju_isZero(mjtNum* vec, int n);
+// return 1 if all elements are numerically 0 (-0.0 treated as zero)
+MJAPI int mju_isZero(const mjtNum* vec, int n);
+
+// return 1 if all elements are 0x00, faster than mju_isZero
+MJAPI int mju_isZeroByte(const unsigned char* vec, int n);
 
 // set integer vector to 0
 MJAPI void mju_zeroInt(int* res, int n);
 
-// set size_t vector to 0
-MJAPI void mju_zeroSizeT(size_t* res, size_t n);
-
 // copy int vector vec into res
 MJAPI void mju_copyInt(int* res, const int* vec, int n);
+
+// fill int vector with val
+void mju_fillInt(int* res, int val, int n);
 
 // standard normal random number generator (optional second number)
 MJAPI mjtNum mju_standardNormal(mjtNum* num2);
@@ -159,6 +179,9 @@ MJAPI void mju_n2d(double* res, const mjtNum* vec, int n);
 // gather mjtNums
 MJAPI void mju_gather(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
+// gather mjtNums, set to 0 at negative indices
+MJAPI void mju_gatherMasked(mjtNum* res, const mjtNum* vec, const int* ind, int n);
+
 // scatter mjtNums
 MJAPI void mju_scatter(mjtNum* res, const mjtNum* vec, const int* ind, int n);
 
@@ -167,6 +190,18 @@ MJAPI void mju_gatherInt(int* res, const int* vec, const int* ind, int n);
 
 // scatter integers
 MJAPI void mju_scatterInt(int* res, const int* vec, const int* ind, int n);
+
+// build gather indices mapping src to res, assumes pattern(res) \subseteq pattern(src)
+MJAPI void mju_sparseMap(int* map, int nr,
+                         const int* res_rowadr, const int* res_rownnz, const int* res_colind,
+                         const int* src_rowadr, const int* src_rownnz, const int* src_colind);
+
+// build masked-gather map to copy a lower-triangular src into symmetric res
+//  `cursor` is a preallocated buffer of size `nr`
+MJAPI void mju_lower2SymMap(int* map, int nr,
+                            const int* res_rowadr, const int* res_rownnz, const int* res_colind,
+                            const int* src_rowadr, const int* src_rownnz, const int* src_colind,
+                            int* cursor);
 
 // insertion sort, increasing order
 MJAPI void mju_insertionSort(mjtNum* list, int n);

@@ -14,13 +14,15 @@
 # ==============================================================================
 """Base types used in MJX."""
 
+import dataclasses
 import enum
-from typing import Tuple, Union
+from typing import Any, Tuple, Union
 import warnings
 
 import jax
 import mujoco
 from mujoco.mjx._src.dataclasses import PyTreeNode  # pylint: disable=g-importing-member
+from mujoco.mjx.warp import types as mjxw_types
 import numpy as np
 
 
@@ -28,6 +30,7 @@ class Impl(enum.Enum):
   """Implementation to use."""
 
   C = 'c'
+  CPP = 'cpp'
   JAX = 'jax'
   WARP = 'warp'
 
@@ -52,7 +55,8 @@ class DisableBit(enum.IntFlag):
     FRICTIONLOSS: joint and tendon frictionloss constraints
     LIMIT:        joint and tendon limit constraints
     CONTACT:      contact constraints
-    PASSIVE:      passive forces
+    SPRING:       passive spring forces
+    DAMPER:       passive damper forces
     GRAVITY:      gravitational forces
     CLAMPCTRL:    clamp control to specified range
     WARMSTART:    warmstart constraint solver
@@ -66,7 +70,8 @@ class DisableBit(enum.IntFlag):
   FRICTIONLOSS = mujoco.mjtDisableBit.mjDSBL_FRICTIONLOSS
   LIMIT = mujoco.mjtDisableBit.mjDSBL_LIMIT
   CONTACT = mujoco.mjtDisableBit.mjDSBL_CONTACT
-  PASSIVE = mujoco.mjtDisableBit.mjDSBL_PASSIVE
+  SPRING = mujoco.mjtDisableBit.mjDSBL_SPRING
+  DAMPER = mujoco.mjtDisableBit.mjDSBL_DAMPER
   GRAVITY = mujoco.mjtDisableBit.mjDSBL_GRAVITY
   CLAMPCTRL = mujoco.mjtDisableBit.mjDSBL_CLAMPCTRL
   WARMSTART = mujoco.mjtDisableBit.mjDSBL_WARMSTART
@@ -86,7 +91,10 @@ class EnableBit(enum.IntFlag):
   """
 
   INVDISCRETE = mujoco.mjtEnableBit.mjENBL_INVDISCRETE
-  # unsupported: OVERRIDE, ENERGY, FWDINV, MULTICCD, ISLAND
+  # unsupported: OVERRIDE, ENERGY, FWDINV, ISLAND
+  # required by the C implementation only, ignored otherwise: MULTICCD
+  MULTICCD = mujoco.mjtEnableBit.mjENBL_MULTICCD
+  SLEEP = mujoco.mjtEnableBit.mjENBL_SLEEP
 
 
 class JointType(enum.IntEnum):
@@ -378,6 +386,7 @@ class SensorType(enum.IntEnum):
     SUBTREELINVEL: subtree linear velocity
     SUBTREEANGMOM: subtree angular momentum
     TOUCH: scalar contact normal forces summed over the sensor zone
+    CONTACT: contacts which occurred during the simulation
     ACCELEROMETER: accelerometer
     FORCE: force
     TORQUE: torque
@@ -413,6 +422,7 @@ class SensorType(enum.IntEnum):
   SUBTREELINVEL = mujoco.mjtSensor.mjSENS_SUBTREELINVEL
   SUBTREEANGMOM = mujoco.mjtSensor.mjSENS_SUBTREEANGMOM
   TOUCH = mujoco.mjtSensor.mjSENS_TOUCH
+  CONTACT = mujoco.mjtSensor.mjSENS_CONTACT
   ACCELEROMETER = mujoco.mjtSensor.mjSENS_ACCELEROMETER
   FORCE = mujoco.mjtSensor.mjSENS_FORCE
   TORQUE = mujoco.mjtSensor.mjSENS_TORQUE
@@ -461,48 +471,84 @@ class Statistic(PyTreeNode):
   center: jax.Array
 
 
-class Option(PyTreeNode):
-  """Physics options."""  # fmt: skip
-  timestep: jax.Array
-  impratio: jax.Array
-  tolerance: jax.Array
-  ls_tolerance: jax.Array
-  gravity: jax.Array
-  wind: jax.Array
-  magnetic: jax.Array
-  density: jax.Array
-  viscosity: jax.Array
+class StatisticWarp(mjxw_types.StatisticWarp, Statistic):
+  """Warp-specific model statistics."""
+
+  # NB: StatisticWarp type annotations may not match those on Statistic.
+  pass
+
+
+class OptionJAX(PyTreeNode):
+  """JAX-specific option."""
+
   o_margin: jax.Array
   o_solref: jax.Array
   o_solimp: jax.Array
   o_friction: jax.Array
-  integrator: IntegratorType
-  cone: ConeType
-  jacobian: JacobianType
-  solver: SolverType
-  iterations: int
-  ls_iterations: int
-  disableflags: DisableBit
-  enableflags: int
   disableactuator: int
   sdf_initpoints: int
+  has_fluid_params: bool
 
 
-class OptionC(Option):
+class OptionC(PyTreeNode):
   """C-specific option."""
 
-  apirate: jax.Array
+  o_margin: jax.Array
+  o_solref: jax.Array
+  o_solimp: jax.Array
+  o_friction: jax.Array
+  disableactuator: int
+  sdf_initpoints: int
+  has_fluid_params: bool
   noslip_tolerance: jax.Array
   ccd_tolerance: jax.Array
+  sleep_tolerance: jax.Array
   noslip_iterations: int
   ccd_iterations: int
   sdf_iterations: int
 
 
-class OptionJAX(Option):
-  """JAX-specific option."""
+class Option(PyTreeNode):
+  """Physics options."""
 
-  has_fluid_params: bool
+  iterations: int
+  ls_iterations: int
+  tolerance: jax.Array
+  ls_tolerance: jax.Array
+  impratio: jax.Array
+  gravity: jax.Array
+  density: jax.Array
+  viscosity: jax.Array
+  magnetic: jax.Array
+  wind: jax.Array
+  jacobian: JacobianType
+  cone: ConeType
+  disableflags: DisableBit
+  enableflags: int
+  integrator: IntegratorType
+  solver: SolverType
+  timestep: jax.Array
+  _impl: Union[OptionJAX, OptionC, mjxw_types.OptionWarp]
+
+
+class ModelCPP(PyTreeNode):
+  """Minimal Model implementation holding only the pointer."""
+  # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+  # set to True, we store the pointer as two 32-bit values. In the FFI call,
+  # we combine the two values into a single pointer value.
+  pointer_lo: jax.Array
+  pointer_hi: jax.Array
+  _model: mujoco.MjModel
+
+
+class DataCPP(PyTreeNode):
+  """Minimal Data implementation holding only the pointer."""
+  # To ensure that we retain the full pointer even if jax.config.enable_x64 is
+  # set to True, we store the pointer as two 32-bit values. In the FFI call,
+  # we combine the two values into a single pointer value.
+  pointer_lo: jax.Array
+  pointer_hi: jax.Array
+  _data: list[Any] = dataclasses.field(default_factory=list, repr=False)
 
 
 class ModelC(PyTreeNode):
@@ -511,6 +557,7 @@ class ModelC(PyTreeNode):
   nbvh: jax.Array
   nbvhstatic: jax.Array
   nbvhdynamic: jax.Array
+  ntree: jax.Array
   nflex: jax.Array
   nflexvert: jax.Array
   nflexedge: jax.Array
@@ -520,13 +567,21 @@ class ModelC(PyTreeNode):
   nflexevpair: jax.Array
   nflextexcoord: jax.Array
   nplugin: jax.Array
-  ntree: jax.Array
   narena: jax.Array
   body_bvhadr: jax.Array
   body_bvhnum: jax.Array
   bvh_child: jax.Array
   bvh_nodeid: jax.Array
   bvh_aabb: jax.Array
+  oct_child: jax.Array
+  oct_aabb: jax.Array
+  oct_coeff: jax.Array
+  dof_length: jax.Array
+  tree_bodyadr: jax.Array
+  tree_bodynum: jax.Array
+  tree_dofadr: jax.Array
+  tree_dofnum: jax.Array
+  tree_sleep_policy: jax.Array
   geom_plugin: jax.Array
   light_bodyid: jax.Array
   light_targetbodyid: jax.Array
@@ -543,6 +598,7 @@ class ModelC(PyTreeNode):
   flex_internal: jax.Array
   flex_selfcollide: jax.Array
   flex_activelayers: jax.Array
+  flex_passive: jax.Array
   flex_dim: jax.Array
   flex_vertadr: jax.Array
   flex_vertnum: jax.Array
@@ -570,9 +626,37 @@ class ModelC(PyTreeNode):
   flex_centered: jax.Array
   flex_bvhadr: jax.Array
   flex_bvhnum: jax.Array
+  flexedge_J_rownnz: jax.Array
+  flexedge_J_rowadr: jax.Array
+  flexedge_J_colind: jax.Array
+  mesh_polynum: jax.Array
+  mesh_polyadr: jax.Array
+  mesh_polynormal: jax.Array
+  mesh_polyvertadr: jax.Array
+  mesh_polyvertnum: jax.Array
+  mesh_polyvert: jax.Array
+  mesh_polymapadr: jax.Array
+  mesh_polymapnum: jax.Array
+  mesh_polymap: jax.Array
+  tendon_treenum: jax.Array
+  tendon_treeid: jax.Array
   actuator_plugin: jax.Array
   sensor_plugin: jax.Array
   plugin: jax.Array
+  plugin_stateadr: jax.Array
+  B_rownnz: jax.Array  # pylint:disable=invalid-name
+  B_rowadr: jax.Array  # pylint:disable=invalid-name
+  B_colind: jax.Array  # pylint:disable=invalid-name
+  M_rownnz: jax.Array  # pylint:disable=invalid-name
+  M_rowadr: jax.Array  # pylint:disable=invalid-name
+  M_colind: jax.Array  # pylint:disable=invalid-name
+  mapM2M: jax.Array  # pylint:disable=invalid-name
+  D_rownnz: jax.Array  # pylint:disable=invalid-name
+  D_rowadr: jax.Array  # pylint:disable=invalid-name
+  D_diag: jax.Array  # pylint:disable=invalid-name
+  D_colind: jax.Array  # pylint:disable=invalid-name
+  mapM2D: jax.Array  # pylint:disable=invalid-name
+  mapD2M: jax.Array  # pylint:disable=invalid-name
 
 
 class ModelJAX(PyTreeNode):
@@ -607,6 +691,9 @@ class Model(PyTreeNode):
   nmeshtexcoord: int
   nmeshface: int
   nmeshgraph: int
+  nmeshpoly: int
+  nmeshpolyvert: int
+  nmeshpolymap: int
   nhfield: int
   nhfielddata: int
   ntex: int
@@ -630,8 +717,9 @@ class Model(PyTreeNode):
   ngravcomp: int
   nuserdata: int
   nsensordata: int
+  npluginstate: int
   opt: Option
-  stat: Statistic
+  stat: Union[Statistic, StatisticWarp]
   qpos0: jax.Array
   qpos_spring: jax.Array
   body_parentid: np.ndarray
@@ -701,7 +789,7 @@ class Model(PyTreeNode):
   geom_solref: jax.Array
   geom_solimp: jax.Array
   geom_size: jax.Array
-  geom_aabb: np.ndarray
+  geom_aabb: jax.Array
   geom_rbound: jax.Array
   geom_pos: jax.Array
   geom_quat: jax.Array
@@ -734,16 +822,21 @@ class Model(PyTreeNode):
   light_pos: jax.Array
   light_dir: jax.Array
   light_poscom0: jax.Array
-  light_pos0: np.ndarray
-  light_dir0: np.ndarray
+  light_pos0: jax.Array
+  light_dir0: jax.Array
   light_cutoff: jax.Array
   mesh_vertadr: np.ndarray
   mesh_vertnum: np.ndarray
   mesh_faceadr: np.ndarray
   mesh_bvhadr: np.ndarray
   mesh_bvhnum: np.ndarray
+  mesh_octadr: np.ndarray
+  mesh_octnum: np.ndarray
+  mesh_normaladr: np.ndarray
+  mesh_normalnum: np.ndarray
   mesh_graphadr: np.ndarray
   mesh_vert: np.ndarray
+  mesh_normal: np.ndarray
   mesh_face: np.ndarray
   mesh_graph: np.ndarray
   mesh_pos: np.ndarray
@@ -761,7 +854,7 @@ class Model(PyTreeNode):
   tex_width: np.ndarray
   tex_nchannel: np.ndarray
   tex_adr: np.ndarray
-  tex_data: jax.Array
+  tex_data: np.ndarray
   mat_rgba: jax.Array
   mat_texid: np.ndarray
   pair_dim: np.ndarray
@@ -833,6 +926,7 @@ class Model(PyTreeNode):
   sensor_objid: np.ndarray
   sensor_reftype: np.ndarray
   sensor_refid: np.ndarray
+  sensor_intprm: np.ndarray
   sensor_dim: np.ndarray
   sensor_adr: np.ndarray
   sensor_cutoff: np.ndarray
@@ -868,13 +962,15 @@ class Model(PyTreeNode):
   names: bytes
   signature: np.uint64
   _sizes: jax.Array
-  _impl: Union[ModelC, ModelJAX]
+  _impl: Union[ModelC, ModelJAX, mjxw_types.ModelWarp]
 
   @property
   def impl(self) -> Impl:
     return {
         ModelC: Impl.C,
+        ModelCPP: Impl.CPP,
         ModelJAX: Impl.JAX,
+        mjxw_types.ModelWarp: Impl.WARP,
     }[type(self._impl)]
 
   def __getattr__(self, name: str):
@@ -884,8 +980,8 @@ class Model(PyTreeNode):
       return object.__getattribute__(self, 'value')
 
     try:
-      impl_instsance = object.__getattribute__(self, '_impl')
-      val = getattr(impl_instsance, name)
+      impl_instance = object.__getattribute__(self, '_impl')
+      val = getattr(impl_instance, name)
       warnings.warn(
           f'Accessing `{name}` directly from `Model` is deprecated. '
           f'Access it via `model._impl.{name}` instead.',
@@ -940,34 +1036,31 @@ class DataC(PyTreeNode):
 
   # constant sizes:
   # TODO(stunya): make these sizes jax.Array?
+  ncon: int
   ne: int
   nf: int
   nl: int
   nefc: int
-  ncon: int
   # TODO(stunya): remove most of these fields
   solver_niter: jax.Array
-  cdof: jax.Array
-  cinert: jax.Array
+  tree_asleep: jax.Array
+  plugin_data: jax.Array
   light_xpos: jax.Array
   light_xdir: jax.Array
+  cinert: jax.Array
   flexvert_xpos: jax.Array
   flexelem_aabb: jax.Array
-  flexedge_J_rownnz: jax.Array  # pylint:disable=invalid-name
-  flexedge_J_rowadr: jax.Array  # pylint:disable=invalid-name
-  flexedge_J_colind: jax.Array  # pylint:disable=invalid-name
   flexedge_J: jax.Array  # pylint:disable=invalid-name
   flexedge_length: jax.Array
+  bvh_aabb_dyn: jax.Array
   ten_wrapadr: jax.Array
   ten_wrapnum: jax.Array
   ten_J_rownnz: jax.Array  # pylint:disable=invalid-name
   ten_J_rowadr: jax.Array  # pylint:disable=invalid-name
   ten_J_colind: jax.Array  # pylint:disable=invalid-name
   ten_J: jax.Array  # pylint:disable=invalid-name
-  ten_length: jax.Array
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
-  actuator_length: jax.Array
   moment_rownnz: jax.Array  # pylint:disable=invalid-name
   moment_rowadr: jax.Array  # pylint:disable=invalid-name
   moment_colind: jax.Array  # pylint:disable=invalid-name
@@ -977,38 +1070,28 @@ class DataC(PyTreeNode):
   M: jax.Array  # pylint:disable=invalid-name
   qLD: jax.Array  # pylint:disable=invalid-name
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
-  bvh_aabb_dyn: jax.Array
   bvh_active: jax.Array
+  tree_awake: jax.Array
+  body_awake: jax.Array
+  body_awake_ind: jax.Array
+  parent_awake_ind: jax.Array
+  dof_awake_ind: jax.Array
   # position, velocity dependent:
   flexedge_velocity: jax.Array
   ten_velocity: jax.Array
   actuator_velocity: jax.Array
-  cdof_dot: jax.Array
-  plugin_data: jax.Array
-  qH: jax.Array  # pylint:disable=invalid-name
-  qHDiagInv: jax.Array  # pylint:disable=invalid-name
-  B_rownnz: jax.Array  # pylint:disable=invalid-name
-  B_rowadr: jax.Array  # pylint:disable=invalid-name
-  B_colind: jax.Array  # pylint:disable=invalid-name
-  M_rownnz: jax.Array  # pylint:disable=invalid-name
-  M_rowadr: jax.Array  # pylint:disable=invalid-name
-  M_colind: jax.Array  # pylint:disable=invalid-name
-  mapM2M: jax.Array  # pylint:disable=invalid-name
-  D_rownnz: jax.Array  # pylint:disable=invalid-name
-  D_rowadr: jax.Array  # pylint:disable=invalid-name
-  D_diag: jax.Array  # pylint:disable=invalid-name
-  D_colind: jax.Array  # pylint:disable=invalid-name
-  mapM2D: jax.Array  # pylint:disable=invalid-name
-  mapD2M: jax.Array  # pylint:disable=invalid-name
-  qDeriv: jax.Array  # pylint:disable=invalid-name
-  qLU: jax.Array  # pylint:disable=invalid-name
+
   qfrc_spring: jax.Array
   qfrc_damper: jax.Array
+  subtree_linvel: jax.Array
+  subtree_angmom: jax.Array
+  qH: jax.Array  # pylint:disable=invalid-name
+  qHDiagInv: jax.Array  # pylint:disable=invalid-name
+  qDeriv: jax.Array  # pylint:disable=invalid-name
+  qLU: jax.Array  # pylint:disable=invalid-name
   cacc: jax.Array
   cfrc_int: jax.Array
   cfrc_ext: jax.Array
-  subtree_linvel: jax.Array
-  subtree_angmom: jax.Array
   # dynamically sized arrays which are made static for the frontend JAX API
   # TODO(stunya): remove these dynamic fields entirely
   contact: Contact
@@ -1018,6 +1101,8 @@ class DataC(PyTreeNode):
   efc_margin: jax.Array
   efc_frictionloss: jax.Array
   efc_D: jax.Array  # pylint:disable=invalid-name
+  tree_island: jax.Array
+  map_itree2tree: jax.Array
   efc_aref: jax.Array
   efc_force: jax.Array
 
@@ -1031,15 +1116,12 @@ class DataJAX(PyTreeNode):
   nefc: int
   ncon: int
   solver_niter: jax.Array
-  cdof: jax.Array
   cinert: jax.Array
   ten_wrapadr: jax.Array
   ten_wrapnum: jax.Array
   ten_J: jax.Array  # pylint:disable=invalid-name
-  ten_length: jax.Array
   wrap_obj: jax.Array
   wrap_xpos: jax.Array
-  actuator_length: jax.Array
   actuator_moment: jax.Array
   crb: jax.Array
   qM: jax.Array  # pylint:disable=invalid-name
@@ -1048,7 +1130,7 @@ class DataJAX(PyTreeNode):
   qLDiagInv: jax.Array  # pylint:disable=invalid-name
   ten_velocity: jax.Array
   actuator_velocity: jax.Array
-  cdof_dot: jax.Array
+
   cacc: jax.Array
   cfrc_int: jax.Array
   cfrc_ext: jax.Array
@@ -1076,6 +1158,7 @@ class Data(PyTreeNode):
   qvel: jax.Array
   act: jax.Array
   qacc_warmstart: jax.Array
+  plugin_state: jax.Array
   # control:
   ctrl: jax.Array
   qfrc_applied: jax.Array
@@ -1098,6 +1181,7 @@ class Data(PyTreeNode):
   ximat: jax.Array
   xanchor: jax.Array
   xaxis: jax.Array
+  ten_length: jax.Array
   geom_xpos: jax.Array
   geom_xmat: jax.Array
   site_xpos: jax.Array
@@ -1106,34 +1190,34 @@ class Data(PyTreeNode):
   cam_xmat: jax.Array
   subtree_com: jax.Array
   cvel: jax.Array
+  cdof: jax.Array
+  cdof_dot: jax.Array
   qfrc_bias: jax.Array
   qfrc_gravcomp: jax.Array
   qfrc_fluid: jax.Array
   qfrc_passive: jax.Array
   qfrc_actuator: jax.Array
   actuator_force: jax.Array
+  actuator_length: jax.Array
   qfrc_smooth: jax.Array
   qacc_smooth: jax.Array
   qfrc_constraint: jax.Array
   qfrc_inverse: jax.Array
-  _impl: Union[DataC, DataJAX]
+  _impl: Union[DataC, DataCPP, DataJAX, mjxw_types.DataWarp]
 
   @property
   def impl(self) -> Impl:
     return {
         DataC: Impl.C,
+        DataCPP: Impl.CPP,
         DataJAX: Impl.JAX,
+        mjxw_types.DataWarp: Impl.WARP,
     }[type(self._impl)]
 
   def __getattr__(self, name: str):
-    if name == 'value':
-      # Special case for NNX, the value attribute may not exist on the parent
-      # PyTreeNode, before it exists on the child PyTreeNode. Thanks NNX.
-      return object.__getattribute__(self, 'value')
-
     try:
-      impl_instsance = object.__getattribute__(self, '_impl')
-      val = getattr(impl_instsance, name)
+      impl_instance = object.__getattribute__(self, '_impl')
+      val = getattr(impl_instance, name)
       warnings.warn(
           f'Accessing `{name}` directly from `Data` is deprecated. '
           f'Access it via `data._impl.{name}` instead.',
@@ -1146,3 +1230,23 @@ class Data(PyTreeNode):
           f"'{type(self).__name__}' object has no attribute '{name}'"
       )
     return val
+
+  def __getitem__(self, key):
+    def get_name_from_path(path: jax.tree_util.KeyPath) -> str:
+      if any(isinstance(p, jax.tree_util.SequenceKey) for p in path):
+        is_seq_key = [isinstance(p, jax.tree_util.SequenceKey) for p in path]
+        path = path[: is_seq_key.index(True)]
+      assert all(isinstance(p, jax.tree_util.GetAttrKey) for p in path)
+      path = [p for p in path if p.name != '_impl']
+      attr = '__'.join(p.name for p in path)
+      return attr
+
+    if self.impl == Impl.WARP:
+      return jax.tree.map_with_path(
+          lambda path, x, k=key: x[k]
+          if get_name_from_path(path) not in mjxw_types.DATA_NON_VMAP
+          else x,
+          self,
+      )
+
+    return jax.tree.map(lambda x: x[key], self)

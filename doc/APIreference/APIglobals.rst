@@ -414,6 +414,12 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 50
      - The maximum depth of each body and mesh bounding volume hierarchy. If this large limit is exceeded, a warning
        is raised and ray casting may not be possible. For a balanced hierarchy, this implies 1E15 bounding volumes.
+   * - ``mjMAXFLEXNODES``
+     - 27
+     - Some number by Alessio that needs documentation. I guess it's related to trilinear flexes?
+   * - ``mjMINAWAKE``
+     - 10
+     - The minimum number of timesteps that must pass after a tree is awoken, before it is allowed to go back to sleep.
    * - ``mjNEQDATA``
      - 11
      - The maximal number of real-valued parameters used to define each equality constraint. Determines the size of
@@ -444,6 +450,10 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - 5
      - The maximal number of real-valued parameters used to define the impedance of each scalar constraint.
        Determines the size of all ``mjModel.XXX_solimp`` fields.
+   * - ``mjNSENS``
+     - 3
+     - The number of sensor parameters.
+       Determines the size of ``mjModel.sensor_intprm``.
    * - ``mjNSOLVER``
      - 200
      - The number of iterations where solver statistics can be stored in ``mjData.solver``. This array is used
@@ -468,7 +478,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - The maximal number of lines per 2D figure (:ref:`mjvFigure`).
        Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
    * - ``mjMAXLINEPNT``
-     - 1000
+     - 1001
      - The maximal number of points in each line in a 2D figure. Note that the buffer ``mjvFigure.linepnt`` has length
        ``2*mjMAXLINEPNT`` because each point has X and Y coordinates.
        Defined in `mjvisualize.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjvisualize.h>`_.
@@ -517,7 +527,7 @@ shown in the table below. Their names are in the format ``mjKEY_XXX``. They corr
      - Maximum number of UI rectangles.
        Defined in `mjui.h <https://github.com/google-deepmind/mujoco/blob/main/include/mujoco/mjui.h>`_.
    * - ``mjVERSION_HEADER``
-     - 334
+     - 341
      - The version of the MuJoCo headers; changes with every release. This is an integer equal to 100x the software
        version, so 210 corresponds to version 2.1. Defined in  mujoco.h. The API function :ref:`mj_version` returns a
        number with the same meaning but for the compiled library.

@@ -16,14 +16,17 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <numbers>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include <mujoco/experimental/usd/mjcPhysics/tokens.h>
+#include <mujoco/experimental/usd/utils.h>
 #include <mujoco/mjspec.h>
 #include <mujoco/mujoco.h>
-#include "third_party/mujoco/src/experimental/usd/mjcPhysics/tokens.h"
 #include "mjcf/utils.h"
 #include <pxr/base/arch/attributes.h>
 #include <pxr/base/gf/matrix4d.h>
@@ -48,6 +51,7 @@
 #include <pxr/usd/kind/registry.h>
 #include <pxr/usd/sdf/abstractData.h>
 #include <pxr/usd/sdf/assetPath.h>
+#include <pxr/usd/sdf/declareHandles.h>
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/sdf/schema.h>
 #include <pxr/usd/sdf/types.h>
@@ -55,9 +59,13 @@
 #include <pxr/usd/usdGeom/metrics.h>
 #include <pxr/usd/usdGeom/tokens.h>
 #include <pxr/usd/usdLux/tokens.h>
+#include <pxr/usd/usdPhysics/fixedJoint.h>
+#include <pxr/usd/usdPhysics/joint.h>
+#include <pxr/usd/usdPhysics/prismaticJoint.h>
+#include <pxr/usd/usdPhysics/revoluteJoint.h>
+#include <pxr/usd/usdPhysics/sphericalJoint.h>
 #include <pxr/usd/usdPhysics/tokens.h>
 #include <pxr/usd/usdShade/tokens.h>
-#include <pxr/usdImaging/usdImaging/tokens.h>
 
 namespace {
 
@@ -78,6 +86,11 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((light, "Light"))
                          ((meshScope, "MeshSources"))
                          ((materialsScope, "Materials"))
+                         ((physicsMaterialsScope, "PhysicsMaterials"))
+                         ((previewSurface, "PreviewSurface"))
+                         ((keyframesScope, "Keyframes"))
+                         ((actuatorsScope, "Actuators"))
+                         ((keyframe, "Keyframe"))
                          ((surface, "PreviewSurface"))
                          ((world, "World"))
                          ((xformOpTransform, "xformOp:transform"))
@@ -91,6 +104,7 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          ((inputsWrapS, "inputs:wrapS"))
                          ((inputsWrapT, "inputs:wrapT"))
                          ((inputsDiffuseColor, "inputs:diffuseColor"))
+                         ((inputsEmissiveColor, "inputs:emissiveColor"))
                          ((outputsRgb, "outputs:rgb"))
                          ((outputsR, "outputs:r"))
                          ((outputsG, "outputs:g"))
@@ -101,6 +115,10 @@ TF_DEFINE_PRIVATE_TOKENS(kTokens,
                          (repeat)
                          ((sourceMesh, pxr::UsdGeomTokens->Mesh))
                          ((inputsNormal, "inputs:normal"))
+                         ((joint, "Joint"))
+                         (UsdPrimvarReader_float2)
+                         (UsdUVTexture)
+                         (UsdPreviewSurface)
                         );
 
 // Using to satisfy TF_REGISTRY_FUNCTION macro below and avoid operating in PXR_NS.
@@ -136,13 +154,12 @@ using mujoco::usd::CreateClassSpec;
 using mujoco::usd::CreatePrimSpec;
 using mujoco::usd::CreateRelationshipSpec;
 using mujoco::usd::SetAttributeDefault;
-using mujoco::usd::SetAttributeMetadata;
+using mujoco::usd::SetAttributeTimeSample;
 using mujoco::usd::SetLayerMetadata;
 using mujoco::usd::SetPrimKind;
-using mujoco::usd::SetPrimMetadata;
 using mujoco::usd::SetPrimPurpose;
 
-pxr::GfMatrix4d MujocoPosQuatToTransform(double *pos, double *quat) {
+pxr::GfMatrix4d MujocoPosQuatToTransform(mjtNum *pos, mjtNum *quat) {
   pxr::GfQuatd quaternion = pxr::GfQuatd::GetIdentity();
   quaternion.SetReal(quat[0]);
   quaternion.SetImaginary(quat[1], quat[2], quat[3]);
@@ -160,35 +177,42 @@ pxr::GfMatrix4d MujocoPosQuatToTransform(double *pos, double *quat) {
 
 class ModelWriter {
  public:
-  ModelWriter(mjSpec *spec, mjModel *model, pxr::SdfAbstractDataRefPtr &data)
-      : spec_(spec), model_(model), data_(data), class_path_("/Bad_Path") {
+  ModelWriter(mjSpec* spec, mjModel* model, pxr::SdfLayerRefPtr layer,
+              bool skip_elems_from_usd)
+      : spec_(spec),
+        model_(model),
+        layer_(layer),
+        skip_elems_from_usd_(skip_elems_from_usd),
+        class_path_("/Bad_Path") {
     body_paths_ = std::vector<pxr::SdfPath>(model->nbody);
     site_paths_ = std::vector<pxr::SdfPath>(model->nsite);
+    joint_paths_ = std::vector<pxr::SdfPath>(model->njnt);
   }
   ~ModelWriter() { mj_deleteModel(model_); }
 
-  void Write(bool write_physics) {
+  bool ShouldWrite(mjsElement* element) {
+    // If we've been told to skip over spec elements that originated from USD,
+    // check the user value and if it has a primpath then it came from decoding
+    // a USD stage into an MjSpec.
+    return !skip_elems_from_usd_ || mujoco::usd::GetUsdPrimPathUserValue(element).IsEmpty();
+  }
+
+  void Write() {
     // Create top level class holder.
-    class_path_ = CreateClassSpec(data_, pxr::SdfPath::AbsoluteRootPath(),
-                                  pxr::TfToken("__class__"));
+    class_path_ = CreateClassSpec(layer_, pxr::SdfPath::AbsoluteRootPath(),
+                                  pxr::TfToken("__class__"))->GetPath();
 
     // Create the world body.
-    body_paths_[kWorldIndex] = WriteWorldBody(kWorldIndex);
+    body_paths_[kWorldIndex] = WriteWorldBody(kWorldIndex)->GetPath();
 
-    // Set working parameters.
-    write_physics_ = write_physics;
-
-    SetLayerMetadata(data_, pxr::SdfFieldKeys->Documentation,
-                     "Generated by mujoco model writer.");
-    // Mujoco is Z up by default.
-    SetLayerMetadata(data_, pxr::UsdGeomTokens->upAxis, pxr::UsdGeomTokens->z);
-    // Mujoco is authored in meters by default.
-    SetLayerMetadata(data_, pxr::UsdGeomTokens->metersPerUnit,
-                     pxr::UsdGeomLinearUnits::meters);
-
+    layer_->SetDocumentation("Generated by mujoco model writer.");
     // Set the world body to be the default prim for referencing/payloads.
-    SetLayerMetadata(data_, pxr::SdfFieldKeys->DefaultPrim,
-                     body_paths_[kWorldIndex].GetNameToken());
+    layer_->SetDefaultPrim(body_paths_[kWorldIndex].GetNameToken());
+    // Mujoco is Z up by default.
+    SetLayerMetadata(layer_, pxr::UsdGeomTokens->upAxis, pxr::UsdGeomTokens->z);
+    // Mujoco is authored in meters by default.
+    SetLayerMetadata(layer_, pxr::UsdGeomTokens->metersPerUnit,
+                     pxr::UsdGeomLinearUnits::meters);
 
     WritePhysicsScene();
 
@@ -196,28 +220,28 @@ class ModelWriter {
     WriteMeshes();
     WriteMaterials();
     WriteBodies();
-    if (write_physics_) {
-      WriteActuators();
-    }
+    WriteActuators();
+    WriteKeyframes();
   }
 
  private:
   mjSpec *spec_;
   mjModel *model_;
+  pxr::SdfLayerRefPtr layer_;
 
-  // This is a handle to the Sdf data to be written into the generated USD
-  // layer.
-  pxr::SdfAbstractDataRefPtr &data_;
+  bool skip_elems_from_usd_ = false;
   // Path to top level class spec that all classes should be children of.
   pxr::SdfPath class_path_;
   // Mapping from Mujoco body id to SdfPath.
   std::vector<pxr::SdfPath> body_paths_;
   // Mapping from Mujoco site id to SdfPath.
   std::vector<pxr::SdfPath> site_paths_;
+  // Mapping from Mujoco joint id to SdfPath.
+  std::vector<pxr::SdfPath> joint_paths_;
   // Mapping from mesh names to Mesh prim path.
   std::unordered_map<std::string, pxr::SdfPath> mesh_paths_;
-  // Whether to write physics data.
-  bool write_physics_ = false;
+  // Set of body ids that have had the articulation root API applied.
+  std::unordered_set<int> articulation_roots_;
 
   // Given a name index and a parent prim path this returns a
   // token such that appending it to the parent prim path does not
@@ -244,8 +268,8 @@ class ModelWriter {
     std::string name = valid_base_name;
     pxr::SdfPath test_path = parent_path.AppendChild(pxr::TfToken(name));
     int count = 1;
-    while (data_->HasSpec(test_path) &&
-           data_->GetSpecType(test_path) == pxr::SdfSpecType::SdfSpecTypePrim) {
+    while (layer_->HasSpec(test_path) &&
+           layer_->GetSpecType(test_path) == pxr::SdfSpecType::SdfSpecTypePrim) {
       name = pxr::TfStringPrintf("%s_%d", valid_base_name.c_str(), count++);
       test_path = parent_path.AppendChild(pxr::TfToken(name));
     }
@@ -264,85 +288,113 @@ class ModelWriter {
     pxr::TfToken body_name;
   };
 
-  void WriteScaleXformOp(const pxr::SdfPath &prim_path,
+  void WriteScaleXformOp(const pxr::SdfPrimSpecHandle prim_spec,
                          const pxr::GfVec3f &scale) {
-    pxr::SdfPath scale_attr_path =
-        CreateAttributeSpec(data_, prim_path, kTokens->xformOpScale,
+    auto scale_attr_spec =
+        CreateAttributeSpec(layer_, prim_spec, kTokens->xformOpScale,
                             pxr::SdfValueTypeNames->Float3);
-    SetAttributeDefault(data_, scale_attr_path, scale);
+    SetAttributeDefault(layer_, scale_attr_spec, scale);
   }
 
-  void WriteTransformXformOp(const pxr::SdfPath &prim_path,
+  void WriteTransformXformOp(const pxr::SdfPrimSpecHandle prim_spec,
                              const pxr::GfMatrix4d &transform) {
-    pxr::SdfPath transform_op_path =
-        CreateAttributeSpec(data_, prim_path, kTokens->xformOpTransform,
+    auto transform_op_spec =
+        CreateAttributeSpec(layer_, prim_spec, kTokens->xformOpTransform,
                             pxr::SdfValueTypeNames->Matrix4d);
-    SetAttributeDefault(data_, transform_op_path, transform);
+    SetAttributeDefault(layer_, transform_op_spec, transform);
   }
 
-  void WriteXformOpOrder(const pxr::SdfPath &prim_path,
+  void WriteXformOpOrder(const pxr::SdfPrimSpecHandle prim_spec,
                          const pxr::VtArray<pxr::TfToken> &order) {
-    pxr::SdfPath xform_op_order_path =
-        CreateAttributeSpec(data_, prim_path, pxr::UsdGeomTokens->xformOpOrder,
+    auto xform_op_order_spec =
+        CreateAttributeSpec(layer_, prim_spec, pxr::UsdGeomTokens->xformOpOrder,
                             pxr::SdfValueTypeNames->TokenArray);
-    SetAttributeDefault(data_, xform_op_order_path, order);
+    SetAttributeDefault(layer_, xform_op_order_spec, order);
   }
 
   template <typename T>
-  void WriteUniformAttribute(const pxr::SdfPath &prim_path,
+  void WriteUniformAttribute(const pxr::SdfPrimSpecHandle prim_spec,
                              const pxr::SdfValueTypeName &value_type_name,
                              const pxr::TfToken &token, const T &value) {
-    pxr::SdfPath attr_path = CreateAttributeSpec(
-        data_, prim_path, token, value_type_name, pxr::SdfVariabilityUniform);
-    SetAttributeDefault(data_, attr_path, value);
+    auto attr_spec = CreateAttributeSpec(
+        layer_, prim_spec, token, value_type_name, pxr::SdfVariabilityUniform);
+    SetAttributeDefault(layer_, attr_spec, value);
   }
 
-  void PrependToXformOpOrder(const pxr::SdfPath &prim_path,
+  template <typename T>
+  void WriteColorAndOpacityAttributes(const pxr::SdfPrimSpecHandle prim_spec,
+                                      const T &element) {
+    // If rgba is not the default (0.5, 0.5, 0.5, 1), then set the
+    // displayColor attribute.
+    // No effort is made to properly handle the interaction between rgba
+    // and the material if both are specified.
+    if (element->rgba[0] != 0.5f || element->rgba[1] != 0.5f ||
+        element->rgba[2] != 0.5f || element->rgba[3] != 1.0f) {
+      // Set the displayColor attribute.
+      auto display_color_attr = CreateAttributeSpec(
+          layer_, prim_spec, pxr::UsdGeomTokens->primvarsDisplayColor,
+          pxr::SdfValueTypeNames->Color3fArray);
+      SetAttributeDefault(
+          layer_, display_color_attr,
+          pxr::VtArray<pxr::GfVec3f>{
+              {element->rgba[0], element->rgba[1], element->rgba[2]}});
+      // Set the displayOpacity attribute, only if the opacity is not 1.
+      if (element->rgba[3] != 1.0f) {
+        auto display_opacity_attr = CreateAttributeSpec(
+            layer_, prim_spec, pxr::UsdGeomTokens->primvarsDisplayOpacity,
+            pxr::SdfValueTypeNames->FloatArray);
+        SetAttributeDefault(layer_, display_opacity_attr,
+                            pxr::VtArray<float>{element->rgba[3]});
+      }
+    }
+  }
+
+  void PrependToXformOpOrder(const pxr::SdfPrimSpecHandle prim_spec,
                              const pxr::VtArray<pxr::TfToken> &order) {
     auto xform_op_order_path =
-        prim_path.AppendProperty(pxr::UsdGeomTokens->xformOpOrder);
-    if (!data_->HasSpec(xform_op_order_path)) {
-      WriteXformOpOrder(prim_path, order);
+        prim_spec->GetPath().AppendProperty(pxr::UsdGeomTokens->xformOpOrder);
+    if (!prim_spec->HasField(pxr::UsdGeomTokens->xformOpOrder)) {
+      WriteXformOpOrder(prim_spec, order);
       return;
     }
 
     auto existing_order =
-        data_->Get(xform_op_order_path, pxr::SdfFieldKeys->Default)
-            .UncheckedGet<pxr::VtArray<pxr::TfToken>>();
+        prim_spec->GetField(pxr::UsdGeomTokens->xformOpOrder).Get<pxr::VtArray<pxr::TfToken>>();
 
     pxr::VtArray<pxr::TfToken> new_order(order.size() + existing_order.size());
     std::copy(order.begin(), order.end(), new_order.begin());
     std::copy(existing_order.begin(), existing_order.end(),
               new_order.begin() + order.size());
 
-    SetAttributeDefault(data_, xform_op_order_path, new_order);
+    SetAttributeDefault(layer_, layer_->GetAttributeAtPath(xform_op_order_path), new_order);
   }
 
   void WriteMesh(const mjsMesh *mesh, const pxr::SdfPath &parent_path) {
-    auto name = GetAvailablePrimName(*mesh->name, pxr::UsdGeomTokens->Mesh,
-                                     parent_path);
-    pxr::SdfPath subcomponent_path =
-        CreatePrimSpec(data_, parent_path, name, pxr::UsdGeomTokens->Xform);
-    pxr::SdfPath mesh_path =
-        CreatePrimSpec(data_, subcomponent_path, kTokens->sourceMesh,
+    auto name = GetAvailablePrimName(*mjs_getName(mesh->element),
+                                     pxr::UsdGeomTokens->Mesh, parent_path);
+    auto subcomponent_spec =
+        CreatePrimSpec(layer_, parent_path, name, pxr::UsdGeomTokens->Xform);
+    auto mesh_spec =
+        CreatePrimSpec(layer_, subcomponent_spec->GetPath(), kTokens->sourceMesh,
                        pxr::UsdGeomTokens->Mesh);
-    mesh_paths_[*mesh->name] = subcomponent_path;
+    mesh_paths_[*mjs_getName(mesh->element)] = subcomponent_spec->GetPath();
 
-    if (write_physics_) {
-      ApplyApiSchema(data_, mesh_path, MjcPhysicsTokens->MeshCollisionAPI);
+    ApplyApiSchema(layer_, mesh_spec, MjcPhysicsTokens->MjcMeshCollisionAPI);
 
-      pxr::TfToken inertia = MjcPhysicsTokens->legacy;
-      if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_EXACT) {
-        inertia = MjcPhysicsTokens->exact;
-      } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_CONVEX) {
-        inertia = MjcPhysicsTokens->convex;
-      } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_SHELL) {
-        inertia = MjcPhysicsTokens->shell;
-      }
-
-      WriteUniformAttribute(mesh_path, pxr::SdfValueTypeNames->Token,
-                            MjcPhysicsTokens->mjcInertia, inertia);
+    pxr::TfToken inertia = MjcPhysicsTokens->legacy;
+    if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_EXACT) {
+      inertia = MjcPhysicsTokens->exact;
+    } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_CONVEX) {
+      inertia = MjcPhysicsTokens->convex;
+    } else if (mesh->inertia == mjtMeshInertia::mjMESH_INERTIA_SHELL) {
+      inertia = MjcPhysicsTokens->shell;
     }
+
+    WriteUniformAttribute(mesh_spec, pxr::SdfValueTypeNames->Token,
+                          MjcPhysicsTokens->mjcInertia, inertia);
+
+    WriteUniformAttribute(mesh_spec, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcMaxhullvert, mesh->maxhullvert);
 
     // NOTE: The geometry data taken from the spec is the post-compilation
     // data after it has been mjCMesh::Compile'd. So don't be surprised if
@@ -357,10 +409,10 @@ class ModelWriter {
       points.emplace_back(&model_->mesh_vert[i]);
     }
 
-    pxr::SdfPath points_attr_path =
-        CreateAttributeSpec(data_, mesh_path, pxr::UsdGeomTokens->points,
+    auto points_attr =
+        CreateAttributeSpec(layer_, mesh_spec, pxr::UsdGeomTokens->points,
                             pxr::SdfValueTypeNames->Vector3fArray);
-    SetAttributeDefault(data_, points_attr_path, points);
+    SetAttributeDefault(layer_, points_attr, points);
 
     // NOTE: nface is never 0.
     int nface = model_->mesh_facenum[mesh_id];
@@ -372,20 +424,20 @@ class ModelWriter {
       faces.push_back(model_->mesh_face[i + 1]);
       faces.push_back(model_->mesh_face[i + 2]);
     }
-    pxr::SdfPath face_vertex_idx_attr_path = CreateAttributeSpec(
-        data_, mesh_path, pxr::UsdGeomTokens->faceVertexIndices,
+    auto face_vertex_idx_attr= CreateAttributeSpec(
+        layer_, mesh_spec, pxr::UsdGeomTokens->faceVertexIndices,
         pxr::SdfValueTypeNames->IntArray);
-    SetAttributeDefault(data_, face_vertex_idx_attr_path, faces);
+    SetAttributeDefault(layer_, face_vertex_idx_attr, faces);
 
     pxr::VtArray<int> vertex_counts;
     for (int i = 0; i < nface; ++i) {
       // Mujoco is always triangles.
       vertex_counts.push_back(3);
     }
-    pxr::SdfPath face_vertex_counts_attr_path = CreateAttributeSpec(
-        data_, mesh_path, pxr::UsdGeomTokens->faceVertexCounts,
+    auto face_vertex_counts_attr= CreateAttributeSpec(
+        layer_, mesh_spec, pxr::UsdGeomTokens->faceVertexCounts,
         pxr::SdfValueTypeNames->IntArray);
-    SetAttributeDefault(data_, face_vertex_counts_attr_path, vertex_counts);
+    SetAttributeDefault(layer_, face_vertex_counts_attr, vertex_counts);
 
     if (model_->mesh_normalnum[mesh_id]) {
       // We have to convert from Mujoco's indexed normals to USD's faceVarying
@@ -398,12 +450,11 @@ class ModelWriter {
         int normal_adr = normal_start_adr + model_->mesh_facenormal[i];
         normals.emplace_back(&model_->mesh_normal[normal_adr * 3]);
       }
-      pxr::SdfPath normals_attr_path =
-          CreateAttributeSpec(data_, mesh_path, pxr::UsdGeomTokens->normals,
+      auto normals_attr=
+          CreateAttributeSpec(layer_, mesh_spec, pxr::UsdGeomTokens->normals,
                               pxr::SdfValueTypeNames->Vector3fArray);
-      SetAttributeDefault(data_, normals_attr_path, normals);
-      SetAttributeMetadata(data_, normals_attr_path,
-                           pxr::UsdGeomTokens->interpolation,
+      SetAttributeDefault(layer_, normals_attr, normals);
+      normals_attr->SetField(pxr::UsdGeomTokens->interpolation,
                            pxr::UsdGeomTokens->faceVarying);
     }
 
@@ -423,30 +474,29 @@ class ModelWriter {
         texcoords.push_back(uv);
       }
 
-      pxr::SdfPath texcoords_attr_path =
-          CreateAttributeSpec(data_, mesh_path, kTokens->primvarsSt,
+      auto texcoords_attr=
+          CreateAttributeSpec(layer_, mesh_spec, kTokens->primvarsSt,
                               pxr::SdfValueTypeNames->TexCoord2fArray);
-      SetAttributeDefault(data_, texcoords_attr_path, texcoords);
-      SetAttributeMetadata(data_, texcoords_attr_path,
-                           pxr::UsdGeomTokens->interpolation,
+      SetAttributeDefault(layer_, texcoords_attr, texcoords);
+      texcoords_attr->SetField(pxr::UsdGeomTokens->interpolation,
                            pxr::UsdGeomTokens->faceVarying);
     }
 
     // Default subdivision scheme is catmull clark so explicitly set it
     // to none here.
-    pxr::SdfPath subdivision_scheme_path = CreateAttributeSpec(
-        data_, mesh_path, pxr::UsdGeomTokens->subdivisionScheme,
+    auto subdivision_scheme= CreateAttributeSpec(
+        layer_, mesh_spec, pxr::UsdGeomTokens->subdivisionScheme,
         pxr::SdfValueTypeNames->Token);
-    SetAttributeDefault(data_, subdivision_scheme_path,
+    SetAttributeDefault(layer_, subdivision_scheme,
                         pxr::UsdGeomTokens->none);
   }
 
   void WritePhysicsScene() {
-    pxr::SdfPath physics_scene_path = CreatePrimSpec(
-        data_, body_paths_[kWorldIndex], pxr::UsdPhysicsTokens->PhysicsScene,
+    auto physics_scene_spec = CreatePrimSpec(
+        layer_, body_paths_[kWorldIndex], pxr::UsdPhysicsTokens->PhysicsScene,
         pxr::UsdPhysicsTokens->PhysicsScene);
 
-    ApplyApiSchema(data_, physics_scene_path, MjcPhysicsTokens->SceneAPI);
+    ApplyApiSchema(layer_, physics_scene_spec, MjcPhysicsTokens->MjcSceneAPI);
 
     const std::vector<std::pair<pxr::TfToken, double>>
         option_double_attributes = {
@@ -458,14 +508,13 @@ class ModelWriter {
              spec_->option.noslip_tolerance},
             {MjcPhysicsTokens->mjcOptionCcd_tolerance,
              spec_->option.ccd_tolerance},
-            {MjcPhysicsTokens->mjcOptionApirate, spec_->option.apirate},
             {MjcPhysicsTokens->mjcOptionImpratio, spec_->option.impratio},
             {MjcPhysicsTokens->mjcOptionDensity, spec_->option.density},
             {MjcPhysicsTokens->mjcOptionViscosity, spec_->option.viscosity},
             {MjcPhysicsTokens->mjcOptionO_margin, spec_->option.o_margin},
         };
     for (const auto &[token, value] : option_double_attributes) {
-      WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Double,
+      WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Double,
                             token, value);
     }
 
@@ -482,97 +531,110 @@ class ModelWriter {
          spec_->option.sdf_initpoints},
     };
     for (const auto &[token, value] : option_int_attributes) {
-      WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Int,
+      WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Int,
                             token, value);
     }
 
-    pxr::SdfPath cone_attr = CreateAttributeSpec(
-        data_, physics_scene_path, MjcPhysicsTokens->mjcOptionCone,
+    auto cone_attr = CreateAttributeSpec(
+        layer_, physics_scene_spec, MjcPhysicsTokens->mjcOptionCone,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
 
     switch (spec_->option.cone) {
       case mjCONE_PYRAMIDAL:
-        SetAttributeDefault(data_, cone_attr, MjcPhysicsTokens->pyramidal);
+        SetAttributeDefault(layer_, cone_attr, MjcPhysicsTokens->pyramidal);
         break;
       case mjCONE_ELLIPTIC:
-        SetAttributeDefault(data_, cone_attr, MjcPhysicsTokens->elliptic);
+        SetAttributeDefault(layer_, cone_attr, MjcPhysicsTokens->elliptic);
         break;
       default:
         break;
     }
 
-    pxr::SdfPath jacobian_attr = CreateAttributeSpec(
-        data_, physics_scene_path, MjcPhysicsTokens->mjcOptionJacobian,
+    auto jacobian_attr = CreateAttributeSpec(
+        layer_, physics_scene_spec, MjcPhysicsTokens->mjcOptionJacobian,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
 
     switch (spec_->option.jacobian) {
       case mjJAC_AUTO:
-        SetAttributeDefault(data_, jacobian_attr, MjcPhysicsTokens->auto_);
+        SetAttributeDefault(layer_, jacobian_attr, MjcPhysicsTokens->auto_);
         break;
       case mjJAC_DENSE:
-        SetAttributeDefault(data_, jacobian_attr, MjcPhysicsTokens->dense);
+        SetAttributeDefault(layer_, jacobian_attr, MjcPhysicsTokens->dense);
         break;
       case mjJAC_SPARSE:
-        SetAttributeDefault(data_, jacobian_attr, MjcPhysicsTokens->sparse);
+        SetAttributeDefault(layer_, jacobian_attr, MjcPhysicsTokens->sparse);
         break;
       default:
         break;
     }
 
-    pxr::SdfPath solver_attr = CreateAttributeSpec(
-        data_, physics_scene_path, MjcPhysicsTokens->mjcOptionSolver,
+    auto solver_attr = CreateAttributeSpec(
+        layer_, physics_scene_spec, MjcPhysicsTokens->mjcOptionSolver,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
     switch (spec_->option.solver) {
       case mjSOL_NEWTON:
-        SetAttributeDefault(data_, solver_attr, MjcPhysicsTokens->newton);
+        SetAttributeDefault(layer_, solver_attr, MjcPhysicsTokens->newton);
         break;
       case mjSOL_PGS:
-        SetAttributeDefault(data_, solver_attr, MjcPhysicsTokens->pgs);
+        SetAttributeDefault(layer_, solver_attr, MjcPhysicsTokens->pgs);
         break;
       case mjSOL_CG:
-        SetAttributeDefault(data_, solver_attr, MjcPhysicsTokens->cg);
+        SetAttributeDefault(layer_, solver_attr, MjcPhysicsTokens->cg);
         break;
       default:
         break;
     }
 
+    pxr::GfVec3f gravity(spec_->option.gravity[0], spec_->option.gravity[1],
+                         spec_->option.gravity[2]);
+    // Normalize will normalize gravity in place and return the magnitude before
+    // normalization.
+    float gravity_magnitude = gravity.Normalize();
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Float,
+                          pxr::UsdPhysicsTokens->physicsGravityMagnitude,
+                          gravity_magnitude);
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Vector3f,
+                          pxr::UsdPhysicsTokens->physicsGravityDirection,
+                          gravity);
+
     pxr::GfVec3d wind(spec_->option.wind[0], spec_->option.wind[1],
                       spec_->option.wind[2]);
-    WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Double3,
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Double3,
                           MjcPhysicsTokens->mjcOptionWind, wind);
 
     pxr::GfVec3d magnetic(spec_->option.magnetic[0], spec_->option.magnetic[1],
                           spec_->option.magnetic[2]);
-    WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Double3,
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Double3,
                           MjcPhysicsTokens->mjcOptionMagnetic, magnetic);
 
     pxr::VtArray<double> o_solref(spec_->option.o_solref,
-                                  spec_->option.o_solref + 2);
-    WriteUniformAttribute(physics_scene_path,
+                                  spec_->option.o_solref + mjNREF);
+    WriteUniformAttribute(physics_scene_spec,
                           pxr::SdfValueTypeNames->DoubleArray,
                           MjcPhysicsTokens->mjcOptionO_solref, o_solref);
 
     pxr::VtArray<double> o_solimp(spec_->option.o_solimp,
-                                  spec_->option.o_solimp + 5);
-    WriteUniformAttribute(physics_scene_path,
+                                  spec_->option.o_solimp + mjNIMP);
+    WriteUniformAttribute(physics_scene_spec,
                           pxr::SdfValueTypeNames->DoubleArray,
                           MjcPhysicsTokens->mjcOptionO_solimp, o_solimp);
 
     pxr::VtArray<double> o_friction(spec_->option.o_friction,
                                     spec_->option.o_friction + 5);
-    WriteUniformAttribute(physics_scene_path,
+    WriteUniformAttribute(physics_scene_spec,
                           pxr::SdfValueTypeNames->DoubleArray,
                           MjcPhysicsTokens->mjcOptionO_friction, o_friction);
 
-    pxr::SdfPath integrator_attr = CreateAttributeSpec(
-        data_, physics_scene_path, MjcPhysicsTokens->mjcOptionIntegrator,
+    auto integrator_attr = CreateAttributeSpec(
+        layer_, physics_scene_spec, MjcPhysicsTokens->mjcOptionIntegrator,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
     switch (spec_->option.integrator) {
       case mjINT_EULER:
-        SetAttributeDefault(data_, integrator_attr, MjcPhysicsTokens->euler);
+        SetAttributeDefault(layer_, integrator_attr, MjcPhysicsTokens->euler);
         break;
       case mjINT_RK4:
-        SetAttributeDefault(data_, integrator_attr, MjcPhysicsTokens->rk4);
+        SetAttributeDefault(layer_, integrator_attr, MjcPhysicsTokens->rk4);
         break;
       default:
         break;
@@ -582,13 +644,12 @@ class ModelWriter {
       int flags =
           enable ? spec_->option.enableflags : spec_->option.disableflags;
       bool value = enable ? (flags & flag) : !(flags & flag);
-      WriteUniformAttribute(physics_scene_path, pxr::SdfValueTypeNames->Bool,
+      WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Bool,
                             token, value);
     };
 
     const std::vector<std::pair<pxr::TfToken, int>> enable_flags = {
         {MjcPhysicsTokens->mjcFlagMulticcd, mjENBL_MULTICCD},
-        {MjcPhysicsTokens->mjcFlagIsland, mjENBL_ISLAND},
         {MjcPhysicsTokens->mjcFlagFwdinv, mjENBL_FWDINV},
         {MjcPhysicsTokens->mjcFlagEnergy, mjENBL_ENERGY},
         {MjcPhysicsTokens->mjcFlagOverride, mjENBL_OVERRIDE},
@@ -603,7 +664,8 @@ class ModelWriter {
         {MjcPhysicsTokens->mjcFlagFrictionloss, mjDSBL_FRICTIONLOSS},
         {MjcPhysicsTokens->mjcFlagLimit, mjDSBL_LIMIT},
         {MjcPhysicsTokens->mjcFlagContact, mjDSBL_CONTACT},
-        {MjcPhysicsTokens->mjcFlagPassive, mjDSBL_PASSIVE},
+        {MjcPhysicsTokens->mjcFlagSpring, mjDSBL_SPRING},
+        {MjcPhysicsTokens->mjcFlagDamper, mjDSBL_DAMPER},
         {MjcPhysicsTokens->mjcFlagGravity, mjDSBL_GRAVITY},
         {MjcPhysicsTokens->mjcFlagClampctrl, mjDSBL_CLAMPCTRL},
         {MjcPhysicsTokens->mjcFlagWarmstart, mjDSBL_WARMSTART},
@@ -614,86 +676,156 @@ class ModelWriter {
         {MjcPhysicsTokens->mjcFlagMidphase, mjDSBL_MIDPHASE},
         {MjcPhysicsTokens->mjcFlagEulerdamp, mjDSBL_EULERDAMP},
         {MjcPhysicsTokens->mjcFlagAutoreset, mjDSBL_AUTORESET},
-        {MjcPhysicsTokens->mjcFlagNativeccd, mjDSBL_NATIVECCD}};
+        {MjcPhysicsTokens->mjcFlagNativeccd, mjDSBL_NATIVECCD},
+        {MjcPhysicsTokens->mjcFlagIsland, mjDSBL_ISLAND}};
     for (const auto &[token, flag] : disable_flags) {
       create_flag_attr(token, flag, false);
     }
+
+    // Compiler attributes
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Bool,
+                          MjcPhysicsTokens->mjcCompilerAutoLimits,
+                          (bool)spec_->compiler.autolimits);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Double,
+                          MjcPhysicsTokens->mjcCompilerBoundMass,
+                          spec_->compiler.boundmass);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Double,
+                          MjcPhysicsTokens->mjcCompilerBoundInertia,
+                          spec_->compiler.boundinertia);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Double,
+                          MjcPhysicsTokens->mjcCompilerSetTotalMass,
+                          spec_->compiler.settotalmass);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Bool,
+                          MjcPhysicsTokens->mjcCompilerUseThread,
+                          (bool)spec_->compiler.usethread);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Bool,
+                          MjcPhysicsTokens->mjcCompilerBalanceInertia,
+                          (bool)spec_->compiler.balanceinertia);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Token,
+                          MjcPhysicsTokens->mjcCompilerAngle,
+                          spec_->compiler.degree ? MjcPhysicsTokens->degree
+                                                 : MjcPhysicsTokens->radian);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Bool,
+                          MjcPhysicsTokens->mjcCompilerFitAABB,
+                          (bool)spec_->compiler.fitaabb);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Bool,
+                          MjcPhysicsTokens->mjcCompilerFuseStatic,
+                          (bool)spec_->compiler.fusestatic);
+
+    pxr::TfToken inertiafromgeom_token = MjcPhysicsTokens->auto_;
+    if (spec_->compiler.inertiafromgeom ==
+        mjINERTIAFROMGEOM_TRUE) {  // mjINERTIA_TRUE
+      inertiafromgeom_token = MjcPhysicsTokens->true_;
+    } else if (spec_->compiler.inertiafromgeom ==
+               mjINERTIAFROMGEOM_FALSE) {  // mjINERTIA_FALSE
+      inertiafromgeom_token = MjcPhysicsTokens->false_;
+    }
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Token,
+                          MjcPhysicsTokens->mjcCompilerInertiaFromGeom,
+                          inertiafromgeom_token);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Bool,
+                          MjcPhysicsTokens->mjcCompilerAlignFree,
+                          (bool)spec_->compiler.alignfree);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMin,
+                          spec_->compiler.inertiagrouprange[0]);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcCompilerInertiaGroupRangeMax,
+                          spec_->compiler.inertiagrouprange[1]);
+
+    WriteUniformAttribute(physics_scene_spec, pxr::SdfValueTypeNames->Bool,
+                          MjcPhysicsTokens->mjcCompilerSaveInertial,
+                          (bool)spec_->compiler.saveinertial);
   }
 
   void WriteMeshes() {
     // Create a scope for the meshes to keep things organized
-    pxr::SdfPath scope_path =
-        CreatePrimSpec(data_, body_paths_[kWorldIndex], kTokens->meshScope,
+    auto scope =
+        CreatePrimSpec(layer_, body_paths_[kWorldIndex], kTokens->meshScope,
                        pxr::UsdGeomTokens->Scope);
 
     // Make the mesh scope invisible since they will be referenced by the bits
     // that should be visible.
-    SetPrimMetadata(data_, scope_path, pxr::SdfFieldKeys->Active, false);
+    scope->SetField(pxr::SdfFieldKeys->Active, false);
 
     mjsMesh *mesh = mjs_asMesh(mjs_firstElement(spec_, mjOBJ_MESH));
     while (mesh) {
-      WriteMesh(mesh, scope_path);
+      if (ShouldWrite(mesh->element)) {
+        WriteMesh(mesh, scope->GetPath());
+      }
       mesh = mjs_asMesh(mjs_nextElement(spec_, mesh->element));
     }
   }
 
-  pxr::SdfPath AddUVTextureShader(const pxr::SdfPath &material_path,
-                                  const pxr::TfToken &name) {
-    pxr::SdfPath uvmap_shader_path =
-        CreatePrimSpec(data_, material_path, name, pxr::UsdShadeTokens->Shader);
+  pxr::SdfAttributeSpecHandle AddUVTextureShader(
+      const pxr::SdfPrimSpecHandle material_spec, const pxr::TfToken &name) {
+    auto uvmap_shader_spec =
+        CreatePrimSpec(layer_, material_spec->GetPath(), name, pxr::UsdShadeTokens->Shader);
 
-    pxr::SdfPath uvmap_info_id_attr = CreateAttributeSpec(
-        data_, uvmap_shader_path, pxr::UsdShadeTokens->infoId,
+    auto uvmap_info_id_attr = CreateAttributeSpec(
+        layer_, uvmap_shader_spec, pxr::UsdShadeTokens->infoId,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
-    SetAttributeDefault(data_, uvmap_info_id_attr,
-                        pxr::UsdImagingTokens->UsdPrimvarReader_float2);
+    SetAttributeDefault(layer_, uvmap_info_id_attr,
+                        kTokens->UsdPrimvarReader_float2);
 
-    pxr::SdfPath uvmap_varname_attr =
-        CreateAttributeSpec(data_, uvmap_shader_path, kTokens->inputsVarname,
+    auto uvmap_varname_attr =
+        CreateAttributeSpec(layer_, uvmap_shader_spec, kTokens->inputsVarname,
                             pxr::SdfValueTypeNames->Token);
-    SetAttributeDefault(data_, uvmap_varname_attr, kTokens->st);
+    SetAttributeDefault(layer_, uvmap_varname_attr, kTokens->st);
 
-    pxr::SdfPath uvmap_st_output_attr =
-        CreateAttributeSpec(data_, uvmap_shader_path, kTokens->outputsSt,
+    auto uvmap_st_output_attr =
+        CreateAttributeSpec(layer_, uvmap_shader_spec, kTokens->outputsSt,
                             pxr::SdfValueTypeNames->Float2);
 
     return uvmap_st_output_attr;
   }
 
-  std::vector<pxr::SdfPath> AddTextureShader(
-      const pxr::SdfPath &material_path, const char *texture_file,
-      const pxr::TfToken &name, const pxr::SdfPath &uvmap_st_output_attr,
+  std::vector<pxr::SdfAttributeSpecHandle> AddTextureShader(
+      const pxr::SdfPrimSpecHandle material_spec, const char *texture_file,
+      const pxr::TfToken &name,
+      const pxr::SdfAttributeSpecHandle uvmap_st_output_attr,
       const std::vector<pxr::TfToken> &output_channels) {
-    pxr::SdfPath texture_shader_path =
-        CreatePrimSpec(data_, material_path, name, pxr::UsdShadeTokens->Shader);
-    pxr::SdfPath texture_info_id_attr = CreateAttributeSpec(
-        data_, texture_shader_path, pxr::UsdShadeTokens->infoId,
+    auto texture_shader_spec =
+        CreatePrimSpec(layer_, material_spec->GetPath(), name, pxr::UsdShadeTokens->Shader);
+    auto texture_info_id_attr = CreateAttributeSpec(
+        layer_, texture_shader_spec, pxr::UsdShadeTokens->infoId,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
-    SetAttributeDefault(data_, texture_info_id_attr,
-                        pxr::UsdImagingTokens->UsdUVTexture);
+    SetAttributeDefault(layer_, texture_info_id_attr,
+                        kTokens->UsdUVTexture);
 
-    pxr::SdfPath texture_file_attr =
-        CreateAttributeSpec(data_, texture_shader_path, kTokens->inputsFile,
+    auto texture_file_attr =
+        CreateAttributeSpec(layer_, texture_shader_spec, kTokens->inputsFile,
                             pxr::SdfValueTypeNames->Asset);
-    SetAttributeDefault(data_, texture_file_attr,
+    SetAttributeDefault(layer_, texture_file_attr,
                         pxr::SdfAssetPath(texture_file));
 
-    pxr::SdfPath texture_st_input_attr =
-        CreateAttributeSpec(data_, texture_shader_path, kTokens->inputsSt,
+    auto texture_st_input_attr =
+        CreateAttributeSpec(layer_, texture_shader_spec, kTokens->inputsSt,
                             pxr::SdfValueTypeNames->Float2);
-    AddAttributeConnection(data_, texture_st_input_attr, uvmap_st_output_attr);
+    AddAttributeConnection(layer_, texture_st_input_attr, uvmap_st_output_attr);
 
-    pxr::SdfPath texture_wrap_s_attr =
-        CreateAttributeSpec(data_, texture_shader_path, kTokens->inputsWrapS,
+    auto texture_wrap_s_attr =
+        CreateAttributeSpec(layer_, texture_shader_spec, kTokens->inputsWrapS,
                             pxr::SdfValueTypeNames->Token);
-    SetAttributeDefault(data_, texture_wrap_s_attr, kTokens->repeat);
+    SetAttributeDefault(layer_, texture_wrap_s_attr, kTokens->repeat);
 
-    pxr::SdfPath texture_wrap_t_attr =
-        CreateAttributeSpec(data_, texture_shader_path, kTokens->inputsWrapT,
+    auto texture_wrap_t_attr =
+        CreateAttributeSpec(layer_, texture_shader_spec, kTokens->inputsWrapT,
                             pxr::SdfValueTypeNames->Token);
-    SetAttributeDefault(data_, texture_wrap_t_attr, kTokens->repeat);
+    SetAttributeDefault(layer_, texture_wrap_t_attr, kTokens->repeat);
 
-    std::vector<pxr::SdfPath> texture_output_attrs;
+    std::vector<pxr::SdfAttributeSpecHandle> texture_output_attrs;
     for (const auto &output_channel : output_channels) {
       pxr::SdfValueTypeName value_type;
       if (output_channel == kTokens->outputsRgb) {
@@ -703,73 +835,179 @@ class ModelWriter {
         value_type = pxr::SdfValueTypeNames->Float;
       }
       texture_output_attrs.push_back(CreateAttributeSpec(
-          data_, texture_shader_path, output_channel, value_type));
+          layer_, texture_shader_spec, output_channel, value_type));
     }
     return texture_output_attrs;
   }
 
+  pxr::SdfPrimSpecHandle WritePhysicsMaterial(mjsGeom *geom) {
+    pxr::SdfPath scope_path =
+        body_paths_[kWorldIndex].AppendChild(kTokens->physicsMaterialsScope);
+
+    pxr::SdfPrimSpecHandle scope_spec = layer_->GetPrimAtPath(scope_path);
+    if (!scope_spec) {
+      scope_spec = CreatePrimSpec(layer_, body_paths_[kWorldIndex],
+                                  kTokens->physicsMaterialsScope,
+                                  pxr::UsdGeomTokens->Scope);
+    }
+
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdShadeTokens->Material, scope_path);
+    auto material_spec =
+        CreatePrimSpec(layer_, scope_spec->GetPath(), name, pxr::UsdShadeTokens->Material);
+
+    ApplyApiSchema(layer_, material_spec,
+                   pxr::UsdPhysicsTokens->PhysicsMaterialAPI);
+    ApplyApiSchema(layer_, material_spec, MjcPhysicsTokens->MjcMaterialAPI);
+
+    mjsGeom *geom_default = mjs_getDefault(geom->element)->geom;
+    if (geom->friction[0] != geom_default->friction[0]) {
+      // Since MuJoCo has no concept of static friction, only write dynamic
+      // friction to remain truthful to how MuJoCo perceives the data.
+      WriteUniformAttribute(material_spec, pxr::SdfValueTypeNames->Float,
+                            pxr::UsdPhysicsTokens->physicsDynamicFriction,
+                            (float)geom->friction[0]);
+    }
+    if (geom->friction[1] != geom_default->friction[1]) {
+      WriteUniformAttribute(material_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcTorsionalfriction,
+                            geom->friction[1]);
+    }
+    if (geom->friction[2] != geom_default->friction[2]) {
+      WriteUniformAttribute(material_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcRollingfriction,
+                            geom->friction[2]);
+    }
+
+    return material_spec;
+  }
+
   void WriteMaterial(mjsMaterial *material, const pxr::SdfPath &parent_path) {
-    auto name = GetAvailablePrimName(
-        *material->name, pxr::UsdShadeTokens->Material, parent_path);
-    pxr::SdfPath material_path =
-        CreatePrimSpec(data_, parent_path, name, pxr::UsdShadeTokens->Material);
+    // Create a Material prim.
+    auto name =
+        GetAvailablePrimName(*mjs_getName(material->element),
+                             pxr::UsdShadeTokens->Material, parent_path);
+    auto material_spec =
+        CreatePrimSpec(layer_, parent_path, name, pxr::UsdShadeTokens->Material);
 
-    // Shader "PreviewSurface"
-    pxr::SdfPath preview_surface_shader_path = CreatePrimSpec(
-        data_, material_path, kTokens->surface, pxr::UsdShadeTokens->Shader);
+    // Create a Shader prim "PreviewSurface" under the Material prim.
+    auto preview_surface_shader_spec =
+        CreatePrimSpec(layer_, material_spec->GetPath(), kTokens->previewSurface,
+                       pxr::UsdShadeTokens->Shader);
 
-    pxr::SdfPath info_id_attr = CreateAttributeSpec(
-        data_, preview_surface_shader_path, pxr::UsdShadeTokens->infoId,
+    // Set the Shader'sinfoId attribute to UsdPreviewSurface, a standard surface
+    // shader.
+    auto info_id_attr = CreateAttributeSpec(
+        layer_, preview_surface_shader_spec, pxr::UsdShadeTokens->infoId,
         pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
-    SetAttributeDefault(data_, info_id_attr,
-                        pxr::UsdImagingTokens->UsdPreviewSurface);
+    SetAttributeDefault(layer_, info_id_attr,
+                        kTokens->UsdPreviewSurface);
 
-    pxr::SdfPath surface_output_attr = CreateAttributeSpec(
-        data_, preview_surface_shader_path, pxr::UsdShadeTokens->outputsSurface,
+    // Connect material's surface output to the preview surface's surface
+    // output.
+    auto surface_output_attr = CreateAttributeSpec(
+        layer_, preview_surface_shader_spec, pxr::UsdShadeTokens->outputsSurface,
         pxr::SdfValueTypeNames->Token);
+    auto material_surface_output_attr = CreateAttributeSpec(
+        layer_, material_spec, pxr::UsdShadeTokens->outputsSurface,
+        pxr::SdfValueTypeNames->Token);
+    AddAttributeConnection(layer_, material_surface_output_attr,
+                           surface_output_attr);
 
-    pxr::SdfPath displacement_output_attr =
-        CreateAttributeSpec(data_, preview_surface_shader_path,
+    // Connect material's displacement output to the preview surface's
+    // displacement output.
+    auto displacement_output_attr =
+        CreateAttributeSpec(layer_, preview_surface_shader_spec,
                             pxr::UsdShadeTokens->outputsDisplacement,
                             pxr::SdfValueTypeNames->Token);
+    auto material_displacement_output_attr = CreateAttributeSpec(
+        layer_, material_spec, pxr::UsdShadeTokens->outputsDisplacement,
+        pxr::SdfValueTypeNames->Token);
+    AddAttributeConnection(layer_, material_displacement_output_attr,
+                           displacement_output_attr);
 
-    const pxr::SdfPath &uvmap_st_output_attr =
-        AddUVTextureShader(material_path, pxr::TfToken("uvmap"));
+    // Add an st (uv) Shader, a prim var reader for the UV coordinates.
+    const pxr::SdfAttributeSpecHandle &uvmap_st_output_attr =
+        AddUVTextureShader(material_spec, pxr::TfToken("uvmap"));
     const mjStringVec &textures = *(material->textures);
 
-    // Set the values of metallic and roughness. These can come from an ORM
-    // texture or as a value defined in mjsMaterial_. Occlusion is only present
-    // in the ORM texture.
-    pxr::SdfPath metallic_attr = CreateAttributeSpec(
-        data_, preview_surface_shader_path, kTokens->inputsMetallic,
+    // Set the values of metallic, roughness and occlusion. These can come from
+    // an ORM packed texture, as individual textures, or as a values defined in
+    // mjsMaterial_ (with the exception of occlusion).
+    auto metallic_attr = CreateAttributeSpec(
+        layer_, preview_surface_shader_spec, kTokens->inputsMetallic,
         pxr::SdfValueTypeNames->Float);
-    pxr::SdfPath roughness_attr = CreateAttributeSpec(
-        data_, preview_surface_shader_path, kTokens->inputsRoughness,
+    auto roughness_attr = CreateAttributeSpec(
+        layer_, preview_surface_shader_spec, kTokens->inputsRoughness,
         pxr::SdfValueTypeNames->Float);
-    // Find the ORM (occlusion, roughness, metallic) packed-channel texture if
-    // specified.
+    // Find the occlusion, roughness, and metallic textures.
     if (mjTEXROLE_ORM < textures.size()) {
       std::string orm_texture_name = textures[mjTEXROLE_ORM];
       mjsTexture *orm_texture = mjs_asTexture(
           mjs_findElement(spec_, mjOBJ_TEXTURE, orm_texture_name.c_str()));
+      std::string occlusion_texture_name = textures[mjTEXROLE_OCCLUSION];
+      mjsTexture *occlusion_texture = mjs_asTexture(mjs_findElement(
+          spec_, mjOBJ_TEXTURE, occlusion_texture_name.c_str()));
+      std::string roughness_texture_name = textures[mjTEXROLE_ROUGHNESS];
+      mjsTexture *roughness_texture = mjs_asTexture(mjs_findElement(
+          spec_, mjOBJ_TEXTURE, roughness_texture_name.c_str()));
+      std::string metallic_texture_name = textures[mjTEXROLE_METALLIC];
+      mjsTexture *metallic_texture = mjs_asTexture(
+          mjs_findElement(spec_, mjOBJ_TEXTURE, metallic_texture_name.c_str()));
       if (orm_texture) {
         // Create the ORM shader and connect its output to the preview
         // surface ORM attrs.
-        const std::vector<pxr::SdfPath> orm_output_attrs = AddTextureShader(
-            material_path, orm_texture->file->c_str(),
-            pxr::TfToken("orm_packed"), uvmap_st_output_attr,
-            {kTokens->outputsR, kTokens->outputsG, kTokens->outputsB});
+        const std::vector<pxr::SdfAttributeSpecHandle> orm_output_attrs =
+            AddTextureShader(
+                material_spec, orm_texture->file->c_str(),
+                pxr::TfToken("orm_packed"), uvmap_st_output_attr,
+                {kTokens->outputsR, kTokens->outputsG, kTokens->outputsB});
         if (orm_output_attrs.size() == 3) {
-          pxr::SdfPath occlusion_attr = CreateAttributeSpec(
-              data_, preview_surface_shader_path, kTokens->inputsOcclusion,
+          auto occlusion_attr = CreateAttributeSpec(
+              layer_, preview_surface_shader_spec, kTokens->inputsOcclusion,
               pxr::SdfValueTypeNames->Float);
-          AddAttributeConnection(data_, occlusion_attr, orm_output_attrs[0]);
-          AddAttributeConnection(data_, roughness_attr, orm_output_attrs[1]);
-          AddAttributeConnection(data_, metallic_attr, orm_output_attrs[2]);
+          AddAttributeConnection(layer_, occlusion_attr, orm_output_attrs[0]);
+          AddAttributeConnection(layer_, roughness_attr, orm_output_attrs[1]);
+          AddAttributeConnection(layer_, metallic_attr, orm_output_attrs[2]);
         }
       } else {
-        SetAttributeDefault(data_, metallic_attr, material->metallic);
-        SetAttributeDefault(data_, roughness_attr, material->roughness);
+        if (metallic_texture) {
+          const std::vector<pxr::SdfAttributeSpecHandle> metallic_output_attrs =
+              AddTextureShader(material_spec, metallic_texture->file->c_str(),
+                               pxr::TfToken("metallic"), uvmap_st_output_attr,
+                               {kTokens->outputsRgb});
+          if (metallic_output_attrs.size() == 1) {
+            AddAttributeConnection(layer_, metallic_attr,
+                                   metallic_output_attrs[0]);
+          }
+        } else {
+          SetAttributeDefault(layer_, metallic_attr, material->metallic);
+        }
+        if (roughness_texture) {
+          const std::vector<pxr::SdfAttributeSpecHandle> roughness_output_attrs =
+              AddTextureShader(material_spec, roughness_texture->file->c_str(),
+                               pxr::TfToken("roughness"), uvmap_st_output_attr,
+                               {kTokens->outputsRgb});
+          if (roughness_output_attrs.size() == 1) {
+            AddAttributeConnection(layer_, roughness_attr,
+                                   roughness_output_attrs[0]);
+          }
+        } else {
+          SetAttributeDefault(layer_, roughness_attr, material->roughness);
+        }
+        if (occlusion_texture) {
+          auto occlusion_attr = CreateAttributeSpec(
+              layer_, preview_surface_shader_spec, kTokens->inputsOcclusion,
+              pxr::SdfValueTypeNames->Float);
+          const std::vector<pxr::SdfAttributeSpecHandle> occlusion_output_attrs =
+              AddTextureShader(material_spec, occlusion_texture->file->c_str(),
+                               pxr::TfToken("occlusion"), uvmap_st_output_attr,
+                               {kTokens->outputsRgb});
+          if (occlusion_output_attrs.size() == 1) {
+            AddAttributeConnection(layer_, occlusion_attr,
+                                   occlusion_output_attrs[0]);
+          }
+        }
       }
     }
     // Find the normal texture if specified.
@@ -778,24 +1016,46 @@ class ModelWriter {
       mjsTexture *normal_texture = mjs_asTexture(
           mjs_findElement(spec_, mjOBJ_TEXTURE, normal_texture_name.c_str()));
       if (normal_texture) {
-        pxr::SdfPath normal_attr = CreateAttributeSpec(
-            data_, preview_surface_shader_path, kTokens->inputsNormal,
+        auto normal_attr = CreateAttributeSpec(
+            layer_, preview_surface_shader_spec, kTokens->inputsNormal,
             pxr::SdfValueTypeNames->Normal3f);
         // Create the normal map shader and connect its output to the preview
         // surface normal attr.
-        const std::vector<pxr::SdfPath> normal_map_output_attrs =
-            AddTextureShader(material_path, normal_texture->file->c_str(),
+        const std::vector<pxr::SdfAttributeSpecHandle> normal_map_output_attrs =
+            AddTextureShader(material_spec, normal_texture->file->c_str(),
                              pxr::TfToken("normal"), uvmap_st_output_attr,
                              {kTokens->outputsRgb});
         if (normal_map_output_attrs.size() == 1) {
-          AddAttributeConnection(data_, normal_attr,
+          AddAttributeConnection(layer_, normal_attr,
                                  normal_map_output_attrs[0]);
         }
       }
     }
 
-    pxr::SdfPath diffuse_color_attr = CreateAttributeSpec(
-        data_, preview_surface_shader_path, kTokens->inputsDiffuseColor,
+    // Connect an emissive texture if specified.
+    if (mjTEXROLE_EMISSIVE < textures.size()) {
+      std::string emissive_texture_name = textures[mjTEXROLE_EMISSIVE];
+      mjsTexture *emissive_texture = mjs_asTexture(
+          mjs_findElement(spec_, mjOBJ_TEXTURE, emissive_texture_name.c_str()));
+      if (emissive_texture) {
+        auto emissive_attr = CreateAttributeSpec(
+            layer_, preview_surface_shader_spec, kTokens->inputsEmissiveColor,
+            pxr::SdfValueTypeNames->Color3f);
+        const std::vector<pxr::SdfAttributeSpecHandle> emissive_map_output_attrs =
+            AddTextureShader(material_spec, emissive_texture->file->c_str(),
+                             pxr::TfToken("emissive"), uvmap_st_output_attr,
+                             {kTokens->outputsRgb});
+        if (emissive_map_output_attrs.size() == 1) {
+          AddAttributeConnection(layer_, emissive_attr,
+                                 emissive_map_output_attrs[0]);
+        }
+      }
+    }
+
+    // Set the value of diffuse color. This can come from a diffuse texture
+    // or as a value defined in mjsMaterial_.
+    auto diffuse_color_attr = CreateAttributeSpec(
+        layer_, preview_surface_shader_spec, kTokens->inputsDiffuseColor,
         pxr::SdfValueTypeNames->Color3f);
 
     // Find the main texture if specified.
@@ -805,83 +1065,184 @@ class ModelWriter {
     if (main_texture) {
       // Create the texture shader and connect it to the diffuse color
       // attribute.
-      const std::vector<pxr::SdfPath> texture_diffuse_output_attrs =
-          AddTextureShader(material_path, main_texture->file->c_str(),
-                           pxr::TfToken("diffuse"), uvmap_st_output_attr,
-                           {kTokens->outputsRgb});
+      const std::vector<pxr::SdfAttributeSpecHandle>
+          texture_diffuse_output_attrs =
+              AddTextureShader(material_spec, main_texture->file->c_str(),
+                               pxr::TfToken("diffuse"), uvmap_st_output_attr,
+                               {kTokens->outputsRgb});
       if (texture_diffuse_output_attrs.size() == 1) {
-        AddAttributeConnection(data_, diffuse_color_attr,
+        AddAttributeConnection(layer_, diffuse_color_attr,
                                texture_diffuse_output_attrs[0]);
       }
     } else {
       // If no texture is specified, use the rgba diffuse color.
-      SetAttributeDefault(data_, diffuse_color_attr,
+      SetAttributeDefault(layer_, diffuse_color_attr,
                           pxr::GfVec3f(material->rgba[0], material->rgba[1],
                                        material->rgba[2]));
     }
-
-    pxr::SdfPath material_surface_output_attr = CreateAttributeSpec(
-        data_, material_path, pxr::UsdShadeTokens->outputsSurface,
-        pxr::SdfValueTypeNames->Token);
-
-    AddAttributeConnection(data_, material_surface_output_attr,
-                           surface_output_attr);
-
-    pxr::SdfPath material_displacement_output_attr = CreateAttributeSpec(
-        data_, material_path, pxr::UsdShadeTokens->outputsDisplacement,
-        pxr::SdfValueTypeNames->Token);
-
-    AddAttributeConnection(data_, material_displacement_output_attr,
-                           displacement_output_attr);
   }
 
   void WriteMaterials() {
     // Create a scope for the meshes to keep things organized
-    pxr::SdfPath scope_path =
-        CreatePrimSpec(data_, body_paths_[kWorldIndex], kTokens->materialsScope,
+    auto scope =
+        CreatePrimSpec(layer_, body_paths_[kWorldIndex], kTokens->materialsScope,
                        pxr::UsdGeomTokens->Scope);
 
     mjsMaterial *material =
         mjs_asMaterial(mjs_firstElement(spec_, mjOBJ_MATERIAL));
     while (material) {
-      WriteMaterial(material, scope_path);
+      WriteMaterial(material, scope->GetPath());
       material = mjs_asMaterial(mjs_nextElement(spec_, material->element));
     }
   }
 
-  void WriteActuator(mjsActuator *actuator) {
-    pxr::SdfPath transmission_path;
+  void WriteKeyframesWithName(const std::string &name,
+                              const std::vector<mjsKey *> &keyframes,
+                              const pxr::SdfPath &parent_path) {
+    if (keyframes.empty()) {
+      return;
+    }
+    const auto keyframe_name = pxr::TfToken(pxr::TfMakeValidIdentifier(
+        name.empty() ? MjcPhysicsTokens->MjcKeyframe : name));
+    pxr::SdfPath keyframe_path = parent_path.AppendChild(keyframe_name);
+    auto keyframe_spec =
+        layer_->HasSpec(keyframe_path)
+            ? layer_->GetPrimAtPath(keyframe_path)
+            : CreatePrimSpec(layer_, parent_path, keyframe_name,
+                             pxr::MjcPhysicsTokens->MjcKeyframe);
+
+    auto set_attribute_data = [&](const pxr::SdfAttributeSpecHandle &attr_spec,
+                                  const pxr::VtDoubleArray &value,
+                                  mjsKey *keyframe) {
+      // If the keyframe time is the default, and there are no other keyframes
+      // set the attribute at the default time code.
+      if (keyframe->time == 0 && keyframes.size() == 1) {
+        SetAttributeDefault(layer_, attr_spec, value);
+      } else {
+        SetAttributeTimeSample(layer_, attr_spec, keyframe->time, value);
+      }
+    };
+
+    for (auto *keyframe : keyframes) {
+      auto qpos_attr =
+          CreateAttributeSpec(layer_, keyframe_spec, MjcPhysicsTokens->mjcQpos,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(
+          qpos_attr,
+          pxr::VtDoubleArray(keyframe->qpos->begin(), keyframe->qpos->end()),
+          keyframe);
+
+      auto qvel_attr =
+          CreateAttributeSpec(layer_, keyframe_spec, MjcPhysicsTokens->mjcQvel,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(
+          qvel_attr,
+          pxr::VtDoubleArray(keyframe->qvel->begin(), keyframe->qvel->end()),
+          keyframe);
+
+      auto act_attr =
+          CreateAttributeSpec(layer_, keyframe_spec, MjcPhysicsTokens->mjcAct,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(
+          act_attr,
+          pxr::VtDoubleArray(keyframe->act->begin(), keyframe->act->end()),
+          keyframe);
+
+      auto ctrl_attr =
+          CreateAttributeSpec(layer_, keyframe_spec, MjcPhysicsTokens->mjcCtrl,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(
+          ctrl_attr,
+          pxr::VtDoubleArray(keyframe->ctrl->begin(), keyframe->ctrl->end()),
+          keyframe);
+
+      auto mpos_attr =
+          CreateAttributeSpec(layer_, keyframe_spec, MjcPhysicsTokens->mjcMpos,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(
+          mpos_attr,
+          pxr::VtDoubleArray(keyframe->mpos->begin(), keyframe->mpos->end()),
+          keyframe);
+
+      auto mquat_attr_path =
+          CreateAttributeSpec(layer_, keyframe_spec, MjcPhysicsTokens->mjcMquat,
+                              pxr::SdfValueTypeNames->DoubleArray);
+      set_attribute_data(
+          mquat_attr_path,
+          pxr::VtDoubleArray(keyframe->mquat->begin(), keyframe->mquat->end()),
+          keyframe);
+    }
+  }
+
+  void WriteKeyframes() {
+    std::unordered_map<std::string, std::vector<mjsKey *>> keyframes_map;
+    mjsKey *keyframe = mjs_asKey(mjs_firstElement(spec_, mjOBJ_KEY));
+    while (keyframe) {
+      if (ShouldWrite(keyframe->element)) {
+        std::string keyframe_name = mjs_getName(keyframe->element)->empty()
+                                        ? kTokens->keyframe
+                                        : *mjs_getName(keyframe->element);
+        keyframes_map[keyframe_name].push_back(keyframe);
+      }
+      keyframe = mjs_asKey(mjs_nextElement(spec_, keyframe->element));
+    }
+
+    auto scope =
+        CreatePrimSpec(layer_, body_paths_[kWorldIndex], kTokens->keyframesScope,
+                       pxr::UsdGeomTokens->Scope);
+    for (const auto &[keyframe_name, keyframes] : keyframes_map) {
+      WriteKeyframesWithName(keyframe_name, keyframes, scope->GetPath());
+    }
+  }
+
+  void WriteActuator(mjsActuator *actuator, const pxr::SdfPath &parent_path) {
+    const pxr::TfToken valid_name = GetValidPrimName(*mjs_getName(actuator->element));
+    const pxr::SdfPath actuator_path = parent_path.AppendChild(valid_name);
+    pxr::SdfPrimSpecHandle actuator_spec;
+    if (layer_->HasSpec(actuator_path)) {
+      actuator_spec = layer_->GetPrimAtPath(actuator_path);
+    } else {
+      actuator_spec = CreatePrimSpec(layer_, parent_path, valid_name,
+                     pxr::MjcPhysicsTokens->MjcActuator);
+    }
+
+    pxr::SdfPath target_path;
     if (actuator->trntype == mjtTrn::mjTRN_BODY) {
       int body_id = mj_name2id(model_, mjOBJ_BODY, actuator->target->c_str());
-      transmission_path = body_paths_[body_id];
+      target_path = body_paths_[body_id];
     } else if (actuator->trntype == mjtTrn::mjTRN_SITE ||
                actuator->trntype == mjtTrn::mjTRN_SLIDERCRANK) {
       int site_id = mj_name2id(model_, mjOBJ_SITE, actuator->target->c_str());
-      transmission_path = site_paths_[site_id];
+      target_path = site_paths_[site_id];
+    } else if (actuator->trntype == mjtTrn::mjTRN_JOINT) {
+      int joint_id = mj_name2id(model_, mjOBJ_JOINT, actuator->target->c_str());
+      target_path = joint_paths_[joint_id];
     } else {
       TF_WARN(UnsupportedActuatorTypeError,
-              "Unsupported actuator type for actuator %d",
+              "Unsupported transmission type for actuator %d",
               mjs_getId(actuator->element));
       return;
     }
 
-    ApplyApiSchema(data_, transmission_path,
-                   MjcPhysicsTokens->PhysicsActuatorAPI);
+    CreateRelationshipSpec(layer_, actuator_spec, MjcPhysicsTokens->mjcTarget,
+                           target_path, pxr::SdfVariabilityUniform);
+
+    WriteUniformAttribute(actuator_spec, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcGroup, actuator->group);
 
     if (!actuator->refsite->empty()) {
       int refsite_id =
           mj_name2id(model_, mjOBJ_SITE, actuator->refsite->c_str());
       pxr::SdfPath refsite_path = site_paths_[refsite_id];
-      CreateRelationshipSpec(data_, transmission_path,
-                             MjcPhysicsTokens->mjcRefSite, refsite_path,
-                             pxr::SdfVariabilityUniform);
+      CreateRelationshipSpec(layer_, actuator_spec, MjcPhysicsTokens->mjcRefSite,
+                             refsite_path, pxr::SdfVariabilityUniform);
     }
 
     if (!actuator->slidersite->empty()) {
       int slidersite_id =
           mj_name2id(model_, mjOBJ_SITE, actuator->slidersite->c_str());
       pxr::SdfPath slidersite_path = site_paths_[slidersite_id];
-      CreateRelationshipSpec(data_, transmission_path,
+      CreateRelationshipSpec(layer_, actuator_spec,
                              MjcPhysicsTokens->mjcSliderSite, slidersite_path,
                              pxr::SdfVariabilityUniform);
     }
@@ -898,8 +1259,8 @@ class ModelWriter {
       } else if (value == mjLIMITED_FALSE) {
         limited_token = pxr::MjcPhysicsTokens->false_;
       }
-      WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
-                            token, limited_token);
+      WriteUniformAttribute(actuator_spec, pxr::SdfValueTypeNames->Token, token,
+                            limited_token);
     }
 
     const std::vector<std::pair<pxr::TfToken, double>>
@@ -915,18 +1276,21 @@ class ModelWriter {
             {MjcPhysicsTokens->mjcCrankLength, actuator->cranklength},
         };
     for (const auto &[token, value] : actuator_double_attributes) {
-      WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Double,
+      WriteUniformAttribute(actuator_spec, pxr::SdfValueTypeNames->Double,
                             token, value);
     }
 
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Int,
+    WriteUniformAttribute(actuator_spec, pxr::SdfValueTypeNames->Int,
                           MjcPhysicsTokens->mjcActDim, actuator->actdim);
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Bool,
+    WriteUniformAttribute(actuator_spec, pxr::SdfValueTypeNames->Bool,
                           MjcPhysicsTokens->mjcActEarly,
                           (bool)actuator->actearly);
+    WriteUniformAttribute(actuator_spec, pxr::SdfValueTypeNames->Double,
+                          MjcPhysicsTokens->mjcInheritRange,
+                          actuator->inheritrange);
 
     WriteUniformAttribute(
-        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        actuator_spec, pxr::SdfValueTypeNames->DoubleArray,
         MjcPhysicsTokens->mjcGear,
         pxr::VtDoubleArray(actuator->gear, actuator->gear + 6));
 
@@ -944,10 +1308,10 @@ class ModelWriter {
     } else if (actuator->dyntype == mjtDyn::mjDYN_USER) {
       dyn_type = MjcPhysicsTokens->user;
     }
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+    WriteUniformAttribute(actuator_spec, pxr::SdfValueTypeNames->Token,
                           MjcPhysicsTokens->mjcDynType, dyn_type);
     WriteUniformAttribute(
-        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        actuator_spec, pxr::SdfValueTypeNames->DoubleArray,
         MjcPhysicsTokens->mjcDynPrm,
         pxr::VtDoubleArray(actuator->dynprm, actuator->dynprm + 10));
 
@@ -961,10 +1325,10 @@ class ModelWriter {
     } else if (actuator->gaintype == mjtGain::mjGAIN_USER) {
       gain_type = MjcPhysicsTokens->user;
     }
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+    WriteUniformAttribute(actuator_spec, pxr::SdfValueTypeNames->Token,
                           MjcPhysicsTokens->mjcGainType, gain_type);
     WriteUniformAttribute(
-        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        actuator_spec, pxr::SdfValueTypeNames->DoubleArray,
         MjcPhysicsTokens->mjcGainPrm,
         pxr::VtDoubleArray(actuator->gainprm, actuator->gainprm + 10));
 
@@ -978,224 +1342,230 @@ class ModelWriter {
     } else if (actuator->biastype == mjtBias::mjBIAS_USER) {
       bias_type = MjcPhysicsTokens->user;
     }
-    WriteUniformAttribute(transmission_path, pxr::SdfValueTypeNames->Token,
+    WriteUniformAttribute(actuator_spec, pxr::SdfValueTypeNames->Token,
                           MjcPhysicsTokens->mjcBiasType, bias_type);
     WriteUniformAttribute(
-        transmission_path, pxr::SdfValueTypeNames->DoubleArray,
+        actuator_spec, pxr::SdfValueTypeNames->DoubleArray,
         MjcPhysicsTokens->mjcBiasPrm,
         pxr::VtDoubleArray(actuator->biasprm, actuator->biasprm + 10));
   }
 
   void WriteActuators() {
+    auto scope =
+        CreatePrimSpec(layer_, body_paths_[kWorldIndex], kTokens->actuatorsScope,
+                       pxr::UsdGeomTokens->Scope);
     mjsActuator *actuator =
         mjs_asActuator(mjs_firstElement(spec_, mjOBJ_ACTUATOR));
     while (actuator) {
-      WriteActuator(actuator);
+      if (ShouldWrite(actuator->element)) {
+        WriteActuator(actuator, scope->GetPath());
+      }
       actuator = mjs_asActuator(mjs_nextElement(spec_, actuator->element));
     }
   }
 
-  pxr::SdfPath WriteMeshGeom(const mjsGeom *geom,
+  pxr::SdfPrimSpecHandle WriteMeshGeom(const mjsGeom *geom,
                              const pxr::SdfPath &body_path) {
-    std::string mj_name = geom->name->empty() ? *geom->meshname : *geom->name;
+    std::string mj_name = mjs_getName(geom->element)->empty()
+                              ? *geom->meshname
+                              : *mjs_getName(geom->element);
     auto name =
         GetAvailablePrimName(mj_name, pxr::UsdGeomTokens->Mesh, body_path);
-    pxr::SdfPath subcomponent_path =
-        CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Xform);
+    auto subcomponent_spec =
+        CreatePrimSpec(layer_, body_path, name, pxr::UsdGeomTokens->Xform);
 
     // Reference the mesh asset written in WriteMeshes.
-    AddPrimReference(data_, subcomponent_path, mesh_paths_[*geom->meshname]);
+    AddPrimReference(layer_, subcomponent_spec, mesh_paths_[*geom->meshname]);
 
     // We want to use instancing with meshes, and it requires creating a parent
     // scope to be referenced, with the Mesh prim as a child.
     // To be able to actually manipulate the Mesh prim, we need to create and
     // return the corresponding `over` prim as a child of the referencing prim.
-    pxr::SdfPath over_mesh_path =
-        CreatePrimSpec(data_, subcomponent_path, kTokens->sourceMesh,
+    auto over_mesh_spec =
+        CreatePrimSpec(layer_, subcomponent_spec->GetPath(), kTokens->sourceMesh,
                        pxr::UsdGeomTokens->Mesh, pxr::SdfSpecifierOver);
 
-    return over_mesh_path;
+    return over_mesh_spec;
   }
 
-  pxr::SdfPath WriteSiteGeom(const mjsSite *site,
+  pxr::SdfPrimSpecHandle WriteSiteGeom(const mjsSite *site,
                              const pxr::SdfPath &body_path) {
-    auto name =
-        GetAvailablePrimName(*site->name, pxr::UsdGeomTokens->Cube, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(site->element),
+                                     pxr::UsdGeomTokens->Cube, body_path);
 
     int site_idx = mjs_getId(site->element);
     const mjtNum *size = &model_->site_size[site_idx * 3];
-    pxr::SdfPath site_path;
+    pxr::SdfPrimSpecHandle site_spec;
     switch (site->type) {
       case mjGEOM_BOX:
-        site_path = WriteBox(name, size, body_path);
+        site_spec = WriteBox(name, size, body_path);
         break;
       case mjGEOM_SPHERE:
-        site_path = WriteSphere(name, size, body_path);
+        site_spec = WriteSphere(name, size, body_path);
         break;
       case mjGEOM_CAPSULE:
-        site_path = WriteCapsule(name, size, body_path);
+        site_spec = WriteCapsule(name, size, body_path);
         break;
       case mjGEOM_CYLINDER:
-        site_path = WriteCylinder(name, size, body_path);
+        site_spec = WriteCylinder(name, size, body_path);
         break;
       case mjGEOM_ELLIPSOID:
-        site_path = WriteEllipsoid(name, size, body_path);
+        site_spec = WriteEllipsoid(name, size, body_path);
         break;
       default:
         break;
     }
 
-    return site_path;
+    return site_spec;
   }
 
-  pxr::SdfPath WriteBox(const pxr::TfToken &name, const mjtNum *size,
+  pxr::SdfPrimSpecHandle WriteBox(const pxr::TfToken &name, const mjtNum *size,
                         const pxr::SdfPath &body_path) {
-    pxr::SdfPath box_path =
-        CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Cube);
-    // MuJoCo uses half sizes.
-    pxr::SdfPath size_attr_path =
-        CreateAttributeSpec(data_, box_path, pxr::UsdGeomTokens->size,
+    pxr::SdfPrimSpecHandle box_spec =
+        CreatePrimSpec(layer_, body_path, name, pxr::UsdGeomTokens->Cube);
+    // MuJoCo uses half sizes. Always set size to 2 (and correspondingly extent
+    // from -1 to 1), and let scale determine the actual size.
+    auto size_attr_spec =
+        CreateAttributeSpec(layer_, box_spec, pxr::UsdGeomTokens->size,
                             pxr::SdfValueTypeNames->Double);
+    SetAttributeDefault(layer_, size_attr_spec, 2.0);
+
+    auto extent_attr_spec =
+        CreateAttributeSpec(layer_, box_spec, pxr::UsdGeomTokens->extent,
+                            pxr::SdfValueTypeNames->Float3Array);
+    SetAttributeDefault(layer_, extent_attr_spec,
+                        pxr::VtArray<pxr::GfVec3f>(
+                            {pxr::GfVec3f(-1, -1, -1), pxr::GfVec3f(1, 1, 1)}));
+
     pxr::GfVec3f scale(static_cast<float>(size[0]), static_cast<float>(size[1]),
                        static_cast<float>(size[2]));
-    SetAttributeDefault(data_, size_attr_path, 2.0);
-
-    pxr::SdfPath extent_attr_path =
-        CreateAttributeSpec(data_, box_path, pxr::UsdGeomTokens->extent,
-                            pxr::SdfValueTypeNames->Float3Array);
-    SetAttributeDefault(data_, extent_attr_path,
-                        pxr::VtArray<pxr::GfVec3f>({
-                            pxr::GfVec3f(-size[0], -size[1], -size[2]),
-                            pxr::GfVec3f(size[0], size[1], size[2]),
-                        }));
-
-    WriteScaleXformOp(box_path, scale);
-    WriteXformOpOrder(box_path,
+    WriteScaleXformOp(box_spec, scale);
+    WriteXformOpOrder(box_spec,
                       pxr::VtArray<pxr::TfToken>{kTokens->xformOpScale});
-    return box_path;
+    return box_spec;
   }
 
-  pxr::SdfPath WriteBoxGeom(const mjsGeom *geom,
+  pxr::SdfPrimSpecHandle WriteBoxGeom(const mjsGeom *geom,
                             const pxr::SdfPath &body_path) {
-    auto name =
-        GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Cube, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Cube, body_path);
 
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
     return WriteBox(name, geom_size, body_path);
   }
 
-  pxr::SdfPath WriteCapsule(const pxr::TfToken name, const mjtNum *size,
+  pxr::SdfPrimSpecHandle WriteCapsule(const pxr::TfToken name, const mjtNum *size,
                             const pxr::SdfPath &body_path) {
-    pxr::SdfPath capsule_path =
-        CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Capsule);
+    auto capsule_spec =
+        CreatePrimSpec(layer_, body_path, name, pxr::UsdGeomTokens->Capsule);
 
-    pxr::SdfPath radius_attr_path =
-        CreateAttributeSpec(data_, capsule_path, pxr::UsdGeomTokens->radius,
+    auto radius_attr_spec =
+        CreateAttributeSpec(layer_, capsule_spec, pxr::UsdGeomTokens->radius,
                             pxr::SdfValueTypeNames->Double);
-    SetAttributeDefault(data_, radius_attr_path, (double)size[0]);
+    SetAttributeDefault(layer_, radius_attr_spec, (double)size[0]);
 
-    pxr::SdfPath height_attr_path =
-        CreateAttributeSpec(data_, capsule_path, pxr::UsdGeomTokens->height,
+    auto height_attr_spec =
+        CreateAttributeSpec(layer_, capsule_spec, pxr::UsdGeomTokens->height,
                             pxr::SdfValueTypeNames->Double);
     // MuJoCo uses half sizes.
-    SetAttributeDefault(data_, height_attr_path, (double)(size[1] * 2));
-    return capsule_path;
+    SetAttributeDefault(layer_, height_attr_spec, (double)(size[1] * 2));
+    return capsule_spec;
   }
 
-  pxr::SdfPath WriteCapsuleGeom(const mjsGeom *geom,
+  pxr::SdfPrimSpecHandle WriteCapsuleGeom(const mjsGeom *geom,
                                 const pxr::SdfPath &body_path) {
-    auto name = GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Capsule,
-                                     body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Capsule, body_path);
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
 
     return WriteCapsule(name, geom_size, body_path);
   }
 
-  pxr::SdfPath WriteCylinder(const pxr::TfToken name, const mjtNum *size,
+  pxr::SdfPrimSpecHandle WriteCylinder(const pxr::TfToken name, const mjtNum *size,
                              const pxr::SdfPath &body_path) {
-    pxr::SdfPath cylinder_path =
-        CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Cylinder);
+    auto cylinder_spec =
+        CreatePrimSpec(layer_, body_path, name, pxr::UsdGeomTokens->Cylinder);
 
-    pxr::SdfPath radius_attr_path =
-        CreateAttributeSpec(data_, cylinder_path, pxr::UsdGeomTokens->radius,
+    auto radius_attr_spec =
+        CreateAttributeSpec(layer_, cylinder_spec, pxr::UsdGeomTokens->radius,
                             pxr::SdfValueTypeNames->Double);
-    SetAttributeDefault(data_, radius_attr_path, (double)size[0]);
+    SetAttributeDefault(layer_, radius_attr_spec, (double)size[0]);
 
-    pxr::SdfPath height_attr_path =
-        CreateAttributeSpec(data_, cylinder_path, pxr::UsdGeomTokens->height,
+    auto height_attr_spec =
+        CreateAttributeSpec(layer_, cylinder_spec, pxr::UsdGeomTokens->height,
                             pxr::SdfValueTypeNames->Double);
     // MuJoCo uses half sizes.
-    SetAttributeDefault(data_, height_attr_path, (double)(size[1] * 2));
-    return cylinder_path;
+    SetAttributeDefault(layer_, height_attr_spec, (double)(size[1] * 2));
+    return cylinder_spec;
   }
 
-  pxr::SdfPath WriteCylinderGeom(const mjsGeom *geom,
+  pxr::SdfPrimSpecHandle WriteCylinderGeom(const mjsGeom *geom,
                                  const pxr::SdfPath &body_path) {
-    auto name = GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Cylinder,
-                                     body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Cylinder, body_path);
 
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
     return WriteCylinder(name, geom_size, body_path);
   }
 
-  pxr::SdfPath WriteEllipsoid(const pxr::TfToken name, const mjtNum *size,
+  pxr::SdfPrimSpecHandle WriteEllipsoid(const pxr::TfToken name, const mjtNum *size,
                               const pxr::SdfPath &body_path) {
-    pxr::SdfPath ellipsoid_path =
-        CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Sphere);
+    auto ellipsoid_spec =
+        CreatePrimSpec(layer_, body_path, name, pxr::UsdGeomTokens->Sphere);
 
     pxr::GfVec3f scale = {static_cast<float>(size[0]),
                           static_cast<float>(size[1]),
                           static_cast<float>(size[2])};
 
-    pxr::SdfPath radius_attr_path =
-        CreateAttributeSpec(data_, ellipsoid_path, pxr::UsdGeomTokens->radius,
+    auto radius_attr_spec =
+        CreateAttributeSpec(layer_, ellipsoid_spec, pxr::UsdGeomTokens->radius,
                             pxr::SdfValueTypeNames->Double);
-    SetAttributeDefault(data_, radius_attr_path, 1.0);
+    SetAttributeDefault(layer_, radius_attr_spec, 1.0);
 
-    WriteScaleXformOp(ellipsoid_path, scale);
-    WriteXformOpOrder(ellipsoid_path,
+    WriteScaleXformOp(ellipsoid_spec, scale);
+    WriteXformOpOrder(ellipsoid_spec,
                       pxr::VtArray<pxr::TfToken>{kTokens->xformOpScale});
-    return ellipsoid_path;
+    return ellipsoid_spec;
   }
 
-  pxr::SdfPath WriteEllipsoidGeom(const mjsGeom *geom,
+  pxr::SdfPrimSpecHandle WriteEllipsoidGeom(const mjsGeom *geom,
                                   const pxr::SdfPath &body_path) {
-    auto name = GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Sphere,
-                                     body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Sphere, body_path);
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
 
     return WriteEllipsoid(name, geom_size, body_path);
   }
 
-  pxr::SdfPath WriteSphere(const pxr::TfToken name, const mjtNum *size,
+  pxr::SdfPrimSpecHandle WriteSphere(const pxr::TfToken name, const mjtNum *size,
                            const pxr::SdfPath &body_path) {
-    pxr::SdfPath sphere_path =
-        CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Sphere);
+    auto sphere_spec =
+        CreatePrimSpec(layer_, body_path, name, pxr::UsdGeomTokens->Sphere);
 
-    pxr::SdfPath radius_attr_path =
-        CreateAttributeSpec(data_, sphere_path, pxr::UsdGeomTokens->radius,
+    auto radius_attr_spec =
+        CreateAttributeSpec(layer_, sphere_spec, pxr::UsdGeomTokens->radius,
                             pxr::SdfValueTypeNames->Double);
-    SetAttributeDefault(data_, radius_attr_path, (double)size[0]);
-    return sphere_path;
+    SetAttributeDefault(layer_, radius_attr_spec, (double)size[0]);
+    return sphere_spec;
   }
 
-  pxr::SdfPath WriteSphereGeom(const mjsGeom *geom,
+  pxr::SdfPrimSpecHandle WriteSphereGeom(const mjsGeom *geom,
                                const pxr::SdfPath &body_path) {
-    auto name = GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Sphere,
-                                     body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Sphere, body_path);
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
     return WriteSphere(name, geom_size, body_path);
   }
 
-  pxr::SdfPath WritePlane(const pxr::TfToken &name, const mjtNum *size,
+  pxr::SdfPrimSpecHandle WritePlane(const pxr::TfToken &name, const mjtNum *size,
                           const pxr::SdfPath &body_path) {
-    pxr::SdfPath plane_path =
-        CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Plane);
+    auto plane_spec =
+        CreatePrimSpec(layer_, body_path, name, pxr::UsdGeomTokens->Plane);
 
     // MuJoCo uses half sizes.
     // Note that UsdGeomPlane is infinite for simulation purposes but can have
@@ -1203,27 +1573,27 @@ class ModelWriter {
     double width = size[0] * 2.0;
     double length = size[1] * 2.0;
 
-    pxr::SdfPath width_attr_path =
-        CreateAttributeSpec(data_, plane_path, pxr::UsdGeomTokens->width,
+    auto width_attr_spec =
+        CreateAttributeSpec(layer_, plane_spec, pxr::UsdGeomTokens->width,
                             pxr::SdfValueTypeNames->Double);
-    SetAttributeDefault(data_, width_attr_path, width);
+    SetAttributeDefault(layer_, width_attr_spec, width);
 
-    pxr::SdfPath length_attr_path =
-        CreateAttributeSpec(data_, plane_path, pxr::UsdGeomTokens->length,
+    auto length_attr_spec =
+        CreateAttributeSpec(layer_, plane_spec, pxr::UsdGeomTokens->length,
                             pxr::SdfValueTypeNames->Double);
-    SetAttributeDefault(data_, length_attr_path, length);
+    SetAttributeDefault(layer_, length_attr_spec, length);
 
     // MuJoCo plane is always a XY plane with +Z up.
     // UsdGeomPlane is also a XY plane if axis is 'Z', which is default.
     // So no need to set axis attribute explicitly.
 
-    return plane_path;
+    return plane_spec;
   }
 
-  pxr::SdfPath WritePlaneGeom(const mjsGeom *geom,
+  pxr::SdfPrimSpecHandle WritePlaneGeom(const mjsGeom *geom,
                               const pxr::SdfPath &body_path) {
-    auto name =
-        GetAvailablePrimName(*geom->name, pxr::UsdGeomTokens->Plane, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(geom->element),
+                                     pxr::UsdGeomTokens->Plane, body_path);
     int geom_idx = mjs_getId(geom->element);
     mjtNum *geom_size = &model_->geom_size[geom_idx * 3];
     return WritePlane(name, geom_size, body_path);
@@ -1232,54 +1602,59 @@ class ModelWriter {
   void WriteSite(mjsSite *site, const mjsBody *body) {
     const int body_id = mjs_getId(body->element);
     const auto &body_path = body_paths_[body_id];
-    auto name =
-        GetAvailablePrimName(*site->name, pxr::UsdGeomTokens->Xform, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(site->element),
+                                     pxr::UsdGeomTokens->Xform, body_path);
 
     // Create a geom primitive and set its purpose to guide so it won't be
     // rendered.
-    pxr::SdfPath site_path = WriteSiteGeom(site, body_path);
-    SetPrimPurpose(data_, site_path, pxr::UsdGeomTokens->guide);
+    auto site_spec = WriteSiteGeom(site, body_path);
+    SetPrimPurpose(layer_, site_spec, pxr::UsdGeomTokens->guide);
 
-    ApplyApiSchema(data_, site_path, MjcPhysicsTokens->SiteAPI);
+    ApplyApiSchema(layer_, site_spec, MjcPhysicsTokens->MjcSiteAPI);
+
+    WriteUniformAttribute(site_spec, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcGroup, site->group);
+
+    WriteColorAndOpacityAttributes(site_spec, site);
 
     int site_id = mjs_getId(site->element);
     auto transform = MujocoPosQuatToTransform(&model_->site_pos[3 * site_id],
                                               &model_->site_quat[4 * site_id]);
-    WriteTransformXformOp(site_path, transform);
+    WriteTransformXformOp(site_spec, transform);
 
     PrependToXformOpOrder(
-        site_path, pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
+        site_spec, pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
 
-    site_paths_[site_id] = site_path;
+    site_paths_[site_id] = site_spec->GetPath();
   }
 
   void WriteGeom(mjsGeom *geom, const mjsBody *body) {
     const int body_id = mjs_getId(body->element);
     const auto &body_path = body_paths_[body_id];
 
-    pxr::SdfPath geom_path;
+    pxr::SdfPrimSpecHandle geom_spec;
     int geom_id = mjs_getId(geom->element);
     switch (geom->type) {
       case mjGEOM_PLANE:
-        geom_path = WritePlaneGeom(geom, body_path);
+        geom_spec = WritePlaneGeom(geom, body_path);
         break;
       case mjGEOM_MESH:
-        geom_path = WriteMeshGeom(geom, body_path);
+        geom_spec = WriteMeshGeom(geom, body_path);
         break;
       case mjGEOM_BOX:
-        geom_path = WriteBoxGeom(geom, body_path);
+        geom_spec = WriteBoxGeom(geom, body_path);
         break;
       case mjGEOM_CAPSULE:
-        geom_path = WriteCapsuleGeom(geom, body_path);
+        geom_spec = WriteCapsuleGeom(geom, body_path);
         break;
       case mjGEOM_CYLINDER:
-        geom_path = WriteCylinderGeom(geom, body_path);
+        geom_spec = WriteCylinderGeom(geom, body_path);
         break;
       case mjGEOM_ELLIPSOID:
-        geom_path = WriteEllipsoidGeom(geom, body_path);
+        geom_spec = WriteEllipsoidGeom(geom, body_path);
         break;
       case mjGEOM_SPHERE:
-        geom_path = WriteSphereGeom(geom, body_path);
+        geom_spec = WriteSphereGeom(geom, body_path);
         break;
       default:
         TF_WARN(UnsupportedGeomTypeError, "Unsupported geom type for geom %d",
@@ -1287,70 +1662,127 @@ class ModelWriter {
         return;
     }
 
+    WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Int,
+                          MjcPhysicsTokens->mjcGroup, geom->group);
+
+    if (model_->geom_contype[geom_id] == 0 &&
+        model_->geom_conaffinity[geom_id] == 0) {
+      // If the geom is purely visual, apply the imageable API.
+      ApplyApiSchema(layer_, geom_spec, MjcPhysicsTokens->MjcImageableAPI);
+    }
+
     // Apply the physics schemas if we are writing physics and the
     // geom participates in collisions.
-    if (write_physics_ && (model_->geom_contype[geom_id] != 0 ||
-                           model_->geom_conaffinity[geom_id] != 0)) {
-      ApplyApiSchema(data_, geom_path,
+    if (model_->geom_contype[geom_id] != 0 ||
+        model_->geom_conaffinity[geom_id] != 0) {
+      ApplyApiSchema(layer_, geom_spec,
                      pxr::UsdPhysicsTokens->PhysicsCollisionAPI);
-      ApplyApiSchema(data_, geom_path, MjcPhysicsTokens->CollisionAPI);
+      ApplyApiSchema(layer_, geom_spec, MjcPhysicsTokens->MjcCollisionAPI);
 
       WriteUniformAttribute(
-          geom_path, pxr::SdfValueTypeNames->Bool,
+          geom_spec, pxr::SdfValueTypeNames->Bool,
           MjcPhysicsTokens->mjcShellinertia,
           geom->typeinertia == mjtGeomInertia::mjINERTIA_SHELL);
 
+      WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Int,
+                            MjcPhysicsTokens->mjcPriority, geom->priority);
+
+      WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Int,
+                            MjcPhysicsTokens->mjcCondim, geom->condim);
+
+      WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcSolmix, geom->solmix);
+
+      WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcSolmix, geom->solmix);
+
+      WriteUniformAttribute(
+          geom_spec, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSolref,
+          pxr::VtArray<double>(geom->solref, geom->solref + mjNREF));
+
+      WriteUniformAttribute(
+          geom_spec, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSolimp,
+          pxr::VtArray<double>(geom->solimp, geom->solimp + mjNIMP));
+
+      WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcMargin, geom->margin);
+
+      WriteUniformAttribute(geom_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcGap, geom->gap);
+
       if (geom->mass >= mjMINVAL || geom->density >= mjMINVAL) {
-        ApplyApiSchema(data_, geom_path, pxr::UsdPhysicsTokens->PhysicsMassAPI);
+        ApplyApiSchema(layer_, geom_spec, pxr::UsdPhysicsTokens->PhysicsMassAPI);
       }
 
       if (geom->mass >= mjMINVAL) {
-        pxr::SdfPath mass_attr = CreateAttributeSpec(
-            data_, geom_path, pxr::UsdPhysicsTokens->physicsMass,
+        auto mass_attr_spec = CreateAttributeSpec(
+            layer_, geom_spec, pxr::UsdPhysicsTokens->physicsMass,
             pxr::SdfValueTypeNames->Float, pxr::SdfVariabilityUniform);
 
         // Make sure to cast to float here since mjtNum might be a double.
-        SetAttributeDefault(data_, mass_attr, (float)geom->mass);
+        SetAttributeDefault(layer_, mass_attr_spec, (float)geom->mass);
       }
 
       // Even though density is not used for mass computation when mass exists
       // we want to retain the information anyways.
       if (geom->density >= mjMINVAL) {
-        pxr::SdfPath density_attr = CreateAttributeSpec(
-            data_, geom_path, pxr::UsdPhysicsTokens->physicsDensity,
+        auto density_attr_spec = CreateAttributeSpec(
+            layer_, geom_spec, pxr::UsdPhysicsTokens->physicsDensity,
             pxr::SdfValueTypeNames->Float, pxr::SdfVariabilityUniform);
 
         // Make sure to cast to float here since mjtNum might be a double.
-        SetAttributeDefault(data_, density_attr, (float)geom->density);
+        SetAttributeDefault(layer_, density_attr_spec, (float)geom->density);
+      }
+
+      mjsDefault *geom_default = mjs_getDefault(geom->element);
+
+      if (geom->friction[0] != geom_default->geom->friction[0] ||
+          geom->friction[1] != geom_default->geom->friction[1] ||
+          geom->friction[2] != geom_default->geom->friction[2]) {
+        auto physics_material_spec = WritePhysicsMaterial(geom);
+        ApplyApiSchema(layer_, geom_spec, pxr::UsdShadeTokens->MaterialBindingAPI);
+        // Bind the material to this geom.
+        CreateRelationshipSpec(
+            layer_, geom_spec,
+            pxr::UsdShadeTokens->materialBinding, physics_material_spec->GetPath(),
+            pxr::SdfVariabilityUniform);
       }
 
       // For meshes, also apply PhysicsMeshCollisionAPI and set the
       // approximation attribute.
       if (geom->type == mjGEOM_MESH) {
-        ApplyApiSchema(data_, geom_path,
+        ApplyApiSchema(layer_, geom_spec,
                        pxr::UsdPhysicsTokens->PhysicsMeshCollisionAPI);
 
         // Note: MuJoCo documentation states that for collision purposes, meshes
         // are always replaced with their convex hulls. Therefore, we set the
         // approximation attribute to convexHull explicitly.
-        pxr::SdfPath approximation_attr = CreateAttributeSpec(
-            data_, geom_path, pxr::UsdPhysicsTokens->physicsApproximation,
+        auto approximation_attr_spec = CreateAttributeSpec(
+            layer_, geom_spec, pxr::UsdPhysicsTokens->physicsApproximation,
             pxr::SdfValueTypeNames->Token, pxr::SdfVariabilityUniform);
-        SetAttributeDefault(data_, approximation_attr,
+        SetAttributeDefault(layer_, approximation_attr_spec,
                             pxr::UsdPhysicsTokens->convexHull);
       }
+    } else {
+      // Currently imageable only has a group API. But since it's the same
+      // naming in MjcCollisionsAPI we've already set it earlier in this
+      // function.
+      ApplyApiSchema(layer_, geom_spec, MjcPhysicsTokens->MjcImageableAPI);
     }
 
     mjsDefault *spec_default = mjs_getDefault(geom->element);
-    pxr::TfToken valid_class_name = GetValidPrimName(*spec_default->name);
+    pxr::TfToken valid_class_name =
+        GetValidPrimName(*mjs_getName(spec_default->element));
     pxr::SdfPath geom_class_path = class_path_.AppendChild(valid_class_name);
-    if (!data_->HasSpec(geom_class_path)) {
-      pxr::SdfPath class_path =
-          CreateClassSpec(data_, class_path_, valid_class_name);
-      auto visibility_attr =
-          CreateAttributeSpec(data_, class_path, pxr::UsdGeomTokens->visibility,
+    if (!layer_->HasSpec(geom_class_path)) {
+      auto class_spec =
+          CreateClassSpec(layer_, class_path_, valid_class_name);
+      auto visibility_attr_spec =
+          CreateAttributeSpec(layer_, class_spec, pxr::UsdGeomTokens->visibility,
                               pxr::SdfValueTypeNames->Token);
-      SetAttributeDefault(data_, visibility_attr,
+      SetAttributeDefault(layer_, visibility_attr_spec,
                           pxr::UsdGeomTokens->inherited);
     }
 
@@ -1360,57 +1792,38 @@ class ModelWriter {
           body_paths_[kWorldIndex]
               .AppendChild(kTokens->materialsScope)
               .AppendChild(GetValidPrimName(*geom->material));
-      if (data_->HasSpec(material_path)) {
-        ApplyApiSchema(data_, geom_path,
+      if (layer_->HasSpec(material_path)) {
+        ApplyApiSchema(layer_, geom_spec,
                        pxr::UsdShadeTokens->MaterialBindingAPI);
         // Bind the material to this geom.
-        CreateRelationshipSpec(data_, geom_path,
+        CreateRelationshipSpec(layer_, geom_spec,
                                pxr::UsdShadeTokens->materialBinding,
                                material_path, pxr::SdfVariabilityUniform);
       }
     }
 
-    // If geom rgba is not the default (0.5, 0.5, 0.5, 1), then set the
-    // displayColor attribute.
-    // No effort is made to properly handle the interaction between geom rgba
-    // and the material if both are specified.
-    if (geom->rgba[0] != 0.5f || geom->rgba[1] != 0.5f ||
-        geom->rgba[2] != 0.5f || geom->rgba[3] != 1.0f) {
-      // Set the displayColor attribute.
-      pxr::SdfPath display_color_attr = CreateAttributeSpec(
-          data_, geom_path, pxr::UsdGeomTokens->primvarsDisplayColor,
-          pxr::SdfValueTypeNames->Color3fArray);
-      SetAttributeDefault(data_, display_color_attr,
-                          pxr::VtArray<pxr::GfVec3f>{
-                              {geom->rgba[0], geom->rgba[1], geom->rgba[2]}});
-      // Set the displayOpacity attribute, only if the opacity is not 1.
-      if (geom->rgba[3] != 1.0f) {
-        pxr::SdfPath display_opacity_attr = CreateAttributeSpec(
-            data_, geom_path, pxr::UsdGeomTokens->primvarsDisplayOpacity,
-            pxr::SdfValueTypeNames->FloatArray);
-        SetAttributeDefault(data_, display_opacity_attr,
-                            pxr::VtArray<float>{geom->rgba[3]});
-      }
-    }
+    WriteColorAndOpacityAttributes(geom_spec, geom);
 
     if (body_id == kWorldIndex) {
-      SetPrimKind(data_, geom_path, pxr::KindTokens->component);
+      SetPrimKind(layer_, geom_spec, pxr::KindTokens->component);
     }
     // Inherit from class.
-    AddPrimInherit(data_, geom_path, geom_class_path);
+    AddPrimInherit(layer_, geom_spec, geom_class_path);
 
     auto transform = MujocoPosQuatToTransform(&model_->geom_pos[3 * geom_id],
                                               &model_->geom_quat[4 * geom_id]);
-    WriteTransformXformOp(geom_path, transform);
+    WriteTransformXformOp(geom_spec, transform);
 
     PrependToXformOpOrder(
-        geom_path, pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
+        geom_spec, pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
   }
 
   void WriteSites(mjsBody *body) {
     mjsSite *site = mjs_asSite(mjs_firstChild(body, mjOBJ_SITE, false));
     while (site) {
-      WriteSite(site, body);
+      if (ShouldWrite(site->element)) {
+        WriteSite(site, body);
+      }
       site = mjs_asSite(mjs_nextChild(body, site->element, false));
     }
   }
@@ -1418,25 +1831,316 @@ class ModelWriter {
   void WriteGeoms(mjsBody *body) {
     mjsGeom *geom = mjs_asGeom(mjs_firstChild(body, mjOBJ_GEOM, false));
     while (geom) {
-      WriteGeom(geom, body);
+      if (ShouldWrite(geom->element)) {
+        WriteGeom(geom, body);
+      }
       geom = mjs_asGeom(mjs_nextChild(body, geom->element, false));
+    }
+  }
+
+  void WriteJoints(mjsBody *body) {
+    int body_id = mjs_getId(body->element);
+    if (body_id == kWorldIndex) return;
+
+    mjsJoint *joint = mjs_asJoint(mjs_firstChild(body, mjOBJ_JOINT, false));
+
+    if (!joint) {
+      // If no joint is found, then we pass nullptr to create a FixedJoint.
+      // WriteJoint properly handles the case where the parent is the worldbody.
+      WriteJoint(nullptr, body);
+    } else {
+      if (ShouldWrite(joint->element)) {
+        WriteJoint(joint, body);
+      }
+      if (mjs_asJoint(mjs_nextChild(body, joint->element, false))) {
+        TF_WARN(
+            "Multiple joints found for body %d. Only writing the first one.",
+            body_id);
+      }
+    }
+  }
+
+  // Write the joint. If null, then a FixedJoint is created.
+  void WriteJoint(mjsJoint *joint, const mjsBody *parent_mj_body) {
+    // Default to fixed joint if joint is null.
+    pxr::TfToken joint_prim_type = pxr::UsdPhysicsTokens->PhysicsFixedJoint;
+
+    int joint_id = -1;
+    if (joint) {
+      joint_id = mjs_getId(joint->element);
+      mjtJoint type = (mjtJoint)model_->jnt_type[joint_id];
+      switch (type) {
+        case mjJNT_FREE:
+          // Free joints are guaranteed to only ever be on the top-level body so
+          // we just write no joint. As a top-level body with no joint it will
+          // be considered a floating-base body.
+          return;
+        case mjJNT_HINGE:
+          joint_prim_type = pxr::UsdPhysicsTokens->PhysicsRevoluteJoint;
+          break;
+        case mjJNT_SLIDE:
+          joint_prim_type = pxr::UsdPhysicsTokens->PhysicsPrismaticJoint;
+          break;
+        default:
+          TF_WARN("Unsupported joint type '%d' for joint '%s'. Skipping.",
+                  (int)type, mjs_getName(joint->element)->c_str());
+          return;
+      }
+    }
+
+    int body_id = mjs_getId(parent_mj_body->element);
+
+    // the joint connects the current body as body1, to its parent body as
+    // body0.
+    int body1_id_usd = body_id;
+    int body0_id_usd = model_->body_parentid[body_id];
+
+    const pxr::SdfPath &body1_path_usd = body_paths_[body1_id_usd];
+    auto joint_name = joint ? *mjs_getName(joint->element) : "FixedJoint";
+    pxr::TfToken joint_name_token =
+        GetAvailablePrimName(joint_name, kTokens->joint, body1_path_usd);
+    auto joint_spec = CreatePrimSpec(layer_, body1_path_usd,
+                                             joint_name_token, joint_prim_type);
+
+    // Set body0 and body1 relationships
+    // For the initial joints that connect to the world, we signal this by
+    // keeping the body0 relationship empty.
+    if (body0_id_usd != kWorldIndex) {
+      const pxr::SdfPath &body0_path_usd = body_paths_[body0_id_usd];
+      CreateRelationshipSpec(layer_, joint_spec,
+                             pxr::UsdPhysicsTokens->physicsBody0,
+                             body0_path_usd, pxr::SdfVariabilityUniform);
+    }
+    CreateRelationshipSpec(layer_, joint_spec,
+                           pxr::UsdPhysicsTokens->physicsBody1, body1_path_usd,
+                           pxr::SdfVariabilityUniform);
+
+    // Joint frame in MuJoCo is defined by jnt_pos and jnt_axis in body1's frame
+    // For FixedJoint, these are both unity.
+    pxr::GfVec3d mj_jnt_pos = pxr::GfVec3d(0.0);
+    pxr::GfVec3d mj_jnt_axis = pxr::GfVec3d(0.0, 0.0, 1.0);
+    if (joint) {
+      mj_jnt_pos = pxr::GfVec3d(&model_->jnt_pos[joint_id * 3]);
+      mj_jnt_axis = pxr::GfVec3d(&model_->jnt_axis[joint_id * 3]);
+    }
+
+    // Local joint frame for body1
+    pxr::GfVec3f local_pos1(mj_jnt_pos);
+    pxr::GfQuatf local_rot1(
+        pxr::GfRotation(pxr::GfVec3f::ZAxis(), mj_jnt_axis).GetQuat());
+
+    SetAttributeDefault(
+        layer_,
+        CreateAttributeSpec(layer_, joint_spec,
+                            pxr::UsdPhysicsTokens->physicsLocalPos1,
+                            pxr::SdfValueTypeNames->Float3),
+        local_pos1);
+    if (joint_prim_type == pxr::UsdPhysicsTokens->PhysicsRevoluteJoint ||
+        joint_prim_type == pxr::UsdPhysicsTokens->PhysicsPrismaticJoint) {
+      SetAttributeDefault(
+          layer_,
+          CreateAttributeSpec(layer_, joint_spec,
+                              pxr::UsdPhysicsTokens->physicsLocalRot1,
+                              pxr::SdfValueTypeNames->Quatf),
+          local_rot1);
+    } else {
+      SetAttributeDefault(
+          layer_,
+          CreateAttributeSpec(layer_, joint_spec,
+                              pxr::UsdPhysicsTokens->physicsLocalRot1,
+                              pxr::SdfValueTypeNames->Quatf),
+          pxr::GfQuatf::GetIdentity());
+    }
+
+    // Calculate local joint frame for body0
+    pxr::GfMatrix4d body1_transform_local =
+        MujocoPosQuatToTransform(&model_->body_pos[body1_id_usd * 3],
+                                 &model_->body_quat[body1_id_usd * 4]);
+    pxr::GfVec3d jnt_pos_parent_local =
+        body1_transform_local.Transform(mj_jnt_pos);
+    pxr::GfVec3d jnt_axis_parent_local =
+        body1_transform_local.TransformDir(mj_jnt_axis);
+
+    pxr::GfVec3f local_pos0(jnt_pos_parent_local);
+
+    SetAttributeDefault(
+        layer_,
+        CreateAttributeSpec(layer_, joint_spec,
+                            pxr::UsdPhysicsTokens->physicsLocalPos0,
+                            pxr::SdfValueTypeNames->Float3),
+        local_pos0);
+
+    if (joint_prim_type == pxr::UsdPhysicsTokens->PhysicsRevoluteJoint ||
+        joint_prim_type == pxr::UsdPhysicsTokens->PhysicsPrismaticJoint) {
+      pxr::GfQuatf other_rot0(
+          pxr::GfRotation(pxr::GfVec3f::ZAxis(), jnt_axis_parent_local)
+              .GetQuat());
+
+      SetAttributeDefault(
+          layer_,
+          CreateAttributeSpec(layer_, joint_spec,
+                              pxr::UsdPhysicsTokens->physicsLocalRot0,
+                              pxr::SdfValueTypeNames->Quatf),
+          other_rot0);
+    } else {
+      // Fixed joints have no frame and no axis per se. We simply need the
+      // rotation quaternion of the body its on.
+      SetAttributeDefault(
+          layer_,
+          CreateAttributeSpec(layer_, joint_spec,
+                              pxr::UsdPhysicsTokens->physicsLocalRot0,
+                              pxr::SdfValueTypeNames->Quatf),
+          body1_transform_local.ExtractRotationQuat());
+    }
+
+    if (joint) {
+      mjtJoint type = (mjtJoint)model_->jnt_type[joint_id];
+
+      // Joint-specific attributes
+      if (type == mjJNT_HINGE || type == mjJNT_SLIDE) {
+        // The joint motion occurs around/along the Z-axis of the joint frame
+        // established by localRot0/1.
+        SetAttributeDefault(
+            layer_,
+            CreateAttributeSpec(layer_, joint_spec,
+                                pxr::UsdPhysicsTokens->physicsAxis,
+                                pxr::SdfValueTypeNames->Token),
+            pxr::UsdPhysicsTokens->z);  // "Z" axis
+      }
+
+      if (model_->jnt_limited[joint_id]) {
+        float lower_limit = model_->jnt_range[joint_id * 2];
+        float upper_limit = model_->jnt_range[joint_id * 2 + 1];
+
+        if (type == mjJNT_HINGE) {
+          // Convert radians to degrees for USD
+          // As per the XML Reference, "mjModel always uses radians"
+          lower_limit *= (180.0 / mjPI);
+          upper_limit *= (180.0 / mjPI);
+          SetAttributeDefault(
+              layer_,
+              CreateAttributeSpec(layer_, joint_spec,
+                                  pxr::UsdPhysicsTokens->physicsLowerLimit,
+                                  pxr::SdfValueTypeNames->Float),
+              lower_limit);
+          SetAttributeDefault(
+              layer_,
+              CreateAttributeSpec(layer_, joint_spec,
+                                  pxr::UsdPhysicsTokens->physicsUpperLimit,
+                                  pxr::SdfValueTypeNames->Float),
+              upper_limit);
+        } else if (type == mjJNT_SLIDE) {
+          SetAttributeDefault(
+              layer_,
+              CreateAttributeSpec(layer_, joint_spec,
+                                  pxr::UsdPhysicsTokens->physicsLowerLimit,
+                                  pxr::SdfValueTypeNames->Float),
+              lower_limit);
+          SetAttributeDefault(
+              layer_,
+              CreateAttributeSpec(layer_, joint_spec,
+                                  pxr::UsdPhysicsTokens->physicsUpperLimit,
+                                  pxr::SdfValueTypeNames->Float),
+              upper_limit);
+        }
+      }
+
+      // Finally write the mjcPhysicsJointAPI attributes.
+      ApplyApiSchema(layer_, joint_spec, MjcPhysicsTokens->MjcJointAPI);
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Int,
+                            MjcPhysicsTokens->mjcGroup, joint->group);
+
+      WriteUniformAttribute(
+          joint_spec, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSpringdamper,
+          pxr::VtArray<double>(joint->springdamper, joint->springdamper + 2));
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->DoubleArray,
+                            MjcPhysicsTokens->mjcSolreflimit,
+                            pxr::VtArray<double>(joint->solref_limit,
+                                                 joint->solref_limit + mjNREF));
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->DoubleArray,
+                            MjcPhysicsTokens->mjcSolimplimit,
+                            pxr::VtArray<double>(joint->solimp_limit,
+                                                 joint->solimp_limit + mjNIMP));
+
+      WriteUniformAttribute(
+          joint_spec, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSolreffriction,
+          pxr::VtArray<double>(joint->solref_friction,
+                               joint->solref_friction + mjNREF));
+
+      WriteUniformAttribute(
+          joint_spec, pxr::SdfValueTypeNames->DoubleArray,
+          MjcPhysicsTokens->mjcSolimpfriction,
+          pxr::VtArray<double>(joint->solimp_friction,
+                               joint->solimp_friction + mjNIMP));
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcStiffness, joint->stiffness);
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcActuatorfrcrangeMin,
+                            joint->actfrcrange[0]);
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcActuatorfrcrangeMax,
+                            joint->actfrcrange[1]);
+
+      pxr::TfToken actuatorfrclimited_token = MjcPhysicsTokens->auto_;
+      if (joint->actfrclimited == mjLIMITED_TRUE) {
+        actuatorfrclimited_token = MjcPhysicsTokens->true_;
+      } else if (joint->actfrclimited == mjLIMITED_FALSE) {
+        actuatorfrclimited_token = MjcPhysicsTokens->false_;
+      }
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Token,
+                            MjcPhysicsTokens->mjcActuatorfrclimited,
+                            actuatorfrclimited_token);
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Bool,
+                            MjcPhysicsTokens->mjcActuatorgravcomp,
+                            static_cast<bool>(joint->actgravcomp));
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcMargin, joint->margin);
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcRef, joint->ref);
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcSpringref, joint->springref);
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcArmature, joint->armature);
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcDamping, joint->damping);
+
+      WriteUniformAttribute(joint_spec, pxr::SdfValueTypeNames->Double,
+                            MjcPhysicsTokens->mjcFrictionloss,
+                            joint->frictionloss);
+    }
+    if (joint_id >= 0) {
+      joint_paths_[joint_id] = joint_spec->GetPath();
     }
   }
 
   void WriteCamera(mjsCamera *spec_cam, const mjsBody *body) {
     const auto &body_path = body_paths_[mjs_getId(body->element)];
-    auto name = GetAvailablePrimName(*spec_cam->name,
+    auto name = GetAvailablePrimName(*mjs_getName(spec_cam->element),
                                      pxr::UsdGeomTokens->Camera, body_path);
     // Create a root Xform for the world body with the model name if it exists
     // otherwise called 'World'.
-    pxr::SdfPath camera_path =
-        CreatePrimSpec(data_, body_path, name, pxr::UsdGeomTokens->Camera);
+    auto camera_spec =
+        CreatePrimSpec(layer_, body_path, name, pxr::UsdGeomTokens->Camera);
 
     int cam_id = mjs_getId(spec_cam->element);
     auto transform = MujocoPosQuatToTransform(&model_->cam_pos[3 * cam_id],
                                               &model_->cam_quat[4 * cam_id]);
-    WriteTransformXformOp(camera_path, transform);
-    WriteXformOpOrder(camera_path,
+    WriteTransformXformOp(camera_spec, transform);
+    WriteXformOpOrder(camera_spec,
                       pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
 
     // If the camera intrinsics are specified, then it is important that we
@@ -1454,21 +2158,21 @@ class ModelWriter {
         2 * znear *
         (use_intrinsic ? 1.0f / cam_intrinsic[1] *
                              (cam_sensorsize[1] / 2.f - cam_intrinsic[3])
-                       : mju_tan((fovy / 2) * (M_PI / 180.0)));
+                       : mju_tan((fovy / 2) * (std::numbers::pi / 180.0)));
     float horizontal_aperture =
         use_intrinsic ? 2 * znear / cam_intrinsic[0] *
                             (cam_sensorsize[0] / 2.f - cam_intrinsic[2])
                       : vertical_apperture * aspect_ratio;
 
-    WriteUniformAttribute(camera_path, pxr::SdfValueTypeNames->Float2,
+    WriteUniformAttribute(camera_spec, pxr::SdfValueTypeNames->Float2,
                           pxr::UsdGeomTokens->clippingRange,
                           pxr::GfVec2f(znear, zfar));
-    WriteUniformAttribute(camera_path, pxr::SdfValueTypeNames->Float,
+    WriteUniformAttribute(camera_spec, pxr::SdfValueTypeNames->Float,
                           pxr::UsdGeomTokens->focalLength, znear);
-    WriteUniformAttribute(camera_path, pxr::SdfValueTypeNames->Float,
+    WriteUniformAttribute(camera_spec, pxr::SdfValueTypeNames->Float,
                           pxr::UsdGeomTokens->verticalAperture,
                           vertical_apperture);
-    WriteUniformAttribute(camera_path, pxr::SdfValueTypeNames->Float,
+    WriteUniformAttribute(camera_spec, pxr::SdfValueTypeNames->Float,
                           pxr::UsdGeomTokens->horizontalAperture,
                           horizontal_aperture);
   }
@@ -1476,31 +2180,36 @@ class ModelWriter {
   void WriteCameras(mjsBody *body) {
     mjsCamera *cam = mjs_asCamera(mjs_firstChild(body, mjOBJ_CAMERA, false));
     while (cam) {
-      WriteCamera(cam, body);
+      if (ShouldWrite(cam->element)) {
+        WriteCamera(cam, body);
+      }
       cam = mjs_asCamera(mjs_nextChild(body, cam->element, false));
     }
   }
 
   void WriteLight(mjsLight *light, const mjsBody *body) {
     const auto &body_path = body_paths_[mjs_getId(body->element)];
-    auto name = GetAvailablePrimName(*light->name, kTokens->light, body_path);
+    auto name = GetAvailablePrimName(*mjs_getName(light->element),
+                                     kTokens->light, body_path);
     // Create a root Xform for the world body with the model name if it exists
     // otherwise called 'World'.
-    pxr::SdfPath light_path =
-        CreatePrimSpec(data_, body_path, name, pxr::UsdLuxTokens->SphereLight);
+    auto light_spec =
+        CreatePrimSpec(layer_, body_path, name, pxr::UsdLuxTokens->SphereLight);
 
     int light_id = mjs_getId(light->element);
     auto transform = MujocoPosQuatToTransform(&model_->light_pos[3 * light_id],
                                               &model_->light_dir[4 * light_id]);
-    WriteTransformXformOp(light_path, transform);
-    WriteXformOpOrder(light_path,
+    WriteTransformXformOp(light_spec, transform);
+    WriteXformOpOrder(light_spec,
                       pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
   }
 
   void WriteLights(mjsBody *body) {
     mjsLight *light = mjs_asLight(mjs_firstChild(body, mjOBJ_LIGHT, false));
     while (light) {
-      WriteLight(light, body);
+      if (ShouldWrite(light->element)) {
+        WriteLight(light, body);
+      }
       light = mjs_asLight(mjs_nextChild(body, light->element, false));
     }
   }
@@ -1511,151 +2220,153 @@ class ModelWriter {
     mjsBody *parent = mjs_getParent(body->element);
     int parent_id = mjs_getId(parent->element);
     pxr::SdfPath parent_path = body_paths_[parent_id];
-    pxr::TfToken body_name = GetValidPrimName(*body->name);
+    pxr::TfToken body_name = GetValidPrimName(*mjs_getName(body->element));
 
     // Create Xform prim for body.
-    pxr::SdfPath body_path = CreatePrimSpec(data_, parent_path, body_name,
+    auto body_spec = CreatePrimSpec(layer_, parent_path, body_name,
                                             pxr::UsdGeomTokens->Xform);
     // The parent_path will be a component which makes the actual articulated
     // bodies subcomponents.
     auto kind = parent_id == kWorldIndex ? pxr::KindTokens->component
                                          : pxr::KindTokens->subcomponent;
-    SetPrimKind(data_, body_path, kind);
+    SetPrimKind(layer_, body_spec, kind);
 
-    // Apply the PhysicsRigidBodyAPI schema if we are writing physics.
-    if (write_physics_) {
-      // If the body had a mass specified then it must have either inertia or
-      // fullinertia specified per inertia element XML documentation.
-      // Therefore it is sufficient to check if the mass is non-zero to see if
-      // we should set inertial attributes on the body.
-      //
-      // Note that if the user has NOT specified any inertial properties then
-      // we don't want to pull values from the compiled model since coming back
-      // into Mujoco would take those values instead of computing them
-      // automatically from the subtree.
-      if (body->mass > 0) {
-        // User might have specified the inertia via fullinertia and the
-        // compiler has extracted all values properly. So leverage those
-        // instead of doing the computation ourselves here.
-        ApplyApiSchema(data_, body_path, pxr::UsdPhysicsTokens->PhysicsMassAPI);
-        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Float,
-                              pxr::UsdPhysicsTokens->physicsMass,
-                              (float)model_->body_mass[body_id]);
-
-        mjtNum *body_ipos = &model_->body_ipos[body_id * 3];
-        pxr::GfVec3f inertial_pos(body_ipos[0], body_ipos[1], body_ipos[2]);
-        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Point3f,
-                              pxr::UsdPhysicsTokens->physicsCenterOfMass,
-                              inertial_pos);
-
-        mjtNum *body_iquat = &model_->body_iquat[body_id * 4];
-        pxr::GfQuatf inertial_frame(body_iquat[0], body_iquat[1], body_iquat[2],
-                                    body_iquat[3]);
-        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Quatf,
-                              pxr::UsdPhysicsTokens->physicsPrincipalAxes,
-                              inertial_frame);
-
-        mjtNum *inertia = &model_->body_inertia[body_id * 3];
-        pxr::GfVec3f diag_inertia(inertia[0], inertia[1], inertia[2]);
-        WriteUniformAttribute(body_path, pxr::SdfValueTypeNames->Float3,
-                              pxr::UsdPhysicsTokens->physicsDiagonalInertia,
-                              diag_inertia);
-      }
-
-      ApplyApiSchema(data_, body_path,
-                     pxr::UsdPhysicsTokens->PhysicsRigidBodyAPI);
-
-      // If the parent is not the world body, but is child of the world body
-      // then we need to apply the articulation root API.
-      if (parent_id != kWorldIndex) {
-        int parent_parent_id =
-            mjs_getId(mjs_getParent(parent->element)->element);
-        if (parent_parent_id == kWorldIndex) {
-          ApplyApiSchema(data_, parent_path,
-                         pxr::UsdPhysicsTokens->PhysicsArticulationRootAPI);
-        }
+    // If the parent is not the world body, but is child of the world body
+    // then we need to apply the articulation root API.
+    if (parent_id != kWorldIndex) {
+      int parent_parent_id = mjs_getId(mjs_getParent(parent->element)->element);
+      // We guard against applying the API more than once, which can happen when
+      // there are multiple children.
+      if (parent_parent_id == kWorldIndex &&
+          articulation_roots_.find(parent_id) == articulation_roots_.end()) {
+        ApplyApiSchema(layer_, layer_->GetPrimAtPath(parent_path),
+                       pxr::UsdPhysicsTokens->PhysicsArticulationRootAPI);
+        articulation_roots_.insert(parent_id);
       }
     }
+
+    // If the body had a mass specified then it must have either inertia or
+    // fullinertia specified per inertia element XML documentation.
+    // Therefore it is sufficient to check if the mass is non-zero to see if
+    // we should set inertial attributes on the body.
+    //
+    // Note that if the user has NOT specified any inertial properties then
+    // we don't want to pull values from the compiled model since coming back
+    // into Mujoco would take those values instead of computing them
+    // automatically from the subtree.
+    if (body->mass > 0) {
+      // User might have specified the inertia via fullinertia and the
+      // compiler has extracted all values properly. So leverage those
+      // instead of doing the computation ourselves here.
+      ApplyApiSchema(layer_, body_spec, pxr::UsdPhysicsTokens->PhysicsMassAPI);
+      WriteUniformAttribute(body_spec, pxr::SdfValueTypeNames->Float,
+                            pxr::UsdPhysicsTokens->physicsMass,
+                            (float)model_->body_mass[body_id]);
+
+      mjtNum *body_ipos = &model_->body_ipos[body_id * 3];
+      pxr::GfVec3f inertial_pos(body_ipos[0], body_ipos[1], body_ipos[2]);
+      WriteUniformAttribute(body_spec, pxr::SdfValueTypeNames->Point3f,
+                            pxr::UsdPhysicsTokens->physicsCenterOfMass,
+                            inertial_pos);
+
+      mjtNum *body_iquat = &model_->body_iquat[body_id * 4];
+      pxr::GfQuatf inertial_frame(body_iquat[0], body_iquat[1], body_iquat[2],
+                                  body_iquat[3]);
+      WriteUniformAttribute(body_spec, pxr::SdfValueTypeNames->Quatf,
+                            pxr::UsdPhysicsTokens->physicsPrincipalAxes,
+                            inertial_frame);
+
+      mjtNum *inertia = &model_->body_inertia[body_id * 3];
+      pxr::GfVec3f diag_inertia(inertia[0], inertia[1], inertia[2]);
+      WriteUniformAttribute(body_spec, pxr::SdfValueTypeNames->Float3,
+                            pxr::UsdPhysicsTokens->physicsDiagonalInertia,
+                            diag_inertia);
+    }
+
+    ApplyApiSchema(layer_, body_spec,
+                   pxr::UsdPhysicsTokens->PhysicsRigidBodyAPI);
 
     // Create classes if necessary
     mjsDefault *spec_default = mjs_getDefault(body->element);
 
-    pxr::TfToken body_class_name = GetValidPrimName(*spec_default->name);
+    pxr::TfToken body_class_name =
+        GetValidPrimName(*mjs_getName(spec_default->element));
     pxr::SdfPath body_class_path = class_path_.AppendChild(body_class_name);
-    if (!data_->HasSpec(body_class_path)) {
-      CreateClassSpec(data_, class_path_, body_class_name);
+    if (!layer_->HasSpec(body_class_path)) {
+      CreateClassSpec(layer_, class_path_, body_class_name);
     }
 
     // Create XformOp attribute for body transform.
 
-    pxr::SdfPath xform_op_path =
-        CreateAttributeSpec(data_, body_path, kTokens->xformOpTransform,
+    auto xform_op_spec =
+        CreateAttributeSpec(layer_, body_spec, kTokens->xformOpTransform,
                             pxr::SdfValueTypeNames->Matrix4d);
     // mjModel will have all frames already accounted for so no need to worry
     // about them here.
     auto body_xform = MujocoPosQuatToTransform(&model_->body_pos[body_id * 3],
                                                &model_->body_quat[body_id * 4]);
-    SetAttributeDefault(data_, xform_op_path, body_xform);
+    SetAttributeDefault(layer_, xform_op_spec, body_xform);
 
     // Create XformOpOrder attribute for body transform order.
     // For us this is simply the transform we authored above.
-    WriteXformOpOrder(body_path,
+    WriteXformOpOrder(body_spec,
                       pxr::VtArray<pxr::TfToken>{kTokens->xformOpTransform});
 
     pxr::VtDictionary customData;
-    customData[kTokens->body_name] = *body->name;
-    SetPrimMetadata(data_, body_path, pxr::SdfFieldKeys->CustomData,
-                    customData);
+    customData[kTokens->body_name] = *mjs_getName(body->element);
+    body_spec->SetField(pxr::SdfFieldKeys->CustomData, customData);
 
-    body_paths_[body_id] = body_path;
+    body_paths_[body_id] = body_spec->GetPath();
+    mujoco::usd::SetUsdPrimPathUserValue(body->element, body_spec->GetPath());
   }
 
   void WriteBodies() {
     mjsBody *body = mjs_asBody(mjs_firstElement(spec_, mjOBJ_BODY));
     while (body) {
-      // Only write a rigidbody if we are not the world body.
-      // We fall through since the world body might have static
-      // geom children.
-      if (mjs_getId(body->element) != kWorldIndex) {
-        WriteBody(body);
+      // If this body originally came from USD, don't try and write it
+      // again.
+      if (ShouldWrite(body->element)) {
+        // Only write a rigidbody if we are not the world body.
+        // We fall through since the world body might have static
+        // geom children.
+        if (mjs_getId(body->element) != kWorldIndex) {
+          WriteBody(body);
+        }
+        WriteSites(body);
+        WriteGeoms(body);
+        WriteJoints(body);
+        WriteCameras(body);
+        WriteLights(body);
       }
-      WriteSites(body);
-      WriteGeoms(body);
-      WriteCameras(body);
-      WriteLights(body);
       body = mjs_asBody(mjs_nextElement(spec_, body->element));
     }
   }
 
-  pxr::SdfPath WriteWorldBody(const size_t body_index) {
+  pxr::SdfPrimSpecHandle WriteWorldBody(const size_t body_index) {
     // Create a root Xform for the world body with the model name if it exists
     // otherwise called 'World'.
     auto name = GetAvailablePrimName(*spec_->modelname, kTokens->world,
                                      pxr::SdfPath::AbsoluteRootPath());
-    pxr::SdfPath world_group_path =
-        CreatePrimSpec(data_, pxr::SdfPath::AbsoluteRootPath(), name,
+    auto world_group_spec =
+        CreatePrimSpec(layer_, pxr::SdfPath::AbsoluteRootPath(), name,
                        pxr::UsdGeomTokens->Xform);
-    SetPrimKind(data_, world_group_path, pxr::KindTokens->group);
-    return world_group_path;
+    SetPrimKind(layer_, world_group_spec, pxr::KindTokens->group);
+
+    return world_group_spec;
   }
 };
 
 namespace mujoco {
 namespace usd {
 
-bool WriteSpecToData(mjSpec *spec, pxr::SdfAbstractDataRefPtr &data,
-                     bool write_physics) {
-  // Create pseudo root first.
-  data->CreateSpec(pxr::SdfPath::AbsoluteRootPath(),
-                   pxr::SdfSpecTypePseudoRoot);
-
+bool WriteSpecToData(mjSpec *spec, pxr::SdfLayerRefPtr layer, bool skip_elems_from_usd) {
   mjModel *model = mj_compile(spec, nullptr);
   if (model == nullptr) {
     TF_ERROR(MujocoCompilationError, "%s", mjs_getError(spec));
     return false;
   }
 
-  ModelWriter(spec, model, data).Write(write_physics);
+  ModelWriter(spec, model, layer, skip_elems_from_usd).Write();
 
   return true;
 }

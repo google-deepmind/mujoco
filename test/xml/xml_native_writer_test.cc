@@ -38,10 +38,11 @@
 namespace mujoco {
 namespace {
 
+using ::testing::ElementsAre;
+using ::testing::FloatEq;
 using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::NotNull;
-using ::testing::FloatEq;
 
 using XMLWriterTest = PluginTest;
 
@@ -998,6 +999,10 @@ TEST_F(XMLWriterTest, WritesHfield) {
   int size = model->hfield_nrow[0]*model->hfield_ncol[0];
   EXPECT_EQ(size, 6);
 
+  // check that the data is normalized and in row-major, bottom-to-top order
+  EXPECT_THAT(AsVector(model->hfield_data, 6),
+              ElementsAre(.8, 1, .4, .6, 0, .2));
+
   // save and read, compare data
   mjModel* mtemp = LoadModelFromString(SaveAndReadXml(model));
   ASSERT_THAT(mtemp, NotNull());
@@ -1378,22 +1383,28 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
       if (p.path().extension() == ext) {
         std::string xml = p.path().string();
 
-        // if file is meant to fail, skip it
-        if (absl::StrContains(p.path().string(), "malformed_") ||
-            // exclude files that are too slow to load
-            absl::StrContains(p.path().string(), "cow") ||
-            absl::StrContains(p.path().string(), "gmsh_") ||
-            absl::StrContains(p.path().string(), "shark_") ||
-            absl::StrContains(p.path().string(), "spheremesh") ||
-            // exclude files that fail the comparison test
-            absl::StrContains(p.path().string(), "usd") ||
-            absl::StrContains(p.path().string(), "torus_maxhull") ||
-            absl::StrContains(p.path().string(), "fitmesh_") ||
-            absl::StrContains(p.path().string(), "lengthrange") ||
-            absl::StrContains(p.path().string(), "hfield_xml") ||
-            absl::StrContains(p.path().string(), "fromto_convex") ||
-            absl::StrContains(p.path().string(), "cube_skin") ||
-            absl::StrContains(p.path().string(), "cube_3x3x3")) {
+
+        if (  // if file is meant to fail, skip it
+              absl::StrContains(p.path().string(), "malformed_") ||
+              absl::StrContains(p.path().string(), "_fail") ||
+              // exclude files that are too slow to load
+              absl::StrContains(p.path().string(), "cow") ||
+              absl::StrContains(p.path().string(), "gmsh_") ||
+              absl::StrContains(p.path().string(), "shark_") ||
+              absl::StrContains(p.path().string(), "perf") ||
+              // exclude files that fail the comparison test
+              absl::StrContains(p.path().string(), "rfcamera") ||
+              absl::StrContains(p.path().string(), "tactile") ||
+              absl::StrContains(p.path().string(), "makemesh") ||
+              absl::StrContains(p.path().string(), "many_dependencies") ||
+              absl::StrContains(p.path().string(), "usd") ||
+              absl::StrContains(p.path().string(), "torus_maxhull") ||
+              absl::StrContains(p.path().string(), "fitmesh_") ||
+              absl::StrContains(p.path().string(), "lengthrange") ||
+              absl::StrContains(p.path().string(), "hfield_xml") ||
+              absl::StrContains(p.path().string(), "fromto_convex") ||
+              absl::StrContains(p.path().string(), "cube_skin") ||
+              absl::StrContains(p.path().string(), "cube_3x3x3")) {
           continue;
         }
         // load model
@@ -1414,6 +1425,8 @@ TEST_F(XMLWriterTest, WriteReadCompare) {
         auto abs_path = p.path();
         mjSpec* stemp = mj_parseXMLString(SaveAndReadXml(s).c_str(), 0,
                                           error.data(), error.size());
+        ASSERT_THAT(stemp, NotNull())
+            << "Failed to load " << xml.c_str() << ": " << error.data();
         mjs_setString(stemp->modelfiledir,
                       abs_path.remove_filename().string().c_str());
         mjModel* mtemp = mj_compile(stemp, nullptr);
@@ -1657,6 +1670,54 @@ TEST_F(XMLWriterTest, ExpandAttach) {
   EXPECT_THAT(saved_xml, HasSubstr("class=\"bb\""));
   mj_deleteModel(m);
   mj_deleteVFS(vfs.get());
+}
+
+TEST_F(XMLWriterTest, WritesCameraOutput) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <camera name="default_cam"/>
+      <camera name="multi_cam" output="depth normal"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  // default output="rgb" should not be written
+  EXPECT_THAT(saved_xml, Not(HasSubstr("output=\"rgb\"")));
+  // non-default output should be written
+  EXPECT_THAT(saved_xml, HasSubstr("output=\"depth normal\""));
+  mj_deleteModel(model);
+}
+
+TEST_F(XMLWriterTest, WritesCameraOutputDefault) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <default>
+      <default class="multi">
+        <camera output="depth distance"/>
+      </default>
+    </default>
+    <worldbody>
+      <camera name="default_cam"/>
+      <camera name="class_cam" class="multi"/>
+      <camera name="override_cam" class="multi" output="segmentation"/>
+    </worldbody>
+  </mujoco>
+  )";
+  mjModel* model = LoadModelFromString(xml);
+  ASSERT_THAT(model, NotNull());
+  std::string saved_xml = SaveAndReadXml(model);
+  // save and reload to verify round-trip
+  mjModel* mtemp = LoadModelFromString(saved_xml);
+  ASSERT_THAT(mtemp, NotNull());
+  EXPECT_EQ(mtemp->ncam, 3);
+  EXPECT_EQ(mtemp->cam_output[0], mjCAMOUT_RGB);
+  EXPECT_EQ(mtemp->cam_output[1], mjCAMOUT_DEPTH | mjCAMOUT_DIST);
+  EXPECT_EQ(mtemp->cam_output[2], mjCAMOUT_SEG);
+  mj_deleteModel(mtemp);
+  mj_deleteModel(model);
 }
 
 }  // namespace

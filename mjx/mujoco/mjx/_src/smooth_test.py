@@ -81,7 +81,7 @@ class SmoothTest(absltest.TestCase):
     dx = jax.jit(mjx.com_pos)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'subtree_com')
     _assert_attr_eq(d, dx._impl, 'cinert')
-    _assert_attr_eq(d, dx._impl, 'cdof')
+    _assert_attr_eq(d, dx, 'cdof')
     # camlight
     dx = jax.jit(mjx.camlight)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'cam_xpos')
@@ -94,13 +94,13 @@ class SmoothTest(absltest.TestCase):
     dx = jax.jit(mjx.factor_m)(mx, mjx.put_data(m, d))
     qLDLegacy = np.zeros(mx.nM)  # pylint:disable=invalid-name
     for i in range(m.nC):
-      qLDLegacy[d.mapM2M[i]] = d.qLD[i]
+      qLDLegacy[m.mapM2M[i]] = d.qLD[i]
     _assert_eq(qLDLegacy, dx._impl.qLD, 'qLD')
     _assert_attr_eq(d, dx._impl, 'qLDiagInv')
     # com_vel
     dx = jax.jit(mjx.com_vel)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'cvel')
-    _assert_attr_eq(d, dx._impl, 'cdof_dot')
+    _assert_attr_eq(d, dx, 'cdof_dot')
     # rne
     dx = jax.jit(mjx.rne)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx, 'qfrc_bias')
@@ -122,10 +122,10 @@ class SmoothTest(absltest.TestCase):
     # tendon
     dx = jax.jit(mjx.tendon)(mx, mjx.put_data(m, d))
     _assert_attr_eq(d, dx._impl, 'ten_J')
-    _assert_attr_eq(d, dx._impl, 'ten_length')
+    _assert_attr_eq(d, dx, 'ten_length')
     # transmission
     dx = jax.jit(mjx.transmission)(mx, dx)
-    _assert_attr_eq(d, dx._impl, 'actuator_length')
+    _assert_attr_eq(d, dx, 'actuator_length')
 
     # convert sparse actuator_moment to dense representation
     moment = np.zeros((m.nu, m.nv))
@@ -196,7 +196,7 @@ class SmoothTest(absltest.TestCase):
 
     mujoco.mj_transmission(m, d)
     dx = jax.jit(mjx.transmission)(mx, dx)
-    _assert_attr_eq(d, dx._impl, 'actuator_length')
+    _assert_attr_eq(d, dx, 'actuator_length')
 
     # convert sparse actuator_moment to dense representation
     moment = np.zeros((m.nu, m.nv))
@@ -230,21 +230,98 @@ class SmoothTest(absltest.TestCase):
 
 
 class RnePostConstraintTest(parameterized.TestCase):
+  _CONNECT_SITE = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+    </equality>
+    """
+  _CONNECT_BODY = """
+    <equality>
+      <connect body1="body1" body2="body2" anchor="1 2 3"/>
+    </equality>
+    """
+  _WELD_SITE = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_BODY = """
+    <equality>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_WELD_SITE = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <weld site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_SITE_CONNECT_SITE = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+      <connect site1="site1" site2="site2"/>
+    </equality>
+    """
+  _WELD_SITE_CONNECT_SITE_WELD_BODY = """
+    <equality>
+      <weld site1="site1" site2="site2"/>
+      <connect site1="site1" site2="site2"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_WELD_SITE_WELD_BODY = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <weld site1="site1" site2="site2"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
+  _CONNECT_SITE_CONNECT_BODY_CONNECT_WELD = """
+    <equality>
+      <connect site1="site1" site2="site2"/>
+      <connect body1="body1" body2="body2" anchor="1 2 3"/>
+      <weld body1="body1" body2="body2"/>
+    </equality>
+    """
 
-  @parameterized.parameters(ConeType)
-  def test_rnepostconstraint(self, cone_type):
+  @parameterized.parameters(
+      ('', ConeType.PYRAMIDAL, None),
+      ('', ConeType.ELLIPTIC, None),
+      (_CONNECT_SITE, ConeType.PYRAMIDAL, None),
+      (_CONNECT_BODY, ConeType.PYRAMIDAL, None),
+      (_WELD_SITE, ConeType.PYRAMIDAL, None),
+      (_WELD_BODY, ConeType.PYRAMIDAL, None),
+      (_CONNECT_SITE_WELD_SITE, ConeType.PYRAMIDAL, None),
+      (
+          _WELD_SITE_CONNECT_SITE,
+          ConeType.PYRAMIDAL,
+          np.array([6, 7, 8, 0, 1, 2, 3, 4, 5]),
+      ),
+      (
+          _WELD_SITE_CONNECT_SITE_WELD_BODY,
+          ConeType.PYRAMIDAL,
+          np.array([6, 7, 8, 0, 1, 2, 3, 4, 5]),
+      ),
+      (_CONNECT_SITE_WELD_SITE_WELD_BODY, ConeType.PYRAMIDAL, None),
+      (_CONNECT_SITE_CONNECT_BODY_CONNECT_WELD, ConeType.PYRAMIDAL, None),
+  )
+  def test_rnepostconstraint(self, equality, cone_type, efc_map):
     """Tests MJX rne_postconstraint function to match MuJoCo mj_rnePostConstraint."""
 
-    m = mujoco.MjModel.from_xml_string("""
+    m = mujoco.MjModel.from_xml_string(f"""
         <mujoco>
           <worldbody>
             <geom name="floor" size="10 10 .05" type="plane"/>
-            <body pos="0 0 1">
+            <site name="site1"/>
+            <body name="body1">
+            </body>
+            <body pos="0 0 1" name="body2">
               <joint type="ball" damping="1"/>
               <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0" condim="1"/>
               <body pos="0.5 0 0">
                 <joint type="ball" damping="1"/>
                 <geom type="capsule" size="0.1 0.5" fromto="0 0 0 0.5 0 0"  condim="3"/>
+                <site name="site2"/>
               </body>
             </body>
             <body pos="0 1 1">
@@ -256,6 +333,7 @@ class RnePostConstraintTest(parameterized.TestCase):
               </body>
             </body>
           </worldbody>
+          {equality}
           <keyframe>
             <key qpos='0.424577 0.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697 0.424577 1.450592 0.451703 -0.642391 0.729379 0.545151 0.407756 0.0674697'/>
           </keyframe>
@@ -272,6 +350,11 @@ class RnePostConstraintTest(parameterized.TestCase):
     mujoco.mj_forward(m, d)
     mx = mjx.put_model(m)
     dx = mjx.put_data(m, d)
+
+    if efc_map is not None:
+      efc_force = d.efc_force.copy()
+      efc_force[: len(efc_map)] = d.efc_force[efc_map]
+      dx = dx.tree_replace({'_impl.efc_force': jp.array(efc_force)})
 
     # rne postconstraint
     mujoco.mj_rnePostConstraint(m, d)
@@ -311,7 +394,7 @@ class TendonTest(parameterized.TestCase):
     mujoco.mj_forward(m, d)
     dx = jax.jit(mjx.forward)(mx, dx)
 
-    _assert_eq(d.ten_length, dx._impl.ten_length, 'ten_length')
+    _assert_eq(d.ten_length, dx.ten_length, 'ten_length')
     _assert_eq(d.ten_J, dx._impl.ten_J, 'ten_J')
     _assert_eq(d.ten_wrapnum, dx._impl.ten_wrapnum, 'ten_wrapnum')
     _assert_eq(d.ten_wrapadr, dx._impl.ten_wrapadr, 'ten_wrapadr')
@@ -321,32 +404,7 @@ class TendonTest(parameterized.TestCase):
   @parameterized.parameters(JacobianType.DENSE, JacobianType.SPARSE)
   def test_tendon_armature(self, jacobian):
     """Tests MJX tendon armature matches MuJoCo."""
-    m = mujoco.MjModel.from_xml_string("""
-        <mujoco>
-          <worldbody>
-            <site name="site0" pos="1 0 1"/>
-            <body>
-              <joint type="slide" axis="0 0 1"/>
-              <joint type="hinge" axis="0 1 0"/>
-              <geom type="box" size="0.1 0.1 0.1" mass="1" pos="1 0 0"/>
-              <site name="site1"/>
-            </body>
-          </worldbody>
-          <tendon>
-            <spatial armature="123">
-              <site site="site0"/>
-              <site site="site1"/>
-            </spatial>
-            <spatial armature="456">
-              <site site="site0"/>
-              <site site="site1"/>
-            </spatial>
-          </tendon>
-          <keyframe>
-            <key qpos="1.2345 1.2345" qvel="1.2345 1.2345"/>
-          </keyframe>
-        </mujoco>
-        """)
+    m = test_util.load_test_file('tendon/armature.xml')
     m.opt.jacobian = jacobian
     d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, 0)

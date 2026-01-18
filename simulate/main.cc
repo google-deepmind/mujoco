@@ -224,24 +224,40 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
   char loadError[kErrorLength] = "";
   mjModel* mnew = 0;
   auto load_start = mj::Simulate::Clock::now();
-  if (mju::strlen_arr(filename)>4 &&
-      !std::strncmp(filename + mju::strlen_arr(filename) - 4, ".mjb",
-                    mju::sizeof_arr(filename) - mju::strlen_arr(filename)+4)) {
+
+  std::string filename_str(filename);
+  std::string extension;
+  size_t dot_pos = filename_str.rfind('.');
+
+  if (dot_pos != std::string::npos && dot_pos < filename_str.length() - 1) {
+    extension = filename_str.substr(dot_pos);
+  }
+
+  if (extension == ".mjb") {
     mnew = mj_loadModel(filename, nullptr);
     if (!mnew) {
       mju::strcpy_arr(loadError, "could not load binary model");
     }
-  } else {
+  } else if (extension == ".xml") {
     mnew = mj_loadXML(filename, nullptr, loadError, kErrorLength);
-
-    // remove trailing newline character from loadError
-    if (loadError[0]) {
-      int error_length = mju::strlen_arr(loadError);
-      if (loadError[error_length-1] == '\n') {
-        loadError[error_length-1] = '\0';
-      }
+  } else {
+    mjSpec* spec = mj_parse(filename, nullptr, nullptr, loadError, kErrorLength);
+    if (!spec) {
+      mju::strcpy_arr(loadError, "could not parse model");
+    } else {
+      mnew = mj_compile(spec, nullptr);
+      mj_deleteSpec(spec);
     }
   }
+
+  // remove trailing newline character from loadError
+  if (loadError[0]) {
+    int error_length = mju::strlen_arr(loadError);
+    if (loadError[error_length-1] == '\n') {
+      loadError[error_length-1] = '\0';
+    }
+  }
+
   auto load_interval = mj::Simulate::Clock::now() - load_start;
   double load_seconds = Seconds(load_interval).count();
 
@@ -270,7 +286,7 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
 
 // simulate in background thread (while rendering in main thread)
 void PhysicsLoop(mj::Simulate& sim) {
-  // cpu-sim syncronization point
+  // cpu-sim synchronization point
   std::chrono::time_point<mj::Simulate::Clock> syncCPU;
   mjtNum syncSim = 0;
 
@@ -353,7 +369,7 @@ void PhysicsLoop(mj::Simulate& sim) {
           // requested slow-down factor
           double slowdown = 100 / sim.percentRealTime[sim.real_time_index];
 
-          // misalignment condition: distance from target sim time is bigger than syncmisalign
+          // misalignment condition: distance from target sim time is bigger than syncMisalign
           bool misaligned =
               std::abs(Seconds(elapsedCPU).count()/slowdown - elapsedSim) > syncMisalign;
 
@@ -364,6 +380,9 @@ void PhysicsLoop(mj::Simulate& sim) {
             syncCPU = startCPU;
             syncSim = d->time;
             sim.speed_changed = false;
+
+            // inject noise
+            sim.InjectNoise(sim.key);
 
             // run single step, let next iteration deal with timing
             mj_step(m, d);
@@ -394,7 +413,7 @@ void PhysicsLoop(mj::Simulate& sim) {
               }
 
               // inject noise
-              sim.InjectNoise();
+              sim.InjectNoise(sim.key);
 
               // call mj_step
               mj_step(m, d);
@@ -423,6 +442,9 @@ void PhysicsLoop(mj::Simulate& sim) {
         else {
           // run mj_forward, to update rendering and joint sliders
           mj_forward(m, d);
+          if (sim.pause_update) {
+            mju_copy(d->qacc_warmstart, d->qacc, m->nv);
+          }
           sim.speed_changed = true;
         }
       }

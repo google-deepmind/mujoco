@@ -47,16 +47,17 @@ class Simulate {
   using Clock = std::chrono::steady_clock;
   static_assert(std::ratio_less_equal_v<Clock::period, std::milli>);
 
-  static constexpr int kMaxGeom = 20000;
+  static constexpr int kMaxGeom = 100000;
 
   // create object and initialize the simulate ui
   Simulate(
       std::unique_ptr<PlatformUIAdapter> platform_ui_adapter,
       mjvCamera* cam, mjvOption* opt, mjvPerturb* pert, bool is_passive);
 
-  // Synchronize mjModel and mjData state with UI inputs, and update
-  // visualization.
-  void Sync();
+  // Synchronize state with UI inputs, and update visualization.  If state_only
+  // is false mjData and mjModel will be updated, otherwise only the subset of
+  // mjData corresponding to mjSTATE_INTEGRATION will be synced.
+  void Sync(bool state_only = false);
 
   void UpdateHField(int hfieldid);
   void UpdateMesh(int meshid);
@@ -88,7 +89,7 @@ class Simulate {
   void AddToHistory();
 
   // inject control noise
-  void InjectNoise();
+  void InjectNoise(int key);
 
   // constants
   static constexpr int kMaxFilenameLength = 1000;
@@ -192,13 +193,13 @@ class Simulate {
   int info = 0;
   int profiler = 0;
   int sensor = 0;
-  int pause_update = 1;
+  int pause_update = 0;
   int fullscreen = 0;
   int vsync = 1;
   int busywait = 0;
 
   // keyframe index
-  int key = 0;
+  int key = -1;
 
   // index of history-scrubber slider
   int scrub_index = 0;

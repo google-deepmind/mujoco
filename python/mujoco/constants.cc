@@ -57,13 +57,18 @@ PYBIND11_MODULE(_constants, pymodule) {
   X(mjMINIMP);
   X(mjMAXIMP);
   X(mjMAXCONPAIR);
+  X(mjMAXTREEDEPTH);
+  X(mjMAXFLEXNODES);
   X(mjNEQDATA);
   X(mjNDYN);
   X(mjNGAIN);
   X(mjNBIAS);
+  X(mjNFLUID);
   X(mjNREF);
   X(mjNIMP);
+  X(mjNSENS);
   X(mjNSOLVER);
+  X(mjNISLAND);
 
   // from mjvisualize.h
   X(mjNGROUP);

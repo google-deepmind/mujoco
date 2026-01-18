@@ -21,11 +21,11 @@
 #include <mujoco/mjmacro.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
-#include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_forward.h"
 #include "engine/engine_io.h"
-#include "engine/engine_support.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -58,6 +58,229 @@ static void mj_setM0(mjModel* m, mjData* d) {
   }
 }
 
+
+// helper function to get the tree id of a wrap object
+static int GetWrapBodyTreeId(const mjModel* m, int wrap_index) {
+  int bodyid = -1;
+  int objid = m->wrap_objid[wrap_index];
+  switch ((mjtWrap)m->wrap_type[wrap_index]) {
+  case mjWRAP_JOINT:
+    bodyid = m->jnt_bodyid[objid];
+    break;
+  case mjWRAP_SITE:
+    bodyid = m->site_bodyid[objid];
+    break;
+  case mjWRAP_SPHERE:
+  case mjWRAP_CYLINDER:
+    bodyid = m->geom_bodyid[objid];
+    break;
+  case mjWRAP_PULLEY:
+  case mjWRAP_NONE:
+    break;
+  }
+  return (bodyid != -1) ? m->body_treeid[bodyid] : -1;
+}
+
+// set fixed quantities (do not depend on qpos0)
+static void setFixed(mjModel* m, mjData* d) {
+  mj_markStack(d);
+
+  // ----- general
+
+  // compute subtreemass
+  for (int i=0; i < m->nbody; i++) {
+    m->body_subtreemass[i] = m->body_mass[i];
+  }
+  for (int i=m->nbody-1; i > 0; i--) {
+    m->body_subtreemass[m->body_parentid[i]] += m->body_subtreemass[i];
+  }
+
+  // compute ngravcomp: number of bodies with gravity compensation
+  int ngravcomp = 0;
+  for (int i=0; i < m->nbody; i++) {
+    ngravcomp += (m->body_gravcomp[i] > 0);
+  }
+  m->ngravcomp = ngravcomp;
+
+
+  // ----- tree related (body_treeid and dof_treeid already computed)
+
+  // compute body_treeid
+  for (int i=0; i < m->nbody; i++) {
+    int weldid = m->body_weldid[i];
+    if (m->body_dofnum[weldid]) {
+      m->body_treeid[i] = m->dof_treeid[m->body_dofadr[weldid]];
+    } else {
+      m->body_treeid[i] = -1;
+    }
+  }
+
+  // compute tree_bodyadr, tree_bodynum
+  mju_zeroInt(m->tree_bodynum, m->ntree);
+  int tree_current = -1;
+  for (int i=1; i < m->nbody; i++) {
+    int treeid = m->body_treeid[i];
+    if (treeid != -1) {
+      if (treeid > tree_current) {
+        m->tree_bodyadr[++tree_current] = i;
+      }
+      m->tree_bodynum[tree_current]++;
+    }
+  }
+
+  // compute tree_dofadr, tree_dofnum
+  mju_zeroInt(m->tree_dofnum, m->ntree);
+  tree_current = -1;
+  for (int i=0; i < m->nv; i++) {
+    if (m->dof_treeid[i] > tree_current) {
+      m->tree_dofadr[++tree_current] = i;
+    }
+    m->tree_dofnum[tree_current]++;
+  }
+
+  // compute tendon_treeid, tendon_treenum
+  int* tree_marker = mjSTACKALLOC(d, m->ntree, int);  // 1 if tree has been visited, 0 otherwise
+  for (int i = 0; i < m->ntendon; i++) {
+    mju_zeroInt(tree_marker, m->ntree);
+    m->tendon_treenum[i] = 0;
+    m->tendon_treeid[2*i] = -1;
+    m->tendon_treeid[2*i+1] = -1;
+
+    for (int j = m->tendon_adr[i]; j < m->tendon_adr[i] + m->tendon_num[i]; j++) {
+      int wrap_treeid = GetWrapBodyTreeId(m, j);
+      if (wrap_treeid != -1 && !tree_marker[wrap_treeid]) {
+        tree_marker[wrap_treeid] = 1;
+        if (m->tendon_treenum[i] == 0) {
+          m->tendon_treeid[2*i] = wrap_treeid;
+        } else if (m->tendon_treenum[i] == 1) {
+          m->tendon_treeid[2*i+1] = wrap_treeid;
+        }
+        m->tendon_treenum[i]++;
+      }
+    }
+  }
+
+  // ----- apply compiler AUTO tree sleep policy
+
+  // actuators: trees with any actuated joint, site, body, or tendon do not auto-sleep
+  for (int i=0; i < m->nu; i++) {
+    int bodyid = -1;
+    int tid = m->actuator_trnid[2*i];
+    switch ((mjtTrn)m->actuator_trntype[i]) {
+    case mjTRN_JOINT:
+    case mjTRN_JOINTINPARENT:
+      bodyid = m->jnt_bodyid[tid];
+      break;
+    case mjTRN_SITE:
+    case mjTRN_SLIDERCRANK:
+      bodyid = m->site_bodyid[tid];
+      break;
+    case mjTRN_BODY:
+      bodyid = tid;
+      break;
+    case mjTRN_TENDON:
+      // wake all trees connected by this actuated tendon
+      for (int j = m->tendon_adr[tid]; j < m->tendon_adr[tid] + m->tendon_num[tid]; j++) {
+        int treeid = GetWrapBodyTreeId(m, j);
+        if (treeid != -1 && m->tree_sleep_policy[treeid] == mjSLEEP_AUTO) {
+          m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
+        }
+      }
+      continue;  // next actuator
+    case mjTRN_UNDEFINED:
+      continue;  // next actuator
+    }
+
+    // wake tree containing bodyid, if any
+    if (bodyid != -1) {
+      int treeid = m->body_treeid[bodyid];
+      if (treeid != -1 && m->tree_sleep_policy[treeid] == mjSLEEP_AUTO) {
+        m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
+      }
+    }
+  }
+
+  // trees with inter-tree tendons that have non-zero stiffness or damping do not auto-sleep
+  // if the tendon spans more than 2 trees.
+  for (int i=0; i < m->ntendon; i++) {
+    int treenum = m->tendon_treenum[i];
+
+    // tendon spans 1 or 0 trees: skip
+    if (treenum < 2) {
+      continue;
+    }
+
+    // tendon spans 2 trees and has no stiffness or damping: skip
+    if (treenum == 2 && m->tendon_stiffness[i] == 0 && m->tendon_damping[i] == 0) {
+      continue;
+    }
+
+    // tendon spans two trees with stiffness or damping or more than two trees: wake all trees
+    mju_zeroInt(tree_marker, m->ntree);
+    for (int j = m->tendon_adr[i]; j < m->tendon_adr[i] + m->tendon_num[i]; j++) {
+      int treeid = GetWrapBodyTreeId(m, j);
+
+      // if the tree is not yet marked, mark it and wake it up
+      if (treeid != -1 && !tree_marker[treeid]) {
+        tree_marker[treeid] = 1;
+        int policy = m->tree_sleep_policy[treeid];
+
+        // mark tree as never sleeping
+        if (policy == mjSLEEP_AUTO) {
+          m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
+        }
+
+        // if the user marked it as sleepable, throw an error
+        else if (policy == mjSLEEP_ALLOWED || policy == mjSLEEP_INIT) {
+          mj_freeStack(d);
+          if (treenum > 2) {
+            mjERROR("tree %d connected to tendon %d which spans more than 2 trees, "
+                    "sleeping not allowed", treeid, i);
+          } else {
+            mjERROR("tree %d connected to tendon %d with non-zero stiffness or damping, "
+                    "sleeping not allowed", treeid, i);
+          }
+        }
+      }
+    }
+  }
+
+  // flexes: trees containing bodies that are part of any flex are not allowed to sleep
+  for (int i = 0; i < m->nflex; ++i) {
+    // node-based flex
+    if (m->flex_interp[i]) {
+      int nodenum = m->flex_nodenum[i];
+      int* bodyid = m->flex_nodebodyid + m->flex_nodeadr[i];
+      for (int j = 0; j < nodenum; ++j) {
+        int treeid = m->body_treeid[bodyid[j]];
+        if (treeid != -1 && m->tree_sleep_policy[treeid] == mjSLEEP_AUTO) {
+          m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
+        }
+      }
+    }
+
+    // vertex-based flex
+    else {
+      int vertnum = m->flex_vertnum[i];
+      int* bodyid = m->flex_vertbodyid + m->flex_vertadr[i];
+      for (int j = 0; j < vertnum; ++j) {
+        int treeid = m->body_treeid[bodyid[j]];
+        if (treeid != -1 && m->tree_sleep_policy[treeid] == mjSLEEP_AUTO) {
+          m->tree_sleep_policy[treeid] = mjSLEEP_AUTO_NEVER;
+        }
+      }
+    }
+  }
+
+  // set remaining trees with mjSLEEP_AUTO policy to mjSLEEP_AUTO_ALLOWED
+  for (int i = 0; i < m->ntree; i++) {
+    if (m->tree_sleep_policy[i] == mjSLEEP_AUTO) {
+      m->tree_sleep_policy[i] = mjSLEEP_AUTO_ALLOWED;
+    }
+  }
+
+  mj_freeStack(d);
+}
 
 
 // set quantities that depend on qpos0
@@ -153,8 +376,18 @@ static void set0(mjModel* m, mjData* d) {
       }
 
       // average diagonal and assign
-      m->body_invweight0[2*i] = (A[0] + A[7] + A[14])/3;
-      m->body_invweight0[2*i+1] = (A[21] + A[28] + A[35])/3;
+      mjtNum tran = (A[0] + A[7] + A[14])/3;
+      mjtNum rot = (A[21] + A[28] + A[35])/3;
+
+      // if one is zero, use the other to prevent degenerate constraints
+      if (tran < mjMINVAL && rot > mjMINVAL) {
+        tran = rot;  // use rotation as fallback for translation
+      } else if (rot < mjMINVAL && tran > mjMINVAL) {
+        rot = tran;  // use translation as fallback for rotation
+      }
+
+      m->body_invweight0[2*i] = tran;
+      m->body_invweight0[2*i+1] = rot;
     }
   }
 
@@ -235,14 +468,10 @@ static void set0(mjModel* m, mjData* d) {
         // handle general edge
         else {
           // make dense vector into tmp
-          if (mj_isSparse(m)) {
-            mju_zero(tmp, nv);
-            int end = d->flexedge_J_rowadr[i] + d->flexedge_J_rownnz[i];
-            for (int j=d->flexedge_J_rowadr[i]; j < end; j++) {
-              tmp[d->flexedge_J_colind[j]] = d->flexedge_J[j];
-            }
-          } else {
-            mju_copy(tmp, d->flexedge_J+i*nv, nv);
+          mju_zero(tmp, nv);
+          int end = m->flexedge_J_rowadr[i] + m->flexedge_J_rownnz[i];
+          for (int j=m->flexedge_J_rowadr[i]; j < end; j++) {
+            tmp[m->flexedge_J_colind[j]] = d->flexedge_J[j];
           }
 
           // solve into tmp+nv
@@ -278,12 +507,8 @@ static void set0(mjModel* m, mjData* d) {
       m->actuator_acc0[i] = mju_norm(tmp, nv);
     }
   } else {
-    for (int i=0; i < m->ntendon; i++) {
-      m->tendon_invweight0[i] = 0;
-    }
-    for (int i=0; i < m->nu; i++) {
-      m->actuator_acc0[i] = 0;
-    }
+    mju_zero(m->tendon_invweight0, m->ntendon);
+    mju_zero(m->actuator_acc0, m->nu);
   }
 
   // compute missing eq_data for body constraints
@@ -355,7 +580,7 @@ static void set0(mjModel* m, mjData* d) {
     mju_sub3(m->cam_poscom0+3*i, d->cam_xpos+3*i, d->subtree_com+ (id1 >= 0 ? 3*id1 : 3*id));
 
     // copy mat
-    mju_copy(m->cam_mat0+9*i, d->cam_xmat+9*i, 9);
+    mju_copy9(m->cam_mat0+9*i, d->cam_xmat+9*i);
   }
 
   // light compos0, pos0, dir0
@@ -415,7 +640,6 @@ static void set0(mjModel* m, mjData* d) {
 }
 
 
-
 // accumulate bounding box
 static void updateBox(mjtNum* xmin, mjtNum* xmax, mjtNum* pos, mjtNum radius) {
   for (int i=0; i < 3; i++) {
@@ -431,6 +655,8 @@ static void setStat(mjModel* m, mjData* d) {
   mjtNum xmax[3] = {-1E+10, -1E+10, -1E+10};
   mjtNum rbound;
   mj_markStack(d);
+
+  // approximate length associated with each body
   mjtNum* body = mjSTACKALLOC(d, m->nbody, mjtNum);
 
   // compute bounding box of bodies, joint centers, geoms and sites
@@ -530,6 +756,22 @@ static void setStat(mjModel* m, mjData* d) {
     }
   }
 
+  // inherit dof length from parent body
+  for (int i=0; i < m->nv; i++) {
+    // default to linear dof, already has length units
+    m->dof_length[i] = 1;
+
+    // if rotational dof, inherit from body
+    int jnt = m->dof_jntid[i];
+    mjtJoint type = m->jnt_type[jnt];
+    int offset = i - m->jnt_dofadr[jnt];
+    if (type == mjJNT_BALL  ||
+        type == mjJNT_HINGE ||
+        (type == mjJNT_FREE && offset >= 3)) {
+      m->dof_length[i] = body[m->dof_bodyid[i]];
+    }
+  }
+
   // fix extent if too small compared to meanbody
   m->stat.extent = mju_max(m->stat.extent, 2 * m->stat.meansize);
 
@@ -555,8 +797,7 @@ static void setStat(mjModel* m, mjData* d) {
 }
 
 
-
-// set quantities that depend on qpos_spring
+// set quantities that depend qpos_spring
 static void setSpring(mjModel* m, mjData* d) {
   // run computations in qpos_spring
   mju_copy(d->qpos, m->qpos_spring, m->nq);
@@ -575,23 +816,20 @@ static void setSpring(mjModel* m, mjData* d) {
 }
 
 
-
-// entry point: set all constant fields of mjModel, except for lengthrange
+// entry point: set all remaining constant fields of mjModel, except for lengthrange
 void mj_setConst(mjModel* m, mjData* d) {
-  // compute subtreemass
-  for (int i=0; i < m->nbody; i++) {
-    m->body_subtreemass[i] = m->body_mass[i];
-  }
-  for (int i=m->nbody-1; i > 0; i--) {
-    m->body_subtreemass[m->body_parentid[i]] += m->body_subtreemass[i];
-  }
+  // set fixed quantities
+  setFixed(m, d);
 
-  // call functions
+  // set quantities that depend on qpos0
   set0(m, d);
+
+  // compute statistics
   setStat(m, d);
+
+  // set quantities that depend qpos_spring
   setSpring(m, d);
 }
-
 
 
 //----------------------------- actuator length range computation ----------------------------------
@@ -632,7 +870,6 @@ static mjtNum evalAct(const mjModel* m, mjData* d, int index, int side,
   // return actuator length
   return d->actuator_length[index];
 }
-
 
 
 // Set length range for specified actuator, return 1 if ok, 0 if error.

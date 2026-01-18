@@ -24,6 +24,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath('../'))
 sys.path.append(os.path.abspath('ext'))
+sys.path.insert(0, os.path.abspath('../mjx/mujoco/mjx/third_party'))
 
 from sphinxcontrib import katex  # pylint: disable=g-import-not-at-top
 from sphinxcontrib import youtube  # pylint: disable=g-import-not-at-top,unused-import
@@ -42,10 +43,15 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.extlinks',
     'sphinxcontrib.bibtex',
     'sphinxcontrib.katex',
     'sphinxcontrib.youtube',
     'sphinx_copybutton',
+    'sphinx_design',
     'sphinx_favicon',
     'sphinx_reredirects',
     'sphinx_toolbox.collapse',
@@ -53,6 +59,24 @@ extensions = [
     'sphinx_toolbox.sidebar_links',
     'mujoco_include',
 ]
+
+napoleon_custom_sections = [('warp only fields', 'attributes')]
+
+# Links to GitHub issues and pull requests.
+extlinks = {
+    'issue': (
+        'https://github.com/google-deepmind/mujoco/issues/%s',
+        'issue #%s',
+    ),
+    'pr': ('https://github.com/google-deepmind/mujoco/pull/%s', 'PR #%s'),
+}
+
+# MuJoCo Warp documentation
+napoleon_google_docstring = True
+autodoc_class_signature = 'separated'
+add_module_names = False
+toc_object_entries_show_parents = 'hide'
+default_role = 'literal'
 
 # GitHub-related options
 github_username = 'google-deepmind'
@@ -163,9 +187,11 @@ html_static_path = [
 ]
 html_css_files = [
     'theme_overrides.css',
+    'theme_overrides_mjwarp.css',
 ]
 html_js_files = [
     'linenumbers.js',
+    'onthispage_mjwarp.js',
 ]
 
 favicons = [
@@ -192,6 +218,8 @@ favicons = [
     },
 ]
 
+html_permalinks_icon = '#'
+
 # -- Options for katex ------------------------------------------------------
 
 # See: https://sphinxcontrib-katex.readthedocs.io/en/0.4.1/macros.html
@@ -204,6 +232,9 @@ latex_macros = r"""
     \def \ari            {a_{{\rm ref},i}}
     \def \aui            {a_{0,i}}
     \def \aci            {a_{1,i}}
+    \def \nv             {n_{\scriptscriptstyle V}}
+    \def \nc             {n_{\scriptscriptstyle C}}
+    \def \nq             {n_{\scriptscriptstyle Q}}
 """
 
 # Translate LaTeX macros to KaTeX and add to options for HTML builder

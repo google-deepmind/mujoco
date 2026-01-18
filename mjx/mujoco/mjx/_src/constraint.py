@@ -35,6 +35,7 @@ from mujoco.mjx._src.types import JointType
 from mujoco.mjx._src.types import Model
 from mujoco.mjx._src.types import ModelJAX
 from mujoco.mjx._src.types import ObjType
+from mujoco.mjx._src.types import OptionJAX
 # pylint: enable=g-importing-member
 import numpy as np
 
@@ -321,8 +322,8 @@ def _efc_equality_tendon(m: Model, d: Data) -> Optional[_Efc]:
 
   inv1, inv2 = m.tendon_invweight0[obj1id], m.tendon_invweight0[obj2id]
   jac1, jac2 = d._impl.ten_J[obj1id], d._impl.ten_J[obj2id]
-  pos1 = d._impl.ten_length[obj1id] - m.tendon_length0[obj1id]
-  pos2 = d._impl.ten_length[obj2id] - m.tendon_length0[obj2id]
+  pos1 = d.ten_length[obj1id] - m.tendon_length0[obj1id]
+  pos2 = d.ten_length[obj2id] - m.tendon_length0[obj2id]
   invweight = inv1 + inv2 * (obj2id > -1)
 
   return rows(
@@ -435,7 +436,7 @@ def _efc_limit_tendon(m: Model, d: Data) -> Optional[_Efc]:
   length, j, range_, margin, invweight, solref, solimp = jax.tree_util.tree_map(
       lambda x: x[tendon_id],
       (
-          d._impl.ten_length,
+          d.ten_length,
           d._impl.ten_J,
           m.tendon_range,
           m.tendon_margin,
@@ -496,7 +497,11 @@ def _efc_contact_frictionless(m: Model, d: Data) -> Optional[_Efc]:
 
 def _efc_contact_pyramidal(m: Model, d: Data, condim: int) -> Optional[_Efc]:
   """Calculates constraint rows for frictional pyramidal contacts."""
-  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+  if (
+      not isinstance(m._impl, ModelJAX)
+      or not isinstance(d._impl, DataJAX)
+      or not isinstance(m.opt._impl, OptionJAX)
+  ):
     raise ValueError(
         '_efc_contact_pyramidal requires JAX backend implementation.'
     )
@@ -545,7 +550,11 @@ def _efc_contact_pyramidal(m: Model, d: Data, condim: int) -> Optional[_Efc]:
 
 def _efc_contact_elliptic(m: Model, d: Data, condim: int) -> Optional[_Efc]:
   """Calculates constraint rows for frictional elliptic contacts."""
-  if not isinstance(m._impl, ModelJAX) or not isinstance(d._impl, DataJAX):
+  if (
+      not isinstance(m._impl, ModelJAX)
+      or not isinstance(d._impl, DataJAX)
+      or not isinstance(m.opt._impl, OptionJAX)
+  ):
     raise ValueError(
         '_efc_contact_elliptic requires JAX backend implementation.'
     )

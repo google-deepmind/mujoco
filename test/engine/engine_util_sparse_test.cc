@@ -1446,6 +1446,101 @@ TEST_F(EngineUtilSparseTest, BlockDiagSparse) {
                                      7, 0, 0, 0, 0));
 }
 
+TEST_F(EngineUtilSparseTest, BlockDiagSparseTranspose) {
+  // 4x5 matrix with 3 blocks
+  constexpr int nr = 4;
+  constexpr int nc = 5;
+  const mjtNum mat[nr * nc] = {
+    1, 2, 0, 0, 0,
+    0, 0, 3, 4, 0,
+    0, 0, 5, 6, 0,
+    0, 0, 0, 0, 7
+  };
+  constexpr int nnz = 7;
+
+  // block structure
+  constexpr int nb = 3;
+  const int block_nr[nb] = {1, 2, 1};
+  const int block_nc[nb] = {2, 2, 1};
+  const int block_r[nb] = {0, 1, 3};
+  const int block_c[nb] = {0, 2, 4};
+
+  // convert to sparse
+  int rownnz[nr];
+  int rowadr[nr];
+  int colind[nnz];
+  mjtNum mat_sparse[nnz];
+  mju_dense2sparse(mat_sparse, mat, nr, nc, rownnz, rowadr, colind, nnz);
+
+  // block diagonalize
+  const int perm_r[nr] = {0, 1, 2, 3};
+  const int perm_c[nc] = {0, 1, 2, 3, 4};
+  int res_rownnz[nr];
+  int res_rowadr[nr];
+  int res_colind[nnz];
+  mjtNum res[nnz];
+  mju_blockDiagSparse(res, res_rownnz, res_rowadr, res_colind,
+                      mat_sparse, rownnz, rowadr, colind, nr, nb,
+                      perm_r, perm_c,
+                      block_r, block_c, nullptr, nullptr);
+
+  // transpose each block
+  mjtNum matT[nnz];
+  int colindT[nnz];
+  int rownnzT[nc];  // Max possible size for rownnzT is nc
+  int rowadrT[nc];
+
+  mjtNum denseT[nr * nc];
+  mjtNum dense_block[nr * nc];
+  mjtNum dense_block_T[nr * nc];
+
+  for (int b = 0; b < nb; ++b) {
+    int bnr = block_nr[b];
+    int bnc = block_nc[b];
+    int r_offset = block_r[b];
+    int c_offset = block_c[b];
+
+    if (bnr == 0 || bnc == 0) continue;
+
+    int block_start_adr = res_rowadr[r_offset];
+
+    // pointers to the start of the current block
+    mjtNum* block_res_vals = res + block_start_adr;
+    int* block_res_rownnz = res_rownnz + r_offset;
+    int* block_res_rowadr = res_rowadr + r_offset;
+    int* block_res_colind = res_colind + block_start_adr;
+
+    mju_transposeSparse(
+        matT, block_res_vals, bnr, bnc,
+        rownnzT, rowadrT, colindT, nullptr,
+        block_res_rownnz, block_res_rowadr, block_res_colind);
+
+    // verification:
+    // 1. convert transposed sparse block to dense
+    mju_zero(denseT, bnc * bnr);
+    mju_sparse2dense(denseT, matT, bnc, bnr, rownnzT, rowadrT, colindT);
+
+    // 2. extract original block to dense
+    for (int i = 0; i < bnr; ++i) {
+      for (int j = 0; j < bnc; ++j) {
+        dense_block[i * bnc + j] = mat[(r_offset + i) * nc + (c_offset + j)];
+      }
+    }
+    // 3. manually transpose the original dense block
+    for (int i = 0; i < bnr; ++i) {
+      for (int j = 0; j < bnc; ++j) {
+        dense_block_T[j * bnr + i] = dense_block[i * bnc + j];
+      }
+    }
+
+    // 4. Compare
+    for (int i = 0; i < bnc * bnr; ++i) {
+      EXPECT_EQ(denseT[i], dense_block_T[i])
+          << "block " << b << " element " << i;
+    }
+  }
+}
+
 TEST_F(EngineUtilSparseTest, PermuteMat) {
   const mjtNum mat[] = {1, 2, 0, 0,
                         0, 0, 3, 4,

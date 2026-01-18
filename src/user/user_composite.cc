@@ -255,7 +255,7 @@ bool mjCComposite::MakeCable(mjCModel* model, mjsBody* body, char* error, int er
 
   // add name to model
   mjsText* pte = mjs_addText(&model->spec);
-  mjs_setString(pte->name, ("composite_" + prefix).c_str());
+  mjs_setName(pte->element, ("composite_" + prefix).c_str());
   mjs_setString(pte->data, ("rope_" + prefix).c_str());
 
   // populate uservert if not specified
@@ -372,7 +372,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
 
   // add body
   body = mjs_addBody(body, 0);
-  mjs_setString(body->name, this_body);
+  mjs_setName(body->element, this_body);
   if (first) {
     mjuu_setvec(body->pos, offset[0]+uservert[3*ix],
                            offset[1]+uservert[3*ix+1],
@@ -391,7 +391,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
   // add geom
   mjsGeom* geom = mjs_addGeom(body, &def[0].spec);
   mjs_setDefault(geom->element, mjs_getDefault(body->element));
-  mjs_setString(geom->name, txt_geom);
+  mjs_setName(geom->element, txt_geom);
   if (def[0].spec.geom->type == mjGEOM_CYLINDER ||
       def[0].spec.geom->type == mjGEOM_CAPSULE) {
     mjuu_zerovec(geom->fromto, 6);
@@ -422,7 +422,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
     jnt->damping = jnt->type == mjJNT_FREE ? 0 : jnt->damping;
     jnt->armature = jnt->type == mjJNT_FREE ? 0 : jnt->armature;
     jnt->frictionloss = jnt->type == mjJNT_FREE ? 0 : jnt->frictionloss;
-    mjs_setString(jnt->name, this_joint);
+    mjs_setName(jnt->element, this_joint);
   }
 
   // exclude contact pair
@@ -436,7 +436,7 @@ mjsBody* mjCComposite::AddCableBody(mjCModel* model, mjsBody* body, int ix,
   if (last || first) {
     mjsSite* site = mjs_addSite(body, &def[0].spec);
     mjs_setDefault(site->element, mjs_getDefault(body->element));
-    mjs_setString(site->name, txt_site);
+    mjs_setName(site->element, txt_site);
     mjuu_setvec(site->pos, last ? length : 0, 0, 0);
     mjuu_setvec(site->quat, 1, 0, 0, 0);
   }
@@ -480,7 +480,7 @@ void mjCComposite::MakeSkin2(mjCModel* model, mjtNum inflate) {
   // add skin, set name and material
   mjsSkin* skin = mjs_addSkin(&model->spec);
   mju::sprintf_arr(txt, "%sSkin", prefix.c_str());
-  mjs_setString(skin->name, txt);
+  mjs_setName(skin->element, txt);
   mjs_setString(skin->material, skinmaterial.c_str());
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = inflate;
@@ -967,7 +967,7 @@ void mjCComposite::MakeSkin2Subgrid(mjCModel* model, mjtNum inflate) {
   char txt[100];
   mjsSkin* skin = mjs_addSkin(&model->spec);
   mju::sprintf_arr(txt, "%sSkin", prefix.c_str());
-  mjs_setString(skin->name, txt);
+  mjs_setName(skin->element, txt);
   mjs_setString(skin->material, skinmaterial.c_str());
   mjuu_copyvec(skin->rgba, skinrgba, 4);
   skin->inflate = inflate;

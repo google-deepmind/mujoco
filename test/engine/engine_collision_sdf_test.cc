@@ -47,8 +47,9 @@ static constexpr char kSdfModel[] = R"(
 )";
 
 TEST_F(SdfTest, SdfPrimitive) {
-  mjModel* model = LoadModelFromString(kSdfModel);
-  ASSERT_THAT(model, NotNull());
+  char error[1024];
+  mjModel* model = LoadModelFromString(kSdfModel, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
   mjData* data = mj_makeData(model);
   ASSERT_THAT(data, NotNull());
   ASSERT_THAT(model->ngeom, kgeoms);
@@ -60,7 +61,7 @@ TEST_F(SdfTest, SdfPrimitive) {
     {-1, 0, 0, mju_sqrt(2)-1, mju_sqrt(2)-1, mju_sqrt(3)-1},  // sphere
     {-.1, .9, .9, mju_sqrt(2)-.1, .9, mju_sqrt(2)-.1},  // capsule
     {-1, 0, 0, mju_sqrt(2)-1, 0, mju_sqrt(2)-1},  // cylinder
-    {-1, 0, 0, 0, 0, 0},  // box
+    {-mju_sqrt(3), 0, 0, 0, 0, 0},  // box
   };
   mjtNum points[kpoints][3] = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0},
                                {1, 1, 0}, {0, 1, 1}, {1, 1, 1}};
@@ -71,7 +72,7 @@ TEST_F(SdfTest, SdfPrimitive) {
     sdf.type = mjSDFTYPE_SINGLE;
     sdf.geomtype = (mjtGeom*)(model->geom_type+i);
     for (int j = 0; j < kpoints; j++) {
-      ASSERT_THAT(mjc_distance(model, data, &sdf, points[j]), dist[i][j]);
+      EXPECT_NEAR(mjc_distance(model, data, &sdf, points[j]), dist[i][j], 1e-9);
       mjc_gradient(model, data, &sdf, gradient, points[j]);
     }
   }

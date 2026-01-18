@@ -17,7 +17,6 @@
 
 #include <stdint.h>
 
-#include <mujoco/mjmacro.h>
 #include "engine/engine_callback.h"  // IWYU pragma: export
 
 //-------------------------------- utility macros --------------------------------------------------

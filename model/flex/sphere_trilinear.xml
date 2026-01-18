@@ -22,7 +22,7 @@
 
   <visual>
     <map stiffness="100"/>
-    <!-- The trilinear bounding box is visualized by turning on "Flex Tree" (mjVIS_FLEXBVH).
+    <!-- The trilinear bounding box is visualized by turning on "Flex Tree" (mjVIS_MESHBVH).
          In order to make the visualization clearer,
          we make the regular collision BVH visualization invisible: -->
     <rgba bv="0 0 0 0" bvactive="0 0 0 0"/>

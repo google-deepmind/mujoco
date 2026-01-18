@@ -28,14 +28,6 @@
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjtnum.h>
 
-#define mjGETINFO_HFIELD \
-    const mjtNum* pos1  = d->geom_xpos + 3*g1; \
-    const mjtNum* mat1  = d->geom_xmat + 9*g1; \
-    const mjtNum* size1 = m->geom_size + 3*g1; \
-          mjtNum* pos2  = d->geom_xpos + 3*g2; \
-          mjtNum* mat2  = d->geom_xmat + 9*g2;
-// mjc_ConvexHField modifies and then restores pos2 and mat2
-
 // minimum number of vertices to use hill-climbing in mesh support
 #define mjMESH_HILLCLIMB_MIN 10
 
@@ -58,7 +50,13 @@ struct _mjCCDObj {
   mjtNum rotate[4];
   void (*center)(mjtNum res[3], const struct _mjCCDObj* obj);
   void (*support)(mjtNum res[3], struct _mjCCDObj* obj, const mjtNum dir[3]);
-  mjtNum prism[6][3];  // for hfield
+
+  // for hfield
+  mjtNum prism[6][3];
+  const mjtNum* size;
+  const float* hfield_data;
+  int hfield_nrow;
+  int hfield_ncol;
 };
 typedef struct _mjCCDObj mjCCDObj;
 

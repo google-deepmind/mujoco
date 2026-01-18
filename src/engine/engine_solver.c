@@ -23,8 +23,8 @@
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
 #include "engine/engine_core_constraint.h"
 #include "engine/engine_core_smooth.h"
-#include "engine/engine_io.h"
-#include "engine/engine_support.h"
+#include "engine/engine_core_util.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
 #include "engine/engine_util_misc.h"
@@ -65,7 +65,6 @@ static void saveStats(const mjModel* m, mjData* d, int island, int iter,
 }
 
 
-
 // finalize dual solver: map to joint space
 // TODO: b/295296178 - add island support to Dual solvers
 static void dualFinish(const mjModel* m, mjData* d) {
@@ -76,7 +75,6 @@ static void dualFinish(const mjModel* m, mjData* d) {
   mj_solveM(m, d, d->qacc, d->qfrc_constraint, 1);
   mju_addTo(d->qacc, d->qacc_smooth, m->nv);
 }
-
 
 
 // compute 1/diag(AR)
@@ -112,7 +110,6 @@ static void ARdiaginv(const mjModel* m, const mjData* d, mjtNum* res, int flg_su
     }
   }
 }
-
 
 
 // extract diagonal block from AR, clamp diag to 1e-10 if flg_subR
@@ -175,7 +172,6 @@ static void extractBlock(const mjModel* m, const mjData* d, mjtNum* Ac,
 }
 
 
-
 // compute residual for one block
 // TODO: b/295296178 - add island support to Dual solvers
 static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int dim, int flg_subR) {
@@ -206,7 +202,6 @@ static void residual(const mjModel* m, const mjData* d, mjtNum* res, int i, int 
 }
 
 
-
 // compute cost change
 // TODO: b/295296178 - add island support to Dual solvers
 static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
@@ -233,7 +228,6 @@ static mjtNum costChange(const mjtNum* A, mjtNum* force, const mjtNum* oldforce,
 }
 
 
-
 // set efc_state to dual constraint state; return nactive
 // TODO: b/295296178 - add island support to Dual solvers
 static int dualState(const mjModel* m, const mjData* d, int* state) {
@@ -245,9 +239,7 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
   int nactive = ne + nf;
 
   // equality
-  for (int i=0; i < ne; i++) {
-    state[i] = mjCNSTRSTATE_QUADRATIC;
-  }
+  mju_fillInt(state, mjCNSTRSTATE_QUADRATIC, ne);
 
   // friction
   for (int i=ne; i < ne+nf; i++) {
@@ -307,9 +299,7 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
       }
 
       // replicate state in all cone dimensions
-      for (int j=0; j < dim; j++) {
-        state[i+j] = result;
-      }
+      mju_fillInt(state+i, result, dim);
 
       // advance
       i += (dim-1);
@@ -318,7 +308,6 @@ static int dualState(const mjModel* m, const mjData* d, int* state) {
 
   return nactive;
 }
-
 
 
 //---------------------------- PGS solver ----------------------------------------------------------
@@ -542,7 +531,6 @@ void mj_solPGS(const mjModel* m, mjData* d, int maxiter) {
 }
 
 
-
 //---------------------------- NoSlip solver -------------------------------------------------------
 
 // TODO: b/295296178 - add island support to Dual solvers
@@ -759,11 +747,10 @@ void mj_solNoSlip(const mjModel* m, mjData* d, int maxiter) {
 }
 
 
+//------------------------- Primal solvers ---------------------------------------------------------
 
-//------------------------- CG and Newton solver  --------------------------------------------------
-
-// CG context
-struct _mjCGContext {
+// Primal context
+typedef struct {
   int is_sparse;          // 1: sparse, 0: dense
   int is_elliptic;        // 1: elliptic, 0: pyramidal
   int island;             // current island index, -1 if monolithic
@@ -773,6 +760,7 @@ struct _mjCGContext {
   int ne;                 // number of equalities
   int nf;                 // number of friction constraints
   int nefc;               // number of all constraints
+  int nJ;                 // number of nonzeros in Jacobian
 
   // contact array
   mjContact* contact;
@@ -806,14 +794,14 @@ struct _mjCGContext {
   const int* J_rowadr;
   const int* J_rowsuper;
   const int* J_colind;
-  const int* JT_rownnz;
-  const int* JT_rowadr;
-  const int* JT_rowsuper;
-  const int* JT_colind;
   const mjtNum* J;
-  const mjtNum* JT;
+  int* JT_rownnz;
+  int* JT_rowadr;
+  int* JT_rowsuper;
+  int* JT_colind;
+  mjtNum* JT;
 
-  // common arrays (CGallocate)
+  // common arrays (PrimalAllocate)
   mjtNum* Jaref;          // Jac*qacc - aref                              (nefc x 1)
   mjtNum* Jv;             // Jac*search                                   (nefc x 1)
   mjtNum* Ma;             // M*qacc                                       (nv x 1)
@@ -823,22 +811,28 @@ struct _mjCGContext {
   mjtNum* search;         // linesearch vector                            (nv x 1)
   mjtNum* quad;           // quadratic polynomials for constraint costs   (nefc x 3)
 
-  // Newton arrays, known-size (CGallocate)
+  // Newton arrays, known-size (PrimalAllocate)
   mjtNum* D;              // constraint inertia                           (nefc x 1)
   int* H_rowadr;          // Hessian row addresses                        (nv x 1)
   int* H_rownnz;          // Hessian row nonzeros                         (nv x 1)
-  int* H_lowernnz;        // Hessian lower triangle row nonzeros          (nv x 1)
+  int* HT_rownnz;         // Hessian transpose row nonzeros               (nv x 1)
+  int* HT_rowadr;         // Hessian transpose row addresses              (nv x 1)
   int* L_rownnz;          // Hessian factor row nonzeros                  (nv x 1)
   int* L_rowadr;          // Hessian factor row addresses                 (nv x 1)
+  int* LT_rownnz;         // Hessian factor transpose row nonzeros        (nv x 1)
+  int* LT_rowadr;         // Hessian factor transpose row addresses       (nv x 1)
   int* buf_ind;           // index buffer for sparse addition             (nv x 1)
   mjtNum* buf_val;        // value buffer for sparse addition             (nv x 1)
 
   // Newton arrays, computed-size (MakeHessian)
   int nH;                 // number of nonzeros in Hessian H
   int* H_colind;          // Hessian column indices                       (nH x 1)
+  int* HT_colind;         // Hessian transpose column indices             (nH x 1)
   mjtNum* H;              // Hessian                                      (nH x 1)
   int nL;                 // number of nonzeros in Cholesky factor L
   int* L_colind;          // Cholesky factor column indices               (nL x 1)
+  int* LT_colind;         // Cholesky factor transpose column indices     (nL x 1)
+  int* LT_map;            // CSC-to-CSR index mapping                     (nL x 1)
   mjtNum* L;              // Cholesky factor                              (nL x 1)
   mjtNum* Lcone;          // Cholesky factor with cone contributions      (nL x 1)
 
@@ -854,15 +848,13 @@ struct _mjCGContext {
   int LSiter;             // number of linesearch iterations
   int LSresult;           // linesearch result
   mjtNum LSslope;         // linesearch slope at solution
-};
-typedef struct _mjCGContext mjCGContext;
+} mjPrimalContext;
 
 
-
-// set sizes and pointers to mjData arrays in mjCGContext
-static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int island) {
+// set sizes and pointers to mjData arrays in mjPrimalContext
+static void PrimalPointers(const mjModel* m, const mjData* d, mjPrimalContext* ctx, int island) {
   // clear everything
-  memset(ctx, 0, sizeof(mjCGContext));
+  memset(ctx, 0, sizeof(mjPrimalContext));
 
   // globals
   ctx->is_sparse = mj_isSparse(m);
@@ -877,6 +869,7 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
     ctx->ne               = d->ne;
     ctx->nf               = d->nf;
     ctx->nefc             = d->nefc;
+    ctx->nJ               = d->nJ;
 
     // dof arrays
     ctx->qfrc_smooth      = d->qfrc_smooth;
@@ -885,9 +878,9 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
     ctx->qacc             = d->qacc;
 
     // inertia
-    ctx->M_rownnz         = d->M_rownnz;
-    ctx->M_rowadr         = d->M_rowadr;
-    ctx->M_colind         = d->M_colind;
+    ctx->M_rownnz         = m->M_rownnz;
+    ctx->M_rowadr         = m->M_rowadr;
+    ctx->M_colind         = m->M_colind;
     ctx->M                = d->M;
     ctx->qLD              = d->qLD;
     ctx->qLDiagInv        = d->qLDiagInv;
@@ -909,11 +902,6 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
       ctx->J_rowadr       = d->efc_J_rowadr;
       ctx->J_rowsuper     = d->efc_J_rowsuper;
       ctx->J_colind       = d->efc_J_colind;
-      ctx->JT_rownnz      = d->efc_JT_rownnz;
-      ctx->JT_rowadr      = d->efc_JT_rowadr;
-      ctx->JT_rowsuper    = d->efc_JT_rowsuper;
-      ctx->JT_colind      = d->efc_JT_colind;
-      ctx->JT             = d->efc_JT;
     }
   }
 
@@ -959,21 +947,17 @@ static void CGpointers(const mjModel* m, const mjData* d, mjCGContext* ctx, int 
       ctx->J_rowadr       = d->iefc_J_rowadr     + iefcadr;
       ctx->J_rowsuper     = d->iefc_J_rowsuper   + iefcadr;
       ctx->J_colind       = d->iefc_J_colind;
-      ctx->JT_rownnz      = d->iefc_JT_rownnz    + idofadr;
-      ctx->JT_rowadr      = d->iefc_JT_rowadr    + idofadr;
-      ctx->JT_rowsuper    = d->iefc_JT_rowsuper  + idofadr;
-      ctx->JT_colind      = d->iefc_JT_colind;
       ctx->J              = d->iefc_J;
-      ctx->JT             = d->iefc_JT;
+      ctx->nJ             = ctx->J_rowadr[ctx->nefc-1] + ctx->J_rownnz[ctx->nefc-1]
+                            - ctx->J_rowadr[0];
     }
   }
 }
 
 
-
-// allocate fixed-size arrays in mjCGContext
+// allocate fixed-size arrays in mjPrimalContext
 //  mj_{mark/free}Stack in calling function!
-static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
+static void PrimalAllocate(mjData* d, mjPrimalContext* ctx, int flg_Newton) {
   // local sizes
   int nv = ctx->nv;
   int nefc = ctx->nefc;
@@ -988,6 +972,19 @@ static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
   ctx->search = mjSTACKALLOC(d, nv, mjtNum);
   ctx->quad   = mjSTACKALLOC(d, nefc*3, mjtNum);
 
+  // sparse only, compute Jacobian transpose
+  if (ctx->is_sparse) {
+    ctx->JT_rownnz   = mjSTACKALLOC(d, nv, int);
+    ctx->JT_rowadr   = mjSTACKALLOC(d, nv, int);
+    ctx->JT_rowsuper = mjSTACKALLOC(d, nv, int);
+    ctx->JT_colind   = mjSTACKALLOC(d, d->nJ, int);
+    ctx->JT          = mjSTACKALLOC(d, d->nJ, mjtNum);
+    int offset       = ctx->J_rowadr[0];
+    mju_transposeSparse(ctx->JT, ctx->J + offset, nefc, nv,
+                        ctx->JT_rownnz, ctx->JT_rowadr, ctx->JT_colind, ctx->JT_rowsuper,
+                        ctx->J_rownnz, ctx->J_rowadr, ctx->J_colind + offset);
+  }
+
   // Newton only, known-size arrays
   if (flg_Newton) {
     ctx->D = mjSTACKALLOC(d, nefc, mjtNum);
@@ -996,9 +993,12 @@ static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
     if (ctx->is_sparse) {
       ctx->H_rowadr   = mjSTACKALLOC(d, nv, int);
       ctx->H_rownnz   = mjSTACKALLOC(d, nv, int);
-      ctx->H_lowernnz = mjSTACKALLOC(d, nv, int);
+      ctx->HT_rownnz  = mjSTACKALLOC(d, nv, int);
+      ctx->HT_rowadr  = mjSTACKALLOC(d, nv, int);
       ctx->L_rownnz   = mjSTACKALLOC(d, nv, int);
       ctx->L_rowadr   = mjSTACKALLOC(d, nv, int);
+      ctx->LT_rownnz  = mjSTACKALLOC(d, nv, int);
+      ctx->LT_rowadr  = mjSTACKALLOC(d, nv, int);
       ctx->buf_val    = mjSTACKALLOC(d, nv, mjtNum);
       ctx->buf_ind    = mjSTACKALLOC(d, nv, int);
     }
@@ -1006,9 +1006,8 @@ static void CGallocate(mjData* d, mjCGContext* ctx, int flg_Newton) {
 }
 
 
-
 // update efc_force, qfrc_constraint, cost-related
-static void CGupdateConstraint(mjCGContext* ctx, int flg_HessianCone) {
+static void PrimalUpdateConstraint(mjPrimalContext* ctx, int flg_HessianCone) {
   int nefc = ctx->nefc, nv = ctx->nv;
 
   // update constraints
@@ -1044,9 +1043,8 @@ static void CGupdateConstraint(mjCGContext* ctx, int flg_HessianCone) {
 }
 
 
-
 // update grad, Mgrad
-static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
+static void PrimalUpdateGradient(mjPrimalContext* ctx, int flg_Newton) {
   int nv = ctx->nv;
 
   // grad = M*qacc - qfrc_smooth - qfrc_constraint
@@ -1068,19 +1066,18 @@ static void CGupdateGradient(mjCGContext* ctx, int flg_Newton) {
   else {
     mju_copy(ctx->Mgrad, ctx->grad, nv);
     mj_solveLD(ctx->Mgrad, ctx->qLD, ctx->qLDiagInv, nv, 1,
-               ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind);
+               ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind, NULL);
   }
 }
 
 
-
 // prepare quadratic polynomials and contact cone quantities
-static void CGprepare(mjCGContext* ctx) {
+static void PrimalPrepare(mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
   const mjtNum* v = ctx->search;
 
   // Gauss: alpha^2*0.5*v'*M*v + alpha*v'*(Ma-qfrc_smooth) + 0.5*(a-qacc_smooth)'*(Ma-qfrc_smooth)
-  //  quadGauss[0] already computed in CGupdateConstraint
+  //  quadGauss[0] already computed in PrimalUpdateConstraint
   ctx->quadGauss[1] = mju_dot(v, ctx->Ma, nv) - mju_dot(ctx->qfrc_smooth, v, nv);
   ctx->quadGauss[2] = 0.5*mju_dot(v, ctx->Mv, nv);
 
@@ -1150,19 +1147,17 @@ static void CGprepare(mjCGContext* ctx) {
 }
 
 
-
 // linesearch evaluation point
-struct _mjCGPnt {
+struct _mjPrimalPnt {
   mjtNum alpha;
   mjtNum cost;
   mjtNum deriv[2];
 };
-typedef struct _mjCGPnt mjCGPnt;
-
+typedef struct _mjPrimalPnt mjPrimalPnt;
 
 
 // evaluate linesearch cost, return first and second derivatives
-static void CGeval(mjCGContext* ctx, mjCGPnt* p) {
+static void PrimalEval(mjPrimalContext* ctx, mjPrimalPnt* p) {
   int ne = ctx->ne, nf = ctx->nf, nefc = ctx->nefc;
 
   // clear result
@@ -1299,10 +1294,9 @@ static void CGeval(mjCGContext* ctx, mjCGPnt* p) {
 }
 
 
-
 // update bracket point given 3 candidate points
-static int updateBracket(mjCGContext* ctx,
-                         mjCGPnt* p, const mjCGPnt candidates[3], mjCGPnt* pnext) {
+static int updateBracket(mjPrimalContext* ctx,
+                         mjPrimalPnt* p, const mjPrimalPnt candidates[3], mjPrimalPnt* pnext) {
   int flag = 0;
   for (int i=0; i < 3; i++) {
     // negative deriv
@@ -1323,18 +1317,17 @@ static int updateBracket(mjCGContext* ctx,
   // compute next point if updated
   if (flag) {
     pnext->alpha = p->alpha - p->deriv[0]/p->deriv[1];
-    CGeval(ctx, pnext);
+    PrimalEval(ctx, pnext);
   }
 
   return flag;
 }
 
 
-
 // line search
-static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations) {
+static mjtNum PrimalSearch(mjPrimalContext* ctx, mjtNum tolerance, mjtNum ls_iterations) {
   int nv = ctx->nv, nefc = ctx->nefc;
-  mjCGPnt p0, p1, p2, pmid, p1next, p2next;
+  mjPrimalPnt p0, p1, p2, pmid, p1next, p2next;
 
   // clear results
   ctx->LSiter = 0;
@@ -1365,18 +1358,15 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
   }
 
   // prepare quadratics and cones
-  CGprepare(ctx);
+  PrimalPrepare(ctx);
 
   // init at alpha = 0, save
   p0.alpha = 0;
-  CGeval(ctx, &p0);
+  PrimalEval(ctx, &p0);
 
   // always attempt one Newton step
   p1.alpha = p0.alpha - p0.deriv[0]/p0.deriv[1];
-  CGeval(ctx, &p1);
-  if (p0.cost < p1.cost) {
-    p1 = p0;
-  }
+  PrimalEval(ctx, &p1);
 
   // check for initial convergence
   if (mju_abs(p1.deriv[0]) < gtol) {
@@ -1427,7 +1417,8 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
    */
 
   // one-sided search
-  int p2update = 0;
+  p2 = p0;
+  int p2update = 1;
   while (p1.deriv[0]*dir <= -gtol && ctx->LSiter < ls_iterations) {
     // save current
     p2 = p1;
@@ -1435,7 +1426,7 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
 
     // move to Newton point w.r.t current
     p1.alpha -= p1.deriv[0]/p1.deriv[1];
-    CGeval(ctx, &p1);
+    PrimalEval(ctx, &p1);
 
     // check for convergence
     if (mju_abs(p1.deriv[0]) < gtol) {
@@ -1461,16 +1452,16 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
   // compute next-points for bracket
   p2next = p1;
   p1next.alpha = p1.alpha - p1.deriv[0]/p1.deriv[1];
-  CGeval(ctx, &p1next);
+  PrimalEval(ctx, &p1next);
 
   // bracketed search
   while (ctx->LSiter < ls_iterations) {
     // evaluate at midpoint
     pmid.alpha = 0.5*(p1.alpha + p2.alpha);
-    CGeval(ctx, &pmid);
+    PrimalEval(ctx, &pmid);
 
     // make list of candidates
-    mjCGPnt candidates[3] = {p1next, p2next, pmid};
+    mjPrimalPnt candidates[3] = {p1next, p2next, pmid};
 
     // check candidates for convergence
     mjtNum bestcost = 0;
@@ -1520,10 +1511,9 @@ static mjtNum CGsearch(mjCGContext* ctx, mjtNum tolerance, mjtNum ls_iterations)
 }
 
 
-
 // allocate and compute Hessian given efc_state
 //  mj_{mark/free}Stack in caller function!
-static void MakeHessian(mjData* d, mjCGContext* ctx) {
+static void MakeHessian(mjData* d, mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
 
   // compute constraint inertia
@@ -1565,24 +1555,16 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
                        ctx->M, ctx->M_rownnz, ctx->M_rowadr, ctx->M_colind,
                        ctx->buf_val, ctx->buf_ind);
 
-    // transiently compute H'; mju_cholFactorNNZ is memory-contiguous in upper triangle layout
-    mj_markStack(d);
-    int* HT_rownnz = mjSTACKALLOC(d, nv, int);
-    int* HT_rowadr = mjSTACKALLOC(d, nv, int);
-    int* HT_colind = mjSTACKALLOC(d, ctx->nH, int);
-    mju_transposeSparse(NULL, NULL, nv, nv,
-                        HT_rownnz, HT_rowadr, HT_colind, NULL,
+    // compute H' (upper triangle, required for symbolic Cholesky)
+    ctx->HT_colind = mjSTACKALLOC(d, ctx->nH, int);
+    mju_transposeSparse(NULL, NULL, nv, nv, ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind, NULL,
                         ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind);
 
-    // count total and row non-zeros of reverse-Cholesky factor L
-    ctx->nL = mju_cholFactorCount(ctx->L_rownnz, HT_rownnz, HT_rowadr, HT_colind, nv, d);
-    mj_freeStack(d);
-
-    // compute L row addresses: rowadr = cumsum(rownnz)
-    ctx->L_rowadr[0] = 0;
-    for (int r=1; r < nv; r++) {
-      ctx->L_rowadr[r] = ctx->L_rowadr[r-1] + ctx->L_rownnz[r-1];
-    }
+    // count total and row non-zeros of reverse-Cholesky factors L and LT
+    ctx->nL = mju_cholFactorSymbolic(NULL, ctx->L_rownnz, ctx->L_rowadr, NULL,
+                                     ctx->LT_rownnz, ctx->LT_rowadr, NULL,
+                                     ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind,
+                                     nv, d);
 
     // allocate L_colind, L, Lcone
     ctx->L_colind = mjSTACKALLOC(d, ctx->nL, int);
@@ -1591,25 +1573,15 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
       ctx->Lcone = mjSTACKALLOC(d, ctx->nL, mjtNum);
     }
 
-    // count nonzeros in rows of H lower triangle
-    for (int r = 0; r < nv; r++) {
-      const int* colind = ctx->H_colind + ctx->H_rowadr[r];
-      int rownnz = ctx->H_rownnz[r];
+    // allocate LT (CSC representation of L)
+    ctx->LT_colind = mjSTACKALLOC(d, ctx->nL, int);
+    ctx->LT_map = mjSTACKALLOC(d, ctx->nL, int);
 
-      // count nonzeros up to diagonal (inclusive) for row r
-      int nnz = 1;
-      while (nnz < rownnz && colind[nnz - 1] < r) {
-        nnz++;
-      }
-
-      // last row element is not the diagonal; SHOULD NOT OCCUR
-      if (colind[nnz - 1] != r) {
-        mjERROR("Newton solver Hessian has zero diagonal on row %d", r);
-      }
-
-      // save row nonzeros
-      ctx->H_lowernnz[r] = nnz;
-    }
+    // symbolic Cholesky: populate L_colind and LT structures
+    mju_cholFactorSymbolic(ctx->L_colind, ctx->L_rownnz, ctx->L_rowadr,
+                           ctx->LT_colind, ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_map,
+                           ctx->HT_rownnz, ctx->HT_rowadr, ctx->HT_colind,
+                           nv, d);
   }
 
   // dense
@@ -1630,12 +1602,11 @@ static void MakeHessian(mjData* d, mjCGContext* ctx) {
 }
 
 
-
-// forward declaration of HessianCone (readability)
-static void HessianCone(mjData* d, mjCGContext* ctx);
+// forward declaration of HessianCone (for readability)
+static void HessianCone(mjData* d, mjPrimalContext* ctx);
 
 // factorize Hessian: L = chol(H), maybe (re)compute H given efc_state
-static void FactorizeHessian(mjData* d, mjCGContext* ctx, int flg_recompute) {
+static void FactorizeHessian(mjData* d, mjPrimalContext* ctx, int flg_recompute) {
   int nv = ctx->nv, nefc = ctx->nefc;
 
   // maybe compute constraint inertia
@@ -1662,26 +1633,16 @@ static void FactorizeHessian(mjData* d, mjCGContext* ctx, int flg_recompute) {
                          ctx->buf_val, ctx->buf_ind);
     }
 
-    // copy H lower-triangle into L, fill-in already accounted for
-    for (int r = 0; r < nv; r++) {
-      int nnz = ctx->H_lowernnz[r];
-      mju_copy(ctx->L + ctx->L_rowadr[r], ctx->H + ctx->H_rowadr[r], nnz);
-      mju_copyInt(ctx->L_colind + ctx->L_rowadr[r], ctx->H_colind + ctx->H_rowadr[r], nnz);
-      ctx->L_rownnz[r] = nnz;
-    }
-
-    // in-place sparse factorization: L = chol(H)
-    int rank = mju_cholFactorSparse(ctx->L, nv, mjMINVAL,
-                                    ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, d);
+    // numeric sparse factorization: L = chol(H) using pre-computed sparsity pattern
+    int rank = mju_cholFactorNumeric(
+        ctx->L, nv, mjMINVAL,
+        ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind,
+        ctx->LT_rownnz, ctx->LT_rowadr, ctx->LT_colind, ctx->LT_map,
+        ctx->H, ctx->H_rownnz, ctx->H_rowadr, ctx->H_colind, d);
 
     // rank-deficient; SHOULD NOT OCCUR
     if (rank != nv) {
       mjERROR("rank-deficient sparse Hessian");
-    }
-
-    // pre-counted nL does not match post-factorization nL; SHOULD NOT OCCUR
-    if (ctx->nL !=  ctx->L_rowadr[nv-1] + ctx->L_rownnz[nv-1]) {
-      mjERROR("mismatch between pre-counted and post-factorization L nonzeros");
     }
   }
 
@@ -1709,9 +1670,8 @@ static void FactorizeHessian(mjData* d, mjCGContext* ctx, int flg_recompute) {
 }
 
 
-
 // elliptic case: Hcone = H + cone_contributions
-static void HessianCone(mjData* d, mjCGContext* ctx) {
+static void HessianCone(mjData* d, mjPrimalContext* ctx) {
   int nv = ctx->nv, nefc = ctx->nefc;
   mjtNum local[36];
 
@@ -1722,8 +1682,6 @@ static void HessianCone(mjData* d, mjCGContext* ctx) {
 
   // storage for L'*J
   mjtNum* LTJ = mjSTACKALLOC(d, 6*nv, mjtNum);
-  mjtNum* LTJ_row = mjSTACKALLOC(d, nv, mjtNum);
-  int* LTJ_ind = mjSTACKALLOC(d, nv, int);
 
   // add contributions
   for (int i=0; i < nefc; i++) {
@@ -1750,13 +1708,9 @@ static void HessianCone(mjData* d, mjCGContext* ctx) {
 
         // update
         for (int r=0; r < dim; r++) {
-          // copy data for this row
-          mju_copy(LTJ_row, LTJ+r*nnz, nnz);
-          mju_copyInt(LTJ_ind, ctx->J_colind+ctx->J_rowadr[i+r], nnz);
-
-          // update
-          mju_cholUpdateSparse(ctx->Lcone, LTJ_row, nv, 1,
-                               ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz, LTJ_ind, d);
+          mju_cholUpdateSparse(ctx->Lcone, LTJ+r*nnz, nv, 1,
+                               ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz,
+                               ctx->J_colind+ctx->J_rowadr[i+r], d);
         }
       }
 
@@ -1788,15 +1742,13 @@ static void HessianCone(mjData* d, mjCGContext* ctx) {
 }
 
 
-
 // incremental update to Hessian factor due to changes in efc_state
-static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate) {
+static void HessianIncremental(mjData* d, mjPrimalContext* ctx, const int* oldstate) {
   int rank, nv = ctx->nv, nefc = ctx->nefc;
   mj_markStack(d);
 
   // local space
   mjtNum* vec = mjSTACKALLOC(d, nv, mjtNum);
-  int* vec_ind = mjSTACKALLOC(d, nv, int);
 
   // clear update counter
   ctx->nupdate = 0;
@@ -1822,14 +1774,13 @@ static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate)
         // get nnz and adr of row i
         const int nnz = ctx->J_rownnz[i], adr = ctx->J_rowadr[i];
 
-        // scale vec, copy colind
+        // scale vec
         mju_scl(vec, ctx->J+adr, mju_sqrt(ctx->efc_D[i]), nnz);
-        mju_copyInt(vec_ind, ctx->J_colind+adr, nnz);
 
         // sparse update or downdate
         rank = mju_cholUpdateSparse(ctx->L, vec, nv, flag_update,
-                                    ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz, vec_ind,
-                                    d);
+                                    ctx->L_rownnz, ctx->L_rowadr, ctx->L_colind, nnz,
+                                    ctx->J_colind+adr, d);
       } else {
         mju_scl(vec, ctx->J+i*nv, mju_sqrt(ctx->efc_D[i]), nv);
         rank = mju_cholUpdate(ctx->L, vec, nv, flag_update);
@@ -1856,18 +1807,17 @@ static void HessianIncremental(mjData* d, mjCGContext* ctx, const int* oldstate)
 }
 
 
-
 // driver
-static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter, int flg_Newton) {
+static void mj_solPrimal(const mjModel* m, mjData* d, int island, int maxiter, int flg_Newton) {
   int iter = 0;
   mjtNum alpha, beta;
   mjtNum *gradold = NULL, *Mgradold = NULL, *Mgraddif = NULL;
-  mjCGContext ctx;
+  mjPrimalContext ctx;
   mj_markStack(d);
 
   // make context
-  CGpointers(m, d, &ctx, island);
-  CGallocate(d, &ctx, flg_Newton);
+  PrimalPointers(m, d, &ctx, island);
+  PrimalAllocate(d, &ctx, flg_Newton);
 
   // local copies
   int nv   = ctx.nv;
@@ -1896,13 +1846,13 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
   mju_subFrom(ctx.Jaref, ctx.efc_aref, nefc);
 
   // first update
-  CGupdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
+  PrimalUpdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
   if (flg_Newton) {
     // compute and factorize Hessian
     MakeHessian(d, &ctx);
     FactorizeHessian(d, &ctx, /*flg_recompute=*/0);
   }
-  CGupdateGradient(&ctx, flg_Newton);
+  PrimalUpdateGradient(&ctx, flg_Newton);
 
   // start both with preconditioned gradient
   mju_scl(ctx.search, ctx.Mgrad, -1, nv);
@@ -1924,7 +1874,7 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
   // main loop
   while (iter < maxiter) {
     // perform linesearch
-    alpha = CGsearch(&ctx, m->opt.tolerance * m->opt.ls_tolerance, m->opt.ls_iterations);
+    alpha = PrimalSearch(&ctx, m->opt.tolerance * m->opt.ls_tolerance, m->opt.ls_iterations);
 
     // no improvement: done
     if (alpha == 0) {
@@ -1945,11 +1895,11 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
     mjtNum oldcost = ctx.cost;
 
     // update
-    CGupdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
+    PrimalUpdateConstraint(&ctx, flg_Newton & (m->opt.cone == mjCONE_ELLIPTIC));
     if (flg_Newton) {
       HessianIncremental(d, &ctx, oldstate);
     }
-    CGupdateGradient(&ctx, flg_Newton);
+    PrimalUpdateGradient(&ctx, flg_Newton);
 
     // count state changes
     int nchange = 0;
@@ -2018,29 +1968,25 @@ static void mj_solCGNewton(const mjModel* m, mjData* d, int island, int maxiter,
 }
 
 
-
 // CG entry point
 void mj_solCG(const mjModel* m, mjData* d, int maxiter) {
-  mj_solCGNewton(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/0);
+  mj_solPrimal(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/0);
 }
-
 
 
 // CG entry point (one island)
 void mj_solCG_island(const mjModel* m, mjData* d, int island, int maxiter) {
-  mj_solCGNewton(m, d, island, maxiter, /*flg_Newton=*/0);
+  mj_solPrimal(m, d, island, maxiter, /*flg_Newton=*/0);
 }
-
 
 
 // Newton entry point
 void mj_solNewton(const mjModel* m, mjData* d, int maxiter) {
-  mj_solCGNewton(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/1);
+  mj_solPrimal(m, d, /*island=*/-1, maxiter, /*flg_Newton=*/1);
 }
-
 
 
 // Newton entry point (one island)
 void mj_solNewton_island(const mjModel* m, mjData* d, int island, int maxiter) {
-  mj_solCGNewton(m, d, island, maxiter, /*flg_Newton=*/1);
+  mj_solPrimal(m, d, island, maxiter, /*flg_Newton=*/1);
 }

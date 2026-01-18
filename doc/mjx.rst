@@ -36,7 +36,7 @@ Tutorial notebook
 The following IPython notebook demonstrates the use of MJX along with reinforcement learning to train humanoid and
 quadruped robots to locomote: |colab|.
 
-.. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |colab| image:: https://colab.research.google.com/assets/colab-badge.png
            :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb
 
 .. _MjxInstallation:
@@ -206,7 +206,7 @@ The following features are **fully supported** in MJX:
    * - Category
      - Feature
    * - Dynamics
-     - :ref:`Forward <mj_forward>`
+     - :ref:`Forward <mj_forward>`, :ref:`Inverse <mj_inverse>`
    * - :ref:`Joint <mjtJoint>`
      - ``FREE``, ``BALL``, ``SLIDE``, ``HINGE``
    * - :ref:`Transmission <mjtTrn>`
@@ -235,8 +235,6 @@ The following features are **fully supported** in MJX:
      - 1, 3, 4, 6 (1 is not supported with ``ELLIPTIC``)
    * - :ref:`Solver <mjtSolver>`
      - ``CG``, ``NEWTON``
-   * - Dynamics
-     - :ref:`Inverse <mj_inverse>`
    * - Fluid Model
      - :ref:`flInertia`
    * - :ref:`Tendons <tendon>`
@@ -245,9 +243,11 @@ The following features are **fully supported** in MJX:
      - ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``, ``TENDONPOS``, ``ACTUATORPOS``, ``BALLQUAT``,
        ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``, ``SUBTREECOM``, ``CLOCK``,
        ``VELOCIMETER``, ``GYRO``, ``JOINTVEL``, ``TENDONVEL``, ``ACTUATORVEL``, ``BALLANGVEL``, ``FRAMELINVEL``,
-       ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``, ``TOUCH``, ``ACCELEROMETER``, ``FORCE``, ``TORQUE``,
-       ``ACTUATORFRC``, ``JOINTACTFRC``, ``TENDONACTFRC``, ``FRAMELINACC``, ``FRAMEANGACC``
-       (``ACCELEROMETER``, ``FORCE``, ``TORQUE`` not supported with connect or weld equality constraints)
+       ``FRAMEANGVEL``, ``SUBTREELINVEL``, ``SUBTREEANGMOM``, ``TOUCH``, ``CONTACT``, ``ACCELEROMETER``, ``FORCE``,
+       ``TORQUE``, ``ACTUATORFRC``, ``JOINTACTFRC``, ``TENDONACTFRC``, ``FRAMELINACC``, ``FRAMEANGACC``
+       (``CONTACT``: matching ``none-none``, ``geom-geom``; reduction ``mindist``, ``maxforce``; data ``all``)
+   * - Lights
+     - Positions and directions of lights
 
 The following features are **in development** and coming soon:
 
@@ -268,8 +268,6 @@ The following features are **in development** and coming soon:
      - :ref:`flEllipsoid`
    * - :ref:`Sensors <mjtSensor>`
      - All except ``PLUGIN``, ``USER``
-   * - Lights
-     - Positions and directions of lights
 
 The following features are **unsupported**:
 
@@ -295,6 +293,8 @@ The following features are **unsupported**:
      - ``PGS``
    * - :ref:`Sensors <mjtSensor>`
      - ``PLUGIN``, ``USER``
+   * - Flex
+     - All
 
 .. _MjxSharpBits:
 

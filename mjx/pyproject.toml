@@ -4,18 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="mujoco-mjx"
-version = "3.3.4"
+version = "3.4.1"
 authors = [
     {name = "Google DeepMind", email = "mujoco@deepmind.com"},
 ]
 description = "MuJoCo XLA (MJX)"
 readme = {file = "README.md", content-type = "text/markdown"}
-license = {text = "Apache License 2.0"}
+license = "Apache-2.0"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -30,9 +29,14 @@ dependencies = [
     "etils[epath]",
     "jax",
     "jaxlib",
-    "mujoco>=3.3.4.dev0",
+    "mujoco>=3.4.1.dev0",
     "scipy",
     "trimesh",
+]
+
+[project.optional-dependencies]
+warp = [
+    "warp-lang==1.11.0",
 ]
 
 [project.scripts]
@@ -41,9 +45,9 @@ mjx-viewer = "mujoco.mjx.viewer:main"
 
 [project.urls]
 Homepage = "https://github.com/google-deepmind/mujoco/tree/main/mjx"
-Documentation = "https://mujoco.readthedocs.io/en/3.3.4"
+Documentation = "https://mujoco.readthedocs.io/en/3.4.1"
 Repository = "https://github.com/google-deepmind/mujoco/tree/main/mjx"
-Changelog = "https://mujoco.readthedocs.io/en/3.3.4/changelog.html"
+Changelog = "https://mujoco.readthedocs.io/en/3.4.1/changelog.html"
 
 [tool.isort]
 force_single_line = true
@@ -65,3 +69,8 @@ pyink-use-majority-quotes = true
 extend-exclude = '''(
  .ipynb$
 )'''
+
+[tool.pytest.ini_options]
+norecursedirs = [
+    "**/third_party",
+]

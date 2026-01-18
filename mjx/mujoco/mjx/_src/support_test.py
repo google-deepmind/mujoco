@@ -379,6 +379,19 @@ class SupportTest(parameterized.TestCase):
         ' 15297169659434471387 != 2785811613804955188',
     )
 
+    # what happens when we bind to an actuator that was removed?
+    bygone_actuators = []
+    for act in s.actuators:
+      bygone_actuators.append(act)
+      s.delete(act)
+    m = s.compile()
+    d = mujoco.MjData(m)
+    mx = mjx.put_model(m)
+    dx = mjx.put_data(m, d)
+    dx = mjx.step(mx, dx)
+    with self.assertRaisesRegex(KeyError, 'invalid id: -1'):
+      dx.bind(mx, bygone_actuators)
+
   _CONTACTS = """
     <mujoco>
       <worldbody>

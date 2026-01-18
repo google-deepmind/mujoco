@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <functional>
 #include <iterator>
 #include <map>
@@ -26,9 +27,11 @@
 #include <vector>
 
 #include <mujoco/mujoco.h>
+#include "engine/engine_support.h"
+#include "user/user_cache.h"
 #include "user/user_model.h"
 #include "user/user_objects.h"
-#include "user/user_cache.h"
+#include "user/user_resource.h"
 #include "user/user_util.h"
 
 namespace {
@@ -61,7 +64,70 @@ mjSpec* mj_copySpec(const mjSpec* s) {
   return &modelC->spec;
 }
 
+// parse file into spec
+mjSpec* mj_parse(const char* filename, const char* content_type,
+                 const mjVFS* vfs, char* error, int error_sz) {
+  mjVFS local_vfs;
+  mujoco::user::Cleanup cleanup;
 
+  // early exit for existing XML workflow
+  auto filepath = mujoco::user::FilePath(filename);
+  if (filepath.Ext() == ".xml" ||
+      filepath.Ext() == ".urdf" ||
+      (content_type && std::strcmp(content_type, "text/xml") == 0)) {
+    return mj_parseXML(filename, vfs, error, error_sz);
+  }
+
+  // If no VFS is provided, we'll create our own temporary one for the duration
+  // of this function.
+  if (vfs == nullptr) {
+    mj_defaultVFS(&local_vfs);
+    cleanup += [&local_vfs](){ mj_deleteVFS(&local_vfs); };
+
+    vfs = &local_vfs;
+  }
+
+  mjResource* resource = mju_openResource("", filename, vfs, error, error_sz);
+  // If we are unable to open the resource, we will create our own resource with
+  // just the filename. This allows decoders that rely on other systems to fetch
+  // their content to function without a custom resource provider.
+  // For example, USD may use identifiers to assets that are strictly in memory
+  // or that are fetched on a need-be basis via URI.
+  if (resource) {
+    cleanup += [resource](){ mju_closeResource(resource); };
+  } else {
+    resource = (mjResource*) mju_malloc(sizeof(mjResource));
+    cleanup += [resource](){ if (resource) mju_free(resource); };
+
+    if (resource == nullptr) {
+      if (error) {
+        strncpy(error, "could not allocate memory", error_sz);
+        error[error_sz - 1] = '\0';
+      }
+      return nullptr;
+    }
+
+    // clear out resource
+    memset(resource, 0, sizeof(mjResource));
+
+    // make space for filename
+    std::string fullname = filename;
+    std::size_t n = fullname.size();
+    resource->name = (char*) mju_malloc(sizeof(char) * (n + 1));
+    cleanup += [resource](){ if (resource) mju_free(resource->name); };
+
+    if (resource->name == nullptr) {
+      if (error) {
+        strncpy(error, "could not allocate memory", error_sz);
+        error[error_sz - 1] = '\0';
+      }
+      return nullptr;
+    }
+    memcpy(resource->name, fullname.c_str(), sizeof(char) * (n + 1));
+  }
+
+  return mju_decodeResource(resource, content_type, vfs);
+}
 
 // compile model
 mjModel* mj_compile(mjSpec* s, const mjVFS* vfs) {
@@ -277,42 +343,15 @@ mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
 
 // get error message from model
 const char* mjs_getError(mjSpec* s) {
+  if (!s) {
+    mju_error("spec is null");
+    return nullptr;
+  }
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   return modelC->GetError().message;
 }
 
 
-
-// detach body from mjSpec, return 0 on success
-int mjs_detachBody(mjSpec* s, mjsBody* b) {
-  mjCModel* model = static_cast<mjCModel*>(s->element);
-  mjCBody* body = static_cast<mjCBody*>(b->element);
-  try {
-    *model -= *body;
-  } catch (mjCError& e) {
-    model->SetError(e);
-    return -1;
-  }
-  model->Detach(body);
-  return 0;
-}
-
-// detach default from mjSpec, return 0 on success
-int mjs_detachDefault(mjSpec* s, mjsDefault* def) {
-  mjCModel* modelC = static_cast<mjCModel*>(s->element);
-  if (!def) {
-    modelC->SetError(mjCError(0, "Cannot detach, default is null"));
-    return -1;
-  }
-  mjCDef* defC = static_cast<mjCDef*>(def->element);
-  try {
-    *modelC -= *defC;
-  } catch (mjCError& e) {
-    modelC->SetError(e);
-    return -1;
-  }
-  return 0;
-}
 
 // check if model has warnings
 int mjs_isWarning(mjSpec* s) {
@@ -326,7 +365,7 @@ int mjs_isWarning(mjSpec* s) {
 void mj_deleteSpec(mjSpec* s) {
   if (s) {
     mjCModel* model = static_cast<mjCModel*>(s->element);
-    delete model;
+    model->Release();
   }
 }
 
@@ -371,16 +410,20 @@ int mj_copyBack(mjSpec* s, const mjModel* m) {
 
 
 
-// delete object, return 0 on success
-int mjs_delete(mjsElement* element) {
-  mjCModel* model;
-  if (element->elemtype == mjOBJ_DEFAULT)
-    model = static_cast<mjCDef*>(element)->model;
-  else
-    model = static_cast<mjCBase*>(element)->model;
+// remove body from mjSpec, return 0 on success
+int mjs_delete(mjSpec* s, mjsElement* element) {
+  mjCModel* model = static_cast<mjCModel*>(s->element);
+  if (!element) {
+    model->SetError(mjCError(0, "Element is null."));
+    return -1;
+  }
   try {
-    // it will call the appropriate destructor since ~mjCBase is virtual
-    model->DeleteElement(element);
+    if (element->elemtype == mjOBJ_DEFAULT) {
+      mjCDef* def = static_cast<mjCDef*>(element);
+      *model -= *def;
+    } else {
+      *model -= element;
+    }
     return 0;
   } catch (mjCError& e) {
     model->SetError(e);
@@ -526,7 +569,159 @@ mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* defspec) {
   return &material->spec;
 }
 
+// Sets the vertices and normals of a mesh.
+int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams) {
+  mjCMesh* meshC = static_cast<mjCMesh*>(mesh->element);
+  mjCModel* m = meshC->model;
+  switch (builtin) {
+    case mjMESH_BUILTIN_HEMISPHERE: {
+      if (nparams != 1) {
+        m->SetError(mjCError(0, "Hemisphere mesh type requires 1 parameter"));
+        return -1;
+      }
+      int subdiv = static_cast<int>(params[0]);
+      if (subdiv < 0) {
+        m->SetError(mjCError(0, "Hemisphere resolution cannot be negative"));
+        return -1;
+      }
+      if (subdiv > 10) {
+        m->SetError(mjCError(0, "Hemisphere resolution cannot be greater than 10"));
+        return -1;
+      }
+      meshC->MakeHemisphere(subdiv, /*make_faces*/ true, /*make_cap*/ true);
+      return 0;
+    }
 
+    case mjMESH_BUILTIN_SPHERE: {
+      if (nparams != 1) {
+        m->SetError(mjCError(0, "Sphere mesh type requires 1 parameter"));
+        return -1;
+      }
+      int subdiv = static_cast<int>(params[0]);
+      if (subdiv < 0) {
+        m->SetError(mjCError(0, "Sphere subdivision cannot be negative"));
+        return -1;
+      }
+      if (subdiv > 4) {
+        m->SetError(mjCError(0, "Sphere subdivision cannot be greater than 4"));
+        return -1;
+      }
+      meshC->MakeSphere(subdiv, /*make_faces*/ true);
+      return 0;
+    }
+
+    case mjMESH_BUILTIN_SUPERSPHERE: {
+      if (nparams != 3) {
+        m->SetError(mjCError(0, "Supersphere mesh type requires 3 parameters"));
+        return -1;
+      }
+      int res = static_cast<int>(params[0]);
+      if (res < 3) {
+        m->SetError(mjCError(0, "Supersphere resolution must be greater than 2"));
+        return -1;
+      }
+      double e = params[1];
+      if (e < 0) {
+        m->SetError(mjCError(0, "Supersphere 'e' cannot be negative"));
+        return -1;
+      }
+      double n = params[2];
+      if (n < 0) {
+        m->SetError(mjCError(0, "Supersphere 'n' cannot be negative"));
+        return -1;
+      }
+      meshC->MakeSupersphere(res, e, n);
+      return 0;
+    }
+
+    case mjMESH_BUILTIN_SUPERTORUS: {
+      if (nparams != 4) {
+        m->SetError(mjCError(0, "Supertorus mesh type requires 4 parameters"));
+        return -1;
+      }
+      int res = static_cast<int>(params[0]);
+      if (res < 3) {
+        m->SetError(mjCError(0, "Supertorus resolution must be greater than 3"));
+        return -1;
+      }
+      double radius = params[1];
+      if (radius <= 0 || radius > 1) {
+        m->SetError(mjCError(0, "Supertorus radius must be in (0, 1]"));
+        return -1;
+      }
+      double s = params[2];
+      if (s <= 0) {
+        m->SetError(mjCError(0, "Supertorus 's' must be greater than 0"));
+        return -1;
+      }
+      double t = params[3];
+      if (t <= 0) {
+        m->SetError(mjCError(0, "Supertorus 't' must be greater than 0"));
+        return -1;
+      }
+      meshC->MakeSupertorus(res, radius, s, t);
+      return 0;
+    }
+
+    case mjMESH_BUILTIN_WEDGE: {
+      if (nparams != 5) {
+        m->SetError(mjCError(0, "Wedge builtin mesh types require 5 parameters"));
+        return -1;
+      }
+      int resolution[2] = {static_cast<int>(params[0]),
+                           static_cast<int>(params[1])};
+      double fov[2] = {params[2], params[3]};
+      double gamma = params[4];
+      if (fov[0] <= 0 || fov[0] > 180) {
+        m->SetError(mjCError(0, "fov[0] must be a float between (0, 180] degrees"));
+        return -1;
+      }
+      if (fov[1] <= 0 || fov[1] > 90) {
+        m->SetError(mjCError(0, "`fov[1]` must be a float between (0, 90] degrees"));
+        return -1;
+      }
+      if (resolution[0] <= 0 || resolution[1] <= 0) {
+        m->SetError(mjCError(0, "Horizontal and vertical resolutions must be positive"));
+        return -1;
+      }
+      if (gamma < 0 || gamma > 1) {
+        m->SetError(mjCError(0, "`gamma` must be a nonnegative float between [0, 1]"));
+        return -1;
+      }
+      meshC->MakeWedge(resolution, fov, gamma);
+      return 0;
+    }
+
+    case mjMESH_BUILTIN_PLATE: {
+      if (nparams != 2) {
+        m->SetError(mjCError(0, "Plate builtin mesh type requires 2 parameters"));
+        return -1;
+      }
+      int resolution[2] = {static_cast<int>(params[0]),
+                           static_cast<int>(params[1])};
+      if (resolution[0] <= 0 || resolution[1] <= 0) {
+        m->SetError(mjCError(0, "Horizontal and vertical resolutions must be positive"));
+        return -1;
+      }
+      meshC->MakeRect(resolution);
+      return 0;
+    }
+
+    case mjMESH_BUILTIN_CONE: {
+      if (nparams != 2) {
+        m->SetError(mjCError(0, "Cone mesh type requires 2 parameters"));
+        return -1;
+      }
+      int nedge = static_cast<int>(params[0]);
+      meshC->MakeCone(nedge, params[1]);
+      return 0;
+    }
+
+    default:
+      m->SetError(mjCError(0, "Unsupported mesh type"));
+      return 1;
+  }
+}
 
 // add pair to model
 mjsPair* mjs_addPair(mjSpec* s, const mjsDefault* defspec) {
@@ -937,7 +1132,9 @@ mjsElement* mjs_findElement(mjSpec* s, mjtObj type, const char* name) {
     case mjOBJ_FRAME:
       return model->FindTree(model->GetWorld(), type, std::string(name));  // recursive search
     case mjOBJ_TEXTURE:
-      return model->FindTexture(std::string(name));  // check filename too
+      return model->FindAsset(std::string(name), model->Textures());  // check filename too
+    case mjOBJ_MESH:
+      return model->FindAsset(std::string(name), model->Meshes());  // check filename too
     default:
       return model->FindObject(type, std::string(name));  // always available
   }
@@ -1007,7 +1204,7 @@ mjsFrame* mjs_findFrame(mjSpec* s, const char* name) {
 
 // set frame
 int mjs_setFrame(mjsElement* dest, mjsFrame* frame) {
-  if (!frame) {
+  if (!frame || !dest) {
     return -1;
   }
   mjCFrame* frameC = static_cast<mjCFrame*>(frame->element);
@@ -1035,7 +1232,7 @@ const char* mjs_resolveOrientation(double quat[4], mjtByte degree, const char* s
 mjsFrame* mjs_bodyToFrame(mjsBody** body) {
   mjCBody* bodyC = static_cast<mjCBody*>((*body)->element);
   mjCFrame* frameC = bodyC->ToFrame();
-  bodyC->model->Detach(bodyC);
+  *bodyC->model -= (*body)->element;
   *body = nullptr;
   return &frameC->spec;
 }
@@ -1064,6 +1261,94 @@ const void* mjs_getUserValue(mjsElement* element, const char* key) {
 void mjs_deleteUserValue(mjsElement* element, const char* key) {
   mjCBase* baseC = static_cast<mjCBase*>(element);
   baseC->DeleteUserValue(key);
+}
+
+
+
+// return sensor dimension
+int mjs_sensorDim(const mjsSensor* sensor) {
+  switch (sensor->type) {
+  case mjSENS_TOUCH:
+  case mjSENS_JOINTPOS:
+  case mjSENS_JOINTVEL:
+  case mjSENS_TENDONPOS:
+  case mjSENS_TENDONVEL:
+  case mjSENS_ACTUATORPOS:
+  case mjSENS_ACTUATORVEL:
+  case mjSENS_ACTUATORFRC:
+  case mjSENS_JOINTACTFRC:
+  case mjSENS_TENDONACTFRC:
+  case mjSENS_JOINTLIMITPOS:
+  case mjSENS_JOINTLIMITVEL:
+  case mjSENS_JOINTLIMITFRC:
+  case mjSENS_TENDONLIMITPOS:
+  case mjSENS_TENDONLIMITVEL:
+  case mjSENS_TENDONLIMITFRC:
+  case mjSENS_GEOMDIST:
+  case mjSENS_INSIDESITE:
+  case mjSENS_E_POTENTIAL:
+  case mjSENS_E_KINETIC:
+  case mjSENS_CLOCK:
+    return 1;
+
+  case mjSENS_CAMPROJECTION:
+    return 2;
+
+  case mjSENS_ACCELEROMETER:
+  case mjSENS_VELOCIMETER:
+  case mjSENS_GYRO:
+  case mjSENS_FORCE:
+  case mjSENS_TORQUE:
+  case mjSENS_MAGNETOMETER:
+  case mjSENS_BALLANGVEL:
+  case mjSENS_FRAMEPOS:
+  case mjSENS_FRAMEXAXIS:
+  case mjSENS_FRAMEYAXIS:
+  case mjSENS_FRAMEZAXIS:
+  case mjSENS_FRAMELINVEL:
+  case mjSENS_FRAMEANGVEL:
+  case mjSENS_FRAMELINACC:
+  case mjSENS_FRAMEANGACC:
+  case mjSENS_SUBTREECOM:
+  case mjSENS_SUBTREELINVEL:
+  case mjSENS_SUBTREEANGMOM:
+  case mjSENS_GEOMNORMAL:
+    return 3;
+
+  case mjSENS_GEOMFROMTO:
+    return 6;
+
+  case mjSENS_BALLQUAT:
+  case mjSENS_FRAMEQUAT:
+    return 4;
+
+  case mjSENS_CONTACT:
+    return sensor->intprm[2] * mju_condataSize(sensor->intprm[0]);
+
+  case mjSENS_TACTILE:
+    return 3 * static_cast<const mjCMesh*>(
+                   static_cast<mjCSensor*>(sensor->element)->get_obj())
+                   ->nvert();
+
+  case mjSENS_RANGEFINDER:
+    {
+      int size = mju_raydataSize(sensor->intprm[0]);
+      int num_rays = 1;
+      if (sensor->objtype == mjOBJ_CAMERA) {
+        const mjCCamera* camera = static_cast<const mjCCamera*>(
+            static_cast<mjCSensor*>(sensor->element)->get_obj());
+        num_rays = camera->spec.resolution[0] * camera->spec.resolution[1];
+      }
+      return size * num_rays;
+    }
+
+  case mjSENS_USER:
+    return sensor->dim;
+
+  case mjSENS_PLUGIN:
+    return 0;  // to be filled in by plugin
+  }
+  return -1;
 }
 
 
@@ -1124,6 +1409,76 @@ mjsElement* mjs_firstElement(mjSpec* s, mjtObj type) {
 mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element) {
   mjCModel* modelC = static_cast<mjCModel*>(s->element);
   return modelC->NextObject(element);
+}
+
+
+
+mjsElement* mjs_getWrapTarget(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  mjtObj type = mjOBJ_UNKNOWN;
+  switch (cwrap->Type()) {
+    case mjWRAP_SPHERE:
+    case mjWRAP_CYLINDER:
+      type = mjOBJ_GEOM;
+      break;
+    case mjWRAP_SITE:
+      type = mjOBJ_SITE;
+      break;
+    case mjWRAP_JOINT:
+      type = mjOBJ_JOINT;
+      break;
+    case mjWRAP_PULLEY:
+      // Pulleys have no target.
+      return nullptr;
+    default:
+      return nullptr;
+  }
+  mjSpec* spec = mjs_getSpec(wrap->element);
+  mjsElement* target = mjs_findElement(spec, type, cwrap->name.c_str());
+  return target;
+}
+
+
+
+mjsSite* mjs_getWrapSideSite(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  // only sphere and cylinder (geoms) have side sites
+  if ((cwrap->Type() != mjWRAP_SPHERE &&
+      cwrap->Type() != mjWRAP_CYLINDER) ||
+      cwrap->sidesite.empty()) {
+    return nullptr;
+  }
+
+  mjSpec* spec = mjs_getSpec(wrap->element);
+  mjsElement* site = mjs_findElement(spec, mjOBJ_SITE, cwrap->sidesite.c_str());
+  if (site == nullptr) {
+    mju_warning("Could not find side site %s for wrap %s in spec",
+                cwrap->sidesite.c_str(), cwrap->name.c_str());
+    return nullptr;
+  }
+  return mjs_asSite(site);
+}
+
+
+
+double mjs_getWrapDivisor(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  if (cwrap->Type() != mjWRAP_PULLEY) {
+    mju_warning("Querying divisor attribute of non-pulley wrap: %s", cwrap->name.c_str());
+    return 1.0;
+  }
+  return cwrap->prm;
+}
+
+
+
+double mjs_getWrapCoef(mjsWrap* wrap) {
+  mjCWrap* cwrap = static_cast<mjCWrap*>(wrap->element);
+  if (cwrap->Type() != mjWRAP_JOINT) {
+    mju_warning("Querying coef attribute of non-joint wrap: %s", cwrap->name.c_str());
+    return 1.0;
+  }
+  return cwrap->prm;
 }
 
 
@@ -1368,6 +1723,26 @@ mjsPlugin* mjs_asPlugin(mjsElement* element) {
 
 
 
+// set element name
+int mjs_setName(mjsElement* element, const char* name) {
+  if (element->elemtype == mjOBJ_DEFAULT) {
+    mjCDef* def = static_cast<mjCDef*>(element);
+    def->name = std::string(name);
+    return 0;
+  }
+  mjCBase* baseC = static_cast<mjCBase*>(element);
+  baseC->name = std::string(name);
+  try {
+    baseC->model->CheckRepeat(element->elemtype);
+  } catch (mjCError& e) {
+    baseC->model->SetError(e);
+    return -1;
+  }
+  return 0;
+}
+
+
+
 // copy buffer to destination buffer
 void mjs_setBuffer(mjByteVec* dest, const void* array, int size) {
   const std::byte* buffer = static_cast<const std::byte*>(array);
@@ -1457,6 +1832,16 @@ void mjs_setDouble(mjDoubleVec* dest, const double* array, int size) {
 
 
 
+// get name
+mjString* mjs_getName(mjsElement* element) {
+  if (element->elemtype == mjOBJ_DEFAULT) {
+    return &(static_cast<mjCDef*>(element)->name);
+  }
+  return &(static_cast<mjCBase*>(element)->name);
+}
+
+
+
 // get string
 const char* mjs_getString(const mjString* source) {
   return source->c_str();
@@ -1472,7 +1857,18 @@ const double* mjs_getDouble(const mjDoubleVec* source, int* size) {
   return source->data();
 }
 
+int mjs_getWrapNum(const mjsTendon* tendonspec) {
+  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+  return tendon->NumWraps();
+}
 
+mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i) {
+  mjCTendon* tendon = static_cast<mjCTendon*>(tendonspec->element);
+  if (i < 0 || i >= tendon->NumWraps()) {
+    mju_error("Wrap index out of range (0, %d)", tendon->NumWraps());
+  }
+  return &const_cast<mjCWrap*>(tendon->GetWrap(i))->spec;
+}
 
 // set plugin attributes
 void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes) {
@@ -1494,22 +1890,64 @@ const void* mjs_getPluginAttributes(const mjsPlugin* plugin) {
 
 // -------------------------- GLOBAL ASSET CACHE -------------------------------
 
-void mj_setCacheSize(mjCache cache, std::size_t size) {
-  mjCCache* ccache = reinterpret_cast<mjCCache*>(cache);
-  if (ccache) {
-    ccache->SetMaxSize(size);
+// get the capacity of the asset cache in bytes
+size_t mj_getCacheCapacity(const mjCache* cache) {
+  if (cache) {
+    const mjCCache* ccache = reinterpret_cast<const mjCCache*>(cache->impl_);
+    if (ccache) {
+      return ccache->Capacity();
+    }
   }
+  return 0;
 }
 
 
-
-mjCache mj_globalCache() {
-  // mjCCache is not trivially destructible and so the global cache needs to
-  // allocated on the heap
-  if constexpr (kGlobalCacheSize != 0) {
-    static mjCCache* cache = new(std::nothrow) mjCCache(kGlobalCacheSize);
-    return (mjCache) cache;
-  } else {
-    return NULL;
+// set the capacity of the asset cache in bytes (0 to disable)
+size_t mj_setCacheCapacity(mjCache* cache, size_t size) {
+  if (cache) {
+    mjCCache* ccache = reinterpret_cast<mjCCache*>(cache->impl_);
+    if (ccache) {
+      ccache->SetCapacity(size);
+      return ccache->Capacity();
+    }
   }
+  return 0;
+}
+
+
+// get the current size of the asset cache in bytes
+size_t mj_getCacheSize(const mjCache* cache) {
+  if (cache) {
+    const mjCCache* ccache = reinterpret_cast<const mjCCache*>(cache->impl_);
+    if (ccache) {
+      return ccache->Size();
+    }
+  }
+  return 0;
+}
+
+
+// clear the asset cache
+void mj_clearCache(mjCache* cache) {
+  if (cache) {
+    mjCCache* ccache = reinterpret_cast<mjCCache*>(cache->impl_);
+    if (ccache) {
+      ccache->Reset();
+    }
+  }
+}
+
+// get the internal asset cache used by the compiler
+mjCache* mj_getCache() {
+  static mjCache cache_cwrapper = []() {
+    mjCache c = {0};
+    // mjCCache is not trivially destructible and so the global cache needs to
+    // allocated on the heap
+    if constexpr (kGlobalCacheSize != 0) {
+      static mjCCache* cache = new (std::nothrow) mjCCache(kGlobalCacheSize);
+      c.impl_ = cache->Capacity() > 0 ? cache : nullptr;
+    }
+    return c;
+  }();
+  return &cache_cwrapper;
 }

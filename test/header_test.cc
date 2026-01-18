@@ -15,19 +15,32 @@
 // Tests for structures in the public headers.
 
 #include <cstddef>
-#include <cstring>
-#include <string>
-
+#include <cstdint>
+#include <utility>
+#include <vector>
 #include <gtest/gtest.h>
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjrender.h>
 #include <mujoco/mjui.h>
 #include <mujoco/mjvisualize.h>
+#include <mujoco/mjxmacro.h>
 #include "test/fixture.h"
 
 namespace mujoco {
 namespace {
+
+// check that a vector of named pointers are ordered by address
+void CheckAddressOrdering(
+    const std::vector<std::pair<const void*, const char*>>& pointers,
+    const char* category_name) {
+  for (size_t i = 0; i < pointers.size() - 1; ++i) {
+    EXPECT_LT(reinterpret_cast<uintptr_t>(pointers[i].first),
+              reinterpret_cast<uintptr_t>(pointers[i + 1].first))
+        << category_name << " '" << pointers[i].second
+        << "' should be declared before '" << pointers[i + 1].second << "'.";
+  }
+}
 
 using HeaderTest = MujocoTest;
 
@@ -82,6 +95,146 @@ TEST_F(HeaderTest, EnumsAreInts) {
   EXPECT_EQ(sizeof(mjtVisFlag),         sizeof(int));
   EXPECT_EQ(sizeof(mjtRndFlag),         sizeof(int));
   EXPECT_EQ(sizeof(mjtStereo),          sizeof(int));
+}
+
+TEST_F(HeaderTest, MjOptionFloatsOrdered) {
+  mjOption o;
+  std::vector<std::pair<const void*, const char*>> floats;
+
+#define X(type, name) \
+  floats.push_back({static_cast<const void*>(&o.name), #name});
+  MJOPTION_FLOATS
+#undef X
+
+  CheckAddressOrdering(floats, "MJOPTION_FLOATS");
+}
+
+TEST_F(HeaderTest, MjOptionVectorsOrdered) {
+  mjOption o;
+  std::vector<std::pair<const void*, const char*>> vectors;
+
+#define X(name, dim) \
+  vectors.push_back({static_cast<const void*>(&o.name), #name});
+  MJOPTION_VECTORS
+#undef X
+
+  CheckAddressOrdering(vectors, "MJOPTION_VECTORS");
+}
+
+TEST_F(HeaderTest, MjModelIntsOrdered) {
+  mjModel m;
+  std::vector<std::pair<const void*, const char*>> ints;
+
+#define X(name) ints.push_back({static_cast<const void*>(&m.name), #name});
+  MJMODEL_INTS
+#undef X
+
+  CheckAddressOrdering(ints, "MJMODEL_INT");
+}
+
+TEST_F(HeaderTest, MjModelPointersOrdered) {
+  mjModel m;
+  std::vector<std::pair<const void*, const char*>> pointers;
+
+#define X(type, name, dim1, dim2) \
+  pointers.push_back({static_cast<const void*>(&m.name), #name});
+#define XNV X
+  MJMODEL_POINTERS
+#undef XNV
+#undef X
+
+  CheckAddressOrdering(pointers, "MJMODEL_POINTER");
+}
+
+
+TEST_F(HeaderTest, MjDataPointersOrdered) {
+  mjData d;
+  std::vector<std::pair<const void*, const char*>> pointers;
+
+#define X(type, name, dim1, dim2) \
+  pointers.push_back({static_cast<const void*>(&d.name), #name});
+#define XNV X
+  MJDATA_POINTERS
+#undef XNV
+#undef X
+
+  CheckAddressOrdering(pointers, "mjData pointer");
+}
+
+TEST_F(HeaderTest, MjDataArenaPointersSolverOrdered) {
+  mjData d;
+  std::vector<std::pair<const void*, const char*>> pointers;
+
+#define X(type, name, dim1, dim2) \
+  pointers.push_back({static_cast<const void*>(&d.name), #name});
+#define XNV X
+#undef MJ_D
+#define MJ_D(n) 0
+  MJDATA_ARENA_POINTERS_SOLVER
+#undef MJ_D
+#define MJ_D(n) n
+#undef XNV
+#undef X
+
+  CheckAddressOrdering(pointers, "MJDATA_ARENA_POINTERS_SOLVER");
+}
+
+TEST_F(HeaderTest, MjDataArenaPointersDualOrdered) {
+  mjData d;
+  std::vector<std::pair<const void*, const char*>> pointers;
+
+#define X(type, name, dim1, dim2) \
+  pointers.push_back({static_cast<const void*>(&d.name), #name});
+#define XNV X
+#undef MJ_D
+#define MJ_D(n) 0
+  MJDATA_ARENA_POINTERS_DUAL
+#undef MJ_D
+#define MJ_D(n) n
+#undef XNV
+#undef X
+
+  CheckAddressOrdering(pointers, "MJDATA_ARENA_POINTERS_DUAL");
+}
+
+TEST_F(HeaderTest, MjDataArenaPointersIslandOrdered) {
+  mjData d;
+  std::vector<std::pair<const void*, const char*>> pointers;
+
+#define X(type, name, dim1, dim2) \
+  pointers.push_back({static_cast<const void*>(&d.name), #name});
+#define XNV X
+#undef MJ_D
+#define MJ_D(n) 0
+  MJDATA_ARENA_POINTERS_ISLAND
+#undef MJ_D
+#define MJ_D(n) n
+#undef XNV
+#undef X
+
+  CheckAddressOrdering(pointers, "MJDATA_ARENA_POINTERS_ISLAND");
+}
+
+TEST_F(HeaderTest, MjDataScalarsOrdered) {
+  mjData d;
+  std::vector<std::pair<const void*, const char*>> scalars;
+
+#define X(type, name) \
+  scalars.push_back({static_cast<const void*>(&d.name), #name});
+  MJDATA_SCALAR
+#undef X
+  CheckAddressOrdering(scalars, "mjData scalar");
+}
+
+TEST_F(HeaderTest, MjDataVectorsOrdered) {
+  mjData d;
+  std::vector<std::pair<const void*, const char*>> vectors;
+
+#define X(type, name, dim1, dim2) \
+  vectors.push_back({static_cast<const void*>(&d.name), #name});
+  MJDATA_VECTOR
+#undef X
+  CheckAddressOrdering(vectors, "mjData vector");
 }
 
 }  // namespace

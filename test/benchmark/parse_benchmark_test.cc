@@ -94,4 +94,11 @@ void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseHumanoid100(benchmark::State& state) {
 BENCHMARK(BM_ParseHumanoid100);
 
 }  // namespace
+
+void ABSL_ATTRIBUTE_NO_TAIL_CALL BM_ParseCacheHits(benchmark::State& state) {
+  run_parse_benchmark(
+      GetModelPath("../test/benchmark/testdata/cache_hits.xml"), state);
+}
+BENCHMARK(BM_ParseCacheHits);
+
 }  // namespace mujoco

@@ -13,24 +13,36 @@ This chapter is the reference manual for the MJCF modeling language used in MuJo
 XML schema
 ~~~~~~~~~~
 
-The table below summarizes the XML elements and their attributes in MJCF. Note that all information in MJCF is entered
-through elements and attributes. Text content in elements is not used; if present, the parser ignores it.
+The dropdown below summarizes the XML elements and their attributes in MJCF. The menu on the right links to elements,
+while the dropdown below links to attributes. Note that all information in MJCF is entered through elements and
+attributes. Text content in elements is not used; if present, the parser ignores it.
 
-.. collapse:: Collapse schema table
-   :open:
+.. only:: html
 
-   The symbols in the second column of the table have the following meaning:
+   The icons to the right of each element name have the following meaning:
 
-   ====== ===================================================
-   **!**  required element, can appear only once
-   **?**  optional element, can appear only once
-   **\*** optional element, can appear many times
-   **R**  optional element, can appear many times recursively
-   ====== ===================================================
+   .. list-table::
+      :widths: 6 94
 
-   .. cssclass:: schema-small
+      * - |!|
+        - required element, can appear only once
+      * - |R|
+        - optional element, can appear multiple times recursively
+      * - |?|
+        - optional element, can appear only once
+      * - |m|
+        - optional element, can appear multiple times (default case, no icon)
 
-   .. include:: XMLschema.rst
+   |br|
+
+   .. container:: schema-small
+
+      .. include:: XMLschema.rst
+
+.. only:: latex
+
+   .. note::
+      The XML schema table is only available in the HTML version of this documentation.
 
 
 .. _CType:
@@ -118,7 +130,7 @@ saving the XML. There are currently six meta-elements in MJCF:
 
 .. _frame:
 
-**frame** (R)
+**frame** |R|
 ^^^^^^^^^^^^^
 
 The frame meta-element is a pure coordinate transformation that can wrap any group of elements in the kinematic tree
@@ -165,7 +177,7 @@ in their direct children. The attributes of the frame meta-element are documente
 
 .. _replicate:
 
-**replicate** (R)
+**replicate** |R|
 ^^^^^^^^^^^^^^^^^
 
 The replicate element duplicates the enclosed kinematic tree elements with incremental translational and rotational
@@ -175,10 +187,11 @@ replicating 200 times, suffixes will be ``000, 001, ...`` etc). All referencing 
 and namespaced appropriately. Detailed examples of models using replicate can be found in the
 `model/replicate/ <https://github.com/google-deepmind/mujoco/tree/main/model/replicate>`__ directory.
 
-There is a caveat concerning :ref:`keyframes<keyframe>` when using replicate. Since :ref:`mjs_attach` is used to
+There are some caveats concerning :ref:`keyframes<keyframe>` when using replicate. Since :ref:`mjs_attach` is used to
 self-attach multiple times the enclosed kinematic tree, if this tree contains further :ref:`attach<body-attach>`
 elements, keyframes will not be replicated nor namespaced by :ref:`replicate<replicate>`, but they will be attached and
-namespaced once by the innermost call of :ref:`mjs_attach`. See the limitations discussed in :ref:`attach<body-attach>`.
+namespaced once by the innermost call of :ref:`mjs_attach`. See the limitations discussed in
+:ref:`attachment<meAttachment>`.
 
 .. _replicate-count:
 
@@ -247,7 +260,7 @@ namespaced once by the innermost call of :ref:`mjs_attach`. See the limitations 
 
 .. _include:
 
-**include** (*)
+**include** |m|
 ^^^^^^^^^^^^^^^
 
 This element does not strictly belong to MJCF. Instead it is a meta-element, used to assemble multiple XML
@@ -272,7 +285,7 @@ how to use includes and how to modularize large files if desired.
 
 .. _mujoco:
 
-**mujoco** (!)
+**mujoco** |!|
 ~~~~~~~~~~~~~~
 
 The unique top-level element, identifying the XML file as an MJCF model file.
@@ -286,7 +299,7 @@ The unique top-level element, identifying the XML file as an MJCF model file.
 
 .. _option:
 
-**option** (*)
+**option** |m|
 ~~~~~~~~~~~~~~
 
 This element is in one-to-one correspondence with the low level structure mjOption contained in the field mjModel.opt of
@@ -307,13 +320,6 @@ adjust it properly through the XML.
    steps. When fine-tuning a challenging model, it is recommended to experiment with both settings jointly. In
    optimization-related applications, real-time is no longer good enough and instead it is desirable to run the
    simulation as fast as possible. In that case the time step should be made as large as possible.
-
-.. _option-apirate:
-
-:at:`apirate`: :at-val:`real, "100"`
-   This parameter determines the rate (in Hz) at which an external API allows the update function to be executed. This
-   mechanism is used to simulate devices with limited communication bandwidth. It only affects the socket API and not
-   the physics simulation.
 
 .. _option-impratio:
 
@@ -459,6 +465,11 @@ adjust it properly through the XML.
 :at:`ccd_tolerance`: :at-val:`real, "1e-6"`
    Tolerance threshold used for early termination of the convex collision algorithm.
 
+.. _option-sleep_tolerance:
+
+:at:`sleep_tolerance`: :at-val:`real, "1e-4"`
+   Velocity tolerance below which :ref:`sleeping<Sleeping>` is allowed.
+
 .. _option-sdf_iterations:
 
 :at:`sdf_iterations`: :at-val:`int, "10"`
@@ -485,7 +496,7 @@ adjust it properly through the XML.
 
 .. _option-flag:
 
-:el-prefix:`option/` |-| **flag** (?)
+:el-prefix:`option/` |-| **flag** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element sets the flags that enable and disable different parts of the simulation pipeline. The actual flags used at
@@ -523,11 +534,21 @@ from its default.
 :at:`contact`: :at-val:`[disable, enable], "enable"`
    This flag disables collision detection and all standard computations related to contact constraints.
 
-.. _option-flag-passive:
+.. _option-flag-spring:
 
-:at:`passive`: :at-val:`[disable, enable], "enable"`
-   This flag disables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive
-   forces computed by the :ref:`mjcb_passive` callback. As a result, no passive forces are applied.
+:at:`spring`: :at-val:`[disable, enable], "enable"`
+   This flag disables passive joint and tendon springs. If passive :ref:`damper <option-flag-damper>` forces are
+   also disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by
+   the :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
+   :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
+
+.. _option-flag-damper:
+
+:at:`damper`: :at-val:`[disable, enable], "enable"`
+   This flag disables passive joint and tendon dampers. If passive :ref:`spring <option-flag-spring>` forces are also
+   disabled, **all** passive forces are disabled, including gravity compensation, fluid forces, forces computed by the
+   :ref:`mjcb_passive` callback, and forces computed by :ref:`plugins <exPlugin>` when passed the
+   :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
 
 .. _option-flag-gravity:
 
@@ -587,6 +608,14 @@ from its default.
    This flag enables the native convex collision detection pipeline instead of using the
    `libccd library <https://github.com/danfis/libccd>`__, see :ref:`convex collisions<coCCD>` for more details.
 
+.. _option-flag-island:
+
+:at:`island`: :at-val:`[disable, enable], "enable"`
+   This flag enables discovery and construction of constraint islands: disjoint sets of constraints and
+   degrees-of-freedom that do not interact and can be solved independently. Islanding is not yet supported by the PGS
+   solver. See :ref:`soIsland` for more details. The :ref:`mjVIS_ISLAND <mjtVisFlag>` enables
+   `island visualization <https://youtu.be/Vc1tq0fFvQA>`__.
+
 .. _option-flag-eulerdamp:
 
 :at:`eulerdamp`: :at-val:`[disable, enable], "enable"`
@@ -601,7 +630,7 @@ from its default.
 .. _option-flag-override:
 
 :at:`override`: :at-val:`[disable, enable], "disable"`
-   This flag enables to :ref:`Contact override <COverride>` mechanism explained above.
+   This flag enables the :ref:`Contact override <COverride>` mechanism.
 
 .. _option-flag-energy:
 
@@ -647,17 +676,23 @@ from its default.
    to instabilities that typically manifest as sliding or wobbling. The implementation of this feature depends on the
    selected convex collision pipeline, see :ref:`convex collisions<coCCD>` for more details.
 
-.. _option-flag-island:
+.. _option-flag-sleep:
 
-:at:`island`: :at-val:`[disable, enable], "disable"`
-   This flag enables discovery of constraint islands: disjoint sets of constraints and
-   degrees-of-freedom that do not interact. The flag currently has no effect on the physics pipeline, but enabling it
-   allows for `island visualization <https://youtu.be/Vc1tq0fFvQA>`__.
-   In a future release, the constraint solver will exploit the disjoint nature of constraint islands.
+:at:`sleep`: :at-val:`[disable, enable], "disable"`
+   This flag enables :ref:`sleeping<Sleeping>`. Disabling this flag when some trees are sleeping will wake them.
+
+   .. admonition:: flag value at initialization time
+      :class: attention
+
+      Unlike any other :ref:`flag<option-flag>`, the :at:`sleep` flag has an effect during :ref:`mjData`
+      **initialization** (:ref:`mj_makeData` or :ref:`mj_resetData`). First, it must be set at initialization time in
+      order for the :ref:`sleep-init<body-sleep>` policy to take effect. Second, it must be set in order for static
+      quantities to be computed. See :ref:`implementation notes<siSleep>` for more details.
+
 
 .. _compiler:
 
-**compiler** (*)
+**compiler** |m|
 ~~~~~~~~~~~~~~~~
 
 This element is used to set options for the built-in parser and compiler. After parsing and compilation it no longer
@@ -724,13 +759,20 @@ has any effect. The settings here are global and apply to the entire model.
    compiler converts degrees into radians, and mjModel always uses radians. For URDF models the parser sets this
    attribute to "radian" internally, regardless of the XML setting.
 
+.. image:: images/changelog/meshfit.png
+   :align: right
+   :width: 40%
+
 .. _compiler-fitaabb:
 
 :at:`fitaabb`: :at-val:`[false, true], "false"`
    The compiler is able to replace a mesh with a geometric primitive fitted to that mesh; see :ref:`geom <body-geom>`
-   below. If this attribute is "true", the fitting procedure uses the axis-aligned bounding box (aabb) of the mesh.
-   Otherwise it uses the equivalent-inertia box of the mesh. The type of geometric primitive used for fitting is
-   specified separately for each geom.
+   below. If this attribute is "true", the fitting procedure uses the axis-aligned bounding box (AABB) of the mesh,
+   choosing the smallest primitive whose AABB contains the mesh AABB. Otherwise it uses the equivalent-inertia box of
+   the mesh. The type of geometric primitive used for fitting is specified separately for each geom. The models used to
+   generate the image on the right can be found `here
+   <https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/fitmesh_inertiabox.xml>`__ (fit inertia box)
+   and `here <https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/fitmesh_aabb.xml>`__ (fit aabb).
 
 .. _compiler-eulerseq:
 
@@ -786,7 +828,7 @@ has any effect. The settings here are global and apply to the entire model.
 
 :at:`usethread`: :at-val:`[false, true], "true"`
    If this attribute is "true", the model compiler will run in multi-threaded mode. Currently multi-threading is used
-   for computing the length ranges of actuators and for parallel loading of meshes.
+   for computing the length ranges of actuators and for parallel loading and processing of meshes.
 
 .. _compiler-fusestatic:
 
@@ -841,7 +883,7 @@ has any effect. The settings here are global and apply to the entire model.
 
 .. _compiler-lengthrange:
 
-:el-prefix:`compiler/` |-| **lengthrange** (?)
+:el-prefix:`compiler/` |-| **lengthrange** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element controls the computation of actuator length ranges. For an overview of this functionality see :ref:`Length
@@ -935,7 +977,7 @@ disable length range computations altogether, include this element and set mode=
 
 .. _size:
 
-**size** (*)
+**size** |m|
 ~~~~~~~~~~~~
 
 This element specifies size parameters that cannot be inferred from the number of elements in the model. Unlike the
@@ -1032,7 +1074,7 @@ compilation.
 
 .. _statistic:
 
-**statistic** (*)
+**statistic** |m|
 ~~~~~~~~~~~~~~~~~
 
 This element is used to override model statistics computed by the compiler. These statistics are not only informational
@@ -1085,7 +1127,7 @@ parameters.
 
 .. _asset:
 
-**asset** (*)
+**asset** |m|
 ~~~~~~~~~~~~~
 
 This is a grouping element for defining assets. It does not have attributes. Assets are created in the model so that
@@ -1098,7 +1140,7 @@ file.
 
 .. _asset-mesh:
 
-:el-prefix:`asset/` |-| **mesh** (*)
+:el-prefix:`asset/` |-| **mesh** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a mesh asset, which can then be referenced from geoms. If the referencing geom type is
@@ -1108,10 +1150,9 @@ the :ref:`geom <body-geom>` element below.
 MuJoCo works with triangulated meshes. They can be loaded from binary STL files, OBJ files or MSH files with custom
 format described below, or vertex and face data specified directly in the XML. Software such as MeshLab can be used to
 convert from other mesh formats to STL or OBJ. While any collection of triangles can be loaded as a mesh and rendered,
-collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. See also the convexhull
-attribute of the :ref:`compiler <compiler>` element which controls the automatic generation of convex hulls. The mesh
-appearance (including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing
-geom, similarly to height fields.
+collision detection works with the convex hull of the mesh as explained in :ref:`Collision`. The mesh appearance
+(including texture mapping) is controlled by the :at:`material` and :at:`rgba` attributes of the referencing geom,
+similarly to height fields.
 
 Meshes can have explicit texture coordinates instead of relying on the automated texture
 mapping mechanism. When provided, these explicit coordinates have priority. Note that texture coordinates can be
@@ -1153,10 +1194,9 @@ negative scaling values can be used to flip the mesh; this is a legitimate opera
 referencing geoms are ignored, similarly to height fields. We also provide a mechanism to translate and
 rotate the 3D coordinates, using the attributes :ref:`refpos<asset-mesh-refpos>` and :ref:`refquat<asset-mesh-refquat>`.
 
-A mesh can also be defined without faces (a point cloud essentially). In that case
-the convex hull is constructed automatically, even if the compiler attribute :at:`convexhull` is
-false. This makes it easy to construct simple shapes directly in the XML. For example, a pyramid can
-be created as follows:
+A mesh can also be defined without faces (a point cloud essentially). In that case the convex hull is constructed
+automatically.This makes it easy to construct simple shapes directly in the XML. For example, a pyramid can be created
+as follows:
 
 .. code-block:: xml
 
@@ -1230,7 +1270,7 @@ The full list of processing steps applied by the compiler to each mesh is as fol
 
 :at:`content_type`: :at-val:`string, optional`
    If the file attribute is specified, then this sets the
-   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`_ (formerly known as MIME type) of the
+   `Media Type <https://www.iana.org/assignments/media-types/media-types.xhtml>`__ (formerly known as MIME type) of the
    file to be loaded. Any filename extensions will be overloaded.  Currently ``model/vnd.mujoco.msh``, ``model/obj``,
    and ``model/stl`` are supported.
 
@@ -1316,9 +1356,115 @@ The full list of processing steps applied by the compiler to each mesh is as fol
    Reference orientation relative to which the 3D vertex coordinates and normals are defined. The conjugate of this
    quaternion is used to rotate the positions and normals. The model compiler normalizes the quaternion automatically.
 
+.. _asset-mesh-builtin:
+
+:at:`builtin`: :at-val:`string, optional`
+   The mesh is generated by the compiler from a set of parameters specified in :ref:`params<asset-mesh-params>`.
+   When saved to XML, meshes produced this way are converted to explicit vertices. The Python bindings include
+   :ref:`convenience methods <PyEditConvenience>` for generating these meshes.
+   The available built-in types, their parameters and semantics are:
+
+   .. image:: images/XMLreference/s.png
+      :width: 23%
+      :align: right
+      :target: https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/makemesh.xml
+
+   :at-val:`sphere` (subdivision)
+      Repeated subdivisions of a unit icosahedron ("icosphere"). For :math:`s` subdivisions, this mesh
+      has :math:`V = 2 + 10 \cdot 4^s` vertices and :math:`F = 20 \cdot 4^s` faces.
+
+      **subdivision**: integer in [0-4]: The number of subdivisions to apply to icosahedron faces.
+
+   .. image:: images/XMLreference/h.png
+      :width: 23%
+      :align: right
+      :target: https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/makemesh.xml
+
+   :at-val:`hemisphere` (resolution)
+      Quad-projected hemisphere. For resolution :math:`r`, this mesh has :math:`4r` edges and
+      vertices on the equator and a total of :math:`V = 2 + 2(r+1)(r+2)` vertices and
+      :math:`F = 4(r+1)(r+2)` faces.
+
+      **resolution**: integer in [0-10]: Equator discretization of one hemisphere quadrant.
+
+   .. image:: images/XMLreference/c.png
+      :width: 23%
+      :align: right
+      :target: https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/makemesh.xml
+
+   :at-val:`cone` (nvert, radius)
+      The convex hull of a regular unit polygon at z = -1 and a unit polygon with the given radius at z = 1.
+      If radius is 1, the mesh a prism. If radius is 0, only a single vertex is placed at (0, 0, 1) and the mesh is a
+      discrete cone. If radius is positive, the mesh is a truncated discrete cone.
+
+      **nvert**: integer >= 3: The number vertices in the polygon.
+      |br| **radius**: real in [0, 1]: The radius of the top face.
+
+   .. image:: images/XMLreference/ss.png
+      :width: 23%
+      :align: right
+      :target: https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/makemesh.xml
+
+   :at-val:`supersphere` (resolution, e, n)
+      A generalization of a sphere, also known as a superellipsoid (we use 'supersphere' since semiaxis rescaling is
+      performed by the :ref:`scale<asset-mesh-scale>` attribute). If the **n** and **e** parameters are both 1, the
+      shape is a sphere. See `here <https://en.wikipedia.org/wiki/Superellipsoid>`__ for more details.
+
+      **resolution** integer >= 3: Longitude and latitude discretization.
+      |br| **e**: real >= 0: The "east-west" exponent.
+      |br| **n**: real >= 0: The "north-south" exponent.
+
+   .. image:: images/XMLreference/st.png
+      :width: 23%
+      :align: right
+      :target: https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/makemesh.xml
+
+   :at-val:`supertorus` (resolution, radius, s, t)
+      A generalization of a torus with major radius of 1 and given minor radius. If the **s** and **t** parameters are
+      both 1, the shape is a torus. See `here <https://en.wikipedia.org/wiki/Supertoroid>`__ for more details. Note that
+      this shape is inherently non-convex, and the :ref:`standard caveats<coDecomposition>` about mesh collisions apply.
+
+      **resolution** integer >= 3: Discretization of both circumfrences.
+      |br| **radius**: real in (0, 1]: The minor radius of the torus.
+      |br| **s**: real > 0: The "squareness" of minor sections.
+      |br| **t**: real > 0: The "squareness" of major sections.
+
+   .. image:: images/XMLreference/w.png
+      :width: 23%
+      :align: right
+      :target: https://github.com/google-deepmind/mujoco/blob/main/test/user/testdata/makemesh.xml
+
+   :at-val:`wedge` (res_phi, res_theta, fov_phi, fov_theta, gamma)
+      A slice of a unit spherical shell in spherical coordinates. This mesh is designed to be used by the :ref:`tactile
+      sensor<sensor-tactile>`, which reports data at the vertices.
+
+      **res_phi**: integer >= 0: The vertical resolution of the slice.
+      |br| **res_theta**: integer >= 0: The horizontal resolution of the slice.
+      |br| **fov_phi**: real in (0, 180]: The horizontal field of view (degrees).
+      |br| **fov_phi**: real in (0, 90): The vertical field of view (degrees).
+      |br| **gamma**: real in [0, 1]: Foveal deformation of the discretization.
+
+   :at-val:`plate` (res_x, res_y)
+      A rectangular plate with given resolution in each dimension. This mesh is designed to be used by the :ref:`tactile
+      sensor<sensor-tactile>`, which reports data at the vertices.
+
+      **res_x**: integer > 0: The horizontal resolution of the plate.
+      |br| **res_y**: integer > 0: The vertical resolution of the plate.
+
+.. _asset-mesh-params:
+
+:at:`params`: :at-val:`real(nparam), optional`
+   The parameters used to generate a builtin mesh. The number and type of parameters and their semantic depends on the
+   mesh type. See :ref:`mesh/builtin<asset-mesh-builtin>` for details.
+
+.. _asset-mesh-material:
+
+:at:`material`: :at-val:`string, optional`
+   Fallback material for mesh geoms that do not specify their own material.
+
 .. _mesh-plugin:
 
-:el-prefix:`mesh/` |-| **plugin** (?)
+:el-prefix:`mesh/` |-| **plugin** |?|
 '''''''''''''''''''''''''''''''''''''
 
 Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -1337,7 +1483,7 @@ Associate this mesh with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 
 .. _asset-hfield:
 
-:el-prefix:`asset/` |-| **hfield** (*)
+:el-prefix:`asset/` |-| **hfield** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a height field asset, which can then be referenced from geoms with type "hfield". A height field,
@@ -1417,7 +1563,8 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 :at:`elevation`: :at-val:`real(nrow*ncol), optional`
    This attribute specifies the elevation data matrix. Values are automatically normalized to lie between 0 and 1 by
    first subtracting the minimum value and then dividing by the (maximum-minimum) difference, if not 0. If not provided,
-   values are set to 0.
+   values are set to 0. Note that the row order of data in :ref:`mjModel` and :ref:`mjsHField` is flipped w.r.t. the
+   order in XML i.e., it is bottom-to-top.
 
 .. _asset-hfield-size:
 
@@ -1443,7 +1590,7 @@ also known as terrain map, is a 2D matrix of elevation data. The data can be spe
 
 .. _asset-skin:
 
-:el-prefix:`asset/` |-| **skin** (*)
+:el-prefix:`asset/` |-| **skin** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. _asset-skin-name:
@@ -1463,22 +1610,21 @@ still be specified here but this functionality is now deprecated and will be rem
 
 .. _asset-texture:
 
-:el-prefix:`asset/` |-| **texture** (*)
+:el-prefix:`asset/` |-| **texture** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+This element creates a texture asset, which is then referenced from a :ref:`material <asset-material>` asset, which
+is finally referenced from a model element that needs to be textured.
 
-   This element creates a texture asset, which is then referenced from a :ref:`material <asset-material>` asset, which
-   is finally referenced from a model element that needs to be textured.
+The texture data can be loaded from files or can be generated by the compiler as a procedural texture. Because
+different texture types require different parameters, only a subset of the attributes below are used for any given
+texture. Provisions are provided for loading cube and skybox textures from individual image files.
 
-   The texture data can be loaded from files or can be generated by the compiler as a procedural texture. Because
-   different texture types require different parameters, only a subset of the attributes below are used for any given
-   texture. Provisions are provided for loading cube and skybox textures from individual image files.
+Currently, three file formats are supported for loading textures: PNG, KTX, and a custom MuJoCo texture format. The
+loader will use the extension of the file name to determine which format to use, defaulting to the custom format if
+the extension is not recognized. Alternatively, the content_type attribute can be used to specify the format
+explicitly. Only ``image/png``, ``image/ktx``, or ``image/vnd.mujoco.texture`` are supported.
 
-   Currently, three file formats are supported for loading textures: PNG, KTX, and a custom MuJoCo texture format. The
-   loader will use the extension of the file name to determine which format to use, defaulting to the custom format if
-   the extension is not recognized. Alternatively, the content_type attribute can be used to specify the format
-   explicitly. Only ``image/png``, ``image/ktx``, or ``image/vnd.mujoco.texture`` are supported.
-
-   The custom MuJoCo format is assumed to be a binary file containing the following data:
+The custom MuJoCo format is assumed to be a binary file containing the following data:
 
 .. code:: Text
 
@@ -1694,7 +1840,7 @@ still be specified here but this functionality is now deprecated and will be rem
 
 .. _asset-material:
 
-:el-prefix:`asset/` |-| **material** (*)
+:el-prefix:`asset/` |-| **material** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a material asset. It can be referenced from :ref:`skins <deformable-skin>`, :ref:`geoms <body-geom>`,
@@ -1803,7 +1949,7 @@ properties are grouped together.
 
 .. _material-layer:
 
-:el-prefix:`material/` |-| **layer** (?)
+:el-prefix:`material/` |-| **layer** |m|
 ''''''''''''''''''''''''''''''''''''''''
 
 If multiple textures are needed to specify the appearance of a material, the :ref:`texture <asset-material-texture>`
@@ -1857,7 +2003,7 @@ attribute and :el:`layer` child elements is an error.
 
 .. _asset-model:
 
-:el-prefix:`asset/` |-| **model** (*)
+:el-prefix:`asset/` |-| **model** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 This element specifies other MJCF models which may be used for :ref:`attachment<body-attach>` in the current model.
 
@@ -1880,7 +2026,7 @@ This element specifies other MJCF models which may be used for :ref:`attachment<
 
 .. _body:
 
-**(world)body** (R)
+**(world)body** |R|
 ~~~~~~~~~~~~~~~~~~~
 
 This element is used to construct the :ref:`kinematic tree <CTree>` via nesting. The element :el:`worldbody` is used for
@@ -1938,6 +2084,35 @@ defined. Its body name is automatically defined as "world".
   equal to the body's weight and compensates for gravity exactly. Values greater than ``1`` will create a net upwards
   force or buoyancy effect.
 
+.. _body-sleep:
+
+:at:`sleep`: :at-val:`[auto, never, allowed, init], "auto"`
+   :ref:`Sleep<Sleeping>` policy for the tree under this body. This attribute is only supported by moving bodies which
+   are the root of a kinematic :ref:`tree<ElemTree>`. For the default :at-val:`auto`, the compiler will set the sleep
+   policy as follows:
+
+   - A tree which is affected by actuators is not allowed to sleep (overridable).
+   - Trees which are connected by tendons which have non-zero stiffness and damping are not allowed to sleep
+     (overridable).
+   - Trees which are connected by tendons which connect more than two trees are not allowed to sleep (not overridable).
+   - :ref:`flexes<ElemFlex>` are not allowed to sleep (not overridable).
+   - All other trees are allowed to sleep (overridable).
+
+   The policies :at-val:`never` and :at-val:`allowed` constitute user overrides of the automatic compiler policy.
+
+   The :at-val:`init` sleep policy can only be specified by the user and means "initialize this tree as asleep". This
+   policy is implemented in :ref:`mj_resetData` and :ref:`mj_makeData` and only applies to the default configuration. If
+   a :ref:`keyframe<keyframe>` changes the configuration of (or assigns nonzero velocity to) a sleeping tree, it will be
+   woken up. This policy is useful for very large models where waiting for the automatic sleeping mechanism to kick in
+   can be expensive. Trees initialized as sleeping can be placed in unstable configurations like deep penetration or in
+   mid-air, but will only move when woken up. Also note that this policy can fail. For example if a tree marked as
+   sleep="init" is in contact with a tree not marked as such (i.e., they are in the same :ref:`island<soIsland>`) then
+   it is impossible to put the tree to sleep; such `models
+   <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sleep/init_island_fail.xml>`__ will lead to
+   a compilation error.
+
+   See :ref:`implementation notes<siSleep>` for more details.
+
 .. _body-user:
 
 :at:`user`: :at-val:`real(nbody_user), "0 0 ..."`
@@ -1946,7 +2121,7 @@ defined. Its body name is automatically defined as "world".
 
 .. _body-inertial:
 
-:el-prefix:`body/` |-| **inertial** (?)
+:el-prefix:`body/` |-| **inertial** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element specifies the mass and inertial properties of the body. If this element is not included in a given body,
@@ -2001,7 +2176,7 @@ axes of inertia of the body. Thus the inertia matrix is diagonal in this frame.
 
 .. _body-joint:
 
-:el-prefix:`body/` |-| **joint** (*)
+:el-prefix:`body/` |-| **joint** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint. As explained in :ref:`Kinematic tree <CTree>`, a joint creates motion degrees of freedom
@@ -2155,10 +2330,11 @@ rotations as unit quaternions.
 
 :at:`ref`: :at-val:`real, "0"`
    The reference position or angle of the joint. This attribute is only used for slide and hinge joints. It defines the
-   joint value corresponding to the initial model configuration. The amount of spatial transformation that the joint
-   applies at runtime equals the current joint value stored in mjData.qpos minus this reference value stored in
-   mjModel.qpos0. The meaning of these vectors was discussed in the :ref:`Stand-alone <Standalone>` section in
-   the Overview chapter.
+   joint value corresponding to the initial model configuration. Note that the initial configuration itself is
+   unmodified, only the value of the joint at this configuration. The amount of spatial transformation that the joint
+   applies at runtime equals the current joint value stored in ``mjData.qpos`` minus this reference value stored in
+   ``mjModel.qpos0``. The meaning of these vectors is discussed in the :ref:`Kinematic tree <Kinematic>` section in the
+   Overview chapter.
 
 .. _body-joint-springref:
 
@@ -2218,7 +2394,7 @@ rotations as unit quaternions.
 
 .. _body-freejoint:
 
-:el-prefix:`body/` |-| **freejoint** (*)
+:el-prefix:`body/` |-| **freejoint** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a free joint whose only attributes are :at:`name` and :at:`group`. The :el:`freejoint` element is
@@ -2262,7 +2438,7 @@ inherited*. If the XML model is saved, it will appear as a regular joint of type
 
 .. _body-geom:
 
-:el-prefix:`body/` |-| **geom** (*)
+:el-prefix:`body/` |-| **geom** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a geom, and attaches it rigidly to the body within which the geom is defined. Multiple geoms can
@@ -2341,11 +2517,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
    fromto attribute below.
 
    The **box** type defines a box. Three size parameters are required, corresponding to the half-sizes of the box along
-   the X, Y and Z axes of the geom's frame. Note that box-box collisions are the only pair-wise collision type that can
-   generate a large number of contact points, up to 8 depending on the configuration. The contact generation itself is
-   fast but this can slow down the constraint solver. As an alternative, we provide the boxconvex attribute in
-   :ref:`flag <option-flag>` which causes the general-purpose convex collider to be used instead, yielding at most one
-   contact point per geom pair.
+   the X, Y and Z axes of the geom's frame. Note that box-box collisions can generate up to 8 contact points.
 
    The **mesh** type defines a mesh. The geom must reference the desired mesh asset with the mesh attribute. Note that
    mesh assets can also be referenced from other geom types, causing primitive shapes to be fitted; see below. The size
@@ -2445,13 +2617,15 @@ helps clarify the role of bodies and geoms in MuJoCo.
 .. _body-geom-material:
 
 :at:`material`: :at-val:`string, optional`
-   If specified, this attribute applies a material to the geom. The material determines the visual properties of the
-   geom. The only exception is color: if the rgba attribute below is different from its internal default, it takes
-   precedence while the remaining material properties are still applied. Note that if the same material is referenced
-   from multiple geoms (as well as sites and tendons) and the user changes some of its properties at runtime, these
-   changes will take effect immediately for all model elements referencing the material. This is because the compiler
-   saves the material and its properties as a separate element in mjModel, and the elements using this material only
-   keep a reference to it.
+   If specified, this attribute applies a material to the geom. Otherwise, if unspecified and the type of the geom is
+   a **mesh** the compiler will apply the mesh asset :ref:`material <asset-mesh-material>` if present.
+
+   The material determines the visual properties of the geom. The only exception is color: if the rgba attribute below
+   is different from its internal default, it takes precedence while the remaining material properties are still
+   applied. Note that if the same material is referenced from multiple geoms (as well as sites and tendons) and the user
+   changes some of its properties at runtime, these changes will take effect immediately for all model elements
+   referencing the material. This is because the compiler saves the material and its properties as a separate element in
+   mjModel, and the elements using this material only keep a reference to it.
 
 .. _body-geom-rgba:
 
@@ -2639,7 +2813,7 @@ helps clarify the role of bodies and geoms in MuJoCo.
 
 .. _geom-plugin:
 
-:el-prefix:`geom/` |-| **plugin** (?)
+:el-prefix:`geom/` |-| **plugin** |?|
 '''''''''''''''''''''''''''''''''''''
 
 Associate this geom with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -2657,7 +2831,7 @@ Associate this geom with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 
 .. _body-site:
 
-:el-prefix:`body/` |-| **site** (*)
+:el-prefix:`body/` |-| **site** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a site, which is a simplified and restricted kind of geom. A small subset of the geom attributes
@@ -2743,7 +2917,7 @@ tendons, constructing slider-crank transmissions for actuators.
 
 .. _body-camera:
 
-:el-prefix:`body/` |-| **camera** (*)
+:el-prefix:`body/` |-| **camera** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a camera, which moves with the body where it is defined. To create a fixed camera, define it in the
@@ -2791,11 +2965,11 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
    When the camera mode is "targetbody" or "targetbodycom", this attribute becomes required. It specifies which body
    should be targeted by the camera. In all other modes this attribute is ignored.
 
-.. _body-camera-orthographic:
+.. _body-camera-projection:
 
-:at:`orthographic`: :at-val:`[false, true], "false"`
-   Whether the camera uses a perspective projection (the default) or an orthographic projection. Setting this attribute
-   changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
+:at:`projection`: :at-val:`[perspective, orthographic], "perspective"`
+   Whether the camera uses a perspective (the default) or orthographic projection. Setting this
+   attribute to "orthographic" changes the semantic of the :ref:`fovy<body-camera-fovy>` attribute, see below.
 
 .. _body-camera-fovy:
 
@@ -2811,36 +2985,43 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 :at:`resolution`: :at-val:`int(2), "1 1"`
    Resolution of the camera in pixels [width height]. Note that these values are not used for rendering since those
    dimensions are determined by the size of the rendering context. This attribute serves as a convenient
-   location to save the required resolution when creating a context.
+   location to save the required resolution. Setting either value larger than 1
+   enables frustum visualization when the :ref:`mjVIS_CAMERA<mjtVisFlag>` visualization flag is active.
 
-.. _body-camera-focal:
+.. _body-camera-output:
 
-:at:`focal`: :at-val:`real(2), "0 0"`
-   Focal length of the camera in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`.
-   See :ref:`CCamera` for details.
+:at:`output`: :at-val:`[rgb, depth, distance, normal, segmentation], "rgb"`
+   Types of output images supported by the camera.
 
-.. _body-camera-focalpixel:
+   - :at-val:`rgb`: RGB image.
+   - :at-val:`depth`: Depth image (distance from camera plane).
+   - :at-val:`distance`: Distance image (distance from camera origin).
+   - :at-val:`normal`: Surface normal image.
+   - :at-val:`segmentation`: Segmentation image.
 
-:at:`focalpixel`: :at-val:`int(2), "0 0"`
-   Focal length of the camera in pixel units. If both :at:`focal`: and :at:`focalpixel`: are specified, the former is
-   ignored.
-
-.. _body-camera-principal:
-
-:at:`principal`: :at-val:`real(2), "0 0"`
-   Principal point of the camera in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`.
-
-.. _body-camera-principalpixel:
-
-:at:`principalpixel`: :at-val:`real(2), "0 0"`
-   Principal point of the camera in pixel units. If both :at:`principal`: and :at:`principalpixel`: are specified, the
-   former is ignored.
+   This attribute is not used for rendering, but serves as a convenient location to save the output types supported by
+   the camera. The :at:`output` attribute can contain multiple types, e.g. :at-val:`"rgb normal"`.
 
 .. _body-camera-sensorsize:
 
 :at:`sensorsize`: :at-val:`real(2), "0 0"`
-   Size of the camera sensor in length units. It is mutually exclusive with :ref:`fovy <body-camera-fovy>`. If
-   specified, :ref:`resolution <body-camera-resolution>` and :ref:`focal <body-camera-focal>` are required.
+   Size of the camera sensor in length units. When specified, all intrinsic attributes become active and :at:`fovy`
+   is ignored. The field-of-view is then computed automatically from the focal length and sensor size.
+
+.. _body-camera-focal:
+.. _body-camera-focalpixel:
+
+:at:`focal` / :at:`focalpixel`: :at-val:`real(2), "0 0"`
+   Focal length in physical length units or in pixels, respectively. If both are specified, the pixel
+   value is used and the length value is ignored.
+
+.. _body-camera-principal:
+.. _body-camera-principalpixel:
+
+:at:`principal` / :at:`principalpixel`: :at-val:`real(2), "0 0"`
+   Offset of the principal point (optical axis intersection with the image plane) from the image center. If both are
+   specified, the pixel value is used. At zero offset, the rendered image is centered on the camera's negative Z axis,
+   as in a standard pinhole camera model.
 
 .. _body-camera-ipd:
 
@@ -2877,7 +3058,7 @@ and the +Y axis points up. Thus the frame position and orientation are the key a
 
 .. _body-light:
 
-:el-prefix:`body/` |-| **light** (*)
+:el-prefix:`body/` |-| **light** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a light, which moves with the body where it is defined. To create a fixed light, define it in the
@@ -3018,7 +3199,7 @@ Attributes may be applied or ignored depending on the lighting model being used.
 
 .. _body-composite:
 
-:el-prefix:`body/` |-| **composite** (*)
+:el-prefix:`body/` |-| **composite** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is not a model element, but rather a macro which expands into multiple model elements representing a composite
@@ -3096,7 +3277,7 @@ cable, which produces an inextensible chain of bodies connected with ball joints
 
 .. _composite-joint:
 
-:el-prefix:`composite/` |-| **joint** (*)
+:el-prefix:`composite/` |-| **joint** |m|
 '''''''''''''''''''''''''''''''''''''''''
 
 Depending on the composite type, some joints are created automatically (e.g. the universal joints in rope) while other
@@ -3164,7 +3345,7 @@ joints should be created, as well as to adjust the attributes of both automatic 
 
 .. _composite-geom:
 
-:el-prefix:`composite/` |-| **geom** (?)
+:el-prefix:`composite/` |-| **geom** |?|
 ''''''''''''''''''''''''''''''''''''''''
 
 This sub-element adjusts the attributes of the geoms in the composite object. The default attributes are the same as in
@@ -3217,7 +3398,7 @@ joints and tendons have different sets of attributes, while all geoms in the com
 
 .. _composite-site:
 
-:el-prefix:`composite/` |-| **site** (?)
+:el-prefix:`composite/` |-| **site** |?|
 ''''''''''''''''''''''''''''''''''''''''
 
 This sub-element adjusts the attributes of the sites in the composite object. Otherwise it is the same as geom above.
@@ -3236,7 +3417,7 @@ This sub-element adjusts the attributes of the sites in the composite object. Ot
 
 .. _composite-skin:
 
-:el-prefix:`composite/` |-| **skin** (?)
+:el-prefix:`composite/` |-| **skin** |?|
 ''''''''''''''''''''''''''''''''''''''''
 
 If this element is included, the model compiler will generate a skinned mesh asset and attach it to the element bodies
@@ -3286,7 +3467,7 @@ automatically-generated skin.
 
 .. _composite-plugin:
 
-:el-prefix:`composite/` |-| **plugin** (?)
+:el-prefix:`composite/` |-| **plugin** |?|
 ''''''''''''''''''''''''''''''''''''''''''
 
 Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -3305,7 +3486,7 @@ Associate this composite with an :ref:`engine plugin<exPlugin>`. Either :at:`plu
 
 .. _body-flexcomp:
 
-:el-prefix:`body/` |-| **flexcomp** (*)
+:el-prefix:`body/` |-| **flexcomp** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Similar to :el:`composite`, this element (new in MuJoCo 3.0) is not a model element, but rather a macro which expands
@@ -3419,14 +3600,24 @@ saving the XML:
       :align: right
       :width: 240px
 
-   Trilinear flexes are much faster than the previous two options, and are the preferred choice if the expected
-   deformations can be captured by the reduced parametriation. For example, see the video on the right comparing `full
-   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
+   Trilinear and quadratic flexes are much faster than the previous two options, and are the preferred choice if the
+   expected deformations can be captured by the reduced parametriation. For example, see the video on the right
+   comparing `full <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper.xml>`__ and `trilinear
    <https://github.com/google-deepmind/mujoco/blob/main/model/flex/gripper_trilinear.xml>`__ flexes for modeling
    deformable gripper pads.
 
    Note that the choice of dof parametrization affects the deformation modes of the flex but has no effect on the
    accuracy of the collision geometry, which always takes into account the high-resolution mesh of the flex.
+
+   **quadratic**
+     Three translational dofs per corner, edge, face, and volume of the bounding box of the flex, for a total of 81 dofs
+     for the entire flex, independent of the number of vertices. The positions of the vertices are updated using
+     quadratic interpolation over the bounding box. While this option requires more degrees of freedom than trilinear
+     flexes, it enables curved deformation modes, while the only modes achievable for trilinear flexes are
+     strech/compression and shear.
+
+   Note that a higher interpolation order generally requires a smaller time step for stability, although usually not as
+   large as with the "full" option and a fine mesh.
 
 .. _body-flexcomp-type:
 
@@ -3592,7 +3783,7 @@ saving the XML:
 
 .. _flexcomp-contact:
 
-:el-prefix:`flexcomp/` |-| **contact** (*)
+:el-prefix:`flexcomp/` |-| **contact** |m|
 ''''''''''''''''''''''''''''''''''''''''''
 
 .. _flexcomp-contact-internal:
@@ -3609,6 +3800,7 @@ saving the XML:
 .. _flexcomp-contact-solimp:
 .. _flexcomp-contact-margin:
 .. _flexcomp-contact-gap:
+.. _flexcomp-contact-passive:
 
 .. |body/flexcomp/contact attrib list| replace::
    :at:`internal`, :at:`selfcollide`, :at:`vertcollide`, :at:`activelayers`, :at:`contype`, :at:`conaffinity`,
@@ -3619,7 +3811,7 @@ saving the XML:
 
 .. _flexcomp-edge:
 
-:el-prefix:`flexcomp/` |-| **edge** (*)
+:el-prefix:`flexcomp/` |-| **edge** |m|
 '''''''''''''''''''''''''''''''''''''''
 
 Each flex element has one edge in 1D (coinciding with the capsule element), three edges in 2D, and six edges in 3D. The
@@ -3647,7 +3839,7 @@ element is used to adjust the properties of all edges in the flex.
 
 .. _flexcomp-elasticity:
 
-:el-prefix:`flexcomp/` |-| **elasticity** (*)
+:el-prefix:`flexcomp/` |-| **elasticity** |m|
 '''''''''''''''''''''''''''''''''''''''''''''
 
 .. _flexcomp-elasticity-young:
@@ -3665,7 +3857,7 @@ element is used to adjust the properties of all edges in the flex.
 
 .. _flexcomp-pin:
 
-:el-prefix:`flexcomp/` |-| **pin** (*)
+:el-prefix:`flexcomp/` |-| **pin** |m|
 ''''''''''''''''''''''''''''''''''''''
 
 Each point is either pinned or not pinned. The effect of pinning was explained earlier. This element is used to specify
@@ -3698,7 +3890,7 @@ multiple times is allowed.
 
 .. _flexcomp-plugin:
 
-:el-prefix:`flexcomp/` |-| **plugin** (?)
+:el-prefix:`flexcomp/` |-| **plugin** |?|
 '''''''''''''''''''''''''''''''''''''''''
 
 Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -3716,7 +3908,7 @@ Associate this flexcomp with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _body-plugin:
 
-:el-prefix:`body/` |-| **plugin** (?)
+:el-prefix:`body/` |-| **plugin** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -3734,29 +3926,20 @@ Associate this body with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` 
 
 .. _body-attach:
 
-:el-prefix:`body/` |-| **attach** (*)
+:el-prefix:`body/` |-| **attach** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The :el:`attach` element is used to insert a sub-tree of bodies from another model into this model's kinematic tree.
-Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from
-one file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model
-must first be defined as an :ref:`asset<asset-model>`. When creating an attachment, the top body of the attached subtree
-is specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are
-also copied into the top-level model. Additionally, any elements referenced from within the attached subtree (e.g.
-defaults and assets) will be copied in to the top-level model. :el:`attach` is a :ref:`meta-element`, so upon saving
-all attachments will appear in the saved XML file.
-
-.. admonition:: Known issues
-   :class: note
-
-   The following known limitations exist, to be addressed in a future release:
-
-   - An entire model cannot be attached (i.e. including all elements, referenced or not).
-   - All assets from the child model will be copied in, whether they are referenced or not.
-   - Circular references are not checked for and will lead to infinite loops.
-   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
-     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
-     lost.
+Unlike :ref:`include<include>`, which is implemented in the parser and is equivalent to copying and pasting XML from one
+file into another, :el:`attach` is implemented in the model compiler. In order to use this element, the sub-model must
+first be defined as an :ref:`asset<asset-model>`. When creating an attachment, the top body of the attached subtree is
+specified, and all referencing elements outside the kinematic tree (e.g., sensors and actuators), are also copied into
+the top-level model. Additionally, any elements referenced from within the attached subtree (e.g. defaults and assets)
+will be copied in to the top-level model. :el:`attach` is a :ref:`meta-element`, so upon saving all attachments will
+appear in the saved XML file. Note that this element is a subset of the functionality of the procedural
+:ref:`attachment<meAttachment>` functionality. As such, it shares the same limitations as described there. In addition,
+when the :el:`attach` element is used, it is not possible to attach an entire model (i.e. including all elements,
+referenced or not).
 
 .. _body-attach-model:
 
@@ -3778,7 +3961,7 @@ all attachments will appear in the saved XML file.
 
 .. _body-frame:
 
-:el-prefix:`body/` |-| **frame** (*)
+:el-prefix:`body/` |-| **frame** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Frames specify a coordinate transformation which is applied to all child elements. They disappear during compilation
@@ -3818,7 +4001,7 @@ and the transformation they encode is accumulated in their direct children. See 
 
 .. _contact:
 
-**contact** (*)
+**contact** |m|
 ~~~~~~~~~~~~~~~
 
 This is a grouping element and does not have any attributes. It groups elements that are used to adjust the generation
@@ -3828,7 +4011,7 @@ thus the description here is brief.
 
 .. _contact-pair:
 
-:el-prefix:`contact/` |-| **pair** (*)
+:el-prefix:`contact/` |-| **pair** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a predefined geom pair which will be checked for collision. Unlike dynamically generated pairs
@@ -3908,7 +4091,7 @@ friction can only be created with this element.
 
 .. _contact-exclude:
 
-:el-prefix:`contact/` |-| **exclude** (*)
+:el-prefix:`contact/` |-| **exclude** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is used to exclude a pair of bodies from collision checking. Unlike all other contact-related elements
@@ -3933,7 +4116,7 @@ bodies. Collisions between any geom defined in the first body and any geom defin
 
 .. _deformable:
 
-**deformable** (*)
+**deformable** |m|
 ~~~~~~~~~~~~~~~~~~
 
 This is a grouping element and does not have any attributes. It groups elements that specify deformable objects, namely flexes and skins.
@@ -3941,7 +4124,7 @@ This is a grouping element and does not have any attributes. It groups elements 
 
 .. _deformable-flex:
 
-:el-prefix:`deformable/` |-| **flex** (*)
+:el-prefix:`deformable/` |-| **flex** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Flexible objects (or flexes) were added in MuJoCo 3.0. These are collections of massless stretchable geometric elements
@@ -4040,7 +4223,7 @@ cases, the user will specify a :el:`flexcomp` which will then automatically cons
 
 .. _flex-edge:
 
-:el-prefix:`flex/` |-| **edge** (?)
+:el-prefix:`flex/` |-| **edge** |?|
 '''''''''''''''''''''''''''''''''''
 
 This element adjusts the passive or constraint properties of all edges of the flex. A flex edge can have a damping
@@ -4063,7 +4246,7 @@ these mechanisms to be combined as desired.
 
 .. _flex-elasticity:
 
-:el-prefix:`flex/` |-| **elasticity** (?)
+:el-prefix:`flex/` |-| **elasticity** |?|
 '''''''''''''''''''''''''''''''''''''''''
 
 The elasticity model is a `Saint Venant-Kirchhoff
@@ -4106,7 +4289,7 @@ stress-strain relationship.. See also :ref:`deformable <CDeformable>` objects.
 
 .. _flex-contact:
 
-:el-prefix:`flex/` |-| **contact** (?)
+:el-prefix:`flex/` |-| **contact** |?|
 ''''''''''''''''''''''''''''''''''''''
 
 This element adjusts the contact properties of the flex. It is mostly identical to geom contact properties, with some
@@ -4172,10 +4355,17 @@ extensions specific to flexes.
 |deformable/flex/contact attrib list|
    Same meaning as regular :ref:`geom <body-geom>` attributes.
 
+.. _flex-contact-passive:
+
+:at:`passive`: :at-val:`[true, false], "false"`
+   When enabled, the contact is not added to the contact solver but it is instead used to compute passive
+   (spring-damper) contact forces. All contacts, regardless of the specified condim, are frictionless (condim 1). This
+   is an experimental feature and might change in future releases.
+
 
 .. _deformable-skin:
 
-:el-prefix:`deformable/` |-| **skin** (*)
+:el-prefix:`deformable/` |-| **skin** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 These are deformable meshes whose vertex positions and normals are computed each time the model is rendered. MuJoCo
@@ -4293,7 +4483,7 @@ be clear from the above specification.
 
 .. _skin-bone:
 
-:el-prefix:`skin/` |-| **bone** (*)
+:el-prefix:`skin/` |-| **bone** |m|
 '''''''''''''''''''''''''''''''''''
 
 This element defines a bone of the skin. The bone is a regular MuJoCo body which is referenced by name here.
@@ -4333,7 +4523,7 @@ This element defines a bone of the skin. The bone is a regular MuJoCo body which
 
 .. _equality:
 
-**equality** (*)
+**equality** |m|
 ~~~~~~~~~~~~~~~~
 
 This is a grouping element for equality constraints. It does not have attributes. See the :ref:`Equality <coEquality>`
@@ -4343,7 +4533,7 @@ all equality constraint types, thus we document them only once, under the :ref:`
 
 .. _equality-connect:
 
-:el-prefix:`equality/` |-| **connect** (*)
+:el-prefix:`equality/` |-| **connect** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an equality constraint that connects two bodies at a point. The constraint effectively defines a
@@ -4418,7 +4608,7 @@ ball joint outside the kinematic tree. Connect constraints can be specified in o
 
 .. _equality-weld:
 
-:el-prefix:`equality/` |-| **weld** (*)
+:el-prefix:`equality/` |-| **weld** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a weld equality constraint. It attaches two bodies to each other, removing all relative degrees of
@@ -4505,7 +4695,7 @@ of the other body, without any joint elements in the child body. Weld constraint
 
 .. _equality-joint:
 
-:el-prefix:`equality/` |-| **joint** (*)
+:el-prefix:`equality/` |-| **joint** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element constrains the position or angle of one joint to be a quartic polynomial of another joint. Only scalar
@@ -4550,7 +4740,7 @@ joint types (slide and hinge) can be used.
 
 .. _equality-tendon:
 
-:el-prefix:`equality/` |-| **tendon** (*)
+:el-prefix:`equality/` |-| **tendon** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element constrains the length of one tendon to be a quartic polynomial of another tendon.
@@ -4588,7 +4778,7 @@ This element constrains the length of one tendon to be a quartic polynomial of a
 
 .. _equality-flex:
 
-:el-prefix:`equality/` |-| **flex** (*)
+:el-prefix:`equality/` |-| **flex** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element constrains the lengths of all edges of a specified flex to their respective lengths in the initial model
@@ -4613,7 +4803,7 @@ as there are edges in the specified flex.
 
 .. _equality-distance:
 
-:el-prefix:`equality/` |-| **distance** (*)
+:el-prefix:`equality/` |-| **distance** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Distance equality constraints were removed in MuJoCo version 2.2.2. If you are using an earlier version, please switch
@@ -4622,7 +4812,7 @@ to the corresponding version of the documentation.
 
 .. _tendon:
 
-**tendon** (*)
+**tendon** |m|
 ~~~~~~~~~~~~~~
 
 Grouping element for tendon definitions. The attributes of fixed tendons are a subset of the attributes of spatial
@@ -4633,7 +4823,7 @@ can also represent different forms of mechanical coupling.
 
 .. _tendon-spatial:
 
-:el-prefix:`tendon/` |-| **spatial** (*)
+:el-prefix:`tendon/` |-| **spatial** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. figure:: images/XMLreference/tendon.png
@@ -4752,7 +4942,9 @@ length X, as in the clip on the right of `this example model
 
 :at:`rgba`: :at-val:`real(4), "0.5 0.5 0.5 1"`
    Color and transparency of the tendon. When this value is different from the internal default, it overrides the
-   corresponding material properties.
+   corresponding material properties. If a :at:`material` is unspecified and :at:`rgba` has the default value, limited
+   tendons whose length exceeds the limit are recolored using the value of the :ref:`constraint impedance<soParameters>`
+   :math:`d` to mix the default color and :ref:`rgba/constraint<visual-rgba-constraint>`.
 
 .. _tendon-spatial-springlength:
 
@@ -4812,7 +5004,7 @@ length X, as in the clip on the right of `this example model
 
 .. _spatial-site:
 
-:el-prefix:`spatial/` |-| **site** (*)
+:el-prefix:`spatial/` |-| **site** |m|
 ''''''''''''''''''''''''''''''''''''''
 
 This attribute specifies a site that the tendon path has to pass through. Recall that sites are rigidly attached to
@@ -4826,7 +5018,7 @@ bodies.
 
 .. _spatial-geom:
 
-:el-prefix:`spatial/` |-| **geom** (*)
+:el-prefix:`spatial/` |-| **geom** |m|
 ''''''''''''''''''''''''''''''''''''''
 
 This element specifies a geom that acts as an obstacle for the tendon path. If the minimum-length path does not touch
@@ -4852,7 +5044,7 @@ constrained to pass through the geom instead of passing around it.
 
 .. _spatial-pulley:
 
-:el-prefix:`spatial/` |-| **pulley** (*)
+:el-prefix:`spatial/` |-| **pulley** |m|
 ''''''''''''''''''''''''''''''''''''''''
 
 This element starts a new branch in the tendon path. The branches are not required to be connected spatially. Similar to
@@ -4876,7 +5068,7 @@ illustrated the use of pulleys.
 
 .. _tendon-fixed:
 
-:el-prefix:`tendon/` |-| **fixed** (*)
+:el-prefix:`tendon/` |-| **fixed** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an abstract tendon whose length is defined as a linear combination of joint positions. Recall that
@@ -4932,7 +5124,7 @@ as above.
 
 .. _fixed-joint:
 
-:el-prefix:`fixed/` |-| **joint** (*)
+:el-prefix:`fixed/` |-| **joint** |m|
 '''''''''''''''''''''''''''''''''''''
 
 This element adds a joint to the computation of the fixed tendon length. The position or angle of each included joint is
@@ -4951,7 +5143,7 @@ multiplied by the corresponding coef value, and added up to obtain the tendon le
 
 .. _actuator:
 
-**actuator** (*)
+**actuator** |m|
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This is a grouping element for actuator definitions. Recall the discussion of MuJoCo's :ref:`Actuation model
@@ -4962,7 +5154,7 @@ under the :el:`general` actuator.
 
 .. _actuator-general:
 
-:el-prefix:`actuator/` |-| **general** (*)
+:el-prefix:`actuator/` |-| **general** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a general actuator, providing full access to all actuator components and allowing the user to
@@ -5225,7 +5417,7 @@ specify them independently.
 
 .. _actuator-motor:
 
-:el-prefix:`actuator/` |-| **motor** (*)
+:el-prefix:`actuator/` |-| **motor** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This and the next three elements are the :ref:`Actuator shortcuts <CActShortcuts>` discussed earlier. When a
@@ -5295,7 +5487,7 @@ This element does not have custom attributes. It only has common attributes, whi
 
 .. _actuator-position:
 
-:el-prefix:`actuator/` |-| **position** (*)
+:el-prefix:`actuator/` |-| **position** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a position servo with an optional first-order filter. The underlying :el:`general` attributes are
@@ -5406,7 +5598,7 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-velocity:
 
-:el-prefix:`actuator/` |-| **velocity** (*)
+:el-prefix:`actuator/` |-| **velocity** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a velocity servo. Note that in order create a PD controller, one has to define two actuators: a
@@ -5477,7 +5669,7 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-intvelocity:
 
-:el-prefix:`actuator/` |-| **intvelocity** (*)
+:el-prefix:`actuator/` |-| **intvelocity** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an integrated-velocity servo. For more information, see the
@@ -5565,7 +5757,7 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-damper:
 
-:el-prefix:`actuator/` |-| **damper** (*)
+:el-prefix:`actuator/` |-| **damper** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is an active damper which produces a force proportional to both velocity and control: ``F = - kv * velocity
@@ -5636,7 +5828,7 @@ This element has one custom attribute in addition to the common attributes:
 
 .. _actuator-cylinder:
 
-:el-prefix:`actuator/` |-| **cylinder** (*)
+:el-prefix:`actuator/` |-| **cylinder** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is suitable for modeling pneumatic or hydraulic cylinders. The underlying :el:`general` attributes are
@@ -5720,7 +5912,7 @@ This element has four custom attributes in addition to the common attributes:
 
 .. _actuator-muscle:
 
-:el-prefix:`actuator/` |-| **muscle** (*)
+:el-prefix:`actuator/` |-| **muscle** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is used to model a muscle actuator, as described in the :ref:`Muscles actuators <CMuscle>`
@@ -5836,7 +6028,7 @@ This element has nine custom attributes in addition to the common attributes:
 
 .. _actuator-adhesion:
 
-:el-prefix:`actuator/` |-| **adhesion** (*)
+:el-prefix:`actuator/` |-| **adhesion** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ..  youtube:: BcHZ5BFeTmU
@@ -5902,7 +6094,7 @@ This element has a subset of the common attributes and two custom attributes.
 
 .. _actuator-plugin:
 
-:el-prefix:`actuator/` |-| **plugin** (?)
+:el-prefix:`actuator/` |-| **plugin** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
@@ -5985,7 +6177,7 @@ Associate this actuator with an :ref:`engine plugin<exPlugin>`. Either :at:`plug
 
 .. _sensor:
 
-**sensor** (*)
+**sensor** |m|
 ~~~~~~~~~~~~~~
 
 This is a grouping element for sensor definitions. It does not have attributes. The outputs of all sensors are
@@ -6001,7 +6193,7 @@ themselves are "features" that could be of interest to the user.
 
 .. _sensor-touch:
 
-:el-prefix:`sensor/` |-| **touch** (*)
+:el-prefix:`sensor/` |-| **touch** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a touch sensor. The active sensor zone is defined by a site. If a contact point falls within the
@@ -6030,7 +6222,7 @@ scalar. It is computed by adding up the (scalar) normal forces from all included
 
 .. _sensor-accelerometer:
 
-:el-prefix:`sensor/` |-| **accelerometer** (*)
+:el-prefix:`sensor/` |-| **accelerometer** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis accelerometer. The sensor is mounted at a site, and has the same position and orientation
@@ -6058,7 +6250,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-velocimeter:
 
-:el-prefix:`sensor/` |-| **velocimeter** (*)
+:el-prefix:`sensor/` |-| **velocimeter** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis velocimeter. The sensor is mounted at a site, and has the same position and orientation as
@@ -6083,7 +6275,7 @@ the site frame. This sensor outputs three numbers, which are the linear velocity
 
 .. _sensor-gyro:
 
-:el-prefix:`sensor/` |-| **gyro** (*)
+:el-prefix:`sensor/` |-| **gyro** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis gyroscope. The sensor is mounted at a site, and has the same position and orientation as
@@ -6110,7 +6302,7 @@ simulate an inertial measurement unit (IMU).
 
 .. _sensor-force:
 
-:el-prefix:`sensor/` |-| **force** (*)
+:el-prefix:`sensor/` |-| **force** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis force sensor. The sensor outputs three numbers, which are the interaction force between a
@@ -6144,7 +6336,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-torque:
 
-:el-prefix:`sensor/` |-| **torque** (*)
+:el-prefix:`sensor/` |-| **torque** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a 3-axis torque sensor. This is similar to the :ref:`force <sensor-force>` sensor above, but
@@ -6172,7 +6364,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-magnetometer:
 
-:el-prefix:`sensor/` |-| **magnetometer** (*)
+:el-prefix:`sensor/` |-| **magnetometer** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a magnetometer. It measures the magnetic flux at the sensor site position, expressed in the sensor
@@ -6196,15 +6388,57 @@ site frame. The output is a 3D vector.
 
 .. _sensor-rangefinder:
 
-:el-prefix:`sensor/` |-| **rangefinder** (*)
+:el-prefix:`sensor/` |-| **rangefinder** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element creates a rangefinder. It measures the distance to the nearest geom surface, along the ray defined by the
-positive Z-axis of the sensor site. If the ray does not intersect any geom surface, the sensor output is -1. If the
-origin of the ray is inside a geom, the surface is still sensed (but not the inner volume). Geoms attached to the same
-body as the sensor site are excluded. Invisible geoms, defined as geoms whose rgba (or whose material rgba) has alpha=0,
-are also excluded. Note however that geoms made invisible in the visualizer by disabling their geom group are not
-excluded; this is because sensor calculations are independent of the visualizer.
+This element creates a rangefinder.
+
+- If associated with a :ref:`site<sensor-rangefinder-site>`, it measures the distance to the nearest geom surface, along
+  the ray defined by the positive Z-axis of the site.
+- If associated with a :ref:`camera<sensor-rangefinder-camera>`, it outputs one distance measurement for each pixel in
+  the camera image. Note that cameras face the :ref:`negative Z-axis<body-camera>` of their frame. The number of
+  measurements in this case is equal to product of the camera's width and height
+  :ref:`resolutions<body-camera-resolution>`.
+
+.. image:: images/XMLreference/rfcamera.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
+
+If a ray does not intersect any geom surface, the sensor output is -1. If the origin of the ray is inside a geom, the
+surface is still detected. Geoms attached to the same body as the sensor site/camera are excluded. Invisible geoms,
+defined as geoms whose rgba (or whose material rgba) has alpha=0, are also excluded. Note however that geoms made
+invisible in the visualizer by disabling their geom group are not excluded; this is because sensor calculations are
+independent of the visualizer.
+
+The image on the right (click to see the model being visualized) shows two rangefinder sensors attached to a perspective and
+an orthographic camera, with frustums visualized. Both cameras have 4x4 resolution, for 16 rays each. The rangefinder
+sensors report :at:`data` = :at-val:`"dist point normal"` (see below), so we can see the rays (lines), the intersection
+points (spheres) and the surface normals (arrows).
+
+.. _sensor-rangefinder-data:
+
+:at:`data`: :at-val:`[dist, dir, origin, point, normal, depth], "dist"`
+   By default, the rangefinder outputs a distance measurement, as described above. However, it is also possible to
+   specify a set of output data fields. The :at:`data` attribute can contain **multiple sequential data types**, as long
+   as the relative order---as listed above---is maintained. For example, :at:`data` = :at-val:`"dist point normal"` will
+   return 7 numbers per ray, while :at:`data` = :at-val:`"point origin"` is an error because :at-val:`origin` must come
+   before :at-val:`point`.
+
+   - :at-val:`dist` **real(1)**: The distance from the ray origin to the nearest geom surface, -1 if no surface was hit.
+     If this data type is included, rays will be visualized as lines.
+   - :at-val:`dir` **real(3)**: Normalized direction of the ray, or (0, 0, 0) if no surface was hit.
+   - :at-val:`origin` **real(3)**: The point from which the ray emanates (global frame). For sites and perspective
+     cameras, this is the site/camera xpos. However for orthographic cameras, ray origins are spatially distributed
+     along the image plane.
+   - :at-val:`point` **real(3)**: The point where the ray intersects the nearest geom surface in the global frame, or
+     (0, 0, 0) if no surface was hit. If this data type is included, intersection points will be visualized as spheres.
+   - :at-val:`normal`: **real(3)**: The geom surface normal at the point where the ray intersects it, in the global
+     frame, or (0, 0, 0) if no surface was hit. Note that normals always point towards the outside of the geom surface,
+     regardless of the ray origin. If this data type is included along with either :at-val:`dist` or :at-val:`point`,
+     normals will be visualized as arrows at the intersection points.
+   - :at-val:`depth`: **real(1)**: The distance of the hit point from the camera plane, -1 if no surface was hit. Note
+     that this depth sematic corresponds to depth images in the computer graphics sense.
 
 .. _sensor-rangefinder-name:
 
@@ -6219,12 +6453,17 @@ excluded; this is because sensor calculations are independent of the visualizer.
 
 .. _sensor-rangefinder-site:
 
-:at:`site`: :at-val:`string, required`
+:at:`site`: :at-val:`string, optional`
    The site where the sensor is attached.
+
+.. _sensor-rangefinder-camera:
+
+:at:`camera`: :at-val:`string, optional`
+   The camera where the sensor is attached.
 
 .. _sensor-camprojection:
 
-:el-prefix:`sensor/` |-| **camprojection** (*)
+:el-prefix:`sensor/` |-| **camprojection** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a camera projection sensor: the location of a target site, projected onto a camera image in pixel
@@ -6257,7 +6496,7 @@ z-coordinate indicates a location in front of/behind the camera plane, respectiv
 
 .. _sensor-jointpos:
 
-:el-prefix:`sensor/` |-| **jointpos** (*)
+:el-prefix:`sensor/` |-| **jointpos** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This and the remaining sensor elements do not involve sensor-specific computations. Instead they copy into the array
@@ -6284,7 +6523,7 @@ attached to scalar joints (slide or hinge). Its output is scalar.
 
 .. _sensor-jointvel:
 
-:el-prefix:`sensor/` |-| **jointvel** (*)
+:el-prefix:`sensor/` |-| **jointvel** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint velocity sensor. It can be attached to scalar joints (slide or hinge). Its output is
@@ -6310,7 +6549,7 @@ scalar.
 
 .. _sensor-tendonpos:
 
-:el-prefix:`sensor/` |-| **tendonpos** (*)
+:el-prefix:`sensor/` |-| **tendonpos** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon length sensor. It can be attached to both spatial and fixed tendons. Its output is scalar.
@@ -6334,7 +6573,7 @@ This element creates a tendon length sensor. It can be attached to both spatial 
 
 .. _sensor-tendonvel:
 
-:el-prefix:`sensor/` |-| **tendonvel** (*)
+:el-prefix:`sensor/` |-| **tendonvel** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon velocity sensor. It can be attached to both spatial and fixed tendons. Its output is
@@ -6359,7 +6598,7 @@ scalar.
 
 .. _sensor-actuatorpos:
 
-:el-prefix:`sensor/` |-| **actuatorpos** (*)
+:el-prefix:`sensor/` |-| **actuatorpos** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator length sensor. Recall that each actuator has a transmission which has length. This
@@ -6384,7 +6623,7 @@ sensor can be attached to any actuator. Its output is scalar.
 
 .. _sensor-actuatorvel:
 
-:el-prefix:`sensor/` |-| **actuatorvel** (*)
+:el-prefix:`sensor/` |-| **actuatorvel** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator velocity sensor. This sensor can be attached to any actuator. Its output is scalar.
@@ -6408,7 +6647,7 @@ This element creates an actuator velocity sensor. This sensor can be attached to
 
 .. _sensor-actuatorfrc:
 
-:el-prefix:`sensor/` |-| **actuatorfrc** (*)
+:el-prefix:`sensor/` |-| **actuatorfrc** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator force sensor. The quantity being sensed is the scalar actuator force, not the
@@ -6434,7 +6673,7 @@ arms determined by the transmission). This sensor can be attached to any actuato
 
 .. _sensor-jointactuatorfrc:
 
-:el-prefix:`sensor/` |-| **jointactuatorfrc** (*)
+:el-prefix:`sensor/` |-| **jointactuatorfrc** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator force sensor, measured at a joint. The quantity being sensed is the generalized force
@@ -6464,7 +6703,7 @@ joint or when a single actuator acts on multiple joints. See :ref:`CForceRange` 
 
 .. _sensor-tendonactuatorfrc:
 
-:el-prefix:`sensor/` |-| **tendonactuatorfrc** (*)
+:el-prefix:`sensor/` |-| **tendonactuatorfrc** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates an actuator force sensor, measured at a tendon. The quantity being sensed is the total force
@@ -6491,7 +6730,7 @@ single tendon. See :ref:`CForceRange` for details.
 
 .. _sensor-ballquat:
 
-:el-prefix:`sensor/` |-| **ballquat** (*)
+:el-prefix:`sensor/` |-| **ballquat** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a quaternion sensor for a ball joints. It outputs 4 numbers corresponding to a unit quaternion.
@@ -6515,7 +6754,7 @@ This element creates a quaternion sensor for a ball joints. It outputs 4 numbers
 
 .. _sensor-ballangvel:
 
-:el-prefix:`sensor/` |-| **ballangvel** (*)
+:el-prefix:`sensor/` |-| **ballangvel** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a ball joint angular velocity sensor. It outputs 3 numbers corresponding to the angular velocity of
@@ -6541,7 +6780,7 @@ rotation takes place.
 
 .. _sensor-jointlimitpos:
 
-:el-prefix:`sensor/` |-| **jointlimitpos** (*)
+:el-prefix:`sensor/` |-| **jointlimitpos** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint limit sensor for position.
@@ -6568,7 +6807,7 @@ This element creates a joint limit sensor for position.
 
 .. _sensor-jointlimitvel:
 
-:el-prefix:`sensor/` |-| **jointlimitvel** (*)
+:el-prefix:`sensor/` |-| **jointlimitvel** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint limit sensor for velocity.
@@ -6593,7 +6832,7 @@ This element creates a joint limit sensor for velocity.
 
 .. _sensor-jointlimitfrc:
 
-:el-prefix:`sensor/` |-| **jointlimitfrc** (*)
+:el-prefix:`sensor/` |-| **jointlimitfrc** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a joint limit sensor for constraint force.
@@ -6618,7 +6857,7 @@ This element creates a joint limit sensor for constraint force.
 
 .. _sensor-tendonlimitpos:
 
-:el-prefix:`sensor/` |-| **tendonlimitpos** (*)
+:el-prefix:`sensor/` |-| **tendonlimitpos** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon limit sensor for position.
@@ -6643,7 +6882,7 @@ This element creates a tendon limit sensor for position.
 
 .. _sensor-tendonlimitvel:
 
-:el-prefix:`sensor/` |-| **tendonlimitvel** (*)
+:el-prefix:`sensor/` |-| **tendonlimitvel** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon limit sensor for velocity.
@@ -6668,7 +6907,7 @@ This element creates a tendon limit sensor for velocity.
 
 .. _sensor-tendonlimitfrc:
 
-:el-prefix:`sensor/` |-| **tendonlimitfrc** (*)
+:el-prefix:`sensor/` |-| **tendonlimitfrc** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a tendon limit sensor for constraint force.
@@ -6693,7 +6932,7 @@ This element creates a tendon limit sensor for constraint force.
 
 .. _sensor-framepos:
 
-:el-prefix:`sensor/` |-| **framepos** (*)
+:el-prefix:`sensor/` |-| **framepos** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D position of the spatial frame of the object, in global coordinates or
@@ -6737,7 +6976,7 @@ optionally with respect to a given frame-of-reference.
 
 .. _sensor-framequat:
 
-:el-prefix:`sensor/` |-| **framequat** (*)
+:el-prefix:`sensor/` |-| **framequat** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the unit quaternion specifying the orientation of the spatial frame of the
@@ -6777,7 +7016,7 @@ object, in global coordinates.
 
 .. _sensor-framexaxis:
 
-:el-prefix:`sensor/` |-| **framexaxis** (*)
+:el-prefix:`sensor/` |-| **framexaxis** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D unit vector corresponding to the X-axis of the spatial frame of the
@@ -6817,7 +7056,7 @@ object, in global coordinates.
 
 .. _sensor-frameyaxis:
 
-:el-prefix:`sensor/` |-| **frameyaxis** (*)
+:el-prefix:`sensor/` |-| **frameyaxis** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D unit vector corresponding to the Y-axis of the spatial frame of the
@@ -6857,7 +7096,7 @@ object, in global coordinates.
 
 .. _sensor-framezaxis:
 
-:el-prefix:`sensor/` |-| **framezaxis** (*)
+:el-prefix:`sensor/` |-| **framezaxis** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D unit vector corresponding to the Z-axis of the spatial frame of the
@@ -6897,7 +7136,7 @@ object, in global coordinates.
 
 .. _sensor-framelinvel:
 
-:el-prefix:`sensor/` |-| **framelinvel** (*)
+:el-prefix:`sensor/` |-| **framelinvel** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D linear velocity of the spatial frame of the object, in global
@@ -6937,7 +7176,7 @@ coordinates.
 
 .. _sensor-frameangvel:
 
-:el-prefix:`sensor/` |-| **frameangvel** (*)
+:el-prefix:`sensor/` |-| **frameangvel** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D angular velocity of the spatial frame of the object, in global
@@ -6977,7 +7216,7 @@ coordinates.
 
 .. _sensor-framelinacc:
 
-:el-prefix:`sensor/` |-| **framelinacc** (*)
+:el-prefix:`sensor/` |-| **framelinacc** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D linear acceleration of the spatial frame of the object, in global
@@ -7009,7 +7248,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-frameangacc:
 
-:el-prefix:`sensor/` |-| **frameangacc** (*)
+:el-prefix:`sensor/` |-| **frameangacc** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the 3D angular acceleration of the spatial frame of the object, in global
@@ -7041,7 +7280,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_rnePostConstr
 
 .. _sensor-subtreecom:
 
-:el-prefix:`sensor/` |-| **subtreecom** (*)
+:el-prefix:`sensor/` |-| **subtreecom** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the center of mass of the kinematic subtree rooted at a specified body, in
@@ -7066,7 +7305,7 @@ global coordinates.
 
 .. _sensor-subtreelinvel:
 
-:el-prefix:`sensor/` |-| **subtreelinvel** (*)
+:el-prefix:`sensor/` |-| **subtreelinvel** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the linear velocity of the center of mass of the kinematic subtree rooted at a
@@ -7093,7 +7332,7 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 
 .. _sensor-subtreeangmom:
 
-:el-prefix:`sensor/` |-| **subtreeangmom** (*)
+:el-prefix:`sensor/` |-| **subtreeangmom** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the angular momentum around the center of mass of the kinematic subtree rooted
@@ -7116,6 +7355,45 @@ The presence of this sensor in a model triggers a call to :ref:`mj_subtreeVel` d
 
 :at:`body`: :at-val:`string, required`
    Name of the body where the kinematic subtree is rooted.
+
+
+.. _sensor-insidesite:
+
+:el-prefix:`sensor/` |-| **insidesite** |m|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+This element creates a sensor that returns 1 if the given object is inside a site, 0 otherwise.
+It is useful for triggering events in surrounding environment logic.
+See `example model <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/insidesite.xml>`__.
+
+.. _sensor-insidesite-name:
+
+.. _sensor-insidesite-noise:
+
+.. _sensor-insidesite-cutoff:
+
+.. _sensor-insidesite-user:
+
+:at:`name`, :at:`noise`, :at:`cutoff`, :at:`user`
+   See :ref:`CSensor`.
+
+.. _sensor-insidesite-objtype:
+
+:at:`objtype`: :at-val:`[body, xbody, geom, site, camera], required`
+   The type of the object whose position will be queried.
+   See :ref:`framepos<sensor-framepos>`.
+
+.. _sensor-insidesite-objname:
+
+:at:`objname`: :at-val:`string, required`
+   The name of the object whose position will be queried.
+   See :ref:`framepos<sensor-framepos>`.
+
+.. _sensor-insidesite-site:
+
+:at:`site`: :at-val:`string`
+   The site defining the volume used for the inside check.
+
+
 
 .. _collision-sensors:
 
@@ -7156,7 +7434,7 @@ sequential sensors
 
 .. _sensor-distance:
 
-:el-prefix:`sensor/` |-| **distance** (*)
+:el-prefix:`sensor/` |-| **distance** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the smallest signed distance between the surfaces of two geoms.
@@ -7195,13 +7473,13 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-distance-user:
 
-:at:`name`, :at:`noise`, :at:`user`
+:at:`name`, :at:`noise`, :at:`user`:
    See :ref:`CSensor`.
 
 
 .. _sensor-normal:
 
-:el-prefix:`sensor/` |-| **normal** (*)
+:el-prefix:`sensor/` |-| **normal** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the normal direction of the smallest signed distance between the surfaces of
@@ -7242,13 +7520,13 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-normal-user:
 
-:at:`name`, :at:`noise`, :at:`user`
+:at:`name`, :at:`noise`, :at:`user`:
    See :ref:`CSensor`.
 
 
 .. _sensor-fromto:
 
-:el-prefix:`sensor/` |-| **fromto** (*)
+:el-prefix:`sensor/` |-| **fromto** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a sensor that returns the segment defining the smallest signed distance between the surfaces of two
@@ -7290,13 +7568,192 @@ See :ref:`collision-sensors` for more details about sensors of this type.
 
 .. _sensor-fromto-user:
 
-:at:`name`, :at:`noise`, :at:`user`
+:at:`name`, :at:`noise`, :at:`user`:
    See :ref:`CSensor`.
 
 
+.. _sensor-contact:
+
+:el-prefix:`sensor/` |-| **contact** |m|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Motivation:** The array of contacts which occur during the main dynamics pipeline is inherently variable-sized. The
+purpose of the contact sensor is to report contact-related information in a fixed-size array. This is useful as
+input to learning-based agents and in environment logic.
+
+Unlike the purely geometric :ref:`collision-sensors` that act independently of the dynamics pipeline, the contact
+sensor reports information that was discovered during the collision and constraint steps, extracting data
+from ``mjData.{contact, efc_force}``, ignoring contacts that were filtered out by the :ref:`standard<coSelection>`
+mechanism and produce no force.
+
+Contact sensor output involves three stages: **matching**, **reduction** and **extraction**.
+
+Matching
+  Selects a set of contacts from ``mjData.contact`` using criteria defined by :ref:`geom1<sensor-contact-geom1>`,
+  :ref:`geom2<sensor-contact-geom2>`, :ref:`body1<sensor-contact-body1>`, :ref:`body2<sensor-contact-body2>`,
+  :ref:`subtree1<sensor-contact-subtree1>`, :ref:`subtree2<sensor-contact-subtree2>` and
+  :ref:`site<sensor-contact-site>`. Matching applies an intersection of criteria, for example setting
+  :ref:`body1<sensor-contact-body1>` and :ref:`body2<sensor-contact-body2>` will match contacts that involve both
+  bodies, while setting only :ref:`geom1<sensor-contact-geom1>` will match any contacts involving that geom. Setting
+  :ref:`site<sensor-contact-site>` will match contacts that are inside the volume defined by the site; this matching
+  criterion can be used with {geom2, body2, subtree2}. The subtree attributes take a body name and match all contacts
+  involving the body's subtree i.e., the body and all of its descendants. Setting
+  :ref:`subtree1<sensor-contact-subtree1>` and :ref:`subtree2<sensor-contact-subtree2>` to the same body will match
+  self-collisions in the subtree. Specifying no matching criterion will match all contacts.
+
+Reduction
+  Reduces the number of matched contacts to exactly :ref:`num<sensor-contact-num>` sub-arrays, or "slots".
+  If less than :at:`num` contacts match, the remaining slots are set to be identically zero. Note that the default,
+  "unsorted" reduction criterion is potentitally non-deterministic. See :ref:`reduce<sensor-contact-reduce>` below.
+
+Extraction
+  Copies the set of fields specified by the user into each slot, see :ref:`data<sensor-contact-data>`.
+
+.. _sensor-contact-geom1:
+.. _sensor-contact-geom2:
+
+:at:`geom1`, :at:`geom2`: :at-val:`string, optional`
+   Name of a geom participating in a contact. See **matching** :ref:`above <sensor-contact>`.
+
+.. _sensor-contact-body1:
+.. _sensor-contact-body2:
+
+:at:`body1`, :at:`body2`: :at-val:`string, optional`
+   Name of a body participating in a contact. See **matching** :ref:`above <sensor-contact>`.
+
+.. _sensor-contact-subtree1:
+.. _sensor-contact-subtree2:
+
+:at:`subtree1`, :at:`subtree2`: :at-val:`string, optional`
+   Name of a body whose subtree is participating in a contact. See **matching** :ref:`above <sensor-contact>`.
+
+.. _sensor-contact-site:
+
+:at:`site`: :at-val:`string, optional`
+   Name of a site within whose volume the contact position must be found in order to match.
+   See **matching** :ref:`above <sensor-contact>`.
+
+.. _sensor-contact-num:
+
+:at:`num`: :at-val:`int, "1"`
+   Number of contacts to report. The sensor will always report :at:`num` sequential data arrays ("slots") per contact.
+   The order in which contacts are reported depends on the :ref:`reduce<sensor-contact-reduce>` attribute.
+
+.. _sensor-contact-data:
+
+:at:`data`: :at-val:`[found, force, torque, dist, pos, normal, tangent], "found"`
+   Specification of which data field(s) to report from the selected contacts.
+
+   - :at-val:`found` **real(1)**: This field serves two purposes. First, it indicates whether a contact was found in
+     this slot, 0 means not found while a positive number means found. Second, the positive value equals the number of
+     *matching* contacts. So if :at:`num = 3` contacts were requested but only 2 were matched, the :at-val:`found`
+     fields will equal (2, 2, 0); if 6 were matched they will equal (6, 6, 6).
+   - :at-val:`force` **real(3)**: The contact force, in the contact frame.
+   - :at-val:`torque` **real(3)**: The contact torque, in the contact frame.
+   - :at-val:`dist` **real(1)**: The penetration distance.
+   - :at-val:`pos`: **real(3)**: The contact position, in the global frame.
+   - :at-val:`normal`: **real(3)**: The contact normal direction, in the global frame.
+   - :at-val:`tangent`: **real(3)**: The first tangent direction, in the global frame.
+     In order to complete the full 3x3 contact frame, use tangent2 = cross(normal, tangent).
+
+   Importantly, the :at:`data` attribute can contain **multiple sequential data types**, as long as the relative
+   order---as listed above---is maintained. For example, :at:`data` = :at-val:`"found force dist"` will return 5 numbers
+   per contact (the concateneated values of [found, force, dist]), while :at:`data` = :at-val:`"force found dist"` is an
+   error because :at-val:`found` must come before :at-val:`force`.
+
+   Missing contacts
+      If less than :at:`num` contacts satisfy the matching criterion, the entire data slot is set to be identically
+      zero. Because most data types can take 0 as a valid value, only the zero-ness of the :at-val:`normal` and
+      :at-val:`tangent` unit vectors can be used to unambiguously detect an empty slot. For this reason, the
+      :at-val:`found` data type is in place to allow for simple detection of missing contacts.
+
+   Size of sensordata block
+      Unlike other sensors, the size of the corresponding sensordata block depends on the values of its attributes
+      :ref:`num<sensor-contact-num>` and :ref:`data<sensor-contact-data>`. The total size of the output of a contact
+      sensor is the product ``num x size(selected data fields)``. For example, requesting :at:`num = 6` contacts
+      with :at:`data =` :at-val:`"force dist normal"` (3+1+3=7), will result in a sensordata block of 42 numbers (6
+      consecutive slots x 7 numbers per slot).
+
+   Direction convention
+      Because contacts create two equal-and-opposite forces between contacting bodies, there is freedom in the
+      choice of which body impinges on which.
+
+      The sensor's convention is for "geom1/body1/subtree1" and "geom2/body2/subtree2" to determine the direction of
+      the normal. The normal always points from the first to the second.
+
+      In the case that a direction cannot be determined, as when only a :at:`site` is used as the matching criterion, or
+      when both subtrees are the same, the normal direction is the same as it is in ``mjData.contact``, where the normal
+      points from the first to the second geom, and the two geoms are sorted according to their order in :ref:`mjtGeom`.
+
+.. _sensor-contact-reduce:
+
+:at:`reduce`: :at-val:`[none, mindist, maxforce, netforce], "none"`
+   Reduction criterion to use. Also see **reduction** :ref:`above <sensor-contact>`.
+
+   - **none**: Returns the first :at:`num` contacts that satisfy the matching criterion, in the order that they appear
+     in ``mjData.contact``. Note that while this is the fastest option, it is also potentially non-deterministic: future
+     changes to collision detection code may cause the identity and order of matching contacts to change.
+   - **mindist**: Returns :at:`num` contacts with the smallest penetration depth, ascending order.
+   - **maxforce**: Returns :at:`num` contacts with the largest force norm, descending order.
+   - **netforce**: This reduction criterion returns one new "synthetic" contact, located at the force-weighted centroid
+     of all matched contacts. The frame of the contact is the global frame, so normal and tangent directions lose their
+     natural semantic. The force and torque are computed such that a wrench applied at the computed position will have
+     the same net effect as all the matching contacts combined. Note that this reduction criterion always returns
+     exactly one contact.
+
+.. _sensor-contact-cutoff:
+
+:at:`cutoff`:
+   This attribute is ignored.
+
+.. _sensor-contact-name:
+
+.. _sensor-contact-user:
+
+.. _sensor-contact-noise:
+
+:at:`name`, :at:`noise`, :at:`user`:
+   See :ref:`CSensor`.
+
+.. _sensor-tactile:
+
+:el-prefix:`sensor/` |-| **tactile** |m|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. image:: images/XMLreference/tactile.png
+   :align: right
+   :width: 30%
+   :target: https://github.com/google-deepmind/mujoco/blob/main/model/tactile/tactile.xml
+
+The tactile sensor returns the penetration pressure and the sliding velocities in the tangent frame at given points
+between the geom associated with the sensor and the SDF geoms in contact with it. We define the penetration pressure as
+a function of the penetration depth :math:`p(d) = \frac{d}{d_{max}-d}`, which is zero at the surface and goes to
+infinity as the maximum depth is reached. The sensor is associated with a geom and a mesh. It is activated by the
+contact between its associated geom and other geoms. The vertices of the mesh, when positioned in the geom frame, are
+the points at which sensor values are computed, so the dimension of the output is 3 times the number of vertices in the
+mesh. The mesh must have 3 normal vectors per vertex, which are used to compute the tangent frame. If the penetration
+depth is positive (no contact), then all values are 0 for the corresponding vertex. Only contacts with geoms of type SDF
+contribute to the sensor output. The sensor can be visualized by enabling the visualization of contact points.
+
+.. _sensor-tactile-geom:
+
+:at:`geom`: :at-val:`string, required`
+   Name of the geom to associate the tactile sensor with.
+
+.. _sensor-tactile-mesh:
+
+:at:`mesh`: :at-val:`string, required`
+   Name of the mesh to associate the tactile sensor with. The mesh will be created by the sensor.
+
+.. _sensor-tactile-name:
+
+.. _sensor-tactile-user:
+
+:at:`name`, :at:`user`:
+   See :ref:`CSensor`.
+
 .. _sensor-e_potential:
 
-:el-prefix:`sensor/` |-| **e_potential** (*)
+:el-prefix:`sensor/` |-| **e_potential** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the potential energy.
@@ -7315,7 +7772,7 @@ This element creates sensor that returns the potential energy.
 
 .. _sensor-e_kinetic:
 
-:el-prefix:`sensor/` |-| **e_kinetic** (*)
+:el-prefix:`sensor/` |-| **e_kinetic** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the kinetic energy.
@@ -7334,7 +7791,7 @@ This element creates sensor that returns the kinetic energy.
 
 .. _sensor-clock:
 
-:el-prefix:`sensor/` |-| **clock** (*)
+:el-prefix:`sensor/` |-| **clock** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates sensor that returns the simulation time.
@@ -7353,7 +7810,7 @@ This element creates sensor that returns the simulation time.
 
 .. _sensor-user:
 
-:el-prefix:`sensor/` |-| **user** (*)
+:el-prefix:`sensor/` |-| **user** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a user sensor. MuJoCo does not know how to compute the output of this sensor. Instead the user
@@ -7409,8 +7866,8 @@ If a user sensor is of :ref:`stage<sensor-user-needstage>` "vel" or "acc", then 
 
 .. _sensor-plugin:
 
-:el-prefix:`sensor/` |-| **plugin** (?)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:el-prefix:`sensor/` |-| **plugin** |?|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Ascociate this sensor with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin` or :at:`instance` are required.
 
@@ -7447,7 +7904,7 @@ Ascociate this sensor with an :ref:`engine plugin<exPlugin>`. Either :at:`plugin
 
 .. _keyframe:
 
-**keyframe** (*)
+**keyframe** |m|
 ~~~~~~~~~~~~~~~~
 
 This is a grouping element for keyframe definitions. It does not have attributes. Keyframes can be used to create a
@@ -7462,10 +7919,12 @@ in :ref:`simulate.cc <saSimulate>` the simulation state can be copied into a sel
 
 .. _keyframe-key:
 
-:el-prefix:`keyframe/` |-| **key** (*)
+:el-prefix:`keyframe/` |-| **key** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This element sets the data for one of the keyframes. They are set in the order in which they appear here.
+This element sets the data for one of the keyframes. They are set in the order in which they appear here. If the number
+of elements specified in the given vectors is less than the size of the corresponding mjData array, missing entries will
+be set to their values in the default configuration.
 
 
 .. _keyframe-key-name:
@@ -7512,7 +7971,7 @@ This element sets the data for one of the keyframes. They are set in the order i
 
 .. _visual:
 
-**visual** (*)
+**visual** |m|
 ~~~~~~~~~~~~~~
 
 This element is in one-to-one correspondence with the low level structure mjVisual contained in the field mjModel.vis
@@ -7528,11 +7987,17 @@ coordinated visual settings corresponding to a "theme", and then include this fi
 
 .. _visual-global:
 
-:el-prefix:`visual/` |-| **global** (?)
+:el-prefix:`visual/` |-| **global** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 While all settings in mjVisual are global, the settings here could not be fit into any of the other subsections. So this
 is effectively a miscellaneous subsection.
+
+.. _visual-global-cameraid:
+
+:at:`cameraid`: :at-val:`int, "-1"`
+   The id of the camera used when initially loading the model in the visualizer. The default value of -1 means the free
+   camera. In order to specify a :ref:`modeled camera<body-camera>`, use the camera's id as given by :ref:`mj_name2id`.
 
 .. _visual-global-orthographic:
 
@@ -7619,7 +8084,7 @@ is effectively a miscellaneous subsection.
 
 .. _visual-quality:
 
-:el-prefix:`visual/` |-| **quality** (?)
+:el-prefix:`visual/` |-| **quality** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element specifies settings that affect the quality of the rendering. Larger values result in higher quality but
@@ -7671,7 +8136,7 @@ visualization should somehow be simplified.
 
 .. _visual-headlight:
 
-:el-prefix:`visual/` |-| **headlight** (?)
+:el-prefix:`visual/` |-| **headlight** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is used to adjust the properties of the headlight. There is always a built-in headlight, in addition to any
@@ -7704,7 +8169,7 @@ to be reduced.
 
 .. _visual-map:
 
-:el-prefix:`visual/` |-| **map** (?)
+:el-prefix:`visual/` |-| **map** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element is used to specify scaling quantities that affect both the visualization and built-in mouse perturbations.
@@ -7798,7 +8263,7 @@ miscellaneous.
 
 .. _visual-scale:
 
-:el-prefix:`visual/` |-| **scale** (?)
+:el-prefix:`visual/` |-| **scale** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The settings in this element control the spatial extent of various decorative objects. In all cases, the rendered size
@@ -7898,7 +8363,7 @@ documented below.
 
 .. _visual-rgba:
 
-:el-prefix:`visual/` |-| **rgba** (?)
+:el-prefix:`visual/` |-| **rgba** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The settings in this element control the color and transparency (rgba) of various decorative objects. We will call this
@@ -7932,7 +8397,9 @@ disables the rendering of the corresponding object.
 .. _visual-rgba-joint:
 
 :at:`joint`: :at-val:`real(4), "0.2 0.6 0.8 1"`
-   Color of the arrows used to render joint axes.
+   Color of the arrows used to render joint axes. If a joint is limited and the joint value exceeds the limit, the
+   value of the :ref:`constraint impedance<soParameters>` :math:`d` is used to mix this color and
+   :ref:`rgba/constraint<visual-rgba-constraint>`.
 
 .. _visual-rgba-actuator:
 
@@ -8008,7 +8475,7 @@ disables the rendering of the corresponding object.
 .. _visual-rgba-constraint:
 
 :at:`constraint`: :at-val:`real(4), "0.9 0 0 1"`
-   Color of the capsules corresponding to spatial constraint violations.
+   Color corresponding to spatial constraint violations -- equality constraints, joint limits, and tendon limits.
 
 .. _visual-rgba-slidercrank:
 
@@ -8040,7 +8507,7 @@ disables the rendering of the corresponding object.
 
 .. _default:
 
-**default** (R)
+**default** |R|
 ~~~~~~~~~~~~~~~
 
 This element is used to create a new defaults class; see :ref:`CDefault` above. Defaults classes can be nested,
@@ -8062,7 +8529,7 @@ if omitted.
 
 .. _default-mesh-inertia:
 
-:el-prefix:`default/` |-| **mesh** (?)
+:el-prefix:`default/` |-| **mesh** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`mesh <asset-mesh>` element of the defaults class.
@@ -8091,7 +8558,7 @@ if omitted.
 
 .. _default-material-texuniform:
 
-:el-prefix:`default/` |-| **material** (?)
+:el-prefix:`default/` |-| **material** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`material <asset-material>` element of the defaults class.
@@ -8144,7 +8611,7 @@ if omitted.
 
 .. _default-joint-user:
 
-:el-prefix:`default/` |-| **joint** (?)
+:el-prefix:`default/` |-| **joint** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`joint <body-joint>` element of the defaults class.
@@ -8215,7 +8682,7 @@ if omitted.
 
 .. _default-geom-user:
 
-:el-prefix:`default/` |-| **geom** (?)
+:el-prefix:`default/` |-| **geom** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`geom <body-geom>` element of the defaults class.
@@ -8250,17 +8717,19 @@ if omitted.
 
 .. _default-site-user:
 
-:el-prefix:`default/` |-| **site** (?)
+:el-prefix:`default/` |-| **site** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`site <body-site>` element of the defaults class.
 | All site attributes are available here except: name, class.
 
-.. _default-camera-orthographic:
+.. _default-camera-projection:
 
 .. _default-camera-fovy:
 
 .. _default-camera-resolution:
+
+.. _default-camera-output:
 
 .. _default-camera-ipd:
 
@@ -8293,7 +8762,7 @@ if omitted.
 .. _default-camera:
 
 
-:el-prefix:`default/` |-| **camera** (?)
+:el-prefix:`default/` |-| **camera** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`camera <body-camera>` element of the defaults class.
@@ -8334,7 +8803,7 @@ if omitted.
 
 .. _default-light-mode:
 
-:el-prefix:`default/` |-| **light** (?)
+:el-prefix:`default/` |-| **light** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`light <body-light>` element of the defaults class.
@@ -8357,7 +8826,7 @@ if omitted.
 
 .. _default-pair-margin:
 
-:el-prefix:`default/` |-| **pair** (?)
+:el-prefix:`default/` |-| **pair** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`pair <contact-pair>` element of the defaults class.
@@ -8372,7 +8841,7 @@ if omitted.
 
 .. _default-equality-solimp:
 
-:el-prefix:`default/` |-| **equality** (?)
+:el-prefix:`default/` |-| **equality** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`equality <equality>` element of the defaults class. The actual
@@ -8419,7 +8888,7 @@ if omitted.
 
 .. _default-tendon-user:
 
-:el-prefix:`default/` |-| **tendon** (?)
+:el-prefix:`default/` |-| **tendon** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`tendon <tendon>` element of the defaults class. Similar to
@@ -8465,7 +8934,7 @@ if omitted.
 
 .. _default-general-actearly:
 
-:el-prefix:`default/` |-| **general** (?)
+:el-prefix:`default/` |-| **general** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | This element sets the attributes of the dummy :ref:`general <actuator-general>` element of the defaults class.
@@ -8491,7 +8960,7 @@ if omitted.
 
 .. _default-motor-group:
 
-:el-prefix:`default/` |-| **motor** (?)
+:el-prefix:`default/` |-| **motor** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This and the next three elements set the attributes of the :ref:`general <actuator-general>` element using
@@ -8529,7 +8998,7 @@ tendon, slidersite, cranksite.
 
 .. _default-position-timeconst:
 
-:el-prefix:`default/` |-| **position** (?)
+:el-prefix:`default/` |-| **position** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`position <actuator-position>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -8556,7 +9025,7 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-velocity-kv:
 
-:el-prefix:`default/` |-| **velocity** (?)
+:el-prefix:`default/` |-| **velocity** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`velocity <actuator-velocity>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -8591,7 +9060,7 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-intvelocity-dampratio:
 
-:el-prefix:`default/` |-| **intvelocity** (?)
+:el-prefix:`default/` |-| **intvelocity** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`intvelocity <actuator-intvelocity>` attributes are available here except: name, class, joint, jointinparent,
@@ -8616,7 +9085,7 @@ site, refsite, tendon, slidersite, cranksite.
 
 .. _default-damper-kv:
 
-:el-prefix:`default/` |-| **damper** (?)
+:el-prefix:`default/` |-| **damper** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`damper <actuator-damper>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -8649,7 +9118,7 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-cylinder-bias:
 
-:el-prefix:`default/` |-| **cylinder** (?)
+:el-prefix:`default/` |-| **cylinder** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`cylinder <actuator-cylinder>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -8692,7 +9161,7 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-muscle-fvmax:
 
-:el-prefix:`default/` |-| **muscle** (?)
+:el-prefix:`default/` |-| **muscle** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`muscle <actuator-muscle>` attributes are available here except: name, class, joint, jointinparent, site,
@@ -8713,7 +9182,7 @@ refsite, tendon, slidersite, cranksite.
 
 .. _default-adhesion-group:
 
-:el-prefix:`default/` |-| **adhesion** (?)
+:el-prefix:`default/` |-| **adhesion** |?|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 All :ref:`adhesion <actuator-adhesion>` attributes are available here except: name, class, body.
@@ -8721,7 +9190,7 @@ All :ref:`adhesion <actuator-adhesion>` attributes are available here except: na
 
 .. _custom:
 
-**custom** (*)
+**custom** |m|
 ~~~~~~~~~~~~~~
 
 This is a grouping element for custom numeric and text elements. It does not have attributes.
@@ -8729,7 +9198,7 @@ This is a grouping element for custom numeric and text elements. It does not hav
 
 .. _custom-numeric:
 
-:el-prefix:`custom/` |-| **numeric** (*)
+:el-prefix:`custom/` |-| **numeric** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a custom numeric array in mjModel.
@@ -8757,7 +9226,7 @@ This element creates a custom numeric array in mjModel.
 
 .. _custom-text:
 
-:el-prefix:`custom/` |-| **text** (*)
+:el-prefix:`custom/` |-| **text** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a custom text field in mjModel. It could be used to store keyword commands for user callbacks and
@@ -8776,7 +9245,7 @@ other custom computations.
 
 .. _custom-tuple:
 
-:el-prefix:`custom/` |-| **tuple** (*)
+:el-prefix:`custom/` |-| **tuple** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element creates a custom tuple, which is a list of MuJoCo objects. The list is created by referencing the desired
@@ -8790,7 +9259,7 @@ objects by name.
 
 .. _tuple-element:
 
-:el-prefix:`tuple/` |-| **element** (*)
+:el-prefix:`tuple/` |-| **element** |m|
 '''''''''''''''''''''''''''''''''''''''
 
 This adds an element to the tuple.
@@ -8815,7 +9284,7 @@ This adds an element to the tuple.
 
 .. _extension:
 
-**extension** (*)
+**extension** |m|
 ~~~~~~~~~~~~~~~~~
 
 This is a grouping element for MuJoCo extensions. Extensions allow the user to extend MuJoCo's capabilities with custom
@@ -8824,7 +9293,7 @@ extension type are :ref:`exPlugin`.
 
 .. _extension-plugin:
 
-:el-prefix:`extension/` |-| **plugin** (*)
+:el-prefix:`extension/` |-| **plugin** |m|
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This element specifies that an engine plugin is required in order to simulate this model.
@@ -8837,7 +9306,7 @@ See :ref:`exPlugin` for more details.
 
 .. _plugin-instance:
 
-:el-prefix:`plugin/` |-| **instance** (*)
+:el-prefix:`plugin/` |-| **instance** |m|
 '''''''''''''''''''''''''''''''''''''''''
 
 Declares a plugin instance. Explicit instances declaration is required when multiple elements are backed by the same
@@ -8853,7 +9322,7 @@ plugin, or when global plugin configuration is desired. See plugin :ref:`declara
 
 .. _instance-config:
 
-:el-prefix:`instance/` |-| **config** (*)
+:el-prefix:`instance/` |-| **config** |m|
 """""""""""""""""""""""""""""""""""""""""
 
 Configuration of a plugin instance. When implicitly declaring a plugin under a model element, configuration is

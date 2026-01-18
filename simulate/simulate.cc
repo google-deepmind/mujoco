@@ -299,7 +299,7 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   memset(sim->figcost.linepnt, 0, mjMAXLINE*sizeof(int));
 
   // number of islands that have diagnostics
-  int nisland = mjMAX(1, mjMIN(d->nisland, mjNISLAND));
+  int nisland = d->nefc ? mjMAX(1, mjMIN(d->nisland, mjNISLAND)) : 0;
 
   // iterate over islands
   for (int k=0; k < nisland; k++) {
@@ -403,14 +403,17 @@ void UpdateProfiler(mj::Simulate* sim, const mjModel* m, const mjData* d) {
   mjtNum sqrt_nnz = 0;
   int solver_niter = 0;
   for (int island=0; island < nisland; island++) {
-    sqrt_nnz += mju_sqrt(d->solver_nnz[island]);
+    sqrt_nnz += d->solver_nnz[island];
     solver_niter += d->solver_niter[island];
   }
+  sqrt_nnz = mju_sqrt(sqrt_nnz);
 
-  // get sizes: nv, nbody, nefc, sqrt(nnz), ncont, iter
+  // get sizes: nv, nbody, nefc, sqrt(nnz), ncon, iter
+  int nv = mjENABLED(mjENBL_SLEEP) ? d->nv_awake : m->nv;
+  int nbody = mjENABLED(mjENBL_SLEEP) ? d->nbody_awake : m->nbody;
   float sdata[6] = {
-    static_cast<float>(m->nv),
-    static_cast<float>(m->nbody),
+    static_cast<float>(nv),
+    static_cast<float>(nbody),
     static_cast<float>(d->nefc),
     static_cast<float>(sqrt_nnz),
     static_cast<float>(d->ncon),
@@ -647,7 +650,7 @@ void UpdateInfoText(mj::Simulate* sim, const mjModel* m, const mjData* d,
     }
 
     // add islands if enabled
-    if (mjENABLED(mjENBL_ISLAND)) {
+    if (!mjDISABLED(mjDSBL_ISLAND) && d->nisland > 0) {
       mju::sprintf_arr(tmp, "\n%d", d->nisland);
       mju::strcat_arr(content, tmp);
       mju::strcat_arr(title, "\nIslands");
@@ -707,7 +710,7 @@ void MakePhysicsSection(mj::Simulate* sim) {
     {mjITEM_EDITNUM,   "Noslip Tol",    2, &(opt->noslip_tolerance),  "1 0 1"},
     {mjITEM_EDITINT,   "CCD Iter",      2, &(opt->ccd_iterations),    "1 0 1000"},
     {mjITEM_EDITNUM,   "CCD Tol",       2, &(opt->ccd_tolerance),     "1 0 1"},
-    {mjITEM_EDITNUM,   "API Rate",      2, &(opt->apirate),           "1 0 1000"},
+    {mjITEM_EDITNUM,   "Sleep Tol",     2, &(opt->sleep_tolerance),   "1 0 1"},
     {mjITEM_EDITINT,   "SDF Iter",      2, &(opt->sdf_iterations),    "1 1 20"},
     {mjITEM_EDITINT,   "SDF Init",      2, &(opt->sdf_initpoints),    "1 1 100"},
     {mjITEM_SEPARATOR, "Physical Parameters", mjPRESERVE},
@@ -1178,8 +1181,16 @@ void MakeUiSections(mj::Simulate* sim, const mjModel* m, const mjData* d) {
 
 // align and scale view
 void AlignAndScaleView(mj::Simulate* sim, const mjModel* m) {
-  // use default free camera parameters
-  mjv_defaultFreeCamera(m, &sim->cam);
+  // if the id is valid, use the initial fixed camera
+  if (m->vis.global.cameraid >= 0 && m->vis.global.cameraid < m->ncam) {
+    sim->cam.fixedcamid = m->vis.global.cameraid;
+    sim->cam.type = mjCAMERA_FIXED;
+  }
+
+  // otherwise use default free camera
+  else {
+    mjv_defaultFreeCamera(m, &sim->cam);
+  }
 }
 
 
@@ -1904,7 +1915,7 @@ Simulate::Simulate(std::unique_ptr<PlatformUIAdapter> platform_ui,
 //------------------------- Synchronize render and physics threads ---------------------------------
 
 // operations which require holding the mutex, prevents racing with physics thread
-void Simulate::Sync() {
+void Simulate::Sync(bool state_only) {
   MutexLock lock(this->mtx);
 
   if (!m_) {
@@ -1914,8 +1925,8 @@ void Simulate::Sync() {
     return;
   }
 
-  bool update_profiler = this->profiler && (this->pause_update || this->run);
-  bool update_sensor = this->sensor && (this->pause_update || this->run);
+  bool update_profiler = this->profiler;
+  bool update_sensor = this->sensor;
 
   for (int i = 0; i < m_->njnt; ++i) {
     std::optional<std::pair<mjtNum, mjtNum>> range;
@@ -2151,8 +2162,17 @@ void Simulate::Sync() {
   if (!is_passive_) {
     mjv_updateScene(m_, d_, &this->opt, &this->pert, &this->cam, mjCAT_ALL, &this->scn);
   } else {
-    mjv_copyModel(m_passive_, m_);
-    mjv_copyData(d_passive_, m_passive_, d_);
+    if (state_only) {
+      int state_size = mj_stateSize(m_, mjSTATE_INTEGRATION);
+      mjtNum* state = new mjtNum[state_size];
+      mj_getState(m_, d_, state, mjSTATE_INTEGRATION);
+      mj_setState(m_passive_, d_passive_, state, mjSTATE_INTEGRATION);
+      mj_forward(m_passive_, d_passive_);
+      delete[] state;
+    } else {
+      mjv_copyModel(m_passive_, m_);
+      mjv_copyData(d_passive_, m_passive_, d_);
+    }
 
     // append geoms from user_scn to scratch space
     if (user_scn) {
@@ -2900,7 +2920,7 @@ void Simulate::AddToHistory() {
 }
 
 // inject Brownian noise
-void Simulate::InjectNoise() {
+void Simulate::InjectNoise(int key) {
   // no noise, return
   if (ctrl_noise_std <= 0) {
     return;
@@ -2917,6 +2937,11 @@ void Simulate::InjectNoise() {
       top = m_->actuator_ctrlrange[2*i+1];
       midpoint =  0.5 * (top + bottom);  // target of exponential decay
       halfrange = 0.5 * (top - bottom);  // scales noise
+    }
+
+    // overwrite midpoint with keyframe, if given
+    if (key >= 0) {
+      midpoint = m_->key_ctrl[key*m_->nu+i];
     }
 
     // exponential convergence to midpoint at ctrl_noise_rate

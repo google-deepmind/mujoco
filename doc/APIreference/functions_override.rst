@@ -23,6 +23,13 @@ Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VF
 Add file to VFS. The directory argument is optional and can be NULL or empty. Returns 0 on success,
 2 on name collision, or -1 when an internal error occurs.
 
+*Nullable:* ``directory``
+
+.. _Assetcache:
+
+The asset cache is a mechanism for caching assets (e.g. textures, meshes, etc.) to avoid repeated slow recompilation.
+The following methods provide way to control the capacity of the cache or to disable it altogether.
+
 .. _Parseandcompile:
 
 The key function here is :ref:`mj_loadXML`. It invokes the built-in parser and compiler, and either returns a pointer to
@@ -40,7 +47,7 @@ If compilation fails, :ref:`mj_compile` returns ``NULL``; the error can be read 
 Recompile spec to model, preserving the state. Like :ref:`mj_compile`, this function compiles an :ref:`mjSpec` to an
 :ref:`mjModel`, with two differences. First, rather than returning an entirely new model, it will
 reallocate existing :ref:`mjModel` and :ref:`mjData` instances in-place. Second, it will preserve the
-:ref:`integration state<geIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
+:ref:`integration state<siIntegrationState>`, as given in the provided :ref:`mjData` instance, while accounting for
 newly added or removed degrees of freedom. This allows the user to continue simulation with the same model and data
 struct pointers while editing the model programmatically.
 
@@ -162,12 +169,14 @@ This function is triggered automatically if the following sensors are present in
 It is also triggered for :ref:`user sensors<sensor-user>` of :ref:`stage<sensor-user-needstage>` "acc".
 
 The computed force arrays ``cfrc_int`` and ``cfrc_ext`` currently suffer from a know bug, they do not take into account
-the effect of spatial tendons, see :github:issue:`832`.
+the effect of spatial tendons, see :issue:`832`.
 
 .. _mj_constraintUpdate:
 
 Compute ``efc_state``, ``efc_force``, ``qfrc_constraint``, and (optionally) cone Hessians.
 If ``cost`` is not ``NULL``, set ``*cost = s(jar)`` where ``jar = Jac*qacc - aref``.
+
+*Nullable:* ``cost``
 
 .. _Support:
 
@@ -177,18 +186,24 @@ computations, and are documented in more detail below.
 
 .. _mj_stateSize:
 
-Returns the number of :ref:`mjtNum` |-| s required for a given state specification. The bits of the integer ``spec``
+Returns the number of :ref:`mjtNum` |-| s required for a given state signature. The bits of the integer ``sig``
 correspond to element fields of :ref:`mjtState`.
 
 .. _mj_getState:
 
-Copy concatenated state components specified by ``spec`` from ``d`` into ``state``. The bits of the integer
-``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+Copy concatenated state components specified by ``sig`` from ``d`` into ``state``. The bits of the integer
+``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
+
+.. _mj_extractState:
+
+Extract into ``dst`` the subset of components specified by ``dstsig`` from a state ``src`` previously obtained via
+:ref:`mj_getState` with components specified by ``srcsig``. Fails with :ref:`mju_error` if the bits set in ``dstsig``
+is not a subset of the bits set in ``srcsig``.
 
 .. _mj_setState:
 
-Copy concatenated state components specified by ``spec`` from  ``state`` into ``d``. The bits of the integer
-``spec`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``spec`` is invalid.
+Copy concatenated state components specified by ``sig`` from  ``state`` into ``d``. The bits of the integer
+``sig`` correspond to element fields of :ref:`mjtState`. Fails with :ref:`mju_error` if ``sig`` is invalid.
 
 .. _mj_mulJacVec:
 
@@ -212,10 +227,14 @@ center-of-mass but aligned with the world frame. The minimal :ref:`pipeline stag
 computations to be consistent with the current generalized positions ``mjData.qpos`` are :ref:`mj_kinematics` followed
 by :ref:`mj_comPos`.
 
+*Nullable:* ``jacp``, ``jacr``
+
 .. _mj_jacBody:
 
 This and the remaining variants of the Jacobian function call mj_jac internally, with the center of the body, geom or
 site. They are just shortcuts; the same can be achieved by calling mj_jac directly.
+
+*Nullable:* ``jacp``, ``jacr``
 
 .. _mj_jacDot:
 
@@ -224,6 +243,8 @@ The minimal :ref:`pipeline stages<piStages>` required for computation to be
 consistent with the current generalized positions and velocities ``mjData.{qpos, qvel}`` are
 :ref:`mj_kinematics`, :ref:`mj_comPos`, :ref:`mj_comVel` (in that order).
 
+*Nullable:* ``jacp``, ``jacr``
+
 .. _mj_angmomMat:
 
 This function computes the ``3 x nv`` angular momentum matrix :math:`H(q)`, providing the linear mapping from
@@ -231,29 +252,42 @@ generalized velocities to subtree angular momentum. More precisely if :math:`h` 
 body index ``body`` in ``mjData.subtree_angmom`` (reported by the :ref:`subtreeangmom<sensor-subtreeangmom>` sensor)
 and :math:`\dot q` is the generalized velocity ``mjData.qvel``, then :math:`h = H \dot q`.
 
+.. _mj_name2id:
+
+Get id of object with the specified :ref:`mjtObj` type and name, returns -1 if id not found.
+
+.. _mj_id2name:
+
+Get name of object with the specified :ref:`mjtObj` type and id, returns ``NULL`` if name not found.
+
 .. _mj_geomDistance:
 
 Returns the smallest signed distance between two geoms and optionally the segment from ``geom1`` to ``geom2``.
 Returned distances are bounded from above by ``distmax``. |br| If no collision of distance smaller than ``distmax`` is
 found, the function will return ``distmax`` and ``fromto``, if given, will be set to (0, 0, 0, 0, 0, 0).
 
-   .. admonition:: different (correct) behavior under `nativeccd`
-      :class: note
+*Nullable:* ``fromto``
 
-      As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
-      :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
+.. admonition:: different (correct) behavior under `nativeccd`
+   :class: note
+
+   As explained in :ref:`Collision Detection<coDistance>`, distances are inaccurate when using the
+   :ref:`legacy CCD pipeline<coCCD>`, and its use is discouraged.
 
 .. _mj_fullM:
 
 Convert sparse inertia matrix ``M`` into full (i.e. dense) matrix.
-|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same size as ``mjData.qM``.
+|br| ``dst`` must be of size ``nv x nv``, ``M`` must be of the same structure as ``mjData.qM``.
+
+The ``mjData`` members ``qM`` and ``M`` represent the same matrix in different formats; the former is unique to
+MuJoCo, the latter is standard Compressed Sparse Row (lower triangle only). The :math:`L^T D L` factor of the inertia
+matrix ``mjData.qLD`` uses the same CSR format as ``mjData.M``. See
+`engine_support_test <https://github.com/google-deepmind/mujoco/blob/main/test/engine/engine_support_test.cc>`__ for
+pedagogical examples.
 
 .. _mj_mulM:
 
-This function multiplies the joint-space inertia matrix stored in mjData.qM by a vector. qM has a custom sparse format
-that the user should not attempt to manipulate directly. Alternatively one can convert qM to a dense matrix with
-mj_fullM and then user regular matrix-vector multiplication, but this is slower because it no longer benefits from
-sparsity.
+This function multiplies the joint-space inertia matrix stored in ``mjData.M`` by a vector.
 
 .. _mj_applyFT:
 
@@ -294,16 +328,18 @@ rays from a single point.
 
 .. _mj_ray:
 
-Intersect ray ``(pnt+x*vec, x >= 0)`` with visible geoms, except geoms in bodyexclude.
+Intersect ray ``pnt+x*vec, x >= 0`` with geoms.
 
-Return geomid and distance (x) to nearest surface, or -1 if no intersection.
+- Return distance ``x`` to nearest surface, or -1 if no intersection.
+- If ``geomid`` is not NULL, write the id of the intersected geom or -1 if not intersection.
+- If ``normal`` is not NULL, write the surface normal at the intersection point. The normal always points **out of the
+  geometry**, regardless of the ray's direction (i.e., including rays hitting the surface from the inside).
+- Exclude geoms in body with id ``bodyexclude``, use -1 to include all bodies.
+- ``geomgroup`` is an array of length :ref:`mjNGROUP<glNumeric>`, where 1 means the group should be included. Pass
+  NULL to skip geom group exclusion.
+- If ``flg_static`` is 0, static geoms will be excluded.
 
-geomgroup is an array of length mjNGROUP, where 1 means the group should be included. Pass geomgroup=NULL to skip
-group exclusion.
-
-If flg_static is 0, static geoms will be excluded.
-
-bodyexclude=-1 can be used to indicate that all bodies are included.
+*Nullable:* ``geomgroup``, ``geomid``, ``normal``
 
 .. _Interaction:
 
@@ -606,7 +642,7 @@ outputs of derivative functions are the trailing rather than leading arguments.
 
 Compute finite-differenced discrete-time transition matrices.
 
-Letting :math:`x, u` denote the current :ref:`state<gePhysicsState>` and :ref:`control<geInput>`
+Letting :math:`x, u` denote the current :ref:`state<siPhysicsState>` and :ref:`control<siInput>`
 vector in an mjData instance, and letting :math:`y, s` denote the next state and sensor
 values, the top-level :ref:`mj_step` function computes :math:`(x,u) \rightarrow (y,s)`
 :ref:`mjd_transitionFD` computes the four associated Jacobians using finite-differencing.
@@ -646,12 +682,13 @@ These matrices and their dimensions are:
       termination. Of course, this means that :ref:`solver iterations<option-iterations>` should be small, to not tread
       water at the minimum. This method and the one described above can and should be combined.
 
+*Nullable:* ``A``, ``B``, ``D``, ``C``
 
 .. _mjd_inverseFD:
 
 Finite differenced continuous-time inverse-dynamics Jacobians.
 
-Letting :math:`x, a` denote the current :ref:`state<gePhysicsState>` and acceleration vectors in an mjData instance, and
+Letting :math:`x, a` denote the current :ref:`state<siPhysicsState>` and acceleration vectors in an mjData instance, and
 letting :math:`f, s` denote the forces computed by the inverse dynamics (``qfrc_inverse``), the function
 :ref:`mj_inverse` computes :math:`(x,a) \rightarrow (f,s)`. :ref:`mjd_inverseFD` computes seven associated Jacobians
 using finite-differencing. These matrices and their dimensions are:
@@ -685,9 +722,13 @@ using finite-differencing. These matrices and their dimensions are:
    - The Runge-Kutta 4th-order integrator (``mjINT_RK4``) is not supported.
    - The noslip solver is not supported.
 
+*Nullable:* ``DfDq``, ``DfDv``, ``DfDa``, ``DsDq``, ``DsDv``, ``DsDa``, ``DmDq``
+
 .. _mjd_subQuat:
 
 Derivatives of :ref:`mju_subQuat` (quaternion difference).
+
+*Nullable:* ``Da``, ``Db``
 
 .. _mjd_quatIntegrate:
 
@@ -711,7 +752,4 @@ to the inputs. Below, :math:`\bar q` denotes the pre-modified quaternion:
 Note that derivatives depend only on :math:`h` and :math:`v` (in fact, on :math:`s = h v`).
 All outputs are optional.
 
-.. _mjs_delete:
-
-Delete object corresponding to the given element, return 0 on success. This function should only be used for element
-types that cannot have children, i.e. excluding bodies and default classes.
+*Nullable:* ``Dquat``, ``Dvel``, ``Dscale``

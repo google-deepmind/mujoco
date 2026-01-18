@@ -114,7 +114,6 @@ void mju_writeLog(const char* type, const char* msg) {
 }
 
 
-
 void mju_error_raw(const char* msg) {
   if (_mjPRIVATE_tls_error_fn) {
     _mjPRIVATE_tls_error_fn(msg);
@@ -131,14 +130,12 @@ void mju_error_raw(const char* msg) {
 }
 
 
-
 void mju_error_v(const char* msg, va_list args) {
   // Format msg into errmsg
   char errmsg[1024];
   vsnprintf(errmsg, mjSIZEOFARRAY(errmsg), msg, args);
   mju_error_raw(errmsg);
 }
-
 
 
 // write message to logfile and console, pause and exit
@@ -148,7 +145,6 @@ void mju_error(const char* msg, ...) {
   mju_error_v(msg, args);
   va_end(args);
 }
-
 
 
 // write message to logfile and console
@@ -195,7 +191,6 @@ void mju_error_s(const char* msg, const char* text) {
 void mju_warning_s(const char* msg, const char* text) {
   mju_warning(msg, text);
 }
-
 
 
 //------------------------------ malloc and free ---------------------------------------------------

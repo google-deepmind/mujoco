@@ -9,6 +9,7 @@ over "GLOBAL" (
   customData = {
     string libraryName = "mjcPhysics"
     string libraryPath = "."
+    string libraryPrefix = "MjcPhysics"
     bool useLiteralIdentifier = 0
     dictionary libraryTokens = {
         dictionary euler = {
@@ -92,9 +93,12 @@ over "GLOBAL" (
 
 }
 
-class "SceneAPI"
+class "MjcSceneAPI"
 (
-    doc = """API providing global simulation options for Mujoco."""
+    customData = {
+        string className = "SceneAPI"
+    }
+    doc = """API providing global simulation options for MuJoCo."""
 
     inherits = </APISchemaBase>
 )
@@ -105,15 +109,6 @@ class "SceneAPI"
         }
         displayName = "Timestep"
         doc = """Controls the timestep in seconds used by MuJoCo."""
-    )
-
-    uniform double mjc:option:apirate = 100 (
-        customData = {
-            string apiName = "ApiRate"
-        }
-        displayName = "ApiRate"
-        doc = """Determines the rate (in Hz) at which an external API allows
-        the update function to be executed."""
     )
 
     uniform double mjc:option:impratio = 1.0 (
@@ -279,7 +274,7 @@ class "SceneAPI"
         doc = """Tolerance threshold used for early termination of the Noslip solver."""
     )
 
-    uniform int mjc:option:ccd_iterations = 50 (
+    uniform int mjc:option:ccd_iterations = 35 (
         customData = {
             string apiName = "CCDIterations"
         }
@@ -314,7 +309,7 @@ class "SceneAPI"
         Distance Field collisions."""
     )
 
-    uniform int[] mjc:option:actuatorgroupdisable (
+    uniform int[] mjc:option:actuatorgroupdisable  = [] (
         customData = {
             string apiName = "ActuatorGroupDisable"
         }
@@ -362,12 +357,20 @@ class "SceneAPI"
         doc = """Enables collision detection and all standard computations related to contact constraints."""
     )
 
-    uniform bool mjc:flag:passive = True (
+    uniform bool mjc:flag:spring = True (
         customData = {
-            string apiName = "PassiveFlag"
+            string apiName = "SpringFlag"
         }
-        displayName = "Passive Forces Toggle"
-        doc = """Enables the simulation of joint and tendon spring-dampers, fluid dynamics forces, and custom passive forces."""
+        displayName = "Spring Forces Toggle"
+        doc = """Enables the simulation of joint and tendon springs."""
+    )
+
+    uniform bool mjc:flag:damper = True (
+        customData = {
+            string apiName = "DamperFlag"
+        }
+        displayName = "Damper Forces Toggle"
+        doc = """Enables the simulation of joint and tendon dampers."""
     )
 
     uniform bool mjc:flag:gravity = True (
@@ -498,30 +501,190 @@ class "SceneAPI"
         doc = """Enables multiple-contact collision detection for geom pairs using a general-purpose convex-convex collider."""
     )
 
-    uniform bool mjc:flag:island = False (
+    uniform bool mjc:flag:island = True (
         customData = {
             string apiName = "IslandFlag"
         }
         displayName = "Constraint Island Discovery Toggle"
         doc = """Enables the discovery of constraint islands."""
     )
+
+    uniform bool mjc:compiler:autoLimits = True (
+        customData = {
+            string apiName = "AutoLimits"
+        }
+        displayName = "Automatic Limits"
+        doc = """This attribute affects the behavior of attributes such as "limited" (on MjcJointAPI), "forcelimited" "ctrllimited", and "actlimited" (on MjcActuator). If True, these attributes are unnecessary and their value will be inferred from the presence of their corresponding "range" attribute. If False, no such inference will happen: For a joint to be limited, both limited=True and range:min/max must be specified. In this mode, it is an error to specify a range without a limit."""
+    )
+
+    uniform double mjc:compiler:boundMass = 0.0 (
+        customData = {
+            string apiName = "BoundMass"
+        }
+        displayName = "Bound Mass"
+        doc = """This attribute imposes a lower bound on the mass of each body except for the world body."""
+    )
+
+    uniform double mjc:compiler:boundInertia = 0.0 (
+        customData = {
+            string apiName = "BoundInertia"
+        }
+        displayName = "Bound Inertia"
+        doc = """This attribute imposes a lower bound on the diagonal inertia components of each body except for the world body."""
+    )
+
+    uniform double mjc:compiler:setTotalMass = -1.0 (
+        customData = {
+            string apiName = "SetTotalMass"
+        }
+        displayName = "Set Total Mass"
+        doc = """If this value is positive, the compiler will scale the masses and inertias of all bodies in the model, so that the total mass equals the value specified here. The world body has mass 0 and does not participate in any mass-related computations. This scaling is performed last, after all other operations affecting the body mass and inertia. The same scaling operation can be applied at runtime to the compiled mjModel with the function mj_setTotalmass."""
+    )
+
+    uniform bool mjc:compiler:useThread = True (
+        customData = {
+            string apiName = "UseThread"
+        }
+        displayName = "Use Thread"
+        doc = """If this is True, the model compiler will run in multi-threaded mode. Currently multi-threading is used for computing the length ranges of actuators and for parallel loading of meshes."""
+    )
+
+    uniform bool mjc:compiler:balanceInertia = False (
+        customData = {
+            string apiName = "BalanceInertia"
+        }
+        displayName = "Balance Inertia"
+        doc = """A valid diagonal inertia matrix must satisfy A+B>=C for all permutations of the three diagonal elements. Some poorly designed models violate this constraint, which will normally result in a compile error. If this attribute is set to "true", the compiler will silently set all three diagonal elements to their average value whenever the above condition is violated."""
+    )
+
+    uniform token mjc:compiler:angle = "degree" (
+        allowedTokens = ["degree", "radian"]
+        customData = {
+            string apiName = "Angle"
+        }
+        displayName = "Angle"
+        doc = """This attribute specifies whether the angles in mjcPhysics attributes have units of degrees or radians if not otherwise noted."""
+    )
+
+    uniform bool mjc:compiler:fitAABB = False (
+        customData = {
+            string apiName = "FitAABB"
+        }
+        displayName = "Fit AABB"
+        doc = """The compiler is able to replace a mesh with a geometric primitive fitted to that mesh. If this attribute is True, the fitting procedure uses the axis-aligned bounding box (AABB) of the mesh. Otherwise it uses the equivalent-inertia box of the mesh."""
+    )
+
+    uniform bool mjc:compiler:fuseStatic = False (
+        customData = {
+            string apiName = "FuseStatic"
+        }
+        displayName = "Fuse Static"
+        doc = """This attribute controls a compiler optimization feature where static bodies are fused with their parent, and any elements defined in those bodies are reassigned to the parent. Static bodies are fused with their parent unless
+
+* They are referenced by another element in the model.
+
+* They contain a site which is referenced by a force or torque sensor.
+"""
+    )
+
+    uniform token mjc:compiler:inertiaFromGeom = "auto" (
+        allowedTokens = ["false", "true", "auto"]
+        customData = {
+            string apiName = "InertiaFromGeom"
+        }
+        displayName = "Inertia From Geom"
+        doc = """This attribute controls the automatic inference of body masses and inertias from geoms attached to the body. If this setting is "false", no automatic inference is performed. In that case each body must have explicitly defined mass and inertia with the inertial element, or else a compile error will be generated. If this setting is "true", the mass and inertia of each body will be inferred from the geoms attached to it, overriding any values specified with the inertial element. The default setting "auto" means that masses and inertias are inferred automatically only when the inertial element is missing in the body definition. One reason to set this attribute to "true" instead of "auto" is to override inertial data imported from a poorly designed model."""
+    )
+
+    uniform bool mjc:compiler:alignFree = False (
+        customData = {
+            string apiName = "AlignFree"
+        }
+        displayName = "Align Free"
+        doc = """This attribute toggles the default behaviour of an optimization that applies to bodies with a free joint and no child bodies. When True, the body frame and free joint will automatically be aligned with inertial frame, which leads to both faster and more stable simulation."""
+    )
+
+    uniform int mjc:compiler:inertiaGroupRange:min = 0 (
+        customData = {
+            string apiName = "InertiaGroupRangeMin"
+        }
+        displayName = "Inertia Group Range Min"
+        doc = """This attribute specifies the maximum of the geom group range that is used to infer body masses and inertias (when such inference is enabled). The group attribute of geom is an integer. If this integer falls in the range specified here, the collider will be used in the inertial computation, otherwise it will be ignored. Note that the world body does not participate in the inertial computations, so any geoms attached to it are automatically ignored. Therefore it is not necessary to adjust this attribute and the geom-specific groups so as to exclude world geoms from the inertial computation."""
+    )
+
+    uniform int mjc:compiler:inertiaGroupRange:max = 5 (
+        customData = {
+            string apiName = "InertiaGroupRangeMax"
+        }
+        displayName = "Inertia Group Range Max"
+        doc = """This attribute specifies the maximum of the geom group range that is used to infer body masses and inertias (when such inference is enabled). The group attribute of geom is an integer. If this integer falls in the range specified here, the geom will be used in the inertial computation, otherwise it will be ignored. This feature is useful in models that have redundant sets of geoms for collision and visualization. Note that the world body does not participate in the inertial computations, so any geoms attached to it are automatically ignored. Therefore it is not necessary to adjust this attribute and the geom-specific groups so as to exclude world geoms from the inertial computation."""
+    )
+
+    uniform bool mjc:compiler:saveInertial = False (
+        customData = {
+            string apiName = "SaveInertial"
+        }
+        displayName = "Save Inertial"
+        doc = """If True, the compiler will save explicit inertial clauses for all bodies."""
+    )
 }
 
-class "SiteAPI"
+class "MjcSiteAPI"
 (
-    doc = """API describing a Mujoco site."""
-
-    inherits = </APISchemaBase>
-)
-{}
-
-class "CollisionAPI"
-(
-    doc = """API describing a Mujoco collider."""
+    customData = {
+        string className = "SiteAPI"
+    }
+    doc = """API describing a MuJoCo site."""
 
     inherits = </APISchemaBase>
 )
 {
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the collider belongs."""
+    )
+}
+
+class "MjcImageableAPI"
+(
+    customData = {
+        string className = "ImageableAPI"
+    }
+    doc = """API describing attributes for visual entities in MuJoCo."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the imageable belongs."""
+    )
+}
+
+class "MjcCollisionAPI"
+(
+    customData = {
+        string className = "CollisionAPI"
+    }
+    doc = """API describing a MuJoCo collider."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the collider belongs."""
+    )
+
     uniform bool mjc:shellinertia = False (
         customData = {
             string apiName = "ShellInertia"
@@ -529,11 +692,70 @@ class "CollisionAPI"
         displayName = "Shell Inertia"
         doc = """Enables handling of the inertia assuming mass is concentrated on the surface."""
     )
+
+    uniform int mjc:priority = 0 (
+      customData = {
+          string apiName = "Priority"
+      }
+      displayName = "Priority"
+      doc = """Priority determining how the properties of two colliders are combined to form the properties of the contact."""
+    )
+
+    uniform int mjc:condim = 3 (
+      customData = {
+          string apiName = "ConDim"
+      }
+      displayName = "ConDim"
+      doc = """The dimensionality of the contact space for a dynamically generated contact pair is set to the maximum of the condim values of the two participating geoms."""
+    )
+
+    uniform double mjc:solmix = 1.0 (
+      customData = {
+          string apiName = "SolMix"
+      }
+      displayName = "SolMix"
+      doc = """Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."""
+    )
+
+    uniform double[] mjc:solref = [0.02, 1.0] (
+      customData = {
+          string apiName = "SolRef"
+      }
+      displayName = "SolMix"
+      doc = """Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."""
+    )
+
+    uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2.0] (
+      customData = {
+          string apiName = "SolImp"
+      }
+      displayName = "SolImp"
+      doc = """Specifies the weight used for averaging of contact parameters, and interacts with the priority attribute."""
+    )
+
+    uniform double mjc:margin = 0.0 (
+      customData = {
+          string apiName = "Margin"
+      }
+      displayName = "Margin"
+      doc = """Distance threshold below which contacts are detected and included in the global array mjData.contact."""
+    )
+
+    uniform double mjc:gap = 0.0 (
+      customData = {
+          string apiName = "Gap"
+      }
+      displayName = "Gap"
+      doc = """This attribute is used to enable the generation of inactive contacts, i.e., contacts that are ignored by the constraint solver but are included in mjData.contact for the purpose of custom computations. When this value is positive, geom distances between margin and margin-gap correspond to such inactive contacts."""
+    )
 }
 
-class "MeshCollisionAPI"
+class "MjcMeshCollisionAPI"
 (
-    doc = """API describing a Mujoco collider."""
+    customData = {
+        string className = "MeshCollisionAPI"
+    }
+    doc = """API describing a MuJoCo mesh collider."""
 
     inherits = </APISchemaBase>
 )
@@ -546,27 +768,49 @@ class "MeshCollisionAPI"
         displayName = "Inertia"
         doc = """Controls how a mesh is used when mass and inertia are inferred from geometry."""
     )
+
+    uniform int mjc:maxhullvert = -1 (
+        customData = {
+            string apiName = "MaxHullVert"
+        }
+        displayName = "Maximum Hull Vertices"
+        doc = """Sets an upper limit on the number of vertices in the meshes convex hull. The default value of -1 means unlimited."""
+    )
 }
 
-class "PhysicsActuatorAPI"
+class MjcActuator "MjcActuator"
 (
     customData = {
-        string className = "ActuatorAPI"
+        string className = "Actuator"
     }
-    doc = """API describing a Mujoco actuator."""
+    doc = """Known as actuator in MuJoCo, this prim represents force transmission to joints, bodies, or sites."""
 
-    inherits = </APISchemaBase>
+    inherits = </Typed>
 )
 {
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the transmission belongs."""
+    )
+
+    rel mjc:target (
+        doc = "Actuator transmission target."
+    )
+
     # Control/Force/Activation Limits
     uniform token mjc:ctrlLimited = "auto" (
         doc = "If true, the control input to this actuator is automatically clamped to ctrlrange at runtime. If false, control input clamping is disabled. If 'auto' and autolimits is set in compiler, control clamping will automatically be set to true if ctrlrange is defined without explicitly setting this attribute to 'true'. Note that control input clamping can also be globally disabled with the clampctrl attribute of option/flag."
         allowedTokens = ["false", "true", "auto"]
     )
+
     uniform token mjc:forceLimited = "auto" (
         doc = "If true, the force output of this actuator is automatically clamped to forcerange at runtime. If false, force clamping is disabled. If 'auto' and autolimits is set in compiler, force clamping will automatically be set to true if forcerange is defined without explicitly setting this attribute to 'true'."
         allowedTokens = ["false", "true", "auto"]
     )
+
     uniform token mjc:actLimited = "auto" (
         doc = "If true, the internal state (activation) associated with this actuator is automatically clamped to actrange at runtime. If false, activation clamping is disabled. If 'auto' and autolimits is set in compiler, activation clamping will automatically be set to true if actrange is defined without explicitly setting this attribute to 'true'. See the Activation clamping section for more details."
         allowedTokens = ["false", "true", "auto"]
@@ -597,11 +841,11 @@ class "PhysicsActuatorAPI"
     )
 
     uniform double mjc:lengthRange:min = 0 (
-        doc = "Minimum range of feasible lengths of the actuator’s transmission."
+        doc = "Minimum range of feasible lengths of the actuator's transmission."
     )
 
     uniform double mjc:lengthRange:max = 0 (
-        doc = "Maximum range of feasible lengths of the actuator’s transmission."
+        doc = "Maximum range of feasible lengths of the actuator's transmission."
     )
 
     # Transmission Properties
@@ -660,6 +904,406 @@ class "PhysicsActuatorAPI"
     uniform bool mjc:actEarly = False (
         doc = "If true, force computation will use the next value of the activation variable rather than the current one. Setting this flag reduces the delay between the control and accelerations by one time-step."
     )
+
+    uniform double mjc:inheritRange = 0 (
+        doc = "Automatically set the actuator’s ctrlrange to match the transmission target’s range. The default value means disabled. A positive value X sets the ctrlrange around the midpoint of the target range, scaled by X. For example if the target joint has range of [0, 1], then a value of 1.0 will set ctrlrange to [0, 1]; values of 0.8 and 1.2 will set the ctrlrange to [0.1, 0.9] and [-0.1, 1.1], respectively. Values smaller than 1 are useful for not hitting the limits; values larger than 1 are useful for maintaining control authority at the limits (being able to push on them). This attribute is exclusive with ctrlrange and available only for joint and tendon transmissions which have range defined."
+    )
 }
 
 
+class MjcKeyframe "MjcKeyframe"
+(
+    customData = {
+        string className = "Keyframe"
+    }
+    doc = """Represents time independent keyframe values."""
+
+    inherits = </Typed>
+)
+{
+  double[] mjc:qpos (
+    doc = "Vector of joint positions, copied into mjData.qpos when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:qvel (
+    doc = "Vector of joint velocities, copied into mjData.qvel when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:act (
+    doc = "Vector of actuator activations, copied into mjData.act when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:ctrl (
+    doc = "Vector of controls, copied into mjData.ctrl when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:mpos (
+    doc = "Vector of mocap body positions, copied into mjData.mocap_pos when the simulation state is set to this keyframe."
+  )
+
+  double[] mjc:mquat (
+    doc = "Vector of mocap body quaternions, copied into mjData.mocap_quat when the simulation state is set to this keyframe."
+  )
+}
+
+class "MjcJointAPI"
+(
+    customData = {
+        string className = "JointAPI"
+    }
+    doc = """API describing a MuJoCo joint."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform int mjc:group = 0 (
+      customData = {
+          string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the joint belongs."""
+    )
+
+    uniform double[] mjc:springdamper = [0, 0] (
+        doc = "When both numbers are positive, the compiler will override any stiffness and damping values specified with the attributes below, and will instead set them automatically so that the resulting mass-spring-damper for this joint has the desired time constant (first value) and damping ratio (second value). This is done by taking into account the joint inertia in the model reference configuration. Note that the format is the same as the solref parameter of the constraint solver."
+    )
+
+    uniform double[] mjc:solreflimit = [0.02, 1.0] (
+        doc = "Constraint solver parameters for simulating joint limits."
+    )
+
+    uniform double[] mjc:solimplimit = [0.9, 0.95, 0.001, 0.5, 2.0] (
+        doc = "Constraint solver parameters for simulating joint limits."
+    )
+
+    uniform double[] mjc:solreffriction = [0.02, 1.0] (
+        doc = "Constraint solver parameters for simulating dry friction."
+    )
+
+    uniform double[] mjc:solimpfriction = [0.9, 0.95, 0.001, 0.5, 2.0] (
+        doc = "Constraint solver parameters for simulating dry friction."
+    )
+
+    uniform double mjc:stiffness = 0 (
+        doc = "Joint stiffness. If this value is positive, a spring will be created with equilibrium position given by springref below. The spring force is computed along with the other passive forces."
+    )
+
+    uniform double mjc:actuatorfrcrange:min = 0 (
+        doc = "Minimum range for clamping total actuator forces acting on this joint. See Force limits for details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. The compiler expects the first value to be smaller than the second value. Setting this attribute without specifying actuatorfrclimited is an error if compiler-autolimits is 'false'."
+    )
+
+    uniform double mjc:actuatorfrcrange:max = 0 (
+        doc = "Maximum range for clamping total actuator forces acting on this joint. See Force limits for details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. The compiler expects the first value to be smaller than the second value. Setting this attribute without specifying actuatorfrclimited is an error if compiler-autolimits is 'false'."
+    )
+
+    uniform token mjc:actuatorfrclimited = "auto" (
+        doc = "This attribute specifies whether actuator forces acting on the joint should be clamped. See Force limits for details. It is available only for scalar joints (hinge and slider) and ignored for ball and free joints. This attribute interacts with the actuatorfrcrange attribute. If this attribute is 'false', actuator force clamping is disabled. If it is 'true', actuator force clamping is enabled. If this attribute is 'auto', and autolimits is set in compiler, actuator force clamping will be enabled if actuatorfrcrange is defined."
+        allowedTokens = ["false", "true", "auto"]
+    )
+
+    uniform bool mjc:actuatorgravcomp = false (
+        doc = "If this flag is enabled, gravity compensation applied to this joint is added to actuator forces (mjData.qfrc_actuator) rather than passive forces (mjData.qfrc_passive). Notionally, this means that gravity compensation is the result of a control system rather than natural buoyancy. In practice, enabling this flag is useful when joint-level actuator force clamping is used. In this case, the total actuation force applied on a joint, including gravity compensation, is guaranteed to not exceed the specified limits. See Force limits and actuatorfrcrange for more details on this type of force limit."
+    )
+
+    uniform double mjc:margin = 0 (
+        doc = "The distance threshold below which limits become active. Recall that the Constraint solver normally generates forces as soon as a constraint becomes active, even if the margin parameter makes that happen at a distance. This attribute together with solreflimit and solimplimit can be used to model a soft joint limit."
+    )
+
+    uniform double mjc:ref = 0 (
+        doc = "The reference position or angle of the joint. This attribute is only used for slide and hinge joints. It defines the joint value corresponding to the initial model configuration. The amount of spatial transformation that the joint applies at runtime equals the current joint value stored in mjData.qpos minus this reference value stored in mjModel.qpos0. The meaning of these vectors was discussed in the Stand-alone section in the Overview chapter."
+    )
+
+    uniform double mjc:springref = 0 (
+        doc = "The joint position or angle in which the joint spring (if any) achieves equilibrium. Similar to the vector mjModel.qpos0 which stores all joint reference values specified with the ref attribute above, all spring reference values specified with this attribute are stored in the vector mjModel.qpos_spring. The model configuration corresponding to mjModel.qpos_spring is also used to compute the spring reference lengths of all tendons, stored in mjModel.tendon_lengthspring. This is because tendons can also have springs."
+    )
+
+    uniform double mjc:armature = 0 (
+        doc = "Additional inertia associated with movement of the joint that is not due to body mass. This added inertia is usually due to a rotor (a.k.a armature) spinning faster than the joint itself due to a geared transmission. The value applies to all degrees of freedom created by this joint. Besides increasing the realism of joints with geared transmission, positive armature significantly improves simulation stability, even for small values, and is a recommended possible fix when encountering stability issues."
+    )
+
+    uniform double mjc:damping = 0 (
+        doc = "Damping applied to all degrees of freedom created by this joint. Unlike friction loss which is computed by the constraint solver, damping is simply a force linear in velocity. It is included in the passive forces. Despite this simplicity, larger damping values can make numerical integrators unstable, which is why our Euler integrator handles damping implicitly. See Integration in the Computation chapter."
+    )
+
+    uniform double mjc:frictionloss = 0 (
+        doc = "Friction loss due to dry friction. This value is the same for all degrees of freedom created by this joint. Semantically friction loss does not make sense for free joints, but the compiler allows it. To enable friction loss, set this attribute to a positive value."
+    )
+}
+
+class "MjcMaterialAPI"
+(
+    customData = {
+        string className = "MaterialAPI"
+    }
+    doc = """API providing extension attributes to represent physical MuJoCo materials."""
+
+    inherits = </APISchemaBase>
+)
+{
+    uniform double mjc:torsionalfriction = 0.005 (
+        customData = {
+            string apiName = "TorsionalFriction"
+        }
+        displayName = "Torsional Friction"
+        doc = """Friction value acting around contact normal."""
+    )
+
+    uniform double mjc:rollingfriction = 0.0001 (
+        customData = {
+            string apiName = "RollingFriction"
+        }
+        displayName = "Rolling Friction"
+        doc = """Friction value acting around both axes on the contact tangent plane."""
+    )
+}
+
+class "MjcEqualityAPI" (
+    customData = {
+        string className = "EqualityAPI"
+    }
+    doc = """Base API for equality constraints."""
+
+    inherits = </APISchemaBase>
+)
+{
+    rel mjc:target (
+      doc = "Secondary target of the equality constraint."
+    )
+
+    uniform double[] mjc:solref = [0.02, 1.0] (
+        customData = {
+            string apiName = "SolRef"
+        }
+        displayName = "SolRef"
+        doc = """Constraint solver parameter for equality constraint simulation."""
+    )
+
+    uniform double[] mjc:solimp = [0.9, 0.95, 0.001, 0.5, 2.0] (
+        customData = {
+            string apiName = "SolImp"
+        }
+        displayName = "SolImp"
+        doc = """Constraint solver parameter for equality constraint simulation."""
+    )
+}
+
+class "MjcEqualityWeldAPI" (
+    customData = {
+        string className = "EqualityWeldAPI"
+    }
+    doc = """API providing extension attributes to represent equality/weld constraints."""
+
+    prepend apiSchemas = ["MjcEqualityAPI"]
+    inherits = </APISchemaBase>
+)
+{
+    uniform float mjc:torqueScale = 1.0 (
+        customData = {
+            string apiName = "TorqueScale"
+        }
+        displayName = "Torque Scale"
+        doc = """A constant that scales the angular residual (angular constraint violation). Notionally in units of torque/force = length. Intuitively this coefficient defines how much the weld “cares” about rotational displacements vs. translational displacements."""
+    )
+}
+
+class MjcTendon "MjcTendon"
+(
+    customData = {
+        string className = "Tendon"
+    }
+    doc = """Type describing fixed and spatial tendons."""
+
+    inherits = </Typed>
+)
+{
+    uniform token mjc:type = "spatial" (
+      allowedTokens = ["spatial", "fixed"]
+      customData = {
+        string apiName = "Type"
+      }
+      displayName = "Type"
+      doc = """Type of tendon, valid values are 'spatial' and 'fixed'."""
+    )
+
+    rel mjc:path (
+      doc = "For spatial tendons, this describes a list of unique of sites and geoms the tendon wraps. For fixed tendons, this is instead a list of joints."
+    )
+
+    rel mjc:sideSites (
+      doc = "For spatial tendons, a geom wrapped by the tendon may specify which side of the geom the tendon wraps around via a site prim. This is a list of sites that are used as side sites in mjc:path."
+    )
+
+    uniform int[] mjc:path:indices = [] (
+      doc = "This list represents the order in which the tendon wraps the sites in mjc:path."
+    )
+
+    uniform int[] mjc:sideSites:indices = [] (
+      doc = "For spatial tendons, if mjc:sideSites has targets then index 'i' in this list represents the position in the relationship targets of mjc:sideSites that the geom at index 'i' in mjc:path uses as a side site. It is considered an authoring error to assign a side site to something other than a geom. Geoms that do not use a side site should use index value '-1'."
+    )
+
+    uniform int[] mjc:path:segments = [] (
+      doc = "For spatial tendons, this holds the index of the segment each tendon path wrap point belongs to."
+    )
+
+    uniform double[] mjc:path:divisors = [] (
+      doc = "For spatial tendons, this represents an indexed array of divisors. A tendon path segments' length contribution to the overall tendon length is divided by its divisor."
+    )
+
+    uniform double[] mjc:path:coef = [] (
+      doc = "For fixed tendons passing through joints this represents a multiplicative factor on the position or angle of the targeted joint."
+    )
+
+    uniform int mjc:group = 0 (
+      customData = {
+        string apiName = "Group"
+      }
+      displayName = "Group"
+      doc = """Integer MuJoCo group to which the tendon belongs."""
+    )
+
+    uniform token mjc:limited = "auto" (
+        allowedTokens = ["auto", "true", "false"]
+        customData = {
+            string apiName = "Limited"
+        }
+        displayName = "Limited"
+        doc = """If true, the tendon length is limited to the range specified by mjc:range:min/max."""
+    )
+
+    uniform token mjc:actuatorfrclimited = "auto" (
+        allowedTokens = ["false", "true", "auto"]
+        customData = {
+            string apiName = "ActuatorFrcLimited"
+        }
+        displayName = "Actuator Force Limited"
+        doc = """This attribute specifies whether actuator forces acting on the tendon should be clamped. See Force limits for details. This attribute interacts with the actuatorfrcrange attribute. If this attribute is “false”, actuator force clamping is disabled. If it is “true”, actuator force clamping is enabled. If this attribute is “auto”, and autolimits is set in compiler, actuator force clamping will be enabled if actuatorfrcrange is defined."""
+    )
+
+    uniform double mjc:range:min = 0 (
+        customData = {
+            string apiName = "RangeMin"
+        }
+        displayName = "Range Min"
+        doc = """Minimum allowed tendon length. Setting this attribute without specifying limited is an error, unless autolimits is set in compiler."""
+    )
+
+    uniform double mjc:range:max = 0 (
+        customData = {
+            string apiName = "RangeMax"
+        }
+        displayName = "Range Max"
+        doc = """Maximum allowed tendon length. Setting this attribute without specifying limited is an error, unless autolimits is set in compiler."""
+    )
+
+    uniform double mjc:actuatorfrcrange:min = 0 (
+        customData = {
+            string apiName = "ActuatorFrcRangeMin"
+        }
+        displayName = "Actuator Force Range Min"
+        doc = """Minimum range for clamping total actuator forces acting on this tendon. See Force limits for details. The compiler expects the lower bound to be nonpositive. Setting this attribute without specifying actuatorfrclimited is an error if compiler-autolimits is “false”."""
+    )
+
+    uniform double mjc:actuatorfrcrange:max = 0 (
+        customData = {
+            string apiName = "ActuatorFrcRangeMax"
+        }
+        displayName = "Actuator Force Range Max"
+        doc = """Maximum range for clamping total actuator forces acting on this tendon. See Force limits for details. The compiler expects the upper bound to be nonnegative. Setting this attribute without specifying actuatorfrclimited is an error if compiler-autolimits is “false”."""
+    )
+
+    uniform double[] mjc:solreflimit = [0.02, 1.0] (
+        customData = {
+            string apiName = "SolRefLimit"
+        }
+        displayName = "Solver Reference Limit"
+        doc = """Constraint solver parameters for simulating tendon limits."""
+    )
+
+    uniform double[] mjc:solimplimit = [0.9, 0.95, 0.001, 0.5, 2.0] (
+        customData = {
+            string apiName = "SolImpLimit"
+        }
+        displayName = "Solver Impedance Limit"
+        doc = """Constraint solver parameters for simulating tendon limits."""
+    )
+
+    uniform double[] mjc:solreffriction = [0.02, 1.0] (
+        customData = {
+            string apiName = "SolRefFriction"
+        }
+        displayName = "Solver Reference Friction"
+        doc = """Constraint solver parameters for simulating dry friction in the tendon."""
+    )
+
+    uniform double[] mjc:solimpfriction = [0.9, 0.95, 0.001, 0.5, 2.0] (
+        customData = {
+            string apiName = "SolImpFriction"
+        }
+        displayName = "Solver Impedance Friction"
+        doc = """Constraint solver parameters for simulating dry friction in the tendon."""
+    )
+
+    uniform double mjc:margin = 0.0 (
+        customData = {
+            string apiName = "Margin"
+        }
+        displayName = "Margin"
+        doc = """The limit constraint becomes active when the absolute value of the difference between the tendon length and either limit of the specified range falls below this margin. Similar to contacts, the margin parameter is subtracted from the difference between the range limit and the tendon length. The resulting constraint distance is always negative when the constraint is active. This quantity is used to compute constraint impedance as a function of distance."""
+    )
+
+    uniform double mjc:frictionloss = 0.0 (
+        customData = {
+            string apiName = "FrictionLoss"
+        }
+        displayName = "Friction Loss"
+        doc = """Friction loss caused by dry friction. To enable friction loss, set this attribute to a positive value."""
+    )
+
+    uniform double mjc:width = 0.003 (
+        customData = {
+            string apiName = "Width"
+        }
+        displayName = "Width"
+        doc = """Radius of the cross-section area of the spatial tendon, used for rendering in MuJoCo. Parts of the tendon that wrap around geom obstacles are rendered with reduced width."""
+    )
+
+    uniform color4f mjc:rgba = (0.5, 0.5, 0.5, 1.0) (
+        customData = {
+            string apiName = "Rgba"
+        }
+        displayName = "RGBA"
+        doc = """Color and transparency of the tendon in MuJoCo."""
+    )
+
+    uniform double[] mjc:springlength = [-1, -1] (
+        customData = {
+            string apiName = "SpringLength"
+        }
+        displayName = "Spring Length"
+        doc = """Spring resting position, can take either one or two values. If one value is given, it corresponds to the length of the tendon at rest. If it is -1, the tendon resting length is determined from the model reference configuration in mjModel.qpos0. Note that the default value of -1, which invokes the automatic length computation, was designed with spatial tendons in mind, which can only have nonegative length. In order to set the springlength of a fixed tendon to -1, use a nearby value like -0.99999. If two non-decreasing values are given, they define a dead-band range. If the tendon length is between the two values, the force is 0. If it is outside this range, the force behaves like a regular spring, with the rest-point corresponding to the nearest springlength value. A deadband can be used to define tendons whose limits are enforced by springs rather than constraints."""
+    )
+
+    uniform double mjc:stiffness = 0.0 (
+        customData = {
+            string apiName = "Stiffness"
+        }
+        displayName = "Stiffness"
+        doc = """Stiffness coefficient. A positive value generates a spring force (linear in position) acting along the tendon."""
+    )
+
+    uniform double mjc:damping = 0.0 (
+        customData = {
+            string apiName = "Damping"
+        }
+        displayName = "Damping"
+        doc = """Damping coefficient. A positive value generates a damping force (linear in velocity) acting along the tendon. Unlike joint damping which is integrated implicitly by the Euler method, tendon damping is not integrated implicitly, thus joint damping should be used if possible."""
+    )
+
+    uniform double mjc:armature = 0.0 (
+        customData = {
+            string apiName = "Armature"
+        }
+        displayName = "Armature"
+        doc = """Inertia associated with changes in tendon length."""
+    )
+}

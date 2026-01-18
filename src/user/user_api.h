@@ -76,11 +76,6 @@ MJAPI int mj_copyBack(mjSpec* s, const mjModel* m);
 MJAPI mjsElement* mjs_attach(mjsElement* parent, const mjsElement* child,
                              const char* prefix, const char* suffix);
 
-// Detach body from mjSpec, remove all references and delete the body, return 0 on success.
-MJAPI int mjs_detachBody(mjSpec* s, mjsBody* b);
-
-// Detach default from mjSpec, remove all references and delete the default, return 0 on success.
-MJAPI int mjs_detachDefault(mjSpec* s, mjsDefault* d);
 
 //---------------------------------- Add tree elements ---------------------------------------------
 
@@ -108,8 +103,8 @@ MJAPI mjsLight* mjs_addLight(mjsBody* body, const mjsDefault* def);
 // Add frame to body.
 MJAPI mjsFrame* mjs_addFrame(mjsBody* body, mjsFrame* parentframe);
 
-// Delete object corresponding to the given element, return 0 on success.
-MJAPI int mjs_delete(mjsElement* element);
+// Remove object corresponding to the given element, return 0 on success.
+MJAPI int mjs_delete(mjSpec* s, mjsElement* element);
 
 
 //---------------------------------- Add non-tree elements -----------------------------------------
@@ -214,6 +209,8 @@ MJAPI mjsTexture* mjs_addTexture(mjSpec* s);
 // Add material.
 MJAPI mjsMaterial* mjs_addMaterial(mjSpec* s, const mjsDefault* def);
 
+// Sets the vertices and normals of a mesh.
+MJAPI int mjs_makeMesh(mjsMesh* mesh, mjtMeshBuiltin builtin, double* params, int nparams);
 
 //---------------------------------- Find/get utilities --------------------------------------------
 
@@ -268,6 +265,18 @@ MJAPI mjsElement* mjs_firstElement(mjSpec* s, mjtObj type);
 
 // Return spec's next element; return NULL if element is last.
 MJAPI mjsElement* mjs_nextElement(mjSpec* s, mjsElement* element);
+
+// Get wrapped element in tendon path.
+MJAPI mjsElement* mjs_getWrapTarget(mjsWrap* wrap);
+
+// Get wrapped element in tendon path.
+MJAPI mjsSite* mjs_getWrapSideSite(mjsWrap* wrap);
+
+// Get divisor of mjsWrap wrapping a puller.
+MJAPI double mjs_getWrapDivisor(mjsWrap* wrap);
+
+// Get coefficient of mjsWrap wrapping a joint.
+MJAPI double mjs_getWrapCoef(mjsWrap* wrap);
 
 // Safely cast an element as mjsBody, or return NULL if the element is not an mjsBody.
 MJAPI mjsBody* mjs_asBody(mjsElement* element);
@@ -344,6 +353,9 @@ MJAPI mjsPlugin* mjs_asPlugin(mjsElement* element);
 
 //---------------------------------- Attribute setters ---------------------------------------------
 
+// Set element's name, return 0 on success.
+MJAPI int mjs_setName(mjsElement* element, const char* name);
+
 // Copy buffer.
 MJAPI void mjs_setBuffer(mjByteVec* dest, const void* array, int size);
 
@@ -380,11 +392,19 @@ MJAPI void mjs_setPluginAttributes(mjsPlugin* plugin, void* attributes);
 
 //---------------------------------- Attribute getters ---------------------------------------------
 
+// Get element's name.
+MJAPI mjString* mjs_getName(mjsElement* element);
+
 // Get string contents.
 MJAPI const char* mjs_getString(const mjString* source);
 
 // Get double array contents and optionally its size.
 MJAPI const double* mjs_getDouble(const mjDoubleVec* source, int* size);
+
+// Get number of elements a tendon wraps.
+MJAPI int mjs_getWrapNum(const mjsTendon* tendonspec);
+
+MJAPI mjsWrap* mjs_getWrap(const mjsTendon* tendonspec, int i);
 
 // Get plugin attributes.
 MJAPI const void* mjs_getPluginAttributes(const mjsPlugin* plugin);
@@ -419,6 +439,8 @@ MJAPI const void* mjs_getUserValue(mjsElement* element, const char* key);
 // Delete user payload.
 MJAPI void mjs_deleteUserValue(mjsElement* element, const char* key);
 
+// Return sensor dimension.
+MJAPI int mjs_sensorDim(const mjsSensor* sensor);
 
 //---------------------------------- Initialization  -----------------------------------------------
 
@@ -500,13 +522,20 @@ MJAPI void mjs_defaultPlugin(mjsPlugin* plugin);
 
 //---------------------------------- Compiler cache ------------------------------------------------
 
-typedef struct mjCache_* mjCache;
+// Get the capacity of the asset cache in bytes.
+MJAPI size_t mj_getCacheCapacity(const mjCache* cache);
 
-// Set the size of the cache in bytes.
-MJAPI void mj_setCacheSize(mjCache cache, size_t size);
+// Set the capacity of the asset cache in bytes (0 to disable); returns the new capacity.
+MJAPI size_t mj_setCacheCapacity(mjCache* cache, size_t size);
 
-// Get internal global cache context.
-MJAPI mjCache mj_globalCache(void);
+// Get the current size of the asset cache in bytes.
+MJAPI size_t mj_getCacheSize(const mjCache* cache);
+
+// Clear the asset cache.
+MJAPI void mj_clearCache(mjCache* cache);
+
+// Get the internal asset cache used by the compiler.
+MJAPI mjCache* mj_getCache(void);
 
 #ifdef __cplusplus
 }  // extern "C"

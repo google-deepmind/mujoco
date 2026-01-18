@@ -28,12 +28,37 @@ body[data-theme="dark"] {
   }
 }
 
-.schema-small {
-  font-size: 93%;
+/* Make table shadows visible in dark theme. */
+body[data-theme="dark"] table.docutils:not(.mjcf-attributes) {
+  box-shadow: 0 0.2rem 0.5rem rgba(255, 255, 255, 0.15);
+}
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] table.docutils:not(.mjcf-attributes) {
+    box-shadow: 0 0.2rem 0.5rem rgba(255, 255, 255, 0.15);
+  }
 }
 
 .caption-small {
   font-size: 85%;
+}
+
+.table-small {
+  font-size: 93%;
+}
+
+.small-centered {
+  font-size: 93%;
+}
+
+.table-pairwise {
+  font-size: 85%;
+}
+
+.small-centered td, .small-centered th,
+.table-pairwise td, .table-pairwise th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  border: 2px solid var(--color-table-border) !important;
 }
 
 .sidebar-brand-text {
@@ -193,8 +218,13 @@ table.aligntop > tbody {
 
 
 /* Alternate row colors. */
-table.docutils:not(.mjcf-attributes) > tbody > tr.row-odd {
+table.docutils:not(.mjcf-attributes):not(.no-stripes) > tbody > tr.row-odd {
   background-color: var(--row-odd-background-color);
+}
+
+/* Disable alternating colors for tables with .no-stripes class */
+table.docutils.no-stripes > tbody > tr {
+  background-color: transparent !important;
 }
 
 /* MJCF attributes table. */
@@ -202,6 +232,7 @@ table.mjcf-attributes {
   border-style: none;
   margin-left: 0;
   margin-right: 0;
+  margin-bottom: 0.2em;
   width: 100%;
   box-shadow: none;
 }
@@ -224,6 +255,12 @@ table.mjcf-attributes tbody tr td p {
 
 table td > div.wy-table-responsive {
   margin-bottom: 0;
+}
+
+[role="main"] .table-wrapper.container {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: .2rem .2rem .2rem;
 }
 
 /* Remove vertical spacing before/after code blocks. */
@@ -276,4 +313,79 @@ dt .at {
 
 details summary {
   font-weight: 600;
+}
+
+/* ==========================================================================
+   Schema display styling (.schema-small)
+   Used in: XMLreference.rst (dropdowns + grids)
+   ========================================================================== */
+
+/* Base: smaller font for compact display */
+.schema-small {
+  font-size: 93%;
+}
+
+/* Dropdown styling: compact margins and padding */
+.schema-small details.sd-dropdown {
+  margin-bottom: 0.15em !important;
+  margin-top: 0 !important;
+}
+
+.schema-small .sd-card-header,
+.schema-small .sd-card-body {
+  padding: 0.25em 0.5em !important;
+}
+
+.schema-small .sd-summary-text {
+  font-size: 0.9em;
+  margin: 0 !important;
+}
+
+/* Dropdown hierarchy: left border visualization */
+.schema-small .sd-dropdown,
+.schema-small > .sd-dropdown,
+.schema-small details.sd-dropdown {
+  border-left: 2px solid #5671cf;
+}
+
+body[data-theme="dark"] .schema-small .sd-dropdown,
+body[data-theme="dark"] .schema-small > .sd-dropdown,
+body[data-theme="dark"] .schema-small details.sd-dropdown {
+  border-left-color: #7b93e8;
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] .schema-small .sd-dropdown,
+  body[data-theme="auto"] .schema-small > .sd-dropdown,
+  body[data-theme="auto"] .schema-small details.sd-dropdown {
+    border-left-color: #7b93e8;
+  }
+}
+
+/* Link styling: prevent visited color change */
+.schema-small a:visited {
+  color: var(--color-brand-primary) !important;
+}
+
+/* Grid styling: compact rows for attribute lists */
+.schema-small .sd-row {
+  row-gap: 0 !important;
+  --sd-gutter-x: 0.5rem !important;
+  --sd-gutter-y: 0 !important;
+}
+
+.schema-small .sd-col,
+.schema-small [class*="sd-col-"] {
+  padding-top: 0 !important;
+  padding-bottom: 0.1em !important;
+}
+
+.schema-small .sd-container-fluid {
+  padding: 0 !important;
+}
+
+/* Remove paragraph margin inside grid items */
+.schema-small .sd-container-fluid .sd-col p,
+.admonition .sd-container-fluid .sd-col p {
+  margin-bottom: 0 !important;
 }

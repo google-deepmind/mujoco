@@ -45,9 +45,68 @@ static std::vector<mjtNum> GetRow(const mjtNum* array, int ncolumn, int row) {
 
 // ----------------------------- test mjCModel  --------------------------------
 
-using UserCModelTest = MujocoTest;
+using UserModelTest = MujocoTest;
 
-TEST_F(UserCModelTest, RepeatedNames) {
+// clarify the semantic of body_rootid and body_weldid
+TEST_F(UserModelTest, WeldRootID) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <worldbody>
+      <body name="1">
+        <joint/>
+        <geom size="1"/>
+        <body name="2">
+          <joint/>
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="3">
+        <joint/>
+        <geom size="1"/>
+        <body name="4">
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="5">
+        <geom size="1"/>
+        <body name="6">
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="7" mocap="true">
+        <geom size="1"/>
+        <body name="8">
+          <geom size="1"/>
+        </body>
+      </body>
+
+      <body name="9" mocap="true">
+        <geom size="1"/>
+        <body name="10">
+          <joint/>
+          <geom size="1"/>
+        </body>
+      </body>
+     </worldbody>
+   </mujoco>
+   )";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  EXPECT_THAT(model, NotNull());
+
+  EXPECT_THAT(AsVector(model->body_rootid, model->nbody),
+              ElementsAre(0, 1, 1, 3, 3, 5, 5, 7, 7, 9, 9));
+  EXPECT_THAT(AsVector(model->body_weldid, model->nbody),
+              ElementsAre(0, 1, 2, 3, 3, 0, 0, 0, 0, 0, 10));
+
+  mj_deleteModel(model);
+}
+
+TEST_F(UserModelTest, RepeatedNames) {
   static constexpr char xml[] = R"(
    <mujoco>
      <worldbody>
@@ -65,7 +124,7 @@ TEST_F(UserCModelTest, RepeatedNames) {
   EXPECT_THAT(error.data(), HasSubstr("repeated name 'geom1' in geom"));
 }
 
-TEST_F(UserCModelTest, SameFrame) {
+TEST_F(UserModelTest, SameFrame) {
   static constexpr char xml[] = R"(
    <mujoco>
      <default>
@@ -116,7 +175,7 @@ TEST_F(UserCModelTest, SameFrame) {
   mj_deleteModel(model);
 }
 
-TEST_F(UserCModelTest, ActuatorSparsity) {
+TEST_F(UserModelTest, ActuatorSparsity) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -140,7 +199,7 @@ TEST_F(UserCModelTest, ActuatorSparsity) {
   mj_deleteModel(m);
 }
 
-TEST_F(UserCModelTest, NestedZeroMassBodiesOK) {
+TEST_F(UserModelTest, NestedZeroMassBodiesOK) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -163,7 +222,7 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesOK) {
   mj_deleteModel(model);
 }
 
-TEST_F(UserCModelTest, NestedZeroMassBodiesWithJointOK) {
+TEST_F(UserModelTest, NestedZeroMassBodiesWithJointOK) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
@@ -190,13 +249,13 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesWithJointOK) {
   mj_deleteModel(model);
 }
 
-TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
+TEST_F(UserModelTest, NestedZeroMassBodiesFail) {
   static constexpr char xml[] = R"(
   <mujoco>
     <worldbody>
       <body>
         <geom size="1"/>
-        <body>
+        <body name="bad">
           <freejoint/>
           <body>
             <body>
@@ -214,6 +273,81 @@ TEST_F(UserCModelTest, NestedZeroMassBodiesFail) {
       error,
       HasSubstr(
           "mass and inertia of moving bodies must be larger than mjMINVAL"));
+  EXPECT_THAT(error, HasSubstr("Element name 'bad'"));
+  mj_deleteModel(model);
+}
+
+TEST_F(UserModelTest, ConvexHullForCollisionMeshes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh_no_hull" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+      <mesh name="mesh_with_hull_contype" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+      <mesh name="mesh_with_hull_conaffinity" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom name="geom_no_hull" type="mesh" mesh="mesh_no_hull" contype="0" conaffinity="0"/>
+      <geom name="geom_with_hull_contype" type="mesh" mesh="mesh_with_hull_contype" contype="1"/>
+      <geom name="geom_with_hull_conaffinity" type="mesh" mesh="mesh_with_hull_conaffinity" conaffinity="1"/>
+    </worldbody>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  int no_hull_id = mj_name2id(model, mjOBJ_MESH, "mesh_no_hull");
+  int with_hull_contype_id =
+      mj_name2id(model, mjOBJ_MESH, "mesh_with_hull_contype");
+  int with_hull_conaffinity_id =
+      mj_name2id(model, mjOBJ_MESH, "mesh_with_hull_conaffinity");
+
+  EXPECT_NE(no_hull_id, -1);
+  EXPECT_NE(with_hull_contype_id, -1);
+  EXPECT_NE(with_hull_conaffinity_id, -1);
+
+  // mesh_no_hull should not have a convex hull.
+  EXPECT_EQ(model->mesh_graphadr[no_hull_id], -1);
+
+  // mesh_with_hull_contype should have a convex hull.
+  EXPECT_NE(model->mesh_graphadr[with_hull_contype_id], -1);
+
+  // mesh_with_hull_conaffinity should have a convex hull.
+  EXPECT_NE(model->mesh_graphadr[with_hull_conaffinity_id], -1);
+
+  mj_deleteModel(model);
+}
+
+TEST_F(UserModelTest, ConvexHullForPairCollisionMeshes) {
+  static constexpr char xml[] = R"(
+  <mujoco>
+    <asset>
+      <mesh name="mesh" vertex="0 0 0  1 0 0  0 1 0  0 0 1"
+            face="0 2 1  0 1 3  0 3 2  1 2 3"/>
+    </asset>
+    <worldbody>
+      <geom name="geom1" type="sphere" size="1"/>
+      <geom name="geom_mesh" type="mesh" mesh="mesh" contype="0" conaffinity="0"/>
+    </worldbody>
+    <contact>
+      <pair name="hello" geom1="geom1" geom2="geom_mesh"/>
+    </contact>
+  </mujoco>)";
+
+  std::array<char, 1024> error;
+  mjModel* model = LoadModelFromString(xml, error.data(), error.size());
+  ASSERT_THAT(model, NotNull()) << error.data();
+
+  int mesh_in_pair_id = mj_name2id(model, mjOBJ_MESH, "mesh");
+
+  EXPECT_NE(mesh_in_pair_id, -1);
+
+  // mesh_in_pair should have a convex hull because it is in a collision pair.
+  EXPECT_NE(model->mesh_graphadr[mesh_in_pair_id], -1);
+
   mj_deleteModel(model);
 }
 
@@ -706,9 +840,9 @@ TEST_F(MujocoTest, Modeldir) {
   mjsMesh* mesh = mjs_addMesh(child, 0);
   mjsFrame* frame = mjs_addFrame(mjs_findBody(child, "world"), 0);
   mjsGeom* geom = mjs_addGeom(mjs_findBody(child, "world"), 0);
-  mjs_setString(child->meshdir, "meshdir");
+  mjs_setString(child->compiler.meshdir, "meshdir");
   mjs_setString(mesh->file, "cube.obj");
-  mjs_setString(mesh->name, "cube");
+  mjs_setName(mesh->element, "cube");
   mjs_setString(geom->meshname, "cube");
   mjs_setFrame(geom->element, frame);
   geom->type = mjGEOM_MESH;
@@ -716,7 +850,7 @@ TEST_F(MujocoTest, Modeldir) {
   // parent attaching the child
   mjSpec* spec = mj_makeSpec();
   mjs_setDeepCopy(spec, true);
-  mjs_setString(spec->meshdir, "asset");
+  mjs_setString(spec->compiler.meshdir, "asset");
   mjs_attach(mjs_findBody(spec, "world")->element, frame->element, "_", "");
   mjModel* model = mj_compile(spec, vfs.get());
   EXPECT_THAT(model, NotNull());

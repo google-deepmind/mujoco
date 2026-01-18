@@ -149,9 +149,9 @@ def jac(
   mask = mask[jp.array(m.dof_bodyid)] > 0
 
   offset = point - d.subtree_com[jp.array(m.body_rootid)[body_id]]
-  jacp = jax.vmap(lambda a, b=offset: a[3:] + jp.cross(a[:3], b))(d._impl.cdof)  # pytype: disable=attribute-error
+  jacp = jax.vmap(lambda a, b=offset: a[3:] + jp.cross(a[:3], b))(d.cdof)  # pytype: disable=attribute-error
   jacp = jax.vmap(jp.multiply)(jacp, mask)
-  jacr = jax.vmap(jp.multiply)(d._impl.cdof[:, :3], mask)  # pytype: disable=attribute-error
+  jacr = jax.vmap(jp.multiply)(d.cdof[:, :3], mask)  # pytype: disable=attribute-error
 
   return jacp, jacr
 
@@ -169,8 +169,8 @@ def jac_dot(
   offset = point - d.subtree_com[jp.array(m.body_rootid)[body_id]]
   pvel_lin = d.cvel[body_id][3:] - jp.cross(offset, d.cvel[body_id][:3])
 
-  cdof = d._impl.cdof
-  cdof_dot = d._impl.cdof_dot
+  cdof = d.cdof
+  cdof_dot = d.cdof_dot
 
   # check for quaternion
   jnt_type = m.jnt_type[m.dof_jntid]
@@ -470,7 +470,12 @@ class BindData(object):
         return name
       else:
         raise AttributeError('ctrl is not available for this type')
-    if name == 'qpos' or name == 'qvel' or name == 'qacc' or name.startswith('qfrc_'):
+    if (
+        name == 'qpos'
+        or name == 'qvel'
+        or name == 'qacc'
+        or name.startswith('qfrc_')
+    ):
       if self.prefix == 'jnt_':
         return name
       else:
@@ -672,12 +677,12 @@ def _is_intersect(
   det = (p4[1] - p3[1]) * (p2[0] - p1[0]) - (p4[0] - p3[0]) * (p2[1] - p1[1])
 
   # compute intersection point on each line
-  a = (
-      (p4[0] - p3[0]) * (p1[1] - p3[1]) - (p4[1] - p3[1]) * (p1[0] - p3[0])
-  ) / det
-  b = (
-      (p2[0] - p1[0]) * (p1[1] - p3[1]) - (p2[1] - p1[1]) * (p1[0] - p3[0])
-  ) / det
+  a = math.safe_div(
+      (p4[0] - p3[0]) * (p1[1] - p3[1]) - (p4[1] - p3[1]) * (p1[0] - p3[0]), det
+  )
+  b = math.safe_div(
+      (p2[0] - p1[0]) * (p1[1] - p3[1]) - (p2[1] - p1[1]) * (p1[0] - p3[0]), det
+  )
 
   return jp.where(
       jp.abs(det) < mujoco.mjMINVAL,
@@ -856,9 +861,7 @@ def wrap_inside(
     status0 = df > -mjMINVAL
 
     # new point
-    z_next = z - (1 - converged) * f / jp.where(
-        jp.abs(df) < mjMINVAL, mjMINVAL, df
-    )
+    z_next = z - (1 - converged) * math.safe_div(f, df)
 
     # make sure we are moving to the left; SHOULD NOT OCCUR
     status1 = z_next > z
@@ -987,8 +990,8 @@ def wrap(
   l1 = jp.sqrt(
       (p1[0] - res[3]) * (p1[0] - res[3]) + (p1[1] - res[4]) * (p1[1] - res[4])
   )
-  r2 = p0[2] + (p1[2] - p0[2]) * l0 / (l0 + wlen + l1)
-  r5 = p0[2] + (p1[2] - p0[2]) * (l0 + wlen) / (l0 + wlen + l1)
+  r2 = p0[2] + (p1[2] - p0[2]) * math.safe_div(l0, l0 + wlen + l1)
+  r5 = p0[2] + (p1[2] - p0[2]) * math.safe_div(l0 + wlen, l0 + wlen + l1)
   height = jp.abs(r5 - r2)
 
   wlen = jp.where(is_sphere, wlen, jp.sqrt(wlen * wlen + height * height))
@@ -1130,7 +1133,7 @@ def muscle_dynamics_timescale(
   # smooth switching
   # scale by width, center around 0.5 midpoint, rescale to bounds
   tau_smooth = tau_deact + (tau_act - tau_deact) * _sigmoid(
-      dctrl / smoothing_width + 0.5
+      math.safe_div(dctrl, smoothing_width) + 0.5
   )
 
   return jp.where(smoothing_width < mujoco.mjMINVAL, tau_hard, tau_smooth)

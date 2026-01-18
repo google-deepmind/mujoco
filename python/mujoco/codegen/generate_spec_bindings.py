@@ -52,6 +52,15 @@ SPECS = [
     ('mjsExclude',  'Spec', False, 'excludes',   'mjOBJ_EXCLUDE'),
     ('mjsPlugin',   'Spec', False, 'plugins',    'mjOBJ_PLUGIN'),
 ]
+SPECS_ADD = SPECS + [
+    ('mjsBody',     'Frame', True, 'bodies',     'mjOBJ_BODY'),
+    ('mjsSite',     'Frame', True, 'sites',      'mjOBJ_SITE'),
+    ('mjsGeom',     'Frame', True, 'geoms',      'mjOBJ_GEOM'),
+    ('mjsJoint',    'Frame', True, 'joints',     'mjOBJ_JOINT'),
+    ('mjsCamera',   'Frame', True, 'cameras',    'mjOBJ_CAMERA'),
+    ('mjsFrame',    'Frame', True, 'frames',     'mjOBJ_FRAME'),
+    ('mjsLight',    'Frame', True, 'lights',     'mjOBJ_LIGHT'),
+]
 # pylint: enable=bad-whitespace
 
 
@@ -193,7 +202,7 @@ def _ptr_binding_code(
       []({rawclassname}& self, std::string_view {varname}) {{
         *(self.{fullvarname}) = {varname};
     }});"""
-  elif (  # C++ vectors of values -> Python array
+  elif (  # C++ vectors of values -> custom array
       vartype == 'mjDoubleVec'
       or vartype == 'mjFloatVec'
       or vartype == 'mjIntVec'
@@ -202,9 +211,9 @@ def _ptr_binding_code(
     return f"""\
   {classname}.def_property(
     "{varname}",
-    []({rawclassname}& self) -> py::array_t<{vartype}> {{
-        return py::array_t<{vartype}>(self.{fullvarname}->size(),
-                                      self.{fullvarname}->data());
+    []({rawclassname}& self) -> MjTypeVec<{vartype}> {{
+        return MjTypeVec<{vartype}>(self.{fullvarname}->data(),
+                                    self.{fullvarname}->size());
       }},
     []({rawclassname}& self, py::object rhs) {{
         self.{fullvarname}->clear();
@@ -212,24 +221,48 @@ def _ptr_binding_code(
         for (auto val : rhs) {{
           self.{fullvarname}->push_back(py::cast<{vartype}>(val));
       }}
-    }}, py::return_value_policy::reference_internal);"""
+    }}, py::return_value_policy::move);"""
   elif vartype == 'mjByteVec':
     return f"""\
   {classname}.def_property(
     "{varname}",
-    []({rawclassname}& self) -> MjTypeVec<std::byte> {{
-        return MjTypeVec<std::byte>(self.{fullvarname}->data(),
-                                    self.{fullvarname}->size());
-      }},
-    []({rawclassname}& self, py::bytes& rhs) {{
-        self.{fullvarname}->clear();
-        self.{fullvarname}->reserve(py::len(rhs));
-        std::string_view rhs_view = py::cast<std::string_view>(rhs);
-        for (auto val : rhs_view) {{
-          self.{fullvarname}->push_back(static_cast<std::byte>(val));
-        }}
+    []({rawclassname}& self) -> py::bytes {{
+      return py::bytes(reinterpret_cast<const char*>(self.{fullvarname}->data()),
+                                                     self.{fullvarname}->size());
+    }},
+    []({rawclassname}& self, py::bytes rhs) {{
+      self.{fullvarname}->clear();
+      std::string_view rhs_view = py::cast<std::string_view>(rhs);
+      self.{fullvarname}->reserve(rhs_view.length());
+      for (char val : rhs_view) {{
+        self.{fullvarname}->push_back(static_cast<std::byte>(val));
+      }}
     }}, py::return_value_policy::move);"""
   elif vartype == 'mjStringVec':
+    # Special case for material.textures: must be exactly mjNTEXROLE size
+    if classname == 'mjsMaterial' and varname == 'textures':
+      return f"""\
+  {classname}.def_property(
+    "{varname}",
+    []({rawclassname}& self) -> MjTypeVec<std::string> {{
+        return MjTypeVec<std::string>(self.{fullvarname}->data(),
+                                      self.{fullvarname}->size());
+      }},
+    []({rawclassname}& self, py::object rhs) {{
+        if (py::len(rhs) != mjNTEXROLE) {{
+          throw pybind11::value_error(
+              "material.textures must have exactly " + std::to_string(mjNTEXROLE) +
+              " elements, got " + std::to_string(py::len(rhs)) + ". " +
+              "Assign a list of " + std::to_string(mjNTEXROLE) + " texture names " +
+              "(use empty strings '' for unused slots).");
+        }}
+        self.{fullvarname}->clear();
+        self.{fullvarname}->reserve(mjNTEXROLE);
+        for (auto val : rhs) {{
+          self.{fullvarname}->push_back(py::cast<std::string>(val));
+      }}
+    }}, py::return_value_policy::move);"""
+    # Default case for other mjStringVec properties
     return f"""\
   {classname}.def_property(
     "{varname}",
@@ -301,19 +334,30 @@ def generate() -> None:
 
 def generate_add() -> None:
   """Generate add constructors with optional keyword arguments."""
-  for key, parent, default, listname, objtype in SPECS:
+  for key, parent, default, listname, objtype in SPECS_ADD:
 
     def _field(f: ast_nodes.StructFieldDecl):
       if f.type == ast_nodes.PointerType(
           inner_type=ast_nodes.ValueType(name='mjsElement')
       ):
-        return '', '', ''
+        return '', '', '', '', '', ''
       elif f.type == ast_nodes.ValueType(name='mjsPlugin'):
-        return f'set_plugin(out->{f.name});', 'plugin', f.name
+        return (
+            f'set_plugin(out->{f.name}, plugin);',
+            'plugin',
+            f.name,
+            'MjsPlugin',
+            'std::optional<raw::MjsPlugin>& plugin',
+            'py::arg("plugin") = py::none()',
+        )
       elif f.type == ast_nodes.ValueType(name='mjsOrientation'):
         return (
             (
                 f'set_orientation(out->{f.name},'
+                f' {"iaxisangle" if f.name == "ialt" else "axisangle"},'
+                f' {"ixyaxes" if f.name == "ialt" else "xyaxes"},'
+                f' {"izaxis" if f.name == "ialt" else "zaxis"},'
+                f' {"ieuler" if f.name == "ialt" else "euler"},'
                 f' "{"iaxisangle" if f.name == "ialt" else "axisangle"}",'
                 f' "{"ixyaxes" if f.name == "ialt" else "xyaxes"}",'
                 f' "{"izaxis" if f.name == "ialt" else "zaxis"}",'
@@ -323,260 +367,418 @@ def generate_add() -> None:
             ['iaxisangle', 'ixyaxes', 'izaxis', 'ieuler']
             if f.name == 'ialt'
             else ['axisangle', 'xyaxes', 'zaxis', 'euler'],
+            'list[float]',
+            [
+                f'std::optional<std::vector<double>>& {n}'
+                for n in (
+                    ['iaxisangle', 'ixyaxes', 'izaxis', 'ieuler']
+                    if f.name == 'ialt'
+                    else ['axisangle', 'xyaxes', 'zaxis', 'euler']
+                )
+            ],
+            [
+                f'py::arg("{n}") = py::none()'
+                for n in (
+                    ['iaxisangle', 'ixyaxes', 'izaxis', 'ieuler']
+                    if f.name == 'ialt'
+                    else ['axisangle', 'xyaxes', 'zaxis', 'euler']
+                )
+            ],
         )
       elif f.type == ast_nodes.PointerType(
           inner_type=ast_nodes.ValueType(name='mjString')
       ):
-        return f'set_string("{f.name}", out->{f.name});', 'string', f.name
+        return (
+            f'set_string(out->{f.name}, {f.name});',
+            'string',
+            f.name,
+            'str',
+            f'std::optional<std::string>& {f.name}',
+            f'py::arg("{f.name}") = py::none()',
+        )
+      elif f.type == ast_nodes.PointerType(
+          inner_type=ast_nodes.ValueType(name='mjStringVec')
+      ):
+        return (
+            f'set_str_vec(out->{f.name}, {f.name});',
+            'str_vec',
+            f.name,
+            'list[str]',
+            f'std::optional<std::vector<std::string>>& {f.name}',
+            f'py::arg("{f.name}") = py::none()',
+        )
+
+      # Handle other vector types
+      inner_name = (
+          f.type.inner_type.name
+          if isinstance(f.type, ast_nodes.PointerType)
+          and isinstance(f.type.inner_type, ast_nodes.ValueType)
+          else ''
+      )
+
+      if inner_name in ('mjIntVec', 'mjByteVec'):
+        return (
+            f'set_int_vec(out->{f.name}, {f.name});',
+            'int_vec',
+            f.name,
+            'list[int]',
+            f'std::optional<std::vector<int>>& {f.name}',
+            f'py::arg("{f.name}") = py::none()',
+        )
+      elif inner_name in ('mjFloatVec', 'mjDoubleVec'):
+        return (
+            f'set_vec(out->{f.name}, {f.name});',
+            'vec',
+            f.name,
+            'list[float]',
+            f'std::optional<std::vector<double>>& {f.name}',
+            f'py::arg("{f.name}") = py::none()',
+        )
+      elif inner_name == 'mjIntVecVec':
+        return (
+            f'set_int_vec_vec(out->{f.name}, {f.name});',
+            'int_vec_vec',
+            f.name,
+            'list[list[int]]',
+            f'std::optional<std::vector<std::vector<int>>>& {f.name}',
+            f'py::arg("{f.name}") = py::none()',
+        )
+      elif inner_name == 'mjFloatVecVec':
+        return (
+            f'set_float_vec_vec(out->{f.name}, {f.name});',
+            'float_vec_vec',
+            f.name,
+            'list[list[float]]',
+            f'std::optional<std::vector<std::vector<double>>>& {f.name}',
+            f'py::arg("{f.name}") = py::none()',
+        )
+
       elif isinstance(f.type, ast_nodes.PointerType):
-        return f'set_vec("{f.name}", out->{f.name});', 'vec', f.name
+        return (
+            f'set_vec(out->{f.name}, {f.name});',
+            'vec',
+            f.name,
+            'list[float]',
+            f'std::optional<std::vector<double>>& {f.name}',
+            f'py::arg("{f.name}") = py::none()',
+        )
       elif isinstance(f.type, ast_nodes.ArrayType):
         return (
-            f'set_array("{f.name}", out->{f.name}, {f.type.extents[0]});',
+            (
+                f'set_array(out->{f.name}, {f.name}, {f.type.extents[0]},'
+                f' "{f.name}");'
+            ),
             'array',
             f.name,
+            'list[float]',
+            f'std::optional<std::vector<double>>& {f.name}',
+            f'py::arg("{f.name}") = py::none()',
         )
       elif isinstance(f.type, ast_nodes.ValueType):
-        return f'set_value("{f.name}", out->{f.name});', 'value', f.name
+        type_name = 'float'
+        cpp_type = 'double'
+        if f.type.name in ('int', 'mjtByte') or f.type.name.startswith('mjt'):
+          type_name = 'int'
+          cpp_type = 'int'
+        return (
+            f'set_value(out->{f.name}, {f.name});',
+            'value',
+            f.name,
+            type_name,
+            f'std::optional<{cpp_type}>& {f.name}',
+            f'py::arg("{f.name}") = py::none()',
+        )
       else:
-        return '', '', ''
+        return '', '', '', '', '', ''
 
-    code_field = ''
-    set_types = []
-    names = []
+    if key == 'mjsPlugin':
+      code_field = ''
+      set_types = []
+      names = []
+      types = []
+      cpp_args = []
+      py_args = []
+    else:
+      code_field = 'set_name(out->element, name);'
+      set_types = ['name']
+      names = ['name']
+      types = ['str']
+      cpp_args = ['std::optional<std::string>& name']
+      py_args = ['py::arg("name") = py::none()']
+
     for field in structs.STRUCTS[key].fields:
-      line, set_type, name = _field(field)
+      line, set_type, name, type_name, cpp_arg, py_arg = _field(field)
       if line:
         code_field = code_field + '\n        ' + line
         set_types.append(set_type)
         if set_type == 'orientation':
           names.extend(name)
+          types.extend([type_name] * len(name))
+          cpp_args.extend(cpp_arg)
+          py_args.extend(py_arg)
         else:
           names.append(name)
+          types.append(type_name)
+          cpp_args.append(cpp_arg)
+          py_args.append(py_arg)
 
     # assemble
     elem = key.removeprefix('mjs')
     elemlower = elem.lower()
     titlecase = 'Mjs' + elem
 
+    docstring = f'Add {elemlower} to spec.\n\n      Args:\n'
+    for i, name in enumerate(names):
+      if i > 0:
+        docstring += '\n'
+      docstring += f'        {name}: {types[i]}'
+
+    # functions arguments
+    args = ', '.join(cpp_args)
+    if args:
+      args = ', ' + args
+
+    # py::arg definitions
+    pyargs = ', '.join(py_args)
+
     # function definition and call to mjs_add_
     if parent == 'Spec':
       if default:
         code = f"""
           {'mj' + parent}.def("add_{elemlower}", []({'Mj' + parent}& self,
-            raw::MjsDefault* default_, py::kwargs kwargs) -> raw::{titlecase}* {{
+            raw::MjsDefault* default_{args}) -> raw::{titlecase}* {{
             auto out = mjs_add{elem}(self.ptr, default_);
         """
       else:
         code = f"""
-          {'mj' + parent}.def("add_{elemlower}", []({'Mj' + parent}& self, py::kwargs kwargs) -> raw::{titlecase}* {{
+          {'mj' + parent}.def("add_{elemlower}", []({'Mj' + parent}& self{args}) -> raw::{titlecase}* {{
             auto out = mjs_add{elem}(self.ptr);
         """
     elif parent == 'Body':
       if key == 'mjsFrame':
         code = f"""
           {'mjs' + parent}.def("add_{elemlower}", []({'raw::Mjs' + parent}& self,
-            raw::MjsFrame* parentframe_, py::kwargs kwargs) -> raw::{titlecase}* {{
+            raw::MjsFrame* parentframe_{args}) -> raw::{titlecase}* {{
             auto out = mjs_add{elem}(&self, parentframe_);
         """
       else:
         code = f"""
           {'mjs' + parent}.def("add_{elemlower}", []({'raw::Mjs' + parent}& self,
-            raw::MjsDefault* default_, py::kwargs kwargs) -> raw::{titlecase}* {{
+            raw::MjsDefault* default_{args}) -> raw::{titlecase}* {{
             auto out = mjs_add{elem}(&self, default_);
+        """
+    elif parent == 'Frame':
+      if key == 'mjsFrame':
+        code = f"""
+          {'mjs' + parent}.def("add_{elemlower}", []({'raw::Mjs' + parent}& self,
+            raw::MjsFrame* parentframe_{args}) -> raw::{titlecase}* {{
+            raw::MjsBody* body = mjs_getParent(self.element);
+            auto out = mjs_add{elem}(body, &self);
+        """
+      else:
+        code = f"""
+          {'mjs' + parent}.def("add_{elemlower}", []({'raw::Mjs' + parent}& self,
+            raw::MjsDefault* default_{args}) -> raw::{titlecase}* {{
+            raw::MjsBody* body = mjs_getParent(self.element);
+            auto out = mjs_add{elem}(body, default_);
+            mjs_setFrame(out->element, &self);
         """
     else:
       raise NotImplementedError(f'{parent} parent is not implement.')
-
-    # check for valid kwargs
-    code += '\n        std::set<std::string> valid_kwargs = {'
-    valid_kwargs = ''
-    for i, name in enumerate(names):
-      valid_kwargs += f'"{name}"'
-      if i != len(names) - 1:
-        valid_kwargs += ', '
-    code += valid_kwargs + '};'
-
-    code += f"""\n
-        py::dict kwarg_dict = kwargs;
-        for (auto item: kwarg_dict) {{
-          std::string key = py::str(item.first);
-          if (valid_kwargs.count(key) == 0) {{
-            throw pybind11::type_error("Invalid "
-              + key
-              + " keyword argument. Valid options are: {", ".join(names)}.");
-          }}
-        }}
-    """
 
     # include helper functions
     if set_types:
       for t in set(set_types):
         if t == 'orientation':
           code += """\n
-          auto set_orientation = [&kwargs](raw::MjsOrientation& orientation,
-            const char* axisangle,
-            const char* xyaxes,
-            const char* zaxis,
-            const char* euler) {
+           auto set_orientation = [](raw::MjsOrientation& orientation,
+            const std::optional<std::vector<double>>& axisangle,
+            const std::optional<std::vector<double>>& xyaxes,
+            const std::optional<std::vector<double>>& zaxis,
+            const std::optional<std::vector<double>>& euler,
+            const char* name_axisangle,
+            const char* name_xyaxes,
+            const char* name_zaxis,
+            const char* name_euler) {
             int nrepresentation = 0;
-            bool has_axisangle = kwargs.contains(axisangle);
-            nrepresentation += has_axisangle;
-            bool has_xyaxes = kwargs.contains(xyaxes);
-            nrepresentation += has_xyaxes;
-            bool has_zaxis = kwargs.contains(zaxis);
-            nrepresentation += has_zaxis;
-            bool has_euler = kwargs.contains(euler);
-            nrepresentation += has_euler;
+            nrepresentation += axisangle.has_value();
+            nrepresentation += xyaxes.has_value();
+            nrepresentation += zaxis.has_value();
+            nrepresentation += euler.has_value();
 
             if (nrepresentation == 0) {
               return;
             } else if (nrepresentation > 1) {
-              throw pybind11::value_error("Only one of: "
-                + std::string(axisangle) + ", "
-                + std::string(xyaxes) + ", "
-                + std::string(zaxis)
-                + ", or"
-                + std::string(euler)
-                + " can be set.");
+              std::string msg = std::string("Only one of: ") + name_axisangle + ", " + name_xyaxes + ", " + name_zaxis + ", or " + name_euler + " can be set.";
+              throw pybind11::value_error(msg);
             }
 
-            auto set_array = [&kwargs](const char* str, double* des, int size) {
-              try {
-                std::vector<double> array = kwargs[str].cast<std::vector<double>>();
-                if (array.size() != size) {
-                  throw pybind11::value_error(std::string(str)
-                    + " should be a list/array of size "
-                    + std::to_string(size)
-                    + ".");
-                }
-                int idx = 0;
-                for (auto val : array) {
-                  des[idx++] = val;
-                }
-              } catch (const py::cast_error &e) {
-                throw pybind11::value_error(std::string(str)
-                  + " should be a list/array.");
+            auto set_array = [](const std::vector<double>& array, double* des, int size, const char* name) {
+              if (array.size() != size) {
+                std::string msg = std::string(name) + " should be a list/array of size " + std::to_string(size) + ".";
+                throw pybind11::value_error(msg);
+              }
+              int idx = 0;
+              for (auto val : array) {
+                des[idx++] = val;
               }
             };
-
-            if (has_axisangle) {
-              set_array(axisangle, orientation.axisangle, 4);
+            if (axisangle.has_value()) {
+              set_array(axisangle.value(), orientation.axisangle, 4, name_axisangle);
               orientation.type = mjORIENTATION_AXISANGLE;
-            } else if (has_xyaxes) {
-              set_array(xyaxes, orientation.xyaxes, 6);
+            } else if (xyaxes.has_value()) {
+              set_array(xyaxes.value(), orientation.xyaxes, 6, name_xyaxes);
               orientation.type = mjORIENTATION_XYAXES;
-            } else if (has_zaxis) {
-              set_array(zaxis, orientation.zaxis, 3);
+            } else if (zaxis.has_value()) {
+              set_array(zaxis.value(), orientation.zaxis, 3, name_zaxis);
               orientation.type = mjORIENTATION_ZAXIS;
-            } else if (has_euler) {
-              set_array(euler, orientation.euler, 3);
+            } else if (euler.has_value()) {
+              set_array(euler.value(), orientation.euler, 3, name_euler);
               orientation.type = mjORIENTATION_EULER;
             }
           };
           """
         elif t == 'plugin':
           code += """\n
-          auto set_plugin = [&kwargs](raw::MjsPlugin& plugin) {
-            if (kwargs.contains("plugin")) {
-              std::optional<raw::MjsPlugin> input = kwargs["plugin"].cast<raw::MjsPlugin>();
-              if (input.has_value()) {
-                try {
-                  plugin.name = input->name;
-                } catch (const py::cast_error &e) {
-                  throw pybind11::value_error("plugin.name should be a string.");
-                }
-                try {
-                  plugin.plugin_name = input->plugin_name;
-                } catch (const py::cast_error &e) {
-                  throw pybind11::value_error("plugin.instance_name should be a string.");
-                }
-                try {
-                  plugin.active = input->active;
-                } catch (const py::cast_error &e) {
-                  throw pybind11::value_error("plugin.active should be an mjtByte.");
-                }
-                try {
-                  plugin.info = input->info;
-                } catch (const py::cast_error &e) {
-                  throw pybind11::value_error("plugin.info should be a string.");
-                }
-              }
+          auto set_plugin = [](raw::MjsPlugin& plugin, const std::optional<raw::MjsPlugin>& input) {
+            if (input.has_value()) {
+              plugin.name = input->name;
+              plugin.plugin_name = input->plugin_name;
+              plugin.active = input->active;
+              plugin.info = input->info;
             }
           };
           """
         elif t == 'string':
           code += """\n
-          auto set_string = [&kwargs](const char* str, std::basic_string<char>* des) {
-            if (kwargs.contains(str)) {
-              try {
-                *des = kwargs[str].cast<std::string>();
-              } catch (const py::cast_error &e) {
-                throw pybind11::value_error(std::string(str) + " should be a string.");
+          auto set_string = [](std::basic_string<char>* des, const std::optional<std::string>& str) {
+            if (str.has_value()) {
+              *des = str.value();
+            }
+          };
+          """
+        elif t == 'str_vec':
+          code += """\n
+          auto set_str_vec = [](auto&& des, const std::optional<std::vector<std::string>>& vec) {
+            if (vec.has_value()) {
+              des->clear();
+              des->reserve(vec->size());
+              for (const auto& val : vec.value()) {
+                des->push_back(val);
               }
             }
           };
           """
+
+        elif t == 'int_vec':
+          code += """\n
+          auto set_int_vec = [](auto&& des, const std::optional<std::vector<int>>& vec) {
+            if (vec.has_value()) {
+              using T = typename std::decay_t<decltype(*des)>::value_type;
+              des->clear();
+              des->reserve(vec->size());
+              for (auto val : vec.value()) {
+                des->push_back(static_cast<T>(val));
+              }
+            }
+          };
+          """
+        elif t == 'int_vec_vec':
+          code += """\n
+          auto set_int_vec_vec = [](auto&& des, const std::optional<std::vector<std::vector<int>>>& vec) {
+            if (vec.has_value()) {
+               des->clear();
+               des->reserve(vec->size());
+               for (const auto& inner : vec.value()) {
+                 using InnerT = typename std::decay_t<decltype(*des)>::value_type;
+                 InnerT inner_res;
+                 inner_res.reserve(inner.size());
+                 using ValT = typename InnerT::value_type;
+                 for (auto val : inner) {
+                   inner_res.push_back(static_cast<ValT>(val));
+                 }
+                 des->push_back(inner_res);
+               }
+            }
+          };
+          """
+        elif t == 'float_vec_vec':
+          code += """\n
+          auto set_float_vec_vec = [](auto&& des, const std::optional<std::vector<std::vector<double>>>& vec) {
+            if (vec.has_value()) {
+               des->clear();
+               des->reserve(vec->size());
+               for (const auto& inner : vec.value()) {
+                 using InnerT = typename std::decay_t<decltype(*des)>::value_type;
+                 InnerT inner_res;
+                 inner_res.reserve(inner.size());
+                 using ValT = typename InnerT::value_type;
+                 for (auto val : inner) {
+                   inner_res.push_back(static_cast<ValT>(val));
+                 }
+                 des->push_back(inner_res);
+               }
+            }
+          };
+          """
+
         elif t == 'vec':
           code += """\n
-          auto set_vec = [&kwargs](const char* str, auto&& des) {
-            if (kwargs.contains(str)) {
-              try {
-                using T = typename std::decay_t<decltype(*des)>::value_type;
-                std::vector<T> vec = kwargs[str].cast<std::vector<T>>();
-                des->clear();
-                des->reserve(vec.size());
-                for (auto val : vec) {
-                  des->push_back(val);
-                }
-              } catch (const py::cast_error &e) {
-                throw pybind11::value_error(std::string(str) + " has the wrong type.");
+          auto set_vec = [](auto&& des, const std::optional<std::vector<double>>& vec) {
+            if (vec.has_value()) {
+              using T = typename std::decay_t<decltype(*des)>::value_type;
+              des->clear();
+              des->reserve(vec->size());
+              for (auto val : vec.value()) {
+                des->push_back(static_cast<T>(val));
               }
             }
           };
           """
         elif t == 'array':
           code += """\n
-          auto set_array = [&kwargs](const char* str, auto&& des, int size) {
-            if (kwargs.contains(str)) {
-              try {
-                using T = std::remove_pointer_t<std::decay_t<decltype(des)>>;
-                std::vector<T> array = kwargs[str].cast<std::vector<T>>();
-                if (array.size() != size) {
-                  throw pybind11::value_error(std::string(str)
-                    + " should be a list/array of size "
-                    + std::to_string(size)
-                    + ".");
-                }
-                int idx = 0;
-                for (auto val : array) {
-                  des[idx++] = val;
-                }
-              } catch (const py::cast_error &e) {
-                throw pybind11::value_error(std::string(str) + " should be a list/array.");
+          auto set_array = [](auto&& des, const std::optional<std::vector<double>>& array, int size, const char* name) {
+            if (array.has_value()) {
+              if (array->size() != size) {
+                std::string msg = std::string(name) + " should be a list/array of size " + std::to_string(size) + ".";
+                throw pybind11::value_error(msg);
+              }
+              int idx = 0;
+              for (auto val : array.value()) {
+                des[idx++] = val;
               }
             }
           };
           """
         elif t == 'value':
           code += """\n
-          auto set_value = [&kwargs](const char* str, auto&& des) {
-            if (kwargs.contains(str)) {
-              try {
-                using T = std::decay_t<decltype(des)>;
-                des = kwargs[str].cast<T>();
-              } catch (const py::cast_error &e) {
-                throw pybind11::value_error(std::string(str) + " is the wrong type.");
-              }
+          auto set_value = [](auto&& des, auto&& val) {
+            if (val.has_value()) {
+              using T = std::decay_t<decltype(des)>;
+              des = static_cast<T>(val.value());
             }
           };
           """
+        elif t == 'name':
+          code += """\n
+          auto set_name = [](raw::MjsElement* el, const std::optional<std::string>& name) {
+            if (name.has_value()) {
+              mjs_setName(el, name->c_str());
+            }
+          };
+          """
+        else:
+          raise NotImplementedError(f'Unsupported set type: {t} in {key}')
 
     code += code_field
     code += f"""\n
         return out;
       }},
-      {'py::arg_v("default", nullptr),' if default else ''}
+      {'py::arg_v("default", nullptr)' + (', ' if pyargs else '') if default else ''}
+      {pyargs}{', ' if pyargs else ''}
+      R"mydelimiter(
+      {docstring}
+      )mydelimiter",
       py::return_value_policy::reference_internal);
     """
 
@@ -644,6 +846,27 @@ def generate_id() -> None:
     print(code)
 
 
+def generate_name() -> None:
+  """Generate name functions."""
+  for key, _, _, _, _ in SPECS + [('mjsDefault', '', '', '', '')]:
+    if key == 'mjsPlugin':
+      continue
+    elem = key.removeprefix('mjs')
+    titlecase = 'Mjs' + elem
+    code = f"""\n
+      {key}.def_property("name",
+      [](raw::{titlecase}& self) -> std::string* {{
+        return mjs_getName(self.element);
+      }},
+      [](raw::{titlecase}& self, std::string& name) -> void {{
+        if (mjs_setName(self.element, name.c_str())) {{
+          throw pybind11::value_error(mjs_getError(mjs_getSpec(self.element)));
+        }}
+      }}, py::return_value_policy::reference_internal);
+    """
+    print(code)
+
+
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
@@ -652,6 +875,7 @@ def main(argv: Sequence[str]) -> None:
   generate_find()
   generate_signature()
   generate_id()
+  generate_name()
 
 
 if __name__ == '__main__':

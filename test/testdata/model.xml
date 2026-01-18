@@ -116,6 +116,9 @@
       <geom type="box" size=".025 .01 0.0001" pos=".025 0 0" euler="20 0 0" mass="1e-4" fluidshape="ellipsoid"/>
       <geom type="box" size=".025 .01 0.0001" pos="-.025 0 0" euler="-19 0 0" mass="1e-4" fluidshape="ellipsoid"/>
     </body>
+    <body pos="-.2 .3 .8">
+      <geom type="sdf" mesh="icosahedron" size=".1" rgba="0 0 1 1"/>
+    </body>
   </worldbody>
 
   <equality>
@@ -129,7 +132,7 @@
       <geom geom="wrapping" sidesite="sidesite"/>
       <site site="anchor2"/>
     </spatial>
-    <spatial name="knee" limited="true" range=".4 .5" rgba="1 0 1 1">
+    <spatial name="knee" limited="true" range=".4 .5" rgba="1 0 1 1" armature="0.1">
       <site site="anchor_knee"/>
       <site site="knee_2"/>
     </spatial>
@@ -154,7 +157,7 @@
 
   <sensor>
     <framepos objtype="site" objname="wheel_0" reftype="site" refname="wheel_2"/>
-    <rangefinder site="rf"/>
+    <rangefinder site="rf" data="dist dir origin point normal depth"/>
     <gyro site="wheel_2"/>
     <touch site="wheel_1"/>
     <force site="knee"/>

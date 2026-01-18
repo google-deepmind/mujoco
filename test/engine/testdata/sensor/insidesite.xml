@@ -1,0 +1,34 @@
+<mujoco model="insidesite sensor">
+
+  <default>
+    <site rgba=".4 .7 .6 .3"/>
+  </default>
+
+  <worldbody>
+    <light pos="0 0 3"/>
+    <geom name="plane" type="plane" pos="0 0 .5" size="2 2 .01" rgba="0.5 0.5 0.5 1"/>
+
+    <body pos="0 0 1">
+      <joint type="slide" axis="1 0 0" range="-.7 .7" solreflimit="-200 0"/>
+      <geom name="query" type="sphere" size=".02" rgba="1 0 0 1"/>
+    </body>
+
+    <site name="sphere"    type="sphere"    size=".11"                           pos="-.5 0 1"/>
+    <site name="capsule"   type="capsule"   size=".08 .15"     euler="20 -40 60" pos="-.25 0 1"/>
+    <site name="ellipsoid" type="ellipsoid" size=".11 .15 .09" euler="20 40 -60" pos="0 0 1"/>
+    <site name="cylinder"  type="cylinder"  size=".09 .12"     euler="-20 40 60" pos=".25 0 1"/>
+    <site name="box"       type="box"       size=".08 .1 .14"  euler="20 -40 60" pos=".5 0 1"/>
+  </worldbody>
+
+  <sensor>
+    <insidesite name="sphere"    site="sphere"    objtype="geom" objname="query"/>
+    <insidesite name="capsule"   site="capsule"   objtype="geom" objname="query"/>
+    <insidesite name="ellipsoid" site="ellipsoid" objtype="geom" objname="query"/>
+    <insidesite name="cylinder"  site="cylinder"  objtype="geom" objname="query"/>
+    <insidesite name="box"       site="box"       objtype="geom" objname="query"/>
+  </sensor>
+
+  <keyframe>
+    <key qvel="1"/>
+  </keyframe>
+</mujoco>

@@ -2,6 +2,341 @@
 Changelog
 =========
 
+Upcoming version (not yet released)
+-----------------------------------
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   - Ray-cast functions now optionally compute the surface normal at the ray intersection. This is a breaking change due
+     to the addition of the ``mjtNum normal[3]`` argument. The modified functions are :ref:`mj_ray`, :ref:`mj_multiRay`,
+     :ref:`mju_rayGeom`, :ref:`mj_rayFlex`, :ref:`mj_rayHfield` and :ref:`mj_rayMesh`.
+
+     **Migration:** In C/C++, pass ``NULL`` to the ``normal`` argument. In Python, in all functions except
+     :ref:`mj_multiRay`, it defaults to ``None``, so no action is required.
+
+   - ``mju_rayFlex`` has been renamed to :ref:`mj_rayFlex` for consistency with other functions that take
+     ``mjModel*`` and ``mjData*`` arguments.
+
+   - The ``mjModel.cam_orthographic`` field has been renamed to ``cam_projection``, with the semantic of a new enum type
+     :ref:`mjtProjection`. This will allow for more projection types in the future like fisheye cameras.
+     Relatedly, the ``camera/orthographic`` MJCF attribute for cameras has been renamed to
+     :ref:`camera/projection<body-camera-projection>` and now accepts the values ``orthographic`` and ``perspective``.
+
+     **Migration:** Replace ``orthographic = "false/true"`` with ``projection="perspective/orthographic"``,
+     respectively.
+
+   - Removed ``getdir`` from the ``mjpResourceProvider`` struct. All Resource Providers now use the same shared
+     implementation.
+
+General
+^^^^^^^
+
+.. image:: images/XMLreference/rfcamera.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/sensor/rfcamera.xml
+
+- Camera frustum visualization is now triggered by setting :ref:`resolution<body-camera-resolution>` to values larger
+  than 1. Relatedly, frustum visualization also works for :ref:`orthographic<body-camera-projection>` cameras.
+- Rangefinder sensors can now be attached to a camera using the :ref:`ragefinder/camera<sensor-rangefinder-camera>`
+  attribute. In this case, the sensor will cast multiple ray, one for each pixel.
+- Rangefinder sensors can now now report various kinds of information besides ray distances, including surface normals.
+  See :ref:`rangefinder<sensor-rangefinder>` for details.
+- Cameras now have an :ref:`output<body-camera-output>` attribute, parsed into the ``mjModel.cam_output`` bitfield.
+  Unused by the renderer, it serves as a convenient location to store a camera's supported output types.
+- Non-breaking ABI changes:
+
+  - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from
+    ``unsigned int`` to ``int``. Before this change, invalid negative arguments passed to this function would result in
+    a silent implicit cast, now negativity will trigger an error.
+  - Added a :ref:`depth<mjtRndFlag>` rendering flag.
+
+- :doc:`OpenUSD <OpenUSD/index>`:
+
+  - Parsing has been moved out of experimental into a mjpDecoder plugin. (documentation pending)
+  - OpenUSD can now be built with the
+    `third_party_deps/openusd <https://github.com/google-deepmind/mujoco/tree/main/cmake/third_party_deps/openusd>`__
+    CMake utility project.
+  - ``USD_DIR`` is no longer used by the MuJoCo CMake project, instead use ``pxr_DIR`` if you have a pre-built USD library.
+  - Users no longer have to set ``PXR_PLUGINPATH_NAME`` environment variable, MuJoCo should load USD plugins automatically.
+
+MJX
+^^^
+- Added ``actuator_length``, ``cdof`` and ``cdof_dof`` fields to ``mjx.Data``.
+
+
+Documentation
+^^^^^^^^^^^^^
+- General improvements to the :ref:`Programming/Simulation<Simulation>` chapter. Notably, the main discussion of
+  :ref:`state<siStateControl>` has been moved there, and the section on :ref:`mjModel changes<siChange>` has been
+  expanded.
+
+
+Bug fixes
+^^^^^^^^^
+- Multi threaded mesh processing, enabled by the :ref:`usethread<compiler-usethread>` compiler flag (on by default), was
+  in fact disabled by the flag. Fixing this bug speeds up compilation of mesh-heavy models by (up to) the number of
+  available cores.
+- The ``vertid`` argument of :ref:`mj_rayFlex` and :ref:`mju_raySkin` was marked as nullable but was not; it is now
+  nullable.
+
+Version 3.4.0 (December 5, 2025)
+--------------------------------
+
+General
+^^^^^^^
+
+.. youtube:: vct493lGQ8Q
+   :align: right
+   :width: 35%
+
+1. Introduced a major new feature: :ref:`sleeping islands<Sleeping>`. Preliminary release for early testing, see
+   documentation for details.
+2. Added "quadratic" option to :ref:`flexcomp/dof<body-flexcomp-dof>`. This type of fast :ref:`deformable<CDeformable>`
+   flex object is similar to the "trilinear" option, but it includes curved deformations.
+3. Raise an error if there are name collisions also during parsing.
+4. Increase Windows stack size to 16MB to enable models with deep nested body hierarchies.
+5. Added a new pipeline component function :ref:`mj_fwdKinematics` that combines all kinematics-like sub-components.
+   Relatedly, added a clarifying table at the top of the :ref:`Simulation Pipeline<Pipeline>` chapter.
+6. Added a new :ref:`mj_extractState` function that allows a subset of a state that was previously returned by
+   :ref:`mj_getState` to be extracted without having to be written back into ``mjData`` first.
+7. Added a new :ref:`mj_copyState` function that copies state components from one ``mjData`` to another.
+8. Tendon paths can now be queried from Python via ``MjsTendon.path``, the returned object
+   is iterable and indexing it will give the ``MjsWrap`` at the given index in the path.
+9. ``MjsWrap`` now exposes:
+
+   - ``type -> mujoco.mjtWrap``
+   - ``target -> MjsSite|MjsJoint|MjsGeom|None``
+   - ``sidesite -> MjsSite|None``
+   - ``coef -> real``
+   - ``divisor -> real``
+
+10. Non-breaking ABI changes:
+
+    - :ref:`mjtSize` is now defined as ``int64_t`` rather than ``uint64_t`` to avoid future type-promotion bugs.
+    - :ref:`mj_sizeModel` now returns an :ref:`mjtSize` rather than an ``int``.
+
+MJX
+^^^
+
+11. ``warp-lang`` optional dependency is updated to 1.10.0. ``pmap`` now works with MuJoCo Warp from MJX.
+
+.. admonition:: Breaking ABI changes
+   :class: attention
+
+   - ``mjx.Model.tex_data`` is now a numpy ndarray instead of a jax.Array, to avoid vmapping over this potentially
+     large array. This may break certain use-cases with Madrona MJX, but we are no longer supporting this codepath.
+     We will be migrating users to a Warp-based batch renderer.
+
+
+Bug fixes
+^^^^^^^^^
+
+12. Fixed a bug in the box-box distance computation. Reported by :github:user:`nvtw`.
+
+Version 3.3.7 (October 13, 2025)
+--------------------------------
+
+General
+^^^^^^^
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   1. The mjSpec C API fields :ref:`meshdir<compiler-meshdir>` and :ref:`texturedir<compiler-texturedir>` have been
+      moved to `compiler.meshdir <https://github.com/google-deepmind/mujoco/blob/0baac589993220095cf09e153f194f35ca0f0738/include/mujoco/mjspec.h#L154>`__
+      and `compiler.texturedir <https://github.com/google-deepmind/mujoco/blob/0baac589993220095cf09e153f194f35ca0f0738/include/mujoco/mjspec.h#L155>`__
+      respectively. For backwards compatibility, the old fields are still available in the Python API but will be
+      removed in a future release.
+
+      **Migration:** Replace ``meshdir`` and ``texturedir`` with ``compiler.meshdir`` and ``compiler.texturedir``.
+   2. Remove ``_full_compat`` from ``mjx.put_data`` and ``mjx.put_model``.
+   3. ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1. ``nconmax`` will be deprecated
+      in favor of ``naconmax`` in a future release.
+
+
+3. Joint decorators and spatial tendons which have limits defined and whose current value (angle or length) exceeds the
+   limit, are recolored by using the :ref:`constraint impedance<soParameters>` :math:`d` to mix the existing color with
+   :ref:`visual/rgba/constraint<visual-rgba-constraint>`. For spatial tendons, this visualization aid is active only if
+   no :ref:`material<tendon-spatial-material>` is set and :ref:`rgba<tendon-spatial-rgba>` is default.
+4. Added :ref:`mju_getXMLDependencies` for computing a list of unique asset dependencies from an MJCF file.
+5. Added the code sample ``dependencies`` which provides command line utility for printing the result of :ref:`mju_getXMLDependencies`.
+6. The minimum C++ standard required to compile MuJoCo is now C++20, this has been the case within Google since 2023
+   but the CMake update was forgotten.
+
+.. admonition:: Breaking ABI changes
+   :class: attention
+
+   7. The attribute ``mjOption.apirate`` was unused and has been removed.
+   8. MJX ``nconmax`` and ``njmax`` fields in ``mjx.make_data`` now default to ``None`` instead of -1.
+
+MJX
+^^^
+9. Fix :issue:`2508`, ``qLD`` shapes mismatched mjModel during ``get_data_into``.
+10. Pull in MuJoCo Warp update to ``io.py``, and use ``naconmax`` instead of ``nconmax`` to set the maximum number
+    of contacts over all environments.
+
+Bug fixes
+^^^^^^^^^
+11. Fix :issue:`2881`, :at:`fitaabb` was adding an offset to the mesh and applying an incorrect frame
+    transformation. Also, unify the meaning of fitting a geom to a mesh AABB: it now means to find the smallest geom
+    such that its AABB contains the mesh AABB.
+
+Version 3.3.6 (September 15, 2025)
+----------------------------------
+
+General
+^^^^^^^
+1. Constraint island discovery and construction, previously an experimental feature, is now :ref:`documented<soIsland>`
+   and promoted to default; disable it with :ref:`option/flag/island <option-flag-island>`. We expect islanding to be
+   a strict improvement over the monolithic constraint solver, please let us know if you experience any issues.
+2. :ref:`Contact sensor<sensor-contact>` :at-val:`subtree1/subtree2` specification is now available for any body, not
+   just direct children of the world.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   3. The update of ``mjData.qacc_warmstart`` was moved from the end of the solver call (:ref:`mj_fwdConstraint`) to
+      the end of :ref:`mj_step`, and is now updated with all other state variables. This change makes :ref:`mj_forward`
+      fully idempotent.
+
+      Before this change, calling :ref:`mj_forward` repeatedly would make the constraint solver converge,
+      since each subsequent call would start from the previously updated ``qacc_warmstart`` value.
+      Indeed, this is precisely what happened in the viewer, which calls :ref:`mj_forward` repeatedly in PAUSE mode.
+
+      **Migration:** If your code depended on this behavior, you can recover it by updating manually after each
+      :ref:`mj_forward`: ``qacc_warmstart ← qacc``. The behavior is available in :ref:`simulate<saSimulate>` by
+      clicking the "Pause update" toggle (off by default).
+
+      Furthermore, this change has a numerical impact on the output of the :ref:`RK4 <geIntegrators>` integrator.
+      Before this change, due to the ``qacc_warmstart`` update occurring after each of the four Runge-Kutta substeps,
+      the solver convergence of RK4 was faster, at the cost of unprincipled integration. This change makes the RK4
+      integration principled and well-defined. Since this change to RK4 is effectively a bug fix, migration to the
+      previous behavior is not provided.
+
+   4. The ``mjDSBL_PASSIVE`` flag for disabling passive forces was removed and replaced by
+      :ref:`mjDSBL_SPRING<mjtDisableBit>` and :ref:`mjDSBL_DAMPER<mjtDisableBit>` with corresponding
+      :ref:`mjcf<option-flag-spring>` :ref:`attributes<option-flag-damper>`. Each flag disables only joint and tendon
+      springs or dampers, respectively. When both flags are set, **all** passive forces are disabled, including gravity
+      compensation, fluid forces, forces computed by the :ref:`mjcb_passive` callback, and forces computed by
+      :ref:`plugins <exPlugin>` when passed the :ref:`mjPLUGIN_PASSIVE<mjtPluginCapabilityBit>` capability flag.
+
+      **Migration:** Set both flags to recover the behavior of the previous flag.
+
+
+.. admonition:: Breaking ABI changes
+   :class: attention
+
+   5. Removed ``mjMOUSE_SELECT`` flag for :ref:`mjtMouse` as it is no longer in use.
+
+   6. The promotion of islanding to default involved removing the enable flag ``mjENBL_ISLAND`` and
+      converting it to a disable flag :ref:`mjDSBL_ISLAND <mjtDisableBit>`.
+
+7. Added support for shells with a curved reference configuration. See this `example
+   <https://github.com/google-deepmind/mujoco/blob/main/model/flex/basket.xml>`__.
+8. Added experimental option for :ref:`passive<flex-contact-passive>` contacts involving flexes.
+
+9. Added support for assigning a default material to a mesh asset using the :ref:`mesh/material <asset-mesh-material>`
+   attribute.
+
+MJX
+^^^
+10. Promote ``ten_length`` to the public MJX API. Add Warp support for ``mjx.tendon``.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   11. ``ten_length`` was moved from ``mjx.Data._impl.ten_length`` to a public field ``mjx.Data.ten_length``.
+
+Bug fixes
+^^^^^^^^^
+12. Fixed a latent bug where MjData objects were not serialized correctly by the Python bindings when islanding was
+    enabled.
+
+
+Version 3.3.5 (August 8, 2025)
+------------------------------
+
+General
+^^^^^^^
+1. Added the :ref:`insidesite<sensor-insidesite>` sensor, for checking if an object is inside the volume of a site.
+   It is useful for triggering events in surrounding environment logic.
+2. Added the :ref:`contact<sensor-contact>` sensor, for reporting contact information according to user-defined
+   criteria.
+   The purpose of the :el:`contact` sensor is to report contact-related information in a fixed-size array. This is
+   useful as input to learning-based agents and in environment logic.
+3. Added the :ref:`tactile<sensor-tactile>` sensor, for measuring the penetration depth between two objects at given
+   points and the sliding velocities in the tangent frame. The sensor reports tactile data only when colliding with
+   SDFs.
+4. Removed the SdfLib plugin and the dependency on `SdfLib <https://github.com/UPC-ViRVIG/SdfLib>`__. SDFs are now
+   supported natively in mjModel.
+5. Removed ``oct_depth`` from :ref:`mjvOption` (unused).
+6. Added the functionality to create a builtin meshes, see :ref:`mesh/builtin<asset-mesh-builtin>`.
+7. Inertia computation in MuJoCo C is now performed by a new :ref:`pipeline<piStages>` function :ref:`mj_makeM`, which
+   combines the Composite Rigid Body algorithm in :ref:`mj_crb` and additional terms related to
+   :ref:`tendon armature<tendon-spatial-armature>`. Code that uses :ref:`mj_crb` to compute the inertia should now use
+   :ref:`mj_makeM` instead.
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   8. Removed the ``mjVIS_FLEXBVH`` enum value, its functionality is now provided by :ref:`mjVIS_MESHBVH<mjtVisFlag>`.
+
+Bug fixes
+^^^^^^^^^
+9. Fixed a bug that caused object lists in the child to have missing elements after attaching an mjSpec. This was
+   caused by adding to the lists only the objects that belong to the tree of the requested body, but this causes to
+   skip objects that were attached, since they belong to the tree of the parent.
+10. Fixed a bug where the convex hull of a collision mesh was not being computed if the mesh could only collide via a
+    :ref:`contact pair<contact-pair>`.
+
+Python
+^^^^^^
+11. On Linux, built distribution packages (wheels) now target the ``manylinux_2_28`` platform tag. Previously MuJoCo
+    wheels targeted ``manylinux2014`` based on CentOS 7, which reached end-of-life in June 2024.
+
+MJX
+^^^
+12. Add Warp as a backend implementation for MJX. The implementation can be specified via
+    ``mjx.put_model(m, impl='warp')`` and ``mjx.make_data(m, impl='warp')``. The warp implementation requires
+    a CUDA device and ``warp-lang`` to be installed (``pip install mujoco-mjx[warp]``). This feature is available in
+    "beta" and some bugs are expected.
+
+Version 3.3.4 (July 8, 2025)
+----------------------------
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   1. The functions ``mjs_detachBody`` and ``mjs_detachDefault`` have been replaced by :ref:`mjs_delete`.
+   2. The Python functions ``element.delete`` have been replaced by ``spec.delete(element)``.
+   3. In the mjSpec C API, directly setting an element's name using :ref:`mjs_setString` has been replaced with a new
+      function :ref:`mjs_setName` which allows checking for naming collisions at set-time rather than compile-time, for
+      earlier catching of errors. Relatedly, the ``name`` attribute has been removed from all mjs elements. Known issue:
+      the error is not raised during parsing.
+   4. For MJX, the ``mjx.Option`` dataclass now has private and public fields similar to ``mjx.Model`` and
+      ``mjx.Data``. Some fields are no longer publicly available due to differences in the
+      underlying implementations of this data structure.
+
+General
+^^^^^^^
+4. Added support for setting the initial camera in the viewer using
+   :ref:`visual/global/cameraid<visual-global-cameraid>`.
+5. Added support to only sync the state in the Python :ref:`passive viewer<PyViewerPassive>`'s ``Sync`` method, this is
+   useful to improve performance. The default behavior is unchanged and copies the entire model and data.
+
+Bug fixes
+^^^^^^^^^
+6. Inverse dynamics were not being computed correctly when :ref:`tendon armature<tendon-spatial-armature>` was present,
+   now fixed.
+7. Fix bug in ``mjx.put_data`` where ``actuator_moment`` was not being copied correctly for the C implementation.
+
+Documentation
+^^^^^^^^^^^^^
+8. Added missing item documentation and clarified the nature of breaking changes in the 3.3.3 changelog.
+   See items 3 and 4 below.
+
 Version 3.3.3 (June 10, 2025)
 -----------------------------
 
@@ -11,21 +346,36 @@ General
    solver and clears the way for the addition of the Newton and PGS solvers (currently only CG is supported).
 2. Removed the :at:`shell` plugin. This is now supported by :ref:`flexcomp<body-flexcomp>` and is active depending on
    the :ref:`elastic2d<flexcomp-elasticity-elastic2d>` attribute (off by default).
-3. Replaced the :ref:`directional<body-light-directional>` (boolean) field for lights with a
-   :ref:`type<body-light-type>` field (of type :ref:`mjtLightType<mjtLightType>`) to allow for additional lighting
-   types.
-4. Added new sub-component :ref:`mj_makeM` which combines the :ref:`mj_crb` call with additional logic to support the
+
+.. admonition:: Breaking API changes
+   :class: attention
+
+   3. Replaced the :ref:`directional<body-light-directional>` (boolean) field for lights with a
+      :ref:`type<body-light-type>` field (of type :ref:`mjtLightType<mjtLightType>`) to allow for additional lighting
+      types.
+
+      **Migration:** Replace light/directional="false/true" with light/type="spot/directional", respectively.
+
+   4. Added :ref:`mjtColorSpace` enum and associated :ref:`colorspace<asset-texture-colorspace>` attribute that allows
+      to specify the color space of textures (either linear or `sRGB <https://en.wikipedia.org/wiki/SRGB>`__). Since
+      this property is now read correctly from PNG files, textures files which use sRGB will now be rendered
+      differently.
+
+      **Migration:** Set :ref:`colorspace<asset-texture-colorspace>` to "linear" for all textures that should look like
+      they did before this change.
+
+5. Added new sub-component :ref:`mj_makeM` which combines the :ref:`mj_crb` call with additional logic to support the
    introduction in 3.3.1 of :ref:`tendon armature<tendon-spatial-armature>`. In addition to the traditional
    ``mjData.qM``, :ref:`mj_makeM` also computes ``mjData.M``, a CSR representation of the same matrix.
-5. Added a new function :ref:`mj_copyBack` to copy real-valued arrays in an mjModel to a compatible mjSpec.
-6. Removed the limitation of :ref:`fusestatic<compiler-fusestatic>` to models which contain no references. The fusestatic
-   flag will now fuse all bodies which are not referenced and ignore bodies which are referenced.
+6. Added a new function :ref:`mj_copyBack` to copy real-valued arrays in an mjModel to a compatible mjSpec.
+7. Removed the limitation of :ref:`fusestatic<compiler-fusestatic>` to models which contain no references. The
+   fusestatic flag will now fuse all bodies which are not referenced and ignore bodies which are referenced.
 
 Simulate
 ^^^^^^^^
-7. The struct ``mjv_sceneState`` has been removed. This struct was used for partial synchronization of ``mjModel`` and
-   ``mjData`` when the Python viewer is used in passive mode. This functionality is now provided by :ref:`mjv_copyModel`
-   and :ref:`mjv_copyData`, which don't copy arrays which are not required for visualization.
+8. The struct ``mjv_sceneState`` has been removed. This struct was used for partial synchronization of ``mjModel`` and
+   ``mjData`` when the Python viewer is used in passive mode. This functionality is now provided by
+   :ref:`mjv_copyModel` and :ref:`mjv_copyData`, which don't copy arrays which are not required for visualization.
 
 .. image:: images/changelog/procedural_terrain_generation.png
    :width: 33%
@@ -34,11 +384,11 @@ Simulate
 Python bindings
 ^^^^^^^^^^^^^^^
 
-8. Added examples of procedural terrain generation to the Model Editing tutorial: |mjspec_colab|
+9. Added examples of procedural terrain generation to the Model Editing tutorial: |mjspec_colab|
 
 MJX
 ^^^
-9. Added tendon armature.
+10. Added tendon armature.
 
 Version 3.3.2 (April 28, 2025)
 ------------------------------
@@ -47,7 +397,7 @@ MJX
 ^^^
 1. Added inverse dynamics.
 2. Added tendon actuator force sensor.
-3. Fix :github:issue:`2606` such that ``make_data`` copies over ``mocap_pos`` and ``mocap_quat``
+3. Fix :issue:`2606` such that ``make_data`` copies over ``mocap_pos`` and ``mocap_quat``
    from ``body_pos`` and ``body_quat``.
 
 Version 3.3.1 (Apr 9, 2025)
@@ -96,7 +446,7 @@ Python bindings
 12. Added support for nameless :ref:`mjSpec` objects in the ``bind`` method, see the corresponding
     :ref:`section<PyMJCF>` in the documentation.
 
-.. |mjspec_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |mjspec_colab| image:: https://colab.research.google.com/assets/colab-badge.png
                   :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/mjspec.ipynb
 
 Version 3.3.0 (Feb 26, 2025)
@@ -171,7 +521,7 @@ General
 MJX
 ^^^
 13. Added support for spatial tendons with internal sphere and cylinder wrapping.
-14. Fix a bug with box-box collisions :github:issue:`2356`.
+14. Fix a bug with box-box collisions :issue:`2356`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
@@ -180,7 +530,7 @@ Python bindings
     It is available here |rollout_colab|.
     |br| Contribution by :github:user:`aftersomemath`.
 
-.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |rollout_colab| image:: https://colab.research.google.com/assets/colab-badge.png
                    :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/rollout.ipynb
 
 Version 3.2.7 (Jan 14, 2025)
@@ -193,7 +543,7 @@ Python bindings
    the computation. The thread pool can be reused across calls, but then the function cannot be called simultaneously
    from multiple threads. To run multiple threaded rollouts simultaneously, use the new class ``Rollout`` which
    encapsulates the thread pool. Contribution by :github:user:`aftersomemath`.
-2. Fix global namespace pollution when using ``mjpython`` (:github:issue:`2265`).
+2. Fix global namespace pollution when using ``mjpython`` (:issue:`2265`).
 
 General
 ^^^^^^^
@@ -209,7 +559,7 @@ General
 
 Bug fixes
 ^^^^^^^^^
-5. Fixed a bug in the box-sphere collider, depth was incorrect for deep penetrations (:github:issue:`2206`).
+5. Fixed a bug in the box-sphere collider, depth was incorrect for deep penetrations (:issue:`2206`).
 6. Fixed a bug in :ref:`mj_mulM2` and added a test.
 
 Version 3.2.6 (Dec 2, 2024)
@@ -235,9 +585,9 @@ Python bindings
 
 Bug fixes
 ^^^^^^^^^
-6. Fixed :github:issue:`2212`, type error in ``mjx.get_data``.
+6. Fixed :issue:`2212`, type error in ``mjx.get_data``.
 7. Fixed bug introduced in 3.2.0 in handling of :ref:`texrepeat<asset-material-texrepeat>` attribute, was mistakenly
-   cast from ``float`` to ``int``, (fixed :github:issue:`2223`).
+   cast from ``float`` to ``int``, (fixed :issue:`2223`).
 
 Version 3.2.5 (Nov 4, 2024)
 ---------------------------
@@ -257,7 +607,7 @@ General
    :ref:`inertia<asset-mesh-inertia>` attribute.
 4. The not-useful ``convexhull`` compiler option (to disable computation of mesh convex hulls) has been removed.
 5. Removed the deprecated ``mju_rotVecMat``, ``mju_rotVecMatT`` and ``mjv_makeConnector`` functions.
-6. Sorting now uses a faster, native sort function (fixes :github:issue:`1638`).
+6. Sorting now uses a faster, native sort function (fixes :issue:`1638`).
 7. The PBR texture layers introduced in 3.2.1 were refactored from separate sub-elements to a single
    :ref:`layer<material-layer>` sub-element.
 8. The composite types box, cylinder, and sphere have been removed. Users should instead use the equivalent types
@@ -267,12 +617,12 @@ MJX
 ^^^
 9. Added ``apply_ft``, ``jac``, and  ``xfrc_accumulate`` as public functions.
 10. Added ``TOUCH`` sensor.
-11. Added support for ``eq_active``. Fixes :github:issue:`2173`.
+11. Added support for ``eq_active``. Fixes :issue:`2173`.
 12. Added ray intersection with ellipsoid.
 
 Bug fixes
 ^^^^^^^^^
-13. Fixed several bugs related to connect and weld constraints with site semantics (fixes :github:issue:`2179`, reported
+13. Fixed several bugs related to connect and weld constraints with site semantics (fixes :issue:`2179`, reported
     by :github:user:`yinfanyi`). The introduction of site specification to connects and welds in 3.2.3 conditionally
     changed the semantics of `mjData.eq_obj1id` and `mjData.eq_obj2id`, but these changes were not properly propagated
     in several places leading to incorrect computations of constraint inertia, readings of affected force/torque sensors
@@ -311,7 +661,7 @@ MJX
 ^^^
 4. Added ``mocap_pos`` and ``mocap_quat`` in kinematics.
 5. Added support for :ref:`spatial tendons <tendon-spatial>` with pulleys and external sphere and cylinder wrapping.
-6. Added sphere-cylinder and sphere-ellipsoid collision functions (:github:issue:`2126`).
+6. Added sphere-cylinder and sphere-ellipsoid collision functions (:issue:`2126`).
 7. Fixed a bug with frictionloss constraints.
 8. Added ``TENDONPOS`` and ``TENDONVEL`` sensors.
 9. Fixed a bug with the computation of tangential contact forces in ``_decode_pyramid``.
@@ -323,7 +673,7 @@ Python bindings
 
 Bug fixes
 ^^^^^^^^^
-12. Fixed a bug where ``actuator_force`` was not set in MJX (:github:issue:`2068`).
+12. Fixed a bug where ``actuator_force`` was not set in MJX (:issue:`2068`).
 13. Fixed bug where MJX data tendon fields were incorrect after calling ``mjx.put_data``.
 14. The compiler now returns an error if height fields are used with :ref:`collision sensors<collision-sensors>` as they
     are not yet supported.
@@ -381,11 +731,11 @@ General
    parent model, but only on the first attachment.
 10. Added the :ref:`mjtSameFrame` enum which contains the possible frame alignments of bodies and their children. These
     alignments are used for computation shortcuts in :ref:`mj_kinematics`.
-11. Added :ref:`mj_jacDot` for computing time-derivatives of kinematic Jacobians. Fixes :github:issue:`411`.
+11. Added :ref:`mj_jacDot` for computing time-derivatives of kinematic Jacobians. Fixes :issue:`411`.
 
 MJX
 ^^^
-12. Added ``efc_pos`` to ``mjx.Data`` (:github:issue:`1388`).
+12. Added ``efc_pos`` to ``mjx.Data`` (:issue:`1388`).
 13. Added position-dependent sensors: ``MAGNETOMETER``, ``CAMPROJECTION``, ``RANGEFINDER``, ``JOINTPOS``,
     ``ACTUATORPOS``, ``BALLQUAT``, ``FRAMEPOS``, ``FRAMEXAXIS``, ``FRAMEYAXIS``, ``FRAMEZAXIS``, ``FRAMEQUAT``,
     ``SUBTREECOM``, ``CLOCK``.
@@ -404,7 +754,7 @@ MJX
 
 Bug fixes
 ^^^^^^^^^
-23. Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:github:issue:`1875`,
+23. Fixed a performance regression introduced in 3.1.7 in mesh Bounding Volume Hierarchies (:issue:`1875`,
     contribution by :github:user:`michael-ahn`).
 24. Fixed a bug wherein, for models that have both muscles and stateless actuators and used one of the implicit
     integrators, wrong derivatives would be computed.
@@ -415,7 +765,7 @@ Bug fixes
 
 Python bindings
 ^^^^^^^^^^^^^^^
-27. Added support for engine plugins in :ref:`mjSpec` (:github:issue:`1903`).
+27. Added support for engine plugins in :ref:`mjSpec` (:issue:`1903`).
 28. Better error reporting for issues with the assets dictionary, when loading models.
 
 
@@ -425,7 +775,7 @@ Version 3.2.2 (Aug 8, 2024)
 General
 ^^^^^^^
 1. Increase texture and material limit back to 1000. 3.2.0 inadvertently reduced this limit to 100, breaking some
-   existing models (:github:issue:`1877`).
+   existing models (:issue:`1877`).
 
 Version 3.2.1 (Aug 5, 2024)
 ---------------------------
@@ -438,7 +788,7 @@ General
 3. Added sub-elements to the MJCF :ref:`material<asset-material>` element, to allow specification of multiple textures
    for rendering (e.g., ``occlusion, roughness, metallic``). Note that the MuJoCo renderer doesn't
    support these new features, and they are made available for use with external renderers.
-4. Sorting (``mjQUICKSORT``) now calls ``std::sort`` when building with C++ (:github:issue:`1638`).
+4. Sorting (``mjQUICKSORT``) now calls ``std::sort`` when building with C++ (:issue:`1638`).
 
 MJX
 ^^^
@@ -456,7 +806,7 @@ Python bindings
 
 Bug fixes
 ^^^^^^^^^
-11. Fixed a bug where implicit integrators did not take into account disabled actuators (:github:issue:`1838`).
+11. Fixed a bug where implicit integrators did not take into account disabled actuators (:issue:`1838`).
 
 Version 3.2.0 (Jul 15, 2024)
 ----------------------------
@@ -467,7 +817,7 @@ New features
 1. Introduced a major new feature: **procedural model creation and editing**, using a new top-level data-structure
    :ref:`mjSpec`. See the :doc:`Model Editing<programming/modeledit>` chapter for details.
    Note that as of this release this feature is still in testing and subject to future breaking changes.
-   Fixes :github:issue:`364`.
+   Fixes :issue:`364`.
 
 General
 ^^^^^^^
@@ -503,7 +853,7 @@ General
    :width: 240px
 
 8. Added support for orthographic cameras. This is available for both fixed cameras and the free camera, using the
-   :ref:`camera/orthographic<body-camera-orthographic>` and :ref:`global/orthographic<visual-global-orthographic>`
+   ``camera/orthographic`` and :ref:`global/orthographic<visual-global-orthographic>`
    attributes, respectively.
 9. Added :ref:`maxhullvert<asset-mesh-maxhullvert>`, the maximum number of vertices in a mesh's convex hull.
 10. Added :ref:`mj_setKeyframe` for saving the current state into a model keyframe.
@@ -538,13 +888,13 @@ Simulate
 
 Python bindings
 ^^^^^^^^^^^^^^^
-21. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:github:issue:`1572`).
+21. Fixed a memory leak when using ``copy.deepcopy()`` on a ``mujoco.MjData`` instance (:issue:`1572`).
 
 Bug fixes
 ^^^^^^^^^
 22. Fix an issue where ``mj_copyData`` (or ``copy.copy()`` in the Python bindings) was not copying contact information
-    correctly (:github:issue:`1710`).
-23. Fix an issue with saving to XML that caused frames to be written multiple times (:github:issue:`1802`).
+    correctly (:issue:`1710`).
+23. Fix an issue with saving to XML that caused frames to be written multiple times (:issue:`1802`).
 
 Version 3.1.6 (Jun 3, 2024)
 ---------------------------
@@ -554,7 +904,7 @@ General
 
 1. Added :ref:`mj_geomDistance` for computing the shortest signed distance between two geoms and optionally a segment
    connecting them. Relatedly, added the 3 sensors: :ref:`distance<sensor-distance>`, :ref:`normal<sensor-normal>`,
-   :ref:`fromto<sensor-fromto>`. See the function and sensor documentation for details. Fixes :github:issue:`51`.
+   :ref:`fromto<sensor-fromto>`. See the function and sensor documentation for details. Fixes :issue:`51`.
 2. Improvements to position actuators:
 
    - Added :ref:`timeconst<actuator-position-timeconst>` attribute to the :ref:`position actuator<actuator-position>`.
@@ -566,19 +916,19 @@ General
 MJX
 ^^^
 
-3. Add height-field collision support. Fixes :github:issue:`1491`.
+3. Add height-field collision support. Fixes :issue:`1491`.
 4. Add a pre-compiled field ``mesh_convex`` to ``mjx.Model`` so that mesh properties can be vmapped over.
-   Fixes :github:issue:`1655`.
+   Fixes :issue:`1655`.
 5. Fix a bug in convex mesh collisions, where erroneous edge contacts were being created even though face
-   separating axes were found. Fixes :github:issue:`1695`.
+   separating axes were found. Fixes :issue:`1695`.
 
 Bug fixes
 ^^^^^^^^^
 
 6. Fixed a bug the could cause collisions to be missed when :ref:`fusestatic<compiler-fusestatic>` is enabled, as is
-   often the case for URDF imports. Fixes :github:issue:`1069`, :github:issue:`1577`.
+   often the case for URDF imports. Fixes :issue:`1069`, :issue:`1577`.
 7. Fixed a bug that was causing the visualization of SDF iterations to write outside the size of the vector storing
-   them. Fixes :github:issue:`1539`.
+   them. Fixes :issue:`1539`.
 
 Version 3.1.5 (May 7, 2024)
 ---------------------------
@@ -640,7 +990,7 @@ Bug fixes
 22. Prevent overwriting of frame names by body names when saving an XML. Bug introduced in 3.1.4.
 23. Fixed bug in Python binding of :ref:`mj_saveModel`: ``buffer`` argument was documented as optional but was actually
     not optional.
-24. Fixed bug that prevented memory allocations larger than 2.15 GB. Fixes :github:issue:`1606`.
+24. Fixed bug that prevented memory allocations larger than 2.15 GB. Fixes :issue:`1606`.
 
 
 Version 3.1.4 (April 10th, 2024)
@@ -701,7 +1051,7 @@ Python bindings
     Kinematics, is available here: |ls_colab|
     |br| The video on the right shows example clips from the tutorial.
 
-.. |ls_colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |ls_colab| image:: https://colab.research.google.com/assets/colab-badge.png
               :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/python/least_squares.ipynb
 
 
@@ -736,7 +1086,7 @@ MJX
 6. Fixed a bug in ``mjx.euler`` that applied incorrect damping when using dense mass matrices.
 7. Fixed a bug in ``mjx.solve`` that was causing slow convergence when using ``mjSOL_NEWTON`` in :ref:`mjtSolver`.
 8. Added support for :ref:`mjOption.impratio<mjOption>` to ``mjx.Model``.
-9. Added support for cameras in ``mjx.Model`` and ``mjx.Data``. Fixes :github:issue:`1422`.
+9. Added support for cameras in ``mjx.Model`` and ``mjx.Data``. Fixes :issue:`1422`.
 10. Added an implementation of broadphase using `top_k` and bounding spheres.
 
 Python bindings
@@ -757,7 +1107,7 @@ General
 3. Added the flag :ref:`bvactive<visual-global-bvactive>` to ``visual/global``, allowing users to turn off
    visualisation of active bounding volumes (the red/green boxes in this :ref:`this changelog item<midphase>`). For
    models with very high-resolution meshes, the computation required for this visualization can slow down simulation
-   speed. Fixes :github:issue:`1279`.
+   speed. Fixes :issue:`1279`.
 
    - Added color of :ref:`bounding volumes<visual-rgba-bv>` and :ref:`active bounding volumes<visual-rgba-bvactive>`
      to :ref:`visual/rgba<visual-rgba>`.
@@ -773,25 +1123,25 @@ MJX
 8. Added ``mjx.ray`` which mirrors :ref:`mj_ray` for planes, spheres, capsules, boxes, and meshes.
 9. Added ``mjx.is_sparse`` which mirrors :ref:`mj_isSparse` and ``mjx.full_m`` which mirrors :ref:`mj_fullM`.
 10. Added support for specifying sparse or dense mass matrices via :ref:`option-jacobian`.
-11. Raise a not implemented error when nonzero frictionloss is present. Fixes :github:issue:`1344`.
+11. Raise a not implemented error when nonzero frictionloss is present. Fixes :issue:`1344`.
 
 Python bindings
 ^^^^^^^^^^^^^^^
 12. Improved the implementation of the :ref:`rollout<PyRollout>` module. Note the changes below are breaking, dependent
     code will require modification.
 
-    - Uses :ref:`mjSTATE_FULLPHYSICS<geFullPhysics>` as state spec, enabling divergence detection by inspecting time.
-    - Allows user-defined control spec for any combination of :ref:`user input<geInput>` fields as controls.
+    - Uses :ref:`mjSTATE_FULLPHYSICS<siFullPhysics>` as state spec, enabling divergence detection by inspecting time.
+    - Allows user-defined control spec for any combination of :ref:`user input<siInput>` fields as controls.
     - Outputs are no longer squeezed and always have dim=3.
 13. The ``sync`` function for the :ref:`passive viewer<PyViewerPassive>` can now pick up changes to rendering flags in
-    ``user_scn``, as requested in :github:issue:`1190`.
+    ``user_scn``, as requested in :issue:`1190`.
 
 Bug fixes
 ^^^^^^^^^
 14. Fixed a bug that prevented the use of pins with plugins if flexes are not in the worldbody. Fixes
-    :github:issue:`1270`.
+    :issue:`1270`.
 15. Fixed a bug in the :ref:`muscle model<CMuscle>` that led to non-zero values outside the lower
-    bound of the length range. Fixes :github:issue:`1342`.
+    bound of the length range. Fixes :issue:`1342`.
 
 
 Version 3.1.1 (December 18, 2023)
@@ -845,7 +1195,7 @@ Bug fixes
 10. Fix bug that prevented the use of elasticity plugins in combination with pinned flex vertices.
 11. Release Python wheels targeting macOS 10.16 to support x86_64 systems where ``SYSTEM_VERSION_COMPAT`` is set.
     The minimum supported version is still 11.0, but we release these wheels to fix compatibility for those users. See
-    :github:issue:`1213`.
+    :issue:`1213`.
 12. Fixed mass computation of meshes: Use the correct mesh volume instead of approximating it using the inertia box.
 
 Version 3.0.1 (November 15, 2023)
@@ -863,7 +1213,7 @@ General
 
 2. Added :ref:`actuatorgroupdisable<option-actuatorgroupdisable>` attribute and associated
    :ref:`mjOption.disableactuator<mjOption>` integer bitfield, which can be used to disable sets of actuators at runtime
-   according to their :ref:`group<actuator-general-group>`. Fixes :github:issue:`1092`. See :ref:`CActDisable`.
+   according to their :ref:`group<actuator-general-group>`. Fixes :issue:`1092`. See :ref:`CActDisable`.
 
    - The first 6 actuator groups are toggleable in the :ref:`simulate<saSimulate>` viewer. See `example model
      <https://github.com/google-deepmind/mujoco/blob/main/test/engine/testdata/actuation/actuator_group_disable.xml>`__
@@ -902,8 +1252,8 @@ MJX
    are both available in the :ref:`MuJoCo Menagerie<Menagerie>`.
 5. Added support for joint equality constraints (``mjEQ_JOINT`` in :ref:`mjtEq`).
 6. Fixed bug where mixed ``jnt_limited`` joints were not being constrained correctly.
-7. Made ``device_put`` type validation more verbose (fixes :github:issue:`1113`).
-8. Removed empty EFC rows from ``MJX``, for joints with no limits (fixes :github:issue:`1117`).
+7. Made ``device_put`` type validation more verbose (fixes :issue:`1113`).
+8. Removed empty EFC rows from ``MJX``, for joints with no limits (fixes :issue:`1117`).
 9. Fixed bug in ``scan.body_tree`` that led to incorrect smooth dynamics for some kinematic tree layouts.
 
 Python bindings
@@ -928,7 +1278,7 @@ Documentation
 13. Added cell to the `tutorial colab <https://github.com/google-deepmind/mujoco#getting-started>`__ providing an
     example of procedural camera control:
 14. Added documentation for the :ref:`UI` framework.
-15. Fixed typos and supported fields in docs (fixes :github:issue:`1105` and :github:issue:`1106`).
+15. Fixed typos and supported fields in docs (fixes :issue:`1105` and :issue:`1106`).
 
 
 Bug fixes
@@ -949,7 +1299,7 @@ New features
    - The MJX API is compatible with MuJoCo but is missing some features in this release.  See the outline of
      :ref:`MJX feature parity <MjxFeatureParity>` for more details.
 
-.. |colab| image:: https://colab.research.google.com/assets/colab-badge.svg
+.. |colab| image:: https://colab.research.google.com/assets/colab-badge.png
            :target: https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb
 
 .. youtube:: QewlEqIZi1o
@@ -1007,8 +1357,8 @@ New features
    Engine-internal threading is a work in progress and currently only available in first-party code via the
    :ref:`testspeed<saTestspeed>` utility, exposed with the ``npoolthread`` flag.
 
-6. Added capability to initialize :ref:`composite<body-composite>` particles from OBJ files. Fixes :github:issue:`642`
-   and :github:issue:`674`.
+6. Added capability to initialize :ref:`composite<body-composite>` particles from OBJ files. Fixes :issue:`642`
+   and :issue:`674`.
 
 General
 ^^^^^^^
@@ -1058,7 +1408,7 @@ General
 
    13. Added :ref:`mjData.eq_active<mjData>` user input variable, for enabling/disabling the state of equality
        constraints. Renamed ``mjModel.eq_active`` to :ref:`mjModel.eq_active0<mjModel>`, which now has the semantic of
-       "initial value of ``mjData.eq_active``". Fixes :github:issue:`876`.
+       "initial value of ``mjData.eq_active``". Fixes :issue:`876`.
 
        **Migration:** Replace uses of ``mjModel.eq_active`` with ``mjData.eq_active``.
 
@@ -1080,7 +1430,7 @@ General
 20. Added :ref:`ls_iterations<option-ls_iterations>` and :ref:`ls_tolerance<option-ls_tolerance>` options for adjusting
     linesearch stopping criteria in CG and Newton solvers. These can be useful for performance tuning.
 21. Added ``mesh_pos`` and ``mesh_quat`` fields to :ref:`mjModel` to store the normalizing transformation applied to
-    mesh assets. Fixes :github:issue:`409`.
+    mesh assets. Fixes :issue:`409`.
 22. Added camera :ref:`resolution<body-camera-resolution>` attribute and :ref:`camprojection<sensor-camprojection>`
     sensor. If camera resolution is set to positive values, the camera projection sensor will report the location of a
     target site, projected onto the camera image, in pixel coordinates.
@@ -1096,7 +1446,7 @@ General
 24. Implemented reversed Z rendering for better depth precision. An enum :ref:`mjtDepthMap` was added with values
     ``mjDEPTH_ZERONEAR`` and ``mjDEPTH_ZEROFAR``, which can be used to set the new ``readDepthMap`` attribute in
     :ref:`mjrContext` to control how the depth returned by :ref:`mjr_readPixels` is mapped from ``znear`` to ``zfar``.
-    Contribution :github:pull:`978` by `Levi Burner <https://github.com/aftersomemath>`__.
+    Contribution :pr:`978` by `Levi Burner <https://github.com/aftersomemath>`__.
 25. Deleted the code sample ``testxml``. The functionality provided by this utility is implemented in the
     `WriteReadCompare <https://github.com/google-deepmind/mujoco/blob/main/test/xml/xml_native_writer_test.cc>`__ test.
 26. Deleted the code sample ``derivative``. Functionality provided by :ref:`mjd_transitionFD`.
@@ -1104,9 +1454,9 @@ General
 Python bindings
 ^^^^^^^^^^^^^^^
 
-27. Fixed :github:issue:`870` where calling ``update_scene`` with an invalid camera name used the default camera.
+27. Fixed :issue:`870` where calling ``update_scene`` with an invalid camera name used the default camera.
 28. Added ``user_scn`` to the :ref:`passive viewer<PyViewerPassive>` handle, which allows users to add custom
-    visualization geoms (:github:issue:`1023`).
+    visualization geoms (:issue:`1023`).
 29. Added optional boolean keyword arguments ``show_left_ui`` and ``show_right_ui`` to the functions ``viewer.launch``
     and ``viewer.launch_passive``, which allow users to launch a viewer with UI panels hidden.
 
@@ -1122,7 +1472,7 @@ Simulate
     :ref:`Python viewer<PyViewerManaged>`. State history can be viewed by scrubbing the History slider and (more
     precisely) with the left and right arrow keys. See screen capture:
 
-31. The ``LOADING...`` label is now shown correctly. Contribution :github:pull:`1070` by
+31. The ``LOADING...`` label is now shown correctly. Contribution :pr:`1070` by
     `Levi Burner <https://github.com/aftersomemath>`__.
 
 Documentation
@@ -1172,10 +1522,10 @@ Python bindings
 
 7. The :ref:`passive viewer<PyViewerPassive>` handle now exposes ``update_hfield``, ``update_mesh``, and
    ``update_texture`` methods to allow users to update renderable assets.
-   (Issues :github:issue:`812`, :github:issue:`958`, :github:issue:`965`).
+   (Issues :issue:`812`, :issue:`958`, :issue:`965`).
 #. Allow a custom keyboard event callback to be specified in the :ref:`passive viewer<PyViewerPassive>`
-   (:github:issue:`766`).
-#. Fix GLFW crash when Python exits while the passive viewer is running (:github:issue:`790`).
+   (:issue:`766`).
+#. Fix GLFW crash when Python exits while the passive viewer is running (:issue:`790`).
 
 Models
 ^^^^^^
@@ -1610,7 +1960,7 @@ General
    notebook uses MuJoCo's native Python bindings, and includes a draft ``Renderer`` class, for easy rendering in Python.
    |br| Try it yourself:  |LQRopenincolab|
 
-   .. |LQRopenincolab| image:: https://colab.research.google.com/assets/colab-badge.svg
+   .. |LQRopenincolab| image:: https://colab.research.google.com/assets/colab-badge.png
                        :target: https://colab.research.google.com/github/deepmind/mujoco/blob/main/python/LQR.ipynb
 
 #. Updates to humanoid model:

@@ -18,11 +18,12 @@ include(CheckCSourceCompiles)
 # linker.
 function(get_mujoco_extra_link_options OUTPUT_VAR)
   if(MSVC)
-    set(EXTRA_LINK_OPTIONS /OPT:REF /OPT:ICF=5)
+    set(EXTRA_LINK_OPTIONS /OPT:REF /OPT:ICF=5 /STACK:16777216)
   else()
     set(EXTRA_LINK_OPTIONS)
 
     if(WIN32)
+      set(EXTRA_LINK_OPTIONS ${EXTRA_LINK_OPTIONS} -Wl,/STACK:16777216)
       set(CMAKE_REQUIRED_FLAGS "-fuse-ld=lld-link")
       check_c_source_compiles("int main() {}" SUPPORTS_LLD)
       if(SUPPORTS_LLD)

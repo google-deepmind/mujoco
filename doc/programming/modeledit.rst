@@ -21,15 +21,15 @@ The new API augments the traditional workflow of creating and editing models usi
 *compile* steps. As summarized in the :ref:`Overview chapter<Instance>`, the traditional workflow is:
 
  1. Create an XML model description file (MJCF or URDF) and associated assets. |br|
- 2. Call :ref:`mj_loadXML`, obtain an mjModel instance.
+ 2. Call :ref:`mj_loadXML`, obtain an :ref:`mjModel` instance.
 
 The new workflow using :ref:`mjSpec` is:
 
- 1. :ref:`Create<mj_makeSpec>` an empty mjSpec or :ref:`parse<mj_parseXML>` an existing XML file.
- 2. Programmatically edit the mjSpec datastructure by adding, modifying and removing elements.
- 3. :ref:`Compile<mj_compile>` the mjSpec to an mjModel instance.
+ 1. Create an empty :ref:`mjSpec` using :ref:`mj_makeSpec` or parse an existing XML file using :ref:`mj_parseXML`.
+ 2. Programmatically edit the :ref:`mjSpec` datastructure by adding, modifying and removing elements.
+ 3. Compile the :ref:`mjSpec` to an :ref:`mjModel` instance using :ref:`mj_compile`.
 
- After compilation, the mjSpec remains editable, so steps 2 and 3 are interchangeable.
+ After compilation, the :ref:`mjSpec` remains editable, so steps 2 and 3 are interchangeable.
 
 
 .. _meUsage:
@@ -96,25 +96,37 @@ Elements cannot be created directly; they are returned to the user by the corres
    my_geom->type = mjGEOM_BOX;                                    // set geom type
    my_geom->size[0] = my_geom->size[1] = my_geom->size[2] = 0.5;  // set box size
    mjModel* model = mj_compile(spec, NULL);                       // compile to mjModel
+   ...
+   mj_deleteModel(model);                                         // free model
+   mj_deleteSpec(spec);                                           // free spec
 
 The ``NULL`` second argument to :ref:`mjs_addGeom` is the optional default class pointer. When using defaults
 procedurally, default classes are passed in explicitly to element constructors. The global defaults of all elements
 (used when no default class is passed in) can be inspected in
 `user_init.c <https://github.com/google-deepmind/mujoco/blob/main/src/user/user_init.c>`__.
 
+.. _meMemory:
+
+Memory management
+^^^^^^^^^^^^^^^^^
+
+As seen in the examples above, model elements are never allocated by the user directly, but rather returned by a
+constructor. The library takes ownership of all elements and frees them when the parent :ref:`mjSpec` is deleted using
+:ref:`mj_deleteSpec`. The user is only responsible for freeing :ref:`mjSpec` structs.
+
 .. _meAttachment:
 
 Attachment
 ^^^^^^^^^^
 
-This framework introduces a powerful new feature: attaching and detaching model subtrees. This feature is already used
-to power the :ref:`attach<body-attach>` an :ref:`replicate<replicate>` meta-elements in MJCF. Attachment allows the user
-to move or copy a subtree from one model into another, while also copying or moving related referenced assets and
-referencing elements from outside the kinematic tree (e.g., actuators and sensors). Similarly, detaching a subtree will
-remove all associated elements from the model. The default behavior is to move the child into the parent while
-attaching, so subsequent changes to the child will also change the parent. Alternatively, the user can choose to make an
-entirely new copy during attach using :ref:`mjs_setDeepCopy`. This flag is temporarily set to true while parsing XMLs.
-It is possible to :ref:`attach a body to a frame<mjs_attach>`:
+This framework introduces a powerful new feature: attaching and deleting model subtrees. This feature is already used to
+power the :ref:`attach<body-attach>` an :ref:`replicate<replicate>` meta-elements in MJCF. Attachment allows the user to
+move or copy a subtree from one model into another, while also copying or moving related referenced assets and
+referencing elements from outside the kinematic tree (e.g., actuators and sensors). Similarly, deleting a subtree will
+remove all associated elements from the model. The default behavior ("shallow copy") is to move the child into the
+parent while attaching, so subsequent changes to the child will also change the parent. Alternatively, the user can
+choose to make an entirely new copy during attach using :ref:`mjs_setDeepCopy`. This flag is temporarily set to true
+while parsing XMLs. It is possible to :ref:`attach a body or an mjSpec to a frame<mjs_attach>`:
 
 .. code-block:: C
 
@@ -126,7 +138,7 @@ It is possible to :ref:`attach a body to a frame<mjs_attach>`:
    mjsElement* body = mjs_addBody(mjs_findBody(child, "world"), NULL)->element;
    mjsBody* attached_body_1 = mjs_asBody(mjs_attach(frame, body, "attached-", "-1"));
 
-or :ref:`attach a body to a site<mjs_attach>`:
+or :ref:`attach a body or an mjSpec to a site<mjs_attach>`:
 
 .. code-block:: C
 
@@ -136,7 +148,7 @@ or :ref:`attach a body to a site<mjs_attach>`:
    mjsElement* body = mjs_addBody(mjs_findBody(child, "world"), NULL)->element;
    mjsBody* attached_body_2 = mjs_asBody(mjs_attach(site, body, "attached-", "-2"));
 
-or :ref:`attach a frame to a body<mjs_attach>`:
+or :ref:`attach a frame or an mjSpec to a body<mjs_attach>`:
 
 .. code-block:: C
 
@@ -152,6 +164,18 @@ interperted. Compiler flags are carried over during attachment, so the child mod
 flags, while the parent will be compiled using the parent flags.
 
 Note also that once a child is attached by reference to a parent, the child cannot be compiled on its own.
+
+.. admonition:: Known issues
+   :class: note
+
+   The following known limitations exist:
+
+   - All assets from the child model will be copied in, whether they are referenced or not, if the parent and the child
+     are not the same mjSpec.
+   - Circular references are not checked for and will lead to infinite loops.
+   - When attaching a model with :ref:`keyframes<keyframe>`, model compilation is required for the re-indexing to be
+     finalized. If a second attachment is performed without compilation, the keyframes from the first attachment will be
+     lost.
 
 .. _meDefault:
 

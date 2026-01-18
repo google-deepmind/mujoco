@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required(VERSION 3.16)
+set(MUJOCO_CMAKE_MIN_REQ "3.16")
+cmake_minimum_required(VERSION ${MUJOCO_CMAKE_MIN_REQ})
 
 # Make CMAKE_C_VISIBILITY_PRESET work properly.
 set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
@@ -28,7 +29,7 @@ set(MSVC_INCREMENTAL_DEFAULT ON)
 
 project(
   mujoco
-  VERSION 3.3.4
+  VERSION 3.4.1
   DESCRIPTION "MuJoCo Physics Simulator"
   HOMEPAGE_URL "https://mujoco.org"
 )
@@ -38,18 +39,20 @@ enable_language(CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
-option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
-option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
-option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
-option(MUJOCO_BUILD_USD_PLUGINS "Build OpenUSD plugins" OFF)
+if(NOT EMSCRIPTEN)
+  option(MUJOCO_BUILD_EXAMPLES "Build samples for MuJoCo" ON)
+  option(MUJOCO_BUILD_SIMULATE "Build simulate library for MuJoCo" ON)
+  option(MUJOCO_BUILD_STUDIO "Build studio library for MuJoCo" OFF)
+  option(MUJOCO_BUILD_TESTS "Build tests for MuJoCo" ON)
+  option(MUJOCO_TEST_PYTHON_UTIL "Build and test utility libraries for Python bindings" ON)
+  option(MUJOCO_WITH_USD "Build with OpenUSD" OFF)
+  option(MUJOCO_USE_FILAMENT "Use filament rendering" OFF)
+  option(MUJOCO_USE_FILAMENT_VULKAN "Use vulkan backend for filament rendering" OFF)
+endif()
 
-# USD libs to compile against.
-set(MUJOCO_USD_ALLOWED_TARGET_VALUES "USD" "Houdini")
-set(MUJOCO_USD_TARGET "USD" CACHE STRING "Select the USD target for the project.")
-set_property(CACHE MUJOCO_USD_TARGET
-  PROPERTY STRINGS ${MUJOCO_USD_ALLOWED_TARGET_VALUES}
-)
+if(EMSCRIPTEN)
+  option(MUJOCO_BUILD_TESTS_WASM "Build tests for WASM bindings" ON)
+endif()
 
 if(APPLE AND (MUJOCO_BUILD_EXAMPLES OR MUJOCO_BUILD_SIMULATE))
   enable_language(OBJC)
@@ -84,7 +87,13 @@ else()
   set(MUJOCO_RESOURCE_FILES "")
 endif()
 
-add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
+# Emscripten does not support SHARED libs
+if(NOT EMSCRIPTEN)
+  add_library(mujoco SHARED ${MUJOCO_RESOURCE_FILES})
+else()
+  add_library(mujoco STATIC ${MUJOCO_RESOURCE_FILES})
+endif()
+
 target_include_directories(
   mujoco
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -92,16 +101,36 @@ target_include_directories(
   PRIVATE src
 )
 
-add_subdirectory(plugin/elasticity)
-add_subdirectory(plugin/actuator)
-add_subdirectory(plugin/sensor)
-add_subdirectory(plugin/sdf)
+if(NOT EMSCRIPTEN)
+  add_subdirectory(plugin/elasticity)
+  add_subdirectory(plugin/actuator)
+  add_subdirectory(plugin/sensor)
+  add_subdirectory(plugin/sdf)
+endif()
 add_subdirectory(src/engine)
 add_subdirectory(src/user)
 add_subdirectory(src/xml)
-add_subdirectory(src/render)
 add_subdirectory(src/thread)
-add_subdirectory(src/ui)
+
+if(MUJOCO_USE_FILAMENT AND NOT EMSCRIPTEN)
+  # Note that, by default, the "src/render" and "src/ui" code is added directly
+  # into the "mujoco" target. However, "mujoco::filament" is a separate,
+  # explicit target. Therefore, if you want to use MuJoCo with Filament, you
+  # will need to explicitly add the "mujoco::filament" target as a link
+  # dependency in your project.
+  add_subdirectory(src/experimental/filament)
+elseif(NOT EMSCRIPTEN)
+  add_subdirectory(src/render)
+  add_subdirectory(src/ui)
+endif()
+
+if(EMSCRIPTEN)
+  add_subdirectory(wasm)
+  if(MUJOCO_BUILD_TESTS_WASM)
+    add_subdirectory(wasm/tests)
+  endif()
+endif()
+
 
 target_compile_definitions(mujoco PRIVATE _GNU_SOURCE CCD_STATIC_DEFINE MUJOCO_DLL_EXPORTS -DMC_IMPLEM_ENABLE)
 if(MUJOCO_ENABLE_AVX_INTRINSICS)
@@ -185,12 +214,36 @@ if(MUJOCO_BUILD_SIMULATE)
   add_subdirectory(simulate)
 endif()
 
+if(MUJOCO_BUILD_STUDIO)
+  add_subdirectory(src/experimental/platform)
+  add_subdirectory(src/experimental/studio)
+endif()
+
 if(MUJOCO_BUILD_EXAMPLES)
   add_subdirectory(sample)
 endif()
 
-if(MUJOCO_BUILD_USD_PLUGINS)
-  add_subdirectory(src/experimental/usd/plugins)
+if(MUJOCO_WITH_USD)
+  include(third_party_deps/openusd)
+
+  get_filename_component(USD_INSTALL_ROOT "${pxr_DIR}/lib" ABSOLUTE)
+  install(
+    DIRECTORY ${USD_INSTALL_ROOT}/
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+
+  if(APPLE)
+    set_target_properties(mujoco PROPERTIES
+      BUILD_RPATH "${USD_INSTALL_ROOT}"
+      INSTALL_RPATH "@loader_path")
+  elseif(UNIX)
+    set_target_properties(mujoco PROPERTIES
+      BUILD_RPATH "${USD_INSTALL_ROOT}"
+      INSTALL_RPATH "$ORIGIN")
+  endif()
+
+  add_subdirectory(src/experimental/usd)
+  add_subdirectory(plugin/usd_decoder)
 endif()
 
 if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
@@ -202,9 +255,14 @@ if(BUILD_TESTING AND MUJOCO_BUILD_TESTS)
 endif()
 
 if(NOT (APPLE AND MUJOCO_BUILD_MACOS_FRAMEWORKS))
+  set(MUJOCO_TARGETS mujoco)
+  if (EMSCRIPTEN)
+    list(APPEND MUJOCO_TARGETS lodepng)
+  endif()
+
   # Install the libraries.
   install(
-    TARGETS mujoco
+    TARGETS ${MUJOCO_TARGETS}
     EXPORT ${PROJECT_NAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT runtime
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT runtime

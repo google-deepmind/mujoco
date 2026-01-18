@@ -229,6 +229,7 @@ class EllipsoidCollisionTest(parameterized.TestCase):
 
   _ELLIPSOID_ELLIPSOID = """
     <mujoco>
+      <option ccd_iterations="50"/>
       <worldbody>
         <body>
           <geom size=".15 .03 .05" type="ellipsoid"/>

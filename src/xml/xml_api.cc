@@ -20,74 +20,17 @@
 #include <fstream>
 #include <functional>
 #include <memory>
-#include <mutex>
-#include <optional>
 #include <sstream>
 #include <string>
-#include <type_traits>
 
 #include <mujoco/mjmodel.h>
-#include "engine/engine_io.h"
 #include <mujoco/mjspec.h>
+#include "engine/engine_io.h"
 #include "user/user_resource.h"
-#include "user/user_vfs.h"
 #include "xml/xml.h"
+#include "xml/xml_global.h"
 #include "xml/xml_native_reader.h"
 #include "xml/xml_util.h"
-
-//---------------------------------- Globals -------------------------------------------------------
-
-namespace {
-
-// global user model class
-class GlobalModel {
- public:
-  // deletes current model and takes ownership of model
-  void Set(mjSpec* spec = nullptr);
-
-  // writes XML to string
-  std::optional<std::string> ToXML(const mjModel* m, char* error,
-                                      int error_sz);
-
- private:
-  // using raw pointers as GlobalModel needs to be trivially destructible
-  std::mutex* mutex_ = new std::mutex();
-  mjSpec* spec_ = nullptr;
-};
-
-std::optional<std::string> GlobalModel::ToXML(const mjModel* m, char* error,
-                                              int error_sz) {
-  std::lock_guard<std::mutex> lock(*mutex_);
-  if (!spec_) {
-    mjCopyError(error, "No XML model loaded", error_sz);
-    return std::nullopt;
-  }
-  std::string result = WriteXML(m, spec_, error, error_sz);
-  if (result.empty()) {
-    return std::nullopt;
-  }
-  return result;
-}
-
-void GlobalModel::Set(mjSpec* spec) {
-  std::lock_guard<std::mutex> lock(*mutex_);
-  if (spec_ != nullptr) {
-    mj_deleteSpec(spec_);
-  }
-  spec_ = spec;
-}
-
-
-// returns a single instance of the global model
-GlobalModel& GetGlobalModel() {
-  static GlobalModel global_model;
-
-  // global variables must be trivially destructible
-  static_assert(std::is_trivially_destructible_v<decltype(global_model)>);
-  return global_model;
-}
-
-}  // namespace
 
 //---------------------------------- Functions -----------------------------------------------------
 
@@ -122,10 +65,9 @@ mjModel* mj_loadXML(const char* filename, const mjVFS* vfs,
   }
 
   // clear old and assign new
-  GetGlobalModel().Set(spec.release());
+  SetGlobalXmlSpec(spec.release());
   return m;
 }
-
 
 
 // update XML data structures with info from low-level model, save as MJCF
@@ -141,23 +83,23 @@ int mj_saveLastXML(const char* filename, const mjModel* m, char* error, int erro
     }
   }
 
-  auto result = GetGlobalModel().ToXML(m, error, error_sz);
-  if (result.has_value()) {
-    fprintf(fp, "%s", result->c_str());
+  const std::string result = GetGlobalXmlSpec(m, error, error_sz);
+  if (!result.empty()) {
+    fprintf(fp, "%s", result.c_str());
   }
 
   if (fp != stdout) {
     fclose(fp);
   }
 
-  return result.has_value();
+  return !result.empty();
 }
 
 
 
 // free last XML
 void mj_freeLastXML(void) {
-  GetGlobalModel().Set();
+  SetGlobalXmlSpec();
 }
 
 
@@ -262,4 +204,3 @@ int mj_saveXMLString(const mjSpec* s, char* xml, int xml_sz, char* error, int er
   xml[result.size()] = 0;
   return 0;
 }
-

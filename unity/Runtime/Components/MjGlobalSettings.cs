@@ -156,7 +156,6 @@ public struct MjSizeStruct {
 public struct MjOptionStruct {
 
   // "timestep" and "gravity" come from global settings.
-  // "apirate" is only relevant to HAPTIX.
   [Tooltip("Ratio of frictional-to-normal constraint impedance.")]
   public float ImpRatio;
   [Tooltip("Global magnetic flux used by magnetometer sensors.")]

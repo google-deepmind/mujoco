@@ -17,10 +17,11 @@
 #include <mujoco/mjdata.h>
 #include <mujoco/mjmodel.h>
 #include <mujoco/mjsan.h>  // IWYU pragma: keep
-#include "engine/engine_core_constraint.h"
+#include "engine/engine_core_util.h"
 #include "engine/engine_crossplatform.h"
-#include "engine/engine_io.h"
+#include "engine/engine_memory.h"
 #include "engine/engine_passive.h"
+#include "engine/engine_sleep.h"
 #include "engine/engine_support.h"
 #include "engine/engine_util_blas.h"
 #include "engine/engine_util_errmem.h"
@@ -31,7 +32,6 @@
 
 
 //------------------------- derivatives of spatial algebra -----------------------------------------
-
 
 
 // derivatives of cross product, Da and Db are 3x3
@@ -59,7 +59,6 @@ static void mjd_cross(const mjtNum a[3], const mjtNum b[3],
     Db[7] =  a[0];
   }
 }
-
 
 
 // derivative of mju_crossMotion w.r.t velocity
@@ -98,7 +97,6 @@ static void mjd_crossMotion_vel(mjtNum D[36], const mjtNum v[6]) {
 }
 
 
-
 // derivative of mju_crossForce w.r.t. velocity
 static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6]) {
   mju_zero(D, 36);
@@ -135,7 +133,6 @@ static void mjd_crossForce_vel(mjtNum D[36], const mjtNum f[6]) {
 }
 
 
-
 // derivative of mju_crossForce w.r.t. force
 static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6]) {
   mju_zero(D, 36);
@@ -170,7 +167,6 @@ static void mjd_crossForce_frc(mjtNum D[36], const mjtNum vel[6]) {
   D[30 + 3] = -vel[1];
   D[30 + 4] = vel[0];
 }
-
 
 
 // derivative of mju_mulInertVec w.r.t vel
@@ -215,7 +211,6 @@ static void mjd_mulInertVec_vel(mjtNum D[36], const mjtNum i[10]) {
 }
 
 
-
 // derivative of mju_subQuat w.r.t inputs
 void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db[9]) {
   // no outputs, quick return
@@ -252,7 +247,7 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
   mju_addToScl(Da_tmp, KK, coef, 9);
 
   if (Da) {
-    mju_copy(Da, Da_tmp, 9);
+    mju_copy9(Da, Da_tmp);
   }
 
   if (Db) {  // Db = -Da^T
@@ -260,7 +255,6 @@ void mjd_subQuat(const mjtNum qa[4], const mjtNum qb[4], mjtNum Da[9], mjtNum Db
     mju_scl(Db, Db, -1.0, 9);
   }
 }
-
 
 
 // derivative of mju_quatIntegrate w.r.t scaled velocity
@@ -291,7 +285,7 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
   mjtNum xx = mju_dot3(s, s);
   mjtNum x = mju_sqrt(xx);
 
-  // 4 coefficients: a=cos(x), b=sin(x)/x, c=(1-cos(x))/x^2, d=(x-sin(x))/x^3}
+  // 4 coefficients: a=cos(x), b=sin(x)/x, c=(1-cos(x))/x^2, d=(x-sin(x))/x^3
   mjtNum a = mju_cos(x);
   mjtNum b, c, d;
 
@@ -315,10 +309,9 @@ void mjd_quatIntegrate(const mjtNum vel[3], mjtNum scale,
     if (Dquat)          Dquat[i] = a*eye[i] + b*cross[i] + c*outer[i];
     if (Dvel || Dscale) Dvel_[i] = b*eye[i] + c*cross[i] + d*outer[i];
   }
-  if (Dvel) mju_copy(Dvel, Dvel_, 9);
+  if (Dvel) mju_copy9(Dvel, Dvel_);
   if (Dscale) mju_mulMatVec3(Dscale, Dvel_, vel);
 }
-
 
 
 //------------------------- dense derivatives of component functions -------------------------------
@@ -386,7 +379,6 @@ static void mjd_comVel_vel_dense(const mjModel* m, mjData* d, mjtNum* Dcvel, mjt
     }
   }
 }
-
 
 
 // subtract (d qfrc_bias / d qvel) from qDeriv (dense version)
@@ -458,16 +450,15 @@ void mjd_rne_vel_dense(const mjModel* m, mjData* d) {
       mju_scl(row, Dcfrcbody + (m->dof_bodyid[i]*6+k)*nv, d->cdof[i*6+k], nv);
 
       // dense to sparse: qDeriv -= row
-      int end = d->D_rowadr[i] + d->D_rownnz[i];
-      for (int adr=d->D_rowadr[i]; adr < end; adr++) {
-        d->qDeriv[adr] -= row[d->D_colind[adr]];
+      int end = m->D_rowadr[i] + m->D_rownnz[i];
+      for (int adr=m->D_rowadr[i]; adr < end; adr++) {
+        d->qDeriv[adr] -= row[m->D_colind[adr]];
       }
     }
   }
 
   mj_freeStack(d);
 }
-
 
 
 //------------------------- sparse derivatives of component functions ------------------------------
@@ -492,9 +483,8 @@ static void copyFromParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
   }
 
   // copy: guaranteed to be at beginning of sparse array, due to sorting
-  mju_copy(mat + 6*d->B_rowadr[n], mat + 6*d->B_rowadr[m->body_parentid[n]], 6*ndof);
+  mju_copy(mat + 6*m->B_rowadr[n], mat + 6*m->B_rowadr[m->body_parentid[n]], 6*ndof);
 }
-
 
 
 // add sparse B-row to parent, all overlapping nonzeros
@@ -507,10 +497,10 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
   // find matching nonzeros
   int np = m->body_parentid[n];
   int i = 0, ip = 0;
-  while (i < d->B_rownnz[n] && ip < d->B_rownnz[np]) {
+  while (i < m->B_rownnz[n] && ip < m->B_rownnz[np]) {
     // columns match
-    if (d->B_colind[d->B_rowadr[n] + i] == d->B_colind[d->B_rowadr[np] + ip]) {
-      mju_addTo(mat + 6*(d->B_rowadr[np] + ip), mat + 6*(d->B_rowadr[n] + i), 6);
+    if (m->B_colind[m->B_rowadr[n] + i] == m->B_colind[m->B_rowadr[np] + ip]) {
+      mju_addTo(mat + 6*(m->B_rowadr[np] + ip), mat + 6*(m->B_rowadr[n] + i), 6);
 
       // advance both
       i++;
@@ -518,7 +508,7 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
     }
 
     // mismatch columns: advance parent
-    else if (d->B_colind[d->B_rowadr[n] + i] > d->B_colind[d->B_rowadr[np] + ip]) {
+    else if (m->B_colind[m->B_rowadr[n] + i] > m->B_colind[m->B_rowadr[np] + ip]) {
       ip++;
     }
 
@@ -530,15 +520,18 @@ static void addToParent(const mjModel* m, mjData* d, mjtNum* mat, int n) {
 }
 
 
-
 // derivative of cvel, cdof_dot w.r.t qvel
 static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* Dcdofdot) {
-  int nv = m->nv, nbody = m->nbody;
-  int* Badr = d->B_rowadr, * Dadr = d->D_rowadr;
+  int nv = m->nv, nM = m->nM;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+  int* Badr = m->B_rowadr, * Dadr = m->D_rowadr;
   mjtNum mat[36], matT[36];   // 6x6 matrices
 
   // forward pass over bodies: accumulate Dcvel, set Dcdofdot
-  for (int i = 1; i < nbody; i++) {
+  for (int b=1; b < nbody; b++) {
+    int i = sleep_filter ? d->body_awake_ind[b] : b;
+
     // Dcvel = Dcvel_parent
     copyFromParent(m, d, Dcvel, i);
 
@@ -546,7 +539,7 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
     int doflast = m->body_dofadr[i] + m->body_dofnum[i];
     for (int j = m->body_dofadr[i]; j < doflast; j++) {
       // number of dof ancestors of dof j
-      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
+      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : nM) - (m->dof_Madr[j] + 1);
 
       // Dcvel += D(cdof * qvel),  Dcdofdot = D(cvel x cdof)
       switch ((mjtJoint) m->jnt_type[m->dof_jntid[j]]) {
@@ -599,13 +592,18 @@ static void mjd_comVel_vel(const mjModel* m, mjData* d, mjtNum* Dcvel, mjtNum* D
 }
 
 
-
 // subtract d qfrc_bias / d qvel from qDeriv
 static void mjd_rne_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv, nbody = m->nbody;
-  const int* Badr = d->B_rowadr;
-  const int* Dadr = d->D_rowadr;
-  const int* Bnnz = d->B_rownnz;
+  int nM = m->nM;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
+  int nparent = sleep_filter ? d->nparent_awake : m->nbody;
+  int mnv = m->nv;
+  int nv = sleep_filter ? d->nv_awake : mnv;
+
+  const int* Badr = m->B_rowadr;
+  const int* Dadr = m->D_rowadr;
+  const int* Bnnz = m->B_rownnz;
 
   mjtNum mat[36], mat1[36], mat2[36], dmul[36], tmp[6];
 
@@ -614,19 +612,37 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   mjtNum* Dcvel = mjSTACKALLOC(d, 6*m->nB, mjtNum);
   mjtNum* Dcacc = mjSTACKALLOC(d, 6*m->nB, mjtNum);
   mjtNum* Dcfrcbody = mjSTACKALLOC(d, 6*m->nB, mjtNum);
-  mjtNum* row = mjSTACKALLOC(d, nv, mjtNum);
+  mjtNum* row = mjSTACKALLOC(d, m->nv, mjtNum);
 
   // clear
-  mju_zero(Dcdofdot, 6*m->nD);
-  mju_zero(Dcvel, 6*m->nB);
-  mju_zero(Dcacc, 6*m->nB);
-  mju_zero(Dcfrcbody, 6*m->nB);
+  if (!sleep_filter) {
+    mju_zero(Dcdofdot,  6*m->nD);
+    mju_zero(Dcvel,     6*m->nB);
+    mju_zero(Dcacc,     6*m->nB);
+    mju_zero(Dcfrcbody, 6*m->nB);
+  } else {
+    for (int i = 0; i < nv; i++) {
+      int dof = d->dof_awake_ind[i];
+      mju_zero(Dcdofdot + 6*m->D_rowadr[dof], 6*m->D_rownnz[dof]);
+    }
+
+    for (int i = 0; i < nbody; i++) {
+      int body = d->body_awake_ind[i];
+      int adr = 6*m->B_rowadr[body];
+      int nnz = 6*m->B_rownnz[body];
+      mju_zero(Dcvel     + adr, nnz);
+      mju_zero(Dcacc     + adr, nnz);
+      mju_zero(Dcfrcbody + adr, nnz);
+    }
+  }
 
   // compute Dcvel and Dcdofdot
   mjd_comVel_vel(m, d, Dcvel, Dcdofdot);
 
   // forward pass over bodies: accumulate Dcacc, set Dcfrcbody
-  for (int i=1; i < nbody; i++) {
+  for (int b=1; b < nbody; b++) {
+    int i = sleep_filter ? d->body_awake_ind[b] : b;
+
     // Dcacc = Dcacc_parent
     copyFromParent(m, d, Dcacc, i);
 
@@ -634,7 +650,7 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
     int doflast = m->body_dofadr[i] + m->body_dofnum[i];
     for (int j=m->body_dofadr[i]; j < doflast; j++) {
       // number of dof ancestors of dof j
-      int Jadr = (j < nv - 1 ? m->dof_Madr[j + 1] : m->nM) - (m->dof_Madr[j] + 1);
+      int Jadr = (j < mnv - 1 ? m->dof_Madr[j + 1] : nM) - (m->dof_Madr[j] + 1);
 
       // Dcacc += cdofdot * (D qvel)
       mju_addTo(Dcacc + 6*(Badr[i] + Jadr), d->cdof_dot + 6*j, 6);
@@ -668,12 +684,15 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
   mju_zero(Dcfrcbody, 6*Bnnz[0]);
 
   // backward pass over bodies: accumulate Dcfrcbody
-  for (int i=m->nbody-1; i > 0; i--) {
+  for (int b=nparent-1; b > 0; b--) {
+    int i = sleep_filter ? d->parent_awake_ind[b] : b;
     addToParent(m, d, Dcfrcbody, i);
   }
 
   // process all dofs, update qDeriv
-  for (int j=0; j < nv; j++) {
+  for (int v=0; v < nv; v++) {
+    int j = sleep_filter ? d->dof_awake_ind[v] : v;
+
     // get body index
     int i = m->dof_bodyid[j];
 
@@ -684,7 +703,6 @@ static void mjd_rne_vel(const mjModel* m, mjData* d) {
 
   mj_freeStack(d);
 }
-
 
 
 //--------------------- utility functions for (d force / d vel) Jacobians --------------------------
@@ -710,10 +728,10 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
           mju_scl(row, J+j*nv, J[i*nv+k] * B[i*n+j], nv);
 
           // add row to qDeriv(k,:)
-          int rownnz_k = d->D_rownnz[k];
+          int rownnz_k = m->D_rownnz[k];
           for (int s=0; s < rownnz_k; s++) {
-            int adr = d->D_rowadr[k] + s;
-            d->qDeriv[adr] += row[d->D_colind[adr]];
+            int adr = m->D_rowadr[k] + s;
+            d->qDeriv[adr] += row[m->D_colind[adr]];
           }
         }
       }
@@ -722,7 +740,6 @@ static void addJTBJ(const mjModel* m, mjData* d, const mjtNum* J, const mjtNum* 
 
   mj_freeStack(d);
 }
-
 
 
 // add J'*B*J to qDeriv, sparse version
@@ -734,26 +751,28 @@ static void addJTBJSparse(
   // compute qDeriv(k,p) += sum_{i,j} ( J(i,k)*B(i,j)*J(j,p) )
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
-      int offset_i = offset+i, offset_j = offset+j;
       if (!B[i*n+j]) {
         continue;
       }
 
       // loop over non-zero elements of J(i,:)
-      for (int k = 0; k < J_rownnz[offset_i]; k++) {
-        int ik = J_rowadr[offset_i] + k;
+      int nnz_i = J_rownnz[offset+i];
+      int adr_i = J_rowadr[offset+i];
+      int nnz_j = J_rownnz[offset+j];
+      int adr_j = J_rowadr[offset+j];
+      for (int k = 0; k < nnz_i; k++) {
+        int ik = adr_i + k;
         int colik = J_colind[ik];
 
         // qDeriv(k,:) += J(j,:) * J(i,k)*B(i,j)
-        mju_addToSclSparseInc(d->qDeriv + d->D_rowadr[colik], J + J_rowadr[offset_j],
-                              d->D_rownnz[colik], d->D_colind + d->D_rowadr[colik],
-                              J_rownnz[offset_j], J_colind + J_rowadr[offset_j],
+        mju_addToSclSparseInc(d->qDeriv + m->D_rowadr[colik], J + adr_j,
+                              m->D_rownnz[colik], m->D_colind + m->D_rowadr[colik],
+                              nnz_j, J_colind + adr_j,
                               J[ik]*B[i*n+j]);
       }
     }
   }
 }
-
 
 
 //----------------------------- derivatives of actuator forces -------------------------------------
@@ -807,24 +826,25 @@ static mjtNum mjd_muscleGain_vel(mjtNum len, mjtNum vel, const mjtNum lengthrang
 }
 
 
-
 // add (d qfrc_actuator / d qvel) to qDeriv
 void mjd_actuator_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv, nu = m->nu;
+  int nu = m->nu;
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
 
   // disabled: nothing to add
   if (mjDISABLED(mjDSBL_ACTUATION)) {
     return;
   }
 
-  // allocate dense actuator_moment row
-  mj_markStack(d);
-  mjtNum* moment = mjSTACKALLOC(d, nv, mjtNum);
-
   // process actuators
   for (int i=0; i < nu; i++) {
     // skip if disabled
     if (mj_actuatorDisabled(m, i)) {
+      continue;
+    }
+
+    // skip if sleeping
+    if (sleep_filter && mj_sleepState(m, d, mjOBJ_ACTUATOR, i) == mjS_ASLEEP) {
       continue;
     }
 
@@ -864,16 +884,11 @@ void mjd_actuator_vel(const mjModel* m, mjData* d) {
 
     // add
     if (bias_vel != 0) {
-      mju_sparse2dense(moment, d->actuator_moment, 1, nv, d->moment_rownnz + i,
-                       d->moment_rowadr + i, d->moment_colind);
-      addJTBJ(m, d, moment, &bias_vel, 1);
+      addJTBJSparse(m, d, d->actuator_moment, &bias_vel, 1, i,
+                    d->moment_rownnz, d->moment_rowadr, d->moment_colind);
     }
   }
-
-  // free space
-  mj_freeStack(d);
 }
-
 
 
 //----------------- utilities for ellipsoid-based fluid force derivatives --------------------------
@@ -883,14 +898,12 @@ static inline mjtNum pow2(const mjtNum val) {
 }
 
 
-
 static inline mjtNum ellipsoid_max_moment(const mjtNum size[3], const int dir) {
   const mjtNum d0 = size[dir];
   const mjtNum d1 = size[(dir+1) % 3];
   const mjtNum d2 = size[(dir+2) % 3];
   return 8.0/15.0 * mjPI * d0 * pow2(pow2(mju_max(d1, d2)));
 }
-
 
 
 // add 3x3 matrix D to one of the four quadrants of the 6x6 matrix B
@@ -907,7 +920,6 @@ static void addToQuadrant(mjtNum* restrict B, const mjtNum D[9], int col_quad, i
   B[6*(c+2) + r+1] += D[7];
   B[6*(c+2) + r+2] += D[8];
 }
-
 
 
 //----------------- components of ellipsoid-based fluid force derivatives --------------------------
@@ -955,7 +967,6 @@ static void mjd_addedMassForces(
   }
   addToQuadrant(B, Da, 1, 1);
 }
-
 
 
 // torque due to motion in the fluid, D is 3x3
@@ -1009,7 +1020,6 @@ static inline void mjd_viscous_torque(
   mju_addToScl3(D+3, mom_sq, y);
   mju_addToScl3(D+6, mom_sq, z);
 }
-
 
 
 // drag due to motion in the fluid, D is 3x3
@@ -1079,7 +1089,6 @@ static inline void mjd_viscous_drag(
 }
 
 
-
 // Kutta lift due to motion in the fluid, D is 3x3
 static inline void mjd_kutta_lift(
   mjtNum* restrict D, const mjtNum lvel[6], const mjtNum fluid_density,
@@ -1133,7 +1142,6 @@ static inline void mjd_kutta_lift(
 }
 
 
-
 // Magnus force due to motion in the fluid, B is 6x6
 static inline void mjd_magnus_force(
   mjtNum* restrict B, const mjtNum lvel[6], const mjtNum fluid_density,
@@ -1159,7 +1167,6 @@ static inline void mjd_magnus_force(
   addToQuadrant(B, D_ang, 1, 0);
   addToQuadrant(B, D_lin, 1, 1);
 }
-
 
 
 //----------------- fluid force derivatives, ellipsoid and inertia-box models ----------------------
@@ -1198,7 +1205,7 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
   for (int j=0; j < m->body_geomnum[bodyid]; j++) {
     const int geomid = m->body_geomadr[bodyid] + j;
 
-    mju_geomSemiAxes(m, geomid, semiaxes);
+    mju_geomSemiAxes(semiaxes, m->geom_size + 3*geomid, m->geom_type[geomid]);
 
     readFluidGeomInteraction(
       m->geom_fluid + mjNFLUID*geomid, &geom_interaction_coef,
@@ -1260,15 +1267,13 @@ void mjd_ellipsoidFluid(const mjModel* m, mjData* d, int bodyid) {
 
     if (mj_isSparse(m)) {
       addJTBJSparse(m, d, J, B, 6, 0, rownnz, rowadr, colind_compressed);
-    }
-    else {
+    } else {
       addJTBJ(m, d, J, B, 6);
     }
   }
 
   mj_freeStack(d);
 }
-
 
 
 // fluid forces based on inertia-box approximation
@@ -1425,75 +1430,23 @@ void mjd_inertiaBoxFluid(const mjModel* m, mjData* d, int i) {
 }
 
 
-
 //------------------------- derivatives of passive forces ------------------------------------------
 
 // add (d qfrc_passive / d qvel) to qDeriv
 void mjd_passive_vel(const mjModel* m, mjData* d) {
-  int nv = m->nv, nbody = m->nbody;
-
-  // disabled: nothing to add
-  if (mjDISABLED(mjDSBL_PASSIVE)) {
+  // all disabled: nothing to add
+  if (mjDISABLED(mjDSBL_SPRING) && mjDISABLED(mjDSBL_DAMPER)) {
     return;
   }
 
-  // dof damping
-  for (int i=0; i < nv; i++) {
-    int nnz_i = d->D_rownnz[i];
-    for (int j=0; j < nnz_i; j++) {
-      int ij = d->D_rowadr[i] + j;
-
-      // identify diagonal element
-      if (d->D_colind[ij] == i) {
-        d->qDeriv[ij] -= m->dof_damping[i];
-        break;
-      }
-    }
-  }
-
-  // flex edge damping
-  for (int f=0; f < m->nflex; f++) {
-    if (!m->flex_rigid[f] && m->flex_edgedamping[f]) {
-      mjtNum B = -m->flex_edgedamping[f];
-      int flex_edgeadr = m->flex_edgeadr[f];
-      int flex_edgenum = m->flex_edgenum[f];
-
-      // process non-rigid edges of this flex
-      for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
-        // skip rigid
-        if (m->flexedge_rigid[e]) {
-          continue;
-        }
-
-        // add sparse or dense
-        if (mj_isSparse(m)) {
-          addJTBJSparse(m, d, d->flexedge_J, &B, 1, e,
-                        d->flexedge_J_rownnz, d->flexedge_J_rowadr, d->flexedge_J_colind);
-        } else {
-          addJTBJ(m, d, d->flexedge_J+e*nv, &B, 1);
-        }
-      }
-    }
-  }
-
-  // tendon damping
-  for (int i=0; i < m->ntendon; i++) {
-    if (m->tendon_damping[i] > 0) {
-      mjtNum B = -m->tendon_damping[i];
-
-      // add sparse or dense
-      if (mj_isSparse(m)) {
-        addJTBJSparse(m, d, d->ten_J, &B, 1, i,
-                      d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
-      } else {
-        addJTBJ(m, d, d->ten_J+i*nv, &B, 1);
-      }
-    }
-  }
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->ntree_awake < m->ntree;
+  int nbody = sleep_filter ? d->nbody_awake : m->nbody;
 
   // fluid drag model, either body-level (inertia box) or geom-level (ellipsoid)
   if (m->opt.viscosity > 0 || m->opt.density > 0) {
-    for (int i=1; i < nbody; i++) {
+    for (int b=0; b < nbody; b++) {
+      int i = sleep_filter ? d->body_awake_ind[b] : b;
+
       if (m->body_mass[i] < mjMINVAL) {
         continue;
       }
@@ -1511,8 +1464,69 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
       }
     }
   }
-}
 
+  // disabled: nothing to add
+  if (mjDISABLED(mjDSBL_DAMPER)) {
+    return;
+  }
+
+  // dof damping
+  int nv = m->nv;
+  int nv_awake = sleep_filter ? d->nv_awake : nv;
+  for (int j = 0; j < nv_awake; j++) {
+    int i = sleep_filter ? d->dof_awake_ind[j] : j;
+    d->qDeriv[m->D_rowadr[i] + m->D_diag[i]] -= m->dof_damping[i];
+  }
+
+  // flex edge damping
+  for (int f=0; f < m->nflex; f++) {
+    mjtNum B = -m->flex_edgedamping[f];
+    if (m->flex_rigid[f] || !B) {
+      continue;
+    }
+
+    int flex_edgeadr = m->flex_edgeadr[f];
+    int flex_edgenum = m->flex_edgenum[f];
+
+    // process non-rigid edges of this flex
+    for (int e=flex_edgeadr; e < flex_edgeadr+flex_edgenum; e++) {
+      // skip rigid
+      if (m->flexedge_rigid[e]) {
+        continue;
+      }
+
+      // always sparse
+      addJTBJSparse(m, d, d->flexedge_J, &B, 1, e,
+                    m->flexedge_J_rownnz, m->flexedge_J_rowadr, m->flexedge_J_colind);
+    }
+  }
+
+  // tendon damping
+  int ntendon = m->ntendon;
+  for (int i=0; i < ntendon; i++) {
+    // skip tendon in one or two sleeping trees
+    if (sleep_filter) {
+      int treenum = m->tendon_treenum[i];
+      int id1 = m->tendon_treeid[2*i];
+      if (treenum == 1 && !d->tree_awake[id1]) continue;
+      int id2 = m->tendon_treeid[2*i+1];
+      if (treenum == 2 && !d->tree_awake[id1] && !d->tree_awake[id2]) continue;
+    }
+
+    mjtNum B = -m->tendon_damping[i];
+
+    if (!B) {
+      continue;
+    }
+
+    // add sparse or dense
+    if (mj_isSparse(m)) {
+      addJTBJSparse(m, d, d->ten_J, &B, 1, i, d->ten_J_rownnz, d->ten_J_rowadr, d->ten_J_colind);
+    } else {
+      addJTBJ(m, d, d->ten_J+i*nv, &B, 1);
+    }
+  }
+}
 
 
 //------------------------- main entry points ------------------------------------------------------
@@ -1520,8 +1534,14 @@ void mjd_passive_vel(const mjModel* m, mjData* d) {
 // analytical derivative of smooth forces w.r.t velocities:
 //   d->qDeriv = d (qfrc_actuator + qfrc_passive - [qfrc_bias]) / d qvel
 void mjd_smooth_vel(const mjModel* m, mjData* d, int flg_bias) {
+  int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nv_awake < m->nv;
+
   // clear qDeriv
-  mju_zero(d->qDeriv, m->nD);
+  if (!sleep_filter) {
+    mju_zero(d->qDeriv, m->nD);
+  } else {
+    mju_zeroSparse(d->qDeriv, m->D_rownnz, m->D_rowadr, d->dof_awake_ind, d->nv_awake);
+  }
 
   // qDeriv += d qfrc_actuator / d qvel
   mjd_actuator_vel(m, d);

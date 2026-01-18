@@ -76,7 +76,9 @@ class PassiveTest(absltest.TestCase):
     _assert_attr_eq(d, dx, 'qfrc_gravcomp')
 
     # test disable passive
-    mx = mx.tree_replace({'opt.disableflags': mjx.DisableBit.PASSIVE})
+    mx = mx.tree_replace(
+        {'opt.disableflags': mjx.DisableBit.SPRING | mjx.DisableBit.DAMPER}
+    )
     dx = jax.jit(mjx.passive)(mx, mjx.put_data(m, d))
     np.testing.assert_allclose(dx.qfrc_passive, 0)
 

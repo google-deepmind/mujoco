@@ -19,7 +19,7 @@ set(MUJOCO_DEP_VERSION_lodepng
     CACHE STRING "Version of `lodepng` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_tinyxml2
-    9a89766acc42ddfa9e7133c7d81a5bda108a0ade
+    e6caeae85799003f4ca74ff26ee16a789bc2af48
     CACHE STRING "Version of `tinyxml2` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_tinyobjloader
@@ -35,16 +35,16 @@ set(MUJOCO_DEP_VERSION_ccd
     CACHE STRING "Version of `ccd` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_qhull
-    c7bee59d068a69f427b1273e71cdc5bc455a5bdd
+    62ccc56af071eaa478bef6ed41fd7a55d3bb2d80
     CACHE STRING "Version of `qhull` to be fetched."
 )
 set(MUJOCO_DEP_VERSION_Eigen3
-    d0b490ee091629068e0c11953419eb089f9e6bb2
+    49623d0c4e1af3c680845191948d10f6d3e92f8a
     CACHE STRING "Version of `Eigen3` to be fetched."
 )
 
 set(MUJOCO_DEP_VERSION_abseil
-    bc257a88f7c1939f24e0379f14a3589e926c950c # LTS 20250512.0
+    d38452e1ee03523a208362186fd42248ff2609f6 # LTS 20250814.1
     CACHE STRING "Version of `abseil` to be fetched."
 )
 
@@ -54,13 +54,13 @@ set(MUJOCO_DEP_VERSION_gtest
 )
 
 set(MUJOCO_DEP_VERSION_benchmark
-    049f6e79cc3e8636cec21bbd94ed185b4a5f2653
+    5f7d66929fb66869d96dfcbacf0d8a586b33766d
     CACHE STRING "Version of `benchmark` to be fetched."
 )
 
-set(MUJOCO_DEP_VERSION_sdflib
-    1927bee6bb8225258a39c8cbf14e18a4d50409ae
-    CACHE STRING "Version of `SdfLib` to be fetched."
+set(MUJOCO_DEP_VERSION_TriangleMeshDistance
+    2cb643de1436e1ba8e2be49b07ec5491ac604457
+    CACHE STRING "Version of `TriangleMeshDistance` to be fetched."
 )
 
 mark_as_advanced(MUJOCO_DEP_VERSION_lodepng)
@@ -73,7 +73,7 @@ mark_as_advanced(MUJOCO_DEP_VERSION_Eigen3)
 mark_as_advanced(MUJOCO_DEP_VERSION_abseil)
 mark_as_advanced(MUJOCO_DEP_VERSION_gtest)
 mark_as_advanced(MUJOCO_DEP_VERSION_benchmark)
-mark_as_advanced(MUJOCO_DEP_VERSION_sdflib)
+mark_as_advanced(MUJOCO_DEP_VERSION_TriangleMeshDistance)
 
 include(FetchContent)
 include(FindOrFetch)
@@ -106,7 +106,11 @@ if(NOT TARGET lodepng)
     add_library(lodepng STATIC ${LODEPNG_HEADERS} ${LODEPNG_SRCS})
     target_compile_options(lodepng PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
     target_link_options(lodepng PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
-    target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+    if(NOT EMSCRIPTEN)
+      target_include_directories(lodepng PUBLIC ${lodepng_SOURCE_DIR})
+    else()
+      target_include_directories(lodepng PUBLIC  $<BUILD_INTERFACE:${lodepng_SOURCE_DIR}> $<INSTALL_INTERFACE:include>)
+    endif()
   endif()
 endif()
 
@@ -125,6 +129,10 @@ if(NOT TARGET marchingcubecpp)
 endif()
 
 set(QHULL_ENABLE_TESTING OFF)
+# Patch changes in https://github.com/qhull/qhull/pull/173.patch
+set(QHULL_PATCH_COMMAND
+  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/qhull-support-emscripten.patch
+)
 
 findorfetch(
   USE_SYSTEM_PACKAGE
@@ -140,6 +148,7 @@ findorfetch(
   TARGETS
   qhull
   EXCLUDE_FROM_ALL
+  PATCH_COMMAND ${QHULL_PATCH_COMMAND}
 )
 # MuJoCo includes a file from libqhull_r which is not exported by the qhull include directories.
 # Add it to the target.
@@ -168,6 +177,11 @@ findorfetch(
 target_compile_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(tinyxml2 PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
+# update cmake_minimum_required version for compatibility with newer version of cmake
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM ${MUJOCO_CMAKE_MIN_REQ})
+  set(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED ON)
+endif()
 findorfetch(
   USE_SYSTEM_PACKAGE
   OFF
@@ -183,30 +197,48 @@ findorfetch(
   tinyobjloader
   EXCLUDE_FROM_ALL
 )
+if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+  unset(CMAKE_POLICY_VERSION_MINIMUM)
+  unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+endif()
 
-option(SDFLIB_USE_ASSIMP OFF)
-option(SDFLIB_USE_OPENMP OFF)
-option(SDFLIB_USE_ENOKI OFF)
-findorfetch(
-  USE_SYSTEM_PACKAGE
-  OFF
-  PACKAGE_NAME
-  sdflib
-  LIBRARY_NAME
-  sdflib
-  GIT_REPO
-  https://github.com/UPC-ViRVIG/SdfLib.git
-  GIT_TAG
-  ${MUJOCO_DEP_VERSION_sdflib}
-  TARGETS
-  SdfLib
-  EXCLUDE_FROM_ALL
-)
-target_compile_options(SdfLib PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
-target_link_options(SdfLib PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
+if(NOT TARGET trianglemeshdistance)
+  FetchContent_Declare(
+    trianglemeshdistance
+    GIT_REPOSITORY https://github.com/InteractiveComputerGraphics/TriangleMeshDistance.git
+    GIT_TAG ${MUJOCO_DEP_VERSION_TriangleMeshDistance}
+  )
+
+  FetchContent_GetProperties(trianglemeshdistance)
+  if(NOT trianglemeshdistance_POPULATED)
+    FetchContent_Populate(trianglemeshdistance)
+    # Patch the source code to silence a warning/error related to a loop variable creating a copy.
+    # Since this is a header only library this fix is less intrusive than disabling the warning for
+    # any target including the header.
+    set(TMD_HEADER ${trianglemeshdistance_SOURCE_DIR}/TriangleMeshDistance/include/tmd/TriangleMeshDistance.h)
+    file(READ ${TMD_HEADER} TMD_CONTENT)
+    string(REPLACE
+      "for (const auto edge_count : edges_count) {"
+      "for (const auto& edge_count : edges_count) {"
+      TMD_CONTENT "${TMD_CONTENT}")
+    file(WRITE ${TMD_HEADER} "${TMD_CONTENT}")
+    include_directories(${trianglemeshdistance_SOURCE_DIR})
+  endif()
+endif()
 
 set(ENABLE_DOUBLE_PRECISION ON)
 set(CCD_HIDE_ALL_SYMBOLS ON)
+
+# Patch changes in https://github.com/danfis/libccd/pull/83.patch
+set(CCD_PATCH_COMMAND
+  git apply --reject --whitespace=fix ${mujoco_SOURCE_DIR}/cmake/ccd-support-emscripten.patch
+)
+
+# update cmake_minimum_required version for compatibility with newer version of cmake
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM ${MUJOCO_CMAKE_MIN_REQ})
+  set(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED ON)
+endif()
 findorfetch(
   USE_SYSTEM_PACKAGE
   OFF
@@ -221,7 +253,12 @@ findorfetch(
   TARGETS
   ccd
   EXCLUDE_FROM_ALL
+  PATCH_COMMAND ${CCD_PATCH_COMMAND}
 )
+if(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+  unset(CMAKE_POLICY_VERSION_MINIMUM)
+  unset(CMAKE_POLICY_VERSION_MINIMUM_LOCALLY_DEFINED)
+endif()
 target_compile_options(ccd PRIVATE ${MUJOCO_MACOS_COMPILE_OPTIONS})
 target_link_options(ccd PRIVATE ${MUJOCO_MACOS_LINK_OPTIONS})
 
@@ -236,7 +273,7 @@ if(WIN32)
   endif()
 endif()
 
-if(MUJOCO_BUILD_TESTS)
+if(MUJOCO_BUILD_TESTS OR MUJOCO_BUILD_STUDIO OR MUJOCO_USE_FILAMENT)
   set(ABSL_PROPAGATE_CXX_STD ON)
 
   # This specific version of Abseil does not have the following variable. We need to work with BUILD_TESTING
@@ -267,6 +304,9 @@ if(MUJOCO_BUILD_TESTS)
       ${BUILD_TESTING_OLD}
       CACHE BOOL "Build tests." FORCE
   )
+endif()
+
+if(MUJOCO_BUILD_TESTS)
 
   # Avoid linking errors on Windows by dynamically linking to the C runtime.
   set(gtest_force_shared_crt

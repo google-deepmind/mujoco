@@ -32,22 +32,18 @@
 }
 
 // sub-macro that merges two sub-sorted arrays [start, ..., mid), [mid, ..., end) together
-#define _mjMERGE(type, arr, buf, start, mid, end, cmp, context)                                    \
+#define _mjMERGE(type, src, dest, start, mid, end, cmp, context)                                   \
 {                                                                                                  \
-  int len1 = mid - start, len2 = end - mid;                                                        \
-  type* left = buf, *right = buf + len1;                                                           \
-  for (int i = 0; i < len1; i++) left[i] = arr[start + i];                                         \
-  for (int i = 0; i < len2; i++) right[i] = arr[mid + i];                                          \
-  int i = 0, j = 0, k = start;                                                                     \
-  while (i < len1 && j < len2) {                                                                   \
-    if (cmp(left + i, right + j, context) <= 0) {                                                  \
-       arr[k++] = left[i++];                                                                       \
+  int i = start, j = mid, k = start;                                                               \
+  while (i < mid && j < end) {                                                                     \
+    if (cmp(src + i, src + j, context) <= 0) {                                                     \
+       dest[k++] = src[i++];                                                                       \
     } else {                                                                                       \
-      arr[k++] = right[j++];                                                                       \
+      dest[k++] = src[j++];                                                                        \
     }                                                                                              \
   }                                                                                                \
-  while (i < len1) arr[k++] = left[i++];                                                           \
-  while (j < len2) arr[k++] = right[j++];                                                          \
+  if      (i < mid) memcpy(dest + k, src + i, (mid - i) * sizeof(type));                           \
+  else if (j < end) memcpy(dest + k, src + j, (end - j) * sizeof(type));                           \
 }
 
 // defines an inline stable sorting function via tiled merge sorting (timsort)
@@ -60,15 +56,56 @@
       int end = (start + _mjRUNSIZE < n) ? start + _mjRUNSIZE : n;                                 \
       _mjINSERTION_SORT(type, arr, start, end, cmp, context);                                      \
     }                                                                                              \
+    type* src = arr, *dest = buf, *tmp;                                                            \
     for (int len = _mjRUNSIZE; len < n; len *= 2) {                                                \
       for (int start = 0; start < n; start += 2*len) {                                             \
         int mid = start + len;                                                                     \
         int end = (start + 2*len < n) ? start + 2*len : n;                                         \
         if (mid < end) {                                                                           \
-          _mjMERGE(type, arr, buf, start, mid, end, cmp, context);                                 \
+          _mjMERGE(type, src, dest, start, mid, end, cmp, context);                                \
+        } else {                                                                                   \
+          memcpy(dest + start, src + start, (end - start) * sizeof(type));                         \
         }                                                                                          \
       }                                                                                            \
+      tmp = src; src = dest; dest = tmp;                                                           \
     }                                                                                              \
-  }
+    if (src != arr) memcpy(arr, src, n * sizeof(type));                                            \
+  } static inline void name(type* arr, type* buf, int n, void* context)
+
+
+// sub-macro that sifts down a node in a max heap to its correct position
+#define _mjSIFT_DOWN(type, buf, start, end, cmp, context)                                          \
+{                                                                                                  \
+  int root = start;                                                                                \
+  while (2 * root + 1 < end) {                                                                     \
+    int child = 2 * root + 1;                                                                      \
+    int swap = root;                                                                               \
+    if (cmp(buf + swap, buf + child, context) < 0) swap = child;                                   \
+    if (child + 1 < end && cmp(buf + swap, buf + child + 1, context) < 0) swap = child + 1;        \
+    if (swap == root) break;                                                                       \
+    type tmp = buf[root]; buf[root] = buf[swap]; buf[swap] = tmp;                                  \
+    root = swap;                                                                                   \
+  }                                                                                                \
+}
+
+// defines an inline function that selects the bottom k elements using partial heap sort
+// buf needs to be of size k
+#define mjPARTIAL_SORT(name, type, cmp)                                                            \
+  static inline void name(type* arr, type* buf, int n, int k, void* context) {                     \
+    if (k <= 0 || n < k) return;                                                                   \
+    /* fill initial heap */                                                                        \
+    for (int i = 0; i < k; i++) buf[i] = arr[i];                                                   \
+    for (int j = (k - 2) / 2; j >= 0; j--) _mjSIFT_DOWN(type, buf, j, k, cmp, context);            \
+    /* scan remaining elements */                                                                  \
+    for (int i = k; i < n; i++) {                                                                  \
+      if (cmp(arr + i, buf, context) < 0) {                                                        \
+        buf[0] = arr[i];                                                                           \
+        _mjSIFT_DOWN(type, buf, 0, k, cmp, context);                                               \
+      }                                                                                            \
+    }                                                                                              \
+    /* copy back and sort the result */                                                            \
+    for (int j = 0; j < k; j++) arr[j] = buf[j];                                                   \
+    _mjINSERTION_SORT(type, arr, 0, k, cmp, context);                                              \
+  } static inline void name(type* arr, type* buf, int n, int k, void* context)
 
 #endif  // MUJOCO_SRC_ENGINE_ENGINE_SORT_H_
