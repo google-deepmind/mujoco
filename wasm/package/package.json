@@ -1,17 +1,11 @@
 {
-  "name": "mujoco-js",
+  "name": "mujoco",
   "version": "0.0.7",
   "description": "The official MuJoCo WebAssembly module",
   "type": "module",
-  "main": "./mujoco_wasm.js",
-  "types": "./mujoco_wasm.d.ts",
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "./build.sh",
-    "prepublishOnly": "npm run build"
-  },
+  "main": "./mujoco.js",
+  "types": "./mujoco.d.ts",
+  "scripts": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/google-deepmind/mujoco.git",
