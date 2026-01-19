@@ -454,8 +454,8 @@ jobs:
 
     - name: Stage WASM artifacts for publishing
       run: |
-        cp build_wasm/bin/mujoco.js ./wasm/package/
-        cp build_wasm/bin/mujoco.wasm ./wasm/package/
+        cp wasm/dist/mujoco_wasm.js ./wasm/package/mujoco.js
+        cp wasm/dist/mujoco_wasm.wasm ./wasm/package/mujoco.wasm
 
     - name: Publish package to NPM
       working-directory: ./wasm/package
