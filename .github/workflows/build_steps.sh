@@ -224,10 +224,37 @@ build_test_wasm() {
     source emsdk/emsdk_env.sh
     export PATH="$(pwd)/node_modules/.bin:$PATH"
 
-    emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF $WASM_CMAKE_ARGS
-    cmake --build build_wasm
+        echo "WASM_CMAKE_ARGS='${WASM_CMAKE_ARGS:-<unset>}'"
+        echo "Working directory: $(pwd)"
+        echo "--- Environment vars (sorted) ---"
+        env | sort
 
-    npm run test --prefix ./wasm
+        echo "Running emcmake cmake (configuring build_wasm)..."
+        emcmake cmake -B build_wasm -DCMAKE_INTERPROCEDURAL_OPTIMIZATION:BOOL=OFF $WASM_CMAKE_ARGS
+
+        echo "--- After cmake configure: listing build_wasm (top-level) ---"
+        if [ -d build_wasm ]; then
+            ls -la build_wasm || true
+            echo "--- Recursive listing (depth 3) of build_wasm ---"
+            find build_wasm -maxdepth 3 -exec ls -ld {} \; || true
+        else
+            echo "build_wasm directory not found"
+        fi
+
+        echo "Building with cmake --build build_wasm"
+        cmake --build build_wasm
+
+        echo "--- After build: listing likely output locations ---"
+        ls -la build_wasm || true
+        ls -la build_wasm/bin || true
+        ls -la wasm/dist || true
+        ls -la wasm/package || true
+
+        echo "--- Files under wasm (depth 2) ---"
+        find wasm -maxdepth 2 -exec ls -ld {} \; || true
+
+        echo "Running npm tests (wasm package)..."
+        npm run test --prefix ./wasm
 }
 
 
