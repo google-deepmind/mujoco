@@ -389,7 +389,7 @@ memory utilization include:
 - CCD colliders require more memory than primitive colliders, see MuJoCo's :ref:`pair-wise colliders table <coPairwise>`
   for information about colliders.
 - :ref:`multiccd <option-flag-multiccd>` requires more memory than CCD.
-- CCD memory requirements scale linearly with :ref:`Option.ccd_iterations <option-ccd-iterations>`.
+- CCD memory requirements scale linearly with :ref:`Option.ccd_iterations <option-ccd_iterations>`.
 - A scene with at least one mesh geom and using :ref:`multiccd <option-flag-multiccd>` will have memory requirements
   that scale linearly with the maximum number of vertices per face and with the maximum number of edges per vertex,
   computed over all meshes.
