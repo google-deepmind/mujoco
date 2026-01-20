@@ -1272,7 +1272,7 @@ void App::ToolBarGui() {
       for (int n = 0; n < cameras.size(); n++) {
         if (ImGui::Selectable(cameras[n], (camera_idx == n))) {
           ui_.camera_idx = platform::SetCamera(
-              model_, &camera_, camera_idx + platform::kTumbleCameraIdx);
+              model_, &camera_, n + platform::kTumbleCameraIdx);
         }
       }
       ImGui::EndCombo();
