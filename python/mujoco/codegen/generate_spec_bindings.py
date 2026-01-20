@@ -463,6 +463,15 @@ def generate_add() -> None:
             f'py::arg("{f.name}") = py::none()',
         )
       elif isinstance(f.type, ast_nodes.ArrayType):
+        if f.name == 'size' and f.type.extents[0] == 3:
+          return (
+              f'set_array_size(out->{f.name}, {f.name});',
+              'array_size',
+              f.name,
+              'list[float]',
+              f'std::optional<std::vector<double>>& {f.name}',
+              f'py::arg("{f.name}") = py::none()',
+          )
         return (
             (
                 f'set_array(out->{f.name}, {f.name}, {f.type.extents[0]},'
@@ -746,6 +755,20 @@ def generate_add() -> None:
               int idx = 0;
               for (auto val : array.value()) {
                 des[idx++] = val;
+              }
+            }
+          };
+          """
+        elif t == 'array_size':
+          code += """\n
+          auto set_array_size = [](auto&& des, const std::optional<std::vector<double>>& array) {
+            if (array.has_value()) {
+              if (array->size() < 1 || array->size() > 3) {
+                std::string msg = "size should be a list/array of size 1, 2, or 3.";
+                throw pybind11::value_error(msg);
+              }
+              for (int i = 0; i < 3; i++) {
+                des[i] = (i < array->size()) ? array->at(i) : 0;
               }
             }
           };

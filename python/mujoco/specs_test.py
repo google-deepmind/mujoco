@@ -452,6 +452,42 @@ class SpecsTest(absltest.TestCase):
         'Only one of: iaxisangle, ixyaxes, izaxis, or ieuler can be set.',
     )
 
+  def test_size_kwarg_variable_length(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+
+    geom_size1 = body.add_geom(size=[0.5])
+    np.testing.assert_array_equal(geom_size1.size, [0.5, 0, 0])
+
+    geom_size2 = body.add_geom(size=[0.5, 0.3])
+    np.testing.assert_array_equal(geom_size2.size, [0.5, 0.3, 0])
+
+    geom_size3 = body.add_geom(size=[0.5, 0.3, 0.1])
+    np.testing.assert_array_equal(geom_size3.size, [0.5, 0.3, 0.1])
+
+    site_size1 = body.add_site(size=[0.2])
+    np.testing.assert_array_equal(site_size1.size, [0.2, 0, 0])
+
+    site_size2 = body.add_site(size=[0.2, 0.1])
+    np.testing.assert_array_equal(site_size2.size, [0.2, 0.1, 0])
+
+    site_size3 = body.add_site(size=[0.2, 0.1, 0.05])
+    np.testing.assert_array_equal(site_size3.size, [0.2, 0.1, 0.05])
+
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(size=[])
+    self.assertEqual(
+        str(cm.exception),
+        'size should be a list/array of size 1, 2, or 3.',
+    )
+
+    with self.assertRaises(ValueError) as cm:
+      body.add_geom(size=[1, 2, 3, 4])
+    self.assertEqual(
+        str(cm.exception),
+        'size should be a list/array of size 1, 2, or 3.',
+    )
+
   def test_load_xml(self):
     file_path = epath.resource_path("mujoco") / "testdata" / "model.xml"
     filename = file_path.as_posix()
