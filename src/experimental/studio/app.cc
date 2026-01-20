@@ -339,7 +339,7 @@ bool App::Update() {
     UpdatePhysics();
   }
 
-  return status == platform::Window::Status::kRunning;
+  return status == platform::Window::Status::kRunning && !tmp_.should_exit;
 }
 
 void App::Render() {
