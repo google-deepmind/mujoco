@@ -581,7 +581,7 @@ void DrawLightGui(filament::LightManager& lm,
   }
 }
 
-void DrawSceneViewGui(SceneView* scene_view) {
+void DrawGui(SceneView* scene_view) {
   filament::View* view = scene_view->GetDefaultRenderView();
   filament::Engine* engine = scene_view->GetEngine();
   filament::LightManager& lm = engine->getLightManager();
@@ -669,28 +669,4 @@ void DrawSceneViewGui(SceneView* scene_view) {
     ImGui::TreePop();
   }
 }
-
-void DrawGui(SceneView* scene_view) {
-  static bool display = false;
-  if (ImGui::BeginMainMenuBar()) {
-    if (ImGui::BeginMenu("View")) {
-      ImGui::Separator();
-      if (ImGui::MenuItem("Filament", "", display)) {
-        display = !display;
-      }
-      ImGui::EndMenu();
-    }
-    ImGui::EndMainMenuBar();
-  }
-
-  if (!display) {
-    return;
-  }
-
-  ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_Appearing);
-  ImGui::Begin("Filament");
-  DrawSceneViewGui(scene_view);
-  ImGui::End();
-}
-
 }  // namespace mujoco

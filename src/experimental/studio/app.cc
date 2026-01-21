@@ -37,6 +37,7 @@
 #include "experimental/platform/imgui_widgets.h"
 #include "experimental/platform/interaction.h"
 #include "experimental/platform/picture_gui.h"
+#include "experimental/platform/plugin.h"
 #include "experimental/platform/renderer.h"
 #include "experimental/platform/step_control.h"
 #include "experimental/platform/window.h"
@@ -854,6 +855,26 @@ void App::BuildGui() {
     ImGui::End();
   }
 
+  platform::ForEachGuiPlugin([](platform::GuiPlugin* plugin) {
+    if (!plugin->update) {
+      return;
+    }
+    if (ImGui::BeginMainMenuBar()) {
+      if (ImGui::BeginMenu("Plugins")) {
+        if (ImGui::MenuItem(plugin->name, "", plugin->active)) {
+          plugin->active = !plugin->active;
+        }
+        ImGui::EndMenu();
+      }
+      ImGui::EndMainMenuBar();
+    }
+    if (plugin->active) {
+      ImGui::Begin(plugin->name);
+      plugin->update(plugin);
+      ImGui::End();
+    }
+  });
+
   ImGuiIO& io = ImGui::GetIO();
   if (tmp_.first_frame) {
     LoadSettings();
@@ -1532,6 +1553,11 @@ void App::MainMenuGui() {
       if (ImGui::MenuItem("Performance", "F10")) {
         tmp_.chart_performance = !tmp_.chart_performance;
       }
+      ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Plugins")) {
+      // Placeholder menu item that will be populated by plugins later on. We
+      // do this now in so that the menu is present at the right place.
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Help")) {

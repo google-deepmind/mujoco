@@ -20,6 +20,7 @@
 
 #if defined(USE_FILAMENT_OPENGL) || defined(USE_FILAMENT_VULKAN)
 #include "experimental/filament/render_context_filament.h"
+#include "experimental/platform/plugin.h"
 #elif defined(USE_CLASSIC_OPENGL)
 #include <imgui.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -136,3 +137,14 @@ int Renderer::UploadImage(int texture_id, const std::byte* pixels, int width,
 double Renderer::GetFps() { return fps_; }
 
 }  // namespace mujoco::platform
+
+#if !defined(USE_CLASSIC_OPENGL)
+mjPLUGIN_LIB_INIT {
+  mujoco::platform::GuiPlugin plugin;
+  plugin.name = "Filament";
+  plugin.update = [](mujoco::platform::GuiPlugin* self) {
+    mjr_updateGui(nullptr);
+  };
+  mujoco::platform::RegisterGuiPlugin(&plugin);
+}
+#endif

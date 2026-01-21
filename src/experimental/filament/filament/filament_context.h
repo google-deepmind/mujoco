@@ -56,14 +56,14 @@ class FilamentContext {
 
   double GetFrameRate() const;
 
+  void UpdateGui();
+
   FilamentContext(const FilamentContext&) = delete;
   FilamentContext& operator=(const FilamentContext&) = delete;
 
  private:
   void PrepareRenderTargets(int width, int height);
   void DestroyRenderTargets();
-
-  SceneView* GetSceneView(const mjvScene* scene);
 
   mjrFilamentConfig config_;
   mjrContext* context_ = nullptr;

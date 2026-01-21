@@ -146,8 +146,6 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
   // Draw the GUI. We do this after processing the scene in case there are any
   // label elements in the scene.
   if (gui_view_ && !render_to_texture_) {
-    DrawGui(scene_view_.get());
-
     // Prepare the filament Renderable that contains the GUI draw commands. We
     // must call this function even if we do not plan on rendering the GUI to
     // ensure the ImGui state is updated.
@@ -337,6 +335,10 @@ double FilamentContext::GetFrameRate() const {
   }
   const int64_t ns = frame_info[0].denoisedGpuFrameDuration;
   return 1.0e9 / static_cast<double>(ns);
+}
+
+void FilamentContext::UpdateGui() {
+  DrawGui(scene_view_.get());
 }
 
 }  // namespace mujoco

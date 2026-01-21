@@ -113,4 +113,10 @@ double mjr_getFrameRate(const mjrContext* con) {
   return g_filament_context->GetFrameRate();
 }
 
+void mjr_updateGui(const mjrContext* con) {
+  if (g_filament_context != nullptr) {
+    g_filament_context->UpdateGui();
+  }
+}
+
 }  // extern "C"
