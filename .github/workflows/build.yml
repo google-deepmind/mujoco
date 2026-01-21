@@ -139,7 +139,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
 
     - name: Prepare Linux
       if: ${{ runner.os == 'Linux' }}
@@ -149,7 +149,7 @@ jobs:
       if: ${{ runner.os == 'macOS' }}
       run: brew install ninja
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v6
       with:
         python-version: "3.11"
 
@@ -161,7 +161,7 @@ jobs:
 
     - name: Setup Node.js for WASM bindings
       if: ${{ runner.os == 'Linux' && matrix.label != 'ubuntu-24.04-clang-18' }}
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20'
 
@@ -369,7 +369,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
 
     - name: Prepare Windows (setup MSVC)
       if: ${{ runner.os == 'Windows' }}
@@ -420,10 +420,10 @@ jobs:
         -DCMAKE_CXX_COMPILER:STRING=clang++-18
         -DMUJOCO_HARDEN:BOOL=ON
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
 
     - name: Setup Node.js for WASM bindings
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20'
 
