@@ -15,15 +15,17 @@
 #ifndef MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 #define MUJOCO_SRC_EXPERIMENTAL_STUDIO_APP_H_
 
+#include <cstddef>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 #include <mujoco/mujoco.h>
 #include "experimental/platform/gui.h"
-#include "experimental/platform/helpers.h"
 #include "experimental/platform/interaction.h"
 #include "experimental/platform/picture_gui.h"
 #include "experimental/platform/renderer.h"
@@ -39,17 +41,18 @@ class App {
  public:
   App(int width, int height, std::string ini_path);
 
-  enum ContentType {
-    kFilepath,  // Path to a model file.
-    kModelXml,  // XML model string.
-    kModelMjb,  // Binary model payload.
-  };
+  // Loads an empty mjModel.
+  void InitEmptyModel();
 
-  // Loads a model into the simulation.
-  //
-  // Note: Do not call this function from within Update() (i.e. while drawing
-  // the UX). Call RequestModelLoad() instead.
-  void LoadModel(std::string data, ContentType type);
+  // Loads an mjModel from the given file. This extension should be one of:
+  // .xml or .mjb.
+  void LoadModelFromFile(const std::string& filepath);
+
+  // Loads an mjModel from the given memory buffer. The content_type should be
+  // one of: "text/xml" or "application/mjb".
+  void LoadModelFromBuffer(std::span<const std::byte> buffer,
+                           std::string_view content_type,
+                           std::string_view name);
 
   // Processes window events and advances the state of the simulation.
   bool Update();
@@ -62,6 +65,13 @@ class App {
   void Render();
 
  private:
+  // The kind of model that is currently loaded.
+  enum ModelKind {
+    kEmptyModel,
+    kModelFromFile,
+    kModelFromBuffer,
+  };
+
   // UI state that is persisted across application runs
   struct UiState {
     char watch_field[1000] = "qpos";
@@ -131,10 +141,22 @@ class App {
     std::string last_print_data_file;
   };
 
-  void ClearModel();
-  void ProcessPendingLoad();
-  bool IsModelLoaded() const;
+  // Requests that the model be loaded from the given file at the next update.
   void RequestModelLoad(std::string model_file);
+
+  // Requests that the currently loaded model be reloaded at the next update.
+  void RequestModelReload();
+
+  // Clears the currently loaded model and all associated state.
+  void ClearModel();
+
+  // Updates the currently loaded model to the given model. If model is null,
+  // then compile the spec to a model.
+  void InitModel(mjModel* model, mjSpec* spec, mjVFS* vfs, std::string filename,
+                 ModelKind model_kind);
+
+  void SetLoadError(std::string error);
+  void UpdateFilePaths(const std::string& resolved_path);
 
   void ResetPhysics();
   void UpdatePhysics();
@@ -165,10 +187,12 @@ class App {
   float GetExpectedLabelWidth();
   std::vector<const char*> GetCameraNames();
 
-  std::string error_;
   std::string ini_path_;
-  std::string model_name_;
+  std::string model_path_;
+  std::string load_error_;
+  std::string step_error_;
   std::optional<std::string> pending_load_;
+  ModelKind model_kind_ = kEmptyModel;
 
   std::unique_ptr<platform::Window> window_;
   std::unique_ptr<platform::Renderer> renderer_;

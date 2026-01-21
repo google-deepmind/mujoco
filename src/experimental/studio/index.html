@@ -130,14 +130,7 @@
           reader.onload = (e) => {
             const buffer = e.target.result;
             try {
-              if (file.name.endsWith('.mjb')) {
-                Module.loadMjb(buffer);
-              } else if (file.name.endsWith('.xml')) {
-                Module.loadXml(buffer);
-              } else {
-                console.error('Unsupported file type:', file.name);
-              }
-              console.log('Model loaded from file:', file.name);
+              Module.loadFile(file.name, buffer);
             } catch (error) {
               console.error('Failed to load model from file:', error);
             }
@@ -145,7 +138,7 @@
           reader.onerror = (e) => {
             console.error('Error reading file:', e);
           };
-          reader.readAsArrayBuffer(file); // Reads as text, suitable for XML.
+          reader.readAsArrayBuffer(file);
         });
       });
     </script>

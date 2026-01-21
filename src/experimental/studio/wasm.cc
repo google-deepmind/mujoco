@@ -92,21 +92,26 @@ void Init() {
   mjp_registerResourceProvider(&resource_provider);
 
   g_app = new mujoco::studio::App(width, height, ini_path);
-  g_app->LoadModel("", mujoco::studio::App::ContentType::kModelXml);
+  g_app->InitEmptyModel();
 }
 
-// Javascript-facing function to load a model from a MJB file.
-void LoadMjb(const std::string& src) {
-  if (g_app) {
-    g_app->LoadModel(src, mujoco::studio::App::ContentType::kModelMjb);
+// Javascript-facing function to load a model from an uploaded file.
+void LoadFile(const std::string& filename, const std::string& data) {
+  if (!g_app) {
+    return;
   }
-}
 
-// Javascript-facing function to load a model from an XML file.
-void LoadXml(const std::string& src) {
-  if (g_app) {
-    g_app->LoadModel(src, mujoco::studio::App::ContentType::kModelXml);
+  std::string content_type;
+  if (filename.ends_with(".mjb")) {
+    content_type = "application/mjb";
+  } else if (filename.ends_with(".xml")) {
+    content_type = "text/xml";
+  } else {
+    return;
   }
+
+  const auto ptr = reinterpret_cast<const std::byte*>(data.data());
+  g_app->LoadModelFromBuffer({ptr, ptr + data.size()}, content_type, filename);
 }
 
 // Javascript-facing function to render a single frame.
@@ -128,8 +133,7 @@ void Deinit() {
 EMSCRIPTEN_BINDINGS(studio_bindings) {
   emscripten::function("registerAsset", &RegisterAsset);
   emscripten::function("init", &Init);
-  emscripten::function("loadMjb", &LoadMjb);
-  emscripten::function("loadXml", &LoadXml);
+  emscripten::function("loadFile", &LoadFile);
   emscripten::function("renderFrame", &RenderFrame);
   emscripten::function("deinit", &Deinit);
 }
