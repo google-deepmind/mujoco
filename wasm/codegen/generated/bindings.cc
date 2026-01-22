@@ -2157,6 +2157,9 @@ struct MjsFlex {
   void set_radius(double value) {
     ptr_->radius = value;
   }
+  emscripten::val size() const {
+    return emscripten::val(emscripten::typed_memory_view(3, ptr_->size));
+  }
   mjtByte internal() const {
     return ptr_->internal;
   }
@@ -3585,6 +3588,12 @@ struct MjModel {
   void set_nJfe(int value) {
     ptr_->nJfe = value;
   }
+  int nJfv() const {
+    return ptr_->nJfv;
+  }
+  void set_nJfv(int value) {
+    ptr_->nJfv = value;
+  }
   int nmesh() const {
     return ptr_->nmesh;
   }
@@ -4521,6 +4530,9 @@ struct MjModel {
   emscripten::val flex_radius() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex, ptr_->flex_radius));
   }
+  emscripten::val flex_size() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 3, ptr_->flex_size));
+  }
   emscripten::val flex_stiffness() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexelem * 21, ptr_->flex_stiffness));
   }
@@ -4565,6 +4577,15 @@ struct MjModel {
   }
   emscripten::val flexedge_J_colind() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nJfe, ptr_->flexedge_J_colind));
+  }
+  emscripten::val flexvert_J_rownnz() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 2, ptr_->flexvert_J_rownnz));
+  }
+  emscripten::val flexvert_J_rowadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 2, ptr_->flexvert_J_rowadr));
+  }
+  emscripten::val flexvert_J_colind() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nJfv * 2, ptr_->flexvert_J_colind));
   }
   emscripten::val flex_rgba() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflex * 4, ptr_->flex_rgba));
@@ -6305,6 +6326,12 @@ struct MjData {
   }
   emscripten::val flexedge_length() const {
     return emscripten::val(emscripten::typed_memory_view(model->nflexedge, ptr_->flexedge_length));
+  }
+  emscripten::val flexvert_J() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nJfv * 2, ptr_->flexvert_J));
+  }
+  emscripten::val flexvert_length() const {
+    return emscripten::val(emscripten::typed_memory_view(model->nflexvert * 2, ptr_->flexvert_length));
   }
   emscripten::val bvh_aabb_dyn() const {
     return emscripten::val(emscripten::typed_memory_view(model->nbvhdynamic * 6, ptr_->bvh_aabb_dyn));
@@ -11019,6 +11046,8 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flexedge_length", &MjData::flexedge_length)
     .property("flexedge_velocity", &MjData::flexedge_velocity)
     .property("flexelem_aabb", &MjData::flexelem_aabb)
+    .property("flexvert_J", &MjData::flexvert_J)
+    .property("flexvert_length", &MjData::flexvert_length)
     .property("flexvert_xpos", &MjData::flexvert_xpos)
     .property("geom_xmat", &MjData::geom_xmat)
     .property("geom_xpos", &MjData::geom_xpos)
@@ -11334,6 +11363,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_shell", &MjModel::flex_shell)
     .property("flex_shelldataadr", &MjModel::flex_shelldataadr)
     .property("flex_shellnum", &MjModel::flex_shellnum)
+    .property("flex_size", &MjModel::flex_size)
     .property("flex_solimp", &MjModel::flex_solimp)
     .property("flex_solmix", &MjModel::flex_solmix)
     .property("flex_solref", &MjModel::flex_solref)
@@ -11351,6 +11381,9 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flexedge_invweight0", &MjModel::flexedge_invweight0)
     .property("flexedge_length0", &MjModel::flexedge_length0)
     .property("flexedge_rigid", &MjModel::flexedge_rigid)
+    .property("flexvert_J_colind", &MjModel::flexvert_J_colind)
+    .property("flexvert_J_rowadr", &MjModel::flexvert_J_rowadr)
+    .property("flexvert_J_rownnz", &MjModel::flexvert_J_rownnz)
     .property("geom_aabb", &MjModel::geom_aabb)
     .property("geom_bodyid", &MjModel::geom_bodyid)
     .property("geom_conaffinity", &MjModel::geom_conaffinity)
@@ -11477,6 +11510,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("nC", &MjModel::nC, &MjModel::set_nC, reference())
     .property("nD", &MjModel::nD, &MjModel::set_nD, reference())
     .property("nJfe", &MjModel::nJfe, &MjModel::set_nJfe, reference())
+    .property("nJfv", &MjModel::nJfv, &MjModel::set_nJfv, reference())
     .property("nJmom", &MjModel::nJmom, &MjModel::set_nJmom, reference())
     .property("nM", &MjModel::nM, &MjModel::set_nM, reference())
     .property("na", &MjModel::na, &MjModel::set_na, reference())
@@ -12048,6 +12082,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("radius", &MjsFlex::radius, &MjsFlex::set_radius, reference())
     .property("rgba", &MjsFlex::rgba)
     .property("selfcollide", &MjsFlex::selfcollide, &MjsFlex::set_selfcollide, reference())
+    .property("size", &MjsFlex::size)
     .property("solimp", &MjsFlex::solimp)
     .property("solmix", &MjsFlex::solmix, &MjsFlex::set_solmix, reference())
     .property("solref", &MjsFlex::solref)

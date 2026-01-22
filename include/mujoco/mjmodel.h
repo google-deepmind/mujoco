@@ -702,6 +702,7 @@ struct mjModel_ {
   int nflexevpair;                // number of element-vertex pairs in all flexes
   int nflextexcoord;              // number of vertices with texture coordinates
   int nJfe;                       // number of non-zeros in sparse flexedge Jacobian matrix
+  int nJfv;                       // number of non-zeros in sparse flexvert Jacobian matrix
   int nmesh;                      // number of meshes
   int nmeshvert;                  // number of vertices in all meshes
   int nmeshnormal;                // number of normals in all meshes
@@ -996,12 +997,13 @@ struct mjModel_ {
   mjtNum*   flexedge_length0;     // edge lengths in qpos0                    (nflexedge x 1)
   mjtNum*   flexedge_invweight0;  // edge inv. weight in qpos0                (nflexedge x 1)
   mjtNum*   flex_radius;          // radius around primitive element          (nflex x 1)
+  mjtNum*   flex_size;            // vertex bounding box half sizes in qpos0  (nflex x 3)
   mjtNum*   flex_stiffness;       // finite element stiffness matrix          (nflexelem x 21)
   mjtNum*   flex_bending;         // bending stiffness                        (nflexedge x 17)
   mjtNum*   flex_damping;         // Rayleigh's damping coefficient           (nflex x 1)
   mjtNum*   flex_edgestiffness;   // edge stiffness                           (nflex x 1)
   mjtNum*   flex_edgedamping;     // edge damping                             (nflex x 1)
-  mjtByte*  flex_edgeequality;    // is edge equality constraint defined      (nflex x 1)
+  int*      flex_edgeequality;    // 0: none, 1: edges, 2: vertices           (nflex x 1)
   mjtByte*  flex_rigid;           // are all vertices in the same body        (nflex x 1)
   mjtByte*  flexedge_rigid;       // are both edge vertices in same body      (nflexedge x 1)
   mjtByte*  flex_centered;        // are all vertex coordinates (0,0,0)       (nflex x 1)
@@ -1011,6 +1013,9 @@ struct mjModel_ {
   int*      flexedge_J_rownnz;    // number of non-zeros in Jacobian row      (nflexedge x 1)
   int*      flexedge_J_rowadr;    // row start address in colind array        (nflexedge x 1)
   int*      flexedge_J_colind;    // column indices in sparse Jacobian        (nJfe x 1)
+  int*      flexvert_J_rownnz;    // number of non-zeros in Jacobian row      (nflexvert x 2)
+  int*      flexvert_J_rowadr;    // row start address in colind array        (nflexvert x 2)
+  int*      flexvert_J_colind;    // column indices in sparse Jacobian        (nJfv x 2)
   float*    flex_rgba;            // rgba when material is omitted            (nflex x 4)
   float*    flex_texcoord;        // vertex texture coordinates               (nflextexcoord x 2)
 

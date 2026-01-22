@@ -4983,6 +4983,8 @@ public unsafe struct mjData_ {
   public double* flexelem_aabb;
   public double* flexedge_J;
   public double* flexedge_length;
+  public double* flexvert_J;
+  public double* flexvert_length;
   public double* bvh_aabb_dyn;
   public int* ten_wrapadr;
   public int* ten_wrapnum;
@@ -5314,6 +5316,7 @@ public unsafe struct mjModel_ {
   public int nflexevpair;
   public int nflextexcoord;
   public int nJfe;
+  public int nJfv;
   public int nmesh;
   public int nmeshvert;
   public int nmeshnormal;
@@ -5572,12 +5575,13 @@ public unsafe struct mjModel_ {
   public double* flexedge_length0;
   public double* flexedge_invweight0;
   public double* flex_radius;
+  public double* flex_size;
   public double* flex_stiffness;
   public double* flex_bending;
   public double* flex_damping;
   public double* flex_edgestiffness;
   public double* flex_edgedamping;
-  public byte* flex_edgeequality;
+  public int* flex_edgeequality;
   public byte* flex_rigid;
   public byte* flexedge_rigid;
   public byte* flex_centered;
@@ -5587,6 +5591,9 @@ public unsafe struct mjModel_ {
   public int* flexedge_J_rownnz;
   public int* flexedge_J_rowadr;
   public int* flexedge_J_colind;
+  public int* flexvert_J_rownnz;
+  public int* flexvert_J_rowadr;
+  public int* flexvert_J_colind;
   public float* flex_rgba;
   public float* flex_texcoord;
   public int* mesh_vertadr;

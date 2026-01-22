@@ -4392,10 +4392,16 @@ void mjCFlex::Compile(const mjVFS* vfs) {
   // compute bounding box coordinates
   vert0_.assign(3*nvert, 0);
   const mjtNum* bvh = tree.Bvh().data();
+  size[0] = bvh[3] - radius;
+  size[1] = bvh[4] - radius;
+  size[2] = bvh[5] - radius;
   for (int j=0; j < nvert; j++) {
     for (int k=0; k < 3; k++) {
-      double size = 2*(bvh[k+3] - radius);
-      vert0_[3*j+k] = (vertxpos[3*j+k] - bvh[k]) / size + 0.5;
+      if (size[k] > mjMINVAL) {
+        vert0_[3*j+k] = (vertxpos[3*j+k] - bvh[k]) / (2*size[k]) + 0.5;
+      } else {
+        vert0_[3*j+k] = 0.5;
+      }
     }
   }
 

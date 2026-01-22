@@ -1155,6 +1155,7 @@ void mjCModel::Clear() {
   nflexevpair = 0;
   nflextexcoord = 0;
   nJfe = 0;
+  nJfv = 0;
   nmeshvert = 0;
   nmeshnormal = 0;
   nmeshtexcoord = 0;
@@ -2164,6 +2165,31 @@ void mjCModel::SetSizes() {
       }
       for (mjCBody* b : bodies_in_jac) {
         nJfe += b->dofnum;
+      }
+    }
+
+    // compute nJfv
+    std::vector<std::vector<int>> adj(flexes_[i]->nvert);
+    for (const auto& edge : flexes_[i]->edge) {
+      adj[edge.first].push_back(edge.second);
+      adj[edge.second].push_back(edge.first);
+    }
+    for (int j=0; j < flexes_[i]->nvert; j++) {
+      std::unordered_set<int> vert_bodies;
+      vert_bodies.insert(flexes_[i]->vertbodyid[j]);
+      for (int neighbor : adj[j]) {
+        vert_bodies.insert(flexes_[i]->vertbodyid[neighbor]);
+      }
+      std::unordered_set<mjCBody*> bodies_in_jac;
+      for (int body_id : vert_bodies) {
+        mjCBody* b = bodies_[body_id];
+        while (b) {
+          bodies_in_jac.insert(b);
+          b = b->parent;
+        }
+      }
+      for (mjCBody* b : bodies_in_jac) {
+        nJfv += b->dofnum;
       }
     }
   }
@@ -3288,6 +3314,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     mjuu_copyvec(m->flex_solref + mjNREF * i, pfl->solref, mjNREF);
     mjuu_copyvec(m->flex_solimp + mjNIMP * i, pfl->solimp, mjNIMP);
     m->flex_radius[i] = (mjtNum)pfl->radius;
+    mjuu_copyvec(m->flex_size + 3 * i, pfl->size, 3);
     mjuu_copyvec(m->flex_friction + 3 * i, pfl->friction, 3);
     m->flex_margin[i] = (mjtNum)pfl->margin;
     m->flex_gap[i] = (mjtNum)pfl->gap;
@@ -3363,6 +3390,7 @@ void mjCModel::CopyObjects(mjModel* m) {
         m->flex_edgeequality[i] = 1;
         break;
       }
+      // TODO: support flex_edgeequality = 2
     }
 
     // copy bvh data (flex aabb computed dynamically in mjData)
@@ -4856,7 +4884,7 @@ void mjCModel::TryCompile(mjModel*& m, mjData*& d, const mjVFS* vfs) {
   mj_makeModel(&m,
                nq, nv, nu, na, nbody, nbvh, nbvhstatic, nbvhdynamic, noct, njnt, ntree, nM, nB, nC,
                nD, ngeom, nsite, ncam, nlight, nflex, nflexnode, nflexvert, nflexedge, nflexelem,
-               nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord, nJfe,
+               nflexelemdata, nflexelemedge, nflexshelldata, nflexevpair, nflextexcoord, nJfe, nJfv,
                nmesh, nmeshvert, nmeshnormal, nmeshtexcoord, nmeshface, nmeshgraph, nmeshpoly,
                nmeshpolyvert, nmeshpolymap, nskin, nskinvert, nskintexvert, nskinface, nskinbone,
                nskinbonevert, nhfield, nhfielddata, ntex, ntexdata, nmat, npair, nexclude,

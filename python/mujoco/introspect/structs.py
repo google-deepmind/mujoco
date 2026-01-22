@@ -998,6 +998,11 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of non-zeros in sparse flexedge Jacobian matrix',
              ),
              StructFieldDecl(
+                 name='nJfv',
+                 type=ValueType(name='int'),
+                 doc='number of non-zeros in sparse flexvert Jacobian matrix',
+             ),
+             StructFieldDecl(
                  name='nmesh',
                  type=ValueType(name='int'),
                  doc='number of meshes',
@@ -2881,6 +2886,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
+                 name='flex_size',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='vertex bounding box half sizes in qpos0',
+                 array_extent=('nflex', 3),
+             ),
+             StructFieldDecl(
                  name='flex_stiffness',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -2923,9 +2936,9 @@ STRUCTS: Mapping[str, StructDecl] = dict([
              StructFieldDecl(
                  name='flex_edgeequality',
                  type=PointerType(
-                     inner_type=ValueType(name='mjtByte'),
+                     inner_type=ValueType(name='int'),
                  ),
-                 doc='is edge equality constraint defined',
+                 doc='0: none, 1: edges, 2: vertices',
                  array_extent=('nflex',),
              ),
              StructFieldDecl(
@@ -2999,6 +3012,30 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  ),
                  doc='column indices in sparse Jacobian',
                  array_extent=('nJfe',),
+             ),
+             StructFieldDecl(
+                 name='flexvert_J_rownnz',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='number of non-zeros in Jacobian row',
+                 array_extent=('nflexvert', 2),
+             ),
+             StructFieldDecl(
+                 name='flexvert_J_rowadr',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='row start address in colind array',
+                 array_extent=('nflexvert', 2),
+             ),
+             StructFieldDecl(
+                 name='flexvert_J_colind',
+                 type=PointerType(
+                     inner_type=ValueType(name='int'),
+                 ),
+                 doc='column indices in sparse Jacobian',
+                 array_extent=('nJfv', 2),
              ),
              StructFieldDecl(
                  name='flex_rgba',
@@ -5610,6 +5647,22 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  array_extent=('nflexedge',),
              ),
              StructFieldDecl(
+                 name='flexvert_J',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='flex vertex Jacobian',
+                 array_extent=('nJfv', 2),
+             ),
+             StructFieldDecl(
+                 name='flexvert_length',
+                 type=PointerType(
+                     inner_type=ValueType(name='mjtNum'),
+                 ),
+                 doc='flex vertex lengths',
+                 array_extent=('nflexvert', 2),
+             ),
+             StructFieldDecl(
                  name='bvh_aabb_dyn',
                  type=PointerType(
                      inner_type=ValueType(name='mjtNum'),
@@ -7878,6 +7931,14 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  name='radius',
                  type=ValueType(name='double'),
                  doc='radius around primitive element',
+             ),
+             StructFieldDecl(
+                 name='size',
+                 type=ArrayType(
+                     inner_type=ValueType(name='double'),
+                     extents=(3,),
+                 ),
+                 doc='vertex bounding box half sizes in qpos0',
              ),
              StructFieldDecl(
                  name='internal',

@@ -438,6 +438,7 @@ typedef struct mjsFlex_ {          // flex specification
   // other properties
   int dim;                         // element dimensionality
   double radius;                   // radius around primitive element
+  double size[3];                  // vertex bounding box half sizes in qpos0
   mjtByte internal;                // enable internal collisions
   mjtByte flatskin;                // render flex skin with flat shading
   int selfcollide;                 // mode for flex self collision

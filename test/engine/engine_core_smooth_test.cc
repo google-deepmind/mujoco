@@ -41,6 +41,7 @@ using ::testing::Eq;
 using ::testing::Pointwise;
 using ::testing::DoubleNear;
 using ::testing::NotNull;
+using ::testing::Not;
 using CoreSmoothTest = MujocoTest;
 
 
@@ -871,6 +872,206 @@ TEST_F(CoreSmoothTest, FactorIs) {
                    d->C_rownnz, d->C_rowadr, d->C_colind);
   PrintMatrix(LDdense.data(), nv, nv, 2);
   */
+
+  mj_deleteData(d);
+  mj_deleteModel(m);
+}
+
+TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option jacobian="sparse"/>
+    <worldbody>
+      <flexcomp name="g" type="grid" count="3 3 1" spacing=".5 .5 .5" dim="2" radius=".05">
+        <edge equality="true"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* m = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(m, NotNull()) << error;
+  mjData* d = mj_makeData(m);
+
+  // check that nJfv is correct:
+  // corner vertices: 2 * (1+3) * 3 + 2 * (1+2) * 3 = 42
+  // edge vertices: 4 * (1+4) * 3 = 60
+  // center vertex: 1 * (1+6) * 3 = 21
+  // nJfv = 42 + 60 + 21 = 123
+  EXPECT_EQ(m->nJfv, 123);
+
+  // Set edge equality to 2
+  m->flex_edgeequality[0] = 2;
+
+  // Run kinematics to populate xpos/xmat initially
+  mj_fwdKinematics(m, d);
+
+  // Check invariants for scale=1
+  // The constraints should be satisfied
+  int nvert = m->flex_vertnum[0];
+  ASSERT_EQ(nvert, 9);
+  for (int i=0; i < nvert; i++) {
+    EXPECT_NEAR(d->flexvert_length[2*i+0], 0.0, 1e-5);
+    EXPECT_NEAR(d->flexvert_length[2*i+1], 0.0, 1e-5);
+  }
+
+  // set qvel to rigid rotation
+  ASSERT_EQ(m->nv, 3*nvert);
+  mju_zero(d->qvel, m->nv);
+  for (int i=0; i < nvert; i++) {
+    const mjtNum* p = d->xpos + 3*m->flex_vertbodyid[i];
+    d->qvel[3*i+0] = -p[1];
+    d->qvel[3*i+1] = p[0];
+    d->qvel[3*i+2] = 1.0;
+  }
+
+  // check that Jacobian times velocity is zero for rigid body motion
+  vector<mjtNum> Jv(2*nvert, 0);
+  for (int i=0; i < 2*nvert; i++) {
+    int row_start = m->flexvert_J_rowadr[i];
+    int row_nnz = m->flexvert_J_rownnz[i];
+    for (int j=0; j < row_nnz; j++) {
+      Jv[i] += d->flexvert_J[row_start + j] *
+               d->qvel[m->flexvert_J_colind[row_start + j]];
+    }
+  }
+  EXPECT_THAT(Jv, Each(DoubleNear(0.0, 1e-9)));
+
+  // check sparsity pattern
+  int corners[] = {0, 2, 6, 8};
+  int edges[] = {1, 3, 5, 7};
+  int center[] = {4};
+  for (int i : corners) {
+    EXPECT_EQ(m->flexvert_J_rownnz[2*i+0], (i == 0 || i == 8) ? 12 : 9);
+    EXPECT_EQ(m->flexvert_J_rownnz[2*i+1], (i == 0 || i == 8) ? 12 : 9);
+  }
+  for (int i : edges) {
+    EXPECT_EQ(m->flexvert_J_rownnz[2*i+0], 15);
+    EXPECT_EQ(m->flexvert_J_rownnz[2*i+1], 15);
+  }
+  for (int i : center) {
+    EXPECT_EQ(m->flexvert_J_rownnz[2*i+0], 21);
+    EXPECT_EQ(m->flexvert_J_rownnz[2*i+1], 21);
+  }
+
+  // check rowadr
+  EXPECT_EQ(m->flexvert_J_rowadr[0], 0);
+  for (int i=1; i < 2*nvert; i++) {
+    EXPECT_EQ(m->flexvert_J_rowadr[i],
+              m->flexvert_J_rowadr[i-1] + m->flexvert_J_rownnz[i-1]);
+  }
+
+  // check that colind are sorted and unique
+  int nnzJ = 0;
+  for (int i = 0; i < 2*nvert; i++) {
+    nnzJ += m->flexvert_J_rownnz[i];
+  }
+  EXPECT_EQ(nnzJ, 2*m->nJfv);
+  for (int i=0; i < 2*nvert; i++) {
+    int row_start = m->flexvert_J_rowadr[i];
+    int row_nnz = m->flexvert_J_rownnz[i];
+    for (int j=0; j < row_nnz-1; j++) {
+      EXPECT_LE(m->flexvert_J_colind[row_start+j],
+                m->flexvert_J_colind[row_start+j+1]);
+    }
+  }
+
+  // Finite-difference check for flexvert_J
+  auto fd_check = [&](double tolerance) {
+    std::vector<mjtNum> qpos0(m->nq);
+    mju_copy(qpos0.data(), d->qpos, m->nq);
+    mj_kinematics(m, d);
+    mj_flex(m, d);
+
+    mjtNum eps = 1e-7;
+    int nflexvert = m->flex_vertnum[0];
+    std::vector<mjtNum> jac_fd(2 * nflexvert * m->nv);
+    std::vector<mjtNum> qpos_backup(m->nq);
+    mju_copy(qpos_backup.data(), d->qpos, m->nq);
+
+    for (int i=0; i < m->nv; ++i) {
+      std::vector<mjtNum> qvel(m->nv, 0);
+      qvel[i] = 1.0;
+
+      // plus
+      mju_copy(d->qpos, qpos_backup.data(), m->nq);
+      mj_integratePos(m, d->qpos, qvel.data(), eps);
+      mj_kinematics(m, d);
+      mj_flex(m, d);
+      std::vector<mjtNum> L_plus(2 * nflexvert);
+      for (int e = 0; e < 2 * nflexvert; ++e) {
+        L_plus[e] = d->flexvert_length[e];
+      }
+
+      // minus
+      mju_copy(d->qpos, qpos_backup.data(), m->nq);
+      mj_integratePos(m, d->qpos, qvel.data(), -eps);
+      mj_kinematics(m, d);
+      mj_flex(m, d);
+      std::vector<mjtNum> L_minus(2 * nflexvert);
+      for (int e = 0; e < 2 * nflexvert; ++e) {
+        L_minus[e] = d->flexvert_length[e];
+      }
+
+      for (int e = 0; e < 2 * nflexvert; ++e) {
+        jac_fd[e*m->nv + i] = (L_plus[e] - L_minus[e]) / (2*eps);
+      }
+    }
+    mju_copy(d->qpos, qpos_backup.data(), m->nq);
+    mj_kinematics(m, d);
+    mj_flex(m, d);
+
+    // Compare with analytic
+    std::vector<mjtNum> jac_analytic(2 * nflexvert * m->nv);
+    mju_zero(jac_analytic.data(), 2 * nflexvert * m->nv);
+    for (int e = 0; e < 2 * nflexvert; ++e) {
+      int row_start = m->flexvert_J_rowadr[e];
+      int row_nnz = m->flexvert_J_rownnz[e];
+      for (int i = 0; i < row_nnz; ++i) {
+        jac_analytic[e*m->nv + m->flexvert_J_colind[row_start+i]] =
+            d->flexvert_J[row_start+i];
+      }
+    }
+    EXPECT_THAT(jac_analytic, Not(Each(Eq(0))));
+    EXPECT_THAT(jac_analytic, Pointwise(DoubleNear(tolerance), jac_fd));
+
+    mju_copy(d->qpos, qpos0.data(), m->nq);
+    mj_kinematics(m, d);
+    mj_flex(m, d);
+  };
+
+  fd_check(5e-5);
+
+  // Set qpos to put flex in scale=2 configuration.
+  for (int i=0; i < nvert; i++) {
+    d->qpos[3*i+0] = d->xpos[3*(i+1)+0];
+    d->qpos[3*i+1] = d->xpos[3*(i+1)+1];
+    d->qpos[3*i+2] = d->xpos[3*(i+1)+2];
+  }
+  mj_fwdKinematics(m, d);
+
+  // Get mass scaling factor
+  mjtNum scale = 1.0;
+  int b = m->flex_vertbodyid[0];
+  if (b >= 0 && m->body_mass[b] > mjMINVAL) {
+    scale = mju_sqrt(m->body_mass[b]);
+  }
+
+  // Check invariants for scale=2
+  // F should be [2, 2]. C = F'F = 4I.
+  // Strain E = C - I = 3I.
+  // Invariant 0: Trace(E) = 3 + 3 = 6
+  // Invariant 1: Det(C) - 1 = 4 * 4 - 1 = 15
+  for (int i=0; i < nvert; i++) {
+    EXPECT_NEAR(d->flexvert_length[2 * i + 0], 6.0 * scale, 1e-5);
+    EXPECT_NEAR(d->flexvert_length[2 * i + 1], 15.0 * scale, 1e-5);
+  }
+
+  // Perturb z-positions so configuration is not flat
+  for (int i=0; i < nvert; i++) {
+    d->qpos[3*i+2] += 0.01 * (i%2 ? 1 : -1);
+  }
+  fd_check(5e-5);
 
   mj_deleteData(d);
   mj_deleteModel(m);
