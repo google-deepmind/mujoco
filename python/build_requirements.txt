@@ -63,8 +63,9 @@ pytest==8.3.3 \
 setuptools==78.1.1 \
     --hash=sha256:c3a9c4211ff4c309edb8b8c4f1cbfa7ae324c4ba9f91ff254e3d305b9fd54561 \
     --hash=sha256:fcc17fd9cd898242f6b4adfaca46137a9edef687f43e6f78469692a5e70d851d
-wheel==0.45.0 \
-    --hash=sha256:52f0baa5e6522155090a09c6bd95718cc46956d1b51d537ea5454249edb671c7
+wheel==0.46.2 \
+    --hash=sha256:33ae60725d69eaa249bc1982e739943c23b34b58d51f1cb6253453773aca6e65 \
+    --hash=sha256:3d79e48fde9847618a5a181f3cc35764c349c752e2fe911e65fa17faab9809b0
 
 # Transitive dependencies of auditwheel
 pyelftools==0.31; platform_system == 'Linux' \
