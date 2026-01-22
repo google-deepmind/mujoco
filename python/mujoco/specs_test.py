@@ -1120,6 +1120,27 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNone(spec.texture('none'))
     self.assertIsNone(spec.mesh('none'))
 
+  def test_texture_gridlayout(self):
+    spec = mujoco.MjSpec()
+
+    texture = spec.add_texture(name='test', gridlayout='.U..LFRB.D..')
+    self.assertEqual(list(texture.gridlayout), list('.U..LFRB.D..'))
+
+    texture2 = spec.add_texture(name='test2', gridlayout=list('.U..LFRB.D..'))
+    self.assertEqual(list(texture2.gridlayout), list('.U..LFRB.D..'))
+
+    with self.assertRaises(ValueError) as cm:
+      spec.add_texture(name='test3', gridlayout='.U..')
+    self.assertIn('should have length 12', str(cm.exception))
+
+    with self.assertRaises(ValueError) as cm:
+      spec.add_texture(name='test4', gridlayout=['.', 'U', '.', '.'])
+    self.assertIn('should have length 12', str(cm.exception))
+
+    with self.assertRaises(ValueError) as cm:
+      spec.add_texture(name='test5', gridlayout=['..', 'U'] + ['.'] * 10)
+    self.assertIn('list elements must be single characters', str(cm.exception))
+
   def test_attach_units(self):
     child = mujoco.MjSpec()
     parent = mujoco.MjSpec()

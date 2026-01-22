@@ -463,6 +463,19 @@ def generate_add() -> None:
             f'py::arg("{f.name}") = py::none()',
         )
       elif isinstance(f.type, ast_nodes.ArrayType):
+        inner_type = f.type.inner_type.decl()
+        if inner_type == 'char':
+          return (
+              (
+                  f'set_char_array(out->{f.name}, {f.name},'
+                  f' {f.type.extents[0]}, "{f.name}");'
+              ),
+              'char_array',
+              f.name,
+              'str | list[str]',
+              f'py::object& {f.name}',
+              f'py::arg("{f.name}") = py::none()',
+          )
         if f.name == 'size' and f.type.extents[0] == 3:
           return (
               f'set_array_size(out->{f.name}, {f.name});',
@@ -756,6 +769,38 @@ def generate_add() -> None:
               for (auto val : array.value()) {
                 des[idx++] = val;
               }
+            }
+          };
+          """
+        elif t == 'char_array':
+          code += """\n
+          auto set_char_array = [](auto&& des, py::object& obj, int size, const char* name) {
+            if (obj.is_none()) {
+              return;
+            }
+            std::string chars;
+            if (py::isinstance<py::str>(obj)) {
+              chars = py::cast<std::string>(obj);
+            } else if (py::isinstance<py::list>(obj)) {
+              py::list list = py::cast<py::list>(obj);
+              chars.reserve(py::len(list));
+              for (auto item : list) {
+                std::string s = py::cast<std::string>(item);
+                if (s.size() != 1) {
+                  throw pybind11::value_error(std::string(name) + " list elements must be single characters.");
+                }
+                chars.push_back(s[0]);
+              }
+            } else {
+              throw pybind11::type_error(std::string(name) + " must be a string or a list of single-character strings.");
+            }
+            if (chars.size() != size) {
+              std::string msg = std::string(name) + " should have length " + std::to_string(size) + ", got " + std::to_string(chars.size()) + ".";
+              throw pybind11::value_error(msg);
+            }
+            int idx = 0;
+            for (char val : chars) {
+              des[idx++] = val;
             }
           };
           """
