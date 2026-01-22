@@ -508,10 +508,14 @@ def _build_struct_bindings(
       builder.line(".constructor<MjModel *>()")
       builder.line(".constructor<const MjModel &, const MjData &>()")
     elif w == "MjModel":
-      fn = common.wrapped_function_name(
+      f1 = common.wrapped_function_name(
           introspect_functions.FUNCTIONS["mj_loadXML"]
       )
-      builder.line(f'.class_function("mj_loadXML", &{fn}, take_ownership())')
+      builder.line(f'.class_function("mj_loadXML", &{f1}, take_ownership())')
+      f2 = common.wrapped_function_name(
+          introspect_functions.FUNCTIONS["mj_loadModel"]
+      )
+      builder.line(f'.class_function("mj_loadBinary", &{f2}, take_ownership())')
       builder.line(".constructor<const MjModel &>()")
       builder.line("""
   // Binds the functions on MjModel that return accessors.

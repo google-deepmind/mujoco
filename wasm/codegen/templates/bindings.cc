@@ -535,6 +535,15 @@ void mj_saveModel_wrapper(const MjModel& m, const StringOrNull& filename, const 
   mj_saveModel(m.get(), filename_.data(), buffer_.data(), static_cast<int>(buffer_.size()));
 }
 
+std::unique_ptr<MjModel> mj_loadModel_wrapper(std::string filename, const MjVFS& vfs) {
+  mjModel *model = mj_loadModel(filename.c_str(), vfs.get());
+  if (!model) {
+    printf("mj_loadModel: failed to load from mjb");
+    return nullptr;
+  }
+  return std::unique_ptr<MjModel>(new MjModel(model));
+}
+
 std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   char error[1000];
   mjSpec *ptr = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
