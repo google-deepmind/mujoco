@@ -140,9 +140,14 @@ class SimulateWrapper {
   void SetFigures(
       const std::vector<std::pair<mjrRect, py::object>>& viewports_figures) {
 
-    // TODO: replace with atomic wait when we migrate to C++20
-    while (simulate_ && simulate_->newfigurerequest.load() != 0) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    // Release the GIL during the spin-wait to prevent deadlock with render
+    // thread's key callback which needs to acquire the GIL.
+    {
+      py::gil_scoped_release no_gil;
+      // TODO: replace with atomic wait when we migrate to C++20
+      while (simulate_ && simulate_->newfigurerequest.load() != 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
     }
 
     // Pairs of [viewport, figure], where viewport corresponds to the location
@@ -200,9 +205,14 @@ class SimulateWrapper {
   void SetImages(
     const std::vector<std::tuple<mjrRect, pybind11::array>> viewports_images
   ) {
-    // TODO: replace with atomic wait when we migrate to C++20
-    while (simulate_ && simulate_->newimagerequest.load() != 0) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    // Release the GIL during the spin-wait to prevent deadlock with render
+    // thread's key callback which needs to acquire the GIL.
+    {
+      py::gil_scoped_release no_gil;
+      // TODO: replace with atomic wait when we migrate to C++20
+      while (simulate_ && simulate_->newimagerequest.load() != 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
     }
 
     for (const auto& [viewport, image] : viewports_images) {
@@ -347,12 +357,16 @@ PYBIND11_MODULE(_simulate, pymodule) {
            py::return_value_policy::reference_internal)
       .def("set_figures", &SimulateWrapper::SetFigures,
            py::arg("viewports_figures"))
-      .def("clear_figures", &SimulateWrapper::ClearFigures)
-      .def("set_texts", &SimulateWrapper::SetTexts, py::arg("overlay_texts"))
-      .def("clear_texts", &SimulateWrapper::ClearTexts)
+      .def("clear_figures", &SimulateWrapper::ClearFigures,
+           py::call_guard<py::gil_scoped_release>())
+      .def("set_texts", &SimulateWrapper::SetTexts, py::arg("overlay_texts"),
+           py::call_guard<py::gil_scoped_release>())
+      .def("clear_texts", &SimulateWrapper::ClearTexts,
+           py::call_guard<py::gil_scoped_release>())
       .def("set_images", &SimulateWrapper::SetImages,
            py::arg("viewports_images"))
-      .def("clear_images", &SimulateWrapper::ClearImages)
+      .def("clear_images", &SimulateWrapper::ClearImages,
+           py::call_guard<py::gil_scoped_release>())
       .def_property_readonly("m", &SimulateWrapper::GetModel)
       .def_property_readonly("d", &SimulateWrapper::GetData)
       .def_property_readonly("viewport", &SimulateWrapper::GetViewport)
