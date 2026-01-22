@@ -156,6 +156,7 @@ void App::ClearModel() {
 
 void App::RequestModelLoad(std::string model_file) {
   pending_load_ = std::move(model_file);
+  model_kind_ = kModelFromFile;
 }
 
 void App::RequestModelReload() {
@@ -222,7 +223,7 @@ void App::LoadModelFromBuffer(std::span<const std::byte> buffer,
     return;
   }
 
-  InitModel(model, spec, &vfs, "", kModelFromBuffer);
+  InitModel(model, spec, &vfs, std::string(filename), kModelFromBuffer);
 
   mj_deleteVFS(&vfs);
 }
@@ -303,37 +304,39 @@ void App::UpdatePhysics() {
     return;
   }
 
-  if (!step_control_.IsPaused()) {
-    mju_zero(data_->xfrc_applied, 6 * model_->nbody);
-    mjv_applyPerturbPose(model_, data_, &perturb_, 0);
-    mjv_applyPerturbForce(model_, data_, &perturb_);
-  } else {
-    mjv_applyPerturbPose(model_, data_, &perturb_, 1);
-  }
-
-  if (data_) {
-    for (int i = 0; i < mjNTIMER; i++) {
-      data_->timer[i].duration = 0;
-      data_->timer[i].number = 0;
-    }
-  }
 
   bool stepped = false;
+  {
+    if (!step_control_.IsPaused()) {
+      mju_zero(data_->xfrc_applied, 6 * model_->nbody);
+      mjv_applyPerturbPose(model_, data_, &perturb_, 0);
+      mjv_applyPerturbForce(model_, data_, &perturb_);
+    } else {
+      mjv_applyPerturbPose(model_, data_, &perturb_, 1);
+    }
 
-  platform::StepControl::Status status = step_control_.Advance(model_, data_);
-  if (status == platform::StepControl::Status::kPaused) {
-    // do nothing
-  } else if (status == platform::StepControl::Status::kOk) {
-    stepped = true;
-    // If we are adding to the history we didn't have a divergence error
-    step_error_ = "";
-  } else if (status == platform::StepControl::Status::kAutoReset) {
-    ResetPhysics();
-  } else if (status == platform::StepControl::Status::kDiverged) {
-    stepped = true;
-    for (mjtWarning w : platform::StepControl::kDivergedWarnings) {
-      if (data_->warning[w].number > 0) {
-        step_error_ = mju_warningText(w, data_->warning[w].lastinfo);
+    if (data_) {
+      for (int i = 0; i < mjNTIMER; i++) {
+        data_->timer[i].duration = 0;
+        data_->timer[i].number = 0;
+      }
+    }
+
+    platform::StepControl::Status status = step_control_.Advance(model_, data_);
+    if (status == platform::StepControl::Status::kPaused) {
+      // do nothing
+    } else if (status == platform::StepControl::Status::kOk) {
+      stepped = true;
+      // If we are adding to the history we didn't have a divergence error
+      step_error_ = "";
+    } else if (status == platform::StepControl::Status::kAutoReset) {
+      ResetPhysics();
+    } else if (status == platform::StepControl::Status::kDiverged) {
+      stepped = true;
+      for (mjtWarning w : platform::StepControl::kDivergedWarnings) {
+        if (data_->warning[w].number > 0) {
+          step_error_ = mju_warningText(w, data_->warning[w].lastinfo);
+        }
       }
     }
   }
@@ -373,13 +376,19 @@ bool App::Update() {
 
   // Check to see if we need to load a new model.
   if (pending_load_.has_value()) {
-    std::string model_file = std::move(pending_load_.value());
+    std::string load_data = std::move(pending_load_.value());
     pending_load_.reset();
-
-    if (model_file.empty()) {
-      InitEmptyModel();
+    if (model_kind_ == kModelFromBuffer) {
+      // TODO(matijak): need to pass the content type and not assume mjb.
+      LoadModelFromBuffer(
+          std::span<const std::byte>(
+              reinterpret_cast<const std::byte*>(load_data.data()),
+              load_data.size()),
+          "application/mjb", model_name_);
+    } else if (model_kind_ == kModelFromFile) {
+      LoadModelFromFile(load_data);
     } else {
-      LoadModelFromFile(model_file);
+      InitEmptyModel();
     }
   }
 
@@ -733,6 +742,15 @@ void App::LoadSettings() {
     if (!settings.empty()) {
       ui_.FromDict(platform::ReadIniSection(settings, "[Studio][UX]"));
       ImGui::LoadIniSettingsFromMemory(settings.data(), settings.size());
+
+      platform::KeyValues plugin_names =
+          platform::ReadIniSection(settings, "[Studio][Plugins]");
+      platform::ForEachGuiPlugin([&](platform::GuiPlugin* plugin) {
+        auto it = plugin_names.find(plugin->name);
+        if (it != plugin_names.end()) {
+          plugin->active = std::stoi(it->second) != 0;
+        }
+      });
     }
   }
 }
@@ -741,6 +759,13 @@ void App::SaveSettings() {
   if (!ini_path_.empty()) {
     std::string settings = ImGui::SaveIniSettingsToMemory();
     platform::AppendIniSection(settings, "[Studio][UX]", ui_.ToDict());
+
+    platform::KeyValues plugin_names;
+    platform::ForEachGuiPlugin([&](platform::GuiPlugin* plugin) {
+      plugin_names[plugin->name] = std::to_string((int)plugin->active);
+    });
+    platform::AppendIniSection(settings, "[Studio][Plugins]", plugin_names);
+
     platform::SaveText(settings, ini_path_);
   }
 }
@@ -1545,6 +1570,7 @@ void App::MainMenuGui() {
       #endif  // !__EMSCRIPTEN__
       ImGui::EndMenu();
     }
+
     if (ImGui::BeginMenu("Simulation")) {
       if (ImGui::MenuItem("Pause", "Space", step_control_.IsPaused())) {
         step_control_.TogglePause();
@@ -1572,9 +1598,9 @@ void App::MainMenuGui() {
         }
         ImGui::EndMenu();
       }
-
       ImGui::EndMenu();
     }
+
     if (ImGui::BeginMenu("View")) {
       if (ImGui::MenuItem("Save Config")) {
         SaveSettings();
@@ -1604,6 +1630,7 @@ void App::MainMenuGui() {
       }
       ImGui::EndMenu();
     }
+
     if (ImGui::BeginMenu("Charts")) {
       if (ImGui::MenuItem("Solver", "F9")) {
         tmp_.chart_solver = !tmp_.chart_solver;

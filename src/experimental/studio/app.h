@@ -188,6 +188,7 @@ class App {
   std::vector<const char*> GetCameraNames();
 
   std::string ini_path_;
+  std::string model_name_;  // Used if model_kind_ is kModelFromBuffer.
   std::string model_path_;
   std::string load_error_;
   std::string step_error_;
