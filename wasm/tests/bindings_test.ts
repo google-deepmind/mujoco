@@ -17,7 +17,7 @@ import 'jasmine';
 import {MainModule, MjContact, MjContactVec, MjData, MjLROpt, MjModel,
 MjOption, MjsGeom, MjSolverStat, MjSpec, MjStatistic, MjTimerStat, MjvCamera,
 MjvFigure, MjvGeom, MjvGLCamera, MjvLight, MjvOption, MjvPerturb, MjvScene,
-MjWarningStat, MjVFS} from '../dist/mujoco_wasm.js';
+MjWarningStat, MjVFS, Uint8Buffer} from '../dist/mujoco_wasm.js';
 
 import loadMujoco from '../dist/mujoco_wasm.js'
 
@@ -2139,5 +2139,41 @@ describe('MuJoCo WASM Bindings', () => {
         unlinkXMLFile(tempXmlFilename);
       }
     });
+  });
+
+  it('should save model to buffer', () => {
+    assertExists(model);
+    const modelSize = mujoco.mj_sizeModel(model);
+    const buffer = new mujoco.Uint8Buffer(Number(modelSize));
+    try {
+      mujoco.mj_saveModel(model, null, buffer);
+      // Test the first 3 byte values of the buffer.
+      expect(buffer.GetView()[0]).toBe(49);
+      expect(buffer.GetView()[1]).toBe(212);
+      expect(buffer.GetView()[2]).toBe(0);
+    } finally {
+      buffer.delete();
+    }
+  });
+
+  it('should save model to file', () => {
+    assertExists(model);
+    const filename = '/tmp/test.mjb';
+    const modelSize = mujoco.mj_sizeModel(model);
+    const buffer = new mujoco.Uint8Buffer(Number(modelSize));
+    try {
+      mujoco.mj_saveModel(model, filename, null);
+      const fileContent =
+          (mujoco as any).FS.readFile(filename, {encoding: 'binary'});
+
+      mujoco.mj_saveModel(model, null, buffer);
+      const bufferContent = buffer.GetView();
+
+      expect(fileContent.length).toBe(bufferContent.length);
+      expect(fileContent).toEqual(bufferContent);
+    } finally {
+      buffer.delete();
+      unlinkXMLFile(filename);
+    }
   });
 });

@@ -50,6 +50,7 @@ using emscripten::return_value_policy::take_ownership;
 EMSCRIPTEN_DECLARE_VAL_TYPE(NumberOrString);
 EMSCRIPTEN_DECLARE_VAL_TYPE(NumberArray);
 EMSCRIPTEN_DECLARE_VAL_TYPE(String);
+EMSCRIPTEN_DECLARE_VAL_TYPE(StringOrNull);
 
 // Macro to define accessors for different MuJoCo object types within mjModel.
 // Each line calls X_ACCESSOR with the following arguments:
@@ -8010,6 +8011,12 @@ std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
 
+void mj_saveModel_wrapper(const MjModel& m, const StringOrNull& filename, const val& buffer) {
+  UNPACK_NULLABLE_STRING(filename);
+  UNPACK_NULLABLE_VALUE(uint8_t, buffer);
+  mj_saveModel(m.get(), filename_.data(), buffer_.data(), static_cast<int>(buffer_.size()));
+}
+
 std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   char error[1000];
   mjSpec *ptr = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
@@ -12945,6 +12952,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   function("mjv_updateSkin", &mjv_updateSkin_wrapper);
   function("parseXMLString", &parseXMLString_wrapper, take_ownership());
   function("error", &error_wrapper);
+  function("mj_saveModel", &mj_saveModel_wrapper);
   function("mj_saveLastXML", &mj_saveLastXML_wrapper);
   function("mj_setLengthRange", &mj_setLengthRange_wrapper);
   // mj_compile is bound using two overloads to handle the optional MjVFS argument,
@@ -12973,6 +12981,13 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
       .function("GetElementCount", &WasmBuffer<int>::GetElementCount)
       .function("GetView", &WasmBuffer<int>::GetView);
 
+  emscripten::class_<WasmBuffer<uint8_t>>("Uint8Buffer")
+      .constructor<int>()
+      .class_function("FromArray", &WasmBuffer<uint8_t>::FromArray)
+      .function("GetPointer", &WasmBuffer<uint8_t>::GetPointer)
+      .function("GetElementCount", &WasmBuffer<uint8_t>::GetElementCount)
+      .function("GetView", &WasmBuffer<uint8_t>::GetView);
+
   emscripten::register_vector<std::string>("mjStringVec");
   emscripten::register_vector<int>("mjIntVec");
   emscripten::register_vector<mjIntVec>("mjIntVecVec");
@@ -12994,6 +13009,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
   emscripten::register_type<NumberOrString>("number|string");
   emscripten::register_type<NumberArray>("number[]");
   emscripten::register_type<String>("string");
+  emscripten::register_type<StringOrNull>("string|null");
 
   emscripten::constant("mjMAXCONPAIR", mjMAXCONPAIR);
   emscripten::constant("mjMAXIMP", mjMAXIMP);

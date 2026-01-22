@@ -142,7 +142,6 @@ _SKIPPED_MEMORY_FUNCTIONS: tuple[str, ...] = (
     "mj_loadModel",
     "mj_loadModelBuffer",
     "mj_markStack",
-    "mj_saveModel",
     "mj_stackAllocByte",
     "mj_stackAllocInt",
     "mj_stackAllocNum",
@@ -229,6 +228,7 @@ MANUAL_WRAPPER_FUNCTIONS: tuple[str, ...] = (
     # go/keep-sorted start
     "mj_compile",
     "mj_saveLastXML",
+    "mj_saveModel",
     "mj_setLengthRange",
     "mju_error",
     # go/keep-sorted end
