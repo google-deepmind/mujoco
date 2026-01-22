@@ -180,6 +180,11 @@ void App::LoadModelFromFile(const std::string& filepath) {
   const std::string resolved_file =
       platform::ResolveFile(filepath, search_paths_);
 
+  if (resolved_file.empty()) {
+    SetLoadError("File not found: " + filepath);
+    return;
+  }
+
   char err[1000] = "";
   if (resolved_file.ends_with(".mjb")) {
     model = mj_loadModel(resolved_file.c_str(), &vfs);
