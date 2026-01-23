@@ -2219,18 +2219,18 @@ void mjCModel::SetSizes() {
 
   // nhfielddata
   for (int i=0; i < nhfield; i++) {
-    nhfielddata += static_cast<mjtSize>(hfields_[i]->nrow) * hfields_[i]->ncol;
+    nhfielddata += static_cast<size_t>(hfields_[i]->nrow) * hfields_[i]->ncol;
   }
 
   // ntexdata
   for (int i=0; i < ntex; i++) {
     const mjCTexture* tex = textures_[i];
-    ntexdata += static_cast<mjtSize>(tex->nchannel) * tex->width * tex->height;
+    ntexdata += static_cast<size_t>(tex->nchannel) * tex->width * tex->height;
   }
 
   // nwrap
   for (int i=0; i < ntendon; i++) {
-    nwrap += (int)tendons_[i]->path.size();
+    nwrap += static_cast<mjtSize>(tendons_[i]->path.size());
   }
 
   // nsensordata
@@ -3574,7 +3574,7 @@ void mjCModel::CopyObjects(mjModel* m) {
 
     // copy elevation data
     memcpy(m->hfield_data + data_adr, phf->data.data(),
-           static_cast<mjtSize>(phf->nrow) * phf->ncol * sizeof(float));
+           static_cast<size_t>(phf->nrow) * phf->ncol * sizeof(float));
 
     // advance counter
     data_adr += phf->nrow*phf->ncol;
@@ -3595,7 +3595,7 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tex_adr[i] = data_adr;
 
     // copy rgb data
-    mjtSize nbytes = static_cast<mjtSize>(ptex->nchannel) * ptex->width * ptex->height;
+    size_t nbytes = static_cast<size_t>(ptex->nchannel) * ptex->width * ptex->height;
     memcpy(m->tex_data + data_adr, ptex->data_.data(), nbytes);
 
     // advance counter
