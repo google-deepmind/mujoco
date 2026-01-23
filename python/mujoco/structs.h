@@ -1006,7 +1006,7 @@ using _impl::MjSolverStatList;
 template <typename T, typename Shape>
 std::enable_if_t<std::is_arithmetic_v<T>, pybind11::array_t<T>>
 static InitPyArray(Shape&& shape, T* buf, pybind11::handle owner) {
-  int size = 1;
+  mjtSize size = 1;
   for (const auto& i : shape) {
     size *= i;
   }
@@ -1043,7 +1043,7 @@ template <typename T, typename Shape>
 std::enable_if_t<!std::is_arithmetic_v<T> && !is_mj_struct_list_v<T>,
                  pybind11::tuple>
 static InitPyArray(Shape&& shape, T* buf, pybind11::handle owner) {
-  int size = 1;
+  mjtSize size = 1;
   for (const auto& i : shape) {
     size *= i;
   }

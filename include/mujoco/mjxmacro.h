@@ -65,8 +65,8 @@
 
 //-------------------------------- mjModel ---------------------------------------------------------
 
-// int fields of mjModel
-#define MJMODEL_INTS        \
+// size fields of mjModel
+#define MJMODEL_SIZES       \
     X( nq )                 \
     X( nv )                 \
     X( nu )                 \

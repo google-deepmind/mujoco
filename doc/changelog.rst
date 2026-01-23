@@ -60,6 +60,10 @@ General
     CMake utility project.
   - ``USD_DIR`` is no longer used by the MuJoCo CMake project, instead use ``pxr_DIR`` if you have a pre-built USD library.
   - Users no longer have to set ``PXR_PLUGINPATH_NAME`` environment variable, MuJoCo should load USD plugins automatically.
+- Non-breaking ABI changes:
+
+  - Allcating sizes in :ref:`mjModel` now use 64-bit rather than 32-bit integers to accommodate larger
+    scenes.
 
 MJX
 ^^^

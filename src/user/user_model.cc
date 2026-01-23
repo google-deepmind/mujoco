@@ -2218,28 +2218,45 @@ void mjCModel::SetSizes() {
   }
 
   // nhfielddata
-  for (int i=0; i < nhfield; i++)nhfielddata += hfields_[i]->nrow * hfields_[i]->ncol;
+  for (int i=0; i < nhfield; i++) {
+    nhfielddata += static_cast<mjtSize>(hfields_[i]->nrow) * hfields_[i]->ncol;
+  }
 
   // ntexdata
-  for (int i=0; i < ntex; i++)ntexdata += textures_[i]->nchannel * textures_[i]->width * textures_[i]->height;
+  for (int i=0; i < ntex; i++) {
+    const mjCTexture* tex = textures_[i];
+    ntexdata += static_cast<mjtSize>(tex->nchannel) * tex->width * tex->height;
+  }
 
   // nwrap
-  for (int i=0; i < ntendon; i++)nwrap += (int)tendons_[i]->path.size();
+  for (int i=0; i < ntendon; i++) {
+    nwrap += (int)tendons_[i]->path.size();
+  }
 
   // nsensordata
-  for (int i=0; i < nsensor; i++)nsensordata += sensors_[i]->dim;
+  for (int i=0; i < nsensor; i++) {
+    nsensordata += sensors_[i]->dim;
+  }
 
   // nnumericdata
-  for (int i=0; i < nnumeric; i++)nnumericdata += numerics_[i]->size;
+  for (int i=0; i < nnumeric; i++) {
+    nnumericdata += numerics_[i]->size;
+  }
 
   // ntextdata
-  for (int i=0; i < ntext; i++)ntextdata += (int)texts_[i]->data_.size() + 1;
+  for (int i=0; i < ntext; i++) {
+    ntextdata += (int)texts_[i]->data_.size() + 1;
+  }
 
   // ntupledata
-  for (int i=0; i < ntuple; i++)ntupledata += (int)tuples_[i]->objtype_.size();
+  for (int i=0; i < ntuple; i++) {
+    ntupledata += (int)tuples_[i]->objtype_.size();
+  }
 
   // npluginattr
-  for (int i=0; i < nplugin; i++)npluginattr += (int)plugins_[i]->flattened_attributes.size();
+  for (int i=0; i < nplugin; i++) {
+    npluginattr += (int)plugins_[i]->flattened_attributes.size();
+  }
 
   // nnames
   nnames = (int)modelname_.size() + 1;
@@ -3185,10 +3202,10 @@ int mjCModel::CountNJmom(const mjModel* m) {
 
 // copy objects outside kinematic tree
 void mjCModel::CopyObjects(mjModel* m) {
-  int adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
-  int edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, evpair_adr;
-  int bonevert_adr, graph_adr, data_adr, bvh_adr;
-  int poly_adr, polymap_adr, polyvert_adr;
+  mjtSize adr, bone_adr, vert_adr, node_adr, normal_adr, face_adr, texcoord_adr, oct_adr;
+  mjtSize edge_adr, elem_adr, elemdata_adr, elemedge_adr, shelldata_adr, evpair_adr;
+  mjtSize bonevert_adr, graph_adr, data_adr, bvh_adr;
+  mjtSize poly_adr, polymap_adr, polyvert_adr;
 
   // sizes outside call to mj_makeModel
   m->nemax = nemax;
@@ -3556,7 +3573,8 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->hfield_adr[i] = data_adr;
 
     // copy elevation data
-    memcpy(m->hfield_data + data_adr, phf->data.data(), phf->nrow*phf->ncol*sizeof(float));
+    memcpy(m->hfield_data + data_adr, phf->data.data(),
+           static_cast<mjtSize>(phf->nrow) * phf->ncol * sizeof(float));
 
     // advance counter
     data_adr += phf->nrow*phf->ncol;
@@ -3577,11 +3595,11 @@ void mjCModel::CopyObjects(mjModel* m) {
     m->tex_adr[i] = data_adr;
 
     // copy rgb data
-    memcpy(m->tex_data + data_adr, ptex->data_.data(),
-           ptex->nchannel * ptex->width * ptex->height);
+    mjtSize nbytes = static_cast<mjtSize>(ptex->nchannel) * ptex->width * ptex->height;
+    memcpy(m->tex_data + data_adr, ptex->data_.data(), nbytes);
 
     // advance counter
-    data_adr += ptex->nchannel * ptex->width * ptex->height;
+    data_adr += nbytes;
   }
 
   // materials

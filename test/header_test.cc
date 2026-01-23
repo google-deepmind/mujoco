@@ -126,7 +126,7 @@ TEST_F(HeaderTest, MjModelIntsOrdered) {
   std::vector<std::pair<const void*, const char*>> ints;
 
 #define X(name) ints.push_back({static_cast<const void*>(&m.name), #name});
-  MJMODEL_INTS
+  MJMODEL_SIZES
 #undef X
 
   CheckAddressOrdering(ints, "MJMODEL_INT");

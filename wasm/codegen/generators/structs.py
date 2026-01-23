@@ -97,10 +97,21 @@ def _generate_field_data(
   ):
 
     builder = code_builder.CodeBuilder()
-    with builder.function(f"{f.type.name} {f.name}() const"):
-      builder.line(f"return ptr_->{f.name};")
-    with builder.function(f"void set_{f.name}({f.type.name} value)"):
-      builder.line(f"ptr_->{f.name} = value;")
+
+    # `mjtSize` is a 64-bit signed integer type and would be represented in
+    # JS/TS a `bigint` because it doesn't fit in the number primitive (a 64-bit
+    # float). By casting int, we avoid "TS2345: Argument of type 'bigint' is not
+    # assignable to parameter of type 'number'" errors.
+    if f.type.name == "mjtSize":
+      with builder.function(f"int {f.name}() const"):
+        builder.line(f"return static_cast<int>(ptr_->{f.name});")
+      with builder.function(f"void set_{f.name}(int value)"):
+        builder.line(f"ptr_->{f.name} = static_cast<mjtSize>(value);")
+    else:
+      with builder.function(f"{f.type.name} {f.name}() const"):
+        builder.line(f"return ptr_->{f.name};")
+      with builder.function(f"void set_{f.name}({f.type.name} value)"):
+        builder.line(f"ptr_->{f.name} = value;")
 
     return WrappedFieldData(
         declaration=builder.to_string(),

@@ -551,7 +551,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
     fprintf(fp, "\n");                            \
   }
 
-  MJMODEL_INTS
+  MJMODEL_SIZES
 #undef X
   fprintf(fp, "\n");
 
@@ -636,7 +636,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
   (void)nu;
   (void)nmocap;
 
-  const int* object_class;
+  const mjtSize* object_class;
 
 #define X(type, name, num, sz)                                              \
   if (&m->num == object_class && sz > 0) {                                  \
@@ -645,6 +645,7 @@ void mj_printFormattedModel(const mjModel* m, const char* filename, const char* 
                                   float:   float_format,                    \
                                   int:     INT_FORMAT,                      \
                                   mjtByte: INT_FORMAT,                      \
+                                  mjtSize: SIZE_FORMAT,                     \
                                   default: NULL);                           \
     if (format) {                                                           \
       fprintf(fp, "  ");                                                    \

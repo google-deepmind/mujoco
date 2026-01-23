@@ -3410,532 +3410,532 @@ struct MjModel {
   mjModel* get() const;
   void set(mjModel* ptr);
   int nq() const {
-    return ptr_->nq;
+    return static_cast<int>(ptr_->nq);
   }
   void set_nq(int value) {
-    ptr_->nq = value;
+    ptr_->nq = static_cast<mjtSize>(value);
   }
   int nv() const {
-    return ptr_->nv;
+    return static_cast<int>(ptr_->nv);
   }
   void set_nv(int value) {
-    ptr_->nv = value;
+    ptr_->nv = static_cast<mjtSize>(value);
   }
   int nu() const {
-    return ptr_->nu;
+    return static_cast<int>(ptr_->nu);
   }
   void set_nu(int value) {
-    ptr_->nu = value;
+    ptr_->nu = static_cast<mjtSize>(value);
   }
   int na() const {
-    return ptr_->na;
+    return static_cast<int>(ptr_->na);
   }
   void set_na(int value) {
-    ptr_->na = value;
+    ptr_->na = static_cast<mjtSize>(value);
   }
   int nbody() const {
-    return ptr_->nbody;
+    return static_cast<int>(ptr_->nbody);
   }
   void set_nbody(int value) {
-    ptr_->nbody = value;
+    ptr_->nbody = static_cast<mjtSize>(value);
   }
   int nbvh() const {
-    return ptr_->nbvh;
+    return static_cast<int>(ptr_->nbvh);
   }
   void set_nbvh(int value) {
-    ptr_->nbvh = value;
+    ptr_->nbvh = static_cast<mjtSize>(value);
   }
   int nbvhstatic() const {
-    return ptr_->nbvhstatic;
+    return static_cast<int>(ptr_->nbvhstatic);
   }
   void set_nbvhstatic(int value) {
-    ptr_->nbvhstatic = value;
+    ptr_->nbvhstatic = static_cast<mjtSize>(value);
   }
   int nbvhdynamic() const {
-    return ptr_->nbvhdynamic;
+    return static_cast<int>(ptr_->nbvhdynamic);
   }
   void set_nbvhdynamic(int value) {
-    ptr_->nbvhdynamic = value;
+    ptr_->nbvhdynamic = static_cast<mjtSize>(value);
   }
   int noct() const {
-    return ptr_->noct;
+    return static_cast<int>(ptr_->noct);
   }
   void set_noct(int value) {
-    ptr_->noct = value;
+    ptr_->noct = static_cast<mjtSize>(value);
   }
   int njnt() const {
-    return ptr_->njnt;
+    return static_cast<int>(ptr_->njnt);
   }
   void set_njnt(int value) {
-    ptr_->njnt = value;
+    ptr_->njnt = static_cast<mjtSize>(value);
   }
   int ntree() const {
-    return ptr_->ntree;
+    return static_cast<int>(ptr_->ntree);
   }
   void set_ntree(int value) {
-    ptr_->ntree = value;
+    ptr_->ntree = static_cast<mjtSize>(value);
   }
   int nM() const {
-    return ptr_->nM;
+    return static_cast<int>(ptr_->nM);
   }
   void set_nM(int value) {
-    ptr_->nM = value;
+    ptr_->nM = static_cast<mjtSize>(value);
   }
   int nB() const {
-    return ptr_->nB;
+    return static_cast<int>(ptr_->nB);
   }
   void set_nB(int value) {
-    ptr_->nB = value;
+    ptr_->nB = static_cast<mjtSize>(value);
   }
   int nC() const {
-    return ptr_->nC;
+    return static_cast<int>(ptr_->nC);
   }
   void set_nC(int value) {
-    ptr_->nC = value;
+    ptr_->nC = static_cast<mjtSize>(value);
   }
   int nD() const {
-    return ptr_->nD;
+    return static_cast<int>(ptr_->nD);
   }
   void set_nD(int value) {
-    ptr_->nD = value;
+    ptr_->nD = static_cast<mjtSize>(value);
   }
   int ngeom() const {
-    return ptr_->ngeom;
+    return static_cast<int>(ptr_->ngeom);
   }
   void set_ngeom(int value) {
-    ptr_->ngeom = value;
+    ptr_->ngeom = static_cast<mjtSize>(value);
   }
   int nsite() const {
-    return ptr_->nsite;
+    return static_cast<int>(ptr_->nsite);
   }
   void set_nsite(int value) {
-    ptr_->nsite = value;
+    ptr_->nsite = static_cast<mjtSize>(value);
   }
   int ncam() const {
-    return ptr_->ncam;
+    return static_cast<int>(ptr_->ncam);
   }
   void set_ncam(int value) {
-    ptr_->ncam = value;
+    ptr_->ncam = static_cast<mjtSize>(value);
   }
   int nlight() const {
-    return ptr_->nlight;
+    return static_cast<int>(ptr_->nlight);
   }
   void set_nlight(int value) {
-    ptr_->nlight = value;
+    ptr_->nlight = static_cast<mjtSize>(value);
   }
   int nflex() const {
-    return ptr_->nflex;
+    return static_cast<int>(ptr_->nflex);
   }
   void set_nflex(int value) {
-    ptr_->nflex = value;
+    ptr_->nflex = static_cast<mjtSize>(value);
   }
   int nflexnode() const {
-    return ptr_->nflexnode;
+    return static_cast<int>(ptr_->nflexnode);
   }
   void set_nflexnode(int value) {
-    ptr_->nflexnode = value;
+    ptr_->nflexnode = static_cast<mjtSize>(value);
   }
   int nflexvert() const {
-    return ptr_->nflexvert;
+    return static_cast<int>(ptr_->nflexvert);
   }
   void set_nflexvert(int value) {
-    ptr_->nflexvert = value;
+    ptr_->nflexvert = static_cast<mjtSize>(value);
   }
   int nflexedge() const {
-    return ptr_->nflexedge;
+    return static_cast<int>(ptr_->nflexedge);
   }
   void set_nflexedge(int value) {
-    ptr_->nflexedge = value;
+    ptr_->nflexedge = static_cast<mjtSize>(value);
   }
   int nflexelem() const {
-    return ptr_->nflexelem;
+    return static_cast<int>(ptr_->nflexelem);
   }
   void set_nflexelem(int value) {
-    ptr_->nflexelem = value;
+    ptr_->nflexelem = static_cast<mjtSize>(value);
   }
   int nflexelemdata() const {
-    return ptr_->nflexelemdata;
+    return static_cast<int>(ptr_->nflexelemdata);
   }
   void set_nflexelemdata(int value) {
-    ptr_->nflexelemdata = value;
+    ptr_->nflexelemdata = static_cast<mjtSize>(value);
   }
   int nflexelemedge() const {
-    return ptr_->nflexelemedge;
+    return static_cast<int>(ptr_->nflexelemedge);
   }
   void set_nflexelemedge(int value) {
-    ptr_->nflexelemedge = value;
+    ptr_->nflexelemedge = static_cast<mjtSize>(value);
   }
   int nflexshelldata() const {
-    return ptr_->nflexshelldata;
+    return static_cast<int>(ptr_->nflexshelldata);
   }
   void set_nflexshelldata(int value) {
-    ptr_->nflexshelldata = value;
+    ptr_->nflexshelldata = static_cast<mjtSize>(value);
   }
   int nflexevpair() const {
-    return ptr_->nflexevpair;
+    return static_cast<int>(ptr_->nflexevpair);
   }
   void set_nflexevpair(int value) {
-    ptr_->nflexevpair = value;
+    ptr_->nflexevpair = static_cast<mjtSize>(value);
   }
   int nflextexcoord() const {
-    return ptr_->nflextexcoord;
+    return static_cast<int>(ptr_->nflextexcoord);
   }
   void set_nflextexcoord(int value) {
-    ptr_->nflextexcoord = value;
+    ptr_->nflextexcoord = static_cast<mjtSize>(value);
   }
   int nJfe() const {
-    return ptr_->nJfe;
+    return static_cast<int>(ptr_->nJfe);
   }
   void set_nJfe(int value) {
-    ptr_->nJfe = value;
+    ptr_->nJfe = static_cast<mjtSize>(value);
   }
   int nJfv() const {
-    return ptr_->nJfv;
+    return static_cast<int>(ptr_->nJfv);
   }
   void set_nJfv(int value) {
-    ptr_->nJfv = value;
+    ptr_->nJfv = static_cast<mjtSize>(value);
   }
   int nmesh() const {
-    return ptr_->nmesh;
+    return static_cast<int>(ptr_->nmesh);
   }
   void set_nmesh(int value) {
-    ptr_->nmesh = value;
+    ptr_->nmesh = static_cast<mjtSize>(value);
   }
   int nmeshvert() const {
-    return ptr_->nmeshvert;
+    return static_cast<int>(ptr_->nmeshvert);
   }
   void set_nmeshvert(int value) {
-    ptr_->nmeshvert = value;
+    ptr_->nmeshvert = static_cast<mjtSize>(value);
   }
   int nmeshnormal() const {
-    return ptr_->nmeshnormal;
+    return static_cast<int>(ptr_->nmeshnormal);
   }
   void set_nmeshnormal(int value) {
-    ptr_->nmeshnormal = value;
+    ptr_->nmeshnormal = static_cast<mjtSize>(value);
   }
   int nmeshtexcoord() const {
-    return ptr_->nmeshtexcoord;
+    return static_cast<int>(ptr_->nmeshtexcoord);
   }
   void set_nmeshtexcoord(int value) {
-    ptr_->nmeshtexcoord = value;
+    ptr_->nmeshtexcoord = static_cast<mjtSize>(value);
   }
   int nmeshface() const {
-    return ptr_->nmeshface;
+    return static_cast<int>(ptr_->nmeshface);
   }
   void set_nmeshface(int value) {
-    ptr_->nmeshface = value;
+    ptr_->nmeshface = static_cast<mjtSize>(value);
   }
   int nmeshgraph() const {
-    return ptr_->nmeshgraph;
+    return static_cast<int>(ptr_->nmeshgraph);
   }
   void set_nmeshgraph(int value) {
-    ptr_->nmeshgraph = value;
+    ptr_->nmeshgraph = static_cast<mjtSize>(value);
   }
   int nmeshpoly() const {
-    return ptr_->nmeshpoly;
+    return static_cast<int>(ptr_->nmeshpoly);
   }
   void set_nmeshpoly(int value) {
-    ptr_->nmeshpoly = value;
+    ptr_->nmeshpoly = static_cast<mjtSize>(value);
   }
   int nmeshpolyvert() const {
-    return ptr_->nmeshpolyvert;
+    return static_cast<int>(ptr_->nmeshpolyvert);
   }
   void set_nmeshpolyvert(int value) {
-    ptr_->nmeshpolyvert = value;
+    ptr_->nmeshpolyvert = static_cast<mjtSize>(value);
   }
   int nmeshpolymap() const {
-    return ptr_->nmeshpolymap;
+    return static_cast<int>(ptr_->nmeshpolymap);
   }
   void set_nmeshpolymap(int value) {
-    ptr_->nmeshpolymap = value;
+    ptr_->nmeshpolymap = static_cast<mjtSize>(value);
   }
   int nskin() const {
-    return ptr_->nskin;
+    return static_cast<int>(ptr_->nskin);
   }
   void set_nskin(int value) {
-    ptr_->nskin = value;
+    ptr_->nskin = static_cast<mjtSize>(value);
   }
   int nskinvert() const {
-    return ptr_->nskinvert;
+    return static_cast<int>(ptr_->nskinvert);
   }
   void set_nskinvert(int value) {
-    ptr_->nskinvert = value;
+    ptr_->nskinvert = static_cast<mjtSize>(value);
   }
   int nskintexvert() const {
-    return ptr_->nskintexvert;
+    return static_cast<int>(ptr_->nskintexvert);
   }
   void set_nskintexvert(int value) {
-    ptr_->nskintexvert = value;
+    ptr_->nskintexvert = static_cast<mjtSize>(value);
   }
   int nskinface() const {
-    return ptr_->nskinface;
+    return static_cast<int>(ptr_->nskinface);
   }
   void set_nskinface(int value) {
-    ptr_->nskinface = value;
+    ptr_->nskinface = static_cast<mjtSize>(value);
   }
   int nskinbone() const {
-    return ptr_->nskinbone;
+    return static_cast<int>(ptr_->nskinbone);
   }
   void set_nskinbone(int value) {
-    ptr_->nskinbone = value;
+    ptr_->nskinbone = static_cast<mjtSize>(value);
   }
   int nskinbonevert() const {
-    return ptr_->nskinbonevert;
+    return static_cast<int>(ptr_->nskinbonevert);
   }
   void set_nskinbonevert(int value) {
-    ptr_->nskinbonevert = value;
+    ptr_->nskinbonevert = static_cast<mjtSize>(value);
   }
   int nhfield() const {
-    return ptr_->nhfield;
+    return static_cast<int>(ptr_->nhfield);
   }
   void set_nhfield(int value) {
-    ptr_->nhfield = value;
+    ptr_->nhfield = static_cast<mjtSize>(value);
   }
   int nhfielddata() const {
-    return ptr_->nhfielddata;
+    return static_cast<int>(ptr_->nhfielddata);
   }
   void set_nhfielddata(int value) {
-    ptr_->nhfielddata = value;
+    ptr_->nhfielddata = static_cast<mjtSize>(value);
   }
   int ntex() const {
-    return ptr_->ntex;
+    return static_cast<int>(ptr_->ntex);
   }
   void set_ntex(int value) {
-    ptr_->ntex = value;
+    ptr_->ntex = static_cast<mjtSize>(value);
   }
   int ntexdata() const {
-    return ptr_->ntexdata;
+    return static_cast<int>(ptr_->ntexdata);
   }
   void set_ntexdata(int value) {
-    ptr_->ntexdata = value;
+    ptr_->ntexdata = static_cast<mjtSize>(value);
   }
   int nmat() const {
-    return ptr_->nmat;
+    return static_cast<int>(ptr_->nmat);
   }
   void set_nmat(int value) {
-    ptr_->nmat = value;
+    ptr_->nmat = static_cast<mjtSize>(value);
   }
   int npair() const {
-    return ptr_->npair;
+    return static_cast<int>(ptr_->npair);
   }
   void set_npair(int value) {
-    ptr_->npair = value;
+    ptr_->npair = static_cast<mjtSize>(value);
   }
   int nexclude() const {
-    return ptr_->nexclude;
+    return static_cast<int>(ptr_->nexclude);
   }
   void set_nexclude(int value) {
-    ptr_->nexclude = value;
+    ptr_->nexclude = static_cast<mjtSize>(value);
   }
   int neq() const {
-    return ptr_->neq;
+    return static_cast<int>(ptr_->neq);
   }
   void set_neq(int value) {
-    ptr_->neq = value;
+    ptr_->neq = static_cast<mjtSize>(value);
   }
   int ntendon() const {
-    return ptr_->ntendon;
+    return static_cast<int>(ptr_->ntendon);
   }
   void set_ntendon(int value) {
-    ptr_->ntendon = value;
+    ptr_->ntendon = static_cast<mjtSize>(value);
   }
   int nwrap() const {
-    return ptr_->nwrap;
+    return static_cast<int>(ptr_->nwrap);
   }
   void set_nwrap(int value) {
-    ptr_->nwrap = value;
+    ptr_->nwrap = static_cast<mjtSize>(value);
   }
   int nsensor() const {
-    return ptr_->nsensor;
+    return static_cast<int>(ptr_->nsensor);
   }
   void set_nsensor(int value) {
-    ptr_->nsensor = value;
+    ptr_->nsensor = static_cast<mjtSize>(value);
   }
   int nnumeric() const {
-    return ptr_->nnumeric;
+    return static_cast<int>(ptr_->nnumeric);
   }
   void set_nnumeric(int value) {
-    ptr_->nnumeric = value;
+    ptr_->nnumeric = static_cast<mjtSize>(value);
   }
   int nnumericdata() const {
-    return ptr_->nnumericdata;
+    return static_cast<int>(ptr_->nnumericdata);
   }
   void set_nnumericdata(int value) {
-    ptr_->nnumericdata = value;
+    ptr_->nnumericdata = static_cast<mjtSize>(value);
   }
   int ntext() const {
-    return ptr_->ntext;
+    return static_cast<int>(ptr_->ntext);
   }
   void set_ntext(int value) {
-    ptr_->ntext = value;
+    ptr_->ntext = static_cast<mjtSize>(value);
   }
   int ntextdata() const {
-    return ptr_->ntextdata;
+    return static_cast<int>(ptr_->ntextdata);
   }
   void set_ntextdata(int value) {
-    ptr_->ntextdata = value;
+    ptr_->ntextdata = static_cast<mjtSize>(value);
   }
   int ntuple() const {
-    return ptr_->ntuple;
+    return static_cast<int>(ptr_->ntuple);
   }
   void set_ntuple(int value) {
-    ptr_->ntuple = value;
+    ptr_->ntuple = static_cast<mjtSize>(value);
   }
   int ntupledata() const {
-    return ptr_->ntupledata;
+    return static_cast<int>(ptr_->ntupledata);
   }
   void set_ntupledata(int value) {
-    ptr_->ntupledata = value;
+    ptr_->ntupledata = static_cast<mjtSize>(value);
   }
   int nkey() const {
-    return ptr_->nkey;
+    return static_cast<int>(ptr_->nkey);
   }
   void set_nkey(int value) {
-    ptr_->nkey = value;
+    ptr_->nkey = static_cast<mjtSize>(value);
   }
   int nmocap() const {
-    return ptr_->nmocap;
+    return static_cast<int>(ptr_->nmocap);
   }
   void set_nmocap(int value) {
-    ptr_->nmocap = value;
+    ptr_->nmocap = static_cast<mjtSize>(value);
   }
   int nplugin() const {
-    return ptr_->nplugin;
+    return static_cast<int>(ptr_->nplugin);
   }
   void set_nplugin(int value) {
-    ptr_->nplugin = value;
+    ptr_->nplugin = static_cast<mjtSize>(value);
   }
   int npluginattr() const {
-    return ptr_->npluginattr;
+    return static_cast<int>(ptr_->npluginattr);
   }
   void set_npluginattr(int value) {
-    ptr_->npluginattr = value;
+    ptr_->npluginattr = static_cast<mjtSize>(value);
   }
   int nuser_body() const {
-    return ptr_->nuser_body;
+    return static_cast<int>(ptr_->nuser_body);
   }
   void set_nuser_body(int value) {
-    ptr_->nuser_body = value;
+    ptr_->nuser_body = static_cast<mjtSize>(value);
   }
   int nuser_jnt() const {
-    return ptr_->nuser_jnt;
+    return static_cast<int>(ptr_->nuser_jnt);
   }
   void set_nuser_jnt(int value) {
-    ptr_->nuser_jnt = value;
+    ptr_->nuser_jnt = static_cast<mjtSize>(value);
   }
   int nuser_geom() const {
-    return ptr_->nuser_geom;
+    return static_cast<int>(ptr_->nuser_geom);
   }
   void set_nuser_geom(int value) {
-    ptr_->nuser_geom = value;
+    ptr_->nuser_geom = static_cast<mjtSize>(value);
   }
   int nuser_site() const {
-    return ptr_->nuser_site;
+    return static_cast<int>(ptr_->nuser_site);
   }
   void set_nuser_site(int value) {
-    ptr_->nuser_site = value;
+    ptr_->nuser_site = static_cast<mjtSize>(value);
   }
   int nuser_cam() const {
-    return ptr_->nuser_cam;
+    return static_cast<int>(ptr_->nuser_cam);
   }
   void set_nuser_cam(int value) {
-    ptr_->nuser_cam = value;
+    ptr_->nuser_cam = static_cast<mjtSize>(value);
   }
   int nuser_tendon() const {
-    return ptr_->nuser_tendon;
+    return static_cast<int>(ptr_->nuser_tendon);
   }
   void set_nuser_tendon(int value) {
-    ptr_->nuser_tendon = value;
+    ptr_->nuser_tendon = static_cast<mjtSize>(value);
   }
   int nuser_actuator() const {
-    return ptr_->nuser_actuator;
+    return static_cast<int>(ptr_->nuser_actuator);
   }
   void set_nuser_actuator(int value) {
-    ptr_->nuser_actuator = value;
+    ptr_->nuser_actuator = static_cast<mjtSize>(value);
   }
   int nuser_sensor() const {
-    return ptr_->nuser_sensor;
+    return static_cast<int>(ptr_->nuser_sensor);
   }
   void set_nuser_sensor(int value) {
-    ptr_->nuser_sensor = value;
+    ptr_->nuser_sensor = static_cast<mjtSize>(value);
   }
   int nnames() const {
-    return ptr_->nnames;
+    return static_cast<int>(ptr_->nnames);
   }
   void set_nnames(int value) {
-    ptr_->nnames = value;
+    ptr_->nnames = static_cast<mjtSize>(value);
   }
   int npaths() const {
-    return ptr_->npaths;
+    return static_cast<int>(ptr_->npaths);
   }
   void set_npaths(int value) {
-    ptr_->npaths = value;
+    ptr_->npaths = static_cast<mjtSize>(value);
   }
   int nnames_map() const {
-    return ptr_->nnames_map;
+    return static_cast<int>(ptr_->nnames_map);
   }
   void set_nnames_map(int value) {
-    ptr_->nnames_map = value;
+    ptr_->nnames_map = static_cast<mjtSize>(value);
   }
   int nJmom() const {
-    return ptr_->nJmom;
+    return static_cast<int>(ptr_->nJmom);
   }
   void set_nJmom(int value) {
-    ptr_->nJmom = value;
+    ptr_->nJmom = static_cast<mjtSize>(value);
   }
   int ngravcomp() const {
-    return ptr_->ngravcomp;
+    return static_cast<int>(ptr_->ngravcomp);
   }
   void set_ngravcomp(int value) {
-    ptr_->ngravcomp = value;
+    ptr_->ngravcomp = static_cast<mjtSize>(value);
   }
   int nemax() const {
-    return ptr_->nemax;
+    return static_cast<int>(ptr_->nemax);
   }
   void set_nemax(int value) {
-    ptr_->nemax = value;
+    ptr_->nemax = static_cast<mjtSize>(value);
   }
   int njmax() const {
-    return ptr_->njmax;
+    return static_cast<int>(ptr_->njmax);
   }
   void set_njmax(int value) {
-    ptr_->njmax = value;
+    ptr_->njmax = static_cast<mjtSize>(value);
   }
   int nconmax() const {
-    return ptr_->nconmax;
+    return static_cast<int>(ptr_->nconmax);
   }
   void set_nconmax(int value) {
-    ptr_->nconmax = value;
+    ptr_->nconmax = static_cast<mjtSize>(value);
   }
   int nuserdata() const {
-    return ptr_->nuserdata;
+    return static_cast<int>(ptr_->nuserdata);
   }
   void set_nuserdata(int value) {
-    ptr_->nuserdata = value;
+    ptr_->nuserdata = static_cast<mjtSize>(value);
   }
   int nsensordata() const {
-    return ptr_->nsensordata;
+    return static_cast<int>(ptr_->nsensordata);
   }
   void set_nsensordata(int value) {
-    ptr_->nsensordata = value;
+    ptr_->nsensordata = static_cast<mjtSize>(value);
   }
   int npluginstate() const {
-    return ptr_->npluginstate;
+    return static_cast<int>(ptr_->npluginstate);
   }
   void set_npluginstate(int value) {
-    ptr_->npluginstate = value;
+    ptr_->npluginstate = static_cast<mjtSize>(value);
   }
-  mjtSize narena() const {
-    return ptr_->narena;
+  int narena() const {
+    return static_cast<int>(ptr_->narena);
   }
-  void set_narena(mjtSize value) {
-    ptr_->narena = value;
+  void set_narena(int value) {
+    ptr_->narena = static_cast<mjtSize>(value);
   }
-  mjtSize nbuffer() const {
-    return ptr_->nbuffer;
+  int nbuffer() const {
+    return static_cast<int>(ptr_->nbuffer);
   }
-  void set_nbuffer(mjtSize value) {
-    ptr_->nbuffer = value;
+  void set_nbuffer(int value) {
+    ptr_->nbuffer = static_cast<mjtSize>(value);
   }
   emscripten::val buffer() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nbuffer, static_cast<uint8_t*>(ptr_->buffer)));
@@ -5337,11 +5337,11 @@ struct MjSpec {
   void set_strippath(mjtByte value) {
     ptr_->strippath = value;
   }
-  mjtSize memory() const {
-    return ptr_->memory;
+  int memory() const {
+    return static_cast<int>(ptr_->memory);
   }
-  void set_memory(mjtSize value) {
-    ptr_->memory = value;
+  void set_memory(int value) {
+    ptr_->memory = static_cast<mjtSize>(value);
   }
   int nemax() const {
     return ptr_->nemax;
@@ -5421,11 +5421,11 @@ struct MjSpec {
   void set_nconmax(int value) {
     ptr_->nconmax = value;
   }
-  mjtSize nstack() const {
-    return ptr_->nstack;
+  int nstack() const {
+    return static_cast<int>(ptr_->nstack);
   }
-  void set_nstack(mjtSize value) {
-    ptr_->nstack = value;
+  void set_nstack(int value) {
+    ptr_->nstack = static_cast<mjtSize>(value);
   }
   mjString comment() const {
     return (ptr_ && ptr_->comment) ? *(ptr_->comment) : "";
@@ -6043,17 +6043,17 @@ struct MjData {
   std::unique_ptr<MjData> copy();
   mjData* get() const;
   void set(mjData* ptr);
-  mjtSize narena() const {
-    return ptr_->narena;
+  int narena() const {
+    return static_cast<int>(ptr_->narena);
   }
-  void set_narena(mjtSize value) {
-    ptr_->narena = value;
+  void set_narena(int value) {
+    ptr_->narena = static_cast<mjtSize>(value);
   }
-  mjtSize nbuffer() const {
-    return ptr_->nbuffer;
+  int nbuffer() const {
+    return static_cast<int>(ptr_->nbuffer);
   }
-  void set_nbuffer(mjtSize value) {
-    ptr_->nbuffer = value;
+  void set_nbuffer(int value) {
+    ptr_->nbuffer = static_cast<mjtSize>(value);
   }
   int nplugin() const {
     return ptr_->nplugin;
@@ -6079,20 +6079,20 @@ struct MjData {
   void set_parena(size_t value) {
     ptr_->parena = value;
   }
-  mjtSize maxuse_stack() const {
-    return ptr_->maxuse_stack;
+  int maxuse_stack() const {
+    return static_cast<int>(ptr_->maxuse_stack);
   }
-  void set_maxuse_stack(mjtSize value) {
-    ptr_->maxuse_stack = value;
+  void set_maxuse_stack(int value) {
+    ptr_->maxuse_stack = static_cast<mjtSize>(value);
   }
   emscripten::val maxuse_threadstack() const {
     return emscripten::val(emscripten::typed_memory_view(128, ptr_->maxuse_threadstack));
   }
-  mjtSize maxuse_arena() const {
-    return ptr_->maxuse_arena;
+  int maxuse_arena() const {
+    return static_cast<int>(ptr_->maxuse_arena);
   }
-  void set_maxuse_arena(mjtSize value) {
-    ptr_->maxuse_arena = value;
+  void set_maxuse_arena(int value) {
+    ptr_->maxuse_arena = static_cast<mjtSize>(value);
   }
   int maxuse_con() const {
     return ptr_->maxuse_con;

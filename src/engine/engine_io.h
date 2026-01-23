@@ -48,18 +48,22 @@ void mj_defaultStatistic(mjStatistic* stat);
 
 // allocate mjModel
 void mj_makeModel(mjModel** dest,
-    int nq, int nv, int nu, int na, int nbody, int nbvh, int nbvhstatic, int nbvhdynamic, int noct,
-    int njnt, int ntree, int nM, int nB, int nC, int nD, int ngeom, int nsite, int ncam, int nlight,
-    int nflex, int nflexnode, int nflexvert, int nflexedge, int nflexelem, int nflexelemdata,
-    int nflexelemedge, int nflexshelldata, int nflexevpair, int nflextexcoord, int nJfe, int nJfv,
-    int nmesh, int nmeshvert, int nmeshnormal, int nmeshtexcoord, int nmeshface, int nmeshgraph,
-    int nmeshpoly, int nmeshpolyvert, int nmeshpolymap, int nskin, int nskinvert, int nskintexvert,
-    int nskinface, int nskinbone, int nskinbonevert, int nhfield, int nhfielddata, int ntex,
-    int ntexdata, int nmat, int npair, int nexclude, int neq, int ntendon, int nwrap, int nsensor,
-    int nnumeric, int nnumericdata, int ntext, int ntextdata, int ntuple, int ntupledata, int nkey,
-    int nmocap, int nplugin, int npluginattr, int nuser_body, int nuser_jnt, int nuser_geom,
-    int nuser_site, int nuser_cam, int nuser_tendon, int nuser_actuator, int nuser_sensor,
-    int nnames, int npaths);
+    mjtSize nq, mjtSize nv, mjtSize nu, mjtSize na, mjtSize nbody, mjtSize nbvh, mjtSize nbvhstatic,
+    mjtSize nbvhdynamic, mjtSize noct, mjtSize njnt, mjtSize ntree, mjtSize nM, mjtSize nB,
+    mjtSize nC, mjtSize nD, mjtSize ngeom, mjtSize nsite, mjtSize ncam, mjtSize nlight,
+    mjtSize nflex, mjtSize nflexnode, mjtSize nflexvert, mjtSize nflexedge, mjtSize nflexelem,
+    mjtSize nflexelemdata, mjtSize nflexelemedge, mjtSize nflexshelldata, mjtSize nflexevpair,
+    mjtSize nflextexcoord, mjtSize nJfe, mjtSize nJfv, mjtSize nmesh, mjtSize nmeshvert,
+    mjtSize nmeshnormal, mjtSize nmeshtexcoord, mjtSize nmeshface, mjtSize nmeshgraph,
+    mjtSize nmeshpoly, mjtSize nmeshpolyvert, mjtSize nmeshpolymap, mjtSize nskin,
+    mjtSize nskinvert, mjtSize nskintexvert, mjtSize nskinface, mjtSize nskinbone,
+    mjtSize nskinbonevert, mjtSize nhfield, mjtSize nhfielddata, mjtSize ntex, mjtSize ntexdata,
+    mjtSize nmat, mjtSize npair, mjtSize nexclude, mjtSize neq, mjtSize ntendon, mjtSize nwrap,
+    mjtSize nsensor, mjtSize nnumeric, mjtSize nnumericdata, mjtSize ntext, mjtSize ntextdata,
+    mjtSize ntuple, mjtSize ntupledata, mjtSize nkey, mjtSize nmocap, mjtSize nplugin,
+    mjtSize npluginattr, mjtSize nuser_body, mjtSize nuser_jnt, mjtSize nuser_geom,
+    mjtSize nuser_site, mjtSize nuser_cam, mjtSize nuser_tendon, mjtSize nuser_actuator,
+    mjtSize nuser_sensor, mjtSize nnames, mjtSize npaths);
 
 // copy mjModel; allocate new if dest is NULL
 MJAPI mjModel* mj_copyModel(mjModel* dest, const mjModel* src);
