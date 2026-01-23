@@ -2905,6 +2905,14 @@ void Simulate::RenderLoop() {
     mj_deleteModel(m_passive_);
   }
 
+  // Wake up any Python threads waiting on these atomics
+  this->newfigurerequest.store(0);
+  this->newfigurerequest.notify_all();
+  this->newtextrequest.store(0);
+  this->newtextrequest.notify_all();
+  this->newimagerequest.store(0);
+  this->newimagerequest.notify_all();
+
   this->exitrequest.store(2);
   this->exitrequest.notify_all();
 }
