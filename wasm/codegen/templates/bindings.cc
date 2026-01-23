@@ -523,8 +523,7 @@ std::unique_ptr<MjModel> mj_loadXML_wrapper(std::string filename) {
   char error[1000];
   mjModel *model = mj_loadXML(filename.c_str(), nullptr, error, sizeof(error));
   if (!model) {
-    printf("Loading error: %s\n", error);
-    return nullptr;
+    mju_error("Loading error: %s\n", error);
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -538,8 +537,7 @@ void mj_saveModel_wrapper(const MjModel& m, const StringOrNull& filename, const 
 std::unique_ptr<MjModel> mj_loadModel_wrapper(std::string filename, const MjVFS& vfs) {
   mjModel *model = mj_loadModel(filename.c_str(), vfs.get());
   if (!model) {
-    printf("mj_loadModel: failed to load from mjb");
-    return nullptr;
+    mju_error("Failed to load from mjb");
   }
   return std::unique_ptr<MjModel>(new MjModel(model));
 }
@@ -548,8 +546,7 @@ std::unique_ptr<MjSpec> parseXMLString_wrapper(const std::string &xml) {
   char error[1000];
   mjSpec *ptr = mj_parseXMLString(xml.c_str(), nullptr, error, sizeof(error));
   if (!ptr) {
-    printf("Could not create Spec from XML string: %s\n", error);
-    return nullptr;
+    mju_error("Could not create Spec from XML string: %s\n", error);
   }
   return std::unique_ptr<MjSpec>(new MjSpec(ptr));
 }
