@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
+#include <mujoco/experimental/usd/mjcPhysics/equalityJointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/keyframe.h>
 #include <mujoco/experimental/usd/mjcPhysics/siteAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/tendon.h>
@@ -227,6 +228,12 @@ std::unique_ptr<Node> BuildKinematicTree(const pxr::UsdStageRefPtr stage) {
     // Now that we know all the bodies, we can assign joints to respective
     // nodes.
     extraction.nodes[to_idx]->joints.push_back(joint.GetPath());
+
+    // If the joint has MjcPhysicsEqualityJointAPI, also add it to constraints
+    // so that ParseConstraint is called to create the equality constraint.
+    if (joint.GetPrim().HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
+      extraction.nodes[to_idx]->constraints.push_back(joint.GetPath());
+    }
   }
 
   // The world body is represented by an empty SdfPath.

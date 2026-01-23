@@ -26,6 +26,7 @@
 #include <mujoco/experimental/usd/mjcPhysics/actuator.h>
 #include <mujoco/experimental/usd/mjcPhysics/collisionAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/equalityAPI.h>
+#include <mujoco/experimental/usd/mjcPhysics/equalityJointAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/equalityWeldAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/imageableAPI.h>
 #include <mujoco/experimental/usd/mjcPhysics/jointAPI.h>
@@ -1826,97 +1827,157 @@ void ParseUsdPhysicsCollider(mjSpec* spec,
 
 void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
                           pxr::UsdGeomXformCache& xform_cache) {
-  if (!prim.IsA<pxr::UsdPhysicsFixedJoint>()) {
-    mju_warning("Constraint %s is not a fixed joint, skipping.",
-                prim.GetPath().GetAsString().c_str());
-    return;
-  }
-  pxr::UsdPhysicsJoint joint(prim);
-  // A fixed joint means the bodies are welded.
-  pxr::UsdRelationship body0_rel = joint.GetBody0Rel();
-  pxr::UsdRelationship body1_rel = joint.GetBody1Rel();
-  pxr::SdfPathVector targets0, targets1;
-  body0_rel.GetTargets(&targets0);
-  body1_rel.GetTargets(&targets1);
+  if (prim.HasAPI<pxr::MjcPhysicsEqualityJointAPI>()) {
+    // Handle MjcPhysicsEqualityJointAPI on revolute/prismatic joints.
+    pxr::MjcPhysicsEqualityJointAPI eq_joint_api(prim);
+    mjsEquality* eq = mjs_addEquality(spec, nullptr);
+    eq->type = mjEQ_JOINT;
+    mjs_setName(eq->element, prim.GetPath().GetAsString().c_str());
+    SetUsdPrimPathUserValue(eq->element, prim.GetPath());
 
-  pxr::SdfPath body0_path;
-  if (!targets0.empty()) body0_path = targets0[0];
-  pxr::SdfPath body1_path;
-  if (!targets1.empty()) body1_path = targets1[0];
+    // The prim this API is applied to is the constrained joint (joint1).
+    eq->objtype = mjOBJ_JOINT;
+    mjs_setString(eq->name1, prim.GetPath().GetAsString().c_str());
 
-  auto stage = prim.GetStage();
+    // Get the target joint (joint2) from the MjcEqualityAPI target
+    // relationship.
+    pxr::MjcPhysicsEqualityAPI equality_api(prim);
+    pxr::UsdRelationship target_rel = equality_api.GetMjcTargetRel();
+    pxr::SdfPathVector targets;
+    target_rel.GetTargets(&targets);
+    if (!targets.empty()) {
+      mjs_setString(eq->name2, targets[0].GetAsString().c_str());
+    }
+    // If no target, name2 remains empty, meaning joint1 is fixed to a constant.
 
-  auto body0_prim = stage->GetPrimAtPath(body0_path);
-  auto body1_prim = stage->GetPrimAtPath(body1_path);
+    // Parse polycoef attribute for the quartic polynomial coefficients.
+    auto polycoef_attr = eq_joint_api.GetPolycoefAttr();
+    if (polycoef_attr.HasAuthoredValue()) {
+      pxr::VtDoubleArray polycoef;
+      polycoef_attr.Get(&polycoef);
+      size_t num_coefs = std::min(polycoef.size(), static_cast<size_t>(5));
+      for (size_t i = 0; i < num_coefs; ++i) {
+        eq->data[i] = polycoef[i];
+      }
+    } else {
+      // Default polycoef [0, 1, 0, 0, 0] for 1:1 mimic.
+      eq->data[0] = 0;
+      eq->data[1] = 1;
+      eq->data[2] = 0;
+      eq->data[3] = 0;
+      eq->data[4] = 0;
+    }
 
-  bool body0_is_site = false;
-  if (!body0_path.IsEmpty()) {
-    body0_is_site = body0_prim.HasAPI<pxr::MjcPhysicsSiteAPI>();
-  }
-  bool body1_is_site = false;
-  if (!body1_path.IsEmpty()) {
-    body1_is_site = body1_prim.HasAPI<pxr::MjcPhysicsSiteAPI>();
-  }
+    // Parse solver parameters from MjcEqualityAPI.
+    auto solref_attr = equality_api.GetSolRefAttr();
+    if (solref_attr.HasAuthoredValue()) {
+      pxr::VtDoubleArray solref;
+      solref_attr.Get(&solref);
+      if (solref.size() == mjNREF) {
+        for (int i = 0; i < mjNREF; ++i) {
+          eq->solref[i] = solref[i];
+        }
+      }
+    }
 
-  if (body0_is_site != body1_is_site) {
-    mju_warning(
-        "Weld constraint %s has mismatch between site and body targets, "
-        "skipping",
-        prim.GetPath().GetAsString().c_str());
-    return;
-  }
+    auto solimp_attr = equality_api.GetSolImpAttr();
+    if (solimp_attr.HasAuthoredValue()) {
+      pxr::VtDoubleArray solimp;
+      solimp_attr.Get(&solimp);
+      if (solimp.size() == mjNIMP) {
+        for (int i = 0; i < mjNIMP; ++i) {
+          eq->solimp[i] = solimp[i];
+        }
+      }
+    }
+  } else if (prim.IsA<pxr::UsdPhysicsFixedJoint>()) {
+    // Handle fixed joints as weld constraints.
+    pxr::UsdPhysicsJoint joint(prim);
+    // A fixed joint means the bodies are welded.
+    pxr::UsdRelationship body0_rel = joint.GetBody0Rel();
+    pxr::UsdRelationship body1_rel = joint.GetBody1Rel();
+    pxr::SdfPathVector targets0, targets1;
+    body0_rel.GetTargets(&targets0);
+    body1_rel.GetTargets(&targets1);
 
-  mjsEquality* eq = mjs_addEquality(spec, nullptr);
-  eq->type = mjEQ_WELD;
-  mjs_setName(eq->element, prim.GetPath().GetAsString().c_str());
-  SetUsdPrimPathUserValue(eq->element, prim.GetPath());
+    pxr::SdfPath body0_path;
+    if (!targets0.empty()) body0_path = targets0[0];
+    pxr::SdfPath body1_path;
+    if (!targets1.empty()) body1_path = targets1[0];
 
-  if (body0_is_site) {
-    mjs_setString(eq->name1, body0_path.GetAsString().c_str());
-    mjs_setString(eq->name2, body1_path.GetAsString().c_str());
-    eq->objtype = mjOBJ_SITE;
-  } else {
-    mjs_setString(eq->name1, body0_path.GetAsString().c_str());
-    mjs_setString(eq->name2, body1_path.GetAsString().c_str());
-    eq->objtype = mjOBJ_BODY;
-  }
+    auto stage = prim.GetStage();
 
-  // In USD, joints have a reference frame that is shared between the two
-  // connecting bodies. This reference frame is defined relative to both
-  // bodies, in localPos/Rot 0 and 1. A fixed joint removes all degrees of
-  // freedom for the joint, ensuring the reference frame is fixed in place
-  // This means the bodies should also be fixed, but relative to the joint
-  // depending on their respective localPos/Rot.
-  // In MuJoCo fixed joint frames are not explicitly defined relative to their
-  // connecting bodies. Instead, we define a weld constraint providing the
-  // weld point (anchor) relative to body 2 and then we specify the position
-  // of body 2 relative to body 1.
+    auto body0_prim = stage->GetPrimAtPath(body0_path);
+    auto body1_prim = stage->GetPrimAtPath(body1_path);
 
-  // Here is the mapping of terms concretely:
-  // T(bodyX) = transform of bodyX relative to joint frame (localPos/Rot).
-  // anchor = localPos1 (position of the weld point relative to mjc body 2)
-  // relpose = T(body0)*T(body1)^-1
+    bool body0_is_site = false;
+    if (!body0_path.IsEmpty()) {
+      body0_is_site = body0_prim.HasAPI<pxr::MjcPhysicsSiteAPI>();
+    }
+    bool body1_is_site = false;
+    if (!body1_path.IsEmpty()) {
+      body1_is_site = body1_prim.HasAPI<pxr::MjcPhysicsSiteAPI>();
+    }
 
-  // relpose is float[7], pos(3) + quat(4)
-  // anchor is float[3], pos(3)
-  // in mjsEquality data: anchor 0-2, relpose 3-9.
+    if (body0_is_site != body1_is_site) {
+      mju_warning(
+          "Weld constraint %s has mismatch between site and body targets, "
+          "skipping",
+          prim.GetPath().GetAsString().c_str());
+      return;
+    }
 
-  auto body0_xform = xform_cache.GetLocalToWorldTransform(body0_prim);
-  auto body1_xform = xform_cache.GetLocalToWorldTransform(body1_prim);
+    mjsEquality* eq = mjs_addEquality(spec, nullptr);
+    eq->type = mjEQ_WELD;
+    mjs_setName(eq->element, prim.GetPath().GetAsString().c_str());
+    SetUsdPrimPathUserValue(eq->element, prim.GetPath());
 
-  pxr::GfVec3d body0_scale, body1_scale;
+    if (body0_is_site) {
+      mjs_setString(eq->name1, body0_path.GetAsString().c_str());
+      mjs_setString(eq->name2, body1_path.GetAsString().c_str());
+      eq->objtype = mjOBJ_SITE;
+    } else {
+      mjs_setString(eq->name1, body0_path.GetAsString().c_str());
+      mjs_setString(eq->name2, body1_path.GetAsString().c_str());
+      eq->objtype = mjOBJ_BODY;
+    }
 
-  {
-    pxr::GfMatrix4d scale_orient, rot, persp;
-    pxr::GfVec3d  translation;
-    if (!body0_xform.Factor(&scale_orient, &body0_scale, &rot,
-                  &translation, &persp)) {
+    // In USD, joints have a reference frame that is shared between the two
+    // connecting bodies. This reference frame is defined relative to both
+    // bodies, in localPos/Rot 0 and 1. A fixed joint removes all degrees of
+    // freedom for the joint, ensuring the reference frame is fixed in place
+    // This means the bodies should also be fixed, but relative to the joint
+    // depending on their respective localPos/Rot.
+    // In MuJoCo fixed joint frames are not explicitly defined relative to their
+    // connecting bodies. Instead, we define a weld constraint providing the
+    // weld point (anchor) relative to body 2 and then we specify the position
+    // of body 2 relative to body 1.
+
+    // Here is the mapping of terms concretely:
+    // T(bodyX) = transform of bodyX relative to joint frame (localPos/Rot).
+    // anchor = localPos1 (position of the weld point relative to mjc body 2)
+    // relpose = T(body0)*T(body1)^-1
+
+    // relpose is float[7], pos(3) + quat(4)
+    // anchor is float[3], pos(3)
+    // in mjsEquality data: anchor 0-2, relpose 3-9.
+
+    auto body0_xform = xform_cache.GetLocalToWorldTransform(body0_prim);
+    auto body1_xform = xform_cache.GetLocalToWorldTransform(body1_prim);
+
+    pxr::GfVec3d body0_scale, body1_scale;
+
+    {
+      pxr::GfMatrix4d scale_orient, rot, persp;
+      pxr::GfVec3d translation;
+      if (!body0_xform.Factor(&scale_orient, &body0_scale, &rot, &translation,
+                              &persp)) {
         // unable to decompose, emit warning and set scale to identity
         mju_warning(
               "Unable to decompose matrix for body 0: %s.",
               body0_path.GetAsString().c_str());
         body0_scale = pxr::GfVec3f(1, 1, 1);
-    }
+      }
 
     if (!body1_xform.Factor(&scale_orient, &body1_scale, &rot,
                   &translation, &persp)) {
@@ -1926,7 +1987,7 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
               body1_path.GetAsString().c_str());
         body1_scale = pxr::GfVec3f(1, 1, 1);
     }
-  }
+    }
 
   pxr::GfVec3f localPos1;
   joint.GetLocalPos1Attr().Get(&localPos1);
@@ -2003,8 +2064,11 @@ void ParseConstraint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
       eq->data[10] = torque_scale;
     }
   }
+  } else {
+    mju_warning("Constraint %s is not a supported constraint type, skipping.",
+                prim.GetPath().GetAsString().c_str());
+  }
 }
-
 void ParseUsdPhysicsJoint(mjSpec* spec, const pxr::UsdPrim& prim, mjsBody* body,
                           pxr::UsdGeomXformCache& xform_cache) {
   // A fixed joint means the bodies are welded.
