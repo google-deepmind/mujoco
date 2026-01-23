@@ -14,6 +14,12 @@
 # ==============================================================================
 """Public API for MJX."""
 
+# isort: off
+from mujoco.mjx._src.forward import step
+from mujoco.mjx._src.types import Model
+from mujoco.mjx._src.types import Data
+# isort: on
+
 # pylint:disable=g-importing-member
 from mujoco.mjx._src.collision_driver import collision
 from mujoco.mjx._src.constraint import make_constraint
@@ -26,7 +32,6 @@ from mujoco.mjx._src.forward import fwd_position
 from mujoco.mjx._src.forward import fwd_velocity
 from mujoco.mjx._src.forward import implicit
 from mujoco.mjx._src.forward import rungekutta4
-from mujoco.mjx._src.forward import step
 from mujoco.mjx._src.inverse import inverse
 from mujoco.mjx._src.io import get_data
 from mujoco.mjx._src.io import get_data_into
