@@ -2718,6 +2718,7 @@ void Simulate::Render() {
     std::swap(this->user_figures_, this->user_figures_new_);
     int value = 1;
     this->newfigurerequest.compare_exchange_strong(value, 0);
+    this->newfigurerequest.notify_all();
   }
   for (auto& [viewport, figure] : this->user_figures_) {
     ShowFigure(this, viewport, &figure);
@@ -2729,6 +2730,7 @@ void Simulate::Render() {
     std::swap(this->user_texts_, this->user_texts_new_);
     int value = 1;
     this->newtextrequest.compare_exchange_strong(value, 0);
+    this->newtextrequest.notify_all();
   }
   for (auto& [font, gridpos, text1, text2] : this->user_texts_) {
     ShowOverlayText(this, rect, font, gridpos, text1, text2);
@@ -2740,6 +2742,7 @@ void Simulate::Render() {
     std::swap(this->user_images_, this->user_images_new_);
     int value = 1;
     this->newimagerequest.compare_exchange_strong(value, 0);
+    this->newimagerequest.notify_all();
   }
   for (auto& [viewport, image] : this->user_images_) {
     ShowImage(this, viewport, image.get());
@@ -2903,6 +2906,7 @@ void Simulate::RenderLoop() {
   }
 
   this->exitrequest.store(2);
+  this->exitrequest.notify_all();
 }
 
 // add state to history buffer

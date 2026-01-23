@@ -17,7 +17,6 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <thread>  // NOLINT(build/c++11)
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -76,8 +75,9 @@ class UIAdapterWithPyCallback : public Adapter {
 // needs to acquire the GIL.
 void AtomicWaitNoGil(std::atomic_int& atomic, int expected) {
   py::gil_scoped_release no_gil;
-  while (atomic.load() != expected) {
-    std::this_thread::yield();
+  int value;
+  while ((value = atomic.load()) != expected) {
+    atomic.wait(value);
   }
 }
 
@@ -163,10 +163,9 @@ class SimulateWrapper {
   }
 
   void ClearFigures() {
-    if (!simulate_) {
-      return;
+    if (simulate_) {
+      AtomicWaitNoGil(simulate_->newfigurerequest, 0);
     }
-    AtomicWaitNoGil(simulate_->newfigurerequest, 0);
 
     simulate_->user_figures_new_.clear();
 
@@ -177,10 +176,9 @@ class SimulateWrapper {
   void SetTexts(
       const std::vector<std::tuple<int, int, std::string, std::string>>&
           texts) {
-    if (!simulate_) {
-      return;
+    if (simulate_) {
+      AtomicWaitNoGil(simulate_->newtextrequest, 0);
     }
-    AtomicWaitNoGil(simulate_->newtextrequest, 0);
 
     // Collection of [font, gridpos, text1, text2] tuples for overlay text
     for (const auto& [font, gridpos, text1, text2] : texts) {
@@ -192,10 +190,9 @@ class SimulateWrapper {
   }
 
   void ClearTexts() {
-    if (!simulate_) {
-      return;
+    if (simulate_) {
+      AtomicWaitNoGil(simulate_->newtextrequest, 0);
     }
-    AtomicWaitNoGil(simulate_->newtextrequest, 0);
 
     simulate_->user_texts_new_.clear();
 
@@ -206,10 +203,9 @@ class SimulateWrapper {
   void SetImages(
     const std::vector<std::tuple<mjrRect, pybind11::array>> viewports_images
   ) {
-    if (!simulate_) {
-      return;
+    if (simulate_) {
+      AtomicWaitNoGil(simulate_->newimagerequest, 0);
     }
-    AtomicWaitNoGil(simulate_->newimagerequest, 0);
 
     for (const auto& [viewport, image] : viewports_images) {
       auto buf = image.request();
@@ -241,10 +237,9 @@ class SimulateWrapper {
   }
 
   void ClearImages() {
-    if (!simulate_) {
-      return;
+    if (simulate_) {
+      AtomicWaitNoGil(simulate_->newimagerequest, 0);
     }
-    AtomicWaitNoGil(simulate_->newimagerequest, 0);
 
     simulate_->user_images_new_.clear();
 
