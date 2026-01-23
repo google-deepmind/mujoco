@@ -17,6 +17,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>  // NOLINT(build/c++11)
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -73,11 +74,10 @@ class UIAdapterWithPyCallback : public Adapter {
 // Waits for an atomic value to become the expected value, releasing the GIL
 // during the wait to prevent deadlock with render thread's key callback which
 // needs to acquire the GIL.
-void AtomicWaitNoGil(std::atomic_int& atomic, int expected) {
+void WaitForAtomicNoGil(std::atomic_int& atomic, int expected) {
   py::gil_scoped_release no_gil;
-  int value;
-  while ((value = atomic.load()) != expected) {
-    atomic.wait(value);
+  while (atomic.load() != expected) {
+    std::this_thread::yield();
   }
 }
 
@@ -113,7 +113,7 @@ class SimulateWrapper {
 
   void WaitUntilExit() {
     if (simulate_) {
-      AtomicWaitNoGil(simulate_->exitrequest, 2);
+      WaitForAtomicNoGil(simulate_->exitrequest, 2);
     }
   }
 
@@ -148,7 +148,7 @@ class SimulateWrapper {
   void SetFigures(
       const std::vector<std::pair<mjrRect, py::object>>& viewports_figures) {
     if (simulate_) {
-      AtomicWaitNoGil(simulate_->newfigurerequest, 0);
+      WaitForAtomicNoGil(simulate_->newfigurerequest, 0);
     }
 
     // Pairs of [viewport, figure], where viewport corresponds to the location
@@ -164,7 +164,7 @@ class SimulateWrapper {
 
   void ClearFigures() {
     if (simulate_) {
-      AtomicWaitNoGil(simulate_->newfigurerequest, 0);
+      WaitForAtomicNoGil(simulate_->newfigurerequest, 0);
     }
 
     simulate_->user_figures_new_.clear();
@@ -177,7 +177,7 @@ class SimulateWrapper {
       const std::vector<std::tuple<int, int, std::string, std::string>>&
           texts) {
     if (simulate_) {
-      AtomicWaitNoGil(simulate_->newtextrequest, 0);
+      WaitForAtomicNoGil(simulate_->newtextrequest, 0);
     }
 
     // Collection of [font, gridpos, text1, text2] tuples for overlay text
@@ -191,7 +191,7 @@ class SimulateWrapper {
 
   void ClearTexts() {
     if (simulate_) {
-      AtomicWaitNoGil(simulate_->newtextrequest, 0);
+      WaitForAtomicNoGil(simulate_->newtextrequest, 0);
     }
 
     simulate_->user_texts_new_.clear();
@@ -204,7 +204,7 @@ class SimulateWrapper {
     const std::vector<std::tuple<mjrRect, pybind11::array>> viewports_images
   ) {
     if (simulate_) {
-      AtomicWaitNoGil(simulate_->newimagerequest, 0);
+      WaitForAtomicNoGil(simulate_->newimagerequest, 0);
     }
 
     for (const auto& [viewport, image] : viewports_images) {
@@ -238,7 +238,7 @@ class SimulateWrapper {
 
   void ClearImages() {
     if (simulate_) {
-      AtomicWaitNoGil(simulate_->newimagerequest, 0);
+      WaitForAtomicNoGil(simulate_->newimagerequest, 0);
     }
 
     simulate_->user_images_new_.clear();
