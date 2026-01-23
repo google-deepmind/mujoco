@@ -26,11 +26,7 @@ if(APPLE)
   enable_language(OBJCXX)
 endif()
 
-if(MSVC AND MSVC_VERSION GREATER_EQUAL 1927)
-  set(CMAKE_CXX_STANDARD 20) # For forceinline lambdas.
-else()
-  set(CMAKE_CXX_STANDARD 17)
-endif()
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
