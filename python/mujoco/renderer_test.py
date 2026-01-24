@@ -16,8 +16,9 @@
 
 from absl.testing import absltest
 from absl.testing import parameterized
-import mujoco
 import numpy as np
+
+import mujoco
 
 
 @absltest.skipUnless(
@@ -156,6 +157,113 @@ class MuJoCoRendererTest(parameterized.TestCase):
       self.assertNotEqual(failing_render_size, render_size)
       with self.assertRaises(ValueError):
         renderer.render(out=np.zeros((*failing_render_size, 3), np.uint8))
+
+  def test_renderer_draw_text(self):
+    xml = """
+<mujoco>
+  <worldbody>
+    <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
+    <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      mujoco.mj_forward(model, data)
+      renderer.update_scene(data, 'closeup')
+
+      # Render without text.
+      pixels_no_text = renderer.render().copy()
+
+      # Render with text.
+      renderer.update_scene(data, 'closeup')
+      renderer.draw_text('Hello', 0.5, 0.5, rgb=(1.0, 0.0, 0.0))
+      pixels_with_text = renderer.render()
+
+      # Pixels should be different when text is drawn.
+      self.assertFalse((pixels_no_text == pixels_with_text).all())
+
+  def test_renderer_draw_overlay(self):
+    xml = """
+<mujoco>
+  <worldbody>
+    <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
+    <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      mujoco.mj_forward(model, data)
+      renderer.update_scene(data, 'closeup')
+
+      # Render without overlay.
+      pixels_no_overlay = renderer.render().copy()
+
+      # Render with overlay.
+      renderer.update_scene(data, 'closeup')
+      renderer.draw_overlay('Title', 'Body text')
+      pixels_with_overlay = renderer.render()
+
+      # Pixels should be different when overlay is drawn.
+      self.assertFalse((pixels_no_overlay == pixels_with_overlay).all())
+
+  def test_renderer_text_cleared_after_render(self):
+    xml = """
+<mujoco>
+  <worldbody>
+    <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
+    <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      mujoco.mj_forward(model, data)
+      renderer.update_scene(data, 'closeup')
+
+      # Render with text.
+      renderer.draw_text('Hello', 0.5, 0.5)
+      pixels_with_text = renderer.render().copy()
+
+      # Second render should not have text (queue was cleared).
+      renderer.update_scene(data, 'closeup')
+      pixels_second_render = renderer.render()
+
+      # First render had text, second should match baseline (no text).
+      renderer.update_scene(data, 'closeup')
+      pixels_baseline = renderer.render()
+      self.assertTrue((pixels_second_render == pixels_baseline).all())
+
+  def test_renderer_text_not_drawn_in_depth_mode(self):
+    xml = """
+<mujoco>
+  <worldbody>
+    <camera name="closeup" pos="0 -6 0" xyaxes="1 0 0 0 1 100"/>
+    <geom name="white_box" type="box" size="1 1 1" rgba="1 1 1 1"/>
+  </worldbody>
+</mujoco>
+"""
+    model = mujoco.MjModel.from_xml_string(xml)
+    data = mujoco.MjData(model)
+    with mujoco.Renderer(model, 50, 50) as renderer:
+      mujoco.mj_forward(model, data)
+      renderer.update_scene(data, 'closeup')
+      renderer.enable_depth_rendering()
+
+      # Render depth without text.
+      depth_no_text = renderer.render().copy()
+
+      # Render depth with text (should be ignored).
+      renderer.update_scene(data, 'closeup')
+      renderer.draw_text('Hello', 0.5, 0.5)
+      depth_with_text = renderer.render()
+
+      # Depth images should be identical (text not drawn in depth mode).
+      self.assertTrue((depth_no_text == depth_with_text).all())
 
 
 if __name__ == '__main__':

@@ -14,14 +14,15 @@
 # ==============================================================================
 """Defines a renderer class for the MuJoCo Python native bindings."""
 
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
+
+import numpy as np
 
 from mujoco import _enums
 from mujoco import _functions
 from mujoco import _render
 from mujoco import _structs
 from mujoco import gl_context
-import numpy as np
 
 
 class Renderer:
@@ -96,6 +97,9 @@ the clause:
     self._depth_rendering = False
     self._segmentation_rendering = False
 
+    # Pending text operations to be drawn after mjr_render.
+    self._text_overlays = []
+
   @property
   def model(self):
     return self._model
@@ -125,6 +129,67 @@ the clause:
 
   def disable_segmentation_rendering(self):
     self._segmentation_rendering = False
+
+  def draw_text(
+      self,
+      text: str,
+      x: float,
+      y: float,
+      rgb: Tuple[float, float, float] = (1.0, 1.0, 1.0),
+      font: _enums.mjtFont = _enums.mjtFont.mjFONT_NORMAL,
+  ) -> None:
+    """Queues 2D text to be rendered on the next frame.
+
+    Text is drawn at the specified (x, y) coordinates in relative screen space
+    (0 to 1), with the specified RGB color.
+
+    Args:
+      text: The text string to render.
+      x: Horizontal position in relative coordinates (0 = left, 1 = right).
+      y: Vertical position in relative coordinates (0 = bottom, 1 = top).
+      rgb: Tuple of (red, green, blue) color values, each in range [0, 1].
+      font: Font style from mjtFont enum (NORMAL, SHADOW, or BIG).
+    """
+    self._text_overlays.append(('text', text, x, y, rgb, font))
+
+  def draw_overlay(
+      self,
+      title: str,
+      body: str = '',
+      position: _enums.mjtGridPos = _enums.mjtGridPos.mjGRID_TOPLEFT,
+      font: _enums.mjtFont = _enums.mjtFont.mjFONT_NORMAL,
+  ) -> None:
+    """Queues an overlay text to be rendered on the next frame.
+
+    Overlay text is drawn at a grid position on the viewport.
+
+    Args:
+      title: The title text (rendered in bold).
+      body: The body text (rendered below the title).
+      position: Grid position from mjtGridPos enum.
+      font: Font style from mjtFont enum (NORMAL, SHADOW, or BIG).
+    """
+    self._text_overlays.append(('overlay', title, body, position, font))
+
+  def _draw_pending_text(self) -> None:
+    """Draws all pending text operations."""
+    for op in self._text_overlays:
+      if op[0] == 'text':
+        _, text, x, y, rgb, font = op
+        _render.mjr_text(
+            font.value, text, self._mjr_context, x, y, rgb[0], rgb[1], rgb[2]
+        )
+      elif op[0] == 'overlay':
+        _, title, body, position, font = op
+        _render.mjr_overlay(
+            font.value,
+            position.value,
+            self._rect,
+            title,
+            body,
+            self._mjr_context,
+        )
+    self._text_overlays.clear()
 
   def render(self, *, out: Optional[np.ndarray] = None) -> np.ndarray:
     """Renders the scene as a numpy array of pixel values.
@@ -179,6 +244,14 @@ the clause:
 
     # Render scene and read contents of RGB and depth buffers.
     _render.mjr_render(self._rect, self._scene, self._mjr_context)
+
+    # Draw any pending text overlays (only for RGB rendering).
+    if not self._depth_rendering and not self._segmentation_rendering:
+      self._draw_pending_text()
+    else:
+      # Clear pending text without rendering for depth/segmentation modes.
+      self._text_overlays.clear()
+
     if self._depth_rendering:
       _render.mjr_readPixels(None, out, self._rect, self._mjr_context)
 
