@@ -536,7 +536,7 @@ void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
 // compute flex-related quantities
 void mj_flex(const mjModel* m, mjData* d) {
   int nv = m->nv;
-  int* rowadr = m->flexedge_J_rowadr, *rownnz = m->flexedge_J_rownnz;
+  int* rowadr = m->flexedge_J_rowadr;
   int* vrowadr = m->flexvert_J_rowadr, *vrownnz = m->flexvert_J_rownnz;
 
   // skip if no flexes
@@ -658,10 +658,6 @@ void mj_flex(const mjModel* m, mjData* d) {
   int* chain = mjSTACKALLOC(d, nv, int);
 
   // clear Jacobian
-  mju_zeroInt(rowadr, m->nflexedge);
-  mju_zeroInt(rownnz, m->nflexedge);
-  mju_zeroInt(vrowadr, 2*m->nflexvert);
-  mju_zeroInt(vrownnz, 2*m->nflexvert);
   mju_zero(d->flexvert_J, 2*m->nJfv);
 
   // compute lengths and Jacobians of edges
@@ -698,11 +694,6 @@ void mj_flex(const mjModel* m, mjData* d) {
         continue;
       }
 
-      // set rowadr
-      if (ebase+e > 0) {
-        rowadr[ebase+e] = rowadr[ebase+e-1] + rownnz[ebase+e-1];
-      }
-
       // get endpoint Jacobians, subtract
       int NV = mj_jacDifPair(m, d, chain, b1, b2, pos1, pos2,
                               jac1, jac2, jacdif, NULL, NULL, NULL, /*issparse=*/1);
@@ -714,10 +705,6 @@ void mj_flex(const mjModel* m, mjData* d) {
 
       // apply chain rule to compute edge Jacobian
       mju_mulMatTVec(d->flexedge_J + rowadr[ebase+e], jacdif, vec, 3, NV);
-
-      // copy sparsity info
-      rownnz[ebase+e] = NV;
-      mju_copyInt(m->flexedge_J_colind + rowadr[ebase+e], chain, NV);
     }
 
     // if dim=2 and constraints are active we use the vertex-based constraint defined in
@@ -729,7 +716,6 @@ void mj_flex(const mjModel* m, mjData* d) {
       int t_adr, t0, t1, t2;
 
       mj_markStack(d);
-      int* buf_ind = mjSTACKALLOC(d, nv, int);
 
       // compute normal from first element
       t_adr = m->flex_elemdataadr[f];
@@ -858,68 +844,9 @@ void mj_flex(const mjModel* m, mjData* d) {
                                        cauchy[0][1] * cauchy[1][0] - 1;
       }
 
-      // 1st pass: compute vrownnz
+      // clear Jacobian and assemble vertex by vertex
       int* chain1 = mjSTACKALLOC(d, nv, int);
       int* chain2 = mjSTACKALLOC(d, nv, int);
-
-      // determine start address for this flex
-      int v0_base = 2*vbase;
-      int current_adr = 0;
-      if (v0_base > 0) {
-        current_adr = vrowadr[v0_base - 1] + vrownnz[v0_base - 1];
-      }
-      vrowadr[v0_base] = current_adr;
-
-      for (int v=0; v<nvert; ++v) {
-        // clear buf_ind
-        mju_zeroInt(buf_ind, nv);
-        int current_nnz = 0;
-        for (int i=0; i<v_edge_cnt[v]; ++i) {
-          int e = adj_edges[v_edge_adr[v]+i];
-          int v1 = m->flex_edge[2*(ebase+e)];
-          int v2 = m->flex_edge[2*(ebase+e)+1];
-
-          // chains from edge e
-          int b1 = m->flex_vertbodyid[vbase+v1];
-          int b2 = m->flex_vertbodyid[vbase+v2];
-          int NV1 = mj_bodyChain(m, b1, chain1);
-          int NV2 = mj_bodyChain(m, b2, chain2);
-
-          for (int j=0; j<NV1; ++j) {
-            if (!buf_ind[chain1[j]]) {
-              buf_ind[chain1[j]] = 1;
-              current_nnz++;
-            }
-          }
-          for (int j=0; j<NV2; ++j) {
-            if (!buf_ind[chain2[j]]) {
-              buf_ind[chain2[j]] = 1;
-              current_nnz++;
-            }
-          }
-        }
-        int row0 = 2*(vbase+v);
-        int row1 = 2*(vbase+v)+1;
-        vrownnz[row0] = vrownnz[row1] = current_nnz;
-
-        // set rowadr for next rows
-        vrowadr[row1] = vrowadr[row0] + current_nnz;
-        if (row1 + 1 < 2*m->nflexvert) {
-          vrowadr[row1+1] = vrowadr[row1] + current_nnz;
-        }
-
-        // fill colind
-        int count = 0;
-        for (int j=0; j<nv; j++) {
-          if (buf_ind[j]) {
-            m->flexvert_J_colind[vrowadr[row0]+count] = j;
-            m->flexvert_J_colind[vrowadr[row1]+count] = j;
-            count++;
-          }
-        }
-      }
-
-      // 2nd pass: clear Jacobian and assemble vertex by vertex
       mjtNum* J0_dense = mjSTACKALLOC(d, nv, mjtNum);
       mjtNum* J1_dense = mjSTACKALLOC(d, nv, mjtNum);
       mjtNum dI1dy1[3], dI1dy2[3], FB[6];
