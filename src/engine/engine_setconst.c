@@ -438,9 +438,57 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
   mj_freeStack(d);
 }
 
+// align 2D flexes to the XY plane
+static void mj_alignFlex(mjModel* m, mjData* d) {
+  for (int f = 0; f < m->nflex; f++) {
+    // only for 2D flexes with vertex equality constraints
+    if (m->flex_dim[f] == 2 && m->flex_edgeequality[f] == 2) {
+      // get element data
+      int t_adr = m->flex_elemdataadr[f];
+      int vbase = m->flex_vertadr[f];
+      int t0 = m->flex_elem[t_adr];
+      int t1 = m->flex_elem[t_adr + 1];
+      int t2 = m->flex_elem[t_adr + 2];
+
+      // compute normal from first element
+      mjtNum edge1[3], edge2[3], normal[3];
+      mju_sub3(edge1, m->flex_vert0 + 3 * (vbase + t1), m->flex_vert0 + 3 * (vbase + t0));
+      mju_sub3(edge2, m->flex_vert0 + 3 * (vbase + t2),
+               m->flex_vert0 + 3 * (vbase + t0));
+      mju_cross(normal, edge1, edge2);
+      mju_normalize3(normal);
+
+      // compute rotation to Z
+      mjtNum quat[4], mat[9];
+      mju_quatZ2Vec(quat, normal);
+      mju_quat2Mat(mat, quat);
+
+      // rotate all vertices of this flex
+      int nvert = m->flex_vertnum[f];
+      for (int v = 0; v < nvert; v++) {
+        mjtNum* vert = m->flex_vert0 + 3 * (vbase + v);
+        mjtNum res[3];
+
+        mju_mulMatTVec3(res, mat, vert);
+        mju_copy3(vert, res);
+
+        // check planarity (warning if not planar)
+        if (mju_abs(vert[2] - m->flex_vert0[3 * (vbase + t0) + 2]) > 100 * mjMINVAL) {
+          static int warned = 0;
+          if (!warned) {
+            warned = 1;
+            mju_warning("flex %d is not planar", f);
+          }
+        }
+      }
+    }
+  }
+}
+
 // set quantities that depend on qpos0
 static void set0(mjModel* m, mjData* d) {
   makeFlexSparse(m, d);
+  mj_alignFlex(m, d);
   int nv = m->nv;
   mjtNum A[36] = {0}, pos[3], quat[4];
   mj_markStack(d);

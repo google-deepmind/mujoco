@@ -711,26 +711,8 @@ void mj_flex(const mjModel* m, mjData* d) {
     // Chen, Kry, and Vouga, "Locking-free Simulation of Isometric Thin Plates", 2019.
     if (m->flex_dim[f] == 2 && m->flex_edgeequality[f] == 2) {
       int nvert = m->flex_vertnum[f];
-      mjtNum edge1[3], edge2[3], normal[3];
-      mjtNum quat[4], mat[9];
-      int t_adr, t0, t1, t2;
 
       mj_markStack(d);
-
-      // compute normal from first element
-      t_adr = m->flex_elemdataadr[f];
-      t0 = m->flex_elem[t_adr];
-      t1 = m->flex_elem[t_adr+1];
-      t2 = m->flex_elem[t_adr+2];
-
-      mju_sub3(edge1, m->flex_vert0 + 3*(vbase+t1), m->flex_vert0 + 3*(vbase+t0));
-      mju_sub3(edge2, m->flex_vert0 + 3*(vbase+t2), m->flex_vert0 + 3*(vbase+t0));
-      mji_cross(normal, edge1, edge2);
-      mju_normalize3(normal);
-
-      // compute rotation to Z
-      mju_quatZ2Vec(quat, normal);
-      mju_quat2Mat(mat, quat);
 
       // compute edge vectors
       mjtNum* edge_dx = mjSTACKALLOC(d, 3*m->flex_edgenum[f], mjtNum);
@@ -738,12 +720,14 @@ void mj_flex(const mjModel* m, mjData* d) {
       for (int e=0; e < m->flex_edgenum[f]; e++) {
         int v1 = m->flex_edge[2*(ebase+e)];
         int v2 = m->flex_edge[2*(ebase+e)+1];
-        mjtNum dx3[3];
-        mju_sub3(dx3, m->flex_vert0 + 3*(vbase+v2), m->flex_vert0 + 3*(vbase+v1));
-        dx3[0] *= 2*m->flex_size[3*f+0];
-        dx3[1] *= 2*m->flex_size[3*f+1];
-        dx3[2] *= 2*m->flex_size[3*f+2];
-        mji_mulMatTVec3(edge_dx+3*e, mat, dx3);
+        mju_sub3(edge_dx + 3 * e, m->flex_vert0 + 3 * (vbase + v2),
+                 m->flex_vert0 + 3 * (vbase + v1));
+
+        // apply scaling since they are half sizes
+        (edge_dx + 3 * e)[0] *= 2 * m->flex_size[3 * f + 0];
+        (edge_dx + 3 * e)[1] *= 2 * m->flex_size[3 * f + 1];
+        (edge_dx + 3 * e)[2] *= 2 * m->flex_size[3 * f + 2];
+
         if (mju_abs((edge_dx+3*e)[2]) > mjMINVAL) {
            mjERROR("flex vertices are not in the same plane");  // SHOULD NOT OCCUR
         }
