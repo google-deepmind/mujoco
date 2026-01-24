@@ -3403,11 +3403,16 @@ void mjCModel::CopyObjects(mjModel* m) {
     // find equality constraint referencing this flex
     m->flex_edgeequality[i] = 0;
     for (int k=0; k < (int)equalities_.size(); k++) {
-      if (equalities_[k]->type == mjEQ_FLEX && equalities_[k]->name1_ == pfl->name) {
-        m->flex_edgeequality[i] = 1;
-        break;
+      if (equalities_[k]->name1_ == pfl->name) {
+        if (equalities_[k]->type == mjEQ_FLEX) {
+          m->flex_edgeequality[i] = 1;
+          break;
+        }
+        if (equalities_[k]->type == mjEQ_FLEXVERT) {
+          m->flex_edgeequality[i] = 2;
+          break;
+        }
       }
-      // TODO: support flex_edgeequality = 2
     }
 
     // copy bvh data (flex aabb computed dynamically in mjData)

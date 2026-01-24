@@ -2021,6 +2021,30 @@
                :ref:`solimp<equality-flex-solimp>`
 
 
+      .. dropdown:: flexvert |m|
+
+         .. grid:: 2 3 4 4
+            :gutter: 0
+
+            .. grid-item::
+               :ref:`name<equality-flexvert-name>`
+
+            .. grid-item::
+               :ref:`class<equality-flexvert-class>`
+
+            .. grid-item::
+               :ref:`flex<equality-flexvert-flex>`
+
+            .. grid-item::
+               :ref:`active<equality-flexvert-active>`
+
+            .. grid-item::
+               :ref:`solref<equality-flexvert-solref>`
+
+            .. grid-item::
+               :ref:`solimp<equality-flexvert-solimp>`
+
+
    .. dropdown:: tendon |m|
 
 

@@ -603,6 +603,7 @@ typedef enum mjtEq_ {             // type of equality constraint
   mjEQ_JOINT,                     // couple the values of two scalar joints with cubic
   mjEQ_TENDON,                    // couple the lengths of two tendons with cubic
   mjEQ_FLEX,                      // fix all edge lengths of a flex
+  mjEQ_FLEXVERT,                  // fix all vertex lengths of a flex
   mjEQ_DISTANCE                   // unsupported, will cause an error if used
 } mjtEq;
 typedef enum mjtWrap_ {           // type of tendon wrap object

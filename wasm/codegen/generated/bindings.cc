@@ -10514,6 +10514,7 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .value("mjEQ_JOINT", mjEQ_JOINT)
     .value("mjEQ_TENDON", mjEQ_TENDON)
     .value("mjEQ_FLEX", mjEQ_FLEX)
+    .value("mjEQ_FLEXVERT", mjEQ_FLEXVERT)
     .value("mjEQ_DISTANCE", mjEQ_DISTANCE);
   enum_<mjtEvent>("mjtEvent")
     .value("mjEVENT_NONE", mjEVENT_NONE)

@@ -81,7 +81,7 @@ mjCFlexcomp::mjCFlexcomp(void) {
   mjuu_setvec(scale, 1, 1, 1);
   mass = 1;
   inertiabox = 0.005;
-  equality = false;
+  equality = 0;
   mjuu_setvec(pos, 0, 0, 0);
   mjuu_setvec(quat, 1, 0, 0, 0);
   rigid = false;
@@ -602,7 +602,7 @@ bool mjCFlexcomp::Make(mjsBody* body, char* error, int error_sz) {
   if (equality) {
     mjsEquality* pe = mjs_addEquality(&model->spec, &def.spec);
     mjs_setDefault(pe->element, &model->Default()->spec);
-    pe->type = mjEQ_FLEX;
+    pe->type = equality == 1 ? mjEQ_FLEX : mjEQ_FLEXVERT;
     pe->active = true;
     mjs_setString(pe->name1, name.c_str());
   }

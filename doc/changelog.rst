@@ -32,6 +32,15 @@ Upcoming version (not yet released)
 General
 ^^^^^^^
 
+.. image:: images/changelog/poncho.png
+   :width: 45%
+   :align: right
+   :target: https://github.com/google-deepmind/mujoco/blob/main/model/flex/poncho.xml
+
+- Added new :ref:`flexvert<equality-flexvert>` equality constraints that enable cloth simulations with coarser meshes.
+  This adds a new option ``vert`` to flexcomp edge :ref:`equality<flexcomp-edge-equality>` and the new equality type
+  :ref:`flexvert<equality-flexvert>`.
+
 .. image:: images/XMLreference/rfcamera.png
    :width: 45%
    :align: right
@@ -64,6 +73,7 @@ General
 
   - Allcating sizes in :ref:`mjModel` now use 64-bit rather than 32-bit integers to accommodate larger
     scenes.
+
 
 MJX
 ^^^

@@ -27,6 +27,7 @@
 #include <gtest/gtest.h>
 #include <absl/types/span.h>
 #include <mujoco/mjmodel.h>
+#include <mujoco/mjspec.h>
 #include <mujoco/mjxmacro.h>
 #include <mujoco/mujoco.h>
 #include "test/fixture.h"
@@ -882,8 +883,8 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   <mujoco>
     <option jacobian="sparse"/>
     <worldbody>
-      <flexcomp name="g" type="grid" count="3 3 1" spacing=".5 .5 .5" dim="2" radius=".05">
-        <edge equality="true"/>
+      <flexcomp name="g" type="grid" count="3 3 1" spacing="1 1 1" dim="2" radius=".05">
+        <edge equality="vert"/>
       </flexcomp>
     </worldbody>
   </mujoco>
@@ -899,9 +900,6 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   // center vertex: 1 * (1+6) * 3 = 21
   // nJfv = 42 + 60 + 21 = 123
   EXPECT_EQ(m->nJfv, 123);
-
-  // Set edge equality to 2
-  m->flex_edgeequality[0] = 2;
 
   // Run kinematics to populate xpos/xmat initially
   mj_fwdKinematics(m, d);
@@ -1062,6 +1060,7 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
   // Strain E = C - I = 3I.
   // Invariant 0: Trace(E) = 3 + 3 = 6
   // Invariant 1: Det(C) - 1 = 4 * 4 - 1 = 15
+  // Note: constraints are now scaled by sqrt(mass)
   for (int i=0; i < nvert; i++) {
     EXPECT_NEAR(d->flexvert_length[2 * i + 0], 6.0 * scale, 1e-5);
     EXPECT_NEAR(d->flexvert_length[2 * i + 1], 15.0 * scale, 1e-5);
@@ -1075,6 +1074,149 @@ TEST_F(CoreSmoothTest, FlexVertLengthScaling) {
 
   mj_deleteData(d);
   mj_deleteModel(m);
+}
+
+// Test failure case for flexvert_J sparsity with skipped flexes
+TEST_F(CoreSmoothTest, FlexvertJSparsitySkippedFlex) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option jacobian="sparse"/>
+    <worldbody>
+      <body name="body0">
+        <joint type="free"/>
+        <geom type="sphere" size="0.1"/>
+        <flexcomp name="f0" type="grid" count="2 2 1" spacing="0.1 0.1 0.1" radius="0.01" dim="2">
+           <edge damping="1"/>
+        </flexcomp>
+      </body>
+      <body name="body1" pos="1 0 0">
+        <joint type="free"/>
+        <geom type="sphere" size="0.1"/>
+        <!-- This flex is rigid, so it will be skipped in flexvert_J computation -->
+        <flexcomp name="f1" type="grid" count="2 2 1" spacing="0.1 0.1 0.1" radius="0.01" dim="2" rigid="true"/>
+      </body>
+      <body name="body2" pos="2 0 0">
+        <joint type="free"/>
+        <geom type="sphere" size="0.1"/>
+        <flexcomp name="f2" type="grid" count="2 2 1" spacing="0.1 0.1 0.1" radius="0.01" dim="2">
+           <edge damping="1"/>
+        </flexcomp>
+      </body>
+    </worldbody>
+  </mujoco>
+  )";
+  char error[1024];
+  mjModel* model = LoadModelFromString(xml, error, sizeof(error));
+  ASSERT_THAT(model, NotNull()) << error;
+  mjData* data = mj_makeData(model);
+
+  // Forward dynamics to compute Jacobians
+  mj_forward(model, data);
+
+  // Check sparsity overlap
+  // Flex 0 starts at row 0
+  // Flex 1 is skipped
+  // Flex 2 should start after Flex 0's rows
+  // If the bug exists, Flex 2's rows might start at 0, overwriting Flex 0
+
+  int f0_vert_start = model->flex_vertadr[0];
+  int f0_vert_num = model->flex_vertnum[0];
+  int f2_vert_start = model->flex_vertadr[2];
+
+  // Check last row of flex 0
+  int f0_last_row = 2 * (f0_vert_start + f0_vert_num - 1) + 1;
+  int f0_end_adr = model->flexvert_J_rowadr[f0_last_row] +
+                   model->flexvert_J_rownnz[f0_last_row];
+
+  // Check first row of flex 2
+  int f2_first_row = 2 * (f2_vert_start);
+  int f2_start_adr = model->flexvert_J_rowadr[f2_first_row];
+
+  // Verify that Flex 2 starts AFTER Flex 0 ends
+  EXPECT_GE(f2_start_adr, f0_end_adr)
+      << "Flex 2 Jacobian overwrites Flex 0 Jacobian due to skipped Flex 1";
+
+  mj_deleteData(data);
+  mj_deleteModel(model);
+}
+
+// Test stability of flexvert constraint under different integrator/solver
+// configurations
+TEST_F(CoreSmoothTest, FlexVertStability) {
+  constexpr char xml[] = R"(
+  <mujoco>
+    <option jacobian="sparse"/>
+    <worldbody>
+      <geom name="floor" type="plane" size="0 0 .1"/>
+      <flexcomp name="flex" type="grid" count="10 10 1" spacing="0.05 0.05 0.05" radius="0.01" dim="2" mass="1" pos="0 0 1">
+           <edge equality="vert" damping="0.1"/>
+           <contact solref="0.003"/>
+           <elasticity young="3e5" poisson="0" thickness="8e-3" elastic2d="bend"/>
+      </flexcomp>
+    </worldbody>
+  </mujoco>
+  )";
+
+  struct TestCase {
+    mjtIntegrator integrator;
+    mjtSolver solver;
+    mjtNum tolerance;
+    bool expect_stable;
+  };
+
+  std::vector<TestCase> cases = {
+      // Explicit integration with Newton solver should be stable
+      {mjINT_RK4, mjSOL_NEWTON, 1e-6, true},
+      // ImplicitFast with CG solver should now be STABLE with mass weighting
+      {mjINT_IMPLICITFAST, mjSOL_CG, 1e-6, true},
+      // ImplicitFast with Newton solver should be stable
+      {mjINT_IMPLICITFAST, mjSOL_NEWTON, 1e-6, true},
+  };
+
+  for (const auto& test_case : cases) {
+    char error[1024];
+    mjSpec* spec = mj_parseXMLString(xml, nullptr, error, sizeof(error));
+    ASSERT_THAT(spec, NotNull()) << error;
+
+    spec->option.integrator = test_case.integrator;
+    spec->option.solver = test_case.solver;
+    spec->option.tolerance = test_case.tolerance;
+
+    mjModel* model = mj_compile(spec, nullptr);
+    ASSERT_THAT(model, NotNull())
+        << error << " (Case: " << test_case.integrator << ", "
+        << test_case.solver << ", " << test_case.tolerance << ")";
+    mjData* data = mj_makeData(model);
+
+    // Run simulation
+    bool exploded = false;
+    for (int i = 0; i < 100; ++i) {
+      mj_step(model, data);
+
+      // Check for explosion
+      for (int j = 0; j < model->nv; ++j) {
+        if (mju_abs(data->qvel[j]) > 1000.0) {
+          exploded = true;
+          break;
+        }
+      }
+      if (exploded) break;
+    }
+
+    if (test_case.expect_stable) {
+      EXPECT_FALSE(exploded) << "Expected stable simulation for "
+                             << test_case.integrator << "/" << test_case.solver;
+    } else {
+      EXPECT_TRUE(exploded) << "Expected explosion for " << test_case.integrator
+                            << "/" << test_case.solver
+                            << ". If this passes, the reproduction is no "
+                               "longer valid (which is good, but unexpected).";
+    }
+
+    mj_deleteData(data);
+    mj_deleteModel(model);
+    mj_deleteSpec(spec);
+  }
 }
 
 }  // namespace

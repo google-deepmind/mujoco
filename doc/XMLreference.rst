@@ -3820,9 +3820,10 @@ element is used to adjust the properties of all edges in the flex.
 
 .. _flexcomp-edge-equality:
 
-:at:`equality`: :at-val:`[true, false], "false"`
-   When enabled, an equality constraint of :ref:`type flex<equality-flex>` is added to the model, referencing the
-   automatically-generated flex by name.
+:at:`equality`: :at-val:`[false, true, vert], "false"`
+   The type of equality constraint applied to this edge. If **false**, no equality constraint is applied. If **true**,
+   then edge constraints are enforced. If **vert**, an averaged constraint is used, see
+   :ref:`flexvert<equality-flexvert>`.
 
 .. _flexcomp-edge-solref:
 .. _flexcomp-edge-solimp:
@@ -4799,6 +4800,31 @@ as there are edges in the specified flex.
 
 :at:`flex`: :at-val:`string, required`
    Name of the flex whose edges are being constrained.
+
+
+.. _equality-flexvert:
+
+:el-prefix:`equality/` |-| **flexvert** |m|
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This element constrains the trace and the derminant of the strain tensor to that of the identity matrix as in Chen, Kry,
+and Vouga, "Locking-free Simulation of Isometric Thin Plates", 2019. The strain tensor is computed per triangle and
+averaged over all triangles adjacent to a vertex. This reduces the number of constraints from 2T to 2V, freeing
+V degrees of freedom to avoid locking. It is only supported for dimension 2, i.e., cloth-like flexes.
+
+.. _equality-flexvert-name:
+.. _equality-flexvert-class:
+.. _equality-flexvert-active:
+.. _equality-flexvert-solref:
+.. _equality-flexvert-solimp:
+
+:at:`name`, :at:`class`, :at:`active`, :at:`solref`, :at:`solimp`
+   Same as in :ref:`connect <equality-connect>` element.
+
+.. _equality-flexvert-flex:
+
+:at:`flex`: :at-val:`string, required`
+   Name of the flex whose vertices are being constrained.
 
 
 .. _equality-distance:

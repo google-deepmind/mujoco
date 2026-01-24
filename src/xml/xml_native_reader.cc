@@ -364,6 +364,8 @@ std::vector<const char*> MJCF[nMJCF] = {
             "active", "solref", "solimp"},
         {"flex", "*", "name", "class", "flex",
             "active", "solref", "solimp"},
+        {"flexvert", "*", "name", "class", "flex",
+            "active", "solref", "solimp"},
     {">"},
 
     {"tendon", "*"},
@@ -667,13 +669,14 @@ const mjMap solver_map[solver_sz] = {
 
 
 // constraint type
-const int equality_sz = 6;
+const int equality_sz = 7;
 const mjMap equality_map[equality_sz] = {
   {"connect",       mjEQ_CONNECT},
   {"weld",          mjEQ_WELD},
   {"joint",         mjEQ_JOINT},
   {"tendon",        mjEQ_TENDON},
   {"flex",          mjEQ_FLEX},
+  {"flexvert",      mjEQ_FLEXVERT},
   {"distance",      mjEQ_DISTANCE}
 };
 
@@ -914,6 +917,14 @@ const mjMap elastic2d_map[5] = {
   {"bend",          1},
   {"stretch",       2},
   {"both",          3},
+};
+
+
+// flex equality type
+const mjMap flexeq_map[3] = {
+  {"false",         0},
+  {"true",          1},
+  {"vert",          2},
 };
 
 
@@ -2186,6 +2197,7 @@ void mjXReader::OneEquality(XMLElement* elem, mjsEquality* equality) {
         break;
 
       case mjEQ_FLEX:
+      case mjEQ_FLEXVERT:
         ReadAttrTxt(elem, "flex", name1, true);
         break;
 
@@ -2744,9 +2756,7 @@ void mjXReader::OneFlexcomp(XMLElement* elem, mjsBody* body, const mjVFS* vfs) {
   // edge
   XMLElement* edge = FirstChildElement(elem, "edge");
   if (edge) {
-    if (MapValue(edge, "equality", &n, bool_map, 2)) {
-      fcomp.equality = (n == 1);
-    }
+    MapValue(edge, "equality", &fcomp.equality, flexeq_map, 3);
     ReadAttr(edge, "solref", mjNREF, fcomp.def.spec.equality->solref, text, false, false);
     ReadAttr(edge, "solimp", mjNIMP, fcomp.def.spec.equality->solimp, text, false, false);
     ReadAttr(edge, "stiffness", 1, &dflex.edgestiffness, text);

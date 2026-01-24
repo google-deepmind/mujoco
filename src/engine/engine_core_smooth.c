@@ -2775,6 +2775,11 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
       }
       break;
 
+    case mjEQ_FLEXVERT:
+      k = m->eq_obj1id[id];
+      i += 2*m->flex_vertnum[k];
+      break;
+
     default:
       mjERROR("unknown constraint type type %d", m->eq_type[id]);    // SHOULD NOT OCCUR
     }

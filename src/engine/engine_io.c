@@ -1898,6 +1898,7 @@ const char* mj_validateReferences(const mjModel* m) {
       break;
 
     case mjEQ_FLEX:
+    case mjEQ_FLEXVERT:
       if (obj1id >= m->nflex || obj1id < 0) {
         return "Invalid model: eq_obj1id out of bounds.";
       }
