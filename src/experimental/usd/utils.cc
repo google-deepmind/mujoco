@@ -14,6 +14,7 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 #include <windows.h>
@@ -88,14 +89,17 @@ bool RegisterMujocoUsdPlugins() {
 #endif
 
   if (!plugin_path.empty()) {
+    std::vector<std::string> search_paths;
 #if defined(_WIN32) || defined(__CYGWIN__)
-    std::string full_path =
-        plugin_path + "\\" + "mujoco-usd-resources" + "\\**\\plugInfo.json";
+    search_paths.push_back(plugin_path + "\\" + "mujoco-usd-resources" + "\\**\\plugInfo.json");
+    search_paths.push_back(plugin_path + "\\..\\lib\\" + "mujoco-usd-resources" + "\\**\\plugInfo.json");
 #else
-    std::string full_path =
-        plugin_path + "/" + "mujoco-usd-resources" + "/**/plugInfo.json";
+    search_paths.push_back(plugin_path + "/" + "mujoco-usd-resources" + "/**/plugInfo.json");
+    search_paths.push_back(plugin_path + "/../lib/" + "mujoco-usd-resources" + "/**/plugInfo.json");
 #endif
-    pxr::PlugRegistry::GetInstance().RegisterPlugins(full_path);
+    for (const auto& path : search_paths) {
+      pxr::PlugRegistry::GetInstance().RegisterPlugins(path);
+    }
   }
   return true;
 }

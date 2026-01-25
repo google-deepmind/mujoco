@@ -219,7 +219,7 @@ void* mju_malloc(size_t size) {
 
   // error if null pointer
   if (!ptr) {
-    mju_error("Could not allocate memory");
+    mju_error("Could not allocate memory: size = %zu", size);
   }
 
   return ptr;
