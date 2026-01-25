@@ -533,6 +533,17 @@ void mj_updateDynamicBVH(const mjModel* m, mjData* d, int bvhadr, int bvhnum) {
 }
 
 
+// C(3x2) = A(3x2) * B(2x2)
+static inline void mju_mulMatMat322(mjtNum* C, const mjtNum* A, const mjtNum* B) {
+  C[0] = A[0]*B[0] + A[1]*B[2];
+  C[1] = A[0]*B[1] + A[1]*B[3];
+  C[2] = A[2]*B[0] + A[3]*B[2];
+  C[3] = A[2]*B[1] + A[3]*B[3];
+  C[4] = A[4]*B[0] + A[5]*B[2];
+  C[5] = A[4]*B[1] + A[5]*B[3];
+}
+
+
 // compute flex-related quantities
 void mj_flex(const mjModel* m, mjData* d) {
   int nv = m->nv;
@@ -659,6 +670,7 @@ void mj_flex(const mjModel* m, mjData* d) {
 
   // clear Jacobian
   mju_zero(d->flexvert_J, 2*m->nJfv);
+  mju_zero(d->flexedge_J, m->nJfe);
 
   // compute lengths and Jacobians of edges
   for (int f=0; f < m->nflex; f++) {
@@ -667,8 +679,8 @@ void mj_flex(const mjModel* m, mjData* d) {
       continue;
     }
 
-    // skip Jacobian if no built-in passive force is needed
-    int skipjacobian = !m->flex_edgeequality[f] &&
+    // skip edge Jacobian if no built-in passive force is needed
+    int skipjacobian = m->flex_edgeequality[f] != 1 &&
                        !m->flex_edgedamping[f] &&
                        !m->flex_edgestiffness[f] &&
                        !m->flex_damping[f];
@@ -676,7 +688,8 @@ void mj_flex(const mjModel* m, mjData* d) {
     // process edges of this flex
     int vbase = m->flex_vertadr[f];
     int ebase = m->flex_edgeadr[f];
-    for (int e=0; e < m->flex_edgenum[f]; e++) {
+    int edgenum = m->flex_edgenum[f];
+    for (int e=0; e < edgenum; e++) {
       int v1 = m->flex_edge[2*(ebase+e)];
       int v2 = m->flex_edge[2*(ebase+e)+1];
       int b1 = m->flex_vertbodyid[vbase+v1];
@@ -715,9 +728,9 @@ void mj_flex(const mjModel* m, mjData* d) {
       mj_markStack(d);
 
       // compute edge vectors
-      mjtNum* edge_dx = mjSTACKALLOC(d, 3*m->flex_edgenum[f], mjtNum);
-      mjtNum* edge_dy = mjSTACKALLOC(d, 3*m->flex_edgenum[f], mjtNum);
-      for (int e=0; e < m->flex_edgenum[f]; e++) {
+      mjtNum* edge_dx = mjSTACKALLOC(d, 3*edgenum, mjtNum);
+      mjtNum* edge_dy = mjSTACKALLOC(d, 3*edgenum, mjtNum);
+      for (int e=0; e < edgenum; e++) {
         int v1 = m->flex_edge[2*(ebase+e)];
         int v2 = m->flex_edge[2*(ebase+e)+1];
         mju_sub3(edge_dx + 3 * e, m->flex_vert0 + 3 * (vbase + v2),
@@ -739,7 +752,7 @@ void mj_flex(const mjModel* m, mjData* d) {
       int* v_edge_adr = mjSTACKALLOC(d, nvert, int);
       int* adj_edges = mjSTACKALLOC(d, 2*m->flex_edgenum[f], int);
       mju_zeroInt(v_edge_cnt, nvert);
-      for (int e = 0; e < m->flex_edgenum[f]; ++e) {
+      for (int e = 0; e < edgenum; ++e) {
         v_edge_cnt[m->flex_edge[2*(ebase+e)+0]]++;
         v_edge_cnt[m->flex_edge[2*(ebase+e)+1]]++;
       }
@@ -750,7 +763,7 @@ void mj_flex(const mjModel* m, mjData* d) {
       }
       int* v_edge_fill = mjSTACKALLOC(d, nvert, int);
       mju_zeroInt(v_edge_fill, nvert);
-      for (int e = 0; e < m->flex_edgenum[f]; ++e) {
+      for (int e = 0; e < edgenum; ++e) {
         int v1 = m->flex_edge[2*(ebase+e)+0];
         int v2 = m->flex_edge[2*(ebase+e)+1];
         adj_edges[v_edge_adr[v1] + v_edge_fill[v1]] = e;
@@ -784,16 +797,16 @@ void mj_flex(const mjModel* m, mjData* d) {
           }
 
           // accumulate A += w * dy * dx', B += w * dx * dx'
-          for (int row=0; row < 3; row++) {
-            for (int col=0; col < 2; col++) {
-              A[2 * row + col] += weight * dy[row] * dx[col];
-            }
-          }
-          for (int row=0; row < 2; row++) {
-            for (int col=0; col < 2; col++) {
-              B[2 * row + col] += weight * dx[row] * dx[col];
-            }
-          }
+          A[0] += weight * dy[0] * dx[0];
+          A[1] += weight * dy[0] * dx[1];
+          A[2] += weight * dy[1] * dx[0];
+          A[3] += weight * dy[1] * dx[1];
+          A[4] += weight * dy[2] * dx[0];
+          A[5] += weight * dy[2] * dx[1];
+          B[0] += weight * dx[0] * dx[0];
+          B[1] += weight * dx[0] * dx[1];
+          B[2] += weight * dx[1] * dx[0];
+          B[3] += weight * dx[1] * dx[1];
         }
 
         int vadr = vbase+v;
@@ -814,7 +827,7 @@ void mj_flex(const mjModel* m, mjData* d) {
         }
 
         // compute deformation gradient F = A * Binv
-        mju_mulMatMat(F, A, Binv, 3, 2, 2);
+        mju_mulMatMat322(F, A, Binv);
 
         // compute Cauchy strain tensor F^T F
         cauchy[0][0] = F[0]*F[0] + F[2]*F[2] + F[4]*F[4];
@@ -837,15 +850,15 @@ void mj_flex(const mjModel* m, mjData* d) {
       mjtNum dI2dy1[3], dI2dy2[3];
       mjtNum cauchy[4], adj[4], Fadj[6], FadjBinv[6], dI2dy[3];
 
-      for (int v=0; v<nvert; v++) {
-        mju_zero(J0_dense, nv);
-        mju_zero(J1_dense, nv);
+      mju_zero(J0_dense, nv);
+      mju_zero(J1_dense, nv);
 
+      for (int v = 0; v < nvert; v++) {
         mjtNum* F = F_vert + 6*v;
         mjtNum* Binv = Binv_vert + 4*v;
 
         // precompute for I1
-        mju_mulMatMat(FB, F, Binv, 3, 2, 2);
+        mju_mulMatMat322(FB, F, Binv);
 
         // precompute for I2
         cauchy[0] = F[0]*F[0] + F[2]*F[2] + F[4]*F[4];    // c00
@@ -855,8 +868,8 @@ void mj_flex(const mjModel* m, mjData* d) {
         adj[1] = -cauchy[1];
         adj[2] = -cauchy[1];
         adj[3] = cauchy[0];
-        mju_mulMatMat(Fadj, F, adj, 3, 2, 2);
-        mju_mulMatMat(FadjBinv, Fadj, Binv, 3, 2, 2);
+        mju_mulMatMat322(Fadj, F, adj);
+        mju_mulMatMat322(FadjBinv, Fadj, Binv);
 
         for (int i=0; i<v_edge_cnt[v]; ++i) {
           int e = adj_edges[v_edge_adr[v]+i];
@@ -911,14 +924,17 @@ void mj_flex(const mjModel* m, mjData* d) {
         // copy to sparse flexvert_J
         int row0 = 2*(vbase+v);
         int nnz0 = vrownnz[row0];
-        for (int j=0; j<nnz0; j++) {
-          d->flexvert_J[vrowadr[row0]+j] += J0_dense[m->flexvert_J_colind[vrowadr[row0]+j]];
+        for (int j = 0; j < nnz0; j++) {
+          int col = m->flexvert_J_colind[vrowadr[row0] + j];
+          d->flexvert_J[vrowadr[row0] + j] += J0_dense[col];
+          J0_dense[col] = 0;
         }
         int row1 = 2*(vbase+v)+1;
         int nnz1 = vrownnz[row1];
         for (int j = 0; j < nnz1; j++) {
-          d->flexvert_J[vrowadr[row1] + j] +=
-              J1_dense[m->flexvert_J_colind[vrowadr[row1] + j]];
+          int col = m->flexvert_J_colind[vrowadr[row1] + j];
+          d->flexvert_J[vrowadr[row1] + j] += J1_dense[col];
+          J1_dense[col] = 0;
         }
 
         // mass scaling: scale constraint by sqrt(mass) to improve condition
