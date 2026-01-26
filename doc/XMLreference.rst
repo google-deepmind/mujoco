@@ -13,9 +13,8 @@ This chapter is the reference manual for the MJCF modeling language used in MuJo
 XML schema
 ~~~~~~~~~~
 
-The dropdown below summarizes the XML elements and their attributes in MJCF. The menu on the right links to elements,
-while the dropdown below links to attributes. Note that all information in MJCF is entered through elements and
-attributes. Text content in elements is not used; if present, the parser ignores it.
+The dropdown below summarizes the XML elements and their attributes in MJCF. All information in MJCF is entered through
+elements and attributes. Text content in elements is not used; if present, the parser ignores it.
 
 .. only:: html
 
