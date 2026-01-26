@@ -93,16 +93,26 @@ def _value_binding_code(
   fulltype = fulltype.replace('mjOption', 'raw::MjOption')
   fulltype = fulltype.replace('mjVisual', 'raw::MjVisual')
   fulltype = fulltype.replace('mjStatistic', 'raw::MjStatistic')
-  element = '.element' if fullvarname == 'plugin' else ''
+  element = ''
+
+  if field.name == 'mjsPlugin':
+    setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
+      if (self.{fullvarname}.name && {varname}.name) *self.{fullvarname}.name = *{varname}.name;
+      if (self.{fullvarname}.plugin_name && {varname}.plugin_name) *self.{fullvarname}.plugin_name = *{varname}.plugin_name;
+      self.{fullvarname}.active = {varname}.active;
+      if (self.{fullvarname}.info && {varname}.info) *self.{fullvarname}.info = *{varname}.info;
+    }}"""
+  else:
+    setter = f"""[]({rawclassname}& self, {fulltype} {varname}) {{
+      self.{fullvarname}{element} = {varname}{element};
+    }}"""
 
   def_property_args = (
       f'"{varname}"',
       f"""[]({rawclassname}& self) -> {fulltype} {{
         return self.{fullvarname};
       }}""",
-      f"""[]({rawclassname}& self, {fulltype} {varname}) {{
-        self.{fullvarname}{element} = {varname}{element};
-      }}""",
+      setter,
   )
 
   if field.name not in SCALAR_TYPES:

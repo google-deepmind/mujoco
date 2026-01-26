@@ -996,6 +996,23 @@ class SpecsTest(absltest.TestCase):
     self.assertIsNotNone(model)
     self.assertEqual(model.nplugin, 0)
 
+  def testPluginAssignment(self):
+    spec = mujoco.MjSpec()
+    body = spec.worldbody.add_body()
+    body.name = 'test_body'
+
+    plugin = spec.add_plugin(
+        name='test_instance', plugin_name='mujoco.elasticity.cable', active=True
+    )
+    plugin.config = {'twist': '1e2', 'bend': '4e1'}
+
+    # Assignment should copy active flag and names
+    body.plugin = plugin
+
+    self.assertTrue(body.plugin.active)
+    self.assertEqual(body.plugin.name, 'test_instance')
+    self.assertEqual(body.plugin.plugin_name, 'mujoco.elasticity.cable')
+
   def test_access_option_stat_visual(self):
     spec = mujoco.MjSpec.from_string("""
       <mujoco model="MuJoCo Model">
