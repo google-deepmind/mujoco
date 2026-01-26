@@ -45,10 +45,10 @@
 ..
    Macro for icon for optional element, can appear multiple times (no icon).
 
-.. |m| unicode:: U+200B
+.. |*| unicode:: U+200B
    :trim:
 
 ..
    Macro for icon for optional element that can appear recursively.
 
-.. |R| replace:: :octicon:`sync`
+.. |@| replace:: :octicon:`sync`
