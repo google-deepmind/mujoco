@@ -455,6 +455,11 @@ PYBIND11_MODULE(_simulate, pymodule) {
                     CallIfNotNull(+[](mujoco::Simulate& sim, int enabled) {
                       sim.ui1_enable = enabled;
                     }),
+                    py::call_guard<py::gil_scoped_release>())
+      .def_property("keyboard_ui", GetIfNotNull(&mujoco::Simulate::keyboard_ui),
+                    CallIfNotNull(+[](mujoco::Simulate& sim, int enabled) {
+                      sim.keyboard_ui = enabled;
+                    }),
                     py::call_guard<py::gil_scoped_release>());
 
   pymodule.def("set_glfw_dlhandle", [](std::uintptr_t dlhandle) {
