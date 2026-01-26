@@ -156,7 +156,6 @@ void App::ClearModel() {
 
 void App::RequestModelLoad(std::string model_file) {
   pending_load_ = std::move(model_file);
-  model_kind_ = kModelFromFile;
 }
 
 void App::RequestModelReload() {
@@ -277,6 +276,12 @@ void App::InitModel(mjModel* model, mjSpec* spec, mjVFS* vfs,
       SetSpeedIndex(i);
     }
   }
+
+  platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
+    if (plugin->post_model_loaded) {
+      plugin->post_model_loaded(plugin, model_path_.c_str());
+    }
+  });
 }
 
 void App::UpdateFilePaths(const std::string& resolved_path) {
@@ -309,9 +314,16 @@ void App::UpdatePhysics() {
     return;
   }
 
-
   bool stepped = false;
-  {
+  platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
+    if (plugin->do_update) {
+      if (plugin->do_update(plugin, model_, data_)) {
+        stepped = true;
+      }
+    }
+  });
+
+  if (!stepped) {
     if (!step_control_.IsPaused()) {
       mju_zero(data_->xfrc_applied, 6 * model_->nbody);
       mjv_applyPerturbPose(model_, data_, &perturb_, 0);
@@ -370,32 +382,11 @@ void App::LoadHistory(int offset) {
 bool App::Update() {
   const platform::Window::Status status = window_->NewFrame();
 
+  HandleWindowEvents();
   HandleMouseEvents();
   HandleKeyboardEvents();
 
-  // Check to see if a model was dropped on the window.
-  const std::string drop_file = window_->GetDropFile();
-  if (!drop_file.empty()) {
-    RequestModelLoad(drop_file);
-  }
-
-  // Check to see if we need to load a new model.
-  if (pending_load_.has_value()) {
-    std::string load_data = std::move(pending_load_.value());
-    pending_load_.reset();
-    if (model_kind_ == kModelFromBuffer) {
-      // TODO(matijak): need to pass the content type and not assume mjb.
-      LoadModelFromBuffer(
-          std::span<const std::byte>(
-              reinterpret_cast<const std::byte*>(load_data.data()),
-              load_data.size()),
-          "application/mjb", model_name_);
-    } else if (model_kind_ == kModelFromFile) {
-      LoadModelFromFile(load_data);
-    } else {
-      InitEmptyModel();
-    }
-  }
+  ProcessPendingLoads();
 
   // Only update the simulation if a popup window is not open. Note that the
   // simulation itself will only update if it is not paused.
@@ -422,6 +413,43 @@ void App::Render() {
       data_->timer[i].duration = 0;
       data_->timer[i].number = 0;
     }
+  }
+}
+
+void App::ProcessPendingLoads() {
+  // Check to see if we need to load a new model.
+  if (pending_load_.has_value()) {
+    std::string load_data = std::move(pending_load_.value());
+    pending_load_.reset();
+
+    if (load_data.empty()) {
+      InitEmptyModel();
+    } else {
+      LoadModelFromFile(load_data);
+    }
+  }
+
+  // Check plugins to see if we need to load a new model.
+  platform::ForEachModelPlugin([&](platform::ModelPlugin* plugin) {
+    if (plugin->get_model_to_load) {
+      char model_name[1000] = "";
+      char content_type[1000] = "";
+      int size = 0;
+      const char* buf = plugin->get_model_to_load(
+          plugin, &size, content_type, sizeof(content_type), model_name,
+          sizeof(model_name));
+      if (buf && size) {
+        const std::byte* bytes = reinterpret_cast<const std::byte*>(buf);
+        LoadModelFromBuffer({bytes, bytes + size}, content_type, model_name);
+      }
+    }
+  });
+}
+
+void App::HandleWindowEvents() {
+  const std::string drop_file = window_->GetDropFile();
+  if (!drop_file.empty()) {
+    RequestModelLoad(drop_file);
   }
 }
 

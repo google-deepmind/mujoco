@@ -168,8 +168,12 @@ class App {
 
   void SetSpeedIndex(int idx);
 
+  void HandleWindowEvents();
   void HandleMouseEvents();
   void HandleKeyboardEvents();
+
+  void ProcessPendingLoads();
+
   void MoveCamera(platform::CameraMotion motion, mjtNum reldx, mjtNum reldy);
 
   void SetupTheme(platform::GuiTheme theme);

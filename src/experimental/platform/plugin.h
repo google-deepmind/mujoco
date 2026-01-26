@@ -16,6 +16,7 @@
 #define MUJOCO_SRC_EXPERIMENTAL_PLATFORM_PLUGIN_H_
 
 #include <functional>
+#include <mujoco/mujoco.h>
 
 namespace mujoco::platform {
 
@@ -46,12 +47,47 @@ struct GuiPlugin final {
   void* data = nullptr;
 };
 
+struct ModelPlugin final {
+  using GetModelToLoadFn = const char* (*)(ModelPlugin * self, int* size,
+                                           char* content_type,
+                                           int content_type_size,
+                                           char* model_name,
+                                           int model_name_size);
+  using PostModelLoadedFn = void (*)(ModelPlugin* self, const char* model_path);
+  using DoUpdateFn = bool (*)(ModelPlugin* self, mjModel* model, mjData* data);
+
+  // The name of the plugin; must be unique.
+  const char* name = "";
+
+  // Callback for when the plugin wants to load a new model. This function will
+  // return a buffer containing the model data as well as the content type of
+  // the buffer. Returns nullptr if no model needs to be loaded.s
+  GetModelToLoadFn get_model_to_load = nullptr;
+
+  // Callback when a new model is loaded.
+  PostModelLoadedFn post_model_loaded = nullptr;
+
+  // Callback when the physics simulation is updated. Returns true if the
+  // simulation should be stepped.
+  DoUpdateFn do_update = nullptr;
+
+  // Optional data pointer.
+  void* data = nullptr;
+};
+
 // Registers a plugin with a global registry. The plugin must have a
 // case-insensitive unique name.
 void RegisterGuiPlugin(const GuiPlugin* plugin);
 
 // Executes the given function for each registered plugin.
 void ForEachGuiPlugin(const std::function<void(GuiPlugin*)>& fn);
+
+// Registers a plugin with a global registry. The plugin must have a
+// case-insensitive unique name.
+void RegisterModelPlugin(const ModelPlugin* plugin);
+
+// Executes the given function for each registered plugin.
+void ForEachModelPlugin(const std::function<void(ModelPlugin*)>& fn);
 
 }  // namespace mujoco::platform
 

@@ -36,10 +36,26 @@ void ForEachGuiPlugin(const std::function<void(GuiPlugin*)>& fn) {
   }
 }
 
+void RegisterModelPlugin(const ModelPlugin* plugin) {
+  if (plugin->name == nullptr || plugin->name[0] == '\0') {
+    mju_error("Plugin name must not be empty or null.");
+  }
+  GlobalTable<ModelPlugin>::GetSingleton().AppendIfUnique(*plugin);
+}
+
+void ForEachModelPlugin(const std::function<void(ModelPlugin*)>& fn) {
+  auto& table = GlobalTable<ModelPlugin>::GetSingleton();
+  for (int i = 0; i < table.count(); ++i) {
+    const ModelPlugin* plugin = table.GetAtSlot(i);
+    fn(const_cast<ModelPlugin*>(plugin));
+  }
+}
+
 }  // namespace mujoco::platform
 
 using mujoco::GlobalTable;
 using GuiPlugin = mujoco::platform::GuiPlugin;
+using ModelPlugin = mujoco::platform::ModelPlugin;
 
 template <>
 const char* GlobalTable<GuiPlugin>::HumanReadableTypeName() {
@@ -58,6 +74,27 @@ bool GlobalTable<GuiPlugin>::ObjectEqual(const GuiPlugin& p1, const GuiPlugin& p
 
 template <>
 bool GlobalTable<GuiPlugin>::CopyObject(GuiPlugin& dst, const GuiPlugin& src, ErrorMessage& err) {
+  dst = src;
+  return true;
+}
+
+template <>
+const char* GlobalTable<ModelPlugin>::HumanReadableTypeName() {
+  return "model plugin";
+}
+
+template <>
+std::string_view GlobalTable<ModelPlugin>::ObjectKey(const ModelPlugin& plugin) {
+  return std::string_view(plugin.name);
+}
+
+template <>
+bool GlobalTable<ModelPlugin>::ObjectEqual(const ModelPlugin& p1, const ModelPlugin& p2) {
+  return CaseInsensitiveEqual(p1.name, p2.name);
+}
+
+template <>
+bool GlobalTable<ModelPlugin>::CopyObject(ModelPlugin& dst, const ModelPlugin& src, ErrorMessage& err) {
   dst = src;
   return true;
 }
