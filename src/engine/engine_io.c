@@ -1830,13 +1830,13 @@ const char* mj_validateReferences(const mjModel* m) {
     }
   }
   for (int i=0; i < m->nhfield; i++) {
-    mjtSize hfield_adr = m->hfield_adr[i] + ((size_t) m->hfield_nrow[i]) * m->hfield_ncol[i];
+    mjtSize hfield_adr = m->hfield_adr[i] + ((mjtSize) m->hfield_nrow[i]) * m->hfield_ncol[i];
     if (hfield_adr > m->nhfielddata || m->hfield_adr[i] < 0) {
       return "Invalid model: hfield_adr out of bounds.";
     }
   }
   for (int i=0; i < m->ntex; i++) {
-    mjtSize nbytes = ((size_t) m->tex_nchannel[i]) * m->tex_height[i] * m->tex_width[i];
+    mjtSize nbytes = ((mjtSize) m->tex_nchannel[i]) * m->tex_height[i] * m->tex_width[i];
     if (m->tex_adr[i] + nbytes > m->ntexdata || m->tex_adr[i] < 0) {
       return "Invalid model: tex_adr out of bounds.";
     }
