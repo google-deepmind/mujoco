@@ -15,6 +15,7 @@
 #include "experimental/platform/renderer.h"
 
 #include <cstddef>
+#include <span>
 
 #include <mujoco/mujoco.h>
 
@@ -74,7 +75,8 @@ void Renderer::Deinit() {
 
 void Renderer::Render(const mjModel* model, mjData* data,
                       const mjvPerturb* perturb, mjvCamera* camera,
-                      const mjvOption* vis_option, int width, int height) {
+                      const mjvOption* vis_option, int width, int height,
+                      std::span<std::byte> pixels) {
   if (!initialized_) {
     return;
   }
@@ -82,29 +84,43 @@ void Renderer::Render(const mjModel* model, mjData* data,
   mjv_updateScene(model, data, vis_option, perturb, camera, mjCAT_ALL,
                   &scene_);
 
+  const bool render_to_texture = !pixels.empty();
+  if (render_to_texture) {
+    // mjr_readPixels reads to a RGB buffer (i.e. 3 bytes per pixel).
+    if (pixels.size() != width * height * 3) {
+      mju_error("Offscreen mode requires a pixel buffer of size %d.",
+                width * height * 3);
+    }
+
+    #ifdef USE_CLASSIC_OPENGL
+      mjr_resizeOffscreen(width, height, &render_context_);
+      mjr_setBuffer(mjFB_OFFSCREEN, &render_context_);
+    #else
+      // The filament backend supports two offscreen framebuffers.
+      // mjFB_OFFSCREEN renders just the mjvScene data. +1 also includes the
+      // ImGui draw data.
+      mjr_setBuffer(mjFB_OFFSCREEN + 1, &render_context_);
+    #endif
+  }
+
   const mjrRect viewport = {0, 0, width, height};
   mjr_render(viewport, &scene_, &render_context_);
 
-#ifdef USE_CLASSIC_OPENGL
-  ImGui_ImplOpenGL3_NewFrame();
-  ImGui::Render();
-  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-#endif
+  // The filament backend knows how to renders the ImGui draw data. For the
+  // classic backend, we need to render the ImGui draw data ourselves.
+  #ifdef USE_CLASSIC_OPENGL
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+  #endif
 
-#ifdef USE_CLASSIC_OPENGL
-  TimePoint now = std::chrono::steady_clock::now();
-  TimePoint::duration delta_time = now - last_fps_update_;
-  const double interval = std::chrono::duration<double>(delta_time).count();
-
-  ++frames_;
-  if (interval > 0.2) {  // only update FPS stat at most 5 times per second
-    last_fps_update_ = now;
-    fps_ = frames_ / interval;
-    frames_ = 0;
+  if (render_to_texture) {
+    unsigned char* ptr = reinterpret_cast<unsigned char*>(pixels.data());
+    mjr_readPixels(ptr, nullptr, viewport, &render_context_);
+    mjr_setBuffer(mjFB_WINDOW, &render_context_);
   }
-#else
-  fps_ = mjr_getFrameRate(&render_context_);
-#endif
+
+  UpdateFps();
 }
 
 void Renderer::RenderToTexture(const mjModel* model, mjData* data,
@@ -135,6 +151,22 @@ int Renderer::UploadImage(int texture_id, const std::byte* pixels, int width,
 }
 
 double Renderer::GetFps() { return fps_; }
+
+void Renderer::UpdateFps() {
+#ifdef USE_CLASSIC_OPENGL
+  TimePoint now = std::chrono::steady_clock::now();
+  TimePoint::duration delta_time = now - last_fps_update_;
+  const double interval = std::chrono::duration<double>(delta_time).count();
+  ++frames_;
+  if (interval > 0.2) {  // only update FPS stat at most 5 times per second
+    last_fps_update_ = now;
+    fps_ = frames_ / interval;
+    frames_ = 0;
+  }
+#else
+  fps_ = mjr_getFrameRate(&render_context_);
+#endif
+}
 
 }  // namespace mujoco::platform
 
