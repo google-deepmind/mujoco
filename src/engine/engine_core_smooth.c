@@ -2414,6 +2414,9 @@ void mj_subtreeVel(const mjModel* m, mjData* d) {
   }
 
   mj_freeStack(d);
+
+  // mark as computed
+  d->flg_subtreevel = 1;
 }
 
 
@@ -2674,6 +2677,9 @@ void mj_rnePostConstraint(const mjModel* m, mjData* d) {
   for (int j=nbody-1; j > 0; j--) {
     mju_addTo(d->cfrc_int+6*m->body_parentid[j], d->cfrc_int+6*j, 6);
   }
+
+  // mark as computed
+  d->flg_rnepost = 1;
 }
 
 

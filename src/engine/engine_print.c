@@ -1149,6 +1149,7 @@ void mj_printFormattedData(const mjModel* m, const mjData* d, const char* filena
         d->name,                                                              \
         int : INT_FORMAT,                                                     \
         mjtSize : SIZE_FORMAT,                                                \
+        mjtByte : INT_FORMAT,                                                 \
         default : NULL);                                                      \
     if (format) {                                                             \
       fprintf(fp, "  ");                                                      \

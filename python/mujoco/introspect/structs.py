@@ -5332,6 +5332,26 @@ STRUCTS: Mapping[str, StructDecl] = dict([
                  doc='number of awake dofs',
              ),
              StructFieldDecl(
+                 name='flg_energypos',
+                 type=ValueType(name='mjtByte'),
+                 doc='has mj_energyPos been called',
+             ),
+             StructFieldDecl(
+                 name='flg_energyvel',
+                 type=ValueType(name='mjtByte'),
+                 doc='has mj_energyVel been called',
+             ),
+             StructFieldDecl(
+                 name='flg_subtreevel',
+                 type=ValueType(name='mjtByte'),
+                 doc='has mj_subtreeVel been called',
+             ),
+             StructFieldDecl(
+                 name='flg_rnepost',
+                 type=ValueType(name='mjtByte'),
+                 doc='has mj_rnePostConstraint been called',
+             ),
+             StructFieldDecl(
                  name='time',
                  type=ValueType(name='mjtNum'),
                  doc='simulation time',

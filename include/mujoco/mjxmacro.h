@@ -915,6 +915,10 @@
     X( int,       nbody_awake        ) \
     X( int,       nparent_awake      ) \
     X( int,       nv_awake           ) \
+    X( mjtByte,   flg_energypos      ) \
+    X( mjtByte,   flg_energyvel      ) \
+    X( mjtByte,   flg_subtreevel     ) \
+    X( mjtByte,   flg_rnepost        ) \
     X( mjtNum,    time               ) \
     X( uintptr_t, threadpool         )
 

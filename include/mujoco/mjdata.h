@@ -233,6 +233,12 @@ struct mjData_ {
   int     nparent_awake;     // number of bodies with awake parents
   int     nv_awake;          // number of awake dofs
 
+  // flags marking lazily evaluated stages
+  mjtByte flg_energypos;     // has mj_energyPos been called
+  mjtByte flg_energyvel;     // has mj_energyVel been called
+  mjtByte flg_subtreevel;    // has mj_subtreeVel been called
+  mjtByte flg_rnepost;       // has mj_rnePostConstraint been called
+
   // global properties
   mjtNum  time;              // simulation time
   mjtNum  energy[2];         // potential, kinetic energy

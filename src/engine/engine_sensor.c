@@ -857,7 +857,6 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
 
   // process sensors matching stage
-  int subtreeVel = 0;
   for (int i=0; i < m->nsensor; i++) {
     // skip sensor plugins -- these are handled after builtin sensor types
     if (m->sensor_type[i] == mjSENS_PLUGIN) {
@@ -878,16 +877,12 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
       reftype = m->sensor_reftype[i];
       adr = m->sensor_adr[i];
 
-      // call mj_subtreeVel when first relevant sensor is encountered
-      if (subtreeVel == 0 &&
+      // call mj_subtreeVel for sensors that need it (unless already computed)
+      if (!d->flg_subtreevel &&
           (type == mjSENS_SUBTREELINVEL ||
            type == mjSENS_SUBTREEANGMOM ||
            type == mjSENS_USER)) {
-        // compute subtree_linvel, subtree_angmom
         mj_subtreeVel(m, d);
-
-        // mark computed
-        subtreeVel = 1;
       }
 
       // process according to type
@@ -1016,13 +1011,10 @@ void mj_sensorVel(const mjModel* m, mjData* d) {
         if (!plugin->compute) {
           mjERROR("`compute` is null for plugin at slot %d", slot);
         }
-        if (subtreeVel == 0) {
-          // compute subtree_linvel, subtree_angmom
-          // TODO(b/247107630): add a flag to allow plugin to specify whether it actually needs this
+        // compute subtree_linvel, subtree_angmom (unless already computed)
+        // TODO(b/247107630): add a flag to allow plugin to specify whether it actually needs this
+        if (!d->flg_subtreevel) {
           mj_subtreeVel(m, d);
-
-          // mark computed
-          subtreeVel = 1;
         }
         plugin->compute(m, d, i, mjPLUGIN_SENSOR);
       }
@@ -1050,7 +1042,6 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
   int sleep_filter = mjENABLED(mjENBL_SLEEP) && d->nbody_awake < m->nbody;
 
   // process sensors matching stage
-  int rnePost = 0;
   for (int i=0; i < m->nsensor; i++) {
     // skip sleeping sensor
     if (sleep_filter && mj_sleepState(m, d, mjOBJ_SENSOR, i) == mjS_ASLEEP) {
@@ -1069,18 +1060,15 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
       objid = m->sensor_objid[i];
       adr = m->sensor_adr[i];
 
-      // call mj_rnePostConstraint when first relevant sensor is encountered
-      if (rnePost == 0  && (type == mjSENS_ACCELEROMETER ||
-                            type == mjSENS_FORCE         ||
-                            type == mjSENS_TORQUE        ||
-                            type == mjSENS_FRAMELINACC   ||
-                            type == mjSENS_FRAMEANGACC   ||
-                            type == mjSENS_USER)) {
-        // compute cacc, cfrc_int, cfrc_ext
+      // call mj_rnePostConstraint for sensors that need it (unless already computed)
+      if (!d->flg_rnepost &&
+          (type == mjSENS_ACCELEROMETER ||
+           type == mjSENS_FORCE         ||
+           type == mjSENS_TORQUE        ||
+           type == mjSENS_FRAMELINACC   ||
+           type == mjSENS_FRAMEANGACC   ||
+           type == mjSENS_USER)) {
         mj_rnePostConstraint(m, d);
-
-        // mark computed
-        rnePost = 1;
       }
 
       // process according to type
@@ -1550,14 +1538,9 @@ void mj_sensorAcc(const mjModel* m, mjData* d) {
         if (!plugin->compute) {
           mjERROR("`compute` is null for plugin at slot %d", slot);
         }
-        if (rnePost == 0) {
-          // compute cacc, cfrc_int, cfrc_ext
-          // TODO(b/247107630): add a flag to allow plugin to specify whether it actually needs this
-          mj_rnePostConstraint(m, d);
-
-          // mark computed
-          rnePost = 1;
-        }
+        // compute cacc, cfrc_int, cfrc_ext (function handles early return)
+        // TODO(b/247107630): add a flag to allow plugin to specify whether it actually needs this
+        mj_rnePostConstraint(m, d);
         plugin->compute(m, d, i, mjPLUGIN_SENSOR);
       }
     }
@@ -1672,6 +1655,9 @@ void mj_energyPos(const mjModel* m, mjData* d) {
       }
     }
   }
+
+  // mark as computed
+  d->flg_energypos = 1;
 }
 
 
@@ -1685,4 +1671,7 @@ void mj_energyVel(const mjModel* m, mjData* d) {
   d->energy[1] = 0.5*mju_dot(vec, d->qvel, m->nv);
 
   mj_freeStack(d);
+
+  // mark as computed
+  d->flg_energyvel = 1;
 }

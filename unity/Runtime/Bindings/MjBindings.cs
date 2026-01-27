@@ -4940,6 +4940,10 @@ public unsafe struct mjData_ {
   public int nbody_awake;
   public int nparent_awake;
   public int nv_awake;
+  public byte flg_energypos;
+  public byte flg_energyvel;
+  public byte flg_subtreevel;
+  public byte flg_rnepost;
   public double time;
   public fixed double energy[2];
   public void* buffer;

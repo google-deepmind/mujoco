@@ -6205,6 +6205,30 @@ struct MjData {
   void set_nv_awake(int value) {
     ptr_->nv_awake = value;
   }
+  mjtByte flg_energypos() const {
+    return ptr_->flg_energypos;
+  }
+  void set_flg_energypos(mjtByte value) {
+    ptr_->flg_energypos = value;
+  }
+  mjtByte flg_energyvel() const {
+    return ptr_->flg_energyvel;
+  }
+  void set_flg_energyvel(mjtByte value) {
+    ptr_->flg_energyvel = value;
+  }
+  mjtByte flg_subtreevel() const {
+    return ptr_->flg_subtreevel;
+  }
+  void set_flg_subtreevel(mjtByte value) {
+    ptr_->flg_subtreevel = value;
+  }
+  mjtByte flg_rnepost() const {
+    return ptr_->flg_rnepost;
+  }
+  void set_flg_rnepost(mjtByte value) {
+    ptr_->flg_rnepost = value;
+  }
   mjtNum time() const {
     return ptr_->time;
   }
@@ -11075,6 +11099,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flexvert_J", &MjData::flexvert_J)
     .property("flexvert_length", &MjData::flexvert_length)
     .property("flexvert_xpos", &MjData::flexvert_xpos)
+    .property("flg_energypos", &MjData::flg_energypos, &MjData::set_flg_energypos, reference())
+    .property("flg_energyvel", &MjData::flg_energyvel, &MjData::set_flg_energyvel, reference())
+    .property("flg_rnepost", &MjData::flg_rnepost, &MjData::set_flg_rnepost, reference())
+    .property("flg_subtreevel", &MjData::flg_subtreevel, &MjData::set_flg_subtreevel, reference())
     .property("geom_xmat", &MjData::geom_xmat)
     .property("geom_xpos", &MjData::geom_xpos)
     .property("iLD", &MjData::iLD)

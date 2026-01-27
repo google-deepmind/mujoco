@@ -1327,6 +1327,12 @@ static void _resetData(const mjModel* m, mjData* d, unsigned char debug_value) {
   d->time = 0;
   mju_zero(d->energy, 2);
 
+  // clear lazy evaluation flags
+  d->flg_energypos = 0;
+  d->flg_energyvel = 0;
+  d->flg_subtreevel = 0;
+  d->flg_rnepost = 0;
+
   //------------------------------ clear buffer, set defaults
 
   // fill buffer with debug_value (normally 0)
