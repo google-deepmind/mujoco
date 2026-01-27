@@ -207,7 +207,7 @@ void GuiView::DestroyTexture(ImTextureData* data) {
   }
 }
 
-bool GuiView::PrepareRenderable() {
+void GuiView::UpdateRenderable() {
   // Prepare the imgui draw commands. We must call this function even if we do
   // not plan on rendering anything to ensure imgui state is updated.
   ImGui::Render();
@@ -217,6 +217,9 @@ bool GuiView::PrepareRenderable() {
   const ImVec2& size = io.DisplaySize;
   const ImVec2& scale = io.DisplayFramebufferScale;
   ImDrawData* commands = ImGui::GetDrawData();
+  if (!commands) {
+    return;
+  }
   commands->ScaleClipRects(scale);
 
   int num_elements = 0;
@@ -257,7 +260,12 @@ bool GuiView::PrepareRenderable() {
   }
 
   if (size.x == 0 || size.y == 0 || num_elements == 0) {
-    return false;
+    if (num_elements_ > 0) {
+      scene_->remove(renderable_);
+      rm.destroy(renderable_);
+    }
+    num_elements_ = 0;
+    return;
   }
 
   view_->setViewport(
@@ -339,7 +347,6 @@ bool GuiView::PrepareRenderable() {
       ++drawable_index;
     }
   }
-  return true;
 }
 
 filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
@@ -360,7 +367,9 @@ filament::MaterialInstance* GuiView::GetMaterialInstance(int index,
   return instance;
 }
 
-filament::View* GuiView::PrepareRenderView() { return view_; }
+filament::View* GuiView::PrepareRenderView() {
+  return num_elements_ > 0 ? view_ : nullptr;
+}
 
 static ImVec2 ClipSpaceToWindowCoordinates(float x, float y) {
   const ImVec2& display_size = ImGui::GetIO().DisplaySize;

@@ -42,7 +42,7 @@ class GuiView {
   // Prepares the UX scene renderable using data from the current ImGui state.
   // This function must be called once per frame to ensure ImGui state is
   // correctly synced.
-  bool PrepareRenderable();
+  void UpdateRenderable();
 
   // Returns the filament::View used to render the UX scene.
   filament::View* PrepareRenderView();

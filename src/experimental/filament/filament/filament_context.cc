@@ -75,12 +75,12 @@ FilamentContext::FilamentContext(const mjrFilamentConfig* config,
   engine_ = filament::Engine::create(backend);
   renderer_ = engine_->createRenderer();
   #ifdef __EMSCRIPTEN__
-    swap_chain_ = engine_->createSwapChain(nullptr);
+    window_swap_chain_ = engine_->createSwapChain(nullptr);
   #else
   if (config_.native_window) {
-    swap_chain_ = engine_->createSwapChain(config_.native_window);
+    window_swap_chain_ = engine_->createSwapChain(config_.native_window);
   } else {
-    swap_chain_ = engine_->createSwapChain(width, height);
+    window_swap_chain_ = engine_->createSwapChain(width, height);
   }
   #endif
 
@@ -129,7 +129,7 @@ FilamentContext::~FilamentContext() {
   scene_view_.reset();
   object_manager_.reset();
   engine_->destroy(renderer_);
-  engine_->destroy(swap_chain_);
+  engine_->destroy(window_swap_chain_);
   engine_->destroy(offscreen_swap_chain_);
   filament::Engine::destroy(engine_);
 }
@@ -142,14 +142,13 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
 
   scene_view_->SetViewport(viewport);
   scene_view_->UpdateScene(con, scene);
-
-  // Draw the GUI. We do this after processing the scene in case there are any
-  // label elements in the scene.
-  if (gui_view_ && !render_to_texture_) {
+  // Update the UX renderable entity after processing the scene in case there
+  // are any elements in the scene which generate UX draw calls (e.g. labels).
+  if (gui_view_) {
     // Prepare the filament Renderable that contains the GUI draw commands. We
     // must call this function even if we do not plan on rendering the GUI to
     // ensure the ImGui state is updated.
-    render_gui_ = gui_view_->PrepareRenderable();
+    gui_view_->UpdateRenderable();
   }
 
   last_render_mode_ = SceneView::DrawMode::kNormal;
@@ -160,22 +159,26 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
   }
 
   // Render the frame if we're not rendering to a texture.
-  if (!render_to_texture_) {
-    filament::View* view = scene_view_->PrepareRenderView(last_render_mode_);
-
+  if (scene_swap_chain_target_ == kWindowSwapChain) {
     #ifndef __EMSCRIPTEN__
-    // Wait until previous frame is completed before requesting a new frame.
-    engine_->flushAndWait();
+      // Wait until previous frame is completed before requesting a new frame.
+      engine_->flushAndWait();
     #endif
 
-    if (renderer_->beginFrame(swap_chain_)) {
-      renderer_->render(view);
-      if (render_gui_) {
-        renderer_->render(gui_view_->PrepareRenderView());
-        render_gui_ = false;
+    if (renderer_->beginFrame(window_swap_chain_)) {
+      filament::View* fview = scene_view_->PrepareRenderView(last_render_mode_);
+      renderer_->render(fview);
+
+      if (gui_swap_chain_target_ == kWindowSwapChain) {
+        fview = gui_view_ ? gui_view_->PrepareRenderView() : nullptr;
+        if (fview) {
+          renderer_->render(fview);
+        }
       }
+
       renderer_->endFrame();
     }
+
     #ifdef __EMSCRIPTEN__
       engine_->execute();
     #endif
@@ -183,8 +186,24 @@ void FilamentContext::Render(const mjrRect& viewport, const mjvScene* scene,
 }
 
 void FilamentContext::SetFrameBuffer(int framebuffer) {
-  render_to_texture_ = (framebuffer != 0);
-  if (!render_to_texture_) {
+  switch (framebuffer) {
+    case mjFB_WINDOW:
+      scene_swap_chain_target_ = kWindowSwapChain;
+      gui_swap_chain_target_ = kWindowSwapChain;
+      break;
+    case mjFB_OFFSCREEN:
+      scene_swap_chain_target_ = kOffscreenSwapChain;
+      gui_swap_chain_target_ = kWindowSwapChain;
+      break;
+    case 2:  // No official constant fo this.
+      scene_swap_chain_target_ = kOffscreenSwapChain;
+      gui_swap_chain_target_ = kOffscreenSwapChain;
+      break;
+    default:
+      mju_error("Invalid framebuffer mode: %d", framebuffer);
+  }
+
+  if (framebuffer == 0) {
     DestroyRenderTargets();
   }
 }
@@ -251,7 +270,7 @@ static void ReadDepthPixels(filament::Renderer* renderer,
 
 void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
                                  float* depth) {
-  if (!render_to_texture_) {
+  if (scene_swap_chain_target_ != kOffscreenSwapChain) {
     mju_error("Cannot read pixels unless framebuffer is set.");
   }
   if (color_target_ == nullptr || depth_target_ == nullptr) {
@@ -265,37 +284,48 @@ void FilamentContext::ReadPixels(mjrRect viewport, unsigned char* rgb,
   }
 
   if (rgb) {
-    filament::View* view =
-        scene_view_->PrepareRenderView(last_render_mode_);
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
+      filament::View* fview =
+          scene_view_->PrepareRenderView(last_render_mode_);
+
       // We need to disable msaa in order to render to texture.
-      auto options = view->getMultiSampleAntiAliasingOptions();
-      view->setMultiSampleAntiAliasingOptions({
+      auto options = fview->getMultiSampleAntiAliasingOptions();
+      fview->setMultiSampleAntiAliasingOptions({
           .enabled = false,
       });
-      view->setRenderTarget(color_target_);
-      renderer_->render(view);
+      fview->setRenderTarget(color_target_);
+      renderer_->render(fview);
+      fview->setRenderTarget(nullptr);
+      fview->setMultiSampleAntiAliasingOptions(options);
+
+      // Render the GUI to the texture as well if requested.
+      if (gui_swap_chain_target_ == kOffscreenSwapChain) {
+        fview = gui_view_ ? gui_view_->PrepareRenderView() : nullptr;
+        if (fview) {
+          fview->setRenderTarget(color_target_);
+          renderer_->render(fview);
+          fview->setRenderTarget(nullptr);
+        }
+      }
 
       const size_t num_bytes = viewport.width * viewport.height * 3;
       ReadColorPixels(renderer_, color_target_, viewport, rgb, num_bytes);
 
-      view->setRenderTarget(nullptr);
-      view->setMultiSampleAntiAliasingOptions(options);
       renderer_->endFrame();
     }
   }
 
   if (depth) {
-    filament::View* view =
-        scene_view_->PrepareRenderView(SceneView::DrawMode::kDepth);
     if (renderer_->beginFrame(offscreen_swap_chain_)) {
-      view->setRenderTarget(depth_target_);
-      renderer_->render(view);
+      filament::View* fview =
+          scene_view_->PrepareRenderView(SceneView::DrawMode::kDepth);
+      fview->setRenderTarget(depth_target_);
+      renderer_->render(fview);
+      fview->setRenderTarget(nullptr);
 
       const size_t num_bytes = viewport.width * viewport.height * sizeof(float);
       ReadDepthPixels(renderer_, depth_target_, viewport, depth, num_bytes);
 
-      view->setRenderTarget(nullptr);
       renderer_->endFrame();
     }
   }
