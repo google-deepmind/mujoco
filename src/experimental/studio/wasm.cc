@@ -91,7 +91,11 @@ void Init() {
   resource_provider.prefix = "filament";
   mjp_registerResourceProvider(&resource_provider);
 
-  g_app = new mujoco::studio::App(width, height, ini_path);
+  g_app = new mujoco::studio::App({
+    .width = width,
+    .height = height,
+    .ini_path = ini_path,
+  });
   g_app->InitEmptyModel();
 }
 

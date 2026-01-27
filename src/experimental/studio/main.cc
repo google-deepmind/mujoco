@@ -31,6 +31,7 @@
 ABSL_FLAG(int, window_width, 1400, "Window width");
 ABSL_FLAG(int, window_height, 720, "Window height");
 ABSL_FLAG(std::string, model_file, "", "MuJoCo model file.");
+ABSL_FLAG(bool, offscreen_mode, false, "Offscreen mode");
 
 std::string Resolve(std::string_view path) {
   std::string_view subpath = path.substr(path.find(':') + 1);
@@ -100,7 +101,13 @@ int main(int argc, char** argv, char** envp) {
 
   const int width = absl::GetFlag(FLAGS_window_width);
   const int height = absl::GetFlag(FLAGS_window_height);
-  mujoco::studio::App app(width, height, ini_path);
+  const bool offscreen_mode = absl::GetFlag(FLAGS_offscreen_mode);
+  mujoco::studio::App app({
+    .width = width,
+    .height = height,
+    .ini_path = ini_path,
+    .offscreen_mode = offscreen_mode,
+  });
 
   // If the model file is not specified, try to load it from the first argument
   std::string model_file = absl::GetFlag(FLAGS_model_file);

@@ -39,7 +39,22 @@ namespace mujoco::studio {
 // Owns, updates, and renders a MuJoCo simulation.
 class App {
  public:
-  App(int width, int height, std::string ini_path);
+  // Configuration/initialization options for the application.
+  struct Config {
+    // The original width and height of the window.
+    int width = 0;
+    int height = 0;
+
+    // The path to the ini file containing the user settings.
+    std::string ini_path;
+
+    // By default, we render directly to the window surface. However, in some
+    // cases, we may want to render to an (offscreen) texture and blit the
+    // texture to the window surface.
+    bool offscreen_mode = false;
+  };
+
+  explicit App(Config config);
 
   // Loads an empty mjModel.
   void InitEmptyModel();
@@ -211,6 +226,7 @@ class App {
   mjSpec* spec_ = nullptr;
   mjModel* model_ = nullptr;
   mjData* data_ = nullptr;
+  std::vector<std::byte> pixels_;
 
   mjvCamera camera_;
   mjvPerturb perturb_;

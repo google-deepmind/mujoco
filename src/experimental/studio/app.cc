@@ -46,17 +46,16 @@
 
 namespace mujoco::studio {
 
-static constexpr platform::Window::Config kWindowConfig = {
+static constexpr platform::Window::RenderConfig kRenderConfig =
 #if defined(__EMSCRIPTEN__)
-    .render_config = platform::Window::RenderConfig::kFilamentWebGL,
+  platform::Window::RenderConfig::kFilamentWebGL;
 #elif defined(USE_FILAMENT_VULKAN)
-    .render_config = platform::Window::RenderConfig::kFilamentVulkan,
+  platform::Window::RenderConfig::kFilamentVulkan;
 #elif defined(USE_FILAMENT_OPENGL)
-    .render_config = platform::Window::RenderConfig::kFilamentOpenGL,
+  platform::Window::RenderConfig::kFilamentOpenGL;
 #elif defined(USE_CLASSIC_OPENGL)
-    .render_config = platform::Window::RenderConfig::kClassicOpenGL,
+  platform::Window::RenderConfig::kClassicOpenGL;
 #endif
-};
 
 static void ToggleFlag(mjtByte& flag) { flag = flag ? 0 : 1; }
 
@@ -113,10 +112,13 @@ static constexpr std::array<const char*, 31> kPercentRealTime = {
 };
 // clang-format on
 
-App::App(int width, int height, std::string ini_path)
-    : ini_path_(std::move(ini_path)) {
-  window_ = std::make_unique<platform::Window>("MuJoCo Studio", width, height,
-                                               kWindowConfig);
+App::App(Config config)
+    : ini_path_(std::move(config.ini_path)) {
+  platform::Window::Config window_config;
+  window_config.render_config = kRenderConfig;
+  window_config.offscreen_mode = config.offscreen_mode;
+  window_ = std::make_unique<platform::Window>("MuJoCo Studio", config.width,
+                                               config.height, window_config);
   renderer_ =
       std::make_unique<platform::Renderer>(window_->GetNativeWindowHandle());
 
@@ -428,11 +430,16 @@ void App::Render() {
   const float height = window_->GetHeight();
   const float scale = window_->GetScale();
 
+  if (window_->IsOffscreenMode()) {
+    pixels_.resize(width * height * 3);
+  } else {
+    pixels_.clear();
+  }
   renderer_->Render(model_, data_, &perturb_, &camera_, &vis_options_,
-                    width * scale, height * scale);
+                    width * scale, height * scale, pixels_);
 
   window_->EndFrame();
-  window_->Present();
+  window_->Present(pixels_);
 
   if (data_) {
     for (int i = 0; i < mjNTIMER; i++) {
