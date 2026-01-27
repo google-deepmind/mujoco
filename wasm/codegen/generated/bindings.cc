@@ -4486,6 +4486,15 @@ struct MjModel {
   emscripten::val flex_vertbodyid() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertbodyid));
   }
+  emscripten::val flex_vertedgeadr() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertedgeadr));
+  }
+  emscripten::val flex_vertedgenum() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert, ptr_->flex_vertedgenum));
+  }
+  emscripten::val flex_vertedge() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 2, ptr_->flex_vertedge));
+  }
   emscripten::val flex_edge() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexedge * 2, ptr_->flex_edge));
   }
@@ -4515,6 +4524,9 @@ struct MjModel {
   }
   emscripten::val flex_vert0() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 3, ptr_->flex_vert0));
+  }
+  emscripten::val flex_vertmetric() const {
+    return emscripten::val(emscripten::typed_memory_view(ptr_->nflexvert * 4, ptr_->flex_vertmetric));
   }
   emscripten::val flex_node() const {
     return emscripten::val(emscripten::typed_memory_view(ptr_->nflexnode * 3, ptr_->flex_node));
@@ -11389,6 +11401,10 @@ EMSCRIPTEN_BINDINGS(mujoco_bindings) {
     .property("flex_vert0", &MjModel::flex_vert0)
     .property("flex_vertadr", &MjModel::flex_vertadr)
     .property("flex_vertbodyid", &MjModel::flex_vertbodyid)
+    .property("flex_vertedge", &MjModel::flex_vertedge)
+    .property("flex_vertedgeadr", &MjModel::flex_vertedgeadr)
+    .property("flex_vertedgenum", &MjModel::flex_vertedgenum)
+    .property("flex_vertmetric", &MjModel::flex_vertmetric)
     .property("flex_vertnum", &MjModel::flex_vertnum)
     .property("flexedge_J_colind", &MjModel::flexedge_J_colind)
     .property("flexedge_J_rowadr", &MjModel::flexedge_J_rowadr)

@@ -372,6 +372,9 @@
     X   ( int,     flex_texcoordadr,      nflex,         1                    ) \
     X   ( int,     flex_nodebodyid,       nflexnode,     1                    ) \
     X   ( int,     flex_vertbodyid,       nflexvert,     1                    ) \
+    X   ( int,     flex_vertedgeadr,      nflexvert,     1                    ) \
+    X   ( int,     flex_vertedgenum,      nflexvert,     1                    ) \
+    X   ( int,     flex_vertedge,         nflexedge,     2                    ) \
     X   ( int,     flex_edge,             nflexedge,     2                    ) \
     X   ( int,     flex_edgeflap,         nflexedge,     2                    ) \
     X   ( int,     flex_elem,             nflexelemdata, 1                    ) \
@@ -382,6 +385,7 @@
     X   ( int,     flex_evpair,           nflexevpair,   2                    ) \
     X   ( mjtNum,  flex_vert,             nflexvert,     3                    ) \
     X   ( mjtNum,  flex_vert0,            nflexvert,     3                    ) \
+    X   ( mjtNum,  flex_vertmetric,       nflexvert,     4                    ) \
     X   ( mjtNum,  flex_node,             nflexnode,     3                    ) \
     X   ( mjtNum,  flex_node0,            nflexnode,     3                    ) \
     X   ( mjtNum,  flexedge_length0,      nflexedge,     1                    ) \

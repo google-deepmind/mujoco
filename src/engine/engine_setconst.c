@@ -307,7 +307,14 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
   mju_zeroInt(rowadr, m->nflexedge);
   mju_zeroInt(rownnz, m->nflexedge);
   mju_zeroInt(vrowadr, 2 * m->nflexvert);
+  mju_zeroInt(vrowadr, 2 * m->nflexvert);
   mju_zeroInt(vrownnz, 2 * m->nflexvert);
+  mju_zeroInt(m->flex_vertedgeadr, m->nflexvert);
+  mju_zeroInt(m->flex_vertedgenum, m->nflexvert);
+  mju_zeroInt(m->flex_vertedge, 2 * m->nflexedge);
+  mju_zeroInt(m->flex_vertedge, 2 * m->nflexedge);
+  mju_zero(m->flex_vertmetric, 4 * m->nflexvert);
+  int current_adj_offset = 0;
 
   // compute lengths and Jacobians of edges
   for (int f = 0; f < m->nflex; f++) {
@@ -351,18 +358,18 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
     if (m->flex_dim[f] == 2 && m->flex_edgeequality[f] == 2) {
       int nvert = m->flex_vertnum[f];
 
-      // build vertex adjacency list local to this function
-      int* v_edge_cnt = mjSTACKALLOC(d, nvert, int);
-      int* v_edge_adr = mjSTACKALLOC(d, nvert, int);
-      int* adj_edges = mjSTACKALLOC(d, 2 * m->flex_edgenum[f], int);
-      mju_zeroInt(v_edge_cnt, nvert);
+      // populate global vertex adjacency list
+      int* v_edge_cnt = m->flex_vertedgenum + vbase;
+      int* v_edge_adr = m->flex_vertedgeadr + vbase;
+      int* adj_edges = m->flex_vertedge;  // global array
+
       for (int e = 0; e < m->flex_edgenum[f]; ++e) {
         v_edge_cnt[m->flex_edge[2 * (ebase + e) + 0]]++;
         v_edge_cnt[m->flex_edge[2 * (ebase + e) + 1]]++;
       }
       int total_adj_edges = 0;
       for (int v = 0; v < nvert; ++v) {
-        v_edge_adr[v] = total_adj_edges;
+        v_edge_adr[v] = current_adj_offset + total_adj_edges;
         total_adj_edges += v_edge_cnt[v];
       }
       int* v_edge_fill = mjSTACKALLOC(d, nvert, int);
@@ -375,6 +382,64 @@ static void makeFlexSparse(mjModel* m, mjData* d) {
         adj_edges[v_edge_adr[v2] + v_edge_fill[v2]] = e;
         v_edge_fill[v2]++;
       }
+
+      // precompute metric (Binv)
+      for (int v = 0; v < nvert; ++v) {
+        mjtNum B[4] = {0};
+        int v_global = vbase + v;
+
+        for (int k = 0; k < v_edge_cnt[v]; ++k) {
+          int e = adj_edges[v_edge_adr[v] + k];
+
+          // compute rest edge vector
+          mjtNum dx[3];
+          int v1 = m->flex_edge[2 * (ebase + e)];
+          int v2 = m->flex_edge[2 * (ebase + e) + 1];
+          mju_sub3(dx, m->flex_vert0 + 3 * (vbase + v2),
+                   m->flex_vert0 + 3 * (vbase + v1));
+
+          // apply scaling since they are half sizes
+          dx[0] *= 2 * m->flex_size[3 * f + 0];
+          dx[1] *= 2 * m->flex_size[3 * f + 1];
+          dx[2] *= 2 * m->flex_size[3 * f + 2];
+
+          if (mju_abs(dx[2]) > mjMINVAL) {
+            mjERROR("flex vertices are not in the same plane");
+          }
+
+          // get mass of neighbor vertex
+          mjtNum weight = 1.0;
+          int neighbor_v = (v == v1) ? v2 : v1;
+          int b_neighbor = m->flex_vertbodyid[vbase + neighbor_v];
+          if (b_neighbor >= 0) {
+            weight = m->body_mass[b_neighbor];
+            if (weight < mjMINVAL) weight = mjMINVAL;
+          }
+
+          // accumulate B += w * dx * dx'
+          for (int row = 0; row < 2; row++) {
+            for (int col = 0; col < 2; col++) {
+              B[2 * row + col] += weight * dx[row] * dx[col];
+            }
+          }
+        }
+
+        mjtNum* metric = m->flex_vertmetric + 4 * v_global;
+        mjtNum det = B[0] * B[3] - B[1] * B[2];
+
+        if (mju_abs(det) < mjMINVAL) {
+          mju_zero(metric, 4);
+        } else {
+          mjtNum invdet = 1.0 / det;
+          metric[0] = B[3] * invdet;
+          metric[1] = -B[1] * invdet;
+          metric[2] = -B[2] * invdet;
+          metric[3] = B[0] * invdet;
+        }
+      }
+
+      // advance global offset
+      current_adj_offset += total_adj_edges;
 
       // determine start address for this flex
       int v0_base = 2 * vbase;
