@@ -104,8 +104,6 @@ class App {
     bool style_editor = false;
     bool imgui_demo = false;
     bool implot_demo = false;
-    bool modal_open = false;
-    bool load_popup = false;
 
     // Controls.
     bool perturb_active = false;
@@ -129,18 +127,19 @@ class App {
     std::vector<platform::PipState> pips;
 
     // File dialogs.
+    enum FileDialog {
+      FileDialog_None,
+      FileDialog_Load,
+      FileDialog_SaveXml,
+      FileDialog_SaveMjb,
+      FileDialog_PrintModel,
+      FileDialog_PrintData,
+      FileDialog_SaveScreenshot,
+      NumFileDialogs,
+    };
+    FileDialog file_dialog = FileDialog_None;
+    std::string last_path[NumFileDialogs];
     char filename[1000] = "";
-    std::string last_load_file;
-    bool save_xml_popup = false;
-    std::string last_save_xml_file;
-    bool save_mjb_popup = false;
-    std::string last_save_mjb_file;
-    bool save_screenshot_popup = false;
-    std::string last_save_screenshot_file;
-    bool print_model_popup = false;
-    std::string last_print_model_file;
-    bool print_data_popup = false;
-    std::string last_print_data_file;
   };
 
   // Requests that the model be loaded from the given file at the next update.

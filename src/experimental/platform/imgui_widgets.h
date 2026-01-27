@@ -131,9 +131,6 @@ struct ScopedStyle {
   int num_vars = 0;
 };
 
-// ImGui file dialog.
-bool ImGui_FileDialog(char* buf, int len);
-
 // ImGui Slider that supports both float and double types.
 bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max);
 

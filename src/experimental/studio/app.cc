@@ -33,6 +33,7 @@
 #include <implot.h>
 #include <mujoco/mujoco.h>
 #include "experimental/platform/gui.h"
+#include "experimental/platform/file_dialog.h"
 #include "experimental/platform/helpers.h"
 #include "experimental/platform/imgui_widgets.h"
 #include "experimental/platform/interaction.h"
@@ -62,12 +63,6 @@ static void ToggleFlag(mjtByte& flag) { flag = flag ? 0 : 1; }
 static void ToggleWindow(bool& window) {
   window = !window;
   ImGui::GetIO().WantSaveIniSettings = true;
-}
-
-static void ShowFileDialog(bool& dialog) {
-  #ifndef __EMSCRIPTEN__
-    dialog = true;
-  #endif
 }
 
 static void SelectParentPerturb(const mjModel* model, mjvPerturb& perturb) {
@@ -314,12 +309,18 @@ void App::UpdateFilePaths(const std::string& resolved_path) {
     const std::filesystem::path path(resolved_path);
     const std::string base_path = path.parent_path().string() + "/";
     const std::string model_name = path.stem().string();
-    tmp_.last_load_file = base_path + model_name + ".xml";
-    tmp_.last_save_mjb_file = base_path + model_name + "_saved.mjb";
-    tmp_.last_save_xml_file = base_path + model_name + "_saved.xml";
-    tmp_.last_print_model_file = base_path + model_name + "_MJMODEL.TXT";
-    tmp_.last_print_data_file = base_path + model_name + "_MJDATA.TXT";
-    tmp_.last_save_screenshot_file = base_path + "screenshot.webp";
+    tmp_.last_path[UiTempState::FileDialog_Load] =
+        base_path + model_name + ".xml";
+    tmp_.last_path[UiTempState::FileDialog_SaveMjb] =
+        base_path + model_name + "_saved.mjb";
+    tmp_.last_path[UiTempState::FileDialog_SaveXml] =
+        base_path + model_name + "_saved.xml";
+    tmp_.last_path[UiTempState::FileDialog_PrintModel] =
+        base_path + model_name + "_MJMODEL.TXT";
+    tmp_.last_path[UiTempState::FileDialog_PrintData] =
+        base_path + model_name + "_MJDATA.TXT";
+    tmp_.last_path[UiTempState::FileDialog_SaveScreenshot] =
+        base_path + "screenshot.webp";
   }
 }
 
@@ -415,7 +416,7 @@ bool App::Update() {
 
   // Only update the simulation if a popup window is not open. Note that the
   // simulation itself will only update if it is not paused.
-  if (!tmp_.modal_open) {
+  if (tmp_.file_dialog == UiTempState::FileDialog_None) {
     UpdatePhysics();
   }
 
@@ -603,17 +604,17 @@ void App::HandleKeyboardEvents() {
 
   // Menu shortcuts.
   if (ImGui_IsChordJustPressed(ImGuiKey_O | ImGuiMod_Ctrl)) {
-    ShowFileDialog(tmp_.load_popup);
+    tmp_.file_dialog = UiTempState::FileDialog_Load;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_S | ImGuiMode_CtrlShift)) {
-    ShowFileDialog(tmp_.save_mjb_popup);
+    tmp_.file_dialog = UiTempState::FileDialog_SaveMjb;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_S | ImGuiMod_Ctrl)) {
-    ShowFileDialog(tmp_.save_xml_popup);
+    tmp_.file_dialog = UiTempState::FileDialog_SaveXml;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_M | ImGuiMod_Ctrl)) {
-    ShowFileDialog(tmp_.print_model_popup);
+    tmp_.file_dialog = UiTempState::FileDialog_PrintModel;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_D | ImGuiMod_Ctrl)) {
-    ShowFileDialog(tmp_.print_data_popup);
+    tmp_.file_dialog = UiTempState::FileDialog_PrintData;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_P | ImGuiMod_Ctrl)) {
-    ShowFileDialog(tmp_.save_screenshot_popup);
+    tmp_.file_dialog = UiTempState::FileDialog_SaveScreenshot;
   } else if (ImGui_IsChordJustPressed(ImGuiKey_C | ImGuiMod_Ctrl)) {
     std::string keyframe = platform::KeyframeToString(model_, data_, false);
     platform::MaybeSaveToClipboard(keyframe);
@@ -1596,24 +1597,24 @@ void App::MainMenuGui() {
     if (ImGui::BeginMenu("File")) {
       #ifndef __EMSCRIPTEN__
       if (ImGui::MenuItem("Open Model File", "Ctrl+O")) {
-        ShowFileDialog(tmp_.load_popup);
+        tmp_.file_dialog = UiTempState::FileDialog_Load;
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Save XML", "Ctrl+S")) {
-        ShowFileDialog(tmp_.save_xml_popup);
+        tmp_.file_dialog = UiTempState::FileDialog_SaveXml;
       }
       if (ImGui::MenuItem("Save MJB", "Ctrl+Shift+S")) {
-        ShowFileDialog(tmp_.save_mjb_popup);
+        tmp_.file_dialog = UiTempState::FileDialog_SaveMjb;
       }
       if (ImGui::MenuItem("Save Screenshot", "Ctrl+P")) {
-        ShowFileDialog(tmp_.save_screenshot_popup);
+        tmp_.file_dialog = UiTempState::FileDialog_SaveScreenshot;
       }
       ImGui::Separator();
       if (ImGui::MenuItem("Print Model", "Ctrl+M")) {
-        ShowFileDialog(tmp_.print_model_popup);
+        tmp_.file_dialog = UiTempState::FileDialog_PrintModel;
       }
       if (ImGui::MenuItem("Print Data", "Ctrl+D")) {
-        ShowFileDialog(tmp_.print_data_popup);
+        tmp_.file_dialog = UiTempState::FileDialog_PrintData;
       }
       ImGui::Separator();
       #endif  // !__EMSCRIPTEN__
@@ -1728,110 +1729,66 @@ void App::MainMenuGui() {
 }
 
 void App::FileDialogGui() {
+  if (tmp_.file_dialog == UiTempState::FileDialog_None) {
+    return;
+  }
+
   ImVec2 center = ImGui::GetMainViewport()->GetCenter();
   ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  if (ImGui::BeginPopupModal("FileDialog", NULL,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    const platform::DialogResult res = platform::OpenFileDialog(tmp_.filename);
 
-  if (tmp_.load_popup) {
-    ImGui::OpenPopup("LoadModel");
-    tmp_.load_popup = false;
-    strncpy(tmp_.filename, tmp_.last_load_file.c_str(),
-            tmp_.last_load_file.size());
-    tmp_.filename[tmp_.last_load_file.size()] = 0;
-  }
-  if (tmp_.save_xml_popup) {
-    ImGui::OpenPopup("SaveXML");
-    tmp_.save_xml_popup = false;
-    strncpy(tmp_.filename, tmp_.last_save_xml_file.c_str(),
-            tmp_.last_save_xml_file.size());
-    tmp_.filename[tmp_.last_save_xml_file.size()] = 0;
-  }
-  if (tmp_.save_mjb_popup) {
-    ImGui::OpenPopup("SaveMJB");
-    tmp_.save_mjb_popup = false;
-    strncpy(tmp_.filename, tmp_.last_save_mjb_file.c_str(),
-            tmp_.last_save_mjb_file.size());
-    tmp_.filename[tmp_.last_save_mjb_file.size()] = 0;
-  }
-  if (tmp_.save_screenshot_popup) {
-    ImGui::OpenPopup("SaveWebp");
-    tmp_.save_screenshot_popup = false;
-    strncpy(tmp_.filename, tmp_.last_save_screenshot_file.c_str(),
-            tmp_.last_save_screenshot_file.size());
-    tmp_.filename[tmp_.last_save_screenshot_file.size()] = 0;
-  }
-  if (tmp_.print_model_popup) {
-    ImGui::OpenPopup("PrintModel");
-    tmp_.print_model_popup = false;
-    strncpy(tmp_.filename, tmp_.last_print_model_file.c_str(),
-            tmp_.last_print_model_file.size());
-    tmp_.filename[tmp_.last_print_model_file.size()] = 0;
-  }
-  if (tmp_.print_data_popup) {
-    ImGui::OpenPopup("PrintData");
-    tmp_.print_data_popup = false;
-    strncpy(tmp_.filename, tmp_.last_print_data_file.c_str(),
-            tmp_.last_print_data_file.size());
-    tmp_.filename[tmp_.last_print_data_file.size()] = 0;
+    if (res.status == platform::DialogResult::kAccepted) {
+      tmp_.last_path[tmp_.file_dialog] = res.path;
+      switch (tmp_.file_dialog) {
+        case UiTempState::FileDialog_Load:
+          RequestModelLoad(res.path);
+          break;
+        case UiTempState::FileDialog_SaveXml:
+          mj_saveLastXML(res.path.c_str(), model_, nullptr, 0);
+          break;
+        case UiTempState::FileDialog_SaveMjb:
+          mj_saveModel(model_, res.path.c_str(), nullptr, 0);
+          break;
+        case UiTempState::FileDialog_SaveScreenshot: {
+          const int width = window_->GetWidth();
+          const int height = window_->GetHeight();
+          std::vector<std::byte> buffer(width * height * 3);
+          renderer_->RenderToTexture(model_, data_, &camera_, width, height,
+                                     buffer.data());
+          platform::SaveToWebp(width, height, buffer.data(), res.path);
+          break;
+        }
+        case UiTempState::FileDialog_PrintModel:
+          mj_printModel(model_, res.path.c_str());
+          break;
+        case UiTempState::FileDialog_PrintData:
+          mj_printData(model_, data_, res.path.c_str());
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (res.status != platform::DialogResult::kError) {
+      strncpy(tmp_.filename, res.path.c_str(), res.path.size());
+      tmp_.filename[res.path.size()] = 0;
+    }
+    if (res.status != platform::DialogResult::kPending) {
+      tmp_.file_dialog = UiTempState::FileDialog_None;
+      ImGui::CloseCurrentPopup();
+      window_->EnableWindowResizing();
+    }
+    ImGui::EndPopup();
   }
 
-  tmp_.modal_open =
-      ImGui::IsPopupOpen("LoadModel") || ImGui::IsPopupOpen("SaveXML") ||
-      ImGui::IsPopupOpen("SaveMJB") || ImGui::IsPopupOpen("SaveWebp") ||
-      ImGui::IsPopupOpen("PrintModel") || ImGui::IsPopupOpen("PrintData");
-
-  if (ImGui::BeginPopupModal("LoadModel", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      RequestModelLoad(tmp_.filename);
-      tmp_.last_load_file = tmp_.filename;
-    }
-    ImGui::EndPopup();
-  }
-  if (ImGui::BeginPopupModal("SaveXML", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      char err[1000] = "";
-      mj_saveLastXML(tmp_.filename, model_, err, 1000);
-      tmp_.last_save_xml_file = tmp_.filename;
-    }
-    ImGui::EndPopup();
-  }
-  if (ImGui::BeginPopupModal("SaveMJB", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      mj_saveModel(model_, tmp_.filename, nullptr, 0);
-      tmp_.last_save_mjb_file = tmp_.filename;
-    }
-    ImGui::EndPopup();
-  }
-  if (ImGui::BeginPopupModal("SaveWebp", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      const int width = window_->GetWidth();
-      const int height = window_->GetHeight();
-      std::vector<std::byte> buffer(width * height * 3);
-      renderer_->RenderToTexture(model_, data_, &camera_, width, height,
-                                 buffer.data());
-      platform::SaveToWebp(width, height, buffer.data(), tmp_.filename);
-      tmp_.last_save_screenshot_file = tmp_.filename;
-    }
-    ImGui::EndPopup();
-  }
-  if (ImGui::BeginPopupModal("PrintModel", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      mj_printModel(model_, tmp_.filename);
-      tmp_.last_print_model_file = tmp_.filename;
-    }
-    ImGui::EndPopup();
-  }
-  if (ImGui::BeginPopupModal("PrintData", NULL,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (platform::ImGui_FileDialog(tmp_.filename, sizeof(tmp_.filename))) {
-      mj_printData(model_, data_, tmp_.filename);
-      tmp_.last_print_data_file = tmp_.filename;
-    }
-    ImGui::EndPopup();
+  if (!ImGui::IsPopupOpen("FileDialog")) {
+    const std::string& src = tmp_.last_path[tmp_.file_dialog];
+    strncpy(tmp_.filename, src.c_str(), src.size());
+    tmp_.filename[src.size()] = 0;
+    ImGui::OpenPopup("FileDialog");
+    window_->DisableWindowResizing();
   }
 }
 

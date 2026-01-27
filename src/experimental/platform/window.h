@@ -82,6 +82,12 @@ class Window {
   // the value will be cleared until the next time a file is dropped.
   std::string GetDropFile();
 
+  // Enables window resizing.
+  void EnableWindowResizing();
+
+  // Disables window resizing.
+  void DisableWindowResizing();
+
   // Returns the handle to the underlying native window.
   void* GetNativeWindowHandle() { return native_window_; }
 

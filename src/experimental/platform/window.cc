@@ -164,6 +164,13 @@ void Window::SetTitle(std::string_view title) {
   SDL_SetWindowTitle(sdl_window_, title.data());
 }
 
+void Window::DisableWindowResizing() {
+  SDL_SetWindowResizable(sdl_window_, SDL_FALSE);
+}
+void Window::EnableWindowResizing() {
+  SDL_SetWindowResizable(sdl_window_, SDL_TRUE);
+}
+
 std::string Window::GetDropFile() {
   std::string tmp;
   std::swap(tmp, drop_file_);

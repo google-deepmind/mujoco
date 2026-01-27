@@ -66,27 +66,6 @@ bool ImGui_Slider(const char* name, mjtNum* value, mjtNum min, mjtNum max) {
   return res;
 }
 
-bool ImGui_FileDialog(char* buf, int len) {
-  bool ok = false;
-  ImGui::Text("Filename");
-  ImGui::SameLine();
-  ImGui::SetNextItemWidth(600);
-  if (ImGui::InputText("##Filename", buf, len, ImGuiInputTextFlags_EnterReturnsTrue)) {
-    ok = true;
-    ImGui::CloseCurrentPopup();
-  };
-  if (ImGui::Button("OK", ImVec2(120, 0)) || ImGui_IsChordJustPressed(ImGuiKey_Enter)) {
-    ok = true;
-    ImGui::CloseCurrentPopup();
-  }
-  ImGui::SetItemDefaultFocus();
-  ImGui::SameLine();
-  if (ImGui::Button("Cancel", ImVec2(120, 0)) || ImGui_IsChordJustPressed(ImGuiKey_Escape)) {
-    ImGui::CloseCurrentPopup();
-  }
-  return ok;
-}
-
 void MaybeSaveToClipboard(const std::string& contents) {
   if (ImGui::GetIO().SetClipboardTextFn) {
     ImGui::GetIO().SetClipboardTextFn(nullptr, contents.c_str());
