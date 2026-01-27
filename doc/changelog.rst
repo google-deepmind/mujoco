@@ -54,6 +54,8 @@ General
   See :ref:`rangefinder<sensor-rangefinder>` for details.
 - Cameras now have an :ref:`output<body-camera-output>` attribute, parsed into the ``mjModel.cam_output`` bitfield.
   Unused by the renderer, it serves as a convenient location to store a camera's supported output types.
+- Added :ref:`mj_mountVFS` and :ref:`mj_unmountVFS` functions for mounting a custom VFS provider. Mounting Allows
+  providers to be used to open/read/close resources dynamically at arbitrary paths.
 - Non-breaking ABI changes:
 
   - The type of the ``sig`` (signature) argument of :ref:`mj_stateSize` and related functions has been changed from

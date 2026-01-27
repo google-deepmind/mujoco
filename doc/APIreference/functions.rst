@@ -1357,6 +1357,25 @@ The VFS must first be allocated using :ref:`mj_defaultVFS` and must be freed wit
 
 Initialize an empty VFS, :ref:`mj_deleteVFS` must be called to deallocate the VFS.
 
+.. _mj_mountVFS:
+
+`mj_mountVFS <#mj_mountVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_mountVFS
+
+Mount a ResourceProvider to handle file operations under the given path; return 0: success,
+2: repeated name, -1: invalid resource provider.
+
+.. _mj_unmountVFS:
+
+`mj_unmountVFS <#mj_unmountVFS>`__
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. mujoco-include:: mj_unmountVFS
+
+Unmount a previously mounted ResourceProvider; return 0: success, -1: not found in VFS.
+
 .. _mj_addFileVFS:
 
 `mj_addFileVFS <#mj_addFileVFS>`__
